@@ -1,0 +1,22 @@
+Job ID: 26003647
+Node:   spartan-gpgpu016
+GPU:    0
+GPU 0: NVIDIA H100 80GB HBM3 (UUID: GPU-e292e058-d463-ab6d-41c7-26ef73f57e07)
+cuda: True NVIDIA H100 80GB HBM3
+Start:  Thu 11 Jun 2026 23:40:09 AEST
+device=cuda, nofruns=20, nofsteps=10000, fname=training_with_Ih.npy
+
+round 0
+
+
+Initl cost = 54.9655
+Final cost = 6.5792
+Best  cost = 3.8832
+time needed  = 1506.80  sec
+
+
+Initl cost = 3.8832
+Final cost = 3.7552
+Best  cost = 3.7545
+time needed  = 1504.95  sec
+

@@ -13,8 +13,7 @@ import torch
 from torch import nn
 from tqdm import tqdm
 
-device = 'cuda' if torch.cuda.is_available() else "cpu"
-device = "cpu"
+device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
 #################################################################
 # Medulla Library contains:
