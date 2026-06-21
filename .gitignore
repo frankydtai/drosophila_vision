@@ -1,1 +1,6 @@
 .venv/
+
+# FAFB connectome bulky data (regenerate via build_network.py / build_all.py)
+Connectome/**/network.json
+Connectome/**/*.csv.gz
+Connectome/**/download/

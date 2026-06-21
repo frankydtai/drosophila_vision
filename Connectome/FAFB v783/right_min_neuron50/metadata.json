@@ -1,0 +1,19 @@
+{
+  "side": "right",
+  "subsystems": [
+    "Color",
+    "Form",
+    "Luminance",
+    "Motion",
+    "OFF",
+    "ON",
+    "Object",
+    "Photoreceptors"
+  ],
+  "min_neuron_count": 50,
+  "min_syn_count": 5,
+  "n_neurons": 43462,
+  "n_cell_types": 140,
+  "n_columns": 796,
+  "n_connections": 601369
+}

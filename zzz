@@ -1,1 +1,1 @@
-cd /scratch/punim0477/yitai/temporal_filtering/SimulationCode && source ../.venv/bin/activate 2>/dev/null; echo "=== CONDUCTANCE ===" && python -u run.py local --model_type conductance --nofsteps 2 --lrs 0.1 && echo "=== ADAPTIVE ===" && python -u run.py local --model_type adaptive --nofsteps 200 --lrs 0.1 && echo "ALL DONE"
+.venv/bin/python SimulationCode/run.py local --model_type conductance --nofsteps 500 --lrs 0.1

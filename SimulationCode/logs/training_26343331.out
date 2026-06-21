@@ -1,0 +1,17 @@
+Job ID: 26343331
+Node:   spartan-gpgpu178
+GPU:    0
+GPU 0: NVIDIA H100 80GB HBM3 (UUID: GPU-3973b24e-c327-0b99-c4b6-28f1ba38cb0e)
+cuda: True NVIDIA H100 80GB HBM3
+Start:  Sun 21 Jun 2026 23:02:40 AEST
+param modes -> inp_gain:individual(65), out_gain:individual(65), Ih_gmax:individual(5), Ih_midv:individual(1), Ih_slope:individual(1), tau_midv:individual(1), out_scale:fixed(0)
+device=cuda, model_type=conductance, nofruns=1, nofsteps=10000, lrs=[0.1, 0.01, 0.001], nparams=138, fname=training_with_Ih.npy, outdir=FiveCol_Parameter/conductance/run_26343331
+
+round 0
+
+
+Initl cost = 72.9425
+Final cost = 12.2553
+Best  cost = 10.8189
+time needed  = 1520.51  sec
+
