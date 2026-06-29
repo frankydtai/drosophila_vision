@@ -1,0 +1,138 @@
+function finIndsCell = getProtocolIndices(expSt, traitValue, logicalOp)
+
+% function getProtocolIndices(expSt, traitValue, logicalOp)
+%
+% This function takes field value pairs of the extStructure and finds the
+% relevant protocol indices. 
+% 
+% For details on protocol traits write "help traitDefinitions"
+%
+% INPUT
+% expSt -      expStructure after protocols have been added (using the manual
+%              createProtocolScript). Should have protocol field already!
+% traitValue - NX3 cell array. Each row in the cell array should contain 
+%              trait name in its first position; 'eq' (equal), 'ne' (not equal), 'lt' (less than)
+%              or 'gt' (greater) in its second; and numeric value in the third. N is the number of field value pairs given
+%              Traits can be given in 3 letter shorthand or full name.
+%              Values should be given based on "help traitDefinitions"
+% logicalOp  - if N is greater than 1 a logical operation should be given
+%              to determine how the results should be combined. logicalOp should be a cellarray
+%              should be 1X(N-1) long and they will be proccessed sequentially. Possible values are
+%              'and', 'or', and 'not' <actually and not>.
+% example input traitValue = {'movement', 'eq', 'right'; 'object', 'ne', 'edge'},
+%               logicalOp = {'and'}
+% This will generate a list of all the protocol indices that have rightward
+% movement but do not have edges
+%
+% OUTPUT
+% finIndsCell - cell array of the relevant indicies divided based on
+%               protocol type (indicies in {1} are from type 1, in {2} from 2 and so on)
+
+traitBaseCell = {'Obj', 'object';       'Mov', 'movement';    'Typ', 'type'; ...
+                 'Brt', 'brightness';   'Wid', 'width';       'Chg', 'change'};
+                
+protTraitsCell = {expSt.protocol.Traits}; % since they could be of diff lengths
+numFVpairs = size(traitValue, 1);
+numProt = length(expSt.protocol);
+
+% covert traits to 3 letter format 
+for ii=1:numFVpairs
+    [tempRow, ~] = find(cellfun(@(x) strcmpi(x, traitValue{ii,1}), traitBaseCell));
+    if ~tempRow
+        disp([traitValue{ii,1}, 'is not a proper trait name'])
+        error('Aborted')
+    end
+    traitValue{ii,1} = traitBaseCell{tempRow, 1};
+end
+
+% checks that the input values are proper
+valchk = cellfun(@isnumeric, traitValue(:,3));
+if sum(valchk) < length(valchk)
+    error('Trait values should be numeric. Consult "help traitDefinitions" for help')
+end
+
+trVals = zeros(numFVpairs, numProt);
+
+for ii=1:numFVpairs
+     trPosArray = strfind(protTraitsCell, traitValue{ii,1});
+     
+     for jj=1:numProt
+         if trPosArray{jj}
+         tempVal = str2double(protTraitsCell{jj}((trPosArray{jj}+3):(trPosArray{jj}+4)));
+         trVals(ii, jj) = relevantComparison(traitValue{ii,2}, tempVal, traitValue{ii,3});
+         end
+     end
+     
+end
+
+finInds = trVals(1,:);
+
+if numFVpairs > 1
+    if length(logicalOp) ~= (numFVpairs-1)
+        error('logicalOp should have one less row than traitValue');
+    end
+    
+    for ii=1:length(logicalOp)
+        switch lower(logicalOp{ii})
+            case 'and'
+                finInds = finInds & trVals(ii+1,:);
+            case 'or'
+                finInds = finInds | trVals(ii+1,:);
+            case 'not'
+                finInds = finInds & ~trVals(ii+1,:);
+            otherwise
+                error('logicalOp should be either AND, NOT or OR')
+        end
+    end
+        
+    
+end
+
+% dividing by type
+protTypeInd = strfind(protTraitsCell,'Typ');
+typArray = zeros(1, numProt);
+
+for ii=1:numProt
+    if ~protTypeInd(ii)
+        disp(['protocol', num2str(ii), 'has no type definition') 
+        error('Aborted')
+    end
+    tmpTyp = protTraitsCell{ii}((protTypeInd{ii}+3):(protTypeInd{ii}+4));
+    typArray(ii) = str2double(tmpTyp);
+end
+
+allTyps = unique(typArray);
+
+
+
+end
+
+
+%%%%%%%%%%%%%%%%%%%%%%%%
+
+function logVal = relevantComparison(compVal, val1, val2)
+
+switch compVal
+    case 'eq'
+        logVal = val1 == val2;
+    case 'ne' 
+        logVal = val1 ~= val2;
+    case 'lt'
+        logVal = val1 < val2;
+    case 'gt'
+        logVal = val1 > val2;
+    otherwise
+        error('Comparison values should be eq/ne/lt/gt only')
+end
+
+
+
+end
+
+
+
+
+
+
+
+

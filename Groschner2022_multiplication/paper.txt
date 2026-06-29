@@ -1,0 +1,1120 @@
+Article
+
+A biophysical account of multiplication by a
+single neuron
+
+https://doi.org/10.1038/s41586-022-04428-3                     Lukas N. Groschner1,2 ✉, Jonatan G. Malis1,2, Birte Zuidinga1 & Alexander Borst1 ✉
+
+Received: 21 June 2021
+
+Accepted: 14 January 2022                                      Nonlinear, multiplication-like operations carried out by individual nerve cells greatly
+Published online: 23 February 2022                             enhance the computational power of a neural system1–3, but our understanding of
+                                                               their biophysical implementation is scant. Here we pursue this problem in the
+Open access
+                                                               Drosophila melanogaster ON motion vision circuit4,5, in which we record the
+    Check for updates                                          membrane potentials of direction-selective T4 neurons and of their columnar
+                                                               input elements6,7 in response to visual and pharmacological stimuli in vivo. Our
+                                                               electrophysiological measurements and conductance-based simulations provide
+                                                               evidence for a passive supralinear interaction between two distinct types of synapse
+                                                               on T4 dendrites. We show that this multiplication-like nonlinearity arises from the
+                                                               coincidence of cholinergic excitation and release from glutamatergic inhibition.
+                                                               The latter depends on the expression of the glutamate-gated chloride channel
+                                                               GluClα8,9 in T4 neurons, which sharpens the directional tuning of the cells and shapes
+                                                               the optomotor behaviour of the animals. Interacting pairs of shunting inhibitory and
+                                                               excitatory synapses have long been postulated as an analogue approximation of a
+                                                               multiplication, which is integral to theories of motion detection10,11, sound
+                                                               localization12 and sensorimotor control13.
+
+
+
+Motion vision in insects represents a textbook example14 of non-                               The emerging three-legged circuit motif involves a divisive interaction
+linear signal processing by a single neuron. Each photoreceptor of                             between cholinergic and GABAergic synapses and a multiplicative inter-
+the compound eye captures changes in light intensity, but it is blind                          action between glutamatergic and cholinergic synapses17,19–22 (Fig. 1a, b).
+to the direction of motion. To compute visual motion, the signals                              However, crucial assumptions concerning the multiplicative term of
+of at least two neighbouring photoreceptors must be processed                                  this model21 remain untested: (1) the multiplication-like synaptic inter-
+nonlinearly by a downstream local motion detector (Fig. 1a). In the                            action involves disinhibition; (2) the supralinearity arises from the T4
+Hassenstein–Reichardt model10, multiplication ensures detector                                 cells’ passive membrane properties; and (3) it sharpens the directional
+output only if the two signals coincide. The coincidence results from                          tuning of the neurons and the optomotor acuity of the animal.
+asymmetric temporal filtering of the input signals and the sequence of                           The first assumption, that multiplication requires release from
+photoreceptor activation, one after the other, as it unfolds during visual                     inhibition, hinges on the conditions that the signals carried by glu-
+motion in the detector’s preferred direction (PD). The Barlow–Levick                           tamatergic Mi9 neurons are of opposite polarity to those of the other
+model of motion vision, which was first proposed for the rabbit retina15,                      input elements and that glutamate controls the input resistance of
+uses a divisive nonlinearity to cancel responses to motion in the detector’s                   T4 neurons through shunting inhibition23. Direct measurements of
+null direction (ND).                                                                           input resistance and membrane voltage are possible only through
+   The visual system of Drosophila is compatible with both models                              patch-clamp experiments, which we conducted in vivo in tethered flies,
+(Fig. 1a). T4 neurons, which are functionally equivalent to the nonlinear                      guided by cell-type-specific expression of green fluorescent protein
+stages of both models, respond selectively to luminance increments                             (GFP; Extended Data Fig. 1a). We recorded the membrane potentials
+moving in one out of four cardinal directions5. Their direction selec-                         of T4 cells and of their presynaptic partners while projecting a 60 Hz
+tivity arises in the second optic neuropil5,16,17, where spatial informa-                      spatiotemporal binary white-noise stimulus with a pixel size of 2.8°
+tion is preserved in a retinotopic columnar organization18. Each T4                            onto the fly’s eye. To characterize the receptive fields of the neurons,
+dendrite innervates approximately seven columns—at least three in                              we cross-correlated the luminance of each pixel with the recorded volt-
+a row along the neuron’s PD6 (Fig. 1b)—and, therefore, samples from                            age (Fig. 1c–e and Extended Data Fig. 1b). We found that the membrane
+multiple adjacent points in visual space. Recent studies6,7 identified                         potentials of Tm3, Mi1, Mi4 and C3 neurons were positively correlated
+most—if not all—columnar medulla intrinsic (Mi), transmedullary (Tm)                           with luminance, whereas those of Mi9 neurons were anticorrelated
+and centrifugal (C) neurons that form synapses at distinct locations                           (Fig. 1d). The negative correlation was due to a rapid hyperpolarization
+along a T4 neuron’s dendrite: glutamatergic Mi9 neurons at the dis-                            following increments in luminance, as opposed to a possible depolari-
+tal branches (where stimuli moving in the T4 cell’s PD first affect its                        zation in response to luminance decrements (Extended Data Fig. 2).
+membrane potential), cholinergic Tm3 and Mi1 neurons at the centre,                            Thus, the Mi9 neuron maintains a degree of continuous activity in
+and GABAergic Mi4 and C3 neurons at the proximal segment (Fig. 1b).                            darkness that ceases abruptly when the centre of its receptive field
+
+Max Planck Institute of Neurobiology, Martinsried, Germany. 2These authors contributed equally: Lukas N. Groschner, Jonatan G. Malis. ✉e-mail: groschner@neuro.mpg.de; borst@neuro.mpg.de
+1
+
+
+
+
+                                                                                                                                        Nature | Vol 603 | 3 March 2022 | 119
+Article
+a                        PD                      b                     PD                                 c                                                     a                                                      b                                     T4 > GFP                           T4 > GluClDRNAi                      c                           T4 > GFP                                 T4 > GluClDRNAi
+                                                     Distal                                Proximal
+                 T4       TmY           CT1                                                                                                                                                                                                                  Glu                                    Glu                                                         –45
+                                                                                                                                                                                                                                                                                                                                                                                                     *
+                                                                                                                                                                                                                                                                                                                                                                                                    Glu                Glu
+
+
+
+
+                                                                                                                                                                                                                        Membrane potential (mV)
+
+
+
+
+                                                                                                                                                                                                                                                                                                                                      Membrane potential (mV)
+                                                                                                                                                                                                           Glutamate                              –50
+                                                                                                                                                                                                            (1 mM)                                                                                                                                              –50
+                          Tm3            C3                                                                                                                                             Dendrite
+                                                                                                                                                                                                                                                  –55                                                                                                           –55
+                 Mi9       Mi1          Mi4                                                                                                                                                                                                                                                                                                                     –60
+                                                                                                                                                                                                                                                  –60
+                                                                                                                                                                                                                                                                                                                                                                –65
+                                                                                                                                                                         Axon                               T4 soma                               –65                                                                                                           –70
+                         × ÷                           Column border                      Glutamate
+                                                                                                                                                                                                                                                        –2   0   2    4                        –2   0 2 4                                                       n=               26                               14
+                                                       T4 dendrite                        Acetylcholine                                                                                                                                                      Time (s)                               Time (s)
+                              T4
+                                                       Axon root                          GABA
+                                                                                                                                                              d                                                                                                    e
+
+
+
+
+                                                                                                                                                                                        15 pA
+                                                                                                                                                                                                                                                                                                T4 > GFP (n = 17)                                                          T4 > GluClDRNAi (n = 14)
+d                             Mi9                 Tm3                         Mi1                       Mi4                            C3
+
+
+
+
+                                                                                                                                                              Membrane potential (mV)
+                                                                                                                                                     Corr.
+
+
+
+
+                                                                                                                                                                                                                                                                   Input resistance (GΩ)
+                                                                                                                                                     (AU)                                                              Glu                                                                 8
+                                    n = 22             n = 11                       n = 22                    n = 10                        n = 16                                      –20
+                                                                                                                                                       0.5
+                                                                                                                                                                                        –40                                                                                                6
+                 10
+Elevation (°)
+
+
+
+
+                                                                                                                                                                                        –60                                                                                                4
+                  0                                                                                                                                      0
+                                                                                                                                                                                        –80                                                                                                2
+                 –10
+                                                                                                                                                       –0.5                                                                                                                                0
+                       –10 0      10          –10 0      10         –10 0      10               –10 0      10                 –10 0      10                                                     0      1      2    0                 1      2                      Glu                         – + – + – + – + –                                                          – + – + – + – + –
+                         Azimuth (°)            Azimuth (°)           Azimuth (°)                 Azimuth (°)                   Azimuth (°)                                                          Time (s)                      Time (s)
+                                                                                                                                                              f                                                                                          T4 > GFP                                    g                                                                      h
+e                             T4                                                  f                                                                                                                  Glu                   Glu                           (n = 12)                                                                                                     *                             14                 *
+                                                                                                                                                                                                                                                                                                                               –30
+
+
+
+
+                                                                                                                                                                                                                                                                                                      Resting potential (mV)
+
+
+
+
+                                                                                                                                                                                                                                                                                                                                                                            Input resistance (GΩ)
+                                                                                                                                                                                           8                                                                                                                                                                                                        12
+                                    n = 46      PD                                                                                                                                                                                                       T4 > GluClDRNAi                                                       –40
+                                                                –1.0                                                                                                                       6
+
+
+
+
+                                                                                                                                                              Current (pA)
+                                                                                                                                                                                                                                                         (n = 6)                                                                                                                                    10
+                                                                                                                                                                                                                                                                                                                               –50
+                  –0.5       0      0.5                                                                                                                                                    4                                                                                                                                                                                                         8
+                                                                                  50 mV
+
+
+
+
+                         Corr. (AU)                                                                                                                                                                                                                                                                                            –60
+                                                                –0.8                                                                                                                       2                                                                                                                                                                                                         6
+                                                                                                                                                                                                                                                                                                                               –70                                                                   4
+                                                                                                                                                                                           0
+                 10                                                                                                                                                                                                                                                                                                            –80
+ Elevation (°)
+
+
+
+
+                                                                                                                                                                                         –2                                                                                                                                                                                                          2
+                                                                –0.6
+                  0                                                                                                                                                                                   0        1                0        1                    –100 –50 0                                                        n=   192                          103                               n=      209        105
+                                                                       Time (s)
+
+
+
+
+                 –10                                                                       0    10       20       30    40              50      60     70                                           Time (s)                    Time (s)                          Membrane                             T4 > GFP                                                              T4 > GFP
+                                                                –0.4                                                Time (s)                                                                                                                                    potential (mV)                         GluClDRNAi                                                            GluClDRNAi
+                         PD                                                       g              90°
+                 10                                             –0.2                                                              25                    PD    Fig. 2 | Glutamate controls T4 neuron excitability through GluClα.
+ Elevation (°)
+
+
+
+
+                                                                                                                                                        ND
+                                                                                                                                                              a, Glutamate application during whole-cell recording. b, Membrane potential
+                                                                                                                       ΔVm (mV)
+
+
+
+
+                                                                                                                                  20
+                  0                                                                 180°                        0°                                   n = 28
+                                                                0
+                                                                                                                                  15                          traces of exemplary T4 neurons in response to 100 ms glutamate pulses
+                 –10                                                                                                              10
+                                                                                                                                                              (Glu) in flies expressing GFP (black; T4 > GFP, full genotypes are provided in
+                                                                                  10 mV
+
+
+
+
+                       –10 0      10          –10 0      10                                      270°                                   100         101       the Methods) or GFP + GluClαRNAi (teal; T4 > GluClαRNAi) under T4-cell-specific
+                         Azimuth (°)            Azimuth (°)                                               n = 65                        Frequency (Hz)
+                                                                                                                                                              GAL4 control. Ten technical replicates per genotype are shown. c, The average
+Fig. 1 | Receptive fields of direction-selective T4 neurons and their                                                                                         membrane potentials of T4 neurons expressing GFP (black) or GFP + GluClαRNAi
+presynaptic partners. a, The circuit architecture for visual ON motion                                                                                        (teal) before and after glutamate application (green). A significant effect of
+detection involving a multiplicative interaction (×) between synapses of                                                                                      glutamate, determined using a two-tailed paired Student’s t-test, is indicated;
+glutamatergic Mi9 and synapses of cholinergic Mi1/Tm3 neurons and a divisive                                                                                  *P = 2.1 × 10 −6. The light lines represent individual cells. The dark lines represent
+interaction (÷) between synapses of Mi1/Tm3 and synapses of GABAergic                                                                                         the mean ± s.e.m. d, Voltage responses of one exemplary T4 neuron to current
+C3/Mi4 neurons. Non-columnar inputs from T4, TmY15 and CT1 neurons are                                                                                        steps (top) without (left) and with (right) prior glutamate application. e, Input
+shaded. The dashed lines show the column borders. b, A T4 dendrite with                                                                                       resistances of T4 neurons expressing GFP (black) or GFP + GluClαRNAi (teal)
+subcellular segregation of glutamatergic (green), cholinergic (red) and                                                                                       during (+) and in between (–) repeated glutamate applications. The light lines
+GABAergic synapses (blue). Data from ref. 7. c, Targeted patch-clamp recording                                                                                represent individual cells. The dark lines represent the mean ± s.e.m. Two-way
+in vivo during visual stimulation. d, Average spatial receptive fields of input                                                                               repeated-measures analysis of variance (ANOVA) detected a significant effect
+neuron classes obtained by reverse correlation (corr.) of membrane potentials                                                                                 of glutamate (P = 3.5 × 10–12) and a significant glutamate × genotype interaction
+and white-noise stimuli. AU, arbitrary units. e, The average spatial receptive                                                                                (P = 1.6 × 10–11). f, Average whole-cell currents in response to 100 ms glutamate
+fields of T4 neurons (left) representing cross-sections of the spatiotemporal                                                                                 pulses at different voltages (left and middle) and current–voltage relationships
+receptive field (right) at two time points (dashed lines). f, Exemplary membrane                                                                              (right) of T4 neurons expressing GFP (black) or GFP + GluClαRNAi (teal). Data are
+potential recordings of T4 neurons in response to visual stimulation with                                                                                     mean ± s.e.m. g, h, Resting membrane potentials (g) and input resistances
+square-wave gratings moving in the directions indicated on top. g, Directional                                                                                (h) of T4 neurons expressing GFP (black) or GFP + GluClαRNAi (teal) measured
+(left) and frequency tuning (right) of T4 neurons based on the change in                                                                                      under dark conditions. Significant differences between genotypes,
+membrane potential (∆Vm) in response to visual stimulation with square-wave                                                                                   determined using two-tailed Mann–Whitney U-tests, are indicated;
+gratings. Data are mean ± s.e.m. n values indicate the number of cells.                                                                                       *P = 3.4 × 10 −23 (g), *P = 4.8 × 10–11(h). n values indicate the number of cells.
+
+
+
+is stimulated by light. Yet, while the delayed inhibition mediated by                                                                                         Importantly, post-transcriptional silencing of GluClα caused an average
+GABAergic inputs24 was clearly discernible in the spatiotemporal recep-                                                                                       11.94 mV depolarization of the resting membrane potential (Fig. 2g)
+tive fields of direction-selective T4 neurons (Fig. 1e–g), the contribution                                                                                   and an increase in input resistance from 5.28 ± 0.12 to 6.70 ± 0.16 GΩ
+of Mi9 neurons was not immediately apparent.                                                                                                                  (mean ± s.e.m.; Fig. 2h), measured under dark conditions. This speaks
+   To test the effect of glutamate—and, indirectly, that of Mi9—on T4                                                                                         for a persistent release of glutamate in the dark that keeps GluClα chan-
+neurons, we applied the neurotransmitter directly to T4 dendrites                                                                                             nels open and clamps the membrane potential of T4 neurons close
+(Fig. 2a). Pneumatic ejection of glutamate transiently hyperpolarized                                                                                         to the equilibrium potential of chloride—a GluClα-mediated short
+T4 cells by 3.72 ± 0.61 mV (mean ± s.e.m.; Fig. 2b, c). The mild hyperpo-                                                                                     circuit that curtails any excitation, unless glutamatergic Mi9 neurons
+larization was paralleled by a 25.27% decrease in input resistance, which                                                                                     are switched off first.
+was fully reversible. Repeated applications of glutamate enabled us to                                                                                           To break down the precise temporal sequences of synaptic signals
+toggle T4 cells between states of high and low resistance (Fig. 2d, e).                                                                                       evoked by visual stimulation, we obtained membrane potential record-
+Targeted RNA interference (RNAi) with transcripts of GluClα8, the most                                                                                        ings while moving contrast edges through the T4 neuron’s receptive
+highly expressed glutamate receptor gene in T4 neurons25–28, blocked                                                                                          field in its PD and ND (Fig. 3). Bright ON and dark OFF edges travelling
+glutamate-gated whole-cell currents (Fig. 2f) and abolished the effects                                                                                       at a velocity of 30° s−1 revealed distinct, fingerprint-like signatures of
+of glutamate on membrane potential and input resistance (Fig. 2b, c, e),                                                                                      electrical activity. To explain these signatures in terms of their under-
+while leaving the morphology of T4 cells intact (Extended Data Fig. 3).                                                                                       lying synaptic conductances, we subjected the five columnar input
+
+
+120 | Nature | Vol 603 | 3 March 2022
+a                   ON                 OFF                b                    Mi9     Tm3    Mi1       Mi4       C3       a                                                                                           b                           Time (s)
+                                                                                                                                                                                                                                                   1      2
+               1                                                      1
+
+
+
+
+                                                          Light
+    Light
+                                                                           ON PD               ON ND                                       T4 > GFP        (n = 15)    Vm     Rin                                                     T4 > GFP
+                0                                                     0                                                                    T4 > GluClDRNAi (n = 15)    Vm     Rin                                                T4 > GluClDRNAi
+                                                n = 29
+              –40                                                                                                                                     ON PD                          ON ND                                            ON PD         ON ND
+ Mi9                                                                0.6
+
+
+
+
+                                                          g/gleak
+                                                                                                                                     −50                                                                8                    −50
+                                                                    0.4
+    Vm (mV)
+
+
+
+
+                                                                                                                           Vm (mV)
+
+
+
+
+                                                                                                                                                                                                                       Vm (mV)
+                                                                                                                                                                                                            Rin (GΩ)
+              –60                                                                                                                                                                                       6
+                                                                    0.2                                                              −60                                                                                     −60
+                                                                                                                                                                                                        4
+                                                                      0
+                                                n = 12                                              T4 (n = 33)                      −70                                                                2                    −70
+              –25                                                   −50
+ Tm3                                                                                                                                                  OFF PD                         OFF ND                                           OFF PD        OFF ND
+                                                                                                    Model
+
+
+
+
+                                                          Vm (mV)
+              –50                                                                                                                    −50                                                                8                    −50
+    Vm (mV)
+
+
+
+
+                                                                    −60
+
+
+
+
+                                                                                                                           Vm (mV)
+
+
+
+
+                                                                                                                                                                                                                       Vm (mV)
+                                                                                                                                                                                                            Rin (GΩ)
+                                                                                                                                                                                                        6
+              –75                                                   −70                                                              −60                                                                4                    −60
+                                                n = 24                     0     1      2    3 0       1      2        3                                                                                2
+ Mi1                                                                             Time (s)              Time (s)                      −70                                                                                     −70
+              –40
+                                                          c                                                                                0    1 2       30    1 2     30    1 2 30          1 2 3                                 2 4 6 8        2 4 6 8
+    Vm (mV)
+
+
+
+
+              –60                                                     1                                                                        Time (s)        Time (s)      Time (s)        Time (s)                                Rin (GΩ)       Rin (GΩ)
+
+                                                          Light
+                                                                           OFF PD              OFF ND
+              –80                                                     0
+              –40                               n = 19                                                                     Fig. 4 | A GluClα-dependent input resistance peak. a, Simultaneously
+ Mi4                                                                0.3
+                                                                                                                           measured membrane potentials (Vm, solid lines) and input resistances
+                                                          g/gleak
+    Vm (mV)
+
+
+
+
+              –60                                                   0.2
+                                                                     0.1                                                   (R in, dashed lines) of T4 neurons expressing GFP (black) or GFP + GluClαRNAi
+              –80
+                                                n = 16
+                                                                       0                                                   (teal) in response to ON (top) and OFF (bottom) edges moving at 30° s−1 in the
+              –40                                                   −50                             T4 (n = 33)
+ C3
+                                                                                                    Model                  neurons’ PD and ND. Data are mean ± s.e.m. n values indicate the number of
+                                                          Vm (mV)
+
+
+
+
+              –60
+    Vm (mV)
+
+
+
+
+                                                                    −60
+                                                                                                                           cells. b, The average membrane potential (Vm) as a function of input resistance
+              –80                                                   −70                                                    (Rin) of T4 neurons shown in a in response to ON (top) and OFF (bottom) edges
+                    0    2 4 6       8 0   2 4 6      8                    0     1      2    3 0       1      2        3
+                          Time (s)         Time (s)                              Time (s)              Time (s)            moving in the PD (left) and ND (right). The arrowheads mark the input
+                                                                                                                           resistance peak.
+Fig. 3 | Conductance-based T4 neuron model. a, Aligned membrane voltage
+(Vm) responses of columnar T4 input neurons to ON and OFF edges moving at
+30° s−1. Time course of normalized light intensity at the receptive field centre is
+shown at the top. The light lines represent individual cells. The dark lines                                               For ON edge motion in the PD, a brief interval of minimal inhibitory
+represent the mean. b, c, Conductance-based biophysical simulations of the                                                 conductance—a window of opportunity30—opened up (Fig. 3b).
+membrane voltage (Vm) of a T4 neuron in response to ON (b) and OFF (c) edge                                                The transient lack of inhibition led to the amplification of excitatory
+motion. Input signals were time-shifted, as evident from light intensities at                                              inputs from Mi1 and Tm3 neurons during the upstroke of the T4 cell’s
+receptive field centres (top), to simulate visual motion in the T4 neuron’s PD                                             voltage trajectory (Fig. 3b and Extended Data Fig. 7). Intuitively, this
+and ND, respectively. The voltage signals of presynaptic neurons were
+                                                                                                                           can be explained by the coincident drop in overall conductance or, in
+converted into normalized postsynaptic conductances (g/gleak, centre) using a
+                                                                                                                           other words, the increase in input resistance.
+threshold and gain obtained by fitting the model (dashed pink) to measured
+                                                                                                                              Direct evidence for the predicted increase in resistance (Extended
+T4 voltage responses (solid black, bottom). Conductance values are mean and
+                                                                                                                           Data Fig. 8) was obtained using current-clamp experiments. We took
+area under curve. Voltage values are mean ± s.e.m. The arrowhead in b marks
+the window of opportunity when a minimum of shunting inhibition (green/                                                    advantage of each T4 neuron’s stereotyped responses to moving
+blue) coincides with excitation (red). n values indicate the number of cells.                                              edges and presented the fly with repeated episodes of identical visual
+                                                                                                                           stimulation. Varying the holding current in between episodes ena-
+                                                                                                                           bled us to obtain time-locked measurements of membrane potential
+elements of T4 cells to an identical set of stimuli (Fig. 3a). Our recon-                                                  and resistance (Fig. 4 and Extended Data Fig. 9). For ON edges mov-
+structions of the receptive fields of the cells (Extended Data Fig. 1b)                                                    ing in the neuron’s PD, the input resistance revealed a distinct peak
+enabled a post hoc alignment of their responses, which we used to                                                          that preceded the depolarizing voltage excursion and amounted to
+recreate the direction-dependent input sequences that are expected                                                         approximately 147% of the initial resistance (Fig. 4). Under all other con-
+to shape the voltage responses of a T4 cell (Fig. 3b, c). With all input                                                   ditions, the T4 cell experienced, if anything, a dip in excitability (Fig. 4).
+signals and the respective reversal potentials at hand (Extended Data                                                      RNAi-mediated silencing of GluClα pre-empted the increase in that the
+Fig. 4a–d), we simulated the electrical equivalent circuit of a pas-                                                       resistance of GluClα-deficient T4 neurons at the baseline was already
+sive single-compartment T4 neuron (Fig. 3b, c and Extended Data                                                            equivalent to the peak values reached by wild-type neurons (Fig. 4).
+Fig. 5a). Measured membrane voltages of presynaptic neurons were                                                           Owing to the shift in resting potential towards the reversal potential
+transformed into postsynaptic conductance values using two free                                                            of acetylcholine-induced currents, depletion of GluClα also reduced
+parameters per neuron: a gain (that is, synaptic weight) and a threshold                                                   the membrane potential response amplitude from 18.10 ± 0.77 mV in
+below which no transmission occurred. The T4 neurons’ electrically                                                         wild-type T4 neurons to 13.63 ± 1.05 mV in GluClαRNAi-expressing T4
+compact morphology (Extended Data Fig. 4e, f) led us to neglect the                                                        neurons (mean ± s.e.m.; n = 53 and n = 30 cells, respectively; P = 0.0008,
+membrane capacitance. After estimating the model parameters on                                                             two-tailed Mann–Whitney U-test).
+the basis of a least-squares fit to the average voltage responses of T4                                                       The ability to restrict the arithmetic repertoire of T4 neurons by
+neurons, we quantified parameter uncertainty using an artificial neural                                                    interfering with the abundance of GluClα enabled us to test the pre-
+network29. Examination of the full range of parameter combinations                                                         diction that multiplication sharpens directional tuning. We moved
+compatible with our measurements confirmed the estimated values,                                                           bright edges at a speed of 30° s−1 in 36 evenly spaced directions while
+which fell within regions of high conditional probability (Extended                                                        recording the membrane potentials of GFP-labelled wild-type and
+Data Fig. 6). In agreement with our second assumption, the voltage                                                         GluClαRNAi-expressing T4 neurons (Fig. 5a–c). RNAi targeting transcripts
+responses of T4 neurons to all four stimuli were captured by our passive                                                   of Nmdar1, which encodes a glutamate-gated cation channel with neg-
+conductance-based model (Fig. 3b, c), which naturally joins an excita-                                                     ligible expression in T4 cells25–28, was used as an additional control.
+tory and an inhibitory signal in a supralinear manner. While, in a passive                                                 Silencing GluClα in T4 cells in vivo replicated the effect of silencing Mi9
+membrane, two excitatory inputs are bound to combine sublinearly                                                           neurons in silico—it broadened the directional tuning curve (Fig. 5a).
+(Extended Data Fig. 5b), the coincidence of an excitatory input with the                                                   Response amplitudes of wild-type and Nmdar1RNAi-expressing neurons
+release from an inhibitory one will almost invariably yield a supralinear                                                  declined steeply with increasing angular distance from PD, to 72.97%
+response1,21 (Extended Data Fig. 5c). Exceptions are rare and can occur                                                    and 72.74% at a deviation of 60°, respectively. The decline was much
+only under conditions in which the reversal potential of the excitatory                                                    shallower in GluClαRNAi-expressing T4 neurons of which the response
+current is closer to the leak reversal potential than that of the inhibi-                                                  amplitudes at PD ± 60° still averaged 89.62% of the corresponding
+tory current (Extended Data Fig. 5d, e and Supplementary Equations).                                                       PD responses (Fig. 5a). Rather than enhancing voltage responses to
+
+
+                                                                                                                                                                                    Nature | Vol 603 | 3 March 2022 | 121
+Article
+a                                   PD                                          d                       Open-loop moving edges                  g                       Closed-loop bar fixation     visual motion in the PD, the presence of GluClα attenuated responses
+                                                                                                                                                                                                     to motion in all other directions, an effect that was especially obvious
+                Mi9 Tm3 Mi4                              Tm3 Mi4
+                    Mi1 C3                               Mi1 C3                                                                                                                                      at those directions not affected by inhibition from Mi4 and C3 neurons
+                                                                                                                                                                                                     (Fig. 5a–c). This was reflected in a significant reduction of the T4 neu-
+           T4 > GFP (n = 25)              T4 > GluClDRNAi (n = 17)                                                                                                                                   rons’ directional tuning indices (Ldir) in the absence of GluClα compared
+           Model                          Model Mi9 block
+                      90°                                90°                    e                                     Virtual trajectories      h                             Bar position (°)       with the wild-type controls (P = 0.0002, Kruskal–Wallis test followed
+                                                                                                        4                              ON                               –180 –90     0     90 180    by Dunn’s multiple-comparisons test; Fig. 5c).
+
+
+
+
+                                                                              Time (s)
+                                                                                                                                                                         0
+  180°                               0° 180°                            0°
+                                                                                                        2
+                                                                                                                                                                                                         The impact of this intervention on the flies’ optomotor responses
+                                                                                                        0
+
+
+
+
+                                                                                                                                                Time (s)
+                                                                                                                                                                                                     offered an opportunity to link a molecular mechanism to behavioural
+
+
+
+                                                                                                                      GluClDRNAi
+                                                                                                                                                                        10
+
+
+
+
+                                                                                                                      GluClDRNAi
+                                                                                                            T4/T5 >
+
+
+                                                                                                                       T4/T5 >
+                                                                                                                                                                                                     performance. Walking on a spherical treadmill (Fig. 5d), flies express-
+
+
+
+
+                                                                                                                                         5 mm
+                     270°            20 mV               270°                                                                                                           20
+b                                                                               f
+                                                                                                                                                                              T4/T5 >                ing GluClαRNAi in T4 neurons and their OFF-responsive T5 twins under
+                                                                                                                       ON                                                0
+          −50        T4 > GFP
+                                                                                                        270                                                                                          control of R39H12-GAL4 (Extended Data Fig. 10a) overestimated the
+
+
+
+
+                                                                                                                                                Time (s)
+Vm (mV)
+
+
+
+
+                                                                             Direction (°)
+
+
+                                                                                                        180
+                                                                                                                                                                        10                           velocity of bright, but not of dark, edges moving in different direc-
+          −60                                                                                            90
+                                                                                                                                                                        20
+                                                                                                                                                                                                     tions. In their attempt to compensate for the perceived egomotion,
+                                                                                                             0
+                 0    1         2     3      4       5     6        7
+                                                                                                        –90
+                                                                                                                                                                              GluClDRNAi
+                                                                                                                                                                                                     animals that carried both the GAL4 and the UAS-GluClαRNAi transgene
+                                                                                                                                                                         0
+                     T4 > GluClDRNAi
+                                                                                                        270            OFF                                                                           rotated the treadmill excessively about the vertical axis and strayed
+          −50
+
+                                                                                                                                                Time (s)
+Vm (mV)
+
+
+
+
+                                                                                                                                                                        10                           off the virtual paths of their parental controls (Fig. 5e, f). The angular
+                                                                             Direction (°)
+
+
+
+
+                                                                                                        180
+          −60
+                                                                                                        90
+                                                                                                                                                                        20
+                                                                                                                                                                                                     velocities of animals of all other genotypes, including those express-
+                 0    1         2     3      4       5     6        7                                        0
+                                                                                                                                                                              T4/T5 > GluClDRNAi
+                                                                                                                                                                                                     ing Nmdar1RNAi in T4/T5 neurons, were indistinguishable (Fig. 5f).
+                                                                                                                                                Probability (% per °)
+
+
+
+                                                                                                                                                                        0.8
+          −40        T4 > Nmdar1RNAi                                                                    –90                                                                                          In contrast to ON-responsive T4 neurons, which are speckled with
+                                                                                                                                                                        0.6
+Vm (mV)
+
+
+
+
+          −50                                                                                                    −40 −20 0 20 40
+                                                                                                                                                                        0.4                          GluClα receptors at both dendritic and axonal compartments, T5
+                                                                                                                  Angular velocity (° s–1)
+          −60                                                                                                                                                           0.2                          neurons feature the receptor exclusively at their axon terminals31.
+                                                                                                                       ON
+                                                                                                                                   *
+                 0    1         2     3    4     5         6        7
+                                                                                                         60
+                                                                                                                                                                        –180 –90   0    90 180       It follows that the impairment of optomotor acuity specific to moving
+                                      Time (min)                                                                                                                             Bar position (°)
+c                                                                                                                                                                                                    ON edges can, in all likelihood, be attributed to a process that is local-
+                                                                                                                                                    i
+                                                                             Angular velocity (° s–1)
+
+
+
+
+                                                                                                         40
+          −45                                                   *                                                                                                                    *               ized to the dendrites of T4 neurons.
+Peak Vm (mV)
+
+
+
+
+                                                                                                         20
+          −50                                      0.6
+                                                                                                                                                                                                         To test the ability of animals with a T4/T5-cell-restricted GluClα
+                                                                                                                                                Fixation in front (%)
+
+
+
+
+                                                                                                                                                                        60
+                                                                                                          0
+          −55
+                                                   0.4
+                                                                                                        n = 19 18 20 18 18
+                                                                                                                                                                        40
+                                                                                                                                                                                                     deficiency to hold a steady course under closed-loop conditions, we
+          −60                                                                                               OFF
+                                            Ldir
+
+
+
+
+               –180 –90     0       90 180                                                               40
+                                                                                                                                                                                                     took advantage of the flies’ tendency to approach a dark vertical bar, a
+          −45
+                                                   0.2                                                                                                                  20                           behaviour that depends on T4/T5 neurons32,33. When given the oppor-
+Peak Vm (mV)
+
+
+
+
+                                                                                                         20
+          −50
+                                                    0                   0                     0
+                                                                                                                                                                                                     tunity to control the bar position through their walking behaviour
+          −55
+                                                 n = 25 17 12         n = 25 23 20 20 20    n = 16 18 21 14                                                                                      8   (Fig. 5g), control animals had a clear preference for holding the bar in
+          −60                                     T4 > GFP        T4/T5 >                T4/T5 >
+               –180 –90 0 90 180                  T4 > GluClDRNAi GluClDRNAi             GluClDRNAi
+                                                                                                                                                                                                     front of them at 0 ± 30°. By contrast, flies expressing GluClαRNAi in T4/T5
+                     Direction (°)                T4 > Nmdar1RNAi Nmdar1RNAi             Nmdar1RNAi                                                                                                  neurons failed to maintain a stable bearing relative to the bar (Fig. 5h)
+                                                                                                                                                                                                     despite moving at a comparable pace (Extended Data Fig. 10b). We
+Fig. 5 | GluClα sharpens directional tuning of T4 neurons and optomotor
+behaviour. a, T4 input organization in the presence (top left) and absence of Mi9
+                                                                                                                                                                                                     corroborated this discovery using another, more specific split GAL4
+neurons (top right). Bottom, directional tuning of T4 neurons expressing GFP                                                                                                                         line (Extended Data Fig. 10c–e). Independent of the driver line used,
+(black) or GFP + GluClαRNAi (teal) on the basis of membrane potential responses to                                                                                                                   animals with a T4/T5-cell-restricted GluClα-deficiency performed at
+ON edges moving at 30° s−1. Data are mean ± s.e.m. n values indicate the number of                                                                                                                   chance level (Fig. 5i and Extended Data Fig. 10f). In accordance with our
+cells. The pink dashed lines show model predictions. b, Exemplary membrane                                                                                                                           third assumption, locking T4 neurons in a state of high gain (Figs. 2h
+voltage (Vm) recordings from T4 neurons in c in response to ON edges moving in the                                                                                                                   and 4) resulted in exaggerated optomotor responses (Fig. 5d–f) and
+indicated directions (arrowheads). c, Peak membrane voltages of T4 neurons                                                                                                                           impaired performance as the animals navigated a virtual environment
+expressing GFP (black), GFP + GluClαRNAi (T4 > GluClαRNAi, teal) or GFP + Nmdar1RNAi                                                                                                                 (Fig. 5g–i). These observations reveal the behavioural significance of a
+(T4 > Nmdar1RNAi; grey) as a function of the direction of ON edge motion (left). Data                                                                                                                multiplication-like operation in a specific type of neuron.
+are mean ± s.e.m. Right, directional tuning (Ldir) for all genotypes. Kruskal–Wallis
+test followed by Dunn’s multiple-comparisons test detected a significant difference
+of T4 > GluClαRNAi from T4 > GFP; *P = 0.0002. The circles show individual cells.                                                                                                                    Discussion
+The bars show the mean ± s.e.m. n values indicate the number of cells. d, Open-loop
+                                                                                                                                                                                                     Nervous systems rely on nonlinearities to process information1.
+optomotor behaviour. e, Average virtual walking trajectories of flies expressing
+GluClαRNAi in T4/T5 cells (teal, n = 20) and of their parental controls (back and grey,
+                                                                                                                                                                                                     A multiplication-like operation—possibly the simplest form of non-
+n = 19 and n = 18, respectively) in response to ON edge motion at a 22.5° angle.                                                                                                                     linearity—is implicated in the transformation of eye-centric into
+f, The angular velocities of flies expressing GluClαRNAi (teal) or Nmdar1RNAi (grey) in                                                                                                              head-centric coordinates13, the localization of sound12, the combina-
+T4/T5 neurons, and of their parental controls (black/grey), as a function of stimulus                                                                                                                tion of multisensory signals34,35 and the detection of visual motion10.
+direction and polarity (top). Data are mean ± s.e.m. Bottom, absolute angular                                                                                                                        The biophysical underpinnings of such an operation in a single neuron
+velocities scaled by horizontal stimulus components. For moving ON edges,                                                                                                                            are by and large unclear. One exception is the looming detector of
+one-way ANOVA followed by Holm–Šídák’s multiple comparisons test detected a                                                                                                                          locusts, in which—just like on a slide rule—the sum of two logarithmi-
+significant difference of flies expressing GluClαRNAi in T4/T5 cells from both parental                                                                                                              cally scaled signals is exponentially transformed into spike rates36.
+controls; *P = 0.0105. The circles represent individual flies. The bars show the                                                                                                                     Other multiplicative synaptic interactions involve NMDA recep-
+mean ± s.e.m. n values indicate the number of flies. g, Closed-loop bar fixation                                                                                                                     tors37,38. Both mechanisms are contingent on threshold-like nonlin-
+behaviour. h, Exemplary bar trajectories (832 trials and 16 flies per genotype, top)                                                                                                                 earities in the current–voltage relationships of ion channels: the gating
+and the overall bar position probabilities (bottom) for flies expressing GluClαRNAi in
+                                                                                                                                                                                                     of tetrodotoxin-sensitive sodium channels in the former and the mag-
+T4/T5 cells (teal) and their parental controls (back/grey). Probabilities are
+                                                                                                                                                                                                     nesium block of NMDA receptors in the latter case. Here, we describe
+mean ± s.e.m. of flies in i. i, The percentage of the time that the bar occupied a 60°
+                                                                                                                                                                                                     a multiplication-like nonlinearity that is independent of thresholds.
+central window (fixation in front, dashed lines in h). Welch’s ANOVA followed by
+Dunnett’s T3 multiple comparisons test detected a significant difference of flies
+                                                                                                                                                                                                        Using the visual circuit of the fruit fly as an example5, we took advan-
+expressing GluClαRNAi in T4/T5 cells from both parental controls; *P = 0.0042.                                                                                                                       tage of the neurons’ compact sizes, their known connectivity6 and
+The dashed line indicates the chance level. The circles represent individual flies.                                                                                                                  our ability to manipulate them genetically to study the biophysical
+The bars show mean ± s.e.m. n values indicate the number of flies.                                                                                                                                   basis of the multiplication step in a Hassenstein–Reichardt detector10.
+
+
+122 | Nature | Vol 603 | 3 March 2022
+We recorded the membrane potentials of ON motion-sensitive T4 neu-                                     19.   Haag, J., Arenz, A., Serbe, E., Gabbiani, F. & Borst, A. Complementary mechanisms create
+                                                                                                             direction selectivity in the fly. eLife 5, e17421 (2016).
+rons and of their columnar input elements in response to a defined set                                 20.   Arenz, A., Drews, M. S., Richter, F. G., Ammer, G. & Borst, A. The temporal tuning of the
+of visual stimuli. Our measurements of both pre- and postsynaptic                                            Drosophila motion detectors is determined by the dynamics of their input elements. Curr.
+voltages obviated the need for assumptions regarding the tempo-                                              Biol. 27, 929–944 (2017).
+                                                                                                       21.   Borst, A. A biophysical mechanism for preferred direction enhancement in fly motion
+ral dynamics of input signals when modelling the detector’s output.                                          vision. PLoS Comput. Biol. 14, e1006240 (2018).
+The voltage responses of T4 neurons were reproduced rather faithfully                                  22.   Zavatone-Veth, J. A., Badwan, B. A. & Clark, D. A. A minimal synaptic model for direction
+by our passive conductance-based model (Figs. 3b, c and 5a). Discrepan-                                      selective neurons in Drosophila. J. Vis. 20, 1–22 (2020).
+                                                                                                       23.   Torre, V. & Poggio, T. A synaptic mechanism possibly underlying directional selectivity to
+cies between simulation and reality could be due to selective synaptic                                       motion. Proc. R. Soc. Lond. B 202, 409–416 (1978).
+delays or the 15% of dendritic inputs from wide-field TmY15 and CT1                                    24.   Gruntman, E., Romani, S. & Reiser, M. B. Simple integration of fast excitation and offset,
+neurons6,7,39, which were not taken into account. In the model, as in our                                    delayed inhibition computes directional selectivity in Drosophila. Nat. Neurosci. 21,
+                                                                                                             250–257 (2018).
+data, the supralinearity arises from the coincidence of excitation and                                 25.   Pankova, K. & Borst, A. RNA-seq transcriptome analysis of direction-selective T4/T5
+release from shunting inhibition23. Such ‘multiplicative disinhibition’                                      neurons in Drosophila. PLoS ONE 11, e0163986 (2016).
+constitutes the inverse operation of divisive inhibition. It is free from                              26.   Davis, F. P. et al. A genetic, genomic, and computational resource for exploring neural
+                                                                                                             circuit function. eLife 9, e50901 (2020).
+the voltage dependence that often limits threshold-based systems40 and                                 27.   Hörmann, N. et al. A combinatorial code of transcription factors specifies subtypes
+less sensitive to changing signal amplitudes21 (Extended Data Fig. 5c).                                      of visual motion-sensing neurons in Drosophila. Development 147, dev186296
+More broadly, theory invokes multiplication as a strategy to gate infor-                                     (2020).
+                                                                                                       28.   Özel, M. N. et al. Neuronal diversity and convergence in a visual system developmental
+mation flow41,42. The passive biophysical mechanism that we propose                                          atlas. Nature 589, 88–95 (2021).
+could lend itself to other systems, such as the logical conjunction of che-                            29.   Gonçalves, P. J. et al. Training deep neural density estimators to identify mechanistic
+mosensory signals43 or the gating of cortical afferents44. Motion vision                                     models of neural dynamics. eLife 9, e56261 (2020).
+                                                                                                       30.   Denève, S. & Machens, C. K. Efficient codes and balanced networks. Nat. Neurosci. 19,
+in flies may provide one of many cases of multiplicative disinhibition.                                      375–382 (2016).
+                                                                                                       31.   Fendl, S., Vieira, R. M. & Borst, A. Conditional protein tagging methods reveal highly
+                                                                                                             specific subcellular distribution of ion channels in motion-sensing neurons. eLife 9,
+                                                                                                             e62953 (2020).
+Online content                                                                                         32.   Bahl, A., Ammer, G., Schilling, T. & Borst, A. Object tracking in motion-blind flies. Nat.
+Any methods, additional references, Nature Research reporting sum-                                           Neurosci. 16, 730–738 (2013).
+                                                                                                       33.   Fenk, L. M., Poehlmann, A. & Straw, A. D. Asymmetric processing of visual motion for
+maries, source data, extended data, supplementary information,
+                                                                                                             simultaneous object and background responses. Curr. Biol. 24, 2913–2919 (2014).
+acknowledgements, peer review information; details of author contri-                                   34.   Huston, S. J. & Krapp, H. G. Nonlinear integration of visual and haltere inputs in fly neck
+butions and competing interests; and statements of data and code avail-                                      motor neurons. J. Neurosci. 29, 13097–13105 (2009).
+                                                                                                       35.   Haag, J., Wertz, A. & Borst, A. Central gating of fly optomotor response. Proc. Natl Acad.
+ability are available at https://doi.org/10.1038/s41586-022-04428-3.
+                                                                                                             Sci. USA 107, 20104–20109 (2010).
+                                                                                                       36.   Gabbiani, F., Krapp, H. G., Koch, C. & Laurent, G. Multiplicative computation in a visual
+1.    Koch, C. & Poggio, T. Multiplying with Synapses and Neurons. In Single Neuron                          neuron sensitive to looming. Nature 420, 320–324 (2002).
+      Computation (eds Mckenna T. et al.) 315–345 (Academic Press, 1992).                              37.   Lavzin, M., Rapoport, S., Polsky, A., Garion, L. & Schiller, J. Nonlinear dendritic processing
+2.    Koch, C. & Segev, I. The role of single neurons in information processing. Nat. Neurosci. 3,           determines angular tuning of barrel cortex neurons in vivo. Nature 490, 397–401
+      1171–1177 (2000).                                                                                      (2012).
+3.    London, M. & Häusser, M. Dendritic computation. Annu. Rev. Neurosci. 28, 503–532                 38.   Poleg-Polsky, A. & Diamond, J. S. NMDA receptors multiplicatively scale visual signals and
+      (2005).                                                                                                enhance directional motion discrimination in retinal ganglion cells. Neuron 89, 1277–1290
+4.    Joesch, M., Schnell, B., Raghu, S. V., Reiff, D. F. & Borst, A. ON and OFF pathways in                 (2016).
+      Drosophila motion vision. Nature 468, 300–304 (2010).                                            39.   Meier, M. & Borst, A. Extreme compartmentalization in a Drosophila amacrine cell. Curr.
+5.    Maisak, M. S. et al. A directional tuning map of Drosophila elementary motion detectors.               Biol. 29, 1545–1550 (2019).
+      Nature 500, 212–216 (2013).                                                                      40.   Srinivasan, M. V. & Bernard, G. D. A proposed mechanism for multiplication of neural
+6.    Takemura, S.-Y. et al. The comprehensive connectome of a neural substrate for ‘ON’                     signals. Biol. Cybern. 21, 227–236 (1976).
+      motion detection in Drosophila. eLife 6, e24394 (2017).                                          41.   Abbott, L. F. Where Are the Switches on This Thing? In 23 Problems in Systems
+7.    Shinomiya, K. et al. Comparisons between the ON- and OFF-edge motion pathways in the                   Neuroscience (eds van Hemmen, J. L. & Sejnowski, T. J.) 423–431 (Oxford University Press,
+      Drosophila brain. eLife 8, e40025 (2019).                                                              2006).
+8.    Cully, D. F., Paress, P. S., Liu, K. K., Schaeffer, J. M. & Arena, J. P. Identification of a     42.   Schnupp, J. W. & King, A. J. Neural processing: the logic of multiplication in single
+      Drosophila melanogaster glutamate-gated chloride channel sensitive to the antiparasitic                neurons. Curr. Biol. 11, R640–R642 (2001).
+      agent avermectin. J. Biol. Chem. 271, 20187–20191 (1996).                                        43.   Dobosiewicz, M., Liu, Q. & Bargmann, C. I. Reliability of an interneuron response depends
+9.    Liu, W. W. & Wilson, R. I. Glutamate is an inhibitory neurotransmitter in the Drosophila               on an integrated sensory state. eLife 8, e50566 (2019).
+      olfactory system. Proc. Natl Acad. Sci. USA 110, 10294–10299 (2013).                             44.   Pi, H.-J. et al. Cortical interneurons that specialize in disinhibitory control. Nature 503,
+10.   Hassenstein, B. & Reichardt, W. Systemtheoretische Analyse der Zeit-, Reihenfolgen- und                521–524 (2013).
+      Vorzeichenauswertung bei der Bewegungsperzeption des Rüsselkäfers Chlorophanus.
+      Z. Naturforsch. B 11, 513–524 (1956).                                                            Publisher’s note Springer Nature remains neutral with regard to jurisdictional claims in
+11.   Borst, A., Haag, J. & Reiff, D. F. Fly motion vision. Annu. Rev. Neurosci. 33, 49–70 (2010).     published maps and institutional affiliations.
+12.   Peña, J. L. & Konishi, M. Auditory spatial receptive fields created by multiplication.
+      Science 292, 249–252 (2001).                                                                                        Open Access This article is licensed under a Creative Commons Attribution
+13.   Andersen, R. A., Essick, G. K. & Siegel, R. M. Encoding of spatial location by posterior                            4.0 International License, which permits use, sharing, adaptation, distribution
+      parietal neurons. Science 230, 456–458 (1985).                                                                      and reproduction in any medium or format, as long as you give appropriate
+14.   Luo, L. Principles of Neurobiology (Garland Science, 2020).                                      credit to the original author(s) and the source, provide a link to the Creative Commons license,
+15.   Barlow, H. B. & Levick, W. R. The mechanism of directionally selective units in rabbit’s         and indicate if changes were made. The images or other third party material in this article are
+      retina. J. Physiol. 178, 477–504 (1965).                                                         included in the article’s Creative Commons license, unless indicated otherwise in a credit line
+16.   Fisher, Y. E., Silies, M. & Clandinin, T. R. Orientation selectivity sharpens motion detection   to the material. If material is not included in the article’s Creative Commons license and your
+      in Drosophila. Neuron 88, 390–402 (2015).                                                        intended use is not permitted by statutory regulation or exceeds the permitted use, you will
+17.   Strother, J. A. et al. The emergence of directional selectivity in the visual motion pathway     need to obtain permission directly from the copyright holder. To view a copy of this license,
+      of Drosophila. Neuron 94, 168–182 (2017).                                                        visit http://creativecommons.org/licenses/by/4.0/.
+18.   Fischbach, K.-F. & Dittrich, A. P. M. The optic lobe of Drosophila melanogaster. I. A Golgi
+      analysis of wild-type structure. Cell Tissue Res. 258, 441–475 (1989).                           © The Author(s) 2022
+
+
+
+
+                                                                                                                                                   Nature | Vol 603 | 3 March 2022 | 123
+Article
+Methods                                                                       Leica). Micrographs were acquired using the Leica Application Suite
+                                                                              X (Leica) and processed using the Fiji distribution of ImageJ (v.2.0)48.
+Fly husbandry and genotypes
+Flies were cultivated on a cornmeal, molasses and yeast medium under          Patch-clamp recordings
+a 12 h–12 h light–dark cycle at 25 °C and 60% humidity. All of the experi-    For whole-cell recordings in vivo49,50, female flies aged 2–24 h
+ments were carried out on female flies bearing at least one wild-type         post-eclosion were cold-anaesthetized and fixed to a custom, laser-cut
+allele of the white gene. The experimenters were not blinded.                 polyoxymethylene mount with soft thermoplastic wax (Agar Scien-
+   Drosophila melanogaster of the following genotypes were used to tar-       tific). The preparation was submerged in extracellular solution (pH 7.3)
+get transgene expression to the respective types of neuron: P{R48A07-p65.     containing 5 mM TES, 103 mM NaCl, 3 mM KCl, 26 mM NaHCO3, 1 mM
+AD}attP40, P{10XUAS-IVS-mCD8::GFP}su(Hw)attP5; P{VT046779-GAL4.               NaH2PO4, 1.5 mM CaCl2, 4 mM MgCl2, 10 mM trehalose, 10 mM glucose
+DBD}attP2 was used to label Mi9 neurons, P{R13E12-p65.AD}                     and 7 mM sucrose (280 mOsM, equilibrated with 5% CO2 and 95% O2).
+attP40/+; P{R59C10-GAL4.DBD}attP2/P{40XUAS-IVS-mCD8::GFP}                     Cuticle, adipose tissue and trachea were surgically removed in a win-
+attP2 was used to label Tm3 neurons, P{R19F01-p65.AD}attP40/+;                dow large enough to expose the left dorsal optic lobe. Patch pipettes
+P{R71D01-GAL4.DBD}attP2/P{40XUAS-IVS-mCD8::GFP}attP2 was used to              (15–20 MΩ) were fabricated from borosilicate glass capillaries with
+label Mi1 neurons, P{R48A07-p65.AD}attP40, P{10XUAS-IVS-mCD8::GFP}            outer and inner diameters of 1.5 mm and 1.17 mm or 0.86 mm, respec-
+su(Hw)attP5; P{R13F11-GAL4.DBD}attP2 was used to label Mi4 neu-               tively, using a P-97 (Sutter Instruments) or a PC-10 (Narishige) micro-
+rons, P{R26H02-p65.AD}attP40/+; P{R29G11-GAL4.DBD}attP2/                      pipette puller. Pipettes were polished using a microforge (MF-830,
+P{40XUAS-IVS-mCD8::GFP}attP2 was used to label C3 neurons                     Narishige) and filled with solution (pH 7.3) containing 10 mM HEPES,
+and P{R42F06-p65.AD}attP40, P{10XUAS-IVS-mCD8::GFP}su(Hw)attP5;               140 mM potassium aspartate, 1 mM KCl, 4 mM MgATP, 0.5 mM Na3GTP,
+P{VT037588-GAL4.DBD}attP2 (abbreviated T4 > GFP) was used to label            1 mM EGTA and 10 mM biocytin (265 mOsM). Green fluorescent somata
+T4 neurons, with a preference for subtypes T4c and T4d17,27,45,46. In elec-   were targeted visually using a combination of bright-field and epif-
+trophysiological experiments, P{TRiP.HMC03585}attP40/P{R42F06-p65.            luorescence microscopy on an InVivo SliceScope (Scientifica) or an
+AD}attP40, P{10XUAS-IVS-mCD8::GFP}su(Hw)attP5; P{VT037588-GAL4.               Axio Scope.A1 microscope (Zeiss), each equipped with a ×60/1.0 NA
+DBD}attP2/+ (abbreviated T4 > GluClαRNAi) and P{TRiP.HMS02199}                water-immersion objective (LUMPLFLN60XW, Olympus) and an
+attP2/P{R42F06-p65.AD}attP40, P{10XUAS-IVS-mCD8::GFP}su(Hw)attP5;             LQ-HXP 120 light source (Leistungselektronik Jena). Transillumina-
+P{VT037588-GAL4.DBD}attP2/+ (abbreviated T4 > Nmdar1RNAi) were used           tion was achieved by butt-coupling a white LED (MCWHD5, Thorlabs)
+to silence the expression of GluClα and Nmdar1, respectively47.               to a liquid light guide, the far end of which was positioned caudally
+   In behavioural experiments, P{UAS-Dcr-2.D}2; P{R39H12-GAL4}                at a distance of 1 cm to the fly allowing for an unobstructed field of
+attP2 (abbreviated T4/T5 >), which yields strong and comprehen-               view. To gain access to cell membranes, a micropipette was used to
+sive expression in T4 and T5 neurons, was used to drive either P{TRiP.        make a small incision in the perineural sheath. Signals were recorded
+HMC03585}attP40 (abbreviated GluClαRNAi) or P{TRiP.HMS02199}                  at room temperature (21–23 °C) with a MultiClamp 700B amplifier,
+attP2 (abbreviated Nmdar1RNAi). For the experiments in Extended               low-pass-filtered and sampled at 10 kHz using a Digidata 1550B digitizer
+Data Fig. 10c–f, P{R59E08-p65.AD}attP40; P{R42F06-GAL4.DBD}                   controlled through pCLAMP 11 software (all from Molecular Devices).
+attP2 was used as the driver line. All flies, including the parental con-     Data were corrected for the liquid junction potential and analysed using
+trols, were heterozygous for the respective transgenes. P{UAS-Dcr-            custom-written software in Python v.3.7 (Python Software Foundation)
+2.D}2/P{10XUAS-IVS-mCD8::GFP}su(Hw)attP5; P{R39H12-GAL4}attP2/+               using NumPy v.1.15, Pandas v.0.25, SciPy v.1.3, Matplotlib v.3.0 and
+and P{R59E08-p65.AD}attP40/P{10XUAS-IVS-mCD8::GFP}su(Hw)                      pyABF v.2.1 (https://pypi.org/project/pyabf/). After temporal align-
+attP5; P{R42F06-GAL4.DBD}attP2/+ were used to visualize the expres-           ment, current-clamp data were analysed at a sampling rate of 1 kHz.
+sion pattern of the respective driver lines immunohistochemically.            The most negative membrane potential recorded within 2 min after
+   With the exception of the strain used to label C3 (a gift from A. Nern     break-in, in darkness and in the absence of a holding current was taken
+and M. Reiser), all of the flies were obtained from the Bloomington           to represent the resting potential. Only cells with a measured rest-
+Drosophila Stock Center.                                                      ing potential that was more negative than −25 mV were characterized
+                                                                              further. Input resistances, as plotted in Fig. 2, were calculated on the
+Histology                                                                     basis of linear fits to the steady-state voltage changes elicited by 1 s
+Brains of female flies (aged 1–3 days) were dissected in phosphate-           steps of hyperpolarizing currents (2 pA increments, starting at −10 pA).
+buffered saline (PBS; 137 mM NaCl, 3 mM KCl, 8 mM Na2HPO4, 1.5 mM             In voltage-clamp recordings, voltage steps were applied 2 s in advance of
+KH2PO4, pH 7.3) and fixed in 4% (w/v) paraformaldehyde in PBS over-           pharmacological applications and linear leak currents were subtracted.
+night at 4 °C, followed by four 30 min washes in PBS containing 0.2%
+(v/v) Triton X-100 (PBT). To label biocytin-filled neurons, the samples       Visual stimulation in electrophysiological experiments
+were incubated with DyLight 633-conjugated streptavidin (21844,               Visual stimuli were projected with two mirrors onto a cylindrical screen
+Invitrogen, 1:200) for 48 h at 4 °C, followed by four 30 min washes           using two DLP Lightcrafter 3000 pico projectors (Texas Instruments)
+in PBT. To visualize GFP expression patterns driven by R39H12-GAL4            as previously described20. The screen covered 180° in azimuth and 105°
+and R59E08-AD; R42F06-DBD, brains were fixed for 25 min at room               in elevation of the fly’s left frontal visual field and doubled as a Faraday
+temperature and blocked in PBT containing 10% normal goat serum               shield. Restricting the projectors to the green channel (500–600 nm)
+(NGS) overnight at 4 °C. Synaptic structures and GFP were labelled, first     allowed for a refresh rate of 180 Hz at 8-bit colour depth and a maximal
+with mouse anti-bruchpilot antibodies (nc82, AB2314866, Develop-              luminance of 1,274 cd m−2. The average luminance of stimuli, which
+mental Studies Hybridoma Bank, 1:20) and chicken anti-GFP antibodies          were presented in full contrast, was set to an 8-bit greyscale value of
+(600-901-215S, Rockland, 1:400), respectively, for 48 h and then with         128 corresponding to an average luminance of ~637 cd m−2. Stimuli were
+Atto 647N-conjugated goat anti-mouse IgG antibodies (610-156-040,             created and predistorted to account for the curvature of the screen
+Rockland, 1:300) and Alexa 488-conjugated goat anti-chicken IgY anti-         using the Panda3D game engine in Python v.2.7.
+bodies (A-11039, Invitrogen, 1:500), respectively, for 72 h, both diluted        Receptive fields were located and characterized using a binary
+in PBT containing 5% NGS, at 4 °C. Immunodecorated samples were               white-noise stimulus with a pixel size of 2.8° × 2.8°. Samples were drawn
+mounted in Vectashield antifade mounting medium (Vector Labora-               at a rate of 60 Hz and projected onto the screen for durations ranging
+tories) and imaged on a Leica TCS SP8 confocal microscope equipped            from 3 min to 20 min. Stimuli and simultaneously recorded membrane
+with an HCX PL APO ×63/1.30 NA glycerol-immersion objective (506353,          potentials were time-locked using a continuously recorded trigger
+signal on the screen. Stimulus files were exported after lossless com-       low-pass-filtered membrane potential of each neuron and that of one
+pression and cross-correlated to each neuron’s recorded membrane             hand-picked template neuron in response to ON edges (moving in PD for
+voltage using standard techniques for reverse correlation in Python          T4 cells). The responses of different input neuron classes were aligned
+(v.3.7)20. Slow voltage drifts were corrected post hoc by subtracting a      based on the relative distances of the template neurons’ receptive field
+low-pass-filtered version of the signal obtained using a Gaussian blur       centres on the screen. Correct alignment was verified by recording light
+with a standard deviation of 60 s. The reverse correlation was calcu-        intensities from a 5°-wide area of the screen located at the respective
+lated as                                                                     template neuron’s receptive field centre using a custom-built photo-
+                                                                             diode under identical stimulus conditions.
+                                T
+                    K (x , τ) = ∫ dtS(x , t − τ) × Vm(t),                       Time-locked measurements of a T4 neuron’s membrane potential
+                                0                                            and input resistance (Fig. 4 and Extended Data Fig. 9) were achieved
+                                                                             through repeated presentations of identical stimuli with varying hold-
+where Vm denotes the neuron’s baseline-subtracted membrane voltage           ing current amplitudes ranging from −5 to 0 pA. The slope of a linear
+at time point t and S denotes the stimulus at position x and time point      regression of voltages onto holding currents provided a measure of the
+t − τ for values of τ ranging from −0.5 to +3.0 s. The resulting spati-      neuron’s input resistance at each time point. For experiments with only
+otemporal receptive fields were converted into standard scores. Only         two different holding current amplitudes, the slope of the regression
+neurons with clear standard score peaks (typically >4 s.d. from the          is equivalent to the input resistance calculated as ΔVm/ΔI, where ΔVm
+mean) and with receptive field centres >8 px (22.48°) from the bezel         denotes the change in membrane potential and ΔI denotes the change
+of the screen were included in the analysis to guarantee full cover-         in holding current in between repetitions. Resistances shown in Fig. 4
+age of the surround. Receptive fields were normalized and aligned in         were smoothed with a Gaussian filter (13 ms s.d.). Input resistances
+space using the extremum (that is, the maximum or minimum with               did not change significantly throughout recording sessions. The dif-
+the highest absolute value) of the standard score as a point of refer-       ference in input resistance between the start and the end of record-
+ence, which was placed at 0°. After cropping the individual spatial          ing sessions averaged at 0.28 ± 0.56 GΩ (mean ± s.e.m., n = 30 cells;
+receptive fields to the largest common region holding data from all          P = 0.6143, two-tailed paired Student’s t-test).
+neurons, scores were averaged across neurons of one class. For Fig. 1,
+averages were upsampled by a factor of 10 by linear interpolation and        Pharmacology
+smoothed with a Gaussian filter (1.8 px s.d.). For direction-selective T4    For applications of glutamate, acetylcholine and GABA, a micropipette
+neurons, individual receptive fields were rotated in space to align along    with a bore diameter of 5 µm was filled with 1 mM of neurotransmitter
+the neurons’ PDs; therefore, in Fig. 1e, azimuth and elevation do not        (dissolved in extracellular solution) and aimed at the GFP-labelled T4
+necessarily correspond to horizontal and vertical coordinates on the         dendrites in layer 10 of the medulla. To elicit transient neurotransmit-
+screen, but to coordinates parallel and orthogonal to the T4 cell’s PD.      ter responses in patch-clamped T4 neurons, pressure (50 kPa) was
+   To determine a neuron’s PD, square-wave gratings with a spatial           applied in 100 ms pulses using a PDES-02DX pneumatic drug ejec-
+wavelength of 30° spanning the full extent of the screen were moved          tion system (NPI Electronic). For long-lasting responses during input
+at a temporal frequency of 1 Hz in eight different directions separated      resistance measurements, pulse times were increased to 500 ms. Two
+by 45°. The neuron’s peak membrane voltage during motion, after              wild-type neurons were lost after the third glutamate application dur-
+subtracting a 1 s prestimulus baseline, was taken to represent the mag-      ing patch-clamp recordings for Fig. 2e and were excluded from the
+nitude of a Euclidean vector v(φ) pointing in the direction given by the     repeated-measures analysis.
+angle of rotation φ of the associated stimulus. PD was defined as the
+direction of the resultant of all individual vectors. Temporal frequency     Multi-compartment model
+tuning curves were measured using gratings of the above properties           We built a passive compartmental model of a T4 neuron (Extended
+that were moved alternatingly in PD and ND (that is, PD + 180 ) at tem-      Data Fig. 4c, d) in Python v.3.7 to account for possible space-clamp
+poral frequencies ranging from 0.5 Hz to 16.0 Hz. ΔVm was defined as         problems due to neuronal morphology in voltage-clamp experiments
+the absolute difference between the maximal and minimal membrane             and to assess signal propagation between dendrite and soma (Extended
+potential.                                                                   Data Fig. 4e, f). The model was based on an electron microscopic
+   The fine-grained directional tuning curves in Fig. 5 were assessed        reconstruction7 (http://neuromorpho.org/neuron_info.jsp?neuron_
+using ON edges moving at 30° s−1 in 36 evenly spaced directions. Mem-        name=T4a-25_85) and comprised 2,012 compartments. A connectivity
+brane potentials were recorded in the presence of a constant holding         matrix, which held values of 1 where two compartments were con-
+current of −1 pA, which enabled stable recordings over extended peri-        nected and values of 0 otherwise, was used as a template to calculate a
+ods of time. In Fig. 5c, |v(φ)| was defined as the maximum of a Voigt pro-   conductance matrix M. The latter was based on the three-dimensional
+file fit to the membrane potential in a 700 ms time window surrounding       coordinates and the length as well as the diameter of each compartment
+the peak response during motion in the respective direction using the        assuming, unless stated otherwise, an axial resistivity (Ra) of 150 Ω cm,
+VoigtModel function of the lmfit.models module in Python v.3.7. Thus         a membrane resistance (Rm) of 28 kΩ cm2, and a specific membrane
+the readout incorporated more data points than just the maxima of the        capacitance (Cm) of 1 µF cm−2. All parameters were on the same scale
+raw traces. To make directional tuning curves comparable between             as those commonly used to model Drosophila neurons51 and were con-
+experiments and genotypes, each neuron’s PD was aligned post hoc to          sidered to be uniform across the entire cell. Varying Ra and Rm over a
+0° and its tuning curve was minimum–maximum normalized. Direc-               biophysically plausible range had negligible effects on model output
+tional tuning was quantified as the magnitude of the resultant vector        (Extended Data Fig. 4f, g).
+divided by the sum of the individual vectors’ magnitudes:                       The voltage vector Vm(t) indicating the membrane potential of each
+                                                                             compartment and at each time point t was determined by using the
+                                     Σ φv(φ)                                 sparse.linalg.spsolve function of the SciPy v.1.3 module to iteratively
+                            Ldir =
+                                     Σ φ v(φ)                                solve the matrix equation M × Vm(t) = Vm(t − 1) × cm/Δt + Eleak × gleak + I(t),
+                                                                             where Vm(t − 1) denotes the voltage vector at the previous time point,
+  For the experiments in Fig. 3, bright (ON) and dark (OFF) edges            cm is the vector holding the specific capacitances of all compartments,
+were moved across the screen at a velocity of 30° s−1. The responses         Δt denotes the time step, Eleak denotes the leak reversal potential, gleak
+of individual neurons of one type were temporally aligned based on           denotes the vector holding the specific transmembrane leak conduct-
+the cross-correlation maximum between the time derivative of the             ances of all compartments and I(t) is the vector indicating the current
+Article
+injected at time point t into each compartment. Simulations were per-                To visualize P(α|Vdata) we drew 10,000 sample parameter sets that
+formed with a fixed Δt of 0.1 ms. If only steady-state was considered, the           are compatible with Vdata and compared them to our chosen param-
+diagonal of the conductance matrix M held no capacitive conductances                 eters (Extended Data Fig. 6). All of the simulations were written in
+and the right side of the equation simplified to Eleak × gleak + I(t). At the        Python v.3.7.
+time of transmitter application, synaptic conductances were added
+both to the diagonal of the conductance matrix and, multiplied by                    Behaviour
+the reversal potential of the current, to the right side of the equation.            Female flies (aged 1–5 days) were cold-immobilized and attached to
+   To simulate voltage clamp, the current injected at the soma was                   a pin with light-curing composite glue (Sinfony Opaque Dentin, 3M)
+calculated on the basis of the difference between the chosen com-                    using dental curing light (440 nm, New Woodpecker). Five independ-
+mand voltage Vcmd and the actual potential at the soma Vm,soma                       ent locomotion recorders32 were operated in parallel. In each recorder,
+using a proportional-integral control loop that served to emulate a                  a tethered fly was positioned on top of an air-suspended polyure-
+voltage-clamp amplifier in Python v.3.7. The current to be injected at               thane sphere with a diameter of 6 mm and a weight of around 40 mg.
+time point t was calculated as I(t) = Kp × (Vcmd(t) − Vm,soma(t)) + Ki × I(t − 1);   The sphere floated freely on an air stream supplied by a rotary vane pump
+where Kp denotes the proportional gain and Ki the integral gain. With                (G6/01-K-EB9L, Gardner Denver Thomas) through an inlet at the bottom
+values of 2 × 109 and 1 for Kp and Ki, respectively, Vm,soma could be clamped        of a concave holder, allowing the walking fly to rotate the sphere about
+reliably at the desired Vcmd under all conditions and synaptic inputs.               any axis through its centre. The rotation of the spherical treadmill, lit by
+                                                                                     an infrared LED (JET-800-10, Roithner Electronics), was tracked at 4 kHz
+Single-compartment model                                                             and digitized at 200 Hz using a custom-designed system based on two
+Recorded membrane voltages of input neurons were averaged, mini-                     optical computer mouse sensors focused on two 1 mm2 equatorial squares
+mum–maximum normalized (retaining the signal ratios across stimuli)                  at ±30° from the centre of the sphere55. A camera (GRAS-20S4M-C, Point
+and converted into relative conductances using a rectilinear trans-                  Grey Research) was used to facilitate proper positioning of the fly on the
+fer function with two free parameters per neuron: a threshold below                  ball. To encourage prolonged walking, the air temperature surrounding
+which all conductances were set to 0 and a gain (that is, a scaling factor).         the fly was maintained at 34 ± 0.1 °C using a custom-built air condition-
+Taking into account an average inter-ommatidial angle θ of 4.8°                      ing system with a Peltier heater (QC-127-1.4-6.0MS, Quick-Cool) and a
+(refs. 52,53) and the edge velocity v of 30° s−1, conductances of Mi9 neu-           thermometer positioned below the sphere.
+rons and those of Mi4 and C3 neurons were advanced or delayed in time,                  Visual stimuli were presented with a refresh rate of 120 Hz on three
+respectively, by Δt relative to those of Mi1 and Tm3 neurons, depending              liquid crystal displays (2233RZ, Samsung) arranged vertically to form
+on the angle φ of the virtual edge: Δt = θ cosφ/v.                                   a U-shaped visual arena surrounding the fly, which spanned approxi-
+  For each stimulus condition, the membrane potential of the T4 neu-                 mately 270° in azimuth and 120° in elevation of the fly’s visual field
+ron was calculated as                                                                at a resolution of <0.1°. The maximal luminance of the displays was
+                                                                                     131 cd m−2; the average intensity of stimuli, which were presented at a
+         EGlu gMi9 + EACh (gTm3 + gMi1) + EGABA (gMi4 + gC3 ) + Eleak gleak          Michelson contrast of 50%, was set to an 8-bit greyscale value of 100.
+  Vm =                                                                        ,
+                      gMi9 + gTm3 + gMi1 + gMi4 + gC3 + gleak                        Stimuli were created, and predistorted to mimic a cylindrical panorama,
+                                                                                     using the Panda3D game engine in Python v.2.7.
+where g denotes the relative conductance associated with each input                     In open-loop experiments, ON and OFF edges were moved at a veloc-
+neuron and E denotes the reversal potential of the respective synaptic               ity of 60° s−1 in 16 evenly spaced directions. Owing to the geometry of the
+current with EGlu = −71 mV, EACh = −21 mV and EGABA = −68 mV as measured/            visual arena, full translation of edges at different angles required vari-
+modelled in voltage-clamp experiments (Extended Data Fig. 4a–d).                     able amounts of time. Thus, to limit stimulus durations to 5 s, an edge
+Owing to the compact size of a T4 neuron, the small amplitudes of                    of which the direction of motion deviated from the cardinal directions
+capacitive currents (in relation to the steady-state amplitudes) and                 was initialized with a small segment of the edge already present in one of
+their short time constants (in relation to those of synaptic currents)               the outer corners (never covering any part of the central display). Edges
+eliminated the need for a differential equation to calculate Vm. Free                started moving 0.5 s after stimulus initialization and crossed the arena
+parameters (thresholds, gains, Eleak and gleak) were estimated from a                within 5 s. In a single experiment (~80 min), flies experienced 50 trials of
+least-squares fit to measured membrane voltage traces of T4 neurons,                 either ON or OFF edges moving in all 16 directions in a pseudorandom
+computed with the help of the optimize.minimize function of the SciPy                order. The first 15 trials were used to equilibrate the temperature and
+v.1.3 module and hand-tuned using a FaderPort 16-channel mix produc-                 to accustom the fly to the treadmill and were excluded from analyses.
+tion controller (Presonus). Upper and lower bounds for parameter                     As inclusion criteria, we used a forward walking speed of ≥0.15 cm s−1 on
+values were set to 0 and 1 for thresholds, 0 and 2 for gains, −80 mV                 a trial-by-trial basis and a minimum of ten trials per fly. To correct for a
+and −45 mV for Eleak, and 0 and 3 for gleak, respectively. The parameters            possible constant turning bias, the time-averaged rotational velocity
+used for the simulations shown in Figs. 3b, c and 5a and Extended                    of each full trial (comprising all 16 directions) was subtracted from all
+Data Figs. 7b, c and 8 were as follows: Mi9gain = 0.92, Tm3gain = 0.35,              measurements of the corresponding trial. The optomotor response
+Mi1gain = 0.65, Mi4gain = 1.10, C3gain = 1.49, Mi9thld = 0.20, Tm3thld = 0.35,       was quantified as the average rotational velocity during 5 s of edge
+Mi1thld = 0.88, Mi4thld = 0.44, C3thld = 0.70, Eleak = −65.0 mV and gleak = 0.50,    motion in the corresponding direction. The slope of a linear regres-
+where ‘thld’ refers to the respective threshold values.                              sion of optomotor responses onto the absolute horizontal stimulus
+   To validate our choice of parameters and to quantify the sensitiv-                components |cosφ| served as a single measure of an animal’s angular
+ity, robustness and uniqueness of parameter sets, we resorted to                     velocity across different edge angles φ.
+simulation-based inference29, which enabled us to examine the full                      In closed-loop experiments, bar-fixation was assessed using a
+range of possible parameter combinations. We used 20,000 model                       10°-wide dark vertical bar, the position of which along the azimuth
+simulations, drawing parameters from uniform distributions within                    was controlled in real time by the rotation of the spherical treadmill
+the above bounds, to train the artificial neural network implemented                 (Δbar position = −rotation about z axis, updated every ~9 ms). The bar
+in the sequential neural posterior estimation (SNPE) algorithm of                    appeared at a random position between −180° and 180° at the start of
+the software package sbi (v.0.8)54. On the basis of Bayesian infer-                  each 20 s trial, during which the fly could control the bar’s position
+ence, SNPE provided a conditional probability distribution P(α|Vdata),               through its walking behaviour. One experiment (~60 min) consisted
+which is high for parameter sets α that are consistent with the experi-              of 180 trials, the first 40 of which were not analysed, as they served
+mentally measured voltage traces Vdata, but close to zero otherwise.                 to equilibrate the temperature and to accustom the fly to the virtual
+environment. For the results presented in Extended Data Fig. 10d–f,
+each experiment consisted of 80 longer multi-stimulus trials, the              Reporting summary
+first 10 of which were excluded. Only trials with a forward walking            Further information on research design is available in the Nature
+velocity of ≥0.40 cm s−1 and flies with at least 50 (20 for Extended           Research Reporting Summary linked to this paper.
+Data Fig. 10d–f) of such trials were included in the analysis. To avoid
+possible turning bias (for example, due to skewed mounting), flies
+whose average turning deviated from zero by >10° s−1 were excluded.            Data availability
+Probability density functions of bar positions were calculated for             Data are available at the Edmond Open Research Data Repository of
+each 20 s trial using a bin width of 5° before averaging over trials.          the Max Planck Society (https://doi.org/10.17617/3.8g). Source data
+The measure ‘fixation in front’ was obtained by summing the prob-              are provided with this paper.
+abilities of finding the bar in a 60° window in front of the fly and aver-
+aging these probabilities over trials.
+                                                                               Code availability
+Statistics and reproducibility                                                 Custom-written code is available at the Edmond Open Research Data
+Statistical tests were performed in Prism v.9.2 (GraphPad). Details,           Repository of the Max Planck Society (https://doi.org/10.17617/3.8g).
+including test statistics, degrees of freedom and exact P values for
+statistical analyses of data shown in Figs. 2 and 5 and Extended Data          45. Tuthill, J. C., Nern, A., Holtz, S. L., Rubin, G. M. & Reiser, M. B. Contributions of the 12
+                                                                                   neuron classes in the fly lamina to motion vision. Neuron 79, 128–140 (2013).
+Fig. 10 are reported in Supplementary Tables 1 and 2.                          46. Schilling, T., Ali, A. H., Leonhardt, A., Borst, A. & Pujol-Martí, J. Transcriptional control of
+   Data were assessed for normality and equality of variances using Sha-           morphological properties of direction-selective T4/T5 neurons in Drosophila.
+piro–Wilk and Brown–Forsythe tests, respectively. Two groups of nor-               Development 146, dev.169763 (2019).
+                                                                               47. Ni, J.-Q. et al. A genome-scale shRNA resource for transgenic RNAi in Drosophila. Nat.
+mally distributed data were compared using two-tailed Student’s t-tests            Methods 8, 405–407 (2011).
+(paired if applicable). Two groups of nonparametric data were com-             48. Schindelin, J. et al. Fiji: an open-source platform for biological-image analysis. Nat.
+                                                                                   Methods 9, 676–682 (2012).
+pared using two-tailed Mann–Whitney U-tests for independent datasets
+                                                                               49. Wilson, R. I., Turner, G. C. & Laurent, G. Transformation of olfactory representations in the
+and using Wilcoxon matched-pairs signed-ranks test for paired data-                Drosophila antennal lobe. Science 303, 366–370 (2004).
+sets. Differences between the means of multiple independent groups             50. Groschner, L. N., Chan Wah Hak, L., Bogacz, R., DasGupta, S. & Miesenböck, G. Dendritic
+                                                                                   integration of sensory evidence in perceptual decision-making. Cell 173, 894–905 (2018).
+of data that met the assumptions of normality and equality of vari-
+                                                                               51. Gouwens, N. W. & Wilson, R. I. Signal propagation in Drosophila central neurons. J.
+ances were compared using one-way ANOVA followed by Holm–Šídák’s                   Neurosci. 29, 6239–6249 (2009).
+multiple-comparisons test. Where the assumptions of normality or of            52. Götz, K. G. Optomotorische Untersuchung des visuellen Systems einiger Augenmutanten
+                                                                                   der Fruchtfliege Drosophila. Kybernetik 2, 77–92 (1964).
+equality of variances were violated, group means were compared using
+                                                                               53. Land, M. F. Visual acuity in insects. Annu. Rev. Entomol. 42, 147–177 (1997).
+Kruskal–Wallis tests followed by Dunn’s multiple-comparisons test              54. Tejero-Cantero, A. et al. sbi: A toolkit for simulation-based inference. J. Open Source
+or by Welch’s ANOVA followed by Dunnett’s T3 multiple-comparisons                  Softw. 5, 2505 (2020).
+                                                                               55. Seelig, J. D. et al. Two-photon calcium imaging from head-fixed Drosophila during
+test, respectively. Reported P values were corrected for multiple com-
+                                                                                   optomotor walking behavior. Nat. Methods 7, 535–540 (2010).
+parisons. Data shown in Fig. 2e were analysed using two-way repeated
+measures ANOVA with Geisser–Greenhouse correction. For multiple                Acknowledgements We thank A. Nern, M. Reiser, G. Rubin, L. Luo and T. Schilling for flies;
+comparisons with parental controls, the highest of two P values was            M. Drews and A. Leonhardt for software; S. Prech for technical assistance; and G. Ammer,
+                                                                               N. Hörmann and J. Pujol-Martí for discussions. This work was supported by the Max Planck
+reported in the figure legend.
+                                                                               Society, an EMBO Long-Term Fellowship ALTF 365-2019 to L.N.G. and by the European Union’s
+   No sample size calculations were performed before experimentation.          Horizon 2020 programme under the Marie Skłodowska-Curie Action MOVIS grant agreement
+Sample sizes were chosen to match or exceed standard sample sizes              no. 896143 to L.N.G. Flies obtained from the Bloomington Drosophila Stock Center
+                                                                               (NIH P40OD018537) were used in this study.
+in the field. Sample sizes in electrophysiological experiments corre-
+spond to the number of cells, each of which was recorded in a different        Author contributions L.N.G., J.G.M. and A.B. conceived the study, designed experiments and
+animal. Sample sizes in behavioural experiments correspond to the              ran model simulations. L.N.G. and J.G.M. performed and analysed electrophysiological
+                                                                               recordings. L.N.G., J.G.M. and B.Z. performed histological analyses and B.Z. conducted and
+number of flies. The investigators were not blinded. Randomization was
+                                                                               analysed behavioural experiments. The manuscript was written by L.N.G. and edited by all of
+not applicable, because flies were grouped on the basis of genotype.           the authors, chiefly by B.Z.
+In open-loop behavioural experiments (Fig. 5d–f) and all experiments
+                                                                               Funding Open access funding provided by the Max Planck Society.
+involving two directions of visual stimuli, stimulus directions were alter-
+nated randomly; all of the remaining visual stimuli were presented in a        Competing interests The authors declare no competing interests.
+strict sequence to enable quick, intuitive interpretation (Figs. 1f and 5b).
+Two wild-type neurons were lost after the third glutamate application          Additional information
+                                                                               Supplementary information The online version contains supplementary material available at
+during patch-clamp recordings for Fig. 2e and were excluded from the           https://doi.org/10.1038/s41586-022-04428-3.
+repeated-measures analysis. Six cells were lost during voltage-clamp           Correspondence and requests for materials should be addressed to Lukas N. Groschner or
+experiments shown in Fig. 2f and Extended Data Fig. 4b due to pneu-            Alexander Borst.
+                                                                               Peer review information Nature thanks Holger Krapp and Botond Roska for their contribution
+matic ejection. The current–voltage relationships of those cells do not        to the peer review of this work.
+include all, but at least six, data points per cell.                           Reprints and permissions information is available at http://www.nature.com/reprints.
+Article
+
+
+
+
+Extended Data Fig. 1 | Neuronal morphologies and receptive fields of the         experiments in different flies (Mi9: n = 5, Tm3: n = 3, Mi1: n = 3, Mi4: n = 4, C3:
+ON motion detection circuit. a, Maximum intensity projections of confocal        n = 3, T4: n = 7). b, Individual spatial receptive fields of T4 and their columnar
+stacks with GFP expression in the respective neuronal population (green) and     input neurons obtained by reverse correlation (corr.) of membrane potentials
+single biocytin-filled neurons (white) recovered after patch-clamp recordings.   and white noise stimuli. AU, arbitrary units. Filtered averages are shown in
+Scale bars, 20 μm. Micrographs are representative of independent                 Fig. 1d, e.
+Extended Data Fig. 2 | Mi9 neurons hyperpolarize in response to luminance           respectively. Traces on top are normalized light intensities at the respective
+increments. Membrane potential responses of the same Mi9 neurons to                 receptive field centre. The light lines represent technical replicates; the dark
+increments (left) and decrements in luminance (right) presented in a 5° circle at   lines represent the mean; n = 14 technical replicates/2 cells/2 flies. Note the
+the centre of the neurons’ receptive fields on a dark or bright background,         difference in membrane potential depending on the baseline luminance.
+Article
+
+
+
+
+Extended Data Fig. 3 | Morphology of wild-type and GluClα-deficient T4
+neurons. Maximum intensity projections of representative confocal stacks of
+T4 neurons expressing GFP (left) or GFP and GluClαRNAi (right), each containing
+an individual biocytin-filled neuron (white) recovered after patch-clamp
+recording. The soma of the GluClαRNAi-expressing neuron was lost during
+pipette removal. Scale bars, 20 μm. Micrographs are representative of
+independent experiments in different flies (T4 > GFP: n = 7 and T4 > GFP +
+GluClαRNAi: n = 3). At the light microscopic level, no obvious genotype-specific
+morphological differences were detectable.
+Extended Data Fig. 4 | Measured and modelled T4 whole-cell currents in             current-voltage relationships (right). Conductances were adjusted in order to
+response to three types of neurotransmitter. a, Placement of pipettes for          approximate measured reversal potentials at the soma. Filled triangles denote
+neurotransmitter application during whole-cell recording. b, Average               modelled reversal potentials at the soma (Erev Soma); open triangles denote
+whole-cell currents of T4 neurons in response to 100 ms applications of            corresponding reversal potentials at the dendritic root (Erev Dend.). Note the
+neurotransmitter to the dendrite at different holding potentials (left) and full   predicted deviation of Erev Soma from Erev Dend. for currents induced by
+current-voltage relationships (right). Coloured dashed lines are linear fits to    acetylcholine, but not for currents induced by glutamate or GABA. e, Pipettes
+measurements taken at membrane potentials in the physiologically observed          indicate locations of recording sites on the compartmental model (c) for
+range between −100 and −40 mV. Filled triangles denote reversal potentials         simulations in f. f, Ratio of somatic to dendritic membrane potential in
+obtained by linear fits to currents measured at the soma (Erev Soma). Data are     response to dendritic injection of 10 pA of depolarizing current as a function of
+mean ± s.e.m. n values indicate the number of cells. The inward rectification of   membrane resistance (R m) and axial resistivity (Ra) in the model. Note that
+GABA-induced currents could be due to coupling of GABAB receptors to               soma and dendrite were quasi-isopotential (ratio > 0.9) across a wide range
+inwardly-rectifying potassium channels. c, Electron microscopic reconstruction     of parameters. Asterisk indicates parameter set used for simulations in
+of a T4 neuron7 used for compartmental modelling. Pipettes indicate                d. g, Modelled somatic input resistance as a function of Rm and Ra. Solid and
+approximate locations of conductances and the recording site for simulations       dashed lines correspond to the measured mean input resistance ± s.d. for
+in d. d, Somatic currents at different holding potentials simulated during         wild-type T4 neurons (as shown in Fig. 2h). Asterisk indicates parameter set
+100 ms openings of conductances at the electron microscopically-determined         used for simulations in d.
+synaptic sites corresponding to the respective transmitter (left) and
+Article
+
+
+
+
+Extended Data Fig. 5 | Nonlinear response properties of model circuits.               signal y of opposite polarity that controls the inhibitory conductance ginh. Eexc,
+a, Resistor-capacitor equivalent circuit of a passive T4 neuron used for              Einh, and Eleak are the equilibrium potentials of excitatory, inhibitory, and leak
+simulations in Fig. 3b, c, and 5a and Extended Data Figs. 6, 7, and 8. EGlu, E ACh,   currents, respectively. Bottom: Nonlinearity as a function of signal amplitude
+and EGABA denote the equilibrium potentials and gGlu, g ACh, and gGABA denote the     for two excitatory conductances (b) and for one excitatory and the release
+conductances associated with glutamate, acetylcholine and GABA,                       from an inhibitory conductance (c). Nonlinearity was defined as the difference
+respectively. The signals of Mi9 neurons control gGlu, the signals of Tm3 and         between the voltage response to both coincident inputs and the sum of the
+Mi1 neurons control g Ach, and those of C3 and Mi4 neurons act on gGABA.              responses to each individual input. Equilibrium potentials were set to
+Vm, membrane potential; Cm, membrane capacitance; gleak, leak conductance.            Eexc − Eleak = 50 mV and Einh − Eleak = −10 mV. d, e, Nonlinearity of the circuit
+b, c, Top: Equivalent circuits of two passive isopotential neurons. One neuron        in c as a function of Eexc and Einh. Conductances were set to gexc = ginh = gleak (d) or
+(b) receives two input signals x and y, which control the excitatory                  gexc = ginh = 0.5 × gleak (e). Disinhibition supports supralinear responses over a
+conductances gexc1 and gexc2, respectively. The other neuron (c) receives one         wide range of equilibrium potentials and input signal amplitudes.
+input signal x controlling the excitatory conductance gexc and another input
+Extended Data Fig. 6 | Free parameters of the conductance-based T4                 individual parameter distributions are shown at the bottom; the remaining
+neuron model. Samples (n = 10,000) drawn from conditional probability              panels each contain the relationship between two respective parameters. Pink
+distributions of input neuron gains and thresholds, leak reversal potential        arrowheads and crosses indicate model parameters used for simulations
+(Eleak), and leak conductance (gleak) consistent with measured voltage traces of   shown in Figs. 3b, c, and 5a and Extended Data Figs. 7b, c, and 8.
+T4 neurons inferred by deep neural density estimation29. Histograms of
+Article
+
+
+
+
+Extended Data Fig. 7 | A direction-selective ‘window of opportunity’.         conductances (g/gleak) of respective input synapses during ON (b) and OFF edge
+a, Schematic columnar organization of T4 neuron inputs. Synapses from Mi9     motion (c) at a velocity of 30° s−1 in the directions indicated in a using the same
+neurons (green), Tm3/Mi1 neurons (red), and Mi4 /C3 neurons (blue) are each   model parameters as in Figs. 3b, c, and 5a and Extended Data Fig. 8. Data are
+separated by one column (hexagons) resulting in direction-dependent time      mean and area under curve. Arrowheads in b mark the coincidence of increased
+differences during visual motion. Arrows indicate the directions of edge      excitability and cholinergic excitatory input (red). Bottom: T4 cell membrane
+motion in corresponding panels in b and c. b, c, Top: Normalized T4 cell      voltage (Vm) responses predicted by the model.
+Extended Data Fig. 8 | Predicted relationship between membrane potential
+and input resistance during edge motion. Simulated T4 cell membrane
+potential (Vm) as a function of input resistance (Rin) in response to ON (top) and
+OFF edges (bottom) moving at 30° s–1 in the preferred (PD, left) and the null
+direction (ND, right) of the model. The arrowhead marks the peak in input
+resistance.
+Article
+
+
+
+
+Extended Data Fig. 9 | Input resistance measurements during visual
+stimulation. Holding currents (solid lines, top), membrane potentials (solid
+lines, centre), and input resistances (dashed lines, bottom) of exemplary T4
+neurons expressing either GFP (a) or GFP + GluClαRNAi (b). To obtain input
+resistance measurements at high temporal resolution, neurons were subjected
+to at least two repetitions of identical visual stimulation while recording their
+membrane potentials. In this case, the stimulus was an ON edge moving at
+30° s−1 in the neuron’s preferred direction. The holding current I was altered in
+between the first (#1) and the second repetition (#2) by ΔI = −1 pA. The input
+resistance Rin at each time point was calculated as ΔVm/ΔI, where ΔVm denotes
+the difference in membrane potential between repetitions (shaded areas/
+dashed arrows in a).
+Extended Data Fig. 10 | GAL4 expression patterns, walking speeds, and bar
+fixation. a, Confocal cross section through the optic lobe of a fly expressing
+GFP (green) under control of R39H12-GAL4 (T4/T5 >) as used in behavioural
+experiments in Fig. 5d–i. Synaptic structures were counterstained with an
+antibody against bruchpilot (grey). Scale bar, 40 µm. The micrograph is
+representative of 8 biological replicates. b, Average forward walking speeds of
+flies expressing GluClαRNAi (teal) or Nmdar1RNAi (grey) in T4/T5 neurons and their
+parental controls (black/grey) during closed-loop bar fixation experiments in
+Fig. 5h, i. c, Confocal cross section through the optic lobe of a fly expressing
+GFP (green) under control of the split GAL4 line R59E08-AD; R42F06-DBD.
+Synaptic structures were counterstained with an antibody against bruchpilot
+(grey). Scale bar, 40 µm. The micrograph is representative of 5 biological
+replicates. d, Average forward walking speeds of flies expressing GluClαRNAi
+(teal) under control of R59E08-AD; R42F06-DBD and their parental controls
+(black/grey) during closed-loop bar fixation in e, f. e, Exemplary bar
+trajectories (242 trials and 11 flies per genotype, top) and the overall bar
+position probabilities (bottom) for flies expressing GluClαRNAi (teal) under
+control of R59E08-AD; R42F06-DBD and their parental controls (back/grey).
+Data are mean ± s.e.m. of flies in f. f, The percentage of time that the bar
+occupied a central 60° window (fixation in front, dashed lines in e). The dashed
+line indicates the chance level. Circles, individual flies; bars, mean ± s.e.m.
+Asterisk denotes a significant difference from both parental controls
+(P = 0.0012, one-way ANOVA followed by Holm–Šídák’s multiple comparisons
+test). n values indicate the number of flies.
+    ≥
+
+≥
+

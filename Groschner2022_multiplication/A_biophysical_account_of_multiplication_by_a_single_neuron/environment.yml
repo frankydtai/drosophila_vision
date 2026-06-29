@@ -1,0 +1,13 @@
+name: MultiplicativeDisinhibition
+channels:
+  - conda-forge
+  - defaults
+
+dependencies:
+  - python=3.7.*
+  - matplotlib=3.0.*
+  - numpy=1.15.*
+  - pandas=0.25.*
+  - seaborn=0.10.*
+  - tqdm=4.46.*
+  - jupyterlab

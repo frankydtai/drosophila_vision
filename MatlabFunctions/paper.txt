@@ -1,0 +1,1363 @@
+                                                                                                      Article
+
+Non-preferred contrast responses in the Drosophila
+motion pathways reveal a receptive field structure
+that explains a common visual illusion
+Highlights                                                               Authors
+d   Whole-cell recordings of T4 and T5 responses to ON-OFF               Eyal Gruntman, Pablo Reimers,
+    visual stimuli                                                       Sandro Romani, Michael B. Reiser
+
+d   T4 and T5 have a similar receptive field but with opposite           Correspondence
+    contrast selectivity
+                                                                         gruntmane@janelia.hhmi.org (E.G.),
+                                                                         reiserm@janelia.hhmi.org (M.B.R.)
+d   Biophysical model fit to ON and OFF responses predicts
+    directional selectivity
+                                                                         In brief
+d   The model explains cellular and behavioral responses to              Recording whole-cell responses from ON
+    reverse-phi illusion                                                 and OFF cells in the Drosophila motion
+                                                                         pathway, Gruntman et al. show that these
+                                                                         cells share a receptive field structure for
+                                                                         their non-preferred contrast responses.
+                                                                         This structure explains the perception of
+                                                                         directional inversion to the reverse-phi
+                                                                         illusion.
+
+
+
+
+           Gruntman et al., 2021, Current Biology 31, 5286–5298
+           December 6, 2021 ª 2021 The Authors. Published by Elsevier Inc.
+           https://doi.org/10.1016/j.cub.2021.09.072                                                     ll
+           ll
+     OPEN ACCESS
+
+
+
+Article
+Non-preferred contrast responses in the Drosophila
+motion pathways reveal a receptive field structure
+that explains a common visual illusion
+Eyal Gruntman,1,* Pablo Reimers,1,2 Sandro Romani,1 and Michael B. Reiser1,3,*
+1Janelia Research Campus, Howard Hughes Medical Institute, 19700 Helix Drive, Ashburn, VA, USA
+2Present  address: Department of Neurobiology, Harvard Medical School, Boston, MA, USA
+3Lead contact
+
+*Correspondence: gruntmane@janelia.hhmi.org (E.G.), reiserm@janelia.hhmi.org (M.B.R.)
+https://doi.org/10.1016/j.cub.2021.09.072
+
+SUMMARY
+
+Diverse sensory systems, from audition to thermosensation, feature a separation of inputs into ON (incre-
+ments) and OFF (decrements) signals. In the Drosophila visual system, separate ON and OFF pathways
+compute the direction of motion, yet anatomical and functional studies have identified some crosstalk be-
+tween these channels. We used this well-studied circuit to ask whether the motion computation depends
+on ON-OFF pathway crosstalk. Using whole-cell electrophysiology, we recorded visual responses of T4
+(ON) and T5 (OFF) cells, mapped their composite ON-OFF receptive fields, and found that they share a similar
+spatiotemporal structure. We fit a biophysical model to these receptive fields that accurately predicts direc-
+tionally selective T4 and T5 responses to both ON and OFF moving stimuli. This model also provides a
+detailed mechanistic explanation for the directional preference inversion in response to the prominent
+reverse-phi illusion. Finally, we used the steering responses of tethered flying flies to validate the model’s pre-
+dicted effects of varying stimulus parameters on the behavioral turning inversion.
+
+INTRODUCTION                                                            responses.22 Connectomic reconstructions mapped the T4
+                                                                        and T5 inputs and showed most connections were between neu-
+In both invertebrate and vertebrate visual systems, neuronal sig-       rons within the same pathway. However, anatomical interactions
+nals bifurcate into parallel pathways, within which many neurons        between prominent cells of the ON and OFF pathways have been
+preferentially encode luminance increments (ON) or luminance            described,9,17,23 with likely functional contributions.24 For
+decrements (OFF) within 1 to 2 synaptic layers downstream of            example, a key T4 input is primarily OFF-responding,25–27 and
+photoreceptors.1 The direction of local motion is computed              T5 neurons show responses to some ON stimuli.28,29 The classic
+separately within these pathways a few synapses downstream              experiments that established the analysis of motion computation
+of the ON-OFF split.1–3 Splitting sensory signals into increments       in insects already showed inverted responses to ON-OFF com-
+and decrements is common to different modalities4–6 and may             binations.12 Later studies found neuronal correlates for this
+enable more efficient stimulus encoding.7 However, in the               behavioral inversion in neurons downstream of T4 and T5,11,30
+mammalian retina, motion is also computed in ON-OFF cells,8             and recent studies showed that T4 and T5 exhibit an inverted
+and the separate motion pathways in the fly show clear evidence         directional preference to reverse-phi stimuli.26,31 Localizing this
+of crosstalk.9,10 What is the benefit of mixing between path-           inversion to the directionally selective neurons suggests that
+ways? An effective tool for studying this crosstalk in the motion       mixing ON and OFF signals is a central feature of computing mo-
+pathway is the ‘‘reverse-phi’’ visual illusion,11–15 in which invert-   tion, but it remains unclear why or precisely how T4 and T5 are
+ing the contrast of moving objects induces an illusory inversion in     susceptible to the reverse-phi illusion.
+the detected motion direction.13 Similarities between the com-             In previous works, we described how T4 and T5 neurons
+putations carried out in the fly and vertebrate visual systems          generate directionally selective responses to moving bright
+suggest that understanding ON-OFF crosstalk in the Drosophila           and dark objects, respectively.32,33 Using static stimuli of the
+motion circuit could reveal fundamental aspects of visual pro-          preferred contrast (PC; bright for T4, dark for T5), we showed
+cessing and may uncover more general, conserved aspects of              that both cell types share a similar spatiotemporal receptive field
+sensory processing.                                                     (RF). This was unexpected since their input neurons have quite
+   Anatomical studies of the Drosophila medulla identified two          different properties.9,27,34 We modeled this RF as generated by
+major pathways,16,17 later determined to primarily encode ON            a fast excitatory conductance and a slower, spatially offset inhib-
+and OFF signals.18–21 Each pathway contains motion computing            itory conductance.32,33 In this study, we found that responses of
+circuits; the T4 neurons (ON) and T5 neurons (OFF) are the first        T4 and T5 cells to moving bars of their non-preferred contrast
+cells in the visual system to show directionally selective              (NC; dark for T4, bright for T5) were still directionally selective.
+
+
+5286 Current Biology 31, 5286–5298, December 6, 2021 ª 2021 The Authors. Published by Elsevier Inc.
+This is an open access article under the CC BY license (http://creativecommons.org/licenses/by/4.0/).
+                                                                                                                              ll
+Article                                                                                                                  OPEN ACCESS
+
+
+Therefore, we sought to understand how NC inputs affect T4 and         S1A). The same 3 differences in the response dynamics were
+T5 responses. First, we characterized T4 and T5 responses to           seen when we compared responses to PD motion of dark (PC)
+PC and NC moving bars and mapped their RFs using both bright           and bright (NC) bars in T5 cells (Figures 1Eii and S1). The above
+and dark stimuli. This revealed that T4 and T5 share a largely         differences show that T4 and T5 directionally selective re-
+similar NC spatial RF. Next, we proposed a unified, conduc-            sponses to NC moving bars cannot be explained as only a PC
+tance-based model to capture the PC/NC RF and showed that              response to the trailing edge and, therefore, may reveal contribu-
+this model can explain the generation of directionally selective       tions from additional mechanisms.
+responses to both PC and NC moving bars. Remarkably,
+this model also provides an explanatory mechanism for the              T4 and T5 neurons have a similar NC RF structure
+reverse-phi illusion. Finally, we corroborate these model predic-      To uncover the mechanism for generating directionally selective
+tions with functional recordings and behavioral responses to           responses to NC stimuli in T4 and T5 cells, we mapped the
+reverse-phi motion and show that NC responses are essential            ‘‘static’’ RFs of both cells. Since our moving bar stimuli are
+for understanding the motion computation.                              composed of discrete steps, we can decompose them into sin-
+                                                                       gle-step duration bar flashes presented at each position along
+RESULTS                                                                the movement trajectory (Figure 1A).
+                                                                          The PC RF has the same overall structure previously re-
+T4 and T5 directionally selective responses to NC                      ported:33 responses on the leading side of the RF are depolariz-
+moving bars exhibit distinct dynamics                                  ing, while responses on the trailing side feature rapid depolariza-
+We used targeted in vivo whole-cell electrophysiology to localize      tion followed by sustained hyperpolarization (Figure 2A; T5 data
+the RF center for individual T4 or T5 neurons, identify their pri-     from same recordings as Gruntman et al.33). The NC RF structure
+mary motion axis, and record responses to a panel of RF-aligned        is distinct from the PC RF yet remarkably similar between T4 and
+stimuli (Figure 1A). Bright stimuli are the PC for T4 but NC for T5,   T5 (Figure 2A). For both cell types, depolarizing responses
+while dark stimuli are T50 s PC and T4’s NC (Figure 1B). Moving        induced by flashing an NC bar are toward the trailing side, while
+bars are a compound stimulus, containing a leading edge of             hyperpolarizing responses are shifted toward the center (defined
+one contrast transition and a trailing edge with the opposite          by PC responses; Figures 2A and 2B). Interestingly, this NC hy-
+contrast transition. When T4 cells were presented with bright          perpolarizing component is reminiscent of crossover inhibition
+bars moving in the preferred and non-preferred directions (PD          found in the mammalian retina, where opposing contrast leads
+and ND, respectively), their responses were directionally selec-       to increased inhibition when excitatory inputs decrease and
+tive (Figure 1Ci, top), as expected.22,32,33,35 When presented         vice versa.36,37 Although this RF structure is most evident in re-
+with fast moving (56 /sec) dark narrow bars, T4 were largely un-      sponses to long-duration flashes of wide bars, it is also
+responsive to both directions (Figure 1Ci, bottom). However,           measured in responses to narrower bars (Figure 2C). Next, we
+when presented with 43 wider dark bars moving at the same              highlight three features of NC flash responses that differentiate
+speed, T4 responses were large and directionally selective (Fig-       them from PC responses yet are common to T4 and T5.
+ure 1Ci, bottom right). T5 cells responded similarly to bright mov-       The first feature is prominent in the RF center: NC responses
+ing stimuli: narrow bars evoked small responses, while wider           exhibited a strong hyperpolarization aligned to stimulus onset
+bars evoked larger, directionally selective responses (Figure 1Cii,    (Figure 2A, first vertical line in each panel) and a depolarization
+bottom right). We presented NC bars of different widths and            following stimulus offset (Figure 2A, second vertical line in
+speeds (Figure S1) and found that fast, narrow NC bars did not         each panel). The offset of a dark (bright) flash is accompanied
+evoke directionally selective responses while slow, wide NC            by a luminance increment (decrement), which is expected to
+bars did. Additionally, the difference between the peak PD and         evoke a depolarizing response in T4 (T5). However, we find
+ND responses for these slow and wide NC moving bars is com-            that the onset of these stimuli also evoked substantial re-
+parable in magnitude to this difference for the corresponding PC       sponses. In response to NC bar onset, T4 and T5 were hyperpo-
+bars (Figures 1D and S1).                                              larized in the RF center but depolarized on the trailing side (see
+   T4 (T5) cells are typically referred to as ON (OFF) cells as a      also Wienecke et al.28). The depolarization response rise times
+shorthand to indicate that they are strongly selective for lumi-       (Figure 2D) for PC stimuli in both T4 and T5 are position-indepen-
+nance increments (decrements). Since a moving dark bar has             dent and follow stimulus onset (t = 0). Conversely, rise start times
+both a leading luminance-decrement edge and a trailing lumi-           for NC bar flash responses show a clear positional dependence:
+nance-increment edge, the recorded T4 responses to a dark              following stimulus offset on the RF leading side and center yet
+moving bar could simply be a delayed response to the trailing          following stimulus onset on the trailing side (for T5 also on the
+edge (Figure 1Ei). We compared T4 responses to PD motion of            leading side; Figure 2D). These results suggest a specific inter-
+bright and dark bars (see also Figure S1) and noted 3 key differ-      action between ON and OFF signals, with T4 receiving both
+ences: (1) in response to bright bar motion, T4 depolarization         depolarizing and hyperpolarizing inputs induced by luminance
+preceded hyperpolarization while in response to dark bar motion        decrements, and T5 receiving both depolarizing and hyperpola-
+hyperpolarization preceded (Figure 1Ci, arrowhead); (2) decay of       rizing inputs induced by luminance increments.
+dark bar responses were slower than for the bright bar (compare           The second common feature: hyperpolarization in response to
+slope of green and black traces, Figure 1Ei); and (3) the dark bar     NC flashes decayed faster than hyperpolarization in response to
+response peak was delayed compared to bright bar peak, even            PC flashes (Figure 2E). PC responses can be modeled by a
+after temporally aligning to the appearance of the light-increment     combination of a fast excitatory conductance and a slow inhibi-
+edge (compare light green trace to black trace, Figures 1Ei and        tory one.32,33 Consequently, the response decay time is likely
+
+                                                                                Current Biology 31, 5286–5298, December 6, 2021 5287
+            ll
+        OPEN ACCESS                                                                                                                               Article
+
+    A                                                                                                                               B
+
+
+
+
+   Ci                                                                              C ii
+
+
+
+
+   Di                                          Ei                                  D ii                                      E ii
+
+
+
+
+Figure 1. T4 and T5 directionally selective responses to non-preferred contrast moving bars exhibit distinct dynamics
+(A) Schematic of experimental setup and procedure. Whole cell recordings were targeted to GFP-labeled somata. The receptive field (RF) center and preferred
+direction (PD) were located for each cell. Further RF characterization was reduced to presenting stimuli along the PD-ND axis.
+(B) Summary of stimulus conventions used throughout. PD, preferred direction; ND, non-preferred direction; PC, preferred contrast; NC, non-preferred contrast.
+By convention, in all figures, the PD is aligned to movement from left to right.
+(Ci) Baseline subtracted T4 responses (n = 9 cells diagonally aligned; mean ± SEM) to bars of width 1 and 4 LEDs (2.25 and 9 ) moving at 56 /s (40 ms per LED
+step) in the PD and ND with both PC (top) and NC (bottom).
+(Cii) Same as Ci for T5 (n = 12 cells diagonally aligned).
+(Di) Boxplots for difference in the peak response to motion in both directions of T4 by bar contrast, width, and speed (n = 14 cells). Filled boxes denote mean is
+significantly different from zero (p < 0.01).
+(Dii) Same as Di for T5 (n = 17 cells).
+(Ei) Baseline subtracted T4 responses to 4-LED-wide PD moving bars with PC and NC overlaid (same data as Ci). Light green trace shows PC response temporally
+shifted to align with trailing edge (bottom: schematics of stimulus luminance levels).
+(Eii) Same as Ei for T5.
+Further details of NC moving bar responses provided in Figure S1.
+
+
+dominated by the persistent inhibitory conductance pulling the                    there are (at least) 2 separate sources of inhibition affecting the
+membrane potential down. Since the hyperpolarization present                      RF structure.
+in the NC flash at the RF center preceded the depolarizing                          The third common feature: stimulus-duration-dependent
+component, we deduce that this hyperpolarization wanes faster                     offset depolarization. In response to a short dark flash, T4 cells
+than the slower PC hyperpolarization. These results suggest                       hyperpolarized during stimulus presentation and then returned
+
+5288 Current Biology 31, 5286–5298, December 6, 2021
+                                                                                                                                                        ll
+Article                                                                                                                                          OPEN ACCESS
+
+
+                A
+
+
+
+
+                B                                                                                C
+
+
+
+
+                D                                                          E                         F                           G
+
+
+
+
+Figure 2. T4 and T5 neurons have a similar non-preferred contrast receptive field structure
+(A) Baseline subtracted responses (mean ± SEM) of T4 (middle; n = 15 cells) and T5 (bottom; n = 17 cells) to 160 ms bright (green) and dark (black) 4-LED-wide bar
+flashes at different position along the PD-ND axis. Gray vertical lines indicate stimulus onset and offset. Top: schematic for stimulus position within the RF.
+(B) Maximal response depolarization and hyperpolarization by position for the same dataset in (A). Large dots represent the mean max response at each position
+and small dots the individual cell response mean. Points above (below) the zero line represent maximal depolarization (hyperpolarization). Green line in the T4 NC
+plot and black line in T5 NC plot are the respective PC means.
+(C) Same as (B), for mean maximal responses to 1- and 2-LED-wide bar flashes.
+(D) Boxplots of rise start time by position for responses presented in B for T4 (top) and T5 (bottom). Stimulus onset: t = 0; stimulus offset: t = 160 ms (gray lines).
+(E) Boxplots of the response decay times for trailing side responses presented in (B) (positions [0:2]) for T4 (top; n = 15 cells) and T5 (bottom; n = 12 cells).
+(F) Baseline subtracted responses to non-preferred contrast 4-LED-wide bar flashes presented for 40 and 160 ms at a single position (1; T4 n = 15 cells; T5 n =
+12 cells; mean ± SEM).
+(G) Mean response amplitude for the same NC stimuli as in (F) (averaged over positions [-2:0]) compared to a linear approximation. These non-linear responses
+are unlikely to arise from intrinsic mechanisms, as detailed in Figure S2.
+
+
+                                                                                                 Current Biology 31, 5286–5298, December 6, 2021 5289
+            ll
+      OPEN ACCESS                                                                                                                                                                                                                                          Article
+
+             A                                                                               t                              B                                                                                                                       T4
+                 stimulus                                                              dec       inc                                                                                                                               flashing bar - dark
+
+                                                                        pulse
+
+                                                                         delta
+                                                                                                                                                                                                                              flashing bar - bright
+
+
+
+
+                                                                                                                           10 mV
+                 input                                         τD
+                                                                                                                                   250 ms                                                     Idec
+                                                                                                             input
+                                                                                                 τD          filter
+                                                                                                                                                                 Einc                                                                       Iinc        Edec
+                                                                                                                            C                                                                            D                         dark
+                                                                                                                                    moving bar - dark                                                                         20
+            conductances                            Einc       Edec                  Iinc            Idec
+
+
+
+
+                                                                                                                                                                                                         Predicted max (mV)
+                                                                                                                                             40 ms                        160 ms
+                                                                                                                temporal
+                                                   τEinc       τEdec             τIinc               τIdec      filters
+
+
+                                                                                                                                                                                          predicted PD                        0
+                                                                           1
+                                                           +                                 +                                                                                            predicted ND                             bright
+                                                                                                                                    moving bar - bright                                                                       20
+                                                                          2                                                                                                               measured
+                                                       +                                         -
+                                                                      Etot - αItot
+                                                                                                                                    10 mV
+
+
+                                                                    1 + Etot+ Itot
+                                                                                                                                                                                                                              0                    20
+                                                                                                                                            250 ms                      250 ms                                                 Measured max
+                                                                          3                                                                                                                                                        (mV)
+
+                                                                                                                            E                                                                                                                       T5
+                                                                                                                                                                                                                                   flashing bar - dark
+
+
+                                                                                                                                                                                                                              flashing bar - bright
+                                                                                                                           10 mV
+
+
+
+
+                                                                                                                                   250 ms
+                                                                                                                           Einc                                                              Iinc
+                                                                                                                                                          Edec                                                                                      Idec
+                    F                                                                            G               moving bar                                                                moving bar
+                                                   dark                                                          dark                                                       pred. PD       bright
+                                              20                                                                                                     DS
+                                                                                                                                                                            pred. ND
+                                                                                                       10 mV
+
+
+
+
+                                                                                                                                                                            meas.                                                                          3
+                         Predicted max (mV)
+
+
+
+
+                                                                                                               500 ms
+                                                                                                                                                                                   Einc
+                                              0                                                                                                                                    Edec
+                                                                                                                                                                                   Iinc                                                                    1
+                                                                                                       20 mV
+
+
+
+
+                                                   bright                                                                                                                          Idec
+                                              20
+                                                                                                               500 ms                                                              Etot
+                                                                                                                                                                                   Itot
+                                                                                                                                                                                                                                                           2
+
+
+                                              0                             20                                 500 ms
+                                               Measured max
+                                                   (mV)
+
+Figure 3. A unified model architecture explains the generation of both preferred and non-preferred contrast directionally selective re-
+sponses in T4 and T5
+(A) Schematic of T4 and T5 4-conductance model highlighting the temporal aspects. The schematic depicts a T4 responding to a dark stimulus, with a pulse signal
+for the duration of the light decrement feeding into the E-I decrement pair and a delta signal marking the time of light increment feeding into the E-I increment pair.
+Colored temporal filters represent input and conductance time-series for this input.
+(B) Mean measured responses to 4-LED-wide flashes of dark and bright bars at 10 different positions (gray) compared to predicted model responses (green and
+black); model was optimized to fit the averaged T4 responses (n = 5 cardinally aligned cells). Bottom: Gaussian spatial filters for the 4 conductances in the model
+(m ± s; dashed line indicates extended filter scope).
+(C) Mean measured responses to fast (40 ms step, left) and slow (160 ms step, right), dark (top) and bright (bottom) bars moving in the preferred and non-preferred
+directions overlaid with predicted responses from the same model cell with the same model parameters as in (B).
+(D) Peak measured responses compared to peak predicted responses for moving dark (top) and bright (bottom) bar stimuli (same widths and speeds as Figure
+1D). Marker size denotes speed (large: slower). Marker color denotes movement direction, as in (C).
+(E) Comparing the measured and the predicted responses, same as (B) but for the averaged T5 cell (n = 5 cardinally aligned cells). Note that the T5-optimized
+model has Einc fed by a spatial filter on the leading side of the receptive field to generate the leading-side bright stimulus onset component.
+(F) Same as (D) for the same averaged T5 cell as in (E), presenting both dark (top) and bright (bottom) moving bar responses.
+(G) Example T5 moving bar responses to explain the generation of directional selectivity. The numbers on the right correspond to numbered stages in (A). Top row:
+mean measured responses to 4-LED-wide dark (left columns) and bright (right columns) bars moving in the PD and ND overlaid with predicted responses. Middle
+                                                                                                                                                                                                                                      (legend continued on next page)
+
+5290 Current Biology 31, 5286–5298, December 6, 2021
+                                                                                                                                                  ll
+Article                                                                                                                                     OPEN ACCESS
+
+
+to baseline. When the same bar was presented for longer, its                         We fit and simulated responses from a full model as well as a
+disappearance evoked a strong depolarization (Figure 2F, top).                    model where we further minimized the total number of parame-
+The dependence on stimulus duration is not linear (Figure 2G;                     ters (see STAR Methods). We optimized model parameters for
+paired sample t-test p < 0.001) and does not appear to rely on                    T4 and T5 separately by using an iterative least-squares proced-
+an intrinsic mechanism (Figure S2). In T5 cells, a different stim-                ure that minimized the difference between our simulation results
+ulus-duration dependence is seen at the offset of a bright flash                  and the measured dark and bright responses. We present results
+(Figure 2F, bottom) since they exhibit a weak sublinearity (Fig-                  from the reduced version in the primary figures, but detailed re-
+ure 2G; paired sample t-test p < 0.01).                                           sults from both models are in Figure S3. Since the reduced
+                                                                                  model requires fewer parameters and could be fit using only re-
+A unified model architecture explains the generation of                           sponses to non-moving stimuli, it is the more useful version.
+both PC and NC directionally selective responses in T4                               As expected, the T4-optimized model’s responses were well-
+and T5                                                                            matched to the measured responses to both bright and dark
+Our previous work showed that a model based solely on the PC                      flashes at all positions along the RF (Figure 3B). Reassuringly,
+flash responses of T4 and T5 cells can predict their responses                    despite having two additional conductances, the optimization
+to PC moving stimuli.32,33 Here, we evaluate whether a model of                   procedure converged on spatial filters for Einc and Iinc that
+the PC-NC composite RF can explain the generation of direction-                   were similar to our prior (PC-only) T4 model: Einc in the RF center
+ally selective responses to both dark and bright moving stimuli.                  and Iinc toward the trailing side (depicted by horizontal lines
+We established a model that allowed us to capture responses                       below traces, Figure 3B). In the T4-optimized model, Edec ap-
+to both the onset and offset of luminance increments and decre-                   pears to play a minor role, fit to a spatial filter on the far trailing
+ments. In our model, we focus on the effects of NC and PC stimuli                 side (Figure 3B) and with minimal amplitude. The Idec conduc-
+on the conductance inputs into T4 and T5 neurons and have delib-                  tance is toward the leading side and contributes the hyperpola-
+erately avoided modeling the complete ON and OFF pathways.                        rizing current in response to a dark bar’s onset. We next used the
+   We expanded our previous modeling framework with three                         same model parameters from the bar-flash optimization to simu-
+major modifications: (1) inputs that represent stimulus offset,                   late moving bar responses and compared them to our record-
+(2) preferred and non-preferred inputs, and (3) two additional                    ings (Figures 3C, 3D, and S3E–S3H). The model captures both
+conductances corresponding to NC inputs (Figure 3A). We de-                       the dynamics and the magnitude of the moving bar responses
+signed the model to simulate either T4 or T5 neurons but used                     and predicts directionally selective responses to both dark and
+T4 responses to a dark bar flash (depicted in Figure 3A, right                    bright moving bars (illustrated for T5 in Figure 3G).
+side) to provide intuition for these components. To enable dif-                      The T5-optimized model was fit using the identical architec-
+ferential responses to stimulus onset and offset, we repre-                       ture and accurately reproduces T5 responses to both bright
+sented flashes as an input pulse with the duration of the flash.                  and dark flashing bars (Figure 3E). Since T5 prefer luminance
+We accounted for the instantaneous luminance change that oc-                      decrements, this model has Edec in the RF center and Idec toward
+curs at stimulus offset with a delta input. The duration of the                   the trailing side (Figure 3E, bottom). This asymmetric configura-
+preceding flash scales the amplitude of this delta input to ac-                   tion generates a directional preference for moving dark bars.33
+count for the history-dependence of the NC offset response                        The spatial filter for Iinc is toward the leading side and generates
+(Figure 2F,G), which is later filtered (tD parameter; see STAR                    the hyperpolarizing current in response to a bright bar onset. Einc
+Methods).                                                                         is further toward the leading side and captures the weak depolar-
+   To implement both dark and bright stimuli, we split the input                  ization in leading positions’ responses to bright flashing bar
+such that the bright and dark input streams determine which                       onset (Figure 2A, left-most positions). This T5-optimized model
+conductance pair (increment/decrement) will receive which input                   accurately predicted the magnitude of the directionally selective
+type (pulse/delta). Since the stimulus cannot be both dark and                    responses to both bright and dark moving bars (Figures 3F, 3G,
+bright at the same position at the same time, we simply integrate                 top row, and S3E–S3H).
+the two parallel input streams and their resulting conductances.                     We use T5 responses to slow moving bars to illustrate a mech-
+The left side in the schematic (Figure 3A, faded) conveys bright                  anism by which these four conductances contribute to direc-
+inputs and is inactive during a dark bar stimulus.                                tional selectivity. The model responses (Figure 3G, top row)
+   The expanded model requires 4 conductances: an excitatory-                     closely match the recorded data for dark (PC) and bright (NC)
+inhibitory (E-I) pair responding to increments (Einc and Iinc) and                bars moving in both directions. For dark moving bars, the simu-
+another responding to decrements (Edec and Idec). Each pair re-                   lated response is dominated by 2 conductances: Edec and Idec
+ceives the same type of input depending on which stimulus was                     (Figure 3G, middle row, 2 left columns). For bright moving bars
+presented at that position. For the dark bar example, the decre-                  (Figure 3G, middle row, 2 right columns), all 4 conductances
+ment-responding E-I pair receives the pulse input, and the                        contribute, with Iinc playing a prominent role. During ND motion
+increment-responding pair receives the delta input. Each                          for both dark (Figure 3G, 1st column) and bright (Figure 3G, 3rd
+conductance has its own temporal filter (Figure 3A) and its own                   column) bars, the total excitatory and inhibitory conductances
+spatial filter (not shown).                                                       largely overlap (Figure 3G, bottom row), reducing changes in
+
+
+row: voltage contribution from each conductance. Note that the E-I increment pair has very little contribution to dark moving bar responses. Bottom row: summed
+total excitatory and inhibitory conductances for the 4 conditions. Gray vertical lines added to facilitate comparisons between peak voltage and the corresponding
+conductances.
+Detailed simulations for both the reduced and full models are presented in Figures S3 and S4.
+
+                                                                                             Current Biology 31, 5286–5298, December 6, 2021 5291
+          ll
+     OPEN ACCESS                                                                                                            Article
+
+membrane potential. In response to PD motion (Figure 3G, dark,        preference for pairs that included trailing-side positions (Fig-
+2nd column; bright, 4th column), the excitation and inhibition        ure 4D). This directional preference inversion was largest for
+maxima are well-separated in time, reducing suppression. For          wider bars presented for longer durations (Figures 4D, S5A,
+dark stimuli, the excitation peak precedes inhibition, while for      and S5B). We used the T4- and T5-optimized models (same pa-
+bright stimuli the excitatory conductance peaks in between the        rameters as in Figure 3) to simulate responses to these NC-PC
+Iinc onset peak and the Idec offset peak (similar to results of the   bar pairs and found they accurately predicted the inversion in
+T4-optimized model; Figures S3E and S3F). Note, the top 5%            directional preference in both cells, including the specific rela-
+of optimization solutions always included parameter sets for          tionship between the inversion and RF positions (Figure 4E).
+simulations that feature the 2 inhibitory peak configurations         Furthermore, we found good agreement between the model’s
+(example in Figure S4). Taken together, these results demon-          predictions and T5 responses to a variant of this bar-pair stim-
+strate that a 4-conductance model optimized to reproduce the          ulus (Figure S5C).
+static RF can quantitatively account for PC and NC directional           We next used a simple example to provide intuition for how the
+selectivity. To critically test the broader utility of our expanded   RF structure accounts for the reverse-phi inversion. An NC bar
+model, we chose stimuli that include novel combinations of            (Figure 4F) in the RF center evokes a strong inhibitory response
+bright and dark components.                                           (Idec). When followed by a PC bar on the trailing side, another
+                                                                      strong inhibitory response is evoked (Iinc). Thus, while the bars
+4-conductance model explains illusory motion percept                  ‘‘move’’ in the PD, the response is strongly inhibited (Figure 4F,
+The mechanism we describe for generating directionally selec-         top). Conversely, when the NC bar first appears on the trailing
+tive responses to NC moving bars should require a trailing            side, it evokes an excitatory response (Einc) activated at stimulus
+stimulus edge, since it provides the offset signal that drives the    offset. A subsequent PC bar in the RF center evokes a strong de-
+dominant (PC) conductance pair. For the T5 example, Edec and          polarizing response (same Einc conductance) due to the stimulus
+Idec are the major conductances responding to both PC and             onset. Therefore, although the bars ‘‘move’’ in the ND, the net
+NC bar motion (Figure 3G), but for NC bar motion, they respond        response is strongly excitatory (Figure 4F, bottom).
+to the trailing edge delta input. To test this requirement, we re-
+corded and simulated T5 responses to dark and bright moving           Behaviorally measured perception of reverse-phi
+edges (Figure 4A, see inset). The model, simulated with the           stimuli corroborates model predictions
+same parameters as in Figure 3, predicts the magnitude, dy-           Since T4 and T5 cells are the major—if not exclusive—source of
+namics, and directional selectivity of the measured T5 responses      motion information in the fly’s visual system,40 we hypothesized
+to moving dark edges (Figure 4A, left). Both the recordings and       that reverse-phi stimuli inducing stronger directional preference
+the model predictions show similar responses to a bright moving       reversal in T4 and T5 should also evoke stronger reversal in the
+edge, featuring a prominent offset depolarization when the edge       fly’s behavioral response. Tethered flying flies turn in the direc-
+disappears (Figure 4A, right). Importantly, these offset responses    tion of a rotating grating pattern, a reaction known as the syn-
+do not differentiate between the two directions. These results        directional optomotor response.41 However, in response to a
+confirm the hypothesis that directional selectivity to NC stimuli     reverse-phi stimulus (Figure 5A), the flies turn against the pat-
+requires a trailing luminance-change boundary and show that           tern’s rotation.11 The RF mapping (Figure 2B,C) showed that
+moving PC, but not NC, edges drive directionally selective            longer durations of flashes and wider NC bars evoked stronger
+responses.                                                            responses, while the minimal reverse-phi responses (Figures 4,
+   Can this model predict T4 and T5 responses to the specific         S5A, and S5B) showed that longer flashes and wider bars, and
+ON-OFF combination that give rise to the reverse-phi illusion?        reduced overlap between bar-pairs, evoked a stronger reversal
+In standard ‘‘phi’’ motion, discrete sequential edge displace-        of the directional preference. To test this conjecture, we pre-
+ments are perceived as smooth motion in the direction of              sented flies with both standard and reverse-phi gratings
+displacement. In the reverse-phi motion illusion (documented          comprised of bars with 1 of 4 widths, moving with either step
+in many animals11,13,15,38), displacement is combined with            sizes corresponding to the width of the bars in the grating or
+contrast inversion (dark turns bright and vice versa), resulting      with single-pixel steps (Figure 5A, schematic examples). The
+in motion perceived in the direction opposite to the displace-        bar-width steps were used to mimic the bar-pair stimuli used
+ment. A minimal version of reverse-phi illusory motion can be         during our electrophysiology experiments (Figure 4). When pre-
+evoked by the sequential presentation of 2 adjacent bars with         sented with gratings composed of 1-LED-wide bars moving
+opposite contrasts.11,26,39 We presented an NC bar followed           every 40 ms (47 /s), flying flies exhibited a robust behavioral
+by an adjacent PC bar in multiple positions along each cell’s         response (Figure 5B, left-most panel, black). However, a
+RF. On the leading side of T4’s RF, we measured bar pair re-          reverse-phi stimulus with the same bar width and step duration
+sponses consistent with the cell’s typical directional preference,    failed to evoke any response (Figure 5B, red). Increasing the
+despite the presence of the dark bar (Figure 4B). However, on the     bar width (and the corresponding ‘‘bar width’’ step size)
+trailing side, the dark-bright bar pair evoked responses with an      increased the response to standard motion modestly but had a
+inverted directional preference (see positions [–1,3] and [1,5];      dramatic effect on the response to reverse-phi motion (Fig-
+peak responses summarized in Figures 4C, 4D, and S5A).                ure 5B). Comparing the responses to reverse-phi gratings of
+We measured T5 responses to bright-dark bar pairs and found           different widths reveals a significant increase with increasing
+a similar structure (Figures 4D and S5B). Responses to lead-          width (Figure 5C). To test the prediction that overlap between
+ing-side stimuli had the same directional preference as to mov-       bar presentations in sequential frames will reduce reverse-phi re-
+ing PC bars, but responses showed an inverted directional             sponses, we compared gratings moving with bar-width steps (no
+
+5292 Current Biology 31, 5286–5298, December 6, 2021
+                                                                                                                                                       ll
+Article                                                                                                                                          OPEN ACCESS
+
+
+
+             A
+
+
+
+
+             B                                                                                                  C
+
+
+
+
+             D
+
+                                                                                                         F
+
+
+
+
+             E
+
+
+
+
+Figure 4. 4-conductance model explains illusory motion percept
+(A) Mean baseline subtracted measured responses (n = 3; individual cells in lighter shades) of T5 cells to dark and bright edges moving in the PD and ND, together
+with predicted moving edge responses from the same averaged T5-optimized model (with same parameters) as in Figure 3. Inset shows the space-time plot for a
+local moving edge stimulus.
+(B) Baseline subtracted T4 responses (mean ± SEM) to dark-bright bar pairs, a minimal reverse-phi stimulus, presented along the PD-ND axis (n = 7, 9, 8, and 9
+cells for panels from left to right). Schematics above (below) traces depict positions for PD (ND) stimuli with respect to the center of the receptive field (extended
+central column). Faint gray and green rectangles demarcate presentation time (160 ms) of flashed bars.
+(C) Boxplot summary of measured response maxima for the time series in (B).
+(D) Boxplot summary of measured response maxima differences between PD and ND minimal reverse-phi bar-pair flashes for T4 and T5 cells (dots: mean in-
+dividual cell responses). Bolded labels: T4 responses for the position pairs presented in (B) and (C).
+(E) Predicted response maxima differences between PD and ND bar-pair flashes for the T4 and T5 models (with same parameters) as in Figure 3.
+(F) Schematic explaining the inversion in directional preference in response to a minimal reverse-phi stimulus. Spatial filters depicted above stimulus sketches,
+with bold lines representing the primary active conductance.
+T4 and T5 responses to additional reverse-phi bar-pair stimuli are presented in Figures S5A–S5C.
+
+
+                                                                                                Current Biology 31, 5286–5298, December 6, 2021 5293
+          ll
+     OPEN ACCESS                                                                                                                   Article
+
+ A                                                                                         Figure 5. Behaviorally measured perception
+                                                                                           of reverse-phi stimuli corroborates model
+                                                                                           predictions
+                                                                                           (A) Schematic for tethered flight arena and space-
+                                                                                           time plots for motion stimuli.
+                                                                                           (B) Mean behavioral turning responses (n = 17 flies;
+                                                                                           thin lines: individual flies) to standard apparent
+                                                                                           motion (black) and reverse-phi motion (red). Grat-
+                                                                                           ings with 4 different bar widths were presented at 40
+                                                                                           ms per bar-width step (equivalent to 47, 94, 140,
+ B                                                                                         and 235 /s). Stimuli are plotted after flipping the
+                                                                                           responses to counterclockwise direction and aver-
+                                                                                           aging. Positive values indicate turning in the same
+                                                                                           direction as the direction of the stimulus.
+                                                                                           (C) Boxplots of mean behavioral turning responses
+                                                                                           (from response window: 1–1.5 s) to stimuli with bars
+                                                                                           of the corresponding 4 widths in (B), moving at 3
+                                                                                           different step durations (equivalent to 94, 47, and
+                                                                                           12 /s). Boxplots to the left of the dashed vertical line
+                                                                                           show responses to stimuli moving with bar-width
+                                                                                           steps (copied for bar width 1). Filled boxplots are
+ C                                                                                         significantly different from zero. Asterisk below
+                                                                                           brackets indicate significant difference (2-sided
+                                                                                           Student’s t-test; *p < 0.001; NS, not significant).
+                                                                                           Model predictions of T5 responses to both bar-
+                                                                                           width and single-LED step reverse-phi stimuli are
+                                                                                           presented in Figures S5D and S5E.
+
+
+
+
+                                                                                          bar-width steps every 40 ms (both move
+                                                                                          at 94 /s). For standard motion gratings,
+                                                                                          these stimuli yielded responses of similar
+                                                                                          magnitude. However, for reverse-phi mo-
+                                                                                          tion, the change dramatically flipped the
+                                                                                          response from weak and syn-directional
+                                                                                          to strong and anti-directional. These
+                                                                                          behavioral results corroborate our predic-
+                                                                                          tions: wider, slower bars drive stronger re-
+                                                                                          sponses from NC conductances (T4: Edec
+                                                                                          and Idec; T5: Einc and Iinc), which are neces-
+                                                                                          sary for inverting the T4 and T5 directional
+overlap) to the same gratings moving with 1-LED steps (maximal       preference. Consequently, slower, wider-bar gratings without
+overlap). The no overlap stimuli resulted in significantly           overlap evoke a strong illusory motion percept and, therefore,
+increased reverse-phi responses, from no net response to 1-          a stronger behavioral inversion.
+LED step grating to the strongest recorded response for each
+width (except width 1; Figure 5C). Model simulations of T5 re-       DISCUSSION
+sponses to 1-LED steps or bar-width steps (Figures S5D and
+S5E) confirm that non-overlapping bars near the RF center            In this study, we used whole-cell recordings from the direction-
+generate a stronger response in the ND (stronger Edec activation)    ally selective ON-preferring T4 cells and the OFF-preferring T5
+and weaker response in the PD (stronger Iinc and Idec activation),   cells and showed that they can report the direction of motion
+in agreement with stronger reverse-phi inversion for the bar-        of wider NC moving bars (Figure 1). We mapped their composite
+width steps (Figure S5E, position 1).                               ON-OFF RFs and revealed a structure that is common to both T4
+   Next, we tested the response to gratings composed of bars of      and T5 (Figure 2), suggesting that both cell types receive direct
+the same width moving with different step durations (focusing on     inputs with non-canonical properties (T4 receive OFF signals;
+40 and 160 ms steps). Increasing step duration (slower speed)        T5 receive ON signals). We proposed a unified model architec-
+resulted in reduced turning responses to standard motion but         ture to capture this composite RF and showed that this model
+increased responses to the reverse-phi motion (Figure 5C), in        accurately predicts directionally selective responses to moving
+agreement with our predictions. Since changing step size/dura-       bars of either contrast (Figure 3). The model also predicted the
+tion changes rotational speed, and since changing rotational         inversion in T4’s and T50 s PD in response to minimal reverse-
+speed affects the optomotor response,42,43 we compare 2-             phi motion and the inversion’s dependence on the RF position
+LED-wide bars moving with single-LED steps every 20 ms to            (Figure 4). Finally, we measured behavioral turning of tethered
+
+5294 Current Biology 31, 5286–5298, December 6, 2021
+                                                                                                                                           ll
+Article                                                                                                                               OPEN ACCESS
+
+
+    A                                       B                                      the reverse-phi model, does this updated model offer any advan-
+                                                                                   tages? We simulated responses to grating patterns using both
+                                                                                   the model introduced here and our previous T5 model (Gruntman
+                                                                                   et al.;33 Figure 6). We find that the current model responds to all
+                                                                                   tested gratings, while the prior model can only respond to move-
+                                                                                   ment from dark bars. More importantly, the new model responds
+                                                                                   with greater directional selectivity to all 3 grating configurations
+                                                                                   (Figure 6), suggesting that in order to understand responses to
+                                                                                   this most classical stimulus, it is essential to account for these
+                                                                                   ON-OFF interactions.
+
+                                                                                   Connecting our data-driven model to motion pathway
+                                                                                   circuitry
+                                                                                   One important goal of systems neuroscience is to link functional
+                                                                                   measurements and algorithmic models with neural circuit mecha-
+                                                                                   nisms. The Drosophila motion-detection circuit, with a fully recon-
+                                                                                   structed connectome, genetic access, and neuronal functional
+                                                                                   studies, is an exciting system for making these connections.
+                                                                                   Nevertheless, it is not straightforward to map specific model con-
+                                                                                   ductances to inputs from specific upstream neurons. While both
+                                                                                   T4 and T5 neurons receive multiple PC-encoding excitatory in-
+                                                                                   puts9,23 and functional studies have shown these neuron types
+                                                                                   to have different temporal and spatial filters,20,25,27,29,44 we were
+                                                                                   able to model the PC depolarization in the RF center with a single
+                                                                                   excitatory conductance. Similarly, we could model a single PC
+                                                                                   inhibitory conductance, while connectomics studies have re-
+                                                                                   vealed at least 3 potential inhibitory inputs on the trailing side of
+                                                                                   the T4 dendrite.9 It appears that T4 and T5 responses may mask
+                                                                                   additional complexity not yet uncovered or their upstream inputs
+                                                                                   could interact to produce simpler downstream effects. Although
+                                                                                   assigning model conductances to individual cell types may be
+                                                                                   too simplistic, it is important to combine our modeling approach
+                                                                                   with the powerful circuit-constrained models pioneered by other
+                                                                                   groups29,44–47 and attempt to reconcile the above discrepancies.
+                                                                                   One such future step would be to replace our generic excitatory
+                                                                                   and inhibitory inputs with specific conductances based on the
+                                                                                   known characteristics of the upstream neurons that provide inputs
+                                                                                   to T4 and T5.
+                                                                                      What are the sources of the NC-mediated hyperpolarization?
+                                                                                   The T4-optimized model places this conductance just to
+                                                                                   the leading side of the RF center. Mi9 depolarizes to dark
+Figure 6. ON-OFF composite model responds to moving grating                        stimuli,25,27 is glutamatergic34 (likely inhibitory48), and could
+patterns with enhaced directional selectivity                                      contribute to this conductance. However, the synapses from
+(A) 2-conductance T5 model (from Gruntman et al.33) responses to moving            this cell type are found at the leading edge of T4’s dendrite9
+grating stimuli composed of 5-LED-wide bars with 160-ms step duration of
+                                                                                   where we measure minimal NC-mediated hyperpolarization
+dark and gray (top), bright and gray (middle), and dark and bright (bottom)
+                                                                                   (Figure 2). Furthermore, although T5 cells show a similar NC hy-
+levels moving in the preferred (red) and non-preferred (blue) directions (stim-
+ulus schematics on the left). Gray horizontal lines indicate the time window for   perpolarization, no source of NC inhibition has been described
+calculated direction selectivity index (DSI). Temporal scale bar also marks        among the major T5 inputs (but see Ramos-Traslosheros29 for
+baseline membrane voltage. Note, the 2-conductance T5 model is ‘‘blind’’ to        ON responses in T5 inputs). These discrepancies suggests
+bright stimuli and does not generate any response.                                 that the circuit function of Mi9 remains unresolved. Regardless
+(B) Same as (A), but for the 4-conductance T5 model (same as Figure 3). Note       of its source, the NC inhibitory conductances in our model (Idec
+increased directional selectivity (DSI: (PDMax – NDMax) / (PDMax + NDMax)) with
+                                                                                   in T4 and Iinc in T5) may reflect the functional role of crossover
+smaller magnitude responses.
+                                                                                   inhibition. Although we are unable to measure excitatory and
+                                                                                   inhibitory currents directly, it appears that, like in the mamma-
+flying flies to reverse-phi motion and found strong evidence that                  lian retina, this inhibitory input is largest when the excitatory
+the stimuli that evoked stronger NC responses in T4 and T5 also                    input is smallest.36 These properties have been shown to line-
+evoked stronger behavioral-turning inversion (Figure 5).                           arize responses in neurons with rectified inputs and are postu-
+   The model presented here (Figure 3) extends our prior model                     lated to reduce the net conductance change, thus stabilizing
+of T4 and T5.32,33 Beyond the specific ON-OFF interactions of                      responses to other inputs.37
+
+                                                                                            Current Biology 31, 5286–5298, December 6, 2021 5295
+          ll
+     OPEN ACCESS                                                                                                                  Article
+
+Toward a unified model architecture                                   left), but this conductance does not appear to play a central role
+Prior to the discovery of ON-OFF rectification by medulla neu-        in shaping the response dynamics to moving bars or reverse-
+rons,18–20 nearly all models of fly motion detection, including       phi stimuli (in part because we presented moving stimuli closer
+the famous Hassenstein-Reichardt Elementary Motion Detec-             to the center). Both models also share 2 different input types. In
+tor49 (HREMD), used non-rectified inputs signaling both lumi-         the Zavatone-Veth model, the inhibitory arms respond for the
+nance increments and decrements.49,50 These classic models            duration of the stimulus (equivalent to pulse), while the excit-
+could reproduce the reverse-phi illusion, yet their reliance on       atory arm responds to the appearance of the appropriate
+non-rectified inputs renders them less relevant for explaining        contrast change (equivalent to delta). In our model, we use
+the inverted selectivity to reverse-phi motion.                       pulse inputs to represent the duration of a stimulus and delta in-
+   Although our model was not explicitly constructed to model         puts to represent the instantaneous change in contrast at the
+reverse-phi responses, it is still instructive to compare it with     disappearance of an opposite contrast stimulus, with both
+models that were. Most of these models employ a 3-armed ar-           inhibitory and excitatory conductances receiving these two
+chitecture, corresponding to input from 3 spatial locations,          input types.
+which was (to our knowledge) first suggested by Mo and                   However, an important difference between the models is that
+Koch,51 based on the classic Torre and Poggio52 passive neuron        our model is subject to the strong constraints imposed by
+model. To explain reverse-phi responses in cortical neurons, Mo       reproducing the high temporal and spatial resolution whole-
+and Koch modified the original model by adding a second inhib-        cell electrophysiological measurements. In contrast to the
+itory ‘‘veto’’ mechanism responding to inputs of the opposite         models that are tuned to produce higher-level response prop-
+contrast polarity. A more recent model for reverse-phi responses      erties, our model is only trained to reproduce the static RF of
+in the fly used a different architecture combining two full           T4 and T5 neurons. Therefore, we demonstrated that the
+HREMDs: one for ON and the other for OFF.31 However, since in-        spatiotemporal structure of the static RF is sufficient to explain
+dividual T4 and T5 cells already exhibit the reverse-phi direc-       T4 and T5 responses to all classes of tested, more complex,
+tional preference inversion and since one-half HREMD is roughly       dynamic stimuli.
+equivalent to a single cell, this phenomenological model is also of
+less interest to our discussion.                                      STAR+METHODS
+   Recent connectomics, transcriptomics, and functional
+studies9,25,34,44 have provided strong evidence for the proposal      Detailed methods are provided in the online version of this paper
+that T4 and T5 neurons receive inputs at approximately 3 spatial      and include the following:
+locations, and a 3-arm model with inhibitory inputs on both sides
+of an excitatory central arm was developed based on these find-          d   KEY RESOURCES TABLE
+ings.45 This model was configured to match major T4 inputs in            d   RESOURCE AVAILABILITY
+their contrast responses, neurotransmitters, and connectivity                B Lead contact
+
+along the dendritic axis. The modeled inhibitory inputs on the               B Materials availability
+
+axon-proximal side of the dendrite respond to bright stimuli,                B Data and code availability
+
+while modeled inhibitory inputs on the axon-distal side respond          d   EXPERIMENTAL MODEL AND SUBJECT DETAILS
+to dark stimuli. This was used to propose a mechanism for PD             d   METHOD DETAILS
+enhancement in the PC motion computation. Although no claims                 B Electrophysiology
+
+about reverse-phi responses were made in the paper,45 we                     B Current injection experiments
+
+expect that with appropriate parameters this model should                    B Visual stimuli (electrophysiology)
+
+also produce directionally inverted responses to reverse-phi mo-             B Behavioral experiments
+
+tion stimuli.                                                                B Visual stimuli (behavior)
+
+   To explain reverse-phi responses in T4 and T5 cells, Salazar-             B T4/T5 neuron model
+
+Gatzimas et al.26 also proposed a 3-arm model that included              d   QUANTIFICATION AND STATISTICAL ANALYSIS
+NC inputs. A subsequent paper from the same group by Zava-                   B Analysis (electrophysiology)
+
+tone-Veth et al.46 used the same architecture to develop a more              B Analysis (Behavior)
+
+generalizable 3-arm model which they used to explain T4 func-                B Statistics
+
+tion, including the reverse-phi inversion. This model also used              B Data plotting conventions
+
+inhibitory inputs of opposing contrasts flanking an excitatory
+                                                                      SUPPLEMENTAL INFORMATION
+center. The Zavatone-Veth model captures the higher-level
+phenomenology of the motion computation with a minimal                Supplemental information can be found online at https://doi.org/10.1016/j.
+model, while the objective of our model was to capture the            cub.2021.09.072.
+lower-level RF structure with a biophysical model. Encourag-
+ingly, despite these disparate objectives the resulting models        ACKNOWLEDGMENTS
+have several common features. Although the positions of the
+input conductances in our model were a result of an optimiza-         We thank Aljoscha Nern for providing the driver lines and Edward Rogers for
+                                                                      help with fly husbandry. We thank Lisa M. Ferguson for software support in
+tion procedure, both models have converged onto a similar
+                                                                      the behavioral experiments. We are also grateful to Reiser lab members for
+3-arm inhibition-excitation-inhibition architecture. Our model        support and fruitful discussions on the manuscript. We sincerely appreciate
+includes a fourth conductance (NC excitation) that was needed         the constructive comments of three anonymous reviewers. This project was
+to account for the leading side NC responses of T5 (Figure 2A,        supported by the Howard Hughes Medical Institute.
+
+5296 Current Biology 31, 5286–5298, December 6, 2021
+                                                                                                                                                            ll
+Article                                                                                                                                               OPEN ACCESS
+
+
+AUTHOR CONTRIBUTIONS                                                                   16. Bausenwein, B., Dittrich, A.P., and Fischbach, K.F. (1992). The optic lobe
+                                                                                           of Drosophila melanogaster. II. Sorting of retinotopic pathways in the me-
+Conceptualization, E.G., S.R., and M.B.R.; methodology, E.G., P.R., and S.R.;              dulla. Cell Tissue Res. 267, 17–28.
+software, E.G., P.R., and S.R.; formal analysis, E.G., P.R., and S.R.; investiga-      17. Takemura, S.-Y., Bharioke, A., Lu, Z., Nern, A., Vitaladevuni, S., Rivlin,
+tion, E.G.; writing – original draft, E.G., P.R., S.R., and M.B.R.; writing – review       P.K., Katz, W.T., Olbris, D.J., Plaza, S.M., Winston, P., et al. (2014). A visual
+& editing, E.G., S.R., and M.B.R.; visualization, E.G.; supervision, S.R. and              motion detection circuit suggested by Drosophila connectomics. Nature.
+M.R.; funding acquisition, S.R. and M.R.                                                   Nature 500, 175–181.
+                                                                                       18. Strother, J.A., Nern, A., and Reiser, M.B. (2014). Direct observation of ON
+DECLARATION OF INTERESTS                                                                   and OFF pathways in the Drosophila visual system. Curr. Biol. 24,
+                                                                                           976–983.
+The authors declare no competing interests.
+                                                                                       19. Joesch, M., Schnell, B., Raghu, S.V., Reiff, D.F., and Borst, A. (2010). ON
+                                                                                           and OFF pathways in Drosophila motion vision. Nature 468, 300–304.
+INCLUSION AND DIVERSITY                                                                20. Behnia, R., Clark, D.A., Carter, A.G., Clandinin, T.R., and Desplan, C.
+                                                                                           (2014). Processing properties of ON and OFF pathways for Drosophila mo-
+One or more of the authors of this paper self-identifies as an underrepresented            tion detection. Nature 512, 427–430.
+ethnic minority in science. While citing references scientifically relevant for this
+                                                                                       21. Clark, D.A., Bursztyn, L., Horowitz, M.A., Schnitzer, M.J., and Clandinin,
+work, we also actively worked to promote gender balance in our reference list.
+                                                                                           T.R. (2011). Defining the computational structure of the motion detector
+                                                                                           in Drosophila. Neuron 70, 1165–1177.
+Received: April 28, 2021
+Revised: September 14, 2021                                                            22. Maisak, M.S., Haag, J., Ammer, G., Serbe, E., Meier, M., Leonhardt, A.,
+Accepted: September 24, 2021                                                               Schilling, T., Bahl, A., Rubin, G.M., Nern, A., et al. (2014). A directional tun-
+Published: October 20, 2021                                                                ing map of Drosophila elementary motion detectors. Nature 500, 212–216.
+                                                                                       23. Takemura, S.-Y., Nern, A., Chklovskii, D.B., Scheffer, L.K., Rubin, G.M.,
+REFERENCES                                                                                 and Meinertzhagen, I.A. (2017). The comprehensive connectome of a neu-
+                                                                                           ral substrate for ‘‘ON’’ motion detection in Drosophila. eLife 6, e24394.
+ 1. Clark, D.A., and Demb, J.B. (2016). Parallel Computations in Insect and            24. Silies, M., Gohl, D.M., Fisher, Y.E., Freifeld, L., Clark, D.A., and Clandinin,
+    Mammalian Visual Motion Processing. Curr. Biol. 26, R1062–R1072.                       T.R. (2013). Modular use of peripheral input channels tunes motion-de-
+ 2. Sanes, J.R., and Zipursky, S.L. (2010). Design Principles of Insect and                tecting circuitry. Neuron 79, 111–127.
+    Vertebrate Visual Systems. Neuron. 66, 15–36.                                      25. Strother, J.A., Wu, S.-T., Wong, A.M., Nern, A., Rogers, E.M., Le, J.Q.,
+ 3. Mauss, A.S., Vlasits, A., Borst, A., and Feller, M. (2017). Visual Circuits for        Rubin, G.M., and Reiser, M.B. (2017). The Emergence of Directional
+    Direction Selectivity. Annu. Rev. Neurosci. 40, 211–230.                               Selectivity in the Visual Motion Pathway of Drosophila. Neuron 94, 168–
+                                                                                           182.e10.
+ 4. Scholl, B., Gao, X., and Wehr, M. (2010). Nonoverlapping sets of synapses
+    drive on responses and off responses in auditory cortex. Neuron 65,                26. Salazar-Gatzimas, E., Agrochao, M., Fitzgerald, J.E., and Clark, D.A.
+    412–421.                                                                               (2018). The Neuronal Basis of an Illusory Motion Percept Is Explained by
+                                                                                           Decorrelation of Parallel Motion Pathways. Curr. Biol. 28, 3748–3762.e8.
+ 5. Frank, D.D., Jouandet, G.C., Kearney, P.J., Macpherson, L.J., and Gallio,
+                                                                                       27. Arenz, A., Drews, M.S., Richter, F.G., Ammer, G., and Borst, A. (2017). The
+    M. (2015). Temperature representation in the Drosophila brain. Nature 519,
+                                                                                           Temporal Tuning of the Drosophila Motion Detectors Is Determined by the
+    358–361.
+                                                                                           Dynamics of Their Input Elements. Curr. Biol. 27, 929–944.
+ 6. Nagel, K.I., and Wilson, R.I. (2016). Mechanisms Underlying Population
+                                                                                       28. Wienecke, C.F.R., Leong, J.C.S., and Clandinin, T.R. (2018). Linear
+    Response Dynamics in Inhibitory Interneurons of the Drosophila
+                                                                                           Summation Underlies Direction Selectivity in Drosophila. Neuron 99,
+    Antennal Lobe. J. Neurosci. 36, 4325–4338.
+                                                                                           680–688.e4.
+ 7. Gjorgjieva, J., Sompolinsky, H., and Meister, M. (2014). Benefits of
+                                                                                       29. Ramos-Traslosheros, G., and Silies, M. The physiological basis for the
+    pathway splitting in sensory coding. J. Neurosci. 34, 12127–12144.
+                                                                                           computation of direction selectivity in the Drosophila OFF pathway.
+ 8. Wei, W. (2018). Neural Mechanisms of Motion Processing in the                          bioRxiv, 10.1101/2021.04/17.440268.
+    Mammalian Retina. Annu. Rev. Vis. Sci. 4, 165–192.
+                                                                                       30. Egelhaaf, M., and Borst, A. (1992). Are there separate ON and OFF chan-
+ 9. Shinomiya, K., Huang, G., Lu, Z., Parag, T., Xu, C.S., Aniceto, R., Ansari,            nels in fly motion vision? Vis. Neurosci. 8, 151–164.
+    N., Cheatham, N., Lauchie, S., Neace, E., et al. (2019). Comparisons be-
+                                                                                       31. Leonhardt, A., Meier, M., Serbe, E., Eichner, H., and Borst, A. (2017).
+    tween the ON- and OFF-edge motion pathways in the Drosophila brain.
+                                                                                           Neural mechanisms underlying sensitivity to reverse-phi motion in the
+    eLife 8, e40025.
+                                                                                           fly. PLoS ONE 12, e0189019.
+10. Agrochao, M., Tanaka, R., Salazar-Gatzimas, E., and Clark, D.A. (2020).
+                                                                                       32. Gruntman, E., Romani, S., and Reiser, M.B. (2018). Simple integration of
+    Mechanism for analogous illusory motion perception in flies and humans.
+                                                                                           fast excitation and offset, delayed inhibition computes directional selec-
+    PNAS 117, 23044–23053.
+                                                                                           tivity in Drosophila. Nat. Neurosci. 21, 250–257.
+11. Tuthill, J.C., Chiappe, M.E., and Reiser, M.B. (2011). Neural correlates of
+                                                                                       33. Gruntman, E., Romani, S., and Reiser, M.B. (2019). The computation of
+    illusory motion perception in Drosophila. Proc. Natl. Acad. Sci. USA 108,
+                                                                                           directional selectivity in the Drosophila OFF motion pathway. eLife 8,
+    9685–9690.
+                                                                                           e50706.
+12. Reichardt, W. (1962). Nervous integration in the facet eye. Biophys. J. 2,         34. Davis, F.P., Nern, A., Picard, S., Reiser, M.B., Rubin, G.M., Eddy, S.R., and
+    121–143.                                                                               Henry, G.L. (2020). A genetic, genomic, and computational resource for
+13. Anstis, S.M. (1970). Phi movement as a subtraction process. Vision Res.                exploring neural circuit function. eLife 9, e50901.
+    10, 1411–1430.                                                                     35. Leong, J.C.S., Esch, J.J., Poole, B., Ganguli, S., and Clandinin, T.R. (2016).
+14. Kirkels, L.A.M.H., Zhang, W., Duijnhouwer, J., and van Wezel, R.J.A.                   Direction Selectivity in Drosophila Emerges from Preferred-Direction
+    (2020). Opto-locomotor reflexes of mice to reverse-phi stimuli. J. Vis. 20,            Enhancement and Null-Direction Suppression. J. Neurosci. 36, 8078–
+    7–10.                                                                                  8092.
+15. Orger, M.B., Smear, M.C., Anstis, S.M., and Baier, H. (2000). Perception of        36. Molnar, A., Hsueh, H.-A., Roska, B., and Werblin, F.S. (2009). Crossover
+    Fourier and non-Fourier motion by larval zebrafish. Nat. Neurosci. 3, 1128–            inhibition in the retina: circuitry that compensates for nonlinear rectifying
+    1133.                                                                                  synaptic transmission. J. Comput. Neurosci. 27, 569–590.
+
+                                                                                                   Current Biology 31, 5286–5298, December 6, 2021 5297
+             ll
+       OPEN ACCESS                                                                                                                                      Article
+37. Werblin, F.S. (2010). Six different roles for crossover inhibition in the retina:   50. Dror, R.O., O’Carroll, D.C., and Laughlin, S.B. (2001). Accuracy of velocity
+    correcting the nonlinearities of synaptic transmission. Vis. Neurosci. 27,              estimation by Reichardt correlators. J. Opt. Soc. Am. A Opt. Image Sci.
+    1–8.                                                                                    Vis. 18, 241–252.
+38. Bours, R.J.E., Kroes, M.C.W., and Lankheet, M.J. (2009). Sensitivity for            51. Mo, C.-H., and Koch, C. (2003). Modeling reverse-phi motion-selective
+    reverse-phi motion. Vision Res. 49, 1–9.                                                neurons in cortex: double synaptic-veto mechanism. Neural Comput.
+                                                                                            15, 735–759.
+39. Eichner, H., Joesch, M., Schnell, B., Reiff, D.F., and Borst, A. (2011).
+    Internal structure of the fly elementary motion detector. Neuron 70,                52. Torre, V., and Poggio, T. (1978). A synaptic mechanism possibly underly-
+    1155–1164.                                                                              ing directional selectivity to motion. Proceedings of the Royal Society of
+                                                                                            London 1148, 409–416.
+40. Bahl, A., Ammer, G., Schilling, T., and Borst, A. (2013). Object tracking in
+    motion-blind flies. Nat. Neurosci. 16, 730–738.                                     53. Pfeiffer, B.D., Truman, J.W., and Rubin, G.M. (2012). Using translational
+                                                                                            enhancers to increase transgene expression in Drosophila. Proc. Natl.
+41. Götz, K.G. (1968). Flight control in Drosophila by visual perception of mo-
+                                                                                            Acad. Sci. USA 109, 6626–6631.
+    tion. Kybernetik 4, 199–208.
+                                                                                        54. Hampel, S., Franconville, R., Simpson, J.H., and Seeds, M.A. (2015). A
+42. Buchner, E. (1976). Elementary movement detectors in an insect visual                   neural command circuit for grooming movement control. eLife 4, e08758.
+    system. Biol. Cybern. 24, 85–101.
+                                                                                        55. Strother, J.A., Wu, S.-T., Rogers, E.M., Eliason, J.L.M., Wong, A.M., Nern,
+43. Götz, K.G., and Wenking, H. (1973). Visual control of locomotion in the                A., and Reiser, M.B. (2018). Behavioral state modulates the ON visual mo-
+    walking fruitfly Drosophila. Journal of Comparative Physiology 85,                      tion pathway of Drosophila. Proc. Natl. Acad. Sci. USA 115, E102–E111.
+    235–266.
+                                                                                        56. Edelstein, A.D., Tsuchida, M.A., Amodaj, N., Pinkard, H., Vale, R.D., and
+44. Serbe, E., Meier, M., Leonhardt, A., and Borst, A. (2016). Comprehensive                Stuurman, N. (2014). Advanced methods of microscope control using
+    Characterization of the Major Presynaptic Elements to the Drosophila OFF                mManager software. J. Biol. Methods 1, 10–18.
+    Motion Detector. Neuron 89, 829–841.                                                57. Demerec, M. (2008). Biology of Drosophila (CSHL Press).
+45. Borst, A. (2018). A biophysical mechanism for preferred direction                   58. Wilson, R.I., and Laurent, G. (2005). Role of GABAergic inhibition in
+    enhancement in fly motion vision. PLoS Comput. Biol. 14, e1006240.                      shaping odor-evoked spatiotemporal patterns in the Drosophila antennal
+46. Zavatone-Veth, J.A., Badwan, B.A., and Clark, D.A. (2020). A minimal syn-               lobe. J. Neurosci. 25, 9069–9079.
+    aptic model for direction selective neurons in Drosophila. J. Vis. 20, 2–22.        59. Reiser, M.B., and Dickinson, M.H. (2008). A modular display system for in-
+47. Kohn, J.R., Portes, J.P., Christenson, M.P., Abbott, L.F., and Behnia, R.               sect behavioral neuroscience. J. Neurosci. Methods 167, 127–139.
+    (2021). State and stimulus dependence reconcile motion computation                  60. Tammero, L.F., Frye, M.A., and Dickinson, M.H. (2004). Spatial organiza-
+    and the Drosophila connectome. bioRxiv. https://doi.org/10.1101/2021.                   tion of visuomotor reflexes in Drosophila. J. Exp. Biol. 207, 113–122.
+    04.17.440267.                                                                       61. Bahl, A., Serbe, E., Meier, M., Ammer, G., and Borst, A. (2015). Neural
+48. Liu, W.W., and Wilson, R.I. (2013). Glutamate is an inhibitory neurotrans-              Mechanisms for Drosophila Contrast Vision. Neuron 88, 1240–1252.
+    mitter in the Drosophila olfactory system. Proc. Natl. Acad. Sci. USA               62. Turner-Evans, D., Wegener, S., Rouault, H., Franconville, R., Wolff, T.,
+    110, 10294–10299.                                                                       Seelig, J.D., Druckmann, S., and Jayaraman, V. (2017). Angular velocity
+49. Hassenstein, B., and Reichardt, W. (1956). Systemtheoretische Analyse                   integration in a fly heading circuit. eLife 6, e23496.
+    der Zeit-, Reihenfolgen- und Vorzeichenauswertung bei der                           63. Tuthill, J.C., Nern, A., Rubin, G.M., and Reiser, M.B. (2014). Wide-field
+    Bewegungsperzeption des Rüsselka      €fers Chlorophanus. Verlag der                   feedback neurons dynamically tune early visual processing. Neuron 82,
+    Zeitschrift für Naturforschung 11, 513–524.                                            887–895.
+
+
+
+
+5298 Current Biology 31, 5286–5298, December 6, 2021
+                                                                                                                                ll
+Article                                                                                                                    OPEN ACCESS
+
+
+STAR+METHODS
+
+KEY RESOURCES TABLE
+
+
+REAGENT or RESOURCE                                          SOURCE                           IDENTIFIER
+Experimental models: Organisms/strains
+                                                             34
+D. melanogaster. T4: VT015785-p65ADZp                                                         N/A
+(attP40); R42F06-ZpGdbd (attP2)
+                                                             34
+D. melanogaster. T5: VT055812-AD                                                              N/A
+(attP40); R47H05-DBD(attP2)
+                                                             53
+D. melanogaster. GFP:                                                                         N/A
+pJFRC28-10XUAS-IVS-GFP-p10
+D. melanogaster. Empty Split: w1118;                         54
+                                                                                              N/A
+pBPp65ADZp (attP40);pBPZpGAL4DBD
+(attP2)
+                                                             55
+D. melanogaster. Kir2.1: w+ (DL);+(DL);                                                       N/A
+pJFRC49-10XUAS-IVS-eGFP- Kir2.1(attP2)
+Software and algorithms
+MATLAB 2018b                                                 MathWorks                        https://www.mathworks.com/
+mManager V1.4                                                56
+                                                                                              https://micro-manager.org/
+Other
+Deposited data                                               figShare                         figShare: https://doi.org/10.25378/janelia.
+                                                                                              c.5629663.v1
+Additional analysis code                                     gitHub                           gitHub: https://github.com/gruyal/
+                                                                                              MatlabFunctions
+
+
+
+
+RESOURCE AVAILABILITY
+
+Lead contact
+Further information and requests for resources and reagents should be directed to and will be fulfilled by the lead contact, Michael B.
+Reiser (reiserm@janelia.hhmi.org).
+
+Materials availability
+This study did not generate new unique reagents.
+
+Data and code availability
+Whole cell recording data, analysis code, and modeling optimization results have been deposited at Figshare (https://doi.org/10.
+25378/janelia.c.5629663).
+
+EXPERIMENTAL MODEL AND SUBJECT DETAILS
+
+Electrophysiology experiments were performed on 1-2 day old female Drosophila melanogaster; behavioral experiments were performed
+on 2-5 day old females. Flies were reared under 16:8 light:dark cycle at 24 C to mimic a long summer day and increase the duration of the
+pre-dusk period of higher activity. For T5 targeted recordings we used flies with the following genotype: pJFRC28-10XUAS-IVS-GFP-
+p1053 in attP2 crossed to stable split-GAL4 SS25175 (w; VT055812-AD(attP40); R47H05-DBD(attP2)). For T4 we used pJFRC28-
+10XUAS-IVS-GFP-p10 in attP2 crossed to stable split-GAL4 SS02344 (VT015785-p65ADZp (attP40); R42F06-ZpGdbd (attP2)). Both ge-
+notypes were generously provided by Aljoscha Nern in Gerry Rubin’s lab.34 For behavioral experiments we used w1118; pBPp65ADZp
+(attP40);pBPZpGAL4DBD (attP2) X w+ (DL);+(DL); pJFRC49-10XUAS-IVS-eGFP- Kir2.1(attP2), empty split GAL454 crossed to Kir2.1
+flies. This line is commonly used as a control line in our lab, since the flies are relatively vigorous fliers.55
+
+METHOD DETAILS
+
+Electrophysiology
+T5 recording are from cells that were included in our previous paper (n = 17 cells), and were performed as published,33 T4 recordings
+are from a newly acquired dataset (n = 15 cells). The experimental methods are similar to our prior manuscript33 and will be briefly
+
+                                                                            Current Biology 31, 5286–5298.e1–e7, December 6, 2021 e1
+          ll
+     OPEN ACCESS                                                                                                              Article
+
+summarized below. Flies were anesthetized on ice and transferred to a chilled vacuum holder where they were mounted, with the
+head tilted down, to a customized platform machined from PEEK using UV-cured glue (Loctite 3972). To reduce brain motion, the
+proboscis was fixed to the head with a small amount of the same glue. The posterior part of the cuticle was removed using syringe
+needles and fine forceps. The perineural sheath was peeled using fine forceps and, if needed, further removed with a suction pipette
+under the microscope. To further reduce brain motion, muscle 1657 was removed from between the antennae.
+   The brain was continuously perfused with an extracellular saline containing (in mM): 103 NaCl, 3 KCl, 1.5 CaCl2 2H2O, 4 MgCl2
+6H2O, 1 NaH2PO4 H2O, 26 NaHCO3, 5 N-Tris (hydroxymethyl) methyl-2- aminoethane-sulfonic acid, 10 Glucose, and 10 Trehalose.58
+Osmolarity was adjusted to 275 mOsm, and saline was bubbled with 95% O2 / 5% CO2 during the experiment to reach a final pH of
+7.3. Pressure-polished patch-clamp electrodes were pulled for a resistance of 9.5-10.5 MU and filled with an intracellular saline con-
+taining (in mM): 140 KAsp, 10 HEPES, 1.1 EGTA, 0.1 CaCl2, 4 MgATP, 0.5 NaGTP, and 5 Glutathione.58 250 mM Alexa 594 Hydrazide
+was added to the intracellular saline prior to each experiment, to reach a final osmolarity of 265 mOsm, with a pH of 7.3.
+   The mounted, dissected flies were positioned on a rigid platform mounted on an air table. Recordings were obtained from labeled
+cell bodies under visual control using a Sutter SOM microscope with a 60X water-immersion objective. To visualize the GFP labeled
+cells, a monochrome, IR-sensitive CCD camera (ThorLabs 1500M-GE) was mounted to the microscope, an 850 nm LED provided
+oblique illumination (ThorLabs M850F2), and a 460 nm LED provided GFP excitation (Sutter TLED source). Images were acquired
+using Micro-Manager,56 to allow for automatic contrast adjustment.
+   All recordings were obtained from the left side of the brain. Current clamp recordings were sampled at 20KHz and low-pass filtered
+at 10KHz using Axon multiClamp 700B amplifier (National Instrument PCIe-7842R LX50 Multifunction RIO board) using custom Lab-
+View (2013 v.13.0.1f2; National Instruments) and MATLAB (Mathworks, Inc.) software. Shortly after breaking in, recordings were sta-
+bilized with a small injection of a hyperpolarizing current (0-3pA) setting the membrane potential to a range between 60 to 55mV
+(uncorrected for liquid junction potential). Occasionally, the injected current required adjustments, but these were done prior to the
+acquisition of the single bar flash data. To verify recording quality, current step injections were performed at the beginning of the
+experiment.
+
+Current injection experiments
+For the experiment presented in Figure S2 the current step injections described above were preceded with a hyperpolarizing current
+of different duration. This procedure was performed prior to the presentation of visual stimulation. The magnitude of the hyperpola-
+rizing and the following depolarizing injection were adjusted manually to evoke a similar membrane voltage response between cells
+(10 mV). Hyperpolarization current injections ranged between 1 to 2 pA, while depolarizing current injections varied between 0.5
+and 2 pA.
+
+Visual stimuli (electrophysiology)
+The visual display for the electrophysiological experiments was the same setup used and described in our previous paper.33 Details
+are briefly summarized here. The display was constructed from an updated version of the LED panels previously described.59 The
+arena covered slightly more than one half of a cylinder (216 in azimuth and 72 in elevation) of the fly’s visual field, with the diameter
+of each pixel subtending an angle of (at most) 2.25 on the fly eye. Green LEDs (emission peak: 565 nm) were used, bright and dark
+stimuli were presented on an intermediate intensity background of 31 cd/m2. The visual display for the behavioral experiments was
+constructed from an updated (faster, higher resolution) version of LED panel system (https://reiserlab.github.io/Modular-LED-Display/
+docs/G4-index.html). Each panel houses a 16 3 16 grid of 570 nm LEDs, and are assembled into a ‘cylindrical’ 9 column, 4 row arena,
+that covers 270 in azimuth and 94 in elevation. Each pixel subtends a disc with a diameter of at most 1.875 on the eye of the fly.
+   Visual stimuli were generated using custom written MATLAB code that allowed rapid generation of stimuli based on individual cell
+responses. In contrast to the published stimulus control system,59 we have now implemented an FPGA-based panel display
+controller, using the same PCIe card (National Instrument PCIe-7842R LX50 Multifunction RIO board) that also acquired the electro-
+physiology data. This new control system (implemented in LabView) streams pattern data directly from PC file storage, allowing for
+on-line stimulus generation.
+   To map the receptive field (RF) center of each recorded cell, three grids of flashing preferred contrast (dark for T5, bright for T4)
+squares were presented at increasing spatial resolution. Each flash stimulus was presented for 200ms. First, a 6 3 7 grid of non-over-
+lapping 5 3 5 LEDs (11 3 11 ) preferred contrast squares was presented (Figure 1A). If a response was detected, a denser 3 3 3
+grid with 50%-overlapping 5 3 5 LEDs (11 3 11 ) preferred and non-preferred contrast squares (to verify cell polarity) was pre-
+sented at the estimated position of the RF center. If a recorded cell was consistently responsive to the first two mapping stimuli,
+a third protocol was presented to identify the RF center. A 5 3 5 grid of 3 3 3 LED squares (7 3 7 ) of the preferred contrast sepa-
+rated by 1 pixel-shifts was presented at the estimated center of the second grid stimulus. The location of the peak response to this
+stimulus was used as the RF center in subsequent experiments. Once the RF center was identified, a moving bar stimulus was pre-
+sented in 8 directions with 80ms step duration (equivalent to 28 /s). The bar was 9 pixels in height and 1, 2, or 4 pixels in width. When
+moving in the cardinal directions, the motion spanned 9 pixels. In the diagonal directions bar motion included more steps to cover the
+same distance (13 steps versus 9 steps). Once the preferred direction had been estimated, bright and dark bar flashes were pre-
+sented on the relevant axis for widths 1,2 and 4. To verify full coverage of RF, this stimulus was presented over an area larger
+than the original motion window (at least 13 positions; results in Figure 2). Following this procedure, cells were presented with addi-
+tional stimuli using the same PD-ND axis and RF center as reference frames. All stimuli were presented in a pseudorandom order
+
+e2 Current Biology 31, 5286–5298.e1–e7, December 6, 2021
+                                                                                                                              ll
+Article                                                                                                                   OPEN ACCESS
+
+
+within stimulus blocks. All stimuli were presented 3 times, except for single bar flashes that were repeated 5 times. The inter-stimulus
+interval was 500ms for moving stimuli and 800ms for single bar flashes (to minimize the effect of ongoing inhibition on the responses
+to subsequent stimuli).
+   Other presented stimuli were:
+
+   1) Moving bar. After identifying the PD-ND axis, bright and dark moving bar stimuli were presented along this axis using either
+      40ms or 160ms steps (equivalent to 56 /sec or 14 /sec respectively). Bar height was the same as for the mapping stimuli (9
+      LEDs) and width was either 1,2 or 4 LEDs (corresponding to 2.25 , 4.5 or 9 ). Results are presented in Figures 1, 3, S3,
+      and S4. The moving bar stimuli presented to T4 and T5 cells were not identical. T5 cells were presented with a bar moving
+      into and out of a presentation ‘‘window.’’ Meaning, a 4-LED wide bar would first appear as a 1-LED bar and would only achieve
+      its full width once the trailing edge crossed into the stimulus window. For T4 cells, the bar’s leading edge traversed the same
+      distance but the stimuli appeared and disappeared as full width bars.
+   2) Moving edges. Moving edge stimuli were presented in the same stimulus windows as the moving bars (and spanned the same
+      number of steps), and with the same two values of step durations. After the edge has passed through the entire stimulus win-
+      dow, it disappeared, and the entire window reverted to the background levels. Results in Figure 4A.
+   3) Minimal Reverse Phi. Bar pairs were presented such that the first bar was of the non-preferred contrast followed by a bar of the
+      preferred contrast (bright-dark for T5; dark-bright for T4). For T5 cells, stimuli were presented in 2 different configurations.
+      Either bars were of width 2 and the delay between the first and the second bar was adjusted to maintain a fixed speed (i.e.,
+      correcting the temporal delay to account for the spatial difference in positions), or bars were of width 4 and the second bar
+      was presented directly after the first, regardless of positional difference. For T4 cells, only the second configuration was
+      used since it elicited a stronger response. Results in Figures 4, S5A, and S5B. Responses presented in Figure S5A,B: stimuli
+      with overlapping positions were 4-LED wide bars displayed with a 2-LED spatial overlap (bar center positions indicated along
+      x-axis). Essentially, non-overlapping 4-LED wide bar pairs spanned 8 LEDs, while overlapping bar pairs spanned 6 LEDs, with
+      the 2 middle LEDs inverting from non-preferred contrast to preferred contrast. In Figure S5C, the stimulus presented was a
+      slight modification for the one described for T5, with the first bar persistently displayed until the it disappeared together
+      with the second.
+
+
+Behavioral experiments
+Flies were reared on standard cornmeal molasses medium on a 16:8 hours light:dark cycle and were tested 0-4 hours before their
+subjective night to increase activity levels. All experiments were conducted on female flies from a empty split crossed to Kir2.1 flies, a
+control line used in the lab. Flies were cold anesthetized and tethered to a tungsten wire with UV-cured glue. Flies were given at least
+30 min to recover while holding a small piece of paper, to discourage tethered flight. For these experiments the flies were placed in a
+center of a different visual arena spanning 270 in azimuth and 120 in elevation. The arena consisted of 192X64 LED array with the
+diameter of individual LED subtending 1.875 . The stimulus control system was the same as for the electrophysiology. The fly’s
+wings were illuminated from above by an IR LED (ThorLabs M850F2) and their position was monitored by an optical wingbeat
+analyzer (JFI Electronics Laboratory, University of Chicago, Chicago, IL, USA). Data acquisition was performed with the same control
+system as for electrophysiology, but with a 1KHz sampling rate.
+
+Visual stimuli (behavior)
+Rotating grating (standard or reverse phi) stimuli were presented in 1.7 s open-loop trials interleaved with 3.6 s ‘‘stripe fixation’’
+closed-loop trials, during which the fly actively controlled the position of a 30 dark bar. These closed-loop trials were used to
+keep the fly flying and engaged in the task. Each open-loop stimulus was presented 4 times. Trials in which the fly stopped flying
+were excluded from the analysis. Stimuli presented in the open-loop condition were full field rotation gratings with a fixed 30 cycle.
+To present different bar widths (1.875 , 3.75 , 5.625 , and 9.375 ) the duty cycle for each grating stimulus was changed. For example,
+since a 30 cycle is comprised of 16 LEDs, to generate a 1.857 bar, a single LED was turned dark and the rest (15 LEDs) were kept at
+background level. To match the electrophysiological stimuli, gratings were moved at 3 different step durations: 20, 40, and 160 ms
+(corresponding to each moving with 3 angular velocities: 30 /sec, 60 /sec, or 120 /sec) and 2 directions. Stimuli were presented
+either in the standard form, with a grating of bright over gray; or in the reverse phi form, with a bright (dark) over gray inverting to
+dark (bright) over gray with each motion step (see Figure 5A). Note that the effective angular size in the behavioral arena is different
+than our electrophysiological setup, therefore the bar widths used in the behavioral experiments subtend slightly different visual
+angles.
+
+T4/T5 neuron model
+We modeled the membrane potential responses of T4 and T5 neurons with a single-compartment conductance-based neuron
+model,32,33 whose dynamics are described by
+                                        d
+                                   tM      V =  ðV  VL Þ  ðEinc + Edec ÞðV  VE Þ  ðIinc + Idec ÞðV  VI Þ :                       (1)
+                                        dt
+
+
+                                                                                  Current Biology 31, 5286–5298.e1–e7, December 6, 2021 e3
+           ll
+     OPEN ACCESS                                                                                                                     Article
+
+The model has four conductances: One pair of excitatory ðEinc Þ and inhibitory ðIinc Þ conductances respoding to luminance incre-
+ments, and a second pair of conductances, Edec and Idec , for luminance decrements. All the conductances are measured in units
+of leak conductance. The reversal potential for the leak, excitation, and inhibition are denoted by VL , VE , and VI respectively.
+   We examined the model dynamics in the limit of small neuronal integration time tM .32,33 With this approximation, the dynamics of
+Equation 1 become
+                                                             V  VL   Etot  aItot
+                                                                    =                ;                                                          (2)
+                                                             VE  VL 1 + Etot + Itot
+                                                                                                                                   VI
+where Etot = Einc + Edec and Itot = Iinc + Idec are the the total excitatory and inhibitory conductances respectively, and a = VVELV L
+                                                                                                                                        .
+   Each of the four conductances is the sum of local contributions from receptive field locations along the PD-ND axis ðfj ðt;xÞ; j = Einc ;
+Iinc ;Edec ;Idec Þ, weighted by a spatial receptive field amplitude, described by a Gaussian. For instance, the luminance increment excit-
+atory conductance is described by
+                                                                                  ð xmEinc Þ
+                                                                                                    2
+
+                                                                              
+                                                                                      2s2E
+                                                      Einc ðtÞ = Sx AEinc e                  inc        fEinc ðt; xÞ ;                          (3)
+
+where AEinc ; mEinc , and sEinc denote respectively the amplitude, center, and size of the Gaussian spatial receptive field. The receptive
+field locations are indexed by the location x along the PD-ND axis (relative to the location corresponding to the empirically measured
+center of the receptive field of a neuron, x = 0). Spatial locations x are discretized on a uniform grid with a spacing corresponding to
+the smallest width of flashed bars used in the experiment. Similarly, for the remaining conductances:
+                                                                                    ð xmEdec Þ
+                                                                                                        2
+
+                                                                                
+                                                                                       2s2E
+                                                     Edec ðtÞ = Sx AEdec e                    dec           fEdec ðt; xÞ                        (4)
+
+
+
+                                                                                    ð xmIinc Þ
+                                                                                                    2
+
+                                                                                
+                                                                                       2s2I
+                                                        Iinc ðtÞ = Sx AIinc e              inc          fIinc ðt; xÞ
+
+
+
+                                                                                  ð xmIdec Þ
+                                                                                                    2
+
+                                                                              
+                                                                                      2s2I
+                                                      Idec ðtÞ = Sx AIdec e              dec            fIdec ðt; xÞ :
+
+The time course of the local contribution to the conductances, fj ðt; xÞ, is the output of two linear temporal filters in series, with time
+constants t j;rise and t j;decay
+                                                                 d
+                                                      tj;decay      fj ðt; xÞ =  fj ðt; xÞ + hj ðt; xÞ                                         (5)
+                                                                 dt
+
+
+                                                              d
+                                                      t j;rise hj ðt; xÞ =  hj ðt; xÞ + kj ðt; xÞ ;
+                                                              dt
+where kj ðt; xÞ is a function of the visual input that depends on the stimulus type (i.e., dark or bright).
+Input dynamics
+Here we describe the model of visual input processing upstream of the T4 and T5 model neurons. For bright stimuli, the input to the
+temporal filters for the light increment conductances is simply
+                                                        kEinc ðt; xÞ = kIinc ðt; xÞ = Ibright ðt; xÞ :                                          (6)
+
+The external input Ibright ðt; xÞ assumes a value of 0 or 1 depending on whether a bright stimulus is absent or present at location x and
+time t.
+   For light decrement conductances, the input is a filtered delta pulse centered at the time of bright stimulus offset tbright
+                                                                                                                            off :
+                                               d                kE ðt; xÞ                         
+                                                 kE ðt; xÞ =  dec        + CEdec ðxÞd t  toff
+                                                                                            bright
+                                                                                                                                       (7)
+                                               dt dec            tD; Edec
+
+
+
+                                               d                  kI ðt; xÞ                          
+                                                  kIdec ðt; xÞ =  dec      + CIdec ð xÞd t  toff
+                                                                                               bright
+                                                                                                        ;
+                                               dt                   tD;Idec
+
+where t D;Edec and tD;Idec are the time constants of the filters. The amplitudes of the delta, CEdec ðxÞ and CIdec ðxÞ; are functions of the bright
+stimulus duration at location x ðdbright ðxÞÞ. The experimental data suggests that these are nonlinear functions. In the experiments,
+
+
+e4 Current Biology 31, 5286–5298.e1–e7, December 6, 2021
+                                                                                                                                ll
+Article                                                                                                                     OPEN ACCESS
+
+
+however, we do not have a sufficiently dense sampling of possible stimulus durations to completely characterize this nonlinearity.
+Hence, we chose a simple rectified-linear function (ReLU):
+                                                                                         
+                                              CEdec ðxÞ = ReLU mEdec dbright ðxÞ + bEdec                                       (8)
+
+                                                                                             
+                                                 CIdec ð xÞ = ReLU mIdec dbright ð xÞ + bIdec ;
+
+with parameters m; b.
+  For dark stimuli, light decrement conductances are directly driven by the presence of the dark stimulus Idark ðt;xÞ, while light incre-
+ment conductances receive a filtered delta pulse at the time of the dark stimulus offset tdark
+                                                                                          off :
+
+                                                     kEidec ðt; xÞ = kIdec ðt; xÞ = Idark ðt; xÞ                                         (9)
+
+
+
+                                             d              kE ðt; xÞ                         
+                                               kE ðt; xÞ =  inc       + CEinc ðxÞd t  toff
+                                                                                         dark
+                                             dt inc          t D; Einc
+
+
+
+                                              d              kI ðt; xÞ                         
+                                                kI ðt; xÞ =  inc       + CIinc ðxÞd t  toff
+                                                                                          dark
+                                              dt inc           t D;Iinc
+
+
+                                                                                                   
+                                                 CEinc ðxÞ = ReLU mEinc ddark ðxÞ + bEinc
+
+
+                                                                                            
+                                                  CIinc ð xÞ = ReLU mIinc ddark ð xÞ + bIinc :
+
+Model optimization
+We present two version of the model: a version we have named the ‘full model’ that contains independent parameters for each conduc-
+tance and was optimized using both single bar flashes and moving bars (for reasons that will be discussed below), and a version named
+the ‘reduced model’ in which tD is the same for all the conductances, t rise is fixed at 1 for the excitatory conductances, and the model
+was optimized using only single bar flashes (see tables below). Early iterations of our optimization procedure have shown these were
+reasonable constraints that incurred only a modest price at the loss function (Compare full and reduced models in Figure S3). The full
+model is presented as an illustration of our modeling approach. First, we aimed to capture the receptive field structure qualitatively as
+best we could, and then we systematically removed components until the reduced version we present was achieved. Since the reduced
+model could be optimized using solely responses to non-moving stimuli, we consider it more useful and focus on it in the main text.
+  In the reduced model (Figures 3 and S3E–S3H), parameters are randomly initialized within the bounds listed in the first table below
+and optimized to minimize the mean squared error (MSE) between simulated and measured voltage responses to PC and NC single
+bar flash stimuli of width [2,4] and duration [40ms, 160ms]
+                                                                                                         
+                                      loss = Sdur Swidth Scontrast MSE Flash Responseðdur;width;contrastÞ ;                          (10)
+
+where each stimulus condition was given equal weight in the cost function.
+   The full model (Figure S3A-D) parameter bounds are given in second table below, and this model was optimized with PC and NC
+stimuli for both single bar flashes and moving bar stimuli of width [2,4], duration [40ms, 160ms]. Moving bars were added to the opti-
+mization procedure in an attempt to increase the density of duration sampling for Equation 8. For a single position in the receptive
+field, bars of different widths moving at the same speed are equivalent to flashes of different durations (e.g., width 2 bar moving at
+40 ms steps is equivalent to an 80 ms flash).
+                                                                                                             
+                                     loss = Sstim Sdur Swidth Scontrast MSE Responseðstim;dur;width;contrastÞ ;                   (11)
+
+All simulated responses were delayed by 30ms to match the measured transmission latencies from the omatidia to T4/T5 neurons.
+   The optimization for both models was performed with the MATLAB function fminconðÞ and the default interior-point algorithm.
+   In Figures 3, 4, 6, S3, and S5 we report the simulated responses from these optimization procedures. The parameters used in those
+simulations have been chosen among the top 1% optimization solutions based on the losses described above. Within these solu-
+tions, we selected the parameter sets resulting in the best match (smallest MSE) with moving bar stimuli not used in the loss functions
+for the reduced model.
+2-conductance T5 model grating simulations
+Model parameters for the simulation of Figure 6 were taken from our previous study33 (Example cell 2 in Figure 5D) and are available
+online at https://doi.org/10.25378/janelia.c.4771805.v1 (Figure 4 data and code modelFiles/309/result_cell_2). The parameters were
+used in the current 4-conductance model with the two increment conductances (Einc and Iinc) zeroed.
+
+                                                                                    Current Biology 31, 5286–5298.e1–e7, December 6, 2021 e5
+          ll
+     OPEN ACCESS                                                                                                             Article
+
+QUANTIFICATION AND STATISTICAL ANALYSIS
+
+Analysis (electrophysiology)
+Analysis in this paper followed similar procedure as in our previous papers32,33 with certain necessary modification. All data analysis
+was performed in MATLAB using custom written code. Since the cells’ baseline was typically stable, we included only trials in which
+the mean pre-stimulus baseline did not differ from the overall pre-stimulus mean for that group of stimuli by more than 10 mV. We also
+verified that the pre-stimulus mean and overall mean for that trial did not differ by more than 15 mV (or 25 mV for slow moving bars,
+due to their strong responses). Responses were later aligned to the appearance of the bar stimulus and averaged (or the appearance
+of the bar in the central position in case of the 8-orientation moving bar).
+Determining PD
+After presenting the cell with 1- and 2-LED-wide bars moving in 8 different direction at 80 ms per LED step (speed that was optimal for
+determining directional selectivity for T4 cells32), the preferred direction for the cell was determined by a visual estimate of the re-
+sponses to determine the middle of the relatively wide range of large responding directions. The preferred direction was determined
+using only preferred contrast stimuli. Due to the structure of our display system (with LEDs organized in a rectangular grid), motion
+along diagonal directions included more steps when compared to motion along cardinal directions that span the same distance (13
+rows of LEDs compared to 9). Accordingly, the responses are slightly different, and we therefore, separated the cells into groups of
+either cardinally-aligned PD-ND axis, or diagonally-align PD-ND axis (see Figure S1). When presenting average responses to moving
+stimuli, we present results from the diagonally-aligned T4 and T5 cells in Figure 1, and the cardinally-aligned cells in Figure 3. Model
+predictions presented in the main figures are always from T4- and T5-fits that were optimized to the cardinally-aligned cells. Figure S3
+shows predications from models that were optimized to each one of the four groups independently.
+Single position flash response – depolarization
+responses were defined as the 0.999 quantile (a robust estimate of the max) of the response during the ‘response window’ (defined
+below). If the response magnitude did not exceed 2.5 standard deviations of the pre-stimulus baseline (during a 200 ms window pre-
+ceding the stimulus), the response was defined as zero. For 2- and 4-LED-wide bars the threshold was 2.7 and 2.9 standard devi-
+ations, since the responses were stronger. Due to the difference in dynamics for preferred and non-preferred contrast responses, the
+response window was defined as a function of both stimulus duration and stimulus contrast (200 ms for PC and 375 ms for NC + flash
+duration). Used in Figures 2B–2E. In Figure 2B, only positions that had 4 or more cells responding (with a missing response either
+being not recorded or not detected by the above criteria) have their averages displayed.
+Single position flash response – hyperpolarization
+same as above only the response window time was defined differently. For PC stimuli, the window was 800 ms + flash duration (since
+the hyperpolarization appears after the depolarization). For NC stimuli, the same window as the depolarization was used, since NC
+stimuli induced onset hyperpolarization. In addition, lower standard deviation thresholds were used (1.5, 1.7, and 1.9), due to lower
+magnitude of hyperpolarization. Used in Figures 2B–2E. In Figure 2B, only positions that had 4 or more cells responding (with a
+missing response either being not recorded or not detected by the above criteria) have their averages displayed.
+Rise start time
+Only presentations in which an average response was detected as depolarizing were used for this calculation. Start time was defined
+as the time from stimulus presentation (after correcting for arena delay) to 10% of the of the value of the maximal response for that
+position. Used in Figure 2D
+Decay time
+Same criteria was used as for rise time calculation. Decay time was defined as the temporal difference between reaching 80% and
+then 20% of the maximal response (after the response peak). Used in Figure 2E.
+
+Analysis (Behavior)
+All data analysis was performed in MATLAB using custom written code. Responses were quantified as left minus right wing-beat
+amplitude, a measure which has been shown to be proportional to yaw torque60. In the beginning of each experiment, flies were pre-
+sented with bi-directional rotational gratings to verify acceptable symmetry between left and right turns. Responses to both directions
+of the same stimulus condition were combined into an average after inverting the sign of responses to counterclockwise moving stimuli
+(standard and reverse phi). For each fly responses were normalized to the 0.95 quantile of the strongest single stimulus response.
+   Mean responses were calculated by taking the average left minus right (turning) value within the 1-1.5 s response window. Used in
+Figure 5
+
+Statistics
+To determine whether mean responses in Figure 1D were (statistically) significantly different from zero, response groups were first
+tested for normality using the Lilliefors test, and then tested for a significant difference from zero using the one-sided Student’s t
+test. To test for differences between responses to long flashes and their equivalent linear sums in Figure 2G, a paired two-sided Stu-
+dent’s t test was performed. Finally, to test for the significance of behavioral responses in Figure 5C, we first test for normality using
+the Lilliefors test, and then performed a two-sided t test to determine whether responses are different from zero (corrected for mul-
+tiple comparisons by controlling for the false discovery rate with q = 0.01). Paired two-sided t tests were used in all other pairwise
+comparisons in the figure. No statistical methods were used to pre-determine sample sizes, however our sample sizes are similar
+
+e6 Current Biology 31, 5286–5298.e1–e7, December 6, 2021
+                                                                                                                         ll
+Article                                                                                                           OPEN ACCESS
+
+
+to those reported in previous publications.61–63 Data collection and analysis could not be performed blind to the conditions of the
+experiments.
+
+Data plotting conventions
+All boxplots presented were plotted with these conventions: box represents upper and lower quartile range, line represents median,
+whiskers were omitted, and in certain cases (that are clear from context) individual data points are overlaid on the box.
+Reduced model parameter bounds
+
+
+Parameters                Einc                  Iinc                  Edec                    Idec                  units
+A                         [0,10]                [0,10]                [0,10]                  [0,10]                unitless
+m                         [-7,7]                [-7,7]                [-7,7]                  [-7,7]                R.F. position
+s                         [0.1,5]               [0.1,5]               [0.1,5]                 [0.1,5]               R.F. position
+t rise                    1                     [1,600]               1                       [1,600]               ms
+t decay                   [1,600]               [1,600]               t decay;Einc            [1,600]               ms
+M                         [0,5]                 [0,5]                 [0,5]                   [0,5]                 1/ms
+b                         [-10,10]              [-10,10]              [-10,10]                [-10,10]              unitless
+tD                        [1,600]               t D;Einc              t D;Einc                t D;Einc              ms
+
+
+
+Full model parameter bounds
+
+
+parameters                Einc                   Iinc                  Edec                   Idec                  units
+A                         [0,10]                 [0,10]                [0,10]                 [0,10]                unitless
+m                         [-7,7]                 [-7,7]                [-7,7]                 [-7,7]                R.F. position
+s                         [0.1,5]                [0.1,5]               [0.1,5]                [0.1,5]               R.F. position
+t rise                    [1,600]                [1,600]               [1,600]                [1,600]               ms
+t decay                   [1,600]                [1,600]               [1,600]                [1,600]               ms
+m                         [0,5]                  [0,5]                 [0,5]                  [0,5]                 1/ms
+b                         [-10,10]               [-10,10]              [-10,10]               [-10,10]              unitless
+tD                        [1,600]                [1,600]               [1,600]                [1,600]               ms
+
+
+
+
+                                                                          Current Biology 31, 5286–5298.e1–e7, December 6, 2021 e7
+

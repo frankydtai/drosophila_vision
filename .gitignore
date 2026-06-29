@@ -1,13 +1,60 @@
+# Virtual environments (all subprojects)
 .venv/
+venv/
+env/
 
 # Python caches
 __pycache__/
 *.pyc
+*.pyo
 
-# FAFB connectome: large regenerable data (rebuild via build_network.py / build_all.py)
-# Full-disc network.json are 80-160 MB; keep only the small cropped extent deliverables.
-Connectome/**/network.json
-!Connectome/**/*_extent2_col/network.json
-Connectome/**/connections.csv.gz
-.filter_cache
-Connectome/**/download/connections_princeton.csv.gz
+# OS junk
+.DS_Store
+.DS_store
+
+# ---------------------------------------------------------------------------
+# Oversized data in imported subprojects (kept out of git; not regenerable here)
+# ---------------------------------------------------------------------------
+
+# MatlabFunctions: multi-GB MATLAB recordings
+MatlabFunctions/**/*.mat
+
+# Groschner2022 dataset: hundreds of MB to multi-GB raw data
+Groschner2022_multiplication/**/*.csv
+Groschner2022_multiplication/**/*.npy
+Groschner2022_multiplication/**/*.npz
+
+# ---------------------------------------------------------------------------
+# temporal_filtering: FAFB connectome large regenerable data
+# (rebuild via build_network.py / build_all.py). Full-disc network.json are
+# 80-160 MB; keep only the small cropped extent deliverables.
+# ---------------------------------------------------------------------------
+temporal_filtering/Connectome/**/network.json
+!temporal_filtering/Connectome/**/*_extent2_col/network.json
+temporal_filtering/Connectome/**/connections.csv.gz
+temporal_filtering/**/.filter_cache
+temporal_filtering/Connectome/**/download/connections_princeton.csv.gz
+
+# ---------------------------------------------------------------------------
+# Individual oversized files (>10 MB) excluded from git. Files <=10 MB are kept.
+# ---------------------------------------------------------------------------
+/Groschner2022_multiplication/A_biophysical_account_of_multiplication_by_a_single_neuron/ED Fig. 10/edfig10a.tif
+/Groschner2022_multiplication/A_biophysical_account_of_multiplication_by_a_single_neuron/ED Fig. 10/edfig10c.tif
+/LC18_model/training_data/vstim_set.mat
+/LC18_model/vstim/2DsizeTuning_100dps.mat
+/LC18_model/vstim/2DsizeTuning_200dps.mat
+/LC18_model/vstim/2DsizeTuning_400dps.mat
+/LC18_model/vstim/2DsizeTuning_40dps.mat
+/LC18_model/vstim/2DsizeTuning_80dps.mat
+/LC18_model/vstim/Fig3_barTuning(bright)_model.mat
+/LC18_model/vstim/Fig3_barTuning_experiment.mat
+/LC18_model/vstim/Fig3_barTuning_model.mat
+/LC18_model/vstim/Fig3_smallSquareContrastTuning_model.mat
+/LC18_model/vstim/FigS5_speedTuning.mat
+/LC18_model/vstim/FigS5_temporalTuning_motion.mat
+/MatlabFunctions/paper.pdf
+/temporal_filtering/normalization_paper/calcium_data_fig3.pkl
+/temporal_filtering/normalization_paper/calcium_data_fig4_abc.pkl
+/temporal_filtering/normalization_paper/calcium_data_fig4_d.pkl
+/temporal_filtering/normalization_paper/calcium_data_fig5_dfhj.pkl
+/temporal_filtering/SimulationCode/logs/training_26307646.err

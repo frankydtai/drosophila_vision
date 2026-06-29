@@ -1,0 +1,56 @@
+function [traitVals, varargout] = extractTrait(expSt, protIndices, traitName)
+
+% function traitVals = extractTrait(expSt, protIndices, traitName)
+% This function extract the trait value from the chr string in the protocol
+% definition of expSt. 
+%
+% INPUT
+% expSt -           expStruct created using the createProtocolsScript inside the
+%                   on_SDcard folder
+% protIndices -     vector of relevant protocols from which to extract the
+%                   value of the trait
+% traitName -       string. Name of trait
+%
+% OUTPUT
+% traitVals -       Numeric values of traits from the relevant protocols
+%
+% For more on trait values see "Help traitDefinitions"
+
+%width is not defined since the numeric value is the width
+traitDef.Obj = {'bar', 'baredge', 'edge', 'square', 'severalBars'};
+traitDef.Brt = {'bright', 'dark', 'both'};
+traitDef.Mov = {'right', 'left', 'up', 'down', 'random'};
+traitDef.Typ = {'core', 'halfField', 'iniPosdependent', 'expanded'};
+traitDef.Chg = {'movement', 'brightness', 'flash', 'size'};
+
+traitBaseCell = {'Obj', 'object';       'Mov', 'movement';    'Typ', 'type'; ...
+                 'Brt', 'brightness';   'Wid', 'width';       'Chg', 'change'};                
+
+relTraitsCell = {expSt.protocol(protIndices).Traits};
+% covert traits to 3 letter format 
+
+[tempRow, ~] = find(cellfun(@(x) strcmpi(x, traitName), traitBaseCell));
+if ~tempRow
+    disp([traitName, 'is not a proper trait name'])
+    error('Aborted')
+end
+traitName = traitBaseCell{tempRow, 1};
+
+trPosArray = strfind(relTraitsCell, traitName);
+
+traitVals = nan(1, length(protIndices));
+
+for ii=1:length(relTraitsCell)
+    if trPosArray{ii}
+        traitVals(ii) = str2double(relTraitsCell{ii}((trPosArray{ii}+3):(trPosArray{ii}+4)));
+    end
+end
+    
+if nargout > 1
+    relVals
+    
+end
+
+
+
+end

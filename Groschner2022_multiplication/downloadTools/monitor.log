@@ -1,0 +1,13 @@
+16:09:54 === monitor started ===
+16:09:54 running=2 files=72/74 size=3.3G parts=2 fig5_R39H12_barfixation.csv.part: 1300MB fig5_R39H12_edges.csv.part: 1088MB 
+16:09:56 verify missing=4 bad=0 got=0.94GB
+16:10:56 running=2 files=72/74 size=4.2G parts=1 fig5_R39H12_edges.csv.part: 1864MB 
+16:10:57 verify missing=3 bad=0 got=2.54GB
+16:11:57 running=0 files=72/74 size=4.9G parts=0 
+16:11:59 verify missing=2 bad=0 got=5.16GB
+16:11:59 No download process running; starting fixed downloader...
+16:13:04 running=1 files=74/74 size=5.5G parts=1 fig1g_grating.csv.part: 112MB 
+16:13:05 verify missing=1 bad=0 got=5.74GB
+16:14:10 running=0 files=74/74 size=6.1G parts=0 
+16:14:11 verify missing=0 bad=0 got=5.91GB
+16:14:11 === ALL FILES COMPLETE ===
