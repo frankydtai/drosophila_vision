@@ -56,8 +56,8 @@ def main() -> None:
 
         total = len(located)
         un = located[located["majority_column_id"].isna()]
-        no_edges = int((un["n_partners"] == 0).sum())
-        no_col = int(((un["n_partners"] > 0) & (un["n_partners_with_column"] == 0)).sum())
+        no_edges = int((un["n_post"] == 0).sum())
+        no_col = int(((un["n_post"] > 0) & (un["n_post_with_column"] == 0)).sum())
 
         print(f"\n{'='*64}\n{side.upper()}  ({TARGET_TYPE})\n{'='*64}")
         print(f"  neurons            : {total}")
@@ -65,9 +65,9 @@ def main() -> None:
         print(f"  unresolved         : {len(un)}")
         print(f"    - no output edges at all          : {no_edges}")
         print(f"    - has edges but no partner column : {no_col}")
-        print(f"  output edges/neuron : mean={located['n_partners'].mean():.2f} "
-              f"median={located['n_partners'].median():.0f} "
-              f"max={located['n_partners'].max()}")
+        print(f"  output edges/neuron : mean={located['n_post'].mean():.2f} "
+              f"median={located['n_post'].median():.0f} "
+              f"max={located['n_post'].max()}")
 
         # Post-target type breakdown + per-type column coverage.
         edges = connections[connections["pre_root_id"].isin(target_ids)].copy()

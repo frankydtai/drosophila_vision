@@ -9,7 +9,7 @@ alwaysApply: true
 - ALWAYS execute Python through the project virtual environment at
   `.venv` (e.g. `.venv/bin/python <script>`). Never call bare `python` /
   `python3`. The required packages (numpy, torch, matplotlib, ...) live ONLY
-  in `.venv`.
+  in `.venv`. Every folder under drosophila_vision should have its own .venv. If not, create an empty one for it.
 
 ## 2. Schema is the single source of truth
 - Model parameters MUST be defined in a schema (`ADAPTIVE_SCHEMA`, `CONDUCTANCE_SCHEMA`).

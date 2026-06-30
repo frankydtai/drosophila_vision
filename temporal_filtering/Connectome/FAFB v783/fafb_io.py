@@ -24,8 +24,23 @@ VISUAL_NEURON_TYPES_FILE = "visual_neuron_types.csv.gz"
 COLUMN_ASSIGNMENT_FILE = "column_assignment.csv.gz"
 CONNECTIONS_FILE = "connections_princeton.csv.gz"
 
+# Per-side column -> hex_index table: written by hex_grid.py and read back by
+# build_network.py / column_locator.py. Single source for this filename so the
+# pattern is never restated. Columns: column_id, p, q, u, v, hex_index, hex_status.
+COLUMN_HEX_INDEX_FILE = "column_id_hex_id_{side}.csv"
+
 # Rows read per chunk when scanning the (large) connections file.
 CONNECTIONS_CHUNK_SIZE = 500_000
+
+
+def column_hex_index_path(side: str) -> Path:
+    """Path to the per-side column_id -> hex_index table (written by hex_grid.py)."""
+    return DATA_DIR / COLUMN_HEX_INDEX_FILE.format(side=side)
+
+
+def load_column_hex_index(side: str) -> pd.DataFrame:
+    """Read column_id_hex_id_<side>.csv (column_id, p, q, u, v, hex_index, hex_status)."""
+    return pd.read_csv(column_hex_index_path(side))
 
 
 def load_visual_neurons() -> pd.DataFrame:

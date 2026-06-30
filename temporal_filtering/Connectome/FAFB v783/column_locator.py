@@ -13,9 +13,14 @@ Direction matters and depends on the neuron's role:
   - ``pre``   : locate by *upstream* sources' columns. Use for output/projection
                 neurons that read out of the lattice (e.g. LC/VS <- its pre columns).
 
-Run with the project venv (defaults to R1-6, post-majority, both sides):
+Cell types are positional (like cell_syn.py); direction is a ``--post`` flag
+(default ``pre``, by upstream sources). Outputs go to the ``column_location/``
+subfolder as ``<tag>_<side>_<direction>.csv`` (e.g. ``r1_6_left_post.csv``).
 
-    .venv/bin/python "Connectome/FAFB v783/column_locator.py"
+Run with the project venv (defaults to R1-6, right side, pre):
+
+    .venv/bin/python "Connectome/FAFB v783/column_locator.py" R1-6 --post
+    .venv/bin/python "Connectome/FAFB v783/column_locator.py" TmY11
 """
 
 from __future__ import annotations
@@ -23,7 +28,7 @@ from __future__ import annotations
 import argparse
 import logging
 import re
-from typing import Sequence
+from typing import Optional, Sequence
 
 import pandas as pd
 
@@ -35,6 +40,8 @@ logger = logging.getLogger(__name__)
 # Cell types located by their downstream targets by default.
 DEFAULT_TARGET_TYPES = ("R1-6",)
 DEFAULT_DIRECTION = "post"
+# All located CSVs are written into this subfolder (next to this script).
+OUTPUT_SUBDIR = "column_location"
 
 
 def _type_tag(cell_type: str) -> str:
@@ -50,6 +57,7 @@ def locate_neurons(
     side: str,
     direction: str = DEFAULT_DIRECTION,
     weight_by_syn: bool = False,
+    col_to_uv: Optional[dict] = None,
 ) -> pd.DataFrame:
     """Infer a column (and slot) for each neuron of the requested types.
 
@@ -61,11 +69,20 @@ def locate_neurons(
         side: 'left' or 'right' (for logging only; inputs must already match).
         direction: 'post' (by downstream targets) or 'pre' (by upstream sources).
         weight_by_syn: vote by summed syn_count instead of distinct-partner count.
+        col_to_uv: optional {column_id: (u, v)} map; when given, adds max_u/min_u/
+            max_v/min_v (the hex extent spanned by each neuron's column partners).
 
     Returns:
-        One row per target neuron: root_id, type, n_partners,
-        n_partners_with_column, majority_column_id (Int64, NA if unresolved),
-        votes (Int64).
+        One row per target neuron: root_id, type, n_<dir>, n_<dir>_with_column
+        (where <dir> is 'post' for direction='post' and 'pre' for
+        direction='pre'), votes (descending per-column vote counts as a string,
+        e.g. "5, 5, 5, 3"; sums to n_<dir>_with_column), majority_column_id
+        (Int64, NA if unresolved). When ``col_to_uv`` is given, also per-coordinate
+        mean/max/min for u, v (hex) and x, y (pixel; x=v, y=u+v/2): mean_* is the
+        vote-weighted average over the column partners, max_*/min_* the extent
+        (all NA if unresolved). In this case ``majority_column_id`` keeps the
+        top-voted column only when it has >50% of the votes; otherwise it is the
+        column nearest (Euclidean in u,v) to the vote-weighted mean.
     """
     if direction not in ("post", "pre"):
         raise ValueError(f"direction must be 'post' or 'pre', got {direction!r}")
@@ -82,10 +99,15 @@ def locate_neurons(
     )
 
     # self_id is the target column; partner_id provides the column vote.
+    # partner_kind names the output count columns after the partner side.
     if direction == "post":
         self_id, partner_id = "pre_root_id", "post_root_id"
+        partner_kind = "post"
     else:
         self_id, partner_id = "post_root_id", "pre_root_id"
+        partner_kind = "pre"
+    n_col = f"n_{partner_kind}"
+    n_with_col = f"n_{partner_kind}_with_column"
 
     e = connections[connections[self_id].isin(target_ids)][
         [self_id, partner_id, "syn_count"]
@@ -108,41 +130,95 @@ def locate_neurons(
         [self_id, "votes", "col"], ascending=[True, False, False]
     )
     best = votes.groupby(self_id).first()
+    # All per-column vote counts (descending), e.g. "5, 5, 5, 3"; sums to n_with_column.
+    votes_list = votes.groupby(self_id, sort=False)["votes"].apply(
+        lambda s: ", ".join(str(int(x)) for x in s)
+    )
 
     out = targets.rename(columns={"root_id": "_rid"}).copy()
     out["root_id"] = out["_rid"].astype("int64")
     out = out.drop(columns="_rid")
-    out["n_partners"] = (
+    out[n_col] = (
         out["root_id"].map(n_partners).fillna(0).astype("int64")
     )
-    out["n_partners_with_column"] = (
+    out[n_with_col] = (
         out["root_id"].map(n_partners_with_column).fillna(0).astype("int64")
     )
+    out["votes"] = out["root_id"].map(votes_list).fillna("").astype("string")
     out["majority_column_id"] = out["root_id"].map(best["col"]).astype("Int64")
-    out["votes"] = out["root_id"].map(best["votes"]).astype("Int64")
+
+    if col_to_uv is not None:
+        # Reuse the single source of truth for axial->pixel (x=v, y=u+v/2).
+        from hex_grid import hex_to_pixel
+
+        u_by_col = {int(c): uv[0] for c, uv in col_to_uv.items()}
+        v_by_col = {int(c): uv[1] for c, uv in col_to_uv.items()}
+        vu = votes[[self_id, "col", "votes"]].copy()
+        vu["u"] = vu["col"].map(u_by_col)
+        vu["v"] = vu["col"].map(v_by_col)
+        vu["x"], vu["y"] = hex_to_pixel(
+            vu["u"].astype("float"), vu["v"].astype("float"), kernel_size=1.0
+        )
+        # Vote-weighted mean position (weight = per-column vote count).
+        vu["w"] = vu["votes"].astype("float")
+        for coord in ("u", "v", "x", "y"):
+            vu[f"_w{coord}"] = vu[coord].astype("float") * vu["w"]
+        g = vu.groupby(self_id)
+        wsum = g["w"].sum()
+        raw_mean = {c: g[f"_w{c}"].sum() / wsum for c in ("u", "v", "x", "y")}
+        # Per coordinate, arrange as mean (weighted), max, min.
+        for coord, dtype in (("u", "Int64"), ("v", "Int64"), ("x", "Float64"), ("y", "Float64")):
+            out[f"mean_{coord}"] = (
+                out["root_id"].map(raw_mean[coord].round(3)).astype("Float64")
+            )
+            out[f"max_{coord}"] = out["root_id"].map(g[coord].max()).astype(dtype)
+            out[f"min_{coord}"] = out["root_id"].map(g[coord].min()).astype(dtype)
+
+        # Majority column: keep the top-voted column when it holds >50% of the
+        # votes; otherwise use the column nearest (Euclidean in u,v) to the
+        # vote-weighted mean.
+        total = g["votes"].sum()
+        best_frac = best["votes"] / total
+        vu["d2"] = (vu["u"] - vu[self_id].map(raw_mean["u"])) ** 2 + (
+            vu["v"] - vu[self_id].map(raw_mean["v"])
+        ) ** 2
+        nearest = (
+            vu.sort_values(
+                [self_id, "d2", "votes", "col"], ascending=[True, True, False, False]
+            )
+            .groupby(self_id)
+            .first()["col"]
+        )
+        chosen = best["col"].astype("float").copy()
+        use_nearest = best_frac <= 0.5
+        chosen.loc[use_nearest] = nearest.reindex(chosen.index).loc[use_nearest]
+        out["majority_column_id"] = out["root_id"].map(chosen).astype("Int64")
+
     return out.sort_values(["type", "majority_column_id", "root_id"]).reset_index(
         drop=True
     )
 
 
-def _output_name(side: str, target_types: Sequence[str]) -> str:
+def _output_name(side: str, target_types: Sequence[str], direction: str) -> str:
     if list(target_types) == list(DEFAULT_TARGET_TYPES):
         tag = _type_tag(target_types[0])
     else:
         tag = "_".join(_type_tag(t) for t in target_types)
-    return f"location_{tag}_{side}.csv"
+    return f"{tag}_{side}_{direction}.csv"
 
 
 def _parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Locate neurons by partner columns.")
-    parser.add_argument("--side", default="both", choices=["left", "right", "both"])
     parser.add_argument(
-        "--types", nargs="+", default=list(DEFAULT_TARGET_TYPES),
-        help="Cell types to locate (default: R1-6).",
+        "cell_types", nargs="*", default=list(DEFAULT_TARGET_TYPES),
+        metavar="CELL_TYPE",
+        help="Cell type(s) to locate as positional args (default: R1-6).",
     )
+    parser.add_argument("--side", default="right", choices=["left", "right", "both"])
     parser.add_argument(
-        "--direction", default=DEFAULT_DIRECTION, choices=["post", "pre"],
-        help="post: by downstream targets; pre: by upstream sources.",
+        "--post", action="store_true",
+        help="Locate by downstream targets (post). Default is pre (by upstream "
+             "sources).",
     )
     parser.add_argument(
         "--weight-by-syn", action="store_true",
@@ -154,35 +230,54 @@ def _parse_args() -> argparse.Namespace:
 def main() -> None:
     logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
     args = _parse_args()
+    direction = "post" if args.post else "pre"
     sides = ["left", "right"] if args.side == "both" else [args.side]
 
     all_neurons = fafb_io.load_visual_neurons()
     all_columns = fafb_io.load_column_assignments()
 
+    out_dir = DATA_DIR / OUTPUT_SUBDIR
+    out_dir.mkdir(parents=True, exist_ok=True)
+
     for side in sides:
         neurons = all_neurons[all_neurons["side"] == side]
         columns = all_columns[all_columns["hemisphere"] == side]
         target_ids = set(
-            neurons[neurons["type"].isin(args.types)]["root_id"].astype("int64")
+            neurons[neurons["type"].isin(args.cell_types)]["root_id"].astype("int64")
         )
         # Pull all edges touching the targets on the relevant side (no syn cut).
         connections = fafb_io.load_connections(keep_neuron_ids=target_ids)
+
+        # column_id -> (u, v) for the per-neuron hex extent (max/min u/v).
+        col_to_uv = None
+        if fafb_io.column_hex_index_path(side).exists():
+            hex_df = fafb_io.load_column_hex_index(side)
+            col_to_uv = {
+                int(r.column_id): (int(r.u), int(r.v))
+                for r in hex_df.itertuples(index=False)
+            }
+        else:
+            logger.warning(
+                "Missing %s; skipping max/min u/v columns",
+                fafb_io.column_hex_index_path(side),
+            )
 
         located = locate_neurons(
             neurons=neurons,
             columns=columns,
             connections=connections,
-            target_types=args.types,
+            target_types=args.cell_types,
             side=side,
-            direction=args.direction,
+            direction=direction,
             weight_by_syn=args.weight_by_syn,
+            col_to_uv=col_to_uv,
         )
-        out_path = DATA_DIR / _output_name(side, args.types)
+        out_path = out_dir / _output_name(side, args.cell_types, direction)
         located.to_csv(out_path, index=False)
 
         n_total = len(located)
         n_located = int(located["majority_column_id"].notna().sum())
-        print(f"\n=== locate {args.types} ({side}, direction={args.direction}) ===")
+        print(f"\n=== locate {args.cell_types} ({side}, direction={direction}) ===")
         print(f"  neurons: {n_total}  located: {n_located}  unresolved: {n_total - n_located}")
         print(f"  output: {out_path}")
 

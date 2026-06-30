@@ -1,7 +1,5 @@
 # Virtual environments (all subprojects)
 .venv/
-venv/
-env/
 
 # Python caches
 __pycache__/

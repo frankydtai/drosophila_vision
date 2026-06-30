@@ -1,0 +1,17 @@
+figure_panel,polarity,speed_dps,dff_percent,filled
+2E,bright,25.0,81.4,0
+2E,bright,50.0,69.5,0
+2E,bright,100.0,62.7,0
+2E,bright,200.0,55.9,0
+2E,bright,400.0,40.7,0
+2E,bright,800.0,15.3,0
+2E,dark,25.0,84.7,0
+2E,dark,50.0,81.4,0
+2E,dark,100.0,81.4,0
+2E,dark,200.0,67.8,0
+2E,dark,400.0,50.8,0
+2E,dark,800.0,40.7,0
+2F,bright,25.0,16.9,0
+2F,bright,100.0,13.6,0
+2F,dark,25.0,45.8,0
+2F,dark,100.0,16.9,0

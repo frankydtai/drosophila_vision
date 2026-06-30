@@ -1,0 +1,35 @@
+---
+description: How to convert a paper PDF into paper.txt + paper_summary.md
+globs: **/paper_summary.md
+alwaysApply: false
+---
+
+# Paper PDF → paper.txt + paper_summary.md
+
+When asked to convert a `paper.pdf` (e.g. inside a model folder like `LC18_model/`),
+produce two files **next to the PDF**, matching existing summaries
+(`Groschner2022_multiplication/`, `MatlabFunctions/`, `temporal_filtering/`).
+
+## 1. Extract full text
+- Run `pdftotext paper.pdf paper.txt` (do NOT hand-transcribe). Keep the raw output as-is.
+
+## 2. Write paper_summary.md
+Read the full `paper.txt` first; never summarize from the abstract alone.
+
+Required structure:
+- Header with links: `**Full text:** [\`paper.txt\`](paper.txt) | **PDF:** [\`paper.pdf\`](paper.pdf)`
+- `## Citation` (authors, year, journal, DOI as markdown link)
+- `## One-line takeaway`
+- Body sections as markdown tables where possible.
+
+## 3. Emphasis: stimulus + recording detail
+The summary's PRIMARY focus is **visual stimulus conditions and recording details**,
+not narrative. Put these first and be exhaustive:
+- **Recording:** animal prep, microscope/laser/objective/detector, sample/volume rate, dataset size (n neurons / n flies).
+- **Display:** projector, wavelength, screen coverage, background, refresh rate.
+- **Every stimulus protocol** with concrete parameters (speed, size, ISI, frequency, duration), pulling numbers from the paper's supplementary tables (e.g. Table S3/S7).
+- Condense model/connectome/theory results into a short section at the END.
+
+## 4. Tie to local code
+If the folder has model code, add a small table mapping files (e.g.
+`simulateXcontrast.m`, `convX2param.m`) to their role, plus the data/code DOI.

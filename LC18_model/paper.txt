@@ -1,0 +1,6211 @@
+Article
+
+A functionally ordered visual feature map in the
+Drosophila brain
+Highlights
+d
+
+Lobula columnar (LC) neurons are tuned to distinct features
+of object motion
+
+d
+
+LC18 detects motion of very small objects by comparing
+contrast changes in time
+
+Authors
+Nathan C. Klapoetke, Aljoscha Nern,
+Edward M. Rogers, Gerald M. Rubin,
+Michael B. Reiser, Gwyneth M. Card
+
+Correspondence
+
+d
+
+LCs project to optic glomeruli that are spatially ordered by
+visual feature tuning
+
+klapoetke@gmail.com (N.C.K.),
+reiserm@janelia.hhmi.org (M.B.R.),
+cardg@hhmi.org (G.M.C.)
+
+d
+
+Downstream neurons integrate from sparse subsets of
+neighboring glomeruli
+
+In brief
+By combining calcium imaging and
+synaptic connectivity analysis, Klapoetke
+et al. reveal that optic glomeruli in the fly
+central brain form a topographic visual
+map, with glomeruli anatomically ordered
+by visual feature selectivity. Downstream
+circuits appear to exploit this map by
+integrating primarily from nearby
+glomeruli encoding similar features.
+
+Klapoetke et al., 2022, Neuron 110, 1700–1711
+May 18, 2022 ª 2022 The Authors. Published by Elsevier Inc.
+https://doi.org/10.1016/j.neuron.2022.02.013
+
+ll
+
+ll
+OPEN ACCESS
+
+Article
+
+A functionally ordered visual feature map
+in the Drosophila brain
+Nathan C. Klapoetke,1,* Aljoscha Nern,1 Edward M. Rogers,1 Gerald M. Rubin,1 Michael B. Reiser,1,*
+and Gwyneth M. Card1,2,*
+1Janelia
+
+Research Campus, Howard Hughes Medical Institute, 19700 Helix Drive, Ashburn, VA 20147, USA
+contact
+*Correspondence: klapoetke@gmail.com (N.C.K.), reiserm@janelia.hhmi.org (M.B.R.), cardg@hhmi.org (G.M.C.)
+https://doi.org/10.1016/j.neuron.2022.02.013
+2Lead
+
+SUMMARY
+
+Topographic maps, the systematic spatial ordering of neurons by response tuning, are common across species. In Drosophila, the lobula columnar (LC) neuron types project from the optic lobe to the central brain,
+where each forms a glomerulus in a distinct position. However, the advantages of this glomerular arrangement
+are unclear. Here, we examine the functional and spatial relationships of 10 glomeruli using single-neuron calcium imaging. We discover novel detectors for objects smaller than the lens resolution (LC18) and for complex
+line motion (LC25). We find that glomeruli are spatially clustered by selectivity for looming versus drifting object motion and ordered by size tuning to form a topographic visual feature map. Furthermore, connectome
+analysis shows that downstream neurons integrate from sparse subsets of possible glomeruli combinations,
+which are biased for glomeruli encoding similar features. LC neurons are thus an explicit example of distinct
+feature detectors topographically organized to facilitate downstream circuit integration.
+INTRODUCTION
+Topographic maps, where neurons form ordered representation
+of the external world, have been long observed in many diverse
+brain regions (Mountcastle, 1957; Hubel and Wiesel, 1962). The
+prevalence of these maps has been suggested to support efficient organization of local circuit computation (Knudsen et al.,
+1987; Kaas, 1997; Chklovskii and Koulakov, 2004). In the early visual system, the vertebrate retina and insect optic lobe share
+many anatomic and functional similarities in encoding visual information retinotopically (Borst and Helmstaedter, 2015; Sanes
+and Zipursky, 2010), and both output information to higher-order
+brain regions via visual projection neurons. The LC visual projection cells of flies, similar to retinal ganglion cells in vertebrates,
+have been hypothesized to encode behaviorally relevant local visual features (Strausfeld et al., 2007; Wu et al., 2016). In
+Drosophila melanogaster, there are 20 anatomically distinct
+LC types (including LC-like visual projection cell types called lobula plate lobula columnar, or LPLC, neurons; Figures 1A–1C),
+each comprising a population of between 30 and 220 neurons
+(Wu et al., 2016). The dendrites of individual member neurons
+within an LC type tile retinotopic space in the optic lobe, but the
+axons of a given type collectively project to a target region in
+the fly’s central brain called an optic glomerulus (Figures 1A–
+1C). The nonoverlapping optic glomeruli form a highly ordered,
+anatomically identifiable set in the central brain (Otsuna and Ito,
+2006; Panser et al., 2016; Strausfeld and Okamura, 2007; Wu
+et al., 2016). However, the visual feature sensitivities of the
+different glomeruli, and whether the stereotyped anatomical
+
+glomerular arrangement relates to functional tuning, is not well
+understood. To date, feature encoding properties and behavioral
+links have been identified for only a handful of LC types (Klapoetke et al., 2017; Ribeiro et al., 2018; Tanaka and Clark,
+€dele et al., 2020; Hindmarsh Sten
+2020; Wu et al., 2016; Sta
+et al., 2021). Here, we systematically explored the diversity of visual feature encoding by a broad set of LC neurons and further
+explored their connectivity onto downstream target neurons in
+order to establish how the anatomical arrangement of the
+glomeruli relates to their function and readout.
+RESULTS
+LC neurons encode distinct spatiotemporal features
+We focused on 10 LC types whose projections form a spatially
+clustered group of optic glomeruli in the central brain (Panser
+et al., 2016; Wu et al., 2016) (Figure 1C; Tables S1 and S2) and
+extensively characterized their visual responses using in vivo
+two-photon calcium imaging (Figure 1D). We employed an adaptive stimulus design where visual stimuli spanning two logarithmic ranges in both spatial and temporal parameters were generated online and spatially aligned to an individual neuron’s
+measured receptive field.
+We first measured the receptive-field sizes of individual LC
+axons leaving the lobula (Figure 1E) in response to a periodic presentation of a moving dark bar within a 7.5 –15 aperture (Table
+S3, see STAR Methods), displayed at randomized positions on a
+grid (Figures 1F and 1G). The receptive-field sizes (summarized
+by the full-width half-max responses) were highly correlated
+
+1700 Neuron 110, 1700–1711, May 18, 2022 ª 2022 The Authors. Published by Elsevier Inc.
+This is an open access article under the CC BY license (http://creativecommons.org/licenses/by/4.0/).
+
+ll
+OPEN ACCESS
+
+Article
+A
+
+D
+
+B
+
+E
+
+C
+
+F
+
+G
+
+H
+
+Figure 1. Lobula columnar (LC) single-cell anatomy and receptive-field mapping
+(A) Schematic of LC visual projection neuron anatomy. Anatomic axes indicated as D: (dorsal), V: (ventral), L: (lateral), M: (medial), A: (anterior), and P: (posterior)
+throughout.
+(B) Population of LC18 neurons on reference neuropil (gray).
+(C) Stochastically labeled single cells for each visual projection cell type (see STAR Methods).
+(D) Two-photon imaging setup.
+(E–G), Single-cell receptive-field mapping from a representative fly expressing calcium indicator in LC18 neurons. Stimuli described in Table S3.
+(E) Single-cell regions of interest (numbered) overlaid on averaged calcium image. Scale bars, 10 mm.
+(F) Receptive field contour plot: lines at 50% DF/F, dots at fitted receptive-field centers. Numbered to match (E). Grid nodes represent stimulus positions in visual
+field as seen by fly.
+(G) Normalized calcium traces arranged in grid corresponding to (F). Data from region of interest 2 (ROI 2) are shown.
+(H) Receptive-field full-width at half maximum (FWHM) based on calcium responses versus the dendritic arbor size along azimuth based on anatomy (Wu et al.,
+2016). Error bar represents standard deviation. Pearson correlation r = 0.86.
+
+with the dendritic arbor size (Wu et al., 2016) in the lobula (R2 =
+0.74; Figures 1H and S1). Individual LC neurons integrate information from a region with a diameter ranging from 15 to 40 in
+space (Table S4), and the size of their receptive field defined in
+this way can largely be predicted by their anatomical arborization
+within the retinotopically organized lobula.
+This spatially restricted receptive field suggests that each cell
+integrates visual inputs within a compact region and is likely to
+act as a local feature detector. To test this hypothesis, we systematically characterized responses to a broad panel of different
+dynamic visual stimuli such as looming, full-field drifting gratings,
+and moving bright and dark objects over a range of object sizes
+and speeds (Figures 2, S2, and S3) with receptive-field-aligned
+stimuli. This comprehensive dataset of visual responses (91
+receptive-field-centered neurons from 50 flies) allowed us to
+quantify speed, size, and motion direction tuning of each LC
+type and to compare their visual responses.
+We found that these 10 LC cell types divide into two major
+groups distinguished by their relative responses to laterally moving and looming objects (Figures 2A and 2B). The first group
+(LC11, LC15, LC18, LC21, and LC25) respond strongly to moving objects but only weakly to looming object motion (Figures
+2B, 2E, and 2F). In contrast, the second group (LC4, LC12,
+
+LC17, LPLC1, and LPLC2) exhibited their strongest responses
+to looming (Figures 2B, 2E, and 2F). The second group was
+also more selective for dark over bright object motion (Figures
+2E and 2F), and LC4 showed directionally selective responses
+(Figures 2D and S3A), whereas the cell types in the first group
+mostly had similar responses to dark and bright object motions
+(Figures 2E and 2F) and were not directionally selective (Figures
+2D and S3). All LC cells examined responded strongly to either
+small moving (square) objects or to looming motion (Figures
+2B, first four columns), but not to a tall moving edge (Figure 2B,
+90 wide moving bar) or the ‘‘wide-field’’ motion of a drifting
+grating (Figure 2B, grating), with the exception of LC25 and
+LC15, which had strong responses to the single moving bar (Figure 2B, 4.5 wide moving bar). Taken together, our data thus
+show the LC neurons to be local visual feature detectors that
+exhibit a range of visual responses that can be used to distinguish each cell type but broadly fall into two groups: primarily object-driven or primarily looming-driven.
+LC neurons are tuned to the size of visual objects
+Object size is an important visual cue for many fly behaviors,
+ranging from chasing another fly, which at a distance may effectively appear as a point (Agrawal et al., 2014; Ribeiro et al., 2018),
+
+Neuron 110, 1700–1711, May 18, 2022 1701
+
+ll
+OPEN ACCESS
+
+A
+
+Article
+
+B
+
+C
+
+G
+
+I
+
+H
+
+J
+
+D
+
+E
+
+F
+
+Figure 2. Each LC cell type encodes distinct visual features
+(A) Cluster-dendrogram of LC cell types based on responses to size tuning, looming motion, and drifting gratings (see STAR Methods). Throughout figure, n = 7 to
+11 neurons from 5 flies for each cell type.
+(B) Single-cell (color) and population average (black) calcium responses to different motion stimuli. The stimuli were presented with a constant edge speed for
+looming (100 /s), moving squares and bars (100 /s), and full-field grating (25 /s) stimuli.
+(C) Receptive-field shape; contour line denotes 50% response value of the population average.
+(D) Directional tuning response to a dark bar moving along the indicated directions across a neuron’s receptive field. Direction selectivity index (DSi) is computed
+as the average response vector magnitude (color scale at top). Standard deviation as colored ribbon. Stimulus size is customized for each cell type based on its
+2D size tuning (see STAR Methods). Due to small responses to moving bars, we did not run directional and speed tuning for LPLC2 in (D and E). All stimuli were
+shown to the right eye.
+(E and F) Population peak responses (mean and standard deviation) to bright or dark object motion over a range of speeds. Repeated-measure analysis of
+variance (RM-ANOVA) and Bonferroni’s post hoc test were used. Filled symbols indicate significant difference between bright and dark responses (p < 0.05),
+open symbols indicate nonsignificance.
+(E) Speed tuning using the same custom stimulus size as in (D).
+(F) Constant edge speed looming.
+
+(legend continued on next page)
+
+1702 Neuron 110, 1700–1711, May 18, 2022
+
+ll
+Article
+to orienting toward prominent landscape features such as vertical bars or edges (Heisenberg and Wolf, 1979; Ofstad et al.,
+2011). Because several LC types, such as LC11, LC12, and
+LC15, have been shown to detect either small objects or bar mo€dele et al., 2020; Wu et al., 2016),
+tion (Keleş and Frye, 2017; Sta
+we hypothesized that different LC cell types will preferentially
+encode objects of differing sizes. To quantify each cell’s size tuning, we measured two-dimensional object size-tuning by moving
+individual dark rectangular objects of different heights and
+widths (systematically varied from 2 to 90 in both dimensions)
+across a single cell’s entire receptive field (Figures 2G–2J and
+S2C). As most LC types were not motion direction selective,
+we tested only one movement direction for each object size
+(see STAR Methods).
+Measured size tuning was highly consistent within each cell
+type but was markedly different between cell types. The looming-responsive LCs (Figure 2I) were not strongly size tuned:
+LC12 responded strongly to any object smaller than its receptive-field size, and LPLC2 and LC17 exhibited minimal responses to object motion stimuli. This extreme selectivity was
+expected for LPLC2 due to strong inhibition for anything but
+centered looming (Klapoetke et al., 2017).
+In contrast, the LCs with weak looming responses (Figure 2J)
+were each tuned to a narrow range of object sizes: LC11 and
+LC18 were selective for small objects, LC25 and LC15 were selective for long, thin bars, and LC21 responded selectively to
+both small objects and thin bars in either vertical or horizontal
+orientations. Furthermore, the size tuning (Figures 2G–2J) for
+most LCs did not have a simple relationship to the measured
+receptive-field size (Figure 2C). For example, the two LCs
+most selective for small-object motion, LC11 and LC18, had
+two of the three largest receptive fields we measured (Figure 2C; Table S4).
+During natural vision, objects move at different speeds on the
+retina due to both self-motion and object motion. We found that
+these LCs robustly respond to a preferred object size (Figure S2C) across about one order of magnitude of movement
+speeds (Figure 2E). However, is size selectivity maintained
+across different speeds? We further examined the interaction
+between object size and movement speed in the responses of
+the small object detecting LCs, LC11, and LC18 (Figures S2D
+and S2E). For both cell types, we observed that the small-object
+selectivity is maintained across one order of magnitude in object
+speed, but the peak sensitivity shifts to smaller sizes at slower
+speeds and to bigger sizes at higher speed. Interestingly, there
+are speeds at which both LC11 and LC18 have the largest responses to objects (2 3 4.5 , Figures S2D and S2E) even
+smaller than the 5 acceptance angle of a single eye facet (Heisenberg and Wolf, 1984), suggesting that the visual system can
+detect and locate objects when they are even further away than
+expected from the resolving power of the fly’s eye.
+
+OPEN ACCESS
+
+Detecting very small objects may be critical to early initiation of
+behaviors, such as orienting toward food sources or conspecifics
+(Agrawal et al., 2014; Maimon et al., 2008; Snyder, 1979). How do
+LC neurons detect these very small objects? Based on prior work
+characterizing the initial stages of the fly visual system, it is
+apparent that the very small objects that maximally excite several
+of the LC types are not only smaller than the acceptance angle of
+a single photoreceptor (Snyder, 1979; Gonzalez-Bellido et al.,
+2011) but also smaller than the ‘‘best’’ stimulus for evoking responses in the first layer of the visual system (the lamina) (Juusola
+et al., 1995; Freifeld et al., 2013). Thus, to detect objects that the
+input stages of the visual system are not tuned for, some neuronal
+computation(s) must transform the input signals in the 1–2 synaptic layers between the peripheral visual system and the LCs, in the
+processing within the LC visual projection neurons or, most likely,
+in both. We further investigated these transformations by
+focusing on the mechanisms that enable LC18 neurons to detect
+very small moving objects.
+Detecting object size by comparing contrast changes
+in time
+All classic models of directionally selective motion detection,
+including the Hassenstein-Reichard elementary motion detector
+(EMD) model derived from studies of insect visual systems,
+require a comparison of contrast changes that are spatially
+separated. However, at the resolution limit of compound eyes,
+the detection of moving objects smaller than a single facet
+cannot be based on comparisons of signals across multiple facets to estimate object size. Furthermore, our characterization of
+LC responses shows that most LCs respond equally to objects
+moving in all directions and are thus not directionally selective
+(LC4 being the notable exception, Figures 2D and S3). This suggests that LCs may detect moving objects by a different mechanism than the computation of directionally selective motion.
+Instead, studies of dragonflies—who target and hunt small, flying
+insects—have proposed that single-facet-size object selectivity
+could arise from arrays of small-receptive-field neurons each
+integrating from a single facet to detect contrast changes of
+opposite polarity (ON to OFF or OFF to ON) over time (Wiederman et al., 2013). A small dark object moving across a facet
+will generate a local darkening (OFF), followed by brightening
+(ON) within a short temporal window (Dt; Figures 3A and 3B).
+Therefore, one possible mechanism for encoding small moving
+objects is to detect pairs of opposite contrast changes that occur
+in rapid succession at the same location.
+We tested whether LC18 responses are generated by such a
+temporal-contrast mechanism by presenting stimuli where we
+controlled the duration (Dt) between ON and OFF transitions (Figures 3B–3D). LC18 showed strong responses to fast contrast
+transitions with the same interval as would be generated by small
+dark or bright objects moving at a constant speed (Figure 3B,
+
+(G–J) Size tuning for individual LC neurons as elicited by a moving (100 /s) dark rectangle of parameterized spatial dimensions. All stimuli were spatially aligned
+relative to the estimated receptive-field center and moved across the entire receptive field for each neuron.
+(G) Spatial parameterization of dark rectangle over a range of object widths (direction parallel to motion) and heights (direction orthogonal to motion).
+(H) Averaged calcium traces for LC18 neurons, arranged in a grid corresponding to the spatial parameters in (G).
+(I and J) Size tuning for each cell type, as shown by heat map representation of peak responses to object sizes as shown in (G). (I) Looming-responsive cell types.
+(J) Moving-object-responsive cell types.
+
+Neuron 110, 1700–1711, May 18, 2022 1703
+
+ll
+OPEN ACCESS
+
+A
+
+E
+
+Article
+
+B
+
+C
+
+F
+
+G
+
+I
+
+M
+
+D
+
+H
+
+J
+
+N
+
+L
+
+K
+
+O
+
+Figure 3. Detecting small-object motion by comparing local contrast changes
+(A–H) LC18 responses to different size/contrast object motion and flicker stimuli. Single cell (light) and population average (dark) traces are shown throughout,
+with a stimulus cartoon diagram above traces. Stimulus parameters shown above diagrams are stated as temporal width (Dt), spatial width (w), or contrast
+(c). Statistics analyzed using RM-ANOVA with specified post hoc test. *p < 0.05, ****p < 0.0001. (B and E–H) n = 8 neurons from 5 flies, (C and D) n = 9 neurons from
+7 flies.
+(A) Cartoon of a fly’s compound eye, composed of many facets.
+(B) Responses to dark or bright object motion at 75 /s. Dt is the time between contrast change elicited by moving edges as seen by a single facet.
+(C and D) Responses to nonmoving flicker stimuli for a 9 square (C) or across range of sizes at two frequencies (D). Bonferroni’s post hoc test compared responses across frequencies.
+(legend continued on next page)
+
+1704 Neuron 110, 1700–1711, May 18, 2022
+
+ll
+Article
+Dt = 60 ms) but much weaker responses to the slower contrast
+transitions that would be generated by an object with twice the
+width (Figure 3B, Dt = 120 ms). In order to rule out a simple
+spatial mechanism (tuning for object features %4.5 ) as opposed
+to a temporal mechanism (detecting fast opposite contrast
+changes) as responsible for this selectivity, we also measured
+size versus speed tuning to a nonmoving, flickering patch
+centered on the neuron’s receptive field (Figures 3C, 3D, and
+S4A–S4F). We measured minimal responses to individual ON
+or OFF transitions in the low-frequency flicker across all sizes
+(Figures 3C, 3D, S4A, and S4B, 0.94 Hz), but large responses
+to 9 and 15 square flickers at higher frequencies (Figures 3C,
+3D, S4A, and S4B, 30 Hz). This demonstrates that LC18 is not
+locally tuned to <4.5 and that, in agreement with the size-tuning
+motion data (Figures 3B and S4G), a fast sequential contrast
+change (Dt % 60 ms) is required to generate large responses.
+In fact, the remarkably similar temporal tunings between motion
+and flicker responses (Figure S4H) further suggest that a comparison of local contrast changes is largely responsible for
+generating LC18’s size selectivity.
+However, this robust selectivity for fast opposing contrast
+changes does not fully explain LC18’s sensitivity to objects
+smaller than a single facet. Although Drosophila photoreceptors
+can encode some spatial information smaller than a single facet
+(Juusola et al., 2017), a major effect of the compound eye is optical blurring, which within a single facet, should render a small
+object as nearly indistinguishable from a larger object with lower
+contrast. To test this conjecture, we measured LC18’s response
+to a set of fixed size (4.5 ) objects that are contrast matched to a
+set of fixed contrast objects with widths smaller than the acceptance angle of a facet (Figures 3E–3H). For both dark and bright
+objects, the contrast tuning was similar to the size tuning (Figures
+3F and 3H), in agreement with the expected effect of optical blurring. These results demonstrate that a second factor is required
+to explain LC18’s extreme size tuning to objects 2–43 smaller
+than the acceptance angle of Drosophila photoreceptors
+(Gonzalez-Bellido et al., 2011), namely stronger responses to intermediate contrast objects, in order to work within the blurring
+effect of the compound eye.
+To test whether these two aspects of LC18’s response—
+selectivity for fast successive opposing contrast changes and
+
+OPEN ACCESS
+
+selectivity for intermediate contrast—are sufficient to generate
+LC18’s size tuning, we built a computational model inspired by
+a prior small-object detection model (Wiederman et al., 2013)
+(see STAR Methods). Our model comprises multiple identical
+columnar units, with each unit processing signals from a single
+facet as separate ON and OFF pathways, and the outputs of
+these units are summed to simulate LC18 responses (Figures
+3I and S5A). The selectivity for the fast opposing contrast
+changes is established by interactions between slower and
+faster signals within and across the ON and OFF pathways that
+effectively gate slow events while transmitting faster events,
+which correspond to smaller objects. The two crucial elements
+to our model are contrast gain and saturation and crossover inhibition (Werblin, 2010), which, respectively, allow for sensitivity
+to intermediate contrast objects and selectivity for opposite
+contrast changes. Within each ON or OFF pathway, the inhibitory
+signal (ONslower, OFFslower) always has a higher contrast signal
+gain than the excitatory signal (ONfaster, OFFfaster). This means
+the model’s output in response to a single dark or bright edge
+will be a small transient because inhibition dominates (Figure 3J).
+However, in response to a moving narrow dark bar, the leading
+OFF edge response remains small, whereas the trailing ON
+edge response is now large due to crossover inhibition (Figure 3K). In this case, the crossover OFFfaster signal inhibits the
+ONslower signal, and the ONslower signal inhibits the ON pathway
+output. This inhibition of inhibition (disinhibition) leads directly to
+increased ON pathway output response. In the absence of
+crossover inhibition, the ONslower inhibition again dominates (Figures 3L and S5B), reducing the response to small objects.
+Using this model architecture, we optimized parameters (see
+STAR Methods; Figure S5) using bar width tuning (Figures 3E–
+3H) and flicker measurements (Figures S4C and S4D) and found
+that we can recapitulate LC18’s peak sensitivity to 2 objects
+without using <4.5 spatially tuned ON and OFF signals (Figures
+3M and 3N). Furthermore, contrast saturation (in ONfaster) is
+necessary to generate peak sensitivity to intermediate contrast
+objects (Figure 3O) and shifts responses toward smaller objects
+(Figures S5C and S5D). Overall, our model is able to capture the
+response trends in contrast tunings, size tunings, and flicker tunings (Figures 3M, 3O, and S5D–S5I). However, although this
+model maintains small-object size selectivity across all speeds
+
+(E–H) Size versus contrast tuning for a bar smaller than a single facet. Contrast stimuli are fixed in size (4.5 square) but have local (Weber’s) contrast matched to
+bar smaller than a facet (see STAR Methods). Responses to size tuning (solid lines in F and H) and contrast tuning (dashed lines in F and H) are plotted as mean and
+standard deviation, and statistics were compared using Bonferroni’s post hoc test. (n = 8 neurons from 5 flies). (E) Calcium traces in response to moving dark
+objects with matched average local contrast. (F) Responses to either fixed contrast with varied width (top) or fixed size with varied contrast (bottom) stimuli. (G)
+Calcium traces in response to moving bright objects with matched average local contrast. (H) Responses to either fixed contrast with varied width (top) or fixed
+size with varied contrast (bottom) stimuli.
+(I–O) A small-object detection model and simulated responses to dark bar motion (with fixed 4.5 height and specified width along motion direction).
+(I) Simplified model schematic (omitting details from photoreceptor to ON or OFF signals, see Figure S5A for a complete diagram and STAR Methods for model
+details) showing how a simulated LC18 neuron integrates from multiple facets, with expanded view of visual processing within a columnar unit downstream of a
+single facet. Each of the four contrast signals has an independent gain and saturation, and the dashed horizontal line represents a crossover inhibition between
+ON and OFF contrast signals.
+(J–L) Intermediate signals from a single columnar unit of the model in response to bar motion. The input signal is spatiotemporally filtered to simulate the lens
+optics and photoreceptor response time of the fly eye. (J) Modeled response to a 15 dark bar. (K) Modeled response to a 2 dark bar. (L) Modeled response to 2
+dark bar where the model’s crossover inhibition is removed.
+(M) Measured average calcium trace and the modeled LC18 responses with and without crossover inhibition.
+(N) Modeled bar width tuning for intermediate signals (as diagrammed in I) from a single columnar unit.
+(O) Modeled LC18 contrast tuning (moving 4.5 square) with and without ONfaster contrast saturation.
+
+Neuron 110, 1700–1711, May 18, 2022 1705
+
+ll
+OPEN ACCESS
+
+A
+
+E
+
+Article
+B
+
+F
+
+J
+
+C
+
+G
+
+H
+
+D
+
+I
+
+K
+
+L
+
+M
+
+Figure 4. Optic glomeruli are topographically arranged by visual features to facilitate downstream feature integration
+(A–D) Comparison of glomeruli position and visual feature encoding.
+(A) Composite light microscopy image of LC visual projections to optic glomeruli in the central brain posterior ventrolateral protocerebrum (PVLP).
+(B) Individual neuron (symbol) responses to size tuning and looming stimuli visualized along the first two principal component axes (see STAR Methods).
+(C) Responses to dark looming (100 /s edge speed) compared with the first principal component axis.
+(D) Preferred shape area calculated based on size tuning (see STAR Methods) compared with the second principal component axis.
+(E–I), Relationship between LC visual feature encoding and downstream neurons directly integrating from glomeruli.
+(E) Histogram of neurons that directly integrate from LC visual projections in PVLP based on electron microscope (EM) reconstruction (see STAR Methods). The
+cyan colored bar indicates the subset of integration neurons for which both LC visual inputs have been characterized, with the connectivity diagram shown in (F)
+and further analyzed in (F–I).
+(F) Connectivity diagram where the nodes represent the average LC output spatial position computed from EM synapse locations and the edge thickness
+corresponds to the number of downstream neurons integrating from pairs of LC outputs (Table S10).
+(G and H) Comparison of the measured frequency of specific optic glomeruli pairs integrated by downstream neurons (cyan) versus the null hypothesis that all
+optic glomeruli pairs are equally likely to be integrated (black). Statistics analyzed using Kolmogorov-Smirnov test. (G) Cumulative distributions for spatial distance between glomeruli pairs. (H) Cumulative distributions for functional similarity between glomeruli pairs.
+(I) Direct comparison of similarity and distance between glomeruli (Pearson correlation, p = 0.005). Each point represents an edge from the connectivity diagram
+(F), and the linear fit line is overlaid.
+(legend continued on next page)
+
+1706 Neuron 110, 1700–1711, May 18, 2022
+
+ll
+Article
+(Figure S5J), including peak size sensitivity shifts to bigger objects at higher speeds (and smaller objects at slower speeds),
+the modeled response amplitude is far higher at the slower
+speed (Figures S5J and S5K) than our measurements (Figures
+2E and S2E). It would be informative in the future to examine
+the response dynamics of lobula circuits and the circuit wiring
+(such as LC18 inputs, Figures S4I–S4M; Table S11) for computational motifs to explore what additional and/or alternative mechanisms may be involved.
+Our results indicate that different visual pathways in the fly
+brain are sensitive to distinct spatial and temporal aspects of object motion. We showed here that LC18 neurons, which do not
+detect the direction of wide-field motion that classic EMDs are
+used to model, instead detect extremely small moving objects
+by comparing contrast signals in time at the same location.
+Furthermore, the detection of other visual features that we
+observed, such as moving lines, likely requires yet another
+computation involving both temporal and spatial comparisons.
+For example, LC25 encodes the motion of thin bars but not
+edges (Figures 2B, 2J, S6A, and S6B), and we found that LC25
+detects line-like features embedded within even more complex
+stimuli, such as responding to a looming ring but not to a looming
+disk (Figure S6C). Further experiments revealed that maximal
+LC25 responses require simultaneous opposite contrast polarity
+changes across neighboring spatial positions (Figures S6D–
+S6H), suggesting a mechanism with different properties than
+LC18. Our detailed examination of these two cell types implementing the detection of different visual features demonstrates
+that these neurons do not achieve their selectivity through simple
+center-surround interactions but rather through distinct computational mechanisms integrating contrast signals across space
+and time. Similarly, the looming sensitive LC neurons have
+diverse spatial and temporal tunings (Figure 2), and we expect
+them to implement different mechanisms to detect looming stimuli. This suggests that the set of LC neurons comprise a critical
+bridge, representing fundamental computations for visual
+feature detection on their inputs in the optic lobe while providing
+the substrate for the integration of detected features in the
+glomerular arrangements of their outputs in the central brain.
+LC projections are functionally organized by visual
+feature class
+Each LC cell type projects to a distinct glomerulus in the ventrolateral part of the central brain. The anatomical locations of these
+glomeruli are highly stereotyped (Figures 4A and S7A) between
+individual brains (Panser et al., 2016; Wu et al., 2016; Scheffer
+et al., 2020), so it is unlikely that the glomerular map is arbitrary,
+but by what principles is it organized? At the light microscopy
+level, the axonal projections of most LC neurons lack any
+
+OPEN ACCESS
+
+obvious retinotopic arrangement (Wu et al., 2016), although
+recent work suggests that a coarse representation of visual
+space may be preserved by the circuitry within some glomeruli
+(Morimoto et al., 2020).
+To test whether the optic glomeruli’s anatomical arrangement
+has any relationship to LC neurons’ visual feature encoding, we
+first visualized the similarity of LC visual responses using principal component analysis (PCA, first 2 PCs shown in Figure 4B).
+Individual neurons of the same LC type form distinct clusters in
+PC space, and these clusters remarkably resemble the relative
+anatomical ordering of the glomeruli. In order to provide a
+more intuitive explanation for the LC cluster order in PC space,
+we additionally plotted visual tuning properties that appear to
+be dominant along the first two PCs (Figures 4C and 4D).
+Along the first principal component, cell types are split by
+responsiveness to looming (Figures 4B and 4C), and the anatomy largely mirrors this delineation (Figure 4A). Within each class
+of nonlooming-responsive (PC1 < 0) and looming-responsive
+(PC1 > 0) cell types, the cell types are ordered by preferred stimulus size (area) along the second principal component (Figures
+4B and 4D). The anatomy also reflects this order (Figures 4A
+and 4D, with the exception of LPLC1). Taken together, this analysis reveals that optic glomeruli are spatially grouped by visual
+feature selectivity class (looming-responsive neurons versus object-detection neurons) and further ordered by preferred visual
+feature size.
+LC projection map organizes higher-order feature
+integration
+This functionally ordered visual feature map we have uncovered
+may indicate that neurons in neighboring glomeruli are more
+likely to participate in shared computations, such as the integration or comparison of multiple features. One anatomical consequence of this prediction is that downstream neurons reading
+out these features would be more likely to integrate LC inputs
+from neighboring glomeruli.
+To explore this hypothesis, we analyzed the synaptic connectivity of neurons receiving direct input from LC terminals in most of
+the optic glomeruli (including LC cell types we did not image but
+excluding the mostly distinct neurons downstream of LC10 projections in the anterior optic tubercle (AOTU) [Wu et al., 2016; Panser et al., 2016]) using the Drosophila hemibrain connectome
+(Scheffer et al., 2020). Across all 19 LC cell types (1,593 neurons
+total), the connectome contains 853 strongly connected postsynaptic neurons (Figures S7D–S7G); half of these neurons integrate
+from two or more optic glomeruli (Figure 4E, see STAR Methods).
+To quantitatively assess how LC feature encoding is related to
+downstream connectivity, we first focused our analysis on the
+10 LC cell types for which we made detailed functional
+
+(J) EM derived average synapse count matrix for 756 central brain neurons directly integrating from either a single LC cell type (along diagonal, 438 downstream
+neurons) or pairs of LC cell types (off diagonal, 318 downstream neurons). Analyses include additional LC types in addition to those in (F–I). Due to the large
+number of downstream neurons, each square represents the downstream neurons receiving input from the LC pair determined by that square’s row and column.
+The shading indicates the average synapse count between the LC row and a downstream neuron (downstream neuron count and identity can be found in
+Figure S6D and Table S9). Note: the matrix is not symmetric because the downstream neurons getting input from a given pair of LCs may make more synapses
+with one input LC type than the other.
+(K–M) Anatomy of individual neurons integrating from pairs of LC cell types. Dendritic arbors are colored by LC cell type.(K) A neuron integrating from LC17 and
+LPLC2. (L) A neuron integrating from LC11 and LC18. (M) A neuron integrating from LC4 and LC18.
+
+Neuron 110, 1700–1711, May 18, 2022 1707
+
+ll
+OPEN ACCESS
+
+measurements and found 143 strongly connected neurons that
+integrate from precisely two of these functionally characterized
+LC types (Figure 4E, blue bar and Table S9). We found that LC
+types in adjacent glomeruli had more postsynaptic partners in
+common (Figure 4F).
+Does connectivity show that neighboring glomeruli in the
+visual projection map are more likely to be used in shared computations? We tested the null hypothesis—that organization is
+unrelated to function—by simulating the connectivity distributions where integrations for all glomerulus pairings were equally
+probable and sorted them either by distance between glomeruli
+(Figure 4G) or by similarity in visual function (Figure 4H). In both
+cases, we find that the integrated LC pairings found in the connectome are significantly skewed toward more spatially adjacent
+glomeruli (Figure 4G, blue) and functionally more similar visual
+features (Figure 4H, blue) than the ‘‘uniformly connected’’ synthetic connectome. Furthermore, we looked at the relationship
+between similarity in visual responses and glomerular distance
+for all LC pairs (Table S10; Figures 4I and S7H) and found a
+strong negative correlation between similarity and distance—
+more similar neurons tend to be closer. This highlights a critical
+relationship between postsynaptic readout and the organization
+of maps. Glomerular combinations that are integrated together
+by downstream neurons are spatially positioned closer together.
+Although biased connectivity, in general, has been reported for
+the entire hemibrain connectome (Scheffer et al., 2020), these
+findings for our functionally characterized visual projection neurons expose specific combinations of features that are integrated by deeper visual pathways.
+We next extended our analysis to all 19 LC types identified in
+the connectome. Figure 4J shows a connectivity matrix for neurons integrating from one or two glomeruli across all LC cell types.
+Note that although most LCs have many targets in their respective
+glomeruli in the central brain, we found a few LCs with comparatively few central brain targets. For example, LC20 and LC25 have
+the majority of their outputs in the lobula (Figures S7J and S7K).
+This may explain the lack of shared connections in the central
+brain for these cell types and, thus, the dark middle rows in Figure 4J. As described above, in the central brain, we find that
+downstream neurons do not integrate from all LC pairs and only
+certain pairs are represented.This representation is significantly
+biased toward pairs of nearby glomeruli (Figures 4G and S7I).
+Based on their input LC pairs, the downstream neurons form
+several distinct clusters (Figures 4J and S7I) distinguished based
+on whether input pair members are from similar or different visual
+feature classes (Figures 4K–4M). One cluster of neurons integrates from looming-responsive LC types (Figure 4J, top left)
+such as LC17 and LPLC2 (example neuron in Figure 4K), which
+may be useful for robust tracking of whether an object is approaching. Another cluster of neurons integrates from size-selective LC types (Figure 4J, bottom right) such as small-object tuned
+LC11 and LC18 (example integrating neuron in Figure 4L), which
+are tuned for slower and faster speeds of object motion, respectively (Figures 2E, S2D, and S2E). Jointly, they may contribute to
+tracking moving objects at the spatial and temporal limits of the
+fly’s vision. An intriguing cluster of neurons integrates from LCs
+in disparate visual feature classes—such as small-object detector
+LC18 and fast looming detector LC4 (Figure 4J, bottom left,
+
+1708 Neuron 110, 1700–1711, May 18, 2022
+
+Article
+example neuron Figure 4M)—that have divergent size selectivity
+but similar speed tuning (Figure 2E) and may be useful for detecting fast-moving dark objects. Our analysis here shows that central
+brain neurons selectively read out the visual projection map by
+integrating from specific LC types clustered by visual feature
+class and suggests that downstream circuits efficiently use LC information to construct higher order representations of visual objects to guide behavior.
+DISCUSSION
+Our systematic survey of LC visual projection neuron response
+properties reveals a topographic visual feature map in the fly
+central brain. LC axon terminals bundle into discrete central
+brain glomeruli by cell type, and each glomerulus is distinctly
+tuned to a visual moving object class, with neighboring glomeruli
+more similarly tuned than distant ones. Indeed, the physical
+arrangement of the glomeruli is largely recapitulated by sorting
+LC neuron responses by their first two principal components,
+which roughly correspond to selectivity for objects versus looming motion and object size tuning.
+The LCs we measured all have distinct visual feature tunings
+across object size and speed, with each cell type’s preferred object size generally eliciting large responses across one order of
+magnitude of movement speeds (Figure 2E). We further examined whether size selectivity is preserved across different speeds
+in LC11 and LC18 responses and observed that both cell types
+retain selectivity to moving small objects, but the peak size
+sensitivity shifts to smaller sizes at slower speeds and to bigger
+sizes at higher speed. It is noteworthy that this trend for peak
+sensitivity shifting to slightly larger sizes at faster motion speed
+may have a simple mechanistic basis (a larger, faster moving object can have a similar stimulus dwell time as a smaller, slower
+moving object). This peak sensitivity shift is also consistent
+with the typical perceived size-speed relationship at different
+depths (such as motion parallax cues) because at a distance,
+an object will appear to be smaller and to move across the retina
+more slowly but will become both faster and larger as it approaches the observer.
+We generated a minimal model that recapitulates LC18’s size
+tuning to objects smaller than an individual ommatidium’s lens
+resolution using common circuit motifs such as differing contrast
+responses to ON and OFF signals and crossover inhibition between the ON and OFF pathways. Because the hemibrain connectome is truncated in the optic lobe, we were unable to systematically examine the inputs to LC18 to identify whether the
+circuit motifs we proposed exist in the connectome. Previous
+studies have indicated that LC11 neurons, which also detect
+small objects, receive inputs from T2 cells (Tanaka and Clark,
+2020; Keleş et al., 2020). The T2 neurons have distinctive axonal
+terminal morphology, which allowed us to identify individual putative T2 neurons as inputs to both LC11 and LC18 in the hemibrain. Interestingly, these same putative T2 neurons are strong
+inputs to LC4 and LPLC1, which have size tunings distinct
+from both LC11 and LC18. These findings suggest that the
+diverse feature tuning we observed across LC types is unlikely
+to be inherited directly from the properties of the input neurons.
+Understanding the cell-type specific integration of distinct
+
+ll
+OPEN ACCESS
+
+Article
+combinations of input cell types, including inhibitory inputs, will
+be required to account for the size and speed tuning differences
+between LC11, LC18, and other LCs.
+What can the visual feature map we uncovered tell us about
+what Drosophila perceive? We find remarkably precise encoding
+of particular features including looming detection (Klapoetke
+et al., 2017) (LPLC2), very small objects (LC18, Figure 3), and
+thin lines (LC25, Figure S6). It is unlikely that these features, especially in isolation, can be meaningfully interpreted to drive a behavioral response. Indeed, activation of LC18 and LC25 neurons did
+not produce any detectable behavior change in a previous study
+(Wu et al., 2016) (although LPLC2 activation drives a takeoff
+jump). Rather, it may be necessary to integrate multiple visual features to generate a more reliable estimate of external moving objects. For example, LPLC2’s signals are integrated together with
+LC4’s by a downstream descending neuron that serves to detect
+approaching objects, such as predators, and mediates a visuallooming-evoked takeoff jump (Ache et al., 2019).
+Consistent with this expectation, we examined the readout
+across LC neurons by downstream cells in the central brain and
+found that half of these strongly connected targets integrate their
+inputs from more than one LC type (Figure 4E). These downstream neurons typically integrate from only a small fraction of
+the possible combinations of glomeruli, and these combinations
+are highly biased to neighboring glomeruli, with similar feature encoding (Figures 4F–4I). The downstream neurons are a highly
+diverse set, with cells that output to other central brain regions,
+provide feedback to the optic lobe, project to the contralateral
+hemisphere, or even directly project to the ventral nerve cord
+(Figure S8). Furthermore, many downstream targets that only
+integrate from a single LC type project contralaterally, suggesting
+that binocular interactions are a substantial feature of the
+glomeruli, as they are for circuits downstream of LC6, which
+have previously been explored (Morimoto et al., 2020).
+Although our analysis here focused exclusively on the projection neurons from the lobula to the ventrolateral central brain,
+there is another prominent lobula visual projection, the LC10
+neurons, that target a more dorsal central brain area called the
+AOTU. LC10 neurons have distinct, but overlapping, sensitivity
+to visual features, especially for moving objects, from the ventrolateral-projecting LCs (Ribeiro et al., 2018; Hindmarsh Sten et al.,
+2021). The LC10 axon terminals also feature prominent retinotopic organization within the AOTU, which is quite different
+from the other optic glomeruli (Wu et al., 2016). Furthermore,
+LC10 neurons are critical for visual tracking during courtship
+behavior (Ribeiro et al., 2018), whereas other LCs are involved
+in locomotor behaviors such as walking forward (Bidaye et al.,
+2020), turning (Wu et al., 2016), freezing (Zacarias et al., 2018),
+or escape takeoff (Cheong et al., 2020). Future work should evaluate whether LC10 pathways ultimately converge with neurons
+downstream of the other LCs to coordinate diverse behaviors
+guided by these different visual pathways.
+Circuit level analysis of feature integration has been limited by
+the lack of detailed connectivity information between neurons
+with known feature encoding. In the fly brain, most central projections of visual pathways are not yet characterized. By functionally
+characterizing a large set of spatially adjacent visual projection
+neuron types and then taking advantage of the recent central
+
+brain connectome, we find that the integration of LC visual features is highly selective, with 33% of possible feature pairs
+observed. Furthermore, these feature combinations are highly
+biased for nearby glomeruli, suggesting local circuit wiring economy (Chklovskii and Koulakov, 2004) as a likely driving force for
+the glomeruli spatial positions. Such structured integration
+serves as an exemplar for how brains can organize sensory information into ordered feature maps to compose diverse pathways
+that represent critical conduits between vision and behavioral
+controls.
+STAR+METHODS
+Detailed methods are provided in the online version of this paper
+and include the following:
+d
+d
+
+d
+d
+
+d
+
+KEY RESOURCES TABLE
+RESOURCE AVAILABILITY
+B Lead contact
+B Materials availability
+B Data and code availability
+EXPERIMENTAL MODEL AND SUBJECT DETAILS
+B Fly stocks
+METHOD DETAILS
+B Fly preparation for imaging
+B Histology and anatomical analyses
+B Two-photon calcium imaging
+B Visual stimuli
+QUANTIFICATION AND STATISTICAL ANALYSIS
+B Data analysis
+
+SUPPLEMENTAL INFORMATION
+Supplemental information can be found online at https://doi.org/10.1016/j.
+neuron.2022.02.013.
+ACKNOWLEDGMENTS
+We thank Kazunori Shinomiya and Ruchi Parekh’s teams for help and input on
+connectivity analysis, Kristin M. Branson for advice on clustering, Srinivas Turaga for discussions on modeling, and Janelia FlyLight Project Team for help
+with brain dissections, histology, and confocal imaging. We would also like
+to acknowledge members of the Card and Reiser laboratories for discussions
+and feedback on this project. This work was supported by the Howard Hughes
+Medical Institute.
+AUTHOR CONTRIBUTIONS
+N.C.K., G.M.C., and M.B.R. designed the project; N.C.K. performed and
+analyzed calcium imaging experiments; N.C.K. modeled LC18 responses;
+N.C.K. performed connectivity analysis with input from A.N., G.M.C., and
+M.B.R.; A.N. performed anatomic analysis; A.N., E.M.R., and G.M.R. generated split-GAL4 driver lines; N.C.K., G.M.C., and M.B.R. wrote the manuscript
+with inputs from all authors; G.M.R., G.M.C., and M.B.R. funded this study.
+DECLARATION OF INTERESTS
+The authors declare no competing interests.
+Received: June 9, 2021
+Revised: November 30, 2021
+Accepted: February 16, 2022
+Published: March 14, 2022
+
+Neuron 110, 1700–1711, May 18, 2022 1709
+
+ll
+OPEN ACCESS
+
+REFERENCES
+Ache, J.M., Polsky, J., Alghailani, S., Parekh, R., Breads, P., Peek, M.Y., Bock,
+D.D., Von Reyn, C.R., and Card, G.M. (2019). Neural basis for looming size and
+velocity encoding in the Drosophila giant fiber escape pathway. Curr. Biol. 29,
+1073–1081.e4.
+Agrawal, S., Safarik, S., and Dickinson, M. (2014). The relative roles of vision
+and chemosensation in mate recognition of Drosophila melanogaster.
+J. Exp. Biol. 217, 2796–2805.
+Baden, T., Berens, P., Franke, K., Román Rosón, M., Bethge, M., and Euler, T.
+(2016). The functional diversity of retinal ganglion cells in the mouse. Nature
+529, 345–350.
+€hl, T., Bu
+€schges, A.,
+Bidaye, S.S., Laturney, M., Chang, A.K., Liu, Y., Bockemu
+and Scott, K. (2020). Two brain pathways initiate distinct forward walking programs in Drosophila. Neuron 108, 469–485.e8.
+Bogovic, J.A., Otsuna, H., Heinrich, L., Ito, M., Jeter, J., Meissner, G., Nern, A.,
+Colonell, J., Malkesman, O., Ito, K., et al. (2020). An unbiased template of the
+Drosophila brain and ventral nerve cord. PLoS One 15, e0236495.
+Borst, A., and Helmstaedter, M. (2015). Common circuit design in fly and
+mammalian motion vision. Nat. Neurosci. 18, 1067–1076.
+Cheong, H.S., Siwanowicz, I., and Card, G.M. (2020). Multi-regional circuits
+underlying visually guided decision-making in Drosophila. Curr. Opin.
+Neurobiol. 65, 77–87.
+Chklovskii, D.B., and Koulakov, A.A. (2004). Maps in the brain: what can we
+learn from them? Annu. Rev. Neurosci. 27, 369–392.
+Dionne, H., Hibbard, K.L., Cavallaro, A., Kao, J.C., and Rubin, G.M. (2018).
+Genetic reagents for making split-GAL4 lines in Drosophila. Genetics
+209, 31–35.
+Feng, L., Zhao, T., and Kim, J. (2015). neuTube 1.0: a new design for efficient
+neuron reconstruction software based on the SWC format. eNeuro 2.
+Fischbach, K.-F., and Dittrich, A.P.M. (1989). The optic lobe of Drosophila melanogaster. I. A Golgi analysis of wild-type structure. Cell Tissue Res. 258,
+441–475.
+Freifeld, L., Clark, D.A., Schnitzer, M.J., Horowitz, M.A., and Clandinin, T.R.
+(2013). GABAergic lateral interactions tune the early stages of visual processing in Drosophila. Neuron 78, 1075–1089.
+Gonzalez-Bellido, P.T., Wardill, T.J., and Juusola, M. (2011). Compound eyes
+and retinal information processing in miniature dipteran species match their
+specific ecological demands. Proc. Natl. Acad. Sci. USA 108, 4224–4229.
+Heisenberg, M., and Wolf, R. (1979). On the fine structure of yaw torque in visual flight orientation of Drosophila melanogaster. J. Comp. Physiol. 130,
+113–130.
+Heisenberg, M., and Wolf, R. (1984). Vision in Drosophila. In Studies of brain
+function (Springer-Verlag).
+Hindmarsh Sten, T., Li, R., Otopalik, A., and Ruta, V. (2021). Sexual arousal
+gates visual processing during Drosophila courtship. Nature 595, 549–553.
+Hubel, D.H., and Wiesel, T.N. (1962). Receptive fields, binocular interaction
+and functional architecture in the cat’s visual cortex. J. Physiol. 160, 106–154.
+Juusola, M., Dau, A., Song, Z., Solanki, N., Rien, D., Jaciuch, D., Dongre, S.A.,
+Blanchard, F., De Polavieja, G.G., Hardie, R.C., et al. (2017). Microsaccadic
+sampling of moving image information provides Drosophila hyperacute vision.
+eLife 6, e26117.
+
+Article
+Klapoetke, N.C., Nern, A., Peek, M.Y., Rogers, E.M., Breads, P., Rubin, G.M.,
+Reiser, M.B., and Card, G.M. (2017). Ultra-selective looming detection from
+radial motion opponency. Nature 551, 237–241.
+Knudsen, E.I., du Lac, S., and Esterly, S.D. (1987). Computational maps in the
+brain. Annu. Rev. Neurosci. 10, 41–65.
+Maimon, G., Straw, A.D., and Dickinson, M.H. (2008). A simple visionbased algorithm for decision making in flying Drosophila. Curr. Biol.
+18, 464–470.
+Mazurek, M., Kager, M., and Van Hooser, S.D. (2014). Robust quantification of orientation selectivity and direction selectivity. Front. Neural
+Circuits 8, 92.
+Morimoto, M.M., Nern, A., Zhao, A., Rogers, E.M., Wong, A.M., Isaacson,
+M.D., Bock, D.D., Rubin, G.M., and Reiser, M.B. (2020). Spatial readout of visual looming in the central brain of Drosophila. eLife 9, e57685.
+Mountcastle, V.B. (1957). Modality and topographic properties of single neurons of cat’s somatic sensory cortex. J. Neurophysiol. 20, 408–434.
+Nern, A., Pfeiffer, B.D., and Rubin, G.M. (2015). Optimized tools for multicolor
+stochastic labeling reveal diverse stereotyped cell arrangements in the fly
+visual system. Proc. Natl. Acad. Sci. USA 112, E2967–E2976.
+Ofstad, T.A., Zuker, C.S., and Reiser, M.B. (2011). Visual place learning in
+Drosophila melanogaster. Nature 474, 204–207.
+Otsuna, H., and Ito, K. (2006). Systematic analysis of the visual projection neurons of Drosophila melanogaster. I. Lobula-specific pathways. J. Comp.
+Neurol. 497, 928–958.
+€hler, K., and
+Panser, K., Tirian, L., Schulze, F., Villalba, S., Jefferis, G.S.X.E., Bu
+Straw, A.D. (2016). Automatic segmentation of Drosophila neural compartments using GAL4 expression data reveals novel visual pathways. Curr. Biol.
+26, 1943–1954.
+Peng, H., Ruan, Z., Long, F., Simpson, J.H., and Myers, E.W. (2010). V3D
+enables real-time 3D visualization and quantitative analysis of large-scale biological image data sets. Nat. Biotechnol. 28, 348–353.
+Ribeiro, I.M.A., Drews, M., Bahl, A., Machacek, C., Borst, A., and Dickson, B.J.
+(2018). Visual projection neurons mediating directed courtship in Drosophila.
+Cell 174, 607–621.e18.
+Sanes, J.R., and Zipursky, S.L. (2010). Design principles of insect and vertebrate visual systems. Neuron 66, 15–36.
+Scheffer, L.K., Xu, C.S., Januszewski, M., Lu, Z., Takemura, S.Y., Hayworth,
+K.J., Huang, G.B., Shinomiya, K., Maitlin-Shepard, J., Berg, S., et al. (2020).
+A connectome and analysis of the adult Drosophila central brain. eLife 9,
+e57443.
+Schneider, C.A., Rasband, W.S., and Eliceiri, K.W. (2012). NIH Image to
+ImageJ: 25 years of image analysis. Nature Methods 9, 671–675.
+Snyder, A.W. (1979). Physics of vision in compound eyes. In Comparative
+physiology and evolution of vision in invertebrates (Springer).
+€dele, C., Keleş, M.F., Mongeau, J.M., and Frye, M.A. (2020). Non-canonical
+Sta
+receptive field properties and neuromodulation of feature-detecting neurons in
+flies. Curr. Biol. 30, 2508–2519.e6.
+Strausfeld, N.J., and Okamura, J.Y. (2007). Visual system of calliphorid flies:
+organization of optic glomeruli and their lobula complex efferents. J. Comp.
+Neurol. 500, 166–188.
+
+Juusola, M., Uusitalo, R.O., and Weckström, M. (1995). Transfer of graded potentials at the photoreceptor-interneuron synapse. J. Gen. Physiol. 105,
+117–148.
+
+Strausfeld, N.J., Sinakevitch, I., and Okamura, J.Y. (2007). Organization
+of local interneurons in optic glomeruli of the dipterous visual system
+and comparisons with the antennal lobes. Dev. Neurobiol. 67,
+1267–1288.
+
+Kaas, J.H. (1997). Topographic maps are fundamental to sensory processing.
+Brain Res. Bull. 44, 107–112.
+
+Strother, J.A., Nern, A., and Reiser, M.B. (2014). Direct observation of ON and
+OFF pathways in the Drosophila visual system. Curr. Biol. 24, 976–983.
+
+Keleş, M.F., and Frye, M.A. (2017). Object-detecting neurons in Drosophila.
+Curr. Biol. 27, 680–687.
+
+Tanaka, R., and Clark, D.A. (2020). Object-displacement-sensitive visual neurons drive freezing in Drosophila. Curr. Biol. 30, 2532–2550.e8.
+
+€dele, C., Xiao, Q., and Frye, M.A. (2020).
+Keleş, M.F., Hardcastle, B.J., Sta
+Inhibitory interactions and columnar inputs to an object motion detector in
+Drosophila. Cell Rep. 30, 2115–2124.e5.
+
+Tirian, L., and Dickson, B.J. (2017). The VT GAL4, LexA, and split-GAL4 driver
+line collections for targeted expression in the <em>Drosophila</em> nervous
+system. bioRxiv. 198648.
+
+1710 Neuron 110, 1700–1711, May 18, 2022
+
+ll
+Article
+
+OPEN ACCESS
+
+Tuthill, J.C., Chiappe, M.E., and Reiser, M.B. (2011). Neural correlates of illusory motion perception in Drosophila. Proc. Natl. Acad. Sci. USA 108,
+9685–9690.
+
+Wiederman, S.D., Shoemaker, P.A., and O’Carroll, D.C. (2013). Correlation between OFF and ON channels underlies dark target selectivity in an insect visual
+system. J. Neurosci. 33, 13225–13232.
+
+Wan, Y., Otsuna, H., Chien, C.-B., and Hansen, C. (2012). FluoRender: an
+application of 2D image space methods for 3D and 4D confocal microscopy
+data visualization in neurobiology research. 2012 IEEE Pacific Visualization
+Symposium, 201–208.
+
+Wu, M., Nern, A., Williamson, W.R., Morimoto, M.M., Reiser, M.B., Card, G.M.,
+and Rubin, G.M. (2016). Visual projection neurons in the Drosophila lobula link
+feature detection to distinct ehavioral programs. eLife 5, e21022.
+
+Werblin, F.S. (2010). Six different roles for crossover inhibition in the retina:
+correcting the nonlinearities of synaptic transmission. Vis. Neurosci. 27, 1–8.
+
+Zacarias, R., Namiki, S., Card, G.M., Vasconcelos, M.L., and Moita, M.A.
+(2018). Speed dependent descending control of freezing behavior in
+Drosophila melanogaster. Nat. Commun. 9, 3697.
+
+Neuron 110, 1700–1711, May 18, 2022 1711
+
+ll
+OPEN ACCESS
+
+Article
+
+STAR+METHODS
+KEY RESOURCES TABLE
+
+REAGENT or RESOURCE
+
+SOURCE
+
+IDENTIFIER
+
+D. melanogaster: R19G02-p65ADZp (attP40);
+R75G12-ZpGAL4DBD (attP2) (LPLC2 split-GAL4
+driver)
+
+Wu et al., 2016
+
+OL0048B
+Available via https://www.janelia.org/split-GAL4
+
+D. melanogaster: R47H03-p65ADZp (attP40);
+R72E01-ZpGAL4DBD (attP2) (LC4 split-GAL4
+driver)
+
+Wu et al., 2016
+
+SS00315
+Available via https://www.janelia.org/split-GAL4
+
+D. melanogaster: R64G09-p65ADZp (attP40);
+R37H04-ZpGAL4DBD (attP2) (LPLC1 split-GAL4
+driver)
+
+Wu et al., 2016
+
+OL0029B
+Available via https://www.janelia.org/split-GAL4
+
+D. melanogaster: R22H02-p65ADZp (attP40);
+R20G06-ZpGAL4DBD-ZpGdbd(attP2) (LC11 splitGAL4 driver)
+
+Wu et al., 2016
+
+OL0015B
+Available via https://www.janelia.org/split-GAL4
+
+D. melanogaster: VT009792-p65ADZp (attP40);
+VT002021-ZpGdbd(attP2) (LC25 split-GAL4 driver)
+
+Wu et al., 2016
+
+SS02650
+Available via https://www.janelia.org/split-GAL4
+
+D. melanogaster: R21D03-p65ADZp (attP40);
+R65C12-ZpGAL4DBD (attP2) (LC17 split-GAL4
+driver)
+
+Wu et al., 2016
+
+OL0005B
+Available via https://www.janelia.org/split-GAL4
+
+D. melanogaster: R26A03-p65ADZp (attP40);
+R24A02-ZpGAL4DBD (attP2) (LC15 split-GAL4
+driver)
+
+Wu et al., 2016
+
+OL0042B
+Available via https://www.janelia.org/split-GAL4
+
+D. melanogaster: R35D04-p65ADZp (attP40);
+R55F01-ZpGAL4DBD (attP2) (LC12 split-GAL4
+driver)
+
+Wu et al., 2016
+
+OL0008B
+Available via https://www.janelia.org/split-GAL4
+
+D. melanogaster: R92B11-p65ADZp (attP40);
+R82D11-ZpGAL4DBD (attP2) (LC18 split-GAL4
+driver)
+
+Wu et al., 2016
+
+OL0010B
+Available via https://www.janelia.org/split-GAL4
+
+D. melanogaster: R50C03- p65ADZp (attP40);
+R41C05-ZpGAL4DBD (attP2) (LC21 split-GAL4
+driver)
+
+This study
+
+SS17689
+Available via https://www.janelia.org/split-GAL4
+
+Matlab R2019a
+
+Mathworks
+
+https://www.mathworks.com
+
+Prism 8
+
+GraphPad
+
+https://www.graphpad.com/
+
+ImageJ 2.1.0
+
+Schneider et al., 2012
+
+https://imagej.nih.gov/ij/
+
+Fluorender
+
+Wan et al., 2012; IEEE
+Pacific Visualization Symposium
+
+https://www.sci.utah.edu/software/
+fluorender.html
+
+Vaa3D
+
+Peng et al., 2010
+
+http://home.penglab.com/proj/vaa3d/home/
+index.html
+
+Experimental models: Organisms/strains
+
+Software and algorithms
+
+VVD Viewer
+
+https://github.com/takashi310/VVD_Viewer
+
+Other
+LC18 model and analysis
+
+This paper
+
+https://doi.org/10.5281/zenodo.5950022
+
+Hemibrain connectome analysis
+
+This paper
+
+https://doi.org/10.5281/zenodo.5950008
+
+RESOURCE AVAILABILITY
+Lead contact
+Further information and requests for resources and reagents should be directed to and will be fulfilled by the lead contact, Gwyneth
+Card (cardg@hhmi.org).
+
+e1 Neuron 110, 1700–1711.e1–e6, May 18, 2022
+
+ll
+Article
+
+OPEN ACCESS
+
+Materials availability
+Driver lines generated in this study together with selected images of their anatomy will be made available at (https://www.janelia.org/
+split-GAL4).
+Data and code availability
+Original data and code (connectivity analysis and LC18 model) have been deposited at Zenodo and are publicly available as of the
+date of publication. DOIs are referenced in the key resources table.
+Any additional information required to reanalyze data or reproduce figures reported in this paper is available from the lead contact
+upon request.
+EXPERIMENTAL MODEL AND SUBJECT DETAILS
+Fly stocks
+Calcium imaging experiments were performed with female flies 2-5 days post-eclosion, maintained under standard conditions
+(21.8 C, 55% humidity, 16 h light/8 h dark, standard cornmeal/molasses food).
+Table S1 lists fly genotypes used in calcium imaging experiments, and driver lines and reporter strains used for anatomical analyses. Most driver lines used have been previously described(Wu et al., 2016). Additional lines were constructed as described (Wu
+et al., 2016) using split-GAL4 hemidrivers from published collections (Tirian and Dickson, 2017; Dionne et al., 2018).
+Sample size is based on typical size in the field (see Table S2), and no statistical methods were used to predetermine sample size.
+Experimenters were not blind to the genotypes.
+METHOD DETAILS
+Fly preparation for imaging
+Female flies were collected 12-24 hours before imaging. Flies were anesthetized on ice and prepared as previously described
+(Strother et al., 2014). Notably, the fly’s head was positioned and glued to the fly holder such that the eye’s equator faced the middle
+of the visual projection screen. The proboscis remained intact but was glued in position, and a dissection needle was used to remove
+the cuticle and sever muscle 16.
+Histology and anatomical analyses
+For anatomical analyses and illustrations, we used image data from published work or additional images acquired in the same fashion
+(Wu et al., 2016). Briefly, individual cells were visualized using MultiColor FlpOut (Nern et al., 2015) and overall expression patterns
+labeled with membrane and presynaptic markers (pJFRC51-3XUAS-IVS-Syt::smHA in su(Hw)attP1 and pJFRC225-5XUAS-IVSmyr::smFLAG in VK00005 (Nern et al., 2015)). The T2 and T3 cells illustrated in Figures S4K–S4M were labeled by MCFO using a previously described genetic approach for sparse labeling of optic lobe neurons (Nern et al., 2015) (OL-KD (29C07-KDGeneswitch-4) in
+attP40; R57C10-GAL4 in attP2 tubP-KDRT>GAL80- 6-KDRT> in VK00027 crossed to MCFO-1).
+Images were acquired on Zeiss LSM 710 or 800 confocal microscopes with 20x 0.8 NA or 63x 1.4 NA objectives. Sample processing and image acquisition were performed by the Janelia Fly Light project team following protocols available online (https://www.
+janelia.org/project-team/flylight/protocols under ‘‘IHC - Anti-GFP’’, ‘‘IHC - Polarity Sequential’’, ‘‘DPX mounting’’, ‘‘IHC - MCFO’’).
+To generate the combined images shown in Figures 1 and 4, we registered image stacks to a standard brain (Bogovic et al., 2020)
+(JRC2018U) and overlayed manually segmented cells or populations of cells with the standard brain pattern using FluoRender (http://
+www.sci.utah.edu/software/fluorender.html). In order to illustrate both the optic glomeruli and the layers of the lobula in Figures 1B
+and 1C, we displayed the template brain pattern as a composite of two projection images, one through the full depth of the central
+brain and one through a thin substack of the optic lobe. To generate the glomerulus map shown in Figure 4A, registered images of the
+expression of a synaptic marker in specific optic glomeruli from a previous study (Wu et al., 2016) were manually segmented and
+displayed using FluoRender. Figure S1A shows resampled views of confocal stacks of MCFO-labeled cells displayed using the Neuronannotator mode of Vaa3D (Peng et al., 2010) and exported as TIFF screenshots. T2 and T3 cells shapes were displayed using VVD
+viewer (https://github.com/takashi310/VVD_Viewer).
+Two-photon calcium imaging
+The imaging setup is identical to the previously described two-photon microscope (Thorlabs) setup (Klapoetke et al., 2017). Briefly,
+we used a Ti:Sapphire femtosecond laser (Spectra-Physics Mai Tai eHP DS) tuned to 920 nm and delivering <20 mW power at the
+sample. Fluorescence signals were collected using a 16x water-immersion objective (Nikon CFI75, NA 0.8) with a bandpass filter
+(Semrock 503/40nm) in front of the photomultiplier tube (Hamamatsu GaAsP H10770PB-40 SEL). Oxygenated saline was circulated
+throughout. Imaging volumes were acquired at 5.6 Hz or higher.
+
+Neuron 110, 1700–1711.e1–e6, May 18, 2022 e2
+
+ll
+OPEN ACCESS
+
+Article
+
+Visual stimuli
+Visual stimuli were delivered to the fly’s right eye and all imaging was from the right side of the brain. The stimuli were presented on a
+screen that subtended roughly 90 by 90 of the fly’s field of view with a green (532 nm) projector setup as previously described
+(Klapoetke et al., 2017). Projection screen background was always at a neutral (0.5) intensity, and object intensities were either black
+(0) or white (1) unless otherwise specified.
+For each fly, the receptive fields of the neurons being measured were always mapped first in order to transform subsequent
+stimuli such that they were spatially aligned to a neuron. We selected neurons that are aligned near the center of the projection
+screen. Visual stimuli were grouped into block such that each block encompassed a single run of all protocols, and each neuron
+was presented with three block repeats. Protocols within each block were randomly shuffled such that each block had a
+different protocol order, and the interstimulus interval (ISI) between protocols was always 5 s except for receptive-field mapping
+protocols (see Table S3). Each fly was typically imaged for 24 hours, with a yield of approximately one to two neurons per fly in
+this manner.
+Receptive field mapping
+We measured local visual responses to drifting square-wave grating within a small (<15 ) aperture, displayed at randomized positions
+on a rectangular grid. The optimal spatiotemporal stimulus parameters for each LC cell type was empirically determined, and these
+parameters were used consistently throughout (Table S3). For each RF stimulus set, the aperture position and motion direction were
+randomized, and a total of 2 repeats were shown. Results in Figures 1, 2, and S1; Table S4.
+Size, speed, and direction tuning
+We again customized spatiotemporal parameters for each LC cell type (Table S3). For size tuning, object edge speed was fixed at
+100 /s and objects were moved from front-to-back for all LCs, except LC4 (where the object was moved from bottom-to-top). For
+speed tuning, object size for each LC type was customized based on its size tuning. For direction tuning, we showed dark object
+motion every 45 , and customized both object size and speed for each LC cell type. All stimuli were aligned to move across the center
+of a neuron’s receptive field. Due to LC17 and LPLC2’s weak responses to non-looming stimuli (Figure 2I), we did not test speed
+(LPLC2) and directional (LC17, LPLC2) tuning.
+Contrast tuning
+For LC18’s size versus contrast tuning (Figure 3), we selected an edge speed (75 /s) to elicit a 50% response to a moving 4.5
+square. For size tuning, we fixed the object intensity Is (black) and varied the bar width w. For contrast tuning, we fixed object
+size as a 4.5 square and varied the intensity Ic to have an equivalent average intensity as the size tuning stimulus:
+
+w
+w
+Is + 1 
+Ib
+Ic =
+4:5
+4:5
+where the background intensity Ib is 0.5
+Flicker and apparent motion
+For both LC18 and LC25, we fixed the stimulus duration to be either 266 ms or the minimum duration to display one complete cycle
+(Table S7). Unless otherwise specified, stimuli were shown at the RF center.
+LC18 model
+Based on anatomic analysis, LC18 likely receives inputs from a combination of small-field neurons (e.g. T2) and large-field neurons. For simplicity, we made a ‘‘black box’’ model to describe LC18’s size tuning using only small-field neurons as inputs. We
+adopted and expanded upon an existing model for T2/T3 cells (Tanaka and Clark, 2020) as the starting point to model small object
+detection. Detailed model schematic showing signal processing within a single visual column can be found in Figure S5A. Below
+we describe the logic and implementation of the model. The parameters that are trained are described below and summarized in
+Table S8.
+The two main LC18 distinguishing properties we observed from experimental data are selectivity for opposite contrast changes
+and peak response to intermediate contrast objects. While existing models such as the Dragonfly small-target motion detector (Wiederman et al., 2013) already enforce opposite contrast changes by multiplying an OFF signal with a delayed ON signal (or vice versa),
+we cannot multiply ON and OFF signals because we also have to satisfy the peak response to intermediate contrast in LC18. Multiplying two signals that each have monotonically increasing (sigmoidal) contrast tuning will yield a maximum response at the highest
+contrast, which contradicts the observed LC18 contrast tuning. Furthermore, if a model has only one signal for each contrast pathway
+(e.g. consider only ONfaster, OFFfaster as in Figures 3I–3L and S5A), summing ONfaster and OFFfaster signals will always yield a maximum
+response to ‘‘temporally-wide’’ visual stimuli such as a wide moving bar or prolonged flash, whereas LC18 measurements showed
+minimal response to these stimuli (Figure 2H, >9 object width, Figures 3C and 3D, 0.94Hz). Therefore, we implemented a subtraction
+between two contrast signals within each ON or OFF pathway, which can minimize the response to ‘‘temporally-wide’’ visual stimuli
+through a summation of feedforward excitation and inhibition. This can also yield a maximum response at some intermediate contrast
+and smaller response at the highest contrast. To capture a common property of feedforward inhibition, that it is often slightly delayed
+relative to excitation, we used inequality constraints so that our optimization explored model parameters with the time constant for
+excitation as equal or faster than for inhibition (Table S8).
+Visual stimuli were generated as grayscale movies (values range from -0.5 to 0.5, background is 0) at 0.5 /pixel resolution.
+Input movie is first sampled spatially using Gaussian functions (5 acceptance angle and 4.5 interommatidial angle) on a rectangular
+
+e3 Neuron 110, 1700–1711.e1–e6, May 18, 2022
+
+ll
+OPEN ACCESS
+
+Article
+
+lattice to simulate the fly eye optics as previously described (Tuthill et al., 2011). The rectangular lattice consisted of 13 rows and
+19 columns, where each position corresponds to a photoreceptor whose values are described by signal s(x,y,t). We then filtered
+this signal along the time dimension using a low-pass filter (all filters used throughout are first order Butterworth) with 27 Hz cutoff
+(tphotoreceptor  5.9 ms). This signal is then used as the input to the model (provided as an accompanying code repository).
+We adopted the early visual processing implementation from the existing T2/T3 model (Tanaka and Clark, 2020).
+Briefly, the input signal is first high-pass filtered (fcutoff = 1 Hz) and then rectified using a ramp function into separate ON vs OFF signals
+( sON=max(0,sin), sOFF=max(0,-sin)). These signals are then passed through a (spatial) difference of Gaussians to simulate center-surround interaction:
+
+ 2
+1
+x + y2
+exp
+fGauss ðs; sÞ =
+2ps2
+2s2
+fDoG ðs; sc ; ss ; wc ; ws Þ = raL2 ðwc fGauss ðs; sc Þ  ws fGauss ðs; ss ÞÞ
+We used similar values as the model we adopted (Tanaka and Clark, 2020), where (sc, ss, wc, ws) = (4.5 , 13.5 , 1, 3.5) and aL2 is the
+L2 normalization scalar. We fixed r=1 for the ON signal, and trained r for the OFF signal to allow asymmetry in amplitudes between ON
+vs OFF. The signals are rectified (sout=max(0,sin)) and then separately adapted (Tanaka and Clark, 2020) using:
+fadapt ðs1 ; s2 ; gÞ =
+
+s1
+1 + g Lpðs2 ; fc Þ
+
+where s1,s2 are input signals, ɣ is trainable scalar parameter, Lp(s2, fc) denotes Butterworth low-pass filter function with trainable cut-off
+frequency fc. For both ON and OFF signals, we defined s2 = s1 (i.e. signal is divided by a scaled low-pass filtered version of itself). We
+applied adaptation to reduce flicker response because our data shows LC18 is more responsive to motion than flicker. For simplicity, we
+used identical adaptation for both excitation and inhibition within each ON or OFF pathway. In general, it may be better to have stronger
+adaptation in the excitatory signal and weak/no adaptation in the inhibitory signal to achieve a higher response to motion than flicker.
+We then duplicated the ON and OFF signals into four separate signals to have different contrast response and temporal properties.
+For each of these four signals, we linearly increased response amplitudes with a gain ⍺ and applied a constant saturation above a
+threshold value ssat:
+
+as
+if s< ssat
+fgain-sat ðs; a; ssat Þ =
+assat if sR ssat
+where ⍺ and ssat are trainable parameters and independent for the four contrast signals. These signals are then passed through a lowpass filter (with trainable cut-off frequency) to create faster and slower versions of ON and OFF signals. We then implemented crossover inhibition to the slower signals as a divisive inhibition using the adaptation function.
+ONslower =
+
+son-slower
+1 + g Lpðsoff-faster ; fc Þ
+
+OFFslower =
+
+soff-slower
+1 + g Lpðson-faster ; fc Þ
+
+The four ON and OFF signals are then summed and rectified:
+sout = ð1  woff ÞmaxðONfaster  ONslower ; 0Þ + woff maxðOFFfaster  OFFslower ; 0Þ
+where woff is a trainable parameter to adjust the relative contribution of ON vs OFF channels. To obtain the signal for a single LC18
+neuron, we spatially pooled the output signal sout using a Gaussian function, followed by low-pass filter (fc = 0.4 Hz, or tgcamp =
+400 ms) to simulate calcium signal.
+We implemented the model using MATLAB signal processing toolbox (for first order Butterworth filters) and searched for parameter
+values using the optimization toolbox (for genetic algorithm and patternsearch). The parameter bounds and linear inequality constraints
+can be found in Table S8. We searched for the parameter values using an objective function that compared the sum of squared difference between simulation and measured calcium responses to a subset of LC18 recordings (training set provided with code). We additionally adjusted parameter values for ONfaster contrast saturation and ONslower contrast gain to shift responses toward lower contrast.
+QUANTIFICATION AND STATISTICAL ANALYSIS
+Data analysis
+No flies were excluded from analysis. We used custom MATLAB (MathWorks) scripts to parse fluorescence and temporally align
+imaging frames with the visual stimulus. No motion correction was used on any images. Statistics were computed using Prism8
+(GraphPad Software) and MATLAB (MathWorks).
+
+Neuron 110, 1700–1711.e1–e6, May 18, 2022 e4
+
+ll
+OPEN ACCESS
+
+Article
+
+Fluorescence measurement
+We extracted fluorescence signals as previously described (Klapoetke et al., 2017). Due to low or non-existent baseline fluorescence
+signal for individual axons in most recordings, we calculated fluorescence change as:
+DF F  Fbaseline
+=
+F
+Fref
+where F is the raw fluorescence, Fbaseline is the 2 s time-averaged fluorescence before each stimulus, and Fref is the normalization
+factor for each neuron based on reference stimuli. We defined two custom reference stimuli for each LC type (Figure S2A,
+Table S3), and averaged their peak fluorescence change to calculate Fref. Reference stimuli were selected based on the speed tuning
+stimuli that elicited the highest response for each LC type, with the exception of LC12, LC17, LPLC1, and LPLC2 where expansion
+stimuli were used instead (due to the low response elicited by a fixed-size moving object). Each visual stimulus was shown three times
+to each neuron, and we averaged the fluorescence traces and DF/F values across repeats for each neuron.
+Receptive field
+Receptive fields were analyzed by averaging the responses across two opposite motion directions, since most LCs are not directionally selective (particular direction responses are shown in Figure S1C). To estimate the RF center, we used the peak positions from
+fitting each neuron’s RF mapping responses with a two-dimensional Gaussian function. To generate population averages, we
+spatially aligned RF responses from each neuron by its estimated RF center, interpolated (via nearest-neighbor) each neuron’s
+response on a 2D grid (5 uniform spacing), and then averaged the response values across different neurons.
+Preferred shape area
+Preferred shape area (Figure 4D) was defined as the average solid angle eliciting greater than 80% of the maximum size tuning
+response. We calculated the solid angle for each size tuning stimulus using A = 4 sin1 ðsinða =2Þsinðb =2ÞÞ where ⍺ and b are the
+azimuth and elevation angles respectively.
+Direction selectivity
+For each neuron, we calculated Direction Selectivity index (DSi) as the average vector length by projecting responses onto a complex
+exponential (Mazurek et al., 2014):
+
+P
+ k rk eiak 
+
+DSi =  P
+
+k rk
+where rk is the peak response along angle ⍺k in direction tuning (we measured responses to 8 directions). This DSi is equivalent to (1 –
+circular variance), where DSi = 1 means zero variance (i.e. responses occurred along a single direction only). To obtain DSi for each
+LC type, we simply averaged DSi across neurons for that cell type. See Table S6 for individual neurons’ direction tuning responses.
+To assess the statistical significance of DSi scores, we used a permutation test (Baden et al., 2016) where we generated a null hypothesis distribution (1000 shuffled trials) assuming there is no directional tuning by shuffling each recording’s direction (⍺k) and
+response (rk). We computed P value by calculating the percentile of data in the null distribution greater than the mean DSi score
+for each LC type.
+Principal component analysis and clustering
+We collated a matrix of peak calcium responses where visual stimuli conditions were identical across different cell types (Table S5).
+We renormalized size tuning responses within each measured neuron to have a range of 0 to 1, subtracted each response by the
+population mean for each stimulus condition, and then applied singular value decomposition.
+We used the first 8 principal components to perform k-means clustering (k = 10 LC cell types, L1 norm as distance metric). We
+computed cluster centroid for each LC type by selecting the best centroid from 10-fold cross validation, and used them to generate
+a dendrogram (Figure 2A). Each neuron’s responses projected along the first 2 principal components are shown in Figure 4B.
+EM connectome data selection
+We exported synaptic connectivity and neuron morphology from the electron microscopy (EM) based reconstruction of an adult
+Drosophila melanogaster central brain (Scheffer et al., 2020) (hemibrain v1.0.1) using the NeuPrint web interface (http://neuprinttest.janelia.org/). LC cell types have already been labeled and 30% of the synapses were traced in the PVLP region we examined.
+For each LC cell type, we updated LC.type (=‘‘LC#’’ to the appropriate name, e.g. ‘‘LC4’’) in the following queries in order to export
+LC synapse coordinates in PVLP:
+MATCH
+(LC:Neuron)-[:Contains]->(ssa:SynapseSet)-[:Contains]->(sa:Synapse)-[:SynapsesTo]->(sb:Synapse)<-[:Contains](ssb:SynapseSet)<-[:Contains]-(output:Neuron)
+WHERE LC.type = "LC#" AND output.status = "Traced" AND NOT exists(sa.‘OL(R)‘)
+RETURN DISTINCT LC.bodyId, LC.type, output.bodyId, output.type, sa.location.x as X, sa.location.y as Y, sa.location.z AS Z
+or query for a list of neurons in the central brain that integrate from LC:
+MATCH (LC:hemibrain_Neuron)-[c:ConnectsTo]->(output:hemibrain_Neuron)
+WHERE LC.type = "LC#" AND output.status = "Traced" AND apoc.convert.fromJsonMap(c.roiInfo)["OL(R)"] IS NULL
+RETURN LC.type, LC.bodyId, c.weight, output.type, output.bodyId
+
+e5 Neuron 110, 1700–1711.e1–e6, May 18, 2022
+
+ll
+OPEN ACCESS
+
+Article
+
+We processed these query outputs in MATLAB to exclude LC-to-LC synapses by removing entries where output.bodyId matches
+any LC bodyId. To analyze neurons downstream of LC glomerulus outputs, we additionally filtered for strong connections by only
+including neurons that make a minimum of 40 total synapses with any LC cell types in the central brain. For a downstream neuron
+to be considered as integrating from a particular LC cell type, it must make a minimum of 10% of its total LC synapses with that particular LC cell type.
+To compute optic glomerulus centroid position, we took the Euclidean average of all synapse coordinates (Figure S6A) for a given
+LC cell type. We then used these centroid positions to calculate the Euclidean distance between different LC cell types (Figures 4F,
+4G, and 4I).
+To visualize the morphology of neurons integrating from LCs, we also manually exported coordinates from NeuPrint as SWC files.
+The hemibrain EM bodyIDs we used are 1381997776, 1571246774, and 1570565128 for Figures 4K–4M respectively. We imported
+SWC into MATLAB using a Vaa3D plugin (Peng et al., 2010), and annotated neuron segments as in proximity to an LC type if the coordinates are within 1 mm of an LC synapse. We then manually rendered the reconstructed morphology using NeuTube (Feng
+et al., 2015).
+We identified candidate T2 neurons (Fischbach and Dittrich, 1989) by visual inspection of the morphologies of the inputs to one
+hemibrain LC18 (hemibrain bodyId 1780651267) using neuprint explorer (https://neuprint.janelia.org/). T2 terminals in the lobula
+have a T-shaped morphology that distinguishes these cells from other known cell types with a similar layer position in the lobula.
+We retrieved the downstream connections of these putative T2 neurons in hemibrain release ’hemibrain:v1.2.1’ using neuprint python
+(https://connectome-neuprint.github.io/neuprint-python/docs/#). Connections from T2 cells to LC neurons were combined for LC
+cells annotated as the same type. See Table S11 for putative T2 output to LC cell types synapse counts.
+Comparing function and connectivity
+We first generated a frequency distribution of LC type pairings by using the connectomics data to count how many downstream neurons integrate from each particular pairing of LC cell types. In order to be able to sort the LC pairing distribution, we then computed
+scores for each LC pairing based on either the functional similarity between LC pairs or the distance between LC output glomerulus
+centroids. Finally, we ordered the LC pairing distribution by either similarity or distance metric and computed the corresponding cumulative distributions.
+Similarity between a pair of LC types A and B is defined as the correlation coefficient:
+rA rBT
+ﬃﬃﬃﬃﬃﬃﬃﬃﬃ
+similarityðrA ; rB Þ = pﬃﬃﬃﬃﬃﬃﬃﬃﬃp
+rA r TA rB r TB
+where r is a row vector of peak calcium responses to size tuning, looming, and drifting grating stimuli.
+As a control, we also simulated the cumulative distribution of LC type pairings by assuming all pairings are equally probable (i.e.
+perfectly uniformly distributed), and then ordered the distribution by either similarity or distance (Figures 4G and 4H). We compared
+the cumulative distributions derived from the connectome to the simulated distribution using the Kolmogorov–Smirnov test.
+
+Neuron 110, 1700–1711.e1–e6, May 18, 2022 e6
+
+Neuron, Volume 110
+
+Supplemental information
+
+A functionally ordered visual feature map
+in the Drosophila brain
+Nathan C. Klapoetke, Aljoscha Nern, Edward M. Rogers, Gerald M. Rubin, Michael B.
+Reiser, and Gwyneth M. Card
+
+B
+
+lobula en face view
+V
+P
+D
+
+LC18
+
+LC25
+
+lobula layer view
+A
+P
+
+0°
+0%
+
+30%
+Arbor size in the lobula
+along D-V axis
+
+LC25
+
+100%
+
+100%
+
+0°
+
+-20°
+
+20°
+
+Relative azimuthal position
+
+0°
+
+100%
+
+0%
+-20°
+
+20°
+
+0°
+
+20°
+
+100%
+
+0%
+-20°
+
+Relative elevation position
+
+Relative elevation position
+
+0°
+
+20°
+
+-20°
+
+0°
+
+20°
+
+Relative azimuthal position
+
+Relative azimuthal position
+
+Front-to-back
+
+Bottom-to-top
+
+Bottom-to-top
+
+Front-to-back
+
+Front-to-back
+
+Back-to-front
+
+Top-to-bottom
+
+Top-to-bottom
+
+Back-to-front
+
+Back-to-front
+
+100%
+
+0%
+
+LC11
+Peak F/Fmax
+
+LC21
+Peak F/Fmax
+
+LC18
+
+100%
+
+0°
+
+20°
+
+Relative azimuthal position
+
+LC25
+
+100%
+
+0%
+
+0%
+-20°
+
+100%
+
+LC12
+
+-20°
+
+0°
+
+20°
+
+Relative azimuthal position
+
+LC15
+Peak F/Fmax
+
+-20°
+
+LC17
+
+0%
+
+0%
+
+0%
+
+Peak F/Fmax
+
+LPLC1
+
+Peak F/Fmax
+
+LC4
+Peak F/Fmax
+
+LPLC2
+Peak F/Fmax
+
+Peak F/Fmax
+
+C
+
+30°
+
+Peak F/Fmax
+
+LC18
+
+R2 = 0.37
+
+Peak F/Fmax
+
+A
+
+RF FWHM along D-V axis
+
+A
+
+100%
+
+0%
+-20°
+
+0°
+
+20°
+
+Relative azimuthal position
+
+100%
+
+0%
+-20°
+
+0°
+
+20°
+
+Relative azimuthal position
+
+-20°
+
+0°
+
+20°
+
+Relative azimuthal position
+
+Front-to-back
+
+Front-to-back
+
+Front-to-back
+
+Front-to-back
+
+Front-to-back
+
+Back-to-front
+
+Back-to-front
+
+Back-to-front
+
+Back-to-front
+
+Back-to-front
+
+Figure S1: Anatomic and functional receptive field. Related to Figure 1.
+(A) Resampled confocal images showing orthogonal views of single cell anatomy (stochastically labeled cells on
+reference neuropil).
+(B) Receptive-field full-width at half maximum (FWHM) based on calcium responses versus the dendritic arbor size
+along dorsal-ventral axis based on anatomy (Wu et al., 2016). Error bar represents standard deviation. Pearson
+correlation r = 0.61.
+(C) Interpolated peak responses along the middle of each neuron’s receptive field to receptive field mapping stimuli
+(see Methods). Population average (symbol) and standard deviation (error bar) shown.
+
+B
+
+Looming
+
+50
+
+r/v 40 ms
+5° to 60°
+
+0
+LC4
+
+LC11
+
+LC12
+
+LC15
+
+LC17
+
+LC18
+
+LC21
+
+C
+
+LC25 LPLC1 LPLC2
+
+LC21
+
+LC11
+
+LC25
+
+LC15
+
+LPLC2
+
+LC4
+
+LPLC1
+
+LC17
+
+LC12
+
+60°
+0°
+2s
+
+LC11
+
+LC25
+
+LC15
+
+90°
+
+90°
+
+90°
+
+90°
+
+90°
+
+45°
+
+45°
+
+45°
+
+45°
+
+45°
+
+30°
+15°
+
+30°
+15°
+
+30°
+15°
+
+30°
+15°
+
+30°
+15°
+
+9°
+4.5°
+
+9°
+4.5°
+
+9°
+4.5°
+
+9°
+4.5°
+
+9°
+4.5°
+
+2°
+
+2°
+
+2°
+
+2°
+
+2°
+
+4s
+2° 4.5° 9° 15° 30° 45° 90°
+
+2° 4.5° 9° 15° 30° 45° 90°
+
+2° 4.5° 9° 15° 30° 45° 90°
+
+2° 4.5° 9° 15° 30° 45° 90°
+
+2° 4.5° 9° 15° 30° 45° 90°
+
+100%
+
+Object height
+(normal to motion)
+
+LC21
+
+LC18
+
+100%
+
+diameter
+
+100
+
+100%
+
+Fref (a.u.)
+
+A
+
+Object width
+(parallel to motion)
+LPLC2
+
+LC4
+
+LC12
+
+90°
+
+90°
+
+45°
+
+45°
+
+45°
+
+45°
+
+45°
+
+30°
+15°
+
+30°
+15°
+
+30°
+15°
+
+30°
+15°
+
+30°
+15°
+
+9°
+4.5°
+
+9°
+4.5°
+
+9°
+4.5°
+
+9°
+4.5°
+
+9°
+4.5°
+
+2°
+
+2°
+
+2°
+
+2°
+
+2°
+
+Object height
+(normal to motion)
+
+2° 4.5° 9° 15° 30° 45° 90°
+
+2° 4.5° 9° 15° 30° 45° 90°
+
+15°
+9°
+
+4s
+
+4.5°
+
+100%
+
+2°
+4.5° 9°
+
+15° 30°
+
+2°
+
+4.5° 9°
+
+15° 30°
+
+2°
+
+4.5° 9°
+
+15° 30°
+
+2°
+
+4.5° 9°
+
+15° 30°
+
+30°
+15°
+9°
+
+4s
+
+4.5°
+
+100%
+
+Object height
+(normal to motion)
+
+4s
+
+30°
+
+2°
+
+2°
+2°
+
+4.5° 9°
+
+15° 30°
+
+2°
+
+Object width
+(parallel to motion)
+
+E
+
+2° 4.5° 9° 15° 30° 45° 90°
+
+2° 4.5° 9° 15° 30° 45° 90°
+
+100%
+
+90°
+
+D
+
+LC18
+
+LC17
+
+90°
+
+2° 4.5° 9° 15° 30° 45° 90°
+
+LC11
+
+LPLC1
+
+90°
+
+4.5° 9°
+
+15° 30°
+
+2°
+
+Object width
+
+4.5° 9°
+
+15° 30°
+
+2°
+
+Object width
+
+4.5° 9°
+
+15° 30°
+
+Object width
+
+LC11
+
+Object height
+(normal to motion)
+
+30°
+15°
+
+100%
+
+9°
+4.5°
+
+50%
+
+2°
+2°
+
+4.5°
+
+9° 15°
+
+30°
+
+2°
+
+4.5°
+
+9° 15°
+
+30°
+
+2°
+
+4.5°
+
+9° 15°
+
+30°
+
+2°
+
+4.5°
+
+9° 15°
+
+30°
+
+10%
+
+LC18
+
+Object height
+(normal to motion)
+
+30°
+15°
+
+120%
+
+9°
+4.5°
+
+60%
+
+2°
+
+10%
+2°
+
+4.5°
+
+9° 15°
+
+Object width
+(parallel to motion)
+
+30°
+
+2°
+
+4.5°
+
+9° 15°
+
+Object width
+
+30°
+
+2°
+
+4.5°
+
+9° 15°
+
+Object width
+
+30°
+
+2°
+
+4.5°
+
+9° 15°
+
+Object width
+
+30°
+
+Figure S2: Additional details on LC visual responses. Related to Figure 2.
+(A) Measured reference fluorescence values used to normalize calcium responses within each neuron (see Methods). Each symbol is a recorded neuron.
+(B) Individual (color) and population (black) response trace to constant approach speed looming (Gabbiani et al.,
+1999).
+(C) Population average calcium trace corresponding to heatmaps in Fig. 2I,J. The “preferred object size” used to
+measure speed and directional tuning are indicated by bold underlined object width and height labels for each cell
+type. Additional stimulus information can also be found in Table S3.
+(D-E) Size tuning using moving dark bars, as described in Fig. 2G-J. These experiments used four different speeds
+to examine size versus speed interactions for LC11 and LC18. Population average traces (D) and heat map of peak
+responses (E). LC11: N = 4 flies, n = 6 neurons. LC18: N = 4 flies, n = 7 neurons.
+
+Null distrib. count
+
+150
+
+2
+
+50
+
+1
+
+0
+
+0
+0.00
+
+100%
+
+0.10
+
+100
+
+2
+
+50
+
+1
+
+0
+
+0
+0.20
+
+0.40
+
+50
+
+1
+
+0
+
+0
+0.10
+
+0.20
+
+0.30
+
+0.40
+
+LC21
+
+P = 0.535
+
+100
+
+4
+3
+2
+
+50
+
+1
+
+0
+
+0
+0.00
+
+100%
+
+0.10
+
+0.20
+
+0.30
+
+0.40
+
+LPLC1
+
+mean DSi = 0.134
+
+150
+
+P = 0.163
+
+100
+
+4
+3
+1
+
+0
+
+0
+0.00
+
+0.10
+
+0.20
+
+0.30
+
+0.40
+
+150
+
+5
+4
+3
+
+100
+
+2
+
+50
+
+1
+
+0
+
+0
+0.10
+
+0.20
+
+0.30
+
+0.40
+
+DSi
+
+200
+
+mean DSi = 0.074
+
+150
+
+P = 0.472
+
+100
+
+5
+4
+3
+2
+
+50
+
+1
+
+0
+
+0
+0.10
+
+0.20
+
+0.30
+
+0.40
+
+DSi
+
+5
+
+2
+
+50
+
+0.30
+
+mean DSi = 0.063
+P = 0.55
+
+0.00
+
+2s
+
+0.20
+
+LPLC1 neuron count
+
+Null distrib. count
+
+200
+
+0
+0.10
+
+200
+
+LC25
+
+100%
+
+DSi
+
+2s
+
+1
+
+0
+
+LC25 neuron count
+
+150
+
+2
+
+50
+
+0.00
+
+H
+
+5
+
+4
+3
+
+2s
+
+mean DSi = 0.065
+
+5
+
+DSi
+
+LC18
+
+LC21 neuron count
+
+Null distrib. count
+
+200
+
+0.40
+
+100
+
+100%
+
+DSi
+
+2s
+
+0.30
+
+LC18 neuron count
+
+4
+
+0.20
+
+mean DSi = 0.047
+P = 0.689
+
+150
+
+0.00
+
+F
+
+5
+
+2
+
+0.00
+
+200
+
+100%
+
+3
+
+100
+
+100%
+
+0
+0.10
+
+2s
+
+mean DSi = 0.078
+P = 0.443
+
+150
+
+LC15
+
+LC17 neuron count
+
+Null distrib. count
+
+200
+
+1
+
+0
+DSi
+
+Null distrib. count
+
+LC17
+
+2s
+
+0.30
+
+DSi
+
+2s
+
+100%
+
+4
+
+4
+2
+
+50
+0.00
+
+D
+
+5
+
+5
+3
+
+100
+
+100%
+
+3
+
+0.10
+
+mean DSi = 0.047
+P = 0.696
+
+150
+
+LC15 neuron count
+
+150
+
+200
+
+2s
+
+mean DSi = 0.079
+P = 0.434
+
+0.00
+
+I
+
+0.40
+
+LC12 neuron count
+
+Null distrib. count
+
+200
+
+100%
+
+G
+
+0.30
+
+LC11
+
+Null distrib. count
+
+LC12
+
+E
+
+0.20
+DSi
+
+2s
+
+C
+
+4
+3
+
+100
+
+B
+
+5
+
+LC11 neuron count
+
+mean DSi = 0.246
+P = 0.025
+
+LC4 neuron count
+
+0.4 DSi
+
+200
+
+Null distrib. count
+
+LC4
+
+Null distrib. count
+
+A
+
+0.40
+
+DSi
+
+Figure S3: Direction selectivity. Related to Figure 2.
+Direction selectivity responses and analysis using custom dark bar sizes and speeds (see Table S2). This corresponds to the dataset shown in Fig. 2D. For each cell type,
+Left panel: individual neuron traces arranged along the motion direction around a central polar direction vector plot.
+The polar plot is the direction selectivity index (DSi, see Methods) for each neuron, where the angle corresponds to
+the preferred direction and radial magnitude is the DSi.
+Right panel: Permutation test for direction selectivity index. The null distribution (black histogram, assuming no
+direction selectivity) is computed by shuffling direction and response pairings, and the measured distribution for each
+cell type (colored histogram) is overlaid. A one-tail t-test was used to compute the significance of DSi for each cell
+type.
+
+Flicker (Hz)
+
+533
+
+267
+
+133
+
+67
+
+33
+
+17
+
+11
+
+5.6
+
+0.94
+
+1.88
+
+3.75
+
+7.5
+
+15
+
+30
+
+45
+
+90
+
+B
+
+4.5°
+
+Peak F/F (%)
+
+50%
+
+9°
+
+Peak F/F (%)
+
+50%
+
+15°
+
+50%
+
+30°
+
+50%
+
+Peak F/F (%)
+
+Intensity
+
+Peak F/F (%)
+
+A
+
+1
+0
+1s
+
+C
+Flicker (Hz)
+
+533
+
+267
+
+133
+
+67
+
+33
+
+17
+
+11
+
+5.6
+
+0.94
+
+1.88
+
+3.75
+
+7.5
+
+15
+
+30
+
+45
+
+90
+
+1
+
+10
+
+100
+
+50
+
+9°
+0
+1
+
+10
+
+100
+
+50
+
+15°
+0
+1
+
+10
+
+100
+
+50
+
+30°
+0
+1
+
+10
+100
+Frequency (Hz)
+
+dark object flicker
+bright object flicker
+
+Peak F/F (%)
+
+Intensity
+
+4.5°
+0
+
+D
+50%
+
+1
+0
+50%
+
+Intensity
+
+50
+
+50
+
+object size
+4.5° by 9°
+(w by h)
+
+0
+1000
+
+1
+
+100
+
+10
+
+1
+
+t (ms)
+
+0
+1s
+
+F
+
+****
+**** ****
+
+****
+
+***
+
+**
+
+50
+
+Two bars
+
+****
+
+***
+
+15 Hz
+
+vs
+
+0.9 Hz
+
+0
+-18° -9°
+
+****
+
+0°
+
+9°
+
+bar span
+
+H
+2° width
+
+****
+**
+
+45° width
+
+0
+2° 4.5°9°
+
+100
+50
+
+flicker
+0
+1000
+
+30° 90°
+
+EM
+
+100
+
+10
+
+1
+
+LM
+
+L
+
+LM
+
+T2
+Brp
+
+J
+
+EM
+T2 T3
+
+40°
+
+M
+
+LM
+
+T2
+Brp
+
+100
+
+motion
+
+50
+
+flicker
+
+0
+1000
+
+100
+
+10
+
+t (ms)
+
+t (ms)
+
+K
+
+20°
+Bar span
+
+motion
+
+Object height
+(normal to motion)
+
+I
+
+One bar
+
+direct comparison of motion vs flicker measured from the same neurons
+
+Peak F/F (%)
+
+Peak F/F (%)
+
+****
+
+50
+
+****
+
+0°
+
+10°
+
+****
+****
+
+Two bars
+
+100
+
+18°
+
+2D size tuning data
+replotted from Fig. 2H
+
+100
+
+****
+
+One bar
+
+Relative azimuthal position
+
+G
+
+****
+
+LC18 RF
+
+Normalized peak F/F (%)
+
+Peak F/F (%)
+
+100
+
+Peak F/F (%)
+
+E
+
+1
+
+Figure S4: LC18 responses to flicker and motion stimuli. Related to Figure 3.
+LC18 individual (color) and population average (black) traces to stationary flicker stimuli across a range of sizes and
+frequencies (A-D). Population mean and standard deviation is shown in all tuning throughout. (n = 9 neurons, N = 7
+flies).
+(A-B) All measured responses to full contrast (ON, OFF) square flicker. A subset of these responses is shown in Fig.
+3C,D. Temporal profile of the square stimulus intensity is shown below the traces.
+(C-D) Responses to either dark bar or bright bar flicker at the indicated frequencies.
+(E) Assessing the position invariance of flicker frequency selectivity. Measured responses are to 4.5° by 9° full
+contrast flicker shown at different azimuthal positions along the middle of each neuron’s receptive field (where 0° is
+the center position). RM-ANOVA with Bonferroni’s post hoc test. **P < 0.01, ***P < 0.001, ****P < 0.0001.
+(F) Cartoon diagram of stimulus overlaid on a single LC18 neuron’s receptive field (RF). Dark bar (4.5° fixed height)
+was moved across the center of the measured neuron’s RF (100°/s edge speed). In the “one bar” stimulus, width is
+indicated by bar span. In the “two bars” stimulus, an individual bar has a fixed width of 2°.
+(G)
+lagging edge of a moving bar. In this case, the width dimension is along the motion direction, and the object height is
+orthogonal to the motion direction (x-axis). RM-ANOVA with Bonferroni’s post hoc test. **P < 0.01, ****P < 0.0001.
+(H) Replotted bar motion data (from panel F “one bar” data) versus flicker data (from panel C-D “dark object” flicker)
+(I-M) Neuron anatomy comparison of T2 cell reconstructions in the hemibrain (electron microscopy (EM)) with light
+microscopy (LM). Putative T2 neurons’ axon terminals in the lobula (population in I, single neuron in J, each neuron
+colored uniquely) can be identified in the hemibrain dataset based on layer pattern (J vs M) and unique morphology
+(K). For comparison, a T3 neuron, with a different lobula terminal shape, is also shown in (K).
+
+A
+
+B
+
+Input
+
+High-pass filter
+
+C
+
+removed crossover
+inhibition
+
+Hp
+
+ON/OFF
+rectification
+
+100
+
+Center-surround
+
+50
+
+D
+
+removed contrast
+saturation in ONfaster
+
+full model
+
+100
+
+100
+
+dark bar
+
+dark bar
+
+dark bar
+bright bar
+0°
+
+9°
+
+18°
+
+0°
+
+9°
+
+Width
+
+Linear gain
+Flat saturation
+Lp
+
+Lp
+
+Lp
+
+E
+
+ON
+
+ON
+
+Summation
+
+OFF
+
+faster
+
+OFF
+
+faster
+
++
+
++
+
+dark
+bar
+
+100
+
+slower
+
+–
+
++
+
+18°
+
+100
+
+45
+
+dark
+bar
+
+50
+
+bright
+bar
+
+Peak
+
+0
+-1.0
+
++
+
+modeled 2D size tuning
+using Fig. 2G-H stimuli
+1
+
+bright
+bar
+
+50
+
+Rectification
+Summation
+
+G
+modeled width tuning
+
+Peak
+
+–
+
+9°
+Width
+
+F
+modeled contrast tuning
+
+Lp
+
+slower
+
+0°
+
+Lp
+
+Lp
+
+Crossover
+inhibition
+
+18°
+
+Width
+
+Object height (°)
+
+Low-pass filter
+
+bright bar
+
+Peak
+
+Lp
+
+50
+
+bright bar
+
+Peak
+
+Lp
+
+Peak
+
+Adaptation
+
+50
+
+0.6
+
+15
+9
+
+0.4
+
+4.5
+
+0.2
+
+0
+
+-0.5
+
+0.0
+
+0.5
+
+1.0
+
+0.8
+
+30
+
+2
+
+4°
+
+2°
+
+Weber contrast
+
+0°
+
+2°
+
+4°
+
+0
+
+2
+
+4.5
+
+9
+
+15
+
+30 45
+
+Object width (°)
+
+Width
+
+rectified output from
+a single columnar unit
+
+I
+
+modeled flicker responses using Fig. 3C-D stimuli
+
+Freq.
+
+17 ms
+
+0.94 Hz
+
+30 Hz
+
+200
+
+1000
+
+flicker
+
+30 Hz
+
+0.5
+
+100
+100
+
+-0.5
+1000
+
+1000
+
+0
+
+0
+
+Peak
+
+500
+
+Peak
+
+Intensity
+
+t
+
+533 ms
+
+modeled temporal tuning comparison of
+flicker versus motion using 4.5° dark square
+
+0.94 Hz
+
+0
+4.5°
+
+motion
+0
+1000
+
+9° 15° 30°
+
+100
+
+10
+
+1
+
+Normalized peak
+
+H
+
+flicker
+
+50
+
+motion
+0
+1000
+
+100
+
+10
+
+1
+
+Square size
+0.5 s
+
+J
+
+K
+
+modeled speed and size interaction using Fig. S2D-E stimuli
+40°/s
+
+80°/s
+
+200°/s
+
+400°/s
+
+modeled speed tuning
+using Fig. 2E stimuli
+
+Normalized
+response
+
+dark
+4.5° square
+
+1
+
+9
+4.5
+
+30
+15
+9
+4.5
+2
+
+2
+2
+
+4.5
+
+9
+
+15
+
+4.5
+
+9
+
+15
+
+30 45
+
+9
+4.5
+
+9
+
+15
+
+0.05
+
+0.01
+
+0
+
+0.005
+
+20
+
+40
+
+0.4
+
+4.5
+
+0.2
+
+0
+
+0
+
+4.5
+
+9
+
+15
+
+30 45
+
+Object width (°)
+
+OFF temporal kernels
+ON
+
+faster
+
+ON
+
+slower
+
+0
+0
+
+9
+
+ON temporal kernels
+0.015
+
+-20
+
+0.6
+
+15
+
+2
+
+30 45
+
+Object width (°)
+
+M
+
+spatial kernel
+
+4.5
+
+100
+
+0.8
+
+30
+
+2
+2
+
+0.1
+
+-0.05
+-40
+
+15
+
+Object width (°)
+
+Object width (°)
+
+L
+
+30
+
+2
+2
+
+30 45
+
+Object height (°)
+
+15
+
+45
+
+45
+
+Object height (°)
+
+Object height (°)
+
+Object height (°)
+
+30
+
+Peak
+
+45
+
+45
+
+OFF
+
+0.015
+
+faster
+
+0.01
+
+OFF
+slower
+
+0.005
+0
+
+-0.04
+
+-0.02
+
+0
+
+-0.04
+
+-0.02
+
+0
+
+bright
+4.5° square
+10
+
+100
+
+1000
+
+Figure S5: LC18 model details and additional simulation results. Related to Figure 3.
+(A) Detailed model schematic for a single columnar unit. All operations listed here (with the exception of center-surround) are performed within a visual column. The center-surround is implemented as a difference of Gaussians
+between neighboring columnar units.
+(B-D) Modeled responses to a moving bar (75°/s, fixed 4.5° height). Modifications to the model are indicated above
+removed by setting ssat to infinity in the fgain-sat function.
+(E)
+(F) Width tuning in response to a moving bar (75°/s, 4.5° height).
+(G)
+(H)
+(I)
+(J)
+(K)
+(L)
+(M)
+
+A
+
+B
+
+LC25 > GCaMP6f
+
+C
+
+Square-wave gratings
+
+Looming
+
+Lobula
+layer 5B
+
+100%
+
+Axon
+bundles
+
+100%
+
+2s
+
+D
+
+stimulus i
+
+2s
+
+stimulus ii
+
+stimulus iii
+
+stimulus iv
+
+stimulus
+frames
+
+y
+
+x1
+x2
+
+space-time
+diagram
+
+x
+
+x
+t
+
+E
+25%
+250 ms
+
+Intensity
+change
+(dI/dt) at
+position
+
+brighter
+
+x1
+
+darker
+brighter
+
+x2
+
+darker
+stimulus i
+
+F
+
+stimulus ii
+
+stimulus iii
+
+stimulus iv
+
+100
+50
+0
+
+1
+
+G
+
+10
+
+100
+
+1
+
+10
+
+100
+
+1
+
+1
+
+100%
+
+x
+
+Peak
+
+y
+
+Peak
+
+100%
+
+gap
+distance
+
+100
+
+10
+
+100
+
+H
+
+stimulus iv
+
+stimulus
+frame
+
+10
+
+50%
+
+stimulus iv
+
+50%
+stimulus iii
+
+0%
+
+0%
+0°
+
+9°
+
+18° 27°
+
+Gap distance
+
+Orientation
+
+Figure S6: LC25 is selective for line motion. Related to Figure 2.
+(A) Calcium image from LC25 processes in the lobula with single-cell region of interest (overlaid in blue). Scale bar,
+(B)
+tive field. All recordings in this figure were taken from LC25 neurons. (n = 8 neurons, N = 7 flies).
+(C) Single-cell (light) and population average (dark) calcium traces for neurons responding to constant edge speed
+looming (100°/s) centered on the receptive field.
+(D-F)
+(D) Space-time diagram for visual stimulus conditions i-iv where the stimulus spatial position is shown along the
+shown above. The orange line denotes the transition point in each visual stimulus.
+(E) Single-cell (light) and population average (dark) calcium traces (top) for neurons responding to visual stimulus in
+(D) and the corresponding intensity change (dI/dt) schematic at positions x1 and x2 (bottom). Gray overlay indicates
+stimulus presentation period; orange line denotes frame transition as described in (D).
+(F) Peak calcium responses (mean ± s.d.) for neurons responding to visual stimulus sets in (D), over a range of
+(G-H)
+
+A
+
+B
+
+LC T-bars from
+Hemibrain connectome
+
+C
+Looming motion LCs
+
+Object motion LCs
+
+Looming motion LCs
+
+Object motion LCs
+
+P = 0.0789
+0.0
+
+0
+50
+100
+Distance between glomeruli (µm)
+
+D Cell type
+
+E
+
+Number of
+neurons
+
+P = 0.962
+
+0.5
+
+0.0
+
+1.0
+
+F
+
+P = 0.659
+
+0.5
+
+0.0
+0.0
+
+0
+50
+100
+Distance between glomeruli (µm)
+
+statistics for synaptic outputs in the central brain
+
+Cumulative probability
+
+null hypothesis
+
+0.5
+
+1.0
+
+Cumulative probability
+
+1.0
+
+Cumulative probability
+
+Cumulative probability
+
+measured
+
+0.5
+Similarity
+
+1.0
+
+P = 0.555
+
+0.5
+
+0.0
+0.0
+
+1.0
+
+LC17
+
+186
+
+LC17
+
+LC17
+
+LC17
+
+LC17
+
+LPLC2
+
+85
+
+LPLC2
+
+LPLC2
+
+LPLC2
+
+LPLC2
+
+LPLC2
+
+LC4
+
+71
+
+LC4
+
+LC4
+
+LC4
+
+LC4
+
+LC4
+
+LC9
+
+135
+
+LC9
+
+LC9
+
+LC9
+
+LC9
+
+LC9
+
+LPLC4
+
+46
+
+LPLC4
+
+LPLC4
+
+LPLC4
+
+LPLC4
+
+LPLC4
+
+LC16
+
+83
+
+LC16
+
+LC16
+
+LC16
+
+LC16
+
+LC16
+
+LC6
+
+61
+
+LC6
+
+LC6
+
+LC6
+
+LC6
+
+LC6
+
+LC26
+
+41
+
+LC26
+
+LC26
+
+LC26
+
+LC26
+
+LC26
+
+LC24
+
+70
+
+LC24
+
+LC24
+
+LC24
+
+LC24
+
+LC24
+
+LC25
+
+30
+
+LC25
+
+LC25
+
+LC25
+
+LC25
+
+LC25
+
+LC20
+
+70
+
+LC20
+
+LC20
+
+LC20
+
+LC20
+
+LC20
+
+LC22
+
+36
+
+LC22
+
+LC22
+
+LC22
+
+LC22
+
+LC22
+
+LPLC1
+
+60
+
+LPLC1
+
+LPLC1
+
+LPLC1
+
+LPLC1
+
+LPLC1
+
+LC18
+
+103
+
+LC18
+
+LC18
+
+LC18
+
+LC18
+
+LC18
+
+LC15
+
+62
+
+LC15
+
+LC15
+
+LC15
+
+LC15
+
+LC15
+
+LC11
+
+71
+
+LC11
+
+LC11
+
+LC11
+
+LC11
+
+LC11
+
+LC21
+
+75
+
+LC21
+
+LC21
+
+LC21
+
+LC21
+
+LC21
+
+LC13
+
+81
+
+LC13
+
+LC13
+
+LC13
+
+LC13
+
+LC13
+
+LC12
+
+227
+
+LC12
+
+LC12
+
+LC12
+
+LC12
+
+500
+
+0.0
+
+1000
+
+0.5
+
+1.0
+
+0
+
+Fraction of synapses
+
+Individual neuron
+output synapse count
+
+4
+
+8
+
+12
+
+16
+
+LC12
+0
+
+4
+
+8
+
+12
+
+16
+
+0
+
+Average # synapses
+that each LC neuron outputs
+to a downstream neuron
+
+Average # synapses that
+each LC neuron outputs
+to another LC neuron
+of the same type
+
+Output to downstream neurons
+Output to LC of a different type
+
+I
+
+r = –0.1445
+P = 0.52
+
+Cumulative probability
+
+Similarity
+
+1.0
+
+0.5
+
+0.0
+
+1.0
+
+measured
+
+null hypothesis
+
+0.5
+
+**** P < 0.0001
+0.0
+0
+50
+100
+Distance between glomeruli (µm)
+
+0
+50
+100
+Distance between glomeruli (µm)
+
+J
+
+K
+LC17
+
+LC17
+
+LPLC2
+
+LPLC2
+
+LC4
+
+LC4
+
+LC9
+
+LC9
+
+LPLC4
+
+LPLC4
+
+LC16
+
+LC16
+
+LC6
+
+LC6
+
+LC26
+
+LC26
+
+LC24
+
+LC24
+
+LC25
+
+LC25
+LC20
+
+LC20
+
+# of downstream
+neurons integrating
+from LC cell types
+
+LC22
+LPLC1
+LC18
+
+16
+
+LC22
+LPLC1
+LC18
+LC15
+
+LC15
+
+LC11
+
+LC11
+8
+
+LC21
+
+LC21
+LC13
+
+LC13
+LC12
+LC12
+
+LC13
+
+LC11
+
+LC21
+
+LC15
+
+LC18
+
+LC22
+
+LPLC1
+
+LC20
+
+LC25
+
+LC24
+
+LC6
+
+LC26
+
+LC16
+
+LC9
+
+LPLC4
+
+LC4
+
+LC17
+
+LPLC2
+
+0
+
+LC12
+0
+
+50%
+
+50
+
+100
+
+150
+
+# of downstream neurons
+that each LC neuron innervates
+
+Output to LC of the same type
+
+H
+
+1.0
+
+G
+
+LC17
+
+0
+
+0.5
+Similarity
+
+100%
+
+Percent of each neuron’s synapses
+that outputs to the Lobula
+
+Figure S7: Additional connectome analysis. Related to Figure 4.
+(A) Individual LC T-bars plotted in a similar view and color scheme as Fig. 4A to show that the optic glomeruli
+geometry is stereotyped in both electron and light microscopy.
+(B-C) Comparisons of optic glomeruli pair integration by downstream neurons versus null hypothesis as described in
+Fig. 4G-H. Here, the glomeruli are grouped as looming LCs (LC4, LC12, LC17, LPLC1, LPLC2) or object LCs (LC11,
+LC15, LC18, LC21, LC25).
+(D-G) Statistics for LC neuron outputs in the central brain (glomerulus region). Synapses in the optic lobe are
+excluded from analysis. Violin plots are generated from individual LC neuron statistics with the number of neurons
+specified in (D). For each LC neuron, the synaptic outputs can be classified as one of three types specified in (E).
+Output to LC of the same type is further analyzed in (F), and output to downstream neurons is analyzed in (G).
+Output to LC of a different type was not analyzed further due to their relatively low contribution (E).
+(H) Similarity versus inter-glomerular distance for pairs of LC cell types that were not found to have specific common
+targets in the hemibrain connectome. Individual points correspond to edges that are not found in the connectivity
+diagram in Fig. 4F, and are indicated by post-synaptic neuron count = 0 in Table S10. Pearson correlation (r) and P
+value shown.
+(I) Comparison of which pairs of optic glomeruli are integrated by downstream neurons (red) versus the null hypothesis that all optic glomeruli pairs are equally likely to be integrated (black). Cumulative distribution is shown for the
+spatial distance between glomeruli for 19 LC types in the PVLP/PLP central brain region (listed in d).
+(J) Count for how many central brain neurons directly downstream of LC cells integrate from either a single LC type
+(along diagonal) or pairs of LC types (off diagonals). Darker squares means that there are few to no downstream
+neurons found based on the threshold criteria used (minimum of 40 synapses between an LC cell type and a
+downstream neuron).
+(K) Ratio of the synaptic outputs to the optic lobe versus the central brain for each LC cell type. Due to the truncation
+of the hemibrain connectome in the lobula, the number of output synapses in the lobula is likely under-counted here
+and some LCs may have a higher ratio of outputs to the optic lobe.
+
+A
+
+B
+
+Ellipsoid body
+PVLP
+
+Contralateral
+hemisphere
+
+Ventral
+nerve cord
+
+Visual inputs
+
+Output regions
+
+PVLP028
+1507139129
+
+LC18
+
+Ipsilateral PVLP
+Contralateral hemisphere
+
+Giant fiber
+2307027729
+
+LC4, LPLC2
+
+Ventral nerve cord
+
+PVLP132
+1435791739
+
+LC11, LC12, LC17, LC18
+
+Lobula
+
+Lobula
+
+Figure S8: Anatomy of neurons downstream of optic glomeruli. Related to Figure 4.
+(A) Downstream integration neurons that receive LC neuron inputs and project out of the central brain. The hemibrain connectome is truncated, so only partial axon branches can be shown (generated using online NeuPrint viewer).
+(B) Table of name, bodyID, and inputs/outputs corresponding to the neurons in (A).
+
+Table S1: Driver lines used for histology and calcium imaging experiments. Related to all figures.
+Stock Genotype
+
+Cells Imaged / Indicator
+
+Split GAL4
+name
+
+Used in
+
+w+(DL)/w1118; +/ R19G02-p65ADZp (attP40); 20X-IVS-Syn21OpGCamp6F-p10(VK00005)/ R75G12-ZpGAL4DBD (attP2)
+w+(DL)/w1118; +/ R47H03-p65ADZp (attP40); ); 20X-IVSSyn21-OpGCamp6F-p10(VK00005)/ R72E01-ZpGAL4DBD
+(attP2)
+w+(DL)/w1118; +/ R64G09-p65ADZp (attP40); 20X-IVS-Syn21OpGCamp6F-p10(VK00005)/ R37H04-ZpGAL4DBD (attP2)
+w+(DL)/w1118; +/ R22H02-p65ADZp (attP40); ); 20X-IVSSyn21-OpGCamp6F-p10(VK00005)/ R20G06-ZpGAL4DBDZpGdbd(attP2)
+w+(DL)/w1118; +/ VT009792-p65ADZp (attP40); ); 20X-IVSSyn21-OpGCamp6F-p10(VK00005)/ VT002021-ZpGdbd(attP2)
+w+(DL)/w1118; +/ R21D03-p65ADZp (attP40); ); 20X-IVSSyn21-OpGCamp6F-p10(VK00005)/ R65C12-ZpGAL4DBD
+(attP2)
+w+(DL)/w1118; +/ R26A03-p65ADZp (attP40); ); 20X-IVSSyn21-OpGCamp6F-p10(VK00005)/ R24A02-ZpGAL4DBD
+(attP2)
+w+(DL)/w1118; +/ R35D04-p65ADZp (attP40); ); 20X-IVSSyn21-OpGCamp6F-p10(VK00005)/ R55F01-ZpGAL4DBD
+(attP2)
+w+(DL)/w1118; +/ R92B11-p65ADZp (attP40); ); 20X-IVSSyn21-OpGCamp6F-p10(VK00005)/ R82D11-ZpGAL4DBD
+(attP2)
+w+(DL)/w1118; +/ R50C03- p65ADZp (attP40); ); 20X-IVSSyn21-OpGCamp6F-p10(VK00005)/ R41C05-ZpGAL4DBD
+(attP2)
+w1118/w1118; +/ R92B11-p65ADZp (attP40); pJFRC513XUAS-IVS-syt::smHA in su(Hw)attP1,pJFRC225-5XUAS-IVSmyr::smFLAG in VK00005/ R82D11-ZpGAL4DBD (attP2)
+w1118/pBPhsFlp2::PEST in attP3; R47H03-p65ADZp (attP40);
+pJFRC201-10XUAS-FRT>STOP>FRT-myr::smGFP-HA in
+VK0005, pJFRC240-10X-UAS-FRT>STOP>FRT-myr::smGFPV5-THS-10XUAS-FRT>STOP >FRT-myr::smGFP-FLAG in
+su(Hw)attP1/ R86D05-ZpGAL4DBD (attP2)
+Same as the above MCFO-1 but with OL0016B AD and DBD
+(R22H02-p65ADZp (attP40) and R14C08-ZpGAL4DBD (attP2))
+Same as the above MCFO-1 but with OL0008B AD and DBD
+(R35D04-p65ADZp (attP40) and R55F01-ZpGAL4DBD (attP2))
+Same as the above MCFO-1 but with OL0003B AD and DBD
+(R24A02-p65ADZp (attP40) and R26A03-ZpGAL4DBD (attP2))
+Same as the above MCFO-1 but with OL0005B AD and DBD
+(R21D03-p65ADZp (attP40) and R65C12-ZpGAL4DBD (attP2))
+Same as the above MCFO-1 but with OL0011B AD and DBD
+(R82D11-p65ADZp (attP40) and R92B11-ZpGAL4DBD (attP2))
+Same as the above MCFO-1 but with SS05037 AD and DBD
+(R85F11-p65ADZp (attP40) and R45F08-ZpGAL4DBD (attP2))
+Same as the above MCFO-1 but with SS02650 AD and DBD
+(VT009792-p65ADZp (attP40) and VT002021-ZpGAL4DBD
+(attP2))
+Same as the above MCFO-1 but with OL0029B AD and DBD
+(R64G09-p65ADZp (attP40) and R37H04-ZpGAL4DBD (attP2))
+Same as the above MCFO-1 but with OL0048B AD and DBD
+(R19G02-p65ADZp (attP40) and R75G12-ZpGAL4DBD (attP2))
+
+LPLC2/
+OpGCaMP6f
+
+OL0048B
+
+Fig.1,2,4 S1S3
+
+LC4/
+OpGCaMP6f
+
+SS00315
+
+Fig.1,2,4,
+S1-S3
+
+LPLC1/
+OpGCaMP6f
+
+OL0029B
+
+Fig.1,2,4,
+S1-S3
+
+LC11/
+OpGCaMP6f
+
+OL0015B
+
+Fig.1,2,4,
+S1-S3
+
+LC25/
+OpGCaMP6f
+
+SS02650
+
+Fig.1,2,4,
+S1-S3,S6
+
+LC17/
+OpGCaMP6f
+
+OL0005B
+
+Fig.1,2,4,
+S1-S3
+
+LC15/
+OpGCaMP6f
+
+OL0042B
+
+Fig.1,2,4,
+S1-S3
+
+LC12/
+OpGCaMP6f
+
+OL0008B
+
+Fig.1,2,4,
+S1-S3
+
+LC18/
+OpGCaMP6f
+
+OL0010B
+
+Fig.1-4, S1S4
+
+LC21/
+OpGCaMP6f
+
+SS17689
+
+Fig.1,2,4,
+S1-S3
+
+LC18/
+myr::smFLAG
+
+OL0010B
+
+Fig1B
+
+LC4/MCFO-1
+
+SS00356
+
+Fig1C
+
+LC11/MCFO-1
+
+OL0016B
+
+Fig1C
+
+LC12/MCFO-1
+
+OL0008B
+
+Fig1C
+
+LC15/MCFO-1
+
+OL0003B
+
+Fig1C
+
+LC17/MCFO-1
+
+OL0005B
+
+Fig1C
+
+LC18/MCFO-1
+
+OL0011B
+
+Fig1C, S1C
+
+LC21/MCFO-1
+
+SS05037
+
+Fig1C
+
+LC25/MCFO-1
+
+SS02650
+
+Fig1C, S1C
+
+LPLC1/MCFO-1
+
+OL0029B
+
+Fig1C
+
+LPLC2/MCFO-1
+
+OL0048B
+
+Fig1C
+
+Table S2: Number of flies and neurons imaged for each visual stimulus protocol type in the LC
+screen in Figure 2.
+dataset for
+Figure
+
+cell
+type
+
+# flies
+
+#
+neurons
+
+receptive
+field
+
+2D bar
+size
+
+looming
+
+grating
+
+directional
+tuning
+
+speed
+tuning
+
+1,2,4, S1, S2
+
+LPLC2
+
+5
+
+8
+
+all
+
+all
+
+all
+
+all
+
+none
+
+none
+
+1,2,4, S1, S2
+
+LC4
+
+5
+
+11
+
+all
+
+all
+
+all
+
+all
+
+all
+
+all
+
+1,2,4, S1, S2
+
+LPLC1
+
+5
+
+7
+
+all
+
+all
+
+all
+
+all
+
+all
+
+all
+
+1,2,4, S1, S2
+
+LC11
+
+5
+
+10
+
+all
+
+all
+
+all
+
+all
+
+all
+
+all
+
+1,2,4, S1, S2
+
+LC25
+
+5
+
+7
+
+all
+
+all
+
+all
+
+all
+
+all
+
+all
+
+1,2,4, S1, S2
+
+LC17
+
+5
+
+10
+
+all
+
+all
+
+all
+
+all
+
+3 neurons
+
+8 neurons
+
+1,2,4, S1, S2
+
+LC15
+
+5
+
+11
+
+all
+
+all
+
+all
+
+all
+
+all
+
+all
+
+1,2,4, S1, S2
+
+LC12
+
+5
+
+10
+
+all
+
+all
+
+all
+
+all
+
+all
+
+all
+
+1,2,4, S1, S2
+
+LC18
+
+5
+
+10
+
+all
+
+all
+
+all
+
+all
+
+all
+
+all
+
+1,2,4, S1, S2
+
+LC21
+
+5
+
+7
+
+all
+
+all
+
+all
+
+all
+
+all
+
+all
+
+Note: “all” means every neuron imaged was shown the indicated visual stimuli. For LC17, we did not run directional or speed tuning
+in many of the imaged neurons.
+
+Table S3: Visual stimuli parameters used to map receptive-field, directional preference, speed
+tuning, and ΔF/F normalization. Related to all figures.
+Receptive-field mapping
+Cell
+type
+
+Spatial
+period
+(°/cycle)
+
+Speed
+(°/s)
+
+Initial
+alignment
+
+Directions
+
+Aperture
+width (°)
+
+Aperture
+height (°)
+
+Upward,
+15
+15
+Downward
+Progressive,
+LC11
+8
+96
+Centered
+8
+8
+Regressive
+Progressive,
+LC12
+8
+96
+Centered
+8
+8
+Regressive
+Progressive,
+LC15
+7.5
+45
+Centered
+7.5
+15
+Regressive
+Progressive,
+LC17
+8
+96
+Centered
+8
+8
+Regressive
+Progressive,
+LC18
+8
+96
+Centered
+8
+8
+Regressive
+Progressive,
+LC21
+8
+192
+Centered
+8
+8
+Regressive
+Progressive,
+LC25
+8
+96
+Centered
+8
+8
+Regressive
+Upward,
+LPLC1
+16
+64
+Edge
+8
+8
+Downward
+Progressive,
+LPLC2
+30
+20
+Edge
+15
+15
+Regressive
+Directional and speed tuning
+Cell type
+Object width
+Object height
+LC4
+9
+30
+LC11
+4.5
+4.5
+LC12
+9
+9
+LC15
+4.5
+45
+LC17
+4.5
+4.5
+LC18
+4.5
+4.5
+LC21
+4.5
+4.5
+LC25
+4.5
+15
+LPLC1
+9
+9
+LPLC2
+n/a
+n/a
+ΔF/F normalization
+Cell
+protocol
+Spatial
+Edge
+protocol
+Fref stimuli
+Intensity
+type
+#1
+dimension
+speed
+#2
+LC4
+speed tuning
+5773
+9 by 30 bar
+Black
+200
+5774
+LC11
+speed tuning
+5792
+4.5 square
+Black
+100
+5793
+0 to 60
+LC12
+looming
+321
+disk
+Black
+25
+322
+diameter
+4.5 by 45
+LC15
+speed tuning
+5668
+Black
+25
+5669
+bar
+0 to 60
+LC17
+looming
+321
+disk
+Black
+25
+322
+diameter
+LC18
+speed tuning
+5693
+4.5 square
+Black
+200
+5699
+LC21
+speed tuning
+5832
+4.5 square
+Black
+100
+5837
+4.5 by 15
+LC25
+size tuning
+5641
+Black
+100
+5648
+bar
+0 to 60
+LPLC1
+looming
+321
+disk
+Black
+25
+322
+diameter
+0 to 60
+LPLC2
+looming
+321
+disk
+Black
+25
+322
+diameter
+LC4
+
+30
+
+200
+
+Edge
+
+Grid
+spacing
+(°)
+
+Duration
+(s)
+
+ISI
+(s)
+
+7.5
+
+1
+
+2
+
+8
+
+1
+
+2
+
+8
+
+1
+
+2
+
+7.5
+
+1
+
+2
+
+8
+
+1
+
+2
+
+8
+
+1
+
+2
+
+8
+
+1
+
+2
+
+8
+
+1
+
+2
+
+8
+
+1
+
+2
+
+7.5
+
+1
+
+2
+
+Edge speed
+200
+100
+100
+50
+100
+200
+200
+100
+100
+n/a
+Spatial
+dimension
+9 by 30 bar
+4.5 square
+
+Black
+Black
+
+Edge
+speed
+400
+200
+
+0 to 60 disk
+diameter
+
+Black
+
+100
+
+4.5 by 45
+bar
+
+Black
+
+50
+
+0 to 60 disk
+diameter
+
+Black
+
+100
+
+White
+White
+
+200
+50
+
+Black
+
+100
+
+0 to 60 disk
+diameter
+
+Black
+
+100
+
+0 to 60 disk
+diameter
+
+Black
+
+100
+
+4.5 square
+4.5 square
+4.5 by 30
+bar
+
+Intensity
+
+Table S4: Receptive-field full-width at half-max (FWHM) along anterior-posterior and dorsal-ventral
+axes for each LC cell type. Related to Figures 1, 2, S1.
+Cell type
+LC4
+LC11
+LC12
+LC15
+LC17
+LC18
+LC21
+LC25
+LPLC1
+LPLC2
+
+FWHM along A-P axis
+mean
+standard deviation
+23.20659091
+5.644931505
+29.80314
+7.126580567
+19.4748
+3.721889479
+22.05532727
+4.635771386
+18.75165
+5.62538576
+32.41701
+4.661670437
+22.43605
+5.974268292
+37.95715714
+5.292054779
+24.49341429
+3.404302006
+23.9113375
+5.899065826
+
+FWHM along D-V axis
+mean
+standard deviation
+21.3659818
+4.28742393
+24.09139
+5.96838029
+13.63825
+2.82682043
+23.0565364
+3.66462034
+14.64796
+4.4716068
+19.77506
+3.57739755
+19.615
+5.0300733
+20.2946714
+4.26599786
+16.9951714
+3.93252733
+17.4392875
+3.27888247
+
+Table S7: Visual flicker stimuli parameters used for mapping responses in LC18 and LC25.
+Related to Figures 3, S4, S6.
+Stimuli type
+
+# frames /
+half cycle
+
+# cycles
+
+Framerate (Hz)
+
+Stimulus
+duration (s)
+
+Stim freq
+(Hz)
+
+flicker
+flicker
+flicker
+flicker
+flicker
+flicker
+flicker
+flicker
+
+96
+48
+24
+12
+6
+3
+2
+1
+
+1
+1
+1
+2
+4
+8
+12
+24
+
+180
+180
+180
+180
+180
+180
+180
+180
+
+1.06666667
+0.53333333
+0.26666667
+0.26666667
+0.26666667
+0.26666667
+0.26666667
+0.26666667
+
+0.9375
+1.875
+3.75
+7.5
+15
+30
+45
+90
+
+flash
+duration
+(ms)
+0.53333333
+0.26666667
+0.13333333
+0.06666667
+0.03333333
+0.01666667
+0.01111111
+0.00555556
+
+Table S8: LC18 model parameters, bounds, and linear constraints. Related to Figures 3, S5.
+Model
+stage
+High-pass
+filter
+Centersurround
+Adaptation
+Adaptation
+Adaptation
+Adaptation
+Contrast
+gain
+saturation
+Contrast
+gain
+saturation
+Contrast
+gain
+saturation
+Contrast
+gain
+saturation
+Contrast
+gain
+saturation
+Contrast
+gain
+saturation
+Contrast
+gain
+saturation
+Contrast
+gain
+saturation
+Low-pass
+filter
+Low-pass
+filter
+Low-pass
+filter
+Low-pass
+filter
+Crossover
+inhibition
+Crossover
+inhibition
+Crossover
+inhibition
+Crossover
+inhibition
+Summation
+GCaMP
+Spatial
+pooling
+
+Signal
+channel
+
+Function
+
+Parameter
+name
+
+MATLAB
+variable #
+
+MATLAB
+variable name
+
+value
+
+lower
+bound
+
+upper
+bound
+
+Input
+
+Hp()
+
+fc
+
+1
+
+hp_fc
+
+1
+
+1
+
+27
+
+ON, OFF
+
+fDOG
+
+r
+
+2
+
+ratio_off2on
+
+0.416561748
+
+0.25
+
+2
+
+ON
+ON
+OFF
+OFF
+
+fadapt
+fadapt
+fadapt
+fadapt
+
+fc
+ɣ
+fc
+ɣ
+
+3
+4
+5
+6
+
+on_adapt_fc
+on_adapt_scale
+off_adapt_fc
+off_adapt_scale
+
+7.836920311
+401.3166731
+7.736672773
+372.8078857
+
+1
+0
+1
+0
+
+27
+500
+27
+500
+
+ONfaster
+
+fgain-sat
+
+ssat
+
+7
+
+e_on_sat
+
+0.01
+
+1.00E-04
+
+0.5
+
+ONfaster
+
+fgain-sat
+
+⍺
+
+8
+
+e_on_gain
+
+1
+
+1
+
+1
+
+ONslower
+
+fgain-sat
+
+ssat
+
+9
+
+i_on_sat
+
+Infinity
+
+Infinity
+
+Infinity
+
+ONslower
+
+fgain-sat
+
+⍺
+
+10
+
+i_on_gain
+
+1.5
+
+1
+
+2
+
+OFFfaster
+
+fgain-sat
+
+ssat
+
+11
+
+e_off_sat
+
+Infinity
+
+Infinity
+
+Infinity
+
+OFFfaster
+
+fgain-sat
+
+⍺
+
+12
+
+e_off_gain
+
+1
+
+1
+
+1
+
+OFFslower
+
+fgain-sat
+
+ssat
+
+13
+
+i_off_sat
+
+Infinity
+
+Infinity
+
+Infinity
+
+OFFslower
+
+fgain-sat
+
+⍺
+
+14
+
+i_off_gain
+
+1.250113959
+
+1
+
+2
+
+ONfaster
+
+Lp()
+
+fc
+
+15
+
+e_on_lp
+
+19.62960748
+
+1
+
+27
+
+ONslower
+
+Lp()
+
+fc
+
+16
+
+i_on_lp
+
+18.46903557
+
+1
+
+27
+
+OFFfaster
+
+Lp()
+
+fc
+
+17
+
+e_off_lp
+
+23.4014834
+
+1
+
+27
+
+OFFslower
+
+Lp()
+
+fc
+
+18
+
+i_off_lp
+
+16.68459067
+
+1
+
+27
+
+ONslower
+
+fadapt
+
+fc
+
+19
+
+on_xinh_fc
+
+2.43798461
+
+1
+
+27
+
+ONslower
+
+fadapt
+
+ɣ
+
+20
+
+on_xinh_scale
+
+19.7108115
+
+0
+
+500
+
+OFFslower
+
+fadapt
+
+fc
+
+21
+
+off_xinh_fc
+
+7.846840562
+
+1
+
+27
+
+OFFslower
+
+fadapt
+
+ɣ
+
+22
+
+off_xinh_scale
+
+403.7989528
+
+0
+
+500
+
+sout
+sout
+
+sout
+scalar
+
+woff
+scalar
+
+23
+24
+
+w_off
+lc_scale
+
+0.535766147
+12049
+
+0
+1
+
+1
+Infinity
+
+sout
+
+fDOG
+
+σ/4.5
+
+25
+
+lc18_fwhm
+
+3
+
+3
+
+3
+
+Please see Figure S5a for the model diagram. In the parameter optimization, we also applied the following linear inequality
+constraints:
+on_xinh_fc ≤ e_on_lp
+off_xinh_fc ≤ e_off_lp
+i_on_lp ≤ e_on_lp
+i_off_lp ≤ e_off_lp
+
+Table S10: Similarity versus distance data for Figure 4F-I.
+Functional similarity and anatomic distance between pairs of optic glomeruli, along with # of neurons that
+directly integrate from pairs of glomeruli based on EM connectivity analysis.
+pre-synaptic input A
+
+pre-synaptic input B
+
+LC4
+LC17
+LC17
+LC17
+LC25
+LC11
+LC21
+LC12
+LC4
+LC4
+LC4
+LC4
+LC25
+LC18
+LC11
+LC12
+LC15
+LC21
+LC12
+LC12
+LC11
+LC21
+LC17
+LC18
+LC15
+LC15
+LC4
+LC21
+LC15
+LC18
+LC11
+LC18
+LPLC1
+LC15
+LC17
+LC11
+LC4
+LC4
+LC11
+LC11
+LC12
+LC12
+LC11
+LC4
+LC15
+
+LC17
+LC25
+LPLC1
+LC18
+LPLC2
+LPLC2
+LPLC2
+LPLC2
+LC25
+LC15
+LC11
+LC21
+LPLC1
+LC25
+LC25
+LC25
+LPLC1
+LPLC1
+LPLC1
+LC15
+LC12
+LC12
+LC21
+LPLC2
+LC17
+LPLC2
+LC12
+LC25
+LC18
+LC21
+LC17
+LPLC1
+LPLC2
+LC25
+LPLC2
+LC15
+LPLC1
+LC18
+LPLC1
+LC18
+LC17
+LC18
+LC21
+LPLC2
+LC21
+
+post-synaptic neuron
+count
+0
+0
+0
+0
+0
+0
+0
+0
+0
+0
+0
+0
+0
+0
+0
+0
+0
+0
+0
+0
+0
+0
+1
+1
+2
+2
+2
+2
+2
+2
+3
+3
+4
+4
+5
+5
+8
+9
+10
+10
+11
+12
+12
+15
+18
+
+distance between
+glomeruli
+71.41319625
+55.07739525
+77.33372411
+35.07445945
+59.93434437
+34.65258352
+46.24766236
+31.9758219
+78.25065072
+86.61698435
+51.22292693
+63.73095941
+64.32752861
+33.34794484
+28.57639663
+47.06716611
+77.13963157
+48.79120666
+52.69413402
+46.30686384
+37.33913119
+39.34962225
+54.43391824
+30.56426257
+45.69379946
+67.15189044
+49.91598276
+15.6241373
+37.05998687
+24.11938825
+55.08057892
+45.98251873
+26.91183377
+17.99774869
+54.04891861
+41.59911296
+26.94888569
+50.15902677
+37.02872349
+21.57693655
+27.43233117
+16.53177411
+14.45824009
+19.69314164
+30.26840458
+
+similarity between
+glomeruli
+0.670778282
+0.556057942
+0.939561754
+0.530651071
+0.434470635
+0.451602443
+0.347687355
+0.742065884
+0.685255724
+0.50753357
+0.558136891
+0.47064323
+0.578757354
+0.758586695
+0.732199717
+0.752290652
+0.399720481
+0.551166279
+0.878908542
+0.599155582
+0.821470228
+0.700914458
+0.545893758
+0.365306681
+0.379069396
+0.261655226
+0.869249288
+0.841382145
+0.566428997
+0.893338722
+0.625082978
+0.527802687
+0.893168834
+0.831513973
+0.909624101
+0.58006317
+0.758233571
+0.470400174
+0.715785651
+0.828667458
+0.77990069
+0.673473773
+0.871305848
+0.745849038
+0.795484921
+
+Table S11: Putative T2 synapse counts for Figure S4I-M.
+Output synapse counts for putative T2 neurons in the hemibrain connectome. The ‘All’ column refers to
+the total output synapses of each candidate T2 neuron.
+bodyId_pre
+1840282178
+1901682750
+1963079392
+1994791924
+1994792005
+1995123997
+1995802079
+2025153433
+2026163864
+2088574169
+2118935033
+2118940139
+2149296373
+2150648466
+2181009844
+2182019184
+2213059115
+5812993999
+Total
+
+All
+111
+110
+219
+154
+182
+125
+108
+163
+117
+111
+141
+166
+139
+93
+149
+98
+113
+127
+2426
+
+LC4
+14
+12
+15
+14
+19
+9
+15
+14
+17
+12
+12
+11
+14
+8
+20
+8
+16
+12
+242
+
+LC18
+4
+5
+16
+8
+15
+10
+5
+17
+5
+6
+9
+7
+4
+7
+9
+8
+6
+4
+145
+
+LC11
+6
+3
+26
+10
+10
+6
+4
+10
+10
+8
+11
+9
+6
+1
+4
+4
+4
+11
+143
+
+LPLC1
+4
+6
+15
+7
+13
+4
+10
+4
+6
+4
+11
+14
+8
+6
+10
+4
+9
+8
+143
+
+LC12
+1
+1
+2
+2
+3
+1
+3
+2
+3
+3
+1
+0
+2
+1
+3
+0
+1
+1
+30
+
+LC21
+3
+0
+4
+0
+0
+1
+1
+1
+2
+1
+0
+0
+0
+0
+2
+3
+0
+1
+19
+
+LC17
+0
+0
+3
+0
+1
+0
+0
+0
+0
+0
+1
+2
+2
+1
+0
+0
+0
+0
+10
+
+LPLC2
+0
+0
+0
+0
+0
+1
+0
+0
+0
+0
+0
+0
+0
+0
+0
+0
+1
+2
+4
+
+LPLC4
+0
+0
+0
+0
+2
+0
+0
+0
+0
+0
+0
+0
+0
+0
+0
+1
+0
+0
+3
+
+

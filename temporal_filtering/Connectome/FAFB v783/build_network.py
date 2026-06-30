@@ -6,8 +6,8 @@ This single, self-contained module merges the data layer and the network build:
      ``min_neuron_count`` (type cut) and ``min_syn_count`` (weak-edge cut),
      writing <side>_min_neuron<N>/{neurons,columns,connections}.csv.gz etc.
   2. Assemble nodes + edges into <side>_min_neuron<N>/network.json, using the
-     hex map (column_id_hex_index_<side>.csv from hex_grid.py) and the R1-6
-     placement (location_r1_6_<side>.csv from column_locator.py). Column
+     hex map (column_id_hex_id_<side>.csv from hex_grid.py) and the R1-6
+     placement (column_location/r1_6_<side>_post.csv from column_locator.py). Column
      position is OPTIONAL: neurons without a column become nodes with null u/v.
 
 It does not import the other project scripts. Run with the project venv:
@@ -234,7 +234,7 @@ def _require(path: Path) -> Path:
 
 def _column_to_hex(side: str) -> Dict[int, Tuple[int, int, int]]:
     """Map column_id -> (u, v, hex_index) for columns inside the hex disc."""
-    df = pd.read_csv(_require(DATA_DIR / f"column_id_hex_index_{side}.csv"))
+    df = pd.read_csv(_require(fafb_io.column_hex_index_path(side)))
     df = df[df["hex_status"] == "inside"]
     return {
         int(r.column_id): (int(r.u), int(r.v), int(r.hex_index))
@@ -291,7 +291,7 @@ def build(side: str, min_neuron_count: int) -> Path:
         if uvh is not None:
             pos[rid] = uvh
 
-    loc = pd.read_csv(_require(DATA_DIR / f"location_r1_6_{side}.csv"))
+    loc = pd.read_csv(_require(DATA_DIR / "column_location" / f"r1_6_{side}_post.csv"))
     loc = loc[loc["majority_column_id"].notna()]
     for r in loc.itertuples(index=False):
         rid = int(r.root_id)

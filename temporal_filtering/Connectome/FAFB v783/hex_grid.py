@@ -43,8 +43,14 @@ _HEX_PATCH_ORIENTATION = np.radians(30)
 
 # Default filename for the rendered column map.
 COLUMN_MAP_FILE = "column_hex_map.png"
-# Per-side column -> hex_index table filename pattern.
-COLUMN_INDEX_FILE = "column_id_hex_index_{side}.csv"
+# Per-side column -> hex_index table filename: single source lives in fafb_io.
+COLUMN_INDEX_FILE = fafb_io.COLUMN_HEX_INDEX_FILE
+
+# Single source of truth for FAFB column colors (fill, edge), reused by every
+# plot so column_hex_map.png and lc_columns_right.png stay consistent.
+INSIDE_COLOR: Tuple[str, str] = ("lightgreen", "darkgreen")
+OUTSIDE_COLOR: Tuple[str, str] = ("lightcoral", "darkred")
+EMPTY_COLOR: Tuple[str, str] = ("whitesmoke", "lightgrey")
 
 
 def get_num_hexals(extent: int) -> int:
@@ -294,8 +300,8 @@ def draw_fafb_columns(
     hex_radius_px: Optional[float] = None,
     label: bool = True,
     fontsize: int = 3,
-    inside_color: Tuple[str, str] = ("lightgreen", "darkgreen"),
-    outside_color: Tuple[str, str] = ("lightcoral", "darkred"),
+    inside_color: Tuple[str, str] = INSIDE_COLOR,
+    outside_color: Tuple[str, str] = OUTSIDE_COLOR,
 ) -> None:
     """Draw one hemisphere's FAFB columns, coloured by inside/outside hex status.
 
@@ -334,8 +340,8 @@ def plot_column_map(
     Panels:
         top-left:     axial (u, v) reference for the hex disc
         top-right:    the ideal hex model, labeled with hex_index
-        bottom-left:  FAFB right columns (inside green / outside red)
-        bottom-right: FAFB left columns
+        bottom-left:  FAFB left columns (inside green / outside red)
+        bottom-right: FAFB right columns
     """
     import matplotlib
 
@@ -388,8 +394,8 @@ def plot_column_map(
             fontsize=12, fontweight="bold",
         )
 
-    _draw_fafb(axes[1, 0], df_right, "right")
-    _draw_fafb(axes[1, 1], df_left, "left")
+    _draw_fafb(axes[1, 0], df_left, "left")
+    _draw_fafb(axes[1, 1], df_right, "right")
 
     for ax in axes.flat:
         ax.set_aspect("equal")
@@ -402,8 +408,8 @@ def plot_column_map(
 
     legend_elements = [
         Patch(facecolor="lightblue", edgecolor="darkblue", label="Ideal model / (u,v)"),
-        Patch(facecolor="lightgreen", edgecolor="darkgreen", label="FAFB inside"),
-        Patch(facecolor="lightcoral", edgecolor="darkred", label="FAFB outside"),
+        Patch(facecolor=INSIDE_COLOR[0], edgecolor=INSIDE_COLOR[1], label="FAFB inside"),
+        Patch(facecolor=OUTSIDE_COLOR[0], edgecolor=OUTSIDE_COLOR[1], label="FAFB outside"),
     ]
     fig.legend(
         handles=legend_elements, loc="upper center", ncol=3,
@@ -441,7 +447,7 @@ def main() -> None:
         n_inside = int((cols["hex_status"] == "inside").sum())
         n_outside = int((cols["hex_status"] == "outside").sum())
         n_filled = cols.loc[cols["hex_status"] == "inside", "hex_index"].nunique()
-        out_csv = DATA_DIR / COLUMN_INDEX_FILE.format(side=side)
+        out_csv = fafb_io.column_hex_index_path(side)
         cols[["column_id", "p", "q", "u", "v", "hex_index", "hex_status"]].to_csv(
             out_csv, index=False
         )

@@ -9,19 +9,22 @@ By default (incoming / ``pre``) each CELL_TYPE is treated as the postsynaptic
 (outgoing) each CELL_TYPE is treated as the presynaptic ``source_type`` and broken
 down by postsynaptic ``target_type``.
 
-A CELL_TYPE token may be a cell type (e.g. ``Mi1``) or, when prefixed with ``@``, a
-*family* (e.g. ``@Centrifugal``) which aggregates over all its member types. The
-breakdown column still shows individual ``source_type``/``target_type`` unless
-``--family`` is given.
+A CELL_TYPE token may be a cell type (e.g. ``Mi1``); a *family* when prefixed with
+``&`` (e.g. ``&Centrifugal``) which aggregates over all its member types; or a single
+neuron when prefixed with ``@`` (e.g. ``@720575940622041087``) selected by FlyWire
+root id. The breakdown column still shows individual ``source_type``/``target_type``
+unless ``--family`` is given.
 
-Optionally restrict to CELL_TYPE *instances* at a single hex ``(u, v)``
-(``--at-hex U V``).
+Optionally restrict to CELL_TYPE *instances* at a single hex, given either as
+axial ``(u, v)`` (``--at-uv U V``) or pixel ``(x, y)`` (``--at-xy X Y``).
 
 Per (cell_type, partner_type): sum ``n_syn`` where ``sign > 0`` vs ``sign < 0``,
-then express each as a percentage of **all** ``n_syn`` for that cell type.
-With ``--at-hex``, extra columns ``n_pre``/``n_post``, ``pre_uv``/``post_uv``
-(hex; truncated when count>5), and ``pre_xy``/``post_xy`` (``x=v``, ``y=u+v/2``)
-for the *partner* instances. The TOTAL row omits the uv/xy columns.
+then express each as a percentage of **all** ``n_syn`` for that cell type. An
+``n_neuron`` column (distinct *partner* neurons of that partner type) is always
+shown. With ``--at-uv``/``--at-xy`` or a ``@root_id`` query, extra columns
+``pre_uv``/``post_uv`` (hex; truncated when count>5) and ``pre_xy``/``post_xy``
+(``x=v``, ``y=u+v/2``) for the *partner* instances. The TOTAL row omits the uv/xy
+columns.
 
 The ``network.json`` schema is ``{"metadata", "nodes", "edges"}`` where each node is
 ``{"id", "name", "u", "v", "hex_index", "input", "output"}`` and each edge is
@@ -32,13 +35,15 @@ Example::
     python3 "cell_syn.py"
     python3 "cell_syn.py" L1 L2 L3 L4 L5
     python3 "cell_syn.py" Mi1 --post
-    python3 "cell_syn.py" @Centrifugal
-    python3 "cell_syn.py" @Centrifugal --family
+    python3 "cell_syn.py" &Centrifugal
+    python3 "cell_syn.py" &Centrifugal --family
     python3 "cell_syn.py" Mi1 --family
+    python3 "cell_syn.py" @720575940622041087
     python3 "cell_syn.py" Mi1 --dir right_min_neuron1
     python3 "cell_syn.py" L1 --dir /abs/path/to/some_folder
     python3 "cell_syn.py" L1 -q
-    python3 "cell_syn.py" Mi1 --post --at-hex 0 0
+    python3 "cell_syn.py" Mi1 --post --at-uv 0 0
+    python3 "cell_syn.py" Mi1 --post --at-xy 0 1
 """
 
 from __future__ import annotations
@@ -51,8 +56,10 @@ from collections import defaultdict
 from pathlib import Path
 from typing import DefaultDict, Dict, List, Optional, Set, Tuple
 
+from hex_grid import hex_to_pixel
+
 _BASE_DIR = Path(__file__).resolve().parent
-_DEFAULT_DIR = "left_min_neuron1"
+_DEFAULT_DIR = "right_min_neuron1"
 
 logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
 logger = logging.getLogger(__name__)
@@ -97,29 +104,38 @@ def _load_type_to_family(json_path: Path) -> Dict[str, str]:
 
 def _resolve_query_labels(
     tokens: List[str], type_to_family: Dict[str, str]
-) -> Tuple[List[str], Dict[str, Set[str]]]:
-    """Resolve queried tokens to (ordered labels, self_type -> labels).
+) -> Tuple[List[str], Dict[str, Set[str]], Dict[int, Set[str]]]:
+    """Resolve queried tokens to (ordered labels, self_type -> labels, self_id -> labels).
 
-    A token prefixed with ``@`` is a *family*; it expands to every member type. Any other
-    token is taken as a literal cell type. The label shown in the output is the token as
-    typed (e.g. ``@Centrifugal`` for a family).
+    Token prefixes:
+      - ``&Family`` aggregates over every member type of that family.
+      - ``@<root_id>`` selects a single neuron by FlyWire root id.
+      - anything else is a literal cell type.
+    The label shown in the output is the token as typed (e.g. ``&Centrifugal``,
+    ``@720575940622041087``).
     """
     family_to_types: DefaultDict[str, List[str]] = defaultdict(list)
     for t, fam in type_to_family.items():
         family_to_types[fam].append(t)
     labels: List[str] = list(dict.fromkeys(tokens))
     self_type_to_labels: DefaultDict[str, Set[str]] = defaultdict(set)
+    self_id_to_labels: DefaultDict[int, Set[str]] = defaultdict(set)
     for tok in labels:
-        if tok.startswith("@"):
+        if tok.startswith("&"):
             fam = tok[1:]
             members = family_to_types.get(fam, [])
             if not members:
                 logger.warning("Family %r not found in type_counts_abc.csv", fam)
             for t in members:
                 self_type_to_labels[t].add(tok)
+        elif tok.startswith("@"):
+            try:
+                self_id_to_labels[int(tok[1:])].add(tok)
+            except ValueError:
+                logger.warning("Invalid root id token %r (expected @<int>)", tok)
         else:
             self_type_to_labels[tok].add(tok)
-    return labels, self_type_to_labels
+    return labels, dict(self_type_to_labels), dict(self_id_to_labels)
 
 
 def _truncated_uv_pairs(
@@ -152,13 +168,34 @@ def _format_pre_xy_from_uvs(
     n_pre: int,
     max_coords: int = _MAX_PRE_UV_COORDS,
 ) -> str:
-    """Same (u,v) order/truncation as ``pre_uv``; ``x=v``, ``y=u+v/2``."""
+    """Same (u,v) order/truncation as ``pre_uv``; ``x=v``, ``y=u+v/2``.
+
+    Pixel coords reuse ``hex_grid.hex_to_pixel`` (kernel_size=1) so the formula
+    lives in exactly one place.
+    """
     parts: List[str] = []
     for u, v in _truncated_uv_pairs(uvs, n_pre, max_coords):
-        x = float(v)
-        y = float(u) + float(v) / 2.0
-        parts.append(f"({_format_scalar_for_table(x)},{_format_scalar_for_table(y)})")
+        x, y = hex_to_pixel(u, v, kernel_size=1.0)
+        parts.append(
+            f"({_format_scalar_for_table(float(x))},"
+            f"{_format_scalar_for_table(float(y))})"
+        )
     return ";".join(parts)
+
+
+def _xy_to_uv(x: float, y: float) -> Tuple[int, int]:
+    """Inverse of hex_to_pixel(kernel_size=1): ``v = x``, ``u = y - x/2``.
+
+    Raises ``ValueError`` if the result is not an integer hex centre.
+    """
+    v = x
+    u = y - x / 2.0
+    iu, iv = round(u), round(v)
+    if abs(u - iu) > 1e-6 or abs(v - iv) > 1e-6:
+        raise ValueError(
+            f"(x,y)=({x},{y}) -> (u,v)=({u},{v}) is not an integer hex centre"
+        )
+    return int(iu), int(iv)
 
 
 def _node_id_to_uv(nodes: List[dict]) -> Dict[int, Tuple[int, int]]:
@@ -211,6 +248,7 @@ def _accumulate_all(
     id_to_uv: Optional[Dict[int, Tuple[int, int]]] = None,
     direction: str = "pre",
     type_to_family: Optional[Dict[str, str]] = None,
+    self_id_to_labels: Optional[Dict[int, Set[str]]] = None,
 ) -> Dict[
     str,
     Tuple[
@@ -222,9 +260,10 @@ def _accumulate_all(
 ]:
     """One pass over edges: per queried label, (per partner type syn+/syn-, total n_syn).
 
-    ``labels`` is the ordered list of queried tokens (a cell type, or a family entered as
-    ``@Family``); ``self_type_to_labels`` maps each *self* cell type to the label(s) that
-    cover it. A family label therefore aggregates over all its member types.
+    ``labels`` is the ordered list of queried tokens (a cell type, a family entered as
+    ``&Family``, or a single neuron entered as ``@<root_id>``). ``self_type_to_labels``
+    maps each *self* cell type to its label(s); ``self_id_to_labels`` maps a *self* root
+    id to its label(s). A family label aggregates over all its member types.
 
     ``direction="pre"`` (default): query each label as the **postsynaptic** side
     (``target_type``) and break down by presynaptic ``source_type`` (incoming).
@@ -247,42 +286,48 @@ def _accumulate_all(
         p: defaultdict(lambda: {"syn+": 0.0, "syn-": 0.0}) for p in labels
     }
     totals: Dict[str, float] = {p: 0.0 for p in labels}
-    partner_ids: Optional[Dict[str, DefaultDict[str, Set[int]]]] = None
+    # Always count distinct partner neurons per partner type (-> n_neuron column).
+    partner_ids: Dict[str, DefaultDict[str, Set[int]]] = {
+        p: defaultdict(set) for p in labels
+    }
     partner_uv: Optional[Dict[str, DefaultDict[str, Set[Tuple[int, int]]]]] = None
-    if ids_at_hex is not None:
-        partner_ids = {p: defaultdict(set) for p in labels}
-        if id_to_uv is not None:
-            partner_uv = {p: defaultdict(set) for p in labels}
+    if id_to_uv is not None:
+        partner_uv = {p: defaultdict(set) for p in labels}
     for e in edges:
         stype = e.get(self_type_field)
-        cell_labels = self_type_to_labels.get(stype)
+        self_id_raw = e.get(self_id_field)
+        try:
+            self_id_int: Optional[int] = int(self_id_raw)
+        except (TypeError, ValueError):
+            self_id_int = None
+
+        cell_labels: Set[str] = set()
+        type_labels = self_type_to_labels.get(stype)
+        if type_labels:
+            cell_labels |= type_labels
+        if self_id_to_labels and self_id_int is not None:
+            id_labels = self_id_to_labels.get(self_id_int)
+            if id_labels:
+                cell_labels |= id_labels
         if not cell_labels:
             continue
         if ids_at_hex is not None:
             allowed = ids_at_hex.get(stype, set())
-            if not allowed:
-                continue
-            self_id = e.get(self_id_field)
-            if self_id is None:
-                continue
-            try:
-                if int(self_id) not in allowed:
-                    continue
-            except (TypeError, ValueError):
+            if not allowed or self_id_int is None or self_id_int not in allowed:
                 continue
         pt = e.get(partner_type_field) or "?"
         if type_to_family is not None:
             pt = type_to_family.get(pt, pt)
         a = _edge_sign(e)
         ns = float(e.get("n_syn", 0))
-        partner = e.get(partner_id_field) if partner_ids is not None else None
+        partner = e.get(partner_id_field)
         for cell in cell_labels:
             totals[cell] += ns
             if a > 0:
                 by_cell[cell][pt]["syn+"] += ns
             elif a < 0:
                 by_cell[cell][pt]["syn-"] += ns
-            if partner_ids is not None and partner is not None:
+            if partner is not None:
                 try:
                     pid = int(partner)
                     partner_ids[cell][pt].add(pid)
@@ -302,10 +347,10 @@ def _accumulate_all(
         ],
     ] = {}
     for p in labels:
-        npartner_map: Optional[Dict[str, int]] = None
         coord_block: Optional[Tuple[Dict[str, Set[Tuple[int, int]]], Set[Tuple[int, int]]]] = None
-        if partner_ids is not None:
-            npartner_map = {pt: len(ids) for pt, ids in partner_ids[p].items()}
+        npartner_map: Optional[Dict[str, int]] = {
+            pt: len(ids) for pt, ids in partner_ids[p].items()
+        }
         if partner_uv is not None:
             union_uv: Set[Tuple[int, int]] = set()
             for uvs in partner_uv[p].values():
@@ -325,16 +370,19 @@ def print_table(
     partner_coords_block: Optional[Tuple[Dict[str, Set[Tuple[int, int]]], Set[Tuple[int, int]]]] = None,
     direction: str = "pre",
     use_family: bool = False,
+    min_pct: float = 0.0,
 ) -> None:
     partner_dim = "family" if use_family else "type"
+    # A @root_id query selects one neuron, so label the self field as *_id.
+    self_dim = "id" if cell_type.startswith("@") else "type"
     if direction == "post":
-        self_field, partner_field = "source_type", f"target_{partner_dim}"
+        self_field, partner_field = f"source_{self_dim}", f"target_{partner_dim}"
         flow_word = "out of"
-        n_label, uv_label, xy_label = "n_post", "post_uv", "post_xy"
+        n_label, uv_label, xy_label = "n_neuron", "post_uv", "post_xy"
     else:
-        self_field, partner_field = "target_type", f"source_{partner_dim}"
+        self_field, partner_field = f"target_{self_dim}", f"source_{partner_dim}"
         flow_word = "onto"
-        n_label, uv_label, xy_label = "n_pre", "pre_uv", "pre_xy"
+        n_label, uv_label, xy_label = "n_neuron", "pre_uv", "pre_xy"
 
     show_n = n_partner_by_type is not None
     show_coords = show_n and partner_coords_block is not None
@@ -357,6 +405,8 @@ def print_table(
             pm = 100.0 * d["syn-"] / total_syn
             sum_p += pp
             sum_m += pm
+            if pp + pm <= min_pct:
+                continue
             row = [pt, f"{pp:.4f}", f"{pm:.4f}"]
             if show_n:
                 npv = int(n_partner_by_type.get(pt, 0))
@@ -406,8 +456,9 @@ def main(argv: List[str] | None = None) -> int:
         default=["L1"],
         metavar="CELL_TYPE",
         help=(
-            "Cell type name(s) to query, e.g. Mi1. Prefix with @ for a family "
-            "(e.g. @Centrifugal) to aggregate its member types. Default: L1 if omitted"
+            "Token(s) to query, e.g. Mi1. Prefix with & for a family "
+            "(e.g. &Centrifugal) to aggregate its member types, or @ for a single "
+            "neuron by root id (e.g. @720575940622041087). Default: L1 if omitted"
         ),
     )
     parser.add_argument(
@@ -428,6 +479,16 @@ def main(argv: List[str] | None = None) -> int:
         ),
     )
     parser.add_argument(
+        "--min",
+        type=float,
+        default=0.0,
+        metavar="PCT",
+        help=(
+            "Only list partner rows whose combined %% n_syn+ + %% n_syn- exceeds PCT "
+            "(e.g. --min 5 lists only partners >5%%). TOTAL still reflects all partners."
+        ),
+    )
+    parser.add_argument(
         "--quiet",
         "-q",
         action="store_true",
@@ -439,12 +500,13 @@ def main(argv: List[str] | None = None) -> int:
         dest="folder",
         default=_DEFAULT_DIR,
         help=(
-            "Network folder (e.g. left_min_neuron1, resolved next to this script) or a "
-            "direct path to a folder / network.json. Default: left_min_neuron1"
+            "Network folder (e.g. right_min_neuron1, resolved next to this script) or a "
+            "direct path to a folder / network.json. Default: right_min_neuron1"
         ),
     )
-    parser.add_argument(
-        "--at-hex",
+    at_group = parser.add_mutually_exclusive_group()
+    at_group.add_argument(
+        "--at-uv",
         nargs=2,
         type=int,
         metavar=("U", "V"),
@@ -452,9 +514,20 @@ def main(argv: List[str] | None = None) -> int:
         help=(
             "Only count edges whose CELL_TYPE *instance* sits at hex (u,v). "
             "Omit to aggregate over all instances of each cell type (default). "
-            "When set: columns n_pre/n_post, pre_uv/post_uv (hex, ≤5 pairs if >5), "
-            "pre_xy/post_xy (x=v, y=u+v/2) for the partner instances. "
-            "TOTAL row omits the uv/xy columns."
+            "When set: extra columns pre_uv/post_uv (hex, ≤5 pairs if >5) and "
+            "pre_xy/post_xy (x=v, y=u+v/2) for the partner instances "
+            "(n_neuron is always shown). TOTAL row omits the uv/xy columns."
+        ),
+    )
+    at_group.add_argument(
+        "--at-xy",
+        nargs=2,
+        type=float,
+        metavar=("X", "Y"),
+        default=None,
+        help=(
+            "Like --at-uv but specify pixel coords (x=v, y=u+v/2); converted to "
+            "(u,v)=(y-x/2, x), which must be integers."
         ),
     )
     args = parser.parse_args(argv)
@@ -484,8 +557,17 @@ def main(argv: List[str] | None = None) -> int:
 
     ids_at_hex: Optional[Dict[str, Set[int]]] = None
     hex_note = ""
-    if args.at_hex is not None:
-        hu, hv = int(args.at_hex[0]), int(args.at_hex[1])
+    at_uv: Optional[Tuple[int, int]] = None
+    if args.at_uv is not None:
+        at_uv = (int(args.at_uv[0]), int(args.at_uv[1]))
+    elif args.at_xy is not None:
+        try:
+            at_uv = _xy_to_uv(args.at_xy[0], args.at_xy[1])
+        except ValueError as exc:
+            logger.error("%s", exc)
+            return 1
+    if at_uv is not None:
+        hu, hv = at_uv
         ids_at_hex = _instance_ids_at_hex(nodes, hu, hv)
         xh = float(hv)
         yh = float(hu) + float(hv) / 2.0
@@ -503,10 +585,13 @@ def main(argv: List[str] | None = None) -> int:
     type_to_family_all = _load_type_to_family(json_path)
     partner_type_to_family = type_to_family_all if args.family else None
 
-    id_to_uv = _node_id_to_uv(nodes) if args.at_hex is not None else None
-    labels, self_type_to_labels = _resolve_query_labels(
+    labels, self_type_to_labels, self_id_to_labels = _resolve_query_labels(
         list(args.cell_types), type_to_family_all
     )
+    # Partner (u,v)/(x,y) coords are shown for --at-uv/--at-xy and for @root_id
+    # queries; both need the node id -> uv map.
+    need_coords = at_uv is not None or bool(self_id_to_labels)
+    id_to_uv = _node_id_to_uv(nodes) if need_coords else None
     acc = _accumulate_all(
         edges,
         labels,
@@ -515,18 +600,21 @@ def main(argv: List[str] | None = None) -> int:
         id_to_uv=id_to_uv,
         direction=direction,
         type_to_family=partner_type_to_family,
+        self_id_to_labels=self_id_to_labels,
     )
     for label in labels:
         by_partner, total_syn, n_partner_by_type, partner_coords_block = acc[label]
+        show_coords = at_uv is not None or label.startswith("@")
         print_table(
             label,
             by_partner,
             total_syn,
             hex_note=hex_note,
-            n_partner_by_type=n_partner_by_type if args.at_hex is not None else None,
-            partner_coords_block=partner_coords_block if args.at_hex is not None else None,
+            n_partner_by_type=n_partner_by_type,
+            partner_coords_block=partner_coords_block if show_coords else None,
             direction=direction,
             use_family=args.family,
+            min_pct=args.min,
         )
 
     return 0
