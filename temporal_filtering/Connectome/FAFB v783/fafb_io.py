@@ -1,7 +1,7 @@
 """Shared I/O for the FAFB build: paths and raw-CSV readers.
 
 This is the one place that knows where the raw FAFB files live and how to read
-them. ``build_network.py``, ``hex_grid.py`` and ``column_locator.py`` all import
+them. ``build_network.py``, ``column_mapper.py`` and ``column_locator.py`` all import
 from here (they never import each other), so the path constants and the three
 CSV loaders are defined exactly once.
 """
@@ -19,28 +19,34 @@ logger = logging.getLogger(__name__)
 # Build directory (outputs) and the raw downloaded CSVs (download/).
 DATA_DIR = Path(__file__).resolve().parent
 RAW_DIR = DATA_DIR / "download"
+# Per-run network folders (<side>_min_neuron<N>/ etc.) live under here.
+NETWORK_DIR = DATA_DIR / "built_network"
+# Column map artifacts (per-side column tables + the column_map.png) live here.
+COLUMN_HEX_DIR = DATA_DIR / "column_hex"
+# Located-column CSVs (r1_6_<side>_post.csv etc., from column_locator.py) live here.
+COLUMN_LOCATION_DIR = DATA_DIR / "column_location"
 
 VISUAL_NEURON_TYPES_FILE = "visual_neuron_types.csv.gz"
 COLUMN_ASSIGNMENT_FILE = "column_assignment.csv.gz"
 CONNECTIONS_FILE = "connections_princeton.csv.gz"
 
-# Per-side column -> hex_index table: written by hex_grid.py and read back by
+# Per-side column -> (u, v) table: written by column_mapper.py and read back by
 # build_network.py / column_locator.py. Single source for this filename so the
-# pattern is never restated. Columns: column_id, p, q, u, v, hex_index, hex_status.
-COLUMN_HEX_INDEX_FILE = "column_id_hex_id_{side}.csv"
+# pattern is never restated. Columns: column_id, p, q, u, v.
+COLUMN_MAP_FILE = "column_map_{side}.csv"
 
 # Rows read per chunk when scanning the (large) connections file.
 CONNECTIONS_CHUNK_SIZE = 500_000
 
 
-def column_hex_index_path(side: str) -> Path:
-    """Path to the per-side column_id -> hex_index table (written by hex_grid.py)."""
-    return DATA_DIR / COLUMN_HEX_INDEX_FILE.format(side=side)
+def column_map_path(side: str) -> Path:
+    """Path to the per-side column_id -> (u, v) table (written by column_mapper.py)."""
+    return COLUMN_HEX_DIR / COLUMN_MAP_FILE.format(side=side)
 
 
-def load_column_hex_index(side: str) -> pd.DataFrame:
-    """Read column_id_hex_id_<side>.csv (column_id, p, q, u, v, hex_index, hex_status)."""
-    return pd.read_csv(column_hex_index_path(side))
+def load_column_map(side: str) -> pd.DataFrame:
+    """Read column_map_<side>.csv (column_id, p, q, u, v)."""
+    return pd.read_csv(column_map_path(side))
 
 
 def load_visual_neurons() -> pd.DataFrame:

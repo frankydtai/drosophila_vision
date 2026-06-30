@@ -6,7 +6,7 @@ This single, self-contained module merges the data layer and the network build:
      ``min_neuron_count`` (type cut) and ``min_syn_count`` (weak-edge cut),
      writing <side>_min_neuron<N>/{neurons,columns,connections}.csv.gz etc.
   2. Assemble nodes + edges into <side>_min_neuron<N>/network.json, using the
-     hex map (column_id_hex_id_<side>.csv from hex_grid.py) and the R1-6
+     column map (column_map_<side>.csv from column_mapper.py) and the R1-6
      placement (column_location/r1_6_<side>_post.csv from column_locator.py). Column
      position is OPTIONAL: neurons without a column become nodes with null u/v.
 
@@ -28,7 +28,8 @@ from typing import Dict, Optional, Sequence, Set, Tuple
 import pandas as pd
 
 import fafb_io
-from fafb_io import DATA_DIR
+from fafb_io import NETWORK_DIR
+from column_mapper import EXTENT  # single shared spatial default (<0 = no crop)
 
 logger = logging.getLogger(__name__)
 
@@ -43,8 +44,10 @@ DEFAULT_MIN_SYN_COUNT = 5
 # Optic-lobe neuropil stems; the side suffix (_L / _R) is appended at load time.
 VISUAL_NEUROPIL_STEMS = ("ME", "LO", "LOP", "LA")
 
-# Hex-disc radius (extent=15 -> 721 columns).
-EXTENT = 15
+# Spatial crop is controlled by the shared column_mapper.EXTENT (imported above):
+# extent < 0 (default) = NO crop (keep the full positioned graph); extent >= 0 crops
+# the built graph to the central hex disc of that radius (e.g. 2 -> 19 columns),
+# written to a sibling <run>_extent<N>/ folder.
 # Neurotransmitter -> synapse sign. Glutamate is inhibitory (Drosophila GluClalpha).
 NT_TO_SIGN = {"ACH": 1.0, "GLUT": -1.0, "GABA": -1.0, "SER": 1.0, "DA": 1.0, "OCT": 1.0}
 # Photoreceptors are histaminergic (inhibitory) but FAFB lacks a histamine class,
@@ -79,7 +82,7 @@ class VisualSystem:
             out = Path(output_dir)
         else:
             name = f"{self.metadata['side']}_min_neuron{self.metadata['min_neuron_count']}"
-            out = DATA_DIR / name
+            out = NETWORK_DIR / name
         out.mkdir(parents=True, exist_ok=True)
 
         self.neurons.to_csv(out / "neurons.csv.gz", index=False, compression="gzip")
@@ -133,7 +136,7 @@ class FafbDataLoader:
         cache_path: Optional[Path] = None
         if subsystems is None:
             cache_path = (
-                DATA_DIR / f"{side}_min_neuron{min_neuron_count}" / ".filter_cache"
+                NETWORK_DIR / f"{side}_min_neuron{min_neuron_count}" / ".filter_cache"
             )
             if use_cache and cache_path.exists():
                 logger.info("Loading filtered visual system from cache %s", cache_path)
@@ -226,18 +229,22 @@ class FafbDataLoader:
 def _require(path: Path) -> Path:
     if not path.exists():
         raise FileNotFoundError(
-            f"Missing input: {path}. Run hex_grid.py and column_locator.py first, "
+            f"Missing input: {path}. Run column_mapper.py and column_locator.py first, "
             "or use build_all.py."
         )
     return path
 
 
-def _column_to_hex(side: str) -> Dict[int, Tuple[int, int, int]]:
-    """Map column_id -> (u, v, hex_index) for columns inside the hex disc."""
-    df = pd.read_csv(_require(fafb_io.column_hex_index_path(side)))
-    df = df[df["hex_status"] == "inside"]
+def _column_to_pos(side: str) -> Dict[int, Tuple[int, int]]:
+    """Map column_id -> (u, v) for every positioned FAFB column.
+
+    The base build is always the full graph (no spatial cap). Spatial cropping is
+    the separate merged ``extent`` knob (see :func:`crop_network`).
+    """
+    _require(fafb_io.column_map_path(side))
+    df = fafb_io.load_column_map(side)
     return {
-        int(r.column_id): (int(r.u), int(r.v), int(r.hex_index))
+        int(r.column_id): (int(r.u), int(r.v))
         for r in df.itertuples(index=False)
     }
 
@@ -271,42 +278,49 @@ def _sign_per_edge(pre_id: int, post_id: int, dom_nt: Dict[Tuple[int, int], str]
 
 
 def build(side: str, min_neuron_count: int) -> Path:
-    """Assemble network.json for one (side, min_neuron_count) run folder."""
-    run_dir = DATA_DIR / f"{side}_min_neuron{min_neuron_count}"
+    """Assemble the full network.json for one (side, min_neuron_count) run folder.
+
+    Always keeps every positioned FAFB column (no spatial cap); cropping to a
+    central disc is the separate merged ``extent`` knob (see :func:`crop_network`).
+    """
+    run_dir = NETWORK_DIR / f"{side}_min_neuron{min_neuron_count}"
     neurons = pd.read_csv(_require(run_dir / "neurons.csv.gz"))
     columns = pd.read_csv(_require(run_dir / "columns.csv.gz"))
     connections = pd.read_csv(_require(run_dir / "connections.csv.gz"))
-    col_hex = _column_to_hex(side)
+    col_pos = _column_to_pos(side)
 
     kept_ids: Set[int] = set(neurons["root_id"].astype("int64"))
     id_to_type = dict(zip(neurons["root_id"].astype("int64"), neurons["type"].astype(str)))
 
     # Column position is OPTIONAL: column-assigned neurons + located R1-6.
+    # pos maps root_id -> (u, v, column_id).
     pos: Dict[int, Tuple[int, int, int]] = {}
     for r in columns.itertuples(index=False):
         rid = int(r.root_id)
         if rid not in kept_ids or rid in pos:
             continue
-        uvh = col_hex.get(int(r.column_id))
-        if uvh is not None:
-            pos[rid] = uvh
+        cid = int(r.column_id)
+        uv = col_pos.get(cid)
+        if uv is not None:
+            pos[rid] = (uv[0], uv[1], cid)
 
-    loc = pd.read_csv(_require(DATA_DIR / "column_location" / f"r1_6_{side}_post.csv"))
+    loc = pd.read_csv(_require(fafb_io.COLUMN_LOCATION_DIR / f"r1_6_{side}_post.csv"))
     loc = loc[loc["majority_column_id"].notna()]
     for r in loc.itertuples(index=False):
         rid = int(r.root_id)
         if rid not in kept_ids or rid in pos:
             continue
-        uvh = col_hex.get(int(r.majority_column_id))
-        if uvh is not None:
-            pos[rid] = uvh
+        cid = int(r.majority_column_id)
+        uv = col_pos.get(cid)
+        if uv is not None:
+            pos[rid] = (uv[0], uv[1], cid)
 
     nodes = []
     for rid in kept_ids:
         typ = id_to_type[rid]
-        u, v, h = pos.get(rid, (None, None, None))
+        u, v, cid = pos.get(rid, (None, None, None))
         nodes.append({
-            "id": rid, "name": typ, "u": u, "v": v, "hex_index": h,
+            "id": rid, "name": typ, "u": u, "v": v, "column_id": cid,
             "input": typ in INPUT_TYPES, "output": False,
         })
     logger.info(
@@ -376,22 +390,21 @@ def build(side: str, min_neuron_count: int) -> Path:
     return out_path
 
 
-def crop_network(run_dir: Path, crop_extent: int, recenter: bool = True) -> Path:
+def crop_network(run_dir: Path, crop_extent: int) -> Path:
     """Crop a built network.json to the central hex disc of ``crop_extent``.
 
     Keeps only column-positioned nodes whose hex distance from the centre is
     ``<= crop_extent`` (and the edges between them), writing a sibling run folder
-    ``<run_dir.name>_extent<crop_extent>_col/network.json``. This is the small,
-    multi-column training input (extent=2 -> 19 columns).
+    ``<run_dir.name>_extent<crop_extent>/network.json``. This is the small,
+    multi-column training input (extent=2 -> 19 columns). Node ``column_id`` is
+    the stable FAFB identity and is preserved as-is on crop.
 
     Args:
         run_dir: An existing run folder containing network.json.
         crop_extent: Hex-disc radius to keep around the centre (2 -> 19 columns).
-        recenter: If True, re-index ``hex_index`` against a fresh
-            ``HexGrid(crop_extent)`` so indices run 0..N-1 for the small disc.
     """
-    # Reuse the lattice math from hex_grid (single source of truth).
-    from hex_grid import HexGrid, hex_radius
+    # Reuse the shared inside/outside predicate from column_mapper (single source).
+    from column_mapper import inside_mask
 
     src = _require(run_dir / "network.json")
     payload = json.load(open(src))
@@ -400,17 +413,12 @@ def crop_network(run_dir: Path, crop_extent: int, recenter: bool = True) -> Path
 
     kept_nodes = [
         n for n in nodes
-        if n.get("u") is not None and hex_radius(n["u"], n["v"]) <= crop_extent
+        if n.get("u") is not None and bool(inside_mask(n["u"], n["v"], crop_extent))
     ]
     kept_ids: Set[int] = {n["id"] for n in kept_nodes}
     kept_edges = [
         e for e in edges if e["src"] in kept_ids and e["tar"] in kept_ids
     ]
-
-    if recenter:
-        grid = HexGrid(extent=crop_extent)
-        for n in kept_nodes:
-            n["hex_index"] = grid.uv_to_hex_index(n["u"], n["v"])
 
     n_with_col = sum(1 for n in kept_nodes if n.get("u") is not None)
     src_meta = payload.get("metadata", {})
@@ -430,7 +438,7 @@ def crop_network(run_dir: Path, crop_extent: int, recenter: bool = True) -> Path
         "n_cell_types": int(len({n["name"] for n in kept_nodes})),
     }
 
-    out_dir = run_dir.parent / f"{run_dir.name}_extent{crop_extent}_col"
+    out_dir = run_dir.parent / f"{run_dir.name}_extent{crop_extent}"
     out_dir.mkdir(parents=True, exist_ok=True)
     out_path = out_dir / "network.json"
     with open(out_path, "w") as fh:
@@ -495,17 +503,18 @@ def _parse_args() -> argparse.Namespace:
     parser.add_argument("--min-neuron-count", type=int, default=DEFAULT_MIN_NEURON_COUNT)
     parser.add_argument("--min-syn-count", type=int, default=DEFAULT_MIN_SYN_COUNT)
     parser.add_argument(
+        "--extent", type=int, default=EXTENT,
+        help="Merged spatial knob. <0 (default) = no crop (full graph). >=0 crops "
+             "the built graph to the central hex disc of this radius, writing "
+             f"<run>_extent<N>/ (e.g. 2 -> 19 columns). Default: {EXTENT}.",
+    )
+    parser.add_argument(
         "--skip-filter", action="store_true",
         help="Skip load+filter; build only from existing run folders.",
     )
     parser.add_argument(
         "--refresh-cache", action="store_true",
         help="Ignore the filter cache and recompute from the raw CSVs.",
-    )
-    parser.add_argument(
-        "--crop-extent", type=int, default=None,
-        help="After building, crop network.json to the central hex disc of this "
-             "radius, writing <run>_extent<N>_col/ (e.g. 2 -> 19 columns).",
     )
     return parser.parse_args()
 
@@ -532,10 +541,10 @@ def main() -> None:
             print(f"  {k}: {v}")
         print(f"  output: {out}")
 
-        if args.crop_extent is not None:
-            crop_out = crop_network(out.parent, args.crop_extent)
+        if args.extent >= 0:
+            crop_out = crop_network(out.parent, args.extent)
             crop_meta = json.load(open(crop_out))["metadata"]
-            print(f"\n=== crop (extent={args.crop_extent}) ===")
+            print(f"\n=== crop (extent={args.extent}) ===")
             for k, v in crop_meta.items():
                 print(f"  {k}: {v}")
             print(f"  output: {crop_out}")

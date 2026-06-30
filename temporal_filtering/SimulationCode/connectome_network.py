@@ -4,7 +4,7 @@
 The JSON contract (see ``Connectome/FAFB v783/.../network.json``):
 
     metadata: {side, extent, nt_to_sign, forced_negative_pre_types, ...}
-    nodes:    [{id, name, u, v, hex_index, input, output}, ...]
+    nodes:    [{id, name, u, v, column_id, input, output}, ...]
     edges:    [{src, tar, sign, n_syn, source_type, target_type, du, dv}, ...]
 
 ``sign`` already encodes ``nt_to_sign`` and the ``forced_negative_pre_types``
@@ -41,7 +41,7 @@ class Connectome:
     type_names: List[str]            # type vocabulary (len = n_types)
     u: np.ndarray                    # (N,) axial u
     v: np.ndarray                    # (N,) axial v
-    hex_index: np.ndarray            # (N,) column hex_index (or -1)
+    column_id: np.ndarray            # (N,) FAFB column_id (or -1)
     is_input: np.ndarray             # (N,) bool photoreceptor / stimulus node
     node_ids: List[int]              # (N,) original node ids in unit order
     id_to_unit: Dict[int, int]       # node id -> unit index
@@ -113,8 +113,8 @@ def load_connectome(
 
     u = np.array([n.get("u", 0) if n.get("u") is not None else 0 for n in nodes], dtype=np.int64)
     v = np.array([n.get("v", 0) if n.get("v") is not None else 0 for n in nodes], dtype=np.int64)
-    hex_index = np.array(
-        [n["hex_index"] if n.get("hex_index") is not None else -1 for n in nodes],
+    column_id = np.array(
+        [n["column_id"] if n.get("column_id") is not None else -1 for n in nodes],
         dtype=np.int64,
     )
     is_input = np.array([bool(n.get("input", False)) for n in nodes], dtype=bool)
@@ -146,7 +146,7 @@ def load_connectome(
         type_names=type_names,
         u=u,
         v=v,
-        hex_index=hex_index,
+        column_id=column_id,
         is_input=is_input,
         node_ids=node_ids,
         id_to_unit=id_to_unit,
@@ -158,8 +158,11 @@ def load_connectome(
 if __name__ == "__main__":
     import sys
 
-    p = sys.argv[1] if len(sys.argv) > 1 else (
-        "../Connectome/FAFB v783/right_min_neuron50_extent2_col/network.json"
+    import connectome_path  # noqa: F401  (adds the FAFB connectome folder to sys.path)
+    from fafb_io import NETWORK_DIR  # single source for the built_network/ location
+
+    p = sys.argv[1] if len(sys.argv) > 1 else str(
+        NETWORK_DIR / "right_min_neuron50_extent2" / "network.json"
     )
     c = load_connectome(p, device="cpu")
     print(f"loaded {p}")

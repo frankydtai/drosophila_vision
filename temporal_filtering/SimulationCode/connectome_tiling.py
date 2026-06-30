@@ -1,13 +1,13 @@
 # -*- coding: utf-8 -*-
 """Lattice <-> node lookups for connectome multi-column training.
 
-Bridges the pure hex geometry in ``hex_grid`` (tile centres, ring/tile offsets,
+Bridges the pure hex geometry in ``column_mapper`` (tile centres, ring/tile offsets,
 shifts) to the concrete nodes of a loaded :class:`connectome_network.Connectome`:
 
   - :func:`col2photo` -- the stimulus (photoreceptor) units on a column.
   - :func:`col2fit`   -- the fit-cell units of a given type on a column.
   - :func:`build_tiling` -- a :class:`Tiling`: tile centres x member columns,
-    reusing ``hex_grid.tile_centers`` / ``tile_offsets``.
+    reusing ``column_mapper.tile_centers`` / ``tile_offsets``.
   - :func:`shifted_photoreceptors` -- stimulus units for each of the 7 sub-tile
     shifts (the tile centre + its 6 neighbours).
 
@@ -17,21 +17,14 @@ The fit cell vocabulary is the same 13 types the 5-column model fits
 from __future__ import annotations
 
 import math
-import os
-import sys
 from dataclasses import dataclass
 from typing import List, Tuple
 
 import numpy as np
 
-# hex_grid lives in the FAFB connectome folder (path has a space).
-_FAFB_DIR = os.path.abspath(
-    os.path.join(os.path.dirname(__file__), "..", "Connectome", "FAFB v783")
-)
-if _FAFB_DIR not in sys.path:
-    sys.path.insert(0, _FAFB_DIR)
+import connectome_path  # noqa: F401  (adds the FAFB connectome folder to sys.path)
 
-import hex_grid  # noqa: E402
+import column_mapper  # noqa: E402
 
 from Medulla_Library import cell_list as _CELL_LIST  # noqa: E402
 
@@ -84,6 +77,24 @@ class Tiling:
         return [(cu + du, cv + dv) for du, dv in self.members]
 
 
+def _graph_extent(C, tile_extent: int) -> int:
+    """Hex-disc radius of connectome ``C``.
+
+    ``meta["extent"] >= 0`` is a real crop radius and used as-is. ``< 0`` (or
+    missing) means no crop, so the radius is the largest ``hex_radius`` over the
+    positioned columns (column_id >= 0); falls back to ``tile_extent`` if none.
+    """
+    meta_extent = int(C.meta.get("extent", -1))
+    if meta_extent >= 0:
+        return meta_extent
+    positioned = C.column_id >= 0
+    radii = [
+        column_mapper.hex_radius(int(u), int(v))
+        for u, v in zip(C.u[positioned], C.v[positioned])
+    ]
+    return max(radii) if radii else tile_extent
+
+
 def build_tiling(
     C,
     tile_extent: int = 2,
@@ -95,19 +106,24 @@ def build_tiling(
     If ``single_tile`` (default: auto when the graph's own extent <= tile_extent),
     the whole graph is one tile centred at (0, 0) -- the right case for an
     already-cropped extent-2 sub-graph. Otherwise tiles come from
-    ``hex_grid.tile_centers`` over the graph's extent (31 disjoint / 43 sharing).
+    ``column_mapper.tile_centers`` over the graph's extent (31 disjoint / 43 sharing).
+
+    The graph extent is ``meta["extent"]`` when it is a real crop radius (>= 0);
+    a value < 0 means "no crop", so the extent is derived from the actual radius
+    spanned by the positioned columns (otherwise the full graph would collapse to
+    a single tile).
     """
-    graph_extent = int(C.meta.get("extent", tile_extent))
+    graph_extent = _graph_extent(C, tile_extent)
     if single_tile is None:
         single_tile = graph_extent <= tile_extent
-    members = [(int(du), int(dv)) for du, dv in hex_grid.tile_offsets(tile_extent)]
-    shifts = [(int(du), int(dv)) for du, dv in hex_grid.shift_offsets()]
+    members = [(int(du), int(dv)) for du, dv in column_mapper.tile_offsets(tile_extent)]
+    shifts = [(int(du), int(dv)) for du, dv in column_mapper.shift_offsets()]
     if single_tile:
         centers = [(0, 0)]
     else:
         centers = [
             (int(cu), int(cv))
-            for cu, cv in hex_grid.tile_centers(
+            for cu, cv in column_mapper.tile_centers(
                 extent=graph_extent,
                 tile_extent=tile_extent,
                 share_edges=share_edges,

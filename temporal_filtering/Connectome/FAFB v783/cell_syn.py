@@ -27,7 +27,7 @@ shown. With ``--at-uv``/``--at-xy`` or a ``@root_id`` query, extra columns
 columns.
 
 The ``network.json`` schema is ``{"metadata", "nodes", "edges"}`` where each node is
-``{"id", "name", "u", "v", "hex_index", "input", "output"}`` and each edge is
+``{"id", "name", "u", "v", "column_id", "input", "output"}`` and each edge is
 ``{"src", "tar", "sign", "n_syn", "source_type", "target_type", "du", "dv"}``.
 
 Example::
@@ -56,7 +56,8 @@ from collections import defaultdict
 from pathlib import Path
 from typing import DefaultDict, Dict, List, Optional, Set, Tuple
 
-from hex_grid import hex_to_pixel
+from column_mapper import hex_to_pixel
+from fafb_io import NETWORK_DIR
 
 _BASE_DIR = Path(__file__).resolve().parent
 _DEFAULT_DIR = "right_min_neuron1"
@@ -71,14 +72,16 @@ _MAX_PRE_UV_COORDS = 5
 def _resolve_network_json(folder: str) -> Path:
     """Resolve a network folder/path to its ``network.json``.
 
-    ``folder`` may be a folder name (e.g. ``left_min_neuron1``) resolved relative to
-    this script's directory, an absolute/relative folder path, or a direct path to a
-    ``network.json``.
+    ``folder`` may be a network folder name (e.g. ``left_min_neuron1``) resolved
+    under the ``network/`` directory, an absolute/relative folder path, or a direct
+    path to a ``network.json``.
     """
     p = Path(folder)
     if not p.is_absolute():
-        cand = _BASE_DIR / folder
-        p = cand if cand.exists() else p
+        for cand in (NETWORK_DIR / folder, _BASE_DIR / folder):
+            if cand.exists():
+                p = cand
+                break
     if p.is_dir():
         return (p / "network.json").resolve()
     return p.resolve()
@@ -170,7 +173,7 @@ def _format_pre_xy_from_uvs(
 ) -> str:
     """Same (u,v) order/truncation as ``pre_uv``; ``x=v``, ``y=u+v/2``.
 
-    Pixel coords reuse ``hex_grid.hex_to_pixel`` (kernel_size=1) so the formula
+    Pixel coords reuse ``column_mapper.hex_to_pixel`` (kernel_size=1) so the formula
     lives in exactly one place.
     """
     parts: List[str] = []

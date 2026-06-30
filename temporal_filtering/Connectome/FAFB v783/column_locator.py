@@ -33,15 +33,12 @@ from typing import Optional, Sequence
 import pandas as pd
 
 import fafb_io
-from fafb_io import DATA_DIR
 
 logger = logging.getLogger(__name__)
 
 # Cell types located by their downstream targets by default.
 DEFAULT_TARGET_TYPES = ("R1-6",)
 DEFAULT_DIRECTION = "post"
-# All located CSVs are written into this subfolder (next to this script).
-OUTPUT_SUBDIR = "column_location"
 
 
 def _type_tag(cell_type: str) -> str:
@@ -149,7 +146,7 @@ def locate_neurons(
 
     if col_to_uv is not None:
         # Reuse the single source of truth for axial->pixel (x=v, y=u+v/2).
-        from hex_grid import hex_to_pixel
+        from column_mapper import hex_to_pixel
 
         u_by_col = {int(c): uv[0] for c, uv in col_to_uv.items()}
         v_by_col = {int(c): uv[1] for c, uv in col_to_uv.items()}
@@ -236,7 +233,7 @@ def main() -> None:
     all_neurons = fafb_io.load_visual_neurons()
     all_columns = fafb_io.load_column_assignments()
 
-    out_dir = DATA_DIR / OUTPUT_SUBDIR
+    out_dir = fafb_io.COLUMN_LOCATION_DIR
     out_dir.mkdir(parents=True, exist_ok=True)
 
     for side in sides:
@@ -250,8 +247,8 @@ def main() -> None:
 
         # column_id -> (u, v) for the per-neuron hex extent (max/min u/v).
         col_to_uv = None
-        if fafb_io.column_hex_index_path(side).exists():
-            hex_df = fafb_io.load_column_hex_index(side)
+        if fafb_io.column_map_path(side).exists():
+            hex_df = fafb_io.load_column_map(side)
             col_to_uv = {
                 int(r.column_id): (int(r.u), int(r.v))
                 for r in hex_df.itertuples(index=False)
@@ -259,7 +256,7 @@ def main() -> None:
         else:
             logger.warning(
                 "Missing %s; skipping max/min u/v columns",
-                fafb_io.column_hex_index_path(side),
+                fafb_io.column_map_path(side),
             )
 
         located = locate_neurons(

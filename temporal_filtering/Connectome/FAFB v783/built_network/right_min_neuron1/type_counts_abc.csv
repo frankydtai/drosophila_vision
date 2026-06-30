@@ -1,0 +1,683 @@
+type,count,family,subsystem,category
+5-HTPMPV01,1,other,,boundary
+5th-LNv,1,other,,boundary
+AN_multi_124,3,AN,,boundary
+AOTU026,1,AOTU,,boundary
+AOTU054,1,AOTU,,boundary
+AOTU065,1,AOTU,,boundary
+APDN3,6,other,,boundary
+AVLP151,1,AVLP,,boundary
+AVLP534,1,AVLP,,boundary
+AVLP593,1,AVLP,,boundary
+Am1,1,Medulla Lobula Lobula Plate Amacrine,Motion,intrinsic
+C2,743,Centrifugal,ON,intrinsic
+C3,768,Centrifugal,ON,intrinsic
+CB0143,1,CB,,boundary
+CB0734,1,CB,,boundary
+CB0802,1,CB,,boundary
+CB1329,1,CB,,boundary
+CB2685,1,CB,,boundary
+CB2848,1,CB,,boundary
+CB3089,2,CB,,boundary
+CB3235,1,CB,,boundary
+CB3238,1,CB,,boundary
+CB3790,1,CB,,boundary
+CB3866,1,CB,,boundary
+CL104,1,other,,boundary
+CT1,1,Lobula Medulla Amacrine,Motion,intrinsic
+DCH,1,other,,boundary
+DGI,1,other,,boundary
+DN1-l,1,DN,,boundary
+DN1a,2,DN,,boundary
+DNc01,1,DN,,boundary
+DNc02,1,DN,,boundary
+DNg33,1,DN,,boundary
+DNp11,1,DN,,boundary
+DNp31,1,DN,,boundary
+DNpe053,1,DN,,boundary
+Dm1,37,Distal Medulla,ON,intrinsic
+Dm10,249,Distal Medulla,Luminance,intrinsic
+Dm11,66,Distal Medulla,Color,intrinsic
+Dm12,109,Distal Medulla,Luminance,intrinsic
+Dm13,24,Distal Medulla,OFF,intrinsic
+Dm14,14,Distal Medulla,OFF,intrinsic
+Dm15,201,Distal Medulla,OFF,intrinsic
+Dm16,44,Distal Medulla,OFF,intrinsic
+Dm17,4,Distal Medulla,OFF,intrinsic
+Dm18,25,Distal Medulla,ON,intrinsic
+Dm19,11,Distal Medulla,OFF,intrinsic
+Dm2,598,Distal Medulla,Luminance,intrinsic
+Dm20,47,Distal Medulla,Luminance,intrinsic
+Dm3p,500,Distal Medulla,Form,intrinsic
+Dm3q,456,Distal Medulla,Form,intrinsic
+Dm3v,320,Distal Medulla,Form,intrinsic
+Dm4,39,Distal Medulla,Luminance,intrinsic
+Dm6,31,Distal Medulla,OFF,intrinsic
+Dm8a,184,Distal Medulla,Color,intrinsic
+Dm8b,197,Distal Medulla,Color,intrinsic
+Dm9,128,Distal Medulla,Luminance,intrinsic
+DmDRA1,23,Distal Medulla Dorsal Rim Area,Polarization,intrinsic
+DmDRA2,12,Distal Medulla Dorsal Rim Area,Color,intrinsic
+H2,1,H,,boundary
+HSE,1,HS,,boundary
+HSN,1,HS,,boundary
+HSS,1,HS,,boundary
+L1,793,Lamina Monopolar,ON,intrinsic
+L2,791,Lamina Monopolar,OFF,intrinsic
+L3,738,Lamina Monopolar,Luminance,intrinsic
+L4,724,Lamina Monopolar,OFF,intrinsic
+L5,785,Lamina Monopolar,ON,intrinsic
+LAL047,1,other,,boundary
+LC10a,121,LC,,boundary
+LC10b,43,LC,,boundary
+LC10c,102,LC,,boundary
+LC10d,95,LC,,boundary
+LC10e,51,LC,,boundary
+LC10f,2,LC,,boundary
+LC11,61,LC,,boundary
+LC12,183,LC,,boundary
+LC13,70,LC,,boundary
+LC15,54,LC,,boundary
+LC16,74,LC,,boundary
+LC17,142,LC,,boundary
+LC18,92,LC,,boundary
+LC19,7,LC,,boundary
+LC20a,26,LC,,boundary
+LC20b,23,LC,,boundary
+LC21,62,LC,,boundary
+LC22,46,LC,,boundary
+LC24,35,LC,,boundary
+LC25,29,LC,,boundary
+LC26,31,LC,,boundary
+LC27,19,LC,,boundary
+LC28a,56,LC,,boundary
+LC29,23,LC,,boundary
+LC31a,17,LC,,boundary
+LC31b,5,LC,,boundary
+LC31c,1,LC,,boundary
+LC33,15,LC,,boundary
+LC34,7,LC,,boundary
+LC35,4,LC,,boundary
+LC36,17,LC,,boundary
+LC37,9,LC,,boundary
+LC39,4,LC,,boundary
+LC4,50,LC,,boundary
+LC40,18,LC,,boundary
+LC41,6,LC,,boundary
+LC43,6,LC,,boundary
+LC44,2,LC,,boundary
+LC45,12,LC,,boundary
+LC46,7,LC,,boundary
+LC6,60,LC,,boundary
+LC9,92,LC,,boundary
+LCe01a,12,LC,,boundary
+LCe01b,23,LC,,boundary
+LCe02,28,LC,,boundary
+LCe03,25,LC,,boundary
+LCe04,18,LC,,boundary
+LCe05,8,LC,,boundary
+LCe06,6,LC,,boundary
+LCe07,6,LC,,boundary
+LCe08,4,LC,,boundary
+LCe09,8,LC,,boundary
+LHPV2i2a,1,other,,boundary
+LLPC1,113,LLPC,,boundary
+LLPC2,115,LLPC,,boundary
+LLPC3,102,LLPC,,boundary
+LLPC4,3,LLPC,,boundary
+LLPt,36,Lobula Lobula Plate Tangential,Color,intrinsic
+LM102a_L234-M89,2,Weirdos,,intrinsic
+LMa1,28,Lobula Medulla Amacrine,Object,intrinsic
+LMa2,20,Lobula Medulla Amacrine,Object,intrinsic
+LMa3,18,Lobula Medulla Amacrine,Object,intrinsic
+LMa4,33,Lobula Medulla Amacrine,Object,intrinsic
+LMa5,34,Lobula Medulla Amacrine,Object,intrinsic
+LMt1,23,Lobula Medulla Tangential,Object,intrinsic
+LMt2,27,Lobula Medulla Tangential,Object,intrinsic
+LMt3,18,Lobula Medulla Tangential,Object,intrinsic
+LMt4,20,Lobula Medulla Tangential,Object,intrinsic
+LNd_CRY+_ITP+,1,LN,,boundary
+LPC1,82,LPC,,boundary
+LPC2,62,LPC,,boundary
+LPLC1,72,LPLC,,boundary
+LPLC2,102,LPLC,,boundary
+LPLC4,54,LPLC,,boundary
+LPT04_HST,1,LPT,,boundary
+LPT21,1,LPT,,boundary
+LPT22,1,LPT,,boundary
+LPT23,3,LPT,,boundary
+LPT26,1,LPT,,boundary
+LPT27,1,LPT,,boundary
+LPT28,1,LPT,,boundary
+LPT29,1,LPT,,boundary
+LPT30,1,LPT,,boundary
+LPT31,4,LPT,,boundary
+LPT42_Nod4,1,LPT,,boundary
+LPT47_vCal2,1,LPT,,boundary
+LPT48_vCal3,1,LPT,,boundary
+LPT49,1,LPT,,boundary
+LPT51,1,LPT,,boundary
+LPT52,1,LPT,,boundary
+LPT53,1,LPT,,boundary
+LPT54,1,LPT,,boundary
+LPT57,1,LPT,,boundary
+LPT58,1,LPT,,boundary
+LPTe01,20,LPT,,boundary
+LPTe02,6,LPT,,boundary
+LPi01,16,Lobula Plate Intrinsic,Motion,intrinsic
+LPi02,48,Lobula Plate Intrinsic,Motion,intrinsic
+LPi03,7,Lobula Plate Intrinsic,Motion,intrinsic
+LPi04,51,Lobula Plate Intrinsic,Motion,intrinsic
+LPi05,42,Lobula Plate Intrinsic,Motion,intrinsic
+LPi06,17,Lobula Plate Intrinsic,Motion,intrinsic
+LPi07,51,Lobula Plate Intrinsic,Motion,intrinsic
+LPi08,22,Lobula Plate Intrinsic,Motion,intrinsic
+LPi09,56,Lobula Plate Intrinsic,Motion,intrinsic
+LPi10,21,Lobula Plate Intrinsic,Motion,intrinsic
+LPi11,27,Lobula Plate Intrinsic,Motion,intrinsic
+LPi12,1,Lobula Plate Intrinsic,Motion,intrinsic
+LPi13,1,Lobula Plate Intrinsic,Motion,intrinsic
+LPi14,2,Lobula Plate Intrinsic,Motion,intrinsic
+LPi15,1,Lobula Plate Intrinsic,Motion,intrinsic
+LT11,1,LT,,boundary
+LT1a,1,LT,,boundary
+LT1b,1,LT,,boundary
+LT1c,1,LT,,boundary
+LT1d,1,LT,,boundary
+LT33,1,LT,,boundary
+LT34,1,LT,,boundary
+LT36,1,LT,,boundary
+LT37,1,LT,,boundary
+LT38,2,LT,,boundary
+LT39,1,LT,,boundary
+LT40,1,LT,,boundary
+LT41,1,LT,,boundary
+LT42,1,LT,,boundary
+LT43,2,LT,,boundary
+LT47,1,LT,,boundary
+LT51,11,LT,,boundary
+LT52,16,LT,,boundary
+LT53,4,LT,,boundary
+LT56,1,LT,,boundary
+LT57,11,LT,,boundary
+LT58,1,LT,,boundary
+LT59,1,LT,,boundary
+LT60,1,LT,,boundary
+LT61a,1,LT,,boundary
+LT61b,1,LT,,boundary
+LT62,1,LT,,boundary
+LT63,2,LT,,boundary
+LT64,2,LT,,boundary
+LT65,1,LT,,boundary
+LT67,1,LT,,boundary
+LT68,2,LT,,boundary
+LT69,1,LT,,boundary
+LT70,4,LT,,boundary
+LT72,1,LT,,boundary
+LT73,2,LT,,boundary
+LT74,2,LT,,boundary
+LT75,1,LT,,boundary
+LT76,1,LT,,boundary
+LT77,3,LT,,boundary
+LT78,4,LT,,boundary
+LT79,1,LT,,boundary
+LT80,2,LT,,boundary
+LT81,5,LT,,boundary
+LT82,3,LT,,boundary
+LT83,1,LT,,boundary
+LT84,1,LT,,boundary
+LT85,1,LT,,boundary
+LT86,1,LT,,boundary
+LT87,1,LT,,boundary
+LTe01,2,LT,,boundary
+LTe02,2,LT,,boundary
+LTe03,2,LT,,boundary
+LTe04,1,LT,,boundary
+LTe05,1,LT,,boundary
+LTe06,1,LT,,boundary
+LTe07,1,LT,,boundary
+LTe08,1,LT,,boundary
+LTe09,7,LT,,boundary
+LTe10,1,LT,,boundary
+LTe11,1,LT,,boundary
+LTe12,1,LT,,boundary
+LTe13,1,LT,,boundary
+LTe14,1,LT,,boundary
+LTe15,1,LT,,boundary
+LTe16,1,LT,,boundary
+LTe17,1,LT,,boundary
+LTe18,1,LT,,boundary
+LTe19,1,LT,,boundary
+LTe20,1,LT,,boundary
+LTe21,1,LT,,boundary
+LTe22,1,LT,,boundary
+LTe23,1,LT,,boundary
+LTe24,1,LT,,boundary
+LTe25,1,LT,,boundary
+LTe26,1,LT,,boundary
+LTe27,1,LT,,boundary
+LTe28,1,LT,,boundary
+LTe29,1,LT,,boundary
+LTe30,1,LT,,boundary
+LTe31,1,LT,,boundary
+LTe32,3,LT,,boundary
+LTe33,2,LT,,boundary
+LTe35,1,LT,,boundary
+LTe36,1,LT,,boundary
+LTe37,2,LT,,boundary
+LTe38a,4,LT,,boundary
+LTe38b,2,LT,,boundary
+LTe40,1,LT,,boundary
+LTe41,1,LT,,boundary
+LTe42a,1,LT,,boundary
+LTe42b,1,LT,,boundary
+LTe42c,1,LT,,boundary
+LTe43,4,LT,,boundary
+LTe44,1,LT,,boundary
+LTe45,1,LT,,boundary
+LTe46,1,LT,,boundary
+LTe47,2,LT,,boundary
+LTe48,1,LT,,boundary
+LTe49a,2,LT,,boundary
+LTe49b,2,LT,,boundary
+LTe49c,3,LT,,boundary
+LTe49d,2,LT,,boundary
+LTe49e,1,LT,,boundary
+LTe49f,2,LT,,boundary
+LTe50,2,LT,,boundary
+LTe51,1,LT,,boundary
+LTe53,1,LT,,boundary
+LTe54,2,LT,,boundary
+LTe55,1,LT,,boundary
+LTe56,1,LT,,boundary
+LTe57,1,LT,,boundary
+LTe58,6,LT,,boundary
+LTe59a,1,LT,,boundary
+LTe59b,1,LT,,boundary
+LTe60,1,LT,,boundary
+LTe61,1,LT,,boundary
+LTe62,1,LT,,boundary
+LTe63,3,LT,,boundary
+LTe64,8,LT,,boundary
+LTe65,4,LT,,boundary
+LTe66,3,LT,,boundary
+LTe67,2,LT,,boundary
+LTe68,5,LT,,boundary
+LTe69,1,LT,,boundary
+LTe70,1,LT,,boundary
+LTe72,1,LT,,boundary
+LTe73,1,LT,,boundary
+LTe74,1,LT,,boundary
+LTe75,1,LT,,boundary
+LTe76,1,LT,,boundary
+Lai,231,Lamina Intrinsic,OFF,intrinsic
+Lat,6,Lamina Tangential,Color,intrinsic
+LatB,6,other,,boundary
+Lawf1,152,Lamina Wide Field,OFF,intrinsic
+Lawf2,168,Lamina Wide Field,ON,intrinsic
+Li01,84,Lobula Intrinsic,Color,intrinsic
+Li02,49,Lobula Intrinsic,Color,intrinsic
+Li03,46,Lobula Intrinsic,Color,intrinsic
+Li04,16,Lobula Intrinsic,Color,intrinsic
+Li05,86,Lobula Intrinsic,Color,intrinsic
+Li06,93,Lobula Intrinsic,Color,intrinsic
+Li07,10,Lobula Intrinsic,Color,intrinsic
+Li08,22,Lobula Intrinsic,Color,intrinsic
+Li09,26,Lobula Intrinsic,Color,intrinsic
+Li10,92,Lobula Intrinsic,Color,intrinsic
+Li11,32,Lobula Intrinsic,Color,intrinsic
+Li12,21,Lobula Intrinsic,Color,intrinsic
+Li124_56,2,Weirdos,,intrinsic
+Li13,32,Lobula Intrinsic,Color,intrinsic
+Li14,13,Lobula Intrinsic,Motion,intrinsic
+Li15,16,Lobula Intrinsic,Object,intrinsic
+Li16,17,Lobula Intrinsic,Object,intrinsic
+Li17,45,Lobula Intrinsic,Object,intrinsic
+Li18,15,Lobula Intrinsic,Color,intrinsic
+Li19,2,Lobula Intrinsic,Object,intrinsic
+Li20,3,Lobula Intrinsic,Object,intrinsic
+Li21,11,Lobula Intrinsic,Object,intrinsic
+Li22,8,Lobula Intrinsic,Object,intrinsic
+Li23,1,Lobula Intrinsic,Color,intrinsic
+Li24,6,Lobula Intrinsic,Object,intrinsic
+Li25,2,Lobula Intrinsic,Object,intrinsic
+Li26,4,Lobula Intrinsic,Object,intrinsic
+Li27,2,Lobula Intrinsic,Color,intrinsic
+Li28,2,Lobula Intrinsic,Color,intrinsic
+Li29,1,Lobula Intrinsic,Color,intrinsic
+Li30,1,Lobula Intrinsic,Color,intrinsic
+Li31,1,Lobula Intrinsic,Object,intrinsic
+Li32,1,Lobula Intrinsic,Color,intrinsic
+Li33,1,Lobula Intrinsic,Color,intrinsic
+MC65,3,MC,,boundary
+MLt1,44,Medulla Lobula Tangential,Object,intrinsic
+MLt2,48,Medulla Lobula Tangential,Color,intrinsic
+MLt3,55,Medulla Lobula Tangential,Object,intrinsic
+MLt4,44,Medulla Lobula Tangential,Object,intrinsic
+MLt5,36,Medulla Lobula Tangential,Color,intrinsic
+MLt6,30,Medulla Lobula Tangential,Color,intrinsic
+MLt7,24,Medulla Lobula Tangential,Color,intrinsic
+MLt8,14,Medulla Lobula Tangential,Color,intrinsic
+MTe01a,47,MT,,boundary
+MTe01b,27,MT,,boundary
+MTe02,38,MT,,boundary
+MTe03,24,MT,,boundary
+MTe04,18,MT,,boundary
+MTe05,11,MT,,boundary
+MTe06,8,MT,,boundary
+MTe08,6,MT,,boundary
+MTe09,4,MT,,boundary
+MTe10,4,MT,,boundary
+MTe11,3,MT,,boundary
+MTe12,3,MT,,boundary
+MTe13,3,MT,,boundary
+MTe14,2,MT,,boundary
+MTe15,2,MT,,boundary
+MTe16,2,MT,,boundary
+MTe17,2,MT,,boundary
+MTe18,1,MT,,boundary
+MTe19,1,MT,,boundary
+MTe20,1,MT,,boundary
+MTe21,1,MT,,boundary
+MTe22,1,MT,,boundary
+MTe23,1,MT,,boundary
+MTe24,1,MT,,boundary
+MTe25,1,MT,,boundary
+MTe26,1,MT,,boundary
+MTe27,1,MT,,boundary
+MTe28,1,MT,,boundary
+MTe29,1,MT,,boundary
+MTe30,1,MT,,boundary
+MTe31,1,MT,,boundary
+MTe32,1,MT,,boundary
+MTe33,1,MT,,boundary
+MTe34,1,MT,,boundary
+MTe35,1,MT,,boundary
+MTe36,1,MT,,boundary
+MTe37,1,MT,,boundary
+MTe38,1,MT,,boundary
+MTe39,1,MT,,boundary
+MTe40,1,MT,,boundary
+MTe41,1,MT,,boundary
+MTe42,1,MT,,boundary
+MTe43,1,MT,,boundary
+MTe44,1,MT,,boundary
+MTe45,1,MT,,boundary
+MTe48,1,MT,,boundary
+MTe49,1,MT,,boundary
+MTe50,29,MT,,boundary
+MTe51,50,MT,,boundary
+MTe52,24,MT,,boundary
+MTe53,7,MT,,boundary
+MTe54,28,MT,,boundary
+MeTu1,123,MeTu,,boundary
+MeTu2a,36,MeTu,,boundary
+MeTu2b,14,MeTu,,boundary
+MeTu3a,20,MeTu,,boundary
+MeTu3b,46,MeTu,,boundary
+MeTu3c,65,MeTu,,boundary
+MeTu4a,60,MeTu,,boundary
+MeTu4b,12,MeTu,,boundary
+MeTu4c,51,MeTu,,boundary
+MeTu4d,18,MeTu,,boundary
+Mi1,796,Medulla Intrinsic,ON,intrinsic
+Mi10,207,Medulla Intrinsic,Color,intrinsic
+Mi13,350,Medulla Intrinsic,OFF,intrinsic
+Mi14,127,Medulla Intrinsic,Object,intrinsic
+Mi15,480,Medulla Intrinsic,Luminance,intrinsic
+Mi2,427,Medulla Intrinsic,Object,intrinsic
+Mi4,765,Medulla Intrinsic,Color,intrinsic
+Mi9,770,Medulla Intrinsic,Luminance,intrinsic
+Nod1,2,Nod,,boundary
+Nod2,1,Nod,,boundary
+Nod3,1,Nod,,boundary
+Nod5,1,Nod,,boundary
+OA-AL2i1,1,OA,,boundary
+OA-AL2i2,2,OA,,boundary
+OA-AL2i3,2,OA,,boundary
+OA-AL2i4,1,OA,,boundary
+OLVC7,1,other,,boundary
+PDt,6,Proximal Distal Medulla Tangential,Object,intrinsic
+PLP020,1,PLP,,boundary
+PLP022,1,PLP,,boundary
+PLP023,1,PLP,,boundary
+PLP032,1,PLP,,boundary
+PLP035,1,PLP,,boundary
+PLP036,1,PLP,,boundary
+PLP037b,1,PLP,,boundary
+PLP051,1,PLP,,boundary
+PLP068,1,PLP,,boundary
+PLP081,1,PLP,,boundary
+PLP103b,1,PLP,,boundary
+PLP104,1,PLP,,boundary
+PLP150a,1,PLP,,boundary
+PLP155,1,PLP,,boundary
+PLP163,1,PLP,,boundary
+PLP177,1,PLP,,boundary
+PLP185,1,PLP,,boundary
+PLP215,1,PLP,,boundary
+PLP231,2,PLP,,boundary
+PLP239,1,PLP,,boundary
+PLP248,1,PLP,,boundary
+PLP249,1,PLP,,boundary
+PLP251,1,PLP,,boundary
+PLP252,1,PLP,,boundary
+Pm01,119,Proximal Medulla,Object,intrinsic
+Pm02,88,Proximal Medulla,Object,intrinsic
+Pm03,94,Proximal Medulla,Object,intrinsic
+Pm04,40,Proximal Medulla,Object,intrinsic
+Pm05,75,Proximal Medulla,Object,intrinsic
+Pm06,25,Proximal Medulla,Object,intrinsic
+Pm07,16,Proximal Medulla,Object,intrinsic
+Pm08,59,Proximal Medulla,Object,intrinsic
+Pm09,38,Proximal Medulla,Object,intrinsic
+Pm10,24,Proximal Medulla,Object,intrinsic
+Pm11,16,Proximal Medulla,Object,intrinsic
+Pm12,2,Proximal Medulla,Object,intrinsic
+Pm13,1,Proximal Medulla,Color,intrinsic
+Pm14,2,Proximal Medulla,Color,intrinsic
+R1-6,3437,Photo Receptors,Photoreceptors,intrinsic
+R7,659,Photo Receptors,Photoreceptors,intrinsic
+R8,655,Photo Receptors,Photoreceptors,intrinsic
+Sm01,144,Serpentine Medulla,Color,intrinsic
+Sm02,195,Serpentine Medulla,Color,intrinsic
+Sm03,94,Serpentine Medulla,Color,intrinsic
+Sm04,74,Serpentine Medulla,Color,intrinsic
+Sm05,73,Serpentine Medulla,Luminance,intrinsic
+Sm06,81,Serpentine Medulla,Color,intrinsic
+Sm07,153,Serpentine Medulla,Color,intrinsic
+Sm08,81,Serpentine Medulla,Color,intrinsic
+Sm09,83,Serpentine Medulla,Color,intrinsic
+Sm10,43,Serpentine Medulla,Color,intrinsic
+Sm11,4,Serpentine Medulla,Color,intrinsic
+Sm12,72,Serpentine Medulla,Color,intrinsic
+Sm13,20,Serpentine Medulla,Color,intrinsic
+Sm14,19,Serpentine Medulla,Color,intrinsic
+Sm15,53,Serpentine Medulla,Color,intrinsic
+Sm16,34,Serpentine Medulla,Color,intrinsic
+Sm17,6,Serpentine Medulla,Polarization,intrinsic
+Sm18,17,Serpentine Medulla,Polarization,intrinsic
+Sm19,27,Serpentine Medulla,Color,intrinsic
+Sm20,28,Serpentine Medulla,Color,intrinsic
+Sm21,22,Serpentine Medulla,Color,intrinsic
+Sm22,23,Serpentine Medulla,Color,intrinsic
+Sm23,22,Serpentine Medulla,Polarization,intrinsic
+Sm24,4,Serpentine Medulla,Color,intrinsic
+Sm25,9,Serpentine Medulla,Color,intrinsic
+Sm26,10,Serpentine Medulla,Color,intrinsic
+Sm27,7,Serpentine Medulla,Color,intrinsic
+Sm28,3,Serpentine Medulla,Polarization,intrinsic
+Sm29,5,Serpentine Medulla,Color,intrinsic
+Sm30,12,Serpentine Medulla,Luminance,intrinsic
+Sm31,12,Serpentine Medulla,Color,intrinsic
+Sm32,29,Serpentine Medulla,Color,intrinsic
+Sm33,3,Serpentine Medulla,Color,intrinsic
+Sm34,6,Serpentine Medulla,Color,intrinsic
+Sm35,3,Serpentine Medulla,Color,intrinsic
+Sm36,3,Serpentine Medulla,Color,intrinsic
+Sm37,1,Serpentine Medulla,Color,intrinsic
+Sm38,2,Serpentine Medulla,Color,intrinsic
+Sm39,1,Serpentine Medulla,Luminance,intrinsic
+Sm40,2,Serpentine Medulla,Color,intrinsic
+Sm41,1,Serpentine Medulla,Color,intrinsic
+Sm42,1,Serpentine Medulla,Color,intrinsic
+Sm43,6,Serpentine Medulla,Polarization,intrinsic
+T1,738,T1 Neuron,OFF,intrinsic
+T2,725,T2 Neuron,Object,intrinsic
+T2a,866,T2 Neuron,Object,intrinsic
+T3,823,T3 Neuron,Object,intrinsic
+T4a,737,T4 Neuron,Motion,intrinsic
+T4b,748,T4 Neuron,Motion,intrinsic
+T4c,842,T4 Neuron,Motion,intrinsic
+T4d,777,T4 Neuron,Motion,intrinsic
+T5a,743,T5 Neuron,Motion,intrinsic
+T5b,760,T5 Neuron,Motion,intrinsic
+T5c,766,T5 Neuron,Motion,intrinsic
+T5d,727,T5 Neuron,Motion,intrinsic
+Tlp1,67,Translobula Plate,Motion,intrinsic
+Tlp14,29,Translobula Plate,Motion,intrinsic
+Tlp4,49,Translobula Plate,Motion,intrinsic
+Tlp5,27,Translobula Plate,Motion,intrinsic
+Tm1,775,Transmedullary,OFF,intrinsic
+Tm16,174,Transmedullary,Color,intrinsic
+Tm2,767,Transmedullary,OFF,intrinsic
+Tm20,744,Transmedullary,Color,intrinsic
+Tm21,623,Transmedullary,Object,intrinsic
+Tm25,353,Transmedullary,Object,intrinsic
+Tm27,559,Transmedullary,Object,intrinsic
+Tm3,858,Transmedullary,ON,intrinsic
+Tm31,54,Transmedullary,Color,intrinsic
+Tm32,76,Transmedullary,Color,intrinsic
+Tm33,56,Transmedullary,Color,intrinsic
+Tm34,37,Transmedullary,Color,intrinsic
+Tm35,60,Transmedullary,Color,intrinsic
+Tm36,141,Transmedullary,Color,intrinsic
+Tm37,114,Transmedullary,Color,intrinsic
+Tm4,734,Transmedullary,OFF,intrinsic
+Tm5a,219,Transmedullary,Color,intrinsic
+Tm5b,226,Transmedullary,Color,intrinsic
+Tm5c,308,Transmedullary,Color,intrinsic
+Tm5d,174,Transmedullary,Color,intrinsic
+Tm5e,239,Transmedullary,Color,intrinsic
+Tm5f,397,Transmedullary,Color,intrinsic
+Tm7,234,Transmedullary,Color,intrinsic
+Tm8a,119,Transmedullary,Color,intrinsic
+Tm8b,59,Transmedullary,Color,intrinsic
+Tm9,755,Transmedullary,Motion,intrinsic
+TmY10,222,Transmedullary Y,Color,intrinsic
+TmY11,178,Transmedullary Y,Color,intrinsic
+TmY14,185,Transmedullary Y,Object,intrinsic
+TmY15,135,Transmedullary Y,Object,intrinsic
+TmY16,76,Transmedullary Y,Object,intrinsic
+TmY20,142,Transmedullary Y,Motion,intrinsic
+TmY3,359,Transmedullary Y,Object,intrinsic
+TmY31,156,Transmedullary Y,Color,intrinsic
+TmY4,211,Transmedullary Y,Form,intrinsic
+TmY5a,572,Transmedullary Y,Object,intrinsic
+TmY9q,173,Transmedullary Y,Form,intrinsic
+TmY9q__perp,189,Transmedullary Y,Form,intrinsic
+VCH,1,VC,,boundary
+VS1,1,VS,,boundary
+VS2,1,VS,,boundary
+VS3,1,VS,,boundary
+VS4,1,VS,,boundary
+VS5,1,VS,,boundary
+VS6,1,VS,,boundary
+VS7,1,VS,,boundary
+VS8,1,VS,,boundary
+VST1,2,VS,,boundary
+VST2,4,VS,,boundary
+VSm,2,VS,,boundary
+Y1,82,Y Neuron,Motion,intrinsic
+Y11,68,Y Neuron,Motion,intrinsic
+Y12,97,Y Neuron,Motion,intrinsic
+Y3,305,Y Neuron,Object,intrinsic
+Y4,79,Y Neuron,Object,intrinsic
+aMe1,2,aMe,,boundary
+aMe12,3,aMe,,boundary
+aMe15,1,aMe,,boundary
+aMe17a1,1,aMe,,boundary
+aMe17a2,1,aMe,,boundary
+aMe17b,2,aMe,,boundary
+aMe17c,2,aMe,,boundary
+aMe20,1,aMe,,boundary
+aMe22,1,aMe,,boundary
+aMe24,1,aMe,,boundary
+aMe25,1,aMe,,boundary
+aMe26,3,aMe,,boundary
+aMe3,1,aMe,,boundary
+aMe4,5,aMe,,boundary
+aMe5,28,aMe,,boundary
+aMe6a,1,aMe,,boundary
+aMe8,2,aMe,,boundary
+cL01,8,cL,,boundary
+cL02a,3,cL,,boundary
+cL02b,4,cL,,boundary
+cL02c,3,cL,,boundary
+cL03,4,cL,,boundary
+cL04,2,cL,,boundary
+cL05,1,cL,,boundary
+cL06,1,cL,,boundary
+cL07,1,cL,,boundary
+cL08,1,cL,,boundary
+cL09,1,cL,,boundary
+cL10,1,cL,,boundary
+cL11,1,cL,,boundary
+cL12,1,cL,,boundary
+cL13,1,cL,,boundary
+cL14,1,cL,,boundary
+cL15,1,cL,,boundary
+cL16,2,cL,,boundary
+cL18,3,cL,,boundary
+cL20,1,cL,,boundary
+cL21,2,cL,,boundary
+cL22a,1,cL,,boundary
+cL22b,1,cL,,boundary
+cL22c,1,cL,,boundary
+cLLP02,2,cLLP,,boundary
+cLLPM01,3,cLLPM,,boundary
+cLLPM02,1,cLLPM,,boundary
+cLM01,1,cLM,,boundary
+cLP01,27,cLP,,boundary
+cLP02,43,cLP,,boundary
+cLP03,20,cLP,,boundary
+cLP04,1,cLP,,boundary
+cLP05,1,cLP,,boundary
+cLPL01,1,cLP,,boundary
+cM01a,1,cM,,boundary
+cM01b,1,cM,,boundary
+cM01c,1,cM,,boundary
+cM02a,1,cM,,boundary
+cM02b,1,cM,,boundary
+cM03,3,cM,,boundary
+cM04,3,cM,,boundary
+cM05,1,cM,,boundary
+cM06,1,cM,,boundary
+cM07,1,cM,,boundary
+cM08a,2,cM,,boundary
+cM08b,2,cM,,boundary
+cM08c,3,cM,,boundary
+cM09,3,cM,,boundary
+cM10,1,cM,,boundary
+cM12,1,cM,,boundary
+cM13,1,cM,,boundary
+cM14,1,cM,,boundary
+cM15,1,cM,,boundary
+cM16,1,cM,,boundary
+cM17,1,cM,,boundary
+cM18,1,cM,,boundary
+cML01,1,cML,,boundary
+cML02,1,cML,,boundary
+cMLLP01,1,cMLLP,,boundary
+cMLLP02,2,cMLLP,,boundary
+l-CPDN3,1,other,,boundary
+mALC3,1,mAL,,boundary
+mALC4,1,mAL,,boundary
+mALC5,1,mAL,,boundary
+mALC6,2,mAL,,boundary
+mALD1,1,mAL,,boundary
+mALD2,1,mAL,,boundary
+s-CPDN3A,2,other,,boundary
+s-LNv,4,other,,boundary
+uncertain,18,,,boundary
+vCal1,1,other,,boundary

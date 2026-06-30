@@ -47,3 +47,12 @@ alwaysApply: true
 
 ## 9. Naming
 - Use clear, meaningful names. No vague/ad-hoc names.
+
+## 10. Directories live in the I/O module, never hardcoded
+- ALL data directories MUST be defined once as constants in the shared I/O module
+  (e.g. `fafb_io.py`: `DATA_DIR`, `RAW_DIR`, `NETWORK_DIR`, `COLUMN_HEX_DIR`,
+  `COLUMN_LOCATION_DIR`). Other scripts import and use these — never re-derive a
+  data dir from a string literal or `Path(__file__).parent`.
+- NO hardcoded directory-name strings in scripts (no `DATA_DIR / "column_location"`,
+  no `OUTPUT_SUBDIR = "..."`). Moving/renaming a folder must be a ONE-line change in
+  the I/O module, with every dependent script picking it up automatically.

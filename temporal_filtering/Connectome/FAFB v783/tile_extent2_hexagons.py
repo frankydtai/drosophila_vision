@@ -2,7 +2,7 @@
 
 The multi-column / shifted-tiling training covers the optic lobe with extent-2
 hexagons (19 columns each), stimulates all tile centres at once and batches over
-the 7 sub-tile shifts. There are two tiling layouts (see ``hex_grid.tile_basis``):
+the 7 sub-tile shifts. There are two tiling layouts (see ``column_mapper.tile_basis``):
 
   - Disjoint (default): centres spaced 2k+1, gap-free, no overlap -> 31 tiles.
   - Edge-sharing: centres spaced 2k, neighbouring tiles share their boundary
@@ -15,7 +15,7 @@ This script renders both so the geometry can be eyeballed:
                   (cells are shared between tiles, so outlines read better).
   - Right panel:  a single tile with its 7 sub-tile shift positions.
 
-It only draws geometry; all hex math is reused from :mod:`hex_grid`.
+It only draws geometry; all hex math is reused from :mod:`column_mapper`.
 
 Run with the project venv:
 
@@ -29,16 +29,17 @@ import logging
 import numpy as np
 
 from fafb_io import DATA_DIR
-from hex_grid import (
+from column_mapper import (
     DEFAULT_EXTENT,
-    DEFAULT_KERNEL_SIZE,
+    HEX_PATCH_RADIUS,
     HexGrid,
+    columns_with_uv,
     draw_fafb_columns,
     hex_to_pixel,
+    set_axis_labels,
     shift_offsets,
     tile_centers,
     tile_offsets,
-    unique_columns,
 )
 
 logger = logging.getLogger(__name__)
@@ -85,7 +86,7 @@ def draw_tiling_panel(
 
     # Light FAFB background so the tiles read as the foreground structure.
     draw_fafb_columns(
-        ax, df_right, hex_radius_px=hex_radius_px, label=False,
+        ax, df_right, extent=grid.extent, hex_radius_px=hex_radius_px, label=False,
         inside_color=("whitesmoke", "lightgrey"),
         outside_color=("white", "lightgrey"),
     )
@@ -115,7 +116,7 @@ def draw_tiling_panel(
 def draw_shift_panel(ax, grid: HexGrid, df_right, hex_radius_px: float):
     """Right panel: the centre tile and its 7 sub-tile shift positions."""
     draw_fafb_columns(
-        ax, df_right, hex_radius_px=hex_radius_px, label=False,
+        ax, df_right, extent=grid.extent, hex_radius_px=hex_radius_px, label=False,
         inside_color=("whitesmoke", "lightgrey"),
         outside_color=("white", "lightgrey"),
     )
@@ -145,8 +146,8 @@ def main() -> None:
     import matplotlib.pyplot as plt
 
     grid = HexGrid(DEFAULT_EXTENT)
-    df_right = grid.assign_columns(unique_columns("right"), "right")
-    hex_radius_px = 0.5 * float(DEFAULT_KERNEL_SIZE)
+    df_right = columns_with_uv("right")
+    hex_radius_px = HEX_PATCH_RADIUS
 
     fig, axes = plt.subplots(1, 3, figsize=(30, 11), sharex=True, sharey=True)
     draw_tiling_panel(axes[0], grid, df_right, hex_radius_px, share_edges=False)
@@ -156,8 +157,7 @@ def main() -> None:
     xlim, ylim = _axis_limits(grid)
     for ax in axes:
         ax.set_aspect("equal")
-        ax.set_xlabel("X (pixel)")
-        ax.set_ylabel("Y (pixel)")
+        set_axis_labels(ax)
         ax.grid(True, alpha=0.3, linestyle="--")
         ax.set_xlim(xlim)
         ax.set_ylim(ylim)
