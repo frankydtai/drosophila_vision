@@ -8,7 +8,7 @@ Reuses the pipeline modules (no re-implementation) and reports, per side:
 
 Run with the project venv:
 
-    .venv/bin/python "Connectome/FAFB v783/test/diagnose_left_unresolved.py"
+    .venv/bin/python "Connectome/FAFBv783/test/diagnose_left_unresolved.py"
 """
 
 from __future__ import annotations

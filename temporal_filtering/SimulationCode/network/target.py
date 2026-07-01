@@ -32,8 +32,8 @@ from typing import Optional
 import numpy as np
 import torch
 
-from Medulla_Library import read_RecF_ImpR
-from connectome_tiling import (
+from Medulla_Library import DATA_AMP, IMPULSE_MAXTIME, SIGNAL_BASELINE, SIGNAL_BRIGHT, T_ON, read_RecF_ImpR
+from .tiling import (
     FIT_CELL_TYPES,
     build_tiling,
     col2fit,
@@ -74,15 +74,15 @@ def build_shifted_target(
     share_edges: bool = False,
     single_tile: Optional[bool] = None,
     single_shift: bool = False,
-    maxtime: int = 200,
-    t_on: int = 50,
-    signal_baseline: float = 20.0,
-    signal_amp: float = 40.0,
-    data_amp: float = 20.0,
+    maxtime: int = IMPULSE_MAXTIME,
+    t_on: int = T_ON,
+    signal_baseline: float = SIGNAL_BASELINE,
+    signal_bright: float = SIGNAL_BRIGHT,
+    data_amp: float = DATA_AMP,
     device: Optional[str] = None,
 ) -> ShiftedTarget:
     device = device or C.device
-    recf_data, impr_data = read_RecF_ImpR()  # (13,45), (13,200)
+    recf_data, impr_data = read_RecF_ImpR()  # (13,45), (13,IMPULSE_MAXTIME)
     fit_row = {ft: i for i, ft in enumerate(FIT_CELL_TYPES)}
 
     tiling = build_tiling(C, tile_extent, share_edges, single_tile)
@@ -104,9 +104,9 @@ def build_shifted_target(
         if len(units):
             idx = torch.as_tensor(units, dtype=torch.long, device=device)
             signal[b, :t_on, idx] = signal_baseline
-            signal[b, t_on:, idx] = signal_amp
+            signal[b, t_on:, idx] = signal_bright
 
-    resp = slice(t_on, maxtime)  # response window (matches Borst data[50:200])
+    resp = slice(t_on, maxtime)  # response window (matches Borst data[t_on:maxtime])
     Tp = maxtime - t_on
 
     # Per (batch, radius) ring size counted in COLUMNS (not cells), so every

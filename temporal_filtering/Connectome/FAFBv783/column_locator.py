@@ -19,8 +19,8 @@ subfolder as ``<tag>_<side>_<direction>.csv`` (e.g. ``r1_6_left_post.csv``).
 
 Run with the project venv (defaults to R1-6, right side, pre):
 
-    .venv/bin/python "Connectome/FAFB v783/column_locator.py" R1-6 --post
-    .venv/bin/python "Connectome/FAFB v783/column_locator.py" TmY11
+    .venv/bin/python "Connectome/FAFBv783/column_locator.py" R1-6 --post
+    .venv/bin/python "Connectome/FAFBv783/column_locator.py" TmY11
 """
 
 from __future__ import annotations
@@ -32,7 +32,7 @@ from typing import Optional, Sequence
 
 import pandas as pd
 
-import fafb_io
+import connectome_io
 
 logger = logging.getLogger(__name__)
 
@@ -230,10 +230,10 @@ def main() -> None:
     direction = "post" if args.post else "pre"
     sides = ["left", "right"] if args.side == "both" else [args.side]
 
-    all_neurons = fafb_io.load_visual_neurons()
-    all_columns = fafb_io.load_column_assignments()
+    all_neurons = connectome_io.load_visual_neurons()
+    all_columns = connectome_io.load_column_assignments()
 
-    out_dir = fafb_io.COLUMN_LOCATION_DIR
+    out_dir = connectome_io.COLUMN_LOCATION_DIR
     out_dir.mkdir(parents=True, exist_ok=True)
 
     for side in sides:
@@ -243,12 +243,12 @@ def main() -> None:
             neurons[neurons["type"].isin(args.cell_types)]["root_id"].astype("int64")
         )
         # Pull all edges touching the targets on the relevant side (no syn cut).
-        connections = fafb_io.load_connections(keep_neuron_ids=target_ids)
+        connections = connectome_io.load_connections(keep_neuron_ids=target_ids)
 
         # column_id -> (u, v) for the per-neuron hex extent (max/min u/v).
         col_to_uv = None
-        if fafb_io.column_map_path(side).exists():
-            hex_df = fafb_io.load_column_map(side)
+        if connectome_io.column_map_path(side).exists():
+            hex_df = connectome_io.load_column_map(side)
             col_to_uv = {
                 int(r.column_id): (int(r.u), int(r.v))
                 for r in hex_df.itertuples(index=False)
@@ -256,7 +256,7 @@ def main() -> None:
         else:
             logger.warning(
                 "Missing %s; skipping max/min u/v columns",
-                fafb_io.column_map_path(side),
+                connectome_io.column_map_path(side),
             )
 
         located = locate_neurons(

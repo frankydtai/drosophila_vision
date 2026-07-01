@@ -13,7 +13,7 @@ coordinate formulas:
 
 Run a sanity summary with the project venv:
 
-    .venv/bin/python "Connectome/FAFB v783/column_mapper.py"
+    .venv/bin/python "Connectome/FAFBv783/column_mapper.py"
 """
 
 from __future__ import annotations
@@ -26,8 +26,8 @@ from typing import Optional, Tuple
 import numpy as np
 import pandas as pd
 
-import fafb_io
-from fafb_io import COLUMN_HEX_DIR
+import connectome_io
+from connectome_io import COLUMN_HEX_DIR
 
 logger = logging.getLogger(__name__)
 
@@ -423,7 +423,7 @@ def plot_column_map(
 
 def unique_columns(side: str) -> pd.DataFrame:
     """One row per column_id (first p, q) for a hemisphere, from raw data."""
-    df = fafb_io.load_column_assignments()
+    df = connectome_io.load_column_assignments()
     if "hemisphere" in df.columns:
         df = df[df["hemisphere"] == side]
     return df.groupby("column_id", as_index=False).first()
@@ -466,7 +466,7 @@ def main() -> None:
     for side in ("left", "right"):
         cols = columns_with_uv(side)
         assigned[side] = cols
-        out_csv = fafb_io.column_map_path(side)
+        out_csv = connectome_io.column_map_path(side)
         cols.to_csv(out_csv, index=False)
         print(f"{side:>5}: columns={len(cols)} -> {out_csv.name}")
 

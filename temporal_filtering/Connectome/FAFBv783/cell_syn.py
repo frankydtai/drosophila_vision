@@ -57,7 +57,7 @@ from pathlib import Path
 from typing import DefaultDict, Dict, List, Optional, Set, Tuple
 
 from column_mapper import hex_to_pixel
-from fafb_io import NETWORK_DIR
+from connectome_io import NETWORK_DIR
 
 _BASE_DIR = Path(__file__).resolve().parent
 _DEFAULT_DIR = "right_min_neuron1"

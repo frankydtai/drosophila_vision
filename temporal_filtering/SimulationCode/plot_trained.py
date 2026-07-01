@@ -29,23 +29,24 @@ import FiveCol_MedSim_Pytorch as fc
 from FiveCol_MedSim_Pytorch import (
     calc_cost,
     data,
-    data_amp,
     device,
+    maxtime,
     mc_cell_index,
     nofcells,
+    t_on,
 )
 
 CELL_LIST = np.array(
     ['L1', 'L2', 'L3', 'L4', 'L5', 'Mi1', 'Tm3', 'Mi4', 'Mi9', 'Tm1', 'Tm2', 'Tm4', 'Tm9']
 )
-CENTER_COL = 2  # center of the 5 columns used in the cost function
+CENTER_COL = ml.CENTER_COL
 CTYPE = np.load('Circuits/ctype.npy', allow_pickle=True)
 FIT_INDEX = {name: i for i, name in enumerate(CELL_LIST)}
-CENTER_NEURON_OFFSET = CENTER_COL * nofcells
+CENTER_NEURON_OFFSET = ml.column_start(CENTER_COL)
 
 # --- generic, test-driven plotting hooks (this module hardcodes no cell beyond
 #     the default fit cells) --------------------------------------------------
-# REF_CUBES: name -> (9,200) grey "data" reference cube drawn behind the model.
+# REF_CUBES: name -> (9, maxtime) grey "data" reference cube drawn behind the model.
 #   Defaults to the measured RF data for the 13 fit cells. A test script may
 #   extend/override it (e.g. map R1-8 to L1's cube) so the plots follow whatever
 #   the experiment configured -- without editing this file.
@@ -67,12 +68,12 @@ DEFAULT_MVD_GROUPS = [
 
 def default_ref_cubes():
     """Grey reference cube per fit-cell name, from the measured RF data."""
-    ref = ml.read_RecF_data() * data_amp                 # (13, 9, 200)
+    ref = ml.read_RecF_data() * ml.DATA_AMP                 # (13, 9, maxtime)
     return {name: ref[i] for i, name in enumerate(CELL_LIST)}
 
 
 def reference_cube(name):
-    """(9,200) grey reference for a cell name, or None if none is registered."""
+    """(9, maxtime) grey reference for a cell name, or None if none is registered."""
     global REF_CUBES
     if REF_CUBES is None:
         REF_CUBES = default_ref_cubes()
@@ -119,16 +120,16 @@ def _as_index(neuron_index, device):
 
 
 def _pack_filtered(stacked, z, neuron_index, schema):
-    """Repack the core forward's (150, n) center-window response into the plot's
-    (n, 200) trace: pre-stimulus zeroed, optional out_scale applied, then shifted
+    """Repack the core forward's (maxtime-t_on, n) center-window response into the plot's
+    (n, maxtime) trace: pre-stimulus zeroed, optional out_scale applied, then shifted
     one step to match the data convention. All model dynamics live in the core
     (fc._run_conductance / fc._run_adaptive); this is presentation-only reshaping."""
     n = stacked.shape[1]
-    trace = torch.zeros(n, 200, dtype=torch.float64, device=stacked.device)
-    trace[:, 50:200] = stacked.transpose(0, 1)
+    trace = torch.zeros(n, maxtime, dtype=torch.float64, device=stacked.device)
+    trace[:, t_on:maxtime] = stacked.transpose(0, 1)
     trace = trace * _out_scale_vec(z, neuron_index, schema)
-    trace[:, 0:50] = 0
-    trace[:, 0:199] = trace[:, 1:200]
+    trace[:, 0:t_on] = 0
+    trace[:, 0:maxtime - 1] = trace[:, 1:maxtime]
     return trace
 
 
@@ -177,13 +178,13 @@ def calc_center_column_trace(z, model_type=None):
 
 
 def calc_model_full_all(z, model_type=None, return_ref=False):
-    """All cell types across 5 columns -> (65, 9, 200) spatio-temporal cube.
+    """All cell types across 5 columns -> (65, 9, maxtime) spatio-temporal cube.
 
     With return_ref=True also returns the per-cell resting baseline (the value
     each trace is measured relative to) as a (65, 9) array; NaN where no column
     was simulated.
     """
-    model_full = np.zeros((nofcells, 9, 200))
+    model_full = np.zeros((nofcells, 9, maxtime))
     ref_full = np.full((nofcells, 9), np.nan)
     for col in range(5):
         col_index = torch.arange(col * nofcells, (col + 1) * nofcells, dtype=torch.long, device=z.device)
@@ -214,13 +215,13 @@ def _scale_curve(xt, center, sem_xt=None):
     return imp, np.roll(rf, -2)
 
 
-# ---- connectome multi-column cube (averaged over tiles x shifts x ring) ------
+# ---- network multi-column cube (averaged over tiles x shifts x ring) ------
 
 @torch.no_grad()
 def _multicol_cube(z):
-    """Build a (n_fit, 9, 200) model cube + SEM by averaging the batched forward.
+    """Build a (n_fit, 9, maxtime) model cube + SEM by averaging the batched forward.
 
-    Runs the 7-shift (B) connectome forward, then for each fit cell type bins every
+    Runs the 7-shift (B) network forward, then for each fit cell type bins every
     readout cell by its ring radius. Following the single-column azimuth convention
     the ring radius is truncated with int() for DISPLAY (so sqrt(3) -> bin 1, same
     as col +/-1); training itself keeps sqrt(3) and 2 as distinct rings. Each bin is
@@ -228,16 +229,16 @@ def _multicol_cube(z):
     Returns (names, cube, sem) for the present fit types.
     """
     p = fc.assign_params(z, fc.CONDUCTANCE_SCHEMA)
-    model_full = fc._run_conductance_full(p, fc.signal)        # (B, 150, N)
+    model_full = fc._run_conductance_full(p, fc.signal)        # (B, maxtime-t_on, N)
     b_idx, u_idx = fc.READOUT
-    sel = model_full[b_idx, :, u_idx].cpu().numpy()            # (n_cost, 150)
+    sel = model_full[b_idx, :, u_idx].cpu().numpy()            # (n_cost, maxtime-t_on)
     radius = fc.MC_COST_RADIUS.cpu().numpy()                   # (n_cost,)
-    type_idx = fc.CONNECTOME.node_type[u_idx].cpu().numpy()    # (n_cost,)
-    type_names = list(fc.CONNECTOME.type_names)
+    type_idx = fc.NETWORK.node_type[u_idx].cpu().numpy()    # (n_cost,)
+    type_names = list(fc.NETWORK.type_names)
 
     names = [ft for ft in CELL_LIST if ft in type_names]
-    cube = np.zeros((len(names), 9, 200))
-    sem = np.zeros((len(names), 9, 200))
+    cube = np.zeros((len(names), 9, maxtime))
+    sem = np.zeros((len(names), 9, maxtime))
     center = 4
     for ti, ft in enumerate(names):
         ft_global = type_names.index(ft)
@@ -245,13 +246,13 @@ def _multicol_cube(z):
             mask = (type_idx == ft_global) & (np.floor(radius).astype(int) == off)
             if not mask.any():
                 continue
-            traces = sel[mask]                                # (k, 150)
+            traces = sel[mask]                                # (k, maxtime-t_on)
             m = traces.mean(axis=0)
             s = traces.std(axis=0) / np.sqrt(traces.shape[0])
             for bin_j in {center + off, center - off}:        # mirror to both sides
                 if 0 <= bin_j < 9:
-                    cube[ti, bin_j, 50:200] = m
-                    sem[ti, bin_j, 50:200] = s
+                    cube[ti, bin_j, t_on:maxtime] = m
+                    sem[ti, bin_j, t_on:maxtime] = s
     return names, cube, sem
 
 
@@ -266,9 +267,11 @@ def _nice_ylim(*curves, margin=1.25, step=5.0, floor=5.0, min_pad=3.0):
 
 
 def _style_time_axis(ax, show_xlabel):
-    ax.set_xlim(0, 200)
-    ax.set_xticks([0, 100, 200])
-    ax.set_xticklabels(['0', '1', '2'], fontsize=6)
+    t_end = maxtime * fc.deltat / 1000.0
+    t_mid = t_end / 2.0
+    ax.set_xlim(0, maxtime)
+    ax.set_xticks([0, maxtime // 2, maxtime])
+    ax.set_xticklabels(['0', f'{t_mid:g}', f'{t_end:g}'], fontsize=6)
     if show_xlabel:
         ax.set_xlabel('time [s]', fontsize=7)
 
@@ -329,7 +332,7 @@ def _plot_cell_pair_sem(ax_rf, ax_time, model_xt, sem_xt, ref_xt, title,
                         show_legend=False, show_xlabels=False, show_ylabel=False):
     """Like _plot_cell_pair_axes but draws a pink +/-SEM band on the model trace.
 
-    Used for connectome multi-column plots, where each trace is a mean over many
+    Used for network multi-column plots, where each trace is a mean over many
     tiles x shifts x ring members and the SEM (~0.06 mV) is small relative to the
     +/-20 mV data; the y-limit is set from model+SEM so the band is visible.
     """
@@ -355,7 +358,7 @@ def _plot_cell_pair_sem(ax_rf, ax_time, model_xt, sem_xt, ref_xt, title,
     if show_legend:
         ax_rf.legend(loc='upper right', fontsize=6, frameon=False)
 
-    t = np.arange(200)
+    t = np.arange(maxtime)
     if imp_data is not None:
         ax_time.plot(imp_data, color='gray', linewidth=1.5)
     ax_time.fill_between(t, imp_model - imp_sem, imp_model + imp_sem,
@@ -368,8 +371,8 @@ def _plot_cell_pair_sem(ax_rf, ax_time, model_xt, sem_xt, ref_xt, title,
     ax_time.tick_params(labelsize=6)
 
 
-def plot_model_vs_data_connectome(z, path, title=None):
-    """Connectome model-vs-data: each fit type's ring-averaged trace + SEM band."""
+def plot_model_vs_data_network(z, path, title=None):
+    """Network model-vs-data: each fit type's ring-averaged trace + SEM band."""
     names, cube, sem = _multicol_cube(z)
     ncols = 5
     nrows = 2 * ((len(names) + ncols - 1) // ncols)
@@ -387,8 +390,8 @@ def plot_model_vs_data_connectome(z, path, title=None):
         )
         legend_done = True
     if title is None:
-        title = 'Connectome model vs data'
-    n_tiles = fc.CONNECTOME.meta.get('n_centers', '?') if fc.CONNECTOME else '?'
+        title = 'Network model vs data'
+    n_tiles = fc.NETWORK.meta.get('n_centers', '?') if fc.NETWORK else '?'
     fig.suptitle(title + '  [avg over tiles x 7 shifts x ring]', fontsize=12)
     fig.savefig(path, dpi=150)
     plt.close(fig)
@@ -550,10 +553,10 @@ def plot_param_set(params, outdir, costs=None, model_type=None):
     suffix = f'trained, cost {best_cost:.2f}% of data power'
     mvd = os.path.join(outdir, 'model_vs_data.png')
     allc = os.path.join(outdir, 'model_all_cells.png')
-    if getattr(fc, 'CONNECTOME', None) is not None:
-        # connectome multi-column: ring-averaged cube + SEM (Borst layout doesn't
+    if getattr(fc, 'NETWORK', None) is not None:
+        # network multi-column: ring-averaged cube + SEM (Borst layout doesn't
         # apply -- no 5 fixed columns / 65 named types).
-        plot_model_vs_data_connectome(z, mvd, title=f'Connectome model vs data ({suffix})')
+        plot_model_vs_data_network(z, mvd, title=f'Network model vs data ({suffix})')
     else:
         plot_model_vs_data(z, mvd, title=f'Model vs data ({suffix})')
         plot_all_celltypes(z, allc, title=f'All 65 cell types ({suffix})')

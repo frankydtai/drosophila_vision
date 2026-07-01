@@ -27,7 +27,7 @@ def best_scale_decomp(model):
     """Closed-form optimal global scale s* for a fixed waveform, and the losses
     at s=1 vs s=s*. (Diagnostic only -- not part of the model.)"""
     data = fc.data
-    s_star = float(torch.sum(model * data[50:200]) / torch.sum(model * model))
+    s_star = float(torch.sum(model * data[fc.t_on:fc.maxtime]) / torch.sum(model * model))
     return s_star, float(fc.model_cost(model, data)), float(fc.model_cost(model, data, s_star))
 
 

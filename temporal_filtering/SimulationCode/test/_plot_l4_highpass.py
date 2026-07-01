@@ -11,8 +11,10 @@ import matplotlib.pyplot as plt
 import blindschleiche_py3 as bs
 
 # --- identical step signal to read_RecF_data ---
-signal = np.zeros(200)
-signal[50:200] = 1.0
+import FiveCol_MedSim_Pytorch as fc
+
+signal = np.zeros(fc.maxtime)
+signal[fc.t_on:fc.maxtime] = 1.0
 signal = bs.lowpass(signal, 5)
 signal = signal / np.max(signal)
 
@@ -25,13 +27,13 @@ x = bs.lowpass(signal, IR_lp)        # signal entering the highpass stage ("原�
 lp = bs.lowpass(x, IR_hp)            # its lowpass component ("低通", tau_hp)
 hp = x - lp                          # subtraction = highpass output ("相減") = L4 final
 
-t = np.arange(200)
+t = np.arange(fc.maxtime)
 plt.figure(figsize=(9, 5))
 plt.plot(t, x,  color="tab:blue",   lw=2, label=r"original  $x=\mathrm{lowpass}(signal,\ \tau_{lp}=2.3)$")
 plt.plot(t, lp, color="tab:orange", lw=2, ls="--", label=r"lowpass  $\mathrm{lowpass}(x,\ \tau_{hp}=%.1f)$" % IR_hp)
 plt.plot(t, hp, color="tab:red",    lw=2.5, label=r"subtraction  $x-\mathrm{lowpass}(x)$  = L4 highpass out")
 plt.axhline(0, color="k", lw=0.6)
-plt.axvline(50, color="gray", lw=0.6, ls=":")
+plt.axvline(fc.t_on, color="gray", lw=0.6, ls=":")
 plt.title(r"L4: highpass = original - lowpass ($\tau_{hp}=%.1f$) -> steady state removed, decays to 0" % IR_hp)
 plt.xlabel("time step (x10 ms)")
 plt.ylabel("amplitude")

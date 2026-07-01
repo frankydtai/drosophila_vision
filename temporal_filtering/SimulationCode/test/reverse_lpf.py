@@ -16,6 +16,7 @@ import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 
+import Medulla_Library as ml
 import FiveCol_MedSim_Pytorch as fc
 
 fc.MODEL_TYPE = 'conductance'
@@ -27,11 +28,9 @@ z = np.concatenate([z138, np.ones(n_outscale)])
 z = torch.tensor(z, dtype=torch.float64, device=fc.device)
 print("padded params:", z138.shape[0], "->", z.shape[0], "(out_scale=1 x %d)" % n_outscale)
 
-# --- L4 center-column neuron index in the 325-cell state ---
-CTYPE = np.load('Circuits/ctype.npy', allow_pickle=True)
-l4_cell = int(np.where(CTYPE == 'L4')[0][0])
-CENTER_OFFSET = 2 * fc.nofcells                       # center of the 5 columns
-idx = torch.tensor([l4_cell + CENTER_OFFSET], dtype=torch.long, device=fc.device)
+# --- L4 center-column neuron index in the full multi-column state ---
+l4_cell = ml.type_index('L4')
+idx = torch.tensor([ml.center_unit_index(l4_cell)], dtype=torch.long, device=fc.device)
 
 # --- post-lpf trace straight from the core forward ---
 with torch.no_grad():
@@ -46,7 +45,7 @@ raw = m_prev + (m - m_prev) * k                       # pre-lpf membrane trace
 
 cost = fc.calc_cost(z, fc.data).item()
 m_np, raw_np = m.cpu().numpy(), raw.cpu().numpy()
-t = np.arange(50, 200)
+t = np.arange(fc.t_on, fc.maxtime)
 
 plt.figure(figsize=(9, 5))
 plt.plot(t, m_np,   color="tab:red",  lw=2.5, label=r"L4 best model (post Ca-lpf, $\tau=5$ steps)")

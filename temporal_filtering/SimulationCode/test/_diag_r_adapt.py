@@ -5,6 +5,7 @@ import os, sys
 HERE = os.path.dirname(os.path.abspath(__file__)); ROOT = os.path.dirname(HERE)
 sys.path.insert(0, ROOT); os.chdir(ROOT); os.environ['CUDA_VISIBLE_DEVICES'] = ''
 import numpy as np, torch
+import Medulla_Library as ml
 import FiveCol_MedSim_Pytorch as fc
 
 RUN = sys.argv[1] if len(sys.argv) > 1 else 'FiveCol_Parameter/adaptive/run_20260621_185424'
@@ -20,8 +21,8 @@ fc.ADAPTIVE_SCHEMA = sch
 
 z = torch.tensor(np.load(os.path.join(RUN, 'best_param.npy')), dtype=torch.float64)
 p0 = fc.assign_params(z, fc.ADAPTIVE_SCHEMA)
-R_all = [r + c * fc.nofcells for c in range(fc.nofcols) for r in range(8)]   # R1-8, all cols
-r1 = 2 * fc.nofcells + 0                                                      # R1, center col
+R_all = [ml.unit_index(c, r) for c in range(fc.nofcols) for r in range(ml.N_PHOTORECEPTORS)]
+r1 = ml.center_unit_index(ml.type_index('R1'))
 
 def trace(ag=None, ta=None):
     p = {k: (v.clone() if torch.is_tensor(v) else v) for k, v in p0.items()}

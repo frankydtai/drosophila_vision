@@ -5,6 +5,7 @@ import os, sys
 HERE = os.path.dirname(os.path.abspath(__file__)); ROOT = os.path.dirname(HERE)
 sys.path.insert(0, ROOT); os.chdir(ROOT); os.environ['CUDA_VISIBLE_DEVICES'] = ''
 import numpy as np, torch
+import Medulla_Library as ml
 import FiveCol_MedSim_Pytorch as fc
 
 RUN = 'FiveCol_Parameter/adaptive/run_20260621_185424'
@@ -19,9 +20,9 @@ fc.ADAPTIVE_SCHEMA = sch
 z = torch.tensor(np.load(os.path.join(RUN, 'best_param.npy')), dtype=torch.float64)
 p = fc.assign_params(z, fc.ADAPTIVE_SCHEMA); p['gate_pivot'] = fc.GATE_PIVOT
 
-R1 = 2 * fc.nofcells + 0
-L1 = 2 * fc.nofcells + 8
-x_signal = fc.signal / fc.signal_amp
+R1 = ml.center_unit_index(ml.type_index('R1'))
+L1 = ml.center_unit_index(ml.type_index('L1'))
+x_signal = fc.signal / ml.SIGNAL_BRIGHT
 activity = p['bias'].clone(); v_sus = p['bias'].clone()
 v_tra = torch.zeros_like(p['bias']); drive_lp = p['bias'].clone()
 
@@ -34,7 +35,7 @@ def internals(act, dlp, x_t, x_d):
     return X, gate
 
 log = {i: {'X': [], 'gate': [], 'sus': [], 'tra': []} for i in (R1, L1)}
-for t in range(1, 200):
+for t in range(1, fc.maxtime):
     x_t = x_signal[t - 1]; x_d = x_signal[max(t - 1 - fc.gate_lag, 0)]
     X, gate = internals(activity, drive_lp, x_t, x_d)
     activity, v_sus, v_tra, drive_lp = fc.update_state_adaptive(

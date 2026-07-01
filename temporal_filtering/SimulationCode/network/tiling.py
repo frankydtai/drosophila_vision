@@ -2,7 +2,7 @@
 """Lattice <-> node lookups for connectome multi-column training.
 
 Bridges the pure hex geometry in ``column_mapper`` (tile centres, ring/tile offsets,
-shifts) to the concrete nodes of a loaded :class:`connectome_network.Connectome`:
+shifts) to the concrete nodes of a loaded :class:`network.construction.Network`:
 
   - :func:`col2photo` -- the stimulus (photoreceptor) units on a column.
   - :func:`col2fit`   -- the fit-cell units of a given type on a column.
@@ -22,11 +22,11 @@ from typing import List, Tuple
 
 import numpy as np
 
-import connectome_path  # noqa: F401  (adds the FAFB connectome folder to sys.path)
+import connectome_path  # noqa: F401
 
-import column_mapper  # noqa: E402
+import column_mapper
 
-from Medulla_Library import cell_list as _CELL_LIST  # noqa: E402
+from Medulla_Library import cell_list as _CELL_LIST
 
 FIT_CELL_TYPES: List[str] = [str(c) for c in _CELL_LIST]  # 13 fit types
 

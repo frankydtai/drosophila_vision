@@ -1,4 +1,4 @@
-"""Shared I/O for the FAFB build: paths and raw-CSV readers.
+"""Shared I/O for the FAFB connectome build: paths and raw-CSV readers.
 
 This is the one place that knows where the raw FAFB files live and how to read
 them. ``build_network.py``, ``column_mapper.py`` and ``column_locator.py`` all import
@@ -25,6 +25,26 @@ NETWORK_DIR = DATA_DIR / "built_network"
 COLUMN_HEX_DIR = DATA_DIR / "column_hex"
 # Located-column CSVs (r1_6_<side>_post.csv etc., from column_locator.py) live here.
 COLUMN_LOCATION_DIR = DATA_DIR / "column_location"
+# Per-network moving-bar column-current cache (under each built_network run folder).
+MOVING_BAR_CACHE_DIRNAME = "moving_bar_cache"
+
+
+def network_json_path(side: str, min_neuron_count: int = 1) -> Path:
+    """Path to a built connectome ``network.json`` (default: full FAFB per side)."""
+    return NETWORK_DIR / f"{side}_min_neuron{min_neuron_count}" / "network.json"
+
+
+def resolve_network_json(spec: str) -> Path:
+    """Resolve a run folder name (e.g. ``right_min_neuron1_extent2``) to ``network.json``."""
+    p = Path(spec)
+    if p.suffix == ".json":
+        return p.resolve()
+    return (NETWORK_DIR / spec / "network.json").resolve()
+
+
+def moving_bar_cache_dir(network_json: Path) -> Path:
+    """Directory for cached moving-bar column currents for one network run."""
+    return Path(network_json).resolve().parent / MOVING_BAR_CACHE_DIRNAME
 
 VISUAL_NEURON_TYPES_FILE = "visual_neuron_types.csv.gz"
 COLUMN_ASSIGNMENT_FILE = "column_assignment.csv.gz"

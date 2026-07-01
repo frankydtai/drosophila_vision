@@ -6,7 +6,7 @@ straight from the raw connections.
 
 Run with the project venv:
 
-    .venv/bin/python "Connectome/FAFB v783/test/r7_r8_nt.py"
+    .venv/bin/python "Connectome/FAFBv783/test/r7_r8_nt.py"
 """
 
 from __future__ import annotations

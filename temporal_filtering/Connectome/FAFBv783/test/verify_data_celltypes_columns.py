@@ -13,7 +13,7 @@ For each data cell type this reports, per hemisphere:
 
 Run with the project venv:
 
-    .venv/bin/python "Connectome/FAFB v783/test/verify_data_celltypes_columns.py"
+    .venv/bin/python "Connectome/FAFBv783/test/verify_data_celltypes_columns.py"
 """
 
 from __future__ import annotations

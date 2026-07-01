@@ -45,10 +45,8 @@ Ca_tau    = 50.0  # in msec
 E_leak    = np.zeros(nofcells*nofcols)-50.0
 
 for i in range(nofcols):
-    
-    # Lamina cells L1-L3 get E_leak of - 20.0 mV
-    
-    E_leak[nofcells*i+8:nofcells*i+11]  = -20.0
+    for c in ml.LAMINA_DEPOL_TYPES:
+        E_leak[ml.unit_index(i, c)] = -20.0
 
 exc_synweight = 0.001
 inh_synweight = 0.001
@@ -64,9 +62,7 @@ Ih_gmax       = +50.0
 
 Ih_gain       = 1.0   # if set to 0, it will block Ih 
 
-signal_amp    = +40.0 # amplitude of current injection in photoreceptors, in pA.
-
-g_total       = np.zeros((325,maxtime))
+g_total       = np.zeros((ml.n_state_units(), maxtime))
 
 # parameter and cost function definition
 
@@ -79,8 +75,7 @@ ctype      = np.load('Circuits/ctype.npy')
 ctype[18]  = 'CT1L'
 ctype[19]  = 'CT1M'
 
-multi_colM[130+11,0:130] = 0
-multi_colM[130+11,195:325] = 0
+multi_colM = ml.apply_borst_connectivity_patches(multi_colM)
 
 # initialize with no cells clamped
 
@@ -98,10 +93,10 @@ def init_network():
     M_exc = exc_synweight * multi_colM * (multi_colM > 0)
     M_inh = inh_synweight * multi_colM * (multi_colM < 0) * (-1)
     
-    signal = np.zeros((325,200))
-    signal[130:138,50:200] = signal_amp
+    signal = np.zeros((ml.n_state_units(), maxtime))
+    signal[ml.photoreceptor_slice(), ml.T_ON:maxtime] = ml.SIGNAL_BRIGHT
 
-    data = ml.read_RecF_data()*20.0 # 20 mV Amplitude
+    data = ml.read_RecF_data() * ml.DATA_AMP
     
     # ------------------------------
     
@@ -117,7 +112,7 @@ def calc_multi_col_params(param):
     
     for i in range(nofcols):
         
-        multi_col_param[i*65:i*65+65] = param
+        multi_col_param[ml.column_slice(i)] = param
         
     return multi_col_param
 
@@ -125,33 +120,16 @@ cost_array = np.zeros(maxiter*nofparams)
 
 # -------------------------------------------------------------
 
-cell_list=np.array(['L1','L2','L3','L4','L5','Mi1','Tm3','Mi4','Mi9','Tm1','Tm2','Tm4','Tm9'])
+cell_list = ml.cell_list
 
 def get_cell_index(mycell):
-    
-    index = np.zeros(13)
-    
-    for j in range(nofcells):
-        if ctype[j]==mycell:
-            index=j
-            
-    return index
+    return ml.type_index(mycell)
 
-def create_cell_index():
-    
-    cell_index = np.zeros(13)
-    
-    for i in range(13):
-        
-        cell_index[i] = get_cell_index(cell_list[i])
-        
-    return cell_index.astype(int)
-
-cell_index = create_cell_index()
+cell_index = ml.cell_index
 
 def clamp_cell(mycell):
     
-    clamped_cell_index = 130 + get_cell_index(mycell)
+    clamped_cell_index = ml.center_unit_index(get_cell_index(mycell))
     
     clamped_cell_data_index = np.where(cell_list == mycell)[0][0]
     
@@ -540,7 +518,7 @@ def plot_params(z,all_cells = 0,mytitle =''):
     
         plt.subplot(3,1,i+1)
         
-        plt.bar(np.arange(max_num),z[plot_index+i*65],color=my_cmap(np.arange(max_num)/(1.0*max_num)))
+        plt.bar(np.arange(max_num), z[plot_index + ml.column_start(i)], color=my_cmap(np.arange(max_num)/(1.0*max_num)))
         
         if all_cells == 0:
             
@@ -562,10 +540,11 @@ def plot_params(z,all_cells = 0,mytitle =''):
     
     plt.subplot(3,1,3)
     
-    Ih_gmax  = z[130:135]
-    Ih_midv  = z[135]
-    Ih_slope = z[136]
-    tau_midv = z[137]
+    _Z = ml.legacy_conductance_z_slices()
+    Ih_gmax  = z[_Z['Ih_gmax']]
+    Ih_midv  = z[_Z['Ih_midv']]
+    Ih_slope = z[_Z['Ih_slope']]
+    tau_midv = z[_Z['tau_midv']]
     
     Vm       = np.arange(100)-100
     Ih_ss    = 1.0/(1.0+np.exp((Ih_midv-Vm)*Ih_slope))
@@ -616,9 +595,9 @@ def calc_network(cell_input,inp_gain,out_gain,Ih_gmax,Ih_midv,Ih_slope,tau_midv)
     
     maxtime = cell_input.shape[1]
     
-    u       = np.zeros(325)
+    u       = np.zeros(ml.n_state_units())
     
-    Vm      = np.zeros((325,maxtime))
+    Vm      = np.zeros((ml.n_state_units(), maxtime))
     Vm[:,0] = E_leak
     
     for t in range(1,maxtime): 
@@ -691,16 +670,17 @@ def calc_eigen():
 
 def assign_params(z):
 
-    inp_gain = calc_multi_col_params(z[0:65])
-    out_gain = calc_multi_col_params(z[65:130])
+    _Z = ml.legacy_conductance_z_slices()
+    inp_gain = calc_multi_col_params(z[_Z['inp_gain']])
+    out_gain = calc_multi_col_params(z[_Z['out_gain']])
     
-    interim       = np.zeros(65)
-    interim[8:13] = z[130:135]
-    Ih_gmax       = calc_multi_col_params(interim)
+    interim = np.zeros(nofcells)
+    interim[ml.LAMINA_SLICE] = z[_Z['Ih_gmax']]
+    Ih_gmax = calc_multi_col_params(interim)
     
-    Ih_midv  = z[135]
-    Ih_slope = z[136]
-    tau_midv = z[137]
+    Ih_midv  = z[_Z['Ih_midv']]
+    Ih_slope = z[_Z['Ih_slope']]
+    tau_midv = z[_Z['tau_midv']]
     
     return inp_gain,out_gain,Ih_gmax,Ih_midv,Ih_slope,tau_midv
 
@@ -718,7 +698,7 @@ def calc_model(z):
     
     for i in range(5):
         
-        model[:,i+2]=Vm[i*65+cell_index]
+        model[:, i + 2] = Vm[ml.column_start(i) + cell_index]
         
     # removes DC value before stimulation
     
@@ -765,15 +745,15 @@ def calc_all_responses(z):
             if j == 3: signal = ml.calc_bar(velo_array[i], polarity='bright')
             if j == 4: signal = ml.calc_bar(velo_array[i], polarity='dark')
             
-            Vm = calc_network(signal_amp*signal,inp_gain,out_gain,Ih_gmax,Ih_midv,Ih_slope,tau_midv)
+            Vm = calc_network(ml.SIGNAL_BRIGHT*signal,inp_gain,out_gain,Ih_gmax,Ih_midv,Ih_slope,tau_midv)
             
             for k in range(13):
                 
-                all_responses[k,j,i] = Vm[4*65+cell_index[k]]
+                all_responses[k,j,i] = Vm[ml.column_start(4) + cell_index[k]]
                 
             # take photoreceptor output as reference signal
                 
-            all_responses[13,j,i] = Vm[4*65]
+            all_responses[13,j,i] = Vm[ml.column_start(4)]
                   
     return all_responses   
 
@@ -783,17 +763,17 @@ def calc_chirp_responses(z,loc_global = 'global'):
     
     inp_gain,out_gain,Ih_gmax,Ih_midv,Ih_slope,tau_midv = assign_params(z)
 
-    Vm = calc_network(signal_amp*signal,inp_gain,out_gain,Ih_gmax,Ih_midv,Ih_slope,tau_midv)
+    Vm = calc_network(ml.SIGNAL_BRIGHT*signal,inp_gain,out_gain,Ih_gmax,Ih_midv,Ih_slope,tau_midv)
     
     chirp_responses = np.zeros((14,1000))
     
     for k in range(13):
         
-        chirp_responses[k] = Vm[4*65+cell_index[k]]
+        chirp_responses[k] = Vm[ml.column_start(4) + cell_index[k]]
         
     # take photoreceptor output as reference signal
         
-    chirp_responses[13] = Vm[4*65]
+    chirp_responses[13] = Vm[ml.column_start(4)]
     
     return chirp_responses
 
@@ -812,18 +792,21 @@ def show_cells(z,select=1):
         
         plt.imshow(np.transpose(Vm),vmin=-30,vmax=+30,cmap = 'coolwarm')
         
-        for i in range(1,5):
+        for i in range(1, 5):
             
-            plt.plot([i*65,i*65],[0,200],linestyle='dashed',color='black',linewidth=0.5)
+            x = ml.column_start(i)
+            plt.plot([x, x], [0, 200], linestyle='dashed', color='black', linewidth=0.5)
         
-        plt.xticks(np.arange(5)*65+32,['col -2','col -1','center col','col +1','col +2'])
+        plt.xticks([ml.column_start(i) + nofcells // 2 for i in range(5)],
+                   ['col -2', 'col -1', 'center col', 'col +1', 'col +2'])
         plt.yticks(np.arange(5)*50,np.arange(5)*0.5)
         plt.ylim(200,0)
         plt.ylabel('time [sec]')
         
     if select == 1:
         
-        plt.imshow(bs.rebin(Vm[130+cell_index],130,200),vmin=-40,vmax=+40,cmap = 'coolwarm')
+        center_vm = Vm[ml.column_start(ml.CENTER_COL) + cell_index]
+        plt.imshow(bs.rebin(center_vm, nofcells, maxtime), vmin=-40, vmax=+40, cmap='coolwarm')
         plt.yticks(np.arange(13)*10+5, cell_list)
         plt.xticks(np.arange(5)*50,np.arange(5)*0.5)
         plt.xlabel('time [sec]')
@@ -912,7 +895,7 @@ def block_connection(precell,postcell):
         
         for j in range(nofcols):
     
-            multi_colM[i*65+my_postcell,j*65+my_precell] = 0
+            multi_colM[ml.unit_index(i, my_postcell), ml.unit_index(j, my_precell)] = 0
         
     M_exc = exc_synweight * multi_colM * (multi_colM > 0)
     M_inh = inh_synweight * multi_colM * (multi_colM < 0) * (-1)
@@ -921,7 +904,7 @@ def block_connection(precell,postcell):
     
     # reload original connectivity matrix
     
-    multi_colM = np.load('Circuits/multi_colM.npy')
+    multi_colM = ml.apply_borst_connectivity_patches(np.load('Circuits/multi_colM.npy'))
     
     M_exc = exc_synweight * multi_colM * (multi_colM > 0)
     M_inh = inh_synweight * multi_colM * (multi_colM < 0) * (-1)
@@ -935,26 +918,28 @@ def calc_comparison(z,mycell,curr_amp,block = 0):
     inp_gain,out_gain,Ih_gmax,Ih_midv,Ih_slope,tau_midv = assign_params(z)
     
     my_index = get_cell_index(mycell)
+    my_unit = ml.center_unit_index(my_index)
+    stim = slice(ml.T_ON, 150)
     
     # ----------- visual stimulation --------------------
     
-    visual = np.zeros((325,200))
-    visual[130:138,50:150] = signal_amp
+    visual = np.zeros((ml.n_state_units(), maxtime))
+    visual[ml.photoreceptor_slice(), stim] = ml.SIGNAL_BRIGHT
     
     Vm = calc_network(visual,inp_gain,out_gain,Ih_gmax,Ih_midv,Ih_slope,tau_midv)
     
-    visual_response = Vm[130+my_index]
+    visual_response = Vm[my_unit]
     
     # ------------current stimulation ---------------------
     
-    current = np.zeros((325,200))
-    current[130+my_index,50:150] = curr_amp
+    current = np.zeros((ml.n_state_units(), maxtime))
+    current[my_unit, stim] = curr_amp
     
-    if block == 1: out_gain[130+my_index] = 0
+    if block == 1: out_gain[my_unit] = 0
     
     Vm = calc_network(current,inp_gain,out_gain,Ih_gmax,Ih_midv,Ih_slope,tau_midv)
     
-    current_response = Vm[130+my_index]
+    current_response = Vm[my_unit]
     
     plt.figure()
     
@@ -979,9 +964,11 @@ def plot_H_current(z,mycell):
     inp_gain,out_gain,Ih_gmax,Ih_midv,Ih_slope,tau_midv = assign_params(z)
     
     my_index = get_cell_index(mycell)
+    my_unit = ml.center_unit_index(my_index)
+    stim = slice(ml.T_ON, 150)
     
-    #inp_gain[130+my_index] = 0
-    out_gain[130+my_index] = 0
+    #inp_gain[my_unit] = 0
+    out_gain[my_unit] = 0
     
     recordings = np.zeros((10,200))
     
@@ -991,17 +978,17 @@ def plot_H_current(z,mycell):
     
     for i in range(5):
     
-        current  = np.zeros((325,200))
+        current  = np.zeros((ml.n_state_units(), maxtime))
         curr_amp = -(2*i+2)*100
-        current[130+my_index,50:150] = curr_amp
+        current[my_unit, stim] = curr_amp
         
         Vm = calc_network(current,inp_gain,out_gain,Ih_gmax,Ih_midv,Ih_slope,tau_midv)
         
-        recordings[i] = Vm[130+my_index]
+        recordings[i] = Vm[my_unit]
         
-        Vm[130+my_index,0:50] = Vm[130+my_index,49]
+        Vm[my_unit, 0:ml.T_ON] = Vm[my_unit, ml.T_ON - 1]
         
-        plt.plot(Vm[130+my_index],label = str(curr_amp)+' pA',linewidth = mylw, color = my_cmap(i/5.0))
+        plt.plot(Vm[my_unit],label = str(curr_amp)+' pA',linewidth = mylw, color = my_cmap(i/5.0))
 
     plt.legend(loc=4,frameon=False)
     plt.xticks(np.arange(5)*50,np.arange(5)*0.5)
@@ -1115,13 +1102,15 @@ def guess_initial_params():
     
     z = np.zeros(nofparams)
     
-    z[0:65]   = + 0.5    + (np.random.rand(65)-0.5)*0.2
-    z[65:130] = + 0.5    + (np.random.rand(65)-0.5)*0.2
-    z[130:135] = Ih_gmax  + (np.random.rand(5)-0.5)*10.0
-    z[132]     = 0.0                                        #L3
-    z[135]     = Ih_midv  + (np.random.rand()-0.5)*5.0
-    z[136]     = Ih_slope + (np.random.rand()-0.5)*0.02
-    z[137]     = tau_midv + (np.random.rand()-0.5)*5.0
+    _Z = ml.legacy_conductance_z_slices()
+    ih = _Z['Ih_gmax']
+    z[_Z['inp_gain']]   = + 0.5    + (np.random.rand(nofcells)-0.5)*0.2
+    z[_Z['out_gain']]   = + 0.5    + (np.random.rand(nofcells)-0.5)*0.2
+    z[ih] = Ih_gmax  + (np.random.rand(ih.stop - ih.start)-0.5)*10.0
+    z[ih.start + (ml.type_index('L3') - ml.LAMINA_SLICE.start)] = 0.0
+    z[_Z['Ih_midv']]   = Ih_midv  + (np.random.rand()-0.5)*5.0
+    z[_Z['Ih_slope']]  = Ih_slope + (np.random.rand()-0.5)*0.02
+    z[_Z['tau_midv']]  = tau_midv + (np.random.rand()-0.5)*5.0
     
     return z
     
@@ -1262,8 +1251,14 @@ def eval_diff_models(all_params, noftopmodels = 10, mycmap = 'plasma'):
         
     # correlation of parameter sets
     
-    allp_index = np.arange(135)
-    selp_index = np.concatenate((cell_index,cell_index+65,np.arange(5)+130))
+    _Z = ml.legacy_conductance_z_slices()
+    ih = _Z['Ih_gmax']
+    allp_index = np.arange(_Z['n_selp_correlation'])
+    selp_index = np.concatenate((
+        cell_index,
+        cell_index + nofcells,
+        np.arange(ih.stop - ih.start) + ih.start,
+    ))
             
     cov_m_allp = np.corrcoef(all_params[:,allp_index])
     cov_m_selp = np.corrcoef(all_params[:,selp_index])

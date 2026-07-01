@@ -31,6 +31,7 @@ import numpy as np
 import torch
 
 import FiveCol_MedSim_Pytorch as fc
+import Medulla_Library as ml
 import plot_trained as pt
 import run
 
@@ -65,15 +66,15 @@ extra_cols, extra_idx = [], []
 for col in range(fc.nofcols):
     l1_target = MIRROR_SIGN * base_data[:, col * N_FIT + L1_COL: col * N_FIT + L1_COL + 1]  # (200,1)
     for r in PHOTORECEPTORS:
-        extra_idx.append(r + col * fc.nofcells)        # 325-state index of R_r in this column
+        extra_idx.append(ml.unit_index(col, r))
         extra_cols.append(l1_target)
 fc.data = torch.cat([base_data] + extra_cols, dim=1)
 fc.mc_cell_index = np.concatenate([np.asarray(fc.mc_cell_index), np.array(extra_idx, dtype=int)])
-fc.power = torch.sum(fc.data[50:200] ** 2)
+fc.power = torch.sum(fc.data[fc.t_on:fc.maxtime] ** 2)
 print('cost cells: %d -> %d' % (base_data.shape[1], fc.data.shape[1]))
 
 # ---- 2) lamina parameter sharing: R1-6 tied, R7,R8,L1-5 independent ----
-lamina_default = list(range(fc.LAMINA_SLICE.start, fc.LAMINA_SLICE.stop))   # [8,9,10,11,12]
+lamina_default = list(range(ml.LAMINA_SLICE.start, ml.LAMINA_SLICE.stop))
 groups = [SHARED_R] + INDEP_R + lamina_default      # [[0..5],6,7,8,9,10,11,12]
 
 

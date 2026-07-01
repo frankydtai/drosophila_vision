@@ -5,19 +5,19 @@ filled red when an LC neuron of that type is assigned to it.
 "Assigned" means the column appears as ``majority_column_id`` in that type's
 ``column_location/<tag>_right_pre.csv`` (produced by column_locator.py). Nothing
 is re-implemented here: the hex lattice + drawing primitive come from column_mapper,
-the per-type CSV path/name from column_locator, and raw I/O from fafb_io.
+the per-type CSV path/name from column_locator, and raw I/O from connectome_io.
 
 Outputs are optional: nothing is (re)generated unless you pass a flag.
 
-    .venv/bin/python "Connectome/FAFB v783/column_location/lc_columns.py" --png
-    .venv/bin/python "Connectome/FAFB v783/column_location/lc_columns.py" --csv
-    .venv/bin/python "Connectome/FAFB v783/column_location/lc_columns.py" --png --csv
+    .venv/bin/python "Connectome/FAFBv783/column_location/lc_columns.py" --png
+    .venv/bin/python "Connectome/FAFBv783/column_location/lc_columns.py" --csv
+    .venv/bin/python "Connectome/FAFBv783/column_location/lc_columns.py" --png --csv
 
 Restrict to a subset of LC types with --types; the table is then named after the
 numeric suffixes of the chosen types (e.g. LC18 LC21 LC11 LC25 -> the file
 ``lc_columns_right_18_21_11_25.csv``)::
 
-    .venv/bin/python "Connectome/FAFB v783/column_location/lc_columns.py" \
+    .venv/bin/python "Connectome/FAFBv783/column_location/lc_columns.py" \
         --csv --types LC18 LC21 LC11 LC25
 """
 
@@ -33,12 +33,12 @@ import numpy as np
 import pandas as pd
 
 # This script lives in column_location/; make the package modules (one dir up)
-# importable so we reuse fafb_io / column_mapper / column_locator.
+# importable so we reuse connectome_io / column_mapper / column_locator.
 _PKG_DIR = Path(__file__).resolve().parent.parent
 if str(_PKG_DIR) not in sys.path:
     sys.path.insert(0, str(_PKG_DIR))
 
-import fafb_io  # noqa: E402
+import connectome_io  # noqa: E402
 from column_mapper import (  # noqa: E402
     EMPTY_COLOR,
     EXTENT,
@@ -114,7 +114,7 @@ def figure_name(lc_types: List[str]) -> str:
 
 def column_counts(lc_type: str) -> pd.Series:
     """Per-column neuron count for ``lc_type`` (index=column_id, value=#neurons)."""
-    csv = fafb_io.COLUMN_LOCATION_DIR / _output_name(SIDE, [lc_type], DIRECTION)
+    csv = connectome_io.COLUMN_LOCATION_DIR / _output_name(SIDE, [lc_type], DIRECTION)
     if not csv.exists():
         logger.warning("Missing %s; run column_locator.py %s first", csv, lc_type)
         return pd.Series(dtype="int64")
@@ -133,7 +133,7 @@ def unresolved_neurons(lc_type: str) -> pd.DataFrame:
     These are the neurons excluded from the occupancy table because the locator
     could not assign them to a column.
     """
-    csv = fafb_io.COLUMN_LOCATION_DIR / _output_name(SIDE, [lc_type], DIRECTION)
+    csv = connectome_io.COLUMN_LOCATION_DIR / _output_name(SIDE, [lc_type], DIRECTION)
     if not csv.exists():
         logger.warning("Missing %s; run column_locator.py %s first", csv, lc_type)
         return pd.DataFrame()
@@ -295,7 +295,7 @@ def make_figure(cols: pd.DataFrame, lc_types: List[str] = LC_TYPES) -> Path:
     )
     plt.tight_layout(rect=[0, 0, 1, 0.96])
 
-    out = fafb_io.COLUMN_LOCATION_DIR / figure_name(lc_types)
+    out = connectome_io.COLUMN_LOCATION_DIR / figure_name(lc_types)
     plt.savefig(out, dpi=300, bbox_inches="tight")
     plt.close(fig)
     logger.info("Saved %s", out)
@@ -306,7 +306,7 @@ def make_figure(cols: pd.DataFrame, lc_types: List[str] = LC_TYPES) -> Path:
 def make_table(cols: pd.DataFrame, lc_types: List[str] = LC_TYPES) -> Path:
     """Build + save the per-column occupancy table (all columns x LC types + sum)."""
     table = build_column_table([int(c) for c in cols["column_id"]], lc_types)
-    table_path = fafb_io.COLUMN_LOCATION_DIR / table_name(lc_types)
+    table_path = connectome_io.COLUMN_LOCATION_DIR / table_name(lc_types)
     table.to_csv(table_path)
     logger.info("Saved %s", table_path)
     print(f"Saved {table_path}  ({len(table)} columns)")
@@ -319,7 +319,7 @@ def report_unresolved(lc_types: List[str]) -> None:
     print(f"\n=== neuron counts ({SIDE}, {DIRECTION}) ===")
     print("  type: total located unresolved")
     for lc in lc_types:
-        csv = fafb_io.COLUMN_LOCATION_DIR / _output_name(SIDE, [lc], DIRECTION)
+        csv = connectome_io.COLUMN_LOCATION_DIR / _output_name(SIDE, [lc], DIRECTION)
         if not csv.exists():
             logger.warning("Missing %s; run column_locator.py %s first", csv, lc)
             continue
@@ -352,7 +352,7 @@ def main(argv=None) -> None:
         report_unresolved(lc_types)
         return
 
-    cols = fafb_io.load_column_map(SIDE)
+    cols = connectome_io.load_column_map(SIDE)
     if args.png:
         make_figure(cols, lc_types)
     if args.csv:

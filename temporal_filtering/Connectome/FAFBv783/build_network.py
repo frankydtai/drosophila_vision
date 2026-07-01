@@ -12,7 +12,7 @@ This single, self-contained module merges the data layer and the network build:
 
 It does not import the other project scripts. Run with the project venv:
 
-    .venv/bin/python "Connectome/FAFB v783/build_network.py" --side right --min-neuron-count 1
+    .venv/bin/python "Connectome/FAFBv783/build_network.py" --side right --min-neuron-count 1
 """
 
 from __future__ import annotations
@@ -27,13 +27,13 @@ from typing import Dict, Optional, Sequence, Set, Tuple
 
 import pandas as pd
 
-import fafb_io
-from fafb_io import NETWORK_DIR
+import connectome_io
+from connectome_io import NETWORK_DIR
 from column_mapper import EXTENT  # single shared spatial default (<0 = no crop)
 
 logger = logging.getLogger(__name__)
 
-# -- Build defaults (data-layer paths/loaders live in fafb_io) -----------------
+# -- Build defaults (data-layer paths/loaders live in connectome_io) -----------------
 
 # Hemisphere to build by default.
 DEFAULT_SIDE = "right"
@@ -105,20 +105,20 @@ class VisualSystem:
 
 
 class FafbDataLoader:
-    """Filters the FAFB visual subnetwork (raw I/O delegated to fafb_io)."""
+    """Filters the FAFB visual subnetwork (raw I/O delegated to connectome_io)."""
 
     def load_visual_neurons(self) -> pd.DataFrame:
-        return fafb_io.load_visual_neurons()
+        return connectome_io.load_visual_neurons()
 
     def load_column_assignments(self) -> pd.DataFrame:
-        return fafb_io.load_column_assignments()
+        return connectome_io.load_column_assignments()
 
     def load_connections(
         self,
         keep_neuron_ids: Optional[set] = None,
         keep_neuropils: Optional[Sequence[str]] = None,
     ) -> pd.DataFrame:
-        return fafb_io.load_connections(keep_neuron_ids, keep_neuropils)
+        return connectome_io.load_connections(keep_neuron_ids, keep_neuropils)
 
     def filter_visual_system(
         self,
@@ -241,8 +241,8 @@ def _column_to_pos(side: str) -> Dict[int, Tuple[int, int]]:
     The base build is always the full graph (no spatial cap). Spatial cropping is
     the separate merged ``extent`` knob (see :func:`crop_network`).
     """
-    _require(fafb_io.column_map_path(side))
-    df = fafb_io.load_column_map(side)
+    _require(connectome_io.column_map_path(side))
+    df = connectome_io.load_column_map(side)
     return {
         int(r.column_id): (int(r.u), int(r.v))
         for r in df.itertuples(index=False)
@@ -304,7 +304,7 @@ def build(side: str, min_neuron_count: int) -> Path:
         if uv is not None:
             pos[rid] = (uv[0], uv[1], cid)
 
-    loc = pd.read_csv(_require(fafb_io.COLUMN_LOCATION_DIR / f"r1_6_{side}_post.csv"))
+    loc = pd.read_csv(_require(connectome_io.COLUMN_LOCATION_DIR / f"r1_6_{side}_post.csv"))
     loc = loc[loc["majority_column_id"].notna()]
     for r in loc.itertuples(index=False):
         rid = int(r.root_id)

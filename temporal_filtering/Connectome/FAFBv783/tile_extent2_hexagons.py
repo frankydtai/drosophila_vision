@@ -19,7 +19,7 @@ It only draws geometry; all hex math is reused from :mod:`column_mapper`.
 
 Run with the project venv:
 
-    .venv/bin/python "Connectome/FAFB v783/tile_extent2_hexagons.py"
+    .venv/bin/python "Connectome/FAFBv783/tile_extent2_hexagons.py"
 """
 
 from __future__ import annotations
@@ -28,7 +28,7 @@ import logging
 
 import numpy as np
 
-from fafb_io import DATA_DIR
+from connectome_io import DATA_DIR
 from column_mapper import (
     DEFAULT_EXTENT,
     HEX_PATCH_RADIUS,
