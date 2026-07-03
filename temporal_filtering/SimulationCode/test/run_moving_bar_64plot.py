@@ -29,7 +29,7 @@ import FiveCol_MedSim_Pytorch as fc
 from connectome_io import DEFAULT_NETWORK_RUN, resolve_network_json
 from network.moving_bar_target import _TRACE_CACHE
 from network.tiling import unit_type_names
-from plot_trained import plot_model_vs_data_moving_bar, run_dir, _moving_bar_mean_traces
+from plot_trained import plot_model_data_moving_bar, run_dir, _moving_bar_mean_traces
 from t4_t5_preference import READOUT_SUBTYPES, active_stimuli_for_subtype, normalize_side
 from training_config import COST_HALF_WINDOW_STEPS, COST_WINDOW_STEPS
 from visual_stimulus.moving_bar_stimulus import gruntman_moving_bar_specs
@@ -94,7 +94,7 @@ def main():
     outdir = args.outdir or run_dir("conductance", parent=os.path.join("FiveCol_Parameter", "moving_bar_64plot"))
     os.makedirs(outdir, exist_ok=True)
     png = os.path.join(outdir, "model_data_bar.png")
-    plot_model_vs_data_moving_bar(z, png, title="Moving-bar model vs data (initial params)")
+    plot_model_data_moving_bar(z, png, title="Moving-bar model-data (initial params)")
 
     peaks = []
     for key in panels:

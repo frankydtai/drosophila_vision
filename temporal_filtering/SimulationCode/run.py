@@ -129,9 +129,54 @@ def apply_param_modes(model_type, param_modes=None, param_fixes=None):
     return schema
 
 
+def apply_per_type_schema(model_type):
+    """Expand lamina/scalar Ih (or adaptive lamina) params to per-cell-type."""
+    attr = "ADAPTIVE_SCHEMA" if model_type == "adaptive" else "CONDUCTANCE_SCHEMA"
+    schema = fc.expand_schema_per_type(getattr(fc, attr))
+    setattr(fc, attr, schema)
+    if model_type == "adaptive":
+        fc.z_bounds_adaptive = fc.calc_z_bounds_adaptive()
+    else:
+        fc.z_bounds = fc.calc_z_bounds()
+    return schema
+
+
 def resolve_network(network):
     """Folder name under ``built_network/`` -> absolute ``network.json`` path."""
     return str(resolve_network_json(network))
+
+
+def has_network_run(outdir):
+    """True when ``outdir`` has the network sidecars written by ``do_many_runs``."""
+    from plot_trained import NETWORK_PATH_FILE, TARGET_KIND_FILE
+    d = os.path.abspath(outdir)
+    return (os.path.isfile(os.path.join(d, NETWORK_PATH_FILE))
+            and os.path.isfile(os.path.join(d, TARGET_KIND_FILE)))
+
+
+def restore_training_context(outdir, model_type, param_modes=None, param_fixes=None,
+                             per_type=None):
+    """Re-establish fc state from a run folder, mirroring ``run_training`` setup.
+
+    Network vs Borst follows training: ``if network: use_network(...)`` is replayed
+    from sidecars when present; otherwise the Borst 5-column path is restored.
+    """
+    from plot_trained import _apply_param_train_opts, restore_fc_context
+
+    fc.MODEL_TYPE = model_type
+    if has_network_run(outdir):
+        fc.NETWORK = None
+        restore_fc_context(outdir)
+        on_network = True
+    else:
+        # Same as run_training without --network: Borst is already the import default.
+        _apply_param_train_opts(outdir)
+        on_network = False
+    if per_type:
+        apply_per_type_schema(model_type)
+    if param_modes or param_fixes:
+        apply_param_modes(model_type, param_modes, param_fixes)
+    return on_network
 
 
 def run_training(model_type, nofruns, nofsteps, lrs, fname=None, outdir=None,
@@ -139,7 +184,8 @@ def run_training(model_type, nofruns, nofsteps, lrs, fname=None, outdir=None,
                  network=None, multi_column=False, share_edges=False,
                  sequential=None, target="tile",
                  target_list=None, loss_weights=None,
-                 moving_bar_center_column=False, tile_center_column=False):
+                 moving_bar_center_column=False, tile_center_column=False,
+                 per_type=False):
     """Full training pipeline (do_many_runs + tables + plots). Returns (fname, outdir)."""
     fc.MODEL_TYPE = model_type
     if target == "moving_bar" and not network and not target_list:
@@ -152,6 +198,10 @@ def run_training(model_type, nofruns, nofsteps, lrs, fname=None, outdir=None,
                        moving_bar_center_column=moving_bar_center_column,
                        target_list=target_list, loss_weights=loss_weights,
                        tile_center_column=tile_center_column)
+    if per_type:
+        apply_per_type_schema(model_type)
+        print(f"per_type schema -> nparams={fc.schema_nparams(fc.active_schema())}")
+    fc.PARAM_TRAIN_OPTS = {'per_type': bool(per_type)} if per_type else None
     apply_param_modes(model_type, param_modes, param_fixes)
     suffix = "" if model_type == "conductance" else f"_{model_type}"
     fname = fname or f"training{suffix or '_with_Ih'}.npy"
@@ -193,6 +243,9 @@ def parse_args():
         p.add_argument("--fix", nargs="+", default=[], metavar="NAME=VALUE",
                        help="hold a param fixed at VALUE (implies fixed mode), "
                             "e.g. --fix Ih_midv=-50 out_scale=1.0")
+        p.add_argument("--per_type", action="store_true",
+                       help="train Ih (and adaptive lamina) params per cell type "
+                            "instead of shared lamina/scalar values")
         p.add_argument("--network", default=None, metavar="RUN",
                        help=f"built_network run folder name (under {NETWORK_DIR}), "
                             f"e.g. {DEFAULT_NETWORK_RUN}; "
@@ -272,7 +325,8 @@ def main():
                  target=target_single,
                  target_list=(target_list if len(target_list) > 1 else None), loss_weights=loss_weights,
                  moving_bar_center_column=moving_bar_center_column,
-                 tile_center_column=tile_center_column)
+                 tile_center_column=tile_center_column,
+                 per_type=args.per_type)
 
 
 if __name__ == "__main__":

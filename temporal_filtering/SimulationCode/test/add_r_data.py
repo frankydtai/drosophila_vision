@@ -14,7 +14,7 @@ is written into them.
 
 Model is chosen with --model_type (default conductance), consistent with run.py.
 Training + all output (npy, costs, table, cost_curve, model_vs_data,
-model_all_cells, best_param, model_type) go through run.run_training, landing in
+model_all, best_param, model_type) go through run.run_training, landing in
 its own FiveCol_Parameter/<model_type>/run_<id>/ folder.
 """
 import argparse

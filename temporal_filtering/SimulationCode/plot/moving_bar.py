@@ -238,7 +238,7 @@ def _plot_moving_bar_cell(
         ax.tick_params(labelsize=6)
 
 
-def plot_model_vs_data_moving_bar(z, path, title=None):
+def plot_model_data_moving_bar(z, path, title=None):
     center_only = _moving_bar_center_only()
     row_specs, model_mean, model_sem, data_mean = _moving_bar_mean_traces(z)
     nrows = len(READOUT_SUBTYPES)
@@ -261,7 +261,7 @@ def plot_model_vs_data_moving_bar(z, path, title=None):
             )
         axes[ri, 0].set_ylabel(subtype, fontsize=8, labelpad=12)
     if title is None:
-        title = 'Moving-bar model vs data'
+        title = 'Moving-bar model-data'
     if center_only:
         from network.stimulus import center_photo_column
         col = center_photo_column(fc.NETWORK)
@@ -275,7 +275,7 @@ def plot_model_vs_data_moving_bar(z, path, title=None):
 
 
 @torch.no_grad()
-def plot_all_celltypes_moving_bar(z, path, title=None):
+def plot_model_all_moving_bar(z, path, title=None):
     t0 = time.perf_counter()
     center_only = _moving_bar_center_only()
     types, all_spec_names, model_mean, model_sem, data_mean = _compute_moving_bar_all_type_traces(z)
@@ -316,7 +316,7 @@ def plot_all_celltypes_moving_bar(z, path, title=None):
         if ncols:
             axes[ri, 0].set_ylabel(tname, fontsize=6, labelpad=4)
     if title is None:
-        title = 'Moving-bar all cell types (right only)'
+        title = 'Moving-bar model-all (right only)'
     if center_only:
         from network.stimulus import center_photo_column
         col = center_photo_column(fc.NETWORK)
@@ -331,7 +331,7 @@ def plot_all_celltypes_moving_bar(z, path, title=None):
     _save_moving_bar_fig(fig, path, MOVING_BAR_GRID_DPI)
     t_save = time.perf_counter() - t2
     print(
-        f'plot_all_celltypes_moving_bar: traces={t_traces:.1f}s  '
+        f'plot_model_all_moving_bar: traces={t_traces:.1f}s  '
         f'draw={t_draw:.1f}s  savefig={t_save:.1f}s  total={t_traces+t_draw+t_save:.1f}s'
     )
 

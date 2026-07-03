@@ -30,5 +30,5 @@ done in 0.01 hours
 1 trained set(s); costs min=8.8704 max=8.8704; selected #0
 saved: FiveCol_Parameter/gpu_test/run_26331964/cost_curve.png
 saved: FiveCol_Parameter/gpu_test/run_26331964/model_vs_data.png
-saved: FiveCol_Parameter/gpu_test/run_26331964/model_all_cells.png
+saved: FiveCol_Parameter/gpu_test/run_26331964/model_all.png
 End:    Sat 20 Jun 2026 20:46:19 AEST

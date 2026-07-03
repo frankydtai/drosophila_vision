@@ -8,6 +8,9 @@ coordinate formulas:
   - ``pq_to_uv(p, q, side)`` converts FAFB ``column_assignment`` (p, q) indices to
     axial (u, v), which differs per hemisphere.
   - ``inside_mask(u, v, extent)`` is the shared inside/outside-the-disc predicate.
+  - ``hex_to_pixel`` / ``hex_vertices`` convert axial coords to degree-space centres
+    and polygon vertices; ``draw_hex_patches`` / ``draw_hex_patches_uv`` draw them
+    (shared by column maps, moving-bar stimulus, and plots).
   - :class:`HexGrid` holds an ideal disc's (u, v) coordinates (the plot reference
     / tiling extent); ``columns_with_uv(side)`` gives FAFB columns' (u, v).
 
@@ -27,7 +30,7 @@ import numpy as np
 import pandas as pd
 
 import connectome_io
-from connectome_io import COLUMN_HEX_DIR
+from connectome_io import COLUMN_MAP_DIR
 
 logger = logging.getLogger(__name__)
 
@@ -53,15 +56,17 @@ HEX_PATCH_RADIUS = 0.5 * DEFAULT_KERNEL_SIZE
 AXIS_UNIT = "degree"
 X_AXIS_LABEL = f"X ({AXIS_UNIT})"
 Y_AXIS_LABEL = f"Y ({AXIS_UNIT})"
-# RegularPolygon orientation (radians) for pointy-top hexes.
-_HEX_PATCH_ORIENTATION = np.radians(30)
+# Hex patch orientation (radians). Must match hex_to_pixel: centres are spaced d
+# apart vertically (step (1,0)), with r = d/2, so patches are pointy-top (30°).
+# Flat-top (0°) leaves gaps — see hex_vertices / tiling notes in module docstring.
+HEX_PATCH_ORIENTATION = np.radians(30)
 
 # Rendered column map: base filename (no --extent) and the --extent variant.
 COLUMN_MAP_FILE = "column_map.png"
 COLUMN_MAP_EXTENT_FILE = "column_map_extent{extent}.png"
 
 # Single source of truth for FAFB column colors (fill, edge), reused by every
-# plot so column_hex_map.png and lc_columns_right.png stay consistent.
+# plot so column_map.png and lc_columns_right.png stay consistent.
 INSIDE_COLOR: Tuple[str, str] = ("lightgreen", "darkgreen")
 OUTSIDE_COLOR: Tuple[str, str] = ("lightcoral", "darkred")
 EMPTY_COLOR: Tuple[str, str] = ("whitesmoke", "lightgrey")
@@ -245,11 +250,132 @@ class HexGrid:
 
 
 def hex_to_pixel(u, v, kernel_size: float = DEFAULT_KERNEL_SIZE):
-    """Axial (u, v) -> pixel (x, y) for plotting (x = d*v, y = d*(u + v/2))."""
+    """Axial (u, v) -> pixel (x, y) for plotting (x = d*v, y = -d*(u + v/2))."""
     d = float(kernel_size)
     u = np.asarray(u, dtype=float)
     v = np.asarray(v, dtype=float)
-    return d * v, d * (u + v / 2.0)
+    return d * v, -d * (u + v / 2.0)
+
+
+def pixel_to_hex(x, y, kernel_size: float = DEFAULT_KERNEL_SIZE) -> Tuple[int, int]:
+    """Inverse of :func:`hex_to_pixel` for hex centers (integer axial coords).
+
+    Args:
+        x: pixel-space x coordinate (same units as ``kernel_size``).
+        y: pixel-space y coordinate (same units as ``kernel_size``).
+        kernel_size: spacing ``d`` used in :func:`hex_to_pixel`.
+
+    Returns:
+        (u, v) axial integer coordinates.
+
+    Raises:
+        ValueError: if (x, y) is not (within tolerance) a hex center.
+    """
+    d = float(kernel_size)
+    if abs(d) < 1e-15:
+        raise ValueError("kernel_size must be non-zero")
+    x = float(x)
+    y = float(y)
+    v = x / d
+    u = (-y / d) - v / 2.0
+    iu, iv = round(u), round(v)
+    if abs(u - iu) > 1e-6 or abs(v - iv) > 1e-6:
+        raise ValueError(
+            f"(x,y)=({x},{y}), d={d} -> (u,v)=({u},{v}) is not an integer hex centre"
+        )
+    return int(iu), int(iv)
+
+
+def hex_vertices(
+    cx: float,
+    cy: float,
+    radius: float = HEX_PATCH_RADIUS,
+) -> np.ndarray:
+    """Degree-space hex polygon vertices centred at ``(cx, cy)``.
+
+    Matches ``matplotlib.patches.RegularPolygon`` with ``orientation`` =
+    :data:`HEX_PATCH_ORIENTATION` (unit polygon includes matplotlib's ``pi/2``
+    "points-up" offset, then ``scale(radius).rotate(orientation)``).
+    """
+    angles = (
+        np.pi / 2
+        + HEX_PATCH_ORIENTATION
+        + (2.0 * np.pi / 6.0) * np.arange(6, dtype=np.float64)
+    )
+    vx = cx + radius * np.cos(angles)
+    vy = cy + radius * np.sin(angles)
+    return np.column_stack([vx, vy])
+
+
+def field_bounds_centers(
+    x,
+    y,
+    radius: float = HEX_PATCH_RADIUS,
+) -> Tuple[float, float, float, float]:
+    """Axis-aligned extent in degrees from hex patch vertices at ``(x, y)``."""
+    xs = np.asarray(x, dtype=float)
+    ys = np.asarray(y, dtype=float)
+    if len(xs) == 0:
+        return 0.0, 0.0, 0.0, 0.0
+    xmins, ymins, xmaxs, ymaxs = [], [], [], []
+    for cx, cy in zip(xs, ys):
+        v = hex_vertices(float(cx), float(cy), radius)
+        xmins.append(float(v[:, 0].min()))
+        ymins.append(float(v[:, 1].min()))
+        xmaxs.append(float(v[:, 0].max()))
+        ymaxs.append(float(v[:, 1].max()))
+    return min(xmins), min(ymins), max(xmaxs), max(ymaxs)
+
+
+def draw_hex_patches(
+    ax,
+    x,
+    y,
+    facecolor,
+    edgecolor: str = "0.35",
+    hex_radius_px: Optional[float] = None,
+    linewidth: float = 0.15,
+    alpha: float = 0.95,
+) -> None:
+    """Draw hex patches at degree-space centres (same primitive as column_map)."""
+    from matplotlib.patches import RegularPolygon
+
+    if hex_radius_px is None:
+        hex_radius_px = HEX_PATCH_RADIUS
+    xs = np.asarray(x, dtype=float)
+    ys = np.asarray(y, dtype=float)
+    if np.ndim(facecolor) == 0 or (
+        isinstance(facecolor, str) and not isinstance(facecolor, np.ndarray)
+    ):
+        facecolors = [facecolor] * len(xs)
+    else:
+        facecolors = list(facecolor)
+    for xi, yi, fc in zip(xs, ys, facecolors):
+        ax.add_patch(
+            RegularPolygon(
+                (float(xi), float(yi)),
+                numVertices=6,
+                radius=hex_radius_px,
+                orientation=HEX_PATCH_ORIENTATION,
+                facecolor=fc,
+                edgecolor=edgecolor,
+                linewidth=linewidth,
+                alpha=alpha,
+            )
+        )
+
+
+def draw_hex_patches_uv(
+    ax,
+    u,
+    v,
+    facecolor,
+    kernel_size: float = DEFAULT_KERNEL_SIZE,
+    **kwargs,
+) -> None:
+    """Draw hex patches for axial ``(u, v)`` via :func:`hex_to_pixel`."""
+    x, y = hex_to_pixel(u, v, kernel_size)
+    draw_hex_patches(ax, x, y, facecolor, **kwargs)
 
 
 def set_axis_labels(ax, fontsize: Optional[int] = None) -> None:
@@ -261,22 +387,17 @@ def set_axis_labels(ax, fontsize: Optional[int] = None) -> None:
 
 def _draw_hexes(ax, u, v, labels, facecolor, edgecolor, hex_radius, fontsize=3):
     """Draw labeled hexagons at the given axial coordinates."""
-    from matplotlib.patches import RegularPolygon
-
+    draw_hex_patches_uv(
+        ax, u, v, facecolor,
+        edgecolor=edgecolor,
+        hex_radius_px=hex_radius,
+        linewidth=1,
+        alpha=0.6,
+    )
+    if labels is None:
+        return
     xs, ys = hex_to_pixel(np.asarray(u), np.asarray(v))
     for x, y, label in zip(np.atleast_1d(xs), np.atleast_1d(ys), labels):
-        ax.add_patch(
-            RegularPolygon(
-                (x, y),
-                numVertices=6,
-                radius=hex_radius,
-                orientation=_HEX_PATCH_ORIENTATION,
-                facecolor=facecolor,
-                edgecolor=edgecolor,
-                linewidth=1,
-                alpha=0.6,
-            )
-        )
         if label is not None:
             ax.text(
                 x, y, str(label), ha="center", va="center",
@@ -396,7 +517,6 @@ def plot_column_map(
         ax.grid(True, alpha=0.3, linestyle="--")
         ax.set_xlim(xlim)
         ax.set_ylim(ylim)
-    axes[0].invert_yaxis()
 
     legend_elements = [
         Patch(facecolor="lightblue", edgecolor="darkblue", label="Ideal model / (u,v)"),
@@ -462,7 +582,7 @@ def main() -> None:
     # The CSV needs no grid: (u, v) comes purely from pq_to_uv. --extent only
     # affects the figure colouring, never the tables.
     assigned = {}
-    COLUMN_HEX_DIR.mkdir(parents=True, exist_ok=True)
+    COLUMN_MAP_DIR.mkdir(parents=True, exist_ok=True)
     for side in ("left", "right"):
         cols = columns_with_uv(side)
         assigned[side] = cols
@@ -479,9 +599,9 @@ def main() -> None:
         df_left=assigned["left"],
         df_right=assigned["right"],
         extent=args.extent,
-        save_path=COLUMN_HEX_DIR / fname,
+        save_path=COLUMN_MAP_DIR / fname,
     )
-    print(f"Column map written to: {COLUMN_HEX_DIR / fname}")
+    print(f"Column map written to: {COLUMN_MAP_DIR / fname}")
 
 
 if __name__ == "__main__":

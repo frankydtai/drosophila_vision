@@ -31,6 +31,7 @@ import numpy as np
 from connectome_io import DATA_DIR
 from column_mapper import (
     DEFAULT_EXTENT,
+    HEX_PATCH_ORIENTATION,
     HEX_PATCH_RADIUS,
     HexGrid,
     columns_with_uv,
@@ -61,7 +62,7 @@ def _draw_tile_cells(ax, cells, facecolor, edgecolor, hex_radius_px, alpha=0.55)
         ax.add_patch(
             RegularPolygon(
                 (x, y), numVertices=6, radius=hex_radius_px,
-                orientation=np.radians(30),
+                orientation=HEX_PATCH_ORIENTATION,
                 facecolor=facecolor, edgecolor=edgecolor,
                 linewidth=0.8, alpha=alpha,
             )
@@ -161,7 +162,6 @@ def main() -> None:
         ax.grid(True, alpha=0.3, linestyle="--")
         ax.set_xlim(xlim)
         ax.set_ylim(ylim)
-    axes[0].invert_yaxis()
 
     plt.tight_layout()
     out_path = DATA_DIR / OUTPUT_FILE

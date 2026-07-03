@@ -492,7 +492,7 @@ def plot_all_responses(all_responses,index):
                 
                 plt.xlabel('time [s]',fontsize=fontsize_axislabel)
     
-def plot_params(z,all_cells = 0,mytitle =''):
+def plot_params(z,model_all = 0,mytitle =''):
     
     plt.figure(figsize=(7,11))
     
@@ -500,7 +500,7 @@ def plot_params(z,all_cells = 0,mytitle =''):
     xpos = -20
     mylw = 3
     
-    if all_cells == 1:
+    if model_all == 1:
         
         plot_index = np.arange(nofcells)
         plot_list  = ctype
@@ -520,7 +520,7 @@ def plot_params(z,all_cells = 0,mytitle =''):
         
         plt.bar(np.arange(max_num), z[plot_index + ml.column_start(i)], color=my_cmap(np.arange(max_num)/(1.0*max_num)))
         
-        if all_cells == 0:
+        if model_all == 0:
             
             plt.xticks(np.arange(max_num),plot_list)
             

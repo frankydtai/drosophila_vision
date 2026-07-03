@@ -113,17 +113,38 @@ _style_azimuth_axis = tile_plot._style_azimuth_axis
 _annotate_baseline = tile_plot._annotate_baseline
 
 
-_MODEL_DATA_NAME = "plot_model_" + "v" + "s" + "_data"
-_MODEL_DATA_NETWORK_NAME = _MODEL_DATA_NAME + "_network"
-plot_model_data_network = getattr(tile_plot, _MODEL_DATA_NETWORK_NAME)
-plot_model_data = getattr(tile_plot, _MODEL_DATA_NAME)
-plot_all_celltypes = tile_plot.plot_all_celltypes
+plot_model_data_network = tile_plot.plot_model_data_network
+plot_model_data = tile_plot.plot_model_data
+plot_model_all = tile_plot.plot_model_all
 plot_cost = tile_plot.plot_cost
 
 
 TARGET_KIND_FILE = 'target_kind.txt'
 NETWORK_PATH_FILE = 'network_path.txt'
 NETWORK_TRAIN_OPTS_FILE = 'network_train_opts.json'
+PARAM_TRAIN_OPTS_FILE = 'param_train_opts.json'
+
+
+def _apply_param_train_opts(outdir):
+    """Restore per-type schema expansion from run sidecar, if present."""
+    opts_path = os.path.join(outdir, PARAM_TRAIN_OPTS_FILE)
+    if not os.path.exists(opts_path):
+        return
+    with open(opts_path) as f:
+        opts = json.load(f)
+    if not opts.get('per_type'):
+        return
+    model_type = 'conductance'
+    mt_path = os.path.join(outdir, 'model_type.txt')
+    if os.path.exists(mt_path):
+        with open(mt_path) as f:
+            model_type = f.read().strip() or model_type
+    attr = 'ADAPTIVE_SCHEMA' if model_type == 'adaptive' else 'CONDUCTANCE_SCHEMA'
+    setattr(fc, attr, fc.expand_schema_per_type(getattr(fc, attr)))
+    if model_type == 'adaptive':
+        fc.z_bounds_adaptive = fc.calc_z_bounds_adaptive()
+    else:
+        fc.z_bounds = fc.calc_z_bounds()
 
 
 def restore_fc_context(outdir):
@@ -168,6 +189,7 @@ def restore_fc_context(outdir):
         loss_weights=loss_weights,
         tile_center_column=tile_center_column,
     )
+    _apply_param_train_opts(outdir)
     return True
 
 
@@ -178,21 +200,20 @@ _plot_moving_bar_cell = moving_bar_plot._plot_moving_bar_cell
 
 
 def plot_model_data_moving_bar(z, path, title=None):
-    fn_name = _MODEL_DATA_NAME + "_moving_bar"
-    return getattr(moving_bar_plot, fn_name)(z, path, title=title)
+    return moving_bar_plot.plot_model_data_moving_bar(z, path, title=title)
 
 
-def plot_all_celltypes_moving_bar(z, path, title=None):
-    return moving_bar_plot.plot_all_celltypes_moving_bar(z, path, title=title)
+def plot_model_all_moving_bar(z, path, title=None):
+    return moving_bar_plot.plot_model_all_moving_bar(z, path, title=title)
 
 
 def plot_model_data_network(z, path, title=None):
-    return getattr(tile_plot, _MODEL_DATA_NETWORK_NAME)(z, path, title=title)
+    return tile_plot.plot_model_data_network(z, path, title=title)
 
 
 plot_cost = tile_plot.plot_cost
-plot_model_data = getattr(tile_plot, _MODEL_DATA_NAME)
-plot_all_celltypes = tile_plot.plot_all_celltypes
+plot_model_data = tile_plot.plot_model_data
+plot_model_all = tile_plot.plot_model_all
 
 
 MODEL_TYPE_FILE = 'model_type.txt'
@@ -273,21 +294,29 @@ def select_best(params, costs=None):
     return valid[best], costs_out[best]
 
 
-def plot_param_set(params, outdir, costs=None, model_type=None, all_cells=False):
+def plot_param_set(params, outdir, costs=None, model_type=None, model_all=False,
+                   context_dir=None, param_modes=None, param_fixes=None,
+                   plot_targets=None):
     """Select the best param set and write plots into outdir.
 
-    ``all_cells=False`` (default) skips the 512-panel moving-bar grid
+    ``model_all=False`` (default) skips the 512-panel moving-bar grid
     (``model_all_bar.png``), which dominated plot time (~5 min CPU savefig).
     The 64-panel model-data figure is always written.
+
+    ``context_dir`` defaults to ``outdir``; use a training run folder with network
+    sidecars when PNGs should land in ``outdir`` but fc context comes elsewhere.
+    ``plot_targets`` optionally filters network targets (e.g. ``['moving_bar']``).
     """
+    import run
+
     os.makedirs(outdir, exist_ok=True)
     if model_type is not None:
         fc.MODEL_TYPE = model_type
 
     print(f'plot device={_plot_device_label()}')
-    # For network runs we must restore fc context BEFORE evaluating costs.
-    if getattr(fc, 'NETWORK', None) is None:
-        restore_fc_context(outdir)
+    ctx = context_dir or outdir
+    run.restore_training_context(ctx, fc.MODEL_TYPE, param_modes=param_modes,
+                                 param_fixes=param_fixes)
 
     best, best_cost = select_best(params, costs=costs)
     z = torch.tensor(best, dtype=torch.float64, device=device)
@@ -305,6 +334,8 @@ def plot_param_set(params, outdir, costs=None, model_type=None, all_cells=False)
         if not target_list:
             target_raw = str(opts.get("target", getattr(fc, "TARGET_KIND", "tile")))
             target_list = [t.strip() for t in target_raw.split(",") if t.strip()] or ["tile"]
+        if plot_targets is not None:
+            target_list = [t for t in target_list if t in plot_targets]
 
         if len(target_list) > 1:
             # Re-enter each target context so each plot is generated from its own
@@ -333,7 +364,7 @@ def plot_param_set(params, outdir, costs=None, model_type=None, all_cells=False)
                             os.path.join(outdir, "model_data_bar.png"),
                             title=f'Moving-bar model-data ({suffix})',
                         )
-                        plot_all_celltypes_moving_bar(
+                        plot_model_all_moving_bar(
                             z,
                             os.path.join(outdir, "model_all_bar.png"),
                             title=f'Moving-bar model-all ({suffix})',
@@ -367,7 +398,7 @@ def plot_param_set(params, outdir, costs=None, model_type=None, all_cells=False)
                 plot_model_data_moving_bar(
                     z, mvd, title=f'Moving-bar model-data ({suffix})',
                 )
-                plot_all_celltypes_moving_bar(
+                plot_model_all_moving_bar(
                     z, allc, title=f'Moving-bar model-all ({suffix})',
                 )
             else:
@@ -383,7 +414,7 @@ def plot_param_set(params, outdir, costs=None, model_type=None, all_cells=False)
         mvd = os.path.join(outdir, 'model_data_tile.png')
         allc = os.path.join(outdir, 'model_all_tile.png')
         plot_model_data(z, mvd, title=f'Model data ({suffix})')
-        plot_all_celltypes(z, allc, title=f'Model-all 65 cell types ({suffix})')
+        plot_model_all(z, allc, title=f'Model-all 65 cells ({suffix})')
 
     np.save(os.path.join(outdir, 'best_param.npy'), best)
     print(f'plots saved to {outdir}')

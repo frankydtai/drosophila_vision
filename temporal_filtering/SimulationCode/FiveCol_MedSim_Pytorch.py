@@ -143,6 +143,12 @@ STATE_CLAMP = 1.0e6  # bound on adaptive state vars to keep explicit Euler finit
 LAMINA_SLICE = ml.LAMINA_SLICE  # L1-L5 within the 65 cell types
 PARAM_MODES = ('individual', 'shared', 'fixed')
 
+# Lamina/scalar segments expanded to per-cell-type (full) by --per_type.
+PER_TYPE_PARAM_NAMES = frozenset({
+    'Ih_gmax', 'Ih_midv', 'Ih_slope', 'tau_midv',
+    'adapt_gain', 'tau_adapt',
+})
+
 ADAPTIVE_SCHEMA = [
     {'name': 'inp_gain',   'count': nofcells, 'kind': 'full',   'lo': low_gain, 'hi': high_gain, 'init': 0.5,   'jit': 0.2,  'fill': 0.0},
     {'name': 'out_gain',   'count': nofcells, 'kind': 'full',   'lo': low_gain, 'hi': high_gain, 'init': 0.5,   'jit': 0.2,  'fill': 0.0},
@@ -231,6 +237,30 @@ def apply_modes(schema, modes=None, fixes=None):
         if s['name'] in fixes:
             s['mode'] = 'fixed'
             s['fixed'] = float(fixes[s['name']])
+        out.append(s)
+    return out
+
+
+def expand_schema_per_type(schema, names=None):
+    """Rebind lamina/scalar segments to per-cell-type (full) trainable params."""
+    names = PER_TYPE_PARAM_NAMES if names is None else frozenset(names)
+    out = []
+    for seg in schema:
+        s = dict(seg)
+        if s['name'] not in names or s['kind'] not in ('lamina', 'scalar'):
+            out.append(s)
+            continue
+        old_kind = s['kind']
+        s['kind'] = 'full'
+        s['count'] = nofcells
+        if old_kind == 'lamina':
+            cells = lamina_cells(s)
+            if 'zero' in s:
+                s['zero'] = [
+                    (cells[j] if isinstance(cells[j], int) else cells[j][0])
+                    for j in s['zero']
+                ]
+            s.pop('cells', None)
         out.append(s)
     return out
 
@@ -345,6 +375,7 @@ MC_COST_RADIUS = None   # (n_cost,) ring radius {0,1,sqrt3,2} of each cost entry
 TARGET_KIND = None      # "tile" | "moving_bar" | None
 MOVING_BAR_CENTER_COLUMN = False
 NETWORK_TRAIN_OPTS = None  # last use_network() kwargs for run sidecar / plot restore
+PARAM_TRAIN_OPTS = None    # e.g. {'per_type': True} for run sidecar / plot restore
 MULTI_COLUMN_SEQ = None  # None=auto (CPU sequential, CUDA batched)
 TARGET_PACKS = None  # None or dict name->TargetPack (multi-target training)
 TARGET_PACK_WEIGHTS = None  # None or dict name->float (loss weights)
@@ -1033,6 +1064,10 @@ def do_many_runs(nofruns,nofsteps,fname,lrs=(0.1, 0.01, 0.001),outdir='FiveCol_P
             f.write(NETWORK_TRAIN_OPTS['network_json'])
         with open(os.path.join(outdir, 'network_train_opts.json'), 'w') as f:
             json.dump(NETWORK_TRAIN_OPTS, f)
+    if PARAM_TRAIN_OPTS:
+        import json
+        with open(os.path.join(outdir, 'param_train_opts.json'), 'w') as f:
+            json.dump(PARAM_TRAIN_OPTS, f)
     
     schema   = active_schema()
     n_params = schema_nparams(schema)

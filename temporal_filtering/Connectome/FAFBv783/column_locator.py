@@ -75,7 +75,7 @@ def locate_neurons(
         direction='pre'), votes (descending per-column vote counts as a string,
         e.g. "5, 5, 5, 3"; sums to n_<dir>_with_column), majority_column_id
         (Int64, NA if unresolved). When ``col_to_uv`` is given, also per-coordinate
-        mean/max/min for u, v (hex) and x, y (pixel; x=v, y=u+v/2): mean_* is the
+        mean/max/min for u, v (hex) and x, y (pixel via column_mapper.hex_to_pixel): mean_* is the
         vote-weighted average over the column partners, max_*/min_* the extent
         (all NA if unresolved). In this case ``majority_column_id`` keeps the
         top-voted column only when it has >50% of the votes; otherwise it is the
@@ -145,7 +145,7 @@ def locate_neurons(
     out["majority_column_id"] = out["root_id"].map(best["col"]).astype("Int64")
 
     if col_to_uv is not None:
-        # Reuse the single source of truth for axial->pixel (x=v, y=u+v/2).
+        # Reuse the single source of truth for axial->pixel (x=d*v, y=-d*(u+v/2)).
         from column_mapper import hex_to_pixel
 
         u_by_col = {int(c): uv[0] for c, uv in col_to_uv.items()}

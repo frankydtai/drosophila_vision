@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Second-by-second timeline for 512-panel model_all_cells matplotlib path."""
+"""Second-by-second timeline for 512-panel model_all matplotlib path."""
 from __future__ import annotations
 
 import cProfile
@@ -145,7 +145,7 @@ def plot_512_instrumented(z, path: str, tl: Timeline):
     t0 = time.perf_counter()
     from network.stimulus import photo_columns
     scope = f"avg over {len(photo_columns(fc.NETWORK))} photo columns"
-    fig.suptitle("Moving-bar all cells  [" + scope + ", t_center ± 0.45 s]", fontsize=10)
+    fig.suptitle("Moving-bar model-all  [" + scope + ", t_center ± 0.45 s]", fontsize=10)
     fig.subplots_adjust(top=0.96, bottom=0.05, hspace=0.55, wspace=0.3)
     tl.phase("suptitle+adjust", time.perf_counter() - t0)
 
@@ -182,7 +182,7 @@ def plot_512_instrumented(z, path: str, tl: Timeline):
 
 def main():
     rundir = os.path.join(ROOT, "FiveCol_Parameter", "conductance", "run_26693975")
-    out_png = os.path.join(rundir, "model_all_cells_512_profile.png")
+    out_png = os.path.join(rundir, "model_all_512_profile.png")
     restore_fc_context(rundir)
     fc.MODEL_TYPE = "conductance"
     z = load_z_from_table(rundir)

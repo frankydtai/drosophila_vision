@@ -14,7 +14,7 @@ import numpy as np
 
 import network_bootstrap  # noqa: F401
 
-from column_mapper import HEX_PATCH_RADIUS
+from column_mapper import HEX_PATCH_RADIUS, hex_vertices
 from Medulla_Library import SIGNAL_BASELINE, SIGNAL_BRIGHT, SIGNAL_DARK, T_ON, T_TAIL
 
 # Gruntman Fig. 1 Ci fast condition: 40 ms / 2.25 deg per LED step.
@@ -24,7 +24,6 @@ GRUNTMAN_DIRECTIONS = ("right", "left", "up", "down")
 GRUNTMAN_CONTRASTS = ("bright", "dark")
 
 _HEX_AREA = 1.5 * math.sqrt(3.0) * float(HEX_PATCH_RADIUS) ** 2
-_HEX_ORIENTATION_DEG = 30.0
 
 
 @dataclass(frozen=True)
@@ -49,13 +48,6 @@ class HexColumn:
     x: float
     y: float
     hex_xy: np.ndarray
-
-
-def hex_vertices(cx: float, cy: float, radius: float = HEX_PATCH_RADIUS) -> np.ndarray:
-    angles = np.deg2rad(_HEX_ORIENTATION_DEG + 60.0 * np.arange(6, dtype=np.float64))
-    vx = cx + radius * np.cos(angles)
-    vy = cy + radius * np.sin(angles)
-    return np.column_stack([vx, vy])
 
 
 def gruntman_moving_bar_specs(

@@ -24,7 +24,7 @@ import torch
 
 import network_bootstrap  # noqa: F401
 
-from column_mapper import DEFAULT_KERNEL_SIZE, hex_to_pixel
+from column_mapper import DEFAULT_KERNEL_SIZE, hex_to_pixel, hex_vertices
 from connectome_io import moving_bar_cache_dir
 from Medulla_Library import SIGNAL_BASELINE, SIGNAL_BRIGHT, SIGNAL_DARK, T_ON
 from visual_stimulus.moving_bar_stimulus import (
@@ -34,7 +34,6 @@ from visual_stimulus.moving_bar_stimulus import (
     build_batched_column_current,
     field_bounds,
     gruntman_moving_bar_specs,
-    hex_vertices,
     moving_bar_maxtime,
     moving_bar_sweep_end_step,
 )

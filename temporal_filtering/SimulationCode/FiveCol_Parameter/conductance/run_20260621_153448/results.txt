@@ -1,6 +1,0 @@
-conductance: 1 global out_scale vs 65 per-cell out_scale (steps/stage=150, lrs=(0.1, 0.01, 0.001))
-
-  1  global out_scale  (#params=139)  best=6.695   out_scale=3.972
-  65 per-cell out_scale (#params=203) best=2.035   out_scale min/mean/max=0.100/3.059/11.108
-
-  delta (65 - 1) = -4.660

@@ -268,7 +268,6 @@ def make_figure(cols: pd.DataFrame, lc_types: List[str] = LC_TYPES) -> Path:
         ax.set_ylim(ylim)
         set_axis_labels(ax, fontsize=9)
         ax.grid(True, alpha=0.3, linestyle="--")
-    drawn_axes[0].invert_yaxis()  # shared axes -> all panels match column_hex_map
 
     legend = []
     n_levels = min(global_max, max(INSIDE_SHADE))

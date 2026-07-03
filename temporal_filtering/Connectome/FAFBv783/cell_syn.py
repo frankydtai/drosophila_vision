@@ -23,7 +23,7 @@ then express each as a percentage of **all** ``n_syn`` for that cell type. An
 ``n_neuron`` column (distinct *partner* neurons of that partner type) is always
 shown. With ``--at-uv``/``--at-xy`` or a ``@root_id`` query, extra columns
 ``pre_uv``/``post_uv`` (hex; truncated when count>5) and ``pre_xy``/``post_xy``
-(``x=v``, ``y=u+v/2``) for the *partner* instances. The TOTAL row omits the uv/xy
+(from ``column_mapper.hex_to_pixel``) for the *partner* instances. The TOTAL row omits the uv/xy
 columns.
 
 The ``network.json`` schema is ``{"metadata", "nodes", "edges"}`` where each node is
@@ -56,7 +56,7 @@ from collections import defaultdict
 from pathlib import Path
 from typing import DefaultDict, Dict, List, Optional, Set, Tuple
 
-from column_mapper import hex_to_pixel
+from column_mapper import hex_to_pixel, pixel_to_hex
 from connectome_io import NETWORK_DIR
 
 _BASE_DIR = Path(__file__).resolve().parent
@@ -171,7 +171,7 @@ def _format_pre_xy_from_uvs(
     n_pre: int,
     max_coords: int = _MAX_PRE_UV_COORDS,
 ) -> str:
-    """Same (u,v) order/truncation as ``pre_uv``; ``x=v``, ``y=u+v/2``.
+    """Same (u,v) order/truncation as ``pre_uv``; centres from ``hex_to_pixel``.
 
     Pixel coords reuse ``column_mapper.hex_to_pixel`` (kernel_size=1) so the formula
     lives in exactly one place.
@@ -187,18 +187,8 @@ def _format_pre_xy_from_uvs(
 
 
 def _xy_to_uv(x: float, y: float) -> Tuple[int, int]:
-    """Inverse of hex_to_pixel(kernel_size=1): ``v = x``, ``u = y - x/2``.
-
-    Raises ``ValueError`` if the result is not an integer hex centre.
-    """
-    v = x
-    u = y - x / 2.0
-    iu, iv = round(u), round(v)
-    if abs(u - iu) > 1e-6 or abs(v - iv) > 1e-6:
-        raise ValueError(
-            f"(x,y)=({x},{y}) -> (u,v)=({u},{v}) is not an integer hex centre"
-        )
-    return int(iu), int(iv)
+    """Inverse of ``column_mapper.hex_to_pixel(kernel_size=1)`` for hex centers."""
+    return pixel_to_hex(x, y, kernel_size=1.0)
 
 
 def _node_id_to_uv(nodes: List[dict]) -> Dict[int, Tuple[int, int]]:
@@ -518,7 +508,7 @@ def main(argv: List[str] | None = None) -> int:
             "Only count edges whose CELL_TYPE *instance* sits at hex (u,v). "
             "Omit to aggregate over all instances of each cell type (default). "
             "When set: extra columns pre_uv/post_uv (hex, ≤5 pairs if >5) and "
-            "pre_xy/post_xy (x=v, y=u+v/2) for the partner instances "
+            "pre_xy/post_xy (from column_mapper.hex_to_pixel) for the partner instances "
             "(n_neuron is always shown). TOTAL row omits the uv/xy columns."
         ),
     )
@@ -529,8 +519,8 @@ def main(argv: List[str] | None = None) -> int:
         metavar=("X", "Y"),
         default=None,
         help=(
-            "Like --at-uv but specify pixel coords (x=v, y=u+v/2); converted to "
-            "(u,v)=(y-x/2, x), which must be integers."
+            "Like --at-uv but specify pixel coords; converted via "
+            "column_mapper.pixel_to_hex, which must land on an integer hex centre."
         ),
     )
     args = parser.parse_args(argv)
@@ -572,11 +562,10 @@ def main(argv: List[str] | None = None) -> int:
     if at_uv is not None:
         hu, hv = at_uv
         ids_at_hex = _instance_ids_at_hex(nodes, hu, hv)
-        xh = float(hv)
-        yh = float(hu) + float(hv) / 2.0
+        xh, yh = hex_to_pixel(hu, hv, kernel_size=1.0)
         hex_note = (
             f" at hex (u,v)=({hu},{hv}) "
-            f"(x,y)=({_format_scalar_for_table(xh)},{_format_scalar_for_table(yh)})"
+            f"(x,y)=({_format_scalar_for_table(float(xh))},{_format_scalar_for_table(float(yh))})"
         )
         logger.info(
             "Restricting to instances at (u,v)=(%s,%s); %d cell types have ≥1 node there",

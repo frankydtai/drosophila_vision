@@ -1,1 +1,0 @@
-{"network_json": "/home/yitai/drosophila_vision/temporal_filtering/Connectome/FAFBv783/built_network/right_min_neuron1_extent2/network.json", "multi_column": false, "share_edges": false, "target": "multi", "sequential": true, "moving_bar_center_column": false, "targets": ["moving_bar", "tile"], "loss_weights": {"tile": 1.0, "moving_bar": 1.0}, "radial_center_column": false}

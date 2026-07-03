@@ -23,7 +23,7 @@ RAW_DIR = DATA_DIR / "download"
 NETWORK_DIR = DATA_DIR / "built_network"
 DEFAULT_NETWORK_RUN = "right_min_neuron1_extent2"
 # Column map artifacts (per-side column tables + the column_map.png) live here.
-COLUMN_HEX_DIR = DATA_DIR / "column_hex"
+COLUMN_MAP_DIR = DATA_DIR / "column_map"
 # Located-column CSVs (r1_6_<side>_post.csv etc., from column_locator.py) live here.
 COLUMN_LOCATION_DIR = DATA_DIR / "column_location"
 # Per-network moving-bar column-current cache (under each built_network run folder).
@@ -62,7 +62,7 @@ CONNECTIONS_CHUNK_SIZE = 500_000
 
 def column_map_path(side: str) -> Path:
     """Path to the per-side column_id -> (u, v) table (written by column_mapper.py)."""
-    return COLUMN_HEX_DIR / COLUMN_MAP_FILE.format(side=side)
+    return COLUMN_MAP_DIR / COLUMN_MAP_FILE.format(side=side)
 
 
 def load_column_map(side: str) -> pd.DataFrame:

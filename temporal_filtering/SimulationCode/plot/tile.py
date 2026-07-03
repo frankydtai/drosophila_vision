@@ -2,7 +2,7 @@
 """Tile plotting (Borst + network tile target) split from plot_trained.
 
 This module contains:
-- Borst 5-column plotting (classic "model_vs_data" + "all cell types")
+- Borst 5-column plotting (classic "model-data" + "model-all")
 - Network tile-target plotting (ring-averaged cube + SEM band)
 
 plot_trained.py should only orchestrate which variant to call.
@@ -300,7 +300,7 @@ def multicol_cube(z):
     return names, cube, sem
 
 
-def plot_model_vs_data_network(z, path, title=None):
+def plot_model_data_network(z, path, title=None):
     names, cube, sem = multicol_cube(z)
     ncols = 5
     nrows = 2 * ((len(names) + ncols - 1) // ncols)
@@ -318,7 +318,7 @@ def plot_model_vs_data_network(z, path, title=None):
         )
         legend_done = True
     if title is None:
-        title = 'Network model vs data'
+        title = 'Network model-data'
     fig.suptitle(title + '  [avg over tiles x 7 shifts x ring]', fontsize=12)
     fig.savefig(path, dpi=150)
     plt.close(fig)
@@ -336,7 +336,7 @@ def plot_cost(costs, path):
     plt.close()
 
 
-def plot_model_vs_data(z, path, n_steps=None, title=None):
+def plot_model_data(z, path, n_steps=None, title=None):
     model_full, ref_full = calc_model_full_all(z, return_ref=True)
 
     groups = mvd_groups()
@@ -365,13 +365,13 @@ def plot_model_vs_data(z, path, n_steps=None, title=None):
             legend_done = True
 
     if title is None:
-        title = f'Model vs data after {n_steps} steps (center column)'
+        title = f'Model-data after {n_steps} steps (center column)'
     fig.suptitle(title, fontsize=12)
     fig.savefig(path, dpi=150)
     plt.close(fig)
 
 
-def plot_all_celltypes(z, path, n_steps=None, title=None):
+def plot_model_all(z, path, n_steps=None, title=None):
     model_full, ref_full = calc_model_full_all(z, return_ref=True)
 
     ncols = 13
@@ -394,7 +394,7 @@ def plot_all_celltypes(z, path, n_steps=None, title=None):
         )
 
     if title is None:
-        title = f'All {fc.nofcells} cell types after {n_steps} steps'
+        title = f'Model-all {fc.nofcells} cells after {n_steps} steps'
     fig.suptitle(title, fontsize=14)
     fig.savefig(path, dpi=150)
     plt.close(fig)

@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Test plot: moving-bar model traces on the full stimulus horizon (``maxtime`` steps).
 
-Reads trained params from ``--rundir``; writes ``model_all_cells_fulltime.png`` and
+Reads trained params from ``--rundir``; writes ``model_all_fulltime.png`` and
 ``moving_bar_full_plot_cache.npz`` under ``test/moving_bar_fulltime/`` (default).
 Does not modify :mod:`plot_trained` or the run folder.
 
@@ -50,7 +50,7 @@ from visual_stimulus.moving_bar_stimulus import (
 )
 
 MOVING_BAR_FULL_PLOT_CACHE_FILE = 'moving_bar_full_plot_cache.npz'
-PNG_NAME = 'model_all_cells_fulltime.png'
+PNG_NAME = 'model_all_fulltime.png'
 DELTAT_MS = 10.0
 
 
@@ -214,15 +214,15 @@ def _plot_cell(ax, model_trace, sem_trace, data_trace, title, maxtime, t_on, del
     ax.tick_params(labelsize=6)
 
 
-def plot_all_celltypes_fulltime(path, types, spec_names, model_mean, model_sem, data_mean, meta,
-                                title=None):
+def plot_model_all_fulltime(path, types, spec_names, model_mean, model_sem, data_mean, meta,
+                            title=None):
     maxtime = int(meta['maxtime'])
     t_on = int(meta['t_on'])
     deltat_ms = float(meta['deltat_ms'])
     center_only = bool(meta['center_only'])
     t_end_s = maxtime * deltat_ms / 1000.0
 
-    # Match `model_all_cells`: 32 rows (cell types) × 4 columns (right stimuli).
+    # Match model_all: 32 rows (cells) × 4 columns (right stimuli).
     spec_names = _moving_bar_right_spec_names(spec_names)
     nrows = len(types)
     ncols = len(spec_names)
@@ -254,7 +254,7 @@ def plot_all_celltypes_fulltime(path, types, spec_names, model_mean, model_sem, 
         _style_horizon_axis(axes[-1, ci], maxtime, deltat_ms, show_xlabel=False)
 
     if title is None:
-        title = 'Moving-bar all cell types (full horizon)'
+        title = 'Moving-bar model-all (full horizon)'
     fig.suptitle(
         title + f'  [{meta["scope"]}, 0–{t_end_s:g} s; dashed = t_on]',
         fontsize=10,
@@ -297,7 +297,7 @@ def main():
     cached = _load_full_cache(outdir, fp)
     if cached is not None:
         types, spec_names, model_mean, model_sem, data_mean, meta = cached
-        plot_all_celltypes_fulltime(
+        plot_model_all_fulltime(
             png, types, spec_names, model_mean, model_sem, data_mean, meta,
             title='Moving-bar all cells (trained, full horizon)',
         )
@@ -315,7 +315,7 @@ def main():
     fc.MODEL_TYPE = resolve_model_type(params_path, None)
     z = torch.tensor(best, dtype=torch.float64, device=fc.device)
     types, spec_names, model_mean, model_sem, data_mean, meta = _full_type_traces(z, cache_dir=outdir)
-    plot_all_celltypes_fulltime(
+    plot_model_all_fulltime(
         png, types, spec_names, model_mean, model_sem, data_mean, meta,
         title='Moving-bar all cells (trained, full horizon)',
     )
