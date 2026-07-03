@@ -26,7 +26,7 @@ import network_bootstrap  # noqa: F401
 
 from column_mapper import DEFAULT_KERNEL_SIZE, hex_to_pixel, hex_vertices
 from connectome_io import moving_bar_cache_dir
-from Medulla_Library import SIGNAL_BASELINE, SIGNAL_BRIGHT, SIGNAL_DARK, T_ON
+from Medulla_Library import I_BASELINE, I_BRIGHT, I_DARK, T_ON
 from visual_stimulus.moving_bar_stimulus import (
     GRUNTMAN_SPEED_DEG_S,
     HexColumn,
@@ -196,9 +196,9 @@ def _moving_bar_cache_key(
         "maxtime": maxtime,
         "t_on": t_on,
         "deltat_ms": deltat_ms,
-        "signal_baseline": i_baseline,
-        "signal_bright": SIGNAL_BRIGHT,
-        "signal_dark": SIGNAL_DARK,
+        "i_baseline": i_baseline,
+        "i_bright_bar": I_BRIGHT,
+        "i_dark_bar": I_DARK,
     }
     digest = hashlib.sha256(json.dumps(payload, sort_keys=True).encode()).hexdigest()
     return digest[:16]
@@ -242,7 +242,7 @@ def build_moving_bar_signals(
     maxtime: Optional[int] = None,
     t_on: int = T_ON,
     deltat_ms: float = 10.0,
-    i_baseline: float = SIGNAL_BASELINE,
+    i_baseline: float = I_BASELINE,
     device: Optional[str] = None,
     use_cache: bool = True,
     refresh_cache: bool = False,
@@ -312,9 +312,9 @@ def build_moving_bar_signals(
         "sweep_time_s": sweep_steps * deltat_ms / 1000.0,
         "tail_steps": tail_steps,
         "tail_time_s": tail_steps * deltat_ms / 1000.0,
-        "i_bright": SIGNAL_BRIGHT,
-        "i_dark": SIGNAL_DARK,
-        "i_baseline": i_baseline,
+        "i_bright_bar": I_BRIGHT,
+        "i_dark_bar": I_DARK,
+        "i_baseline_bar": i_baseline,
         "speed_deg_s": specs[0].speed_deg_s if specs else GRUNTMAN_SPEED_DEG_S,
         "spec_names": [s.name for s in specs],
     }

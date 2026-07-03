@@ -34,7 +34,7 @@ from matplotlib.animation import FuncAnimation, PillowWriter
 from matplotlib.patches import Rectangle
 
 import Medulla_Library as ml
-from Medulla_Library import SIGNAL_BASELINE, SIGNAL_BRIGHT, T_ON
+from Medulla_Library import I_BASELINE, I_BRIGHT, T_ON
 from network.construction import load_network
 from network.stimulus import build_moving_bar_signals
 from column_mapper import (
@@ -112,7 +112,7 @@ def _borst_hex_columns() -> list[HexColumn]:
     return cols
 
 
-def _build_borst_moving_bar(showcase, i_baseline: float = SIGNAL_BASELINE):
+def _build_borst_moving_bar(showcase, i_baseline: float = I_BASELINE):
     """Column currents ``(B, T, 5)`` for Borst horizontal moving-bar demo."""
     hex_cols = _borst_hex_columns()
     field_deg = field_bounds(hex_cols)
@@ -299,7 +299,7 @@ def main():
                     help="write GIF; default path if flag alone, or pass a path")
     ap.add_argument("--frame-step", type=int, default=2)
     ap.add_argument("--direction", type=str, default="right", choices=("right", "left", "up", "down"))
-    ap.add_argument("--i-bright", type=float, default=SIGNAL_BRIGHT)
+    ap.add_argument("--i-bright", type=float, default=I_BRIGHT)
     args = ap.parse_args()
 
     showcase = [s for s in gruntman_moving_bar_specs() if s.direction == args.direction]

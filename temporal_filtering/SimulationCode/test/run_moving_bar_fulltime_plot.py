@@ -33,16 +33,15 @@ os.chdir(ROOT)
 
 import network_bootstrap  # noqa: F401
 import FiveCol_MedSim_Pytorch as fc
-from plot_trained import (
+from plot.moving_bar import (
     _moving_bar_center_only,
     _moving_bar_right_spec_names,
     _moving_bar_t0_grid,
     _network_type_ids,
-    _nice_ylim,
-    resolve_model_type,
-    restore_fc_context,
 )
-from training_config import COST_HALF_WINDOW_STEPS, COST_WINDOW_STEPS
+from plot.utils import nice_ylim as _nice_ylim
+from plot_trained import load_session, resolve_model_type
+from training_config import COST_HALF_WINDOW_STEPS, COST_WINDOW_STEPS, PARAMETER_DIR
 from t4_t5_preference import READOUT_SUBTYPES, fig1_key_for_stimulus, normalize_side
 from visual_stimulus.moving_bar_stimulus import (
     column_bar_center_step,
@@ -65,9 +64,8 @@ def _pad_model_full_absolute(model_full, maxtime, t_on):
     return out
 
 
-def _full_cache_context():
-    # Legacy helper; cache is disabled in this test script.
-    return (int(fc.maxtime), int(fc.t_on))
+def _full_cache_context(session):
+    return (int(session.maxtime), int(fc.t_on))
 
 
 def _aggregate_full_traces(windows, t0_bn, type_ids, types, spec_names, center_only):
@@ -93,27 +91,28 @@ def _aggregate_full_traces(windows, t0_bn, type_ids, types, spec_names, center_o
 
 
 @torch.no_grad()
-def _compute_full_type_traces(z):
+def _compute_full_type_traces(session, z):
     from network.moving_bar_target import load_fig1_trace
     from network.stimulus import build_moving_bar_signals, center_photo_column, photo_columns
 
     specs = gruntman_moving_bar_specs()
     spec_names = [s.name for s in specs]
-    C = fc.NETWORK
+    C = session.backend.network
     side = normalize_side(C.meta.get('side', 'right'))
-    center_only = _moving_bar_center_only()
+    center_only = _moving_bar_center_only(session)
     cols = [center_photo_column(C)] if center_only else photo_columns(C)
 
-    p = fc.assign_params(z, fc.CONDUCTANCE_SCHEMA)
-    model_full = fc._run_conductance_full(p, fc.signal).cpu().numpy()
-    mt, ton = int(fc.maxtime), int(fc.t_on)
+    pack = session.pack_for('moving_bar')
+    p = fc.assign_params(z, list(session.schema), session.backend)
+    model_full = fc._run_conductance_full(session, p, pack.signal).cpu().numpy()
+    mt, ton = int(session.maxtime), int(fc.t_on)
     padded = _pad_model_full_absolute(model_full, mt, ton)
     windows = np.transpose(padded, (0, 2, 1))
 
     field_deg = C.meta.get('field_deg')
     if field_deg is None:
         field_deg = build_moving_bar_signals(
-            C, t_on=ton, deltat_ms=fc.deltat, device=fc.device,
+            C, t_on=ton, deltat_ms=fc.deltat, device=session.device,
         ).info['field_deg']
 
     t0_map = {}
@@ -169,9 +168,8 @@ def _load_full_cache(cache_dir, fingerprint: str):
 
 
 @torch.no_grad()
-def _full_type_traces(z, cache_dir=None):
-    # Cache disabled; always recompute.
-    result = _compute_full_type_traces(z)
+def _full_type_traces(session, z, cache_dir=None):
+    result = _compute_full_type_traces(session, z)
     if cache_dir:
         _save_full_cache(cache_dir, z, result)
     return result
@@ -278,7 +276,7 @@ def _load_best_param(rundir):
 
 
 def main():
-    default_rundir = os.path.join('FiveCol_Parameter', 'conductance', 'run_26693975')
+    default_rundir = str(PARAMETER_DIR / 'conductance' / 'run_26693975')
     default_outdir = os.path.join(HERE, 'moving_bar_fulltime')
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument('--rundir', default=default_rundir, help='trained run folder (read-only)')
@@ -309,12 +307,10 @@ def main():
     params_path = os.path.join(rundir, 'training_with_Ih.npy')
     if not os.path.isfile(params_path):
         raise SystemExit(f'missing params: {params_path}')
-    if not restore_fc_context(rundir):
-        raise SystemExit(f'cannot restore network context from {rundir}')
-
-    fc.MODEL_TYPE = resolve_model_type(params_path, None)
-    z = torch.tensor(best, dtype=torch.float64, device=fc.device)
-    types, spec_names, model_mean, model_sem, data_mean, meta = _full_type_traces(z, cache_dir=outdir)
+    model_type = resolve_model_type(params_path, None)
+    session = load_session(rundir, model_type)
+    z = torch.tensor(best, dtype=torch.float64, device=session.device)
+    types, spec_names, model_mean, model_sem, data_mean, meta = _full_type_traces(session, z, cache_dir=outdir)
     plot_model_all_fulltime(
         png, types, spec_names, model_mean, model_sem, data_mean, meta,
         title='Moving-bar all cells (trained, full horizon)',

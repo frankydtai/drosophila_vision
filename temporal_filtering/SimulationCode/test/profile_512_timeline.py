@@ -20,19 +20,25 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import numpy as np
 
-from training_config import COST_WINDOW_STEPS
-from plot_trained import (
+from training_config import COST_WINDOW_STEPS, PARAMETER_DIR
+from plot.moving_bar import (
     MOVING_BAR_GRID_DPI,
     _compute_moving_bar_all_type_traces,
-    _moving_bar_hide_ticks,
-    _moving_bar_right_ticks,
     _moving_bar_ylim,
     _plot_moving_bar_cell,
-    _save_moving_bar_fig,
-    restore_fc_context,
+    _set_moving_bar_xticks,
 )
+from plot_trained import load_session
 import FiveCol_MedSim_Pytorch as fc
 import torch
+
+
+def _moving_bar_right_ticks(ax):
+    _set_moving_bar_xticks(ax)
+
+
+def _moving_bar_hide_ticks(ax):
+    ax.tick_params(labelbottom=False, labelleft=False)
 
 
 class Timeline:
@@ -53,14 +59,14 @@ class Timeline:
         self.mark(f"{name} done  +{dt:.2f}s")
 
 
-def load_z_from_table(rundir: str) -> torch.Tensor:
+def load_z_from_table(rundir: str, session) -> torch.Tensor:
     import csv
 
     table_path = os.path.join(rundir, "training_with_Ih_table.csv")
     with open(table_path, newline="") as f:
         rows = list(csv.DictReader(f))
     by_type = {row["ctype"]: row for row in rows}
-    type_names = list(fc.NETWORK.type_names)
+    type_names = list(session.backend.network.type_names)
     inp_gain = [float(by_type[t]["inp_gain"]) for t in type_names]
     out_gain = [float(by_type[t]["out_gain"]) for t in type_names]
     out_scale = [float(by_type[t]["out_scale"]) for t in type_names]
@@ -72,15 +78,15 @@ def load_z_from_table(rundir: str) -> torch.Tensor:
         inp_gain + out_gain + Ih_gmax + [Ih_midv, Ih_slope, tau_midv] + out_scale,
         dtype=np.float64,
     )
-    return torch.tensor(z, dtype=torch.float64, device=fc.device)
+    return torch.tensor(z, dtype=torch.float64, device=session.device)
 
 
-def plot_512_instrumented(z, path: str, tl: Timeline):
+def plot_512_instrumented(session, z, path: str, tl: Timeline):
     """512-panel path: 32 types x 16 specs (all directions)."""
     tl.mark("start traces")
     t0 = time.perf_counter()
-    center_only = fc.NETWORK_TRAIN_OPTS.get("moving_bar_center_column", False)
-    types, spec_names, model_mean, model_sem, data_mean = _compute_moving_bar_all_type_traces(z)
+    center_only = session.moving_bar_center_column
+    types, spec_names, model_mean, model_sem, data_mean = _compute_moving_bar_all_type_traces(session, z)
     tl.phase("traces (_compute_moving_bar_all_type_traces)", time.perf_counter() - t0)
 
     keys = list(model_mean.keys())
@@ -144,7 +150,8 @@ def plot_512_instrumented(z, path: str, tl: Timeline):
     tl.mark("suptitle + subplots_adjust")
     t0 = time.perf_counter()
     from network.stimulus import photo_columns
-    scope = f"avg over {len(photo_columns(fc.NETWORK))} photo columns"
+    C = session.backend.network
+    scope = f"avg over {len(photo_columns(C))} photo columns"
     fig.suptitle("Moving-bar model-all  [" + scope + ", t_center ± 0.45 s]", fontsize=10)
     fig.subplots_adjust(top=0.96, bottom=0.05, hspace=0.55, wspace=0.3)
     tl.phase("suptitle+adjust", time.perf_counter() - t0)
@@ -181,11 +188,10 @@ def plot_512_instrumented(z, path: str, tl: Timeline):
 
 
 def main():
-    rundir = os.path.join(ROOT, "FiveCol_Parameter", "conductance", "run_26693975")
+    rundir = str(PARAMETER_DIR / "conductance" / "run_26693975")
     out_png = os.path.join(rundir, "model_all_512_profile.png")
-    restore_fc_context(rundir)
-    fc.MODEL_TYPE = "conductance"
-    z = load_z_from_table(rundir)
+    session = load_session(rundir, "conductance")
+    z = load_z_from_table(rundir, session)
 
     print(f"matplotlib {matplotlib.__version__}  dpi={MOVING_BAR_GRID_DPI}", flush=True)
     print(f"panels=32x16=512  pixels~{int(22.4*MOVING_BAR_GRID_DPI)}x{int(27.2*MOVING_BAR_GRID_DPI)}", flush=True)
@@ -194,7 +200,7 @@ def main():
     tl = Timeline()
     pr = cProfile.Profile()
     pr.enable()
-    plot_512_instrumented(z, out_png, tl)
+    plot_512_instrumented(session, z, out_png, tl)
     pr.disable()
 
     total = tl.events[-1][0] if tl.events else 0

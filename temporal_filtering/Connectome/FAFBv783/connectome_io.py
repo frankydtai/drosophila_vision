@@ -29,6 +29,12 @@ COLUMN_LOCATION_DIR = DATA_DIR / "column_location"
 # Per-network moving-bar column-current cache (under each built_network run folder).
 MOVING_BAR_CACHE_DIRNAME = "moving_bar_cache"
 
+# Borst 5-column simulator matrices (``FiveCol_MedSim_*`` / ``Circuits/``).
+SIMULATION_CODE_DIR = DATA_DIR.parent.parent / "SimulationCode"
+BORST_CIRCUITS_DIR = SIMULATION_CODE_DIR / "Circuits"
+BORST_MULTI_COL_M = BORST_CIRCUITS_DIR / "multi_colM.npy"
+BORST_CTYPE_NPY = BORST_CIRCUITS_DIR / "ctype.npy"
+
 
 def network_json_path(side: str, min_neuron_count: int = 1) -> Path:
     """Path to a built connectome ``network.json`` (default: full FAFB per side)."""

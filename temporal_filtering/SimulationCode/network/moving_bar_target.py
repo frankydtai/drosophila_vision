@@ -14,7 +14,8 @@ from typing import Dict, List, Optional, Sequence
 import numpy as np
 import torch
 
-from Medulla_Library import T_ON
+import Medulla_Library as ml
+from Medulla_Library import I_BASELINE, I_BRIGHT, I_DARK, T_ON
 from network.stimulus import build_moving_bar_signals, cost_photo_columns
 from t4_t5_preference import READOUT_SUBTYPES, fig1_key_for_stimulus, normalize_side
 from training_config import (
@@ -22,9 +23,19 @@ from training_config import (
     COST_WINDOW_STEPS,
     FIG1_CI_NPZ,
 )
-from visual_stimulus.moving_bar_stimulus import column_bar_center_step
+from visual_stimulus.moving_bar_stimulus import (
+    HexColumn,
+    build_batched_column_current,
+    column_bar_center_step,
+    field_bounds,
+    gruntman_moving_bar_specs,
+    moving_bar_maxtime,
+    moving_bar_sweep_end_step,
+)
+from column_mapper import DEFAULT_KERNEL_SIZE, hex_to_pixel, hex_vertices
 
 _TRACE_CACHE: Dict[str, np.ndarray] = {}
+BORST_READOUT_SUBTYPES = ("T4a", "T4b", "T5a", "T5b")
 
 
 @dataclass
@@ -99,6 +110,23 @@ def col2subtype(C, u: int, v: int, subtype: str, names: Optional[np.ndarray] = N
     )[0]
 
 
+def _borst_hex_columns() -> List[HexColumn]:
+    """Five Borst columns on one horizontal row with 5 deg spacing."""
+    cols: List[HexColumn] = []
+    spacing_deg = 5.0
+    for col in range(ml.nofcols):
+        k = float(col - ml.CENTER_COL)
+        v = (spacing_deg / DEFAULT_KERNEL_SIZE) * k
+        u = -0.5 * v
+        x, y = hex_to_pixel(u, v, DEFAULT_KERNEL_SIZE)
+        cols.append(HexColumn(u=int(col), v=0, x=float(x), y=float(y), hex_xy=hex_vertices(x, y)))
+    return cols
+
+
+def _borst_moving_bar_specs():
+    return gruntman_moving_bar_specs(directions=("right", "left"))
+
+
 def build_moving_bar_target(
     C,
     device: Optional[str] = None,
@@ -107,6 +135,7 @@ def build_moving_bar_target(
     fig1_path: Path = FIG1_CI_NPZ,
     use_cache: bool = True,
     center_column: bool = False,
+    i_baseline: Optional[float] = None,
 ) -> MovingBarTarget:
     """Build moving-bar stimulus + fig1 targets for photo columns × T4/T5 subtypes.
 
@@ -119,6 +148,7 @@ def build_moving_bar_target(
     stim = build_moving_bar_signals(
         C, t_on=t_on, deltat_ms=deltat_ms, device=device, use_cache=use_cache,
         network_json=getattr(C, "source_json", None),
+        i_baseline=I_BASELINE if i_baseline is None else float(i_baseline),
     )
     maxtime = int(stim.info["maxtime"])
     field_deg = stim.info["field_deg"]
@@ -198,6 +228,127 @@ def build_moving_bar_target(
         readout_batch=readout_batch,
         readout_unit=readout_unit,
         n_batch=stim.info["n_batch"],
+        maxtime=maxtime,
+        info=info,
+    )
+
+
+def build_borst_moving_bar_target(
+    device: Optional[str] = None,
+    t_on: int = T_ON,
+    deltat_ms: float = 10.0,
+    fig1_path: Path = FIG1_CI_NPZ,
+    center_column: bool = False,
+    i_baseline: float = I_BASELINE,
+    i_baseline_bright: Optional[float] = None,
+    i_baseline_dark: Optional[float] = None,
+    i_bright_bar: float = I_BRIGHT,
+    i_dark_bar: float = I_DARK,
+) -> MovingBarTarget:
+    """Build Borst 5-column horizontal moving-bar target for T4/T5 a,b only."""
+    device = device or "cpu"
+    specs = _borst_moving_bar_specs()
+    cols = _borst_hex_columns()
+    field_deg = field_bounds(cols)
+    maxtime = moving_bar_maxtime(specs, field_deg, t_on=t_on, deltat_ms=deltat_ms)
+    sweep_end = moving_bar_sweep_end_step(specs, field_deg, t_on=t_on, deltat_ms=deltat_ms)
+    fig1 = load_fig1_traces(fig1_path, deltat_ms=deltat_ms)
+    present = [st for st in BORST_READOUT_SUBTYPES if st in set(ml.ctype.tolist())]
+    if not present:
+        raise ValueError("Borst path has no T4a/T4b/T5a/T5b subtypes for moving-bar target")
+
+    column_current = build_batched_column_current(
+        cols, specs, maxtime, t_on=t_on, deltat_ms=deltat_ms,
+        i_baseline=i_baseline,
+        i_baseline_bright=i_baseline_bright,
+        i_baseline_dark=i_baseline_dark,
+        i_bright_bar=i_bright_bar,
+        i_dark_bar=i_dark_bar,
+    )
+    n_units = ml.n_state_units()
+    signal = torch.zeros((len(specs), maxtime, n_units), dtype=torch.float64, device=device)
+    for col in range(ml.nofcols):
+        pr = ml.photoreceptor_slice(col)
+        signal[:, :, pr] = torch.tensor(column_current[:, :, col], dtype=torch.float64, device=device)[:, :, None]
+
+    cost_cols = [cols[ml.CENTER_COL]] if center_column else cols
+    cost_col_ids = [ml.CENTER_COL] if center_column else list(range(ml.nofcols))
+
+    r_batch, r_unit, r_target, r_weight, r_t0 = [], [], [], [], []
+    skipped_orthogonal = 0
+    for b, spec in enumerate(specs):
+        for col_id, col in zip(cost_col_ids, cost_cols):
+            t_center = column_bar_center_step(
+                col.x, col.y, spec, field_deg, t_on=t_on, deltat_ms=deltat_ms,
+            )
+            t0 = t_center - COST_HALF_WINDOW_STEPS
+            if t0 < 0 or t_center + COST_HALF_WINDOW_STEPS > maxtime:
+                raise ValueError(
+                    f"cost window out of range for Borst column {col_id} "
+                    f"spec={spec.name}: t_center={t_center}, maxtime={maxtime}"
+                )
+            for subtype in present:
+                trace_id = fig1_key_for_stimulus("right", subtype, spec)
+                if trace_id is None:
+                    skipped_orthogonal += 1
+                    continue
+                if trace_id not in fig1:
+                    raise KeyError(f"fig1 trace missing: {trace_id}")
+                uidx = ml.unit_index(col_id, ml.type_index(subtype))
+                r_batch.append(b)
+                r_unit.append(int(uidx))
+                r_target.append(fig1[trace_id])
+                r_weight.append(1.0)
+                r_t0.append(t0)
+
+    if not r_batch:
+        raise ValueError("no Borst moving-bar cost cells")
+
+    data = torch.tensor(np.asarray(r_target), dtype=torch.float64, device=device)
+    cost_weight = torch.tensor(np.asarray(r_weight), dtype=torch.float64, device=device)
+    readout_batch = torch.tensor(np.asarray(r_batch), dtype=torch.long, device=device)
+    readout_unit = torch.tensor(np.asarray(r_unit), dtype=torch.long, device=device)
+    cost_t0 = torch.tensor(np.asarray(r_t0), dtype=torch.long, device=device)
+    power = torch.sum(cost_weight[:, None] * data ** 2)
+    if float(power) == 0.0:
+        power = torch.tensor(1.0, dtype=torch.float64, device=device)
+
+    info = {
+        "n_cost": int(data.shape[0]),
+        "n_batch": len(specs),
+        "n_cost_columns": len(cost_cols),
+        "center_column": bool(center_column),
+        "cost_column_uv": (ml.CENTER_COL, 0) if center_column else None,
+        "side": "right",
+        "present_subtypes": present,
+        "skipped_orthogonal": skipped_orthogonal,
+        "fig1_path": str(fig1_path),
+        "cost_window_steps": COST_WINDOW_STEPS,
+        "maxtime": maxtime,
+        "t_on": t_on,
+        "field_deg": field_deg,
+        "sweep_steps": sweep_end - t_on,
+        "sweep_time_s": (sweep_end - t_on) * (deltat_ms / 1000.0),
+        "spec_names": [s.name for s in specs],
+        "n_photo_columns": ml.nofcols,
+        "mode": "borst",
+        "i_baseline_bar": float(i_baseline),
+        "i_bright_bar": float(i_bright_bar),
+        "i_dark_bar": float(i_dark_bar),
+    }
+    if i_baseline_bright is not None:
+        info["i_baseline_bright_bar"] = float(i_baseline_bright)
+    if i_baseline_dark is not None:
+        info["i_baseline_dark_bar"] = float(i_baseline_dark)
+    return MovingBarTarget(
+        signal=signal,
+        data=data,
+        power=power,
+        cost_weight=cost_weight,
+        cost_t0=cost_t0,
+        readout_batch=readout_batch,
+        readout_unit=readout_unit,
+        n_batch=len(specs),
         maxtime=maxtime,
         info=info,
     )

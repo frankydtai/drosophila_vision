@@ -26,7 +26,7 @@ import numpy as np
 import torch
 
 from .connectivity import ScatterConn
-from Medulla_Library import IMPULSE_MAXTIME, SIGNAL_BASELINE, SIGNAL_BRIGHT, T_ON
+from Medulla_Library import IMPULSE_MAXTIME, I_BASELINE, I_BRIGHT, T_ON
 
 # Default synaptic scale (matches FiveCol exc_synweight == inh_synweight == 0.001).
 DEFAULT_SYNWEIGHT = 0.001
@@ -70,22 +70,18 @@ class Network:
     def build_signal(
         self,
         maxtime: int = IMPULSE_MAXTIME,
-        baseline: float = SIGNAL_BASELINE,
-        bright: float = SIGNAL_BRIGHT,
+        i_baseline: float = I_BASELINE,
+        i_bright: float = I_BRIGHT,
         t_on: int = T_ON,
         center_uv=(0, 0),
     ) -> torch.Tensor:
-        """(maxtime, n_units) stimulus current injected into one column's inputs.
-
-        Mirrors the Borst ``signal``: baseline before ``t_on`` then ``bright`` after,
-        applied only to the stimulus (photoreceptor) units of ``center_uv``.
-        """
+        """(maxtime, n_units) injected PR current for one column's inputs."""
         sig = torch.zeros((maxtime, self.n_units), dtype=torch.float64, device=self.device)
         units = self.input_units_at(int(center_uv[0]), int(center_uv[1]))
         if len(units):
             idx = torch.as_tensor(units, dtype=torch.long, device=self.device)
-            sig[:t_on, idx] = baseline
-            sig[t_on:, idx] = bright
+            sig[:t_on, idx] = i_baseline
+            sig[t_on:, idx] = i_bright
         return sig
 
 

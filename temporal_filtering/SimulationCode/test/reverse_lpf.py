@@ -1,13 +1,9 @@
-"""L4 best-model trace vs the same trace with the Ca lowpass reverse-removed.
-
-Reuses the core forward (fc._run_conductance) for the post-lpf trace, then
-inverts the explicit-Euler Ca lowpass
-    m_t = m_{t-1} + (deltat/Ca_tau) * (raw_t - m_{t-1})
-=>  raw_t = m_{t-1} + (m_t - m_{t-1}) * Ca_tau/deltat      (m_{-1}=0)
-to recover the pre-lpf membrane trace. No model forward is re-implemented."""
+"""L4 best-model trace vs the same trace with the Ca lowpass reverse-removed."""
 import os
 import sys
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+sys.path.insert(0, ROOT)
+os.chdir(ROOT)
 os.environ['CUDA_VISIBLE_DEVICES'] = ''
 
 import numpy as np
@@ -18,34 +14,32 @@ import matplotlib.pyplot as plt
 
 import Medulla_Library as ml
 import FiveCol_MedSim_Pytorch as fc
+from training_config import PARAMETER_DIR
 
-fc.MODEL_TYPE = 'conductance'
+session = fc.open_session(fc.make_train_opts(backend='borst', target_list=['tile']), 'conductance')
+schema = list(session.schema)
 
-# --- paper best params (138) padded with out_scale=1 -> current 203 schema ---
-z138 = np.load('FiveCol_Parameter/with_Ih/best_parameter.npy')
-n_outscale = fc.schema_nparams(fc.CONDUCTANCE_SCHEMA) - z138.shape[0]
+z138 = np.load(str(PARAMETER_DIR / 'with_Ih' / 'best_parameter.npy'))
+n_outscale = fc.schema_nparams(schema) - z138.shape[0]
 z = np.concatenate([z138, np.ones(n_outscale)])
-z = torch.tensor(z, dtype=torch.float64, device=fc.device)
+z = torch.tensor(z, dtype=torch.float64, device=session.device)
 print("padded params:", z138.shape[0], "->", z.shape[0], "(out_scale=1 x %d)" % n_outscale)
 
-# --- L4 center-column neuron index in the full multi-column state ---
 l4_cell = ml.type_index('L4')
-idx = torch.tensor([ml.center_unit_index(l4_cell)], dtype=torch.long, device=fc.device)
+idx = torch.tensor([ml.center_unit_index(l4_cell)], dtype=torch.long, device=session.device)
 
-# --- post-lpf trace straight from the core forward ---
 with torch.no_grad():
-    p = fc.assign_params(z, fc.CONDUCTANCE_SCHEMA)
-    stacked, vm_ref = fc._run_conductance(p, neuron_index=idx, return_ref=True)
-m = stacked[:, 0]                                     # (150,) model output, t=50..199
+    p = fc.assign_params(z, schema, session.backend)
+    stacked, vm_ref = fc._run_conductance(session, p, neuron_index=idx, return_ref=True)
+m = stacked[:, 0]
 
-# --- reverse-remove the Ca lowpass (exact inverse of the Euler recurrence) ---
-k = fc.Ca_tau / fc.deltat                             # = 5 steps
+k = fc.Ca_tau / fc.deltat
 m_prev = torch.cat([torch.zeros(1, dtype=m.dtype, device=m.device), m[:-1]])
-raw = m_prev + (m - m_prev) * k                       # pre-lpf membrane trace
+raw = m_prev + (m - m_prev) * k
 
-cost = fc.calc_cost(z, fc.data).item()
+cost = fc.calc_cost(z, session).item()
 m_np, raw_np = m.cpu().numpy(), raw.cpu().numpy()
-t = np.arange(fc.t_on, fc.maxtime)
+t = np.arange(fc.t_on, session.maxtime)
 
 plt.figure(figsize=(9, 5))
 plt.plot(t, m_np,   color="tab:red",  lw=2.5, label=r"L4 best model (post Ca-lpf, $\tau=5$ steps)")

@@ -1,0 +1,13 @@
+{
+  "target": "moving_bar",
+  "mode": "borst",
+  "i_bright_bar": 40.0,
+  "i_dark_bar": 0.0,
+  "t_on": 50,
+  "maxtime": 145,
+  "deltat_ms": 10.0,
+  "center_column": false,
+  "i_baseline_bright": 0.0,
+  "i_baseline_dark": 40.0,
+  "i_baseline": 20.0
+}

@@ -63,11 +63,11 @@ def _scale_curve(xt, center, sem_xt=None):
     return imp, np.roll(rf, -2)
 
 
-def _style_time_axis(ax, show_xlabel):
-    t_end = fc.maxtime * fc.deltat / 1000.0
+def _style_time_axis(ax, show_xlabel, maxtime):
+    t_end = maxtime * fc.deltat / 1000.0
     t_mid = t_end / 2.0
-    ax.set_xlim(0, fc.maxtime)
-    ax.set_xticks([0, fc.maxtime // 2, fc.maxtime])
+    ax.set_xlim(0, maxtime)
+    ax.set_xticks([0, maxtime // 2, maxtime])
     ax.set_xticklabels(['0', f'{t_mid:g}', f'{t_end:g}'], fontsize=6)
     if show_xlabel:
         ax.set_xlabel('time [s]', fontsize=7)
@@ -100,6 +100,7 @@ def plot_cell_pair_axes(
     show_xlabels=False,
     show_ylabel=False,
     baseline=None,
+    maxtime=ml.IMPULSE_MAXTIME,
 ):
     center = CENTER_COL + 2
     imp_model, rf_model = _scale_curve(model_xt, center)
@@ -125,7 +126,7 @@ def plot_cell_pair_axes(
     ax_time.plot(imp_data, color='gray', linewidth=1.5) if imp_data is not None else None
     ax_time.plot(imp_model, color='red', linewidth=1.5)
     ax_time.set_ylim(ylo, yhi)
-    _style_time_axis(ax_time, show_xlabels)
+    _style_time_axis(ax_time, show_xlabels, maxtime)
     if show_ylabel:
         ax_time.set_ylabel('mV', fontsize=7)
     ax_time.tick_params(labelsize=6)
@@ -142,6 +143,7 @@ def plot_cell_pair_sem(
     show_legend=False,
     show_xlabels=False,
     show_ylabel=False,
+    maxtime=ml.IMPULSE_MAXTIME,
 ):
     center = 4
     imp_model, rf_model, imp_sem = _scale_curve(model_xt, center, sem_xt)
@@ -165,7 +167,7 @@ def plot_cell_pair_sem(
     if show_legend:
         ax_rf.legend(loc='upper right', fontsize=6, frameon=False)
 
-    t = np.arange(fc.maxtime)
+    t = np.arange(maxtime)
     if imp_data is not None:
         ax_time.plot(imp_data, color='gray', linewidth=1.5)
     ax_time.fill_between(
@@ -174,19 +176,19 @@ def plot_cell_pair_sem(
     )
     ax_time.plot(imp_model, color='red', linewidth=1.5)
     ax_time.set_ylim(ylo, yhi)
-    _style_time_axis(ax_time, show_xlabels)
+    _style_time_axis(ax_time, show_xlabels, maxtime)
     if show_ylabel:
         ax_time.set_ylabel('mV', fontsize=7)
     ax_time.tick_params(labelsize=6)
 
 
-def _out_scale_vec(z, neuron_index, schema):
-    os_ = fc.assign_params(z, schema).get('out_scale', None)
+def _out_scale_vec(z, neuron_index, schema, backend):
+    os_ = fc.assign_params(z, schema, backend).get('out_scale', None)
     if os_ is None:
         return 1.0
     if os_.dim() == 0:
         return os_
-    idx = (neuron_index % fc.nofcells).to(os_.device)
+    idx = (neuron_index % backend.n_types).to(os_.device)
     return os_[idx].reshape(-1, 1)
 
 
@@ -196,93 +198,104 @@ def _as_index(neuron_index, device):
     return neuron_index.to(device)
 
 
-def _pack_filtered(stacked, z, neuron_index, schema):
+def _pack_filtered(stacked, z, neuron_index, schema, session):
     n = stacked.shape[1]
-    trace = torch.zeros(n, fc.maxtime, dtype=torch.float64, device=stacked.device)
-    trace[:, fc.t_on:fc.maxtime] = stacked.transpose(0, 1)
-    trace = trace * _out_scale_vec(z, neuron_index, schema)
+    mt = session.maxtime
+    trace = torch.zeros(n, mt, dtype=torch.float64, device=stacked.device)
+    trace[:, fc.t_on:mt] = stacked.transpose(0, 1)
+    trace = trace * _out_scale_vec(z, neuron_index, schema, session.backend)
     trace[:, 0:fc.t_on] = 0
-    trace[:, 0:fc.maxtime - 1] = trace[:, 1:fc.maxtime]
+    trace[:, 0:mt - 1] = trace[:, 1:mt]
     return trace
 
 
 @torch.no_grad()
-def _simulate_filtered_traces(z, neuron_index, return_ref=False):
+def _simulate_filtered_traces(session, z, neuron_index, return_ref=False):
     neuron_index = _as_index(neuron_index, z.device)
-    p = fc.assign_params(z, fc.CONDUCTANCE_SCHEMA)
-    stacked, ref = fc._run_conductance(p, neuron_index=neuron_index, return_ref=True)
-    trace = _pack_filtered(stacked, z, neuron_index, fc.CONDUCTANCE_SCHEMA)
+    schema = list(session.schema)
+    p = fc.assign_params(z, schema, session.backend)
+    stacked, ref = fc._run_conductance(session, p, neuron_index=neuron_index, return_ref=True)
+    trace = _pack_filtered(stacked, z, neuron_index, schema, session)
     if return_ref:
         return trace, ref
     return trace
 
 
 @torch.no_grad()
-def _simulate_filtered_traces_adaptive(z, neuron_index, return_ref=False):
+def _simulate_filtered_traces_adaptive(session, z, neuron_index, return_ref=False):
     neuron_index = _as_index(neuron_index, z.device)
-    p = fc.assign_params_adaptive(z)
-    stacked, ref = fc._run_adaptive(p, neuron_index=neuron_index, return_ref=True)
-    trace = _pack_filtered(stacked, z, neuron_index, fc.ADAPTIVE_SCHEMA)
+    schema = list(session.schema)
+    p = fc.assign_params_adaptive(z, schema, session.backend)
+    stacked, ref = fc._run_adaptive(p, session, neuron_index=neuron_index, return_ref=True)
+    trace = _pack_filtered(stacked, z, neuron_index, schema, session)
     if return_ref:
         return trace, ref
     return trace
 
 
-def _simulate(z, neuron_index, model_type=None, return_ref=False):
-    model_type = fc.MODEL_TYPE if model_type is None else model_type
-    if model_type == 'adaptive':
-        return _simulate_filtered_traces_adaptive(z, neuron_index, return_ref=return_ref)
-    return _simulate_filtered_traces(z, neuron_index, return_ref=return_ref)
+def _simulate(session, z, neuron_index, return_ref=False):
+    if session.model_type == 'adaptive':
+        return _simulate_filtered_traces_adaptive(session, z, neuron_index, return_ref=return_ref)
+    return _simulate_filtered_traces(session, z, neuron_index, return_ref=return_ref)
 
 
-def calc_model_trace(z, model_type=None):
-    return _simulate(z, fc.mc_cell_index, model_type)
+def calc_model_trace(session, z):
+    return _simulate(session, z, session.primary_pack.readout_unit)
 
 
-def calc_center_column_trace(z, model_type=None):
+def calc_center_column_trace(session, z):
+    n_types = session.backend.n_types
     center_index = torch.arange(
         CENTER_NEURON_OFFSET,
-        CENTER_NEURON_OFFSET + fc.nofcells,
+        CENTER_NEURON_OFFSET + n_types,
         dtype=torch.long,
         device=z.device,
     )
-    return _simulate(z, center_index, model_type)
+    return _simulate(session, z, center_index)
 
 
-def calc_model_full_all(z, model_type=None, return_ref=False):
-    model_full = np.zeros((fc.nofcells, 9, fc.maxtime))
-    ref_full = np.full((fc.nofcells, 9), np.nan)
+def calc_model_full_all(session, z, return_ref=False):
+    n_types = session.backend.n_types
+    mt = session.maxtime
+    model_full = np.zeros((n_types, 9, mt))
+    ref_full = np.full((n_types, 9), np.nan)
     for col in range(5):
         col_index = torch.arange(
-            col * fc.nofcells,
-            (col + 1) * fc.nofcells,
+            col * n_types,
+            (col + 1) * n_types,
             dtype=torch.long,
             device=z.device,
         )
         if return_ref:
-            trace, ref = _simulate(z, col_index, model_type, return_ref=True)
+            trace, ref = _simulate(session, z, col_index, return_ref=True)
             model_full[:, col + 2] = trace.cpu().numpy()
             ref_full[:, col + 2] = ref.cpu().numpy()
         else:
-            model_full[:, col + 2] = _simulate(z, col_index, model_type).cpu().numpy()
+            model_full[:, col + 2] = _simulate(session, z, col_index).cpu().numpy()
     if return_ref:
         return model_full, ref_full
     return model_full
 
 
 @torch.no_grad()
-def multicol_cube(z):
-    p = fc.assign_params(z, fc.CONDUCTANCE_SCHEMA)
-    model_full = fc._run_conductance_full(p, fc.signal)
-    b_idx, u_idx = fc.READOUT
-    sel = model_full[b_idx, :, u_idx].cpu().numpy()
-    radius = fc.MC_COST_RADIUS.cpu().numpy()
-    type_idx = fc.NETWORK.node_type[u_idx].cpu().numpy()
-    type_names = list(fc.NETWORK.type_names)
+def multicol_cube(session, z):
+    pack = session.primary_pack
+    schema = list(session.schema)
+    p = fc.assign_params(z, schema, session.backend)
+    model_full = fc._run_conductance_full(session, p, pack.signal)
+    sel = fc._readout_model_traces_pack(model_full, pack).cpu().numpy()
+    if pack.cost_radius is not None:
+        radius = pack.cost_radius.cpu().numpy()
+    else:
+        radius = np.zeros(pack.cost_weight.shape[0], dtype=np.float64)
+    C = session.backend.network
+    type_idx = C.node_type[pack.readout_unit].cpu().numpy()
+    type_names = list(C.type_names)
 
     names = [ft for ft in CELL_LIST if ft in type_names]
-    cube = np.zeros((len(names), 9, fc.maxtime))
-    sem = np.zeros((len(names), 9, fc.maxtime))
+    mt = session.maxtime
+    cube = np.zeros((len(names), 9, mt))
+    sem = np.zeros((len(names), 9, mt))
     center = 4
     for ti, ft in enumerate(names):
         ft_global = type_names.index(ft)
@@ -295,13 +308,13 @@ def multicol_cube(z):
             s = traces.std(axis=0) / np.sqrt(traces.shape[0])
             for bin_j in {center + off, center - off}:
                 if 0 <= bin_j < 9:
-                    cube[ti, bin_j, fc.t_on:fc.maxtime] = m
-                    sem[ti, bin_j, fc.t_on:fc.maxtime] = s
+                    cube[ti, bin_j, fc.t_on:mt] = m
+                    sem[ti, bin_j, fc.t_on:mt] = s
     return names, cube, sem
 
 
-def plot_model_data_network(z, path, title=None):
-    names, cube, sem = multicol_cube(z)
+def plot_model_data_network(session, z, path, title=None):
+    names, cube, sem = multicol_cube(session, z)
     ncols = 5
     nrows = 2 * ((len(names) + ncols - 1) // ncols)
     fig = plt.figure(figsize=(3.0 * ncols, 2.5 * nrows))
@@ -315,6 +328,7 @@ def plot_model_data_network(z, path, title=None):
         plot_cell_pair_sem(
             ax_rf, ax_time, cube[i], sem[i], reference_cube(name), name,
             show_legend=not legend_done, show_xlabels=True, show_ylabel=(col == 0),
+            maxtime=session.maxtime,
         )
         legend_done = True
     if title is None:
@@ -336,8 +350,8 @@ def plot_cost(costs, path):
     plt.close()
 
 
-def plot_model_data(z, path, n_steps=None, title=None):
-    model_full, ref_full = calc_model_full_all(z, return_ref=True)
+def plot_model_data(session, z, path, n_steps=None, title=None):
+    model_full, ref_full = calc_model_full_all(session, z, return_ref=True)
 
     groups = mvd_groups()
     ncols = 13
@@ -361,6 +375,7 @@ def plot_model_data(z, path, n_steps=None, title=None):
                 show_xlabels=True,
                 show_ylabel=(j == 0),
                 baseline=ref_full[ctype_i, CENTER_COL + 2],
+                maxtime=session.maxtime,
             )
             legend_done = True
 
@@ -371,15 +386,16 @@ def plot_model_data(z, path, n_steps=None, title=None):
     plt.close(fig)
 
 
-def plot_model_all(z, path, n_steps=None, title=None):
-    model_full, ref_full = calc_model_full_all(z, return_ref=True)
+def plot_model_all(session, z, path, n_steps=None, title=None):
+    model_full, ref_full = calc_model_full_all(session, z, return_ref=True)
+    n_types = session.backend.n_types
 
     ncols = 13
     fig = plt.figure(figsize=(26, 32))
     gs = fig.add_gridspec(10, ncols, hspace=0.65, wspace=0.45,
                           top=0.97, bottom=0.03, left=0.04, right=0.99)
 
-    for i in range(fc.nofcells):
+    for i in range(n_types):
         row, col = divmod(i, ncols)
         name = str(CTYPE[i])
         ref_xt = reference_cube(name)
@@ -391,10 +407,11 @@ def plot_model_all(z, path, n_steps=None, title=None):
             show_xlabels=(row == 4),
             show_ylabel=(col == 0),
             baseline=ref_full[i, CENTER_COL + 2],
+            maxtime=session.maxtime,
         )
 
     if title is None:
-        title = f'Model-all {fc.nofcells} cells after {n_steps} steps'
+        title = f'Model-all {n_types} cells after {n_steps} steps'
     fig.suptitle(title, fontsize=14)
     fig.savefig(path, dpi=150)
     plt.close(fig)

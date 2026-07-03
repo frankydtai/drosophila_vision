@@ -55,24 +55,34 @@ def test_build_target_center_column():
 def test_use_network_moving_bar_cost():
     import FiveCol_MedSim_Pytorch as fc
     path = str(NETWORK_DIR / "right_min_neuron1_extent2" / "network.json")
-    fc.use_network(path, multi_column=False, sequential=True, dev="cpu", target="moving_bar")
-    assert fc.TARGET_KIND == "moving_bar"
-    assert fc.COST_T0 is not None
-    assert fc.data.shape[1] == COST_WINDOW_STEPS
-    z = fc.guess_initial_params()
-    cost = float(fc.multicol_cost(z))
+    mb = fc.load_network_backend(path, dev="cpu")
+    session = fc.open_session(fc.make_train_opts(
+        backend="network", target_list=["moving_bar"], network=mb.network,
+        multi_column=False, sequential=True, dev="cpu",
+    ), "conductance")
+    pack = session.pack_for("moving_bar")
+    assert list(session.target_list) == ["moving_bar"]
+    assert pack.cost_t0 is not None
+    assert pack.data.shape[1] == COST_WINDOW_STEPS
+    z = fc.guess_initial_params(session)
+    cost = float(fc.calc_cost(z, session))
     assert cost >= 0.0
 
 
 def test_readout_window_pre_ton_zero():
     import FiveCol_MedSim_Pytorch as fc
     path = str(NETWORK_DIR / "right_min_neuron1_extent2" / "network.json")
-    fc.use_network(path, multi_column=False, sequential=True, dev="cpu", target="moving_bar")
-    p = fc.assign_params(fc.guess_initial_params(), fc.CONDUCTANCE_SCHEMA)
-    model_full = fc._run_conductance_full(p, fc.signal)
-    b_idx, u_idx = fc.READOUT
-    sel = fc._readout_model_traces(model_full, b_idx, u_idx)
-    t0 = fc.COST_T0
+    mb = fc.load_network_backend(path, dev="cpu")
+    session = fc.open_session(fc.make_train_opts(
+        backend="network", target_list=["moving_bar"], network=mb.network,
+        multi_column=False, sequential=True, dev="cpu",
+    ), "conductance")
+    pack = session.pack_for("moving_bar")
+    schema = list(session.schema)
+    p = fc.assign_params(fc.guess_initial_params(session), schema, session.backend)
+    model_full = fc._run_conductance_full(session, p, pack.signal)
+    sel = fc._readout_model_traces_pack(model_full, pack)
+    t0 = pack.cost_t0
     t_rel = t0[:, None] - fc.t_on + torch.arange(sel.shape[1], dtype=torch.long)
     pre = t_rel < 0
     assert bool(pre.any())

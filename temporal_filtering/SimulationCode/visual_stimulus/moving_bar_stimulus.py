@@ -15,7 +15,7 @@ import numpy as np
 import network_bootstrap  # noqa: F401
 
 from column_mapper import HEX_PATCH_RADIUS, hex_vertices
-from Medulla_Library import SIGNAL_BASELINE, SIGNAL_BRIGHT, SIGNAL_DARK, T_ON, T_TAIL
+from Medulla_Library import I_BASELINE, I_BRIGHT, I_DARK, T_ON, T_TAIL
 
 # Gruntman Fig. 1 Ci fast condition: 40 ms / 2.25 deg per LED step.
 GRUNTMAN_SPEED_DEG_S = 56.0
@@ -582,15 +582,34 @@ def bar_rect_at_step(
 def _current_from_coverage(
     coverage: np.ndarray,
     contrast: str,
-    i_baseline: float = SIGNAL_BASELINE,
+    i_baseline: float = I_BASELINE,
+    i_bright_bar: Optional[float] = None,
+    i_dark_bar: Optional[float] = None,
+    i_baseline_bright: Optional[float] = None,
+    i_baseline_dark: Optional[float] = None,
 ) -> np.ndarray:
     if contrast == "bright":
-        i_peak = SIGNAL_BRIGHT
+        base = i_baseline if i_baseline_bright is None else i_baseline_bright
+        peak = I_BRIGHT if i_bright_bar is None else i_bright_bar
     elif contrast == "dark":
-        i_peak = SIGNAL_DARK
+        base = i_baseline if i_baseline_dark is None else i_baseline_dark
+        peak = I_DARK if i_dark_bar is None else i_dark_bar
     else:
         raise ValueError(f"unknown contrast {contrast!r}")
-    return i_baseline + coverage * (i_peak - i_baseline)
+    return base + coverage * (peak - base)
+
+
+def _pre_bar_baseline(
+    contrast: str,
+    i_baseline: float,
+    i_baseline_bright: Optional[float] = None,
+    i_baseline_dark: Optional[float] = None,
+) -> float:
+    if contrast == "bright" and i_baseline_bright is not None:
+        return i_baseline_bright
+    if contrast == "dark" and i_baseline_dark is not None:
+        return i_baseline_dark
+    return i_baseline
 
 
 def build_column_current(
@@ -599,11 +618,16 @@ def build_column_current(
     maxtime: int,
     t_on: int = T_ON,
     deltat_ms: float = 10.0,
-    i_baseline: float = SIGNAL_BASELINE,
+    i_baseline: float = I_BASELINE,
+    i_bright_bar: Optional[float] = None,
+    i_dark_bar: Optional[float] = None,
+    i_baseline_bright: Optional[float] = None,
+    i_baseline_dark: Optional[float] = None,
 ) -> np.ndarray:
     """Column-level current ``(T, n_cols)`` for one moving-bar condition."""
+    pre = _pre_bar_baseline(spec.contrast, i_baseline, i_baseline_bright, i_baseline_dark)
     n_cols = len(columns)
-    out = np.full((maxtime, n_cols), i_baseline, dtype=np.float64)
+    out = np.full((maxtime, n_cols), pre, dtype=np.float64)
     if n_cols == 0:
         return out
 
@@ -612,7 +636,11 @@ def build_column_current(
     cov_ts = _coverage_time_series(
         hex_stack, spec, field_deg, maxtime=maxtime, t_on=t_on, deltat_ms=deltat_ms,
     )
-    out[t_on:] = _current_from_coverage(cov_ts, spec.contrast, i_baseline=i_baseline)
+    out[t_on:] = _current_from_coverage(
+        cov_ts, spec.contrast, i_baseline=i_baseline,
+        i_bright_bar=i_bright_bar, i_dark_bar=i_dark_bar,
+        i_baseline_bright=i_baseline_bright, i_baseline_dark=i_baseline_dark,
+    )
     return out
 
 
@@ -622,7 +650,11 @@ def build_batched_column_current(
     maxtime: int,
     t_on: int = T_ON,
     deltat_ms: float = 10.0,
-    i_baseline: float = SIGNAL_BASELINE,
+    i_baseline: float = I_BASELINE,
+    i_bright_bar: Optional[float] = None,
+    i_dark_bar: Optional[float] = None,
+    i_baseline_bright: Optional[float] = None,
+    i_baseline_dark: Optional[float] = None,
 ) -> np.ndarray:
     """Batched column currents ``(B, T, n_cols)``.
 
@@ -631,9 +663,13 @@ def build_batched_column_current(
     """
     n_batch = len(specs)
     n_cols = len(columns)
-    out = np.full((n_batch, maxtime, n_cols), i_baseline, dtype=np.float64)
     if n_cols == 0 or n_batch == 0:
-        return out
+        return np.zeros((n_batch, maxtime, n_cols), dtype=np.float64)
+
+    out = np.zeros((n_batch, maxtime, n_cols), dtype=np.float64)
+    for b, spec in enumerate(specs):
+        pre = _pre_bar_baseline(spec.contrast, i_baseline, i_baseline_bright, i_baseline_dark)
+        out[b, :t_on] = pre
 
     field_deg = field_bounds(columns)
     hex_stack = np.stack([c.hex_xy for c in columns], axis=0)
@@ -650,5 +686,7 @@ def build_batched_column_current(
         for b in batch_idxs:
             out[b, t_on:] = _current_from_coverage(
                 cov_ts, specs[b].contrast, i_baseline=i_baseline,
+                i_bright_bar=i_bright_bar, i_dark_bar=i_dark_bar,
+                i_baseline_bright=i_baseline_bright, i_baseline_dark=i_baseline_dark,
             )
     return out

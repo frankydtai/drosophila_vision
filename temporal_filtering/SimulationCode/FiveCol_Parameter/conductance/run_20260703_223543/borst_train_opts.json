@@ -1,0 +1,24 @@
+{
+  "target_list": [
+    "moving_bar",
+    "tile"
+  ],
+  "loss_weights": {},
+  "moving_bar_center_column": false,
+  "sequential": true,
+  "bar_stimulus_opts": {
+    "i_bright_bar": 40.0,
+    "i_dark_bar": 0.0,
+    "i_baseline_bright": 0.0,
+    "i_baseline_dark": 40.0
+  },
+  "tile_stimulus_opts": {
+    "target": "tile",
+    "mode": "borst",
+    "signal_baseline": 0.0,
+    "signal_bright": 40.0,
+    "t_on": 50,
+    "maxtime": 200,
+    "deltat_ms": 10.0
+  }
+}

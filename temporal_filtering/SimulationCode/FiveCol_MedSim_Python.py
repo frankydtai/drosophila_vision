@@ -10,6 +10,7 @@ import blindschleiche_py3 as bs
 import time
 
 import Medulla_Library as ml
+from training_config import PARAMETER_DIR
 
 #################################################################
 # Medulla Library contains:
@@ -94,7 +95,7 @@ def init_network():
     M_inh = inh_synweight * multi_colM * (multi_colM < 0) * (-1)
     
     signal = np.zeros((ml.n_state_units(), maxtime))
-    signal[ml.photoreceptor_slice(), ml.T_ON:maxtime] = ml.SIGNAL_BRIGHT
+    signal[ml.photoreceptor_slice(), ml.T_ON:maxtime] = ml.I_BRIGHT
 
     data = ml.read_RecF_data() * ml.DATA_AMP
     
@@ -745,7 +746,7 @@ def calc_all_responses(z):
             if j == 3: signal = ml.calc_bar(velo_array[i], polarity='bright')
             if j == 4: signal = ml.calc_bar(velo_array[i], polarity='dark')
             
-            Vm = calc_network(ml.SIGNAL_BRIGHT*signal,inp_gain,out_gain,Ih_gmax,Ih_midv,Ih_slope,tau_midv)
+            Vm = calc_network(ml.I_BRIGHT*signal,inp_gain,out_gain,Ih_gmax,Ih_midv,Ih_slope,tau_midv)
             
             for k in range(13):
                 
@@ -763,7 +764,7 @@ def calc_chirp_responses(z,loc_global = 'global'):
     
     inp_gain,out_gain,Ih_gmax,Ih_midv,Ih_slope,tau_midv = assign_params(z)
 
-    Vm = calc_network(ml.SIGNAL_BRIGHT*signal,inp_gain,out_gain,Ih_gmax,Ih_midv,Ih_slope,tau_midv)
+    Vm = calc_network(ml.I_BRIGHT*signal,inp_gain,out_gain,Ih_gmax,Ih_midv,Ih_slope,tau_midv)
     
     chirp_responses = np.zeros((14,1000))
     
@@ -924,7 +925,7 @@ def calc_comparison(z,mycell,curr_amp,block = 0):
     # ----------- visual stimulation --------------------
     
     visual = np.zeros((ml.n_state_units(), maxtime))
-    visual[ml.photoreceptor_slice(), stim] = ml.SIGNAL_BRIGHT
+    visual[ml.photoreceptor_slice(), stim] = ml.I_BRIGHT
     
     Vm = calc_network(visual,inp_gain,out_gain,Ih_gmax,Ih_midv,Ih_slope,tau_midv)
     
@@ -1323,12 +1324,12 @@ def eval_diff_models(all_params, noftopmodels = 10, mycmap = 'plasma'):
     
     #plot_many_models(data,many_models)
     
-z = np.load('FiveCol_Parameter/with_Ih/best_parameter.npy')
+z = np.load(str(PARAMETER_DIR / 'with_Ih' / 'best_parameter.npy'))
 
 calc_cost(z)
 model = calc_model(z)
 
-all_params = np.load('FiveCol_Parameter/with_Ih/3rdround_paramsets.npy')
+all_params = np.load(str(PARAMETER_DIR / 'with_Ih' / '3rdround_paramsets.npy'))
 eval_diff_models(all_params, noftopmodels = 10, mycmap = 'plasma')
 
 

@@ -20,20 +20,19 @@ from connectome_io import DEFAULT_NETWORK_RUN, resolve_network_json
 from network.moving_bar_target import _TRACE_CACHE
 from network.stimulus import center_photo_column, photo_columns
 from network.tiling import unit_type_names
-from plot_trained import (
+from plot.moving_bar import (
     _aggregate_moving_bar_traces,
     _extract_moving_bar_windows,
     _moving_bar_center_only,
     _moving_bar_t0_grid,
     _network_type_ids,
-    t_on,
 )
 from training_config import COST_HALF_WINDOW_STEPS, COST_WINDOW_STEPS
 from visual_stimulus.moving_bar_stimulus import gruntman_moving_bar_specs, column_bar_center_step
 
 
 def _legacy_unit_window_trace(model_bt, u, t0):
-    t_rel = t0 - t_on + np.arange(COST_WINDOW_STEPS)
+    t_rel = t0 - fc.t_on + np.arange(COST_WINDOW_STEPS)
     t_max = model_bt.shape[0] - 1
     pre = t_rel < 0
     t_safe = np.clip(t_rel, 0, t_max)
@@ -96,16 +95,19 @@ def _bench(fn, n_repeat=5):
 
 def main():
     _TRACE_CACHE.clear()
-    fc.use_network(
-        resolve_network_json(DEFAULT_NETWORK_RUN),
-        multi_column=False,
-        sequential=True,
-        dev="cpu",
-        target="moving_bar",
+    network_json = resolve_network_json(DEFAULT_NETWORK_RUN)
+    session = fc.open_session(
+        fc.make_train_opts(
+            backend="network", target_list=["moving_bar"],
+            network=fc.load_network_backend(network_json, dev="cpu").network,
+            network_json=network_json,
+            multi_column=False, sequential=True, dev="cpu",
+        ),
+        "conductance",
     )
-    C = fc.NETWORK
+    C = session.backend.network
     specs = gruntman_moving_bar_specs()
-    center_only = _moving_bar_center_only()
+    center_only = _moving_bar_center_only(session)
     center_col = center_photo_column(C)
     cols = [center_col] if center_only else photo_columns(C)
     types = list(C.type_names)
@@ -113,21 +115,22 @@ def main():
     if field_deg is None:
         from network.stimulus import build_moving_bar_signals
         field_deg = build_moving_bar_signals(
-            C, t_on=t_on, deltat_ms=fc.deltat, device="cpu",
+            C, t_on=fc.t_on, deltat_ms=fc.deltat, device="cpu",
         ).info["field_deg"]
 
     t0_map = {}
     for bi, spec in enumerate(specs):
         for c in cols:
             t_center = column_bar_center_step(
-                c.x, c.y, spec, field_deg, t_on=t_on, deltat_ms=fc.deltat,
+                c.x, c.y, spec, field_deg, t_on=fc.t_on, deltat_ms=fc.deltat,
             )
             t0_map[(bi, int(c.u), int(c.v))] = int(t_center - COST_HALF_WINDOW_STEPS)
 
-    z = fc.guess_initial_params()
-    p = fc.assign_params(z, fc.CONDUCTANCE_SCHEMA)
+    z = fc.guess_initial_params(session)
+    p = fc.assign_params(z, list(session.schema), session.backend)
     t_fwd0 = time.perf_counter()
-    model_full = fc._run_conductance_full(p, fc.signal).cpu().numpy()
+    pack = session.pack_for("moving_bar")
+    model_full = fc._run_conductance_full(session, p, pack.signal).cpu().numpy()
     t_forward = time.perf_counter() - t_fwd0
 
     legacy_out, legacy_times = _bench(
@@ -141,26 +144,13 @@ def main():
         ),
     )
 
-    legacy_mean, legacy_sem = legacy_out
-    new_mean, new_sem = new_out
-    keys = sorted(legacy_mean.keys())
-    max_delta = max(
-        float(np.max(np.abs(legacy_mean[k] - new_mean[k])))
-        for k in keys
-    )
+    for k in legacy_out[0]:
+        assert np.allclose(legacy_out[0][k], new_out[0][k], atol=1e-12), k
+        assert np.allclose(legacy_out[1][k], new_out[1][k], atol=1e-12), k
 
-    leg_med = float(np.median(legacy_times))
-    new_med = float(np.median(new_times))
-    speedup = leg_med / new_med
-
-    print(f"network: {DEFAULT_NETWORK_RUN}")
-    print(f"B={len(specs)}  N={C.n_units}  types={len(types)}  photo_cols={len(cols)}  center_only={center_only}")
-    print(f"forward (_run_conductance_full): {t_forward:.3f}s  (excluded from extract speedup)")
-    print(f"legacy extract:   median={leg_med:.3f}s  ({leg_med*1000:.0f} ms)  runs={legacy_times}")
-    print(f"vectorized extract: median={new_med:.3f}s  ({new_med*1000:.0f} ms)  runs={new_times}")
-    print(f"speedup: {speedup:.1f}x  (legacy / vectorized)")
-    print(f"panels: {len(keys)}  max |delta| vs legacy: {max_delta:.2e}")
-    assert max_delta < 1e-12
+    print(f"forward: {t_forward:.2f}s")
+    print(f"legacy extract: mean={np.mean(legacy_times):.3f}s  panels={len(legacy_out[0])}")
+    print(f"vectorized:     mean={np.mean(new_times):.3f}s  speedup={np.mean(legacy_times)/np.mean(new_times):.1f}x")
     print("ok")
 
 

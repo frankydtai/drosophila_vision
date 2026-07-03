@@ -24,7 +24,7 @@ from __future__ import annotations
 import argparse
 import logging
 from pathlib import Path
-from typing import Optional, Tuple
+from typing import List, NamedTuple, Optional, Tuple
 
 import numpy as np
 import pandas as pd
@@ -60,6 +60,87 @@ Y_AXIS_LABEL = f"Y ({AXIS_UNIT})"
 # apart vertically (step (1,0)), with r = d/2, so patches are pointy-top (30°).
 # Flat-top (0°) leaves gaps — see hex_vertices / tiling notes in module docstring.
 HEX_PATCH_ORIENTATION = np.radians(30)
+
+# Borst 5-column horizontal row (SimulationCode moving-bar / tile layout).
+# Columns sit on y=0 with 5 deg centre-to-centre spacing along x (= d*v).
+# Only the centre column (col=2, k=0) lands on an integer hex lattice point
+# (u,v)=(0,0); the other four have fractional axial coords — use ``col`` / k
+# (not integer --at-uv) to pick a column. Formula matches
+# ``visual_stimulus/plot_moving_bar_stimulus._borst_hex_columns``.
+BORST_CENTER_COL = 2
+BORST_N_COLS = 5
+BORST_SPACING_DEG = 5.0
+
+
+class BorstColumnCenter(NamedTuple):
+    """One Borst photo column: index, offset from centre, axial and pixel coords."""
+
+    col: int   # 0..4 (``Medulla_Library.CENTER_COL`` == 2)
+    k: int     # col - BORST_CENTER_COL, i.e. -2..+2
+    u: float
+    v: float
+    x: float
+    y: float
+
+
+def borst_column_centers(
+    *,
+    center_col: int = BORST_CENTER_COL,
+    n_cols: int = BORST_N_COLS,
+    spacing_deg: float = BORST_SPACING_DEG,
+    kernel_size: float = DEFAULT_KERNEL_SIZE,
+) -> Tuple[BorstColumnCenter, ...]:
+    """Return the five Borst column centres (single source of truth for u,v,x,y).
+
+    With ``k = col - center_col`` and ``d = kernel_size``:
+
+        v = (spacing_deg / d) * k
+        u = -v / 2
+        x = d * v = spacing_deg * k
+        y = -d * (u + v/2) = 0
+
+    Exact values (d=4.5, spacing_deg=5):
+
+        col  k    u          v          x     y
+        0   -2   10/9      -20/9      -10    0
+        1   -1    5/9      -10/9       -5    0
+        2    0    0          0          0    0
+        3   +1   -5/9       10/9        5    0
+        4   +2  -10/9       20/9       10    0
+    """
+    out: List[BorstColumnCenter] = []
+    for col in range(n_cols):
+        k = col - center_col
+        v = (spacing_deg / kernel_size) * k
+        u = -0.5 * v
+        x, y = hex_to_pixel(u, v, kernel_size)
+        out.append(
+            BorstColumnCenter(col=col, k=k, u=float(u), v=float(v), x=float(x), y=float(y))
+        )
+    return tuple(out)
+
+
+def borst_col_at_xy(
+    x: float,
+    y: float,
+    *,
+    tol: float = 1e-6,
+    **kwargs,
+) -> int:
+    """Map pixel (x,y) to Borst column index 0..4 (nearest centre on y≈0 row)."""
+    if abs(y) > tol:
+        raise ValueError(
+            f"(x,y)=({x},{y}) is not on the Borst horizontal row (y must be ≈0)"
+        )
+    centers = borst_column_centers(**kwargs)
+    best = min(centers, key=lambda c: abs(c.x - x))
+    if abs(best.x - x) > tol:
+        raise ValueError(
+            f"(x,y)=({x},{y}) is not a Borst column centre "
+            f"(nearest x={best.x} at col={best.col})"
+        )
+    return best.col
+
 
 # Rendered column map: base filename (no --extent) and the --extent variant.
 COLUMN_MAP_FILE = "column_map.png"

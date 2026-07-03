@@ -32,7 +32,7 @@ from typing import Optional
 import numpy as np
 import torch
 
-from Medulla_Library import DATA_AMP, IMPULSE_MAXTIME, SIGNAL_BASELINE, SIGNAL_BRIGHT, T_ON, read_RecF_ImpR
+from Medulla_Library import DATA_AMP, IMPULSE_MAXTIME, I_BASELINE, I_BRIGHT, T_ON, read_RecF_ImpR
 from .tiling import (
     FIT_CELL_TYPES,
     build_tiling,
@@ -78,8 +78,8 @@ def build_shifted_target(
     single_shift: bool = False,
     maxtime: int = IMPULSE_MAXTIME,
     t_on: int = T_ON,
-    signal_baseline: float = SIGNAL_BASELINE,
-    signal_bright: float = SIGNAL_BRIGHT,
+    i_baseline: float = I_BASELINE,
+    i_bright: float = I_BRIGHT,
     data_amp: float = DATA_AMP,
     device: Optional[str] = None,
     center_column: bool = False,
@@ -108,8 +108,8 @@ def build_shifted_target(
         units = C.input_units_at(su, sv)
         if len(units):
             idx = torch.as_tensor(units, dtype=torch.long, device=device)
-            signal[b, :t_on, idx] = signal_baseline
-            signal[b, t_on:, idx] = signal_bright
+            signal[b, :t_on, idx] = i_baseline
+            signal[b, t_on:, idx] = i_bright
 
     resp = slice(t_on, maxtime)  # response window (matches Borst data[t_on:maxtime])
     Tp = maxtime - t_on
@@ -162,6 +162,11 @@ def build_shifted_target(
         "cost_column_uv": CENTER_COLUMN_UV if center_column else None,
         "present_fit": present_fit,
         "share_edges": share_edges,
+        "i_baseline": float(i_baseline),
+        "i_bright": float(i_bright),
+        "t_on": int(t_on),
+        "maxtime": int(maxtime),
+        "mode": "network",
     }
     return ShiftedTarget(
         signal=signal,

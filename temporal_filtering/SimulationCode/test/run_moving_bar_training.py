@@ -19,6 +19,7 @@ os.environ["CUDA_VISIBLE_DEVICES"] = ""
 
 import network_bootstrap  # noqa: F401
 import run
+from training_config import MODEL_ALL_CELLS_PNG, MODEL_VS_DATA_PNG
 
 
 def main():
@@ -27,7 +28,7 @@ def main():
                     help="built_network run folder name")
     args = ap.parse_args()
 
-    fname, outdir = run.run_training(
+    fname, outdir, _session = run.run_training(
         "conductance",
         nofruns=1,
         nofsteps=5,
@@ -39,13 +40,12 @@ def main():
     expected = {
         fname,
         fname.replace(".npy", "") + "_costs.npy",
+        fname.replace(".npy", "") + "_final_costs.npy",
         fname.replace(".npy", "") + "_table.csv",
         "model_type.txt",
-        "target_kind.txt",
-        "network_path.txt",
-        "network_train_opts.json",
-        "model_data_bar.png",
-        "model_all_bar.png",
+        "train_opts.json",
+        MODEL_VS_DATA_PNG,
+        MODEL_ALL_CELLS_PNG,
         "best_param.npy",
     }
     present = set(os.listdir(outdir))

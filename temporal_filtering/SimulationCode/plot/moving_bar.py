@@ -8,8 +8,10 @@ import numpy as np
 import torch
 
 import FiveCol_MedSim_Pytorch as fc
+import Medulla_Library as ml
 from plot.utils import nice_ylim as _nice_ylim
-from FiveCol_MedSim_Pytorch import device, t_on
+from FiveCol_MedSim_Pytorch import t_on
+from network.moving_bar_target import BORST_READOUT_SUBTYPES, _borst_hex_columns
 from t4_t5_preference import (
     READOUT_SUBTYPES,
     active_stimuli_for_subtype,
@@ -17,18 +19,22 @@ from t4_t5_preference import (
     normalize_side,
 )
 from training_config import COST_HALF_WINDOW_STEPS, COST_WINDOW_STEPS
-from visual_stimulus.moving_bar_stimulus import column_bar_center_step, gruntman_moving_bar_specs
+from visual_stimulus.moving_bar_stimulus import column_bar_center_step, field_bounds, gruntman_moving_bar_specs
 
 MOVING_BAR_GRID_DPI = 100
 MOVING_BAR_MVD_DPI = 100
 _MOVING_BAR_T = np.arange(COST_WINDOW_STEPS)
 
 
-def _moving_bar_center_only():
-    if getattr(fc, 'MOVING_BAR_CENTER_COLUMN', False):
-        return True
-    opts = getattr(fc, 'NETWORK_TRAIN_OPTS', None) or {}
-    return bool(opts.get('moving_bar_center_column', False))
+def _moving_bar_center_only(session):
+    return bool(session.moving_bar_center_column)
+
+
+def _borst_type_ids(session):
+    node_type = session.backend.conn.node_type
+    if torch.is_tensor(node_type):
+        node_type = node_type.detach().cpu().numpy()
+    return np.asarray(node_type, dtype=np.int64)
 
 
 def _moving_bar_ylim(model_mean, model_sem, data_mean, keys, show_sem=False):
@@ -117,61 +123,94 @@ def _aggregate_moving_bar_traces(windows, t0_bn, type_ids, types, spec_names, ce
 
 
 @torch.no_grad()
-def _compute_moving_bar_all_type_traces(z):
+def _compute_moving_bar_all_type_traces(session, z):
     from network.moving_bar_target import load_fig1_trace
     from network.stimulus import build_moving_bar_signals, center_photo_column, photo_columns
 
-    specs = gruntman_moving_bar_specs()
+    pack = session.pack_for('moving_bar')
+    schema = list(session.schema)
+    p = fc.assign_params(z, schema, session.backend)
+    model_full = fc._run_conductance_full(session, p, pack.signal).cpu().numpy()
+    C = session.backend.network
+    if C is not None:
+        specs = gruntman_moving_bar_specs()
+        spec_names = [s.name for s in specs]
+        side = normalize_side(C.meta.get('side', 'right'))
+        center_only = _moving_bar_center_only(session)
+        center_col = center_photo_column(C)
+        cols = [center_col] if center_only else photo_columns(C)
+        field_deg = C.meta.get('field_deg')
+        if field_deg is None:
+            field_deg = build_moving_bar_signals(
+                C, t_on=t_on, deltat_ms=fc.deltat, device=session.device,
+            ).info['field_deg']
+
+        t0_map = {}
+        for bi, spec in enumerate(specs):
+            for c in cols:
+                t_center = column_bar_center_step(
+                    c.x, c.y, spec, field_deg, t_on=t_on, deltat_ms=fc.deltat,
+                )
+                t0_map[(bi, int(c.u), int(c.v))] = int(t_center - COST_HALF_WINDOW_STEPS)
+
+        types = list(C.type_names)
+        type_ids = _network_type_ids(C)
+        t0_bn = _moving_bar_t0_grid(C, cols, len(specs), t0_map)
+        windows = _extract_moving_bar_windows(model_full, t0_bn)
+        model_mean, model_sem = _aggregate_moving_bar_traces(
+            windows, t0_bn, type_ids, types, spec_names, center_only,
+        )
+        data_mean = {}
+        for subtype in READOUT_SUBTYPES:
+            if subtype not in types:
+                continue
+            for spec in specs:
+                trace_id = fig1_key_for_stimulus(side, subtype, spec)
+                if trace_id is None:
+                    continue
+                data_mean[(subtype, spec.name)] = load_fig1_trace(trace_id)
+        return types, spec_names, model_mean, model_sem, data_mean
+
+    specs = gruntman_moving_bar_specs(directions=("right", "left"))
     spec_names = [s.name for s in specs]
-    C = fc.NETWORK
-    side = normalize_side(C.meta.get('side', 'right'))
-    center_only = _moving_bar_center_only()
-    center_col = center_photo_column(C)
-    cols = [center_col] if center_only else photo_columns(C)
-
-    p = fc.assign_params(z, fc.CONDUCTANCE_SCHEMA)
-    model_full = fc._run_conductance_full(p, fc.signal).cpu().numpy()
-    field_deg = C.meta.get('field_deg')
-    if field_deg is None:
-        field_deg = build_moving_bar_signals(
-            C, t_on=t_on, deltat_ms=fc.deltat, device=device,
-        ).info['field_deg']
-
-    t0_map = {}
+    cols_all = _borst_hex_columns()
+    center_only = _moving_bar_center_only(session)
+    col_ids = [ml.CENTER_COL] if center_only else list(range(ml.nofcols))
+    cols = [cols_all[i] for i in col_ids]
+    field_deg = field_bounds(cols_all)
+    t0_bn = np.full((len(specs), ml.n_state_units()), -1, dtype=np.int64)
     for bi, spec in enumerate(specs):
-        for c in cols:
+        for col_id, col in zip(col_ids, cols):
             t_center = column_bar_center_step(
-                c.x, c.y, spec, field_deg, t_on=t_on, deltat_ms=fc.deltat,
+                col.x, col.y, spec, field_deg, t_on=t_on, deltat_ms=fc.deltat,
             )
-            t0_map[(bi, int(c.u), int(c.v))] = int(t_center - COST_HALF_WINDOW_STEPS)
-
-    types = list(C.type_names)
-    type_ids = _network_type_ids(C)
-    t0_bn = _moving_bar_t0_grid(C, cols, len(specs), t0_map)
+            t0 = int(t_center - COST_HALF_WINDOW_STEPS)
+            t0_bn[bi, ml.column_slice(col_id)] = t0
+    type_ids = _borst_type_ids(session)
+    types = list(ml.ctype.tolist())
     windows = _extract_moving_bar_windows(model_full, t0_bn)
     model_mean, model_sem = _aggregate_moving_bar_traces(
         windows, t0_bn, type_ids, types, spec_names, center_only,
     )
     data_mean = {}
-    for subtype in READOUT_SUBTYPES:
-        if subtype not in types:
-            continue
+    for subtype in BORST_READOUT_SUBTYPES:
         for spec in specs:
-            trace_id = fig1_key_for_stimulus(side, subtype, spec)
+            trace_id = fig1_key_for_stimulus("right", subtype, spec)
             if trace_id is None:
                 continue
             data_mean[(subtype, spec.name)] = load_fig1_trace(trace_id)
-
     return types, spec_names, model_mean, model_sem, data_mean
 
 
 @torch.no_grad()
-def _moving_bar_mean_traces(z):
-    side = normalize_side(fc.NETWORK.meta.get('side', 'right'))
-    _, _, model_mean, model_sem, data_mean = _compute_moving_bar_all_type_traces(z)
+def _moving_bar_mean_traces(session, z):
+    C = session.backend.network
+    side = normalize_side(C.meta.get('side', 'right')) if C is not None else "right"
+    _, _, model_mean, model_sem, data_mean = _compute_moving_bar_all_type_traces(session, z)
+    readout_subtypes = READOUT_SUBTYPES if C is not None else BORST_READOUT_SUBTYPES
     row_specs = {
         st: [f'{d}_{c}_{w}' for d, c, w in active_stimuli_for_subtype(side, st)]
-        for st in READOUT_SUBTYPES
+        for st in readout_subtypes
     }
     return row_specs, model_mean, model_sem, data_mean
 
@@ -238,17 +277,18 @@ def _plot_moving_bar_cell(
         ax.tick_params(labelsize=6)
 
 
-def plot_model_data_moving_bar(z, path, title=None):
-    center_only = _moving_bar_center_only()
-    row_specs, model_mean, model_sem, data_mean = _moving_bar_mean_traces(z)
-    nrows = len(READOUT_SUBTYPES)
+def plot_model_data_moving_bar(session, z, path, title=None):
+    center_only = _moving_bar_center_only(session)
+    row_specs, model_mean, model_sem, data_mean = _moving_bar_mean_traces(session, z)
+    readout_subtypes = list(row_specs.keys())
+    nrows = len(readout_subtypes)
     ncols = 8
     fig, axes = plt.subplots(
         nrows, ncols, figsize=(2.2 * ncols, 1.8 * nrows), sharex=True,
     )
     if nrows == 1:
         axes = np.asarray([axes])
-    for ri, subtype in enumerate(READOUT_SUBTYPES):
+    for ri, subtype in enumerate(readout_subtypes):
         for ci, sname in enumerate(row_specs[subtype]):
             ax = axes[ri, ci]
             key = (subtype, sname)
@@ -263,22 +303,30 @@ def plot_model_data_moving_bar(z, path, title=None):
     if title is None:
         title = 'Moving-bar model-data'
     if center_only:
-        from network.stimulus import center_photo_column
-        col = center_photo_column(fc.NETWORK)
-        scope = f'centre column (u,v)=({col.u},{col.v})'
+        C = session.backend.network
+        if C is not None:
+            from network.stimulus import center_photo_column
+            col = center_photo_column(C)
+            scope = f'centre column (u,v)=({col.u},{col.v})'
+        else:
+            scope = f'centre column (col={ml.CENTER_COL})'
     else:
-        from network.stimulus import photo_columns
-        scope = f'avg over {len(photo_columns(fc.NETWORK))} photo columns'
+        C = session.backend.network
+        if C is not None:
+            from network.stimulus import photo_columns
+            scope = f'avg over {len(photo_columns(C))} photo columns'
+        else:
+            scope = f'avg over {ml.nofcols} Borst columns'
     fig.suptitle(title + f'  [{scope}, t_center ± 0.45 s]', fontsize=12)
     fig.subplots_adjust(top=0.92, bottom=0.08, hspace=0.45, wspace=0.35)
     _save_moving_bar_fig(fig, path, MOVING_BAR_MVD_DPI)
 
 
 @torch.no_grad()
-def plot_model_all_moving_bar(z, path, title=None):
+def plot_model_all_moving_bar(session, z, path, title=None):
     t0 = time.perf_counter()
-    center_only = _moving_bar_center_only()
-    types, all_spec_names, model_mean, model_sem, data_mean = _compute_moving_bar_all_type_traces(z)
+    center_only = _moving_bar_center_only(session)
+    types, all_spec_names, model_mean, model_sem, data_mean = _compute_moving_bar_all_type_traces(session, z)
     spec_names = _moving_bar_right_spec_names(all_spec_names)
     t_traces = time.perf_counter() - t0
 
@@ -318,12 +366,20 @@ def plot_model_all_moving_bar(z, path, title=None):
     if title is None:
         title = 'Moving-bar model-all (right only)'
     if center_only:
-        from network.stimulus import center_photo_column
-        col = center_photo_column(fc.NETWORK)
-        scope = f'centre column (u,v)=({col.u},{col.v})'
+        C = session.backend.network
+        if C is not None:
+            from network.stimulus import center_photo_column
+            col = center_photo_column(C)
+            scope = f'centre column (u,v)=({col.u},{col.v})'
+        else:
+            scope = f'centre column (col={ml.CENTER_COL})'
     else:
-        from network.stimulus import photo_columns
-        scope = f'avg over {len(photo_columns(fc.NETWORK))} photo columns'
+        C = session.backend.network
+        if C is not None:
+            from network.stimulus import photo_columns
+            scope = f'avg over {len(photo_columns(C))} photo columns'
+        else:
+            scope = f'avg over {ml.nofcols} Borst columns'
     fig.suptitle(title + f'  [{scope}, t_center ± 0.45 s]', fontsize=10)
     fig.subplots_adjust(top=0.96, bottom=0.05, hspace=0.55, wspace=0.3)
     t_draw = time.perf_counter() - t1

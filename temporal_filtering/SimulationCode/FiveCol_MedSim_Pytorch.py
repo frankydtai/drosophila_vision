@@ -1,16 +1,16 @@
 # -*- coding: utf-8 -*-
+from __future__ import annotations
+
 """
 Created on Wed Jul 26 09:53:25 2023
 
 @author: aborst
 """
 import os
-from dataclasses import dataclass
-from pathlib import Path
-from typing import Dict, Optional
+from dataclasses import dataclass, replace
+from typing import Dict, List, Optional, Tuple, Union
 
 import numpy as np
-import matplotlib.pyplot as plt
 import Medulla_Library as ml
 import time
 
@@ -20,7 +20,16 @@ from tqdm import tqdm
 
 from network.connectivity import DenseConn
 
-device = 'cuda' if torch.cuda.is_available() else 'cpu'
+
+def active_device():
+    """Pick CUDA or CPU from current runtime (not frozen at import)."""
+    return 'cuda' if torch.cuda.is_available() else 'cpu'
+
+
+def __getattr__(name):
+    if name == 'device':
+        return active_device()
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
 
 #################################################################
 # Medulla Library contains:
@@ -30,13 +39,10 @@ device = 'cuda' if torch.cuda.is_available() else 'cpu'
 # stimulus generation -> signal
 #################################################################
 
-plt.rcParams['axes.facecolor'] = '#EEEEEE'
-plt.rcParams['figure.facecolor'] = 'white'
-
-nofcells  = 65
-nofcols   = 5
-maxtime   = ml.IMPULSE_MAXTIME
-t_on      = ml.T_ON
+BORST_NOFCELLS = 65
+BORST_NOFCOLS = 5
+t_on = ml.T_ON
+TRAIN_OPTS_FILE = "train_opts.json"
 
 # important model params
 
@@ -50,24 +56,26 @@ cdt       = capac/deltat
 
 Ca_tau    = 50.0  # in msec
 
-# Resting potential. Most cells rest at E_LEAK_REST; a configurable set of
-# cell-types (default lamina L1-L3) is depolarised to E_LEAK_DEPOL. The depol
-# cell list is a module global so experiments can extend it (e.g. give R1-8 the
-# same depolarised baseline) WITHOUT editing the core: just append indices and
-# call build_e_leak() again. No cell type is hardcoded into the construction.
+# Resting potential. Most cells rest at E_LEAK_REST; L1-L3 (LAMINA_DEPOL_TYPES) use
+# E_LEAK_DEPOL. Experiments pass depol_cells= to borst_backend() — do not mutate
+# these module-level defaults.
 E_LEAK_REST = -50.0
 E_LEAK_DEPOL = -20.0
-E_LEAK_DEPOL_CELLS = list(ml.LAMINA_DEPOL_TYPES)  # L1-L3 cell-type indices within the 65 types
+E_LEAK_DEPOL_CELLS = tuple(ml.LAMINA_DEPOL_TYPES)  # L1-L3, frozen default
 
-def build_e_leak():
-    """(nofcells*nofcols,) resting potential, replicating the depol set per column."""
-    el = torch.zeros(nofcells * nofcols, dtype=torch.float64).to(device) + E_LEAK_REST
-    for col in range(nofcols):
-        for c in E_LEAK_DEPOL_CELLS:
-            el[nofcells * col + c] = E_LEAK_DEPOL
-    return el
+def calc_multi_col_params(param, conn):
+    # Broadcast a per-cell-TYPE parameter (n_types,) to the full state (n_units,)
+    # via the backend's node_type. For the Borst path node_type == arange%65, so
+    # this reproduces the old 5x concatenation exactly.
+    return param.index_select(0, conn.node_type)
 
-E_leak = build_e_leak()
+
+def build_e_leak(conn, n_types, depol_cells=E_LEAK_DEPOL_CELLS):
+    """(conn.n_units,) resting potential from depol cell-type list."""
+    per_type = torch.full((n_types,), E_LEAK_REST, dtype=torch.float64, device=conn.node_type.device)
+    for c in depol_cells:
+        per_type[int(c)] = E_LEAK_DEPOL
+    return calc_multi_col_params(per_type, conn)
 
 exc_synweight = 0.001
 inh_synweight = 0.001
@@ -82,28 +90,18 @@ Ih_gmax       = +50.0
 
 Ih_gain       = 1.0   # if set to 0, it will block Ih
 
-# Per-cell Ih direction: +1 = standard hyperpolarisation-activated Ih; -1 = Ih
-# REVERSED (activation flips to depolarisation-activated AND the reversal flips
-# sign about 0, E_Ih=+50 -> -50 mV), giving a gentle downward sag on an upward
-# response. Configurable like E_leak: a module global the experiment extends
-# (e.g. for photoreceptors); the core hardcodes no cell type. Built after
-# nofcells/nofcols/device exist (see build_ih_dir below).
-IH_DIR_REVERSE_CELLS = []   # cell-type indices whose Ih is mirrored
+# Per-cell Ih direction: +1 normal; -1 mirrored (reversal flips about 0).
+# Default: none reversed. Pass ih_reverse_cells= to borst_backend().
+IH_DIR_REVERSE_CELLS: Tuple[int, ...] = ()
 
-def build_ih_dir():
-    """(nofcells*nofcols,) Ih direction (+1 normal, -1 mirrored), replicated per
-    column. Driven by IH_DIR_REVERSE_CELLS (cell-type indices); default all +1."""
-    d = torch.ones(nofcells * nofcols, dtype=torch.float64).to(device)
-    for col in range(nofcols):
-        for c in IH_DIR_REVERSE_CELLS:
-            d[nofcells * col + c] = -1.0
+def build_ih_dir(conn, ih_reverse_cells=IH_DIR_REVERSE_CELLS):
+    """(conn.n_units,) Ih direction (+1 normal, -1 mirrored per cell-type)."""
+    d = torch.ones(conn.n_units, dtype=torch.float64, device=conn.node_type.device)
+    for c in ih_reverse_cells:
+        d[conn.node_type == int(c)] = -1.0
     return d
 
-Ih_dir = build_ih_dir()
-
 # parameter and cost function definition
-
-nofparams = 2 * nofcells + 8 # 8 params for Ih (5 x gmax + 3)
 
 low_gain = 0.1
 high_gain = 100.0
@@ -111,36 +109,35 @@ high_gain = 100.0
 # ---- second neuron model: adaptive temporal filter (flyvis-derived) ----
 # 'conductance' = Borst conductance-based + Ih (update_Vm)
 # 'adaptive'    = passive point neuron + low-pass adaptive temporal filter
-MODEL_TYPE = 'conductance'
 
 gate_lag = 1  # delay (in steps) of the stimulus used for the contrast gate
 GATE_PIVOT = 0.5  # fixed contrast-gate pivot (non-trainable); input is normalised to [0,1]
 STATE_CLAMP = 1.0e6  # bound on adaptive state vars to keep explicit Euler finite
 
 # --- parameter schema: SINGLE SOURCE OF TRUTH -------------------------------
-# nofparams, assign, bounds and guess are all derived from these lists.
-# To change the parameterisation (sizes, ranges, which cells), edit ONLY here.
+# Segment lists are built by ``build_conductance_schema`` / ``build_adaptive_schema``
+# (via ``default_schema``); assign / bounds / guess all derive from that list.
 # Each segment is a dict:
 #   name  : parameter name (becomes a key in the assigned dict)
 #   count : number of per-unit values for this segment (the 'individual' width)
 #   kind  : how `count` raw values become a usable parameter:
-#           'full'   -> count==nofcells; one value per cell type, replicated to 5 cols (325,)
-#           'lamina' -> one value per entry in seg['cells'] (default L1-L5, indices
-#                       8:13); an entry may be a list of indices that SHARE one value;
-#                       other cells = 'fill'. (325,). 'count' is ignored for this kind.
+#           'full'   -> count==n_types; one value per cell type, replicated to columns
+#           'lamina' -> one value per entry in seg['cells'] (default L1-L5 via
+#                       LAMINA_SLICE); an entry may be a list of indices that SHARE
+#                       one value; other cells = 'fill'. 'count' is ignored for this kind.
 #           'scalar' -> count==1; a single global 0-dim value (e.g. Ih_midv)
-#           'output' -> count==nofcells; per-cell-type value applied to the (150,65) OUTPUT
-#                       (not the 325-cell state, e.g. out_scale). returned as (65,).
+#           'output' -> count==n_types; per-cell-type value on the readout (e.g. out_scale)
 #   lo,hi : training bounds (clamped each Adam step)
 #   init  : random-init mean;  jit: init uniform jitter (+/- jit/2)
 #   fill  : value for non-listed cells ('lamina' only)
-#   zero  : local indices set to 0 at init in 'individual' mode (e.g. Ih L3,L4)
+#   zero  : lamina-local indices set to 0 at init (from IH_GMAX_ZERO_TYPES cell names)
 #   mode  : 'individual' (train all `count` values, default), 'shared' (train ONE value
 #           broadcast to all units), or 'fixed' (train NOTHING; held at 'fixed' or 'init').
 #   fixed : constant value used when mode=='fixed' (defaults to 'init').
 # `mode`/`fixed` are normally NOT set here; they are overridden per run from the
 # CLI / SLURM (see run.py --mode / --fix), so the schema stays the canonical default.
 LAMINA_SLICE = ml.LAMINA_SLICE  # L1-L5 within the 65 cell types
+IH_GMAX_ZERO_TYPES = ('L3', 'L4')  # Ih_gmax z-init pinned to 0 for these types
 PARAM_MODES = ('individual', 'shared', 'fixed')
 
 # Lamina/scalar segments expanded to per-cell-type (full) by --per_type.
@@ -148,29 +145,6 @@ PER_TYPE_PARAM_NAMES = frozenset({
     'Ih_gmax', 'Ih_midv', 'Ih_slope', 'tau_midv',
     'adapt_gain', 'tau_adapt',
 })
-
-ADAPTIVE_SCHEMA = [
-    {'name': 'inp_gain',   'count': nofcells, 'kind': 'full',   'lo': low_gain, 'hi': high_gain, 'init': 0.5,   'jit': 0.2,  'fill': 0.0},
-    {'name': 'out_gain',   'count': nofcells, 'kind': 'full',   'lo': low_gain, 'hi': high_gain, 'init': 0.5,   'jit': 0.2,  'fill': 0.0},
-    {'name': 'tau_m',      'count': nofcells, 'kind': 'full',   'lo': deltat,   'hi': 1000.0,    'init': 50.0,  'jit': 10.0, 'fill': 0.0},
-    {'name': 'bias',       'count': nofcells, 'kind': 'full',   'lo': -2.0,     'hi': 2.0,       'init': 0.0,   'jit': 0.1,  'fill': 0.0},
-    {'name': 'adapt_gain', 'count': 5,        'kind': 'lamina', 'lo': -2.0,     'hi': 2.0,       'init': 0.0,   'jit': 0.1,  'fill': 0.0},
-    {'name': 'tau_adapt',  'count': 5,        'kind': 'lamina', 'lo': deltat,   'hi': 2000.0,    'init': 100.0, 'jit': 20.0, 'fill': deltat},
-    {'name': 'out_scale',  'count': nofcells, 'kind': 'output', 'lo': 0.0,      'hi': 1.0e4,     'init': 1.0,   'jit': 0.0},
-]
-
-# conductance (Borst + Ih) model parameters, same single-source-of-truth contract.
-# Layout matches the historical z vector + a trailing per-cell out_scale (65, init 1).
-CONDUCTANCE_SCHEMA = [
-    {'name': 'inp_gain',  'count': nofcells, 'kind': 'full',   'lo': low_gain, 'hi': high_gain, 'init': 0.5,      'jit': 0.2,  'fill': 0.0},
-    {'name': 'out_gain',  'count': nofcells, 'kind': 'full',   'lo': low_gain, 'hi': high_gain, 'init': 0.5,      'jit': 0.2,  'fill': 0.0},
-    {'name': 'Ih_gmax',   'count': 5,        'kind': 'lamina', 'lo': 0.0,      'hi': 100.0,     'init': Ih_gmax,  'jit': 10.0, 'fill': 0.0, 'zero': [2, 3]},
-    {'name': 'Ih_midv',   'count': 1,        'kind': 'scalar', 'lo': -70.0,    'hi': -30.0,     'init': Ih_midv,  'jit': 5.0},
-    {'name': 'Ih_slope',  'count': 1,        'kind': 'scalar', 'lo': -0.40,    'hi': -0.20,     'init': Ih_slope, 'jit': 0.02},
-    {'name': 'tau_midv',  'count': 1,        'kind': 'scalar', 'lo': -70.0,    'hi': -40.0,     'init': tau_midv, 'jit': 5.0},
-    {'name': 'out_scale', 'count': nofcells, 'kind': 'output', 'lo': 0.0,      'hi': 1.0e4,     'init': 1.0,      'jit': 0.0},
-]
-
 
 def seg_mode(seg):
     mode = seg.get('mode', 'individual')
@@ -241,7 +215,7 @@ def apply_modes(schema, modes=None, fixes=None):
     return out
 
 
-def expand_schema_per_type(schema, names=None):
+def expand_schema_per_type(schema, n_types=BORST_NOFCELLS, names=None):
     """Rebind lamina/scalar segments to per-cell-type (full) trainable params."""
     names = PER_TYPE_PARAM_NAMES if names is None else frozenset(names)
     out = []
@@ -252,7 +226,7 @@ def expand_schema_per_type(schema, names=None):
             continue
         old_kind = s['kind']
         s['kind'] = 'full'
-        s['count'] = nofcells
+        s['count'] = n_types
         if old_kind == 'lamina':
             cells = lamina_cells(s)
             if 'zero' in s:
@@ -265,24 +239,28 @@ def expand_schema_per_type(schema, names=None):
     return out
 
 
-def active_schema():
-    return ADAPTIVE_SCHEMA if MODEL_TYPE == 'adaptive' else CONDUCTANCE_SCHEMA
+def lamina_zero_indices(lamina, zero_types, type_names):
+    """Map cell-type names to local indices into a lamina ``cells`` list."""
+    names = [str(n) for n in type_names]
+    by_type = {}
+    for j, entry in enumerate(lamina):
+        targets = [entry] if isinstance(entry, int) else entry
+        for t in targets:
+            by_type[int(t)] = j
+    out = []
+    for zname in zero_types:
+        matches = [i for i, n in enumerate(names) if n == str(zname)]
+        if len(matches) != 1:
+            raise KeyError(f"cell type {zname!r}: {len(matches)} matches in type_names")
+        pos = by_type.get(matches[0])
+        if pos is not None:
+            out.append(pos)
+    return out
 
 
-def adaptive_segments():
-    return schema_segments(ADAPTIVE_SCHEMA)
-
-
-nofparams_adaptive = schema_nparams(ADAPTIVE_SCHEMA)
-
-
-# --- schema builders for an arbitrary type vocabulary (network path) ------
-# The literal CONDUCTANCE_SCHEMA / ADAPTIVE_SCHEMA above are the 65-type Borst
-# defaults. use_network() rebuilds equivalents for the network's own type
-# count + lamina indices so the SAME training machinery works on 32 (or N) types.
-
-def build_conductance_schema(n_types, lamina, ih_zero=(2, 3)):
-    zero = [j for j in ih_zero if j < len(lamina)]
+def build_conductance_schema(n_types, lamina, ih_zero_types=IH_GMAX_ZERO_TYPES, type_names=None):
+    type_names = ml.ctype if type_names is None else type_names
+    zero = lamina_zero_indices(lamina, ih_zero_types, type_names)
     return [
         {'name': 'inp_gain',  'count': n_types, 'kind': 'full',   'lo': low_gain, 'hi': high_gain, 'init': 0.5,     'jit': 0.2,  'fill': 0.0},
         {'name': 'out_gain',  'count': n_types, 'kind': 'full',   'lo': low_gain, 'hi': high_gain, 'init': 0.5,     'jit': 0.2,  'fill': 0.0},
@@ -306,79 +284,23 @@ def build_adaptive_schema(n_types, lamina):
     ]
 
 
-# -------------------------------------------------------------------------
-# -------------- reading cell data and connectivity matrices --------------
-# -------------------------------------------------------------------------
+BORST_LAMINA = list(range(LAMINA_SLICE.start, LAMINA_SLICE.stop))
 
-def init_network():
-    
-    multi_colM    = np.load('Circuits/multi_colM.npy')
-    ctype         = np.load('Circuits/ctype.npy')
-    mc_cell_index = np.load('Circuits/mc_cell_index.npy')
-    
-    multi_colM = ml.apply_borst_connectivity_patches(multi_colM)
-    
-    # chemical synpases
 
-    M_exc = exc_synweight * multi_colM * (multi_colM > 0)
-    M_inh = inh_synweight * multi_colM * (multi_colM < 0) * (-1)
-    
-    M_exc = torch.tensor(M_exc,dtype=torch.float64).to(device)
-    M_inh = torch.tensor(M_inh,dtype=torch.float64).to(device)
-    
-    # signed connectivity for the adaptive (current-based) neuron model
-    M_signed = exc_synweight * multi_colM
-    M_signed = torch.tensor(M_signed,dtype=torch.float64).to(device)
-    
-    n_units = ml.n_state_units()
-    pr = ml.photoreceptor_slice()
-    signal = torch.zeros((maxtime, n_units), dtype=torch.float64).to(device)
-    signal[0:t_on, pr] = ml.SIGNAL_BASELINE
-    signal[t_on:maxtime, pr] = ml.SIGNAL_BRIGHT
-
-    mydata = ml.read_RecF_data() * ml.DATA_AMP
-    mydata = torch.tensor(mydata, dtype=torch.float64)
-    data   = torch.zeros((nofcells, maxtime), dtype=torch.float64).to(device)
-    
-    for i in range(nofcols):
-        
-        data[ml.fit_data_slice(i)] = mydata[:, 2 + i]
-        
-    data = torch.transpose(data,0,1)
-        
-    power = torch.sum((data[t_on:maxtime])**2)
-    
-    return M_exc, M_inh, M_signed, ctype, mc_cell_index, data, power, signal
-
-M_exc, M_inh, M_signed, ctype, mc_cell_index, data, power, signal = init_network()
-
-# ---- connectivity backend (CONN) -------------------------------------------
-# All synaptic drive goes through CONN so the simulator core is agnostic to the
-# backend. The default is DenseConn wrapping the 5-column matrices, which is
-# bit-identical to the historical torch.mv(M_*, x) path. use_network() swaps
-# in a ScatterConn read from a network.json without touching the math below.
-#
-# node_type[i] is unit i's cell-TYPE index. For the Borst path it is i % nofcells
-# (so a (65,) per-type param broadcasts to the (325,) state exactly like the old
-# 5x tiling); for a network it maps each node to its type vocabulary index.
-NODE_TYPE = (torch.arange(nofcells * nofcols, device=device) % nofcells).long()
-CONN = DenseConn(M_exc, M_inh, M_signed, NODE_TYPE)
-
-# ---- multi-column / network training state ------------------------------
-# These stay None for the default Borst path (zero behaviour change). They are
-# populated by use_network() for network / multi-column training.
-NETWORK = None       # the loaded Network (None => Borst dense path)
-READOUT = None          # (cost_batch_idx, cost_unit_idx): cost cell selection
-COST_WEIGHT = None      # (n_cost,) per-cost-cell weight (1/ring-size -> equal rings)
-COST_T0 = None          # (n_cost,) absolute step for windowed cost (moving-bar)
-MC_COST_RADIUS = None   # (n_cost,) ring radius {0,1,sqrt3,2} of each cost entry
-TARGET_KIND = None      # "tile" | "moving_bar" | None
-MOVING_BAR_CENTER_COLUMN = False
-NETWORK_TRAIN_OPTS = None  # last use_network() kwargs for run sidecar / plot restore
-PARAM_TRAIN_OPTS = None    # e.g. {'per_type': True} for run sidecar / plot restore
-MULTI_COLUMN_SEQ = None  # None=auto (CPU sequential, CUDA batched)
-TARGET_PACKS = None  # None or dict name->TargetPack (multi-target training)
-TARGET_PACK_WEIGHTS = None  # None or dict name->float (loss weights)
+def default_schema(model_type: str, backend: "ModelBackend") -> list:
+    """Fresh parameter schema for ``model_type`` on the given backend."""
+    if backend.network is not None:
+        tn = list(backend.network.type_names)
+        lamina = [tn.index(t) for t in ['L1', 'L2', 'L3', 'L4', 'L5'] if t in tn]
+        n = backend.n_types
+        type_names = tn
+    else:
+        lamina = BORST_LAMINA
+        n = BORST_NOFCELLS
+        type_names = ml.ctype
+    if model_type == 'adaptive':
+        return build_adaptive_schema(n, lamina)
+    return build_conductance_schema(n, lamina, type_names=type_names)
 
 
 @dataclass(frozen=True)
@@ -393,16 +315,858 @@ class TargetPack:
     readout_batch: torch.Tensor  # (n_cost,)
     readout_unit: torch.Tensor  # (n_cost,)
     cost_t0: Optional[torch.Tensor] = None  # (n_cost,) absolute step for windowed targets
+    cost_radius: Optional[torch.Tensor] = None  # (n_cost,) ring radius for network tile
+
+
+@dataclass(frozen=True)
+class ModelBackend:
+    """Connectivity + leak/Ih tensors for one simulation graph."""
+
+    conn: object
+    e_leak: torch.Tensor
+    ih_dir: torch.Tensor
+    n_types: int
+    n_cols: int
+    network: Optional[object] = None
+    ctype: Optional[object] = None
+    depol_cells: Tuple[int, ...] = E_LEAK_DEPOL_CELLS
+    ih_reverse_cells: Tuple[int, ...] = IH_DIR_REVERSE_CELLS
+
+    @property
+    def n_units(self) -> int:
+        return self.conn.n_units
+
+
+@dataclass(frozen=True)
+class TrainSession:
+    """Immutable runtime context for one training / plotting run."""
+
+    backend: ModelBackend
+    model_type: str
+    schema: tuple
+    targets: Dict[str, TargetPack]
+    target_list: Tuple[str, ...]
+    loss_weights: Dict[str, float]
+    sequential: bool
+    moving_bar_center_column: bool
+    device: str
+    train_opts: Optional[dict] = None
+
+    def with_schema(self, schema) -> "TrainSession":
+        return replace(self, schema=tuple(schema))
+
+    @property
+    def primary_pack(self) -> TargetPack:
+        return self.targets[self.target_list[0]]
+
+    @property
+    def maxtime(self) -> int:
+        sig = self.primary_pack.signal
+        return int(sig.shape[1] if sig.dim() == 3 else sig.shape[0])
+
+    def pack_signal(self, pack: Optional[TargetPack] = None) -> torch.Tensor:
+        pack = pack or self.primary_pack
+        sig = pack.signal
+        if pack.name == "tile" and sig.dim() == 3 and int(sig.shape[0]) == 1:
+            sig = sig.squeeze(0)
+        return sig
+
+    def pack_for(self, name: str) -> TargetPack:
+        if name not in self.targets:
+            raise KeyError(f"target pack {name!r} not in session")
+        return self.targets[name]
+
+
+@dataclass(frozen=True)
+class TrainingResult:
+    """Output of :func:`do_many_runs` (in memory; persistence is ``run.save_training_outputs``)."""
+
+    all_params: np.ndarray   # (nofruns, n_params)
+    final_costs: np.ndarray  # (nofruns,)
+    best_i: int
+    cost_curve: np.ndarray   # per-step training history for ``best_i``
+
+
+# -------------------------------------------------------------------------
+# -------------- reading cell data and connectivity matrices --------------
+# -------------------------------------------------------------------------
+
+def _opt_float(opts, *keys, default=None):
+    for key in keys:
+        if key in opts:
+            return float(opts[key])
+    if default is not None:
+        return float(default)
+    raise KeyError(f"expected one of {keys!r} in stimulus opts")
+
+
+def _tile_i_from_opts(opts):
+    """Read tile PR currents (``i_baseline`` / ``i_bright``)."""
+    return (
+        _opt_float(opts, "i_baseline", default=ml.I_BASELINE),
+        _opt_float(opts, "i_bright", default=ml.I_BRIGHT),
+    )
+
+
+def make_tile_stimulus_opts(i_baseline=None, i_bright=None, mode="borst"):
+    """Absolute PR currents for tile training: baseline pre-``t_on``, bright from ``t_on``."""
+    baseline = float(ml.I_BASELINE if i_baseline is None else i_baseline)
+    bright = float(ml.I_BRIGHT if i_bright is None else i_bright)
+    return {
+        "target": "tile",
+        "mode": mode,
+        "i_baseline": baseline,
+        "i_bright": bright,
+        "t_on": int(t_on),
+        "maxtime": int(ml.IMPULSE_MAXTIME),
+        "deltat_ms": float(deltat),
+    }
+
+
+def tile_stimulus_opts_from_cli(i_baseline=None, i_bright=None):
+    """Build tile sidecar opts from CLI (omit unset keys)."""
+    if i_baseline is None and i_bright is None:
+        return None
+    kw = {}
+    if i_baseline is not None:
+        kw["i_baseline"] = float(i_baseline)
+    if i_bright is not None:
+        kw["i_bright"] = float(i_bright)
+    return make_tile_stimulus_opts(**kw)
+
+
+def bar_stimulus_opts_from_cli(
+    i_baseline_bar=None,
+    i_bright_bar=None,
+    i_dark_bar=None,
+    i_baseline_bright_bar=None,
+    i_baseline_dark_bar=None,
+):
+    """Build moving-bar sidecar opts from CLI (omit unset keys)."""
+    opts = {}
+    if i_baseline_bar is not None:
+        opts["i_baseline_bar"] = float(i_baseline_bar)
+    if i_bright_bar is not None:
+        opts["i_bright_bar"] = float(i_bright_bar)
+    if i_dark_bar is not None:
+        opts["i_dark_bar"] = float(i_dark_bar)
+    if i_baseline_bright_bar is not None:
+        opts["i_baseline_bright_bar"] = float(i_baseline_bright_bar)
+    if i_baseline_dark_bar is not None:
+        opts["i_baseline_dark_bar"] = float(i_baseline_dark_bar)
+    return opts or None
+
+
+def make_moving_bar_stimulus_opts(info, mode=None):
+    mode = mode or info.get("mode", "network")
+    opts = {
+        "target": "moving_bar",
+        "mode": mode,
+        "i_bright_bar": float(info["i_bright_bar"]),
+        "i_dark_bar": float(info["i_dark_bar"]),
+        "t_on": int(info.get("t_on", t_on)),
+        "maxtime": int(info["maxtime"]),
+        "deltat_ms": float(deltat),
+        "center_column": bool(info.get("center_column", False)),
+    }
+    if "i_baseline_bright_bar" in info:
+        opts["i_baseline_bright_bar"] = float(info["i_baseline_bright_bar"])
+    if "i_baseline_dark_bar" in info:
+        opts["i_baseline_dark_bar"] = float(info["i_baseline_dark_bar"])
+    if "i_baseline_bright_bar" not in opts and "i_baseline_dark_bar" not in opts:
+        opts["i_baseline_bar"] = float(info["i_baseline_bar"])
+    return opts
+
+
+def borst_bar_kwargs_from_stimulus_opts(opts):
+    """Map bar stimulus opts to ``build_borst_moving_bar_target`` kwargs."""
+    kw = {
+        "i_bright_bar": _opt_float(opts, "i_bright_bar", default=ml.I_BRIGHT),
+        "i_dark_bar": _opt_float(opts, "i_dark_bar", default=ml.I_DARK),
+    }
+    if "i_baseline_bright_bar" in opts or "i_baseline_dark_bar" in opts:
+        if "i_baseline_bright_bar" in opts:
+            kw["i_baseline_bright"] = _opt_float(opts, "i_baseline_bright_bar")
+        if "i_baseline_dark_bar" in opts:
+            kw["i_baseline_dark"] = _opt_float(opts, "i_baseline_dark_bar")
+    else:
+        kw["i_baseline"] = _opt_float(opts, "i_baseline_bar", default=ml.I_BASELINE)
+    return kw
+
+
+def borst_tile_signal(opts=None):
+    """Build the Borst 5-column tile PR step stimulus ``(T, N_units)``."""
+    opts = dict(opts or make_tile_stimulus_opts())
+    n_units = ml.n_state_units()
+    pr = ml.photoreceptor_slice()
+    t0, T = int(opts["t_on"]), int(opts["maxtime"])
+    b, br = _tile_i_from_opts(opts)
+    sig = torch.zeros((T, n_units), dtype=torch.float64, device=active_device())
+    sig[:t0, pr] = b
+    sig[t0:T, pr] = br
+    return sig
+
+
+def build_borst_tile_pack(opts=None):
+    """Borst center-column tile target as a :class:`TargetPack` (batch B=1)."""
+    opts = dict(opts or make_tile_stimulus_opts())
+    # Circuits/ relative paths are intentional — see coding-conventions §10 exception.
+    u_idx = torch.tensor(np.load("Circuits/mc_cell_index.npy"), dtype=torch.long, device=active_device())
+    n = int(u_idx.shape[0])
+    sig = borst_tile_signal(opts).unsqueeze(0)
+    T = int(sig.shape[1])
+    tile_data = torch.tensor(ml.borst_tile_impulse_data(T), dtype=torch.float64, device=active_device())
+    t_data = tile_data[t_on:T].transpose(0, 1).contiguous()
+    tile_power = torch.sum(tile_data[t_on:T] ** 2)
+    return TargetPack(
+        name="tile",
+        signal=sig,
+        data=t_data,
+        power=tile_power,
+        cost_weight=torch.ones(n, dtype=torch.float64, device=active_device()),
+        readout_batch=torch.zeros(n, dtype=torch.long, device=active_device()),
+        readout_unit=u_idx,
+        cost_t0=None,
+    )
+
+
+def resolve_type_indices(type_names, backend: ModelBackend):
+    """Map cell-type names to indices in the active vocabulary (Borst or network)."""
+    names = [str(n) for n in type_names]
+    if backend.network is not None:
+        tn = list(backend.network.type_names)
+        return [tn.index(n) for n in names if n in tn]
+    ctype_arr = backend.ctype
+    out = []
+    for n in names:
+        matches = np.where(ctype_arr == n)[0]
+        if len(matches) != 1:
+            raise KeyError(f"cell type {n!r} not found uniquely in ctype ({len(matches)} matches)")
+        out.append(int(matches[0]))
+    return out
+
+
+def extend_target_pack_mirror_fit(pack, mirror_types, mirror_fit, mirror_sign=-1.0, backend=None):
+    """Extend a :class:`TargetPack`: mirror *mirror_fit* targets onto *mirror_types*."""
+    if backend is not None and backend.network is not None:
+        return _extend_pack_mirror_fit_network(
+            pack, mirror_types, mirror_fit, mirror_sign, backend.network,
+        )
+    return _extend_pack_mirror_fit_borst(pack, mirror_types, mirror_fit, mirror_sign, backend)
+
+
+def _extend_pack_mirror_fit_borst(pack, mirror_types, mirror_fit, mirror_sign, backend):
+    base_u = pack.readout_unit.cpu().numpy()
+    mirror_type = ml.fit_type_index(mirror_fit)
+    mirror_indices = resolve_type_indices(mirror_types, backend)
+    n_cols = backend.n_cols
+    n_types = backend.n_types
+    extra_units, extra_rows = [], []
+    for col in range(n_cols):
+        mirror_unit = ml.unit_index(col, mirror_type)
+        mirror_row = int(np.where(base_u == mirror_unit)[0][0])
+        mirror_target = float(mirror_sign) * pack.data[mirror_row:mirror_row + 1]
+        for r in mirror_indices:
+            extra_units.append(ml.unit_index(col, int(r)))
+            extra_rows.append(mirror_target)
+    return _append_mirror_pack_rows(pack, extra_units, extra_rows)
+
+
+def _extend_pack_mirror_fit_network(pack, mirror_types, mirror_fit, mirror_sign, C):
+    from network.tiling import unit_type_names
+
+    names = unit_type_names(C)
+    u_arr = pack.readout_unit.cpu().numpy()
+    b_arr = pack.readout_batch.cpu().numpy()
+    w_arr = pack.cost_weight.cpu().numpy()
+    r_arr = (
+        pack.cost_radius.cpu().numpy()
+        if pack.cost_radius is not None else None
+    )
+    col_u_all = C.u.detach().cpu().numpy() if hasattr(C.u, "detach") else np.asarray(C.u)
+    col_v_all = C.v.detach().cpu().numpy() if hasattr(C.v, "detach") else np.asarray(C.v)
+    extra_b, extra_u, extra_rows, extra_w, extra_r = [], [], [], [], []
+    for row_i in range(len(u_arr)):
+        u = int(u_arr[row_i])
+        if str(names[u]) != mirror_fit:
+            continue
+        b = int(b_arr[row_i])
+        col_u, col_v = int(col_u_all[u]), int(col_v_all[u])
+        mirror_target = float(mirror_sign) * pack.data[row_i:row_i + 1]
+        w = float(w_arr[row_i])
+        r = float(r_arr[row_i]) if r_arr is not None else None
+        for mtype in mirror_types:
+            candidates = np.where(
+                (col_u_all == col_u)
+                & (col_v_all == col_v)
+                & (names == str(mtype))
+            )[0]
+            for uidx in candidates:
+                extra_b.append(b)
+                extra_u.append(int(uidx))
+                extra_rows.append(mirror_target)
+                extra_w.append(w)
+                if r is not None:
+                    extra_r.append(r)
+    return _append_mirror_pack_rows(
+        pack, extra_u, extra_rows,
+        readout_batch=extra_b, cost_weight=extra_w,
+        cost_radius=extra_r if extra_r else None,
+    )
+
+
+def _append_mirror_pack_rows(
+    pack, extra_units, extra_rows, readout_batch=None, cost_weight=None, cost_radius=None,
+):
+    extra_units_t = torch.tensor(extra_units, dtype=torch.long, device=active_device())
+    extra_data_t = torch.cat(extra_rows, dim=0)
+    n_all = int(pack.readout_unit.shape[0]) + len(extra_units)
+    n_extra = len(extra_units)
+    if readout_batch is None:
+        readout_batch = torch.zeros(n_extra, dtype=torch.long, device=active_device())
+    else:
+        readout_batch = torch.tensor(readout_batch, dtype=torch.long, device=active_device())
+    if cost_weight is None:
+        cost_weight = torch.ones(n_all, dtype=torch.float64, device=active_device())
+    else:
+        base_w = pack.cost_weight
+        cost_weight = torch.cat([
+            base_w,
+            torch.tensor(cost_weight, dtype=torch.float64, device=active_device()),
+        ])
+    cost_radius_out = pack.cost_radius
+    if cost_radius is not None:
+        base_r = pack.cost_radius
+        extra_r_t = torch.tensor(cost_radius, dtype=torch.float64, device=active_device())
+        cost_radius_out = (
+            torch.cat([base_r, extra_r_t])
+            if base_r is not None else extra_r_t
+        )
+    all_data = torch.cat([pack.data, extra_data_t], dim=0)
+    return TargetPack(
+        name=pack.name,
+        signal=pack.signal,
+        data=all_data,
+        power=pack.power + torch.sum(extra_data_t ** 2),
+        cost_weight=cost_weight,
+        readout_batch=torch.cat([pack.readout_batch, readout_batch]),
+        readout_unit=torch.cat([pack.readout_unit, extra_units_t]),
+        cost_t0=pack.cost_t0,
+        cost_radius=cost_radius_out,
+    )
+
+
+def _mirror_types_from_spec(spec):
+    if "mirror_types" not in spec:
+        raise ValueError(f"mirror_fit spec needs mirror_types: {spec!r}")
+    return [str(t) for t in spec["mirror_types"]]
+
+
+def apply_pack_override(pack, override, backend: ModelBackend):
+    """Apply one serializable pack override dict (saved in ``train_opts.json``)."""
+    if "mirror_fit" in override:
+        spec = override["mirror_fit"]
+        return extend_target_pack_mirror_fit(
+            pack,
+            mirror_types=_mirror_types_from_spec(spec),
+            mirror_fit=spec["mirror_fit"],
+            mirror_sign=float(spec.get("mirror_sign", -1.0)),
+            backend=backend,
+        )
+    raise ValueError(f"unknown pack override {override!r}")
+
+
+def _borst_moving_bar_pack(T):
+    return TargetPack(
+        name="moving_bar",
+        signal=T.signal,
+        data=T.data,
+        power=T.power,
+        cost_weight=T.cost_weight,
+        readout_batch=T.readout_batch,
+        readout_unit=T.readout_unit,
+        cost_t0=T.cost_t0,
+    )
+
+
+def _load_borst_matrices(dev: Optional[str] = None):
+    # Circuits/ relative paths are intentional — see coding-conventions §10 exception.
+    dev = dev or active_device()
+    multi_colM = np.load('Circuits/multi_colM.npy')
+    ctype_arr = np.load('Circuits/ctype.npy')
+    multi_colM = ml.apply_borst_connectivity_patches(multi_colM)
+    M_exc = exc_synweight * multi_colM * (multi_colM > 0)
+    M_inh = inh_synweight * multi_colM * (multi_colM < 0) * (-1)
+    M_exc = torch.tensor(M_exc, dtype=torch.float64, device=dev)
+    M_inh = torch.tensor(M_inh, dtype=torch.float64, device=dev)
+    M_signed = torch.tensor(exc_synweight * multi_colM, dtype=torch.float64, device=dev)
+    return M_exc, M_inh, M_signed, ctype_arr
+
+
+def borst_backend(
+    dev: Optional[str] = None,
+    *,
+    depol_cells=None,
+    ih_reverse_cells=None,
+) -> ModelBackend:
+    """Default 5-column Borst dense connectivity backend."""
+    dev = dev or active_device()
+    depol = tuple(depol_cells if depol_cells is not None else E_LEAK_DEPOL_CELLS)
+    ih_rev = tuple(ih_reverse_cells if ih_reverse_cells is not None else IH_DIR_REVERSE_CELLS)
+    M_exc, M_inh, M_signed, ctype_arr = _load_borst_matrices(dev)
+    node_type = (torch.arange(BORST_NOFCELLS * BORST_NOFCOLS, device=dev) % BORST_NOFCELLS).long()
+    conn = DenseConn(M_exc, M_inh, M_signed, node_type)
+    return ModelBackend(
+        conn=conn,
+        e_leak=build_e_leak(conn, BORST_NOFCELLS, depol_cells=depol),
+        ih_dir=build_ih_dir(conn, ih_reverse_cells=ih_rev),
+        n_types=BORST_NOFCELLS,
+        n_cols=BORST_NOFCOLS,
+        network=None,
+        ctype=ctype_arr,
+        depol_cells=depol,
+        ih_reverse_cells=ih_rev,
+    )
+
+
+def _network_backend_from_connectome(C) -> ModelBackend:
+    """Build a :class:`ModelBackend` from an already-loaded connectome graph."""
+    tn = list(C.type_names)
+    depol = tuple(tn.index(t) for t in ['L1', 'L2', 'L3'] if t in tn)
+    conn = C.conn
+    return ModelBackend(
+        conn=conn,
+        e_leak=build_e_leak(conn, C.n_types, depol_cells=depol),
+        ih_dir=build_ih_dir(conn),
+        n_types=C.n_types,
+        n_cols=1,
+        network=C,
+        ctype=None,
+        depol_cells=depol,
+    )
+
+
+def load_network_backend(network_json, dev: Optional[str] = None) -> ModelBackend:
+    """Load connectome network into a :class:`ModelBackend`."""
+    from network.construction import load_network
+
+    dev = dev or active_device()
+    C = load_network(network_json, device=dev,
+                     exc_synweight=exc_synweight, inh_synweight=inh_synweight)
+    backend = _network_backend_from_connectome(C)
+    print(f"network: {network_json}")
+    print(f"  n_units={backend.n_units}, n_types={backend.n_types}, "
+          f"nparams={schema_nparams(default_schema('conductance', backend))}")
+    return backend
+
+
+@dataclass
+class _TrainBindCtx:
+    """Per-target builder context during :func:`open_session`."""
+
+    model_backend: ModelBackend
+    dev: str
+    moving_bar_center_column: bool = False
+    tile_center_column: bool = False
+    multi_column: bool = True
+    share_edges: bool = False
+    tile_stimulus_opts: Optional[dict] = None
+    bar_stimulus_opts: Optional[dict] = None
+    i_baseline: Optional[float] = None
+    i_bright: Optional[float] = None
+
+
+def _normalize_target_list(target_list) -> List[str]:
+    if target_list is None:
+        raise ValueError("target_list required")
+    if isinstance(target_list, str):
+        target_list = [t.strip() for t in target_list.split(",") if t.strip()]
+    tl = list(target_list)
+    if not tl:
+        raise ValueError("target_list must not be empty")
+    return tl
+
+
+def _build_borst_tile_target(ctx: _TrainBindCtx) -> Tuple[TargetPack, dict]:
+    opts = dict(ctx.tile_stimulus_opts or make_tile_stimulus_opts())
+    return build_borst_tile_pack(opts), opts
+
+
+def _build_borst_moving_bar_target(ctx: _TrainBindCtx) -> Tuple[TargetPack, dict]:
+    from network.moving_bar_target import build_borst_moving_bar_target
+
+    bar_kw = borst_bar_kwargs_from_stimulus_opts(ctx.bar_stimulus_opts or {})
+    T = build_borst_moving_bar_target(
+        device=ctx.dev or active_device(),
+        t_on=t_on,
+        deltat_ms=deltat,
+        center_column=bool(ctx.moving_bar_center_column),
+        **bar_kw,
+    )
+    stim = make_moving_bar_stimulus_opts(T.info)
+    if ctx.bar_stimulus_opts:
+        stim = {**stim, **ctx.bar_stimulus_opts}
+    return _borst_moving_bar_pack(T), stim
+
+
+def _build_network_tile_target(
+    ctx: _TrainBindCtx, C,
+) -> Tuple[TargetPack, dict, str]:
+    from network.target import build_shifted_target
+
+    dev = ctx.dev or active_device()
+    tile_defaults = make_tile_stimulus_opts(mode="network")
+    baseline = ctx.i_baseline if ctx.i_baseline is not None else tile_defaults["i_baseline"]
+    bright = ctx.i_bright if ctx.i_bright is not None else tile_defaults["i_bright"]
+    T = build_shifted_target(
+        C,
+        share_edges=ctx.share_edges,
+        single_shift=not ctx.multi_column,
+        device=dev,
+        maxtime=ml.IMPULSE_MAXTIME,
+        t_on=t_on,
+        center_column=bool(ctx.tile_center_column),
+        i_baseline=baseline,
+        i_bright=bright,
+    )
+    stim = make_tile_stimulus_opts(
+        i_baseline=T.info["i_baseline"],
+        i_bright=T.info["i_bright"],
+        mode="network",
+    )
+    pack = TargetPack(
+        name="tile",
+        signal=T.signal,
+        data=T.data,
+        power=T.power,
+        cost_weight=T.cost_weight,
+        readout_batch=T.readout_batch,
+        readout_unit=T.readout_unit,
+        cost_t0=None,
+        cost_radius=T.cost_radius,
+    )
+    tag = (
+        f"{'multi-column' if ctx.multi_column else 'single-column'} "
+        f"(B={T.n_batch} stimuli [{T.info['n_centers']} tiles x "
+        f"{T.info['n_shifts']} shifts], {T.info['n_cost']} cost cells)"
+    )
+    return pack, stim, tag
+
+
+def _build_network_moving_bar_target(
+    ctx: _TrainBindCtx, C,
+) -> Tuple[TargetPack, dict, str]:
+    from network.moving_bar_target import build_moving_bar_target
+
+    dev = ctx.dev or active_device()
+    ib = ctx.i_baseline
+    T = build_moving_bar_target(
+        C,
+        device=dev,
+        t_on=t_on,
+        center_column=ctx.moving_bar_center_column,
+        i_baseline=ib,
+    )
+    stim = make_moving_bar_stimulus_opts(T.info)
+    pack = TargetPack(
+        name="moving_bar",
+        signal=T.signal,
+        data=T.data,
+        power=T.power,
+        cost_weight=T.cost_weight,
+        readout_batch=T.readout_batch,
+        readout_unit=T.readout_unit,
+        cost_t0=T.cost_t0,
+    )
+    coltag = (
+        "centre column" if ctx.moving_bar_center_column
+        else f"{T.info['n_cost_columns']} photo columns"
+    )
+    tag = f"moving-bar (B={T.n_batch} stimuli, {T.info['n_cost']} cost cells, {coltag})"
+    return pack, stim, tag
+
+
+BORST_TARGET_BUILDERS = {
+    "tile": _build_borst_tile_target,
+    "moving_bar": _build_borst_moving_bar_target,
+}
+
+NETWORK_TARGET_BUILDERS = {
+    "tile": _build_network_tile_target,
+    "moving_bar": _build_network_moving_bar_target,
+}
+
+
+def make_train_opts(
+    backend="borst",
+    target_list=None,
+    loss_weights=None,
+    pack_overrides=None,
+    sequential=None,
+    moving_bar_center_column=False,
+    bar_stimulus_opts=None,
+    tile_stimulus_opts=None,
+    i_baseline=None,
+    i_bright=None,
+    network_json=None,
+    network=None,
+    multi_column=True,
+    share_edges=False,
+    tile_center_column=False,
+    per_type=False,
+    dev=None,
+    packs=None,
+):
+    """Canonical training opts for :func:`open_session` (Borst or network)."""
+    tl = _normalize_target_list(target_list)
+    tile_opts = tile_stimulus_opts
+    if tile_opts is None and "tile" in tl and backend == "borst":
+        tile_opts = tile_stimulus_opts_from_cli(i_baseline, i_bright)
+    opts = {
+        "backend": str(backend),
+        "target_list": tl,
+        "loss_weights": loss_weights or {},
+        "moving_bar_center_column": bool(moving_bar_center_column),
+        "sequential": sequential,
+        "bar_stimulus_opts": bar_stimulus_opts,
+        "tile_stimulus_opts": tile_opts,
+    }
+    if pack_overrides is not None:
+        opts["pack_overrides"] = pack_overrides
+    if packs is not None:
+        opts["packs"] = packs
+    if per_type:
+        opts["per_type"] = True
+    if backend == "network":
+        opts.update({
+            "network": network,
+            "network_json": str(network_json) if network_json is not None else None,
+            "multi_column": bool(multi_column),
+            "share_edges": bool(share_edges),
+            "tile_center_column": bool(tile_center_column),
+            "i_baseline": i_baseline,
+            "i_bright": i_bright,
+            "dev": dev,
+        })
+    return opts
+
+
+
+def _train_opts_for_sidecar(
+    opts, backend, target_list, resolved_tile, resolved_bar, sequential_bool,
+) -> dict:
+    record = {
+        "backend": str(backend),
+        "target_list": list(target_list),
+        "loss_weights": {str(k): float(v) for k, v in (opts.get("loss_weights") or {}).items()},
+        "moving_bar_center_column": bool(opts.get("moving_bar_center_column", False)),
+        "sequential": bool(sequential_bool),
+    }
+    if backend == "network":
+        lw = opts.get("loss_weights") or {}
+        if lw:
+            record["loss_weights"] = {str(k): float(v) for k, v in lw.items()}
+        record.update({
+            "network_json": str(opts["network_json"]),
+            "multi_column": bool(opts.get("multi_column", True)),
+            "share_edges": bool(opts.get("share_edges", False)),
+            "tile_center_column": bool(opts.get("tile_center_column", False)),
+            "i_baseline": opts.get("i_baseline"),
+            "i_bright": opts.get("i_bright"),
+        })
+    else:
+        record["bar_stimulus_opts"] = (
+            resolved_bar if resolved_bar is not None else opts.get("bar_stimulus_opts")
+        )
+        record["tile_stimulus_opts"] = (
+            resolved_tile if resolved_tile is not None else opts.get("tile_stimulus_opts")
+        )
+    overrides = opts.get("pack_overrides")
+    if overrides:
+        record["pack_overrides"] = overrides
+    if opts.get("per_type"):
+        record["per_type"] = True
+    return record
+
+
+def _make_session(
+    model_backend: ModelBackend,
+    model_type: str,
+    target_list: List[str],
+    packs: Dict[str, TargetPack],
+    *,
+    loss_weights=None,
+    moving_bar_center_column=False,
+    sequential=None,
+    dev=None,
+    train_opts_record=None,
+    schema: Optional[list] = None,
+) -> TrainSession:
+    dev_ref = dev or active_device()
+    seq = (dev_ref == "cpu") if sequential is None else bool(sequential)
+    if train_opts_record is not None:
+        train_opts_record["sequential"] = bool(seq)
+    sch = schema if schema is not None else default_schema(model_type, model_backend)
+    return TrainSession(
+        backend=model_backend,
+        model_type=model_type,
+        schema=tuple(sch),
+        targets=dict(packs),
+        target_list=tuple(target_list),
+        loss_weights={str(k): float(v) for k, v in (loss_weights or {}).items()},
+        sequential=bool(seq),
+        moving_bar_center_column=bool(moving_bar_center_column),
+        device=dev_ref,
+        train_opts=train_opts_record,
+    )
+
+
+def open_session(
+    opts: dict,
+    model_type: str,
+    *,
+    schema: Optional[list] = None,
+    model_backend: Optional[ModelBackend] = None,
+) -> TrainSession:
+    """Build a :class:`TrainSession` from canonical training opts."""
+    backend_name = str(opts.get("backend", "borst"))
+    target_list = _normalize_target_list(opts.get("target_list"))
+    bad = [t for t in target_list if t not in BORST_TARGET_BUILDERS]
+    if bad:
+        raise ValueError(f"unknown target(s) {bad!r} (expected tile|moving_bar)")
+    dev = opts.get("dev") or active_device()
+
+    if backend_name == "borst":
+        model_backend = model_backend or borst_backend(dev)
+        ctx = _TrainBindCtx(
+            model_backend=model_backend,
+            dev=dev,
+            moving_bar_center_column=bool(opts.get("moving_bar_center_column", False)),
+            tile_stimulus_opts=opts.get("tile_stimulus_opts"),
+            bar_stimulus_opts=opts.get("bar_stimulus_opts"),
+        )
+        prebuilt = opts.get("packs")
+        pack_overrides = opts.get("pack_overrides") or {}
+        if pack_overrides:
+            prebuilt = None
+        if prebuilt is not None:
+            packs = dict(prebuilt)
+            resolved_tile = opts.get("tile_stimulus_opts")
+            resolved_bar = opts.get("bar_stimulus_opts")
+        else:
+            packs = {}
+            resolved_tile = resolved_bar = None
+            for tname in target_list:
+                pack, stim = BORST_TARGET_BUILDERS[tname](ctx)
+                if tname in pack_overrides:
+                    pack = apply_pack_override(pack, pack_overrides[tname], model_backend)
+                packs[tname] = pack
+                if tname == "tile":
+                    resolved_tile = stim
+                elif tname == "moving_bar":
+                    resolved_bar = stim
+        record = _train_opts_for_sidecar(opts, "borst", target_list, resolved_tile, resolved_bar, False)
+        session = _make_session(
+            model_backend, model_type, target_list, packs,
+            loss_weights=opts.get("loss_weights"),
+            moving_bar_center_column=opts.get("moving_bar_center_column", False),
+            sequential=opts.get("sequential"),
+            dev=dev,
+            train_opts_record=record,
+            schema=schema,
+        )
+        print(
+            f"Borst targets: {'+'.join(target_list)}  "
+            f"(packs={list(packs.keys())}, sequential={session.sequential})",
+        )
+        return session
+
+    if backend_name != "network":
+        raise ValueError(f"unknown backend {backend_name!r} (expected borst|network)")
+
+    C = opts.get("network")
+    if C is None:
+        raise ValueError("open_session(network) requires opts['network']")
+    if model_backend is None:
+        model_backend = _network_backend_from_connectome(C)
+    elif model_backend.network is not C:
+        raise ValueError("model_backend.network must be opts['network']")
+    ctx = _TrainBindCtx(
+        model_backend=model_backend,
+        dev=dev,
+        moving_bar_center_column=bool(opts.get("moving_bar_center_column", False)),
+        tile_center_column=bool(opts.get("tile_center_column", False)),
+        multi_column=bool(opts.get("multi_column", True)),
+        share_edges=bool(opts.get("share_edges", False)),
+        i_baseline=opts.get("i_baseline"),
+        i_bright=opts.get("i_bright"),
+    )
+    packs = {}
+    pack_overrides = opts.get("pack_overrides") or {}
+    for tname in target_list:
+        pack, _stim, _tag = NETWORK_TARGET_BUILDERS[tname](ctx, C)
+        if tname in pack_overrides:
+            pack = apply_pack_override(pack, pack_overrides[tname], model_backend)
+        packs[tname] = pack
+    record = _train_opts_for_sidecar(opts, "network", target_list, None, None, False)
+    return _make_session(
+        model_backend, model_type, target_list, packs,
+        loss_weights=opts.get("loss_weights"),
+        moving_bar_center_column=opts.get("moving_bar_center_column", False),
+        sequential=opts.get("sequential"),
+        dev=dev,
+        train_opts_record=record,
+        schema=schema,
+    )
+
+
+def open_session_from_opts(opts: dict, model_type: str, **kwargs) -> TrainSession:
+    """Restore a session from a saved ``train_opts.json`` dict."""
+    opts = dict(opts)
+    opts["packs"] = None
+    backend = str(opts.get("backend", "borst"))
+    if backend == "network":
+        nj = opts.get("network_json")
+        if not nj:
+            raise ValueError("train_opts with backend=network requires network_json")
+        if not opts.get("target_list"):
+            raise ValueError("train_opts requires target_list")
+        mb = load_network_backend(
+            nj, dev=opts.get("dev") or active_device(),
+        )
+        opts["network"] = mb.network
+        kwargs.setdefault("model_backend", mb)
+    return open_session({**opts, "backend": backend}, model_type, **kwargs)
+
+
+def open_session_from_outdir(
+    outdir: str,
+    model_type: str,
+    *,
+    param_modes=None,
+    param_fixes=None,
+    per_type: bool = False,
+) -> TrainSession:
+    """Load ``train_opts.json`` from a run folder and return a ready session."""
+    import json
+    opts_path = os.path.join(os.path.abspath(outdir), TRAIN_OPTS_FILE)
+    if not os.path.isfile(opts_path):
+        raise FileNotFoundError(f"missing {opts_path}")
+    with open(opts_path) as f:
+        opts = json.load(f)
+    session = open_session_from_opts(opts, model_type)
+    if per_type or opts.get("per_type"):
+        session = session.with_schema(
+            expand_schema_per_type(list(session.schema), session.backend.n_types)
+        )
+    if param_modes or param_fixes:
+        session = session.with_schema(
+            apply_modes(list(session.schema), param_modes, param_fixes)
+        )
+    return session
+
 
 # ------- network calculations  -----------------------------------------------
-
-def calc_multi_col_params(param):
-
-    # Broadcast a per-cell-TYPE parameter (n_types,) to the full state (n_units,)
-    # via the backend's node_type. For the Borst path node_type == arange%65, so
-    # this reproduces the old 5x concatenation exactly.
-
-    return param.index_select(0, CONN.node_type)
 
 def rectsyn(x,thrld):
     
@@ -411,23 +1175,26 @@ def rectsyn(x,thrld):
     
     return result
 
-def update_Vm(Vm,u,inp_gain,out_gain,Ih_gmax,Ih_midv,Ih_slope,tau_midv,signal):
+def update_Vm(Vm, u, inp_gain, out_gain, Ih_gmax, Ih_midv, Ih_slope, tau_midv, signal, backend: ModelBackend):
 
-    # Per-cell Ih direction reverses the current where Ih_dir==-1: the activation
+    # Per-cell Ih direction reverses the current where ih_dir==-1: the activation
     # slope flips (depolarisation-activated) AND the reversal flips sign about 0
-    # (E_Ih=+50 -> -50 mV), a gentle pull-down toward rest. Ih_dir==+1 -> unchanged.
-    slope_eff = Ih_dir * Ih_slope
-    E_Ih_eff  = Ih_dir * E_Ih
+    # (E_Ih=+50 -> -50 mV), a gentle pull-down toward rest. ih_dir==+1 -> unchanged.
+    ih_dir = backend.ih_dir
+    e_leak = backend.e_leak
+    conn = backend.conn
+    slope_eff = ih_dir * Ih_slope
+    E_Ih_eff  = ih_dir * E_Ih
     Ih_ss   = 1.0/(1.0+torch.exp((Ih_midv-Vm)*slope_eff))
     tau     = 1.5/(torch.exp(-0.1*(Vm-tau_midv))+torch.exp(+0.1*(Vm-tau_midv)))*1000.0 + 100.0
     u       = deltat/tau*(Ih_ss-u)+u
     g_Ih    = u * Ih_gmax * Ih_gain
     
-    g_exc, g_inh = CONN.exc_inh_drive(rectsyn(Vm,trld)*out_gain)
+    g_exc, g_inh = conn.exc_inh_drive(rectsyn(Vm,trld)*out_gain)
     g_exc   = g_exc*inp_gain
     g_inh   = g_inh*inp_gain
     
-    Vm = (g_exc*E_exc + g_inh*E_inh + g_leak*E_leak + E_Ih_eff * g_Ih + cdt*Vm + signal)
+    Vm = (g_exc*E_exc + g_inh*E_inh + g_leak*e_leak + E_Ih_eff * g_Ih + cdt*Vm + signal)
     Vm = Vm / (g_exc + g_inh + g_Ih + g_leak + cdt)
     
     return Vm, u
@@ -447,38 +1214,40 @@ def _reconstruct_raw(seg, z_slice, z):
     return z_slice                                              # individual
 
 
-def _expand_segment(seg, raw):
+def _expand_segment(seg, raw, backend: ModelBackend):
     """Map a length-`count` per-unit vector to a usable parameter, per its 'kind'."""
     kind = seg['kind']
+    dev = backend.conn.node_type.device
+    n_types = backend.n_types
     if kind == 'full':
-        return calc_multi_col_params(raw).to(device)            # (325,) state param
+        return calc_multi_col_params(raw, backend.conn).to(dev)
     if kind == 'lamina':
-        cell = torch.full((nofcells,), float(seg['fill']), dtype=raw.dtype, device=raw.device)
-        for i, target in enumerate(lamina_cells(seg)):          # int or list-of-ints (shared group)
+        cell = torch.full((n_types,), float(seg['fill']), dtype=raw.dtype, device=raw.device)
+        for i, target in enumerate(lamina_cells(seg)):
             cell[target] = raw[i]
-        return calc_multi_col_params(cell).to(device)           # (325,) state param
+        return calc_multi_col_params(cell, backend.conn).to(dev)
     if kind == 'scalar':
-        return raw[0]                                           # 0-dim global value
+        return raw[0]
     if kind == 'output':
-        return raw.to(device)                                  # (nofcells,) output gain
+        return raw.to(dev)
     raise ValueError(f"unknown segment kind: {kind}")
 
 
-def assign_params(z, schema):
+def assign_params(z, schema, backend: ModelBackend):
     """Unpack z into a dict of parameter tensors, driven by the given schema + modes."""
     p = {}
     for seg, start, stop in schema_segments(schema):
-        p[seg['name']] = _expand_segment(seg, _reconstruct_raw(seg, z[start:stop], z))
+        p[seg['name']] = _expand_segment(seg, _reconstruct_raw(seg, z[start:stop], z), backend)
     return p
 
 
-def assign_params_adaptive(z):
+def assign_params_adaptive(z, schema, backend: ModelBackend):
     """Adaptive params plus the fixed (non-trainable) contrast-gate pivot."""
-    p = assign_params(z, ADAPTIVE_SCHEMA)
+    p = assign_params(z, schema, backend)
     p['gate_pivot'] = GATE_PIVOT
     return p
 
-def update_state_adaptive(activity, v_sustained, v_transient, drive_lp, p, x_t, x_t_delayed):
+def update_state_adaptive(activity, v_sustained, v_transient, drive_lp, p, x_t, x_t_delayed, backend: ModelBackend):
     
     # passive point neuron: tau_m * da/dt = -a + X, with X = bias + syn + x_t.
     # an adaptive low-pass reference (drive_lp) gates a transient component so
@@ -490,7 +1259,7 @@ def update_state_adaptive(activity, v_sustained, v_transient, drive_lp, p, x_t, 
     ratio = tau / tau_r
     
     # presynaptic output gain (per source), postsynaptic input gain (per target)
-    syn     = p['inp_gain'] * CONN.signed_drive(torch.relu(activity) * p['out_gain'])
+    syn     = p['inp_gain'] * backend.conn.signed_drive(torch.relu(activity) * p['out_gain'])
     X       = bias + syn + x_t
     X_gate  = bias + syn + x_t_delayed
     gate    = (X_gate - p['gate_pivot']) * p['adapt_gain']
@@ -509,32 +1278,37 @@ def update_state_adaptive(activity, v_sustained, v_transient, drive_lp, p, x_t, 
     
     return activity, v_sustained, v_transient, drive_lp
 
-def model_cost(model, data, out_scale=1.0):
-    # normalised MSE over the response window (t=t_on..maxtime-1); out_scale is an optional
-    # global linear output gain (default 1.0 -> unscaled).
-    return torch.sum((out_scale * model - data[t_on:maxtime])**2) / power * 100.0
+def model_cost(model, data, session: TrainSession, scale=1.0, power=None):
+    # normalised MSE over the response window (t=t_on..maxtime-1); ``scale`` is an
+    # arbitrary linear gain on ``model`` (diagnostics only — training uses schema out_scale).
+    if power is None:
+        power = session.primary_pack.power
+    mt = session.maxtime
+    return torch.sum((scale * model - data[t_on:mt])**2) / power * 100.0
 
-def _run_conductance(p, neuron_index=None, return_ref=False, sig=None):
-    # forward pass -> low-pass filtered response for the chosen neurons, shape
-    # (maxtime-t_on, n). neuron_index defaults to the center-column cost cells (mc_cell_index);
-    # plotting passes other columns. return_ref also yields the resting baseline.
-    # sig overrides the module-level stimulus (single-column (T,N) only here).
+
+def _run_conductance(session: TrainSession, p, neuron_index=None, return_ref=False, sig=None, pack=None):
+    backend = session.backend
+    mt = session.maxtime
+    if neuron_index is None:
+        pack = pack or session.primary_pack
+        neuron_index = pack.readout_unit
+    if sig is None:
+        sig = session.pack_signal(pack)
     inp_gain, out_gain, Ih_gmax = p['inp_gain'], p['out_gain'], p['Ih_gmax']
     Ih_midv, Ih_slope, tau_midv = p['Ih_midv'], p['Ih_slope'], p['tau_midv']
-    if neuron_index is None:
-        neuron_index = mc_cell_index
-    if sig is None:
-        sig = signal
-
-    u  = torch.zeros(CONN.n_units, dtype=torch.float64).to(device)
-    Vm = E_leak
+    u  = torch.zeros(backend.n_units, dtype=torch.float64, device=backend.conn.node_type.device)
+    Vm = backend.e_leak
     for t in range(1, t_on):
-        Vm, u = update_Vm(Vm,u,inp_gain,out_gain,Ih_gmax,Ih_midv,Ih_slope,tau_midv,sig[t-1])
-    Vm_ref = 1.0*Vm[neuron_index]  # reference 0
-    model = 0; rows = []
-    for t in range(t_on, maxtime):
-        Vm, u = update_Vm(Vm,u,inp_gain,out_gain,Ih_gmax,Ih_midv,Ih_slope,tau_midv,sig[t-1])
-        model = deltat/Ca_tau * (Vm[neuron_index] - Vm_ref - model) + model
+        Vm, u = update_Vm(Vm, u, inp_gain, out_gain, Ih_gmax, Ih_midv, Ih_slope, tau_midv,
+                          sig[t - 1], backend)
+    Vm_ref = 1.0 * Vm[neuron_index]
+    model = 0
+    rows = []
+    for t in range(t_on, mt):
+        Vm, u = update_Vm(Vm, u, inp_gain, out_gain, Ih_gmax, Ih_midv, Ih_slope, tau_midv,
+                          sig[t - 1], backend)
+        model = deltat / Ca_tau * (Vm[neuron_index] - Vm_ref - model) + model
         rows.append(model)
     out = torch.stack(rows)
     if return_ref:
@@ -542,25 +1316,27 @@ def _run_conductance(p, neuron_index=None, return_ref=False, sig=None):
     return out
 
 
-def _run_conductance_full(p, sig):
-    # Multi-column forward: batched stimulus sig (B, T, N) -> (B, T-t_on, N), the
-    # Ca-filtered response of EVERY unit for every stimulus. Same per-step math as
-    # _run_conductance; the connectivity backend already handles the (B, N) batch.
+def _run_conductance_full(session: TrainSession, p, sig):
+    backend = session.backend
     inp_gain, out_gain, Ih_gmax = p['inp_gain'], p['out_gain'], p['Ih_gmax']
     Ih_midv, Ih_slope, tau_midv = p['Ih_midv'], p['Ih_slope'], p['tau_midv']
     B = sig.shape[0]
     t_end = sig.shape[1]
-    u  = torch.zeros((B, CONN.n_units), dtype=torch.float64).to(device)
-    Vm = E_leak.expand(B, CONN.n_units).clone()
+    dev = backend.conn.node_type.device
+    u  = torch.zeros((B, backend.n_units), dtype=torch.float64, device=dev)
+    Vm = backend.e_leak.expand(B, backend.n_units).clone()
     for t in range(1, min(t_on, t_end)):
-        Vm, u = update_Vm(Vm,u,inp_gain,out_gain,Ih_gmax,Ih_midv,Ih_slope,tau_midv,sig[:, t-1])
-    Vm_ref = Vm.clone()                              # (B, N)
-    model = 0; rows = []
+        Vm, u = update_Vm(Vm, u, inp_gain, out_gain, Ih_gmax, Ih_midv, Ih_slope, tau_midv,
+                          sig[:, t - 1], backend)
+    Vm_ref = Vm.clone()
+    model = 0
+    rows = []
     for t in range(t_on, t_end):
-        Vm, u = update_Vm(Vm,u,inp_gain,out_gain,Ih_gmax,Ih_midv,Ih_slope,tau_midv,sig[:, t-1])
-        model = deltat/Ca_tau * (Vm - Vm_ref - model) + model
+        Vm, u = update_Vm(Vm, u, inp_gain, out_gain, Ih_gmax, Ih_midv, Ih_slope, tau_midv,
+                          sig[:, t - 1], backend)
+        model = deltat / Ca_tau * (Vm - Vm_ref - model) + model
         rows.append(model)
-    return torch.stack(rows, dim=1)                  # (B, t_end-t_on, N)
+    return torch.stack(rows, dim=1)
 
 
 def _window_time_traces(model_full, b_idx, u_idx, t0, win=None):
@@ -569,8 +1345,10 @@ def _window_time_traces(model_full, b_idx, u_idx, t0, win=None):
     ``t0`` is the absolute simulation step of window start. Steps before ``t_on``
     are zero (``model_full`` only exists from ``t_on`` onward).
     """
-    win = int(data.shape[1] if win is None else win)
-    t_rel = t0[:, None] - t_on + torch.arange(win, dtype=torch.long, device=device)
+    if win is None:
+        raise ValueError("window length win required")
+    win = int(win)
+    t_rel = t0[:, None] - t_on + torch.arange(win, dtype=torch.long, device=active_device())
     t_max = model_full.shape[1] - 1
     pre = t_rel < 0
     t_safe = t_rel.clamp(0, t_max)
@@ -578,16 +1356,8 @@ def _window_time_traces(model_full, b_idx, u_idx, t0, win=None):
     return torch.where(pre, torch.zeros_like(sel), sel)
 
 
-def _readout_model_traces(model_full, b_idx, u_idx, cost_t0=None):
-    """Select model traces for cost cells; windowed when ``cost_t0`` / ``COST_T0`` is set."""
-    t0 = COST_T0 if cost_t0 is None else cost_t0
-    if t0 is None:
-        return model_full[b_idx, :, u_idx]
-    return _window_time_traces(model_full, b_idx, u_idx, t0, win=data.shape[1])
-
-
 def _readout_model_traces_pack(model_full, pack: TargetPack):
-    """Like _readout_model_traces but driven by a TargetPack (no globals)."""
+    """Select model traces for cost cells; windowed when ``pack.cost_t0`` is set."""
     if pack.cost_t0 is None:
         return model_full[pack.readout_batch, :, pack.readout_unit]
     return _window_time_traces(
@@ -596,354 +1366,169 @@ def _readout_model_traces_pack(model_full, pack: TargetPack):
     )
 
 
-def _pack_cost(z, pack: TargetPack):
-    p = assign_params(z, active_schema())
-    model_full = _run_conductance_full(p, pack.signal)  # (B, T-t_on, N)
-    sel = _readout_model_traces_pack(model_full, pack)
-    diff = sel - pack.data
-    return torch.sum(pack.cost_weight[:, None] * diff ** 2) / pack.power * 100.0
-
-
-def _pack_shift_cost(z, pack: TargetPack, shift: int):
-    """CPU-sequential cost for one batch index of a TargetPack."""
-    p = assign_params(z, active_schema())
-    sig_b = pack.signal[shift:shift + 1]  # (1, T, N)
-    model_full = _run_conductance_full(p, sig_b)  # (1, T-t_on, N)
-    mask = (pack.readout_batch == int(shift))
-    if not bool(mask.any()):
-        return torch.zeros((), dtype=torch.float64, device=device)
-    u_m = pack.readout_unit[mask]
-    if pack.cost_t0 is None:
-        sel = model_full[0, :, u_m].transpose(0, 1)
-    else:
-        b_zero = torch.zeros_like(u_m)
-        sel = _window_time_traces(
-            model_full, b_zero, u_m, pack.cost_t0[mask],
-            win=pack.data.shape[1],
-        )
-    diff = sel - pack.data[mask]
-    return torch.sum(pack.cost_weight[mask][:, None] * diff ** 2) / pack.power * 100.0
-
-
-def multicol_cost(z):
-    # Multi-column / network cost: batched forward over all stimuli, then the
-    # READOUT (batch, unit) cost cells are compared to the target with
-    # per-ring COST_WEIGHT (tile) or per-column windows (moving-bar).
-    p = assign_params(z, active_schema())
-    model_full = _run_conductance_full(p, signal)     # (B, T-t_on, N)
-    b_idx, u_idx = READOUT
-    sel = _readout_model_traces(model_full, b_idx, u_idx)
-    diff = sel - data
-    return torch.sum(COST_WEIGHT[:, None] * diff ** 2) / power * 100.0
-
-
-def multicol_shift_cost(z, shift):
-    # Single-stimulus (one batch index) forward+cost, for CPU-sequential training
-    # that backprops one stimulus at a time to bound peak memory. Mathematically a
-    # partial sum of multicol_cost over the cost cells belonging to this batch.
-    p = assign_params(z, active_schema())
-    sig_b = signal[shift:shift+1]                     # (1, T, N)
-    model_full = _run_conductance_full(p, sig_b)      # (1, T-t_on, N)
-    b_idx, u_idx = READOUT
-    mask = (b_idx == shift)
-    if not bool(mask.any()):
-        return torch.zeros((), dtype=torch.float64, device=device)
-    u_m = u_idx[mask]
-    if COST_T0 is None:
-        sel = model_full[0, :, u_m].transpose(0, 1)
-    else:
-        b_zero = torch.zeros_like(u_m)
-        sel = _window_time_traces(model_full, b_zero, u_m, COST_T0[mask], win=data.shape[1])
-    diff = sel - data[mask]
-    return torch.sum(COST_WEIGHT[mask][:, None] * diff ** 2) / power * 100.0
-
-
-def use_network(
-    network_json,
-    multi_column=True,
-    share_edges=False,
-    sequential=None,
-    dev=None,
-    target="tile",
-    moving_bar_center_column=False,
-    target_list=None,
-    loss_weights=None,
-    tile_center_column=False,
-):
-    """Switch the simulator onto a network read from ``network.json``.
-
-    Rebinds the connectivity backend (ScatterConn), the type vocabulary / schema,
-    the resting / Ih state vectors, and the stimulus + training target.
-    The default Borst 5-column path is unaffected until this is called.
-
-    target: ``tile`` (hex RecF×ImpR) or ``moving_bar`` (fig1_ci + per-column windows).
-    moving_bar_center_column: if True, moving-bar cost uses hex centre column only.
-    multi_column: True -> 7-shift batched tile target; False -> single stimulus.
-    share_edges:  31 disjoint tiles (False) vs 43 edge-sharing (True), full graph.
-    sequential:   None -> auto (CPU sequential, CUDA batched).
-    """
-    global CONN, NETWORK, NODE_TYPE, nofcells, nofcols
-    global E_LEAK_DEPOL_CELLS, E_leak, Ih_dir
-    global CONDUCTANCE_SCHEMA, ADAPTIVE_SCHEMA, nofparams_adaptive
-    global z_bounds, z_bounds_adaptive
-    global data, power, signal, mc_cell_index, maxtime
-    global READOUT, COST_WEIGHT, COST_T0, MC_COST_RADIUS, TARGET_KIND, MULTI_COLUMN_SEQ
-    global NETWORK_TRAIN_OPTS, MOVING_BAR_CENTER_COLUMN
-    global TARGET_PACKS, TARGET_PACK_WEIGHTS
-
-    from network.construction import load_network
-
-    dev = dev or device
-    C = load_network(network_json, device=dev,
-                        exc_synweight=exc_synweight, inh_synweight=inh_synweight)
-    NETWORK = C
-    CONN = C.conn
-    NODE_TYPE = C.node_type
-    nofcells = C.n_types
-    nofcols = 1
-
-    tn = list(C.type_names)
-    lamina = [tn.index(t) for t in ['L1', 'L2', 'L3', 'L4', 'L5'] if t in tn]
-    E_LEAK_DEPOL_CELLS = [tn.index(t) for t in ['L1', 'L2', 'L3'] if t in tn]
-
-    CONDUCTANCE_SCHEMA = build_conductance_schema(nofcells, lamina)
-    ADAPTIVE_SCHEMA = build_adaptive_schema(nofcells, lamina)
-    nofparams_adaptive = schema_nparams(ADAPTIVE_SCHEMA)
-
-    # per-TYPE resting potential broadcast to the n_units state via node_type.
-    per_type = torch.full((nofcells,), E_LEAK_REST, dtype=torch.float64, device=dev)
-    for c in E_LEAK_DEPOL_CELLS:
-        per_type[c] = E_LEAK_DEPOL
-    E_leak = calc_multi_col_params(per_type)
-    Ih_dir = torch.ones(CONN.n_units, dtype=torch.float64, device=dev)
-
-    z_bounds = calc_z_bounds()
-    z_bounds_adaptive = calc_z_bounds_adaptive()
-
-    # Multi-target mode: build a TargetPack per requested target name, then calc_cost()
-    # sums them (optionally weighted). We still keep the legacy globals pointed at
-    # the FIRST target for compatibility with code paths that assume `signal/data`.
-    TARGET_PACKS = None
-    TARGET_PACK_WEIGHTS = None
-    if target_list is not None:
-        if isinstance(target_list, str):
-            target_list = [t.strip() for t in str(target_list).split(",") if t.strip()]
-        target_list = list(target_list)
-        packs: Dict[str, TargetPack] = {}
-        for tname in target_list:
-            if tname == "moving_bar":
-                from network.moving_bar_target import build_moving_bar_target
-                Tm = build_moving_bar_target(
-                    C, device=dev, t_on=t_on, center_column=moving_bar_center_column,
-                )
-                packs[tname] = TargetPack(
-                    name=tname,
-                    signal=Tm.signal,
-                    data=Tm.data,
-                    power=Tm.power,
-                    cost_weight=Tm.cost_weight,
-                    readout_batch=Tm.readout_batch,
-                    readout_unit=Tm.readout_unit,
-                    cost_t0=Tm.cost_t0,
-                )
-            elif tname == "tile":
-                from network.target import build_shifted_target
-                Tr = build_shifted_target(
-                    C,
-                    share_edges=share_edges,
-                    single_shift=not multi_column,
-                    device=dev,
-                    maxtime=maxtime,
-                    t_on=t_on,
-                    center_column=bool(tile_center_column),
-                )
-                packs[tname] = TargetPack(
-                    name=tname,
-                    signal=Tr.signal,
-                    data=Tr.data,
-                    power=Tr.power,
-                    cost_weight=Tr.cost_weight,
-                    readout_batch=Tr.readout_batch,
-                    readout_unit=Tr.readout_unit,
-                    cost_t0=None,
-                )
-            else:
-                raise ValueError(f"unknown target {tname!r} (expected moving_bar|tile)")
-
-        TARGET_PACKS = packs
-        TARGET_PACK_WEIGHTS = {str(k): float(v) for k, v in (loss_weights or {}).items()}
-        TARGET_KIND = "multi"
-        first = packs[target_list[0]]
-        signal = first.signal
-        data = first.data
-        power = first.power
-        COST_WEIGHT = first.cost_weight
-        COST_T0 = first.cost_t0
-        READOUT = (first.readout_batch, first.readout_unit)
-        mc_cell_index = first.readout_unit
-        MC_COST_RADIUS = torch.zeros(first.cost_weight.shape[0], dtype=torch.float64, device=dev)
-        maxtime = int(first.signal.shape[1])
-        tag = f"multi-target ({'+'.join(target_list)})"
-        target_norm = "multi"
-    else:
-        if target not in ("tile", "moving_bar"):
-            raise ValueError(f"unknown target {target!r} (expected tile|moving_bar)")
-        target_norm = "moving_bar" if target == "moving_bar" else "tile"
-        if target_norm == "moving_bar":
-            from network.moving_bar_target import build_moving_bar_target
-            T = build_moving_bar_target(
-                C, device=dev, t_on=t_on, center_column=moving_bar_center_column,
-            )
-            TARGET_KIND = "moving_bar"
-            COST_T0 = T.cost_t0
-            MC_COST_RADIUS = torch.zeros(T.cost_weight.shape[0], dtype=torch.float64, device=dev)
-            maxtime = int(T.maxtime)
-            coltag = "centre column" if moving_bar_center_column else f"{T.info['n_cost_columns']} photo columns"
-            tag = f"moving-bar (B={T.n_batch} stimuli, {T.info['n_cost']} cost cells, {coltag})"
+def _pack_out_scale(p, pack: TargetPack, backend: ModelBackend):
+    """Per-cost-row output scale from schema ``out_scale`` (single source of truth)."""
+    os_param = p.get('out_scale', 1.0)
+    if torch.is_tensor(os_param) and os_param.dim() > 0:
+        u = pack.readout_unit
+        if backend.network is not None:
+            ci = backend.network.node_type[u]
         else:
-            from network.target import build_shifted_target
-            T = build_shifted_target(
-                C, share_edges=share_edges, single_shift=not multi_column, device=dev,
-                maxtime=maxtime, t_on=t_on,
-            )
-            TARGET_KIND = "tile"
-            COST_T0 = None
-            MC_COST_RADIUS = T.cost_radius
-            maxtime = int(T.signal.shape[1]) if T.signal.ndim == 3 else ml.IMPULSE_MAXTIME
-            tag = (
-                f"{'multi-column' if multi_column else 'single-column'} "
-                f"(B={T.n_batch} stimuli [{T.info['n_centers']} tiles x "
-                f"{T.info['n_shifts']} shifts], {T.info['n_cost']} cost cells)"
-            )
+            ci = u % backend.n_types
+        os_param = os_param[ci]
+    n = int(pack.readout_unit.shape[0])
+    dev = backend.conn.node_type.device
+    if torch.is_tensor(os_param):
+        if os_param.dim() == 0:
+            os_param = os_param.expand(n)
+        return os_param
+    return torch.full((n,), float(os_param), dtype=torch.float64, device=dev)
 
-        signal = T.signal
-        data = T.data
-        power = T.power
-        COST_WEIGHT = T.cost_weight
-        READOUT = (T.readout_batch, T.readout_unit)
-        mc_cell_index = T.readout_unit          # plotting / out_scale fallback
-    MULTI_COLUMN_SEQ = (dev == 'cpu') if sequential is None else bool(sequential)
-    MOVING_BAR_CENTER_COLUMN = bool(moving_bar_center_column) if target_norm == "moving_bar" else False
-    target_field = ",".join(target_list) if target_list is not None else str(target_norm)
-    NETWORK_TRAIN_OPTS = {
-        "network_json": str(Path(network_json).resolve()),
-        "multi_column": bool(multi_column),
-        "share_edges": bool(share_edges),
-        "target": target_field,
-        "sequential": bool(MULTI_COLUMN_SEQ),
-        "moving_bar_center_column": bool(moving_bar_center_column),
-        "target_list": list(target_list) if target_list is not None else None,
-        "loss_weights": {str(k): float(v) for k, v in (loss_weights or {}).items()} if target_list is not None else None,
-        "tile_center_column": bool(tile_center_column),
-    }
 
-    seqtag = ", sequential CPU" if MULTI_COLUMN_SEQ else ""
-    print(f"network: {network_json}")
-    print(f"  {tag}{seqtag}")
-    print(f"  n_units={CONN.n_units}, n_types={nofcells}, "
-          f"nparams={schema_nparams(active_schema())}, maxtime={maxtime}")
-    return C
-
-def simulate_conductance(z):
-    return _run_conductance(assign_params(z, CONDUCTANCE_SCHEMA))
-
-def _run_adaptive(p, inp_scalar=None, return_diag=False, neuron_index=None, return_ref=False):
-    # forward pass -> low-pass filtered response for the chosen neurons, shape
-    # (150, n). neuron_index defaults to the center-column cost cells (mc_cell_index);
-    # plotting passes other columns.
-    # inp_scalar: override per-cell inp_gain with a uniform value (parameter sweeps).
-    # return_diag: also return {max|activity|, clamp-hit %} for stability analysis.
-    # return_ref: also return the resting baseline the trace is measured against.
+def _run_adaptive(p, session: TrainSession, neuron_index=None, return_ref=False, sig=None):
+    backend = session.backend
+    mt = session.maxtime
     if 'gate_pivot' not in p:
         p = {**p, 'gate_pivot': GATE_PIVOT}
-    if inp_scalar is not None:
-        p = {**p, 'inp_gain': torch.full_like(p['bias'], float(inp_scalar))}
     if neuron_index is None:
-        neuron_index = mc_cell_index
+        neuron_index = session.primary_pack.readout_unit
+    if sig is None:
+        sig = session.pack_signal()
     bias = p['bias']
-    x_signal = signal / ml.SIGNAL_BRIGHT  # normalise input to [0,1] so gate_pivot ~ 0.5 is meaningful
+    x_signal = sig / ml.I_BRIGHT
 
     activity    = bias.clone()
     v_sustained = bias.clone()
     v_transient = torch.zeros_like(bias)
     drive_lp    = bias.clone()
 
-    maxact = 0.0; hits = 0; tot = 0
-    act_ref = None; model = 0; rows = []
-    for t in range(1, maxtime):
-        x_t = x_signal[t-1]
-        x_d = x_signal[max(t-1-gate_lag, 0)]
+    act_ref = None
+    model = 0
+    rows = []
+    for t in range(1, mt):
+        x_t = x_signal[t - 1]
+        x_d = x_signal[max(t - 1 - gate_lag, 0)]
         activity, v_sustained, v_transient, drive_lp = update_state_adaptive(
-            activity, v_sustained, v_transient, drive_lp, p, x_t, x_d)
-        if return_diag:
-            maxact = max(maxact, float(activity.abs().max()))
-            hits += int((v_sustained.abs() >= STATE_CLAMP).sum() + (v_transient.abs() >= STATE_CLAMP).sum())
-            tot += 2 * v_sustained.numel()
+            activity, v_sustained, v_transient, drive_lp, p, x_t, x_d, backend)
         if t == t_on - 1:
-            act_ref = 1.0*activity[neuron_index]  # reference 0
+            act_ref = 1.0 * activity[neuron_index]
         elif t >= t_on:
-            model = deltat/Ca_tau * (activity[neuron_index] - act_ref - model) + model
+            model = deltat / Ca_tau * (activity[neuron_index] - act_ref - model) + model
             rows.append(model)
     model = torch.stack(rows)
-    if return_diag:
-        return model, {'maxact': maxact, 'clamp_pct': 100.0 * hits / tot}
     if return_ref:
         return model, act_ref
     return model
 
-def simulate_adaptive(z, inp_scalar=None, return_diag=False):
-    return _run_adaptive(assign_params_adaptive(z), inp_scalar, return_diag)
 
-#@torch.compile
-def calc_cost(z, data, out_scale=1.0):
-    # out_scale (the arg) multiplies on top of any 'out_scale' parameter declared in
-    # the active schema, so legacy callers (arg) and schema-driven training both work.
-    # When multi-target packs are active, sum their costs (weights applied).
-    # The 'data' arg is ignored in that mode (kept for API compatibility).
-    if TARGET_PACKS is not None:
-        weights = TARGET_PACK_WEIGHTS or {}
-        total = 0.0
-        for name, pack in TARGET_PACKS.items():
-            w = float(weights.get(name, 1.0))
-            if w == 0.0:
-                continue
-            if MULTI_COLUMN_SEQ:
-                part = 0.0
-                for b in range(pack.signal.shape[0]):
-                    part = part + _pack_shift_cost(z, pack, b)
-            else:
-                part = _pack_cost(z, pack)
-            total = total + w * part
-        return total
+def _conductance_pack_readout(p, pack: TargetPack, session: TrainSession, batch_idx=None):
+    """Conductance forward + readout. ``batch_idx``: one stimulus (sequential) or all (batched)."""
+    sig = pack.signal if batch_idx is None else pack.signal[batch_idx:batch_idx + 1]
+    model_full = _run_conductance_full(session, p, sig)
+    if batch_idx is None:
+        return _readout_model_traces_pack(model_full, pack)
+    mask = pack.readout_batch == int(batch_idx)
+    u_m = pack.readout_unit[mask]
+    if pack.cost_t0 is None:
+        return model_full[0, :, u_m].transpose(0, 1)
+    b_zero = torch.zeros_like(u_m)
+    return _window_time_traces(
+        model_full, b_zero, u_m, pack.cost_t0[mask],
+        win=pack.data.shape[1],
+    )
 
-    # When a network multi-column target is active (signal is (B, T, N)), route to
-    # the batched tile-target cost; the Borst 5-column path is untouched.
-    if NETWORK is not None and signal.dim() == 3:
-        if MULTI_COLUMN_SEQ:
-            total = 0.0
-            for b in range(signal.shape[0]):
-                total = total + multicol_shift_cost(z, b)
-            return total
-        return multicol_cost(z)
-    schema = active_schema()
-    p = assign_params(z, schema)
-    if MODEL_TYPE == 'adaptive':
-        model = _run_adaptive({**p, 'gate_pivot': GATE_PIVOT})
+
+def _window_adaptive_traces(model, t0, win):
+    """Windowed readout from ``_run_adaptive`` output ``(T', K)``."""
+    t_rel = t0[:, None] - t_on + torch.arange(win, dtype=torch.long, device=active_device())
+    t_max = model.shape[0] - 1
+    pre = t_rel < 0
+    t_safe = t_rel.clamp(0, t_max)
+    k_idx = torch.arange(model.shape[1], dtype=torch.long, device=active_device())
+    sel = model[t_safe, k_idx[:, None]]
+    return torch.where(pre, torch.zeros_like(sel), sel)
+
+
+def _adaptive_pack_readout(p, pack: TargetPack, session: TrainSession, batch_idx=None):
+    """Adaptive forward + readout. ``batch_idx``: one stimulus (sequential) or all (batched)."""
+    p = {**p, 'gate_pivot': GATE_PIVOT}
+    if batch_idx is None:
+        sig = session.pack_signal(pack)
+        if sig.dim() == 3:
+            sig = sig[0]
+        u = pack.readout_unit
+        t0 = pack.cost_t0
     else:
-        model = _run_conductance(p)
-    # out_scale is declared per cell-TYPE (nofcells,), but model columns are the
-    # COST CELLS (mc_cell_index, here = the default neuron set used by _run_*).
-    # Map each cost cell to its cell type so out_scale aligns no matter how many
-    # cost cells there are (lets experiments add cost cells, e.g. R1-8).
-    os_param = p.get('out_scale', 1.0)
-    if torch.is_tensor(os_param) and os_param.dim() > 0:
-        ci = torch.as_tensor(mc_cell_index, device=os_param.device, dtype=torch.long) % nofcells
-        os_param = os_param[ci]
-    return model_cost(model, data, out_scale * os_param)
+        sig = pack.signal[batch_idx]
+        mask = pack.readout_batch == int(batch_idx)
+        u = pack.readout_unit[mask]
+        t0 = pack.cost_t0[mask] if pack.cost_t0 is not None else None
+    model = _run_adaptive(p, session, neuron_index=u, sig=sig)
+    if t0 is None:
+        return model.transpose(0, 1)
+    return _window_adaptive_traces(model, t0, win=pack.data.shape[1])
 
-def calc_cost_adaptive(z, data, out_scale=1.0):
-    return model_cost(simulate_adaptive(z), data, out_scale)
-    
+
+# Register new model types here only — batching (``batch_idx``) stays in ``_pack_cost``.
+MODEL_PACK_READOUT = {
+    'conductance': _conductance_pack_readout,
+    'adaptive': _adaptive_pack_readout,
+}
+
+
+def _pack_model_readout(p, pack: TargetPack, session: TrainSession, batch_idx=None):
+    try:
+        readout = MODEL_PACK_READOUT[session.model_type]
+    except KeyError:
+        raise ValueError(f"no pack readout for model_type={session.model_type!r}") from None
+    return readout(p, pack, session, batch_idx)
+
+
+def _pack_cost_rows(p, pack: TargetPack, session: TrainSession, batch_idx=None):
+    """Forward + MSE for one pack. ``batch_idx=None`` batched; ``int`` one stimulus."""
+    scale = _pack_out_scale(p, pack, session.backend)
+    if batch_idx is not None:
+        mask = pack.readout_batch == int(batch_idx)
+        if not bool(mask.any()):
+            return None
+        scale = scale[mask]
+        data = pack.data[mask]
+        weight = pack.cost_weight[mask]
+    else:
+        data = pack.data
+        weight = pack.cost_weight
+    sel = _pack_model_readout(p, pack, session, batch_idx)
+    diff = scale[:, None] * sel - data
+    return torch.sum(weight[:, None] * diff ** 2) / pack.power * 100.0
+
+
+def _pack_cost(z, pack: TargetPack, session: TrainSession, batch_idx=None):
+    schema = list(session.schema)
+    if session.model_type == 'adaptive':
+        p = assign_params_adaptive(z, schema, session.backend)
+    else:
+        p = assign_params(z, schema, session.backend)
+    part = _pack_cost_rows(p, pack, session, batch_idx)
+    if part is None:
+        return torch.zeros((), dtype=torch.float64, device=session.device)
+    return part
+
+
+def calc_cost(z, session: TrainSession):
+    total = torch.zeros((), dtype=torch.float64, device=session.device)
+    for name, pack in session.targets.items():
+        w = float(session.loss_weights.get(name, 1.0))
+        if w == 0.0:
+            continue
+        if session.sequential:
+            part = torch.zeros((), dtype=torch.float64, device=session.device)
+            for b in range(pack.signal.shape[0]):
+                part = part + _pack_cost(z, pack, session, batch_idx=b)
+        else:
+            part = _pack_cost(z, pack, session, batch_idx=None)
+        total = total + w * part
+    return total
+
 def schema_bounds(schema):
     zb = torch.zeros((schema_nparams(schema), 2), dtype=torch.float64)
     for seg, start, stop in schema_segments(schema):
@@ -958,40 +1543,25 @@ def schema_guess(schema):
         if n == 0:                             # fixed: nothing to initialise
             continue
         z[start:stop] = seg['init'] + (np.random.rand(n) - 0.5) * seg['jit']
-        if seg_mode(seg) == 'individual':      # 'zero' only meaningful per-unit
-            for j in seg.get('zero', []):      # e.g. Ih_gmax L3,L4 start at 0
+        if seg_mode(seg) == 'individual':
+            for j in seg.get('zero', []):      # lamina-local indices (see IH_GMAX_ZERO_TYPES)
                 z[start + j] = 0.0
-    return torch.tensor(z, dtype=torch.float64).to(device)
+    return torch.tensor(z, dtype=torch.float64).to(active_device())
 
-def calc_z_bounds():
-    return schema_bounds(CONDUCTANCE_SCHEMA)
+def guess_initial_params(session: TrainSession):
+    return schema_guess(list(session.schema))
 
-z_bounds = calc_z_bounds()
 
-def calc_z_bounds_adaptive():
-    return schema_bounds(ADAPTIVE_SCHEMA)
-
-z_bounds_adaptive = calc_z_bounds_adaptive()
-
-def guess_initial_params_adaptive():
-    return schema_guess(ADAPTIVE_SCHEMA)
-
-def guess_initial_params():
-    return schema_guess(CONDUCTANCE_SCHEMA)
-
-def gradient_network(data, z, lr=0.0001, cost_fn=None, n_steps=100, device="cpu", z_bounds=None,
+def gradient_network(z, lr=0.0001, cost_fn=None, n_steps=100, device="cpu", z_bounds=None,
                      cost_log=None):
     
     a = time.time()
 
     z = nn.Parameter(z.clone().to(device))
-    data = data.to(device)
     
     optimizer = torch.optim.Adam([z], lr=lr)
 
-    # Calculate initial cost and move it to the specified device
-    
-    cost = cost_fn(z, data).item()
+    cost = cost_fn(z).item()
     best_cost = cost
     best_z = z.clone().detach()
     
@@ -1003,7 +1573,7 @@ def gradient_network(data, z, lr=0.0001, cost_fn=None, n_steps=100, device="cpu"
         
         optimizer.zero_grad()
         
-        cost = cost_fn(z, data)  
+        cost = cost_fn(z)  
         
         if cost.item() < best_cost:
             
@@ -1022,7 +1592,7 @@ def gradient_network(data, z, lr=0.0001, cost_fn=None, n_steps=100, device="cpu"
 
         progress_bar.set_description(f'Cost: {cost.item():.4f}')
 
-    cost = cost_fn(z, data)  
+    cost = cost_fn(z)  
     
     if cost.item() < best_cost:
         
@@ -1041,132 +1611,45 @@ def gradient_network(data, z, lr=0.0001, cost_fn=None, n_steps=100, device="cpu"
 
     return best_z
 
-def train_staged(z, data, cost_fn, z_bounds, lrs, nsteps, cost_log=None):
+def train_staged(z, cost_fn, z_bounds, lrs, nsteps, cost_log=None):
     # run gradient_network once per learning-rate stage, chaining the best params.
     for lr in lrs:
-        z = gradient_network(data, z, lr=lr, n_steps=nsteps, device=device,
+        z = gradient_network(z, lr=lr, n_steps=nsteps, device=active_device(),
                              cost_fn=cost_fn, z_bounds=z_bounds, cost_log=cost_log)
     return z
 
-def do_many_runs(nofruns,nofsteps,fname,lrs=(0.1, 0.01, 0.001),outdir='FiveCol_Parameter'):
-    
-    os.makedirs(outdir, exist_ok=True)
-    
-    # record the model type next to the params so plotting never has to guess it
-    with open(os.path.join(outdir, 'model_type.txt'), 'w') as f:
-        f.write(MODEL_TYPE)
-
-    if NETWORK_TRAIN_OPTS is not None:
-        import json
-        with open(os.path.join(outdir, 'target_kind.txt'), 'w') as f:
-            f.write(str(NETWORK_TRAIN_OPTS.get('target', TARGET_KIND or 'tile')))
-        with open(os.path.join(outdir, 'network_path.txt'), 'w') as f:
-            f.write(NETWORK_TRAIN_OPTS['network_json'])
-        with open(os.path.join(outdir, 'network_train_opts.json'), 'w') as f:
-            json.dump(NETWORK_TRAIN_OPTS, f)
-    if PARAM_TRAIN_OPTS:
-        import json
-        with open(os.path.join(outdir, 'param_train_opts.json'), 'w') as f:
-            json.dump(PARAM_TRAIN_OPTS, f)
-    
-    schema   = active_schema()
+def do_many_runs(session: TrainSession, nofruns, nofsteps, lrs=(0.1, 0.01, 0.001)) -> TrainingResult:
+    """Run ``nofruns`` independent fits; return arrays (no file I/O)."""
+    schema = list(session.schema)
     n_params = schema_nparams(schema)
-    guess_fn = lambda: schema_guess(schema)
-    bounds   = schema_bounds(schema)
-    
-    all_params = np.zeros((nofruns,n_params))
-    
-    costs_name = fname.replace('.npy', '') + '_costs.npy'
-    best_final_cost = np.inf
-    best_cost_history = None
-    
-    for i in range(nofruns):
-        
-        print()
-        print('round',i)
-        print()
-        
-        z = guess_fn()
+    bounds = schema_bounds(schema)
+    cost_fn = lambda z: calc_cost(z, session)
 
-        # record per-step cost across all lr stages (same as local_cpu_test)
+    all_params = np.zeros((nofruns, n_params))
+    final_costs = np.zeros(nofruns)
+    best_i = 0
+    best_cost = np.inf
+    cost_curve = np.array([], dtype=np.float64)
+
+    for i in range(nofruns):
+        print()
+        print('round', i)
+        print()
+
+        z = schema_guess(schema)
         cost_history = []
+        z_fit = train_staged(z, cost_fn, bounds, lrs, nofsteps, cost_log=cost_history)
 
-        z_fit = train_staged(z, data, calc_cost, bounds, lrs, nofsteps, cost_log=cost_history)
-        
         all_params[i] = z_fit.detach().cpu().numpy()
-        
-        np.save(os.path.join(outdir, fname), all_params)
+        final_costs[i] = calc_cost(z_fit, session).item()
+        if final_costs[i] < best_cost:
+            best_cost = final_costs[i]
+            best_i = i
+            cost_curve = np.array(cost_history, dtype=np.float64)
 
-        # keep the per-step cost curve of the best run so far
-        final_cost = calc_cost(z_fit, data).item()
-        if final_cost < best_final_cost:
-            best_final_cost = final_cost
-            best_cost_history = np.array(cost_history)
-            np.save(os.path.join(outdir, costs_name), best_cost_history)
-        
-def refine_many_runs(all_params,nofsteps,lr = 0.01):
-    
-    dirname = 'FiveCol_Parameter/'
-    fname   = 'refined_paramsets.npy'
-    
-    nofruns = all_params.shape[0]
-    
-    ref_params = np.zeros((nofruns,nofparams))
-    
-    for i in range(nofruns):
-        
-        print()
-        print('round',i)
-        print()
-        
-        z = all_params[i]
-        z = torch.tensor(z).double().requires_grad_()
-
-        z_fit = gradient_network(
-            data,
-            z,
-            lr=lr,
-            n_steps=nofsteps,
-            device=device,
-            cost_fn=calc_cost,
-            z_bounds = z_bounds
-        )
-        
-        ref_params[i] = z_fit.detach().cpu().numpy()
-        
-        np.save(dirname+fname,ref_params)
-        
-def save_numpy_parameters(z_fit,fname):
-    
-    dirname = 'FiveCol_Parameter/'
-    z = z_fit.detach().cpu().numpy()
-    np.save(dirname+fname,z)
-    
-    
-if __name__ == "__main__":
-    
-    dirname = 'FiveCol_Parameter/with_Ih/'
-
-    fname = '4Ih_paramset_L4isol_NoGaps.npy'
-    z = np.load(dirname+fname)
-    z = torch.tensor(z, dtype=torch.float64).to(device)
-    
-    #z = guess_initial_params()
-    
-    z_fit = gradient_network(
-        data,
-        z,
-        lr=0.001,
-        n_steps=10,
-        device=device,
-        cost_fn=calc_cost,
-        z_bounds = z_bounds
+    return TrainingResult(
+        all_params=all_params,
+        final_costs=final_costs,
+        best_i=best_i,
+        cost_curve=cost_curve,
     )
-    # print(f"final cost: {calc_cost(z_fit,data)} , initial cost {calc_cost(z,data)}")
-
-
-
-    
-
-
-

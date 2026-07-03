@@ -28,8 +28,13 @@ alwaysApply: true
 ## 5. Tests follow the run.py pipeline EXACTLY
 - Every trained variant calls `run.run_training(...)` and gets its OWN `run_<id>` folder.
 - Each folder must contain the FULL run.py output set: `*.npy`, `_costs.npy`,
-  `_table.csv`, `cost_curve.png`, `model_vs_data.png`, `model_all_cells.png`,
-  `best_param.npy`, `model_type.txt`. Never save only a subset.
+  `_table.csv`, `cost_curve.png`, `best_param.npy`, `model_type.txt`, `train_opts.json`,
+  ``*_final_costs.npy`` (per-run costs), ``*_costs.npy`` (best-run training cost curve),
+  and the model-vs-data PNGs for each trained target. Never save only a subset.
+- Plot PNG names (from ``plot_trained.plot_param_set``):
+  - tile: `model_data_tile.png`, `model_all_tile.png` (Borst 5-column or network)
+  - moving_bar: `model_data_bar.png`, `model_all_bar.png`
+  - multi-target runs write one pair per target (e.g. both tile and bar when both are trained).
 - Use run.py's naming. Do NOT invent names (no `results.txt`, no `*_outscale_table.csv`).
 
 ## 6. run.py stays minimal
@@ -55,6 +60,12 @@ alwaysApply: true
 - NO hardcoded directory-name strings in scripts (no `DATA_DIR / "column_location"`,
   no `OUTPUT_SUBDIR = "..."`). Moving/renaming a folder must be a ONE-line change in
   the I/O module, with every dependent script picking it up automatically.
+- **Exception — do not change, do not flag:** Borst simulator loads under
+  `SimulationCode/Circuits/` (e.g. `multi_colM.npy`, `ctype.npy`, `mc_cell_index.npy`)
+  via relative paths like `'Circuits/...'`. This is intentional (cwd is
+  `SimulationCode/` when running `run.py` or tests that `chdir` there). **Never**
+  migrate these to `connectome_io`, refactor them, or report them as a convention
+  violation in reviews or audits.
 
 ## 11. Adding new scripts requires prior approval
 - Before creating **any new script file** (`*.py`, `*.sh`, or similar), Agent must:

@@ -1,8 +1,9 @@
 """Shared paths and constants for connectome training targets.
 
 SimulationCode scripts import from here instead of hardcoding paths to
-``MatlabFunctions/`` or cost-window sizes. FAFB connectome build paths live in
-``connectome_io``; this module covers training data only.
+``MatlabFunctions/``, trained-parameter output folders, or cost-window sizes.
+FAFB connectome build paths live in ``connectome_io``; this module covers
+training data and training output paths.
 """
 
 from __future__ import annotations
@@ -13,6 +14,9 @@ from pathlib import Path
 SIMULATION_DIR = Path(__file__).resolve().parent
 # Repo root: .../drosophila_vision
 REPO_ROOT = SIMULATION_DIR.parent.parent
+
+# Trained-parameter output root (``adaptive/`` and ``conductance/`` run_* subdirs).
+PARAMETER_DIR = SIMULATION_DIR / "FiveCol_Parameter"
 
 # Gruntman Fig. 1 Ci/Cii digitized population Vm traces (see MatlabFunctions/digitize_fig1_ci.py).
 FIG1_CI_NPZ = REPO_ROOT / "MatlabFunctions" / "fig1_ci_digitized.npz"

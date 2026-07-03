@@ -21,9 +21,9 @@ nofcols  = 5
 IMPULSE_MAXTIME = 200
 T_ON = 50
 T_TAIL = 50  # post-stimulus baseline for moving-bar runs (0.5 s @ 10 ms/step)
-SIGNAL_BASELINE = 20.0  # pA photoreceptor current before T_ON
-SIGNAL_BRIGHT = 40.0    # pA photoreceptor current at bright / on-step peak
-SIGNAL_DARK = 0.0       # pA photoreceptor current at full dark-bar coverage
+I_BASELINE = 20.0  # pA photoreceptor current before T_ON
+I_BRIGHT = 40.0    # pA photoreceptor current at bright / on-step peak
+I_DARK = 0.0       # pA photoreceptor current at full dark-bar coverage
 DATA_AMP = 20.0         # pA scale on ImpR target traces (fit cells)
 
 cell_list=np.array(['L1','L2','L3','L4','L5','Mi1','Tm3','Mi4','Mi9','Tm1','Tm2','Tm4','Tm9'])
@@ -318,6 +318,17 @@ def read_RecF_data():
             data[i,j] = RecF_data[i,j*5+2]*ImpR_data[i]
 
     return data
+
+
+def borst_tile_impulse_data(tile_T=None, amp=DATA_AMP):
+    """RecF×ImpR targets for Borst tile training, shape ``(T, nofcells)``."""
+    T = int(tile_T or IMPULSE_MAXTIME)
+    mydata = read_RecF_data() * amp
+    raw = np.zeros((nofcells, T), dtype=np.float64)
+    for col in range(nofcols):
+        raw[fit_data_slice(col)] = mydata[:, 2 + col, :T]
+    return raw.T
+
 
 def create_multi_ctype(ctype,n=9):
 

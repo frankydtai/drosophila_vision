@@ -18,11 +18,8 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 from training_config import COST_WINDOW_STEPS
-from plot_trained import (
-    _nice_ylim,
-    _plot_moving_bar_cell,
-    _style_moving_bar_time_axis,
-)
+from plot.moving_bar import _plot_moving_bar_cell, _style_moving_bar_time_axis
+from plot.utils import nice_ylim as _nice_ylim
 
 ANCHOR_512_S = 297.3
 NROWS, NCOLS = 12, 12
