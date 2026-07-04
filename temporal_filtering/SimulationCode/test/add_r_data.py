@@ -1,5 +1,4 @@
 """Experiment: add R1-8 photoreceptors as fit cells that mirror L1."""
-import argparse
 import os
 import sys
 
@@ -16,31 +15,15 @@ import plot_trained as pt
 from plot import tile as tile_plot
 import run
 
-ap = argparse.ArgumentParser(description=__doc__,
-                             formatter_class=argparse.RawDescriptionHelpFormatter)
-ap.add_argument('--model_type', default='conductance', choices=['conductance', 'adaptive'])
-ap.add_argument('--network', default=None, metavar='RUN',
-                help='built_network run folder (network tile); omit for Borst 5-column')
-ap.add_argument('--nofruns', type=int, default=1)
-ap.add_argument('--nofsteps', type=int, default=100)
-ap.add_argument('--lrs', default='0.1',
-                help='comma-separated learning rates')
-ap.add_argument(
-    '--target',
-    default='tile_bright',
-    help="comma-separated targets: tile (=bright+dark), moving_bar (=bright+dark), or explicit names",
-)
-ap.add_argument('--per_type', action='store_true',
-                help='train Ih (and adaptive lamina) params per cell type')
+ap = run.make_training_argparser(__doc__)
 args = ap.parse_args()
-MODEL = args.model_type
 try:
-    target_list = run.parse_target_list(args.target)
+    train_kw = run.training_kwargs_from_args(args, script_stem='add_r_data')
 except ValueError as exc:
     ap.error(str(exc))
-lrs = run.parse_comma_floats(args.lrs)
-if not lrs:
-    ap.error('--lrs must list at least one learning rate')
+
+target_list = train_kw['target_list']
+MODEL = train_kw['model_type']
 
 CTYPE = np.load(os.path.join(ROOT, 'Circuits', 'ctype.npy'), allow_pickle=True)
 R_NAMES = [str(CTYPE[i]) for i in range(ml.N_PHOTORECEPTORS)]
@@ -122,13 +105,10 @@ elif 'tile_bright' in tile_targets:
 plot_mvd_groups = [np.array(R_NAMES)] + tile_plot.DEFAULT_MVD_GROUPS
 
 fname, outdir, session = run.run_training(
-    MODEL, args.nofruns, args.nofsteps, lrs,
-    network=args.network,
-    target_list=target_list,
+    **train_kw,
     pack_overrides=PACK_OVERRIDES,
     model_backend=model_backend,
     schema=schema,
-    per_type=args.per_type,
     plot_ref_cubes=plot_ref_cubes,
     plot_ref_cubes_off=plot_ref_cubes_off,
     plot_mvd_group_list=plot_mvd_groups,

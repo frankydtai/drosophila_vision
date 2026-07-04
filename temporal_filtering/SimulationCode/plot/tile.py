@@ -15,42 +15,51 @@ import torch
 import Medulla_Library as ml
 import blindschleiche_py3 as bs
 import FiveCol_MedSim_Pytorch as fc
-from plot.utils import nice_ylim as _nice_ylim
-
-CELL_LIST = np.array(
-    ['L1', 'L2', 'L3', 'L4', 'L5', 'Mi1', 'Tm3', 'Mi4', 'Mi9', 'Tm1', 'Tm2', 'Tm4', 'Tm9']
+from plot.readout import (
+    DEFAULT_MVD_GROUPS,
+    borst_ref_cubes,
+    tile_model_data_groups,
+    tile_model_data_names,
+    tile_ref_cubes,
 )
+from plot.utils import nice_ylim as _nice_ylim
 
 CENTER_COL = ml.CENTER_COL
 CTYPE = np.load('Circuits/ctype.npy', allow_pickle=True)
 CENTER_NEURON_OFFSET = ml.column_start(CENTER_COL)
 
-DEFAULT_MVD_GROUPS = [
-    np.array(['L1', 'L2', 'L3', 'L4', 'L5']),
-    np.array(['Mi1', 'Mi4', 'Mi9']),
-    np.array(['Tm1', 'Tm2', 'Tm3', 'Tm4', 'Tm9']),
-]
-
 
 def default_ref_cubes(dark=False):
-    data = ml.read_RecF_data_dark() if dark else ml.read_RecF_data()
-    ref = data * ml.DATA_AMP
-    return {name: ref[i] for i, name in enumerate(CELL_LIST)}
+    return borst_ref_cubes(dark=dark)
 
 
 def reference_cube(name, ref_cubes=None, dark=False):
     if ref_cubes is not None:
         return ref_cubes.get(str(name))
-    return default_ref_cubes(dark=dark).get(str(name))
+    return borst_ref_cubes(dark=dark).get(str(name))
+
+
+def _resolve_tile_ref_cubes(session_on, session_off=None, ref_cubes=None, ref_cubes_off=None):
+    dual = session_off is not None
+    if ref_cubes is not None:
+        ref_on = ref_cubes
+    elif dual:
+        ref_on = tile_ref_cubes(session_on, 'tile_bright', dark=False)
+    else:
+        ref_on = tile_ref_cubes(
+            session_on, session_on.primary_pack.name, dark=_session_dark(session_on),
+        )
+    if ref_cubes_off is not None:
+        ref_off = ref_cubes_off
+    elif dual:
+        ref_off = tile_ref_cubes(session_off, 'tile_dark', dark=True)
+    else:
+        ref_off = None
+    return ref_on, ref_off
 
 
 def _session_dark(session):
     return session.primary_pack.name == "tile_dark"
-
-
-def mvd_groups(groups=None):
-    src = DEFAULT_MVD_GROUPS if groups is None else groups
-    return [np.asarray(g) for g in src if len(g) > 0]
 
 
 def _scale_curve(xt, center, sem_xt=None):
@@ -301,7 +310,7 @@ def calc_model_full_all(session, z, return_ref=False):
 
 
 @torch.no_grad()
-def multicol_cube(session, z, all_cells=False):
+def multicol_cube(session, z, all_cells=False, group_list=None):
     pack = session.primary_pack
     schema = list(session.schema)
     p = fc.assign_params(z, schema, session.backend)
@@ -318,7 +327,7 @@ def multicol_cube(session, z, all_cells=False):
     if all_cells:
         names = [str(n) for n in type_names]
     else:
-        names = [ft for ft in CELL_LIST if ft in type_names]
+        names = tile_model_data_names(session, pack.name, group_list)
     mt = session.maxtime
     cube = np.zeros((len(names), 9, mt))
     sem = np.zeros((len(names), 9, mt))
@@ -340,25 +349,18 @@ def multicol_cube(session, z, all_cells=False):
 
 
 def plot_network_tile(session_on, z, path, *, session_off=None, all_cells=False,
-                      title, ref_cubes=None, ref_cubes_off=None):
+                      title, ref_cubes=None, ref_cubes_off=None, group_list=None):
     """Network tile figure; optional on+off overlay (off dashed)."""
-    names, cube_on, sem_on = multicol_cube(session_on, z, all_cells=all_cells)
+    names, cube_on, sem_on = multicol_cube(session_on, z, all_cells=all_cells,
+                                           group_list=group_list)
     cube_off = None
     if session_off is not None:
-        _, cube_off, _ = multicol_cube(session_off, z, all_cells=all_cells)
+        _, cube_off, _ = multicol_cube(session_off, z, all_cells=all_cells,
+                                       group_list=group_list)
     dual = session_off is not None
-    if ref_cubes is not None:
-        ref_on = ref_cubes
-    elif dual:
-        ref_on = default_ref_cubes(dark=False)
-    else:
-        ref_on = default_ref_cubes(dark=_session_dark(session_on))
-    if ref_cubes_off is not None:
-        ref_off = ref_cubes_off
-    elif dual:
-        ref_off = default_ref_cubes(dark=True)
-    else:
-        ref_off = None
+    ref_on, ref_off = _resolve_tile_ref_cubes(
+        session_on, session_off, ref_cubes, ref_cubes_off,
+    )
 
     ncols = 5 if not all_cells else 8
     nrows = 2 * ((len(names) + ncols - 1) // ncols)
@@ -390,25 +392,16 @@ def plot_network_tile(session_on, z, path, *, session_off=None, all_cells=False,
 
 
 def plot_borst_tile(session_on, z, path, *, session_off=None, all_cells=False,
-                    title, ref_cubes=None, ref_cubes_off=None, mvd_group_list=None):
+                    title, ref_cubes=None, ref_cubes_off=None, group_list=None):
     """Borst tile figure; optional on+off overlay (off dashed)."""
     model_on, ref_on = calc_model_full_all(session_on, z, return_ref=True)
     model_off = ref_off = None
     if session_off is not None:
         model_off, ref_off = calc_model_full_all(session_off, z, return_ref=True)
     dual = session_off is not None
-    if ref_cubes is not None:
-        ref_on_cubes = ref_cubes
-    elif dual:
-        ref_on_cubes = default_ref_cubes(dark=False)
-    else:
-        ref_on_cubes = default_ref_cubes(dark=_session_dark(session_on))
-    if ref_cubes_off is not None:
-        ref_off_cubes = ref_cubes_off
-    elif dual:
-        ref_off_cubes = default_ref_cubes(dark=True)
-    else:
-        ref_off_cubes = None
+    ref_on_cubes, ref_off_cubes = _resolve_tile_ref_cubes(
+        session_on, session_off, ref_cubes, ref_cubes_off,
+    )
     maxtime = session_on.maxtime
 
     def _ref(name):
@@ -444,7 +437,7 @@ def plot_borst_tile(session_on, z, path, *, session_off=None, all_cells=False,
                 **_off_kw(i, name),
             )
     else:
-        groups = mvd_groups(mvd_group_list)
+        groups = tile_model_data_groups(session_on, session_on.primary_pack.name, group_list)
         nrows = 2 * len(groups)
         fig = plt.figure(figsize=(16, 2.5 * nrows))
         gs = fig.add_gridspec(nrows, ncols, hspace=0.5, wspace=0.55,

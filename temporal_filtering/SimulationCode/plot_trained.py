@@ -2,6 +2,7 @@
 """Simulation + plotting for the FiveCol medulla model."""
 import json
 import os
+import re
 import sys
 import time
 
@@ -14,7 +15,6 @@ from plot import tile as tile_plot
 from plot.utils import plot_cost
 from training_config import PARAMETER_DIR
 
-CELL_LIST = tile_plot.CELL_LIST
 CENTER_COL = tile_plot.CENTER_COL
 CTYPE = tile_plot.CTYPE
 CENTER_NEURON_OFFSET = tile_plot.CENTER_NEURON_OFFSET
@@ -34,15 +34,38 @@ def _plot_device_label():
 
 default_ref_cubes = tile_plot.default_ref_cubes
 reference_cube = tile_plot.reference_cube
-mvd_groups = tile_plot.mvd_groups
 
 
-def run_dir(model_type, root=None, parent=None):
+def _slug(text):
+    """Filesystem-safe token for a CLI flag value."""
+    return re.sub(r'[^\w.,-]+', '-', str(text)).strip('-')
+
+
+def command_run_name(script_stem, ns, *, include=(), flags=()):
+    """Build a run folder name from a script stem and parsed CLI namespace.
+
+    Example: ``26758480-run-nofsteps-50-target-moving_bar,tile-network-right_min_neuron1_extent2-shift``
+    """
+    prefix = os.environ.get('SLURM_JOB_ID') or time.strftime('%m%d_%H%M%S')
+    parts = [prefix, script_stem]
+    for key in include:
+        val = getattr(ns, key, None)
+        if val is None or val == '':
+            continue
+        parts.extend([key, _slug(val)])
+    for key in flags:
+        if getattr(ns, key, False):
+            parts.append(key)
+    return '-'.join(parts)
+
+
+def run_dir(model_type, root=None, parent=None, name=None):
     if parent is None:
         root = str(PARAMETER_DIR) if root is None else root
         parent = os.path.join(root, model_type)
-    job_id = os.environ.get('SLURM_JOB_ID')
-    name = f'run_{job_id}' if job_id else time.strftime('run_%Y%m%d_%H%M%S')
+    if name is None:
+        job_id = os.environ.get('SLURM_JOB_ID')
+        name = f'run_{job_id}' if job_id else time.strftime('run_%m%d_%H%M%S')
     outdir = os.path.join(parent, name)
     os.makedirs(outdir, exist_ok=True)
     return outdir
@@ -176,9 +199,10 @@ def _plot_tile_targets(session, z, outdir, tile_targets, suffix, model_all,
     plot_fn = _tile_plot_fn(session)
     ref_t = 'tile_bright' if 'tile_bright' in tile_set else tile_targets[0]
     net_tag = _network_tile_tag(session, ref_t)
-    plot_kw = dict(ref_cubes=ref_cubes, ref_cubes_off=ref_cubes_off)
-    if plot_fn is tile_plot.plot_borst_tile:
-        plot_kw['mvd_group_list'] = mvd_group_list
+    plot_kw = dict(
+        ref_cubes=ref_cubes, ref_cubes_off=ref_cubes_off,
+        group_list=mvd_group_list,
+    )
     if tile_set == set(fc.TILE_TARGETS):
         s_on = _session_for_target(session, 'tile_bright')
         s_off = _session_for_target(session, 'tile_dark')
@@ -243,9 +267,10 @@ def _plot_one_target(session, z, outdir, tname, suffix, model_all,
     allc = os.path.join(outdir, 'model_all_tile.png')
     plot_fn = _tile_plot_fn(session)
     net_tag = _network_tile_tag(session, tname)
-    plot_kw = dict(ref_cubes=ref_cubes, ref_cubes_off=ref_cubes_off)
-    if plot_fn is tile_plot.plot_borst_tile:
-        plot_kw['mvd_group_list'] = mvd_group_list
+    plot_kw = dict(
+        ref_cubes=ref_cubes, ref_cubes_off=ref_cubes_off,
+        group_list=mvd_group_list,
+    )
     plot_fn(session, z, mvd, title=f'{tname} model-data ({suffix}){net_tag}', **plot_kw)
     if model_all:
         plot_fn(session, z, allc, all_cells=True,

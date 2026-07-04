@@ -9,11 +9,11 @@ import torch
 
 import FiveCol_MedSim_Pytorch as fc
 import Medulla_Library as ml
+from plot.readout import moving_bar_row_types
 from plot.utils import nice_ylim as _nice_ylim
 from FiveCol_MedSim_Pytorch import t_on
-from network.moving_bar_target import BORST_READOUT_SUBTYPES, _borst_hex_columns
+from network.moving_bar_target import _borst_hex_columns
 from t4_t5_preference import (
-    READOUT_SUBTYPES,
     active_stimuli_for_subtype,
     fig1_key_for_stimulus,
     normalize_side,
@@ -48,15 +48,6 @@ def _bar_specs_for_session(session, target):
     if C is not None:
         return list(gruntman_moving_bar_specs(contrasts=(contrast,)))
     return list(gruntman_moving_bar_specs(directions=("right", "left"), contrasts=(contrast,)))
-
-
-def _moving_bar_readout_subtypes(session, target=None):
-    target = target or _bar_target(session)
-    opts = (session.train_opts or {}).get(f"{target}_stimulus_opts") or {}
-    if "readout_subtypes" in opts:
-        return tuple(str(t) for t in opts["readout_subtypes"])
-    C = session.backend.network
-    return READOUT_SUBTYPES if C is not None else BORST_READOUT_SUBTYPES
 
 
 def _borst_type_ids(session):
@@ -191,7 +182,8 @@ def _compute_moving_bar_all_type_traces(session, z, target=None):
             windows, t0_bn, type_ids, types, spec_names, center_only,
         )
         data_mean = {}
-        for subtype in READOUT_SUBTYPES:
+        row_types = moving_bar_row_types(session, target)
+        for subtype in row_types:
             if subtype not in types:
                 continue
             for spec in specs:
@@ -221,7 +213,8 @@ def _compute_moving_bar_all_type_traces(session, z, target=None):
         windows, t0_bn, type_ids, types, spec_names, center_only,
     )
     data_mean = {}
-    for subtype in BORST_READOUT_SUBTYPES:
+    row_types = moving_bar_row_types(session, target)
+    for subtype in row_types:
         for spec in specs:
             trace_id = fig1_key_for_stimulus("right", subtype, spec)
             if trace_id is None:
@@ -236,7 +229,7 @@ def _moving_bar_mean_traces(session, z, target=None):
     C = session.backend.network
     side = normalize_side(C.meta.get('side', 'right')) if C is not None else "right"
     _, _, model_mean, model_sem, data_mean = _compute_moving_bar_all_type_traces(session, z, target)
-    readout_subtypes = _moving_bar_readout_subtypes(session, target)
+    readout_subtypes = moving_bar_row_types(session, target)
     contrast = _bar_contrast(target)
     row_specs = {
         st: [f'{d}_{c}_{w}' for d, c, w in active_stimuli_for_subtype(side, st) if c == contrast]

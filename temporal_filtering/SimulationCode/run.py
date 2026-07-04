@@ -4,9 +4,11 @@
 All results of a run land in one folder under
 ``training_config.PARAMETER_DIR`` (default ``SimulationCode/FiveCol_Parameter``):
 
-    <model_type>/run_<id>/
+    <model_type>/<run_name>/
 
-where <id> is the SLURM job id (under SLURM) or a timestamp otherwise.
+where <run_name> encodes the CLI, e.g.
+``26758480-run-nofsteps-50-target-moving_bar,tile-network-right_min_neuron1_extent2-shift``
+(job id under SLURM, else a timestamp prefix).
 
     # short smoke test
     python run.py --model_type adaptive --nofsteps 30 --lrs 0.1
@@ -45,7 +47,7 @@ import network_bootstrap  # noqa: F401 — connectome_io on sys.path
 from connectome_io import DEFAULT_NETWORK_RUN, NETWORK_DIR, resolve_network_json
 from FiveCol_MedSim_Pytorch import do_many_runs
 import FiveCol_MedSim_Pytorch as fc
-from plot_trained import plot_param_set, run_dir
+from plot_trained import command_run_name, plot_param_set, run_dir
 
 
 def make_plots(fname, outdir, session, result=None, *,
@@ -357,14 +359,13 @@ def run_training(model_type, nofruns, nofsteps, lrs, fname=None, outdir=None,
     return fname, outdir, session
 
 
-def parse_args():
-    parser = argparse.ArgumentParser(description=__doc__,
-                                     formatter_class=argparse.RawDescriptionHelpFormatter)
+def add_training_arguments(parser):
+    """Register run.py training CLI flags on *parser*."""
     parser.add_argument("--model_type", default="conductance",
                         choices=["conductance", "adaptive"])
     parser.add_argument("--nofruns", type=int, default=1)
-    parser.add_argument("--nofsteps", type=int, default=10000)
-    parser.add_argument("--lrs", default="0.1,0.01,0.001",
+    parser.add_argument("--nofsteps", type=int, default=100)
+    parser.add_argument("--lrs", default="0.1",
                         help="comma-separated learning-rate stages; each runs for --nofsteps steps")
     parser.add_argument("--fname", default=None,
                         help="params filename (default derived from --model_type)")
@@ -397,9 +398,8 @@ def parse_args():
     )
     parser.add_argument(
         "--shift",
-        default="",
-        help="comma-separated tile targets for 7 sub-tile shifts "
-             "(choices: tile,tile_bright,tile_dark)",
+        action="store_true",
+        help="enable 7 sub-tile shifts for tile targets in --target",
     )
     parser.add_argument(
         "--share_edges",
@@ -433,7 +433,17 @@ def parse_args():
         help="dark peak/step current (pA); targets: tile_dark, moving_bar_dark "
              "(aliases tile, moving_bar)",
     )
-    return parser.parse_args()
+
+
+def make_training_argparser(description):
+    """Argparse parser with the full run.py training CLI."""
+    common = argparse.ArgumentParser(add_help=False)
+    add_training_arguments(common)
+    return argparse.ArgumentParser(
+        description=description,
+        parents=[common],
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
 
 
 def parse_comma_list(text):
@@ -467,55 +477,76 @@ def parse_target_names(text):
     return parse_comma_list(text)
 
 
-def main():
-    args = parse_args()
-    try:
-        param_modes = parse_comma_kv(args.mode)
-        param_fixes = parse_comma_kv(args.fix, float)
-        loss_weights = fc.expand_loss_weights(parse_comma_kv(args.loss_weight, float))
-        target_list = parse_target_list(args.target)
-        center_only_targets = fc.expand_target_aliases(parse_target_names(args.center_only))
-        multi_shift_targets = fc.expand_target_aliases(parse_target_names(args.shift))
-        share_edges_targets = fc.expand_target_aliases(parse_target_names(args.share_edges))
-        i_cli = fc.build_i_cli_by_target({
-            "i_baseline": parse_comma_kv(args.i_baseline, float),
-            "i_bright": parse_comma_kv(args.i_bright, float),
-            "i_dark": parse_comma_kv(args.i_dark, float),
-        })
-        lrs = parse_comma_floats(args.lrs)
-    except ValueError as exc:
-        raise SystemExit(str(exc)) from exc
+def training_kwargs_from_args(
+    args,
+    *,
+    script_stem="run",
+    run_name_include=("nofsteps", "target", "network"),
+    run_name_flags=("shift", "per_type"),
+):
+    """Parse a training CLI namespace into kwargs for :func:`run_training`."""
+    param_modes = parse_comma_kv(args.mode)
+    param_fixes = parse_comma_kv(args.fix, float)
+    loss_weights = fc.expand_loss_weights(parse_comma_kv(args.loss_weight, float))
+    target_list = parse_target_list(args.target)
+    center_only_targets = fc.expand_target_aliases(parse_target_names(args.center_only))
+    multi_shift_targets = (
+        [t for t in target_list if t in fc.TILE_TARGETS] if args.shift else []
+    )
+    share_edges_targets = fc.expand_target_aliases(parse_target_names(args.share_edges))
+    i_cli = fc.build_i_cli_by_target({
+        "i_baseline": parse_comma_kv(args.i_baseline, float),
+        "i_bright": parse_comma_kv(args.i_bright, float),
+        "i_dark": parse_comma_kv(args.i_dark, float),
+    })
+    lrs = parse_comma_floats(args.lrs)
     if not lrs:
-        raise SystemExit("--lrs must list at least one learning rate")
+        raise ValueError("--lrs must list at least one learning rate")
     bad_center = [t for t in center_only_targets if t not in fc.VALID_TARGETS]
     if bad_center:
-        raise SystemExit(
+        raise ValueError(
             f"unknown target(s) in --center_only: {bad_center} "
             f"(expected {'|'.join(fc.CLI_TARGET_NAMES)})",
         )
-    bad_shift = [t for t in multi_shift_targets if t not in fc.TILE_TARGETS]
-    if bad_shift:
-        raise SystemExit(
-            f"unknown target(s) in --shift: {bad_shift} "
-            f"(expected {'|'.join(fc.TILE_TARGETS + ('tile',))})",
-        )
     bad_share = [t for t in share_edges_targets if t not in fc.TILE_TARGETS]
     if bad_share:
-        raise SystemExit(
+        raise ValueError(
             f"unknown target(s) in --share_edges: {bad_share} "
             f"(expected {'|'.join(fc.TILE_TARGETS + ('tile',))})",
         )
-    outdir = run_dir(args.model_type, parent=args.outdir)
-    run_training(args.model_type, args.nofruns, args.nofsteps, lrs,
-                 fname=args.fname, outdir=outdir,
-                 param_modes=param_modes, param_fixes=param_fixes,
-                 network=args.network,
-                 target_list=target_list, loss_weights=loss_weights,
-                 center_only_targets=center_only_targets,
-                 multi_shift_targets=multi_shift_targets,
-                 share_edges_targets=share_edges_targets,
-                 i_cli=i_cli,
-                 per_type=args.per_type)
+    run_name = command_run_name(
+        script_stem, args,
+        include=run_name_include,
+        flags=run_name_flags,
+    )
+    outdir = run_dir(args.model_type, parent=args.outdir, name=run_name)
+    return dict(
+        model_type=args.model_type,
+        nofruns=args.nofruns,
+        nofsteps=args.nofsteps,
+        lrs=lrs,
+        fname=args.fname,
+        outdir=outdir,
+        param_modes=param_modes,
+        param_fixes=param_fixes,
+        network=args.network,
+        target_list=target_list,
+        loss_weights=loss_weights,
+        center_only_targets=center_only_targets,
+        multi_shift_targets=multi_shift_targets,
+        share_edges_targets=share_edges_targets,
+        i_cli=i_cli,
+        per_type=args.per_type,
+    )
+
+
+def main():
+    args = make_training_argparser(__doc__).parse_args()
+    try:
+        kw = training_kwargs_from_args(args)
+    except ValueError as exc:
+        raise SystemExit(str(exc)) from exc
+    run_training(**kw)
 
 
 if __name__ == "__main__":
