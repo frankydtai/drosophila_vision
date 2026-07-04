@@ -1,0 +1,83 @@
+{
+  "backend": "borst",
+  "target_list": [
+    "tile_bright",
+    "tile_dark"
+  ],
+  "loss_weights": {},
+  "sequential": true,
+  "moving_bar_bright_stimulus_opts": null,
+  "moving_bar_dark_stimulus_opts": null,
+  "tile_bright_stimulus_opts": {
+    "mode": "borst",
+    "i_baseline": 20.0,
+    "i_bright": 40.0,
+    "t_on": 50,
+    "maxtime": 200,
+    "deltat_ms": 10.0,
+    "center_column": false,
+    "multi_shift": false,
+    "share_edges": false
+  },
+  "tile_dark_stimulus_opts": {
+    "mode": "borst",
+    "i_baseline": 20.0,
+    "i_dark": 0.0,
+    "t_on": 50,
+    "maxtime": 200,
+    "deltat_ms": 10.0,
+    "center_column": false,
+    "multi_shift": false,
+    "share_edges": false
+  },
+  "pack_overrides": {
+    "tile_bright": {
+      "mirror_fits": [
+        {
+          "mirror_types": [
+            "T4a",
+            "T4b",
+            "T4c",
+            "T4d"
+          ],
+          "mirror_fit": "L4",
+          "mirror_sign": -1.0
+        },
+        {
+          "mirror_types": [
+            "T5a",
+            "T5b",
+            "T5c",
+            "T5d"
+          ],
+          "mirror_fit": "L5",
+          "mirror_sign": -1.0
+        }
+      ]
+    },
+    "tile_dark": {
+      "mirror_fits": [
+        {
+          "mirror_types": [
+            "T4a",
+            "T4b",
+            "T4c",
+            "T4d"
+          ],
+          "mirror_fit": "L4",
+          "mirror_sign": -1.0
+        },
+        {
+          "mirror_types": [
+            "T5a",
+            "T5b",
+            "T5c",
+            "T5d"
+          ],
+          "mirror_fit": "L5",
+          "mirror_sign": -1.0
+        }
+      ]
+    }
+  }
+}

@@ -41,21 +41,41 @@ def _slug(text):
     return re.sub(r'[^\w.,-]+', '-', str(text)).strip('-')
 
 
-def command_run_name(script_stem, ns, *, include=(), flags=()):
-    """Build a run folder name from a script stem and parsed CLI namespace.
+def _argv_cli_tokens(argv):
+    """Drop the script path; yield long-option tokens from *argv*."""
+    if argv and argv[0].endswith('.py'):
+        argv = argv[1:]
+    i = 0
+    while i < len(argv):
+        tok = argv[i]
+        if tok in ('-h', '--help'):
+            i += 1
+            continue
+        if not tok.startswith('--'):
+            i += 1
+            continue
+        key, sep, val = tok[2:].partition('=')
+        if sep:
+            yield _slug(key), _slug(val)
+            i += 1
+        elif i + 1 < len(argv) and not argv[i + 1].startswith('-'):
+            yield _slug(key), _slug(argv[i + 1])
+            i += 2
+        else:
+            yield _slug(key), None
+            i += 1
 
-    Example: ``26758480-run-nofsteps-50-target-moving_bar,tile-network-right_min_neuron1_extent2-shift``
-    """
+
+def command_run_name(script_stem, argv=None):
+    """Build a run folder name from flags on the command line (``sys.argv``)."""
+    if argv is None:
+        argv = sys.argv[1:]
     prefix = os.environ.get('SLURM_JOB_ID') or time.strftime('%m%d_%H%M%S')
     parts = [prefix, script_stem]
-    for key in include:
-        val = getattr(ns, key, None)
-        if val is None or val == '':
-            continue
-        parts.extend([key, _slug(val)])
-    for key in flags:
-        if getattr(ns, key, False):
-            parts.append(key)
+    for key, val in _argv_cli_tokens(argv):
+        parts.append(key)
+        if val is not None:
+            parts.append(val)
     return '-'.join(parts)
 
 

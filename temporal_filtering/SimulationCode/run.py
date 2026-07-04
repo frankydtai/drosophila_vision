@@ -260,6 +260,7 @@ def build_session(
     tile_dark_stimulus_opts=None,
     param_modes=None,
     param_fixes=None,
+    ih_off=fc.IH_OFF_DEFAULT,
     pack_overrides=None,
     model_backend=None,
     schema=None,
@@ -289,11 +290,12 @@ def build_session(
             network=mb.network,
             network_json=network,
             dev=dev,
+            ih_off=ih_off,
             **mkw,
         )
         model_backend = mb
     else:
-        opts = fc.make_train_opts(backend="borst", per_type=per_type, **mkw)
+        opts = fc.make_train_opts(backend="borst", per_type=per_type, ih_off=ih_off, **mkw)
     session = fc.open_session(opts, model_type, schema=schema, model_backend=model_backend)
     if per_type:
         session = apply_per_type_schema(session)
@@ -307,6 +309,7 @@ def build_session(
 
 def run_training(model_type, nofruns, nofsteps, lrs, fname=None, outdir=None,
                  param_modes=None, param_fixes=None,
+                 ih_off=fc.IH_OFF_DEFAULT,
                  network=None, sequential=None,
                  target_list=None, loss_weights=None,
                  center_only_targets=None, multi_shift_targets=None,
@@ -336,6 +339,7 @@ def run_training(model_type, nofruns, nofsteps, lrs, fname=None, outdir=None,
         tile_dark_stimulus_opts=tile_dark_stimulus_opts,
         param_modes=param_modes,
         param_fixes=param_fixes,
+        ih_off=ih_off,
         pack_overrides=pack_overrides,
         model_backend=model_backend,
         schema=schema,
@@ -364,7 +368,7 @@ def add_training_arguments(parser):
     parser.add_argument("--model_type", default="conductance",
                         choices=["conductance", "adaptive"])
     parser.add_argument("--nofruns", type=int, default=1)
-    parser.add_argument("--nofsteps", type=int, default=100)
+    parser.add_argument("--nofsteps", type=int, default=50)
     parser.add_argument("--lrs", default="0.1",
                         help="comma-separated learning-rate stages; each runs for --nofsteps steps")
     parser.add_argument("--fname", default=None,
@@ -377,6 +381,11 @@ def add_training_arguments(parser):
     parser.add_argument("--fix", default="", metavar="NAME=VALUE,...",
                         help="hold a param fixed at VALUE (implies fixed mode), "
                              "e.g. Ih_midv=-50,out_scale=1.0")
+    parser.add_argument("--ih_off", default=fc.IH_OFF_DEFAULT,
+                        choices=list(fc.IH_OFF_MODES),
+                        help="conductance ON/OFF Ih coupling: shared (OFF uses ON "
+                             "Ih_gmax+shape; default), split (train Ih_gmax_off+OFF "
+                             "scalars), off (disable OFF channel)")
     parser.add_argument("--per_type", action="store_true",
                         help="train Ih (and adaptive lamina) params per cell type "
                              "instead of shared lamina/scalar values")
@@ -386,7 +395,7 @@ def add_training_arguments(parser):
                              f"default Borst 5-column simulator if omitted")
     parser.add_argument(
         "--target",
-        default="tile_bright",
+        default="tile,moving_bar",
         help="target name(s): tile (=tile_bright+tile_dark), moving_bar (=bright+dark), "
              "or explicit names / comma-separated list, e.g. tile,moving_bar",
     )
@@ -481,8 +490,6 @@ def training_kwargs_from_args(
     args,
     *,
     script_stem="run",
-    run_name_include=("nofsteps", "target", "network"),
-    run_name_flags=("shift", "per_type"),
 ):
     """Parse a training CLI namespace into kwargs for :func:`run_training`."""
     param_modes = parse_comma_kv(args.mode)
@@ -514,11 +521,7 @@ def training_kwargs_from_args(
             f"unknown target(s) in --share_edges: {bad_share} "
             f"(expected {'|'.join(fc.TILE_TARGETS + ('tile',))})",
         )
-    run_name = command_run_name(
-        script_stem, args,
-        include=run_name_include,
-        flags=run_name_flags,
-    )
+    run_name = command_run_name(script_stem)
     outdir = run_dir(args.model_type, parent=args.outdir, name=run_name)
     return dict(
         model_type=args.model_type,
@@ -537,11 +540,13 @@ def training_kwargs_from_args(
         share_edges_targets=share_edges_targets,
         i_cli=i_cli,
         per_type=args.per_type,
+        ih_off=args.ih_off,
     )
 
 
 def main():
-    args = make_training_argparser(__doc__).parse_args()
+    parser = make_training_argparser(__doc__)
+    args = parser.parse_args()
     try:
         kw = training_kwargs_from_args(args)
     except ValueError as exc:

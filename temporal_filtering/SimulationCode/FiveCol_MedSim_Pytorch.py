@@ -92,12 +92,8 @@ cdt       = capac/deltat
 
 Ca_tau    = 50.0  # in msec
 
-# Resting potential. Most cells rest at E_LEAK_REST; L1-L3 (LAMINA_DEPOL_TYPES) use
-# E_LEAK_DEPOL. Experiments pass depol_cells= to borst_backend() — do not mutate
-# these module-level defaults.
 E_LEAK_REST = -50.0
 E_LEAK_DEPOL = -20.0
-E_LEAK_DEPOL_CELLS = tuple(ml.LAMINA_DEPOL_TYPES)  # L1-L3, frozen default
 
 def calc_multi_col_params(param, conn):
     # Broadcast a per-cell-TYPE parameter (n_types,) to the full state (n_units,)
@@ -106,8 +102,10 @@ def calc_multi_col_params(param, conn):
     return param.index_select(0, conn.node_type)
 
 
-def build_e_leak(conn, n_types, depol_cells=E_LEAK_DEPOL_CELLS):
-    """(conn.n_units,) resting potential from depol cell-type list."""
+def build_e_leak(conn, n_types, depol_cells=None):
+    """(conn.n_units,) resting potential; default depol list from ``ml.LEAK_DEPOL_TYPES``."""
+    if depol_cells is None:
+        depol_cells = ml.leak_depol_indices()
     per_type = torch.full((n_types,), E_LEAK_REST, dtype=torch.float64, device=conn.node_type.device)
     for c in depol_cells:
         per_type[int(c)] = E_LEAK_DEPOL
@@ -118,13 +116,19 @@ inh_synweight = 0.001
 
 # ----------- H-Current ----------------------------------------
 
-E_Ih          = +50.0  # in mV
+E_Ih          = +50.0  # in mV, ON-channel reversal
+E_IH_OFF      = -150.0  # OFF-channel reversal (2*E_LEAK_REST - E_Ih)
 Ih_midv       = -50.0
 Ih_slope      = -0.25
 tau_midv      = -50.0
 Ih_gmax       = +50.0 
 
 Ih_gain       = 1.0   # if set to 0, it will block Ih
+
+IH_OFF_MODES = ('shared', 'split', 'off')
+IH_OFF_DEFAULT = 'shared'
+IH_OFF_SCALAR_SEGMENTS = frozenset({'Ih_midv_off', 'Ih_slope_off', 'tau_midv_off'})
+IH_OFF_GMAX_SEGMENT = 'Ih_gmax_off'
 
 # Per-cell Ih direction: +1 normal; -1 mirrored (reversal flips about 0).
 # Default: none reversed. Pass ih_reverse_cells= to borst_backend().
@@ -178,7 +182,7 @@ PARAM_MODES = ('individual', 'shared', 'fixed')
 
 # Lamina/scalar segments expanded to per-cell-type (full) by --per_type.
 PER_TYPE_PARAM_NAMES = frozenset({
-    'Ih_gmax', 'Ih_midv', 'Ih_slope', 'tau_midv',
+    'Ih_gmax', 'Ih_gmax_off', 'Ih_midv', 'Ih_slope', 'tau_midv',
     'adapt_gain', 'tau_adapt',
 })
 
@@ -251,6 +255,49 @@ def apply_modes(schema, modes=None, fixes=None):
     return out
 
 
+def apply_ih_off_mode(schema, mode=IH_OFF_DEFAULT):
+    """Adjust conductance Ih schema for ON/OFF coupling (``shared|split|off``).
+
+    ``shared`` / ``off``: drop ``Ih_gmax_off`` and OFF shape scalars from z;
+    forward resolves OFF gmax via :func:`conductance_ih_off_kwargs`.
+    """
+    if mode not in IH_OFF_MODES:
+        raise ValueError(f"ih_off {mode!r} not in {IH_OFF_MODES}")
+    out = []
+    for seg in schema:
+        s = dict(seg)
+        name = s['name']
+        if mode == 'split':
+            out.append(s)
+            continue
+        if name in IH_OFF_SCALAR_SEGMENTS or name == IH_OFF_GMAX_SEGMENT:
+            continue
+        out.append(s)
+    return out
+
+
+def conductance_schema(model_backend, schema=None, ih_off=IH_OFF_DEFAULT):
+    """Conductance parameter schema with ``ih_off`` segment selection applied."""
+    base = list(schema) if schema is not None else default_schema('conductance', model_backend)
+    return apply_ih_off_mode(base, ih_off)
+
+
+def conductance_ih_off_kwargs(p, ih_off=IH_OFF_DEFAULT):
+    """Resolve OFF-channel Ih kwargs for :func:`update_Vm` from assigned params."""
+    midv_off = p['Ih_midv'] if ih_off != 'split' else p['Ih_midv_off']
+    slope_off = p['Ih_slope'] if ih_off != 'split' else p['Ih_slope_off']
+    tau_off = p['tau_midv'] if ih_off != 'split' else p['tau_midv_off']
+    if ih_off == 'split':
+        gmax_off = p['Ih_gmax_off']
+    elif ih_off == 'shared':
+        gmax_off = p['Ih_gmax']
+    elif ih_off == 'off':
+        gmax_off = p['Ih_gmax'] * 0.0
+    else:
+        raise ValueError(f"ih_off {ih_off!r} not in {IH_OFF_MODES}")
+    return gmax_off, midv_off, slope_off, tau_off
+
+
 def expand_schema_per_type(schema, n_types=BORST_NOFCELLS, names=None):
     """Rebind lamina/scalar segments to per-cell-type (full) trainable params."""
     names = PER_TYPE_PARAM_NAMES if names is None else frozenset(names)
@@ -300,10 +347,14 @@ def build_conductance_schema(n_types, lamina, ih_zero_types=IH_GMAX_ZERO_TYPES, 
     return [
         {'name': 'inp_gain',  'count': n_types, 'kind': 'full',   'lo': low_gain, 'hi': high_gain, 'init': 0.5,     'jit': 0.2,  'fill': 0.0},
         {'name': 'out_gain',  'count': n_types, 'kind': 'full',   'lo': low_gain, 'hi': high_gain, 'init': 0.5,     'jit': 0.2,  'fill': 0.0},
-        {'name': 'Ih_gmax',   'count': len(lamina), 'kind': 'lamina', 'cells': lamina, 'lo': 0.0, 'hi': 100.0, 'init': Ih_gmax, 'jit': 10.0, 'fill': 0.0, 'zero': zero},
-        {'name': 'Ih_midv',   'count': 1,       'kind': 'scalar', 'lo': -70.0,    'hi': -30.0,     'init': Ih_midv,  'jit': 5.0},
-        {'name': 'Ih_slope',  'count': 1,       'kind': 'scalar', 'lo': -0.40,    'hi': -0.20,     'init': Ih_slope, 'jit': 0.02},
-        {'name': 'tau_midv',  'count': 1,       'kind': 'scalar', 'lo': -70.0,    'hi': -40.0,     'init': tau_midv, 'jit': 5.0},
+        {'name': 'Ih_gmax',     'count': len(lamina), 'kind': 'lamina', 'cells': lamina, 'lo': 0.0, 'hi': 100.0, 'init': Ih_gmax, 'jit': 10.0, 'fill': 0.0, 'zero': zero},
+        {'name': 'Ih_gmax_off', 'count': len(lamina), 'kind': 'lamina', 'cells': lamina, 'lo': 0.0, 'hi': 100.0, 'init': Ih_gmax, 'jit': 10.0, 'fill': 0.0, 'zero': zero},
+        {'name': 'Ih_midv',     'count': 1,       'kind': 'scalar', 'lo': -70.0,    'hi': -30.0,     'init': Ih_midv,  'jit': 5.0},
+        {'name': 'Ih_slope',    'count': 1,       'kind': 'scalar', 'lo': -0.40,    'hi': -0.20,     'init': Ih_slope, 'jit': 0.02},
+        {'name': 'tau_midv',    'count': 1,       'kind': 'scalar', 'lo': -70.0,    'hi': -40.0,     'init': tau_midv, 'jit': 5.0},
+        {'name': 'Ih_midv_off', 'count': 1,       'kind': 'scalar', 'lo': -70.0,    'hi': -30.0,     'init': Ih_midv,  'jit': 5.0},
+        {'name': 'Ih_slope_off','count': 1,       'kind': 'scalar', 'lo': -0.40,    'hi': -0.20,     'init': Ih_slope, 'jit': 0.02},
+        {'name': 'tau_midv_off','count': 1,       'kind': 'scalar', 'lo': -70.0,    'hi': -40.0,     'init': tau_midv, 'jit': 5.0},
         {'name': 'out_scale', 'count': n_types, 'kind': 'output', 'lo': 0.0,      'hi': 1.0e4,     'init': 1.0,      'jit': 0.0},
     ]
 
@@ -366,7 +417,7 @@ class ModelBackend:
     n_cols: int
     network: Optional[object] = None
     ctype: Optional[object] = None
-    depol_cells: Tuple[int, ...] = E_LEAK_DEPOL_CELLS
+    depol_cells: Tuple[int, ...] = field(default_factory=ml.leak_depol_indices)
     ih_reverse_cells: Tuple[int, ...] = IH_DIR_REVERSE_CELLS
 
     @property
@@ -826,7 +877,7 @@ def borst_backend(
 ) -> ModelBackend:
     """Default 5-column Borst dense connectivity backend."""
     dev = dev or active_device()
-    depol = tuple(depol_cells if depol_cells is not None else E_LEAK_DEPOL_CELLS)
+    depol = tuple(ml.leak_depol_indices() if depol_cells is None else depol_cells)
     ih_rev = tuple(ih_reverse_cells if ih_reverse_cells is not None else IH_DIR_REVERSE_CELLS)
     M_exc, M_inh, M_signed, ctype_arr = _load_borst_matrices(dev)
     node_type = (torch.arange(BORST_NOFCELLS * BORST_NOFCOLS, device=dev) % BORST_NOFCELLS).long()
@@ -847,7 +898,7 @@ def borst_backend(
 def _network_backend_from_connectome(C) -> ModelBackend:
     """Build a :class:`ModelBackend` from an already-loaded connectome graph."""
     tn = list(C.type_names)
-    depol = tuple(tn.index(t) for t in ['L1', 'L2', 'L3'] if t in tn)
+    depol = tuple(tn.index(t) for t in ml.LEAK_DEPOL_TYPES if t in tn)
     conn = C.conn
     return ModelBackend(
         conn=conn,
@@ -1300,6 +1351,7 @@ def make_train_opts(
     per_type=False,
     dev=None,
     packs=None,
+    ih_off=IH_OFF_DEFAULT,
 ):
     """Canonical training opts for :func:`open_session` (Borst or network)."""
     tl = _normalize_target_list(target_list)
@@ -1360,6 +1412,7 @@ def make_train_opts(
         opts["packs"] = packs
     if per_type:
         opts["per_type"] = True
+    opts["ih_off"] = str(ih_off)
     if backend == "network":
         opts.update({
             "network": network,
@@ -1423,6 +1476,8 @@ def _train_opts_for_sidecar(
         record["pack_overrides"] = overrides
     if opts.get("per_type"):
         record["per_type"] = True
+    if "ih_off" in opts:
+        record["ih_off"] = str(opts["ih_off"])
     return record
 
 
@@ -1442,7 +1497,15 @@ def _make_session(
     seq = (dev_ref == "cpu") if sequential is None else bool(sequential)
     if train_opts_record is not None:
         train_opts_record["sequential"] = bool(seq)
-    sch = schema if schema is not None else default_schema(model_type, model_backend)
+    ih_off = IH_OFF_DEFAULT
+    if train_opts_record is not None and "ih_off" in train_opts_record:
+        ih_off = str(train_opts_record["ih_off"])
+    if model_type == 'conductance':
+        sch = conductance_schema(model_backend, schema, ih_off)
+    elif schema is not None:
+        sch = list(schema)
+    else:
+        sch = default_schema(model_type, model_backend)
     return TrainSession(
         backend=model_backend,
         model_type=model_type,
@@ -1632,29 +1695,35 @@ def rectsyn(x,thrld):
     
     return result
 
-def update_Vm(Vm, u, inp_gain, out_gain, Ih_gmax, Ih_midv, Ih_slope, tau_midv, signal, backend: ModelBackend):
+def update_Vm(Vm, u_on, u_off, inp_gain, out_gain, Ih_gmax, Ih_gmax_off,
+              Ih_midv, Ih_slope, tau_midv, Ih_midv_off, Ih_slope_off, tau_midv_off,
+              signal, backend: ModelBackend):
 
-    # Per-cell Ih direction reverses the current where ih_dir==-1: the activation
-    # slope flips (depolarisation-activated) AND the reversal flips sign about 0
-    # (E_Ih=+50 -> -50 mV), a gentle pull-down toward rest. ih_dir==+1 -> unchanged.
-    ih_dir = backend.ih_dir
+    # ON Ih (hyperpolarization-activated, E_Ih=+50) + OFF Ih (depolarization-activated,
+    # E_IH_OFF=-150).
     e_leak = backend.e_leak
     conn = backend.conn
-    slope_eff = ih_dir * Ih_slope
-    E_Ih_eff  = ih_dir * E_Ih
-    Ih_ss   = 1.0/(1.0+torch.exp((Ih_midv-Vm)*slope_eff))
-    tau     = 1.5/(torch.exp(-0.1*(Vm-tau_midv))+torch.exp(+0.1*(Vm-tau_midv)))*1000.0 + 100.0
-    u       = deltat/tau*(Ih_ss-u)+u
-    g_Ih    = u * Ih_gmax * Ih_gain
-    
+    slope_on = Ih_slope
+    slope_off = -Ih_slope_off
+    Ih_ss_on  = 1.0/(1.0+torch.exp((Ih_midv-Vm)*slope_on))
+    Ih_ss_off = 1.0/(1.0+torch.exp((Ih_midv_off-Vm)*slope_off))
+    tau_on  = 1.5/(torch.exp(-0.1*(Vm-tau_midv))+torch.exp(+0.1*(Vm-tau_midv)))*1000.0 + 100.0
+    tau_off = 1.5/(torch.exp(-0.1*(Vm-tau_midv_off))+torch.exp(+0.1*(Vm-tau_midv_off)))*1000.0 + 100.0
+    u_on    = deltat/tau_on*(Ih_ss_on-u_on)+u_on
+    u_off   = deltat/tau_off*(Ih_ss_off-u_off)+u_off
+    g_Ih_on  = u_on * Ih_gmax * Ih_gain
+    g_Ih_off = u_off * Ih_gmax_off * Ih_gain
+    g_Ih     = g_Ih_on + g_Ih_off
+
     g_exc, g_inh = conn.exc_inh_drive(rectsyn(Vm,trld)*out_gain)
     g_exc   = g_exc*inp_gain
     g_inh   = g_inh*inp_gain
-    
-    Vm = (g_exc*E_exc + g_inh*E_inh + g_leak*e_leak + E_Ih_eff * g_Ih + cdt*Vm + signal)
+
+    Vm = (g_exc*E_exc + g_inh*E_inh + g_leak*e_leak
+          + E_Ih * g_Ih_on + E_IH_OFF * g_Ih_off + cdt*Vm + signal)
     Vm = Vm / (g_exc + g_inh + g_Ih + g_leak + cdt)
-    
-    return Vm, u
+
+    return Vm, u_on, u_off
 
 # ---------- adaptive temporal-filter neuron model (flyvis-derived) -----------
 
@@ -1747,24 +1816,31 @@ def model_cost(model, data, session: TrainSession, scale=1.0, power=None):
 def _run_conductance(session: TrainSession, p, neuron_index=None, return_ref=False, sig=None, pack=None):
     backend = session.backend
     mt = session.maxtime
+    ih_off = (session.train_opts or {}).get('ih_off', IH_OFF_DEFAULT)
     if neuron_index is None:
         pack = pack or session.primary_pack
         neuron_index = pack.readout_unit
     if sig is None:
         sig = session.pack_signal(pack)
-    inp_gain, out_gain, Ih_gmax = p['inp_gain'], p['out_gain'], p['Ih_gmax']
+    inp_gain, out_gain = p['inp_gain'], p['out_gain']
+    Ih_gmax = p['Ih_gmax']
+    Ih_gmax_off, Ih_midv_off, Ih_slope_off, tau_midv_off = conductance_ih_off_kwargs(p, ih_off)
     Ih_midv, Ih_slope, tau_midv = p['Ih_midv'], p['Ih_slope'], p['tau_midv']
-    u  = torch.zeros(backend.n_units, dtype=torch.float64, device=backend.conn.node_type.device)
+    u_on = u_off = torch.zeros(backend.n_units, dtype=torch.float64, device=backend.conn.node_type.device)
     Vm = backend.e_leak
     for t in range(1, t_on):
-        Vm, u = update_Vm(Vm, u, inp_gain, out_gain, Ih_gmax, Ih_midv, Ih_slope, tau_midv,
-                          sig[t - 1], backend)
+        Vm, u_on, u_off = update_Vm(
+            Vm, u_on, u_off, inp_gain, out_gain, Ih_gmax, Ih_gmax_off,
+            Ih_midv, Ih_slope, tau_midv, Ih_midv_off, Ih_slope_off, tau_midv_off,
+            sig[t - 1], backend)
     Vm_ref = 1.0 * Vm[neuron_index]
     model = 0
     rows = []
     for t in range(t_on, mt):
-        Vm, u = update_Vm(Vm, u, inp_gain, out_gain, Ih_gmax, Ih_midv, Ih_slope, tau_midv,
-                          sig[t - 1], backend)
+        Vm, u_on, u_off = update_Vm(
+            Vm, u_on, u_off, inp_gain, out_gain, Ih_gmax, Ih_gmax_off,
+            Ih_midv, Ih_slope, tau_midv, Ih_midv_off, Ih_slope_off, tau_midv_off,
+            sig[t - 1], backend)
         model = deltat / Ca_tau * (Vm[neuron_index] - Vm_ref - model) + model
         rows.append(model)
     out = torch.stack(rows)
@@ -1775,22 +1851,29 @@ def _run_conductance(session: TrainSession, p, neuron_index=None, return_ref=Fal
 
 def _run_conductance_full(session: TrainSession, p, sig):
     backend = session.backend
-    inp_gain, out_gain, Ih_gmax = p['inp_gain'], p['out_gain'], p['Ih_gmax']
+    ih_off = (session.train_opts or {}).get('ih_off', IH_OFF_DEFAULT)
+    inp_gain, out_gain = p['inp_gain'], p['out_gain']
+    Ih_gmax = p['Ih_gmax']
+    Ih_gmax_off, Ih_midv_off, Ih_slope_off, tau_midv_off = conductance_ih_off_kwargs(p, ih_off)
     Ih_midv, Ih_slope, tau_midv = p['Ih_midv'], p['Ih_slope'], p['tau_midv']
     B = sig.shape[0]
     t_end = sig.shape[1]
     dev = backend.conn.node_type.device
-    u  = torch.zeros((B, backend.n_units), dtype=torch.float64, device=dev)
+    u_on = u_off = torch.zeros((B, backend.n_units), dtype=torch.float64, device=dev)
     Vm = backend.e_leak.expand(B, backend.n_units).clone()
     for t in range(1, min(t_on, t_end)):
-        Vm, u = update_Vm(Vm, u, inp_gain, out_gain, Ih_gmax, Ih_midv, Ih_slope, tau_midv,
-                          sig[:, t - 1], backend)
+        Vm, u_on, u_off = update_Vm(
+            Vm, u_on, u_off, inp_gain, out_gain, Ih_gmax, Ih_gmax_off,
+            Ih_midv, Ih_slope, tau_midv, Ih_midv_off, Ih_slope_off, tau_midv_off,
+            sig[:, t - 1], backend)
     Vm_ref = Vm.clone()
     model = 0
     rows = []
     for t in range(t_on, t_end):
-        Vm, u = update_Vm(Vm, u, inp_gain, out_gain, Ih_gmax, Ih_midv, Ih_slope, tau_midv,
-                          sig[:, t - 1], backend)
+        Vm, u_on, u_off = update_Vm(
+            Vm, u_on, u_off, inp_gain, out_gain, Ih_gmax, Ih_gmax_off,
+            Ih_midv, Ih_slope, tau_midv, Ih_midv_off, Ih_slope_off, tau_midv_off,
+            sig[:, t - 1], backend)
         model = deltat / Ca_tau * (Vm - Vm_ref - model) + model
         rows.append(model)
     return torch.stack(rows, dim=1)

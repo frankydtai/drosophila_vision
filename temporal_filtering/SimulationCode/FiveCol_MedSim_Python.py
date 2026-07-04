@@ -46,7 +46,7 @@ Ca_tau    = 50.0  # in msec
 E_leak    = np.zeros(nofcells*nofcols)-50.0
 
 for i in range(nofcols):
-    for c in ml.LAMINA_DEPOL_TYPES:
+    for c in ml.leak_depol_indices():
         E_leak[ml.unit_index(i, c)] = -20.0
 
 exc_synweight = 0.001

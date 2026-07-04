@@ -69,7 +69,7 @@ def calc_multi_col_cell_index(cell_index):
 CENTER_COL = 2
 N_PHOTORECEPTORS = 8
 LAMINA_SLICE = slice(8, 13)           # L1-L5 within the 65-type vocabulary
-LAMINA_DEPOL_TYPES = (8, 9, 10)       # L1-L3 resting depolarisation
+LEAK_DEPOL_TYPES = ['L1', 'L2', 'L3']  # [] → all -50 mV
 # Center-column fit cells whose lateral presynaptic input is zeroed in multi_colM.
 ISOLATED_CENTER_FIT_TYPES = ('Tm4',)
 
@@ -104,6 +104,10 @@ def type_index(name: str) -> int:
     if len(matches) != 1:
         raise KeyError(f"cell type {name!r} not found uniquely in ctype ({len(matches)} matches)")
     return int(matches[0])
+
+
+def leak_depol_indices():
+    return tuple(type_index(n) for n in LEAK_DEPOL_TYPES)
 
 
 def fit_list_index(name: str) -> int:
