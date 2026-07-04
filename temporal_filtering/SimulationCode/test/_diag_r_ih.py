@@ -18,7 +18,7 @@ for s in schema:
     if s['name'] == 'Ih_gmax':
         s['cells'] = groups; s['zero'] = [groups.index(10), groups.index(11)]
 session = fc.open_session(
-    fc.make_train_opts(backend='borst', target_list=['tile']),
+    fc.make_train_opts(backend='borst', target_list=['tile_bright']),
     'conductance', schema=schema, model_backend=mb,
 )
 

@@ -27,7 +27,7 @@ def main():
 
     mb = fc.load_network_backend(str(resolve_network_json(args.network)), dev="cpu")
     session = fc.open_session(fc.make_train_opts(
-        backend="network", target_list=["moving_bar"], network=mb.network,
+        backend="network", target_list=["moving_bar_bright"], network=mb.network,
         multi_column=False, sequential=True, dev="cpu",
     ), "conductance")
     pack = session.primary_pack

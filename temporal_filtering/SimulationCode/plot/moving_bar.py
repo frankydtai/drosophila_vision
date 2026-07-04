@@ -30,6 +30,34 @@ def _moving_bar_center_only(session):
     return bool(session.moving_bar_center_column)
 
 
+def _bar_target(session):
+    for t in session.target_list:
+        if t in fc.MOVING_BAR_TARGETS:
+            return t
+    raise ValueError(f"session has no moving-bar target in {session.target_list!r}")
+
+
+def _bar_contrast(target):
+    return "bright" if "bright" in target else "dark"
+
+
+def _bar_specs_for_session(session, target):
+    contrast = _bar_contrast(target)
+    C = session.backend.network
+    if C is not None:
+        return list(gruntman_moving_bar_specs(contrasts=(contrast,)))
+    return list(gruntman_moving_bar_specs(directions=("right", "left"), contrasts=(contrast,)))
+
+
+def _moving_bar_readout_subtypes(session, target=None):
+    target = target or _bar_target(session)
+    opts = (session.train_opts or {}).get(f"{target}_stimulus_opts") or {}
+    if "readout_subtypes" in opts:
+        return tuple(str(t) for t in opts["readout_subtypes"])
+    C = session.backend.network
+    return READOUT_SUBTYPES if C is not None else BORST_READOUT_SUBTYPES
+
+
 def _borst_type_ids(session):
     node_type = session.backend.conn.node_type
     if torch.is_tensor(node_type):
@@ -123,18 +151,19 @@ def _aggregate_moving_bar_traces(windows, t0_bn, type_ids, types, spec_names, ce
 
 
 @torch.no_grad()
-def _compute_moving_bar_all_type_traces(session, z):
+def _compute_moving_bar_all_type_traces(session, z, target=None):
     from network.moving_bar_target import load_fig1_trace
     from network.stimulus import build_moving_bar_signals, center_photo_column, photo_columns
 
-    pack = session.pack_for('moving_bar')
+    target = target or _bar_target(session)
+    pack = session.pack_for(target)
     schema = list(session.schema)
     p = fc.assign_params(z, schema, session.backend)
     model_full = fc._run_conductance_full(session, p, pack.signal).cpu().numpy()
+    specs = _bar_specs_for_session(session, target)
+    spec_names = [s.name for s in specs]
     C = session.backend.network
     if C is not None:
-        specs = gruntman_moving_bar_specs()
-        spec_names = [s.name for s in specs]
         side = normalize_side(C.meta.get('side', 'right'))
         center_only = _moving_bar_center_only(session)
         center_col = center_photo_column(C)
@@ -171,8 +200,6 @@ def _compute_moving_bar_all_type_traces(session, z):
                 data_mean[(subtype, spec.name)] = load_fig1_trace(trace_id)
         return types, spec_names, model_mean, model_sem, data_mean
 
-    specs = gruntman_moving_bar_specs(directions=("right", "left"))
-    spec_names = [s.name for s in specs]
     cols_all = _borst_hex_columns()
     center_only = _moving_bar_center_only(session)
     col_ids = [ml.CENTER_COL] if center_only else list(range(ml.nofcols))
@@ -203,16 +230,33 @@ def _compute_moving_bar_all_type_traces(session, z):
 
 
 @torch.no_grad()
-def _moving_bar_mean_traces(session, z):
+def _moving_bar_mean_traces(session, z, target=None):
+    target = target or _bar_target(session)
     C = session.backend.network
     side = normalize_side(C.meta.get('side', 'right')) if C is not None else "right"
-    _, _, model_mean, model_sem, data_mean = _compute_moving_bar_all_type_traces(session, z)
-    readout_subtypes = READOUT_SUBTYPES if C is not None else BORST_READOUT_SUBTYPES
+    _, _, model_mean, model_sem, data_mean = _compute_moving_bar_all_type_traces(session, z, target)
+    readout_subtypes = _moving_bar_readout_subtypes(session, target)
+    contrast = _bar_contrast(target)
     row_specs = {
-        st: [f'{d}_{c}_{w}' for d, c, w in active_stimuli_for_subtype(side, st)]
+        st: [f'{d}_{c}_{w}' for d, c, w in active_stimuli_for_subtype(side, st) if c == contrast]
         for st in readout_subtypes
     }
     return row_specs, model_mean, model_sem, data_mean
+
+
+def _moving_bar_scope_label(session):
+    center_only = _moving_bar_center_only(session)
+    C = session.backend.network
+    if center_only:
+        if C is not None:
+            from network.stimulus import center_photo_column
+            col = center_photo_column(C)
+            return f'centre column (u,v)=({col.u},{col.v})'
+        return f'centre column (col={ml.CENTER_COL})'
+    if C is not None:
+        from network.stimulus import photo_columns
+        return f'avg over {len(photo_columns(C))} photo columns'
+    return f'avg over {ml.nofcols} Borst columns'
 
 
 def _set_moving_bar_xlim(ax):
@@ -277,57 +321,77 @@ def _plot_moving_bar_cell(
         ax.tick_params(labelsize=6)
 
 
-def plot_model_data_moving_bar(session, z, path, title=None):
+def plot_moving_bar_data(session, z, path, session_off=None, title=None):
     center_only = _moving_bar_center_only(session)
-    row_specs, model_mean, model_sem, data_mean = _moving_bar_mean_traces(session, z)
+    target = _bar_target(session)
+    row_specs, model_mean, model_sem, data_mean = _moving_bar_mean_traces(session, z, target)
     readout_subtypes = list(row_specs.keys())
+    ncols_half = max((len(v) for v in row_specs.values()), default=8)
+    if session_off is not None:
+        target_off = _bar_target(session_off)
+        row_specs_off, model_mean_off, model_sem_off, data_mean_off = _moving_bar_mean_traces(
+            session_off, z, target_off,
+        )
+        ncols_half = max(ncols_half, max((len(v) for v in row_specs_off.values()), default=8))
+        ncols = ncols_half * 2
+    else:
+        ncols = ncols_half
     nrows = len(readout_subtypes)
-    ncols = 8
     fig, axes = plt.subplots(
         nrows, ncols, figsize=(2.2 * ncols, 1.8 * nrows), sharex=True,
     )
     if nrows == 1:
         axes = np.asarray([axes])
-    for ri, subtype in enumerate(readout_subtypes):
-        for ci, sname in enumerate(row_specs[subtype]):
-            ax = axes[ri, ci]
+    if ncols == 1:
+        axes = axes[:, None]
+
+    def _plot_row(ri, subtype, specs, col_offset, mm, ms, dm):
+        for ci, sname in enumerate(specs):
+            ax = axes[ri, col_offset + ci]
             key = (subtype, sname)
-            if key not in model_mean:
+            if key not in mm:
                 ax.axis('off')
                 continue
             _plot_moving_bar_cell(
-                ax, model_mean[key], model_sem[key], data_mean[key],
-                sname, show_ylabel=(ci == 0), show_sem=not center_only,
+                ax, mm[key], ms[key], dm.get(key),
+                sname, show_ylabel=(col_offset + ci == 0), show_sem=not center_only,
+            )
+
+    for ri, subtype in enumerate(readout_subtypes):
+        _plot_row(ri, subtype, row_specs[subtype], 0, model_mean, model_sem, data_mean)
+        if session_off is not None:
+            _plot_row(
+                ri, subtype, row_specs_off[subtype], ncols_half,
+                model_mean_off, model_sem_off, data_mean_off,
             )
         axes[ri, 0].set_ylabel(subtype, fontsize=8, labelpad=12)
     if title is None:
         title = 'Moving-bar model-data'
-    if center_only:
-        C = session.backend.network
-        if C is not None:
-            from network.stimulus import center_photo_column
-            col = center_photo_column(C)
-            scope = f'centre column (u,v)=({col.u},{col.v})'
-        else:
-            scope = f'centre column (col={ml.CENTER_COL})'
-    else:
-        C = session.backend.network
-        if C is not None:
-            from network.stimulus import photo_columns
-            scope = f'avg over {len(photo_columns(C))} photo columns'
-        else:
-            scope = f'avg over {ml.nofcols} Borst columns'
+    scope = _moving_bar_scope_label(session)
     fig.suptitle(title + f'  [{scope}, t_center ± 0.45 s]', fontsize=12)
     fig.subplots_adjust(top=0.92, bottom=0.08, hspace=0.45, wspace=0.35)
     _save_moving_bar_fig(fig, path, MOVING_BAR_MVD_DPI)
 
 
 @torch.no_grad()
-def plot_model_all_moving_bar(session, z, path, title=None):
+def plot_moving_bar_all(session, z, path, session_off=None, title=None):
     t0 = time.perf_counter()
     center_only = _moving_bar_center_only(session)
-    types, all_spec_names, model_mean, model_sem, data_mean = _compute_moving_bar_all_type_traces(session, z)
+    target = _bar_target(session)
+    types, all_spec_names, model_mean, model_sem, data_mean = _compute_moving_bar_all_type_traces(
+        session, z, target,
+    )
     spec_names = _moving_bar_right_spec_names(all_spec_names)
+    if session_off is not None:
+        target_off = _bar_target(session_off)
+        _, spec_names_off, mm_off, ms_off, dm_off = _compute_moving_bar_all_type_traces(
+            session_off, z, target_off,
+        )
+        spec_names_off = _moving_bar_right_spec_names(spec_names_off)
+        spec_names = list(spec_names) + list(spec_names_off)
+        model_mean = {**model_mean, **mm_off}
+        model_sem = {**model_sem, **ms_off}
+        data_mean = {**data_mean, **dm_off}
     t_traces = time.perf_counter() - t0
 
     keys = [(t, s) for t in types for s in spec_names if (t, s) in model_mean]
@@ -365,21 +429,7 @@ def plot_model_all_moving_bar(session, z, path, title=None):
             axes[ri, 0].set_ylabel(tname, fontsize=6, labelpad=4)
     if title is None:
         title = 'Moving-bar model-all (right only)'
-    if center_only:
-        C = session.backend.network
-        if C is not None:
-            from network.stimulus import center_photo_column
-            col = center_photo_column(C)
-            scope = f'centre column (u,v)=({col.u},{col.v})'
-        else:
-            scope = f'centre column (col={ml.CENTER_COL})'
-    else:
-        C = session.backend.network
-        if C is not None:
-            from network.stimulus import photo_columns
-            scope = f'avg over {len(photo_columns(C))} photo columns'
-        else:
-            scope = f'avg over {ml.nofcols} Borst columns'
+    scope = _moving_bar_scope_label(session)
     fig.suptitle(title + f'  [{scope}, t_center ± 0.45 s]', fontsize=10)
     fig.subplots_adjust(top=0.96, bottom=0.05, hspace=0.55, wspace=0.3)
     t_draw = time.perf_counter() - t1
@@ -387,7 +437,7 @@ def plot_model_all_moving_bar(session, z, path, title=None):
     _save_moving_bar_fig(fig, path, MOVING_BAR_GRID_DPI)
     t_save = time.perf_counter() - t2
     print(
-        f'plot_model_all_moving_bar: traces={t_traces:.1f}s  '
+        f'plot_moving_bar_all: traces={t_traces:.1f}s  '
         f'draw={t_draw:.1f}s  savefig={t_save:.1f}s  total={t_traces+t_draw+t_save:.1f}s'
     )
 

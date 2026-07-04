@@ -29,8 +29,8 @@ def test_fig1_traces_shape():
 def test_build_target_extent2():
     path = NETWORK_DIR / "right_min_neuron1_extent2" / "network.json"
     C = load_network(path, device="cpu")
-    T = build_moving_bar_target(C, device="cpu", use_cache=True)
-    assert T.signal.shape[0] == 16
+    T = build_moving_bar_target(C, device="cpu", use_cache=True, contrasts=("bright",))
+    assert T.signal.shape[0] == 8
     assert T.signal.shape[1] == T.maxtime
     assert T.data.shape[1] == COST_WINDOW_STEPS
     assert T.cost_t0.shape == T.readout_batch.shape == T.readout_unit.shape
@@ -57,11 +57,11 @@ def test_use_network_moving_bar_cost():
     path = str(NETWORK_DIR / "right_min_neuron1_extent2" / "network.json")
     mb = fc.load_network_backend(path, dev="cpu")
     session = fc.open_session(fc.make_train_opts(
-        backend="network", target_list=["moving_bar"], network=mb.network,
+        backend="network", target_list=["moving_bar_bright"], network=mb.network,
         multi_column=False, sequential=True, dev="cpu",
     ), "conductance")
-    pack = session.pack_for("moving_bar")
-    assert list(session.target_list) == ["moving_bar"]
+    pack = session.pack_for("moving_bar_bright")
+    assert list(session.target_list) == ["moving_bar_bright"]
     assert pack.cost_t0 is not None
     assert pack.data.shape[1] == COST_WINDOW_STEPS
     z = fc.guess_initial_params(session)
@@ -74,10 +74,10 @@ def test_readout_window_pre_ton_zero():
     path = str(NETWORK_DIR / "right_min_neuron1_extent2" / "network.json")
     mb = fc.load_network_backend(path, dev="cpu")
     session = fc.open_session(fc.make_train_opts(
-        backend="network", target_list=["moving_bar"], network=mb.network,
+        backend="network", target_list=["moving_bar_bright"], network=mb.network,
         multi_column=False, sequential=True, dev="cpu",
     ), "conductance")
-    pack = session.pack_for("moving_bar")
+    pack = session.pack_for("moving_bar_bright")
     schema = list(session.schema)
     p = fc.assign_params(fc.guess_initial_params(session), schema, session.backend)
     model_full = fc._run_conductance_full(session, p, pack.signal)

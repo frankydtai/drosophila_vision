@@ -21,8 +21,8 @@ import run
 from plot_trained import (
     load_session,
     load_train_opts,
-    plot_model_all_moving_bar,
-    plot_model_data_moving_bar,
+    plot_moving_bar_all,
+    plot_moving_bar_data,
     plot_param_set,
 )
 
@@ -32,7 +32,7 @@ LEGACY_NPARAMS = ml.legacy_conductance_z_slices()["n_params"]
 LEGACY_PARAM_MODES = {"out_scale": "fixed"}
 LEGACY_PARAM_FIXES = {"out_scale": 1.0}
 LEGACY_TILE_STIMULUS_OPTS = {
-    "target": "tile",
+    "target": "tile_bright",
     "mode": "borst",
     "i_baseline": 0.0,
     "i_bright": float(ml.I_BRIGHT),
@@ -40,12 +40,19 @@ LEGACY_TILE_STIMULUS_OPTS = {
     "maxtime": ml.IMPULSE_MAXTIME,
     "deltat_ms": 10.0,
 }
-LEGACY_BAR_STIMULUS_OPTS = {
-    "target": "moving_bar",
+LEGACY_BAR_BRIGHT_OPTS = {
+    "target": "moving_bar_bright",
     "mode": "borst",
     "i_baseline_bright_bar": 0.0,
-    "i_baseline_dark_bar": float(ml.I_BRIGHT),
     "i_bright_bar": float(ml.I_BRIGHT),
+    "t_on": ml.T_ON,
+    "deltat_ms": 10.0,
+    "center_column": False,
+}
+LEGACY_BAR_DARK_OPTS = {
+    "target": "moving_bar_dark",
+    "mode": "borst",
+    "i_baseline_dark_bar": float(ml.I_BRIGHT),
     "i_dark_bar": float(ml.I_DARK),
     "t_on": ml.T_ON,
     "deltat_ms": 10.0,
@@ -89,25 +96,50 @@ def map_legacy_to_network_z(z138: np.ndarray, net_type_names: list[str]) -> np.n
     return np.concatenate([inp, out, ih_sc])
 
 
-def borst_bar_session(outdir):
+def _legacy_bar_opts_from_sidecar(train):
+    bright = dict(LEGACY_BAR_BRIGHT_OPTS)
+    dark = dict(LEGACY_BAR_DARK_OPTS)
+    if not train:
+        return bright, dark
+    old = train.get("bar_stimulus_opts")
+    if old:
+        for k, v in old.items():
+            if k in bright or k.startswith("i_baseline_bright") or k == "i_bright_bar":
+                bright[k.replace("moving_bar", "moving_bar_bright") if k == "target" else k] = v
+            if k in dark or k.startswith("i_baseline_dark") or k == "i_dark_bar":
+                dark[k.replace("moving_bar", "moving_bar_dark") if k == "target" else k] = v
+        if "center_column" in old:
+            bright["center_column"] = dark["center_column"] = bool(old["center_column"])
+    bright.update(train.get("moving_bar_bright_stimulus_opts") or {})
+    dark.update(train.get("moving_bar_dark_stimulus_opts") or {})
+    return bright, dark
+
+
+def borst_bar_sessions(outdir):
     train = load_train_opts(outdir)
-    opts = (train or {}).get("bar_stimulus_opts") or LEGACY_BAR_STIMULUS_OPTS
-    session = fc.open_session(
-        fc.make_train_opts(
-            backend="borst", target_list=["moving_bar"],
-            bar_stimulus_opts=opts,
-            moving_bar_center_column=bool(opts.get("center_column", False)),
-        ),
-        "conductance",
+    bright_opts, dark_opts = _legacy_bar_opts_from_sidecar(train)
+    center = bool(bright_opts.get("center_column", False))
+    base = fc.make_train_opts(
+        backend="borst",
+        target_list=["moving_bar_bright", "moving_bar_dark"],
+        moving_bar_bright_stimulus_opts=bright_opts,
+        moving_bar_dark_stimulus_opts=dark_opts,
+        moving_bar_center_column=center,
     )
-    return run.apply_param_modes(session, LEGACY_PARAM_MODES, LEGACY_PARAM_FIXES)
+    session = fc.open_session(base, "conductance")
+    session = run.apply_param_modes(session, LEGACY_PARAM_MODES, LEGACY_PARAM_FIXES)
+    s_bright = fc.open_session({**base, "target_list": ["moving_bar_bright"], "packs": None},
+                               "conductance", model_backend=session.backend)
+    s_dark = fc.open_session({**base, "target_list": ["moving_bar_dark"], "packs": None},
+                             "conductance", model_backend=session.backend)
+    return s_bright, s_dark
 
 
 def borst_tile_session():
     session = fc.open_session(
         fc.make_train_opts(
-            backend="borst", target_list=["tile"],
-            tile_stimulus_opts=LEGACY_TILE_STIMULUS_OPTS,
+            backend="borst", target_list=["tile_bright"],
+            tile_bright_stimulus_opts=LEGACY_TILE_STIMULUS_OPTS,
         ),
         "conductance",
     )
@@ -130,7 +162,7 @@ def main():
         session=tile_session,
     )
     print(f"params: {args.params}  ({LEGACY_NPARAMS} legacy, out_scale=fixed)")
-    print(f"tile:   Borst  cost={tile_cost:.4f}%")
+    print(f"tile_bright: Borst  cost={tile_cost:.4f}%")
 
     if args.bar:
         if args.network_ref:
@@ -149,21 +181,30 @@ def main():
                 z_net[None], args.outdir, model_type="conductance", model_all=True,
                 context_dir=args.network_ref, param_modes=LEGACY_PARAM_MODES,
                 param_fixes=LEGACY_PARAM_FIXES,
-                plot_targets=["moving_bar"],
+                plot_targets=["moving_bar_bright", "moving_bar_dark"],
             )
             print(f"bar:    network context from {args.network_ref}  cost={bar_cost:.4f}%  "
                   f"({len(net_session.backend.network.type_names)} types)")
         else:
-            bar_session = borst_bar_session(args.outdir)
-            z_t = torch.tensor(z138, dtype=torch.float64, device=bar_session.device)
-            bar_cost = float(fc.calc_cost(z_t, bar_session).item())
+            s_bright, s_dark = borst_bar_sessions(args.outdir)
+            z_t = torch.tensor(z138, dtype=torch.float64, device=s_bright.device)
+            bar_cost = float(
+                fc.calc_cost(z_t, fc.open_session({
+                    **s_bright.train_opts,
+                    "target_list": ["moving_bar_bright", "moving_bar_dark"],
+                    "packs": None,
+                    "backend": "borst",
+                }, "conductance", model_backend=s_bright.backend))
+            )
             suffix = f"trained, cost {bar_cost:.2f}% of data power"
-            plot_model_data_moving_bar(
-                bar_session, z_t, os.path.join(args.outdir, "model_data_bar.png"),
+            plot_moving_bar_data(
+                s_bright, z_t, os.path.join(args.outdir, "model_data_bar.png"),
+                session_off=s_dark,
                 title=f"Moving-bar model-data ({suffix})",
             )
-            plot_model_all_moving_bar(
-                bar_session, z_t, os.path.join(args.outdir, "model_all_bar.png"),
+            plot_moving_bar_all(
+                s_bright, z_t, os.path.join(args.outdir, "model_all_bar.png"),
+                session_off=s_dark,
                 title=f"Moving-bar model-all ({suffix})",
             )
             print(f"bar:    Borst moving-bar  cost={bar_cost:.4f}%")

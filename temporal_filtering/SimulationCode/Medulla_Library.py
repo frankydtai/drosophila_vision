@@ -320,6 +320,11 @@ def read_RecF_data():
     return data
 
 
+def read_RecF_data_dark():
+    """Dark tile spatial×temporal cube: negated bright ``read_RecF_data()``."""
+    return -read_RecF_data()
+
+
 def borst_tile_impulse_data(tile_T=None, amp=DATA_AMP):
     """RecF×ImpR targets for Borst tile training, shape ``(T, nofcells)``."""
     T = int(tile_T or IMPULSE_MAXTIME)
@@ -328,6 +333,11 @@ def borst_tile_impulse_data(tile_T=None, amp=DATA_AMP):
     for col in range(nofcols):
         raw[fit_data_slice(col)] = mydata[:, 2 + col, :T]
     return raw.T
+
+
+def borst_tile_impulse_data_dark(tile_T=None, amp=DATA_AMP):
+    """Dark tile targets: inverted bright RecF×ImpR, shape ``(T, nofcells)``."""
+    return -borst_tile_impulse_data(tile_T=tile_T, amp=amp)
 
 
 def create_multi_ctype(ctype,n=9):

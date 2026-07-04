@@ -1,26 +1,23 @@
 #!/usr/bin/env python
 """Unified training driver for the FiveCol medulla model.
 
-`local` and `gpu` run the EXACT same code path (do_many_runs + save_training_outputs + make_plots);
-they differ only in whether CUDA is disabled. Output folders are named by
-model_type only (not by local/gpu). All results of a run land in one folder:
-
+All results of a run land in one folder under
 ``training_config.PARAMETER_DIR`` (default ``SimulationCode/FiveCol_Parameter``):
 
     <model_type>/run_<id>/
 
 where <id> is the SLURM job id (under SLURM) or a timestamp otherwise.
 
-    # short LOCAL CPU smoke test (CUDA disabled)
-    python run.py local --model_type adaptive --nofsteps 30 --lrs 0.1
+    # short smoke test
+    python run.py --model_type adaptive --nofsteps 30 --lrs 0.1
 
-    # full GPU training
-    python run.py gpu --model_type conductance --nofruns 20 --nofsteps 10000 \
-                      --lrs 0.1 0.01 0.001
+    # full training
+    python run.py --model_type conductance --nofruns 1 --nofsteps 10000 \\
+                  --lrs 0.1 0.01 0.001
 
     # moving-bar (``--network`` = folder under built_network/)
-    python run.py local --target moving_bar --network right_min_neuron1_extent2 \\
-                      --nofsteps 5 --lrs 0.1 --sequential
+    python run.py --target moving_bar --network right_min_neuron1_extent2 \\
+                  --nofsteps 5 --lrs 0.1
 
 Import-safe: importing this module does NOT parse argv or touch CUDA, so test
 scripts can `import run` and reuse run_training / save_training_outputs / etc.
@@ -28,7 +25,6 @@ scripts can `import run` and reuse run_training / save_training_outputs / etc.
 import argparse
 import json
 import os
-import sys
 import time
 
 # When executed as a script, run from this file's own directory so `fc` finds
@@ -37,9 +33,6 @@ import time
 # `import run`, so importers keep control of cwd / CUDA_VISIBLE_DEVICES.
 if __name__ == "__main__":
     os.chdir(os.path.dirname(os.path.abspath(__file__)))
-    # CLI `local` mode must disable CUDA *before* the model library is imported.
-    if len(sys.argv) > 1 and sys.argv[1] == "local":
-        os.environ["CUDA_VISIBLE_DEVICES"] = ""
 
 import numpy as np
 import torch
@@ -51,23 +44,32 @@ import FiveCol_MedSim_Pytorch as fc
 from plot_trained import plot_param_set, run_dir
 
 
-def make_plots(fname, outdir, session, result=None):
+def make_plots(fname, outdir, session, result=None, *,
+               ref_cubes=None, ref_cubes_off=None, mvd_group_list=None):
     """Cost curve + model-vs-data + all-cell-types."""
+    plot_kw = dict(ref_cubes=ref_cubes, ref_cubes_off=ref_cubes_off,
+                   mvd_group_list=mvd_group_list)
     if result is not None:
         plot_param_set(
             result.all_params, outdir, session=session,
             final_costs=result.final_costs,
             cost_curve=result.cost_curve,
+            costs_by_target=result.cost_curves_by_target,
             best_i=result.best_i,
             save_artifacts=False,
+            **plot_kw,
         )
         return
     params = np.load(os.path.join(outdir, fname))
-    final_costs, cost_curve = load_stored_costs(outdir, fname, np.atleast_2d(params).shape[0])
+    final_costs, cost_curve, costs_by_target, _ = load_stored_costs(
+        outdir, fname, np.atleast_2d(params).shape[0],
+    )
     plot_param_set(
         params, outdir, session=session,
         final_costs=final_costs, cost_curve=cost_curve,
+        costs_by_target=costs_by_target,
         save_artifacts=False,
+        **plot_kw,
     )
 
 
@@ -125,6 +127,14 @@ def _cost_curve_path(outdir, fname):
     return os.path.join(outdir, _artifact_stem(fname) + '_costs.npy')
 
 
+def _costs_by_target_path(outdir, fname):
+    return os.path.join(outdir, _artifact_stem(fname) + '_costs_by_target.npz')
+
+
+def _final_costs_by_target_path(outdir, fname):
+    return os.path.join(outdir, _artifact_stem(fname) + '_final_costs_by_target.npz')
+
+
 def final_costs_for_params(all_params, session, final_costs=None):
     """Per-run final costs; recompute only when not supplied."""
     all_params = np.atleast_2d(all_params)
@@ -154,9 +164,11 @@ def write_best_artifacts(outdir, fname, session, all_params, best_i, final_costs
 
 
 def load_stored_costs(outdir, fname, n_runs):
-    """Load ``*_final_costs.npy`` and step ``*_costs.npy`` when present."""
+    """Load ``*_final_costs.npy``, step ``*_costs.npy``, and per-target npz when present."""
     final_costs = None
     cost_curve = None
+    costs_by_target = None
+    final_costs_by_target = None
     fp = _final_costs_path(outdir, fname)
     if os.path.isfile(fp):
         final_costs = np.load(fp)
@@ -167,7 +179,15 @@ def load_stored_costs(outdir, fname, n_runs):
             final_costs = arr
         else:
             cost_curve = arr
-    return final_costs, cost_curve
+    cbt = _costs_by_target_path(outdir, fname)
+    if os.path.isfile(cbt):
+        with np.load(cbt) as d:
+            costs_by_target = {k: np.asarray(d[k]) for k in d.files}
+    fbt = _final_costs_by_target_path(outdir, fname)
+    if os.path.isfile(fbt):
+        with np.load(fbt) as d:
+            final_costs_by_target = {k: np.asarray(d[k]) for k in d.files}
+    return final_costs, cost_curve, costs_by_target, final_costs_by_target
 
 
 def save_training_outputs(fname, outdir, session, result):
@@ -182,6 +202,10 @@ def save_training_outputs(fname, outdir, session, result):
     np.save(os.path.join(outdir, fname), result.all_params)
     np.save(_cost_curve_path(outdir, fname), result.cost_curve)
     np.save(_final_costs_path(outdir, fname), result.final_costs)
+    if result.cost_curves_by_target:
+        np.savez(_costs_by_target_path(outdir, fname), **result.cost_curves_by_target)
+    if result.final_costs_by_target:
+        np.savez(_final_costs_by_target_path(outdir, fname), **result.final_costs_by_target)
     write_best_artifacts(
         outdir, fname, session, result.all_params, result.best_i, result.final_costs,
     )
@@ -190,7 +214,7 @@ def save_training_outputs(fname, outdir, session, result):
 def save_param_tables(fname, outdir, session):
     """Regenerate ``*_table.csv`` and ``best_param.npy`` from saved ``fname`` on disk."""
     all_params = np.load(os.path.join(outdir, fname))
-    final_costs, _ = load_stored_costs(outdir, fname, np.atleast_2d(all_params).shape[0])
+    final_costs, _, _, _ = load_stored_costs(outdir, fname, np.atleast_2d(all_params).shape[0])
     final_costs, best_i = final_costs_for_params(all_params, session, final_costs=final_costs)
     write_best_artifacts(outdir, fname, session, all_params, best_i, final_costs)
 
@@ -219,16 +243,19 @@ def build_session(
     multi_column=False,
     share_edges=False,
     sequential=None,
-    target="tile",
+    target="tile_bright",
     target_list=None,
     loss_weights=None,
     moving_bar_center_column=False,
     tile_center_column=False,
     per_type=False,
-    bar_stimulus_opts=None,
-    tile_stimulus_opts=None,
+    moving_bar_bright_stimulus_opts=None,
+    moving_bar_dark_stimulus_opts=None,
+    tile_bright_stimulus_opts=None,
+    tile_dark_stimulus_opts=None,
     i_baseline=None,
     i_bright=None,
+    i_dark=None,
     param_modes=None,
     param_fixes=None,
     pack_overrides=None,
@@ -253,8 +280,11 @@ def build_session(
             tile_center_column=tile_center_column,
             loss_weights=loss_weights,
             pack_overrides=pack_overrides,
+            tile_bright_stimulus_opts=tile_bright_stimulus_opts,
+            tile_dark_stimulus_opts=tile_dark_stimulus_opts,
+            moving_bar_bright_stimulus_opts=moving_bar_bright_stimulus_opts,
+            moving_bar_dark_stimulus_opts=moving_bar_dark_stimulus_opts,
             i_baseline=i_baseline,
-            i_bright=i_bright,
             dev=dev,
         )
         model_backend = mb
@@ -265,10 +295,13 @@ def build_session(
             loss_weights=loss_weights,
             pack_overrides=pack_overrides,
             moving_bar_center_column=moving_bar_center_column,
-            bar_stimulus_opts=bar_stimulus_opts,
-            tile_stimulus_opts=tile_stimulus_opts,
+            moving_bar_bright_stimulus_opts=moving_bar_bright_stimulus_opts,
+            moving_bar_dark_stimulus_opts=moving_bar_dark_stimulus_opts,
+            tile_bright_stimulus_opts=tile_bright_stimulus_opts,
+            tile_dark_stimulus_opts=tile_dark_stimulus_opts,
             i_baseline=i_baseline,
             i_bright=i_bright,
+            i_dark=i_dark,
             sequential=sequential,
             per_type=per_type,
         )
@@ -286,13 +319,17 @@ def build_session(
 def run_training(model_type, nofruns, nofsteps, lrs, fname=None, outdir=None,
                  param_modes=None, param_fixes=None,
                  network=None, multi_column=False, share_edges=False,
-                 sequential=None, target="tile",
+                 sequential=None, target="tile_bright",
                  target_list=None, loss_weights=None,
                  moving_bar_center_column=False, tile_center_column=False,
-                 per_type=False, bar_stimulus_opts=None,
-                 tile_stimulus_opts=None,
-                 i_baseline=None, i_bright=None,
-                 pack_overrides=None, model_backend=None, schema=None):
+                 per_type=False, moving_bar_bright_stimulus_opts=None,
+                 moving_bar_dark_stimulus_opts=None,
+                 tile_bright_stimulus_opts=None,
+                 tile_dark_stimulus_opts=None,
+                 i_baseline=None, i_bright=None, i_dark=None,
+                 pack_overrides=None, model_backend=None, schema=None,
+                 plot_ref_cubes=None, plot_ref_cubes_off=None,
+                 plot_mvd_group_list=None):
     """Full training pipeline (do_many_runs + save_training_outputs + plots). Returns (fname, outdir, session)."""
     session = build_session(
         model_type,
@@ -306,10 +343,13 @@ def run_training(model_type, nofruns, nofsteps, lrs, fname=None, outdir=None,
         moving_bar_center_column=moving_bar_center_column,
         tile_center_column=tile_center_column,
         per_type=per_type,
-        bar_stimulus_opts=bar_stimulus_opts,
-        tile_stimulus_opts=tile_stimulus_opts,
+        moving_bar_bright_stimulus_opts=moving_bar_bright_stimulus_opts,
+        moving_bar_dark_stimulus_opts=moving_bar_dark_stimulus_opts,
+        tile_bright_stimulus_opts=tile_bright_stimulus_opts,
+        tile_dark_stimulus_opts=tile_dark_stimulus_opts,
         i_baseline=i_baseline,
         i_bright=i_bright,
+        i_dark=i_dark,
         param_modes=param_modes,
         param_fixes=param_fixes,
         pack_overrides=pack_overrides,
@@ -327,83 +367,79 @@ def run_training(model_type, nofruns, nofsteps, lrs, fname=None, outdir=None,
     print(f"done in {(time.time() - t0) / 3600:.2f} hours")
 
     save_training_outputs(fname, outdir, session, result)
-    make_plots(fname, outdir, session, result=result)
+    make_plots(
+        fname, outdir, session, result=result,
+        ref_cubes=plot_ref_cubes, ref_cubes_off=plot_ref_cubes_off,
+        mvd_group_list=plot_mvd_group_list,
+    )
     return fname, outdir, session
 
 
 def parse_args():
     parser = argparse.ArgumentParser(description=__doc__,
                                      formatter_class=argparse.RawDescriptionHelpFormatter)
-    sub = parser.add_subparsers(dest="mode", required=True)
-
-    def add_common(p, nofruns, nofsteps):
-        p.add_argument("--model_type", default="conductance",
-                       choices=["conductance", "adaptive"])
-        p.add_argument("--nofruns", type=int, default=nofruns)
-        p.add_argument("--nofsteps", type=int, default=nofsteps)
-        p.add_argument("--lrs", type=float, nargs="+", default=[0.1, 0.01, 0.001],
-                       help="learning-rate stages; each runs for --nofsteps steps")
-        p.add_argument("--fname", default=None,
-                       help="params filename (default derived from --model_type)")
-        p.add_argument("--outdir", default=None,
-                       help="output dir (default derived from --model_type)")
-        p.add_argument("--mode", nargs="+", default=[], metavar="NAME=MODE",
-                       help="per-param mode override, e.g. --mode out_scale=shared "
-                            "inp_gain=fixed (MODE in individual|shared|fixed)")
-        p.add_argument("--fix", nargs="+", default=[], metavar="NAME=VALUE",
-                       help="hold a param fixed at VALUE (implies fixed mode), "
-                            "e.g. --fix Ih_midv=-50 out_scale=1.0")
-        p.add_argument("--per_type", action="store_true",
-                       help="train Ih (and adaptive lamina) params per cell type "
-                            "instead of shared lamina/scalar values")
-        p.add_argument("--network", default=None, metavar="RUN",
-                       help=f"built_network run folder name (under {NETWORK_DIR}), "
-                            f"e.g. {DEFAULT_NETWORK_RUN}; "
-                            f"moving_bar default if omitted")
-        p.add_argument(
-            "--target",
-            default="tile",
-            help="target name(s): 'tile' or 'moving_bar', or comma-separated "
-                 "multi-target list, e.g. moving_bar,tile",
-        )
-        p.add_argument(
-            "--loss_weight",
-            nargs="+",
-            default=[],
-            metavar="NAME=VALUE",
-            help="per-target loss weights, e.g. moving_bar=1 tile=0.5",
-        )
-        p.add_argument("--shift", action="store_true",
-                       help="tile: use 7 shifts (centre + 6 neighbours)")
-        p.add_argument("--share_edges", action="store_true",
-                       help="full-graph tiling: 43 edge-sharing tiles (default 31 disjoint)")
-        p.add_argument(
-            "--center_only",
-            default="",
-            help="comma-separated targets that use centre-column-only cost; "
-                 "choices: tile,moving_bar (e.g. --center_only tile,moving_bar)",
-        )
-        p.add_argument("--i_baseline", type=float, default=None,
-                       help="tile: PR baseline (pA) before t_on")
-        p.add_argument("--i_bright", type=float, default=None,
-                       help="tile: PR current (pA) from t_on")
-        p.add_argument("--i_baseline_bar", type=float, default=None,
-                       help="moving_bar: shared PR baseline (pA) before bar sweep")
-        p.add_argument("--i_bright_bar", type=float, default=None,
-                       help="moving_bar: PR current (pA) under bright bar")
-        p.add_argument("--i_dark_bar", type=float, default=None,
-                       help="moving_bar: PR current (pA) under dark bar")
-        p.add_argument("--i_baseline_bright_bar", type=float, default=None,
-                       help="moving_bar: bright-field baseline (pA); overrides --i_baseline_bar")
-        p.add_argument("--i_baseline_dark_bar", type=float, default=None,
-                       help="moving_bar: dark-field baseline (pA); overrides --i_baseline_bar")
-
-    add_common(sub.add_parser("local", help="short local CPU run (CUDA disabled)"), 1, 100)
-    add_common(sub.add_parser("gpu", help="full training run"), 20, 10000)
-    add_common(sub.add_parser(
-        "auto",
-        help="auto pick CPU/GPU (CPU uses sequential cost by default)",
-    ), 1, 10000)
+    parser.add_argument("--model_type", default="conductance",
+                        choices=["conductance", "adaptive"])
+    parser.add_argument("--nofruns", type=int, default=1)
+    parser.add_argument("--nofsteps", type=int, default=10000)
+    parser.add_argument("--lrs", type=float, nargs="+", default=[0.1, 0.01, 0.001],
+                        help="learning-rate stages; each runs for --nofsteps steps")
+    parser.add_argument("--fname", default=None,
+                        help="params filename (default derived from --model_type)")
+    parser.add_argument("--outdir", default=None,
+                        help="output dir (default derived from --model_type)")
+    parser.add_argument("--mode", nargs="+", default=[], metavar="NAME=MODE",
+                        help="per-param mode override, e.g. --mode out_scale=shared "
+                             "inp_gain=fixed (MODE in individual|shared|fixed)")
+    parser.add_argument("--fix", nargs="+", default=[], metavar="NAME=VALUE",
+                        help="hold a param fixed at VALUE (implies fixed mode), "
+                             "e.g. --fix Ih_midv=-50 out_scale=1.0")
+    parser.add_argument("--per_type", action="store_true",
+                        help="train Ih (and adaptive lamina) params per cell type "
+                             "instead of shared lamina/scalar values")
+    parser.add_argument("--network", default=None, metavar="RUN",
+                        help=f"built_network run folder name (under {NETWORK_DIR}), "
+                             f"e.g. {DEFAULT_NETWORK_RUN}; "
+                             f"moving_bar default if omitted")
+    parser.add_argument(
+        "--target",
+        default="tile_bright",
+        help="target name(s): tile (=tile_bright+tile_dark), moving_bar (=bright+dark), "
+             "or explicit names / comma-separated list, e.g. tile,moving_bar",
+    )
+    parser.add_argument(
+        "--loss_weight",
+        nargs="+",
+        default=[],
+        metavar="NAME=VALUE",
+        help="per-target loss weights, e.g. tile=1 moving_bar=0.5 (aliases expand to bright+dark)",
+    )
+    parser.add_argument("--shift", action="store_true",
+                        help="tile: use 7 shifts (centre + 6 neighbours)")
+    parser.add_argument("--share_edges", action="store_true",
+                        help="full-graph tiling: 43 edge-sharing tiles (default 31 disjoint)")
+    parser.add_argument(
+        "--center_only",
+        default="",
+        help="comma-separated targets that use centre-column-only cost; "
+             "choices: tile,tile_bright,tile_dark,moving_bar,moving_bar_bright,moving_bar_dark",
+    )
+    parser.add_argument("--i_baseline", type=float, default=None,
+                        help="tile_bright/tile_dark/moving_bar: PR baseline (pA) before stimulus")
+    parser.add_argument("--i_bright", type=float, default=None,
+                        help="tile_bright: PR current (pA) from t_on")
+    parser.add_argument("--i_dark", type=float, default=None,
+                        help="tile_dark: PR current (pA) from t_on")
+    parser.add_argument("--i_baseline_bar", type=float, default=None,
+                        help="moving_bar_bright/dark: shared PR baseline (pA) before bar sweep")
+    parser.add_argument("--i_bright_bar", type=float, default=None,
+                        help="moving_bar_bright: PR current (pA) under bright bar")
+    parser.add_argument("--i_dark_bar", type=float, default=None,
+                        help="moving_bar_dark: PR current (pA) under dark bar")
+    parser.add_argument("--i_baseline_bright_bar", type=float, default=None,
+                        help="moving_bar_bright: bright-field baseline (pA); overrides --i_baseline_bar")
+    parser.add_argument("--i_baseline_dark_bar", type=float, default=None,
+                        help="moving_bar_dark: dark-field baseline (pA); overrides --i_baseline_bar")
     return parser.parse_args()
 
 
@@ -422,31 +458,42 @@ def main():
     param_modes = parse_kv(args.mode)
     param_fixes = parse_kv(args.fix, float)
     loss_weights = parse_kv(getattr(args, "loss_weight", []) or [], float)
-    target_raw = str(args.target).strip()
-    target_list = [t.strip() for t in target_raw.split(",") if t.strip()]
-    target_single = target_list[0] if len(target_list) == 1 else "tile"
-    if target_single not in ("tile", "moving_bar"):
-        raise SystemExit(f"unknown --target {target_single!r} (expected tile|moving_bar)")
-    if len(target_list) > 1:
-        bad = [t for t in target_list if t not in ("tile", "moving_bar")]
-        if bad:
-            raise SystemExit(f"unknown target(s) in --target: {bad} (expected tile|moving_bar)")
-    center_only = [t.strip() for t in str(args.center_only).split(",") if t.strip()]
-    bad_center = [t for t in center_only if t not in ("tile", "moving_bar")]
+    loss_weights = fc.expand_loss_weights(loss_weights)
+    try:
+        target_list = fc._normalize_target_list(str(args.target).strip())
+    except ValueError as exc:
+        raise SystemExit(str(exc)) from exc
+    target_single = target_list[0]
+    center_only = fc.expand_target_aliases(
+        [t.strip() for t in str(args.center_only).split(",") if t.strip()],
+    )
+    tile_center_names = set(fc.TILE_TARGETS)
+    bar_center_names = set(fc.MOVING_BAR_TARGETS)
+    bad_center = [t for t in center_only if t not in tile_center_names | bar_center_names]
     if bad_center:
-        raise SystemExit(f"unknown target(s) in --center_only: {bad_center} (expected tile|moving_bar)")
-    moving_bar_center_column = "moving_bar" in center_only
-    tile_center_column = "tile" in center_only
-    bar_stimulus_opts = fc.bar_stimulus_opts_from_cli(
+        raise SystemExit(
+            f"unknown target(s) in --center_only: {bad_center} "
+            f"(expected {'|'.join(tile_center_names | bar_center_names)})",
+        )
+    moving_bar_center_column = bool(bar_center_names & set(center_only))
+    tile_center_column = bool(tile_center_names & set(center_only))
+    moving_bar_bright_stimulus_opts = fc.moving_bar_bright_stimulus_opts_from_cli(
         i_baseline_bar=args.i_baseline_bar,
         i_bright_bar=args.i_bright_bar,
-        i_dark_bar=args.i_dark_bar,
         i_baseline_bright_bar=args.i_baseline_bright_bar,
+    )
+    moving_bar_dark_stimulus_opts = fc.moving_bar_dark_stimulus_opts_from_cli(
+        i_baseline_bar=args.i_baseline_bar,
+        i_dark_bar=args.i_dark_bar,
         i_baseline_dark_bar=args.i_baseline_dark_bar,
     )
-    tile_stimulus_opts = fc.tile_stimulus_opts_from_cli(
+    tile_bright_stimulus_opts = fc.tile_bright_stimulus_opts_from_cli(
         i_baseline=args.i_baseline,
         i_bright=args.i_bright,
+    )
+    tile_dark_stimulus_opts = fc.tile_dark_stimulus_opts_from_cli(
+        i_baseline=args.i_baseline,
+        i_dark=args.i_dark,
     )
     outdir = run_dir(args.model_type, parent=args.outdir)
     run_training(args.model_type, args.nofruns, args.nofsteps, args.lrs,
@@ -459,10 +506,13 @@ def main():
                  moving_bar_center_column=moving_bar_center_column,
                  tile_center_column=tile_center_column,
                  per_type=args.per_type,
-                 bar_stimulus_opts=bar_stimulus_opts,
-                 tile_stimulus_opts=tile_stimulus_opts,
+                 moving_bar_bright_stimulus_opts=moving_bar_bright_stimulus_opts,
+                 moving_bar_dark_stimulus_opts=moving_bar_dark_stimulus_opts,
+                 tile_bright_stimulus_opts=tile_bright_stimulus_opts,
+                 tile_dark_stimulus_opts=tile_dark_stimulus_opts,
                  i_baseline=args.i_baseline,
-                 i_bright=args.i_bright)
+                 i_bright=args.i_bright,
+                 i_dark=args.i_dark)
 
 
 if __name__ == "__main__":

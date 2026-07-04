@@ -1,0 +1,59 @@
+{
+  "backend": "network",
+  "target_list": [
+    "moving_bar_bright",
+    "moving_bar_dark"
+  ],
+  "loss_weights": {},
+  "moving_bar_center_column": false,
+  "sequential": true,
+  "network_json": "/home/yitai/drosophila_vision/temporal_filtering/Connectome/FAFBv783/built_network/right_min_neuron1_extent2/network.json",
+  "multi_column": false,
+  "share_edges": false,
+  "tile_center_column": false,
+  "i_baseline": null,
+  "tile_bright_stimulus_opts": null,
+  "tile_dark_stimulus_opts": null,
+  "moving_bar_bright_stimulus_opts": {
+    "target": "moving_bar_bright",
+    "mode": "network",
+    "i_bright_bar": 40.0,
+    "i_dark_bar": 0.0,
+    "t_on": 50,
+    "maxtime": 141,
+    "deltat_ms": 10.0,
+    "center_column": false,
+    "spec_names": [
+      "right_bright_w1",
+      "right_bright_w4",
+      "left_bright_w1",
+      "left_bright_w4",
+      "up_bright_w1",
+      "up_bright_w4",
+      "down_bright_w1",
+      "down_bright_w4"
+    ],
+    "i_baseline_bar": 20.0
+  },
+  "moving_bar_dark_stimulus_opts": {
+    "target": "moving_bar_dark",
+    "mode": "network",
+    "i_bright_bar": 40.0,
+    "i_dark_bar": 0.0,
+    "t_on": 50,
+    "maxtime": 141,
+    "deltat_ms": 10.0,
+    "center_column": false,
+    "spec_names": [
+      "right_dark_w1",
+      "right_dark_w4",
+      "left_dark_w1",
+      "left_dark_w4",
+      "up_dark_w1",
+      "up_dark_w4",
+      "down_dark_w1",
+      "down_dark_w4"
+    ],
+    "i_baseline_bar": 20.0
+  }
+}

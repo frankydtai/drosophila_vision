@@ -123,8 +123,8 @@ def _borst_hex_columns() -> List[HexColumn]:
     return cols
 
 
-def _borst_moving_bar_specs():
-    return gruntman_moving_bar_specs(directions=("right", "left"))
+def _borst_moving_bar_specs(*, contrasts=("bright", "dark")):
+    return gruntman_moving_bar_specs(directions=("right", "left"), contrasts=contrasts)
 
 
 def build_moving_bar_target(
@@ -136,6 +136,7 @@ def build_moving_bar_target(
     use_cache: bool = True,
     center_column: bool = False,
     i_baseline: Optional[float] = None,
+    contrasts: Sequence[str] = ("bright", "dark"),
 ) -> MovingBarTarget:
     """Build moving-bar stimulus + fig1 targets for photo columns × T4/T5 subtypes.
 
@@ -145,8 +146,9 @@ def build_moving_bar_target(
     device = device or C.device
     side = normalize_side(C.meta.get("side", "right"))
 
+    specs = gruntman_moving_bar_specs(contrasts=tuple(contrasts))
     stim = build_moving_bar_signals(
-        C, t_on=t_on, deltat_ms=deltat_ms, device=device, use_cache=use_cache,
+        C, specs=specs, t_on=t_on, deltat_ms=deltat_ms, device=device, use_cache=use_cache,
         network_json=getattr(C, "source_json", None),
         i_baseline=I_BASELINE if i_baseline is None else float(i_baseline),
     )
@@ -239,23 +241,29 @@ def build_borst_moving_bar_target(
     deltat_ms: float = 10.0,
     fig1_path: Path = FIG1_CI_NPZ,
     center_column: bool = False,
+    readout_subtypes: Optional[Sequence[str]] = None,
     i_baseline: float = I_BASELINE,
     i_baseline_bright: Optional[float] = None,
     i_baseline_dark: Optional[float] = None,
     i_bright_bar: float = I_BRIGHT,
     i_dark_bar: float = I_DARK,
+    contrasts: Sequence[str] = ("bright", "dark"),
 ) -> MovingBarTarget:
-    """Build Borst 5-column horizontal moving-bar target for T4/T5 a,b only."""
+    """Build Borst 5-column horizontal moving-bar target for T4/T5 subtypes."""
     device = device or "cpu"
-    specs = _borst_moving_bar_specs()
+    specs = _borst_moving_bar_specs(contrasts=tuple(contrasts))
     cols = _borst_hex_columns()
     field_deg = field_bounds(cols)
     maxtime = moving_bar_maxtime(specs, field_deg, t_on=t_on, deltat_ms=deltat_ms)
     sweep_end = moving_bar_sweep_end_step(specs, field_deg, t_on=t_on, deltat_ms=deltat_ms)
     fig1 = load_fig1_traces(fig1_path, deltat_ms=deltat_ms)
-    present = [st for st in BORST_READOUT_SUBTYPES if st in set(ml.ctype.tolist())]
+    subtype_pool = tuple(readout_subtypes) if readout_subtypes is not None else BORST_READOUT_SUBTYPES
+    present = [st for st in subtype_pool if st in set(ml.ctype.tolist())]
     if not present:
-        raise ValueError("Borst path has no T4a/T4b/T5a/T5b subtypes for moving-bar target")
+        raise ValueError(
+            f"Borst path has no moving-bar readout subtypes in ctype "
+            f"(requested {list(subtype_pool)!r})",
+        )
 
     column_current = build_batched_column_current(
         cols, specs, maxtime, t_on=t_on, deltat_ms=deltat_ms,

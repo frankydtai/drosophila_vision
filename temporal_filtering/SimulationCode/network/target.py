@@ -32,7 +32,7 @@ from typing import Optional
 import numpy as np
 import torch
 
-from Medulla_Library import DATA_AMP, IMPULSE_MAXTIME, I_BASELINE, I_BRIGHT, T_ON, read_RecF_ImpR
+from Medulla_Library import DATA_AMP, I_DARK, IMPULSE_MAXTIME, I_BASELINE, I_BRIGHT, T_ON, read_RecF_ImpR
 from .tiling import (
     FIT_CELL_TYPES,
     build_tiling,
@@ -80,10 +80,15 @@ def build_shifted_target(
     t_on: int = T_ON,
     i_baseline: float = I_BASELINE,
     i_bright: float = I_BRIGHT,
+    i_dark: float = I_DARK,
+    polarity: str = "bright",
     data_amp: float = DATA_AMP,
     device: Optional[str] = None,
     center_column: bool = False,
 ) -> ShiftedTarget:
+    if polarity not in ("bright", "dark"):
+        raise ValueError(f"polarity must be 'bright' or 'dark', got {polarity!r}")
+    i_step = float(i_bright if polarity == "bright" else i_dark)
     device = device or C.device
     recf_data, impr_data = read_RecF_ImpR()  # (13,45), (13,IMPULSE_MAXTIME)
     fit_row = {ft: i for i, ft in enumerate(FIT_CELL_TYPES)}
@@ -109,7 +114,7 @@ def build_shifted_target(
         if len(units):
             idx = torch.as_tensor(units, dtype=torch.long, device=device)
             signal[b, :t_on, idx] = i_baseline
-            signal[b, t_on:, idx] = i_bright
+            signal[b, t_on:, idx] = i_step
 
     resp = slice(t_on, maxtime)  # response window (matches Borst data[t_on:maxtime])
     Tp = maxtime - t_on
@@ -135,7 +140,9 @@ def build_shifted_target(
                     continue
                 row = fit_row[ft]
                 amp = _recf_at(recf_data[row], r)
-                trace = amp * impr_data[row][resp] * data_amp  # (T',)
+                trace = amp * impr_data[row][resp] * data_amp
+                if polarity == "dark":
+                    trace = -trace
                 for uidx in units:
                     r_batch.append(b)
                     r_unit.append(int(uidx))
@@ -164,6 +171,8 @@ def build_shifted_target(
         "share_edges": share_edges,
         "i_baseline": float(i_baseline),
         "i_bright": float(i_bright),
+        "i_dark": float(i_dark),
+        "polarity": str(polarity),
         "t_on": int(t_on),
         "maxtime": int(maxtime),
         "mode": "network",

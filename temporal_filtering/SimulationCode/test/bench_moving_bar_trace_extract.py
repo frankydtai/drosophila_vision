@@ -98,7 +98,7 @@ def main():
     network_json = resolve_network_json(DEFAULT_NETWORK_RUN)
     session = fc.open_session(
         fc.make_train_opts(
-            backend="network", target_list=["moving_bar"],
+            backend="network", target_list=["moving_bar_bright"],
             network=fc.load_network_backend(network_json, dev="cpu").network,
             network_json=network_json,
             multi_column=False, sequential=True, dev="cpu",
@@ -106,7 +106,7 @@ def main():
         "conductance",
     )
     C = session.backend.network
-    specs = gruntman_moving_bar_specs()
+    specs = gruntman_moving_bar_specs(contrasts=("bright",))
     center_only = _moving_bar_center_only(session)
     center_col = center_photo_column(C)
     cols = [center_col] if center_only else photo_columns(C)
@@ -129,7 +129,7 @@ def main():
     z = fc.guess_initial_params(session)
     p = fc.assign_params(z, list(session.schema), session.backend)
     t_fwd0 = time.perf_counter()
-    pack = session.pack_for("moving_bar")
+    pack = session.pack_for("moving_bar_bright")
     model_full = fc._run_conductance_full(session, p, pack.signal).cpu().numpy()
     t_forward = time.perf_counter() - t_fwd0
 

@@ -1,0 +1,40 @@
+Job ID: 26758480
+Node:   spartan-gpgpu014
+GPU:    0
+GPU 0: NVIDIA H100 80GB HBM3 (UUID: GPU-a02f9515-fb7c-dfdd-c73c-24ea59221fbe)
+cuda: True NVIDIA H100 80GB HBM3
+Start:  Sat 04 Jul 2026 01:58:19 AEST
+Borst targets: moving_bar+tile  (packs=['moving_bar', 'tile'], sequential=False)
+device=cuda, model_type=conductance, nofruns=1, nofsteps=10000, lrs=[0.1, 0.01, 0.001], nparams=203, fname=training_with_Ih.npy, outdir=/home/yitai/drosophila_vision/temporal_filtering/SimulationCode/FiveCol_Parameter/conductance/run_26758480
+
+round 0
+
+
+Initl cost = 179.2981
+Final cost = 66.8274
+Best  cost = 59.4063
+time needed  = 2495.03  sec
+
+
+Initl cost = 59.4063
+Final cost = 56.4430
+Best  cost = 56.3731
+time needed  = 2484.83  sec
+
+
+Initl cost = 56.3731
+Final cost = 55.9264
+Best  cost = 55.8994
+time needed  = 2486.54  sec
+
+done in 2.07 hours
+wrote table: /home/yitai/drosophila_vision/temporal_filtering/SimulationCode/FiveCol_Parameter/conductance/run_26758480/training_with_Ih_table.csv (best run #0, cost=55.8994)
+plot device=cuda (NVIDIA H100 80GB HBM3)
+1 trained set(s); selected #0 (cost=55.8994)
+Borst targets: moving_bar  (packs=['moving_bar'], sequential=False)
+plot_model_all_moving_bar: traces=0.0s  draw=30.5s  savefig=5.0s  total=35.6s
+Borst targets: tile  (packs=['tile'], sequential=False)
+plots saved to /home/yitai/drosophila_vision/temporal_filtering/SimulationCode/FiveCol_Parameter/conductance/run_26758480
+tile cost cells: 105
+done -> /home/yitai/drosophila_vision/temporal_filtering/SimulationCode/FiveCol_Parameter/conductance/run_26758480
+End:    Sat 04 Jul 2026 04:03:44 AEST

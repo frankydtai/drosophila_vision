@@ -1,0 +1,45 @@
+{
+  "backend": "borst",
+  "target_list": [
+    "tile"
+  ],
+  "loss_weights": {},
+  "moving_bar_center_column": false,
+  "sequential": true,
+  "bar_stimulus_opts": null,
+  "tile_stimulus_opts": {
+    "target": "tile",
+    "mode": "borst",
+    "i_baseline": 20.0,
+    "i_bright": 40.0,
+    "t_on": 50,
+    "maxtime": 200,
+    "deltat_ms": 10.0
+  },
+  "pack_overrides": {
+    "tile": {
+      "mirror_fits": [
+        {
+          "mirror_types": [
+            "T4a",
+            "T4b",
+            "T4c",
+            "T4d"
+          ],
+          "mirror_fit": "L4",
+          "mirror_sign": -1.0
+        },
+        {
+          "mirror_types": [
+            "T5a",
+            "T5b",
+            "T5c",
+            "T5d"
+          ],
+          "mirror_fit": "L5",
+          "mirror_sign": -1.0
+        }
+      ]
+    }
+  }
+}

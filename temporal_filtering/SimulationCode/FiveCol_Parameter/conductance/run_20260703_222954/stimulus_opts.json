@@ -1,9 +1,0 @@
-{
-  "target": "tile",
-  "mode": "borst",
-  "signal_baseline": 0.0,
-  "signal_bright": 40.0,
-  "t_on": 50,
-  "maxtime": 145,
-  "deltat_ms": 10.0
-}

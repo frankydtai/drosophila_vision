@@ -7,7 +7,6 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(HERE)
 sys.path.insert(0, ROOT)
 os.chdir(ROOT)
-os.environ['CUDA_VISIBLE_DEVICES'] = ''
 
 import numpy as np
 
@@ -25,8 +24,20 @@ ap.add_argument('--network', default=None, metavar='RUN',
 ap.add_argument('--nofruns', type=int, default=1)
 ap.add_argument('--nofsteps', type=int, default=100)
 ap.add_argument('--lrs', type=float, nargs='+', default=[0.1])
+ap.add_argument(
+    '--target',
+    default='tile_bright',
+    help="target name(s): tile (=bright+dark), moving_bar (=bright+dark), or explicit names",
+)
+ap.add_argument('--per_type', action='store_true',
+                help='train Ih (and adaptive lamina) params per cell type')
 args = ap.parse_args()
 MODEL = args.model_type
+try:
+    target_list = fc._normalize_target_list(args.target)
+except ValueError as exc:
+    ap.error(str(exc))
+target = target_list[0]
 
 CTYPE = np.load(os.path.join(ROOT, 'Circuits', 'ctype.npy'), allow_pickle=True)
 R_NAMES = [str(CTYPE[i]) for i in range(ml.N_PHOTORECEPTORS)]
@@ -35,15 +46,24 @@ INDEP_R_NAMES = R_NAMES[6:8]
 MIRROR_FIT_CELL = 'L1'
 MIRROR_SIGN = -1.0
 
-PACK_OVERRIDES = {
-    'tile': {
-        'mirror_fit': {
-            'mirror_types': R_NAMES,
-            'mirror_fit': MIRROR_FIT_CELL,
-            'mirror_sign': MIRROR_SIGN,
-        },
+R_MIRROR = {
+    'mirror_fit': {
+        'mirror_types': R_NAMES,
+        'mirror_fit': MIRROR_FIT_CELL,
+        'mirror_sign': MIRROR_SIGN,
     },
 }
+
+PACK_OVERRIDES = {
+    t: dict(R_MIRROR) for t in target_list if t in fc.TILE_TARGETS
+}
+
+
+def mirror_ref_cubes(dark=False):
+    ref = pt.default_ref_cubes(dark=dark)
+    for name in R_NAMES:
+        ref[name] = MIRROR_SIGN * ref[MIRROR_FIT_CELL]
+    return ref
 
 
 def group_lamina(schema, names, grp):
@@ -86,18 +106,31 @@ for name in lamina_names:
     seg = next(s for s in schema if s['name'] == name)
     print('%s groups: %s  trainable values: %d' % (name, groups, fc.seg_count(seg)))
 
-ref = pt.default_ref_cubes()
-for name in R_NAMES:
-    ref[name] = MIRROR_SIGN * ref[MIRROR_FIT_CELL]
-tile_plot.REF_CUBES = ref
-tile_plot.MVD_GROUPS = [np.array(R_NAMES)] + tile_plot.DEFAULT_MVD_GROUPS
+tile_targets = [t for t in target_list if t in fc.TILE_TARGETS]
+plot_ref_cubes = plot_ref_cubes_off = None
+if 'tile_bright' in tile_targets and 'tile_dark' in tile_targets:
+    plot_ref_cubes = mirror_ref_cubes(dark=False)
+    plot_ref_cubes_off = mirror_ref_cubes(dark=True)
+elif 'tile_dark' in tile_targets:
+    plot_ref_cubes = mirror_ref_cubes(dark=True)
+elif 'tile_bright' in tile_targets:
+    plot_ref_cubes = mirror_ref_cubes(dark=False)
+
+plot_mvd_groups = [np.array(R_NAMES)] + tile_plot.DEFAULT_MVD_GROUPS
 
 fname, outdir, session = run.run_training(
     MODEL, args.nofruns, args.nofsteps, args.lrs,
     network=args.network,
+    target=target,
+    target_list=(target_list if len(target_list) > 1 else None),
     pack_overrides=PACK_OVERRIDES,
     model_backend=model_backend,
     schema=schema,
+    per_type=args.per_type,
+    plot_ref_cubes=plot_ref_cubes,
+    plot_ref_cubes_off=plot_ref_cubes_off,
+    plot_mvd_group_list=plot_mvd_groups,
 )
-print('cost cells:', int(session.pack_for('tile').readout_unit.shape[0]))
+for tname in tile_targets:
+    print(f'{tname} cost cells:', int(session.pack_for(tname).readout_unit.shape[0]))
 print('done ->', outdir)

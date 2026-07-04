@@ -31,28 +31,16 @@ alwaysApply: true
   `_table.csv`, `cost_curve.png`, `best_param.npy`, `model_type.txt`, `train_opts.json`,
   ``*_final_costs.npy`` (per-run costs), ``*_costs.npy`` (best-run training cost curve),
   and the model-vs-data PNGs for each trained target. Never save only a subset.
-- Plot PNG names (from ``plot_trained.plot_param_set``):
-  - tile: `model_data_tile.png`, `model_all_tile.png` (Borst 5-column or network)
-  - moving_bar: `model_data_bar.png`, `model_all_bar.png`
-  - multi-target runs write one pair per target (e.g. both tile and bar when both are trained).
 - Use run.py's naming. Do NOT invent names (no `results.txt`, no `*_outscale_table.csv`).
 
 ## 6. run.py stays minimal
 - `run.py` holds only verified, general functions. Do NOT add test-only code to it.
 
-## 7. Clean output dir
-- Output dir contains ONLY `adaptive/` and `conductance/` — no `test/` subdir.
+## 7. Clean CSVs
 - CSVs must be strictly rectangular (uniform columns, no comment/blank/ragged lines);
   fold global scalars into the table as constant columns.
 
-## 8. Claims need experimental evidence
-- Do not assert behavior (e.g. "scale makes it stable") without an experiment + data.
-  Never conclude from a single loss number.
-
-## 9. Naming
-- Use clear, meaningful names. No vague/ad-hoc names.
-
-## 10. Directories live in the I/O module, never hardcoded
+## 8. Directories live in the I/O module, never hardcoded
 - ALL data directories MUST be defined once as constants in the shared I/O module
   (e.g. `connectome_io.py`: `DATA_DIR`, `RAW_DIR`, `NETWORK_DIR`, `COLUMN_MAP_DIR`,
   `COLUMN_LOCATION_DIR`). Other scripts import and use these — never re-derive a
@@ -67,9 +55,30 @@ alwaysApply: true
   migrate these to `connectome_io`, refactor them, or report them as a convention
   violation in reviews or audits.
 
-## 11. Adding new scripts requires prior approval
+## 9. Adding new scripts requires prior approval
 - Before creating **any new script file** (`*.py`, `*.sh`, or similar), Agent must:
   - First explain **why a new script is necessary** instead of extending an existing one.
   - Propose the **script name, location, and rough responsibilities**.
   - **Wait for explicit approval from the user** in chat.
 - It is **strictly forbidden** to create new scripts without this prior approval.
+
+## 10. No backward compatibility — always the cleanest current form
+- When changing names, formats, CLI flags, sidecar fields, target names, or APIs:
+  **never** keep aliases, shims, dual-path loaders, or “migrate old → new” helpers.
+- **Forbidden:** accepting both old and new values (e.g. `tile` and `tile_bright`),
+  auto-rewriting legacy `train_opts.json`, deprecated parameters kept “just in case”,
+  compatibility branches in `open_session` / loaders / plot code.
+- **Required:** one canonical name and one code path; update all **core** callers in the
+  same change; delete superseded symbols instead of leaving them commented or re-exported.
+  (Test/experiment scripts are excluded — see §13.)
+- Prefer the **smallest diff** that fully switches to the new form — no extra layers
+  added solely to support old runs, old sidecars, or old scripts.
+- Old output folders and saved artifacts are historical data, not a contract: replot or
+  re-run if needed; do not bend the codebase to read obsolete layouts.
+
+## 11. Core changes do not chase test scripts
+- When modifying **core** scripts (`run.py`, `fc.py`, schema, plot/load utilities, etc.),
+  do **not** update test or experiment scripts to match.
+- Do **not** fix import errors, renamed APIs, or broken calls in tests as part of a core
+  change — let them fail until the user updates or deletes them separately.
+- Scope a core refactor to core code only; never expand the diff to keep tests green.

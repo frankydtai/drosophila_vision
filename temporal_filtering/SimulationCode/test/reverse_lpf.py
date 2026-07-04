@@ -16,7 +16,7 @@ import Medulla_Library as ml
 import FiveCol_MedSim_Pytorch as fc
 from training_config import PARAMETER_DIR
 
-session = fc.open_session(fc.make_train_opts(backend='borst', target_list=['tile']), 'conductance')
+session = fc.open_session(fc.make_train_opts(backend='borst', target_list=['tile_bright']), 'conductance')
 schema = list(session.schema)
 
 z138 = np.load(str(PARAMETER_DIR / 'with_Ih' / 'best_parameter.npy'))

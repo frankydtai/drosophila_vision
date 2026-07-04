@@ -25,9 +25,6 @@ CENTER_COL = ml.CENTER_COL
 CTYPE = np.load('Circuits/ctype.npy', allow_pickle=True)
 CENTER_NEURON_OFFSET = ml.column_start(CENTER_COL)
 
-REF_CUBES = None
-MVD_GROUPS = None
-
 DEFAULT_MVD_GROUPS = [
     np.array(['L1', 'L2', 'L3', 'L4', 'L5']),
     np.array(['Mi1', 'Mi4', 'Mi9']),
@@ -35,21 +32,25 @@ DEFAULT_MVD_GROUPS = [
 ]
 
 
-def default_ref_cubes():
-    ref = ml.read_RecF_data() * ml.DATA_AMP
+def default_ref_cubes(dark=False):
+    data = ml.read_RecF_data_dark() if dark else ml.read_RecF_data()
+    ref = data * ml.DATA_AMP
     return {name: ref[i] for i, name in enumerate(CELL_LIST)}
 
 
-def reference_cube(name):
-    global REF_CUBES
-    if REF_CUBES is None:
-        REF_CUBES = default_ref_cubes()
-    return REF_CUBES.get(str(name))
+def reference_cube(name, ref_cubes=None, dark=False):
+    if ref_cubes is not None:
+        return ref_cubes.get(str(name))
+    return default_ref_cubes(dark=dark).get(str(name))
 
 
-def mvd_groups():
-    groups = MVD_GROUPS if MVD_GROUPS is not None else DEFAULT_MVD_GROUPS
-    return [np.asarray(g) for g in groups if len(g) > 0]
+def _session_dark(session):
+    return session.primary_pack.name == "tile_dark"
+
+
+def mvd_groups(groups=None):
+    src = DEFAULT_MVD_GROUPS if groups is None else groups
+    return [np.asarray(g) for g in src if len(g) > 0]
 
 
 def _scale_curve(xt, center, sem_xt=None):
@@ -101,6 +102,9 @@ def plot_cell_pair_axes(
     show_ylabel=False,
     baseline=None,
     maxtime=ml.IMPULSE_MAXTIME,
+    off_model_xt=None,
+    off_ref_xt=None,
+    off_baseline=None,
 ):
     center = CENTER_COL + 2
     imp_model, rf_model = _scale_curve(model_xt, center)
@@ -108,11 +112,23 @@ def plot_cell_pair_axes(
         imp_data, rf_data = _scale_curve(ref_xt, center)
     else:
         imp_data, rf_data = None, None
-    curves = [c for c in (imp_model, imp_data, rf_model, rf_data) if c is not None]
+    off_imp_model = off_rf_model = off_imp_data = off_rf_data = None
+    if off_model_xt is not None:
+        off_imp_model, off_rf_model = _scale_curve(off_model_xt, center)
+    if off_ref_xt is not None:
+        off_imp_data, off_rf_data = _scale_curve(off_ref_xt, center)
+    curves = [c for c in (
+        imp_model, imp_data, rf_model, rf_data,
+        off_imp_model, off_imp_data, off_rf_model, off_rf_data,
+    ) if c is not None]
     ylo, yhi = _nice_ylim(*curves)
 
-    ax_rf.plot(rf_data, color='gray', linewidth=1.5, label='data') if rf_data is not None else None
-    ax_rf.plot(rf_model, color='red', linewidth=1.5, label='model')
+    ax_rf.plot(rf_data, color='gray', linewidth=1.5, label='on data') if rf_data is not None else None
+    ax_rf.plot(rf_model, color='red', linewidth=1.5, label='on model')
+    if off_rf_data is not None:
+        ax_rf.plot(off_rf_data, color='gray', linewidth=1.5, linestyle='--', label='off data')
+    if off_rf_model is not None:
+        ax_rf.plot(off_rf_model, color='red', linewidth=1.5, linestyle='--', label='off model')
     ax_rf.set_title(title, fontsize=8, pad=2)
     ax_rf.set_ylim(ylo, yhi)
     _style_azimuth_axis(ax_rf, show_xlabels)
@@ -125,12 +141,16 @@ def plot_cell_pair_axes(
 
     ax_time.plot(imp_data, color='gray', linewidth=1.5) if imp_data is not None else None
     ax_time.plot(imp_model, color='red', linewidth=1.5)
+    if off_imp_data is not None:
+        ax_time.plot(off_imp_data, color='gray', linewidth=1.5, linestyle='--')
+    if off_imp_model is not None:
+        ax_time.plot(off_imp_model, color='red', linewidth=1.5, linestyle='--')
     ax_time.set_ylim(ylo, yhi)
     _style_time_axis(ax_time, show_xlabels, maxtime)
     if show_ylabel:
         ax_time.set_ylabel('mV', fontsize=7)
     ax_time.tick_params(labelsize=6)
-    _annotate_baseline(ax_time, baseline)
+    _annotate_baseline(ax_time, off_baseline if off_baseline is not None else baseline)
 
 
 def plot_cell_pair_sem(
@@ -144,6 +164,8 @@ def plot_cell_pair_sem(
     show_xlabels=False,
     show_ylabel=False,
     maxtime=ml.IMPULSE_MAXTIME,
+    off_model_xt=None,
+    off_ref_xt=None,
 ):
     center = 4
     imp_model, rf_model, imp_sem = _scale_curve(model_xt, center, sem_xt)
@@ -151,13 +173,25 @@ def plot_cell_pair_sem(
         imp_data, rf_data = _scale_curve(ref_xt, center)
     else:
         imp_data, rf_data = None, None
-    curves = [c for c in (imp_model, imp_model + imp_sem, imp_model - imp_sem,
-                          rf_model, imp_data, rf_data) if c is not None]
+    off_imp_model = off_rf_model = off_imp_data = off_rf_data = None
+    if off_model_xt is not None:
+        off_imp_model, off_rf_model = _scale_curve(off_model_xt, center)
+    if off_ref_xt is not None:
+        off_imp_data, off_rf_data = _scale_curve(off_ref_xt, center)
+    curves = [c for c in (
+        imp_model, imp_model + imp_sem, imp_model - imp_sem,
+        rf_model, imp_data, rf_data,
+        off_imp_model, off_rf_model, off_imp_data, off_rf_data,
+    ) if c is not None]
     ylo, yhi = _nice_ylim(*curves)
 
     if rf_data is not None:
-        ax_rf.plot(rf_data, color='gray', linewidth=1.5, label='data')
-    ax_rf.plot(rf_model, color='red', linewidth=1.5, label='model')
+        ax_rf.plot(rf_data, color='gray', linewidth=1.5, label='on data')
+    ax_rf.plot(rf_model, color='red', linewidth=1.5, label='on model')
+    if off_rf_data is not None:
+        ax_rf.plot(off_rf_data, color='gray', linewidth=1.5, linestyle='--', label='off data')
+    if off_rf_model is not None:
+        ax_rf.plot(off_rf_model, color='red', linewidth=1.5, linestyle='--', label='off model')
     ax_rf.set_title(title, fontsize=8, pad=2)
     ax_rf.set_ylim(ylo, yhi)
     _style_azimuth_axis(ax_rf, show_xlabels)
@@ -175,6 +209,10 @@ def plot_cell_pair_sem(
         color='pink', alpha=0.8, linewidth=0, label='$\\pm$SEM',
     )
     ax_time.plot(imp_model, color='red', linewidth=1.5)
+    if off_imp_data is not None:
+        ax_time.plot(off_imp_data, color='gray', linewidth=1.5, linestyle='--')
+    if off_imp_model is not None:
+        ax_time.plot(off_imp_model, color='red', linewidth=1.5, linestyle='--')
     ax_time.set_ylim(ylo, yhi)
     _style_time_axis(ax_time, show_xlabels, maxtime)
     if show_ylabel:
@@ -239,21 +277,6 @@ def _simulate(session, z, neuron_index, return_ref=False):
     return _simulate_filtered_traces(session, z, neuron_index, return_ref=return_ref)
 
 
-def calc_model_trace(session, z):
-    return _simulate(session, z, session.primary_pack.readout_unit)
-
-
-def calc_center_column_trace(session, z):
-    n_types = session.backend.n_types
-    center_index = torch.arange(
-        CENTER_NEURON_OFFSET,
-        CENTER_NEURON_OFFSET + n_types,
-        dtype=torch.long,
-        device=z.device,
-    )
-    return _simulate(session, z, center_index)
-
-
 def calc_model_full_all(session, z, return_ref=False):
     n_types = session.backend.n_types
     mt = session.maxtime
@@ -278,7 +301,7 @@ def calc_model_full_all(session, z, return_ref=False):
 
 
 @torch.no_grad()
-def multicol_cube(session, z):
+def multicol_cube(session, z, all_cells=False):
     pack = session.primary_pack
     schema = list(session.schema)
     p = fc.assign_params(z, schema, session.backend)
@@ -292,7 +315,10 @@ def multicol_cube(session, z):
     type_idx = C.node_type[pack.readout_unit].cpu().numpy()
     type_names = list(C.type_names)
 
-    names = [ft for ft in CELL_LIST if ft in type_names]
+    if all_cells:
+        names = [str(n) for n in type_names]
+    else:
+        names = [ft for ft in CELL_LIST if ft in type_names]
     mt = session.maxtime
     cube = np.zeros((len(names), 9, mt))
     sem = np.zeros((len(names), 9, mt))
@@ -313,11 +339,31 @@ def multicol_cube(session, z):
     return names, cube, sem
 
 
-def plot_model_data_network(session, z, path, title=None):
-    names, cube, sem = multicol_cube(session, z)
-    ncols = 5
+def plot_network_tile(session_on, z, path, *, session_off=None, all_cells=False,
+                      title, ref_cubes=None, ref_cubes_off=None):
+    """Network tile figure; optional on+off overlay (off dashed)."""
+    names, cube_on, sem_on = multicol_cube(session_on, z, all_cells=all_cells)
+    cube_off = None
+    if session_off is not None:
+        _, cube_off, _ = multicol_cube(session_off, z, all_cells=all_cells)
+    dual = session_off is not None
+    if ref_cubes is not None:
+        ref_on = ref_cubes
+    elif dual:
+        ref_on = default_ref_cubes(dark=False)
+    else:
+        ref_on = default_ref_cubes(dark=_session_dark(session_on))
+    if ref_cubes_off is not None:
+        ref_off = ref_cubes_off
+    elif dual:
+        ref_off = default_ref_cubes(dark=True)
+    else:
+        ref_off = None
+
+    ncols = 5 if not all_cells else 8
     nrows = 2 * ((len(names) + ncols - 1) // ncols)
-    fig = plt.figure(figsize=(3.0 * ncols, 2.5 * nrows))
+    fig_w = 3.0 if not all_cells else 2.2
+    fig = plt.figure(figsize=(fig_w * ncols, 2.5 * nrows))
     gs = fig.add_gridspec(nrows, ncols, hspace=0.55, wspace=0.55,
                           top=0.93, bottom=0.06, left=0.07, right=0.98)
     legend_done = False
@@ -325,94 +371,104 @@ def plot_model_data_network(session, z, path, title=None):
         blk, col = divmod(i, ncols)
         ax_rf = fig.add_subplot(gs[2 * blk, col])
         ax_time = fig.add_subplot(gs[2 * blk + 1, col])
+        off_kw = {}
+        if dual:
+            off_kw = {
+                'off_model_xt': cube_off[i],
+                'off_ref_xt': ref_off.get(name) if ref_off else None,
+            }
         plot_cell_pair_sem(
-            ax_rf, ax_time, cube[i], sem[i], reference_cube(name), name,
+            ax_rf, ax_time, cube_on[i], sem_on[i], ref_on.get(name), name,
             show_legend=not legend_done, show_xlabels=True, show_ylabel=(col == 0),
-            maxtime=session.maxtime,
+            maxtime=session_on.maxtime,
+            **off_kw,
         )
         legend_done = True
-    if title is None:
-        title = 'Network model-data'
-    fig.suptitle(title + '  [avg over tiles x 7 shifts x ring]', fontsize=12)
-    fig.savefig(path, dpi=150)
-    plt.close(fig)
-
-
-def plot_cost(costs, path):
-    plt.figure(figsize=(8, 4))
-    plt.plot(costs, color='steelblue', linewidth=2)
-    plt.xlabel('step')
-    plt.ylabel('cost [% data power]')
-    plt.title(f'Training cost ({len(costs)} steps)')
-    plt.grid(True, alpha=0.3)
-    plt.tight_layout()
-    plt.savefig(path, dpi=150)
-    plt.close()
-
-
-def plot_model_data(session, z, path, n_steps=None, title=None):
-    model_full, ref_full = calc_model_full_all(session, z, return_ref=True)
-
-    groups = mvd_groups()
-    ncols = 13
-    nrows = 2 * len(groups)
-    fig = plt.figure(figsize=(16, 2.5 * nrows))
-    gs = fig.add_gridspec(nrows, ncols, hspace=0.5, wspace=0.55,
-                          top=0.95, bottom=0.05, left=0.06, right=0.98)
-
-    legend_done = False
-    for gi, names in enumerate(groups):
-        rf_row = 2 * gi
-        start = (ncols - len(names)) // 2
-        for j, name in enumerate(names):
-            col = start + j
-            ctype_i = int(np.where(CTYPE == name)[0][0])
-            ax_rf = fig.add_subplot(gs[rf_row, col])
-            ax_time = fig.add_subplot(gs[rf_row + 1, col])
-            plot_cell_pair_axes(
-                ax_rf, ax_time, model_full[ctype_i], reference_cube(name), name,
-                show_legend=not legend_done,
-                show_xlabels=True,
-                show_ylabel=(j == 0),
-                baseline=ref_full[ctype_i, CENTER_COL + 2],
-                maxtime=session.maxtime,
-            )
-            legend_done = True
-
-    if title is None:
-        title = f'Model-data after {n_steps} steps (center column)'
     fig.suptitle(title, fontsize=12)
     fig.savefig(path, dpi=150)
     plt.close(fig)
 
 
-def plot_model_all(session, z, path, n_steps=None, title=None):
-    model_full, ref_full = calc_model_full_all(session, z, return_ref=True)
-    n_types = session.backend.n_types
+def plot_borst_tile(session_on, z, path, *, session_off=None, all_cells=False,
+                    title, ref_cubes=None, ref_cubes_off=None, mvd_group_list=None):
+    """Borst tile figure; optional on+off overlay (off dashed)."""
+    model_on, ref_on = calc_model_full_all(session_on, z, return_ref=True)
+    model_off = ref_off = None
+    if session_off is not None:
+        model_off, ref_off = calc_model_full_all(session_off, z, return_ref=True)
+    dual = session_off is not None
+    if ref_cubes is not None:
+        ref_on_cubes = ref_cubes
+    elif dual:
+        ref_on_cubes = default_ref_cubes(dark=False)
+    else:
+        ref_on_cubes = default_ref_cubes(dark=_session_dark(session_on))
+    if ref_cubes_off is not None:
+        ref_off_cubes = ref_cubes_off
+    elif dual:
+        ref_off_cubes = default_ref_cubes(dark=True)
+    else:
+        ref_off_cubes = None
+    maxtime = session_on.maxtime
+
+    def _ref(name):
+        return ref_on_cubes.get(name)
+
+    def _off_kw(row_i, name):
+        if not dual:
+            return {}
+        return {
+            'off_model_xt': model_off[row_i],
+            'off_ref_xt': ref_off_cubes.get(name),
+            'off_baseline': ref_off[row_i, CENTER_COL + 2],
+        }
 
     ncols = 13
-    fig = plt.figure(figsize=(26, 32))
-    gs = fig.add_gridspec(10, ncols, hspace=0.65, wspace=0.45,
-                          top=0.97, bottom=0.03, left=0.04, right=0.99)
+    if all_cells:
+        n_types = session_on.backend.n_types
+        fig = plt.figure(figsize=(26, 32))
+        gs = fig.add_gridspec(10, ncols, hspace=0.65, wspace=0.45,
+                              top=0.97, bottom=0.03, left=0.04, right=0.99)
+        for i in range(n_types):
+            row, col = divmod(i, ncols)
+            name = str(CTYPE[i])
+            ax_rf = fig.add_subplot(gs[row * 2, col])
+            ax_time = fig.add_subplot(gs[row * 2 + 1, col])
+            plot_cell_pair_axes(
+                ax_rf, ax_time, model_on[i], _ref(name), name,
+                show_legend=(i == 0),
+                show_xlabels=(row == 4),
+                show_ylabel=(col == 0),
+                baseline=ref_on[i, CENTER_COL + 2],
+                maxtime=maxtime,
+                **_off_kw(i, name),
+            )
+    else:
+        groups = mvd_groups(mvd_group_list)
+        nrows = 2 * len(groups)
+        fig = plt.figure(figsize=(16, 2.5 * nrows))
+        gs = fig.add_gridspec(nrows, ncols, hspace=0.5, wspace=0.55,
+                              top=0.95, bottom=0.05, left=0.06, right=0.98)
+        legend_done = False
+        for gi, names in enumerate(groups):
+            rf_row = 2 * gi
+            start = (ncols - len(names)) // 2
+            for j, name in enumerate(names):
+                col = start + j
+                ctype_i = int(np.where(CTYPE == name)[0][0])
+                ax_rf = fig.add_subplot(gs[rf_row, col])
+                ax_time = fig.add_subplot(gs[rf_row + 1, col])
+                plot_cell_pair_axes(
+                    ax_rf, ax_time, model_on[ctype_i], _ref(name), name,
+                    show_legend=not legend_done,
+                    show_xlabels=True,
+                    show_ylabel=(j == 0),
+                    baseline=ref_on[ctype_i, CENTER_COL + 2],
+                    maxtime=maxtime,
+                    **_off_kw(ctype_i, name),
+                )
+                legend_done = True
 
-    for i in range(n_types):
-        row, col = divmod(i, ncols)
-        name = str(CTYPE[i])
-        ref_xt = reference_cube(name)
-        ax_rf = fig.add_subplot(gs[row * 2, col])
-        ax_time = fig.add_subplot(gs[row * 2 + 1, col])
-        plot_cell_pair_axes(
-            ax_rf, ax_time, model_full[i], ref_xt, name,
-            show_legend=(i == 0),
-            show_xlabels=(row == 4),
-            show_ylabel=(col == 0),
-            baseline=ref_full[i, CENTER_COL + 2],
-            maxtime=session.maxtime,
-        )
-
-    if title is None:
-        title = f'Model-all {n_types} cells after {n_steps} steps'
-    fig.suptitle(title, fontsize=14)
+    fig.suptitle(title, fontsize=12 if not all_cells else 14)
     fig.savefig(path, dpi=150)
     plt.close(fig)
-

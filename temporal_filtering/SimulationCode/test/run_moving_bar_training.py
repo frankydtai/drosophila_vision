@@ -34,7 +34,7 @@ def main():
         nofsteps=5,
         lrs=[0.1],
         network=args.network,
-        target="moving_bar",
+        target="moving_bar_bright",
         sequential=True,
     )
     expected = {

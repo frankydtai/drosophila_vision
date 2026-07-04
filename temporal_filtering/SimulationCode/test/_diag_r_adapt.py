@@ -15,7 +15,7 @@ for s in schema:
     if s['name'] in ('adapt_gain', 'tau_adapt'):
         s['cells'] = groups
 session = fc.open_session(
-    fc.make_train_opts(backend='borst', target_list=['tile']),
+    fc.make_train_opts(backend='borst', target_list=['tile_bright']),
     'adaptive', schema=schema, model_backend=mb,
 )
 
