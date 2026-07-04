@@ -169,6 +169,10 @@ def _column_uv(columns: Sequence[PhotoColumn]) -> List[Tuple[int, int]]:
     return [(c.u, c.v) for c in columns]
 
 
+def _spec_contrast_set(specs: Sequence[MovingBarSpec]) -> frozenset:
+    return frozenset(s.contrast for s in specs)
+
+
 def _moving_bar_cache_key(
     network_json: Path,
     specs: Sequence[MovingBarSpec],
@@ -177,6 +181,8 @@ def _moving_bar_cache_key(
     t_on: int,
     deltat_ms: float,
     i_baseline: float,
+    i_bright_bar: Optional[float] = None,
+    i_dark_bar: Optional[float] = None,
 ) -> str:
     stat = network_json.stat()
     payload = {
@@ -197,9 +203,11 @@ def _moving_bar_cache_key(
         "t_on": t_on,
         "deltat_ms": deltat_ms,
         "i_baseline": i_baseline,
-        "i_bright_bar": I_BRIGHT,
-        "i_dark_bar": I_DARK,
     }
+    if i_bright_bar is not None:
+        payload["i_bright_bar"] = i_bright_bar
+    if i_dark_bar is not None:
+        payload["i_dark_bar"] = i_dark_bar
     digest = hashlib.sha256(json.dumps(payload, sort_keys=True).encode()).hexdigest()
     return digest[:16]
 
@@ -212,9 +220,12 @@ def _moving_bar_cache_path(
     t_on: int,
     deltat_ms: float,
     i_baseline: float,
+    i_bright_bar: Optional[float] = None,
+    i_dark_bar: Optional[float] = None,
 ) -> Path:
     key = _moving_bar_cache_key(
-        network_json, specs, column_uv, maxtime, t_on, deltat_ms, i_baseline,
+        network_json, specs, column_uv, maxtime, t_on, deltat_ms,
+        i_baseline, i_bright_bar, i_dark_bar,
     )
     return moving_bar_cache_dir(network_json) / f"{key}.npz"
 
@@ -243,6 +254,8 @@ def build_moving_bar_signals(
     t_on: int = T_ON,
     deltat_ms: float = 10.0,
     i_baseline: float = I_BASELINE,
+    i_bright_bar: Optional[float] = None,
+    i_dark_bar: Optional[float] = None,
     device: Optional[str] = None,
     use_cache: bool = True,
     refresh_cache: bool = False,
@@ -265,6 +278,13 @@ def build_moving_bar_signals(
     """
     device = device or C.device
     specs = list(specs if specs is not None else gruntman_moving_bar_specs())
+    contrasts = _spec_contrast_set(specs)
+    i_bright = None
+    i_dark = None
+    if "bright" in contrasts:
+        i_bright = I_BRIGHT if i_bright_bar is None else float(i_bright_bar)
+    if "dark" in contrasts:
+        i_dark = I_DARK if i_dark_bar is None else float(i_dark_bar)
     photo_cols = _photo_columns(C)
     hex_cols = _as_hex_columns(photo_cols)
     field_deg = field_bounds(hex_cols)
@@ -281,7 +301,8 @@ def build_moving_bar_signals(
     column_uv = _column_uv(photo_cols)
     if source_json is not None:
         cache_path = _moving_bar_cache_path(
-            source_json, specs, column_uv, maxtime, t_on, deltat_ms, i_baseline,
+            source_json, specs, column_uv, maxtime, t_on, deltat_ms,
+            i_baseline, i_bright, i_dark,
         )
 
     col_curr: Optional[np.ndarray] = None
@@ -294,6 +315,8 @@ def build_moving_bar_signals(
         col_curr = build_batched_column_current(
             hex_cols, specs, maxtime=maxtime, t_on=t_on, deltat_ms=deltat_ms,
             i_baseline=i_baseline,
+            i_bright_bar=i_bright,
+            i_dark_bar=i_dark,
         )
         if cache_path is not None and use_cache:
             _save_moving_bar_column_cache(cache_path, col_curr)
@@ -312,12 +335,14 @@ def build_moving_bar_signals(
         "sweep_time_s": sweep_steps * deltat_ms / 1000.0,
         "tail_steps": tail_steps,
         "tail_time_s": tail_steps * deltat_ms / 1000.0,
-        "i_bright_bar": I_BRIGHT,
-        "i_dark_bar": I_DARK,
-        "i_baseline_bar": i_baseline,
+        "i_baseline": i_baseline,
         "speed_deg_s": specs[0].speed_deg_s if specs else GRUNTMAN_SPEED_DEG_S,
         "spec_names": [s.name for s in specs],
     }
+    if i_bright is not None:
+        info["i_bright_bar"] = i_bright
+    if i_dark is not None:
+        info["i_dark_bar"] = i_dark
     return MovingBarStimulus(
         signal=torch.as_tensor(signal_np, dtype=torch.float64, device=device),
         column_current=col_curr,

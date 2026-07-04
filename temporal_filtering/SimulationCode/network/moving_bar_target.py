@@ -127,6 +127,22 @@ def _borst_moving_bar_specs(*, contrasts=("bright", "dark")):
     return gruntman_moving_bar_specs(directions=("right", "left"), contrasts=contrasts)
 
 
+def _moving_bar_peak_kwargs(
+    contrasts: Sequence[str],
+    *,
+    i_bright_bar: Optional[float] = None,
+    i_dark_bar: Optional[float] = None,
+) -> dict:
+    """Peak-current kwargs for specs that only include the relevant contrasts."""
+    contrast_set = frozenset(contrasts)
+    kw = {}
+    if "bright" in contrast_set and i_bright_bar is not None:
+        kw["i_bright_bar"] = float(i_bright_bar)
+    if "dark" in contrast_set and i_dark_bar is not None:
+        kw["i_dark_bar"] = float(i_dark_bar)
+    return kw
+
+
 def build_moving_bar_target(
     C,
     device: Optional[str] = None,
@@ -136,6 +152,8 @@ def build_moving_bar_target(
     use_cache: bool = True,
     center_column: bool = False,
     i_baseline: Optional[float] = None,
+    i_bright_bar: Optional[float] = None,
+    i_dark_bar: Optional[float] = None,
     contrasts: Sequence[str] = ("bright", "dark"),
 ) -> MovingBarTarget:
     """Build moving-bar stimulus + fig1 targets for photo columns × T4/T5 subtypes.
@@ -147,10 +165,16 @@ def build_moving_bar_target(
     side = normalize_side(C.meta.get("side", "right"))
 
     specs = gruntman_moving_bar_specs(contrasts=tuple(contrasts))
+    contrast_set = frozenset(contrasts)
     stim = build_moving_bar_signals(
         C, specs=specs, t_on=t_on, deltat_ms=deltat_ms, device=device, use_cache=use_cache,
         network_json=getattr(C, "source_json", None),
         i_baseline=I_BASELINE if i_baseline is None else float(i_baseline),
+        **_moving_bar_peak_kwargs(
+            contrast_set,
+            i_bright_bar=i_bright_bar,
+            i_dark_bar=i_dark_bar,
+        ),
     )
     maxtime = int(stim.info["maxtime"])
     field_deg = stim.info["field_deg"]
@@ -243,10 +267,8 @@ def build_borst_moving_bar_target(
     center_column: bool = False,
     readout_subtypes: Optional[Sequence[str]] = None,
     i_baseline: float = I_BASELINE,
-    i_baseline_bright: Optional[float] = None,
-    i_baseline_dark: Optional[float] = None,
-    i_bright_bar: float = I_BRIGHT,
-    i_dark_bar: float = I_DARK,
+    i_bright_bar: Optional[float] = None,
+    i_dark_bar: Optional[float] = None,
     contrasts: Sequence[str] = ("bright", "dark"),
 ) -> MovingBarTarget:
     """Build Borst 5-column horizontal moving-bar target for T4/T5 subtypes."""
@@ -265,13 +287,17 @@ def build_borst_moving_bar_target(
             f"(requested {list(subtype_pool)!r})",
         )
 
+    contrast_set = frozenset(contrasts)
+    col_kw = dict(
+        i_baseline=i_baseline,
+    )
+    if "bright" in contrast_set:
+        col_kw["i_bright_bar"] = I_BRIGHT if i_bright_bar is None else float(i_bright_bar)
+    if "dark" in contrast_set:
+        col_kw["i_dark_bar"] = I_DARK if i_dark_bar is None else float(i_dark_bar)
     column_current = build_batched_column_current(
         cols, specs, maxtime, t_on=t_on, deltat_ms=deltat_ms,
-        i_baseline=i_baseline,
-        i_baseline_bright=i_baseline_bright,
-        i_baseline_dark=i_baseline_dark,
-        i_bright_bar=i_bright_bar,
-        i_dark_bar=i_dark_bar,
+        **col_kw,
     )
     n_units = ml.n_state_units()
     signal = torch.zeros((len(specs), maxtime, n_units), dtype=torch.float64, device=device)
@@ -340,14 +366,12 @@ def build_borst_moving_bar_target(
         "spec_names": [s.name for s in specs],
         "n_photo_columns": ml.nofcols,
         "mode": "borst",
-        "i_baseline_bar": float(i_baseline),
-        "i_bright_bar": float(i_bright_bar),
-        "i_dark_bar": float(i_dark_bar),
+        "i_baseline": float(i_baseline),
     }
-    if i_baseline_bright is not None:
-        info["i_baseline_bright_bar"] = float(i_baseline_bright)
-    if i_baseline_dark is not None:
-        info["i_baseline_dark_bar"] = float(i_baseline_dark)
+    if "bright" in contrast_set:
+        info["i_bright_bar"] = col_kw["i_bright_bar"]
+    if "dark" in contrast_set:
+        info["i_dark_bar"] = col_kw["i_dark_bar"]
     return MovingBarTarget(
         signal=signal,
         data=data,

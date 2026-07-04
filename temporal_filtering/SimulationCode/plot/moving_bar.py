@@ -26,8 +26,9 @@ MOVING_BAR_MVD_DPI = 100
 _MOVING_BAR_T = np.arange(COST_WINDOW_STEPS)
 
 
-def _moving_bar_center_only(session):
-    return bool(session.moving_bar_center_column)
+def _moving_bar_center_only(session, target=None):
+    target = target or _bar_target(session)
+    return bool(session.pack_for(target).center_column)
 
 
 def _bar_target(session):

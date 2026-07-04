@@ -58,6 +58,15 @@ def _tile_plot_fn(session):
     return tile_plot.plot_borst_tile
 
 
+def _network_tile_tag(session, tname):
+    """Subtitle suffix for network tile plots (shift count from sidecar)."""
+    if session.backend.network is None:
+        return ''
+    opts = (session.train_opts or {}).get(f'{tname}_stimulus_opts') or {}
+    shifttag = '7 shifts' if bool(opts.get('multi_shift', False)) else '1 shift'
+    return f'  [avg over tiles x {shifttag} x ring]'
+
+
 def load_train_opts(outdir):
     opts_path = os.path.join(os.path.abspath(outdir), TRAIN_OPTS_FILE)
     if not os.path.isfile(opts_path):
@@ -165,7 +174,8 @@ def _plot_tile_targets(session, z, outdir, tile_targets, suffix, model_all,
     """Plot tile target(s); on+off combined in one figure when both are trained."""
     tile_set = set(tile_targets)
     plot_fn = _tile_plot_fn(session)
-    net_tag = '  [avg over tiles x 7 shifts x ring]' if session.backend.network is not None else ''
+    ref_t = 'tile_bright' if 'tile_bright' in tile_set else tile_targets[0]
+    net_tag = _network_tile_tag(session, ref_t)
     plot_kw = dict(ref_cubes=ref_cubes, ref_cubes_off=ref_cubes_off)
     if plot_fn is tile_plot.plot_borst_tile:
         plot_kw['mvd_group_list'] = mvd_group_list
@@ -232,7 +242,7 @@ def _plot_one_target(session, z, outdir, tname, suffix, model_all,
     mvd = os.path.join(outdir, 'model_data_tile.png')
     allc = os.path.join(outdir, 'model_all_tile.png')
     plot_fn = _tile_plot_fn(session)
-    net_tag = '  [avg over tiles x 7 shifts x ring]' if session.backend.network is not None else ''
+    net_tag = _network_tile_tag(session, tname)
     plot_kw = dict(ref_cubes=ref_cubes, ref_cubes_off=ref_cubes_off)
     if plot_fn is tile_plot.plot_borst_tile:
         plot_kw['mvd_group_list'] = mvd_group_list

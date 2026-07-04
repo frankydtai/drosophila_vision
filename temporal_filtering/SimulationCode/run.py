@@ -13,7 +13,11 @@ where <id> is the SLURM job id (under SLURM) or a timestamp otherwise.
 
     # full training
     python run.py --model_type conductance --nofruns 1 --nofsteps 10000 \\
-                  --lrs 0.1 0.01 0.001
+                  --lrs 0.1,0.01,0.001
+
+    # per-target PR currents (comma-separated TARGET=VALUE)
+    python run.py --target tile,moving_bar --i_baseline tile=20,moving_bar=22 \\
+                  --i_bright tile_bright=45 --i_dark tile_dark=0,moving_bar_dark=2
 
     # moving-bar (``--network`` = folder under built_network/)
     python run.py --target moving_bar --network right_min_neuron1_extent2 \\
@@ -240,22 +244,18 @@ def build_session(
     model_type,
     *,
     network=None,
-    multi_column=False,
-    share_edges=False,
     sequential=None,
-    target="tile_bright",
     target_list=None,
     loss_weights=None,
-    moving_bar_center_column=False,
-    tile_center_column=False,
+    center_only_targets=None,
+    multi_shift_targets=None,
+    share_edges_targets=None,
+    i_cli=None,
     per_type=False,
     moving_bar_bright_stimulus_opts=None,
     moving_bar_dark_stimulus_opts=None,
     tile_bright_stimulus_opts=None,
     tile_dark_stimulus_opts=None,
-    i_baseline=None,
-    i_bright=None,
-    i_dark=None,
     param_modes=None,
     param_fixes=None,
     pack_overrides=None,
@@ -263,48 +263,35 @@ def build_session(
     schema=None,
 ):
     """Create a :class:`TrainSession` from run options."""
-    tl = list(target_list) if target_list else [target]
+    tl = list(target_list) if target_list is not None else ["tile_bright"]
     dev = fc.active_device()
+    mkw = dict(
+        target_list=tl,
+        loss_weights=loss_weights,
+        pack_overrides=pack_overrides,
+        sequential=sequential,
+        center_only_targets=center_only_targets,
+        multi_shift_targets=multi_shift_targets,
+        share_edges_targets=share_edges_targets,
+        i_cli=i_cli,
+        tile_bright_stimulus_opts=tile_bright_stimulus_opts,
+        tile_dark_stimulus_opts=tile_dark_stimulus_opts,
+        moving_bar_bright_stimulus_opts=moving_bar_bright_stimulus_opts,
+        moving_bar_dark_stimulus_opts=moving_bar_dark_stimulus_opts,
+    )
     if network:
         network = resolve_network(network)
         mb = model_backend or fc.load_network_backend(network, dev=dev)
         opts = fc.make_train_opts(
             backend="network",
-            target_list=tl,
             network=mb.network,
             network_json=network,
-            multi_column=multi_column,
-            share_edges=share_edges,
-            sequential=sequential,
-            moving_bar_center_column=moving_bar_center_column,
-            tile_center_column=tile_center_column,
-            loss_weights=loss_weights,
-            pack_overrides=pack_overrides,
-            tile_bright_stimulus_opts=tile_bright_stimulus_opts,
-            tile_dark_stimulus_opts=tile_dark_stimulus_opts,
-            moving_bar_bright_stimulus_opts=moving_bar_bright_stimulus_opts,
-            moving_bar_dark_stimulus_opts=moving_bar_dark_stimulus_opts,
-            i_baseline=i_baseline,
             dev=dev,
+            **mkw,
         )
         model_backend = mb
     else:
-        opts = fc.make_train_opts(
-            backend="borst",
-            target_list=tl,
-            loss_weights=loss_weights,
-            pack_overrides=pack_overrides,
-            moving_bar_center_column=moving_bar_center_column,
-            moving_bar_bright_stimulus_opts=moving_bar_bright_stimulus_opts,
-            moving_bar_dark_stimulus_opts=moving_bar_dark_stimulus_opts,
-            tile_bright_stimulus_opts=tile_bright_stimulus_opts,
-            tile_dark_stimulus_opts=tile_dark_stimulus_opts,
-            i_baseline=i_baseline,
-            i_bright=i_bright,
-            i_dark=i_dark,
-            sequential=sequential,
-            per_type=per_type,
-        )
+        opts = fc.make_train_opts(backend="borst", per_type=per_type, **mkw)
     session = fc.open_session(opts, model_type, schema=schema, model_backend=model_backend)
     if per_type:
         session = apply_per_type_schema(session)
@@ -318,15 +305,14 @@ def build_session(
 
 def run_training(model_type, nofruns, nofsteps, lrs, fname=None, outdir=None,
                  param_modes=None, param_fixes=None,
-                 network=None, multi_column=False, share_edges=False,
-                 sequential=None, target="tile_bright",
+                 network=None, sequential=None,
                  target_list=None, loss_weights=None,
-                 moving_bar_center_column=False, tile_center_column=False,
+                 center_only_targets=None, multi_shift_targets=None,
+                 share_edges_targets=None, i_cli=None,
                  per_type=False, moving_bar_bright_stimulus_opts=None,
                  moving_bar_dark_stimulus_opts=None,
                  tile_bright_stimulus_opts=None,
                  tile_dark_stimulus_opts=None,
-                 i_baseline=None, i_bright=None, i_dark=None,
                  pack_overrides=None, model_backend=None, schema=None,
                  plot_ref_cubes=None, plot_ref_cubes_off=None,
                  plot_mvd_group_list=None):
@@ -334,22 +320,18 @@ def run_training(model_type, nofruns, nofsteps, lrs, fname=None, outdir=None,
     session = build_session(
         model_type,
         network=network,
-        multi_column=multi_column,
-        share_edges=share_edges,
         sequential=sequential,
-        target=target,
         target_list=target_list,
         loss_weights=loss_weights,
-        moving_bar_center_column=moving_bar_center_column,
-        tile_center_column=tile_center_column,
+        center_only_targets=center_only_targets,
+        multi_shift_targets=multi_shift_targets,
+        share_edges_targets=share_edges_targets,
+        i_cli=i_cli,
         per_type=per_type,
         moving_bar_bright_stimulus_opts=moving_bar_bright_stimulus_opts,
         moving_bar_dark_stimulus_opts=moving_bar_dark_stimulus_opts,
         tile_bright_stimulus_opts=tile_bright_stimulus_opts,
         tile_dark_stimulus_opts=tile_dark_stimulus_opts,
-        i_baseline=i_baseline,
-        i_bright=i_bright,
-        i_dark=i_dark,
         param_modes=param_modes,
         param_fixes=param_fixes,
         pack_overrides=pack_overrides,
@@ -382,25 +364,25 @@ def parse_args():
                         choices=["conductance", "adaptive"])
     parser.add_argument("--nofruns", type=int, default=1)
     parser.add_argument("--nofsteps", type=int, default=10000)
-    parser.add_argument("--lrs", type=float, nargs="+", default=[0.1, 0.01, 0.001],
-                        help="learning-rate stages; each runs for --nofsteps steps")
+    parser.add_argument("--lrs", default="0.1,0.01,0.001",
+                        help="comma-separated learning-rate stages; each runs for --nofsteps steps")
     parser.add_argument("--fname", default=None,
                         help="params filename (default derived from --model_type)")
     parser.add_argument("--outdir", default=None,
                         help="output dir (default derived from --model_type)")
-    parser.add_argument("--mode", nargs="+", default=[], metavar="NAME=MODE",
-                        help="per-param mode override, e.g. --mode out_scale=shared "
-                             "inp_gain=fixed (MODE in individual|shared|fixed)")
-    parser.add_argument("--fix", nargs="+", default=[], metavar="NAME=VALUE",
+    parser.add_argument("--mode", default="", metavar="NAME=MODE,...",
+                        help="per-param mode override, e.g. out_scale=shared,inp_gain=fixed "
+                             "(MODE in individual|shared|fixed)")
+    parser.add_argument("--fix", default="", metavar="NAME=VALUE,...",
                         help="hold a param fixed at VALUE (implies fixed mode), "
-                             "e.g. --fix Ih_midv=-50 out_scale=1.0")
+                             "e.g. Ih_midv=-50,out_scale=1.0")
     parser.add_argument("--per_type", action="store_true",
                         help="train Ih (and adaptive lamina) params per cell type "
                              "instead of shared lamina/scalar values")
     parser.add_argument("--network", default=None, metavar="RUN",
-                        help=f"built_network run folder name (under {NETWORK_DIR}), "
-                             f"e.g. {DEFAULT_NETWORK_RUN}; "
-                             f"moving_bar default if omitted")
+                        help=f"connectome backend: built_network run folder under {NETWORK_DIR} "
+                             f"(e.g. {DEFAULT_NETWORK_RUN}); "
+                             f"default Borst 5-column simulator if omitted")
     parser.add_argument(
         "--target",
         default="tile_bright",
@@ -409,110 +391,131 @@ def parse_args():
     )
     parser.add_argument(
         "--loss_weight",
-        nargs="+",
-        default=[],
-        metavar="NAME=VALUE",
-        help="per-target loss weights, e.g. tile=1 moving_bar=0.5 (aliases expand to bright+dark)",
+        default="",
+        metavar="TARGET=VALUE,...",
+        help="per-target loss weights, e.g. tile=1,moving_bar=0.5 (aliases expand to bright+dark)",
     )
-    parser.add_argument("--shift", action="store_true",
-                        help="tile: use 7 shifts (centre + 6 neighbours)")
-    parser.add_argument("--share_edges", action="store_true",
-                        help="full-graph tiling: 43 edge-sharing tiles (default 31 disjoint)")
+    parser.add_argument(
+        "--shift",
+        default="",
+        help="comma-separated tile targets for 7 sub-tile shifts "
+             "(choices: tile,tile_bright,tile_dark)",
+    )
+    parser.add_argument(
+        "--share_edges",
+        default="",
+        help="comma-separated tile targets for edge-sharing tiling "
+             "(choices: tile,tile_bright,tile_dark)",
+    )
     parser.add_argument(
         "--center_only",
         default="",
         help="comma-separated targets that use centre-column-only cost; "
              "choices: tile,tile_bright,tile_dark,moving_bar,moving_bar_bright,moving_bar_dark",
     )
-    parser.add_argument("--i_baseline", type=float, default=None,
-                        help="tile_bright/tile_dark/moving_bar: PR baseline (pA) before stimulus")
-    parser.add_argument("--i_bright", type=float, default=None,
-                        help="tile_bright: PR current (pA) from t_on")
-    parser.add_argument("--i_dark", type=float, default=None,
-                        help="tile_dark: PR current (pA) from t_on")
-    parser.add_argument("--i_baseline_bar", type=float, default=None,
-                        help="moving_bar_bright/dark: shared PR baseline (pA) before bar sweep")
-    parser.add_argument("--i_bright_bar", type=float, default=None,
-                        help="moving_bar_bright: PR current (pA) under bright bar")
-    parser.add_argument("--i_dark_bar", type=float, default=None,
-                        help="moving_bar_dark: PR current (pA) under dark bar")
-    parser.add_argument("--i_baseline_bright_bar", type=float, default=None,
-                        help="moving_bar_bright: bright-field baseline (pA); overrides --i_baseline_bar")
-    parser.add_argument("--i_baseline_dark_bar", type=float, default=None,
-                        help="moving_bar_dark: dark-field baseline (pA); overrides --i_baseline_bar")
+    parser.add_argument(
+        "--i_baseline",
+        default="",
+        metavar="TARGET=VALUE,...",
+        help="per-target PR baseline (pA); aliases: tile, moving_bar",
+    )
+    parser.add_argument(
+        "--i_bright",
+        default="",
+        metavar="TARGET=VALUE,...",
+        help="bright peak/step current (pA); targets: tile_bright, moving_bar_bright "
+             "(aliases tile, moving_bar)",
+    )
+    parser.add_argument(
+        "--i_dark",
+        default="",
+        metavar="TARGET=VALUE,...",
+        help="dark peak/step current (pA); targets: tile_dark, moving_bar_dark "
+             "(aliases tile, moving_bar)",
+    )
     return parser.parse_args()
 
 
-def parse_kv(tokens, cast=str):
+def parse_comma_list(text):
+    """Split a comma-separated token list (empty string → ``[]``)."""
+    return [t.strip() for t in str(text or "").split(",") if t.strip()]
+
+
+def parse_comma_kv(text, cast=str):
+    """Parse comma-separated ``NAME=VALUE`` pairs."""
     out = {}
-    for tok in tokens:
+    for tok in parse_comma_list(text):
         if "=" not in tok:
-            raise SystemExit(f"expected NAME=VALUE, got {tok!r}")
+            raise ValueError(f"expected NAME=VALUE, got {tok!r}")
         name, val = tok.split("=", 1)
-        out[name] = cast(val)
+        out[name.strip()] = cast(val.strip())
     return out
+
+
+def parse_comma_floats(text):
+    """Parse comma-separated floats (e.g. learning rates)."""
+    return [float(x) for x in parse_comma_list(text)]
+
+
+def parse_target_list(text):
+    """Parse comma-separated training targets (with alias expansion)."""
+    return fc._normalize_target_list(parse_comma_list(text))
+
+
+def parse_target_names(text):
+    """Parse comma-separated target names without alias expansion."""
+    return parse_comma_list(text)
 
 
 def main():
     args = parse_args()
-    param_modes = parse_kv(args.mode)
-    param_fixes = parse_kv(args.fix, float)
-    loss_weights = parse_kv(getattr(args, "loss_weight", []) or [], float)
-    loss_weights = fc.expand_loss_weights(loss_weights)
     try:
-        target_list = fc._normalize_target_list(str(args.target).strip())
+        param_modes = parse_comma_kv(args.mode)
+        param_fixes = parse_comma_kv(args.fix, float)
+        loss_weights = fc.expand_loss_weights(parse_comma_kv(args.loss_weight, float))
+        target_list = parse_target_list(args.target)
+        center_only_targets = fc.expand_target_aliases(parse_target_names(args.center_only))
+        multi_shift_targets = fc.expand_target_aliases(parse_target_names(args.shift))
+        share_edges_targets = fc.expand_target_aliases(parse_target_names(args.share_edges))
+        i_cli = fc.build_i_cli_by_target({
+            "i_baseline": parse_comma_kv(args.i_baseline, float),
+            "i_bright": parse_comma_kv(args.i_bright, float),
+            "i_dark": parse_comma_kv(args.i_dark, float),
+        })
+        lrs = parse_comma_floats(args.lrs)
     except ValueError as exc:
         raise SystemExit(str(exc)) from exc
-    target_single = target_list[0]
-    center_only = fc.expand_target_aliases(
-        [t.strip() for t in str(args.center_only).split(",") if t.strip()],
-    )
-    tile_center_names = set(fc.TILE_TARGETS)
-    bar_center_names = set(fc.MOVING_BAR_TARGETS)
-    bad_center = [t for t in center_only if t not in tile_center_names | bar_center_names]
+    if not lrs:
+        raise SystemExit("--lrs must list at least one learning rate")
+    bad_center = [t for t in center_only_targets if t not in fc.VALID_TARGETS]
     if bad_center:
         raise SystemExit(
             f"unknown target(s) in --center_only: {bad_center} "
-            f"(expected {'|'.join(tile_center_names | bar_center_names)})",
+            f"(expected {'|'.join(fc.CLI_TARGET_NAMES)})",
         )
-    moving_bar_center_column = bool(bar_center_names & set(center_only))
-    tile_center_column = bool(tile_center_names & set(center_only))
-    moving_bar_bright_stimulus_opts = fc.moving_bar_bright_stimulus_opts_from_cli(
-        i_baseline_bar=args.i_baseline_bar,
-        i_bright_bar=args.i_bright_bar,
-        i_baseline_bright_bar=args.i_baseline_bright_bar,
-    )
-    moving_bar_dark_stimulus_opts = fc.moving_bar_dark_stimulus_opts_from_cli(
-        i_baseline_bar=args.i_baseline_bar,
-        i_dark_bar=args.i_dark_bar,
-        i_baseline_dark_bar=args.i_baseline_dark_bar,
-    )
-    tile_bright_stimulus_opts = fc.tile_bright_stimulus_opts_from_cli(
-        i_baseline=args.i_baseline,
-        i_bright=args.i_bright,
-    )
-    tile_dark_stimulus_opts = fc.tile_dark_stimulus_opts_from_cli(
-        i_baseline=args.i_baseline,
-        i_dark=args.i_dark,
-    )
+    bad_shift = [t for t in multi_shift_targets if t not in fc.TILE_TARGETS]
+    if bad_shift:
+        raise SystemExit(
+            f"unknown target(s) in --shift: {bad_shift} "
+            f"(expected {'|'.join(fc.TILE_TARGETS + ('tile',))})",
+        )
+    bad_share = [t for t in share_edges_targets if t not in fc.TILE_TARGETS]
+    if bad_share:
+        raise SystemExit(
+            f"unknown target(s) in --share_edges: {bad_share} "
+            f"(expected {'|'.join(fc.TILE_TARGETS + ('tile',))})",
+        )
     outdir = run_dir(args.model_type, parent=args.outdir)
-    run_training(args.model_type, args.nofruns, args.nofsteps, args.lrs,
+    run_training(args.model_type, args.nofruns, args.nofsteps, lrs,
                  fname=args.fname, outdir=outdir,
                  param_modes=param_modes, param_fixes=param_fixes,
-                 network=args.network, multi_column=args.shift,
-                 share_edges=args.share_edges,
-                 target=target_single,
-                 target_list=(target_list if len(target_list) > 1 else None), loss_weights=loss_weights,
-                 moving_bar_center_column=moving_bar_center_column,
-                 tile_center_column=tile_center_column,
-                 per_type=args.per_type,
-                 moving_bar_bright_stimulus_opts=moving_bar_bright_stimulus_opts,
-                 moving_bar_dark_stimulus_opts=moving_bar_dark_stimulus_opts,
-                 tile_bright_stimulus_opts=tile_bright_stimulus_opts,
-                 tile_dark_stimulus_opts=tile_dark_stimulus_opts,
-                 i_baseline=args.i_baseline,
-                 i_bright=args.i_bright,
-                 i_dark=args.i_dark)
+                 network=args.network,
+                 target_list=target_list, loss_weights=loss_weights,
+                 center_only_targets=center_only_targets,
+                 multi_shift_targets=multi_shift_targets,
+                 share_edges_targets=share_edges_targets,
+                 i_cli=i_cli,
+                 per_type=args.per_type)
 
 
 if __name__ == "__main__":

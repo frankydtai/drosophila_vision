@@ -23,21 +23,24 @@ ap.add_argument('--network', default=None, metavar='RUN',
                 help='built_network run folder (network tile); omit for Borst 5-column')
 ap.add_argument('--nofruns', type=int, default=1)
 ap.add_argument('--nofsteps', type=int, default=100)
-ap.add_argument('--lrs', type=float, nargs='+', default=[0.1])
+ap.add_argument('--lrs', default='0.1',
+                help='comma-separated learning rates')
 ap.add_argument(
     '--target',
     default='tile_bright',
-    help="target name(s): tile (=bright+dark), moving_bar (=bright+dark), or explicit names",
+    help="comma-separated targets: tile (=bright+dark), moving_bar (=bright+dark), or explicit names",
 )
 ap.add_argument('--per_type', action='store_true',
                 help='train Ih (and adaptive lamina) params per cell type')
 args = ap.parse_args()
 MODEL = args.model_type
 try:
-    target_list = fc._normalize_target_list(args.target)
+    target_list = run.parse_target_list(args.target)
 except ValueError as exc:
     ap.error(str(exc))
-target = target_list[0]
+lrs = run.parse_comma_floats(args.lrs)
+if not lrs:
+    ap.error('--lrs must list at least one learning rate')
 
 T4_NAMES = [n for n in READOUT_SUBTYPES if n.startswith('T4')]
 T5_NAMES = [n for n in READOUT_SUBTYPES if n.startswith('T5')]
@@ -88,10 +91,9 @@ plot_mvd_groups = [
 ] + tile_plot.DEFAULT_MVD_GROUPS
 
 fname, outdir, session = run.run_training(
-    MODEL, args.nofruns, args.nofsteps, args.lrs,
+    MODEL, args.nofruns, args.nofsteps, lrs,
     network=args.network,
-    target=target,
-    target_list=(target_list if len(target_list) > 1 else None),
+    target_list=target_list,
     pack_overrides=PACK_OVERRIDES,
     per_type=args.per_type,
     plot_ref_cubes=plot_ref_cubes,

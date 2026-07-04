@@ -51,6 +51,34 @@ TARGET_ALIASES = {
     "moving_bar": MOVING_BAR_TARGETS,
 }
 CLI_TARGET_NAMES = VALID_TARGETS + tuple(TARGET_ALIASES.keys())
+TARGET_I_FIELDS = {
+    "tile_bright": frozenset({"i_baseline", "i_bright"}),
+    "tile_dark": frozenset({"i_baseline", "i_dark"}),
+    "moving_bar_bright": frozenset({"i_baseline", "i_bright_bar"}),
+    "moving_bar_dark": frozenset({"i_baseline", "i_dark_bar"}),
+}
+I_CLI_BRIGHT_TARGETS = {
+    "tile": ("tile_bright",),
+    "tile_bright": ("tile_bright",),
+    "moving_bar": ("moving_bar_bright",),
+    "moving_bar_bright": ("moving_bar_bright",),
+}
+I_CLI_DARK_TARGETS = {
+    "tile": ("tile_dark",),
+    "tile_dark": ("tile_dark",),
+    "moving_bar": ("moving_bar_dark",),
+    "moving_bar_dark": ("moving_bar_dark",),
+}
+I_CLI_SIDECAR_FIELD = {
+    ("i_baseline", "tile_bright"): "i_baseline",
+    ("i_baseline", "tile_dark"): "i_baseline",
+    ("i_baseline", "moving_bar_bright"): "i_baseline",
+    ("i_baseline", "moving_bar_dark"): "i_baseline",
+    ("i_bright", "tile_bright"): "i_bright",
+    ("i_bright", "moving_bar_bright"): "i_bright_bar",
+    ("i_dark", "tile_dark"): "i_dark",
+    ("i_dark", "moving_bar_dark"): "i_dark_bar",
+}
 
 # important model params
 
@@ -324,6 +352,7 @@ class TargetPack:
     readout_unit: torch.Tensor  # (n_cost,)
     cost_t0: Optional[torch.Tensor] = None  # (n_cost,) absolute step for windowed targets
     cost_radius: Optional[torch.Tensor] = None  # (n_cost,) ring radius for network tile
+    center_column: bool = False  # cost restricted to centre column / ring r=0
 
 
 @dataclass(frozen=True)
@@ -356,7 +385,6 @@ class TrainSession:
     target_list: Tuple[str, ...]
     loss_weights: Dict[str, float]
     sequential: bool
-    moving_bar_center_column: bool
     device: str
     train_opts: Optional[dict] = None
 
@@ -426,173 +454,104 @@ def _tile_dark_i_from_opts(opts):
     )
 
 
-def make_tile_bright_stimulus_opts(i_baseline=None, i_bright=None, mode="borst"):
+def _pack_signal_scale(pack: TargetPack, session: TrainSession) -> float:
+    """Peak PR current for adaptive ``sig / scale`` (from per-target sidecar opts)."""
+    opts = ((session.train_opts or {}).get(f"{pack.name}_stimulus_opts")) or {}
+    if pack.name == "tile_bright":
+        peak = _opt_float(opts, "i_bright", default=ml.I_BRIGHT)
+    elif pack.name == "tile_dark":
+        peak = _opt_float(opts, "i_dark", default=ml.I_DARK)
+    elif pack.name == "moving_bar_bright":
+        peak = _opt_float(opts, "i_bright_bar", default=ml.I_BRIGHT)
+    elif pack.name == "moving_bar_dark":
+        peak = _opt_float(opts, "i_dark_bar", default=ml.I_DARK)
+    else:
+        peak = ml.I_BRIGHT
+    peak = float(peak)
+    if peak == 0.0:
+        return float(ml.I_BRIGHT)
+    return peak
+
+
+def make_tile_bright_stimulus_opts(
+    i_baseline=None, i_bright=None, mode="borst", center_column=False,
+    multi_shift=False, share_edges=False,
+):
     """PR step stimulus for tile_bright: baseline pre-``t_on``, bright from ``t_on``."""
     baseline = float(ml.I_BASELINE if i_baseline is None else i_baseline)
     bright = float(ml.I_BRIGHT if i_bright is None else i_bright)
     return {
-        "target": "tile_bright",
         "mode": mode,
         "i_baseline": baseline,
         "i_bright": bright,
         "t_on": int(t_on),
         "maxtime": int(ml.IMPULSE_MAXTIME),
         "deltat_ms": float(deltat),
+        "center_column": bool(center_column),
+        "multi_shift": bool(multi_shift),
+        "share_edges": bool(share_edges),
     }
 
 
-def make_tile_dark_stimulus_opts(i_baseline=None, i_dark=None, mode="borst"):
+def make_tile_dark_stimulus_opts(
+    i_baseline=None, i_dark=None, mode="borst", center_column=False,
+    multi_shift=False, share_edges=False,
+):
     """PR step stimulus for tile_dark: baseline pre-``t_on``, i_dark from ``t_on``."""
     baseline = float(ml.I_BASELINE if i_baseline is None else i_baseline)
     dark = float(ml.I_DARK if i_dark is None else i_dark)
     return {
-        "target": "tile_dark",
         "mode": mode,
         "i_baseline": baseline,
         "i_dark": dark,
         "t_on": int(t_on),
         "maxtime": int(ml.IMPULSE_MAXTIME),
         "deltat_ms": float(deltat),
+        "center_column": bool(center_column),
+        "multi_shift": bool(multi_shift),
+        "share_edges": bool(share_edges),
     }
 
 
-def tile_bright_stimulus_opts_from_cli(i_baseline=None, i_bright=None):
-    """Build tile_bright sidecar opts from CLI (omit unset keys)."""
-    if i_baseline is None and i_bright is None:
-        return None
-    kw = {}
-    if i_baseline is not None:
-        kw["i_baseline"] = float(i_baseline)
-    if i_bright is not None:
-        kw["i_bright"] = float(i_bright)
-    return make_tile_bright_stimulus_opts(**kw)
-
-
-def tile_dark_stimulus_opts_from_cli(i_baseline=None, i_dark=None):
-    """Build tile_dark sidecar opts from CLI (omit unset keys)."""
-    if i_baseline is None and i_dark is None:
-        return None
-    kw = {}
-    if i_baseline is not None:
-        kw["i_baseline"] = float(i_baseline)
-    if i_dark is not None:
-        kw["i_dark"] = float(i_dark)
-    return make_tile_dark_stimulus_opts(**kw)
-
-
-def bar_stimulus_opts_from_cli(
-    i_baseline_bar=None,
-    i_bright_bar=None,
-    i_dark_bar=None,
-    i_baseline_bright_bar=None,
-    i_baseline_dark_bar=None,
+def make_moving_bar_bright_stimulus_opts(
+    i_baseline=None, i_bright_bar=None, mode="borst", center_column=False,
 ):
-    """Build moving-bar sidecar opts from CLI (omit unset keys). Deprecated: use bright/dark helpers."""
-    opts = {}
-    if i_baseline_bar is not None:
-        opts["i_baseline_bar"] = float(i_baseline_bar)
-    if i_bright_bar is not None:
-        opts["i_bright_bar"] = float(i_bright_bar)
-    if i_dark_bar is not None:
-        opts["i_dark_bar"] = float(i_dark_bar)
-    if i_baseline_bright_bar is not None:
-        opts["i_baseline_bright_bar"] = float(i_baseline_bright_bar)
-    if i_baseline_dark_bar is not None:
-        opts["i_baseline_dark_bar"] = float(i_baseline_dark_bar)
-    return opts or None
-
-
-def moving_bar_bright_stimulus_opts_from_cli(
-    i_baseline_bar=None,
-    i_bright_bar=None,
-    i_baseline_bright_bar=None,
-):
-    """Build moving_bar_bright sidecar opts from CLI (omit unset keys)."""
-    opts = {}
-    if i_baseline_bar is not None:
-        opts["i_baseline_bar"] = float(i_baseline_bar)
-    if i_bright_bar is not None:
-        opts["i_bright_bar"] = float(i_bright_bar)
-    if i_baseline_bright_bar is not None:
-        opts["i_baseline_bright_bar"] = float(i_baseline_bright_bar)
-    return opts or None
-
-
-def moving_bar_dark_stimulus_opts_from_cli(
-    i_baseline_bar=None,
-    i_dark_bar=None,
-    i_baseline_dark_bar=None,
-):
-    """Build moving_bar_dark sidecar opts from CLI (omit unset keys)."""
-    opts = {}
-    if i_baseline_bar is not None:
-        opts["i_baseline_bar"] = float(i_baseline_bar)
-    if i_dark_bar is not None:
-        opts["i_dark_bar"] = float(i_dark_bar)
-    if i_baseline_dark_bar is not None:
-        opts["i_baseline_dark_bar"] = float(i_baseline_dark_bar)
-    return opts or None
-
-
-def _moving_bar_stimulus_opts_base(info, target, mode=None):
-    mode = mode or info.get("mode", "network")
-    opts = {
-        "target": target,
+    """PR moving-bar bright target defaults (``maxtime``/``spec_names`` filled at build)."""
+    return {
         "mode": mode,
-        "i_bright_bar": float(info["i_bright_bar"]),
-        "i_dark_bar": float(info["i_dark_bar"]),
-        "t_on": int(info.get("t_on", t_on)),
-        "maxtime": int(info["maxtime"]),
+        "i_baseline": float(ml.I_BASELINE if i_baseline is None else i_baseline),
+        "i_bright_bar": float(ml.I_BRIGHT if i_bright_bar is None else i_bright_bar),
+        "t_on": int(t_on),
         "deltat_ms": float(deltat),
-        "center_column": bool(info.get("center_column", False)),
+        "center_column": bool(center_column),
     }
-    if "spec_names" in info:
-        opts["spec_names"] = list(info["spec_names"])
-    if "i_baseline_bright_bar" in info:
-        opts["i_baseline_bright_bar"] = float(info["i_baseline_bright_bar"])
-    if "i_baseline_dark_bar" in info:
-        opts["i_baseline_dark_bar"] = float(info["i_baseline_dark_bar"])
-    if "i_baseline_bright_bar" not in opts and "i_baseline_dark_bar" not in opts:
-        opts["i_baseline_bar"] = float(info["i_baseline_bar"])
-    return opts
 
 
-def make_moving_bar_bright_stimulus_opts(info, mode=None):
-    return _moving_bar_stimulus_opts_base(info, "moving_bar_bright", mode=mode)
-
-
-def make_moving_bar_dark_stimulus_opts(info, mode=None):
-    return _moving_bar_stimulus_opts_base(info, "moving_bar_dark", mode=mode)
-
-
-def borst_bar_kwargs_from_stimulus_opts(opts):
-    """Map bar stimulus opts to ``build_borst_moving_bar_target`` kwargs."""
-    kw = {
-        "i_bright_bar": _opt_float(opts, "i_bright_bar", default=ml.I_BRIGHT),
-        "i_dark_bar": _opt_float(opts, "i_dark_bar", default=ml.I_DARK),
+def make_moving_bar_dark_stimulus_opts(
+    i_baseline=None, i_dark_bar=None, mode="borst", center_column=False,
+):
+    """PR moving-bar dark target defaults (``maxtime``/``spec_names`` filled at build)."""
+    return {
+        "mode": mode,
+        "i_baseline": float(ml.I_BASELINE if i_baseline is None else i_baseline),
+        "i_dark_bar": float(ml.I_DARK if i_dark_bar is None else i_dark_bar),
+        "t_on": int(t_on),
+        "deltat_ms": float(deltat),
+        "center_column": bool(center_column),
     }
-    if "i_baseline_bright_bar" in opts or "i_baseline_dark_bar" in opts:
-        if "i_baseline_bright_bar" in opts:
-            kw["i_baseline_bright"] = _opt_float(opts, "i_baseline_bright_bar")
-        if "i_baseline_dark_bar" in opts:
-            kw["i_baseline_dark"] = _opt_float(opts, "i_baseline_dark_bar")
-    else:
-        kw["i_baseline"] = _opt_float(opts, "i_baseline_bar", default=ml.I_BASELINE)
-    return kw
 
 
-def borst_bar_bright_kwargs_from_stimulus_opts(opts):
-    """Map bright-bar stimulus opts to ``build_borst_moving_bar_target`` kwargs."""
-    kw = borst_bar_kwargs_from_stimulus_opts(opts or {})
-    kw["contrasts"] = ("bright",)
-    return kw
-
-
-def borst_bar_dark_kwargs_from_stimulus_opts(opts):
-    """Map dark-bar stimulus opts to ``build_borst_moving_bar_target`` kwargs."""
-    kw = borst_bar_kwargs_from_stimulus_opts(opts or {})
-    kw["contrasts"] = ("dark",)
-    return kw
+def _enrich_moving_bar_stimulus_opts(opts, info, *, center_column):
+    """Attach runtime fields from a built moving-bar target; keep canonical ``i_*``."""
+    out = dict(opts)
+    out["maxtime"] = int(info["maxtime"])
+    out["t_on"] = int(info["t_on"])
+    out["spec_names"] = list(info["spec_names"])
+    out["center_column"] = bool(center_column)
+    out["deltat_ms"] = float(deltat)
+    if "mode" in info:
+        out["mode"] = info["mode"]
+    return out
 
 
 def borst_tile_bright_signal(opts=None):
@@ -621,16 +580,29 @@ def borst_tile_dark_signal(opts=None):
     return sig
 
 
+def _borst_tile_cost_row_slice(center_column: bool) -> slice:
+    if not center_column:
+        return slice(None)
+    start = ml.N_FIT_CELLS * ml.CENTER_COL
+    return slice(start, start + ml.N_FIT_CELLS)
+
+
 def _borst_tile_pack_from_data(opts, pack_name, signal_fn, data_fn):
     """Shared Borst tile pack builder for bright/dark targets."""
     opts = dict(opts)
-    u_idx = torch.tensor(np.load("Circuits/mc_cell_index.npy"), dtype=torch.long, device=active_device())
+    center_column = bool(opts.get("center_column", False))
+    row_sl = _borst_tile_cost_row_slice(center_column)
+    u_idx = torch.tensor(
+        np.load("Circuits/mc_cell_index.npy")[row_sl],
+        dtype=torch.long,
+        device=active_device(),
+    )
     n = int(u_idx.shape[0])
     sig = signal_fn(opts).unsqueeze(0)
     T = int(sig.shape[1])
     tile_data = torch.tensor(data_fn(T), dtype=torch.float64, device=active_device())
-    t_data = tile_data[t_on:T].transpose(0, 1).contiguous()
-    tile_power = torch.sum(tile_data[t_on:T] ** 2)
+    t_data = tile_data[t_on:T].transpose(0, 1).contiguous()[row_sl]
+    tile_power = torch.sum(t_data ** 2)
     return TargetPack(
         name=pack_name,
         signal=sig,
@@ -640,11 +612,12 @@ def _borst_tile_pack_from_data(opts, pack_name, signal_fn, data_fn):
         readout_batch=torch.zeros(n, dtype=torch.long, device=active_device()),
         readout_unit=u_idx,
         cost_t0=None,
+        center_column=center_column,
     )
 
 
 def build_borst_tile_bright_pack(opts=None):
-    """Borst center-column tile_bright target as a :class:`TargetPack` (batch B=1)."""
+    """Borst tile_bright target as a :class:`TargetPack` (batch B=1)."""
     return _borst_tile_pack_from_data(
         opts or make_tile_bright_stimulus_opts(),
         "tile_bright",
@@ -654,7 +627,7 @@ def build_borst_tile_bright_pack(opts=None):
 
 
 def build_borst_tile_dark_pack(opts=None):
-    """Borst center-column tile_dark target as a :class:`TargetPack` (batch B=1)."""
+    """Borst tile_dark target as a :class:`TargetPack` (batch B=1)."""
     return _borst_tile_pack_from_data(
         opts or make_tile_dark_stimulus_opts(),
         "tile_dark",
@@ -786,6 +759,7 @@ def _append_mirror_pack_rows(
         readout_unit=torch.cat([pack.readout_unit, extra_units_t]),
         cost_t0=pack.cost_t0,
         cost_radius=cost_radius_out,
+        center_column=pack.center_column,
     )
 
 
@@ -816,7 +790,7 @@ def apply_pack_override(pack, override, backend: ModelBackend):
     raise ValueError(f"unknown pack override {override!r}")
 
 
-def _borst_moving_bar_pack(T, name):
+def _borst_moving_bar_pack(T, name, *, center_column=False):
     return TargetPack(
         name=name,
         signal=T.signal,
@@ -826,6 +800,7 @@ def _borst_moving_bar_pack(T, name):
         readout_batch=T.readout_batch,
         readout_unit=T.readout_unit,
         cost_t0=T.cost_t0,
+        center_column=bool(center_column),
     )
 
 
@@ -906,15 +881,10 @@ class _TrainBindCtx:
 
     model_backend: ModelBackend
     dev: str
-    moving_bar_center_column: bool = False
-    tile_center_column: bool = False
-    multi_column: bool = True
-    share_edges: bool = False
     tile_bright_stimulus_opts: Optional[dict] = None
     tile_dark_stimulus_opts: Optional[dict] = None
     moving_bar_bright_stimulus_opts: Optional[dict] = None
     moving_bar_dark_stimulus_opts: Optional[dict] = None
-    i_baseline: Optional[float] = None
 
 
 def _build_borst_tile_bright_target(ctx: _TrainBindCtx) -> Tuple[TargetPack, dict]:
@@ -930,35 +900,44 @@ def _build_borst_tile_dark_target(ctx: _TrainBindCtx) -> Tuple[TargetPack, dict]
 def _build_borst_moving_bar_bright_target(ctx: _TrainBindCtx) -> Tuple[TargetPack, dict]:
     from network.moving_bar_target import build_borst_moving_bar_target
 
-    bar_kw = borst_bar_bright_kwargs_from_stimulus_opts(ctx.moving_bar_bright_stimulus_opts or {})
+    opts = dict(ctx.moving_bar_bright_stimulus_opts or make_moving_bar_bright_stimulus_opts())
+    center_column = bool(opts.get("center_column", False))
     T = build_borst_moving_bar_target(
         device=ctx.dev or active_device(),
         t_on=t_on,
         deltat_ms=deltat,
-        center_column=bool(ctx.moving_bar_center_column),
-        **bar_kw,
+        center_column=center_column,
+        i_baseline=opts["i_baseline"],
+        i_bright_bar=opts["i_bright_bar"],
+        contrasts=("bright",),
     )
-    stim = make_moving_bar_bright_stimulus_opts(T.info)
-    if ctx.moving_bar_bright_stimulus_opts:
-        stim = {**stim, **ctx.moving_bar_bright_stimulus_opts}
-    return _borst_moving_bar_pack(T, "moving_bar_bright"), stim
+    stim = _enrich_moving_bar_stimulus_opts(opts, T.info, center_column=center_column)
+    return _borst_moving_bar_pack(T, "moving_bar_bright", center_column=center_column), stim
 
 
 def _build_borst_moving_bar_dark_target(ctx: _TrainBindCtx) -> Tuple[TargetPack, dict]:
     from network.moving_bar_target import build_borst_moving_bar_target
 
-    bar_kw = borst_bar_dark_kwargs_from_stimulus_opts(ctx.moving_bar_dark_stimulus_opts or {})
+    opts = dict(ctx.moving_bar_dark_stimulus_opts or make_moving_bar_dark_stimulus_opts())
+    center_column = bool(opts.get("center_column", False))
     T = build_borst_moving_bar_target(
         device=ctx.dev or active_device(),
         t_on=t_on,
         deltat_ms=deltat,
-        center_column=bool(ctx.moving_bar_center_column),
-        **bar_kw,
+        center_column=center_column,
+        i_baseline=opts["i_baseline"],
+        i_dark_bar=opts["i_dark_bar"],
+        contrasts=("dark",),
     )
-    stim = make_moving_bar_dark_stimulus_opts(T.info)
-    if ctx.moving_bar_dark_stimulus_opts:
-        stim = {**stim, **ctx.moving_bar_dark_stimulus_opts}
-    return _borst_moving_bar_pack(T, "moving_bar_dark"), stim
+    stim = _enrich_moving_bar_stimulus_opts(opts, T.info, center_column=center_column)
+    return _borst_moving_bar_pack(T, "moving_bar_dark", center_column=center_column), stim
+
+
+def _validate_tile_stimulus_opts(opts, target_name):
+    if bool(opts.get("center_column", False)) and bool(opts.get("multi_shift", False)):
+        raise ValueError(
+            f"{target_name}: center_column and multi_shift are incompatible",
+        )
 
 
 def _build_network_tile_bright_target(
@@ -968,23 +947,23 @@ def _build_network_tile_bright_target(
 
     dev = ctx.dev or active_device()
     opts = dict(ctx.tile_bright_stimulus_opts or make_tile_bright_stimulus_opts(mode="network"))
+    _validate_tile_stimulus_opts(opts, "tile_bright")
+    center_column = bool(opts.get("center_column", False))
+    multi_shift = bool(opts.get("multi_shift", False))
+    share_edges = bool(opts.get("share_edges", False))
     T = build_shifted_target(
         C,
-        share_edges=ctx.share_edges,
-        single_shift=not ctx.multi_column,
+        share_edges=share_edges,
+        single_shift=not multi_shift,
         device=dev,
         maxtime=ml.IMPULSE_MAXTIME,
         t_on=t_on,
-        center_column=bool(ctx.tile_center_column),
+        center_column=center_column,
         i_baseline=opts["i_baseline"],
         i_bright=opts["i_bright"],
         polarity="bright",
     )
-    stim = make_tile_bright_stimulus_opts(
-        i_baseline=T.info["i_baseline"],
-        i_bright=T.info["i_bright"],
-        mode="network",
-    )
+    stim = dict(opts)
     pack = TargetPack(
         name="tile_bright",
         signal=T.signal,
@@ -995,11 +974,13 @@ def _build_network_tile_bright_target(
         readout_unit=T.readout_unit,
         cost_t0=None,
         cost_radius=T.cost_radius,
+        center_column=center_column,
     )
+    coltag = "centre column" if center_column else f"{T.info['n_cost']} cost cells"
+    shifttag = "7 shifts" if multi_shift else "1 shift"
     tag = (
-        f"{'multi-column' if ctx.multi_column else 'single-column'} tile_bright "
-        f"(B={T.n_batch} stimuli [{T.info['n_centers']} tiles x "
-        f"{T.info['n_shifts']} shifts], {T.info['n_cost']} cost cells)"
+        f"tile_bright (B={T.n_batch} stimuli [{T.info['n_centers']} tiles x "
+        f"{shifttag}], {coltag})"
     )
     return pack, stim, tag
 
@@ -1011,23 +992,23 @@ def _build_network_tile_dark_target(
 
     dev = ctx.dev or active_device()
     opts = dict(ctx.tile_dark_stimulus_opts or make_tile_dark_stimulus_opts(mode="network"))
+    _validate_tile_stimulus_opts(opts, "tile_dark")
+    center_column = bool(opts.get("center_column", False))
+    multi_shift = bool(opts.get("multi_shift", False))
+    share_edges = bool(opts.get("share_edges", False))
     T = build_shifted_target(
         C,
-        share_edges=ctx.share_edges,
-        single_shift=not ctx.multi_column,
+        share_edges=share_edges,
+        single_shift=not multi_shift,
         device=dev,
         maxtime=ml.IMPULSE_MAXTIME,
         t_on=t_on,
-        center_column=bool(ctx.tile_center_column),
+        center_column=center_column,
         i_baseline=opts["i_baseline"],
         i_dark=opts["i_dark"],
         polarity="dark",
     )
-    stim = make_tile_dark_stimulus_opts(
-        i_baseline=T.info["i_baseline"],
-        i_dark=T.info["i_dark"],
-        mode="network",
-    )
+    stim = dict(opts)
     pack = TargetPack(
         name="tile_dark",
         signal=T.signal,
@@ -1038,11 +1019,13 @@ def _build_network_tile_dark_target(
         readout_unit=T.readout_unit,
         cost_t0=None,
         cost_radius=T.cost_radius,
+        center_column=center_column,
     )
+    coltag = "centre column" if center_column else f"{T.info['n_cost']} cost cells"
+    shifttag = "7 shifts" if multi_shift else "1 shift"
     tag = (
-        f"{'multi-column' if ctx.multi_column else 'single-column'} tile_dark "
-        f"(B={T.n_batch} stimuli [{T.info['n_centers']} tiles x "
-        f"{T.info['n_shifts']} shifts], {T.info['n_cost']} cost cells)"
+        f"tile_dark (B={T.n_batch} stimuli [{T.info['n_centers']} tiles x "
+        f"{shifttag}], {coltag})"
     )
     return pack, stim, tag
 
@@ -1053,21 +1036,18 @@ def _build_network_moving_bar_bright_target(
     from network.moving_bar_target import build_moving_bar_target
 
     dev = ctx.dev or active_device()
-    opts = dict(ctx.moving_bar_bright_stimulus_opts or {})
-    ib = ctx.i_baseline
-    if ib is None and "i_baseline_bar" in opts:
-        ib = float(opts["i_baseline_bar"])
+    opts = dict(ctx.moving_bar_bright_stimulus_opts or make_moving_bar_bright_stimulus_opts(mode="network"))
+    center_column = bool(opts.get("center_column", False))
     T = build_moving_bar_target(
         C,
         device=dev,
         t_on=t_on,
-        center_column=ctx.moving_bar_center_column,
-        i_baseline=ib,
+        center_column=center_column,
+        i_baseline=opts["i_baseline"],
+        i_bright_bar=opts["i_bright_bar"],
         contrasts=("bright",),
     )
-    stim = make_moving_bar_bright_stimulus_opts(T.info)
-    if ctx.moving_bar_bright_stimulus_opts:
-        stim = {**stim, **ctx.moving_bar_bright_stimulus_opts}
+    stim = _enrich_moving_bar_stimulus_opts(opts, T.info, center_column=center_column)
     pack = TargetPack(
         name="moving_bar_bright",
         signal=T.signal,
@@ -1077,9 +1057,10 @@ def _build_network_moving_bar_bright_target(
         readout_batch=T.readout_batch,
         readout_unit=T.readout_unit,
         cost_t0=T.cost_t0,
+        center_column=center_column,
     )
     coltag = (
-        "centre column" if ctx.moving_bar_center_column
+        "centre column" if center_column
         else f"{T.info['n_cost_columns']} photo columns"
     )
     tag = f"moving-bar bright (B={T.n_batch} stimuli, {T.info['n_cost']} cost cells, {coltag})"
@@ -1092,21 +1073,18 @@ def _build_network_moving_bar_dark_target(
     from network.moving_bar_target import build_moving_bar_target
 
     dev = ctx.dev or active_device()
-    opts = dict(ctx.moving_bar_dark_stimulus_opts or {})
-    ib = ctx.i_baseline
-    if ib is None and "i_baseline_bar" in opts:
-        ib = float(opts["i_baseline_bar"])
+    opts = dict(ctx.moving_bar_dark_stimulus_opts or make_moving_bar_dark_stimulus_opts(mode="network"))
+    center_column = bool(opts.get("center_column", False))
     T = build_moving_bar_target(
         C,
         device=dev,
         t_on=t_on,
-        center_column=ctx.moving_bar_center_column,
-        i_baseline=ib,
+        center_column=center_column,
+        i_baseline=opts["i_baseline"],
+        i_dark_bar=opts["i_dark_bar"],
         contrasts=("dark",),
     )
-    stim = make_moving_bar_dark_stimulus_opts(T.info)
-    if ctx.moving_bar_dark_stimulus_opts:
-        stim = {**stim, **ctx.moving_bar_dark_stimulus_opts}
+    stim = _enrich_moving_bar_stimulus_opts(opts, T.info, center_column=center_column)
     pack = TargetPack(
         name="moving_bar_dark",
         signal=T.signal,
@@ -1116,9 +1094,10 @@ def _build_network_moving_bar_dark_target(
         readout_batch=T.readout_batch,
         readout_unit=T.readout_unit,
         cost_t0=T.cost_t0,
+        center_column=center_column,
     )
     coltag = (
-        "centre column" if ctx.moving_bar_center_column
+        "centre column" if center_column
         else f"{T.info['n_cost_columns']} photo columns"
     )
     tag = f"moving-bar dark (B={T.n_batch} stimuli, {T.info['n_cost']} cost cells, {coltag})"
@@ -1148,6 +1127,127 @@ def expand_target_aliases(names) -> List[str]:
             out.extend(TARGET_ALIASES[name])
         else:
             out.append(name)
+    return out
+
+
+def apply_center_only_to_stimulus_opts(opts, target_name, center_only_targets):
+    """Set ``center_column`` on one target's stimulus opts from a per-target list."""
+    out = dict(opts or {})
+    out["center_column"] = target_name in set(center_only_targets or [])
+    return out
+
+
+def apply_multi_shift_to_stimulus_opts(opts, target_name, multi_shift_targets):
+    """Set ``multi_shift`` on tile stimulus opts from a per-target list."""
+    if target_name not in TILE_TARGETS:
+        return opts
+    out = dict(opts or {})
+    out["multi_shift"] = target_name in set(multi_shift_targets or [])
+    return out
+
+
+def apply_share_edges_to_stimulus_opts(opts, target_name, share_edges_targets):
+    """Set ``share_edges`` on tile stimulus opts from a per-target list."""
+    if target_name not in TILE_TARGETS:
+        return opts
+    out = dict(opts or {})
+    out["share_edges"] = target_name in set(share_edges_targets or [])
+    return out
+
+
+def _i_cli_target_names(cli_field, name):
+    """Resolve CLI target token for one ``--i_*`` flag."""
+    if name not in CLI_TARGET_NAMES:
+        raise ValueError(
+            f"unknown target {name!r} in --{cli_field} "
+            f"(expected {'|'.join(CLI_TARGET_NAMES)})",
+        )
+    if cli_field == "i_baseline":
+        if name in TARGET_ALIASES:
+            return TARGET_ALIASES[name]
+        return [name]
+    if cli_field == "i_bright":
+        if name not in I_CLI_BRIGHT_TARGETS:
+            raise ValueError(
+                f"--i_bright does not accept target {name!r} "
+                f"(expected tile|tile_bright|moving_bar|moving_bar_bright)",
+            )
+        return list(I_CLI_BRIGHT_TARGETS[name])
+    if name not in I_CLI_DARK_TARGETS:
+        raise ValueError(
+            f"--i_dark does not accept target {name!r} "
+            f"(expected tile|tile_dark|moving_bar|moving_bar_dark)",
+        )
+    return list(I_CLI_DARK_TARGETS[name])
+
+
+def build_i_cli_by_target(kv_by_field):
+    """Merge per-flag comma KV dicts into ``{'by_target': {target: {field: val}}}``."""
+    by_target = {}
+    for cli_field, kv in kv_by_field.items():
+        if not kv:
+            continue
+        for name, val in kv.items():
+            for t in _i_cli_target_names(cli_field, name):
+                sidecar_field = I_CLI_SIDECAR_FIELD[(cli_field, t)]
+                by_target.setdefault(t, {})[sidecar_field] = float(val)
+    return {"by_target": by_target} if by_target else None
+
+
+def apply_i_cli_to_stimulus_opts(opts, target_name, i_cli):
+    """Merge per-target CLI ``--i_*`` overrides into stimulus opts."""
+    if not i_cli:
+        return opts
+    overrides = (i_cli.get("by_target") or {}).get(target_name)
+    if not overrides:
+        return opts
+    out = dict(opts or {})
+    allowed = TARGET_I_FIELDS[target_name]
+    for key, val in overrides.items():
+        if key not in allowed:
+            raise ValueError(f"{key!r} not valid for target {target_name!r}")
+        out[key] = float(val)
+    return out
+
+
+def _finalize_stimulus_opts(opts, target_name, *, center_only_targets, multi_shift_targets,
+                            share_edges_targets, i_cli):
+    if target_name in TILE_TARGETS:
+        mode = (opts or {}).get("mode", "borst")
+        if target_name == "tile_bright":
+            out = make_tile_bright_stimulus_opts(mode=mode, **{
+                k: v for k, v in (opts or {}).items()
+                if k in ("i_baseline", "i_bright", "center_column", "multi_shift", "share_edges")
+            })
+        else:
+            out = make_tile_dark_stimulus_opts(mode=mode, **{
+                k: v for k, v in (opts or {}).items()
+                if k in ("i_baseline", "i_dark", "center_column", "multi_shift", "share_edges")
+            })
+    elif target_name == "moving_bar_bright":
+        out = make_moving_bar_bright_stimulus_opts(
+            mode=(opts or {}).get("mode", "borst"),
+            **{
+                k: v for k, v in (opts or {}).items()
+                if k in ("i_baseline", "i_bright_bar", "center_column", "mode")
+            },
+        )
+    elif target_name == "moving_bar_dark":
+        out = make_moving_bar_dark_stimulus_opts(
+            mode=(opts or {}).get("mode", "borst"),
+            **{
+                k: v for k, v in (opts or {}).items()
+                if k in ("i_baseline", "i_dark_bar", "center_column", "mode")
+            },
+        )
+    else:
+        out = dict(opts or {})
+    out = apply_center_only_to_stimulus_opts(out, target_name, center_only_targets)
+    out = apply_multi_shift_to_stimulus_opts(out, target_name, multi_shift_targets)
+    out = apply_share_edges_to_stimulus_opts(out, target_name, share_edges_targets)
+    out = apply_i_cli_to_stimulus_opts(out, target_name, i_cli)
+    if target_name in TILE_TARGETS:
+        _validate_tile_stimulus_opts(out, target_name)
     return out
 
 
@@ -1187,42 +1287,67 @@ def make_train_opts(
     loss_weights=None,
     pack_overrides=None,
     sequential=None,
-    moving_bar_center_column=False,
+    center_only_targets=None,
+    multi_shift_targets=None,
+    share_edges_targets=None,
+    i_cli=None,
     moving_bar_bright_stimulus_opts=None,
     moving_bar_dark_stimulus_opts=None,
     tile_bright_stimulus_opts=None,
     tile_dark_stimulus_opts=None,
-    i_baseline=None,
-    i_bright=None,
-    i_dark=None,
     network_json=None,
     network=None,
-    multi_column=True,
-    share_edges=False,
-    tile_center_column=False,
     per_type=False,
     dev=None,
     packs=None,
 ):
     """Canonical training opts for :func:`open_session` (Borst or network)."""
     tl = _normalize_target_list(target_list)
-    bright_opts = tile_bright_stimulus_opts
-    if bright_opts is None and "tile_bright" in tl:
-        bright_opts = tile_bright_stimulus_opts_from_cli(i_baseline, i_bright)
-    dark_opts = tile_dark_stimulus_opts
-    if dark_opts is None and "tile_dark" in tl:
-        dark_opts = tile_dark_stimulus_opts_from_cli(i_baseline, i_dark)
-    bright_bar_opts = moving_bar_bright_stimulus_opts
-    if bright_bar_opts is None and "moving_bar_bright" in tl:
-        bright_bar_opts = moving_bar_bright_stimulus_opts_from_cli()
-    dark_bar_opts = moving_bar_dark_stimulus_opts
-    if dark_bar_opts is None and "moving_bar_dark" in tl:
-        dark_bar_opts = moving_bar_dark_stimulus_opts_from_cli()
+    mode = "network" if backend == "network" else "borst"
+    bright_opts = _finalize_stimulus_opts(
+        tile_bright_stimulus_opts if "tile_bright" in tl else None,
+        "tile_bright",
+        center_only_targets=center_only_targets,
+        multi_shift_targets=multi_shift_targets,
+        share_edges_targets=share_edges_targets,
+        i_cli=i_cli,
+    ) if ("tile_bright" in tl or tile_bright_stimulus_opts is not None) else None
+    if bright_opts is not None and "tile_bright" in tl:
+        bright_opts["mode"] = mode
+    dark_opts = _finalize_stimulus_opts(
+        tile_dark_stimulus_opts if "tile_dark" in tl else None,
+        "tile_dark",
+        center_only_targets=center_only_targets,
+        multi_shift_targets=multi_shift_targets,
+        share_edges_targets=share_edges_targets,
+        i_cli=i_cli,
+    ) if ("tile_dark" in tl or tile_dark_stimulus_opts is not None) else None
+    if dark_opts is not None and "tile_dark" in tl:
+        dark_opts["mode"] = mode
+    bright_bar_opts = _finalize_stimulus_opts(
+        moving_bar_bright_stimulus_opts if "moving_bar_bright" in tl else None,
+        "moving_bar_bright",
+        center_only_targets=center_only_targets,
+        multi_shift_targets=multi_shift_targets,
+        share_edges_targets=share_edges_targets,
+        i_cli=i_cli,
+    ) if ("moving_bar_bright" in tl or moving_bar_bright_stimulus_opts is not None) else None
+    if bright_bar_opts is not None and "moving_bar_bright" in tl:
+        bright_bar_opts["mode"] = mode
+    dark_bar_opts = _finalize_stimulus_opts(
+        moving_bar_dark_stimulus_opts if "moving_bar_dark" in tl else None,
+        "moving_bar_dark",
+        center_only_targets=center_only_targets,
+        multi_shift_targets=multi_shift_targets,
+        share_edges_targets=share_edges_targets,
+        i_cli=i_cli,
+    ) if ("moving_bar_dark" in tl or moving_bar_dark_stimulus_opts is not None) else None
+    if dark_bar_opts is not None and "moving_bar_dark" in tl:
+        dark_bar_opts["mode"] = mode
     opts = {
         "backend": str(backend),
         "target_list": tl,
         "loss_weights": loss_weights or {},
-        "moving_bar_center_column": bool(moving_bar_center_column),
         "sequential": sequential,
         "moving_bar_bright_stimulus_opts": bright_bar_opts,
         "moving_bar_dark_stimulus_opts": dark_bar_opts,
@@ -1239,10 +1364,6 @@ def make_train_opts(
         opts.update({
             "network": network,
             "network_json": str(network_json) if network_json is not None else None,
-            "multi_column": bool(multi_column),
-            "share_edges": bool(share_edges),
-            "tile_center_column": bool(tile_center_column),
-            "i_baseline": i_baseline,
             "dev": dev,
         })
     return opts
@@ -1258,16 +1379,11 @@ def _train_opts_for_sidecar(
         "backend": str(backend),
         "target_list": list(target_list),
         "loss_weights": {str(k): float(v) for k, v in (opts.get("loss_weights") or {}).items()},
-        "moving_bar_center_column": bool(opts.get("moving_bar_center_column", False)),
         "sequential": bool(sequential_bool),
     }
     if backend == "network":
         record.update({
             "network_json": str(opts["network_json"]),
-            "multi_column": bool(opts.get("multi_column", True)),
-            "share_edges": bool(opts.get("share_edges", False)),
-            "tile_center_column": bool(opts.get("tile_center_column", False)),
-            "i_baseline": opts.get("i_baseline"),
             "tile_bright_stimulus_opts": (
                 resolved_tile_bright if resolved_tile_bright is not None
                 else opts.get("tile_bright_stimulus_opts")
@@ -1317,7 +1433,6 @@ def _make_session(
     packs: Dict[str, TargetPack],
     *,
     loss_weights=None,
-    moving_bar_center_column=False,
     sequential=None,
     dev=None,
     train_opts_record=None,
@@ -1336,7 +1451,6 @@ def _make_session(
         target_list=tuple(target_list),
         loss_weights={str(k): float(v) for k, v in (loss_weights or {}).items()},
         sequential=bool(seq),
-        moving_bar_center_column=bool(moving_bar_center_column),
         device=dev_ref,
         train_opts=train_opts_record,
     )
@@ -1362,7 +1476,6 @@ def open_session(
         ctx = _TrainBindCtx(
             model_backend=model_backend,
             dev=dev,
-            moving_bar_center_column=bool(opts.get("moving_bar_center_column", False)),
             tile_bright_stimulus_opts=opts.get("tile_bright_stimulus_opts"),
             tile_dark_stimulus_opts=opts.get("tile_dark_stimulus_opts"),
             moving_bar_bright_stimulus_opts=opts.get("moving_bar_bright_stimulus_opts"),
@@ -1403,7 +1516,6 @@ def open_session(
         session = _make_session(
             model_backend, model_type, target_list, packs,
             loss_weights=opts.get("loss_weights"),
-            moving_bar_center_column=opts.get("moving_bar_center_column", False),
             sequential=opts.get("sequential"),
             dev=dev,
             train_opts_record=record,
@@ -1428,15 +1540,10 @@ def open_session(
     ctx = _TrainBindCtx(
         model_backend=model_backend,
         dev=dev,
-        moving_bar_center_column=bool(opts.get("moving_bar_center_column", False)),
-        tile_center_column=bool(opts.get("tile_center_column", False)),
-        multi_column=bool(opts.get("multi_column", True)),
-        share_edges=bool(opts.get("share_edges", False)),
         tile_bright_stimulus_opts=opts.get("tile_bright_stimulus_opts"),
         tile_dark_stimulus_opts=opts.get("tile_dark_stimulus_opts"),
         moving_bar_bright_stimulus_opts=opts.get("moving_bar_bright_stimulus_opts"),
         moving_bar_dark_stimulus_opts=opts.get("moving_bar_dark_stimulus_opts"),
-        i_baseline=opts.get("i_baseline"),
     )
     packs = {}
     pack_overrides = opts.get("pack_overrides") or {}
@@ -1463,7 +1570,6 @@ def open_session(
     return _make_session(
         model_backend, model_type, target_list, packs,
         loss_weights=opts.get("loss_weights"),
-        moving_bar_center_column=opts.get("moving_bar_center_column", False),
         sequential=opts.get("sequential"),
         dev=dev,
         train_opts_record=record,
@@ -1736,17 +1842,18 @@ def _pack_out_scale(p, pack: TargetPack, backend: ModelBackend):
     return torch.full((n,), float(os_param), dtype=torch.float64, device=dev)
 
 
-def _run_adaptive(p, session: TrainSession, neuron_index=None, return_ref=False, sig=None):
+def _run_adaptive(p, session: TrainSession, neuron_index=None, return_ref=False, sig=None, pack=None):
     backend = session.backend
     mt = session.maxtime
     if 'gate_pivot' not in p:
         p = {**p, 'gate_pivot': GATE_PIVOT}
+    pack = pack or session.primary_pack
     if neuron_index is None:
-        neuron_index = session.primary_pack.readout_unit
+        neuron_index = pack.readout_unit
     if sig is None:
-        sig = session.pack_signal()
+        sig = session.pack_signal(pack)
     bias = p['bias']
-    x_signal = sig / ml.I_BRIGHT
+    x_signal = sig / _pack_signal_scale(pack, session)
 
     activity    = bias.clone()
     v_sustained = bias.clone()
@@ -1814,7 +1921,7 @@ def _adaptive_pack_readout(p, pack: TargetPack, session: TrainSession, batch_idx
         mask = pack.readout_batch == int(batch_idx)
         u = pack.readout_unit[mask]
         t0 = pack.cost_t0[mask] if pack.cost_t0 is not None else None
-    model = _run_adaptive(p, session, neuron_index=u, sig=sig)
+    model = _run_adaptive(p, session, neuron_index=u, sig=sig, pack=pack)
     if t0 is None:
         return model.transpose(0, 1)
     return _window_adaptive_traces(model, t0, win=pack.data.shape[1])
@@ -1916,8 +2023,24 @@ def guess_initial_params(session: TrainSession):
     return schema_guess(list(session.schema))
 
 
+def _float_cost_parts(parts_fn, z, target_order=None):
+    if parts_fn is None:
+        return None
+    raw = parts_fn(z)
+    out = {k: float(v.item() if torch.is_tensor(v) else v) for k, v in raw.items()}
+    if target_order:
+        return {k: out[k] for k in target_order if k in out}
+    return out
+
+
+def _fmt_cost_parts(parts):
+    if not parts:
+        return ""
+    return "  [" + "  ".join(f"{k}={v:.4f}" for k, v in parts.items()) + "]"
+
+
 def gradient_network(z, lr=0.0001, cost_fn=None, n_steps=100, device="cpu", z_bounds=None,
-                     cost_log=None, step_log=None):
+                     cost_log=None, step_log=None, parts_fn=None, target_order=None):
     
     a = time.time()
 
@@ -1930,6 +2053,7 @@ def gradient_network(z, lr=0.0001, cost_fn=None, n_steps=100, device="cpu", z_bo
     best_z = z.clone().detach()
     
     initial_cost = 1.0*cost
+    initial_parts = _float_cost_parts(parts_fn, z, target_order)
 
     progress_bar = tqdm(range(n_steps), desc=f'Cost: {cost:.4f}')
 
@@ -1966,9 +2090,13 @@ def gradient_network(z, lr=0.0001, cost_fn=None, n_steps=100, device="cpu", z_bo
         best_z = z.clone().detach()
 
     print()
-    print('Initl cost =', format(initial_cost,'.4f'))
-    print('Final cost =', format(cost.item(),'.4f'))
-    print('Best  cost =', format(best_cost,'.4f'))
+    print('Initl cost =', format(initial_cost,'.4f') + _fmt_cost_parts(initial_parts))
+    print('Final cost =', format(cost.item(),'.4f') + _fmt_cost_parts(
+        _float_cost_parts(parts_fn, z, target_order),
+    ))
+    print('Best  cost =', format(best_cost,'.4f') + _fmt_cost_parts(
+        _float_cost_parts(parts_fn, best_z, target_order),
+    ))
     
     b = time.time()
     
@@ -1977,12 +2105,13 @@ def gradient_network(z, lr=0.0001, cost_fn=None, n_steps=100, device="cpu", z_bo
 
     return best_z
 
-def train_staged(z, cost_fn, z_bounds, lrs, nsteps, cost_log=None, step_log=None):
+def train_staged(z, cost_fn, z_bounds, lrs, nsteps, cost_log=None, step_log=None,
+                 parts_fn=None, target_order=None):
     # run gradient_network once per learning-rate stage, chaining the best params.
     for lr in lrs:
         z = gradient_network(z, lr=lr, n_steps=nsteps, device=active_device(),
                              cost_fn=cost_fn, z_bounds=z_bounds, cost_log=cost_log,
-                             step_log=step_log)
+                             step_log=step_log, parts_fn=parts_fn, target_order=target_order)
     return z
 
 
@@ -2028,9 +2157,12 @@ def do_many_runs(session: TrainSession, nofruns, nofsteps, lrs=(0.1, 0.01, 0.001
         def step_log(z):
             cost_history.append(log_step(z))
 
+        parts_fn = lambda z: calc_cost_parts(z, session)
         z_fit = train_staged(
             z, cost_fn, bounds, lrs, nofsteps,
             step_log=step_log,
+            parts_fn=parts_fn,
+            target_order=list(session.target_list),
         )
 
         all_params[i] = z_fit.detach().cpu().numpy()
