@@ -15,10 +15,17 @@ TRACE_LW = 1.5
 
 def nice_ylim(*curves, margin=1.25, step=5.0, floor=5.0, min_pad=3.0):
     """Symmetric y-limits that comfortably contain all provided curves."""
-    vals = [np.asarray(c).ravel() for c in curves if c is not None]
-    if not vals:
+    chunks = []
+    for c in curves:
+        if c is None:
+            continue
+        v = np.asarray(c).ravel()
+        v = v[np.isfinite(v)]
+        if v.size:
+            chunks.append(v)
+    if not chunks:
         return -floor, floor
-    peak = float(np.max(np.abs(np.concatenate(vals))))
+    peak = float(np.max(np.abs(np.concatenate(chunks))))
     ymax = max(peak * margin, peak + min_pad, floor)
     ymax = float(np.ceil(ymax / step) * step)
     return -ymax, ymax
@@ -34,32 +41,57 @@ def annotate_baseline(ax, baseline):
     ax.axhline(0.0, color='0.4', linewidth=0.6, linestyle=':', zorder=0)
 
 
-def center_column_only(session, target=None):
-    """True when the pack uses centre-column readout only (no column-mean SEM band)."""
+def suppress_cost_sem(session, target=None):
+    """True when cost uses a single column (no column-mean SEM band)."""
     pack = session.primary_pack if target is None else session.pack_for(target)
-    return bool(pack.center_column)
+    return pack.cost_extent == 0
 
 
 def readout_center_mask(pack, backend):
-    """Boolean mask over pack.readout rows: centre-column / ring-0 units."""
+    """Boolean mask over pack.readout rows included in the cost extent."""
     readout = pack.readout_unit.cpu().numpy()
     if backend.network is not None:
+        if pack.cost_extent is not None:
+            import column_mapper
+            C = backend.network
+            u_all = C.u.detach().cpu().numpy() if hasattr(C.u, "detach") else np.asarray(C.u)
+            v_all = C.v.detach().cpu().numpy() if hasattr(C.v, "detach") else np.asarray(C.v)
+            return column_mapper.inside_mask(u_all[readout], v_all[readout], int(pack.cost_extent))
         if pack.cost_radius is not None:
             return np.floor(pack.cost_radius.cpu().numpy()).astype(int) == 0
         return np.ones(readout.shape[0], dtype=bool)
-    if pack.center_column:
-        sl = fc._borst_tile_cost_row_slice(True)
-        return np.array([sl.start <= int(u) < sl.stop for u in readout])
     return np.ones(readout.shape[0], dtype=bool)
 
 
-def baselines_for_types(pack, backend, vm_ref, names, type_ids, global_type_names):
-    """Mean Vm_ref at stimulus onset for centre readout units, keyed by type name."""
-    readout = pack.readout_unit.cpu().numpy()
+def baselines_for_types(
+    pack,
+    backend,
+    vm_ref,
+    names,
+    type_ids,
+    global_type_names,
+    *,
+    ring_layout=None,
+):
+    """Mean Vm_ref at stimulus onset, keyed by type name.
+
+    Default: centre cost-readout units (``readout_center_mask``).
+    With ``ring_layout`` = ``(batch_idx, unit_idx, type_idx, radius)``: ring-0
+  units averaged per type (network ``model_all_tile``).
+    """
     vm_ref = np.asarray(vm_ref, dtype=np.float64)
+    out = {}
+    if ring_layout is not None:
+        _batch_idx, unit_idx, type_idx, radius = ring_layout
+        center = np.floor(radius).astype(int) == 0
+        for name in names:
+            ti = global_type_names.index(name)
+            units = np.unique(unit_idx[center & (type_idx == ti)])
+            out[name] = float(vm_ref[units].mean()) if len(units) else np.nan
+        return out
+    readout = pack.readout_unit.cpu().numpy()
     center = readout_center_mask(pack, backend)
     unit_types = type_ids[readout]
-    out = {}
     for name in names:
         ti = global_type_names.index(name)
         mask = center & (unit_types == ti)
@@ -67,9 +99,9 @@ def baselines_for_types(pack, backend, vm_ref, names, type_ids, global_type_name
     return out
 
 
-def sem_from_traces(traces, center_only=False):
-    """Per-time SEM across readout rows; zero when centre-only or a single row."""
-    if center_only or traces.shape[0] == 1:
+def sem_from_traces(traces, single_column=False):
+    """Per-time SEM across readout rows; zero when single-column cost or one row."""
+    if single_column or traces.shape[0] == 1:
         return np.zeros(traces.shape[1], dtype=np.float64)
     return traces.std(axis=0) / np.sqrt(traces.shape[0])
 
@@ -84,16 +116,19 @@ def ylim_for_traces(
     off_data=None,
     extra=(),
 ):
-    curves = [model]
+    curves = []
+    if model is not None:
+        curves.append(model)
     if data is not None:
         curves.append(data)
-    if show_sem and sem is not None and np.any(sem):
-        curves.extend([model + sem, model - sem])
+    if show_sem and sem is not None and model is not None:
+        curves.append(model + sem)
+        curves.append(model - sem)
     if off_model is not None:
         curves.append(off_model)
     if off_data is not None:
         curves.append(off_data)
-    curves.extend(extra)
+    curves.extend(c for c in extra if c is not None)
     return nice_ylim(*curves)
 
 
@@ -153,9 +188,10 @@ def plot_timecourse(
         ylo, yhi = ylim
     if data is not None:
         ax.plot(t, data, color=DATA_COLOR, linewidth=TRACE_LW, linestyle=linestyle)
-    if show_sem:
-        plot_sem_band(ax, t, model, sem)
-    ax.plot(t, model, color=MODEL_COLOR, linewidth=TRACE_LW, linestyle=linestyle)
+    if model is not None:
+        if show_sem:
+            plot_sem_band(ax, t, model, sem)
+        ax.plot(t, model, color=MODEL_COLOR, linewidth=TRACE_LW, linestyle=linestyle)
     if off_data is not None:
         ax.plot(t, off_data, color=DATA_COLOR, linewidth=TRACE_LW, linestyle='--')
     if off_model is not None:

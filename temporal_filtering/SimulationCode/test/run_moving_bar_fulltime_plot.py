@@ -92,14 +92,14 @@ def _aggregate_full_traces(windows, t0_bn, type_ids, types, spec_names, center_o
 @torch.no_grad()
 def _compute_full_type_traces(session, z):
     from network.moving_bar_target import load_fig1_trace
-    from network.stimulus import build_moving_bar_signals, center_photo_column, photo_columns
+    from network.stimulus import build_moving_bar_signals, center_sti_column, sti_columns
 
     specs = gruntman_moving_bar_specs(contrasts=("bright",))
     spec_names = [s.name for s in specs]
     C = session.backend.network
     side = normalize_side(C.meta.get('side', 'right'))
     center_only = center_column_only(session)
-    cols = [center_photo_column(C)] if center_only else photo_columns(C)
+    cols = [center_sti_column(C)] if center_only else sti_columns(C)
 
     pack = session.pack_for('moving_bar_bright')
     p = fc.assign_params(z, list(session.schema), session.backend)
@@ -146,10 +146,10 @@ def _compute_full_type_traces(session, z):
                 full[w0:w1] = win[:n_fill]
             data_mean[(subtype, spec.name)] = full
     if center_only:
-        col = center_photo_column(C)
+        col = center_sti_column(C)
         scope = f'centre column (u,v)=({col.u},{col.v})'
     else:
-        scope = f'avg over {len(photo_columns(C))} photo columns'
+        scope = f'avg over {len(sti_columns(C))} sti columns'
     meta = {'maxtime': mt, 't_on': ton, 'deltat_ms': float(fc.deltat), 'scope': scope,
             'center_only': center_only}
     return types, spec_names, model_mean, model_sem, data_mean, meta

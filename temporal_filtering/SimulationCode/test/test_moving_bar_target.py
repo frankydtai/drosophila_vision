@@ -41,7 +41,7 @@ def test_build_target_extent2():
     assert T.cost_t0.shape == T.readout_batch.shape == T.readout_unit.shape
     assert int(T.cost_t0.min()) >= 0
     assert int(T.cost_t0.max()) + COST_WINDOW_STEPS <= T.maxtime
-    assert T.info["n_photo_columns"] == 19
+    assert T.info["n_sti_columns"] == 19
     assert T.info["n_cost"] > 0
     assert T.info["skipped_orthogonal"] > 0
     assert T.cost_pd_nd.shape == (T.info["n_cost"],)
@@ -83,15 +83,56 @@ def test_calc_cost_parts_pd_nd_split():
     assert int((pack.cost_pd_nd == ND_IDX).sum()) > 0
 
 
-def test_build_target_center_column():
+def test_build_target_cost_extent():
     path = NETWORK_DIR / "right_min_neuron1_extent2" / "network.json"
     C = load_network(path, device="cpu")
-    T = build_moving_bar_target(C, device="cpu", use_cache=True, center_column=True)
-    assert T.info["center_column"] is True
+    T = build_moving_bar_target(C, device="cpu", use_cache=True, cost_extent=0)
+    assert T.info["cost_extent"] == 0
     assert T.info["n_cost_columns"] == 1
     assert T.info["cost_column_uv"] == (0, 0)
     assert T.info["n_cost"] < 200
     assert T.data.shape[0] == T.info["n_cost"]
+
+
+def test_resolve_cost_extent_by_target():
+    import FiveCol_MedSim_Pytorch as fc
+    out = fc.resolve_cost_extent_by_target(
+        ["moving_bar_bright", "moving_bar_dark"],
+        2,
+        {"moving_bar_bright": 0},
+    )
+    assert out == {"moving_bar_bright": 0, "moving_bar_dark": 2}
+
+
+def test_cost_extent_requires_network():
+    import train as train_mod
+    import argparse
+    args = argparse.Namespace(
+        model_type="conductance",
+        nofruns=1,
+        nofsteps=5,
+        lrs="0.1",
+        fname=None,
+        outdir=None,
+        mode="",
+        fix="",
+        ih_off="split",
+        per_type=False,
+        network=None,
+        target="moving_bar_bright",
+        loss_weight="",
+        cost_extent="0",
+        shift=False,
+        share_edges="",
+        i_baseline="",
+        i_bright="",
+        i_dark="",
+    )
+    try:
+        train_mod.training_kwargs_from_args(args)
+        raise AssertionError("expected ValueError")
+    except ValueError as exc:
+        assert "requires --network" in str(exc)
 
 
 def test_use_network_moving_bar_cost():
@@ -134,7 +175,9 @@ def test_readout_window_pre_ton_zero():
 if __name__ == "__main__":
     test_fig1_traces_shape()
     test_build_target_extent2()
-    test_build_target_center_column()
+    test_build_target_cost_extent()
+    test_resolve_cost_extent_by_target()
+    test_cost_extent_requires_network()
     test_expand_loss_weights_moving_bar_pd()
     test_calc_cost_parts_pd_nd_split()
     test_use_network_moving_bar_cost()

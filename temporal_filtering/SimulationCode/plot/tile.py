@@ -26,11 +26,16 @@ from plot.utils import (
     TRACE_LW,
     annotate_baseline,
     baselines_for_types,
-    center_column_only,
+    nice_ylim,
+    suppress_cost_sem,
     plot_timecourse,
     save_figure,
     sem_from_traces,
-    ylim_for_traces,
+)
+from network.tiling import (
+    tile_stimulus_batches,
+    tiling_from_stimulus_opts,
+    unit_ring_layout,
 )
 
 CENTER_COL = ml.CENTER_COL
@@ -69,8 +74,14 @@ def _session_dark(session):
 
 def _scale_curve(xt, center, sem_xt=None):
     imp = xt[center]
+    if not np.isfinite(imp).any():
+        if sem_xt is not None:
+            return None, None, None
+        return None, None
     maxt = int(np.argmax(np.abs(imp)))
-    rf = bs.blurr(bs.rebin(xt[:, maxt], 45), 5)
+    # Unfilled azimuth bins are NaN; treat as zero response for spatial RF only.
+    spatial = np.nan_to_num(xt[:, maxt], nan=0.0)
+    rf = bs.blurr(bs.rebin(spatial, 45), 5)
     amp = float(np.max(np.abs(imp)))
     rf = rf / (np.max(np.abs(rf)) + 1e-12) * amp
     if sem_xt is not None:
@@ -132,13 +143,14 @@ def plot_cell_pair(
         imp_model, imp_data, rf_model, rf_data,
         off_imp_model, off_imp_data, off_rf_model, off_rf_data,
     ) if c is not None]
-    if imp_sem is not None:
+    if imp_sem is not None and imp_model is not None:
         curves.extend([imp_model + imp_sem, imp_model - imp_sem])
-    ylo, yhi = ylim_for_traces(imp_model, extra=curves[1:])
+    ylo, yhi = nice_ylim(*curves)
 
     if rf_data is not None:
         ax_rf.plot(rf_data, color=DATA_COLOR, linewidth=TRACE_LW, label='on data')
-    ax_rf.plot(rf_model, color=MODEL_COLOR, linewidth=TRACE_LW, label='on model')
+    if rf_model is not None:
+        ax_rf.plot(rf_model, color=MODEL_COLOR, linewidth=TRACE_LW, label='on model')
     if off_rf_data is not None:
         ax_rf.plot(off_rf_data, color=DATA_COLOR, linewidth=TRACE_LW, linestyle='--', label='off data')
     if off_rf_model is not None:
@@ -216,17 +228,6 @@ def calc_model_full_all(session, z, return_ref=False):
     return model_full
 
 
-def _network_readout_layout(pack, C):
-    readout = pack.readout_unit.cpu().numpy()
-    if pack.cost_radius is not None:
-        radius = pack.cost_radius.cpu().numpy()
-    else:
-        radius = np.zeros(pack.cost_weight.shape[0], dtype=np.float64)
-    type_idx = C.node_type[pack.readout_unit].cpu().numpy()
-    type_names = list(C.type_names)
-    return readout, radius, type_idx, type_names
-
-
 def _fill_ring_cube(cube, sem, ti, ft_global, type_idx, radius, plot_traces, center):
     for off in range(5):
         mask = (type_idx == ft_global) & (np.floor(radius).astype(int) == off)
@@ -234,7 +235,7 @@ def _fill_ring_cube(cube, sem, ti, ft_global, type_idx, radius, plot_traces, cen
             continue
         traces = plot_traces[mask]
         m = traces.mean(axis=0)
-        s = sem_from_traces(traces, center_only=False)
+        s = sem_from_traces(traces, single_column=False)
         for bin_j in {center + off, center - off}:
             if 0 <= bin_j < 9:
                 cube[ti, bin_j] = m
@@ -248,22 +249,41 @@ def multicol_cube(session, z, all_cells=False, group_list=None):
     p = fc.assign_params(z, schema, session.backend)
     sig = pack.signal if pack.signal.dim() == 3 else pack.signal.unsqueeze(0)
     model_full, vm_ref = fc._run_conductance_full(session, p, sig, return_ref=True)
-    sel = fc._readout_model_traces_pack(model_full, pack)
-    scale = fc._pack_out_scale(p, pack, session.backend)
-    plot_traces = fc.expand_plot_traces(sel, scale, session.maxtime).cpu().numpy()
-    vm_ref = vm_ref[0].cpu().numpy()
-    readout, radius, type_idx, type_names = _network_readout_layout(pack, session.backend.network)
-    type_ids = session.backend.network.node_type.cpu().numpy()
-    if all_cells:
-        names = [str(n) for n in type_names]
-    else:
-        names = tile_model_data_names(session, pack.name, group_list)
+    vm_ref_np = vm_ref[0].cpu().numpy()
+    C = session.backend.network
+    type_names = list(C.type_names)
+    type_ids = C.node_type.cpu().numpy()
     mt = session.maxtime
-    cube = np.zeros((len(names), 9, mt))
-    sem = np.zeros((len(names), 9, mt))
-    baselines = baselines_for_types(
-        pack, session.backend, vm_ref, names, type_ids, type_names,
+
+    if all_cells:
+        opts = dict((session.train_opts or {}).get(f"{pack.name}_stimulus_opts") or {})
+        batches = tile_stimulus_batches(tiling_from_stimulus_opts(C, opts))
+        batch_idx, unit_idx, radius, type_idx = unit_ring_layout(C, batches)
+        names = [str(n) for n in type_names]
+        ring_layout = (batch_idx, unit_idx, type_idx, radius)
+    else:
+        batch_idx = pack.readout_batch.cpu().numpy()
+        unit_idx = pack.readout_unit.cpu().numpy()
+        if pack.cost_radius is not None:
+            radius = pack.cost_radius.cpu().numpy()
+        else:
+            radius = np.zeros(pack.cost_weight.shape[0], dtype=np.float64)
+        type_idx = type_ids[unit_idx]
+        names = tile_model_data_names(session, pack.name, group_list)
+        ring_layout = None
+
+    raw = model_full[batch_idx, :, unit_idx]
+    scale = fc.out_scale_for_units(
+        p, torch.as_tensor(unit_idx, dtype=torch.long, device=z.device), session.backend,
     )
+    plot_traces = fc.expand_plot_traces(raw, scale, mt).cpu().numpy()
+    baselines = baselines_for_types(
+        pack, session.backend, vm_ref_np, names, type_ids, type_names,
+        ring_layout=ring_layout,
+    )
+
+    cube = np.full((len(names), 9, mt), np.nan)
+    sem = np.full((len(names), 9, mt), np.nan)
     center = CENTER_BIN
     for ti, ft in enumerate(names):
         ft_global = type_names.index(ft)
@@ -299,9 +319,9 @@ def _prepare_borst_tile(session, z, all_cells, group_list):
 
 def _prepare_network_tile(session, z, all_cells, group_list):
     names, cube, sem, baselines = multicol_cube(session, z, all_cells=all_cells, group_list=group_list)
-    center_only = center_column_only(session)
+    single_column = all_cells or suppress_cost_sem(session)
     cells = [
-        dict(name=n, cube=cube[i], sem=None if center_only else sem[i], baseline=baselines.get(n))
+        dict(name=n, cube=cube[i], sem=None if single_column else sem[i], baseline=baselines.get(n))
         for i, n in enumerate(names)
     ]
     return cells, None

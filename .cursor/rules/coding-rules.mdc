@@ -9,10 +9,10 @@ Scope: `temporal_filtering/`.
 
 ## HARD STOPS — violate = do not ship
 
-1. No backward compatibility: no old+new paths, shims, dual parsers, deprecated params, loaders for old runs/sidecars. 「改成 X」→ only X.
-2. `test/**`: edit only when user's task explicitly names that test; otherwise never (core tasks, follow-ups, broken-test fixes).
-3. Python/pip: use `.venv` in the **same top-level subproject** as the script (see §1 table). No bare `python` / `python3` / `pip` / `pip3`; no wrong subproject `.venv`.
-4. New `*.py` / `*.sh` / `*.ipynb` / `*.m`: explain + propose path/duties + wait for user approval.
+1. No backward compatibility: 「改成 X」→ only X; old must not remain compatible. No old+new paths, shims, dual parsers, deprecated params, loaders for old runs/sidecars.
+2. When you change core (§B), you must leave `test/**` broken — do not update tests to match. Edit `test/**` only when the user names that test or file in the task or when you must need to run the script.
+3. Python/pip: Must use `.venv` in the **same top-level subproject** as the script (see §1 table). No bare `python` / `python3` / `pip` / `pip3`; no wrong subproject `.venv`.
+4. Must not automatically add new `*.py` / `*.sh` / `*.ipynb` / `*.m`: must explain + propose path/duties + wait for user approval.
 
 - **Python** (script location → interpreter):
 | Script location | Interpreter |
@@ -33,11 +33,11 @@ Scope: `temporal_filtering/`.
 
 1. Parameters via schema only; new param = one segment. No scattered `z[...]`.
 2. `forward` / `trainer` / `calc_cost` live in core only.
-3. `run.py`: general driver only; `import run` must not parse argv or touch CUDA.
+3. `train.py`: general driver only; `import train` must not parse argv or touch CUDA.
 4. Path constants in `connectome_io.py` / `training_config.py`. Exception: `Circuits/*`.
 5. CSVs: rectangular; global scalars as constant columns.
 
 ## C non-core script rules
 
-1. `import run` / `import fc` (see HARD STOP 4). imports core.
-2. Training variants: `run_<id>` under `FiveCol_Parameter/<model_type>/`; full `run.py` artifact set and naming.
+1. `import train` / `import fc` (see HARD STOP 4). imports core.
+2. Training variants: `run_<id>` under `FiveCol_Parameter/<model_type>/`; full `train.py` artifact set and naming.

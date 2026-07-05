@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Visualise moving-bar column coverage (demo only).
 
-Connectome: hex photo field from ``network.stimulus``.
+Connectome: hex sti field from ``network.stimulus``.
 Borst (``--borst``): five columns on a horizontal row (AP axis only; ``right``/``left``).
 
 Usage (from SimulationCode/, uses project .venv):
@@ -129,14 +129,14 @@ def _build_borst_moving_bar(showcase, i_baseline: float = I_BASELINE):
         "sweep_steps": sweep_end - T_ON,
         "sweep_time_s": (sweep_end - T_ON) * 0.01,
         "spec_names": [s.name for s in showcase],
-        "n_photo_columns": len(hex_cols),
+        "n_sti_columns": len(hex_cols),
     }
     plot_uv = [(c.u, c.v) for c in hex_cols]
     return plot_uv, column_current, info
 
 
-def _photo_uv_for_plot(C):
-    """Axial (u, v) for each photo column (one per input hex)."""
+def _sti_uv_for_plot(C):
+    """Axial (u, v) for each sti column (one per input hex)."""
     cols: dict[tuple[int, int], tuple[int, int]] = {}
     u_in = C.u[C.is_input]
     v_in = C.v[C.is_input]
@@ -244,7 +244,7 @@ def write_snapshots(uv_columns, showcase, column_current, i_max, i_baseline, out
 
     fig.suptitle(
         f"Moving-bar column current (pA)  side={side}  "
-        f"{len(uv_columns)} photo columns  I_baseline={i_baseline}  I_max={i_max}",
+        f"{len(uv_columns)} sti columns  I_baseline={i_baseline}  I_max={i_max}",
         fontsize=11,
     )
     fig.tight_layout()
@@ -269,7 +269,7 @@ def write_animation(uv_columns, showcase, column_current, i_max, i_baseline, out
         t = times[frame_idx]
         title.set_text(
             f"Moving-bar column current (pA)  side={side}  "
-            f"{len(uv_columns)} photo columns  I_baseline={i_baseline}  I_max={i_max}  t={t} ({t * 0.01:.2f} s)"
+            f"{len(uv_columns)} sti columns  I_baseline={i_baseline}  I_max={i_max}  t={t} ({t * 0.01:.2f} s)"
         )
         for i, spec in enumerate(showcase):
             axes[i, 0].clear()
@@ -317,7 +317,7 @@ def main():
         i_baseline = float(info["i_baseline"])
         side = "borst"
         print(
-            f"borst: {info['n_photo_columns']} columns (col -2..+2)  "
+            f"borst: {info['n_sti_columns']} columns (col -2..+2)  "
             f"maxtime={maxtime} steps ({maxtime * 0.01:.2f} s)  "
             f"sweep={info['sweep_steps']} steps ({info['sweep_time_s']:.2f} s after t_on)"
         )
@@ -327,7 +327,7 @@ def main():
         default_png, default_gif = _default_outputs(network_json, C.meta, args.direction)
         output = args.output or default_png
         T = build_moving_bar_signals(C, specs=showcase)
-        uv_columns = _photo_uv_for_plot(C)
+        uv_columns = _sti_uv_for_plot(C)
         column_current = T.column_current
         t_on = int(T.info["t_on"])
         maxtime = int(T.info["maxtime"])

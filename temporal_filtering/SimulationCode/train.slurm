@@ -1,5 +1,5 @@
 #!/bin/bash
-#SBATCH --job-name=add_t45_train
+#SBATCH --job-name=train
 #SBATCH --account=punim0477
 #SBATCH --partition=gpu-h100
 #SBATCH --qos=publicgpu
@@ -26,6 +26,6 @@ echo "GPU:    ${CUDA_VISIBLE_DEVICES:-unset}"
 nvidia-smi -L || true
 python -c "import torch; print('cuda:', torch.cuda.is_available(), torch.cuda.get_device_name(0) if torch.cuda.is_available() else '')"
 echo "Start:  $(date)"
-python -u add_para/add_t45_data.py --target tile,moving_bar \
-  --model_type conductance --nofruns 1 --nofsteps 10000 --lrs 0.1,0.01,0.001
+python -u train.py --target tile_bright,moving_bar_bright \
+  --model-type conductance --nofsteps 10000 --lrs 0.1 --shift --network right_min_neuron1_extent2 --cost-extent 1
 echo "End:    $(date)"

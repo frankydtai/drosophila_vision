@@ -73,7 +73,7 @@ BORST_SPACING_DEG = 5.0
 
 
 class BorstColumnCenter(NamedTuple):
-    """One Borst photo column: index, offset from centre, axial and pixel coords."""
+    """One Borst sti column: index, offset from centre, axial and pixel coords."""
 
     col: int   # 0..4 (``Medulla_Library.CENTER_COL`` == 2)
     k: int     # col - BORST_CENTER_COL, i.e. -2..+2

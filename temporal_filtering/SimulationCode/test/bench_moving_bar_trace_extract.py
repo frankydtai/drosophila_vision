@@ -18,7 +18,7 @@ import network_bootstrap  # noqa: F401
 import FiveCol_MedSim_Pytorch as fc
 from connectome_io import DEFAULT_NETWORK_RUN, resolve_network_json
 from network.moving_bar_target import _TRACE_CACHE
-from network.stimulus import center_photo_column, photo_columns
+from network.stimulus import center_sti_column, sti_columns
 from network.tiling import unit_type_names
 from plot.moving_bar import (
     _aggregate_moving_bar_traces,
@@ -108,8 +108,8 @@ def main():
     C = session.backend.network
     specs = gruntman_moving_bar_specs(contrasts=("bright",))
     center_only = center_column_only(session)
-    center_col = center_photo_column(C)
-    cols = [center_col] if center_only else photo_columns(C)
+    center_col = center_sti_column(C)
+    cols = [center_col] if center_only else sti_columns(C)
     types = list(C.type_names)
     field_deg = C.meta.get("field_deg")
     if field_deg is None:

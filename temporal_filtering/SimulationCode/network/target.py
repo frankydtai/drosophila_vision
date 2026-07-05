@@ -33,11 +33,13 @@ import numpy as np
 import torch
 
 from Medulla_Library import DATA_AMP, I_DARK, IMPULSE_MAXTIME, I_BASELINE, I_BRIGHT, T_ON, read_RecF_ImpR
+from .stimulus import column_in_cost_extent
 from .tiling import (
     FIT_CELL_TYPES,
-    build_tiling,
     col2fit,
     euclid_hex_dist,
+    tile_stimulus_batches,
+    tiling_from_opts,
     unit_type_names,
 )
 
@@ -84,7 +86,7 @@ def build_shifted_target(
     polarity: str = "bright",
     data_amp: float = DATA_AMP,
     device: Optional[str] = None,
-    center_column: bool = False,
+    cost_extent: Optional[int] = None,
 ) -> ShiftedTarget:
     if polarity not in ("bright", "dark"):
         raise ValueError(f"polarity must be 'bright' or 'dark', got {polarity!r}")
@@ -93,19 +95,13 @@ def build_shifted_target(
     recf_data, impr_data = read_RecF_ImpR()  # (13,45), (13,IMPULSE_MAXTIME)
     fit_row = {ft: i for i, ft in enumerate(FIT_CELL_TYPES)}
 
-    tiling = build_tiling(
-        C, tile_extent, share_edges, single_tile, center_column=center_column,
+    tiling = tiling_from_opts(
+        C, tile_extent, share_edges, single_shift, single_tile,
     )
-    if single_shift:
-        tiling.shifts = [(0, 0)]
     names = unit_type_names(C)
     present_fit = [ft for ft in FIT_CELL_TYPES if ft in set(names.tolist())]
 
-    # one batch per (tile centre, shift); stimulus = photoreceptors at centre+shift.
-    batches = []  # (stim_u, stim_v, center)
-    for center in tiling.centers:
-        for du, dv in tiling.shifts:
-            batches.append((center[0] + du, center[1] + dv, center))
+    batches = tile_stimulus_batches(tiling)
     n_batch = len(batches)
 
     signal = torch.zeros((n_batch, maxtime, C.n_units), dtype=torch.float64, device=device)
@@ -125,6 +121,8 @@ def build_shifted_target(
     for b, (su, sv, center) in enumerate(batches):
         for du, dv in tiling.members:
             mu, mv = center[0] + du, center[1] + dv
+            if not column_in_cost_extent(mu, mv, cost_extent):
+                continue
             rr = round(euclid_hex_dist(mu - su, mv - sv), 6)
             col_count[(b, rr)] = col_count.get((b, rr), 0) + 1
 
@@ -132,6 +130,8 @@ def build_shifted_target(
     for b, (su, sv, center) in enumerate(batches):
         for du, dv in tiling.members:
             mu, mv = center[0] + du, center[1] + dv
+            if not column_in_cost_extent(mu, mv, cost_extent):
+                continue
             r = euclid_hex_dist(mu - su, mv - sv)
             w = 1.0 / col_count[(b, round(r, 6))]
             for ft in present_fit:
@@ -150,6 +150,9 @@ def build_shifted_target(
                     r_target.append(trace)
                     r_weight.append(w)
 
+    if not r_batch:
+        raise ValueError("no tile cost cells (check cost_extent and fit cell types)")
+
     data = torch.tensor(np.asarray(r_target), dtype=torch.float64, device=device)  # (n_cost,T')
     cost_weight = torch.tensor(np.asarray(r_weight), dtype=torch.float64, device=device)
     cost_radius = torch.tensor(np.asarray(r_radius), dtype=torch.float64, device=device)
@@ -165,8 +168,7 @@ def build_shifted_target(
         "n_cost": data.shape[0],
         "n_centers": len(tiling.centers),
         "n_shifts": len(tiling.shifts),
-        "center_column": bool(center_column),
-        "cost_column_uv": CENTER_COLUMN_UV if center_column else None,
+        "cost_extent": cost_extent,
         "present_fit": present_fit,
         "share_edges": share_edges,
         "i_baseline": float(i_baseline),

@@ -17,7 +17,7 @@ os.environ.setdefault("CUDA_VISIBLE_DEVICES", "")
 
 import Medulla_Library as ml
 import FiveCol_MedSim_Pytorch as fc
-import run
+import train
 from plot_trained import (
     load_session,
     load_train_opts,
@@ -145,7 +145,7 @@ def borst_bar_sessions(outdir):
         moving_bar_center_column=center,
     )
     session = fc.open_session(base, "conductance")
-    session = run.apply_param_modes(session, LEGACY_PARAM_MODES, LEGACY_PARAM_FIXES)
+    session = train.apply_param_modes(session, LEGACY_PARAM_MODES, LEGACY_PARAM_FIXES)
     s_bright = fc.open_session({**base, "target_list": ["moving_bar_bright"], "packs": None},
                                "conductance", model_backend=session.backend)
     s_dark = fc.open_session({**base, "target_list": ["moving_bar_dark"], "packs": None},
@@ -161,7 +161,7 @@ def borst_tile_session():
         ),
         "conductance",
     )
-    return run.apply_param_modes(session, LEGACY_PARAM_MODES, LEGACY_PARAM_FIXES)
+    return train.apply_param_modes(session, LEGACY_PARAM_MODES, LEGACY_PARAM_FIXES)
 
 
 def main():

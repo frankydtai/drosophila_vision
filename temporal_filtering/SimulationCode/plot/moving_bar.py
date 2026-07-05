@@ -12,7 +12,7 @@ import Medulla_Library as ml
 from plot.readout import moving_bar_row_types
 from plot.utils import (
     baselines_for_types,
-    center_column_only,
+    suppress_cost_sem,
     plot_timecourse,
     save_figure,
     sem_from_traces,
@@ -110,7 +110,7 @@ def _extract_moving_bar_windows(model_full, t0_bn):
     return out
 
 
-def _aggregate_moving_bar_traces(windows, t0_bn, type_ids, types, spec_names, center_only):
+def _aggregate_moving_bar_traces(windows, t0_bn, type_ids, types, spec_names, single_column):
     model_mean, model_sem = {}, {}
     valid = t0_bn >= 0
     for ti, tname in enumerate(types):
@@ -124,7 +124,7 @@ def _aggregate_moving_bar_traces(windows, t0_bn, type_ids, types, spec_names, ce
             arr = windows[bi, unit_mask]
             key = (tname, sname)
             model_mean[key] = arr.mean(axis=0)
-            model_sem[key] = sem_from_traces(arr, center_only=center_only)
+            model_sem[key] = sem_from_traces(arr, single_column=single_column)
     return model_mean, model_sem
 
 
@@ -144,12 +144,11 @@ def _load_moving_bar_data_mean(session, target, types, specs, side):
     return data_mean
 
 
-def _moving_bar_t0_grid_network(C, specs, center_only):
-    from network.stimulus import build_moving_bar_signals, center_photo_column, photo_columns
+def _moving_bar_t0_grid_network(C, specs, cost_extent):
+    from network.stimulus import build_moving_bar_signals, cost_sti_columns
 
     side = normalize_side(C.meta.get('side', 'right'))
-    center_col = center_photo_column(C)
-    cols = [center_col] if center_only else photo_columns(C)
+    cols = cost_sti_columns(C, cost_extent=cost_extent)
     field_deg = C.meta.get('field_deg')
     if field_deg is None:
         field_deg = build_moving_bar_signals(
@@ -168,9 +167,9 @@ def _moving_bar_t0_grid_network(C, specs, center_only):
     return types, type_ids, t0_bn, side
 
 
-def _moving_bar_t0_grid_borst(session, specs, center_only):
+def _moving_bar_t0_grid_borst(session, specs):
     cols_all = _borst_hex_columns()
-    col_ids = [ml.CENTER_COL] if center_only else list(range(ml.nofcols))
+    col_ids = list(range(ml.nofcols))
     cols = [cols_all[i] for i in col_ids]
     field_deg = field_bounds(cols_all)
     t0_bn = np.full((len(specs), ml.n_state_units()), -1, dtype=np.int64)
@@ -197,21 +196,22 @@ def _compute_moving_bar_all_type_traces(session, z, target=None):
     model_full = _scale_model_full(model_full.cpu().numpy(), p, session.backend)
     specs = _bar_specs_for_session(session, target)
     spec_names = [s.name for s in specs]
-    center_only = center_column_only(session, target)
+    single_column = suppress_cost_sem(session, target)
+    cost_extent = pack.cost_extent
     C = session.backend.network
     if C is not None:
-        types, type_ids, t0_bn, side = _moving_bar_t0_grid_network(C, specs, center_only)
+        types, type_ids, t0_bn, side = _moving_bar_t0_grid_network(C, specs, cost_extent)
         baselines = baselines_for_types(
             pack, session.backend, vm_ref[0].cpu().numpy(), types, type_ids, types,
         )
     else:
-        types, type_ids, t0_bn, side = _moving_bar_t0_grid_borst(session, specs, center_only)
+        types, type_ids, t0_bn, side = _moving_bar_t0_grid_borst(session, specs)
         baselines = baselines_for_types(
             pack, session.backend, vm_ref[0].cpu().numpy(), types, type_ids, types,
         )
     windows = _extract_moving_bar_windows(model_full, t0_bn)
     model_mean, model_sem = _aggregate_moving_bar_traces(
-        windows, t0_bn, type_ids, types, spec_names, center_only,
+        windows, t0_bn, type_ids, types, spec_names, single_column,
     )
     data_mean = _load_moving_bar_data_mean(session, target, types, specs, side)
     return types, spec_names, model_mean, model_sem, data_mean, baselines
@@ -235,17 +235,18 @@ def _moving_bar_mean_traces(session, z, target=None):
 
 
 def _moving_bar_scope_label(session):
-    center_only = center_column_only(session)
+    pack = session.primary_pack
+    cost_extent = pack.cost_extent
     C = session.backend.network
-    if center_only:
+    if cost_extent is not None:
         if C is not None:
-            from network.stimulus import center_photo_column
-            col = center_photo_column(C)
-            return f'centre column (u,v)=({col.u},{col.v})'
-        return f'centre column (col={ml.CENTER_COL})'
+            from network.stimulus import cost_sti_columns
+            ncols = len(cost_sti_columns(C, cost_extent=cost_extent))
+            return f'cost_extent={cost_extent} ({ncols} sti columns)'
+        return f'cost_extent={cost_extent}'
     if C is not None:
-        from network.stimulus import photo_columns
-        return f'avg over {len(photo_columns(C))} photo columns'
+        from network.stimulus import sti_columns
+        return f'avg over {len(sti_columns(C))} sti columns'
     return f'avg over {ml.nofcols} Borst columns'
 
 
@@ -320,7 +321,7 @@ def _plot_moving_bar_cell(
 
 
 def plot_moving_bar_data(session, z, path, session_off=None, title=None):
-    center_only = center_column_only(session)
+    single_column = suppress_cost_sem(session)
     target = _bar_target(session)
     row_specs, model_mean, model_sem, data_mean, baselines = _moving_bar_mean_traces(
         session, z, target,
@@ -356,7 +357,7 @@ def plot_moving_bar_data(session, z, path, session_off=None, title=None):
                 continue
             _plot_moving_bar_cell(
                 ax, mm[key], ms[key], dm.get(key),
-                sname, show_ylabel=(col_offset + ci == 0), show_sem=not center_only,
+                sname, show_ylabel=(col_offset + ci == 0), show_sem=not single_column,
                 baseline=bl.get(subtype),
                 linestyle=_moving_bar_spec_linestyle(plot_side, subtype, sname),
             )
@@ -382,7 +383,7 @@ def plot_moving_bar_data(session, z, path, session_off=None, title=None):
 @torch.no_grad()
 def plot_moving_bar_all(session, z, path, session_off=None, title=None):
     t0 = time.perf_counter()
-    center_only = center_column_only(session)
+    single_column = suppress_cost_sem(session)
     target = _bar_target(session)
     types, all_spec_names, model_mean, model_sem, data_mean, baselines = _compute_moving_bar_all_type_traces(
         session, z, target,
@@ -403,7 +404,7 @@ def plot_moving_bar_all(session, z, path, session_off=None, title=None):
     t_traces = time.perf_counter() - t0
 
     keys = [(t, s) for t in types for s in spec_names if (t, s) in model_mean]
-    show_sem = not center_only
+    show_sem = not single_column
     ylim = ylim_for_keys(model_mean, model_sem, data_mean, keys, show_sem=show_sem)
 
     nrows = len(types)

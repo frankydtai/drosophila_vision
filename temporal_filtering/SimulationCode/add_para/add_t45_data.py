@@ -12,13 +12,13 @@ import numpy as np
 import FiveCol_MedSim_Pytorch as fc
 import plot_trained as pt
 from plot import tile as tile_plot
-import run
+import train
 from t4_t5_preference import READOUT_SUBTYPES
 
-ap = run.make_training_argparser(__doc__)
+ap = train.make_training_argparser(__doc__)
 args = ap.parse_args()
 try:
-    train_kw = run.training_kwargs_from_args(args, script_stem='add_t45_data')
+    train_kw = train.training_kwargs_from_args(args, script_stem='add_t45_data')
 except ValueError as exc:
     ap.error(str(exc))
 
@@ -72,7 +72,7 @@ plot_mvd_groups = [
     np.array(T5_NAMES),
 ] + tile_plot.DEFAULT_MVD_GROUPS
 
-fname, outdir, session = run.run_training(
+fname, outdir, session = train.run_training(
     **train_kw,
     pack_overrides=PACK_OVERRIDES,
     plot_ref_cubes=plot_ref_cubes,

@@ -43,7 +43,7 @@ def main():
     print("forward", tuple(out.shape))
     print("field_deg", T.info["field_deg"])
     print("maxtime", maxtime, f"sweep={T.info['sweep_steps']} steps ({T.info['sweep_time_s']:.2f} s)")
-    print("n_photo_columns", T.info["n_photo_columns"])
+    print("n_sti_columns", T.info["n_sti_columns"])
     assert sig.shape == (16, maxtime, session.backend.n_units)
     assert out.shape == (16, maxtime - fc.t_on, session.backend.n_units)
     assert maxtime < ml.IMPULSE_MAXTIME

@@ -14,22 +14,22 @@ where <run_name> encodes the CLI, e.g.
 (job id under SLURM, else a timestamp prefix).
 
     # short smoke test
-    python run.py --model_type adaptive --nofsteps 30 --lrs 0.1
+    python train.py --model-type adaptive --nofsteps 30 --lrs 0.1
 
     # full training
-    python run.py --model_type conductance --nofruns 1 --nofsteps 10000 \\
+    python train.py --model-type conductance --nofruns 1 --nofsteps 10000 \\
                   --lrs 0.1,0.01,0.001
 
     # per-target PR currents (comma-separated TARGET=VALUE)
-    python run.py --target tile,moving_bar --i_baseline tile=20,moving_bar=22 \\
-                  --i_bright tile_bright=45 --i_dark tile_dark=0,moving_bar_dark=2
+    python train.py --target tile,moving_bar --i-baseline tile=20,moving_bar=22 \\
+                  --i-bright tile_bright=45 --i-dark tile_dark=0,moving_bar_dark=2
 
     # moving-bar (``--network`` = folder under built_network/)
-    python run.py --target moving_bar --network right_min_neuron1_extent2 \\
+    python train.py --target moving_bar --network right_min_neuron1_extent2 \\
                   --nofsteps 5 --lrs 0.1
 
 Import-safe: importing this module does NOT parse argv or touch CUDA, so test
-scripts can `import run` and reuse run_training / save_training_outputs / etc.
+scripts can `import train` and reuse run_training / save_training_outputs / etc.
 """
 import argparse
 import json
@@ -39,7 +39,7 @@ import time
 # When executed as a script, run from this file's own directory so `fc` finds
 # Circuits/ regardless of where it was launched (no need to cd first). Done
 # before importing fc (Borst paths resolve relative to SimulationCode/). NOT done on
-# `import run`, so importers keep control of cwd / CUDA_VISIBLE_DEVICES.
+# `import train`, so importers keep control of cwd / CUDA_VISIBLE_DEVICES.
 if __name__ == "__main__":
     os.chdir(os.path.dirname(os.path.abspath(__file__)))
 
@@ -269,7 +269,7 @@ def build_session(
     sequential=None,
     target_list=None,
     loss_weights=None,
-    center_only_targets=None,
+    cost_extent_by_target=None,
     multi_shift_targets=None,
     share_edges_targets=None,
     i_cli=None,
@@ -293,7 +293,7 @@ def build_session(
         loss_weights=loss_weights,
         pack_overrides=pack_overrides,
         sequential=sequential,
-        center_only_targets=center_only_targets,
+        cost_extent_by_target=cost_extent_by_target,
         multi_shift_targets=multi_shift_targets,
         share_edges_targets=share_edges_targets,
         i_cli=i_cli,
@@ -332,7 +332,7 @@ def run_training(model_type, nofruns, nofsteps, lrs, fname=None, outdir=None,
                  ih_off=fc.IH_OFF_DEFAULT,
                  network=None, sequential=None,
                  target_list=None, loss_weights=None,
-                 center_only_targets=None, multi_shift_targets=None,
+                 cost_extent_by_target=None, multi_shift_targets=None,
                  share_edges_targets=None, i_cli=None,
                  per_type=False, moving_bar_bright_stimulus_opts=None,
                  moving_bar_dark_stimulus_opts=None,
@@ -348,7 +348,7 @@ def run_training(model_type, nofruns, nofsteps, lrs, fname=None, outdir=None,
         sequential=sequential,
         target_list=target_list,
         loss_weights=loss_weights,
-        center_only_targets=center_only_targets,
+        cost_extent_by_target=cost_extent_by_target,
         multi_shift_targets=multi_shift_targets,
         share_edges_targets=share_edges_targets,
         i_cli=i_cli,
@@ -384,29 +384,29 @@ def run_training(model_type, nofruns, nofsteps, lrs, fname=None, outdir=None,
 
 
 def add_training_arguments(parser):
-    """Register run.py training CLI flags on *parser*."""
-    parser.add_argument("--model_type", default="conductance",
+    """Register train.py training CLI flags on *parser*."""
+    parser.add_argument("--model-type", default="conductance",
                         choices=["conductance", "adaptive"])
     parser.add_argument("--nofruns", type=int, default=1)
     parser.add_argument("--nofsteps", type=int, default=50)
     parser.add_argument("--lrs", default="0.1",
                         help="comma-separated learning-rate stages; each runs for --nofsteps steps")
     parser.add_argument("--fname", default=None,
-                        help="params filename (default derived from --model_type)")
+                        help="params filename (default derived from --model-type)")
     parser.add_argument("--outdir", default=None,
-                        help="output dir (default derived from --model_type)")
+                        help="output dir (default derived from --model-type)")
     parser.add_argument("--mode", default="", metavar="NAME=MODE,...",
                         help="per-param mode override, e.g. out_scale=shared,inp_gain=fixed "
                              "(MODE in individual|shared|fixed)")
     parser.add_argument("--fix", default="", metavar="NAME=VALUE,...",
                         help="hold a param fixed at VALUE (implies fixed mode), "
                              "e.g. Ih_midv=-50,out_scale=1.0")
-    parser.add_argument("--ih_off", default=fc.IH_OFF_DEFAULT,
+    parser.add_argument("--ih-off", default=fc.IH_OFF_DEFAULT,
                         choices=list(fc.IH_OFF_MODES),
                         help="conductance ON/OFF Ih coupling: split (train Ih_gmax_off+OFF "
                              "scalars; default), shared (OFF uses ON Ih_gmax+shape), "
                              "off (disable OFF channel)")
-    parser.add_argument("--per_type", action="store_true",
+    parser.add_argument("--per-type", action="store_true",
                         help="train Ih (and adaptive lamina) params per cell type "
                              "instead of shared lamina/scalar values")
     parser.add_argument("--network", default=None, metavar="RUN",
@@ -420,7 +420,7 @@ def add_training_arguments(parser):
              "or explicit names / comma-separated list, e.g. tile,moving_bar",
     )
     parser.add_argument(
-        "--loss_weight",
+        "--loss-weight",
         default="",
         metavar="TARGET=VALUE,...",
         help="per-part loss weights, e.g. tile=1,PD=1.5,ND=1.0 "
@@ -432,32 +432,33 @@ def add_training_arguments(parser):
         help="enable 7 sub-tile shifts for tile targets in --target",
     )
     parser.add_argument(
-        "--share_edges",
+        "--share-edges",
         default="",
         help="comma-separated tile targets for edge-sharing tiling "
              "(choices: tile,tile_bright,tile_dark)",
     )
     parser.add_argument(
-        "--center_only",
+        "--cost-extent",
         default="",
-        help="comma-separated targets that use centre-column-only cost; "
-             "choices: tile,tile_bright,tile_dark,moving_bar,moving_bar_bright,moving_bar_dark",
+        metavar="N|TARGET=N,...",
+        help="network cost hex-disc radius: bare N for all --target, or per-target "
+             "e.g. moving_bar_bright=0 (aliases: tile, moving_bar); requires --network",
     )
     parser.add_argument(
-        "--i_baseline",
+        "--i-baseline",
         default="",
         metavar="TARGET=VALUE,...",
         help="per-target PR baseline (pA); aliases: tile, moving_bar",
     )
     parser.add_argument(
-        "--i_bright",
+        "--i-bright",
         default="",
         metavar="TARGET=VALUE,...",
         help="bright peak/step current (pA); targets: tile_bright, moving_bar_bright "
              "(aliases tile, moving_bar)",
     )
     parser.add_argument(
-        "--i_dark",
+        "--i-dark",
         default="",
         metavar="TARGET=VALUE,...",
         help="dark peak/step current (pA); targets: tile_dark, moving_bar_dark "
@@ -466,7 +467,7 @@ def add_training_arguments(parser):
 
 
 def make_training_argparser(description):
-    """Argparse parser with the full run.py training CLI."""
+    """Argparse parser with the full train.py training CLI."""
     common = argparse.ArgumentParser(add_help=False)
     add_training_arguments(common)
     return argparse.ArgumentParser(
@@ -507,17 +508,41 @@ def parse_target_names(text):
     return parse_comma_list(text)
 
 
+def parse_cost_extent(text):
+    """Parse ``--cost-extent``: optional bare ``N`` plus ``TARGET=N`` pairs."""
+    default = None
+    by_target = {}
+    for tok in parse_comma_list(text):
+        if "=" in tok:
+            name, val = tok.split("=", 1)
+            by_target[name.strip()] = int(val.strip())
+        else:
+            if default is not None:
+                raise ValueError("only one bare extent allowed in --cost-extent")
+            default = int(tok)
+    return default, by_target
+
+
 def training_kwargs_from_args(
     args,
     *,
-    script_stem="run",
+    script_stem="train",
 ):
     """Parse a training CLI namespace into kwargs for :func:`run_training`."""
     param_modes = parse_comma_kv(args.mode)
     param_fixes = parse_comma_kv(args.fix, float)
     loss_weights = fc.expand_loss_weights(parse_comma_kv(args.loss_weight, float))
     target_list = parse_target_list(args.target)
-    center_only_targets = fc.expand_target_aliases(parse_target_names(args.center_only))
+    default_extent, extent_kv = parse_cost_extent(args.cost_extent)
+    cost_extent_by_target = fc.resolve_cost_extent_by_target(
+        target_list, default_extent, extent_kv,
+    )
+    if cost_extent_by_target and args.network is None:
+        raise ValueError("--cost-extent requires --network")
+    if default_extent is not None and default_extent < 0:
+        raise ValueError("--cost-extent must be >= 0")
+    if any(v < 0 for v in extent_kv.values()):
+        raise ValueError("--cost-extent must be >= 0")
     multi_shift_targets = (
         [t for t in target_list if t in fc.TILE_TARGETS] if args.shift else []
     )
@@ -530,16 +555,10 @@ def training_kwargs_from_args(
     lrs = parse_comma_floats(args.lrs)
     if not lrs:
         raise ValueError("--lrs must list at least one learning rate")
-    bad_center = [t for t in center_only_targets if t not in fc.VALID_TARGETS]
-    if bad_center:
-        raise ValueError(
-            f"unknown target(s) in --center_only: {bad_center} "
-            f"(expected {'|'.join(fc.CLI_TARGET_NAMES)})",
-        )
     bad_share = [t for t in share_edges_targets if t not in fc.TILE_TARGETS]
     if bad_share:
         raise ValueError(
-            f"unknown target(s) in --share_edges: {bad_share} "
+            f"unknown target(s) in --share-edges: {bad_share} "
             f"(expected {'|'.join(fc.TILE_TARGETS + ('tile',))})",
         )
     run_name = command_run_name(script_stem)
@@ -556,7 +575,7 @@ def training_kwargs_from_args(
         network=args.network,
         target_list=target_list,
         loss_weights=loss_weights,
-        center_only_targets=center_only_targets,
+        cost_extent_by_target=cost_extent_by_target,
         multi_shift_targets=multi_shift_targets,
         share_edges_targets=share_edges_targets,
         i_cli=i_cli,

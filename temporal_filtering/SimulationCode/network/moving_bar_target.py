@@ -16,7 +16,7 @@ import torch
 
 import Medulla_Library as ml
 from Medulla_Library import I_BASELINE, I_BRIGHT, I_DARK, T_ON
-from network.stimulus import build_moving_bar_signals, cost_photo_columns
+from network.stimulus import build_moving_bar_signals, cost_sti_columns
 from t4_t5_preference import (
     READOUT_SUBTYPES,
     fig1_key_for_stimulus,
@@ -161,16 +161,16 @@ def build_moving_bar_target(
     deltat_ms: float = 10.0,
     fig1_path: Path = FIG1_CI_NPZ,
     use_cache: bool = True,
-    center_column: bool = False,
+    cost_extent: Optional[int] = None,
     i_baseline: Optional[float] = None,
     i_bright_bar: Optional[float] = None,
     i_dark_bar: Optional[float] = None,
     contrasts: Sequence[str] = ("bright", "dark"),
 ) -> MovingBarTarget:
-    """Build moving-bar stimulus + fig1 targets for photo columns × T4/T5 subtypes.
+    """Build moving-bar stimulus + fig1 targets for sti columns × T4/T5 subtypes.
 
-    ``center_column=True`` restricts cost to the hex centre column ``(u,v)=(0,0)``.
-    Stimulus still drives all photoreceptor columns.
+    ``cost_extent`` restricts cost to columns inside the central hex disc
+    (``None`` = all sti columns). Stimulus still drives all photoreceptors.
     """
     device = device or C.device
     side = normalize_side(C.meta.get("side", "right"))
@@ -196,8 +196,8 @@ def build_moving_bar_target(
         raise ValueError("network has no T4a–d / T5a–d subtypes for moving-bar target")
 
     type_names = unit_type_names(C)
-    cols = cost_photo_columns(C, center_column=center_column)
-    center_col = cols[0] if center_column else None
+    cols = cost_sti_columns(C, cost_extent=cost_extent)
+    center_col = cols[0] if cost_extent == 0 and len(cols) == 1 else None
 
     r_batch, r_unit, r_target, r_weight, r_t0, r_pd_nd = [], [], [], [], [], []
     skipped_orthogonal = 0
@@ -234,7 +234,7 @@ def build_moving_bar_target(
                     r_pd_nd.append(pd_nd_idx)
 
     if not r_batch:
-        raise ValueError("no moving-bar cost cells (check subtypes and photo columns)")
+        raise ValueError("no moving-bar cost cells (check subtypes and sti columns)")
 
     data = torch.tensor(np.asarray(r_target), dtype=torch.float64, device=device)
     cost_weight = torch.tensor(np.asarray(r_weight), dtype=torch.float64, device=device)
@@ -254,7 +254,7 @@ def build_moving_bar_target(
         "n_cost_nd": int((cost_pd_nd == ND_IDX).sum().item()),
         "n_batch": stim.info["n_batch"],
         "n_cost_columns": len(cols),
-        "center_column": bool(center_column),
+        "cost_extent": cost_extent,
         "cost_column_uv": (int(center_col.u), int(center_col.v)) if center_col else None,
         "side": side,
         "present_subtypes": present,
@@ -282,7 +282,6 @@ def build_borst_moving_bar_target(
     t_on: int = T_ON,
     deltat_ms: float = 10.0,
     fig1_path: Path = FIG1_CI_NPZ,
-    center_column: bool = False,
     readout_subtypes: Optional[Sequence[str]] = None,
     i_baseline: float = I_BASELINE,
     i_bright_bar: Optional[float] = None,
@@ -323,8 +322,8 @@ def build_borst_moving_bar_target(
         pr = ml.photoreceptor_slice(col)
         signal[:, :, pr] = torch.tensor(column_current[:, :, col], dtype=torch.float64, device=device)[:, :, None]
 
-    cost_cols = [cols[ml.CENTER_COL]] if center_column else cols
-    cost_col_ids = [ml.CENTER_COL] if center_column else list(range(ml.nofcols))
+    cost_cols = cols
+    cost_col_ids = list(range(ml.nofcols))
 
     r_batch, r_unit, r_target, r_weight, r_t0, r_pd_nd = [], [], [], [], [], []
     skipped_orthogonal = 0
@@ -374,8 +373,8 @@ def build_borst_moving_bar_target(
         "n_cost_nd": int((cost_pd_nd == ND_IDX).sum().item()),
         "n_batch": len(specs),
         "n_cost_columns": len(cost_cols),
-        "center_column": bool(center_column),
-        "cost_column_uv": (ml.CENTER_COL, 0) if center_column else None,
+        "cost_extent": None,
+        "cost_column_uv": None,
         "side": "right",
         "present_subtypes": present,
         "skipped_orthogonal": skipped_orthogonal,
@@ -387,7 +386,7 @@ def build_borst_moving_bar_target(
         "sweep_steps": sweep_end - t_on,
         "sweep_time_s": (sweep_end - t_on) * (deltat_ms / 1000.0),
         "spec_names": [s.name for s in specs],
-        "n_photo_columns": ml.nofcols,
+        "n_sti_columns": ml.nofcols,
         "mode": "borst",
         "i_baseline": float(i_baseline),
     }

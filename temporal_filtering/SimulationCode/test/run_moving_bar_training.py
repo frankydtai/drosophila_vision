@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Smoke test: moving-bar target via run.run_training (minimal steps).
+"""Smoke test: moving-bar target via train.run_training (minimal steps).
 
 Usage:
     ../.venv/bin/python test/run_moving_bar_training.py
@@ -18,7 +18,7 @@ os.chdir(ROOT)
 os.environ["CUDA_VISIBLE_DEVICES"] = ""
 
 import network_bootstrap  # noqa: F401
-import run
+import train
 from training_config import MODEL_ALL_CELLS_PNG, MODEL_VS_DATA_PNG
 
 
@@ -28,7 +28,7 @@ def main():
                     help="built_network run folder name")
     args = ap.parse_args()
 
-    fname, outdir, _session = run.run_training(
+    fname, outdir, _session = train.run_training(
         "conductance",
         nofruns=1,
         nofsteps=5,

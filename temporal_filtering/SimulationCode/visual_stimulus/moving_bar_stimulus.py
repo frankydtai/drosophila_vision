@@ -41,7 +41,7 @@ class MovingBarSpec:
 
 @dataclass
 class HexColumn:
-    """One photo column in degree coordinates (no connectome unit indices)."""
+    """One sti column in degree coordinates (no connectome unit indices)."""
 
     u: int
     v: int
@@ -345,7 +345,7 @@ def coverage_hex_bar(
 
 
 def field_bounds(columns: Sequence[HexColumn]) -> Tuple[float, float, float, float]:
-    """Photo-field extent in degrees from column hex vertices (not centers)."""
+    """Sti-field extent in degrees from column hex vertices (not centers)."""
     if not columns:
         return 0.0, 0.0, 0.0, 0.0
     xmins = [float(c.hex_xy[:, 0].min()) for c in columns]

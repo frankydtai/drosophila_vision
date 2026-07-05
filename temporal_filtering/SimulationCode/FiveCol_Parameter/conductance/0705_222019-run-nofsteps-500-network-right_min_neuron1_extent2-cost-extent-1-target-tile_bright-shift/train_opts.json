@@ -1,0 +1,24 @@
+{
+  "backend": "network",
+  "target_list": [
+    "tile_bright"
+  ],
+  "loss_weights": {},
+  "sequential": true,
+  "network_json": "/home/yitai/drosophila_vision/temporal_filtering/Connectome/FAFBv783/built_network/right_min_neuron1_extent2/network.json",
+  "tile_bright_stimulus_opts": {
+    "mode": "network",
+    "i_baseline": 20.0,
+    "i_bright": 40.0,
+    "t_on": 50,
+    "maxtime": 200,
+    "deltat_ms": 10.0,
+    "multi_shift": true,
+    "share_edges": false,
+    "cost_extent": 1
+  },
+  "tile_dark_stimulus_opts": null,
+  "moving_bar_bright_stimulus_opts": null,
+  "moving_bar_dark_stimulus_opts": null,
+  "ih_off": "split"
+}

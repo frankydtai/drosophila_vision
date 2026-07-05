@@ -149,9 +149,9 @@ def plot_512_instrumented(session, z, path: str, tl: Timeline):
 
     tl.mark("suptitle + subplots_adjust")
     t0 = time.perf_counter()
-    from network.stimulus import photo_columns
+    from network.stimulus import sti_columns
     C = session.backend.network
-    scope = f"avg over {len(photo_columns(C))} photo columns"
+    scope = f"avg over {len(sti_columns(C))} sti columns"
     fig.suptitle("Moving-bar model-all  [" + scope + ", t_center ± 0.45 s]", fontsize=10)
     fig.subplots_adjust(top=0.96, bottom=0.05, hspace=0.55, wspace=0.3)
     tl.phase("suptitle+adjust", time.perf_counter() - t0)

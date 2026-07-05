@@ -67,8 +67,8 @@ def _center_index(session, cell_name):
         ti = list(C.type_names).index(cell_name)
         u_np = C.u.detach().cpu().numpy()
         v_np = C.v.detach().cpu().numpy()
-        from network.stimulus import center_photo_column
-        col = center_photo_column(C)
+        from network.stimulus import center_sti_column
+        col = center_sti_column(C)
         mask = (C.node_type.cpu().numpy() == ti) & (u_np == col.u) & (v_np == col.v)
         if not mask.any():
             raise ValueError(f'no centre unit for {cell_name!r} in network')

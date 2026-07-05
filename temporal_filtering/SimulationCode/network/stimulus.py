@@ -43,15 +43,15 @@ logger = logging.getLogger(__name__)
 __all__ = [
     "MovingBarSpec",
     "MovingBarStimulus",
-    "PhotoColumn",
+    "StiColumn",
     "build_moving_bar_signals",
     "gruntman_moving_bar_specs",
 ]
 
 
 @dataclass
-class PhotoColumn:
-    """One photo column on a connectome, with unit indices for scattering."""
+class StiColumn:
+    """One sti column on a connectome, with unit indices for scattering."""
 
     u: int
     v: int
@@ -69,9 +69,9 @@ class MovingBarStimulus:
     info: dict = field(default_factory=dict)
 
 
-def _photo_columns(C) -> List[PhotoColumn]:
+def _sti_columns(C) -> List[StiColumn]:
     """One entry per axial (u, v) that has photoreceptor input units."""
-    cols: Dict[Tuple[int, int], PhotoColumn] = {}
+    cols: Dict[Tuple[int, int], StiColumn] = {}
     u_in = C.u[C.is_input]
     v_in = C.v[C.is_input]
     for u, v in zip(u_in.tolist(), v_in.tolist()):
@@ -84,7 +84,7 @@ def _photo_columns(C) -> List[PhotoColumn]:
         x, y = hex_to_pixel(key[0], key[1], DEFAULT_KERNEL_SIZE)
         x = float(x)
         y = float(y)
-        cols[key] = PhotoColumn(
+        cols[key] = StiColumn(
             u=key[0],
             v=key[1],
             x=x,
@@ -95,35 +95,46 @@ def _photo_columns(C) -> List[PhotoColumn]:
     return [cols[k] for k in sorted(cols)]
 
 
-def photo_columns(C) -> List[PhotoColumn]:
-    """Photo columns with photoreceptor units (one per axial ``(u, v)``)."""
-    return _photo_columns(C)
+def sti_columns(C) -> List[StiColumn]:
+    """Sti columns with photoreceptor units (one per axial ``(u, v)``)."""
+    return _sti_columns(C)
 
 
-def center_photo_column(C) -> PhotoColumn:
-    """Photo column at hex origin ``(u, v) = (0, 0)``, or closest to field centre."""
-    cols = photo_columns(C)
+def center_sti_column(C) -> StiColumn:
+    """Sti column at hex origin ``(u, v) = (0, 0)``, or closest to field centre."""
+    cols = sti_columns(C)
     if not cols:
-        raise ValueError("network has no photo columns")
+        raise ValueError("network has no sti columns")
     for col in cols:
         if col.u == 0 and col.v == 0:
             return col
     return min(cols, key=lambda c: c.x * c.x + c.y * c.y)
 
 
-def cost_photo_columns(C, center_column: bool = False) -> List[PhotoColumn]:
-    """Columns used for moving-bar cost: all photo columns, or centre only."""
-    return [center_photo_column(C)] if center_column else photo_columns(C)
+def column_in_cost_extent(u, v, cost_extent=None) -> bool:
+    """True when axial ``(u, v)`` lies in the cost hex disc (``None`` = all columns)."""
+    if cost_extent is None:
+        return True
+    import column_mapper
+    return bool(column_mapper.inside_mask(int(u), int(v), int(cost_extent)))
 
 
-def _as_hex_columns(columns: Sequence[PhotoColumn]) -> List[HexColumn]:
+def cost_sti_columns(C, cost_extent=None) -> List[StiColumn]:
+    """Sti columns used for moving-bar cost (optional central hex disc)."""
+    cols = sti_columns(C)
+    if cost_extent is None:
+        return cols
+    return [c for c in cols if column_in_cost_extent(c.u, c.v, cost_extent)]
+
+
+def _as_hex_columns(columns: Sequence[StiColumn]) -> List[HexColumn]:
     return [
         HexColumn(u=c.u, v=c.v, x=c.x, y=c.y, hex_xy=c.hex_xy)
         for c in columns
     ]
 
 
-def _column_unit_map(columns: Sequence[PhotoColumn]) -> Tuple[np.ndarray, np.ndarray]:
+def _column_unit_map(columns: Sequence[StiColumn]) -> Tuple[np.ndarray, np.ndarray]:
     """Flat (col_idx, unit_idx) pairs for scattering column current onto units."""
     col_idx: List[int] = []
     unit_idx: List[int] = []
@@ -139,7 +150,7 @@ def _column_unit_map(columns: Sequence[PhotoColumn]) -> Tuple[np.ndarray, np.nda
 
 def scatter_column_current(
     column_current: np.ndarray,
-    columns: Sequence[PhotoColumn],
+    columns: Sequence[StiColumn],
     n_units: int,
 ) -> np.ndarray:
     """Broadcast column current ``(T, n_cols)`` to unit current ``(T, n_units)``."""
@@ -153,7 +164,7 @@ def scatter_column_current(
 
 def scatter_column_current_batched(
     column_current: np.ndarray,
-    columns: Sequence[PhotoColumn],
+    columns: Sequence[StiColumn],
     n_units: int,
 ) -> np.ndarray:
     """Broadcast ``(B, T, n_cols)`` column current to ``(B, T, n_units)``."""
@@ -165,7 +176,7 @@ def scatter_column_current_batched(
     return out
 
 
-def _column_uv(columns: Sequence[PhotoColumn]) -> List[Tuple[int, int]]:
+def _column_uv(columns: Sequence[StiColumn]) -> List[Tuple[int, int]]:
     return [(c.u, c.v) for c in columns]
 
 
@@ -285,8 +296,8 @@ def build_moving_bar_signals(
         i_bright = I_BRIGHT if i_bright_bar is None else float(i_bright_bar)
     if "dark" in contrasts:
         i_dark = I_DARK if i_dark_bar is None else float(i_dark_bar)
-    photo_cols = _photo_columns(C)
-    hex_cols = _as_hex_columns(photo_cols)
+    sti_cols = _sti_columns(C)
+    hex_cols = _as_hex_columns(sti_cols)
     field_deg = field_bounds(hex_cols)
     if maxtime is None:
         maxtime = moving_bar_maxtime(specs, field_deg, t_on=t_on, deltat_ms=deltat_ms)
@@ -298,7 +309,7 @@ def build_moving_bar_signals(
 
     cache_path: Optional[Path] = None
     source_json = Path(network_json) if network_json is not None else getattr(C, "source_json", None)
-    column_uv = _column_uv(photo_cols)
+    column_uv = _column_uv(sti_cols)
     if source_json is not None:
         cache_path = _moving_bar_cache_path(
             source_json, specs, column_uv, maxtime, t_on, deltat_ms,
@@ -321,12 +332,12 @@ def build_moving_bar_signals(
         if cache_path is not None and use_cache:
             _save_moving_bar_column_cache(cache_path, col_curr)
 
-    signal_np = scatter_column_current_batched(col_curr, photo_cols, n_units)
+    signal_np = scatter_column_current_batched(col_curr, sti_cols, n_units)
     signal_np[:, :t_on, :] = i_baseline
 
     info = {
         "n_batch": n_batch,
-        "n_photo_columns": len(photo_cols),
+        "n_sti_columns": len(sti_cols),
         "field_deg": field_deg,
         "maxtime": maxtime,
         "t_on": t_on,

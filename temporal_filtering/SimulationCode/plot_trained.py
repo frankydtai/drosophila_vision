@@ -155,8 +155,8 @@ def resolve_run_dir(path):
 
 
 def find_training_params(outdir):
-    """``training*_table.csv`` stem → ``np/<stem>.npy`` (run.py artifact layout)."""
-    import run as run_mod
+    """``training*_table.csv`` stem → ``np/<stem>.npy`` (train.py artifact layout)."""
+    import train as train_mod
 
     tables = sorted(Path(outdir).glob('training*_table.csv'))
     if len(tables) != 1:
@@ -164,7 +164,7 @@ def find_training_params(outdir):
             f'expected exactly one training*_table.csv in {outdir!r}, found {len(tables)}',
         )
     fname = tables[0].name.replace('_table.csv', '') + '.npy'
-    params_path = run_mod.params_path(outdir, fname)
+    params_path = train_mod.params_path(outdir, fname)
     if not os.path.isfile(params_path):
         raise SystemExit(f'missing training params: {params_path!r}')
     return params_path, fname
@@ -367,17 +367,17 @@ def plot_param_set(params, outdir, model_type=None, model_all=True,
         )
 
     if save_artifacts:
-        import run as run_mod
-        os.makedirs(run_mod.np_dir(outdir), exist_ok=True)
-        np.save(run_mod.best_param_path(outdir), best)
+        import train as train_mod
+        os.makedirs(train_mod.np_dir(outdir), exist_ok=True)
+        np.save(train_mod.best_param_path(outdir), best)
     print(f'plots saved to {outdir}')
     return best, best_cost
 
 
 def _load_plot_costs(outdir, fname, n_runs):
-    """Load per-run and step costs saved by ``run.save_training_outputs``."""
-    import run as run_mod
-    return run_mod.load_stored_costs(outdir, fname, n_runs)
+    """Load per-run and step costs saved by ``train.save_training_outputs``."""
+    import train as train_mod
+    return train_mod.load_stored_costs(outdir, fname, n_runs)
 
 
 def main():
