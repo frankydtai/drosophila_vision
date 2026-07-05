@@ -17,7 +17,12 @@ import torch
 import Medulla_Library as ml
 from Medulla_Library import I_BASELINE, I_BRIGHT, I_DARK, T_ON
 from network.stimulus import build_moving_bar_signals, cost_photo_columns
-from t4_t5_preference import READOUT_SUBTYPES, fig1_key_for_stimulus, normalize_side
+from t4_t5_preference import (
+    READOUT_SUBTYPES,
+    fig1_key_for_stimulus,
+    motion_preference,
+    normalize_side,
+)
 from training_config import (
     COST_HALF_WINDOW_STEPS,
     COST_WINDOW_STEPS,
@@ -36,6 +41,11 @@ from column_mapper import DEFAULT_KERNEL_SIZE, hex_to_pixel, hex_vertices
 
 _TRACE_CACHE: Dict[str, np.ndarray] = {}
 BORST_READOUT_SUBTYPES = ("T4a", "T4b", "T5a", "T5b")
+PD_IDX, ND_IDX = 0, 1
+
+
+def _pd_nd_index(pd_nd: str) -> int:
+    return PD_IDX if pd_nd == "PD" else ND_IDX
 
 
 @dataclass
@@ -47,6 +57,7 @@ class MovingBarTarget:
     cost_t0: torch.Tensor         # (n_cost,) absolute simulation step
     readout_batch: torch.Tensor   # (n_cost,) long
     readout_unit: torch.Tensor    # (n_cost,) long
+    cost_pd_nd: torch.Tensor      # (n_cost,) long; 0=PD, 1=ND
     n_batch: int
     maxtime: int
     info: dict
@@ -188,7 +199,7 @@ def build_moving_bar_target(
     cols = cost_photo_columns(C, center_column=center_column)
     center_col = cols[0] if center_column else None
 
-    r_batch, r_unit, r_target, r_weight, r_t0 = [], [], [], [], []
+    r_batch, r_unit, r_target, r_weight, r_t0, r_pd_nd = [], [], [], [], [], []
     skipped_orthogonal = 0
     for b, spec in enumerate(stim.specs):
         for col in cols:
@@ -202,22 +213,25 @@ def build_moving_bar_target(
                     f"spec={spec.name}: t_center={t_center}, maxtime={maxtime}"
                 )
             for subtype in present:
-                trace_id = fig1_key_for_stimulus(side, subtype, spec)
-                if trace_id is None:
+                pref = motion_preference(side, subtype, spec.direction, spec.contrast)
+                if pref is None:
                     skipped_orthogonal += 1
                     continue
+                trace_id = fig1_key_for_stimulus(side, subtype, spec)
                 if trace_id not in fig1:
                     raise KeyError(f"fig1 trace missing: {trace_id}")
                 units = col2subtype(C, col.u, col.v, subtype, type_names)
                 if len(units) == 0:
                     continue
                 target = fig1[trace_id]
+                pd_nd_idx = _pd_nd_index(pref.pd_nd)
                 for uidx in units:
                     r_batch.append(b)
                     r_unit.append(int(uidx))
                     r_target.append(target)
                     r_weight.append(1.0)
                     r_t0.append(t0)
+                    r_pd_nd.append(pd_nd_idx)
 
     if not r_batch:
         raise ValueError("no moving-bar cost cells (check subtypes and photo columns)")
@@ -227,6 +241,7 @@ def build_moving_bar_target(
     readout_batch = torch.tensor(np.asarray(r_batch), dtype=torch.long, device=device)
     readout_unit = torch.tensor(np.asarray(r_unit), dtype=torch.long, device=device)
     cost_t0 = torch.tensor(np.asarray(r_t0), dtype=torch.long, device=device)
+    cost_pd_nd = torch.tensor(np.asarray(r_pd_nd), dtype=torch.long, device=device)
 
     power = torch.sum(cost_weight[:, None] * data ** 2)
     if float(power) == 0.0:
@@ -235,6 +250,8 @@ def build_moving_bar_target(
     info = {
         **stim.info,
         "n_cost": int(data.shape[0]),
+        "n_cost_pd": int((cost_pd_nd == PD_IDX).sum().item()),
+        "n_cost_nd": int((cost_pd_nd == ND_IDX).sum().item()),
         "n_batch": stim.info["n_batch"],
         "n_cost_columns": len(cols),
         "center_column": bool(center_column),
@@ -253,6 +270,7 @@ def build_moving_bar_target(
         cost_t0=cost_t0,
         readout_batch=readout_batch,
         readout_unit=readout_unit,
+        cost_pd_nd=cost_pd_nd,
         n_batch=stim.info["n_batch"],
         maxtime=maxtime,
         info=info,
@@ -308,7 +326,7 @@ def build_borst_moving_bar_target(
     cost_cols = [cols[ml.CENTER_COL]] if center_column else cols
     cost_col_ids = [ml.CENTER_COL] if center_column else list(range(ml.nofcols))
 
-    r_batch, r_unit, r_target, r_weight, r_t0 = [], [], [], [], []
+    r_batch, r_unit, r_target, r_weight, r_t0, r_pd_nd = [], [], [], [], [], []
     skipped_orthogonal = 0
     for b, spec in enumerate(specs):
         for col_id, col in zip(cost_col_ids, cost_cols):
@@ -322,10 +340,11 @@ def build_borst_moving_bar_target(
                     f"spec={spec.name}: t_center={t_center}, maxtime={maxtime}"
                 )
             for subtype in present:
-                trace_id = fig1_key_for_stimulus("right", subtype, spec)
-                if trace_id is None:
+                pref = motion_preference("right", subtype, spec.direction, spec.contrast)
+                if pref is None:
                     skipped_orthogonal += 1
                     continue
+                trace_id = fig1_key_for_stimulus("right", subtype, spec)
                 if trace_id not in fig1:
                     raise KeyError(f"fig1 trace missing: {trace_id}")
                 uidx = ml.unit_index(col_id, ml.type_index(subtype))
@@ -334,6 +353,7 @@ def build_borst_moving_bar_target(
                 r_target.append(fig1[trace_id])
                 r_weight.append(1.0)
                 r_t0.append(t0)
+                r_pd_nd.append(_pd_nd_index(pref.pd_nd))
 
     if not r_batch:
         raise ValueError("no Borst moving-bar cost cells")
@@ -343,12 +363,15 @@ def build_borst_moving_bar_target(
     readout_batch = torch.tensor(np.asarray(r_batch), dtype=torch.long, device=device)
     readout_unit = torch.tensor(np.asarray(r_unit), dtype=torch.long, device=device)
     cost_t0 = torch.tensor(np.asarray(r_t0), dtype=torch.long, device=device)
+    cost_pd_nd = torch.tensor(np.asarray(r_pd_nd), dtype=torch.long, device=device)
     power = torch.sum(cost_weight[:, None] * data ** 2)
     if float(power) == 0.0:
         power = torch.tensor(1.0, dtype=torch.float64, device=device)
 
     info = {
         "n_cost": int(data.shape[0]),
+        "n_cost_pd": int((cost_pd_nd == PD_IDX).sum().item()),
+        "n_cost_nd": int((cost_pd_nd == ND_IDX).sum().item()),
         "n_batch": len(specs),
         "n_cost_columns": len(cost_cols),
         "center_column": bool(center_column),
@@ -380,6 +403,7 @@ def build_borst_moving_bar_target(
         cost_t0=cost_t0,
         readout_batch=readout_batch,
         readout_unit=readout_unit,
+        cost_pd_nd=cost_pd_nd,
         n_batch=len(specs),
         maxtime=maxtime,
         info=info,

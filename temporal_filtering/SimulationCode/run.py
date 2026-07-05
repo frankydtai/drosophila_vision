@@ -6,6 +6,9 @@ All results of a run land in one folder under
 
     <model_type>/<run_name>/
 
+NumPy artifacts (``.npy`` / ``.npz``) live in ``<run_name>/np/``; PNGs, CSV, and
+JSON sidecars stay in ``<run_name>/``.
+
 where <run_name> encodes the CLI, e.g.
 ``26758480-run-nofsteps-50-target-moving_bar,tile-network-right_min_neuron1_extent2-shift``
 (job id under SLURM, else a timestamp prefix).
@@ -66,7 +69,7 @@ def make_plots(fname, outdir, session, result=None, *,
             **plot_kw,
         )
         return
-    params = np.load(os.path.join(outdir, fname))
+    params = np.load(params_path(outdir, fname))
     final_costs, cost_curve, costs_by_target, _ = load_stored_costs(
         outdir, fname, np.atleast_2d(params).shape[0],
     )
@@ -121,24 +124,39 @@ def write_param_table(z_t, session, table_path, extra_cols=None):
     return table_path
 
 
+NP_SUBDIR = 'np'
+
+
+def np_dir(outdir):
+    return os.path.join(outdir, NP_SUBDIR)
+
+
+def params_path(outdir, fname):
+    return os.path.join(np_dir(outdir), fname)
+
+
+def best_param_path(outdir):
+    return os.path.join(np_dir(outdir), 'best_param.npy')
+
+
 def _artifact_stem(fname):
     return fname.replace('.npy', '')
 
 
 def _final_costs_path(outdir, fname):
-    return os.path.join(outdir, _artifact_stem(fname) + '_final_costs.npy')
+    return os.path.join(np_dir(outdir), _artifact_stem(fname) + '_final_costs.npy')
 
 
 def _cost_curve_path(outdir, fname):
-    return os.path.join(outdir, _artifact_stem(fname) + '_costs.npy')
+    return os.path.join(np_dir(outdir), _artifact_stem(fname) + '_costs.npy')
 
 
 def _costs_by_target_path(outdir, fname):
-    return os.path.join(outdir, _artifact_stem(fname) + '_costs_by_target.npz')
+    return os.path.join(np_dir(outdir), _artifact_stem(fname) + '_costs_by_target.npz')
 
 
 def _final_costs_by_target_path(outdir, fname):
-    return os.path.join(outdir, _artifact_stem(fname) + '_final_costs_by_target.npz')
+    return os.path.join(np_dir(outdir), _artifact_stem(fname) + '_final_costs_by_target.npz')
 
 
 def final_costs_for_params(all_params, session, final_costs=None):
@@ -160,7 +178,8 @@ def write_best_artifacts(outdir, fname, session, all_params, best_i, final_costs
     """Write ``best_param.npy`` and ``*_table.csv`` for one best index."""
     all_params = np.atleast_2d(all_params)
     best = all_params[best_i]
-    np.save(os.path.join(outdir, 'best_param.npy'), best)
+    os.makedirs(np_dir(outdir), exist_ok=True)
+    np.save(best_param_path(outdir), best)
     table_path = os.path.join(outdir, _artifact_stem(fname) + '_table.csv')
     z_best = torch.tensor(best, dtype=torch.float64, device=session.device)
     write_param_table(z_best, session, table_path)
@@ -205,7 +224,8 @@ def save_training_outputs(fname, outdir, session, result):
         with open(os.path.join(outdir, fc.TRAIN_OPTS_FILE), 'w') as f:
             json.dump(session.train_opts, f, indent=2)
             f.write('\n')
-    np.save(os.path.join(outdir, fname), result.all_params)
+    os.makedirs(np_dir(outdir), exist_ok=True)
+    np.save(params_path(outdir, fname), result.all_params)
     np.save(_cost_curve_path(outdir, fname), result.cost_curve)
     np.save(_final_costs_path(outdir, fname), result.final_costs)
     if result.cost_curves_by_target:
@@ -219,7 +239,7 @@ def save_training_outputs(fname, outdir, session, result):
 
 def save_param_tables(fname, outdir, session):
     """Regenerate ``*_table.csv`` and ``best_param.npy`` from saved ``fname`` on disk."""
-    all_params = np.load(os.path.join(outdir, fname))
+    all_params = np.load(params_path(outdir, fname))
     final_costs, _, _, _ = load_stored_costs(outdir, fname, np.atleast_2d(all_params).shape[0])
     final_costs, best_i = final_costs_for_params(all_params, session, final_costs=final_costs)
     write_best_artifacts(outdir, fname, session, all_params, best_i, final_costs)
@@ -383,9 +403,9 @@ def add_training_arguments(parser):
                              "e.g. Ih_midv=-50,out_scale=1.0")
     parser.add_argument("--ih_off", default=fc.IH_OFF_DEFAULT,
                         choices=list(fc.IH_OFF_MODES),
-                        help="conductance ON/OFF Ih coupling: shared (OFF uses ON "
-                             "Ih_gmax+shape; default), split (train Ih_gmax_off+OFF "
-                             "scalars), off (disable OFF channel)")
+                        help="conductance ON/OFF Ih coupling: split (train Ih_gmax_off+OFF "
+                             "scalars; default), shared (OFF uses ON Ih_gmax+shape), "
+                             "off (disable OFF channel)")
     parser.add_argument("--per_type", action="store_true",
                         help="train Ih (and adaptive lamina) params per cell type "
                              "instead of shared lamina/scalar values")
@@ -403,7 +423,8 @@ def add_training_arguments(parser):
         "--loss_weight",
         default="",
         metavar="TARGET=VALUE,...",
-        help="per-target loss weights, e.g. tile=1,moving_bar=0.5 (aliases expand to bright+dark)",
+        help="per-part loss weights, e.g. tile=1,PD=1.5,ND=1.0 "
+             "(aliases: tile, moving_bar, moving_bar_bright/dark, PD/ND)",
     )
     parser.add_argument(
         "--shift",

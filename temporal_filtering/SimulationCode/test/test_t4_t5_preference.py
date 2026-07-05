@@ -73,3 +73,15 @@ def test_active_count():
   for side in ("right", "left"):
     for subtype in READOUT_SUBTYPES:
       assert len(active_stimuli_for_subtype(side, subtype)) == 8
+
+
+def test_active_stimulus_order():
+  bright = [
+    f"{d}_{c}_{w}"
+    for d, c, w in active_stimuli_for_subtype("right", "T4a")
+    if c == "bright"
+  ]
+  assert bright == [
+    "right_bright_w1", "right_bright_w4",
+    "left_bright_w1", "left_bright_w4",
+  ]

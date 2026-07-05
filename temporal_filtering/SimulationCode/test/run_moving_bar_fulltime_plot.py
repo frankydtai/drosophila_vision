@@ -34,12 +34,11 @@ os.chdir(ROOT)
 import network_bootstrap  # noqa: F401
 import FiveCol_MedSim_Pytorch as fc
 from plot.moving_bar import (
-    _moving_bar_center_only,
     _moving_bar_right_spec_names,
     _moving_bar_t0_grid,
     _network_type_ids,
 )
-from plot.utils import nice_ylim as _nice_ylim
+from plot.utils import center_column_only, nice_ylim as _nice_ylim
 from plot_trained import load_session, resolve_model_type
 from training_config import COST_HALF_WINDOW_STEPS, COST_WINDOW_STEPS, PARAMETER_DIR
 from t4_t5_preference import READOUT_SUBTYPES, fig1_key_for_stimulus, normalize_side
@@ -99,7 +98,7 @@ def _compute_full_type_traces(session, z):
     spec_names = [s.name for s in specs]
     C = session.backend.network
     side = normalize_side(C.meta.get('side', 'right'))
-    center_only = _moving_bar_center_only(session)
+    center_only = center_column_only(session)
     cols = [center_photo_column(C)] if center_only else photo_columns(C)
 
     pack = session.pack_for('moving_bar_bright')

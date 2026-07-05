@@ -15,7 +15,12 @@ import network_bootstrap  # noqa: F401
 import torch
 from connectome_io import NETWORK_DIR
 from network.construction import load_network
-from network.moving_bar_target import build_moving_bar_target, load_fig1_traces
+from network.moving_bar_target import (
+    ND_IDX,
+    PD_IDX,
+    build_moving_bar_target,
+    load_fig1_traces,
+)
 from training_config import COST_WINDOW_STEPS
 
 
@@ -39,6 +44,43 @@ def test_build_target_extent2():
     assert T.info["n_photo_columns"] == 19
     assert T.info["n_cost"] > 0
     assert T.info["skipped_orthogonal"] > 0
+    assert T.cost_pd_nd.shape == (T.info["n_cost"],)
+    assert int(T.info["n_cost_pd"]) + int(T.info["n_cost_nd"]) == T.info["n_cost"]
+    assert int(T.info["n_cost_pd"]) > 0
+    assert int(T.info["n_cost_nd"]) > 0
+
+
+def test_expand_loss_weights_moving_bar_pd():
+    import FiveCol_MedSim_Pytorch as fc
+    out = fc.expand_loss_weights({"PD": 2.0})
+    assert out["moving_bar_bright_PD"] == 2.0
+    assert out["moving_bar_dark_PD"] == 2.0
+    assert "moving_bar_bright_ND" not in out
+
+
+def test_calc_cost_parts_pd_nd_split():
+    import FiveCol_MedSim_Pytorch as fc
+    path = str(NETWORK_DIR / "right_min_neuron1_extent2" / "network.json")
+    mb = fc.load_network_backend(path, dev="cpu")
+    session = fc.open_session(fc.make_train_opts(
+        backend="network", target_list=["moving_bar_bright"], network=mb.network,
+        sequential=True, dev="cpu",
+    ), "conductance")
+    pack = session.pack_for("moving_bar_bright")
+    z = fc.guess_initial_params(session)
+    parts = fc.calc_cost_parts(z, session)
+    assert set(parts) == {"moving_bar_bright_PD", "moving_bar_bright_ND"}
+    assert float(parts["moving_bar_bright_PD"]) >= 0.0
+    assert float(parts["moving_bar_bright_ND"]) >= 0.0
+    total = float(fc.calc_cost(z, session).item())
+    manual = sum(
+        float(parts[k].item()) * float(session.loss_weights.get(k, 1.0))
+        for k in parts
+    )
+    assert abs(total - manual) < 1e-6
+    assert pack.cost_pd_nd is not None
+    assert int((pack.cost_pd_nd == PD_IDX).sum()) > 0
+    assert int((pack.cost_pd_nd == ND_IDX).sum()) > 0
 
 
 def test_build_target_center_column():
@@ -58,7 +100,7 @@ def test_use_network_moving_bar_cost():
     mb = fc.load_network_backend(path, dev="cpu")
     session = fc.open_session(fc.make_train_opts(
         backend="network", target_list=["moving_bar_bright"], network=mb.network,
-        multi_column=False, sequential=True, dev="cpu",
+        sequential=True, dev="cpu",
     ), "conductance")
     pack = session.pack_for("moving_bar_bright")
     assert list(session.target_list) == ["moving_bar_bright"]
@@ -75,7 +117,7 @@ def test_readout_window_pre_ton_zero():
     mb = fc.load_network_backend(path, dev="cpu")
     session = fc.open_session(fc.make_train_opts(
         backend="network", target_list=["moving_bar_bright"], network=mb.network,
-        multi_column=False, sequential=True, dev="cpu",
+        sequential=True, dev="cpu",
     ), "conductance")
     pack = session.pack_for("moving_bar_bright")
     schema = list(session.schema)
@@ -93,6 +135,8 @@ if __name__ == "__main__":
     test_fig1_traces_shape()
     test_build_target_extent2()
     test_build_target_center_column()
+    test_expand_loss_weights_moving_bar_pd()
+    test_calc_cost_parts_pd_nd_split()
     test_use_network_moving_bar_cost()
     test_readout_window_pre_ton_zero()
     print("ok")

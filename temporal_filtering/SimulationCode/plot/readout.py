@@ -16,19 +16,10 @@ DEFAULT_MVD_GROUPS = [
     np.array(['Tm1', 'Tm2', 'Tm3', 'Tm4', 'Tm9']),
 ]
 
-_BORST_CTYPE = None
-
 
 def mvd_groups(groups=None):
     src = DEFAULT_MVD_GROUPS if groups is None else groups
     return [np.asarray(g) for g in src if len(g) > 0]
-
-
-def _borst_ctype():
-    global _BORST_CTYPE
-    if _BORST_CTYPE is None:
-        _BORST_CTYPE = np.load('Circuits/ctype.npy', allow_pickle=True)
-    return _BORST_CTYPE
 
 
 def _pack_for(session, target):
@@ -53,7 +44,7 @@ def _type_names_for_units(session, unit_indices):
     node_type = backend.conn.node_type[u]
     if torch.is_tensor(node_type):
         node_type = node_type.detach().cpu().numpy()
-    ctype = _borst_ctype()
+    ctype = ml.ctype
     return [str(ctype[int(t)]) for t in node_type]
 
 

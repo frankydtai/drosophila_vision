@@ -18,6 +18,9 @@ READOUT_SUBTYPES: Tuple[str, ...] = (
 
 _HORIZONTAL = frozenset({"right", "left"})
 _VERTICAL = frozenset({"up", "down"})
+# Plot / stimulus iteration order (matches gruntman_moving_bar_specs).
+_HORIZONTAL_AXIS: Tuple[str, ...] = ("right", "left")
+_VERTICAL_AXIS: Tuple[str, ...] = ("up", "down")
 _OPPOSITE = {"right": "left", "left": "right", "up": "down", "down": "up"}
 
 # Subtype PD on the **right** eye (anterior->posterior = right; c/d = up/down).
@@ -57,8 +60,8 @@ def pd_direction(side: str, subtype: str) -> str:
     return d
 
 
-def _axis_directions(subtype: str) -> frozenset:
-    return _HORIZONTAL if subtype[-1] in "ab" else _VERTICAL
+def _axis_directions(subtype: str) -> Tuple[str, ...]:
+    return _HORIZONTAL_AXIS if subtype[-1] in "ab" else _VERTICAL_AXIS
 
 
 def motion_preference(

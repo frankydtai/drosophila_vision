@@ -1,0 +1,45 @@
+{
+  "backend": "borst",
+  "target_list": [
+    "moving_bar_bright",
+    "moving_bar_dark"
+  ],
+  "loss_weights": {
+    "moving_bar_bright_ND": 0.5,
+    "moving_bar_dark_ND": 0.5
+  },
+  "sequential": true,
+  "moving_bar_bright_stimulus_opts": {
+    "mode": "borst",
+    "i_baseline": 20.0,
+    "i_bright_bar": 40.0,
+    "t_on": 50,
+    "deltat_ms": 10.0,
+    "center_column": false,
+    "maxtime": 145,
+    "spec_names": [
+      "right_bright_w1",
+      "right_bright_w4",
+      "left_bright_w1",
+      "left_bright_w4"
+    ]
+  },
+  "moving_bar_dark_stimulus_opts": {
+    "mode": "borst",
+    "i_baseline": 20.0,
+    "i_dark_bar": 0.0,
+    "t_on": 50,
+    "deltat_ms": 10.0,
+    "center_column": false,
+    "maxtime": 145,
+    "spec_names": [
+      "right_dark_w1",
+      "right_dark_w4",
+      "left_dark_w1",
+      "left_dark_w4"
+    ]
+  },
+  "tile_bright_stimulus_opts": null,
+  "tile_dark_stimulus_opts": null,
+  "ih_off": "split"
+}

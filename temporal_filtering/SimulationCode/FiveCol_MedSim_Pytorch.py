@@ -46,6 +46,11 @@ TRAIN_OPTS_FILE = "train_opts.json"
 TILE_TARGETS = ("tile_bright", "tile_dark")
 MOVING_BAR_TARGETS = ("moving_bar_bright", "moving_bar_dark")
 VALID_TARGETS = TILE_TARGETS + MOVING_BAR_TARGETS
+PD_ND_LABELS = ("PD", "ND")
+PD_IDX, ND_IDX = 0, 1
+MOVING_BAR_COST_PARTS = tuple(
+    f"{t}_{pd_nd}" for t in MOVING_BAR_TARGETS for pd_nd in PD_ND_LABELS
+)
 TARGET_ALIASES = {
     "tile": TILE_TARGETS,
     "moving_bar": MOVING_BAR_TARGETS,
@@ -78,6 +83,15 @@ I_CLI_SIDECAR_FIELD = {
     ("i_bright", "moving_bar_bright"): "i_bright_bar",
     ("i_dark", "tile_dark"): "i_dark",
     ("i_dark", "moving_bar_dark"): "i_dark_bar",
+}
+
+LOSS_WEIGHT_ALIASES = {
+    "tile": TILE_TARGETS,
+    "moving_bar": MOVING_BAR_COST_PARTS,
+    "moving_bar_bright": ("moving_bar_bright_PD", "moving_bar_bright_ND"),
+    "moving_bar_dark": ("moving_bar_dark_PD", "moving_bar_dark_ND"),
+    "PD": ("moving_bar_bright_PD", "moving_bar_dark_PD"),
+    "ND": ("moving_bar_bright_ND", "moving_bar_dark_ND"),
 }
 
 # important model params
@@ -126,7 +140,7 @@ Ih_gmax       = +50.0
 Ih_gain       = 1.0   # if set to 0, it will block Ih
 
 IH_OFF_MODES = ('shared', 'split', 'off')
-IH_OFF_DEFAULT = 'shared'
+IH_OFF_DEFAULT = 'split'
 IH_OFF_SCALAR_SEGMENTS = frozenset({'Ih_midv_off', 'Ih_slope_off', 'tau_midv_off'})
 IH_OFF_GMAX_SEGMENT = 'Ih_gmax_off'
 
@@ -345,8 +359,9 @@ def build_conductance_schema(n_types, lamina, ih_zero_types=IH_GMAX_ZERO_TYPES, 
     type_names = ml.ctype if type_names is None else type_names
     zero = lamina_zero_indices(lamina, ih_zero_types, type_names)
     return [
-        {'name': 'inp_gain',  'count': n_types, 'kind': 'full',   'lo': low_gain, 'hi': high_gain, 'init': 0.5,     'jit': 0.2,  'fill': 0.0},
-        {'name': 'out_gain',  'count': n_types, 'kind': 'full',   'lo': low_gain, 'hi': high_gain, 'init': 0.5,     'jit': 0.2,  'fill': 0.0},
+        {'name': 'inp_gain',  'count': n_types, 'kind': 'full',   'lo': low_gain, 'hi': high_gain, 'init': 0.5,     'jit': 0.2},
+        {'name': 'out_gain',  'count': n_types, 'kind': 'full',   'lo': low_gain, 'hi': high_gain, 'init': 0.5,     'jit': 0.2},
+        {'name': 'out_scale', 'count': n_types, 'kind': 'output', 'lo': low_gain, 'hi': high_gain, 'init': 1.0,     'jit': 0.2},
         {'name': 'Ih_gmax',     'count': len(lamina), 'kind': 'lamina', 'cells': lamina, 'lo': 0.0, 'hi': 100.0, 'init': Ih_gmax, 'jit': 10.0, 'fill': 0.0, 'zero': zero},
         {'name': 'Ih_gmax_off', 'count': len(lamina), 'kind': 'lamina', 'cells': lamina, 'lo': 0.0, 'hi': 100.0, 'init': Ih_gmax, 'jit': 10.0, 'fill': 0.0, 'zero': zero},
         {'name': 'Ih_midv',     'count': 1,       'kind': 'scalar', 'lo': -70.0,    'hi': -30.0,     'init': Ih_midv,  'jit': 5.0},
@@ -355,19 +370,18 @@ def build_conductance_schema(n_types, lamina, ih_zero_types=IH_GMAX_ZERO_TYPES, 
         {'name': 'Ih_midv_off', 'count': 1,       'kind': 'scalar', 'lo': -70.0,    'hi': -30.0,     'init': Ih_midv,  'jit': 5.0},
         {'name': 'Ih_slope_off','count': 1,       'kind': 'scalar', 'lo': -0.40,    'hi': -0.20,     'init': Ih_slope, 'jit': 0.02},
         {'name': 'tau_midv_off','count': 1,       'kind': 'scalar', 'lo': -70.0,    'hi': -40.0,     'init': tau_midv, 'jit': 5.0},
-        {'name': 'out_scale', 'count': n_types, 'kind': 'output', 'lo': 0.0,      'hi': 1.0e4,     'init': 1.0,      'jit': 0.0},
     ]
 
 
 def build_adaptive_schema(n_types, lamina):
     return [
-        {'name': 'inp_gain',   'count': n_types, 'kind': 'full',   'lo': low_gain, 'hi': high_gain, 'init': 0.5,   'jit': 0.2,  'fill': 0.0},
-        {'name': 'out_gain',   'count': n_types, 'kind': 'full',   'lo': low_gain, 'hi': high_gain, 'init': 0.5,   'jit': 0.2,  'fill': 0.0},
-        {'name': 'tau_m',      'count': n_types, 'kind': 'full',   'lo': deltat,   'hi': 1000.0,    'init': 50.0,  'jit': 10.0, 'fill': 0.0},
-        {'name': 'bias',       'count': n_types, 'kind': 'full',   'lo': -2.0,     'hi': 2.0,       'init': 0.0,   'jit': 0.1,  'fill': 0.0},
+        {'name': 'inp_gain',   'count': n_types, 'kind': 'full',   'lo': low_gain, 'hi': high_gain, 'init': 0.5,   'jit': 0.2},
+        {'name': 'out_gain',   'count': n_types, 'kind': 'full',   'lo': low_gain, 'hi': high_gain, 'init': 0.5,   'jit': 0.2},
+        {'name': 'out_scale',  'count': n_types, 'kind': 'output', 'lo': low_gain, 'hi': high_gain, 'init': 1.0,   'jit': 0.2},
+        {'name': 'tau_m',      'count': n_types, 'kind': 'full',   'lo': deltat,   'hi': 1000.0,    'init': 50.0,  'jit': 10.0},
+        {'name': 'bias',       'count': n_types, 'kind': 'full',   'lo': -2.0,     'hi': 2.0,       'init': 0.0,   'jit': 0.1},
         {'name': 'adapt_gain', 'count': len(lamina), 'kind': 'lamina', 'cells': lamina, 'lo': -2.0, 'hi': 2.0,    'init': 0.0,   'jit': 0.1,  'fill': 0.0},
         {'name': 'tau_adapt',  'count': len(lamina), 'kind': 'lamina', 'cells': lamina, 'lo': deltat, 'hi': 2000.0, 'init': 100.0, 'jit': 20.0, 'fill': deltat},
-        {'name': 'out_scale',  'count': n_types, 'kind': 'output', 'lo': 0.0,      'hi': 1.0e4,     'init': 1.0,   'jit': 0.0},
     ]
 
 
@@ -404,6 +418,24 @@ class TargetPack:
     cost_t0: Optional[torch.Tensor] = None  # (n_cost,) absolute step for windowed targets
     cost_radius: Optional[torch.Tensor] = None  # (n_cost,) ring radius for network tile
     center_column: bool = False  # cost restricted to centre column / ring r=0
+    cost_pd_nd: Optional[torch.Tensor] = None  # (n_cost,) long; 0=PD, 1=ND (moving_bar)
+
+
+def moving_bar_cost_part_key(target_name: str, pd_nd: str) -> str:
+    return f"{target_name}_{pd_nd}"
+
+
+def cost_part_keys_for_target(target_name: str) -> Tuple[str, ...]:
+    if target_name in MOVING_BAR_TARGETS:
+        return tuple(moving_bar_cost_part_key(target_name, pd_nd) for pd_nd in PD_ND_LABELS)
+    return (target_name,)
+
+
+def session_cost_part_keys(target_list) -> Tuple[str, ...]:
+    keys = []
+    for name in target_list:
+        keys.extend(cost_part_keys_for_target(name))
+    return tuple(keys)
 
 
 @dataclass(frozen=True)
@@ -718,7 +750,7 @@ def _extend_pack_mirror_fit_borst(pack, mirror_types, mirror_fit, mirror_sign, b
     mirror_indices = resolve_type_indices(mirror_types, backend)
     n_cols = backend.n_cols
     n_types = backend.n_types
-    extra_units, extra_rows = [], []
+    extra_units, extra_rows, extra_pd_nd = [], [], []
     for col in range(n_cols):
         mirror_unit = ml.unit_index(col, mirror_type)
         mirror_row = int(np.where(base_u == mirror_unit)[0][0])
@@ -726,7 +758,12 @@ def _extend_pack_mirror_fit_borst(pack, mirror_types, mirror_fit, mirror_sign, b
         for r in mirror_indices:
             extra_units.append(ml.unit_index(col, int(r)))
             extra_rows.append(mirror_target)
-    return _append_mirror_pack_rows(pack, extra_units, extra_rows)
+            if pack.cost_pd_nd is not None:
+                extra_pd_nd.append(int(pack.cost_pd_nd[mirror_row].item()))
+    return _append_mirror_pack_rows(
+        pack, extra_units, extra_rows,
+        cost_pd_nd=extra_pd_nd if extra_pd_nd else None,
+    )
 
 
 def _extend_pack_mirror_fit_network(pack, mirror_types, mirror_fit, mirror_sign, C):
@@ -742,7 +779,7 @@ def _extend_pack_mirror_fit_network(pack, mirror_types, mirror_fit, mirror_sign,
     )
     col_u_all = C.u.detach().cpu().numpy() if hasattr(C.u, "detach") else np.asarray(C.u)
     col_v_all = C.v.detach().cpu().numpy() if hasattr(C.v, "detach") else np.asarray(C.v)
-    extra_b, extra_u, extra_rows, extra_w, extra_r = [], [], [], [], []
+    extra_b, extra_u, extra_rows, extra_w, extra_r, extra_pd_nd = [], [], [], [], [], []
     for row_i in range(len(u_arr)):
         u = int(u_arr[row_i])
         if str(names[u]) != mirror_fit:
@@ -765,15 +802,19 @@ def _extend_pack_mirror_fit_network(pack, mirror_types, mirror_fit, mirror_sign,
                 extra_w.append(w)
                 if r is not None:
                     extra_r.append(r)
+                if pack.cost_pd_nd is not None:
+                    extra_pd_nd.append(int(pack.cost_pd_nd[row_i].item()))
     return _append_mirror_pack_rows(
         pack, extra_u, extra_rows,
         readout_batch=extra_b, cost_weight=extra_w,
         cost_radius=extra_r if extra_r else None,
+        cost_pd_nd=extra_pd_nd if extra_pd_nd else None,
     )
 
 
 def _append_mirror_pack_rows(
     pack, extra_units, extra_rows, readout_batch=None, cost_weight=None, cost_radius=None,
+    cost_pd_nd=None,
 ):
     extra_units_t = torch.tensor(extra_units, dtype=torch.long, device=active_device())
     extra_data_t = torch.cat(extra_rows, dim=0)
@@ -800,6 +841,13 @@ def _append_mirror_pack_rows(
             if base_r is not None else extra_r_t
         )
     all_data = torch.cat([pack.data, extra_data_t], dim=0)
+    cost_pd_nd_out = pack.cost_pd_nd
+    if cost_pd_nd is not None:
+        extra_pd_t = torch.tensor(cost_pd_nd, dtype=torch.long, device=active_device())
+        cost_pd_nd_out = (
+            torch.cat([pack.cost_pd_nd, extra_pd_t])
+            if pack.cost_pd_nd is not None else extra_pd_t
+        )
     return TargetPack(
         name=pack.name,
         signal=pack.signal,
@@ -811,6 +859,7 @@ def _append_mirror_pack_rows(
         cost_t0=pack.cost_t0,
         cost_radius=cost_radius_out,
         center_column=pack.center_column,
+        cost_pd_nd=cost_pd_nd_out,
     )
 
 
@@ -852,6 +901,7 @@ def _borst_moving_bar_pack(T, name, *, center_column=False):
         readout_unit=T.readout_unit,
         cost_t0=T.cost_t0,
         center_column=bool(center_column),
+        cost_pd_nd=T.cost_pd_nd,
     )
 
 
@@ -1109,6 +1159,7 @@ def _build_network_moving_bar_bright_target(
         readout_unit=T.readout_unit,
         cost_t0=T.cost_t0,
         center_column=center_column,
+        cost_pd_nd=T.cost_pd_nd,
     )
     coltag = (
         "centre column" if center_column
@@ -1146,6 +1197,7 @@ def _build_network_moving_bar_dark_target(
         readout_unit=T.readout_unit,
         cost_t0=T.cost_t0,
         center_column=center_column,
+        cost_pd_nd=T.cost_pd_nd,
     )
     coltag = (
         "centre column" if center_column
@@ -1303,13 +1355,13 @@ def _finalize_stimulus_opts(opts, target_name, *, center_only_targets, multi_shi
 
 
 def expand_loss_weights(weights: Optional[dict]) -> Dict[str, float]:
-    """Expand alias keys in ``loss_weights`` to concrete target names."""
+    """Expand alias keys in ``loss_weights`` to concrete cost-part names."""
     if not weights:
         return {}
-    out = {}
+    out: Dict[str, float] = {}
     for name, val in weights.items():
-        if name in TARGET_ALIASES:
-            for t in TARGET_ALIASES[name]:
+        if name in LOSS_WEIGHT_ALIASES:
+            for t in LOSS_WEIGHT_ALIASES[name]:
                 out[t] = float(val)
         else:
             out[str(name)] = float(val)
@@ -1399,7 +1451,7 @@ def make_train_opts(
     opts = {
         "backend": str(backend),
         "target_list": tl,
-        "loss_weights": loss_weights or {},
+        "loss_weights": expand_loss_weights(loss_weights or {}),
         "sequential": sequential,
         "moving_bar_bright_stimulus_opts": bright_bar_opts,
         "moving_bar_dark_stimulus_opts": dark_bar_opts,
@@ -1512,7 +1564,7 @@ def _make_session(
         schema=tuple(sch),
         targets=dict(packs),
         target_list=tuple(target_list),
-        loss_weights={str(k): float(v) for k, v in (loss_weights or {}).items()},
+        loss_weights=expand_loss_weights(loss_weights),
         sequential=bool(seq),
         device=dev_ref,
         train_opts=train_opts_record,
@@ -1814,42 +1866,25 @@ def model_cost(model, data, session: TrainSession, scale=1.0, power=None):
 
 
 def _run_conductance(session: TrainSession, p, neuron_index=None, return_ref=False, sig=None, pack=None):
-    backend = session.backend
-    mt = session.maxtime
-    ih_off = (session.train_opts or {}).get('ih_off', IH_OFF_DEFAULT)
     if neuron_index is None:
         pack = pack or session.primary_pack
         neuron_index = pack.readout_unit
     if sig is None:
         sig = session.pack_signal(pack)
-    inp_gain, out_gain = p['inp_gain'], p['out_gain']
-    Ih_gmax = p['Ih_gmax']
-    Ih_gmax_off, Ih_midv_off, Ih_slope_off, tau_midv_off = conductance_ih_off_kwargs(p, ih_off)
-    Ih_midv, Ih_slope, tau_midv = p['Ih_midv'], p['Ih_slope'], p['tau_midv']
-    u_on = u_off = torch.zeros(backend.n_units, dtype=torch.float64, device=backend.conn.node_type.device)
-    Vm = backend.e_leak
-    for t in range(1, t_on):
-        Vm, u_on, u_off = update_Vm(
-            Vm, u_on, u_off, inp_gain, out_gain, Ih_gmax, Ih_gmax_off,
-            Ih_midv, Ih_slope, tau_midv, Ih_midv_off, Ih_slope_off, tau_midv_off,
-            sig[t - 1], backend)
-    Vm_ref = 1.0 * Vm[neuron_index]
-    model = 0
-    rows = []
-    for t in range(t_on, mt):
-        Vm, u_on, u_off = update_Vm(
-            Vm, u_on, u_off, inp_gain, out_gain, Ih_gmax, Ih_gmax_off,
-            Ih_midv, Ih_slope, tau_midv, Ih_midv_off, Ih_slope_off, tau_midv_off,
-            sig[t - 1], backend)
-        model = deltat / Ca_tau * (Vm[neuron_index] - Vm_ref - model) + model
-        rows.append(model)
-    out = torch.stack(rows)
+    squeeze = sig.dim() == 2
+    sig_b = sig.unsqueeze(0) if squeeze else sig
+    out, vm_ref = _run_conductance_full(session, p, sig_b, return_ref=True)
+    out = out[:, :, neuron_index]
+    vm_ref = vm_ref[:, neuron_index]
+    if squeeze:
+        out = out.squeeze(0)
+        vm_ref = vm_ref.squeeze(0)
     if return_ref:
-        return out, Vm_ref
+        return out, vm_ref
     return out
 
 
-def _run_conductance_full(session: TrainSession, p, sig):
+def _run_conductance_full(session: TrainSession, p, sig, return_ref=False):
     backend = session.backend
     ih_off = (session.train_opts or {}).get('ih_off', IH_OFF_DEFAULT)
     inp_gain, out_gain = p['inp_gain'], p['out_gain']
@@ -1876,7 +1911,10 @@ def _run_conductance_full(session: TrainSession, p, sig):
             sig[:, t - 1], backend)
         model = deltat / Ca_tau * (Vm - Vm_ref - model) + model
         rows.append(model)
-    return torch.stack(rows, dim=1)
+    out = torch.stack(rows, dim=1)
+    if return_ref:
+        return out, Vm_ref
+    return out
 
 
 def _window_time_traces(model_full, b_idx, u_idx, t0, win=None):
@@ -1906,23 +1944,36 @@ def _readout_model_traces_pack(model_full, pack: TargetPack):
     )
 
 
+def out_scale_for_units(p, unit_index, backend: ModelBackend):
+    """Per-unit ``out_scale`` using the same indexing as ``_pack_out_scale``."""
+    os_param = p.get('out_scale', 1.0)
+    n = int(unit_index.shape[0])
+    dev = unit_index.device
+    if not torch.is_tensor(os_param) or os_param.dim() == 0:
+        val = float(os_param if not torch.is_tensor(os_param) else os_param.item())
+        return torch.full((n,), val, dtype=torch.float64, device=dev)
+    if backend.network is not None:
+        ci = backend.network.node_type[unit_index]
+    else:
+        ci = unit_index % backend.n_types
+    return os_param[ci]
+
+
+def expand_plot_traces(raw, scale, mt, t_on_step=None):
+    """Ca-filtered readout ``(N, T')`` -> full-length tile plot traces ``(N, mt)``."""
+    if t_on_step is None:
+        t_on_step = t_on
+    n, t_len = raw.shape
+    trace = torch.zeros(n, mt, dtype=raw.dtype, device=raw.device)
+    trace[:, t_on_step:t_on_step + t_len] = scale[:, None] * raw
+    trace[:, 0:t_on_step] = 0
+    trace[:, 0:mt - 1] = trace[:, 1:mt].clone()
+    return trace
+
+
 def _pack_out_scale(p, pack: TargetPack, backend: ModelBackend):
     """Per-cost-row output scale from schema ``out_scale`` (single source of truth)."""
-    os_param = p.get('out_scale', 1.0)
-    if torch.is_tensor(os_param) and os_param.dim() > 0:
-        u = pack.readout_unit
-        if backend.network is not None:
-            ci = backend.network.node_type[u]
-        else:
-            ci = u % backend.n_types
-        os_param = os_param[ci]
-    n = int(pack.readout_unit.shape[0])
-    dev = backend.conn.node_type.device
-    if torch.is_tensor(os_param):
-        if os_param.dim() == 0:
-            os_param = os_param.expand(n)
-        return os_param
-    return torch.full((n,), float(os_param), dtype=torch.float64, device=dev)
+    return out_scale_for_units(p, pack.readout_unit, backend)
 
 
 def _run_adaptive(p, session: TrainSession, neuron_index=None, return_ref=False, sig=None, pack=None):
@@ -2025,9 +2076,21 @@ def _pack_model_readout(p, pack: TargetPack, session: TrainSession, batch_idx=No
     return readout(p, pack, session, batch_idx)
 
 
-def _pack_cost_rows(p, pack: TargetPack, session: TrainSession, batch_idx=None):
-    """Forward + MSE for one pack. ``batch_idx=None`` batched; ``int`` one stimulus."""
+def _subgroup_power(weight, data):
+    power = torch.sum(weight[:, None] * data ** 2)
+    if float(power) == 0.0:
+        power = torch.tensor(1.0, dtype=torch.float64, device=data.device)
+    return power
+
+
+def _pack_cost_mse(scale, data, weight, sel, power):
+    diff = scale[:, None] * sel - data
+    return torch.sum(weight[:, None] * diff ** 2) / power * 100.0
+
+
+def _pack_cost_forward(p, pack: TargetPack, session: TrainSession, batch_idx=None):
     scale = _pack_out_scale(p, pack, session.backend)
+    pd_nd = pack.cost_pd_nd
     if batch_idx is not None:
         mask = pack.readout_batch == int(batch_idx)
         if not bool(mask.any()):
@@ -2035,24 +2098,62 @@ def _pack_cost_rows(p, pack: TargetPack, session: TrainSession, batch_idx=None):
         scale = scale[mask]
         data = pack.data[mask]
         weight = pack.cost_weight[mask]
+        if pd_nd is not None:
+            pd_nd = pd_nd[mask]
     else:
         data = pack.data
         weight = pack.cost_weight
     sel = _pack_model_readout(p, pack, session, batch_idx)
-    diff = scale[:, None] * sel - data
-    return torch.sum(weight[:, None] * diff ** 2) / pack.power * 100.0
+    return scale, data, weight, sel, pd_nd
+
+
+def _pack_cost_parts_from_params(p, pack: TargetPack, session: TrainSession, batch_idx=None):
+    """Unweighted cost parts for one pack (PD/ND split for moving_bar)."""
+    fwd = _pack_cost_forward(p, pack, session, batch_idx)
+    if fwd is None:
+        return {}
+    scale, data, weight, sel, pd_nd = fwd
+    dev = session.device
+    if pd_nd is None:
+        return {pack.name: _pack_cost_mse(scale, data, weight, sel, pack.power)}
+    out = {}
+    for pd_nd_idx, label in ((PD_IDX, "PD"), (ND_IDX, "ND")):
+        mask = pd_nd == pd_nd_idx
+        key = moving_bar_cost_part_key(pack.name, label)
+        if not bool(mask.any()):
+            out[key] = torch.zeros((), dtype=torch.float64, device=dev)
+            continue
+        power = _subgroup_power(weight[mask], data[mask])
+        out[key] = _pack_cost_mse(
+            scale[mask], data[mask], weight[mask], sel[mask], power,
+        )
+    return out
+
+
+def _pack_cost_rows(p, pack: TargetPack, session: TrainSession, batch_idx=None):
+    """Forward + MSE for one pack (full aggregate; used for diagnostics)."""
+    fwd = _pack_cost_forward(p, pack, session, batch_idx)
+    if fwd is None:
+        return None
+    scale, data, weight, sel, _pd_nd = fwd
+    return _pack_cost_mse(scale, data, weight, sel, pack.power)
+
+
+def _pack_cost_parts_for_pack(z, pack: TargetPack, session: TrainSession, batch_idx=None, p=None):
+    if p is None:
+        schema = list(session.schema)
+        if session.model_type == 'adaptive':
+            p = assign_params_adaptive(z, schema, session.backend)
+        else:
+            p = assign_params(z, schema, session.backend)
+    return _pack_cost_parts_from_params(p, pack, session, batch_idx)
 
 
 def _pack_cost_part(z, pack: TargetPack, session: TrainSession, batch_idx=None):
-    schema = list(session.schema)
-    if session.model_type == 'adaptive':
-        p = assign_params_adaptive(z, schema, session.backend)
-    else:
-        p = assign_params(z, schema, session.backend)
-    part = _pack_cost_rows(p, pack, session, batch_idx)
-    if part is None:
+    parts = _pack_cost_parts_for_pack(z, pack, session, batch_idx)
+    if not parts:
         return torch.zeros((), dtype=torch.float64, device=session.device)
-    return part
+    return sum(parts.values())
 
 
 def _pack_cost(z, pack: TargetPack, session: TrainSession, batch_idx=None):
@@ -2060,19 +2161,29 @@ def _pack_cost(z, pack: TargetPack, session: TrainSession, batch_idx=None):
 
 
 def calc_cost_parts(z, session: TrainSession) -> Dict[str, torch.Tensor]:
-    """Per-target unweighted cost (each pack's contribution before ``loss_weights``)."""
-    parts = {}
-    for name, pack in session.targets.items():
-        w = float(session.loss_weights.get(name, 1.0))
-        if w == 0.0:
-            continue
+    """Per-part unweighted cost (before ``loss_weights``)."""
+    schema = list(session.schema)
+    if session.model_type == 'adaptive':
+        p = assign_params_adaptive(z, schema, session.backend)
+    else:
+        p = assign_params(z, schema, session.backend)
+    parts: Dict[str, torch.Tensor] = {}
+    zero = torch.zeros((), dtype=torch.float64, device=session.device)
+    for _name, pack in session.targets.items():
         if session.sequential:
-            part = torch.zeros((), dtype=torch.float64, device=session.device)
+            pack_parts: Dict[str, torch.Tensor] = {}
             for b in range(pack.signal.shape[0]):
-                part = part + _pack_cost_part(z, pack, session, batch_idx=b)
+                for key, part in _pack_cost_parts_from_params(
+                    p, pack, session, batch_idx=b,
+                ).items():
+                    pack_parts[key] = pack_parts.get(key, zero) + part
         else:
-            part = _pack_cost_part(z, pack, session, batch_idx=None)
-        parts[name] = part
+            pack_parts = _pack_cost_parts_from_params(p, pack, session, batch_idx=None)
+        for part_key, part in pack_parts.items():
+            w = float(session.loss_weights.get(part_key, 1.0))
+            if w == 0.0:
+                continue
+            parts[part_key] = part
     return parts
 
 
@@ -2200,15 +2311,20 @@ def train_staged(z, cost_fn, z_bounds, lrs, nsteps, cost_log=None, step_log=None
 
 def _make_step_logger(session: TrainSession):
     """Build ``(cost_fn, target_history, log_step)`` for aligned per-step logging."""
-    target_history = {name: [] for name in session.target_list}
+    part_keys = session_cost_part_keys(session.target_list)
+    target_history = {name: [] for name in part_keys}
 
     def cost_fn(z):
         return calc_cost(z, session)
 
     def log_step(z):
         total = float(calc_cost(z, session).item())
-        for name, part in calc_cost_parts(z, session).items():
-            target_history[name].append(float(part.item()))
+        parts = calc_cost_parts(z, session)
+        for name in part_keys:
+            if name in parts:
+                target_history[name].append(float(parts[name].item()))
+            else:
+                target_history[name].append(0.0)
         return total
 
     return cost_fn, target_history, log_step
@@ -2222,7 +2338,8 @@ def do_many_runs(session: TrainSession, nofruns, nofsteps, lrs=(0.1, 0.01, 0.001
 
     all_params = np.zeros((nofruns, n_params))
     final_costs = np.zeros(nofruns)
-    final_costs_by_target = {name: np.zeros(nofruns) for name in session.target_list}
+    part_keys = session_cost_part_keys(session.target_list)
+    final_costs_by_target = {name: np.zeros(nofruns) for name in part_keys}
     best_i = 0
     best_cost = np.inf
     cost_curve = np.array([], dtype=np.float64)
@@ -2245,7 +2362,7 @@ def do_many_runs(session: TrainSession, nofruns, nofsteps, lrs=(0.1, 0.01, 0.001
             z, cost_fn, bounds, lrs, nofsteps,
             step_log=step_log,
             parts_fn=parts_fn,
-            target_order=list(session.target_list),
+            target_order=list(part_keys),
         )
 
         all_params[i] = z_fit.detach().cpu().numpy()

@@ -5,6 +5,7 @@ import os
 import re
 import sys
 import time
+from pathlib import Path
 
 import numpy as np
 import torch
@@ -14,10 +15,6 @@ from plot import moving_bar as moving_bar_plot
 from plot import tile as tile_plot
 from plot.utils import plot_cost
 from training_config import PARAMETER_DIR
-
-CENTER_COL = tile_plot.CENTER_COL
-CTYPE = tile_plot.CTYPE
-CENTER_NEURON_OFFSET = tile_plot.CENTER_NEURON_OFFSET
 
 TRAIN_OPTS_FILE = fc.TRAIN_OPTS_FILE
 MODEL_TYPE_FILE = 'model_type.txt'
@@ -30,10 +27,6 @@ def _plot_device_label():
         import torch as _torch
         return f'cuda ({_torch.cuda.get_device_name(0)})'
     return dev
-
-
-default_ref_cubes = tile_plot.default_ref_cubes
-reference_cube = tile_plot.reference_cube
 
 
 def _slug(text):
@@ -91,10 +84,6 @@ def run_dir(model_type, root=None, parent=None, name=None):
     return outdir
 
 
-plot_moving_bar_data = moving_bar_plot.plot_moving_bar_data
-plot_moving_bar_all = moving_bar_plot.plot_moving_bar_all
-
-
 def _tile_plot_fn(session):
     if session.backend.network is not None:
         return tile_plot.plot_network_tile
@@ -138,33 +127,47 @@ def _session_for_target(base_session, tname):
                            schema=list(base_session.schema))
 
 
-def _model_type_from_sidecar(params_path):
-    side = os.path.join(os.path.dirname(os.path.abspath(params_path)), MODEL_TYPE_FILE)
+def _model_type_from_sidecar(outdir):
+    side = os.path.join(os.path.abspath(outdir), MODEL_TYPE_FILE)
     if os.path.exists(side):
         with open(side) as f:
             return f.read().strip()
     return None
 
 
-def _model_type_from_path(params_path):
-    parts = os.path.abspath(params_path).split(os.sep)
-    for mt in KNOWN_MODEL_TYPES:
-        if mt in parts:
-            return mt
-    return None
-
-
-def resolve_model_type(params_path, override=None):
-    model_type = (override
-                  or _model_type_from_sidecar(params_path)
-                  or _model_type_from_path(params_path))
+def resolve_model_type(outdir, override=None):
+    model_type = override or _model_type_from_sidecar(outdir)
     if model_type not in KNOWN_MODEL_TYPES:
         raise SystemExit(
-            'cannot determine model_type for '
-            f'{params_path!r}; pass it explicitly, e.g.\n'
-            '  python plot_trained.py params.npy outdir <conductance|adaptive>'
+            f'cannot determine model_type for {outdir!r}; '
+            f'expected {MODEL_TYPE_FILE} with conductance or adaptive'
         )
     return model_type
+
+
+def resolve_run_dir(path):
+    """Resolve a run folder under ``PARAMETER_DIR`` or an absolute path."""
+    p = Path(path).expanduser()
+    outdir = p.resolve() if p.is_absolute() else (PARAMETER_DIR / p).resolve()
+    if not outdir.is_dir():
+        raise SystemExit(f'run folder not found: {path!r} -> {outdir}')
+    return str(outdir)
+
+
+def find_training_params(outdir):
+    """``training*_table.csv`` stem → ``np/<stem>.npy`` (run.py artifact layout)."""
+    import run as run_mod
+
+    tables = sorted(Path(outdir).glob('training*_table.csv'))
+    if len(tables) != 1:
+        raise SystemExit(
+            f'expected exactly one training*_table.csv in {outdir!r}, found {len(tables)}',
+        )
+    fname = tables[0].name.replace('_table.csv', '') + '.npy'
+    params_path = run_mod.params_path(outdir, fname)
+    if not os.path.isfile(params_path):
+        raise SystemExit(f'missing training params: {params_path!r}')
+    return params_path, fname
 
 
 def select_best(params, session, *, final_costs=None, best_i=None):
@@ -256,14 +259,14 @@ def _plot_bar_targets(session, z, outdir, bar_targets, suffix, model_all):
         s_bright = _session_for_target(session, 'moving_bar_bright')
         s_dark = _session_for_target(session, 'moving_bar_dark')
         mvd = os.path.join(outdir, 'model_data_bar.png')
-        plot_moving_bar_data(
+        moving_bar_plot.plot_moving_bar_data(
             s_bright, z, mvd, session_off=s_dark,
             title=f'Moving-bar model-data ({suffix})',
         )
         allc = None
         if model_all:
             allc = os.path.join(outdir, 'model_all_bar.png')
-            plot_moving_bar_all(
+            moving_bar_plot.plot_moving_bar_all(
                 s_bright, z, allc, session_off=s_dark,
                 title=f'Moving-bar model-all ({suffix})',
             )
@@ -271,11 +274,11 @@ def _plot_bar_targets(session, z, outdir, bar_targets, suffix, model_all):
     for tname in bar_targets:
         one = _session_for_target(session, tname)
         mvd = os.path.join(outdir, 'model_data_bar.png')
-        plot_moving_bar_data(one, z, mvd, title=f'{tname} model-data ({suffix})')
+        moving_bar_plot.plot_moving_bar_data(one, z, mvd, title=f'{tname} model-data ({suffix})')
         allc = None
         if model_all:
             allc = os.path.join(outdir, 'model_all_bar.png')
-            plot_moving_bar_all(one, z, allc, title=f'{tname} model-all ({suffix})')
+            moving_bar_plot.plot_moving_bar_all(one, z, allc, title=f'{tname} model-all ({suffix})')
         return mvd, allc
 
 
@@ -333,7 +336,7 @@ def plot_param_set(params, outdir, model_type=None, model_all=True,
         plot_cost(
             cost_curve, os.path.join(outdir, 'cost_curve.png'),
             costs_by_target=costs_by_target,
-            target_order=list(session.target_list),
+            target_order=list(fc.session_cost_part_keys(session.target_list)),
         )
 
     suffix = f'trained, cost {best_cost:.2f}% of data power'
@@ -364,7 +367,9 @@ def plot_param_set(params, outdir, model_type=None, model_all=True,
         )
 
     if save_artifacts:
-        np.save(os.path.join(outdir, 'best_param.npy'), best)
+        import run as run_mod
+        os.makedirs(run_mod.np_dir(outdir), exist_ok=True)
+        np.save(run_mod.best_param_path(outdir), best)
     print(f'plots saved to {outdir}')
     return best, best_cost
 
@@ -376,18 +381,21 @@ def _load_plot_costs(outdir, fname, n_runs):
 
 
 def main():
-    params_path = sys.argv[1] if len(sys.argv) > 1 else str(PARAMETER_DIR / 'training_with_Ih.npy')
-    outdir = sys.argv[2] if len(sys.argv) > 2 else str(PARAMETER_DIR / 'gpu_test')
-    override = sys.argv[3] if len(sys.argv) > 3 else None
-
+    if len(sys.argv) != 2:
+        raise SystemExit('usage: python plot_trained.py <model_type>/run_<id>')
+    outdir = resolve_run_dir(sys.argv[1])
+    params_path, artifact_fname = find_training_params(outdir)
     params = np.load(params_path)
-    model_type = resolve_model_type(params_path, override)
+    model_type = resolve_model_type(outdir)
+    print(f'outdir={outdir}')
+    print(f'params={params_path}')
     print(f'model_type={model_type} ({params.shape[-1]} params per set)')
     plot_param_set(
         params, outdir, model_type=model_type,
-        artifact_fname=os.path.basename(params_path),
+        artifact_fname=artifact_fname,
     )
 
 
 if __name__ == '__main__':
+    os.chdir(os.path.dirname(os.path.abspath(__file__)))
     main()

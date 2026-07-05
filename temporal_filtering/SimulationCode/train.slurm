@@ -26,6 +26,6 @@ echo "GPU:    ${CUDA_VISIBLE_DEVICES:-unset}"
 nvidia-smi -L || true
 python -c "import torch; print('cuda:', torch.cuda.is_available(), torch.cuda.get_device_name(0) if torch.cuda.is_available() else '')"
 echo "Start:  $(date)"
-python -u test/add_t45_data.py --target tile,moving_bar \
+python -u add_para/add_t45_data.py --target tile,moving_bar \
   --model_type conductance --nofruns 1 --nofsteps 10000 --lrs 0.1,0.01,0.001
 echo "End:    $(date)"

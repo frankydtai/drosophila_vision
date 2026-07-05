@@ -23,10 +23,10 @@ from network.tiling import unit_type_names
 from plot.moving_bar import (
     _aggregate_moving_bar_traces,
     _extract_moving_bar_windows,
-    _moving_bar_center_only,
     _moving_bar_t0_grid,
     _network_type_ids,
 )
+from plot.utils import center_column_only
 from training_config import COST_HALF_WINDOW_STEPS, COST_WINDOW_STEPS
 from visual_stimulus.moving_bar_stimulus import gruntman_moving_bar_specs, column_bar_center_step
 
@@ -107,7 +107,7 @@ def main():
     )
     C = session.backend.network
     specs = gruntman_moving_bar_specs(contrasts=("bright",))
-    center_only = _moving_bar_center_only(session)
+    center_only = center_column_only(session)
     center_col = center_photo_column(C)
     cols = [center_col] if center_only else photo_columns(C)
     types = list(C.type_names)

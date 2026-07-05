@@ -10,12 +10,21 @@ import torch
 import FiveCol_MedSim_Pytorch as fc
 import Medulla_Library as ml
 from plot.readout import moving_bar_row_types
-from plot.utils import nice_ylim as _nice_ylim
+from plot.utils import (
+    baselines_for_types,
+    center_column_only,
+    plot_timecourse,
+    save_figure,
+    sem_from_traces,
+    ylim_for_keys,
+)
 from FiveCol_MedSim_Pytorch import t_on
 from network.moving_bar_target import _borst_hex_columns
 from t4_t5_preference import (
+    READOUT_SUBTYPES,
     active_stimuli_for_subtype,
     fig1_key_for_stimulus,
+    motion_preference,
     normalize_side,
 )
 from training_config import COST_HALF_WINDOW_STEPS, COST_WINDOW_STEPS
@@ -24,11 +33,6 @@ from visual_stimulus.moving_bar_stimulus import column_bar_center_step, field_bo
 MOVING_BAR_GRID_DPI = 100
 MOVING_BAR_MVD_DPI = 100
 _MOVING_BAR_T = np.arange(COST_WINDOW_STEPS)
-
-
-def _moving_bar_center_only(session, target=None):
-    target = target or _bar_target(session)
-    return bool(session.pack_for(target).center_column)
 
 
 def _bar_target(session):
@@ -57,29 +61,6 @@ def _borst_type_ids(session):
     return np.asarray(node_type, dtype=np.int64)
 
 
-def _moving_bar_ylim(model_mean, model_sem, data_mean, keys, show_sem=False):
-    curves = []
-    for key in keys:
-        m = model_mean[key]
-        curves.append(m)
-        d = data_mean.get(key) if data_mean else None
-        if d is not None:
-            curves.append(d)
-        if show_sem and key in model_sem:
-            s = model_sem[key]
-            if np.any(s):
-                curves.extend([m + s, m - s])
-    return _nice_ylim(*curves)
-
-
-def _save_moving_bar_fig(fig, path, dpi, rasterize=True):
-    if rasterize:
-        for ax in fig.axes:
-            ax.set_rasterized(True)
-    fig.savefig(path, dpi=dpi)
-    plt.close(fig)
-
-
 def _network_uv_np(C):
     u = C.u.detach().cpu().numpy() if torch.is_tensor(C.u) else np.asarray(C.u)
     v = C.v.detach().cpu().numpy() if torch.is_tensor(C.v) else np.asarray(C.v)
@@ -105,6 +86,14 @@ def _moving_bar_t0_grid(C, cols, n_batch, t0_map):
             on_col = (u_np == int(c.u)) & (v_np == int(c.v))
             t0_bn[bi, on_col] = t0
     return t0_bn
+
+
+def _scale_model_full(model_full, p, backend):
+    """Apply per-unit ``out_scale`` to ``model_full`` (B, T', N), matching cost."""
+    n_units = model_full.shape[2]
+    unit_ix = torch.arange(n_units, dtype=torch.long)
+    scale = fc.out_scale_for_units(p, unit_ix, backend).cpu().numpy()
+    return model_full * scale[np.newaxis, np.newaxis, :]
 
 
 def _extract_moving_bar_windows(model_full, t0_bn):
@@ -135,66 +124,52 @@ def _aggregate_moving_bar_traces(windows, t0_bn, type_ids, types, spec_names, ce
             arr = windows[bi, unit_mask]
             key = (tname, sname)
             model_mean[key] = arr.mean(axis=0)
-            if center_only or arr.shape[0] == 1:
-                model_sem[key] = np.zeros(COST_WINDOW_STEPS, dtype=np.float64)
-            else:
-                model_sem[key] = arr.std(axis=0) / np.sqrt(arr.shape[0])
+            model_sem[key] = sem_from_traces(arr, center_only=center_only)
     return model_mean, model_sem
 
 
-@torch.no_grad()
-def _compute_moving_bar_all_type_traces(session, z, target=None):
+def _load_moving_bar_data_mean(session, target, types, specs, side):
     from network.moving_bar_target import load_fig1_trace
+
+    data_mean = {}
+    row_types = moving_bar_row_types(session, target)
+    for subtype in row_types:
+        if subtype not in types:
+            continue
+        for spec in specs:
+            trace_id = fig1_key_for_stimulus(side, subtype, spec)
+            if trace_id is None:
+                continue
+            data_mean[(subtype, spec.name)] = load_fig1_trace(trace_id)
+    return data_mean
+
+
+def _moving_bar_t0_grid_network(C, specs, center_only):
     from network.stimulus import build_moving_bar_signals, center_photo_column, photo_columns
 
-    target = target or _bar_target(session)
-    pack = session.pack_for(target)
-    schema = list(session.schema)
-    p = fc.assign_params(z, schema, session.backend)
-    model_full = fc._run_conductance_full(session, p, pack.signal).cpu().numpy()
-    specs = _bar_specs_for_session(session, target)
-    spec_names = [s.name for s in specs]
-    C = session.backend.network
-    if C is not None:
-        side = normalize_side(C.meta.get('side', 'right'))
-        center_only = _moving_bar_center_only(session)
-        center_col = center_photo_column(C)
-        cols = [center_col] if center_only else photo_columns(C)
-        field_deg = C.meta.get('field_deg')
-        if field_deg is None:
-            field_deg = build_moving_bar_signals(
-                C, t_on=t_on, deltat_ms=fc.deltat, device=session.device,
-            ).info['field_deg']
+    side = normalize_side(C.meta.get('side', 'right'))
+    center_col = center_photo_column(C)
+    cols = [center_col] if center_only else photo_columns(C)
+    field_deg = C.meta.get('field_deg')
+    if field_deg is None:
+        field_deg = build_moving_bar_signals(
+            C, t_on=t_on, deltat_ms=fc.deltat, device=C.node_type.device,
+        ).info['field_deg']
+    t0_map = {}
+    for bi, spec in enumerate(specs):
+        for c in cols:
+            t_center = column_bar_center_step(
+                c.x, c.y, spec, field_deg, t_on=t_on, deltat_ms=fc.deltat,
+            )
+            t0_map[(bi, int(c.u), int(c.v))] = int(t_center - COST_HALF_WINDOW_STEPS)
+    types = list(C.type_names)
+    type_ids = _network_type_ids(C)
+    t0_bn = _moving_bar_t0_grid(C, cols, len(specs), t0_map)
+    return types, type_ids, t0_bn, side
 
-        t0_map = {}
-        for bi, spec in enumerate(specs):
-            for c in cols:
-                t_center = column_bar_center_step(
-                    c.x, c.y, spec, field_deg, t_on=t_on, deltat_ms=fc.deltat,
-                )
-                t0_map[(bi, int(c.u), int(c.v))] = int(t_center - COST_HALF_WINDOW_STEPS)
 
-        types = list(C.type_names)
-        type_ids = _network_type_ids(C)
-        t0_bn = _moving_bar_t0_grid(C, cols, len(specs), t0_map)
-        windows = _extract_moving_bar_windows(model_full, t0_bn)
-        model_mean, model_sem = _aggregate_moving_bar_traces(
-            windows, t0_bn, type_ids, types, spec_names, center_only,
-        )
-        data_mean = {}
-        row_types = moving_bar_row_types(session, target)
-        for subtype in row_types:
-            if subtype not in types:
-                continue
-            for spec in specs:
-                trace_id = fig1_key_for_stimulus(side, subtype, spec)
-                if trace_id is None:
-                    continue
-                data_mean[(subtype, spec.name)] = load_fig1_trace(trace_id)
-        return types, spec_names, model_mean, model_sem, data_mean
-
+def _moving_bar_t0_grid_borst(session, specs, center_only):
     cols_all = _borst_hex_columns()
-    center_only = _moving_bar_center_only(session)
     col_ids = [ml.CENTER_COL] if center_only else list(range(ml.nofcols))
     cols = [cols_all[i] for i in col_ids]
     field_deg = field_bounds(cols_all)
@@ -208,38 +183,59 @@ def _compute_moving_bar_all_type_traces(session, z, target=None):
             t0_bn[bi, ml.column_slice(col_id)] = t0
     type_ids = _borst_type_ids(session)
     types = list(ml.ctype.tolist())
+    return types, type_ids, t0_bn, "right"
+
+
+@torch.no_grad()
+def _compute_moving_bar_all_type_traces(session, z, target=None):
+    target = target or _bar_target(session)
+    pack = session.pack_for(target)
+    schema = list(session.schema)
+    p = fc.assign_params(z, schema, session.backend)
+    sig = pack.signal if pack.signal.dim() == 3 else pack.signal.unsqueeze(0)
+    model_full, vm_ref = fc._run_conductance_full(session, p, sig, return_ref=True)
+    model_full = _scale_model_full(model_full.cpu().numpy(), p, session.backend)
+    specs = _bar_specs_for_session(session, target)
+    spec_names = [s.name for s in specs]
+    center_only = center_column_only(session, target)
+    C = session.backend.network
+    if C is not None:
+        types, type_ids, t0_bn, side = _moving_bar_t0_grid_network(C, specs, center_only)
+        baselines = baselines_for_types(
+            pack, session.backend, vm_ref[0].cpu().numpy(), types, type_ids, types,
+        )
+    else:
+        types, type_ids, t0_bn, side = _moving_bar_t0_grid_borst(session, specs, center_only)
+        baselines = baselines_for_types(
+            pack, session.backend, vm_ref[0].cpu().numpy(), types, type_ids, types,
+        )
     windows = _extract_moving_bar_windows(model_full, t0_bn)
     model_mean, model_sem = _aggregate_moving_bar_traces(
         windows, t0_bn, type_ids, types, spec_names, center_only,
     )
-    data_mean = {}
-    row_types = moving_bar_row_types(session, target)
-    for subtype in row_types:
-        for spec in specs:
-            trace_id = fig1_key_for_stimulus("right", subtype, spec)
-            if trace_id is None:
-                continue
-            data_mean[(subtype, spec.name)] = load_fig1_trace(trace_id)
-    return types, spec_names, model_mean, model_sem, data_mean
+    data_mean = _load_moving_bar_data_mean(session, target, types, specs, side)
+    return types, spec_names, model_mean, model_sem, data_mean, baselines
 
 
 @torch.no_grad()
 def _moving_bar_mean_traces(session, z, target=None):
     target = target or _bar_target(session)
-    C = session.backend.network
-    side = normalize_side(C.meta.get('side', 'right')) if C is not None else "right"
-    _, _, model_mean, model_sem, data_mean = _compute_moving_bar_all_type_traces(session, z, target)
+    _, _, model_mean, model_sem, data_mean, baselines = _compute_moving_bar_all_type_traces(
+        session, z, target,
+    )
     readout_subtypes = moving_bar_row_types(session, target)
     contrast = _bar_contrast(target)
+    C = session.backend.network
+    side = normalize_side(C.meta.get('side', 'right')) if C is not None else "right"
     row_specs = {
         st: [f'{d}_{c}_{w}' for d, c, w in active_stimuli_for_subtype(side, st) if c == contrast]
         for st in readout_subtypes
     }
-    return row_specs, model_mean, model_sem, data_mean
+    return row_specs, model_mean, model_sem, data_mean, baselines
 
 
 def _moving_bar_scope_label(session):
-    center_only = _moving_bar_center_only(session)
+    center_only = center_column_only(session)
     C = session.backend.network
     if center_only:
         if C is not None:
@@ -264,6 +260,20 @@ def _set_moving_bar_xticks(ax):
     ax.set_xticklabels(['-0.45', '0', '0.45'], fontsize=6)
 
 
+def _moving_bar_spec_linestyle(side, subtype, sname):
+    """Solid for PD stimuli, dashed for ND (Gruntman fig1 convention)."""
+    if subtype not in READOUT_SUBTYPES:
+        return '-'
+    parts = str(sname).split('_')
+    if len(parts) < 3:
+        return '-'
+    direction, contrast, wtag = parts[0], parts[1], parts[2]
+    pref = motion_preference(side, subtype, direction, contrast)
+    if pref is None:
+        return '-'
+    return '--' if pref.pd_nd == 'ND' else '-'
+
+
 def _moving_bar_right_spec_names(spec_names):
     return [s for s in spec_names if s.startswith('right_')]
 
@@ -286,44 +296,42 @@ def _plot_moving_bar_cell(
     ylim=None,
     cell_ticks=True,
     show_xticks=True,
+    baseline=None,
+    linestyle='-',
 ):
-    curves = [model_trace]
-    if data_trace is not None:
-        curves.append(data_trace)
-    if show_sem:
-        curves.extend([model_trace + sem_trace, model_trace - sem_trace])
-    if ylim is None:
-        ylo, yhi = _nice_ylim(*curves)
-    else:
-        ylo, yhi = ylim
-    if data_trace is not None:
-        ax.plot(data_trace, color='gray', linewidth=1.5)
-    if show_sem and np.any(sem_trace):
-        ax.fill_between(
-            _MOVING_BAR_T, model_trace - sem_trace, model_trace + sem_trace,
-            color='pink', alpha=0.8, linewidth=0,
-        )
-    ax.plot(model_trace, color='red', linewidth=1.5)
-    ax.set_title(title, fontsize=7, pad=2)
-    ax.set_ylim(ylo, yhi)
-    _set_moving_bar_xlim(ax)
-    if show_xticks:
-        _set_moving_bar_xticks(ax)
-    if show_ylabel:
-        ax.set_ylabel('mV', fontsize=7)
-    if cell_ticks:
-        ax.tick_params(labelsize=6)
+    def style_xaxis(ax):
+        _set_moving_bar_xlim(ax)
+        if show_xticks:
+            _set_moving_bar_xticks(ax)
+
+    plot_timecourse(
+        ax, _MOVING_BAR_T, model_trace,
+        data=data_trace,
+        sem=sem_trace,
+        show_sem=show_sem and sem_trace is not None and np.any(sem_trace),
+        title=title,
+        ylim=ylim,
+        baseline=baseline,
+        show_ylabel=show_ylabel,
+        ticksize=6 if cell_ticks else 5,
+        style_xaxis=style_xaxis,
+        linestyle=linestyle,
+    )
 
 
 def plot_moving_bar_data(session, z, path, session_off=None, title=None):
-    center_only = _moving_bar_center_only(session)
+    center_only = center_column_only(session)
     target = _bar_target(session)
-    row_specs, model_mean, model_sem, data_mean = _moving_bar_mean_traces(session, z, target)
+    row_specs, model_mean, model_sem, data_mean, baselines = _moving_bar_mean_traces(
+        session, z, target,
+    )
     readout_subtypes = list(row_specs.keys())
     ncols_half = max((len(v) for v in row_specs.values()), default=8)
+    C = session.backend.network
+    side = normalize_side(C.meta.get('side', 'right')) if C is not None else 'right'
     if session_off is not None:
         target_off = _bar_target(session_off)
-        row_specs_off, model_mean_off, model_sem_off, data_mean_off = _moving_bar_mean_traces(
+        row_specs_off, model_mean_off, model_sem_off, data_mean_off, baselines_off = _moving_bar_mean_traces(
             session_off, z, target_off,
         )
         ncols_half = max(ncols_half, max((len(v) for v in row_specs_off.values()), default=8))
@@ -339,7 +347,7 @@ def plot_moving_bar_data(session, z, path, session_off=None, title=None):
     if ncols == 1:
         axes = axes[:, None]
 
-    def _plot_row(ri, subtype, specs, col_offset, mm, ms, dm):
+    def _plot_row(ri, subtype, specs, col_offset, mm, ms, dm, bl, plot_side):
         for ci, sname in enumerate(specs):
             ax = axes[ri, col_offset + ci]
             key = (subtype, sname)
@@ -349,14 +357,18 @@ def plot_moving_bar_data(session, z, path, session_off=None, title=None):
             _plot_moving_bar_cell(
                 ax, mm[key], ms[key], dm.get(key),
                 sname, show_ylabel=(col_offset + ci == 0), show_sem=not center_only,
+                baseline=bl.get(subtype),
+                linestyle=_moving_bar_spec_linestyle(plot_side, subtype, sname),
             )
 
     for ri, subtype in enumerate(readout_subtypes):
-        _plot_row(ri, subtype, row_specs[subtype], 0, model_mean, model_sem, data_mean)
+        _plot_row(ri, subtype, row_specs[subtype], 0, model_mean, model_sem, data_mean, baselines, side)
         if session_off is not None:
+            C_off = session_off.backend.network
+            side_off = normalize_side(C_off.meta.get('side', 'right')) if C_off is not None else 'right'
             _plot_row(
                 ri, subtype, row_specs_off[subtype], ncols_half,
-                model_mean_off, model_sem_off, data_mean_off,
+                model_mean_off, model_sem_off, data_mean_off, baselines_off, side_off,
             )
         axes[ri, 0].set_ylabel(subtype, fontsize=8, labelpad=12)
     if title is None:
@@ -364,21 +376,23 @@ def plot_moving_bar_data(session, z, path, session_off=None, title=None):
     scope = _moving_bar_scope_label(session)
     fig.suptitle(title + f'  [{scope}, t_center ± 0.45 s]', fontsize=12)
     fig.subplots_adjust(top=0.92, bottom=0.08, hspace=0.45, wspace=0.35)
-    _save_moving_bar_fig(fig, path, MOVING_BAR_MVD_DPI)
+    save_figure(fig, path, dpi=MOVING_BAR_MVD_DPI, rasterize=True)
 
 
 @torch.no_grad()
 def plot_moving_bar_all(session, z, path, session_off=None, title=None):
     t0 = time.perf_counter()
-    center_only = _moving_bar_center_only(session)
+    center_only = center_column_only(session)
     target = _bar_target(session)
-    types, all_spec_names, model_mean, model_sem, data_mean = _compute_moving_bar_all_type_traces(
+    types, all_spec_names, model_mean, model_sem, data_mean, baselines = _compute_moving_bar_all_type_traces(
         session, z, target,
     )
     spec_names = _moving_bar_right_spec_names(all_spec_names)
+    ncols_on = len(spec_names)
+    baselines_off = None
     if session_off is not None:
         target_off = _bar_target(session_off)
-        _, spec_names_off, mm_off, ms_off, dm_off = _compute_moving_bar_all_type_traces(
+        _, spec_names_off, mm_off, ms_off, dm_off, baselines_off = _compute_moving_bar_all_type_traces(
             session_off, z, target_off,
         )
         spec_names_off = _moving_bar_right_spec_names(spec_names_off)
@@ -390,7 +404,7 @@ def plot_moving_bar_all(session, z, path, session_off=None, title=None):
 
     keys = [(t, s) for t in types for s in spec_names if (t, s) in model_mean]
     show_sem = not center_only
-    ylim = _moving_bar_ylim(model_mean, model_sem, data_mean, keys, show_sem=show_sem)
+    ylim = ylim_for_keys(model_mean, model_sem, data_mean, keys, show_sem=show_sem)
 
     nrows = len(types)
     ncols = len(spec_names)
@@ -410,6 +424,9 @@ def plot_moving_bar_all(session, z, path, session_off=None, title=None):
             if key not in model_mean:
                 ax.axis('off')
                 continue
+            bl = baselines.get(tname)
+            if baselines_off is not None and ci >= ncols_on:
+                bl = baselines_off.get(tname)
             _plot_moving_bar_cell(
                 ax, model_mean[key], model_sem[key], data_mean.get(key),
                 sname if ri == 0 else sname,
@@ -418,6 +435,7 @@ def plot_moving_bar_all(session, z, path, session_off=None, title=None):
                 ylim=ylim,
                 cell_ticks=False,
                 show_xticks=(ri == nrows - 1),
+                baseline=bl,
             )
         if ncols:
             axes[ri, 0].set_ylabel(tname, fontsize=6, labelpad=4)
@@ -428,7 +446,7 @@ def plot_moving_bar_all(session, z, path, session_off=None, title=None):
     fig.subplots_adjust(top=0.96, bottom=0.05, hspace=0.55, wspace=0.3)
     t_draw = time.perf_counter() - t1
     t2 = time.perf_counter()
-    _save_moving_bar_fig(fig, path, MOVING_BAR_GRID_DPI)
+    save_figure(fig, path, dpi=MOVING_BAR_GRID_DPI, rasterize=True)
     t_save = time.perf_counter() - t2
     print(
         f'plot_moving_bar_all: traces={t_traces:.1f}s  '
