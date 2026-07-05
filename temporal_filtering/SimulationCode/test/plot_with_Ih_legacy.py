@@ -28,7 +28,25 @@ from plot_trained import (
 
 DEFAULT_PARAMS = os.path.join("FiveCol_Parameter", "with_Ih", "best_parameter.npy")
 DEFAULT_OUTDIR = os.path.join("FiveCol_Parameter", "with_Ih")
-LEGACY_NPARAMS = ml.legacy_conductance_z_slices()["n_params"]
+
+
+def _legacy_conductance_z_slices():
+    """138-parameter conductance z layout (this test script only)."""
+    ih_start = 2 * ml.nofcells
+    n_lamina_ih = ml.LAMINA_SLICE.stop - ml.LAMINA_SLICE.start
+    return {
+        "inp_gain": slice(0, ml.nofcells),
+        "out_gain": slice(ml.nofcells, 2 * ml.nofcells),
+        "Ih_gmax": slice(ih_start, ih_start + n_lamina_ih),
+        "Ih_midv": ih_start + n_lamina_ih,
+        "Ih_slope": ih_start + n_lamina_ih + 1,
+        "tau_midv": ih_start + n_lamina_ih + 2,
+        "n_params": 2 * ml.nofcells + n_lamina_ih + 3,
+        "n_selp_correlation": ih_start + n_lamina_ih,
+    }
+
+
+LEGACY_NPARAMS = _legacy_conductance_z_slices()["n_params"]
 LEGACY_PARAM_MODES = {"out_scale": "fixed"}
 LEGACY_PARAM_FIXES = {"out_scale": 1.0}
 LEGACY_TILE_STIMULUS_OPTS = {
@@ -87,7 +105,7 @@ def load_legacy_z(path: str) -> np.ndarray:
 def map_legacy_to_network_z(z138: np.ndarray, net_type_names: list[str]) -> np.ndarray:
     legacy_ct = np.load("Circuits/ctype.npy", allow_pickle=True)
     leg_idx = {str(n): i for i, n in enumerate(legacy_ct)}
-    slices = ml.legacy_conductance_z_slices()
+    slices = _legacy_conductance_z_slices()
     inp = np.array([float(z138[slices["inp_gain"].start + leg_idx[t]]) if t in leg_idx else 0.5
                     for t in net_type_names])
     out = np.array([float(z138[slices["out_gain"].start + leg_idx[t]]) if t in leg_idx else 0.5

@@ -142,22 +142,6 @@ def apply_borst_connectivity_patches(multi_colM: np.ndarray) -> np.ndarray:
     return multi_colM
 
 
-def legacy_conductance_z_slices():
-    """Historical 138-parameter conductance z layout (pre-schema Python path)."""
-    ih_start = 2 * nofcells
-    n_lamina_ih = LAMINA_SLICE.stop - LAMINA_SLICE.start
-    return {
-        'inp_gain': slice(0, nofcells),
-        'out_gain': slice(nofcells, 2 * nofcells),
-        'Ih_gmax': slice(ih_start, ih_start + n_lamina_ih),
-        'Ih_midv': ih_start + n_lamina_ih,
-        'Ih_slope': ih_start + n_lamina_ih + 1,
-        'tau_midv': ih_start + n_lamina_ih + 2,
-        'n_params': 2 * nofcells + n_lamina_ih + 3,
-        'n_selp_correlation': ih_start + n_lamina_ih,
-    }
-
-
 def read_single_connM(fname):
     
     print('reading data from ' + fname + ' file')

@@ -1,0 +1,43 @@
+---
+description: Core scope and edit rules (temporal_filtering)
+alwaysApply: true
+---
+
+# Coding rules
+
+Scope: `temporal_filtering/`.
+
+## HARD STOPS — violate = do not ship
+
+1. No backward compatibility: no old+new paths, shims, dual parsers, deprecated params, loaders for old runs/sidecars. 「改成 X」→ only X.
+2. `test/**`: edit only when user's task explicitly names that test; otherwise never (core tasks, follow-ups, broken-test fixes).
+3. Python/pip: use `.venv` in the **same top-level subproject** as the script (see §1 table). No bare `python` / `python3` / `pip` / `pip3`; no wrong subproject `.venv`.
+4. New `*.py` / `*.sh` / `*.ipynb` / `*.m`: explain + propose path/duties + wait for user approval.
+
+- **Python** (script location → interpreter):
+| Script location | Interpreter |
+|---|---|
+| `temporal_filtering/**` | `temporal_filtering/.venv/bin/python` |
+| `LC18_model/**` | `LC18_model/.venv/bin/python` |
+| `Groschner2022_multiplication/**` | `Groschner2022_multiplication/.venv/bin/python` |
+| `MatlabFunctions/**` | `MatlabFunctions/.venv/bin/python` |
+
+## A all script rules
+
+1. Canonical form first; diff replaces old — no second path.
+2. No backward compatibility (see HARD STOP 1). Exception: user-requested mutually exclusive CLI (e.g. `--at-uv` | `--at-xy`).
+3. Alias forbidden: same single target — e.g. `tile` and `tile_bright` both accepted. Exception: group shorthand in `TARGET_ALIASES`, `LOSS_WEIGHT_ALIASES`, `I_CLI_*_TARGETS` only; new entries → those dicts.
+4. No duplicate functions or wrappers (see HARD STOP 3).
+
+## B core script rules: SimulationCode/**`, `Connectome/**` (incl. `add_para/**`).
+
+1. Parameters via schema only; new param = one segment. No scattered `z[...]`.
+2. `forward` / `trainer` / `calc_cost` live in core only.
+3. `run.py`: general driver only; `import run` must not parse argv or touch CUDA.
+4. Path constants in `connectome_io.py` / `training_config.py`. Exception: `Circuits/*`.
+5. CSVs: rectangular; global scalars as constant columns.
+
+## C non-core script rules
+
+1. `import run` / `import fc` (see HARD STOP 4). imports core.
+2. Training variants: `run_<id>` under `FiveCol_Parameter/<model_type>/`; full `run.py` artifact set and naming.

@@ -16,19 +16,25 @@ root id. The breakdown column still shows individual ``source_type``/``target_ty
 unless ``--family`` is given.
 
 Optionally restrict to CELL_TYPE *instances* at a single location: axial ``(u, v)``
-(``--at-uv U V``) or pixel ``(x, y)`` (``--at-xy X Y``) for FAFB ``network.json``.
+(``--at-uv U V``) or pixel ``(x, y)`` (``--at-xy X Y``) for FAFB ``network.json``,
+or the central hex disc ``--extent N`` (0 = centre column, 1 = 7 columns, 2 = 19, …;
+uses ``column_mapper.inside_mask``). ``--extent`` is FAFB-only and shows mean
+``pre_d_xy``/``post_d_xy`` only.
 With ``--borst`` (5-column ``multi_colM`` model) use ``--at-xy`` only — Borst column
 centres sit on ``y=0`` at ``x`` in ``{-10,-5,0,5,10}`` (resolved via
-``column_mapper.borst_col_at_xy``); ``--at-uv`` is invalid because only the centre
-column has integer hex ``(0,0)``.
+``column_mapper.borst_col_at_xy``); ``--at-uv``, ``--extent``, and ``--family`` are invalid
+(no ``type_counts_abc.csv`` on the Borst path). Borst output never shows axial
+``(u,v)``; with ``--at-xy`` only ``pre_d_xy``/``post_d_xy``. Without ``--at-uv``/``--at-xy``,
+only ``pre_d_xy``/``post_d_xy`` is shown (mean partner pixel delta). The reference is
+the mean ``(x,y)`` of all queried *self* instances; each partner row shows **one**
+mean ``(dx,dy)`` over that partner's instances. With ``--at-uv`` only ``pre_d_uv``/
+``post_d_uv`` is added (hex reference). With ``--at-xy`` the reference is the
+``--at`` centre; if ``n_neuron`` ≤ 5, distinct partner ``(dx,dy)`` pairs are listed,
+otherwise the mean delta is shown.
 
 Per (cell_type, partner_type): sum ``n_syn`` where ``sign > 0`` vs ``sign < 0``,
 then express each as a percentage of **all** ``n_syn`` for that cell type. An
-``n_neuron`` column (distinct *partner* neurons of that partner type) is always
-shown. With ``--at-uv``/``--at-xy`` or a ``@root_id`` query, extra columns
-``pre_uv``/``post_uv`` (hex; truncated when count>5) and ``pre_xy``/``post_xy``
-(from ``column_mapper.hex_to_pixel``) for the *partner* instances. The TOTAL row omits the uv/xy
-columns.
+``n_neuron`` column is always shown. The TOTAL row omits the coord columns.
 
 The ``network.json`` schema is ``{"metadata", "nodes", "edges"}`` where each node is
 ``{"id", "name", "u", "v", "column_id", "input", "output"}`` and each edge is
@@ -37,16 +43,19 @@ The ``network.json`` schema is ``{"metadata", "nodes", "edges"}`` where each nod
 Example::
 
     python3 "cell_syn.py"
-    python3 "cell_syn.py" L1 L2 L3 L4 L5
+    python3 "cell_syn.py" L1,L2,L3,L4,L5
+    python3 "cell_syn.py" T4a,T4b,T4c,T4d
     python3 "cell_syn.py" Mi1 --post
     python3 "cell_syn.py" &Centrifugal
     python3 "cell_syn.py" &Centrifugal --family
     python3 "cell_syn.py" Mi1 --family
     python3 "cell_syn.py" @720575940622041087
-    python3 "cell_syn.py" Mi1 --dir right_min_neuron1
-    python3 "cell_syn.py" L1 --dir /abs/path/to/some_folder
+    python3 "cell_syn.py" Mi1 --network right_min_neuron1
+    python3 "cell_syn.py" L1 --network /abs/path/to/some_folder
     python3 "cell_syn.py" Mi1 --post --at-uv 0 0
     python3 "cell_syn.py" Mi1 --post --at-xy 0 1
+    python3 "cell_syn.py" Mi1 --extent 0
+    python3 "cell_syn.py" Mi1 --extent 2
     python3 "cell_syn.py" Mi1 --borst
     python3 "cell_syn.py" Mi1 --borst --post
     python3 "cell_syn.py" Mi1 --borst --at-xy 0 0
@@ -70,41 +79,39 @@ from column_mapper import (
     borst_col_at_xy,
     borst_column_centers,
     hex_to_pixel,
+    inside_mask,
     pixel_to_hex,
 )
-from connectome_io import BORST_CTYPE_NPY, BORST_MULTI_COL_M, NETWORK_DIR, SIMULATION_CODE_DIR
+from connectome_io import (
+    BORST_CTYPE_NPY,
+    BORST_MULTI_COL_M,
+    SIMULATION_CODE_DIR,
+    resolve_network_json,
+    type_counts_abc_path,
+)
 
-_BASE_DIR = Path(__file__).resolve().parent
-_DEFAULT_DIR = "right_min_neuron1"
+_DEFAULT_NETWORK = "right_min_neuron1"
 
 logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
 logger = logging.getLogger(__name__)
 
 
-_MAX_PRE_UV_COORDS = 5
+_MAX_PARTNER_LIST = 5
 
 
-def _resolve_network_json(folder: str) -> Path:
-    """Resolve a network folder/path to its ``network.json``.
+def _parse_cell_types(spec: str) -> List[str]:
+    """Parse one comma-separated CELL_TYPE string (e.g. ``T4a,T4b,T4c``)."""
+    return [part.strip() for part in spec.split(",") if part.strip()]
 
-    ``folder`` may be a network folder name (e.g. ``left_min_neuron1``) resolved
-    under the ``network/`` directory, an absolute/relative folder path, or a direct
-    path to a ``network.json``.
-    """
-    p = Path(folder)
-    if not p.is_absolute():
-        for cand in (NETWORK_DIR / folder, _BASE_DIR / folder):
-            if cand.exists():
-                p = cand
-                break
-    if p.is_dir():
-        return (p / "network.json").resolve()
-    return p.resolve()
+
+def _hex_disc_column_count(extent: int) -> int:
+    """Hex cells in a disc of axial radius ``extent`` (0 -> 1, 1 -> 7, 2 -> 19, …)."""
+    return 3 * extent * (extent + 1) + 1
 
 
 def _load_type_to_family(json_path: Path) -> Dict[str, str]:
     """Map cell ``type`` -> ``family`` from ``type_counts_abc.csv`` next to network.json."""
-    csv_path = json_path.parent / "type_counts_abc.csv"
+    csv_path = type_counts_abc_path(json_path)
     out: Dict[str, str] = {}
     if not csv_path.is_file():
         logger.warning("No type_counts_abc.csv next to %s; family names won't resolve", json_path)
@@ -236,54 +243,198 @@ def _resolve_query_labels(
     return labels, dict(self_type_to_labels), dict(self_id_to_labels)
 
 
-def _truncated_uv_pairs(
-    uvs: Set[_UvCoord], n_pre: int, max_coords: int = _MAX_PRE_UV_COORDS
-) -> List[_UvCoord]:
-    """Sorted distinct (u,v), truncated to ``max_coords`` pairs when ``n_pre`` > ``max_coords``."""
-    if not uvs:
-        return []
-    ordered = sorted(uvs)
-    if n_pre > max_coords:
-        ordered = ordered[:max_coords]
-    return ordered
-
-
-def _format_uv_coords_trunc(
-    uvs: Set[_UvCoord], n_pre: int, max_coords: int = _MAX_PRE_UV_COORDS
-) -> str:
-    """Semicolon-separated ``(u,v)``; if ``n_pre`` > ``max_coords``, only first ``max_coords`` pairs."""
-    return ";".join(
-        f"({_format_scalar_for_table(float(u))},{_format_scalar_for_table(float(v))})"
-        for u, v in _truncated_uv_pairs(uvs, n_pre, max_coords)
-    )
-
-
 def _format_scalar_for_table(z: float) -> str:
     if abs(z - round(z)) < 1e-9:
         return str(int(round(z)))
     return f"{z:g}"
 
 
-def _format_pre_xy_from_uvs(
-    uvs: Set[_UvCoord],
-    n_pre: int,
-    max_coords: int = _MAX_PRE_UV_COORDS,
+def _format_mean_scalar_for_table(z: float) -> str:
+    return f"{z:.2f}"
+
+
+def _node_centers(
+    n: dict,
     *,
+    float_coords: bool,
+    xy_kernel_size: float,
+) -> Optional[Tuple[Tuple[float, float], Tuple[float, float]]]:
+    """Parse one node's ``(u,v)`` and pixel ``(x,y)`` centres."""
+    try:
+        u = float(n["u"]) if float_coords else float(int(n["u"]))
+        v = float(n["v"]) if float_coords else float(int(n["v"]))
+        if "x" in n and "y" in n:
+            xy = (float(n["x"]), float(n["y"]))
+        else:
+            x, y = hex_to_pixel(u, v, kernel_size=xy_kernel_size)
+            xy = (float(x), float(y))
+        return (u, v), xy
+    except (KeyError, TypeError, ValueError):
+        return None
+
+
+def _format_delta_uv(
+    uvs: Set[_UvCoord],
+    origin: Tuple[float, float],
+    *,
+    mean: bool,
+) -> str:
+    """Format partner ``(du,dv)`` as one mean pair or a sorted distinct list."""
+    if not uvs:
+        return ""
+    ou, ov = origin
+    if mean:
+        n = float(len(uvs))
+        du = sum(float(u) - ou for u, v in uvs) / n
+        dv = sum(float(v) - ov for u, v in uvs) / n
+        return (
+            f"({_format_mean_scalar_for_table(du)},{_format_mean_scalar_for_table(dv)})"
+        )
+    return ";".join(
+        f"({_format_scalar_for_table(float(u) - ou)},{_format_scalar_for_table(float(v) - ov)})"
+        for u, v in sorted(uvs)
+    )
+
+
+def _format_delta_xy(
+    uvs: Set[_UvCoord],
+    origin: Tuple[float, float],
+    *,
+    mean: bool,
     kernel_size: float = 1.0,
 ) -> str:
-    """Same (u,v) order/truncation as ``pre_uv``; centres from ``hex_to_pixel``.
-
-    Pixel coords reuse ``column_mapper.hex_to_pixel`` (kernel_size=1) so the formula
-    lives in exactly one place.
-    """
+    """Format partner ``(dx,dy)`` in pixel space as mean or sorted distinct list."""
+    if not uvs:
+        return ""
+    ox, oy = origin
+    if mean:
+        n = float(len(uvs))
+        dx = dy = 0.0
+        for u, v in uvs:
+            x, y = hex_to_pixel(u, v, kernel_size=kernel_size)
+            dx += float(x) - ox
+            dy += float(y) - oy
+        dx /= n
+        dy /= n
+        return (
+            f"({_format_mean_scalar_for_table(dx)},{_format_mean_scalar_for_table(dy)})"
+        )
     parts: List[str] = []
-    for u, v in _truncated_uv_pairs(uvs, n_pre, max_coords):
+    for u, v in sorted(uvs):
         x, y = hex_to_pixel(u, v, kernel_size=kernel_size)
         parts.append(
-            f"({_format_scalar_for_table(float(x))},"
-            f"{_format_scalar_for_table(float(y))})"
+            f"({_format_scalar_for_table(float(x) - ox)},"
+            f"{_format_scalar_for_table(float(y) - oy)})"
         )
     return ";".join(parts)
+
+
+def _self_node_origin(
+    label: str,
+    nodes: List[dict],
+    *,
+    float_coords: bool,
+    xy_kernel_size: float,
+) -> Tuple[Optional[Tuple[float, float]], Optional[Tuple[float, float]]]:
+    """``@root_id`` label -> that node's ``(u,v)`` and ``(x,y)`` centres."""
+    if not label.startswith("@"):
+        return None, None
+    try:
+        nid = int(label[1:])
+    except ValueError:
+        return None, None
+    for n in nodes:
+        try:
+            if int(n["id"]) != nid:
+                continue
+            centers = _node_centers(n, float_coords=float_coords, xy_kernel_size=xy_kernel_size)
+            if centers is None:
+                continue
+            return centers
+        except (KeyError, TypeError, ValueError):
+            continue
+    return None, None
+
+
+def _mean_self_origin(
+    label: str,
+    nodes: List[dict],
+    self_type_to_labels: Dict[str, Set[str]],
+    ids_at_hex: Optional[Dict[str, Set[int]]],
+    *,
+    float_coords: bool,
+    xy_kernel_size: float,
+) -> Tuple[Optional[Tuple[float, float]], Optional[Tuple[float, float]]]:
+    """Mean ``(u,v)`` and ``(x,y)`` over all *self* instances for ``label``."""
+    self_types = {t for t, labs in self_type_to_labels.items() if label in labs}
+    if not self_types:
+        return None, None
+    uvs: List[Tuple[float, float]] = []
+    xys: List[Tuple[float, float]] = []
+    for n in nodes:
+        name = n.get("name")
+        if not isinstance(name, str) or name not in self_types:
+            continue
+        try:
+            nid = int(n["id"])
+        except (KeyError, TypeError, ValueError):
+            continue
+        if ids_at_hex is not None:
+            allowed = ids_at_hex.get(name, set())
+            if nid not in allowed:
+                continue
+        centers = _node_centers(n, float_coords=float_coords, xy_kernel_size=xy_kernel_size)
+        if centers is None:
+            continue
+        uv, xy = centers
+        uvs.append(uv)
+        xys.append(xy)
+    if not uvs:
+        return None, None
+    n = float(len(uvs))
+    mean_uv = (sum(p[0] for p in uvs) / n, sum(p[1] for p in uvs) / n)
+    mean_xy = (sum(p[0] for p in xys) / n, sum(p[1] for p in xys) / n)
+    return mean_uv, mean_xy
+
+
+def _label_origins(
+    label: str,
+    nodes: List[dict],
+    self_type_to_labels: Dict[str, Set[str]],
+    ids_at_hex: Optional[Dict[str, Set[int]]],
+    at_ref_uv: Optional[Tuple[float, float]],
+    at_ref_xy: Optional[Tuple[float, float]],
+    *,
+    float_coords: bool,
+    xy_kernel_size: float,
+    need_uv: bool,
+    need_xy: bool,
+) -> Tuple[Optional[Tuple[float, float]], Optional[Tuple[float, float]]]:
+    """Reference ``(u,v)``/``(x,y)`` for partner deltas: ``--at`` centre or self mean."""
+    origin_uv = at_ref_uv if need_uv else None
+    origin_xy = at_ref_xy if need_xy else None
+    if label.startswith("@"):
+        self_uv, self_xy = _self_node_origin(
+            label, nodes, float_coords=float_coords, xy_kernel_size=xy_kernel_size
+        )
+        if origin_uv is None:
+            origin_uv = self_uv
+        if origin_xy is None:
+            origin_xy = self_xy
+    elif origin_uv is None or origin_xy is None:
+        mean_uv, mean_xy = _mean_self_origin(
+            label,
+            nodes,
+            self_type_to_labels,
+            ids_at_hex,
+            float_coords=float_coords,
+            xy_kernel_size=xy_kernel_size,
+        )
+        if origin_uv is None:
+            origin_uv = mean_uv
+        if origin_xy is None:
+            origin_xy = mean_xy
+    return origin_uv, origin_xy
 
 
 def _xy_to_uv(x: float, y: float) -> Tuple[int, int]:
@@ -296,10 +447,11 @@ def _node_id_to_uv(nodes: List[dict], *, float_coords: bool = False) -> Dict[int
     m: Dict[int, _UvCoord] = {}
     for n in nodes:
         try:
-            if float_coords:
-                m[int(n["id"])] = (float(n["u"]), float(n["v"]))
-            else:
-                m[int(n["id"])] = (int(n["u"]), int(n["v"]))
+            centers = _node_centers(n, float_coords=float_coords, xy_kernel_size=1.0)
+            if centers is None:
+                continue
+            uv, _ = centers
+            m[int(n["id"])] = uv
         except (KeyError, TypeError, ValueError):
             continue
     return m
@@ -316,6 +468,27 @@ def _instance_ids_at_hex(
         except (KeyError, TypeError, ValueError):
             continue
         if nu != u or nv != v:
+            continue
+        name = n.get("name")
+        if not isinstance(name, str):
+            continue
+        try:
+            nid = int(n["id"])
+        except (KeyError, TypeError, ValueError):
+            continue
+        out.setdefault(name, set()).add(nid)
+    return out
+
+
+def _instance_ids_in_disc(nodes: List[dict], extent: int) -> Dict[str, Set[int]]:
+    """Map cell type -> root ids inside the central hex disc of radius ``extent``."""
+    out: Dict[str, Set[int]] = {}
+    for n in nodes:
+        try:
+            u, v = int(n["u"]), int(n["v"])
+        except (KeyError, TypeError, ValueError):
+            continue
+        if not bool(inside_mask(u, v, extent)):
             continue
         name = n.get("name")
         if not isinstance(name, str):
@@ -361,8 +534,8 @@ def _accumulate_all(
     edges: List[dict],
     labels: List[str],
     self_type_to_labels: Dict[str, Set[str]],
+    id_to_uv: Dict[int, _UvCoord],
     ids_at_hex: Optional[Dict[str, Set[int]]] = None,
-    id_to_uv: Optional[Dict[int, _UvCoord]] = None,
     direction: str = "pre",
     type_to_family: Optional[Dict[str, str]] = None,
     self_id_to_labels: Optional[Dict[int, Set[str]]] = None,
@@ -371,8 +544,9 @@ def _accumulate_all(
     Tuple[
         DefaultDict[str, Dict[str, float]],
         float,
-        Optional[Dict[str, int]],
-        Optional[Tuple[Dict[str, Set[_UvCoord]], Set[_UvCoord]]],
+        Dict[str, int],
+        Dict[str, Set[_UvCoord]],
+        int,
     ],
 ]:
     """One pass over edges: per queried label, (per partner type syn+/syn-, total n_syn).
@@ -388,9 +562,9 @@ def _accumulate_all(
     and break down by postsynaptic ``target_type`` (outgoing).
 
     If ``ids_at_hex`` is set, only edges whose *self* instance id (``tar`` for ``pre``,
-    ``src`` for ``post``) sits at the chosen hex are counted. In that case the third
-    return value maps partner type -> count of **distinct** *partner* instance ids. If
-    ``id_to_uv`` is also passed, the fourth value is ``(coords_by_partner, union)``.
+    ``src`` for ``post``) sits at the chosen hex are counted. The third return value
+    maps partner type -> count of **distinct** *partner* instance ids. The fourth maps
+    partner type -> distinct partner ``(u,v)`` centres.
     """
     if direction == "post":
         self_type_field, partner_type_field = "source_type", "target_type"
@@ -407,9 +581,10 @@ def _accumulate_all(
     partner_ids: Dict[str, DefaultDict[str, Set[int]]] = {
         p: defaultdict(set) for p in labels
     }
-    partner_uv: Optional[Dict[str, DefaultDict[str, Set[_UvCoord]]]] = None
-    if id_to_uv is not None:
-        partner_uv = {p: defaultdict(set) for p in labels}
+    partner_uv: Dict[str, DefaultDict[str, Set[_UvCoord]]] = {
+        p: defaultdict(set) for p in labels
+    }
+    self_ids: Dict[str, Set[int]] = {p: set() for p in labels}
     for e in edges:
         stype = e.get(self_type_field)
         self_id_raw = e.get(self_id_field)
@@ -440,6 +615,8 @@ def _accumulate_all(
         partner = e.get(partner_id_field)
         for cell in cell_labels:
             totals[cell] += ns
+            if self_id_int is not None:
+                self_ids[cell].add(self_id_int)
             if a > 0:
                 by_cell[cell][pt]["syn+"] += ns
             elif a < 0:
@@ -448,10 +625,9 @@ def _accumulate_all(
                 try:
                     pid = int(partner)
                     partner_ids[cell][pt].add(pid)
-                    if partner_uv is not None and id_to_uv is not None:
-                        uv = id_to_uv.get(pid)
-                        if uv is not None:
-                            partner_uv[cell][pt].add(uv)
+                    uv = id_to_uv.get(pid)
+                    if uv is not None:
+                        partner_uv[cell][pt].add(uv)
                 except (TypeError, ValueError):
                     pass
     out: Dict[
@@ -459,22 +635,17 @@ def _accumulate_all(
         Tuple[
             DefaultDict[str, Dict[str, float]],
             float,
-            Optional[Dict[str, int]],
-            Optional[Tuple[Dict[str, Set[_UvCoord]], Set[_UvCoord]]],
+            Dict[str, int],
+            Dict[str, Set[_UvCoord]],
+            int,
+            int,
         ],
     ] = {}
     for p in labels:
-        coord_block: Optional[Tuple[Dict[str, Set[_UvCoord]], Set[_UvCoord]]] = None
-        npartner_map: Optional[Dict[str, int]] = {
-            pt: len(ids) for pt, ids in partner_ids[p].items()
-        }
-        if partner_uv is not None:
-            union_uv: Set[_UvCoord] = set()
-            for uvs in partner_uv[p].values():
-                union_uv |= uvs
-            row_sets = {pt: set(uvs) for pt, uvs in partner_uv[p].items()}
-            coord_block = (row_sets, union_uv)
-        out[p] = (by_cell[p], totals[p], npartner_map, coord_block)
+        npartner_map = {pt: len(ids) for pt, ids in partner_ids[p].items()}
+        row_sets = {pt: set(uvs) for pt, uvs in partner_uv[p].items()}
+        n_self = len(self_ids[p])
+        out[p] = (by_cell[p], totals[p], npartner_map, row_sets, n_self)
     return out
 
 
@@ -482,38 +653,42 @@ def print_table(
     cell_type: str,
     by_partner: DefaultDict[str, Dict[str, float]],
     total_syn: float,
+    n_partner_by_type: Dict[str, int],
+    partner_uv_by_type: Dict[str, Set[_UvCoord]],
     hex_note: str = "",
-    n_partner_by_type: Optional[Dict[str, int]] = None,
-    partner_coords_block: Optional[Tuple[Dict[str, Set[_UvCoord]], Set[_UvCoord]]] = None,
     direction: str = "pre",
     use_family: bool = False,
     min_pct: float = 0.0,
     xy_kernel_size: float = 1.0,
+    show_uv: bool = True,
+    show_xy: bool = True,
+    origin_uv: Optional[Tuple[float, float]] = None,
+    origin_xy: Optional[Tuple[float, float]] = None,
+    mean_partner_delta: bool = False,
+    n_self: int = 0,
 ) -> None:
     partner_dim = "family" if use_family else "type"
-    # A @root_id query selects one neuron, so label the self field as *_id.
     self_dim = "id" if cell_type.startswith("@") else "type"
     if direction == "post":
+        side = "post"
         self_field, partner_field = f"source_{self_dim}", f"target_{partner_dim}"
         flow_word = "out of"
-        n_label, uv_label, xy_label = "n_neuron", "post_uv", "post_xy"
     else:
+        side = "pre"
         self_field, partner_field = f"target_{self_dim}", f"source_{partner_dim}"
         flow_word = "onto"
-        n_label, uv_label, xy_label = "n_neuron", "pre_uv", "pre_xy"
+    n_label = "n_neuron"
+    uv_label = f"{side}_d_uv"
+    xy_label = f"{side}_d_xy"
 
-    show_n = n_partner_by_type is not None
-    show_coords = show_n and partner_coords_block is not None
-
-    header = [partner_field, "% n_syn+", "% n_syn-"]
-    if show_n:
-        header.append(n_label)
-    if show_coords:
-        header += [uv_label, xy_label]
+    header = [partner_field, "% n_syn+", "% n_syn-", n_label]
+    if show_uv:
+        header.append(uv_label)
+    if show_xy:
+        header.append(xy_label)
 
     rows: List[List[str]] = []
     sum_p = sum_m = 0.0
-    rows_uv_sets, _ = partner_coords_block if partner_coords_block is not None else ({}, set())
     if total_syn <= 0:
         logger.warning("No n_syn for %s=%s", self_field, cell_type)
     else:
@@ -526,22 +701,33 @@ def print_table(
             if pp + pm <= min_pct:
                 continue
             row = [pt, f"{pp:.4f}", f"{pm:.4f}"]
-            if show_n:
-                npv = int(n_partner_by_type.get(pt, 0))
-                row.append(str(npv))
-            if show_coords:
-                npv = int(n_partner_by_type.get(pt, 0))
-                uvs = rows_uv_sets.get(pt, set())
-                row.append(_format_uv_coords_trunc(uvs, npv))
-                row.append(_format_pre_xy_from_uvs(uvs, npv, kernel_size=xy_kernel_size))
+            npv = int(n_partner_by_type.get(pt, 0))
+            row.append(str(npv))
+            uvs = partner_uv_by_type.get(pt, set())
+            use_mean_delta = mean_partner_delta or npv > _MAX_PARTNER_LIST
+            if show_uv:
+                if origin_uv is None:
+                    row.append("")
+                else:
+                    row.append(_format_delta_uv(uvs, origin_uv, mean=use_mean_delta))
+            if show_xy:
+                if origin_xy is None:
+                    row.append("")
+                else:
+                    row.append(
+                        _format_delta_xy(
+                            uvs,
+                            origin_xy,
+                            mean=use_mean_delta,
+                            kernel_size=xy_kernel_size,
+                        )
+                    )
             rows.append(row)
 
     total_row = ["TOTAL", f"{sum_p:.4f}", f"{sum_m:.4f}"]
-    if show_n:
-        total_n = sum(int(n_partner_by_type.get(pt, 0)) for pt in by_partner)
-        total_row.append(str(total_n))
-    if show_coords:
-        total_row += ["", ""]
+    total_n = sum(int(n_partner_by_type.get(pt, 0)) for pt in by_partner)
+    total_row.append(str(total_n))
+    total_row += [""] * (int(show_uv) + int(show_xy))
 
     all_rows = [header] + rows + [total_row]
     n_cols = len(header)
@@ -552,7 +738,11 @@ def print_table(
         cells += [row[c].rjust(widths[c]) for c in range(1, n_cols)]
         return "  ".join(cells).rstrip()
 
-    title = f"{self_field} = {cell_type}  |  all n_syn {flow_word} {cell_type}{hex_note} = {total_syn:.1f}"
+    n_count_label = "n_source" if direction == "post" else "n_target"
+    title = (
+        f"{self_field} = {cell_type}  |  {n_count_label} = {n_self}  |  "
+        f"all n_syn {flow_word} {cell_type}{hex_note} = {total_syn:.1f}"
+    )
     sep = "=" * max(60, len(title))
     print(sep)
     print(title)
@@ -570,11 +760,12 @@ def main(argv: List[str] | None = None) -> int:
     )
     parser.add_argument(
         "cell_types",
-        nargs="*",
-        default=["L1"],
-        metavar="CELL_TYPE",
+        nargs="?",
+        default="L1",
+        metavar="CELL_TYPE[,CELL_TYPE...]",
         help=(
-            "Token(s) to query, e.g. Mi1. Prefix with & for a family "
+            "Comma-separated cell types to query (e.g. T4a,T4b,T4c or Mi1). "
+            "Prefix with & for a family "
             "(e.g. &Centrifugal) to aggregate its member types, or @ for a single "
             "neuron by root id (e.g. @720575940622041087). Default: L1 if omitted"
         ),
@@ -610,16 +801,14 @@ def main(argv: List[str] | None = None) -> int:
         "--borst",
         action="store_true",
         help=(
-            "Use Borst 5-column multi_colM connectivity (ignores --dir). "
+            "Use Borst 5-column multi_colM connectivity (ignores --network). "
             "Restrict to one column with --at-xy (Borst centres on y=0); "
-            "--at-uv is not valid."
+            "--at-uv, --extent, and --family are not valid."
         ),
     )
     parser.add_argument(
-        "--dir",
-        "--json",
-        dest="folder",
-        default=_DEFAULT_DIR,
+        "--network",
+        default=_DEFAULT_NETWORK,
         help=(
             "Network folder (e.g. right_min_neuron1, resolved next to this script) or a "
             "direct path to a folder / network.json. Default: right_min_neuron1"
@@ -635,9 +824,10 @@ def main(argv: List[str] | None = None) -> int:
         help=(
             "Only count edges whose CELL_TYPE *instance* sits at hex (u,v). "
             "Omit to aggregate over all instances of each cell type (default). "
-            "When set: extra columns pre_uv/post_uv (hex, ≤5 pairs if >5) and "
-            "pre_xy/post_xy (from column_mapper.hex_to_pixel) for the partner instances "
-            "(n_neuron is always shown). TOTAL row omits the uv/xy columns."
+            "When set: extra column pre_d_uv/post_d_uv for partner instances "
+            "(n_neuron is always shown). If n_neuron ≤ 5, distinct deltas are "
+            "listed; if n_neuron > 5, the mean delta is shown. "
+            "TOTAL row omits the coord column."
         ),
     )
     at_group.add_argument(
@@ -647,10 +837,24 @@ def main(argv: List[str] | None = None) -> int:
         metavar=("X", "Y"),
         default=None,
         help=(
-            "Like --at-uv but specify pixel coords. FAFB: converted via "
-            "column_mapper.pixel_to_hex (integer hex centre). "
+            "Only count edges whose CELL_TYPE *instance* sits at pixel (x,y). FAFB: "
+            "converted via column_mapper.pixel_to_hex (integer hex centre). "
+            "When set: extra column pre_d_xy/post_d_xy (partner pixel minus --at-xy). "
+            "If n_neuron ≤ 5, distinct deltas are listed; if n_neuron > 5, mean delta. "
             "With --borst: resolved via column_mapper.borst_col_at_xy "
             "(centres at x in {-10,-5,0,5,10}, y=0)."
+        ),
+    )
+    at_group.add_argument(
+        "--extent",
+        type=int,
+        metavar="N",
+        default=None,
+        help=(
+            "FAFB only: restrict to CELL_TYPE instances in the central hex disc of "
+            "radius N (0 = centre column, 1 = 7 columns, 2 = 19, …; "
+            "column_mapper.inside_mask). Shows mean pre_d_xy/post_d_xy only. "
+            "Incompatible with --borst."
         ),
     )
     args = parser.parse_args(argv)
@@ -661,12 +865,27 @@ def main(argv: List[str] | None = None) -> int:
         )
         return 1
 
+    if args.borst and args.extent is not None:
+        logger.error("--extent is invalid with --borst; use --network on FAFB network.json")
+        return 1
+
+    if args.extent is not None and args.extent < 0:
+        logger.error("--extent must be >= 0")
+        return 1
+
+    if args.borst and args.family:
+        logger.error(
+            "--family is invalid with --borst; family names come from type_counts_abc.csv "
+            "next to FAFB network.json, not multi_colM"
+        )
+        return 1
+
     direction = "post" if args.post else "pre"
     borst_prefix = " | Borst 5-col multi_colM" if args.borst else ""
 
     if args.borst:
-        if args.folder != _DEFAULT_DIR:
-            logger.info("--borst: ignoring --dir %s", args.folder)
+        if args.network != _DEFAULT_NETWORK:
+            logger.info("--borst: ignoring --network %s", args.network)
         try:
             nodes, edges = _load_borst_graph()
         except FileNotFoundError as exc:
@@ -674,9 +893,8 @@ def main(argv: List[str] | None = None) -> int:
             return 1
         logger.info("Loaded Borst graph from %s (%d nodes, %d edges)", BORST_MULTI_COL_M, len(nodes), len(edges))
         type_to_family_all: Dict[str, str] = {}
-        json_path = None
     else:
-        json_path = _resolve_network_json(args.folder)
+        json_path = resolve_network_json(args.network)
 
         if not json_path.is_file():
             logger.error("JSON not found: %s", json_path)
@@ -699,8 +917,9 @@ def main(argv: List[str] | None = None) -> int:
 
     ids_at_hex: Optional[Dict[str, Set[int]]] = None
     hex_note = borst_prefix
-    at_location = False
     xy_kernel_size = DEFAULT_KERNEL_SIZE if args.borst else 1.0
+    at_ref_uv: Optional[Tuple[float, float]] = None
+    at_ref_xy: Optional[Tuple[float, float]] = None
 
     if args.borst and args.at_xy is not None:
         try:
@@ -711,11 +930,9 @@ def main(argv: List[str] | None = None) -> int:
             return 1
         center = borst_column_centers()[col]
         ids_at_hex = _instance_ids_at_col(nodes, col)
-        at_location = True
+        at_ref_xy = (float(center.x), float(center.y))
         hex_note += (
             f" at Borst col={col} (k={center.k}) "
-            f"(u,v)=({_format_scalar_for_table(center.u)},"
-            f"{_format_scalar_for_table(center.v)}) "
             f"(x,y)=({_format_scalar_for_table(center.x)},"
             f"{_format_scalar_for_table(center.y)})"
         )
@@ -725,74 +942,112 @@ def main(argv: List[str] | None = None) -> int:
             sum(1 for s in ids_at_hex.values() if s),
         )
     elif not args.borst:
-        at_uv: Optional[Tuple[int, int]] = None
-        if args.at_uv is not None:
-            at_uv = (int(args.at_uv[0]), int(args.at_uv[1]))
-        elif args.at_xy is not None:
-            try:
-                at_uv = _xy_to_uv(args.at_xy[0], args.at_xy[1])
-            except ValueError as exc:
-                logger.error("%s", exc)
-                return 1
-        if at_uv is not None:
-            hu, hv = at_uv
-            ids_at_hex = _instance_ids_at_hex(nodes, hu, hv)
-            at_location = True
-            xh, yh = hex_to_pixel(hu, hv, kernel_size=1.0)
-            hex_note += (
-                f" at hex (u,v)=({hu},{hv}) "
-                f"(x,y)=({_format_scalar_for_table(float(xh))},"
-                f"{_format_scalar_for_table(float(yh))})"
-            )
+        if args.extent is not None:
+            ids_at_hex = _instance_ids_in_disc(nodes, args.extent)
+            n_hex = _hex_disc_column_count(args.extent)
+            hex_note += f" extent={args.extent} ({n_hex} hex cols)"
             logger.info(
-                "Restricting to instances at (u,v)=(%s,%s); %d cell types have ≥1 node there",
-                hu,
-                hv,
+                "Restricting to central hex disc extent=%d (%d hex columns); "
+                "%d cell types have ≥1 node there",
+                args.extent,
+                n_hex,
                 sum(1 for s in ids_at_hex.values() if s),
             )
+        else:
+            at_uv: Optional[Tuple[int, int]] = None
+            if args.at_uv is not None:
+                at_uv = (int(args.at_uv[0]), int(args.at_uv[1]))
+            elif args.at_xy is not None:
+                try:
+                    at_uv = _xy_to_uv(args.at_xy[0], args.at_xy[1])
+                except ValueError as exc:
+                    logger.error("%s", exc)
+                    return 1
+            if at_uv is not None:
+                hu, hv = at_uv
+                ids_at_hex = _instance_ids_at_hex(nodes, hu, hv)
+                if args.at_uv is not None:
+                    at_ref_uv = (float(hu), float(hv))
+                    hex_note += f" at hex (u,v)=({hu},{hv})"
+                else:
+                    at_ref_xy = (float(args.at_xy[0]), float(args.at_xy[1]))
+                    hex_note += (
+                        f" at (x,y)=({_format_scalar_for_table(at_ref_xy[0])},"
+                        f"{_format_scalar_for_table(at_ref_xy[1])})"
+                    )
+                logger.info(
+                    "Restricting to instances at (u,v)=(%s,%s); %d cell types have ≥1 node there",
+                    hu,
+                    hv,
+                    sum(1 for s in ids_at_hex.values() if s),
+                )
+
+    if args.at_uv is not None:
+        show_partner_uv, show_partner_xy = True, False
+    else:
+        show_partner_uv, show_partner_xy = False, True
+    mean_partner_delta = args.at_uv is None and args.at_xy is None
 
     partner_type_to_family = type_to_family_all if args.family else None
 
+    cell_types = _parse_cell_types(args.cell_types)
     labels, self_type_to_labels, self_id_to_labels = _resolve_query_labels(
-        list(args.cell_types), type_to_family_all
+        cell_types, type_to_family_all
     )
     if args.borst:
         if self_id_to_labels:
             logger.warning("@root_id queries are not supported with --borst; skipping those tokens")
             labels = [lab for lab in labels if not lab.startswith("@")]
             self_id_to_labels = {}
-        if any(tok.startswith("&") for tok in args.cell_types):
-            logger.warning("--family/& tokens have no type_counts_abc.csv on the Borst path")
+        if any(tok.startswith("&") for tok in cell_types):
+            logger.warning(
+                "&Family tokens are not supported with --borst; "
+                "use a literal cell type from multi_colM ctype"
+            )
 
-    # Partner (u,v)/(x,y) coords are shown for location-restricted queries and @root_id.
-    need_coords = at_location or bool(self_id_to_labels)
-    id_to_uv = (
-        _node_id_to_uv(nodes, float_coords=args.borst) if need_coords else None
-    )
+    # Partner delta coords: always collected; reference is --at centre or mean self location.
+    id_to_uv = _node_id_to_uv(nodes, float_coords=args.borst)
     acc = _accumulate_all(
         edges,
         labels,
         self_type_to_labels,
+        id_to_uv,
         ids_at_hex=ids_at_hex,
-        id_to_uv=id_to_uv,
         direction=direction,
         type_to_family=partner_type_to_family,
         self_id_to_labels=self_id_to_labels,
     )
     for label in labels:
-        by_partner, total_syn, n_partner_by_type, partner_coords_block = acc[label]
-        show_coords = at_location or label.startswith("@")
+        by_partner, total_syn, n_partner_by_type, partner_uv_by_type, n_self = acc[label]
+        label_origin_uv, label_origin_xy = _label_origins(
+            label,
+            nodes,
+            self_type_to_labels,
+            ids_at_hex,
+            at_ref_uv,
+            at_ref_xy,
+            float_coords=args.borst,
+            xy_kernel_size=xy_kernel_size,
+            need_uv=show_partner_uv,
+            need_xy=show_partner_xy,
+        )
         print_table(
             label,
             by_partner,
             total_syn,
+            n_partner_by_type,
+            partner_uv_by_type,
             hex_note=hex_note,
-            n_partner_by_type=n_partner_by_type,
-            partner_coords_block=partner_coords_block if show_coords else None,
             direction=direction,
             use_family=args.family,
             min_pct=args.min,
             xy_kernel_size=xy_kernel_size,
+            show_uv=show_partner_uv,
+            show_xy=show_partner_xy,
+            origin_uv=label_origin_uv,
+            origin_xy=label_origin_xy,
+            mean_partner_delta=mean_partner_delta,
+            n_self=n_self,
         )
 
     return 0

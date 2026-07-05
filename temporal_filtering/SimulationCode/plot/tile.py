@@ -432,10 +432,6 @@ def plot_borst_tile(session_on, z, path, *, session_off=None, all_cells=False,
     )
 
 
-# Public aliases used by plot_trained / tests.
-default_ref_cubes = borst_ref_cubes
-
-
 def reference_cube(name, ref_cubes=None, dark=False):
     if ref_cubes is not None:
         return ref_cubes.get(str(name))

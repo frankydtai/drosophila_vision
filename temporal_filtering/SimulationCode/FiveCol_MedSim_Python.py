@@ -28,6 +28,22 @@ plt.rcParams['figure.facecolor'] = 'white'
 nofcells  = 65
 nofcols   = 5
 counter   = 0
+
+
+def _conductance_z_slices_138():
+    """138-parameter conductance z layout (``FiveCol_MedSim_Python`` only)."""
+    ih_start = 2 * nofcells
+    n_lamina_ih = ml.LAMINA_SLICE.stop - ml.LAMINA_SLICE.start
+    return {
+        "inp_gain": slice(0, nofcells),
+        "out_gain": slice(nofcells, 2 * nofcells),
+        "Ih_gmax": slice(ih_start, ih_start + n_lamina_ih),
+        "Ih_midv": ih_start + n_lamina_ih,
+        "Ih_slope": ih_start + n_lamina_ih + 1,
+        "tau_midv": ih_start + n_lamina_ih + 2,
+        "n_params": 2 * nofcells + n_lamina_ih + 3,
+        "n_selp_correlation": ih_start + n_lamina_ih,
+    }
 maxtime   = 200
 maxiter   = 500
 
@@ -541,7 +557,7 @@ def plot_params(z,model_all = 0,mytitle =''):
     
     plt.subplot(3,1,3)
     
-    _Z = ml.legacy_conductance_z_slices()
+    _Z = _conductance_z_slices_138()
     Ih_gmax  = z[_Z['Ih_gmax']]
     Ih_midv  = z[_Z['Ih_midv']]
     Ih_slope = z[_Z['Ih_slope']]
@@ -671,7 +687,7 @@ def calc_eigen():
 
 def assign_params(z):
 
-    _Z = ml.legacy_conductance_z_slices()
+    _Z = _conductance_z_slices_138()
     inp_gain = calc_multi_col_params(z[_Z['inp_gain']])
     out_gain = calc_multi_col_params(z[_Z['out_gain']])
     
@@ -1103,7 +1119,7 @@ def guess_initial_params():
     
     z = np.zeros(nofparams)
     
-    _Z = ml.legacy_conductance_z_slices()
+    _Z = _conductance_z_slices_138()
     ih = _Z['Ih_gmax']
     z[_Z['inp_gain']]   = + 0.5    + (np.random.rand(nofcells)-0.5)*0.2
     z[_Z['out_gain']]   = + 0.5    + (np.random.rand(nofcells)-0.5)*0.2
@@ -1252,7 +1268,7 @@ def eval_diff_models(all_params, noftopmodels = 10, mycmap = 'plasma'):
         
     # correlation of parameter sets
     
-    _Z = ml.legacy_conductance_z_slices()
+    _Z = _conductance_z_slices_138()
     ih = _Z['Ih_gmax']
     allp_index = np.arange(_Z['n_selp_correlation'])
     selp_index = np.concatenate((

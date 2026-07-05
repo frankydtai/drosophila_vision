@@ -344,19 +344,6 @@ def coverage_hex_bar(
     return _clip_rect_area(hex_xy, xmin, ymin, xmax, ymax, hex_area=hex_area)
 
 
-def _coverage_hex_bar_legacy(
-    hex_xy: np.ndarray,
-    xmin: float,
-    ymin: float,
-    xmax: float,
-    ymax: float,
-    hex_area: float = _HEX_AREA,
-) -> float:
-    """Original list-based clipper (reference for tests)."""
-    clipped = _clip_polygon_to_rect(hex_xy, xmin, ymin, xmax, ymax)
-    return min(1.0, _polygon_area(clipped) / hex_area)
-
-
 def field_bounds(columns: Sequence[HexColumn]) -> Tuple[float, float, float, float]:
     """Photo-field extent in degrees from column hex vertices (not centers)."""
     if not columns:

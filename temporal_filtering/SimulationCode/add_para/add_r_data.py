@@ -46,7 +46,7 @@ PACK_OVERRIDES = {
 
 
 def mirror_ref_cubes(dark=False):
-    ref = pt.default_ref_cubes(dark=dark)
+    ref = pt.borst_ref_cubes(dark=dark)
     for name in R_NAMES:
         ref[name] = MIRROR_SIGN * ref['L1']
     return ref

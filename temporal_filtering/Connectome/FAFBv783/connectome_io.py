@@ -41,12 +41,29 @@ def network_json_path(side: str, min_neuron_count: int = 1) -> Path:
     return NETWORK_DIR / f"{side}_min_neuron{min_neuron_count}" / "network.json"
 
 
+TYPE_COUNTS_ABC_FILE = "type_counts_abc.csv"
+
+
 def resolve_network_json(spec: str) -> Path:
-    """Resolve a run folder name (e.g. ``right_min_neuron1_extent2``) to ``network.json``."""
+    """Resolve ``built_network/<run_name>/network.json`` or an explicit path.
+
+    * Run name (e.g. ``right_min_neuron1``) → ``NETWORK_DIR/<run_name>/network.json``
+    * Directory path → ``<dir>/network.json``
+    * ``*.json`` path → that file
+    """
     p = Path(spec)
     if p.suffix == ".json":
         return p.resolve()
+    if p.is_dir():
+        return (p / "network.json").resolve()
+    if p.is_absolute():
+        raise FileNotFoundError(f"not a network run directory: {p}")
     return (NETWORK_DIR / spec / "network.json").resolve()
+
+
+def type_counts_abc_path(network_json: Path) -> Path:
+    """``type_counts_abc.csv`` next to a built ``network.json``."""
+    return Path(network_json).resolve().parent / TYPE_COUNTS_ABC_FILE
 
 
 def moving_bar_cache_dir(network_json: Path) -> Path:

@@ -2,6 +2,7 @@
 """Regression: fast moving-bar coverage matches the legacy clipper."""
 from __future__ import annotations
 
+import math
 import os
 import sys
 
@@ -11,16 +12,33 @@ sys.path.insert(0, ROOT)
 os.chdir(ROOT)
 
 import network_bootstrap  # noqa: F401
+from column_mapper import HEX_PATCH_RADIUS
 from visual_stimulus.moving_bar_stimulus import (
     HexColumn,
     MovingBarSpec,
-    _coverage_hex_bar_legacy,
+    _clip_polygon_to_rect,
+    _polygon_area,
     build_batched_column_current,
     coverage_hex_bar,
     hex_vertices,
     gruntman_moving_bar_specs,
 )
 import numpy as np
+
+_HEX_AREA = 1.5 * math.sqrt(3.0) * float(HEX_PATCH_RADIUS) ** 2
+
+
+def _reference_coverage_hex_bar(
+    hex_xy: np.ndarray,
+    xmin: float,
+    ymin: float,
+    xmax: float,
+    ymax: float,
+    hex_area: float = _HEX_AREA,
+) -> float:
+    """List-based clipper kept here for regression only."""
+    clipped = _clip_polygon_to_rect(hex_xy, xmin, ymin, xmax, ymax)
+    return min(1.0, _polygon_area(clipped) / hex_area)
 
 
 def _demo_columns() -> list[HexColumn]:
@@ -42,7 +60,7 @@ def test_coverage_matches_legacy():
         xmax, ymax = xmin + rng.uniform(1, 15), ymin + rng.uniform(1, 15)
         j = int(rng.integers(0, len(cols)))
         fast = coverage_hex_bar(hex_stack[j], xmin, ymin, xmax, ymax)
-        legacy = _coverage_hex_bar_legacy(hex_stack[j], xmin, ymin, xmax, ymax)
+        legacy = _reference_coverage_hex_bar(hex_stack[j], xmin, ymin, xmax, ymax)
         assert abs(fast - legacy) < 1e-12, (fast, legacy, xmin, ymin, xmax, ymax)
 
 
