@@ -10,7 +10,7 @@ import blindschleiche_py3 as bs
 import time
 
 import Medulla_Library as ml
-from training_config import PARAMETER_DIR
+from training_config import DELTAT_MS, IMPULSE_MAXTIME
 
 #################################################################
 # Medulla Library contains:
@@ -44,12 +44,12 @@ def _conductance_z_slices_138():
         "n_params": 2 * nofcells + n_lamina_ih + 3,
         "n_selp_correlation": ih_start + n_lamina_ih,
     }
-maxtime   = 200
+maxtime   = IMPULSE_MAXTIME
 maxiter   = 500
 
 # important model params
 
-deltat    = 10.0  # in msec
+deltat    = DELTAT_MS  # in msec
 g_leak    = 1.0   # in nS
 E_exc     = +10.0 # in mV
 E_inh     = -70.0 # in mV

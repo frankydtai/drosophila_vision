@@ -7,7 +7,7 @@ units on a loaded :class:`network.construction.Network`.
 
 ``build_moving_bar_signals`` returns ``signal`` with shape ``(B, T, N_units)``,
 ready to assign to ``FiveCol_MedSim_Pytorch.signal``. Default ``T`` is
-``t_on`` (0.5 s baseline) + sweep + moving-bar tail (``MOVING_BAR_TAIL_MS`` post-sweep baseline),
+``t_on`` (``T_ON_MS`` baseline) + sweep + moving-bar tail (``MOVING_BAR_TAIL_MS`` post-sweep baseline),
 not the global Borst ``IMPULSE_MAXTIME``.
 """
 from __future__ import annotations
@@ -26,8 +26,8 @@ import network_bootstrap  # noqa: F401
 
 from column_mapper import DEFAULT_KERNEL_SIZE, hex_to_pixel, hex_vertices
 from connectome_io import moving_bar_cache_dir
-from Medulla_Library import I_BASELINE, I_BRIGHT, I_DARK, T_ON
-from training_config import SIM_DTYPE_DEFAULT
+from Medulla_Library import I_BASELINE, I_BRIGHT, I_DARK
+from training_config import DELTAT_MS, SIM_DTYPE_DEFAULT, T_ON, T_ON_MS
 from visual_stimulus.moving_bar_stimulus import (
     GRUNTMAN_SPEED_DEG_S,
     HexColumn,
@@ -264,7 +264,7 @@ def build_moving_bar_signals(
     specs: Optional[Sequence[MovingBarSpec]] = None,
     maxtime: Optional[int] = None,
     t_on: int = T_ON,
-    deltat_ms: float = 10.0,
+    deltat_ms: float = DELTAT_MS,
     i_baseline: float = I_BASELINE,
     i_bright_bar: Optional[float] = None,
     i_dark_bar: Optional[float] = None,
@@ -280,7 +280,7 @@ def build_moving_bar_signals(
     (16 by default). Before ``t_on`` and after the sweep, all currents are
     ``i_baseline``; during the sweep they follow bar coverage (bright/dark).
 
-    Default ``maxtime`` is ``t_on`` (0.5 s baseline) + sweep + tail
+    Default ``maxtime`` is ``t_on`` (``T_ON_MS`` baseline) + sweep + tail
     (``MOVING_BAR_TAIL_MS`` via :func:`visual_stimulus.moving_bar_stimulus.moving_bar_maxtime`),
     not the global ``IMPULSE_MAXTIME`` used by Borst training. Pass an explicit
     ``maxtime`` to override.

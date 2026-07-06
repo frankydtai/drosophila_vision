@@ -34,7 +34,8 @@ from matplotlib.animation import FuncAnimation, PillowWriter
 from matplotlib.patches import Rectangle
 
 import Medulla_Library as ml
-from Medulla_Library import I_BASELINE, I_BRIGHT, T_ON
+from Medulla_Library import I_BASELINE, I_BRIGHT
+from training_config import DELTAT_MS, T_ON
 from network.construction import load_network
 from network.stimulus import build_moving_bar_signals
 from column_mapper import (
@@ -127,7 +128,7 @@ def _build_borst_moving_bar(showcase, i_baseline: float = I_BASELINE):
         "field_deg": field_deg,
         "i_baseline": i_baseline,
         "sweep_steps": sweep_end - T_ON,
-        "sweep_time_s": (sweep_end - T_ON) * 0.01,
+        "sweep_time_s": (sweep_end - T_ON) * (DELTAT_MS / 1000.0),
         "spec_names": [s.name for s in showcase],
         "n_sti_columns": len(hex_cols),
     }
@@ -215,7 +216,7 @@ def _draw_hex_field(ax, uv_columns, vals, i_max, i_baseline, xlim, ylim):
 def plot_snapshot(ax, uv_columns, column_current, t, spec, spec_name, i_max, i_baseline, xlim, ylim, t_on, field_deg):
     _draw_hex_field(ax, uv_columns, column_current[t], i_max, i_baseline, xlim, ylim)
     _draw_bar_outline(ax, spec, field_deg, t, t_on)
-    ax.set_title(f"{spec_name}  t={t} ({t * 0.01:.2f} s)", fontsize=9)
+    ax.set_title(f"{spec_name}  t={t} ({t * DELTAT_MS / 1000.0:.2f} s)", fontsize=9)
 
 
 def write_snapshots(uv_columns, showcase, column_current, i_max, i_baseline, output, side, t_on, maxtime, field_deg):
@@ -269,7 +270,7 @@ def write_animation(uv_columns, showcase, column_current, i_max, i_baseline, out
         t = times[frame_idx]
         title.set_text(
             f"Moving-bar column current (pA)  side={side}  "
-            f"{len(uv_columns)} sti columns  I_baseline={i_baseline}  I_max={i_max}  t={t} ({t * 0.01:.2f} s)"
+            f"{len(uv_columns)} sti columns  I_baseline={i_baseline}  I_max={i_max}  t={t} ({t * DELTAT_MS / 1000.0:.2f} s)"
         )
         for i, spec in enumerate(showcase):
             axes[i, 0].clear()
@@ -318,7 +319,7 @@ def main():
         side = "borst"
         print(
             f"borst: {info['n_sti_columns']} columns (col -2..+2)  "
-            f"maxtime={maxtime} steps ({maxtime * 0.01:.2f} s)  "
+            f"maxtime={maxtime} steps ({maxtime * DELTAT_MS / 1000.0:.2f} s)  "
             f"sweep={info['sweep_steps']} steps ({info['sweep_time_s']:.2f} s after t_on)"
         )
     else:
@@ -336,7 +337,7 @@ def main():
         side = C.meta.get("side", "?")
         info = T.info
         print(
-            f"maxtime={maxtime} steps ({maxtime * 0.01:.2f} s)  "
+            f"maxtime={maxtime} steps ({maxtime * DELTAT_MS / 1000.0:.2f} s)  "
             f"sweep={T.info['sweep_steps']} steps ({T.info['sweep_time_s']:.2f} s after t_on)"
         )
 

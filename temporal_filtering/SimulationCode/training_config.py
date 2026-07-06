@@ -39,6 +39,10 @@ SIM_DTYPE_DEFAULT = torch.float64
 def sim_dtype_from_fp32(fp32: bool) -> torch.dtype:
     return torch.float32 if fp32 else SIM_DTYPE_DEFAULT
 
+# Stimulus timing (canonical ms; step counts below use ms_to_steps at default DELTAT_MS).
+T_ON_MS = 500.0
+IMPULSE_MAXTIME_MS = 2000.0  # Borst tile / impulse horizon
+
 # Moving-bar per-column cost window relative to bar centre.
 COST_WINDOW_BEFORE_MS = 300.0
 COST_WINDOW_AFTER_MS = 600.0
@@ -53,18 +57,9 @@ def ms_to_steps(ms: float, *, deltat_ms: float = DELTAT_MS) -> int:
     return int(round(float(ms) / float(deltat_ms)))
 
 
-def cost_window_before_steps(*, deltat_ms: float = DELTAT_MS) -> int:
-    return ms_to_steps(COST_WINDOW_BEFORE_MS, deltat_ms=deltat_ms)
-
-
-def cost_window_after_steps(*, deltat_ms: float = DELTAT_MS) -> int:
-    return ms_to_steps(COST_WINDOW_AFTER_MS, deltat_ms=deltat_ms)
-
-
-def cost_window_steps(*, deltat_ms: float = DELTAT_MS) -> int:
-    span_ms = COST_WINDOW_BEFORE_MS + COST_WINDOW_AFTER_MS
-    return int(span_ms / deltat_ms) + 1
-
-
-def moving_bar_tail_steps(*, deltat_ms: float = DELTAT_MS) -> int:
-    return ms_to_steps(MOVING_BAR_TAIL_MS, deltat_ms=deltat_ms)
+T_ON = ms_to_steps(T_ON_MS)
+IMPULSE_MAXTIME = ms_to_steps(IMPULSE_MAXTIME_MS)
+T_TAIL = ms_to_steps(MOVING_BAR_TAIL_MS)
+COST_WINDOW_BEFORE = ms_to_steps(COST_WINDOW_BEFORE_MS)
+COST_WINDOW_AFTER = ms_to_steps(COST_WINDOW_AFTER_MS)
+COST_WINDOW = ms_to_steps(COST_WINDOW_BEFORE_MS + COST_WINDOW_AFTER_MS) + 1

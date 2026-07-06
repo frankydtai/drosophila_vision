@@ -32,8 +32,8 @@ from typing import Optional
 import numpy as np
 import torch
 
-from Medulla_Library import DATA_AMP, I_DARK, IMPULSE_MAXTIME, I_BASELINE, I_BRIGHT, T_ON, read_RecF_ImpR
-from training_config import SIM_DTYPE_DEFAULT
+from Medulla_Library import DATA_AMP, I_DARK, I_BASELINE, I_BRIGHT, read_RecF_ImpR
+from training_config import IMPULSE_MAXTIME, SIM_DTYPE_DEFAULT, T_ON
 from .stimulus import column_in_cost_extent
 from .tiling import (
     FIT_CELL_TYPES,

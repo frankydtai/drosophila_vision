@@ -11,6 +11,7 @@ import numpy as np
 import torch
 
 import Medulla_Library as ml
+from training_config import DELTAT_MS, IMPULSE_MAXTIME
 import blindschleiche_py3 as bs
 import FiveCol_MedSim_Pytorch as fc
 from plot.readout import (
@@ -90,7 +91,7 @@ def _scale_curve(xt, center, sem_xt=None):
 
 
 def _style_time_axis(ax, show_xlabel, maxtime):
-    t_end = maxtime * fc.deltat / 1000.0
+    t_end = maxtime * DELTAT_MS / 1000.0
     t_mid = t_end / 2.0
     ax.set_xlim(0, maxtime)
     ax.set_xticks([0, maxtime // 2, maxtime])
@@ -119,7 +120,7 @@ def plot_cell_pair(
     show_xlabels=False,
     show_ylabel=False,
     baseline=None,
-    maxtime=ml.IMPULSE_MAXTIME,
+    maxtime=IMPULSE_MAXTIME,
     off_model_xt=None,
     off_ref_xt=None,
     off_baseline=None,

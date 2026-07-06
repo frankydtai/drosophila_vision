@@ -19,7 +19,7 @@ from torch import nn
 from tqdm import tqdm
 
 from network.connectivity import DenseConn
-from training_config import DELTAT_MS, SIM_DTYPE_DEFAULT, sim_dtype_from_fp32
+from training_config import DELTAT_MS, IMPULSE_MAXTIME, SIM_DTYPE_DEFAULT, T_ON, sim_dtype_from_fp32
 
 
 def active_device():
@@ -42,7 +42,7 @@ def __getattr__(name):
 
 BORST_NOFCELLS = 65
 BORST_NOFCOLS = 5
-t_on = ml.T_ON
+t_on = T_ON
 TRAIN_OPTS_FILE = "train_opts.json"
 TILE_TARGETS = ("tile_bright", "tile_dark")
 MOVING_BAR_TARGETS = ("moving_bar_bright", "moving_bar_dark")
@@ -577,7 +577,7 @@ def make_tile_bright_stimulus_opts(
         "i_baseline": baseline,
         "i_bright": bright,
         "t_on": int(t_on),
-        "maxtime": int(ml.IMPULSE_MAXTIME),
+        "maxtime": int(IMPULSE_MAXTIME),
         "deltat_ms": float(deltat),
         "multi_shift": bool(multi_shift),
         "share_edges": bool(share_edges),
@@ -596,7 +596,7 @@ def make_tile_dark_stimulus_opts(
         "i_baseline": baseline,
         "i_dark": dark,
         "t_on": int(t_on),
-        "maxtime": int(ml.IMPULSE_MAXTIME),
+        "maxtime": int(IMPULSE_MAXTIME),
         "deltat_ms": float(deltat),
         "multi_shift": bool(multi_shift),
         "share_edges": bool(share_edges),
@@ -1160,7 +1160,7 @@ def _build_network_tile_bright_target(
         single_shift=not multi_shift,
         device=dev,
         sim_dtype=ctx.sim_dtype,
-        maxtime=ml.IMPULSE_MAXTIME,
+        maxtime=IMPULSE_MAXTIME,
         t_on=t_on,
         cost_extent=cost_extent,
         i_baseline=opts["i_baseline"],
@@ -1207,7 +1207,7 @@ def _build_network_tile_dark_target(
         single_shift=not multi_shift,
         device=dev,
         sim_dtype=ctx.sim_dtype,
-        maxtime=ml.IMPULSE_MAXTIME,
+        maxtime=IMPULSE_MAXTIME,
         t_on=t_on,
         cost_extent=cost_extent,
         i_baseline=opts["i_baseline"],

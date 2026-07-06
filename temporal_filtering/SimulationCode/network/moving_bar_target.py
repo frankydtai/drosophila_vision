@@ -16,7 +16,7 @@ import numpy as np
 import torch
 
 import Medulla_Library as ml
-from Medulla_Library import I_BASELINE, I_BRIGHT, I_DARK, T_ON
+from Medulla_Library import I_BASELINE, I_BRIGHT, I_DARK
 from network.stimulus import build_moving_bar_signals, cost_sti_columns
 from t4_t5_preference import (
     READOUT_SUBTYPES,
@@ -28,11 +28,10 @@ from training_config import (
     COST_WINDOW_AFTER_MS,
     COST_WINDOW_BEFORE_MS,
     DELTAT_MS,
-    SIM_DTYPE_DEFAULT,
     FIG1_CI_NPZ,
-    cost_window_after_steps,
-    cost_window_before_steps,
-    cost_window_steps,
+    SIM_DTYPE_DEFAULT,
+    T_ON,
+    ms_to_steps,
 )
 from visual_stimulus.moving_bar_stimulus import (
     HexColumn,
@@ -57,7 +56,7 @@ def _pd_nd_index(pd_nd: str) -> int:
 @dataclass
 class MovingBarTarget:
     signal: torch.Tensor          # (B, T, N)
-    data: torch.Tensor            # (n_cost, cost_window_steps)
+    data: torch.Tensor            # (n_cost, COST_WINDOW)
     power: torch.Tensor           # scalar
     cost_weight: torch.Tensor     # (n_cost,)
     cost_t0: torch.Tensor         # (n_cost,) absolute simulation step
@@ -85,8 +84,8 @@ def load_fig1_trace(
     Cost-window index ``i`` reads npz at ``i * deltat_ms`` (``i=0`` → 0 ms,
     last index → ``before_ms + after_ms``).
     """
-    n_steps = cost_window_steps(deltat_ms=deltat_ms)
-    before_steps = cost_window_before_steps(deltat_ms=deltat_ms)
+    n_steps = ms_to_steps(COST_WINDOW_BEFORE_MS + COST_WINDOW_AFTER_MS, deltat_ms=deltat_ms) + 1
+    before_steps = ms_to_steps(COST_WINDOW_BEFORE_MS, deltat_ms=deltat_ms)
     key = (
         f"{trace_id}|{n_steps}|{before_steps}|{deltat_ms}"
         f"|{COST_WINDOW_BEFORE_MS}|{COST_WINDOW_AFTER_MS}"
@@ -219,9 +218,9 @@ def build_moving_bar_target(
     maxtime = int(stim.info["maxtime"])
     field_deg = stim.info["field_deg"]
     fig1 = load_fig1_traces(fig1_path, deltat_ms=deltat_ms)
-    before_steps = cost_window_before_steps(deltat_ms=deltat_ms)
-    after_steps = cost_window_after_steps(deltat_ms=deltat_ms)
-    win_steps = cost_window_steps(deltat_ms=deltat_ms)
+    before_steps = ms_to_steps(COST_WINDOW_BEFORE_MS, deltat_ms=deltat_ms)
+    after_steps = ms_to_steps(COST_WINDOW_AFTER_MS, deltat_ms=deltat_ms)
+    win_steps = ms_to_steps(COST_WINDOW_BEFORE_MS + COST_WINDOW_AFTER_MS, deltat_ms=deltat_ms) + 1
 
     present = _present_readout_subtypes(
         readout_subtypes, READOUT_SUBTYPES, C.type_names,
@@ -333,9 +332,9 @@ def build_borst_moving_bar_target(
     maxtime = moving_bar_maxtime(specs, field_deg, t_on=t_on, deltat_ms=deltat_ms)
     sweep_end = moving_bar_sweep_end_step(specs, field_deg, t_on=t_on, deltat_ms=deltat_ms)
     fig1 = load_fig1_traces(fig1_path, deltat_ms=deltat_ms)
-    before_steps = cost_window_before_steps(deltat_ms=deltat_ms)
-    after_steps = cost_window_after_steps(deltat_ms=deltat_ms)
-    win_steps = cost_window_steps(deltat_ms=deltat_ms)
+    before_steps = ms_to_steps(COST_WINDOW_BEFORE_MS, deltat_ms=deltat_ms)
+    after_steps = ms_to_steps(COST_WINDOW_AFTER_MS, deltat_ms=deltat_ms)
+    win_steps = ms_to_steps(COST_WINDOW_BEFORE_MS + COST_WINDOW_AFTER_MS, deltat_ms=deltat_ms) + 1
     present = _present_readout_subtypes(
         readout_subtypes, BORST_READOUT_SUBTYPES, ml.ctype.tolist(),
         context="Borst",

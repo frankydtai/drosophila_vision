@@ -15,8 +15,8 @@ import numpy as np
 import network_bootstrap  # noqa: F401
 
 from column_mapper import HEX_PATCH_RADIUS, hex_vertices
-from Medulla_Library import I_BASELINE, I_BRIGHT, I_DARK, T_ON
-from training_config import DELTAT_MS, MOVING_BAR_TAIL_MS, ms_to_steps
+from Medulla_Library import I_BASELINE, I_BRIGHT, I_DARK
+from training_config import DELTAT_MS, MOVING_BAR_TAIL_MS, T_ON, ms_to_steps
 
 # Gruntman Fig. 1 Ci fast condition: 40 ms / 2.25 deg per LED step.
 GRUNTMAN_SPEED_DEG_S = 56.0
@@ -451,7 +451,7 @@ def moving_bar_sweep_end_step(
     specs: Sequence[MovingBarSpec],
     field_deg: Tuple[float, float, float, float],
     t_on: int = T_ON,
-    deltat_ms: float = 10.0,
+    deltat_ms: float = DELTAT_MS,
 ) -> int:
     """Exclusive step index where the bar finishes sweeping the field (no tail)."""
     x0, y0, x1, y1 = field_deg
@@ -475,7 +475,7 @@ def moving_bar_maxtime(
     deltat_ms: float = DELTAT_MS,
     t_tail_ms: float = MOVING_BAR_TAIL_MS,
 ) -> int:
-    """Simulation length: ``t_on`` baseline + sweep + post-sweep tail.
+    """Simulation length: ``T_ON_MS`` baseline + sweep + post-sweep tail.
 
     ``t_tail_ms`` defaults to ``COST_WINDOW_AFTER_MS + T_TAIL_PAD_MS`` (650 ms).
 
@@ -492,7 +492,7 @@ def moving_bar_transit_times(
     field_deg: Tuple[float, float, float, float],
     t_on: int = T_ON,
     maxtime: Optional[int] = None,
-    deltat_ms: float = 10.0,
+    deltat_ms: float = DELTAT_MS,
 ) -> Tuple[int, int, int]:
     """Return ``(entry, center, exit)`` simulation step indices for one bar."""
     x0, y0, x1, y1 = field_deg
@@ -529,7 +529,7 @@ def column_bar_center_step(
     spec: MovingBarSpec,
     field_deg: Tuple[float, float, float, float],
     t_on: int = T_ON,
-    deltat_ms: float = 10.0,
+    deltat_ms: float = DELTAT_MS,
     maxtime: Optional[int] = None,
 ) -> int:
     """Simulation step when the bar centre crosses a column on the motion axis.
@@ -550,7 +550,7 @@ def bar_trail_at_step(
     field_deg: Tuple[float, float, float, float],
     t: int,
     t_on: int = T_ON,
-    deltat_ms: float = 10.0,
+    deltat_ms: float = DELTAT_MS,
 ) -> float:
     x0, y0, x1, y1 = field_deg
     trail = _trail_start(spec, x0, y0, x1, y1)
@@ -563,7 +563,7 @@ def bar_rect_at_step(
     field_deg: Tuple[float, float, float, float],
     t: int,
     t_on: int = T_ON,
-    deltat_ms: float = 10.0,
+    deltat_ms: float = DELTAT_MS,
 ) -> Tuple[float, float, float, float]:
     x0, y0, x1, y1 = field_deg
     trail = bar_trail_at_step(spec, field_deg, t, t_on=t_on, deltat_ms=deltat_ms)
@@ -591,7 +591,7 @@ def build_column_current(
     spec: MovingBarSpec,
     maxtime: int,
     t_on: int = T_ON,
-    deltat_ms: float = 10.0,
+    deltat_ms: float = DELTAT_MS,
     i_baseline: float = I_BASELINE,
     i_bright_bar: Optional[float] = None,
     i_dark_bar: Optional[float] = None,
@@ -619,7 +619,7 @@ def build_batched_column_current(
     specs: Sequence[MovingBarSpec],
     maxtime: int,
     t_on: int = T_ON,
-    deltat_ms: float = 10.0,
+    deltat_ms: float = DELTAT_MS,
     i_baseline: float = I_BASELINE,
     i_bright_bar: Optional[float] = None,
     i_dark_bar: Optional[float] = None,
