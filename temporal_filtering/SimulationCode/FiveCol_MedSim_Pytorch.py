@@ -1630,6 +1630,7 @@ def _make_session(
     dev_ref = dev or active_device()
     seq = False if sequential is None else bool(sequential)
     if train_opts_record is not None:
+        train_opts_record["model_type"] = model_type
         train_opts_record["sequential"] = bool(seq)
     ih_off = IH_OFF_DEFAULT
     if train_opts_record is not None and "ih_off" in train_opts_record:
@@ -1789,9 +1790,13 @@ def open_session(
     )
 
 
-def open_session_from_opts(opts: dict, model_type: str, **kwargs) -> TrainSession:
+def open_session_from_opts(opts: dict, model_type: str | None = None, **kwargs) -> TrainSession:
     """Restore a session from a saved ``train_opts.json`` dict."""
     opts = dict(opts)
+    if model_type is None:
+        model_type = opts.get("model_type")
+        if not model_type:
+            raise ValueError("train_opts requires model_type")
     opts["packs"] = None
     backend = str(opts.get("backend", "borst"))
     if backend == "network":
@@ -1811,7 +1816,7 @@ def open_session_from_opts(opts: dict, model_type: str, **kwargs) -> TrainSessio
 
 def open_session_from_outdir(
     outdir: str,
-    model_type: str,
+    model_type: str | None = None,
     *,
     param_modes=None,
 ) -> TrainSession:

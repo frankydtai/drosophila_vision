@@ -6,7 +6,7 @@ All results of a run land in one folder under
 
     <model_type>/<run_name>/
 
-Run artifacts (``.npy`` / ``.npz``, ``train_opts.json``, ``model_type.txt``) live in
+Run artifacts (``.npy`` / ``.npz``, ``train_opts.json``) live in
 ``<run_name>/data/``; PNGs and ``*_table.csv`` stay in ``<run_name>/``.
 
 where <run_name> encodes the CLI, e.g.
@@ -149,6 +149,23 @@ def best_param_path(outdir):
     return os.path.join(data_dir(outdir), 'best_param.npy')
 
 
+def best_i_path(outdir):
+    return os.path.join(data_dir(outdir), 'best_i.txt')
+
+
+def write_best_i(outdir, best_i):
+    os.makedirs(data_dir(outdir), exist_ok=True)
+    with open(best_i_path(outdir), 'w') as f:
+        f.write(f'{int(best_i)}\n')
+
+
+def load_best_i(outdir):
+    fp = best_i_path(outdir)
+    if os.path.isfile(fp):
+        return int(Path(fp).read_text().strip())
+    return None
+
+
 def _artifact_stem(fname):
     return fname.replace('.npy', '')
 
@@ -190,6 +207,7 @@ def write_best_artifacts(outdir, fname, session, all_params, best_i, final_costs
     best = all_params[best_i]
     os.makedirs(data_dir(outdir), exist_ok=True)
     np.save(best_param_path(outdir), best)
+    write_best_i(outdir, best_i)
     table_path = os.path.join(outdir, _artifact_stem(fname) + '_table.csv')
     z_best = torch.tensor(best, dtype=torch.float64, device=session.device)
     write_param_table(z_best, session, table_path)
@@ -272,8 +290,6 @@ def save_training_outputs(fname, outdir, session, result):
     """Write the full run artifact set (convention §5)."""
     os.makedirs(outdir, exist_ok=True)
     os.makedirs(data_dir(outdir), exist_ok=True)
-    with open(os.path.join(data_dir(outdir), 'model_type.txt'), 'w') as f:
-        f.write(session.model_type)
     if session.train_opts is not None:
         with open(os.path.join(data_dir(outdir), fc.TRAIN_OPTS_FILE), 'w') as f:
             json.dump(session.train_opts, f, indent=2)

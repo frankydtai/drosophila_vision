@@ -20,7 +20,7 @@ REPO_ROOT = SIMULATION_DIR.parent.parent
 # Trained-parameter output root (``adaptive/`` and ``conductance/`` run_* subdirs).
 PARAMETER_DIR = SIMULATION_DIR / "FiveCol_Parameter"
 
-# Per-run artifact subfolder (``.npy`` / ``.npz``, ``train_opts.json``, ``model_type.txt``).
+# Per-run artifact subfolder (``.npy`` / ``.npz``, ``train_opts.json``).
 RUN_DATA_SUBDIR = "data"
 
 

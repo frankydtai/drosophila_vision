@@ -18,8 +18,8 @@ from plot.utils import plot_cost
 from training_config import PARAMETER_DIR, run_data_dir
 
 TRAIN_OPTS_FILE = fc.TRAIN_OPTS_FILE
-MODEL_TYPE_FILE = 'model_type.txt'
 KNOWN_MODEL_TYPES = ('conductance', 'adaptive')
+RUN_NAME_MAX = 255
 
 
 def _plot_device_label():
@@ -70,7 +70,10 @@ def command_run_name(script_stem, argv=None):
         parts.append(key)
         if val is not None:
             parts.append(val)
-    return '-'.join(parts)
+    name = '-'.join(parts)
+    if len(name) <= RUN_NAME_MAX:
+        return name
+    return name[:RUN_NAME_MAX].rstrip('-')
 
 
 def run_dir(model_type, root=None, parent=None, name=None):
@@ -80,9 +83,7 @@ def run_dir(model_type, root=None, parent=None, name=None):
     if name is None:
         job_id = os.environ.get('SLURM_JOB_ID')
         name = f'run_{job_id}' if job_id else time.strftime('run_%m%d_%H%M%S')
-    outdir = os.path.join(parent, name)
-    os.makedirs(outdir, exist_ok=True)
-    return outdir
+    return os.path.join(parent, name)
 
 
 def _tile_plot_fn(session):
@@ -108,7 +109,7 @@ def load_train_opts(outdir):
         return json.load(f)
 
 
-def load_session(outdir, model_type, param_modes=None):
+def load_session(outdir, model_type=None, param_modes=None):
     return fc.open_session_from_outdir(
         outdir, model_type,
         param_modes=param_modes,
@@ -128,20 +129,21 @@ def _session_for_target(base_session, tname):
                            schema=list(base_session.schema))
 
 
-def _model_type_from_sidecar(outdir):
-    side = os.path.join(run_data_dir(os.path.abspath(outdir)), MODEL_TYPE_FILE)
-    if os.path.exists(side):
-        with open(side) as f:
-            return f.read().strip()
-    return None
-
-
 def resolve_model_type(outdir, override=None):
-    model_type = override or _model_type_from_sidecar(outdir)
+    if override is not None:
+        model_type = override
+    else:
+        opts = load_train_opts(outdir)
+        if not opts or 'model_type' not in opts:
+            raise SystemExit(
+                f'cannot determine model_type for {outdir!r}; '
+                f'expected {TRAIN_OPTS_FILE} with "model_type": conductance or adaptive'
+            )
+        model_type = opts['model_type']
     if model_type not in KNOWN_MODEL_TYPES:
         raise SystemExit(
-            f'cannot determine model_type for {outdir!r}; '
-            f'expected {MODEL_TYPE_FILE} with conductance or adaptive'
+            f'invalid model_type {model_type!r} in {outdir!r}; '
+            f'expected conductance or adaptive'
         )
     return model_type
 
@@ -190,7 +192,7 @@ def select_best(params, session, *, final_costs=None, best_i=None):
             z = torch.tensor(valid[loc], dtype=session.sim_dtype, device=session.device)
             best_cost = fc.calc_cost(z, session).item()
         print(f'{len(valid)} trained set(s); selected #{best_i} (cost={best_cost:.4f})')
-        return valid[loc], best_cost
+        return valid[loc], best_cost, best_i
 
     if final_costs is not None:
         costs_arr = np.asarray(final_costs, dtype=np.float64)
@@ -203,7 +205,7 @@ def select_best(params, session, *, final_costs=None, best_i=None):
         run_i = int(valid_idx[best])
         print(f'{len(valid)} trained set(s); costs min={valid_costs.min():.4f} '
               f'max={valid_costs.max():.4f}; selected #{run_i} (from saved final costs)')
-        return valid[best], float(costs_arr[run_i])
+        return valid[best], float(costs_arr[run_i]), run_i
 
     costs_out = []
     for row in valid:
@@ -211,9 +213,10 @@ def select_best(params, session, *, final_costs=None, best_i=None):
         costs_out.append(fc.calc_cost(z, session).item())
     costs_out = np.array(costs_out)
     best = int(np.argmin(costs_out))
+    run_i = int(valid_idx[best])
     print(f'{len(valid)} trained set(s); costs min={costs_out.min():.4f} '
-          f'max={costs_out.max():.4f}; selected #{best}')
-    return valid[best], costs_out[best]
+          f'max={costs_out.max():.4f}; selected #{run_i}')
+    return valid[best], costs_out[best], run_i
 
 
 def _plot_tile_targets(session, z, outdir, tile_targets, suffix, model_all,
@@ -332,8 +335,12 @@ def plot_param_set(params, outdir, model_type=None, model_all=True,
         if costs_by_target is None:
             costs_by_target = loaded_by_target
 
+    if best_i is None:
+        import train as train_mod
+        best_i = train_mod.load_best_i(ctx)
+
     print(f'plot device={_plot_device_label()}')
-    best, best_cost = select_best(
+    best, best_cost, best_i = select_best(
         params, session, final_costs=final_costs, best_i=best_i,
     )
     z = torch.tensor(best, dtype=session.sim_dtype, device=session.device)
@@ -379,6 +386,7 @@ def plot_param_set(params, outdir, model_type=None, model_all=True,
         import train as train_mod
         os.makedirs(train_mod.data_dir(outdir), exist_ok=True)
         np.save(train_mod.best_param_path(outdir), best)
+        train_mod.write_best_i(outdir, best_i)
     print(f'plots saved to {outdir}')
     return best, best_cost
 
@@ -394,6 +402,12 @@ def main():
 
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument('run_path', help='run folder under PARAMETER_DIR or absolute path')
+    ap.add_argument(
+        '--best-i',
+        type=int,
+        default=None,
+        help='force parameter row index (default: data/best_i.txt, else infer from costs)',
+    )
     ap.add_argument(
         '--plot-right-only',
         nargs='?',
@@ -415,6 +429,7 @@ def main():
     plot_param_set(
         params, outdir, model_type=model_type,
         artifact_fname=artifact_fname,
+        best_i=args.best_i,
         plot_right_only=args.plot_right_only,
     )
 
