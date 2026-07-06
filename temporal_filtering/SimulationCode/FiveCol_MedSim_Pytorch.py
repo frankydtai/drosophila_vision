@@ -140,8 +140,8 @@ Ih_gmax       = +50.0
 
 Ih_gain       = 1.0   # if set to 0, it will block Ih
 
-IH_OFF_MODES = ('shared', 'split', 'off')
-IH_OFF_DEFAULT = 'split'
+IH_OFF_MODES = ('on', 'off', 'mirrored')
+IH_OFF_DEFAULT = 'on'
 IH_OFF_SCALAR_SEGMENTS = frozenset({'Ih_midv_off', 'Ih_slope_off', 'tau_midv_off'})
 IH_OFF_GMAX_SEGMENT = 'Ih_gmax_off'
 
@@ -177,29 +177,29 @@ STATE_CLAMP = 1.0e6  # bound on adaptive state vars to keep explicit Euler finit
 #   count : number of per-unit values for this segment (the 'individual' width)
 #   kind  : how `count` raw values become a usable parameter:
 #           'full'   -> count==n_types; one value per cell type, replicated to columns
-#           'lamina' -> one value per entry in seg['cells'] (default L1-L5 via
-#                       LAMINA_SLICE); an entry may be a list of indices that SHARE
-#                       one value; other cells = 'fill'. 'count' is ignored for this kind.
-#           'scalar' -> count==1; a single global 0-dim value (e.g. Ih_midv)
+#           'ih'     -> one value per entry in seg['ih_group']; each entry is an int
+#                       (one cell type) or list[int] (types sharing one value);
+#                       other types = 'fill'. 'count' is ignored for this kind.
 #           'output' -> count==n_types; per-cell-type value on the readout (e.g. out_scale)
 #   lo,hi : training bounds (clamped each Adam step)
 #   init  : random-init mean;  jit: init uniform jitter (+/- jit/2)
-#   fill  : value for non-listed cells ('lamina' only)
-#   zero  : lamina-local indices set to 0 at init (from IH_GMAX_ZERO_TYPES cell names)
-#   mode  : 'individual' (train all `count` values, default), 'shared' (train ONE value
-#           broadcast to all units), or 'fixed' (train NOTHING; held at 'fixed' or 'init').
+#   fill  : value for non-listed cells ('ih' only)
+#   zero  : ih_group-local indices set to 0 at init (from IH_GMAX_ZERO_TYPES cell names)
+#   mode  : 'individual' (train all slot values), 'shared' (train ONE value broadcast),
+#           or 'fixed' (train NOTHING; held at 'fixed' or 'init').
 #   fixed : constant value used when mode=='fixed' (defaults to 'init').
-# `mode`/`fixed` are normally NOT set here; they are overridden per run from the
-# CLI / SLURM (see train.py --mode / --fix), so the schema stays the canonical default.
+# Canonical defaults for mode are set in ``build_*_schema``; CLI overrides via
+# train.py ``--mode`` / ``--fix`` (see ``PARAM_MODE_ALIASES`` for batch ``ih=``).
 LAMINA_SLICE = ml.LAMINA_SLICE  # L1-L5 within the 65 cell types
+DEFAULT_IH_GROUP_NAMES = ('L1', 'L2', 'L3', 'L4', 'L5')
 IH_GMAX_ZERO_TYPES = ('L3', 'L4')  # Ih_gmax z-init pinned to 0 for these types
 PARAM_MODES = ('individual', 'shared', 'fixed')
+IH_SHAPE_PARAM_NAMES = (
+    'Ih_midv', 'Ih_slope', 'tau_midv',
+    'Ih_midv_off', 'Ih_slope_off', 'tau_midv_off',
+)
+PARAM_MODE_ALIASES = {'ih': IH_SHAPE_PARAM_NAMES}
 
-# Lamina/scalar segments expanded to per-cell-type (full) by --per-type.
-PER_TYPE_PARAM_NAMES = frozenset({
-    'Ih_gmax', 'Ih_gmax_off', 'Ih_midv', 'Ih_slope', 'tau_midv',
-    'adapt_gain', 'tau_adapt',
-})
 
 def seg_mode(seg):
     mode = seg.get('mode', 'individual')
@@ -208,23 +208,15 @@ def seg_mode(seg):
     return mode
 
 
-def lamina_cells(seg):
-    """Target cell-type indices for a 'lamina' segment, one entry per trainable value.
-
-    Each entry is either an int (one cell) or a list of ints (a GROUP of cells
-    that SHARE that single trainable value). Defaults to L1-L5 (LAMINA_SLICE) as
-    five independent values, reproducing the historical behaviour. Experiments
-    override seg['cells'] to remap/group/extend the lamina parameter (e.g. tie
-    R1-6 to one value while keeping R7, R8, L1-L5 independent) WITHOUT editing
-    the core: the placement and the value count both derive from this list."""
-    return seg.get('cells', list(range(LAMINA_SLICE.start, LAMINA_SLICE.stop)))
+def ih_group_cells(seg):
+    """Target cell-type indices for an ``ih`` segment (one entry per trainable slot)."""
+    return seg['ih_group']
 
 
 def seg_count(seg):
-    """Number of per-unit values for a segment (its 'individual' width).
-    For 'lamina' this is the number of (possibly grouped) target entries."""
-    if seg['kind'] == 'lamina':
-        return len(lamina_cells(seg))
+    """Number of per-unit values for a segment (its 'individual' width)."""
+    if seg['kind'] == 'ih':
+        return len(ih_group_cells(seg))
     return seg['count']
 
 
@@ -270,11 +262,27 @@ def apply_modes(schema, modes=None, fixes=None):
     return out
 
 
-def apply_ih_off_mode(schema, mode=IH_OFF_DEFAULT):
-    """Adjust conductance Ih schema for ON/OFF coupling (``shared|split|off``).
+def expand_param_modes(modes, schema):
+    """Expand ``PARAM_MODE_ALIASES`` keys; only names present in *schema*."""
+    if not modes:
+        return {}
+    schema_names = {s['name'] for s in schema}
+    out = {}
+    for name, mode in modes.items():
+        if name in PARAM_MODE_ALIASES:
+            for sub in PARAM_MODE_ALIASES[name]:
+                if sub in schema_names:
+                    out[sub] = mode
+        elif name in schema_names:
+            out[name] = mode
+    return out
 
-    ``shared`` / ``off``: drop ``Ih_gmax_off`` and OFF shape scalars from z;
-    forward resolves OFF gmax via :func:`conductance_ih_off_kwargs`.
+
+def apply_ih_off_mode(schema, mode=IH_OFF_DEFAULT):
+    """Adjust conductance Ih schema for ON/OFF coupling (``on|off|mirrored``).
+
+    ``mirrored`` / ``off``: drop ``Ih_gmax_off`` and OFF shape params from z;
+    forward resolves OFF via :func:`conductance_ih_off_kwargs`.
     """
     if mode not in IH_OFF_MODES:
         raise ValueError(f"ih_off {mode!r} not in {IH_OFF_MODES}")
@@ -282,7 +290,7 @@ def apply_ih_off_mode(schema, mode=IH_OFF_DEFAULT):
     for seg in schema:
         s = dict(seg)
         name = s['name']
-        if mode == 'split':
+        if mode == 'on':
             out.append(s)
             continue
         if name in IH_OFF_SCALAR_SEGMENTS or name == IH_OFF_GMAX_SEGMENT:
@@ -299,12 +307,12 @@ def conductance_schema(model_backend, schema=None, ih_off=IH_OFF_DEFAULT):
 
 def conductance_ih_off_kwargs(p, ih_off=IH_OFF_DEFAULT):
     """Resolve OFF-channel Ih kwargs for :func:`update_Vm` from assigned params."""
-    midv_off = p['Ih_midv'] if ih_off != 'split' else p['Ih_midv_off']
-    slope_off = p['Ih_slope'] if ih_off != 'split' else p['Ih_slope_off']
-    tau_off = p['tau_midv'] if ih_off != 'split' else p['tau_midv_off']
-    if ih_off == 'split':
+    midv_off = p['Ih_midv'] if ih_off != 'on' else p['Ih_midv_off']
+    slope_off = p['Ih_slope'] if ih_off != 'on' else p['Ih_slope_off']
+    tau_off = p['tau_midv'] if ih_off != 'on' else p['tau_midv_off']
+    if ih_off == 'on':
         gmax_off = p['Ih_gmax_off']
-    elif ih_off == 'shared':
+    elif ih_off == 'mirrored':
         gmax_off = p['Ih_gmax']
     elif ih_off == 'off':
         gmax_off = p['Ih_gmax'] * 0.0
@@ -313,35 +321,11 @@ def conductance_ih_off_kwargs(p, ih_off=IH_OFF_DEFAULT):
     return gmax_off, midv_off, slope_off, tau_off
 
 
-def expand_schema_per_type(schema, n_types=BORST_NOFCELLS, names=None):
-    """Rebind lamina/scalar segments to per-cell-type (full) trainable params."""
-    names = PER_TYPE_PARAM_NAMES if names is None else frozenset(names)
-    out = []
-    for seg in schema:
-        s = dict(seg)
-        if s['name'] not in names or s['kind'] not in ('lamina', 'scalar'):
-            out.append(s)
-            continue
-        old_kind = s['kind']
-        s['kind'] = 'full'
-        s['count'] = n_types
-        if old_kind == 'lamina':
-            cells = lamina_cells(s)
-            if 'zero' in s:
-                s['zero'] = [
-                    (cells[j] if isinstance(cells[j], int) else cells[j][0])
-                    for j in s['zero']
-                ]
-            s.pop('cells', None)
-        out.append(s)
-    return out
-
-
-def lamina_zero_indices(lamina, zero_types, type_names):
-    """Map cell-type names to local indices into a lamina ``cells`` list."""
+def ih_group_zero_indices(ih_group, zero_types, type_names):
+    """Map cell-type names to local indices into an ``ih_group`` list."""
     names = [str(n) for n in type_names]
     by_type = {}
-    for j, entry in enumerate(lamina):
+    for j, entry in enumerate(ih_group):
         targets = [entry] if isinstance(entry, int) else entry
         for t in targets:
             by_type[int(t)] = j
@@ -356,53 +340,59 @@ def lamina_zero_indices(lamina, zero_types, type_names):
     return out
 
 
-def build_conductance_schema(n_types, lamina, ih_zero_types=IH_GMAX_ZERO_TYPES, type_names=None):
+def build_ih_group_from_names(type_names, backend: "ModelBackend"):
+    """Parse cell-type names to ``ih_group`` (one slot per name)."""
+    return [[int(i)] for i in resolve_type_indices(type_names, backend)]
+
+
+def default_ih_group(backend: "ModelBackend"):
+    return build_ih_group_from_names(DEFAULT_IH_GROUP_NAMES, backend)
+
+
+def build_conductance_schema(n_types, ih_group, ih_zero_types=IH_GMAX_ZERO_TYPES, type_names=None):
     type_names = ml.ctype if type_names is None else type_names
-    zero = lamina_zero_indices(lamina, ih_zero_types, type_names)
+    zero = ih_group_zero_indices(ih_group, ih_zero_types, type_names)
+    shape = dict(kind='full', count=n_types, mode='shared')
     return [
         {'name': 'inp_gain',  'count': n_types, 'kind': 'full',   'lo': low_gain, 'hi': high_gain, 'init': 0.5,     'jit': 0.2},
         {'name': 'out_gain',  'count': n_types, 'kind': 'full',   'lo': low_gain, 'hi': high_gain, 'init': 0.5,     'jit': 0.2},
         {'name': 'out_scale', 'count': n_types, 'kind': 'output', 'lo': low_gain, 'hi': high_gain, 'init': 1.0,     'jit': 0.2},
-        {'name': 'Ih_gmax',     'count': len(lamina), 'kind': 'lamina', 'cells': lamina, 'lo': 0.0, 'hi': 100.0, 'init': Ih_gmax, 'jit': 10.0, 'fill': 0.0, 'zero': zero},
-        {'name': 'Ih_gmax_off', 'count': len(lamina), 'kind': 'lamina', 'cells': lamina, 'lo': 0.0, 'hi': 100.0, 'init': Ih_gmax, 'jit': 10.0, 'fill': 0.0, 'zero': zero},
-        {'name': 'Ih_midv',     'count': 1,       'kind': 'scalar', 'lo': -70.0,    'hi': -30.0,     'init': Ih_midv,  'jit': 5.0},
-        {'name': 'Ih_slope',    'count': 1,       'kind': 'scalar', 'lo': -0.40,    'hi': -0.20,     'init': Ih_slope, 'jit': 0.02},
-        {'name': 'tau_midv',    'count': 1,       'kind': 'scalar', 'lo': -70.0,    'hi': -40.0,     'init': tau_midv, 'jit': 5.0},
-        {'name': 'Ih_midv_off', 'count': 1,       'kind': 'scalar', 'lo': -70.0,    'hi': -30.0,     'init': Ih_midv,  'jit': 5.0},
-        {'name': 'Ih_slope_off','count': 1,       'kind': 'scalar', 'lo': -0.40,    'hi': -0.20,     'init': Ih_slope, 'jit': 0.02},
-        {'name': 'tau_midv_off','count': 1,       'kind': 'scalar', 'lo': -70.0,    'hi': -40.0,     'init': tau_midv, 'jit': 5.0},
+        {'name': 'Ih_gmax',     'kind': 'ih', 'ih_group': ih_group, 'mode': 'individual',
+         'lo': 0.0, 'hi': 100.0, 'init': Ih_gmax, 'jit': 10.0, 'fill': 0.0, 'zero': zero},
+        {'name': 'Ih_gmax_off', 'kind': 'ih', 'ih_group': ih_group, 'mode': 'individual',
+         'lo': 0.0, 'hi': 100.0, 'init': Ih_gmax, 'jit': 10.0, 'fill': 0.0, 'zero': zero},
+        {'name': 'Ih_midv',     'lo': -70.0,    'hi': -30.0,     'init': Ih_midv,  'jit': 5.0, **shape},
+        {'name': 'Ih_slope',    'lo': -0.40,    'hi': -0.20,     'init': Ih_slope, 'jit': 0.02, **shape},
+        {'name': 'tau_midv',    'lo': -70.0,    'hi': -40.0,     'init': tau_midv, 'jit': 5.0, **shape},
+        {'name': 'Ih_midv_off', 'lo': -70.0,    'hi': -30.0,     'init': Ih_midv,  'jit': 5.0, **shape},
+        {'name': 'Ih_slope_off','lo': -0.40,    'hi': -0.20,     'init': Ih_slope, 'jit': 0.02, **shape},
+        {'name': 'tau_midv_off','lo': -70.0,    'hi': -40.0,     'init': tau_midv, 'jit': 5.0, **shape},
     ]
 
 
-def build_adaptive_schema(n_types, lamina):
+def build_adaptive_schema(n_types, ih_group):
     return [
         {'name': 'inp_gain',   'count': n_types, 'kind': 'full',   'lo': low_gain, 'hi': high_gain, 'init': 0.5,   'jit': 0.2},
         {'name': 'out_gain',   'count': n_types, 'kind': 'full',   'lo': low_gain, 'hi': high_gain, 'init': 0.5,   'jit': 0.2},
         {'name': 'out_scale',  'count': n_types, 'kind': 'output', 'lo': low_gain, 'hi': high_gain, 'init': 1.0,   'jit': 0.2},
         {'name': 'tau_m',      'count': n_types, 'kind': 'full',   'lo': deltat,   'hi': 1000.0,    'init': 50.0,  'jit': 10.0},
         {'name': 'bias',       'count': n_types, 'kind': 'full',   'lo': -2.0,     'hi': 2.0,       'init': 0.0,   'jit': 0.1},
-        {'name': 'adapt_gain', 'count': len(lamina), 'kind': 'lamina', 'cells': lamina, 'lo': -2.0, 'hi': 2.0,    'init': 0.0,   'jit': 0.1,  'fill': 0.0},
-        {'name': 'tau_adapt',  'count': len(lamina), 'kind': 'lamina', 'cells': lamina, 'lo': deltat, 'hi': 2000.0, 'init': 100.0, 'jit': 20.0, 'fill': deltat},
+        {'name': 'adapt_gain', 'kind': 'ih', 'ih_group': ih_group, 'mode': 'individual',
+         'lo': -2.0, 'hi': 2.0, 'init': 0.0, 'jit': 0.1, 'fill': 0.0},
+        {'name': 'tau_adapt',  'kind': 'ih', 'ih_group': ih_group, 'mode': 'individual',
+         'lo': deltat, 'hi': 2000.0, 'init': 100.0, 'jit': 20.0, 'fill': deltat},
     ]
 
 
-BORST_LAMINA = list(range(LAMINA_SLICE.start, LAMINA_SLICE.stop))
-
-
-def default_schema(model_type: str, backend: "ModelBackend") -> list:
+def default_schema(model_type: str, backend: "ModelBackend", ih_group=None) -> list:
     """Fresh parameter schema for ``model_type`` on the given backend."""
-    if backend.network is not None:
-        tn = list(backend.network.type_names)
-        lamina = [tn.index(t) for t in ['L1', 'L2', 'L3', 'L4', 'L5'] if t in tn]
-        n = backend.n_types
-        type_names = tn
-    else:
-        lamina = BORST_LAMINA
-        n = BORST_NOFCELLS
-        type_names = ml.ctype
+    if ih_group is None:
+        ih_group = default_ih_group(backend)
+    n = backend.n_types
+    type_names = list(backend.network.type_names) if backend.network is not None else ml.ctype
     if model_type == 'adaptive':
-        return build_adaptive_schema(n, lamina)
-    return build_conductance_schema(n, lamina, type_names=type_names)
+        return build_adaptive_schema(n, ih_group)
+    return build_conductance_schema(n, ih_group, type_names=type_names)
 
 
 @dataclass(frozen=True)
@@ -1479,7 +1469,7 @@ def make_train_opts(
     tile_dark_stimulus_opts=None,
     network_json=None,
     network=None,
-    per_type=False,
+    ih_group_names=None,
     dev=None,
     packs=None,
     ih_off=IH_OFF_DEFAULT,
@@ -1523,8 +1513,8 @@ def make_train_opts(
         opts["pack_overrides"] = pack_overrides
     if packs is not None:
         opts["packs"] = packs
-    if per_type:
-        opts["per_type"] = True
+    if ih_group_names is not None:
+        opts["ih_group"] = list(ih_group_names)
     opts["ih_off"] = str(ih_off)
     if fp32:
         opts["fp32"] = True
@@ -1589,13 +1579,22 @@ def _train_opts_for_sidecar(
     overrides = opts.get("pack_overrides")
     if overrides:
         record["pack_overrides"] = overrides
-    if opts.get("per_type"):
-        record["per_type"] = True
+    if opts.get("ih_group"):
+        record["ih_group"] = list(opts["ih_group"])
     if "ih_off" in opts:
         record["ih_off"] = str(opts["ih_off"])
     if opts.get("fp32"):
         record["fp32"] = True
     return record
+
+
+def _schema_from_opts(model_type, model_backend, schema, train_opts_record):
+    if schema is not None:
+        return list(schema)
+    ih_group = None
+    if train_opts_record and train_opts_record.get('ih_group'):
+        ih_group = build_ih_group_from_names(train_opts_record['ih_group'], model_backend)
+    return default_schema(model_type, model_backend, ih_group=ih_group)
 
 
 def _make_session(
@@ -1619,11 +1618,12 @@ def _make_session(
     if train_opts_record is not None and "ih_off" in train_opts_record:
         ih_off = str(train_opts_record["ih_off"])
     if model_type == 'conductance':
-        sch = conductance_schema(model_backend, schema, ih_off)
+        base = _schema_from_opts(model_type, model_backend, schema, train_opts_record)
+        sch = conductance_schema(model_backend, base, ih_off)
     elif schema is not None:
         sch = list(schema)
     else:
-        sch = default_schema(model_type, model_backend)
+        sch = _schema_from_opts(model_type, model_backend, None, train_opts_record)
     return TrainSession(
         backend=model_backend,
         model_type=model_type,
@@ -1798,7 +1798,6 @@ def open_session_from_outdir(
     *,
     param_modes=None,
     param_fixes=None,
-    per_type: bool = False,
 ) -> TrainSession:
     """Load ``train_opts.json`` from a run folder and return a ready session."""
     import json
@@ -1809,13 +1808,10 @@ def open_session_from_outdir(
     with open(opts_path) as f:
         opts = json.load(f)
     session = open_session_from_opts(opts, model_type)
-    if per_type or opts.get("per_type"):
-        session = session.with_schema(
-            expand_schema_per_type(list(session.schema), session.backend.n_types)
-        )
     if param_modes or param_fixes:
+        modes = expand_param_modes(param_modes, list(session.schema))
         session = session.with_schema(
-            apply_modes(list(session.schema), param_modes, param_fixes)
+            apply_modes(list(session.schema), modes, param_fixes)
         )
     return session
 
@@ -1881,13 +1877,11 @@ def _expand_segment(seg, raw, backend: ModelBackend):
     n_types = backend.n_types
     if kind == 'full':
         return calc_multi_col_params(raw, backend.conn).to(dev)
-    if kind == 'lamina':
+    if kind == 'ih':
         cell = torch.full((n_types,), float(seg['fill']), dtype=raw.dtype, device=raw.device)
-        for i, target in enumerate(lamina_cells(seg)):
+        for i, target in enumerate(ih_group_cells(seg)):
             cell[target] = raw[i]
         return calc_multi_col_params(cell, backend.conn).to(dev)
-    if kind == 'scalar':
-        return raw[0]
     if kind == 'output':
         return raw.to(dev)
     raise ValueError(f"unknown segment kind: {kind}")
@@ -2414,7 +2408,7 @@ def schema_guess(schema, sim_dtype=SIM_DTYPE_DEFAULT):
             continue
         z[start:stop] = seg['init'] + (np.random.rand(n) - 0.5) * seg['jit']
         if seg_mode(seg) == 'individual':
-            for j in seg.get('zero', []):      # lamina-local indices (see IH_GMAX_ZERO_TYPES)
+            for j in seg.get('zero', []):      # ih_group-local indices (see IH_GMAX_ZERO_TYPES)
                 z[start + j] = 0.0
     return torch.tensor(z, dtype=sim_dtype).to(active_device())
 

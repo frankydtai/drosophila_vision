@@ -13,7 +13,7 @@ mb = fc.borst_backend()
 schema = [dict(s) for s in fc.default_schema('adaptive', mb)]
 for s in schema:
     if s['name'] in ('adapt_gain', 'tau_adapt'):
-        s['cells'] = groups
+        s['ih_group'] = groups
 session = fc.open_session(
     fc.make_train_opts(backend='borst', target_list=['tile_bright']),
     'adaptive', schema=schema, model_backend=mb,

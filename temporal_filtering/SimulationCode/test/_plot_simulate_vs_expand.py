@@ -48,10 +48,6 @@ def _load_session_and_z(rundir):
             opts = json.load(f)
         opts['target_list'] = ['tile_bright']
         session = fc.open_session({**opts, 'backend': opts.get('backend', 'borst')}, model_type)
-        if opts.get('per_type'):
-            session = session.with_schema(
-                fc.expand_schema_per_type(list(session.schema), session.backend.n_types)
-            )
     else:
         session = fc.open_session(
             fc.make_train_opts(backend='borst', target_list=['tile_bright']),

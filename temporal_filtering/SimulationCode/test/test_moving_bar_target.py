@@ -116,7 +116,7 @@ def test_cost_extent_requires_network():
         outdir=None,
         mode="",
         fix="",
-        ih_off="split",
+        ih_off="on",
         per_type=False,
         network=None,
         target="moving_bar_bright",

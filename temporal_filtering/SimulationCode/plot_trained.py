@@ -1,5 +1,6 @@
 #!/usr/bin/env python
 """Simulation + plotting for the FiveCol medulla model."""
+import argparse
 import json
 import os
 import re
@@ -107,10 +108,10 @@ def load_train_opts(outdir):
         return json.load(f)
 
 
-def load_session(outdir, model_type, param_modes=None, param_fixes=None, per_type=None):
+def load_session(outdir, model_type, param_modes=None, param_fixes=None):
     return fc.open_session_from_outdir(
         outdir, model_type,
-        param_modes=param_modes, param_fixes=param_fixes, per_type=per_type,
+        param_modes=param_modes, param_fixes=param_fixes,
     )
 
 
@@ -252,7 +253,7 @@ def _plot_tile_targets(session, z, outdir, tile_targets, suffix, model_all,
         )
 
 
-def _plot_bar_targets(session, z, outdir, bar_targets, suffix, model_all):
+def _plot_bar_targets(session, z, outdir, bar_targets, suffix, model_all, *, plot_right_only=True):
     """Plot moving-bar target(s); bright left | dark right when both are trained."""
     bar_set = set(bar_targets)
     if bar_set == set(fc.MOVING_BAR_TARGETS):
@@ -269,6 +270,7 @@ def _plot_bar_targets(session, z, outdir, bar_targets, suffix, model_all):
             moving_bar_plot.plot_moving_bar_all(
                 s_bright, z, allc, session_off=s_dark,
                 title=f'Moving-bar model-all ({suffix})',
+                right_only=plot_right_only,
             )
         return mvd, allc
     for tname in bar_targets:
@@ -278,7 +280,10 @@ def _plot_bar_targets(session, z, outdir, bar_targets, suffix, model_all):
         allc = None
         if model_all:
             allc = os.path.join(outdir, 'model_all_bar.png')
-            moving_bar_plot.plot_moving_bar_all(one, z, allc, title=f'{tname} model-all ({suffix})')
+            moving_bar_plot.plot_moving_bar_all(
+                one, z, allc, title=f'{tname} model-all ({suffix})',
+                right_only=plot_right_only,
+            )
         return mvd, allc
 
 
@@ -306,7 +311,8 @@ def plot_param_set(params, outdir, model_type=None, model_all=True,
                    plot_targets=None, session=None, *,
                    final_costs=None, cost_curve=None, costs_by_target=None, best_i=None,
                    save_artifacts=True, artifact_fname=None,
-                   ref_cubes=None, ref_cubes_off=None, mvd_group_list=None):
+                   ref_cubes=None, ref_cubes_off=None, mvd_group_list=None,
+                   plot_right_only=True):
     os.makedirs(outdir, exist_ok=True)
     ctx = context_dir or outdir
     if model_type is None and session is not None:
@@ -357,7 +363,10 @@ def plot_param_set(params, outdir, model_type=None, model_all=True,
             mvd_group_list=mvd_group_list,
         )
     if bar_targets:
-        _plot_bar_targets(session, z, outdir, bar_targets, suffix, model_all)
+        _plot_bar_targets(
+            session, z, outdir, bar_targets, suffix, model_all,
+            plot_right_only=plot_right_only,
+        )
     for tname in other_targets:
         one = _session_for_target(session, tname)
         _plot_one_target(
@@ -381,9 +390,22 @@ def _load_plot_costs(outdir, fname, n_runs):
 
 
 def main():
-    if len(sys.argv) != 2:
-        raise SystemExit('usage: python plot_trained.py <model_type>/run_<id>')
-    outdir = resolve_run_dir(sys.argv[1])
+    from train import parse_bool
+
+    ap = argparse.ArgumentParser(description=__doc__)
+    ap.add_argument('run_path', help='run folder under PARAMETER_DIR or absolute path')
+    ap.add_argument(
+        '--plot-right-only',
+        nargs='?',
+        const=True,
+        default=True,
+        type=parse_bool,
+        metavar='BOOL',
+        help='model_all_bar: right-direction specs only (default true); '
+             'pass false for all directions',
+    )
+    args = ap.parse_args()
+    outdir = resolve_run_dir(args.run_path)
     params_path, artifact_fname = find_training_params(outdir)
     params = np.load(params_path)
     model_type = resolve_model_type(outdir)
@@ -393,6 +415,7 @@ def main():
     plot_param_set(
         params, outdir, model_type=model_type,
         artifact_fname=artifact_fname,
+        plot_right_only=args.plot_right_only,
     )
 
 

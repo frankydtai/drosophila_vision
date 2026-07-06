@@ -16,7 +16,7 @@ groups = [[0, 1, 2, 3, 4, 5], 6, 7, 8, 9, 10, 11, 12]
 schema = [dict(s) for s in fc.default_schema('conductance', mb)]
 for s in schema:
     if s['name'] == 'Ih_gmax':
-        s['cells'] = groups; s['zero'] = [groups.index(10), groups.index(11)]
+        s['ih_group'] = groups; s['zero'] = [groups.index(10), groups.index(11)]
 session = fc.open_session(
     fc.make_train_opts(backend='borst', target_list=['tile_bright']),
     'conductance', schema=schema, model_backend=mb,

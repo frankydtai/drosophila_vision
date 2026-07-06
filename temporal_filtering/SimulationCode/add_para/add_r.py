@@ -52,14 +52,6 @@ def mirror_ref_cubes(dark=False):
     return ref
 
 
-def group_lamina(schema, names, grp):
-    out = [dict(s) for s in schema]
-    for s in out:
-        if s['name'] in names:
-            s['cells'] = grp
-    return out
-
-
 mb = fc.borst_backend()
 r_shared = fc.resolve_type_indices(SHARED_R_NAMES, mb)
 r_indep = fc.resolve_type_indices(INDEP_R_NAMES, mb)
@@ -69,18 +61,21 @@ lamina_types = fc.resolve_type_indices(
 )
 groups = [r_shared] + [[i] for i in r_indep] + [[i] for i in lamina_types]
 
+schema = [dict(s) for s in fc.default_schema(MODEL, mb)]
 if MODEL == 'conductance':
-    lamina_names = ['Ih_gmax', 'Ih_gmax_off']
-    schema = group_lamina(fc.default_schema('conductance', mb), lamina_names, groups)
-    ih_zero = fc.lamina_zero_indices(groups, fc.IH_GMAX_ZERO_TYPES, ml.ctype)
+    ih_names = ['Ih_gmax', 'Ih_gmax_off']
+    ih_zero = fc.ih_group_zero_indices(groups, fc.IH_GMAX_ZERO_TYPES, ml.ctype)
     for s in schema:
-        if s['name'] in lamina_names:
+        if s['name'] in ih_names:
+            s['ih_group'] = groups
             s['zero'] = ih_zero
 else:
-    lamina_names = ['adapt_gain', 'tau_adapt']
-    schema = group_lamina(fc.default_schema('adaptive', mb), lamina_names, groups)
+    ih_names = ['adapt_gain', 'tau_adapt']
+    for s in schema:
+        if s['name'] in ih_names:
+            s['ih_group'] = groups
 
-for name in lamina_names:
+for name in ih_names:
     seg = next(s for s in schema if s['name'] == name)
     print('%s groups: %s  trainable values: %d' % (name, groups, fc.seg_count(seg)))
 

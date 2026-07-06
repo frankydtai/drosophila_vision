@@ -419,14 +419,16 @@ def plot_moving_bar_data(session, z, path, session_off=None, title=None):
 
 
 @torch.no_grad()
-def plot_moving_bar_all(session, z, path, session_off=None, title=None):
+def plot_moving_bar_all(session, z, path, session_off=None, title=None, *, right_only=True):
     t0 = time.perf_counter()
     single_column = suppress_cost_sem(session)
     target = _bar_target(session)
     types, all_spec_names, model_mean, model_sem, data_mean, baselines = _compute_moving_bar_all_type_traces(
         session, z, target,
     )
-    spec_names = _moving_bar_right_spec_names(all_spec_names)
+    spec_names = (
+        _moving_bar_right_spec_names(all_spec_names) if right_only else list(all_spec_names)
+    )
     ncols_on = len(spec_names)
     baselines_off = None
     if session_off is not None:
@@ -434,7 +436,9 @@ def plot_moving_bar_all(session, z, path, session_off=None, title=None):
         _, spec_names_off, mm_off, ms_off, dm_off, baselines_off = _compute_moving_bar_all_type_traces(
             session_off, z, target_off,
         )
-        spec_names_off = _moving_bar_right_spec_names(spec_names_off)
+        spec_names_off = (
+            _moving_bar_right_spec_names(spec_names_off) if right_only else list(spec_names_off)
+        )
         spec_names = list(spec_names) + list(spec_names_off)
         model_mean = {**model_mean, **mm_off}
         model_sem = {**model_sem, **ms_off}
@@ -469,7 +473,7 @@ def plot_moving_bar_all(session, z, path, session_off=None, title=None):
             )
         axes[ri, 0].set_ylabel(tname, fontsize=8, labelpad=12)
     if title is None:
-        title = 'Moving-bar model-all (right only)'
+        title = 'Moving-bar model-all (right only)' if right_only else 'Moving-bar model-all'
     scope = _moving_bar_scope_label(session)
     fig.suptitle(title + f'  [{scope}, {_moving_bar_window_label()}]', fontsize=12)
     _moving_bar_figure_adjust(fig)

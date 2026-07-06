@@ -55,10 +55,13 @@ from training_config import run_data_dir
 
 
 def make_plots(fname, outdir, session, result=None, *,
-               ref_cubes=None, ref_cubes_off=None, mvd_group_list=None):
+               ref_cubes=None, ref_cubes_off=None, mvd_group_list=None,
+               plot_right_only=True):
     """Cost curve + model-vs-data + all-cell-types."""
-    plot_kw = dict(ref_cubes=ref_cubes, ref_cubes_off=ref_cubes_off,
-                   mvd_group_list=mvd_group_list)
+    plot_kw = dict(
+        ref_cubes=ref_cubes, ref_cubes_off=ref_cubes_off,
+        mvd_group_list=mvd_group_list, plot_right_only=plot_right_only,
+    )
     if result is not None:
         plot_param_set(
             result.all_params, outdir, session=session,
@@ -98,12 +101,15 @@ def decompose_params(z_t, session):
     cols, glob = {}, {}
     for seg in schema:
         name, v = seg["name"], p[seg["name"]]
-        if seg["kind"] == "scalar":
-            glob[name] = float(v.item() if torch.is_tensor(v) else v)
-        elif seg["kind"] == "output":
-            cols[name] = v.detach().cpu().numpy()
+        mode = fc.seg_mode(seg)
+        if seg["kind"] == "output":
+            arr = v.detach().cpu().numpy()
         else:
-            cols[name] = v[:n].detach().cpu().numpy()
+            arr = v[:n].detach().cpu().numpy()
+        if mode in ("shared", "fixed"):
+            glob[name] = float(arr.mean())
+        else:
+            cols[name] = arr
     if session.model_type == "adaptive":
         glob["gate_pivot"] = float(fc.GATE_PIVOT)
     return cols, glob
@@ -244,16 +250,12 @@ def save_param_tables(fname, outdir, session):
 
 
 def apply_param_modes(session, param_modes=None, param_fixes=None):
-    schema = fc.apply_modes(list(session.schema), param_modes, param_fixes)
+    modes = fc.expand_param_modes(param_modes, list(session.schema))
+    schema = fc.apply_modes(list(session.schema), modes, param_fixes)
     session = session.with_schema(schema)
     summary = ", ".join(f"{s['name']}:{fc.seg_mode(s)}({fc.seg_ntrain(s)})" for s in schema)
     print("param modes -> " + summary)
     return session
-
-
-def apply_per_type_schema(session):
-    schema = fc.expand_schema_per_type(list(session.schema), session.backend.n_types)
-    return session.with_schema(schema)
 
 
 def resolve_network(network):
@@ -271,7 +273,7 @@ def build_session(
     multi_shift_targets=None,
     share_edges_targets=None,
     i_cli=None,
-    per_type=False,
+    ih_group_names=None,
     moving_bar_bright_stimulus_opts=None,
     moving_bar_dark_stimulus_opts=None,
     tile_bright_stimulus_opts=None,
@@ -308,19 +310,15 @@ def build_session(
             network_json=network,
             dev=dev,
             ih_off=ih_off,
+            ih_group_names=ih_group_names,
             fp32=fp32,
             **mkw,
         )
     else:
         opts = fc.make_train_opts(
-            backend="borst", per_type=per_type, ih_off=ih_off, fp32=fp32, **mkw,
+            backend="borst", ih_off=ih_off, ih_group_names=ih_group_names, fp32=fp32, **mkw,
         )
     session = fc.open_session(opts, model_type, schema=schema, model_backend=model_backend)
-    if per_type:
-        session = apply_per_type_schema(session)
-        if session.train_opts is not None:
-            session.train_opts["per_type"] = True
-        print(f"per_type schema -> nparams={fc.schema_nparams(list(session.schema))}")
     if param_modes or param_fixes:
         session = apply_param_modes(session, param_modes, param_fixes)
     return session
@@ -333,14 +331,15 @@ def run_training(model_type, nofruns, nofsteps, lrs, fname=None, outdir=None,
                  target_list=None, cost_weights=None,
                  cost_extent_by_target=None, multi_shift_targets=None,
                  share_edges_targets=None, i_cli=None,
-                 per_type=False, moving_bar_bright_stimulus_opts=None,
+                 ih_group_names=None,
+                 moving_bar_bright_stimulus_opts=None,
                  moving_bar_dark_stimulus_opts=None,
                  tile_bright_stimulus_opts=None,
                  tile_dark_stimulus_opts=None,
                  pack_overrides=None, model_backend=None, schema=None,
                  fp32=False,
                  plot_ref_cubes=None, plot_ref_cubes_off=None,
-                 plot_mvd_group_list=None):
+                 plot_mvd_group_list=None, plot_right_only=True):
     """Full training pipeline (do_many_runs + save_training_outputs + plots). Returns (fname, outdir, session)."""
     session = build_session(
         model_type,
@@ -352,7 +351,7 @@ def run_training(model_type, nofruns, nofsteps, lrs, fname=None, outdir=None,
         multi_shift_targets=multi_shift_targets,
         share_edges_targets=share_edges_targets,
         i_cli=i_cli,
-        per_type=per_type,
+        ih_group_names=ih_group_names,
         moving_bar_bright_stimulus_opts=moving_bar_bright_stimulus_opts,
         moving_bar_dark_stimulus_opts=moving_bar_dark_stimulus_opts,
         tile_bright_stimulus_opts=tile_bright_stimulus_opts,
@@ -379,7 +378,7 @@ def run_training(model_type, nofruns, nofsteps, lrs, fname=None, outdir=None,
     make_plots(
         fname, outdir, session, result=result,
         ref_cubes=plot_ref_cubes, ref_cubes_off=plot_ref_cubes_off,
-        mvd_group_list=plot_mvd_group_list,
+        mvd_group_list=plot_mvd_group_list, plot_right_only=plot_right_only,
     )
     return fname, outdir, session
 
@@ -397,19 +396,19 @@ def add_training_arguments(parser):
     parser.add_argument("--outdir", default=None,
                         help="output dir (default derived from --model-type)")
     parser.add_argument("--mode", default="", metavar="NAME=MODE,...",
-                        help="per-param mode override, e.g. out_scale=shared,inp_gain=fixed "
-                             "(MODE in individual|shared|fixed)")
+                        help="per-param mode override, e.g. out_scale=shared,ih=individual "
+                             "(MODE in individual|shared|fixed; ih expands to 6 shape params)")
     parser.add_argument("--fix", default="", metavar="NAME=VALUE,...",
                         help="hold a param fixed at VALUE (implies fixed mode), "
                              "e.g. Ih_midv=-50,out_scale=1.0")
+    parser.add_argument("--ih-group", default=",".join(fc.DEFAULT_IH_GROUP_NAMES),
+                        help="comma-separated cell types receiving Ih_gmax/Ih_gmax_off "
+                             "(one trainable slot per name when mode=individual)")
     parser.add_argument("--ih-off", default=fc.IH_OFF_DEFAULT,
                         choices=list(fc.IH_OFF_MODES),
-                        help="conductance ON/OFF Ih coupling: split (train Ih_gmax_off+OFF "
-                             "scalars; default), shared (OFF uses ON Ih_gmax+shape), "
+                        help="OFF-channel Ih: on (train Ih_gmax_off+OFF shape; default), "
+                             "mirrored (OFF copies ON; shared/individual from --mode), "
                              "off (disable OFF channel)")
-    parser.add_argument("--per-type", action="store_true",
-                        help="train Ih (and adaptive lamina) params per cell type "
-                             "instead of shared lamina/scalar values")
     parser.add_argument("--fp32", action="store_true",
                         help="run simulation in float32 (default float64)")
     parser.add_argument("--sequential", action="store_true",
@@ -469,6 +468,16 @@ def add_training_arguments(parser):
         help="dark peak/step current (pA); targets: tile_dark, moving_bar_dark "
              "(aliases tile, moving_bar)",
     )
+    parser.add_argument(
+        "--plot-right-only",
+        nargs="?",
+        const=True,
+        default=True,
+        type=parse_bool,
+        metavar="BOOL",
+        help="model_all_bar: right-direction specs only (default true); "
+             "pass false for all directions",
+    )
 
 
 def make_training_argparser(description):
@@ -480,6 +489,16 @@ def make_training_argparser(description):
         parents=[common],
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
+
+
+def parse_bool(text):
+    """Parse CLI boolean (true/false, 1/0, yes/no)."""
+    v = str(text).lower()
+    if v in ("true", "1", "yes"):
+        return True
+    if v in ("false", "0", "no"):
+        return False
+    raise ValueError(f"expected true|false, got {text!r}")
 
 
 def parse_comma_list(text):
@@ -584,10 +603,11 @@ def training_kwargs_from_args(
         multi_shift_targets=multi_shift_targets,
         share_edges_targets=share_edges_targets,
         i_cli=i_cli,
-        per_type=args.per_type,
+        ih_group_names=parse_comma_list(args.ih_group),
         ih_off=args.ih_off,
         fp32=args.fp32,
         sequential=args.sequential,
+        plot_right_only=args.plot_right_only,
     )
 
 
