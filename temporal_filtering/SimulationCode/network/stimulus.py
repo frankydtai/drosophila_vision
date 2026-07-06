@@ -27,6 +27,7 @@ import network_bootstrap  # noqa: F401
 from column_mapper import DEFAULT_KERNEL_SIZE, hex_to_pixel, hex_vertices
 from connectome_io import moving_bar_cache_dir
 from Medulla_Library import I_BASELINE, I_BRIGHT, I_DARK, T_ON
+from training_config import SIM_DTYPE_DEFAULT
 from visual_stimulus.moving_bar_stimulus import (
     GRUNTMAN_SPEED_DEG_S,
     HexColumn,
@@ -271,6 +272,7 @@ def build_moving_bar_signals(
     use_cache: bool = True,
     refresh_cache: bool = False,
     network_json: Optional[Path] = None,
+    sim_dtype: torch.dtype = SIM_DTYPE_DEFAULT,
 ) -> MovingBarStimulus:
     """Build batched photoreceptor current for moving-bar stimuli.
 
@@ -355,7 +357,7 @@ def build_moving_bar_signals(
     if i_dark is not None:
         info["i_dark_bar"] = i_dark
     return MovingBarStimulus(
-        signal=torch.as_tensor(signal_np, dtype=torch.float64, device=device),
+        signal=torch.as_tensor(signal_np, dtype=sim_dtype, device=device),
         column_current=col_curr,
         specs=specs,
         info=info,

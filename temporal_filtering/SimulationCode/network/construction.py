@@ -27,6 +27,7 @@ import torch
 
 from .connectivity import ScatterConn
 from Medulla_Library import IMPULSE_MAXTIME, I_BASELINE, I_BRIGHT, T_ON
+from training_config import SIM_DTYPE_DEFAULT
 
 # Default synaptic scale (matches FiveCol exc_synweight == inh_synweight == 0.001).
 DEFAULT_SYNWEIGHT = 0.001
@@ -90,6 +91,7 @@ def load_network(
     device: Optional[str] = None,
     exc_synweight: float = DEFAULT_SYNWEIGHT,
     inh_synweight: float = DEFAULT_SYNWEIGHT,
+    dtype: torch.dtype = SIM_DTYPE_DEFAULT,
 ) -> Network:
     """Read ``network.json`` and return a :class:`Network`."""
     device = device or ("cuda" if torch.cuda.is_available() else "cpu")
@@ -135,6 +137,7 @@ def load_network(
         exc_scale=exc_synweight,
         inh_scale=inh_synweight,
         device=device,
+        dtype=dtype,
     )
 
     return Network(

@@ -28,6 +28,7 @@ from training_config import (
     COST_WINDOW_AFTER_MS,
     COST_WINDOW_BEFORE_MS,
     DELTAT_MS,
+    SIM_DTYPE_DEFAULT,
     FIG1_CI_NPZ,
     cost_window_after_steps,
     cost_window_before_steps,
@@ -192,6 +193,7 @@ def build_moving_bar_target(
     i_dark_bar: Optional[float] = None,
     contrasts: Sequence[str] = ("bright", "dark"),
     readout_subtypes: Optional[Sequence[str]] = None,
+    sim_dtype: torch.dtype = SIM_DTYPE_DEFAULT,
 ) -> MovingBarTarget:
     """Build moving-bar stimulus + fig1 targets for sti columns × T4/T5 subtypes.
 
@@ -207,6 +209,7 @@ def build_moving_bar_target(
         C, specs=specs, t_on=t_on, deltat_ms=deltat_ms, device=device, use_cache=use_cache,
         network_json=getattr(C, "source_json", None),
         i_baseline=I_BASELINE if i_baseline is None else float(i_baseline),
+        sim_dtype=sim_dtype,
         **_moving_bar_peak_kwargs(
             contrast_set,
             i_bright_bar=i_bright_bar,
@@ -266,8 +269,8 @@ def build_moving_bar_target(
     if not r_batch:
         raise ValueError("no moving-bar cost cells (check subtypes and sti columns)")
 
-    data = torch.tensor(np.asarray(r_target), dtype=torch.float64, device=device)
-    cost_weight = torch.tensor(np.asarray(r_weight), dtype=torch.float64, device=device)
+    data = torch.tensor(np.asarray(r_target), dtype=sim_dtype, device=device)
+    cost_weight = torch.tensor(np.asarray(r_weight), dtype=sim_dtype, device=device)
     readout_batch = torch.tensor(np.asarray(r_batch), dtype=torch.long, device=device)
     readout_unit = torch.tensor(np.asarray(r_unit), dtype=torch.long, device=device)
     cost_t0 = torch.tensor(np.asarray(r_t0), dtype=torch.long, device=device)
@@ -275,7 +278,7 @@ def build_moving_bar_target(
 
     power = torch.sum(cost_weight[:, None] * data ** 2)
     if float(power) == 0.0:
-        power = torch.tensor(1.0, dtype=torch.float64, device=device)
+        power = torch.tensor(1.0, dtype=sim_dtype, device=device)
 
     info = {
         **stim.info,
@@ -320,6 +323,7 @@ def build_borst_moving_bar_target(
     i_bright_bar: Optional[float] = None,
     i_dark_bar: Optional[float] = None,
     contrasts: Sequence[str] = ("bright", "dark"),
+    sim_dtype: torch.dtype = SIM_DTYPE_DEFAULT,
 ) -> MovingBarTarget:
     """Build Borst 5-column horizontal moving-bar target for T4/T5 subtypes."""
     device = device or "cpu"
@@ -350,10 +354,10 @@ def build_borst_moving_bar_target(
         **col_kw,
     )
     n_units = ml.n_state_units()
-    signal = torch.zeros((len(specs), maxtime, n_units), dtype=torch.float64, device=device)
+    signal = torch.zeros((len(specs), maxtime, n_units), dtype=sim_dtype, device=device)
     for col in range(ml.nofcols):
         pr = ml.photoreceptor_slice(col)
-        signal[:, :, pr] = torch.tensor(column_current[:, :, col], dtype=torch.float64, device=device)[:, :, None]
+        signal[:, :, pr] = torch.tensor(column_current[:, :, col], dtype=sim_dtype, device=device)[:, :, None]
 
     cost_cols = cols
     cost_col_ids = list(range(ml.nofcols))
@@ -390,15 +394,15 @@ def build_borst_moving_bar_target(
     if not r_batch:
         raise ValueError("no Borst moving-bar cost cells")
 
-    data = torch.tensor(np.asarray(r_target), dtype=torch.float64, device=device)
-    cost_weight = torch.tensor(np.asarray(r_weight), dtype=torch.float64, device=device)
+    data = torch.tensor(np.asarray(r_target), dtype=sim_dtype, device=device)
+    cost_weight = torch.tensor(np.asarray(r_weight), dtype=sim_dtype, device=device)
     readout_batch = torch.tensor(np.asarray(r_batch), dtype=torch.long, device=device)
     readout_unit = torch.tensor(np.asarray(r_unit), dtype=torch.long, device=device)
     cost_t0 = torch.tensor(np.asarray(r_t0), dtype=torch.long, device=device)
     cost_pd_nd = torch.tensor(np.asarray(r_pd_nd), dtype=torch.long, device=device)
     power = torch.sum(cost_weight[:, None] * data ** 2)
     if float(power) == 0.0:
-        power = torch.tensor(1.0, dtype=torch.float64, device=device)
+        power = torch.tensor(1.0, dtype=sim_dtype, device=device)
 
     info = {
         "n_cost": int(data.shape[0]),

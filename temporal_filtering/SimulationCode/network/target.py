@@ -33,6 +33,7 @@ import numpy as np
 import torch
 
 from Medulla_Library import DATA_AMP, I_DARK, IMPULSE_MAXTIME, I_BASELINE, I_BRIGHT, T_ON, read_RecF_ImpR
+from training_config import SIM_DTYPE_DEFAULT
 from .stimulus import column_in_cost_extent
 from .tiling import (
     FIT_CELL_TYPES,
@@ -87,6 +88,7 @@ def build_shifted_target(
     data_amp: float = DATA_AMP,
     device: Optional[str] = None,
     cost_extent: Optional[int] = None,
+    sim_dtype: torch.dtype = SIM_DTYPE_DEFAULT,
 ) -> ShiftedTarget:
     if polarity not in ("bright", "dark"):
         raise ValueError(f"polarity must be 'bright' or 'dark', got {polarity!r}")
@@ -104,7 +106,7 @@ def build_shifted_target(
     batches = tile_stimulus_batches(tiling)
     n_batch = len(batches)
 
-    signal = torch.zeros((n_batch, maxtime, C.n_units), dtype=torch.float64, device=device)
+    signal = torch.zeros((n_batch, maxtime, C.n_units), dtype=sim_dtype, device=device)
     for b, (su, sv, _center) in enumerate(batches):
         units = C.input_units_at(su, sv)
         if len(units):
@@ -153,15 +155,15 @@ def build_shifted_target(
     if not r_batch:
         raise ValueError("no tile cost cells (check cost_extent and fit cell types)")
 
-    data = torch.tensor(np.asarray(r_target), dtype=torch.float64, device=device)  # (n_cost,T')
-    cost_weight = torch.tensor(np.asarray(r_weight), dtype=torch.float64, device=device)
-    cost_radius = torch.tensor(np.asarray(r_radius), dtype=torch.float64, device=device)
+    data = torch.tensor(np.asarray(r_target), dtype=sim_dtype, device=device)  # (n_cost,T')
+    cost_weight = torch.tensor(np.asarray(r_weight), dtype=sim_dtype, device=device)
+    cost_radius = torch.tensor(np.asarray(r_radius), dtype=sim_dtype, device=device)
     readout_batch = torch.tensor(np.asarray(r_batch), dtype=torch.long, device=device)
     readout_unit = torch.tensor(np.asarray(r_unit), dtype=torch.long, device=device)
 
     power = torch.sum(cost_weight[:, None] * data ** 2)
     if float(power) == 0.0:
-        power = torch.tensor(1.0, dtype=torch.float64, device=device)
+        power = torch.tensor(1.0, dtype=sim_dtype, device=device)
 
     info = {
         "n_batch": n_batch,

@@ -186,7 +186,7 @@ def select_best(params, session, *, final_costs=None, best_i=None):
         if final_costs is not None:
             best_cost = float(final_costs[best_i])
         else:
-            z = torch.tensor(valid[loc], dtype=torch.float64, device=session.device)
+            z = torch.tensor(valid[loc], dtype=session.sim_dtype, device=session.device)
             best_cost = fc.calc_cost(z, session).item()
         print(f'{len(valid)} trained set(s); selected #{best_i} (cost={best_cost:.4f})')
         return valid[loc], best_cost
@@ -206,7 +206,7 @@ def select_best(params, session, *, final_costs=None, best_i=None):
 
     costs_out = []
     for row in valid:
-        z = torch.tensor(row, dtype=torch.float64, device=session.device)
+        z = torch.tensor(row, dtype=session.sim_dtype, device=session.device)
         costs_out.append(fc.calc_cost(z, session).item())
     costs_out = np.array(costs_out)
     best = int(np.argmin(costs_out))
@@ -330,7 +330,7 @@ def plot_param_set(params, outdir, model_type=None, model_all=True,
     best, best_cost = select_best(
         params, session, final_costs=final_costs, best_i=best_i,
     )
-    z = torch.tensor(best, dtype=torch.float64, device=session.device)
+    z = torch.tensor(best, dtype=session.sim_dtype, device=session.device)
 
     if cost_curve is not None and len(cost_curve) > 0:
         plot_cost(

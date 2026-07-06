@@ -32,6 +32,8 @@ from typing import Optional, Tuple
 
 import torch
 
+from training_config import SIM_DTYPE_DEFAULT
+
 
 def _as_long(t, device) -> torch.Tensor:
     return torch.as_tensor(t, dtype=torch.long, device=device)
@@ -93,7 +95,7 @@ class ScatterConn:
         exc_scale: float = 1.0,
         inh_scale: float = 1.0,
         device: Optional[str] = None,
-        dtype: torch.dtype = torch.float64,
+        dtype: torch.dtype = SIM_DTYPE_DEFAULT,
     ) -> None:
         device = device or ("cuda" if torch.cuda.is_available() else "cpu")
         self.device = device

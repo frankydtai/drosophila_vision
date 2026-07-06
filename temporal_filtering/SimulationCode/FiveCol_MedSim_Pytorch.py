@@ -19,7 +19,7 @@ from torch import nn
 from tqdm import tqdm
 
 from network.connectivity import DenseConn
-from training_config import DELTAT_MS
+from training_config import DELTAT_MS, SIM_DTYPE_DEFAULT, sim_dtype_from_fp32
 
 
 def active_device():
@@ -117,11 +117,11 @@ def calc_multi_col_params(param, conn):
     return param.index_select(0, conn.node_type)
 
 
-def build_e_leak(conn, n_types, depol_cells=None):
+def build_e_leak(conn, n_types, depol_cells=None, *, dtype=SIM_DTYPE_DEFAULT):
     """(conn.n_units,) resting potential; default depol list from ``ml.LEAK_DEPOL_TYPES``."""
     if depol_cells is None:
         depol_cells = ml.leak_depol_indices()
-    per_type = torch.full((n_types,), E_LEAK_REST, dtype=torch.float64, device=conn.node_type.device)
+    per_type = torch.full((n_types,), E_LEAK_REST, dtype=dtype, device=conn.node_type.device)
     for c in depol_cells:
         per_type[int(c)] = E_LEAK_DEPOL
     return calc_multi_col_params(per_type, conn)
@@ -149,9 +149,9 @@ IH_OFF_GMAX_SEGMENT = 'Ih_gmax_off'
 # Default: none reversed. Pass ih_reverse_cells= to borst_backend().
 IH_DIR_REVERSE_CELLS: Tuple[int, ...] = ()
 
-def build_ih_dir(conn, ih_reverse_cells=IH_DIR_REVERSE_CELLS):
+def build_ih_dir(conn, ih_reverse_cells=IH_DIR_REVERSE_CELLS, *, dtype=SIM_DTYPE_DEFAULT):
     """(conn.n_units,) Ih direction (+1 normal, -1 mirrored per cell-type)."""
-    d = torch.ones(conn.n_units, dtype=torch.float64, device=conn.node_type.device)
+    d = torch.ones(conn.n_units, dtype=dtype, device=conn.node_type.device)
     for c in ih_reverse_cells:
         d[conn.node_type == int(c)] = -1.0
     return d
@@ -470,6 +470,7 @@ class TrainSession:
     cost_weights: Dict[str, float]
     sequential: bool
     device: str
+    sim_dtype: torch.dtype = SIM_DTYPE_DEFAULT
     train_opts: Optional[dict] = None
 
     def with_schema(self, schema) -> "TrainSession":
@@ -658,33 +659,33 @@ def _enrich_moving_bar_stimulus_opts(opts, info, *, cost_extent):
     return out
 
 
-def borst_tile_bright_signal(opts=None):
+def borst_tile_bright_signal(opts=None, *, sim_dtype=SIM_DTYPE_DEFAULT):
     """Build Borst tile_bright PR step stimulus ``(T, N_units)``."""
     opts = dict(opts or make_tile_bright_stimulus_opts())
     n_units = ml.n_state_units()
     pr = ml.photoreceptor_slice()
     t0, T = int(opts["t_on"]), int(opts["maxtime"])
     b, step = _tile_bright_i_from_opts(opts)
-    sig = torch.zeros((T, n_units), dtype=torch.float64, device=active_device())
+    sig = torch.zeros((T, n_units), dtype=sim_dtype, device=active_device())
     sig[:t0, pr] = b
     sig[t0:T, pr] = step
     return sig
 
 
-def borst_tile_dark_signal(opts=None):
+def borst_tile_dark_signal(opts=None, *, sim_dtype=SIM_DTYPE_DEFAULT):
     """Build Borst tile_dark PR step stimulus ``(T, N_units)``."""
     opts = dict(opts or make_tile_dark_stimulus_opts())
     n_units = ml.n_state_units()
     pr = ml.photoreceptor_slice()
     t0, T = int(opts["t_on"]), int(opts["maxtime"])
     b, step = _tile_dark_i_from_opts(opts)
-    sig = torch.zeros((T, n_units), dtype=torch.float64, device=active_device())
+    sig = torch.zeros((T, n_units), dtype=sim_dtype, device=active_device())
     sig[:t0, pr] = b
     sig[t0:T, pr] = step
     return sig
 
 
-def _borst_tile_pack_from_data(opts, pack_name, signal_fn, data_fn):
+def _borst_tile_pack_from_data(opts, pack_name, signal_fn, data_fn, *, sim_dtype=SIM_DTYPE_DEFAULT):
     """Shared Borst tile pack builder for bright/dark targets."""
     opts = dict(opts)
     u_idx = torch.tensor(
@@ -693,9 +694,9 @@ def _borst_tile_pack_from_data(opts, pack_name, signal_fn, data_fn):
         device=active_device(),
     )
     n = int(u_idx.shape[0])
-    sig = signal_fn(opts).unsqueeze(0)
+    sig = signal_fn(opts, sim_dtype=sim_dtype).unsqueeze(0)
     T = int(sig.shape[1])
-    tile_data = torch.tensor(data_fn(T), dtype=torch.float64, device=active_device())
+    tile_data = torch.tensor(data_fn(T), dtype=sim_dtype, device=active_device())
     t_data = tile_data[t_on:T].transpose(0, 1).contiguous()
     tile_power = torch.sum(t_data ** 2)
     return TargetPack(
@@ -703,30 +704,32 @@ def _borst_tile_pack_from_data(opts, pack_name, signal_fn, data_fn):
         signal=sig,
         data=t_data,
         power=tile_power,
-        cost_weight=torch.ones(n, dtype=torch.float64, device=active_device()),
+        cost_weight=torch.ones(n, dtype=sim_dtype, device=active_device()),
         readout_batch=torch.zeros(n, dtype=torch.long, device=active_device()),
         readout_unit=u_idx,
         cost_t0=None,
     )
 
 
-def build_borst_tile_bright_pack(opts=None):
+def build_borst_tile_bright_pack(opts=None, *, sim_dtype=SIM_DTYPE_DEFAULT):
     """Borst tile_bright target as a :class:`TargetPack` (batch B=1)."""
     return _borst_tile_pack_from_data(
         opts or make_tile_bright_stimulus_opts(),
         "tile_bright",
         borst_tile_bright_signal,
         ml.borst_tile_impulse_data,
+        sim_dtype=sim_dtype,
     )
 
 
-def build_borst_tile_dark_pack(opts=None):
+def build_borst_tile_dark_pack(opts=None, *, sim_dtype=SIM_DTYPE_DEFAULT):
     """Borst tile_dark target as a :class:`TargetPack` (batch B=1)."""
     return _borst_tile_pack_from_data(
         opts or make_tile_dark_stimulus_opts(),
         "tile_dark",
         borst_tile_dark_signal,
         ml.borst_tile_impulse_data_dark,
+        sim_dtype=sim_dtype,
     )
 
 
@@ -836,17 +839,20 @@ def _append_mirror_pack_rows(
     else:
         readout_batch = torch.tensor(readout_batch, dtype=torch.long, device=active_device())
     if cost_weight is None:
-        cost_weight = torch.ones(n_all, dtype=torch.float64, device=active_device())
+        w_dtype = pack.cost_weight.dtype
+        cost_weight = torch.ones(n_all, dtype=w_dtype, device=active_device())
     else:
         base_w = pack.cost_weight
+        w_dtype = base_w.dtype
         cost_weight = torch.cat([
             base_w,
-            torch.tensor(cost_weight, dtype=torch.float64, device=active_device()),
+            torch.tensor(cost_weight, dtype=w_dtype, device=active_device()),
         ])
     cost_radius_out = pack.cost_radius
     if cost_radius is not None:
         base_r = pack.cost_radius
-        extra_r_t = torch.tensor(cost_radius, dtype=torch.float64, device=active_device())
+        r_dtype = base_r.dtype if base_r is not None else SIM_DTYPE_DEFAULT
+        extra_r_t = torch.tensor(cost_radius, dtype=r_dtype, device=active_device())
         cost_radius_out = (
             torch.cat([base_r, extra_r_t])
             if base_r is not None else extra_r_t
@@ -915,7 +921,7 @@ def _borst_moving_bar_pack(T, name):
     )
 
 
-def _load_borst_matrices(dev: Optional[str] = None):
+def _load_borst_matrices(dev: Optional[str] = None, *, dtype=SIM_DTYPE_DEFAULT):
     # Circuits/ relative paths are intentional — see coding-conventions §10 exception.
     dev = dev or active_device()
     multi_colM = np.load('Circuits/multi_colM.npy')
@@ -923,15 +929,16 @@ def _load_borst_matrices(dev: Optional[str] = None):
     multi_colM = ml.apply_borst_connectivity_patches(multi_colM)
     M_exc = exc_synweight * multi_colM * (multi_colM > 0)
     M_inh = inh_synweight * multi_colM * (multi_colM < 0) * (-1)
-    M_exc = torch.tensor(M_exc, dtype=torch.float64, device=dev)
-    M_inh = torch.tensor(M_inh, dtype=torch.float64, device=dev)
-    M_signed = torch.tensor(exc_synweight * multi_colM, dtype=torch.float64, device=dev)
+    M_exc = torch.tensor(M_exc, dtype=dtype, device=dev)
+    M_inh = torch.tensor(M_inh, dtype=dtype, device=dev)
+    M_signed = torch.tensor(exc_synweight * multi_colM, dtype=dtype, device=dev)
     return M_exc, M_inh, M_signed, ctype_arr
 
 
 def borst_backend(
     dev: Optional[str] = None,
     *,
+    sim_dtype=SIM_DTYPE_DEFAULT,
     depol_cells=None,
     ih_reverse_cells=None,
 ) -> ModelBackend:
@@ -939,13 +946,13 @@ def borst_backend(
     dev = dev or active_device()
     depol = tuple(ml.leak_depol_indices() if depol_cells is None else depol_cells)
     ih_rev = tuple(ih_reverse_cells if ih_reverse_cells is not None else IH_DIR_REVERSE_CELLS)
-    M_exc, M_inh, M_signed, ctype_arr = _load_borst_matrices(dev)
+    M_exc, M_inh, M_signed, ctype_arr = _load_borst_matrices(dev, dtype=sim_dtype)
     node_type = (torch.arange(BORST_NOFCELLS * BORST_NOFCOLS, device=dev) % BORST_NOFCELLS).long()
     conn = DenseConn(M_exc, M_inh, M_signed, node_type)
     return ModelBackend(
         conn=conn,
-        e_leak=build_e_leak(conn, BORST_NOFCELLS, depol_cells=depol),
-        ih_dir=build_ih_dir(conn, ih_reverse_cells=ih_rev),
+        e_leak=build_e_leak(conn, BORST_NOFCELLS, depol_cells=depol, dtype=sim_dtype),
+        ih_dir=build_ih_dir(conn, ih_reverse_cells=ih_rev, dtype=sim_dtype),
         n_types=BORST_NOFCELLS,
         n_cols=BORST_NOFCOLS,
         network=None,
@@ -955,15 +962,15 @@ def borst_backend(
     )
 
 
-def _network_backend_from_connectome(C) -> ModelBackend:
+def _network_backend_from_connectome(C, *, sim_dtype=SIM_DTYPE_DEFAULT) -> ModelBackend:
     """Build a :class:`ModelBackend` from an already-loaded connectome graph."""
     tn = list(C.type_names)
     depol = tuple(tn.index(t) for t in ml.LEAK_DEPOL_TYPES if t in tn)
     conn = C.conn
     return ModelBackend(
         conn=conn,
-        e_leak=build_e_leak(conn, C.n_types, depol_cells=depol),
-        ih_dir=build_ih_dir(conn),
+        e_leak=build_e_leak(conn, C.n_types, depol_cells=depol, dtype=sim_dtype),
+        ih_dir=build_ih_dir(conn, dtype=sim_dtype),
         n_types=C.n_types,
         n_cols=1,
         network=C,
@@ -972,14 +979,15 @@ def _network_backend_from_connectome(C) -> ModelBackend:
     )
 
 
-def load_network_backend(network_json, dev: Optional[str] = None) -> ModelBackend:
+def load_network_backend(network_json, dev: Optional[str] = None, *, sim_dtype=SIM_DTYPE_DEFAULT) -> ModelBackend:
     """Load connectome network into a :class:`ModelBackend`."""
     from network.construction import load_network
 
     dev = dev or active_device()
     C = load_network(network_json, device=dev,
-                     exc_synweight=exc_synweight, inh_synweight=inh_synweight)
-    backend = _network_backend_from_connectome(C)
+                     exc_synweight=exc_synweight, inh_synweight=inh_synweight,
+                     dtype=sim_dtype)
+    backend = _network_backend_from_connectome(C, sim_dtype=sim_dtype)
     print(f"network: {network_json}")
     print(f"  n_units={backend.n_units}, n_types={backend.n_types}, "
           f"nparams={schema_nparams(default_schema('conductance', backend))}")
@@ -992,6 +1000,7 @@ class _TrainBindCtx:
 
     model_backend: ModelBackend
     dev: str
+    sim_dtype: torch.dtype = SIM_DTYPE_DEFAULT
     tile_bright_stimulus_opts: Optional[dict] = None
     tile_dark_stimulus_opts: Optional[dict] = None
     moving_bar_bright_stimulus_opts: Optional[dict] = None
@@ -1000,12 +1009,12 @@ class _TrainBindCtx:
 
 def _build_borst_tile_bright_target(ctx: _TrainBindCtx) -> Tuple[TargetPack, dict]:
     opts = dict(ctx.tile_bright_stimulus_opts or make_tile_bright_stimulus_opts())
-    return build_borst_tile_bright_pack(opts), opts
+    return build_borst_tile_bright_pack(opts, sim_dtype=ctx.sim_dtype), opts
 
 
 def _build_borst_tile_dark_target(ctx: _TrainBindCtx) -> Tuple[TargetPack, dict]:
     opts = dict(ctx.tile_dark_stimulus_opts or make_tile_dark_stimulus_opts())
-    return build_borst_tile_dark_pack(opts), opts
+    return build_borst_tile_dark_pack(opts, sim_dtype=ctx.sim_dtype), opts
 
 
 def _cost_extent_coltag(cost_extent, n_cost):
@@ -1020,6 +1029,7 @@ def _build_borst_moving_bar_target(ctx: _TrainBindCtx, *, pack_name: str, polari
     opts = _moving_bar_polarity_opts(ctx, polarity)
     build_kw = dict(
         device=ctx.dev or active_device(),
+        sim_dtype=ctx.sim_dtype,
         t_on=t_on,
         deltat_ms=deltat,
         i_baseline=opts["i_baseline"],
@@ -1076,6 +1086,7 @@ def _build_network_moving_bar_target(ctx: _TrainBindCtx, C, *, pack_name: str, p
     build_kw = dict(
         C=C,
         device=dev,
+        sim_dtype=ctx.sim_dtype,
         t_on=t_on,
         cost_extent=cost_extent,
         i_baseline=opts["i_baseline"],
@@ -1141,6 +1152,7 @@ def _build_network_tile_bright_target(
         share_edges=share_edges,
         single_shift=not multi_shift,
         device=dev,
+        sim_dtype=ctx.sim_dtype,
         maxtime=ml.IMPULSE_MAXTIME,
         t_on=t_on,
         cost_extent=cost_extent,
@@ -1187,6 +1199,7 @@ def _build_network_tile_dark_target(
         share_edges=share_edges,
         single_shift=not multi_shift,
         device=dev,
+        sim_dtype=ctx.sim_dtype,
         maxtime=ml.IMPULSE_MAXTIME,
         t_on=t_on,
         cost_extent=cost_extent,
@@ -1470,6 +1483,7 @@ def make_train_opts(
     dev=None,
     packs=None,
     ih_off=IH_OFF_DEFAULT,
+    fp32=False,
 ):
     """Canonical training opts for :func:`open_session` (Borst or network)."""
     tl = _normalize_target_list(target_list)
@@ -1512,6 +1526,8 @@ def make_train_opts(
     if per_type:
         opts["per_type"] = True
     opts["ih_off"] = str(ih_off)
+    if fp32:
+        opts["fp32"] = True
     if backend == "network":
         opts.update({
             "network": network,
@@ -1577,6 +1593,8 @@ def _train_opts_for_sidecar(
         record["per_type"] = True
     if "ih_off" in opts:
         record["ih_off"] = str(opts["ih_off"])
+    if opts.get("fp32"):
+        record["fp32"] = True
     return record
 
 
@@ -1591,9 +1609,10 @@ def _make_session(
     dev=None,
     train_opts_record=None,
     schema: Optional[list] = None,
+    sim_dtype=SIM_DTYPE_DEFAULT,
 ) -> TrainSession:
     dev_ref = dev or active_device()
-    seq = (dev_ref == "cpu") if sequential is None else bool(sequential)
+    seq = False if sequential is None else bool(sequential)
     if train_opts_record is not None:
         train_opts_record["sequential"] = bool(seq)
     ih_off = IH_OFF_DEFAULT
@@ -1614,6 +1633,7 @@ def _make_session(
         cost_weights=expand_cost_weights(cost_weights),
         sequential=bool(seq),
         device=dev_ref,
+        sim_dtype=sim_dtype,
         train_opts=train_opts_record,
     )
 
@@ -1632,12 +1652,14 @@ def open_session(
     if bad:
         raise ValueError(f"unknown target(s) {bad!r} (expected {'|'.join(CLI_TARGET_NAMES)})")
     dev = opts.get("dev") or active_device()
+    sim_dtype = sim_dtype_from_fp32(bool(opts.get("fp32", False)))
 
     if backend_name == "borst":
-        model_backend = model_backend or borst_backend(dev)
+        model_backend = model_backend or borst_backend(dev, sim_dtype=sim_dtype)
         ctx = _TrainBindCtx(
             model_backend=model_backend,
             dev=dev,
+            sim_dtype=sim_dtype,
             tile_bright_stimulus_opts=opts.get("tile_bright_stimulus_opts"),
             tile_dark_stimulus_opts=opts.get("tile_dark_stimulus_opts"),
             moving_bar_bright_stimulus_opts=opts.get("moving_bar_bright_stimulus_opts"),
@@ -1682,6 +1704,7 @@ def open_session(
             dev=dev,
             train_opts_record=record,
             schema=schema,
+            sim_dtype=sim_dtype,
         )
         print(
             f"Borst targets: {'+'.join(target_list)}  "
@@ -1694,14 +1717,23 @@ def open_session(
 
     C = opts.get("network")
     if C is None:
-        raise ValueError("open_session(network) requires opts['network']")
+        nj = opts.get("network_json")
+        if not nj:
+            raise ValueError("open_session(network) requires opts['network'] or network_json")
+        from network.construction import load_network
+        C = load_network(
+            nj, device=dev,
+            exc_synweight=exc_synweight, inh_synweight=inh_synweight,
+            dtype=sim_dtype,
+        )
     if model_backend is None:
-        model_backend = _network_backend_from_connectome(C)
+        model_backend = _network_backend_from_connectome(C, sim_dtype=sim_dtype)
     elif model_backend.network is not C:
         raise ValueError("model_backend.network must be opts['network']")
     ctx = _TrainBindCtx(
         model_backend=model_backend,
         dev=dev,
+        sim_dtype=sim_dtype,
         tile_bright_stimulus_opts=opts.get("tile_bright_stimulus_opts"),
         tile_dark_stimulus_opts=opts.get("tile_dark_stimulus_opts"),
         moving_bar_bright_stimulus_opts=opts.get("moving_bar_bright_stimulus_opts"),
@@ -1736,6 +1768,7 @@ def open_session(
         dev=dev,
         train_opts_record=record,
         schema=schema,
+        sim_dtype=sim_dtype,
     )
 
 
@@ -1750,8 +1783,9 @@ def open_session_from_opts(opts: dict, model_type: str, **kwargs) -> TrainSessio
             raise ValueError("train_opts with backend=network requires network_json")
         if not opts.get("target_list"):
             raise ValueError("train_opts requires target_list")
+        sim_dtype = sim_dtype_from_fp32(bool(opts.get("fp32", False)))
         mb = load_network_backend(
-            nj, dev=opts.get("dev") or active_device(),
+            nj, dev=opts.get("dev") or active_device(), sim_dtype=sim_dtype,
         )
         opts["network"] = mb.network
         kwargs.setdefault("model_backend", mb)
@@ -1942,7 +1976,7 @@ def _run_conductance_full(session: TrainSession, p, sig, return_ref=False):
     B = sig.shape[0]
     t_end = sig.shape[1]
     dev = backend.conn.node_type.device
-    u_on = u_off = torch.zeros((B, backend.n_units), dtype=torch.float64, device=dev)
+    u_on = u_off = torch.zeros((B, backend.n_units), dtype=session.sim_dtype, device=dev)
     Vm = backend.e_leak.expand(B, backend.n_units).clone()
     for t in range(1, min(t_on, t_end)):
         Vm, u_on, u_off = update_Vm(
@@ -1992,14 +2026,14 @@ def _readout_model_traces_pack(model_full, pack: TargetPack):
     )
 
 
-def out_scale_for_units(p, unit_index, backend: ModelBackend):
+def out_scale_for_units(p, unit_index, backend: ModelBackend, *, sim_dtype=SIM_DTYPE_DEFAULT):
     """Per-unit ``out_scale`` using the same indexing as ``_pack_out_scale``."""
     os_param = p.get('out_scale', 1.0)
     n = int(unit_index.shape[0])
     dev = unit_index.device
     if not torch.is_tensor(os_param) or os_param.dim() == 0:
         val = float(os_param if not torch.is_tensor(os_param) else os_param.item())
-        return torch.full((n,), val, dtype=torch.float64, device=dev)
+        return torch.full((n,), val, dtype=sim_dtype, device=dev)
     if backend.network is not None:
         ci = backend.network.node_type[unit_index]
     else:
@@ -2019,9 +2053,9 @@ def expand_plot_traces(raw, scale, mt, t_on_step=None):
     return trace
 
 
-def _pack_out_scale(p, pack: TargetPack, backend: ModelBackend):
+def _pack_out_scale(p, pack: TargetPack, backend: ModelBackend, session: TrainSession):
     """Per-cost-row output scale from schema ``out_scale`` (single source of truth)."""
-    return out_scale_for_units(p, pack.readout_unit, backend)
+    return out_scale_for_units(p, pack.readout_unit, backend, sim_dtype=session.sim_dtype)
 
 
 def _run_adaptive(p, session: TrainSession, neuron_index=None, return_ref=False, sig=None, pack=None):
@@ -2127,7 +2161,7 @@ def _pack_model_readout(p, pack: TargetPack, session: TrainSession, batch_idx=No
 def _subgroup_power(weight, data):
     power = torch.sum(weight[:, None] * data ** 2)
     if float(power) == 0.0:
-        power = torch.tensor(1.0, dtype=torch.float64, device=data.device)
+        power = torch.tensor(1.0, dtype=data.dtype, device=data.device)
     return power
 
 
@@ -2244,7 +2278,7 @@ def _pack_for_active_cost(
 
 
 def _pack_cost_forward(p, pack: TargetPack, session: TrainSession, batch_idx=None):
-    scale = _pack_out_scale(p, pack, session.backend)
+    scale = _pack_out_scale(p, pack, session.backend, session)
     pd_nd = pack.cost_pd_nd
     if batch_idx is not None:
         mask = pack.readout_batch == int(batch_idx)
@@ -2278,7 +2312,7 @@ def _pack_cost_parts_from_params(p, pack: TargetPack, session: TrainSession, bat
             continue
         mask = pd_nd == pd_nd_idx
         if not bool(mask.any()):
-            out[key] = torch.zeros((), dtype=torch.float64, device=dev)
+            out[key] = torch.zeros((), dtype=session.sim_dtype, device=dev)
             continue
         power = _subgroup_power(weight[mask], data[mask])
         out[key] = _pack_cost_mse(
@@ -2309,7 +2343,7 @@ def _pack_cost_parts_for_pack(z, pack: TargetPack, session: TrainSession, batch_
 def _pack_cost_part(z, pack: TargetPack, session: TrainSession, batch_idx=None):
     parts = _pack_cost_parts_for_pack(z, pack, session, batch_idx)
     if not parts:
-        return torch.zeros((), dtype=torch.float64, device=session.device)
+        return torch.zeros((), dtype=session.sim_dtype, device=session.device)
     return sum(parts.values())
 
 
@@ -2325,7 +2359,7 @@ def calc_cost_parts(z, session: TrainSession) -> Dict[str, torch.Tensor]:
     else:
         p = assign_params(z, schema, session.backend)
     parts: Dict[str, torch.Tensor] = {}
-    zero = torch.zeros((), dtype=torch.float64, device=session.device)
+    zero = torch.zeros((), dtype=session.sim_dtype, device=session.device)
     for _name, pack in session.targets.items():
         if not _pack_has_active_cost(pack, session):
             continue
@@ -2355,7 +2389,7 @@ def calc_cost_parts(z, session: TrainSession) -> Dict[str, torch.Tensor]:
 
 
 def _weighted_cost_from_parts(parts: Dict[str, torch.Tensor], session: TrainSession):
-    total = torch.zeros((), dtype=torch.float64, device=session.device)
+    total = torch.zeros((), dtype=session.sim_dtype, device=session.device)
     for name, part in parts.items():
         w = float(session.cost_weights.get(name, 1.0))
         total = total + w * part
@@ -2365,14 +2399,14 @@ def _weighted_cost_from_parts(parts: Dict[str, torch.Tensor], session: TrainSess
 def calc_cost(z, session: TrainSession):
     return _weighted_cost_from_parts(calc_cost_parts(z, session), session)
 
-def schema_bounds(schema):
-    zb = torch.zeros((schema_nparams(schema), 2), dtype=torch.float64)
+def schema_bounds(schema, sim_dtype=SIM_DTYPE_DEFAULT):
+    zb = torch.zeros((schema_nparams(schema), 2), dtype=sim_dtype)
     for seg, start, stop in schema_segments(schema):
         if stop > start:                       # skip fixed (0 trainable rows)
-            zb[start:stop] = torch.tensor([seg['lo'], seg['hi']], dtype=torch.float64)
+            zb[start:stop] = torch.tensor([seg['lo'], seg['hi']], dtype=sim_dtype)
     return zb
 
-def schema_guess(schema):
+def schema_guess(schema, sim_dtype=SIM_DTYPE_DEFAULT):
     z = np.zeros(schema_nparams(schema))
     for seg, start, stop in schema_segments(schema):
         n = stop - start
@@ -2382,17 +2416,16 @@ def schema_guess(schema):
         if seg_mode(seg) == 'individual':
             for j in seg.get('zero', []):      # lamina-local indices (see IH_GMAX_ZERO_TYPES)
                 z[start + j] = 0.0
-    return torch.tensor(z, dtype=torch.float64).to(active_device())
+    return torch.tensor(z, dtype=sim_dtype).to(active_device())
 
 def guess_initial_params(session: TrainSession):
-    return schema_guess(list(session.schema))
+    return schema_guess(list(session.schema), session.sim_dtype)
 
 
-def _float_cost_parts(parts_fn, z, target_order=None):
-    if parts_fn is None:
+def _float_parts_dict(parts: Optional[Dict[str, torch.Tensor]], target_order=None):
+    if not parts:
         return None
-    raw = parts_fn(z)
-    out = {k: float(v.item() if torch.is_tensor(v) else v) for k, v in raw.items()}
+    out = {k: float(v.item() if torch.is_tensor(v) else v) for k, v in parts.items()}
     if target_order:
         return {k: out[k] for k in target_order if k in out}
     return out
@@ -2405,7 +2438,7 @@ def _fmt_cost_parts(parts):
 
 
 def gradient_network(z, lr=0.0001, cost_fn=None, n_steps=100, device="cpu", z_bounds=None,
-                     cost_log=None, step_log=None, parts_fn=None, target_order=None):
+                     cost_log=None, step_log=None, float_last_parts=None, target_order=None):
     
     a = time.time()
 
@@ -2418,7 +2451,8 @@ def gradient_network(z, lr=0.0001, cost_fn=None, n_steps=100, device="cpu", z_bo
     best_z = z.clone().detach()
     
     initial_cost = 1.0*cost
-    initial_parts = _float_cost_parts(parts_fn, z, target_order)
+    initial_parts = float_last_parts(target_order) if float_last_parts else None
+    best_parts = initial_parts
 
     progress_bar = tqdm(range(n_steps), desc=f'Cost: {cost:.4f}')
 
@@ -2432,6 +2466,8 @@ def gradient_network(z, lr=0.0001, cost_fn=None, n_steps=100, device="cpu", z_bo
             
             best_cost = cost.item()
             best_z = z.clone().detach()
+            if float_last_parts is not None:
+                best_parts = float_last_parts(target_order)
         
         if cost_log is not None:
             cost_log.append(cost.item())
@@ -2448,20 +2484,18 @@ def gradient_network(z, lr=0.0001, cost_fn=None, n_steps=100, device="cpu", z_bo
         progress_bar.set_description(f'Cost: {cost.item():.4f}')
 
     cost = cost_fn(z)  
+    final_parts = float_last_parts(target_order) if float_last_parts else None
     
     if cost.item() < best_cost:
         
         best_cost = cost.item()
         best_z = z.clone().detach()
+        best_parts = final_parts
 
     print()
     print('Initl cost =', format(initial_cost,'.4f') + _fmt_cost_parts(initial_parts))
-    print('Final cost =', format(cost.item(),'.4f') + _fmt_cost_parts(
-        _float_cost_parts(parts_fn, z, target_order),
-    ))
-    print('Best  cost =', format(best_cost,'.4f') + _fmt_cost_parts(
-        _float_cost_parts(parts_fn, best_z, target_order),
-    ))
+    print('Final cost =', format(cost.item(),'.4f') + _fmt_cost_parts(final_parts))
+    print('Best  cost =', format(best_cost,'.4f') + _fmt_cost_parts(best_parts))
     
     b = time.time()
     
@@ -2471,20 +2505,21 @@ def gradient_network(z, lr=0.0001, cost_fn=None, n_steps=100, device="cpu", z_bo
     return best_z
 
 def train_staged(z, cost_fn, z_bounds, lrs, nsteps, cost_log=None, step_log=None,
-                 parts_fn=None, target_order=None):
+                 float_last_parts=None, target_order=None):
     # run gradient_network once per learning-rate stage, chaining the best params.
     for lr in lrs:
         z = gradient_network(z, lr=lr, n_steps=nsteps, device=active_device(),
                              cost_fn=cost_fn, z_bounds=z_bounds, cost_log=cost_log,
-                             step_log=step_log, parts_fn=parts_fn, target_order=target_order)
+                             step_log=step_log, float_last_parts=float_last_parts,
+                             target_order=target_order)
     return z
 
 
 def _make_step_logger(session: TrainSession):
-    """Build ``(cost_fn, target_history, log_step)`` for aligned per-step logging.
+    """Build ``(cost_fn, target_history, log_step, float_last_parts)``.
 
-  ``cost_fn`` runs ``calc_cost_parts`` once per call; ``log_step`` reuses that
-  result from the same training step (no extra forward).
+  ``cost_fn`` runs ``calc_cost_parts`` once per call; ``log_step`` and
+  ``float_last_parts`` reuse that result (no extra forward).
     """
     part_keys = session_cost_part_keys(session.target_list)
     target_history = {name: [] for name in part_keys}
@@ -2507,14 +2542,19 @@ def _make_step_logger(session: TrainSession):
                 target_history[name].append(0.0)
         return float(_last_total.item())
 
-    return cost_fn, target_history, log_step
+    def float_last_parts(target_order=None):
+        if _last_parts is None:
+            raise RuntimeError("float_last_parts called before cost_fn")
+        return _float_parts_dict(_last_parts, target_order)
+
+    return cost_fn, target_history, log_step, float_last_parts
 
 
 def do_many_runs(session: TrainSession, nofruns, nofsteps, lrs=(0.1, 0.01, 0.001)) -> TrainingResult:
     """Run ``nofruns`` independent fits; return arrays (no file I/O)."""
     schema = list(session.schema)
     n_params = schema_nparams(schema)
-    bounds = schema_bounds(schema)
+    bounds = schema_bounds(schema, session.sim_dtype)
 
     all_params = np.zeros((nofruns, n_params))
     final_costs = np.zeros(nofruns)
@@ -2530,24 +2570,24 @@ def do_many_runs(session: TrainSession, nofruns, nofsteps, lrs=(0.1, 0.01, 0.001
         print('round', i)
         print()
 
-        z = schema_guess(schema)
+        z = schema_guess(schema, session.sim_dtype)
         cost_history = []
-        cost_fn, target_history, log_step = _make_step_logger(session)
+        cost_fn, target_history, log_step, float_last_parts = _make_step_logger(session)
 
         def step_log(z):
             cost_history.append(log_step(z))
 
-        parts_fn = lambda z: calc_cost_parts(z, session)
         z_fit = train_staged(
             z, cost_fn, bounds, lrs, nofsteps,
             step_log=step_log,
-            parts_fn=parts_fn,
+            float_last_parts=float_last_parts,
             target_order=list(part_keys),
         )
 
         all_params[i] = z_fit.detach().cpu().numpy()
-        final_costs[i] = calc_cost(z_fit, session).item()
-        for name, part in calc_cost_parts(z_fit, session).items():
+        fit_parts = calc_cost_parts(z_fit, session)
+        final_costs[i] = float(_weighted_cost_from_parts(fit_parts, session).item())
+        for name, part in fit_parts.items():
             final_costs_by_target[name][i] = float(part.item())
         if final_costs[i] < best_cost:
             best_cost = final_costs[i]

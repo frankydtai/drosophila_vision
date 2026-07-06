@@ -10,6 +10,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import torch
+
 # SimulationCode root (this file's directory).
 SIMULATION_DIR = Path(__file__).resolve().parent
 # Repo root: .../drosophila_vision
@@ -30,6 +32,12 @@ FIG1_CI_NPZ = REPO_ROOT / "MatlabFunctions" / "fig1_ci_digitized.npz"
 
 # Simulation sampling interval (ms per discrete step).
 DELTAT_MS = 10.0
+
+SIM_DTYPE_DEFAULT = torch.float64
+
+
+def sim_dtype_from_fp32(fp32: bool) -> torch.dtype:
+    return torch.float32 if fp32 else SIM_DTYPE_DEFAULT
 
 # Moving-bar per-column cost window relative to bar centre.
 COST_WINDOW_BEFORE_MS = 300.0

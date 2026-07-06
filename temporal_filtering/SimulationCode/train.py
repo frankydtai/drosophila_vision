@@ -264,7 +264,7 @@ def build_session(
     model_type,
     *,
     network=None,
-    sequential=None,
+    sequential=False,
     target_list=None,
     cost_weights=None,
     cost_extent_by_target=None,
@@ -279,6 +279,7 @@ def build_session(
     param_modes=None,
     param_fixes=None,
     ih_off=fc.IH_OFF_DEFAULT,
+    fp32=False,
     pack_overrides=None,
     model_backend=None,
     schema=None,
@@ -302,18 +303,18 @@ def build_session(
     )
     if network:
         network = resolve_network(network)
-        mb = model_backend or fc.load_network_backend(network, dev=dev)
         opts = fc.make_train_opts(
             backend="network",
-            network=mb.network,
             network_json=network,
             dev=dev,
             ih_off=ih_off,
+            fp32=fp32,
             **mkw,
         )
-        model_backend = mb
     else:
-        opts = fc.make_train_opts(backend="borst", per_type=per_type, ih_off=ih_off, **mkw)
+        opts = fc.make_train_opts(
+            backend="borst", per_type=per_type, ih_off=ih_off, fp32=fp32, **mkw,
+        )
     session = fc.open_session(opts, model_type, schema=schema, model_backend=model_backend)
     if per_type:
         session = apply_per_type_schema(session)
@@ -328,7 +329,7 @@ def build_session(
 def run_training(model_type, nofruns, nofsteps, lrs, fname=None, outdir=None,
                  param_modes=None, param_fixes=None,
                  ih_off=fc.IH_OFF_DEFAULT,
-                 network=None, sequential=None,
+                 network=None, sequential=False,
                  target_list=None, cost_weights=None,
                  cost_extent_by_target=None, multi_shift_targets=None,
                  share_edges_targets=None, i_cli=None,
@@ -337,6 +338,7 @@ def run_training(model_type, nofruns, nofsteps, lrs, fname=None, outdir=None,
                  tile_bright_stimulus_opts=None,
                  tile_dark_stimulus_opts=None,
                  pack_overrides=None, model_backend=None, schema=None,
+                 fp32=False,
                  plot_ref_cubes=None, plot_ref_cubes_off=None,
                  plot_mvd_group_list=None):
     """Full training pipeline (do_many_runs + save_training_outputs + plots). Returns (fname, outdir, session)."""
@@ -361,6 +363,7 @@ def run_training(model_type, nofruns, nofsteps, lrs, fname=None, outdir=None,
         pack_overrides=pack_overrides,
         model_backend=model_backend,
         schema=schema,
+        fp32=fp32,
     )
     suffix = "" if model_type == "conductance" else f"_{model_type}"
     fname = fname or f"training{suffix or '_with_Ih'}.npy"
@@ -407,6 +410,10 @@ def add_training_arguments(parser):
     parser.add_argument("--per-type", action="store_true",
                         help="train Ih (and adaptive lamina) params per cell type "
                              "instead of shared lamina/scalar values")
+    parser.add_argument("--fp32", action="store_true",
+                        help="run simulation in float32 (default float64)")
+    parser.add_argument("--sequential", action="store_true",
+                        help="one stimulus batch per forward (default: batched forward)")
     parser.add_argument("--network", default=None, metavar="RUN",
                         help=f"connectome backend: built_network run folder under {NETWORK_DIR} "
                              f"(e.g. {DEFAULT_NETWORK_RUN}); "
@@ -579,6 +586,8 @@ def training_kwargs_from_args(
         i_cli=i_cli,
         per_type=args.per_type,
         ih_off=args.ih_off,
+        fp32=args.fp32,
+        sequential=args.sequential,
     )
 
 
