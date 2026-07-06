@@ -7,7 +7,7 @@ units on a loaded :class:`network.construction.Network`.
 
 ``build_moving_bar_signals`` returns ``signal`` with shape ``(B, T, N_units)``,
 ready to assign to ``FiveCol_MedSim_Pytorch.signal``. Default ``T`` is
-``t_on`` (0.5 s baseline) + sweep + ``T_TAIL`` (0.5 s post-stimulus baseline),
+``t_on`` (0.5 s baseline) + sweep + moving-bar tail (``MOVING_BAR_TAIL_MS`` post-sweep baseline),
 not the global Borst ``IMPULSE_MAXTIME``.
 """
 from __future__ import annotations
@@ -278,8 +278,8 @@ def build_moving_bar_signals(
     (16 by default). Before ``t_on`` and after the sweep, all currents are
     ``i_baseline``; during the sweep they follow bar coverage (bright/dark).
 
-    Default ``maxtime`` is ``t_on`` (0.5 s baseline) + sweep + ``T_TAIL``
-    (0.5 s post-stimulus baseline) via :func:`visual_stimulus.moving_bar_stimulus.moving_bar_maxtime`,
+    Default ``maxtime`` is ``t_on`` (0.5 s baseline) + sweep + tail
+    (``MOVING_BAR_TAIL_MS`` via :func:`visual_stimulus.moving_bar_stimulus.moving_bar_maxtime`),
     not the global ``IMPULSE_MAXTIME`` used by Borst training. Pass an explicit
     ``maxtime`` to override.
 

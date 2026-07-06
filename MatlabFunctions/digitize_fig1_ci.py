@@ -28,9 +28,8 @@ DEFAULT_PDF = HERE / "paper.pdf"
 DEFAULT_PAGE = 4
 DEFAULT_DPI = 400
 
-# Paper Ci/Cii x-axis: 900 ms total, bar centre at mid-panel -> -450..+450 ms.
-TIME_MIN_MS = -450.0
-TIME_MAX_MS = 450.0
+# Digitized panel x-axis span (ms); pixel frac maps to 0 .. FIG1_PANEL_SPAN_MS.
+FIG1_PANEL_SPAN_MS = 900.0
 # 10 mV scale bar ≈ 100 px on 400 dpi render (measured on w1 panels).
 PX_PER_MV = 10.0
 
@@ -179,9 +178,9 @@ def calibrate_panel(crop: np.ndarray) -> PanelCalib:
 def pixel_to_time_ms(x_crop: float, calib: PanelCalib) -> float:
     span = calib.trace_right - calib.trace_left
     if span <= 0:
-        return TIME_MIN_MS
+        return 0.0
     frac = (x_crop - calib.trace_left) / span
-    return TIME_MIN_MS + frac * (TIME_MAX_MS - TIME_MIN_MS)
+    return frac * FIG1_PANEL_SPAN_MS
 
 
 def extract_trace(
@@ -279,7 +278,7 @@ def plot_check(df: pd.DataFrame, path: Path) -> None:
         ax.set_xlabel("time (ms)")
         if col == 0:
             ax.set_ylabel("Vm (mV)")
-        ax.set_xlim(TIME_MIN_MS, TIME_MAX_MS)
+        ax.set_xlim(0.0, FIG1_PANEL_SPAN_MS)
         ax.set_ylim(ylo, yhi)
         ax.legend(fontsize=7)
     fig.suptitle(f"Digitized Figure 1 Ci/Cii  (Vm: {ylo:.0f}..{yhi:.0f} mV)")
@@ -302,7 +301,7 @@ def save_debug(img: np.ndarray, path: Path) -> None:
                 [t, t, b, b, t], "m--", lw=1.0)
         ax.set_title(spec.key, fontsize=8)
         ax.axis("off")
-    fig.suptitle(f"Yellow=extract box, magenta=trace span ({TIME_MIN_MS:.0f}..{TIME_MAX_MS:.0f} ms)")
+    fig.suptitle(f"Yellow=extract box, magenta=trace span (0..{FIG1_PANEL_SPAN_MS:.0f} ms)")
     fig.tight_layout()
     fig.savefig(path, dpi=150)
     plt.close(fig)
@@ -344,7 +343,7 @@ def main() -> int:
     if args.debug:
         save_debug(img, args.out.with_name(args.out.name + "_debug.png"))
 
-    print(f"Wrote {n} traces -> {args.out}.csv  (time={TIME_MIN_MS:.0f}..{TIME_MAX_MS:.0f} ms)")
+    print(f"Wrote {n} traces -> {args.out}.csv  (time=0..{FIG1_PANEL_SPAN_MS:.0f} ms)")
     if not df.empty:
         peak_idx = df.groupby("trace_id")["vm_mv"].idxmax()
         print(

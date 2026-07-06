@@ -13,12 +13,12 @@ Outputs are optional: nothing is (re)generated unless you pass a flag.
     .venv/bin/python "Connectome/FAFBv783/column_location/lc_columns.py" --csv
     .venv/bin/python "Connectome/FAFBv783/column_location/lc_columns.py" --png --csv
 
-Restrict to a subset of LC types with --types; the table is then named after the
-numeric suffixes of the chosen types (e.g. LC18 LC21 LC11 LC25 -> the file
-``lc_columns_right_18_21_11_25.csv``)::
+Restrict to a subset of LC types with ``--types`` (comma-separated); the table is
+then named after the numeric suffixes of the chosen types (e.g.
+``LC18,LC21,LC11,LC25`` -> the file ``lc_columns_right_18_21_11_25.csv``)::
 
     .venv/bin/python "Connectome/FAFBv783/column_location/lc_columns.py" \
-        --csv --types LC18 LC21 LC11 LC25
+        --csv --types LC18,LC21,LC11,LC25
 """
 
 from __future__ import annotations
@@ -338,14 +338,22 @@ def main(argv=None) -> None:
     parser.add_argument("--png", action="store_true", help="regenerate the 10-panel figure")
     parser.add_argument("--csv", action="store_true", help="regenerate the per-column table")
     parser.add_argument(
-        "--types", nargs="+", metavar="LC", default=None,
-        help="restrict the table to these LC types (default: all 10). The CSV is "
-             "named after the numeric suffixes, e.g. LC18 LC21 -> "
-             "lc_columns_right_18_21.csv",
+        "--types",
+        default="",
+        metavar="LC,...",
+        help="comma-separated LC types (default: all 10). The CSV is named after "
+             "the numeric suffixes, e.g. LC18,LC21 -> lc_columns_right_18_21.csv",
     )
     args = parser.parse_args(argv)
 
-    lc_types = args.types if args.types else LC_TYPES
+    requested = connectome_io.parse_comma_list(args.types)
+    if not requested:
+        lc_types = LC_TYPES
+    else:
+        bad = [t for t in requested if t not in LC_TYPES]
+        if bad:
+            raise SystemExit(f"unknown LC type(s) {bad!r} (expected {LC_TYPES})")
+        lc_types = requested
 
     if not (args.png or args.csv):
         report_unresolved(lc_types)

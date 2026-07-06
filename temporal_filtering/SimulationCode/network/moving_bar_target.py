@@ -2,7 +2,8 @@
 """Gruntman moving-bar training target: fig1_ci traces + per-column ``t_center``.
 
 ``build_moving_bar_target`` returns batched moving-bar ``signal``, per-readout
-``data`` on a fixed ``COST_WINDOW_STEPS`` grid aligned to ``t_center ± 0.45 s``,
+``data`` on the cost-window grid aligned to
+``t_center - COST_WINDOW_BEFORE_MS .. t_center + COST_WINDOW_AFTER_MS``,
 and ``cost_t0`` for :mod:`FiveCol_MedSim_Pytorch` windowed cost.
 """
 from __future__ import annotations
@@ -24,9 +25,13 @@ from t4_t5_preference import (
     normalize_side,
 )
 from training_config import (
-    COST_HALF_WINDOW_STEPS,
-    COST_WINDOW_STEPS,
+    COST_WINDOW_AFTER_MS,
+    COST_WINDOW_BEFORE_MS,
+    DELTAT_MS,
     FIG1_CI_NPZ,
+    cost_window_after_steps,
+    cost_window_before_steps,
+    cost_window_steps,
 )
 from visual_stimulus.moving_bar_stimulus import (
     HexColumn,
@@ -51,7 +56,7 @@ def _pd_nd_index(pd_nd: str) -> int:
 @dataclass
 class MovingBarTarget:
     signal: torch.Tensor          # (B, T, N)
-    data: torch.Tensor            # (n_cost, COST_WINDOW_STEPS)
+    data: torch.Tensor            # (n_cost, cost_window_steps)
     power: torch.Tensor           # scalar
     cost_weight: torch.Tensor     # (n_cost,)
     cost_t0: torch.Tensor         # (n_cost,) absolute simulation step
@@ -71,15 +76,20 @@ def _fig1_trace_ids(npz_path: Path) -> List[str]:
 def load_fig1_trace(
     trace_id: str,
     npz_path: Path = FIG1_CI_NPZ,
-    n_steps: int = COST_WINDOW_STEPS,
-    half_window_steps: int = COST_HALF_WINDOW_STEPS,
-    deltat_ms: float = 10.0,
+    deltat_ms: float = DELTAT_MS,
 ) -> np.ndarray:
-    """Resample one fig1 trace to ``n_steps`` centred at 0 ms (10 ms spacing).
+    """Resample one fig1 trace onto the moving-bar cost window.
 
-    Digitized ``time_ms`` in the npz is -450..+450 ms relative to bar centre.
+    Npz ``time_ms`` is the digitized panel axis (0 .. 900 ms).
+    Cost-window index ``i`` reads npz at ``i * deltat_ms`` (``i=0`` → 0 ms,
+    last index → ``before_ms + after_ms``).
     """
-    key = f"{trace_id}|{n_steps}|{half_window_steps}|{deltat_ms}"
+    n_steps = cost_window_steps(deltat_ms=deltat_ms)
+    before_steps = cost_window_before_steps(deltat_ms=deltat_ms)
+    key = (
+        f"{trace_id}|{n_steps}|{before_steps}|{deltat_ms}"
+        f"|{COST_WINDOW_BEFORE_MS}|{COST_WINDOW_AFTER_MS}"
+    )
     if key in _TRACE_CACHE:
         return _TRACE_CACHE[key]
 
@@ -90,21 +100,19 @@ def load_fig1_trace(
         time_ms = np.asarray(d[t_key], dtype=np.float64)
         vm_mv = np.asarray(d[v_key], dtype=np.float64)
 
-    rel_ms = (np.arange(n_steps, dtype=np.float64) - half_window_steps) * deltat_ms
-    trace = np.interp(rel_ms, time_ms, vm_mv, left=vm_mv[0], right=vm_mv[-1])
+    query_ms = np.arange(n_steps, dtype=np.float64) * deltat_ms
+    trace = np.interp(query_ms, time_ms, vm_mv, left=vm_mv[0], right=vm_mv[-1])
     _TRACE_CACHE[key] = trace
     return trace
 
 
 def load_fig1_traces(
     npz_path: Path = FIG1_CI_NPZ,
-    n_steps: int = COST_WINDOW_STEPS,
-    half_window_steps: int = COST_HALF_WINDOW_STEPS,
-    deltat_ms: float = 10.0,
+    deltat_ms: float = DELTAT_MS,
 ) -> Dict[str, np.ndarray]:
     """All fig1 traces resampled to the per-column training window."""
     return {
-        tid: load_fig1_trace(tid, npz_path, n_steps, half_window_steps, deltat_ms)
+        tid: load_fig1_trace(tid, npz_path, deltat_ms)
         for tid in _fig1_trace_ids(npz_path)
     }
 
@@ -154,11 +162,28 @@ def _moving_bar_peak_kwargs(
     return kw
 
 
+def _present_readout_subtypes(
+    readout_subtypes: Optional[Sequence[str]],
+    default_pool: Sequence[str],
+    available: Sequence[str],
+    *,
+    context: str,
+) -> List[str]:
+    pool = tuple(readout_subtypes) if readout_subtypes is not None else tuple(default_pool)
+    present = [st for st in pool if st in set(available)]
+    if not present:
+        raise ValueError(
+            f"{context} has no moving-bar readout subtypes "
+            f"(requested {list(pool)!r})",
+        )
+    return present
+
+
 def build_moving_bar_target(
     C,
     device: Optional[str] = None,
     t_on: int = T_ON,
-    deltat_ms: float = 10.0,
+    deltat_ms: float = DELTAT_MS,
     fig1_path: Path = FIG1_CI_NPZ,
     use_cache: bool = True,
     cost_extent: Optional[int] = None,
@@ -166,6 +191,7 @@ def build_moving_bar_target(
     i_bright_bar: Optional[float] = None,
     i_dark_bar: Optional[float] = None,
     contrasts: Sequence[str] = ("bright", "dark"),
+    readout_subtypes: Optional[Sequence[str]] = None,
 ) -> MovingBarTarget:
     """Build moving-bar stimulus + fig1 targets for sti columns × T4/T5 subtypes.
 
@@ -190,10 +216,14 @@ def build_moving_bar_target(
     maxtime = int(stim.info["maxtime"])
     field_deg = stim.info["field_deg"]
     fig1 = load_fig1_traces(fig1_path, deltat_ms=deltat_ms)
+    before_steps = cost_window_before_steps(deltat_ms=deltat_ms)
+    after_steps = cost_window_after_steps(deltat_ms=deltat_ms)
+    win_steps = cost_window_steps(deltat_ms=deltat_ms)
 
-    present = [st for st in READOUT_SUBTYPES if st in set(C.type_names)]
-    if not present:
-        raise ValueError("network has no T4a–d / T5a–d subtypes for moving-bar target")
+    present = _present_readout_subtypes(
+        readout_subtypes, READOUT_SUBTYPES, C.type_names,
+        context="network",
+    )
 
     type_names = unit_type_names(C)
     cols = cost_sti_columns(C, cost_extent=cost_extent)
@@ -206,8 +236,8 @@ def build_moving_bar_target(
             t_center = column_bar_center_step(
                 col.x, col.y, spec, field_deg, t_on=t_on, deltat_ms=deltat_ms,
             )
-            t0 = t_center - COST_HALF_WINDOW_STEPS
-            if t0 < 0 or t_center + COST_HALF_WINDOW_STEPS > maxtime:
+            t0 = t_center - before_steps
+            if t0 < 0 or t_center + after_steps > maxtime:
                 raise ValueError(
                     f"cost window out of range for column ({col.u},{col.v}) "
                     f"spec={spec.name}: t_center={t_center}, maxtime={maxtime}"
@@ -260,7 +290,10 @@ def build_moving_bar_target(
         "present_subtypes": present,
         "skipped_orthogonal": skipped_orthogonal,
         "fig1_path": str(fig1_path),
-        "cost_window_steps": COST_WINDOW_STEPS,
+        "cost_window_before_ms": COST_WINDOW_BEFORE_MS,
+        "cost_window_after_ms": COST_WINDOW_AFTER_MS,
+        "cost_window_steps": win_steps,
+        "deltat_ms": float(deltat_ms),
     }
     return MovingBarTarget(
         signal=stim.signal,
@@ -280,7 +313,7 @@ def build_moving_bar_target(
 def build_borst_moving_bar_target(
     device: Optional[str] = None,
     t_on: int = T_ON,
-    deltat_ms: float = 10.0,
+    deltat_ms: float = DELTAT_MS,
     fig1_path: Path = FIG1_CI_NPZ,
     readout_subtypes: Optional[Sequence[str]] = None,
     i_baseline: float = I_BASELINE,
@@ -296,13 +329,13 @@ def build_borst_moving_bar_target(
     maxtime = moving_bar_maxtime(specs, field_deg, t_on=t_on, deltat_ms=deltat_ms)
     sweep_end = moving_bar_sweep_end_step(specs, field_deg, t_on=t_on, deltat_ms=deltat_ms)
     fig1 = load_fig1_traces(fig1_path, deltat_ms=deltat_ms)
-    subtype_pool = tuple(readout_subtypes) if readout_subtypes is not None else BORST_READOUT_SUBTYPES
-    present = [st for st in subtype_pool if st in set(ml.ctype.tolist())]
-    if not present:
-        raise ValueError(
-            f"Borst path has no moving-bar readout subtypes in ctype "
-            f"(requested {list(subtype_pool)!r})",
-        )
+    before_steps = cost_window_before_steps(deltat_ms=deltat_ms)
+    after_steps = cost_window_after_steps(deltat_ms=deltat_ms)
+    win_steps = cost_window_steps(deltat_ms=deltat_ms)
+    present = _present_readout_subtypes(
+        readout_subtypes, BORST_READOUT_SUBTYPES, ml.ctype.tolist(),
+        context="Borst",
+    )
 
     contrast_set = frozenset(contrasts)
     col_kw = dict(
@@ -332,8 +365,8 @@ def build_borst_moving_bar_target(
             t_center = column_bar_center_step(
                 col.x, col.y, spec, field_deg, t_on=t_on, deltat_ms=deltat_ms,
             )
-            t0 = t_center - COST_HALF_WINDOW_STEPS
-            if t0 < 0 or t_center + COST_HALF_WINDOW_STEPS > maxtime:
+            t0 = t_center - before_steps
+            if t0 < 0 or t_center + after_steps > maxtime:
                 raise ValueError(
                     f"cost window out of range for Borst column {col_id} "
                     f"spec={spec.name}: t_center={t_center}, maxtime={maxtime}"
@@ -379,7 +412,10 @@ def build_borst_moving_bar_target(
         "present_subtypes": present,
         "skipped_orthogonal": skipped_orthogonal,
         "fig1_path": str(fig1_path),
-        "cost_window_steps": COST_WINDOW_STEPS,
+        "cost_window_before_ms": COST_WINDOW_BEFORE_MS,
+        "cost_window_after_ms": COST_WINDOW_AFTER_MS,
+        "cost_window_steps": win_steps,
+        "deltat_ms": float(deltat_ms),
         "maxtime": maxtime,
         "t_on": t_on,
         "field_deg": field_deg,

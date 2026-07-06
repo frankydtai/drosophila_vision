@@ -13,14 +13,15 @@ Direction matters and depends on the neuron's role:
   - ``pre``   : locate by *upstream* sources' columns. Use for output/projection
                 neurons that read out of the lattice (e.g. LC/VS <- its pre columns).
 
-Cell types are positional (like cell_syn.py); direction is a ``--post`` flag
-(default ``pre``, by upstream sources). Outputs go to the ``column_location/``
-subfolder as ``<tag>_<side>_<direction>.csv`` (e.g. ``r1_6_left_post.csv``).
+Cell types are one positional comma-separated token (like cell_syn.py); direction
+is a ``--post`` flag (default ``pre``, by upstream sources). Outputs go to the
+``column_location/`` subfolder as ``<tag>_<side>_<direction>.csv`` (e.g.
+``r1_6_left_post.csv``).
 
 Run with the project venv (defaults to R1-6, right side, pre):
 
     .venv/bin/python "Connectome/FAFBv783/column_locator.py" R1-6 --post
-    .venv/bin/python "Connectome/FAFBv783/column_locator.py" TmY11
+    .venv/bin/python "Connectome/FAFBv783/column_locator.py" TmY11,L3
 """
 
 from __future__ import annotations
@@ -207,9 +208,11 @@ def _output_name(side: str, target_types: Sequence[str], direction: str) -> str:
 def _parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Locate neurons by partner columns.")
     parser.add_argument(
-        "cell_types", nargs="*", default=list(DEFAULT_TARGET_TYPES),
-        metavar="CELL_TYPE",
-        help="Cell type(s) to locate as positional args (default: R1-6).",
+        "cell_types",
+        nargs="?",
+        default="R1-6",
+        metavar="CELL_TYPE[,CELL_TYPE...]",
+        help="Comma-separated cell types to locate (default: R1-6).",
     )
     parser.add_argument("--side", default="right", choices=["left", "right", "both"])
     parser.add_argument(
@@ -227,6 +230,9 @@ def _parse_args() -> argparse.Namespace:
 def main() -> None:
     logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
     args = _parse_args()
+    cell_types = connectome_io.parse_comma_list(args.cell_types)
+    if not cell_types:
+        raise SystemExit("cell_types must not be empty")
     direction = "post" if args.post else "pre"
     sides = ["left", "right"] if args.side == "both" else [args.side]
 
@@ -240,7 +246,7 @@ def main() -> None:
         neurons = all_neurons[all_neurons["side"] == side]
         columns = all_columns[all_columns["hemisphere"] == side]
         target_ids = set(
-            neurons[neurons["type"].isin(args.cell_types)]["root_id"].astype("int64")
+            neurons[neurons["type"].isin(cell_types)]["root_id"].astype("int64")
         )
         # Pull all edges touching the targets on the relevant side (no syn cut).
         connections = connectome_io.load_connections(keep_neuron_ids=target_ids)
@@ -263,18 +269,18 @@ def main() -> None:
             neurons=neurons,
             columns=columns,
             connections=connections,
-            target_types=args.cell_types,
+            target_types=cell_types,
             side=side,
             direction=direction,
             weight_by_syn=args.weight_by_syn,
             col_to_uv=col_to_uv,
         )
-        out_path = out_dir / _output_name(side, args.cell_types, direction)
+        out_path = out_dir / _output_name(side, cell_types, direction)
         located.to_csv(out_path, index=False)
 
         n_total = len(located)
         n_located = int(located["majority_column_id"].notna().sum())
-        print(f"\n=== locate {args.cell_types} ({side}, direction={direction}) ===")
+        print(f"\n=== locate {cell_types} ({side}, direction={direction}) ===")
         print(f"  neurons: {n_total}  located: {n_located}  unresolved: {n_total - n_located}")
         print(f"  output: {out_path}")
 

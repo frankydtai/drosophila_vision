@@ -15,7 +15,8 @@ import numpy as np
 import network_bootstrap  # noqa: F401
 
 from column_mapper import HEX_PATCH_RADIUS, hex_vertices
-from Medulla_Library import I_BASELINE, I_BRIGHT, I_DARK, T_ON, T_TAIL
+from Medulla_Library import I_BASELINE, I_BRIGHT, I_DARK, T_ON
+from training_config import DELTAT_MS, MOVING_BAR_TAIL_MS, ms_to_steps
 
 # Gruntman Fig. 1 Ci fast condition: 40 ms / 2.25 deg per LED step.
 GRUNTMAN_SPEED_DEG_S = 56.0
@@ -471,15 +472,18 @@ def moving_bar_maxtime(
     specs: Sequence[MovingBarSpec],
     field_deg: Tuple[float, float, float, float],
     t_on: int = T_ON,
-    deltat_ms: float = 10.0,
-    t_tail: int = T_TAIL,
+    deltat_ms: float = DELTAT_MS,
+    t_tail_ms: float = MOVING_BAR_TAIL_MS,
 ) -> int:
-    """Simulation length: ``t_on`` (0.5 s) + sweep + ``t_tail`` (0.5 s post-stimulus).
+    """Simulation length: ``t_on`` baseline + sweep + post-sweep tail.
+
+    ``t_tail_ms`` defaults to ``COST_WINDOW_AFTER_MS + T_TAIL_PAD_MS`` (650 ms).
 
     Returns the exclusive upper time index (``range(maxtime)``). Stimulus current
     is baseline before ``t_on`` and after the sweep; the tail holds baseline while
-    the network settles for per-column ``t_center ± 0.45 s`` training windows.
+    the network settles for per-column cost windows after the bar centre.
     """
+    t_tail = ms_to_steps(t_tail_ms, deltat_ms=deltat_ms)
     return moving_bar_sweep_end_step(specs, field_deg, t_on=t_on, deltat_ms=deltat_ms) + t_tail
 
 

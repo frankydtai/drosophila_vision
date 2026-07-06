@@ -16,6 +16,11 @@ READOUT_SUBTYPES: Tuple[str, ...] = (
     "T5a", "T5b", "T5c", "T5d",
 )
 
+READOUT_SUBTYPE_ALIASES: dict = {
+    "T4": tuple(st for st in READOUT_SUBTYPES if st.startswith("T4")),
+    "T5": tuple(st for st in READOUT_SUBTYPES if st.startswith("T5")),
+}
+
 _HORIZONTAL = frozenset({"right", "left"})
 _VERTICAL = frozenset({"up", "down"})
 # Plot / stimulus iteration order (matches gruntman_moving_bar_specs).
@@ -33,6 +38,28 @@ class MotionPreference:
 
     pd_nd: str  # "PD" | "ND"
     pc_nc: str  # "PC" | "NC"
+
+
+def expand_readout_subtypes(names: Sequence[str]) -> Tuple[str, ...]:
+    """Expand ``T4`` / ``T5`` aliases to concrete moving-bar readout subtypes."""
+    if not names:
+        raise ValueError("readout_subtypes must not be empty")
+    out: list = []
+    seen: set = set()
+    for raw in names:
+        key = str(raw).strip()
+        if key in READOUT_SUBTYPE_ALIASES:
+            pool = READOUT_SUBTYPE_ALIASES[key]
+        elif key in READOUT_SUBTYPES:
+            pool = (key,)
+        else:
+            valid = ", ".join((*READOUT_SUBTYPE_ALIASES, *READOUT_SUBTYPES))
+            raise ValueError(f"unknown readout subtype {key!r} (expected {valid})")
+        for st in pool:
+            if st not in seen:
+                seen.add(st)
+                out.append(st)
+    return tuple(out)
 
 
 def normalize_side(side: str) -> str:

@@ -36,6 +36,11 @@ BORST_MULTI_COL_M = BORST_CIRCUITS_DIR / "multi_colM.npy"
 BORST_CTYPE_NPY = BORST_CIRCUITS_DIR / "ctype.npy"
 
 
+def parse_comma_list(text: str) -> List[str]:
+    """Split a comma-separated token list (empty string → ``[]``)."""
+    return [t.strip() for t in str(text or "").split(",") if t.strip()]
+
+
 def network_json_path(side: str, min_neuron_count: int = 1) -> Path:
     """Path to a built connectome ``network.json`` (default: full FAFB per side)."""
     return NETWORK_DIR / f"{side}_min_neuron{min_neuron_count}" / "network.json"

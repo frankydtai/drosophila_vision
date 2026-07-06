@@ -16,7 +16,6 @@ from plot.utils import (
     plot_timecourse,
     save_figure,
     sem_from_traces,
-    ylim_for_keys,
 )
 from FiveCol_MedSim_Pytorch import t_on
 from network.moving_bar_target import _borst_hex_columns
@@ -27,12 +26,36 @@ from t4_t5_preference import (
     motion_preference,
     normalize_side,
 )
-from training_config import COST_HALF_WINDOW_STEPS, COST_WINDOW_STEPS
+from training_config import (
+    COST_WINDOW_AFTER_MS,
+    COST_WINDOW_BEFORE_MS,
+    DELTAT_MS,
+    cost_window_before_steps,
+    cost_window_steps,
+)
+from network.tiling import tile_stimulus_batches, tiling_from_stimulus_opts, unit_ring_layout
 from visual_stimulus.moving_bar_stimulus import column_bar_center_step, field_bounds, gruntman_moving_bar_specs
 
-MOVING_BAR_GRID_DPI = 100
-MOVING_BAR_MVD_DPI = 100
-_MOVING_BAR_T = np.arange(COST_WINDOW_STEPS)
+MOVING_BAR_DPI = 100
+
+
+def _moving_bar_t_grid(deltat_ms: float = DELTAT_MS):
+    return np.arange(cost_window_steps(deltat_ms=deltat_ms))
+
+
+def _moving_bar_figure(nrows, ncols):
+    fig, axes = plt.subplots(
+        nrows, ncols, figsize=(2.2 * ncols, 1.8 * nrows), sharex=True,
+    )
+    if nrows == 1:
+        axes = np.asarray([axes])
+    if ncols == 1:
+        axes = axes[:, None]
+    return fig, axes
+
+
+def _moving_bar_figure_adjust(fig):
+    fig.subplots_adjust(top=0.92, bottom=0.08, hspace=0.45, wspace=0.35)
 
 
 def _bar_target(session):
@@ -96,9 +119,11 @@ def _scale_model_full(model_full, p, backend):
     return model_full * scale[np.newaxis, np.newaxis, :]
 
 
-def _extract_moving_bar_windows(model_full, t0_bn):
+def _extract_moving_bar_windows(model_full, t0_bn, deltat_ms=None):
+    if deltat_ms is None:
+        deltat_ms = fc.deltat
     n_batch, t_len, n_units = model_full.shape
-    win = np.arange(COST_WINDOW_STEPS, dtype=np.int64)
+    win = np.arange(cost_window_steps(deltat_ms=deltat_ms), dtype=np.int64)
     t_rel = t0_bn[:, :, None].astype(np.int64) - int(t_on) + win[None, None, :]
     t_max = t_len - 1
     pre = t_rel < 0
@@ -160,7 +185,7 @@ def _moving_bar_t0_grid_network(C, specs, cost_extent):
             t_center = column_bar_center_step(
                 c.x, c.y, spec, field_deg, t_on=t_on, deltat_ms=fc.deltat,
             )
-            t0_map[(bi, int(c.u), int(c.v))] = int(t_center - COST_HALF_WINDOW_STEPS)
+            t0_map[(bi, int(c.u), int(c.v))] = int(t_center - cost_window_before_steps(deltat_ms=fc.deltat))
     types = list(C.type_names)
     type_ids = _network_type_ids(C)
     t0_bn = _moving_bar_t0_grid(C, cols, len(specs), t0_map)
@@ -178,7 +203,7 @@ def _moving_bar_t0_grid_borst(session, specs):
             t_center = column_bar_center_step(
                 col.x, col.y, spec, field_deg, t_on=t_on, deltat_ms=fc.deltat,
             )
-            t0 = int(t_center - COST_HALF_WINDOW_STEPS)
+            t0 = int(t_center - cost_window_before_steps(deltat_ms=fc.deltat))
             t0_bn[bi, ml.column_slice(col_id)] = t0
     type_ids = _borst_type_ids(session)
     types = list(ml.ctype.tolist())
@@ -198,16 +223,22 @@ def _compute_moving_bar_all_type_traces(session, z, target=None):
     spec_names = [s.name for s in specs]
     single_column = suppress_cost_sem(session, target)
     cost_extent = pack.cost_extent
+    vm_ref_np = vm_ref[0].cpu().numpy()
     C = session.backend.network
     if C is not None:
         types, type_ids, t0_bn, side = _moving_bar_t0_grid_network(C, specs, cost_extent)
+        type_names = list(C.type_names)
+        opts = dict((session.train_opts or {}).get(f"{target}_stimulus_opts") or {})
+        batches = tile_stimulus_batches(tiling_from_stimulus_opts(C, opts))
+        batch_idx, unit_idx, radius, type_idx = unit_ring_layout(C, batches)
         baselines = baselines_for_types(
-            pack, session.backend, vm_ref[0].cpu().numpy(), types, type_ids, types,
+            pack, session.backend, vm_ref_np, types, type_ids, type_names,
+            ring_layout=(batch_idx, unit_idx, type_idx, radius),
         )
     else:
         types, type_ids, t0_bn, side = _moving_bar_t0_grid_borst(session, specs)
         baselines = baselines_for_types(
-            pack, session.backend, vm_ref[0].cpu().numpy(), types, type_ids, types,
+            pack, session.backend, vm_ref_np, types, type_ids, types,
         )
     windows = _extract_moving_bar_windows(model_full, t0_bn)
     model_mean, model_sem = _aggregate_moving_bar_traces(
@@ -250,15 +281,28 @@ def _moving_bar_scope_label(session):
     return f'avg over {ml.nofcols} Borst columns'
 
 
-def _set_moving_bar_xlim(ax):
-    ax.set_xlim(0, COST_WINDOW_STEPS)
+def _moving_bar_window_label() -> str:
+    before_s = COST_WINDOW_BEFORE_MS / 1000.0
+    after_s = COST_WINDOW_AFTER_MS / 1000.0
+    return f't_center - {before_s:g} .. + {after_s:g} s'
 
 
-def _set_moving_bar_xticks(ax):
-    mid = COST_HALF_WINDOW_STEPS
-    end = COST_WINDOW_STEPS
+def _set_moving_bar_xlim(ax, deltat_ms=None):
+    if deltat_ms is None:
+        deltat_ms = fc.deltat
+    ax.set_xlim(0, cost_window_steps(deltat_ms=deltat_ms) - 1)
+
+
+def _set_moving_bar_xticks(ax, deltat_ms=None):
+    if deltat_ms is None:
+        deltat_ms = fc.deltat
+    mid = cost_window_before_steps(deltat_ms=deltat_ms)
+    end = cost_window_steps(deltat_ms=deltat_ms) - 1
     ax.set_xticks([0, mid, end])
-    ax.set_xticklabels(['-0.45', '0', '0.45'], fontsize=6)
+    ax.set_xticklabels(
+        [f'{-COST_WINDOW_BEFORE_MS / 1000.0:g}', '0', f'{COST_WINDOW_AFTER_MS / 1000.0:g}'],
+        fontsize=6,
+    )
 
 
 def _moving_bar_spec_linestyle(side, subtype, sname):
@@ -306,7 +350,7 @@ def _plot_moving_bar_cell(
             _set_moving_bar_xticks(ax)
 
     plot_timecourse(
-        ax, _MOVING_BAR_T, model_trace,
+        ax, _moving_bar_t_grid(fc.deltat), model_trace,
         data=data_trace,
         sem=sem_trace,
         show_sem=show_sem and sem_trace is not None and np.any(sem_trace),
@@ -340,13 +384,7 @@ def plot_moving_bar_data(session, z, path, session_off=None, title=None):
     else:
         ncols = ncols_half
     nrows = len(readout_subtypes)
-    fig, axes = plt.subplots(
-        nrows, ncols, figsize=(2.2 * ncols, 1.8 * nrows), sharex=True,
-    )
-    if nrows == 1:
-        axes = np.asarray([axes])
-    if ncols == 1:
-        axes = axes[:, None]
+    fig, axes = _moving_bar_figure(nrows, ncols)
 
     def _plot_row(ri, subtype, specs, col_offset, mm, ms, dm, bl, plot_side):
         for ci, sname in enumerate(specs):
@@ -375,9 +413,9 @@ def plot_moving_bar_data(session, z, path, session_off=None, title=None):
     if title is None:
         title = 'Moving-bar model-data'
     scope = _moving_bar_scope_label(session)
-    fig.suptitle(title + f'  [{scope}, t_center ± 0.45 s]', fontsize=12)
-    fig.subplots_adjust(top=0.92, bottom=0.08, hspace=0.45, wspace=0.35)
-    save_figure(fig, path, dpi=MOVING_BAR_MVD_DPI, rasterize=True)
+    fig.suptitle(title + f'  [{scope}, {_moving_bar_window_label()}]', fontsize=12)
+    _moving_bar_figure_adjust(fig)
+    save_figure(fig, path, dpi=MOVING_BAR_DPI, rasterize=True)
 
 
 @torch.no_grad()
@@ -403,19 +441,11 @@ def plot_moving_bar_all(session, z, path, session_off=None, title=None):
         data_mean = {**data_mean, **dm_off}
     t_traces = time.perf_counter() - t0
 
-    keys = [(t, s) for t in types for s in spec_names if (t, s) in model_mean]
     show_sem = not single_column
-    ylim = ylim_for_keys(model_mean, model_sem, data_mean, keys, show_sem=show_sem)
 
     nrows = len(types)
     ncols = len(spec_names)
-    fig, axes = plt.subplots(
-        nrows, ncols, figsize=(1.4 * ncols, 0.85 * nrows), sharex=True, sharey=True,
-    )
-    if nrows == 1:
-        axes = np.asarray([axes])
-    if ncols == 1:
-        axes = axes[:, None]
+    fig, axes = _moving_bar_figure(nrows, ncols)
 
     t1 = time.perf_counter()
     for ri, tname in enumerate(types):
@@ -430,24 +460,22 @@ def plot_moving_bar_all(session, z, path, session_off=None, title=None):
                 bl = baselines_off.get(tname)
             _plot_moving_bar_cell(
                 ax, model_mean[key], model_sem[key], data_mean.get(key),
-                sname if ri == 0 else sname,
+                sname,
                 show_ylabel=(ci == 0),
                 show_sem=show_sem and key in model_sem and np.any(model_sem[key]),
-                ylim=ylim,
                 cell_ticks=False,
                 show_xticks=(ri == nrows - 1),
                 baseline=bl,
             )
-        if ncols:
-            axes[ri, 0].set_ylabel(tname, fontsize=6, labelpad=4)
+        axes[ri, 0].set_ylabel(tname, fontsize=8, labelpad=12)
     if title is None:
         title = 'Moving-bar model-all (right only)'
     scope = _moving_bar_scope_label(session)
-    fig.suptitle(title + f'  [{scope}, t_center ± 0.45 s]', fontsize=10)
-    fig.subplots_adjust(top=0.96, bottom=0.05, hspace=0.55, wspace=0.3)
+    fig.suptitle(title + f'  [{scope}, {_moving_bar_window_label()}]', fontsize=12)
+    _moving_bar_figure_adjust(fig)
     t_draw = time.perf_counter() - t1
     t2 = time.perf_counter()
-    save_figure(fig, path, dpi=MOVING_BAR_GRID_DPI, rasterize=True)
+    save_figure(fig, path, dpi=MOVING_BAR_DPI, rasterize=True)
     t_save = time.perf_counter() - t2
     print(
         f'plot_moving_bar_all: traces={t_traces:.1f}s  '

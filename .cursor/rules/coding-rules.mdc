@@ -26,8 +26,9 @@ Scope: `temporal_filtering/`.
 
 1. Canonical form first; diff replaces old — no second path.
 2. No backward compatibility (see HARD STOP 1). Exception: user-requested mutually exclusive CLI (e.g. `--at-uv` | `--at-xy`).
-3. Alias forbidden: same single target — e.g. `tile` and `tile_bright` both accepted. Exception: group shorthand in `TARGET_ALIASES`, `LOSS_WEIGHT_ALIASES`, `I_CLI_*_TARGETS` only; new entries → those dicts.
+3. Alias forbidden: same single target — e.g. `tile` and `tile_bright` both accepted. Exception: group shorthand in `TARGET_ALIASES`, `COST_WEIGHT_ALIASES`, `I_CLI_*_TARGETS` only; new entries → those dicts.
 4. No duplicate functions or wrappers (see HARD STOP 3).
+5. CLI list values: comma-separated in one token (`a,b,c`); not space-separated (`a b c`). Exception: fixed-length pairs (e.g. `cell_syn.py` `--at-uv U V`, `nargs=2`). Use `parse_comma_list` in `train.py` / `connectome_io.py`; do not add a second splitter.
 
 ## B core script rules: SimulationCode/**`, `Connectome/**` (incl. `add_para/**`).
 
@@ -36,8 +37,10 @@ Scope: `temporal_filtering/`.
 3. `train.py`: general driver only; `import train` must not parse argv or touch CUDA.
 4. Path constants in `connectome_io.py` / `training_config.py`. Exception: `Circuits/*`.
 5. CSVs: rectangular; global scalars as constant columns.
+6. Core codes must stay flexible for add_para/ or test/ to easily import, modify, and overwrite without touching core codes.
 
 ## C non-core script rules
 
 1. `import train` / `import fc` (see HARD STOP 4). imports core.
 2. Training variants: `run_<id>` under `FiveCol_Parameter/<model_type>/`; full `train.py` artifact set and naming.
+3. Old directories and files in `run_<id>` must not be renamed or redirected when cores are modified and must remain broken.

@@ -33,11 +33,12 @@ def nice_ylim(*curves, margin=1.25, step=5.0, floor=5.0, min_pad=3.0):
 
 def annotate_baseline(ax, baseline):
     """Middle y tick at 0 with resting-potential label (delta-mV plots)."""
-    if baseline is None or not np.isfinite(baseline):
-        return
     ylo, yhi = ax.get_ylim()
     ax.set_yticks([ylo, 0.0, yhi])
-    ax.set_yticklabels([f'{ylo:+.0f}', f'{baseline:.1f}', f'{yhi:+.0f}'], fontsize=6)
+    if baseline is None or not np.isfinite(baseline):
+        ax.set_yticklabels([f'{ylo:+.0f}', '', f'{yhi:+.0f}'], fontsize=6)
+    else:
+        ax.set_yticklabels([f'{ylo:+.0f}', f'{baseline:.1f}', f'{yhi:+.0f}'], fontsize=6)
     ax.axhline(0.0, color='0.4', linewidth=0.6, linestyle=':', zorder=0)
 
 
@@ -211,7 +212,7 @@ def save_figure(fig, path, dpi=150, rasterize=False):
     if rasterize:
         for ax in fig.axes:
             ax.set_rasterized(True)
-    fig.savefig(path, dpi=dpi)
+    fig.savefig(path, dpi=dpi, bbox_inches='tight')
     plt.close(fig)
 
 

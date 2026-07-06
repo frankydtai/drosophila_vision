@@ -6,8 +6,8 @@ All results of a run land in one folder under
 
     <model_type>/<run_name>/
 
-NumPy artifacts (``.npy`` / ``.npz``) live in ``<run_name>/np/``; PNGs, CSV, and
-JSON sidecars stay in ``<run_name>/``.
+Run artifacts (``.npy`` / ``.npz``, ``train_opts.json``, ``model_type.txt``) live in
+``<run_name>/data/``; PNGs and ``*_table.csv`` stay in ``<run_name>/``.
 
 where <run_name> encodes the CLI, e.g.
 ``26758480-run-nofsteps-50-target-moving_bar,tile-network-right_min_neuron1_extent2-shift``
@@ -51,6 +51,7 @@ from connectome_io import DEFAULT_NETWORK_RUN, NETWORK_DIR, resolve_network_json
 from FiveCol_MedSim_Pytorch import do_many_runs
 import FiveCol_MedSim_Pytorch as fc
 from plot_trained import command_run_name, plot_param_set, run_dir
+from training_config import run_data_dir
 
 
 def make_plots(fname, outdir, session, result=None, *,
@@ -124,19 +125,16 @@ def write_param_table(z_t, session, table_path, extra_cols=None):
     return table_path
 
 
-NP_SUBDIR = 'np'
-
-
-def np_dir(outdir):
-    return os.path.join(outdir, NP_SUBDIR)
+def data_dir(outdir):
+    return run_data_dir(outdir)
 
 
 def params_path(outdir, fname):
-    return os.path.join(np_dir(outdir), fname)
+    return os.path.join(data_dir(outdir), fname)
 
 
 def best_param_path(outdir):
-    return os.path.join(np_dir(outdir), 'best_param.npy')
+    return os.path.join(data_dir(outdir), 'best_param.npy')
 
 
 def _artifact_stem(fname):
@@ -144,19 +142,19 @@ def _artifact_stem(fname):
 
 
 def _final_costs_path(outdir, fname):
-    return os.path.join(np_dir(outdir), _artifact_stem(fname) + '_final_costs.npy')
+    return os.path.join(data_dir(outdir), _artifact_stem(fname) + '_final_costs.npy')
 
 
 def _cost_curve_path(outdir, fname):
-    return os.path.join(np_dir(outdir), _artifact_stem(fname) + '_costs.npy')
+    return os.path.join(data_dir(outdir), _artifact_stem(fname) + '_costs.npy')
 
 
 def _costs_by_target_path(outdir, fname):
-    return os.path.join(np_dir(outdir), _artifact_stem(fname) + '_costs_by_target.npz')
+    return os.path.join(data_dir(outdir), _artifact_stem(fname) + '_costs_by_target.npz')
 
 
 def _final_costs_by_target_path(outdir, fname):
-    return os.path.join(np_dir(outdir), _artifact_stem(fname) + '_final_costs_by_target.npz')
+    return os.path.join(data_dir(outdir), _artifact_stem(fname) + '_final_costs_by_target.npz')
 
 
 def final_costs_for_params(all_params, session, final_costs=None):
@@ -178,7 +176,7 @@ def write_best_artifacts(outdir, fname, session, all_params, best_i, final_costs
     """Write ``best_param.npy`` and ``*_table.csv`` for one best index."""
     all_params = np.atleast_2d(all_params)
     best = all_params[best_i]
-    os.makedirs(np_dir(outdir), exist_ok=True)
+    os.makedirs(data_dir(outdir), exist_ok=True)
     np.save(best_param_path(outdir), best)
     table_path = os.path.join(outdir, _artifact_stem(fname) + '_table.csv')
     z_best = torch.tensor(best, dtype=torch.float64, device=session.device)
@@ -218,13 +216,13 @@ def load_stored_costs(outdir, fname, n_runs):
 def save_training_outputs(fname, outdir, session, result):
     """Write the full run artifact set (convention §5)."""
     os.makedirs(outdir, exist_ok=True)
-    with open(os.path.join(outdir, 'model_type.txt'), 'w') as f:
+    os.makedirs(data_dir(outdir), exist_ok=True)
+    with open(os.path.join(data_dir(outdir), 'model_type.txt'), 'w') as f:
         f.write(session.model_type)
     if session.train_opts is not None:
-        with open(os.path.join(outdir, fc.TRAIN_OPTS_FILE), 'w') as f:
+        with open(os.path.join(data_dir(outdir), fc.TRAIN_OPTS_FILE), 'w') as f:
             json.dump(session.train_opts, f, indent=2)
             f.write('\n')
-    os.makedirs(np_dir(outdir), exist_ok=True)
     np.save(params_path(outdir, fname), result.all_params)
     np.save(_cost_curve_path(outdir, fname), result.cost_curve)
     np.save(_final_costs_path(outdir, fname), result.final_costs)
@@ -268,7 +266,7 @@ def build_session(
     network=None,
     sequential=None,
     target_list=None,
-    loss_weights=None,
+    cost_weights=None,
     cost_extent_by_target=None,
     multi_shift_targets=None,
     share_edges_targets=None,
@@ -290,7 +288,7 @@ def build_session(
     dev = fc.active_device()
     mkw = dict(
         target_list=tl,
-        loss_weights=loss_weights,
+        cost_weights=cost_weights,
         pack_overrides=pack_overrides,
         sequential=sequential,
         cost_extent_by_target=cost_extent_by_target,
@@ -331,7 +329,7 @@ def run_training(model_type, nofruns, nofsteps, lrs, fname=None, outdir=None,
                  param_modes=None, param_fixes=None,
                  ih_off=fc.IH_OFF_DEFAULT,
                  network=None, sequential=None,
-                 target_list=None, loss_weights=None,
+                 target_list=None, cost_weights=None,
                  cost_extent_by_target=None, multi_shift_targets=None,
                  share_edges_targets=None, i_cli=None,
                  per_type=False, moving_bar_bright_stimulus_opts=None,
@@ -347,7 +345,7 @@ def run_training(model_type, nofruns, nofsteps, lrs, fname=None, outdir=None,
         network=network,
         sequential=sequential,
         target_list=target_list,
-        loss_weights=loss_weights,
+        cost_weights=cost_weights,
         cost_extent_by_target=cost_extent_by_target,
         multi_shift_targets=multi_shift_targets,
         share_edges_targets=share_edges_targets,
@@ -420,10 +418,10 @@ def add_training_arguments(parser):
              "or explicit names / comma-separated list, e.g. tile,moving_bar",
     )
     parser.add_argument(
-        "--loss-weight",
+        "--cost-weight",
         default="",
         metavar="TARGET=VALUE,...",
-        help="per-part loss weights, e.g. tile=1,PD=1.5,ND=1.0 "
+        help="per-part cost weights, e.g. tile=1,PD=1.5,ND=1.0 "
              "(aliases: tile, moving_bar, moving_bar_bright/dark, PD/ND)",
     )
     parser.add_argument(
@@ -531,7 +529,7 @@ def training_kwargs_from_args(
     """Parse a training CLI namespace into kwargs for :func:`run_training`."""
     param_modes = parse_comma_kv(args.mode)
     param_fixes = parse_comma_kv(args.fix, float)
-    loss_weights = fc.expand_loss_weights(parse_comma_kv(args.loss_weight, float))
+    cost_weights = fc.expand_cost_weights(parse_comma_kv(args.cost_weight, float))
     target_list = parse_target_list(args.target)
     default_extent, extent_kv = parse_cost_extent(args.cost_extent)
     cost_extent_by_target = fc.resolve_cost_extent_by_target(
@@ -574,7 +572,7 @@ def training_kwargs_from_args(
         param_fixes=param_fixes,
         network=args.network,
         target_list=target_list,
-        loss_weights=loss_weights,
+        cost_weights=cost_weights,
         cost_extent_by_target=cost_extent_by_target,
         multi_shift_targets=multi_shift_targets,
         share_edges_targets=share_edges_targets,

@@ -22,7 +22,7 @@ import numpy as np
 
 from training_config import COST_WINDOW_STEPS, PARAMETER_DIR
 from plot.moving_bar import (
-    MOVING_BAR_GRID_DPI,
+    MOVING_BAR_DPI,
     _compute_moving_bar_all_type_traces,
     _moving_bar_ylim,
     _plot_moving_bar_cell,
@@ -165,7 +165,7 @@ def plot_512_instrumented(session, z, path: str, tl: Timeline):
         ax.set_rasterized(True)
     tl.phase("set_rasterized", time.perf_counter() - t0)
 
-    tl.mark(f"savefig begin dpi={MOVING_BAR_GRID_DPI}")
+    tl.mark(f"savefig begin dpi={MOVING_BAR_DPI}")
     t0 = time.perf_counter()
 
     # heartbeat during savefig (runs in main thread; coarse)
@@ -179,7 +179,7 @@ def plot_512_instrumented(session, z, path: str, tl: Timeline):
     import threading
     hb = threading.Thread(target=heartbeat, daemon=True)
     hb.start()
-    fig.savefig(path, dpi=MOVING_BAR_GRID_DPI)
+    fig.savefig(path, dpi=MOVING_BAR_DPI, bbox_inches='tight')
     done["flag"] = True
     hb.join(timeout=0.1)
     plt.close(fig)
@@ -193,8 +193,8 @@ def main():
     session = load_session(rundir, "conductance")
     z = load_z_from_table(rundir, session)
 
-    print(f"matplotlib {matplotlib.__version__}  dpi={MOVING_BAR_GRID_DPI}", flush=True)
-    print(f"panels=32x16=512  pixels~{int(22.4*MOVING_BAR_GRID_DPI)}x{int(27.2*MOVING_BAR_GRID_DPI)}", flush=True)
+    print(f"matplotlib {matplotlib.__version__}  dpi={MOVING_BAR_DPI}", flush=True)
+    print(f"panels=32x16=512  pixels~{int(22.4*MOVING_BAR_DPI)}x{int(27.2*MOVING_BAR_DPI)}", flush=True)
     print("=== per-second timeline ===", flush=True)
 
     tl = Timeline()

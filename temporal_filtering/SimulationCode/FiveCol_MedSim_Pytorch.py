@@ -19,6 +19,7 @@ from torch import nn
 from tqdm import tqdm
 
 from network.connectivity import DenseConn
+from training_config import DELTAT_MS
 
 
 def active_device():
@@ -85,7 +86,7 @@ I_CLI_SIDECAR_FIELD = {
     ("i_dark", "moving_bar_dark"): "i_dark_bar",
 }
 
-LOSS_WEIGHT_ALIASES = {
+COST_WEIGHT_ALIASES = {
     "tile": TILE_TARGETS,
     "moving_bar": MOVING_BAR_COST_PARTS,
     "moving_bar_bright": ("moving_bar_bright_PD", "moving_bar_bright_ND"),
@@ -96,7 +97,7 @@ LOSS_WEIGHT_ALIASES = {
 
 # important model params
 
-deltat    = 10.0  # in msec
+deltat    = DELTAT_MS  # simulation step size [ms]
 g_leak    = 1.0   # in nS
 E_exc     = +10.0 # in mV
 E_inh     = -70.0 # in mV
@@ -466,7 +467,7 @@ class TrainSession:
     schema: tuple
     targets: Dict[str, TargetPack]
     target_list: Tuple[str, ...]
-    loss_weights: Dict[str, float]
+    cost_weights: Dict[str, float]
     sequential: bool
     device: str
     train_opts: Optional[dict] = None
@@ -595,29 +596,50 @@ def make_tile_dark_stimulus_opts(
 
 
 def make_moving_bar_bright_stimulus_opts(
-    i_baseline=None, i_bright_bar=None, mode="borst",
+    i_baseline=None, i_bright_bar=None, mode="borst", readout_subtypes=None,
 ):
     """PR moving-bar bright target defaults (``maxtime``/``spec_names`` filled at build)."""
-    return {
+    out = {
         "mode": mode,
         "i_baseline": float(ml.I_BASELINE if i_baseline is None else i_baseline),
         "i_bright_bar": float(ml.I_BRIGHT if i_bright_bar is None else i_bright_bar),
         "t_on": int(t_on),
         "deltat_ms": float(deltat),
     }
+    rs = _readout_subtypes_stimulus_list(readout_subtypes)
+    if rs is not None:
+        out["readout_subtypes"] = rs
+    return out
 
 
 def make_moving_bar_dark_stimulus_opts(
-    i_baseline=None, i_dark_bar=None, mode="borst",
+    i_baseline=None, i_dark_bar=None, mode="borst", readout_subtypes=None,
 ):
     """PR moving-bar dark target defaults (``maxtime``/``spec_names`` filled at build)."""
-    return {
+    out = {
         "mode": mode,
         "i_baseline": float(ml.I_BASELINE if i_baseline is None else i_baseline),
         "i_dark_bar": float(ml.I_DARK if i_dark_bar is None else i_dark_bar),
         "t_on": int(t_on),
         "deltat_ms": float(deltat),
     }
+    rs = _readout_subtypes_stimulus_list(readout_subtypes)
+    if rs is not None:
+        out["readout_subtypes"] = rs
+    return out
+
+
+def _readout_subtypes_stimulus_list(readout_subtypes):
+    if readout_subtypes is None:
+        return None
+    return [str(s) for s in readout_subtypes]
+
+
+def _readout_subtypes_from_opts(opts):
+    rs = (opts or {}).get("readout_subtypes")
+    if rs is None:
+        return None
+    return tuple(str(s) for s in rs)
 
 
 def _enrich_moving_bar_stimulus_opts(opts, info, *, cost_extent):
@@ -631,6 +653,8 @@ def _enrich_moving_bar_stimulus_opts(opts, info, *, cost_extent):
     out["deltat_ms"] = float(deltat)
     if "mode" in info:
         out["mode"] = info["mode"]
+    if "present_subtypes" in info:
+        out["readout_subtypes"] = list(info["present_subtypes"])
     return out
 
 
@@ -990,36 +1014,114 @@ def _cost_extent_coltag(cost_extent, n_cost):
     return f"{n_cost} cost cells"
 
 
-def _build_borst_moving_bar_bright_target(ctx: _TrainBindCtx) -> Tuple[TargetPack, dict]:
+def _build_borst_moving_bar_target(ctx: _TrainBindCtx, *, pack_name: str, polarity: str):
     from network.moving_bar_target import build_borst_moving_bar_target
 
-    opts = dict(ctx.moving_bar_bright_stimulus_opts or make_moving_bar_bright_stimulus_opts())
-    T = build_borst_moving_bar_target(
+    opts = _moving_bar_polarity_opts(ctx, polarity)
+    build_kw = dict(
         device=ctx.dev or active_device(),
         t_on=t_on,
         deltat_ms=deltat,
         i_baseline=opts["i_baseline"],
-        i_bright_bar=opts["i_bright_bar"],
-        contrasts=("bright",),
+        contrasts=(polarity,),
+        readout_subtypes=_readout_subtypes_from_opts(opts),
     )
+    if polarity == "bright":
+        build_kw["i_bright_bar"] = opts["i_bright_bar"]
+    else:
+        build_kw["i_dark_bar"] = opts["i_dark_bar"]
+    T = build_borst_moving_bar_target(**build_kw)
     stim = _enrich_moving_bar_stimulus_opts(opts, T.info, cost_extent=None)
-    return _borst_moving_bar_pack(T, "moving_bar_bright"), stim
+    return _borst_moving_bar_pack(T, pack_name), stim
+
+
+def _build_borst_moving_bar_bright_target(ctx: _TrainBindCtx) -> Tuple[TargetPack, dict]:
+    return _build_borst_moving_bar_target(ctx, pack_name="moving_bar_bright", polarity="bright")
 
 
 def _build_borst_moving_bar_dark_target(ctx: _TrainBindCtx) -> Tuple[TargetPack, dict]:
-    from network.moving_bar_target import build_borst_moving_bar_target
+    return _build_borst_moving_bar_target(ctx, pack_name="moving_bar_dark", polarity="dark")
 
-    opts = dict(ctx.moving_bar_dark_stimulus_opts or make_moving_bar_dark_stimulus_opts())
-    T = build_borst_moving_bar_target(
-        device=ctx.dev or active_device(),
+
+def _moving_bar_polarity_opts(ctx: _TrainBindCtx, polarity: str) -> dict:
+    if polarity == "bright":
+        raw = ctx.moving_bar_bright_stimulus_opts
+        factory = make_moving_bar_bright_stimulus_opts
+    elif polarity == "dark":
+        raw = ctx.moving_bar_dark_stimulus_opts
+        factory = make_moving_bar_dark_stimulus_opts
+    else:
+        raise ValueError(f"unknown moving-bar polarity {polarity!r}")
+    mode = (raw or {}).get("mode", "borst")
+    return dict(raw or factory(mode=mode))
+
+
+def _network_moving_bar_coltag(cost_extent, n_columns):
+    if cost_extent is not None:
+        return _cost_extent_coltag(cost_extent, n_columns)
+    return f"{n_columns} sti columns"
+
+
+def _build_network_moving_bar_target(ctx: _TrainBindCtx, C, *, pack_name: str, polarity: str):
+    from network.moving_bar_target import build_moving_bar_target
+
+    dev = ctx.dev or active_device()
+    opts = _moving_bar_polarity_opts(ctx, polarity)
+    if opts.get("mode") != "network":
+        opts = dict(opts)
+        opts["mode"] = "network"
+    cost_extent = opts.get("cost_extent")
+    if cost_extent is not None:
+        cost_extent = int(cost_extent)
+    build_kw = dict(
+        C=C,
+        device=dev,
         t_on=t_on,
-        deltat_ms=deltat,
+        cost_extent=cost_extent,
         i_baseline=opts["i_baseline"],
-        i_dark_bar=opts["i_dark_bar"],
-        contrasts=("dark",),
+        contrasts=(polarity,),
+        readout_subtypes=_readout_subtypes_from_opts(opts),
     )
-    stim = _enrich_moving_bar_stimulus_opts(opts, T.info, cost_extent=None)
-    return _borst_moving_bar_pack(T, "moving_bar_dark"), stim
+    if polarity == "bright":
+        build_kw["i_bright_bar"] = opts["i_bright_bar"]
+    else:
+        build_kw["i_dark_bar"] = opts["i_dark_bar"]
+    T = build_moving_bar_target(**build_kw)
+    stim = _enrich_moving_bar_stimulus_opts(opts, T.info, cost_extent=cost_extent)
+    pack = TargetPack(
+        name=pack_name,
+        signal=T.signal,
+        data=T.data,
+        power=T.power,
+        cost_weight=T.cost_weight,
+        readout_batch=T.readout_batch,
+        readout_unit=T.readout_unit,
+        cost_t0=T.cost_t0,
+        cost_extent=cost_extent,
+        cost_pd_nd=T.cost_pd_nd,
+    )
+    coltag = _network_moving_bar_coltag(cost_extent, T.info["n_cost_columns"])
+    tag = (
+        f"moving-bar {polarity} (B={T.n_batch} stimuli, "
+        f"{T.info['n_cost']} cost cells, {coltag})"
+    )
+    return pack, stim, tag
+
+
+def _build_network_moving_bar_bright_target(
+    ctx: _TrainBindCtx, C,
+) -> Tuple[TargetPack, dict, str]:
+    return _build_network_moving_bar_target(
+        ctx, C, pack_name="moving_bar_bright", polarity="bright",
+    )
+
+
+def _build_network_moving_bar_dark_target(
+    ctx: _TrainBindCtx, C,
+) -> Tuple[TargetPack, dict, str]:
+    return _build_network_moving_bar_target(
+        ctx, C, pack_name="moving_bar_dark", polarity="dark",
+    )
 
 
 def _build_network_tile_bright_target(
@@ -1111,88 +1213,6 @@ def _build_network_tile_dark_target(
         f"tile_dark (B={T.n_batch} stimuli [{T.info['n_centers']} tiles x "
         f"{shifttag}], {coltag})"
     )
-    return pack, stim, tag
-
-
-def _build_network_moving_bar_bright_target(
-    ctx: _TrainBindCtx, C,
-) -> Tuple[TargetPack, dict, str]:
-    from network.moving_bar_target import build_moving_bar_target
-
-    dev = ctx.dev or active_device()
-    opts = dict(ctx.moving_bar_bright_stimulus_opts or make_moving_bar_bright_stimulus_opts(mode="network"))
-    cost_extent = opts.get("cost_extent")
-    if cost_extent is not None:
-        cost_extent = int(cost_extent)
-    T = build_moving_bar_target(
-        C,
-        device=dev,
-        t_on=t_on,
-        cost_extent=cost_extent,
-        i_baseline=opts["i_baseline"],
-        i_bright_bar=opts["i_bright_bar"],
-        contrasts=("bright",),
-    )
-    stim = _enrich_moving_bar_stimulus_opts(opts, T.info, cost_extent=cost_extent)
-    pack = TargetPack(
-        name="moving_bar_bright",
-        signal=T.signal,
-        data=T.data,
-        power=T.power,
-        cost_weight=T.cost_weight,
-        readout_batch=T.readout_batch,
-        readout_unit=T.readout_unit,
-        cost_t0=T.cost_t0,
-        cost_extent=cost_extent,
-        cost_pd_nd=T.cost_pd_nd,
-    )
-    coltag = (
-        _cost_extent_coltag(cost_extent, T.info["n_cost_columns"])
-        if cost_extent is not None
-        else f"{T.info['n_cost_columns']} sti columns"
-    )
-    tag = f"moving-bar bright (B={T.n_batch} stimuli, {T.info['n_cost']} cost cells, {coltag})"
-    return pack, stim, tag
-
-
-def _build_network_moving_bar_dark_target(
-    ctx: _TrainBindCtx, C,
-) -> Tuple[TargetPack, dict, str]:
-    from network.moving_bar_target import build_moving_bar_target
-
-    dev = ctx.dev or active_device()
-    opts = dict(ctx.moving_bar_dark_stimulus_opts or make_moving_bar_dark_stimulus_opts(mode="network"))
-    cost_extent = opts.get("cost_extent")
-    if cost_extent is not None:
-        cost_extent = int(cost_extent)
-    T = build_moving_bar_target(
-        C,
-        device=dev,
-        t_on=t_on,
-        cost_extent=cost_extent,
-        i_baseline=opts["i_baseline"],
-        i_dark_bar=opts["i_dark_bar"],
-        contrasts=("dark",),
-    )
-    stim = _enrich_moving_bar_stimulus_opts(opts, T.info, cost_extent=cost_extent)
-    pack = TargetPack(
-        name="moving_bar_dark",
-        signal=T.signal,
-        data=T.data,
-        power=T.power,
-        cost_weight=T.cost_weight,
-        readout_batch=T.readout_batch,
-        readout_unit=T.readout_unit,
-        cost_t0=T.cost_t0,
-        cost_extent=cost_extent,
-        cost_pd_nd=T.cost_pd_nd,
-    )
-    coltag = (
-        _cost_extent_coltag(cost_extent, T.info["n_cost_columns"])
-        if cost_extent is not None
-        else f"{T.info['n_cost_columns']} sti columns"
-    )
-    tag = f"moving-bar dark (B={T.n_batch} stimuli, {T.info['n_cost']} cost cells, {coltag})"
     return pack, stim, tag
 
 
@@ -1376,7 +1396,7 @@ def _finalize_stimulus_opts(
             mode=build_mode,
             **{
                 k: v for k, v in (opts or {}).items()
-                if k in ("i_baseline", "i_bright_bar")
+                if k in ("i_baseline", "i_bright_bar", "readout_subtypes")
             },
         )
     elif target_name == "moving_bar_dark":
@@ -1384,7 +1404,7 @@ def _finalize_stimulus_opts(
             mode=build_mode,
             **{
                 k: v for k, v in (opts or {}).items()
-                if k in ("i_baseline", "i_dark_bar")
+                if k in ("i_baseline", "i_dark_bar", "readout_subtypes")
             },
         )
     else:
@@ -1400,14 +1420,14 @@ def _finalize_stimulus_opts(
     return out
 
 
-def expand_loss_weights(weights: Optional[dict]) -> Dict[str, float]:
-    """Expand alias keys in ``loss_weights`` to concrete cost-part names."""
+def expand_cost_weights(weights: Optional[dict]) -> Dict[str, float]:
+    """Expand alias keys in ``cost_weights`` to concrete cost-part names."""
     if not weights:
         return {}
     out: Dict[str, float] = {}
     for name, val in weights.items():
-        if name in LOSS_WEIGHT_ALIASES:
-            for t in LOSS_WEIGHT_ALIASES[name]:
+        if name in COST_WEIGHT_ALIASES:
+            for t in COST_WEIGHT_ALIASES[name]:
                 out[t] = float(val)
         else:
             out[str(name)] = float(val)
@@ -1433,7 +1453,7 @@ def _normalize_target_list(target_list) -> List[str]:
 def make_train_opts(
     backend="borst",
     target_list=None,
-    loss_weights=None,
+    cost_weights=None,
     pack_overrides=None,
     sequential=None,
     cost_extent_by_target=None,
@@ -1481,7 +1501,7 @@ def make_train_opts(
     opts = {
         "backend": str(backend),
         "target_list": tl,
-        "loss_weights": expand_loss_weights(loss_weights or {}),
+        "cost_weights": expand_cost_weights(cost_weights or {}),
         "sequential": sequential,
         **stimulus_opts,
     }
@@ -1510,7 +1530,7 @@ def _train_opts_for_sidecar(
     record = {
         "backend": str(backend),
         "target_list": list(target_list),
-        "loss_weights": {str(k): float(v) for k, v in (opts.get("loss_weights") or {}).items()},
+        "cost_weights": {str(k): float(v) for k, v in (opts.get("cost_weights") or {}).items()},
         "sequential": bool(sequential_bool),
     }
     if backend == "network":
@@ -1566,7 +1586,7 @@ def _make_session(
     target_list: List[str],
     packs: Dict[str, TargetPack],
     *,
-    loss_weights=None,
+    cost_weights=None,
     sequential=None,
     dev=None,
     train_opts_record=None,
@@ -1591,7 +1611,7 @@ def _make_session(
         schema=tuple(sch),
         targets=dict(packs),
         target_list=tuple(target_list),
-        loss_weights=expand_loss_weights(loss_weights),
+        cost_weights=expand_cost_weights(cost_weights),
         sequential=bool(seq),
         device=dev_ref,
         train_opts=train_opts_record,
@@ -1657,7 +1677,7 @@ def open_session(
         )
         session = _make_session(
             model_backend, model_type, target_list, packs,
-            loss_weights=opts.get("loss_weights"),
+            cost_weights=opts.get("cost_weights"),
             sequential=opts.get("sequential"),
             dev=dev,
             train_opts_record=record,
@@ -1711,7 +1731,7 @@ def open_session(
     )
     return _make_session(
         model_backend, model_type, target_list, packs,
-        loss_weights=opts.get("loss_weights"),
+        cost_weights=opts.get("cost_weights"),
         sequential=opts.get("sequential"),
         dev=dev,
         train_opts_record=record,
@@ -1748,7 +1768,8 @@ def open_session_from_outdir(
 ) -> TrainSession:
     """Load ``train_opts.json`` from a run folder and return a ready session."""
     import json
-    opts_path = os.path.join(os.path.abspath(outdir), TRAIN_OPTS_FILE)
+    from training_config import run_data_dir
+    opts_path = os.path.join(run_data_dir(os.path.abspath(outdir)), TRAIN_OPTS_FILE)
     if not os.path.isfile(opts_path):
         raise FileNotFoundError(f"missing {opts_path}")
     with open(opts_path) as f:
@@ -2115,6 +2136,113 @@ def _pack_cost_mse(scale, data, weight, sel, power):
     return torch.sum(weight[:, None] * diff ** 2) / power * 100.0
 
 
+def _part_weight(session: TrainSession, part_key: str) -> float:
+    return float(session.cost_weights.get(part_key, 1.0))
+
+
+def _pack_part_key_for_cell(pack: TargetPack, cell_idx: int) -> str:
+    if pack.cost_pd_nd is not None:
+        label = PD_ND_LABELS[int(pack.cost_pd_nd[cell_idx].item())]
+        return moving_bar_cost_part_key(pack.name, label)
+    return pack.name
+
+
+def _pack_has_active_cost(pack: TargetPack, session: TrainSession) -> bool:
+    for key in cost_part_keys_for_target(pack.name):
+        if _part_weight(session, key) != 0.0:
+            return True
+    return False
+
+
+def _pack_active_batch_indices(pack: TargetPack, session: TrainSession) -> Tuple[int, ...]:
+    """Stimulus batch indices with at least one non-zero-weight cost cell."""
+    batches = set()
+    for i in range(int(pack.readout_batch.shape[0])):
+        if _part_weight(session, _pack_part_key_for_cell(pack, i)) != 0.0:
+            batches.add(int(pack.readout_batch[i].item()))
+    return tuple(sorted(batches))
+
+
+def _active_row_indices(
+    pack: TargetPack,
+    session: TrainSession,
+    batch_idx: Optional[int] = None,
+) -> Optional[torch.Tensor]:
+    keep = []
+    for i in range(int(pack.readout_batch.shape[0])):
+        if batch_idx is not None and int(pack.readout_batch[i].item()) != int(batch_idx):
+            continue
+        if _part_weight(session, _pack_part_key_for_cell(pack, i)) != 0.0:
+            keep.append(i)
+    if not keep:
+        return None
+    return torch.tensor(keep, dtype=torch.long, device=pack.readout_batch.device)
+
+
+def _slice_pack_rows(pack: TargetPack, row_ix: torch.Tensor) -> TargetPack:
+    fields = {
+        "data": pack.data[row_ix],
+        "cost_weight": pack.cost_weight[row_ix],
+        "readout_batch": pack.readout_batch[row_ix],
+        "readout_unit": pack.readout_unit[row_ix],
+    }
+    if pack.cost_t0 is not None:
+        fields["cost_t0"] = pack.cost_t0[row_ix]
+    if pack.cost_radius is not None:
+        fields["cost_radius"] = pack.cost_radius[row_ix]
+    if pack.cost_pd_nd is not None:
+        fields["cost_pd_nd"] = pack.cost_pd_nd[row_ix]
+    return replace(pack, **fields)
+
+
+def _subset_pack_batches(pack: TargetPack, batch_indices: Tuple[int, ...]) -> Optional[TargetPack]:
+    if len(batch_indices) == int(pack.signal.shape[0]):
+        return pack
+    dev = pack.signal.device
+    idx_t = torch.tensor(batch_indices, dtype=torch.long, device=dev)
+    old_to_new = {int(old): new for new, old in enumerate(batch_indices)}
+    rb = pack.readout_batch
+    keep = torch.isin(rb, idx_t)
+    if not bool(keep.any()):
+        return None
+    new_rb = rb[keep].clone()
+    for i in range(int(new_rb.shape[0])):
+        new_rb[i] = old_to_new[int(new_rb[i].item())]
+    fields = {
+        "signal": pack.signal.index_select(0, idx_t),
+        "data": pack.data[keep],
+        "cost_weight": pack.cost_weight[keep],
+        "readout_batch": new_rb,
+        "readout_unit": pack.readout_unit[keep],
+    }
+    if pack.cost_t0 is not None:
+        fields["cost_t0"] = pack.cost_t0[keep]
+    if pack.cost_radius is not None:
+        fields["cost_radius"] = pack.cost_radius[keep]
+    if pack.cost_pd_nd is not None:
+        fields["cost_pd_nd"] = pack.cost_pd_nd[keep]
+    return replace(pack, **fields)
+
+
+def _pack_for_active_cost(
+    pack: TargetPack,
+    session: TrainSession,
+    *,
+    batch_idx: Optional[int] = None,
+    batch_indices: Optional[Tuple[int, ...]] = None,
+) -> Optional[TargetPack]:
+    """Drop zero-weight rows and, when requested, inactive stimulus batches."""
+    work = pack
+    if batch_indices is not None:
+        work = _subset_pack_batches(pack, batch_indices)
+        if work is None:
+            return None
+    rows = _active_row_indices(work, session, batch_idx=batch_idx)
+    if rows is None:
+        return None
+    return _slice_pack_rows(work, rows)
+
+
 def _pack_cost_forward(p, pack: TargetPack, session: TrainSession, batch_idx=None):
     scale = _pack_out_scale(p, pack, session.backend)
     pd_nd = pack.cost_pd_nd
@@ -2145,8 +2273,10 @@ def _pack_cost_parts_from_params(p, pack: TargetPack, session: TrainSession, bat
         return {pack.name: _pack_cost_mse(scale, data, weight, sel, pack.power)}
     out = {}
     for pd_nd_idx, label in ((PD_IDX, "PD"), (ND_IDX, "ND")):
-        mask = pd_nd == pd_nd_idx
         key = moving_bar_cost_part_key(pack.name, label)
+        if _part_weight(session, key) == 0.0:
+            continue
+        mask = pd_nd == pd_nd_idx
         if not bool(mask.any()):
             out[key] = torch.zeros((), dtype=torch.float64, device=dev)
             continue
@@ -2188,7 +2318,7 @@ def _pack_cost(z, pack: TargetPack, session: TrainSession, batch_idx=None):
 
 
 def calc_cost_parts(z, session: TrainSession) -> Dict[str, torch.Tensor]:
-    """Per-part unweighted cost (before ``loss_weights``)."""
+    """Per-part unweighted cost (before ``cost_weights``)."""
     schema = list(session.schema)
     if session.model_type == 'adaptive':
         p = assign_params_adaptive(z, schema, session.backend)
@@ -2197,29 +2327,43 @@ def calc_cost_parts(z, session: TrainSession) -> Dict[str, torch.Tensor]:
     parts: Dict[str, torch.Tensor] = {}
     zero = torch.zeros((), dtype=torch.float64, device=session.device)
     for _name, pack in session.targets.items():
+        if not _pack_has_active_cost(pack, session):
+            continue
+        active_batches = _pack_active_batch_indices(pack, session)
+        if not active_batches:
+            continue
         if session.sequential:
             pack_parts: Dict[str, torch.Tensor] = {}
-            for b in range(pack.signal.shape[0]):
+            for b in active_batches:
+                sub = _pack_for_active_cost(pack, session, batch_idx=b)
+                if sub is None:
+                    continue
                 for key, part in _pack_cost_parts_from_params(
-                    p, pack, session, batch_idx=b,
+                    p, sub, session, batch_idx=b,
                 ).items():
                     pack_parts[key] = pack_parts.get(key, zero) + part
         else:
-            pack_parts = _pack_cost_parts_from_params(p, pack, session, batch_idx=None)
+            sub = _pack_for_active_cost(pack, session, batch_indices=active_batches)
+            if sub is None:
+                continue
+            pack_parts = _pack_cost_parts_from_params(p, sub, session, batch_idx=None)
         for part_key, part in pack_parts.items():
-            w = float(session.loss_weights.get(part_key, 1.0))
-            if w == 0.0:
+            if _part_weight(session, part_key) == 0.0:
                 continue
             parts[part_key] = part
     return parts
 
 
-def calc_cost(z, session: TrainSession):
+def _weighted_cost_from_parts(parts: Dict[str, torch.Tensor], session: TrainSession):
     total = torch.zeros((), dtype=torch.float64, device=session.device)
-    for name, part in calc_cost_parts(z, session).items():
-        w = float(session.loss_weights.get(name, 1.0))
+    for name, part in parts.items():
+        w = float(session.cost_weights.get(name, 1.0))
         total = total + w * part
     return total
+
+
+def calc_cost(z, session: TrainSession):
+    return _weighted_cost_from_parts(calc_cost_parts(z, session), session)
 
 def schema_bounds(schema):
     zb = torch.zeros((schema_nparams(schema), 2), dtype=torch.float64)
@@ -2337,22 +2481,31 @@ def train_staged(z, cost_fn, z_bounds, lrs, nsteps, cost_log=None, step_log=None
 
 
 def _make_step_logger(session: TrainSession):
-    """Build ``(cost_fn, target_history, log_step)`` for aligned per-step logging."""
+    """Build ``(cost_fn, target_history, log_step)`` for aligned per-step logging.
+
+  ``cost_fn`` runs ``calc_cost_parts`` once per call; ``log_step`` reuses that
+  result from the same training step (no extra forward).
+    """
     part_keys = session_cost_part_keys(session.target_list)
     target_history = {name: [] for name in part_keys}
+    _last_parts: Optional[Dict[str, torch.Tensor]] = None
+    _last_total: Optional[torch.Tensor] = None
 
     def cost_fn(z):
-        return calc_cost(z, session)
+        nonlocal _last_parts, _last_total
+        _last_parts = calc_cost_parts(z, session)
+        _last_total = _weighted_cost_from_parts(_last_parts, session)
+        return _last_total
 
-    def log_step(z):
-        total = float(calc_cost(z, session).item())
-        parts = calc_cost_parts(z, session)
+    def log_step(z=None):
+        if _last_parts is None or _last_total is None:
+            raise RuntimeError("log_step called before cost_fn in the same training step")
         for name in part_keys:
-            if name in parts:
-                target_history[name].append(float(parts[name].item()))
+            if name in _last_parts:
+                target_history[name].append(float(_last_parts[name].item()))
             else:
                 target_history[name].append(0.0)
-        return total
+        return float(_last_total.item())
 
     return cost_fn, target_history, log_step
 

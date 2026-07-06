@@ -86,6 +86,7 @@ from connectome_io import (
     BORST_CTYPE_NPY,
     BORST_MULTI_COL_M,
     SIMULATION_CODE_DIR,
+    parse_comma_list,
     resolve_network_json,
     type_counts_abc_path,
 )
@@ -95,13 +96,7 @@ _DEFAULT_NETWORK = "right_min_neuron1"
 logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
 logger = logging.getLogger(__name__)
 
-
 _MAX_PARTNER_LIST = 5
-
-
-def _parse_cell_types(spec: str) -> List[str]:
-    """Parse one comma-separated CELL_TYPE string (e.g. ``T4a,T4b,T4c``)."""
-    return [part.strip() for part in spec.split(",") if part.strip()]
 
 
 def _hex_disc_column_count(extent: int) -> int:
@@ -990,7 +985,7 @@ def main(argv: List[str] | None = None) -> int:
 
     partner_type_to_family = type_to_family_all if args.family else None
 
-    cell_types = _parse_cell_types(args.cell_types)
+    cell_types = parse_comma_list(args.cell_types)
     labels, self_type_to_labels, self_id_to_labels = _resolve_query_labels(
         cell_types, type_to_family_all
     )

@@ -17,10 +17,12 @@ fname2='offset_column_connectivity.csv'
 nofcells = 65
 nofcols  = 5
 
-# Single source of truth for simulation / training horizon (10 ms per step).
+# Single source of truth for simulation / training horizon (see ``training_config``).
 IMPULSE_MAXTIME = 200
 T_ON = 50
-T_TAIL = 50  # post-stimulus baseline for moving-bar runs (0.5 s @ 10 ms/step)
+from training_config import DELTAT_MS, moving_bar_tail_steps
+
+T_TAIL = moving_bar_tail_steps(deltat_ms=DELTAT_MS)
 I_BASELINE = 20.0  # pA photoreceptor current before T_ON
 I_BRIGHT = 40.0    # pA photoreceptor current at bright / on-step peak
 I_DARK = 0.0       # pA photoreceptor current at full dark-bar coverage

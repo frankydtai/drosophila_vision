@@ -14,7 +14,7 @@ import FiveCol_MedSim_Pytorch as fc
 from plot import moving_bar as moving_bar_plot
 from plot import tile as tile_plot
 from plot.utils import plot_cost
-from training_config import PARAMETER_DIR
+from training_config import PARAMETER_DIR, run_data_dir
 
 TRAIN_OPTS_FILE = fc.TRAIN_OPTS_FILE
 MODEL_TYPE_FILE = 'model_type.txt'
@@ -100,7 +100,7 @@ def _network_tile_tag(session, tname):
 
 
 def load_train_opts(outdir):
-    opts_path = os.path.join(os.path.abspath(outdir), TRAIN_OPTS_FILE)
+    opts_path = os.path.join(run_data_dir(os.path.abspath(outdir)), TRAIN_OPTS_FILE)
     if not os.path.isfile(opts_path):
         return None
     with open(opts_path) as f:
@@ -128,7 +128,7 @@ def _session_for_target(base_session, tname):
 
 
 def _model_type_from_sidecar(outdir):
-    side = os.path.join(os.path.abspath(outdir), MODEL_TYPE_FILE)
+    side = os.path.join(run_data_dir(os.path.abspath(outdir)), MODEL_TYPE_FILE)
     if os.path.exists(side):
         with open(side) as f:
             return f.read().strip()
@@ -155,7 +155,7 @@ def resolve_run_dir(path):
 
 
 def find_training_params(outdir):
-    """``training*_table.csv`` stem → ``np/<stem>.npy`` (train.py artifact layout)."""
+    """``training*_table.csv`` stem → ``data/<stem>.npy`` (train.py artifact layout)."""
     import train as train_mod
 
     tables = sorted(Path(outdir).glob('training*_table.csv'))
@@ -368,7 +368,7 @@ def plot_param_set(params, outdir, model_type=None, model_all=True,
 
     if save_artifacts:
         import train as train_mod
-        os.makedirs(train_mod.np_dir(outdir), exist_ok=True)
+        os.makedirs(train_mod.data_dir(outdir), exist_ok=True)
         np.save(train_mod.best_param_path(outdir), best)
     print(f'plots saved to {outdir}')
     return best, best_cost
