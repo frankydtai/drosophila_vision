@@ -1,6 +1,6 @@
-"""Plot tile _simulate vs expand_plot_traces stages (raw / padded / shifted).
+"""Plot tile _simulate vs pad_plot_traces stages (raw / padded / shifted).
 
-Reuses plot.tile._simulate and fc.expand_plot_traces — no re-implementation.
+Reuses plot.tile._simulate and fc.pad_plot_traces — no re-implementation.
 """
 import os
 import sys
@@ -30,7 +30,7 @@ OUT_NAME = 'simulate_vs_expand.png'
 
 
 def _padded_scaled(raw_nt, scale, mt, t_on_step):
-    """expand_plot_traces steps 1–2 only: scale, embed, zero pre-stimulus."""
+    """pad_plot_traces steps 1–2 only: scale, embed, zero pre-stimulus."""
     n, t_len = raw_nt.shape
     trace = torch.zeros(n, mt, dtype=raw_nt.dtype, device=raw_nt.device)
     trace[:, t_on_step:t_on_step + t_len] = scale[:, None] * raw_nt
@@ -87,7 +87,7 @@ def _traces_for_cell(session, z, cell_name):
     t_on_step = fc.t_on
 
     padded = _padded_scaled(raw_nt, scale, mt, t_on_step)
-    expanded = fc.expand_plot_traces(raw_nt, scale, mt, t_on_step=t_on_step)
+    expanded = fc.pad_plot_traces(raw_nt, scale, mt, t_on_step=t_on_step)
     simulated, sim_ref = tile_plot._simulate(tile_session, z, idx, return_ref=True)
 
     cost_trace = torch.zeros(1, mt, dtype=raw_nt.dtype, device=raw_nt.device)
@@ -115,7 +115,7 @@ def _plot_cell(ax, traces, title):
     ax.plot(t_ms, traces['padded'], color='tab:blue', lw=1.2, ls='--',
             label='padded (scale×raw, no shift)')
     ax.plot(t_ms, traces['expanded'], color='tab:red', lw=2.0,
-            label='expand_plot_traces')
+            label='pad_plot_traces')
     ax.plot(t_ms, traces['simulated'], color='tab:orange', lw=1.0, ls=':',
             label='_simulate')
     ax.plot(t_ms, traces['cost'], color='0.45', lw=1.0,
@@ -155,7 +155,7 @@ def main():
         ax.set_ylabel('mV', fontsize=8)
 
     fig.suptitle(
-        f'tile _simulate vs expand_plot_traces  ({os.path.basename(rundir)})',
+        f'tile _simulate vs pad_plot_traces  ({os.path.basename(rundir)})',
         fontsize=11,
     )
     fig.tight_layout()

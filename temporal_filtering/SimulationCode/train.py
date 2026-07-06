@@ -28,6 +28,11 @@ where <run_name> encodes the CLI, e.g.
     python train.py --target moving_bar --network right_min_neuron1_extent2 \\
                   --nofsteps 5 --lrs 0.1
 
+    # warm-start from a previous run (params only; all other settings from this CLI)
+    python train.py --init-from conductance/run_26693975 \\
+                  --network right_min_neuron1_extent2 --target moving_bar_bright \\
+                  --nofsteps 10000 --lrs 0.1,0.01,0.001
+
 Import-safe: importing this module does NOT parse argv or touch CUDA, so test
 scripts can `import train` and reuse run_training / save_training_outputs / etc.
 """
@@ -35,6 +40,7 @@ import argparse
 import json
 import os
 import time
+from pathlib import Path
 
 # When executed as a script, run from this file's own directory so `fc` finds
 # Circuits/ regardless of where it was launched (no need to cd first). Done
@@ -50,7 +56,7 @@ import network_bootstrap  # noqa: F401 — connectome_io on sys.path
 from connectome_io import DEFAULT_NETWORK_RUN, NETWORK_DIR, resolve_network_json
 from FiveCol_MedSim_Pytorch import do_many_runs
 import FiveCol_MedSim_Pytorch as fc
-from plot_trained import command_run_name, plot_param_set, run_dir
+from plot_trained import command_run_name, plot_param_set, resolve_run_dir, run_dir
 from training_config import run_data_dir
 
 
@@ -219,6 +225,49 @@ def load_stored_costs(outdir, fname, n_runs):
     return final_costs, cost_curve, costs_by_target, final_costs_by_target
 
 
+def load_init_z(init_from, session):
+    """Load a parameter vector from a prior run folder (no train_opts replay)."""
+    try:
+        outdir = resolve_run_dir(init_from)
+    except SystemExit as exc:
+        raise ValueError(str(exc)) from exc
+    n_expected = fc.schema_nparams(list(session.schema))
+
+    best_fp = best_param_path(outdir)
+    if os.path.isfile(best_fp):
+        z = np.load(best_fp)
+        source = best_fp
+    else:
+        tables = sorted(Path(outdir).glob('training*_table.csv'))
+        if len(tables) != 1:
+            raise ValueError(
+                f'expected exactly one training*_table.csv in {outdir!r}, found {len(tables)}',
+            )
+        fname = tables[0].name.replace('_table.csv', '') + '.npy'
+        params_fp = params_path(outdir, fname)
+        if not os.path.isfile(params_fp):
+            raise ValueError(f'missing training params: {params_fp!r}')
+        params = np.atleast_2d(np.load(params_fp))
+        final_costs, _, _, _ = load_stored_costs(outdir, fname, params.shape[0])
+        if final_costs is not None:
+            z = params[int(np.argmin(final_costs))]
+        else:
+            valid = params[np.any(params != 0, axis=1)]
+            if len(valid) == 0:
+                raise ValueError(f'no trained parameter sets in {params_fp!r}')
+            z = valid[0]
+        source = params_fp
+
+    z = np.asarray(z, dtype=np.float64).reshape(-1)
+    if z.shape != (n_expected,):
+        raise ValueError(
+            f'init params length {z.shape[0]} != session nparams {n_expected} '
+            f'(from {source!r}); align schema CLI: --network, --ih-off, --ih-group, --mode',
+        )
+    print(f'init-from {outdir!r} -> {source!r} ({z.shape[0]} params)')
+    return torch.tensor(z, dtype=session.sim_dtype, device=session.device)
+
+
 def save_training_outputs(fname, outdir, session, result):
     """Write the full run artifact set (convention §5)."""
     os.makedirs(outdir, exist_ok=True)
@@ -249,9 +298,9 @@ def save_param_tables(fname, outdir, session):
     write_best_artifacts(outdir, fname, session, all_params, best_i, final_costs)
 
 
-def apply_param_modes(session, param_modes=None, param_fixes=None):
-    modes = fc.expand_param_modes(param_modes, list(session.schema))
-    schema = fc.apply_modes(list(session.schema), modes, param_fixes)
+def apply_param_modes(session, param_modes=None):
+    modes = fc.expand_mode_dict(param_modes, list(session.schema))
+    schema = fc.apply_modes(list(session.schema), modes)
     session = session.with_schema(schema)
     summary = ", ".join(f"{s['name']}:{fc.seg_mode(s)}({fc.seg_ntrain(s)})" for s in schema)
     print("param modes -> " + summary)
@@ -279,7 +328,6 @@ def build_session(
     tile_bright_stimulus_opts=None,
     tile_dark_stimulus_opts=None,
     param_modes=None,
-    param_fixes=None,
     ih_off=fc.IH_OFF_DEFAULT,
     fp32=False,
     pack_overrides=None,
@@ -319,13 +367,13 @@ def build_session(
             backend="borst", ih_off=ih_off, ih_group_names=ih_group_names, fp32=fp32, **mkw,
         )
     session = fc.open_session(opts, model_type, schema=schema, model_backend=model_backend)
-    if param_modes or param_fixes:
-        session = apply_param_modes(session, param_modes, param_fixes)
+    if param_modes:
+        session = apply_param_modes(session, param_modes)
     return session
 
 
 def run_training(model_type, nofruns, nofsteps, lrs, fname=None, outdir=None,
-                 param_modes=None, param_fixes=None,
+                 param_modes=None,
                  ih_off=fc.IH_OFF_DEFAULT,
                  network=None, sequential=False,
                  target_list=None, cost_weights=None,
@@ -339,7 +387,8 @@ def run_training(model_type, nofruns, nofsteps, lrs, fname=None, outdir=None,
                  pack_overrides=None, model_backend=None, schema=None,
                  fp32=False,
                  plot_ref_cubes=None, plot_ref_cubes_off=None,
-                 plot_mvd_group_list=None, plot_right_only=True):
+                 plot_mvd_group_list=None, plot_right_only=True,
+                 init_from=None):
     """Full training pipeline (do_many_runs + save_training_outputs + plots). Returns (fname, outdir, session)."""
     session = build_session(
         model_type,
@@ -357,7 +406,6 @@ def run_training(model_type, nofruns, nofsteps, lrs, fname=None, outdir=None,
         tile_bright_stimulus_opts=tile_bright_stimulus_opts,
         tile_dark_stimulus_opts=tile_dark_stimulus_opts,
         param_modes=param_modes,
-        param_fixes=param_fixes,
         ih_off=ih_off,
         pack_overrides=pack_overrides,
         model_backend=model_backend,
@@ -370,8 +418,9 @@ def run_training(model_type, nofruns, nofsteps, lrs, fname=None, outdir=None,
 
     print(f"device={session.device}, model_type={model_type}, nofruns={nofruns}, nofsteps={nofsteps}, "
           f"lrs={lrs}, nparams={fc.schema_nparams(list(session.schema))}, fname={fname}, outdir={outdir}")
+    z_init = load_init_z(init_from, session) if init_from else None
     t0 = time.time()
-    result = do_many_runs(session, nofruns, nofsteps, lrs=lrs)
+    result = do_many_runs(session, nofruns, nofsteps, lrs=lrs, z_init=z_init)
     print(f"done in {(time.time() - t0) / 3600:.2f} hours")
 
     save_training_outputs(fname, outdir, session, result)
@@ -395,19 +444,20 @@ def add_training_arguments(parser):
                         help="params filename (default derived from --model-type)")
     parser.add_argument("--outdir", default=None,
                         help="output dir (default derived from --model-type)")
+    parser.add_argument("--init-from", default=None, metavar="RUN",
+                        help="prior run folder; load params as z init only "
+                             "(settings come from this CLI, not train_opts.json)")
     parser.add_argument("--mode", default="", metavar="NAME=MODE,...",
-                        help="per-param mode override, e.g. out_scale=shared,ih=individual "
-                             "(MODE in individual|shared|fixed; ih expands to 6 shape params)")
-    parser.add_argument("--fix", default="", metavar="NAME=VALUE,...",
-                        help="hold a param fixed at VALUE (implies fixed mode), "
-                             "e.g. Ih_midv=-50,out_scale=1.0")
+                        help="per-param mode override, e.g. out_scale=shared,ih=indi "
+                             "(MODE in indi|shared|fixed; ih expands to 6 shape params)")
     parser.add_argument("--ih-group", default=",".join(fc.DEFAULT_IH_GROUP_NAMES),
                         help="comma-separated cell types receiving Ih_gmax/Ih_gmax_off "
-                             "(one trainable slot per name when mode=individual)")
+                             "(one trainable slot per name when mode=indi); "
+                             "or 'all' for every cell type on the backend")
     parser.add_argument("--ih-off", default=fc.IH_OFF_DEFAULT,
                         choices=list(fc.IH_OFF_MODES),
                         help="OFF-channel Ih: on (train Ih_gmax_off+OFF shape; default), "
-                             "mirrored (OFF copies ON; shared/individual from --mode), "
+                             "mirrored (OFF copies ON; shared/indi from --mode), "
                              "off (disable OFF channel)")
     parser.add_argument("--fp32", action="store_true",
                         help="run simulation in float32 (default float64)")
@@ -554,8 +604,7 @@ def training_kwargs_from_args(
 ):
     """Parse a training CLI namespace into kwargs for :func:`run_training`."""
     param_modes = parse_comma_kv(args.mode)
-    param_fixes = parse_comma_kv(args.fix, float)
-    cost_weights = fc.expand_cost_weights(parse_comma_kv(args.cost_weight, float))
+    cost_weights = fc.expand_cost_weight_dict(parse_comma_kv(args.cost_weight, float))
     target_list = parse_target_list(args.target)
     default_extent, extent_kv = parse_cost_extent(args.cost_extent)
     cost_extent_by_target = fc.resolve_cost_extent_by_target(
@@ -570,7 +619,7 @@ def training_kwargs_from_args(
     multi_shift_targets = (
         [t for t in target_list if t in fc.TILE_TARGETS] if args.shift else []
     )
-    share_edges_targets = fc.expand_target_aliases(parse_target_names(args.share_edges))
+    share_edges_targets = fc.expand_target_list(parse_target_names(args.share_edges))
     i_cli = fc.build_i_cli_by_target({
         "i_baseline": parse_comma_kv(args.i_baseline, float),
         "i_bright": parse_comma_kv(args.i_bright, float),
@@ -595,7 +644,6 @@ def training_kwargs_from_args(
         fname=args.fname,
         outdir=outdir,
         param_modes=param_modes,
-        param_fixes=param_fixes,
         network=args.network,
         target_list=target_list,
         cost_weights=cost_weights,
@@ -608,6 +656,7 @@ def training_kwargs_from_args(
         fp32=args.fp32,
         sequential=args.sequential,
         plot_right_only=args.plot_right_only,
+        init_from=args.init_from,
     )
 
 

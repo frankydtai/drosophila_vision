@@ -9,7 +9,7 @@ os.chdir(ROOT)
 
 import FiveCol_MedSim_Pytorch as fc
 import train
-from t4_t5_preference import READOUT_SUBTYPE_ALIASES, READOUT_SUBTYPES, expand_readout_subtypes
+from t4_t5_preference import READOUT_SUBTYPE_ALIASES, READOUT_SUBTYPES, expand_remove_subtypes_list
 
 ap = train.make_training_argparser(__doc__)
 valid = ", ".join((*READOUT_SUBTYPE_ALIASES, *READOUT_SUBTYPES))
@@ -25,7 +25,7 @@ except ValueError as exc:
     ap.error(str(exc))
 
 try:
-    removed = frozenset(expand_readout_subtypes(train.parse_comma_list(args.remove_subtypes)))
+    removed = frozenset(expand_remove_subtypes_list(train.parse_comma_list(args.remove_subtypes)))
     readout_subtypes = [st for st in READOUT_SUBTYPES if st not in removed]
     if not readout_subtypes:
         ap.error(f"removing {sorted(removed)!r} leaves no moving-bar readout subtypes")

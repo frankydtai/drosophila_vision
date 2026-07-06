@@ -108,10 +108,10 @@ def load_train_opts(outdir):
         return json.load(f)
 
 
-def load_session(outdir, model_type, param_modes=None, param_fixes=None):
+def load_session(outdir, model_type, param_modes=None):
     return fc.open_session_from_outdir(
         outdir, model_type,
-        param_modes=param_modes, param_fixes=param_fixes,
+        param_modes=param_modes,
     )
 
 
@@ -307,7 +307,7 @@ def _plot_one_target(session, z, outdir, tname, suffix, model_all,
 
 
 def plot_param_set(params, outdir, model_type=None, model_all=True,
-                   context_dir=None, param_modes=None, param_fixes=None,
+                   context_dir=None, param_modes=None,
                    plot_targets=None, session=None, *,
                    final_costs=None, cost_curve=None, costs_by_target=None, best_i=None,
                    save_artifacts=True, artifact_fname=None,
@@ -320,7 +320,7 @@ def plot_param_set(params, outdir, model_type=None, model_all=True,
     if model_type is None:
         raise ValueError('model_type or session required')
     if session is None:
-        session = load_session(ctx, model_type, param_modes=param_modes, param_fixes=param_fixes)
+        session = load_session(ctx, model_type, param_modes=param_modes)
 
     params = np.atleast_2d(params)
     if final_costs is None and artifact_fname is not None:

@@ -40,8 +40,8 @@ class MotionPreference:
     pc_nc: str  # "PC" | "NC"
 
 
-def expand_readout_subtypes(names: Sequence[str]) -> Tuple[str, ...]:
-    """Expand ``T4`` / ``T5`` aliases to concrete moving-bar readout subtypes."""
+def expand_remove_subtypes_list(names: Sequence[str]) -> Tuple[str, ...]:
+    """Expand ``remove_moving_bar`` SUBTYPES ``READOUT_SUBTYPE_ALIASES`` (e.g. T4, T5)."""
     if not names:
         raise ValueError("readout_subtypes must not be empty")
     out: list = []

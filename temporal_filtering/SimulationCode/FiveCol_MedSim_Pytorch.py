@@ -185,15 +185,16 @@ STATE_CLAMP = 1.0e6  # bound on adaptive state vars to keep explicit Euler finit
 #   init  : random-init mean;  jit: init uniform jitter (+/- jit/2)
 #   fill  : value for non-listed cells ('ih' only)
 #   zero  : ih_group-local indices set to 0 at init (from IH_GMAX_ZERO_TYPES cell names)
-#   mode  : 'individual' (train all slot values), 'shared' (train ONE value broadcast),
+#   mode  : 'indi' (train all slot values), 'shared' (train ONE value broadcast),
 #           or 'fixed' (train NOTHING; held at 'fixed' or 'init').
 #   fixed : constant value used when mode=='fixed' (defaults to 'init').
 # Canonical defaults for mode are set in ``build_*_schema``; CLI overrides via
-# train.py ``--mode`` / ``--fix`` (see ``PARAM_MODE_ALIASES`` for batch ``ih=``).
+# train.py ``--mode`` (see ``PARAM_MODE_ALIASES`` for batch ``ih=``).
 LAMINA_SLICE = ml.LAMINA_SLICE  # L1-L5 within the 65 cell types
 DEFAULT_IH_GROUP_NAMES = ('L1', 'L2', 'L3', 'L4', 'L5')
+IH_GROUP_ALIASES = frozenset({'all'})
 IH_GMAX_ZERO_TYPES = ('L3', 'L4')  # Ih_gmax z-init pinned to 0 for these types
-PARAM_MODES = ('individual', 'shared', 'fixed')
+PARAM_MODES = ('indi', 'shared', 'fixed')
 IH_SHAPE_PARAM_NAMES = (
     'Ih_midv', 'Ih_slope', 'tau_midv',
     'Ih_midv_off', 'Ih_slope_off', 'tau_midv_off',
@@ -202,7 +203,7 @@ PARAM_MODE_ALIASES = {'ih': IH_SHAPE_PARAM_NAMES}
 
 
 def seg_mode(seg):
-    mode = seg.get('mode', 'individual')
+    mode = seg.get('mode', 'indi')
     if mode not in PARAM_MODES:
         raise ValueError(f"{seg['name']}: bad mode {mode!r}, expected one of {PARAM_MODES}")
     return mode
@@ -227,7 +228,7 @@ def seg_ntrain(seg):
         return 0
     if mode == 'shared':
         return 1
-    return seg_count(seg)                      # individual
+    return seg_count(seg)                      # indi
 
 
 def schema_segments(schema):
@@ -243,27 +244,24 @@ def schema_nparams(schema):
     return sum(seg_ntrain(seg) for seg in schema)
 
 
-def apply_modes(schema, modes=None, fixes=None):
-    """Return a COPY of schema with per-parameter mode / fixed-value overrides.
+def apply_modes(schema, modes=None):
+    """Return a COPY of schema with per-parameter mode overrides.
 
-    modes: {name: 'individual'|'shared'|'fixed'};  fixes: {name: value} (implies fixed).
+    modes: {name: 'indi'|'shared'|'fixed'}.
     Keeps the original schema (the canonical default) untouched.
     """
-    modes, fixes = modes or {}, fixes or {}
+    modes = modes or {}
     out = []
     for seg in schema:
         s = dict(seg)
         if s['name'] in modes:
             s['mode'] = modes[s['name']]
-        if s['name'] in fixes:
-            s['mode'] = 'fixed'
-            s['fixed'] = float(fixes[s['name']])
         out.append(s)
     return out
 
 
-def expand_param_modes(modes, schema):
-    """Expand ``PARAM_MODE_ALIASES`` keys; only names present in *schema*."""
+def expand_mode_dict(modes, schema):
+    """Expand ``--mode`` ``PARAM_MODE_ALIASES`` keys; only names in *schema*."""
     if not modes:
         return {}
     schema_names = {s['name'] for s in schema}
@@ -340,9 +338,28 @@ def ih_group_zero_indices(ih_group, zero_types, type_names):
     return out
 
 
+def _all_ctype_names(backend: "ModelBackend"):
+    if backend.network is not None:
+        return [str(n) for n in backend.network.type_names]
+    return [str(n) for n in ml.ctype]
+
+
+def expand_ih_group_list(names, backend: "ModelBackend"):
+    """Expand ``--ih-group`` tokens (``all`` -> every cell type on *backend*)."""
+    out = [str(n).strip() for n in names if str(n).strip()]
+    if not out:
+        raise ValueError("--ih-group must list at least one cell type or 'all'")
+    if 'all' in out:
+        if len(out) != 1:
+            raise ValueError("--ih-group: 'all' cannot be combined with other names")
+        return _all_ctype_names(backend)
+    return out
+
+
 def build_ih_group_from_names(type_names, backend: "ModelBackend"):
     """Parse cell-type names to ``ih_group`` (one slot per name)."""
-    return [[int(i)] for i in resolve_type_indices(type_names, backend)]
+    names = expand_ih_group_list(type_names, backend)
+    return [[int(i)] for i in resolve_type_indices(names, backend)]
 
 
 def default_ih_group(backend: "ModelBackend"):
@@ -357,9 +374,9 @@ def build_conductance_schema(n_types, ih_group, ih_zero_types=IH_GMAX_ZERO_TYPES
         {'name': 'inp_gain',  'count': n_types, 'kind': 'full',   'lo': low_gain, 'hi': high_gain, 'init': 0.5,     'jit': 0.2},
         {'name': 'out_gain',  'count': n_types, 'kind': 'full',   'lo': low_gain, 'hi': high_gain, 'init': 0.5,     'jit': 0.2},
         {'name': 'out_scale', 'count': n_types, 'kind': 'output', 'lo': low_gain, 'hi': high_gain, 'init': 1.0,     'jit': 0.2},
-        {'name': 'Ih_gmax',     'kind': 'ih', 'ih_group': ih_group, 'mode': 'individual',
+        {'name': 'Ih_gmax',     'kind': 'ih', 'ih_group': ih_group, 'mode': 'indi',
          'lo': 0.0, 'hi': 100.0, 'init': Ih_gmax, 'jit': 10.0, 'fill': 0.0, 'zero': zero},
-        {'name': 'Ih_gmax_off', 'kind': 'ih', 'ih_group': ih_group, 'mode': 'individual',
+        {'name': 'Ih_gmax_off', 'kind': 'ih', 'ih_group': ih_group, 'mode': 'indi',
          'lo': 0.0, 'hi': 100.0, 'init': Ih_gmax, 'jit': 10.0, 'fill': 0.0, 'zero': zero},
         {'name': 'Ih_midv',     'lo': -70.0,    'hi': -30.0,     'init': Ih_midv,  'jit': 5.0, **shape},
         {'name': 'Ih_slope',    'lo': -0.40,    'hi': -0.20,     'init': Ih_slope, 'jit': 0.02, **shape},
@@ -377,9 +394,9 @@ def build_adaptive_schema(n_types, ih_group):
         {'name': 'out_scale',  'count': n_types, 'kind': 'output', 'lo': low_gain, 'hi': high_gain, 'init': 1.0,   'jit': 0.2},
         {'name': 'tau_m',      'count': n_types, 'kind': 'full',   'lo': deltat,   'hi': 1000.0,    'init': 50.0,  'jit': 10.0},
         {'name': 'bias',       'count': n_types, 'kind': 'full',   'lo': -2.0,     'hi': 2.0,       'init': 0.0,   'jit': 0.1},
-        {'name': 'adapt_gain', 'kind': 'ih', 'ih_group': ih_group, 'mode': 'individual',
+        {'name': 'adapt_gain', 'kind': 'ih', 'ih_group': ih_group, 'mode': 'indi',
          'lo': -2.0, 'hi': 2.0, 'init': 0.0, 'jit': 0.1, 'fill': 0.0},
-        {'name': 'tau_adapt',  'kind': 'ih', 'ih_group': ih_group, 'mode': 'individual',
+        {'name': 'tau_adapt',  'kind': 'ih', 'ih_group': ih_group, 'mode': 'indi',
          'lo': deltat, 'hi': 2000.0, 'init': 100.0, 'jit': 20.0, 'fill': deltat},
     ]
 
@@ -1234,8 +1251,8 @@ NETWORK_TARGET_BUILDERS = {
 }
 
 
-def expand_target_aliases(names) -> List[str]:
-    """Expand CLI shorthands: ``tile`` → bright+dark, ``moving_bar`` → bright+dark."""
+def expand_target_list(names) -> List[str]:
+    """Expand ``--target`` / ``--share-edges`` ``TARGET_ALIASES`` shorthands."""
     out = []
     for name in names:
         if name in TARGET_ALIASES:
@@ -1245,8 +1262,8 @@ def expand_target_aliases(names) -> List[str]:
     return out
 
 
-def expand_cost_extent_kv(kv: Optional[dict]) -> Dict[str, int]:
-    """Expand alias keys in per-target ``cost_extent`` CLI values."""
+def expand_cost_extent_dict(kv: Optional[dict]) -> Dict[str, int]:
+    """Expand ``--cost-extent`` ``TARGET_ALIASES`` keys."""
     if not kv:
         return {}
     out: Dict[str, int] = {}
@@ -1261,7 +1278,7 @@ def expand_cost_extent_kv(kv: Optional[dict]) -> Dict[str, int]:
 
 def resolve_cost_extent_by_target(target_list, default, by_target_kv) -> Dict[str, int]:
     """Map each concrete target in *target_list* to a cost extent (omit = all columns)."""
-    expanded = expand_cost_extent_kv(by_target_kv or {})
+    expanded = expand_cost_extent_dict(by_target_kv or {})
     bad = [k for k in expanded if k not in VALID_TARGETS]
     if bad:
         raise ValueError(
@@ -1423,8 +1440,8 @@ def _finalize_stimulus_opts(
     return out
 
 
-def expand_cost_weights(weights: Optional[dict]) -> Dict[str, float]:
-    """Expand alias keys in ``cost_weights`` to concrete cost-part names."""
+def expand_cost_weight_dict(weights: Optional[dict]) -> Dict[str, float]:
+    """Expand ``--cost-weight`` ``COST_WEIGHT_ALIASES`` keys."""
     if not weights:
         return {}
     out: Dict[str, float] = {}
@@ -1442,7 +1459,7 @@ def _normalize_target_list(target_list) -> List[str]:
         raise ValueError("target_list required")
     if isinstance(target_list, str):
         target_list = [t.strip() for t in target_list.split(",") if t.strip()]
-    tl = expand_target_aliases(list(target_list))
+    tl = expand_target_list(list(target_list))
     if not tl:
         raise ValueError("target_list must not be empty")
     bad = [t for t in tl if t not in VALID_TARGETS]
@@ -1505,7 +1522,7 @@ def make_train_opts(
     opts = {
         "backend": str(backend),
         "target_list": tl,
-        "cost_weights": expand_cost_weights(cost_weights or {}),
+        "cost_weights": expand_cost_weight_dict(cost_weights or {}),
         "sequential": sequential,
         **stimulus_opts,
     }
@@ -1630,7 +1647,7 @@ def _make_session(
         schema=tuple(sch),
         targets=dict(packs),
         target_list=tuple(target_list),
-        cost_weights=expand_cost_weights(cost_weights),
+        cost_weights=expand_cost_weight_dict(cost_weights),
         sequential=bool(seq),
         device=dev_ref,
         sim_dtype=sim_dtype,
@@ -1797,7 +1814,6 @@ def open_session_from_outdir(
     model_type: str,
     *,
     param_modes=None,
-    param_fixes=None,
 ) -> TrainSession:
     """Load ``train_opts.json`` from a run folder and return a ready session."""
     import json
@@ -1808,10 +1824,10 @@ def open_session_from_outdir(
     with open(opts_path) as f:
         opts = json.load(f)
     session = open_session_from_opts(opts, model_type)
-    if param_modes or param_fixes:
-        modes = expand_param_modes(param_modes, list(session.schema))
+    if param_modes:
+        modes = expand_mode_dict(param_modes, list(session.schema))
         session = session.with_schema(
-            apply_modes(list(session.schema), modes, param_fixes)
+            apply_modes(list(session.schema), modes)
         )
     return session
 
@@ -1859,7 +1875,7 @@ def update_Vm(Vm, u_on, u_off, inp_gain, out_gain, Ih_gmax, Ih_gmax_off,
 
 def _reconstruct_raw(seg, z_slice, z):
     """Build the length-`count` per-unit vector from the trainable z slice + mode.
-    individual: the slice itself; shared: the one value broadcast; fixed: a constant.
+    indi: the slice itself; shared: the one value broadcast; fixed: a constant.
     Gradients flow into the (1 or count) trainable entries; fixed has none."""
     mode, count = seg_mode(seg), seg_count(seg)
     if mode == 'fixed':
@@ -1867,7 +1883,7 @@ def _reconstruct_raw(seg, z_slice, z):
         return torch.full((count,), const, dtype=z.dtype, device=z.device)
     if mode == 'shared':
         return z_slice[0].repeat(count)
-    return z_slice                                              # individual
+    return z_slice                                              # indi
 
 
 def _expand_segment(seg, raw, backend: ModelBackend):
@@ -2035,7 +2051,7 @@ def out_scale_for_units(p, unit_index, backend: ModelBackend, *, sim_dtype=SIM_D
     return os_param[ci]
 
 
-def expand_plot_traces(raw, scale, mt, t_on_step=None):
+def pad_plot_traces(raw, scale, mt, t_on_step=None):
     """Ca-filtered readout ``(N, T')`` -> full-length tile plot traces ``(N, mt)``."""
     if t_on_step is None:
         t_on_step = t_on
@@ -2407,7 +2423,7 @@ def schema_guess(schema, sim_dtype=SIM_DTYPE_DEFAULT):
         if n == 0:                             # fixed: nothing to initialise
             continue
         z[start:stop] = seg['init'] + (np.random.rand(n) - 0.5) * seg['jit']
-        if seg_mode(seg) == 'individual':
+        if seg_mode(seg) == 'indi':
             for j in seg.get('zero', []):      # ih_group-local indices (see IH_GMAX_ZERO_TYPES)
                 z[start + j] = 0.0
     return torch.tensor(z, dtype=sim_dtype).to(active_device())
@@ -2544,8 +2560,13 @@ def _make_step_logger(session: TrainSession):
     return cost_fn, target_history, log_step, float_last_parts
 
 
-def do_many_runs(session: TrainSession, nofruns, nofsteps, lrs=(0.1, 0.01, 0.001)) -> TrainingResult:
-    """Run ``nofruns`` independent fits; return arrays (no file I/O)."""
+def do_many_runs(session: TrainSession, nofruns, nofsteps, lrs=(0.1, 0.01, 0.001),
+                 z_init=None) -> TrainingResult:
+    """Run ``nofruns`` independent fits; return arrays (no file I/O).
+
+    When *z_init* is set, every round starts from ``z_init.clone()`` instead of
+    ``schema_guess``.
+    """
     schema = list(session.schema)
     n_params = schema_nparams(schema)
     bounds = schema_bounds(schema, session.sim_dtype)
@@ -2564,7 +2585,7 @@ def do_many_runs(session: TrainSession, nofruns, nofsteps, lrs=(0.1, 0.01, 0.001
         print('round', i)
         print()
 
-        z = schema_guess(schema, session.sim_dtype)
+        z = z_init.clone() if z_init is not None else schema_guess(schema, session.sim_dtype)
         cost_history = []
         cost_fn, target_history, log_step, float_last_parts = _make_step_logger(session)
 

@@ -199,7 +199,7 @@ def _simulate(session, z, neuron_index, return_ref=False):
         stacked, ref = fc._run_conductance(session, p, neuron_index=neuron_index, return_ref=True)
     mt = session.maxtime
     scale = fc.out_scale_for_units(p, neuron_index, backend)
-    trace = fc.expand_plot_traces(stacked.transpose(0, 1), scale, mt)
+    trace = fc.pad_plot_traces(stacked.transpose(0, 1), scale, mt)
     if return_ref:
         return trace, ref
     return trace
@@ -276,7 +276,7 @@ def multicol_cube(session, z, all_cells=False, group_list=None):
     scale = fc.out_scale_for_units(
         p, torch.as_tensor(unit_idx, dtype=torch.long, device=z.device), session.backend,
     )
-    plot_traces = fc.expand_plot_traces(raw, scale, mt).cpu().numpy()
+    plot_traces = fc.pad_plot_traces(raw, scale, mt).cpu().numpy()
     baselines = baselines_for_types(
         pack, session.backend, vm_ref_np, names, type_ids, type_names,
         ring_layout=ring_layout,
