@@ -20,6 +20,14 @@ REPO_ROOT = SIMULATION_DIR.parent.parent
 # Trained-parameter output root (``adaptive/`` and ``conductance/`` run_* subdirs).
 PARAMETER_DIR = SIMULATION_DIR / "FiveCol_Parameter"
 
+# Borst 5-column simulator matrices (``FiveCol_MedSim_*`` / ``Circuits/``).
+BORST_CIRCUITS_DIR = SIMULATION_DIR / "Circuits"
+BORST_CTYPE_NPY = BORST_CIRCUITS_DIR / "ctype.npy"
+BORST_MULTI_COL_M_NPY = BORST_CIRCUITS_DIR / "multi_colM.npy"
+BORST_INTRA_COL_M_NPY = BORST_CIRCUITS_DIR / "intra_colM.npy"
+BORST_INTER_COL_M_NPY = BORST_CIRCUITS_DIR / "inter_colM.npy"
+BORST_MC_CELL_INDEX_NPY = BORST_CIRCUITS_DIR / "mc_cell_index.npy"
+
 # Per-run artifact subfolder (``.npy`` / ``.npz``, ``train_opts.json``).
 RUN_DATA_SUBDIR = "data"
 

@@ -36,7 +36,7 @@ Scope: `temporal_filtering/`.
 1. Parameters via schema only; new param = one segment. No scattered `z[...]`.
 2. `forward` / `trainer` / `calc_cost` live in core only.
 3. `train.py`: general driver only; `import train` must not parse argv or touch CUDA.
-4. Path constants in `connectome_io.py` / `training_config.py`. Exception: `Circuits/*`.
+4. Path constants in `connectome_io.py` / `training_config.py`. 
 5. CSVs: rectangular; global scalars as constant columns.
 6. Core codes must stay flexible for add_para/ or test/ to easily import, modify, and overwrite without touching core codes.
 

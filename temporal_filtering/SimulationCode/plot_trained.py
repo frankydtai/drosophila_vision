@@ -11,10 +11,6 @@ from pathlib import Path
 import numpy as np
 import torch
 
-# Borst Circuits/ paths resolve relative to SimulationCode/; chdir before fc import.
-if __name__ == '__main__':
-    os.chdir(os.path.dirname(os.path.abspath(__file__)))
-
 import FiveCol_MedSim_Pytorch as fc
 from plot import moving_bar as moving_bar_plot
 from plot import tile as tile_plot

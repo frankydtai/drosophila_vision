@@ -42,13 +42,6 @@ import os
 import time
 from pathlib import Path
 
-# When executed as a script, run from this file's own directory so `fc` finds
-# Circuits/ regardless of where it was launched (no need to cd first). Done
-# before importing fc (Borst paths resolve relative to SimulationCode/). NOT done on
-# `import train`, so importers keep control of cwd / CUDA_VISIBLE_DEVICES.
-if __name__ == "__main__":
-    os.chdir(os.path.dirname(os.path.abspath(__file__)))
-
 import numpy as np
 import torch
 
@@ -64,7 +57,7 @@ from plot_trained import (
     resolve_run_dir,
     run_dir,
 )
-from training_config import run_data_dir
+from training_config import BORST_CTYPE_NPY, run_data_dir
 
 
 def make_plots(fname, outdir, session, result=None, *,
@@ -104,8 +97,7 @@ def make_plots(fname, outdir, session, result=None, *,
 def ctype_labels(session):
     if session.backend.network is not None:
         return np.asarray(session.backend.network.type_names)
-    path = os.path.join(os.path.dirname(os.path.abspath(fc.__file__)), "Circuits", "ctype.npy")
-    return np.load(path, allow_pickle=True)
+    return np.load(BORST_CTYPE_NPY, allow_pickle=True)
 
 
 def decompose_params(z_t, session):

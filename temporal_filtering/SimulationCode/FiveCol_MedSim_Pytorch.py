@@ -19,7 +19,16 @@ from torch import nn
 from tqdm import tqdm
 
 from network.connectivity import DenseConn
-from training_config import DELTAT_MS, IMPULSE_MAXTIME, SIM_DTYPE_DEFAULT, T_ON, sim_dtype_from_fp32
+from training_config import (
+    BORST_CTYPE_NPY,
+    BORST_MC_CELL_INDEX_NPY,
+    BORST_MULTI_COL_M_NPY,
+    DELTAT_MS,
+    IMPULSE_MAXTIME,
+    SIM_DTYPE_DEFAULT,
+    T_ON,
+    sim_dtype_from_fp32,
+)
 
 
 def active_device():
@@ -696,7 +705,7 @@ def _borst_tile_pack_from_data(opts, pack_name, signal_fn, data_fn, *, sim_dtype
     """Shared Borst tile pack builder for bright/dark targets."""
     opts = dict(opts)
     u_idx = torch.tensor(
-        np.load("Circuits/mc_cell_index.npy"),
+        np.load(BORST_MC_CELL_INDEX_NPY),
         dtype=torch.long,
         device=active_device(),
     )
@@ -929,10 +938,9 @@ def _borst_moving_bar_pack(T, name):
 
 
 def _load_borst_matrices(dev: Optional[str] = None, *, dtype=SIM_DTYPE_DEFAULT):
-    # Circuits/ relative paths are intentional — see coding-conventions §10 exception.
     dev = dev or active_device()
-    multi_colM = np.load('Circuits/multi_colM.npy')
-    ctype_arr = np.load('Circuits/ctype.npy')
+    multi_colM = np.load(BORST_MULTI_COL_M_NPY)
+    ctype_arr = np.load(BORST_CTYPE_NPY)
     multi_colM = ml.apply_borst_connectivity_patches(multi_colM)
     M_exc = exc_synweight * multi_colM * (multi_colM > 0)
     M_inh = inh_synweight * multi_colM * (multi_colM < 0) * (-1)

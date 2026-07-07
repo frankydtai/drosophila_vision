@@ -6,14 +6,9 @@ Created on Fri Mar 09 08:43:49 2018
 """
 
 import numpy as np
-import matplotlib.pyplot as plt
 import blindschleiche_py3 as bs
 from scipy.signal import chirp
 
-dirname='Connectivity Matrix Srini/'
-fname1='central_column_connectivity.csv'
-fname2='offset_column_connectivity.csv'
-    
 nofcells = 65
 nofcols  = 5
 
@@ -24,6 +19,10 @@ from training_config import (
     T_ON,
     T_ON_MS,
     T_TAIL,
+    BORST_CTYPE_NPY,
+    BORST_MULTI_COL_M_NPY,
+    BORST_INTRA_COL_M_NPY,
+    BORST_INTER_COL_M_NPY,
 )
 
 I_BASELINE = 20.0  # pA photoreceptor current before T_ON
@@ -34,7 +33,7 @@ DATA_AMP = 20.0         # pA scale on ImpR target traces (fit cells)
 cell_list=np.array(['L1','L2','L3','L4','L5','Mi1','Tm3','Mi4','Mi9','Tm1','Tm2','Tm4','Tm9'])
 N_FIT_CELLS = len(cell_list)
 
-ctype      = np.load('Circuits/ctype.npy')
+ctype      = np.load(BORST_CTYPE_NPY)
 
 
 def get_cell_index(mycell):
@@ -145,79 +144,6 @@ def apply_borst_connectivity_patches(multi_colM: np.ndarray) -> np.ndarray:
                 continue
             multi_colM[post, column_slice(col)] = 0
     return multi_colM
-
-
-def read_single_connM(fname):
-    
-    print('reading data from ' + fname + ' file')
-    
-    data=np.genfromtxt(dirname+fname, delimiter=',', dtype=None)
-    
-    connM=np.zeros((nofcells,nofcells))
-    ctype = ["" for x in range(nofcells)]
-    
-    for i in range(nofcells):
-        ctype[i]=data[i+1,0].decode()
-    
-    for i in range(1,nofcells+1,1):
-        for j in range(1,nofcells+1,1):
-            if data[i,j] == b'':
-                connM[i-1,j-1] = 0
-            else:
-                connM[i-1,j-1]=float(data[i,j])
-            
-    connM=np.transpose(connM)
-    
-    return connM, ctype
-
-def calcAdjM(M,thr=4):
-    
-    mydim=M.shape[0]
-
-    AdjM=np.zeros((mydim,mydim))
-    
-    for i in range(mydim):
-        for j in range(mydim):
-            if abs(M[i,j]) > thr:
-                AdjM[i,j]=1
-                
-    return AdjM
-
-def read_ConnMs(n=5):
-
-    intra_colM, ctype = read_single_connM(fname1)
-    inter_colM, ctype = read_single_connM(fname2)
-    
-    def create_multi_colM():
-    
-        multi_colM  = np.zeros((n*nofcells,n*nofcells))
-        
-        for i in range(n):
-            
-            left_start  = column_start(i - 1)
-            left_stop   = column_start(i)
-            
-            centr_start = column_start(i)
-            centr_stop  = column_start(i + 1)
-            
-            right_start = column_start(i + 1)
-            right_stop  = column_start(i + 2)
-            
-            multi_colM[centr_start:centr_stop,centr_start:centr_stop] = intra_colM
-            
-            if i > 0:
-            
-                multi_colM[left_start:left_stop,centr_start:centr_stop] = inter_colM/2.0
-                
-            if i < n-1:
-                
-                multi_colM[right_start:right_stop,centr_start:centr_stop] = inter_colM/2.0
-            
-        return multi_colM
-    
-    multi_colM  = create_multi_colM()
-    
-    return multi_colM,intra_colM,inter_colM,ctype
 
 def normalize_data(x):
     
@@ -332,252 +258,4 @@ def borst_tile_impulse_data_dark(tile_T=None, amp=DATA_AMP):
     """Dark tile targets: inverted bright RecF×ImpR, shape ``(T, nofcells)``."""
     return -borst_tile_impulse_data(tile_T=tile_T, amp=amp)
 
-
-def create_multi_ctype(ctype,n=9):
-
-    multi_ctype = n*ctype
-    
-    label = ['_'+np.str(x+1) for x in range(n)]
-    
-    for j in range(n):
-        for i in range(nofcells):
-            multi_ctype[j*nofcells+i] = ctype[i] + label[j]
-            
-    return multi_ctype
-     
-def plot_ConnM():
-    
-    multi_colM = np.load('Circuits/multi_colM.npy')
-    intra_colM = np.load('Circuits/intra_colM.npy')
-    inter_colM = np.load('Circuits/inter_colM.npy')
-    ctype      = np.load('Circuits/ctype.npy')
-    
-    mynofcells= multi_colM.shape[0]
-    
-    n = int(mynofcells/65)
-    
-    plt.figure(figsize=(20,10))  
-    
-    # -------------------------------------------------
-    
-    bs.setmyaxes(0.05,0.55,0.4,0.4)
-    
-    plt.imshow(intra_colM,vmin=-10,vmax=10,cmap='coolwarm',interpolation='None') 
-    plt.xticks(np.arange(65), ctype, rotation=90, fontsize=6)
-    plt.yticks(np.arange(65), ctype, rotation=00, fontsize=6)
-    plt.title('intra column connectivity',fontsize=14,color='green')
-    
-    # -------------------------------------------------
-    
-    bs.setmyaxes(0.05,0.05,0.4,0.4)
-    
-    plt.imshow(inter_colM,vmin=-10,vmax=10,cmap='coolwarm',interpolation='None') 
-    plt.xticks(np.arange(65), ctype, rotation=90, fontsize=6)
-    plt.yticks(np.arange(65), ctype, rotation=00, fontsize=6)
-    plt.title('inter column connectivity',fontsize=14,color='orange')
-    
-    # -------------------------------------------------
-    
-    bs.setmyaxes(0.38,0.05,0.6,0.9)
-    
-    plt.imshow(multi_colM,vmin=-10,vmax=10,cmap='coolwarm',interpolation='None') 
-    plt.axis('off')
-    plt.title('overall connectivity',fontsize=14)
-    
-    # frame it
-    
-    plt.plot([-0.5, 584.5],[-0.5,-0.5],color='black')
-    plt.plot([-0.5, 584.5],[584.5,584.5],color='black')
-    plt.plot([-0.5,-0.5],[-0.5, 584.5],color='black')
-    plt.plot([584.5,584.5],[-0.5, 584.5],color='black')
-    
-    # add grid
-    
-    n_units = n_state_units(n)
-    
-    for i in range(1, n):
-            
-        x = column_start(i)
-        plt.plot([x, x], [0, n_units], color='black', linestyle='dashed')
-        plt.plot([0, n_units], [x, x], color='black', linestyle='dashed')
-            
-    # add outline
-    
-    def draw_square(x,y,mycolor):
-        
-        plt.plot([x,x+63],[y,y],color=mycolor,linewidth=2)
-        plt.plot([x,x+63],[y+63,y+63],color=mycolor,linewidth=2)
-        plt.plot([x,x],[y,y+63] ,color=mycolor,linewidth=2)
-        plt.plot([x+63,x+63],[y,y+63],color=mycolor,linewidth=2)
-        
-            
-    for i in range(n):
-        
-        # center
-        
-        x = column_start(i) + 1
-        y = column_start(i) + 1
-        
-        draw_square(x, y, 'green')
-        
-        #left
-        
-        x = column_start(i - 1) + 1
-        y = column_start(i) + 1
-        
-        draw_square(x, y, 'orange')
-        
-        #right
-        
-        x = column_start(i + 1) + 1
-        y = column_start(i) + 1
-        
-        draw_square(x, y, 'orange')
-        
-    plt.xlim(-0.5, n_units - 0.5)
-    plt.ylim(n_units - 0.5, -0.5)
-    
-    cbar = plt.colorbar()
-    cbar.set_label('inhib      # of synapses      excit', rotation=90, fontsize=12)
-    
-# ----------------------stimulus generation -----------------------------------
-
-def calc_grating(velo):
-    
-    maxtime = 1000
-    deltat  = 10.0
-    nofcols = 5
-    
-    # wavelength = 30 deg
-
-    movie=np.zeros((180,maxtime))
-    image=np.sin(np.arange(1800)/1800.0*2.0*np.pi*6) # 0.1 deg
-    image=1.0*(image>0)
-    myfilter=bs.Gauss1D(50,200)
-    image=np.convolve(image,myfilter)
-    image=image[0:1800]
-    myvelo=np.zeros(maxtime)
-    myvelo[100:maxtime]=velo*10.0/(1000.0/deltat)
-    
-    for i in range(maxtime):
-        
-        interim=np.roll(image,int(sum(myvelo[0:i])),axis=0)
-        movie[:,i]=bs.rebin(interim,180)
-        
-    signal = np.zeros((n_state_units(nofcols), maxtime))
-    
-    for i in range(nofcols):
-        
-        signal[photoreceptor_slice(i)] = movie[5 * i + 70]
-        
-    return signal
-
-def calc_edge(velo, polarity = 'bright'):
-    
-    maxtime = 1000
-    deltat  = 10.0
-    nofcols = 5
-
-    movie=np.zeros((180,maxtime))
-    image=np.zeros(3600)
-    image[0:1800]=1.0
-    
-    if polarity == 'dark':
-        image=1.0-image
-        
-    myfilter=bs.Gauss1D(50,200)
-    image=np.convolve(image,myfilter)
-    image=image[100:3700]
-    
-    tstart = int(500-9000.0/velo)
-    tstop  = int(500+9000.0/velo)
-    
-    if tstart < 0:
-        tstart= 0
-        tstop = maxtime
-        image = np.roll(image,150)
-    
-    myvelo=np.zeros(maxtime)
-    myvelo[tstart:tstop]=velo*10.0/(1000.0/deltat)
-    
-    for i in range(maxtime):
-        interim=np.roll(image,int(sum(myvelo[0:i])),axis=0)
-        movie[:,i]=bs.rebin(interim[1800:3600],180)
-        
-    signal = np.zeros((n_state_units(nofcols), maxtime))
-    
-    for i in range(nofcols):
-        
-        signal[photoreceptor_slice(i)] = movie[5 * i + 70]
-        
-    return signal
-
-def calc_bar(velo, polarity = 'bright'):
-    
-    maxtime = 1000
-    deltat  = 10.0
-    nofcols = 5
-
-    movie=np.zeros((180,maxtime))
-    image=np.zeros(3600)
-    image[1800:1850]=1.0
-    
-    if polarity == 'dark':
-        image=1.0-image
-        
-    myfilter=bs.Gauss1D(50,200)
-    image=np.convolve(image,myfilter)
-    image=image[100:3700]
-    
-    tstart = int(500-8750.0/velo)
-    tstop  = int(500+8750.0/velo)
-    
-    if tstart < 0:
-        tstart= 0
-        tstop = maxtime
-        image = np.roll(image,126)
-    
-    myvelo=np.zeros(maxtime)
-    myvelo[tstart:tstop]=velo*10.0/(1000.0/deltat)
-    
-    for i in range(maxtime):
-        interim=np.roll(image,int(sum(myvelo[0:i])),axis=0)
-        movie[:,i]=bs.rebin(interim[1800:3600],180)
-        
-    signal = np.zeros((n_state_units(nofcols), maxtime))
-    
-    for i in range(nofcols):
-        
-        signal[photoreceptor_slice(i)] = movie[5 * i + 70]
-        
-    return signal
-
-def calc_chirp(method='logarithmic',loc_global='global'):
-    
-    maxtime = 1000
-    deltat  = 10.0
-    nofcols = 5
-    
-    myt = np.arange(maxtime)*0.001*deltat
-    
-    mychirp=chirp(myt,f0=0.1,t1=10,f1=10,method=method)+1.0
-    
-    signal = np.zeros((n_state_units(nofcols), maxtime))
-    
-    if loc_global == 'global':
-    
-        for i in range(nofcols):
-            
-            signal[photoreceptor_slice(i)] = mychirp * 0.5
-            
-    if loc_global == 'local':
-            
-        signal[photoreceptor_slice(4)] = mychirp * 0.5
-        
-    return signal
-
-
-        
-        
-    
     
