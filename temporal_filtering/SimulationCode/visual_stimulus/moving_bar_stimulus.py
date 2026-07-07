@@ -2,7 +2,7 @@
 """Gruntman-style moving-bar stimulus: geometry, timing, and column currents.
 
 Pure visual-field math on hex columns (degrees, coverage, pA). No connectome
-or unit indexing — :mod:`network.stimulus` maps these currents onto a network.
+or unit indexing — :mod:`network.moving_bar_target` maps these currents onto a network.
 """
 from __future__ import annotations
 

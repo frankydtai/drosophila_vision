@@ -1,23 +1,33 @@
 # -*- coding: utf-8 -*-
-"""Gruntman moving-bar training target: fig1_ci traces + per-column ``t_center``.
+"""Moving-bar stimulus + training target for connectome and Borst backends.
 
-``build_moving_bar_target`` returns batched moving-bar ``signal``, per-readout
-``data`` on the cost-window grid aligned to
-``t_center - COST_WINDOW_BEFORE_MS .. t_center + COST_WINDOW_AFTER_MS``,
-and ``cost_t0`` for :mod:`FiveCol_MedSim_Pytorch` windowed cost.
+Column geometry and bar physics live in :mod:`visual_stimulus.moving_bar_stimulus`.
+This module maps column-level currents to photoreceptor units, builds batched
+``signal`` tensors, and assembles fig1 cost readouts via
+:func:`build_moving_bar_target`.
+
+``build_moving_bar_signals`` returns ``signal`` with shape ``(B, T, N_units)``.
+Default ``T`` is ``t_on`` + sweep + moving-bar tail, not Borst ``IMPULSE_MAXTIME``.
 """
 from __future__ import annotations
 
-from dataclasses import dataclass
+import hashlib
+import json
+import logging
+from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Dict, List, Optional, Sequence
+from typing import Dict, List, Optional, Sequence, Tuple
 
 import numpy as np
 import torch
 
+import network_bootstrap  # noqa: F401
+
 import Medulla_Library as ml
 from Medulla_Library import I_BASELINE, I_BRIGHT, I_DARK
-from network.stimulus import build_moving_bar_signals, cost_sti_columns
+from column_mapper import borst_sti_columns
+from connectome_io import moving_bar_cache_dir
+from network.stimulus import column_in_cost_extent
 from t4_t5_preference import (
     READOUT_SUBTYPES,
     fig1_key_for_stimulus,
@@ -34,18 +44,310 @@ from training_config import (
     ms_to_steps,
 )
 from visual_stimulus.moving_bar_stimulus import (
+    GRUNTMAN_SPEED_DEG_S,
+    HexColumn,
+    MovingBarSpec,
     build_batched_column_current,
     column_bar_center_step,
     field_bounds,
     gruntman_moving_bar_specs,
+    hex_column_from_uv,
     moving_bar_maxtime,
     moving_bar_sweep_end_step,
 )
-from column_mapper import borst_sti_columns
+
+from .tiling import unit_type_names
+
+logger = logging.getLogger(__name__)
 
 _TRACE_CACHE: Dict[str, np.ndarray] = {}
 BORST_READOUT_SUBTYPES = ("T4a", "T4b", "T5a", "T5b")
 PD_IDX, ND_IDX = 0, 1
+
+
+@dataclass
+class StiColumn(HexColumn):
+    """One sti column on a connectome, with unit indices for scattering."""
+
+    unit_idx: np.ndarray
+
+
+def _sti_column_from_uv(u: int, v: int, unit_idx: np.ndarray) -> StiColumn:
+    base = hex_column_from_uv(u, v)
+    return StiColumn(
+        u=base.u,
+        v=base.v,
+        x=base.x,
+        y=base.y,
+        x_deg=base.x_deg,
+        y_deg=base.y_deg,
+        hex_xy=base.hex_xy,
+        unit_idx=unit_idx,
+    )
+
+
+@dataclass
+class MovingBarStimulus:
+    signal: torch.Tensor
+    column_current: np.ndarray
+    specs: List[MovingBarSpec]
+    info: dict = field(default_factory=dict)
+
+
+def sti_columns(C) -> List[StiColumn]:
+    """Sti columns with photoreceptor units (one per axial ``(u, v)``)."""
+    cols: Dict[Tuple[int, int], StiColumn] = {}
+    u_in = C.u[C.is_input]
+    v_in = C.v[C.is_input]
+    for u, v in zip(u_in.tolist(), v_in.tolist()):
+        key = (int(u), int(v))
+        if key in cols:
+            continue
+        units = C.input_units_at(key[0], key[1])
+        if len(units) == 0:
+            continue
+        cols[key] = _sti_column_from_uv(
+            key[0], key[1], np.asarray(units, dtype=np.int64),
+        )
+    return [cols[k] for k in sorted(cols)]
+
+
+def center_sti_column(C) -> StiColumn:
+    """Sti column at hex origin ``(u, v) = (0, 0)``, or closest to field centre."""
+    cols = sti_columns(C)
+    if not cols:
+        raise ValueError("network has no sti columns")
+    for col in cols:
+        if col.u == 0 and col.v == 0:
+            return col
+    return min(cols, key=lambda c: c.x * c.x + c.y * c.y)
+
+
+def moving_bar_cost_columns(C, cost_extent=None) -> List[StiColumn]:
+    """Sti columns used for moving-bar cost (optional central hex disc)."""
+    cols = sti_columns(C)
+    if cost_extent is None:
+        return cols
+    return [c for c in cols if column_in_cost_extent(c.u, c.v, cost_extent)]
+
+
+def _column_unit_map(columns: Sequence[StiColumn]) -> Tuple[np.ndarray, np.ndarray]:
+    """Flat (col_idx, unit_idx) pairs for scattering column current onto units."""
+    col_idx: List[int] = []
+    unit_idx: List[int] = []
+    for j, col in enumerate(columns):
+        for u in np.asarray(col.unit_idx).ravel():
+            col_idx.append(j)
+            unit_idx.append(int(u))
+    return (
+        np.asarray(col_idx, dtype=np.int64),
+        np.asarray(unit_idx, dtype=np.int64),
+    )
+
+
+def scatter_column_current(
+    column_current: np.ndarray,
+    columns: Sequence[StiColumn],
+    n_units: int,
+) -> np.ndarray:
+    """Broadcast column current ``(T, n_cols)`` to unit current ``(T, n_units)``."""
+    t_steps = column_current.shape[0]
+    out = np.zeros((t_steps, n_units), dtype=np.float64)
+    col_idx, unit_idx = _column_unit_map(columns)
+    if len(col_idx):
+        out[:, unit_idx] = column_current[:, col_idx]
+    return out
+
+
+def scatter_column_current_batched(
+    column_current: np.ndarray,
+    columns: Sequence[StiColumn],
+    n_units: int,
+) -> np.ndarray:
+    """Broadcast ``(B, T, n_cols)`` column current to ``(B, T, n_units)``."""
+    n_batch, t_steps, _ = column_current.shape
+    out = np.zeros((n_batch, t_steps, n_units), dtype=np.float64)
+    col_idx, unit_idx = _column_unit_map(columns)
+    if len(col_idx):
+        out[:, :, unit_idx] = column_current[:, :, col_idx]
+    return out
+
+
+def _column_uv(columns: Sequence[StiColumn]) -> List[Tuple[int, int]]:
+    return [(c.u, c.v) for c in columns]
+
+
+def _spec_contrast_set(specs: Sequence[MovingBarSpec]) -> frozenset:
+    return frozenset(s.contrast for s in specs)
+
+
+def _moving_bar_cache_key(
+    network_json: Path,
+    specs: Sequence[MovingBarSpec],
+    column_uv: Sequence[Tuple[int, int]],
+    maxtime: int,
+    t_on: int,
+    deltat_ms: float,
+    i_baseline: float,
+    i_bright_bar: Optional[float] = None,
+    i_dark_bar: Optional[float] = None,
+) -> str:
+    stat = network_json.stat()
+    payload = {
+        "network": str(network_json.resolve()),
+        "network_mtime_ns": stat.st_mtime_ns,
+        "network_size": stat.st_size,
+        "column_uv": list(column_uv),
+        "specs": [
+            {
+                "direction": s.direction,
+                "contrast": s.contrast,
+                "width_deg": s.width_deg,
+                "speed_deg_s": s.speed_deg_s,
+            }
+            for s in specs
+        ],
+        "maxtime": maxtime,
+        "t_on": t_on,
+        "deltat_ms": deltat_ms,
+        "i_baseline": i_baseline,
+    }
+    if i_bright_bar is not None:
+        payload["i_bright_bar"] = i_bright_bar
+    if i_dark_bar is not None:
+        payload["i_dark_bar"] = i_dark_bar
+    digest = hashlib.sha256(json.dumps(payload, sort_keys=True).encode()).hexdigest()
+    return digest[:16]
+
+
+def _moving_bar_cache_path(
+    network_json: Path,
+    specs: Sequence[MovingBarSpec],
+    column_uv: Sequence[Tuple[int, int]],
+    maxtime: int,
+    t_on: int,
+    deltat_ms: float,
+    i_baseline: float,
+    i_bright_bar: Optional[float] = None,
+    i_dark_bar: Optional[float] = None,
+) -> Path:
+    key = _moving_bar_cache_key(
+        network_json, specs, column_uv, maxtime, t_on, deltat_ms,
+        i_baseline, i_bright_bar, i_dark_bar,
+    )
+    return moving_bar_cache_dir(network_json) / f"{key}.npz"
+
+
+def _load_moving_bar_column_cache(path: Path) -> Optional[np.ndarray]:
+    if not path.is_file():
+        return None
+    try:
+        with np.load(path, allow_pickle=False) as data:
+            return np.asarray(data["column_current"], dtype=np.float64)
+    except (OSError, KeyError, ValueError) as exc:
+        logger.warning("Ignoring corrupt moving-bar cache %s: %s", path, exc)
+        return None
+
+
+def _save_moving_bar_column_cache(path: Path, column_current: np.ndarray) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    np.savez_compressed(path, column_current=column_current)
+    logger.info("Cached moving-bar column current to %s", path)
+
+
+def build_moving_bar_signals(
+    C,
+    specs: Optional[Sequence[MovingBarSpec]] = None,
+    maxtime: Optional[int] = None,
+    t_on: int = T_ON,
+    deltat_ms: float = DELTAT_MS,
+    i_baseline: float = I_BASELINE,
+    i_bright_bar: Optional[float] = None,
+    i_dark_bar: Optional[float] = None,
+    device: Optional[str] = None,
+    use_cache: bool = True,
+    refresh_cache: bool = False,
+    network_json: Optional[Path] = None,
+    sim_dtype: torch.dtype = SIM_DTYPE_DEFAULT,
+) -> MovingBarStimulus:
+    """Build batched photoreceptor current for moving-bar stimuli.
+
+    Returns ``signal`` with shape ``(B, T, N_units)`` where ``B = len(specs)``
+    (16 by default). Before ``t_on`` and after the sweep, all currents are
+    ``i_baseline``; during the sweep they follow bar coverage (bright/dark).
+    """
+    device = device or C.device
+    specs = list(specs if specs is not None else gruntman_moving_bar_specs())
+    contrasts = _spec_contrast_set(specs)
+    i_bright = None
+    i_dark = None
+    if "bright" in contrasts:
+        i_bright = I_BRIGHT if i_bright_bar is None else float(i_bright_bar)
+    if "dark" in contrasts:
+        i_dark = I_DARK if i_dark_bar is None else float(i_dark_bar)
+    sti_cols = sti_columns(C)
+    field_deg = field_bounds(sti_cols)
+    if maxtime is None:
+        maxtime = moving_bar_maxtime(specs, field_deg, t_on=t_on, deltat_ms=deltat_ms)
+    n_batch = len(specs)
+    n_units = C.n_units
+    sweep_end = moving_bar_sweep_end_step(specs, field_deg, t_on=t_on, deltat_ms=deltat_ms)
+    sweep_steps = sweep_end - t_on
+    tail_steps = maxtime - sweep_end
+
+    cache_path: Optional[Path] = None
+    source_json = Path(network_json) if network_json is not None else getattr(C, "source_json", None)
+    column_uv = _column_uv(sti_cols)
+    if source_json is not None:
+        cache_path = _moving_bar_cache_path(
+            source_json, specs, column_uv, maxtime, t_on, deltat_ms,
+            i_baseline, i_bright, i_dark,
+        )
+
+    col_curr: Optional[np.ndarray] = None
+    if cache_path is not None and use_cache and not refresh_cache:
+        col_curr = _load_moving_bar_column_cache(cache_path)
+        if col_curr is not None:
+            logger.info("Loaded moving-bar column current from cache %s", cache_path)
+
+    if col_curr is None:
+        col_curr = build_batched_column_current(
+            sti_cols, specs, maxtime=maxtime, t_on=t_on, deltat_ms=deltat_ms,
+            i_baseline=i_baseline,
+            i_bright_bar=i_bright,
+            i_dark_bar=i_dark,
+        )
+        if cache_path is not None and use_cache:
+            _save_moving_bar_column_cache(cache_path, col_curr)
+
+    signal_np = scatter_column_current_batched(col_curr, sti_cols, n_units)
+    signal_np[:, :t_on, :] = i_baseline
+
+    info = {
+        "n_batch": n_batch,
+        "n_sti_columns": len(sti_cols),
+        "field_deg": field_deg,
+        "maxtime": maxtime,
+        "t_on": t_on,
+        "sweep_end": sweep_end,
+        "sweep_steps": sweep_steps,
+        "sweep_time_s": sweep_steps * deltat_ms / 1000.0,
+        "tail_steps": tail_steps,
+        "tail_time_s": tail_steps * deltat_ms / 1000.0,
+        "i_baseline": i_baseline,
+        "speed_deg_s": specs[0].speed_deg_s if specs else GRUNTMAN_SPEED_DEG_S,
+        "spec_names": [s.name for s in specs],
+    }
+    if i_bright is not None:
+        info["i_bright_bar"] = i_bright
+    if i_dark is not None:
+        info["i_dark_bar"] = i_dark
+    return MovingBarStimulus(
+        signal=torch.as_tensor(signal_np, dtype=sim_dtype, device=device),
+        column_current=col_curr,
+        specs=specs,
+        info=info,
+    )
 
 
 def _pd_nd_index(pd_nd: str) -> int:
@@ -77,12 +379,7 @@ def load_fig1_trace(
     npz_path: Path = FIG1_CI_NPZ,
     deltat_ms: float = DELTAT_MS,
 ) -> np.ndarray:
-    """Resample one fig1 trace onto the moving-bar cost window.
-
-    Npz ``time_ms`` is the digitized panel axis (0 .. 900 ms).
-    Cost-window index ``i`` reads npz at ``i * deltat_ms`` (``i=0`` → 0 ms,
-    last index → ``before_ms + after_ms``).
-    """
+    """Resample one fig1 trace onto the moving-bar cost window."""
     n_steps = ms_to_steps(COST_WINDOW_BEFORE_MS + COST_WINDOW_AFTER_MS, deltat_ms=deltat_ms) + 1
     before_steps = ms_to_steps(COST_WINDOW_BEFORE_MS, deltat_ms=deltat_ms)
     key = (
@@ -114,9 +411,6 @@ def load_fig1_traces(
         tid: load_fig1_trace(tid, npz_path, deltat_ms)
         for tid in _fig1_trace_ids(npz_path)
     }
-
-
-from .tiling import unit_type_names
 
 
 def col2subtype(C, u: int, v: int, subtype: str, names: Optional[np.ndarray] = None) -> np.ndarray:
@@ -214,7 +508,7 @@ def build_moving_bar_target(
     )
 
     type_names = unit_type_names(C)
-    cols = cost_sti_columns(C, cost_extent=cost_extent)
+    cols = moving_bar_cost_columns(C, cost_extent=cost_extent)
     center_col = cols[0] if cost_extent == 0 and len(cols) == 1 else None
 
     r_batch, r_unit, r_target, r_weight, r_t0, r_pd_nd = [], [], [], [], [], []

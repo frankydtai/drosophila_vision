@@ -14,11 +14,14 @@ import FiveCol_MedSim_Pytorch as fc
 import Medulla_Library as ml
 from plot.readout import moving_bar_row_types
 from plot.utils import (
+    DATA_COLOR,
+    TRACE_LW,
     baselines_for_types,
     plot_timecourse,
     save_figure,
     sem_from_traces,
     suppress_cost_sem,
+    ylim_for_traces,
 )
 from FiveCol_MedSim_Pytorch import t_on
 from network.moving_bar_target import _borst_moving_bar_specs, load_fig1_trace
@@ -31,7 +34,6 @@ from t4_t5_preference import (
     normalize_side,
 )
 from training_config import (
-    COST_WINDOW,
     COST_WINDOW_AFTER,
     COST_WINDOW_BEFORE,
     DELTAT_MS,
@@ -52,7 +54,7 @@ class MovingBarWindowTraces:
 
 @dataclass
 class MovingBarTraceBundle:
-    """One forward pass; ``cost`` always present, ``full`` when built with ``full=True``."""
+    """One forward pass; t_center-aligned full-window model traces."""
 
     target: str
     types: list
@@ -62,8 +64,7 @@ class MovingBarTraceBundle:
     baselines: dict
     data_mean: dict
     maxtime: int
-    cost: MovingBarWindowTraces
-    full: MovingBarWindowTraces | None = None
+    traces: MovingBarWindowTraces
     session: object = field(default=None, repr=False, compare=False)
 
 
@@ -101,11 +102,10 @@ def _rel_window_seconds(before_steps, after_steps):
     return before_steps * scale, after_steps * scale
 
 
-def _record_spec_full_horizon(t_centers, maxtime, spec_name, full_before, full_after, *, full):
+def _record_spec_full_horizon(t_centers, maxtime, spec_name, full_before, full_after):
     fb = min(t_centers)
-    if full:
-        full_before[spec_name] = fb
-        full_after[spec_name] = int(maxtime) - max(t_centers)
+    full_before[spec_name] = fb
+    full_after[spec_name] = int(maxtime) - max(t_centers)
     return fb
 
 
@@ -211,19 +211,18 @@ def _load_moving_bar_data_mean(session, target, types, specs, side):
     return data_mean
 
 
-def _moving_bar_t0_grids(session, specs, cost_extent, maxtime, *, full):
-    from network.stimulus import build_moving_bar_signals, cost_sti_columns
+def _moving_bar_t0_grids(session, specs, cost_extent, maxtime):
+    from network.moving_bar_target import build_moving_bar_signals, moving_bar_cost_columns
 
     C = session.backend.network
     n_batch = len(specs)
     full_before_steps = {}
     full_after_steps = {}
-    t0_cost_map = {}
     t0_full_map = {}
 
     if C is not None:
         side = normalize_side(C.meta.get('side', 'right'))
-        cols = cost_sti_columns(C, cost_extent=cost_extent)
+        cols = moving_bar_cost_columns(C, cost_extent=cost_extent)
         field_deg = C.meta.get('field_deg')
         if field_deg is None:
             field_deg = build_moving_bar_signals(
@@ -234,15 +233,12 @@ def _moving_bar_t0_grids(session, specs, cost_extent, maxtime, *, full):
         for bi, spec in enumerate(specs):
             t_centers = _column_t_centers(cols, spec, field_deg)
             fb = _record_spec_full_horizon(
-                t_centers, maxtime, spec.name, full_before_steps, full_after_steps, full=full,
+                t_centers, maxtime, spec.name, full_before_steps, full_after_steps,
             )
             for c, tc in zip(cols, t_centers):
                 uv = (bi, int(c.u), int(c.v))
-                t0_cost_map[uv] = tc - COST_WINDOW_BEFORE
-                if full:
-                    t0_full_map[uv] = tc - fb
-        t0_cost_bn = _moving_bar_t0_grid(C, cols, n_batch, t0_cost_map)
-        t0_full_bn = _moving_bar_t0_grid(C, cols, n_batch, t0_full_map) if full else None
+                t0_full_map[uv] = tc - fb
+        t0_full_bn = _moving_bar_t0_grid(C, cols, n_batch, t0_full_map)
     else:
         side = "right"
         cols_all = list(borst_sti_columns())
@@ -251,19 +247,16 @@ def _moving_bar_t0_grids(session, specs, cost_extent, maxtime, *, full):
         field_deg = field_bounds(cols_all)
         types = list(ml.ctype.tolist())
         type_ids = _type_ids_np(session.backend.conn.node_type)
-        t0_cost_bn = np.full((n_batch, ml.n_state_units()), -1, dtype=np.int64)
-        t0_full_bn = np.full((n_batch, ml.n_state_units()), -1, dtype=np.int64) if full else None
+        t0_full_bn = np.full((n_batch, ml.n_state_units()), -1, dtype=np.int64)
         for bi, spec in enumerate(specs):
             t_centers = _column_t_centers(cols, spec, field_deg)
             fb = _record_spec_full_horizon(
-                t_centers, maxtime, spec.name, full_before_steps, full_after_steps, full=full,
+                t_centers, maxtime, spec.name, full_before_steps, full_after_steps,
             )
             for col_id, col, tc in zip(col_ids, cols, t_centers):
-                t0_cost_bn[bi, ml.column_slice(col_id)] = tc - COST_WINDOW_BEFORE
-                if full:
-                    t0_full_bn[bi, ml.column_slice(col_id)] = tc - fb
+                t0_full_bn[bi, ml.column_slice(col_id)] = tc - fb
 
-    return types, type_ids, t0_cost_bn, t0_full_bn, full_before_steps, full_after_steps, side
+    return types, type_ids, t0_full_bn, full_before_steps, full_after_steps, side
 
 
 def _moving_bar_row_specs(session, target, side):
@@ -276,8 +269,8 @@ def _moving_bar_row_specs(session, target, side):
 
 
 @torch.no_grad()
-def moving_bar_trace_bundle(session, z, target, *, full=False):
-    """Run one forward; ``cost`` traces always; ``full`` when ``full=True``."""
+def moving_bar_trace_bundle(session, z, target):
+    """Run one forward; t_center-aligned full-window traces."""
     pack = session.pack_for(target)
     schema = list(session.schema)
     p = fc.assign_params(z, schema, session.backend)
@@ -290,8 +283,8 @@ def moving_bar_trace_bundle(session, z, target, *, full=False):
     maxtime = int(session.maxtime)
     vm_ref_np = vm_ref[0].cpu().numpy()
     C = session.backend.network
-    types, type_ids, t0_cost_bn, t0_full_bn, full_before_steps, full_after_steps, side = (
-        _moving_bar_t0_grids(session, specs, cost_extent, maxtime, full=full)
+    types, type_ids, t0_full_bn, full_before_steps, full_after_steps, side = (
+        _moving_bar_t0_grids(session, specs, cost_extent, maxtime)
     )
     if C is not None:
         type_names = list(C.type_names)
@@ -306,28 +299,21 @@ def moving_bar_trace_bundle(session, z, target, *, full=False):
         baselines = baselines_for_types(
             pack, session.backend, vm_ref_np, types, type_ids, types,
         )
-    windows_cost = _windows_by_batch(model_full, t0_cost_bn, COST_WINDOW)
-    cost_mean, cost_sem = _aggregate_moving_bar_traces(
-        windows_cost, t0_cost_bn, type_ids, types, spec_names, single_column,
+    win_lens = [
+        full_before_steps[sname] + full_after_steps[sname] + 1
+        for sname in spec_names
+    ]
+    windows_full = _windows_by_batch(model_full, t0_full_bn, win_lens)
+    trace_mean, trace_sem = _aggregate_moving_bar_traces(
+        windows_full, t0_full_bn, type_ids, types, spec_names, single_column,
     )
     data_mean = _load_moving_bar_data_mean(session, target, types, specs, side)
-    cost = MovingBarWindowTraces(model_mean=cost_mean, model_sem=cost_sem)
-    full_traces = None
-    if full:
-        win_lens = [
-            full_before_steps[sname] + full_after_steps[sname] + 1
-            for sname in spec_names
-        ]
-        windows_full = _windows_by_batch(model_full, t0_full_bn, win_lens)
-        full_mean, full_sem = _aggregate_moving_bar_traces(
-            windows_full, t0_full_bn, type_ids, types, spec_names, single_column,
-        )
-        full_traces = MovingBarWindowTraces(
-            model_mean=full_mean,
-            model_sem=full_sem,
-            before_steps=full_before_steps,
-            after_steps=full_after_steps,
-        )
+    traces = MovingBarWindowTraces(
+        model_mean=trace_mean,
+        model_sem=trace_sem,
+        before_steps=full_before_steps,
+        after_steps=full_after_steps,
+    )
     return MovingBarTraceBundle(
         target=target,
         types=types,
@@ -337,24 +323,24 @@ def moving_bar_trace_bundle(session, z, target, *, full=False):
         baselines=baselines,
         data_mean=data_mean,
         maxtime=maxtime,
-        cost=cost,
-        full=full_traces,
+        traces=traces,
         session=session,
     )
 
 
-def _bundle_window(b, full):
-    if full:
-        if b.full is None:
-            raise ValueError('full traces missing; build bundle with full=True')
-        return b.full
-    return b.cost
+def _window_steps(wt, sname):
+    return wt.before_steps[sname], wt.after_steps[sname]
 
 
-def _window_steps(wt, sname, full):
-    if full:
-        return wt.before_steps[sname], wt.after_steps[sname]
-    return COST_WINDOW_BEFORE, COST_WINDOW_AFTER
+def _cost_window_overlay(cost_trace, before_steps):
+    """Fig1 overlay x/y within full-window coordinates (cost window only)."""
+    i0 = before_steps - COST_WINDOW_BEFORE
+    trace = np.asarray(cost_trace, dtype=np.float64)
+    if i0 < 0:
+        trace = trace[-i0:]
+        i0 = 0
+    x = np.arange(i0, i0 + len(trace), dtype=np.int64)
+    return x, trace
 
 
 def _moving_bar_scope_label(session):
@@ -363,19 +349,14 @@ def _moving_bar_scope_label(session):
     C = session.backend.network
     if cost_extent is not None:
         if C is not None:
-            from network.stimulus import cost_sti_columns
-            ncols = len(cost_sti_columns(C, cost_extent=cost_extent))
+            from network.moving_bar_target import moving_bar_cost_columns
+            ncols = len(moving_bar_cost_columns(C, cost_extent=cost_extent))
             return f'cost_extent={cost_extent} ({ncols} sti columns)'
         return f'cost_extent={cost_extent}'
     if C is not None:
-        from network.stimulus import sti_columns
+        from network.moving_bar_target import sti_columns
         return f'avg over {len(sti_columns(C))} sti columns'
     return f'avg over {ml.nofcols} Borst columns'
-
-
-def _moving_bar_window_label(before_steps, after_steps) -> str:
-    before_s, after_s = _rel_window_seconds(before_steps, after_steps)
-    return f't_center - {before_s:g} .. + {after_s:g} s'
 
 
 def _style_moving_bar_relative_axis(
@@ -427,6 +408,9 @@ def _plot_moving_bar_cell(
     linestyle='-',
 ):
     win_len = len(model_trace)
+    data_x, data_y = None, None
+    if data_trace is not None:
+        data_x, data_y = _cost_window_overlay(data_trace, before_steps)
 
     def style_xaxis(ax):
         _style_moving_bar_relative_axis(
@@ -435,19 +419,29 @@ def _plot_moving_bar_cell(
             mark_cost_window=mark_cost_window,
         )
 
+    if ylim is None:
+        ylo, yhi = ylim_for_traces(
+            model_trace, data=data_y, sem=sem_trace,
+            show_sem=show_sem and sem_trace is not None and np.any(sem_trace),
+        )
+    else:
+        ylo, yhi = ylim
+
     plot_timecourse(
         ax, np.arange(win_len), model_trace,
-        data=data_trace,
+        data=None,
         sem=sem_trace,
         show_sem=show_sem and sem_trace is not None and np.any(sem_trace),
         title=title,
-        ylim=ylim,
+        ylim=(ylo, yhi),
         baseline=baseline,
         show_ylabel=show_ylabel,
         ticksize=6 if cell_ticks else 5,
         style_xaxis=style_xaxis,
         linestyle=linestyle,
     )
+    if data_x is not None:
+        ax.plot(data_x, data_y, color=DATA_COLOR, linewidth=TRACE_LW, linestyle=linestyle)
 
 
 @torch.no_grad()
@@ -472,17 +466,20 @@ def plot_moving_bar_data(session, z, path, target, session_off=None, title=None,
     fig, axes = _moving_bar_figure(nrows, ncols)
 
     def _plot_row(ri, subtype, specs, col_offset, b, plot_side):
+        wt = b.traces
         for ci, sname in enumerate(specs):
             ax = axes[ri, col_offset + ci]
             key = (subtype, sname)
-            if key not in b.cost.model_mean:
+            if key not in wt.model_mean:
                 ax.axis('off')
                 continue
+            before_steps, after_steps = _window_steps(wt, sname)
             _plot_moving_bar_cell(
-                ax, b.cost.model_mean[key], b.cost.model_sem[key],
-                sname, COST_WINDOW_BEFORE, COST_WINDOW_AFTER,
+                ax, wt.model_mean[key], wt.model_sem[key],
+                sname, before_steps, after_steps,
                 data_trace=b.data_mean.get(key),
                 show_ylabel=(col_offset + ci == 0), show_sem=not single_column,
+                mark_cost_window=True,
                 baseline=b.baselines.get(subtype),
                 linestyle=_moving_bar_spec_linestyle(plot_side, subtype, sname),
             )
@@ -496,18 +493,18 @@ def plot_moving_bar_data(session, z, path, target, session_off=None, title=None,
         title = 'Moving-bar model-data'
     scope = _moving_bar_scope_label(b_on.session)
     fig.suptitle(
-        title + f'  [{scope}, {_moving_bar_window_label(COST_WINDOW_BEFORE, COST_WINDOW_AFTER)}]',
+        title + f'  [{scope}, t_center-aligned full window]',
         fontsize=12,
     )
     _moving_bar_figure_adjust(fig)
     save_figure(fig, path, dpi=MOVING_BAR_DPI, rasterize=True)
 
 
-def _plot_moving_bar_all_from_bundles(path, b_on, b_off, title, *, right_only=True, full=False):
+def _plot_moving_bar_all_from_bundles(path, b_on, b_off, title, *, right_only=True):
     t0 = time.perf_counter()
     single_column = b_on.single_column
     types = b_on.types
-    wt_on = _bundle_window(b_on, full)
+    wt_on = b_on.traces
     spec_names = _filter_right_specs(b_on.spec_names, right_only)
     ncols_on = len(spec_names)
     model_mean, model_sem = wt_on.model_mean, wt_on.model_sem
@@ -516,7 +513,7 @@ def _plot_moving_bar_all_from_bundles(path, b_on, b_off, title, *, right_only=Tr
     baselines_off = None
     wt_off = None
     if b_off is not None:
-        wt_off = _bundle_window(b_off, full)
+        wt_off = b_off.traces
         spec_off = _filter_right_specs(b_off.spec_names, right_only)
         spec_names = list(spec_names) + list(spec_off)
         model_mean = {**model_mean, **wt_off.model_mean}
@@ -541,47 +538,39 @@ def _plot_moving_bar_all_from_bundles(path, b_on, b_off, title, *, right_only=Tr
             wt = wt_on if ci < ncols_on else wt_off
             if baselines_off is not None and ci >= ncols_on:
                 bl = baselines_off.get(tname)
-            before_steps, after_steps = _window_steps(wt, sname, full)
+            before_steps, after_steps = _window_steps(wt, sname)
             _plot_moving_bar_cell(
                 ax, model_mean[key], model_sem.get(key),
                 sname, before_steps, after_steps,
-                data_trace=None if full else data_mean.get(key),
+                data_trace=data_mean.get(key),
                 show_ylabel=(ci == 0),
                 show_sem=show_sem and key in model_sem and np.any(model_sem[key]),
                 cell_ticks=False,
                 show_tick_labels=(ri == nrows - 1),
-                mark_cost_window=full,
+                mark_cost_window=True,
                 baseline=bl,
             )
         axes[ri, 0].set_ylabel(tname, fontsize=8, labelpad=12)
     if title is None:
-        if full:
-            title = 'Moving-bar model-all full horizon'
-        else:
-            title = 'Moving-bar model-all (right only)' if right_only else 'Moving-bar model-all'
+        title = 'Moving-bar model-all (right only)' if right_only else 'Moving-bar model-all'
     scope = _moving_bar_scope_label(b_on.session)
-    if full:
-        window_label = 't_center-aligned full window'
-    else:
-        window_label = _moving_bar_window_label(COST_WINDOW_BEFORE, COST_WINDOW_AFTER)
-    fig.suptitle(title + f'  [{scope}, {window_label}]', fontsize=12)
+    fig.suptitle(title + f'  [{scope}, t_center-aligned full window]', fontsize=12)
     _moving_bar_figure_adjust(fig)
     t_draw = time.perf_counter() - t1
     t2 = time.perf_counter()
     save_figure(fig, path, dpi=MOVING_BAR_DPI, rasterize=True)
     t_save = time.perf_counter() - t2
-    label = 'plot_moving_bar_all_full' if full else 'plot_moving_bar_all'
     print(
-        f'{label}: traces={t_traces:.1f}s  '
+        f'plot_moving_bar_all: traces={t_traces:.1f}s  '
         f'draw={t_draw:.1f}s  savefig={t_save:.1f}s  total={t_traces+t_draw+t_save:.1f}s'
     )
 
 
 @torch.no_grad()
 def plot_moving_bar_all(session, z, path, target, session_off=None, title=None, *,
-                        right_only=True, full=False, bundle=None, bundle_off=None):
-    b_on = bundle or moving_bar_trace_bundle(session, z, target, full=full)
+                        right_only=True, bundle=None, bundle_off=None):
+    b_on = bundle or moving_bar_trace_bundle(session, z, target)
     b_off = None
     if session_off is not None:
-        b_off = bundle_off or moving_bar_trace_bundle(session_off, z, target, full=full)
-    _plot_moving_bar_all_from_bundles(path, b_on, b_off, title, right_only=right_only, full=full)
+        b_off = bundle_off or moving_bar_trace_bundle(session_off, z, target)
+    _plot_moving_bar_all_from_bundles(path, b_on, b_off, title, right_only=right_only)

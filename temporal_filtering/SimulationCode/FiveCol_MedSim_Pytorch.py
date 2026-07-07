@@ -1024,10 +1024,10 @@ def _build_borst_tile_dark_target(ctx: _TrainBindCtx) -> Tuple[TargetPack, dict]
     return build_borst_tile_dark_pack(opts, sim_dtype=ctx.sim_dtype), opts
 
 
-def _cost_extent_coltag(cost_extent, n_cost):
+def _cost_extent_column_coltag(cost_extent, n_columns):
     if cost_extent is not None:
         return f"cost_extent={int(cost_extent)}"
-    return f"{n_cost} cost cells"
+    return f"{n_columns} columns"
 
 
 def _build_borst_moving_bar_target(ctx: _TrainBindCtx, *, pack_name: str, polarity: str):
@@ -1073,12 +1073,6 @@ def _moving_bar_polarity_opts(ctx: _TrainBindCtx, polarity: str) -> dict:
     return dict(raw or factory(mode=mode))
 
 
-def _network_moving_bar_coltag(cost_extent, n_columns):
-    if cost_extent is not None:
-        return _cost_extent_coltag(cost_extent, n_columns)
-    return f"{n_columns} sti columns"
-
-
 def _build_network_moving_bar_target(ctx: _TrainBindCtx, C, *, pack_name: str, polarity: str):
     from network.moving_bar_target import build_moving_bar_target
 
@@ -1118,7 +1112,7 @@ def _build_network_moving_bar_target(ctx: _TrainBindCtx, C, *, pack_name: str, p
         cost_extent=cost_extent,
         cost_pd_nd=T.cost_pd_nd,
     )
-    coltag = _network_moving_bar_coltag(cost_extent, T.info["n_cost_columns"])
+    coltag = _cost_extent_column_coltag(cost_extent, T.info["n_cost_columns"])
     tag = (
         f"moving-bar {polarity} (B={T.n_batch} stimuli, "
         f"{T.info['n_cost']} cost cells, {coltag})"
@@ -1145,7 +1139,7 @@ def _build_network_moving_bar_dark_target(
 def _build_network_tile_bright_target(
     ctx: _TrainBindCtx, C,
 ) -> Tuple[TargetPack, dict, str]:
-    from network.target import build_shifted_target
+    from network.tile_target import build_shifted_target
 
     dev = ctx.dev or active_device()
     opts = dict(ctx.tile_bright_stimulus_opts or make_tile_bright_stimulus_opts(mode="network"))
@@ -1180,11 +1174,11 @@ def _build_network_tile_bright_target(
         cost_radius=T.cost_radius,
         cost_extent=cost_extent,
     )
-    coltag = _cost_extent_coltag(cost_extent, T.info["n_cost"])
+    coltag = _cost_extent_column_coltag(cost_extent, T.info["n_cost_columns"])
     shifttag = "7 shifts" if multi_shift else "1 shift"
     tag = (
         f"tile_bright (B={T.n_batch} stimuli [{T.info['n_centers']} tiles x "
-        f"{shifttag}], {coltag})"
+        f"{shifttag}], {T.info['n_cost']} cost cells, {coltag})"
     )
     return pack, stim, tag
 
@@ -1192,7 +1186,7 @@ def _build_network_tile_bright_target(
 def _build_network_tile_dark_target(
     ctx: _TrainBindCtx, C,
 ) -> Tuple[TargetPack, dict, str]:
-    from network.target import build_shifted_target
+    from network.tile_target import build_shifted_target
 
     dev = ctx.dev or active_device()
     opts = dict(ctx.tile_dark_stimulus_opts or make_tile_dark_stimulus_opts(mode="network"))
@@ -1227,11 +1221,11 @@ def _build_network_tile_dark_target(
         cost_radius=T.cost_radius,
         cost_extent=cost_extent,
     )
-    coltag = _cost_extent_coltag(cost_extent, T.info["n_cost"])
+    coltag = _cost_extent_column_coltag(cost_extent, T.info["n_cost_columns"])
     shifttag = "7 shifts" if multi_shift else "1 shift"
     tag = (
         f"tile_dark (B={T.n_batch} stimuli [{T.info['n_centers']} tiles x "
-        f"{shifttag}], {coltag})"
+        f"{shifttag}], {T.info['n_cost']} cost cells, {coltag})"
     )
     return pack, stim, tag
 

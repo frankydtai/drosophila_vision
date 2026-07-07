@@ -33,10 +33,10 @@ from plot.utils import (
     save_figure,
     sem_from_traces,
 )
+from network.tile_target import tile_cost_unit_ring_layout
 from network.tiling import (
     tile_stimulus_batches,
     tiling_from_stimulus_opts,
-    unit_ring_layout,
 )
 
 CENTER_COL = ml.CENTER_COL
@@ -258,8 +258,11 @@ def multicol_cube(session, z, all_cells=False, group_list=None):
 
     if all_cells:
         opts = dict((session.train_opts or {}).get(f"{pack.name}_stimulus_opts") or {})
-        batches = tile_stimulus_batches(tiling_from_stimulus_opts(C, opts))
-        batch_idx, unit_idx, radius, type_idx = unit_ring_layout(C, batches)
+        tiling = tiling_from_stimulus_opts(C, opts)
+        batches = tile_stimulus_batches(tiling)
+        batch_idx, unit_idx, radius, type_idx = tile_cost_unit_ring_layout(
+            C, batches, tiling, pack.cost_extent,
+        )
         names = [str(n) for n in type_names]
         ring_layout = (batch_idx, unit_idx, type_idx, radius)
     else:
@@ -319,8 +322,9 @@ def _prepare_borst_tile(session, z, all_cells, group_list):
 
 
 def _prepare_network_tile(session, z, all_cells, group_list):
+    pack = session.primary_pack
     names, cube, sem, baselines = multicol_cube(session, z, all_cells=all_cells, group_list=group_list)
-    single_column = all_cells or suppress_cost_sem(session)
+    single_column = suppress_cost_sem(session, target=pack.name)
     cells = [
         dict(name=n, cube=cube[i], sem=None if single_column else sem[i], baseline=baselines.get(n))
         for i, n in enumerate(names)

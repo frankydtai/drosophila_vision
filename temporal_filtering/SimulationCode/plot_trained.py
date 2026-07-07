@@ -257,18 +257,14 @@ def _plot_tile_targets(session, z, outdir, tile_targets, suffix, model_all,
 
 
 def _plot_bar_targets(session, z, outdir, bar_targets, suffix, model_all, *,
-                      plot_right_only=True, full_time=False):
+                      plot_right_only=True):
     """Plot moving-bar target(s); bright left | dark right when both are trained."""
     bar_set = set(bar_targets)
     if bar_set == set(fc.MOVING_BAR_TARGETS):
         s_bright = _session_for_target(session, 'moving_bar_bright')
         s_dark = _session_for_target(session, 'moving_bar_dark')
-        bundle_b = moving_bar_plot.moving_bar_trace_bundle(
-            s_bright, z, 'moving_bar_bright', full=full_time,
-        )
-        bundle_d = moving_bar_plot.moving_bar_trace_bundle(
-            s_dark, z, 'moving_bar_dark', full=full_time,
-        )
+        bundle_b = moving_bar_plot.moving_bar_trace_bundle(s_bright, z, 'moving_bar_bright')
+        bundle_d = moving_bar_plot.moving_bar_trace_bundle(s_dark, z, 'moving_bar_dark')
         mvd = os.path.join(outdir, 'model_data_bar.png')
         moving_bar_plot.plot_moving_bar_data(
             s_bright, z, mvd, 'moving_bar_bright', session_off=s_dark,
@@ -276,7 +272,6 @@ def _plot_bar_targets(session, z, outdir, bar_targets, suffix, model_all, *,
             bundle=bundle_b, bundle_off=bundle_d,
         )
         allc = None
-        allc_full = None
         if model_all:
             allc = os.path.join(outdir, 'model_all_bar.png')
             moving_bar_plot.plot_moving_bar_all(
@@ -285,18 +280,10 @@ def _plot_bar_targets(session, z, outdir, bar_targets, suffix, model_all, *,
                 right_only=plot_right_only,
                 bundle=bundle_b, bundle_off=bundle_d,
             )
-        if full_time:
-            allc_full = os.path.join(outdir, 'model_all_bar_full.png')
-            moving_bar_plot.plot_moving_bar_all(
-                s_bright, z, allc_full, 'moving_bar_bright', session_off=s_dark,
-                title=f'Moving-bar model-all full ({suffix})',
-                right_only=plot_right_only, full=True,
-                bundle=bundle_b, bundle_off=bundle_d,
-            )
         return mvd, allc
     for tname in bar_targets:
         one = _session_for_target(session, tname)
-        bundle = moving_bar_plot.moving_bar_trace_bundle(one, z, tname, full=full_time)
+        bundle = moving_bar_plot.moving_bar_trace_bundle(one, z, tname)
         mvd = os.path.join(outdir, 'model_data_bar.png')
         moving_bar_plot.plot_moving_bar_data(
             one, z, mvd, tname, title=f'{tname} model-data ({suffix})', bundle=bundle,
@@ -307,12 +294,6 @@ def _plot_bar_targets(session, z, outdir, bar_targets, suffix, model_all, *,
             moving_bar_plot.plot_moving_bar_all(
                 one, z, allc, tname, title=f'{tname} model-all ({suffix})',
                 right_only=plot_right_only, bundle=bundle,
-            )
-        if full_time:
-            moving_bar_plot.plot_moving_bar_all(
-                one, z, os.path.join(outdir, 'model_all_bar_full.png'), tname,
-                title=f'{tname} model-all full ({suffix})',
-                right_only=plot_right_only, full=True, bundle=bundle,
             )
         return mvd, allc
 
@@ -342,7 +323,7 @@ def plot_param_set(params, outdir, model_type=None, model_all=True,
                    final_costs=None, cost_curve=None, costs_by_target=None, best_i=None,
                    save_artifacts=True, artifact_fname=None,
                    ref_cubes=None, ref_cubes_off=None, mvd_group_list=None,
-                   plot_right_only=True, full_time=False):
+                   plot_right_only=True):
     os.makedirs(outdir, exist_ok=True)
     ctx = context_dir or outdir
     if model_type is None and session is not None:
@@ -399,7 +380,7 @@ def plot_param_set(params, outdir, model_type=None, model_all=True,
     if bar_targets:
         _plot_bar_targets(
             session, z, outdir, bar_targets, suffix, model_all,
-            plot_right_only=plot_right_only, full_time=full_time,
+            plot_right_only=plot_right_only,
         )
     for tname in other_targets:
         one = _session_for_target(session, tname)
@@ -445,15 +426,6 @@ def main():
         help='model_all_bar: right-direction specs only (default true); '
              'pass false for all directions',
     )
-    ap.add_argument(
-        '--full-time',
-        nargs='?',
-        const=True,
-        default=False,
-        type=parse_bool,
-        metavar='BOOL',
-        help='also write model_all_bar_full.png (t_center-aligned extended window)',
-    )
     args = ap.parse_args()
     outdir = resolve_run_dir(args.run_path)
     params_path, artifact_fname = find_training_params(outdir)
@@ -467,7 +439,6 @@ def main():
         artifact_fname=artifact_fname,
         best_i=args.best_i,
         plot_right_only=args.plot_right_only,
-        full_time=args.full_time,
     )
 
 

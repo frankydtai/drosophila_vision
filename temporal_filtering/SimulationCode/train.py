@@ -62,12 +62,11 @@ from training_config import run_data_dir
 
 def make_plots(fname, outdir, session, result=None, *,
                ref_cubes=None, ref_cubes_off=None, mvd_group_list=None,
-               plot_right_only=True, full_time=False):
+               plot_right_only=True):
     """Cost curve + model-vs-data + all-cell-types."""
     plot_kw = dict(
         ref_cubes=ref_cubes, ref_cubes_off=ref_cubes_off,
         mvd_group_list=mvd_group_list, plot_right_only=plot_right_only,
-        full_time=full_time,
     )
     if result is not None:
         plot_param_set(
@@ -404,7 +403,7 @@ def run_training(model_type, nofruns, nofsteps, lrs, fname=None, outdir=None,
                  pack_overrides=None, model_backend=None, schema=None,
                  fp32=False,
                  plot_ref_cubes=None, plot_ref_cubes_off=None,
-                 plot_mvd_group_list=None, plot_right_only=True, full_time=False,
+                 plot_mvd_group_list=None, plot_right_only=True,
                  init_from=None):
     """Full training pipeline (do_many_runs + save_training_outputs + plots). Returns (fname, outdir, session)."""
     session = build_session(
@@ -445,7 +444,6 @@ def run_training(model_type, nofruns, nofsteps, lrs, fname=None, outdir=None,
         fname, outdir, session, result=result,
         ref_cubes=plot_ref_cubes, ref_cubes_off=plot_ref_cubes_off,
         mvd_group_list=plot_mvd_group_list, plot_right_only=plot_right_only,
-        full_time=full_time,
     )
     return fname, outdir, session
 
@@ -545,15 +543,6 @@ def add_training_arguments(parser):
         metavar="BOOL",
         help="model_all_bar: right-direction specs only (default true); "
              "pass false for all directions",
-    )
-    parser.add_argument(
-        "--full-time",
-        nargs="?",
-        const=True,
-        default=False,
-        type=parse_bool,
-        metavar="BOOL",
-        help="also write model_all_bar_full.png (full 0..maxtime horizon)",
     )
 
 
@@ -683,7 +672,6 @@ def training_kwargs_from_args(
         fp32=args.fp32,
         sequential=args.sequential,
         plot_right_only=args.plot_right_only,
-        full_time=args.full_time,
         init_from=args.init_from,
     )
 

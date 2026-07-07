@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Visualise moving-bar column coverage (demo only).
 
-Connectome: hex sti field from ``network.stimulus``.
+Connectome: hex sti field from ``network.moving_bar_target``.
 Borst (``--borst``): five columns on a horizontal row (AP axis only; ``right``/``left``).
 
 Usage (from SimulationCode/, uses project .venv):
@@ -37,7 +37,7 @@ import Medulla_Library as ml
 from Medulla_Library import I_BASELINE, I_BRIGHT
 from training_config import DELTAT_MS, T_ON
 from network.construction import load_network
-from network.stimulus import build_moving_bar_signals, sti_columns
+from network.moving_bar_target import build_moving_bar_signals, sti_columns
 from column_mapper import (
     borst_sti_columns,
     draw_hex_patches_uv,

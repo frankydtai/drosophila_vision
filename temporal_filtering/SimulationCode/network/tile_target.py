@@ -23,6 +23,9 @@ Each tile ring is weighted by 1/(columns in that ring) so the 4 radii
     cost_radius     (n_cost,)    Euclidean ring radius {0,1,sqrt3,2,...} per cost cell
     readout_batch   (n_cost,)    which batch (stimulus) each cost cell belongs to
     readout_unit    (n_cost,)    which unit each cost cell is
+
+``info`` includes ``n_cost`` (readout rows) and ``n_cost_columns`` (member
+columns in ``cost_extent`` per stimulus batch, excluding batch/shift/cell count).
 """
 from __future__ import annotations
 
@@ -73,6 +76,60 @@ def _recf_at(recf_row: np.ndarray, r: float) -> float:
     return float(np.interp(idx, np.arange(_RF_NSAMPLES), recf_row))
 
 
+def tile_cost_columns(batches, tiling, cost_extent):
+    """Tile member columns in cost_extent: ``(batch, mu, mv, radius)`` each."""
+    cols = []
+    for b, (su, sv, center) in enumerate(batches):
+        for du, dv in tiling.members:
+            mu = center[0] + du
+            mv = center[1] + dv
+            if not column_in_cost_extent(mu, mv, cost_extent):
+                continue
+            r = euclid_hex_dist(mu - su, mv - sv)
+            cols.append((b, int(mu), int(mv), float(r)))
+    return cols
+
+
+def tile_n_cost_columns(cost_cols):
+    """Member columns in ``cost_extent`` per stimulus batch (uniform across batches)."""
+    if not cost_cols:
+        return 0
+    counts = {}
+    for b, _mu, _mv, _r in cost_cols:
+        counts[b] = counts.get(b, 0) + 1
+    vals = set(counts.values())
+    if len(vals) != 1:
+        raise ValueError(
+            f"tile n_cost_columns varies by batch: "
+            f"{ {b: counts[b] for b in sorted(counts)} }",
+        )
+    return next(iter(vals))
+
+
+def tile_cost_unit_ring_layout(C, batches, tiling, cost_extent):
+    """All units on :func:`tile_cost_columns`, with batch and stim-centred radius."""
+    u = C.u.detach().cpu().numpy() if hasattr(C.u, "detach") else np.asarray(C.u)
+    v = C.v.detach().cpu().numpy() if hasattr(C.v, "detach") else np.asarray(C.v)
+    type_all = (
+        C.node_type.detach().cpu().numpy()
+        if hasattr(C.node_type, "detach") else np.asarray(C.node_type)
+    )
+    batch_idx, unit_idx, radius, type_idx = [], [], [], []
+    for b, mu, mv, r in tile_cost_columns(batches, tiling, cost_extent):
+        on_col = (u == mu) & (v == mv)
+        for uid in np.where(on_col)[0]:
+            batch_idx.append(b)
+            unit_idx.append(int(uid))
+            radius.append(r)
+            type_idx.append(int(type_all[uid]))
+    return (
+        np.asarray(batch_idx, dtype=np.int64),
+        np.asarray(unit_idx, dtype=np.int64),
+        np.asarray(radius, dtype=np.float64),
+        np.asarray(type_idx, dtype=np.int64),
+    )
+
+
 def build_shifted_target(
     C,
     tile_extent: int = 2,
@@ -119,24 +176,16 @@ def build_shifted_target(
 
     # Per (batch, radius) ring size counted in COLUMNS (not cells), so every
     # tile ring gets weight 1/columns -> the 4 radii contribute equally.
+    cost_cols = tile_cost_columns(batches, tiling, cost_extent)
     col_count = {}
-    for b, (su, sv, center) in enumerate(batches):
-        for du, dv in tiling.members:
-            mu, mv = center[0] + du, center[1] + dv
-            if not column_in_cost_extent(mu, mv, cost_extent):
-                continue
-            rr = round(euclid_hex_dist(mu - su, mv - sv), 6)
-            col_count[(b, rr)] = col_count.get((b, rr), 0) + 1
+    for b, _mu, _mv, r in cost_cols:
+        rr = round(r, 6)
+        col_count[(b, rr)] = col_count.get((b, rr), 0) + 1
 
     r_batch, r_unit, r_radius, r_target, r_weight = [], [], [], [], []
-    for b, (su, sv, center) in enumerate(batches):
-        for du, dv in tiling.members:
-            mu, mv = center[0] + du, center[1] + dv
-            if not column_in_cost_extent(mu, mv, cost_extent):
-                continue
-            r = euclid_hex_dist(mu - su, mv - sv)
-            w = 1.0 / col_count[(b, round(r, 6))]
-            for ft in present_fit:
+    for b, mu, mv, r in cost_cols:
+        w = 1.0 / col_count[(b, round(r, 6))]
+        for ft in present_fit:
                 units = col2fit(C, mu, mv, ft, names)
                 if len(units) == 0:
                     continue
@@ -168,6 +217,7 @@ def build_shifted_target(
     info = {
         "n_batch": n_batch,
         "n_cost": data.shape[0],
+        "n_cost_columns": tile_n_cost_columns(cost_cols),
         "n_centers": len(tiling.centers),
         "n_shifts": len(tiling.shifts),
         "cost_extent": cost_extent,
