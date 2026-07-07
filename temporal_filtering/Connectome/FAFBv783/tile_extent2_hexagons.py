@@ -31,13 +31,13 @@ import numpy as np
 from connectome_io import DATA_DIR
 from column_mapper import (
     DEFAULT_EXTENT,
-    HEX_PATCH_ORIENTATION,
     HEX_PATCH_RADIUS,
     HexGrid,
     columns_with_uv,
     draw_fafb_columns,
-    hex_to_pixel,
+    draw_hex_patches,
     set_axis_labels,
+    uv_to_xy_deg,
     shift_offsets,
     tile_centers,
     tile_offsets,
@@ -53,24 +53,20 @@ OUTPUT_FILE = "extent2_tiling.png"
 
 def _draw_tile_cells(ax, cells, facecolor, edgecolor, hex_radius_px, alpha=0.55):
     """Fill the given axial cells with one colour (a single tile)."""
-    from matplotlib.patches import RegularPolygon
-
-    xs, ys = hex_to_pixel(
-        np.array([c[0] for c in cells]), np.array([c[1] for c in cells])
+    xs, ys = uv_to_xy_deg(
+        np.array([c[0] for c in cells]), np.array([c[1] for c in cells]),
     )
-    for x, y in zip(np.atleast_1d(xs), np.atleast_1d(ys)):
-        ax.add_patch(
-            RegularPolygon(
-                (x, y), numVertices=6, radius=hex_radius_px,
-                orientation=HEX_PATCH_ORIENTATION,
-                facecolor=facecolor, edgecolor=edgecolor,
-                linewidth=0.8, alpha=alpha,
-            )
-        )
+    draw_hex_patches(
+        ax, xs, ys, facecolor,
+        edgecolor=edgecolor,
+        hex_radius_px=hex_radius_px,
+        linewidth=0.8,
+        alpha=alpha,
+    )
 
 
 def _axis_limits(grid: HexGrid, margin: float = 2.0):
-    x, y = hex_to_pixel(grid.u, grid.v)
+    x, y = uv_to_xy_deg(grid.u, grid.v)
     return (x.min() - margin, x.max() + margin), (y.min() - margin, y.max() + margin)
 
 
@@ -100,7 +96,7 @@ def draw_tiling_panel(
         cells = [(cu + du, cv + dv) for du, dv in offsets]
         color = cmap(i % cmap.N)
         _draw_tile_cells(ax, cells, color, "black", hex_radius_px, alpha=alpha)
-        cx, cy = hex_to_pixel(cu, cv)
+        cx, cy = uv_to_xy_deg(cu, cv)
         ax.plot(float(cx), float(cy), ".", color="black", markersize=4)
         ax.text(
             float(cx), float(cy), str(i), ha="center", va="center",
@@ -127,7 +123,7 @@ def draw_shift_panel(ax, grid: HexGrid, df_right, hex_radius_px: float):
 
     shifts = shift_offsets()
     for j, (su, sv) in enumerate(shifts):
-        sx, sy = hex_to_pixel(su, sv)
+        sx, sy = uv_to_xy_deg(su, sv)
         ax.plot(float(sx), float(sy), "o", color="crimson", markersize=8)
         ax.text(
             float(sx), float(sy), str(j), ha="center", va="center",

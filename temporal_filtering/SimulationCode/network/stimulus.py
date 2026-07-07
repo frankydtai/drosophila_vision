@@ -24,7 +24,6 @@ import torch
 
 import network_bootstrap  # noqa: F401
 
-from column_mapper import DEFAULT_KERNEL_SIZE, hex_to_pixel, hex_vertices
 from connectome_io import moving_bar_cache_dir
 from Medulla_Library import I_BASELINE, I_BRIGHT, I_DARK
 from training_config import DELTAT_MS, SIM_DTYPE_DEFAULT, T_ON, T_ON_MS
@@ -35,6 +34,7 @@ from visual_stimulus.moving_bar_stimulus import (
     build_batched_column_current,
     field_bounds,
     gruntman_moving_bar_specs,
+    hex_column_from_uv,
     moving_bar_maxtime,
     moving_bar_sweep_end_step,
 )
@@ -51,15 +51,24 @@ __all__ = [
 
 
 @dataclass
-class StiColumn:
+class StiColumn(HexColumn):
     """One sti column on a connectome, with unit indices for scattering."""
 
-    u: int
-    v: int
-    x: float
-    y: float
-    hex_xy: np.ndarray
     unit_idx: np.ndarray
+
+
+def _sti_column_from_uv(u: int, v: int, unit_idx: np.ndarray) -> StiColumn:
+    base = hex_column_from_uv(u, v)
+    return StiColumn(
+        u=base.u,
+        v=base.v,
+        x=base.x,
+        y=base.y,
+        x_deg=base.x_deg,
+        y_deg=base.y_deg,
+        hex_xy=base.hex_xy,
+        unit_idx=unit_idx,
+    )
 
 
 @dataclass
@@ -70,8 +79,8 @@ class MovingBarStimulus:
     info: dict = field(default_factory=dict)
 
 
-def _sti_columns(C) -> List[StiColumn]:
-    """One entry per axial (u, v) that has photoreceptor input units."""
+def sti_columns(C) -> List[StiColumn]:
+    """Sti columns with photoreceptor units (one per axial ``(u, v)``)."""
     cols: Dict[Tuple[int, int], StiColumn] = {}
     u_in = C.u[C.is_input]
     v_in = C.v[C.is_input]
@@ -82,23 +91,10 @@ def _sti_columns(C) -> List[StiColumn]:
         units = C.input_units_at(key[0], key[1])
         if len(units) == 0:
             continue
-        x, y = hex_to_pixel(key[0], key[1], DEFAULT_KERNEL_SIZE)
-        x = float(x)
-        y = float(y)
-        cols[key] = StiColumn(
-            u=key[0],
-            v=key[1],
-            x=x,
-            y=y,
-            hex_xy=hex_vertices(x, y),
-            unit_idx=np.asarray(units, dtype=np.int64),
+        cols[key] = _sti_column_from_uv(
+            key[0], key[1], np.asarray(units, dtype=np.int64),
         )
     return [cols[k] for k in sorted(cols)]
-
-
-def sti_columns(C) -> List[StiColumn]:
-    """Sti columns with photoreceptor units (one per axial ``(u, v)``)."""
-    return _sti_columns(C)
 
 
 def center_sti_column(C) -> StiColumn:
@@ -126,13 +122,6 @@ def cost_sti_columns(C, cost_extent=None) -> List[StiColumn]:
     if cost_extent is None:
         return cols
     return [c for c in cols if column_in_cost_extent(c.u, c.v, cost_extent)]
-
-
-def _as_hex_columns(columns: Sequence[StiColumn]) -> List[HexColumn]:
-    return [
-        HexColumn(u=c.u, v=c.v, x=c.x, y=c.y, hex_xy=c.hex_xy)
-        for c in columns
-    ]
 
 
 def _column_unit_map(columns: Sequence[StiColumn]) -> Tuple[np.ndarray, np.ndarray]:
@@ -298,9 +287,8 @@ def build_moving_bar_signals(
         i_bright = I_BRIGHT if i_bright_bar is None else float(i_bright_bar)
     if "dark" in contrasts:
         i_dark = I_DARK if i_dark_bar is None else float(i_dark_bar)
-    sti_cols = _sti_columns(C)
-    hex_cols = _as_hex_columns(sti_cols)
-    field_deg = field_bounds(hex_cols)
+    sti_cols = sti_columns(C)
+    field_deg = field_bounds(sti_cols)
     if maxtime is None:
         maxtime = moving_bar_maxtime(specs, field_deg, t_on=t_on, deltat_ms=deltat_ms)
     n_batch = len(specs)
@@ -326,7 +314,7 @@ def build_moving_bar_signals(
 
     if col_curr is None:
         col_curr = build_batched_column_current(
-            hex_cols, specs, maxtime=maxtime, t_on=t_on, deltat_ms=deltat_ms,
+            sti_cols, specs, maxtime=maxtime, t_on=t_on, deltat_ms=deltat_ms,
             i_baseline=i_baseline,
             i_bright_bar=i_bright,
             i_dark_bar=i_dark,

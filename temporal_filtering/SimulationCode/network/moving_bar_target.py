@@ -34,7 +34,6 @@ from training_config import (
     ms_to_steps,
 )
 from visual_stimulus.moving_bar_stimulus import (
-    HexColumn,
     build_batched_column_current,
     column_bar_center_step,
     field_bounds,
@@ -42,7 +41,7 @@ from visual_stimulus.moving_bar_stimulus import (
     moving_bar_maxtime,
     moving_bar_sweep_end_step,
 )
-from column_mapper import DEFAULT_KERNEL_SIZE, hex_to_pixel, hex_vertices
+from column_mapper import borst_sti_columns
 
 _TRACE_CACHE: Dict[str, np.ndarray] = {}
 BORST_READOUT_SUBTYPES = ("T4a", "T4b", "T5a", "T5b")
@@ -127,19 +126,6 @@ def col2subtype(C, u: int, v: int, subtype: str, names: Optional[np.ndarray] = N
     return np.where(
         (C.u == int(u)) & (C.v == int(v)) & (names == subtype),
     )[0]
-
-
-def _borst_hex_columns() -> List[HexColumn]:
-    """Five Borst columns on one horizontal row with 5 deg spacing."""
-    cols: List[HexColumn] = []
-    spacing_deg = 5.0
-    for col in range(ml.nofcols):
-        k = float(col - ml.CENTER_COL)
-        v = (spacing_deg / DEFAULT_KERNEL_SIZE) * k
-        u = -0.5 * v
-        x, y = hex_to_pixel(u, v, DEFAULT_KERNEL_SIZE)
-        cols.append(HexColumn(u=int(col), v=0, x=float(x), y=float(y), hex_xy=hex_vertices(x, y)))
-    return cols
 
 
 def _borst_moving_bar_specs(*, contrasts=("bright", "dark")):
@@ -236,7 +222,7 @@ def build_moving_bar_target(
     for b, spec in enumerate(stim.specs):
         for col in cols:
             t_center = column_bar_center_step(
-                col.x, col.y, spec, field_deg, t_on=t_on, deltat_ms=deltat_ms,
+                col.x_deg, col.y_deg, spec, field_deg, t_on=t_on, deltat_ms=deltat_ms,
             )
             t0 = t_center - before_steps
             if t0 < 0 or t_center + after_steps > maxtime:
@@ -327,7 +313,7 @@ def build_borst_moving_bar_target(
     """Build Borst 5-column horizontal moving-bar target for T4/T5 subtypes."""
     device = device or "cpu"
     specs = _borst_moving_bar_specs(contrasts=tuple(contrasts))
-    cols = _borst_hex_columns()
+    cols = list(borst_sti_columns())
     field_deg = field_bounds(cols)
     maxtime = moving_bar_maxtime(specs, field_deg, t_on=t_on, deltat_ms=deltat_ms)
     sweep_end = moving_bar_sweep_end_step(specs, field_deg, t_on=t_on, deltat_ms=deltat_ms)
@@ -366,7 +352,7 @@ def build_borst_moving_bar_target(
     for b, spec in enumerate(specs):
         for col_id, col in zip(cost_col_ids, cost_cols):
             t_center = column_bar_center_step(
-                col.x, col.y, spec, field_deg, t_on=t_on, deltat_ms=deltat_ms,
+                col.x_deg, col.y_deg, spec, field_deg, t_on=t_on, deltat_ms=deltat_ms,
             )
             t0 = t_center - before_steps
             if t0 < 0 or t_center + after_steps > maxtime:

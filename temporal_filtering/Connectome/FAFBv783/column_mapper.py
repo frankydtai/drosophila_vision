@@ -8,9 +8,11 @@ coordinate formulas:
   - ``pq_to_uv(p, q, side)`` converts FAFB ``column_assignment`` (p, q) indices to
     axial (u, v), which differs per hemisphere.
   - ``inside_mask(u, v, extent)`` is the shared inside/outside-the-disc predicate.
-  - ``hex_to_pixel`` / ``hex_vertices`` convert axial coords to degree-space centres
-    and polygon vertices; ``draw_hex_patches`` / ``draw_hex_patches_uv`` draw them
+  - ``uv_to_xy`` / ``xy_to_uv`` convert axial ``(u, v)`` to hex-step ``(x, y)``;
+    ``xy_to_xy_deg`` scales hex-step by :data:`DEG`; ``uv_to_xy_deg`` composes both.
+  - ``hex_vertices`` / ``draw_hex_patches`` draw degree-space hex patches
     (shared by column maps, moving-bar stimulus, and plots).
+  - :data:`DEG_BORST` and ``borst_sti_columns`` define the five-column Borst layout.
   - :class:`HexGrid` holds an ideal disc's (u, v) coordinates (the plot reference
     / tiling extent); ``columns_with_uv(side)`` gives FAFB columns' (u, v).
 
@@ -24,7 +26,8 @@ from __future__ import annotations
 import argparse
 import logging
 from pathlib import Path
-from typing import List, NamedTuple, Optional, Tuple
+from dataclasses import dataclass
+from typing import List, Optional, Tuple, Union
 
 import numpy as np
 import pandas as pd
@@ -45,99 +48,80 @@ DEFAULT_EXTENT = 10
 # radius. build_network imports this so both scripts share ONE default.
 EXTENT = -1
 
-# Hex-cell spacing used when drawing the column map (degrees per cell;
-# 4.5 deg is the fly inter-ommatidial angle).
-DEFAULT_KERNEL_SIZE = 4.5
-# Drawn hex patch radius in pixels (half the cell spacing). Single source so every
-# hex plot (draw_fafb_columns, plot_column_map, lc_columns) shares the same size.
-HEX_PATCH_RADIUS = 0.5 * DEFAULT_KERNEL_SIZE
-# Single source of truth for the plot axis unit / labels (pixel spacing above is
-# in degrees, so every hex map shares these). Use set_axis_labels(ax) to apply.
+# FAFB inter-ommatidial angle: hex-step (x, y) -> degree via ``xy_to_xy_deg``.
+DEG = 4.5
+# Borst 5-column horizontal row: centre-to-centre spacing along ``x_deg``.
+DEG_BORST = 5.0
+# Drawn hex patch radius in degrees (half the FAFB cell spacing).
+HEX_PATCH_RADIUS = 0.5 * DEG
+# Single source of truth for the plot axis unit / labels.
 AXIS_UNIT = "degree"
 X_AXIS_LABEL = f"X ({AXIS_UNIT})"
 Y_AXIS_LABEL = f"Y ({AXIS_UNIT})"
-# Hex patch orientation (radians). Must match hex_to_pixel: centres are spaced d
-# apart vertically (step (1,0)), with r = d/2, so patches are pointy-top (30°).
-# Flat-top (0°) leaves gaps — see hex_vertices / tiling notes in module docstring.
+# Hex patch orientation (radians). Must match degree-space centres from
+# ``uv_to_xy_deg(u,v)``: spaced ``DEG`` apart vertically (step (1,0)),
+# r = DEG/2, so patches are pointy-top.
 HEX_PATCH_ORIENTATION = np.radians(30)
 
 # Borst 5-column horizontal row (SimulationCode moving-bar / tile layout).
-# Columns sit on y=0 with 5 deg centre-to-centre spacing along x (= d*v).
-# Only the centre column (col=2, k=0) lands on an integer hex lattice point
-# (u,v)=(0,0); the other four have fractional axial coords — use ``col`` / k
-# (not integer --at-uv) to pick a column. Formula matches
-# ``visual_stimulus/plot_moving_bar_stimulus._borst_hex_columns``.
 BORST_CENTER_COL = 2
 BORST_N_COLS = 5
-BORST_SPACING_DEG = 5.0
 
 
-class BorstColumnCenter(NamedTuple):
-    """One Borst sti column: index, offset from centre, axial and pixel coords."""
+@dataclass(frozen=True)
+class BorstStiColumn:
+    """One Borst sti column for moving-bar stimulus (no axial coords)."""
 
     col: int   # 0..4 (``Medulla_Library.CENTER_COL`` == 2)
     k: int     # col - BORST_CENTER_COL, i.e. -2..+2
-    u: float
-    v: float
-    x: float
-    y: float
+    x_deg: float
+    y_deg: float
+    hex_xy: np.ndarray
 
 
-def borst_column_centers(
+def borst_sti_columns(
     *,
     center_col: int = BORST_CENTER_COL,
     n_cols: int = BORST_N_COLS,
-    spacing_deg: float = BORST_SPACING_DEG,
-    kernel_size: float = DEFAULT_KERNEL_SIZE,
-) -> Tuple[BorstColumnCenter, ...]:
-    """Return the five Borst column centres (single source of truth for u,v,x,y).
-
-    With ``k = col - center_col`` and ``d = kernel_size``:
-
-        v = (spacing_deg / d) * k
-        u = -v / 2
-        x = d * v = spacing_deg * k
-        y = -d * (u + v/2) = 0
-
-    Exact values (d=4.5, spacing_deg=5):
-
-        col  k    u          v          x     y
-        0   -2   10/9      -20/9      -10    0
-        1   -1    5/9      -10/9       -5    0
-        2    0    0          0          0    0
-        3   +1   -5/9       10/9        5    0
-        4   +2  -10/9       20/9       10    0
-    """
-    out: List[BorstColumnCenter] = []
+    deg_borst: float = DEG_BORST,
+) -> Tuple[BorstStiColumn, ...]:
+    """Five Borst column centres on ``y_deg=0`` with degree-space hex vertices."""
+    out: List[BorstStiColumn] = []
     for col in range(n_cols):
         k = col - center_col
-        v = (spacing_deg / kernel_size) * k
-        u = -0.5 * v
-        x, y = hex_to_pixel(u, v, kernel_size)
+        x_deg = float(deg_borst * k)
+        y_deg = 0.0
         out.append(
-            BorstColumnCenter(col=col, k=k, u=float(u), v=float(v), x=float(x), y=float(y))
+            BorstStiColumn(
+                col=col,
+                k=k,
+                x_deg=x_deg,
+                y_deg=y_deg,
+                hex_xy=hex_vertices(x_deg, y_deg),
+            )
         )
     return tuple(out)
 
 
 def borst_col_at_xy(
-    x: float,
-    y: float,
+    x_deg: float,
+    y_deg: float,
     *,
     tol: float = 1e-6,
     **kwargs,
 ) -> int:
-    """Map pixel (x,y) to Borst column index 0..4 (nearest centre on y≈0 row)."""
-    if abs(y) > tol:
+    """Map ``(x_deg, y_deg)`` to Borst column index 0..4 (centres on ``y_deg≈0``)."""
+    if abs(y_deg) > tol:
         raise ValueError(
-            f"(x,y)=({x},{y}) is not on the Borst horizontal row (y must be ≈0)"
+            f"(x_deg,y_deg)=({x_deg},{y_deg}) is not on the Borst horizontal row "
+            f"(y_deg must be ≈0)"
         )
-    centers = borst_column_centers(**kwargs)
-    best = min(centers, key=lambda c: abs(c.x - x))
-    if abs(best.x - x) > tol:
+    centers = borst_sti_columns(**kwargs)
+    best = min(centers, key=lambda c: abs(c.x_deg - x_deg))
+    if abs(best.x_deg - x_deg) > tol:
         raise ValueError(
-            f"(x,y)=({x},{y}) is not a Borst column centre "
-            f"(nearest x={best.x} at col={best.col})"
+            f"(x_deg,y_deg)=({x_deg},{y_deg}) is not a Borst column centre "
+            f"(nearest x_deg={best.x_deg} at col={best.col})"
         )
     return best.col
 
@@ -311,9 +295,9 @@ def tile_centers(
 
 
 def _angle(u: int, v: int) -> float:
-    """Pixel-space angle of (u, v), for a stable angular tie-break ordering."""
-    x, y = hex_to_pixel(u, v)
-    return float(np.arctan2(float(y), float(x)))
+    """Degree-space angle of (u, v), for a stable angular tie-break ordering."""
+    x_deg, y_deg = uv_to_xy_deg(u, v)
+    return float(np.arctan2(float(y_deg), float(x_deg)))
 
 
 class HexGrid:
@@ -330,41 +314,49 @@ class HexGrid:
         logger.info("HexGrid extent=%d -> %d columns", extent, self.n_columns)
 
 
-def hex_to_pixel(u, v, kernel_size: float = DEFAULT_KERNEL_SIZE):
-    """Axial (u, v) -> pixel (x, y) for plotting (x = d*v, y = -d*(u + v/2))."""
-    d = float(kernel_size)
+def uv_to_xy(u, v) -> Tuple[Union[np.ndarray, float], Union[np.ndarray, float]]:
+    """Axial ``(u, v)`` -> hex-step ``(x, y)`` with ``x = v``, ``y = u + v/2``."""
     u = np.asarray(u, dtype=float)
     v = np.asarray(v, dtype=float)
-    return d * v, -d * (u + v / 2.0)
+    return v, u + v / 2.0
 
 
-def pixel_to_hex(x, y, kernel_size: float = DEFAULT_KERNEL_SIZE) -> Tuple[int, int]:
-    """Inverse of :func:`hex_to_pixel` for hex centers (integer axial coords).
-
-    Args:
-        x: pixel-space x coordinate (same units as ``kernel_size``).
-        y: pixel-space y coordinate (same units as ``kernel_size``).
-        kernel_size: spacing ``d`` used in :func:`hex_to_pixel`.
-
-    Returns:
-        (u, v) axial integer coordinates.
+def xy_to_uv(x, y) -> Tuple[int, int]:
+    """Inverse of :func:`uv_to_xy` for hex centres (integer axial coords).
 
     Raises:
-        ValueError: if (x, y) is not (within tolerance) a hex center.
+        ValueError: if ``(x, y)`` is not (within tolerance) a hex centre.
     """
-    d = float(kernel_size)
-    if abs(d) < 1e-15:
-        raise ValueError("kernel_size must be non-zero")
     x = float(x)
     y = float(y)
-    v = x / d
-    u = (-y / d) - v / 2.0
+    v = x
+    u = y - v / 2.0
     iu, iv = round(u), round(v)
     if abs(u - iu) > 1e-6 or abs(v - iv) > 1e-6:
         raise ValueError(
-            f"(x,y)=({x},{y}), d={d} -> (u,v)=({u},{v}) is not an integer hex centre"
+            f"(x,y)=({x},{y}) -> (u,v)=({u},{v}) is not an integer hex centre"
         )
     return int(iu), int(iv)
+
+
+def xy_to_xy_deg(
+    x,
+    y,
+    deg: float = DEG,
+) -> Tuple[Union[np.ndarray, float], Union[np.ndarray, float]]:
+    """Hex-step ``(x, y)`` -> degree ``(x_deg, y_deg)`` via ``deg * (x, y)``."""
+    x = np.asarray(x, dtype=float)
+    y = np.asarray(y, dtype=float)
+    return deg * x, deg * y
+
+
+def uv_to_xy_deg(
+    u,
+    v,
+    deg: float = DEG,
+) -> Tuple[Union[np.ndarray, float], Union[np.ndarray, float]]:
+    """Axial ``(u, v)`` -> degree ``(x_deg, y_deg)`` via :func:`uv_to_xy` + :func:`xy_to_xy_deg`."""
+    return xy_to_xy_deg(*uv_to_xy(u, v), deg=deg)
 
 
 def hex_vertices(
@@ -451,12 +443,11 @@ def draw_hex_patches_uv(
     u,
     v,
     facecolor,
-    kernel_size: float = DEFAULT_KERNEL_SIZE,
     **kwargs,
 ) -> None:
-    """Draw hex patches for axial ``(u, v)`` via :func:`hex_to_pixel`."""
-    x, y = hex_to_pixel(u, v, kernel_size)
-    draw_hex_patches(ax, x, y, facecolor, **kwargs)
+    """Draw hex patches for axial ``(u, v)`` via :func:`uv_to_xy_deg`."""
+    x_deg, y_deg = uv_to_xy_deg(u, v)
+    draw_hex_patches(ax, x_deg, y_deg, facecolor, **kwargs)
 
 
 def set_axis_labels(ax, fontsize: Optional[int] = None) -> None:
@@ -468,8 +459,9 @@ def set_axis_labels(ax, fontsize: Optional[int] = None) -> None:
 
 def _draw_hexes(ax, u, v, labels, facecolor, edgecolor, hex_radius, fontsize=3):
     """Draw labeled hexagons at the given axial coordinates."""
-    draw_hex_patches_uv(
-        ax, u, v, facecolor,
+    xs, ys = uv_to_xy_deg(np.asarray(u), np.asarray(v))
+    draw_hex_patches(
+        ax, xs, ys, facecolor,
         edgecolor=edgecolor,
         hex_radius_px=hex_radius,
         linewidth=1,
@@ -477,7 +469,6 @@ def _draw_hexes(ax, u, v, labels, facecolor, edgecolor, hex_radius, fontsize=3):
     )
     if labels is None:
         return
-    xs, ys = hex_to_pixel(np.asarray(u), np.asarray(v))
     for x, y, label in zip(np.atleast_1d(xs), np.atleast_1d(ys), labels):
         if label is not None:
             ax.text(
@@ -554,9 +545,9 @@ def plot_column_map(
     hex_radius_px = HEX_PATCH_RADIUS
     iu, iv = ideal_grid.u, ideal_grid.v
 
-    ix, iy = hex_to_pixel(iu, iv)
-    rx, ry = hex_to_pixel(df_right["u"].values, df_right["v"].values)
-    lx, ly = hex_to_pixel(df_left["u"].values, df_left["v"].values)
+    ix, iy = uv_to_xy_deg(iu, iv)
+    rx, ry = uv_to_xy_deg(df_right["u"].values, df_right["v"].values)
+    lx, ly = uv_to_xy_deg(df_left["u"].values, df_left["v"].values)
     all_x = np.concatenate([ix, rx, lx])
     all_y = np.concatenate([iy, ry, ly])
     margin = 2

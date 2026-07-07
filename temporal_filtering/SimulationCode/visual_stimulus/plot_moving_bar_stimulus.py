@@ -37,17 +37,15 @@ import Medulla_Library as ml
 from Medulla_Library import I_BASELINE, I_BRIGHT
 from training_config import DELTAT_MS, T_ON
 from network.construction import load_network
-from network.stimulus import build_moving_bar_signals
+from network.stimulus import build_moving_bar_signals, sti_columns
 from column_mapper import (
-    DEFAULT_KERNEL_SIZE,
+    borst_sti_columns,
     draw_hex_patches_uv,
     field_bounds_centers,
-    hex_to_pixel,
-    hex_vertices,
     set_axis_labels,
+    uv_to_xy_deg,
 )
 from visual_stimulus.moving_bar_stimulus import (
-    HexColumn,
     bar_rect_at_step,
     build_batched_column_current,
     field_bounds,
@@ -97,25 +95,9 @@ def _borst_default_outputs(direction: str) -> tuple[str, str]:
     )
 
 
-def _borst_hex_columns() -> list[HexColumn]:
-    """Five Borst columns on one horizontal row with 5 deg spacing."""
-    cols: list[HexColumn] = []
-    spacing_deg = 5.0
-    for col in range(ml.nofcols):
-        k = float(col - ml.CENTER_COL)
-        # Keep all centres on y=0 while enforcing 5 deg AP spacing:
-        # x = 4.5*v = 5*k, y = -4.5*(u + v/2) = 0.
-        v = (spacing_deg / DEFAULT_KERNEL_SIZE) * k
-        u = -0.5 * v
-        x, y = hex_to_pixel(u, v, DEFAULT_KERNEL_SIZE)
-        x, y = float(x), float(y)
-        cols.append(HexColumn(u=u, v=v, x=x, y=y, hex_xy=hex_vertices(x, y)))
-    return cols
-
-
 def _build_borst_moving_bar(showcase, i_baseline: float = I_BASELINE):
     """Column currents ``(B, T, 5)`` for Borst horizontal moving-bar demo."""
-    hex_cols = _borst_hex_columns()
+    hex_cols = list(borst_sti_columns())
     field_deg = field_bounds(hex_cols)
     maxtime = moving_bar_maxtime(showcase, field_deg, t_on=T_ON)
     column_current = build_batched_column_current(
@@ -132,32 +114,16 @@ def _build_borst_moving_bar(showcase, i_baseline: float = I_BASELINE):
         "spec_names": [s.name for s in showcase],
         "n_sti_columns": len(hex_cols),
     }
-    plot_uv = [(c.u, c.v) for c in hex_cols]
+    plot_uv = [(c.col, c.k) for c in hex_cols]
     return plot_uv, column_current, info
 
 
-def _sti_uv_for_plot(C):
-    """Axial (u, v) for each sti column (one per input hex)."""
-    cols: dict[tuple[int, int], tuple[int, int]] = {}
-    u_in = C.u[C.is_input]
-    v_in = C.v[C.is_input]
-    for u, v in zip(u_in.tolist(), v_in.tolist()):
-        key = (int(u), int(v))
-        if key in cols:
-            continue
-        if len(C.input_units_at(key[0], key[1])) == 0:
-            continue
-        cols[key] = key
-    return [cols[k] for k in sorted(cols)]
-
-
 def _field_limits(uv_columns):
-    x, y = hex_to_pixel(
+    x_deg, y_deg = uv_to_xy_deg(
         [u for u, _ in uv_columns],
         [v for _, v in uv_columns],
-        DEFAULT_KERNEL_SIZE,
     )
-    x0, y0, x1, y1 = field_bounds_centers(x, y)
+    x0, y0, x1, y1 = field_bounds_centers(x_deg, y_deg)
     pad = 2.0
     return x0 - pad, x1 + pad, y0 - pad, y1 + pad
 
@@ -328,7 +294,7 @@ def main():
         default_png, default_gif = _default_outputs(network_json, C.meta, args.direction)
         output = args.output or default_png
         T = build_moving_bar_signals(C, specs=showcase)
-        uv_columns = _sti_uv_for_plot(C)
+        uv_columns = [(c.u, c.v) for c in sti_columns(C)]
         column_current = T.column_current
         t_on = int(T.info["t_on"])
         maxtime = int(T.info["maxtime"])

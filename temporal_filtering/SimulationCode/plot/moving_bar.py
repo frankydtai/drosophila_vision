@@ -21,11 +21,8 @@ from plot.utils import (
     suppress_cost_sem,
 )
 from FiveCol_MedSim_Pytorch import t_on
-from network.moving_bar_target import (
-    _borst_hex_columns,
-    _borst_moving_bar_specs,
-    load_fig1_trace,
-)
+from network.moving_bar_target import _borst_moving_bar_specs, load_fig1_trace
+from column_mapper import borst_sti_columns
 from t4_t5_preference import (
     READOUT_SUBTYPES,
     active_stimuli_for_subtype,
@@ -194,7 +191,7 @@ def _aggregate_moving_bar_traces(windows_by_batch, t0_bn, type_ids, types, spec_
 def _column_t_centers(cols, spec, field_deg):
     return [
         int(column_bar_center_step(
-            c.x, c.y, spec, field_deg, t_on=t_on, deltat_ms=fc.deltat,
+            c.x_deg, c.y_deg, spec, field_deg, t_on=t_on, deltat_ms=fc.deltat,
         ))
         for c in cols
     ]
@@ -248,7 +245,7 @@ def _moving_bar_t0_grids(session, specs, cost_extent, maxtime, *, full):
         t0_full_bn = _moving_bar_t0_grid(C, cols, n_batch, t0_full_map) if full else None
     else:
         side = "right"
-        cols_all = _borst_hex_columns()
+        cols_all = list(borst_sti_columns())
         col_ids = list(range(ml.nofcols))
         cols = [cols_all[i] for i in col_ids]
         field_deg = field_bounds(cols_all)

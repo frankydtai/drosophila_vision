@@ -70,17 +70,16 @@ import logging
 import sys
 from collections import defaultdict
 from pathlib import Path
-from typing import DefaultDict, Dict, List, Optional, Set, Tuple, Union
+from typing import DefaultDict, Dict, Iterable, List, Optional, Set, Tuple, Union
 
 _UvCoord = Tuple[Union[int, float], Union[int, float]]
 
 from column_mapper import (
-    DEFAULT_KERNEL_SIZE,
     borst_col_at_xy,
-    borst_column_centers,
-    hex_to_pixel,
+    borst_sti_columns,
     inside_mask,
-    pixel_to_hex,
+    uv_to_xy,
+    xy_to_uv,
 )
 from connectome_io import (
     BORST_CTYPE_NPY,
@@ -152,7 +151,7 @@ def _load_borst_graph() -> Tuple[List[dict], List[dict]]:
     if not BORST_CTYPE_NPY.is_file():
         raise FileNotFoundError(f"Borst ctype not found: {BORST_CTYPE_NPY}")
     ctype = np.load(BORST_CTYPE_NPY, allow_pickle=True)
-    centers = borst_column_centers()
+    centers = borst_sti_columns()
     col_center = {c.col: c for c in centers}
 
     nodes: List[dict] = []
@@ -164,11 +163,9 @@ def _load_borst_graph() -> Tuple[List[dict], List[dict]]:
                 {
                     "id": unit_id,
                     "name": str(ctype[type_idx]),
-                    "u": c.u,
-                    "v": c.v,
-                    "x": c.x,
-                    "y": c.y,
                     "column_id": col,
+                    "x_deg": c.x_deg,
+                    "y_deg": c.y_deg,
                     "input": False,
                     "output": False,
                 }
@@ -177,15 +174,11 @@ def _load_borst_graph() -> Tuple[List[dict], List[dict]]:
     edges: List[dict] = []
     n_units = ml.nofcols * ml.nofcells
     for post in range(n_units):
-        post_col = post // ml.nofcells
-        post_center = col_center[post_col]
         post_name = str(ctype[post % ml.nofcells])
         for pre in range(n_units):
             weight = float(matrix[post, pre])
             if weight == 0.0:
                 continue
-            pre_col = pre // ml.nofcells
-            pre_center = col_center[pre_col]
             edges.append(
                 {
                     "src": pre,
@@ -194,8 +187,6 @@ def _load_borst_graph() -> Tuple[List[dict], List[dict]]:
                     "n_syn": abs(weight),
                     "source_type": str(ctype[pre % ml.nofcells]),
                     "target_type": post_name,
-                    "du": pre_center.u - post_center.u,
-                    "dv": pre_center.v - post_center.v,
                 }
             )
 
@@ -252,20 +243,37 @@ def _node_centers(
     n: dict,
     *,
     float_coords: bool,
-    xy_kernel_size: float,
 ) -> Optional[Tuple[Tuple[float, float], Tuple[float, float]]]:
-    """Parse one node's ``(u,v)`` and pixel ``(x,y)`` centres."""
+    """Parse one FAFB node's ``(u,v)`` and hex-step ``(x,y)`` centres."""
     try:
         u = float(n["u"]) if float_coords else float(int(n["u"]))
         v = float(n["v"]) if float_coords else float(int(n["v"]))
-        if "x" in n and "y" in n:
-            xy = (float(n["x"]), float(n["y"]))
-        else:
-            x, y = hex_to_pixel(u, v, kernel_size=xy_kernel_size)
-            xy = (float(x), float(y))
+        x, y = uv_to_xy(u, v)
+        xy = (float(x), float(y))
         return (u, v), xy
     except (KeyError, TypeError, ValueError):
         return None
+
+
+def _format_delta_pairs(
+    pairs: Iterable[Tuple[float, float]],
+    *,
+    mean: bool,
+) -> str:
+    items = list(pairs)
+    if not items:
+        return ""
+    if mean:
+        n = float(len(items))
+        dx = sum(p[0] for p in items) / n
+        dy = sum(p[1] for p in items) / n
+        return (
+            f"({_format_mean_scalar_for_table(dx)},{_format_mean_scalar_for_table(dy)})"
+        )
+    return ";".join(
+        f"({_format_scalar_for_table(p[0])},{_format_scalar_for_table(p[1])})"
+        for p in sorted(items)
+    )
 
 
 def _format_delta_uv(
@@ -275,19 +283,10 @@ def _format_delta_uv(
     mean: bool,
 ) -> str:
     """Format partner ``(du,dv)`` as one mean pair or a sorted distinct list."""
-    if not uvs:
-        return ""
     ou, ov = origin
-    if mean:
-        n = float(len(uvs))
-        du = sum(float(u) - ou for u, v in uvs) / n
-        dv = sum(float(v) - ov for u, v in uvs) / n
-        return (
-            f"({_format_mean_scalar_for_table(du)},{_format_mean_scalar_for_table(dv)})"
-        )
-    return ";".join(
-        f"({_format_scalar_for_table(float(u) - ou)},{_format_scalar_for_table(float(v) - ov)})"
-        for u, v in sorted(uvs)
+    return _format_delta_pairs(
+        ((float(u) - ou, float(v) - ov) for u, v in uvs),
+        mean=mean,
     )
 
 
@@ -296,32 +295,30 @@ def _format_delta_xy(
     origin: Tuple[float, float],
     *,
     mean: bool,
-    kernel_size: float = 1.0,
 ) -> str:
-    """Format partner ``(dx,dy)`` in pixel space as mean or sorted distinct list."""
-    if not uvs:
-        return ""
+    """Format partner ``(dx,dy)`` in hex-step space as mean or sorted distinct list."""
     ox, oy = origin
-    if mean:
-        n = float(len(uvs))
-        dx = dy = 0.0
-        for u, v in uvs:
-            x, y = hex_to_pixel(u, v, kernel_size=kernel_size)
-            dx += float(x) - ox
-            dy += float(y) - oy
-        dx /= n
-        dy /= n
-        return (
-            f"({_format_mean_scalar_for_table(dx)},{_format_mean_scalar_for_table(dy)})"
-        )
-    parts: List[str] = []
-    for u, v in sorted(uvs):
-        x, y = hex_to_pixel(u, v, kernel_size=kernel_size)
-        parts.append(
-            f"({_format_scalar_for_table(float(x) - ox)},"
-            f"{_format_scalar_for_table(float(y) - oy)})"
-        )
-    return ";".join(parts)
+    return _format_delta_pairs(
+        (
+            (float(uv_to_xy(u, v)[0]) - ox, float(uv_to_xy(u, v)[1]) - oy)
+            for u, v in uvs
+        ),
+        mean=mean,
+    )
+
+
+def _format_delta_xy_coords(
+    coords: Set[Tuple[float, float]],
+    origin: Tuple[float, float],
+    *,
+    mean: bool,
+) -> str:
+    """Format partner ``(dx,dy)`` from explicit coordinate pairs (Borst ``x_deg,y_deg``)."""
+    ox, oy = origin
+    return _format_delta_pairs(
+        ((x - ox, y - oy) for x, y in coords),
+        mean=mean,
+    )
 
 
 def _self_node_origin(
@@ -329,9 +326,9 @@ def _self_node_origin(
     nodes: List[dict],
     *,
     float_coords: bool,
-    xy_kernel_size: float,
+    borst: bool = False,
 ) -> Tuple[Optional[Tuple[float, float]], Optional[Tuple[float, float]]]:
-    """``@root_id`` label -> that node's ``(u,v)`` and ``(x,y)`` centres."""
+    """``@root_id`` label -> FAFB ``(u,v)``/``(x,y)`` or Borst ``(x_deg,y_deg)``."""
     if not label.startswith("@"):
         return None, None
     try:
@@ -342,7 +339,9 @@ def _self_node_origin(
         try:
             if int(n["id"]) != nid:
                 continue
-            centers = _node_centers(n, float_coords=float_coords, xy_kernel_size=xy_kernel_size)
+            if borst:
+                return None, _node_xy_deg(n)
+            centers = _node_centers(n, float_coords=float_coords)
             if centers is None:
                 continue
             return centers
@@ -358,9 +357,9 @@ def _mean_self_origin(
     ids_at_hex: Optional[Dict[str, Set[int]]],
     *,
     float_coords: bool,
-    xy_kernel_size: float,
+    borst: bool = False,
 ) -> Tuple[Optional[Tuple[float, float]], Optional[Tuple[float, float]]]:
-    """Mean ``(u,v)`` and ``(x,y)`` over all *self* instances for ``label``."""
+    """Mean self centre: FAFB ``(u,v)``/``(x,y)`` or Borst ``(x_deg,y_deg)``."""
     self_types = {t for t, labs in self_type_to_labels.items() if label in labs}
     if not self_types:
         return None, None
@@ -378,14 +377,22 @@ def _mean_self_origin(
             allowed = ids_at_hex.get(name, set())
             if nid not in allowed:
                 continue
-        centers = _node_centers(n, float_coords=float_coords, xy_kernel_size=xy_kernel_size)
+        if borst:
+            xy = _node_xy_deg(n)
+            if xy is not None:
+                xys.append(xy)
+            continue
+        centers = _node_centers(n, float_coords=float_coords)
         if centers is None:
             continue
         uv, xy = centers
         uvs.append(uv)
         xys.append(xy)
-    if not uvs:
+    if not xys:
         return None, None
+    if borst:
+        n = float(len(xys))
+        return None, (sum(p[0] for p in xys) / n, sum(p[1] for p in xys) / n)
     n = float(len(uvs))
     mean_uv = (sum(p[0] for p in uvs) / n, sum(p[1] for p in uvs) / n)
     mean_xy = (sum(p[0] for p in xys) / n, sum(p[1] for p in xys) / n)
@@ -401,16 +408,16 @@ def _label_origins(
     at_ref_xy: Optional[Tuple[float, float]],
     *,
     float_coords: bool,
-    xy_kernel_size: float,
+    borst: bool = False,
     need_uv: bool,
     need_xy: bool,
 ) -> Tuple[Optional[Tuple[float, float]], Optional[Tuple[float, float]]]:
-    """Reference ``(u,v)``/``(x,y)`` for partner deltas: ``--at`` centre or self mean."""
+    """Reference ``(u,v)``/``(x,y)`` or Borst ``(x_deg,y_deg)`` for partner deltas."""
     origin_uv = at_ref_uv if need_uv else None
     origin_xy = at_ref_xy if need_xy else None
     if label.startswith("@"):
         self_uv, self_xy = _self_node_origin(
-            label, nodes, float_coords=float_coords, xy_kernel_size=xy_kernel_size
+            label, nodes, float_coords=float_coords, borst=borst,
         )
         if origin_uv is None:
             origin_uv = self_uv
@@ -423,7 +430,7 @@ def _label_origins(
             self_type_to_labels,
             ids_at_hex,
             float_coords=float_coords,
-            xy_kernel_size=xy_kernel_size,
+            borst=borst,
         )
         if origin_uv is None:
             origin_uv = mean_uv
@@ -432,9 +439,26 @@ def _label_origins(
     return origin_uv, origin_xy
 
 
-def _xy_to_uv(x: float, y: float) -> Tuple[int, int]:
-    """Inverse of ``column_mapper.hex_to_pixel(kernel_size=1)`` for hex centers."""
-    return pixel_to_hex(x, y, kernel_size=1.0)
+def _node_xy_deg(n: dict) -> Optional[Tuple[float, float]]:
+    """Borst node centre ``(x_deg, y_deg)``."""
+    try:
+        return float(n["x_deg"]), float(n["y_deg"])
+    except (KeyError, TypeError, ValueError):
+        return None
+
+
+def _node_id_to_xy_deg(nodes: List[dict]) -> Dict[int, Tuple[float, float]]:
+    """Unit id -> ``(x_deg, y_deg)`` for Borst synthetic nodes."""
+    m: Dict[int, Tuple[float, float]] = {}
+    for n in nodes:
+        xy = _node_xy_deg(n)
+        if xy is None:
+            continue
+        try:
+            m[int(n["id"])] = xy
+        except (KeyError, TypeError, ValueError):
+            continue
+    return m
 
 
 def _node_id_to_uv(nodes: List[dict], *, float_coords: bool = False) -> Dict[int, _UvCoord]:
@@ -442,7 +466,7 @@ def _node_id_to_uv(nodes: List[dict], *, float_coords: bool = False) -> Dict[int
     m: Dict[int, _UvCoord] = {}
     for n in nodes:
         try:
-            centers = _node_centers(n, float_coords=float_coords, xy_kernel_size=1.0)
+            centers = _node_centers(n, float_coords=float_coords)
             if centers is None:
                 continue
             uv, _ = centers
@@ -530,6 +554,8 @@ def _accumulate_all(
     labels: List[str],
     self_type_to_labels: Dict[str, Set[str]],
     id_to_uv: Dict[int, _UvCoord],
+    *,
+    id_to_xy: Optional[Dict[int, Tuple[float, float]]] = None,
     ids_at_hex: Optional[Dict[str, Set[int]]] = None,
     direction: str = "pre",
     type_to_family: Optional[Dict[str, str]] = None,
@@ -541,6 +567,7 @@ def _accumulate_all(
         float,
         Dict[str, int],
         Dict[str, Set[_UvCoord]],
+        Dict[str, Set[Tuple[float, float]]],
         int,
     ],
 ]:
@@ -577,6 +604,9 @@ def _accumulate_all(
         p: defaultdict(set) for p in labels
     }
     partner_uv: Dict[str, DefaultDict[str, Set[_UvCoord]]] = {
+        p: defaultdict(set) for p in labels
+    }
+    partner_xy: Dict[str, DefaultDict[str, Set[Tuple[float, float]]]] = {
         p: defaultdict(set) for p in labels
     }
     self_ids: Dict[str, Set[int]] = {p: set() for p in labels}
@@ -623,6 +653,10 @@ def _accumulate_all(
                     uv = id_to_uv.get(pid)
                     if uv is not None:
                         partner_uv[cell][pt].add(uv)
+                    if id_to_xy is not None:
+                        xy = id_to_xy.get(pid)
+                        if xy is not None:
+                            partner_xy[cell][pt].add(xy)
                 except (TypeError, ValueError):
                     pass
     out: Dict[
@@ -632,15 +666,16 @@ def _accumulate_all(
             float,
             Dict[str, int],
             Dict[str, Set[_UvCoord]],
-            int,
+            Dict[str, Set[Tuple[float, float]]],
             int,
         ],
     ] = {}
     for p in labels:
         npartner_map = {pt: len(ids) for pt, ids in partner_ids[p].items()}
         row_sets = {pt: set(uvs) for pt, uvs in partner_uv[p].items()}
+        row_xy_sets = {pt: set(coords) for pt, coords in partner_xy[p].items()}
         n_self = len(self_ids[p])
-        out[p] = (by_cell[p], totals[p], npartner_map, row_sets, n_self)
+        out[p] = (by_cell[p], totals[p], npartner_map, row_sets, row_xy_sets, n_self)
     return out
 
 
@@ -650,11 +685,11 @@ def print_table(
     total_syn: float,
     n_partner_by_type: Dict[str, int],
     partner_uv_by_type: Dict[str, Set[_UvCoord]],
+    partner_xy_by_type: Optional[Dict[str, Set[Tuple[float, float]]]] = None,
     hex_note: str = "",
     direction: str = "pre",
     use_family: bool = False,
     min_pct: float = 0.0,
-    xy_kernel_size: float = 1.0,
     show_uv: bool = True,
     show_xy: bool = True,
     origin_uv: Optional[Tuple[float, float]] = None,
@@ -699,6 +734,7 @@ def print_table(
             npv = int(n_partner_by_type.get(pt, 0))
             row.append(str(npv))
             uvs = partner_uv_by_type.get(pt, set())
+            coords = (partner_xy_by_type or {}).get(pt, set())
             use_mean_delta = mean_partner_delta or npv > _MAX_PARTNER_LIST
             if show_uv:
                 if origin_uv is None:
@@ -708,14 +744,15 @@ def print_table(
             if show_xy:
                 if origin_xy is None:
                     row.append("")
+                elif coords:
+                    row.append(
+                        _format_delta_xy_coords(
+                            coords, origin_xy, mean=use_mean_delta,
+                        )
+                    )
                 else:
                     row.append(
-                        _format_delta_xy(
-                            uvs,
-                            origin_xy,
-                            mean=use_mean_delta,
-                            kernel_size=xy_kernel_size,
-                        )
+                        _format_delta_xy(uvs, origin_xy, mean=use_mean_delta)
                     )
             rows.append(row)
 
@@ -833,7 +870,7 @@ def main(argv: List[str] | None = None) -> int:
         default=None,
         help=(
             "Only count edges whose CELL_TYPE *instance* sits at pixel (x,y). FAFB: "
-            "converted via column_mapper.pixel_to_hex (integer hex centre). "
+            "converted via column_mapper.xy_to_uv (integer hex centre). "
             "When set: extra column pre_d_xy/post_d_xy (partner pixel minus --at-xy). "
             "If n_neuron ≤ 5, distinct deltas are listed; if n_neuron > 5, mean delta. "
             "With --borst: resolved via column_mapper.borst_col_at_xy "
@@ -912,7 +949,6 @@ def main(argv: List[str] | None = None) -> int:
 
     ids_at_hex: Optional[Dict[str, Set[int]]] = None
     hex_note = borst_prefix
-    xy_kernel_size = DEFAULT_KERNEL_SIZE if args.borst else 1.0
     at_ref_uv: Optional[Tuple[float, float]] = None
     at_ref_xy: Optional[Tuple[float, float]] = None
 
@@ -923,13 +959,13 @@ def main(argv: List[str] | None = None) -> int:
         except ValueError as exc:
             logger.error("%s", exc)
             return 1
-        center = borst_column_centers()[col]
+        center = borst_sti_columns()[col]
         ids_at_hex = _instance_ids_at_col(nodes, col)
-        at_ref_xy = (float(center.x), float(center.y))
+        at_ref_xy = (float(center.x_deg), float(center.y_deg))
         hex_note += (
             f" at Borst col={col} (k={center.k}) "
-            f"(x,y)=({_format_scalar_for_table(center.x)},"
-            f"{_format_scalar_for_table(center.y)})"
+            f"(x_deg,y_deg)=({_format_scalar_for_table(center.x_deg)},"
+            f"{_format_scalar_for_table(center.y_deg)})"
         )
         logger.info(
             "Restricting to Borst column %d; %d cell types have ≥1 unit there",
@@ -954,7 +990,7 @@ def main(argv: List[str] | None = None) -> int:
                 at_uv = (int(args.at_uv[0]), int(args.at_uv[1]))
             elif args.at_xy is not None:
                 try:
-                    at_uv = _xy_to_uv(args.at_xy[0], args.at_xy[1])
+                    at_uv = xy_to_uv(args.at_xy[0], args.at_xy[1])
                 except ValueError as exc:
                     logger.error("%s", exc)
                     return 1
@@ -1001,19 +1037,21 @@ def main(argv: List[str] | None = None) -> int:
             )
 
     # Partner delta coords: always collected; reference is --at centre or mean self location.
-    id_to_uv = _node_id_to_uv(nodes, float_coords=args.borst)
+    id_to_uv = {} if args.borst else _node_id_to_uv(nodes, float_coords=False)
+    id_to_xy = _node_id_to_xy_deg(nodes) if args.borst else None
     acc = _accumulate_all(
         edges,
         labels,
         self_type_to_labels,
         id_to_uv,
+        id_to_xy=id_to_xy,
         ids_at_hex=ids_at_hex,
         direction=direction,
         type_to_family=partner_type_to_family,
         self_id_to_labels=self_id_to_labels,
     )
     for label in labels:
-        by_partner, total_syn, n_partner_by_type, partner_uv_by_type, n_self = acc[label]
+        by_partner, total_syn, n_partner_by_type, partner_uv_by_type, partner_xy_by_type, n_self = acc[label]
         label_origin_uv, label_origin_xy = _label_origins(
             label,
             nodes,
@@ -1022,7 +1060,7 @@ def main(argv: List[str] | None = None) -> int:
             at_ref_uv,
             at_ref_xy,
             float_coords=args.borst,
-            xy_kernel_size=xy_kernel_size,
+            borst=args.borst,
             need_uv=show_partner_uv,
             need_xy=show_partner_xy,
         )
@@ -1032,11 +1070,11 @@ def main(argv: List[str] | None = None) -> int:
             total_syn,
             n_partner_by_type,
             partner_uv_by_type,
+            partner_xy_by_type=partner_xy_by_type if args.borst else None,
             hex_note=hex_note,
             direction=direction,
             use_family=args.family,
             min_pct=args.min,
-            xy_kernel_size=xy_kernel_size,
             show_uv=show_partner_uv,
             show_xy=show_partner_xy,
             origin_uv=label_origin_uv,

@@ -46,7 +46,7 @@ from column_mapper import (  # noqa: E402
     INSIDE_COLOR,
     OUTSIDE_COLOR,
     _draw_hexes,
-    hex_to_pixel,
+    uv_to_xy_deg,
     inside_mask,
     set_axis_labels,
 )
@@ -180,7 +180,7 @@ def make_figure(cols: pd.DataFrame, lc_types: List[str] = LC_TYPES) -> Path:
 
     bg_u, bg_v = cols["u"].values, cols["v"].values
     bg_labels = [None] * len(cols)
-    bx, by = hex_to_pixel(bg_u, bg_v)
+    bx, by = uv_to_xy_deg(bg_u, bg_v)
     margin = 2
     xlim = (bx.min() - margin, bx.max() + margin)
     ylim = (by.min() - margin, by.max() + margin)

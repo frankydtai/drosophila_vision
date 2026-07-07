@@ -14,7 +14,7 @@ import numpy as np
 
 import network_bootstrap  # noqa: F401
 
-from column_mapper import HEX_PATCH_RADIUS, hex_vertices
+from column_mapper import HEX_PATCH_RADIUS, hex_vertices, uv_to_xy, uv_to_xy_deg
 from Medulla_Library import I_BASELINE, I_BRIGHT, I_DARK
 from training_config import DELTAT_MS, MOVING_BAR_TAIL_MS, T_ON, ms_to_steps
 
@@ -42,13 +42,32 @@ class MovingBarSpec:
 
 @dataclass
 class HexColumn:
-    """One sti column in degree coordinates (no connectome unit indices)."""
+    """One FAFB sti column: axial coords, hex-step ``(x,y)``, degree ``(x_deg,y_deg)``."""
 
     u: int
     v: int
     x: float
     y: float
+    x_deg: float
+    y_deg: float
     hex_xy: np.ndarray
+
+
+def hex_column_from_uv(u: int, v: int) -> HexColumn:
+    """Build one FAFB sti column from axial ``(u, v)``."""
+    x, y = uv_to_xy(u, v)
+    x, y = float(x), float(y)
+    x_deg, y_deg = uv_to_xy_deg(u, v)
+    x_deg, y_deg = float(x_deg), float(y_deg)
+    return HexColumn(
+        u=int(u),
+        v=int(v),
+        x=x,
+        y=y,
+        x_deg=x_deg,
+        y_deg=y_deg,
+        hex_xy=hex_vertices(x_deg, y_deg),
+    )
 
 
 def gruntman_moving_bar_specs(
