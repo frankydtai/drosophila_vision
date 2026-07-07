@@ -56,17 +56,26 @@ import network_bootstrap  # noqa: F401 — connectome_io on sys.path
 from connectome_io import DEFAULT_NETWORK_RUN, NETWORK_DIR, resolve_network_json
 from FiveCol_MedSim_Pytorch import do_many_runs
 import FiveCol_MedSim_Pytorch as fc
-from plot_trained import command_run_name, plot_param_set, resolve_run_dir, run_dir
+from plot_trained import (
+    add_plot_arguments,
+    command_run_name,
+    plot_kwargs_from_args,
+    plot_param_set,
+    resolve_run_dir,
+    run_dir,
+)
 from training_config import run_data_dir
 
 
 def make_plots(fname, outdir, session, result=None, *,
                ref_cubes=None, ref_cubes_off=None, mvd_group_list=None,
-               plot_right_only=True):
+               plot_right_only=True, at_x=None, at_y=None, plot_vm=False):
     """Cost curve + model-vs-data + all-cell-types."""
     plot_kw = dict(
         ref_cubes=ref_cubes, ref_cubes_off=ref_cubes_off,
         mvd_group_list=mvd_group_list, plot_right_only=plot_right_only,
+        at_x=at_x, at_y=at_y,
+        plot_vm=plot_vm,
     )
     if result is not None:
         plot_param_set(
@@ -404,6 +413,8 @@ def run_training(model_type, nofruns, nofsteps, lrs, fname=None, outdir=None,
                  fp32=False,
                  plot_ref_cubes=None, plot_ref_cubes_off=None,
                  plot_mvd_group_list=None, plot_right_only=True,
+                 at_x=None, at_y=None,
+                 plot_vm=False,
                  init_from=None):
     """Full training pipeline (do_many_runs + save_training_outputs + plots). Returns (fname, outdir, session)."""
     session = build_session(
@@ -443,7 +454,9 @@ def run_training(model_type, nofruns, nofsteps, lrs, fname=None, outdir=None,
     make_plots(
         fname, outdir, session, result=result,
         ref_cubes=plot_ref_cubes, ref_cubes_off=plot_ref_cubes_off,
-        mvd_group_list=plot_mvd_group_list, plot_right_only=plot_right_only,
+        mvd_group_list=plot_mvd_group_list,
+        plot_right_only=plot_right_only, at_x=at_x, at_y=at_y,
+        plot_vm=plot_vm,
     )
     return fname, outdir, session
 
@@ -534,16 +547,7 @@ def add_training_arguments(parser):
         help="dark peak/step current (pA); targets: tile_dark, moving_bar_dark "
              "(aliases tile, moving_bar)",
     )
-    parser.add_argument(
-        "--plot-right-only",
-        nargs="?",
-        const=True,
-        default=True,
-        type=parse_bool,
-        metavar="BOOL",
-        help="model_all_bar: right-direction specs only (default true); "
-             "pass false for all directions",
-    )
+    add_plot_arguments(parser)
 
 
 def make_training_argparser(description):
@@ -671,8 +675,8 @@ def training_kwargs_from_args(
         ih_off=args.ih_off,
         fp32=args.fp32,
         sequential=args.sequential,
-        plot_right_only=args.plot_right_only,
         init_from=args.init_from,
+        **plot_kwargs_from_args(args),
     )
 
 

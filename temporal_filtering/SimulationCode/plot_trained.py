@@ -11,10 +11,14 @@ from pathlib import Path
 import numpy as np
 import torch
 
+# Borst Circuits/ paths resolve relative to SimulationCode/; chdir before fc import.
+if __name__ == '__main__':
+    os.chdir(os.path.dirname(os.path.abspath(__file__)))
+
 import FiveCol_MedSim_Pytorch as fc
 from plot import moving_bar as moving_bar_plot
 from plot import tile as tile_plot
-from plot.utils import plot_cost
+from plot.utils import parse_axis_slice_list, plot_cost
 from training_config import PARAMETER_DIR, run_data_dir
 
 TRAIN_OPTS_FILE = fc.TRAIN_OPTS_FILE
@@ -257,14 +261,19 @@ def _plot_tile_targets(session, z, outdir, tile_targets, suffix, model_all,
 
 
 def _plot_bar_targets(session, z, outdir, bar_targets, suffix, model_all, *,
-                      plot_right_only=True):
+                      plot_right_only=True, at_x=None, at_y=None):
     """Plot moving-bar target(s); bright left | dark right when both are trained."""
+    slice_kw = dict(at_x_list=at_x, at_y_list=at_y)
     bar_set = set(bar_targets)
     if bar_set == set(fc.MOVING_BAR_TARGETS):
         s_bright = _session_for_target(session, 'moving_bar_bright')
         s_dark = _session_for_target(session, 'moving_bar_dark')
-        bundle_b = moving_bar_plot.moving_bar_trace_bundle(s_bright, z, 'moving_bar_bright')
-        bundle_d = moving_bar_plot.moving_bar_trace_bundle(s_dark, z, 'moving_bar_dark')
+        bundle_b = moving_bar_plot.moving_bar_trace_bundle(
+            s_bright, z, 'moving_bar_bright', **slice_kw,
+        )
+        bundle_d = moving_bar_plot.moving_bar_trace_bundle(
+            s_dark, z, 'moving_bar_dark', **slice_kw,
+        )
         mvd = os.path.join(outdir, 'model_data_bar.png')
         moving_bar_plot.plot_moving_bar_data(
             s_bright, z, mvd, 'moving_bar_bright', session_off=s_dark,
@@ -283,7 +292,7 @@ def _plot_bar_targets(session, z, outdir, bar_targets, suffix, model_all, *,
         return mvd, allc
     for tname in bar_targets:
         one = _session_for_target(session, tname)
-        bundle = moving_bar_plot.moving_bar_trace_bundle(one, z, tname)
+        bundle = moving_bar_plot.moving_bar_trace_bundle(one, z, tname, **slice_kw)
         mvd = os.path.join(outdir, 'model_data_bar.png')
         moving_bar_plot.plot_moving_bar_data(
             one, z, mvd, tname, title=f'{tname} model-data ({suffix})', bundle=bundle,
@@ -323,7 +332,8 @@ def plot_param_set(params, outdir, model_type=None, model_all=True,
                    final_costs=None, cost_curve=None, costs_by_target=None, best_i=None,
                    save_artifacts=True, artifact_fname=None,
                    ref_cubes=None, ref_cubes_off=None, mvd_group_list=None,
-                   plot_right_only=True):
+                   plot_right_only=True, at_x=None, at_y=None,
+                   plot_vm=False):
     os.makedirs(outdir, exist_ok=True)
     ctx = context_dir or outdir
     if model_type is None and session is not None:
@@ -353,13 +363,6 @@ def plot_param_set(params, outdir, model_type=None, model_all=True,
     )
     z = torch.tensor(best, dtype=session.sim_dtype, device=session.device)
 
-    if cost_curve is not None and len(cost_curve) > 0:
-        plot_cost(
-            cost_curve, os.path.join(outdir, 'cost_curve.png'),
-            costs_by_target=costs_by_target,
-            target_order=list(fc.session_cost_part_keys(session.target_list)),
-        )
-
     suffix = f'trained, cost {best_cost:.2f}% of data power'
     target_list = list(session.target_list)
     if plot_targets is not None:
@@ -371,6 +374,86 @@ def plot_param_set(params, outdir, model_type=None, model_all=True,
         t for t in target_list
         if t not in fc.TILE_TARGETS and t not in fc.MOVING_BAR_TARGETS
     ]
+    if (at_x is not None or at_y is not None) and not bar_targets:
+        raise SystemExit('--x/--y require a moving_bar target in this run')
+
+    if plot_vm:
+        if session.model_type != 'conductance':
+            raise SystemExit('--Vm requires model_type conductance')
+        if other_targets:
+            raise SystemExit(f'--Vm does not support plot targets: {other_targets}')
+        if bar_targets:
+            bar_set = set(bar_targets)
+            if bar_set == set(fc.MOVING_BAR_TARGETS):
+                s_bright = _session_for_target(session, 'moving_bar_bright')
+                s_dark = _session_for_target(session, 'moving_bar_dark')
+                bundle_b = moving_bar_plot.moving_bar_trace_bundle(
+                    s_bright, z, 'moving_bar_bright',
+                    at_x_list=at_x, at_y_list=at_y,
+                    trace_kind='vm',
+                )
+                bundle_d = moving_bar_plot.moving_bar_trace_bundle(
+                    s_dark, z, 'moving_bar_dark',
+                    at_x_list=at_x, at_y_list=at_y,
+                    trace_kind='vm',
+                )
+                allc = os.path.join(outdir, 'model_all_bar_vm.png')
+                moving_bar_plot.plot_moving_bar_all(
+                    s_bright, z, allc, 'moving_bar_bright', session_off=s_dark,
+                    title=f'Moving-bar Vm-all ({suffix})',
+                    right_only=plot_right_only,
+                    trace_kind='vm',
+                    bundle=bundle_b, bundle_off=bundle_d,
+                )
+            else:
+                tname = bar_targets[0]
+                one = _session_for_target(session, tname)
+                allc = os.path.join(outdir, 'model_all_bar_vm.png')
+                moving_bar_plot.plot_moving_bar_all(
+                    one, z, allc, tname,
+                    title=f'{tname} Vm-all ({suffix})',
+                    right_only=plot_right_only,
+                    at_x_list=at_x, at_y_list=at_y,
+                    trace_kind='vm',
+                )
+        if tile_targets:
+            tile_set = set(tile_targets)
+            plot_fn = _tile_plot_fn(session)
+            ref_t = 'tile_bright' if 'tile_bright' in tile_set else tile_targets[0]
+            net_tag = _network_tile_tag(session, ref_t)
+            plot_kw = dict(
+                ref_cubes=ref_cubes, ref_cubes_off=ref_cubes_off,
+                group_list=mvd_group_list,
+            )
+            if tile_set == set(fc.TILE_TARGETS):
+                s_on = _session_for_target(session, 'tile_bright')
+                s_off = _session_for_target(session, 'tile_dark')
+                allc = os.path.join(outdir, 'model_all_tile_vm.png')
+                plot_fn(
+                    s_on, z, allc, session_off=s_off, all_cells=True,
+                    title=f'Tile Vm-all ({suffix}){net_tag}',
+                    trace_kind='vm',
+                    **plot_kw,
+                )
+            else:
+                tname = tile_targets[0]
+                one = _session_for_target(session, tname)
+                allc = os.path.join(outdir, 'model_all_tile_vm.png')
+                plot_fn(
+                    one, z, allc, all_cells=True,
+                    title=f'{tname} Vm-all ({suffix}){net_tag}',
+                    trace_kind='vm',
+                    **plot_kw,
+                )
+        print(f'plots saved to {outdir}')
+        return best, best_cost
+
+    if cost_curve is not None and len(cost_curve) > 0:
+        plot_cost(
+            cost_curve, os.path.join(outdir, 'cost_curve.png'),
+            costs_by_target=costs_by_target,
+            target_order=list(fc.session_cost_part_keys(session.target_list)),
+        )
     if tile_targets:
         _plot_tile_targets(
             session, z, outdir, tile_targets, suffix, model_all,
@@ -381,6 +464,7 @@ def plot_param_set(params, outdir, model_type=None, model_all=True,
         _plot_bar_targets(
             session, z, outdir, bar_targets, suffix, model_all,
             plot_right_only=plot_right_only,
+            at_x=at_x, at_y=at_y,
         )
     for tname in other_targets:
         one = _session_for_target(session, tname)
@@ -405,18 +489,21 @@ def _load_plot_costs(outdir, fname, n_runs):
     return train_mod.load_stored_costs(outdir, fname, n_runs)
 
 
-def main():
+def add_plot_arguments(parser):
+    """Register plot-only CLI flags shared by train.py and plot_trained.py."""
     from train import parse_bool
 
-    ap = argparse.ArgumentParser(description=__doc__)
-    ap.add_argument('run_path', help='run folder under PARAMETER_DIR or absolute path')
-    ap.add_argument(
-        '--best-i',
-        type=int,
-        default=None,
-        help='force parameter row index (default: data/best_i.txt, else infer from costs)',
+    parser.add_argument(
+        '--Vm',
+        nargs='?',
+        const=True,
+        default=False,
+        type=parse_bool,
+        metavar='BOOL',
+        help='only write model_all_bar_vm.png / model_all_tile_vm.png (Vm−Vm_ref); '
+             'skip other plots',
     )
-    ap.add_argument(
+    parser.add_argument(
         '--plot-right-only',
         nargs='?',
         const=True,
@@ -426,7 +513,45 @@ def main():
         help='model_all_bar: right-direction specs only (default true); '
              'pass false for all directions',
     )
+    parser.add_argument(
+        '--x',
+        default=None,
+        metavar='X,...',
+        help='model_all_bar{,_vm}: comma-separated x slices; with --y, one trace per (x,y) pair',
+    )
+    parser.add_argument(
+        '--y',
+        default=None,
+        metavar='Y,...',
+        help='model_all_bar{,_vm}: comma-separated y slices; with --x, one trace per (x,y) pair',
+    )
+
+
+def plot_kwargs_from_args(args):
+    """Map a parsed CLI namespace to :func:`plot_param_set` plot kwargs."""
+    return dict(
+        plot_vm=args.Vm,
+        plot_right_only=args.plot_right_only,
+        at_x=parse_axis_slice_list(args.x),
+        at_y=parse_axis_slice_list(args.y),
+    )
+
+
+def main():
+    ap = argparse.ArgumentParser(description=__doc__)
+    ap.add_argument('run_path', help='run folder under PARAMETER_DIR or absolute path')
+    ap.add_argument(
+        '--best-i',
+        type=int,
+        default=None,
+        help='force parameter row index (default: data/best_i.txt, else infer from costs)',
+    )
+    add_plot_arguments(ap)
     args = ap.parse_args()
+    try:
+        plot_kw = plot_kwargs_from_args(args)
+    except ValueError as exc:
+        raise SystemExit(str(exc)) from exc
     outdir = resolve_run_dir(args.run_path)
     params_path, artifact_fname = find_training_params(outdir)
     params = np.load(params_path)
@@ -438,10 +563,9 @@ def main():
         params, outdir, model_type=model_type,
         artifact_fname=artifact_fname,
         best_i=args.best_i,
-        plot_right_only=args.plot_right_only,
+        **plot_kw,
     )
 
 
 if __name__ == '__main__':
-    os.chdir(os.path.dirname(os.path.abspath(__file__)))
     main()

@@ -107,6 +107,91 @@ def sem_from_traces(traces, single_column=False):
     return traces.std(axis=0) / np.sqrt(traces.shape[0])
 
 
+def _hex_coord_token(val):
+    v = float(val)
+    if np.isclose(v, round(v)):
+        return str(int(round(v)))
+    return str(v).replace('.', 'p').replace('-', 'm')
+
+
+def _parse_comma_floats(text):
+    return [float(t.strip()) for t in str(text).split(',') if t.strip()]
+
+
+def parse_axis_slice_list(text):
+    """Parse comma-separated ``--x`` / ``--y`` values (empty → ``None``)."""
+    if not text:
+        return None
+    vals = _parse_comma_floats(text)
+    if not vals:
+        raise ValueError('empty comma-separated axis slice')
+    return vals
+
+
+def _coord_matches(val, axis_filter, tol=1e-6):
+    if axis_filter is None:
+        return True
+    if isinstance(axis_filter, (list, tuple)):
+        return any(np.isclose(val, float(v), atol=tol) for v in axis_filter)
+    return np.isclose(val, float(axis_filter), atol=tol)
+
+
+def filter_sti_columns(cols, *, at_x=None, at_y=None, tol=1e-6):
+    """Keep network sti columns whose hex-step ``(x, y)`` matches ``at_x`` / ``at_y``."""
+    if at_x is None and at_y is None:
+        return list(cols)
+    out = []
+    for col in cols:
+        if not _coord_matches(col.x, at_x, tol=tol):
+            continue
+        if not _coord_matches(col.y, at_y, tol=tol):
+            continue
+        out.append(col)
+    return out
+
+
+def filter_borst_sti_columns(cols, *, at_x=None, at_y=None, tol=1e-6):
+    """Keep Borst sti columns for plot ``--x`` (``k`` in -2..+2) / ``--y=0``."""
+    if at_x is None and at_y is None:
+        return list(cols)
+    if at_y is not None and not _coord_matches(0.0, at_y, tol=tol):
+        raise ValueError('Borst moving-bar plot --y must be 0 (horizontal row)')
+    if at_x is None:
+        return list(cols)
+    if isinstance(at_x, (list, tuple)):
+        ks = []
+        for v in at_x:
+            k = int(round(float(v)))
+            if not np.isclose(float(v), k, atol=tol):
+                raise ValueError(
+                    f'Borst --x={v!r} must be an integer column offset k in -2..+2',
+                )
+            ks.append(k)
+        out = [col for col in cols if col.k in ks]
+        if not out:
+            raise ValueError(f'no Borst columns match x={list(at_x)!r}')
+        return out
+    k = int(round(float(at_x)))
+    if not np.isclose(float(at_x), k, atol=tol):
+        raise ValueError(f'Borst --x={at_x!r} must be an integer column offset k in -2..+2')
+    out = [col for col in cols if col.k == k]
+    if not out:
+        raise ValueError(f'no Borst column with k={k!r}')
+    return out
+
+
+def column_at_scope_tag(at_x, at_y):
+    """Subtitle fragment for plot column slice."""
+    parts = []
+    if at_x is not None:
+        xs = at_x if isinstance(at_x, (list, tuple)) else [at_x]
+        parts.append('x=' + ','.join(_hex_coord_token(v) for v in xs))
+    if at_y is not None:
+        ys = at_y if isinstance(at_y, (list, tuple)) else [at_y]
+        parts.append('y=' + ','.join(_hex_coord_token(v) for v in ys))
+    return ', '.join(parts)
+
+
 def ylim_for_traces(
     model,
     *,

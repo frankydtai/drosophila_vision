@@ -1956,7 +1956,7 @@ def model_cost(model, data, session: TrainSession, scale=1.0, power=None):
     return torch.sum((scale * model - data[t_on:mt])**2) / power * 100.0
 
 
-def _run_conductance(session: TrainSession, p, neuron_index=None, return_ref=False, sig=None, pack=None):
+def _run_conductance(session: TrainSession, p, neuron_index=None, return_ref=False, sig=None, pack=None, *, return_vm=False):
     if neuron_index is None:
         pack = pack or session.primary_pack
         neuron_index = pack.readout_unit
@@ -1964,18 +1964,30 @@ def _run_conductance(session: TrainSession, p, neuron_index=None, return_ref=Fal
         sig = session.pack_signal(pack)
     squeeze = sig.dim() == 2
     sig_b = sig.unsqueeze(0) if squeeze else sig
-    out, vm_ref = _run_conductance_full(session, p, sig_b, return_ref=True)
+    if return_vm:
+        out, vm_ref, vm_full = _run_conductance_full(session, p, sig_b, return_ref=True, return_vm=True)
+    else:
+        out, vm_ref = _run_conductance_full(session, p, sig_b, return_ref=True)
     out = out[:, :, neuron_index]
     vm_ref = vm_ref[:, neuron_index]
+    if return_vm:
+        vm_full = vm_full[:, :, neuron_index]
     if squeeze:
         out = out.squeeze(0)
         vm_ref = vm_ref.squeeze(0)
+        if return_vm:
+            vm_full = vm_full.squeeze(0)
+    if return_vm:
+        vm_delta = vm_full - vm_ref.unsqueeze(-2)
+        if return_ref:
+            return vm_delta, vm_ref
+        return vm_delta
     if return_ref:
         return out, vm_ref
     return out
 
 
-def _run_conductance_full(session: TrainSession, p, sig, return_ref=False):
+def _run_conductance_full(session: TrainSession, p, sig, return_ref=False, *, return_vm=False):
     backend = session.backend
     ih_off = (session.train_opts or {}).get('ih_off', IH_OFF_DEFAULT)
     inp_gain, out_gain = p['inp_gain'], p['out_gain']
@@ -1995,6 +2007,7 @@ def _run_conductance_full(session: TrainSession, p, sig, return_ref=False):
     Vm_ref = Vm.clone()
     model = 0
     rows = []
+    vm_rows = [] if return_vm else None
     for t in range(t_on, t_end):
         Vm, u_on, u_off = update_Vm(
             Vm, u_on, u_off, inp_gain, out_gain, Ih_gmax, Ih_gmax_off,
@@ -2002,7 +2015,12 @@ def _run_conductance_full(session: TrainSession, p, sig, return_ref=False):
             sig[:, t - 1], backend)
         model = deltat / Ca_tau * (Vm - Vm_ref - model) + model
         rows.append(model)
+        if return_vm:
+            vm_rows.append(Vm)
     out = torch.stack(rows, dim=1)
+    if return_vm:
+        vm_full = torch.stack(vm_rows, dim=1)
+        return out, Vm_ref, vm_full
     if return_ref:
         return out, Vm_ref
     return out

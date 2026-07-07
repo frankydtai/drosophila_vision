@@ -188,7 +188,7 @@ def _as_index(neuron_index, device):
 
 
 @torch.no_grad()
-def _simulate(session, z, neuron_index, return_ref=False):
+def _simulate(session, z, neuron_index, return_ref=False, *, trace_kind='model'):
     neuron_index = _as_index(neuron_index, z.device)
     schema = list(session.schema)
     backend = session.backend
@@ -197,16 +197,24 @@ def _simulate(session, z, neuron_index, return_ref=False):
         stacked, ref = fc._run_adaptive(p, session, neuron_index=neuron_index, return_ref=True)
     else:
         p = fc.assign_params(z, schema, backend)
-        stacked, ref = fc._run_conductance(session, p, neuron_index=neuron_index, return_ref=True)
+        if trace_kind == 'vm':
+            stacked, ref = fc._run_conductance(
+                session, p, neuron_index=neuron_index, return_ref=True, return_vm=True,
+            )
+        else:
+            stacked, ref = fc._run_conductance(session, p, neuron_index=neuron_index, return_ref=True)
     mt = session.maxtime
-    scale = fc.out_scale_for_units(p, neuron_index, backend)
+    if trace_kind == 'vm':
+        scale = torch.ones((int(neuron_index.shape[0]),), dtype=stacked.dtype, device=stacked.device)
+    else:
+        scale = fc.out_scale_for_units(p, neuron_index, backend)
     trace = fc.pad_plot_traces(stacked.transpose(0, 1), scale, mt)
     if return_ref:
         return trace, ref
     return trace
 
 
-def calc_model_full_all(session, z, return_ref=False):
+def calc_model_full_all(session, z, return_ref=False, *, trace_kind='model'):
     n_types = session.backend.n_types
     mt = session.maxtime
     model_full = np.zeros((n_types, 9, mt))
@@ -219,11 +227,11 @@ def calc_model_full_all(session, z, return_ref=False):
             device=z.device,
         )
         if return_ref:
-            trace, ref = _simulate(session, z, col_index, return_ref=True)
+            trace, ref = _simulate(session, z, col_index, return_ref=True, trace_kind=trace_kind)
             model_full[:, col + 2] = trace.cpu().numpy()
             ref_full[:, col + 2] = ref.cpu().numpy()
         else:
-            model_full[:, col + 2] = _simulate(session, z, col_index).cpu().numpy()
+            model_full[:, col + 2] = _simulate(session, z, col_index, trace_kind=trace_kind).cpu().numpy()
     if return_ref:
         return model_full, ref_full
     return model_full
@@ -244,12 +252,19 @@ def _fill_ring_cube(cube, sem, ti, ft_global, type_idx, radius, plot_traces, cen
 
 
 @torch.no_grad()
-def multicol_cube(session, z, all_cells=False, group_list=None):
+def multicol_cube(session, z, all_cells=False, group_list=None, *, trace_kind='model'):
     pack = session.primary_pack
     schema = list(session.schema)
     p = fc.assign_params(z, schema, session.backend)
     sig = pack.signal if pack.signal.dim() == 3 else pack.signal.unsqueeze(0)
-    model_full, vm_ref = fc._run_conductance_full(session, p, sig, return_ref=True)
+    if trace_kind == 'vm':
+        model_full, vm_ref, vm_full = fc._run_conductance_full(
+            session, p, sig, return_ref=True, return_vm=True,
+        )
+        trace_full = vm_full - vm_ref[:, None, :]
+    else:
+        model_full, vm_ref = fc._run_conductance_full(session, p, sig, return_ref=True)
+        trace_full = model_full
     vm_ref_np = vm_ref[0].cpu().numpy()
     C = session.backend.network
     type_names = list(C.type_names)
@@ -276,10 +291,13 @@ def multicol_cube(session, z, all_cells=False, group_list=None):
         names = tile_model_data_names(session, pack.name, group_list)
         ring_layout = None
 
-    raw = model_full[batch_idx, :, unit_idx]
-    scale = fc.out_scale_for_units(
-        p, torch.as_tensor(unit_idx, dtype=torch.long, device=z.device), session.backend,
-    )
+    raw = trace_full[batch_idx, :, unit_idx]
+    if trace_kind == 'vm':
+        scale = torch.ones((int(raw.shape[0]),), dtype=raw.dtype, device=raw.device)
+    else:
+        scale = fc.out_scale_for_units(
+            p, torch.as_tensor(unit_idx, dtype=torch.long, device=z.device), session.backend,
+        )
     plot_traces = fc.pad_plot_traces(raw, scale, mt).cpu().numpy()
     baselines = baselines_for_types(
         pack, session.backend, vm_ref_np, names, type_ids, type_names,
@@ -295,8 +313,8 @@ def multicol_cube(session, z, all_cells=False, group_list=None):
     return names, cube, sem, baselines
 
 
-def _prepare_borst_tile(session, z, all_cells, group_list):
-    model, ref = calc_model_full_all(session, z, return_ref=True)
+def _prepare_borst_tile(session, z, all_cells, group_list, *, trace_kind='model'):
+    model, ref = calc_model_full_all(session, z, return_ref=True, trace_kind=trace_kind)
     if all_cells:
         names = [str(CTYPE[i]) for i in range(session.backend.n_types)]
         cells = [
@@ -321,9 +339,11 @@ def _prepare_borst_tile(session, z, all_cells, group_list):
     return cells, group_rows
 
 
-def _prepare_network_tile(session, z, all_cells, group_list):
+def _prepare_network_tile(session, z, all_cells, group_list, *, trace_kind='model'):
     pack = session.primary_pack
-    names, cube, sem, baselines = multicol_cube(session, z, all_cells=all_cells, group_list=group_list)
+    names, cube, sem, baselines = multicol_cube(
+        session, z, all_cells=all_cells, group_list=group_list, trace_kind=trace_kind,
+    )
     single_column = suppress_cost_sem(session, target=pack.name)
     cells = [
         dict(name=n, cube=cube[i], sem=None if single_column else sem[i], baseline=baselines.get(n))
@@ -348,11 +368,12 @@ def _plot_tile_figure(
     figsize_fn,
     gridspec_kw,
     suptitle_fs=12,
+    trace_kind='model',
 ):
-    cells_on, group_rows = prepare_fn(session_on, z, all_cells, group_list)
+    cells_on, group_rows = prepare_fn(session_on, z, all_cells, group_list, trace_kind=trace_kind)
     cells_off = None
     if session_off is not None:
-        cells_off, _ = prepare_fn(session_off, z, all_cells, group_list)
+        cells_off, _ = prepare_fn(session_off, z, all_cells, group_list, trace_kind=trace_kind)
     dual = session_off is not None
     ref_on, ref_off = _resolve_tile_ref_cubes(
         session_on, session_off, ref_cubes, ref_cubes_off,
@@ -413,7 +434,8 @@ def _plot_tile_figure(
 
 
 def plot_network_tile(session_on, z, path, *, session_off=None, all_cells=False,
-                      title, ref_cubes=None, ref_cubes_off=None, group_list=None):
+                      title, ref_cubes=None, ref_cubes_off=None, group_list=None,
+                      trace_kind='model'):
     ncols = 5 if not all_cells else 8
     _plot_tile_figure(
         session_on, z, path,
@@ -427,11 +449,13 @@ def plot_network_tile(session_on, z, path, *, session_off=None, all_cells=False,
         ncols=ncols,
         figsize_fn=lambda c, r: (3.0 * c if not all_cells else 2.2 * c, 2.5 * r),
         gridspec_kw=dict(hspace=0.55, wspace=0.55, top=0.93, bottom=0.06, left=0.07, right=0.98),
+        trace_kind=trace_kind,
     )
 
 
 def plot_borst_tile(session_on, z, path, *, session_off=None, all_cells=False,
-                    title, ref_cubes=None, ref_cubes_off=None, group_list=None):
+                    title, ref_cubes=None, ref_cubes_off=None, group_list=None,
+                    trace_kind='model'):
     ncols = 13
     if all_cells:
         gs_kw = dict(hspace=0.65, wspace=0.45, top=0.97, bottom=0.03, left=0.04, right=0.99)
@@ -454,6 +478,7 @@ def plot_borst_tile(session_on, z, path, *, session_off=None, all_cells=False,
         figsize_fn=figsize_fn,
         gridspec_kw=gs_kw,
         suptitle_fs=suptitle_fs,
+        trace_kind=trace_kind,
     )
 
 

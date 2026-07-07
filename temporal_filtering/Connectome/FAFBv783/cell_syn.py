@@ -15,22 +15,27 @@ neuron when prefixed with ``@`` (e.g. ``@720575940622041087``) selected by FlyWi
 root id. The breakdown column still shows individual ``source_type``/``target_type``
 unless ``--family`` is given.
 
-Optionally restrict to CELL_TYPE *instances* at a single location: axial ``(u, v)``
-(``--at-uv U V``) or pixel ``(x, y)`` (``--at-xy X Y``) for FAFB ``network.json``,
-or the central hex disc ``--extent N`` (0 = centre column, 1 = 7 columns, 2 = 19, …;
-uses ``column_mapper.inside_mask``). ``--extent`` is FAFB-only and shows mean
+Optionally restrict to CELL_TYPE *instances* by location: axial ``(u, v)`` with
+``--u`` and/or ``--v`` (one axis for every column on that line, or both for a single
+column); hex-step ``(x, y)`` with ``--x`` and/or ``--y``; or the central hex disc
+``--extent N`` (0 = centre column, 1 = 7 columns, 2 = 19, …; uses
+``column_mapper.inside_mask``). ``--extent`` is FAFB-only and shows mean
 ``pre_d_xy``/``post_d_xy`` only.
-With ``--borst`` (5-column ``multi_colM`` model) use ``--at-xy`` only — Borst column
-centres sit on ``y=0`` at ``x`` in ``{-10,-5,0,5,10}`` (resolved via
-``column_mapper.borst_col_at_xy``); ``--at-uv``, ``--extent``, and ``--family`` are invalid
-(no ``type_counts_abc.csv`` on the Borst path). Borst output never shows axial
-``(u,v)``; with ``--at-xy`` only ``pre_d_xy``/``post_d_xy``. Without ``--at-uv``/``--at-xy``,
-only ``pre_d_xy``/``post_d_xy`` is shown (mean partner pixel delta). The reference is
-the mean ``(x,y)`` of all queried *self* instances; each partner row shows **one**
-mean ``(dx,dy)`` over that partner's instances. With ``--at-uv`` only ``pre_d_uv``/
-``post_d_uv`` is added (hex reference). With ``--at-xy`` the reference is the
-``--at`` centre; if ``n_neuron`` ≤ 5, distinct partner ``(dx,dy)`` pairs are listed,
-otherwise the mean delta is shown.
+With ``--borst`` (5-column ``multi_colM`` model) use ``--x`` as column offset
+``k`` in ``{-2,-1,0,1,2}`` (``--y`` must be ``0`` on the horizontal row, or omit);
+``--u``/``--v``, ``--extent``, and ``--family`` are invalid (no ``type_counts_abc.csv``
+on the Borst path). Borst output never shows axial ``(u,v)``; with any ``--x``/``--y``
+only ``pre_d_xy``/``post_d_xy``. Without ``--u``/``--v``/``--x``/``--y``, only
+``pre_d_xy``/``post_d_xy`` is shown (mean partner pixel delta). The reference is the
+mean location of all queried *self* instances; each partner row shows **one** mean
+``(dx,dy)`` over that partner's instances. With any ``--u``/``--v`` filter only
+``pre_d_uv``/``post_d_uv`` is added (hex reference). With both ``--u`` and ``--v`` or
+both ``--x`` and ``--y`` the reference is that column centre; if ``n_neuron`` ≤ 5,
+distinct partner deltas are listed, otherwise the mean delta is shown. With only one
+``--u``, ``--v``, ``--x``, or ``--y`` (or Borst ``--y=0`` alone), instances on that
+coordinate line are aggregated (mean partner delta). With ``--p-xy``, append
+``pre_xy``/``post_xy`` (absolute partner ``(x,y)``) as the last column in addition
+to ``pre_d_xy``/``pre_d_uv``.
 
 Per (cell_type, partner_type): sum ``n_syn`` where ``sign > 0`` vs ``sign < 0``,
 then express each as a percentage of **all** ``n_syn`` for that cell type. An
@@ -52,14 +57,17 @@ Example::
     python3 "cell_syn.py" @720575940622041087
     python3 "cell_syn.py" Mi1 --network right_min_neuron1
     python3 "cell_syn.py" L1 --network /abs/path/to/some_folder
-    python3 "cell_syn.py" Mi1 --post --at-uv 0 0
-    python3 "cell_syn.py" Mi1 --post --at-xy 0 1
+    python3 "cell_syn.py" Mi1 --post --u 0 --v 0
+    python3 "cell_syn.py" Mi1 --post --u 0
+    python3 "cell_syn.py" Mi1 --post --x 0 --y 1
+    python3 "cell_syn.py" Mi1 --x 0
     python3 "cell_syn.py" Mi1 --extent 0
     python3 "cell_syn.py" Mi1 --extent 2
     python3 "cell_syn.py" Mi1 --borst
     python3 "cell_syn.py" Mi1 --borst --post
-    python3 "cell_syn.py" Mi1 --borst --at-xy 0 0
-    python3 "cell_syn.py" Mi1 --borst --at-xy -5 0
+    python3 "cell_syn.py" Mi1 --borst --x 0 --y 0
+    python3 "cell_syn.py" Mi1 --borst --x -2
+    python3 "cell_syn.py" Mi1 --u 0 --v 0 --p-xy
 """
 
 from __future__ import annotations
@@ -75,7 +83,7 @@ from typing import DefaultDict, Dict, Iterable, List, Optional, Set, Tuple, Unio
 _UvCoord = Tuple[Union[int, float], Union[int, float]]
 
 from column_mapper import (
-    borst_col_at_xy,
+    BORST_CENTER_COL,
     borst_sti_columns,
     inside_mask,
     uv_to_xy,
@@ -255,7 +263,7 @@ def _node_centers(
         return None
 
 
-def _format_delta_pairs(
+def _format_pairs(
     pairs: Iterable[Tuple[float, float]],
     *,
     mean: bool,
@@ -276,49 +284,49 @@ def _format_delta_pairs(
     )
 
 
-def _format_delta_uv(
+def _format_partner_uv(
     uvs: Set[_UvCoord],
-    origin: Tuple[float, float],
+    origin: Optional[Tuple[float, float]] = None,
     *,
     mean: bool,
 ) -> str:
-    """Format partner ``(du,dv)`` as one mean pair or a sorted distinct list."""
-    ou, ov = origin
-    return _format_delta_pairs(
-        ((float(u) - ou, float(v) - ov) for u, v in uvs),
-        mean=mean,
-    )
+    """Format partner ``(u,v)`` or ``(du,dv)`` when ``origin`` is set."""
+    if origin is None:
+        pairs = ((float(u), float(v)) for u, v in uvs)
+    else:
+        ou, ov = origin
+        pairs = ((float(u) - ou, float(v) - ov) for u, v in uvs)
+    return _format_pairs(pairs, mean=mean)
 
 
-def _format_delta_xy(
+def _format_partner_xy(
     uvs: Set[_UvCoord],
-    origin: Tuple[float, float],
-    *,
-    mean: bool,
-) -> str:
-    """Format partner ``(dx,dy)`` in hex-step space as mean or sorted distinct list."""
-    ox, oy = origin
-    return _format_delta_pairs(
-        (
-            (float(uv_to_xy(u, v)[0]) - ox, float(uv_to_xy(u, v)[1]) - oy)
-            for u, v in uvs
-        ),
-        mean=mean,
-    )
-
-
-def _format_delta_xy_coords(
     coords: Set[Tuple[float, float]],
-    origin: Tuple[float, float],
+    origin: Optional[Tuple[float, float]] = None,
     *,
     mean: bool,
 ) -> str:
-    """Format partner ``(dx,dy)`` from explicit coordinate pairs (Borst ``x_deg,y_deg``)."""
-    ox, oy = origin
-    return _format_delta_pairs(
-        ((x - ox, y - oy) for x, y in coords),
-        mean=mean,
-    )
+    """Format partner ``(x,y)`` or ``(dx,dy)``; prefer explicit ``coords`` (Borst)."""
+    if coords:
+        if origin is None:
+            pairs = ((float(x), float(y)) for x, y in coords)
+        else:
+            ox, oy = origin
+            pairs = ((x - ox, y - oy) for x, y in coords)
+    elif origin is None:
+        pairs = (
+            (float(uv_to_xy(u, v)[0]), float(uv_to_xy(u, v)[1])) for u, v in uvs
+        )
+    else:
+        ox, oy = origin
+        pairs = (
+            (
+                float(uv_to_xy(u, v)[0]) - ox,
+                float(uv_to_xy(u, v)[1]) - oy,
+            )
+            for u, v in uvs
+        )
+    return _format_pairs(pairs, mean=mean)
 
 
 def _self_node_origin(
@@ -476,17 +484,22 @@ def _node_id_to_uv(nodes: List[dict], *, float_coords: bool = False) -> Dict[int
     return m
 
 
-def _instance_ids_at_hex(
-    nodes: List[dict], u: int, v: int
+def _instance_ids_on_uv_line(
+    nodes: List[dict],
+    *,
+    at_u: Optional[int] = None,
+    at_v: Optional[int] = None,
 ) -> Dict[str, Set[int]]:
-    """Map cell type (node ``name``) -> FlyWire root ids at hex (u, v)."""
+    """Map cell type -> root ids on a hex ``u`` and/or ``v`` line (FAFB)."""
     out: Dict[str, Set[int]] = {}
     for n in nodes:
         try:
-            nu, nv = int(n["u"]), int(n["v"])
+            u, v = int(n["u"]), int(n["v"])
         except (KeyError, TypeError, ValueError):
             continue
-        if nu != u or nv != v:
+        if at_u is not None and u != at_u:
+            continue
+        if at_v is not None and v != at_v:
             continue
         name = n.get("name")
         if not isinstance(name, str):
@@ -497,6 +510,13 @@ def _instance_ids_at_hex(
             continue
         out.setdefault(name, set()).add(nid)
     return out
+
+
+def _instance_ids_at_hex(
+    nodes: List[dict], u: int, v: int
+) -> Dict[str, Set[int]]:
+    """Map cell type (node ``name``) -> FlyWire root ids at hex (u, v)."""
+    return _instance_ids_on_uv_line(nodes, at_u=u, at_v=v)
 
 
 def _instance_ids_in_disc(nodes: List[dict], extent: int) -> Dict[str, Set[int]]:
@@ -691,7 +711,8 @@ def print_table(
     use_family: bool = False,
     min_pct: float = 0.0,
     show_uv: bool = True,
-    show_xy: bool = True,
+    show_d_xy: bool = True,
+    show_xy: bool = False,
     origin_uv: Optional[Tuple[float, float]] = None,
     origin_xy: Optional[Tuple[float, float]] = None,
     mean_partner_delta: bool = False,
@@ -709,11 +730,14 @@ def print_table(
         flow_word = "onto"
     n_label = "n_neuron"
     uv_label = f"{side}_d_uv"
-    xy_label = f"{side}_d_xy"
+    d_xy_label = f"{side}_d_xy"
+    xy_label = f"{side}_xy"
 
     header = [partner_field, "% n_syn+", "% n_syn-", n_label]
     if show_uv:
         header.append(uv_label)
+    if show_d_xy:
+        header.append(d_xy_label)
     if show_xy:
         header.append(xy_label)
 
@@ -740,26 +764,28 @@ def print_table(
                 if origin_uv is None:
                     row.append("")
                 else:
-                    row.append(_format_delta_uv(uvs, origin_uv, mean=use_mean_delta))
-            if show_xy:
+                    row.append(
+                        _format_partner_uv(uvs, origin_uv, mean=use_mean_delta)
+                    )
+            if show_d_xy:
                 if origin_xy is None:
                     row.append("")
-                elif coords:
-                    row.append(
-                        _format_delta_xy_coords(
-                            coords, origin_xy, mean=use_mean_delta,
-                        )
-                    )
                 else:
                     row.append(
-                        _format_delta_xy(uvs, origin_xy, mean=use_mean_delta)
+                        _format_partner_xy(
+                            uvs, coords, origin_xy, mean=use_mean_delta,
+                        )
                     )
+            if show_xy:
+                row.append(
+                    _format_partner_xy(uvs, coords, None, mean=use_mean_delta)
+                )
             rows.append(row)
 
     total_row = ["TOTAL", f"{sum_p:.4f}", f"{sum_m:.4f}"]
     total_n = sum(int(n_partner_by_type.get(pt, 0)) for pt in by_partner)
     total_row.append(str(total_n))
-    total_row += [""] * (int(show_uv) + int(show_xy))
+    total_row += [""] * (int(show_uv) + int(show_d_xy) + int(show_xy))
 
     all_rows = [header] + rows + [total_row]
     n_cols = len(header)
@@ -784,6 +810,91 @@ def print_table(
         print(_fmt(row))
     print(_fmt(total_row))
     print()
+
+
+def _coord_close(a: float, b: float, tol: float = 1e-6) -> bool:
+    return abs(float(a) - float(b)) <= tol
+
+
+def _instance_ids_on_xy_line(
+    nodes: List[dict],
+    *,
+    at_x: Optional[float] = None,
+    at_y: Optional[float] = None,
+    tol: float = 1e-6,
+) -> Dict[str, Set[int]]:
+    """Map cell type -> root ids on a hex-step ``x`` and/or ``y`` line (FAFB)."""
+    out: Dict[str, Set[int]] = {}
+    for n in nodes:
+        centers = _node_centers(n, float_coords=False)
+        if centers is None:
+            continue
+        _uv, (x, y) = centers
+        if at_x is not None and not _coord_close(x, at_x, tol=tol):
+            continue
+        if at_y is not None and not _coord_close(y, at_y, tol=tol):
+            continue
+        name = n.get("name")
+        if not isinstance(name, str):
+            continue
+        try:
+            nid = int(n["id"])
+        except (KeyError, TypeError, ValueError):
+            continue
+        out.setdefault(name, set()).add(nid)
+    return out
+
+
+def _borst_k_from_node(n: dict) -> int:
+    return int(n["column_id"]) - BORST_CENTER_COL
+
+
+def _borst_col_from_k(k: float) -> int:
+    ki = int(round(k))
+    if abs(k - ki) > 1e-6:
+        raise ValueError(f"Borst --x={k!r} must be an integer column offset k in -2..+2")
+    col = ki + BORST_CENTER_COL
+    if col < 0 or col >= len(borst_sti_columns()):
+        raise ValueError(f"Borst --x={ki!r} out of range; expected k in -2..+2")
+    return col
+
+
+def _instance_ids_borst_k(
+    nodes: List[dict],
+    *,
+    at_k: Optional[float] = None,
+    at_y: Optional[float] = None,
+    tol: float = 1e-6,
+) -> Dict[str, Set[int]]:
+    """Map cell type -> unit ids on Borst column ``k`` and/or ``y=0`` row."""
+    out: Dict[str, Set[int]] = {}
+    want_k = None if at_k is None else int(round(at_k))
+    for n in nodes:
+        if want_k is not None and _borst_k_from_node(n) != want_k:
+            continue
+        if at_y is not None:
+            xy = _node_xy_deg(n)
+            if xy is None or not _coord_close(xy[1], at_y, tol=tol):
+                continue
+        name = n.get("name")
+        if not isinstance(name, str):
+            continue
+        try:
+            nid = int(n["id"])
+        except (KeyError, TypeError, ValueError):
+            continue
+        out.setdefault(name, set()).add(nid)
+    return out
+
+
+def _cli_xy_filter(
+    x: Optional[float],
+    y: Optional[float],
+) -> Tuple[Optional[float], Optional[float]]:
+    """Parse optional ``--x`` / ``--y`` (either or both)."""
+    at_x = float(x) if x is not None else None
+    at_y = float(y) if y is not None else None
+    return at_x, at_y
 
 
 def main(argv: List[str] | None = None) -> int:
@@ -834,9 +945,37 @@ def main(argv: List[str] | None = None) -> int:
         action="store_true",
         help=(
             "Use Borst 5-column multi_colM connectivity (ignores --network). "
-            "Restrict to one column with --at-xy (Borst centres on y=0); "
-            "--at-uv, --extent, and --family are not valid."
+            "Restrict to one column with --x/--y (Borst centres on y=0); "
+            "--u/--v, --extent, and --family are not valid."
         ),
+    )
+    parser.add_argument(
+        "--u",
+        type=int,
+        default=None,
+        metavar="U",
+        help="FAFB only: axial u; with --v selects one column, alone selects a u line",
+    )
+    parser.add_argument(
+        "--v",
+        type=int,
+        default=None,
+        metavar="V",
+        help="FAFB only: axial v; with --u selects one column, alone selects a v line",
+    )
+    parser.add_argument(
+        "--x",
+        type=float,
+        default=None,
+        metavar="X",
+        help="FAFB: hex-step x; Borst: column offset k in -2..+2",
+    )
+    parser.add_argument(
+        "--y",
+        type=float,
+        default=None,
+        metavar="Y",
+        help="FAFB: hex-step y; Borst: must be 0 on the horizontal row",
     )
     parser.add_argument(
         "--network",
@@ -846,38 +985,7 @@ def main(argv: List[str] | None = None) -> int:
             "direct path to a folder / network.json. Default: right_min_neuron1"
         ),
     )
-    at_group = parser.add_mutually_exclusive_group()
-    at_group.add_argument(
-        "--at-uv",
-        nargs=2,
-        type=int,
-        metavar=("U", "V"),
-        default=None,
-        help=(
-            "Only count edges whose CELL_TYPE *instance* sits at hex (u,v). "
-            "Omit to aggregate over all instances of each cell type (default). "
-            "When set: extra column pre_d_uv/post_d_uv for partner instances "
-            "(n_neuron is always shown). If n_neuron ≤ 5, distinct deltas are "
-            "listed; if n_neuron > 5, the mean delta is shown. "
-            "TOTAL row omits the coord column."
-        ),
-    )
-    at_group.add_argument(
-        "--at-xy",
-        nargs=2,
-        type=float,
-        metavar=("X", "Y"),
-        default=None,
-        help=(
-            "Only count edges whose CELL_TYPE *instance* sits at pixel (x,y). FAFB: "
-            "converted via column_mapper.xy_to_uv (integer hex centre). "
-            "When set: extra column pre_d_xy/post_d_xy (partner pixel minus --at-xy). "
-            "If n_neuron ≤ 5, distinct deltas are listed; if n_neuron > 5, mean delta. "
-            "With --borst: resolved via column_mapper.borst_col_at_xy "
-            "(centres at x in {-10,-5,0,5,10}, y=0)."
-        ),
-    )
-    at_group.add_argument(
+    parser.add_argument(
         "--extent",
         type=int,
         metavar="N",
@@ -886,15 +994,39 @@ def main(argv: List[str] | None = None) -> int:
             "FAFB only: restrict to CELL_TYPE instances in the central hex disc of "
             "radius N (0 = centre column, 1 = 7 columns, 2 = 19, …; "
             "column_mapper.inside_mask). Shows mean pre_d_xy/post_d_xy only. "
-            "Incompatible with --borst."
+            "Incompatible with --borst, --u/--v, and --x/--y."
+        ),
+    )
+    parser.add_argument(
+        "--p-xy",
+        action="store_true",
+        help=(
+            "Append pre_xy/post_xy as the last column: absolute partner (x,y) "
+            "in addition to pre_d_xy/pre_d_uv."
         ),
     )
     args = parser.parse_args(argv)
+    at_u, at_v = args.u, args.v
+    has_uv_filter = at_u is not None or at_v is not None
+    single_uv_hex = at_u is not None and at_v is not None
+    at_x, at_y = _cli_xy_filter(args.x, args.y)
+    has_xy_filter = at_x is not None or at_y is not None
+    single_xy_column = at_x is not None and at_y is not None
 
-    if args.borst and args.at_uv is not None:
-        logger.error(
-            "--at-uv is invalid with --borst; use --at-xy (Borst column centres on y=0)"
-        )
+    if args.borst and has_uv_filter:
+        logger.error("--u/--v are invalid with --borst; use --x/--y")
+        return 1
+
+    if has_uv_filter and has_xy_filter:
+        logger.error("--u/--v cannot be used with --x/--y")
+        return 1
+
+    if args.extent is not None and has_uv_filter:
+        logger.error("--extent cannot be used with --u/--v")
+        return 1
+
+    if args.extent is not None and has_xy_filter:
+        logger.error("--extent cannot be used with --x/--y")
         return 1
 
     if args.borst and args.extent is not None:
@@ -952,26 +1084,43 @@ def main(argv: List[str] | None = None) -> int:
     at_ref_uv: Optional[Tuple[float, float]] = None
     at_ref_xy: Optional[Tuple[float, float]] = None
 
-    if args.borst and args.at_xy is not None:
+    if args.borst and has_xy_filter:
+        if at_y is not None and not _coord_close(at_y, 0.0):
+            logger.error("Borst --y must be 0 (horizontal row)")
+            return 1
         try:
-            bx, by = float(args.at_xy[0]), float(args.at_xy[1])
-            col = borst_col_at_xy(bx, by)
+            if single_xy_column or at_x is not None:
+                col = _borst_col_from_k(at_x if at_x is not None else 0.0)
+            else:
+                col = None
         except ValueError as exc:
             logger.error("%s", exc)
             return 1
-        center = borst_sti_columns()[col]
-        ids_at_hex = _instance_ids_at_col(nodes, col)
-        at_ref_xy = (float(center.x_deg), float(center.y_deg))
-        hex_note += (
-            f" at Borst col={col} (k={center.k}) "
-            f"(x_deg,y_deg)=({_format_scalar_for_table(center.x_deg)},"
-            f"{_format_scalar_for_table(center.y_deg)})"
-        )
-        logger.info(
-            "Restricting to Borst column %d; %d cell types have ≥1 unit there",
-            col,
-            sum(1 for s in ids_at_hex.values() if s),
-        )
+        if col is not None:
+            center = borst_sti_columns()[col]
+            ids_at_hex = _instance_ids_at_col(nodes, col)
+            at_ref_xy = (float(center.x_deg), float(center.y_deg))
+            hex_note += (
+                f" at Borst col={col} (k={center.k}) "
+                f"(x_deg,y_deg)=({_format_scalar_for_table(center.x_deg)},"
+                f"{_format_scalar_for_table(center.y_deg)})"
+            )
+            logger.info(
+                "Restricting to Borst column %d (k=%d); %d cell types have ≥1 unit there",
+                col,
+                center.k,
+                sum(1 for s in ids_at_hex.values() if s),
+            )
+        else:
+            ids_at_hex = _instance_ids_borst_k(nodes, at_y=at_y)
+            if not any(ids_at_hex.values()):
+                logger.error("no Borst units match --y=%r", at_y)
+                return 1
+            hex_note += " at y=0 (all Borst columns)"
+            logger.info(
+                "Restricting to all Borst columns on y=0; %d cell types have ≥1 unit there",
+                sum(1 for s in ids_at_hex.values() if s),
+            )
     elif not args.borst:
         if args.extent is not None:
             ids_at_hex = _instance_ids_in_disc(nodes, args.extent)
@@ -985,39 +1134,75 @@ def main(argv: List[str] | None = None) -> int:
                 sum(1 for s in ids_at_hex.values() if s),
             )
         else:
-            at_uv: Optional[Tuple[int, int]] = None
-            if args.at_uv is not None:
-                at_uv = (int(args.at_uv[0]), int(args.at_uv[1]))
-            elif args.at_xy is not None:
+            if has_uv_filter:
+                if single_uv_hex:
+                    hu, hv = at_u, at_v
+                    ids_at_hex = _instance_ids_at_hex(nodes, hu, hv)
+                    at_ref_uv = (float(hu), float(hv))
+                    hex_note += f" at hex (u,v)=({hu},{hv})"
+                    logger.info(
+                        "Restricting to instances at (u,v)=(%s,%s); "
+                        "%d cell types have ≥1 node there",
+                        hu,
+                        hv,
+                        sum(1 for s in ids_at_hex.values() if s),
+                    )
+                else:
+                    ids_at_hex = _instance_ids_on_uv_line(nodes, at_u=at_u, at_v=at_v)
+                    if not any(ids_at_hex.values()):
+                        logger.error("no instances match --u=%r --v=%r", at_u, at_v)
+                        return 1
+                    parts = []
+                    if at_u is not None:
+                        parts.append(f"u={at_u}")
+                    if at_v is not None:
+                        parts.append(f"v={at_v}")
+                    hex_note += " at " + ", ".join(parts)
+                    logger.info(
+                        "Restricting to instances on %s; %d cell types have ≥1 node there",
+                        ", ".join(parts),
+                        sum(1 for s in ids_at_hex.values() if s),
+                    )
+            elif single_xy_column:
                 try:
-                    at_uv = xy_to_uv(args.at_xy[0], args.at_xy[1])
+                    hu, hv = xy_to_uv(at_x, at_y)
                 except ValueError as exc:
                     logger.error("%s", exc)
                     return 1
-            if at_uv is not None:
-                hu, hv = at_uv
                 ids_at_hex = _instance_ids_at_hex(nodes, hu, hv)
-                if args.at_uv is not None:
-                    at_ref_uv = (float(hu), float(hv))
-                    hex_note += f" at hex (u,v)=({hu},{hv})"
-                else:
-                    at_ref_xy = (float(args.at_xy[0]), float(args.at_xy[1]))
-                    hex_note += (
-                        f" at (x,y)=({_format_scalar_for_table(at_ref_xy[0])},"
-                        f"{_format_scalar_for_table(at_ref_xy[1])})"
-                    )
+                at_ref_xy = (float(at_x), float(at_y))
+                hex_note += (
+                    f" at (x,y)=({_format_scalar_for_table(at_ref_xy[0])},"
+                    f"{_format_scalar_for_table(at_ref_xy[1])})"
+                )
                 logger.info(
                     "Restricting to instances at (u,v)=(%s,%s); %d cell types have ≥1 node there",
                     hu,
                     hv,
                     sum(1 for s in ids_at_hex.values() if s),
                 )
+            elif has_xy_filter:
+                ids_at_hex = _instance_ids_on_xy_line(nodes, at_x=at_x, at_y=at_y)
+                if not any(ids_at_hex.values()):
+                    logger.error("no instances match --x=%r --y=%r", at_x, at_y)
+                    return 1
+                parts = []
+                if at_x is not None:
+                    parts.append(f"x={_format_scalar_for_table(at_x)}")
+                if at_y is not None:
+                    parts.append(f"y={_format_scalar_for_table(at_y)}")
+                hex_note += " at " + ", ".join(parts)
+                logger.info(
+                    "Restricting to instances on %s; %d cell types have ≥1 node there",
+                    ", ".join(parts),
+                    sum(1 for s in ids_at_hex.values() if s),
+                )
 
-    if args.at_uv is not None:
-        show_partner_uv, show_partner_xy = True, False
+    if has_uv_filter:
+        show_partner_uv, show_partner_d_xy = True, False
     else:
-        show_partner_uv, show_partner_xy = False, True
-    mean_partner_delta = args.at_uv is None and args.at_xy is None
+        show_partner_uv, show_partner_d_xy = False, True
+    mean_partner_delta = not single_uv_hex and not single_xy_column
 
     partner_type_to_family = type_to_family_all if args.family else None
 
@@ -1062,7 +1247,7 @@ def main(argv: List[str] | None = None) -> int:
             float_coords=args.borst,
             borst=args.borst,
             need_uv=show_partner_uv,
-            need_xy=show_partner_xy,
+            need_xy=show_partner_d_xy,
         )
         print_table(
             label,
@@ -1076,7 +1261,8 @@ def main(argv: List[str] | None = None) -> int:
             use_family=args.family,
             min_pct=args.min,
             show_uv=show_partner_uv,
-            show_xy=show_partner_xy,
+            show_d_xy=show_partner_d_xy,
+            show_xy=args.p_xy,
             origin_uv=label_origin_uv,
             origin_xy=label_origin_xy,
             mean_partner_delta=mean_partner_delta,
