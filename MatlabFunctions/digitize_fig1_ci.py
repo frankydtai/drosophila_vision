@@ -1,18 +1,17 @@
 #!/usr/bin/env python3
-"""Digitize Figure 1 Ci/Cii traces from Gruntman et al. 2021 paper.pdf.
+"""Digitize Figure 1 Ci/Cii traces from a rendered Figure 1 PNG.
 
 Extracts 16 population traces (PD=red, ND=blue) by reading the published
 figure. Values are approximate — digitized from raster, not raw data.
 
 Usage:
   .venv/bin/python digitize_fig1_ci.py
-  .venv/bin/python digitize_fig1_ci.py --debug
+  .venv/bin/python digitize_fig1_ci.py --image _fig1_digitize-04.png --debug
 """
 
 from __future__ import annotations
 
 import argparse
-import subprocess
 import sys
 from dataclasses import dataclass
 from pathlib import Path
@@ -24,9 +23,7 @@ from PIL import Image
 from scipy.ndimage import median_filter
 
 HERE = Path(__file__).resolve().parent
-DEFAULT_PDF = HERE / "paper.pdf"
-DEFAULT_PAGE = 4
-DEFAULT_DPI = 400
+DEFAULT_IMAGE = HERE / "_fig1_digitize-04.png"
 
 # Digitized panel x-axis span (ms); pixel frac maps to 0 .. FIG1_PANEL_SPAN_MS.
 FIG1_PANEL_SPAN_MS = 900.0
@@ -78,17 +75,6 @@ class PanelCalib:
     bottom: int
     trace_left: int
     trace_right: int
-
-
-def render_pdf_page(pdf: Path, page: int, dpi: int, out_prefix: Path) -> Path:
-    png = Path(f"{out_prefix}-{page:02d}.png")
-    if png.exists() and png.stat().st_mtime >= pdf.stat().st_mtime:
-        return png
-    subprocess.run(
-        ["pdftoppm", "-f", str(page), "-l", str(page), "-png", "-r", str(dpi), str(pdf), str(out_prefix)],
-        check=True,
-    )
-    return png
 
 
 def crop_panel(img: np.ndarray, spec: PanelSpec) -> np.ndarray:
@@ -287,6 +273,53 @@ def plot_check(df: pd.DataFrame, path: Path) -> None:
     plt.close(fig)
 
 
+def plot_pc_pd(df: pd.DataFrame, path: Path) -> None:
+    targets = [
+        ("T4", 1),
+        ("T4", 4),
+        ("T5", 1),
+        ("T5", 4),
+    ]
+    styles = {
+        ("T4", 1): {"color": "#d62728", "linestyle": "--"},
+        ("T4", 4): {"color": "#d62728", "linestyle": "-"},
+        ("T5", 1): {"color": "#1f77b4", "linestyle": "--"},
+        ("T5", 4): {"color": "#1f77b4", "linestyle": "-"},
+    }
+
+    sub_all = df[(df["contrast"] == "PC") & (df["direction"] == "PD")]
+    if sub_all.empty:
+        return
+
+    ylo, yhi = vm_ylim(sub_all)
+    fig, ax = plt.subplots(figsize=(8, 5))
+    for cell_type, width in targets:
+        tid = f"{cell_type}_PC_w{width}_PD"
+        sub = df[df.trace_id == tid].sort_values("time_ms")
+        if sub.empty:
+            continue
+        style = styles[(cell_type, width)]
+        ax.plot(
+            sub.time_ms,
+            sub.vm_mv,
+            lw=2.2,
+            color=style["color"],
+            linestyle=style["linestyle"],
+            label=f"{cell_type} PC w{width} PD",
+        )
+
+    ax.axhline(0, color="0.8", lw=0.7)
+    ax.set_title("Figure 1 PC-PD traces")
+    ax.set_xlabel("time (ms)")
+    ax.set_ylabel("Vm (mV)")
+    ax.set_xlim(0.0, FIG1_PANEL_SPAN_MS)
+    ax.set_ylim(ylo, yhi)
+    ax.legend(fontsize=9)
+    fig.tight_layout()
+    fig.savefig(path, dpi=150)
+    plt.close(fig)
+
+
 def save_debug(img: np.ndarray, path: Path) -> None:
     fig, axes = plt.subplots(2, 4, figsize=(16, 8))
     idx = [(0, 0), (0, 1), (1, 0), (1, 1), (0, 2), (0, 3), (1, 2), (1, 3)]
@@ -318,18 +351,18 @@ def save_npz(df: pd.DataFrame, path: Path) -> None:
 
 def parse_args() -> argparse.Namespace:
     p = argparse.ArgumentParser(description=__doc__)
-    p.add_argument("--pdf", type=Path, default=DEFAULT_PDF)
-    p.add_argument("--page", type=int, default=DEFAULT_PAGE)
-    p.add_argument("--dpi", type=int, default=DEFAULT_DPI)
     p.add_argument("--out", type=Path, default=HERE / "fig1_ci_digitized")
-    p.add_argument("--image", type=Path, default=None)
+    p.add_argument("--image", type=Path, default=DEFAULT_IMAGE)
     p.add_argument("--debug", action="store_true")
     return p.parse_args()
 
 
 def main() -> int:
     args = parse_args()
-    img_path = args.image or render_pdf_page(args.pdf, args.page, args.dpi, HERE / "_fig1_digitize")
+    img_path = args.image
+    if not img_path.exists():
+        print(f"error: image not found: {img_path}", file=sys.stderr)
+        return 2
     img = np.array(Image.open(img_path).convert("RGB"))
 
     df = digitize(img)
@@ -340,6 +373,7 @@ def main() -> int:
     df.to_csv(args.out.with_suffix(".csv"), index=False)
     save_npz(df, args.out.with_suffix(".npz"))
     plot_check(df, args.out.with_suffix(".png"))
+    plot_pc_pd(df, args.out.with_name("pc_pd.png"))
     if args.debug:
         save_debug(img, args.out.with_name(args.out.name + "_debug.png"))
 

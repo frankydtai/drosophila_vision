@@ -13,6 +13,7 @@ import torch
 
 import FiveCol_MedSim_Pytorch as fc
 import Medulla_Library as ml
+from Medulla_Library import I_BASELINE
 from plot.readout import moving_bar_row_types
 from plot.utils import (
     DATA_COLOR,
@@ -43,7 +44,11 @@ from training_config import (
     COST_WINDOW_BEFORE,
     DELTAT_MS,
 )
-from visual_stimulus.moving_bar_stimulus import column_bar_center_step, field_bounds, gruntman_moving_bar_specs
+from visual_stimulus.moving_bar_stimulus import (
+    build_batched_column_current,
+    column_first_stim_step,
+    gruntman_moving_bar_specs,
+)
 
 MOVING_BAR_DPI = 100
 
@@ -58,7 +63,7 @@ class MovingBarWindowTraces:
 
 @dataclass
 class MovingBarTraceBundle:
-    """One forward pass; t_center-aligned full-window model traces."""
+    """One forward pass; t_first_sti-aligned full-window model traces."""
 
     target: str
     types: list
@@ -113,10 +118,10 @@ def _rel_window_seconds(before_steps, after_steps):
     return before_steps * scale, after_steps * scale
 
 
-def _record_spec_full_horizon(t_centers, maxtime, spec_name, full_before, full_after):
-    fb = min(t_centers)
+def _record_spec_full_horizon(t_first_stis, maxtime, spec_name, full_before, full_after):
+    fb = min(t_first_stis)
     full_before[spec_name] = fb
-    full_after[spec_name] = int(maxtime) - max(t_centers)
+    full_after[spec_name] = int(maxtime) - max(t_first_stis)
     return fb
 
 
@@ -282,12 +287,10 @@ def _moving_bar_slice_overlay_traces(
     )
 
 
-def _column_t_centers(cols, spec, field_deg):
+def _column_t_first_stis(col_curr_bti, batch_idx, col_idxs, i_baseline):
     return [
-        int(column_bar_center_step(
-            c.x_deg, c.y_deg, spec, field_deg, t_on=t_on, deltat_ms=fc.deltat,
-        ))
-        for c in cols
+        column_first_stim_step(col_curr_bti[batch_idx, :, col_idx], i_baseline=i_baseline)
+        for col_idx in col_idxs
     ]
 
 
@@ -327,7 +330,7 @@ def _moving_bar_baselines(C, vm_ref, types, type_ids, type_names, cost_extent, *
 
 
 def _moving_bar_t0_grids(session, specs, cost_extent, maxtime, *, at_x=None, at_y=None):
-    from network.moving_bar_target import build_moving_bar_signals, moving_bar_cost_columns
+    from network.moving_bar_target import build_moving_bar_signals, moving_bar_cost_columns, sti_columns
 
     C = session.backend.network
     n_batch = len(specs)
@@ -344,19 +347,26 @@ def _moving_bar_t0_grids(session, specs, cost_extent, maxtime, *, at_x=None, at_
                 raise SystemExit(
                     f'no sti columns match x={at_x!r} y={at_y!r} within cost_extent',
                 )
-        field_deg = C.meta.get('field_deg')
-        if field_deg is None:
-            field_deg = build_moving_bar_signals(
-                C, t_on=t_on, deltat_ms=fc.deltat, device=C.node_type.device,
-            ).info['field_deg']
+        stim = build_moving_bar_signals(
+            C, specs=specs, maxtime=maxtime, t_on=t_on, deltat_ms=fc.deltat,
+            device=C.node_type.device,
+        )
+        i_baseline = float(stim.info.get("i_baseline", 0.0))
+        uv_to_idx = {
+            (int(col.u), int(col.v)): j
+            for j, col in enumerate(sti_columns(C))
+        }
+        col_idxs = [uv_to_idx[(int(c.u), int(c.v))] for c in cols]
         types = list(C.type_names)
         type_ids = _type_ids_np(C.node_type)
         for bi, spec in enumerate(specs):
-            t_centers = _column_t_centers(cols, spec, field_deg)
-            fb = _record_spec_full_horizon(
-                t_centers, maxtime, spec.name, full_before_steps, full_after_steps,
+            t_first_stis = _column_t_first_stis(
+                stim.column_current, bi, col_idxs, i_baseline,
             )
-            for c, tc in zip(cols, t_centers):
+            fb = _record_spec_full_horizon(
+                t_first_stis, maxtime, spec.name, full_before_steps, full_after_steps,
+            )
+            for c, tc in zip(cols, t_first_stis):
                 uv = (bi, int(c.u), int(c.v))
                 t0_full_map[uv] = tc - fb
         t0_full_bn = _moving_bar_t0_grid(C, cols, n_batch, t0_full_map)
@@ -373,16 +383,21 @@ def _moving_bar_t0_grids(session, specs, cost_extent, maxtime, *, at_x=None, at_
         else:
             col_ids = list(range(ml.nofcols))
             cols = [cols_all[i] for i in col_ids]
-        field_deg = field_bounds(cols_all)
+        i_baseline = I_BASELINE
+        col_curr = build_batched_column_current(
+            cols_all, specs, maxtime, t_on=t_on, deltat_ms=fc.deltat,
+        )
         types = list(ml.ctype.tolist())
         type_ids = _type_ids_np(session.backend.conn.node_type)
         t0_full_bn = np.full((n_batch, ml.n_state_units()), -1, dtype=np.int64)
         for bi, spec in enumerate(specs):
-            t_centers = _column_t_centers(cols, spec, field_deg)
-            fb = _record_spec_full_horizon(
-                t_centers, maxtime, spec.name, full_before_steps, full_after_steps,
+            t_first_stis = _column_t_first_stis(
+                col_curr, bi, col_ids, i_baseline,
             )
-            for col_id, col, tc in zip(col_ids, cols, t_centers):
+            fb = _record_spec_full_horizon(
+                t_first_stis, maxtime, spec.name, full_before_steps, full_after_steps,
+            )
+            for col_id, col, tc in zip(col_ids, cols, t_first_stis):
                 t0_full_bn[bi, ml.column_slice(col_id)] = tc - fb
 
     n_filter_cols = len(cols)
@@ -448,7 +463,7 @@ def _moving_bar_traces_from_forward(
 def moving_bar_trace_bundle(session, z, target, *, at_x=None, at_y=None,
                             at_x_list=None, at_y_list=None,
                             trace_kind: Literal['model', 'vm'] = 'model'):
-    """Run one forward; t_center-aligned full-window model traces."""
+    """Run one forward; t_first_sti-aligned full-window model traces."""
     pack = session.pack_for(target)
     schema = list(session.schema)
     p = fc.assign_params(z, schema, session.backend)
@@ -837,7 +852,7 @@ def _plot_moving_bar_all_from_bundles(path, b_on, b_off, title, *, right_only=Tr
     if title is None:
         title = 'Moving-bar model-all (right only)' if right_only else 'Moving-bar model-all'
     scope = _moving_bar_all_scope_label(b_on)
-    fig.suptitle(title + f'  [{scope}, t_center-aligned full window]', fontsize=12)
+    fig.suptitle(title + f'  [{scope}, t_first_sti-aligned full window]', fontsize=12)
     _moving_bar_figure_adjust(fig)
     t_draw = time.perf_counter() - t1
     t2 = time.perf_counter()
@@ -898,7 +913,7 @@ def plot_moving_bar_data(session, z, path, target, session_off=None, title=None,
         title = 'Moving-bar model-data'
     scope = _moving_bar_scope_label(b_on.session)
     fig.suptitle(
-        title + f'  [{scope}, t_center-aligned full window]',
+        title + f'  [{scope}, t_first_sti-aligned full window]',
         fontsize=12,
     )
     _moving_bar_figure_adjust(fig)

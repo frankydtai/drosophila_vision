@@ -523,45 +523,19 @@ def moving_bar_transit_times(
     )
 
 
-def _trail_target_for_column_center(
-    col_x: float,
-    col_y: float,
-    spec: MovingBarSpec,
-) -> float:
-    """Trail position when the bar centre sits at ``col_x`` / ``col_y`` on the motion axis."""
-    w = float(spec.width_deg)
-    d = spec.direction
-    if d == "right":
-        return float(col_x) - 0.5 * w
-    if d == "left":
-        return float(col_x) + 0.5 * w
-    if d == "up":
-        return float(col_y) - 0.5 * w
-    if d == "down":
-        return float(col_y) + 0.5 * w
-    raise ValueError(f"unknown direction {d!r}")
-
-
-def column_bar_center_step(
-    col_x: float,
-    col_y: float,
-    spec: MovingBarSpec,
-    field_deg: Tuple[float, float, float, float],
-    t_on: int = T_ON,
-    deltat_ms: float = DELTAT_MS,
-    maxtime: Optional[int] = None,
+def column_first_stim_step(
+    column_current: np.ndarray,
+    i_baseline: float = I_BASELINE,
+    *,
+    atol: float = 1e-12,
 ) -> int:
-    """Simulation step when the bar centre crosses a column on the motion axis.
-
-    Horizontal motion (``right`` / ``left``) uses ``col_x`` only; vertical motion
-    (``up`` / ``down``) uses ``col_y`` only. The bar spans the full field extent
-    perpendicular to motion (see ``_bar_rect``), so all columns sharing the same
-    motion-axis coordinate share the same ``t_center``.
-    """
-    x0, y0, x1, y1 = field_deg
-    trail_start = _trail_start(spec, x0, y0, x1, y1)
-    trail_target = _trail_target_for_column_center(col_x, col_y, spec)
-    return _trail_to_step(spec, trail_start, trail_target, t_on, deltat_ms, maxtime)
+    """First step where a column current differs from baseline (``t_first_sti``)."""
+    curr = np.asarray(column_current, dtype=np.float64).reshape(-1)
+    active = ~np.isclose(curr, float(i_baseline), atol=atol, rtol=0.0)
+    idx = np.flatnonzero(active)
+    if idx.size == 0:
+        raise ValueError("column has no non-baseline stimulus step")
+    return int(idx[0])
 
 
 def bar_trail_at_step(

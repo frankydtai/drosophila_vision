@@ -35,8 +35,10 @@ from t4_t5_preference import (
     normalize_side,
 )
 from training_config import (
+    COST_ALIGNED_FIRST_STI_MS,
     COST_WINDOW_AFTER_MS,
     COST_WINDOW_BEFORE_MS,
+    COST_WINDOW_MS,
     DELTAT_MS,
     FIG1_CI_NPZ,
     SIM_DTYPE_DEFAULT,
@@ -48,7 +50,7 @@ from visual_stimulus.moving_bar_stimulus import (
     HexColumn,
     MovingBarSpec,
     build_batched_column_current,
-    column_bar_center_step,
+    column_first_stim_step,
     field_bounds,
     gruntman_moving_bar_specs,
     hex_column_from_uv,
@@ -110,17 +112,6 @@ def sti_columns(C) -> List[StiColumn]:
             key[0], key[1], np.asarray(units, dtype=np.int64),
         )
     return [cols[k] for k in sorted(cols)]
-
-
-def center_sti_column(C) -> StiColumn:
-    """Sti column at hex origin ``(u, v) = (0, 0)``, or closest to field centre."""
-    cols = sti_columns(C)
-    if not cols:
-        raise ValueError("network has no sti columns")
-    for col in cols:
-        if col.u == 0 and col.v == 0:
-            return col
-    return min(cols, key=lambda c: c.x * c.x + c.y * c.y)
 
 
 def moving_bar_cost_columns(C, cost_extent=None) -> List[StiColumn]:
@@ -380,11 +371,11 @@ def load_fig1_trace(
     deltat_ms: float = DELTAT_MS,
 ) -> np.ndarray:
     """Resample one fig1 trace onto the moving-bar cost window."""
-    n_steps = ms_to_steps(COST_WINDOW_BEFORE_MS + COST_WINDOW_AFTER_MS, deltat_ms=deltat_ms) + 1
-    before_steps = ms_to_steps(COST_WINDOW_BEFORE_MS, deltat_ms=deltat_ms)
+    n_steps = ms_to_steps(COST_WINDOW_MS, deltat_ms=deltat_ms) + 1
+    before_steps = ms_to_steps(COST_ALIGNED_FIRST_STI_MS, deltat_ms=deltat_ms)
     key = (
         f"{trace_id}|{n_steps}|{before_steps}|{deltat_ms}"
-        f"|{COST_WINDOW_BEFORE_MS}|{COST_WINDOW_AFTER_MS}"
+        f"|{COST_WINDOW_MS}|{COST_ALIGNED_FIRST_STI_MS}"
     )
     if key in _TRACE_CACHE:
         return _TRACE_CACHE[key]
@@ -498,9 +489,9 @@ def build_moving_bar_target(
     maxtime = int(stim.info["maxtime"])
     field_deg = stim.info["field_deg"]
     fig1 = load_fig1_traces(fig1_path, deltat_ms=deltat_ms)
-    before_steps = ms_to_steps(COST_WINDOW_BEFORE_MS, deltat_ms=deltat_ms)
+    before_steps = ms_to_steps(COST_ALIGNED_FIRST_STI_MS, deltat_ms=deltat_ms)
     after_steps = ms_to_steps(COST_WINDOW_AFTER_MS, deltat_ms=deltat_ms)
-    win_steps = ms_to_steps(COST_WINDOW_BEFORE_MS + COST_WINDOW_AFTER_MS, deltat_ms=deltat_ms) + 1
+    win_steps = ms_to_steps(COST_WINDOW_MS, deltat_ms=deltat_ms) + 1
 
     present = _present_readout_subtypes(
         readout_subtypes, READOUT_SUBTYPES, C.type_names,
@@ -508,6 +499,8 @@ def build_moving_bar_target(
     )
 
     type_names = unit_type_names(C)
+    sti_cols = sti_columns(C)
+    uv_to_col_idx = {(int(c.u), int(c.v)): j for j, c in enumerate(sti_cols)}
     cols = moving_bar_cost_columns(C, cost_extent=cost_extent)
     center_col = cols[0] if cost_extent == 0 and len(cols) == 1 else None
 
@@ -515,14 +508,15 @@ def build_moving_bar_target(
     skipped_orthogonal = 0
     for b, spec in enumerate(stim.specs):
         for col in cols:
-            t_center = column_bar_center_step(
-                col.x_deg, col.y_deg, spec, field_deg, t_on=t_on, deltat_ms=deltat_ms,
+            col_idx = uv_to_col_idx[(int(col.u), int(col.v))]
+            t_first_sti = column_first_stim_step(
+                stim.column_current[b, :, col_idx], i_baseline=i_baseline,
             )
-            t0 = t_center - before_steps
-            if t0 < 0 or t_center + after_steps > maxtime:
+            t0 = t_first_sti - before_steps
+            if t0 < 0 or t_first_sti + after_steps > maxtime:
                 raise ValueError(
                     f"cost window out of range for column ({col.u},{col.v}) "
-                    f"spec={spec.name}: t_center={t_center}, maxtime={maxtime}"
+                    f"spec={spec.name}: t_first_sti={t_first_sti}, maxtime={maxtime}"
                 )
             for subtype in present:
                 pref = motion_preference(side, subtype, spec.direction, spec.contrast)
@@ -574,6 +568,8 @@ def build_moving_bar_target(
         "fig1_path": str(fig1_path),
         "cost_window_before_ms": COST_WINDOW_BEFORE_MS,
         "cost_window_after_ms": COST_WINDOW_AFTER_MS,
+        "cost_window_ms": COST_WINDOW_MS,
+        "cost_aligned_first_sti_ms": COST_ALIGNED_FIRST_STI_MS,
         "cost_window_steps": win_steps,
         "deltat_ms": float(deltat_ms),
     }
@@ -612,9 +608,9 @@ def build_borst_moving_bar_target(
     maxtime = moving_bar_maxtime(specs, field_deg, t_on=t_on, deltat_ms=deltat_ms)
     sweep_end = moving_bar_sweep_end_step(specs, field_deg, t_on=t_on, deltat_ms=deltat_ms)
     fig1 = load_fig1_traces(fig1_path, deltat_ms=deltat_ms)
-    before_steps = ms_to_steps(COST_WINDOW_BEFORE_MS, deltat_ms=deltat_ms)
+    before_steps = ms_to_steps(COST_ALIGNED_FIRST_STI_MS, deltat_ms=deltat_ms)
     after_steps = ms_to_steps(COST_WINDOW_AFTER_MS, deltat_ms=deltat_ms)
-    win_steps = ms_to_steps(COST_WINDOW_BEFORE_MS + COST_WINDOW_AFTER_MS, deltat_ms=deltat_ms) + 1
+    win_steps = ms_to_steps(COST_WINDOW_MS, deltat_ms=deltat_ms) + 1
     present = _present_readout_subtypes(
         readout_subtypes, BORST_READOUT_SUBTYPES, ml.ctype.tolist(),
         context="Borst",
@@ -645,14 +641,14 @@ def build_borst_moving_bar_target(
     skipped_orthogonal = 0
     for b, spec in enumerate(specs):
         for col_id, col in zip(cost_col_ids, cost_cols):
-            t_center = column_bar_center_step(
-                col.x_deg, col.y_deg, spec, field_deg, t_on=t_on, deltat_ms=deltat_ms,
+            t_first_sti = column_first_stim_step(
+                column_current[b, :, col_id], i_baseline=i_baseline,
             )
-            t0 = t_center - before_steps
-            if t0 < 0 or t_center + after_steps > maxtime:
+            t0 = t_first_sti - before_steps
+            if t0 < 0 or t_first_sti + after_steps > maxtime:
                 raise ValueError(
                     f"cost window out of range for Borst column {col_id} "
-                    f"spec={spec.name}: t_center={t_center}, maxtime={maxtime}"
+                    f"spec={spec.name}: t_first_sti={t_first_sti}, maxtime={maxtime}"
                 )
             for subtype in present:
                 pref = motion_preference("right", subtype, spec.direction, spec.contrast)
@@ -697,6 +693,8 @@ def build_borst_moving_bar_target(
         "fig1_path": str(fig1_path),
         "cost_window_before_ms": COST_WINDOW_BEFORE_MS,
         "cost_window_after_ms": COST_WINDOW_AFTER_MS,
+        "cost_window_ms": COST_WINDOW_MS,
+        "cost_aligned_first_sti_ms": COST_ALIGNED_FIRST_STI_MS,
         "cost_window_steps": win_steps,
         "deltat_ms": float(deltat_ms),
         "maxtime": maxtime,

@@ -51,11 +51,13 @@ def sim_dtype_from_fp32(fp32: bool) -> torch.dtype:
 T_ON_MS = 500.0
 IMPULSE_MAXTIME_MS = 2000.0  # Borst tile / impulse horizon
 
-# Moving-bar per-column cost window relative to bar centre.
-COST_WINDOW_BEFORE_MS = 300.0
-COST_WINDOW_AFTER_MS = 600.0
+# Moving-bar per-column cost window relative to first-stimulus alignment.
+COST_WINDOW_MS = 900.0
+COST_ALIGNED_FIRST_STI_MS = 300.0
+COST_WINDOW_BEFORE_MS = COST_ALIGNED_FIRST_STI_MS
+COST_WINDOW_AFTER_MS = COST_WINDOW_MS - COST_ALIGNED_FIRST_STI_MS
 
-# Post-sweep tail: baseline after bar exit through ``t_center + after`` plus pad.
+# Post-sweep tail: baseline after bar exit through ``t_first_sti + after`` plus pad.
 T_TAIL_PAD_MS = 50.0
 MOVING_BAR_TAIL_MS = COST_WINDOW_AFTER_MS + T_TAIL_PAD_MS
 
@@ -70,4 +72,4 @@ IMPULSE_MAXTIME = ms_to_steps(IMPULSE_MAXTIME_MS)
 T_TAIL = ms_to_steps(MOVING_BAR_TAIL_MS)
 COST_WINDOW_BEFORE = ms_to_steps(COST_WINDOW_BEFORE_MS)
 COST_WINDOW_AFTER = ms_to_steps(COST_WINDOW_AFTER_MS)
-COST_WINDOW = ms_to_steps(COST_WINDOW_BEFORE_MS + COST_WINDOW_AFTER_MS) + 1
+COST_WINDOW = ms_to_steps(COST_WINDOW_MS) + 1
