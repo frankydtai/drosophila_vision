@@ -1,7 +1,7 @@
 #!/usr/bin/env python
-"""Tile plotting (Borst + network tile target).
+"""Tile plotting (Borst + network spot target).
 
-Shared ``plot_cell_pair`` / ``_plot_tile_figure``; backend-specific cube prep only.
+Shared ``plot_cell_pair`` / ``_plot_spot_figure``; backend-specific cube prep only.
 """
 
 from __future__ import annotations
@@ -17,9 +17,9 @@ import FiveCol_MedSim_Pytorch as fc
 from plot.readout import (
     DEFAULT_MVD_GROUPS,
     borst_ref_cubes,
-    tile_model_data_groups,
-    tile_model_data_names,
-    tile_ref_cubes,
+    spot_model_data_groups,
+    spot_model_data_names,
+    spot_ref_cubes,
 )
 from plot.utils import (
     DATA_COLOR,
@@ -33,10 +33,10 @@ from plot.utils import (
     save_figure,
     sem_from_traces,
 )
-from network.tile_target import tile_cost_unit_ring_layout
-from network.tiling import (
-    tile_stimulus_batches,
-    tiling_from_stimulus_opts,
+from network.spot_target import spot_cost_unit_ring_layout
+from network.spotting import (
+    spot_stimulus_batches,
+    spotting_from_stimulus_opts,
 )
 
 CENTER_COL = ml.CENTER_COL
@@ -50,27 +50,27 @@ def _baseline_from_ref_grid(ref_grid, row_i):
     return ref_grid[row_i, CENTER_BIN]
 
 
-def _resolve_tile_ref_cubes(session_on, session_off=None, ref_cubes=None, ref_cubes_off=None):
+def _resolve_spot_ref_cubes(session_on, session_off=None, ref_cubes=None, ref_cubes_off=None):
     dual = session_off is not None
     if ref_cubes is not None:
         ref_on = ref_cubes
     elif dual:
-        ref_on = tile_ref_cubes(session_on, 'tile_bright', dark=False)
+        ref_on = spot_ref_cubes(session_on, 'spot_bright', dark=False)
     else:
-        ref_on = tile_ref_cubes(
+        ref_on = spot_ref_cubes(
             session_on, session_on.primary_pack.name, dark=_session_dark(session_on),
         )
     if ref_cubes_off is not None:
         ref_off = ref_cubes_off
     elif dual:
-        ref_off = tile_ref_cubes(session_off, 'tile_dark', dark=True)
+        ref_off = spot_ref_cubes(session_off, 'spot_dark', dark=True)
     else:
         ref_off = None
     return ref_on, ref_off
 
 
 def _session_dark(session):
-    return session.primary_pack.name == "tile_dark"
+    return session.primary_pack.name == "spot_dark"
 
 
 def _scale_curve(xt, center, sem_xt=None):
@@ -273,10 +273,10 @@ def multicol_cube(session, z, all_cells=False, group_list=None, *, trace_kind='m
 
     if all_cells:
         opts = dict((session.train_opts or {}).get(f"{pack.name}_stimulus_opts") or {})
-        tiling = tiling_from_stimulus_opts(C, opts)
-        batches = tile_stimulus_batches(tiling)
-        batch_idx, unit_idx, radius, type_idx = tile_cost_unit_ring_layout(
-            C, batches, tiling, pack.cost_extent,
+        spotting = spotting_from_stimulus_opts(C, opts)
+        batches = spot_stimulus_batches(spotting)
+        batch_idx, unit_idx, radius, type_idx = spot_cost_unit_ring_layout(
+            C, batches, spotting, pack.cost_extent,
         )
         names = [str(n) for n in type_names]
         ring_layout = (batch_idx, unit_idx, type_idx, radius)
@@ -288,7 +288,7 @@ def multicol_cube(session, z, all_cells=False, group_list=None, *, trace_kind='m
         else:
             radius = np.zeros(pack.cost_weight.shape[0], dtype=np.float64)
         type_idx = type_ids[unit_idx]
-        names = tile_model_data_names(session, pack.name, group_list)
+        names = spot_model_data_names(session, pack.name, group_list)
         ring_layout = None
 
     raw = trace_full[batch_idx, :, unit_idx]
@@ -313,7 +313,7 @@ def multicol_cube(session, z, all_cells=False, group_list=None, *, trace_kind='m
     return names, cube, sem, baselines
 
 
-def _prepare_borst_tile(session, z, all_cells, group_list, *, trace_kind='model'):
+def _prepare_borst_spot(session, z, all_cells, group_list, *, trace_kind='model'):
     model, ref = calc_model_full_all(session, z, return_ref=True, trace_kind=trace_kind)
     if all_cells:
         names = [str(CTYPE[i]) for i in range(session.backend.n_types)]
@@ -322,7 +322,7 @@ def _prepare_borst_tile(session, z, all_cells, group_list, *, trace_kind='model'
             for i in range(len(names))
         ]
         return cells, None
-    groups = tile_model_data_groups(session, session.primary_pack.name, group_list)
+    groups = spot_model_data_groups(session, session.primary_pack.name, group_list)
     cells = []
     group_rows = []
     for names_row in groups:
@@ -339,7 +339,7 @@ def _prepare_borst_tile(session, z, all_cells, group_list, *, trace_kind='model'
     return cells, group_rows
 
 
-def _prepare_network_tile(session, z, all_cells, group_list, *, trace_kind='model'):
+def _prepare_network_spot(session, z, all_cells, group_list, *, trace_kind='model'):
     pack = session.primary_pack
     names, cube, sem, baselines = multicol_cube(
         session, z, all_cells=all_cells, group_list=group_list, trace_kind=trace_kind,
@@ -352,7 +352,7 @@ def _prepare_network_tile(session, z, all_cells, group_list, *, trace_kind='mode
     return cells, None
 
 
-def _plot_tile_figure(
+def _plot_spot_figure(
     session_on,
     z,
     path,
@@ -375,7 +375,7 @@ def _plot_tile_figure(
     if session_off is not None:
         cells_off, _ = prepare_fn(session_off, z, all_cells, group_list, trace_kind=trace_kind)
     dual = session_off is not None
-    ref_on, ref_off = _resolve_tile_ref_cubes(
+    ref_on, ref_off = _resolve_spot_ref_cubes(
         session_on, session_off, ref_cubes, ref_cubes_off,
     )
     if group_rows is not None:
@@ -426,20 +426,20 @@ def _plot_tile_figure(
             ax_rf = fig.add_subplot(gs[2 * blk, col])
             ax_time = fig.add_subplot(gs[2 * blk + 1, col])
             show_xlabels = True
-            if all_cells and prepare_fn is _prepare_borst_tile:
+            if all_cells and prepare_fn is _prepare_borst_spot:
                 show_xlabels = (blk == (len(cells_on) + ncols - 1) // ncols - 1)
             _plot_cell(cell_on, cell_off, ax_rf, ax_time, show_ylabel=(col == 0), show_xlabels=show_xlabels)
     fig.suptitle(title, fontsize=suptitle_fs)
     save_figure(fig, path, dpi=150)
 
 
-def plot_network_tile(session_on, z, path, *, session_off=None, all_cells=False,
+def plot_network_spot(session_on, z, path, *, session_off=None, all_cells=False,
                       title, ref_cubes=None, ref_cubes_off=None, group_list=None,
                       trace_kind='model'):
     ncols = 5 if not all_cells else 8
-    _plot_tile_figure(
+    _plot_spot_figure(
         session_on, z, path,
-        prepare_fn=_prepare_network_tile,
+        prepare_fn=_prepare_network_spot,
         session_off=session_off,
         all_cells=all_cells,
         title=title,
@@ -453,7 +453,7 @@ def plot_network_tile(session_on, z, path, *, session_off=None, all_cells=False,
     )
 
 
-def plot_borst_tile(session_on, z, path, *, session_off=None, all_cells=False,
+def plot_borst_spot(session_on, z, path, *, session_off=None, all_cells=False,
                     title, ref_cubes=None, ref_cubes_off=None, group_list=None,
                     trace_kind='model'):
     ncols = 13
@@ -465,9 +465,9 @@ def plot_borst_tile(session_on, z, path, *, session_off=None, all_cells=False,
         gs_kw = dict(hspace=0.5, wspace=0.55, top=0.95, bottom=0.05, left=0.06, right=0.98)
         figsize_fn = lambda c, r: (16, 2.5 * r)
         suptitle_fs = 12
-    _plot_tile_figure(
+    _plot_spot_figure(
         session_on, z, path,
-        prepare_fn=_prepare_borst_tile,
+        prepare_fn=_prepare_borst_spot,
         session_off=session_off,
         all_cells=all_cells,
         title=title,

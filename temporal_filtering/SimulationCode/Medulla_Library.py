@@ -169,7 +169,7 @@ def read_RecF_ImpR():
 
     Split out of read_RecF_data so callers that need the continuous spatial RF
     (RecF_data) or the temporal kernel (ImpR_data) on their own -- e.g. the hex
-    tile target, which samples RecF at non-integer column distances (sqrt(3)) --
+    spot target, which samples RecF at non-integer column distances (sqrt(3)) --
     use the EXACT same construction the 5-column model uses (single source).
     """
 
@@ -240,13 +240,13 @@ def read_RecF_data():
 
 
 def read_RecF_data_dark():
-    """Dark tile spatial×temporal cube: negated bright ``read_RecF_data()``."""
+    """Dark spot spatial×temporal cube: negated bright ``read_RecF_data()``."""
     return -read_RecF_data()
 
 
-def borst_tile_impulse_data(tile_T=None, amp=DATA_AMP):
-    """RecF×ImpR targets for Borst tile training, shape ``(T, nofcells)``."""
-    T = int(tile_T or IMPULSE_MAXTIME)
+def borst_spot_impulse_data(spot_T=None, amp=DATA_AMP):
+    """RecF×ImpR targets for Borst spot training, shape ``(T, nofcells)``."""
+    T = int(spot_T or IMPULSE_MAXTIME)
     mydata = read_RecF_data() * amp
     raw = np.zeros((nofcells, T), dtype=np.float64)
     for col in range(nofcols):
@@ -254,8 +254,8 @@ def borst_tile_impulse_data(tile_T=None, amp=DATA_AMP):
     return raw.T
 
 
-def borst_tile_impulse_data_dark(tile_T=None, amp=DATA_AMP):
-    """Dark tile targets: inverted bright RecF×ImpR, shape ``(T, nofcells)``."""
-    return -borst_tile_impulse_data(tile_T=tile_T, amp=amp)
+def borst_spot_impulse_data_dark(spot_T=None, amp=DATA_AMP):
+    """Dark spot targets: inverted bright RecF×ImpR, shape ``(T, nofcells)``."""
+    return -borst_spot_impulse_data(spot_T=spot_T, amp=amp)
 
     

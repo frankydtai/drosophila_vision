@@ -3,7 +3,7 @@
 The FAFB package lives one level up under ``Connectome/FAFBv783``. Importing
 this module adds that folder to ``sys.path`` so SimulationCode can
 ``import column_mapper`` / ``connectome_io``. ``network.stimulus`` (shared
-``column_in_cost_extent``), ``network.moving_bar_target``, ``network.tiling``,
+``column_in_cost_extent``), ``network.moving_bar_target``, ``network.spotting``,
 and ``visual_stimulus.moving_bar_stimulus`` import this at module load.
 """
 

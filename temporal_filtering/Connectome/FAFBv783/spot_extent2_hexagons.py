@@ -1,25 +1,25 @@
-"""Visualise the extent-2 hexagon tilings on the FAFB right optic lobe.
+"""Visualise the extent-2 hexagon spottings on the FAFB right optic lobe.
 
-The multi-column / shifted-tiling training covers the optic lobe with extent-2
-hexagons (19 columns each), stimulates all tile centres at once and batches over
-the 7 sub-tile shifts. There are two tiling layouts (see ``column_mapper.tile_basis``):
+The multi-column / shifted-spotting training covers the optic lobe with extent-2
+hexagons (19 columns each), stimulates all spot centres at once and batches over
+the 7 sub-spot shifts. There are two spotting layouts (see ``column_mapper.spot_basis``):
 
-  - Disjoint (default): centres spaced 2k+1, gap-free, no overlap -> 31 tiles.
-  - Edge-sharing: centres spaced 2k, neighbouring tiles share their boundary
-    ring -> 43 tiles (the denser, overlapping cover).
+  - Disjoint (default): centres spaced 2k+1, gap-free, no overlap -> 31 spots.
+  - Edge-sharing: centres spaced 2k, neighbouring spots share their boundary
+    ring -> 43 spots (the denser, overlapping cover).
 
 This script renders both so the geometry can be eyeballed:
 
-  - Left panel:   the 31 disjoint tiles, each filled with its own colour.
-  - Middle panel: the 43 edge-sharing tiles drawn as outlines + centres
-                  (cells are shared between tiles, so outlines read better).
-  - Right panel:  a single tile with its 7 sub-tile shift positions.
+  - Left panel:   the 31 disjoint spots, each filled with its own colour.
+  - Middle panel: the 43 edge-sharing spots drawn as outlines + centres
+                  (cells are shared between spots, so outlines read better).
+  - Right panel:  a single spot with its 7 sub-spot shift positions.
 
 It only draws geometry; all hex math is reused from :mod:`column_mapper`.
 
 Run with the project venv:
 
-    .venv/bin/python "Connectome/FAFBv783/tile_extent2_hexagons.py"
+    .venv/bin/python "Connectome/FAFBv783/spot_extent2_hexagons.py"
 """
 
 from __future__ import annotations
@@ -39,20 +39,20 @@ from column_mapper import (
     set_axis_labels,
     uv_to_xy_deg,
     shift_offsets,
-    tile_centers,
-    tile_offsets,
+    spot_centers,
+    spot_offsets,
 )
 
 logger = logging.getLogger(__name__)
 
-# Radius of each tile (extent-2 -> 19-cell hexagons).
-TILE_EXTENT = 2
+# Radius of each spot (extent-2 -> 19-cell hexagons).
+SPOT_EXTENT = 2
 # Output image filename (written next to this script).
-OUTPUT_FILE = "extent2_tiling.png"
+OUTPUT_FILE = "extent2_spotting.png"
 
 
-def _draw_tile_cells(ax, cells, facecolor, edgecolor, hex_radius_px, alpha=0.55):
-    """Fill the given axial cells with one colour (a single tile)."""
+def _draw_spot_cells(ax, cells, facecolor, edgecolor, hex_radius_px, alpha=0.55):
+    """Fill the given axial cells with one colour (a single spot)."""
     xs, ys = uv_to_xy_deg(
         np.array([c[0] for c in cells]), np.array([c[1] for c in cells]),
     )
@@ -70,32 +70,32 @@ def _axis_limits(grid: HexGrid, margin: float = 2.0):
     return (x.min() - margin, x.max() + margin), (y.min() - margin, y.max() + margin)
 
 
-def draw_tiling_panel(
+def draw_spotting_panel(
     ax, grid: HexGrid, df_right, hex_radius_px: float, share_edges: bool
 ):
-    """Draw every extent-2 tile coloured over the FAFB right columns.
+    """Draw every extent-2 spot coloured over the FAFB right columns.
 
-    ``share_edges=False`` -> 31 disjoint tiles (opaque fill, no overlap).
-    ``share_edges=True``  -> 43 edge-sharing tiles (translucent fill so the
+    ``share_edges=False`` -> 31 disjoint spots (opaque fill, no overlap).
+    ``share_edges=True``  -> 43 edge-sharing spots (translucent fill so the
     shared boundary cells read as blended/overlapping regions).
     """
     import matplotlib.pyplot as plt
 
-    # Light FAFB background so the tiles read as the foreground structure.
+    # Light FAFB background so the spots read as the foreground structure.
     draw_fafb_columns(
         ax, df_right, extent=grid.extent, hex_radius_px=hex_radius_px, label=False,
         inside_color=("whitesmoke", "lightgrey"),
         outside_color=("white", "lightgrey"),
     )
 
-    centers = tile_centers(grid.extent, TILE_EXTENT, share_edges=share_edges)
-    offsets = tile_offsets(TILE_EXTENT)
+    centers = spot_centers(grid.extent, SPOT_EXTENT, share_edges=share_edges)
+    offsets = spot_offsets(SPOT_EXTENT)
     cmap = plt.get_cmap("tab20")
     alpha = 0.35 if share_edges else 0.6
     for i, (cu, cv) in enumerate(centers):
         cells = [(cu + du, cv + dv) for du, dv in offsets]
         color = cmap(i % cmap.N)
-        _draw_tile_cells(ax, cells, color, "black", hex_radius_px, alpha=alpha)
+        _draw_spot_cells(ax, cells, color, "black", hex_radius_px, alpha=alpha)
         cx, cy = uv_to_xy_deg(cu, cv)
         ax.plot(float(cx), float(cy), ".", color="black", markersize=4)
         ax.text(
@@ -104,22 +104,22 @@ def draw_tiling_panel(
         )
     layout = "edge-sharing (spacing 2k)" if share_edges else "disjoint (spacing 2k+1)"
     ax.set_title(
-        f"{len(centers)} extent-{TILE_EXTENT} tiles - {layout}\n"
+        f"{len(centers)} extent-{SPOT_EXTENT} spots - {layout}\n"
         f"{len(offsets)} columns each, over FAFB right (extent={grid.extent})",
         fontsize=11, fontweight="bold",
     )
 
 
 def draw_shift_panel(ax, grid: HexGrid, df_right, hex_radius_px: float):
-    """Right panel: the centre tile and its 7 sub-tile shift positions."""
+    """Right panel: the centre spot and its 7 sub-spot shift positions."""
     draw_fafb_columns(
         ax, df_right, extent=grid.extent, hex_radius_px=hex_radius_px, label=False,
         inside_color=("whitesmoke", "lightgrey"),
         outside_color=("white", "lightgrey"),
     )
-    offsets = tile_offsets(TILE_EXTENT)
+    offsets = spot_offsets(SPOT_EXTENT)
     cells = [(du, dv) for du, dv in offsets]
-    _draw_tile_cells(ax, cells, "lightskyblue", "navy", hex_radius_px, alpha=0.45)
+    _draw_spot_cells(ax, cells, "lightskyblue", "navy", hex_radius_px, alpha=0.45)
 
     shifts = shift_offsets()
     for j, (su, sv) in enumerate(shifts):
@@ -130,7 +130,7 @@ def draw_shift_panel(ax, grid: HexGrid, df_right, hex_radius_px: float):
             fontsize=6, fontweight="bold", color="white",
         )
     ax.set_title(
-        f"Centre tile + {len(shifts)} sub-tile shifts",
+        f"Centre spot + {len(shifts)} sub-spot shifts",
         fontsize=12, fontweight="bold",
     )
 
@@ -147,8 +147,8 @@ def main() -> None:
     hex_radius_px = HEX_PATCH_RADIUS
 
     fig, axes = plt.subplots(1, 3, figsize=(30, 11), sharex=True, sharey=True)
-    draw_tiling_panel(axes[0], grid, df_right, hex_radius_px, share_edges=False)
-    draw_tiling_panel(axes[1], grid, df_right, hex_radius_px, share_edges=True)
+    draw_spotting_panel(axes[0], grid, df_right, hex_radius_px, share_edges=False)
+    draw_spotting_panel(axes[1], grid, df_right, hex_radius_px, share_edges=True)
     draw_shift_panel(axes[2], grid, df_right, hex_radius_px)
 
     xlim, ylim = _axis_limits(grid)
@@ -163,12 +163,12 @@ def main() -> None:
     out_path = DATA_DIR / OUTPUT_FILE
     plt.savefig(out_path, dpi=300, bbox_inches="tight")
     plt.close(fig)
-    n_disjoint = len(tile_centers(grid.extent, TILE_EXTENT, share_edges=False))
-    n_shared = len(tile_centers(grid.extent, TILE_EXTENT, share_edges=True))
+    n_disjoint = len(spot_centers(grid.extent, SPOT_EXTENT, share_edges=False))
+    n_shared = len(spot_centers(grid.extent, SPOT_EXTENT, share_edges=True))
     print(
-        f"Wrote {out_path}  (disjoint={n_disjoint} tiles, "
-        f"edge-sharing={n_shared} tiles, "
-        f"{len(tile_offsets(TILE_EXTENT))} columns/tile, "
+        f"Wrote {out_path}  (disjoint={n_disjoint} spots, "
+        f"edge-sharing={n_shared} spots, "
+        f"{len(spot_offsets(SPOT_EXTENT))} columns/spot, "
         f"{len(shift_offsets())} shifts)"
     )
 

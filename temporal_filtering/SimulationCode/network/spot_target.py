@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
-"""Hex tile training target for connectome multi-column training.
+"""Hex spot training target for connectome multi-column training.
 
-For every (tile, shift) stimulus the connectome is driven at ONE column; each
+For every (spot, shift) stimulus the connectome is driven at ONE column; each
 fit-cell readout is compared to ``RecF(r) * ImpR(t)`` where ``r`` is the
 **Euclidean** hex distance (in column units) from the stimulated column to the
 readout cell's column. The extent-2 ring is NOT iso-distant: 6 corners sit at
@@ -12,7 +12,7 @@ r=sqrt(3) edge target is evaluated at its true radius rather than snapped to
 col +/-2 (which would mis-sign L1's centre-surround near its ~1.6 col zero
 crossing).
 
-Each tile ring is weighted by 1/(columns in that ring) so the 4 radii
+Each spot ring is weighted by 1/(columns in that ring) so the 4 radii
 (0,1,sqrt3,2) contribute equally and the low-SNR outer surround can't dominate.
 
 ``build_shifted_target`` returns everything the simulator needs:
@@ -38,12 +38,12 @@ import torch
 from Medulla_Library import DATA_AMP, I_DARK, I_BASELINE, I_BRIGHT, read_RecF_ImpR
 from training_config import IMPULSE_MAXTIME, SIM_DTYPE_DEFAULT, T_ON
 from .stimulus import column_in_cost_extent
-from .tiling import (
+from .spotting import (
     FIT_CELL_TYPES,
     col2fit,
     euclid_hex_dist,
-    tile_stimulus_batches,
-    tiling_from_opts,
+    spot_stimulus_batches,
+    spotting_from_opts,
     unit_type_names,
 )
 
@@ -76,11 +76,11 @@ def _recf_at(recf_row: np.ndarray, r: float) -> float:
     return float(np.interp(idx, np.arange(_RF_NSAMPLES), recf_row))
 
 
-def tile_cost_columns(batches, tiling, cost_extent):
+def spot_cost_columns(batches, spotting, cost_extent):
     """Tile member columns in cost_extent: ``(batch, mu, mv, radius)`` each."""
     cols = []
     for b, (su, sv, center) in enumerate(batches):
-        for du, dv in tiling.members:
+        for du, dv in spotting.members:
             mu = center[0] + du
             mv = center[1] + dv
             if not column_in_cost_extent(mu, mv, cost_extent):
@@ -90,7 +90,7 @@ def tile_cost_columns(batches, tiling, cost_extent):
     return cols
 
 
-def tile_n_cost_columns(cost_cols):
+def spot_n_cost_columns(cost_cols):
     """Member columns in ``cost_extent`` per stimulus batch (uniform across batches)."""
     if not cost_cols:
         return 0
@@ -100,14 +100,14 @@ def tile_n_cost_columns(cost_cols):
     vals = set(counts.values())
     if len(vals) != 1:
         raise ValueError(
-            f"tile n_cost_columns varies by batch: "
+            f"spot n_cost_columns varies by batch: "
             f"{ {b: counts[b] for b in sorted(counts)} }",
         )
     return next(iter(vals))
 
 
-def tile_cost_unit_ring_layout(C, batches, tiling, cost_extent):
-    """All units on :func:`tile_cost_columns`, with batch and stim-centred radius."""
+def spot_cost_unit_ring_layout(C, batches, spotting, cost_extent):
+    """All units on :func:`spot_cost_columns`, with batch and stim-centred radius."""
     u = C.u.detach().cpu().numpy() if hasattr(C.u, "detach") else np.asarray(C.u)
     v = C.v.detach().cpu().numpy() if hasattr(C.v, "detach") else np.asarray(C.v)
     type_all = (
@@ -115,7 +115,7 @@ def tile_cost_unit_ring_layout(C, batches, tiling, cost_extent):
         if hasattr(C.node_type, "detach") else np.asarray(C.node_type)
     )
     batch_idx, unit_idx, radius, type_idx = [], [], [], []
-    for b, mu, mv, r in tile_cost_columns(batches, tiling, cost_extent):
+    for b, mu, mv, r in spot_cost_columns(batches, spotting, cost_extent):
         on_col = (u == mu) & (v == mv)
         for uid in np.where(on_col)[0]:
             batch_idx.append(b)
@@ -132,10 +132,10 @@ def tile_cost_unit_ring_layout(C, batches, tiling, cost_extent):
 
 def build_shifted_target(
     C,
-    tile_extent: int = 2,
+    spot_extent: int = 2,
     share_edges: bool = False,
-    single_tile: Optional[bool] = None,
-    single_shift: bool = False,
+    single_spot: Optional[bool] = None,
+    shift_extent: int = 0,
     maxtime: int = IMPULSE_MAXTIME,
     t_on: int = T_ON,
     i_baseline: float = I_BASELINE,
@@ -154,13 +154,13 @@ def build_shifted_target(
     recf_data, impr_data = read_RecF_ImpR()  # (13,45), (13,IMPULSE_MAXTIME)
     fit_row = {ft: i for i, ft in enumerate(FIT_CELL_TYPES)}
 
-    tiling = tiling_from_opts(
-        C, tile_extent, share_edges, single_shift, single_tile,
+    spotting = spotting_from_opts(
+        C, spot_extent, share_edges, shift_extent, single_spot,
     )
     names = unit_type_names(C)
     present_fit = [ft for ft in FIT_CELL_TYPES if ft in set(names.tolist())]
 
-    batches = tile_stimulus_batches(tiling)
+    batches = spot_stimulus_batches(spotting)
     n_batch = len(batches)
 
     signal = torch.zeros((n_batch, maxtime, C.n_units), dtype=sim_dtype, device=device)
@@ -175,8 +175,8 @@ def build_shifted_target(
     Tp = maxtime - t_on
 
     # Per (batch, radius) ring size counted in COLUMNS (not cells), so every
-    # tile ring gets weight 1/columns -> the 4 radii contribute equally.
-    cost_cols = tile_cost_columns(batches, tiling, cost_extent)
+    # spot ring gets weight 1/columns -> the 4 radii contribute equally.
+    cost_cols = spot_cost_columns(batches, spotting, cost_extent)
     col_count = {}
     for b, _mu, _mv, r in cost_cols:
         rr = round(r, 6)
@@ -202,7 +202,7 @@ def build_shifted_target(
                     r_weight.append(w)
 
     if not r_batch:
-        raise ValueError("no tile cost cells (check cost_extent and fit cell types)")
+        raise ValueError("no spot cost cells (check cost_extent and fit cell types)")
 
     data = torch.tensor(np.asarray(r_target), dtype=sim_dtype, device=device)  # (n_cost,T')
     cost_weight = torch.tensor(np.asarray(r_weight), dtype=sim_dtype, device=device)
@@ -217,9 +217,9 @@ def build_shifted_target(
     info = {
         "n_batch": n_batch,
         "n_cost": data.shape[0],
-        "n_cost_columns": tile_n_cost_columns(cost_cols),
-        "n_centers": len(tiling.centers),
-        "n_shifts": len(tiling.shifts),
+        "n_cost_columns": spot_n_cost_columns(cost_cols),
+        "n_centers": len(spotting.centers),
+        "n_shifts": len(spotting.shifts),
         "cost_extent": cost_extent,
         "present_fit": present_fit,
         "share_edges": share_edges,

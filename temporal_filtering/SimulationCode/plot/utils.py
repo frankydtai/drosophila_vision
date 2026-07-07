@@ -78,7 +78,7 @@ def baselines_for_types(
 
     Default: centre cost-readout units (``readout_center_mask``).
     With ``ring_layout`` = ``(batch_idx, unit_idx, type_idx, radius)``: ring-0
-  units averaged per type (network ``model_all_tile``).
+  units averaged per type (network ``model_all_spot``).
     """
     vm_ref = np.asarray(vm_ref, dtype=np.float64)
     out = {}

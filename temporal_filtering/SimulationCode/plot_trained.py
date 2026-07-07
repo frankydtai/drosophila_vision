@@ -13,7 +13,7 @@ import torch
 
 import FiveCol_MedSim_Pytorch as fc
 from plot import moving_bar as moving_bar_plot
-from plot import tile as tile_plot
+from plot import spot as spot_plot
 from plot.utils import parse_axis_slice_list, plot_cost
 from training_config import PARAMETER_DIR, run_data_dir
 
@@ -86,19 +86,20 @@ def run_dir(model_type, root=None, parent=None, name=None):
     return os.path.join(parent, name)
 
 
-def _tile_plot_fn(session):
+def _spot_plot_fn(session):
     if session.backend.network is not None:
-        return tile_plot.plot_network_tile
-    return tile_plot.plot_borst_tile
+        return spot_plot.plot_network_spot
+    return spot_plot.plot_borst_spot
 
 
-def _network_tile_tag(session, tname):
-    """Subtitle suffix for network tile plots (shift count from sidecar)."""
+def _network_spot_tag(session, tname):
+    """Subtitle suffix for network spot plots (shift count from sidecar)."""
     if session.backend.network is None:
         return ''
     opts = (session.train_opts or {}).get(f'{tname}_stimulus_opts') or {}
-    shifttag = '7 shifts' if bool(opts.get('multi_shift', False)) else '1 shift'
-    return f'  [avg over tiles x {shifttag} x ring]'
+    shift_extent = int(opts.get('shift_extent', 0))
+    shifttag = f"{1 + 3 * shift_extent * (shift_extent + 1)} shifts"
+    return f'  [avg over spots x {shifttag} x ring]'
 
 
 def load_train_opts(outdir):
@@ -219,21 +220,21 @@ def select_best(params, session, *, final_costs=None, best_i=None):
     return valid[best], costs_out[best], run_i
 
 
-def _plot_tile_targets(session, z, outdir, tile_targets, suffix, model_all,
+def _plot_spot_targets(session, z, outdir, spot_targets, suffix, model_all,
                        ref_cubes=None, ref_cubes_off=None, mvd_group_list=None):
-    """Plot tile target(s); on+off combined in one figure when both are trained."""
-    tile_set = set(tile_targets)
-    plot_fn = _tile_plot_fn(session)
-    ref_t = 'tile_bright' if 'tile_bright' in tile_set else tile_targets[0]
-    net_tag = _network_tile_tag(session, ref_t)
+    """Plot spot target(s); on+off combined in one figure when both are trained."""
+    spot_set = set(spot_targets)
+    plot_fn = _spot_plot_fn(session)
+    ref_t = 'spot_bright' if 'spot_bright' in spot_set else spot_targets[0]
+    net_tag = _network_spot_tag(session, ref_t)
     plot_kw = dict(
         ref_cubes=ref_cubes, ref_cubes_off=ref_cubes_off,
         group_list=mvd_group_list,
     )
-    if tile_set == set(fc.TILE_TARGETS):
-        s_on = _session_for_target(session, 'tile_bright')
-        s_off = _session_for_target(session, 'tile_dark')
-        mvd = os.path.join(outdir, 'model_data_tile.png')
+    if spot_set == set(fc.SPOT_TARGETS):
+        s_on = _session_for_target(session, 'spot_bright')
+        s_off = _session_for_target(session, 'spot_dark')
+        mvd = os.path.join(outdir, 'model_data_spot.png')
         plot_fn(
             s_on, z, mvd, session_off=s_off,
             title=f'Tile model-data ({suffix}){net_tag}',
@@ -241,14 +242,14 @@ def _plot_tile_targets(session, z, outdir, tile_targets, suffix, model_all,
         )
         allc = None
         if model_all:
-            allc = os.path.join(outdir, 'model_all_tile.png')
+            allc = os.path.join(outdir, 'model_all_spot.png')
             plot_fn(
                 s_on, z, allc, session_off=s_off, all_cells=True,
                 title=f'Tile model-all ({suffix}){net_tag}',
                 **plot_kw,
             )
         return mvd, allc
-    for tname in tile_targets:
+    for tname in spot_targets:
         _plot_one_target(
             _session_for_target(session, tname), z, outdir, tname, suffix, model_all,
             ref_cubes=ref_cubes, ref_cubes_off=ref_cubes_off,
@@ -305,12 +306,12 @@ def _plot_bar_targets(session, z, outdir, bar_targets, suffix, model_all, *,
 
 def _plot_one_target(session, z, outdir, tname, suffix, model_all,
                      ref_cubes=None, ref_cubes_off=None, mvd_group_list=None):
-    if tname not in fc.TILE_TARGETS:
+    if tname not in fc.SPOT_TARGETS:
         raise ValueError(f'unknown plot target {tname!r}')
-    mvd = os.path.join(outdir, 'model_data_tile.png')
-    allc = os.path.join(outdir, 'model_all_tile.png')
-    plot_fn = _tile_plot_fn(session)
-    net_tag = _network_tile_tag(session, tname)
+    mvd = os.path.join(outdir, 'model_data_spot.png')
+    allc = os.path.join(outdir, 'model_all_spot.png')
+    plot_fn = _spot_plot_fn(session)
+    net_tag = _network_spot_tag(session, tname)
     plot_kw = dict(
         ref_cubes=ref_cubes, ref_cubes_off=ref_cubes_off,
         group_list=mvd_group_list,
@@ -364,11 +365,11 @@ def plot_param_set(params, outdir, model_type=None, model_all=True,
     if plot_targets is not None:
         target_list = [t for t in target_list if t in plot_targets]
 
-    tile_targets = [t for t in target_list if t in fc.TILE_TARGETS]
+    spot_targets = [t for t in target_list if t in fc.SPOT_TARGETS]
     bar_targets = [t for t in target_list if t in fc.MOVING_BAR_TARGETS]
     other_targets = [
         t for t in target_list
-        if t not in fc.TILE_TARGETS and t not in fc.MOVING_BAR_TARGETS
+        if t not in fc.SPOT_TARGETS and t not in fc.MOVING_BAR_TARGETS
     ]
     if (at_x is not None or at_y is not None) and not bar_targets:
         raise SystemExit('--x/--y require a moving_bar target in this run')
@@ -412,19 +413,19 @@ def plot_param_set(params, outdir, model_type=None, model_all=True,
                     at_x_list=at_x, at_y_list=at_y,
                     trace_kind='vm',
                 )
-        if tile_targets:
-            tile_set = set(tile_targets)
-            plot_fn = _tile_plot_fn(session)
-            ref_t = 'tile_bright' if 'tile_bright' in tile_set else tile_targets[0]
-            net_tag = _network_tile_tag(session, ref_t)
+        if spot_targets:
+            spot_set = set(spot_targets)
+            plot_fn = _spot_plot_fn(session)
+            ref_t = 'spot_bright' if 'spot_bright' in spot_set else spot_targets[0]
+            net_tag = _network_spot_tag(session, ref_t)
             plot_kw = dict(
                 ref_cubes=ref_cubes, ref_cubes_off=ref_cubes_off,
                 group_list=mvd_group_list,
             )
-            if tile_set == set(fc.TILE_TARGETS):
-                s_on = _session_for_target(session, 'tile_bright')
-                s_off = _session_for_target(session, 'tile_dark')
-                allc = os.path.join(outdir, 'model_all_tile_vm.png')
+            if spot_set == set(fc.SPOT_TARGETS):
+                s_on = _session_for_target(session, 'spot_bright')
+                s_off = _session_for_target(session, 'spot_dark')
+                allc = os.path.join(outdir, 'model_all_spot_vm.png')
                 plot_fn(
                     s_on, z, allc, session_off=s_off, all_cells=True,
                     title=f'Tile Vm-all ({suffix}){net_tag}',
@@ -432,9 +433,9 @@ def plot_param_set(params, outdir, model_type=None, model_all=True,
                     **plot_kw,
                 )
             else:
-                tname = tile_targets[0]
+                tname = spot_targets[0]
                 one = _session_for_target(session, tname)
-                allc = os.path.join(outdir, 'model_all_tile_vm.png')
+                allc = os.path.join(outdir, 'model_all_spot_vm.png')
                 plot_fn(
                     one, z, allc, all_cells=True,
                     title=f'{tname} Vm-all ({suffix}){net_tag}',
@@ -450,9 +451,9 @@ def plot_param_set(params, outdir, model_type=None, model_all=True,
             costs_by_target=costs_by_target,
             target_order=list(fc.session_cost_part_keys(session.target_list)),
         )
-    if tile_targets:
-        _plot_tile_targets(
-            session, z, outdir, tile_targets, suffix, model_all,
+    if spot_targets:
+        _plot_spot_targets(
+            session, z, outdir, spot_targets, suffix, model_all,
             ref_cubes=ref_cubes, ref_cubes_off=ref_cubes_off,
             mvd_group_list=mvd_group_list,
         )
@@ -496,7 +497,7 @@ def add_plot_arguments(parser):
         default=False,
         type=parse_bool,
         metavar='BOOL',
-        help='only write model_all_bar_vm.png / model_all_tile_vm.png (Vm−Vm_ref); '
+        help='only write model_all_bar_vm.png / model_all_spot_vm.png (Vm−Vm_ref); '
              'skip other plots',
     )
     parser.add_argument(

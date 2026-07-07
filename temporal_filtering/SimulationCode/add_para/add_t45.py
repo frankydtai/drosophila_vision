@@ -11,7 +11,7 @@ import numpy as np
 
 import FiveCol_MedSim_Pytorch as fc
 import plot_trained as pt
-from plot import tile as tile_plot
+from plot import spot as spot_plot
 import train
 from t4_t5_preference import READOUT_SUBTYPES
 
@@ -44,7 +44,7 @@ T45_MIRROR = {
 }
 
 PACK_OVERRIDES = {
-    t: dict(T45_MIRROR) for t in target_list if t in fc.TILE_TARGETS
+    t: dict(T45_MIRROR) for t in target_list if t in fc.SPOT_TARGETS
 }
 
 
@@ -57,20 +57,20 @@ def mirror_ref_cubes(dark=False):
     return ref
 
 
-tile_targets = [t for t in target_list if t in fc.TILE_TARGETS]
+spot_targets = [t for t in target_list if t in fc.SPOT_TARGETS]
 plot_ref_cubes = plot_ref_cubes_off = None
-if 'tile_bright' in tile_targets and 'tile_dark' in tile_targets:
+if 'spot_bright' in spot_targets and 'spot_dark' in spot_targets:
     plot_ref_cubes = mirror_ref_cubes(dark=False)
     plot_ref_cubes_off = mirror_ref_cubes(dark=True)
-elif 'tile_dark' in tile_targets:
+elif 'spot_dark' in spot_targets:
     plot_ref_cubes = mirror_ref_cubes(dark=True)
-elif 'tile_bright' in tile_targets:
+elif 'spot_bright' in spot_targets:
     plot_ref_cubes = mirror_ref_cubes(dark=False)
 
 plot_mvd_groups = [
     np.array(T4_NAMES),
     np.array(T5_NAMES),
-] + tile_plot.DEFAULT_MVD_GROUPS
+] + spot_plot.DEFAULT_MVD_GROUPS
 
 fname, outdir, session = train.run_training(
     **train_kw,
@@ -79,6 +79,6 @@ fname, outdir, session = train.run_training(
     plot_ref_cubes_off=plot_ref_cubes_off,
     plot_mvd_group_list=plot_mvd_groups,
 )
-for tname in tile_targets:
+for tname in spot_targets:
     print(f'{tname} cost cells:', int(session.pack_for(tname).readout_unit.shape[0]))
 print('done ->', outdir)

@@ -53,50 +53,50 @@ BORST_NOFCELLS = 65
 BORST_NOFCOLS = 5
 t_on = T_ON
 TRAIN_OPTS_FILE = "train_opts.json"
-TILE_TARGETS = ("tile_bright", "tile_dark")
+SPOT_TARGETS = ("spot_bright", "spot_dark")
 MOVING_BAR_TARGETS = ("moving_bar_bright", "moving_bar_dark")
-VALID_TARGETS = TILE_TARGETS + MOVING_BAR_TARGETS
+VALID_TARGETS = SPOT_TARGETS + MOVING_BAR_TARGETS
 PD_ND_LABELS = ("PD", "ND")
 PD_IDX, ND_IDX = 0, 1
 MOVING_BAR_COST_PARTS = tuple(
     f"{t}_{pd_nd}" for t in MOVING_BAR_TARGETS for pd_nd in PD_ND_LABELS
 )
 TARGET_ALIASES = {
-    "tile": TILE_TARGETS,
+    "spot": SPOT_TARGETS,
     "moving_bar": MOVING_BAR_TARGETS,
 }
 CLI_TARGET_NAMES = VALID_TARGETS + tuple(TARGET_ALIASES.keys())
 TARGET_I_FIELDS = {
-    "tile_bright": frozenset({"i_baseline", "i_bright"}),
-    "tile_dark": frozenset({"i_baseline", "i_dark"}),
+    "spot_bright": frozenset({"i_baseline", "i_bright"}),
+    "spot_dark": frozenset({"i_baseline", "i_dark"}),
     "moving_bar_bright": frozenset({"i_baseline", "i_bright_bar"}),
     "moving_bar_dark": frozenset({"i_baseline", "i_dark_bar"}),
 }
 I_CLI_BRIGHT_TARGETS = {
-    "tile": ("tile_bright",),
-    "tile_bright": ("tile_bright",),
+    "spot": ("spot_bright",),
+    "spot_bright": ("spot_bright",),
     "moving_bar": ("moving_bar_bright",),
     "moving_bar_bright": ("moving_bar_bright",),
 }
 I_CLI_DARK_TARGETS = {
-    "tile": ("tile_dark",),
-    "tile_dark": ("tile_dark",),
+    "spot": ("spot_dark",),
+    "spot_dark": ("spot_dark",),
     "moving_bar": ("moving_bar_dark",),
     "moving_bar_dark": ("moving_bar_dark",),
 }
 I_CLI_SIDECAR_FIELD = {
-    ("i_baseline", "tile_bright"): "i_baseline",
-    ("i_baseline", "tile_dark"): "i_baseline",
+    ("i_baseline", "spot_bright"): "i_baseline",
+    ("i_baseline", "spot_dark"): "i_baseline",
     ("i_baseline", "moving_bar_bright"): "i_baseline",
     ("i_baseline", "moving_bar_dark"): "i_baseline",
-    ("i_bright", "tile_bright"): "i_bright",
+    ("i_bright", "spot_bright"): "i_bright",
     ("i_bright", "moving_bar_bright"): "i_bright_bar",
-    ("i_dark", "tile_dark"): "i_dark",
+    ("i_dark", "spot_dark"): "i_dark",
     ("i_dark", "moving_bar_dark"): "i_dark_bar",
 }
 
 COST_WEIGHT_ALIASES = {
-    "tile": TILE_TARGETS,
+    "spot": SPOT_TARGETS,
     "moving_bar": MOVING_BAR_COST_PARTS,
     "moving_bar_bright": ("moving_bar_bright_PD", "moving_bar_bright_ND"),
     "moving_bar_dark": ("moving_bar_dark_PD", "moving_bar_dark_ND"),
@@ -433,7 +433,7 @@ class TargetPack:
     readout_batch: torch.Tensor  # (n_cost,)
     readout_unit: torch.Tensor  # (n_cost,)
     cost_t0: Optional[torch.Tensor] = None  # (n_cost,) absolute step for windowed targets
-    cost_radius: Optional[torch.Tensor] = None  # (n_cost,) ring radius for network tile
+    cost_radius: Optional[torch.Tensor] = None  # (n_cost,) ring radius for network spot
     cost_extent: Optional[int] = None  # network hex-disc radius for cost readouts
     cost_pd_nd: Optional[torch.Tensor] = None  # (n_cost,) long; 0=PD, 1=ND (moving_bar)
 
@@ -504,7 +504,7 @@ class TrainSession:
     def pack_signal(self, pack: Optional[TargetPack] = None) -> torch.Tensor:
         pack = pack or self.primary_pack
         sig = pack.signal
-        if pack.name in TILE_TARGETS and sig.dim() == 3 and int(sig.shape[0]) == 1:
+        if pack.name in SPOT_TARGETS and sig.dim() == 3 and int(sig.shape[0]) == 1:
             sig = sig.squeeze(0)
         return sig
 
@@ -539,16 +539,16 @@ def _opt_float(opts, *keys, default=None):
     raise KeyError(f"expected one of {keys!r} in stimulus opts")
 
 
-def _tile_bright_i_from_opts(opts):
-    """Read tile_bright PR currents (``i_baseline`` / ``i_bright``)."""
+def _spot_bright_i_from_opts(opts):
+    """Read spot_bright PR currents (``i_baseline`` / ``i_bright``)."""
     return (
         _opt_float(opts, "i_baseline", default=ml.I_BASELINE),
         _opt_float(opts, "i_bright", default=ml.I_BRIGHT),
     )
 
 
-def _tile_dark_i_from_opts(opts):
-    """Read tile_dark PR currents (``i_baseline`` / ``i_dark``)."""
+def _spot_dark_i_from_opts(opts):
+    """Read spot_dark PR currents (``i_baseline`` / ``i_dark``)."""
     return (
         _opt_float(opts, "i_baseline", default=ml.I_BASELINE),
         _opt_float(opts, "i_dark", default=ml.I_DARK),
@@ -558,9 +558,9 @@ def _tile_dark_i_from_opts(opts):
 def _pack_signal_scale(pack: TargetPack, session: TrainSession) -> float:
     """Peak PR current for adaptive ``sig / scale`` (from per-target sidecar opts)."""
     opts = ((session.train_opts or {}).get(f"{pack.name}_stimulus_opts")) or {}
-    if pack.name == "tile_bright":
+    if pack.name == "spot_bright":
         peak = _opt_float(opts, "i_bright", default=ml.I_BRIGHT)
-    elif pack.name == "tile_dark":
+    elif pack.name == "spot_dark":
         peak = _opt_float(opts, "i_dark", default=ml.I_DARK)
     elif pack.name == "moving_bar_bright":
         peak = _opt_float(opts, "i_bright_bar", default=ml.I_BRIGHT)
@@ -574,11 +574,11 @@ def _pack_signal_scale(pack: TargetPack, session: TrainSession) -> float:
     return peak
 
 
-def make_tile_bright_stimulus_opts(
+def make_spot_bright_stimulus_opts(
     i_baseline=None, i_bright=None, mode="borst",
-    multi_shift=False, share_edges=False,
+    shift_extent=0, share_edges=False,
 ):
-    """PR step stimulus for tile_bright: baseline pre-``t_on``, bright from ``t_on``."""
+    """PR step stimulus for spot_bright: baseline pre-``t_on``, bright from ``t_on``."""
     baseline = float(ml.I_BASELINE if i_baseline is None else i_baseline)
     bright = float(ml.I_BRIGHT if i_bright is None else i_bright)
     return {
@@ -588,16 +588,16 @@ def make_tile_bright_stimulus_opts(
         "t_on": int(t_on),
         "maxtime": int(IMPULSE_MAXTIME),
         "deltat_ms": float(deltat),
-        "multi_shift": bool(multi_shift),
+        "shift_extent": int(shift_extent),
         "share_edges": bool(share_edges),
     }
 
 
-def make_tile_dark_stimulus_opts(
+def make_spot_dark_stimulus_opts(
     i_baseline=None, i_dark=None, mode="borst",
-    multi_shift=False, share_edges=False,
+    shift_extent=0, share_edges=False,
 ):
-    """PR step stimulus for tile_dark: baseline pre-``t_on``, i_dark from ``t_on``."""
+    """PR step stimulus for spot_dark: baseline pre-``t_on``, i_dark from ``t_on``."""
     baseline = float(ml.I_BASELINE if i_baseline is None else i_baseline)
     dark = float(ml.I_DARK if i_dark is None else i_dark)
     return {
@@ -607,7 +607,7 @@ def make_tile_dark_stimulus_opts(
         "t_on": int(t_on),
         "maxtime": int(IMPULSE_MAXTIME),
         "deltat_ms": float(deltat),
-        "multi_shift": bool(multi_shift),
+        "shift_extent": int(shift_extent),
         "share_edges": bool(share_edges),
     }
 
@@ -675,34 +675,34 @@ def _enrich_moving_bar_stimulus_opts(opts, info, *, cost_extent):
     return out
 
 
-def borst_tile_bright_signal(opts=None, *, sim_dtype=SIM_DTYPE_DEFAULT):
-    """Build Borst tile_bright PR step stimulus ``(T, N_units)``."""
-    opts = dict(opts or make_tile_bright_stimulus_opts())
+def borst_spot_bright_signal(opts=None, *, sim_dtype=SIM_DTYPE_DEFAULT):
+    """Build Borst spot_bright PR step stimulus ``(T, N_units)``."""
+    opts = dict(opts or make_spot_bright_stimulus_opts())
     n_units = ml.n_state_units()
     pr = ml.photoreceptor_slice()
     t0, T = int(opts["t_on"]), int(opts["maxtime"])
-    b, step = _tile_bright_i_from_opts(opts)
+    b, step = _spot_bright_i_from_opts(opts)
     sig = torch.zeros((T, n_units), dtype=sim_dtype, device=active_device())
     sig[:t0, pr] = b
     sig[t0:T, pr] = step
     return sig
 
 
-def borst_tile_dark_signal(opts=None, *, sim_dtype=SIM_DTYPE_DEFAULT):
-    """Build Borst tile_dark PR step stimulus ``(T, N_units)``."""
-    opts = dict(opts or make_tile_dark_stimulus_opts())
+def borst_spot_dark_signal(opts=None, *, sim_dtype=SIM_DTYPE_DEFAULT):
+    """Build Borst spot_dark PR step stimulus ``(T, N_units)``."""
+    opts = dict(opts or make_spot_dark_stimulus_opts())
     n_units = ml.n_state_units()
     pr = ml.photoreceptor_slice()
     t0, T = int(opts["t_on"]), int(opts["maxtime"])
-    b, step = _tile_dark_i_from_opts(opts)
+    b, step = _spot_dark_i_from_opts(opts)
     sig = torch.zeros((T, n_units), dtype=sim_dtype, device=active_device())
     sig[:t0, pr] = b
     sig[t0:T, pr] = step
     return sig
 
 
-def _borst_tile_pack_from_data(opts, pack_name, signal_fn, data_fn, *, sim_dtype=SIM_DTYPE_DEFAULT):
-    """Shared Borst tile pack builder for bright/dark targets."""
+def _borst_spot_pack_from_data(opts, pack_name, signal_fn, data_fn, *, sim_dtype=SIM_DTYPE_DEFAULT):
+    """Shared Borst spot pack builder for bright/dark targets."""
     opts = dict(opts)
     u_idx = torch.tensor(
         np.load(BORST_MC_CELL_INDEX_NPY),
@@ -712,14 +712,14 @@ def _borst_tile_pack_from_data(opts, pack_name, signal_fn, data_fn, *, sim_dtype
     n = int(u_idx.shape[0])
     sig = signal_fn(opts, sim_dtype=sim_dtype).unsqueeze(0)
     T = int(sig.shape[1])
-    tile_data = torch.tensor(data_fn(T), dtype=sim_dtype, device=active_device())
-    t_data = tile_data[t_on:T].transpose(0, 1).contiguous()
-    tile_power = torch.sum(t_data ** 2)
+    spot_data = torch.tensor(data_fn(T), dtype=sim_dtype, device=active_device())
+    t_data = spot_data[t_on:T].transpose(0, 1).contiguous()
+    spot_power = torch.sum(t_data ** 2)
     return TargetPack(
         name=pack_name,
         signal=sig,
         data=t_data,
-        power=tile_power,
+        power=spot_power,
         cost_weight=torch.ones(n, dtype=sim_dtype, device=active_device()),
         readout_batch=torch.zeros(n, dtype=torch.long, device=active_device()),
         readout_unit=u_idx,
@@ -727,24 +727,24 @@ def _borst_tile_pack_from_data(opts, pack_name, signal_fn, data_fn, *, sim_dtype
     )
 
 
-def build_borst_tile_bright_pack(opts=None, *, sim_dtype=SIM_DTYPE_DEFAULT):
-    """Borst tile_bright target as a :class:`TargetPack` (batch B=1)."""
-    return _borst_tile_pack_from_data(
-        opts or make_tile_bright_stimulus_opts(),
-        "tile_bright",
-        borst_tile_bright_signal,
-        ml.borst_tile_impulse_data,
+def build_borst_spot_bright_pack(opts=None, *, sim_dtype=SIM_DTYPE_DEFAULT):
+    """Borst spot_bright target as a :class:`TargetPack` (batch B=1)."""
+    return _borst_spot_pack_from_data(
+        opts or make_spot_bright_stimulus_opts(),
+        "spot_bright",
+        borst_spot_bright_signal,
+        ml.borst_spot_impulse_data,
         sim_dtype=sim_dtype,
     )
 
 
-def build_borst_tile_dark_pack(opts=None, *, sim_dtype=SIM_DTYPE_DEFAULT):
-    """Borst tile_dark target as a :class:`TargetPack` (batch B=1)."""
-    return _borst_tile_pack_from_data(
-        opts or make_tile_dark_stimulus_opts(),
-        "tile_dark",
-        borst_tile_dark_signal,
-        ml.borst_tile_impulse_data_dark,
+def build_borst_spot_dark_pack(opts=None, *, sim_dtype=SIM_DTYPE_DEFAULT):
+    """Borst spot_dark target as a :class:`TargetPack` (batch B=1)."""
+    return _borst_spot_pack_from_data(
+        opts or make_spot_dark_stimulus_opts(),
+        "spot_dark",
+        borst_spot_dark_signal,
+        ml.borst_spot_impulse_data_dark,
         sim_dtype=sim_dtype,
     )
 
@@ -797,7 +797,7 @@ def _extend_pack_mirror_fit_borst(pack, mirror_types, mirror_fit, mirror_sign, b
 
 
 def _extend_pack_mirror_fit_network(pack, mirror_types, mirror_fit, mirror_sign, C):
-    from network.tiling import unit_type_names
+    from network.spotting import unit_type_names
 
     names = unit_type_names(C)
     u_arr = pack.readout_unit.cpu().numpy()
@@ -1016,20 +1016,20 @@ class _TrainBindCtx:
     model_backend: ModelBackend
     dev: str
     sim_dtype: torch.dtype = SIM_DTYPE_DEFAULT
-    tile_bright_stimulus_opts: Optional[dict] = None
-    tile_dark_stimulus_opts: Optional[dict] = None
+    spot_bright_stimulus_opts: Optional[dict] = None
+    spot_dark_stimulus_opts: Optional[dict] = None
     moving_bar_bright_stimulus_opts: Optional[dict] = None
     moving_bar_dark_stimulus_opts: Optional[dict] = None
 
 
-def _build_borst_tile_bright_target(ctx: _TrainBindCtx) -> Tuple[TargetPack, dict]:
-    opts = dict(ctx.tile_bright_stimulus_opts or make_tile_bright_stimulus_opts())
-    return build_borst_tile_bright_pack(opts, sim_dtype=ctx.sim_dtype), opts
+def _build_borst_spot_bright_target(ctx: _TrainBindCtx) -> Tuple[TargetPack, dict]:
+    opts = dict(ctx.spot_bright_stimulus_opts or make_spot_bright_stimulus_opts())
+    return build_borst_spot_bright_pack(opts, sim_dtype=ctx.sim_dtype), opts
 
 
-def _build_borst_tile_dark_target(ctx: _TrainBindCtx) -> Tuple[TargetPack, dict]:
-    opts = dict(ctx.tile_dark_stimulus_opts or make_tile_dark_stimulus_opts())
-    return build_borst_tile_dark_pack(opts, sim_dtype=ctx.sim_dtype), opts
+def _build_borst_spot_dark_target(ctx: _TrainBindCtx) -> Tuple[TargetPack, dict]:
+    opts = dict(ctx.spot_dark_stimulus_opts or make_spot_dark_stimulus_opts())
+    return build_borst_spot_dark_pack(opts, sim_dtype=ctx.sim_dtype), opts
 
 
 def _cost_extent_column_coltag(cost_extent, n_columns):
@@ -1144,22 +1144,22 @@ def _build_network_moving_bar_dark_target(
     )
 
 
-def _build_network_tile_bright_target(
+def _build_network_spot_bright_target(
     ctx: _TrainBindCtx, C,
 ) -> Tuple[TargetPack, dict, str]:
-    from network.tile_target import build_shifted_target
+    from network.spot_target import build_shifted_target
 
     dev = ctx.dev or active_device()
-    opts = dict(ctx.tile_bright_stimulus_opts or make_tile_bright_stimulus_opts(mode="network"))
+    opts = dict(ctx.spot_bright_stimulus_opts or make_spot_bright_stimulus_opts(mode="network"))
     cost_extent = opts.get("cost_extent")
     if cost_extent is not None:
         cost_extent = int(cost_extent)
-    multi_shift = bool(opts.get("multi_shift", False))
+    shift_extent = int(opts.get("shift_extent", 0))
     share_edges = bool(opts.get("share_edges", False))
     T = build_shifted_target(
         C,
         share_edges=share_edges,
-        single_shift=not multi_shift,
+        shift_extent=shift_extent,
         device=dev,
         sim_dtype=ctx.sim_dtype,
         maxtime=IMPULSE_MAXTIME,
@@ -1171,7 +1171,7 @@ def _build_network_tile_bright_target(
     )
     stim = dict(opts)
     pack = TargetPack(
-        name="tile_bright",
+        name="spot_bright",
         signal=T.signal,
         data=T.data,
         power=T.power,
@@ -1183,30 +1183,30 @@ def _build_network_tile_bright_target(
         cost_extent=cost_extent,
     )
     coltag = _cost_extent_column_coltag(cost_extent, T.info["n_cost_columns"])
-    shifttag = "7 shifts" if multi_shift else "1 shift"
+    shifttag = f"{T.info['n_shifts']} shifts"
     tag = (
-        f"tile_bright (B={T.n_batch} stimuli [{T.info['n_centers']} tiles x "
+        f"spot_bright (B={T.n_batch} stimuli [{T.info['n_centers']} spots x "
         f"{shifttag}], {T.info['n_cost']} cost cells, {coltag})"
     )
     return pack, stim, tag
 
 
-def _build_network_tile_dark_target(
+def _build_network_spot_dark_target(
     ctx: _TrainBindCtx, C,
 ) -> Tuple[TargetPack, dict, str]:
-    from network.tile_target import build_shifted_target
+    from network.spot_target import build_shifted_target
 
     dev = ctx.dev or active_device()
-    opts = dict(ctx.tile_dark_stimulus_opts or make_tile_dark_stimulus_opts(mode="network"))
+    opts = dict(ctx.spot_dark_stimulus_opts or make_spot_dark_stimulus_opts(mode="network"))
     cost_extent = opts.get("cost_extent")
     if cost_extent is not None:
         cost_extent = int(cost_extent)
-    multi_shift = bool(opts.get("multi_shift", False))
+    shift_extent = int(opts.get("shift_extent", 0))
     share_edges = bool(opts.get("share_edges", False))
     T = build_shifted_target(
         C,
         share_edges=share_edges,
-        single_shift=not multi_shift,
+        shift_extent=shift_extent,
         device=dev,
         sim_dtype=ctx.sim_dtype,
         maxtime=IMPULSE_MAXTIME,
@@ -1218,7 +1218,7 @@ def _build_network_tile_dark_target(
     )
     stim = dict(opts)
     pack = TargetPack(
-        name="tile_dark",
+        name="spot_dark",
         signal=T.signal,
         data=T.data,
         power=T.power,
@@ -1230,24 +1230,24 @@ def _build_network_tile_dark_target(
         cost_extent=cost_extent,
     )
     coltag = _cost_extent_column_coltag(cost_extent, T.info["n_cost_columns"])
-    shifttag = "7 shifts" if multi_shift else "1 shift"
+    shifttag = f"{T.info['n_shifts']} shifts"
     tag = (
-        f"tile_dark (B={T.n_batch} stimuli [{T.info['n_centers']} tiles x "
+        f"spot_dark (B={T.n_batch} stimuli [{T.info['n_centers']} spots x "
         f"{shifttag}], {T.info['n_cost']} cost cells, {coltag})"
     )
     return pack, stim, tag
 
 
 BORST_TARGET_BUILDERS = {
-    "tile_bright": _build_borst_tile_bright_target,
-    "tile_dark": _build_borst_tile_dark_target,
+    "spot_bright": _build_borst_spot_bright_target,
+    "spot_dark": _build_borst_spot_dark_target,
     "moving_bar_bright": _build_borst_moving_bar_bright_target,
     "moving_bar_dark": _build_borst_moving_bar_dark_target,
 }
 
 NETWORK_TARGET_BUILDERS = {
-    "tile_bright": _build_network_tile_bright_target,
-    "tile_dark": _build_network_tile_dark_target,
+    "spot_bright": _build_network_spot_bright_target,
+    "spot_dark": _build_network_spot_dark_target,
     "moving_bar_bright": _build_network_moving_bar_bright_target,
     "moving_bar_dark": _build_network_moving_bar_dark_target,
 }
@@ -1310,18 +1310,18 @@ def apply_cost_extent_to_stimulus_opts(opts, target_name, cost_extent_by_target)
     return out
 
 
-def apply_multi_shift_to_stimulus_opts(opts, target_name, multi_shift_targets):
-    """Set ``multi_shift`` on tile stimulus opts from a per-target list."""
-    if target_name not in TILE_TARGETS:
+def apply_shift_extent_to_stimulus_opts(opts, target_name, shift_extent):
+    """Set ``shift_extent`` on spot stimulus opts."""
+    if target_name not in SPOT_TARGETS:
         return opts
     out = dict(opts or {})
-    out["multi_shift"] = target_name in set(multi_shift_targets or [])
+    out["shift_extent"] = int(shift_extent)
     return out
 
 
 def apply_share_edges_to_stimulus_opts(opts, target_name, share_edges_targets):
-    """Set ``share_edges`` on tile stimulus opts from a per-target list."""
-    if target_name not in TILE_TARGETS:
+    """Set ``share_edges`` on spot stimulus opts from a per-target list."""
+    if target_name not in SPOT_TARGETS:
         return opts
     out = dict(opts or {})
     out["share_edges"] = target_name in set(share_edges_targets or [])
@@ -1343,13 +1343,13 @@ def _i_cli_target_names(cli_field, name):
         if name not in I_CLI_BRIGHT_TARGETS:
             raise ValueError(
                 f"--i-bright does not accept target {name!r} "
-                f"(expected tile|tile_bright|moving_bar|moving_bar_bright)",
+                f"(expected spot|spot_bright|moving_bar|moving_bar_bright)",
             )
         return list(I_CLI_BRIGHT_TARGETS[name])
     if name not in I_CLI_DARK_TARGETS:
         raise ValueError(
             f"--i-dark does not accept target {name!r} "
-            f"(expected tile|tile_dark|moving_bar|moving_bar_dark)",
+            f"(expected spot|spot_dark|moving_bar|moving_bar_dark)",
         )
     return list(I_CLI_DARK_TARGETS[name])
 
@@ -1384,8 +1384,8 @@ def apply_i_cli_to_stimulus_opts(opts, target_name, i_cli):
 
 
 _STIMULUS_TRAIN_OPT_SPECS = (
-    ("tile_bright", "tile_bright_stimulus_opts"),
-    ("tile_dark", "tile_dark_stimulus_opts"),
+    ("spot_bright", "spot_bright_stimulus_opts"),
+    ("spot_dark", "spot_dark_stimulus_opts"),
     ("moving_bar_bright", "moving_bar_bright_stimulus_opts"),
     ("moving_bar_dark", "moving_bar_dark_stimulus_opts"),
 )
@@ -1397,21 +1397,21 @@ def _finalize_stimulus_opts(
     *,
     session_mode=None,
     cost_extent_by_target,
-    multi_shift_targets,
+    shift_extent,
     share_edges_targets,
     i_cli,
 ):
     build_mode = session_mode if session_mode is not None else (opts or {}).get("mode", "borst")
-    if target_name in TILE_TARGETS:
-        if target_name == "tile_bright":
-            out = make_tile_bright_stimulus_opts(mode=build_mode, **{
+    if target_name in SPOT_TARGETS:
+        if target_name == "spot_bright":
+            out = make_spot_bright_stimulus_opts(mode=build_mode, **{
                 k: v for k, v in (opts or {}).items()
-                if k in ("i_baseline", "i_bright", "multi_shift", "share_edges")
+                if k in ("i_baseline", "i_bright", "shift_extent", "share_edges")
             })
         else:
-            out = make_tile_dark_stimulus_opts(mode=build_mode, **{
+            out = make_spot_dark_stimulus_opts(mode=build_mode, **{
                 k: v for k, v in (opts or {}).items()
-                if k in ("i_baseline", "i_dark", "multi_shift", "share_edges")
+                if k in ("i_baseline", "i_dark", "shift_extent", "share_edges")
             })
     elif target_name == "moving_bar_bright":
         out = make_moving_bar_bright_stimulus_opts(
@@ -1432,7 +1432,7 @@ def _finalize_stimulus_opts(
     else:
         out = dict(opts or {})
     out = apply_cost_extent_to_stimulus_opts(out, target_name, cost_extent_by_target)
-    out = apply_multi_shift_to_stimulus_opts(out, target_name, multi_shift_targets)
+    out = apply_shift_extent_to_stimulus_opts(out, target_name, shift_extent)
     out = apply_share_edges_to_stimulus_opts(out, target_name, share_edges_targets)
     out = apply_i_cli_to_stimulus_opts(out, target_name, i_cli)
     if session_mode is not None:
@@ -1479,13 +1479,13 @@ def make_train_opts(
     pack_overrides=None,
     sequential=None,
     cost_extent_by_target=None,
-    multi_shift_targets=None,
+    shift_extent=0,
     share_edges_targets=None,
     i_cli=None,
     moving_bar_bright_stimulus_opts=None,
     moving_bar_dark_stimulus_opts=None,
-    tile_bright_stimulus_opts=None,
-    tile_dark_stimulus_opts=None,
+    spot_bright_stimulus_opts=None,
+    spot_dark_stimulus_opts=None,
     network_json=None,
     network=None,
     ih_group_names=None,
@@ -1498,14 +1498,14 @@ def make_train_opts(
     tl = _normalize_target_list(target_list)
     mode = "network" if backend == "network" else "borst"
     raw_by_name = {
-        "tile_bright": tile_bright_stimulus_opts,
-        "tile_dark": tile_dark_stimulus_opts,
+        "spot_bright": spot_bright_stimulus_opts,
+        "spot_dark": spot_dark_stimulus_opts,
         "moving_bar_bright": moving_bar_bright_stimulus_opts,
         "moving_bar_dark": moving_bar_dark_stimulus_opts,
     }
     finalize_kw = dict(
         cost_extent_by_target=cost_extent_by_target,
-        multi_shift_targets=multi_shift_targets,
+        shift_extent=shift_extent,
         share_edges_targets=share_edges_targets,
         i_cli=i_cli,
     )
@@ -1549,7 +1549,7 @@ def make_train_opts(
 
 def _train_opts_for_sidecar(
     opts, backend, target_list,
-    resolved_tile_bright, resolved_tile_dark,
+    resolved_spot_bright, resolved_spot_dark,
     resolved_bar_bright, resolved_bar_dark, sequential_bool,
 ) -> dict:
     record = {
@@ -1561,13 +1561,13 @@ def _train_opts_for_sidecar(
     if backend == "network":
         record.update({
             "network_json": str(opts["network_json"]),
-            "tile_bright_stimulus_opts": (
-                resolved_tile_bright if resolved_tile_bright is not None
-                else opts.get("tile_bright_stimulus_opts")
+            "spot_bright_stimulus_opts": (
+                resolved_spot_bright if resolved_spot_bright is not None
+                else opts.get("spot_bright_stimulus_opts")
             ),
-            "tile_dark_stimulus_opts": (
-                resolved_tile_dark if resolved_tile_dark is not None
-                else opts.get("tile_dark_stimulus_opts")
+            "spot_dark_stimulus_opts": (
+                resolved_spot_dark if resolved_spot_dark is not None
+                else opts.get("spot_dark_stimulus_opts")
             ),
             "moving_bar_bright_stimulus_opts": (
                 resolved_bar_bright if resolved_bar_bright is not None
@@ -1587,13 +1587,13 @@ def _train_opts_for_sidecar(
             resolved_bar_dark if resolved_bar_dark is not None
             else opts.get("moving_bar_dark_stimulus_opts")
         )
-        record["tile_bright_stimulus_opts"] = (
-            resolved_tile_bright if resolved_tile_bright is not None
-            else opts.get("tile_bright_stimulus_opts")
+        record["spot_bright_stimulus_opts"] = (
+            resolved_spot_bright if resolved_spot_bright is not None
+            else opts.get("spot_bright_stimulus_opts")
         )
-        record["tile_dark_stimulus_opts"] = (
-            resolved_tile_dark if resolved_tile_dark is not None
-            else opts.get("tile_dark_stimulus_opts")
+        record["spot_dark_stimulus_opts"] = (
+            resolved_spot_dark if resolved_spot_dark is not None
+            else opts.get("spot_dark_stimulus_opts")
         )
     overrides = opts.get("pack_overrides")
     if overrides:
@@ -1680,8 +1680,8 @@ def open_session(
             model_backend=model_backend,
             dev=dev,
             sim_dtype=sim_dtype,
-            tile_bright_stimulus_opts=opts.get("tile_bright_stimulus_opts"),
-            tile_dark_stimulus_opts=opts.get("tile_dark_stimulus_opts"),
+            spot_bright_stimulus_opts=opts.get("spot_bright_stimulus_opts"),
+            spot_dark_stimulus_opts=opts.get("spot_dark_stimulus_opts"),
             moving_bar_bright_stimulus_opts=opts.get("moving_bar_bright_stimulus_opts"),
             moving_bar_dark_stimulus_opts=opts.get("moving_bar_dark_stimulus_opts"),
         )
@@ -1691,30 +1691,30 @@ def open_session(
             prebuilt = None
         if prebuilt is not None:
             packs = dict(prebuilt)
-            resolved_tile_bright = opts.get("tile_bright_stimulus_opts")
-            resolved_tile_dark = opts.get("tile_dark_stimulus_opts")
+            resolved_spot_bright = opts.get("spot_bright_stimulus_opts")
+            resolved_spot_dark = opts.get("spot_dark_stimulus_opts")
             resolved_bar_bright = opts.get("moving_bar_bright_stimulus_opts")
             resolved_bar_dark = opts.get("moving_bar_dark_stimulus_opts")
         else:
             packs = {}
-            resolved_tile_bright = resolved_tile_dark = None
+            resolved_spot_bright = resolved_spot_dark = None
             resolved_bar_bright = resolved_bar_dark = None
             for tname in target_list:
                 pack, stim = BORST_TARGET_BUILDERS[tname](ctx)
                 if tname in pack_overrides:
                     pack = apply_pack_override(pack, pack_overrides[tname], model_backend)
                 packs[tname] = pack
-                if tname == "tile_bright":
-                    resolved_tile_bright = stim
-                elif tname == "tile_dark":
-                    resolved_tile_dark = stim
+                if tname == "spot_bright":
+                    resolved_spot_bright = stim
+                elif tname == "spot_dark":
+                    resolved_spot_dark = stim
                 elif tname == "moving_bar_bright":
                     resolved_bar_bright = stim
                 elif tname == "moving_bar_dark":
                     resolved_bar_dark = stim
         record = _train_opts_for_sidecar(
             opts, "borst", target_list,
-            resolved_tile_bright, resolved_tile_dark,
+            resolved_spot_bright, resolved_spot_dark,
             resolved_bar_bright, resolved_bar_dark, False,
         )
         session = _make_session(
@@ -1754,31 +1754,31 @@ def open_session(
         model_backend=model_backend,
         dev=dev,
         sim_dtype=sim_dtype,
-        tile_bright_stimulus_opts=opts.get("tile_bright_stimulus_opts"),
-        tile_dark_stimulus_opts=opts.get("tile_dark_stimulus_opts"),
+        spot_bright_stimulus_opts=opts.get("spot_bright_stimulus_opts"),
+        spot_dark_stimulus_opts=opts.get("spot_dark_stimulus_opts"),
         moving_bar_bright_stimulus_opts=opts.get("moving_bar_bright_stimulus_opts"),
         moving_bar_dark_stimulus_opts=opts.get("moving_bar_dark_stimulus_opts"),
     )
     packs = {}
     pack_overrides = opts.get("pack_overrides") or {}
-    resolved_tile_bright = resolved_tile_dark = None
+    resolved_spot_bright = resolved_spot_dark = None
     resolved_bar_bright = resolved_bar_dark = None
     for tname in target_list:
         pack, stim, _tag = NETWORK_TARGET_BUILDERS[tname](ctx, C)
         if tname in pack_overrides:
             pack = apply_pack_override(pack, pack_overrides[tname], model_backend)
         packs[tname] = pack
-        if tname == "tile_bright":
-            resolved_tile_bright = stim
-        elif tname == "tile_dark":
-            resolved_tile_dark = stim
+        if tname == "spot_bright":
+            resolved_spot_bright = stim
+        elif tname == "spot_dark":
+            resolved_spot_dark = stim
         elif tname == "moving_bar_bright":
             resolved_bar_bright = stim
         elif tname == "moving_bar_dark":
             resolved_bar_dark = stim
     record = _train_opts_for_sidecar(
         opts, "network", target_list,
-        resolved_tile_bright, resolved_tile_dark,
+        resolved_spot_bright, resolved_spot_dark,
         resolved_bar_bright, resolved_bar_dark, False,
     )
     return _make_session(
@@ -2077,7 +2077,7 @@ def out_scale_for_units(p, unit_index, backend: ModelBackend, *, sim_dtype=SIM_D
 
 
 def pad_plot_traces(raw, scale, mt, t_on_step=None):
-    """Ca-filtered readout ``(N, T')`` -> full-length tile plot traces ``(N, mt)``."""
+    """Ca-filtered readout ``(N, T')`` -> full-length spot plot traces ``(N, mt)``."""
     if t_on_step is None:
         t_on_step = t_on
     n, t_len = raw.shape

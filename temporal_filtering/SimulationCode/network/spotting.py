@@ -1,15 +1,15 @@
 # -*- coding: utf-8 -*-
 """Lattice <-> node lookups for connectome multi-column training.
 
-Bridges the pure hex geometry in ``column_mapper`` (tile centres, ring/tile offsets,
+Bridges the pure hex geometry in ``column_mapper`` (spot centres, ring/spot offsets,
 shifts) to the concrete nodes of a loaded :class:`network.construction.Network`:
 
   - :func:`col2sti` -- the stimulus (photoreceptor) units on a column.
   - :func:`col2fit`   -- the fit-cell units of a given type on a column.
-  - :func:`build_tiling` -- a :class:`Tiling`: tile centres x member columns,
-    reusing ``column_mapper.tile_centers`` / ``tile_offsets``.
-  - :func:`shifted_photoreceptors` -- stimulus units for each of the 7 sub-tile
-    shifts (the tile centre + its 6 neighbours).
+  - :func:`build_spotting` -- a :class:`Spotting`: spot centres x member columns,
+    reusing ``column_mapper.spot_centers`` / ``spot_offsets``.
+  - :func:`shifted_photoreceptors` -- stimulus units for each configured sub-spot
+    shift around each spot centre.
 
 The fit cell vocabulary is the same 13 types the 5-column model fits
 (``Medulla_Library.cell_list``).
@@ -59,18 +59,18 @@ def col2fit(C, u: int, v: int, fit_type: str, names: np.ndarray = None) -> np.nd
 
 
 @dataclass
-class Tiling:
+class Spotting:
     """Tile centres x member columns over a loaded connectome.
 
-    centers:  list of (u, v) tile-centre axial coords.
-    members:  list of (du, dv) member offsets shared by every tile (tile_offsets).
-    shifts:   list of (du, dv) sub-tile shifts (7: centre + 6 neighbours).
+    centers:  list of (u, v) spot-centre axial coords.
+    members:  list of (du, dv) member offsets shared by every spot (spot_offsets).
+    shifts:   list of (du, dv) sub-spot shifts from ``spot_offsets(shift_extent)``.
     """
 
     centers: List[Tuple[int, int]]
     members: List[Tuple[int, int]]
     shifts: List[Tuple[int, int]]
-    tile_extent: int
+    spot_extent: int
     share_edges: bool
 
     def member_columns(self, center: Tuple[int, int]) -> List[Tuple[int, int]]:
@@ -78,36 +78,35 @@ class Tiling:
         return [(cu + du, cv + dv) for du, dv in self.members]
 
 
-def tile_stimulus_batches(tiling: Tiling) -> List[Tuple[int, int, Tuple[int, int]]]:
-    """One batch per (tile centre, shift): ``(stim_u, stim_v, center)``."""
+def spot_stimulus_batches(spotting: Spotting) -> List[Tuple[int, int, Tuple[int, int]]]:
+    """One batch per (spot centre, shift): ``(stim_u, stim_v, center)``."""
     batches = []
-    for center in tiling.centers:
-        for du, dv in tiling.shifts:
+    for center in spotting.centers:
+        for du, dv in spotting.shifts:
             batches.append((center[0] + du, center[1] + dv, center))
     return batches
 
 
-def tiling_from_opts(
+def spotting_from_opts(
     C,
-    tile_extent: int = 2,
+    spot_extent: int = 2,
     share_edges: bool = False,
-    single_shift: bool = False,
-    single_tile: Optional[bool] = None,
-) -> Tiling:
-    """Build :class:`Tiling` with optional single-shift collapse."""
-    tiling = build_tiling(C, tile_extent, share_edges, single_tile)
-    if single_shift:
-        tiling.shifts = [(0, 0)]
-    return tiling
+    shift_extent: int = 0,
+    single_spot: Optional[bool] = None,
+) -> Spotting:
+    """Build :class:`Spotting` with configurable sub-spot shift radius."""
+    spotting = build_spotting(C, spot_extent, share_edges, single_spot)
+    spotting.shifts = [(int(du), int(dv)) for du, dv in column_mapper.spot_offsets(int(shift_extent))]
+    return spotting
 
 
-def tiling_from_stimulus_opts(C, opts: Dict) -> Tiling:
-    """``train_opts`` tile stimulus dict → :class:`Tiling`."""
-    return tiling_from_opts(
+def spotting_from_stimulus_opts(C, opts: Dict) -> Spotting:
+    """``train_opts`` spot stimulus dict → :class:`Spotting`."""
+    return spotting_from_opts(
         C,
-        tile_extent=int(opts.get("tile_extent", 2)),
+        spot_extent=int(opts.get("spot_extent", 2)),
         share_edges=bool(opts.get("share_edges", False)),
-        single_shift=not bool(opts.get("multi_shift", False)),
+        shift_extent=int(opts.get("shift_extent", 0)),
     )
 
 
@@ -143,12 +142,12 @@ def unit_ring_layout(C, batches, units=None):
     )
 
 
-def _graph_extent(C, tile_extent: int) -> int:
+def _graph_extent(C, spot_extent: int) -> int:
     """Hex-disc radius of connectome ``C``.
 
     ``meta["extent"] >= 0`` is a real crop radius and used as-is. ``< 0`` (or
     missing) means no crop, so the radius is the largest ``hex_radius`` over the
-    positioned columns (column_id >= 0); falls back to ``tile_extent`` if none.
+    positioned columns (column_id >= 0); falls back to ``spot_extent`` if none.
     """
     meta_extent = int(C.meta.get("extent", -1))
     if meta_extent >= 0:
@@ -158,47 +157,47 @@ def _graph_extent(C, tile_extent: int) -> int:
         column_mapper.hex_radius(int(u), int(v))
         for u, v in zip(C.u[positioned], C.v[positioned])
     ]
-    return max(radii) if radii else tile_extent
+    return max(radii) if radii else spot_extent
 
 
-def build_tiling(
+def build_spotting(
     C,
-    tile_extent: int = 2,
+    spot_extent: int = 2,
     share_edges: bool = False,
-    single_tile: bool = None,
-) -> Tiling:
-    """Build a :class:`Tiling` for connectome ``C``.
+    single_spot: bool = None,
+) -> Spotting:
+    """Build a :class:`Spotting` for connectome ``C``.
 
-    If ``single_tile`` (default: auto when the graph's own extent <= tile_extent),
-    the whole graph is one tile centred at (0, 0) -- the right case for an
-    already-cropped extent-2 sub-graph. Otherwise tiles come from
-    ``column_mapper.tile_centers`` over the graph's extent (31 disjoint / 43 sharing).
+    If ``single_spot`` (default: auto when the graph's own extent <= spot_extent),
+    the whole graph is one spot centred at (0, 0) -- the right case for an
+    already-cropped extent-2 sub-graph. Otherwise spots come from
+    ``column_mapper.spot_centers`` over the graph's extent (31 disjoint / 43 sharing).
 
     The graph extent is ``meta["extent"]`` when it is a real crop radius (>= 0);
     a value < 0 means "no crop", so the extent is derived from the actual radius
     spanned by the positioned columns (otherwise the full graph would collapse to
-    a single tile).
+    a single spot).
     """
-    graph_extent = _graph_extent(C, tile_extent)
-    if single_tile is None:
-        single_tile = graph_extent <= tile_extent
-    members = [(int(du), int(dv)) for du, dv in column_mapper.tile_offsets(tile_extent)]
+    graph_extent = _graph_extent(C, spot_extent)
+    if single_spot is None:
+        single_spot = graph_extent <= spot_extent
+    members = [(int(du), int(dv)) for du, dv in column_mapper.spot_offsets(spot_extent)]
     shifts = [(int(du), int(dv)) for du, dv in column_mapper.shift_offsets()]
-    if single_tile:
+    if single_spot:
         centers = [(0, 0)]
     else:
         centers = [
             (int(cu), int(cv))
-            for cu, cv in column_mapper.tile_centers(
+            for cu, cv in column_mapper.spot_centers(
                 extent=graph_extent,
-                tile_extent=tile_extent,
+                spot_extent=spot_extent,
                 share_edges=share_edges,
             )
         ]
-    return Tiling(centers, members, shifts, tile_extent, share_edges)
+    return Spotting(centers, members, shifts, spot_extent, share_edges)
 
 
 def shifted_photoreceptors(C, center: Tuple[int, int], shifts) -> List[np.ndarray]:
-    """For a tile centre, the stimulus units at centre+shift for each shift."""
+    """For a spot centre, the stimulus units at centre+shift for each shift."""
     cu, cv = center
     return [col2sti(C, cu + du, cv + dv) for du, dv in shifts]

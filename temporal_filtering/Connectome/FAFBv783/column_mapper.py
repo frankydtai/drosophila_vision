@@ -14,7 +14,7 @@ coordinate formulas:
     (shared by column maps, moving-bar stimulus, and plots).
   - :data:`DEG_BORST` and ``borst_sti_columns`` define the five-column Borst layout.
   - :class:`HexGrid` holds an ideal disc's (u, v) coordinates (the plot reference
-    / tiling extent); ``columns_with_uv(side)`` gives FAFB columns' (u, v).
+    / spotting extent); ``columns_with_uv(side)`` gives FAFB columns' (u, v).
 
 Run a sanity summary with the project venv:
 
@@ -40,7 +40,7 @@ logger = logging.getLogger(__name__)
 # -- Single source of truth: grid size ----------------------------------------
 
 # DEFAULT_EXTENT is the radius of the IDEAL reference hex disc (the left figure
-# panel and the default for HexGrid / tiling). extent=10 -> 3*10*11+1 = 331 cells.
+# panel and the default for HexGrid / spotting). extent=10 -> 3*10*11+1 = 331 cells.
 DEFAULT_EXTENT = 10
 
 # EXTENT is the single shared spatial knob (crop in build_network; inside/outside
@@ -63,7 +63,7 @@ Y_AXIS_LABEL = f"Y ({AXIS_UNIT})"
 # r = DEG/2, so patches are pointy-top.
 HEX_PATCH_ORIENTATION = np.radians(30)
 
-# Borst 5-column horizontal row (SimulationCode moving-bar / tile layout).
+# Borst 5-column horizontal row (SimulationCode moving-bar / spot layout).
 BORST_CENTER_COL = 2
 BORST_N_COLS = 5
 
@@ -169,11 +169,11 @@ def pq_to_uv(p, q, side: str) -> Tuple[np.ndarray, np.ndarray]:
     return -p, p - q
 
 
-# -- Pure lattice math: distance, rings, tiles, shifts ------------------------
+# -- Pure lattice math: distance, rings, spots, shifts ------------------------
 #
 # These are coordinate-only helpers (no FAFB data, no plotting). They are the
-# single source of truth for the hex math reused by the multi-column / tiling
-# pipeline (connectome_tiling.py, connectome_target.py, tile_extent2_hexagons.py).
+# single source of truth for the hex math reused by the multi-column / spotting
+# pipeline (connectome_spotting.py, connectome_target.py, spot_extent2_hexagons.py).
 
 # The six unit step directions in axial (u, v), counter-clockwise.
 _HEX_DIRECTIONS = ((1, 0), (0, 1), (-1, 1), (-1, 0), (0, -1), (1, -1))
@@ -221,7 +221,7 @@ def ring_offsets(radius: int) -> list:
     return out
 
 
-def tile_offsets(extent: int) -> list:
+def spot_offsets(extent: int) -> list:
     """Axial (u, v) offsets of every cell in a hex disc of the given radius."""
     offs: list = []
     for r in range(extent + 1):
@@ -230,55 +230,55 @@ def tile_offsets(extent: int) -> list:
 
 
 def shift_offsets() -> list:
-    """The 7 sub-tile shifts: the tile centre plus its 6 nearest neighbours."""
-    return tile_offsets(1)
+    """The 7 sub-spot shifts: the spot centre plus its 6 nearest neighbours."""
+    return spot_offsets(1)
 
 
-def tile_basis(
-    tile_extent: int, share_edges: bool = False
+def spot_basis(
+    spot_extent: int, share_edges: bool = False
 ) -> Tuple[Tuple[int, int], Tuple[int, int]]:
-    """Sublattice generators for a hex tiling by radius-``tile_extent`` hexes.
+    """Sublattice generators for a hex spotting by radius-``spot_extent`` hexes.
 
-    Two layouts (``k = tile_extent``):
+    Two layouts (``k = spot_extent``):
 
     - ``share_edges=False`` (default, disjoint): centres are spaced ``2k+1`` apart
-      on the gap-free perfect-tiling sublattice spanned by ``(2k+1, -k)`` and its
-      60-degree rotation. The squared norm equals the cell count, so tiles neither
-      overlap nor leave gaps (31 tiles for extent=15, tile_extent=2).
+      on the gap-free perfect-spotting sublattice spanned by ``(2k+1, -k)`` and its
+      60-degree rotation. The squared norm equals the cell count, so spots neither
+      overlap nor leave gaps (31 spots for extent=15, spot_extent=2).
     - ``share_edges=True`` (edge-sharing): centres are spaced ``2k`` apart along the
-      edge-perpendicular directions, ``(2k, -k)`` and its rotation. Each tile then
+      edge-perpendicular directions, ``(2k, -k)`` and its rotation. Each spot then
       shares its boundary ring with its 6 neighbours, giving a denser, overlapping
-      cover (43 tiles for extent=15, tile_extent=2).
+      cover (43 spots for extent=15, spot_extent=2).
     """
-    first = 2 * tile_extent if share_edges else 2 * tile_extent + 1
-    g1 = (first, -tile_extent)
+    first = 2 * spot_extent if share_edges else 2 * spot_extent + 1
+    g1 = (first, -spot_extent)
     g2 = _rot60(*g1)
     return g1, g2
 
 
-def tile_centers(
+def spot_centers(
     extent: int = DEFAULT_EXTENT,
-    tile_extent: int = 2,
+    spot_extent: int = 2,
     fully_inside: bool = True,
     share_edges: bool = False,
 ) -> list:
-    """Axial centres of the radius-``tile_extent`` hexes covering an ``extent`` disc.
+    """Axial centres of the radius-``spot_extent`` hexes covering an ``extent`` disc.
 
     Args:
         extent: Radius of the disc to cover (the optic-lobe grid).
-        tile_extent: Radius of each tile (2 -> 19-cell extent-2 hexagons).
-        fully_inside: If True (default) keep only tiles whose every cell lies
+        spot_extent: Radius of each spot (2 -> 19-cell extent-2 hexagons).
+        fully_inside: If True (default) keep only spots whose every cell lies
             inside the disc.
-        share_edges: If False (default) use the disjoint gap-free tiling (31 tiles
-            for extent=15, tile_extent=2); if True use the edge-sharing overlapping
-            tiling (43 tiles), where neighbouring tiles share their boundary ring.
+        share_edges: If False (default) use the disjoint gap-free spotting (31 spots
+            for extent=15, spot_extent=2); if True use the edge-sharing overlapping
+            spotting (43 spots), where neighbouring spots share their boundary ring.
 
     Returns:
         Tile-centre (u, v) tuples, ordered by radius then angle.
     """
-    (a1, b1), (a2, b2) = tile_basis(tile_extent, share_edges)
-    members = tile_offsets(tile_extent)
-    span = 2 * (extent // max(tile_extent, 1) + 2)
+    (a1, b1), (a2, b2) = spot_basis(spot_extent, share_edges)
+    members = spot_offsets(spot_extent)
+    span = 2 * (extent // max(spot_extent, 1) + 2)
     centers = []
     for m in range(-span, span + 1):
         for n in range(-span, span + 1):
@@ -304,7 +304,7 @@ class HexGrid:
     """The (u, v) axial coordinates of an ideal hex disc of a given extent.
 
     A pure coordinate container (used as the reference disc for plotting and as
-    the extent for tiling). FAFB column (u, v) come from :func:`columns_with_uv`.
+    the extent for spotting). FAFB column (u, v) come from :func:`columns_with_uv`.
     """
 
     def __init__(self, extent: int = DEFAULT_EXTENT) -> None:

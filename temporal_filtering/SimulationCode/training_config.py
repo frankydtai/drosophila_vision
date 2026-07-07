@@ -49,7 +49,7 @@ def sim_dtype_from_fp32(fp32: bool) -> torch.dtype:
 
 # Stimulus timing (canonical ms; step counts below use ms_to_steps at default DELTAT_MS).
 T_ON_MS = 500.0
-IMPULSE_MAXTIME_MS = 2000.0  # Borst tile / impulse horizon
+IMPULSE_MAXTIME_MS = 2000.0  # Borst spot / impulse horizon
 
 # Moving-bar per-column cost window relative to first-stimulus alignment.
 COST_WINDOW_MS = 900.0

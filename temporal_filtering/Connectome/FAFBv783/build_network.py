@@ -509,10 +509,6 @@ def _parse_args() -> argparse.Namespace:
              f"<run>_extent<N>/ (e.g. 2 -> 19 columns). Default: {EXTENT}.",
     )
     parser.add_argument(
-        "--skip-filter", action="store_true",
-        help="Skip load+filter; build only from existing run folders.",
-    )
-    parser.add_argument(
         "--refresh-cache", action="store_true",
         help="Ignore the filter cache and recompute from the raw CSVs.",
     )
@@ -524,16 +520,15 @@ def main() -> None:
     args = _parse_args()
     sides = ["left", "right"] if args.side == "both" else [args.side]
 
-    loader = None if args.skip_filter else FafbDataLoader()
+    loader = FafbDataLoader()
     for side in sides:
-        if loader is not None:
-            vs = loader.filter_visual_system(
-                side=side,
-                min_neuron_count=args.min_neuron_count,
-                min_syn_count=args.min_syn_count,
-                use_cache=not args.refresh_cache,
-            )
-            vs.save()
+        vs = loader.filter_visual_system(
+            side=side,
+            min_neuron_count=args.min_neuron_count,
+            min_syn_count=args.min_syn_count,
+            use_cache=not args.refresh_cache,
+        )
+        vs.save()
         out = build(side, args.min_neuron_count)
         meta = json.load(open(out))["metadata"]
         print(f"\n=== build_network ({side}, min_neuron={args.min_neuron_count}) ===")

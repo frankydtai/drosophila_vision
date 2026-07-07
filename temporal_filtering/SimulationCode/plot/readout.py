@@ -89,7 +89,7 @@ def borst_ref_cubes(dark=False):
     return {str(name): ref[i] for i, name in enumerate(ml.cell_list)}
 
 
-def tile_ref_cubes(session, target=None, dark=False):
+def spot_ref_cubes(session, target=None, dark=False):
     """Tile model-data reference cubes from RecF + pack_overrides mirror specs."""
     target = target or session.primary_pack.name
     ref = dict(borst_ref_cubes(dark=dark))
@@ -123,8 +123,8 @@ def _mirror_type_groups_from_override(override, present):
     return groups
 
 
-def tile_model_data_groups(session, target=None, group_list=None):
-    """Row groups for tile model-data plots."""
+def spot_model_data_groups(session, target=None, group_list=None):
+    """Row groups for spot model-data plots."""
     target = target or session.primary_pack.name
     present = set(pack_readout_types(session, target))
     if group_list is not None:
@@ -155,10 +155,10 @@ def tile_model_data_groups(session, target=None, group_list=None):
     return out
 
 
-def tile_model_data_names(session, target=None, group_list=None):
-    """Flat cell names for network tile model-data grid."""
+def spot_model_data_names(session, target=None, group_list=None):
+    """Flat cell names for network spot model-data grid."""
     names = []
-    for g in tile_model_data_groups(session, target, group_list):
+    for g in spot_model_data_groups(session, target, group_list):
         names.extend(str(n) for n in g)
     return names
 

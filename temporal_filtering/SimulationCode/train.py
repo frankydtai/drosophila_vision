@@ -10,7 +10,7 @@ Run artifacts (``.npy`` / ``.npz``, ``train_opts.json``) live in
 ``<run_name>/data/``; PNGs and ``*_table.csv`` stay in ``<run_name>/``.
 
 where <run_name> encodes the CLI, e.g.
-``26758480-run-nofsteps-50-target-moving_bar,tile-network-right_min_neuron1_extent2-shift``
+``26758480-run-nofsteps-50-target-moving_bar,spot-network-right_min_neuron1_extent2-shift``
 (job id under SLURM, else a timestamp prefix).
 
     # short smoke test
@@ -21,8 +21,8 @@ where <run_name> encodes the CLI, e.g.
                   --lrs 0.1,0.01,0.001
 
     # per-target PR currents (comma-separated TARGET=VALUE)
-    python train.py --target tile,moving_bar --i-baseline tile=20,moving_bar=22 \\
-                  --i-bright tile_bright=45 --i-dark tile_dark=0,moving_bar_dark=2
+    python train.py --target spot,moving_bar --i-baseline spot=20,moving_bar=22 \\
+                  --i-bright spot_bright=45 --i-dark spot_dark=0,moving_bar_dark=2
 
     # moving-bar (``--network`` = folder under built_network/)
     python train.py --target moving_bar --network right_min_neuron1_extent2 \\
@@ -336,14 +336,14 @@ def build_session(
     target_list=None,
     cost_weights=None,
     cost_extent_by_target=None,
-    multi_shift_targets=None,
+    shift_extent=0,
     share_edges_targets=None,
     i_cli=None,
     ih_group_names=None,
     moving_bar_bright_stimulus_opts=None,
     moving_bar_dark_stimulus_opts=None,
-    tile_bright_stimulus_opts=None,
-    tile_dark_stimulus_opts=None,
+    spot_bright_stimulus_opts=None,
+    spot_dark_stimulus_opts=None,
     param_modes=None,
     ih_off=fc.IH_OFF_DEFAULT,
     fp32=False,
@@ -352,7 +352,7 @@ def build_session(
     schema=None,
 ):
     """Create a :class:`TrainSession` from run options."""
-    tl = list(target_list) if target_list is not None else ["tile_bright"]
+    tl = list(target_list) if target_list is not None else ["spot_bright"]
     dev = fc.active_device()
     mkw = dict(
         target_list=tl,
@@ -360,11 +360,11 @@ def build_session(
         pack_overrides=pack_overrides,
         sequential=sequential,
         cost_extent_by_target=cost_extent_by_target,
-        multi_shift_targets=multi_shift_targets,
+        shift_extent=shift_extent,
         share_edges_targets=share_edges_targets,
         i_cli=i_cli,
-        tile_bright_stimulus_opts=tile_bright_stimulus_opts,
-        tile_dark_stimulus_opts=tile_dark_stimulus_opts,
+        spot_bright_stimulus_opts=spot_bright_stimulus_opts,
+        spot_dark_stimulus_opts=spot_dark_stimulus_opts,
         moving_bar_bright_stimulus_opts=moving_bar_bright_stimulus_opts,
         moving_bar_dark_stimulus_opts=moving_bar_dark_stimulus_opts,
     )
@@ -394,13 +394,13 @@ def run_training(model_type, nofruns, nofsteps, lrs, fname=None, outdir=None,
                  ih_off=fc.IH_OFF_DEFAULT,
                  network=None, sequential=False,
                  target_list=None, cost_weights=None,
-                 cost_extent_by_target=None, multi_shift_targets=None,
+                 cost_extent_by_target=None, shift_extent=0,
                  share_edges_targets=None, i_cli=None,
                  ih_group_names=None,
                  moving_bar_bright_stimulus_opts=None,
                  moving_bar_dark_stimulus_opts=None,
-                 tile_bright_stimulus_opts=None,
-                 tile_dark_stimulus_opts=None,
+                 spot_bright_stimulus_opts=None,
+                 spot_dark_stimulus_opts=None,
                  pack_overrides=None, model_backend=None, schema=None,
                  fp32=False,
                  plot_ref_cubes=None, plot_ref_cubes_off=None,
@@ -416,14 +416,14 @@ def run_training(model_type, nofruns, nofsteps, lrs, fname=None, outdir=None,
         target_list=target_list,
         cost_weights=cost_weights,
         cost_extent_by_target=cost_extent_by_target,
-        multi_shift_targets=multi_shift_targets,
+        shift_extent=shift_extent,
         share_edges_targets=share_edges_targets,
         i_cli=i_cli,
         ih_group_names=ih_group_names,
         moving_bar_bright_stimulus_opts=moving_bar_bright_stimulus_opts,
         moving_bar_dark_stimulus_opts=moving_bar_dark_stimulus_opts,
-        tile_bright_stimulus_opts=tile_bright_stimulus_opts,
-        tile_dark_stimulus_opts=tile_dark_stimulus_opts,
+        spot_bright_stimulus_opts=spot_bright_stimulus_opts,
+        spot_dark_stimulus_opts=spot_dark_stimulus_opts,
         param_modes=param_modes,
         ih_off=ih_off,
         pack_overrides=pack_overrides,
@@ -490,54 +490,56 @@ def add_training_arguments(parser):
                              f"default Borst 5-column simulator if omitted")
     parser.add_argument(
         "--target",
-        default="tile,moving_bar",
-        help="target name(s): tile (=tile_bright+tile_dark), moving_bar (=bright+dark), "
-             "or explicit names / comma-separated list, e.g. tile,moving_bar",
+        default="spot,moving_bar",
+        help="target name(s): spot (=spot_bright+spot_dark), moving_bar (=bright+dark), "
+             "or explicit names / comma-separated list, e.g. spot,moving_bar",
     )
     parser.add_argument(
         "--cost-weight",
         default="",
         metavar="TARGET=VALUE,...",
-        help="per-part cost weights, e.g. tile=1,PD=1.5,ND=1.0 "
-             "(aliases: tile, moving_bar, moving_bar_bright/dark, PD/ND)",
+        help="per-part cost weights, e.g. spot=1,PD=1.5,ND=1.0 "
+             "(aliases: spot, moving_bar, moving_bar_bright/dark, PD/ND)",
     )
     parser.add_argument(
-        "--shift",
-        action="store_true",
-        help="enable 7 sub-tile shifts for tile targets in --target",
+        "--shift-extent",
+        type=int,
+        default=0,
+        help="spot sub-shift hex-disc radius for spot targets in --target "
+             "(n_shifts=1+3k(k+1); 0->1, 1->7, 2->19, 3->37, ...)",
     )
     parser.add_argument(
         "--share-edges",
         default="",
-        help="comma-separated tile targets for edge-sharing tiling "
-             "(choices: tile,tile_bright,tile_dark)",
+        help="comma-separated spot targets for edge-sharing spotting "
+             "(choices: spot,spot_bright,spot_dark)",
     )
     parser.add_argument(
         "--cost-extent",
         default="",
         metavar="N|TARGET=N,...",
         help="network cost hex-disc radius: bare N for all --target, or per-target "
-             "e.g. moving_bar_bright=0 (aliases: tile, moving_bar); requires --network",
+             "e.g. moving_bar_bright=0 (aliases: spot, moving_bar); requires --network",
     )
     parser.add_argument(
         "--i-baseline",
         default="",
         metavar="TARGET=VALUE,...",
-        help="per-target PR baseline (pA); aliases: tile, moving_bar",
+        help="per-target PR baseline (pA); aliases: spot, moving_bar",
     )
     parser.add_argument(
         "--i-bright",
         default="",
         metavar="TARGET=VALUE,...",
-        help="bright peak/step current (pA); targets: tile_bright, moving_bar_bright "
-             "(aliases tile, moving_bar)",
+        help="bright peak/step current (pA); targets: spot_bright, moving_bar_bright "
+             "(aliases spot, moving_bar)",
     )
     parser.add_argument(
         "--i-dark",
         default="",
         metavar="TARGET=VALUE,...",
-        help="dark peak/step current (pA); targets: tile_dark, moving_bar_dark "
-             "(aliases tile, moving_bar)",
+        help="dark peak/step current (pA); targets: spot_dark, moving_bar_dark "
+             "(aliases spot, moving_bar)",
     )
     add_plot_arguments(parser)
 
@@ -628,9 +630,8 @@ def training_kwargs_from_args(
         raise ValueError("--cost-extent must be >= 0")
     if any(v < 0 for v in extent_kv.values()):
         raise ValueError("--cost-extent must be >= 0")
-    multi_shift_targets = (
-        [t for t in target_list if t in fc.TILE_TARGETS] if args.shift else []
-    )
+    if args.shift_extent < 0:
+        raise ValueError("--shift-extent must be >= 0")
     share_edges_targets = fc.expand_target_list(parse_target_names(args.share_edges))
     i_cli = fc.build_i_cli_by_target({
         "i_baseline": parse_comma_kv(args.i_baseline, float),
@@ -640,11 +641,11 @@ def training_kwargs_from_args(
     lrs = parse_comma_floats(args.lrs)
     if not lrs:
         raise ValueError("--lrs must list at least one learning rate")
-    bad_share = [t for t in share_edges_targets if t not in fc.TILE_TARGETS]
+    bad_share = [t for t in share_edges_targets if t not in fc.SPOT_TARGETS]
     if bad_share:
         raise ValueError(
             f"unknown target(s) in --share-edges: {bad_share} "
-            f"(expected {'|'.join(fc.TILE_TARGETS + ('tile',))})",
+            f"(expected {'|'.join(fc.SPOT_TARGETS + ('spot',))})",
         )
     run_name = command_run_name(script_stem)
     outdir = run_dir(args.model_type, parent=args.outdir, name=run_name)
@@ -660,7 +661,7 @@ def training_kwargs_from_args(
         target_list=target_list,
         cost_weights=cost_weights,
         cost_extent_by_target=cost_extent_by_target,
-        multi_shift_targets=multi_shift_targets,
+        shift_extent=int(args.shift_extent),
         share_edges_targets=share_edges_targets,
         i_cli=i_cli,
         ih_group_names=parse_comma_list(args.ih_group),
