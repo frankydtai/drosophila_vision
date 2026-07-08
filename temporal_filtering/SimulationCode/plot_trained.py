@@ -20,6 +20,10 @@ from training_config import PARAMETER_DIR, run_data_dir
 TRAIN_OPTS_FILE = fc.TRAIN_OPTS_FILE
 KNOWN_MODELS = ('conductance', 'adaptive')
 RUN_NAME_MAX = 255
+DEFAULT_RUN_NAME = """
+0708_181807-train-target-moving_bar-network-right_min_neuron1_extent3-nofstep-0-init-from-conductance-0708_180831-train-target-spot-network-right_min_neuron1_extent3-shift-extent-2-nofsteps-100-x-3,-2,-1
+""".strip()
+DEFAULT_RUN_PATH = 'conductance/' + DEFAULT_RUN_NAME
 
 
 def _plot_device_label():
@@ -337,6 +341,8 @@ def plot_param_set(params, outdir, model=None, model_all=True,
                    plot_right_only=True, at_x=None, at_y=None,
                    plot_vm=False):
     os.makedirs(outdir, exist_ok=True)
+    data_dir = run_data_dir(os.path.abspath(outdir))
+    os.makedirs(data_dir, exist_ok=True)
     ctx = context_dir or outdir
     if model is None and session is not None:
         model = session.model
@@ -393,11 +399,13 @@ def plot_param_set(params, outdir, model=None, model_all=True,
                     s_bright, z, 'moving_bar_bright',
                     at_x_list=at_x, at_y_list=at_y,
                     trace_kind='vm',
+                    save_vm_npy_dir=data_dir,
                 )
                 bundle_d = moving_bar_plot.moving_bar_trace_bundle(
                     s_dark, z, 'moving_bar_dark',
                     at_x_list=at_x, at_y_list=at_y,
                     trace_kind='vm',
+                    save_vm_npy_dir=data_dir,
                 )
                 allc = os.path.join(outdir, 'model_all_bar_vm.png')
                 moving_bar_plot.plot_moving_bar_all(
@@ -417,7 +425,12 @@ def plot_param_set(params, outdir, model=None, model_all=True,
                     right_only=plot_right_only,
                     at_x_list=at_x, at_y_list=at_y,
                     trace_kind='vm',
+                    save_vm_npy_dir=data_dir,
                 )
+        # In Vm mode, always emit spot Vm plots unless the caller explicitly
+        # filtered targets via --target/plot_targets.
+        if not spot_targets and plot_targets is None:
+            spot_targets = list(fc.SPOT_TARGETS)
         if spot_targets:
             spot_set = set(spot_targets)
             plot_fn = _spot_plot_fn(session)
@@ -437,6 +450,7 @@ def plot_param_set(params, outdir, model=None, model_all=True,
                     trace_kind='vm',
                     at_x_list=at_x, at_y_list=at_y,
                     **plot_kw,
+                    save_vm_npy_dir=data_dir,
                 )
             else:
                 tname = spot_targets[0]
@@ -448,6 +462,7 @@ def plot_param_set(params, outdir, model=None, model_all=True,
                     trace_kind='vm',
                     at_x_list=at_x, at_y_list=at_y,
                     **plot_kw,
+                    save_vm_npy_dir=data_dir,
                 )
         print(f'plots saved to {outdir}')
         return best, best_cost
@@ -460,21 +475,21 @@ def plot_param_set(params, outdir, model=None, model_all=True,
         )
     if spot_targets:
         _plot_spot_targets(
-            session, z, outdir, spot_targets, suffix, model_all,
+            session, z, data_dir, spot_targets, suffix, model_all,
             ref_cubes=ref_cubes, ref_cubes_off=ref_cubes_off,
             mvd_group_list=mvd_group_list,
             at_x=at_x, at_y=at_y,
         )
     if bar_targets:
         _plot_bar_targets(
-            session, z, outdir, bar_targets, suffix, model_all,
+            session, z, data_dir, bar_targets, suffix, model_all,
             plot_right_only=plot_right_only,
             at_x=at_x, at_y=at_y,
         )
     for tname in other_targets:
         one = _session_for_target(session, tname)
         _plot_one_target(
-            one, z, outdir, tname, suffix, model_all,
+            one, z, data_dir, tname, suffix, model_all,
             ref_cubes=ref_cubes, ref_cubes_off=ref_cubes_off,
             mvd_group_list=mvd_group_list,
         )
@@ -544,7 +559,12 @@ def plot_kwargs_from_args(args):
 
 def main():
     ap = argparse.ArgumentParser(description=__doc__)
-    ap.add_argument('run_path', help='run folder under PARAMETER_DIR or absolute path')
+    ap.add_argument(
+        'run_path',
+        nargs='?',
+        default=DEFAULT_RUN_PATH,
+        help='run folder under PARAMETER_DIR or absolute path (default: %(default)s)',
+    )
     ap.add_argument(
         '--best-i',
         type=int,

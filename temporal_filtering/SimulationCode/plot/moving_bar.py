@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 
+import os
 import time
 from dataclasses import dataclass, field
 from typing import Literal
@@ -447,7 +448,8 @@ def _moving_bar_traces_from_forward(
 @torch.no_grad()
 def moving_bar_trace_bundle(session, z, target, *, at_x=None, at_y=None,
                             at_x_list=None, at_y_list=None,
-                            trace_kind: Literal['model', 'vm'] = 'model'):
+                            trace_kind: Literal['model', 'vm'] = 'model',
+                            save_vm_npy_dir: str | None = None):
     """Run one forward; t_first_sti-aligned full-window model traces."""
     pack = session.pack_for(target)
     schema = list(session.schema)
@@ -458,6 +460,16 @@ def moving_bar_trace_bundle(session, z, target, *, at_x=None, at_y=None,
         )
         vm_ref_np = vm_ref[0].cpu().numpy()
         trace_full = (vm_full - vm_ref[:, None, :]).cpu().numpy()
+        if save_vm_npy_dir is not None:
+            os.makedirs(save_vm_npy_dir, exist_ok=True)
+            np.save(
+                os.path.join(save_vm_npy_dir, f'vm_ref_{target}.npy'),
+                vm_ref_np,
+            )
+            np.save(
+                os.path.join(save_vm_npy_dir, f'vm_delta_{target}.npy'),
+                trace_full,
+            )
         data_mean = {}
     else:
         model_full, vm_ref = fc._run_conductance_full(session, p, pack.signal, return_ref=True)
@@ -909,15 +921,18 @@ def plot_moving_bar_data(session, z, path, target, session_off=None, title=None,
 def plot_moving_bar_all(session, z, path, target, session_off=None, title=None, *,
                         right_only=True, bundle=None, bundle_off=None,
                         at_x_list=None, at_y_list=None,
-                        trace_kind: Literal['model', 'vm'] = 'model'):
+                        trace_kind: Literal['model', 'vm'] = 'model',
+                        save_vm_npy_dir: str | None = None):
     b_on = bundle or moving_bar_trace_bundle(
         session, z, target, at_x_list=at_x_list, at_y_list=at_y_list,
         trace_kind=trace_kind,
+        save_vm_npy_dir=save_vm_npy_dir,
     )
     b_off = None
     if session_off is not None:
         b_off = bundle_off or moving_bar_trace_bundle(
             session_off, z, target, at_x_list=at_x_list, at_y_list=at_y_list,
             trace_kind=trace_kind,
+            save_vm_npy_dir=save_vm_npy_dir,
         )
     _plot_moving_bar_all_from_bundles(path, b_on, b_off, title, right_only=right_only)

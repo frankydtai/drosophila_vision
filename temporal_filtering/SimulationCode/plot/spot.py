@@ -6,6 +6,7 @@ Network RF bins are ring means: r=0 -> j4, r=1 -> j3/j5, r=2 -> j2/j6.
 
 from __future__ import annotations
 
+import os
 from dataclasses import dataclass
 
 import matplotlib.pyplot as plt
@@ -509,7 +510,10 @@ def _cells_from_cube(names, cube, sem, baselines, *, single_column):
 
 
 @torch.no_grad()
-def _spot_forward_rows(session, z, all_cells=False, group_list=None, *, trace_kind='model'):
+def _spot_forward_rows(
+    session, z, all_cells=False, group_list=None, *, trace_kind='model',
+    save_vm_npy_dir=None,
+):
     pack = session.primary_pack
     schema = list(session.schema)
     p = fc.assign_params(z, schema, session.backend)
@@ -523,6 +527,13 @@ def _spot_forward_rows(session, z, all_cells=False, group_list=None, *, trace_ki
         model_full, vm_ref = fc._run_conductance_full(session, p, sig, return_ref=True)
         trace_full = model_full
     vm_ref_np = vm_ref[0].cpu().numpy()
+    if trace_kind == 'vm' and save_vm_npy_dir is not None:
+        os.makedirs(save_vm_npy_dir, exist_ok=True)
+        np.save(os.path.join(save_vm_npy_dir, f'vm_ref_{pack.name}.npy'), vm_ref_np)
+        np.save(
+            os.path.join(save_vm_npy_dir, f'vm_delta_{pack.name}.npy'),
+            trace_full.cpu().numpy(),
+        )
     C = session.backend.network
     type_names = list(C.type_names)
     type_ids = C.node_type.cpu().numpy()
@@ -582,9 +593,13 @@ def _spot_forward_rows(session, z, all_cells=False, group_list=None, *, trace_ki
 
 
 @torch.no_grad()
-def multicol_cube(session, z, all_cells=False, group_list=None, *, trace_kind='model'):
+def multicol_cube(
+    session, z, all_cells=False, group_list=None, *, trace_kind='model',
+    save_vm_npy_dir=None,
+):
     rows = _spot_forward_rows(
-        session, z, all_cells=all_cells, group_list=group_list, trace_kind=trace_kind,
+        session, z, all_cells=all_cells, group_list=group_list,
+        trace_kind=trace_kind, save_vm_npy_dir=save_vm_npy_dir,
     )
     names = rows['names']
     mt = rows['mt']
@@ -599,7 +614,7 @@ def multicol_cube(session, z, all_cells=False, group_list=None, *, trace_kind='m
     return names, cube, sem, rows['baselines']
 
 
-def _prepare_borst_spot(session, z, all_cells, group_list, *, trace_kind='model'):
+def _prepare_borst_spot(session, z, all_cells, group_list, *, trace_kind='model', save_vm_npy_dir=None):
     model, ref = calc_model_full_all(session, z, return_ref=True, trace_kind=trace_kind)
     if all_cells:
         names = [str(CTYPE[i]) for i in range(session.backend.n_types)]
@@ -625,10 +640,14 @@ def _prepare_borst_spot(session, z, all_cells, group_list, *, trace_kind='model'
     return cells, group_rows
 
 
-def _prepare_network_spot(session, z, all_cells, group_list, *, trace_kind='model'):
+def _prepare_network_spot(
+    session, z, all_cells, group_list, *, trace_kind='model',
+    save_vm_npy_dir=None,
+):
     pack = session.primary_pack
     names, cube, sem, baselines = multicol_cube(
-        session, z, all_cells=all_cells, group_list=group_list, trace_kind=trace_kind,
+        session, z, all_cells=all_cells, group_list=group_list,
+        trace_kind=trace_kind, save_vm_npy_dir=save_vm_npy_dir,
     )
     single_column = suppress_cost_sem(session, target=pack.name)
     cells = _cells_from_cube(names, cube, sem, baselines, single_column=single_column)
@@ -638,10 +657,12 @@ def _prepare_network_spot(session, z, all_cells, group_list, *, trace_kind='mode
 def _prepare_network_spot_bundle(
     session, z, all_cells, group_list, *,
     at_x_list=None, at_y_list=None, trace_kind='model',
+    save_vm_npy_dir: str | None = None,
 ):
     pack = session.primary_pack
     rows = _spot_forward_rows(
         session, z, all_cells=all_cells, group_list=group_list, trace_kind=trace_kind,
+        save_vm_npy_dir=save_vm_npy_dir,
     )
     names = rows['names']
     mt = rows['mt']
@@ -672,7 +693,7 @@ def _prepare_network_spot_bundle(
 
 def _prepare_borst_spot_bundle(
     session, z, all_cells, group_list, *,
-    at_x_list=None, at_y_list=None, trace_kind='model',
+    at_x_list=None, at_y_list=None, trace_kind='model', save_vm_npy_dir: str | None = None,
 ):
     model, ref = calc_model_full_all(session, z, return_ref=True, trace_kind=trace_kind)
     if all_cells:
@@ -737,6 +758,7 @@ def _plot_spot_figure(
     gridspec_kw,
     suptitle_fs=12,
     trace_kind='model',
+    save_vm_npy_dir: str | None = None,
     borst_all_cells=False,
 ):
     if bundle_on is not None:
@@ -751,11 +773,13 @@ def _plot_spot_figure(
     else:
         cells_on, group_rows = prepare_fn(
             session_on, z, all_cells, group_list, trace_kind=trace_kind,
+            save_vm_npy_dir=save_vm_npy_dir,
         )
         cells_off = None
         if session_off is not None:
             cells_off, _ = prepare_fn(
                 session_off, z, all_cells, group_list, trace_kind=trace_kind,
+                save_vm_npy_dir=save_vm_npy_dir,
             )
         has_slices = False
         slice_labels = []
@@ -859,19 +883,22 @@ def _plot_spot_figure(
 
 def plot_network_spot(session_on, z, path, *, session_off=None, all_cells=False,
                       title, ref_cubes=None, ref_cubes_off=None, group_list=None,
-                      trace_kind='model', at_x_list=None, at_y_list=None):
+                      trace_kind='model', at_x_list=None, at_y_list=None,
+                      save_vm_npy_dir: str | None = None):
     ncols = 5 if not all_cells else 8
     use_slices = all_cells and (at_x_list is not None or at_y_list is not None)
     if use_slices:
         bundle_on = _prepare_network_spot_bundle(
             session_on, z, all_cells, group_list,
             at_x_list=at_x_list, at_y_list=at_y_list, trace_kind=trace_kind,
+            save_vm_npy_dir=save_vm_npy_dir,
         )
         bundle_off = None
         if session_off is not None:
             bundle_off = _prepare_network_spot_bundle(
                 session_off, z, all_cells, group_list,
                 at_x_list=at_x_list, at_y_list=at_y_list, trace_kind=trace_kind,
+                save_vm_npy_dir=save_vm_npy_dir,
             )
         _plot_spot_figure(
             session_on, z, path,
@@ -902,12 +929,14 @@ def plot_network_spot(session_on, z, path, *, session_off=None, all_cells=False,
         figsize_fn=lambda c, r: (3.0 * c if not all_cells else 2.2 * c, 2.5 * r),
         gridspec_kw=dict(hspace=0.55, wspace=0.55, top=0.93, bottom=0.06, left=0.07, right=0.98),
         trace_kind=trace_kind,
+        save_vm_npy_dir=save_vm_npy_dir,
     )
 
 
 def plot_borst_spot(session_on, z, path, *, session_off=None, all_cells=False,
                     title, ref_cubes=None, ref_cubes_off=None, group_list=None,
-                    trace_kind='model', at_x_list=None, at_y_list=None):
+                    trace_kind='model', at_x_list=None, at_y_list=None,
+                    save_vm_npy_dir: str | None = None):
     ncols = 13
     if all_cells:
         gs_kw = dict(hspace=0.65, wspace=0.45, top=0.97, bottom=0.03, left=0.04, right=0.99)
@@ -960,4 +989,5 @@ def plot_borst_spot(session_on, z, path, *, session_off=None, all_cells=False,
         gridspec_kw=gs_kw,
         suptitle_fs=suptitle_fs,
         trace_kind=trace_kind,
+        save_vm_npy_dir=save_vm_npy_dir,
     )

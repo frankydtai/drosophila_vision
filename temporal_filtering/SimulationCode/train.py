@@ -29,7 +29,7 @@ where <run_name> encodes the CLI, e.g.
                   --nofsteps 5 --lrs 0.1
 
     # warm-start from a previous run (params only; all other settings from this CLI)
-    python train.py --init-from conductance/run_26693975 \\
+    python train.py --init-from run_26693975 \\
                   --network right_min_neuron1_extent2 --target moving_bar_bright \\
                   --nofsteps 10000 --lrs 0.1,0.01,0.001
 
@@ -467,8 +467,9 @@ def add_training_arguments(parser):
     parser.add_argument("--outdir", default=None,
                         help="output dir (default derived from --model)")
     parser.add_argument("--init-from", default=None, metavar="RUN",
-                        help="prior run folder; load params as z init only "
-                             "(settings come from this CLI, not train_opts.json)")
+                        help="prior run folder NAME only (no model/ prefix); "
+                             "resolved under FiveCol_Parameter/<model>/NAME unless an absolute path is given; "
+                             "load params as z init only (settings come from this CLI, not train_opts.json)")
     parser.add_argument("--mode", default="", metavar="NAME=MODE,...",
                         help="per-param mode override, e.g. out_scale=shared,ih=indi "
                              "(MODE in indi|shared|fixed; ih expands to 6 shape params)")
@@ -635,6 +636,18 @@ def training_kwargs_from_args(
     script_stem="train",
 ):
     """Parse a training CLI namespace into kwargs for :func:`run_training`."""
+    init_from = args.init_from
+    if init_from:
+        p = Path(str(init_from)).expanduser()
+        if not p.is_absolute():
+            # HARD STOP: no backward-compat. --init-from now takes a run folder name only.
+            if "/" in str(init_from) or "\\" in str(init_from):
+                raise ValueError(
+                    "--init-from must be a run folder name only (no path); "
+                    "the model subfolder is inferred from --model (default: conductance). "
+                    "Use an absolute path to reference runs outside FiveCol_Parameter.",
+                )
+            init_from = f"{args.model}/{init_from}"
     param_modes = parse_comma_kv(args.mode)
     cost_weights = fc.expand_cost_weight_dict(parse_comma_kv(args.cost_weight, float))
     target_list = parse_target_list(args.target)
@@ -686,7 +699,7 @@ def training_kwargs_from_args(
         ih_off=args.ih_off,
         fp32=args.fp32,
         sequential=args.sequential,
-        init_from=args.init_from,
+        init_from=init_from,
         **plot_kwargs_from_args(args),
     )
 
