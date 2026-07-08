@@ -6,7 +6,6 @@ Network RF bins are ring means: r=0 -> j4, r=1 -> j3/j5, r=2 -> j2/j6.
 
 from __future__ import annotations
 
-import os
 from dataclasses import dataclass
 
 import matplotlib.pyplot as plt
@@ -35,6 +34,7 @@ from plot.utils import (
     overlay_model_reds,
     plot_timecourse,
     save_figure,
+    save_forward_trace_csvs,
     sem_from_traces,
     slice_axis_label,
     slice_xy_label,
@@ -82,23 +82,23 @@ def _baseline_from_ref_grid(ref_grid, row_i):
     return ref_grid[row_i, CENTER_BIN]
 
 
-def _resolve_spot_ref_cubes(session_on, session_off=None, ref_cubes=None, ref_cubes_off=None):
-    dual = session_off is not None
+def _resolve_spot_ref_cubes(session_1, session_2=None, ref_cubes=None, ref_cubes_2=None):
+    dual = session_2 is not None
     if ref_cubes is not None:
-        ref_on = ref_cubes
+        ref_1 = ref_cubes
     elif dual:
-        ref_on = spot_ref_cubes(session_on, 'spot_bright', dark=False)
+        ref_1 = spot_ref_cubes(session_1, 'spot_bright', dark=False)
     else:
-        ref_on = spot_ref_cubes(
-            session_on, session_on.primary_pack.name, dark=_session_dark(session_on),
+        ref_1 = spot_ref_cubes(
+            session_1, session_1.primary_pack.name, dark=_session_dark(session_1),
         )
-    if ref_cubes_off is not None:
-        ref_off = ref_cubes_off
+    if ref_cubes_2 is not None:
+        ref_2 = ref_cubes_2
     elif dual:
-        ref_off = spot_ref_cubes(session_off, 'spot_dark', dark=True)
+        ref_2 = spot_ref_cubes(session_2, 'spot_dark', dark=True)
     else:
-        ref_off = None
-    return ref_on, ref_off
+        ref_2 = None
+    return ref_1, ref_2
 
 
 def _session_dark(session):
@@ -154,9 +154,15 @@ def plot_cell_pair(
     show_ylabel=False,
     baseline=None,
     maxtime=IMPULSE_MAXTIME,
-    off_model_xt=None,
-    off_ref_xt=None,
-    off_baseline=None,
+    model_2_xt=None,
+    ref_2_xt=None,
+    baseline_2=None,
+    linestyle_1='-',
+    linestyle_2='--',
+    label_1_data='bright data',
+    label_1_model='bright model',
+    label_2_data='dark data',
+    label_2_model='dark model',
 ):
     center = CENTER_BIN
     if sem_xt is not None:
@@ -168,27 +174,39 @@ def plot_cell_pair(
         imp_data, rf_data = _scale_curve(ref_xt, center)
     else:
         imp_data, rf_data = None, None
-    off_imp_model = off_rf_model = off_imp_data = off_rf_data = None
-    if off_model_xt is not None:
-        off_imp_model, off_rf_model = _scale_curve(off_model_xt, center)
-    if off_ref_xt is not None:
-        off_imp_data, off_rf_data = _scale_curve(off_ref_xt, center)
+    model_2_imp_model = model_2_rf_model = model_2_imp_data = model_2_rf_data = None
+    if model_2_xt is not None:
+        model_2_imp_model, model_2_rf_model = _scale_curve(model_2_xt, center)
+    if ref_2_xt is not None:
+        model_2_imp_data, model_2_rf_data = _scale_curve(ref_2_xt, center)
     curves = [c for c in (
         imp_model, imp_data, rf_model, rf_data,
-        off_imp_model, off_imp_data, off_rf_model, off_rf_data,
+        model_2_imp_model, model_2_imp_data, model_2_rf_model, model_2_rf_data,
     ) if c is not None]
     if imp_sem is not None and imp_model is not None:
         curves.extend([imp_model + imp_sem, imp_model - imp_sem])
     ylo, yhi = nice_ylim(*curves)
 
     if rf_data is not None:
-        ax_rf.plot(rf_data, color=DATA_COLOR, linewidth=TRACE_LW, label='on data')
+        ax_rf.plot(
+            rf_data, color=DATA_COLOR, linewidth=TRACE_LW,
+            label=label_1_data, linestyle=linestyle_1,
+        )
     if rf_model is not None:
-        ax_rf.plot(rf_model, color=MODEL_COLOR, linewidth=TRACE_LW, label='on model')
-    if off_rf_data is not None:
-        ax_rf.plot(off_rf_data, color=DATA_COLOR, linewidth=TRACE_LW, linestyle='--', label='off data')
-    if off_rf_model is not None:
-        ax_rf.plot(off_rf_model, color=MODEL_COLOR, linewidth=TRACE_LW, linestyle='--', label='off model')
+        ax_rf.plot(
+            rf_model, color=MODEL_COLOR, linewidth=TRACE_LW,
+            label=label_1_model, linestyle=linestyle_1,
+        )
+    if model_2_rf_data is not None:
+        ax_rf.plot(
+            model_2_rf_data, color=DATA_COLOR, linewidth=TRACE_LW,
+            linestyle=linestyle_2, label=label_2_data,
+        )
+    if model_2_rf_model is not None:
+        ax_rf.plot(
+            model_2_rf_model, color=MODEL_COLOR, linewidth=TRACE_LW,
+            linestyle=linestyle_2, label=label_2_model,
+        )
     ax_rf.set_title(title, fontsize=8, pad=2)
     ax_rf.set_ylim(ylo, yhi)
     _style_recf_profile_axis(ax_rf, show_xlabels)
@@ -205,11 +223,13 @@ def plot_cell_pair(
         data=imp_data,
         sem=imp_sem,
         show_sem=imp_sem is not None,
-        off_model=off_imp_model,
-        off_data=off_imp_data,
+        model_2=model_2_imp_model,
+        data_2=model_2_imp_data,
+        linestyle_2=linestyle_2,
         ylim=(ylo, yhi),
-        baseline=off_baseline if off_baseline is not None else baseline,
+        baseline=baseline_2 if baseline_2 is not None else baseline,
         show_ylabel=show_ylabel,
+        linestyle=linestyle_1,
         style_xaxis=lambda ax: _style_time_axis(ax, show_xlabels, maxtime),
     )
 
@@ -223,67 +243,91 @@ def plot_cell_pair_slices(
     slice_overlay_xt,
     slice_labels,
     *,
-    off_model_xt=None,
-    off_ref_xt=None,
-    off_slice_overlay_xt=None,
+    model_2_xt=None,
+    ref_2_xt=None,
+    slice_overlay_2_xt=None,
     show_legend=False,
     show_xlabels=False,
     show_ylabel=False,
     baseline=None,
     maxtime=IMPULSE_MAXTIME,
-    off_baseline=None,
+    baseline_2=None,
+    linestyle_1='-',
+    linestyle_2='--',
+    label_1_data='bright data',
+    label_1_total='bright total',
+    label_2_data='dark data',
+    label_2_total='dark total',
 ):
     center = CENTER_BIN
     imp_model, rf_model = _scale_curve(model_xt, center)
     imp_data, rf_data = (None, None)
     if ref_xt is not None:
         imp_data, rf_data = _scale_curve(ref_xt, center)
-    off_imp_model = off_rf_model = off_imp_data = off_rf_data = None
-    if off_model_xt is not None:
-        off_imp_model, off_rf_model = _scale_curve(off_model_xt, center)
-    if off_ref_xt is not None:
-        off_imp_data, off_rf_data = _scale_curve(off_ref_xt, center)
+    model_2_imp_model = model_2_rf_model = model_2_imp_data = model_2_rf_data = None
+    if model_2_xt is not None:
+        model_2_imp_model, model_2_rf_model = _scale_curve(model_2_xt, center)
+    if ref_2_xt is not None:
+        model_2_imp_data, model_2_rf_data = _scale_curve(ref_2_xt, center)
 
     slice_imps = {}
     slice_rfs = {}
-    off_slice_imps = {}
-    off_slice_rfs = {}
+    slice_2_imps = {}
+    slice_2_rfs = {}
     for label in slice_labels:
         if label in slice_overlay_xt:
             imp_s, rf_s = _scale_curve(slice_overlay_xt[label], center)
             slice_imps[label] = imp_s
             slice_rfs[label] = rf_s
-        if off_slice_overlay_xt and label in off_slice_overlay_xt:
-            imp_s, rf_s = _scale_curve(off_slice_overlay_xt[label], center)
-            off_slice_imps[label] = imp_s
-            off_slice_rfs[label] = rf_s
+        if slice_overlay_2_xt and label in slice_overlay_2_xt:
+            imp_s, rf_s = _scale_curve(slice_overlay_2_xt[label], center)
+            slice_2_imps[label] = imp_s
+            slice_2_rfs[label] = rf_s
 
     curves = [
         imp_model, imp_data, rf_model, rf_data,
-        off_imp_model, off_imp_data, off_rf_model, off_rf_data,
+        model_2_imp_model, model_2_imp_data, model_2_rf_model, model_2_rf_data,
     ]
     for label in slice_labels:
         curves.extend([slice_imps.get(label), slice_rfs.get(label)])
-        curves.extend([off_slice_imps.get(label), off_slice_rfs.get(label)])
+        curves.extend([slice_2_imps.get(label), slice_2_rfs.get(label)])
     ylo, yhi = nice_ylim(*[c for c in curves if c is not None])
 
     colors = overlay_model_reds(len(slice_labels))
     if rf_data is not None:
-        ax_rf.plot(rf_data, color=DATA_COLOR, linewidth=TRACE_LW, label='on data')
+        ax_rf.plot(
+            rf_data, color=DATA_COLOR, linewidth=TRACE_LW,
+            label=label_1_data, linestyle=linestyle_1,
+        )
     for i, label in enumerate(slice_labels):
         rf_s = slice_rfs.get(label)
         if rf_s is not None:
-            ax_rf.plot(rf_s, color=colors[i], linewidth=TRACE_LW, label=label)
+            ax_rf.plot(
+                rf_s, color=colors[i], linewidth=TRACE_LW,
+                label=label, linestyle=linestyle_1,
+            )
     if rf_model is not None:
-        ax_rf.plot(rf_model, color=colors[-1], linewidth=TRACE_LW, label='total')
-    if off_rf_data is not None:
-        ax_rf.plot(off_rf_data, color=DATA_COLOR, linewidth=TRACE_LW, linestyle='--', label='off data')
+        ax_rf.plot(
+            rf_model, color=colors[-1], linewidth=TRACE_LW,
+            label=label_1_total, linestyle=linestyle_1,
+        )
+    if model_2_rf_data is not None:
+        ax_rf.plot(
+            model_2_rf_data, color=DATA_COLOR, linewidth=TRACE_LW,
+            linestyle=linestyle_2, label=label_2_data,
+        )
     for i, label in enumerate(slice_labels):
-        rf_s = off_slice_rfs.get(label)
+        rf_s = slice_2_rfs.get(label)
         if rf_s is not None:
-            ax_rf.plot(rf_s, color=colors[i], linewidth=TRACE_LW, linestyle='--')
-    if off_rf_model is not None:
-        ax_rf.plot(off_rf_model, color=colors[-1], linewidth=TRACE_LW, linestyle='--', label='off total')
+            ax_rf.plot(
+                rf_s, color=colors[i], linewidth=TRACE_LW,
+                linestyle=linestyle_2,
+            )
+    if model_2_rf_model is not None:
+        ax_rf.plot(
+            model_2_rf_model, color=colors[-1], linewidth=TRACE_LW,
+            linestyle=linestyle_2, label=label_2_total,
+        )
     ax_rf.set_title(title, fontsize=8, pad=2)
     ax_rf.set_ylim(ylo, yhi)
     _style_recf_profile_axis(ax_rf, show_xlabels)
@@ -296,27 +340,36 @@ def plot_cell_pair_slices(
 
     t = np.arange(maxtime)
     if imp_data is not None:
-        ax_time.plot(t, imp_data, color=DATA_COLOR, linewidth=TRACE_LW)
+        ax_time.plot(t, imp_data, color=DATA_COLOR, linewidth=TRACE_LW, linestyle=linestyle_1)
     for i, label in enumerate(slice_labels):
         imp_s = slice_imps.get(label)
         if imp_s is not None:
-            ax_time.plot(t, imp_s, color=colors[i], linewidth=TRACE_LW, label=label)
+            ax_time.plot(
+                t, imp_s, color=colors[i], linewidth=TRACE_LW,
+                label=label, linestyle=linestyle_1,
+            )
     if imp_model is not None:
-        ax_time.plot(t, imp_model, color=colors[-1], linewidth=TRACE_LW, label='total')
-    if off_imp_data is not None:
-        ax_time.plot(t, off_imp_data, color=DATA_COLOR, linewidth=TRACE_LW, linestyle='--')
+        ax_time.plot(
+            t, imp_model, color=colors[-1], linewidth=TRACE_LW,
+            label=label_1_total, linestyle=linestyle_1,
+        )
+    if model_2_imp_data is not None:
+        ax_time.plot(t, model_2_imp_data, color=DATA_COLOR, linewidth=TRACE_LW, linestyle=linestyle_2)
     for i, label in enumerate(slice_labels):
-        imp_s = off_slice_imps.get(label)
+        imp_s = slice_2_imps.get(label)
         if imp_s is not None:
-            ax_time.plot(t, imp_s, color=colors[i], linewidth=TRACE_LW, linestyle='--')
-    if off_imp_model is not None:
-        ax_time.plot(t, off_imp_model, color=colors[-1], linewidth=TRACE_LW, linestyle='--')
+            ax_time.plot(
+                t, imp_s, color=colors[i], linewidth=TRACE_LW,
+                linestyle=linestyle_2,
+            )
+    if model_2_imp_model is not None:
+        ax_time.plot(t, model_2_imp_model, color=colors[-1], linewidth=TRACE_LW, linestyle=linestyle_2)
     ax_time.set_ylim(ylo, yhi)
     _style_time_axis(ax_time, show_xlabels, maxtime)
     if show_ylabel:
         ax_time.set_ylabel('mV', fontsize=7)
     ax_time.tick_params(labelsize=6)
-    annotate_baseline(ax_time, off_baseline if off_baseline is not None else baseline)
+    annotate_baseline(ax_time, baseline_2 if baseline_2 is not None else baseline)
 
 
 def _as_index(neuron_index, device):
@@ -400,10 +453,10 @@ def _fill_member_cube(cube, sem, ti, ft_global, type_idx, du, dv, plot_traces):
 @dataclass
 class SpotTraceBundle:
     cells_on: list
-    cells_off: list | None = None
+    cells_2: list | None = None
     group_rows: list | None = None
     slice_overlay: dict[str, dict[str, np.ndarray]] | None = None
-    slice_overlay_off: dict[str, dict[str, np.ndarray]] | None = None
+    slice_overlay_2: dict[str, dict[str, np.ndarray]] | None = None
     slice_labels: list[str] | None = None
     slice_x_list: list | None = None
     slice_y_list: list | None = None
@@ -509,10 +562,33 @@ def _cells_from_cube(names, cube, sem, baselines, *, single_column):
     ]
 
 
+def _spot_baselines(rows, vm_ref, names, *, at_x=None, at_y=None):
+    """Mean ``Vm_ref`` per type over stim-centred ``(0, 0)`` units (matches trace scope)."""
+    vm_ref = np.asarray(vm_ref, dtype=np.float64)
+    batch_idx = rows['batch_idx']
+    unit_idx = rows['unit_idx']
+    type_idx = rows['type_idx']
+    du, dv = rows['du'], rows['dv']
+    type_names = rows['type_names']
+
+    mask = np.ones(len(batch_idx), dtype=bool)
+    if at_x is not None or at_y is not None:
+        match_b = batches_at_stim_xy(rows['batches'], at_x=at_x, at_y=at_y)
+        mask &= np.isin(batch_idx, match_b)
+    center = mask & (du == 0) & (dv == 0)
+
+    out = {}
+    for name in names:
+        ti = type_names.index(name)
+        units = np.unique(unit_idx[center & (type_idx == ti)])
+        out[name] = float(vm_ref[units].mean()) if units.size else np.nan
+    return out
+
+
 @torch.no_grad()
 def _spot_forward_rows(
     session, z, all_cells=False, group_list=None, *, trace_kind='model',
-    save_vm_npy_dir=None,
+    save_trace_csv_dir=None, at_x=None, at_y=None,
 ):
     pack = session.primary_pack
     schema = list(session.schema)
@@ -527,13 +603,11 @@ def _spot_forward_rows(
         model_full, vm_ref = fc._run_conductance_full(session, p, sig, return_ref=True)
         trace_full = model_full
     vm_ref_np = vm_ref[0].cpu().numpy()
-    if trace_kind == 'vm' and save_vm_npy_dir is not None:
-        os.makedirs(save_vm_npy_dir, exist_ok=True)
-        np.save(os.path.join(save_vm_npy_dir, f'vm_ref_{pack.name}.npy'), vm_ref_np)
-        np.save(
-            os.path.join(save_vm_npy_dir, f'vm_delta_{pack.name}.npy'),
-            trace_full.cpu().numpy(),
-        )
+    save_forward_trace_csvs(
+        save_trace_csv_dir, pack.name,
+        trace_kind=trace_kind, ref=vm_ref_np, trace_full=trace_full,
+        ref_stem='spot_ref_vm' if trace_kind == 'vm' else None,
+    )
     C = session.backend.network
     type_names = list(C.type_names)
     type_ids = C.node_type.cpu().numpy()
@@ -565,41 +639,37 @@ def _spot_forward_rows(
             p, torch.as_tensor(unit_idx, dtype=torch.long, device=z.device), session.backend,
         )
     plot_traces = fc.pad_plot_traces(raw, scale, mt).cpu().numpy()
-    baseline_kw = {}
-    if all_cells:
-        baseline_kw = dict(
-            readout_unit_idx=unit_idx,
-            readout_type_idx=type_idx,
-            readout_du=du,
-            readout_dv=dv,
-        )
-    baselines = baselines_for_types(
-        pack, session.backend, vm_ref_np, names, type_ids, type_names,
-        **baseline_kw,
-    )
-    return dict(
+    rows = dict(
         names=names,
         type_names=type_names,
         type_idx=type_idx,
+        unit_idx=unit_idx,
         du=du,
         dv=dv,
         plot_traces=plot_traces,
         batch_idx=batch_idx,
         batches=batches,
-        baselines=baselines,
         mt=mt,
         pack=pack,
     )
+    if all_cells:
+        baselines = _spot_baselines(rows, vm_ref_np, names, at_x=at_x, at_y=at_y)
+    else:
+        baselines = baselines_for_types(
+            pack, session.backend, vm_ref_np, names, type_ids, type_names,
+        )
+    rows['baselines'] = baselines
+    return rows
 
 
 @torch.no_grad()
 def multicol_cube(
     session, z, all_cells=False, group_list=None, *, trace_kind='model',
-    save_vm_npy_dir=None,
+    save_trace_csv_dir=None,
 ):
     rows = _spot_forward_rows(
         session, z, all_cells=all_cells, group_list=group_list,
-        trace_kind=trace_kind, save_vm_npy_dir=save_vm_npy_dir,
+        trace_kind=trace_kind, save_trace_csv_dir=save_trace_csv_dir,
     )
     names = rows['names']
     mt = rows['mt']
@@ -614,7 +684,7 @@ def multicol_cube(
     return names, cube, sem, rows['baselines']
 
 
-def _prepare_borst_spot(session, z, all_cells, group_list, *, trace_kind='model', save_vm_npy_dir=None):
+def _prepare_borst_spot(session, z, all_cells, group_list, *, trace_kind='model', save_trace_csv_dir=None):
     model, ref = calc_model_full_all(session, z, return_ref=True, trace_kind=trace_kind)
     if all_cells:
         names = [str(CTYPE[i]) for i in range(session.backend.n_types)]
@@ -642,12 +712,12 @@ def _prepare_borst_spot(session, z, all_cells, group_list, *, trace_kind='model'
 
 def _prepare_network_spot(
     session, z, all_cells, group_list, *, trace_kind='model',
-    save_vm_npy_dir=None,
+    save_trace_csv_dir=None,
 ):
     pack = session.primary_pack
     names, cube, sem, baselines = multicol_cube(
         session, z, all_cells=all_cells, group_list=group_list,
-        trace_kind=trace_kind, save_vm_npy_dir=save_vm_npy_dir,
+        trace_kind=trace_kind, save_trace_csv_dir=save_trace_csv_dir,
     )
     single_column = suppress_cost_sem(session, target=pack.name)
     cells = _cells_from_cube(names, cube, sem, baselines, single_column=single_column)
@@ -657,12 +727,12 @@ def _prepare_network_spot(
 def _prepare_network_spot_bundle(
     session, z, all_cells, group_list, *,
     at_x_list=None, at_y_list=None, trace_kind='model',
-    save_vm_npy_dir: str | None = None,
+    save_trace_csv_dir: str | None = None,
 ):
     pack = session.primary_pack
     rows = _spot_forward_rows(
         session, z, all_cells=all_cells, group_list=group_list, trace_kind=trace_kind,
-        save_vm_npy_dir=save_vm_npy_dir,
+        save_trace_csv_dir=save_trace_csv_dir,
     )
     names = rows['names']
     mt = rows['mt']
@@ -693,7 +763,7 @@ def _prepare_network_spot_bundle(
 
 def _prepare_borst_spot_bundle(
     session, z, all_cells, group_list, *,
-    at_x_list=None, at_y_list=None, trace_kind='model', save_vm_npy_dir: str | None = None,
+    at_x_list=None, at_y_list=None, trace_kind='model', save_trace_csv_dir: str | None = None,
 ):
     model, ref = calc_model_full_all(session, z, return_ref=True, trace_kind=trace_kind)
     if all_cells:
@@ -740,55 +810,55 @@ def _spot_suptitle(title, bundle):
 
 
 def _plot_spot_figure(
-    session_on,
+    session_1,
     z,
     path,
     *,
     prepare_fn=None,
     bundle_on=None,
-    bundle_off=None,
-    session_off=None,
+    bundle_2=None,
+    session_2=None,
     all_cells=False,
     title,
     ref_cubes=None,
-    ref_cubes_off=None,
+    ref_cubes_2=None,
     group_list=None,
     ncols,
     figsize_fn,
     gridspec_kw,
     suptitle_fs=12,
     trace_kind='model',
-    save_vm_npy_dir: str | None = None,
+    save_trace_csv_dir: str | None = None,
     borst_all_cells=False,
 ):
     if bundle_on is not None:
         cells_on = bundle_on.cells_on
         group_rows = bundle_on.group_rows
-        cells_off = bundle_off.cells_on if bundle_off is not None else None
+        cells_2 = bundle_2.cells_on if bundle_2 is not None else None
         has_slices = bundle_on.has_slices
         slice_labels = bundle_on.slice_labels or []
         slice_overlay_on = bundle_on.slice_overlay
-        slice_overlay_off = bundle_off.slice_overlay if bundle_off is not None else None
+        slice_overlay_2 = bundle_2.slice_overlay if bundle_2 is not None else None
         maxtime = bundle_on.maxtime
     else:
         cells_on, group_rows = prepare_fn(
-            session_on, z, all_cells, group_list, trace_kind=trace_kind,
-            save_vm_npy_dir=save_vm_npy_dir,
+            session_1, z, all_cells, group_list, trace_kind=trace_kind,
+            save_trace_csv_dir=save_trace_csv_dir,
         )
-        cells_off = None
-        if session_off is not None:
-            cells_off, _ = prepare_fn(
-                session_off, z, all_cells, group_list, trace_kind=trace_kind,
-                save_vm_npy_dir=save_vm_npy_dir,
+        cells_2 = None
+        if session_2 is not None:
+            cells_2, _ = prepare_fn(
+                session_2, z, all_cells, group_list, trace_kind=trace_kind,
+                save_trace_csv_dir=save_trace_csv_dir,
             )
         has_slices = False
         slice_labels = []
         slice_overlay_on = None
-        slice_overlay_off = None
-        maxtime = session_on.maxtime
-    dual = session_off is not None
-    ref_on, ref_off = _resolve_spot_ref_cubes(
-        session_on, session_off, ref_cubes, ref_cubes_off,
+        slice_overlay_2 = None
+        maxtime = session_1.maxtime
+    dual = session_2 is not None
+    ref_1, ref_2 = _resolve_spot_ref_cubes(
+        session_1, session_2, ref_cubes, ref_cubes_2,
     )
     if group_rows is not None:
         nrows = 2 * len(group_rows)
@@ -797,25 +867,35 @@ def _plot_spot_figure(
     fig = plt.figure(figsize=figsize_fn(ncols, nrows))
     gs = fig.add_gridspec(nrows, ncols, **gridspec_kw)
     legend_done = False
+    contrast_1 = 'dark' if _session_dark(session_1) else 'bright'
+    linestyle_1 = '--' if contrast_1 == 'dark' else '-'
+    label_1_data = f'{contrast_1} data'
+    label_1_model = f'{contrast_1} model'
+    label_1_total = f'{contrast_1} total'
+    contrast_2 = 'dark' if (session_2 is not None and _session_dark(session_2)) else 'bright'
+    linestyle_2 = '--' if contrast_2 == 'dark' else '-'
+    label_2_data = f'{contrast_2} data'
+    label_2_model = f'{contrast_2} model'
+    label_2_total = f'{contrast_2} total'
 
-    def _plot_cell(cell_on, cell_off, ax_rf, ax_time, show_ylabel, show_xlabels):
+    def _plot_cell(cell_on, cell_2, ax_rf, ax_time, show_ylabel, show_xlabels):
         nonlocal legend_done
         name = cell_on['name']
         if has_slices and slice_overlay_on is not None:
-            off_kw = {}
-            if dual and cell_off is not None:
-                off_slice_xt = None
-                if slice_overlay_off is not None:
-                    off_slice_xt = {
+            kw_2 = {}
+            if dual and cell_2 is not None:
+                slice_2_xt = None
+                if slice_overlay_2 is not None:
+                    slice_2_xt = {
                         label: cubes[name]
-                        for label, cubes in slice_overlay_off.items()
+                        for label, cubes in slice_overlay_2.items()
                         if name in cubes
                     }
-                off_kw = {
-                    'off_model_xt': cell_off['cube'],
-                    'off_ref_xt': ref_off.get(name) if ref_off else None,
-                    'off_baseline': cell_off.get('baseline'),
-                    'off_slice_overlay_xt': off_slice_xt,
+                kw_2 = {
+                    'model_2_xt': cell_2['cube'],
+                    'ref_2_xt': ref_2.get(name) if ref_2 else None,
+                    'baseline_2': cell_2.get('baseline'),
+                    'slice_overlay_2_xt': slice_2_xt,
                 }
             slice_xt = {
                 label: cubes[name]
@@ -827,32 +907,44 @@ def _plot_spot_figure(
                 ax_time.axis('off')
                 return
             plot_cell_pair_slices(
-                ax_rf, ax_time, cell_on['cube'], ref_on.get(name), name,
+                ax_rf, ax_time, cell_on['cube'], ref_1.get(name), name,
                 slice_xt, slice_labels,
                 show_legend=not legend_done,
                 show_xlabels=show_xlabels,
                 show_ylabel=show_ylabel,
                 maxtime=maxtime,
                 baseline=cell_on.get('baseline'),
-                **off_kw,
+                **kw_2,
+                linestyle_1=linestyle_1,
+                linestyle_2=linestyle_2,
+                label_1_data=label_1_data,
+                label_1_total=label_1_total,
+                label_2_data=label_2_data,
+                label_2_total=label_2_total,
             )
         else:
-            off_kw = {}
-            if dual and cell_off is not None:
-                off_kw = {
-                    'off_model_xt': cell_off['cube'],
-                    'off_ref_xt': ref_off.get(name) if ref_off else None,
-                    'off_baseline': cell_off.get('baseline'),
+            kw_2 = {}
+            if dual and cell_2 is not None:
+                kw_2 = {
+                    'model_2_xt': cell_2['cube'],
+                    'ref_2_xt': ref_2.get(name) if ref_2 else None,
+                    'baseline_2': cell_2.get('baseline'),
                 }
             plot_cell_pair(
-                ax_rf, ax_time, cell_on['cube'], ref_on.get(name), name,
+                ax_rf, ax_time, cell_on['cube'], ref_1.get(name), name,
                 sem_xt=cell_on.get('sem'),
                 show_legend=not legend_done,
                 show_xlabels=show_xlabels,
                 show_ylabel=show_ylabel,
                 maxtime=maxtime,
                 baseline=cell_on.get('baseline'),
-                **off_kw,
+                **kw_2,
+                linestyle_1=linestyle_1,
+                linestyle_2=linestyle_2,
+                label_1_data=label_1_data,
+                label_1_model=label_1_model,
+                label_2_data=label_2_data,
+                label_2_model=label_2_model,
             )
         legend_done = True
 
@@ -862,53 +954,53 @@ def _plot_spot_figure(
             start = (ncols - len(row_idx)) // 2
             for j, ci in enumerate(row_idx):
                 col = start + j
-                cell_off = cells_off[ci] if dual else None
+                cell_2 = cells_2[ci] if dual else None
                 ax_rf = fig.add_subplot(gs[rf_row, col])
                 ax_time = fig.add_subplot(gs[rf_row + 1, col])
-                _plot_cell(cells_on[ci], cell_off, ax_rf, ax_time, show_ylabel=(j == 0), show_xlabels=True)
+                _plot_cell(cells_on[ci], cell_2, ax_rf, ax_time, show_ylabel=(j == 0), show_xlabels=True)
     else:
         borst_all = all_cells and prepare_fn is _prepare_borst_spot
         for i, cell_on in enumerate(cells_on):
             blk, col = divmod(i, ncols)
-            cell_off = cells_off[i] if dual else None
+            cell_2 = cells_2[i] if dual else None
             ax_rf = fig.add_subplot(gs[2 * blk, col])
             ax_time = fig.add_subplot(gs[2 * blk + 1, col])
             show_xlabels = True
             if borst_all:
                 show_xlabels = (blk == (len(cells_on) + ncols - 1) // ncols - 1)
-            _plot_cell(cell_on, cell_off, ax_rf, ax_time, show_ylabel=(col == 0), show_xlabels=show_xlabels)
+            _plot_cell(cell_on, cell_2, ax_rf, ax_time, show_ylabel=(col == 0), show_xlabels=show_xlabels)
     fig.suptitle(_spot_suptitle(title, bundle_on), fontsize=suptitle_fs)
     save_figure(fig, path, dpi=150)
 
 
-def plot_network_spot(session_on, z, path, *, session_off=None, all_cells=False,
-                      title, ref_cubes=None, ref_cubes_off=None, group_list=None,
+def plot_network_spot(session_1, z, path, *, session_2=None, all_cells=False,
+                      title, ref_cubes=None, ref_cubes_2=None, group_list=None,
                       trace_kind='model', at_x_list=None, at_y_list=None,
-                      save_vm_npy_dir: str | None = None):
+                      save_trace_csv_dir: str | None = None):
     ncols = 5 if not all_cells else 8
     use_slices = all_cells and (at_x_list is not None or at_y_list is not None)
     if use_slices:
         bundle_on = _prepare_network_spot_bundle(
-            session_on, z, all_cells, group_list,
+            session_1, z, all_cells, group_list,
             at_x_list=at_x_list, at_y_list=at_y_list, trace_kind=trace_kind,
-            save_vm_npy_dir=save_vm_npy_dir,
+            save_trace_csv_dir=save_trace_csv_dir,
         )
-        bundle_off = None
-        if session_off is not None:
-            bundle_off = _prepare_network_spot_bundle(
-                session_off, z, all_cells, group_list,
+        bundle_2 = None
+        if session_2 is not None:
+            bundle_2 = _prepare_network_spot_bundle(
+                session_2, z, all_cells, group_list,
                 at_x_list=at_x_list, at_y_list=at_y_list, trace_kind=trace_kind,
-                save_vm_npy_dir=save_vm_npy_dir,
+                save_trace_csv_dir=save_trace_csv_dir,
             )
         _plot_spot_figure(
-            session_on, z, path,
+            session_1, z, path,
             bundle_on=bundle_on,
-            bundle_off=bundle_off,
-            session_off=session_off,
+            bundle_2=bundle_2,
+            session_2=session_2,
             all_cells=all_cells,
             title=title,
             ref_cubes=ref_cubes,
-            ref_cubes_off=ref_cubes_off,
+            ref_cubes_2=ref_cubes_2,
             group_list=group_list,
             ncols=ncols,
             figsize_fn=lambda c, r: (3.0 * c if not all_cells else 2.2 * c, 2.5 * r),
@@ -917,26 +1009,26 @@ def plot_network_spot(session_on, z, path, *, session_off=None, all_cells=False,
         )
         return
     _plot_spot_figure(
-        session_on, z, path,
+        session_1, z, path,
         prepare_fn=_prepare_network_spot,
-        session_off=session_off,
+        session_2=session_2,
         all_cells=all_cells,
         title=title,
         ref_cubes=ref_cubes,
-        ref_cubes_off=ref_cubes_off,
+        ref_cubes_2=ref_cubes_2,
         group_list=group_list,
         ncols=ncols,
         figsize_fn=lambda c, r: (3.0 * c if not all_cells else 2.2 * c, 2.5 * r),
         gridspec_kw=dict(hspace=0.55, wspace=0.55, top=0.93, bottom=0.06, left=0.07, right=0.98),
         trace_kind=trace_kind,
-        save_vm_npy_dir=save_vm_npy_dir,
+        save_trace_csv_dir=save_trace_csv_dir,
     )
 
 
-def plot_borst_spot(session_on, z, path, *, session_off=None, all_cells=False,
-                    title, ref_cubes=None, ref_cubes_off=None, group_list=None,
+def plot_borst_spot(session_1, z, path, *, session_2=None, all_cells=False,
+                    title, ref_cubes=None, ref_cubes_2=None, group_list=None,
                     trace_kind='model', at_x_list=None, at_y_list=None,
-                    save_vm_npy_dir: str | None = None):
+                    save_trace_csv_dir: str | None = None):
     ncols = 13
     if all_cells:
         gs_kw = dict(hspace=0.65, wspace=0.45, top=0.97, bottom=0.03, left=0.04, right=0.99)
@@ -949,24 +1041,24 @@ def plot_borst_spot(session_on, z, path, *, session_off=None, all_cells=False,
     use_slices = all_cells and (at_x_list is not None or at_y_list is not None)
     if use_slices:
         bundle_on = _prepare_borst_spot_bundle(
-            session_on, z, all_cells, group_list,
+            session_1, z, all_cells, group_list,
             at_x_list=at_x_list, at_y_list=at_y_list, trace_kind=trace_kind,
         )
-        bundle_off = None
-        if session_off is not None:
-            bundle_off = _prepare_borst_spot_bundle(
-                session_off, z, all_cells, group_list,
+        bundle_2 = None
+        if session_2 is not None:
+            bundle_2 = _prepare_borst_spot_bundle(
+                session_2, z, all_cells, group_list,
                 at_x_list=at_x_list, at_y_list=at_y_list, trace_kind=trace_kind,
             )
         _plot_spot_figure(
-            session_on, z, path,
+            session_1, z, path,
             bundle_on=bundle_on,
-            bundle_off=bundle_off,
-            session_off=session_off,
+            bundle_2=bundle_2,
+            session_2=session_2,
             all_cells=all_cells,
             title=title,
             ref_cubes=ref_cubes,
-            ref_cubes_off=ref_cubes_off,
+            ref_cubes_2=ref_cubes_2,
             group_list=group_list,
             ncols=ncols,
             figsize_fn=figsize_fn,
@@ -976,18 +1068,18 @@ def plot_borst_spot(session_on, z, path, *, session_off=None, all_cells=False,
         )
         return
     _plot_spot_figure(
-        session_on, z, path,
+        session_1, z, path,
         prepare_fn=_prepare_borst_spot,
-        session_off=session_off,
+        session_2=session_2,
         all_cells=all_cells,
         title=title,
         ref_cubes=ref_cubes,
-        ref_cubes_off=ref_cubes_off,
+        ref_cubes_2=ref_cubes_2,
         group_list=group_list,
         ncols=ncols,
         figsize_fn=figsize_fn,
         gridspec_kw=gs_kw,
         suptitle_fs=suptitle_fs,
         trace_kind=trace_kind,
-        save_vm_npy_dir=save_vm_npy_dir,
+        save_trace_csv_dir=save_trace_csv_dir,
     )

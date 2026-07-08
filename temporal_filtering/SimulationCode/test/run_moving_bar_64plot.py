@@ -118,7 +118,7 @@ def main():
     outdir = args.outdir or run_dir("conductance", parent=os.path.join("FiveCol_Parameter", "moving_bar_64plot"))
     os.makedirs(outdir, exist_ok=True)
     png = os.path.join(outdir, "model_data_bar.png")
-    plot_moving_bar_data(s_bright, z, png, session_off=s_dark,
+    plot_moving_bar_data(s_bright, z, png, session_2=s_dark,
                          title="Moving-bar model-data (initial params)")
 
     peaks = []

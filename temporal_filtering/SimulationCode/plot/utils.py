@@ -2,8 +2,11 @@
 
 from __future__ import annotations
 
+import os
+
 import matplotlib.pyplot as plt
 import numpy as np
+import torch
 
 import FiveCol_MedSim_Pytorch as fc
 
@@ -11,6 +14,74 @@ DATA_COLOR = 'gray'
 MODEL_COLOR = 'red'
 SEM_COLOR = 'pink'
 TRACE_LW = 1.5
+
+
+def _as_numpy(arr):
+    if isinstance(arr, torch.Tensor):
+        return arr.detach().cpu().numpy()
+    return np.asarray(arr)
+
+
+def save_forward_trace_csvs(
+    save_dir,
+    target,
+    *,
+    trace_kind,
+    ref,
+    trace_full,
+    ref_stem: str | None = None,
+    trace_stem: str | None = None,
+):
+    """Write per-target ref + trace CSVs under ``save_dir``.
+
+    ``trace_kind=='vm'`` → ``<target>_ref_vm.csv``, ``<target>_vm.csv`` (unless
+    overridden by ``ref_stem`` / ``trace_stem``).
+    else → ``<target>_ref.csv``, ``<target>.csv``.
+
+    Ref is one column (``ref``) with constant ``N``. Trace is ``(B*T', N)`` with
+    constant ``B`` / ``Tprime`` columns, then one column per unit.
+    """
+    if save_dir is None:
+        return
+    os.makedirs(save_dir, exist_ok=True)
+    ref_np = _as_numpy(ref).reshape(-1)
+    trace_np = _as_numpy(trace_full)
+    if trace_np.ndim != 3:
+        raise ValueError(f'trace_full must be (B, T\', N), got shape {trace_np.shape}')
+    bsz, tprime, n_units = (int(x) for x in trace_np.shape)
+    if ref_np.size != n_units:
+        raise ValueError(
+            f'ref length {ref_np.size} != n_units {n_units} for target {target!r}'
+        )
+    if trace_kind == 'vm':
+        ref_stem_default, trace_stem_default = f'{target}_ref_vm', f'{target}_vm'
+    else:
+        ref_stem_default, trace_stem_default = f'{target}_ref', f'{target}'
+    ref_stem_final = ref_stem_default if ref_stem is None else ref_stem
+    trace_stem_final = trace_stem_default if trace_stem is None else trace_stem
+    ref_path = os.path.join(save_dir, f'{ref_stem_final}.csv')
+    trace_path = os.path.join(save_dir, f'{trace_stem_final}.csv')
+    ref_table = np.column_stack([
+        np.full(ref_np.shape[0], ref_np.size, dtype=np.int64),
+        ref_np.astype(np.float64, copy=False),
+    ])
+    # Some traces reuse Vm_ref across targets (e.g. bright/dark); avoid redundant writes.
+    if not os.path.exists(ref_path):
+        np.savetxt(
+            ref_path, ref_table, delimiter=',', header='N,ref', comments='',
+        )
+    flat = trace_np.reshape(-1, n_units).astype(np.float64, copy=False)
+    n_rows = flat.shape[0]
+    trace_table = np.column_stack([
+        np.full(n_rows, bsz, dtype=np.int64),
+        np.full(n_rows, tprime, dtype=np.int64),
+        flat,
+    ])
+    unit_header = ','.join(f'u{i}' for i in range(n_units))
+    np.savetxt(
+        trace_path, trace_table, delimiter=',',
+        header=f'B,Tprime,{unit_header}', comments='',
+    )
 
 
 def nice_ylim(*curves, margin=1.25, step=5.0, floor=5.0, min_pad=3.0):
@@ -64,39 +135,13 @@ def readout_center_mask(pack, backend):
     return np.ones(readout.shape[0], dtype=bool)
 
 
-def baselines_for_types(
-    pack,
-    backend,
-    vm_ref,
-    names,
-    type_ids,
-    global_type_names,
-    *,
-    readout_unit_idx=None,
-    readout_type_idx=None,
-    readout_du=None,
-    readout_dv=None,
-):
-    """Mean Vm_ref at stimulus onset, keyed by type name.
-
-    Default: centre cost-readout units (``readout_center_mask``).
-    With ``readout_du`` / ``readout_dv``: stim-centred centre members ``(0, 0)``
-    only (network ``model_all_spot``).
-    """
+def baselines_for_types(pack, backend, vm_ref, names, type_ids, global_type_names):
+    """Mean Vm_ref at stimulus onset over centre cost-readout units, keyed by type name."""
     vm_ref = np.asarray(vm_ref, dtype=np.float64)
-    out = {}
-    if readout_du is not None and readout_dv is not None:
-        if readout_unit_idx is None or readout_type_idx is None:
-            raise ValueError("readout_du/dv require readout_unit_idx and readout_type_idx")
-        center = (readout_du == 0) & (readout_dv == 0)
-        for name in names:
-            ti = global_type_names.index(name)
-            units = np.unique(readout_unit_idx[center & (readout_type_idx == ti)])
-            out[name] = float(vm_ref[units].mean()) if len(units) else np.nan
-        return out
     readout = pack.readout_unit.cpu().numpy()
     center = readout_center_mask(pack, backend)
     unit_types = type_ids[readout]
+    out = {}
     for name in names:
         ti = global_type_names.index(name)
         mask = center & (unit_types == ti)
@@ -235,8 +280,8 @@ def ylim_for_traces(
     data=None,
     sem=None,
     show_sem=False,
-    off_model=None,
-    off_data=None,
+    model_2=None,
+    data_2=None,
     extra=(),
 ):
     curves = []
@@ -247,10 +292,10 @@ def ylim_for_traces(
     if show_sem and sem is not None and model is not None:
         curves.append(model + sem)
         curves.append(model - sem)
-    if off_model is not None:
-        curves.append(off_model)
-    if off_data is not None:
-        curves.append(off_data)
+    if model_2 is not None:
+        curves.append(model_2)
+    if data_2 is not None:
+        curves.append(data_2)
     curves.extend(c for c in extra if c is not None)
     return nice_ylim(*curves)
 
@@ -289,8 +334,9 @@ def plot_timecourse(
     data=None,
     sem=None,
     show_sem=True,
-    off_model=None,
-    off_data=None,
+    model_2=None,
+    data_2=None,
+    linestyle_2='--',
     title=None,
     title_fs=7,
     ylim=None,
@@ -301,11 +347,11 @@ def plot_timecourse(
     style_xaxis=None,
     linestyle='-',
 ):
-    """Model (red) vs data (gray) time course with optional SEM and on/off overlay."""
+    """Model (red) vs data (gray) time course with optional SEM and two-trace overlay."""
     if ylim is None:
         ylo, yhi = ylim_for_traces(
             model, data=data, sem=sem, show_sem=show_sem,
-            off_model=off_model, off_data=off_data,
+            model_2=model_2, data_2=data_2,
         )
     else:
         ylo, yhi = ylim
@@ -315,10 +361,10 @@ def plot_timecourse(
         if show_sem:
             plot_sem_band(ax, t, model, sem)
         ax.plot(t, model, color=MODEL_COLOR, linewidth=TRACE_LW, linestyle=linestyle)
-    if off_data is not None:
-        ax.plot(t, off_data, color=DATA_COLOR, linewidth=TRACE_LW, linestyle='--')
-    if off_model is not None:
-        ax.plot(t, off_model, color=MODEL_COLOR, linewidth=TRACE_LW, linestyle='--')
+    if data_2 is not None:
+        ax.plot(t, data_2, color=DATA_COLOR, linewidth=TRACE_LW, linestyle=linestyle_2)
+    if model_2 is not None:
+        ax.plot(t, model_2, color=MODEL_COLOR, linewidth=TRACE_LW, linestyle=linestyle_2)
     if title is not None:
         ax.set_title(title, fontsize=title_fs, pad=2)
     ax.set_ylim(ylo, yhi)

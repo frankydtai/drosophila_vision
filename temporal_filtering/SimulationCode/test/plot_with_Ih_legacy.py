@@ -217,12 +217,12 @@ def main():
             suffix = f"trained, cost {bar_cost:.2f}% of data power"
             plot_moving_bar_data(
                 s_bright, z_t, os.path.join(args.outdir, "model_data_bar.png"),
-                session_off=s_dark,
+                session_2=s_dark,
                 title=f"Moving-bar model-data ({suffix})",
             )
             plot_moving_bar_all(
                 s_bright, z_t, os.path.join(args.outdir, "model_all_bar.png"),
-                session_off=s_dark,
+                session_2=s_dark,
                 title=f"Moving-bar model-all ({suffix})",
             )
             print(f"bar:    Borst moving-bar  cost={bar_cost:.4f}%")

@@ -3,9 +3,9 @@
 
 from __future__ import annotations
 
-import os
 import time
 from dataclasses import dataclass, field
+from importlib import import_module
 from typing import Literal
 
 import matplotlib.pyplot as plt
@@ -27,6 +27,7 @@ from plot.utils import (
     overlay_model_reds,
     plot_timecourse,
     save_figure,
+    save_forward_trace_csvs,
     sem_from_traces,
     slice_axis_label,
     slice_xy_label,
@@ -34,8 +35,8 @@ from plot.utils import (
     ylim_for_traces,
 )
 from FiveCol_MedSim_Pytorch import t_on
+import network_bootstrap  # noqa: F401  # ensure FAFBv783 modules are importable
 from network.moving_bar_target import _borst_moving_bar_specs, load_fig1_trace
-from column_mapper import borst_sti_columns
 from t4_t5_preference import (
     READOUT_SUBTYPES,
     active_stimuli_for_subtype,
@@ -55,6 +56,10 @@ from visual_stimulus.moving_bar_stimulus import (
 )
 
 MOVING_BAR_DPI = 100
+
+
+def _borst_sti_columns():
+    return import_module("column_mapper").borst_sti_columns()
 
 
 @dataclass
@@ -267,7 +272,7 @@ def _moving_bar_slice_overlay_traces(
             return None
         col_mask = _network_column_unit_mask(C, filt_cols, n_batch)
     else:
-        cols_all = list(borst_sti_columns())
+        cols_all = list(_borst_sti_columns())
         try:
             filt_cols = filter_borst_sti_columns(cols_all, at_x=at_x, at_y=at_y)
         except ValueError:
@@ -376,7 +381,7 @@ def _moving_bar_t0_grids(session, specs, cost_extent, maxtime, *, at_x=None, at_
         t0_full_bn = _moving_bar_t0_grid(C, cols, n_batch, t0_full_map)
     else:
         side = "right"
-        cols_all = list(borst_sti_columns())
+        cols_all = list(_borst_sti_columns())
         if at_x is not None or at_y is not None:
             cols = filter_borst_sti_columns(cols_all, at_x=at_x, at_y=at_y)
             if not cols:
@@ -449,7 +454,7 @@ def _moving_bar_traces_from_forward(
 def moving_bar_trace_bundle(session, z, target, *, at_x=None, at_y=None,
                             at_x_list=None, at_y_list=None,
                             trace_kind: Literal['model', 'vm'] = 'model',
-                            save_vm_npy_dir: str | None = None):
+                            save_trace_csv_dir: str | None = None):
     """Run one forward; t_first_sti-aligned full-window model traces."""
     pack = session.pack_for(target)
     schema = list(session.schema)
@@ -460,21 +465,21 @@ def moving_bar_trace_bundle(session, z, target, *, at_x=None, at_y=None,
         )
         vm_ref_np = vm_ref[0].cpu().numpy()
         trace_full = (vm_full - vm_ref[:, None, :]).cpu().numpy()
-        if save_vm_npy_dir is not None:
-            os.makedirs(save_vm_npy_dir, exist_ok=True)
-            np.save(
-                os.path.join(save_vm_npy_dir, f'vm_ref_{target}.npy'),
-                vm_ref_np,
-            )
-            np.save(
-                os.path.join(save_vm_npy_dir, f'vm_delta_{target}.npy'),
-                trace_full,
-            )
+        save_forward_trace_csvs(
+            save_trace_csv_dir, target,
+            trace_kind=trace_kind, ref=vm_ref_np, trace_full=trace_full,
+            ref_stem='moving_bar_ref_vm' if trace_kind == 'vm' else None,
+        )
         data_mean = {}
     else:
         model_full, vm_ref = fc._run_conductance_full(session, p, pack.signal, return_ref=True)
         vm_ref_np = vm_ref[0].cpu().numpy()
         trace_full = _scale_model_full(model_full.cpu().numpy(), p, session.backend)
+        save_forward_trace_csvs(
+            save_trace_csv_dir, target,
+            trace_kind=trace_kind, ref=vm_ref_np, trace_full=trace_full,
+            ref_stem='moving_bar_ref_vm' if trace_kind == 'vm' else None,
+        )
         data_mean = None
     specs = _bar_specs_for_session(session, target)
     spec_names = [s.name for s in specs]
@@ -768,7 +773,7 @@ def _moving_bar_all_scope_label(b_on):
     return _moving_bar_scope_label(b_on.session)
 
 
-def _plot_moving_bar_all_from_bundles(path, b_on, b_off, title, *, right_only=True):
+def _plot_moving_bar_all_from_bundles(path, b_on, b_2, title, *, right_only=True):
     t0 = time.perf_counter()
     single_column = b_on.single_column
     types = b_on.types
@@ -778,18 +783,18 @@ def _plot_moving_bar_all_from_bundles(path, b_on, b_off, title, *, right_only=Tr
     model_mean, model_sem = wt_on.model_mean, wt_on.model_sem
     data_mean = b_on.data_mean
     baselines = b_on.baselines
-    baselines_off = None
-    wt_off = None
+    baselines_2 = None
+    wt_2 = None
     slice_labels = _bundle_slice_labels(b_on)
     has_slices = bool(slice_labels)
-    if b_off is not None:
-        wt_off = b_off.traces
-        spec_off = _filter_right_specs(b_off.spec_names, right_only)
-        spec_names = list(spec_names) + list(spec_off)
-        model_mean = {**model_mean, **wt_off.model_mean}
-        model_sem = {**model_sem, **wt_off.model_sem}
-        data_mean = {**data_mean, **b_off.data_mean}
-        baselines_off = b_off.baselines
+    if b_2 is not None:
+        wt_2 = b_2.traces
+        spec_2 = _filter_right_specs(b_2.spec_names, right_only)
+        spec_names = list(spec_names) + list(spec_2)
+        model_mean = {**model_mean, **wt_2.model_mean}
+        model_sem = {**model_sem, **wt_2.model_sem}
+        data_mean = {**data_mean, **b_2.data_mean}
+        baselines_2 = b_2.baselines
     t_traces = time.perf_counter() - t0
 
     show_sem = not single_column and not has_slices
@@ -805,10 +810,10 @@ def _plot_moving_bar_all_from_bundles(path, b_on, b_off, title, *, right_only=Tr
                 ax.axis('off')
                 continue
             bl = baselines.get(tname)
-            b_src = b_on if ci < ncols_on else b_off
-            wt = wt_on if ci < ncols_on else wt_off
-            if baselines_off is not None and ci >= ncols_on:
-                bl = baselines_off.get(tname)
+            b_src = b_on if ci < ncols_on else b_2
+            wt = wt_on if ci < ncols_on else wt_2
+            if baselines_2 is not None and ci >= ncols_on:
+                bl = baselines_2.get(tname)
             before_steps, after_steps = _window_steps(wt, sname)
             if has_slices and b_src is not None and b_src.slice_overlay is not None:
                 slice_traces = {
@@ -862,22 +867,26 @@ def _plot_moving_bar_all_from_bundles(path, b_on, b_off, title, *, right_only=Tr
 
 
 @torch.no_grad()
-def plot_moving_bar_data(session, z, path, target, session_off=None, title=None, *,
-                         bundle=None, bundle_off=None):
-    b_on = bundle or moving_bar_trace_bundle(session, z, target)
-    b_off = None
-    if session_off is not None:
-        b_off = bundle_off or moving_bar_trace_bundle(session_off, z, target)
+def plot_moving_bar_data(session_1, z, path, target, session_2=None, title=None, *,
+                         bundle=None, bundle_2=None, save_trace_csv_dir: str | None = None):
+    b_on = bundle or moving_bar_trace_bundle(
+        session_1, z, target, save_trace_csv_dir=save_trace_csv_dir,
+    )
+    b_2 = None
+    if session_2 is not None:
+        b_2 = bundle_2 or moving_bar_trace_bundle(
+            session_2, z, target, save_trace_csv_dir=save_trace_csv_dir,
+        )
     single_column = b_on.single_column
     row_specs = _moving_bar_row_specs(b_on.session, b_on.target, b_on.side)
     readout_subtypes = list(row_specs.keys())
     ncols_half = max((len(v) for v in row_specs.values()), default=8)
-    if b_off is not None:
-        row_specs_off = _moving_bar_row_specs(b_off.session, b_off.target, b_off.side)
-        ncols_half = max(ncols_half, max((len(v) for v in row_specs_off.values()), default=8))
+    if b_2 is not None:
+        row_specs_2 = _moving_bar_row_specs(b_2.session, b_2.target, b_2.side)
+        ncols_half = max(ncols_half, max((len(v) for v in row_specs_2.values()), default=8))
         ncols = ncols_half * 2
     else:
-        row_specs_off = None
+        row_specs_2 = None
         ncols = ncols_half
     nrows = len(readout_subtypes)
     fig, axes = _moving_bar_figure(nrows, ncols)
@@ -903,8 +912,8 @@ def plot_moving_bar_data(session, z, path, target, session_off=None, title=None,
 
     for ri, subtype in enumerate(readout_subtypes):
         _plot_row(ri, subtype, row_specs[subtype], 0, b_on, b_on.side)
-        if b_off is not None:
-            _plot_row(ri, subtype, row_specs_off[subtype], ncols_half, b_off, b_off.side)
+        if b_2 is not None:
+            _plot_row(ri, subtype, row_specs_2[subtype], ncols_half, b_2, b_2.side)
         axes[ri, 0].set_ylabel(subtype, fontsize=8, labelpad=12)
     if title is None:
         title = 'Moving-bar model-data'
@@ -918,21 +927,21 @@ def plot_moving_bar_data(session, z, path, target, session_off=None, title=None,
 
 
 @torch.no_grad()
-def plot_moving_bar_all(session, z, path, target, session_off=None, title=None, *,
-                        right_only=True, bundle=None, bundle_off=None,
+def plot_moving_bar_all(session_1, z, path, target, session_2=None, title=None, *,
+                        right_only=True, bundle=None, bundle_2=None,
                         at_x_list=None, at_y_list=None,
                         trace_kind: Literal['model', 'vm'] = 'model',
-                        save_vm_npy_dir: str | None = None):
+                        save_trace_csv_dir: str | None = None):
     b_on = bundle or moving_bar_trace_bundle(
-        session, z, target, at_x_list=at_x_list, at_y_list=at_y_list,
+        session_1, z, target, at_x_list=at_x_list, at_y_list=at_y_list,
         trace_kind=trace_kind,
-        save_vm_npy_dir=save_vm_npy_dir,
+        save_trace_csv_dir=save_trace_csv_dir,
     )
-    b_off = None
-    if session_off is not None:
-        b_off = bundle_off or moving_bar_trace_bundle(
-            session_off, z, target, at_x_list=at_x_list, at_y_list=at_y_list,
+    b_2 = None
+    if session_2 is not None:
+        b_2 = bundle_2 or moving_bar_trace_bundle(
+            session_2, z, target, at_x_list=at_x_list, at_y_list=at_y_list,
             trace_kind=trace_kind,
-            save_vm_npy_dir=save_vm_npy_dir,
+            save_trace_csv_dir=save_trace_csv_dir,
         )
-    _plot_moving_bar_all_from_bundles(path, b_on, b_off, title, right_only=right_only)
+    _plot_moving_bar_all_from_bundles(path, b_on, b_2, title, right_only=right_only)
