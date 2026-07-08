@@ -23,7 +23,7 @@ except ValueError as exc:
     ap.error(str(exc))
 
 target_list = train_kw['target_list']
-MODEL = train_kw['model_type']
+MODEL = train_kw['model']
 
 R_NAMES = [str(ml.ctype[i]) for i in range(ml.N_PHOTORECEPTORS)]
 SHARED_R_NAMES = R_NAMES[:6]

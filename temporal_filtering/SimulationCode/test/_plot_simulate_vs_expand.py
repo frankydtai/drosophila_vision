@@ -21,7 +21,7 @@ import matplotlib.pyplot as plt
 import Medulla_Library as ml
 import FiveCol_MedSim_Pytorch as fc
 from plot import spot as spot_plot
-from plot_trained import resolve_model_type, _session_for_target
+from plot_trained import resolve_model, _session_for_target
 from training_config import PARAMETER_DIR
 
 DEFAULT_RUN = PARAMETER_DIR / 'conductance' / 'run_20260704_133829'
@@ -41,17 +41,17 @@ def _padded_scaled(raw_nt, scale, mt, t_on_step):
 def _load_session_and_z(rundir):
     import json
     best_path = os.path.join(rundir, 'best_param.npy')
-    model_type = resolve_model_type(best_path)
+    model = resolve_model(best_path)
     opts_path = os.path.join(rundir, 'train_opts.json')
     if os.path.isfile(opts_path):
         with open(opts_path) as f:
             opts = json.load(f)
         opts['target_list'] = ['spot_bright']
-        session = fc.open_session({**opts, 'backend': opts.get('backend', 'borst')}, model_type)
+        session = fc.open_session({**opts, 'backend': opts.get('backend', 'borst')}, model)
     else:
         session = fc.open_session(
             fc.make_train_opts(backend='borst', target_list=['spot_bright']),
-            model_type,
+            model,
         )
     z = torch.tensor(np.load(best_path), dtype=torch.float64)
     return session, z

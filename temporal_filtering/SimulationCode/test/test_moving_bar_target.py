@@ -108,7 +108,7 @@ def test_cost_extent_requires_network():
     import train as train_mod
     import argparse
     args = argparse.Namespace(
-        model_type="conductance",
+        model="conductance",
         nofruns=1,
         nofsteps=5,
         lrs="0.1",

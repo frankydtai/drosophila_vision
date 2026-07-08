@@ -175,7 +175,7 @@ def main():
         spot_session = None
 
     _, spot_cost = plot_param_set(
-        z138[None], args.outdir, model_type="conductance", model_all=True,
+        z138[None], args.outdir, model="conductance", model_all=True,
         param_modes=LEGACY_PARAM_MODES, param_fixes=LEGACY_PARAM_FIXES,
         session=spot_session,
     )
@@ -196,7 +196,7 @@ def main():
             if z_net.shape[0] != n:
                 raise SystemExit(f"mapped network z length {z_net.shape[0]} != schema {n}")
             _, bar_cost = plot_param_set(
-                z_net[None], args.outdir, model_type="conductance", model_all=True,
+                z_net[None], args.outdir, model="conductance", model_all=True,
                 context_dir=args.network_ref, param_modes=LEGACY_PARAM_MODES,
                 param_fixes=LEGACY_PARAM_FIXES,
                 plot_targets=["moving_bar_bright", "moving_bar_dark"],

@@ -4,7 +4,7 @@
 All results of a run land in one folder under
 ``training_config.PARAMETER_DIR`` (default ``SimulationCode/FiveCol_Parameter``):
 
-    <model_type>/<run_name>/
+    <model>/<run_name>/
 
 Run artifacts (``.npy`` / ``.npz``, ``train_opts.json``) live in
 ``<run_name>/data/``; PNGs and ``*_table.csv`` stay in ``<run_name>/``.
@@ -14,10 +14,10 @@ where <run_name> encodes the CLI, e.g.
 (job id under SLURM, else a timestamp prefix).
 
     # short smoke test
-    python train.py --model-type adaptive --nofsteps 30 --lrs 0.1
+    python train.py --model adaptive --nofsteps 30 --lrs 0.1
 
     # full training
-    python train.py --model-type conductance --nofruns 1 --nofsteps 10000 \\
+    python train.py --model conductance --nofruns 1 --nofsteps 10000 \\
                   --lrs 0.1,0.01,0.001
 
     # per-target PR currents (comma-separated TARGET=VALUE)
@@ -117,7 +117,7 @@ def decompose_params(z_t, session):
             glob[name] = float(arr.mean())
         else:
             cols[name] = arr
-    if session.model_type == "adaptive":
+    if session.model == "adaptive":
         glob["gate_pivot"] = float(fc.GATE_PIVOT)
     return cols, glob
 
@@ -329,7 +329,7 @@ def resolve_network(network):
 
 
 def build_session(
-    model_type,
+    model,
     *,
     network=None,
     sequential=False,
@@ -383,13 +383,13 @@ def build_session(
         opts = fc.make_train_opts(
             backend="borst", ih_off=ih_off, ih_group_names=ih_group_names, fp32=fp32, **mkw,
         )
-    session = fc.open_session(opts, model_type, schema=schema, model_backend=model_backend)
+    session = fc.open_session(opts, model, schema=schema, model_backend=model_backend)
     if param_modes:
         session = apply_param_modes(session, param_modes)
     return session
 
 
-def run_training(model_type, nofruns, nofsteps, lrs, fname=None, outdir=None,
+def run_training(model, nofruns, nofsteps, lrs, fname=None, outdir=None,
                  param_modes=None,
                  ih_off=fc.IH_OFF_DEFAULT,
                  network=None, sequential=False,
@@ -411,7 +411,7 @@ def run_training(model_type, nofruns, nofsteps, lrs, fname=None, outdir=None,
                  init_from=None):
     """Full training pipeline (do_many_runs + save_training_outputs + plots). Returns (fname, outdir, session)."""
     session = build_session(
-        model_type,
+        model,
         network=network,
         sequential=sequential,
         target_list=target_list,
@@ -432,11 +432,11 @@ def run_training(model_type, nofruns, nofsteps, lrs, fname=None, outdir=None,
         schema=schema,
         fp32=fp32,
     )
-    suffix = "" if model_type == "conductance" else f"_{model_type}"
+    suffix = "" if model == "conductance" else f"_{model}"
     fname = fname or f"training{suffix or '_with_Ih'}.npy"
-    outdir = outdir or run_dir(model_type)
+    outdir = outdir or run_dir(model)
 
-    print(f"device={session.device}, model_type={model_type}, nofruns={nofruns}, nofsteps={nofsteps}, "
+    print(f"device={session.device}, model={model}, nofruns={nofruns}, nofsteps={nofsteps}, "
           f"lrs={lrs}, nparams={fc.schema_nparams(list(session.schema))}, fname={fname}, outdir={outdir}")
     z_init = load_init_z(init_from, session) if init_from else None
     t0 = time.time()
@@ -456,16 +456,16 @@ def run_training(model_type, nofruns, nofsteps, lrs, fname=None, outdir=None,
 
 def add_training_arguments(parser):
     """Register train.py training CLI flags on *parser*."""
-    parser.add_argument("--model-type", default="conductance",
+    parser.add_argument("--model", default="conductance",
                         choices=["conductance", "adaptive"])
     parser.add_argument("--nofruns", type=int, default=1)
     parser.add_argument("--nofsteps", type=int, default=50)
     parser.add_argument("--lrs", default="0.1",
                         help="comma-separated learning-rate stages; each runs for --nofsteps steps")
     parser.add_argument("--fname", default=None,
-                        help="params filename (default derived from --model-type)")
+                        help="params filename (default derived from --model)")
     parser.add_argument("--outdir", default=None,
-                        help="output dir (default derived from --model-type)")
+                        help="output dir (default derived from --model)")
     parser.add_argument("--init-from", default=None, metavar="RUN",
                         help="prior run folder; load params as z init only "
                              "(settings come from this CLI, not train_opts.json)")
@@ -514,15 +514,16 @@ def add_training_arguments(parser):
         default="",
         metavar="R=W,...",
         help="spot cost weights by Euclidean r from stim column (r=w); "
-             "default 1/col_count on 0,1,sqrt3,2; omitted radii → 0 (excluded); "
+             "default 0=1,1=1/6,2=1/6; omitted radii → 0 (excluded); "
              "e.g. 0=1,1=1/6,2=1/12",
     )
     parser.add_argument(
         "--cost-extent",
         default="",
         metavar="N|TARGET=N,...",
-        help="network cost hex-disc radius: bare N for all --target, or per-target "
-             "e.g. moving_bar_bright=0 (aliases: spot, moving_bar); requires --network",
+        help="network cost hex-disc radius (default -1 = all columns with --network): "
+             "bare N for all --target, or per-target e.g. moving_bar_bright=0 "
+             "(aliases: spot, moving_bar); -1 = all columns; requires --network",
     )
     parser.add_argument(
         "--i-baseline",
@@ -615,7 +616,7 @@ def parse_cost_extent(text):
 
 
 def parse_spot_cost_r_w(text):
-    """Parse ``--spot-cost-r-w`` (r=w); empty → default ``1/col_count``."""
+    """Parse ``--spot-cost-r-w`` (r=w); empty → default ``0=1,1=1/6,2=1/6``."""
     from network.spot_target import (
         expand_spot_cost_r_w_dict,
         parse_spot_cost_radius_weight_value,
@@ -638,15 +639,21 @@ def training_kwargs_from_args(
     cost_weights = fc.expand_cost_weight_dict(parse_comma_kv(args.cost_weight, float))
     target_list = parse_target_list(args.target)
     default_extent, extent_kv = parse_cost_extent(args.cost_extent)
+    if (
+        default_extent is None
+        and not extent_kv
+        and args.network is not None
+    ):
+        default_extent = -1
     cost_extent_by_target = fc.resolve_cost_extent_by_target(
         target_list, default_extent, extent_kv,
     )
     if cost_extent_by_target and args.network is None:
         raise ValueError("--cost-extent requires --network")
-    if default_extent is not None and default_extent < 0:
-        raise ValueError("--cost-extent must be >= 0")
-    if any(v < 0 for v in extent_kv.values()):
-        raise ValueError("--cost-extent must be >= 0")
+    if default_extent is not None and default_extent != -1 and default_extent < 0:
+        raise ValueError("--cost-extent must be -1 or >= 0")
+    if any(v != -1 and v < 0 for v in extent_kv.values()):
+        raise ValueError("--cost-extent must be -1 or >= 0")
     if args.shift_extent < 0:
         raise ValueError("--shift-extent must be >= 0")
     spot_cost_radius_weight = parse_spot_cost_r_w(args.spot_cost_r_w)
@@ -659,9 +666,9 @@ def training_kwargs_from_args(
     if not lrs:
         raise ValueError("--lrs must list at least one learning rate")
     run_name = command_run_name(script_stem)
-    outdir = run_dir(args.model_type, parent=args.outdir, name=run_name)
+    outdir = run_dir(args.model, parent=args.outdir, name=run_name)
     return dict(
-        model_type=args.model_type,
+        model=args.model,
         nofruns=args.nofruns,
         nofsteps=args.nofsteps,
         lrs=lrs,

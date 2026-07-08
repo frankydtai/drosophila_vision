@@ -39,7 +39,7 @@ from plot.moving_bar import (
     _network_type_ids,
 )
 from plot.utils import center_column_only, nice_ylim as _nice_ylim
-from plot_trained import load_session, resolve_model_type
+from plot_trained import load_session, resolve_model
 from training_config import COST_HALF_WINDOW_STEPS, COST_WINDOW_STEPS, PARAMETER_DIR
 from t4_t5_preference import READOUT_SUBTYPES, fig1_key_for_stimulus, normalize_side
 from visual_stimulus.moving_bar_stimulus import (
@@ -306,8 +306,8 @@ def main():
     params_path = os.path.join(rundir, 'training_with_Ih.npy')
     if not os.path.isfile(params_path):
         raise SystemExit(f'missing params: {params_path}')
-    model_type = resolve_model_type(params_path, None)
-    session = load_session(rundir, model_type)
+    model = resolve_model(params_path, None)
+    session = load_session(rundir, model)
     z = torch.tensor(best, dtype=torch.float64, device=session.device)
     types, spec_names, model_mean, model_sem, data_mean, meta = _full_type_traces(session, z, cache_dir=outdir)
     plot_model_all_fulltime(

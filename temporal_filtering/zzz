@@ -1,1 +1,1 @@
-.venv/bin/python SimulationCode/train.py local --model-type conductance --nofsteps 500 --lrs 0.1
+.venv/bin/python SimulationCode/train.py local --model conductance --nofsteps 500 --lrs 0.1

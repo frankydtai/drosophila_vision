@@ -18,23 +18,24 @@ RecF_data, 45 samples centred on index 22; column distance maps to sample 22 +
 than snapped to col +/-2 (which would mis-sign L1's centre-surround near its
 ~1.6 col zero crossing).
 
-Each cost radius is weighted by ``1/(columns at that radius)`` when
-``--spot-cost-r-w`` is omitted (radii :data:`DEFAULT_SPOT_COST_RADII`).
-With CLI, only listed radii are used; omitted radii get weight ``0`` (excluded),
-not default. Example: ``0=1,1=1/6,2=1/12`` skips ``sqrt3``.
+When ``--spot-cost-r-w`` is omitted, weights default to
+:data:`DEFAULT_SPOT_COST_RADIUS_WEIGHT` (``0=1,1=1/6,2=1/6``; ``sqrt3`` excluded).
+With CLI, only listed radii are used; omitted radii get weight ``0`` (excluded).
+Example: ``0=1,1=1/6,2=1/12`` also skips ``sqrt3``.
 
 ``build_shifted_target`` returns a :class:`ShiftedTarget` (timing: :mod:`training_config`):
 
     signal          (B, T, N)      per-batch stimulus current
     data            (n_cost, T')   target trace per cost cell (MSE compares this)
     power           scalar       weighted target power for cost normalisation
-    cost_weight     (n_cost,)    1/col_count weight per cost cell at each radius
+    cost_weight     (n_cost,)    per-cost-cell weight at each Euclidean radius
     cost_radius     (n_cost,)    Euclidean radius {0,1,sqrt3,2,...} per cost cell
     readout_batch   (n_cost,)    which batch (stimulus) each cost cell belongs to
     readout_unit    (n_cost,)    which unit each cost cell is
 
 ``info`` includes ``n_cost`` (readout rows) and ``n_cost_columns`` (member
-columns in ``cost_extent`` per stimulus batch, excluding batch/shift/cell count).
+columns in ``cost_extent`` per stimulus batch: ``int`` when uniform, else
+``{batch: count}``).
 """
 from __future__ import annotations
 
@@ -60,8 +61,15 @@ _RF_CENTER_SAMPLE = 22
 _RF_SAMPLES_PER_COL = 5
 _RF_NSAMPLES = 45
 
-# Default Euclidean radii when ``spot_cost_radius_weight`` is unset (``1/col_count`` each).
+# Euclidean radii recognised by ``--spot-cost-r-w``.
 DEFAULT_SPOT_COST_RADII: Tuple[float, ...] = (0.0, 1.0, math.sqrt(3), 2.0)
+
+# Default ``--spot-cost-r-w`` when the CLI flag is omitted.
+DEFAULT_SPOT_COST_RADIUS_WEIGHT: Dict[float, float] = {
+    0.0: 1.0,
+    1.0: 1.0 / 6.0,
+    2.0: 1.0 / 6.0,
+}
 
 SPOT_COST_RADIUS_KEY_ALIASES: Dict[str, float] = {
     "sqrt3": math.sqrt(3),
@@ -186,12 +194,21 @@ def parse_spot_cost_radius_weight_value(text: str) -> float:
     return float(tok)
 
 
+def spot_cost_radius_weight_resolved(
+    spot_cost_radius_weight: Optional[Dict[float, float]] = None,
+) -> Dict[float, float]:
+    """Return explicit weights or :data:`DEFAULT_SPOT_COST_RADIUS_WEIGHT`."""
+    if spot_cost_radius_weight is None:
+        return dict(DEFAULT_SPOT_COST_RADIUS_WEIGHT)
+    return spot_cost_radius_weight
+
+
 def expand_spot_cost_r_w_dict(
     kv: Optional[dict] = None,
     *,
     stimulus_opts: Optional[dict] = None,
 ) -> Optional[Dict[float, float]]:
-    """CLI ``r=w`` dict → ``{round(radius): weight}``; empty/None → default ``1/col_count``.
+    """CLI ``r=w`` dict → ``{round(radius): weight}``; empty/None → unresolved (use default).
 
     With ``stimulus_opts``, read ``spot_cost_radius_weight`` from a stimulus sidecar dict.
     """
@@ -210,35 +227,29 @@ def resolve_spot_cost_radii(
     *,
     stimulus_opts: Optional[dict] = None,
 ) -> Tuple[float, ...]:
-    """Radii in spot cost.
+    """Radii in spot cost with non-zero weight.
 
-    No CLI (``spot_cost_radius_weight is None``): all :data:`DEFAULT_SPOT_COST_RADII`.
-    With CLI: only keys present with non-zero weight; omitted radii are excluded
-    (weight 0), never default ``1/col_count``.
+    Unset CLI uses :data:`DEFAULT_SPOT_COST_RADIUS_WEIGHT`; explicit CLI keeps only
+    listed radii (omitted radii → weight 0, excluded).
 
     With ``stimulus_opts``, read weights from ``spot_cost_radius_weight`` first.
     """
     if stimulus_opts is not None:
         spot_cost_radius_weight = expand_spot_cost_r_w_dict(stimulus_opts=stimulus_opts)
-    if spot_cost_radius_weight is None:
-        return DEFAULT_SPOT_COST_RADII
+    weights = spot_cost_radius_weight_resolved(spot_cost_radius_weight)
     return tuple(
         radius for radius in DEFAULT_SPOT_COST_RADII
-        if float(spot_cost_radius_weight.get(round(radius, 6), 0.0)) != 0.0
+        if float(weights.get(round(radius, 6), 0.0)) != 0.0
     )
 
 
 def spot_cost_cell_weight(
-    batch: int,
     radius: float,
-    col_count: Dict[Tuple[int, float], int],
     spot_cost_radius_weight: Optional[Dict[float, float]],
 ) -> float:
-    """Per-cell cost weight: ``1/col_count`` when CLI unset; else CLI (missing radius → 0)."""
-    radius_key = round(radius, 6)
-    if spot_cost_radius_weight is None:
-        return 1.0 / col_count[(batch, radius_key)]
-    return float(spot_cost_radius_weight.get(radius_key, 0.0))
+    """Per-cell cost weight from resolved CLI/default weights (missing radius → 0)."""
+    weights = spot_cost_radius_weight_resolved(spot_cost_radius_weight)
+    return float(weights.get(round(radius, 6), 0.0))
 
 
 def spot_stimulus_batches(spotting: Spotting) -> List[Tuple[int, int, Tuple[int, int]]]:
@@ -350,19 +361,16 @@ def spot_cost_columns(batches, cost_radii, cost_extent):
 
 
 def spot_n_cost_columns(cost_cols):
-    """Member columns in ``cost_extent`` per stimulus batch (uniform across batches)."""
+    """Member columns in ``cost_extent`` per stimulus batch."""
     if not cost_cols:
         return 0
-    counts = {}
+    counts: Dict[int, int] = {}
     for b, _mu, _mv, _radius in cost_cols:
         counts[b] = counts.get(b, 0) + 1
     vals = set(counts.values())
-    if len(vals) != 1:
-        raise ValueError(
-            f"spot n_cost_columns varies by batch: "
-            f"{ {b: counts[b] for b in sorted(counts)} }",
-        )
-    return next(iter(vals))
+    if len(vals) == 1:
+        return next(iter(vals))
+    return {b: counts[b] for b in sorted(counts)}
 
 
 def spot_cost_unit_radius_layout(C, batches, cost_radii, cost_extent):
@@ -434,14 +442,10 @@ def build_shifted_target(
 
     cost_radii = resolve_spot_cost_radii(spot_cost_radius_weight)
     cost_cols = spot_cost_columns(batches, cost_radii, cost_extent)
-    col_count = {}
-    for b, _mu, _mv, radius in cost_cols:
-        radius_key = round(radius, 6)
-        col_count[(b, radius_key)] = col_count.get((b, radius_key), 0) + 1
 
     cost_batch, cost_unit, cost_radius_list, cost_target, cost_weight_list = [], [], [], [], []
     for b, mu, mv, radius in cost_cols:
-        w = spot_cost_cell_weight(b, radius, col_count, spot_cost_radius_weight)
+        w = spot_cost_cell_weight(radius, spot_cost_radius_weight)
         if w == 0.0:
             continue
         for ft in present_fit:

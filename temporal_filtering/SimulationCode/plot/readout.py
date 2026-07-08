@@ -90,7 +90,7 @@ def borst_ref_cubes(dark=False):
 
 
 def spot_ref_cubes(session, target=None, dark=False):
-    """Spot model-data reference cubes from RecF + pack_overrides mirror specs."""
+    """Spot model-data reference cubes from ``read_RecF_data`` (shape ``(9, T)``)."""
     target = target or session.primary_pack.name
     ref = dict(borst_ref_cubes(dark=dark))
     overrides = (session.train_opts or {}).get('pack_overrides') or {}

@@ -196,6 +196,39 @@ def column_at_scope_tag(at_x, at_y):
     return ', '.join(parts)
 
 
+def batches_at_stim_xy(batches, *, at_x=None, at_y=None, tol=1e-6):
+    """Batch indices whose stimulus ``(stim_u, stim_v)`` matches hex-step slice."""
+    if at_x is None and at_y is None:
+        return list(range(len(batches)))
+    import column_mapper
+    out = []
+    for b, (su, sv, _center) in enumerate(batches):
+        x, y = column_mapper.uv_to_xy(su, sv)
+        if not _coord_matches(x, at_x, tol=tol):
+            continue
+        if not _coord_matches(y, at_y, tol=tol):
+            continue
+        out.append(b)
+    return out
+
+
+def slice_axis_label(val):
+    fv = float(val)
+    if np.isclose(fv, round(fv)):
+        return str(int(round(fv)))
+    return str(fv)
+
+
+def slice_xy_label(xv, yv):
+    return f'({slice_axis_label(xv)},{slice_axis_label(yv)})'
+
+
+def overlay_model_reds(n_slices):
+    """Red shades for per-slice traces plus a darker ``total`` trace."""
+    n = n_slices + 1
+    return [plt.cm.Reds(v) for v in np.linspace(0.35, 0.95, n)]
+
+
 def ylim_for_traces(
     model,
     *,

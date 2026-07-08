@@ -412,13 +412,13 @@ def build_adaptive_schema(n_types, ih_group):
     ]
 
 
-def default_schema(model_type: str, backend: "ModelBackend", ih_group=None) -> list:
-    """Fresh parameter schema for ``model_type`` on the given backend."""
+def default_schema(model: str, backend: "ModelBackend", ih_group=None) -> list:
+    """Fresh parameter schema for ``model`` on the given backend."""
     if ih_group is None:
         ih_group = default_ih_group(backend)
     n = backend.n_types
     type_names = list(backend.network.type_names) if backend.network is not None else ml.ctype
-    if model_type == 'adaptive':
+    if model == 'adaptive':
         return build_adaptive_schema(n, ih_group)
     return build_conductance_schema(n, ih_group, type_names=type_names)
 
@@ -485,7 +485,7 @@ class TrainSession:
     """Immutable runtime context for one training / plotting run."""
 
     backend: ModelBackend
-    model_type: str
+    model: str
     schema: tuple
     targets: Dict[str, TargetPack]
     target_list: Tuple[str, ...]
@@ -1006,6 +1006,11 @@ def _build_borst_spot_target(ctx: _TrainBindCtx, polarity: str) -> Tuple[TargetP
 def _cost_extent_column_coltag(cost_extent, n_columns):
     if cost_extent is not None:
         return f"cost_extent={int(cost_extent)}"
+    if isinstance(n_columns, dict):
+        vals = sorted(set(n_columns.values()))
+        if len(vals) == 1:
+            return f"{vals[0]} columns"
+        return f"{min(vals)}-{max(vals)} columns"
     return f"{n_columns} columns"
 
 
@@ -1060,9 +1065,9 @@ def _build_network_moving_bar_target(ctx: _TrainBindCtx, C, *, pack_name: str, p
     if opts.get("mode") != "network":
         opts = dict(opts)
         opts["mode"] = "network"
-    cost_extent = opts.get("cost_extent")
-    if cost_extent is not None:
-        cost_extent = int(cost_extent)
+    from network.stimulus import normalize_cost_extent
+
+    cost_extent = normalize_cost_extent(opts.get("cost_extent"))
     build_kw = dict(
         C=C,
         device=dev,
@@ -1128,9 +1133,9 @@ def _build_network_spot_target(
         ctx.spot_bright_stimulus_opts if polarity == "bright" else ctx.spot_dark_stimulus_opts
     )
     opts = dict(ctx_opts or make_spot_stimulus_opts(polarity, mode="network"))
-    cost_extent = opts.get("cost_extent")
-    if cost_extent is not None:
-        cost_extent = int(cost_extent)
+    from network.stimulus import normalize_cost_extent
+
+    cost_extent = normalize_cost_extent(opts.get("cost_extent"))
     shift_extent = int(opts.get("shift_extent", 0))
     T = build_shifted_target(
         C,
@@ -1209,6 +1214,8 @@ def expand_cost_extent_dict(kv: Optional[dict]) -> Dict[str, int]:
 
 def resolve_cost_extent_by_target(target_list, default, by_target_kv) -> Dict[str, int]:
     """Map each concrete target in *target_list* to a cost extent (omit = all columns)."""
+    from network.stimulus import normalize_cost_extent
+
     expanded = expand_cost_extent_dict(by_target_kv or {})
     bad = [k for k in expanded if k not in VALID_TARGETS]
     if bad:
@@ -1216,26 +1223,31 @@ def resolve_cost_extent_by_target(target_list, default, by_target_kv) -> Dict[st
             f"unknown target(s) in --cost-extent: {bad} "
             f"(expected {'|'.join(CLI_TARGET_NAMES)})",
         )
+    norm_default = normalize_cost_extent(default)
     out: Dict[str, int] = {}
     for tname in target_list:
         if tname in expanded:
-            out[tname] = expanded[tname]
-        elif default is not None:
-            out[tname] = int(default)
+            norm = normalize_cost_extent(expanded[tname])
+            if norm is not None:
+                out[tname] = norm
+        elif norm_default is not None:
+            out[tname] = norm_default
     return out
 
 
 def apply_cost_extent_to_stimulus_opts(opts, target_name, cost_extent_by_target):
     """Set ``cost_extent`` on one target's stimulus opts when resolved."""
+    from network.stimulus import normalize_cost_extent
+
     out = dict(opts or {})
     if cost_extent_by_target and target_name in cost_extent_by_target:
         out["cost_extent"] = int(cost_extent_by_target[target_name])
     elif "cost_extent" in out:
-        val = out["cost_extent"]
-        if val is None:
+        norm = normalize_cost_extent(out["cost_extent"])
+        if norm is None:
             out.pop("cost_extent", None)
         else:
-            out["cost_extent"] = int(val)
+            out["cost_extent"] = norm
     return out
 
 
@@ -1249,7 +1261,7 @@ def apply_shift_extent_to_stimulus_opts(opts, target_name, shift_extent):
 
 
 def apply_spot_cost_radius_weight_to_stimulus_opts(opts, target_name, spot_cost_radius_weight):
-    """Set ``spot_cost_radius_weight`` on spot stimulus opts (``None`` → default ``1/col_count``)."""
+    """Set ``spot_cost_radius_weight`` on spot stimulus opts (``None`` → default weights)."""
     if target_name not in SPOT_TARGETS or spot_cost_radius_weight is None:
         return opts
     out = dict(opts or {})
@@ -1534,18 +1546,18 @@ def _train_opts_for_sidecar(
     return record
 
 
-def _schema_from_opts(model_type, model_backend, schema, train_opts_record):
+def _schema_from_opts(model, model_backend, schema, train_opts_record):
     if schema is not None:
         return list(schema)
     ih_group = None
     if train_opts_record and train_opts_record.get('ih_group'):
         ih_group = build_ih_group_from_names(train_opts_record['ih_group'], model_backend)
-    return default_schema(model_type, model_backend, ih_group=ih_group)
+    return default_schema(model, model_backend, ih_group=ih_group)
 
 
 def _make_session(
     model_backend: ModelBackend,
-    model_type: str,
+    model: str,
     target_list: List[str],
     packs: Dict[str, TargetPack],
     *,
@@ -1559,21 +1571,21 @@ def _make_session(
     dev_ref = dev or active_device()
     seq = False if sequential is None else bool(sequential)
     if train_opts_record is not None:
-        train_opts_record["model_type"] = model_type
+        train_opts_record["model"] = model
         train_opts_record["sequential"] = bool(seq)
     ih_off = IH_OFF_DEFAULT
     if train_opts_record is not None and "ih_off" in train_opts_record:
         ih_off = str(train_opts_record["ih_off"])
-    if model_type == 'conductance':
-        base = _schema_from_opts(model_type, model_backend, schema, train_opts_record)
+    if model == 'conductance':
+        base = _schema_from_opts(model, model_backend, schema, train_opts_record)
         sch = conductance_schema(model_backend, base, ih_off)
     elif schema is not None:
         sch = list(schema)
     else:
-        sch = _schema_from_opts(model_type, model_backend, None, train_opts_record)
+        sch = _schema_from_opts(model, model_backend, None, train_opts_record)
     return TrainSession(
         backend=model_backend,
-        model_type=model_type,
+        model=model,
         schema=tuple(sch),
         targets=dict(packs),
         target_list=tuple(target_list),
@@ -1587,7 +1599,7 @@ def _make_session(
 
 def open_session(
     opts: dict,
-    model_type: str,
+    model: str,
     *,
     schema: Optional[list] = None,
     model_backend: Optional[ModelBackend] = None,
@@ -1645,7 +1657,7 @@ def open_session(
             resolved_bar_bright, resolved_bar_dark, False,
         )
         session = _make_session(
-            model_backend, model_type, target_list, packs,
+            model_backend, model, target_list, packs,
             cost_weights=opts.get("cost_weights"),
             sequential=opts.get("sequential"),
             dev=dev,
@@ -1709,7 +1721,7 @@ def open_session(
         resolved_bar_bright, resolved_bar_dark, False,
     )
     return _make_session(
-        model_backend, model_type, target_list, packs,
+        model_backend, model, target_list, packs,
         cost_weights=opts.get("cost_weights"),
         sequential=opts.get("sequential"),
         dev=dev,
@@ -1719,13 +1731,13 @@ def open_session(
     )
 
 
-def open_session_from_opts(opts: dict, model_type: str | None = None, **kwargs) -> TrainSession:
+def open_session_from_opts(opts: dict, model: str | None = None, **kwargs) -> TrainSession:
     """Restore a session from a saved ``train_opts.json`` dict."""
     opts = dict(opts)
-    if model_type is None:
-        model_type = opts.get("model_type")
-        if not model_type:
-            raise ValueError("train_opts requires model_type")
+    if model is None:
+        model = opts.get("model")
+        if not model:
+            raise ValueError("train_opts requires model")
     opts["packs"] = None
     backend = str(opts.get("backend", "borst"))
     if backend == "network":
@@ -1740,12 +1752,12 @@ def open_session_from_opts(opts: dict, model_type: str | None = None, **kwargs) 
         )
         opts["network"] = mb.network
         kwargs.setdefault("model_backend", mb)
-    return open_session({**opts, "backend": backend}, model_type, **kwargs)
+    return open_session({**opts, "backend": backend}, model, **kwargs)
 
 
 def open_session_from_outdir(
     outdir: str,
-    model_type: str | None = None,
+    model: str | None = None,
     *,
     param_modes=None,
 ) -> TrainSession:
@@ -1757,7 +1769,7 @@ def open_session_from_outdir(
         raise FileNotFoundError(f"missing {opts_path}")
     with open(opts_path) as f:
         opts = json.load(f)
-    session = open_session_from_opts(opts, model_type)
+    session = open_session_from_opts(opts, model)
     if param_modes:
         modes = expand_mode_dict(param_modes, list(session.schema))
         session = session.with_schema(
@@ -2114,9 +2126,9 @@ MODEL_PACK_READOUT = {
 
 def _pack_model_readout(p, pack: TargetPack, session: TrainSession, batch_idx=None):
     try:
-        readout = MODEL_PACK_READOUT[session.model_type]
+        readout = MODEL_PACK_READOUT[session.model]
     except KeyError:
-        raise ValueError(f"no pack readout for model_type={session.model_type!r}") from None
+        raise ValueError(f"no pack readout for model={session.model!r}") from None
     return readout(p, pack, session, batch_idx)
 
 
@@ -2295,7 +2307,7 @@ def _pack_cost_rows(p, pack: TargetPack, session: TrainSession, batch_idx=None):
 def _pack_cost_parts_for_pack(z, pack: TargetPack, session: TrainSession, batch_idx=None, p=None):
     if p is None:
         schema = list(session.schema)
-        if session.model_type == 'adaptive':
+        if session.model == 'adaptive':
             p = assign_params_adaptive(z, schema, session.backend)
         else:
             p = assign_params(z, schema, session.backend)
@@ -2316,7 +2328,7 @@ def _pack_cost(z, pack: TargetPack, session: TrainSession, batch_idx=None):
 def calc_cost_parts(z, session: TrainSession) -> Dict[str, torch.Tensor]:
     """Per-part unweighted cost (before ``cost_weights``)."""
     schema = list(session.schema)
-    if session.model_type == 'adaptive':
+    if session.model == 'adaptive':
         p = assign_params_adaptive(z, schema, session.backend)
     else:
         p = assign_params(z, schema, session.backend)

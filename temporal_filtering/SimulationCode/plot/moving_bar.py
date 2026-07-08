@@ -23,9 +23,12 @@ from plot.utils import (
     column_at_scope_tag,
     filter_borst_sti_columns,
     filter_sti_columns,
+    overlay_model_reds,
     plot_timecourse,
     save_figure,
     sem_from_traces,
+    slice_axis_label,
+    slice_xy_label,
     suppress_cost_sem,
     ylim_for_traces,
 )
@@ -413,24 +416,6 @@ def _moving_bar_row_specs(session, target, side):
     }
 
 
-def _slice_axis_label(val):
-    fv = float(val)
-    if np.isclose(fv, round(fv)):
-        return str(int(round(fv)))
-    return str(fv)
-
-
-def _slice_xy_label(xv, yv):
-    return f'({_slice_axis_label(xv)},{_slice_axis_label(yv)})'
-
-
-def _overlay_model_reds(n_slices):
-    """Red shades for per-slice traces plus a darker ``total`` trace."""
-    import matplotlib.pyplot as plt
-    n = n_slices + 1
-    return [plt.cm.Reds(v) for v in np.linspace(0.35, 0.95, n)]
-
-
 def _moving_bar_traces_from_forward(
     session, target, trace_full, vm_ref_np, specs, spec_names, *,
     at_x=None, at_y=None,
@@ -512,7 +497,7 @@ def moving_bar_trace_bundle(session, z, target, *, at_x=None, at_y=None,
         slice_overlay = {}
         for xv in slice_x_list:
             for yv in slice_y_list:
-                label = _slice_xy_label(xv, yv)
+                label = slice_xy_label(xv, yv)
                 wt = _moving_bar_slice_overlay_traces(
                     session, target, trace_full, traces, specs, spec_names,
                     at_x=xv, at_y=yv,
@@ -531,7 +516,7 @@ def moving_bar_trace_bundle(session, z, target, *, at_x=None, at_y=None,
         slice_x_list = list(at_x_list)
         slice_overlay = {}
         for xv in slice_x_list:
-            slice_overlay[_slice_axis_label(xv)] = _moving_bar_slice_overlay_traces(
+            slice_overlay[slice_axis_label(xv)] = _moving_bar_slice_overlay_traces(
                 session, target, trace_full, traces, specs, spec_names, at_x=xv,
             )
     elif at_y_list is not None:
@@ -539,7 +524,7 @@ def moving_bar_trace_bundle(session, z, target, *, at_x=None, at_y=None,
         slice_y_list = list(at_y_list)
         slice_overlay = {}
         for yv in slice_y_list:
-            slice_overlay[_slice_axis_label(yv)] = _moving_bar_slice_overlay_traces(
+            slice_overlay[slice_axis_label(yv)] = _moving_bar_slice_overlay_traces(
                 session, target, trace_full, traces, specs, spec_names, at_y=yv,
             )
     return MovingBarTraceBundle(
@@ -729,7 +714,7 @@ def _plot_moving_bar_cell_slices(
     t = np.arange(win_len)
     if data_x is not None:
         ax.plot(data_x, data_y, color=DATA_COLOR, linewidth=TRACE_LW)
-    colors = _overlay_model_reds(len(slice_labels))
+    colors = overlay_model_reds(len(slice_labels))
     for i, label in enumerate(slice_labels):
         ax.plot(t, slice_traces[label], color=colors[i], linewidth=TRACE_LW, label=label)
     if show_sem and sem_trace is not None and np.any(sem_trace):

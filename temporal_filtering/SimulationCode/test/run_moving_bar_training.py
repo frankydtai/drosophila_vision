@@ -42,7 +42,7 @@ def main():
         fname.replace(".npy", "") + "_costs.npy",
         fname.replace(".npy", "") + "_final_costs.npy",
         fname.replace(".npy", "") + "_table.csv",
-        "model_type.txt",
+        "model.txt",
         "train_opts.json",
         MODEL_VS_DATA_PNG,
         MODEL_ALL_CELLS_PNG,

@@ -18,7 +18,7 @@ from plot.utils import parse_axis_slice_list, plot_cost
 from training_config import PARAMETER_DIR, run_data_dir
 
 TRAIN_OPTS_FILE = fc.TRAIN_OPTS_FILE
-KNOWN_MODEL_TYPES = ('conductance', 'adaptive')
+KNOWN_MODELS = ('conductance', 'adaptive')
 RUN_NAME_MAX = 255
 
 
@@ -76,10 +76,10 @@ def command_run_name(script_stem, argv=None):
     return name[:RUN_NAME_MAX].rstrip('-')
 
 
-def run_dir(model_type, root=None, parent=None, name=None):
+def run_dir(model, root=None, parent=None, name=None):
     if parent is None:
         root = str(PARAMETER_DIR) if root is None else root
-        parent = os.path.join(root, model_type)
+        parent = os.path.join(root, model)
     if name is None:
         job_id = os.environ.get('SLURM_JOB_ID')
         name = f'run_{job_id}' if job_id else time.strftime('run_%m%d_%H%M%S')
@@ -110,9 +110,9 @@ def load_train_opts(outdir):
         return json.load(f)
 
 
-def load_session(outdir, model_type=None, param_modes=None):
+def load_session(outdir, model=None, param_modes=None):
     return fc.open_session_from_outdir(
-        outdir, model_type,
+        outdir, model,
         param_modes=param_modes,
     )
 
@@ -124,29 +124,29 @@ def _session_for_target(base_session, tname):
     opts['packs'] = None
     if base_session.backend.network is not None:
         opts['network'] = base_session.backend.network
-        return fc.open_session({**opts, 'backend': 'network'}, base_session.model_type,
+        return fc.open_session({**opts, 'backend': 'network'}, base_session.model,
                                schema=list(base_session.schema))
-    return fc.open_session({**opts, 'backend': 'borst'}, base_session.model_type,
+    return fc.open_session({**opts, 'backend': 'borst'}, base_session.model,
                            schema=list(base_session.schema))
 
 
-def resolve_model_type(outdir, override=None):
+def resolve_model(outdir, override=None):
     if override is not None:
-        model_type = override
+        model = override
     else:
         opts = load_train_opts(outdir)
-        if not opts or 'model_type' not in opts:
+        if not opts or 'model' not in opts:
             raise SystemExit(
-                f'cannot determine model_type for {outdir!r}; '
-                f'expected {TRAIN_OPTS_FILE} with "model_type": conductance or adaptive'
+                f'cannot determine model for {outdir!r}; '
+                f'expected {TRAIN_OPTS_FILE} with "model": conductance or adaptive'
             )
-        model_type = opts['model_type']
-    if model_type not in KNOWN_MODEL_TYPES:
+        model = opts['model']
+    if model not in KNOWN_MODELS:
         raise SystemExit(
-            f'invalid model_type {model_type!r} in {outdir!r}; '
+            f'invalid model {model!r} in {outdir!r}; '
             f'expected conductance or adaptive'
         )
-    return model_type
+    return model
 
 
 def resolve_run_dir(path):
@@ -221,7 +221,8 @@ def select_best(params, session, *, final_costs=None, best_i=None):
 
 
 def _plot_spot_targets(session, z, outdir, spot_targets, suffix, model_all,
-                       ref_cubes=None, ref_cubes_off=None, mvd_group_list=None):
+                       ref_cubes=None, ref_cubes_off=None, mvd_group_list=None,
+                       at_x=None, at_y=None):
     """Plot spot target(s); on+off combined in one figure when both are trained."""
     spot_set = set(spot_targets)
     plot_fn = _spot_plot_fn(session)
@@ -231,6 +232,7 @@ def _plot_spot_targets(session, z, outdir, spot_targets, suffix, model_all,
         ref_cubes=ref_cubes, ref_cubes_off=ref_cubes_off,
         group_list=mvd_group_list,
     )
+    slice_kw = dict(at_x_list=at_x, at_y_list=at_y)
     if spot_set == set(fc.SPOT_TARGETS):
         s_on = _session_for_target(session, 'spot_bright')
         s_off = _session_for_target(session, 'spot_dark')
@@ -246,7 +248,7 @@ def _plot_spot_targets(session, z, outdir, spot_targets, suffix, model_all,
             plot_fn(
                 s_on, z, allc, session_off=s_off, all_cells=True,
                 title=f'Spot model-all ({suffix}){net_tag}',
-                **plot_kw,
+                **plot_kw, **slice_kw,
             )
         return mvd, allc
     for tname in spot_targets:
@@ -254,6 +256,7 @@ def _plot_spot_targets(session, z, outdir, spot_targets, suffix, model_all,
             _session_for_target(session, tname), z, outdir, tname, suffix, model_all,
             ref_cubes=ref_cubes, ref_cubes_off=ref_cubes_off,
             mvd_group_list=mvd_group_list,
+            at_x=at_x, at_y=at_y,
         )
 
 
@@ -305,7 +308,8 @@ def _plot_bar_targets(session, z, outdir, bar_targets, suffix, model_all, *,
 
 
 def _plot_one_target(session, z, outdir, tname, suffix, model_all,
-                     ref_cubes=None, ref_cubes_off=None, mvd_group_list=None):
+                     ref_cubes=None, ref_cubes_off=None, mvd_group_list=None,
+                     at_x=None, at_y=None):
     if tname not in fc.SPOT_TARGETS:
         raise ValueError(f'unknown plot target {tname!r}')
     mvd = os.path.join(outdir, 'model_data_spot.png')
@@ -319,11 +323,12 @@ def _plot_one_target(session, z, outdir, tname, suffix, model_all,
     plot_fn(session, z, mvd, title=f'{tname} model-data ({suffix}){net_tag}', **plot_kw)
     if model_all:
         plot_fn(session, z, allc, all_cells=True,
-                title=f'{tname} model-all ({suffix}){net_tag}', **plot_kw)
+                title=f'{tname} model-all ({suffix}){net_tag}',
+                at_x_list=at_x, at_y_list=at_y, **plot_kw)
     return mvd, allc
 
 
-def plot_param_set(params, outdir, model_type=None, model_all=True,
+def plot_param_set(params, outdir, model=None, model_all=True,
                    context_dir=None, param_modes=None,
                    plot_targets=None, session=None, *,
                    final_costs=None, cost_curve=None, costs_by_target=None, best_i=None,
@@ -333,12 +338,12 @@ def plot_param_set(params, outdir, model_type=None, model_all=True,
                    plot_vm=False):
     os.makedirs(outdir, exist_ok=True)
     ctx = context_dir or outdir
-    if model_type is None and session is not None:
-        model_type = session.model_type
-    if model_type is None:
-        raise ValueError('model_type or session required')
+    if model is None and session is not None:
+        model = session.model
+    if model is None:
+        raise ValueError('model or session required')
     if session is None:
-        session = load_session(ctx, model_type, param_modes=param_modes)
+        session = load_session(ctx, model, param_modes=param_modes)
 
     params = np.atleast_2d(params)
     if final_costs is None and artifact_fname is not None:
@@ -371,12 +376,12 @@ def plot_param_set(params, outdir, model_type=None, model_all=True,
         t for t in target_list
         if t not in fc.SPOT_TARGETS and t not in fc.MOVING_BAR_TARGETS
     ]
-    if (at_x is not None or at_y is not None) and not bar_targets:
-        raise SystemExit('--x/--y require a moving_bar target in this run')
+    if (at_x is not None or at_y is not None) and not bar_targets and not spot_targets:
+        raise SystemExit('--x/--y require a moving_bar or spot target in this run')
 
     if plot_vm:
-        if session.model_type != 'conductance':
-            raise SystemExit('--Vm requires model_type conductance')
+        if session.model != 'conductance':
+            raise SystemExit('--Vm requires model conductance')
         if other_targets:
             raise SystemExit(f'--Vm does not support plot targets: {other_targets}')
         if bar_targets:
@@ -430,6 +435,7 @@ def plot_param_set(params, outdir, model_type=None, model_all=True,
                     s_on, z, allc, session_off=s_off, all_cells=True,
                     title=f'Spot Vm-all ({suffix}){net_tag}',
                     trace_kind='vm',
+                    at_x_list=at_x, at_y_list=at_y,
                     **plot_kw,
                 )
             else:
@@ -440,6 +446,7 @@ def plot_param_set(params, outdir, model_type=None, model_all=True,
                     one, z, allc, all_cells=True,
                     title=f'{tname} Vm-all ({suffix}){net_tag}',
                     trace_kind='vm',
+                    at_x_list=at_x, at_y_list=at_y,
                     **plot_kw,
                 )
         print(f'plots saved to {outdir}')
@@ -456,6 +463,7 @@ def plot_param_set(params, outdir, model_type=None, model_all=True,
             session, z, outdir, spot_targets, suffix, model_all,
             ref_cubes=ref_cubes, ref_cubes_off=ref_cubes_off,
             mvd_group_list=mvd_group_list,
+            at_x=at_x, at_y=at_y,
         )
     if bar_targets:
         _plot_bar_targets(
@@ -514,13 +522,13 @@ def add_plot_arguments(parser):
         '--x',
         default=None,
         metavar='X,...',
-        help='model_all_bar{,_vm}: comma-separated x slices; with --y, one trace per (x,y) pair',
+        help='model_all_{bar,spot}{,_vm}: comma-separated x slices; with --y, one trace per (x,y) pair',
     )
     parser.add_argument(
         '--y',
         default=None,
         metavar='Y,...',
-        help='model_all_bar{,_vm}: comma-separated y slices; with --x, one trace per (x,y) pair',
+        help='model_all_{bar,spot}{,_vm}: comma-separated y slices; with --x, one trace per (x,y) pair',
     )
 
 
@@ -552,12 +560,12 @@ def main():
     outdir = resolve_run_dir(args.run_path)
     params_path, artifact_fname = find_training_params(outdir)
     params = np.load(params_path)
-    model_type = resolve_model_type(outdir)
+    model = resolve_model(outdir)
     print(f'outdir={outdir}')
     print(f'params={params_path}')
-    print(f'model_type={model_type} ({params.shape[-1]} params per set)')
+    print(f'model={model} ({params.shape[-1]} params per set)')
     plot_param_set(
-        params, outdir, model_type=model_type,
+        params, outdir, model=model,
         artifact_fname=artifact_fname,
         best_i=args.best_i,
         **plot_kw,
