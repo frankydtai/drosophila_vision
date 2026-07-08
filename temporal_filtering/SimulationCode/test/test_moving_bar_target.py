@@ -123,7 +123,6 @@ def test_cost_extent_requires_network():
         loss_weight="",
         cost_extent="0",
         shift=False,
-        share_edges="",
         i_baseline="",
         i_bright="",
         i_dark="",

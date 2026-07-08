@@ -49,8 +49,8 @@ def _legacy_conductance_z_slices():
 LEGACY_NPARAMS = _legacy_conductance_z_slices()["n_params"]
 LEGACY_PARAM_MODES = {"out_scale": "fixed"}
 LEGACY_PARAM_FIXES = {"out_scale": 1.0}
-LEGACY_TILE_STIMULUS_OPTS = {
-    "target": "tile_bright",
+LEGACY_SPOT_STIMULUS_OPTS = {
+    "target": "spot_bright",
     "mode": "borst",
     "i_baseline": 0.0,
     "i_bright": float(ml.I_BRIGHT),
@@ -153,11 +153,11 @@ def borst_bar_sessions(outdir):
     return s_bright, s_dark
 
 
-def borst_tile_session():
+def borst_spot_session():
     session = fc.open_session(
         fc.make_train_opts(
-            backend="borst", target_list=["tile_bright"],
-            tile_bright_stimulus_opts=LEGACY_TILE_STIMULUS_OPTS,
+            backend="borst", target_list=["spot_bright"],
+            spot_bright_stimulus_opts=LEGACY_SPOT_STIMULUS_OPTS,
         ),
         "conductance",
     )
@@ -170,17 +170,17 @@ def main():
     os.makedirs(args.outdir, exist_ok=True)
 
     if load_train_opts(args.outdir) is None:
-        tile_session = borst_tile_session()
+        spot_session = borst_spot_session()
     else:
-        tile_session = None
+        spot_session = None
 
-    _, tile_cost = plot_param_set(
+    _, spot_cost = plot_param_set(
         z138[None], args.outdir, model_type="conductance", model_all=True,
         param_modes=LEGACY_PARAM_MODES, param_fixes=LEGACY_PARAM_FIXES,
-        session=tile_session,
+        session=spot_session,
     )
     print(f"params: {args.params}  ({LEGACY_NPARAMS} legacy, out_scale=fixed)")
-    print(f"tile_bright: Borst  cost={tile_cost:.4f}%")
+    print(f"spot_bright: Borst  cost={spot_cost:.4f}%")
 
     if args.bar:
         if args.network_ref:

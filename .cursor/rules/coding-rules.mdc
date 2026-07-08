@@ -14,6 +14,7 @@ Scope: `temporal_filtering/`.
 3. Python/pip: Must use `.venv` in the **same top-level subproject** as the script (see §1 table). No bare `python` / `python3` / `pip` / `pip3`; no wrong subproject `.venv`.
 4. Must not automatically add new `*.py` / `*.sh` / `*.ipynb` / `*.m`: must explain + propose path/duties + wait for user approval.
 
+
 - **Python** (script location → interpreter):
 | Script location | Interpreter |
 |---|---|
@@ -39,6 +40,8 @@ Scope: `temporal_filtering/`.
 4. Path constants in `connectome_io.py` / `training_config.py`. 
 5. CSVs: rectangular; global scalars as constant columns.
 6. Core codes must stay flexible for add_para/ or test/ to easily import, modify, and overwrite without touching core codes.
+7. No reverse plot dependency (HARD STOP 5). Scope: `SimulationCode/network/**`, `Connectome/**`, `Medulla_Library.py`, `FiveCol_MedSim_Pytorch.py`, `training_config.py`, `connectome_io.py`. Shared logic needed by both plot and core → move into core (e.g. `network/spot_target.py`, `network/moving_bar_target.py`); never import plot layers from core.
+10. No reverse plot dependency: core must not import or call plotting. Forbidden: `import plot`, `from plot import …`, `import plot_trained`, `from plot_trained import …
 
 ## C non-core script rules
 

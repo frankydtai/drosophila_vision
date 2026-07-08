@@ -18,7 +18,7 @@ import network_bootstrap  # noqa: F401
 import FiveCol_MedSim_Pytorch as fc
 from connectome_io import DEFAULT_NETWORK_RUN, resolve_network_json
 from network.moving_bar_target import _TRACE_CACHE
-from network.tiling import unit_type_names
+from network.construction import unit_type_names
 from plot.moving_bar import _moving_bar_mean_traces
 from plot_trained import plot_moving_bar_data, run_dir
 from t4_t5_preference import READOUT_SUBTYPES, active_stimuli_for_subtype, normalize_side

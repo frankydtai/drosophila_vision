@@ -4,6 +4,9 @@ SimulationCode scripts import from here instead of hardcoding paths to
 ``MatlabFunctions/``, trained-parameter output folders, or cost-window sizes.
 FAFB connectome build paths live in ``connectome_io``; this module covers
 training data and training output paths.
+
+Spot / impulse step timing (``T`` vs ``T'`` / ``SPOT_RESPONSE_STEPS``) is the
+single source of truth in the constants block below.
 """
 
 from __future__ import annotations
@@ -47,9 +50,30 @@ SIM_DTYPE_DEFAULT = torch.float64
 def sim_dtype_from_fp32(fp32: bool) -> torch.dtype:
     return torch.float32 if fp32 else SIM_DTYPE_DEFAULT
 
-# Stimulus timing (canonical ms; step counts below use ms_to_steps at default DELTAT_MS).
+# ---------------------------------------------------------------------------
+# Spot / impulse timing (``DELTAT_MS`` = 10 ms per step at default settings).
+#
+# Step axis (do not confuse T with T' / ``SPOT_RESPONSE_STEPS``):
+#
+#   index:     0 … T_ON-1      |  T_ON … IMPULSE_MAXTIME-1
+#   wall time: 0–500 ms        |  500–2000 ms
+#   count:     T_ON (=50)      |  SPOT_RESPONSE_STEPS (=150)
+#
+#   T  = ``IMPULSE_MAXTIME`` (=200): full simulation length (stimulus, ImpR,
+#        ``read_RecF_data`` cubes).  ``signal`` time dim uses T.
+#   T' = ``SPOT_RESPONSE_STEPS`` (=150): post-step response window only;
+#        ``TargetPack.data`` and MSE cost use T' (= ``IMPULSE_MAXTIME - T_ON``).
+#
+# ``read_RecF_data()`` shape (13, 9, T); time indices ``[:T_ON]`` are exactly
+# zero (PR step starts at ``T_ON``; filtered ImpR is nonzero from ~``T_ON+1``).
+#
+# Borst spot cost target: ``data`` is (65, T') — 13 fit types × 5 columns,
+# flattened; NOT a (13, T', 5) tensor.
+#
+# Moving bar uses separate ``COST_WINDOW`` / ``maxtime``; not T or T' above.
+# ---------------------------------------------------------------------------
 T_ON_MS = 500.0
-IMPULSE_MAXTIME_MS = 2000.0  # Borst spot / impulse horizon
+IMPULSE_MAXTIME_MS = 2000.0
 
 # Moving-bar per-column cost window relative to first-stimulus alignment.
 COST_WINDOW_MS = 900.0
@@ -69,6 +93,7 @@ def ms_to_steps(ms: float, *, deltat_ms: float = DELTAT_MS) -> int:
 
 T_ON = ms_to_steps(T_ON_MS)
 IMPULSE_MAXTIME = ms_to_steps(IMPULSE_MAXTIME_MS)
+SPOT_RESPONSE_STEPS = IMPULSE_MAXTIME - T_ON  # T'; post-step cost window (150 at default)
 T_TAIL = ms_to_steps(MOVING_BAR_TAIL_MS)
 COST_WINDOW_BEFORE = ms_to_steps(COST_WINDOW_BEFORE_MS)
 COST_WINDOW_AFTER = ms_to_steps(COST_WINDOW_AFTER_MS)

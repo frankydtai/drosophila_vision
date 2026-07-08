@@ -59,7 +59,7 @@ def readout_center_mask(pack, backend):
             v_all = C.v.detach().cpu().numpy() if hasattr(C.v, "detach") else np.asarray(C.v)
             return column_mapper.inside_mask(u_all[readout], v_all[readout], int(pack.cost_extent))
         if pack.cost_radius is not None:
-            return np.floor(pack.cost_radius.cpu().numpy()).astype(int) == 0
+            return np.round(pack.cost_radius.cpu().numpy(), 6) == 0.0
         return np.ones(readout.shape[0], dtype=bool)
     return np.ones(readout.shape[0], dtype=bool)
 
@@ -72,22 +72,26 @@ def baselines_for_types(
     type_ids,
     global_type_names,
     *,
-    ring_layout=None,
+    readout_unit_idx=None,
+    readout_type_idx=None,
+    readout_du=None,
+    readout_dv=None,
 ):
     """Mean Vm_ref at stimulus onset, keyed by type name.
 
     Default: centre cost-readout units (``readout_center_mask``).
-    With ``ring_layout`` = ``(batch_idx, unit_idx, type_idx, radius)``: ring-0
-  units averaged per type (network ``model_all_spot``).
+    With ``readout_du`` / ``readout_dv``: stim-centred centre members ``(0, 0)``
+    only (network ``model_all_spot``).
     """
     vm_ref = np.asarray(vm_ref, dtype=np.float64)
     out = {}
-    if ring_layout is not None:
-        _batch_idx, unit_idx, type_idx, radius = ring_layout
-        center = np.floor(radius).astype(int) == 0
+    if readout_du is not None and readout_dv is not None:
+        if readout_unit_idx is None or readout_type_idx is None:
+            raise ValueError("readout_du/dv require readout_unit_idx and readout_type_idx")
+        center = (readout_du == 0) & (readout_dv == 0)
         for name in names:
             ti = global_type_names.index(name)
-            units = np.unique(unit_idx[center & (type_idx == ti)])
+            units = np.unique(readout_unit_idx[center & (readout_type_idx == ti)])
             out[name] = float(vm_ref[units].mean()) if len(units) else np.nan
         return out
     readout = pack.readout_unit.cpu().numpy()
@@ -164,7 +168,7 @@ def filter_borst_sti_columns(cols, *, at_x=None, at_y=None, tol=1e-6):
             k = int(round(float(v)))
             if not np.isclose(float(v), k, atol=tol):
                 raise ValueError(
-                    f'Borst --x={v!r} must be an integer column offset k in -2..+2',
+                    f'Borst --x={v!r} must be an integer column k in -2..+2',
                 )
             ks.append(k)
         out = [col for col in cols if col.k in ks]
@@ -173,7 +177,7 @@ def filter_borst_sti_columns(cols, *, at_x=None, at_y=None, tol=1e-6):
         return out
     k = int(round(float(at_x)))
     if not np.isclose(float(at_x), k, atol=tol):
-        raise ValueError(f'Borst --x={at_x!r} must be an integer column offset k in -2..+2')
+        raise ValueError(f'Borst --x={at_x!r} must be an integer column k in -2..+2')
     out = [col for col in cols if col.k == k]
     if not out:
         raise ValueError(f'no Borst column with k={k!r}')

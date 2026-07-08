@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-"""Tile plotting (Borst + network spot target).
+"""Spot plotting (Borst + network spot target).
 
 Shared ``plot_cell_pair`` / ``_plot_spot_figure``; backend-specific cube prep only.
 """
@@ -15,8 +15,6 @@ from training_config import DELTAT_MS, IMPULSE_MAXTIME
 import blindschleiche_py3 as bs
 import FiveCol_MedSim_Pytorch as fc
 from plot.readout import (
-    DEFAULT_MVD_GROUPS,
-    borst_ref_cubes,
     spot_model_data_groups,
     spot_model_data_names,
     spot_ref_cubes,
@@ -33,16 +31,42 @@ from plot.utils import (
     save_figure,
     sem_from_traces,
 )
-from network.spot_target import spot_cost_unit_ring_layout
-from network.spotting import (
+from network.spot_target import (
+    spot_cost_unit_radius_layout,
     spot_stimulus_batches,
-    spotting_from_stimulus_opts,
+    spotting_from_opts,
+    resolve_spot_cost_radii,
 )
 
-CENTER_COL = ml.CENTER_COL
-CENTER_BIN = CENTER_COL + 2
+CENTER_BIN = ml.CENTER_COL + 2
 CTYPE = ml.ctype
-CENTER_NEURON_OFFSET = ml.column_start(CENTER_COL)
+_AZIMUTH_HALF_SPAN_DEG = 20.0
+_SPOT_AZIMUTH_BINS = 9
+
+
+def _axial_member_azimuth_bin(du, dv, *, center_bin=CENTER_BIN):
+    """Map stim-centred axial ``(du, dv)`` to the 9-bin azimuth axis."""
+    du_i, dv_i = int(du), int(dv)
+    if du_i == 0 and dv_i == 0:
+        return center_bin
+    import column_mapper
+    x_deg, _y_deg = column_mapper.uv_to_xy_deg(
+        np.array([du_i], dtype=np.int64),
+        np.array([dv_i], dtype=np.int64),
+    )
+    frac = (float(x_deg[0]) + _AZIMUTH_HALF_SPAN_DEG) / (2.0 * _AZIMUTH_HALF_SPAN_DEG)
+    return int(np.clip(round(frac * (_SPOT_AZIMUTH_BINS - 1)), 0, _SPOT_AZIMUTH_BINS - 1))
+
+
+def _readout_duv_from_batches(C, batches, batch_idx, unit_idx):
+    """Stim-centred axial ``(du, dv)`` per readout row."""
+    u_all = C.u.detach().cpu().numpy() if hasattr(C.u, "detach") else np.asarray(C.u)
+    v_all = C.v.detach().cpu().numpy() if hasattr(C.v, "detach") else np.asarray(C.v)
+    stim_u = np.array([batches[int(b)][0] for b in batch_idx], dtype=np.int64)
+    stim_v = np.array([batches[int(b)][1] for b in batch_idx], dtype=np.int64)
+    mu = u_all[unit_idx]
+    mv = v_all[unit_idx]
+    return mu - stim_u, mv - stim_v
 
 
 def _baseline_from_ref_grid(ref_grid, row_i):
@@ -237,18 +261,19 @@ def calc_model_full_all(session, z, return_ref=False, *, trace_kind='model'):
     return model_full
 
 
-def _fill_ring_cube(cube, sem, ti, ft_global, type_idx, radius, plot_traces, center):
-    for off in range(5):
-        mask = (type_idx == ft_global) & (np.floor(radius).astype(int) == off)
-        if not mask.any():
-            continue
-        traces = plot_traces[mask]
-        m = traces.mean(axis=0)
-        s = sem_from_traces(traces, single_column=False)
-        for bin_j in {center + off, center - off}:
-            if 0 <= bin_j < 9:
-                cube[ti, bin_j] = m
-                sem[ti, bin_j] = s
+def _fill_member_cube(cube, sem, ti, ft_global, type_idx, du, dv, plot_traces):
+    """Place readout traces by stim-centred ``(du, dv)`` (matches cost radius geometry)."""
+    mask = type_idx == ft_global
+    if not mask.any():
+        return
+    rows = np.where(mask)[0]
+    by_bin: dict[int, list] = {}
+    for row in rows:
+        by_bin.setdefault(_axial_member_azimuth_bin(du[row], dv[row]), []).append(int(row))
+    for bin_j, row_ix in by_bin.items():
+        traces = plot_traces[row_ix]
+        cube[ti, bin_j] = traces.mean(axis=0)
+        sem[ti, bin_j] = sem_from_traces(traces, single_column=False)
 
 
 @torch.no_grad()
@@ -271,25 +296,23 @@ def multicol_cube(session, z, all_cells=False, group_list=None, *, trace_kind='m
     type_ids = C.node_type.cpu().numpy()
     mt = session.maxtime
 
+    opts = dict((session.train_opts or {}).get(f"{pack.name}_stimulus_opts") or {})
+    spotting = spotting_from_opts(C, stimulus_opts=opts)
+    batches = spot_stimulus_batches(spotting)
+
     if all_cells:
-        opts = dict((session.train_opts or {}).get(f"{pack.name}_stimulus_opts") or {})
-        spotting = spotting_from_stimulus_opts(C, opts)
-        batches = spot_stimulus_batches(spotting)
-        batch_idx, unit_idx, radius, type_idx = spot_cost_unit_ring_layout(
-            C, batches, spotting, pack.cost_extent,
+        cost_radii = resolve_spot_cost_radii(stimulus_opts=opts)
+        batch_idx, unit_idx, _radius, type_idx = spot_cost_unit_radius_layout(
+            C, batches, cost_radii, pack.cost_extent,
         )
         names = [str(n) for n in type_names]
-        ring_layout = (batch_idx, unit_idx, type_idx, radius)
     else:
         batch_idx = pack.readout_batch.cpu().numpy()
         unit_idx = pack.readout_unit.cpu().numpy()
-        if pack.cost_radius is not None:
-            radius = pack.cost_radius.cpu().numpy()
-        else:
-            radius = np.zeros(pack.cost_weight.shape[0], dtype=np.float64)
         type_idx = type_ids[unit_idx]
         names = spot_model_data_names(session, pack.name, group_list)
-        ring_layout = None
+
+    du, dv = _readout_duv_from_batches(C, batches, batch_idx, unit_idx)
 
     raw = trace_full[batch_idx, :, unit_idx]
     if trace_kind == 'vm':
@@ -299,17 +322,24 @@ def multicol_cube(session, z, all_cells=False, group_list=None, *, trace_kind='m
             p, torch.as_tensor(unit_idx, dtype=torch.long, device=z.device), session.backend,
         )
     plot_traces = fc.pad_plot_traces(raw, scale, mt).cpu().numpy()
+    baseline_kw = {}
+    if all_cells:
+        baseline_kw = dict(
+            readout_unit_idx=unit_idx,
+            readout_type_idx=type_idx,
+            readout_du=du,
+            readout_dv=dv,
+        )
     baselines = baselines_for_types(
         pack, session.backend, vm_ref_np, names, type_ids, type_names,
-        ring_layout=ring_layout,
+        **baseline_kw,
     )
 
     cube = np.full((len(names), 9, mt), np.nan)
     sem = np.full((len(names), 9, mt), np.nan)
-    center = CENTER_BIN
     for ti, ft in enumerate(names):
         ft_global = type_names.index(ft)
-        _fill_ring_cube(cube, sem, ti, ft_global, type_idx, radius, plot_traces, center)
+        _fill_member_cube(cube, sem, ti, ft_global, type_idx, du, dv, plot_traces)
     return names, cube, sem, baselines
 
 
@@ -480,9 +510,3 @@ def plot_borst_spot(session_on, z, path, *, session_off=None, all_cells=False,
         suptitle_fs=suptitle_fs,
         trace_kind=trace_kind,
     )
-
-
-def reference_cube(name, ref_cubes=None, dark=False):
-    if ref_cubes is not None:
-        return ref_cubes.get(str(name))
-    return borst_ref_cubes(dark=dark).get(str(name))

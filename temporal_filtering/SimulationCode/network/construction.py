@@ -86,6 +86,31 @@ class Network:
         return sig
 
 
+def unit_type_names(C: Network) -> np.ndarray:
+    """(n_units,) array of each unit's cell-type NAME."""
+    return np.asarray(C.type_names)[C.node_type.detach().cpu().numpy()]
+
+
+def col2sti(C: Network, u: int, v: int) -> np.ndarray:
+    """Stimulus (photoreceptor / input) unit indices on column (u, v)."""
+    return C.input_units_at(int(u), int(v))
+
+
+def col2fit(
+    C: Network,
+    u: int,
+    v: int,
+    fit_type: str,
+    names: Optional[np.ndarray] = None,
+) -> np.ndarray:
+    """Unit indices of cell type ``fit_type`` on column (u, v)."""
+    if names is None:
+        names = unit_type_names(C)
+    return np.where(
+        (C.u == int(u)) & (C.v == int(v)) & (names == fit_type),
+    )[0]
+
+
 def load_network(
     path,
     device: Optional[str] = None,

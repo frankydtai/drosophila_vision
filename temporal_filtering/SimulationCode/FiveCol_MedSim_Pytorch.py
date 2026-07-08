@@ -54,6 +54,8 @@ BORST_NOFCOLS = 5
 t_on = T_ON
 TRAIN_OPTS_FILE = "train_opts.json"
 SPOT_TARGETS = ("spot_bright", "spot_dark")
+SPOT_POLARITIES = frozenset({"bright", "dark"})
+_SPOT_STEP_KEY = {"bright": "i_bright", "dark": "i_dark"}
 MOVING_BAR_TARGETS = ("moving_bar_bright", "moving_bar_dark")
 VALID_TARGETS = SPOT_TARGETS + MOVING_BAR_TARGETS
 PD_ND_LABELS = ("PD", "ND")
@@ -423,7 +425,11 @@ def default_schema(model_type: str, backend: "ModelBackend", ih_group=None) -> l
 
 @dataclass(frozen=True)
 class TargetPack:
-    """One training target: stimulus + readout indices + target traces."""
+    """One training target: stimulus + readout indices + target traces.
+
+    Spot ``signal`` / ``data`` time dims: :mod:`training_config`. Moving bar
+    uses ``COST_WINDOW`` and per-target ``maxtime``.
+    """
 
     name: str
     signal: torch.Tensor  # (B, T, N)
@@ -433,7 +439,7 @@ class TargetPack:
     readout_batch: torch.Tensor  # (n_cost,)
     readout_unit: torch.Tensor  # (n_cost,)
     cost_t0: Optional[torch.Tensor] = None  # (n_cost,) absolute step for windowed targets
-    cost_radius: Optional[torch.Tensor] = None  # (n_cost,) ring radius for network spot
+    cost_radius: Optional[torch.Tensor] = None  # (n_cost,) Euclidean radius for network spot
     cost_extent: Optional[int] = None  # network hex-disc radius for cost readouts
     cost_pd_nd: Optional[torch.Tensor] = None  # (n_cost,) long; 0=PD, 1=ND (moving_bar)
 
@@ -539,19 +545,15 @@ def _opt_float(opts, *keys, default=None):
     raise KeyError(f"expected one of {keys!r} in stimulus opts")
 
 
-def _spot_bright_i_from_opts(opts):
-    """Read spot_bright PR currents (``i_baseline`` / ``i_bright``)."""
+def _spot_i_from_opts(opts, polarity: str):
+    """Read spot PR currents (``i_baseline`` / bright or dark step)."""
+    if polarity not in SPOT_POLARITIES:
+        raise ValueError(f"spot polarity must be 'bright' or 'dark', got {polarity!r}")
+    step_key = _SPOT_STEP_KEY[polarity]
+    step_default = ml.I_BRIGHT if polarity == "bright" else ml.I_DARK
     return (
         _opt_float(opts, "i_baseline", default=ml.I_BASELINE),
-        _opt_float(opts, "i_bright", default=ml.I_BRIGHT),
-    )
-
-
-def _spot_dark_i_from_opts(opts):
-    """Read spot_dark PR currents (``i_baseline`` / ``i_dark``)."""
-    return (
-        _opt_float(opts, "i_baseline", default=ml.I_BASELINE),
-        _opt_float(opts, "i_dark", default=ml.I_DARK),
+        _opt_float(opts, step_key, default=step_default),
     )
 
 
@@ -574,41 +576,30 @@ def _pack_signal_scale(pack: TargetPack, session: TrainSession) -> float:
     return peak
 
 
-def make_spot_bright_stimulus_opts(
-    i_baseline=None, i_bright=None, mode="borst",
-    shift_extent=0, share_edges=False,
+def make_spot_stimulus_opts(
+    polarity: str,
+    *,
+    i_baseline=None,
+    i_step=None,
+    mode="borst",
+    shift_extent=0,
+    **extra,
 ):
-    """PR step stimulus for spot_bright: baseline pre-``t_on``, bright from ``t_on``."""
-    baseline = float(ml.I_BASELINE if i_baseline is None else i_baseline)
-    bright = float(ml.I_BRIGHT if i_bright is None else i_bright)
+    """PR step stimulus opts for ``spot_{polarity}`` (baseline pre-``t_on``, step from ``t_on``)."""
+    if polarity not in SPOT_POLARITIES:
+        raise ValueError(f"spot polarity must be 'bright' or 'dark', got {polarity!r}")
+    step_key = _SPOT_STEP_KEY[polarity]
+    if i_step is None:
+        i_step = extra.get(step_key)
+    step_default = ml.I_BRIGHT if polarity == "bright" else ml.I_DARK
     return {
         "mode": mode,
-        "i_baseline": baseline,
-        "i_bright": bright,
+        "i_baseline": float(ml.I_BASELINE if i_baseline is None else i_baseline),
+        step_key: float(step_default if i_step is None else i_step),
         "t_on": int(t_on),
         "maxtime": int(IMPULSE_MAXTIME),
         "deltat_ms": float(deltat),
         "shift_extent": int(shift_extent),
-        "share_edges": bool(share_edges),
-    }
-
-
-def make_spot_dark_stimulus_opts(
-    i_baseline=None, i_dark=None, mode="borst",
-    shift_extent=0, share_edges=False,
-):
-    """PR step stimulus for spot_dark: baseline pre-``t_on``, i_dark from ``t_on``."""
-    baseline = float(ml.I_BASELINE if i_baseline is None else i_baseline)
-    dark = float(ml.I_DARK if i_dark is None else i_dark)
-    return {
-        "mode": mode,
-        "i_baseline": baseline,
-        "i_dark": dark,
-        "t_on": int(t_on),
-        "maxtime": int(IMPULSE_MAXTIME),
-        "deltat_ms": float(deltat),
-        "shift_extent": int(shift_extent),
-        "share_edges": bool(share_edges),
     }
 
 
@@ -675,34 +666,23 @@ def _enrich_moving_bar_stimulus_opts(opts, info, *, cost_extent):
     return out
 
 
-def borst_spot_bright_signal(opts=None, *, sim_dtype=SIM_DTYPE_DEFAULT):
-    """Build Borst spot_bright PR step stimulus ``(T, N_units)``."""
-    opts = dict(opts or make_spot_bright_stimulus_opts())
+def borst_spot_signal(opts=None, *, polarity: str = "bright", sim_dtype=SIM_DTYPE_DEFAULT):
+    """Build Borst spot PR step stimulus ``(T, N_units)`` for ``spot_{polarity}``."""
+    opts = dict(opts or make_spot_stimulus_opts(polarity))
     n_units = ml.n_state_units()
     pr = ml.photoreceptor_slice()
     t0, T = int(opts["t_on"]), int(opts["maxtime"])
-    b, step = _spot_bright_i_from_opts(opts)
+    b, step = _spot_i_from_opts(opts, polarity)
     sig = torch.zeros((T, n_units), dtype=sim_dtype, device=active_device())
     sig[:t0, pr] = b
     sig[t0:T, pr] = step
     return sig
 
 
-def borst_spot_dark_signal(opts=None, *, sim_dtype=SIM_DTYPE_DEFAULT):
-    """Build Borst spot_dark PR step stimulus ``(T, N_units)``."""
-    opts = dict(opts or make_spot_dark_stimulus_opts())
-    n_units = ml.n_state_units()
-    pr = ml.photoreceptor_slice()
-    t0, T = int(opts["t_on"]), int(opts["maxtime"])
-    b, step = _spot_dark_i_from_opts(opts)
-    sig = torch.zeros((T, n_units), dtype=sim_dtype, device=active_device())
-    sig[:t0, pr] = b
-    sig[t0:T, pr] = step
-    return sig
-
-
-def _borst_spot_pack_from_data(opts, pack_name, signal_fn, data_fn, *, sim_dtype=SIM_DTYPE_DEFAULT):
+def _borst_spot_pack_from_data(opts, polarity: str, *, sim_dtype=SIM_DTYPE_DEFAULT):
     """Shared Borst spot pack builder for bright/dark targets."""
+    if polarity not in SPOT_POLARITIES:
+        raise ValueError(f"spot polarity must be 'bright' or 'dark', got {polarity!r}")
     opts = dict(opts)
     u_idx = torch.tensor(
         np.load(BORST_MC_CELL_INDEX_NPY),
@@ -710,13 +690,17 @@ def _borst_spot_pack_from_data(opts, pack_name, signal_fn, data_fn, *, sim_dtype
         device=active_device(),
     )
     n = int(u_idx.shape[0])
-    sig = signal_fn(opts, sim_dtype=sim_dtype).unsqueeze(0)
+    sig = borst_spot_signal(opts, polarity=polarity, sim_dtype=sim_dtype).unsqueeze(0)
     T = int(sig.shape[1])
-    spot_data = torch.tensor(data_fn(T), dtype=sim_dtype, device=active_device())
+    spot_data = torch.tensor(
+        ml.borst_spot_impulse_data(T, polarity=polarity),
+        dtype=sim_dtype,
+        device=active_device(),
+    )
     t_data = spot_data[t_on:T].transpose(0, 1).contiguous()
     spot_power = torch.sum(t_data ** 2)
     return TargetPack(
-        name=pack_name,
+        name=f"spot_{polarity}",
         signal=sig,
         data=t_data,
         power=spot_power,
@@ -727,24 +711,11 @@ def _borst_spot_pack_from_data(opts, pack_name, signal_fn, data_fn, *, sim_dtype
     )
 
 
-def build_borst_spot_bright_pack(opts=None, *, sim_dtype=SIM_DTYPE_DEFAULT):
-    """Borst spot_bright target as a :class:`TargetPack` (batch B=1)."""
+def build_borst_spot_pack(opts=None, *, polarity: str = "bright", sim_dtype=SIM_DTYPE_DEFAULT):
+    """Borst spot target as a :class:`TargetPack` (batch B=1)."""
     return _borst_spot_pack_from_data(
-        opts or make_spot_bright_stimulus_opts(),
-        "spot_bright",
-        borst_spot_bright_signal,
-        ml.borst_spot_impulse_data,
-        sim_dtype=sim_dtype,
-    )
-
-
-def build_borst_spot_dark_pack(opts=None, *, sim_dtype=SIM_DTYPE_DEFAULT):
-    """Borst spot_dark target as a :class:`TargetPack` (batch B=1)."""
-    return _borst_spot_pack_from_data(
-        opts or make_spot_dark_stimulus_opts(),
-        "spot_dark",
-        borst_spot_dark_signal,
-        ml.borst_spot_impulse_data_dark,
+        opts or make_spot_stimulus_opts(polarity),
+        polarity,
         sim_dtype=sim_dtype,
     )
 
@@ -797,7 +768,7 @@ def _extend_pack_mirror_fit_borst(pack, mirror_types, mirror_fit, mirror_sign, b
 
 
 def _extend_pack_mirror_fit_network(pack, mirror_types, mirror_fit, mirror_sign, C):
-    from network.spotting import unit_type_names
+    from network.construction import unit_type_names
 
     names = unit_type_names(C)
     u_arr = pack.readout_unit.cpu().numpy()
@@ -1022,14 +993,14 @@ class _TrainBindCtx:
     moving_bar_dark_stimulus_opts: Optional[dict] = None
 
 
-def _build_borst_spot_bright_target(ctx: _TrainBindCtx) -> Tuple[TargetPack, dict]:
-    opts = dict(ctx.spot_bright_stimulus_opts or make_spot_bright_stimulus_opts())
-    return build_borst_spot_bright_pack(opts, sim_dtype=ctx.sim_dtype), opts
-
-
-def _build_borst_spot_dark_target(ctx: _TrainBindCtx) -> Tuple[TargetPack, dict]:
-    opts = dict(ctx.spot_dark_stimulus_opts or make_spot_dark_stimulus_opts())
-    return build_borst_spot_dark_pack(opts, sim_dtype=ctx.sim_dtype), opts
+def _build_borst_spot_target(ctx: _TrainBindCtx, polarity: str) -> Tuple[TargetPack, dict]:
+    if polarity not in SPOT_POLARITIES:
+        raise ValueError(f"spot polarity must be 'bright' or 'dark', got {polarity!r}")
+    ctx_opts = (
+        ctx.spot_bright_stimulus_opts if polarity == "bright" else ctx.spot_dark_stimulus_opts
+    )
+    opts = dict(ctx_opts or make_spot_stimulus_opts(polarity))
+    return build_borst_spot_pack(opts, polarity=polarity, sim_dtype=ctx.sim_dtype), opts
 
 
 def _cost_extent_column_coltag(cost_extent, n_columns):
@@ -1144,34 +1115,39 @@ def _build_network_moving_bar_dark_target(
     )
 
 
-def _build_network_spot_bright_target(
-    ctx: _TrainBindCtx, C,
+def _build_network_spot_target(
+    ctx: _TrainBindCtx, C, *, polarity: str,
 ) -> Tuple[TargetPack, dict, str]:
-    from network.spot_target import build_shifted_target
+    from network.spot_target import build_shifted_target, expand_spot_cost_r_w_dict
 
-    dev = ctx.dev or active_device()
-    opts = dict(ctx.spot_bright_stimulus_opts or make_spot_bright_stimulus_opts(mode="network"))
+    if polarity not in SPOT_POLARITIES:
+        raise ValueError(f"spot polarity must be 'bright' or 'dark', got {polarity!r}")
+    pack_name = f"spot_{polarity}"
+    step_key = _SPOT_STEP_KEY[polarity]
+    ctx_opts = (
+        ctx.spot_bright_stimulus_opts if polarity == "bright" else ctx.spot_dark_stimulus_opts
+    )
+    opts = dict(ctx_opts or make_spot_stimulus_opts(polarity, mode="network"))
     cost_extent = opts.get("cost_extent")
     if cost_extent is not None:
         cost_extent = int(cost_extent)
     shift_extent = int(opts.get("shift_extent", 0))
-    share_edges = bool(opts.get("share_edges", False))
     T = build_shifted_target(
         C,
-        share_edges=share_edges,
         shift_extent=shift_extent,
-        device=dev,
+        device=ctx.dev or active_device(),
         sim_dtype=ctx.sim_dtype,
         maxtime=IMPULSE_MAXTIME,
         t_on=t_on,
         cost_extent=cost_extent,
+        spot_cost_radius_weight=expand_spot_cost_r_w_dict(stimulus_opts=opts),
         i_baseline=opts["i_baseline"],
-        i_bright=opts["i_bright"],
-        polarity="bright",
+        polarity=polarity,
+        **{step_key: opts[step_key]},
     )
     stim = dict(opts)
     pack = TargetPack(
-        name="spot_bright",
+        name=pack_name,
         signal=T.signal,
         data=T.data,
         power=T.power,
@@ -1185,76 +1161,29 @@ def _build_network_spot_bright_target(
     coltag = _cost_extent_column_coltag(cost_extent, T.info["n_cost_columns"])
     shifttag = f"{T.info['n_shifts']} shifts"
     tag = (
-        f"spot_bright (B={T.n_batch} stimuli [{T.info['n_centers']} spots x "
-        f"{shifttag}], {T.info['n_cost']} cost cells, {coltag})"
-    )
-    return pack, stim, tag
-
-
-def _build_network_spot_dark_target(
-    ctx: _TrainBindCtx, C,
-) -> Tuple[TargetPack, dict, str]:
-    from network.spot_target import build_shifted_target
-
-    dev = ctx.dev or active_device()
-    opts = dict(ctx.spot_dark_stimulus_opts or make_spot_dark_stimulus_opts(mode="network"))
-    cost_extent = opts.get("cost_extent")
-    if cost_extent is not None:
-        cost_extent = int(cost_extent)
-    shift_extent = int(opts.get("shift_extent", 0))
-    share_edges = bool(opts.get("share_edges", False))
-    T = build_shifted_target(
-        C,
-        share_edges=share_edges,
-        shift_extent=shift_extent,
-        device=dev,
-        sim_dtype=ctx.sim_dtype,
-        maxtime=IMPULSE_MAXTIME,
-        t_on=t_on,
-        cost_extent=cost_extent,
-        i_baseline=opts["i_baseline"],
-        i_dark=opts["i_dark"],
-        polarity="dark",
-    )
-    stim = dict(opts)
-    pack = TargetPack(
-        name="spot_dark",
-        signal=T.signal,
-        data=T.data,
-        power=T.power,
-        cost_weight=T.cost_weight,
-        readout_batch=T.readout_batch,
-        readout_unit=T.readout_unit,
-        cost_t0=None,
-        cost_radius=T.cost_radius,
-        cost_extent=cost_extent,
-    )
-    coltag = _cost_extent_column_coltag(cost_extent, T.info["n_cost_columns"])
-    shifttag = f"{T.info['n_shifts']} shifts"
-    tag = (
-        f"spot_dark (B={T.n_batch} stimuli [{T.info['n_centers']} spots x "
+        f"{pack_name} (B={T.n_batch} stimuli [{T.info['n_centers']} spots x "
         f"{shifttag}], {T.info['n_cost']} cost cells, {coltag})"
     )
     return pack, stim, tag
 
 
 BORST_TARGET_BUILDERS = {
-    "spot_bright": _build_borst_spot_bright_target,
-    "spot_dark": _build_borst_spot_dark_target,
+    "spot_bright": lambda ctx: _build_borst_spot_target(ctx, "bright"),
+    "spot_dark": lambda ctx: _build_borst_spot_target(ctx, "dark"),
     "moving_bar_bright": _build_borst_moving_bar_bright_target,
     "moving_bar_dark": _build_borst_moving_bar_dark_target,
 }
 
 NETWORK_TARGET_BUILDERS = {
-    "spot_bright": _build_network_spot_bright_target,
-    "spot_dark": _build_network_spot_dark_target,
+    "spot_bright": lambda ctx, C: _build_network_spot_target(ctx, C, polarity="bright"),
+    "spot_dark": lambda ctx, C: _build_network_spot_target(ctx, C, polarity="dark"),
     "moving_bar_bright": _build_network_moving_bar_bright_target,
     "moving_bar_dark": _build_network_moving_bar_dark_target,
 }
 
 
 def expand_target_list(names) -> List[str]:
-    """Expand ``--target`` / ``--share-edges`` ``TARGET_ALIASES`` shorthands."""
+    """Expand ``--target`` ``TARGET_ALIASES`` shorthands."""
     out = []
     for name in names:
         if name in TARGET_ALIASES:
@@ -1319,12 +1248,14 @@ def apply_shift_extent_to_stimulus_opts(opts, target_name, shift_extent):
     return out
 
 
-def apply_share_edges_to_stimulus_opts(opts, target_name, share_edges_targets):
-    """Set ``share_edges`` on spot stimulus opts from a per-target list."""
-    if target_name not in SPOT_TARGETS:
+def apply_spot_cost_radius_weight_to_stimulus_opts(opts, target_name, spot_cost_radius_weight):
+    """Set ``spot_cost_radius_weight`` on spot stimulus opts (``None`` → default ``1/col_count``)."""
+    if target_name not in SPOT_TARGETS or spot_cost_radius_weight is None:
         return opts
     out = dict(opts or {})
-    out["share_edges"] = target_name in set(share_edges_targets or [])
+    out["spot_cost_radius_weight"] = {
+        str(k): float(v) for k, v in spot_cost_radius_weight.items()
+    }
     return out
 
 
@@ -1398,21 +1329,17 @@ def _finalize_stimulus_opts(
     session_mode=None,
     cost_extent_by_target,
     shift_extent,
-    share_edges_targets,
+    spot_cost_radius_weight,
     i_cli,
 ):
     build_mode = session_mode if session_mode is not None else (opts or {}).get("mode", "borst")
     if target_name in SPOT_TARGETS:
-        if target_name == "spot_bright":
-            out = make_spot_bright_stimulus_opts(mode=build_mode, **{
-                k: v for k, v in (opts or {}).items()
-                if k in ("i_baseline", "i_bright", "shift_extent", "share_edges")
-            })
-        else:
-            out = make_spot_dark_stimulus_opts(mode=build_mode, **{
-                k: v for k, v in (opts or {}).items()
-                if k in ("i_baseline", "i_dark", "shift_extent", "share_edges")
-            })
+        polarity = "bright" if target_name == "spot_bright" else "dark"
+        step_key = _SPOT_STEP_KEY[polarity]
+        out = make_spot_stimulus_opts(polarity, mode=build_mode, **{
+            k: v for k, v in (opts or {}).items()
+            if k in ("i_baseline", step_key, "shift_extent")
+        })
     elif target_name == "moving_bar_bright":
         out = make_moving_bar_bright_stimulus_opts(
             mode=build_mode,
@@ -1433,7 +1360,7 @@ def _finalize_stimulus_opts(
         out = dict(opts or {})
     out = apply_cost_extent_to_stimulus_opts(out, target_name, cost_extent_by_target)
     out = apply_shift_extent_to_stimulus_opts(out, target_name, shift_extent)
-    out = apply_share_edges_to_stimulus_opts(out, target_name, share_edges_targets)
+    out = apply_spot_cost_radius_weight_to_stimulus_opts(out, target_name, spot_cost_radius_weight)
     out = apply_i_cli_to_stimulus_opts(out, target_name, i_cli)
     if session_mode is not None:
         out["mode"] = session_mode
@@ -1480,7 +1407,7 @@ def make_train_opts(
     sequential=None,
     cost_extent_by_target=None,
     shift_extent=0,
-    share_edges_targets=None,
+    spot_cost_radius_weight=None,
     i_cli=None,
     moving_bar_bright_stimulus_opts=None,
     moving_bar_dark_stimulus_opts=None,
@@ -1506,7 +1433,7 @@ def make_train_opts(
     finalize_kw = dict(
         cost_extent_by_target=cost_extent_by_target,
         shift_extent=shift_extent,
-        share_edges_targets=share_edges_targets,
+        spot_cost_radius_weight=spot_cost_radius_weight,
         i_cli=i_cli,
     )
     stimulus_opts = {}

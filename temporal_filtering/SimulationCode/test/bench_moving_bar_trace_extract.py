@@ -19,7 +19,7 @@ import FiveCol_MedSim_Pytorch as fc
 from connectome_io import DEFAULT_NETWORK_RUN, resolve_network_json
 from network.moving_bar_target import _TRACE_CACHE
 from network.stimulus import center_sti_column, sti_columns
-from network.tiling import unit_type_names
+from network.construction import unit_type_names
 from plot.moving_bar import (
     _aggregate_moving_bar_traces,
     _extract_moving_bar_windows,

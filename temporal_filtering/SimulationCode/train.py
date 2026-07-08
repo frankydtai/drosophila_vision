@@ -337,7 +337,7 @@ def build_session(
     cost_weights=None,
     cost_extent_by_target=None,
     shift_extent=0,
-    share_edges_targets=None,
+    spot_cost_radius_weight=None,
     i_cli=None,
     ih_group_names=None,
     moving_bar_bright_stimulus_opts=None,
@@ -361,7 +361,7 @@ def build_session(
         sequential=sequential,
         cost_extent_by_target=cost_extent_by_target,
         shift_extent=shift_extent,
-        share_edges_targets=share_edges_targets,
+        spot_cost_radius_weight=spot_cost_radius_weight,
         i_cli=i_cli,
         spot_bright_stimulus_opts=spot_bright_stimulus_opts,
         spot_dark_stimulus_opts=spot_dark_stimulus_opts,
@@ -395,7 +395,8 @@ def run_training(model_type, nofruns, nofsteps, lrs, fname=None, outdir=None,
                  network=None, sequential=False,
                  target_list=None, cost_weights=None,
                  cost_extent_by_target=None, shift_extent=0,
-                 share_edges_targets=None, i_cli=None,
+                 spot_cost_radius_weight=None,
+                 i_cli=None,
                  ih_group_names=None,
                  moving_bar_bright_stimulus_opts=None,
                  moving_bar_dark_stimulus_opts=None,
@@ -417,7 +418,7 @@ def run_training(model_type, nofruns, nofsteps, lrs, fname=None, outdir=None,
         cost_weights=cost_weights,
         cost_extent_by_target=cost_extent_by_target,
         shift_extent=shift_extent,
-        share_edges_targets=share_edges_targets,
+        spot_cost_radius_weight=spot_cost_radius_weight,
         i_cli=i_cli,
         ih_group_names=ih_group_names,
         moving_bar_bright_stimulus_opts=moving_bar_bright_stimulus_opts,
@@ -509,10 +510,12 @@ def add_training_arguments(parser):
              "(n_shifts=1+3k(k+1); 0->1, 1->7, 2->19, 3->37, ...)",
     )
     parser.add_argument(
-        "--share-edges",
+        "--spot-cost-r-w",
         default="",
-        help="comma-separated spot targets for edge-sharing spotting "
-             "(choices: spot,spot_bright,spot_dark)",
+        metavar="R=W,...",
+        help="spot cost weights by Euclidean r from stim column (r=w); "
+             "default 1/col_count on 0,1,sqrt3,2; omitted radii → 0 (excluded); "
+             "e.g. 0=1,1=1/6,2=1/12",
     )
     parser.add_argument(
         "--cost-extent",
@@ -611,6 +614,20 @@ def parse_cost_extent(text):
     return default, by_target
 
 
+def parse_spot_cost_r_w(text):
+    """Parse ``--spot-cost-r-w`` (r=w); empty → default ``1/col_count``."""
+    from network.spot_target import (
+        expand_spot_cost_r_w_dict,
+        parse_spot_cost_radius_weight_value,
+    )
+
+    if not str(text or "").strip():
+        return None
+    return expand_spot_cost_r_w_dict(
+        parse_comma_kv(text, cast=parse_spot_cost_radius_weight_value),
+    )
+
+
 def training_kwargs_from_args(
     args,
     *,
@@ -632,7 +649,7 @@ def training_kwargs_from_args(
         raise ValueError("--cost-extent must be >= 0")
     if args.shift_extent < 0:
         raise ValueError("--shift-extent must be >= 0")
-    share_edges_targets = fc.expand_target_list(parse_target_names(args.share_edges))
+    spot_cost_radius_weight = parse_spot_cost_r_w(args.spot_cost_r_w)
     i_cli = fc.build_i_cli_by_target({
         "i_baseline": parse_comma_kv(args.i_baseline, float),
         "i_bright": parse_comma_kv(args.i_bright, float),
@@ -641,12 +658,6 @@ def training_kwargs_from_args(
     lrs = parse_comma_floats(args.lrs)
     if not lrs:
         raise ValueError("--lrs must list at least one learning rate")
-    bad_share = [t for t in share_edges_targets if t not in fc.SPOT_TARGETS]
-    if bad_share:
-        raise ValueError(
-            f"unknown target(s) in --share-edges: {bad_share} "
-            f"(expected {'|'.join(fc.SPOT_TARGETS + ('spot',))})",
-        )
     run_name = command_run_name(script_stem)
     outdir = run_dir(args.model_type, parent=args.outdir, name=run_name)
     return dict(
@@ -662,7 +673,7 @@ def training_kwargs_from_args(
         cost_weights=cost_weights,
         cost_extent_by_target=cost_extent_by_target,
         shift_extent=int(args.shift_extent),
-        share_edges_targets=share_edges_targets,
+        spot_cost_radius_weight=spot_cost_radius_weight,
         i_cli=i_cli,
         ih_group_names=parse_comma_list(args.ih_group),
         ih_off=args.ih_off,

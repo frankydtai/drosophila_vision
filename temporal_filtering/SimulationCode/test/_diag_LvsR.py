@@ -15,7 +15,7 @@ for s in schema:
     if s['name'] in ('adapt_gain', 'tau_adapt'):
         s['ih_group'] = groups
 session = fc.open_session(
-    fc.make_train_opts(backend='borst', target_list=['tile_bright']),
+    fc.make_train_opts(backend='borst', target_list=['spot_bright']),
     'adaptive', schema=schema, model_backend=mb,
 )
 z = torch.tensor(np.load(os.path.join(RUN, 'best_param.npy')), dtype=torch.float64)

@@ -165,12 +165,13 @@ def normalize_data(x):
     return result
 
 def read_RecF_ImpR():
-    """Return (RecF_data (13,45), ImpR_data (13,IMPULSE_MAXTIME)) for the 13 fit cell types.
+    """Return ``(RecF_data, ImpR_data)`` for the 13 Borst fit cell types.
 
-    Split out of read_RecF_data so callers that need the continuous spatial RF
-    (RecF_data) or the temporal kernel (ImpR_data) on their own -- e.g. the hex
-    spot target, which samples RecF at non-integer column distances (sqrt(3)) --
-    use the EXACT same construction the 5-column model uses (single source).
+    Shapes: ``RecF_data`` ``(13, 45)``; ``ImpR_data`` ``(13, IMPULSE_MAXTIME)``.
+    Time axis: :mod:`training_config`.
+
+    Split out of :func:`read_RecF_data` for hex spot targets that sample RecF at
+    non-integer column distances (e.g. ``r=sqrt(3)``).
     """
 
     # cell_list=np.array(['L1','L2','L3','L4','L5','Mi1','Tm3','Mi4','Mi9','Tm1','Tm2','Tm4','Tm9'])
@@ -224,17 +225,19 @@ def read_RecF_ImpR():
 
 
 def read_RecF_data():
-    # putting it all into a 13 (celltype) x 9 (space) x IMPULSE_MAXTIME (time) array.
-    # space index j maps to RF sample 5j+2 (j=4 -> sample 22 = RF centre, r=0);
-    # so column distance r maps to continuous RF sample 22 + 5r.
+    """Spatial×temporal spot cube ``(13, 9, IMPULSE_MAXTIME)``.
 
+    ``data[i, j, :] = RecF_data[i, 5*j+2] * ImpR_data[i]``. Time axis:
+    :mod:`training_config`. Spatial ``j=0…8`` (centre ``j=4``); Borst uses
+    ``j=2…6`` — see :func:`borst_spot_impulse_data`.
+    """
     RecF_data, ImpR_data = read_RecF_ImpR()
 
     data = np.zeros((13, 9, IMPULSE_MAXTIME))
 
     for i in range(13):
         for j in range(9):
-            data[i,j] = RecF_data[i,j*5+2]*ImpR_data[i]
+            data[i, j] = RecF_data[i, j * 5 + 2] * ImpR_data[i]
 
     return data
 
@@ -244,18 +247,21 @@ def read_RecF_data_dark():
     return -read_RecF_data()
 
 
-def borst_spot_impulse_data(spot_T=None, amp=DATA_AMP):
-    """RecF×ImpR targets for Borst spot training, shape ``(T, nofcells)``."""
+def borst_spot_impulse_data(spot_T=None, amp=DATA_AMP, *, polarity="bright"):
+    """Borst spot RecF×ImpR per unit, shape ``(T, nofcells)``.
+
+    Fills 65 fit rows from :func:`read_RecF_data` 5-column slice. Cost window:
+    :mod:`training_config`. Dark = negated bright.
+    """
+    if polarity not in ("bright", "dark"):
+        raise ValueError(f"polarity must be 'bright' or 'dark', got {polarity!r}")
     T = int(spot_T or IMPULSE_MAXTIME)
     mydata = read_RecF_data() * amp
     raw = np.zeros((nofcells, T), dtype=np.float64)
     for col in range(nofcols):
         raw[fit_data_slice(col)] = mydata[:, 2 + col, :T]
-    return raw.T
+    out = raw.T
+    return out if polarity == "bright" else -out
 
-
-def borst_spot_impulse_data_dark(spot_T=None, amp=DATA_AMP):
-    """Dark spot targets: inverted bright RecF×ImpR, shape ``(T, nofcells)``."""
-    return -borst_spot_impulse_data(spot_T=spot_T, amp=amp)
 
     

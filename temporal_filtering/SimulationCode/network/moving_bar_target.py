@@ -58,7 +58,7 @@ from visual_stimulus.moving_bar_stimulus import (
     moving_bar_sweep_end_step,
 )
 
-from .spotting import unit_type_names
+from .construction import unit_type_names
 
 logger = logging.getLogger(__name__)
 

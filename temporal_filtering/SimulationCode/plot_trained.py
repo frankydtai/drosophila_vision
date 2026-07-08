@@ -99,7 +99,7 @@ def _network_spot_tag(session, tname):
     opts = (session.train_opts or {}).get(f'{tname}_stimulus_opts') or {}
     shift_extent = int(opts.get('shift_extent', 0))
     shifttag = f"{1 + 3 * shift_extent * (shift_extent + 1)} shifts"
-    return f'  [avg over spots x {shifttag} x ring]'
+    return f'  [avg over spots x {shifttag} x radii]'
 
 
 def load_train_opts(outdir):
@@ -237,7 +237,7 @@ def _plot_spot_targets(session, z, outdir, spot_targets, suffix, model_all,
         mvd = os.path.join(outdir, 'model_data_spot.png')
         plot_fn(
             s_on, z, mvd, session_off=s_off,
-            title=f'Tile model-data ({suffix}){net_tag}',
+            title=f'Spot model-data ({suffix}){net_tag}',
             **plot_kw,
         )
         allc = None
@@ -245,7 +245,7 @@ def _plot_spot_targets(session, z, outdir, spot_targets, suffix, model_all,
             allc = os.path.join(outdir, 'model_all_spot.png')
             plot_fn(
                 s_on, z, allc, session_off=s_off, all_cells=True,
-                title=f'Tile model-all ({suffix}){net_tag}',
+                title=f'Spot model-all ({suffix}){net_tag}',
                 **plot_kw,
             )
         return mvd, allc
@@ -428,7 +428,7 @@ def plot_param_set(params, outdir, model_type=None, model_all=True,
                 allc = os.path.join(outdir, 'model_all_spot_vm.png')
                 plot_fn(
                     s_on, z, allc, session_off=s_off, all_cells=True,
-                    title=f'Tile Vm-all ({suffix}){net_tag}',
+                    title=f'Spot Vm-all ({suffix}){net_tag}',
                     trace_kind='vm',
                     **plot_kw,
                 )

@@ -1,6 +1,6 @@
-"""Plot tile _simulate vs pad_plot_traces stages (raw / padded / shifted).
+"""Plot spot _simulate vs pad_plot_traces stages (raw / padded / shifted).
 
-Reuses plot.tile._simulate and fc.pad_plot_traces — no re-implementation.
+Reuses plot.spot._simulate and fc.pad_plot_traces — no re-implementation.
 """
 import os
 import sys
@@ -20,7 +20,7 @@ import matplotlib.pyplot as plt
 
 import Medulla_Library as ml
 import FiveCol_MedSim_Pytorch as fc
-from plot import tile as tile_plot
+from plot import spot as spot_plot
 from plot_trained import resolve_model_type, _session_for_target
 from training_config import PARAMETER_DIR
 
@@ -46,11 +46,11 @@ def _load_session_and_z(rundir):
     if os.path.isfile(opts_path):
         with open(opts_path) as f:
             opts = json.load(f)
-        opts['target_list'] = ['tile_bright']
+        opts['target_list'] = ['spot_bright']
         session = fc.open_session({**opts, 'backend': opts.get('backend', 'borst')}, model_type)
     else:
         session = fc.open_session(
-            fc.make_train_opts(backend='borst', target_list=['tile_bright']),
+            fc.make_train_opts(backend='borst', target_list=['spot_bright']),
             model_type,
         )
     z = torch.tensor(np.load(best_path), dtype=torch.float64)
@@ -74,21 +74,21 @@ def _center_index(session, cell_name):
 
 @torch.no_grad()
 def _traces_for_cell(session, z, cell_name):
-    tile_session = _session_for_target(session, 'tile_bright')
-    unit = _center_index(tile_session, cell_name)
+    spot_session = _session_for_target(session, 'spot_bright')
+    unit = _center_index(spot_session, cell_name)
     idx = torch.tensor([unit], dtype=torch.long, device=z.device)
-    schema = list(tile_session.schema)
-    p = fc.assign_params(z, schema, tile_session.backend)
+    schema = list(spot_session.schema)
+    p = fc.assign_params(z, schema, spot_session.backend)
 
-    stacked, ref = fc._run_conductance(tile_session, p, neuron_index=idx, return_ref=True)
+    stacked, ref = fc._run_conductance(spot_session, p, neuron_index=idx, return_ref=True)
     raw_nt = stacked.transpose(0, 1)  # (N, T')
-    scale = fc.out_scale_for_units(p, idx, tile_session.backend)
-    mt = tile_session.maxtime
+    scale = fc.out_scale_for_units(p, idx, spot_session.backend)
+    mt = spot_session.maxtime
     t_on_step = fc.t_on
 
     padded = _padded_scaled(raw_nt, scale, mt, t_on_step)
     expanded = fc.pad_plot_traces(raw_nt, scale, mt, t_on_step=t_on_step)
-    simulated, sim_ref = tile_plot._simulate(tile_session, z, idx, return_ref=True)
+    simulated, sim_ref = spot_plot._simulate(spot_session, z, idx, return_ref=True)
 
     cost_trace = torch.zeros(1, mt, dtype=raw_nt.dtype, device=raw_nt.device)
     cost_trace[:, t_on_step:t_on_step + raw_nt.shape[1]] = scale[:, None] * raw_nt
@@ -155,7 +155,7 @@ def main():
         ax.set_ylabel('mV', fontsize=8)
 
     fig.suptitle(
-        f'tile _simulate vs pad_plot_traces  ({os.path.basename(rundir)})',
+        f'spot _simulate vs pad_plot_traces  ({os.path.basename(rundir)})',
         fontsize=11,
     )
     fig.tight_layout()

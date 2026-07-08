@@ -3,7 +3,7 @@
 This module owns all hex-lattice math so the rest of the pipeline never restates
 coordinate formulas:
 
-  - ``get_hex_coords(extent)`` enumerates the (u, v) axial coordinates of a hex
+  - ``members_in_extent`` / ``get_hex_coords`` enumerate axial (u, v) on a hex
     disc.
   - ``pq_to_uv(p, q, side)`` converts FAFB ``column_assignment`` (p, q) indices to
     axial (u, v), which differs per hemisphere.
@@ -14,7 +14,7 @@ coordinate formulas:
     (shared by column maps, moving-bar stimulus, and plots).
   - :data:`DEG_BORST` and ``borst_sti_columns`` define the five-column Borst layout.
   - :class:`HexGrid` holds an ideal disc's (u, v) coordinates (the plot reference
-    / spotting extent); ``columns_with_uv(side)`` gives FAFB columns' (u, v).
+    panel); ``columns_with_uv(side)`` gives FAFB columns' (u, v).
 
 Run a sanity summary with the project venv:
 
@@ -25,9 +25,10 @@ from __future__ import annotations
 
 import argparse
 import logging
+import math
 from pathlib import Path
 from dataclasses import dataclass
-from typing import List, Optional, Tuple, Union
+from typing import Dict, List, Optional, Tuple, Union
 
 import numpy as np
 import pandas as pd
@@ -40,7 +41,7 @@ logger = logging.getLogger(__name__)
 # -- Single source of truth: grid size ----------------------------------------
 
 # DEFAULT_EXTENT is the radius of the IDEAL reference hex disc (the left figure
-# panel and the default for HexGrid / spotting). extent=10 -> 3*10*11+1 = 331 cells.
+# panel and the default for HexGrid). extent=10 -> 3*10*11+1 = 331 cells.
 DEFAULT_EXTENT = 10
 
 # EXTENT is the single shared spatial knob (crop in build_network; inside/outside
@@ -137,23 +138,6 @@ OUTSIDE_COLOR: Tuple[str, str] = ("lightcoral", "darkred")
 EMPTY_COLOR: Tuple[str, str] = ("whitesmoke", "lightgrey")
 
 
-def get_hex_coords(extent: int) -> Tuple[np.ndarray, np.ndarray]:
-    """Axial (u, v) coordinates of a hex disc, in canonical row-major order.
-
-    Args:
-        extent: Hex-disc radius (0 returns the single center coordinate).
-
-    Returns:
-        (u, v) integer arrays of length 3*extent*(extent+1)+1.
-    """
-    u, v = [], []
-    for q in range(-extent, extent + 1):
-        for r in range(max(-extent, -extent - q), min(extent, extent - q) + 1):
-            u.append(q)
-            v.append(r)
-    return np.array(u, dtype=np.int64), np.array(v, dtype=np.int64)
-
-
 def pq_to_uv(p, q, side: str) -> Tuple[np.ndarray, np.ndarray]:
     """Convert FAFB column (p, q) indices to axial (u, v) for one hemisphere.
 
@@ -169,25 +153,16 @@ def pq_to_uv(p, q, side: str) -> Tuple[np.ndarray, np.ndarray]:
     return -p, p - q
 
 
-# -- Pure lattice math: distance, rings, spots, shifts ------------------------
-#
-# These are coordinate-only helpers (no FAFB data, no plotting). They are the
-# single source of truth for the hex math reused by the multi-column / spotting
-# pipeline (connectome_spotting.py, connectome_target.py, spot_extent2_hexagons.py).
-
-# The six unit step directions in axial (u, v), counter-clockwise.
-_HEX_DIRECTIONS = ((1, 0), (0, 1), (-1, 1), (-1, 0), (0, -1), (1, -1))
-
-
-def _rot60(u: int, v: int) -> Tuple[int, int]:
-    """Rotate an axial (u, v) offset 60 degrees counter-clockwise about origin."""
-    return -v, u + v
+def _hex_radius_arr(u, v) -> np.ndarray:
+    """Vectorized hex-lattice distance from the origin to axial (u, v)."""
+    u = np.asarray(u, dtype=np.int64)
+    v = np.asarray(v, dtype=np.int64)
+    return (np.abs(u) + np.abs(v) + np.abs(u + v)) // 2
 
 
 def hex_radius(u: int, v: int) -> int:
     """Hex-lattice distance from the origin to axial (u, v)."""
-    u, v = int(u), int(v)
-    return (abs(u) + abs(v) + abs(u + v)) // 2
+    return int(_hex_radius_arr(u, v))
 
 
 def inside_mask(u, v, extent: int) -> np.ndarray:
@@ -201,110 +176,52 @@ def inside_mask(u, v, extent: int) -> np.ndarray:
     v = np.asarray(v, dtype=np.int64)
     if extent < 0:
         return np.ones(u.shape, dtype=bool)
-    return (np.abs(u) + np.abs(v) + np.abs(u + v)) // 2 <= extent
+    return _hex_radius_arr(u, v) <= int(extent)
 
 
-def ring_offsets(radius: int) -> list:
-    """Axial (u, v) offsets of the cells exactly ``radius`` steps from origin."""
-    if radius < 0:
-        raise ValueError(f"radius must be >= 0, got {radius}")
-    if radius == 0:
+# -- Hex disc members -----------------------------------------------------------
+
+_HEX_DIRECTIONS = ((1, 0), (0, 1), (-1, 1), (-1, 0), (0, -1), (1, -1))
+
+
+def members_at_shell(shell: int) -> list:
+    """Axial (u, v) members exactly ``shell`` hex steps from origin."""
+    if shell < 0:
+        raise ValueError(f"shell must be >= 0, got {shell}")
+    if shell == 0:
         return [(0, 0)]
     out = []
-    # Start ``radius`` steps along direction 4, then walk the six edges.
-    u, v = _HEX_DIRECTIONS[4][0] * radius, _HEX_DIRECTIONS[4][1] * radius
+    u, v = _HEX_DIRECTIONS[4][0] * shell, _HEX_DIRECTIONS[4][1] * shell
     for d in range(6):
         du, dv = _HEX_DIRECTIONS[d]
-        for _ in range(radius):
+        for _ in range(shell):
             out.append((u, v))
             u, v = u + du, v + dv
     return out
 
 
-def spot_offsets(extent: int) -> list:
-    """Axial (u, v) offsets of every cell in a hex disc of the given radius."""
-    offs: list = []
-    for r in range(extent + 1):
-        offs.extend(ring_offsets(r))
-    return offs
+def members_in_extent(extent) -> list:
+    """All axial (u, v) members with :func:`hex_radius` <= ``extent``."""
+    shell_max = int(math.floor(float(extent)))
+    members: list = []
+    for shell in range(shell_max + 1):
+        members.extend(members_at_shell(shell))
+    return members
 
 
-def shift_offsets() -> list:
-    """The 7 sub-spot shifts: the spot centre plus its 6 nearest neighbours."""
-    return spot_offsets(1)
-
-
-def spot_basis(
-    spot_extent: int, share_edges: bool = False
-) -> Tuple[Tuple[int, int], Tuple[int, int]]:
-    """Sublattice generators for a hex spotting by radius-``spot_extent`` hexes.
-
-    Two layouts (``k = spot_extent``):
-
-    - ``share_edges=False`` (default, disjoint): centres are spaced ``2k+1`` apart
-      on the gap-free perfect-spotting sublattice spanned by ``(2k+1, -k)`` and its
-      60-degree rotation. The squared norm equals the cell count, so spots neither
-      overlap nor leave gaps (31 spots for extent=15, spot_extent=2).
-    - ``share_edges=True`` (edge-sharing): centres are spaced ``2k`` apart along the
-      edge-perpendicular directions, ``(2k, -k)`` and its rotation. Each spot then
-      shares its boundary ring with its 6 neighbours, giving a denser, overlapping
-      cover (43 spots for extent=15, spot_extent=2).
-    """
-    first = 2 * spot_extent if share_edges else 2 * spot_extent + 1
-    g1 = (first, -spot_extent)
-    g2 = _rot60(*g1)
-    return g1, g2
-
-
-def spot_centers(
-    extent: int = DEFAULT_EXTENT,
-    spot_extent: int = 2,
-    fully_inside: bool = True,
-    share_edges: bool = False,
-) -> list:
-    """Axial centres of the radius-``spot_extent`` hexes covering an ``extent`` disc.
-
-    Args:
-        extent: Radius of the disc to cover (the optic-lobe grid).
-        spot_extent: Radius of each spot (2 -> 19-cell extent-2 hexagons).
-        fully_inside: If True (default) keep only spots whose every cell lies
-            inside the disc.
-        share_edges: If False (default) use the disjoint gap-free spotting (31 spots
-            for extent=15, spot_extent=2); if True use the edge-sharing overlapping
-            spotting (43 spots), where neighbouring spots share their boundary ring.
-
-    Returns:
-        Tile-centre (u, v) tuples, ordered by radius then angle.
-    """
-    (a1, b1), (a2, b2) = spot_basis(spot_extent, share_edges)
-    members = spot_offsets(spot_extent)
-    span = 2 * (extent // max(spot_extent, 1) + 2)
-    centers = []
-    for m in range(-span, span + 1):
-        for n in range(-span, span + 1):
-            cu, cv = m * a1 + n * a2, m * b1 + n * b2
-            if hex_radius(cu, cv) > extent:
-                continue
-            if fully_inside and any(
-                hex_radius(cu + du, cv + dv) > extent for du, dv in members
-            ):
-                continue
-            centers.append((cu, cv))
-    centers.sort(key=lambda c: (hex_radius(*c), _angle(*c)))
-    return centers
-
-
-def _angle(u: int, v: int) -> float:
-    """Degree-space angle of (u, v), for a stable angular tie-break ordering."""
-    x_deg, y_deg = uv_to_xy_deg(u, v)
-    return float(np.arctan2(float(y_deg), float(x_deg)))
+def get_hex_coords(extent: int) -> Tuple[np.ndarray, np.ndarray]:
+    """Axial (u, v) coordinates of a hex disc (shell order via :func:`members_in_extent`)."""
+    members = members_in_extent(int(extent))
+    u = np.array([m[0] for m in members], dtype=np.int64)
+    v = np.array([m[1] for m in members], dtype=np.int64)
+    return u, v
 
 
 class HexGrid:
     """The (u, v) axial coordinates of an ideal hex disc of a given extent.
 
     A pure coordinate container (used as the reference disc for plotting and as
-    the extent for spotting). FAFB column (u, v) come from :func:`columns_with_uv`.
+    panel); FAFB column (u, v) come from :func:`columns_with_uv`.
     """
 
     def __init__(self, extent: int = DEFAULT_EXTENT) -> None:
