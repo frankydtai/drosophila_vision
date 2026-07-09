@@ -21,8 +21,7 @@ TRAIN_OPTS_FILE = fc.TRAIN_OPTS_FILE
 KNOWN_MODELS = ('conductance', 'adaptive')
 RUN_NAME_MAX = 255
 DEFAULT_RUN_NAME = """
-0708_181807-train-target-moving_bar-network-right_min_neuron1_extent3-nofstep-0-init-from-conductance-0708_180831-train-target-spot-network-right_min_neuron1_extent3-shift-extent-2-nofsteps-100-x-3,-2,-1
-""".strip()
+0708_210523-train-target-spot_dark,moving_bar_dark-network-right_min_neuron1_extent3-nofstep-0-init-from-0708_180831-train-target-spot-network-right_min_neuron1_extent3-shift-extent-2-nofsteps-100-shift-extent-2-x-2-y-1-vm""".strip()
 DEFAULT_RUN_PATH = 'conductance/' + DEFAULT_RUN_NAME
 
 
