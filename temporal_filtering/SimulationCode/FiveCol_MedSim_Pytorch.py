@@ -55,6 +55,7 @@ t_on = T_ON
 TRAIN_OPTS_FILE = "train_opts.json"
 SPOT_TARGETS = ("spot_bright", "spot_dark")
 SPOT_POLARITIES = frozenset({"bright", "dark"})
+MOVING_BAR_POLARITIES = frozenset({"bright", "dark"})
 _SPOT_STEP_KEY = {"bright": "i_bright", "dark": "i_dark"}
 MOVING_BAR_TARGETS = ("moving_bar_bright", "moving_bar_dark")
 VALID_TARGETS = SPOT_TARGETS + MOVING_BAR_TARGETS
@@ -204,7 +205,7 @@ STATE_CLAMP = 1.0e6  # bound on adaptive state vars to keep explicit Euler finit
 LAMINA_SLICE = ml.LAMINA_SLICE  # L1-L5 within the 65 cell types
 DEFAULT_IH_GROUP_NAMES = ('L1', 'L2', 'L3', 'L4', 'L5')
 IH_GROUP_ALIASES = frozenset({'all'})
-IH_GMAX_ZERO_TYPES = ('L3', 'L4')  # Ih_gmax z-init pinned to 0 for these types
+IH_GMAX_ZERO_TYPES = ('L3',)  # Ih_gmax z-init pinned to 0 for these types
 PARAM_MODES = ('indi', 'shared', 'fixed')
 IH_SHAPE_PARAM_NAMES = (
     'Ih_midv', 'Ih_slope', 'tau_midv',
@@ -603,14 +604,28 @@ def make_spot_stimulus_opts(
     }
 
 
-def make_moving_bar_bright_stimulus_opts(
-    i_baseline=None, i_bright_bar=None, mode="borst", readout_subtypes=None,
+def make_moving_bar_stimulus_opts(
+    polarity: str,
+    *,
+    i_baseline=None,
+    i_bar=None,
+    mode="borst",
+    readout_subtypes=None,
+    **extra,
 ):
-    """PR moving-bar bright target defaults (``maxtime``/``spec_names`` filled at build)."""
+    """PR moving-bar stimulus opts for ``moving_bar_{polarity}``."""
+    from network.moving_bar_target import resolve_i_baseline
+
+    if polarity not in MOVING_BAR_POLARITIES:
+        raise ValueError(f"moving-bar polarity must be 'bright' or 'dark', got {polarity!r}")
+    bar_key = "i_bright_bar" if polarity == "bright" else "i_dark_bar"
+    if i_bar is None:
+        i_bar = extra.get(bar_key)
+    bar_default = ml.I_BRIGHT if polarity == "bright" else ml.I_DARK
     out = {
         "mode": mode,
-        "i_baseline": float(ml.I_BASELINE if i_baseline is None else i_baseline),
-        "i_bright_bar": float(ml.I_BRIGHT if i_bright_bar is None else i_bright_bar),
+        "i_baseline": resolve_i_baseline(i_baseline),
+        bar_key: float(bar_default if i_bar is None else i_bar),
         "t_on": int(t_on),
         "deltat_ms": float(deltat),
     }
@@ -620,21 +635,16 @@ def make_moving_bar_bright_stimulus_opts(
     return out
 
 
-def make_moving_bar_dark_stimulus_opts(
-    i_baseline=None, i_dark_bar=None, mode="borst", readout_subtypes=None,
-):
-    """PR moving-bar dark target defaults (``maxtime``/``spec_names`` filled at build)."""
-    out = {
-        "mode": mode,
-        "i_baseline": float(ml.I_BASELINE if i_baseline is None else i_baseline),
-        "i_dark_bar": float(ml.I_DARK if i_dark_bar is None else i_dark_bar),
-        "t_on": int(t_on),
-        "deltat_ms": float(deltat),
-    }
-    rs = _readout_subtypes_stimulus_list(readout_subtypes)
-    if rs is not None:
-        out["readout_subtypes"] = rs
-    return out
+def session_moving_bar_i_baseline(train_opts) -> float:
+    """``i_baseline`` from moving-bar stimulus opts on a train session."""
+    from network.moving_bar_target import resolve_i_baseline
+
+    opts = train_opts or {}
+    for key in ("moving_bar_bright_stimulus_opts", "moving_bar_dark_stimulus_opts"):
+        sub = opts.get(key) or {}
+        if "i_baseline" in sub:
+            return resolve_i_baseline(float(sub["i_baseline"]))
+    return resolve_i_baseline(None)
 
 
 def _readout_subtypes_stimulus_list(readout_subtypes):
@@ -1047,14 +1057,14 @@ def _build_borst_moving_bar_dark_target(ctx: _TrainBindCtx) -> Tuple[TargetPack,
 def _moving_bar_polarity_opts(ctx: _TrainBindCtx, polarity: str) -> dict:
     if polarity == "bright":
         raw = ctx.moving_bar_bright_stimulus_opts
-        factory = make_moving_bar_bright_stimulus_opts
     elif polarity == "dark":
         raw = ctx.moving_bar_dark_stimulus_opts
-        factory = make_moving_bar_dark_stimulus_opts
     else:
         raise ValueError(f"unknown moving-bar polarity {polarity!r}")
     mode = (raw or {}).get("mode", "borst")
-    return dict(raw or factory(mode=mode))
+    if raw:
+        return dict(raw)
+    return make_moving_bar_stimulus_opts(polarity, mode=mode)
 
 
 def _build_network_moving_bar_target(ctx: _TrainBindCtx, C, *, pack_name: str, polarity: str):
@@ -1353,7 +1363,8 @@ def _finalize_stimulus_opts(
             if k in ("i_baseline", step_key, "shift_extent")
         })
     elif target_name == "moving_bar_bright":
-        out = make_moving_bar_bright_stimulus_opts(
+        out = make_moving_bar_stimulus_opts(
+            "bright",
             mode=build_mode,
             **{
                 k: v for k, v in (opts or {}).items()
@@ -1361,7 +1372,8 @@ def _finalize_stimulus_opts(
             },
         )
     elif target_name == "moving_bar_dark":
-        out = make_moving_bar_dark_stimulus_opts(
+        out = make_moving_bar_stimulus_opts(
+            "dark",
             mode=build_mode,
             **{
                 k: v for k, v in (opts or {}).items()
@@ -1946,6 +1958,7 @@ def _run_conductance_full(session: TrainSession, p, sig, return_ref=False, *, re
     dev = backend.conn.node_type.device
     u_on = u_off = torch.zeros((B, backend.n_units), dtype=session.sim_dtype, device=dev)
     Vm = backend.e_leak.expand(B, backend.n_units).clone()
+    # Discrete-time update at step ``t`` uses ``sig[:, t-1]`` (one-step delay).
     for t in range(1, min(t_on, t_end)):
         Vm, u_on, u_off = update_Vm(
             Vm, u_on, u_off, inp_gain, out_gain, Ih_gmax, Ih_gmax_off,
@@ -1956,6 +1969,7 @@ def _run_conductance_full(session: TrainSession, p, sig, return_ref=False, *, re
     rows = []
     vm_rows = [] if return_vm else None
     for t in range(t_on, t_end):
+        # ``model_full`` column 0 is the Ca trace at sim step ``t_on`` (``sig[:, t_on-1]``).
         Vm, u_on, u_off = update_Vm(
             Vm, u_on, u_off, inp_gain, out_gain, Ih_gmax, Ih_gmax_off,
             Ih_midv, Ih_slope, tau_midv, Ih_midv_off, Ih_slope_off, tau_midv_off,
@@ -1978,13 +1992,17 @@ def _window_time_traces(model_full, b_idx, u_idx, t0, win=None):
 
     ``t0`` is the absolute simulation step of window start. Steps before ``t_on``
     are zero (``model_full`` only exists from ``t_on`` onward).
+
+    Indexing uses :func:`network.moving_bar_target.moving_bar_window_t_rel_torch`.
     """
+    from network.moving_bar_target import moving_bar_window_t_rel_torch
+
     if win is None:
         raise ValueError("window length win required")
     win = int(win)
-    t_rel = t0[:, None] - t_on + torch.arange(win, dtype=torch.long, device=active_device())
+    dev = model_full.device
+    t_rel, pre = moving_bar_window_t_rel_torch(t0, int(t_on), win, device=dev)
     t_max = model_full.shape[1] - 1
-    pre = t_rel < 0
     t_safe = t_rel.clamp(0, t_max)
     sel = model_full[b_idx[:, None], t_safe, u_idx[:, None]]
     return torch.where(pre, torch.zeros_like(sel), sel)
@@ -2023,6 +2041,7 @@ def pad_plot_traces(raw, scale, mt, t_on_step=None):
     trace = torch.zeros(n, mt, dtype=raw.dtype, device=raw.device)
     trace[:, t_on_step:t_on_step + t_len] = scale[:, None] * raw
     trace[:, 0:t_on_step] = 0
+    # Shift one step earlier so plot time ``t`` aligns with conductance ``sig[:, t-1]``.
     trace[:, 0:mt - 1] = trace[:, 1:mt].clone()
     return trace
 
@@ -2088,11 +2107,13 @@ def _conductance_pack_readout(p, pack: TargetPack, session: TrainSession, batch_
 
 def _window_adaptive_traces(model, t0, win):
     """Windowed readout from ``_run_adaptive`` output ``(T', K)``."""
-    t_rel = t0[:, None] - t_on + torch.arange(win, dtype=torch.long, device=active_device())
+    from network.moving_bar_target import moving_bar_window_t_rel_torch
+
+    dev = active_device()
+    t_rel, pre = moving_bar_window_t_rel_torch(t0, int(t_on), int(win), device=dev)
     t_max = model.shape[0] - 1
-    pre = t_rel < 0
     t_safe = t_rel.clamp(0, t_max)
-    k_idx = torch.arange(model.shape[1], dtype=torch.long, device=active_device())
+    k_idx = torch.arange(model.shape[1], dtype=torch.long, device=dev)
     sel = model[t_safe, k_idx[:, None]]
     return torch.where(pre, torch.zeros_like(sel), sel)
 
@@ -2373,6 +2394,56 @@ def _weighted_cost_from_parts(parts: Dict[str, torch.Tensor], session: TrainSess
 def calc_cost(z, session: TrainSession):
     return _weighted_cost_from_parts(calc_cost_parts(z, session), session)
 
+
+def _params_from_z(z, session: TrainSession):
+    schema = list(session.schema)
+    if session.model == 'adaptive':
+        return assign_params_adaptive(z, schema, session.backend)
+    return assign_params(z, schema, session.backend)
+
+
+def _iter_cost_microbatches(session: TrainSession):
+    """Yield ``(pack, batch_idx, sub_pack)`` for gradient accumulation."""
+    for _name, pack in session.targets.items():
+        if not _pack_has_active_cost(pack, session):
+            continue
+        active_batches = _pack_active_batch_indices(pack, session)
+        if not active_batches:
+            continue
+        if session.sequential:
+            for b in active_batches:
+                sub = _pack_for_active_cost(pack, session, batch_idx=b)
+                if sub is not None:
+                    yield pack, b, sub
+        else:
+            sub = _pack_for_active_cost(pack, session, batch_indices=active_batches)
+            if sub is not None:
+                yield pack, None, sub
+
+
+def backward_accum_weighted_cost(z, session: TrainSession):
+    """Backward weighted cost one micro-batch at a time (releases graph each step)."""
+    parts_sum: Dict[str, float] = {}
+    zero = torch.zeros((), dtype=session.sim_dtype, device=session.device)
+    for _pack, batch_idx, sub in _iter_cost_microbatches(session):
+        p = _params_from_z(z, session)
+        mb_loss = zero
+        has_loss = False
+        for key, part in _pack_cost_parts_from_params(
+            p, sub, session, batch_idx=batch_idx,
+        ).items():
+            w = _part_weight(session, key)
+            if w == 0.0:
+                continue
+            mb_loss = mb_loss + w * part
+            has_loss = True
+            parts_sum[key] = parts_sum.get(key, 0.0) + float(part.item())
+        if has_loss:
+            mb_loss.backward()
+    total = sum(_part_weight(session, k) * v for k, v in parts_sum.items())
+    return total, parts_sum
+
+
 def schema_bounds(schema, sim_dtype=SIM_DTYPE_DEFAULT):
     zb = torch.zeros((schema_nparams(schema), 2), dtype=sim_dtype)
     for seg, start, stop in schema_segments(schema):
@@ -2412,7 +2483,8 @@ def _fmt_cost_parts(parts):
 
 
 def gradient_network(z, lr=0.0001, cost_fn=None, n_steps=100, device="cpu", z_bounds=None,
-                     cost_log=None, step_log=None, float_last_parts=None, target_order=None):
+                     cost_log=None, step_log=None, float_last_parts=None, target_order=None,
+                     backward_step=None, eval_cost=None):
     
     a = time.time()
 
@@ -2420,11 +2492,14 @@ def gradient_network(z, lr=0.0001, cost_fn=None, n_steps=100, device="cpu", z_bo
     
     optimizer = torch.optim.Adam([z], lr=lr)
 
-    cost = cost_fn(z).item()
+    if eval_cost is not None:
+        cost = eval_cost(z)
+    else:
+        cost = cost_fn(z).item()
     best_cost = cost
     best_z = z.clone().detach()
     
-    initial_cost = 1.0*cost
+    initial_cost = 1.0 * cost
     initial_parts = float_last_parts(target_order) if float_last_parts else None
     best_parts = initial_parts
 
@@ -2434,41 +2509,48 @@ def gradient_network(z, lr=0.0001, cost_fn=None, n_steps=100, device="cpu", z_bo
         
         optimizer.zero_grad()
         
-        cost = cost_fn(z)  
+        if backward_step is not None:
+            cost = backward_step(z)
+        else:
+            cost_t = cost_fn(z)
+            cost = cost_t.item()
+            cost_t.backward()
         
-        if cost.item() < best_cost:
+        if cost < best_cost:
             
-            best_cost = cost.item()
+            best_cost = cost
             best_z = z.clone().detach()
             if float_last_parts is not None:
                 best_parts = float_last_parts(target_order)
         
         if cost_log is not None:
-            cost_log.append(cost.item())
+            cost_log.append(cost)
         if step_log is not None:
             step_log(z)
         
-        cost.backward()
         optimizer.step()
 
         with torch.no_grad():
             
             z.clamp_(z_bounds[:, 0].to(device), z_bounds[:, 1].to(device))
 
-        progress_bar.set_description(f'Cost: {cost.item():.4f}')
+        progress_bar.set_description(f'Cost: {cost:.4f}')
 
-    cost = cost_fn(z)  
+    if eval_cost is not None:
+        cost = eval_cost(z)
+    else:
+        cost = cost_fn(z).item()
     final_parts = float_last_parts(target_order) if float_last_parts else None
     
-    if cost.item() < best_cost:
+    if cost < best_cost:
         
-        best_cost = cost.item()
+        best_cost = cost
         best_z = z.clone().detach()
         best_parts = final_parts
 
     print()
     print('Initl cost =', format(initial_cost,'.4f') + _fmt_cost_parts(initial_parts))
-    print('Final cost =', format(cost.item(),'.4f') + _fmt_cost_parts(final_parts))
+    print('Final cost =', format(cost,'.4f') + _fmt_cost_parts(final_parts))
     print('Best  cost =', format(best_cost,'.4f') + _fmt_cost_parts(best_parts))
     
     b = time.time()
@@ -2479,49 +2561,71 @@ def gradient_network(z, lr=0.0001, cost_fn=None, n_steps=100, device="cpu", z_bo
     return best_z
 
 def train_staged(z, cost_fn, z_bounds, lrs, nsteps, cost_log=None, step_log=None,
-                 float_last_parts=None, target_order=None):
+                 float_last_parts=None, target_order=None,
+                 backward_step=None, eval_cost=None):
     # run gradient_network once per learning-rate stage, chaining the best params.
     for lr in lrs:
         z = gradient_network(z, lr=lr, n_steps=nsteps, device=active_device(),
                              cost_fn=cost_fn, z_bounds=z_bounds, cost_log=cost_log,
                              step_log=step_log, float_last_parts=float_last_parts,
-                             target_order=target_order)
+                             target_order=target_order,
+                             backward_step=backward_step, eval_cost=eval_cost)
     return z
 
 
 def _make_step_logger(session: TrainSession):
-    """Build ``(cost_fn, target_history, log_step, float_last_parts)``.
+    """Build training step hooks for :func:`gradient_network`.
 
-  ``cost_fn`` runs ``calc_cost_parts`` once per call; ``log_step`` and
-  ``float_last_parts`` reuse that result (no extra forward).
+  Batched mode: ``cost_fn`` runs one forward + backward on the full graph.
+  Sequential mode: ``backward_step`` accumulates gradients per micro-batch;
+  ``eval_cost`` evaluates cost under ``no_grad`` for logging.
     """
     part_keys = session_cost_part_keys(session.target_list)
     target_history = {name: [] for name in part_keys}
-    _last_parts: Optional[Dict[str, torch.Tensor]] = None
-    _last_total: Optional[torch.Tensor] = None
+    _last_parts: Optional[Dict[str, float]] = None
+    _last_total: Optional[float] = None
+
+    def _set_last(parts, total):
+        nonlocal _last_parts, _last_total
+        _last_parts = dict(parts)
+        _last_total = float(total)
 
     def cost_fn(z):
-        nonlocal _last_parts, _last_total
-        _last_parts = calc_cost_parts(z, session)
-        _last_total = _weighted_cost_from_parts(_last_parts, session)
-        return _last_total
+        parts = calc_cost_parts(z, session)
+        total = _weighted_cost_from_parts(parts, session)
+        _set_last({k: float(v.item()) for k, v in parts.items()}, float(total.item()))
+        return total
+
+    def eval_cost(z):
+        with torch.no_grad():
+            parts = calc_cost_parts(z, session)
+            total = _weighted_cost_from_parts(parts, session)
+        _set_last({k: float(v.item()) for k, v in parts.items()}, float(total.item()))
+        return float(total.item())
+
+    def backward_step(z):
+        total, parts_sum = backward_accum_weighted_cost(z, session)
+        _set_last(parts_sum, total)
+        return total
 
     def log_step(z=None):
         if _last_parts is None or _last_total is None:
             raise RuntimeError("log_step called before cost_fn in the same training step")
         for name in part_keys:
             if name in _last_parts:
-                target_history[name].append(float(_last_parts[name].item()))
+                target_history[name].append(float(_last_parts[name]))
             else:
                 target_history[name].append(0.0)
-        return float(_last_total.item())
+        return float(_last_total)
 
     def float_last_parts(target_order=None):
         if _last_parts is None:
             raise RuntimeError("float_last_parts called before cost_fn")
         return _float_parts_dict(_last_parts, target_order)
 
-    return cost_fn, target_history, log_step, float_last_parts
+    if session.sequential:
+        return cost_fn, target_history, log_step, float_last_parts, backward_step, eval_cost
+    return cost_fn, target_history, log_step, float_last_parts, None, None
 
 
 def do_many_runs(session: TrainSession, nofruns, nofsteps, lrs=(0.1, 0.01, 0.001),
@@ -2551,7 +2655,8 @@ def do_many_runs(session: TrainSession, nofruns, nofsteps, lrs=(0.1, 0.01, 0.001
 
         z = z_init.clone() if z_init is not None else schema_guess(schema, session.sim_dtype)
         cost_history = []
-        cost_fn, target_history, log_step, float_last_parts = _make_step_logger(session)
+        (cost_fn, target_history, log_step, float_last_parts,
+         backward_step, eval_cost) = _make_step_logger(session)
 
         def step_log(z):
             cost_history.append(log_step(z))
@@ -2561,6 +2666,8 @@ def do_many_runs(session: TrainSession, nofruns, nofsteps, lrs=(0.1, 0.01, 0.001
             step_log=step_log,
             float_last_parts=float_last_parts,
             target_order=list(part_keys),
+            backward_step=backward_step,
+            eval_cost=eval_cost,
         )
 
         all_params[i] = z_fit.detach().cpu().numpy()

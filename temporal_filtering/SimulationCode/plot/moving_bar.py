@@ -14,7 +14,6 @@ import torch
 
 import FiveCol_MedSim_Pytorch as fc
 import Medulla_Library as ml
-from Medulla_Library import I_BASELINE
 from plot.readout import moving_bar_row_types
 from plot.utils import (
     DATA_COLOR,
@@ -36,7 +35,14 @@ from plot.utils import (
 )
 from FiveCol_MedSim_Pytorch import t_on
 import network_bootstrap  # noqa: F401  # ensure FAFBv783 modules are importable
-from network.moving_bar_target import _borst_moving_bar_specs, load_fig1_trace
+from network.moving_bar_target import (
+    build_moving_bar_signals,
+    build_moving_bar_t0_grids,
+    load_fig1_trace,
+    moving_bar_cost_columns,
+    moving_bar_window_t_rel,
+    sti_columns,
+)
 from t4_t5_preference import (
     READOUT_SUBTYPES,
     active_stimuli_for_subtype,
@@ -51,7 +57,6 @@ from training_config import (
 )
 from visual_stimulus.moving_bar_stimulus import (
     build_batched_column_current,
-    column_first_stim_step,
     gruntman_moving_bar_specs,
 )
 
@@ -68,6 +73,9 @@ class MovingBarWindowTraces:
     model_sem: dict
     before_steps: dict[str, int] | None = None
     after_steps: dict[str, int] | None = None
+    t0_bn: np.ndarray | None = field(default=None, repr=False, compare=False)
+    type_ids: np.ndarray | None = field(default=None, repr=False, compare=False)
+    types: list | None = field(default=None, repr=False, compare=False)
 
 
 @dataclass
@@ -127,13 +135,6 @@ def _rel_window_seconds(before_steps, after_steps):
     return before_steps * scale, after_steps * scale
 
 
-def _record_spec_full_horizon(t_first_stis, maxtime, spec_name, full_before, full_after):
-    fb = min(t_first_stis)
-    full_before[spec_name] = fb
-    full_after[spec_name] = int(maxtime) - max(t_first_stis)
-    return fb
-
-
 def _filter_right_specs(spec_names, right_only):
     if right_only:
         return [s for s in spec_names if s.startswith('right_')]
@@ -145,21 +146,7 @@ def _bar_specs_for_session(session, target):
     C = session.backend.network
     if C is not None:
         return list(gruntman_moving_bar_specs(contrasts=(contrast,)))
-    return list(_borst_moving_bar_specs(contrasts=(contrast,)))
-
-
-def _moving_bar_t0_grid(C, cols, n_batch, t0_map):
-    n_units = C.n_units
-    u_np, v_np = _network_uv_np(C)
-    t0_bn = np.full((n_batch, n_units), -1, dtype=np.int64)
-    for bi in range(n_batch):
-        for c in cols:
-            t0 = t0_map.get((bi, int(c.u), int(c.v)))
-            if t0 is None:
-                continue
-            on_col = (u_np == int(c.u)) & (v_np == int(c.v))
-            t0_bn[bi, on_col] = t0
-    return t0_bn
+    return list(gruntman_moving_bar_specs(directions=("right", "left"), contrasts=(contrast,)))
 
 
 def _scale_model_full(model_full, p, backend):
@@ -180,11 +167,9 @@ def _windows_by_batch(model_full, t0_bn, win_lens):
         wl = int(win_lens[bi])
         sl = model_full[bi:bi + 1]
         t0 = t0_bn[bi:bi + 1]
-        win = np.arange(wl, dtype=np.int64)
         t_len = sl.shape[1]
         n_units = sl.shape[2]
-        t_rel = t0[:, :, None].astype(np.int64) - int(t_on) + win[None, None, :]
-        pre = t_rel < 0
+        t_rel, pre = moving_bar_window_t_rel(t0, int(t_on), wl)
         t_safe = np.clip(t_rel, 0, t_len - 1)
         b_ix = np.zeros(1, dtype=np.int64)[:, None, None]
         u_ix = np.arange(n_units, dtype=np.int64)[None, :, None]
@@ -194,7 +179,10 @@ def _windows_by_batch(model_full, t0_bn, win_lens):
     return out
 
 
-def _aggregate_moving_bar_traces(windows_by_batch, t0_bn, type_ids, types, spec_names, single_column):
+def _aggregate_moving_bar_traces(
+    windows_by_batch, t0_bn, type_ids, types, spec_names, single_column, *,
+    col_mask=None,
+):
     """``windows_by_batch[bi]`` shape ``(n_units, W_bi)``."""
     model_mean, model_sem = {}, {}
     valid = t0_bn >= 0
@@ -204,27 +192,8 @@ def _aggregate_moving_bar_traces(windows_by_batch, t0_bn, type_ids, types, spec_
             continue
         for bi, sname in enumerate(spec_names):
             unit_mask = valid[bi] & type_mask
-            if not unit_mask.any():
-                continue
-            arr = windows_by_batch[bi][unit_mask]
-            key = (tname, sname)
-            model_mean[key] = arr.mean(axis=0)
-            model_sem[key] = sem_from_traces(arr, single_column=single_column)
-    return model_mean, model_sem
-
-
-def _aggregate_moving_bar_traces_colmask(
-    windows_by_batch, t0_bn, type_ids, types, spec_names, col_mask, single_column,
-):
-    """Like :func:`_aggregate_moving_bar_traces` but only units in ``col_mask``."""
-    model_mean, model_sem = {}, {}
-    valid = t0_bn >= 0
-    for ti, tname in enumerate(types):
-        type_mask = type_ids == ti
-        if not type_mask.any():
-            continue
-        for bi, sname in enumerate(spec_names):
-            unit_mask = valid[bi] & type_mask & col_mask[bi]
+            if col_mask is not None:
+                unit_mask = unit_mask & col_mask[bi]
             if not unit_mask.any():
                 continue
             arr = windows_by_batch[bi][unit_mask]
@@ -252,21 +221,19 @@ def _borst_column_unit_mask(filt_cols, n_batch):
 
 
 def _moving_bar_slice_overlay_traces(
-    session, target, trace_full, base_wt, specs, spec_names, *, at_x=None, at_y=None,
+    session, target, trace_full, base_wt, spec_names, *, at_x=None, at_y=None,
 ):
     """Per-axis slice traces aligned to ``base_wt`` window geometry."""
-    from network.moving_bar_target import moving_bar_cost_columns
-
+    if base_wt.t0_bn is None or base_wt.type_ids is None or base_wt.types is None:
+        raise ValueError("base_wt missing cached t0_bn/types for slice overlay")
     pack = session.pack_for(target)
-    cost_extent = pack.cost_extent
-    maxtime = int(session.maxtime)
-    C = session.backend.network
-    types, type_ids, t0_full_bn, _, _, _, _ = _moving_bar_t0_grids(
-        session, specs, cost_extent, maxtime,
-    )
+    types = base_wt.types
+    type_ids = base_wt.type_ids
+    t0_full_bn = base_wt.t0_bn
     n_batch = len(spec_names)
+    C = session.backend.network
     if C is not None:
-        all_cols = moving_bar_cost_columns(C, cost_extent=cost_extent)
+        all_cols = moving_bar_cost_columns(C, cost_extent=pack.cost_extent)
         filt_cols = filter_sti_columns(all_cols, at_x=at_x, at_y=at_y)
         if not filt_cols:
             return None
@@ -285,25 +252,30 @@ def _moving_bar_slice_overlay_traces(
         for sname in spec_names
     ]
     windows_full = _windows_by_batch(trace_full, t0_full_bn, win_lens)
-    model_mean, model_sem = _aggregate_moving_bar_traces_colmask(
-        windows_full, t0_full_bn, type_ids, types, spec_names, col_mask, True,
+    model_mean, model_sem = _aggregate_moving_bar_traces(
+        windows_full, t0_full_bn, type_ids, types, spec_names, True, col_mask=col_mask,
     )
     return MovingBarWindowTraces(
         model_mean=model_mean,
         model_sem=model_sem,
         before_steps=base_wt.before_steps,
         after_steps=base_wt.after_steps,
+        t0_bn=t0_full_bn,
+        type_ids=type_ids,
+        types=types,
     )
 
 
-def _column_t_first_stis(col_curr_bti, batch_idx, col_idxs, i_baseline):
-    return [
-        column_first_stim_step(col_curr_bti[batch_idx, :, col_idx], i_baseline=i_baseline)
-        for col_idx in col_idxs
-    ]
+def _fig1_trace_delta(trace: np.ndarray) -> np.ndarray:
+    """ΔVm for fig1 cost-window traces (subtract pre-stimulus mean)."""
+    trace = np.asarray(trace, dtype=np.float64)
+    i_on = COST_WINDOW_BEFORE
+    if i_on > 0 and i_on < len(trace):
+        return trace - float(np.mean(trace[:i_on]))
+    return trace - float(trace[0])
 
 
-def _load_moving_bar_data_mean(session, target, types, specs, side):
+def _load_moving_bar_data_mean(session, target, types, specs, side, *, trace_kind='model'):
     data_mean = {}
     row_types = moving_bar_row_types(session, target)
     for subtype in row_types:
@@ -313,7 +285,10 @@ def _load_moving_bar_data_mean(session, target, types, specs, side):
             trace_id = fig1_key_for_stimulus(side, subtype, spec)
             if trace_id is None:
                 continue
-            data_mean[(subtype, spec.name)] = load_fig1_trace(trace_id)
+            trace = load_fig1_trace(trace_id)
+            if trace_kind == 'vm':
+                trace = _fig1_trace_delta(trace)
+            data_mean[(subtype, spec.name)] = trace
     return data_mean
 
 
@@ -339,78 +314,67 @@ def _moving_bar_baselines(C, vm_ref, types, type_ids, type_names, cost_extent, *
 
 
 def _moving_bar_t0_grids(session, specs, cost_extent, maxtime, *, at_x=None, at_y=None):
-    from network.moving_bar_target import build_moving_bar_signals, moving_bar_cost_columns, sti_columns
-
     C = session.backend.network
-    n_batch = len(specs)
-    full_before_steps = {}
-    full_after_steps = {}
-    t0_full_map = {}
+    i_baseline = fc.session_moving_bar_i_baseline(session.train_opts)
 
     if C is not None:
         side = normalize_side(C.meta.get('side', 'right'))
-        cols = moving_bar_cost_columns(C, cost_extent=cost_extent)
+        all_cols = moving_bar_cost_columns(C, cost_extent=cost_extent)
         if at_x is not None or at_y is not None:
-            cols = filter_sti_columns(cols, at_x=at_x, at_y=at_y)
-            if not cols:
+            filt_cols = filter_sti_columns(all_cols, at_x=at_x, at_y=at_y)
+            if not filt_cols:
                 raise SystemExit(
                     f'no sti columns match x={at_x!r} y={at_y!r} within cost_extent',
                 )
+        else:
+            filt_cols = all_cols
         stim = build_moving_bar_signals(
             C, specs=specs, maxtime=maxtime, t_on=t_on, deltat_ms=fc.deltat,
-            device=C.node_type.device,
+            device=C.node_type.device, i_baseline=i_baseline,
         )
-        i_baseline = float(stim.info.get("i_baseline", 0.0))
-        uv_to_idx = {
-            (int(col.u), int(col.v)): j
-            for j, col in enumerate(sti_columns(C))
-        }
-        col_idxs = [uv_to_idx[(int(c.u), int(c.v))] for c in cols]
+        uv_to_idx = {(int(col.u), int(col.v)): j for j, col in enumerate(sti_columns(C))}
+        all_col_idxs = [uv_to_idx[(int(c.u), int(c.v))] for c in all_cols]
+        filt_col_idxs = [uv_to_idx[(int(c.u), int(c.v))] for c in filt_cols]
+        grids = build_moving_bar_t0_grids(
+            stim.column_current, specs, maxtime, i_baseline,
+            all_col_idxs=all_col_idxs,
+            filt_col_idxs=filt_col_idxs,
+            network_C=C,
+            filt_network_cols=filt_cols,
+        )
         types = list(C.type_names)
         type_ids = _type_ids_np(C.node_type)
-        for bi, spec in enumerate(specs):
-            t_first_stis = _column_t_first_stis(
-                stim.column_current, bi, col_idxs, i_baseline,
-            )
-            fb = _record_spec_full_horizon(
-                t_first_stis, maxtime, spec.name, full_before_steps, full_after_steps,
-            )
-            for c, tc in zip(cols, t_first_stis):
-                uv = (bi, int(c.u), int(c.v))
-                t0_full_map[uv] = tc - fb
-        t0_full_bn = _moving_bar_t0_grid(C, cols, n_batch, t0_full_map)
     else:
         side = "right"
         cols_all = list(_borst_sti_columns())
+        all_col_ids = list(range(ml.nofcols))
         if at_x is not None or at_y is not None:
-            cols = filter_borst_sti_columns(cols_all, at_x=at_x, at_y=at_y)
-            if not cols:
+            filt_cols = filter_borst_sti_columns(cols_all, at_x=at_x, at_y=at_y)
+            if not filt_cols:
                 raise SystemExit(
                     f'no Borst columns match x={at_x!r} y={at_y!r}',
                 )
-            col_ids = [col.col for col in cols]
+            col_ids = [col.col for col in filt_cols]
         else:
-            col_ids = list(range(ml.nofcols))
-            cols = [cols_all[i] for i in col_ids]
-        i_baseline = I_BASELINE
+            col_ids = all_col_ids
         col_curr = build_batched_column_current(
             cols_all, specs, maxtime, t_on=t_on, deltat_ms=fc.deltat,
+            i_baseline=i_baseline,
         )
         types = list(ml.ctype.tolist())
         type_ids = _type_ids_np(session.backend.conn.node_type)
-        t0_full_bn = np.full((n_batch, ml.n_state_units()), -1, dtype=np.int64)
-        for bi, spec in enumerate(specs):
-            t_first_stis = _column_t_first_stis(
-                col_curr, bi, col_ids, i_baseline,
-            )
-            fb = _record_spec_full_horizon(
-                t_first_stis, maxtime, spec.name, full_before_steps, full_after_steps,
-            )
-            for col_id, col, tc in zip(col_ids, cols, t_first_stis):
-                t0_full_bn[bi, ml.column_slice(col_id)] = tc - fb
+        grids = build_moving_bar_t0_grids(
+            col_curr, specs, maxtime, i_baseline,
+            all_col_idxs=all_col_ids,
+            filt_col_idxs=col_ids,
+            borst_filt_col_ids=col_ids,
+        )
 
-    n_filter_cols = len(cols)
-    return types, type_ids, t0_full_bn, full_before_steps, full_after_steps, side, n_filter_cols
+    n_filter_cols = len(filt_cols) if C is not None else len(col_ids)
+    return (
+        types, type_ids, grids.t0_bn, grids.before_steps, grids.after_steps,
+        side, n_filter_cols,
+    )
 
 
 def _moving_bar_row_specs(session, target, side):
@@ -447,6 +411,9 @@ def _moving_bar_traces_from_forward(
         model_sem=trace_sem,
         before_steps=full_before_steps,
         after_steps=full_after_steps,
+        t0_bn=t0_full_bn,
+        type_ids=type_ids,
+        types=types,
     ), types, side, n_filter_cols
 
 
@@ -468,9 +435,8 @@ def moving_bar_trace_bundle(session, z, target, *, at_x=None, at_y=None,
         save_forward_trace_csvs(
             save_trace_csv_dir, target,
             trace_kind=trace_kind, ref=vm_ref_np, trace_full=trace_full,
-            ref_stem='moving_bar_ref_vm' if trace_kind == 'vm' else None,
+            ref_stem='moving_bar_ref_vm',
         )
-        data_mean = {}
     else:
         model_full, vm_ref = fc._run_conductance_full(session, p, pack.signal, return_ref=True)
         vm_ref_np = vm_ref[0].cpu().numpy()
@@ -478,9 +444,7 @@ def moving_bar_trace_bundle(session, z, target, *, at_x=None, at_y=None,
         save_forward_trace_csvs(
             save_trace_csv_dir, target,
             trace_kind=trace_kind, ref=vm_ref_np, trace_full=trace_full,
-            ref_stem='moving_bar_ref_vm' if trace_kind == 'vm' else None,
         )
-        data_mean = None
     specs = _bar_specs_for_session(session, target)
     spec_names = [s.name for s in specs]
     maxtime = int(session.maxtime)
@@ -501,8 +465,9 @@ def moving_bar_trace_bundle(session, z, target, *, at_x=None, at_y=None,
             pack, session.backend, vm_ref_np, types, type_ids, types,
         )
     single_column = suppress_cost_sem(session, target) or n_filter_cols == 1
-    if data_mean is None:
-        data_mean = _load_moving_bar_data_mean(session, target, types, specs, side)
+    data_mean = _load_moving_bar_data_mean(
+        session, target, types, specs, side, trace_kind=trace_kind,
+    )
     slice_overlay = None
     slice_axis = None
     slice_x_list = None
@@ -516,7 +481,7 @@ def moving_bar_trace_bundle(session, z, target, *, at_x=None, at_y=None,
             for yv in slice_y_list:
                 label = slice_xy_label(xv, yv)
                 wt = _moving_bar_slice_overlay_traces(
-                    session, target, trace_full, traces, specs, spec_names,
+                    session, target, trace_full, traces, spec_names,
                     at_x=xv, at_y=yv,
                 )
                 if wt is None:
@@ -534,7 +499,7 @@ def moving_bar_trace_bundle(session, z, target, *, at_x=None, at_y=None,
         slice_overlay = {}
         for xv in slice_x_list:
             slice_overlay[slice_axis_label(xv)] = _moving_bar_slice_overlay_traces(
-                session, target, trace_full, traces, specs, spec_names, at_x=xv,
+                session, target, trace_full, traces, spec_names, at_x=xv,
             )
     elif at_y_list is not None:
         slice_axis = 'y'
@@ -542,7 +507,7 @@ def moving_bar_trace_bundle(session, z, target, *, at_x=None, at_y=None,
         slice_overlay = {}
         for yv in slice_y_list:
             slice_overlay[slice_axis_label(yv)] = _moving_bar_slice_overlay_traces(
-                session, target, trace_full, traces, specs, spec_names, at_y=yv,
+                session, target, trace_full, traces, spec_names, at_y=yv,
             )
     return MovingBarTraceBundle(
         target=target,

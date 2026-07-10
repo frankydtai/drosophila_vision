@@ -58,10 +58,10 @@ def mirror_ref_cubes(dark=False):
 
 
 spot_targets = [t for t in target_list if t in fc.SPOT_TARGETS]
-plot_ref_cubes = plot_ref_cubes_off = None
+plot_ref_cubes = plot_ref_cubes_2 = None
 if 'spot_bright' in spot_targets and 'spot_dark' in spot_targets:
     plot_ref_cubes = mirror_ref_cubes(dark=False)
-    plot_ref_cubes_off = mirror_ref_cubes(dark=True)
+    plot_ref_cubes_2 = mirror_ref_cubes(dark=True)
 elif 'spot_dark' in spot_targets:
     plot_ref_cubes = mirror_ref_cubes(dark=True)
 elif 'spot_bright' in spot_targets:
@@ -76,7 +76,7 @@ fname, outdir, session = train.run_training(
     **train_kw,
     pack_overrides=PACK_OVERRIDES,
     plot_ref_cubes=plot_ref_cubes,
-    plot_ref_cubes_off=plot_ref_cubes_off,
+    plot_ref_cubes_2=plot_ref_cubes_2,
     plot_mvd_group_list=plot_mvd_groups,
 )
 for tname in spot_targets:

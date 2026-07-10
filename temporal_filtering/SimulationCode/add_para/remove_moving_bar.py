@@ -43,11 +43,13 @@ if not bar_targets:
 moving_bar_bright_stimulus_opts = None
 moving_bar_dark_stimulus_opts = None
 if 'moving_bar_bright' in bar_targets:
-    moving_bar_bright_stimulus_opts = fc.make_moving_bar_bright_stimulus_opts(
+    moving_bar_bright_stimulus_opts = fc.make_moving_bar_stimulus_opts(
+        "bright",
         readout_subtypes=readout_subtypes,
     )
 if 'moving_bar_dark' in bar_targets:
-    moving_bar_dark_stimulus_opts = fc.make_moving_bar_dark_stimulus_opts(
+    moving_bar_dark_stimulus_opts = fc.make_moving_bar_stimulus_opts(
+        "dark",
         readout_subtypes=readout_subtypes,
     )
 

@@ -26,6 +26,6 @@ echo "GPU:    ${CUDA_VISIBLE_DEVICES:-unset}"
 nvidia-smi -L || true
 python -c "import torch; print('cuda:', torch.cuda.is_available(), torch.cuda.get_device_name(0) if torch.cuda.is_available() else '')"
 echo "Start:  $(date)"
-python -u train.py --target spot_bright,moving_bar_bright \
-  --model conductance --nofsteps 10000 --lrs 0.1 --shift --network right_min_neuron1_extent2 --cost-extent 1
+python -u train.py  \
+  --nofsteps 10000 --lrs 0.1,0.01,0.001 --shift-extent=2 --network right_min_neuron1_extent3 --target spot
 echo "End:    $(date)"

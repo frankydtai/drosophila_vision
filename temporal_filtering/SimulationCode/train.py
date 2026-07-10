@@ -61,11 +61,11 @@ from training_config import BORST_CTYPE_NPY, run_data_dir
 
 
 def make_plots(fname, outdir, session, result=None, *,
-               ref_cubes=None, ref_cubes_off=None, mvd_group_list=None,
+               ref_cubes=None, ref_cubes_2=None, mvd_group_list=None,
                plot_right_only=True, at_x=None, at_y=None, plot_vm=False):
     """Cost curve + model-vs-data + all-cell-types."""
     plot_kw = dict(
-        ref_cubes=ref_cubes, ref_cubes_off=ref_cubes_off,
+        ref_cubes=ref_cubes, ref_cubes_2=ref_cubes_2,
         mvd_group_list=mvd_group_list, plot_right_only=plot_right_only,
         at_x=at_x, at_y=at_y,
         plot_vm=plot_vm,
@@ -106,13 +106,24 @@ def decompose_params(z_t, session):
     schema = list(session.schema)
     p = fc.assign_params(z_t, schema, session.backend)
     cols, glob = {}, {}
+    type_idx = None
+    if session.backend.network is not None:
+        type_idx = session.backend.network.node_type.detach().cpu().numpy()
     for seg in schema:
         name, v = seg["name"], p[seg["name"]]
         mode = fc.seg_mode(seg)
+        arr_full = v.detach().cpu().numpy()
         if seg["kind"] == "output":
-            arr = v.detach().cpu().numpy()
+            arr = arr_full
+        elif type_idx is not None:
+            # network backend: reconstruct a per-type vector from per-unit values
+            # by averaging all units that belong to each type.
+            arr = np.zeros(n, dtype=np.float64)
+            for t in range(n):
+                m = type_idx == t
+                arr[t] = float(arr_full[m].mean()) if np.any(m) else np.nan
         else:
-            arr = v[:n].detach().cpu().numpy()
+            arr = arr_full[:n]
         if mode in ("shared", "fixed"):
             glob[name] = float(arr.mean())
         else:
@@ -404,7 +415,7 @@ def run_training(model, nofruns, nofsteps, lrs, fname=None, outdir=None,
                  spot_dark_stimulus_opts=None,
                  pack_overrides=None, model_backend=None, schema=None,
                  fp32=False,
-                 plot_ref_cubes=None, plot_ref_cubes_off=None,
+                 plot_ref_cubes=None, plot_ref_cubes_2=None,
                  plot_mvd_group_list=None, plot_right_only=True,
                  at_x=None, at_y=None,
                  plot_vm=False,
@@ -446,7 +457,7 @@ def run_training(model, nofruns, nofsteps, lrs, fname=None, outdir=None,
     save_training_outputs(fname, outdir, session, result)
     make_plots(
         fname, outdir, session, result=result,
-        ref_cubes=plot_ref_cubes, ref_cubes_off=plot_ref_cubes_off,
+        ref_cubes=plot_ref_cubes, ref_cubes_2=plot_ref_cubes_2,
         mvd_group_list=plot_mvd_group_list,
         plot_right_only=plot_right_only, at_x=at_x, at_y=at_y,
         plot_vm=plot_vm,
