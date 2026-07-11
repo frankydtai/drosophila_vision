@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """
 For the connectome ``network.json`` files under this folder (built by
 ``build_network.py`` and stored in e.g. ``left_min_neuron1/network.json``),
@@ -1139,12 +1138,20 @@ def main(argv: List[str] | None = None) -> int:
                     hu, hv = at_u, at_v
                     ids_at_hex = _instance_ids_at_hex(nodes, hu, hv)
                     at_ref_uv = (float(hu), float(hv))
-                    hex_note += f" at hex (u,v)=({hu},{hv})"
+                    hx, hy = (float(v) for v in uv_to_xy(hu, hv))
+                    at_ref_xy = (hx, hy)
+                    hex_note += (
+                        f" at hex (u,v)=({hu},{hv}) "
+                        f"(x,y)=({_format_scalar_for_table(hx)},"
+                        f"{_format_scalar_for_table(hy)})"
+                    )
                     logger.info(
-                        "Restricting to instances at (u,v)=(%s,%s); "
-                        "%d cell types have ≥1 node there",
+                        "Restricting to instances at (u,v)=(%s,%s) "
+                        "(x,y)=(%s,%s); %d cell types have ≥1 node there",
                         hu,
                         hv,
+                        _format_scalar_for_table(hx),
+                        _format_scalar_for_table(hy),
                         sum(1 for s in ids_at_hex.values() if s),
                     )
                 else:
@@ -1176,7 +1183,10 @@ def main(argv: List[str] | None = None) -> int:
                     f"{_format_scalar_for_table(at_ref_xy[1])})"
                 )
                 logger.info(
-                    "Restricting to instances at (u,v)=(%s,%s); %d cell types have ≥1 node there",
+                    "Restricting to instances at (x,y)=(%s,%s) (u,v)=(%s,%s); "
+                    "%d cell types have ≥1 node there",
+                    _format_scalar_for_table(at_ref_xy[0]),
+                    _format_scalar_for_table(at_ref_xy[1]),
                     hu,
                     hv,
                     sum(1 for s in ids_at_hex.values() if s),

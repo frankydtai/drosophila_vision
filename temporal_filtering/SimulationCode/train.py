@@ -1,4 +1,3 @@
-#!/usr/bin/env python
 """Unified training driver for the FiveCol medulla model.
 
 All results of a run land in one folder under
@@ -62,12 +61,15 @@ from training_config import BORST_CTYPE_NPY, run_data_dir
 
 def make_plots(fname, outdir, session, result=None, *,
                ref_cubes=None, ref_cubes_2=None, mvd_group_list=None,
-               plot_right_only=True, at_x=None, at_y=None, plot_vm=False):
+               plot_right_only=True, at_x=None, at_y=None,
+               align_at_x=None, align_at_y=None,
+               plot_vm=False):
     """Cost curve + model-vs-data + all-cell-types."""
     plot_kw = dict(
         ref_cubes=ref_cubes, ref_cubes_2=ref_cubes_2,
         mvd_group_list=mvd_group_list, plot_right_only=plot_right_only,
         at_x=at_x, at_y=at_y,
+        align_at_x=align_at_x, align_at_y=align_at_y,
         plot_vm=plot_vm,
     )
     if result is not None:
@@ -418,6 +420,7 @@ def run_training(model, nofruns, nofsteps, lrs, fname=None, outdir=None,
                  plot_ref_cubes=None, plot_ref_cubes_2=None,
                  plot_mvd_group_list=None, plot_right_only=True,
                  at_x=None, at_y=None,
+                 align_at_x=None, align_at_y=None,
                  plot_vm=False,
                  init_from=None):
     """Full training pipeline (do_many_runs + save_training_outputs + plots). Returns (fname, outdir, session)."""

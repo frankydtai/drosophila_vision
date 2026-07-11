@@ -18,14 +18,14 @@ REPO=/home/yitai/drosophila_vision/temporal_filtering
 
 set -euo pipefail
 
-source "${REPO}/.venv/bin/activate"
+PYTHON="${REPO}/.venv/bin/python"
 
 echo "Job ID: ${SLURM_JOB_ID}"
 echo "Node:   ${SLURM_NODELIST}"
 echo "GPU:    ${CUDA_VISIBLE_DEVICES:-unset}"
 nvidia-smi -L || true
-python -c "import torch; print('cuda:', torch.cuda.is_available(), torch.cuda.get_device_name(0) if torch.cuda.is_available() else '')"
+"${PYTHON}" -c "import torch; print('cuda:', torch.cuda.is_available(), torch.cuda.get_device_name(0) if torch.cuda.is_available() else '')"
 echo "Start:  $(date)"
-python -u train.py  \
-  --nofsteps 10000 --lrs 0.1,0.01,0.001 --shift-extent=2 --network right_min_neuron1_extent3 --target spot
+"${PYTHON}" -u train.py  \
+  --nofsteps 1000 --lrs 0.1 --shift-extent=3 --network right_min_neuron1_extent3 --cost-extent=2 --fp32
 echo "End:    $(date)"

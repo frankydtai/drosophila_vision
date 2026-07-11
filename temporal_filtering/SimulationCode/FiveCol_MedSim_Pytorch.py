@@ -19,6 +19,8 @@ from torch import nn
 from tqdm import tqdm
 
 from network.connectivity import DenseConn
+import network_bootstrap  # noqa: F401 — connectome_io on sys.path
+from connectome_io import parse_comma_list
 from training_config import (
     BORST_CTYPE_NPY,
     BORST_MC_CELL_INDEX_NPY,
@@ -1411,7 +1413,7 @@ def _normalize_target_list(target_list) -> List[str]:
     if target_list is None:
         raise ValueError("target_list required")
     if isinstance(target_list, str):
-        target_list = [t.strip() for t in target_list.split(",") if t.strip()]
+        target_list = parse_comma_list(target_list)
     tl = expand_target_list(list(target_list))
     if not tl:
         raise ValueError("target_list must not be empty")

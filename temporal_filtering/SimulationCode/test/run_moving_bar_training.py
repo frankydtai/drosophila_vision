@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """Smoke test: moving-bar target via train.run_training (minimal steps).
 
 Usage:

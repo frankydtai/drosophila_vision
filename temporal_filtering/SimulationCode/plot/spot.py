@@ -1,4 +1,3 @@
-#!/usr/bin/env python
 """Spot plotting (Borst + network spot target).
 
 Network RF bins are ring means: r=0 -> j4, r=1 -> j3/j5, r=2 -> j2/j6.

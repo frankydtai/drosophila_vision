@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """Test plot: moving-bar model traces on the full stimulus horizon (``maxtime`` steps).
 
 Reads trained params from ``--rundir``; writes ``model_all_fulltime.png`` and

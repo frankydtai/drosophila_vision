@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """Plot legacy ``with_Ih`` conductance fits (138-param Borst, ``out_scale`` fixed)."""
 from __future__ import annotations
 

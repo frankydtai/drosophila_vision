@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """<3 min micro-benchmark: synthetic traces, extrapolate to 512 panels."""
 from __future__ import annotations
 

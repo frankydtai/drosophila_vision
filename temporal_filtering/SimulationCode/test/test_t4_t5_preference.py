@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """Regression: t4_t5_preference matches t4_t5_preference.md tables."""
 from __future__ import annotations
 

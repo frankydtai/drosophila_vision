@@ -1,4 +1,3 @@
-#!/usr/bin/env python
 """Moving-bar plotting utilities extracted from plot_trained."""
 
 from __future__ import annotations
@@ -31,7 +30,6 @@ from plot.utils import (
     slice_axis_label,
     slice_xy_label,
     suppress_cost_sem,
-    ylim_for_traces,
 )
 from FiveCol_MedSim_Pytorch import t_on
 import network_bootstrap  # noqa: F401  # ensure FAFBv783 modules are importable
@@ -61,6 +59,7 @@ from visual_stimulus.moving_bar_stimulus import (
 )
 
 MOVING_BAR_DPI = 100
+MOVING_BAR_TRACE_YLIM = (-30.0, 30.0)
 
 
 def _borst_sti_columns():
@@ -99,6 +98,8 @@ class MovingBarTraceBundle:
     slice_axis: str | None = None
     slice_x_list: list | None = None
     slice_y_list: list | None = None
+    align_at_x: float | None = None
+    align_at_y: float | None = None
 
 
 def _moving_bar_figure(nrows, ncols, *, sharex='col'):
@@ -220,8 +221,65 @@ def _borst_column_unit_mask(filt_cols, n_batch):
     return mask
 
 
+def _t0_ref_for_align_column(t0_bn, bi, ref_col, *, C):
+    if C is not None:
+        u_np, v_np = _network_uv_np(C)
+        on_ref = (u_np == int(ref_col.u)) & (v_np == int(ref_col.v))
+        t0_ref = int(t0_bn[bi, on_ref][0])
+    else:
+        t0_ref = int(t0_bn[bi, ml.column_slice(ref_col.col)][0])
+    if t0_ref < 0:
+        if C is not None:
+            loc = f'({int(ref_col.u)},{int(ref_col.v)})'
+        else:
+            loc = f'k={int(ref_col.col)}'
+        raise SystemExit(f'--align-xy ref column {loc} has no valid t0')
+    return t0_ref
+
+
+def _t0_bn_slice_aligned_to_ref(
+    t0_bn, n_batch, filt_cols, align_at_x, align_at_y, *,
+    session, cost_extent,
+):
+    """Copy ``t0_bn`` with slice units forced to the ref column ``t0`` (plot only)."""
+    C = session.backend.network
+    if C is not None:
+        all_cols = moving_bar_cost_columns(C, cost_extent=cost_extent)
+        ref_cols = filter_sti_columns(all_cols, at_x=align_at_x, at_y=align_at_y)
+        if len(ref_cols) != 1:
+            raise SystemExit(
+                f'--align-xy must match exactly one sti column within cost_extent, '
+                f'got {len(ref_cols)} for x={align_at_x!r} y={align_at_y!r}',
+            )
+        ref_col = ref_cols[0]
+        u_np, v_np = _network_uv_np(C)
+        out = t0_bn.copy()
+        for bi in range(n_batch):
+            t0_ref = _t0_ref_for_align_column(out, bi, ref_col, C=C)
+            for col in filt_cols:
+                on_col = (u_np == int(col.u)) & (v_np == int(col.v))
+                out[bi, on_col] = t0_ref
+        return out
+
+    cols_all = list(_borst_sti_columns())
+    ref_cols = filter_borst_sti_columns(cols_all, at_x=align_at_x, at_y=align_at_y)
+    if len(ref_cols) != 1:
+        raise SystemExit(
+            f'--align-xy must match exactly one Borst column, '
+            f'got {len(ref_cols)} for x={align_at_x!r} y={align_at_y!r}',
+        )
+    ref_col = ref_cols[0]
+    out = t0_bn.copy()
+    for bi in range(n_batch):
+        t0_ref = _t0_ref_for_align_column(out, bi, ref_col, C=None)
+        for col in filt_cols:
+            out[bi, ml.column_slice(col.col)] = t0_ref
+    return out
+
+
 def _moving_bar_slice_overlay_traces(
     session, target, trace_full, base_wt, spec_names, *, at_x=None, at_y=None,
+    align_at_x=None, align_at_y=None,
 ):
     """Per-axis slice traces aligned to ``base_wt`` window geometry."""
     if base_wt.t0_bn is None or base_wt.type_ids is None or base_wt.types is None:
@@ -251,9 +309,15 @@ def _moving_bar_slice_overlay_traces(
         base_wt.before_steps[sname] + base_wt.after_steps[sname] + 1
         for sname in spec_names
     ]
-    windows_full = _windows_by_batch(trace_full, t0_full_bn, win_lens)
+    t0_use = t0_full_bn
+    if align_at_x is not None and align_at_y is not None:
+        t0_use = _t0_bn_slice_aligned_to_ref(
+            t0_full_bn, n_batch, filt_cols, align_at_x, align_at_y,
+            session=session, cost_extent=pack.cost_extent,
+        )
+    windows_full = _windows_by_batch(trace_full, t0_use, win_lens)
     model_mean, model_sem = _aggregate_moving_bar_traces(
-        windows_full, t0_full_bn, type_ids, types, spec_names, True, col_mask=col_mask,
+        windows_full, t0_use, type_ids, types, spec_names, True, col_mask=col_mask,
     )
     return MovingBarWindowTraces(
         model_mean=model_mean,
@@ -420,6 +484,7 @@ def _moving_bar_traces_from_forward(
 @torch.no_grad()
 def moving_bar_trace_bundle(session, z, target, *, at_x=None, at_y=None,
                             at_x_list=None, at_y_list=None,
+                            align_at_x=None, align_at_y=None,
                             trace_kind: Literal['model', 'vm'] = 'model',
                             save_trace_csv_dir: str | None = None):
     """Run one forward; t_first_sti-aligned full-window model traces."""
@@ -483,6 +548,7 @@ def moving_bar_trace_bundle(session, z, target, *, at_x=None, at_y=None,
                 wt = _moving_bar_slice_overlay_traces(
                     session, target, trace_full, traces, spec_names,
                     at_x=xv, at_y=yv,
+                    align_at_x=align_at_x, align_at_y=align_at_y,
                 )
                 if wt is None:
                     print(f'skip slice overlay {label}: no column within cost_extent')
@@ -500,6 +566,7 @@ def moving_bar_trace_bundle(session, z, target, *, at_x=None, at_y=None,
         for xv in slice_x_list:
             slice_overlay[slice_axis_label(xv)] = _moving_bar_slice_overlay_traces(
                 session, target, trace_full, traces, spec_names, at_x=xv,
+                align_at_x=align_at_x, align_at_y=align_at_y,
             )
     elif at_y_list is not None:
         slice_axis = 'y'
@@ -508,6 +575,7 @@ def moving_bar_trace_bundle(session, z, target, *, at_x=None, at_y=None,
         for yv in slice_y_list:
             slice_overlay[slice_axis_label(yv)] = _moving_bar_slice_overlay_traces(
                 session, target, trace_full, traces, spec_names, at_y=yv,
+                align_at_x=align_at_x, align_at_y=align_at_y,
             )
     return MovingBarTraceBundle(
         target=target,
@@ -527,6 +595,8 @@ def moving_bar_trace_bundle(session, z, target, *, at_x=None, at_y=None,
         slice_axis=slice_axis,
         slice_x_list=slice_x_list,
         slice_y_list=slice_y_list,
+        align_at_x=align_at_x,
+        align_at_y=align_at_y,
     )
 
 
@@ -630,10 +700,7 @@ def _plot_moving_bar_cell(
         )
 
     if ylim is None:
-        ylo, yhi = ylim_for_traces(
-            model_trace, data=data_y, sem=sem_trace,
-            show_sem=show_sem and sem_trace is not None and np.any(sem_trace),
-        )
+        ylo, yhi = MOVING_BAR_TRACE_YLIM
     else:
         ylo, yhi = ylim
 
@@ -672,6 +739,7 @@ def _plot_moving_bar_cell_slices(
     show_tick_labels=True,
     mark_cost_window=False,
     baseline=None,
+    ylim=None,
 ):
     win_len = len(total_trace)
     data_x, data_y = None, None
@@ -685,14 +753,10 @@ def _plot_moving_bar_cell_slices(
             mark_cost_window=mark_cost_window,
         )
 
-    extra = [total_trace]
-    for label in slice_labels:
-        extra.append(slice_traces[label])
-    ylo, yhi = ylim_for_traces(
-        total_trace, data=data_y, sem=sem_trace,
-        show_sem=show_sem and sem_trace is not None and np.any(sem_trace),
-        extra=extra[1:],
-    )
+    if ylim is None:
+        ylo, yhi = MOVING_BAR_TRACE_YLIM
+    else:
+        ylo, yhi = ylim
     t = np.arange(win_len)
     if data_x is not None:
         ax.plot(data_x, data_y, color=DATA_COLOR, linewidth=TRACE_LW)
@@ -732,6 +796,11 @@ def _moving_bar_all_scope_label(b_on):
         at_x = b_on.slice_x_list if b_on.slice_axis in ('x', 'xy') else None
         at_y = b_on.slice_y_list if b_on.slice_axis in ('y', 'xy') else None
         parts = [column_at_scope_tag(at_x, at_y), 'overlay + total']
+        if b_on.align_at_x is not None and b_on.align_at_y is not None:
+            parts.append(
+                'aligned to '
+                + column_at_scope_tag(b_on.align_at_x, b_on.align_at_y),
+            )
         if cost_extent is not None:
             parts.insert(0, f'cost_extent={cost_extent}')
         return ', '.join(parts)
@@ -895,10 +964,12 @@ def plot_moving_bar_data(session_1, z, path, target, session_2=None, title=None,
 def plot_moving_bar_all(session_1, z, path, target, session_2=None, title=None, *,
                         right_only=True, bundle=None, bundle_2=None,
                         at_x_list=None, at_y_list=None,
+                        align_at_x=None, align_at_y=None,
                         trace_kind: Literal['model', 'vm'] = 'model',
                         save_trace_csv_dir: str | None = None):
     b_on = bundle or moving_bar_trace_bundle(
         session_1, z, target, at_x_list=at_x_list, at_y_list=at_y_list,
+        align_at_x=align_at_x, align_at_y=align_at_y,
         trace_kind=trace_kind,
         save_trace_csv_dir=save_trace_csv_dir,
     )
@@ -906,6 +977,7 @@ def plot_moving_bar_all(session_1, z, path, target, session_2=None, title=None, 
     if session_2 is not None:
         b_2 = bundle_2 or moving_bar_trace_bundle(
             session_2, z, target, at_x_list=at_x_list, at_y_list=at_y_list,
+            align_at_x=align_at_x, align_at_y=align_at_y,
             trace_kind=trace_kind,
             save_trace_csv_dir=save_trace_csv_dir,
         )

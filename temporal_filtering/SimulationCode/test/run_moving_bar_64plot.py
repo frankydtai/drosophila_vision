@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """Plot all 64 moving-bar model traces (8 subtypes × 8 stimuli), no training."""
 from __future__ import annotations
 

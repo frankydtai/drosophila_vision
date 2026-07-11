@@ -1,17 +1,17 @@
-#!/usr/bin/env python
 """
-Analyze one cell's spot curve without saving CSV.
+Analyze one cell's time curve without saving CSV.
 
-This script reconstructs the same curves used by spot plots:
-- time curve: center-bin impulse (length = maxtime)
-- RF curve: spatial profile at time of peak response (length = 45 after rebin+blur)
+Spot: center-bin impulse + RF (same as spot plots).
+Moving bar: t_first_sti-aligned window for one spec; with ``--x`` / ``--y`` slice
+lists, emits the same overlay traces as ``model_all_bar`` (per-(x,y) + total).
 
 Examples:
   temporal_filtering/.venv/bin/python temporal_filtering/SimulationCode/test/analyze_cell_curve.py \\
     --run /abs/path/to/run --cell L4 --target spot_dark --trace-kind vm --x 2 --y 1
 
   temporal_filtering/.venv/bin/python temporal_filtering/SimulationCode/test/analyze_cell_curve.py \\
-    --run /abs/path/to/old --run /abs/path/to/new --cell L4 --target spot_dark --trace-kind vm --x 2 --y 1
+    --run /abs/path/to/run --cell Mi4 --target moving_bar_bright --spec right_bright_w1 \\
+    --trace-kind model --x 1,1,0 --y 0.5,-2
 """
 
 from __future__ import annotations
@@ -26,8 +26,6 @@ import torch
 
 
 def _add_simulation_code_to_syspath():
-    # This file lives at ``temporal_filtering/SimulationCode/test``.
-    # Add ``temporal_filtering/SimulationCode`` so imports like ``plot_trained`` work.
     sim_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
     sys.path.insert(0, sim_dir)
 
@@ -58,6 +56,20 @@ def _summarize(arr: np.ndarray) -> CurveSummary:
     )
 
 
+def _shape_label(arr: np.ndarray, *, before_steps: int | None = None) -> str:
+    s = _summarize(arr)
+    pos = s.max > 0.05 * max(abs(s.max), abs(s.min), 1e-9)
+    neg = s.min < -0.05 * max(abs(s.max), abs(s.min), 1e-9)
+    if pos and neg:
+        order = "+ then -" if s.peak_idx < s.trough_idx else "- then +"
+        return f"biphasic ({order})"
+    if pos:
+        return "monophasic positive"
+    if neg:
+        return "monophasic negative"
+    return "flat/near-zero"
+
+
 def _load_best(outdir: str):
     import plot_trained
 
@@ -76,7 +88,7 @@ def _load_best(outdir: str):
     return session, z, int(best_i), float(best_cost)
 
 
-def _extract_spot_bundle(session, z, *, target: str, trace_kind: str, x: list[int] | None, y: list[int] | None):
+def _extract_spot_bundle(session, z, *, target: str, trace_kind: str, x_list, y_list):
     import plot_trained
     from plot import spot as spot_plot
 
@@ -86,8 +98,8 @@ def _extract_spot_bundle(session, z, *, target: str, trace_kind: str, x: list[in
         z,
         all_cells=True,
         group_list=None,
-        at_x_list=x,
-        at_y_list=y,
+        at_x_list=x_list,
+        at_y_list=y_list,
         trace_kind=trace_kind,
         save_trace_csv_dir=None,
     )
@@ -95,23 +107,23 @@ def _extract_spot_bundle(session, z, *, target: str, trace_kind: str, x: list[in
     return bundle, ref_on
 
 
-def _extract_moving_bar_bundle(session, z, *, target: str, trace_kind: str, x: list[int] | None, y: list[int] | None):
-    """Rebuild moving-bar traces (model vs data) matching plot_trained."""
+def _extract_moving_bar_bundle(session, z, *, target: str, trace_kind: str, x_list, y_list):
+    import plot_trained
     from plot import moving_bar as moving_bar_plot
 
-    bundle = moving_bar_plot.moving_bar_trace_bundle(
-        session,
+    one = plot_trained._session_for_target(session, target)
+    return moving_bar_plot.moving_bar_trace_bundle(
+        one,
         z,
         target,
-        at_x_list=x,
-        at_y_list=y,
+        at_x_list=x_list,
+        at_y_list=y_list,
         trace_kind=trace_kind,
         save_trace_csv_dir=None,
     )
-    return bundle
 
 
-def _extract_cell_curves(bundle, ref_on, *, cell: str, slice_label: str | None = None):
+def _extract_spot_cell_curves(bundle, ref_on, *, cell: str, slice_label: str | None = None):
     from plot import spot as spot_plot
 
     center = spot_plot.CENTER_BIN
@@ -120,53 +132,54 @@ def _extract_cell_curves(bundle, ref_on, *, cell: str, slice_label: str | None =
     imp_total, rf_total = spot_plot._scale_curve(cell_on["cube"], center)
     imp_ref, rf_ref = spot_plot._scale_curve(ref_on[cell], center)
 
-    imp_slice = rf_slice = None
-    if slice_label and bundle.slice_overlay and slice_label in bundle.slice_overlay:
-        cubes = bundle.slice_overlay[slice_label]
-        if cell in cubes:
-            imp_slice, rf_slice = spot_plot._scale_curve(cubes[cell], center)
-
-    out = {
+    out: dict[str, np.ndarray] = {
         "time_total_model": np.asarray(imp_total, dtype=float),
         "time_total_ref": np.asarray(imp_ref, dtype=float),
         "rf_total_model": np.asarray(rf_total, dtype=float),
         "rf_total_ref": np.asarray(rf_ref, dtype=float),
-        "time_slice_model": None if imp_slice is None else np.asarray(imp_slice, dtype=float),
-        "rf_slice_model": None if rf_slice is None else np.asarray(rf_slice, dtype=float),
     }
+
+    if slice_label and bundle.slice_overlay and slice_label in bundle.slice_overlay:
+        cubes = bundle.slice_overlay[slice_label]
+        if cell in cubes:
+            imp_slice, rf_slice = spot_plot._scale_curve(cubes[cell], center)
+            out[f"time_slice_model:{slice_label}"] = np.asarray(imp_slice, dtype=float)
+            out[f"rf_slice_model:{slice_label}"] = np.asarray(rf_slice, dtype=float)
     return out
 
 
-def _extract_moving_bar_cell_curves(bundle, *, cell: str):
-    """Aggregate moving-bar traces for one cell across specs.
+def _moving_bar_slice_labels(bundle) -> list[str]:
+    if bundle.slice_overlay is None:
+        return []
+    return list(bundle.slice_overlay.keys())
 
-    We average over all stimulus specs (keys in ``bundle.traces.model_mean``)
-    that match the requested cell. This roughly matches the per-cell time
-    traces in moving-bar plots, but without per-direction breakdown.
-    """
-    traces = bundle.traces
-    model_mean = traces.model_mean
-    data_mean = traces.model_sem  # we do not have raw data traces; use SEM only when present
 
-    # Keys are (cell_type, spec_name); select those for this cell.
-    model_traces = [v for (ctype, _), v in model_mean.items() if ctype == cell]
-    if not model_traces:
-        raise SystemExit(f'no moving_bar traces found for cell {cell!r}')
-    # All windows for this cell have the same length by construction.
-    model_arr = np.vstack([np.asarray(v, dtype=float) for v in model_traces])
-    imp_total = model_arr.mean(axis=0)
+def _extract_moving_bar_cell_curves(bundle, *, cell: str, spec: str) -> dict[str, np.ndarray]:
+    """Per-spec traces matching one ``model_all_bar`` panel (slices + total)."""
+    key = (cell, spec)
+    model_mean = bundle.traces.model_mean
+    if key not in model_mean:
+        avail = sorted(s for c, s in model_mean if c == cell)
+        raise SystemExit(f"spec {spec!r} not found for cell {cell!r}; available: {avail}")
 
-    # moving_bar_plot compares against experimental data when available;
-    # here we only summarize model traces, so we leave "ref" empty.
-    out = {
-        "time_total_model": np.asarray(imp_total, dtype=float),
-        "time_total_ref": None,
-        "rf_total_model": None,
-        "rf_total_ref": None,
-        "time_slice_model": None,
-        "rf_slice_model": None,
-    }
+    out: dict[str, np.ndarray] = {}
+    for label in _moving_bar_slice_labels(bundle):
+        wt = bundle.slice_overlay[label]
+        if key in wt.model_mean:
+            out[label] = np.asarray(wt.model_mean[key], dtype=float)
+    out["total"] = np.asarray(model_mean[key], dtype=float)
     return out
+
+
+def _print_curve(name: str, arr: np.ndarray, *, before_steps: int | None, print_values: bool):
+    s = _summarize(arr)
+    shape = _shape_label(arr, before_steps=before_steps)
+    print(
+        f"{name}: n={s.n} max={s.max:.6g} min={s.min:.6g} final={s.final:.6g} "
+        f"peak_idx={s.peak_idx} trough_idx={s.trough_idx} sign_changes={s.sign_changes}  shape={shape}"
+    )
+    if print_values:
+        print(f"  values: {np.round(arr, 4).tolist()}")
 
 
 def main():
@@ -184,24 +197,50 @@ def main():
         help="plot target to analyze (spot_* or moving_bar_*)",
     )
     ap.add_argument(
+        "--spec",
+        default=None,
+        help="moving_bar stimulus spec, e.g. right_bright_w1 (required for moving_bar_*)",
+    )
+    ap.add_argument(
         "--trace-kind",
         default="vm",
         choices=("vm", "model"),
-        help="curve kind: vm (Vm-Vm_ref) or model (raw model output)",
+        help="curve kind: vm (Vm-Vm_ref) or model (scaled conductance output)",
     )
-    ap.add_argument("--x", type=int, default=None, help="slice x (requires --y)")
-    ap.add_argument("--y", type=int, default=None, help="slice y (requires --x)")
+    ap.add_argument(
+        "--x",
+        default=None,
+        metavar="X,...",
+        help="comma-separated x slice(s); with --y, one trace per (x,y) pair",
+    )
+    ap.add_argument(
+        "--y",
+        default=None,
+        metavar="Y,...",
+        help="comma-separated y slice(s); with --x, one trace per (x,y) pair",
+    )
+    ap.add_argument(
+        "--values",
+        nargs="?",
+        const=True,
+        default=False,
+        type=lambda v: v if isinstance(v, bool) else str(v).lower() in ("1", "true", "yes"),
+        metavar="BOOL",
+        help="print full trace arrays (default false)",
+    )
     args = ap.parse_args()
 
     _add_simulation_code_to_syspath()
+    from plot.utils import parse_axis_slice_list, slice_xy_label
 
-    x_list = y_list = None
+    x_list = parse_axis_slice_list(args.x)
+    y_list = parse_axis_slice_list(args.y)
+    if (x_list is None) ^ (y_list is None):
+        if args.target.startswith("spot_"):
+            raise SystemExit("spot targets require both --x and --y or neither")
     slice_label = None
-    if (args.x is None) ^ (args.y is None):
-        raise SystemExit("must pass both --x and --y or neither")
-    if args.x is not None and args.y is not None:
-        x_list, y_list = [int(args.x)], [int(args.y)]
-        slice_label = f"({int(args.x)},{int(args.y)})"
+    if x_list is not None and y_list is not None and len(x_list) == 1 and len(y_list) == 1:
+        slice_label = slice_xy_label(x_list[0], y_list[0])
 
     for i, run_dir in enumerate(args.run):
         run_dir = os.path.abspath(run_dir)
@@ -209,57 +248,61 @@ def main():
             raise SystemExit(f"run dir not found: {run_dir}")
 
         session, z, best_i, best_cost = _load_best(run_dir)
+        before_steps = None
+
         if args.target.startswith("spot_"):
             bundle, ref_on = _extract_spot_bundle(
                 session,
                 z,
                 target=args.target,
                 trace_kind=args.trace_kind,
-                x=x_list,
-                y=y_list,
+                x_list=x_list,
+                y_list=y_list,
             )
-            curves = _extract_cell_curves(bundle, ref_on, cell=args.cell, slice_label=slice_label)
+            curves = _extract_spot_cell_curves(
+                bundle, ref_on, cell=args.cell, slice_label=slice_label,
+            )
         elif args.target.startswith("moving_bar_"):
-            if x_list is None and y_list is None:
-                # For moving_bar, at_x/at_y control which cost columns we align to.
-                # Require explicit slice to match the moving_bar plots.
-                raise SystemExit("moving_bar targets require --x and --y to select stimulus columns")
+            if args.spec is None:
+                raise SystemExit("moving_bar targets require --spec (e.g. right_bright_w1)")
             bundle = _extract_moving_bar_bundle(
                 session,
                 z,
                 target=args.target,
                 trace_kind=args.trace_kind,
-                x=x_list,
-                y=y_list,
+                x_list=x_list,
+                y_list=y_list,
             )
-            curves = _extract_moving_bar_cell_curves(bundle, cell=args.cell)
+            curves = _extract_moving_bar_cell_curves(bundle, cell=args.cell, spec=args.spec)
+            before_steps = bundle.traces.before_steps.get(args.spec)
         else:
             raise SystemExit(f"unsupported target {args.target!r}; expected spot_* or moving_bar_*")
 
         print("")
         print(f"== RUN {i}: {run_dir} ==")
-        print(
-            f"best_i={best_i}  best_cost={best_cost:.6g}  cell={args.cell}  target={args.target}  trace_kind={args.trace_kind}"
+        hdr = (
+            f"best_i={best_i}  best_cost={best_cost:.6g}  cell={args.cell}  "
+            f"target={args.target}  trace_kind={args.trace_kind}"
         )
+        if args.spec is not None:
+            hdr += f"  spec={args.spec}"
+        print(hdr)
         print(f"maxtime={bundle.maxtime}  deltat_ms={getattr(session, 'deltat_ms', 'NA')}")
+        if x_list is not None or y_list is not None:
+            print(f"slice_x={x_list}  slice_y={y_list}")
+        if before_steps is not None:
+            print(f"cost_window_start_idx={before_steps}")
 
-        for key in (
-            "time_total_model",
-            "time_total_ref",
-            "time_slice_model",
-            "rf_total_model",
-            "rf_total_ref",
-            "rf_slice_model",
-        ):
-            arr = curves.get(key)
-            if arr is None:
-                continue
-            s = _summarize(arr)
-            print(
-                f"{key}: n={s.n} max={s.max:.6g} min={s.min:.6g} final={s.final:.6g} peak_idx={s.peak_idx} trough_idx={s.trough_idx} sign_changes={s.sign_changes}"
-            )
+        if args.target.startswith("moving_bar_"):
+            slice_names = [k for k in curves if k != "total"]
+            order = slice_names + ["total"]
+            print(f"traces ({len(order)}): {', '.join(order)}")
+            for name in order:
+                _print_curve(name, curves[name], before_steps=before_steps, print_values=args.values)
+        else:
+            for key, arr in curves.items():
+                _print_curve(key, arr, before_steps=before_steps, print_values=args.values)
 
 
 if __name__ == "__main__":
     main()
-

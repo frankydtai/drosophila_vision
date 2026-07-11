@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """Tests for per-column moving-bar centre timing."""
 from __future__ import annotations
 

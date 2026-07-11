@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """Regression: fast moving-bar coverage matches the legacy clipper."""
 from __future__ import annotations
 

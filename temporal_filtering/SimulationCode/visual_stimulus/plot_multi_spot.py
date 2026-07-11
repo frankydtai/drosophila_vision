@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """Visualise multi-spot centre tiling on a connectome column field.
 
 Marks spot centres (crimson) on :func:`column_mapper.draw_fafb_columns` for

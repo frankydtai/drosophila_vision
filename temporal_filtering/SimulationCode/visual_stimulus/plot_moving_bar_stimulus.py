@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """Visualise moving-bar column coverage (demo only).
 
 Connectome: hex sti field from ``network.moving_bar_target``.

@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """Tests for network.moving_bar_target."""
 from __future__ import annotations
 

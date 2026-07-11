@@ -8,7 +8,9 @@ import matplotlib.pyplot as plt
 import numpy as np
 import torch
 
+import network_bootstrap  # noqa: F401 — connectome_io on sys.path
 import FiveCol_MedSim_Pytorch as fc
+from connectome_io import parse_comma_list
 
 DATA_COLOR = 'gray'
 MODEL_COLOR = 'red'
@@ -163,18 +165,24 @@ def _hex_coord_token(val):
     return str(v).replace('.', 'p').replace('-', 'm')
 
 
-def _parse_comma_floats(text):
-    return [float(t.strip()) for t in str(text).split(',') if t.strip()]
-
-
 def parse_axis_slice_list(text):
     """Parse comma-separated ``--x`` / ``--y`` values (empty → ``None``)."""
     if not text:
         return None
-    vals = _parse_comma_floats(text)
+    vals = [float(x) for x in parse_comma_list(text)]
     if not vals:
         raise ValueError('empty comma-separated axis slice')
     return vals
+
+
+def parse_align_xy(text):
+    """Parse ``--align-xy X,Y`` reference sti column (empty → ``None``)."""
+    if not text:
+        return None
+    parts = parse_comma_list(text)
+    if len(parts) != 2:
+        raise ValueError('--align-xy requires exactly two comma-separated values X,Y')
+    return float(parts[0]), float(parts[1])
 
 
 def _coord_matches(val, axis_filter, tol=1e-6):

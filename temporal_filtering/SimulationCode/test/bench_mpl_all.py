@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """One-shot benchmark: all matplotlib variants, ~3 min via large grid."""
 from __future__ import annotations
 

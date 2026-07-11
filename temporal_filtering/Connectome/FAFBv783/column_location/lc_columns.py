@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """Plot 10 panels of the FAFB right optic lobe, one per LC type, with each column
 filled red when an LC neuron of that type is assigned to it.
 

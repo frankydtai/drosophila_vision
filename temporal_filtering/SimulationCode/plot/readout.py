@@ -1,4 +1,3 @@
-#!/usr/bin/env python
 """Model-data readout cell selection from session + target."""
 
 from __future__ import annotations

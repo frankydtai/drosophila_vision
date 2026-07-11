@@ -1,4 +1,3 @@
-#!/usr/bin/env python
 """Simulation + plotting for the FiveCol medulla model."""
 import argparse
 import json
@@ -14,14 +13,14 @@ import torch
 import FiveCol_MedSim_Pytorch as fc
 from plot import moving_bar as moving_bar_plot
 from plot import spot as spot_plot
-from plot.utils import parse_axis_slice_list, plot_cost
+from plot.utils import parse_axis_slice_list, parse_align_xy, plot_cost
 from training_config import PARAMETER_DIR, run_data_dir
 
 TRAIN_OPTS_FILE = fc.TRAIN_OPTS_FILE
 KNOWN_MODELS = ('conductance', 'adaptive')
 RUN_NAME_MAX = 255
 DEFAULT_RUN_NAME = """
-0709_224314-train-network-right_min_neuron1_extent3-nofstep-0-shift-extent-2-init-from-0709_221947-train-target-spot-network-right_min_neuron1_extent3-nofstep-200-shift-extent-2-vm-x-2-y-1
+0711_032144-train-network-right_min_neuron1_extent3-nofstep-0-target-moving_bar-init-from-0711_022004-train-network-right_min_neuron1_extent3-nofstep-200-shift-extent-2-target-spot-fp32-x-1,1,0-y-0.5,-2-cost-extent-2
 """.strip()
 DEFAULT_RUN_PATH = 'conductance/' + DEFAULT_RUN_NAME
 
@@ -268,9 +267,13 @@ def _plot_spot_targets(session, z, outdir, spot_targets, suffix, model_all,
 
 def _plot_bar_targets(session, z, outdir, bar_targets, suffix, model_all, *,
                       plot_right_only=True, at_x=None, at_y=None,
+                      align_at_x=None, align_at_y=None,
                       save_trace_csv_dir=None):
     """Plot moving-bar target(s); bright left | dark right when both are trained."""
-    slice_kw = dict(at_x_list=at_x, at_y_list=at_y)
+    slice_kw = dict(
+        at_x_list=at_x, at_y_list=at_y,
+        align_at_x=align_at_x, align_at_y=align_at_y,
+    )
     bar_set = set(bar_targets)
     if bar_set == set(fc.MOVING_BAR_TARGETS):
         s_bright = _session_for_target(session, 'moving_bar_bright')
@@ -347,6 +350,7 @@ def plot_param_set(params, outdir, model=None, model_all=True,
                    save_artifacts=True, artifact_fname=None,
                    ref_cubes=None, ref_cubes_2=None, mvd_group_list=None,
                    plot_right_only=True, at_x=None, at_y=None,
+                   align_at_x=None, align_at_y=None,
                    plot_vm=False, save_csv=False):
     os.makedirs(outdir, exist_ok=True)
     data_dir = run_data_dir(os.path.abspath(outdir))
@@ -393,6 +397,13 @@ def plot_param_set(params, outdir, model=None, model_all=True,
     ]
     if (at_x is not None or at_y is not None) and not bar_targets and not spot_targets:
         raise SystemExit('--x/--y require a moving_bar or spot target in this run')
+    if (align_at_x is not None or align_at_y is not None):
+        if align_at_x is None or align_at_y is None:
+            raise SystemExit('--align-xy requires X,Y')
+        if at_x is None and at_y is None:
+            raise SystemExit('--align-xy requires --x and/or --y')
+        if not bar_targets:
+            raise SystemExit('--align-xy applies to moving_bar slice plots only')
 
     if plot_vm:
         if session.model != 'conductance':
@@ -407,12 +418,14 @@ def plot_param_set(params, outdir, model=None, model_all=True,
                 bundle_b = moving_bar_plot.moving_bar_trace_bundle(
                     s_bright, z, 'moving_bar_bright',
                     at_x_list=at_x, at_y_list=at_y,
+                    align_at_x=align_at_x, align_at_y=align_at_y,
                     trace_kind='vm',
                     save_trace_csv_dir=save_trace_csv_dir,
                 )
                 bundle_d = moving_bar_plot.moving_bar_trace_bundle(
                     s_dark, z, 'moving_bar_dark',
                     at_x_list=at_x, at_y_list=at_y,
+                    align_at_x=align_at_x, align_at_y=align_at_y,
                     trace_kind='vm',
                     save_trace_csv_dir=save_trace_csv_dir,
                 )
@@ -433,6 +446,7 @@ def plot_param_set(params, outdir, model=None, model_all=True,
                     title=f'{tname} Vm-all ({suffix})',
                     right_only=plot_right_only,
                     at_x_list=at_x, at_y_list=at_y,
+                    align_at_x=align_at_x, align_at_y=align_at_y,
                     trace_kind='vm',
                     save_trace_csv_dir=save_trace_csv_dir,
                 )
@@ -493,6 +507,7 @@ def plot_param_set(params, outdir, model=None, model_all=True,
             session, z, outdir, bar_targets, suffix, model_all,
             plot_right_only=plot_right_only,
             at_x=at_x, at_y=at_y,
+            align_at_x=align_at_x, align_at_y=align_at_y,
             save_trace_csv_dir=save_trace_csv_dir,
         )
     for tname in other_targets:
@@ -555,15 +570,25 @@ def add_plot_arguments(parser):
         metavar='Y,...',
         help='model_all_{bar,spot}{,_vm}: comma-separated y slices; with --x, one trace per (x,y) pair',
     )
+    parser.add_argument(
+        '--align-xy',
+        default=None,
+        metavar='X,Y',
+        help='moving_bar slice plots: align --x/--y traces to ref column hex (x,y); total unchanged',
+    )
 
 
 def plot_kwargs_from_args(args):
     """Map a parsed CLI namespace to :func:`plot_param_set` plot kwargs."""
+    align_xy = parse_align_xy(args.align_xy)
+    align_at_x, align_at_y = align_xy if align_xy is not None else (None, None)
     return dict(
         plot_vm=args.vm,
         plot_right_only=args.plot_right_only,
         at_x=parse_axis_slice_list(args.x),
         at_y=parse_axis_slice_list(args.y),
+        align_at_x=align_at_x,
+        align_at_y=align_at_y,
     )
 
 

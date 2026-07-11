@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """Smoke test: 16 moving bars -> photoreceptor current, then one forward pass."""
 from __future__ import annotations
 

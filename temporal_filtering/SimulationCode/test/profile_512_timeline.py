@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """Second-by-second timeline for 512-panel model_all matplotlib path."""
 from __future__ import annotations
 

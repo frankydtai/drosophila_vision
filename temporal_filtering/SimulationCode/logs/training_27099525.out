@@ -1,0 +1,10 @@
+Job ID: 27099525
+Node:   spartan-gpgpu015
+GPU:    0
+GPU 0: NVIDIA H100 80GB HBM3 (UUID: GPU-02b3b2a7-0fed-732b-8a39-2748f08c158d)
+cuda: True NVIDIA H100 80GB HBM3
+Start:  Sun 12 Jul 2026 00:46:24 AEST
+device=cuda, model=conductance, nofruns=1, nofsteps=1000, lrs=[0.1], nparams=112, fname=training_with_Ih.npy, outdir=/home/yitai/drosophila_vision/temporal_filtering/SimulationCode/FiveCol_Parameter/conductance/27099525-train-nofsteps-1000-lrs-0.1-shift-extent-3-network-right_min_neuron1_extent3-cost-extent-2
+
+round 0
+

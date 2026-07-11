@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """Benchmark moving-bar trace extraction: legacy triple-loop vs vectorized path."""
 from __future__ import annotations
 
