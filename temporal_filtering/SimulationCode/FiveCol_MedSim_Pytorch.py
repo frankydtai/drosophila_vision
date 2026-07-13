@@ -484,6 +484,14 @@ class ModelBackend:
 
 
 @dataclass(frozen=True)
+class FusedConductanceForward:
+    """Conductance packs with identical signal (T, N); one ``_run_conductance_full`` per group."""
+
+    subpacks: Tuple[TargetPack, ...]
+    batch_offsets: Tuple[int, ...]
+
+
+@dataclass(frozen=True)
 class TrainSession:
     """Immutable runtime context for one training / plotting run."""
 
@@ -497,6 +505,8 @@ class TrainSession:
     device: str
     sim_dtype: torch.dtype = SIM_DTYPE_DEFAULT
     train_opts: Optional[dict] = None
+    cost_subpacks: Dict[str, TargetPack] = field(default_factory=dict)
+    fused_conductance: Tuple[FusedConductanceForward, ...] = ()
 
     def with_schema(self, schema) -> "TrainSession":
         return replace(self, schema=tuple(schema))
@@ -1597,7 +1607,7 @@ def _make_session(
         sch = list(schema)
     else:
         sch = _schema_from_opts(model, model_backend, None, train_opts_record)
-    return TrainSession(
+    session = TrainSession(
         backend=model_backend,
         model=model,
         schema=tuple(sch),
@@ -1609,6 +1619,9 @@ def _make_session(
         sim_dtype=sim_dtype,
         train_opts=train_opts_record,
     )
+    cost_subpacks = _build_cost_subpacks(session)
+    fused_conductance = _build_fused_conductance(session, cost_subpacks)
+    return replace(session, cost_subpacks=cost_subpacks, fused_conductance=fused_conductance)
 
 
 def open_session(
@@ -2274,6 +2287,124 @@ def _pack_for_active_cost(
     return _slice_pack_rows(work, rows)
 
 
+def _build_cost_subpacks(session: TrainSession) -> Dict[str, TargetPack]:
+    """Active cost row/batch subsets per target (batched mode only)."""
+    if session.sequential:
+        return {}
+    out: Dict[str, TargetPack] = {}
+    for name, pack in session.targets.items():
+        if not _pack_has_active_cost(pack, session):
+            continue
+        active_batches = _pack_active_batch_indices(pack, session)
+        if not active_batches:
+            continue
+        sub = _pack_for_active_cost(pack, session, batch_indices=active_batches)
+        if sub is not None:
+            out[name] = sub
+    return out
+
+
+def _signal_fuse_key(pack: TargetPack) -> Tuple[int, int, str, torch.dtype]:
+    sig = pack.signal
+    return (int(sig.shape[1]), int(sig.shape[2]), str(sig.device), sig.dtype)
+
+
+def _build_fused_conductance(
+    session: TrainSession,
+    cost_subpacks: Dict[str, TargetPack],
+) -> Tuple[FusedConductanceForward, ...]:
+    if session.model != "conductance" or session.sequential or not cost_subpacks:
+        return ()
+    by_key: Dict[Tuple[int, int, str, torch.dtype], List[TargetPack]] = {}
+    for pack in cost_subpacks.values():
+        by_key.setdefault(_signal_fuse_key(pack), []).append(pack)
+    fused: List[FusedConductanceForward] = []
+    for packs in by_key.values():
+        offsets: List[int] = []
+        off = 0
+        for pack in packs:
+            offsets.append(off)
+            off += int(pack.signal.shape[0])
+        fused.append(FusedConductanceForward(subpacks=tuple(packs), batch_offsets=tuple(offsets)))
+    return tuple(fused)
+
+
+def _conductance_readout_from_model_full(
+    model_full: torch.Tensor,
+    pack: TargetPack,
+    *,
+    batch_offset: int = 0,
+) -> torch.Tensor:
+    rb = pack.readout_batch if batch_offset == 0 else pack.readout_batch + batch_offset
+    if pack.cost_t0 is None:
+        return model_full[rb, :, pack.readout_unit]
+    return _window_time_traces(
+        model_full, rb, pack.readout_unit, pack.cost_t0,
+        win=pack.data.shape[1],
+    )
+
+
+def _pack_cost_parts_from_sel(
+    pack: TargetPack,
+    session: TrainSession,
+    scale: torch.Tensor,
+    sel: torch.Tensor,
+) -> Dict[str, torch.Tensor]:
+    pd_nd = pack.cost_pd_nd
+    dev = session.device
+    data = pack.data
+    weight = pack.cost_weight
+    if pd_nd is None:
+        return {pack.name: _pack_cost_mse(scale, data, weight, sel, pack.power)}
+    out: Dict[str, torch.Tensor] = {}
+    for pd_nd_idx, label in ((PD_IDX, "PD"), (ND_IDX, "ND")):
+        key = moving_bar_cost_part_key(pack.name, label)
+        if _part_weight(session, key) == 0.0:
+            continue
+        mask = pd_nd == pd_nd_idx
+        if not bool(mask.any()):
+            out[key] = torch.zeros((), dtype=session.sim_dtype, device=dev)
+            continue
+        power = _subgroup_power(weight[mask], data[mask])
+        out[key] = _pack_cost_mse(
+            scale[mask], data[mask], weight[mask], sel[mask], power,
+        )
+    return out
+
+
+def _pack_cost_parts_from_conductance_model(
+    p,
+    pack: TargetPack,
+    session: TrainSession,
+    model_full: torch.Tensor,
+    *,
+    batch_offset: int = 0,
+) -> Dict[str, torch.Tensor]:
+    scale = _pack_out_scale(p, pack, session.backend, session)
+    sel = _conductance_readout_from_model_full(model_full, pack, batch_offset=batch_offset)
+    return _pack_cost_parts_from_sel(pack, session, scale, sel)
+
+
+def _calc_cost_parts_fused_conductance(
+    p,
+    session: TrainSession,
+) -> Dict[str, torch.Tensor]:
+    parts: Dict[str, torch.Tensor] = {}
+    for group in session.fused_conductance:
+        if len(group.subpacks) == 1:
+            sig = group.subpacks[0].signal
+        else:
+            sig = torch.cat([pack.signal for pack in group.subpacks], dim=0)
+        model_full = _run_conductance_full(session, p, sig)
+        for pack, off in zip(group.subpacks, group.batch_offsets):
+            for key, part in _pack_cost_parts_from_conductance_model(
+                p, pack, session, model_full, batch_offset=off,
+            ).items():
+                if _part_weight(session, key) != 0.0:
+                    parts[key] = part
+    return parts
+
+
 def _pack_cost_forward(p, pack: TargetPack, session: TrainSession, batch_idx=None):
     scale = _pack_out_scale(p, pack, session.backend, session)
     pd_nd = pack.cost_pd_nd
@@ -2299,23 +2430,7 @@ def _pack_cost_parts_from_params(p, pack: TargetPack, session: TrainSession, bat
     if fwd is None:
         return {}
     scale, data, weight, sel, pd_nd = fwd
-    dev = session.device
-    if pd_nd is None:
-        return {pack.name: _pack_cost_mse(scale, data, weight, sel, pack.power)}
-    out = {}
-    for pd_nd_idx, label in ((PD_IDX, "PD"), (ND_IDX, "ND")):
-        key = moving_bar_cost_part_key(pack.name, label)
-        if _part_weight(session, key) == 0.0:
-            continue
-        mask = pd_nd == pd_nd_idx
-        if not bool(mask.any()):
-            out[key] = torch.zeros((), dtype=session.sim_dtype, device=dev)
-            continue
-        power = _subgroup_power(weight[mask], data[mask])
-        out[key] = _pack_cost_mse(
-            scale[mask], data[mask], weight[mask], sel[mask], power,
-        )
-    return out
+    return _pack_cost_parts_from_sel(pack, session, scale, sel)
 
 
 def _pack_cost_rows(p, pack: TargetPack, session: TrainSession, batch_idx=None):
@@ -2355,9 +2470,15 @@ def calc_cost_parts(z, session: TrainSession) -> Dict[str, torch.Tensor]:
         p = assign_params_adaptive(z, schema, session.backend)
     else:
         p = assign_params(z, schema, session.backend)
+    if session.fused_conductance:
+        return _calc_cost_parts_fused_conductance(p, session)
     parts: Dict[str, torch.Tensor] = {}
     zero = torch.zeros((), dtype=session.sim_dtype, device=session.device)
-    for _name, pack in session.targets.items():
+    if session.cost_subpacks and not session.sequential:
+        batched = ((name, sub) for name, sub in session.cost_subpacks.items())
+    else:
+        batched = None
+    for _name, pack in (batched if batched is not None else session.targets.items()):
         if not _pack_has_active_cost(pack, session):
             continue
         active_batches = _pack_active_batch_indices(pack, session)
@@ -2374,7 +2495,11 @@ def calc_cost_parts(z, session: TrainSession) -> Dict[str, torch.Tensor]:
                 ).items():
                     pack_parts[key] = pack_parts.get(key, zero) + part
         else:
-            sub = _pack_for_active_cost(pack, session, batch_indices=active_batches)
+            sub = (
+                pack
+                if batched is not None
+                else _pack_for_active_cost(pack, session, batch_indices=active_batches)
+            )
             if sub is None:
                 continue
             pack_parts = _pack_cost_parts_from_params(p, sub, session, batch_idx=None)

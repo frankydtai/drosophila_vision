@@ -55,6 +55,8 @@ DEG = 4.5
 DEG_BORST = 5.0
 # Drawn hex patch radius in degrees (half the FAFB cell spacing).
 HEX_PATCH_RADIUS = 0.5 * DEG
+# Axis-limit padding (degrees) around column centres in field plots.
+FIELD_VIEW_PAD_DEG = 2.0
 # Single source of truth for the plot axis unit / labels.
 AXIS_UNIT = "degree"
 X_AXIS_LABEL = f"X ({AXIS_UNIT})"

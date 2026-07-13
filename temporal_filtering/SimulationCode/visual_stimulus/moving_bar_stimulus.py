@@ -85,10 +85,6 @@ def gruntman_moving_bar_specs(
     ]
 
 
-def _cross(a: np.ndarray, b: np.ndarray) -> float:
-    return float(a[0] * b[1] - a[1] * b[0])
-
-
 def _cross2(ax: float, ay: float, bx: float, by: float) -> float:
     return ax * by - ay * bx
 
@@ -294,62 +290,6 @@ def _coverage_time_series(
         out[i] = _coverage_batch(hex_stack, bx0, by0, bx1, by1)
         trail += step
     return out
-
-
-def _segment_intersection(p1: np.ndarray, p2: np.ndarray, q1: np.ndarray, q2: np.ndarray) -> np.ndarray:
-    r = p2 - p1
-    s = q2 - q1
-    denom = _cross(r, s)
-    if abs(denom) < 1e-12:
-        return p2
-    t = _cross(q1 - p1, s) / denom
-    return p1 + t * r
-
-
-def _clip_polygon_to_halfplane(
-    poly: np.ndarray,
-    edge_p1: np.ndarray,
-    edge_p2: np.ndarray,
-    inside_fn,
-) -> np.ndarray:
-    if len(poly) == 0:
-        return poly
-    out: List[np.ndarray] = []
-    prev = poly[-1]
-    prev_in = inside_fn(prev)
-    for cur in poly:
-        cur_in = inside_fn(cur)
-        if cur_in:
-            if not prev_in:
-                out.append(_segment_intersection(prev, cur, edge_p1, edge_p2))
-            out.append(cur)
-        elif prev_in:
-            out.append(_segment_intersection(prev, cur, edge_p1, edge_p2))
-        prev, prev_in = cur, cur_in
-    return np.asarray(out, dtype=np.float64) if out else np.empty((0, 2), dtype=np.float64)
-
-
-def _clip_polygon_to_rect(poly: np.ndarray, xmin: float, ymin: float, xmax: float, ymax: float) -> np.ndarray:
-    big = 1e6
-    clips = (
-        (np.array([xmin, -big]), np.array([xmin, big]), lambda p: p[0] >= xmin),
-        (np.array([xmax, -big]), np.array([xmax, big]), lambda p: p[0] <= xmax),
-        (np.array([-big, ymin]), np.array([big, ymin]), lambda p: p[1] >= ymin),
-        (np.array([-big, ymax]), np.array([big, ymax]), lambda p: p[1] <= ymax),
-    )
-    for edge_p1, edge_p2, inside in clips:
-        poly = _clip_polygon_to_halfplane(poly, edge_p1, edge_p2, inside)
-        if len(poly) == 0:
-            return poly
-    return poly
-
-
-def _polygon_area(poly: np.ndarray) -> float:
-    if len(poly) < 3:
-        return 0.0
-    x = poly[:, 0]
-    y = poly[:, 1]
-    return 0.5 * abs(float(np.dot(x, np.roll(y, -1)) - np.dot(y, np.roll(x, -1))))
 
 
 def coverage_hex_bar(

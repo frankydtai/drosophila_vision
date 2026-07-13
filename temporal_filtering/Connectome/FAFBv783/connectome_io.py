@@ -9,6 +9,7 @@ CSV loaders are defined exactly once.
 from __future__ import annotations
 
 import logging
+import re
 from pathlib import Path
 from typing import List, Optional, Sequence
 
@@ -64,6 +65,16 @@ def resolve_network_json(spec: str) -> Path:
     if p.is_absolute():
         raise FileNotFoundError(f"not a network run directory: {p}")
     return (NETWORK_DIR / spec / "network.json").resolve()
+
+
+def network_run_tag(network_path: str, meta: dict) -> str:
+    """``right`` / ``left``; append ``_extentN`` when the run folder name has it."""
+    run_name = Path(network_path).resolve().parent.name
+    side = str(meta.get("side") or run_name.split("_")[0])
+    m = re.search(r"_extent(\d+)$", run_name)
+    if m:
+        return f"{side}_extent{m.group(1)}"
+    return side
 
 
 def type_counts_abc_path(network_json: Path) -> Path:

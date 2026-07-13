@@ -15,9 +15,7 @@ from __future__ import annotations
 
 import argparse
 import os
-import re
 import sys
-from pathlib import Path
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(HERE)
@@ -38,6 +36,7 @@ from network.construction import load_network
 from network.moving_bar_target import build_moving_bar_signals, sti_columns
 from train import parse_comma_list
 from column_mapper import (
+    FIELD_VIEW_PAD_DEG,
     borst_sti_columns,
     draw_hex_patches,
     draw_hex_patches_uv,
@@ -46,6 +45,8 @@ from column_mapper import (
     uv_to_xy_deg,
 )
 from visual_stimulus.moving_bar_stimulus import (
+    GRUNTMAN_CONTRASTS,
+    GRUNTMAN_DIRECTIONS,
     bar_rect_at_step,
     build_batched_column_current,
     field_bounds,
@@ -54,25 +55,15 @@ from visual_stimulus.moving_bar_stimulus import (
     moving_bar_sweep_end_step,
     moving_bar_transit_times,
 )
-from connectome_io import resolve_network_json
+from connectome_io import DEFAULT_NETWORK_RUN, network_run_tag, resolve_network_json
 
 PLOT_BG = "#F5F0DC"  # axes background (beige), not column baseline color
-DEFAULT_NETWORK = "right_min_neuron1"
-
-
-def _run_tag(network_path: str, meta: dict) -> str:
-    """``right`` or ``left``; append ``_extentN`` only when the run folder has it."""
-    run_name = Path(network_path).resolve().parent.name
-    side = str(meta.get("side") or run_name.split("_")[0])
-    m = re.search(r"_extent(\d+)$", run_name)
-    if m:
-        return f"{side}_extent{m.group(1)}"
-    return side
+_STI_CLI_DEFAULT = ",".join(GRUNTMAN_CONTRASTS)
 
 
 def _output_tag(network_path: str, meta: dict, direction: str) -> str:
     """``2{direction}_{side}`` or ``2{direction}_{side}_extentN``."""
-    return f"2{direction}_{_run_tag(network_path, meta)}"
+    return f"2{direction}_{network_run_tag(network_path, meta)}"
 
 
 def _default_outputs(network_path: str, meta: dict, direction: str) -> tuple[str, str]:
@@ -128,7 +119,7 @@ def _field_limits(columns, *, columns_are_xy_deg: bool = False):
             [v for _, v in columns],
         )
     x0, y0, x1, y1 = field_bounds_centers(x_deg, y_deg)
-    pad = 2.0
+    pad = FIELD_VIEW_PAD_DEG
     return x0 - pad, x1 + pad, y0 - pad, y1 + pad
 
 
@@ -322,8 +313,8 @@ def main():
     ap.add_argument("--borst", action="store_true",
                     help="Borst 5-column horizontal field (right/left only); "
                          "default PNG: plotted_moving_bar/moving_bar_2<dir>_borst.png")
-    ap.add_argument("--network", type=str, default=DEFAULT_NETWORK,
-                    help=f"built_network run folder name (default: {DEFAULT_NETWORK}; ignored with --borst)")
+    ap.add_argument("--network", type=str, default=DEFAULT_NETWORK_RUN,
+                    help=f"built_network run folder name (default: {DEFAULT_NETWORK_RUN}; ignored with --borst)")
     ap.add_argument("-o", "--output", type=str, default=None,
                     help="snapshot PNG (default: moving_bar_2<dir>_<side> or moving_bar_2<dir>_borst)")
     ap.add_argument("--gif", nargs="?", const="", default=None,
@@ -331,18 +322,20 @@ def main():
     ap.add_argument("--frame-step", type=int, default=2)
     ap.add_argument("--t", type=str, default="",
                     help="comma-separated simulation step indices for snapshot columns, e.g. 50,60,72,90")
-    ap.add_argument("--sti", type=str, default="bright,dark",
-                    help="comma-separated moving-bar contrasts to plot: bright,dark (default: bright,dark)")
-    ap.add_argument("--direction", type=str, default="right", choices=("right", "left", "up", "down"))
+    ap.add_argument("--sti", type=str, default=_STI_CLI_DEFAULT,
+                    help=f"comma-separated moving-bar contrasts to plot: "
+                         f"{_STI_CLI_DEFAULT} (default: {_STI_CLI_DEFAULT})")
+    ap.add_argument("--direction", type=str, default=GRUNTMAN_DIRECTIONS[0],
+                    choices=GRUNTMAN_DIRECTIONS)
     ap.add_argument("--i-bright", type=float, default=I_BRIGHT)
     args = ap.parse_args()
     snapshot_steps = [int(tok) for tok in parse_comma_list(args.t)]
     sti = parse_comma_list(args.sti)
     if not sti:
-        raise SystemExit("--sti must include at least one of bright,dark")
-    bad_sti = sorted(set(sti) - {"bright", "dark"})
+        raise SystemExit(f"--sti must include at least one of {_STI_CLI_DEFAULT}")
+    bad_sti = sorted(set(sti) - set(GRUNTMAN_CONTRASTS))
     if bad_sti:
-        raise SystemExit(f"--sti supports only bright,dark; got {bad_sti}")
+        raise SystemExit(f"--sti supports only {_STI_CLI_DEFAULT}; got {bad_sti}")
     sti_set = set(sti)
 
     showcase = [

@@ -1,0 +1,23 @@
+Job ID: 27100089
+Node:   spartan-gpgpu015
+GPU:    0
+GPU 0: NVIDIA H100 80GB HBM3 (UUID: GPU-02b3b2a7-0fed-732b-8a39-2748f08c158d)
+cuda: True NVIDIA H100 80GB HBM3
+Start:  Sun 12 Jul 2026 01:04:28 AEST
+device=cuda, model=conductance, nofruns=1, nofsteps=1000, lrs=[0.1], nparams=112, fname=training_with_Ih.npy, outdir=/home/yitai/drosophila_vision/temporal_filtering/SimulationCode/FiveCol_Parameter/conductance/27100089-train-nofsteps-1000-lrs-0.1-shift-extent-3-network-right_min_neuron1_extent3-cost-extent-2
+
+round 0
+
+
+Initl cost = 558.6215  [spot_bright=82.2805  spot_dark=77.7753  moving_bar_bright_PD=103.7961  moving_bar_bright_ND=117.7778  moving_bar_dark_PD=92.8743  moving_bar_dark_ND=84.1174]
+Final cost = 283.5536  [spot_bright=40.6038  spot_dark=39.3339  moving_bar_bright_PD=56.1151  moving_bar_bright_ND=40.0324  moving_bar_dark_PD=58.0917  moving_bar_dark_ND=49.3767]
+Best  cost = 282.2904  [spot_bright=40.7361  spot_dark=38.5716  moving_bar_bright_PD=56.1139  moving_bar_bright_ND=39.8018  moving_bar_dark_PD=57.9659  moving_bar_dark_ND=49.1012]
+time needed  = 456.71  sec
+
+done in 0.13 hours
+wrote table: /home/yitai/drosophila_vision/temporal_filtering/SimulationCode/FiveCol_Parameter/conductance/27100089-train-nofsteps-1000-lrs-0.1-shift-extent-3-network-right_min_neuron1_extent3-cost-extent-2/training_with_Ih_table.csv (best run #0, cost=282.2904)
+plot device=cuda (NVIDIA H100 80GB HBM3)
+1 trained set(s); selected #0 (cost=282.2904)
+plot_moving_bar_all: /home/yitai/drosophila_vision/temporal_filtering/SimulationCode/FiveCol_Parameter/conductance/27100089-train-nofsteps-1000-lrs-0.1-shift-extent-3-network-right_min_neuron1_extent3-cost-extent-2/model_all_bar.png traces=0.0s  draw=0.9s  savefig=2.3s  total=3.2s
+plots saved to /home/yitai/drosophila_vision/temporal_filtering/SimulationCode/FiveCol_Parameter/conductance/27100089-train-nofsteps-1000-lrs-0.1-shift-extent-3-network-right_min_neuron1_extent3-cost-extent-2
+End:    Sun 12 Jul 2026 01:12:21 AEST

@@ -77,6 +77,15 @@ SPOT_COST_RADIUS_KEY_ALIASES: Dict[str, float] = {
 
 _SPOT_EXTENT_HALF_STEP_TOL = 1e-9
 
+# Default spot footprint / centre-tiling radius (0.5 multiples).
+DEFAULT_SPOT_EXTENT: float = 1.5
+
+# Panel list for multi-spot visualisation (includes :data:`DEFAULT_SPOT_EXTENT`).
+DEFAULT_SPOT_EXTENTS: Tuple[float, ...] = (0.5, 1.0, DEFAULT_SPOT_EXTENT, 2.0)
+
+# Keep only centres whose spot footprint lies inside connectome extent.
+DEFAULT_FULLY_INSIDE: bool = True
+
 
 def _rot60(u: int, v: int) -> Tuple[int, int]:
     """Rotate an axial (u, v) member 60 degrees counter-clockwise about origin."""
@@ -134,15 +143,25 @@ def _spot_center_angle(u: int, v: int) -> float:
 
 def spot_centers(
     extent: int = column_mapper.DEFAULT_EXTENT,
-    spot_extent=2,
-    fully_inside: bool = True,
+    spot_extent=DEFAULT_SPOT_EXTENT,
+    fully_inside: bool = DEFAULT_FULLY_INSIDE,
 ) -> list:
-    """Axial centres of radius-``floor(spot_extent)`` hexes covering an ``extent`` disc."""
+    """Axial centres of densest packing of radius-``floor(spot_extent)`` hexes.
+
+    Half-integer ``spot_extent`` (odd half-steps): generators ``(e, e)`` with
+    ``e = spot_extent + 0.5`` (edge-sharing of the drawn axial hex).
+    Integer ``spot_extent``: generators ``(2k + 1, -k)``.
+    """
     m = spot_extent_half_steps(spot_extent)
     k = m // 2
-    a1, b1 = m + 1, -k
+    if m % 2 == 1:
+        e = (m + 1) // 2
+        a1, b1 = e, e
+    else:
+        a1, b1 = m + 1, -k
     a2, b2 = _rot60(a1, b1)
-    members = column_mapper.members_in_extent(k)
+    # Footprint for fully_inside: (m+1)//2 (=k for integer extent; e for half-integer).
+    members = column_mapper.members_in_extent((m + 1) // 2)
     span = int(2 * (extent // max(k, 1) + 2))
     centers: list = []
     for lm in range(-span, span + 1):
@@ -261,7 +280,7 @@ def spot_stimulus_batches(spotting: Spotting) -> List[Tuple[int, int, Tuple[int,
     return batches
 
 
-def _connectome_extent(C, spot_extent: int) -> int:
+def _connectome_extent(C, spot_extent: float) -> int:
     """Hex-disc radius of connectome ``C``."""
     meta_extent = int(C.meta.get("extent", -1))
     if meta_extent >= 0:
@@ -271,14 +290,14 @@ def _connectome_extent(C, spot_extent: int) -> int:
         column_mapper.hex_radius(int(u), int(v))
         for u, v in zip(C.u[positioned], C.v[positioned])
     ]
-    return max(radii) if radii else spot_extent
+    return max(radii) if radii else int(spot_extent)
 
 
 def build_spotting(
     C,
-    spot_extent: int = 2,
+    spot_extent: float = DEFAULT_SPOT_EXTENT,
     single_spot: bool = None,
-    fully_inside: bool = True,
+    fully_inside: bool = DEFAULT_FULLY_INSIDE,
 ) -> Spotting:
     """Build a :class:`Spotting` for connectome ``C``."""
     spot_extent_half_steps(spot_extent)
@@ -302,7 +321,7 @@ def build_spotting(
 
 def spotting_from_opts(
     C,
-    spot_extent: int = 2,
+    spot_extent: float = DEFAULT_SPOT_EXTENT,
     shift_extent: int = 0,
     single_spot: Optional[bool] = None,
     *,
@@ -399,7 +418,7 @@ def spot_cost_unit_radius_layout(C, batches, cost_radii, cost_extent):
 
 def build_shifted_target(
     C,
-    spot_extent: int = 2,
+    spot_extent: float = DEFAULT_SPOT_EXTENT,
     single_spot: Optional[bool] = None,
     shift_extent: int = 0,
     maxtime: int = IMPULSE_MAXTIME,
