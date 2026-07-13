@@ -351,6 +351,8 @@ def build_session(
     cost_extent_by_target=None,
     shift_extent=0,
     spot_extent=None,
+    multi_spot=True,
+    fully_inside=True,
     spot_cost_radius_weight=None,
     i_cli=None,
     ih_group_names=None,
@@ -376,6 +378,8 @@ def build_session(
         cost_extent_by_target=cost_extent_by_target,
         shift_extent=shift_extent,
         spot_extent=spot_extent,
+        multi_spot=multi_spot,
+        fully_inside=fully_inside,
         spot_cost_radius_weight=spot_cost_radius_weight,
         i_cli=i_cli,
         spot_bright_stimulus_opts=spot_bright_stimulus_opts,
@@ -411,6 +415,8 @@ def run_training(model, nofruns, nofsteps, lrs, fname=None, outdir=None,
                  target_list=None, cost_weights=None,
                  cost_extent_by_target=None, shift_extent=0,
                  spot_extent=None,
+                 multi_spot=True,
+                 fully_inside=True,
                  spot_cost_radius_weight=None,
                  i_cli=None,
                  ih_group_names=None,
@@ -436,6 +442,8 @@ def run_training(model, nofruns, nofsteps, lrs, fname=None, outdir=None,
         cost_extent_by_target=cost_extent_by_target,
         shift_extent=shift_extent,
         spot_extent=spot_extent,
+        multi_spot=multi_spot,
+        fully_inside=fully_inside,
         spot_cost_radius_weight=spot_cost_radius_weight,
         i_cli=i_cli,
         ih_group_names=ih_group_names,
@@ -470,6 +478,28 @@ def run_training(model, nofruns, nofsteps, lrs, fname=None, outdir=None,
         plot_vm=plot_vm,
     )
     return fname, outdir, session
+
+
+def add_spot_layout_arguments(parser):
+    """Spot centre tiling flags (``--multi-spot``, ``--fully-inside``)."""
+    from network.spot_target import DEFAULT_FULLY_INSIDE, DEFAULT_MULTI_SPOT
+
+    parser.add_argument(
+        "--multi-spot",
+        type=parse_bool,
+        default=DEFAULT_MULTI_SPOT,
+        metavar="BOOL",
+        help="tile simultaneous spot centres on network connectome "
+             f"(default: {str(DEFAULT_MULTI_SPOT).lower()}; false → centre (0,0) only)",
+    )
+    parser.add_argument(
+        "--fully-inside",
+        type=parse_bool,
+        default=DEFAULT_FULLY_INSIDE,
+        metavar="BOOL",
+        help="with --multi-spot: keep only centres whose spot footprint lies inside "
+             f"connectome extent (default: {str(DEFAULT_FULLY_INSIDE).lower()})",
+    )
 
 
 def add_training_arguments(parser):
@@ -509,6 +539,14 @@ def add_training_arguments(parser):
                              f"(e.g. {DEFAULT_NETWORK_RUN}); "
                              f"default Borst 5-column simulator if omitted")
     parser.add_argument(
+        "--multi-bar",
+        type=parse_bool,
+        default=True,
+        metavar="BOOL",
+        help="network moving-bar: tile simultaneous lane-clipped bars "
+             "(default true); false → whole-field single bar over the full network field",
+    )
+    parser.add_argument(
         "--target",
         default="spot,moving_bar",
         help="target name(s): spot (=spot_bright+spot_dark), moving_bar (=bright+dark), "
@@ -537,6 +575,7 @@ def add_training_arguments(parser):
              "extent=1 folds RecF(2) into r=1 target amp and defaults cost weights "
              "to 0=1,1=1/6; extent 1.5/2 keep RecF(r) and 0=1,1=1/6,2=1/6",
     )
+    add_spot_layout_arguments(parser)
     parser.add_argument(
         "--spot-cost-r-w",
         default="",
@@ -702,6 +741,8 @@ def training_kwargs_from_args(
     spot_extent = DEFAULT_SPOT_EXTENT if args.spot_extent is None else float(args.spot_extent)
     spot_extent_half_steps(spot_extent)
     spot_cost_radius_weight = parse_spot_cost_r_w(args.spot_cost_r_w)
+    moving_bar_bright_stimulus_opts = {"multi_bar": bool(args.multi_bar)}
+    moving_bar_dark_stimulus_opts = {"multi_bar": bool(args.multi_bar)}
     i_cli = fc.build_i_cli_by_target({
         "i_baseline": parse_comma_kv(args.i_baseline, float),
         "i_bright": parse_comma_kv(args.i_bright, float),
@@ -726,7 +767,11 @@ def training_kwargs_from_args(
         cost_extent_by_target=cost_extent_by_target,
         shift_extent=int(args.shift_extent),
         spot_extent=spot_extent,
+        multi_spot=args.multi_spot,
+        fully_inside=args.fully_inside,
         spot_cost_radius_weight=spot_cost_radius_weight,
+        moving_bar_bright_stimulus_opts=moving_bar_bright_stimulus_opts,
+        moving_bar_dark_stimulus_opts=moving_bar_dark_stimulus_opts,
         i_cli=i_cli,
         ih_group_names=parse_comma_list(args.ih_group),
         ih_off=args.ih_off,

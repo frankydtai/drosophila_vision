@@ -48,6 +48,7 @@ from training_config import (
     ms_to_steps,
 )
 from visual_stimulus.moving_bar_stimulus import (
+    DEFAULT_BAR_EXTENT,
     GRUNTMAN_SPEED_DEG_S,
     HexColumn,
     MovingBarSpec,
@@ -328,6 +329,8 @@ def _moving_bar_cache_key(
     t_on: int,
     deltat_ms: float,
     i_baseline: float,
+    bar_extent: int,
+    multi_bar: bool = True,
     i_bright_bar: Optional[float] = None,
     i_dark_bar: Optional[float] = None,
 ) -> str:
@@ -337,6 +340,8 @@ def _moving_bar_cache_key(
         "network_mtime_ns": stat.st_mtime_ns,
         "network_size": stat.st_size,
         "column_uv": list(column_uv),
+        "bar_extent": int(bar_extent),
+        "multi_bar": bool(multi_bar),
         "specs": [
             {
                 "direction": s.direction,
@@ -367,12 +372,14 @@ def _moving_bar_cache_path(
     t_on: int,
     deltat_ms: float,
     i_baseline: float,
+    bar_extent: int,
+    multi_bar: bool = True,
     i_bright_bar: Optional[float] = None,
     i_dark_bar: Optional[float] = None,
 ) -> Path:
     key = _moving_bar_cache_key(
         network_json, specs, column_uv, maxtime, t_on, deltat_ms,
-        i_baseline, i_bright_bar, i_dark_bar,
+        i_baseline, bar_extent, multi_bar, i_bright_bar, i_dark_bar,
     )
     return moving_bar_cache_dir(network_json) / f"{key}.npz"
 
@@ -400,6 +407,8 @@ def build_moving_bar_signals(
     maxtime: Optional[int] = None,
     t_on: int = T_ON,
     deltat_ms: float = DELTAT_MS,
+    bar_extent: int = DEFAULT_BAR_EXTENT,
+    multi_bar: bool = True,
     i_baseline: float = I_BASELINE,
     i_bright_bar: Optional[float] = None,
     i_dark_bar: Optional[float] = None,
@@ -409,15 +418,20 @@ def build_moving_bar_signals(
     network_json: Optional[Path] = None,
     sim_dtype: torch.dtype = SIM_DTYPE_DEFAULT,
 ) -> MovingBarStimulus:
-    """Build batched photoreceptor current for moving-bar stimuli.
+    """Build batched photoreceptor current for moving-bar stimuli (network connectome).
 
     Returns ``signal`` with shape ``(B, T, N_units)`` where ``B = len(specs)``
-    (16 by default). Only photoreceptor units receive column current via
-    ``scatter_column_current_batched``; all other units stay zero. Column-level
-    current is ``i_baseline`` before ``t_on`` and after the sweep; during the
-    sweep it follows bar coverage (bright/dark).
+    (16 by default).
+
+    - ``multi_bar=True``: each batch row superposes simultaneous lane bars tiled with
+      ``bar_extent`` spacing; bars are absent (baseline current) before lane entry
+      and after lane exit.
+    - ``multi_bar=False``: whole-field single-bar geometry over the full connectome
+      sti field (no lane tiling/clipping).
     """
     device = device or C.device
+    bar_extent = int(bar_extent)
+    multi_bar = bool(multi_bar)
     specs = list(specs if specs is not None else gruntman_moving_bar_specs())
     contrasts = _spec_contrast_set(specs)
     i_bright = None
@@ -429,10 +443,18 @@ def build_moving_bar_signals(
     sti_cols = sti_columns(C)
     field_deg = field_bounds(sti_cols)
     if maxtime is None:
-        maxtime = moving_bar_maxtime(specs, field_deg, t_on=t_on, deltat_ms=deltat_ms)
+        maxtime = moving_bar_maxtime(
+            specs, field_deg, bar_extent,
+            multi_bar=multi_bar,
+            t_on=t_on, deltat_ms=deltat_ms,
+        )
     n_batch = len(specs)
     n_units = C.n_units
-    sweep_end = moving_bar_sweep_end_step(specs, field_deg, t_on=t_on, deltat_ms=deltat_ms)
+    sweep_end = moving_bar_sweep_end_step(
+        specs, field_deg, bar_extent,
+        multi_bar=multi_bar,
+        t_on=t_on, deltat_ms=deltat_ms,
+    )
     sweep_steps = sweep_end - t_on
     tail_steps = maxtime - sweep_end
 
@@ -442,7 +464,7 @@ def build_moving_bar_signals(
     if source_json is not None:
         cache_path = _moving_bar_cache_path(
             source_json, specs, column_uv, maxtime, t_on, deltat_ms,
-            i_baseline, i_bright, i_dark,
+            i_baseline, bar_extent, multi_bar, i_bright, i_dark,
         )
 
     col_curr: Optional[np.ndarray] = None
@@ -453,7 +475,9 @@ def build_moving_bar_signals(
 
     if col_curr is None:
         col_curr = build_batched_column_current(
-            sti_cols, specs, maxtime=maxtime, t_on=t_on, deltat_ms=deltat_ms,
+            sti_cols, specs, maxtime=maxtime, bar_extent=bar_extent,
+            multi_bar=multi_bar,
+            t_on=t_on, deltat_ms=deltat_ms,
             i_baseline=i_baseline,
             i_bright_bar=i_bright,
             i_dark_bar=i_dark,
@@ -466,6 +490,8 @@ def build_moving_bar_signals(
     info = {
         "n_batch": n_batch,
         "n_sti_columns": len(sti_cols),
+        "bar_extent": bar_extent,
+        "multi_bar": multi_bar,
         "field_deg": field_deg,
         "maxtime": maxtime,
         "t_on": t_on,
@@ -668,6 +694,8 @@ def build_moving_bar_target(
     deltat_ms: float = DELTAT_MS,
     fig1_path: Path = FIG1_CI_NPZ,
     use_cache: bool = True,
+    bar_extent: int = DEFAULT_BAR_EXTENT,
+    multi_bar: bool = True,
     cost_extent: Optional[int] = None,
     i_baseline: Optional[float] = None,
     i_bright_bar: Optional[float] = None,
@@ -676,10 +704,11 @@ def build_moving_bar_target(
     readout_subtypes: Optional[Sequence[str]] = None,
     sim_dtype: torch.dtype = SIM_DTYPE_DEFAULT,
 ) -> MovingBarTarget:
-    """Build moving-bar stimulus + fig1 targets for sti columns × T4/T5 subtypes.
+    """Build multi-bar stimulus + fig1 targets for sti columns × T4/T5 subtypes.
 
-    ``cost_extent`` restricts cost to columns inside the central hex disc
-    (``None`` = all sti columns). Stimulus still drives all photoreceptors.
+    ``bar_extent`` sets per-lane spacing (hex-column units). ``cost_extent``
+    restricts cost to columns inside the central hex disc (``None`` = all sti
+    columns). Stimulus still drives all photoreceptors.
     """
     device = device or C.device
     side = normalize_side(C.meta.get("side", "right"))
@@ -688,7 +717,9 @@ def build_moving_bar_target(
     contrast_set = frozenset(contrasts)
     i_baseline_val = resolve_i_baseline(i_baseline)
     stim = build_moving_bar_signals(
-        C, specs=specs, t_on=t_on, deltat_ms=deltat_ms, device=device, use_cache=use_cache,
+        C, specs=specs, t_on=t_on, deltat_ms=deltat_ms,
+        bar_extent=bar_extent, multi_bar=bool(multi_bar),
+        device=device, use_cache=use_cache,
         network_json=getattr(C, "source_json", None),
         i_baseline=i_baseline_val,
         sim_dtype=sim_dtype,
@@ -801,8 +832,8 @@ def build_borst_moving_bar_target(
     cols = list(borst_sti_columns())
     scatter_cols = borst_sti_columns_scatter()
     field_deg = field_bounds(cols)
-    maxtime = moving_bar_maxtime(specs, field_deg, t_on=t_on, deltat_ms=deltat_ms)
-    sweep_end = moving_bar_sweep_end_step(specs, field_deg, t_on=t_on, deltat_ms=deltat_ms)
+    maxtime = whole_field_moving_bar_maxtime(specs, field_deg, t_on=t_on, deltat_ms=deltat_ms)
+    sweep_end = whole_field_moving_bar_sweep_end_step(specs, field_deg, t_on=t_on, deltat_ms=deltat_ms)
     fig1 = load_fig1_traces(fig1_path, deltat_ms=deltat_ms)
     before_steps = ms_to_steps(COST_ALIGNED_FIRST_STI_MS, deltat_ms=deltat_ms)
     after_steps = ms_to_steps(COST_WINDOW_AFTER_MS, deltat_ms=deltat_ms)
@@ -818,7 +849,7 @@ def build_borst_moving_bar_target(
         col_kw["i_bright_bar"] = I_BRIGHT if i_bright_bar is None else float(i_bright_bar)
     if "dark" in contrast_set:
         col_kw["i_dark_bar"] = I_DARK if i_dark_bar is None else float(i_dark_bar)
-    column_current = build_batched_column_current(
+    column_current = borst_whole_field_batched_column_current(
         cols, specs, maxtime, t_on=t_on, deltat_ms=deltat_ms,
         **col_kw,
     )

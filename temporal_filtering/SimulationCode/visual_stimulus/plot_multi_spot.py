@@ -12,6 +12,7 @@ Usage (from SimulationCode/, project .venv):
     ../.venv/bin/python visual_stimulus/plot_multi_spot.py --spot-extents 0.5,1,1.5,2
     ../.venv/bin/python visual_stimulus/plot_multi_spot.py --network right_min_neuron1_extent2
     ../.venv/bin/python visual_stimulus/plot_multi_spot.py --fully-inside false
+    ../.venv/bin/python visual_stimulus/plot_multi_spot.py --multi-spot false
 """
 from __future__ import annotations
 
@@ -48,13 +49,12 @@ from column_mapper import (
 from connectome_io import DEFAULT_NETWORK_RUN, network_run_tag, resolve_network_json
 from network.construction import Network, load_network
 from network.spot_target import (
-    DEFAULT_FULLY_INSIDE,
     DEFAULT_SPOT_EXTENTS,
     build_spotting,
     spot_dist,
     spot_extent_half_steps,
 )
-from train import parse_bool, parse_comma_list
+from train import add_spot_layout_arguments, parse_comma_list
 
 _SPOT_EXTENTS_CLI_DEFAULT = ",".join(
     str(int(x)) if float(x) == int(x) else str(x) for x in DEFAULT_SPOT_EXTENTS
@@ -119,14 +119,7 @@ def main() -> None:
         default=None,
         help="output PNG (default: plotted_multi_spot/plotted_multi_spot_<side>_extentN.png)",
     )
-    parser.add_argument(
-        "--fully-inside",
-        type=parse_bool,
-        default=DEFAULT_FULLY_INSIDE,
-        metavar="BOOL",
-        help="keep only centres whose spot footprint lies inside connectome extent "
-             f"(default: {str(DEFAULT_FULLY_INSIDE).lower()})",
-    )
+    add_spot_layout_arguments(parser)
     args = parser.parse_args()
     spot_extents = [float(x) for x in parse_comma_list(args.spot_extents)]
     if not spot_extents:
@@ -157,7 +150,10 @@ def main() -> None:
     for ax, spot_extent in zip(axes_flat, spot_extents):
         draw_fafb_columns(ax, df_columns, hex_radius_px=HEX_PATCH_RADIUS, label=False)
         centers = build_spotting(
-            C, spot_extent=spot_extent, fully_inside=args.fully_inside,
+            C,
+            spot_extent=spot_extent,
+            multi_spot=args.multi_spot,
+            fully_inside=args.fully_inside,
         ).centers
         counts[spot_extent] = len(centers)
         print(

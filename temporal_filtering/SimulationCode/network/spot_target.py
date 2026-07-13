@@ -115,6 +115,9 @@ DEFAULT_SPOT_EXTENTS: Tuple[float, ...] = (0.5, 1.0, 1.5, 2.0)
 # Keep only centres whose spot footprint lies inside connectome extent.
 DEFAULT_FULLY_INSIDE: bool = True
 
+# Tile simultaneous spot centres on network connectome (``False`` → centre ``(0, 0)`` only).
+DEFAULT_MULTI_SPOT: bool = True
+
 
 def _rot60(u: int, v: int) -> Tuple[int, int]:
     """Rotate an axial (u, v) member 60 degrees counter-clockwise about origin."""
@@ -371,16 +374,14 @@ def _connectome_extent(C, spot_extent: float) -> int:
 def build_spotting(
     C,
     spot_extent: float = DEFAULT_SPOT_EXTENT,
-    single_spot: bool = None,
+    multi_spot: bool = DEFAULT_MULTI_SPOT,
     fully_inside: bool = DEFAULT_FULLY_INSIDE,
 ) -> Spotting:
     """Build a :class:`Spotting` for connectome ``C``."""
     spot_extent_half_steps(spot_extent)
     connectome_extent = _connectome_extent(C, spot_extent)
-    if single_spot is None:
-        single_spot = connectome_extent <= spot_extent
     shifts = column_mapper.members_in_extent(1)
-    if single_spot:
+    if not multi_spot:
         centers = [(0, 0)]
     else:
         centers = [
@@ -398,18 +399,24 @@ def spotting_from_opts(
     C,
     spot_extent: float = DEFAULT_SPOT_EXTENT,
     shift_extent: int = 0,
-    single_spot: Optional[bool] = None,
+    multi_spot: bool = DEFAULT_MULTI_SPOT,
+    fully_inside: bool = DEFAULT_FULLY_INSIDE,
     *,
     stimulus_opts: Optional[Dict] = None,
 ) -> Spotting:
     """Build :class:`Spotting` with configurable sub-spot shift radius.
 
-    With ``stimulus_opts``, read ``spot_extent`` / ``shift_extent`` from a stimulus sidecar.
+    With ``stimulus_opts``, read ``spot_extent`` / ``shift_extent`` / ``multi_spot`` /
+    ``fully_inside`` from a stimulus sidecar.
     """
     if stimulus_opts is not None:
         spot_extent = float(stimulus_opts.get("spot_extent", spot_extent))
         shift_extent = int(stimulus_opts.get("shift_extent", shift_extent))
-    spotting = build_spotting(C, spot_extent, single_spot)
+        multi_spot = bool(stimulus_opts.get("multi_spot", multi_spot))
+        fully_inside = bool(stimulus_opts.get("fully_inside", fully_inside))
+    spotting = build_spotting(
+        C, spot_extent, multi_spot=multi_spot, fully_inside=fully_inside,
+    )
     spotting.shifts = [
         (int(du), int(dv))
         for du, dv in column_mapper.members_in_extent(int(shift_extent))
@@ -562,7 +569,8 @@ def spot_cost_unit_radius_layout(C, batches, cost_radii, cost_extent):
 def build_shifted_target(
     C,
     spot_extent: float = DEFAULT_SPOT_EXTENT,
-    single_spot: Optional[bool] = None,
+    multi_spot: bool = DEFAULT_MULTI_SPOT,
+    fully_inside: bool = DEFAULT_FULLY_INSIDE,
     shift_extent: int = 0,
     maxtime: int = IMPULSE_MAXTIME,
     t_on: int = T_ON,
@@ -584,7 +592,8 @@ def build_shifted_target(
     fit_row = {str(ft): i for i, ft in enumerate(_CELL_LIST)}
 
     spotting = spotting_from_opts(
-        C, spot_extent, shift_extent, single_spot,
+        C, spot_extent, shift_extent,
+        multi_spot=multi_spot, fully_inside=fully_inside,
     )
     names = unit_type_names(C)
     present_fit = [str(ft) for ft in _CELL_LIST if str(ft) in set(names.tolist())]
@@ -665,6 +674,8 @@ def build_shifted_target(
         "n_shifts": len(spotting.shifts),
         "cost_extent": cost_extent,
         "spot_extent": float(spot_extent),
+        "multi_spot": bool(multi_spot),
+        "fully_inside": bool(fully_inside),
         "spot_cost_radius_weight": spot_cost_radius_weight,
         "spot_cost_radii": list(cost_radii),
         "present_fit": present_fit,

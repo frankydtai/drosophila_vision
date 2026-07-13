@@ -8,6 +8,7 @@ Usage (from SimulationCode/, uses project .venv):
     ../.venv/bin/python visual_stimulus/plot_moving_bar_stimulus.py
     ../.venv/bin/python visual_stimulus/plot_moving_bar_stimulus.py --gif
     ../.venv/bin/python visual_stimulus/plot_moving_bar_stimulus.py --network right_min_neuron1_extent2 --direction down --gif
+    ../.venv/bin/python visual_stimulus/plot_moving_bar_stimulus.py --network right_min_neuron1_extent2 --bar-extent 2
     ../.venv/bin/python visual_stimulus/plot_moving_bar_stimulus.py --borst --direction right
     ../.venv/bin/python visual_stimulus/plot_moving_bar_stimulus.py --borst --direction left --gif
 """
@@ -34,6 +35,7 @@ from Medulla_Library import I_BASELINE, I_BRIGHT
 from training_config import DELTAT_MS, T_ON
 from network.construction import load_network
 from network.moving_bar_target import build_moving_bar_signals, sti_columns
+from train import parse_bool
 from train import parse_comma_list
 from column_mapper import (
     FIELD_VIEW_PAD_DEG,
@@ -45,15 +47,18 @@ from column_mapper import (
     uv_to_xy_deg,
 )
 from visual_stimulus.moving_bar_stimulus import (
+    DEFAULT_BAR_EXTENT,
     GRUNTMAN_CONTRASTS,
     GRUNTMAN_DIRECTIONS,
+    bar_lane_rects_at_step,
     bar_rect_at_step,
-    build_batched_column_current,
+    borst_whole_field_batched_column_current,
     field_bounds,
     gruntman_moving_bar_specs,
-    moving_bar_maxtime,
-    moving_bar_sweep_end_step,
     moving_bar_transit_times,
+    whole_field_moving_bar_maxtime,
+    whole_field_moving_bar_sweep_end_step,
+    whole_field_moving_bar_transit_times,
 )
 from connectome_io import DEFAULT_NETWORK_RUN, network_run_tag, resolve_network_json
 
@@ -87,14 +92,14 @@ def _borst_default_outputs(direction: str) -> tuple[str, str]:
 
 
 def _build_borst_moving_bar(showcase, i_baseline: float = I_BASELINE):
-    """Column currents ``(B, T, 5)`` for Borst horizontal moving-bar demo."""
+    """Column currents ``(B, T, 5)`` for Borst horizontal whole-field moving-bar demo."""
     hex_cols = list(borst_sti_columns())
     field_deg = field_bounds(hex_cols)
-    maxtime = moving_bar_maxtime(showcase, field_deg, t_on=T_ON)
-    column_current = build_batched_column_current(
+    maxtime = whole_field_moving_bar_maxtime(showcase, field_deg, t_on=T_ON)
+    column_current = borst_whole_field_batched_column_current(
         hex_cols, showcase, maxtime, t_on=T_ON, i_baseline=i_baseline,
     )
-    sweep_end = moving_bar_sweep_end_step(showcase, field_deg, t_on=T_ON)
+    sweep_end = whole_field_moving_bar_sweep_end_step(showcase, field_deg, t_on=T_ON)
     info = {
         "maxtime": maxtime,
         "t_on": T_ON,
@@ -123,32 +128,42 @@ def _field_limits(columns, *, columns_are_xy_deg: bool = False):
     return x0 - pad, x1 + pad, y0 - pad, y1 + pad
 
 
-def _transit_frame_times(spec, field_deg, t_on, maxtime, frame_step: int) -> list[int]:
-    t0, _, t1 = moving_bar_transit_times(spec, field_deg, t_on=t_on, maxtime=maxtime)
+def _transit_frame_times(
+    spec,
+    field_deg,
+    t_on,
+    maxtime,
+    frame_step: int,
+    *,
+    bar_extent=None,
+    multi_bar: bool = True,
+) -> list[int]:
+    if bar_extent is None:
+        t0, _, t1 = whole_field_moving_bar_transit_times(spec, field_deg, t_on=t_on, maxtime=maxtime)
+    else:
+        t0, _, t1 = moving_bar_transit_times(
+            spec, field_deg, bar_extent, multi_bar=bool(multi_bar), t_on=t_on, maxtime=maxtime,
+        )
     return list(range(t0, t1 + 1, max(1, frame_step)))
 
 
-def _active_onset_offset(column_current_2d, i_baseline: float, tol: float = 1e-9) -> tuple[int, int] | None:
-    mask = np.any(np.abs(column_current_2d - i_baseline) > tol, axis=1)
-    idx = np.where(mask)[0]
-    if len(idx) == 0:
-        return None
-    return int(idx[0]), int(idx[-1])
-
-
-def _draw_bar_outline(ax, spec, field_deg, t: int, t_on: int):
-    xmin, ymin, xmax, ymax = bar_rect_at_step(spec, field_deg, t, t_on=t_on)
-    ax.add_patch(
-        Rectangle(
-            (xmin, ymin),
-            xmax - xmin,
-            ymax - ymin,
-            fill=False,
-            edgecolor="red",
-            linewidth=1.8,
-            zorder=10,
+def _draw_bar_outline(ax, spec, field_deg, t: int, t_on: int, *, bar_extent=None, multi_bar: bool = True):
+    if bar_extent is None:
+        rects = [bar_rect_at_step(spec, field_deg, t, t_on=t_on)]
+    else:
+        rects = bar_lane_rects_at_step(spec, field_deg, bar_extent, t, multi_bar=bool(multi_bar), t_on=t_on)
+    for xmin, ymin, xmax, ymax in rects:
+        ax.add_patch(
+            Rectangle(
+                (xmin, ymin),
+                xmax - xmin,
+                ymax - ymin,
+                fill=False,
+                edgecolor="red",
+                linewidth=1.8,
+                zorder=10,
+            )
         )
-    )
 
 
 def _current_cmap(i_max: float, i_baseline: float):
@@ -190,12 +205,14 @@ def _draw_hex_field(ax, columns, vals, i_max, i_baseline, xlim, ylim, *, columns
 def plot_snapshot(
     ax, columns, column_current, t, spec, spec_name, i_max, i_baseline, xlim, ylim, t_on, field_deg, *,
     columns_are_xy_deg: bool = False,
+    bar_extent=None,
+    multi_bar: bool = True,
 ):
     _draw_hex_field(
         ax, columns, column_current[t], i_max, i_baseline, xlim, ylim,
         columns_are_xy_deg=columns_are_xy_deg,
     )
-    _draw_bar_outline(ax, spec, field_deg, t, t_on)
+    _draw_bar_outline(ax, spec, field_deg, t, t_on, bar_extent=bar_extent, multi_bar=bool(multi_bar))
     ax.set_title(f"{spec_name}  t={t} ({t * DELTAT_MS / 1000.0:.2f} s)", fontsize=9)
 
 
@@ -212,6 +229,8 @@ def write_snapshots(
     field_deg,
     snapshot_steps=None,
     columns_are_xy_deg: bool = False,
+    bar_extent=None,
+    multi_bar: bool = True,
 ):
     snapshot_steps = list(snapshot_steps or [])
     if snapshot_steps:
@@ -239,24 +258,27 @@ def write_snapshots(
             times = snapshot_steps
             labels = [f"t={t}" for t in times]
         else:
-            _, center_t, _ = moving_bar_transit_times(spec, field_deg, t_on=t_on, maxtime=maxtime)
-            active = _active_onset_offset(column_current[i], i_baseline)
-            if active is None:
-                onset_t = center_t
-                offset_t = center_t
+            if bar_extent is None:
+                start_t, center_t, exit_t = whole_field_moving_bar_transit_times(
+                    spec, field_deg, t_on=t_on, maxtime=maxtime,
+                )
             else:
-                onset_t, offset_t = active
-            times = [onset_t, center_t, offset_t]
-            labels = ("onset", "center", "offset")
+                start_t, center_t, exit_t = moving_bar_transit_times(
+                    spec, field_deg, bar_extent, multi_bar=bool(multi_bar), t_on=t_on, maxtime=maxtime,
+                )
+            times = [start_t, center_t, exit_t]
+            labels = ("start", "center", "exit")
         for j, (t, label) in enumerate(zip(times, labels)):
             plot_snapshot(
                 axes[i, j], plot_columns, column_current[i], t, spec,
                 f"{spec.name} ({label})", i_max, i_baseline, xlim, ylim, t_on, field_deg,
                 columns_are_xy_deg=columns_are_xy_deg,
+                bar_extent=bar_extent,
+                multi_bar=bool(multi_bar),
             )
         if len(times) >= 3 and not snapshot_steps:
             spread = float(np.ptp(column_current[i, times[1]]))
-            print(f"  {spec.name}: onset/center/offset t={times}  center ptp={spread:.1f} pA")
+            print(f"  {spec.name}: start/center/exit t={times}  center ptp={spread:.1f} pA")
         else:
             print(f"  {spec.name}: snapshot t={times}")
 
@@ -275,8 +297,15 @@ def write_snapshots(
 def write_animation(
     plot_columns, showcase, column_current, i_max, i_baseline, output, side, t_on, maxtime, field_deg, frame_step,
     *, columns_are_xy_deg: bool = False,
+    bar_extent=None,
+    multi_bar: bool = True,
 ):
-    times = sorted({t for spec in showcase for t in _transit_frame_times(spec, field_deg, t_on, maxtime, frame_step)})
+    times = sorted({
+        t for spec in showcase
+        for t in _transit_frame_times(
+            spec, field_deg, t_on, maxtime, frame_step, bar_extent=bar_extent, multi_bar=bool(multi_bar),
+        )
+    })
     if not times:
         print("no animation frames")
         return
@@ -298,6 +327,8 @@ def write_animation(
                 axes[i, 0], plot_columns, column_current[i], t, spec,
                 spec.name, i_max, i_baseline, xlim, ylim, t_on, field_deg,
                 columns_are_xy_deg=columns_are_xy_deg,
+                bar_extent=bar_extent,
+                multi_bar=bool(multi_bar),
             )
         return [title]
 
@@ -327,8 +358,20 @@ def main():
                          f"{_STI_CLI_DEFAULT} (default: {_STI_CLI_DEFAULT})")
     ap.add_argument("--direction", type=str, default=GRUNTMAN_DIRECTIONS[0],
                     choices=GRUNTMAN_DIRECTIONS)
+    ap.add_argument(
+        "--multi-bar",
+        type=parse_bool,
+        default=True,
+        metavar="BOOL",
+        help="network mode: tile simultaneous lane-clipped bars (default true); "
+             "false → whole-field single bar over the full network field",
+    )
+    ap.add_argument("--bar-extent", type=int, default=DEFAULT_BAR_EXTENT,
+                    help="per-lane spacing width in hex-column units (network only; default 2)")
     ap.add_argument("--i-bright", type=float, default=I_BRIGHT)
     args = ap.parse_args()
+    if args.borst and args.bar_extent != DEFAULT_BAR_EXTENT:
+        raise SystemExit("--bar-extent is network-only; omit it with --borst")
     snapshot_steps = [int(tok) for tok in parse_comma_list(args.t)]
     sti = parse_comma_list(args.sti)
     if not sti:
@@ -366,7 +409,12 @@ def main():
         C = load_network(network_json, device="cpu")
         default_png, default_gif = _default_outputs(network_json, C.meta, args.direction)
         output = args.output or default_png
-        T = build_moving_bar_signals(C, specs=showcase)
+        T = build_moving_bar_signals(
+            C,
+            specs=showcase,
+            bar_extent=args.bar_extent,
+            multi_bar=bool(args.multi_bar),
+        )
         plot_columns = [(c.u, c.v) for c in sti_columns(C)]
         column_current = T.column_current
         t_on = int(T.info["t_on"])
@@ -375,16 +423,25 @@ def main():
         i_baseline = float(T.info["i_baseline"])
         side = C.meta.get("side", "?")
         columns_are_xy_deg = False
+        bar_extent = int(args.bar_extent)
         info = T.info
         print(
+            f"bar_extent={bar_extent}  "
             f"maxtime={maxtime} steps ({maxtime * DELTAT_MS / 1000.0:.2f} s)  "
             f"sweep={T.info['sweep_steps']} steps ({T.info['sweep_time_s']:.2f} s after t_on)"
         )
+
+    if args.borst:
+        bar_extent = None
+    else:
+        bar_extent = int(args.bar_extent)
 
     write_snapshots(
         plot_columns, showcase, column_current, i_bright, i_baseline,
         output, side, t_on, maxtime, field_deg, snapshot_steps=snapshot_steps,
         columns_are_xy_deg=columns_are_xy_deg,
+        bar_extent=bar_extent,
+        multi_bar=bool(args.multi_bar),
     )
     if args.gif is not None:
         gif = default_gif if args.gif == "" else args.gif
@@ -392,6 +449,8 @@ def main():
             plot_columns, showcase, column_current, i_bright, i_baseline, gif,
             side, t_on, maxtime, field_deg, args.frame_step,
             columns_are_xy_deg=columns_are_xy_deg,
+            bar_extent=bar_extent,
+            multi_bar=bool(args.multi_bar),
         )
     if args.borst:
         print(f"column_current shape {tuple(column_current.shape)}  specs={info['spec_names']}")

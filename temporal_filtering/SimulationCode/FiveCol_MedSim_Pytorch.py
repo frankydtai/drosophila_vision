@@ -604,7 +604,7 @@ def make_spot_stimulus_opts(
     """PR step stimulus opts for ``spot_{polarity}`` (baseline pre-``t_on``, step from ``t_on``)."""
     if polarity not in SPOT_POLARITIES:
         raise ValueError(f"spot polarity must be 'bright' or 'dark', got {polarity!r}")
-    from network.spot_target import DEFAULT_SPOT_EXTENT
+    from network.spot_target import DEFAULT_FULLY_INSIDE, DEFAULT_MULTI_SPOT, DEFAULT_SPOT_EXTENT
 
     step_key = _SPOT_STEP_KEY[polarity]
     if i_step is None:
@@ -621,6 +621,8 @@ def make_spot_stimulus_opts(
         "deltat_ms": float(deltat),
         "shift_extent": int(shift_extent),
         "spot_extent": float(spot_extent),
+        "multi_spot": bool(extra.get("multi_spot", DEFAULT_MULTI_SPOT)),
+        "fully_inside": bool(extra.get("fully_inside", DEFAULT_FULLY_INSIDE)),
     }
 
 
@@ -629,6 +631,7 @@ def make_moving_bar_stimulus_opts(
     *,
     i_baseline=None,
     i_bar=None,
+    multi_bar: bool = True,
     mode="borst",
     readout_subtypes=None,
     **extra,
@@ -648,6 +651,7 @@ def make_moving_bar_stimulus_opts(
         bar_key: float(bar_default if i_bar is None else i_bar),
         "t_on": int(t_on),
         "deltat_ms": float(deltat),
+        "multi_bar": bool(extra.get("multi_bar", multi_bar)),
     }
     rs = _readout_subtypes_stimulus_list(readout_subtypes)
     if rs is not None:
@@ -1107,6 +1111,7 @@ def _build_network_moving_bar_target(ctx: _TrainBindCtx, C, *, pack_name: str, p
         i_baseline=opts["i_baseline"],
         contrasts=(polarity,),
         readout_subtypes=_readout_subtypes_from_opts(opts),
+        multi_bar=bool(opts.get("multi_bar", True)),
     )
     if polarity == "bright":
         build_kw["i_bright_bar"] = opts["i_bright_bar"]
@@ -1167,12 +1172,16 @@ def _build_network_spot_target(
 
     cost_extent = normalize_cost_extent(opts.get("cost_extent"))
     shift_extent = int(opts.get("shift_extent", 0))
-    from network.spot_target import DEFAULT_SPOT_EXTENT
+    from network.spot_target import DEFAULT_FULLY_INSIDE, DEFAULT_MULTI_SPOT, DEFAULT_SPOT_EXTENT
 
     spot_extent = float(opts.get("spot_extent", DEFAULT_SPOT_EXTENT))
+    multi_spot = bool(opts.get("multi_spot", DEFAULT_MULTI_SPOT))
+    fully_inside = bool(opts.get("fully_inside", DEFAULT_FULLY_INSIDE))
     T = build_shifted_target(
         C,
         spot_extent=spot_extent,
+        multi_spot=multi_spot,
+        fully_inside=fully_inside,
         shift_extent=shift_extent,
         device=ctx.dev or active_device(),
         sim_dtype=ctx.sim_dtype,
@@ -1308,6 +1317,24 @@ def apply_spot_extent_to_stimulus_opts(opts, target_name, spot_extent):
     return out
 
 
+def apply_multi_spot_to_stimulus_opts(opts, target_name, multi_spot):
+    """Set ``multi_spot`` on spot stimulus opts."""
+    if target_name not in SPOT_TARGETS:
+        return opts
+    out = dict(opts or {})
+    out["multi_spot"] = bool(multi_spot)
+    return out
+
+
+def apply_fully_inside_to_stimulus_opts(opts, target_name, fully_inside):
+    """Set ``fully_inside`` on spot stimulus opts."""
+    if target_name not in SPOT_TARGETS:
+        return opts
+    out = dict(opts or {})
+    out["fully_inside"] = bool(fully_inside)
+    return out
+
+
 def apply_spot_cost_radius_weight_to_stimulus_opts(opts, target_name, spot_cost_radius_weight):
     """Set ``spot_cost_radius_weight`` on spot stimulus opts (``None`` → default weights)."""
     if target_name not in SPOT_TARGETS or spot_cost_radius_weight is None:
@@ -1390,6 +1417,8 @@ def _finalize_stimulus_opts(
     cost_extent_by_target,
     shift_extent,
     spot_extent,
+    multi_spot,
+    fully_inside,
     spot_cost_radius_weight,
     i_cli,
 ):
@@ -1399,7 +1428,10 @@ def _finalize_stimulus_opts(
         step_key = _SPOT_STEP_KEY[polarity]
         out = make_spot_stimulus_opts(polarity, mode=build_mode, **{
             k: v for k, v in (opts or {}).items()
-            if k in ("i_baseline", step_key, "shift_extent", "spot_extent")
+            if k in (
+                "i_baseline", step_key, "shift_extent", "spot_extent",
+                "multi_spot", "fully_inside",
+            )
         })
     elif target_name == "moving_bar_bright":
         out = make_moving_bar_stimulus_opts(
@@ -1407,7 +1439,7 @@ def _finalize_stimulus_opts(
             mode=build_mode,
             **{
                 k: v for k, v in (opts or {}).items()
-                if k in ("i_baseline", "i_bright_bar", "readout_subtypes")
+                if k in ("i_baseline", "i_bright_bar", "readout_subtypes", "multi_bar")
             },
         )
     elif target_name == "moving_bar_dark":
@@ -1416,7 +1448,7 @@ def _finalize_stimulus_opts(
             mode=build_mode,
             **{
                 k: v for k, v in (opts or {}).items()
-                if k in ("i_baseline", "i_dark_bar", "readout_subtypes")
+                if k in ("i_baseline", "i_dark_bar", "readout_subtypes", "multi_bar")
             },
         )
     else:
@@ -1424,6 +1456,8 @@ def _finalize_stimulus_opts(
     out = apply_cost_extent_to_stimulus_opts(out, target_name, cost_extent_by_target)
     out = apply_shift_extent_to_stimulus_opts(out, target_name, shift_extent)
     out = apply_spot_extent_to_stimulus_opts(out, target_name, spot_extent)
+    out = apply_multi_spot_to_stimulus_opts(out, target_name, multi_spot)
+    out = apply_fully_inside_to_stimulus_opts(out, target_name, fully_inside)
     out = apply_spot_cost_radius_weight_to_stimulus_opts(out, target_name, spot_cost_radius_weight)
     out = apply_i_cli_to_stimulus_opts(out, target_name, i_cli)
     if session_mode is not None:
@@ -1472,6 +1506,8 @@ def make_train_opts(
     cost_extent_by_target=None,
     shift_extent=0,
     spot_extent=None,
+    multi_spot=True,
+    fully_inside=True,
     spot_cost_radius_weight=None,
     i_cli=None,
     moving_bar_bright_stimulus_opts=None,
@@ -1503,6 +1539,8 @@ def make_train_opts(
         cost_extent_by_target=cost_extent_by_target,
         shift_extent=shift_extent,
         spot_extent=spot_extent,
+        multi_spot=multi_spot,
+        fully_inside=fully_inside,
         spot_cost_radius_weight=spot_cost_radius_weight,
         i_cli=i_cli,
     )
