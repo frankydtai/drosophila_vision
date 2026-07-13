@@ -350,6 +350,7 @@ def build_session(
     cost_weights=None,
     cost_extent_by_target=None,
     shift_extent=0,
+    spot_extent=None,
     spot_cost_radius_weight=None,
     i_cli=None,
     ih_group_names=None,
@@ -374,6 +375,7 @@ def build_session(
         sequential=sequential,
         cost_extent_by_target=cost_extent_by_target,
         shift_extent=shift_extent,
+        spot_extent=spot_extent,
         spot_cost_radius_weight=spot_cost_radius_weight,
         i_cli=i_cli,
         spot_bright_stimulus_opts=spot_bright_stimulus_opts,
@@ -408,6 +410,7 @@ def run_training(model, nofruns, nofsteps, lrs, fname=None, outdir=None,
                  network=None, sequential=False,
                  target_list=None, cost_weights=None,
                  cost_extent_by_target=None, shift_extent=0,
+                 spot_extent=None,
                  spot_cost_radius_weight=None,
                  i_cli=None,
                  ih_group_names=None,
@@ -432,6 +435,7 @@ def run_training(model, nofruns, nofsteps, lrs, fname=None, outdir=None,
         cost_weights=cost_weights,
         cost_extent_by_target=cost_extent_by_target,
         shift_extent=shift_extent,
+        spot_extent=spot_extent,
         spot_cost_radius_weight=spot_cost_radius_weight,
         i_cli=i_cli,
         ih_group_names=ih_group_names,
@@ -525,11 +529,21 @@ def add_training_arguments(parser):
              "(n_shifts=1+3k(k+1); 0->1, 1->7, 2->19, 3->37, ...)",
     )
     parser.add_argument(
+        "--spot-extent",
+        type=float,
+        default=None,
+        metavar="R",
+        help="spot footprint / centre-tiling radius (0.5 multiples; default 1); "
+             "extent=1 folds RecF(2) into r=1 target amp and defaults cost weights "
+             "to 0=1,1=1/6; extent 1.5/2 keep RecF(r) and 0=1,1=1/6,2=1/6",
+    )
+    parser.add_argument(
         "--spot-cost-r-w",
         default="",
         metavar="R=W,...",
         help="spot cost weights by Euclidean r from stim column (r=w); "
-             "default 0=1,1=1/6,2=1/6; omitted radii → 0 (excluded); "
+             "default depends on --spot-extent (1→0=1,1=1/6; else 0=1,1=1/6,2=1/6); "
+             "omitted radii → 0 (excluded); weights only (does not change RecF data); "
              "e.g. 0=1,1=1/6,2=1/12",
     )
     parser.add_argument(
@@ -631,7 +645,7 @@ def parse_cost_extent(text):
 
 
 def parse_spot_cost_r_w(text):
-    """Parse ``--spot-cost-r-w`` (r=w); empty → default ``0=1,1=1/6,2=1/6``."""
+    """Parse ``--spot-cost-r-w`` (r=w); empty → default from ``--spot-extent``."""
     from network.spot_target import (
         expand_spot_cost_r_w_dict,
         parse_spot_cost_radius_weight_value,
@@ -683,6 +697,10 @@ def training_kwargs_from_args(
         raise ValueError("--cost-extent must be -1 or >= 0")
     if args.shift_extent < 0:
         raise ValueError("--shift-extent must be >= 0")
+    from network.spot_target import DEFAULT_SPOT_EXTENT, spot_extent_half_steps
+
+    spot_extent = DEFAULT_SPOT_EXTENT if args.spot_extent is None else float(args.spot_extent)
+    spot_extent_half_steps(spot_extent)
     spot_cost_radius_weight = parse_spot_cost_r_w(args.spot_cost_r_w)
     i_cli = fc.build_i_cli_by_target({
         "i_baseline": parse_comma_kv(args.i_baseline, float),
@@ -707,6 +725,7 @@ def training_kwargs_from_args(
         cost_weights=cost_weights,
         cost_extent_by_target=cost_extent_by_target,
         shift_extent=int(args.shift_extent),
+        spot_extent=spot_extent,
         spot_cost_radius_weight=spot_cost_radius_weight,
         i_cli=i_cli,
         ih_group_names=parse_comma_list(args.ih_group),

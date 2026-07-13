@@ -7,21 +7,42 @@ Section B — training target (``build_shifted_target``, ``spot_cost_*``, …).
 Hex disc enumeration lives in :mod:`column_mapper`; spot centre tiling and
 Euclidean cost-radius grouping live in this module.
 
-For every (spot, shift) stimulus the connectome is driven at ONE column; each
-fit-cell readout is compared to ``RecF(radius) * ImpR(t)`` where ``radius`` is the
-**Euclidean** hex distance (in column units) from the stimulated column to the
-readout cell's column. The extent-2 patch is NOT iso-distant: 6 corners sit at
-radius=2, 6 edge midpoints at radius=sqrt(3). ``RecF`` is sampled from the
+For every shift batch all spot centres step together at ``t_on`` (one batch per
+shift, ``B = n_shifts``). Each fit-cell readout is compared to a
+**superposed** target
+``(Σ_{(su,sv) in batch} _spot_target_amp(RecF, dist, spot_extent)) * ImpR(t)``
+where ``dist`` is the Euclidean hex distance from each simultaneous stim column
+``(su, sv)`` to the readout column ``(mu, mv)``. Cost rows are enumerated per
+stim and radius ring (no dedup); weight uses ``radius_key`` from
+``--spot-cost-r-w``, target uses the full batch sum above (cached per
+``(batch, mu, mv, fit type)``). The extent-2 patch is NOT iso-distant: 6 corners sit
+at radius=2, 6 edge midpoints at radius=sqrt(3). ``RecF`` is sampled from the
 continuous analytic Gaussian profile (``Medulla_Library.read_RecF_ImpR`` ->
 RecF_data, 45 samples centred on index 22; column distance maps to sample 22 +
 5*radius), so the sqrt(3) edge target is evaluated at its true radius rather
 than snapped to col +/-2 (which would mis-sign L1's centre-surround near its
 ~1.6 col zero crossing).
 
-When ``--spot-cost-r-w`` is omitted, weights default to
-:data:`DEFAULT_SPOT_COST_RADIUS_WEIGHT` (``0=1,1=1/6,2=1/6``; ``sqrt3`` excluded).
-With CLI, only listed radii are used; omitted radii get weight ``0`` (excluded).
-Example: ``0=1,1=1/6,2=1/12`` also skips ``sqrt3``.
+When ``spot_extent == 1`` (:func:`spot_extent_folds_r2_into_r1`):
+
+- r=1 target amplitude is ``RecF(1)+RecF(2)`` (r=2 folded in).
+- r=2 target amplitude is ``0`` (not a separate ring target).
+
+Other ``spot_extent`` values use ``RecF(radius)`` at each cost radius.
+``--spot-cost-r-w`` controls **cost weights only**; it never changes
+:func:`_spot_target_amp`.
+
+When ``--spot-cost-r-w`` is omitted, weights default via
+:func:`default_spot_cost_radius_weight`:
+
+- ``spot_extent == 1`` → ``0=1,1=1/6`` (no r=2; ``sqrt3`` excluded).
+- otherwise → ``0=1,1=1/6,2=1/6`` (``sqrt3`` excluded).
+
+With explicit CLI, only listed radii receive the given weight; omitted radii →
+weight ``0`` (excluded from :func:`resolve_spot_cost_radii`). Example:
+``0=1,1=1/6,2=1/12`` also skips ``sqrt3``. At ``spot_extent == 1``, listing
+``2=…`` can still add r=2 rings to cost, but :func:`_spot_target_amp` keeps
+target amplitude zero there (fold rule).
 
 ``build_shifted_target`` returns a :class:`ShiftedTarget` (timing: :mod:`training_config`):
 
@@ -32,6 +53,8 @@ Example: ``0=1,1=1/6,2=1/12`` also skips ``sqrt3``.
     cost_radius     (n_cost,)    Euclidean radius {0,1,sqrt3,2,...} per cost cell
     readout_batch   (n_cost,)    which batch (stimulus) each cost cell belongs to
     readout_unit    (n_cost,)    which unit each cost cell is
+    readout_stim_u  (n_cost,)    stim column u for this cost row's ring anchor
+    readout_stim_v  (n_cost,)    stim column v for this cost row's ring anchor
 
 ``info`` includes ``n_cost`` (readout rows) and ``n_cost_columns`` (member
 columns in ``cost_extent`` per stimulus batch: ``int`` when uniform, else
@@ -41,7 +64,7 @@ from __future__ import annotations
 
 import math
 from dataclasses import dataclass
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Optional, Sequence, Tuple
 
 import numpy as np
 import torch
@@ -64,11 +87,17 @@ _RF_NSAMPLES = 45
 # Euclidean radii recognised by ``--spot-cost-r-w``.
 DEFAULT_SPOT_COST_RADII: Tuple[float, ...] = (0.0, 1.0, math.sqrt(3), 2.0)
 
-# Default ``--spot-cost-r-w`` when the CLI flag is omitted.
+# Default ``--spot-cost-r-w`` when omitted and ``spot_extent != 1`` (e.g. 1.5, 2).
 DEFAULT_SPOT_COST_RADIUS_WEIGHT: Dict[float, float] = {
     0.0: 1.0,
     1.0: 1.0 / 6.0,
     2.0: 1.0 / 6.0,
+}
+
+# Default ``--spot-cost-r-w`` when omitted and ``spot_extent == 1`` (no r=2).
+DEFAULT_SPOT_COST_RADIUS_WEIGHT_EXTENT1: Dict[float, float] = {
+    0.0: 1.0,
+    1.0: 1.0 / 6.0,
 }
 
 SPOT_COST_RADIUS_KEY_ALIASES: Dict[str, float] = {
@@ -78,10 +107,10 @@ SPOT_COST_RADIUS_KEY_ALIASES: Dict[str, float] = {
 _SPOT_EXTENT_HALF_STEP_TOL = 1e-9
 
 # Default spot footprint / centre-tiling radius (0.5 multiples).
-DEFAULT_SPOT_EXTENT: float = 1.5
+DEFAULT_SPOT_EXTENT: float = 1.0
 
-# Panel list for multi-spot visualisation (includes :data:`DEFAULT_SPOT_EXTENT`).
-DEFAULT_SPOT_EXTENTS: Tuple[float, ...] = (0.5, 1.0, DEFAULT_SPOT_EXTENT, 2.0)
+# Panel list for multi-spot visualisation.
+DEFAULT_SPOT_EXTENTS: Tuple[float, ...] = (0.5, 1.0, 1.5, 2.0)
 
 # Keep only centres whose spot footprint lies inside connectome extent.
 DEFAULT_FULLY_INSIDE: bool = True
@@ -213,12 +242,42 @@ def parse_spot_cost_radius_weight_value(text: str) -> float:
     return float(tok)
 
 
+def spot_extent_folds_r2_into_r1(spot_extent) -> bool:
+    """True when ``spot_extent == 1`` (``spot_extent_half_steps == 2``).
+
+    Fold semantics (target via :func:`_spot_target_amp`; default cost radii via
+    :func:`default_spot_cost_radius_weight`):
+
+    - r=1 → ``RecF(1) + RecF(2)``
+    - r=2 → amplitude ``0``; omitted from default ``--spot-cost-r-w`` (weight 0).
+    """
+    return spot_extent_half_steps(spot_extent) == 2
+
+
+def default_spot_cost_radius_weight(
+    spot_extent: float = DEFAULT_SPOT_EXTENT,
+) -> Dict[float, float]:
+    """Default ``--spot-cost-r-w`` when the CLI flag is omitted.
+
+    ``spot_extent == 1``: ``0=1, 1=1/6`` only (r=2 folded — not listed).
+    Otherwise: ``0=1, 1=1/6, 2=1/6``. ``sqrt3`` is never in the default map.
+    """
+    if spot_extent_folds_r2_into_r1(spot_extent):
+        return dict(DEFAULT_SPOT_COST_RADIUS_WEIGHT_EXTENT1)
+    return dict(DEFAULT_SPOT_COST_RADIUS_WEIGHT)
+
+
 def spot_cost_radius_weight_resolved(
     spot_cost_radius_weight: Optional[Dict[float, float]] = None,
+    spot_extent: float = DEFAULT_SPOT_EXTENT,
 ) -> Dict[float, float]:
-    """Return explicit weights or :data:`DEFAULT_SPOT_COST_RADIUS_WEIGHT`."""
+    """Resolved per-radius cost weights for ``spot_extent``.
+
+    ``None`` → :func:`default_spot_cost_radius_weight`. Explicit CLI dict is
+    returned as-is (no merge with defaults); missing radii → weight 0 at lookup.
+    """
     if spot_cost_radius_weight is None:
-        return dict(DEFAULT_SPOT_COST_RADIUS_WEIGHT)
+        return default_spot_cost_radius_weight(spot_extent)
     return spot_cost_radius_weight
 
 
@@ -244,18 +303,22 @@ def expand_spot_cost_r_w_dict(
 def resolve_spot_cost_radii(
     spot_cost_radius_weight: Optional[Dict[float, float]] = None,
     *,
+    spot_extent: float = DEFAULT_SPOT_EXTENT,
     stimulus_opts: Optional[dict] = None,
 ) -> Tuple[float, ...]:
-    """Radii in spot cost with non-zero weight.
+    """Euclidean radii with non-zero cost weight (subset of ``DEFAULT_SPOT_COST_RADII``).
 
-    Unset CLI uses :data:`DEFAULT_SPOT_COST_RADIUS_WEIGHT`; explicit CLI keeps only
-    listed radii (omitted radii → weight 0, excluded).
+    Weights from :func:`spot_cost_radius_weight_resolved` (defaults depend on
+    ``spot_extent`` when CLI omitted). Explicit ``--spot-cost-r-w`` lists only
+    the radii to include; omitted radii are excluded.
 
-    With ``stimulus_opts``, read weights from ``spot_cost_radius_weight`` first.
+    With ``stimulus_opts``, read ``spot_cost_radius_weight`` / ``spot_extent``
+    from the stimulus sidecar first.
     """
     if stimulus_opts is not None:
         spot_cost_radius_weight = expand_spot_cost_r_w_dict(stimulus_opts=stimulus_opts)
-    weights = spot_cost_radius_weight_resolved(spot_cost_radius_weight)
+        spot_extent = float(stimulus_opts.get("spot_extent", spot_extent))
+    weights = spot_cost_radius_weight_resolved(spot_cost_radius_weight, spot_extent)
     return tuple(
         radius for radius in DEFAULT_SPOT_COST_RADII
         if float(weights.get(round(radius, 6), 0.0)) != 0.0
@@ -265,18 +328,30 @@ def resolve_spot_cost_radii(
 def spot_cost_cell_weight(
     radius: float,
     spot_cost_radius_weight: Optional[Dict[float, float]],
+    spot_extent: float = DEFAULT_SPOT_EXTENT,
 ) -> float:
-    """Per-cell cost weight from resolved CLI/default weights (missing radius → 0)."""
-    weights = spot_cost_radius_weight_resolved(spot_cost_radius_weight)
+    """Per-cell MSE weight for one cost-radius ring (0 if radius not listed / weight 0)."""
+    weights = spot_cost_radius_weight_resolved(spot_cost_radius_weight, spot_extent)
     return float(weights.get(round(radius, 6), 0.0))
 
 
-def spot_stimulus_batches(spotting: Spotting) -> List[Tuple[int, int, Tuple[int, int]]]:
-    """One batch per (spot centre, shift): ``(stim_u, stim_v, center)``."""
-    batches = []
-    for center in spotting.centers:
-        for du, dv in spotting.shifts:
-            batches.append((center[0] + du, center[1] + dv, center))
+@dataclass(frozen=True)
+class SpotBatch:
+    """One simultaneous spot stimulus: all ``stim_uv`` columns step in one batch."""
+
+    shift: Tuple[int, int]
+    stim_uv: Tuple[Tuple[int, int], ...]
+
+
+def spot_stimulus_batches(spotting: Spotting) -> List[SpotBatch]:
+    """One batch per shift; each batch steps all spot centres (+ shift) together."""
+    batches: List[SpotBatch] = []
+    for du, dv in spotting.shifts:
+        stim_uv = tuple(
+            (int(cu + du), int(cv + dv))
+            for cu, cv in spotting.centers
+        )
+        batches.append(SpotBatch(shift=(int(du), int(dv)), stim_uv=stim_uv))
     return batches
 
 
@@ -354,6 +429,8 @@ class ShiftedTarget:
     cost_radius: torch.Tensor     # (n_cost,)
     readout_batch: torch.Tensor   # (n_cost,) long
     readout_unit: torch.Tensor    # (n_cost,) long
+    readout_stim_u: torch.Tensor  # (n_cost,) long
+    readout_stim_v: torch.Tensor  # (n_cost,) long
     n_batch: int
     info: dict
 
@@ -365,26 +442,86 @@ def _recf_at(recf_row: np.ndarray, radius: float) -> float:
     return float(np.interp(idx, np.arange(_RF_NSAMPLES), recf_row))
 
 
-def spot_cost_columns(batches, cost_radii, cost_extent):
-    """Cost columns at stim-centred Euclidean radii: ``(batch, mu, mv, radius)`` each."""
+def _spot_target_amp(recf_row: np.ndarray, radius: float, spot_extent: float) -> float:
+    """RecF amplitude coefficient for one cost cell (before ``* ImpR``).
+
+    ``spot_extent == 1`` (:func:`spot_extent_folds_r2_into_r1`):
+
+    - r=1 → ``RecF(1) + RecF(2)``
+    - r=2 → ``0`` (folded; default cost also omits r=2)
+
+    Other extents: ``RecF(radius)`` at the ring's Euclidean radius.
+    """
+    r = round(float(radius), 6)
+    if spot_extent_folds_r2_into_r1(spot_extent):
+        if r == 1.0:
+            return _recf_at(recf_row, 1.0) + _recf_at(recf_row, 2.0)
+        if r == 2.0:
+            return 0.0
+    return _recf_at(recf_row, r)
+
+
+def _spot_superposed_amp(
+    recf_row: np.ndarray,
+    stim_uv: Sequence[Tuple[int, int]],
+    mu: int,
+    mv: int,
+    spot_extent: float,
+) -> float:
+    """Sum of :func:`_spot_target_amp` over all simultaneous stim columns."""
+    total = 0.0
+    for su, sv in stim_uv:
+        dist = round(euclid_hex_dist(int(mu) - int(su), int(mv) - int(sv)), 6)
+        total += _spot_target_amp(recf_row, dist, spot_extent)
+    return total
+
+
+def _spot_superposed_trace(
+    recf_row: np.ndarray,
+    stim_uv: Sequence[Tuple[int, int]],
+    mu: int,
+    mv: int,
+    spot_extent: float,
+    impr_row: np.ndarray,
+    resp: slice,
+    data_amp: float,
+    *,
+    polarity: str,
+) -> np.ndarray:
+    amp = _spot_superposed_amp(recf_row, stim_uv, mu, mv, spot_extent)
+    trace = amp * impr_row[resp] * data_amp
+    if polarity == "dark":
+        trace = -trace
+    return trace
+
+
+def spot_cost_columns(
+    batches: Sequence[SpotBatch],
+    cost_radii,
+    cost_extent,
+) -> List[Tuple[int, int, int, float, int, int]]:
+    """Cost readouts: ``(batch, mu, mv, radius_key, su, sv)`` per stim ring (no dedup)."""
     by_radius = members_by_euclid_radius(cost_radii)
-    cols = []
-    for b, (su, sv, _center) in enumerate(batches):
-        for radius_key, members in by_radius.items():
-            for du, dv in members:
-                mu, mv = su + du, sv + dv
-                if not column_in_cost_extent(mu, mv, cost_extent):
-                    continue
-                cols.append((b, int(mu), int(mv), float(radius_key)))
+    cols: List[Tuple[int, int, int, float, int, int]] = []
+    for b, batch in enumerate(batches):
+        for su, sv in batch.stim_uv:
+            for radius_key, members in by_radius.items():
+                for du, dv in members:
+                    mu, mv = su + du, sv + dv
+                    if not column_in_cost_extent(mu, mv, cost_extent):
+                        continue
+                    cols.append((
+                        b, int(mu), int(mv), float(radius_key), int(su), int(sv),
+                    ))
     return cols
 
 
 def spot_n_cost_columns(cost_cols):
-    """Member columns in ``cost_extent`` per stimulus batch."""
+    """Member columns in ``cost_extent`` per stimulus batch (includes multi-row dup)."""
     if not cost_cols:
         return 0
     counts: Dict[int, int] = {}
-    for b, _mu, _mv, _radius in cost_cols:
+    for b, _mu, _mv, _radius, _su, _sv in cost_cols:
         counts[b] = counts.get(b, 0) + 1
     vals = set(counts.values())
     if len(vals) == 1:
@@ -393,26 +530,32 @@ def spot_n_cost_columns(cost_cols):
 
 
 def spot_cost_unit_radius_layout(C, batches, cost_radii, cost_extent):
-    """All units on :func:`spot_cost_columns`, with batch and stim-centred radius."""
+    """Units on :func:`spot_cost_columns` with batch, radius, and stim anchor."""
     u = C.u.detach().cpu().numpy() if hasattr(C.u, "detach") else np.asarray(C.u)
     v = C.v.detach().cpu().numpy() if hasattr(C.v, "detach") else np.asarray(C.v)
     type_all = (
         C.node_type.detach().cpu().numpy()
         if hasattr(C.node_type, "detach") else np.asarray(C.node_type)
     )
-    batch_idx, unit_idx, radius, type_idx = [], [], [], []
-    for b, mu, mv, cell_radius in spot_cost_columns(batches, cost_radii, cost_extent):
+    batch_idx, unit_idx, radius, type_idx, stim_u, stim_v = [], [], [], [], [], []
+    for b, mu, mv, cell_radius, su, sv in spot_cost_columns(
+        batches, cost_radii, cost_extent,
+    ):
         on_col = (u == mu) & (v == mv)
         for uid in np.where(on_col)[0]:
             batch_idx.append(b)
             unit_idx.append(int(uid))
             radius.append(cell_radius)
             type_idx.append(int(type_all[uid]))
+            stim_u.append(int(su))
+            stim_v.append(int(sv))
     return (
         np.asarray(batch_idx, dtype=np.int64),
         np.asarray(unit_idx, dtype=np.int64),
         np.asarray(radius, dtype=np.float64),
         np.asarray(type_idx, dtype=np.int64),
+        np.asarray(stim_u, dtype=np.int64),
+        np.asarray(stim_v, dtype=np.int64),
     )
 
 
@@ -450,38 +593,54 @@ def build_shifted_target(
     n_batch = len(batches)
 
     signal = torch.zeros((n_batch, maxtime, C.n_units), dtype=sim_dtype, device=device)
-    for b, (su, sv, _center) in enumerate(batches):
-        units = C.input_units_at(su, sv)
-        if len(units):
-            idx = torch.as_tensor(units, dtype=torch.long, device=device)
-            signal[b, :t_on, idx] = i_baseline
-            signal[b, t_on:, idx] = i_step
+    for b, batch in enumerate(batches):
+        for su, sv in batch.stim_uv:
+            units = C.input_units_at(su, sv)
+            if len(units):
+                idx = torch.as_tensor(units, dtype=torch.long, device=device)
+                signal[b, :t_on, idx] = i_baseline
+                signal[b, t_on:, idx] = i_step
 
     resp = slice(t_on, maxtime)  # post-T_ON cost window; see training_config
 
-    cost_radii = resolve_spot_cost_radii(spot_cost_radius_weight)
+    cost_radii = resolve_spot_cost_radii(spot_cost_radius_weight, spot_extent=spot_extent)
     cost_cols = spot_cost_columns(batches, cost_radii, cost_extent)
 
     cost_batch, cost_unit, cost_radius_list, cost_target, cost_weight_list = [], [], [], [], []
-    for b, mu, mv, radius in cost_cols:
-        w = spot_cost_cell_weight(radius, spot_cost_radius_weight)
+    cost_stim_u, cost_stim_v = [], []
+    trace_cache: Dict[Tuple[int, int, int, int], np.ndarray] = {}
+    for b, mu, mv, radius, su, sv in cost_cols:
+        w = spot_cost_cell_weight(radius, spot_cost_radius_weight, spot_extent)
         if w == 0.0:
             continue
+        stim_uv = batches[b].stim_uv
         for ft in present_fit:
             units = col2fit(C, mu, mv, ft, names)
             if len(units) == 0:
                 continue
             row = fit_row[ft]
-            amp = _recf_at(recf_data[row], radius)
-            trace = amp * impr_data[row][resp] * data_amp
-            if polarity == "dark":
-                trace = -trace
+            cache_key = (b, mu, mv, row)
+            if cache_key not in trace_cache:
+                trace_cache[cache_key] = _spot_superposed_trace(
+                    recf_data[row],
+                    stim_uv,
+                    mu,
+                    mv,
+                    spot_extent,
+                    impr_data[row],
+                    resp,
+                    data_amp,
+                    polarity=polarity,
+                )
+            trace = trace_cache[cache_key]
             for uidx in units:
                 cost_batch.append(b)
                 cost_unit.append(int(uidx))
                 cost_radius_list.append(radius)
                 cost_target.append(trace)
                 cost_weight_list.append(w)
+                cost_stim_u.append(int(su))
+                cost_stim_v.append(int(sv))
 
     if not cost_batch:
         raise ValueError("no spot cost cells (check cost_extent and fit cell types)")
@@ -491,6 +650,8 @@ def build_shifted_target(
     cost_radius = torch.tensor(np.asarray(cost_radius_list), dtype=sim_dtype, device=device)
     readout_batch = torch.tensor(np.asarray(cost_batch), dtype=torch.long, device=device)
     readout_unit = torch.tensor(np.asarray(cost_unit), dtype=torch.long, device=device)
+    readout_stim_u = torch.tensor(np.asarray(cost_stim_u), dtype=torch.long, device=device)
+    readout_stim_v = torch.tensor(np.asarray(cost_stim_v), dtype=torch.long, device=device)
 
     power = torch.sum(cost_weight[:, None] * data ** 2)
     if float(power) == 0.0:
@@ -503,6 +664,7 @@ def build_shifted_target(
         "n_centers": len(spotting.centers),
         "n_shifts": len(spotting.shifts),
         "cost_extent": cost_extent,
+        "spot_extent": float(spot_extent),
         "spot_cost_radius_weight": spot_cost_radius_weight,
         "spot_cost_radii": list(cost_radii),
         "present_fit": present_fit,
@@ -522,6 +684,8 @@ def build_shifted_target(
         cost_radius=cost_radius,
         readout_batch=readout_batch,
         readout_unit=readout_unit,
+        readout_stim_u=readout_stim_u,
+        readout_stim_v=readout_stim_v,
         n_batch=n_batch,
         info=info,
     )

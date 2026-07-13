@@ -65,12 +65,12 @@ def _radius_to_profile_bins(radius):
     return (CENTER_BIN - k, CENTER_BIN + k)
 
 
-def _readout_duv_from_batches(C, batches, batch_idx, unit_idx):
-    """Stim-centred axial ``(du, dv)`` per readout row."""
+def _readout_duv_from_batches(C, batch_idx, unit_idx, *, stim_u, stim_v):
+    """Stim-centred axial ``(du, dv)`` per readout row (per-row stim anchor)."""
     u_all = C.u.detach().cpu().numpy() if hasattr(C.u, "detach") else np.asarray(C.u)
     v_all = C.v.detach().cpu().numpy() if hasattr(C.v, "detach") else np.asarray(C.v)
-    stim_u = np.array([batches[int(b)][0] for b in batch_idx], dtype=np.int64)
-    stim_v = np.array([batches[int(b)][1] for b in batch_idx], dtype=np.int64)
+    stim_u = np.asarray(stim_u, dtype=np.int64)
+    stim_v = np.asarray(stim_v, dtype=np.int64)
     mu = u_all[unit_idx]
     mv = v_all[unit_idx]
     return mu - stim_u, mv - stim_v
@@ -618,7 +618,7 @@ def _spot_forward_rows(
 
     if all_cells:
         cost_radii = resolve_spot_cost_radii(stimulus_opts=opts)
-        batch_idx, unit_idx, _radius, type_idx = spot_cost_unit_radius_layout(
+        batch_idx, unit_idx, _radius, type_idx, stim_u, stim_v = spot_cost_unit_radius_layout(
             C, batches, cost_radii, pack.cost_extent,
         )
         names = [str(n) for n in type_names]
@@ -627,8 +627,10 @@ def _spot_forward_rows(
         unit_idx = pack.readout_unit.cpu().numpy()
         type_idx = type_ids[unit_idx]
         names = spot_model_data_names(session, pack.name, group_list)
+        stim_u = pack.readout_stim_u.cpu().numpy()
+        stim_v = pack.readout_stim_v.cpu().numpy()
 
-    du, dv = _readout_duv_from_batches(C, batches, batch_idx, unit_idx)
+    du, dv = _readout_duv_from_batches(C, batch_idx, unit_idx, stim_u=stim_u, stim_v=stim_v)
 
     raw = trace_full[batch_idx, :, unit_idx]
     if trace_kind == 'vm':

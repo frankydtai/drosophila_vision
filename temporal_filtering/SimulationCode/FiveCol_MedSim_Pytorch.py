@@ -443,6 +443,8 @@ class TargetPack:
     readout_unit: torch.Tensor  # (n_cost,)
     cost_t0: Optional[torch.Tensor] = None  # (n_cost,) absolute step for windowed targets
     cost_radius: Optional[torch.Tensor] = None  # (n_cost,) Euclidean radius for network spot
+    readout_stim_u: Optional[torch.Tensor] = None  # (n_cost,) stim anchor u per spot cost row
+    readout_stim_v: Optional[torch.Tensor] = None  # (n_cost,) stim anchor v per spot cost row
     cost_extent: Optional[int] = None  # network hex-disc radius for cost readouts
     cost_pd_nd: Optional[torch.Tensor] = None  # (n_cost,) long; 0=PD, 1=ND (moving_bar)
 
@@ -596,15 +598,20 @@ def make_spot_stimulus_opts(
     i_step=None,
     mode="borst",
     shift_extent=0,
+    spot_extent=None,
     **extra,
 ):
     """PR step stimulus opts for ``spot_{polarity}`` (baseline pre-``t_on``, step from ``t_on``)."""
     if polarity not in SPOT_POLARITIES:
         raise ValueError(f"spot polarity must be 'bright' or 'dark', got {polarity!r}")
+    from network.spot_target import DEFAULT_SPOT_EXTENT
+
     step_key = _SPOT_STEP_KEY[polarity]
     if i_step is None:
         i_step = extra.get(step_key)
     step_default = ml.I_BRIGHT if polarity == "bright" else ml.I_DARK
+    if spot_extent is None:
+        spot_extent = extra.get("spot_extent", DEFAULT_SPOT_EXTENT)
     return {
         "mode": mode,
         "i_baseline": float(ml.I_BASELINE if i_baseline is None else i_baseline),
@@ -613,6 +620,7 @@ def make_spot_stimulus_opts(
         "maxtime": int(IMPULSE_MAXTIME),
         "deltat_ms": float(deltat),
         "shift_extent": int(shift_extent),
+        "spot_extent": float(spot_extent),
     }
 
 
@@ -1159,8 +1167,12 @@ def _build_network_spot_target(
 
     cost_extent = normalize_cost_extent(opts.get("cost_extent"))
     shift_extent = int(opts.get("shift_extent", 0))
+    from network.spot_target import DEFAULT_SPOT_EXTENT
+
+    spot_extent = float(opts.get("spot_extent", DEFAULT_SPOT_EXTENT))
     T = build_shifted_target(
         C,
+        spot_extent=spot_extent,
         shift_extent=shift_extent,
         device=ctx.dev or active_device(),
         sim_dtype=ctx.sim_dtype,
@@ -1183,13 +1195,15 @@ def _build_network_spot_target(
         readout_unit=T.readout_unit,
         cost_t0=None,
         cost_radius=T.cost_radius,
+        readout_stim_u=T.readout_stim_u,
+        readout_stim_v=T.readout_stim_v,
         cost_extent=cost_extent,
     )
     coltag = _cost_extent_column_coltag(cost_extent, T.info["n_cost_columns"])
     shifttag = f"{T.info['n_shifts']} shifts"
     tag = (
-        f"{pack_name} (B={T.n_batch} stimuli [{T.info['n_centers']} spots x "
-        f"{shifttag}], {T.info['n_cost']} cost cells, {coltag})"
+        f"{pack_name} (B={T.n_batch} stimuli [{T.info['n_centers']} centres simultaneous "
+        f"x {shifttag}], {T.info['n_cost']} cost cells, {coltag})"
     )
     return pack, stim, tag
 
@@ -1282,6 +1296,18 @@ def apply_shift_extent_to_stimulus_opts(opts, target_name, shift_extent):
     return out
 
 
+def apply_spot_extent_to_stimulus_opts(opts, target_name, spot_extent):
+    """Set ``spot_extent`` on spot stimulus opts."""
+    if target_name not in SPOT_TARGETS:
+        return opts
+    from network.spot_target import spot_extent_half_steps
+
+    spot_extent_half_steps(spot_extent)
+    out = dict(opts or {})
+    out["spot_extent"] = float(spot_extent)
+    return out
+
+
 def apply_spot_cost_radius_weight_to_stimulus_opts(opts, target_name, spot_cost_radius_weight):
     """Set ``spot_cost_radius_weight`` on spot stimulus opts (``None`` → default weights)."""
     if target_name not in SPOT_TARGETS or spot_cost_radius_weight is None:
@@ -1363,6 +1389,7 @@ def _finalize_stimulus_opts(
     session_mode=None,
     cost_extent_by_target,
     shift_extent,
+    spot_extent,
     spot_cost_radius_weight,
     i_cli,
 ):
@@ -1372,7 +1399,7 @@ def _finalize_stimulus_opts(
         step_key = _SPOT_STEP_KEY[polarity]
         out = make_spot_stimulus_opts(polarity, mode=build_mode, **{
             k: v for k, v in (opts or {}).items()
-            if k in ("i_baseline", step_key, "shift_extent")
+            if k in ("i_baseline", step_key, "shift_extent", "spot_extent")
         })
     elif target_name == "moving_bar_bright":
         out = make_moving_bar_stimulus_opts(
@@ -1396,6 +1423,7 @@ def _finalize_stimulus_opts(
         out = dict(opts or {})
     out = apply_cost_extent_to_stimulus_opts(out, target_name, cost_extent_by_target)
     out = apply_shift_extent_to_stimulus_opts(out, target_name, shift_extent)
+    out = apply_spot_extent_to_stimulus_opts(out, target_name, spot_extent)
     out = apply_spot_cost_radius_weight_to_stimulus_opts(out, target_name, spot_cost_radius_weight)
     out = apply_i_cli_to_stimulus_opts(out, target_name, i_cli)
     if session_mode is not None:
@@ -1443,6 +1471,7 @@ def make_train_opts(
     sequential=None,
     cost_extent_by_target=None,
     shift_extent=0,
+    spot_extent=None,
     spot_cost_radius_weight=None,
     i_cli=None,
     moving_bar_bright_stimulus_opts=None,
@@ -1458,8 +1487,12 @@ def make_train_opts(
     fp32=False,
 ):
     """Canonical training opts for :func:`open_session` (Borst or network)."""
+    from network.spot_target import DEFAULT_SPOT_EXTENT
+
     tl = _normalize_target_list(target_list)
     mode = "network" if backend == "network" else "borst"
+    if spot_extent is None:
+        spot_extent = DEFAULT_SPOT_EXTENT
     raw_by_name = {
         "spot_bright": spot_bright_stimulus_opts,
         "spot_dark": spot_dark_stimulus_opts,
@@ -1469,6 +1502,7 @@ def make_train_opts(
     finalize_kw = dict(
         cost_extent_by_target=cost_extent_by_target,
         shift_extent=shift_extent,
+        spot_extent=spot_extent,
         spot_cost_radius_weight=spot_cost_radius_weight,
         i_cli=i_cli,
     )
@@ -2234,6 +2268,10 @@ def _slice_pack_rows(pack: TargetPack, row_ix: torch.Tensor) -> TargetPack:
         fields["cost_t0"] = pack.cost_t0[row_ix]
     if pack.cost_radius is not None:
         fields["cost_radius"] = pack.cost_radius[row_ix]
+    if pack.readout_stim_u is not None:
+        fields["readout_stim_u"] = pack.readout_stim_u[row_ix]
+    if pack.readout_stim_v is not None:
+        fields["readout_stim_v"] = pack.readout_stim_v[row_ix]
     if pack.cost_pd_nd is not None:
         fields["cost_pd_nd"] = pack.cost_pd_nd[row_ix]
     return replace(pack, **fields)
@@ -2263,6 +2301,10 @@ def _subset_pack_batches(pack: TargetPack, batch_indices: Tuple[int, ...]) -> Op
         fields["cost_t0"] = pack.cost_t0[keep]
     if pack.cost_radius is not None:
         fields["cost_radius"] = pack.cost_radius[keep]
+    if pack.readout_stim_u is not None:
+        fields["readout_stim_u"] = pack.readout_stim_u[keep]
+    if pack.readout_stim_v is not None:
+        fields["readout_stim_v"] = pack.readout_stim_v[keep]
     if pack.cost_pd_nd is not None:
         fields["cost_pd_nd"] = pack.cost_pd_nd[keep]
     return replace(pack, **fields)

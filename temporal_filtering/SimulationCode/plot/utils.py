@@ -250,18 +250,20 @@ def column_at_scope_tag(at_x, at_y):
 
 
 def batches_at_stim_xy(batches, *, at_x=None, at_y=None, tol=1e-6):
-    """Batch indices whose stimulus ``(stim_u, stim_v)`` matches hex-step slice."""
+    """Batch indices where any ``stim_uv`` column matches hex-step slice."""
     if at_x is None and at_y is None:
         return list(range(len(batches)))
     import column_mapper
     out = []
-    for b, (su, sv, _center) in enumerate(batches):
-        x, y = column_mapper.uv_to_xy(su, sv)
-        if not _coord_matches(x, at_x, tol=tol):
-            continue
-        if not _coord_matches(y, at_y, tol=tol):
-            continue
-        out.append(b)
+    for b, batch in enumerate(batches):
+        for su, sv in batch.stim_uv:
+            x, y = column_mapper.uv_to_xy(int(su), int(sv))
+            if not _coord_matches(x, at_x, tol=tol):
+                continue
+            if not _coord_matches(y, at_y, tol=tol):
+                continue
+            out.append(b)
+            break
     return out
 
 
