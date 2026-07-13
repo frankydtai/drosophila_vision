@@ -311,17 +311,77 @@ def bar_lane_pitch_deg(
     return float(pitch_cols) * float(DEG)
 
 
+def _motion_field_lo_hi(
+    spec: MovingBarSpec,
+    field_deg: Tuple[float, float, float, float],
+) -> Tuple[float, float]:
+    """Motion-axis field bounds ``(lo, hi)`` in degrees."""
+    x0, y0, x1, y1 = field_deg
+    if spec.direction in ("right", "left"):
+        return float(x0), float(x1)
+    if spec.direction in ("up", "down"):
+        return float(y0), float(y1)
+    raise ValueError(f"unknown direction {spec.direction!r}")
+
+
+def _motion_entry_exit(
+    spec: MovingBarSpec,
+    field_lo: float,
+    field_hi: float,
+) -> Tuple[float, float]:
+    """``(entry_s, exit_s)`` on the motion axis (bar enters at ``entry_s``)."""
+    if spec.direction in ("right", "up"):
+        return field_lo, field_hi
+    if spec.direction in ("left", "down"):
+        return field_hi, field_lo
+    raise ValueError(f"unknown direction {spec.direction!r}")
+
+
+def _motion_lanes(
+    spec: MovingBarSpec,
+    field_deg: Tuple[float, float, float, float],
+    bar_extent: int,
+    *,
+    multi_bar: bool = True,
+) -> List[Tuple[float, float]]:
+    """``(lane_origin, lane_pitch)`` tiled from the motion entry edge through field exit."""
+    field_lo, field_hi = _motion_field_lo_hi(spec, field_deg)
+    if not bool(multi_bar):
+        return [(field_lo, field_hi - field_lo)]
+    pitch = bar_lane_pitch_deg(spec, bar_extent, field_deg=field_deg, multi_bar=True)
+    entry_s, exit_s = _motion_entry_exit(spec, field_lo, field_hi)
+    eps = 1e-9
+    lanes: List[Tuple[float, float]] = []
+    if float(entry_s) < float(exit_s):
+        p = float(entry_s)
+        exit_v = float(exit_s)
+        while p < exit_v - eps:
+            lane_pitch = min(pitch, exit_v - p)
+            lanes.append((p, lane_pitch))
+            p += pitch
+    else:
+        p = float(entry_s) - pitch
+        exit_v = float(exit_s)
+        while p + pitch > exit_v + eps:
+            if p < exit_v - eps:
+                lanes.append((exit_v, (p + pitch) - exit_v))
+                break
+            lanes.append((p, pitch))
+            p -= pitch
+    if not lanes:
+        origin = min(float(entry_s), float(exit_s))
+        lanes.append((origin, min(pitch, abs(float(exit_s) - float(entry_s)))))
+    return lanes
+
+
 def _lane_sweep_trail_range(
     spec: MovingBarSpec,
     lane_origin: float,
-    bar_extent: int,
-    *,
-    field_deg: Optional[Tuple[float, float, float, float]] = None,
-    multi_bar: bool = True,
+    lane_pitch: float,
 ) -> Tuple[float, float]:
     """``(trail_start, trail_exit)`` for one lane; bar clips to ``[origin, origin+pitch]``."""
     w = float(spec.width_deg)
-    pitch = bar_lane_pitch_deg(spec, bar_extent, field_deg=field_deg, multi_bar=multi_bar)
+    pitch = float(lane_pitch)
     origin = float(lane_origin)
     d = spec.direction
     if d == "right":
@@ -339,17 +399,14 @@ def _bar_rect_lane_clipped(
     spec: MovingBarSpec,
     trail: float,
     lane_origin: float,
-    bar_extent: int,
+    lane_pitch: float,
     field_deg: Tuple[float, float, float, float],
-    *,
-    multi_bar: bool = True,
 ) -> Optional[Tuple[float, float, float, float]]:
     """Bar rectangle clipped to one lane; ``None`` when zero visible width."""
     x0, y0, x1, y1 = field_deg
     w = float(spec.width_deg)
-    pitch = bar_lane_pitch_deg(spec, bar_extent, field_deg=field_deg, multi_bar=multi_bar)
     origin = float(lane_origin)
-    lane_end = origin + pitch
+    lane_end = origin + float(lane_pitch)
     d = spec.direction
     if d == "right":
         vis_lo = max(float(trail), origin)
@@ -376,38 +433,6 @@ def _bar_rect_lane_clipped(
             return None
         return x0, vis_lo, x1, vis_hi
     raise ValueError(f"unknown direction {d!r}")
-
-
-def _motion_lane_origins(
-    spec: MovingBarSpec,
-    field_deg: Tuple[float, float, float, float],
-    bar_extent: int,
-    *,
-    multi_bar: bool = True,
-) -> List[float]:
-    """Lane anchor positions tiled along the motion axis (x for right/left)."""
-    x0, y0, x1, y1 = field_deg
-    if not bool(multi_bar):
-        if spec.direction in ("right", "left"):
-            return [float(x0)]
-        if spec.direction in ("up", "down"):
-            return [float(y0)]
-        raise ValueError(f"unknown direction {spec.direction!r}")
-    pitch = bar_lane_pitch_deg(spec, bar_extent, field_deg=field_deg, multi_bar=multi_bar)
-    if spec.direction in ("right", "left"):
-        p0, p1 = x0, x1
-    elif spec.direction in ("up", "down"):
-        p0, p1 = y0, y1
-    else:
-        raise ValueError(f"unknown direction {spec.direction!r}")
-    origins: List[float] = []
-    p = float(p0)
-    while p <= float(p1) - pitch + 1e-9:
-        origins.append(p)
-        p += pitch
-    if not origins:
-        origins.append(float(p0))
-    return origins
 
 
 def _coverage_time_series_whole_field(
@@ -447,18 +472,16 @@ def _coverage_time_series(
     """Superposed coverage from simultaneous per-lane bars (network connectome field)."""
     dt_s = deltat_ms / 1000.0
     step = _trail_step(spec, dt_s)
-    lane_origins = _motion_lane_origins(spec, field_deg, bar_extent, multi_bar=multi_bar)
+    lane_origins = _motion_lanes(spec, field_deg, bar_extent, multi_bar=multi_bar)
     n_cols = hex_stack.shape[0]
     n_steps = maxtime - t_on
     out = np.zeros((n_steps, n_cols), dtype=np.float64)
-    for lane_origin in lane_origins:
-        trail_start, trail_exit = _lane_sweep_trail_range(
-            spec, lane_origin, bar_extent, field_deg=field_deg, multi_bar=multi_bar,
-        )
+    for lane_origin, lane_pitch in lane_origins:
+        trail_start, trail_exit = _lane_sweep_trail_range(spec, lane_origin, lane_pitch)
         trail = float(trail_start)
         for i in range(n_steps):
             rect = _bar_rect_lane_clipped(
-                spec, trail, lane_origin, bar_extent, field_deg, multi_bar=multi_bar,
+                spec, trail, lane_origin, lane_pitch, field_deg,
             )
             if rect is not None:
                 bx0, by0, bx1, by1 = rect
@@ -595,10 +618,8 @@ def moving_bar_sweep_end_step(
         return t_on + 1
     t_exit = t_on
     for spec in specs:
-        for lane_origin in _motion_lane_origins(spec, field_deg, bar_extent, multi_bar=multi_bar):
-            trail_start, trail_exit = _lane_sweep_trail_range(
-                spec, lane_origin, bar_extent, field_deg=field_deg, multi_bar=multi_bar,
-            )
+        for lane_origin, lane_pitch in _motion_lanes(spec, field_deg, bar_extent, multi_bar=multi_bar):
+            trail_start, trail_exit = _lane_sweep_trail_range(spec, lane_origin, lane_pitch)
             t_exit = max(
                 t_exit,
                 _trail_to_step(spec, trail_start, trail_exit, t_on, deltat_ms),
@@ -669,32 +690,15 @@ def moving_bar_transit_times(
     deltat_ms: float = DELTAT_MS,
 ) -> Tuple[int, int, int]:
     """Return ``(entry, center, exit)`` step indices for the first multi-bar lane."""
-    lane_origin = _motion_lane_origins(spec, field_deg, bar_extent, multi_bar=multi_bar)[0]
-    trail_start, trail_exit = _lane_sweep_trail_range(
-        spec, lane_origin, bar_extent, field_deg=field_deg, multi_bar=multi_bar,
-    )
-    pitch = bar_lane_pitch_deg(spec, bar_extent, field_deg=field_deg, multi_bar=multi_bar)
+    lane_origin, lane_pitch = _motion_lanes(spec, field_deg, bar_extent, multi_bar=multi_bar)[0]
+    trail_start, trail_exit = _lane_sweep_trail_range(spec, lane_origin, lane_pitch)
     w = float(spec.width_deg)
     step = _trail_step(spec, deltat_ms / 1000.0)
     origin = float(lane_origin)
-    if spec.direction == "right":
-        trail_entry = trail_start + step
-        trail_center = origin + 0.5 * (pitch - w)
-        trail_exit_vis = origin + pitch - step
-    elif spec.direction == "left":
-        trail_entry = trail_start - step
-        trail_center = origin + 0.5 * (pitch + w)
-        trail_exit_vis = origin + w - step
-    elif spec.direction == "up":
-        trail_entry = trail_start + step
-        trail_center = origin + 0.5 * (pitch - w)
-        trail_exit_vis = origin + pitch - step
-    elif spec.direction == "down":
-        trail_entry = trail_start - step
-        trail_center = origin + 0.5 * (pitch + w)
-        trail_exit_vis = origin + w - step
-    else:
-        raise ValueError(f"unknown direction {spec.direction!r}")
+    # Signed ``step`` encodes sweep direction; same trail targets for all directions.
+    trail_entry = float(trail_start) + step
+    trail_center = origin + 0.5 * (float(lane_pitch) - math.copysign(1.0, step) * w)
+    trail_exit_vis = float(trail_exit) - step
     return (
         _trail_to_step(spec, trail_start, trail_entry, t_on, deltat_ms, maxtime),
         _trail_to_step(spec, trail_start, trail_center, t_on, deltat_ms, maxtime),
@@ -747,13 +751,11 @@ def bar_lane_rects_at_step(
     """All lane bar rectangles at simulation step ``t`` (empty outside local sweep)."""
     step = _trail_step(spec, deltat_ms / 1000.0)
     rects: List[Tuple[float, float, float, float]] = []
-    for lane_origin in _motion_lane_origins(spec, field_deg, bar_extent, multi_bar=multi_bar):
-        trail_start, _trail_exit = _lane_sweep_trail_range(
-            spec, lane_origin, bar_extent, field_deg=field_deg, multi_bar=multi_bar,
-        )
+    for lane_origin, lane_pitch in _motion_lanes(spec, field_deg, bar_extent, multi_bar=multi_bar):
+        trail_start, _trail_exit = _lane_sweep_trail_range(spec, lane_origin, lane_pitch)
         trail = float(trail_start) + (t - t_on) * step
         rect = _bar_rect_lane_clipped(
-            spec, trail, lane_origin, bar_extent, field_deg, multi_bar=multi_bar,
+            spec, trail, lane_origin, lane_pitch, field_deg,
         )
         if rect is not None:
             rects.append(rect)

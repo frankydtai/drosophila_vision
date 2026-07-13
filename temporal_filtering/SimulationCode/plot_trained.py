@@ -11,16 +11,18 @@ import numpy as np
 import torch
 
 import FiveCol_MedSim_Pytorch as fc
+from network.moving_bar_target import sti_columns
+from network.spot_target import spotting_from_opts
 from plot import moving_bar as moving_bar_plot
 from plot import spot as spot_plot
-from plot.utils import parse_axis_slice_list, parse_align_xy, plot_cost
+from plot.utils import parse_axis_slice_list, parse_align_xy, plot_cost, network_column_count
 from training_config import PARAMETER_DIR, run_data_dir
 
 TRAIN_OPTS_FILE = fc.TRAIN_OPTS_FILE
 KNOWN_MODELS = ('conductance', 'adaptive')
 RUN_NAME_MAX = 255
 DEFAULT_RUN_NAME = """
-0711_032144-train-network-right_min_neuron1_extent3-nofstep-0-target-moving_bar-init-from-0711_022004-train-network-right_min_neuron1_extent3-nofstep-200-shift-extent-2-target-spot-fp32-x-1,1,0-y-0.5,-2-cost-extent-2
+27100857-train-nofsteps-1000-lrs-0.1-shift-extent-3-network-right_min_neuron1_extent3-target-spot
 """.strip()
 DEFAULT_RUN_PATH = 'conductance/' + DEFAULT_RUN_NAME
 
@@ -96,13 +98,18 @@ def _spot_plot_fn(session):
 
 
 def _network_spot_tag(session, tname):
-    """Subtitle suffix for network spot plots (shift count from sidecar)."""
+    """Subtitle suffix for network spot plots (exact spot/shift counts)."""
     if session.backend.network is None:
         return ''
     opts = (session.train_opts or {}).get(f'{tname}_stimulus_opts') or {}
-    shift_extent = int(opts.get('shift_extent', 0))
-    shifttag = f"{1 + 3 * shift_extent * (shift_extent + 1)} shifts"
-    return f'  [avg over spots x {shifttag} x radii]'
+    spotting = spotting_from_opts(session.backend.network, stimulus_opts=opts)
+    n_spots = len(spotting.centers)
+    n_shifts = len(spotting.shifts)
+    n_columns = network_column_count(session.backend.network)
+    return (
+        f'  [avg over {n_spots} spots x {n_shifts} shifts = {n_spots * n_shifts}]\n'
+        f'({n_columns} columns in network)'
+    )
 
 
 def load_train_opts(outdir):
@@ -278,19 +285,11 @@ def _plot_bar_targets(session, z, outdir, bar_targets, suffix, model_all, *,
     if bar_set == set(fc.MOVING_BAR_TARGETS):
         s_bright = _session_for_target(session, 'moving_bar_bright')
         s_dark = _session_for_target(session, 'moving_bar_dark')
-        bundle_b = moving_bar_plot.moving_bar_trace_bundle(
-            s_bright, z, 'moving_bar_bright',
-            save_trace_csv_dir=save_trace_csv_dir, **slice_kw,
-        )
-        bundle_d = moving_bar_plot.moving_bar_trace_bundle(
-            s_dark, z, 'moving_bar_dark',
-            save_trace_csv_dir=save_trace_csv_dir, **slice_kw,
-        )
         mvd = os.path.join(outdir, 'model_data_bar.png')
         moving_bar_plot.plot_moving_bar_data(
             s_bright, z, mvd, 'moving_bar_bright', session_2=s_dark,
             title=f'Moving-bar model-data ({suffix})',
-            bundle=bundle_b, bundle_2=bundle_d,
+            save_trace_csv_dir=save_trace_csv_dir,
         )
         allc = None
         if model_all:
@@ -299,24 +298,23 @@ def _plot_bar_targets(session, z, outdir, bar_targets, suffix, model_all, *,
                 s_bright, z, allc, 'moving_bar_bright', session_2=s_dark,
                 title=f'Moving-bar model-all ({suffix})',
                 right_only=plot_right_only,
-                bundle=bundle_b, bundle_2=bundle_d,
+                save_trace_csv_dir=save_trace_csv_dir, **slice_kw,
             )
         return mvd, allc
     for tname in bar_targets:
         one = _session_for_target(session, tname)
-        bundle = moving_bar_plot.moving_bar_trace_bundle(
-            one, z, tname, save_trace_csv_dir=save_trace_csv_dir, **slice_kw,
-        )
         mvd = os.path.join(outdir, 'model_data_bar.png')
         moving_bar_plot.plot_moving_bar_data(
-            one, z, mvd, tname, title=f'{tname} model-data ({suffix})', bundle=bundle,
+            one, z, mvd, tname, title=f'{tname} model-data ({suffix})',
+            save_trace_csv_dir=save_trace_csv_dir,
         )
         allc = None
         if model_all:
             allc = os.path.join(outdir, 'model_all_bar.png')
             moving_bar_plot.plot_moving_bar_all(
                 one, z, allc, tname, title=f'{tname} model-all ({suffix})',
-                right_only=plot_right_only, bundle=bundle,
+                right_only=plot_right_only,
+                save_trace_csv_dir=save_trace_csv_dir, **slice_kw,
             )
         return mvd, allc
 
@@ -415,27 +413,15 @@ def plot_param_set(params, outdir, model=None, model_all=True,
             if bar_set == set(fc.MOVING_BAR_TARGETS):
                 s_bright = _session_for_target(session, 'moving_bar_bright')
                 s_dark = _session_for_target(session, 'moving_bar_dark')
-                bundle_b = moving_bar_plot.moving_bar_trace_bundle(
-                    s_bright, z, 'moving_bar_bright',
-                    at_x_list=at_x, at_y_list=at_y,
-                    align_at_x=align_at_x, align_at_y=align_at_y,
-                    trace_kind='vm',
-                    save_trace_csv_dir=save_trace_csv_dir,
-                )
-                bundle_d = moving_bar_plot.moving_bar_trace_bundle(
-                    s_dark, z, 'moving_bar_dark',
-                    at_x_list=at_x, at_y_list=at_y,
-                    align_at_x=align_at_x, align_at_y=align_at_y,
-                    trace_kind='vm',
-                    save_trace_csv_dir=save_trace_csv_dir,
-                )
                 allc = os.path.join(outdir, 'model_all_bar_vm.png')
                 moving_bar_plot.plot_moving_bar_all(
                     s_bright, z, allc, 'moving_bar_bright', session_2=s_dark,
                     title=f'Moving-bar Vm-all ({suffix})',
                     right_only=plot_right_only,
+                    at_x_list=at_x, at_y_list=at_y,
+                    align_at_x=align_at_x, align_at_y=align_at_y,
                     trace_kind='vm',
-                    bundle=bundle_b, bundle_2=bundle_d,
+                    save_trace_csv_dir=save_trace_csv_dir,
                 )
             else:
                 tname = bar_targets[0]

@@ -19,9 +19,11 @@ from plot.utils import (
     TRACE_LW,
     annotate_baseline,
     baselines_for_types,
+    cell_title_with_n,
     column_at_scope_tag,
     filter_borst_sti_columns,
     filter_sti_columns,
+    log_plot_elapsed,
     overlay_model_reds,
     plot_timecourse,
     save_figure,
@@ -70,6 +72,7 @@ def _borst_sti_columns():
 class MovingBarWindowTraces:
     model_mean: dict
     model_sem: dict
+    model_n: dict
     before_steps: dict[str, int] | None = None
     after_steps: dict[str, int] | None = None
     t0_bn: np.ndarray | None = field(default=None, repr=False, compare=False)
@@ -185,7 +188,7 @@ def _aggregate_moving_bar_traces(
     col_mask=None,
 ):
     """``windows_by_batch[bi]`` shape ``(n_units, W_bi)``."""
-    model_mean, model_sem = {}, {}
+    model_mean, model_sem, model_n = {}, {}, {}
     valid = t0_bn >= 0
     for ti, tname in enumerate(types):
         type_mask = type_ids == ti
@@ -197,11 +200,13 @@ def _aggregate_moving_bar_traces(
                 unit_mask = unit_mask & col_mask[bi]
             if not unit_mask.any():
                 continue
-            arr = windows_by_batch[bi][unit_mask]
+            uids = np.nonzero(unit_mask)[0]
+            arr = windows_by_batch[bi][uids]
             key = (tname, sname)
             model_mean[key] = arr.mean(axis=0)
             model_sem[key] = sem_from_traces(arr, single_column=single_column)
-    return model_mean, model_sem
+            model_n[key] = int(np.unique(uids).size)
+    return model_mean, model_sem, model_n
 
 
 def _network_column_unit_mask(C, filt_cols, n_batch):
@@ -316,12 +321,13 @@ def _moving_bar_slice_overlay_traces(
             session=session, cost_extent=pack.cost_extent,
         )
     windows_full = _windows_by_batch(trace_full, t0_use, win_lens)
-    model_mean, model_sem = _aggregate_moving_bar_traces(
+    model_mean, model_sem, model_n = _aggregate_moving_bar_traces(
         windows_full, t0_use, type_ids, types, spec_names, True, col_mask=col_mask,
     )
     return MovingBarWindowTraces(
         model_mean=model_mean,
         model_sem=model_sem,
+        model_n=model_n,
         before_steps=base_wt.before_steps,
         after_steps=base_wt.after_steps,
         t0_bn=t0_full_bn,
@@ -467,12 +473,13 @@ def _moving_bar_traces_from_forward(
         for sname in spec_names
     ]
     windows_full = _windows_by_batch(trace_full, t0_full_bn, win_lens)
-    trace_mean, trace_sem = _aggregate_moving_bar_traces(
+    trace_mean, trace_sem, trace_n = _aggregate_moving_bar_traces(
         windows_full, t0_full_bn, type_ids, types, spec_names, single_column,
     )
     return MovingBarWindowTraces(
         model_mean=trace_mean,
         model_sem=trace_sem,
+        model_n=trace_n,
         before_steps=full_before_steps,
         after_steps=full_after_steps,
         t0_bn=t0_full_bn,
@@ -807,14 +814,13 @@ def _moving_bar_all_scope_label(b_on):
     return _moving_bar_scope_label(b_on.session)
 
 
-def _plot_moving_bar_all_from_bundles(path, b_on, b_2, title, *, right_only=True):
-    t0 = time.perf_counter()
+def _moving_bar_all_figure(b_on, b_2, title, *, right_only=True):
     single_column = b_on.single_column
     types = b_on.types
     wt_on = b_on.traces
     spec_names = _filter_right_specs(b_on.spec_names, right_only)
     ncols_on = len(spec_names)
-    model_mean, model_sem = wt_on.model_mean, wt_on.model_sem
+    model_mean, model_sem, model_n = wt_on.model_mean, wt_on.model_sem, wt_on.model_n
     data_mean = b_on.data_mean
     baselines = b_on.baselines
     baselines_2 = None
@@ -827,15 +833,13 @@ def _plot_moving_bar_all_from_bundles(path, b_on, b_2, title, *, right_only=True
         spec_names = list(spec_names) + list(spec_2)
         model_mean = {**model_mean, **wt_2.model_mean}
         model_sem = {**model_sem, **wt_2.model_sem}
+        model_n = {**model_n, **wt_2.model_n}
         data_mean = {**data_mean, **b_2.data_mean}
         baselines_2 = b_2.baselines
-    t_traces = time.perf_counter() - t0
-
     show_sem = not single_column and not has_slices
     nrows = len(types)
     ncols = len(spec_names)
     fig, axes = _moving_bar_figure(nrows, ncols)
-    t1 = time.perf_counter()
     for ri, tname in enumerate(types):
         for ci, sname in enumerate(spec_names):
             ax = axes[ri, ci]
@@ -850,6 +854,7 @@ def _plot_moving_bar_all_from_bundles(path, b_on, b_2, title, *, right_only=True
                 bl = baselines_2.get(tname)
             before_steps, after_steps = _window_steps(wt, sname)
             if has_slices and b_src is not None and b_src.slice_overlay is not None:
+                cell_title = cell_title_with_n(sname, model_n.get(key))
                 slice_traces = {
                     label: _bundle_slice_trace(b_src, label, key)
                     for label in slice_labels
@@ -862,7 +867,7 @@ def _plot_moving_bar_all_from_bundles(path, b_on, b_2, title, *, right_only=True
                 _plot_moving_bar_cell_slices(
                     ax, model_mean[key], model_sem.get(key),
                     slice_traces, plot_labels,
-                    sname, before_steps, after_steps,
+                    cell_title, before_steps, after_steps,
                     data_trace=data_mean.get(key),
                     show_ylabel=(ci == 0),
                     show_sem=show_sem and key in model_sem and np.any(model_sem[key]),
@@ -873,9 +878,10 @@ def _plot_moving_bar_all_from_bundles(path, b_on, b_2, title, *, right_only=True
                     baseline=bl,
                 )
             else:
+                cell_title = cell_title_with_n(sname, model_n.get(key))
                 _plot_moving_bar_cell(
                     ax, model_mean[key], model_sem.get(key),
-                    sname, before_steps, after_steps,
+                    cell_title, before_steps, after_steps,
                     data_trace=data_mean.get(key),
                     show_ylabel=(ci == 0),
                     show_sem=show_sem and key in model_sem and np.any(model_sem[key]),
@@ -890,27 +896,23 @@ def _plot_moving_bar_all_from_bundles(path, b_on, b_2, title, *, right_only=True
     scope = _moving_bar_all_scope_label(b_on)
     fig.suptitle(title + f'  [{scope}, t_first_sti-aligned full window]', fontsize=12)
     _moving_bar_figure_adjust(fig)
-    t_draw = time.perf_counter() - t1
-    t2 = time.perf_counter()
-    save_figure(fig, path, dpi=MOVING_BAR_DPI, rasterize=True)
-    t_save = time.perf_counter() - t2
-    print(
-        f'plot_moving_bar_all: {path} traces={t_traces:.1f}s  '
-        f'draw={t_draw:.1f}s  savefig={t_save:.1f}s  total={t_traces+t_draw+t_save:.1f}s'
-    )
+    return fig
 
 
 @torch.no_grad()
 def plot_moving_bar_data(session_1, z, path, target, session_2=None, title=None, *,
                          bundle=None, bundle_2=None, save_trace_csv_dir: str | None = None):
+    t0 = time.perf_counter()
     b_on = bundle or moving_bar_trace_bundle(
         session_1, z, target, save_trace_csv_dir=save_trace_csv_dir,
     )
     b_2 = None
     if session_2 is not None:
+        target_2 = session_2.primary_pack.name
         b_2 = bundle_2 or moving_bar_trace_bundle(
-            session_2, z, target, save_trace_csv_dir=save_trace_csv_dir,
+            session_2, z, target_2, save_trace_csv_dir=save_trace_csv_dir,
         )
+    t_prep = time.perf_counter()
     single_column = b_on.single_column
     row_specs = _moving_bar_row_specs(b_on.session, b_on.target, b_on.side)
     readout_subtypes = list(row_specs.keys())
@@ -934,9 +936,10 @@ def plot_moving_bar_data(session_1, z, path, target, session_2=None, title=None,
                 ax.axis('off')
                 continue
             before_steps, after_steps = _window_steps(wt, sname)
+            cell_title = cell_title_with_n(sname, wt.model_n.get(key))
             _plot_moving_bar_cell(
                 ax, wt.model_mean[key], wt.model_sem[key],
-                sname, before_steps, after_steps,
+                cell_title, before_steps, after_steps,
                 data_trace=b.data_mean.get(key),
                 show_ylabel=(col_offset + ci == 0), show_sem=not single_column,
                 mark_cost_window=True,
@@ -957,7 +960,14 @@ def plot_moving_bar_data(session_1, z, path, target, session_2=None, title=None,
         fontsize=12,
     )
     _moving_bar_figure_adjust(fig)
+    t_draw = time.perf_counter()
     save_figure(fig, path, dpi=MOVING_BAR_DPI, rasterize=True)
+    log_plot_elapsed(
+        path, t0,
+        prep=t_prep - t0,
+        draw=t_draw - t_prep,
+        save=time.perf_counter() - t_draw,
+    )
 
 
 @torch.no_grad()
@@ -967,6 +977,7 @@ def plot_moving_bar_all(session_1, z, path, target, session_2=None, title=None, 
                         align_at_x=None, align_at_y=None,
                         trace_kind: Literal['model', 'vm'] = 'model',
                         save_trace_csv_dir: str | None = None):
+    t0 = time.perf_counter()
     b_on = bundle or moving_bar_trace_bundle(
         session_1, z, target, at_x_list=at_x_list, at_y_list=at_y_list,
         align_at_x=align_at_x, align_at_y=align_at_y,
@@ -975,10 +986,20 @@ def plot_moving_bar_all(session_1, z, path, target, session_2=None, title=None, 
     )
     b_2 = None
     if session_2 is not None:
+        target_2 = session_2.primary_pack.name
         b_2 = bundle_2 or moving_bar_trace_bundle(
-            session_2, z, target, at_x_list=at_x_list, at_y_list=at_y_list,
+            session_2, z, target_2, at_x_list=at_x_list, at_y_list=at_y_list,
             align_at_x=align_at_x, align_at_y=align_at_y,
             trace_kind=trace_kind,
             save_trace_csv_dir=save_trace_csv_dir,
         )
-    _plot_moving_bar_all_from_bundles(path, b_on, b_2, title, right_only=right_only)
+    t_prep = time.perf_counter()
+    fig = _moving_bar_all_figure(b_on, b_2, title, right_only=right_only)
+    t_draw = time.perf_counter()
+    save_figure(fig, path, dpi=MOVING_BAR_DPI, rasterize=True)
+    log_plot_elapsed(
+        path, t0,
+        prep=t_prep - t0,
+        draw=t_draw - t_prep,
+        save=time.perf_counter() - t_draw,
+    )

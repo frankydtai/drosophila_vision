@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+import time
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -156,6 +157,36 @@ def sem_from_traces(traces, single_column=False):
     if single_column or traces.shape[0] == 1:
         return np.zeros(traces.shape[1], dtype=np.float64)
     return traces.std(axis=0) / np.sqrt(traces.shape[0])
+
+
+def readout_n_by_name(type_idx, type_names, names, unit_idx):
+    """Unique readout unit count per plotted type name."""
+    type_idx = np.asarray(type_idx)
+    unit_idx = np.asarray(unit_idx)
+    return {
+        name: int(np.unique(unit_idx[type_idx == type_names.index(name)]).size)
+        for name in names
+    }
+
+
+def cell_title_with_n(label, n=None):
+    """Subplot title with sample count when *n* is set."""
+    if n is None:
+        return label
+    return f'{label} (n={int(n)})'
+
+
+def network_column_count(C):
+    """Unique axial columns on connectome ``C``."""
+    return len({(int(u), int(v)) for u, v in zip(C.u, C.v)})
+
+
+def log_plot_elapsed(path, t0, **parts):
+    """Print per-figure timing (seconds) after saving a plot."""
+    total = time.perf_counter() - t0
+    bits = [f'{name}={float(val):.1f}s' for name, val in parts.items()]
+    bits.append(f'total={total:.1f}s')
+    print(f'plot {path}: {"  ".join(bits)}')
 
 
 def _hex_coord_token(val):
@@ -425,6 +456,7 @@ def _cost_curve_subplot_rows(names, costs_by_target, total_costs):
 
 def plot_cost(costs, path, *, costs_by_target=None, target_order=None):
     """Plot training cost; total + one subplot per target when ``costs_by_target`` is given."""
+    t0 = time.perf_counter()
     if costs_by_target:
         names = list(target_order) if target_order else list(costs_by_target.keys())
         names = [n for n in names if n in costs_by_target and len(costs_by_target[n])]
@@ -449,7 +481,9 @@ def plot_cost(costs, path, *, costs_by_target=None, target_order=None):
             axes[-1].set_xlabel('step')
             fig.suptitle(f'Training cost ({nsteps} steps)', fontsize=12, y=1.01)
             fig.tight_layout()
+            t_draw = time.perf_counter()
             save_figure(fig, path, dpi=150)
+            log_plot_elapsed(path, t0, draw=t_draw - t0, save=time.perf_counter() - t_draw)
             return
         if len(names) == 1:
             costs = costs_by_target[names[0]]
@@ -460,4 +494,6 @@ def plot_cost(costs, path, *, costs_by_target=None, target_order=None):
     ax.set_title(f'Training cost ({len(costs)} steps)')
     ax.grid(True, alpha=0.3)
     fig.tight_layout()
+    t_draw = time.perf_counter()
     save_figure(fig, path, dpi=150)
+    log_plot_elapsed(path, t0, draw=t_draw - t0, save=time.perf_counter() - t_draw)

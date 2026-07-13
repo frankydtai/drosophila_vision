@@ -344,6 +344,7 @@ def resolve_network(network):
 def build_session(
     model,
     *,
+    borst=False,
     network=None,
     sequential=False,
     target_list=None,
@@ -387,7 +388,7 @@ def build_session(
         moving_bar_bright_stimulus_opts=moving_bar_bright_stimulus_opts,
         moving_bar_dark_stimulus_opts=moving_bar_dark_stimulus_opts,
     )
-    if network:
+    if network and not borst:
         network = resolve_network(network)
         opts = fc.make_train_opts(
             backend="network",
@@ -411,7 +412,7 @@ def build_session(
 def run_training(model, nofruns, nofsteps, lrs, fname=None, outdir=None,
                  param_modes=None,
                  ih_off=fc.IH_OFF_DEFAULT,
-                 network=None, sequential=False,
+                 network=None, sequential=False, borst=False,
                  target_list=None, cost_weights=None,
                  cost_extent_by_target=None, shift_extent=0,
                  spot_extent=None,
@@ -435,6 +436,7 @@ def run_training(model, nofruns, nofsteps, lrs, fname=None, outdir=None,
     """Full training pipeline (do_many_runs + save_training_outputs + plots). Returns (fname, outdir, session)."""
     session = build_session(
         model,
+        borst=borst,
         network=network,
         sequential=sequential,
         target_list=target_list,
@@ -534,10 +536,15 @@ def add_training_arguments(parser):
                         help="run simulation in float32 (default float64)")
     parser.add_argument("--sequential", action="store_true",
                         help="one stimulus batch per forward (default: batched forward)")
-    parser.add_argument("--network", default=None, metavar="RUN",
+    parser.add_argument(
+        "--borst",
+        action="store_true",
+        help="force Borst 5-column simulator backend (ignores --network)",
+    )
+    parser.add_argument("--network", default=DEFAULT_NETWORK_RUN, metavar="RUN",
                         help=f"connectome backend: built_network run folder under {NETWORK_DIR} "
-                             f"(e.g. {DEFAULT_NETWORK_RUN}); "
-                             f"default Borst 5-column simulator if omitted")
+                             f"(default: {DEFAULT_NETWORK_RUN}); "
+                             f"use --borst to force the Borst 5-column simulator")
     parser.add_argument(
         "--multi-bar",
         type=parse_bool,

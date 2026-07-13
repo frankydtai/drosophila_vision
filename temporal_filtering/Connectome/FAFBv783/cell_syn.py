@@ -91,13 +91,12 @@ from column_mapper import (
 from connectome_io import (
     BORST_CTYPE_NPY,
     BORST_MULTI_COL_M,
+    DEFAULT_NETWORK_RUN,
     SIMULATION_CODE_DIR,
     parse_comma_list,
     resolve_network_json,
     type_counts_abc_path,
 )
-
-_DEFAULT_NETWORK = "right_min_neuron1"
 
 logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
 logger = logging.getLogger(__name__)
@@ -978,10 +977,10 @@ def main(argv: List[str] | None = None) -> int:
     )
     parser.add_argument(
         "--network",
-        default=_DEFAULT_NETWORK,
+        default=DEFAULT_NETWORK_RUN,
         help=(
-            "Network folder (e.g. right_min_neuron1, resolved next to this script) or a "
-            "direct path to a folder / network.json. Default: right_min_neuron1"
+            "Network folder (e.g. right_min_neuron1_extent10, resolved next to this script) or a "
+            "direct path to a folder / network.json. Default: right_min_neuron1_extent10"
         ),
     )
     parser.add_argument(
@@ -1047,7 +1046,7 @@ def main(argv: List[str] | None = None) -> int:
     borst_prefix = " | Borst 5-col multi_colM" if args.borst else ""
 
     if args.borst:
-        if args.network != _DEFAULT_NETWORK:
+        if args.network != DEFAULT_NETWORK_RUN:
             logger.info("--borst: ignoring --network %s", args.network)
         try:
             nodes, edges = _load_borst_graph()

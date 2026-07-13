@@ -1,0 +1,11 @@
+Job ID: 27197408
+Node:   spartan-gpgpu015
+GPU:    0
+GPU 0: NVIDIA H100 80GB HBM3 (UUID: GPU-7d7215fd-a026-26ca-9866-c85505784690)
+cuda: True NVIDIA H100 80GB HBM3
+Start:  Mon 13 Jul 2026 22:22:02 AEST
+device=cuda, model=conductance, nofruns=1, nofsteps=1000, lrs=[0.1], nparams=112, fname=training_with_Ih.npy, outdir=/home/yitai/drosophila_vision/temporal_filtering/SimulationCode/FiveCol_Parameter/conductance/27197408-train-nofsteps-1000-lrs-0.1-shift-extent-1-cost-extent-9-init-from-27191857-train-nofsteps-1000-lrs-0.1-shift-extent-2-network-right_min_neuron1_extent10-target-spot
+init-from '/home/yitai/drosophila_vision/temporal_filtering/SimulationCode/FiveCol_Parameter/conductance/27191857-train-nofsteps-1000-lrs-0.1-shift-extent-2-network-right_min_neuron1_extent10-target-spot' -> '/home/yitai/drosophila_vision/temporal_filtering/SimulationCode/FiveCol_Parameter/conductance/27191857-train-nofsteps-1000-lrs-0.1-shift-extent-2-network-right_min_neuron1_extent10-target-spot/data/best_param.npy' (112 params)
+
+round 0
+
