@@ -2011,29 +2011,29 @@ def _run_conductance(session: TrainSession, p, neuron_index=None, return_ref=Fal
     squeeze = sig.dim() == 2
     sig_b = sig.unsqueeze(0) if squeeze else sig
     if return_vm:
-        out, vm_ref, vm_full = _run_conductance_full(session, p, sig_b, return_ref=True, return_vm=True)
+        out, vm_ref, _vm_full = _run_conductance_full(session, p, sig_b, return_ref=True, return_vm=True)
     else:
         out, vm_ref = _run_conductance_full(session, p, sig_b, return_ref=True)
     out = out[:, :, neuron_index]
     vm_ref = vm_ref[:, neuron_index]
-    if return_vm:
-        vm_full = vm_full[:, :, neuron_index]
     if squeeze:
         out = out.squeeze(0)
         vm_ref = vm_ref.squeeze(0)
-        if return_vm:
-            vm_full = vm_full.squeeze(0)
-    if return_vm:
-        vm_delta = vm_full - vm_ref.unsqueeze(-2)
-        if return_ref:
-            return vm_delta, vm_ref
-        return vm_delta
     if return_ref:
         return out, vm_ref
     return out
 
 
+def _ca_readout_step(model, Vm, Vm_ref):
+    return deltat / Ca_tau * (Vm - Vm_ref - model) + model
+
+
 def _run_conductance_full(session: TrainSession, p, sig, return_ref=False, *, return_vm=False):
+    """Conductance forward; ``model_full`` time index ``t`` is post-update at step ``t``.
+
+    ``model_full`` shape ``(B, maxtime, N)`` includes equilibration (index ``0`` = ``e_leak``).
+    Ca resets at ``t_on`` so ``model_full[:, t_on:, :]`` matches the training cost window.
+    """
     backend = session.backend
     ih_off = (session.train_opts or {}).get('ih_off', IH_OFF_DEFAULT)
     inp_gain, out_gain = p['inp_gain'], p['out_gain']
@@ -2045,60 +2045,58 @@ def _run_conductance_full(session: TrainSession, p, sig, return_ref=False, *, re
     dev = backend.conn.node_type.device
     u_on = u_off = torch.zeros((B, backend.n_units), dtype=session.sim_dtype, device=dev)
     Vm = backend.e_leak.expand(B, backend.n_units).clone()
-    # Discrete-time update at step ``t`` uses ``sig[:, t-1]`` (one-step delay).
-    for t in range(1, min(t_on, t_end)):
+    vm_rows = [Vm]
+    for t in range(1, t_end):
         Vm, u_on, u_off = update_Vm(
             Vm, u_on, u_off, inp_gain, out_gain, Ih_gmax, Ih_gmax_off,
             Ih_midv, Ih_slope, tau_midv, Ih_midv_off, Ih_slope_off, tau_midv_off,
             sig[:, t - 1], backend)
-    Vm_ref = Vm.clone()
+        vm_rows.append(Vm)
+    vm_full = torch.stack(vm_rows, dim=1)
+    Vm_ref = vm_full[:, t_on - 1, :].clone()
+    vm_delta = vm_full - Vm_ref.unsqueeze(1)
+
+    ca_rows = [torch.zeros((B, backend.n_units), dtype=session.sim_dtype, device=dev)]
     model = 0
-    rows = []
-    vm_rows = [] if return_vm else None
-    for t in range(t_on, t_end):
-        # ``model_full`` column 0 is the Ca trace at sim step ``t_on`` (``sig[:, t_on-1]``).
-        Vm, u_on, u_off = update_Vm(
-            Vm, u_on, u_off, inp_gain, out_gain, Ih_gmax, Ih_gmax_off,
-            Ih_midv, Ih_slope, tau_midv, Ih_midv_off, Ih_slope_off, tau_midv_off,
-            sig[:, t - 1], backend)
-        model = deltat / Ca_tau * (Vm - Vm_ref - model) + model
-        rows.append(model)
-        if return_vm:
-            vm_rows.append(Vm)
-    out = torch.stack(rows, dim=1)
+    for t in range(1, t_end):
+        if t == t_on:
+            model = 0
+        model = _ca_readout_step(model, vm_full[:, t], Vm_ref)
+        ca_rows.append(model)
+    ca_full = torch.stack(ca_rows, dim=1)
+
     if return_vm:
-        vm_full = torch.stack(vm_rows, dim=1)
-        return out, Vm_ref, vm_full
+        if return_ref:
+            return vm_delta, Vm_ref, vm_full
+        return vm_delta
     if return_ref:
-        return out, Vm_ref
-    return out
+        return ca_full, Vm_ref
+    return ca_full
 
 
 def _window_time_traces(model_full, b_idx, u_idx, t0, win=None):
-    """Extract per-readout windows from ``model_full`` (B, T', N).
+    """Extract per-readout windows from ``model_full`` ``(B, maxtime, N)``.
 
-    ``t0`` is the absolute simulation step of window start. Steps before ``t_on``
-    are zero (``model_full`` only exists from ``t_on`` onward).
-
-    Indexing uses :func:`network.moving_bar_target.moving_bar_window_t_rel_torch`.
+    ``t0`` is the absolute simulation step of window start (slot ``k`` uses ``t0 + k``).
+    Slots with ``t0 + k < t_on`` are zero (cost / training alignment).
     """
-    from network.moving_bar_target import moving_bar_window_t_rel_torch
-
     if win is None:
         raise ValueError("window length win required")
     win = int(win)
     dev = model_full.device
-    t_rel, pre = moving_bar_window_t_rel_torch(t0, int(t_on), win, device=dev)
+    k = torch.arange(win, dtype=torch.long, device=dev)
+    t_idx = t0[:, None].to(device=dev, dtype=torch.long) + k[None, :]
     t_max = model_full.shape[1] - 1
-    t_safe = t_rel.clamp(0, t_max)
+    t_safe = t_idx.clamp(0, t_max)
     sel = model_full[b_idx[:, None], t_safe, u_idx[:, None]]
+    pre = t_idx < int(t_on)
     return torch.where(pre, torch.zeros_like(sel), sel)
 
 
 def _readout_model_traces_pack(model_full, pack: TargetPack):
     """Select model traces for cost cells; windowed when ``pack.cost_t0`` is set."""
     if pack.cost_t0 is None:
-        return model_full[pack.readout_batch, :, pack.readout_unit]
+        return model_full[pack.readout_batch, t_on:, pack.readout_unit]
     return _window_time_traces(
         model_full, pack.readout_batch, pack.readout_unit, pack.cost_t0,
         win=pack.data.shape[1],
@@ -2118,19 +2116,6 @@ def out_scale_for_units(p, unit_index, backend: ModelBackend, *, sim_dtype=SIM_D
     else:
         ci = unit_index % backend.n_types
     return os_param[ci]
-
-
-def pad_plot_traces(raw, scale, mt, t_on_step=None):
-    """Ca-filtered readout ``(N, T')`` -> full-length spot plot traces ``(N, mt)``."""
-    if t_on_step is None:
-        t_on_step = t_on
-    n, t_len = raw.shape
-    trace = torch.zeros(n, mt, dtype=raw.dtype, device=raw.device)
-    trace[:, t_on_step:t_on_step + t_len] = scale[:, None] * raw
-    trace[:, 0:t_on_step] = 0
-    # Shift one step earlier so plot time ``t`` aligns with conductance ``sig[:, t-1]``.
-    trace[:, 0:mt - 1] = trace[:, 1:mt].clone()
-    return trace
 
 
 def _pack_out_scale(p, pack: TargetPack, backend: ModelBackend, session: TrainSession):
@@ -2184,7 +2169,7 @@ def _conductance_pack_readout(p, pack: TargetPack, session: TrainSession, batch_
     mask = pack.readout_batch == int(batch_idx)
     u_m = pack.readout_unit[mask]
     if pack.cost_t0 is None:
-        return model_full[0, :, u_m].transpose(0, 1)
+        return model_full[0, t_on:, u_m].transpose(0, 1)
     b_zero = torch.zeros_like(u_m)
     return _window_time_traces(
         model_full, b_zero, u_m, pack.cost_t0[mask],
@@ -2417,7 +2402,7 @@ def _conductance_readout_from_model_full(
 ) -> torch.Tensor:
     rb = pack.readout_batch if batch_offset == 0 else pack.readout_batch + batch_offset
     if pack.cost_t0 is None:
-        return model_full[rb, :, pack.readout_unit]
+        return model_full[rb, t_on:, pack.readout_unit]
     return _window_time_traces(
         model_full, rb, pack.readout_unit, pack.cost_t0,
         win=pack.data.shape[1],

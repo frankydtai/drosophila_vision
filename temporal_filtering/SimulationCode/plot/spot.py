@@ -32,7 +32,6 @@ from plot.utils import (
     column_at_scope_tag,
     filter_borst_sti_columns,
     log_plot_elapsed,
-    nice_ylim,
     overlay_model_reds,
     plot_timecourse,
     readout_n_by_name,
@@ -55,6 +54,7 @@ from network.spot_target import (
 CENTER_BIN = ml.CENTER_COL + 2
 CTYPE = ml.ctype
 _SPOT_RECF_PROFILE_BINS = 9
+SPOT_TRACE_YLIM = (-30.0, 30.0)
 
 
 def _radius_to_profile_bins(radius):
@@ -108,17 +108,19 @@ def _session_dark(session):
     return session.primary_pack.name == "spot_dark"
 
 
-def _scale_curve(xt, center, sem_xt=None):
+def _scale_curve(xt, center, sem_xt=None, *, response_start=None):
     """Center time course + spatial profile from one ``(9, T)`` cube."""
+    t0 = int(fc.t_on if response_start is None else response_start)
     imp = xt[center]
-    if not np.isfinite(imp).any():
+    resp = imp[t0:]
+    if not np.isfinite(resp).any():
         if sem_xt is not None:
             return None, None, None
         return None, None
-    maxt = int(np.argmax(np.abs(imp)))
+    maxt = t0 + int(np.argmax(np.abs(resp)))
     spatial = np.nan_to_num(xt[:, maxt], nan=0.0)
     rf = bs.blurr(bs.rebin(spatial, 45), 5)
-    amp = float(np.max(np.abs(imp)))
+    amp = float(np.abs(imp[maxt]))
     rf = rf / (np.max(np.abs(rf)) + 1e-12) * amp
     if sem_xt is not None:
         return imp, np.roll(rf, -2), sem_xt[center]
@@ -182,13 +184,7 @@ def plot_cell_pair(
         model_2_imp_model, model_2_rf_model = _scale_curve(model_2_xt, center)
     if ref_2_xt is not None:
         model_2_imp_data, model_2_rf_data = _scale_curve(ref_2_xt, center)
-    curves = [c for c in (
-        imp_model, imp_data, rf_model, rf_data,
-        model_2_imp_model, model_2_imp_data, model_2_rf_model, model_2_rf_data,
-    ) if c is not None]
-    if imp_sem is not None and imp_model is not None:
-        curves.extend([imp_model + imp_sem, imp_model - imp_sem])
-    ylo, yhi = nice_ylim(*curves)
+    ylo, yhi = SPOT_TRACE_YLIM
 
     if rf_data is not None:
         ax_rf.plot(
@@ -287,14 +283,7 @@ def plot_cell_pair_slices(
             slice_2_imps[label] = imp_s
             slice_2_rfs[label] = rf_s
 
-    curves = [
-        imp_model, imp_data, rf_model, rf_data,
-        model_2_imp_model, model_2_imp_data, model_2_rf_model, model_2_rf_data,
-    ]
-    for label in slice_labels:
-        curves.extend([slice_imps.get(label), slice_rfs.get(label)])
-        curves.extend([slice_2_imps.get(label), slice_2_rfs.get(label)])
-    ylo, yhi = nice_ylim(*[c for c in curves if c is not None])
+    ylo, yhi = SPOT_TRACE_YLIM
 
     colors = overlay_model_reds(len(slice_labels))
     if rf_data is not None:
@@ -381,34 +370,69 @@ def _as_index(neuron_index, device):
     return neuron_index.to(device)
 
 
+def _scale_plot_traces(raw, scale):
+    """``(N, maxtime)`` readout -> scaled traces for spot timecourse plots."""
+    return scale[:, None] * raw
+
+
+def _mask_pre_ton_plot_traces(traces, *, show_pre=True, t_on_step=None):
+    """Zero absolute steps ``[0, t_on)`` when ``show_pre`` is false."""
+    if show_pre:
+        return traces
+    t_on_step = int(fc.t_on if t_on_step is None else t_on_step)
+    if torch.is_tensor(traces):
+        out = traces.clone()
+        out[..., :t_on_step] = 0
+        return out
+    out = np.asarray(traces, dtype=np.float64).copy()
+    out[..., :t_on_step] = 0.0
+    return out
+
+
+def _embed_post_ton_traces(raw, scale, mt, *, t_on_step=None):
+    """Adaptive readout ``(N, T')`` -> full-length plot traces (adaptive only)."""
+    if t_on_step is None:
+        t_on_step = fc.t_on
+    n, t_len = raw.shape
+    trace = torch.zeros(n, mt, dtype=raw.dtype, device=raw.device)
+    trace[:, t_on_step:t_on_step + t_len] = scale[:, None] * raw
+    return trace
+
+
 @torch.no_grad()
-def _simulate(session, z, neuron_index, return_ref=False, *, trace_kind='model'):
+def _simulate(session, z, neuron_index, return_ref=False, *, trace_kind='model', show_pre=True):
     neuron_index = _as_index(neuron_index, z.device)
     schema = list(session.schema)
     backend = session.backend
     if session.model == 'adaptive':
         p = fc.assign_params_adaptive(z, schema, backend)
         stacked, ref = fc._run_adaptive(p, session, neuron_index=neuron_index, return_ref=True)
+        mt = session.maxtime
+        if trace_kind == 'vm':
+            scale = torch.ones((int(neuron_index.shape[0]),), dtype=stacked.dtype, device=stacked.device)
+        else:
+            scale = fc.out_scale_for_units(p, neuron_index, backend)
+        trace = _embed_post_ton_traces(stacked.transpose(0, 1), scale, mt)
     else:
         p = fc.assign_params(z, schema, backend)
         if trace_kind == 'vm':
             stacked, ref = fc._run_conductance(
                 session, p, neuron_index=neuron_index, return_ref=True, return_vm=True,
             )
+            scale = torch.ones((int(neuron_index.shape[0]),), dtype=stacked.dtype, device=stacked.device)
         else:
-            stacked, ref = fc._run_conductance(session, p, neuron_index=neuron_index, return_ref=True)
-    mt = session.maxtime
-    if trace_kind == 'vm':
-        scale = torch.ones((int(neuron_index.shape[0]),), dtype=stacked.dtype, device=stacked.device)
-    else:
-        scale = fc.out_scale_for_units(p, neuron_index, backend)
-    trace = fc.pad_plot_traces(stacked.transpose(0, 1), scale, mt)
+            stacked, ref = fc._run_conductance(
+                session, p, neuron_index=neuron_index, return_ref=True,
+            )
+            scale = fc.out_scale_for_units(p, neuron_index, backend)
+        trace = _scale_plot_traces(stacked.transpose(0, 1), scale)
+    trace = _mask_pre_ton_plot_traces(trace, show_pre=show_pre)
     if return_ref:
         return trace, ref
     return trace
 
 
-def calc_model_full_all(session, z, return_ref=False, *, trace_kind='model'):
+def calc_model_full_all(session, z, return_ref=False, *, trace_kind='model', show_pre=True):
     n_types = session.backend.n_types
     mt = session.maxtime
     model_full = np.zeros((n_types, 9, mt))
@@ -421,11 +445,15 @@ def calc_model_full_all(session, z, return_ref=False, *, trace_kind='model'):
             device=z.device,
         )
         if return_ref:
-            trace, ref = _simulate(session, z, col_index, return_ref=True, trace_kind=trace_kind)
+            trace, ref = _simulate(
+                session, z, col_index, return_ref=True, trace_kind=trace_kind, show_pre=show_pre,
+            )
             model_full[:, col + 2] = trace.cpu().numpy()
             ref_full[:, col + 2] = ref.cpu().numpy()
         else:
-            model_full[:, col + 2] = _simulate(session, z, col_index, trace_kind=trace_kind).cpu().numpy()
+            model_full[:, col + 2] = _simulate(
+                session, z, col_index, trace_kind=trace_kind, show_pre=show_pre,
+            ).cpu().numpy()
     if return_ref:
         return model_full, ref_full
     return model_full
@@ -592,20 +620,18 @@ def _spot_baselines(rows, vm_ref, names, *, at_x=None, at_y=None):
 @torch.no_grad()
 def _spot_forward_rows(
     session, z, all_cells=False, group_list=None, *, trace_kind='model',
-    save_trace_csv_dir=None, at_x=None, at_y=None,
+    save_trace_csv_dir=None, at_x=None, at_y=None, show_pre=True,
 ):
     pack = session.primary_pack
     schema = list(session.schema)
     p = fc.assign_params(z, schema, session.backend)
     sig = pack.signal if pack.signal.dim() == 3 else pack.signal.unsqueeze(0)
     if trace_kind == 'vm':
-        model_full, vm_ref, vm_full = fc._run_conductance_full(
+        trace_full, vm_ref, _vm_full = fc._run_conductance_full(
             session, p, sig, return_ref=True, return_vm=True,
         )
-        trace_full = vm_full - vm_ref[:, None, :]
     else:
-        model_full, vm_ref = fc._run_conductance_full(session, p, sig, return_ref=True)
-        trace_full = model_full
+        trace_full, vm_ref = fc._run_conductance_full(session, p, sig, return_ref=True)
     vm_ref_np = vm_ref[0].cpu().numpy()
     save_forward_trace_csvs(
         save_trace_csv_dir, pack.name,
@@ -644,7 +670,9 @@ def _spot_forward_rows(
         scale = fc.out_scale_for_units(
             p, torch.as_tensor(unit_idx, dtype=torch.long, device=z.device), session.backend,
         )
-    plot_traces = fc.pad_plot_traces(raw, scale, mt).cpu().numpy()
+    plot_traces = _mask_pre_ton_plot_traces(
+        _scale_plot_traces(raw, scale), show_pre=show_pre,
+    ).cpu().numpy()
     rows = dict(
         names=names,
         type_names=type_names,
@@ -671,11 +699,11 @@ def _spot_forward_rows(
 @torch.no_grad()
 def multicol_cube(
     session, z, all_cells=False, group_list=None, *, trace_kind='model',
-    save_trace_csv_dir=None,
+    save_trace_csv_dir=None, show_pre=True,
 ):
     rows = _spot_forward_rows(
         session, z, all_cells=all_cells, group_list=group_list,
-        trace_kind=trace_kind, save_trace_csv_dir=save_trace_csv_dir,
+        trace_kind=trace_kind, save_trace_csv_dir=save_trace_csv_dir, show_pre=show_pre,
     )
     names = rows['names']
     mt = rows['mt']
@@ -693,8 +721,13 @@ def multicol_cube(
     return names, cube, sem, rows['baselines'], n_by_name
 
 
-def _prepare_borst_spot(session, z, all_cells, group_list, *, trace_kind='model', save_trace_csv_dir=None):
-    model, ref = calc_model_full_all(session, z, return_ref=True, trace_kind=trace_kind)
+def _prepare_borst_spot(
+    session, z, all_cells, group_list, *, trace_kind='model', save_trace_csv_dir=None,
+    show_pre=True,
+):
+    model, ref = calc_model_full_all(
+        session, z, return_ref=True, trace_kind=trace_kind, show_pre=show_pre,
+    )
     if all_cells:
         names = [str(CTYPE[i]) for i in range(session.backend.n_types)]
         cells = [
@@ -722,12 +755,12 @@ def _prepare_borst_spot(session, z, all_cells, group_list, *, trace_kind='model'
 
 def _prepare_network_spot(
     session, z, all_cells, group_list, *, trace_kind='model',
-    save_trace_csv_dir=None,
+    save_trace_csv_dir=None, show_pre=True,
 ):
     pack = session.primary_pack
     names, cube, sem, baselines, n_by_name = multicol_cube(
         session, z, all_cells=all_cells, group_list=group_list,
-        trace_kind=trace_kind, save_trace_csv_dir=save_trace_csv_dir,
+        trace_kind=trace_kind, save_trace_csv_dir=save_trace_csv_dir, show_pre=show_pre,
     )
     single_column = suppress_cost_sem(session, target=pack.name)
     cells = _cells_from_cube(
@@ -739,12 +772,12 @@ def _prepare_network_spot(
 def _prepare_network_spot_bundle(
     session, z, all_cells, group_list, *,
     at_x_list=None, at_y_list=None, trace_kind='model',
-    save_trace_csv_dir: str | None = None,
+    save_trace_csv_dir: str | None = None, show_pre=True,
 ):
     pack = session.primary_pack
     rows = _spot_forward_rows(
         session, z, all_cells=all_cells, group_list=group_list, trace_kind=trace_kind,
-        save_trace_csv_dir=save_trace_csv_dir,
+        save_trace_csv_dir=save_trace_csv_dir, show_pre=show_pre,
     )
     names = rows['names']
     mt = rows['mt']
@@ -781,8 +814,11 @@ def _prepare_network_spot_bundle(
 def _prepare_borst_spot_bundle(
     session, z, all_cells, group_list, *,
     at_x_list=None, at_y_list=None, trace_kind='model', save_trace_csv_dir: str | None = None,
+    show_pre=True,
 ):
-    model, ref = calc_model_full_all(session, z, return_ref=True, trace_kind=trace_kind)
+    model, ref = calc_model_full_all(
+        session, z, return_ref=True, trace_kind=trace_kind, show_pre=show_pre,
+    )
     if all_cells:
         names = [str(CTYPE[i]) for i in range(session.backend.n_types)]
         cells = [
@@ -849,6 +885,7 @@ def _plot_spot_figure(
     trace_kind='model',
     save_trace_csv_dir: str | None = None,
     borst_all_cells=False,
+    show_pre=True,
 ):
     t0 = time.perf_counter()
     if prepare_bundle_fn is not None:
@@ -874,13 +911,13 @@ def _plot_spot_figure(
     else:
         cells_on, group_rows = prepare_fn(
             session_1, z, all_cells, group_list, trace_kind=trace_kind,
-            save_trace_csv_dir=save_trace_csv_dir,
+            save_trace_csv_dir=save_trace_csv_dir, show_pre=show_pre,
         )
         cells_2 = None
         if session_2 is not None:
             cells_2, _ = prepare_fn(
                 session_2, z, all_cells, group_list, trace_kind=trace_kind,
-                save_trace_csv_dir=save_trace_csv_dir,
+                save_trace_csv_dir=save_trace_csv_dir, show_pre=show_pre,
             )
         has_slices = False
         slice_labels = []
@@ -1016,7 +1053,7 @@ def _plot_spot_figure(
 def plot_network_spot(session_1, z, path, *, session_2=None, all_cells=False,
                       title, ref_cubes=None, ref_cubes_2=None, group_list=None,
                       trace_kind='model', at_x_list=None, at_y_list=None,
-                      save_trace_csv_dir: str | None = None):
+                      save_trace_csv_dir: str | None = None, show_pre=True):
     ncols = 5 if not all_cells else 8
     use_slices = all_cells and (at_x_list is not None or at_y_list is not None)
     if use_slices:
@@ -1024,7 +1061,7 @@ def plot_network_spot(session_1, z, path, *, session_2=None, all_cells=False,
             return _prepare_network_spot_bundle(
                 session, z, all_cells, group_list,
                 at_x_list=at_x_list, at_y_list=at_y_list, trace_kind=trace_kind,
-                save_trace_csv_dir=save_trace_csv_dir,
+                save_trace_csv_dir=save_trace_csv_dir, show_pre=show_pre,
             )
 
         _plot_spot_figure(
@@ -1040,6 +1077,7 @@ def plot_network_spot(session_1, z, path, *, session_2=None, all_cells=False,
             figsize_fn=lambda c, r: (3.0 * c if not all_cells else 2.2 * c, 2.5 * r),
             gridspec_kw=dict(hspace=0.55, wspace=0.55, top=0.95, bottom=0.06, left=0.07, right=0.98),
             trace_kind=trace_kind,
+            show_pre=show_pre,
         )
         return
     _plot_spot_figure(
@@ -1056,13 +1094,14 @@ def plot_network_spot(session_1, z, path, *, session_2=None, all_cells=False,
         gridspec_kw=dict(hspace=0.55, wspace=0.55, top=0.95, bottom=0.06, left=0.07, right=0.98),
         trace_kind=trace_kind,
         save_trace_csv_dir=save_trace_csv_dir,
+        show_pre=show_pre,
     )
 
 
 def plot_borst_spot(session_1, z, path, *, session_2=None, all_cells=False,
                     title, ref_cubes=None, ref_cubes_2=None, group_list=None,
                     trace_kind='model', at_x_list=None, at_y_list=None,
-                    save_trace_csv_dir: str | None = None):
+                    save_trace_csv_dir: str | None = None, show_pre=True):
     ncols = 13
     if all_cells:
         gs_kw = dict(hspace=0.65, wspace=0.45, top=0.97, bottom=0.03, left=0.04, right=0.99)
@@ -1078,6 +1117,7 @@ def plot_borst_spot(session_1, z, path, *, session_2=None, all_cells=False,
             return _prepare_borst_spot_bundle(
                 session, z, all_cells, group_list,
                 at_x_list=at_x_list, at_y_list=at_y_list, trace_kind=trace_kind,
+                show_pre=show_pre,
             )
 
         _plot_spot_figure(
@@ -1094,6 +1134,7 @@ def plot_borst_spot(session_1, z, path, *, session_2=None, all_cells=False,
             gridspec_kw=gs_kw,
             suptitle_fs=suptitle_fs,
             trace_kind=trace_kind,
+            show_pre=show_pre,
         )
         return
     _plot_spot_figure(
@@ -1111,4 +1152,5 @@ def plot_borst_spot(session_1, z, path, *, session_2=None, all_cells=False,
         suptitle_fs=suptitle_fs,
         trace_kind=trace_kind,
         save_trace_csv_dir=save_trace_csv_dir,
+        show_pre=show_pre,
     )

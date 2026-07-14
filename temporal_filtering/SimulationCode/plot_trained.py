@@ -22,7 +22,7 @@ TRAIN_OPTS_FILE = fc.TRAIN_OPTS_FILE
 KNOWN_MODELS = ('conductance', 'adaptive')
 RUN_NAME_MAX = 255
 DEFAULT_RUN_NAME = """
-27100857-train-nofsteps-1000-lrs-0.1-shift-extent-3-network-right_min_neuron1_extent3-target-spot
+27197408-train-nofsteps-1000-lrs-0.1-shift-extent-1-cost-extent-9-init-from-27191857-train-nofsteps-1000-lrs-0.1-shift-extent-2-network-right_min_neuron1_extent10-target-spot
 """.strip()
 DEFAULT_RUN_PATH = 'conductance/' + DEFAULT_RUN_NAME
 
@@ -232,7 +232,7 @@ def select_best(params, session, *, final_costs=None, best_i=None):
 
 def _plot_spot_targets(session, z, outdir, spot_targets, suffix, model_all,
                        ref_cubes=None, ref_cubes_2=None, mvd_group_list=None,
-                       at_x=None, at_y=None, save_trace_csv_dir=None):
+                       at_x=None, at_y=None, save_trace_csv_dir=None, show_pre=True):
     """Plot spot target(s); two traces combined in one figure when both are trained."""
     spot_set = set(spot_targets)
     plot_fn = _spot_plot_fn(session)
@@ -242,6 +242,7 @@ def _plot_spot_targets(session, z, outdir, spot_targets, suffix, model_all,
         ref_cubes=ref_cubes, ref_cubes_2=ref_cubes_2,
         group_list=mvd_group_list,
         save_trace_csv_dir=save_trace_csv_dir,
+        show_pre=show_pre,
     )
     slice_kw = dict(at_x_list=at_x, at_y_list=at_y)
     if spot_set == set(fc.SPOT_TARGETS):
@@ -268,14 +269,14 @@ def _plot_spot_targets(session, z, outdir, spot_targets, suffix, model_all,
             ref_cubes=ref_cubes, ref_cubes_2=ref_cubes_2,
             mvd_group_list=mvd_group_list,
             at_x=at_x, at_y=at_y,
-            save_trace_csv_dir=save_trace_csv_dir,
+            save_trace_csv_dir=save_trace_csv_dir, show_pre=show_pre,
         )
 
 
 def _plot_bar_targets(session, z, outdir, bar_targets, suffix, model_all, *,
                       plot_right_only=True, at_x=None, at_y=None,
                       align_at_x=None, align_at_y=None,
-                      save_trace_csv_dir=None):
+                      save_trace_csv_dir=None, show_pre=True):
     """Plot moving-bar target(s); bright left | dark right when both are trained."""
     slice_kw = dict(
         at_x_list=at_x, at_y_list=at_y,
@@ -289,7 +290,7 @@ def _plot_bar_targets(session, z, outdir, bar_targets, suffix, model_all, *,
         moving_bar_plot.plot_moving_bar_data(
             s_bright, z, mvd, 'moving_bar_bright', session_2=s_dark,
             title=f'Moving-bar model-data ({suffix})',
-            save_trace_csv_dir=save_trace_csv_dir,
+            save_trace_csv_dir=save_trace_csv_dir, show_pre=show_pre,
         )
         allc = None
         if model_all:
@@ -298,7 +299,7 @@ def _plot_bar_targets(session, z, outdir, bar_targets, suffix, model_all, *,
                 s_bright, z, allc, 'moving_bar_bright', session_2=s_dark,
                 title=f'Moving-bar model-all ({suffix})',
                 right_only=plot_right_only,
-                save_trace_csv_dir=save_trace_csv_dir, **slice_kw,
+                save_trace_csv_dir=save_trace_csv_dir, show_pre=show_pre, **slice_kw,
             )
         return mvd, allc
     for tname in bar_targets:
@@ -306,7 +307,7 @@ def _plot_bar_targets(session, z, outdir, bar_targets, suffix, model_all, *,
         mvd = os.path.join(outdir, 'model_data_bar.png')
         moving_bar_plot.plot_moving_bar_data(
             one, z, mvd, tname, title=f'{tname} model-data ({suffix})',
-            save_trace_csv_dir=save_trace_csv_dir,
+            save_trace_csv_dir=save_trace_csv_dir, show_pre=show_pre,
         )
         allc = None
         if model_all:
@@ -314,14 +315,14 @@ def _plot_bar_targets(session, z, outdir, bar_targets, suffix, model_all, *,
             moving_bar_plot.plot_moving_bar_all(
                 one, z, allc, tname, title=f'{tname} model-all ({suffix})',
                 right_only=plot_right_only,
-                save_trace_csv_dir=save_trace_csv_dir, **slice_kw,
+                save_trace_csv_dir=save_trace_csv_dir, show_pre=show_pre, **slice_kw,
             )
         return mvd, allc
 
 
 def _plot_one_target(session, z, outdir, tname, suffix, model_all,
                      ref_cubes=None, ref_cubes_2=None, mvd_group_list=None,
-                     at_x=None, at_y=None, save_trace_csv_dir=None):
+                     at_x=None, at_y=None, save_trace_csv_dir=None, show_pre=True):
     if tname not in fc.SPOT_TARGETS:
         raise ValueError(f'unknown plot target {tname!r}')
     mvd = os.path.join(outdir, 'model_data_spot.png')
@@ -332,6 +333,7 @@ def _plot_one_target(session, z, outdir, tname, suffix, model_all,
         ref_cubes=ref_cubes, ref_cubes_2=ref_cubes_2,
         group_list=mvd_group_list,
         save_trace_csv_dir=save_trace_csv_dir,
+        show_pre=show_pre,
     )
     plot_fn(session, z, mvd, title=f'{tname} model-data ({suffix}){net_tag}', **plot_kw)
     if model_all:
@@ -349,7 +351,7 @@ def plot_param_set(params, outdir, model=None, model_all=True,
                    ref_cubes=None, ref_cubes_2=None, mvd_group_list=None,
                    plot_right_only=True, at_x=None, at_y=None,
                    align_at_x=None, align_at_y=None,
-                   plot_vm=False, save_csv=False):
+                   plot_vm=False, save_csv=False, show_pre=True):
     os.makedirs(outdir, exist_ok=True)
     data_dir = run_data_dir(os.path.abspath(outdir))
     os.makedirs(data_dir, exist_ok=True)
@@ -422,6 +424,7 @@ def plot_param_set(params, outdir, model=None, model_all=True,
                     align_at_x=align_at_x, align_at_y=align_at_y,
                     trace_kind='vm',
                     save_trace_csv_dir=save_trace_csv_dir,
+                    show_pre=show_pre,
                 )
             else:
                 tname = bar_targets[0]
@@ -435,6 +438,7 @@ def plot_param_set(params, outdir, model=None, model_all=True,
                     align_at_x=align_at_x, align_at_y=align_at_y,
                     trace_kind='vm',
                     save_trace_csv_dir=save_trace_csv_dir,
+                    show_pre=show_pre,
                 )
         # In Vm mode, only emit spot Vm plots when this run actually includes
         # spot targets (or explicit plot target filtering keeps them).
@@ -446,6 +450,7 @@ def plot_param_set(params, outdir, model=None, model_all=True,
             plot_kw = dict(
                 ref_cubes=ref_cubes, ref_cubes_2=ref_cubes_2,
                 group_list=mvd_group_list,
+                show_pre=show_pre,
             )
             if spot_set == set(fc.SPOT_TARGETS):
                 s_1 = _session_for_target(session, 'spot_bright')
@@ -486,7 +491,7 @@ def plot_param_set(params, outdir, model=None, model_all=True,
             ref_cubes=ref_cubes, ref_cubes_2=ref_cubes_2,
             mvd_group_list=mvd_group_list,
             at_x=at_x, at_y=at_y,
-            save_trace_csv_dir=save_trace_csv_dir,
+            save_trace_csv_dir=save_trace_csv_dir, show_pre=show_pre,
         )
     if bar_targets:
         _plot_bar_targets(
@@ -494,7 +499,7 @@ def plot_param_set(params, outdir, model=None, model_all=True,
             plot_right_only=plot_right_only,
             at_x=at_x, at_y=at_y,
             align_at_x=align_at_x, align_at_y=align_at_y,
-            save_trace_csv_dir=save_trace_csv_dir,
+            save_trace_csv_dir=save_trace_csv_dir, show_pre=show_pre,
         )
     for tname in other_targets:
         one = _session_for_target(session, tname)
@@ -502,7 +507,7 @@ def plot_param_set(params, outdir, model=None, model_all=True,
             one, z, outdir, tname, suffix, model_all,
             ref_cubes=ref_cubes, ref_cubes_2=ref_cubes_2,
             mvd_group_list=mvd_group_list,
-            save_trace_csv_dir=save_trace_csv_dir,
+            save_trace_csv_dir=save_trace_csv_dir, show_pre=show_pre,
         )
 
     if save_artifacts:
@@ -545,6 +550,16 @@ def add_plot_arguments(parser):
              'pass false for all directions',
     )
     parser.add_argument(
+        '--show-pre',
+        nargs='?',
+        const=True,
+        default=True,
+        type=parse_bool,
+        metavar='BOOL',
+        help='plot pre-t_on equilibration in model traces (default true); '
+             'pass false to zero steps before t_on',
+    )
+    parser.add_argument(
         '--x',
         default=None,
         metavar='X,...',
@@ -571,6 +586,7 @@ def plot_kwargs_from_args(args):
     return dict(
         plot_vm=args.vm,
         plot_right_only=args.plot_right_only,
+        show_pre=args.show_pre,
         at_x=parse_axis_slice_list(args.x),
         at_y=parse_axis_slice_list(args.y),
         align_at_x=align_at_x,

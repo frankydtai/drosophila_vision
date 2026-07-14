@@ -40,7 +40,6 @@ from network.moving_bar_target import (
     build_moving_bar_t0_grids,
     load_fig1_trace,
     moving_bar_cost_columns,
-    moving_bar_window_t_rel,
     sti_columns,
 )
 from t4_t5_preference import (
@@ -161,7 +160,7 @@ def _scale_model_full(model_full, p, backend):
     return model_full * scale[np.newaxis, np.newaxis, :]
 
 
-def _windows_by_batch(model_full, t0_bn, win_lens):
+def _windows_by_batch(model_full, t0_bn, win_lens, *, show_pre=True):
     """``win_lens``: int (uniform) or length-``B`` sequence of window lengths."""
     n_batch = model_full.shape[0]
     if isinstance(win_lens, int):
@@ -173,12 +172,15 @@ def _windows_by_batch(model_full, t0_bn, win_lens):
         t0 = t0_bn[bi:bi + 1]
         t_len = sl.shape[1]
         n_units = sl.shape[2]
-        t_rel, pre = moving_bar_window_t_rel(t0, int(t_on), wl)
-        t_safe = np.clip(t_rel, 0, t_len - 1)
+        win_ix = np.arange(wl, dtype=np.int64)
+        t_idx = t0[..., None] + win_ix[None, None, :]
+        t_safe = np.clip(t_idx, 0, t_len - 1)
         b_ix = np.zeros(1, dtype=np.int64)[:, None, None]
         u_ix = np.arange(n_units, dtype=np.int64)[None, :, None]
         batch = sl[b_ix, t_safe, u_ix].astype(np.float64, copy=False)
-        batch[pre] = 0.0
+        batch[t_idx < 0] = 0.0
+        if not show_pre:
+            batch[t_idx < int(t_on)] = 0.0
         out.append(batch[0])
     return out
 
@@ -284,7 +286,7 @@ def _t0_bn_slice_aligned_to_ref(
 
 def _moving_bar_slice_overlay_traces(
     session, target, trace_full, base_wt, spec_names, *, at_x=None, at_y=None,
-    align_at_x=None, align_at_y=None,
+    align_at_x=None, align_at_y=None, show_pre=True,
 ):
     """Per-axis slice traces aligned to ``base_wt`` window geometry."""
     if base_wt.t0_bn is None or base_wt.type_ids is None or base_wt.types is None:
@@ -320,7 +322,7 @@ def _moving_bar_slice_overlay_traces(
             t0_full_bn, n_batch, filt_cols, align_at_x, align_at_y,
             session=session, cost_extent=pack.cost_extent,
         )
-    windows_full = _windows_by_batch(trace_full, t0_use, win_lens)
+    windows_full = _windows_by_batch(trace_full, t0_use, win_lens, show_pre=show_pre)
     model_mean, model_sem, model_n = _aggregate_moving_bar_traces(
         windows_full, t0_use, type_ids, types, spec_names, True, col_mask=col_mask,
     )
@@ -458,7 +460,7 @@ def _moving_bar_row_specs(session, target, side):
 
 def _moving_bar_traces_from_forward(
     session, target, trace_full, vm_ref_np, specs, spec_names, *,
-    at_x=None, at_y=None,
+    at_x=None, at_y=None, show_pre=True,
 ):
     pack = session.pack_for(target)
     cost_extent = pack.cost_extent
@@ -472,7 +474,7 @@ def _moving_bar_traces_from_forward(
         full_before_steps[sname] + full_after_steps[sname] + 1
         for sname in spec_names
     ]
-    windows_full = _windows_by_batch(trace_full, t0_full_bn, win_lens)
+    windows_full = _windows_by_batch(trace_full, t0_full_bn, win_lens, show_pre=show_pre)
     trace_mean, trace_sem, trace_n = _aggregate_moving_bar_traces(
         windows_full, t0_full_bn, type_ids, types, spec_names, single_column,
     )
@@ -493,17 +495,17 @@ def moving_bar_trace_bundle(session, z, target, *, at_x=None, at_y=None,
                             at_x_list=None, at_y_list=None,
                             align_at_x=None, align_at_y=None,
                             trace_kind: Literal['model', 'vm'] = 'model',
-                            save_trace_csv_dir: str | None = None):
+                            save_trace_csv_dir: str | None = None, show_pre=True):
     """Run one forward; t_first_sti-aligned full-window model traces."""
     pack = session.pack_for(target)
     schema = list(session.schema)
     p = fc.assign_params(z, schema, session.backend)
     if trace_kind == 'vm':
-        model_full, vm_ref, vm_full = fc._run_conductance_full(
+        vm_delta, vm_ref, _vm_full = fc._run_conductance_full(
             session, p, pack.signal, return_ref=True, return_vm=True,
         )
         vm_ref_np = vm_ref[0].cpu().numpy()
-        trace_full = (vm_full - vm_ref[:, None, :]).cpu().numpy()
+        trace_full = vm_delta.cpu().numpy()
         save_forward_trace_csvs(
             save_trace_csv_dir, target,
             trace_kind=trace_kind, ref=vm_ref_np, trace_full=trace_full,
@@ -522,7 +524,7 @@ def moving_bar_trace_bundle(session, z, target, *, at_x=None, at_y=None,
     maxtime = int(session.maxtime)
     C = session.backend.network
     traces, types, side, n_filter_cols = _moving_bar_traces_from_forward(
-        session, target, trace_full, vm_ref_np, specs, spec_names,
+        session, target, trace_full, vm_ref_np, specs, spec_names, show_pre=show_pre,
     )
     if C is not None:
         type_names = list(C.type_names)
@@ -556,6 +558,7 @@ def moving_bar_trace_bundle(session, z, target, *, at_x=None, at_y=None,
                     session, target, trace_full, traces, spec_names,
                     at_x=xv, at_y=yv,
                     align_at_x=align_at_x, align_at_y=align_at_y,
+                    show_pre=show_pre,
                 )
                 if wt is None:
                     print(f'skip slice overlay {label}: no column within cost_extent')
@@ -574,6 +577,7 @@ def moving_bar_trace_bundle(session, z, target, *, at_x=None, at_y=None,
             slice_overlay[slice_axis_label(xv)] = _moving_bar_slice_overlay_traces(
                 session, target, trace_full, traces, spec_names, at_x=xv,
                 align_at_x=align_at_x, align_at_y=align_at_y,
+                show_pre=show_pre,
             )
     elif at_y_list is not None:
         slice_axis = 'y'
@@ -583,6 +587,7 @@ def moving_bar_trace_bundle(session, z, target, *, at_x=None, at_y=None,
             slice_overlay[slice_axis_label(yv)] = _moving_bar_slice_overlay_traces(
                 session, target, trace_full, traces, spec_names, at_y=yv,
                 align_at_x=align_at_x, align_at_y=align_at_y,
+                show_pre=show_pre,
             )
     return MovingBarTraceBundle(
         target=target,
@@ -901,16 +906,17 @@ def _moving_bar_all_figure(b_on, b_2, title, *, right_only=True):
 
 @torch.no_grad()
 def plot_moving_bar_data(session_1, z, path, target, session_2=None, title=None, *,
-                         bundle=None, bundle_2=None, save_trace_csv_dir: str | None = None):
+                         bundle=None, bundle_2=None, save_trace_csv_dir: str | None = None,
+                         show_pre=True):
     t0 = time.perf_counter()
     b_on = bundle or moving_bar_trace_bundle(
-        session_1, z, target, save_trace_csv_dir=save_trace_csv_dir,
+        session_1, z, target, save_trace_csv_dir=save_trace_csv_dir, show_pre=show_pre,
     )
     b_2 = None
     if session_2 is not None:
         target_2 = session_2.primary_pack.name
         b_2 = bundle_2 or moving_bar_trace_bundle(
-            session_2, z, target_2, save_trace_csv_dir=save_trace_csv_dir,
+            session_2, z, target_2, save_trace_csv_dir=save_trace_csv_dir, show_pre=show_pre,
         )
     t_prep = time.perf_counter()
     single_column = b_on.single_column
@@ -976,13 +982,13 @@ def plot_moving_bar_all(session_1, z, path, target, session_2=None, title=None, 
                         at_x_list=None, at_y_list=None,
                         align_at_x=None, align_at_y=None,
                         trace_kind: Literal['model', 'vm'] = 'model',
-                        save_trace_csv_dir: str | None = None):
+                        save_trace_csv_dir: str | None = None, show_pre=True):
     t0 = time.perf_counter()
     b_on = bundle or moving_bar_trace_bundle(
         session_1, z, target, at_x_list=at_x_list, at_y_list=at_y_list,
         align_at_x=align_at_x, align_at_y=align_at_y,
         trace_kind=trace_kind,
-        save_trace_csv_dir=save_trace_csv_dir,
+        save_trace_csv_dir=save_trace_csv_dir, show_pre=show_pre,
     )
     b_2 = None
     if session_2 is not None:
@@ -991,7 +997,7 @@ def plot_moving_bar_all(session_1, z, path, target, session_2=None, title=None, 
             session_2, z, target_2, at_x_list=at_x_list, at_y_list=at_y_list,
             align_at_x=align_at_x, align_at_y=align_at_y,
             trace_kind=trace_kind,
-            save_trace_csv_dir=save_trace_csv_dir,
+            save_trace_csv_dir=save_trace_csv_dir, show_pre=show_pre,
         )
     t_prep = time.perf_counter()
     fig = _moving_bar_all_figure(b_on, b_2, title, right_only=right_only)
