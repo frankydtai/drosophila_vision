@@ -1,0 +1,17 @@
+Job ID: 27252028
+Node:   spartan-gpgpu177
+GPU:    0
+GPU 0: NVIDIA H100 80GB HBM3 (UUID: GPU-c8d8afe9-90fe-b032-bc84-ec8b7759be7d)
+cuda: True NVIDIA H100 80GB HBM3
+Start:  Tue 14 Jul 2026 21:58:16 AEST
+device=cuda, model=conductance, nofruns=1, nofsteps=1000, lrs=[0.1], nparams=526, fname=training_with_Ih.npy, outdir=/home/yitai/drosophila_vision/temporal_filtering/SimulationCode/0trained/conductance/27252028-train-nofsteps-1000-lrs-0.1-shift-extent-1-cost-extent-9
+
+round 0
+
+
+Initl cost = 565.0138  [spot_bright=85.9686  spot_dark=86.3644  moving_bar_bright_PD=104.3882  moving_bar_bright_ND=119.0041  moving_bar_dark_PD=90.5361  moving_bar_dark_ND=78.7524]
+Final cost = 619.3673  [spot_bright=105.1040  spot_dark=104.9319  moving_bar_bright_PD=100.8137  moving_bar_bright_ND=103.9913  moving_bar_dark_PD=100.9510  moving_bar_dark_ND=103.5754]
+Best  cost = 301.0674  [spot_bright=60.1289  spot_dark=44.0587  moving_bar_bright_PD=58.3130  moving_bar_bright_ND=39.1691  moving_bar_dark_PD=59.6748  moving_bar_dark_ND=39.7229]
+time needed  = 682.31  sec
+
+done in 0.19 hours

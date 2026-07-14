@@ -88,7 +88,7 @@ def _equilibrate(session, p, signal_batch: torch.Tensor, t_on: int):
     for t in range(1, min(t_on, T)):
         Vm, u_on, u_off = fc.update_Vm(
             Vm, u_on, u_off,
-            p["inp_gain"], p["out_gain"], p["Ih_gmax"], p["Ih_gmax_off"],
+            p["in_gain"], p["out_gain"], p["syn_strength"], p["Ih_gmax"], p["Ih_gmax_off"],
             p["Ih_midv"], p["Ih_slope"], p["tau_midv"],
             p["Ih_midv_off"], p["Ih_slope_off"], p["tau_midv_off"],
             signal_batch[:, t - 1], backend,
@@ -116,9 +116,9 @@ def _budget_units(
         g_Ih_on = (u_on[0] * p["Ih_gmax"] * fc.Ih_gain).cpu().numpy()
         g_Ih_off = (u_off[0] * p["Ih_gmax_off"] * fc.Ih_gain).cpu().numpy()
         rect = fc.rectsyn(Vm_pre[0], fc.trld)
-        g_exc_all, g_inh_all = conn.exc_inh_drive(rect * p["out_gain"])
-        g_exc = (g_exc_all * p["inp_gain"]).cpu().numpy()
-        g_inh = (g_inh_all * p["inp_gain"]).cpu().numpy()
+        g_exc_all, g_inh_all = conn.exc_inh_drive(rect * p["out_gain"], p["syn_strength"])
+        g_exc = (g_exc_all * p["in_gain"]).cpu().numpy()
+        g_inh = (g_inh_all * p["in_gain"]).cpu().numpy()
         Vm_u = Vm_pre[0].cpu().numpy()
         sig_v = sig_t[0].cpu().numpy()
         e_leak = backend.e_leak.cpu().numpy()
@@ -226,7 +226,7 @@ def _dominant_drive(step: StepBudget) -> str:
 
 def _unit_params(p, backend, unit: int) -> dict[str, float]:
     return {
-        "inp_gain": float(p["inp_gain"][unit]),
+        "in_gain": float(p["in_gain"][unit]),
         "out_gain": float(p["out_gain"][unit]),
         "Ih_gmax": float(p["Ih_gmax"][unit]),
         "Ih_gmax_off": float(p["Ih_gmax_off"][unit]),
@@ -358,7 +358,7 @@ def analyze_bar_average(
         if not np.any(in_win):
             Vm, u_on, u_off = fc.update_Vm(
                 Vm, u_on, u_off,
-                p["inp_gain"], p["out_gain"], p["Ih_gmax"], p["Ih_gmax_off"],
+                p["in_gain"], p["out_gain"], p["syn_strength"], p["Ih_gmax"], p["Ih_gmax_off"],
                 p["Ih_midv"], p["Ih_slope"], p["tau_midv"],
                 p["Ih_midv_off"], p["Ih_slope_off"], p["tau_midv_off"],
                 sig_t, session.backend,
@@ -372,7 +372,7 @@ def analyze_bar_average(
         Vm_pre_u = bud["Vm_u"].copy()
         Vm, u_on, u_off = fc.update_Vm(
             Vm, u_on, u_off,
-            p["inp_gain"], p["out_gain"], p["Ih_gmax"], p["Ih_gmax_off"],
+            p["in_gain"], p["out_gain"], p["syn_strength"], p["Ih_gmax"], p["Ih_gmax_off"],
             p["Ih_midv"], p["Ih_slope"], p["tau_midv"],
             p["Ih_midv_off"], p["Ih_slope_off"], p["tau_midv_off"],
             sig_t, session.backend,
@@ -564,7 +564,7 @@ def analyze_spot_average(
             Vm_pre = bud["Vm_u"].copy()
             Vm, u_on, u_off = fc.update_Vm(
                 Vm, u_on, u_off,
-                p["inp_gain"], p["out_gain"], p["Ih_gmax"], p["Ih_gmax_off"],
+                p["in_gain"], p["out_gain"], p["syn_strength"], p["Ih_gmax"], p["Ih_gmax_off"],
                 p["Ih_midv"], p["Ih_slope"], p["tau_midv"],
                 p["Ih_midv_off"], p["Ih_slope_off"], p["tau_midv_off"],
                 sig_t, session_one.backend,
@@ -763,7 +763,7 @@ def analyze_bar_hex(
         Vm_pre = float(bud["Vm_u"][0])
         Vm, u_on, u_off = fc.update_Vm(
             Vm, u_on, u_off,
-            p["inp_gain"], p["out_gain"], p["Ih_gmax"], p["Ih_gmax_off"],
+            p["in_gain"], p["out_gain"], p["syn_strength"], p["Ih_gmax"], p["Ih_gmax_off"],
             p["Ih_midv"], p["Ih_slope"], p["tau_midv"],
             p["Ih_midv_off"], p["Ih_slope_off"], p["tau_midv_off"],
             sig_t, session.backend,

@@ -1,0 +1,187 @@
+site_name: Flyvis Documentation
+site_url: "https://flyvis.github.io/"
+repo_url: "https://github.com/turagalab/flyvis"
+
+nav:
+  - Home: index.md
+  - Installation: install.md
+  - Tutorials:
+    - Explore the Connectome: examples/01_flyvision_connectome.md
+    - Train the Network: examples/02_flyvision_optic_flow_task.md
+    - Flash Responses: examples/03_flyvision_flash_responses.md
+    - Moving Edge Responses: examples/04_flyvision_moving_edge_responses.md
+    - Ensemble Clustering: examples/05_flyvision_umap_and_clustering_models.md
+    - Maximally Excitatory Stimuli: examples/06_flyvision_maximally_excitatory_stimuli.md
+    - Custom Stimuli: examples/07_flyvision_providing_custom_stimuli.md
+  - Main Results:
+    - Figure 1: examples/figure_01_fly_visual_system.md
+    - Figure 2: examples/figure_02_simple_stimuli_responses.md
+    - Figure 3: examples/figure_03_naturalistic_stimuli_responses.md
+    - Figure 4: examples/figure_04_mechanisms.md
+  - API Reference:
+    - Connectomes: reference/connectome.md
+    - Network: reference/network.md
+    - NetworkView: reference/network_view.md
+    - EnsembleView: reference/ensemble_view.md
+    - Sintel: reference/sintel.md
+    - Task: reference/tasks.md
+    - Decoder: reference/decoder.md
+    - Training: reference/solver.md
+    - Flash Responses: reference/flash_responses.md
+    - Moving Stimulus Responses: reference/moving_stimulus_responses.md
+    - Ensemble Clustering: reference/ensemble_clustering.md
+    - Optimal Stimuli: reference/optimal_stimuli.md
+    - Miscelleanous:
+      - Rendering: reference/rendering.md
+      - Hex Augmentations: reference/augmentation.md
+      - Datasets: reference/datasets.md
+      - Utils: reference/utils.md
+      - Visualizations: reference/visualization.md
+      - Animations: reference/animations.md
+    - CLI Reference:
+      - Command Line Interface: reference/cli.md
+      - CLI Entry Point: reference/flyvis_cli/flyvis_cli.md
+      - Hydra Configuration: reference/hydra_default_config.md
+      - Training:
+        - Run Training for Single Model: reference/flyvis_cli/training/train_single.md
+        - Launch Ensemble Training on Compute Cloud: reference/flyvis_cli/training/train.md
+      - Validation:
+        - Run Validation for Single Model: reference/flyvis_cli/validation/val_single.md
+        - Launch Ensemble Validation on Compute Cloud: reference/flyvis_cli/validation/validate.md
+      - Analysis:
+        - Run Synthetic Recordings: reference/flyvis_cli/analysis/synthetic_recordings_single.md
+        - Launch Synthetic Recordings on Compute Cloud: reference/flyvis_cli/analysis/record.md
+        - Run Ensemble Analysis: reference/flyvis_cli/analysis/ensemble_analysis.md
+        - Launch Ensemble Analysis on Compute Cloud: reference/flyvis_cli/analysis/analysis.md
+      - Notebook:
+        - Run Notebook: reference/flyvis_cli/analysis/notebook.md
+        - Launch Notebook Per Ensemble on Compute Cloud: reference/flyvis_cli/analysis/notebook_per_ensemble.md
+        - Launch Notebook Per Model on Compute Cloud: reference/flyvis_cli/analysis/notebook_per_model.md
+      - Data Download: reference/flyvis_cli/download_pretrained_models.md
+  - Contributing: contribute.md
+  - FAQ: faq.md
+  - Acknowledgements: acknowledgements.md
+
+theme:
+  name: material
+  logo: 'images/flyvis_logo_light@150ppi.webp'
+  logo_dark: 'images/flyvis_logo_dark@150ppi.webp'
+  logo_light: 'images/flyvis_logo_light@150ppi.webp'
+  collapse_navigation: false
+  custom_dir: overrides
+
+  features:
+    - content.code.copy
+    - navigation.instant
+    - navigation.sections
+    - navigation.expand
+    - navigation.indexes
+    - navigation.top
+
+  palette:
+
+    # Palette toggle for automatic mode
+    - media: "(prefers-color-scheme)"
+      primary: white
+      accent: purple
+      toggle:
+        icon: material/brightness-auto
+        name: Switch to light mode
+
+    # Palette toggle for light mode
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      primary: white
+      accent: purple
+      background: "#ffffff"
+      toggle:
+        icon: material/weather-night
+        name: Switch to dark mode
+
+    # Palette toggle for dark mode
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      primary: black
+      accent: purple
+      background: "#000000"
+      toggle:
+        icon: material/weather-sunny
+        name: Switch to system preference
+
+  extra:
+  version:
+    provider: mike
+
+markdown_extensions:
+  - extra
+  - smarty
+  - admonition
+  - attr_list
+  - md_in_html
+  - codehilite:
+      guess_lang: false
+  - toc:
+      permalink: true
+      toc_depth: 4
+  - markdown_include.include:
+      base_path: ../
+  - pymdownx.arithmatex:
+      generic: true
+  - pymdownx.betterem:
+      smart_enable: all
+  - pymdownx.caret
+  - pymdownx.critic
+  - pymdownx.details
+  - pymdownx.emoji
+  - pymdownx.inlinehilite
+  - pymdownx.magiclink
+  - pymdownx.mark
+  - pymdownx.smartsymbols
+  - pymdownx.superfences
+  - pymdownx.tasklist:
+      custom_checkbox: true
+  - pymdownx.tilde
+  - pymdownx.arithmatex:
+      generic: true
+
+extra_javascript:
+  - javascripts/mathjax.js
+  - https://unpkg.com/mathjax@3/es5/tex-mml-chtml.js
+
+
+plugins:
+  - search
+  - mike
+  - macros
+  - mkdocstrings:
+      default_handler: python
+      handlers:
+        python:
+          options:
+            show_source: true
+            heading_level: 3
+            members_order: source
+            show_root_heading: true
+            show_root_toc_entry: true
+            show_symbol_type_toc: true
+            show_root_full_path: true
+            separate_signature: true
+            merge_init_into_class: false
+
+watch:
+  - ../flyvis
+  - ../flyvis_cli
+
+extra_css:
+  - custom.css
+
+
+copyright: Lappalainen &copy 2024
+extra:
+  social:
+    - icon: fontawesome/solid/envelope
+      link: mailto:janne.lappalainen@uni-tuebingen.de?cc=jakob.macke@uni-tuebingen.de,turagas@janelia.hhmi.org
+    - icon: fontawesome/brands/github
+      link: https://github.com/turagalab/flyvis
+    - icon: fontawesome/solid/newspaper
+      link: https://www.nature.com/articles/s41586-024-07939-3

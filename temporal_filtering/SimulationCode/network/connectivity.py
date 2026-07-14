@@ -1,35 +1,30 @@
 # -*- coding: utf-8 -*-
 """Connectivity backends for the medulla simulation.
 
-Two interchangeable backends expose the SAME interface so the simulator core can
-stay agnostic about whether it runs the historical 5-column dense matrix or an
-arbitrary connectome read from an edge list:
+Interface:
 
-    conn.exc_inh_drive(x) -> (g_exc, g_inh)   # both >= 0, post-synaptic drive
-    conn.signed_drive(x)  -> g_signed         # signed current-based drive
-    conn.n_units                              # number of cells (state width)
-    conn.node_type                            # (n_units,) long: cell-type index
+    conn.exc_inh_drive(x, syn_strength) -> (g_exc, g_inh)  # network / ScatterConn
+    conn.signed_drive(x)  -> g_signed
+    conn.n_units
+    conn.node_type
 
 ``x`` is the presynaptic output already scaled by the per-source out_gain, i.e.
 ``rectsyn(Vm, trld) * out_gain`` for the conductance model or
 ``relu(activity) * out_gain`` for the adaptive model. The post-synaptic input
-gain (``inp_gain``) is applied by the caller AFTER these calls, exactly as in the
-original ``torch.mv(M_exc, ...)`` code.
+gain (``in_gain``) is applied by the caller AFTER these calls.
+
+Conductance type→type scaling ``syn_strength`` (length ``n_pairs``) multiplies
+each edge as \(\alpha_{t_{\mathrm{src}},t_{\mathrm{tar}}}\), shared across columns.
+Network path only (:class:`ScatterConn`).
 
 Both backends operate on the LAST axis (the units), so a plain 1-D ``(N,)`` state
-and a batched ``(B, N)`` state (multi-column / multi-shift training) work without
-any change in the caller.
-
-  - :class:`DenseConn` wraps the existing ``multi_colM``-derived matrices and is
-    *bit-identical* to the original ``torch.mv`` path (``M @ x``).
-  - :class:`ScatterConn` stores the connectome as an edge list and uses
-    ``index_select`` + ``scatter_add`` (O(E) memory) so a 668-node sub-graph or a
-    full 721-column graph trains without materialising an N x N matrix.
+and a batched ``(B, N)`` state work without change in the caller.
 """
 from __future__ import annotations
 
 from typing import Optional, Tuple
 
+import numpy as np
 import torch
 
 from training_config import SIM_DTYPE_DEFAULT
@@ -39,13 +34,28 @@ def _as_long(t, device) -> torch.Tensor:
     return torch.as_tensor(t, dtype=torch.long, device=device)
 
 
-class DenseConn:
-    """Dense connectivity backend (the historical 5-column ``multi_colM`` path).
+def build_type_pair_index(src_type, tar_type, n_types: int):
+    """Unique directed ``(source_type, target_type)`` codes → per-edge pair index.
 
-    Stores the same three matrices the original core built and reproduces
-    ``torch.mv(M, x)`` exactly. ``M`` is indexed ``[target, source]`` so the drive
-    on unit ``i`` is ``sum_j M[i, j] * x[j]``; ``x @ M.T`` evaluates this for both
-    a 1-D ``(N,)`` and a batched ``(B, N)`` ``x``.
+    Returns
+    -------
+    pair_idx : (E,) int64
+    n_pairs : int
+    pair_keys : list[(src_type, tar_type)] in index order
+    """
+    src_type = np.asarray(src_type, dtype=np.int64)
+    tar_type = np.asarray(tar_type, dtype=np.int64)
+    codes = src_type * int(n_types) + tar_type
+    uniq, inv = np.unique(codes, return_inverse=True)
+    pair_keys = [(int(c // n_types), int(c % n_types)) for c in uniq]
+    return inv.astype(np.int64), int(len(uniq)), pair_keys
+
+
+class DenseConn:
+    """Dense connectivity backend (historical 5-column ``multi_colM`` path).
+
+    Conductance ``exc_inh_drive`` with type→type ``syn_strength`` is network-only;
+    this class does not implement it.
     """
 
     def __init__(
@@ -63,12 +73,12 @@ class DenseConn:
 
     @staticmethod
     def _mv(M: torch.Tensor, x: torch.Tensor) -> torch.Tensor:
-        # x @ M.T == torch.mv(M, x) for 1-D x, and the batched generalisation for
-        # (B, N) x. Kept as matmul so a single line covers both ranks.
         return torch.matmul(x, M.transpose(-1, -2))
 
-    def exc_inh_drive(self, x: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor]:
-        return self._mv(self.M_exc, x), self._mv(self.M_inh, x)
+    def exc_inh_drive(self, x: torch.Tensor, syn_strength: torch.Tensor):
+        raise NotImplementedError(
+            "conductance type-pair syn_strength requires network ScatterConn"
+        )
 
     def signed_drive(self, x: torch.Tensor) -> torch.Tensor:
         return self._mv(self.M_signed, x)
@@ -79,10 +89,9 @@ class ScatterConn:
 
     Built from parallel arrays describing directed synaptic edges ``source ->
     target`` with a signed weight ``base_w = sign * n_syn``. Excitatory and
-    inhibitory drives are accumulated with ``scatter_add`` over the target index,
-    mirroring ``DenseConn``'s split (``M_exc`` uses ``exc_scale``, ``M_inh`` uses
-    ``inh_scale``, both producing non-negative conductances; ``signed`` uses
-    ``exc_scale`` like the original ``M_signed``).
+    inhibitory drives are accumulated with ``scatter_add`` over the target index.
+    ``syn_strength[pair_idx[e]]`` scales edge ``e`` by its
+    ``(source_type, target_type)`` group.
     """
 
     def __init__(
@@ -107,13 +116,19 @@ class ScatterConn:
         base_w = torch.as_tensor(base_w, dtype=dtype, device=device)
         pos = base_w > 0
         neg = base_w < 0
-        # exc / inh drives are BOTH >= 0 (conductances); signed keeps its sign.
         self.w_exc = torch.where(pos, base_w, torch.zeros_like(base_w)) * exc_scale
         self.w_inh = torch.where(neg, -base_w, torch.zeros_like(base_w)) * inh_scale
         self.w_signed = base_w * exc_scale
 
+        n_types = int(self.node_type.max().item()) + 1 if self.n_units else 0
+        src_t = self.node_type[self.src_idx].detach().cpu().numpy()
+        tar_t = self.node_type[self.tar_idx].detach().cpu().numpy()
+        pair_idx_np, n_pairs, pair_keys = build_type_pair_index(src_t, tar_t, n_types)
+        self.pair_idx = torch.as_tensor(pair_idx_np, dtype=torch.long, device=device)
+        self.n_pairs = int(n_pairs)
+        self.pair_keys = pair_keys
+
     def _scatter(self, vals: torch.Tensor) -> torch.Tensor:
-        # vals: (..., E) per-edge contributions -> (..., n_units) summed by target.
         out_shape = vals.shape[:-1] + (self.n_units,)
         out = torch.zeros(out_shape, dtype=vals.dtype, device=vals.device)
         idx = self.tar_idx.expand(vals.shape)
@@ -121,12 +136,21 @@ class ScatterConn:
         return out
 
     def _gather(self, x: torch.Tensor) -> torch.Tensor:
-        # x: (..., n_units) -> (..., E) presynaptic value on each edge's source.
         return x.index_select(-1, self.src_idx)
 
-    def exc_inh_drive(self, x: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor]:
+    def _edge_alpha(self, syn_strength: torch.Tensor) -> torch.Tensor:
+        if syn_strength.shape[-1] != self.n_pairs:
+            raise ValueError(
+                f"syn_strength length {syn_strength.shape[-1]} != n_pairs {self.n_pairs}"
+            )
+        return syn_strength.index_select(-1, self.pair_idx)
+
+    def exc_inh_drive(
+        self, x: torch.Tensor, syn_strength: torch.Tensor
+    ) -> Tuple[torch.Tensor, torch.Tensor]:
         xs = self._gather(x)
-        return self._scatter(xs * self.w_exc), self._scatter(xs * self.w_inh)
+        a = self._edge_alpha(syn_strength)
+        return self._scatter(xs * self.w_exc * a), self._scatter(xs * self.w_inh * a)
 
     def signed_drive(self, x: torch.Tensor) -> torch.Tensor:
         return self._scatter(self._gather(x) * self.w_signed)

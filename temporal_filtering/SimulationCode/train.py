@@ -115,6 +115,9 @@ def decompose_params(z_t, session):
         name, v = seg["name"], p[seg["name"]]
         mode = fc.seg_mode(seg)
         arr_full = v.detach().cpu().numpy()
+        if seg["kind"] == "edge_pair":
+            # n_pairs-long; full vector stays in .npy — not a per-type column
+            continue
         if seg["kind"] == "output":
             arr = arr_full
         elif type_idx is not None:

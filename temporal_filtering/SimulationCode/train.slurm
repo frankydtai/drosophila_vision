@@ -8,7 +8,7 @@
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=1
 #SBATCH --mem=32G
-#SBATCH --time=5:00:00
+#SBATCH --time=1:00:00
 #SBATCH --chdir=/home/yitai/drosophila_vision/temporal_filtering/SimulationCode
 #SBATCH --output=logs/training_%j.out
 #SBATCH --error=logs/training_%j.err
@@ -27,5 +27,4 @@ nvidia-smi -L || true
 "${PYTHON}" -c "import torch; print('cuda:', torch.cuda.is_available(), torch.cuda.get_device_name(0) if torch.cuda.is_available() else '')"
 echo "Start:  $(date)"
 "${PYTHON}" -u train.py  \
-  --nofsteps 1000 --lrs 0.1 --shift-extent=1 --cost-extent=9 --init-from 27191857-train-nofsteps-1000-lrs-0.1-shift-extent-2-network-right_min_neuron1_extent10-target-spot 
-echo "End:    $(date)"
+  --nofsteps 1000 --lrs 0.1 --shift-extent=1 --cost-extent=9 

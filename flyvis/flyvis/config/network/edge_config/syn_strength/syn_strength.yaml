@@ -1,0 +1,12 @@
+type: SynapseCountScaling
+initial_dist: "Value"
+requires_grad: true
+scale: 0.01
+clamp: "non_negative"
+groupby:
+  - source_type
+  - target_type
+penalize:
+  function: weight_decay
+  kwargs:
+    lambda: 0

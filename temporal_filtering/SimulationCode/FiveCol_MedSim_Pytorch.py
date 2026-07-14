@@ -31,6 +31,7 @@ from training_config import (
     T_ON,
     sim_dtype_from_fp32,
 )
+from param_defaults import P as PARAM_DEFAULTS
 
 
 def active_device():
@@ -147,10 +148,6 @@ inh_synweight = 0.001
 
 E_Ih          = +50.0  # in mV, ON-channel reversal
 E_IH_OFF      = -150.0  # OFF-channel reversal (2*E_LEAK_REST - E_Ih)
-Ih_midv       = -50.0
-Ih_slope      = -0.25
-tau_midv      = -50.0
-Ih_gmax       = +50.0 
 
 Ih_gain       = 1.0   # if set to 0, it will block Ih
 
@@ -170,11 +167,6 @@ def build_ih_dir(conn, ih_reverse_cells=IH_DIR_REVERSE_CELLS, *, dtype=SIM_DTYPE
         d[conn.node_type == int(c)] = -1.0
     return d
 
-# parameter and cost function definition
-
-low_gain = 0.1
-high_gain = 100.0
-
 # ---- second neuron model: adaptive temporal filter (flyvis-derived) ----
 # 'conductance' = Borst conductance-based + Ih (update_Vm)
 # 'adaptive'    = passive point neuron + low-pass adaptive temporal filter
@@ -184,6 +176,7 @@ GATE_PIVOT = 0.5  # fixed contrast-gate pivot (non-trainable); input is normalis
 STATE_CLAMP = 1.0e6  # bound on adaptive state vars to keep explicit Euler finite
 
 # --- parameter schema: SINGLE SOURCE OF TRUTH -------------------------------
+# Numeric lo/hi/init/jit(/fill): ``param_defaults.P``.
 # Segment lists are built by ``build_conductance_schema`` / ``build_adaptive_schema``
 # (via ``default_schema``); assign / bounds / guess all derive from that list.
 # Each segment is a dict:
@@ -195,6 +188,8 @@ STATE_CLAMP = 1.0e6  # bound on adaptive state vars to keep explicit Euler finit
 #                       (one cell type) or list[int] (types sharing one value);
 #                       other types = 'fill'. 'count' is ignored for this kind.
 #           'output' -> count==n_types; per-cell-type value on the readout (e.g. out_scale)
+#           'edge_pair' -> count==n_pairs; one value per (source_type, target_type)
+#                       on network ScatterConn; passed to exc_inh_drive as syn_strength
 #   lo,hi : training bounds (clamped each Adam step)
 #   init  : random-init mean;  jit: init uniform jitter (+/- jit/2)
 #   fill  : value for non-listed cells ('ih' only)
@@ -380,38 +375,43 @@ def default_ih_group(backend: "ModelBackend"):
     return build_ih_group_from_names(DEFAULT_IH_GROUP_NAMES, backend)
 
 
-def build_conductance_schema(n_types, ih_group, ih_zero_types=IH_GMAX_ZERO_TYPES, type_names=None):
+def build_conductance_schema(n_types, ih_group, ih_zero_types=IH_GMAX_ZERO_TYPES, type_names=None, n_pairs=None):
     type_names = ml.ctype if type_names is None else type_names
+    if n_pairs is None:
+        raise TypeError('conductance syn_strength requires n_pairs from network ScatterConn')
     zero = ih_group_zero_indices(ih_group, ih_zero_types, type_names)
     shape = dict(kind='full', count=n_types, mode='shared')
+    D = PARAM_DEFAULTS
     return [
-        {'name': 'inp_gain',  'count': n_types, 'kind': 'full',   'lo': low_gain, 'hi': high_gain, 'init': 0.5,     'jit': 0.2},
-        {'name': 'out_gain',  'count': n_types, 'kind': 'full',   'lo': low_gain, 'hi': high_gain, 'init': 0.5,     'jit': 0.2},
-        {'name': 'out_scale', 'count': n_types, 'kind': 'output', 'lo': low_gain, 'hi': high_gain, 'init': 1.0,     'jit': 0.2},
+        {'name': 'in_gain',  'count': n_types, 'kind': 'full',   **D['in_gain']},
+        {'name': 'out_gain',  'count': n_types, 'kind': 'full',   **D['out_gain']},
+        {'name': 'syn_strength', 'count': int(n_pairs), 'kind': 'edge_pair', **D['syn_strength']},
+        {'name': 'out_scale', 'count': n_types, 'kind': 'output', **D['out_scale']},
         {'name': 'Ih_gmax',     'kind': 'ih', 'ih_group': ih_group, 'mode': 'indi',
-         'lo': 0.0, 'hi': 100.0, 'init': Ih_gmax, 'jit': 10.0, 'fill': 0.0, 'zero': zero},
+         **D['Ih_gmax'], 'zero': zero},
         {'name': 'Ih_gmax_off', 'kind': 'ih', 'ih_group': ih_group, 'mode': 'indi',
-         'lo': 0.0, 'hi': 100.0, 'init': Ih_gmax, 'jit': 10.0, 'fill': 0.0, 'zero': zero},
-        {'name': 'Ih_midv',     'lo': -70.0,    'hi': -30.0,     'init': Ih_midv,  'jit': 5.0, **shape},
-        {'name': 'Ih_slope',    'lo': -0.40,    'hi': -0.20,     'init': Ih_slope, 'jit': 0.02, **shape},
-        {'name': 'tau_midv',    'lo': -70.0,    'hi': -40.0,     'init': tau_midv, 'jit': 5.0, **shape},
-        {'name': 'Ih_midv_off', 'lo': -70.0,    'hi': -30.0,     'init': Ih_midv,  'jit': 5.0, **shape},
-        {'name': 'Ih_slope_off','lo': -0.40,    'hi': -0.20,     'init': Ih_slope, 'jit': 0.02, **shape},
-        {'name': 'tau_midv_off','lo': -70.0,    'hi': -40.0,     'init': tau_midv, 'jit': 5.0, **shape},
+         **D['Ih_gmax_off'], 'zero': zero},
+        {'name': 'Ih_midv',     **D['Ih_midv'], **shape},
+        {'name': 'Ih_slope',    **D['Ih_slope'], **shape},
+        {'name': 'tau_midv',    **D['tau_midv'], **shape},
+        {'name': 'Ih_midv_off', **D['Ih_midv_off'], **shape},
+        {'name': 'Ih_slope_off', **D['Ih_slope_off'], **shape},
+        {'name': 'tau_midv_off', **D['tau_midv_off'], **shape},
     ]
 
 
 def build_adaptive_schema(n_types, ih_group):
+    D = PARAM_DEFAULTS
     return [
-        {'name': 'inp_gain',   'count': n_types, 'kind': 'full',   'lo': low_gain, 'hi': high_gain, 'init': 0.5,   'jit': 0.2},
-        {'name': 'out_gain',   'count': n_types, 'kind': 'full',   'lo': low_gain, 'hi': high_gain, 'init': 0.5,   'jit': 0.2},
-        {'name': 'out_scale',  'count': n_types, 'kind': 'output', 'lo': low_gain, 'hi': high_gain, 'init': 1.0,   'jit': 0.2},
-        {'name': 'tau_m',      'count': n_types, 'kind': 'full',   'lo': deltat,   'hi': 1000.0,    'init': 50.0,  'jit': 10.0},
-        {'name': 'bias',       'count': n_types, 'kind': 'full',   'lo': -2.0,     'hi': 2.0,       'init': 0.0,   'jit': 0.1},
+        {'name': 'in_gain',   'count': n_types, 'kind': 'full',   **D['in_gain']},
+        {'name': 'out_gain',   'count': n_types, 'kind': 'full',   **D['out_gain']},
+        {'name': 'out_scale',  'count': n_types, 'kind': 'output', **D['out_scale']},
+        {'name': 'tau_m',      'count': n_types, 'kind': 'full',   **D['tau_m']},
+        {'name': 'bias',       'count': n_types, 'kind': 'full',   **D['bias']},
         {'name': 'adapt_gain', 'kind': 'ih', 'ih_group': ih_group, 'mode': 'indi',
-         'lo': -2.0, 'hi': 2.0, 'init': 0.0, 'jit': 0.1, 'fill': 0.0},
+         **D['adapt_gain']},
         {'name': 'tau_adapt',  'kind': 'ih', 'ih_group': ih_group, 'mode': 'indi',
-         'lo': deltat, 'hi': 2000.0, 'init': 100.0, 'jit': 20.0, 'fill': deltat},
+         **D['tau_adapt']},
     ]
 
 
@@ -423,7 +423,10 @@ def default_schema(model: str, backend: "ModelBackend", ih_group=None) -> list:
     type_names = list(backend.network.type_names) if backend.network is not None else ml.ctype
     if model == 'adaptive':
         return build_adaptive_schema(n, ih_group)
-    return build_conductance_schema(n, ih_group, type_names=type_names)
+    n_pairs = getattr(backend.conn, 'n_pairs', None)
+    if n_pairs is None:
+        raise TypeError('conductance syn_strength requires network ScatterConn backend')
+    return build_conductance_schema(n, ih_group, type_names=type_names, n_pairs=n_pairs)
 
 
 @dataclass(frozen=True)
@@ -1010,6 +1013,7 @@ def load_network_backend(network_json, dev: Optional[str] = None, *, sim_dtype=S
     backend = _network_backend_from_connectome(C, sim_dtype=sim_dtype)
     print(f"network: {network_json}")
     print(f"  n_units={backend.n_units}, n_types={backend.n_types}, "
+          f"n_pairs={backend.conn.n_pairs}, "
           f"nparams={schema_nparams(default_schema('conductance', backend))}")
     return backend
 
@@ -1886,7 +1890,7 @@ def rectsyn(x,thrld):
     
     return result
 
-def update_Vm(Vm, u_on, u_off, inp_gain, out_gain, Ih_gmax, Ih_gmax_off,
+def update_Vm(Vm, u_on, u_off, in_gain, out_gain, syn_strength, Ih_gmax, Ih_gmax_off,
               Ih_midv, Ih_slope, tau_midv, Ih_midv_off, Ih_slope_off, tau_midv_off,
               signal, backend: ModelBackend):
 
@@ -1906,9 +1910,9 @@ def update_Vm(Vm, u_on, u_off, inp_gain, out_gain, Ih_gmax, Ih_gmax_off,
     g_Ih_off = u_off * Ih_gmax_off * Ih_gain
     g_Ih     = g_Ih_on + g_Ih_off
 
-    g_exc, g_inh = conn.exc_inh_drive(rectsyn(Vm,trld)*out_gain)
-    g_exc   = g_exc*inp_gain
-    g_inh   = g_inh*inp_gain
+    g_exc, g_inh = conn.exc_inh_drive(rectsyn(Vm,trld)*out_gain, syn_strength)
+    g_exc   = g_exc*in_gain
+    g_inh   = g_inh*in_gain
 
     Vm = (g_exc*E_exc + g_inh*E_inh + g_leak*e_leak
           + E_Ih * g_Ih_on + E_IH_OFF * g_Ih_off + cdt*Vm + signal)
@@ -1945,6 +1949,8 @@ def _expand_segment(seg, raw, backend: ModelBackend):
         return calc_multi_col_params(cell, backend.conn).to(dev)
     if kind == 'output':
         return raw.to(dev)
+    if kind == 'edge_pair':
+        return raw.to(dev)
     raise ValueError(f"unknown segment kind: {kind}")
 
 
@@ -1974,7 +1980,7 @@ def update_state_adaptive(activity, v_sustained, v_transient, drive_lp, p, x_t, 
     ratio = tau / tau_r
     
     # presynaptic output gain (per source), postsynaptic input gain (per target)
-    syn     = p['inp_gain'] * backend.conn.signed_drive(torch.relu(activity) * p['out_gain'])
+    syn     = p['in_gain'] * backend.conn.signed_drive(torch.relu(activity) * p['out_gain'])
     X       = bias + syn + x_t
     X_gate  = bias + syn + x_t_delayed
     gate    = (X_gate - p['gate_pivot']) * p['adapt_gain']
@@ -2033,10 +2039,14 @@ def _run_conductance_full(session: TrainSession, p, sig, return_ref=False, *, re
 
     ``model_full`` shape ``(B, maxtime, N)`` includes equilibration (index ``0`` = ``e_leak``).
     Ca resets at ``t_on`` so ``model_full[:, t_on:, :]`` matches the training cost window.
+
+    Steps ``1 .. t_on-1`` (pre-stimulus settle) run under ``torch.no_grad``; state is
+    detached at ``t_on-1`` so BPTT does not backprop through warm-up.
     """
     backend = session.backend
     ih_off = (session.train_opts or {}).get('ih_off', IH_OFF_DEFAULT)
-    inp_gain, out_gain = p['inp_gain'], p['out_gain']
+    in_gain, out_gain = p['in_gain'], p['out_gain']
+    syn_strength = p['syn_strength']
     Ih_gmax = p['Ih_gmax']
     Ih_gmax_off, Ih_midv_off, Ih_slope_off, tau_midv_off = conductance_ih_off_kwargs(p, ih_off)
     Ih_midv, Ih_slope, tau_midv = p['Ih_midv'], p['Ih_slope'], p['tau_midv']
@@ -2046,14 +2056,29 @@ def _run_conductance_full(session: TrainSession, p, sig, return_ref=False, *, re
     u_on = u_off = torch.zeros((B, backend.n_units), dtype=session.sim_dtype, device=dev)
     Vm = backend.e_leak.expand(B, backend.n_units).clone()
     vm_rows = [Vm]
-    for t in range(1, t_end):
-        Vm, u_on, u_off = update_Vm(
-            Vm, u_on, u_off, inp_gain, out_gain, Ih_gmax, Ih_gmax_off,
+    # Warm-up through state index ``t_on - 1`` (last pre-stimulus / Vm_ref step).
+    eq_end = max(1, min(int(t_on), t_end))
+
+    def _step(t, Vm, u_on, u_off):
+        return update_Vm(
+            Vm, u_on, u_off, in_gain, out_gain, syn_strength, Ih_gmax, Ih_gmax_off,
             Ih_midv, Ih_slope, tau_midv, Ih_midv_off, Ih_slope_off, tau_midv_off,
             sig[:, t - 1], backend)
+
+    with torch.no_grad():
+        for t in range(1, eq_end):
+            Vm, u_on, u_off = _step(t, Vm, u_on, u_off)
+            vm_rows.append(Vm)
+    if eq_end > 1:
+        Vm = Vm.detach()
+        u_on = u_on.detach()
+        u_off = u_off.detach()
+    for t in range(eq_end, t_end):
+        Vm, u_on, u_off = _step(t, Vm, u_on, u_off)
         vm_rows.append(Vm)
     vm_full = torch.stack(vm_rows, dim=1)
-    Vm_ref = vm_full[:, t_on - 1, :].clone()
+    # Baseline is settled under no_grad; keep it out of the BPTT graph.
+    Vm_ref = vm_full[:, t_on - 1, :].detach().clone()
     vm_delta = vm_full - Vm_ref.unsqueeze(1)
 
     ca_rows = [torch.zeros((B, backend.n_units), dtype=session.sim_dtype, device=dev)]

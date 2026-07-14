@@ -1,0 +1,66 @@
+ensemble_and_network_id: ???
+task_name: ???
+train: true
+resume: false
+checkpoint_only: false
+network_name: ${task_name}/${ensemble_and_network_id}
+description: ???
+overfit: false
+delete_if_exists: false
+save_environment: false
+
+defaults:
+  - _self_
+  - network: network
+  - task: task
+  - optim: optim
+  - penalizer: penalizer
+  - scheduler: scheduler
+  - override hydra/hydra_logging: disabled
+
+# disable all hydra working dir manipulation, logging, config stores because we do it
+hydra:
+  run:
+    dir: .
+  output_subdir: null
+  help:
+    app_name: train single flyvis network
+    header: |
+
+      == ${hydra.help.app_name} ==
+
+      Train the visual system model using the specified configuration.
+
+        This script initializes and runs the training process for the model.
+        It uses the configuration provided through Hydra to set up the solver, manage the
+        training process, and handle checkpoints.
+
+        Example:
+            Train a network for 1000 iterations (and add description 'test'):
+
+            flyvis train-single \
+                ensemble_and_network_id=0045/000 \
+                task_name=flow \
+                train=true \
+                resume=false \
+                task.n_iters=1000
+                description='test'
+
+            or
+
+            python train_single.py \
+                ensemble_and_network_id=0045/000 \
+                task_name=flow \
+                train=true \
+                resume=false \
+                task.n_iters=1000 \
+                description='test'
+
+
+        High-level options:
+
+          - train (bool): Whether to run the training process
+          - resume (bool): Whether to resume training from the last checkpoint
+          - overfit (bool): Whether to use overfitting mode in training
+          - checkpoint_only (bool): Whether to create a checkpoint without training
+          - save_environment (bool): Whether to save the source code and environment details
