@@ -97,7 +97,6 @@ def _extract_spot_bundle(session, z, *, target: str, trace_kind: str, x_list, y_
         one,
         z,
         all_cells=True,
-        group_list=None,
         at_x_list=x_list,
         at_y_list=y_list,
         trace_kind=trace_kind,

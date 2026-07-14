@@ -9,7 +9,7 @@ By default (incoming / ``pre``) each CELL_TYPE is treated as the postsynaptic
 down by postsynaptic ``target_type``.
 
 A CELL_TYPE token may be a cell type (e.g. ``Mi1``); a *family* when prefixed with
-``&`` (e.g. ``&Centrifugal``) which aggregates over all its member types; or a single
+``:`` (e.g. ``:Centrifugal``) which aggregates over all its member types; or a single
 neuron when prefixed with ``@`` (e.g. ``@720575940622041087``) selected by FlyWire
 root id. The breakdown column still shows individual ``source_type``/``target_type``
 unless ``--family`` is given.
@@ -50,8 +50,8 @@ Example::
     python3 "cell_syn.py" L1,L2,L3,L4,L5
     python3 "cell_syn.py" T4a,T4b,T4c,T4d
     python3 "cell_syn.py" Mi1 --post
-    python3 "cell_syn.py" &Centrifugal
-    python3 "cell_syn.py" &Centrifugal --family
+    python3 "cell_syn.py" :Centrifugal
+    python3 "cell_syn.py" :Centrifugal --family
     python3 "cell_syn.py" Mi1 --family
     python3 "cell_syn.py" @720575940622041087
     python3 "cell_syn.py" Mi1 --network right_min_neuron1
@@ -95,7 +95,7 @@ from connectome_io import (
     SIMULATION_CODE_DIR,
     parse_comma_list,
     resolve_network_json,
-    type_counts_abc_path,
+    resolve_type_counts_abc_path,
 )
 
 logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
@@ -110,11 +110,11 @@ def _hex_disc_column_count(extent: int) -> int:
 
 
 def _load_type_to_family(json_path: Path) -> Dict[str, str]:
-    """Map cell ``type`` -> ``family`` from ``type_counts_abc.csv`` next to network.json."""
-    csv_path = type_counts_abc_path(json_path)
+    """Map cell ``type`` -> ``family`` from ``type_counts_abc.csv`` for this network."""
+    csv_path = resolve_type_counts_abc_path(json_path)
     out: Dict[str, str] = {}
     if not csv_path.is_file():
-        logger.warning("No type_counts_abc.csv next to %s; family names won't resolve", json_path)
+        logger.warning("No type_counts_abc.csv at %s; family names won't resolve", csv_path)
         return out
     import csv
 
@@ -205,10 +205,10 @@ def _resolve_query_labels(
     """Resolve queried tokens to (ordered labels, self_type -> labels, self_id -> labels).
 
     Token prefixes:
-      - ``&Family`` aggregates over every member type of that family.
+      - ``:Family`` aggregates over every member type of that family.
       - ``@<root_id>`` selects a single neuron by FlyWire root id.
       - anything else is a literal cell type.
-    The label shown in the output is the token as typed (e.g. ``&Centrifugal``,
+    The label shown in the output is the token as typed (e.g. ``:Centrifugal``,
     ``@720575940622041087``).
     """
     family_to_types: DefaultDict[str, List[str]] = defaultdict(list)
@@ -218,7 +218,7 @@ def _resolve_query_labels(
     self_type_to_labels: DefaultDict[str, Set[str]] = defaultdict(set)
     self_id_to_labels: DefaultDict[int, Set[str]] = defaultdict(set)
     for tok in labels:
-        if tok.startswith("&"):
+        if tok.startswith(":"):
             fam = tok[1:]
             members = family_to_types.get(fam, [])
             if not members:
@@ -592,7 +592,7 @@ def _accumulate_all(
     """One pass over edges: per queried label, (per partner type syn+/syn-, total n_syn).
 
     ``labels`` is the ordered list of queried tokens (a cell type, a family entered as
-    ``&Family``, or a single neuron entered as ``@<root_id>``). ``self_type_to_labels``
+    ``:Family``, or a single neuron entered as ``@<root_id>``). ``self_type_to_labels``
     maps each *self* cell type to its label(s); ``self_id_to_labels`` maps a *self* root
     id to its label(s). A family label aggregates over all its member types.
 
@@ -906,8 +906,8 @@ def main(argv: List[str] | None = None) -> int:
         metavar="CELL_TYPE[,CELL_TYPE...]",
         help=(
             "Comma-separated cell types to query (e.g. T4a,T4b,T4c or Mi1). "
-            "Prefix with & for a family "
-            "(e.g. &Centrifugal) to aggregate its member types, or @ for a single "
+            "Prefix with : for a family "
+            "(e.g. :Centrifugal) to aggregate its member types, or @ for a single "
             "neuron by root id (e.g. @720575940622041087). Default: L1 if omitted"
         ),
     )
@@ -1224,9 +1224,9 @@ def main(argv: List[str] | None = None) -> int:
             logger.warning("@root_id queries are not supported with --borst; skipping those tokens")
             labels = [lab for lab in labels if not lab.startswith("@")]
             self_id_to_labels = {}
-        if any(tok.startswith("&") for tok in cell_types):
+        if any(tok.startswith(":") for tok in cell_types):
             logger.warning(
-                "&Family tokens are not supported with --borst; "
+                ":Family tokens are not supported with --borst; "
                 "use a literal cell type from multi_colM ctype"
             )
 

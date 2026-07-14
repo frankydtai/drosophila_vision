@@ -13,13 +13,13 @@ import torch
 
 import FiveCol_MedSim_Pytorch as fc
 import Medulla_Library as ml
-from plot.readout import moving_bar_row_types
+from Analysis.DSI import moving_bar_cell_title, moving_bar_dsi_lookup
+from plot.readout import pack_readout_types, plot_types_in_order
 from plot.utils import (
     DATA_COLOR,
     TRACE_LW,
     annotate_baseline,
     baselines_for_types,
-    cell_title_with_n,
     column_at_scope_tag,
     filter_borst_sti_columns,
     filter_sti_columns,
@@ -116,7 +116,25 @@ def _moving_bar_figure(nrows, ncols, *, sharex='col'):
 
 
 def _moving_bar_figure_adjust(fig):
-    fig.subplots_adjust(top=0.92, bottom=0.08, hspace=0.45, wspace=0.35)
+    fig.subplots_adjust(top=0.90, bottom=0.08, hspace=0.50, wspace=0.35)
+
+
+def _moving_bar_cell_title(
+    sname,
+    n,
+    model_mean,
+    data_mean,
+    model_dsi_lookup,
+    data_dsi_lookup,
+    key,
+):
+    return moving_bar_cell_title(
+        sname,
+        n=n,
+        model_dsi=model_dsi_lookup.get(key),
+        data_dsi=data_dsi_lookup.get(key),
+        has_data=data_mean.get(key) is not None,
+    )
 
 
 def _tensor_np(x):
@@ -349,7 +367,7 @@ def _fig1_trace_delta(trace: np.ndarray) -> np.ndarray:
 
 def _load_moving_bar_data_mean(session, target, types, specs, side, *, trace_kind='model'):
     data_mean = {}
-    row_types = moving_bar_row_types(session, target)
+    row_types = plot_types_in_order(pack_readout_types(session, target))
     for subtype in row_types:
         if subtype not in types:
             continue
@@ -414,7 +432,7 @@ def _moving_bar_t0_grids(session, specs, cost_extent, maxtime, *, at_x=None, at_
             network_C=C,
             filt_network_cols=filt_cols,
         )
-        types = list(C.type_names)
+        types = plot_types_in_order(C.type_names)
         type_ids = _type_ids_np(C.node_type)
     else:
         side = "right"
@@ -433,7 +451,7 @@ def _moving_bar_t0_grids(session, specs, cost_extent, maxtime, *, at_x=None, at_
             cols_all, specs, maxtime, t_on=t_on, deltat_ms=fc.deltat,
             i_baseline=i_baseline,
         )
-        types = list(ml.ctype.tolist())
+        types = plot_types_in_order(ml.ctype.tolist())
         type_ids = _type_ids_np(session.backend.conn.node_type)
         grids = build_moving_bar_t0_grids(
             col_curr, specs, maxtime, i_baseline,
@@ -450,7 +468,7 @@ def _moving_bar_t0_grids(session, specs, cost_extent, maxtime, *, at_x=None, at_
 
 
 def _moving_bar_row_specs(session, target, side):
-    readout_subtypes = moving_bar_row_types(session, target)
+    readout_subtypes = plot_types_in_order(pack_readout_types(session, target))
     contrast = "bright" if "bright" in target else "dark"
     return {
         st: [f'{d}_{c}_{w}' for d, c, w in active_stimuli_for_subtype(side, st) if c == contrast]
@@ -844,6 +862,12 @@ def _moving_bar_all_figure(b_on, b_2, title, *, right_only=True):
     show_sem = not single_column and not has_slices
     nrows = len(types)
     ncols = len(spec_names)
+    model_dsi_on = moving_bar_dsi_lookup(wt_on.model_mean, types, b_on.spec_names)
+    data_dsi_on = moving_bar_dsi_lookup(b_on.data_mean, types, b_on.spec_names)
+    model_dsi_2 = data_dsi_2 = None
+    if b_2 is not None:
+        model_dsi_2 = moving_bar_dsi_lookup(wt_2.model_mean, types, b_2.spec_names)
+        data_dsi_2 = moving_bar_dsi_lookup(b_2.data_mean, types, b_2.spec_names)
     fig, axes = _moving_bar_figure(nrows, ncols)
     for ri, tname in enumerate(types):
         for ci, sname in enumerate(spec_names):
@@ -858,8 +882,14 @@ def _moving_bar_all_figure(b_on, b_2, title, *, right_only=True):
             if baselines_2 is not None and ci >= ncols_on:
                 bl = baselines_2.get(tname)
             before_steps, after_steps = _window_steps(wt, sname)
+            dsi_on = ci < ncols_on
+            cell_title = _moving_bar_cell_title(
+                sname, model_n.get(key), model_mean, data_mean,
+                model_dsi_on if dsi_on else model_dsi_2,
+                data_dsi_on if dsi_on else data_dsi_2,
+                key,
+            )
             if has_slices and b_src is not None and b_src.slice_overlay is not None:
-                cell_title = cell_title_with_n(sname, model_n.get(key))
                 slice_traces = {
                     label: _bundle_slice_trace(b_src, label, key)
                     for label in slice_labels
@@ -883,7 +913,6 @@ def _moving_bar_all_figure(b_on, b_2, title, *, right_only=True):
                     baseline=bl,
                 )
             else:
-                cell_title = cell_title_with_n(sname, model_n.get(key))
                 _plot_moving_bar_cell(
                     ax, model_mean[key], model_sem.get(key),
                     cell_title, before_steps, after_steps,
@@ -933,7 +962,14 @@ def plot_moving_bar_data(session_1, z, path, target, session_2=None, title=None,
     nrows = len(readout_subtypes)
     fig, axes = _moving_bar_figure(nrows, ncols)
 
-    def _plot_row(ri, subtype, specs, col_offset, b, plot_side):
+    model_dsi_on = moving_bar_dsi_lookup(b_on.traces.model_mean, readout_subtypes, b_on.spec_names)
+    data_dsi_on = moving_bar_dsi_lookup(b_on.data_mean, readout_subtypes, b_on.spec_names)
+    model_dsi_2 = data_dsi_2 = None
+    if b_2 is not None:
+        model_dsi_2 = moving_bar_dsi_lookup(b_2.traces.model_mean, readout_subtypes, b_2.spec_names)
+        data_dsi_2 = moving_bar_dsi_lookup(b_2.data_mean, readout_subtypes, b_2.spec_names)
+
+    def _plot_row(ri, subtype, specs, col_offset, b, plot_side, model_dsi, data_dsi):
         wt = b.traces
         for ci, sname in enumerate(specs):
             ax = axes[ri, col_offset + ci]
@@ -942,7 +978,10 @@ def plot_moving_bar_data(session_1, z, path, target, session_2=None, title=None,
                 ax.axis('off')
                 continue
             before_steps, after_steps = _window_steps(wt, sname)
-            cell_title = cell_title_with_n(sname, wt.model_n.get(key))
+            cell_title = _moving_bar_cell_title(
+                sname, wt.model_n.get(key), wt.model_mean, b.data_mean,
+                model_dsi, data_dsi, key,
+            )
             _plot_moving_bar_cell(
                 ax, wt.model_mean[key], wt.model_sem[key],
                 cell_title, before_steps, after_steps,
@@ -954,9 +993,9 @@ def plot_moving_bar_data(session_1, z, path, target, session_2=None, title=None,
             )
 
     for ri, subtype in enumerate(readout_subtypes):
-        _plot_row(ri, subtype, row_specs[subtype], 0, b_on, b_on.side)
+        _plot_row(ri, subtype, row_specs[subtype], 0, b_on, b_on.side, model_dsi_on, data_dsi_on)
         if b_2 is not None:
-            _plot_row(ri, subtype, row_specs_2[subtype], ncols_half, b_2, b_2.side)
+            _plot_row(ri, subtype, row_specs_2[subtype], ncols_half, b_2, b_2.side, model_dsi_2, data_dsi_2)
         axes[ri, 0].set_ylabel(subtype, fontsize=8, labelpad=12)
     if title is None:
         title = 'Moving-bar model-data'

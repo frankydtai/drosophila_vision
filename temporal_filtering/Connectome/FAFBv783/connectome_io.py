@@ -48,6 +48,7 @@ def network_json_path(side: str, min_neuron_count: int = 1) -> Path:
 
 
 TYPE_COUNTS_ABC_FILE = "type_counts_abc.csv"
+TYPE_COUNTS_ABC_BASE_RUN = "right_min_neuron1"
 
 
 def resolve_network_json(spec: str) -> Path:
@@ -80,6 +81,14 @@ def network_run_tag(network_path: str, meta: dict) -> str:
 def type_counts_abc_path(network_json: Path) -> Path:
     """``type_counts_abc.csv`` next to a built ``network.json``."""
     return Path(network_json).resolve().parent / TYPE_COUNTS_ABC_FILE
+
+
+def resolve_type_counts_abc_path(network_json: Path) -> Path:
+    """``type_counts_abc.csv`` for family lookup (extent runs share the base table)."""
+    net = Path(network_json).resolve()
+    if re.search(r"_extent\d+$", net.parent.name):
+        return NETWORK_DIR / TYPE_COUNTS_ABC_BASE_RUN / TYPE_COUNTS_ABC_FILE
+    return type_counts_abc_path(network_json)
 
 
 def moving_bar_cache_dir(network_json: Path) -> Path:

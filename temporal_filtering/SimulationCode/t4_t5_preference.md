@@ -110,6 +110,27 @@ On a subtype’s **PD** axis:
 
 Left vs right eye: only the stimulus direction for A→P vs P→A is mirrored (`right` ↔ `left`); up/down unchanged.
 
+## Direction selectivity index (DSI)
+
+Population traces in [`fig1_ci_digitized.csv`](../../MatlabFunctions/fig1_ci_digitized.csv) are already split by pathway, contrast (PC/NC), bar width, and motion direction (PD/ND). For each condition, take the **peak** `vm_mv` over time, then:
+
+$$\mathrm{DSI} = \frac{\mathrm{peak\ PD} - \mathrm{peak\ ND}}{\mathrm{peak\ PD} + \mathrm{peak\ ND}}$$
+
+Map stimulus contrast to fig1 keys via the pathway table above: **T4 bright** → `T4_PC`, **T4 dark** → `T4_NC`; **T5 dark** → `T5_PC`, **T5 bright** → `T5_NC`.
+
+| Pathway | Stimulus contrast | Width | fig1 key | peak PD (mV) | peak ND (mV) | DSI   |
+| ------- | ----------------- | ----- | -------- | ------------ | ------------ | ----- |
+| T4      | bright (PC)       | w1    | `T4_PC`  | 18.25        | 7.60         | 0.412 |
+| T4      | bright (PC)       | w4    | `T4_PC`  | 23.70        | 7.60         | 0.514 |
+| T4      | dark (NC)         | w1    | `T4_NC`  | 3.15         | 3.00         | 0.024 |
+| T4      | dark (NC)         | w4    | `T4_NC`  | 16.35        | 7.20         | 0.389 |
+| T5      | dark (PC)         | w1    | `T5_PC`  | 11.40        | 5.85         | 0.322 |
+| T5      | dark (PC)         | w4    | `T5_PC`  | 25.60        | 9.25         | 0.469 |
+| T5      | bright (NC)       | w1    | `T5_NC`  | 8.05         | 4.70         | 0.263 |
+| T5      | bright (NC)       | w4    | `T5_NC`  | 13.55        | 8.20         | 0.246 |
+
+T4 dark at w1 is nearly non-selective (PD ≈ ND). w4 traces are more direction-selective than w1 for both pathways.
+
 ## References
 
 - **Data:** [`MatlabFunctions/fig1_ci_digitized.csv`](../../MatlabFunctions/fig1_ci_digitized.csv) — Figure 1 Ci/Cii traces (Gruntman et al. 2021), digitized by `digitize_fig1_ci.py`.

@@ -6,19 +6,46 @@ import numpy as np
 import torch
 
 import Medulla_Library as ml
-from network.moving_bar_target import BORST_READOUT_SUBTYPES
-from t4_t5_preference import READOUT_SUBTYPES
 
-DEFAULT_MVD_GROUPS = [
+PLOT_FAMILY_ROWS = [
+    np.array(['R1-6', 'R7', 'R8']),
     np.array(['L1', 'L2', 'L3', 'L4', 'L5']),
     np.array(['Mi1', 'Mi4', 'Mi9']),
-    np.array(['Tm1', 'Tm2', 'Tm3', 'Tm4', 'Tm9']),
+    np.array(['T1', 'T2', 'T2a', 'T3']),
+    np.array(['T4a', 'T4b', 'T4c', 'T4d']),
+    np.array(['T5a', 'T5b', 'T5c', 'T5d']),
+    np.array(['Tm1', 'Tm2', 'Tm20', 'Tm21', 'Tm3', 'Tm4', 'Tm9']),
+    np.array(['C2', 'C3']),
 ]
 
 
-def mvd_groups(groups=None):
-    src = DEFAULT_MVD_GROUPS if groups is None else groups
-    return [np.asarray(g) for g in src if len(g) > 0]
+def plot_row_groups(present):
+    """Family row groups for plots; skip absent types and empty rows."""
+    present_list = [str(t) for t in present]
+    present_set = set(present_list)
+    rows = []
+    used = set()
+    for row in PLOT_FAMILY_ROWS:
+        filtered = [str(t) for t in row if str(t) in present_set]
+        if filtered:
+            rows.append(np.array(filtered))
+            used.update(filtered)
+    for name in present_list:
+        if name not in used:
+            rows.append(np.array([name]))
+    return rows
+
+
+def plot_present_layout(present):
+    """Return ``(groups, names)`` in canonical family order."""
+    groups = plot_row_groups(present)
+    names = [str(n) for row in groups for n in row]
+    return groups, names
+
+
+def plot_types_in_order(present):
+    """Flat cell-type order from :func:`plot_present_layout`."""
+    return plot_present_layout(present)[1]
 
 
 def _pack_for(session, target):
@@ -102,78 +129,3 @@ def spot_ref_cubes(session, target=None, dark=False):
         for name in mirror_types:
             ref[name] = mirrored
     return ref
-
-
-def _mirror_type_groups_from_override(override, present):
-    if not override:
-        return []
-    groups = []
-    if 'mirror_fits' in override:
-        for spec in override['mirror_fits']:
-            row = [str(t) for t in spec.get('mirror_types', []) if str(t) in present]
-            if row:
-                groups.append(np.array(row))
-    elif 'mirror_fit' in override:
-        spec = override['mirror_fit']
-        if isinstance(spec, dict) and 'mirror_types' in spec:
-            row = [str(t) for t in spec['mirror_types'] if str(t) in present]
-            if row:
-                groups.append(np.array(row))
-    return groups
-
-
-def spot_model_data_groups(session, target=None, group_list=None):
-    """Row groups for spot model-data plots."""
-    target = target or session.primary_pack.name
-    present = set(pack_readout_types(session, target))
-    if group_list is not None:
-        out = []
-        for g in mvd_groups(group_list):
-            row = [str(n) for n in g if str(n) in present]
-            if row:
-                out.append(np.array(row))
-        return out
-
-    out = []
-    used = set()
-    overrides = (session.train_opts or {}).get('pack_overrides') or {}
-    for g in _mirror_type_groups_from_override(overrides.get(target), present):
-        out.append(g)
-        used.update(g.tolist())
-
-    for g in DEFAULT_MVD_GROUPS:
-        row = [str(n) for n in g if str(n) in present and str(n) not in used]
-        if row:
-            out.append(np.array(row))
-            used.update(row)
-
-    for name in pack_readout_types(session, target):
-        if name not in used:
-            out.append(np.array([name]))
-            used.add(name)
-    return out
-
-
-def spot_model_data_names(session, target=None, group_list=None):
-    """Flat cell names for network spot model-data grid."""
-    names = []
-    for g in spot_model_data_groups(session, target, group_list):
-        names.extend(str(n) for n in g)
-    return names
-
-
-def moving_bar_row_types(session, target):
-    """Row labels for moving-bar model-data plots."""
-    present = pack_readout_types(session, target)
-    present_set = set(present)
-    canonical = (
-        READOUT_SUBTYPES
-        if session.backend.network is not None
-        else BORST_READOUT_SUBTYPES
-    )
-    ordered = [str(t) for t in canonical if str(t) in present_set]
-    used = set(ordered)
-    for name in present:
-        if name not in used:
-            ordered.append(name)
-    return tuple(ordered)

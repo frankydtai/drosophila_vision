@@ -231,7 +231,7 @@ def select_best(params, session, *, final_costs=None, best_i=None):
 
 
 def _plot_spot_targets(session, z, outdir, spot_targets, suffix, model_all,
-                       ref_cubes=None, ref_cubes_2=None, mvd_group_list=None,
+                       ref_cubes=None, ref_cubes_2=None,
                        at_x=None, at_y=None, save_trace_csv_dir=None, show_pre=True):
     """Plot spot target(s); two traces combined in one figure when both are trained."""
     spot_set = set(spot_targets)
@@ -240,7 +240,6 @@ def _plot_spot_targets(session, z, outdir, spot_targets, suffix, model_all,
     net_tag = _network_spot_tag(session, ref_t)
     plot_kw = dict(
         ref_cubes=ref_cubes, ref_cubes_2=ref_cubes_2,
-        group_list=mvd_group_list,
         save_trace_csv_dir=save_trace_csv_dir,
         show_pre=show_pre,
     )
@@ -267,7 +266,6 @@ def _plot_spot_targets(session, z, outdir, spot_targets, suffix, model_all,
         _plot_one_target(
             _session_for_target(session, tname), z, outdir, tname, suffix, model_all,
             ref_cubes=ref_cubes, ref_cubes_2=ref_cubes_2,
-            mvd_group_list=mvd_group_list,
             at_x=at_x, at_y=at_y,
             save_trace_csv_dir=save_trace_csv_dir, show_pre=show_pre,
         )
@@ -321,7 +319,7 @@ def _plot_bar_targets(session, z, outdir, bar_targets, suffix, model_all, *,
 
 
 def _plot_one_target(session, z, outdir, tname, suffix, model_all,
-                     ref_cubes=None, ref_cubes_2=None, mvd_group_list=None,
+                     ref_cubes=None, ref_cubes_2=None,
                      at_x=None, at_y=None, save_trace_csv_dir=None, show_pre=True):
     if tname not in fc.SPOT_TARGETS:
         raise ValueError(f'unknown plot target {tname!r}')
@@ -331,7 +329,6 @@ def _plot_one_target(session, z, outdir, tname, suffix, model_all,
     net_tag = _network_spot_tag(session, tname)
     plot_kw = dict(
         ref_cubes=ref_cubes, ref_cubes_2=ref_cubes_2,
-        group_list=mvd_group_list,
         save_trace_csv_dir=save_trace_csv_dir,
         show_pre=show_pre,
     )
@@ -348,7 +345,7 @@ def plot_param_set(params, outdir, model=None, model_all=True,
                    plot_targets=None, session=None, *,
                    final_costs=None, cost_curve=None, costs_by_target=None, best_i=None,
                    save_artifacts=True, artifact_fname=None,
-                   ref_cubes=None, ref_cubes_2=None, mvd_group_list=None,
+                   ref_cubes=None, ref_cubes_2=None,
                    plot_right_only=True, at_x=None, at_y=None,
                    align_at_x=None, align_at_y=None,
                    plot_vm=False, save_csv=False, show_pre=True):
@@ -449,7 +446,6 @@ def plot_param_set(params, outdir, model=None, model_all=True,
             net_tag = _network_spot_tag(session, ref_t)
             plot_kw = dict(
                 ref_cubes=ref_cubes, ref_cubes_2=ref_cubes_2,
-                group_list=mvd_group_list,
                 show_pre=show_pre,
             )
             if spot_set == set(fc.SPOT_TARGETS):
@@ -489,7 +485,6 @@ def plot_param_set(params, outdir, model=None, model_all=True,
         _plot_spot_targets(
             session, z, outdir, spot_targets, suffix, model_all,
             ref_cubes=ref_cubes, ref_cubes_2=ref_cubes_2,
-            mvd_group_list=mvd_group_list,
             at_x=at_x, at_y=at_y,
             save_trace_csv_dir=save_trace_csv_dir, show_pre=show_pre,
         )
@@ -506,7 +501,6 @@ def plot_param_set(params, outdir, model=None, model_all=True,
         _plot_one_target(
             one, z, outdir, tname, suffix, model_all,
             ref_cubes=ref_cubes, ref_cubes_2=ref_cubes_2,
-            mvd_group_list=mvd_group_list,
             save_trace_csv_dir=save_trace_csv_dir, show_pre=show_pre,
         )
 
