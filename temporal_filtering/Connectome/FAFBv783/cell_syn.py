@@ -18,11 +18,12 @@ Optionally restrict to CELL_TYPE *instances* by location: axial ``(u, v)`` with
 ``--u`` and/or ``--v`` (one axis for every column on that line, or both for a single
 column); hex-step ``(x, y)`` with ``--x`` and/or ``--y``; or the central hex disc
 ``--extent N`` (0 = centre column, 1 = 7 columns, 2 = 19, …; uses
-``column_mapper.inside_mask``). ``--extent`` is FAFB-only and shows mean
-``pre_d_xy``/``post_d_xy`` only.
+``column_mapper.inside_mask``); or a single hex shell ``--shell N`` (0 = centre
+column, 1 = 6 columns, 2 = 12, …; uses ``column_mapper.hex_radius``). Both are
+FAFB-only and show mean ``pre_d_xy``/``post_d_xy`` only.
 With ``--borst`` (5-column ``multi_colM`` model) use ``--x`` as column offset
 ``k`` in ``{-2,-1,0,1,2}`` (``--y`` must be ``0`` on the horizontal row, or omit);
-``--u``/``--v``, ``--extent``, and ``--family`` are invalid (no ``type_counts_abc.csv``
+``--u``/``--v``, ``--extent``, ``--shell``, and ``--family`` are invalid (no ``type_counts_abc.csv``
 on the Borst path). Borst output never shows axial ``(u,v)``; with any ``--x``/``--y``
 only ``pre_d_xy``/``post_d_xy``. Without ``--u``/``--v``/``--x``/``--y``, only
 ``pre_d_xy``/``post_d_xy`` is shown (mean partner pixel delta). The reference is the
@@ -62,6 +63,8 @@ Example::
     python3 "cell_syn.py" Mi1 --x 0
     python3 "cell_syn.py" Mi1 --extent 0
     python3 "cell_syn.py" Mi1 --extent 2
+    python3 "cell_syn.py" Mi1 --shell 0
+    python3 "cell_syn.py" Mi1 --shell 2
     python3 "cell_syn.py" Mi1 --borst
     python3 "cell_syn.py" Mi1 --borst --post
     python3 "cell_syn.py" Mi1 --borst --x 0 --y 0
@@ -84,6 +87,7 @@ _UvCoord = Tuple[Union[int, float], Union[int, float]]
 from column_mapper import (
     BORST_CENTER_COL,
     borst_sti_columns,
+    hex_radius,
     inside_mask,
     uv_to_xy,
     xy_to_uv,
@@ -107,6 +111,11 @@ _MAX_PARTNER_LIST = 5
 def _hex_disc_column_count(extent: int) -> int:
     """Hex cells in a disc of axial radius ``extent`` (0 -> 1, 1 -> 7, 2 -> 19, …)."""
     return 3 * extent * (extent + 1) + 1
+
+
+def _shell_column_count(shell: int) -> int:
+    """Hex cells on shell ``shell`` (0 -> 1, 1 -> 6, 2 -> 12, …)."""
+    return 1 if shell == 0 else 6 * shell
 
 
 def _load_type_to_family(json_path: Path) -> Dict[str, str]:
@@ -538,6 +547,27 @@ def _instance_ids_in_disc(nodes: List[dict], extent: int) -> Dict[str, Set[int]]
     return out
 
 
+def _instance_ids_on_shell(nodes: List[dict], shell: int) -> Dict[str, Set[int]]:
+    """Map cell type -> root ids on hex shell ``shell`` (exact distance from origin)."""
+    out: Dict[str, Set[int]] = {}
+    for n in nodes:
+        try:
+            u, v = int(n["u"]), int(n["v"])
+        except (KeyError, TypeError, ValueError):
+            continue
+        if hex_radius(u, v) != shell:
+            continue
+        name = n.get("name")
+        if not isinstance(name, str):
+            continue
+        try:
+            nid = int(n["id"])
+        except (KeyError, TypeError, ValueError):
+            continue
+        out.setdefault(name, set()).add(nid)
+    return out
+
+
 def _instance_ids_at_col(nodes: List[dict], col: int) -> Dict[str, Set[int]]:
     """Map cell type -> unit ids in one Borst column (``column_id`` match)."""
     out: Dict[str, Set[int]] = {}
@@ -944,7 +974,7 @@ def main(argv: List[str] | None = None) -> int:
         help=(
             "Use Borst 5-column multi_colM connectivity (ignores --network). "
             "Restrict to one column with --x/--y (Borst centres on y=0); "
-            "--u/--v, --extent, and --family are not valid."
+            "--u/--v, --extent, --shell, and --family are not valid."
         ),
     )
     parser.add_argument(
@@ -992,7 +1022,19 @@ def main(argv: List[str] | None = None) -> int:
             "FAFB only: restrict to CELL_TYPE instances in the central hex disc of "
             "radius N (0 = centre column, 1 = 7 columns, 2 = 19, …; "
             "column_mapper.inside_mask). Shows mean pre_d_xy/post_d_xy only. "
-            "Incompatible with --borst, --u/--v, and --x/--y."
+            "Incompatible with --shell, --borst, --u/--v, and --x/--y."
+        ),
+    )
+    parser.add_argument(
+        "--shell",
+        type=int,
+        metavar="N",
+        default=None,
+        help=(
+            "FAFB only: restrict to CELL_TYPE instances on hex shell N "
+            "(0 = centre column, 1 = 6 columns, 2 = 12, …; "
+            "column_mapper.hex_radius). Shows mean pre_d_xy/post_d_xy only. "
+            "Incompatible with --extent, --borst, --u/--v, and --x/--y."
         ),
     )
     parser.add_argument(
@@ -1027,12 +1069,32 @@ def main(argv: List[str] | None = None) -> int:
         logger.error("--extent cannot be used with --x/--y")
         return 1
 
+    if args.shell is not None and has_uv_filter:
+        logger.error("--shell cannot be used with --u/--v")
+        return 1
+
+    if args.shell is not None and has_xy_filter:
+        logger.error("--shell cannot be used with --x/--y")
+        return 1
+
+    if args.extent is not None and args.shell is not None:
+        logger.error("--extent cannot be used with --shell")
+        return 1
+
     if args.borst and args.extent is not None:
         logger.error("--extent is invalid with --borst; use --network on FAFB network.json")
         return 1
 
+    if args.borst and args.shell is not None:
+        logger.error("--shell is invalid with --borst; use --network on FAFB network.json")
+        return 1
+
     if args.extent is not None and args.extent < 0:
         logger.error("--extent must be >= 0")
+        return 1
+
+    if args.shell is not None and args.shell < 0:
+        logger.error("--shell must be >= 0")
         return 1
 
     if args.borst and args.family:
@@ -1128,6 +1190,17 @@ def main(argv: List[str] | None = None) -> int:
                 "Restricting to central hex disc extent=%d (%d hex columns); "
                 "%d cell types have ≥1 node there",
                 args.extent,
+                n_hex,
+                sum(1 for s in ids_at_hex.values() if s),
+            )
+        elif args.shell is not None:
+            ids_at_hex = _instance_ids_on_shell(nodes, args.shell)
+            n_hex = _shell_column_count(args.shell)
+            hex_note += f" shell={args.shell} ({n_hex} hex cols)"
+            logger.info(
+                "Restricting to hex shell=%d (%d hex columns); "
+                "%d cell types have ≥1 node there",
+                args.shell,
                 n_hex,
                 sum(1 for s in ids_at_hex.values() if s),
             )

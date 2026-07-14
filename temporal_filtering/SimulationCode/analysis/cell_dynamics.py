@@ -1,39 +1,33 @@
-"""
-Conductance budget for cell responses: cost-extent **average** by default.
+"""Conductance / Vm budget for cell responses (cost-extent average or hex).
+
+CLI matches ``analysis.cell_trace`` shared flags; budget walks are dynamics-only.
+Reuse loaders/forwards from ``analysis.cell_trace`` (do not fork).
 
 Speed / agent contract
 ----------------------
-Per ``--run`` this script does:
+Per ``--run``:
 
-  * one ``load_best``
+  * one ``plot_trained.load_best``
   * one spot forward per distinct ``spot_*`` target
   * one moving-bar forward per distinct ``moving_bar_*`` target
+  * unit-level ``update_Vm`` budget walks once per (target, bar-spec or spot)
 
-Unit-level ``update_Vm`` walks for budgets run once per (target, bar-spec or
-spot) and aggregate all requested ``--cell`` values. **Do not** re-invoke this
-CLI once per cell / once per target / once per spec.
+**Do not** re-invoke once per cell / spec.
 
-Default: average (no hex)
--------------------------
-Omit ``--x`` / ``--y``. Overlay and budgets match plot **total** means:
-
-  * spot: center-bin (stim-on-column) mean over cost-extent readouts
-  * bar: cost-extent mean, ``t_first_sti``-aligned (``model_all_bar`` total)
-
-Optional hex mode: pass both ``--x`` and ``--y`` for one column (previous
-single-column path). Upstream / counterfactual only apply in hex mode.
+Modes
+-----
+* Omit ``--x`` / ``--y``: cost-extent **average** (plot totals).
+* Exactly one ``--x`` and one ``--y``: **hex** mode (moving_bar only; one cell).
+* Multiple x/y: rejected.
 
 Examples
 --------
-  # Mi4 + Mi9: why spot vs bar polarity flips (averages, one process)
-  temporal_filtering/.venv/bin/python \\
-    temporal_filtering/SimulationCode/test/analyze_cell_dynamics.py \\
+  cd temporal_filtering/SimulationCode
+  ../.venv/bin/python -m analysis.cell_dynamics \\
     --run /abs/path/to/run --cell Mi4,Mi9 \\
     --target spot_bright,moving_bar_bright --spec right_bright_w1
 
-  # optional single hex
-  temporal_filtering/.venv/bin/python \\
-    temporal_filtering/SimulationCode/test/analyze_cell_dynamics.py \\
+  ../.venv/bin/python -m analysis.cell_dynamics \\
     --run /abs/path/to/run --cell L3 --target moving_bar_bright \\
     --spec right_bright_w1 --x -2 --y -1
 """
@@ -42,111 +36,22 @@ from __future__ import annotations
 
 import argparse
 import json
-import os
-import sys
-from collections import defaultdict
-from dataclasses import asdict, dataclass, field
+from dataclasses import asdict, dataclass
 from typing import Any
 
 import numpy as np
 import torch
 
-
-def _add_simulation_code_to_syspath() -> None:
-    sim_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
-    sys.path.insert(0, sim_dir)
-
-
-def _parse_comma_list(text: str | None) -> list[str] | None:
-    if text is None:
-        return None
-    items = [p.strip() for p in str(text).split(",") if p.strip()]
-    return items or None
-
-
-def _load_best(outdir: str):
-    import plot_trained
-
-    params_path, _ = plot_trained.find_training_params(outdir)
-    params = np.load(params_path)
-    model = plot_trained.resolve_model(outdir)
-    session = plot_trained.load_session(outdir, model=model)
-    best_i = None
-    best_i_path = os.path.join(outdir, "data", "best_i.txt")
-    if os.path.isfile(best_i_path):
-        s = open(best_i_path).read().strip()
-        if s:
-            best_i = int(s)
-    best, best_cost, best_i = plot_trained.select_best(params, session, best_i=best_i)
-    z = torch.tensor(best, dtype=session.sim_dtype, device=session.device)
-    return session, z, int(best_i), float(best_cost)
-
-
-# ---------------------------------------------------------------------------
-# Forward cache: one expensive forward per target
-# ---------------------------------------------------------------------------
-
-
-@dataclass
-class ForwardCache:
-    session: Any
-    z: Any
-    trace_kind: str
-    p: Any = None
-    _bar: dict[str, Any] = field(default_factory=dict)
-    _spot: dict[str, tuple] = field(default_factory=dict)
-
-    def params(self):
-        import FiveCol_MedSim_Pytorch as fc
-
-        if self.p is None:
-            self.p = fc.assign_params(
-                self.z, list(self.session.schema), self.session.backend,
-            )
-        return self.p
-
-    def bar_bundle(self, target: str, *, x_list=None, y_list=None):
-        import plot_trained
-        from plot import moving_bar as mb_plot
-
-        key = (target, tuple(x_list or ()), tuple(y_list or ()))
-        if key not in self._bar:
-            one = plot_trained.session_for_target(self.session, target)
-            self._bar[key] = mb_plot.moving_bar_trace_bundle(
-                one,
-                self.z,
-                target,
-                at_x_list=x_list,
-                at_y_list=y_list,
-                trace_kind=self.trace_kind,
-                save_trace_csv_dir=None,
-            )
-        return self._bar[key]
-
-    def spot_bundle(self, target: str):
-        import plot_trained
-        from plot import spot as spot_plot
-
-        if target not in self._spot:
-            one = plot_trained.session_for_target(self.session, target)
-            make_bundle, _, _ = plot_trained.spot_bundle_fns(one)
-            bundle = make_bundle(
-                one,
-                self.z,
-                at_x_list=None,
-                at_y_list=None,
-                trace_kind=self.trace_kind,
-                save_trace_csv_dir=None,
-            )
-            ref_on, _ = spot_plot.resolve_spot_ref_cubes(one, None, None, None)
-            self._spot[target] = (one, bundle, ref_on)
-        return self._spot[target]
-
-
-# ---------------------------------------------------------------------------
-# Shared Vm budget helpers
-# ---------------------------------------------------------------------------
-
+import FiveCol_MedSim_Pytorch as fc
+import plot_trained
+from analysis.cell_trace import (
+    add_shared_cli,
+    extract_moving_bar_bundle,
+    extract_spot_bundle,
+    parse_shared_cli,
+    specs_for_cell,
+)
+from train import parse_comma_list
 
 @dataclass
 class StepBudget:
@@ -374,11 +279,14 @@ def _bar_cost_units(session, cell: str, *, bi: int, t0_bn: np.ndarray, cost_exte
 
 
 def analyze_bar_average(
-    cache: ForwardCache,
+    session,
     *,
+    p,
+    bundle,
     cells: list[str],
     target: str,
     spec: str,
+    trace_kind: str,
     rel_start: int | None,
     rel_stop: int | None,
 ) -> dict[str, dict[str, Any]]:
@@ -386,11 +294,9 @@ def analyze_bar_average(
     import FiveCol_MedSim_Pytorch as fc
     from plot import moving_bar as mb_plot
 
-    if not target.startswith("moving_bar_"):
+    if target not in fc.MOVING_BAR_TARGETS:
         raise SystemExit(f"unsupported target {target!r}")
-    session = cache.session
     pack = session.pack_for(target)
-    bundle = cache.bar_bundle(target)
     if bundle.traces.t0_bn is None:
         raise SystemExit("moving_bar bundle missing t0_bn")
     specs = mb_plot._bar_specs_for_session(session, target)
@@ -398,8 +304,6 @@ def analyze_bar_average(
         bi = next(i for i, s in enumerate(specs) if s.name == spec)
     except StopIteration:
         raise SystemExit(f"spec {spec!r} not in {[s.name for s in specs]}")
-
-    p = cache.params()
     conn = session.backend.conn
     signal = pack.signal[bi:bi + 1]
     B, T, N = signal.shape
@@ -543,7 +447,7 @@ def analyze_bar_average(
             "n_units": int(unit_sets[cell].size),
             "target": target,
             "spec": spec,
-            "trace_kind": cache.trace_kind,
+            "trace_kind": trace_kind,
             "before_steps": before_steps,
             "resp_peak_rel": peak_rel,
             "overlay_peak_mV": float(overlay[peak_rel]),
@@ -566,10 +470,14 @@ def analyze_bar_average(
 
 
 def analyze_spot_average(
-    cache: ForwardCache,
+    session_one,
     *,
+    p,
+    bundle,
+    ref_on,
     cells: list[str],
     target: str,
+    trace_kind: str,
     abs_start: int | None,
     abs_stop: int | None,
 ) -> dict[str, dict[str, Any]]:
@@ -584,11 +492,9 @@ def analyze_spot_average(
     from plot import spot as spot_plot
     from plot.spot import _readout_duv_from_batches
 
-    if not target.startswith("spot_"):
+    if target not in fc.SPOT_TARGETS:
         raise SystemExit(f"unsupported target {target!r}")
-    session_one, bundle, ref_on = cache.spot_bundle(target)
     pack = session_one.primary_pack
-    p = cache.params()
     conn = session_one.backend.conn
     C = session_one.backend.network
     t_on = fc.t_on
@@ -731,7 +637,7 @@ def analyze_spot_average(
             "n_units": n_center,
             "target": target,
             "spec": None,
-            "trace_kind": cache.trace_kind,
+            "trace_kind": trace_kind,
             "before_steps": t_on,
             "resp_peak_rel": peak_t,
             "overlay_peak_mV": float(overlay[peak_t]),
@@ -791,14 +697,17 @@ def _rel_to_ti(local_t0: int, t_on: int, rel: int) -> int:
 
 
 def analyze_bar_hex(
-    cache: ForwardCache,
+    session,
     *,
+    p,
+    bundle,
     cell: str,
     target: str,
     spec: str,
     at_x: float,
     at_y: float,
     unit: int | None,
+    trace_kind: str,
     rel_start: int | None,
     rel_stop: int | None,
 ) -> dict[str, Any]:
@@ -806,9 +715,7 @@ def analyze_bar_hex(
     from plot import moving_bar as mb_plot
     from plot.utils import slice_xy_label
 
-    session = cache.session
     pack = session.pack_for(target)
-    bundle = cache.bar_bundle(target, x_list=[at_x], y_list=[at_y])
     slice_label = slice_xy_label(at_x, at_y)
     if bundle.slice_overlay is None or slice_label not in bundle.slice_overlay:
         raise SystemExit(f"no slice overlay for {slice_label!r}")
@@ -835,7 +742,6 @@ def analyze_bar_hex(
 
     specs = mb_plot._bar_specs_for_session(session, target)
     bi = next(i for i, s in enumerate(specs) if s.name == spec)
-    p = cache.params()
     signal = pack.signal[bi:bi + 1]
     t_on = fc.t_on
     Vm, u_on, u_off = _equilibrate(session, p, signal, t_on)
@@ -878,7 +784,7 @@ def analyze_bar_hex(
         "n_units": 1,
         "target": target,
         "spec": spec,
-        "trace_kind": cache.trace_kind,
+        "trace_kind": trace_kind,
         "before_steps": before_steps,
         "resp_peak_rel": peak_rel,
         "overlay_peak_mV": float(overlay[peak_rel]),
@@ -988,140 +894,164 @@ def _print_polarity_compare(
             )
 
 
-# ---------------------------------------------------------------------------
-# CLI
-# ---------------------------------------------------------------------------
 
 
 def main() -> None:
+    if __package__ is None:
+        raise SystemExit(
+            "run as a module from SimulationCode/: "
+            "../.venv/bin/python -m analysis.cell_dynamics ..."
+        )
+
     ap = argparse.ArgumentParser(
         description=__doc__,
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
-    ap.add_argument("--run", required=True, help="absolute run directory")
-    ap.add_argument(
-        "--cell",
-        required=True,
-        metavar="CELL,...",
-        help="comma-separated cell types (shared forwards)",
-    )
-    ap.add_argument(
-        "--target",
-        required=True,
-        metavar="TARGET,...",
-        help="comma-separated spot_* and/or moving_bar_* targets",
-    )
-    ap.add_argument(
-        "--spec",
-        default=None,
-        help="moving_bar stimulus spec (required if any moving_bar_* target)",
-    )
-    ap.add_argument("--trace-kind", default="vm", choices=("vm", "model"))
-    ap.add_argument("--x", type=float, default=None, help="optional hex x (with --y)")
-    ap.add_argument("--y", type=float, default=None, help="optional hex y (with --x)")
+    add_shared_cli(ap)
     ap.add_argument("--unit", type=int, default=None, help="hex-mode unit index")
     ap.add_argument("--rel", default=None, help="rel/abs START,STOP inclusive window")
     ap.add_argument("--json", action="store_true", help="print JSON to stdout")
     args = ap.parse_args()
+    cli = parse_shared_cli(args)
 
-    _add_simulation_code_to_syspath()
-
-    run_dir = os.path.abspath(args.run)
-    if not os.path.isdir(run_dir):
-        raise SystemExit(f"run dir not found: {run_dir}")
-
-    cells = _parse_comma_list(args.cell)
-    targets = _parse_comma_list(args.target)
-    if not cells or not targets:
-        raise SystemExit("--cell and --target are required")
-
-    if (args.x is None) ^ (args.y is None):
+    hex_mode = False
+    if cli.x_list is not None and cli.y_list is not None:
+        if len(cli.x_list) != 1 or len(cli.y_list) != 1:
+            raise SystemExit(
+                "hex mode needs exactly one --x and one --y; "
+                "omit both for cost-extent averages"
+            )
+        hex_mode = True
+        if any(t in fc.SPOT_TARGETS for t in cli.targets):
+            raise SystemExit("hex mode is moving_bar-only; omit --x/--y for spot")
+        if len(cli.cells) != 1:
+            raise SystemExit("hex mode supports one --cell")
+    elif cli.x_list is not None or cli.y_list is not None:
         raise SystemExit("pass both --x and --y for hex mode, or neither for averages")
-    hex_mode = args.x is not None
-    if hex_mode and len(cells) != 1:
-        raise SystemExit("hex mode supports one --cell (use average mode for comma lists)")
-    if hex_mode and any(t.startswith("spot_") for t in targets):
-        raise SystemExit("hex mode is moving_bar-only; omit --x/--y for spot averages")
-
-    need_bar = [t for t in targets if t.startswith("moving_bar_")]
-    need_spot = [t for t in targets if t.startswith("spot_")]
-    other = [t for t in targets if not (t.startswith("spot_") or t.startswith("moving_bar_"))]
-    if other:
-        raise SystemExit(f"unsupported targets: {other}")
-    if need_bar and args.spec is None:
-        raise SystemExit("moving_bar targets require --spec")
 
     rel_start = rel_stop = None
     if args.rel is not None:
-        parts = [p.strip() for p in args.rel.split(",") if p.strip()]
+        parts = parse_comma_list(args.rel)
         if len(parts) != 2:
             raise SystemExit("--rel must be START,STOP")
         rel_start, rel_stop = int(parts[0]), int(parts[1])
 
-    session, z, best_i, best_cost = _load_best(run_dir)
-    cache = ForwardCache(session=session, z=z, trace_kind=args.trace_kind)
+    for run_i, run_arg in enumerate(args.run):
+        run_dir = plot_trained.resolve_run_dir(run_arg)
+        session, z, best_i, best_cost = plot_trained.load_best(run_dir)
+        p = fc.assign_params(z, list(session.schema), session.backend)
 
-    spot_by_cell: dict[str, dict[str, Any]] = {}
-    bar_by_cell: dict[str, dict[str, Any]] = {}
-    all_reports: list[dict[str, Any]] = []
+        spot_cache: dict[str, tuple] = {}
+        bar_cache: dict[str, object] = {}
+        spot_by_cell: dict[str, dict[str, Any]] = {}
+        bar_by_cell: dict[str, dict[str, Any]] = {}
+        all_reports: list[dict[str, Any]] = []
 
-    print(f"== RUN: {run_dir} ==")
-    print(f"best_i={best_i}  best_cost={best_cost:.6g}  mode={'hex' if hex_mode else 'average'}")
-
-    for target in need_spot:
-        reports = analyze_spot_average(
-            cache,
-            cells=cells,
-            target=target,
-            abs_start=rel_start,
-            abs_stop=rel_stop,
-        )
-        for cell, rep in reports.items():
-            spot_by_cell[cell] = rep
-            all_reports.append(rep)
-            if not args.json:
-                print("")
-                _print_report(rep)
-
-    for target in need_bar:
-        if hex_mode:
-            rep = analyze_bar_hex(
-                cache,
-                cell=cells[0],
-                target=target,
-                spec=args.spec,
-                at_x=args.x,
-                at_y=args.y,
-                unit=args.unit,
-                rel_start=rel_start,
-                rel_stop=rel_stop,
+        if not args.json:
+            print(f"== RUN {run_i}: {run_dir} ==")
+            print(
+                f"best_i={best_i}  best_cost={best_cost:.6g}  "
+                f"mode={'hex' if hex_mode else 'average'}"
             )
-            bar_by_cell[cells[0]] = rep
-            all_reports.append(rep)
-            if not args.json:
-                print("")
-                _print_report(rep)
-        else:
-            reports = analyze_bar_average(
-                cache,
-                cells=cells,
-                target=target,
-                spec=args.spec,
-                rel_start=rel_start,
-                rel_stop=rel_stop,
-            )
-            for cell, rep in reports.items():
-                bar_by_cell[cell] = rep
-                all_reports.append(rep)
-                if not args.json:
-                    print("")
-                    _print_report(rep)
 
-    if not args.json and spot_by_cell and bar_by_cell:
-        _print_polarity_compare(spot_by_cell, bar_by_cell)
+        for target in cli.targets:
+            if target in fc.SPOT_TARGETS:
+                if target not in spot_cache:
+                    spot_cache[target] = extract_spot_bundle(
+                        session, z, target=target, trace_kind=args.trace_kind,
+                        x_list=None, y_list=None,
+                    )
+                session_one, bundle, ref_on = spot_cache[target]
+                reports = analyze_spot_average(
+                    session_one,
+                    p=p,
+                    bundle=bundle,
+                    ref_on=ref_on,
+                    cells=cli.cells,
+                    target=target,
+                    trace_kind=args.trace_kind,
+                    abs_start=rel_start,
+                    abs_stop=rel_stop,
+                )
+                for cell, rep in reports.items():
+                    spot_by_cell[cell] = rep
+                    all_reports.append(rep)
+                    if not args.json:
+                        print("")
+                        _print_report(rep)
+            else:
+                hx = cli.x_list[0] if hex_mode else None
+                hy = cli.y_list[0] if hex_mode else None
+                bar_key = target
+                if hex_mode:
+                    bar_key = (target, float(hx), float(hy))
+                if bar_key not in bar_cache:
+                    bar_cache[bar_key] = extract_moving_bar_bundle(
+                        session, z, target=target, trace_kind=args.trace_kind,
+                        x_list=cli.x_list if hex_mode else None,
+                        y_list=cli.y_list if hex_mode else None,
+                    )
+                bundle = bar_cache[bar_key]
+                if hex_mode:
+                    cell = cli.cells[0]
+                    for spec in specs_for_cell(bundle, cell, cli.specs_req):
+                        rep = analyze_bar_hex(
+                            session,
+                            p=p,
+                            bundle=bundle,
+                            cell=cell,
+                            target=target,
+                            spec=spec,
+                            at_x=float(hx),
+                            at_y=float(hy),
+                            unit=args.unit,
+                            trace_kind=args.trace_kind,
+                            rel_start=rel_start,
+                            rel_stop=rel_stop,
+                        )
+                        bar_by_cell[cell] = rep
+                        all_reports.append(rep)
+                        if not args.json:
+                            print("")
+                            _print_report(rep)
+                else:
+                    specs_ordered: list[str] = []
+                    for cell in cli.cells:
+                        for spec in specs_for_cell(bundle, cell, cli.specs_req):
+                            if spec not in specs_ordered:
+                                specs_ordered.append(spec)
+                    for spec in specs_ordered:
+                        cells_for_spec = [
+                            c for c in cli.cells
+                            if spec in specs_for_cell(bundle, c, None)
+                        ]
+                        reports = analyze_bar_average(
+                            session,
+                            p=p,
+                            bundle=bundle,
+                            cells=cells_for_spec,
+                            target=target,
+                            spec=spec,
+                            trace_kind=args.trace_kind,
+                            rel_start=rel_start,
+                            rel_stop=rel_stop,
+                        )
+                        for c, rep in reports.items():
+                            bar_by_cell[c] = rep
+                            all_reports.append(rep)
+                            if not args.json:
+                                print("")
+                                _print_report(rep)
 
-    if args.json:
-        print(json.dumps({"best_i": best_i, "best_cost": best_cost, "reports": all_reports}, indent=2))
+        if not args.json and spot_by_cell and bar_by_cell:
+            _print_polarity_compare(spot_by_cell, bar_by_cell)
+
+        if args.json:
+            print(json.dumps(
+                {"run": run_dir, "best_i": best_i, "best_cost": best_cost,
+                 "reports": all_reports},
+                indent=2,
+            ))
 
 
 if __name__ == "__main__":

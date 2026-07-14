@@ -46,5 +46,5 @@ Scope: `temporal_filtering/`.
 ## C non-core script rules
 
 1. `import train` / `import fc` (see HARD STOP 4). imports core.
-2. Training variants: `run_<id>` under `FiveCol_Parameter/<model>/`; full `train.py` artifact set and naming.
+2. Training variants: `run_<id>` under `0trained/<model>/`; full `train.py` artifact set and naming.
 3. Old directories and files in `run_<id>` must not be renamed or redirected when cores are modified and must remain broken.

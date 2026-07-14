@@ -189,6 +189,52 @@ def log_plot_elapsed(path, t0, **parts):
     print(f'plot {path}: {"  ".join(bits)}')
 
 
+def bundle_prep_s(*bundles):
+    """Sum and clear ``prep_s`` on trace bundles (``None`` skipped).
+
+    First figure that calls this receives the forward cost; later shared
+    figures see ``0``.
+    """
+    total = 0.0
+    for b in bundles:
+        if b is None:
+            continue
+        total += float(getattr(b, 'prep_s', 0.0) or 0.0)
+        b.prep_s = 0.0
+    return total
+
+
+class PlotTimer:
+    """Shared prep / draw / save timing for bar and spot figures.
+
+    ``prior_prep`` is forward time already stored on ``TraceBundle.prep_s``.
+    """
+
+    __slots__ = ('t0', '_t_prep', '_t_draw')
+
+    def __init__(self, prior_prep=0.0):
+        self.t0 = time.perf_counter() - float(prior_prep)
+        self._t_prep = None
+        self._t_draw = None
+
+    def end_prep(self):
+        self._t_prep = time.perf_counter()
+
+    def end_draw(self):
+        self._t_draw = time.perf_counter()
+
+    def log(self, path):
+        t_prep = self._t_prep if self._t_prep is not None else time.perf_counter()
+        t_draw = self._t_draw if self._t_draw is not None else time.perf_counter()
+        now = time.perf_counter()
+        log_plot_elapsed(
+            path, self.t0,
+            prep=t_prep - self.t0,
+            draw=t_draw - t_prep,
+            save=now - t_draw,
+        )
+
+
 def _hex_coord_token(val):
     v = float(val)
     if np.isclose(v, round(v)):

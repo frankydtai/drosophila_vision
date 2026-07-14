@@ -1,7 +1,7 @@
 """Unified training driver for the FiveCol medulla model.
 
 All results of a run land in one folder under
-``training_config.PARAMETER_DIR`` (default ``SimulationCode/FiveCol_Parameter``):
+``training_config.PARAMETER_DIR`` (default ``SimulationCode/0trained``):
 
     <model>/<run_name>/
 
@@ -518,7 +518,7 @@ def add_training_arguments(parser):
                         help="output dir (default derived from --model)")
     parser.add_argument("--init-from", default=None, metavar="RUN",
                         help="prior run folder NAME only (no model/ prefix); "
-                             "resolved under FiveCol_Parameter/<model>/NAME unless an absolute path is given; "
+                             "resolved under 0trained/<model>/NAME unless an absolute path is given; "
                              "load params as z init only (settings come from this CLI, not train_opts.json)")
     parser.add_argument("--mode", default="", metavar="NAME=MODE,...",
                         help="per-param mode override, e.g. out_scale=shared,ih=indi "
@@ -719,7 +719,7 @@ def training_kwargs_from_args(
                 raise ValueError(
                     "--init-from must be a run folder name only (no path); "
                     "the model subfolder is inferred from --model (default: conductance). "
-                    "Use an absolute path to reference runs outside FiveCol_Parameter.",
+                    "Use an absolute path to reference runs outside 0trained.",
                 )
             init_from = f"{args.model}/{init_from}"
     param_modes = parse_comma_kv(args.mode)

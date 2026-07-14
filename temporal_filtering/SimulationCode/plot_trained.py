@@ -91,10 +91,18 @@ def run_dir(model, root=None, parent=None, name=None):
     return os.path.join(parent, name)
 
 
-def _spot_plot_fn(session):
+def spot_bundle_fns(session):
     if session.backend.network is not None:
-        return spot_plot.plot_network_spot
-    return spot_plot.plot_borst_spot
+        return (
+            spot_plot.network_spot_trace_bundle,
+            spot_plot.plot_network_spot_data,
+            spot_plot.plot_network_spot_all,
+        )
+    return (
+        spot_plot.borst_spot_trace_bundle,
+        spot_plot.plot_borst_spot_data,
+        spot_plot.plot_borst_spot_all,
+    )
 
 
 def _network_spot_tag(session, tname):
@@ -127,7 +135,7 @@ def load_session(outdir, model=None, param_modes=None):
     )
 
 
-def _session_for_target(base_session, tname):
+def session_for_target(base_session, tname):
     """Single-target session sharing backend/schema with a multi-target run."""
     opts = dict(base_session.train_opts or {})
     opts['target_list'] = [tname]
@@ -184,7 +192,7 @@ def find_training_params(outdir):
     return params_path, fname
 
 
-def select_best(params, session, *, final_costs=None, best_i=None):
+def select_best(params, session, *, final_costs=None, best_i=None, verbose=True):
     """Pick the best parameter row; recompute costs only when not supplied."""
     params = np.atleast_2d(params)
     valid_mask = np.any(params != 0, axis=1)
@@ -202,7 +210,8 @@ def select_best(params, session, *, final_costs=None, best_i=None):
         else:
             z = torch.tensor(valid[loc], dtype=session.sim_dtype, device=session.device)
             best_cost = fc.calc_cost(z, session).item()
-        print(f'{len(valid)} trained set(s); selected #{best_i} (cost={best_cost:.4f})')
+        if verbose:
+            print(f'{len(valid)} trained set(s); selected #{best_i} (cost={best_cost:.4f})')
         return valid[loc], best_cost, best_i
 
     if final_costs is not None:
@@ -214,8 +223,9 @@ def select_best(params, session, *, final_costs=None, best_i=None):
         valid_costs = costs_arr[valid_mask]
         best = int(np.argmin(valid_costs))
         run_i = int(valid_idx[best])
-        print(f'{len(valid)} trained set(s); costs min={valid_costs.min():.4f} '
-              f'max={valid_costs.max():.4f}; selected #{run_i} (from saved final costs)')
+        if verbose:
+            print(f'{len(valid)} trained set(s); costs min={valid_costs.min():.4f} '
+                  f'max={valid_costs.max():.4f}; selected #{run_i} (from saved final costs)')
         return valid[best], float(costs_arr[run_i]), run_i
 
     costs_out = []
@@ -225,9 +235,30 @@ def select_best(params, session, *, final_costs=None, best_i=None):
     costs_out = np.array(costs_out)
     best = int(np.argmin(costs_out))
     run_i = int(valid_idx[best])
-    print(f'{len(valid)} trained set(s); costs min={costs_out.min():.4f} '
-          f'max={costs_out.max():.4f}; selected #{run_i}')
+    if verbose:
+        print(f'{len(valid)} trained set(s); costs min={costs_out.min():.4f} '
+              f'max={costs_out.max():.4f}; selected #{run_i}')
     return valid[best], costs_out[best], run_i
+
+
+def load_best(outdir, *, model=None, verbose=False):
+    """Load session and best ``z`` from a train run (saved ``best_i`` / final costs)."""
+    import train as train_mod
+
+    outdir = os.path.abspath(outdir)
+    if not os.path.isdir(outdir):
+        raise SystemExit(f'run dir not found: {outdir}')
+    params_path, fname = find_training_params(outdir)
+    params = np.atleast_2d(np.load(params_path))
+    model = resolve_model(outdir, override=model)
+    session = load_session(outdir, model=model)
+    final_costs, _, _, _ = train_mod.load_stored_costs(outdir, fname, params.shape[0])
+    best_i = train_mod.load_best_i(outdir)
+    best, best_cost, best_i = select_best(
+        params, session, final_costs=final_costs, best_i=best_i, verbose=verbose,
+    )
+    z = torch.tensor(best, dtype=session.sim_dtype, device=session.device)
+    return session, z, int(best_i), float(best_cost)
 
 
 def _plot_spot_targets(session, z, outdir, spot_targets, suffix, model_all,
@@ -235,36 +266,38 @@ def _plot_spot_targets(session, z, outdir, spot_targets, suffix, model_all,
                        at_x=None, at_y=None, save_trace_csv_dir=None, show_pre=True):
     """Plot spot target(s); two traces combined in one figure when both are trained."""
     spot_set = set(spot_targets)
-    plot_fn = _spot_plot_fn(session)
+    make_bundle, plot_data, plot_all = spot_bundle_fns(session)
     ref_t = 'spot_bright' if 'spot_bright' in spot_set else spot_targets[0]
     net_tag = _network_spot_tag(session, ref_t)
-    plot_kw = dict(
-        ref_cubes=ref_cubes, ref_cubes_2=ref_cubes_2,
+    plot_kw = dict(ref_cubes=ref_cubes, ref_cubes_2=ref_cubes_2)
+    bundle_kw = dict(
+        at_x_list=at_x, at_y_list=at_y,
         save_trace_csv_dir=save_trace_csv_dir,
         show_pre=show_pre,
     )
-    slice_kw = dict(at_x_list=at_x, at_y_list=at_y)
     if spot_set == set(fc.SPOT_TARGETS):
-        s_1 = _session_for_target(session, 'spot_bright')
-        s_2 = _session_for_target(session, 'spot_dark')
+        s_1 = session_for_target(session, 'spot_bright')
+        s_2 = session_for_target(session, 'spot_dark')
+        b_1 = make_bundle(s_1, z, **bundle_kw)
+        b_2 = make_bundle(s_2, z, **bundle_kw)
         mvd = os.path.join(outdir, 'model_data_spot.png')
-        plot_fn(
-            s_1, z, mvd, session_2=s_2,
+        plot_data(
+            mvd, bundle=b_1, bundle_2=b_2,
             title=f'Spot model-data ({suffix}){net_tag}',
             **plot_kw,
         )
         allc = None
         if model_all:
             allc = os.path.join(outdir, 'model_all_spot.png')
-            plot_fn(
-                s_1, z, allc, session_2=s_2, all_cells=True,
+            plot_all(
+                allc, bundle=b_1, bundle_2=b_2,
                 title=f'Spot model-all ({suffix}){net_tag}',
-                **plot_kw, **slice_kw,
+                **plot_kw,
             )
         return mvd, allc
     for tname in spot_targets:
         _plot_one_target(
-            _session_for_target(session, tname), z, outdir, tname, suffix, model_all,
+            session_for_target(session, tname), z, outdir, tname, suffix, model_all,
             ref_cubes=ref_cubes, ref_cubes_2=ref_cubes_2,
             at_x=at_x, at_y=at_y,
             save_trace_csv_dir=save_trace_csv_dir, show_pre=show_pre,
@@ -276,44 +309,49 @@ def _plot_bar_targets(session, z, outdir, bar_targets, suffix, model_all, *,
                       align_at_x=None, align_at_y=None,
                       save_trace_csv_dir=None, show_pre=True):
     """Plot moving-bar target(s); bright left | dark right when both are trained."""
-    slice_kw = dict(
+    bundle_kw = dict(
         at_x_list=at_x, at_y_list=at_y,
         align_at_x=align_at_x, align_at_y=align_at_y,
+        save_trace_csv_dir=save_trace_csv_dir,
+        show_pre=show_pre,
     )
     bar_set = set(bar_targets)
     if bar_set == set(fc.MOVING_BAR_TARGETS):
-        s_bright = _session_for_target(session, 'moving_bar_bright')
-        s_dark = _session_for_target(session, 'moving_bar_dark')
+        s_bright = session_for_target(session, 'moving_bar_bright')
+        s_dark = session_for_target(session, 'moving_bar_dark')
+        b_bright = moving_bar_plot.moving_bar_trace_bundle(
+            s_bright, z, 'moving_bar_bright', **bundle_kw,
+        )
+        b_dark = moving_bar_plot.moving_bar_trace_bundle(
+            s_dark, z, 'moving_bar_dark', **bundle_kw,
+        )
         mvd = os.path.join(outdir, 'model_data_bar.png')
         moving_bar_plot.plot_moving_bar_data(
-            s_bright, z, mvd, 'moving_bar_bright', session_2=s_dark,
+            mvd, bundle=b_bright, bundle_2=b_dark,
             title=f'Moving-bar model-data ({suffix})',
-            save_trace_csv_dir=save_trace_csv_dir, show_pre=show_pre,
         )
         allc = None
         if model_all:
             allc = os.path.join(outdir, 'model_all_bar.png')
             moving_bar_plot.plot_moving_bar_all(
-                s_bright, z, allc, 'moving_bar_bright', session_2=s_dark,
+                allc, bundle=b_bright, bundle_2=b_dark,
                 title=f'Moving-bar model-all ({suffix})',
                 right_only=plot_right_only,
-                save_trace_csv_dir=save_trace_csv_dir, show_pre=show_pre, **slice_kw,
             )
         return mvd, allc
     for tname in bar_targets:
-        one = _session_for_target(session, tname)
+        one = session_for_target(session, tname)
+        b = moving_bar_plot.moving_bar_trace_bundle(one, z, tname, **bundle_kw)
         mvd = os.path.join(outdir, 'model_data_bar.png')
         moving_bar_plot.plot_moving_bar_data(
-            one, z, mvd, tname, title=f'{tname} model-data ({suffix})',
-            save_trace_csv_dir=save_trace_csv_dir, show_pre=show_pre,
+            mvd, bundle=b, title=f'{tname} model-data ({suffix})',
         )
         allc = None
         if model_all:
             allc = os.path.join(outdir, 'model_all_bar.png')
             moving_bar_plot.plot_moving_bar_all(
-                one, z, allc, tname, title=f'{tname} model-all ({suffix})',
+                allc, bundle=b, title=f'{tname} model-all ({suffix})',
                 right_only=plot_right_only,
-                save_trace_csv_dir=save_trace_csv_dir, show_pre=show_pre, **slice_kw,
             )
         return mvd, allc
 
@@ -325,18 +363,19 @@ def _plot_one_target(session, z, outdir, tname, suffix, model_all,
         raise ValueError(f'unknown plot target {tname!r}')
     mvd = os.path.join(outdir, 'model_data_spot.png')
     allc = os.path.join(outdir, 'model_all_spot.png')
-    plot_fn = _spot_plot_fn(session)
+    make_bundle, plot_data, plot_all = spot_bundle_fns(session)
     net_tag = _network_spot_tag(session, tname)
-    plot_kw = dict(
-        ref_cubes=ref_cubes, ref_cubes_2=ref_cubes_2,
-        save_trace_csv_dir=save_trace_csv_dir,
-        show_pre=show_pre,
+    plot_kw = dict(ref_cubes=ref_cubes, ref_cubes_2=ref_cubes_2)
+    b = make_bundle(
+        session, z,
+        at_x_list=at_x, at_y_list=at_y,
+        save_trace_csv_dir=save_trace_csv_dir, show_pre=show_pre,
     )
-    plot_fn(session, z, mvd, title=f'{tname} model-data ({suffix}){net_tag}', **plot_kw)
+    plot_data(
+        mvd, bundle=b, title=f'{tname} model-data ({suffix}){net_tag}', **plot_kw,
+    )
     if model_all:
-        plot_fn(session, z, allc, all_cells=True,
-                title=f'{tname} model-all ({suffix}){net_tag}',
-                at_x_list=at_x, at_y_list=at_y, **plot_kw)
+        plot_all(allc, bundle=b, title=f'{tname} model-all ({suffix}){net_tag}', **plot_kw)
     return mvd, allc
 
 
@@ -409,68 +448,74 @@ def plot_param_set(params, outdir, model=None, model_all=True,
             raise SystemExit(f'--vm does not support plot targets: {other_targets}')
         if bar_targets:
             bar_set = set(bar_targets)
+            bundle_kw = dict(
+                at_x_list=at_x, at_y_list=at_y,
+                align_at_x=align_at_x, align_at_y=align_at_y,
+                trace_kind='vm',
+                save_trace_csv_dir=save_trace_csv_dir,
+                show_pre=show_pre,
+            )
             if bar_set == set(fc.MOVING_BAR_TARGETS):
-                s_bright = _session_for_target(session, 'moving_bar_bright')
-                s_dark = _session_for_target(session, 'moving_bar_dark')
+                s_bright = session_for_target(session, 'moving_bar_bright')
+                s_dark = session_for_target(session, 'moving_bar_dark')
+                b_bright = moving_bar_plot.moving_bar_trace_bundle(
+                    s_bright, z, 'moving_bar_bright', **bundle_kw,
+                )
+                b_dark = moving_bar_plot.moving_bar_trace_bundle(
+                    s_dark, z, 'moving_bar_dark', **bundle_kw,
+                )
                 allc = os.path.join(outdir, 'model_all_bar_vm.png')
                 moving_bar_plot.plot_moving_bar_all(
-                    s_bright, z, allc, 'moving_bar_bright', session_2=s_dark,
+                    allc, bundle=b_bright, bundle_2=b_dark,
                     title=f'Moving-bar Vm-all ({suffix})',
                     right_only=plot_right_only,
-                    at_x_list=at_x, at_y_list=at_y,
-                    align_at_x=align_at_x, align_at_y=align_at_y,
-                    trace_kind='vm',
-                    save_trace_csv_dir=save_trace_csv_dir,
-                    show_pre=show_pre,
                 )
             else:
                 tname = bar_targets[0]
-                one = _session_for_target(session, tname)
+                one = session_for_target(session, tname)
+                b = moving_bar_plot.moving_bar_trace_bundle(one, z, tname, **bundle_kw)
                 allc = os.path.join(outdir, 'model_all_bar_vm.png')
                 moving_bar_plot.plot_moving_bar_all(
-                    one, z, allc, tname,
+                    allc, bundle=b,
                     title=f'{tname} Vm-all ({suffix})',
                     right_only=plot_right_only,
-                    at_x_list=at_x, at_y_list=at_y,
-                    align_at_x=align_at_x, align_at_y=align_at_y,
-                    trace_kind='vm',
-                    save_trace_csv_dir=save_trace_csv_dir,
-                    show_pre=show_pre,
                 )
         # In Vm mode, only emit spot Vm plots when this run actually includes
         # spot targets (or explicit plot target filtering keeps them).
         if spot_targets:
             spot_set = set(spot_targets)
-            plot_fn = _spot_plot_fn(session)
+            make_bundle, _plot_data, plot_all = spot_bundle_fns(session)
             ref_t = 'spot_bright' if 'spot_bright' in spot_set else spot_targets[0]
             net_tag = _network_spot_tag(session, ref_t)
             plot_kw = dict(
                 ref_cubes=ref_cubes, ref_cubes_2=ref_cubes_2,
+            )
+            bundle_kw = dict(
+                at_x_list=at_x, at_y_list=at_y,
+                trace_kind='vm',
+                save_trace_csv_dir=save_trace_csv_dir,
                 show_pre=show_pre,
             )
             if spot_set == set(fc.SPOT_TARGETS):
-                s_1 = _session_for_target(session, 'spot_bright')
-                s_2 = _session_for_target(session, 'spot_dark')
+                s_1 = session_for_target(session, 'spot_bright')
+                s_2 = session_for_target(session, 'spot_dark')
+                b_1 = make_bundle(s_1, z, **bundle_kw)
+                b_2 = make_bundle(s_2, z, **bundle_kw)
                 allc = os.path.join(outdir, 'model_all_spot_vm.png')
-                plot_fn(
-                    s_1, z, allc, session_2=s_2, all_cells=True,
+                plot_all(
+                    allc, bundle=b_1, bundle_2=b_2,
                     title=f'Spot Vm-all ({suffix}){net_tag}',
-                    trace_kind='vm',
-                    at_x_list=at_x, at_y_list=at_y,
                     **plot_kw,
-                    save_trace_csv_dir=save_trace_csv_dir,
                 )
             else:
                 tname = spot_targets[0]
-                one = _session_for_target(session, tname)
+                one = session_for_target(session, tname)
+                b = make_bundle(one, z, **bundle_kw)
                 allc = os.path.join(outdir, 'model_all_spot_vm.png')
-                plot_fn(
-                    one, z, allc, all_cells=True,
+                plot_all(
+                    allc, bundle=b,
                     title=f'{tname} Vm-all ({suffix}){net_tag}',
-                    trace_kind='vm',
-                    at_x_list=at_x, at_y_list=at_y,
                     **plot_kw,
-                    save_trace_csv_dir=save_trace_csv_dir,
                 )
         print(f'plots saved to {outdir}')
         return best, best_cost
@@ -497,7 +542,7 @@ def plot_param_set(params, outdir, model=None, model_all=True,
             save_trace_csv_dir=save_trace_csv_dir, show_pre=show_pre,
         )
     for tname in other_targets:
-        one = _session_for_target(session, tname)
+        one = session_for_target(session, tname)
         _plot_one_target(
             one, z, outdir, tname, suffix, model_all,
             ref_cubes=ref_cubes, ref_cubes_2=ref_cubes_2,

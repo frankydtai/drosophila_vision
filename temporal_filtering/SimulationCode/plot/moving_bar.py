@@ -13,17 +13,18 @@ import torch
 
 import FiveCol_MedSim_Pytorch as fc
 import Medulla_Library as ml
-from Analysis.DSI import moving_bar_cell_title, moving_bar_dsi_lookup
+from analysis.DSI import moving_bar_cell_title, moving_bar_dsi_lookup
 from plot.readout import pack_readout_types, plot_types_in_order
 from plot.utils import (
     DATA_COLOR,
     TRACE_LW,
+    PlotTimer,
     annotate_baseline,
     baselines_for_types,
+    bundle_prep_s,
     column_at_scope_tag,
     filter_borst_sti_columns,
     filter_sti_columns,
-    log_plot_elapsed,
     overlay_model_reds,
     plot_timecourse,
     save_figure,
@@ -102,6 +103,7 @@ class MovingBarTraceBundle:
     slice_y_list: list | None = None
     align_at_x: float | None = None
     align_at_y: float | None = None
+    prep_s: float = 0.0
 
 
 def _moving_bar_figure(nrows, ncols, *, sharex='col'):
@@ -145,6 +147,23 @@ def _tensor_np(x):
 
 def _type_ids_np(node_type):
     return np.asarray(_tensor_np(node_type), dtype=np.int64)
+
+
+def _type_ids_for_plot_order(connectome_type_names, node_type, plot_types):
+    """Map unit ``node_type`` (index into connectome names) to ``plot_types`` index.
+
+    ``plot_types_in_order`` reorders names; aggregating with raw ``node_type`` against
+    ``enumerate(plot_types)`` mislabels every type whose plot index ≠ connectome index.
+    """
+    c_ids = _type_ids_np(node_type)
+    name_to_plot = {str(n): i for i, n in enumerate(plot_types)}
+    out = np.full(c_ids.shape, -1, dtype=np.int64)
+    for ci, name in enumerate(connectome_type_names):
+        pi = name_to_plot.get(str(name))
+        if pi is None:
+            continue
+        out[c_ids == int(ci)] = int(pi)
+    return out
 
 
 def _network_uv_np(C):
@@ -433,7 +452,8 @@ def _moving_bar_t0_grids(session, specs, cost_extent, maxtime, *, at_x=None, at_
             filt_network_cols=filt_cols,
         )
         types = plot_types_in_order(C.type_names)
-        type_ids = _type_ids_np(C.node_type)
+        # Remap connectome ``node_type`` (C.type_names index) → plot ``types`` index.
+        type_ids = _type_ids_for_plot_order(C.type_names, C.node_type, types)
     else:
         side = "right"
         cols_all = list(_borst_sti_columns())
@@ -451,8 +471,11 @@ def _moving_bar_t0_grids(session, specs, cost_extent, maxtime, *, at_x=None, at_
             cols_all, specs, maxtime, t_on=t_on, deltat_ms=fc.deltat,
             i_baseline=i_baseline,
         )
-        types = plot_types_in_order(ml.ctype.tolist())
-        type_ids = _type_ids_np(session.backend.conn.node_type)
+        ctype_names = [str(ml.ctype[i]) for i in range(len(ml.ctype))]
+        types = plot_types_in_order(ctype_names)
+        type_ids = _type_ids_for_plot_order(
+            ctype_names, session.backend.conn.node_type, types,
+        )
         grids = build_moving_bar_t0_grids(
             col_curr, specs, maxtime, i_baseline,
             all_col_idxs=all_col_ids,
@@ -515,6 +538,7 @@ def moving_bar_trace_bundle(session, z, target, *, at_x=None, at_y=None,
                             trace_kind: Literal['model', 'vm'] = 'model',
                             save_trace_csv_dir: str | None = None, show_pre=True):
     """Run one forward; t_first_sti-aligned full-window model traces."""
+    t_prep0 = time.perf_counter()
     pack = session.pack_for(target)
     schema = list(session.schema)
     p = fc.assign_params(z, schema, session.backend)
@@ -627,6 +651,7 @@ def moving_bar_trace_bundle(session, z, target, *, at_x=None, at_y=None,
         slice_y_list=slice_y_list,
         align_at_x=align_at_x,
         align_at_y=align_at_y,
+        prep_s=time.perf_counter() - t_prep0,
     )
 
 
@@ -934,20 +959,12 @@ def _moving_bar_all_figure(b_on, b_2, title, *, right_only=True):
 
 
 @torch.no_grad()
-def plot_moving_bar_data(session_1, z, path, target, session_2=None, title=None, *,
-                         bundle=None, bundle_2=None, save_trace_csv_dir: str | None = None,
-                         show_pre=True):
-    t0 = time.perf_counter()
-    b_on = bundle or moving_bar_trace_bundle(
-        session_1, z, target, save_trace_csv_dir=save_trace_csv_dir, show_pre=show_pre,
-    )
-    b_2 = None
-    if session_2 is not None:
-        target_2 = session_2.primary_pack.name
-        b_2 = bundle_2 or moving_bar_trace_bundle(
-            session_2, z, target_2, save_trace_csv_dir=save_trace_csv_dir, show_pre=show_pre,
-        )
-    t_prep = time.perf_counter()
+def plot_moving_bar_data(path, *, bundle, bundle_2=None, title=None):
+    """Draw model-data figure from a full-scope :class:`MovingBarTraceBundle`."""
+    timer = PlotTimer(prior_prep=bundle_prep_s(bundle, bundle_2))
+    b_on = bundle
+    b_2 = bundle_2
+    timer.end_prep()
     single_column = b_on.single_column
     row_specs = _moving_bar_row_specs(b_on.session, b_on.target, b_on.side)
     readout_subtypes = list(row_specs.keys())
@@ -1005,46 +1022,19 @@ def plot_moving_bar_data(session_1, z, path, target, session_2=None, title=None,
         fontsize=12,
     )
     _moving_bar_figure_adjust(fig)
-    t_draw = time.perf_counter()
+    timer.end_draw()
     save_figure(fig, path, dpi=MOVING_BAR_DPI, rasterize=True)
-    log_plot_elapsed(
-        path, t0,
-        prep=t_prep - t0,
-        draw=t_draw - t_prep,
-        save=time.perf_counter() - t_draw,
-    )
+    timer.log(path)
 
 
 @torch.no_grad()
-def plot_moving_bar_all(session_1, z, path, target, session_2=None, title=None, *,
-                        right_only=True, bundle=None, bundle_2=None,
-                        at_x_list=None, at_y_list=None,
-                        align_at_x=None, align_at_y=None,
-                        trace_kind: Literal['model', 'vm'] = 'model',
-                        save_trace_csv_dir: str | None = None, show_pre=True):
-    t0 = time.perf_counter()
-    b_on = bundle or moving_bar_trace_bundle(
-        session_1, z, target, at_x_list=at_x_list, at_y_list=at_y_list,
-        align_at_x=align_at_x, align_at_y=align_at_y,
-        trace_kind=trace_kind,
-        save_trace_csv_dir=save_trace_csv_dir, show_pre=show_pre,
-    )
-    b_2 = None
-    if session_2 is not None:
-        target_2 = session_2.primary_pack.name
-        b_2 = bundle_2 or moving_bar_trace_bundle(
-            session_2, z, target_2, at_x_list=at_x_list, at_y_list=at_y_list,
-            align_at_x=align_at_x, align_at_y=align_at_y,
-            trace_kind=trace_kind,
-            save_trace_csv_dir=save_trace_csv_dir, show_pre=show_pre,
-        )
-    t_prep = time.perf_counter()
+def plot_moving_bar_all(path, *, bundle, bundle_2=None, title=None, right_only=True):
+    """Draw model-all figure from a full-scope :class:`MovingBarTraceBundle`."""
+    timer = PlotTimer(prior_prep=bundle_prep_s(bundle, bundle_2))
+    b_on = bundle
+    b_2 = bundle_2
+    timer.end_prep()
     fig = _moving_bar_all_figure(b_on, b_2, title, right_only=right_only)
-    t_draw = time.perf_counter()
+    timer.end_draw()
     save_figure(fig, path, dpi=MOVING_BAR_DPI, rasterize=True)
-    log_plot_elapsed(
-        path, t0,
-        prep=t_prep - t0,
-        draw=t_draw - t_prep,
-        save=time.perf_counter() - t_draw,
-    )
+    timer.log(path)

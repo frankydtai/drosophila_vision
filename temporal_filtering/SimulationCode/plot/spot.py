@@ -19,19 +19,20 @@ import FiveCol_MedSim_Pytorch as fc
 from plot.readout import (
     pack_readout_types,
     plot_present_layout,
+    plot_types_in_order,
     spot_ref_cubes,
 )
 from plot.utils import (
     DATA_COLOR,
     MODEL_COLOR,
     TRACE_LW,
+    PlotTimer,
     annotate_baseline,
-    baselines_for_types,
     batches_at_stim_xy,
+    bundle_prep_s,
     cell_title_with_n,
     column_at_scope_tag,
     filter_borst_sti_columns,
-    log_plot_elapsed,
     overlay_model_reds,
     plot_timecourse,
     readout_n_by_name,
@@ -85,7 +86,7 @@ def _baseline_from_ref_grid(ref_grid, row_i):
     return ref_grid[row_i, CENTER_BIN]
 
 
-def _resolve_spot_ref_cubes(session_1, session_2=None, ref_cubes=None, ref_cubes_2=None):
+def resolve_spot_ref_cubes(session_1, session_2=None, ref_cubes=None, ref_cubes_2=None):
     dual = session_2 is not None
     if ref_cubes is not None:
         ref_1 = ref_cubes
@@ -108,7 +109,7 @@ def _session_dark(session):
     return session.primary_pack.name == "spot_dark"
 
 
-def _scale_curve(xt, center, sem_xt=None, *, response_start=None):
+def scale_curve(xt, center, sem_xt=None, *, response_start=None):
     """Center time course + spatial profile from one ``(9, T)`` cube."""
     t0 = int(fc.t_on if response_start is None else response_start)
     imp = xt[center]
@@ -171,19 +172,19 @@ def plot_cell_pair(
 ):
     center = CENTER_BIN
     if sem_xt is not None:
-        imp_model, rf_model, imp_sem = _scale_curve(model_xt, center, sem_xt)
+        imp_model, rf_model, imp_sem = scale_curve(model_xt, center, sem_xt)
     else:
-        imp_model, rf_model = _scale_curve(model_xt, center)
+        imp_model, rf_model = scale_curve(model_xt, center)
         imp_sem = None
     if ref_xt is not None:
-        imp_data, rf_data = _scale_curve(ref_xt, center)
+        imp_data, rf_data = scale_curve(ref_xt, center)
     else:
         imp_data, rf_data = None, None
     model_2_imp_model = model_2_rf_model = model_2_imp_data = model_2_rf_data = None
     if model_2_xt is not None:
-        model_2_imp_model, model_2_rf_model = _scale_curve(model_2_xt, center)
+        model_2_imp_model, model_2_rf_model = scale_curve(model_2_xt, center)
     if ref_2_xt is not None:
-        model_2_imp_data, model_2_rf_data = _scale_curve(ref_2_xt, center)
+        model_2_imp_data, model_2_rf_data = scale_curve(ref_2_xt, center)
     ylo, yhi = SPOT_TRACE_YLIM
 
     if rf_data is not None:
@@ -259,15 +260,15 @@ def plot_cell_pair_slices(
     label_2_total='dark total',
 ):
     center = CENTER_BIN
-    imp_model, rf_model = _scale_curve(model_xt, center)
+    imp_model, rf_model = scale_curve(model_xt, center)
     imp_data, rf_data = (None, None)
     if ref_xt is not None:
-        imp_data, rf_data = _scale_curve(ref_xt, center)
+        imp_data, rf_data = scale_curve(ref_xt, center)
     model_2_imp_model = model_2_rf_model = model_2_imp_data = model_2_rf_data = None
     if model_2_xt is not None:
-        model_2_imp_model, model_2_rf_model = _scale_curve(model_2_xt, center)
+        model_2_imp_model, model_2_rf_model = scale_curve(model_2_xt, center)
     if ref_2_xt is not None:
-        model_2_imp_data, model_2_rf_data = _scale_curve(ref_2_xt, center)
+        model_2_imp_data, model_2_rf_data = scale_curve(ref_2_xt, center)
 
     slice_imps = {}
     slice_rfs = {}
@@ -275,11 +276,11 @@ def plot_cell_pair_slices(
     slice_2_rfs = {}
     for label in slice_labels:
         if label in slice_overlay_xt:
-            imp_s, rf_s = _scale_curve(slice_overlay_xt[label], center)
+            imp_s, rf_s = scale_curve(slice_overlay_xt[label], center)
             slice_imps[label] = imp_s
             slice_rfs[label] = rf_s
         if slice_overlay_2_xt and label in slice_overlay_2_xt:
-            imp_s, rf_s = _scale_curve(slice_overlay_2_xt[label], center)
+            imp_s, rf_s = scale_curve(slice_overlay_2_xt[label], center)
             slice_2_imps[label] = imp_s
             slice_2_rfs[label] = rf_s
 
@@ -483,15 +484,17 @@ def _fill_member_cube(cube, sem, ti, ft_global, type_idx, du, dv, plot_traces):
 
 @dataclass
 class SpotTraceBundle:
+    """One forward pass; full cost-extent readout over all types."""
+
     cells_on: list
-    cells_2: list | None = None
     group_rows: list | None = None
+    session: object = None
     slice_overlay: dict[str, dict[str, np.ndarray]] | None = None
-    slice_overlay_2: dict[str, dict[str, np.ndarray]] | None = None
     slice_labels: list[str] | None = None
     slice_x_list: list | None = None
     slice_y_list: list | None = None
     maxtime: int = IMPULSE_MAXTIME
+    prep_s: float = 0.0
 
     @property
     def has_slices(self):
@@ -508,12 +511,26 @@ def _group_rows_from_groups(groups, names):
     return group_rows
 
 
-def _spot_present_types(session, *, all_cells=False):
-    if all_cells:
-        if session.backend.network is not None:
-            return session.backend.network.type_names
-        return [str(CTYPE[i]) for i in range(session.backend.n_types)]
-    return pack_readout_types(session, session.primary_pack.name)
+def _spot_all_type_names(session):
+    if session.backend.network is not None:
+        return plot_types_in_order(session.backend.network.type_names)
+    return plot_types_in_order([str(CTYPE[i]) for i in range(session.backend.n_types)])
+
+
+def _spot_readout_bundle_view(bundle):
+    """model-data view: same traces, rows restricted to ``pack_readout_types``."""
+    session = bundle.session
+    present = pack_readout_types(session, session.primary_pack.name)
+    groups, names = plot_present_layout(present)
+    by_name = {c['name']: c for c in bundle.cells_on}
+    cells = [by_name[n] for n in names if n in by_name]
+    cell_names = [c['name'] for c in cells]
+    return SpotTraceBundle(
+        cells_on=cells,
+        group_rows=_group_rows_from_groups(groups, cell_names),
+        session=session,
+        maxtime=bundle.maxtime,
+    )
 
 
 def _cells_with_group_rows(groups, names, build_cell):
@@ -642,9 +659,10 @@ def _spot_baselines(rows, vm_ref, names, *, at_x=None, at_y=None):
 
 @torch.no_grad()
 def _spot_forward_rows(
-    session, z, all_cells=False, *, trace_kind='model',
+    session, z, *, trace_kind='model',
     save_trace_csv_dir=None, at_x=None, at_y=None, show_pre=True,
 ):
+    """One forward; cost-extent unit layout over all network types."""
     pack = session.primary_pack
     schema = list(session.schema)
     p = fc.assign_params(z, schema, session.backend)
@@ -663,26 +681,17 @@ def _spot_forward_rows(
     )
     C = session.backend.network
     type_names = list(C.type_names)
-    type_ids = C.node_type.cpu().numpy()
     mt = session.maxtime
 
     opts = dict((session.train_opts or {}).get(f"{pack.name}_stimulus_opts") or {})
     spotting = spotting_from_opts(C, stimulus_opts=opts)
     batches = spot_stimulus_batches(spotting)
-    present = _spot_present_types(session, all_cells=all_cells)
-    groups, names = plot_present_layout(present)
+    groups, names = plot_present_layout(_spot_all_type_names(session))
 
-    if all_cells:
-        cost_radii = resolve_spot_cost_radii(stimulus_opts=opts)
-        batch_idx, unit_idx, _radius, type_idx, stim_u, stim_v = spot_cost_unit_radius_layout(
-            C, batches, cost_radii, pack.cost_extent,
-        )
-    else:
-        batch_idx = pack.readout_batch.cpu().numpy()
-        unit_idx = pack.readout_unit.cpu().numpy()
-        type_idx = type_ids[unit_idx]
-        stim_u = pack.readout_stim_u.cpu().numpy()
-        stim_v = pack.readout_stim_v.cpu().numpy()
+    cost_radii = resolve_spot_cost_radii(stimulus_opts=opts)
+    batch_idx, unit_idx, _radius, type_idx, stim_u, stim_v = spot_cost_unit_radius_layout(
+        C, batches, cost_radii, pack.cost_extent,
+    )
 
     du, dv = _readout_duv_from_batches(C, batch_idx, unit_idx, stim_u=stim_u, stim_v=stim_v)
 
@@ -709,13 +718,7 @@ def _spot_forward_rows(
         mt=mt,
         pack=pack,
     )
-    if all_cells:
-        baselines = _spot_baselines(rows, vm_ref_np, names, at_x=at_x, at_y=at_y)
-    else:
-        baselines = baselines_for_types(
-            pack, session.backend, vm_ref_np, names, type_ids, type_names,
-        )
-    rows['baselines'] = baselines
+    rows['baselines'] = _spot_baselines(rows, vm_ref_np, names, at_x=at_x, at_y=at_y)
     rows['groups'] = groups
     return rows
 
@@ -743,12 +746,11 @@ def _spot_cube_from_rows(rows, session):
     return cells, group_rows, mt
 
 
-def _borst_spot_cells(session, z, all_cells, *, trace_kind='model', show_pre=True):
+def _borst_spot_cells(session, z, *, trace_kind='model', show_pre=True):
     model, ref = calc_model_full_all(
         session, z, return_ref=True, trace_kind=trace_kind, show_pre=show_pre,
     )
-    present = _spot_present_types(session, all_cells=all_cells)
-    groups, names = plot_present_layout(present)
+    groups, names = plot_present_layout(_spot_all_type_names(session))
     ctype_to_i = {str(CTYPE[i]): i for i in range(session.backend.n_types)}
 
     def build_cell(name):
@@ -765,88 +767,64 @@ def _borst_spot_cells(session, z, all_cells, *, trace_kind='model', show_pre=Tru
     return model, names, cells, group_rows
 
 
-def _prepare_borst_spot(
-    session, z, all_cells, *, trace_kind='model', save_trace_csv_dir=None,
-    show_pre=True,
-):
-    _ = save_trace_csv_dir
-    _, _, cells, group_rows = _borst_spot_cells(
-        session, z, all_cells, trace_kind=trace_kind, show_pre=show_pre,
-    )
-    return cells, group_rows
-
-
-def _network_spot_trace_bundle(
-    session, z, all_cells, *,
+@torch.no_grad()
+def network_spot_trace_bundle(
+    session, z, *,
     at_x_list=None, at_y_list=None, trace_kind='model',
     save_trace_csv_dir: str | None = None, show_pre=True,
 ):
+    """Run one forward; full cost-extent spot traces over all types."""
+    t_prep0 = time.perf_counter()
     rows = _spot_forward_rows(
-        session, z, all_cells=all_cells, trace_kind=trace_kind,
+        session, z, trace_kind=trace_kind,
         save_trace_csv_dir=save_trace_csv_dir, show_pre=show_pre,
     )
     cells, group_rows, maxtime = _spot_cube_from_rows(rows, session)
     slice_overlay, slice_labels = (None, None)
-    if all_cells and (at_x_list is not None or at_y_list is not None):
+    if at_x_list is not None or at_y_list is not None:
         slice_overlay, slice_labels = _spot_slice_overlay(
             rows, rows['batches'], at_x_list, at_y_list,
         )
     return SpotTraceBundle(
         cells_on=cells,
         group_rows=group_rows,
+        session=session,
         slice_overlay=slice_overlay,
         slice_labels=slice_labels,
         slice_x_list=at_x_list,
         slice_y_list=at_y_list,
         maxtime=maxtime,
+        prep_s=time.perf_counter() - t_prep0,
     )
 
 
-def _prepare_network_spot(
-    session, z, all_cells, *, trace_kind='model',
-    save_trace_csv_dir=None, show_pre=True,
-):
-    bundle = _network_spot_trace_bundle(
-        session, z, all_cells,
-        trace_kind=trace_kind, save_trace_csv_dir=save_trace_csv_dir, show_pre=show_pre,
-    )
-    return bundle.cells_on, bundle.group_rows
-
-
-def _prepare_network_spot_bundle(
-    session, z, all_cells, *,
+@torch.no_grad()
+def borst_spot_trace_bundle(
+    session, z, *,
     at_x_list=None, at_y_list=None, trace_kind='model',
     save_trace_csv_dir: str | None = None, show_pre=True,
 ):
-    return _network_spot_trace_bundle(
-        session, z, all_cells,
-        at_x_list=at_x_list, at_y_list=at_y_list, trace_kind=trace_kind,
-        save_trace_csv_dir=save_trace_csv_dir, show_pre=show_pre,
-    )
-
-
-def _prepare_borst_spot_bundle(
-    session, z, all_cells, *,
-    at_x_list=None, at_y_list=None, trace_kind='model', save_trace_csv_dir: str | None = None,
-    show_pre=True,
-):
+    """Run one Borst forward; full-type spot traces."""
     _ = save_trace_csv_dir
+    t_prep0 = time.perf_counter()
     model, names, cells, group_rows = _borst_spot_cells(
-        session, z, all_cells, trace_kind=trace_kind, show_pre=show_pre,
+        session, z, trace_kind=trace_kind, show_pre=show_pre,
     )
     slice_overlay, slice_labels = (None, None)
-    if all_cells and (at_x_list is not None or at_y_list is not None):
+    if at_x_list is not None or at_y_list is not None:
         slice_overlay, slice_labels = _borst_slice_overlay(
             model, names, at_x_list, at_y_list,
         )
     return SpotTraceBundle(
         cells_on=cells,
         group_rows=group_rows,
+        session=session,
         slice_overlay=slice_overlay,
         slice_labels=slice_labels,
         slice_x_list=at_x_list,
         slice_y_list=at_y_list,
         maxtime=session.maxtime,
+        prep_s=time.perf_counter() - t_prep0,
     )
 
 
@@ -858,16 +836,10 @@ def _spot_suptitle(title, bundle):
 
 
 def _plot_spot_figure(
-    session_1,
-    z,
-    path,
-    *,
-    prepare_fn=None,
-    prepare_bundle_fn=None,
-    bundle_on=None,
+    path, *,
+    timer,
+    bundle_on,
     bundle_2=None,
-    session_2=None,
-    all_cells=False,
     title,
     ref_cubes=None,
     ref_cubes_2=None,
@@ -875,50 +847,20 @@ def _plot_spot_figure(
     figsize_fn,
     gridspec_kw,
     suptitle_fs=12,
-    trace_kind='model',
-    save_trace_csv_dir: str | None = None,
-    show_pre=True,
 ):
-    t0 = time.perf_counter()
-    if prepare_bundle_fn is not None:
-        bundle_on = prepare_bundle_fn(session_1)
-        bundle_2 = prepare_bundle_fn(session_2) if session_2 is not None else None
-        cells_on = bundle_on.cells_on
-        group_rows = bundle_on.group_rows
-        cells_2 = bundle_2.cells_on if bundle_2 is not None else None
-        has_slices = bundle_on.has_slices
-        slice_labels = bundle_on.slice_labels or []
-        slice_overlay_on = bundle_on.slice_overlay
-        slice_overlay_2 = bundle_2.slice_overlay if bundle_2 is not None else None
-        maxtime = bundle_on.maxtime
-    elif bundle_on is not None:
-        cells_on = bundle_on.cells_on
-        group_rows = bundle_on.group_rows
-        cells_2 = bundle_2.cells_on if bundle_2 is not None else None
-        has_slices = bundle_on.has_slices
-        slice_labels = bundle_on.slice_labels or []
-        slice_overlay_on = bundle_on.slice_overlay
-        slice_overlay_2 = bundle_2.slice_overlay if bundle_2 is not None else None
-        maxtime = bundle_on.maxtime
-    else:
-        cells_on, group_rows = prepare_fn(
-            session_1, z, all_cells, trace_kind=trace_kind,
-            save_trace_csv_dir=save_trace_csv_dir, show_pre=show_pre,
-        )
-        cells_2 = None
-        if session_2 is not None:
-            cells_2, _ = prepare_fn(
-                session_2, z, all_cells, trace_kind=trace_kind,
-                save_trace_csv_dir=save_trace_csv_dir, show_pre=show_pre,
-            )
-        has_slices = False
-        slice_labels = []
-        slice_overlay_on = None
-        slice_overlay_2 = None
-        maxtime = session_1.maxtime
-    t_prep = time.perf_counter()
+    session_1 = bundle_on.session
+    session_2 = bundle_2.session if bundle_2 is not None else None
+    cells_on = bundle_on.cells_on
+    group_rows = bundle_on.group_rows
+    cells_2 = bundle_2.cells_on if bundle_2 is not None else None
+    has_slices = bundle_on.has_slices
+    slice_labels = bundle_on.slice_labels or []
+    slice_overlay_on = bundle_on.slice_overlay
+    slice_overlay_2 = bundle_2.slice_overlay if bundle_2 is not None else None
+    maxtime = bundle_on.maxtime
+    timer.end_prep()
     dual = session_2 is not None
-    ref_1, ref_2 = _resolve_spot_ref_cubes(
+    ref_1, ref_2 = resolve_spot_ref_cubes(
         session_1, session_2, ref_cubes, ref_cubes_2,
     )
     nrows = 2 * len(group_rows)
@@ -1007,123 +949,98 @@ def _plot_spot_figure(
             )
         legend_done = True
 
+    cells_2_by_name = (
+        {c['name']: c for c in cells_2} if dual and cells_2 is not None else {}
+    )
     for gi, row_idx in enumerate(group_rows):
         rf_row = 2 * gi
         start = (ncols - len(row_idx)) // 2
         for j, ci in enumerate(row_idx):
             col = start + j
-            cell_2 = cells_2[ci] if dual else None
+            cell_on = cells_on[ci]
+            cell_2 = cells_2_by_name.get(cell_on['name']) if dual else None
             ax_rf = fig.add_subplot(gs[rf_row, col])
             ax_time = fig.add_subplot(gs[rf_row + 1, col])
-            _plot_cell(cells_on[ci], cell_2, ax_rf, ax_time, show_ylabel=(j == 0), show_xlabels=True)
+            _plot_cell(cell_on, cell_2, ax_rf, ax_time, show_ylabel=(j == 0), show_xlabels=True)
     fig.suptitle(_spot_suptitle(title, bundle_on), fontsize=suptitle_fs)
-    t_draw = time.perf_counter()
+    timer.end_draw()
     save_figure(fig, path, dpi=150)
-    log_plot_elapsed(
-        path, t0,
-        prep=t_prep - t0,
-        draw=t_draw - t_prep,
-        save=time.perf_counter() - t_draw,
-    )
+    timer.log(path)
 
 
-def plot_network_spot(session_1, z, path, *, session_2=None, all_cells=False,
-                      title, ref_cubes=None, ref_cubes_2=None,
-                      trace_kind='model', at_x_list=None, at_y_list=None,
-                      save_trace_csv_dir: str | None = None, show_pre=True):
-    ncols = 5 if not all_cells else 8
-    use_slices = all_cells and (at_x_list is not None or at_y_list is not None)
-    if use_slices:
-        def _bundle(session):
-            return _prepare_network_spot_bundle(
-                session, z, all_cells,
-                at_x_list=at_x_list, at_y_list=at_y_list, trace_kind=trace_kind,
-                save_trace_csv_dir=save_trace_csv_dir, show_pre=show_pre,
-            )
-
-        _plot_spot_figure(
-            session_1, z, path,
-            prepare_bundle_fn=_bundle,
-            session_2=session_2,
-            all_cells=all_cells,
-            title=title,
-            ref_cubes=ref_cubes,
-            ref_cubes_2=ref_cubes_2,
-            ncols=ncols,
-            figsize_fn=lambda c, r: (3.0 * c if not all_cells else 2.2 * c, 2.5 * r),
-            gridspec_kw=dict(hspace=0.55, wspace=0.55, top=0.95, bottom=0.06, left=0.07, right=0.98),
-            trace_kind=trace_kind,
-            show_pre=show_pre,
-        )
-        return
+def plot_network_spot_data(path, *, bundle, bundle_2=None, title,
+                           ref_cubes=None, ref_cubes_2=None):
+    """Draw model-data figure (pack readout types) from a full-scope bundle."""
+    timer = PlotTimer(prior_prep=bundle_prep_s(bundle, bundle_2))
+    view = _spot_readout_bundle_view(bundle)
+    view_2 = _spot_readout_bundle_view(bundle_2) if bundle_2 is not None else None
     _plot_spot_figure(
-        session_1, z, path,
-        prepare_fn=_prepare_network_spot,
-        session_2=session_2,
-        all_cells=all_cells,
+        path,
+        timer=timer,
+        bundle_on=view,
+        bundle_2=view_2,
         title=title,
         ref_cubes=ref_cubes,
         ref_cubes_2=ref_cubes_2,
-        ncols=ncols,
-        figsize_fn=lambda c, r: (3.0 * c if not all_cells else 2.2 * c, 2.5 * r),
+        ncols=5,
+        figsize_fn=lambda c, r: (3.0 * c, 2.5 * r),
         gridspec_kw=dict(hspace=0.55, wspace=0.55, top=0.95, bottom=0.06, left=0.07, right=0.98),
-        trace_kind=trace_kind,
-        save_trace_csv_dir=save_trace_csv_dir,
-        show_pre=show_pre,
     )
 
 
-def plot_borst_spot(session_1, z, path, *, session_2=None, all_cells=False,
-                    title, ref_cubes=None, ref_cubes_2=None,
-                    trace_kind='model', at_x_list=None, at_y_list=None,
-                    save_trace_csv_dir: str | None = None, show_pre=True):
-    ncols = 13
-    if all_cells:
-        gs_kw = dict(hspace=0.65, wspace=0.45, top=0.97, bottom=0.03, left=0.04, right=0.99)
-        figsize_fn = lambda c, r: (26, 32)
-        suptitle_fs = 14
-    else:
-        gs_kw = dict(hspace=0.5, wspace=0.55, top=0.95, bottom=0.05, left=0.06, right=0.98)
-        figsize_fn = lambda c, r: (16, 2.5 * r)
-        suptitle_fs = 12
-    use_slices = all_cells and (at_x_list is not None or at_y_list is not None)
-    if use_slices:
-        def _bundle(session):
-            return _prepare_borst_spot_bundle(
-                session, z, all_cells,
-                at_x_list=at_x_list, at_y_list=at_y_list, trace_kind=trace_kind,
-                show_pre=show_pre,
-            )
-
-        _plot_spot_figure(
-            session_1, z, path,
-            prepare_bundle_fn=_bundle,
-            session_2=session_2,
-            all_cells=all_cells,
-            title=title,
-            ref_cubes=ref_cubes,
-            ref_cubes_2=ref_cubes_2,
-            ncols=ncols,
-            figsize_fn=figsize_fn,
-            gridspec_kw=gs_kw,
-            suptitle_fs=suptitle_fs,
-            trace_kind=trace_kind,
-            show_pre=show_pre,
-        )
-        return
+def plot_network_spot_all(path, *, bundle, bundle_2=None, title,
+                          ref_cubes=None, ref_cubes_2=None):
+    """Draw model-all figure (all types) from a full-scope bundle."""
+    timer = PlotTimer(prior_prep=bundle_prep_s(bundle, bundle_2))
     _plot_spot_figure(
-        session_1, z, path,
-        prepare_fn=_prepare_borst_spot,
-        session_2=session_2,
-        all_cells=all_cells,
+        path,
+        timer=timer,
+        bundle_on=bundle,
+        bundle_2=bundle_2,
         title=title,
         ref_cubes=ref_cubes,
         ref_cubes_2=ref_cubes_2,
-        ncols=ncols,
-        figsize_fn=figsize_fn,
-        gridspec_kw=gs_kw,
-        suptitle_fs=suptitle_fs,
-        trace_kind=trace_kind,
-        save_trace_csv_dir=save_trace_csv_dir,
-        show_pre=show_pre,
+        ncols=8,
+        figsize_fn=lambda c, r: (2.2 * c, 2.5 * r),
+        gridspec_kw=dict(hspace=0.55, wspace=0.55, top=0.95, bottom=0.06, left=0.07, right=0.98),
+    )
+
+
+def plot_borst_spot_data(path, *, bundle, bundle_2=None, title,
+                         ref_cubes=None, ref_cubes_2=None):
+    """Draw Borst model-data figure (pack readout types) from a full-scope bundle."""
+    timer = PlotTimer(prior_prep=bundle_prep_s(bundle, bundle_2))
+    view = _spot_readout_bundle_view(bundle)
+    view_2 = _spot_readout_bundle_view(bundle_2) if bundle_2 is not None else None
+    _plot_spot_figure(
+        path,
+        timer=timer,
+        bundle_on=view,
+        bundle_2=view_2,
+        title=title,
+        ref_cubes=ref_cubes,
+        ref_cubes_2=ref_cubes_2,
+        ncols=13,
+        figsize_fn=lambda c, r: (16, 2.5 * r),
+        gridspec_kw=dict(hspace=0.5, wspace=0.55, top=0.95, bottom=0.05, left=0.06, right=0.98),
+        suptitle_fs=12,
+    )
+
+
+def plot_borst_spot_all(path, *, bundle, bundle_2=None, title,
+                        ref_cubes=None, ref_cubes_2=None):
+    """Draw Borst model-all figure (all types) from a full-scope bundle."""
+    timer = PlotTimer(prior_prep=bundle_prep_s(bundle, bundle_2))
+    _plot_spot_figure(
+        path,
+        timer=timer,
+        bundle_on=bundle,
+        bundle_2=bundle_2,
+        title=title,
+        ref_cubes=ref_cubes,
+        ref_cubes_2=ref_cubes_2,
+        ncols=13,
+        figsize_fn=lambda c, r: (26, 32),
+        gridspec_kw=dict(hspace=0.65, wspace=0.45, top=0.97, bottom=0.03, left=0.04, right=0.99),
+        suptitle_fs=14,
     )

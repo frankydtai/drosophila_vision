@@ -21,7 +21,7 @@ SIMULATION_DIR = Path(__file__).resolve().parent
 REPO_ROOT = SIMULATION_DIR.parent.parent
 
 # Trained-parameter output root (``adaptive/`` and ``conductance/`` run_* subdirs).
-PARAMETER_DIR = SIMULATION_DIR / "FiveCol_Parameter"
+PARAMETER_DIR = SIMULATION_DIR / "0trained"
 
 # Borst 5-column simulator matrices (``FiveCol_MedSim_*`` / ``Circuits/``).
 BORST_CIRCUITS_DIR = SIMULATION_DIR / "Circuits"
