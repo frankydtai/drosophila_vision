@@ -533,6 +533,11 @@ class MovingBarTarget:
     n_batch: int
     maxtime: int
     info: dict
+    dsi_row_pos: Optional[torch.Tensor] = None   # (n_dsi,) long
+    dsi_row_neg: Optional[torch.Tensor] = None   # (n_dsi,) long
+    dsi_target: Optional[torch.Tensor] = None    # (n_dsi,)
+    dsi_weight: Optional[torch.Tensor] = None    # (n_dsi,)
+    dsi_power: Optional[torch.Tensor] = None     # scalar
 
 
 def _fig1_trace_ids(npz_path: Path) -> List[str]:
@@ -777,12 +782,19 @@ def build_moving_bar_target(
             device=device, sim_dtype=sim_dtype,
         )
     )
+    from analysis.DSI import build_dsi_pack_fields
+
+    dsi_rp, dsi_rn, dsi_tgt, dsi_w, dsi_pow = build_dsi_pack_fields(
+        stim.specs, r_batch, r_unit, r_target, r_weight,
+        device=device, sim_dtype=sim_dtype,
+    )
 
     info = {
         **stim.info,
         "n_cost": int(data.shape[0]),
         "n_cost_pd": int((cost_pd_nd == PD_IDX).sum().item()),
         "n_cost_nd": int((cost_pd_nd == ND_IDX).sum().item()),
+        "n_cost_dsi": int(dsi_tgt.shape[0]),
         "n_batch": stim.info["n_batch"],
         "n_cost_columns": len(cols),
         "cost_extent": cost_extent,
@@ -810,6 +822,11 @@ def build_moving_bar_target(
         n_batch=stim.info["n_batch"],
         maxtime=maxtime,
         info=info,
+        dsi_row_pos=dsi_rp,
+        dsi_row_neg=dsi_rn,
+        dsi_target=dsi_tgt,
+        dsi_weight=dsi_w,
+        dsi_power=dsi_pow,
     )
 
 
@@ -886,11 +903,18 @@ def build_borst_moving_bar_target(
             device=device, sim_dtype=sim_dtype,
         )
     )
+    from analysis.DSI import build_dsi_pack_fields
+
+    dsi_rp, dsi_rn, dsi_tgt, dsi_w, dsi_pow = build_dsi_pack_fields(
+        specs, r_batch, r_unit, r_target, r_weight,
+        device=device, sim_dtype=sim_dtype,
+    )
 
     info = {
         "n_cost": int(data.shape[0]),
         "n_cost_pd": int((cost_pd_nd == PD_IDX).sum().item()),
         "n_cost_nd": int((cost_pd_nd == ND_IDX).sum().item()),
+        "n_cost_dsi": int(dsi_tgt.shape[0]),
         "n_batch": len(specs),
         "n_cost_columns": len(cols),
         "cost_extent": None,
@@ -931,4 +955,9 @@ def build_borst_moving_bar_target(
         n_batch=len(specs),
         maxtime=maxtime,
         info=info,
+        dsi_row_pos=dsi_rp,
+        dsi_row_neg=dsi_rn,
+        dsi_target=dsi_tgt,
+        dsi_weight=dsi_w,
+        dsi_power=dsi_pow,
     )

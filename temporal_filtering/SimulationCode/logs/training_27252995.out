@@ -8,3 +8,10 @@ device=cuda, model=conductance, nofruns=1, nofsteps=1000, lrs=[0.1], nparams=526
 
 round 0
 
+
+Initl cost = 565.5789  [spot_bright=86.8370  spot_dark=85.2057  moving_bar_bright_PD=104.0722  moving_bar_bright_ND=117.6526  moving_bar_dark_PD=91.4768  moving_bar_dark_ND=80.3344]
+Final cost = 561.0740  [spot_bright=87.0686  spot_dark=66.9817  moving_bar_bright_PD=100.0676  moving_bar_bright_ND=100.8309  moving_bar_dark_PD=101.7009  moving_bar_dark_ND=104.4244]
+Best  cost = 546.1563  [spot_bright=85.9533  spot_dark=60.1378  moving_bar_bright_PD=100.0466  moving_bar_bright_ND=100.1905  moving_bar_dark_PD=99.9780  moving_bar_dark_ND=99.8501]
+time needed  = 583.07  sec
+
+done in 0.16 hours

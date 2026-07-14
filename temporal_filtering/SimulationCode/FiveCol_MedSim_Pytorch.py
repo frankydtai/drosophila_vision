@@ -65,7 +65,7 @@ VALID_TARGETS = SPOT_TARGETS + MOVING_BAR_TARGETS
 PD_ND_LABELS = ("PD", "ND")
 PD_IDX, ND_IDX = 0, 1
 MOVING_BAR_COST_PARTS = tuple(
-    f"{t}_{pd_nd}" for t in MOVING_BAR_TARGETS for pd_nd in PD_ND_LABELS
+    f"{t}_{lab}" for t in MOVING_BAR_TARGETS for lab in (*PD_ND_LABELS, "DSI")
 )
 TARGET_ALIASES = {
     "spot": SPOT_TARGETS,
@@ -104,10 +104,15 @@ I_CLI_SIDECAR_FIELD = {
 COST_WEIGHT_ALIASES = {
     "spot": SPOT_TARGETS,
     "moving_bar": MOVING_BAR_COST_PARTS,
-    "moving_bar_bright": ("moving_bar_bright_PD", "moving_bar_bright_ND"),
-    "moving_bar_dark": ("moving_bar_dark_PD", "moving_bar_dark_ND"),
+    "moving_bar_bright": (
+        "moving_bar_bright_PD", "moving_bar_bright_ND", "moving_bar_bright_DSI",
+    ),
+    "moving_bar_dark": (
+        "moving_bar_dark_PD", "moving_bar_dark_ND", "moving_bar_dark_DSI",
+    ),
     "PD": ("moving_bar_bright_PD", "moving_bar_dark_PD"),
     "ND": ("moving_bar_bright_ND", "moving_bar_dark_ND"),
+    "DSI": ("moving_bar_bright_DSI", "moving_bar_dark_DSI"),
 }
 
 # important model params
@@ -450,15 +455,23 @@ class TargetPack:
     readout_stim_v: Optional[torch.Tensor] = None  # (n_cost,) stim anchor v per spot cost row
     cost_extent: Optional[int] = None  # network hex-disc radius for cost readouts
     cost_pd_nd: Optional[torch.Tensor] = None  # (n_cost,) long; 0=PD, 1=ND (moving_bar)
+    dsi_row_pos: Optional[torch.Tensor] = None  # (n_dsi,) cost-row index (right|up)
+    dsi_row_neg: Optional[torch.Tensor] = None  # (n_dsi,) cost-row index (left|down)
+    dsi_target: Optional[torch.Tensor] = None  # (n_dsi,)
+    dsi_weight: Optional[torch.Tensor] = None  # (n_dsi,)
+    dsi_power: Optional[torch.Tensor] = None  # scalar
 
 
-def moving_bar_cost_part_key(target_name: str, pd_nd: str) -> str:
-    return f"{target_name}_{pd_nd}"
+def moving_bar_cost_part_key(target_name: str, part: str) -> str:
+    return f"{target_name}_{part}"
 
 
 def cost_part_keys_for_target(target_name: str) -> Tuple[str, ...]:
     if target_name in MOVING_BAR_TARGETS:
-        return tuple(moving_bar_cost_part_key(target_name, pd_nd) for pd_nd in PD_ND_LABELS)
+        return tuple(
+            moving_bar_cost_part_key(target_name, lab)
+            for lab in (*PD_ND_LABELS, "DSI")
+        )
     return (target_name,)
 
 
@@ -901,6 +914,11 @@ def _append_mirror_pack_rows(
         cost_radius=cost_radius_out,
         cost_extent=pack.cost_extent,
         cost_pd_nd=cost_pd_nd_out,
+        dsi_row_pos=pack.dsi_row_pos,
+        dsi_row_neg=pack.dsi_row_neg,
+        dsi_target=pack.dsi_target,
+        dsi_weight=pack.dsi_weight,
+        dsi_power=pack.dsi_power,
     )
 
 
@@ -942,6 +960,11 @@ def _borst_moving_bar_pack(T, name):
         readout_unit=T.readout_unit,
         cost_t0=T.cost_t0,
         cost_pd_nd=T.cost_pd_nd,
+        dsi_row_pos=T.dsi_row_pos,
+        dsi_row_neg=T.dsi_row_neg,
+        dsi_target=T.dsi_target,
+        dsi_weight=T.dsi_weight,
+        dsi_power=T.dsi_power,
     )
 
 
@@ -1134,6 +1157,11 @@ def _build_network_moving_bar_target(ctx: _TrainBindCtx, C, *, pack_name: str, p
         cost_t0=T.cost_t0,
         cost_extent=cost_extent,
         cost_pd_nd=T.cost_pd_nd,
+        dsi_row_pos=T.dsi_row_pos,
+        dsi_row_neg=T.dsi_row_neg,
+        dsi_target=T.dsi_target,
+        dsi_weight=T.dsi_weight,
+        dsi_power=T.dsi_power,
     )
     coltag = _cost_extent_column_coltag(cost_extent, T.info["n_cost_columns"])
     tag = (
@@ -2280,13 +2308,44 @@ def _pack_has_active_cost(pack: TargetPack, session: TrainSession) -> bool:
     return False
 
 
+def _mse_active_row_mask(pack: TargetPack, session: TrainSession) -> torch.Tensor:
+    """Boolean mask over cost rows with non-zero PD/ND (or pack) weight."""
+    n = int(pack.readout_batch.shape[0])
+    dev = pack.readout_batch.device
+    if pack.cost_pd_nd is None:
+        on = _part_weight(session, pack.name) != 0.0
+        return torch.full((n,), on, dtype=torch.bool, device=dev)
+    mask = torch.zeros(n, dtype=torch.bool, device=dev)
+    for idx, label in ((PD_IDX, "PD"), (ND_IDX, "ND")):
+        if _part_weight(session, moving_bar_cost_part_key(pack.name, label)) != 0.0:
+            mask |= pack.cost_pd_nd == int(idx)
+    return mask
+
+
+def _dsi_active_row_mask(pack: TargetPack, session: TrainSession) -> torch.Tensor:
+    """Boolean mask over cost rows needed by a non-zero DSI weight."""
+    n = int(pack.readout_batch.shape[0])
+    dev = pack.readout_batch.device
+    mask = torch.zeros(n, dtype=torch.bool, device=dev)
+    dsi_key = moving_bar_cost_part_key(pack.name, "DSI")
+    if (
+        pack.dsi_row_pos is None
+        or pack.dsi_row_pos.numel() == 0
+        or _part_weight(session, dsi_key) == 0.0
+    ):
+        return mask
+    mask[pack.dsi_row_pos] = True
+    mask[pack.dsi_row_neg] = True
+    return mask
+
+
 def _pack_active_batch_indices(pack: TargetPack, session: TrainSession) -> Tuple[int, ...]:
     """Stimulus batch indices with at least one non-zero-weight cost cell."""
-    batches = set()
-    for i in range(int(pack.readout_batch.shape[0])):
-        if _part_weight(session, _pack_part_key_for_cell(pack, i)) != 0.0:
-            batches.add(int(pack.readout_batch[i].item()))
-    return tuple(sorted(batches))
+    row_mask = _mse_active_row_mask(pack, session) | _dsi_active_row_mask(pack, session)
+    if not bool(row_mask.any()):
+        return ()
+    batches = pack.readout_batch[row_mask].unique(sorted=True)
+    return tuple(int(b) for b in batches.tolist())
 
 
 def _active_row_indices(
@@ -2294,18 +2353,17 @@ def _active_row_indices(
     session: TrainSession,
     batch_idx: Optional[int] = None,
 ) -> Optional[torch.Tensor]:
-    keep = []
-    for i in range(int(pack.readout_batch.shape[0])):
-        if batch_idx is not None and int(pack.readout_batch[i].item()) != int(batch_idx):
-            continue
-        if _part_weight(session, _pack_part_key_for_cell(pack, i)) != 0.0:
-            keep.append(i)
-    if not keep:
+    keep = _mse_active_row_mask(pack, session) | _dsi_active_row_mask(pack, session)
+    if batch_idx is not None:
+        keep = keep & (pack.readout_batch == int(batch_idx))
+    if not bool(keep.any()):
         return None
-    return torch.tensor(keep, dtype=torch.long, device=pack.readout_batch.device)
+    return torch.nonzero(keep, as_tuple=False).reshape(-1)
 
 
 def _slice_pack_rows(pack: TargetPack, row_ix: torch.Tensor) -> TargetPack:
+    from analysis.DSI import remap_dsi_rows
+
     fields = {
         "data": pack.data[row_ix],
         "cost_weight": pack.cost_weight[row_ix],
@@ -2322,22 +2380,26 @@ def _slice_pack_rows(pack: TargetPack, row_ix: torch.Tensor) -> TargetPack:
         fields["readout_stim_v"] = pack.readout_stim_v[row_ix]
     if pack.cost_pd_nd is not None:
         fields["cost_pd_nd"] = pack.cost_pd_nd[row_ix]
+    fields.update(remap_dsi_rows(pack, row_ix))
     return replace(pack, **fields)
 
 
 def _subset_pack_batches(pack: TargetPack, batch_indices: Tuple[int, ...]) -> Optional[TargetPack]:
+    from analysis.DSI import remap_dsi_rows
+
     if len(batch_indices) == int(pack.signal.shape[0]):
         return pack
     dev = pack.signal.device
     idx_t = torch.tensor(batch_indices, dtype=torch.long, device=dev)
-    old_to_new = {int(old): new for new, old in enumerate(batch_indices)}
     rb = pack.readout_batch
     keep = torch.isin(rb, idx_t)
     if not bool(keep.any()):
         return None
-    new_rb = rb[keep].clone()
-    for i in range(int(new_rb.shape[0])):
-        new_rb[i] = old_to_new[int(new_rb[i].item())]
+    lut_size = int(max(max(batch_indices), int(rb.max()))) + 1
+    lut = torch.full((lut_size,), -1, dtype=torch.long, device=dev)
+    lut[idx_t] = torch.arange(len(batch_indices), dtype=torch.long, device=dev)
+    new_rb = lut[rb[keep]]
+    kept_old = torch.nonzero(keep, as_tuple=False).reshape(-1)
     fields = {
         "signal": pack.signal.index_select(0, idx_t),
         "data": pack.data[keep],
@@ -2355,6 +2417,7 @@ def _subset_pack_batches(pack: TargetPack, batch_indices: Tuple[int, ...]) -> Op
         fields["readout_stim_v"] = pack.readout_stim_v[keep]
     if pack.cost_pd_nd is not None:
         fields["cost_pd_nd"] = pack.cost_pd_nd[keep]
+    fields.update(remap_dsi_rows(pack, kept_old))
     return replace(pack, **fields)
 
 
@@ -2434,6 +2497,21 @@ def _conductance_readout_from_model_full(
     )
 
 
+def _pack_cost_dsi_from_sel(
+    pack: TargetPack,
+    session: TrainSession,
+    scale: torch.Tensor,
+    sel: torch.Tensor,
+) -> Optional[torch.Tensor]:
+    """Unweighted DSI cost; None if inactive or no complete pairs on this pack."""
+    from analysis.DSI import cost_dsi_from_sel
+
+    key = moving_bar_cost_part_key(pack.name, "DSI")
+    if _part_weight(session, key) == 0.0:
+        return None
+    return cost_dsi_from_sel(pack, scale, sel)
+
+
 def _pack_cost_parts_from_sel(
     pack: TargetPack,
     session: TrainSession,
@@ -2459,6 +2537,9 @@ def _pack_cost_parts_from_sel(
         out[key] = _pack_cost_mse(
             scale[mask], data[mask], weight[mask], sel[mask], power,
         )
+    dsi_part = _pack_cost_dsi_from_sel(pack, session, scale, sel)
+    if dsi_part is not None:
+        out[moving_bar_cost_part_key(pack.name, "DSI")] = dsi_part
     return out
 
 
@@ -2565,10 +2646,16 @@ def calc_cost_parts(z, session: TrainSession) -> Dict[str, torch.Tensor]:
     parts: Dict[str, torch.Tensor] = {}
     zero = torch.zeros((), dtype=session.sim_dtype, device=session.device)
     if session.cost_subpacks and not session.sequential:
-        batched = ((name, sub) for name, sub in session.cost_subpacks.items())
-    else:
-        batched = None
-    for _name, pack in (batched if batched is not None else session.targets.items()):
+        for _name, pack in session.cost_subpacks.items():
+            if not _pack_has_active_cost(pack, session):
+                continue
+            pack_parts = _pack_cost_parts_from_params(p, pack, session, batch_idx=None)
+            for part_key, part in pack_parts.items():
+                if _part_weight(session, part_key) == 0.0:
+                    continue
+                parts[part_key] = part
+        return parts
+    for _name, pack in session.targets.items():
         if not _pack_has_active_cost(pack, session):
             continue
         active_batches = _pack_active_batch_indices(pack, session)
@@ -2584,12 +2671,19 @@ def calc_cost_parts(z, session: TrainSession) -> Dict[str, torch.Tensor]:
                     p, sub, session, batch_idx=b,
                 ).items():
                     pack_parts[key] = pack_parts.get(key, zero) + part
+            dsi_key = moving_bar_cost_part_key(pack.name, "DSI")
+            if _part_weight(session, dsi_key) != 0.0:
+                sub_dsi = _pack_for_active_cost(
+                    pack, session, batch_indices=active_batches,
+                )
+                if sub_dsi is not None:
+                    dsi_parts = _pack_cost_parts_from_params(
+                        p, sub_dsi, session, batch_idx=None,
+                    )
+                    if dsi_key in dsi_parts:
+                        pack_parts[dsi_key] = dsi_parts[dsi_key]
         else:
-            sub = (
-                pack
-                if batched is not None
-                else _pack_for_active_cost(pack, session, batch_indices=active_batches)
-            )
+            sub = _pack_for_active_cost(pack, session, batch_indices=active_batches)
             if sub is None:
                 continue
             pack_parts = _pack_cost_parts_from_params(p, sub, session, batch_idx=None)
@@ -2632,6 +2726,13 @@ def _iter_cost_microbatches(session: TrainSession):
                 sub = _pack_for_active_cost(pack, session, batch_idx=b)
                 if sub is not None:
                     yield pack, b, sub
+            dsi_key = moving_bar_cost_part_key(pack.name, "DSI")
+            if _part_weight(session, dsi_key) != 0.0:
+                sub_dsi = _pack_for_active_cost(
+                    pack, session, batch_indices=active_batches,
+                )
+                if sub_dsi is not None:
+                    yield pack, None, sub_dsi
         else:
             sub = _pack_for_active_cost(pack, session, batch_indices=active_batches)
             if sub is not None:
@@ -2642,13 +2743,24 @@ def backward_accum_weighted_cost(z, session: TrainSession):
     """Backward weighted cost one micro-batch at a time (releases graph each step)."""
     parts_sum: Dict[str, float] = {}
     zero = torch.zeros((), dtype=session.sim_dtype, device=session.device)
-    for _pack, batch_idx, sub in _iter_cost_microbatches(session):
+    for pack, batch_idx, sub in _iter_cost_microbatches(session):
         p = _params_from_z(z, session)
         mb_loss = zero
         has_loss = False
+        dsi_only = (
+            session.sequential
+            and batch_idx is None
+            and pack.name in MOVING_BAR_TARGETS
+        )
+        dsi_key = moving_bar_cost_part_key(pack.name, "DSI")
         for key, part in _pack_cost_parts_from_params(
             p, sub, session, batch_idx=batch_idx,
         ).items():
+            if dsi_only and key != dsi_key:
+                continue
+            if (not dsi_only) and session.sequential and key == dsi_key:
+                # single-batch slices have no complete DSI pairs; skip zeros
+                continue
             w = _part_weight(session, key)
             if w == 0.0:
                 continue

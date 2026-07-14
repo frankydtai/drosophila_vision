@@ -536,7 +536,8 @@ def add_training_arguments(parser):
                              "mirrored (OFF copies ON; shared/indi from --mode), "
                              "off (disable OFF channel)")
     parser.add_argument("--fp32", action="store_true",
-                        help="run simulation in float32 (default float64)")
+                        help="run simulation in float32 (default float64 on CUDA; "
+                             "forced on when CUDA is unavailable)")
     parser.add_argument("--sequential", action="store_true",
                         help="one stimulus batch per forward (default: batched forward)")
     parser.add_argument(
@@ -566,8 +567,8 @@ def add_training_arguments(parser):
         "--cost-weight",
         default="",
         metavar="TARGET=VALUE,...",
-        help="per-part cost weights, e.g. spot=1,PD=1.5,ND=1.0 "
-             "(aliases: spot, moving_bar, moving_bar_bright/dark, PD/ND)",
+        help="per-part cost weights, e.g. spot=1,PD=1.5,ND=1.0,DSI=0.5 "
+             "(aliases: spot, moving_bar, moving_bar_bright/dark, PD/ND/DSI)",
     )
     parser.add_argument(
         "--shift-extent",
@@ -761,6 +762,10 @@ def training_kwargs_from_args(
     lrs = parse_comma_floats(args.lrs)
     if not lrs:
         raise ValueError("--lrs must list at least one learning rate")
+    # CLI-only: float64 on CPU is too heavy; force fp32 when CUDA is absent.
+    # Keep CUDA probe out of import / run_training defaults (import-safe).
+    # Run folder name stays strict CLI (command_run_name); do not inject --fp32.
+    fp32 = bool(args.fp32) or not torch.cuda.is_available()
     run_name = command_run_name(script_stem)
     outdir = run_dir(args.model, parent=args.outdir, name=run_name)
     return dict(
@@ -785,7 +790,7 @@ def training_kwargs_from_args(
         i_cli=i_cli,
         ih_group_names=parse_comma_list(args.ih_group),
         ih_off=args.ih_off,
-        fp32=args.fp32,
+        fp32=fp32,
         sequential=args.sequential,
         init_from=init_from,
         **plot_kwargs_from_args(args),
