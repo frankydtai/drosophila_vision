@@ -566,6 +566,45 @@ def spot_cost_unit_radius_layout(C, batches, cost_radii, cost_extent):
     )
 
 
+def spot_readout_duv(C, batch_idx, unit_idx, *, stim_u, stim_v):
+    """Stim-centred axial ``(du, dv)`` per readout row (per-row stim anchor)."""
+    u_all = C.u.detach().cpu().numpy() if hasattr(C.u, "detach") else np.asarray(C.u)
+    v_all = C.v.detach().cpu().numpy() if hasattr(C.v, "detach") else np.asarray(C.v)
+    stim_u = np.asarray(stim_u, dtype=np.int64)
+    stim_v = np.asarray(stim_v, dtype=np.int64)
+    mu = u_all[unit_idx]
+    mv = v_all[unit_idx]
+    return mu - stim_u, mv - stim_v
+
+
+def spot_center_bin_layout(C, batches, cost_radii, cost_extent):
+    """Cost-extent unit layout plus stim-centred ``center_row`` mask.
+
+    Returns
+    -------
+    batch_idx, unit_idx, radius, type_idx, stim_u, stim_v, du, dv, center_row
+        ``center_row`` is True where ``(du, dv) == (0, 0)``.
+    """
+    batch_idx, unit_idx, radius, type_idx, stim_u, stim_v = spot_cost_unit_radius_layout(
+        C, batches, cost_radii, cost_extent,
+    )
+    du, dv = spot_readout_duv(C, batch_idx, unit_idx, stim_u=stim_u, stim_v=stim_v)
+    du = np.asarray(du, dtype=np.int64)
+    dv = np.asarray(dv, dtype=np.int64)
+    center_row = (du == 0) & (dv == 0)
+    return (
+        np.asarray(batch_idx, dtype=np.int64),
+        np.asarray(unit_idx, dtype=np.int64),
+        np.asarray(radius, dtype=np.float64),
+        np.asarray(type_idx, dtype=np.int64),
+        np.asarray(stim_u, dtype=np.int64),
+        np.asarray(stim_v, dtype=np.int64),
+        du,
+        dv,
+        center_row,
+    )
+
+
 def build_shifted_target(
     C,
     spot_extent: float = DEFAULT_SPOT_EXTENT,

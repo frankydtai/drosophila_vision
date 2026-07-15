@@ -32,7 +32,6 @@ from plot.utils import (
     bundle_prep_s,
     cell_title_with_n,
     column_at_scope_tag,
-    filter_borst_sti_columns,
     overlay_model_reds,
     plot_timecourse,
     readout_n_by_name,
@@ -44,12 +43,13 @@ from plot.utils import (
     suppress_cost_sem,
 )
 from column_mapper import borst_sti_columns
+from network.moving_bar_target import filter_borst_sti_columns
 from network.spot_target import (
     euclid_hex_dist,
-    spot_cost_unit_radius_layout,
-    spot_stimulus_batches,
-    spotting_from_opts,
     resolve_spot_cost_radii,
+    spotting_from_opts,
+    spot_center_bin_layout,
+    spot_stimulus_batches,
 )
 
 CENTER_BIN = ml.CENTER_COL + 2
@@ -68,17 +68,6 @@ def _radius_to_profile_bins(radius):
     if k == 0:
         return (CENTER_BIN,)
     return (CENTER_BIN - k, CENTER_BIN + k)
-
-
-def _readout_duv_from_batches(C, batch_idx, unit_idx, *, stim_u, stim_v):
-    """Stim-centred axial ``(du, dv)`` per readout row (per-row stim anchor)."""
-    u_all = C.u.detach().cpu().numpy() if hasattr(C.u, "detach") else np.asarray(C.u)
-    v_all = C.v.detach().cpu().numpy() if hasattr(C.v, "detach") else np.asarray(C.v)
-    stim_u = np.asarray(stim_u, dtype=np.int64)
-    stim_v = np.asarray(stim_v, dtype=np.int64)
-    mu = u_all[unit_idx]
-    mv = v_all[unit_idx]
-    return mu - stim_u, mv - stim_v
 
 
 def _baseline_from_ref_grid(ref_grid, row_i):
@@ -640,19 +629,18 @@ def _spot_baselines(rows, vm_ref, names, *, at_x=None, at_y=None):
     batch_idx = rows['batch_idx']
     unit_idx = rows['unit_idx']
     type_idx = rows['type_idx']
-    du, dv = rows['du'], rows['dv']
     type_names = rows['type_names']
+    center_row = rows['center_row']
 
-    mask = np.ones(len(batch_idx), dtype=bool)
+    mask = np.asarray(center_row, dtype=bool)
     if at_x is not None or at_y is not None:
         match_b = batches_at_stim_xy(rows['batches'], at_x=at_x, at_y=at_y)
-        mask &= np.isin(batch_idx, match_b)
-    center = mask & (du == 0) & (dv == 0)
+        mask = mask & np.isin(batch_idx, match_b)
 
     out = {}
     for name in names:
         ti = type_names.index(name)
-        units = np.unique(unit_idx[center & (type_idx == ti)])
+        units = np.unique(unit_idx[mask & (type_idx == ti)])
         out[name] = float(vm_ref[units].mean()) if units.size else np.nan
     return out
 
@@ -689,11 +677,9 @@ def _spot_forward_rows(
     groups, names = plot_present_layout(_spot_all_type_names(session))
 
     cost_radii = resolve_spot_cost_radii(stimulus_opts=opts)
-    batch_idx, unit_idx, _radius, type_idx, stim_u, stim_v = spot_cost_unit_radius_layout(
-        C, batches, cost_radii, pack.cost_extent,
-    )
-
-    du, dv = _readout_duv_from_batches(C, batch_idx, unit_idx, stim_u=stim_u, stim_v=stim_v)
+    (
+        batch_idx, unit_idx, _radius, type_idx, _stim_u, _stim_v, du, dv, center_row,
+    ) = spot_center_bin_layout(C, batches, cost_radii, pack.cost_extent)
 
     raw = trace_full[batch_idx, :, unit_idx]
     if trace_kind == 'vm':
@@ -712,6 +698,7 @@ def _spot_forward_rows(
         unit_idx=unit_idx,
         du=du,
         dv=dv,
+        center_row=center_row,
         plot_traces=plot_traces,
         batch_idx=batch_idx,
         batches=batches,

@@ -270,50 +270,6 @@ def _coord_matches(val, axis_filter, tol=1e-6):
     return np.isclose(val, float(axis_filter), atol=tol)
 
 
-def filter_sti_columns(cols, *, at_x=None, at_y=None, tol=1e-6):
-    """Keep network sti columns whose hex-step ``(x, y)`` matches ``at_x`` / ``at_y``."""
-    if at_x is None and at_y is None:
-        return list(cols)
-    out = []
-    for col in cols:
-        if not _coord_matches(col.x, at_x, tol=tol):
-            continue
-        if not _coord_matches(col.y, at_y, tol=tol):
-            continue
-        out.append(col)
-    return out
-
-
-def filter_borst_sti_columns(cols, *, at_x=None, at_y=None, tol=1e-6):
-    """Keep Borst sti columns for plot ``--x`` (``k`` in -2..+2) / ``--y=0``."""
-    if at_x is None and at_y is None:
-        return list(cols)
-    if at_y is not None and not _coord_matches(0.0, at_y, tol=tol):
-        raise ValueError('Borst moving-bar plot --y must be 0 (horizontal row)')
-    if at_x is None:
-        return list(cols)
-    if isinstance(at_x, (list, tuple)):
-        ks = []
-        for v in at_x:
-            k = int(round(float(v)))
-            if not np.isclose(float(v), k, atol=tol):
-                raise ValueError(
-                    f'Borst --x={v!r} must be an integer column k in -2..+2',
-                )
-            ks.append(k)
-        out = [col for col in cols if col.k in ks]
-        if not out:
-            raise ValueError(f'no Borst columns match x={list(at_x)!r}')
-        return out
-    k = int(round(float(at_x)))
-    if not np.isclose(float(at_x), k, atol=tol):
-        raise ValueError(f'Borst --x={at_x!r} must be an integer column k in -2..+2')
-    out = [col for col in cols if col.k == k]
-    if not out:
-        raise ValueError(f'no Borst column with k={k!r}')
-    return out
-
-
 def column_at_scope_tag(at_x, at_y):
     """Subtitle fragment for plot column slice."""
     parts = []
@@ -404,12 +360,14 @@ def ylim_for_keys(model_mean, model_sem, data_mean, keys, *, show_sem=False):
     return nice_ylim(*curves)
 
 
-def plot_sem_band(ax, t, model, sem, *, label=r'$\pm$SEM'):
+def plot_sem_band(ax, t, model, sem, *, color=None, alpha=None, label=r'$\pm$SEM'):
     if sem is None or not np.any(sem):
         return
     ax.fill_between(
         t, model - sem, model + sem,
-        color=SEM_COLOR, alpha=0.8, linewidth=0, label=label,
+        color=SEM_COLOR if color is None else color,
+        alpha=0.8 if alpha is None else alpha,
+        linewidth=0, label=label,
     )
 
 

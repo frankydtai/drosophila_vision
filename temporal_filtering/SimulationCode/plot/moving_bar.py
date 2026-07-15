@@ -23,8 +23,6 @@ from plot.utils import (
     baselines_for_types,
     bundle_prep_s,
     column_at_scope_tag,
-    filter_borst_sti_columns,
-    filter_sti_columns,
     overlay_model_reds,
     plot_timecourse,
     save_figure,
@@ -37,27 +35,25 @@ from plot.utils import (
 from FiveCol_MedSim_Pytorch import t_on
 import network_bootstrap  # noqa: F401  # ensure FAFBv783 modules are importable
 from network.moving_bar_target import (
-    build_moving_bar_signals,
-    build_moving_bar_t0_grids,
+    bar_specs_for_session,
+    filter_borst_sti_columns,
+    filter_sti_columns,
     load_fig1_trace,
     moving_bar_cost_columns,
-    sti_columns,
+    moving_bar_row_specs,
+    moving_bar_session_t0_grids,
+    moving_bar_units_on_columns,
+    network_uv_np,
 )
 from t4_t5_preference import (
     READOUT_SUBTYPES,
-    active_stimuli_for_subtype,
     fig1_key_for_stimulus,
     motion_preference,
-    normalize_side,
 )
 from training_config import (
     COST_WINDOW_AFTER,
     COST_WINDOW_BEFORE,
     DELTAT_MS,
-)
-from visual_stimulus.moving_bar_stimulus import (
-    build_batched_column_current,
-    gruntman_moving_bar_specs,
 )
 
 MOVING_BAR_DPI = 100
@@ -166,8 +162,19 @@ def _type_ids_for_plot_order(connectome_type_names, node_type, plot_types):
     return out
 
 
-def _network_uv_np(C):
-    return _type_ids_np(C.u), _type_ids_np(C.v)
+def _plot_types_and_ids(session):
+    """Plot-family type order + remapped ``type_ids`` for bar aggregation."""
+    C = session.backend.network
+    if C is not None:
+        types = plot_types_in_order(C.type_names)
+        type_ids = _type_ids_for_plot_order(C.type_names, C.node_type, types)
+    else:
+        ctype_names = [str(ml.ctype[i]) for i in range(len(ml.ctype))]
+        types = plot_types_in_order(ctype_names)
+        type_ids = _type_ids_for_plot_order(
+            ctype_names, session.backend.conn.node_type, types,
+        )
+    return types, type_ids
 
 
 def _rel_window_seconds(before_steps, after_steps):
@@ -179,14 +186,6 @@ def _filter_right_specs(spec_names, right_only):
     if right_only:
         return [s for s in spec_names if s.startswith('right_')]
     return list(spec_names)
-
-
-def _bar_specs_for_session(session, target):
-    contrast = "bright" if "bright" in target else "dark"
-    C = session.backend.network
-    if C is not None:
-        return list(gruntman_moving_bar_specs(contrasts=(contrast,)))
-    return list(gruntman_moving_bar_specs(directions=("right", "left"), contrasts=(contrast,)))
 
 
 def _scale_model_full(model_full, p, backend):
@@ -249,7 +248,7 @@ def _aggregate_moving_bar_traces(
 
 
 def _network_column_unit_mask(C, filt_cols, n_batch):
-    u_np, v_np = _network_uv_np(C)
+    u_np, v_np = network_uv_np(C)
     col_uv = {(int(c.u), int(c.v)) for c in filt_cols}
     unit_in_col = np.array(
         [(int(u), int(v)) in col_uv for u, v in zip(u_np, v_np)],
@@ -267,7 +266,7 @@ def _borst_column_unit_mask(filt_cols, n_batch):
 
 def _t0_ref_for_align_column(t0_bn, bi, ref_col, *, C):
     if C is not None:
-        u_np, v_np = _network_uv_np(C)
+        u_np, v_np = network_uv_np(C)
         on_ref = (u_np == int(ref_col.u)) & (v_np == int(ref_col.v))
         t0_ref = int(t0_bn[bi, on_ref][0])
     else:
@@ -296,7 +295,7 @@ def _t0_bn_slice_aligned_to_ref(
                 f'got {len(ref_cols)} for x={align_at_x!r} y={align_at_y!r}',
             )
         ref_col = ref_cols[0]
-        u_np, v_np = _network_uv_np(C)
+        u_np, v_np = network_uv_np(C)
         out = t0_bn.copy()
         for bi in range(n_batch):
             t0_ref = _t0_ref_for_align_column(out, bi, ref_col, C=C)
@@ -403,100 +402,15 @@ def _load_moving_bar_data_mean(session, target, types, specs, side, *, trace_kin
 
 def _moving_bar_baselines(C, vm_ref, types, type_ids, type_names, cost_extent, *, at_x=None, at_y=None):
     """Mean ``Vm_ref`` per type over units on moving-bar cost columns (matches trace scope)."""
-    from network.moving_bar_target import moving_bar_cost_columns
-
     cols = moving_bar_cost_columns(C, cost_extent=cost_extent)
     if at_x is not None or at_y is not None:
         cols = filter_sti_columns(cols, at_x=at_x, at_y=at_y)
-    u_np, v_np = _network_uv_np(C)
     vm_ref = np.asarray(vm_ref, dtype=np.float64)
     out = {}
     for tname in types:
-        ti = type_names.index(tname)
-        units = []
-        for c in cols:
-            on_col = (u_np == int(c.u)) & (v_np == int(c.v))
-            units.extend(np.where(on_col & (type_ids == ti))[0])
-        u = np.unique(units)
+        u = moving_bar_units_on_columns(C, tname, cols)
         out[tname] = float(vm_ref[u].mean()) if u.size else np.nan
     return out
-
-
-def _moving_bar_t0_grids(session, specs, cost_extent, maxtime, *, at_x=None, at_y=None):
-    C = session.backend.network
-    i_baseline = fc.session_moving_bar_i_baseline(session.train_opts)
-
-    if C is not None:
-        side = normalize_side(C.meta.get('side', 'right'))
-        all_cols = moving_bar_cost_columns(C, cost_extent=cost_extent)
-        if at_x is not None or at_y is not None:
-            filt_cols = filter_sti_columns(all_cols, at_x=at_x, at_y=at_y)
-            if not filt_cols:
-                raise SystemExit(
-                    f'no sti columns match x={at_x!r} y={at_y!r} within cost_extent',
-                )
-        else:
-            filt_cols = all_cols
-        stim = build_moving_bar_signals(
-            C, specs=specs, maxtime=maxtime, t_on=t_on, deltat_ms=fc.deltat,
-            device=C.node_type.device, i_baseline=i_baseline,
-        )
-        uv_to_idx = {(int(col.u), int(col.v)): j for j, col in enumerate(sti_columns(C))}
-        all_col_idxs = [uv_to_idx[(int(c.u), int(c.v))] for c in all_cols]
-        filt_col_idxs = [uv_to_idx[(int(c.u), int(c.v))] for c in filt_cols]
-        grids = build_moving_bar_t0_grids(
-            stim.column_current, specs, maxtime, i_baseline,
-            all_col_idxs=all_col_idxs,
-            filt_col_idxs=filt_col_idxs,
-            network_C=C,
-            filt_network_cols=filt_cols,
-        )
-        types = plot_types_in_order(C.type_names)
-        # Remap connectome ``node_type`` (C.type_names index) → plot ``types`` index.
-        type_ids = _type_ids_for_plot_order(C.type_names, C.node_type, types)
-    else:
-        side = "right"
-        cols_all = list(_borst_sti_columns())
-        all_col_ids = list(range(ml.nofcols))
-        if at_x is not None or at_y is not None:
-            filt_cols = filter_borst_sti_columns(cols_all, at_x=at_x, at_y=at_y)
-            if not filt_cols:
-                raise SystemExit(
-                    f'no Borst columns match x={at_x!r} y={at_y!r}',
-                )
-            col_ids = [col.col for col in filt_cols]
-        else:
-            col_ids = all_col_ids
-        col_curr = build_batched_column_current(
-            cols_all, specs, maxtime, t_on=t_on, deltat_ms=fc.deltat,
-            i_baseline=i_baseline,
-        )
-        ctype_names = [str(ml.ctype[i]) for i in range(len(ml.ctype))]
-        types = plot_types_in_order(ctype_names)
-        type_ids = _type_ids_for_plot_order(
-            ctype_names, session.backend.conn.node_type, types,
-        )
-        grids = build_moving_bar_t0_grids(
-            col_curr, specs, maxtime, i_baseline,
-            all_col_idxs=all_col_ids,
-            filt_col_idxs=col_ids,
-            borst_filt_col_ids=col_ids,
-        )
-
-    n_filter_cols = len(filt_cols) if C is not None else len(col_ids)
-    return (
-        types, type_ids, grids.t0_bn, grids.before_steps, grids.after_steps,
-        side, n_filter_cols,
-    )
-
-
-def _moving_bar_row_specs(session, target, side):
-    readout_subtypes = plot_types_in_order(pack_readout_types(session, target))
-    contrast = "bright" if "bright" in target else "dark"
-    return {
-        st: [f'{d}_{c}_{w}' for d, c, w in active_stimuli_for_subtype(side, st) if c == contrast]
-        for st in readout_subtypes
-    }
 
 
 def _moving_bar_traces_from_forward(
@@ -506,10 +420,16 @@ def _moving_bar_traces_from_forward(
     pack = session.pack_for(target)
     cost_extent = pack.cost_extent
     maxtime = int(session.maxtime)
-    C = session.backend.network
-    types, type_ids, t0_full_bn, full_before_steps, full_after_steps, side, n_filter_cols = (
-        _moving_bar_t0_grids(session, specs, cost_extent, maxtime, at_x=at_x, at_y=at_y)
+    grids = moving_bar_session_t0_grids(
+        session, specs, cost_extent, maxtime, at_x=at_x, at_y=at_y,
+        t_on=t_on, deltat_ms=fc.deltat,
     )
+    types, type_ids = _plot_types_and_ids(session)
+    t0_full_bn = grids.t0_bn
+    full_before_steps = grids.before_steps
+    full_after_steps = grids.after_steps
+    side = grids.side
+    n_filter_cols = grids.n_filter_cols
     single_column = suppress_cost_sem(session, target) or n_filter_cols == 1
     win_lens = [
         full_before_steps[sname] + full_after_steps[sname] + 1
@@ -561,7 +481,7 @@ def moving_bar_trace_bundle(session, z, target, *, at_x=None, at_y=None,
             save_trace_csv_dir, target,
             trace_kind=trace_kind, ref=vm_ref_np, trace_full=trace_full,
         )
-    specs = _bar_specs_for_session(session, target)
+    specs = bar_specs_for_session(session, target)
     spec_names = [s.name for s in specs]
     maxtime = int(session.maxtime)
     C = session.backend.network
@@ -966,11 +886,11 @@ def plot_moving_bar_data(path, *, bundle, bundle_2=None, title=None):
     b_2 = bundle_2
     timer.end_prep()
     single_column = b_on.single_column
-    row_specs = _moving_bar_row_specs(b_on.session, b_on.target, b_on.side)
+    row_specs = moving_bar_row_specs(b_on.session, b_on.target, b_on.side)
     readout_subtypes = list(row_specs.keys())
     ncols_half = max((len(v) for v in row_specs.values()), default=8)
     if b_2 is not None:
-        row_specs_2 = _moving_bar_row_specs(b_2.session, b_2.target, b_2.side)
+        row_specs_2 = moving_bar_row_specs(b_2.session, b_2.target, b_2.side)
         ncols_half = max(ncols_half, max((len(v) for v in row_specs_2.values()), default=8))
         ncols = ncols_half * 2
     else:

@@ -58,6 +58,7 @@ from plot import moving_bar as moving_bar_plot
 from plot import spot as spot_plot
 from plot.utils import parse_axis_slice_list, slice_xy_label
 from train import parse_comma_list, parse_target_list
+from network.moving_bar_target import filter_requested_specs
 
 
 @dataclass(frozen=True)
@@ -73,7 +74,7 @@ class SharedCli:
 
 
 def add_shared_cli(ap: argparse.ArgumentParser) -> None:
-    """Register ``--run/--cell/--target/--spec/--trace-kind/--x/--y`` (shared)."""
+    """Register ``--run/--cell/--target/--spec/--x/--y`` (shared)."""
     ap.add_argument(
         "--run",
         action="append",
@@ -99,12 +100,6 @@ def add_shared_cli(ap: argparse.ArgumentParser) -> None:
         metavar="SPEC,...",
         help="comma-separated moving_bar stimulus specs; omit = all specs on the "
         "bundle for each cell (still one bar forward)",
-    )
-    ap.add_argument(
-        "--trace-kind",
-        default="vm",
-        choices=("vm", "model"),
-        help="curve kind: vm (Vm-Vm_ref) or model (scaled conductance output)",
     )
     ap.add_argument(
         "--x",
@@ -164,7 +159,6 @@ class CurveSummary:
 
 
 def _summarize(arr: np.ndarray, *, idx_offset: int = 0) -> CurveSummary:
-    arr = np.asarray(arr, dtype=float)
     signs = np.sign(arr)
     sign_changes = int(np.sum(signs[1:] * signs[:-1] < 0))
     return CurveSummary(
@@ -178,8 +172,7 @@ def _summarize(arr: np.ndarray, *, idx_offset: int = 0) -> CurveSummary:
     )
 
 
-def _shape_label(arr: np.ndarray) -> str:
-    s = _summarize(arr)
+def _shape_label(s: CurveSummary) -> str:
     amp = max(abs(s.max), abs(s.min), 1e-9)
     pos = s.max > 0.05 * amp
     neg = s.min < -0.05 * amp
@@ -191,6 +184,10 @@ def _shape_label(arr: np.ndarray) -> str:
     if neg:
         return "monophasic negative"
     return "flat/near-zero"
+
+
+def _float_curve(arr) -> np.ndarray:
+    return np.asarray(arr, dtype=float)
 
 
 def extract_spot_bundle(session, z, *, target: str, trace_kind: str, x_list, y_list):
@@ -239,18 +236,18 @@ def extract_spot_cell_curves(bundle, ref_on, *, cell: str, slice_label: str | No
     imp_ref, rf_ref = spot_plot.scale_curve(ref_on[cell], center)
 
     out: dict[str, np.ndarray] = {
-        "time_total_model": np.asarray(imp_total, dtype=float),
-        "time_total_ref": np.asarray(imp_ref, dtype=float),
-        "rf_total_model": np.asarray(rf_total, dtype=float),
-        "rf_total_ref": np.asarray(rf_ref, dtype=float),
+        "time_total_model": _float_curve(imp_total),
+        "time_total_ref": _float_curve(imp_ref),
+        "rf_total_model": _float_curve(rf_total),
+        "rf_total_ref": _float_curve(rf_ref),
     }
 
     if slice_label and bundle.slice_overlay and slice_label in bundle.slice_overlay:
         cubes = bundle.slice_overlay[slice_label]
         if cell in cubes:
             imp_slice, rf_slice = spot_plot.scale_curve(cubes[cell], center)
-            out[f"time_slice_model:{slice_label}"] = np.asarray(imp_slice, dtype=float)
-            out[f"rf_slice_model:{slice_label}"] = np.asarray(rf_slice, dtype=float)
+            out[f"time_slice_model:{slice_label}"] = _float_curve(imp_slice)
+            out[f"rf_slice_model:{slice_label}"] = _float_curve(rf_slice)
     return out
 
 
@@ -275,8 +272,8 @@ def extract_moving_bar_cell_curves(bundle, *, cell: str, spec: str) -> dict[str,
     for label in _moving_bar_slice_labels(bundle):
         wt = bundle.slice_overlay[label]
         if key in wt.model_mean:
-            out[label] = np.asarray(wt.model_mean[key], dtype=float)
-    out["total"] = np.asarray(model_mean[key], dtype=float)
+            out[label] = _float_curve(wt.model_mean[key])
+    out["total"] = _float_curve(model_mean[key])
     return out
 
 
@@ -286,14 +283,10 @@ def specs_for_cell(bundle, cell: str, requested: list[str] | None) -> list[str]:
     if not avail:
         cells = sorted({c for c, _ in model_mean})
         raise SystemExit(f"cell {cell!r} not in bar bundle; available cells: {cells}")
-    if requested is None:
-        return avail
-    missing = [s for s in requested if s not in avail]
-    if missing:
-        raise SystemExit(
-            f"spec(s) {missing} not found for cell {cell!r}; available: {avail}"
-        )
-    return list(requested)
+    try:
+        return filter_requested_specs(avail, requested)
+    except ValueError as exc:
+        raise SystemExit(f"{exc}; cell={cell!r}") from exc
 
 
 def _print_curve(
@@ -304,7 +297,6 @@ def _print_curve(
     print_values: bool,
 ):
     """Summarize + shape on post-onset when ``before_steps`` is set, else full trace."""
-    arr = np.asarray(arr, dtype=float)
     if before_steps is not None and 0 < before_steps < arr.size:
         use = arr[before_steps:]
         idx_offset = before_steps
@@ -314,7 +306,7 @@ def _print_curve(
         idx_offset = 0
         window = "full"
     s = _summarize(use, idx_offset=idx_offset)
-    shape = _shape_label(use)
+    shape = _shape_label(s)
     print(
         f"{name} ({window}): n={s.n} max={s.max:.6g} min={s.min:.6g} "
         f"final={s.final:.6g} peak_idx={s.peak_idx} "
@@ -325,7 +317,7 @@ def _print_curve(
         print(f"  values: {np.round(use, 4).tolist()}")
 
 
-def _print_spot_block(
+def _print_result_block(
     *,
     run_i: int,
     run_dir: str,
@@ -340,58 +332,36 @@ def _print_spot_block(
     x_list,
     y_list,
     print_values: bool,
+    spec: str | None = None,
 ):
-    print("")
-    print(f"== RUN {run_i}: {run_dir} ==")
-    print(
+    before_steps = None
+    if spec is not None and bundle.traces.before_steps is not None:
+        before_steps = bundle.traces.before_steps.get(spec)
+    head = (
         f"best_i={best_i}  best_cost={best_cost:.6g}  cell={cell}  "
         f"target={target}  trace_kind={trace_kind}"
     )
-    print(f"maxtime={bundle.maxtime}  deltat_ms={getattr(session, 'deltat_ms', 'NA')}")
-    if x_list is not None or y_list is not None:
-        print(f"slice_x={x_list}  slice_y={y_list}")
-    for key, arr in curves.items():
-        _print_curve(key, arr, before_steps=None, print_values=print_values)
-
-
-def _print_bar_block(
-    *,
-    run_i: int,
-    run_dir: str,
-    best_i: int,
-    best_cost: float,
-    cell: str,
-    target: str,
-    trace_kind: str,
-    spec: str,
-    session,
-    bundle,
-    curves: dict[str, np.ndarray],
-    x_list,
-    y_list,
-    print_values: bool,
-):
-    before_steps = None
-    if bundle.traces.before_steps is not None:
-        before_steps = bundle.traces.before_steps.get(spec)
+    if spec is not None:
+        head += f"  spec={spec}"
     print("")
     print(f"== RUN {run_i}: {run_dir} ==")
-    print(
-        f"best_i={best_i}  best_cost={best_cost:.6g}  cell={cell}  "
-        f"target={target}  trace_kind={trace_kind}  spec={spec}"
-    )
+    print(head)
     print(f"maxtime={bundle.maxtime}  deltat_ms={getattr(session, 'deltat_ms', 'NA')}")
     if x_list is not None or y_list is not None:
         print(f"slice_x={x_list}  slice_y={y_list}")
     if before_steps is not None:
         print(f"cost_window_start_idx={before_steps}")
-    slice_names = [k for k in curves if k != "total"]
-    order = slice_names + ["total"]
-    print(f"traces ({len(order)}): {', '.join(order)}")
-    for name in order:
-        _print_curve(
-            name, curves[name], before_steps=before_steps, print_values=print_values,
-        )
+    if spec is not None:
+        slice_names = [k for k in curves if k != "total"]
+        order = slice_names + ["total"]
+        print(f"traces ({len(order)}): {', '.join(order)}")
+        for name in order:
+            _print_curve(
+                name, curves[name], before_steps=before_steps, print_values=print_values,
+            )
+    else:
+        for key, arr in curves.items():
+            _print_curve(key, arr, before_steps=None, print_values=print_values)
 
 
 def main():
@@ -406,6 +376,12 @@ def main():
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     add_shared_cli(ap)
+    ap.add_argument(
+        "--trace-kind",
+        default="vm",
+        choices=("vm", "model"),
+        help="curve kind: vm (Vm-Vm_ref) or model (scaled conductance output)",
+    )
     ap.add_argument(
         "--values",
         action="store_true",
@@ -437,7 +413,7 @@ def main():
                     curves = extract_spot_cell_curves(
                         bundle, ref_on, cell=cell, slice_label=cli.slice_label,
                     )
-                    _print_spot_block(
+                    _print_result_block(
                         run_i=run_i,
                         run_dir=run_dir,
                         best_i=best_i,
@@ -468,7 +444,7 @@ def main():
                         curves = extract_moving_bar_cell_curves(
                             bundle, cell=cell, spec=spec,
                         )
-                        _print_bar_block(
+                        _print_result_block(
                             run_i=run_i,
                             run_dir=run_dir,
                             best_i=best_i,
@@ -476,13 +452,13 @@ def main():
                             cell=cell,
                             target=target,
                             trace_kind=args.trace_kind,
-                            spec=spec,
                             session=session,
                             bundle=bundle,
                             curves=curves,
                             x_list=cli.x_list,
                             y_list=cli.y_list,
                             print_values=args.values,
+                            spec=spec,
                         )
 
 

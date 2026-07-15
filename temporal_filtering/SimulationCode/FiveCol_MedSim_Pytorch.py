@@ -455,8 +455,10 @@ class TargetPack:
     readout_stim_v: Optional[torch.Tensor] = None  # (n_cost,) stim anchor v per spot cost row
     cost_extent: Optional[int] = None  # network hex-disc radius for cost readouts
     cost_pd_nd: Optional[torch.Tensor] = None  # (n_cost,) long; 0=PD, 1=ND (moving_bar)
-    dsi_row_pos: Optional[torch.Tensor] = None  # (n_dsi,) cost-row index (right|up)
-    dsi_row_neg: Optional[torch.Tensor] = None  # (n_dsi,) cost-row index (left|down)
+    dsi_pos_rows: Optional[torch.Tensor] = None  # flat cost-row idx (right|up)
+    dsi_neg_rows: Optional[torch.Tensor] = None  # flat cost-row idx (left|down)
+    dsi_pos_ptr: Optional[torch.Tensor] = None  # (n_dsi+1,) CSR
+    dsi_neg_ptr: Optional[torch.Tensor] = None  # (n_dsi+1,) CSR
     dsi_target: Optional[torch.Tensor] = None  # (n_dsi,)
     dsi_weight: Optional[torch.Tensor] = None  # (n_dsi,)
     dsi_power: Optional[torch.Tensor] = None  # scalar
@@ -677,14 +679,9 @@ def make_moving_bar_stimulus_opts(
 
 def session_moving_bar_i_baseline(train_opts) -> float:
     """``i_baseline`` from moving-bar stimulus opts on a train session."""
-    from network.moving_bar_target import resolve_i_baseline
+    from network.moving_bar_target import moving_bar_i_baseline_from_opts
 
-    opts = train_opts or {}
-    for key in ("moving_bar_bright_stimulus_opts", "moving_bar_dark_stimulus_opts"):
-        sub = opts.get(key) or {}
-        if "i_baseline" in sub:
-            return resolve_i_baseline(float(sub["i_baseline"]))
-    return resolve_i_baseline(None)
+    return moving_bar_i_baseline_from_opts(train_opts)
 
 
 def _readout_subtypes_stimulus_list(readout_subtypes):
@@ -914,8 +911,10 @@ def _append_mirror_pack_rows(
         cost_radius=cost_radius_out,
         cost_extent=pack.cost_extent,
         cost_pd_nd=cost_pd_nd_out,
-        dsi_row_pos=pack.dsi_row_pos,
-        dsi_row_neg=pack.dsi_row_neg,
+        dsi_pos_rows=pack.dsi_pos_rows,
+        dsi_neg_rows=pack.dsi_neg_rows,
+        dsi_pos_ptr=pack.dsi_pos_ptr,
+        dsi_neg_ptr=pack.dsi_neg_ptr,
         dsi_target=pack.dsi_target,
         dsi_weight=pack.dsi_weight,
         dsi_power=pack.dsi_power,
@@ -960,8 +959,10 @@ def _borst_moving_bar_pack(T, name):
         readout_unit=T.readout_unit,
         cost_t0=T.cost_t0,
         cost_pd_nd=T.cost_pd_nd,
-        dsi_row_pos=T.dsi_row_pos,
-        dsi_row_neg=T.dsi_row_neg,
+        dsi_pos_rows=T.dsi_pos_rows,
+        dsi_neg_rows=T.dsi_neg_rows,
+        dsi_pos_ptr=T.dsi_pos_ptr,
+        dsi_neg_ptr=T.dsi_neg_ptr,
         dsi_target=T.dsi_target,
         dsi_weight=T.dsi_weight,
         dsi_power=T.dsi_power,
@@ -1157,8 +1158,10 @@ def _build_network_moving_bar_target(ctx: _TrainBindCtx, C, *, pack_name: str, p
         cost_t0=T.cost_t0,
         cost_extent=cost_extent,
         cost_pd_nd=T.cost_pd_nd,
-        dsi_row_pos=T.dsi_row_pos,
-        dsi_row_neg=T.dsi_row_neg,
+        dsi_pos_rows=T.dsi_pos_rows,
+        dsi_neg_rows=T.dsi_neg_rows,
+        dsi_pos_ptr=T.dsi_pos_ptr,
+        dsi_neg_ptr=T.dsi_neg_ptr,
         dsi_target=T.dsi_target,
         dsi_weight=T.dsi_weight,
         dsi_power=T.dsi_power,
@@ -1920,8 +1923,10 @@ def rectsyn(x,thrld):
 
 def update_Vm(Vm, u_on, u_off, in_gain, out_gain, syn_strength, Ih_gmax, Ih_gmax_off,
               Ih_midv, Ih_slope, tau_midv, Ih_midv_off, Ih_slope_off, tau_midv_off,
-              signal, backend: ModelBackend):
-
+              signal, backend: ModelBackend, *, return_budget: bool = False):
+    """One conductance step. With ``return_budget=True``, also return the g's that
+    enter the Vm update (after Ih gate advance; Vm argument is still pre-step).
+    """
     # ON Ih (hyperpolarization-activated, E_Ih=+50) + OFF Ih (depolarization-activated,
     # E_IH_OFF=-150).
     e_leak = backend.e_leak
@@ -1946,7 +1951,24 @@ def update_Vm(Vm, u_on, u_off, in_gain, out_gain, syn_strength, Ih_gmax, Ih_gmax
           + E_Ih * g_Ih_on + E_IH_OFF * g_Ih_off + cdt*Vm + signal)
     Vm = Vm / (g_exc + g_inh + g_Ih + g_leak + cdt)
 
+    if return_budget:
+        return Vm, u_on, u_off, g_exc, g_inh, g_Ih_on, g_Ih_off
     return Vm, u_on, u_off
+
+
+def vm_budget_from_g(Vm_pre, g_exc, g_inh, g_Ih_on, g_Ih_off, signal, e_leak):
+    """Numerator / denom terms matching ``update_Vm`` (works on torch or numpy)."""
+    return {
+        "num_exc": g_exc * E_exc,
+        "num_inh": g_inh * E_inh,
+        "num_leak": g_leak * e_leak,
+        "num_ihon": g_Ih_on * E_Ih,
+        "num_ihoff": g_Ih_off * E_IH_OFF,
+        "num_cdt": cdt * Vm_pre,
+        "num_sig": signal,
+        "den": g_exc + g_inh + g_Ih_on + g_Ih_off + g_leak + cdt,
+    }
+
 
 # ---------- adaptive temporal-filter neuron model (flyvis-derived) -----------
 
@@ -2308,6 +2330,16 @@ def _pack_has_active_cost(pack: TargetPack, session: TrainSession) -> bool:
     return False
 
 
+def _pack_has_active_mse(pack: TargetPack, session: TrainSession) -> bool:
+    """True if waveform MSE parts (pack name or PD/ND) have non-zero weight."""
+    if pack.cost_pd_nd is None:
+        return _part_weight(session, pack.name) != 0.0
+    return any(
+        _part_weight(session, moving_bar_cost_part_key(pack.name, lab)) != 0.0
+        for lab in PD_ND_LABELS
+    )
+
+
 def _mse_active_row_mask(pack: TargetPack, session: TrainSession) -> torch.Tensor:
     """Boolean mask over cost rows with non-zero PD/ND (or pack) weight."""
     n = int(pack.readout_batch.shape[0])
@@ -2329,13 +2361,13 @@ def _dsi_active_row_mask(pack: TargetPack, session: TrainSession) -> torch.Tenso
     mask = torch.zeros(n, dtype=torch.bool, device=dev)
     dsi_key = moving_bar_cost_part_key(pack.name, "DSI")
     if (
-        pack.dsi_row_pos is None
-        or pack.dsi_row_pos.numel() == 0
+        pack.dsi_pos_rows is None
+        or pack.dsi_pos_rows.numel() == 0
         or _part_weight(session, dsi_key) == 0.0
     ):
         return mask
-    mask[pack.dsi_row_pos] = True
-    mask[pack.dsi_row_neg] = True
+    mask[pack.dsi_pos_rows] = True
+    mask[pack.dsi_neg_rows] = True
     return mask
 
 
@@ -2663,14 +2695,15 @@ def calc_cost_parts(z, session: TrainSession) -> Dict[str, torch.Tensor]:
             continue
         if session.sequential:
             pack_parts: Dict[str, torch.Tensor] = {}
-            for b in active_batches:
-                sub = _pack_for_active_cost(pack, session, batch_idx=b)
-                if sub is None:
-                    continue
-                for key, part in _pack_cost_parts_from_params(
-                    p, sub, session, batch_idx=b,
-                ).items():
-                    pack_parts[key] = pack_parts.get(key, zero) + part
+            if _pack_has_active_mse(pack, session):
+                for b in active_batches:
+                    sub = _pack_for_active_cost(pack, session, batch_idx=b)
+                    if sub is None:
+                        continue
+                    for key, part in _pack_cost_parts_from_params(
+                        p, sub, session, batch_idx=b,
+                    ).items():
+                        pack_parts[key] = pack_parts.get(key, zero) + part
             dsi_key = moving_bar_cost_part_key(pack.name, "DSI")
             if _part_weight(session, dsi_key) != 0.0:
                 sub_dsi = _pack_for_active_cost(
@@ -2722,10 +2755,11 @@ def _iter_cost_microbatches(session: TrainSession):
         if not active_batches:
             continue
         if session.sequential:
-            for b in active_batches:
-                sub = _pack_for_active_cost(pack, session, batch_idx=b)
-                if sub is not None:
-                    yield pack, b, sub
+            if _pack_has_active_mse(pack, session):
+                for b in active_batches:
+                    sub = _pack_for_active_cost(pack, session, batch_idx=b)
+                    if sub is not None:
+                        yield pack, b, sub
             dsi_key = moving_bar_cost_part_key(pack.name, "DSI")
             if _part_weight(session, dsi_key) != 0.0:
                 sub_dsi = _pack_for_active_cost(

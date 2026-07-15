@@ -1,40 +1,21 @@
 {
   "backend": "network",
   "target_list": [
-    "spot_bright",
-    "spot_dark",
     "moving_bar_bright",
     "moving_bar_dark"
   ],
-  "cost_weights": {},
+  "cost_weights": {
+    "moving_bar_bright_PD": 0.0,
+    "moving_bar_dark_PD": 0.0,
+    "moving_bar_bright_ND": 0.0,
+    "moving_bar_dark_ND": 0.0,
+    "moving_bar_bright_DSI": 1.0,
+    "moving_bar_dark_DSI": 1.0
+  },
   "sequential": false,
   "network_json": "/home/yitai/drosophila_vision/temporal_filtering/Connectome/FAFBv783/built_network/right_min_neuron1_extent10/network.json",
-  "spot_bright_stimulus_opts": {
-    "mode": "network",
-    "i_baseline": 20.0,
-    "i_bright": 40.0,
-    "t_on": 50,
-    "maxtime": 200,
-    "deltat_ms": 10.0,
-    "shift_extent": 1,
-    "spot_extent": 1.0,
-    "multi_spot": true,
-    "fully_inside": true,
-    "cost_extent": 9
-  },
-  "spot_dark_stimulus_opts": {
-    "mode": "network",
-    "i_baseline": 20.0,
-    "i_dark": 0.0,
-    "t_on": 50,
-    "maxtime": 200,
-    "deltat_ms": 10.0,
-    "shift_extent": 1,
-    "spot_extent": 1.0,
-    "multi_spot": true,
-    "fully_inside": true,
-    "cost_extent": 9
-  },
+  "spot_bright_stimulus_opts": null,
+  "spot_dark_stimulus_opts": null,
   "moving_bar_bright_stimulus_opts": {
     "mode": "network",
     "i_baseline": 20.0,

@@ -6,7 +6,8 @@ This module maps column-level currents to photoreceptor units, builds batched
 ``signal`` tensors, and assembles fig1 cost readouts via
 :func:`build_moving_bar_target`. Window indexing for cost/plot traces is
 :func:`moving_bar_window_t_rel` / :func:`moving_bar_window_t_rel_torch`;
-plot ``t0`` grids use :func:`build_moving_bar_t0_grids`.
+plot ``t0`` grids use :func:`moving_bar_session_t0_grids` /
+:func:`build_moving_bar_t0_grids`.
 
 ``build_moving_bar_signals`` returns ``signal`` with shape ``(B, T, N_units)``.
 Default ``T`` is ``t_on`` + sweep + moving-bar tail, not Borst ``IMPULSE_MAXTIME``.
@@ -32,6 +33,7 @@ from connectome_io import moving_bar_cache_dir
 from network.stimulus import column_in_cost_extent
 from t4_t5_preference import (
     READOUT_SUBTYPES,
+    active_stimuli_for_subtype,
     fig1_key_for_stimulus,
     motion_preference,
     normalize_side,
@@ -123,6 +125,214 @@ def moving_bar_cost_columns(C, cost_extent=None) -> List[StiColumn]:
     if cost_extent is None:
         return cols
     return [c for c in cols if column_in_cost_extent(c.u, c.v, cost_extent)]
+
+
+def _as_int64_np(x) -> np.ndarray:
+    if torch.is_tensor(x):
+        return np.asarray(x.detach().cpu().numpy(), dtype=np.int64)
+    return np.asarray(x, dtype=np.int64)
+
+
+def network_uv_np(C) -> Tuple[np.ndarray, np.ndarray]:
+    """Connectome axial ``(u, v)`` per unit as int64 numpy arrays."""
+    return _as_int64_np(C.u), _as_int64_np(C.v)
+
+
+def _coord_matches(val, axis_filter, tol=1e-6) -> bool:
+    if axis_filter is None:
+        return True
+    if isinstance(axis_filter, (list, tuple)):
+        return any(np.isclose(val, float(v), atol=tol) for v in axis_filter)
+    return np.isclose(val, float(axis_filter), atol=tol)
+
+
+def filter_sti_columns(cols, *, at_x=None, at_y=None, tol=1e-6):
+    """Keep network sti columns whose hex-step ``(x, y)`` matches ``at_x`` / ``at_y``."""
+    if at_x is None and at_y is None:
+        return list(cols)
+    out = []
+    for col in cols:
+        if not _coord_matches(col.x, at_x, tol=tol):
+            continue
+        if not _coord_matches(col.y, at_y, tol=tol):
+            continue
+        out.append(col)
+    return out
+
+
+def filter_borst_sti_columns(cols, *, at_x=None, at_y=None, tol=1e-6):
+    """Keep Borst sti columns for ``--x`` (``k`` in -2..+2) / ``--y=0``."""
+    if at_x is None and at_y is None:
+        return list(cols)
+    if at_y is not None and not _coord_matches(0.0, at_y, tol=tol):
+        raise ValueError('Borst moving-bar --y must be 0 (horizontal row)')
+    if at_x is None:
+        return list(cols)
+    if isinstance(at_x, (list, tuple)):
+        ks = []
+        for v in at_x:
+            k = int(round(float(v)))
+            if not np.isclose(float(v), k, atol=tol):
+                raise ValueError(
+                    f'Borst --x={v!r} must be an integer column k in -2..+2',
+                )
+            ks.append(k)
+        out = [col for col in cols if col.k in ks]
+        if not out:
+            raise ValueError(f'no Borst columns match x={list(at_x)!r}')
+        return out
+    k = int(round(float(at_x)))
+    if not np.isclose(float(at_x), k, atol=tol):
+        raise ValueError(f'Borst --x={at_x!r} must be an integer column k in -2..+2')
+    out = [col for col in cols if col.k == k]
+    if not out:
+        raise ValueError(f'no Borst column with k={k!r}')
+    return out
+
+
+def moving_bar_i_baseline_from_opts(train_opts) -> float:
+    """``i_baseline`` from moving-bar stimulus opts on a train session."""
+    opts = train_opts or {}
+    for key in ("moving_bar_bright_stimulus_opts", "moving_bar_dark_stimulus_opts"):
+        sub = opts.get(key) or {}
+        if "i_baseline" in sub:
+            return resolve_i_baseline(float(sub["i_baseline"]))
+    return resolve_i_baseline(None)
+
+
+def bar_specs_for_session(session, target) -> List[MovingBarSpec]:
+    """Gruntman bar specs for ``target`` (bright/dark; connectome vs Borst directions)."""
+    contrast = "bright" if "bright" in target else "dark"
+    C = session.backend.network
+    if C is not None:
+        return list(gruntman_moving_bar_specs(contrasts=(contrast,)))
+    return list(gruntman_moving_bar_specs(directions=("right", "left"), contrasts=(contrast,)))
+
+
+@dataclass
+class MovingBarSessionT0:
+    t0_bn: np.ndarray
+    before_steps: Dict[str, int]
+    after_steps: Dict[str, int]
+    side: str
+    n_filter_cols: int
+
+
+def moving_bar_session_t0_grids(
+    session,
+    specs: Sequence[MovingBarSpec],
+    cost_extent,
+    maxtime: int,
+    *,
+    at_x=None,
+    at_y=None,
+    t_on: int = T_ON,
+    deltat_ms: float = DELTAT_MS,
+) -> MovingBarSessionT0:
+    """Session-level ``t0`` / horizon grids for moving-bar cost or analysis."""
+    C = session.backend.network
+    i_baseline = moving_bar_i_baseline_from_opts(session.train_opts)
+
+    if C is not None:
+        side = normalize_side(C.meta.get('side', 'right'))
+        all_cols = moving_bar_cost_columns(C, cost_extent=cost_extent)
+        if at_x is not None or at_y is not None:
+            filt_cols = filter_sti_columns(all_cols, at_x=at_x, at_y=at_y)
+            if not filt_cols:
+                raise SystemExit(
+                    f'no sti columns match x={at_x!r} y={at_y!r} within cost_extent',
+                )
+        else:
+            filt_cols = all_cols
+        stim = build_moving_bar_signals(
+            C, specs=specs, maxtime=maxtime, t_on=t_on, deltat_ms=deltat_ms,
+            device=C.node_type.device, i_baseline=i_baseline,
+        )
+        uv_to_idx = {(int(col.u), int(col.v)): j for j, col in enumerate(sti_columns(C))}
+        all_col_idxs = [uv_to_idx[(int(c.u), int(c.v))] for c in all_cols]
+        filt_col_idxs = [uv_to_idx[(int(c.u), int(c.v))] for c in filt_cols]
+        grids = build_moving_bar_t0_grids(
+            stim.column_current, specs, maxtime, i_baseline,
+            all_col_idxs=all_col_idxs,
+            filt_col_idxs=filt_col_idxs,
+            network_C=C,
+            filt_network_cols=filt_cols,
+        )
+        n_filter_cols = len(filt_cols)
+    else:
+        side = "right"
+        cols_all = list(borst_sti_columns())
+        all_col_ids = list(range(ml.nofcols))
+        if at_x is not None or at_y is not None:
+            filt_cols = filter_borst_sti_columns(cols_all, at_x=at_x, at_y=at_y)
+            if not filt_cols:
+                raise SystemExit(
+                    f'no Borst columns match x={at_x!r} y={at_y!r}',
+                )
+            col_ids = [col.col for col in filt_cols]
+        else:
+            col_ids = all_col_ids
+        col_curr = build_batched_column_current(
+            cols_all, specs, maxtime, t_on=t_on, deltat_ms=deltat_ms,
+            i_baseline=i_baseline,
+        )
+        grids = build_moving_bar_t0_grids(
+            col_curr, specs, maxtime, i_baseline,
+            all_col_idxs=all_col_ids,
+            filt_col_idxs=col_ids,
+            borst_filt_col_ids=col_ids,
+        )
+        n_filter_cols = len(col_ids)
+
+    return MovingBarSessionT0(
+        t0_bn=grids.t0_bn,
+        before_steps=grids.before_steps,
+        after_steps=grids.after_steps,
+        side=side,
+        n_filter_cols=n_filter_cols,
+    )
+
+
+def _pack_readout_type_names(session, target: str) -> List[str]:
+    """Unique cell-type names on ``pack.readout_unit`` (pack order)."""
+    pack = session.pack_for(target)
+    u = pack.readout_unit
+    if torch.is_tensor(u):
+        u = u.detach().cpu().numpy()
+    u = np.asarray(u, dtype=np.int64)
+    backend = session.backend
+    if backend.network is not None:
+        C = backend.network
+        node_type = C.node_type[u]
+        if torch.is_tensor(node_type):
+            node_type = node_type.detach().cpu().numpy()
+        names = list(C.type_names)
+        seq = [str(names[int(t)]) for t in node_type]
+    else:
+        node_type = backend.conn.node_type[u]
+        if torch.is_tensor(node_type):
+            node_type = node_type.detach().cpu().numpy()
+        seq = [str(ml.ctype[int(t)]) for t in node_type]
+    seen: set = set()
+    out: List[str] = []
+    for name in seq:
+        if name not in seen:
+            seen.add(name)
+            out.append(name)
+    return out
+
+
+def moving_bar_row_specs(session, target: str, side: str) -> Dict[str, List[str]]:
+    """Per-readout-cell active bar spec names for ``side`` and target contrast."""
+    contrast = "bright" if "bright" in target else "dark"
+    return {
+        st: [
+            f'{d}_{c}_{w}'
+            for d, c, w in active_stimuli_for_subtype(side, st)
+            if c == contrast
+        ]
+        for st in _pack_readout_type_names(session, target)
+    }
 
 
 def moving_bar_window_t_rel(t0, t_on: int, win: int):
@@ -533,8 +743,10 @@ class MovingBarTarget:
     n_batch: int
     maxtime: int
     info: dict
-    dsi_row_pos: Optional[torch.Tensor] = None   # (n_dsi,) long
-    dsi_row_neg: Optional[torch.Tensor] = None   # (n_dsi,) long
+    dsi_pos_rows: Optional[torch.Tensor] = None  # flat cost-row idx (right|up)
+    dsi_neg_rows: Optional[torch.Tensor] = None  # flat cost-row idx (left|down)
+    dsi_pos_ptr: Optional[torch.Tensor] = None   # (n_dsi+1,) CSR
+    dsi_neg_ptr: Optional[torch.Tensor] = None   # (n_dsi+1,) CSR
     dsi_target: Optional[torch.Tensor] = None    # (n_dsi,)
     dsi_weight: Optional[torch.Tensor] = None    # (n_dsi,)
     dsi_power: Optional[torch.Tensor] = None     # scalar
@@ -593,6 +805,41 @@ def col2subtype(C, u: int, v: int, subtype: str, names: Optional[np.ndarray] = N
     )[0]
 
 
+def moving_bar_units_on_columns(C, cell: str, cols: Sequence) -> np.ndarray:
+    """Unit indices of ``cell`` on any of ``cols`` (vectorized axial uv pack)."""
+    if not cols:
+        return np.zeros(0, dtype=np.int64)
+    if cell not in C.type_names:
+        raise ValueError(f"unknown cell type {cell!r}; known: {list(C.type_names)}")
+    ti = int(C.type_names.index(cell))
+    u_np, v_np = network_uv_np(C)
+    type_ids = _as_int64_np(C.node_type)
+    uv_span = int(max(np.max(np.abs(u_np)), np.max(np.abs(v_np)), 1)) + 1
+    pack = (u_np + uv_span) * (2 * uv_span + 1) + (v_np + uv_span)
+    col_pack = np.array(
+        [
+            (int(c.u) + uv_span) * (2 * uv_span + 1) + (int(c.v) + uv_span)
+            for c in cols
+        ],
+        dtype=np.int64,
+    )
+    return np.where((type_ids == ti) & np.isin(pack, col_pack))[0].astype(np.int64)
+
+
+def filter_requested_specs(
+    available: Sequence[str],
+    requested: Optional[Sequence[str]],
+) -> List[str]:
+    """Keep ``requested`` specs that exist in ``available``; omit ``requested`` → all."""
+    avail = list(available)
+    if requested is None:
+        return avail
+    missing = [s for s in requested if s not in avail]
+    if missing:
+        raise ValueError(f"spec(s) {missing} not in {avail}")
+    return list(requested)
+
+
 def _assemble_moving_bar_readouts(
     *,
     specs: Sequence[MovingBarSpec],
@@ -606,8 +853,12 @@ def _assemble_moving_bar_readouts(
     fig1: Dict[str, np.ndarray],
     present: Sequence[str],
     units_for_col_subtype: Callable[[int, int, str], Sequence[int]],
-) -> Tuple[List[int], List[int], List[np.ndarray], List[float], List[int], List[int], int]:
-    r_batch, r_unit, r_target, r_weight, r_t0, r_pd_nd = [], [], [], [], [], []
+) -> Tuple[
+    List[int], List[int], List[str], List[np.ndarray], List[float], List[int], List[int], int,
+]:
+    r_batch, r_unit, r_subtype, r_target, r_weight, r_t0, r_pd_nd = (
+        [], [], [], [], [], [], [],
+    )
     skipped_orthogonal = 0
     i_baseline = resolve_i_baseline(i_baseline)
     for b, spec in enumerate(specs):
@@ -637,11 +888,15 @@ def _assemble_moving_bar_readouts(
                 for uidx in units:
                     r_batch.append(b)
                     r_unit.append(int(uidx))
+                    r_subtype.append(str(subtype))
                     r_target.append(target)
                     r_weight.append(1.0)
                     r_t0.append(t0)
                     r_pd_nd.append(pd_nd_idx)
-    return r_batch, r_unit, r_target, r_weight, r_t0, r_pd_nd, skipped_orthogonal
+    return (
+        r_batch, r_unit, r_subtype, r_target, r_weight, r_t0, r_pd_nd,
+        skipped_orthogonal,
+    )
 
 
 def _pack_moving_bar_readout_tensors(
@@ -771,7 +1026,10 @@ def build_moving_bar_target(
         present=present,
         units_for_col_subtype=_units_for_col_subtype,
     )
-    r_batch, r_unit, r_target, r_weight, r_t0, r_pd_nd, skipped_orthogonal = rows
+    (
+        r_batch, r_unit, r_subtype, r_target, r_weight, r_t0, r_pd_nd,
+        skipped_orthogonal,
+    ) = rows
 
     if not r_batch:
         raise ValueError("no moving-bar cost cells (check subtypes and sti columns)")
@@ -784,8 +1042,11 @@ def build_moving_bar_target(
     )
     from analysis.DSI import build_dsi_pack_fields
 
-    dsi_rp, dsi_rn, dsi_tgt, dsi_w, dsi_pow = build_dsi_pack_fields(
-        stim.specs, r_batch, r_unit, r_target, r_weight,
+    (
+        dsi_pos_rows, dsi_neg_rows, dsi_pos_ptr, dsi_neg_ptr,
+        dsi_tgt, dsi_w, dsi_pow,
+    ) = build_dsi_pack_fields(
+        stim.specs, r_batch, r_subtype, r_target, r_weight,
         device=device, sim_dtype=sim_dtype,
     )
 
@@ -822,8 +1083,10 @@ def build_moving_bar_target(
         n_batch=stim.info["n_batch"],
         maxtime=maxtime,
         info=info,
-        dsi_row_pos=dsi_rp,
-        dsi_row_neg=dsi_rn,
+        dsi_pos_rows=dsi_pos_rows,
+        dsi_neg_rows=dsi_neg_rows,
+        dsi_pos_ptr=dsi_pos_ptr,
+        dsi_neg_ptr=dsi_neg_ptr,
         dsi_target=dsi_tgt,
         dsi_weight=dsi_w,
         dsi_power=dsi_pow,
@@ -892,7 +1155,10 @@ def build_borst_moving_bar_target(
         present=present,
         units_for_col_subtype=_units_for_col_subtype,
     )
-    r_batch, r_unit, r_target, r_weight, r_t0, r_pd_nd, skipped_orthogonal = rows
+    (
+        r_batch, r_unit, r_subtype, r_target, r_weight, r_t0, r_pd_nd,
+        skipped_orthogonal,
+    ) = rows
 
     if not r_batch:
         raise ValueError("no Borst moving-bar cost cells")
@@ -905,8 +1171,11 @@ def build_borst_moving_bar_target(
     )
     from analysis.DSI import build_dsi_pack_fields
 
-    dsi_rp, dsi_rn, dsi_tgt, dsi_w, dsi_pow = build_dsi_pack_fields(
-        specs, r_batch, r_unit, r_target, r_weight,
+    (
+        dsi_pos_rows, dsi_neg_rows, dsi_pos_ptr, dsi_neg_ptr,
+        dsi_tgt, dsi_w, dsi_pow,
+    ) = build_dsi_pack_fields(
+        specs, r_batch, r_subtype, r_target, r_weight,
         device=device, sim_dtype=sim_dtype,
     )
 
@@ -955,8 +1224,10 @@ def build_borst_moving_bar_target(
         n_batch=len(specs),
         maxtime=maxtime,
         info=info,
-        dsi_row_pos=dsi_rp,
-        dsi_row_neg=dsi_rn,
+        dsi_pos_rows=dsi_pos_rows,
+        dsi_neg_rows=dsi_neg_rows,
+        dsi_pos_ptr=dsi_pos_ptr,
+        dsi_neg_ptr=dsi_neg_ptr,
         dsi_target=dsi_tgt,
         dsi_weight=dsi_w,
         dsi_power=dsi_pow,

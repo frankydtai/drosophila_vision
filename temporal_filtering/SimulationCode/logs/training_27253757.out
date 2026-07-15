@@ -1,0 +1,24 @@
+Job ID: 27253757
+Node:   spartan-gpgpu176
+GPU:    0
+GPU 0: NVIDIA H100 80GB HBM3 (UUID: GPU-f52658a1-abde-8fe6-f68a-8bba7dbf7473)
+cuda: True NVIDIA H100 80GB HBM3
+Start:  Tue 14 Jul 2026 22:57:12 AEST
+device=cuda, model=conductance, nofruns=1, nofsteps=1000, lrs=[0.1], nparams=526, fname=training_with_Ih.npy, outdir=/home/yitai/drosophila_vision/temporal_filtering/SimulationCode/0trained/conductance/27253757-train-nofsteps-1000-lrs-0.1-shift-extent-1-cost-extent-9-target-moving_bar-cost-weight-PD-0,ND-0,DSI-1
+
+round 0
+
+
+Initl cost = 350.4832  [moving_bar_bright_DSI=242.6015  moving_bar_dark_DSI=107.8817]
+Final cost = 200.0000  [moving_bar_bright_DSI=100.0000  moving_bar_dark_DSI=100.0000]
+Best  cost = 200.0000  [moving_bar_bright_DSI=100.0000  moving_bar_dark_DSI=100.0000]
+time needed  = 255.15  sec
+
+done in 0.07 hours
+wrote table: /home/yitai/drosophila_vision/temporal_filtering/SimulationCode/0trained/conductance/27253757-train-nofsteps-1000-lrs-0.1-shift-extent-1-cost-extent-9-target-moving_bar-cost-weight-PD-0,ND-0,DSI-1/training_with_Ih_table.csv (best run #0, cost=200.0000)
+plot device=cuda (NVIDIA H100 80GB HBM3)
+1 trained set(s); selected #0 (cost=200.0000)
+plot /home/yitai/drosophila_vision/temporal_filtering/SimulationCode/0trained/conductance/27253757-train-nofsteps-1000-lrs-0.1-shift-extent-1-cost-extent-9-target-moving_bar-cost-weight-PD-0,ND-0,DSI-1/cost_curve.png: draw=0.3s  save=0.5s  total=0.8s
+plot /home/yitai/drosophila_vision/temporal_filtering/SimulationCode/0trained/conductance/27253757-train-nofsteps-1000-lrs-0.1-shift-extent-1-cost-extent-9-target-moving_bar-cost-weight-PD-0,ND-0,DSI-1/model_data_bar.png: prep=1.3s  draw=0.6s  save=1.0s  total=3.0s
+plot /home/yitai/drosophila_vision/temporal_filtering/SimulationCode/0trained/conductance/27253757-train-nofsteps-1000-lrs-0.1-shift-extent-1-cost-extent-9-target-moving_bar-cost-weight-PD-0,ND-0,DSI-1/model_all_bar.png: prep=0.0s  draw=1.6s  save=2.1s  total=3.7s
+plots saved to /home/yitai/drosophila_vision/temporal_filtering/SimulationCode/0trained/conductance/27253757-train-nofsteps-1000-lrs-0.1-shift-extent-1-cost-extent-9-target-moving_bar-cost-weight-PD-0,ND-0,DSI-1
