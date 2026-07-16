@@ -208,7 +208,7 @@ def _load_borst_graph() -> Tuple[List[dict], List[dict]]:
     return nodes, edges
 
 
-def _resolve_query_labels(
+def resolve_query_labels(
     tokens: List[str], type_to_family: Dict[str, str]
 ) -> Tuple[List[str], Dict[str, Set[str]], Dict[int, Set[str]]]:
     """Resolve queried tokens to (ordered labels, self_type -> labels, self_id -> labels).
@@ -462,7 +462,7 @@ def _node_xy_deg(n: dict) -> Optional[Tuple[float, float]]:
         return None
 
 
-def _node_id_to_xy_deg(nodes: List[dict]) -> Dict[int, Tuple[float, float]]:
+def node_id_to_xy_deg(nodes: List[dict]) -> Dict[int, Tuple[float, float]]:
     """Unit id -> ``(x_deg, y_deg)`` for Borst synthetic nodes."""
     m: Dict[int, Tuple[float, float]] = {}
     for n in nodes:
@@ -476,7 +476,7 @@ def _node_id_to_xy_deg(nodes: List[dict]) -> Dict[int, Tuple[float, float]]:
     return m
 
 
-def _node_id_to_uv(nodes: List[dict], *, float_coords: bool = False) -> Dict[int, _UvCoord]:
+def node_id_to_uv(nodes: List[dict], *, float_coords: bool = False) -> Dict[int, _UvCoord]:
     """Unit id -> hex (u, v) from network nodes."""
     m: Dict[int, _UvCoord] = {}
     for n in nodes:
@@ -519,7 +519,7 @@ def _instance_ids_on_uv_line(
     return out
 
 
-def _instance_ids_at_hex(
+def instance_ids_at_hex(
     nodes: List[dict], u: int, v: int
 ) -> Dict[str, Set[int]]:
     """Map cell type (node ``name``) -> FlyWire root ids at hex (u, v)."""
@@ -597,7 +597,7 @@ def _edge_sign(e: dict) -> float:
         return 0.0
 
 
-def _accumulate_all(
+def accumulate_all(
     edges: List[dict],
     labels: List[str],
     self_type_to_labels: Dict[str, Set[str]],
@@ -727,6 +727,41 @@ def _accumulate_all(
     return out
 
 
+def query_partner_syn(
+    nodes: List[dict],
+    edges: List[dict],
+    cell_types: List[str],
+    *,
+    direction: str = "pre",
+    ids_at_hex: Optional[Dict[str, Set[int]]] = None,
+    type_to_family: Optional[Dict[str, str]] = None,
+) -> Dict[
+    str,
+    Tuple[
+        DefaultDict[str, Dict[str, float]],
+        float,
+        Dict[str, int],
+        Dict[str, Set[_UvCoord]],
+        Dict[str, Set[Tuple[float, float]]],
+        int,
+    ],
+]:
+    """Resolve ``cell_types`` and return ``accumulate_all`` partner syn stats (no print)."""
+    fam = type_to_family if type_to_family is not None else {}
+    labels, self_type_to_labels, self_id_to_labels = resolve_query_labels(
+        list(cell_types), fam
+    )
+    return accumulate_all(
+        edges,
+        labels,
+        self_type_to_labels,
+        node_id_to_uv(nodes, float_coords=False),
+        ids_at_hex=ids_at_hex,
+        direction=direction,
+        self_id_to_labels=self_id_to_labels,
+    )
+
+
 def print_table(
     cell_type: str,
     by_partner: DefaultDict[str, Dict[str, float]],
@@ -745,6 +780,8 @@ def print_table(
     origin_xy: Optional[Tuple[float, float]] = None,
     mean_partner_delta: bool = False,
     n_self: int = 0,
+    alpha_by_partner: Optional[Dict[str, str]] = None,
+    after_title: Optional[str] = None,
 ) -> None:
     partner_dim = "family" if use_family else "type"
     self_dim = "id" if cell_type.startswith("@") else "type"
@@ -760,8 +797,12 @@ def print_table(
     uv_label = f"{side}_d_uv"
     d_xy_label = f"{side}_d_xy"
     xy_label = f"{side}_xy"
+    show_alpha = alpha_by_partner is not None
 
-    header = [partner_field, "% n_syn+", "% n_syn-", n_label]
+    header = [partner_field]
+    if show_alpha:
+        header.append("alpha")
+    header += ["% n_syn+", "% n_syn-", n_label]
     if show_uv:
         header.append(uv_label)
     if show_d_xy:
@@ -782,7 +823,10 @@ def print_table(
             sum_m += pm
             if pp + pm <= min_pct:
                 continue
-            row = [pt, f"{pp:.4f}", f"{pm:.4f}"]
+            row = [pt]
+            if show_alpha:
+                row.append(alpha_by_partner.get(pt, "-"))
+            row += [f"{pp:.4f}", f"{pm:.4f}"]
             npv = int(n_partner_by_type.get(pt, 0))
             row.append(str(npv))
             uvs = partner_uv_by_type.get(pt, set())
@@ -810,7 +854,10 @@ def print_table(
                 )
             rows.append(row)
 
-    total_row = ["TOTAL", f"{sum_p:.4f}", f"{sum_m:.4f}"]
+    total_row = ["TOTAL"]
+    if show_alpha:
+        total_row.append("")
+    total_row += [f"{sum_p:.4f}", f"{sum_m:.4f}"]
     total_n = sum(int(n_partner_by_type.get(pt, 0)) for pt in by_partner)
     total_row.append(str(total_n))
     total_row += [""] * (int(show_uv) + int(show_d_xy) + int(show_xy))
@@ -833,6 +880,8 @@ def print_table(
     print(sep)
     print(title)
     print(sep)
+    if after_title:
+        print(after_title)
     print(_fmt(header))
     for row in rows:
         print(_fmt(row))
@@ -844,7 +893,7 @@ def _coord_close(a: float, b: float, tol: float = 1e-6) -> bool:
     return abs(float(a) - float(b)) <= tol
 
 
-def _instance_ids_on_xy_line(
+def instance_ids_on_xy_line(
     nodes: List[dict],
     *,
     at_x: Optional[float] = None,
@@ -915,7 +964,7 @@ def _instance_ids_borst_k(
     return out
 
 
-def _cli_xy_filter(
+def cli_xy_filter(
     x: Optional[float],
     y: Optional[float],
 ) -> Tuple[Optional[float], Optional[float]]:
@@ -923,6 +972,61 @@ def _cli_xy_filter(
     at_x = float(x) if x is not None else None
     at_y = float(y) if y is not None else None
     return at_x, at_y
+
+
+def resolve_xy_instance_ids(
+    nodes: List[dict],
+    at_x: Optional[float],
+    at_y: Optional[float],
+) -> Tuple[
+    Optional[Dict[str, Set[int]]],
+    str,
+    Optional[Tuple[float, float]],
+    bool,
+]:
+    """FAFB ``--x``/``--y`` → ``(ids_at_hex, hex_note, at_ref_xy, single_xy_column)``.
+
+    Raises ``ValueError`` when the filter matches no instances or ``xy_to_uv`` fails.
+    With neither coordinate set, returns ``(None, "", None, False)``.
+    """
+    has_xy = at_x is not None or at_y is not None
+    if not has_xy:
+        return None, "", None, False
+    single_xy = at_x is not None and at_y is not None
+    if single_xy:
+        hu, hv = xy_to_uv(at_x, at_y)
+        ids_at_hex = instance_ids_at_hex(nodes, hu, hv)
+        at_ref_xy = (float(at_x), float(at_y))
+        hex_note = (
+            f" at (x,y)=({_format_scalar_for_table(at_ref_xy[0])},"
+            f"{_format_scalar_for_table(at_ref_xy[1])})"
+        )
+        logger.info(
+            "Restricting to instances at (x,y)=(%s,%s) (u,v)=(%s,%s); "
+            "%d cell types have ≥1 node there",
+            _format_scalar_for_table(at_ref_xy[0]),
+            _format_scalar_for_table(at_ref_xy[1]),
+            hu,
+            hv,
+            sum(1 for s in ids_at_hex.values() if s),
+        )
+        return ids_at_hex, hex_note, at_ref_xy, True
+
+    ids_at_hex = instance_ids_on_xy_line(nodes, at_x=at_x, at_y=at_y)
+    if not any(ids_at_hex.values()):
+        raise ValueError(f"no instances match --x={at_x!r} --y={at_y!r}")
+    parts = []
+    if at_x is not None:
+        parts.append(f"x={_format_scalar_for_table(at_x)}")
+    if at_y is not None:
+        parts.append(f"y={_format_scalar_for_table(at_y)}")
+    hex_note = " at " + ", ".join(parts)
+    logger.info(
+        "Restricting to instances on %s; %d cell types have ≥1 node there",
+        ", ".join(parts),
+        sum(1 for s in ids_at_hex.values() if s),
+    )
+    return ids_at_hex, hex_note, None, False
 
 
 def main(argv: List[str] | None = None) -> int:
@@ -1049,7 +1153,7 @@ def main(argv: List[str] | None = None) -> int:
     at_u, at_v = args.u, args.v
     has_uv_filter = at_u is not None or at_v is not None
     single_uv_hex = at_u is not None and at_v is not None
-    at_x, at_y = _cli_xy_filter(args.x, args.y)
+    at_x, at_y = cli_xy_filter(args.x, args.y)
     has_xy_filter = at_x is not None or at_y is not None
     single_xy_column = at_x is not None and at_y is not None
 
@@ -1208,7 +1312,7 @@ def main(argv: List[str] | None = None) -> int:
             if has_uv_filter:
                 if single_uv_hex:
                     hu, hv = at_u, at_v
-                    ids_at_hex = _instance_ids_at_hex(nodes, hu, hv)
+                    ids_at_hex = instance_ids_at_hex(nodes, hu, hv)
                     at_ref_uv = (float(hu), float(hv))
                     hx, hy = (float(v) for v in uv_to_xy(hu, hv))
                     at_ref_xy = (hx, hy)
@@ -1242,43 +1346,15 @@ def main(argv: List[str] | None = None) -> int:
                         ", ".join(parts),
                         sum(1 for s in ids_at_hex.values() if s),
                     )
-            elif single_xy_column:
+            elif has_xy_filter:
                 try:
-                    hu, hv = xy_to_uv(at_x, at_y)
+                    ids_at_hex, xy_note, at_ref_xy, single_xy_column = (
+                        resolve_xy_instance_ids(nodes, at_x, at_y)
+                    )
                 except ValueError as exc:
                     logger.error("%s", exc)
                     return 1
-                ids_at_hex = _instance_ids_at_hex(nodes, hu, hv)
-                at_ref_xy = (float(at_x), float(at_y))
-                hex_note += (
-                    f" at (x,y)=({_format_scalar_for_table(at_ref_xy[0])},"
-                    f"{_format_scalar_for_table(at_ref_xy[1])})"
-                )
-                logger.info(
-                    "Restricting to instances at (x,y)=(%s,%s) (u,v)=(%s,%s); "
-                    "%d cell types have ≥1 node there",
-                    _format_scalar_for_table(at_ref_xy[0]),
-                    _format_scalar_for_table(at_ref_xy[1]),
-                    hu,
-                    hv,
-                    sum(1 for s in ids_at_hex.values() if s),
-                )
-            elif has_xy_filter:
-                ids_at_hex = _instance_ids_on_xy_line(nodes, at_x=at_x, at_y=at_y)
-                if not any(ids_at_hex.values()):
-                    logger.error("no instances match --x=%r --y=%r", at_x, at_y)
-                    return 1
-                parts = []
-                if at_x is not None:
-                    parts.append(f"x={_format_scalar_for_table(at_x)}")
-                if at_y is not None:
-                    parts.append(f"y={_format_scalar_for_table(at_y)}")
-                hex_note += " at " + ", ".join(parts)
-                logger.info(
-                    "Restricting to instances on %s; %d cell types have ≥1 node there",
-                    ", ".join(parts),
-                    sum(1 for s in ids_at_hex.values() if s),
-                )
+                hex_note += xy_note
 
     if has_uv_filter:
         show_partner_uv, show_partner_d_xy = True, False
@@ -1289,7 +1365,7 @@ def main(argv: List[str] | None = None) -> int:
     partner_type_to_family = type_to_family_all if args.family else None
 
     cell_types = parse_comma_list(args.cell_types)
-    labels, self_type_to_labels, self_id_to_labels = _resolve_query_labels(
+    labels, self_type_to_labels, self_id_to_labels = resolve_query_labels(
         cell_types, type_to_family_all
     )
     if args.borst:
@@ -1304,9 +1380,9 @@ def main(argv: List[str] | None = None) -> int:
             )
 
     # Partner delta coords: always collected; reference is --at centre or mean self location.
-    id_to_uv = {} if args.borst else _node_id_to_uv(nodes, float_coords=False)
-    id_to_xy = _node_id_to_xy_deg(nodes) if args.borst else None
-    acc = _accumulate_all(
+    id_to_uv = {} if args.borst else node_id_to_uv(nodes, float_coords=False)
+    id_to_xy = node_id_to_xy_deg(nodes) if args.borst else None
+    acc = accumulate_all(
         edges,
         labels,
         self_type_to_labels,

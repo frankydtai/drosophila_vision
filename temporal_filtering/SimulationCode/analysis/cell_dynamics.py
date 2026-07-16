@@ -128,6 +128,8 @@ _PLOT_PANELS: list[tuple[str, list[tuple[str, str]]]] = [
 
 _PLOT_NCOLS = max(len(series) for _, series in _PLOT_PANELS)
 _BLACK_TRACE_LABELS = frozenset({"num", "den"})
+# Current row only: one ylim across columns.
+_ROW_SHARED_YLIM = frozenset({2})
 
 
 def _trace_ylabel(group_ylabel: str, label: str) -> str:
@@ -343,6 +345,7 @@ _BUDGET_KEYS = (
 )
 _N_BUDGET_KEYS = len(_BUDGET_KEYS)
 _I_VM_ABS = _BUDGET_KEYS.index("vm_abs")
+_I_VM_D = _BUDGET_KEYS.index("vm_d")
 
 # Plot series key → budget accum key (None → SEM is identically 0).
 _PLOT_KEY_BUDGET: dict[str, str | None] = {
@@ -586,6 +589,16 @@ def _vm_post_from_accum(sums: np.ndarray, counts: np.ndarray) -> np.ndarray:
     return vm_post
 
 
+def _vm_delta_from_accum(
+    sums: np.ndarray, dVm_sums: np.ndarray, counts: np.ndarray,
+) -> np.ndarray:
+    """Mean ``Vm_post - Vm_ref``: ``vm_d`` (Vm_pre−ref) + ``dVm`` (Vm_post−Vm_pre)."""
+    n = np.maximum(counts, 1)
+    vm_delta = sums[:, _I_VM_D] / n + dVm_sums / n
+    vm_delta[counts == 0] = 0.0
+    return vm_delta
+
+
 def _dominant_drive_from_step(step: dict[str, Any] | None) -> str | None:
     if step is None:
         return None
@@ -615,14 +628,16 @@ def _finalize_budget_report(
     extra: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Build one report dict from a single batch×cell accum row."""
+    # Peak on |Vm_post − Vm_ref| (same Vm_ref as budget ``vm_d``).
+    vm_delta = _vm_delta_from_accum(sums, dVm_sums, counts)
     if rel_start is not None and rel_stop is not None:
         rel_lo, rel_hi = rel_start, rel_stop
-        seg = vm_post[rel_lo:rel_hi + 1]
+        seg = vm_delta[rel_lo:rel_hi + 1]
         peak_rel = rel_lo + int(np.argmax(np.abs(seg))) if seg.size else rel_lo
     else:
-        peak_rel = _post_peak_rel(vm_post, before_steps)
+        peak_rel = _post_peak_rel(vm_delta, before_steps)
         rel_lo = max(0, peak_rel - 4)
-        rel_hi = min(vm_post.size - 1, peak_rel + 8)
+        rel_hi = min(vm_delta.size - 1, peak_rel + 8)
     steps: list[dict[str, Any]] = []
     peak_step: dict[str, Any] | None = None
     for rel in range(rel_lo, rel_hi + 1):
@@ -646,10 +661,10 @@ def _finalize_budget_report(
             peak_step = step
     if peak_step is None and steps:
         peak_step = steps[len(steps) // 2]
-    if ti_mode == "abs_minus_before" and vm_post.size > before_steps:
-        onset = _first_nonzero_rel(vm_post[before_steps:])
+    if ti_mode == "abs_minus_before" and vm_delta.size > before_steps:
+        onset = _first_nonzero_rel(vm_delta[before_steps:])
     else:
-        onset = _first_nonzero_rel(vm_post)
+        onset = _first_nonzero_rel(vm_delta)
     report: dict[str, Any] = {
         "mode": mode,
         "cell": cell,
@@ -658,8 +673,8 @@ def _finalize_budget_report(
         "spec": spec,
         "before_steps": before_steps,
         "resp_peak_rel": peak_rel,
-        "vm_post_peak_mV": float(vm_post[peak_rel]),
-        "vm_post_polarity": _polarity(float(vm_post[peak_rel])),
+        "vm_post_peak_mV": float(vm_delta[peak_rel]),
+        "vm_post_polarity": _polarity(float(vm_delta[peak_rel])),
         "rel_window": [rel_lo, rel_hi],
         "vm_post_onset_rel": onset,
         "params": _unit_params(p, session.backend, int(units[0])),
@@ -680,13 +695,13 @@ def _first_nonzero_rel(trace: np.ndarray, *, eps: float = 1e-6) -> int | None:
 
 
 def _post_peak_rel(
-    vm_post: np.ndarray,
+    vm_delta: np.ndarray,
     before_steps: int | None,
     *,
     horizon: int | None = 40,
 ) -> int:
-    """Index of largest |vm_post| after onset (optionally capped by ``horizon``)."""
-    arr = np.asarray(vm_post, dtype=float)
+    """Index of largest |Vm_post − Vm_ref| after onset (optionally capped by ``horizon``)."""
+    arr = np.asarray(vm_delta, dtype=float)
     if before_steps is not None and 0 < before_steps < arr.size:
         stop = arr.size
         if horizon is not None:
@@ -978,9 +993,10 @@ def _analyze_budget_walk(
         if units.size == 0:
             raise SystemExit(f"no units for cell {cell!r}")
         vm_post = _vm_post_from_accum(sums, counts)
+        vm_delta = _vm_delta_from_accum(sums, dVm_sums, counts)
         cell_extra = dict(extra) if extra else {}
         if extra_for_cell is not None:
-            cell_extra.update(extra_for_cell(cell, vm_post) or {})
+            cell_extra.update(extra_for_cell(cell, vm_post, vm_delta) or {})
         report = _finalize_budget_report(
             cell=cell,
             target=target,
@@ -1216,10 +1232,13 @@ def analyze_spot_average(
         session_one, pack.name, dark=(pack.name == "spot_dark"),
     )
 
-    def extra_for_cell(cell: str, vm_post: np.ndarray) -> dict[str, Any]:
+    def extra_for_cell(
+        cell: str, vm_post: np.ndarray, vm_delta: np.ndarray,
+    ) -> dict[str, Any]:
+        del vm_post  # peak time from |Vm_post − Vm_ref|; absolute series unused here
         extra: dict[str, Any] = {"ref_peak_mV": None}
         if cell in ref_on:
-            peak_probe = _post_peak_rel(vm_post, t_on)
+            peak_probe = _post_peak_rel(vm_delta, t_on)
             ref_cube = np.asarray(ref_on[cell], dtype=float)
             if peak_probe < ref_cube.shape[1]:
                 extra["ref_peak_mV"] = float(ref_cube[CENTER_BIN, peak_probe])
@@ -1398,6 +1417,45 @@ def _style_budget_ax(
     ax.grid(True, axis="y", alpha=0.3)
 
 
+def _shared_row_ylim(
+    curves: list[np.ndarray],
+    *,
+    floor_zero: bool = False,
+    margin_frac: float = 0.06,
+) -> tuple[float, float]:
+    """Tight row ylim from data min/max + small relative pad (not symmetric)."""
+    chunks: list[np.ndarray] = []
+    for c in curves:
+        v = np.asarray(c, dtype=float).ravel()
+        v = v[np.isfinite(v)]
+        if v.size:
+            chunks.append(v)
+    if not chunks:
+        return -1.0, 1.0
+    all_v = np.concatenate(chunks)
+    ylo = float(np.min(all_v))
+    yhi = float(np.max(all_v))
+    if floor_zero and ylo >= 0.0:
+        ylo = 0.0
+    span = yhi - ylo
+    pad = max(span * margin_frac, abs(yhi) * 0.02, 1e-3) if span > 0.0 else max(abs(yhi) * 0.05, 1e-3)
+    return ylo - pad, yhi + pad
+
+
+def _apply_shared_row_ylim(
+    axes,
+    row_curves: dict[int, list[np.ndarray]],
+) -> None:
+    """One tight data-driven ylim per row in ``_ROW_SHARED_YLIM``."""
+    for ri, curves in row_curves.items():
+        if not curves:
+            continue
+        _, series = _PLOT_PANELS[ri]
+        ylo, yhi = _shared_row_ylim(curves)
+        for ci in range(len(series)):
+            axes[ri, ci].set_ylim(ylo, yhi)
+
+
 def _save_budget_figure(fig, axes, *, before_steps, out_path, save_figure) -> None:
     _hide_unused_axes(axes)
     last_row = axes.shape[0] - 1
@@ -1428,6 +1486,7 @@ def _plot_budget_reports(
     linestyles = ("-", "--", "-.", ":")
     overlay = len(reports) > 1
     e_leak_mV = float(reports[0].get("params", {}).get("e_leak_mV", fc.E_LEAK_REST))
+    row_curves: dict[int, list[np.ndarray]] = {ri: [] for ri in _ROW_SHARED_YLIM}
 
     for ri, (group_ylabel, series) in enumerate(_PLOT_PANELS):
         for ci, (key, label) in enumerate(series):
@@ -1445,6 +1504,11 @@ def _plot_budget_reports(
                     [float(s.get("sem", {}).get(key, 0.0)) for s in rep["steps"]],
                     dtype=float,
                 )
+                if ri in _ROW_SHARED_YLIM:
+                    row_curves[ri].append(y)
+                    if np.any(sem):
+                        row_curves[ri].append(y + sem)
+                        row_curves[ri].append(y - sem)
                 plot_sem_band(ax, rel, y, sem, color=color, alpha=0.3)
                 ax.plot(
                     rel, y,
@@ -1462,6 +1526,7 @@ def _plot_budget_reports(
                 legend_ncol=1,
                 show_legend=show_legend,
             )
+    _apply_shared_row_ylim(axes, row_curves)
     _finish_budget_figure_layout(fig, title, colors)
     _save_budget_figure(
         fig, axes, before_steps=reports[0].get("before_steps"),

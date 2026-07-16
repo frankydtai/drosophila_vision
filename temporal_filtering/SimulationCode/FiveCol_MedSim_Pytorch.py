@@ -317,6 +317,48 @@ def conductance_schema(model_backend, schema=None, ih_off=IH_OFF_DEFAULT):
     return apply_ih_off_mode(base, ih_off)
 
 
+def unpack_conductance_z(z, type_names, n_pairs, train_opts):
+    """Slice a saved conductance ``z`` by schema from ``train_opts`` (no session).
+
+    Returns ``{segment_name: ndarray}`` of raw trainable slices (not expanded
+    to per-unit). ``train_opts`` must carry ``ih_group`` / ``ih_off`` as saved.
+    """
+    import numpy as np
+
+    z = np.asarray(z, dtype=np.float64).reshape(-1)
+    type_names = list(type_names)
+    name_to_i = {n: i for i, n in enumerate(type_names)}
+    ih_names = train_opts.get('ih_group') or list(DEFAULT_IH_GROUP_NAMES)
+    missing = [n for n in ih_names if n not in name_to_i]
+    if missing:
+        raise ValueError(f"train_opts ih_group unknown types: {missing}")
+    ih_group = [[name_to_i[n]] for n in ih_names]
+    base = build_conductance_schema(
+        len(type_names), ih_group, type_names=type_names, n_pairs=int(n_pairs),
+    )
+    ih_off = str(train_opts.get('ih_off', IH_OFF_DEFAULT))
+    schema = apply_ih_off_mode(base, ih_off)
+    n_expected = schema_nparams(schema)
+    if z.shape[0] != n_expected:
+        raise ValueError(
+            f"z length {z.shape[0]} != schema nparams {n_expected} "
+            f"(check network / ih_group / ih_off vs training)"
+        )
+    return {seg['name']: z[start:stop] for seg, start, stop in schema_segments(schema)}
+
+
+def raw_segment_at_type(raw, type_i, n_types):
+    """Value for one type from a raw schema slice (indi ``n_types`` or length-1)."""
+    import numpy as np
+
+    raw = np.asarray(raw, dtype=np.float64).reshape(-1)
+    if raw.shape[0] == 1:
+        return float(raw[0])
+    if raw.shape[0] != int(n_types):
+        raise ValueError(f"unexpected segment length {raw.shape[0]} (n_types={n_types})")
+    return float(raw[int(type_i)])
+
+
 def conductance_ih_off_kwargs(p, ih_off=IH_OFF_DEFAULT):
     """Resolve OFF-channel Ih kwargs for :func:`update_Vm` from assigned params."""
     midv_off = p['Ih_midv'] if ih_off != 'on' else p['Ih_midv_off']

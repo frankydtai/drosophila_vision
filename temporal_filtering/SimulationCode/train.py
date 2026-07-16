@@ -166,6 +166,16 @@ def best_param_path(outdir):
     return os.path.join(data_dir(outdir), 'best_param.npy')
 
 
+def load_best_param(outdir):
+    """Load ``data/best_param.npy`` as a 1-D float64 vector."""
+    import numpy as np
+
+    fp = best_param_path(outdir)
+    if not os.path.isfile(fp):
+        raise FileNotFoundError(fp)
+    return np.asarray(np.load(fp), dtype=np.float64).reshape(-1)
+
+
 def best_i_path(outdir):
     return os.path.join(data_dir(outdir), 'best_i.txt')
 

@@ -20,7 +20,7 @@ from __future__ import annotations
 import json
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Tuple
 
 import numpy as np
 import torch
@@ -111,6 +111,24 @@ def col2fit(
     )[0]
 
 
+def read_network_json(path) -> Tuple[List[dict], List[dict], List[str], dict]:
+    """Load ``network.json`` → ``(nodes, edges, sorted type_names, metadata)``."""
+    path = Path(path)
+    with open(path) as f:
+        doc = json.load(f)
+    nodes = doc.get("nodes")
+    edges = doc.get("edges")
+    if not isinstance(nodes, list) or not isinstance(edges, list):
+        raise ValueError(f"invalid network.json (need nodes/edges lists): {path}")
+    type_names = sorted(
+        {n["name"] for n in nodes if isinstance(n.get("name"), str)}
+    )
+    meta = doc.get("metadata", {})
+    if not isinstance(meta, dict):
+        meta = {}
+    return nodes, edges, type_names, meta
+
+
 def load_network(
     path,
     device: Optional[str] = None,
@@ -121,18 +139,12 @@ def load_network(
     """Read ``network.json`` and return a :class:`Network`."""
     device = device or ("cuda" if torch.cuda.is_available() else "cpu")
     path = Path(path)
-    with open(path) as f:
-        doc = json.load(f)
-
-    nodes = doc["nodes"]
-    edges = doc["edges"]
-    meta = doc.get("metadata", {})
+    nodes, edges, type_names, meta = read_network_json(path)
 
     n_units = len(nodes)
     node_ids = [int(n["id"]) for n in nodes]
     id_to_unit = {nid: i for i, nid in enumerate(node_ids)}
 
-    type_names = sorted({n["name"] for n in nodes})
     type_to_idx = {t: i for i, t in enumerate(type_names)}
     node_type = np.array([type_to_idx[n["name"]] for n in nodes], dtype=np.int64)
 
