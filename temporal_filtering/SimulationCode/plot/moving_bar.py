@@ -13,7 +13,7 @@ import torch
 
 import FiveCol_MedSim_Pytorch as fc
 import Medulla_Library as ml
-from analysis.DSI import moving_bar_cell_title, moving_bar_dsi_lookup
+from t4_t5_dsi import moving_bar_cell_title, moving_bar_dsi_lookup
 from plot.readout import pack_readout_types, plot_types_in_order
 from plot.utils import (
     DATA_COLOR,
@@ -45,7 +45,7 @@ from network.moving_bar_target import (
     moving_bar_units_on_columns,
     network_uv_np,
 )
-from t4_t5_preference import (
+from t4_t5_dsi import (
     READOUT_SUBTYPES,
     fig1_key_for_stimulus,
     motion_preference,

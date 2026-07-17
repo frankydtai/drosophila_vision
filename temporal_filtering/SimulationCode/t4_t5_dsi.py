@@ -1,22 +1,42 @@
 # -*- coding: utf-8 -*-
-"""Direction selectivity index (DSI) for moving-bar plots and training.
+"""T4 / T5 moving-bar preference + DSI.
 
-Owns axis DSI math, cost-row pairing, pack tensors, remap, and cost-from-sel.
-Core callers (:mod:`network.moving_bar_target`, :mod:`FiveCol_MedSim_Pytorch`)
-and plot (:mod:`plot.moving_bar`) import from here.
+Rules match ``t4_t5_dsi.md``. Orthogonal motion (``—`` in the tables)
+returns ``None`` so those (stimulus, subtype) pairs are skipped in training.
 
-Training DSI is one term per ``(subtype, width, axis)``: fig1 target once,
-model peak = mean over that subtype's unit cost-rows, then axis DSI.
+Also owns DSI math, cost-row pairing, pack tensors, remap, and cost-from-sel
+for core (:mod:`network.moving_bar_target`, :mod:`FiveCol_MedSim_Pytorch`)
+and plot (:mod:`plot.moving_bar`).
 """
-
 from __future__ import annotations
 
-from typing import List, Mapping, Optional, Sequence, Tuple
+from dataclasses import dataclass
+from typing import List, Mapping, Optional, Sequence, Tuple, Union
 
 import numpy as np
 import torch
 
-from visual_stimulus.moving_bar_stimulus import MovingBarSpec
+from visual_stimulus.moving_bar_stimulus import GRUNTMAN_WIDTHS_DEG, MovingBarSpec
+
+READOUT_SUBTYPES: Tuple[str, ...] = (
+    "T4a", "T4b", "T4c", "T4d",
+    "T5a", "T5b", "T5c", "T5d",
+)
+
+READOUT_SUBTYPE_ALIASES: dict = {
+    "T4": tuple(st for st in READOUT_SUBTYPES if st.startswith("T4")),
+    "T5": tuple(st for st in READOUT_SUBTYPES if st.startswith("T5")),
+}
+
+_HORIZONTAL = frozenset({"right", "left"})
+_VERTICAL = frozenset({"up", "down"})
+# Plot / stimulus iteration order (matches gruntman_moving_bar_specs).
+_HORIZONTAL_AXIS: Tuple[str, ...] = ("right", "left")
+_VERTICAL_AXIS: Tuple[str, ...] = ("up", "down")
+_OPPOSITE = {"right": "left", "left": "right", "up": "down", "down": "up"}
+
+# Subtype PD on the **right** eye (anterior->posterior = right; c/d = up/down).
+_SUBTYPE_PD_RIGHT = {"a": "right", "b": "left", "c": "up", "d": "down"}
 
 AXIS_DIRECTION_PAIRS: Tuple[Tuple[str, str], ...] = (
     ("right", "left"),
@@ -29,13 +49,187 @@ _DIR_TO_AXIS = {
 }
 
 
-def parse_moving_bar_spec(sname: str) -> Tuple[str, str, str]:
-    direction, contrast, wtag = str(sname).split("_", 2)
-    return direction, contrast, wtag
+def dsi_sequential_batch_pairs(spec_names: Sequence[str]) -> Tuple[Tuple[int, ...], ...]:
+    """Minimal stimulus-batch groups for sequential DSI: one ``(pos,neg)`` per axis×width.
+
+    Spec names are ``direction_contrast_wtag`` (e.g. ``right_bright_w1``). Each returned
+    tuple holds the batch indices that must share one forward to form complete DSI pairs.
+    """
+    batches_by_dir_w: dict[tuple[str, str], list[int]] = {}
+    for bi, sname in enumerate(spec_names):
+        direction, _contrast, wtag = parse_moving_bar_spec(sname)
+        batches_by_dir_w.setdefault((direction, wtag), []).append(int(bi))
+    pairs: list[tuple[int, ...]] = []
+    for pos_dir, neg_dir in AXIS_DIRECTION_PAIRS:
+        wtags = {
+            wtag for (direction, wtag) in batches_by_dir_w
+            if direction in (pos_dir, neg_dir)
+        }
+        for wtag in sorted(wtags):
+            pos = batches_by_dir_w.get((pos_dir, wtag), [])
+            neg = batches_by_dir_w.get((neg_dir, wtag), [])
+            if not pos or not neg:
+                continue
+            pairs.append(tuple(sorted({*pos, *neg})))
+    return tuple(pairs)
+
+# Hardcoded |DSI| = |(PD−ND)/(PD+ND)| from ``t4_t5_dsi.md`` source table.
+# Keys: ``{T4|T5}_{PC|NC}_{w1|w4}``. Sign applied at assemble time from axis PD/ND.
+FIG1_ABS_DSI: Mapping[str, float] = {
+    "T4_PC_w1": 0.412,
+    "T4_PC_w4": 0.514,
+    "T4_NC_w1": 0.024,
+    "T4_NC_w4": 0.389,
+    "T5_PC_w1": 0.322,
+    "T5_PC_w4": 0.469,
+    "T5_NC_w1": 0.263,
+    "T5_NC_w4": 0.246,
+}
+
+
+@dataclass(frozen=True)
+class MotionPreference:
+    """PD/ND from motion; PC/NC from contrast + pathway (T4 vs T5)."""
+
+    pd_nd: str  # "PD" | "ND"
+    pc_nc: str  # "PC" | "NC"
+
+
+def expand_remove_subtypes_list(names: Sequence[str]) -> Tuple[str, ...]:
+    """Expand ``remove_moving_bar`` SUBTYPES ``READOUT_SUBTYPE_ALIASES`` (e.g. T4, T5)."""
+    if not names:
+        raise ValueError("readout_subtypes must not be empty")
+    out: list = []
+    seen: set = set()
+    for raw in names:
+        key = str(raw).strip()
+        if key in READOUT_SUBTYPE_ALIASES:
+            pool = READOUT_SUBTYPE_ALIASES[key]
+        elif key in READOUT_SUBTYPES:
+            pool = (key,)
+        else:
+            valid = ", ".join((*READOUT_SUBTYPE_ALIASES, *READOUT_SUBTYPES))
+            raise ValueError(f"unknown readout subtype {key!r} (expected {valid})")
+        for st in pool:
+            if st not in seen:
+                seen.add(st)
+                out.append(st)
+    return tuple(out)
+
+
+def normalize_side(side: str) -> str:
+    s = str(side).strip().lower()
+    if s in ("r", "right"):
+        return "right"
+    if s in ("l", "left"):
+        return "left"
+    raise ValueError(f"unknown eye side {side!r}")
+
+
+def width_tag(width_deg: float) -> str:
+    return "w1" if float(width_deg) <= 3.0 else "w4"
 
 
 def width_tag_from_deg(width_deg: float) -> str:
-    return "w1" if float(width_deg) <= 3.0 else "w4"
+    return width_tag(width_deg)
+
+
+def pd_direction(side: str, subtype: str) -> str:
+    """Preferred-direction motion for ``subtype`` on ``side`` (right or left eye)."""
+    side = normalize_side(side)
+    letter = subtype[-1]
+    if letter not in _SUBTYPE_PD_RIGHT:
+        raise ValueError(f"unknown subtype {subtype!r}")
+    d = _SUBTYPE_PD_RIGHT[letter]
+    if side == "left" and d in _HORIZONTAL:
+        return _OPPOSITE[d]
+    return d
+
+
+def _axis_directions(subtype: str) -> Tuple[str, ...]:
+    return _HORIZONTAL_AXIS if subtype[-1] in "ab" else _VERTICAL_AXIS
+
+
+def motion_preference(
+    side: str,
+    subtype: str,
+    direction: str,
+    contrast: str,
+) -> Optional[MotionPreference]:
+    """Map one cardinal stimulus to PD/ND + PC/NC for a T4/T5 subtype.
+
+    Returns ``None`` when motion is orthogonal to the subtype PD axis (table ``—``).
+    """
+    if subtype not in READOUT_SUBTYPES:
+        raise ValueError(f"unknown subtype {subtype!r}")
+    direction = str(direction).strip().lower()
+    contrast = str(contrast).strip().lower()
+    if direction not in _HORIZONTAL | _VERTICAL:
+        raise ValueError(f"unknown direction {direction!r}")
+    if contrast not in ("bright", "dark"):
+        raise ValueError(f"unknown contrast {contrast!r}")
+
+    if direction not in _axis_directions(subtype):
+        return None
+
+    pd_dir = pd_direction(side, subtype)
+    if direction == pd_dir:
+        pd_nd = "PD"
+    elif direction == _OPPOSITE[pd_dir]:
+        pd_nd = "ND"
+    else:
+        return None
+
+    pathway = subtype[:2]
+    if pathway == "T4":
+        pc_nc = "PC" if contrast == "bright" else "NC"
+    elif pathway == "T5":
+        pc_nc = "PC" if contrast == "dark" else "NC"
+    else:
+        raise ValueError(f"unknown pathway in {subtype!r}")
+
+    return MotionPreference(pd_nd=pd_nd, pc_nc=pc_nc)
+
+
+def fig1_trace_key(pathway: str, pc_nc: str, width: str, pd_nd: str) -> str:
+    """Key in ``fig1_ci_digitized.npz`` (e.g. ``T4_PC_w1_PD``)."""
+    return f"{pathway}_{pc_nc}_{width}_{pd_nd}"
+
+
+def fig1_key_for_stimulus(
+    side: str,
+    subtype: str,
+    spec: Union[MovingBarSpec, str],
+    contrast: Optional[str] = None,
+    width_deg: Optional[float] = None,
+) -> Optional[str]:
+    """fig1 trace id for ``(side, subtype, stimulus)``, or ``None`` if orthogonal."""
+    if isinstance(spec, MovingBarSpec):
+        direction, contrast, width_deg = spec.direction, spec.contrast, spec.width_deg
+    else:
+        direction = str(spec)
+        if contrast is None or width_deg is None:
+            raise ValueError("contrast and width_deg required when spec is not MovingBarSpec")
+    pref = motion_preference(side, subtype, direction, contrast)
+    if pref is None:
+        return None
+    return fig1_trace_key(subtype[:2], pref.pc_nc, width_tag(width_deg), pref.pd_nd)
+
+
+def active_stimuli_for_subtype(side: str, subtype: str) -> Sequence[Tuple[str, str, str]]:
+    """Non-orthogonal (direction, contrast, width_tag) triples for one subtype (8 total)."""
+    out = []
+    for direction in _axis_directions(subtype):
+        for contrast in ("bright", "dark"):
+            for w in GRUNTMAN_WIDTHS_DEG:
+                if motion_preference(side, subtype, direction, contrast) is not None:
+                    out.append((direction, contrast, width_tag(w)))
+    return out
+
+
+def parse_moving_bar_spec(sname: str) -> Tuple[str, str, str]:
+    direction, contrast, wtag = str(sname).split("_", 2)
+    return direction, contrast, wtag
 
 
 def trace_peak(trace: np.ndarray) -> float:
@@ -56,21 +250,39 @@ def axis_dsi_torch(peak_pos: torch.Tensor, peak_neg: torch.Tensor) -> torch.Tens
     return torch.where(denom > 0, (peak_pos - peak_neg) / denom, torch.zeros_like(denom))
 
 
+def _hardcoded_axis_dsi(side: str, subtype: str, spec: MovingBarSpec) -> Optional[float]:
+    """Signed axis DSI from ``FIG1_ABS_DSI`` for the pos-side stimulus ``spec``."""
+    pos_key = fig1_key_for_stimulus(side, subtype, spec)
+    if pos_key is None:
+        return None
+    base, pd_nd = pos_key.rsplit("_", 1)
+    if base not in FIG1_ABS_DSI:
+        raise KeyError(f"hardcoded DSI missing: {base}")
+    abs_dsi = float(FIG1_ABS_DSI[base])
+    if pd_nd == "PD":
+        return abs_dsi
+    if pd_nd == "ND":
+        return -abs_dsi
+    raise ValueError(f"expected PD/ND suffix in {pos_key!r}")
+
+
 def assemble_moving_bar_dsi_pairs(
     specs: Sequence[MovingBarSpec],
     r_batch: Sequence[int],
     r_subtype: Sequence[str],
-    r_target: Sequence[np.ndarray],
     r_weight: Sequence[float],
+    *,
+    side: str,
 ) -> Tuple[List[List[int]], List[List[int]], List[float], List[float]]:
-    """One DSI group per ``(subtype, wtag, axis)``.
+    """One DSI group per ``(subtype, contrast, wtag, axis)``.
 
     Returns ``(pos_row_groups, neg_row_groups, target_dsi, weight)``.
+    Target DSI is the hardcoded ``FIG1_ABS_DSI`` table (signed for axis pos).
     """
-    batches_by_dir_w: dict[tuple[str, str], list[int]] = {}
+    batches_by_condition: dict[tuple[str, str, str], list[int]] = {}
     for bi, spec in enumerate(specs):
-        key = (spec.direction, width_tag_from_deg(spec.width_deg))
-        batches_by_dir_w.setdefault(key, []).append(bi)
+        key = (spec.direction, spec.contrast, width_tag(spec.width_deg))
+        batches_by_condition.setdefault(key, []).append(bi)
 
     rows_by_subtype_batch: dict[tuple[str, int], list[int]] = {}
     for i, (b, st) in enumerate(zip(r_batch, r_subtype)):
@@ -83,12 +295,14 @@ def assemble_moving_bar_dsi_pairs(
     subtypes = sorted({str(st) for st in r_subtype})
     for subtype in subtypes:
         for pos_dir, neg_dir in AXIS_DIRECTION_PAIRS:
-            wtags = {
-                w for (d, w) in batches_by_dir_w if d in (pos_dir, neg_dir)
+            contrast_widths = {
+                (contrast, wtag)
+                for (direction, contrast, wtag) in batches_by_condition
+                if direction in (pos_dir, neg_dir)
             }
-            for wtag in sorted(wtags):
-                pos_batches = batches_by_dir_w.get((pos_dir, wtag), [])
-                neg_batches = batches_by_dir_w.get((neg_dir, wtag), [])
+            for contrast, wtag in sorted(contrast_widths):
+                pos_batches = batches_by_condition.get((pos_dir, contrast, wtag), [])
+                neg_batches = batches_by_condition.get((neg_dir, contrast, wtag), [])
                 if not pos_batches or not neg_batches:
                     continue
                 pos_rows: list[int] = []
@@ -99,10 +313,7 @@ def assemble_moving_bar_dsi_pairs(
                     neg_rows.extend(rows_by_subtype_batch.get((subtype, nb), []))
                 if not pos_rows or not neg_rows:
                     continue
-                dsi = axis_dsi(
-                    float(np.max(r_target[pos_rows[0]])),
-                    float(np.max(r_target[neg_rows[0]])),
-                )
+                dsi = _hardcoded_axis_dsi(side, subtype, specs[pos_batches[0]])
                 if dsi is None:
                     continue
                 w_pos = float(np.mean([float(r_weight[i]) for i in pos_rows]))
@@ -154,15 +365,17 @@ def build_dsi_pack_fields(
     specs: Sequence[MovingBarSpec],
     r_batch: Sequence[int],
     r_subtype: Sequence[str],
-    r_target: Sequence[np.ndarray],
     r_weight: Sequence[float],
     *,
+    side: str,
     device,
     sim_dtype,
 ):
     """Assemble + tensorize subtype-grouped DSI fields for a moving-bar target."""
     return pack_moving_bar_dsi_tensors(
-        *assemble_moving_bar_dsi_pairs(specs, r_batch, r_subtype, r_target, r_weight),
+        *assemble_moving_bar_dsi_pairs(
+            specs, r_batch, r_subtype, r_weight, side=side,
+        ),
         device=device,
         sim_dtype=sim_dtype,
     )
@@ -197,7 +410,7 @@ def remap_dsi_rows(pack, kept_old_rows) -> dict:
             "dsi_power": pack.dsi_power,
         }
     device = pack.dsi_pos_rows.device
-    n = int(pack.data.shape[0])
+    n = int(pack.readout_batch.shape[0])
     kept = torch.as_tensor(kept_old_rows, dtype=torch.long, device=device)
     lut = torch.full((n,), -1, dtype=torch.long, device=device)
     lut[kept] = torch.arange(kept.numel(), dtype=torch.long, device=device)
@@ -267,6 +480,8 @@ def cost_dsi_from_sel(pack, scale: torch.Tensor, sel: torch.Tensor) -> Optional[
         return None
     peak_pos_u = (scale[pack.dsi_pos_rows, None] * sel[pack.dsi_pos_rows]).amax(dim=-1)
     peak_neg_u = (scale[pack.dsi_neg_rows, None] * sel[pack.dsi_neg_rows]).amax(dim=-1)
+    if not (torch.isfinite(peak_pos_u).all() and torch.isfinite(peak_neg_u).all()):
+        raise RuntimeError("non-finite DSI peaks (NaN/Inf in readout)")
     peak_pos = _csr_group_mean(peak_pos_u, pack.dsi_pos_ptr)
     peak_neg = _csr_group_mean(peak_neg_u, pack.dsi_neg_ptr)
     model_dsi = axis_dsi_torch(peak_pos, peak_neg)
@@ -279,6 +494,7 @@ def moving_bar_dsi_for_spec(
     cell_name: str,
     spec_name: str,
 ) -> Optional[float]:
+    """DSI for one cell×spec: (this dir − opposite) / (this + opposite)."""
     direction, contrast, wtag = parse_moving_bar_spec(spec_name)
     if direction not in _DIR_TO_AXIS:
         return None

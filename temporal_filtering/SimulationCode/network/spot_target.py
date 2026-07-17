@@ -38,11 +38,14 @@ When ``--spot-cost-r-w`` is omitted, weights default via
 - ``spot_extent == 1`` → ``0=1,1=1/6`` (no r=2; ``sqrt3`` excluded).
 - otherwise → ``0=1,1=1/6,2=1/6`` (``sqrt3`` excluded).
 
-With explicit CLI, only listed radii receive the given weight; omitted radii →
-weight ``0`` (excluded from :func:`resolve_spot_cost_radii`). Example:
-``0=1,1=1/6,2=1/12`` also skips ``sqrt3``. At ``spot_extent == 1``, listing
-``2=…`` can still add r=2 rings to cost, but :func:`_spot_target_amp` keeps
-target amplitude zero there (fold rule).
+CLI tokens match ``--cost-weight``:
+
+- ``r=w`` → merge onto those defaults (unlisted radii keep default / stay 0).
+- bare ``r`` → exclusive: all ``DEFAULT_SPOT_COST_RADII`` → 0, then listed ``r=1``.
+- mix e.g. ``0,1=1/6`` → exclusive zero + ``0=1``, then override ``1=1/6``.
+
+At ``spot_extent == 1``, listing ``2=…`` can still add r=2 rings to cost, but
+:func:`_spot_target_amp` keeps target amplitude zero there (fold rule).
 
 ``build_shifted_target`` returns a :class:`ShiftedTarget` (timing: :mod:`training_config`):
 
@@ -276,8 +279,9 @@ def spot_cost_radius_weight_resolved(
 ) -> Dict[float, float]:
     """Resolved per-radius cost weights for ``spot_extent``.
 
-    ``None`` → :func:`default_spot_cost_radius_weight`. Explicit CLI dict is
-    returned as-is (no merge with defaults); missing radii → weight 0 at lookup.
+    ``None`` → :func:`default_spot_cost_radius_weight`. Explicit CLI dict is the
+    already-merged map from :func:`parse_spot_cost_r_w` / sidecar; missing radii
+    → weight 0 at lookup.
     """
     if spot_cost_radius_weight is None:
         return default_spot_cost_radius_weight(spot_extent)
@@ -289,9 +293,9 @@ def expand_spot_cost_r_w_dict(
     *,
     stimulus_opts: Optional[dict] = None,
 ) -> Optional[Dict[float, float]]:
-    """CLI ``r=w`` dict → ``{round(radius): weight}``; empty/None → unresolved (use default).
+    """Normalize a radius→weight dict; empty/None → unresolved (use default).
 
-    With ``stimulus_opts``, read ``spot_cost_radius_weight`` from a stimulus sidecar dict.
+    With ``stimulus_opts``, read ``spot_cost_radius_weight`` from a stimulus sidecar.
     """
     if stimulus_opts is not None:
         kv = (stimulus_opts or {}).get("spot_cost_radius_weight")
@@ -303,6 +307,40 @@ def expand_spot_cost_r_w_dict(
     }
 
 
+def parse_spot_cost_r_w_tokens(
+    text: str,
+    spot_extent: float = DEFAULT_SPOT_EXTENT,
+) -> Optional[Dict[float, float]]:
+    """Parse ``--spot-cost-r-w`` tokens (same exclusive / merge rules as cost-weight).
+
+    Empty → ``None`` (caller uses :func:`default_spot_cost_radius_weight`).
+    Bare radius keys (``0``, ``sqrt3``, …) zero all ``DEFAULT_SPOT_COST_RADII``
+    then set those radii to ``1``. ``r=w`` merges onto extent defaults (or onto
+    the exclusive map when mixed with bare keys).
+    """
+    tokens = [t.strip() for t in str(text or "").split(",") if t.strip()]
+    if not tokens:
+        return None
+    bare: list[float] = []
+    explicit: Dict[float, float] = {}
+    for tok in tokens:
+        if "=" in tok:
+            key, val = tok.split("=", 1)
+            explicit[normalize_spot_cost_radius_key(key)] = (
+                parse_spot_cost_radius_weight_value(val)
+            )
+        else:
+            bare.append(normalize_spot_cost_radius_key(tok))
+    if bare:
+        weights = {round(float(r), 6): 0.0 for r in DEFAULT_SPOT_COST_RADII}
+        for r in bare:
+            weights[r] = 1.0
+    else:
+        weights = default_spot_cost_radius_weight(spot_extent)
+    weights.update(explicit)
+    return weights
+
+
 def resolve_spot_cost_radii(
     spot_cost_radius_weight: Optional[Dict[float, float]] = None,
     *,
@@ -312,8 +350,7 @@ def resolve_spot_cost_radii(
     """Euclidean radii with non-zero cost weight (subset of ``DEFAULT_SPOT_COST_RADII``).
 
     Weights from :func:`spot_cost_radius_weight_resolved` (defaults depend on
-    ``spot_extent`` when CLI omitted). Explicit ``--spot-cost-r-w`` lists only
-    the radii to include; omitted radii are excluded.
+    ``spot_extent`` when CLI omitted).
 
     With ``stimulus_opts``, read ``spot_cost_radius_weight`` / ``spot_extent``
     from the stimulus sidecar first.

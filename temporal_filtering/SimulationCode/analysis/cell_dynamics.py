@@ -317,7 +317,7 @@ def _budget_at_units(
         )
         vm_abs = packed[7]
         bud = {
-            "vm_d": Vm_pre_np - ref,
+            "vm_pre_d": Vm_pre_np - ref,
             "vm_abs": vm_abs,
             "g_exc": packed[1],
             "g_inh": packed[2],
@@ -330,8 +330,8 @@ def _budget_at_units(
                 + terms["num_ihon"] + terms["num_ihoff"] + terms["num_cdt"] + terms["num_sig"]
             ),
         }
-        dVm_u = vm_abs - Vm_pre_np
-    return bud, dVm_u
+        vm_post_minus_pre_u = vm_abs - Vm_pre_np
+    return bud, vm_post_minus_pre_u
 
 
 def _log(msg: str) -> None:
@@ -339,13 +339,13 @@ def _log(msg: str) -> None:
 
 
 _BUDGET_KEYS = (
-    "vm_d", "vm_abs", "signal", "g_exc", "g_inh", "g_Ih_on", "g_Ih_off",
+    "vm_pre_d", "vm_abs", "signal", "g_exc", "g_inh", "g_Ih_on", "g_Ih_off",
     "num_exc", "num_inh", "num_leak", "num_ihon", "num_ihoff", "num_cdt", "num_sig",
     "num", "den",
 )
 _N_BUDGET_KEYS = len(_BUDGET_KEYS)
 _I_VM_ABS = _BUDGET_KEYS.index("vm_abs")
-_I_VM_D = _BUDGET_KEYS.index("vm_d")
+_I_VM_PRE_D = _BUDGET_KEYS.index("vm_pre_d")
 
 # Plot series key → budget accum key (None → SEM is identically 0).
 _PLOT_KEY_BUDGET: dict[str, str | None] = {
@@ -409,7 +409,7 @@ def _step_from_acc(
     vm_post_val: float,
     acc: dict[str, float],
     accsq: dict[str, float],
-    dVm_sum: float,
+    vm_post_minus_pre_sum: float,
     n: int,
 ) -> dict[str, Any]:
     """One step dict from per-key sums over ``n`` units."""
@@ -421,8 +421,8 @@ def _step_from_acc(
         "rel": rel,
         "ti": ti,
         "vm_post_mV": float(vm_post_val),
-        "vm_d_mV": acc["vm_d"] / n,
-        "dVm_mV": dVm_sum / n,
+        "vm_pre_d_mV": acc["vm_pre_d"] / n,
+        "vm_post_minus_pre_mV": vm_post_minus_pre_sum / n,
         "signal": acc["signal"] / n,
         "g_exc_nS": acc["g_exc"] / n,
         "g_inh_nS": acc["g_inh"] / n,
@@ -462,7 +462,7 @@ class _BudgetWalkAccum:
     sums: list[dict[str, np.ndarray]]
     sumsq: list[dict[str, np.ndarray]]
     counts: list[dict[str, np.ndarray]]
-    dVm_sums: list[dict[str, np.ndarray]]
+    vm_post_minus_pre_sums: list[dict[str, np.ndarray]]
 
 
 def _walk_budget(
@@ -509,13 +509,13 @@ def _walk_budget(
     sums_b: list[dict[str, np.ndarray]] = []
     sumsq_b: list[dict[str, np.ndarray]] = []
     counts_b: list[dict[str, np.ndarray]] = []
-    dVm_sums_b: list[dict[str, np.ndarray]] = []
+    vm_post_minus_pre_sums_b: list[dict[str, np.ndarray]] = []
     for plan in batches:
         wl = plan.win_len
         sums_b.append({c: np.zeros((wl, _N_BUDGET_KEYS), dtype=float) for c in cells})
         sumsq_b.append({c: np.zeros((wl, _N_BUDGET_KEYS), dtype=float) for c in cells})
         counts_b.append({c: np.zeros(wl, dtype=np.int64) for c in cells})
-        dVm_sums_b.append({c: np.zeros(wl, dtype=float) for c in cells})
+        vm_post_minus_pre_sums_b.append({c: np.zeros(wl, dtype=float) for c in cells})
 
     unit_lookups = [_unit_cell_lookup(plan, cells) for plan in batches]
 
@@ -555,7 +555,7 @@ def _walk_budget(
             if active_pack is None:
                 continue
             active, active_rel = active_pack
-            bud, dVm_u = _budget_at_units(
+            bud, vm_post_minus_pre_u = _budget_at_units(
                 Vm_pre, Vm, g_exc, g_inh, g_Ih_on, g_Ih_off, sig_t,
                 backend, active, vm_ref, batch=b,
             )
@@ -570,14 +570,14 @@ def _walk_budget(
                 chunk = bud_mat[mask]
                 np.add.at(sums_b[b][cell], rels, chunk)
                 np.add.at(sumsq_b[b][cell], rels, chunk * chunk)
-                np.add.at(dVm_sums_b[b][cell], rels, dVm_u[mask])
+                np.add.at(vm_post_minus_pre_sums_b[b][cell], rels, vm_post_minus_pre_u[mask])
                 np.add.at(counts_b[b][cell], rels, 1)
 
     return _BudgetWalkAccum(
         sums=sums_b,
         sumsq=sumsq_b,
         counts=counts_b,
-        dVm_sums=dVm_sums_b,
+        vm_post_minus_pre_sums=vm_post_minus_pre_sums_b,
     )
 
 
@@ -589,14 +589,14 @@ def _vm_post_from_accum(sums: np.ndarray, counts: np.ndarray) -> np.ndarray:
     return vm_post
 
 
-def _vm_delta_from_accum(
-    sums: np.ndarray, dVm_sums: np.ndarray, counts: np.ndarray,
+def _vm_post_d_from_accum(
+    sums: np.ndarray, vm_post_minus_pre_sums: np.ndarray, counts: np.ndarray,
 ) -> np.ndarray:
-    """Mean ``Vm_post - Vm_ref``: ``vm_d`` (Vm_pre−ref) + ``dVm`` (Vm_post−Vm_pre)."""
+    """Mean ``vm_post_d`` = Vm_post − Vm_ref = vm_pre_d + vm_post_minus_pre."""
     n = np.maximum(counts, 1)
-    vm_delta = sums[:, _I_VM_D] / n + dVm_sums / n
-    vm_delta[counts == 0] = 0.0
-    return vm_delta
+    vm_post_d = sums[:, _I_VM_PRE_D] / n + vm_post_minus_pre_sums / n
+    vm_post_d[counts == 0] = 0.0
+    return vm_post_d
 
 
 def _dominant_drive_from_step(step: dict[str, Any] | None) -> str | None:
@@ -620,7 +620,7 @@ def _finalize_budget_report(
     sums: np.ndarray,
     sumsq: np.ndarray,
     counts: np.ndarray,
-    dVm_sums: np.ndarray,
+    vm_post_minus_pre_sums: np.ndarray,
     vm_post: np.ndarray,
     rel_start: int | None,
     rel_stop: int | None,
@@ -628,16 +628,16 @@ def _finalize_budget_report(
     extra: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Build one report dict from a single batch×cell accum row."""
-    # Peak on |Vm_post − Vm_ref| (same Vm_ref as budget ``vm_d``).
-    vm_delta = _vm_delta_from_accum(sums, dVm_sums, counts)
+    # Peak on |vm_post_d| (= |Vm_post − Vm_ref| = |vm_pre_d + vm_post_minus_pre|).
+    vm_post_d = _vm_post_d_from_accum(sums, vm_post_minus_pre_sums, counts)
     if rel_start is not None and rel_stop is not None:
         rel_lo, rel_hi = rel_start, rel_stop
-        seg = vm_delta[rel_lo:rel_hi + 1]
+        seg = vm_post_d[rel_lo:rel_hi + 1]
         peak_rel = rel_lo + int(np.argmax(np.abs(seg))) if seg.size else rel_lo
     else:
-        peak_rel = _post_peak_rel(vm_delta, before_steps)
+        peak_rel = _vm_post_d_peak_rel(vm_post_d, before_steps)
         rel_lo = max(0, peak_rel - 4)
-        rel_hi = min(vm_delta.size - 1, peak_rel + 8)
+        rel_hi = min(vm_post_d.size - 1, peak_rel + 8)
     steps: list[dict[str, Any]] = []
     peak_step: dict[str, Any] | None = None
     for rel in range(rel_lo, rel_hi + 1):
@@ -654,17 +654,17 @@ def _finalize_budget_report(
             rel=rel, ti=ti, vm_post_val=float(vm_post[rel]),
             acc=_acc_dict_from_row(sums[rel]),
             accsq=_acc_dict_from_row(sumsq[rel]),
-            dVm_sum=float(dVm_sums[rel]), n=n,
+            vm_post_minus_pre_sum=float(vm_post_minus_pre_sums[rel]), n=n,
         )
         steps.append(step)
         if rel == peak_rel:
             peak_step = step
     if peak_step is None and steps:
         peak_step = steps[len(steps) // 2]
-    if ti_mode == "abs_minus_before" and vm_delta.size > before_steps:
-        onset = _first_nonzero_rel(vm_delta[before_steps:])
+    if ti_mode == "abs_minus_before" and vm_post_d.size > before_steps:
+        onset = _first_nonzero_rel(vm_post_d[before_steps:])
     else:
-        onset = _first_nonzero_rel(vm_delta)
+        onset = _first_nonzero_rel(vm_post_d)
     report: dict[str, Any] = {
         "mode": mode,
         "cell": cell,
@@ -672,11 +672,11 @@ def _finalize_budget_report(
         "target": target,
         "spec": spec,
         "before_steps": before_steps,
-        "resp_peak_rel": peak_rel,
-        "vm_post_peak_mV": float(vm_delta[peak_rel]),
-        "vm_post_polarity": _polarity(float(vm_delta[peak_rel])),
+        "vm_post_d_peak_rel": peak_rel,
+        "vm_post_d_peak_mV": float(vm_post_d[peak_rel]),
+        "vm_post_d_polarity": _polarity(float(vm_post_d[peak_rel])),
         "rel_window": [rel_lo, rel_hi],
-        "vm_post_onset_rel": onset,
+        "vm_post_d_onset_rel": onset,
         "params": _unit_params(p, session.backend, int(units[0])),
         "globals": _globals(),
         "steps": steps,
@@ -694,14 +694,14 @@ def _first_nonzero_rel(trace: np.ndarray, *, eps: float = 1e-6) -> int | None:
     return int(idx[0]) if idx.size else None
 
 
-def _post_peak_rel(
-    vm_delta: np.ndarray,
+def _vm_post_d_peak_rel(
+    vm_post_d: np.ndarray,
     before_steps: int | None,
     *,
     horizon: int | None = 40,
 ) -> int:
-    """Index of largest |Vm_post − Vm_ref| after onset (optionally capped by ``horizon``)."""
-    arr = np.asarray(vm_delta, dtype=float)
+    """Index of largest |vm_post_d| (= |Vm_post − Vm_ref|) after onset (optional ``horizon``)."""
+    arr = np.asarray(vm_post_d, dtype=float)
     if before_steps is not None and 0 < before_steps < arr.size:
         stop = arr.size
         if horizon is not None:
@@ -783,7 +783,7 @@ def _merge_walk_accum(
     sums = {c: np.zeros((win_len, _N_BUDGET_KEYS), dtype=float) for c in cells}
     sumsq = {c: np.zeros((win_len, _N_BUDGET_KEYS), dtype=float) for c in cells}
     counts = {c: np.zeros(win_len, dtype=np.int64) for c in cells}
-    dVm_sums = {c: np.zeros(win_len, dtype=float) for c in cells}
+    vm_post_minus_pre_sums = {c: np.zeros(win_len, dtype=float) for c in cells}
     units_ref = {c: np.zeros(0, dtype=np.int64) for c in cells}
     for b, plan in enumerate(walk_batches):
         for cell in cells:
@@ -797,8 +797,8 @@ def _merge_walk_accum(
             sums[cell] += accum.sums[b][cell]
             sumsq[cell] += accum.sumsq[b][cell]
             counts[cell] += accum.counts[b][cell]
-            dVm_sums[cell] += accum.dVm_sums[b][cell]
-    return sums, sumsq, counts, dVm_sums, units_ref
+            vm_post_minus_pre_sums[cell] += accum.vm_post_minus_pre_sums[b][cell]
+    return sums, sumsq, counts, vm_post_minus_pre_sums, units_ref
 
 
 def _make_walk_batch(
@@ -988,15 +988,15 @@ def _analyze_budget_walk(
         sums: np.ndarray,
         sumsq: np.ndarray,
         counts: np.ndarray,
-        dVm_sums: np.ndarray,
+        vm_post_minus_pre_sums: np.ndarray,
     ) -> dict[str, Any]:
         if units.size == 0:
             raise SystemExit(f"no units for cell {cell!r}")
         vm_post = _vm_post_from_accum(sums, counts)
-        vm_delta = _vm_delta_from_accum(sums, dVm_sums, counts)
+        vm_post_d = _vm_post_d_from_accum(sums, vm_post_minus_pre_sums, counts)
         cell_extra = dict(extra) if extra else {}
         if extra_for_cell is not None:
-            cell_extra.update(extra_for_cell(cell, vm_post, vm_delta) or {})
+            cell_extra.update(extra_for_cell(cell, vm_post, vm_post_d) or {})
         report = _finalize_budget_report(
             cell=cell,
             target=target,
@@ -1009,7 +1009,7 @@ def _analyze_budget_walk(
             sums=sums,
             sumsq=sumsq,
             counts=counts,
-            dVm_sums=dVm_sums,
+            vm_post_minus_pre_sums=vm_post_minus_pre_sums,
             vm_post=vm_post,
             rel_start=rel_start,
             rel_stop=rel_stop,
@@ -1022,7 +1022,7 @@ def _analyze_budget_walk(
 
     if merge_batches:
         win_len = walk_batches[0].win_len
-        sums, sumsq, counts, dVm_sums, units_ref = _merge_walk_accum(
+        sums, sumsq, counts, vm_post_minus_pre_sums, units_ref = _merge_walk_accum(
             accum, walk_batches, cells, win_len,
         )
         before = int(before_steps[0])
@@ -1035,7 +1035,7 @@ def _analyze_budget_walk(
                 sums=sums[cell],
                 sumsq=sumsq[cell],
                 counts=counts[cell],
-                dVm_sums=dVm_sums[cell],
+                vm_post_minus_pre_sums=vm_post_minus_pre_sums[cell],
             )
             for cell in cells
         }
@@ -1054,7 +1054,7 @@ def _analyze_budget_walk(
                 sums=accum.sums[b][cell],
                 sumsq=accum.sumsq[b][cell],
                 counts=accum.counts[b][cell],
-                dVm_sums=accum.dVm_sums[b][cell],
+                vm_post_minus_pre_sums=accum.vm_post_minus_pre_sums[b][cell],
             )
     return out
 
@@ -1233,12 +1233,12 @@ def analyze_spot_average(
     )
 
     def extra_for_cell(
-        cell: str, vm_post: np.ndarray, vm_delta: np.ndarray,
+        cell: str, vm_post: np.ndarray, vm_post_d: np.ndarray,
     ) -> dict[str, Any]:
-        del vm_post  # peak time from |Vm_post − Vm_ref|; absolute series unused here
+        del vm_post  # peak time from |vm_post_d|; absolute series unused here
         extra: dict[str, Any] = {"ref_peak_mV": None}
         if cell in ref_on:
-            peak_probe = _post_peak_rel(vm_delta, t_on)
+            peak_probe = _vm_post_d_peak_rel(vm_post_d, t_on)
             ref_cube = np.asarray(ref_on[cell], dtype=float)
             if peak_probe < ref_cube.shape[1]:
                 extra["ref_peak_mV"] = float(ref_cube[CENTER_BIN, peak_probe])
@@ -1590,19 +1590,19 @@ def _print_report(report: dict[str, Any]) -> None:
     print(hdr)
     print(f"target={report['target']} spec={report.get('spec')}")
     print(
-        f"vm_post_peak={report['vm_post_peak_mV']:+.4f} mV "
-        f"polarity={report['vm_post_polarity']}  "
-        f"resp_peak_rel={report['resp_peak_rel']}  "
+        f"vm_post_d_peak={report['vm_post_d_peak_mV']:+.4f} mV "
+        f"vm_post_d_polarity={report['vm_post_d_polarity']}  "
+        f"vm_post_d_peak_rel={report['vm_post_d_peak_rel']}  "
         f"before_steps={report.get('before_steps')}  "
         f"peak_drive={report.get('peak_drive')}"
     )
     print("trained:", "  ".join(f"{k}={v:.6g}" for k, v in report["params"].items()))
 
-    print("\nrel  n  vm_post   vm_d    dVm    sig   g_inh  g_Ih_off  g_exc  num_inh  num_exc")
+    print("\nrel  n  vm_post  vm_pre_d  vm_post_minus_pre  sig   g_inh  g_Ih_off  g_exc  num_inh  num_exc")
     for s in report["steps"]:
         print(
             f"{s['rel']:4d} {s.get('n_units', 1):3d} {s['vm_post_mV']:+8.4f} "
-            f"{s['vm_d_mV']:+8.4f} {s['dVm_mV']:+8.4f} "
+            f"{s['vm_pre_d_mV']:+8.4f} {s['vm_post_minus_pre_mV']:+8.4f} "
             f"{s['signal']:5.1f} {s['g_inh_nS']:.4f} {s['g_Ih_off_nS']:.4f} "
             f"{s['g_exc_nS']:.4f} {s['num_inh']:+8.2f} {s['num_exc']:+8.2f}"
         )
@@ -1632,14 +1632,14 @@ def _print_polarity_compare(
         return
     print("\n======== SPOT vs BAR polarity (cost-extent averages) ========")
     print(
-        f"{'cell':6s} {'spot_peak':>10s} {'spot_pol':>8s} {'spot_drv':>8s} "
-        f"{'bar_peak':>10s} {'bar_pol':>8s} {'bar_drv':>8s}  note"
+        f"{'cell':6s} {'spot_post_d':>11s} {'spot_pol':>8s} {'spot_drv':>8s} "
+        f"{'bar_post_d':>10s} {'bar_pol':>8s} {'bar_drv':>8s}  note"
     )
     for cell in cells:
         s = spot_reports[cell]
         b = bar_reports[cell]
-        flip = s["vm_post_polarity"] != b["vm_post_polarity"] and "0" not in (
-            s["vm_post_polarity"], b["vm_post_polarity"],
+        flip = s["vm_post_d_polarity"] != b["vm_post_d_polarity"] and "0" not in (
+            s["vm_post_d_polarity"], b["vm_post_d_polarity"],
         )
         note = "FLIP" if flip else "same"
         if flip and s.get("peak_drive") and b.get("peak_drive"):
@@ -1648,9 +1648,9 @@ def _print_polarity_compare(
             else:
                 note += f" (same drive={s['peak_drive']}; see num terms)"
         print(
-            f"{cell:6s} {s['vm_post_peak_mV']:+10.4f} {s['vm_post_polarity']:>8s} "
+            f"{cell:6s} {s['vm_post_d_peak_mV']:+11.4f} {s['vm_post_d_polarity']:>8s} "
             f"{str(s.get('peak_drive')):>8s} "
-            f"{b['vm_post_peak_mV']:+10.4f} {b['vm_post_polarity']:>8s} "
+            f"{b['vm_post_d_peak_mV']:+10.4f} {b['vm_post_d_polarity']:>8s} "
             f"{str(b.get('peak_drive')):>8s}  {note}"
         )
         # short diagnosis at peak
@@ -1659,12 +1659,12 @@ def _print_polarity_compare(
             print(
                 f"       spot@peak: g_exc={sps['g_exc_nS']:.4f} g_inh={sps['g_inh_nS']:.4f} "
                 f"num_exc={sps['num_exc']:+.1f} num_inh={sps['num_inh']:+.1f} "
-                f"vm_d={sps['vm_d_mV']:+.3f}"
+                f"vm_pre_d={sps['vm_pre_d_mV']:+.3f}"
             )
             print(
                 f"       bar @peak: g_exc={bps['g_exc_nS']:.4f} g_inh={bps['g_inh_nS']:.4f} "
                 f"num_exc={bps['num_exc']:+.1f} num_inh={bps['num_inh']:+.1f} "
-                f"vm_d={bps['vm_d_mV']:+.3f}"
+                f"vm_pre_d={bps['vm_pre_d_mV']:+.3f}"
             )
 
 

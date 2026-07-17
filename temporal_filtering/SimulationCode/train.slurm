@@ -27,5 +27,5 @@ nvidia-smi -L || true
 "${PYTHON}" -c "import torch; print('cuda:', torch.cuda.is_available(), torch.cuda.get_device_name(0) if torch.cuda.is_available() else '')"
 echo "Start:  $(date)"
 "${PYTHON}" -u train.py  \
-  --nofsteps 1000 --lrs 0.1 --shift-extent=1 --cost-extent=9 --target moving_bar --cost-weight PD=0,ND=0,DSI=1
+  --nofsteps 1000 --lrs 0.1 --target moving_bar --cost-weight DSI
 

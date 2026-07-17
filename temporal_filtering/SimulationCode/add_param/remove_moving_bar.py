@@ -9,7 +9,7 @@ os.chdir(ROOT)
 
 import FiveCol_MedSim_Pytorch as fc
 import train
-from t4_t5_preference import READOUT_SUBTYPE_ALIASES, READOUT_SUBTYPES, expand_remove_subtypes_list
+from t4_t5_dsi import READOUT_SUBTYPE_ALIASES, READOUT_SUBTYPES, expand_remove_subtypes_list
 
 ap = train.make_training_argparser(__doc__)
 valid = ", ".join((*READOUT_SUBTYPE_ALIASES, *READOUT_SUBTYPES))

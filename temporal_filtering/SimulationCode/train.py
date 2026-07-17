@@ -576,9 +576,11 @@ def add_training_arguments(parser):
     parser.add_argument(
         "--cost-weight",
         default="",
-        metavar="TARGET=VALUE,...",
-        help="per-part cost weights, e.g. spot=1,PD=1.5,ND=1.0,DSI=0.5 "
-             "(aliases: spot, moving_bar, moving_bar_bright/dark, PD/ND/DSI)",
+        metavar="NAME|NAME=VALUE,...",
+        help="per-part cost weights. NAME=VALUE merges onto default 1; bare NAME "
+             "(aliases: spot, moving_bar, moving_bar_bright/dark, PD/ND/DSI) zeros "
+             "all parts for --target then sets those to 1. "
+             "e.g. DSI (=DSI-only), DSI=1 (PD/ND stay 1), DSI,PD=0.2",
     )
     parser.add_argument(
         "--shift-extent",
@@ -600,18 +602,20 @@ def add_training_arguments(parser):
     parser.add_argument(
         "--spot-cost-r-w",
         default="",
-        metavar="R=W,...",
-        help="spot cost weights by Euclidean r from stim column (r=w); "
-             "default depends on --spot-extent (1→0=1,1=1/6; else 0=1,1=1/6,2=1/6); "
-             "omitted radii → 0 (excluded); weights only (does not change RecF data); "
-             "e.g. 0=1,1=1/6,2=1/12",
+        metavar="R|R=W,...",
+        help="spot cost weights by Euclidean r from stim column. Same rules as "
+             "--cost-weight: R=W merges onto extent defaults; bare R zeros all "
+             "known radii then sets R=1. Empty → extent default "
+             "(1→0=1,1=1/6; else 0=1,1=1/6,2=1/6). Keys: 0,1,2,sqrt3. "
+             "Weights only (does not change RecF data)",
     )
     parser.add_argument(
         "--cost-extent",
         default="",
         metavar="N|TARGET=N,...",
-        help="network cost hex-disc radius (default -1 = all columns with --network): "
-             "bare N for all --target, or per-target e.g. moving_bar_bright=0 "
+        help="network cost hex-disc radius (moving-bar default: network extent - 1; "
+             "network extent 0/-1 and spot default to all columns): bare N for all "
+             "--target, or per-target e.g. moving_bar_bright=0 "
              "(aliases: spot, moving_bar); -1 = all columns; requires --network",
     )
     parser.add_argument(
@@ -704,18 +708,36 @@ def parse_cost_extent(text):
     return default, by_target
 
 
-def parse_spot_cost_r_w(text):
-    """Parse ``--spot-cost-r-w`` (r=w); empty → default from ``--spot-extent``."""
-    from network.spot_target import (
-        expand_spot_cost_r_w_dict,
-        parse_spot_cost_radius_weight_value,
-    )
+def parse_cost_weight(text, target_list):
+    """Parse ``--cost-weight``: bare alias exclusive, ``NAME=VALUE`` merge.
 
-    if not str(text or "").strip():
-        return None
-    return expand_spot_cost_r_w_dict(
-        parse_comma_kv(text, cast=parse_spot_cost_radius_weight_value),
-    )
+    Bare tokens (aliases or concrete part keys) zero every cost part for
+    ``target_list``, then set those names to ``1``. Explicit ``NAME=VALUE``
+    always applied last (merge onto defaults / exclusive map). Empty → ``{}``
+    (runtime default weight 1).
+    """
+    tokens = parse_comma_list(text)
+    bare: list[str] = []
+    explicit: dict[str, float] = {}
+    for tok in tokens:
+        if "=" in tok:
+            name, val = tok.split("=", 1)
+            explicit[name.strip()] = float(val.strip())
+        else:
+            bare.append(tok.strip())
+    weights: dict[str, float] = {}
+    if bare:
+        weights = {key: 0.0 for key in fc.session_cost_part_keys(target_list)}
+        weights.update(fc.expand_cost_weight_dict({name: 1.0 for name in bare}))
+    weights.update(fc.expand_cost_weight_dict(explicit))
+    return weights
+
+
+def parse_spot_cost_r_w(text, spot_extent):
+    """Parse ``--spot-cost-r-w``; empty → ``None`` (extent default at resolve)."""
+    from network.spot_target import parse_spot_cost_r_w_tokens
+
+    return parse_spot_cost_r_w_tokens(text, spot_extent=spot_extent)
 
 
 def training_kwargs_from_args(
@@ -737,15 +759,9 @@ def training_kwargs_from_args(
                 )
             init_from = f"{args.model}/{init_from}"
     param_modes = parse_comma_kv(args.mode)
-    cost_weights = fc.expand_cost_weight_dict(parse_comma_kv(args.cost_weight, float))
     target_list = parse_target_list(args.target)
+    cost_weights = parse_cost_weight(args.cost_weight, target_list)
     default_extent, extent_kv = parse_cost_extent(args.cost_extent)
-    if (
-        default_extent is None
-        and not extent_kv
-        and args.network is not None
-    ):
-        default_extent = -1
     cost_extent_by_target = fc.resolve_cost_extent_by_target(
         target_list, default_extent, extent_kv,
     )
@@ -761,7 +777,7 @@ def training_kwargs_from_args(
 
     spot_extent = DEFAULT_SPOT_EXTENT if args.spot_extent is None else float(args.spot_extent)
     spot_extent_half_steps(spot_extent)
-    spot_cost_radius_weight = parse_spot_cost_r_w(args.spot_cost_r_w)
+    spot_cost_radius_weight = parse_spot_cost_r_w(args.spot_cost_r_w, spot_extent)
     moving_bar_bright_stimulus_opts = {"multi_bar": bool(args.multi_bar)}
     moving_bar_dark_stimulus_opts = {"multi_bar": bool(args.multi_bar)}
     i_cli = fc.build_i_cli_by_target({

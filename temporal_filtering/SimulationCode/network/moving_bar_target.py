@@ -31,7 +31,7 @@ from Medulla_Library import I_BASELINE, I_BRIGHT, I_DARK
 from column_mapper import borst_sti_columns
 from connectome_io import moving_bar_cache_dir
 from network.stimulus import column_in_cost_extent
-from t4_t5_preference import (
+from t4_t5_dsi import (
     READOUT_SUBTYPES,
     active_stimuli_for_subtype,
     fig1_key_for_stimulus,
@@ -733,16 +733,16 @@ def _pd_nd_index(pd_nd: str) -> int:
 @dataclass
 class MovingBarTarget:
     signal: torch.Tensor          # (B, T, N)
-    data: torch.Tensor            # (n_cost, COST_WINDOW)
+    data: torch.Tensor            # (n_cost, COST_WINDOW) or (n_cost, 0) if DSI-only
     power: torch.Tensor           # scalar
     cost_weight: torch.Tensor     # (n_cost,)
-    cost_t0: torch.Tensor         # (n_cost,) absolute simulation step
     readout_batch: torch.Tensor   # (n_cost,) long
     readout_unit: torch.Tensor    # (n_cost,) long
-    cost_pd_nd: torch.Tensor      # (n_cost,) long; 0=PD, 1=ND
     n_batch: int
     maxtime: int
     info: dict
+    cost_t0: Optional[torch.Tensor] = None  # (n_cost,) abs step; None if DSI-only
+    cost_pd_nd: Optional[torch.Tensor] = None  # (n_cost,) long; None if DSI-only
     dsi_pos_rows: Optional[torch.Tensor] = None  # flat cost-row idx (right|up)
     dsi_neg_rows: Optional[torch.Tensor] = None  # flat cost-row idx (left|down)
     dsi_pos_ptr: Optional[torch.Tensor] = None   # (n_dsi+1,) CSR
@@ -850,9 +850,10 @@ def _assemble_moving_bar_readouts(
     after_steps: int,
     maxtime: int,
     side: str,
-    fig1: Dict[str, np.ndarray],
+    fig1: Optional[Dict[str, np.ndarray]],
     present: Sequence[str],
     units_for_col_subtype: Callable[[int, int, str], Sequence[int]],
+    waveform_mse: bool = True,
 ) -> Tuple[
     List[int], List[int], List[str], List[np.ndarray], List[float], List[int], List[int], int,
 ]:
@@ -862,37 +863,48 @@ def _assemble_moving_bar_readouts(
     skipped_orthogonal = 0
     i_baseline = resolve_i_baseline(i_baseline)
     for b, spec in enumerate(specs):
-        for col_idx in cost_col_idxs:
-            t_first_sti = column_first_stim_step(
-                column_current[b, :, col_idx], i_baseline=i_baseline,
-            )
-            t0 = t_first_sti - before_steps
-            if t0 < 0 or t_first_sti + after_steps > maxtime:
-                raise ValueError(
-                    f"cost window out of range for column index {col_idx} "
-                    f"spec={spec.name}: t_first_sti={t_first_sti}, maxtime={maxtime}"
+        t0_by_col: Dict[int, int] = {}
+        if waveform_mse:
+            for col_idx in cost_col_idxs:
+                t_first_sti = column_first_stim_step(
+                    column_current[b, :, col_idx], i_baseline=i_baseline,
                 )
+                t0 = t_first_sti - before_steps
+                if t0 < 0 or t_first_sti + after_steps > maxtime:
+                    raise ValueError(
+                        f"cost window out of range for column index {col_idx} "
+                        f"spec={spec.name}: t_first_sti={t_first_sti}, maxtime={maxtime}"
+                    )
+                t0_by_col[col_idx] = t0
+        for col_idx in cost_col_idxs:
             for subtype in present:
                 pref = motion_preference(side, subtype, spec.direction, spec.contrast)
                 if pref is None:
                     skipped_orthogonal += 1
                     continue
-                trace_id = fig1_key_for_stimulus(side, subtype, spec)
-                if trace_id not in fig1:
-                    raise KeyError(f"fig1 trace missing: {trace_id}")
                 units = units_for_col_subtype(b, col_idx, subtype)
                 if len(units) == 0:
                     continue
-                target = fig1[trace_id]
+                target = None
+                if waveform_mse:
+                    if fig1 is None:
+                        raise ValueError("fig1 traces required when waveform_mse=True")
+                    trace_id = fig1_key_for_stimulus(side, subtype, spec)
+                    if trace_id not in fig1:
+                        raise KeyError(f"fig1 trace missing: {trace_id}")
+                    target = fig1[trace_id]
                 pd_nd_idx = _pd_nd_index(pref.pd_nd)
+                t0 = t0_by_col.get(col_idx, 0)
                 for uidx in units:
                     r_batch.append(b)
                     r_unit.append(int(uidx))
                     r_subtype.append(str(subtype))
-                    r_target.append(target)
+                    if target is not None:
+                        r_target.append(target)
                     r_weight.append(1.0)
-                    r_t0.append(t0)
-                    r_pd_nd.append(pd_nd_idx)
+                    if waveform_mse:
+                        r_t0.append(t0)
+                        r_pd_nd.append(pd_nd_idx)
     return (
         r_batch, r_unit, r_subtype, r_target, r_weight, r_t0, r_pd_nd,
         skipped_orthogonal,
@@ -901,13 +913,19 @@ def _assemble_moving_bar_readouts(
 
 def _pack_moving_bar_readout_tensors(
     r_batch, r_unit, r_target, r_weight, r_t0, r_pd_nd, *, device, sim_dtype,
+    waveform_mse: bool = True,
 ):
-    data = torch.tensor(np.asarray(r_target), dtype=sim_dtype, device=device)
+    n = len(r_batch)
     cost_weight = torch.tensor(np.asarray(r_weight), dtype=sim_dtype, device=device)
     readout_batch = torch.tensor(np.asarray(r_batch), dtype=torch.long, device=device)
     readout_unit = torch.tensor(np.asarray(r_unit), dtype=torch.long, device=device)
-    cost_t0 = torch.tensor(np.asarray(r_t0), dtype=torch.long, device=device)
+    if not waveform_mse:
+        data = torch.zeros((n, 0), dtype=sim_dtype, device=device)
+        power = torch.tensor(1.0, dtype=sim_dtype, device=device)
+        return data, cost_weight, readout_batch, readout_unit, None, None, power
     cost_pd_nd = torch.tensor(np.asarray(r_pd_nd), dtype=torch.long, device=device)
+    data = torch.tensor(np.asarray(r_target), dtype=sim_dtype, device=device)
+    cost_t0 = torch.tensor(np.asarray(r_t0), dtype=torch.long, device=device)
     power = torch.sum(cost_weight[:, None] * data ** 2)
     if float(power) == 0.0:
         power = torch.tensor(1.0, dtype=sim_dtype, device=device)
@@ -963,12 +981,12 @@ def build_moving_bar_target(
     contrasts: Sequence[str] = ("bright", "dark"),
     readout_subtypes: Optional[Sequence[str]] = None,
     sim_dtype: torch.dtype = SIM_DTYPE_DEFAULT,
+    waveform_mse: bool = True,
 ) -> MovingBarTarget:
-    """Build multi-bar stimulus + fig1 targets for sti columns × T4/T5 subtypes.
+    """Build multi-bar stimulus + T4/T5 cost readouts.
 
-    ``bar_extent`` sets per-lane spacing (hex-column units). ``cost_extent``
-    restricts cost to columns inside the central hex disc (``None`` = all sti
-    columns). Stimulus still drives all photoreceptors.
+    ``waveform_mse=False`` (DSI-only): skip fig1 load, cost windows, and
+    waveform target tensors; keep stimulus + readout indices + DSI targets.
     """
     device = device or C.device
     side = normalize_side(C.meta.get("side", "right"))
@@ -990,8 +1008,7 @@ def build_moving_bar_target(
         ),
     )
     maxtime = int(stim.info["maxtime"])
-    field_deg = stim.info["field_deg"]
-    fig1 = load_fig1_traces(fig1_path, deltat_ms=deltat_ms)
+    fig1 = load_fig1_traces(fig1_path, deltat_ms=deltat_ms) if waveform_mse else None
     before_steps = ms_to_steps(COST_ALIGNED_FIRST_STI_MS, deltat_ms=deltat_ms)
     after_steps = ms_to_steps(COST_WINDOW_AFTER_MS, deltat_ms=deltat_ms)
     win_steps = ms_to_steps(COST_WINDOW_MS, deltat_ms=deltat_ms) + 1
@@ -1025,6 +1042,7 @@ def build_moving_bar_target(
         fig1=fig1,
         present=present,
         units_for_col_subtype=_units_for_col_subtype,
+        waveform_mse=waveform_mse,
     )
     (
         r_batch, r_unit, r_subtype, r_target, r_weight, r_t0, r_pd_nd,
@@ -1037,24 +1055,25 @@ def build_moving_bar_target(
     data, cost_weight, readout_batch, readout_unit, cost_t0, cost_pd_nd, power = (
         _pack_moving_bar_readout_tensors(
             r_batch, r_unit, r_target, r_weight, r_t0, r_pd_nd,
-            device=device, sim_dtype=sim_dtype,
+            device=device, sim_dtype=sim_dtype, waveform_mse=waveform_mse,
         )
     )
-    from analysis.DSI import build_dsi_pack_fields
+    from t4_t5_dsi import build_dsi_pack_fields
 
     (
         dsi_pos_rows, dsi_neg_rows, dsi_pos_ptr, dsi_neg_ptr,
         dsi_tgt, dsi_w, dsi_pow,
     ) = build_dsi_pack_fields(
-        stim.specs, r_batch, r_subtype, r_target, r_weight,
+        stim.specs, r_batch, r_subtype, r_weight,
+        side=side,
         device=device, sim_dtype=sim_dtype,
     )
 
     info = {
         **stim.info,
-        "n_cost": int(data.shape[0]),
-        "n_cost_pd": int((cost_pd_nd == PD_IDX).sum().item()),
-        "n_cost_nd": int((cost_pd_nd == ND_IDX).sum().item()),
+        "n_cost": int(readout_batch.shape[0]),
+        "n_cost_pd": int((cost_pd_nd == PD_IDX).sum().item()) if cost_pd_nd is not None else 0,
+        "n_cost_nd": int((cost_pd_nd == ND_IDX).sum().item()) if cost_pd_nd is not None else 0,
         "n_cost_dsi": int(dsi_tgt.shape[0]),
         "n_batch": stim.info["n_batch"],
         "n_cost_columns": len(cols),
@@ -1063,14 +1082,18 @@ def build_moving_bar_target(
         "side": side,
         "present_subtypes": present,
         "skipped_orthogonal": skipped_orthogonal,
-        "fig1_path": str(fig1_path),
-        "cost_window_before_ms": COST_WINDOW_BEFORE_MS,
-        "cost_window_after_ms": COST_WINDOW_AFTER_MS,
-        "cost_window_ms": COST_WINDOW_MS,
-        "cost_aligned_first_sti_ms": COST_ALIGNED_FIRST_STI_MS,
-        "cost_window_steps": win_steps,
+        "waveform_mse": bool(waveform_mse),
         "deltat_ms": float(deltat_ms),
     }
+    if waveform_mse:
+        info.update({
+            "fig1_path": str(fig1_path),
+            "cost_window_before_ms": COST_WINDOW_BEFORE_MS,
+            "cost_window_after_ms": COST_WINDOW_AFTER_MS,
+            "cost_window_ms": COST_WINDOW_MS,
+            "cost_aligned_first_sti_ms": COST_ALIGNED_FIRST_STI_MS,
+            "cost_window_steps": win_steps,
+        })
     return MovingBarTarget(
         signal=stim.signal,
         data=data,
@@ -1104,6 +1127,7 @@ def build_borst_moving_bar_target(
     i_dark_bar: Optional[float] = None,
     contrasts: Sequence[str] = ("bright", "dark"),
     sim_dtype: torch.dtype = SIM_DTYPE_DEFAULT,
+    waveform_mse: bool = True,
 ) -> MovingBarTarget:
     """Build Borst 5-column horizontal moving-bar target for T4/T5 subtypes."""
     device = device or "cpu"
@@ -1114,7 +1138,7 @@ def build_borst_moving_bar_target(
     field_deg = field_bounds(cols)
     maxtime = whole_field_moving_bar_maxtime(specs, field_deg, t_on=t_on, deltat_ms=deltat_ms)
     sweep_end = whole_field_moving_bar_sweep_end_step(specs, field_deg, t_on=t_on, deltat_ms=deltat_ms)
-    fig1 = load_fig1_traces(fig1_path, deltat_ms=deltat_ms)
+    fig1 = load_fig1_traces(fig1_path, deltat_ms=deltat_ms) if waveform_mse else None
     before_steps = ms_to_steps(COST_ALIGNED_FIRST_STI_MS, deltat_ms=deltat_ms)
     after_steps = ms_to_steps(COST_WINDOW_AFTER_MS, deltat_ms=deltat_ms)
     win_steps = ms_to_steps(COST_WINDOW_MS, deltat_ms=deltat_ms) + 1
@@ -1154,6 +1178,7 @@ def build_borst_moving_bar_target(
         fig1=fig1,
         present=present,
         units_for_col_subtype=_units_for_col_subtype,
+        waveform_mse=waveform_mse,
     )
     (
         r_batch, r_unit, r_subtype, r_target, r_weight, r_t0, r_pd_nd,
@@ -1166,23 +1191,24 @@ def build_borst_moving_bar_target(
     data, cost_weight, readout_batch, readout_unit, cost_t0, cost_pd_nd, power = (
         _pack_moving_bar_readout_tensors(
             r_batch, r_unit, r_target, r_weight, r_t0, r_pd_nd,
-            device=device, sim_dtype=sim_dtype,
+            device=device, sim_dtype=sim_dtype, waveform_mse=waveform_mse,
         )
     )
-    from analysis.DSI import build_dsi_pack_fields
+    from t4_t5_dsi import build_dsi_pack_fields
 
     (
         dsi_pos_rows, dsi_neg_rows, dsi_pos_ptr, dsi_neg_ptr,
         dsi_tgt, dsi_w, dsi_pow,
     ) = build_dsi_pack_fields(
-        specs, r_batch, r_subtype, r_target, r_weight,
+        specs, r_batch, r_subtype, r_weight,
+        side="right",
         device=device, sim_dtype=sim_dtype,
     )
 
     info = {
-        "n_cost": int(data.shape[0]),
-        "n_cost_pd": int((cost_pd_nd == PD_IDX).sum().item()),
-        "n_cost_nd": int((cost_pd_nd == ND_IDX).sum().item()),
+        "n_cost": int(readout_batch.shape[0]),
+        "n_cost_pd": int((cost_pd_nd == PD_IDX).sum().item()) if cost_pd_nd is not None else 0,
+        "n_cost_nd": int((cost_pd_nd == ND_IDX).sum().item()) if cost_pd_nd is not None else 0,
         "n_cost_dsi": int(dsi_tgt.shape[0]),
         "n_batch": len(specs),
         "n_cost_columns": len(cols),
@@ -1191,12 +1217,7 @@ def build_borst_moving_bar_target(
         "side": "right",
         "present_subtypes": present,
         "skipped_orthogonal": skipped_orthogonal,
-        "fig1_path": str(fig1_path),
-        "cost_window_before_ms": COST_WINDOW_BEFORE_MS,
-        "cost_window_after_ms": COST_WINDOW_AFTER_MS,
-        "cost_window_ms": COST_WINDOW_MS,
-        "cost_aligned_first_sti_ms": COST_ALIGNED_FIRST_STI_MS,
-        "cost_window_steps": win_steps,
+        "waveform_mse": bool(waveform_mse),
         "deltat_ms": float(deltat_ms),
         "maxtime": maxtime,
         "t_on": t_on,
@@ -1208,6 +1229,15 @@ def build_borst_moving_bar_target(
         "mode": "borst",
         "i_baseline": i_baseline,
     }
+    if waveform_mse:
+        info.update({
+            "fig1_path": str(fig1_path),
+            "cost_window_before_ms": COST_WINDOW_BEFORE_MS,
+            "cost_window_after_ms": COST_WINDOW_AFTER_MS,
+            "cost_window_ms": COST_WINDOW_MS,
+            "cost_aligned_first_sti_ms": COST_ALIGNED_FIRST_STI_MS,
+            "cost_window_steps": win_steps,
+        })
     if "bright" in contrast_set:
         info["i_bright_bar"] = col_kw["i_bright_bar"]
     if "dark" in contrast_set:

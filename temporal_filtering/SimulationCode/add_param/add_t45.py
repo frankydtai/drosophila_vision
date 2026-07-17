@@ -12,7 +12,7 @@ import numpy as np
 import FiveCol_MedSim_Pytorch as fc
 import plot_trained as pt
 import train
-from t4_t5_preference import READOUT_SUBTYPES
+from t4_t5_dsi import READOUT_SUBTYPES
 
 ap = train.make_training_argparser(__doc__)
 args = ap.parse_args()

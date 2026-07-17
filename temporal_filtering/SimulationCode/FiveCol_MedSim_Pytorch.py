@@ -1091,10 +1091,27 @@ class _TrainBindCtx:
     model_backend: ModelBackend
     dev: str
     sim_dtype: torch.dtype = SIM_DTYPE_DEFAULT
+    cost_weights: Optional[Dict[str, float]] = None
     spot_bright_stimulus_opts: Optional[dict] = None
     spot_dark_stimulus_opts: Optional[dict] = None
     moving_bar_bright_stimulus_opts: Optional[dict] = None
     moving_bar_dark_stimulus_opts: Optional[dict] = None
+
+
+def _moving_bar_waveform_mse_enabled(cost_weights: Optional[dict], pack_name: str) -> bool:
+    """True if PD or ND waveform MSE weight is non-zero for ``pack_name``."""
+    w = expand_cost_weight_dict(cost_weights or {})
+    return any(
+        float(w.get(moving_bar_cost_part_key(pack_name, lab), 1.0)) != 0.0
+        for lab in PD_ND_LABELS
+    )
+
+
+def _pack_needs_waveform_mse(pack: TargetPack) -> bool:
+    """Spot always; moving-bar only when cost-window targets were built."""
+    if pack.name in MOVING_BAR_TARGETS:
+        return pack.cost_t0 is not None
+    return True
 
 
 def _build_borst_spot_target(ctx: _TrainBindCtx, polarity: str) -> Tuple[TargetPack, dict]:
@@ -1130,6 +1147,7 @@ def _build_borst_moving_bar_target(ctx: _TrainBindCtx, *, pack_name: str, polari
         i_baseline=opts["i_baseline"],
         contrasts=(polarity,),
         readout_subtypes=_readout_subtypes_from_opts(opts),
+        waveform_mse=_moving_bar_waveform_mse_enabled(ctx.cost_weights, pack_name),
     )
     if polarity == "bright":
         build_kw["i_bright_bar"] = opts["i_bright_bar"]
@@ -1171,7 +1189,12 @@ def _build_network_moving_bar_target(ctx: _TrainBindCtx, C, *, pack_name: str, p
         opts["mode"] = "network"
     from network.stimulus import normalize_cost_extent
 
-    cost_extent = normalize_cost_extent(opts.get("cost_extent"))
+    if "cost_extent" in opts:
+        cost_extent = normalize_cost_extent(opts["cost_extent"])
+    else:
+        network_extent = int(C.meta.get("extent", -1))
+        default_extent = -1 if network_extent <= 0 else network_extent - 1
+        cost_extent = normalize_cost_extent(default_extent)
     build_kw = dict(
         C=C,
         device=dev,
@@ -1182,6 +1205,7 @@ def _build_network_moving_bar_target(ctx: _TrainBindCtx, C, *, pack_name: str, p
         contrasts=(polarity,),
         readout_subtypes=_readout_subtypes_from_opts(opts),
         multi_bar=bool(opts.get("multi_bar", True)),
+        waveform_mse=_moving_bar_waveform_mse_enabled(ctx.cost_weights, pack_name),
     )
     if polarity == "bright":
         build_kw["i_bright_bar"] = opts["i_bright_bar"]
@@ -1335,9 +1359,7 @@ def expand_cost_extent_dict(kv: Optional[dict]) -> Dict[str, int]:
 
 
 def resolve_cost_extent_by_target(target_list, default, by_target_kv) -> Dict[str, int]:
-    """Map each concrete target in *target_list* to a cost extent (omit = all columns)."""
-    from network.stimulus import normalize_cost_extent
-
+    """Map each concrete target to its explicitly requested cost extent."""
     expanded = expand_cost_extent_dict(by_target_kv or {})
     bad = [k for k in expanded if k not in VALID_TARGETS]
     if bad:
@@ -1345,31 +1367,25 @@ def resolve_cost_extent_by_target(target_list, default, by_target_kv) -> Dict[st
             f"unknown target(s) in --cost-extent: {bad} "
             f"(expected {'|'.join(CLI_TARGET_NAMES)})",
         )
-    norm_default = normalize_cost_extent(default)
     out: Dict[str, int] = {}
     for tname in target_list:
         if tname in expanded:
-            norm = normalize_cost_extent(expanded[tname])
-            if norm is not None:
-                out[tname] = norm
-        elif norm_default is not None:
-            out[tname] = norm_default
+            out[tname] = int(expanded[tname])
+        elif default is not None:
+            out[tname] = int(default)
     return out
 
 
 def apply_cost_extent_to_stimulus_opts(opts, target_name, cost_extent_by_target):
-    """Set ``cost_extent`` on one target's stimulus opts when resolved."""
-    from network.stimulus import normalize_cost_extent
-
+    """Set an explicitly resolved ``cost_extent`` on one target's options."""
     out = dict(opts or {})
     if cost_extent_by_target and target_name in cost_extent_by_target:
         out["cost_extent"] = int(cost_extent_by_target[target_name])
     elif "cost_extent" in out:
-        norm = normalize_cost_extent(out["cost_extent"])
-        if norm is None:
+        if out["cost_extent"] is None:
             out.pop("cost_extent", None)
         else:
-            out["cost_extent"] = norm
+            out["cost_extent"] = int(out["cost_extent"])
     return out
 
 
@@ -1795,6 +1811,7 @@ def open_session(
             model_backend=model_backend,
             dev=dev,
             sim_dtype=sim_dtype,
+            cost_weights=opts.get("cost_weights"),
             spot_bright_stimulus_opts=opts.get("spot_bright_stimulus_opts"),
             spot_dark_stimulus_opts=opts.get("spot_dark_stimulus_opts"),
             moving_bar_bright_stimulus_opts=opts.get("moving_bar_bright_stimulus_opts"),
@@ -1869,6 +1886,7 @@ def open_session(
         model_backend=model_backend,
         dev=dev,
         sim_dtype=sim_dtype,
+        cost_weights=opts.get("cost_weights"),
         spot_bright_stimulus_opts=opts.get("spot_bright_stimulus_opts"),
         spot_dark_stimulus_opts=opts.get("spot_dark_stimulus_opts"),
         moving_bar_bright_stimulus_opts=opts.get("moving_bar_bright_stimulus_opts"),
@@ -2278,20 +2296,30 @@ def _run_adaptive(p, session: TrainSession, neuron_index=None, return_ref=False,
 
 
 def _conductance_pack_readout(p, pack: TargetPack, session: TrainSession, batch_idx=None):
-    """Conductance forward + readout. ``batch_idx``: one stimulus (sequential) or all (batched)."""
+    """Conductance forward; waveform MSE readout only when pack needs it."""
     sig = pack.signal if batch_idx is None else pack.signal[batch_idx:batch_idx + 1]
     model_full = _run_conductance_full(session, p, sig)
+    need_mse = _pack_needs_waveform_mse(pack)
     if batch_idx is None:
-        return _readout_model_traces_pack(model_full, pack)
+        dsi_sel = model_full[
+            pack.readout_batch, t_on:, pack.readout_unit,
+        ]
+        if not need_mse:
+            return None, dsi_sel
+        return _readout_model_traces_pack(model_full, pack), dsi_sel
     mask = pack.readout_batch == int(batch_idx)
     u_m = pack.readout_unit[mask]
+    dsi_sel = model_full[0, t_on:, u_m].transpose(0, 1)
+    if not need_mse:
+        return None, dsi_sel
     if pack.cost_t0 is None:
-        return model_full[0, t_on:, u_m].transpose(0, 1)
+        return dsi_sel, dsi_sel
     b_zero = torch.zeros_like(u_m)
-    return _window_time_traces(
+    mse_sel = _window_time_traces(
         model_full, b_zero, u_m, pack.cost_t0[mask],
         win=pack.data.shape[1],
     )
+    return mse_sel, dsi_sel
 
 
 def _window_adaptive_traces(model, t0, win):
@@ -2308,35 +2336,79 @@ def _window_adaptive_traces(model, t0, win):
 
 
 def _adaptive_pack_readout(p, pack: TargetPack, session: TrainSession, batch_idx=None):
-    """Adaptive forward + readout. ``batch_idx``: one stimulus (sequential) or all (batched)."""
+    """Adaptive forward; waveform MSE readout only when pack needs it."""
     p = {**p, 'gate_pivot': GATE_PIVOT}
-    if batch_idx is None:
-        sig = session.pack_signal(pack)
-        if sig.dim() == 3:
-            sig = sig[0]
-        u = pack.readout_unit
-        t0 = pack.cost_t0
-    else:
+    need_mse = _pack_needs_waveform_mse(pack)
+    if batch_idx is not None:
         sig = pack.signal[batch_idx]
         mask = pack.readout_batch == int(batch_idx)
         u = pack.readout_unit[mask]
         t0 = pack.cost_t0[mask] if pack.cost_t0 is not None else None
-    model = _run_adaptive(p, session, neuron_index=u, sig=sig, pack=pack)
-    if t0 is None:
-        return model.transpose(0, 1)
-    return _window_adaptive_traces(model, t0, win=pack.data.shape[1])
+        model = _run_adaptive(p, session, neuron_index=u, sig=sig, pack=pack)
+        dsi_sel = model.transpose(0, 1)
+        if not need_mse:
+            return None, dsi_sel
+        if t0 is None:
+            return dsi_sel, dsi_sel
+        return (
+            _window_adaptive_traces(model, t0, win=pack.data.shape[1]),
+            dsi_sel,
+        )
+
+    sig = session.pack_signal(pack)
+    if sig.dim() == 2:
+        model = _run_adaptive(
+            p, session, neuron_index=pack.readout_unit, sig=sig, pack=pack,
+        )
+        dsi_sel = model.transpose(0, 1)
+        if not need_mse:
+            return None, dsi_sel
+        if pack.cost_t0 is None:
+            return dsi_sel, dsi_sel
+        return (
+            _window_adaptive_traces(
+                model, pack.cost_t0, win=pack.data.shape[1],
+            ),
+            dsi_sel,
+        )
+
+    row_indices = []
+    mse_parts = []
+    dsi_parts = []
+    for b in pack.readout_batch.unique(sorted=True).tolist():
+        mask = pack.readout_batch == int(b)
+        rows = torch.nonzero(mask, as_tuple=False).reshape(-1)
+        model = _run_adaptive(
+            p, session, neuron_index=pack.readout_unit[mask],
+            sig=sig[int(b)], pack=pack,
+        )
+        row_indices.append(rows)
+        dsi_parts.append(model.transpose(0, 1))
+        if need_mse:
+            if pack.cost_t0 is None:
+                mse_parts.append(model.transpose(0, 1))
+            else:
+                mse_parts.append(_window_adaptive_traces(
+                    model, pack.cost_t0[mask], win=pack.data.shape[1],
+                ))
+    row_order = torch.cat(row_indices).argsort()
+    dsi_sel = torch.cat(dsi_parts, dim=0).index_select(0, row_order)
+    if not need_mse:
+        return None, dsi_sel
+    mse_sel = torch.cat(mse_parts, dim=0).index_select(0, row_order)
+    return mse_sel, dsi_sel
 
 
 # Register new model types here only — batching (``batch_idx``) stays in ``_pack_cost``.
-MODEL_PACK_READOUT = {
+MODEL_PACK_READOUTS = {
     'conductance': _conductance_pack_readout,
     'adaptive': _adaptive_pack_readout,
 }
 
 
-def _pack_model_readout(p, pack: TargetPack, session: TrainSession, batch_idx=None):
+def _pack_model_readouts(p, pack: TargetPack, session: TrainSession, batch_idx=None):
     try:
-        readout = MODEL_PACK_READOUT[session.model]
+        readout = MODEL_PACK_READOUTS[session.model]
     except KeyError:
         raise ValueError(f"no pack readout for model={session.model!r}") from None
     return readout(p, pack, session, batch_idx)
@@ -2374,26 +2446,28 @@ def _pack_has_active_cost(pack: TargetPack, session: TrainSession) -> bool:
 
 def _pack_has_active_mse(pack: TargetPack, session: TrainSession) -> bool:
     """True if waveform MSE parts (pack name or PD/ND) have non-zero weight."""
-    if pack.cost_pd_nd is None:
-        return _part_weight(session, pack.name) != 0.0
-    return any(
-        _part_weight(session, moving_bar_cost_part_key(pack.name, lab)) != 0.0
-        for lab in PD_ND_LABELS
-    )
+    if pack.name in MOVING_BAR_TARGETS:
+        return any(
+            _part_weight(session, moving_bar_cost_part_key(pack.name, lab)) != 0.0
+            for lab in PD_ND_LABELS
+        )
+    return _part_weight(session, pack.name) != 0.0
 
 
 def _mse_active_row_mask(pack: TargetPack, session: TrainSession) -> torch.Tensor:
     """Boolean mask over cost rows with non-zero PD/ND (or pack) weight."""
     n = int(pack.readout_batch.shape[0])
     dev = pack.readout_batch.device
-    if pack.cost_pd_nd is None:
-        on = _part_weight(session, pack.name) != 0.0
-        return torch.full((n,), on, dtype=torch.bool, device=dev)
-    mask = torch.zeros(n, dtype=torch.bool, device=dev)
-    for idx, label in ((PD_IDX, "PD"), (ND_IDX, "ND")):
-        if _part_weight(session, moving_bar_cost_part_key(pack.name, label)) != 0.0:
-            mask |= pack.cost_pd_nd == int(idx)
-    return mask
+    if pack.name in MOVING_BAR_TARGETS:
+        if not _pack_has_active_mse(pack, session) or pack.cost_pd_nd is None:
+            return torch.zeros(n, dtype=torch.bool, device=dev)
+        mask = torch.zeros(n, dtype=torch.bool, device=dev)
+        for idx, label in ((PD_IDX, "PD"), (ND_IDX, "ND")):
+            if _part_weight(session, moving_bar_cost_part_key(pack.name, label)) != 0.0:
+                mask |= pack.cost_pd_nd == int(idx)
+        return mask
+    on = _part_weight(session, pack.name) != 0.0
+    return torch.full((n,), on, dtype=torch.bool, device=dev)
 
 
 def _dsi_active_row_mask(pack: TargetPack, session: TrainSession) -> torch.Tensor:
@@ -2436,7 +2510,7 @@ def _active_row_indices(
 
 
 def _slice_pack_rows(pack: TargetPack, row_ix: torch.Tensor) -> TargetPack:
-    from analysis.DSI import remap_dsi_rows
+    from t4_t5_dsi import remap_dsi_rows
 
     fields = {
         "data": pack.data[row_ix],
@@ -2459,7 +2533,7 @@ def _slice_pack_rows(pack: TargetPack, row_ix: torch.Tensor) -> TargetPack:
 
 
 def _subset_pack_batches(pack: TargetPack, batch_indices: Tuple[int, ...]) -> Optional[TargetPack]:
-    from analysis.DSI import remap_dsi_rows
+    from t4_t5_dsi import remap_dsi_rows
 
     if len(batch_indices) == int(pack.signal.shape[0]):
         return pack
@@ -2561,60 +2635,76 @@ def _conductance_readout_from_model_full(
     pack: TargetPack,
     *,
     batch_offset: int = 0,
-) -> torch.Tensor:
+) -> Tuple[Optional[torch.Tensor], torch.Tensor]:
     rb = pack.readout_batch if batch_offset == 0 else pack.readout_batch + batch_offset
+    dsi_sel = model_full[rb, t_on:, pack.readout_unit]
+    if not _pack_needs_waveform_mse(pack):
+        return None, dsi_sel
     if pack.cost_t0 is None:
-        return model_full[rb, t_on:, pack.readout_unit]
-    return _window_time_traces(
+        return dsi_sel, dsi_sel
+    mse_sel = _window_time_traces(
         model_full, rb, pack.readout_unit, pack.cost_t0,
         win=pack.data.shape[1],
     )
+    return mse_sel, dsi_sel
 
 
 def _pack_cost_dsi_from_sel(
     pack: TargetPack,
     session: TrainSession,
     scale: torch.Tensor,
-    sel: torch.Tensor,
+    dsi_sel: torch.Tensor,
 ) -> Optional[torch.Tensor]:
-    """Unweighted DSI cost; None if inactive or no complete pairs on this pack."""
-    from analysis.DSI import cost_dsi_from_sel
+    """DSI cost from full post-stimulus traces; independent of cost windows."""
+    from t4_t5_dsi import cost_dsi_from_sel
 
     key = moving_bar_cost_part_key(pack.name, "DSI")
     if _part_weight(session, key) == 0.0:
         return None
-    return cost_dsi_from_sel(pack, scale, sel)
+    return cost_dsi_from_sel(pack, scale, dsi_sel)
 
 
 def _pack_cost_parts_from_sel(
     pack: TargetPack,
     session: TrainSession,
     scale: torch.Tensor,
-    sel: torch.Tensor,
+    sel: Optional[torch.Tensor],
+    dsi_sel: torch.Tensor,
 ) -> Dict[str, torch.Tensor]:
     pd_nd = pack.cost_pd_nd
-    dev = session.device
-    data = pack.data
-    weight = pack.cost_weight
-    if pd_nd is None:
-        return {pack.name: _pack_cost_mse(scale, data, weight, sel, pack.power)}
-    out: Dict[str, torch.Tensor] = {}
-    for pd_nd_idx, label in ((PD_IDX, "PD"), (ND_IDX, "ND")):
-        key = moving_bar_cost_part_key(pack.name, label)
-        if _part_weight(session, key) == 0.0:
-            continue
-        mask = pd_nd == pd_nd_idx
-        if not bool(mask.any()):
-            out[key] = torch.zeros((), dtype=session.sim_dtype, device=dev)
-            continue
-        power = _subgroup_power(weight[mask], data[mask])
-        out[key] = _pack_cost_mse(
-            scale[mask], data[mask], weight[mask], sel[mask], power,
-        )
-    dsi_part = _pack_cost_dsi_from_sel(pack, session, scale, sel)
-    if dsi_part is not None:
-        out[moving_bar_cost_part_key(pack.name, "DSI")] = dsi_part
-    return out
+    if pack.name in MOVING_BAR_TARGETS:
+        out: Dict[str, torch.Tensor] = {}
+        if pd_nd is not None:
+            for pd_nd_idx, label in ((PD_IDX, "PD"), (ND_IDX, "ND")):
+                key = moving_bar_cost_part_key(pack.name, label)
+                if _part_weight(session, key) == 0.0:
+                    continue
+                if sel is None:
+                    raise ValueError(
+                        f"waveform readout required for {key} but pack has no cost window",
+                    )
+                mask = pd_nd == pd_nd_idx
+                if not bool(mask.any()):
+                    out[key] = torch.zeros(
+                        (), dtype=session.sim_dtype, device=session.device,
+                    )
+                    continue
+                power = _subgroup_power(pack.cost_weight[mask], pack.data[mask])
+                out[key] = _pack_cost_mse(
+                    scale[mask], pack.data[mask], pack.cost_weight[mask],
+                    sel[mask], power,
+                )
+        dsi_part = _pack_cost_dsi_from_sel(pack, session, scale, dsi_sel)
+        if dsi_part is not None:
+            out[moving_bar_cost_part_key(pack.name, "DSI")] = dsi_part
+        return out
+    if sel is None:
+        raise ValueError(f"waveform readout required for pack {pack.name!r}")
+    return {
+        pack.name: _pack_cost_mse(
+            scale, pack.data, pack.cost_weight, sel, pack.power,
+        ),
+    }
 
 
 def _pack_cost_parts_from_conductance_model(
@@ -2626,8 +2716,10 @@ def _pack_cost_parts_from_conductance_model(
     batch_offset: int = 0,
 ) -> Dict[str, torch.Tensor]:
     scale = _pack_out_scale(p, pack, session.backend, session)
-    sel = _conductance_readout_from_model_full(model_full, pack, batch_offset=batch_offset)
-    return _pack_cost_parts_from_sel(pack, session, scale, sel)
+    sel, dsi_sel = _conductance_readout_from_model_full(
+        model_full, pack, batch_offset=batch_offset,
+    )
+    return _pack_cost_parts_from_sel(pack, session, scale, sel, dsi_sel)
 
 
 def _calc_cost_parts_fused_conductance(
@@ -2665,8 +2757,8 @@ def _pack_cost_forward(p, pack: TargetPack, session: TrainSession, batch_idx=Non
     else:
         data = pack.data
         weight = pack.cost_weight
-    sel = _pack_model_readout(p, pack, session, batch_idx)
-    return scale, data, weight, sel, pd_nd
+    sel, dsi_sel = _pack_model_readouts(p, pack, session, batch_idx)
+    return scale, data, weight, sel, dsi_sel, pd_nd
 
 
 def _pack_cost_parts_from_params(p, pack: TargetPack, session: TrainSession, batch_idx=None):
@@ -2674,8 +2766,8 @@ def _pack_cost_parts_from_params(p, pack: TargetPack, session: TrainSession, bat
     fwd = _pack_cost_forward(p, pack, session, batch_idx)
     if fwd is None:
         return {}
-    scale, data, weight, sel, pd_nd = fwd
-    return _pack_cost_parts_from_sel(pack, session, scale, sel)
+    scale, data, weight, sel, dsi_sel, pd_nd = fwd
+    return _pack_cost_parts_from_sel(pack, session, scale, sel, dsi_sel)
 
 
 def _pack_cost_rows(p, pack: TargetPack, session: TrainSession, batch_idx=None):
@@ -2683,7 +2775,9 @@ def _pack_cost_rows(p, pack: TargetPack, session: TrainSession, batch_idx=None):
     fwd = _pack_cost_forward(p, pack, session, batch_idx)
     if fwd is None:
         return None
-    scale, data, weight, sel, _pd_nd = fwd
+    scale, data, weight, sel, dsi_sel, _pd_nd = fwd
+    if sel is None:
+        return _pack_cost_dsi_from_sel(pack, session, scale, dsi_sel)
     return _pack_cost_mse(scale, data, weight, sel, pack.power)
 
 
@@ -2748,15 +2842,17 @@ def calc_cost_parts(z, session: TrainSession) -> Dict[str, torch.Tensor]:
                         pack_parts[key] = pack_parts.get(key, zero) + part
             dsi_key = moving_bar_cost_part_key(pack.name, "DSI")
             if _part_weight(session, dsi_key) != 0.0:
-                sub_dsi = _pack_for_active_cost(
-                    pack, session, batch_indices=active_batches,
-                )
-                if sub_dsi is not None:
+                for group in _dsi_sequential_batch_groups(pack, session):
+                    sub_dsi = _pack_for_dsi_batch_group(pack, session, group)
+                    if sub_dsi is None:
+                        continue
                     dsi_parts = _pack_cost_parts_from_params(
                         p, sub_dsi, session, batch_idx=None,
                     )
                     if dsi_key in dsi_parts:
-                        pack_parts[dsi_key] = dsi_parts[dsi_key]
+                        pack_parts[dsi_key] = (
+                            pack_parts.get(dsi_key, zero) + dsi_parts[dsi_key]
+                        )
         else:
             sub = _pack_for_active_cost(pack, session, batch_indices=active_batches)
             if sub is None:
@@ -2788,8 +2884,50 @@ def _params_from_z(z, session: TrainSession):
     return assign_params(z, schema, session.backend)
 
 
+def _pack_spec_names(session: TrainSession, pack: TargetPack) -> Tuple[str, ...]:
+    opts = ((session.train_opts or {}).get(f"{pack.name}_stimulus_opts")) or {}
+    names = opts.get("spec_names")
+    if names:
+        return tuple(str(s) for s in names)
+    from network.moving_bar_target import bar_specs_for_session
+
+    return tuple(s.name for s in bar_specs_for_session(session, pack.name))
+
+
+def _dsi_sequential_batch_groups(
+    pack: TargetPack, session: TrainSession,
+) -> Tuple[Tuple[int, ...], ...]:
+    """Active DSI microbatches: each group is one axis×width (typically B=2)."""
+    from t4_t5_dsi import dsi_sequential_batch_pairs
+
+    active = set(_pack_active_batch_indices(pack, session))
+    groups: list[tuple[int, ...]] = []
+    for pair in dsi_sequential_batch_pairs(_pack_spec_names(session, pack)):
+        kept = tuple(b for b in pair if b in active)
+        if len(kept) < 2:
+            continue
+        groups.append(kept)
+    return tuple(groups)
+
+
+def _pack_for_dsi_batch_group(
+    pack: TargetPack,
+    session: TrainSession,
+    batch_indices: Tuple[int, ...],
+) -> Optional[TargetPack]:
+    """Subset to one DSI direction pair; keep parent ``dsi_power`` for additive costs."""
+    sub = _pack_for_active_cost(pack, session, batch_indices=batch_indices)
+    if sub is None or pack.dsi_power is None:
+        return sub
+    return replace(sub, dsi_power=pack.dsi_power)
+
+
 def _iter_cost_microbatches(session: TrainSession):
-    """Yield ``(pack, batch_idx, sub_pack)`` for gradient accumulation."""
+    """Yield ``(pack, batch_idx, sub_pack)`` for gradient accumulation.
+
+    Sequential moving-bar DSI yields one microbatch per axis×width (B≈2), not all
+    directions at once.
+    """
     for _name, pack in session.targets.items():
         if not _pack_has_active_cost(pack, session):
             continue
@@ -2804,11 +2942,10 @@ def _iter_cost_microbatches(session: TrainSession):
                         yield pack, b, sub
             dsi_key = moving_bar_cost_part_key(pack.name, "DSI")
             if _part_weight(session, dsi_key) != 0.0:
-                sub_dsi = _pack_for_active_cost(
-                    pack, session, batch_indices=active_batches,
-                )
-                if sub_dsi is not None:
-                    yield pack, None, sub_dsi
+                for group in _dsi_sequential_batch_groups(pack, session):
+                    sub_dsi = _pack_for_dsi_batch_group(pack, session, group)
+                    if sub_dsi is not None:
+                        yield pack, None, sub_dsi
         else:
             sub = _pack_for_active_cost(pack, session, batch_indices=active_batches)
             if sub is not None:
@@ -2897,10 +3034,15 @@ def gradient_network(z, lr=0.0001, cost_fn=None, n_steps=100, device="cpu", z_bo
     
     optimizer = torch.optim.Adam([z], lr=lr)
 
-    if eval_cost is not None:
-        cost = eval_cost(z)
-    else:
-        cost = cost_fn(z).item()
+    try:
+        if eval_cost is not None:
+            cost = eval_cost(z)
+        else:
+            cost = cost_fn(z).item()
+    except RuntimeError as e:
+        raise RuntimeError(f'non-finite at init: {e}') from e
+    if not np.isfinite(cost):
+        raise RuntimeError(f'non-finite cost at init: {cost}')
     best_cost = cost
     best_z = z.clone().detach()
     
@@ -2909,17 +3051,32 @@ def gradient_network(z, lr=0.0001, cost_fn=None, n_steps=100, device="cpu", z_bo
     best_parts = initial_parts
 
     progress_bar = tqdm(range(n_steps), desc=f'Cost: {cost:.4f}')
+    aborted = None
 
     for i in progress_bar:
         
         optimizer.zero_grad()
         
-        if backward_step is not None:
-            cost = backward_step(z)
-        else:
-            cost_t = cost_fn(z)
-            cost = cost_t.item()
-            cost_t.backward()
+        try:
+            if backward_step is not None:
+                cost = backward_step(z)
+            else:
+                cost_t = cost_fn(z)
+                cost = cost_t.item()
+                cost_t.backward()
+        except RuntimeError as e:
+            aborted = f'step {i}: {e}'
+            break
+
+        if not np.isfinite(cost):
+            aborted = f'step {i}: non-finite cost={cost}'
+            break
+        if not torch.isfinite(z).all():
+            aborted = f'step {i}: non-finite z'
+            break
+        if z.grad is not None and not torch.isfinite(z.grad).all():
+            aborted = f'step {i}: non-finite grad'
+            break
         
         if cost < best_cost:
             
@@ -2941,19 +3098,29 @@ def gradient_network(z, lr=0.0001, cost_fn=None, n_steps=100, device="cpu", z_bo
 
         progress_bar.set_description(f'Cost: {cost:.4f}')
 
-    if eval_cost is not None:
-        cost = eval_cost(z)
+    if aborted is None:
+        try:
+            if eval_cost is not None:
+                cost = eval_cost(z)
+            else:
+                cost = cost_fn(z).item()
+            final_parts = float_last_parts(target_order) if float_last_parts else None
+        except RuntimeError as e:
+            aborted = f'final eval: {e}'
+            cost = float('nan')
+            final_parts = None
+        else:
+            if np.isfinite(cost) and cost < best_cost:
+                best_cost = cost
+                best_z = z.clone().detach()
+                best_parts = final_parts
     else:
-        cost = cost_fn(z).item()
-    final_parts = float_last_parts(target_order) if float_last_parts else None
-    
-    if cost < best_cost:
-        
-        best_cost = cost
-        best_z = z.clone().detach()
-        best_parts = final_parts
+        cost = float('nan')
+        final_parts = None
 
     print()
+    if aborted is not None:
+        print('ABORT:', aborted)
     print('Initl cost =', format(initial_cost,'.4f') + _fmt_cost_parts(initial_parts))
     print('Final cost =', format(cost,'.4f') + _fmt_cost_parts(final_parts))
     print('Best  cost =', format(best_cost,'.4f') + _fmt_cost_parts(best_parts))
