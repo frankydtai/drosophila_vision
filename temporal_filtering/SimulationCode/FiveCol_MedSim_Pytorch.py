@@ -2320,9 +2320,6 @@ def _run_conductance_full(session: TrainSession, p, sig, return_ref=False, *, re
 
     ``model_full`` shape ``(B, maxtime, N)`` includes equilibration (index ``0`` = ``e_leak``).
     Ca resets at ``t_on`` so ``model_full[:, t_on:, :]`` matches the training cost window.
-
-    Steps ``1 .. t_on-1`` (pre-stimulus settle) run under ``torch.no_grad``; state is
-    detached at ``t_on-1`` so BPTT does not backprop through warm-up.
     """
     backend = session.backend
     ih_off = (session.train_opts or {}).get('ih_off', IH_OFF_DEFAULT)
@@ -2337,29 +2334,14 @@ def _run_conductance_full(session: TrainSession, p, sig, return_ref=False, *, re
     u_on = u_off = torch.zeros((B, backend.n_units), dtype=session.sim_dtype, device=dev)
     Vm = backend.e_leak.expand(B, backend.n_units).clone()
     vm_rows = [Vm]
-    # Warm-up through state index ``t_on - 1`` (last pre-stimulus / Vm_ref step).
-    eq_end = max(1, min(int(t_on), t_end))
-
-    def _step(t, Vm, u_on, u_off):
-        return update_Vm(
+    for t in range(1, t_end):
+        Vm, u_on, u_off = update_Vm(
             Vm, u_on, u_off, in_gain, out_gain, syn_strength, Ih_gmax, Ih_gmax_off,
             Ih_midv, Ih_slope, tau_midv, Ih_midv_off, Ih_slope_off, tau_midv_off,
             sig[:, t - 1], backend)
-
-    with torch.no_grad():
-        for t in range(1, eq_end):
-            Vm, u_on, u_off = _step(t, Vm, u_on, u_off)
-            vm_rows.append(Vm)
-    if eq_end > 1:
-        Vm = Vm.detach()
-        u_on = u_on.detach()
-        u_off = u_off.detach()
-    for t in range(eq_end, t_end):
-        Vm, u_on, u_off = _step(t, Vm, u_on, u_off)
         vm_rows.append(Vm)
     vm_full = torch.stack(vm_rows, dim=1)
-    # Baseline is settled under no_grad; keep it out of the BPTT graph.
-    Vm_ref = vm_full[:, t_on - 1, :].detach().clone()
+    Vm_ref = vm_full[:, t_on - 1, :].clone()
     vm_delta = vm_full - Vm_ref.unsqueeze(1)
 
     ca_rows = [torch.zeros((B, backend.n_units), dtype=session.sim_dtype, device=dev)]
@@ -3223,7 +3205,7 @@ def gradient_network(z, lr=0.0001, cost_fn=None, n_steps=100, device="cpu", z_bo
 
     progress_bar = tqdm(
         range(n_steps),
-        desc=f'Cost: {cost:.4f}',
+        desc=f'Cost: {cost:.4f}' + _fmt_cost_parts(initial_parts),
         miniters=_TQDM_REFRESH_INTERVAL,
         file=sys.stderr,
     )
@@ -3276,6 +3258,7 @@ def gradient_network(z, lr=0.0001, cost_fn=None, n_steps=100, device="cpu", z_bo
         if (i + 1) % _TQDM_REFRESH_INTERVAL == 0 or i == n_steps - 1:
             progress_bar.set_description(
                 f'Cost: {cost:.4f}' + _fmt_cost_parts(step_parts),
+                refresh=False,
             )
 
     if aborted is None:
