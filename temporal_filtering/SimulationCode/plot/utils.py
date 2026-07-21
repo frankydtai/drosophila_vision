@@ -105,6 +105,23 @@ def nice_ylim(*curves, margin=1.25, step=5.0, floor=5.0, min_pad=3.0):
     return -ymax, ymax
 
 
+def cost_ylim(*curves, pct=99.0, pad=1.1, floor=1.0):
+    """Non-negative ylim from high percentile so cost spikes do not dominate."""
+    chunks = []
+    for c in curves:
+        if c is None:
+            continue
+        v = np.asarray(c, dtype=np.float64).ravel()
+        v = v[np.isfinite(v)]
+        if v.size:
+            chunks.append(v)
+    if not chunks:
+        return 0.0, floor
+    hi = float(np.percentile(np.concatenate(chunks), pct))
+    yhi = max(hi * pad, floor)
+    return 0.0, yhi
+
+
 def annotate_baseline(ax, baseline):
     """Middle y tick at 0 with resting-potential label (delta-mV plots)."""
     ylo, yhi = ax.get_ylim()
@@ -472,11 +489,14 @@ def plot_cost(costs, path, *, costs_by_target=None, target_order=None):
                 axes = [axes]
             nsteps = len(costs)
             for ax, row in zip(axes, rows):
+                curves = []
                 for leg, curve, ls in row['curves']:
+                    curves.append(curve)
                     ax.plot(
                         curve, color='steelblue', linewidth=2, linestyle=ls,
                         label=leg,
                     )
+                ax.set_ylim(*cost_ylim(*curves))
                 if len(row['curves']) > 1:
                     ax.legend(fontsize=8)
                 ax.set_ylabel('cost [% data power]')
@@ -493,6 +513,7 @@ def plot_cost(costs, path, *, costs_by_target=None, target_order=None):
             costs = costs_by_target[names[0]]
     fig, ax = plt.subplots(figsize=(8, 4))
     ax.plot(costs, color='steelblue', linewidth=2)
+    ax.set_ylim(*cost_ylim(costs))
     ax.set_xlabel('step')
     ax.set_ylabel('cost [% data power]')
     ax.set_title(f'Training cost ({len(costs)} steps)')

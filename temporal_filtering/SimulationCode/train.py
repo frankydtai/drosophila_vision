@@ -27,10 +27,17 @@ where <run_name> encodes the CLI, e.g.
     python train.py --target moving_bar --network right_min_neuron1_extent2 \\
                   --nofsteps 5 --lrs 0.1
 
-    # warm-start from a previous run (params only; all other settings from this CLI)
-    python train.py --init-from run_26693975 \\
+    # warm-start from a previous run (named best_param.npz; settings from this CLI)
+    python train.py --from run_26693975 \\
                   --network right_min_neuron1_extent2 --target moving_bar_bright \\
                   --nofsteps 10000 --lrs 0.1,0.01,0.001
+
+    # freeze all syn_strength; only L1,L2,L4,L5 train Ih_gmax
+    python train.py --syn-strength frozen=all \\
+                  --ih-gmax indi=L1,L2,L4,L5;fixed=all --ih-shape shared=all
+
+    # same partition on every parameter (per-param flags override)
+    python train.py --all-param indi=all --syn-strength frozen=all
 
 Import-safe: importing this module does NOT parse argv or touch CUDA, so test
 scripts can `import train` and reuse run_training / save_training_outputs / etc.
@@ -57,6 +64,10 @@ from plot_trained import (
     run_dir,
 )
 from training_config import BORST_CTYPE_NPY, run_data_dir
+
+
+DEFAULT_NOFSTEPS_CPU = 50
+DEFAULT_NOFSTEPS_GPU = 1000
 
 
 def make_plots(fname, outdir, session, result=None, *,
@@ -103,36 +114,25 @@ def ctype_labels(session):
 
 
 def decompose_params(z_t, session):
-    """Return (per_cell_cols, global_scalars) for one parameter vector."""
+    """Return (per_cell_cols, global_scalars) for one parameter vector.
+
+    Per-type columns come from full-width unit values (partition-aware).
+    Shared-only segments also emit a global scalar (mean of shared units).
+    """
     n = session.backend.n_types
     schema = list(session.schema)
-    p = fc.assign_params(z_t, schema, session.backend)
+    unit_vals = fc.z_to_unit_values(z_t, schema)
     cols, glob = {}, {}
-    type_idx = None
-    if session.backend.network is not None:
-        type_idx = session.backend.network.node_type.detach().cpu().numpy()
     for seg in schema:
-        name, v = seg["name"], p[seg["name"]]
-        mode = fc.seg_mode(seg)
-        arr_full = v.detach().cpu().numpy()
+        name = seg["name"]
         if seg["kind"] == "edge_pair":
-            # n_pairs-long; full vector stays in .npy — not a per-type column
             continue
-        if seg["kind"] == "output":
-            arr = arr_full
-        elif type_idx is not None:
-            # network backend: reconstruct a per-type vector from per-unit values
-            # by averaging all units that belong to each type.
-            arr = np.zeros(n, dtype=np.float64)
-            for t in range(n):
-                m = type_idx == t
-                arr[t] = float(arr_full[m].mean()) if np.any(m) else np.nan
-        else:
-            arr = arr_full[:n]
-        if mode in ("shared", "fixed"):
-            glob[name] = float(arr.mean())
-        else:
-            cols[name] = arr
+        arr = np.asarray(unit_vals[name], dtype=np.float64).reshape(-1)
+        if arr.shape[0] != n:
+            raise ValueError(f"{name}: unit width {arr.shape[0]} != n_types {n}")
+        cols[name] = arr
+        if seg.get("shared") and not seg.get("indi"):
+            glob[name] = float(arr[list(seg["shared"])].mean()) if seg["shared"] else float(arr.mean())
     if session.model == "adaptive":
         glob["gate_pivot"] = float(fc.GATE_PIVOT)
     return cols, glob
@@ -163,17 +163,58 @@ def params_path(outdir, fname):
 
 
 def best_param_path(outdir):
-    return os.path.join(data_dir(outdir), 'best_param.npy')
+    return os.path.join(data_dir(outdir), 'best_param.npz')
 
 
-def load_best_param(outdir):
-    """Load ``data/best_param.npy`` as a 1-D float64 vector."""
-    import numpy as np
+def save_best_param_named(outdir, z, session):
+    """Write named full-width unit values to ``data/best_param.npz``."""
+    schema = list(session.schema)
+    named = fc.z_to_unit_values(z, schema)
+    type_names = np.asarray(fc.type_unit_names(session.backend), dtype=object)
+    payload = {k: np.asarray(v, dtype=np.float64) for k, v in named.items()}
+    payload['type_names'] = type_names
+    if any(s['kind'] == 'edge_pair' for s in schema):
+        payload['pair_names'] = np.asarray(fc.pair_unit_names(session.backend), dtype=object)
+    os.makedirs(data_dir(outdir), exist_ok=True)
+    np.savez(best_param_path(outdir), **payload)
 
+
+def load_best_param_named(outdir):
+    """Load ``data/best_param.npz`` → (named dict, type_names, pair_names|None)."""
     fp = best_param_path(outdir)
     if not os.path.isfile(fp):
         raise FileNotFoundError(fp)
-    return np.asarray(np.load(fp), dtype=np.float64).reshape(-1)
+    with np.load(fp, allow_pickle=True) as d:
+        type_names = [str(x) for x in d['type_names'].tolist()]
+        pair_names = None
+        if 'pair_names' in d.files:
+            pair_names = [str(x) for x in d['pair_names'].tolist()]
+        named = {
+            k: np.asarray(d[k], dtype=np.float64)
+            for k in d.files
+            if k not in ('type_names', 'pair_names')
+        }
+    return named, type_names, pair_names
+
+
+def load_best_param(outdir, session=None):
+    """Load best params as 1-D z for *session* (remap from named npz)."""
+    if session is None:
+        raise TypeError("load_best_param requires session for named best_param.npz")
+    named, type_names, pair_names = load_best_param_named(outdir)
+    schema = fc.attach_param_carry(
+        list(session.schema),
+        fc.remap_named_unit_values(
+            named, type_names, pair_names, list(session.schema), session.backend,
+        ),
+    )
+    remapped = fc.remap_named_unit_values(
+        named, type_names, pair_names, schema, session.backend,
+    )
+    z = fc.unit_values_to_z(
+        remapped, schema, dtype=session.sim_dtype, device=session.device,
+    )
+    return z.detach().cpu().numpy().astype(np.float64)
 
 
 def best_i_path(outdir):
@@ -229,14 +270,14 @@ def final_costs_for_params(all_params, session, final_costs=None):
 
 
 def write_best_artifacts(outdir, fname, session, all_params, best_i, final_costs):
-    """Write ``best_param.npy`` and ``*_table.csv`` for one best index."""
+    """Write ``best_param.npz`` and ``*_table.csv`` for one best index."""
     all_params = np.atleast_2d(all_params)
     best = all_params[best_i]
     os.makedirs(data_dir(outdir), exist_ok=True)
-    np.save(best_param_path(outdir), best)
+    z_best = torch.tensor(best, dtype=session.sim_dtype, device=session.device)
+    save_best_param_named(outdir, z_best, session)
     write_best_i(outdir, best_i)
     table_path = os.path.join(outdir, _artifact_stem(fname) + '_table.csv')
-    z_best = torch.tensor(best, dtype=torch.float64, device=session.device)
     write_param_table(z_best, session, table_path)
     print("wrote table: %s (best run #%d, cost=%.4f)" % (
         table_path, best_i, final_costs[best_i]))
@@ -271,46 +312,26 @@ def load_stored_costs(outdir, fname, n_runs):
 
 
 def load_init_z(init_from, session):
-    """Load a parameter vector from a prior run folder (no train_opts replay)."""
+    """Load named best params; return ``(session, z)`` with frozen carry attached."""
     try:
         outdir = resolve_run_dir(init_from)
     except SystemExit as exc:
         raise ValueError(str(exc)) from exc
-    n_expected = fc.schema_nparams(list(session.schema))
-
-    best_fp = best_param_path(outdir)
-    if os.path.isfile(best_fp):
-        z = np.load(best_fp)
-        source = best_fp
-    else:
-        tables = sorted(Path(outdir).glob('training*_table.csv'))
-        if len(tables) != 1:
-            raise ValueError(
-                f'expected exactly one training*_table.csv in {outdir!r}, found {len(tables)}',
-            )
-        fname = tables[0].name.replace('_table.csv', '') + '.npy'
-        params_fp = params_path(outdir, fname)
-        if not os.path.isfile(params_fp):
-            raise ValueError(f'missing training params: {params_fp!r}')
-        params = np.atleast_2d(np.load(params_fp))
-        final_costs, _, _, _ = load_stored_costs(outdir, fname, params.shape[0])
-        if final_costs is not None:
-            z = params[int(np.argmin(final_costs))]
-        else:
-            valid = params[np.any(params != 0, axis=1)]
-            if len(valid) == 0:
-                raise ValueError(f'no trained parameter sets in {params_fp!r}')
-            z = valid[0]
-        source = params_fp
-
-    z = np.asarray(z, dtype=np.float64).reshape(-1)
-    if z.shape != (n_expected,):
-        raise ValueError(
-            f'init params length {z.shape[0]} != session nparams {n_expected} '
-            f'(from {source!r}); align schema CLI: --network, --ih-off, --ih-group, --mode',
-        )
-    print(f'init-from {outdir!r} -> {source!r} ({z.shape[0]} params)')
-    return torch.tensor(z, dtype=session.sim_dtype, device=session.device)
+    named, type_names, pair_names = load_best_param_named(outdir)
+    schema = list(session.schema)
+    remapped = fc.remap_named_unit_values(
+        named, type_names, pair_names, schema, session.backend,
+    )
+    schema = fc.attach_param_carry(schema, remapped)
+    session = session.with_schema(schema)
+    z = fc.unit_values_to_z(
+        remapped, schema, dtype=session.sim_dtype, device=session.device,
+    )
+    print(
+        f'from {outdir!r} -> {best_param_path(outdir)!r} '
+        f'({fc.schema_nparams(schema)} trainable slots)'
+    )
+    return session, z
 
 
 def save_training_outputs(fname, outdir, session, result):
@@ -334,19 +355,41 @@ def save_training_outputs(fname, outdir, session, result):
 
 
 def save_param_tables(fname, outdir, session):
-    """Regenerate ``*_table.csv`` and ``best_param.npy`` from saved ``fname`` on disk."""
+    """Regenerate ``*_table.csv`` and ``best_param.npz`` from saved ``fname`` on disk."""
     all_params = np.load(params_path(outdir, fname))
     final_costs, _, _, _ = load_stored_costs(outdir, fname, np.atleast_2d(all_params).shape[0])
     final_costs, best_i = final_costs_for_params(all_params, session, final_costs=final_costs)
     write_best_artifacts(outdir, fname, session, all_params, best_i, final_costs)
 
 
-def apply_param_modes(session, param_modes=None):
-    modes = fc.expand_mode_dict(param_modes, list(session.schema))
-    schema = fc.apply_modes(list(session.schema), modes)
-    session = session.with_schema(schema)
-    summary = ", ".join(f"{s['name']}:{fc.seg_mode(s)}({fc.seg_ntrain(s)})" for s in schema)
-    print("param modes -> " + summary)
+def apply_param_partitions(session, partitions_by_name):
+    """Apply CLI/name partitions onto session schema and refresh train_opts record."""
+    if not partitions_by_name:
+        return session
+    from dataclasses import replace
+    backend = session.backend
+    schema = fc.apply_partitions(
+        list(session.schema),
+        partitions_by_name,
+        lambda seg: fc.unit_names_for_segment(seg, backend),
+    )
+    if session.model == 'conductance':
+        ih_off = (session.train_opts or {}).get('ih_off', fc.IH_OFF_DEFAULT)
+        schema = fc.apply_ih_off_mode(schema, ih_off)
+    schema = fc.attach_param_carry(schema)
+    opts = dict(session.train_opts or {})
+    opts['param_partitions'] = fc.schema_partitions_record(
+        schema, lambda seg: fc.unit_names_for_segment(seg, backend),
+    )
+    session = replace(session, schema=tuple(schema), train_opts=opts)
+    summary = ", ".join(
+        f"{s['name']}:indi={len(s.get('indi') or [])}/"
+        f"shared={len(s.get('shared') or [])}/"
+        f"fixed={len(s.get('fixed') or [])}/"
+        f"frozen={len(s.get('frozen') or [])}({fc.seg_ntrain(s)})"
+        for s in session.schema
+    )
+    print("param partitions -> " + summary)
     return session
 
 
@@ -369,12 +412,11 @@ def build_session(
     fully_inside=True,
     spot_cost_radius_weight=None,
     i_cli=None,
-    ih_group_names=None,
     moving_bar_bright_stimulus_opts=None,
     moving_bar_dark_stimulus_opts=None,
     spot_bright_stimulus_opts=None,
     spot_dark_stimulus_opts=None,
-    param_modes=None,
+    param_partitions=None,
     ih_off=fc.IH_OFF_DEFAULT,
     fp32=False,
     pack_overrides=None,
@@ -408,22 +450,19 @@ def build_session(
             network_json=network,
             dev=dev,
             ih_off=ih_off,
-            ih_group_names=ih_group_names,
+            param_partitions=param_partitions,
             fp32=fp32,
             **mkw,
         )
     else:
         opts = fc.make_train_opts(
-            backend="borst", ih_off=ih_off, ih_group_names=ih_group_names, fp32=fp32, **mkw,
+            backend="borst", ih_off=ih_off, param_partitions=param_partitions, fp32=fp32, **mkw,
         )
-    session = fc.open_session(opts, model, schema=schema, model_backend=model_backend)
-    if param_modes:
-        session = apply_param_modes(session, param_modes)
-    return session
+    return fc.open_session(opts, model, schema=schema, model_backend=model_backend)
 
 
 def run_training(model, nofruns, nofsteps, lrs, fname=None, outdir=None,
-                 param_modes=None,
+                 param_partitions=None,
                  ih_off=fc.IH_OFF_DEFAULT,
                  network=None, sequential=False, borst=False,
                  target_list=None, cost_weights=None,
@@ -433,7 +472,6 @@ def run_training(model, nofruns, nofsteps, lrs, fname=None, outdir=None,
                  fully_inside=True,
                  spot_cost_radius_weight=None,
                  i_cli=None,
-                 ih_group_names=None,
                  moving_bar_bright_stimulus_opts=None,
                  moving_bar_dark_stimulus_opts=None,
                  spot_bright_stimulus_opts=None,
@@ -461,12 +499,11 @@ def run_training(model, nofruns, nofsteps, lrs, fname=None, outdir=None,
         fully_inside=fully_inside,
         spot_cost_radius_weight=spot_cost_radius_weight,
         i_cli=i_cli,
-        ih_group_names=ih_group_names,
         moving_bar_bright_stimulus_opts=moving_bar_bright_stimulus_opts,
         moving_bar_dark_stimulus_opts=moving_bar_dark_stimulus_opts,
         spot_bright_stimulus_opts=spot_bright_stimulus_opts,
         spot_dark_stimulus_opts=spot_dark_stimulus_opts,
-        param_modes=param_modes,
+        param_partitions=param_partitions,
         ih_off=ih_off,
         pack_overrides=pack_overrides,
         model_backend=model_backend,
@@ -479,7 +516,9 @@ def run_training(model, nofruns, nofsteps, lrs, fname=None, outdir=None,
 
     print(f"device={session.device}, model={model}, nofruns={nofruns}, nofsteps={nofsteps}, "
           f"lrs={lrs}, nparams={fc.schema_nparams(list(session.schema))}, fname={fname}, outdir={outdir}")
-    z_init = load_init_z(init_from, session) if init_from else None
+    z_init = None
+    if init_from:
+        session, z_init = load_init_z(init_from, session)
     t0 = time.time()
     result = do_many_runs(session, nofruns, nofsteps, lrs=lrs, z_init=z_init)
     print(f"done in {(time.time() - t0) / 3600:.2f} hours")
@@ -522,29 +561,76 @@ def add_training_arguments(parser):
     parser.add_argument("--model", default="conductance",
                         choices=["conductance", "adaptive"])
     parser.add_argument("--nofruns", type=int, default=1)
-    parser.add_argument("--nofsteps", type=int, default=50)
+    parser.add_argument(
+        "--nofsteps",
+        type=int,
+        default=None,
+        help=f"steps per learning-rate stage (default: {DEFAULT_NOFSTEPS_GPU} on GPU, "
+             f"{DEFAULT_NOFSTEPS_CPU} on CPU)",
+    )
     parser.add_argument("--lrs", default="0.1",
                         help="comma-separated learning-rate stages; each runs for --nofsteps steps")
     parser.add_argument("--fname", default=None,
                         help="params filename (default derived from --model)")
     parser.add_argument("--outdir", default=None,
                         help="output dir (default derived from --model)")
-    parser.add_argument("--init-from", default=None, metavar="RUN",
+    parser.add_argument("--from", dest="init_from", default=None, metavar="RUN",
                         help="prior run folder NAME only (no model/ prefix); "
                              "resolved under 0trained/<model>/NAME unless an absolute path is given; "
-                             "load params as z init only (settings come from this CLI, not train_opts.json)")
-    parser.add_argument("--mode", default="", metavar="NAME=MODE,...",
-                        help="per-param mode override, e.g. out_scale=shared,ih=indi "
-                             "(MODE in indi|shared|fixed; ih expands to 6 shape params)")
-    parser.add_argument("--ih-group", default=",".join(fc.DEFAULT_IH_GROUP_NAMES),
-                        help="comma-separated cell types receiving Ih_gmax/Ih_gmax_off "
-                             "(one trainable slot per name when mode=indi); "
-                             "or 'all' for every cell type on the backend")
+                             "load named best_param.npz as z init only "
+                             "(settings come from this CLI, not train_opts.json)")
+    _ih_gmax_default = (
+        "indi=" + ",".join(fc.DEFAULT_IH_GMAX_INDI_NAMES) + ";fixed=all"
+    )
+    _ih_lamina_default = (
+        "indi=" + ",".join(fc.DEFAULT_IH_GROUP_NAMES) + ";fixed=all"
+    )
+    _partition_help = (
+        "indi=/shared=/fixed=/frozen= lists joined by ';'; 'all' in one bucket = remainder; "
+        "types or Src>Tar pairs (syn-strength). Example: indi=L1,L2;frozen=all"
+    )
+    parser.add_argument("--all-param", default=None, metavar="PART",
+                        help=f"apply partitions to every parameter segment "
+                             f"({_partition_help}; overridden by --ih-shape and per-param flags)")
+    parser.add_argument("--in-gain", default=None, metavar="PART",
+                        help=f"in_gain partitions ({_partition_help}; default indi=all)")
+    parser.add_argument("--out-gain", default=None, metavar="PART",
+                        help=f"out_gain partitions ({_partition_help}; default indi=all)")
+    parser.add_argument("--out-scale", default=None, metavar="PART",
+                        help=f"out_scale partitions ({_partition_help}; default indi=all)")
+    parser.add_argument("--syn-strength", default=None, metavar="PART",
+                        help=f"syn_strength partitions ({_partition_help}; default indi=all)")
+    parser.add_argument("--ih-gmax", default=None, metavar="PART",
+                        help=f"Ih_gmax partitions ({_partition_help}; default {_ih_gmax_default})")
+    parser.add_argument("--ih-gmax-off", default=None, metavar="PART",
+                        help=f"Ih_gmax_off partitions ({_partition_help}; default {_ih_lamina_default})")
+    parser.add_argument("--ih-shape", default=None, metavar="PART",
+                        help="batch partitions for Ih_midv/Ih_slope/tau_midv and OFF "
+                             f"({_partition_help}; default shared=all)")
+    parser.add_argument("--ih-midv", default=None, metavar="PART",
+                        help=f"Ih_midv partitions (overrides --ih-shape; {_partition_help})")
+    parser.add_argument("--ih-slope", default=None, metavar="PART",
+                        help=f"Ih_slope partitions (overrides --ih-shape; {_partition_help})")
+    parser.add_argument("--tau-midv", default=None, metavar="PART",
+                        help=f"tau_midv partitions (overrides --ih-shape; {_partition_help})")
+    parser.add_argument("--ih-midv-off", default=None, metavar="PART",
+                        help=f"Ih_midv_off partitions (overrides --ih-shape; {_partition_help})")
+    parser.add_argument("--ih-slope-off", default=None, metavar="PART",
+                        help=f"Ih_slope_off partitions (overrides --ih-shape; {_partition_help})")
+    parser.add_argument("--tau-midv-off", default=None, metavar="PART",
+                        help=f"tau_midv_off partitions (overrides --ih-shape; {_partition_help})")
+    parser.add_argument("--tau-m", default=None, metavar="PART",
+                        help=f"adaptive tau_m partitions ({_partition_help}; default indi=all)")
+    parser.add_argument("--bias", default=None, metavar="PART",
+                        help=f"adaptive bias partitions ({_partition_help}; default indi=all)")
+    parser.add_argument("--adapt-gain", default=None, metavar="PART",
+                        help=f"adaptive adapt_gain partitions ({_partition_help}; default {_ih_lamina_default})")
+    parser.add_argument("--tau-adapt", default=None, metavar="PART",
+                        help=f"adaptive tau_adapt partitions ({_partition_help}; default {_ih_lamina_default})")
     parser.add_argument("--ih-off", default=fc.IH_OFF_DEFAULT,
                         choices=list(fc.IH_OFF_MODES),
                         help="OFF-channel Ih: on (train Ih_gmax_off+OFF shape; default), "
-                             "mirrored (OFF copies ON; shared/indi from --mode), "
-                             "off (disable OFF channel)")
+                             "mirrored (OFF copies ON), off (disable OFF channel)")
     parser.add_argument("--fp32", action="store_true",
                         help="run simulation in float32 (default float64 on CUDA; "
                              "forced on when CUDA is unavailable)")
@@ -740,6 +826,45 @@ def parse_spot_cost_r_w(text, spot_extent):
     return parse_spot_cost_r_w_tokens(text, spot_extent=spot_extent)
 
 
+def _partition_cli_map(args):
+    """Build ``{seg_name: {indi/shared/fixed/frozen: tokens}}`` from partition CLI flags.
+
+    Precedence: ``--all-param`` → ``--ih-shape`` → per-param flags.
+    Omitted segments keep schema defaults (not listed here).
+    """
+    texts = {}
+    all_param = getattr(args, "all_param", None)
+    if all_param is not None:
+        for name in fc.ALL_PARAM_NAMES:
+            texts[name] = all_param
+    shape_text = getattr(args, "ih_shape", None)
+    if shape_text is not None:
+        for name in fc.IH_SHAPE_PARAM_NAMES:
+            texts[name] = shape_text
+    per_param = {
+        "in_gain": getattr(args, "in_gain", None),
+        "out_gain": getattr(args, "out_gain", None),
+        "out_scale": getattr(args, "out_scale", None),
+        "syn_strength": getattr(args, "syn_strength", None),
+        "Ih_gmax": getattr(args, "ih_gmax", None),
+        "Ih_gmax_off": getattr(args, "ih_gmax_off", None),
+        "Ih_midv": getattr(args, "ih_midv", None),
+        "Ih_slope": getattr(args, "ih_slope", None),
+        "tau_midv": getattr(args, "tau_midv", None),
+        "Ih_midv_off": getattr(args, "ih_midv_off", None),
+        "Ih_slope_off": getattr(args, "ih_slope_off", None),
+        "tau_midv_off": getattr(args, "tau_midv_off", None),
+        "tau_m": getattr(args, "tau_m", None),
+        "bias": getattr(args, "bias", None),
+        "adapt_gain": getattr(args, "adapt_gain", None),
+        "tau_adapt": getattr(args, "tau_adapt", None),
+    }
+    for name, text in per_param.items():
+        if text is not None:
+            texts[name] = text
+    return {name: fc.parse_partition_text(text) for name, text in texts.items()}
+
+
 def training_kwargs_from_args(
     args,
     *,
@@ -750,15 +875,15 @@ def training_kwargs_from_args(
     if init_from:
         p = Path(str(init_from)).expanduser()
         if not p.is_absolute():
-            # HARD STOP: no backward-compat. --init-from now takes a run folder name only.
+            # HARD STOP: no backward-compat. --from takes a run folder name only.
             if "/" in str(init_from) or "\\" in str(init_from):
                 raise ValueError(
-                    "--init-from must be a run folder name only (no path); "
+                    "--from must be a run folder name only (no path); "
                     "the model subfolder is inferred from --model (default: conductance). "
                     "Use an absolute path to reference runs outside 0trained.",
                 )
             init_from = f"{args.model}/{init_from}"
-    param_modes = parse_comma_kv(args.mode)
+    param_partitions = _partition_cli_map(args) or None
     target_list = parse_target_list(args.target)
     cost_weights = parse_cost_weight(args.cost_weight, target_list)
     default_extent, extent_kv = parse_cost_extent(args.cost_extent)
@@ -791,17 +916,21 @@ def training_kwargs_from_args(
     # CLI-only: float64 on CPU is too heavy; force fp32 when CUDA is absent.
     # Keep CUDA probe out of import / run_training defaults (import-safe).
     # Run folder name stays strict CLI (command_run_name); do not inject --fp32.
-    fp32 = bool(args.fp32) or not torch.cuda.is_available()
+    cuda_available = torch.cuda.is_available()
+    fp32 = bool(args.fp32) or not cuda_available
+    nofsteps = args.nofsteps
+    if nofsteps is None:
+        nofsteps = DEFAULT_NOFSTEPS_GPU if cuda_available else DEFAULT_NOFSTEPS_CPU
     run_name = command_run_name(script_stem)
     outdir = run_dir(args.model, parent=args.outdir, name=run_name)
     return dict(
         model=args.model,
         nofruns=args.nofruns,
-        nofsteps=args.nofsteps,
+        nofsteps=nofsteps,
         lrs=lrs,
         fname=args.fname,
         outdir=outdir,
-        param_modes=param_modes,
+        param_partitions=param_partitions,
         network=args.network,
         target_list=target_list,
         cost_weights=cost_weights,
@@ -814,7 +943,6 @@ def training_kwargs_from_args(
         moving_bar_bright_stimulus_opts=moving_bar_bright_stimulus_opts,
         moving_bar_dark_stimulus_opts=moving_bar_dark_stimulus_opts,
         i_cli=i_cli,
-        ih_group_names=parse_comma_list(args.ih_group),
         ih_off=args.ih_off,
         fp32=fp32,
         sequential=args.sequential,

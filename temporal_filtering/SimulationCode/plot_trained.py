@@ -128,11 +128,8 @@ def load_train_opts(outdir):
         return json.load(f)
 
 
-def load_session(outdir, model=None, param_modes=None):
-    return fc.open_session_from_outdir(
-        outdir, model,
-        param_modes=param_modes,
-    )
+def load_session(outdir, model=None):
+    return fc.open_session_from_outdir(outdir, model)
 
 
 def session_for_target(base_session, tname):
@@ -242,22 +239,40 @@ def select_best(params, session, *, final_costs=None, best_i=None, verbose=True)
 
 
 def load_best(outdir, *, model=None, verbose=False):
-    """Load session and best ``z`` from a train run (saved ``best_i`` / final costs)."""
+    """Load session and best ``z`` from a train run (``best_param.npz`` + costs)."""
     import train as train_mod
 
     outdir = os.path.abspath(outdir)
     if not os.path.isdir(outdir):
         raise SystemExit(f'run dir not found: {outdir}')
-    params_path, fname = find_training_params(outdir)
-    params = np.atleast_2d(np.load(params_path))
     model = resolve_model(outdir, override=model)
     session = load_session(outdir, model=model)
-    final_costs, _, _, _ = train_mod.load_stored_costs(outdir, fname, params.shape[0])
-    best_i = train_mod.load_best_i(outdir)
-    best, best_cost, best_i = select_best(
-        params, session, final_costs=final_costs, best_i=best_i, verbose=verbose,
+    named, type_names, pair_names = train_mod.load_best_param_named(outdir)
+    remapped = fc.remap_named_unit_values(
+        named, type_names, pair_names, list(session.schema), session.backend,
     )
-    z = torch.tensor(best, dtype=session.sim_dtype, device=session.device)
+    schema = fc.attach_param_carry(list(session.schema), remapped)
+    session = session.with_schema(schema)
+    z = fc.unit_values_to_z(
+        remapped, schema, dtype=session.sim_dtype, device=session.device,
+    )
+    best_i = train_mod.load_best_i(outdir)
+    best_cost = None
+    try:
+        params_path, fname = find_training_params(outdir)
+        params = np.atleast_2d(np.load(params_path))
+        final_costs, _, _, _ = train_mod.load_stored_costs(outdir, fname, params.shape[0])
+        if final_costs is not None and best_i is not None and best_i < len(final_costs):
+            best_cost = float(final_costs[best_i])
+    except SystemExit:
+        pass
+    if best_cost is None:
+        best_cost = fc.calc_cost(z, session).item()
+        best_i = best_i if best_i is not None else 0
+    elif best_i is None:
+        best_i = 0
+    if verbose:
+        print(f'loaded best_param.npz (cost={best_cost:.4f}, best_i={best_i})')
     return session, z, int(best_i), float(best_cost)
 
 
@@ -380,7 +395,7 @@ def _plot_one_target(session, z, outdir, tname, suffix, model_all,
 
 
 def plot_param_set(params, outdir, model=None, model_all=True,
-                   context_dir=None, param_modes=None,
+                   context_dir=None,
                    plot_targets=None, session=None, *,
                    final_costs=None, cost_curve=None, costs_by_target=None, best_i=None,
                    save_artifacts=True, artifact_fname=None,
@@ -398,7 +413,7 @@ def plot_param_set(params, outdir, model=None, model_all=True,
     if model is None:
         raise ValueError('model or session required')
     if session is None:
-        session = load_session(ctx, model, param_modes=param_modes)
+        session = load_session(ctx, model)
 
     params = np.atleast_2d(params)
     if final_costs is None and artifact_fname is not None:
@@ -552,7 +567,8 @@ def plot_param_set(params, outdir, model=None, model_all=True,
     if save_artifacts:
         import train as train_mod
         os.makedirs(train_mod.data_dir(outdir), exist_ok=True)
-        np.save(train_mod.best_param_path(outdir), best)
+        z_best = torch.tensor(best, dtype=session.sim_dtype, device=session.device)
+        train_mod.save_best_param_named(outdir, z_best, session)
         train_mod.write_best_i(outdir, best_i)
     print(f'plots saved to {outdir}')
     return best, best_cost

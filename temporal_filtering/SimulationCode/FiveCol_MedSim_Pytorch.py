@@ -181,72 +181,48 @@ GATE_PIVOT = 0.5  # fixed contrast-gate pivot (non-trainable); input is normalis
 STATE_CLAMP = 1.0e6  # bound on adaptive state vars to keep explicit Euler finite
 
 # --- parameter schema: SINGLE SOURCE OF TRUTH -------------------------------
-# Numeric lo/hi/init/jit(/fill): ``param_defaults.P``.
-# Segment lists are built by ``build_conductance_schema`` / ``build_adaptive_schema``
-# (via ``default_schema``); assign / bounds / guess all derive from that list.
-# Each segment is a dict:
-#   name  : parameter name (becomes a key in the assigned dict)
-#   count : number of per-unit values for this segment (the 'individual' width)
-#   kind  : how `count` raw values become a usable parameter:
-#           'full'   -> count==n_types; one value per cell type, replicated to columns
-#           'ih'     -> one value per entry in seg['ih_group']; each entry is an int
-#                       (one cell type) or list[int] (types sharing one value);
-#                       other types = 'fill'. 'count' is ignored for this kind.
-#           'output' -> count==n_types; per-cell-type value on the readout (e.g. out_scale)
-#           'edge_pair' -> count==n_pairs; one value per (source_type, target_type)
-#                       on network ScatterConn; passed to exc_inh_drive as syn_strength
-#   lo,hi : training bounds (clamped each Adam step)
-#   init  : random-init mean;  jit: init uniform jitter (+/- jit/2)
-#   fill  : value for non-listed cells ('ih' only)
-#   zero  : ih_group-local indices set to 0 at init (from IH_GMAX_ZERO_TYPES cell names)
-#   mode  : 'indi' (train all slot values), 'shared' (train ONE value broadcast),
-#           or 'fixed' (train NOTHING; held at 'fixed' or 'init').
-#   fixed : constant value used when mode=='fixed' (defaults to 'init').
-# Canonical defaults for mode are set in ``build_*_schema``; CLI overrides via
-# train.py ``--mode`` (see ``PARAM_MODE_ALIASES`` for batch ``ih=``).
+# Numeric lo/hi/init/jit(/fixed_val): ``param_defaults.P``.
+# Each segment:
+#   name, kind, count, lo/hi/init/jit[, fixed_val]
+#   indi / shared / fixed / frozen : disjoint exhaustive lists of unit indices
+#       frozen: not in z; values from seg['carry'] (resume) or init (cold start)
+# z layout per segment: len(indi) slots + (1 if shared else 0).
+# CLI: per-param ``indi=...;shared=...;fixed=...;frozen=...``; ``all`` = remainder.
+# ``--all-param`` batches all segments; ``--ih-shape`` batches the six Ih shape params.
+# Named ``best_param.npz``.
 LAMINA_SLICE = ml.LAMINA_SLICE  # L1-L5 within the 65 cell types
 DEFAULT_IH_GROUP_NAMES = ('L1', 'L2', 'L3', 'L4', 'L5')
-IH_GROUP_ALIASES = frozenset({'all'})
-IH_GMAX_ZERO_TYPES = ('L3',)  # Ih_gmax z-init pinned to 0 for these types
-PARAM_MODES = ('indi', 'shared', 'fixed')
+DEFAULT_IH_GMAX_INDI_NAMES = ('L1', 'L2', 'L4', 'L5')
+PARTITION_BUCKETS = ('indi', 'shared', 'fixed', 'frozen')
+ALL_PARAM_NAMES = (
+    'in_gain', 'out_gain', 'out_scale', 'syn_strength',
+    'Ih_gmax', 'Ih_gmax_off',
+    'Ih_midv', 'Ih_slope', 'tau_midv',
+    'Ih_midv_off', 'Ih_slope_off', 'tau_midv_off',
+    'tau_m', 'bias', 'adapt_gain', 'tau_adapt',
+)
 IH_SHAPE_PARAM_NAMES = (
     'Ih_midv', 'Ih_slope', 'tau_midv',
     'Ih_midv_off', 'Ih_slope_off', 'tau_midv_off',
 )
-PARAM_MODE_ALIASES = {'ih': IH_SHAPE_PARAM_NAMES}
-
-
-def seg_mode(seg):
-    mode = seg.get('mode', 'indi')
-    if mode not in PARAM_MODES:
-        raise ValueError(f"{seg['name']}: bad mode {mode!r}, expected one of {PARAM_MODES}")
-    return mode
-
-
-def ih_group_cells(seg):
-    """Target cell-type indices for an ``ih`` segment (one entry per trainable slot)."""
-    return seg['ih_group']
+PAIR_SEP = '>'
 
 
 def seg_count(seg):
-    """Number of per-unit values for a segment (its 'individual' width)."""
-    if seg['kind'] == 'ih':
-        return len(ih_group_cells(seg))
-    return seg['count']
+    """Full per-unit width (n_types or n_pairs)."""
+    return int(seg['count'])
 
 
 def seg_ntrain(seg):
-    """Number of trainable values stored in z for this segment, given its mode."""
-    mode = seg_mode(seg)
-    if mode == 'fixed':
-        return 0
-    if mode == 'shared':
-        return 1
-    return seg_count(seg)                      # indi
+    """Trainable z width: one slot per indi unit + one if shared nonempty."""
+    n = len(seg.get('indi', ()))
+    if seg.get('shared'):
+        n += 1
+    return n
 
 
 def schema_segments(schema):
-    """Yield (segment, start, stop) slice ranges into z (widths depend on mode)."""
+    """Yield (segment, start, stop) slice ranges into z."""
     start = 0
     for seg in schema:
         stop = start + seg_ntrain(seg)
@@ -258,36 +234,201 @@ def schema_nparams(schema):
     return sum(seg_ntrain(seg) for seg in schema)
 
 
-def apply_modes(schema, modes=None):
-    """Return a COPY of schema with per-parameter mode overrides.
+def _fixed_const(seg):
+    """Constant for units in the fixed partition (fixed_val if set, else init)."""
+    if 'fixed_val' in seg:
+        return float(seg['fixed_val'])
+    return float(seg['init'])
 
-    modes: {name: 'indi'|'shared'|'fixed'}.
-    Keeps the original schema (the canonical default) untouched.
+
+def parse_partition_text(text):
+    """Parse ``indi=A,B;fixed=all`` (or space-separated buckets) → token lists."""
+    text = (text or '').strip()
+    buckets = {b: [] for b in PARTITION_BUCKETS}
+    if not text:
+        return buckets
+    if ';' in text:
+        parts = [p.strip() for p in text.split(';') if p.strip()]
+    else:
+        parts = []
+        buf = []
+        for tok in text.split():
+            if '=' in tok and tok.split('=', 1)[0] in PARTITION_BUCKETS and buf:
+                parts.append(' '.join(buf))
+                buf = [tok]
+            else:
+                buf.append(tok)
+        if buf:
+            parts.append(' '.join(buf))
+    for part in parts:
+        if '=' not in part:
+            raise ValueError(f"partition chunk {part!r} needs bucket=list")
+        key, rest = part.split('=', 1)
+        key = key.strip()
+        if key not in PARTITION_BUCKETS:
+            raise ValueError(f"unknown partition bucket {key!r}")
+        items = [x.strip() for x in rest.split(',') if x.strip()]
+        buckets[key] = items
+    return buckets
+
+
+def resolve_partition_tokens(buckets, unit_names, *, param_name='param'):
+    """Resolve token lists (with at most one ``all``) to index lists covering unit_names."""
+    unit_names = [str(u) for u in unit_names]
+    name_to_i = {n: i for i, n in enumerate(unit_names)}
+    all_idx = set(range(len(unit_names)))
+    explicit = {b: [] for b in PARTITION_BUCKETS}
+    all_bucket = None
+    for b in PARTITION_BUCKETS:
+        toks = list(buckets.get(b) or [])
+        if 'all' in toks:
+            if len(toks) != 1:
+                raise ValueError(f"{param_name}: 'all' cannot mix with other names in {b}")
+            if all_bucket is not None:
+                raise ValueError(f"{param_name}: 'all' in both {all_bucket} and {b}")
+            all_bucket = b
+            continue
+        for t in toks:
+            if t not in name_to_i:
+                raise ValueError(f"{param_name}: unknown unit {t!r}")
+            explicit[b].append(name_to_i[t])
+    claimed = []
+    for b in PARTITION_BUCKETS:
+        claimed.extend(explicit[b])
+    if len(claimed) != len(set(claimed)):
+        raise ValueError(f"{param_name}: overlapping units across indi/shared/fixed/frozen")
+    claimed_set = set(claimed)
+    leftover = sorted(all_idx - claimed_set)
+    if all_bucket is not None:
+        explicit[all_bucket] = leftover
+        claimed_set |= set(leftover)
+    elif claimed_set != all_idx:
+        missing = [unit_names[i] for i in sorted(all_idx - claimed_set)]
+        raise ValueError(
+            f"{param_name}: units not assigned (use all= in one bucket): {missing[:8]}"
+            + ("..." if len(missing) > 8 else "")
+        )
+    return {b: list(explicit[b]) for b in PARTITION_BUCKETS}
+
+
+def partition_to_names(part, unit_names):
+    """Index partition → name lists for train_opts sidecar."""
+    return {b: [str(unit_names[i]) for i in part[b]] for b in PARTITION_BUCKETS}
+
+
+def apply_partitions(schema, partitions_by_name, unit_names_for_seg):
+    """Copy schema with resolved partitions.
+
+    *partitions_by_name*: ``{seg_name: {indi/shared/fixed: [names|indices]}}``
+    *unit_names_for_seg*: ``callable(seg) -> list[str]`` or ``{seg_name: list[str]}``.
     """
-    modes = modes or {}
     out = []
     for seg in schema:
         s = dict(seg)
-        if s['name'] in modes:
-            s['mode'] = modes[s['name']]
+        name = s['name']
+        if name not in partitions_by_name:
+            out.append(s)
+            continue
+        if callable(unit_names_for_seg):
+            units = unit_names_for_seg(s)
+        else:
+            units = unit_names_for_seg[name]
+        raw = partitions_by_name[name]
+        vals = []
+        for b in PARTITION_BUCKETS:
+            vals.extend(raw.get(b) or [])
+        if vals and all(isinstance(x, int) for x in vals):
+            part = {b: list(raw.get(b) or []) for b in PARTITION_BUCKETS}
+        else:
+            buckets = {b: [str(x) for x in (raw.get(b) or [])] for b in PARTITION_BUCKETS}
+            part = resolve_partition_tokens(buckets, units, param_name=name)
+        for b in PARTITION_BUCKETS:
+            s[b] = part[b]
         out.append(s)
     return out
 
 
-def expand_mode_dict(modes, schema):
-    """Expand ``--mode`` ``PARAM_MODE_ALIASES`` keys; only names in *schema*."""
-    if not modes:
-        return {}
-    schema_names = {s['name'] for s in schema}
-    out = {}
-    for name, mode in modes.items():
-        if name in PARAM_MODE_ALIASES:
-            for sub in PARAM_MODE_ALIASES[name]:
-                if sub in schema_names:
-                    out[sub] = mode
-        elif name in schema_names:
-            out[name] = mode
+def schema_partitions_record(schema, unit_names_for_seg):
+    """Serialize partitions as name lists for train_opts.json."""
+    rec = {}
+    for seg in schema:
+        if callable(unit_names_for_seg):
+            units = unit_names_for_seg(seg)
+        else:
+            units = unit_names_for_seg[seg['name']]
+        rec[seg['name']] = partition_to_names(
+            {b: list(seg.get(b) or []) for b in PARTITION_BUCKETS}, units,
+        )
+    return rec
+
+
+def type_unit_names(backend: "ModelBackend"):
+    if backend.network is not None:
+        return [str(n) for n in backend.network.type_names]
+    return [str(n) for n in ml.ctype]
+
+
+def pair_unit_names(backend: "ModelBackend"):
+    keys = backend.conn.pair_keys
+    names = type_unit_names(backend)
+    return [f"{names[s]}{PAIR_SEP}{names[t]}" for s, t in keys]
+
+
+def unit_names_for_segment(seg, backend: "ModelBackend"):
+    if seg['kind'] == 'edge_pair':
+        return pair_unit_names(backend)
+    return type_unit_names(backend)
+
+
+def _part_indi_all(n):
+    return {'indi': list(range(n)), 'shared': [], 'fixed': [], 'frozen': []}
+
+
+def _part_shared_all(n):
+    return {'indi': [], 'shared': list(range(n)), 'fixed': [], 'frozen': []}
+
+
+def _part_indi_subset_fixed_rest(n, indi_idx):
+    indi_set = set(indi_idx)
+    return {
+        'indi': list(indi_idx),
+        'shared': [],
+        'fixed': [i for i in range(n) if i not in indi_set],
+        'frozen': [],
+    }
+
+
+def attach_param_carry(schema, named=None):
+    """Return schema copy with per-seg ``carry`` arrays (full width) for frozen units."""
+    import numpy as np
+
+    out = []
+    for seg in schema:
+        s = dict(seg)
+        frozen = list(seg.get('frozen') or [])
+        if not frozen:
+            s.pop('carry', None)
+            out.append(s)
+            continue
+        count = seg_count(seg)
+        if named is not None and seg['name'] in named:
+            carry = np.asarray(named[seg['name']], dtype=np.float64).reshape(-1).copy()
+        else:
+            carry = np.full(count, float(seg['init']), dtype=np.float64)
+        if carry.shape[0] != count:
+            raise ValueError(
+                f"{seg['name']}: carry length {carry.shape[0]} != count {count}"
+            )
+        s['carry'] = carry
+        out.append(s)
     return out
+
+
+def _with_part(seg, part):
+    s = dict(seg)
+    for b in PARTITION_BUCKETS:
+        s[b] = list(part[b])
+    return s
 
 
 def apply_ih_off_mode(schema, mode=IH_OFF_DEFAULT):
@@ -317,48 +458,6 @@ def conductance_schema(model_backend, schema=None, ih_off=IH_OFF_DEFAULT):
     return apply_ih_off_mode(base, ih_off)
 
 
-def unpack_conductance_z(z, type_names, n_pairs, train_opts):
-    """Slice a saved conductance ``z`` by schema from ``train_opts`` (no session).
-
-    Returns ``{segment_name: ndarray}`` of raw trainable slices (not expanded
-    to per-unit). ``train_opts`` must carry ``ih_group`` / ``ih_off`` as saved.
-    """
-    import numpy as np
-
-    z = np.asarray(z, dtype=np.float64).reshape(-1)
-    type_names = list(type_names)
-    name_to_i = {n: i for i, n in enumerate(type_names)}
-    ih_names = train_opts.get('ih_group') or list(DEFAULT_IH_GROUP_NAMES)
-    missing = [n for n in ih_names if n not in name_to_i]
-    if missing:
-        raise ValueError(f"train_opts ih_group unknown types: {missing}")
-    ih_group = [[name_to_i[n]] for n in ih_names]
-    base = build_conductance_schema(
-        len(type_names), ih_group, type_names=type_names, n_pairs=int(n_pairs),
-    )
-    ih_off = str(train_opts.get('ih_off', IH_OFF_DEFAULT))
-    schema = apply_ih_off_mode(base, ih_off)
-    n_expected = schema_nparams(schema)
-    if z.shape[0] != n_expected:
-        raise ValueError(
-            f"z length {z.shape[0]} != schema nparams {n_expected} "
-            f"(check network / ih_group / ih_off vs training)"
-        )
-    return {seg['name']: z[start:stop] for seg, start, stop in schema_segments(schema)}
-
-
-def raw_segment_at_type(raw, type_i, n_types):
-    """Value for one type from a raw schema slice (indi ``n_types`` or length-1)."""
-    import numpy as np
-
-    raw = np.asarray(raw, dtype=np.float64).reshape(-1)
-    if raw.shape[0] == 1:
-        return float(raw[0])
-    if raw.shape[0] != int(n_types):
-        raise ValueError(f"unexpected segment length {raw.shape[0]} (n_types={n_types})")
-    return float(raw[int(type_i)])
-
-
 def conductance_ih_off_kwargs(p, ih_off=IH_OFF_DEFAULT):
     """Resolve OFF-channel Ih kwargs for :func:`update_Vm` from assigned params."""
     midv_off = p['Ih_midv'] if ih_off != 'on' else p['Ih_midv_off']
@@ -375,105 +474,132 @@ def conductance_ih_off_kwargs(p, ih_off=IH_OFF_DEFAULT):
     return gmax_off, midv_off, slope_off, tau_off
 
 
-def ih_group_zero_indices(ih_group, zero_types, type_names):
-    """Map cell-type names to local indices into an ``ih_group`` list."""
-    names = [str(n) for n in type_names]
-    by_type = {}
-    for j, entry in enumerate(ih_group):
-        targets = [entry] if isinstance(entry, int) else entry
-        for t in targets:
-            by_type[int(t)] = j
-    out = []
-    for zname in zero_types:
-        matches = [i for i, n in enumerate(names) if n == str(zname)]
-        if len(matches) != 1:
-            raise KeyError(f"cell type {zname!r}: {len(matches)} matches in type_names")
-        pos = by_type.get(matches[0])
-        if pos is not None:
-            out.append(pos)
-    return out
-
-
-def _all_ctype_names(backend: "ModelBackend"):
-    if backend.network is not None:
-        return [str(n) for n in backend.network.type_names]
-    return [str(n) for n in ml.ctype]
-
-
-def expand_ih_group_list(names, backend: "ModelBackend"):
-    """Expand ``--ih-group`` tokens (``all`` -> every cell type on *backend*)."""
-    out = [str(n).strip() for n in names if str(n).strip()]
-    if not out:
-        raise ValueError("--ih-group must list at least one cell type or 'all'")
-    if 'all' in out:
-        if len(out) != 1:
-            raise ValueError("--ih-group: 'all' cannot be combined with other names")
-        return _all_ctype_names(backend)
-    return out
-
-
-def build_ih_group_from_names(type_names, backend: "ModelBackend"):
-    """Parse cell-type names to ``ih_group`` (one slot per name)."""
-    names = expand_ih_group_list(type_names, backend)
-    return [[int(i)] for i in resolve_type_indices(names, backend)]
-
-
-def default_ih_group(backend: "ModelBackend"):
-    return build_ih_group_from_names(DEFAULT_IH_GROUP_NAMES, backend)
-
-
-def build_conductance_schema(n_types, ih_group, ih_zero_types=IH_GMAX_ZERO_TYPES, type_names=None, n_pairs=None):
-    type_names = ml.ctype if type_names is None else type_names
+def build_conductance_schema(n_types, type_names=None, n_pairs=None):
+    type_names = list(ml.ctype if type_names is None else type_names)
     if n_pairs is None:
         raise TypeError('conductance syn_strength requires n_pairs from network ScatterConn')
-    zero = ih_group_zero_indices(ih_group, ih_zero_types, type_names)
-    shape = dict(kind='full', count=n_types, mode='shared')
+    n_pairs = int(n_pairs)
+    name_to_i = {str(n): i for i, n in enumerate(type_names)}
+    lamina = [name_to_i[n] for n in DEFAULT_IH_GROUP_NAMES]
+    ih_gmax = [name_to_i[n] for n in DEFAULT_IH_GMAX_INDI_NAMES]
     D = PARAM_DEFAULTS
+    indi_all = _part_indi_all(n_types)
+    shared_all = _part_shared_all(n_types)
+    ih_g_off = _part_indi_subset_fixed_rest(n_types, lamina)
+    ih_gmax_part = _part_indi_subset_fixed_rest(n_types, ih_gmax)
     return [
-        {'name': 'in_gain',  'count': n_types, 'kind': 'full',   **D['in_gain']},
-        {'name': 'out_gain',  'count': n_types, 'kind': 'full',   **D['out_gain']},
-        {'name': 'syn_strength', 'count': int(n_pairs), 'kind': 'edge_pair', **D['syn_strength']},
-        {'name': 'out_scale', 'count': n_types, 'kind': 'output', **D['out_scale']},
-        {'name': 'Ih_gmax',     'kind': 'ih', 'ih_group': ih_group, 'mode': 'indi',
-         **D['Ih_gmax'], 'zero': zero},
-        {'name': 'Ih_gmax_off', 'kind': 'ih', 'ih_group': ih_group, 'mode': 'indi',
-         **D['Ih_gmax_off'], 'zero': zero},
-        {'name': 'Ih_midv',     **D['Ih_midv'], **shape},
-        {'name': 'Ih_slope',    **D['Ih_slope'], **shape},
-        {'name': 'tau_midv',    **D['tau_midv'], **shape},
-        {'name': 'Ih_midv_off', **D['Ih_midv_off'], **shape},
-        {'name': 'Ih_slope_off', **D['Ih_slope_off'], **shape},
-        {'name': 'tau_midv_off', **D['tau_midv_off'], **shape},
+        _with_part({'name': 'in_gain',  'count': n_types, 'kind': 'full',   **D['in_gain']}, indi_all),
+        _with_part({'name': 'out_gain',  'count': n_types, 'kind': 'full',   **D['out_gain']}, indi_all),
+        _with_part({'name': 'syn_strength', 'count': n_pairs, 'kind': 'edge_pair', **D['syn_strength']},
+                   _part_indi_all(n_pairs)),
+        _with_part({'name': 'out_scale', 'count': n_types, 'kind': 'output', **D['out_scale']}, indi_all),
+        _with_part({'name': 'Ih_gmax', 'count': n_types, 'kind': 'full', **D['Ih_gmax']}, ih_gmax_part),
+        _with_part({'name': 'Ih_gmax_off', 'count': n_types, 'kind': 'full', **D['Ih_gmax_off']}, ih_g_off),
+        _with_part({'name': 'Ih_midv',     'count': n_types, 'kind': 'full', **D['Ih_midv']}, shared_all),
+        _with_part({'name': 'Ih_slope',    'count': n_types, 'kind': 'full', **D['Ih_slope']}, shared_all),
+        _with_part({'name': 'tau_midv',    'count': n_types, 'kind': 'full', **D['tau_midv']}, shared_all),
+        _with_part({'name': 'Ih_midv_off', 'count': n_types, 'kind': 'full', **D['Ih_midv_off']}, shared_all),
+        _with_part({'name': 'Ih_slope_off', 'count': n_types, 'kind': 'full', **D['Ih_slope_off']}, shared_all),
+        _with_part({'name': 'tau_midv_off', 'count': n_types, 'kind': 'full', **D['tau_midv_off']}, shared_all),
     ]
 
 
-def build_adaptive_schema(n_types, ih_group):
+def build_adaptive_schema(n_types, type_names=None):
+    type_names = list(ml.ctype if type_names is None else type_names)
+    name_to_i = {str(n): i for i, n in enumerate(type_names)}
+    lamina = [name_to_i[n] for n in DEFAULT_IH_GROUP_NAMES]
     D = PARAM_DEFAULTS
+    indi_all = _part_indi_all(n_types)
+    ih_g = _part_indi_subset_fixed_rest(n_types, lamina)
     return [
-        {'name': 'in_gain',   'count': n_types, 'kind': 'full',   **D['in_gain']},
-        {'name': 'out_gain',   'count': n_types, 'kind': 'full',   **D['out_gain']},
-        {'name': 'out_scale',  'count': n_types, 'kind': 'output', **D['out_scale']},
-        {'name': 'tau_m',      'count': n_types, 'kind': 'full',   **D['tau_m']},
-        {'name': 'bias',       'count': n_types, 'kind': 'full',   **D['bias']},
-        {'name': 'adapt_gain', 'kind': 'ih', 'ih_group': ih_group, 'mode': 'indi',
-         **D['adapt_gain']},
-        {'name': 'tau_adapt',  'kind': 'ih', 'ih_group': ih_group, 'mode': 'indi',
-         **D['tau_adapt']},
+        _with_part({'name': 'in_gain',   'count': n_types, 'kind': 'full',   **D['in_gain']}, indi_all),
+        _with_part({'name': 'out_gain',   'count': n_types, 'kind': 'full',   **D['out_gain']}, indi_all),
+        _with_part({'name': 'out_scale',  'count': n_types, 'kind': 'output', **D['out_scale']}, indi_all),
+        _with_part({'name': 'tau_m',      'count': n_types, 'kind': 'full',   **D['tau_m']}, indi_all),
+        _with_part({'name': 'bias',       'count': n_types, 'kind': 'full',   **D['bias']}, indi_all),
+        _with_part({'name': 'adapt_gain', 'count': n_types, 'kind': 'full', **D['adapt_gain']}, ih_g),
+        _with_part({'name': 'tau_adapt',  'count': n_types, 'kind': 'full', **D['tau_adapt']}, ih_g),
     ]
 
 
-def default_schema(model: str, backend: "ModelBackend", ih_group=None) -> list:
+def default_schema(model: str, backend: "ModelBackend") -> list:
     """Fresh parameter schema for ``model`` on the given backend."""
-    if ih_group is None:
-        ih_group = default_ih_group(backend)
     n = backend.n_types
-    type_names = list(backend.network.type_names) if backend.network is not None else ml.ctype
+    type_names = type_unit_names(backend)
     if model == 'adaptive':
-        return build_adaptive_schema(n, ih_group)
+        return build_adaptive_schema(n, type_names=type_names)
     n_pairs = getattr(backend.conn, 'n_pairs', None)
     if n_pairs is None:
         raise TypeError('conductance syn_strength requires network ScatterConn backend')
-    return build_conductance_schema(n, ih_group, type_names=type_names, n_pairs=n_pairs)
+    return build_conductance_schema(n, type_names=type_names, n_pairs=n_pairs)
+
+
+def z_to_unit_values(z, schema):
+    """Full-width per-unit arrays (before column expand) for each segment."""
+    import numpy as np
+    out = {}
+    for seg, start, stop in schema_segments(schema):
+        raw = _reconstruct_raw(seg, z[start:stop], z)
+        out[seg['name']] = raw.detach().cpu().numpy().astype(np.float64)
+    return out
+
+
+def unit_values_to_z(named, schema, *, dtype=None, device=None):
+    """Pack full-width named unit values into trainable z for *schema* partitions."""
+    import numpy as np
+    n = schema_nparams(schema)
+    z = torch.zeros(n, dtype=dtype or SIM_DTYPE_DEFAULT, device=device or active_device())
+    for seg, start, stop in schema_segments(schema):
+        raw = np.asarray(named[seg['name']], dtype=np.float64).reshape(-1)
+        if raw.shape[0] != seg_count(seg):
+            raise ValueError(
+                f"{seg['name']}: named length {raw.shape[0]} != count {seg_count(seg)}"
+            )
+        slots = []
+        for u in seg.get('indi', ()):
+            slots.append(float(raw[u]))
+        if seg.get('shared'):
+            vals = [float(raw[u]) for u in seg['shared']]
+            slots.append(float(np.mean(vals)) if vals else float(seg['init']))
+        if slots:
+            z[start:stop] = torch.tensor(slots, dtype=z.dtype, device=z.device)
+    return z
+
+
+def remap_named_unit_values(named, src_type_names, src_pair_names, schema, backend):
+    """Remap named arrays from a prior run onto *backend* unit order for *schema*."""
+    import numpy as np
+    src_type_names = [str(n) for n in src_type_names]
+    src_pair_names = [str(n) for n in (src_pair_names or [])]
+    dst_types = type_unit_names(backend)
+    dst_pairs = pair_unit_names(backend) if any(s['kind'] == 'edge_pair' for s in schema) else []
+    src_t = {n: i for i, n in enumerate(src_type_names)}
+    src_p = {n: i for i, n in enumerate(src_pair_names)}
+    out = {}
+    for seg in schema:
+        name = seg['name']
+        count = seg_count(seg)
+        fixed_val = _fixed_const(seg)
+        arr = np.full(count, fixed_val, dtype=np.float64)
+        src = named.get(name)
+        if src is None:
+            out[name] = arr
+            continue
+        src = np.asarray(src, dtype=np.float64).reshape(-1)
+        if seg['kind'] == 'edge_pair':
+            for j, pn in enumerate(dst_pairs):
+                if pn in src_p:
+                    arr[j] = float(src[src_p[pn]])
+                else:
+                    arr[j] = float(seg['init'])
+        else:
+            for j, tn in enumerate(dst_types):
+                if tn in src_t and src_t[tn] < src.shape[0]:
+                    arr[j] = float(src[src_t[tn]])
+                else:
+                    arr[j] = float(seg['init']) if 'fixed_val' not in seg else fixed_val
+        out[name] = arr
+    return out
 
 
 @dataclass(frozen=True)
@@ -1609,7 +1735,7 @@ def make_train_opts(
     spot_dark_stimulus_opts=None,
     network_json=None,
     network=None,
-    ih_group_names=None,
+    param_partitions=None,
     dev=None,
     packs=None,
     ih_off=IH_OFF_DEFAULT,
@@ -1660,8 +1786,8 @@ def make_train_opts(
         opts["pack_overrides"] = pack_overrides
     if packs is not None:
         opts["packs"] = packs
-    if ih_group_names is not None:
-        opts["ih_group"] = list(ih_group_names)
+    if param_partitions is not None:
+        opts["param_partitions"] = param_partitions
     opts["ih_off"] = str(ih_off)
     if fp32:
         opts["fp32"] = True
@@ -1726,8 +1852,8 @@ def _train_opts_for_sidecar(
     overrides = opts.get("pack_overrides")
     if overrides:
         record["pack_overrides"] = overrides
-    if opts.get("ih_group"):
-        record["ih_group"] = list(opts["ih_group"])
+    if opts.get("param_partitions"):
+        record["param_partitions"] = opts["param_partitions"]
     if "ih_off" in opts:
         record["ih_off"] = str(opts["ih_off"])
     if opts.get("fp32"):
@@ -1738,10 +1864,15 @@ def _train_opts_for_sidecar(
 def _schema_from_opts(model, model_backend, schema, train_opts_record):
     if schema is not None:
         return list(schema)
-    ih_group = None
-    if train_opts_record and train_opts_record.get('ih_group'):
-        ih_group = build_ih_group_from_names(train_opts_record['ih_group'], model_backend)
-    return default_schema(model, model_backend, ih_group=ih_group)
+    base = default_schema(model, model_backend)
+    if not train_opts_record:
+        return base
+    parts = train_opts_record.get("param_partitions")
+    if parts:
+        base = apply_partitions(
+            base, parts, lambda seg: unit_names_for_segment(seg, model_backend),
+        )
+    return base
 
 
 def _make_session(
@@ -1772,6 +1903,11 @@ def _make_session(
         sch = list(schema)
     else:
         sch = _schema_from_opts(model, model_backend, None, train_opts_record)
+    if train_opts_record is not None:
+        train_opts_record["param_partitions"] = schema_partitions_record(
+            sch, lambda seg: unit_names_for_segment(seg, model_backend),
+        )
+    sch = attach_param_carry(sch)
     session = TrainSession(
         backend=model_backend,
         model=model,
@@ -1952,8 +2088,6 @@ def open_session_from_opts(opts: dict, model: str | None = None, **kwargs) -> Tr
 def open_session_from_outdir(
     outdir: str,
     model: str | None = None,
-    *,
-    param_modes=None,
 ) -> TrainSession:
     """Load ``train_opts.json`` from a run folder and return a ready session."""
     import json
@@ -1963,13 +2097,7 @@ def open_session_from_outdir(
         raise FileNotFoundError(f"missing {opts_path}")
     with open(opts_path) as f:
         opts = json.load(f)
-    session = open_session_from_opts(opts, model)
-    if param_modes:
-        modes = expand_mode_dict(param_modes, list(session.schema))
-        session = session.with_schema(
-            apply_modes(list(session.schema), modes)
-        )
-    return session
+    return open_session_from_opts(opts, model)
 
 
 # ------- network calculations  -----------------------------------------------
@@ -2033,30 +2161,33 @@ def vm_budget_from_g(Vm_pre, g_exc, g_inh, g_Ih_on, g_Ih_off, signal, e_leak):
 # ---------- adaptive temporal-filter neuron model (flyvis-derived) -----------
 
 def _reconstruct_raw(seg, z_slice, z):
-    """Build the length-`count` per-unit vector from the trainable z slice + mode.
-    indi: the slice itself; shared: the one value broadcast; fixed: a constant.
-    Gradients flow into the (1 or count) trainable entries; fixed has none."""
-    mode, count = seg_mode(seg), seg_count(seg)
-    if mode == 'fixed':
-        const = float(seg.get('fixed', seg['init']))
-        return torch.full((count,), const, dtype=z.dtype, device=z.device)
-    if mode == 'shared':
-        return z_slice[0].repeat(count)
-    return z_slice                                              # indi
+    """Build length-`count` per-unit vector from z slice + partition buckets."""
+    count = seg_count(seg)
+    const = _fixed_const(seg)
+    raw = torch.full((count,), const, dtype=z.dtype, device=z.device)
+    carry = seg.get('carry')
+    i = 0
+    for u in seg.get('indi', ()):
+        raw[int(u)] = z_slice[i]
+        i += 1
+    if seg.get('shared'):
+        shared_val = z_slice[i]
+        for u in seg['shared']:
+            raw[int(u)] = shared_val
+    for u in seg.get('frozen', ()):
+        if carry is not None:
+            raw[int(u)] = torch.tensor(float(carry[int(u)]), dtype=z.dtype, device=z.device)
+        else:
+            raw[int(u)] = torch.tensor(float(seg['init']), dtype=z.dtype, device=z.device)
+    return raw
 
 
 def _expand_segment(seg, raw, backend: ModelBackend):
     """Map a length-`count` per-unit vector to a usable parameter, per its 'kind'."""
     kind = seg['kind']
     dev = backend.conn.node_type.device
-    n_types = backend.n_types
     if kind == 'full':
         return calc_multi_col_params(raw, backend.conn).to(dev)
-    if kind == 'ih':
-        cell = torch.full((n_types,), float(seg['fill']), dtype=raw.dtype, device=raw.device)
-        for i, target in enumerate(ih_group_cells(seg)):
-            cell[target] = raw[i]
-        return calc_multi_col_params(cell, backend.conn).to(dev)
     if kind == 'output':
         return raw.to(dev)
     if kind == 'edge_pair':
@@ -2065,7 +2196,7 @@ def _expand_segment(seg, raw, backend: ModelBackend):
 
 
 def assign_params(z, schema, backend: ModelBackend):
-    """Unpack z into a dict of parameter tensors, driven by the given schema + modes."""
+    """Unpack z into a dict of parameter tensors, driven by the given schema partitions."""
     p = {}
     for seg, start, stop in schema_segments(schema):
         p[seg['name']] = _expand_segment(seg, _reconstruct_raw(seg, z[start:stop], z), backend)
@@ -2997,12 +3128,9 @@ def schema_guess(schema, sim_dtype=SIM_DTYPE_DEFAULT):
     z = np.zeros(schema_nparams(schema))
     for seg, start, stop in schema_segments(schema):
         n = stop - start
-        if n == 0:                             # fixed: nothing to initialise
+        if n == 0:
             continue
         z[start:stop] = seg['init'] + (np.random.rand(n) - 0.5) * seg['jit']
-        if seg_mode(seg) == 'indi':
-            for j in seg.get('zero', []):      # ih_group-local indices (see IH_GMAX_ZERO_TYPES)
-                z[start + j] = 0.0
     return torch.tensor(z, dtype=sim_dtype).to(active_device())
 
 def guess_initial_params(session: TrainSession):

@@ -1,7 +1,7 @@
 """Query trained syn_strength (alpha) joined to connectome partner % n_syn.
 
-Reads ``best_param.npy`` + ``train_opts.json`` only (no training session rebuild).
-Partner % comes from ``cell_syn``; alpha / gains from the saved parameter vector.
+Reads ``best_param.npz`` + ``train_opts.json`` only (no training session rebuild).
+Partner % comes from ``cell_syn``; syn_strength / gains from the named npz.
 
 Examples
 --------
@@ -26,7 +26,6 @@ if ROOT not in sys.path:
     sys.path.insert(0, ROOT)
 os.chdir(ROOT)
 
-import FiveCol_MedSim_Pytorch as fc
 import network_bootstrap  # noqa: F401  # FAFB on sys.path
 import cell_syn
 import plot_trained
@@ -131,7 +130,7 @@ def main(argv: list[str] | None = None) -> int:
         raise SystemExit("train_opts.json missing network_json")
 
     try:
-        z = train_mod.load_best_param(outdir)
+        named, type_names_npz, pair_names = train_mod.load_best_param_named(outdir)
     except FileNotFoundError as exc:
         raise SystemExit(str(exc)) from exc
 
@@ -139,6 +138,12 @@ def main(argv: list[str] | None = None) -> int:
         nodes, edges, type_names, _meta = read_network_json(network_json)
     except (OSError, ValueError) as exc:
         raise SystemExit(str(exc)) from exc
+
+    if list(type_names) != list(type_names_npz):
+        raise SystemExit(
+            f"type_names mismatch: network.json vs best_param.npz "
+            f"({len(type_names)} vs {len(type_names_npz)})"
+        )
 
     name_to_i = {n: i for i, n in enumerate(type_names)}
     n_types = len(type_names)
@@ -150,17 +155,21 @@ def main(argv: list[str] | None = None) -> int:
     tar_t = np.array([name_to_i[e["target_type"]] for e in edges], dtype=np.int64)
     _pair_idx, n_pairs, pair_keys = build_type_pair_index(src_t, tar_t, n_types)
     key_to_i = {k: i for i, k in enumerate(pair_keys)}
+    if pair_names is not None:
+        expected = [f"{type_names[s]}>{type_names[t]}" for s, t in pair_keys]
+        if list(pair_names) != expected:
+            raise SystemExit("pair_names in best_param.npz do not match network.json edges")
 
-    try:
-        slices = fc.unpack_conductance_z(z, type_names, n_pairs, opts)
-    except ValueError as exc:
-        raise SystemExit(str(exc)) from exc
-    if "syn_strength" not in slices:
-        raise SystemExit("schema missing syn_strength")
-    syn_strength = slices["syn_strength"]
+    if "syn_strength" not in named:
+        raise SystemExit("best_param.npz missing syn_strength")
+    syn_strength = np.asarray(named["syn_strength"], dtype=np.float64).reshape(-1)
+    if syn_strength.shape[0] != n_pairs:
+        raise SystemExit(
+            f"syn_strength length {syn_strength.shape[0]} != n_pairs {n_pairs}"
+        )
     for key in ("in_gain", "out_gain", "out_scale"):
-        if key not in slices:
-            raise SystemExit(f"schema missing {key}")
+        if key not in named:
+            raise SystemExit(f"best_param.npz missing {key}")
 
     at_x, at_y = cell_syn.cli_xy_filter(args.x, args.y)
     hex_note = ""
@@ -179,7 +188,7 @@ def main(argv: list[str] | None = None) -> int:
     )
 
     print(f"outdir={outdir}")
-    print(f"n_pairs={n_pairs}  best_param={z.shape[0]} params")
+    print(f"n_pairs={n_pairs}  best_param.npz syn_strength={syn_strength.shape[0]}")
     for cell in tokens:
         if cell not in acc:
             logger.warning("no accumulate result for %s", cell)
@@ -211,9 +220,9 @@ def main(argv: list[str] | None = None) -> int:
             n_self=int(n_self),
             alpha_by_partner=alpha_map,
             after_title=(
-                f"in_gain={fc.raw_segment_at_type(slices['in_gain'], ti, n_types):g}, "
-                f"out_gain={fc.raw_segment_at_type(slices['out_gain'], ti, n_types):g}, "
-                f"scale={fc.raw_segment_at_type(slices['out_scale'], ti, n_types):g}"
+                f"in_gain={float(named['in_gain'][ti]):g}, "
+                f"out_gain={float(named['out_gain'][ti]):g}, "
+                f"scale={float(named['out_scale'][ti]):g}"
             ),
         )
     return 0

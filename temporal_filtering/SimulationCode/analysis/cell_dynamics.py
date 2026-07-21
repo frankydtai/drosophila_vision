@@ -22,7 +22,7 @@ Modes
 ``--plot`` writes PNGs under ``{run}/cell_dynamics/``. With multiple moving_bar
 specs, one overlay PNG per cell (specs differ by linestyle). One spec → one PNG.
 
-``--alpha SRC,TAR,VALUE,...`` overrides trained ``syn_strength`` (alpha) for
+``--syn-strength SRC,TAR,VALUE,...`` overrides trained ``syn_strength`` for
 type pairs before budget walks (flat comma list; length multiple of 3).
 
 Examples
@@ -45,7 +45,7 @@ Examples
 
   ../.venv/bin/python -m analysis.cell_dynamics \\
     --run conductance/27252028-... --cell T4a --target moving_bar_bright \\
-    --spec left_bright_w4,right_bright_w4 --alpha Mi4,T4a,2.0,Mi9,T4a,1.0 \\
+    --spec left_bright_w4,right_bright_w4 --syn-strength Mi4,T4a,2.0,Mi9,T4a,1.0 \\
     --plot --rel 0,176
 """
 
@@ -823,38 +823,38 @@ def _make_walk_batch(
 # ---------------------------------------------------------------------------
 
 
-def _parse_alpha(
-    alpha: str | None,
+def _parse_syn_strength(
+    syn_strength: str | None,
     session,
 ) -> dict[tuple[int, int], float]:
-    """Parse ``--alpha SRC,TAR,VALUE,...`` (flat commas; len % 3 == 0)."""
-    if not alpha:
+    """Parse ``--syn-strength SRC,TAR,VALUE,...`` (flat commas; len % 3 == 0)."""
+    if not syn_strength:
         return {}
     if session.backend.network is None:
-        raise SystemExit("--alpha requires a network backend")
+        raise SystemExit("--syn-strength requires a network backend")
     names = list(session.backend.network.type_names)
     name_to_i = {n: i for i, n in enumerate(names)}
-    parts = parse_comma_list(alpha)
+    parts = parse_comma_list(syn_strength)
     if len(parts) % 3 != 0:
         raise SystemExit(
-            "--alpha must be SRC,TAR,VALUE repeated (comma-separated; length multiple of 3)"
+            "--syn-strength must be SRC,TAR,VALUE repeated (comma-separated; length multiple of 3)"
         )
     out: dict[tuple[int, int], float] = {}
     for i in range(0, len(parts), 3):
         src_name, tar_name, val_s = parts[i], parts[i + 1], parts[i + 2]
         if src_name not in name_to_i:
-            raise SystemExit(f"--alpha unknown source type {src_name!r}")
+            raise SystemExit(f"--syn-strength unknown source type {src_name!r}")
         if tar_name not in name_to_i:
-            raise SystemExit(f"--alpha unknown target type {tar_name!r}")
+            raise SystemExit(f"--syn-strength unknown target type {tar_name!r}")
         try:
             val = float(val_s)
         except ValueError as exc:
-            raise SystemExit(f"--alpha bad VALUE {val_s!r}") from exc
+            raise SystemExit(f"--syn-strength bad VALUE {val_s!r}") from exc
         out[(name_to_i[src_name], name_to_i[tar_name])] = val
     return out
 
 
-def _apply_alpha(
+def _apply_syn_strength(
     z: torch.Tensor,
     schema: list,
     session,
@@ -866,21 +866,21 @@ def _apply_alpha(
     names = list(session.backend.network.type_names)
     keys = session.backend.conn.pair_keys
     key_to_i = {k: i for i, k in enumerate(keys)}
-    z = z.clone()
-    for seg, start, stop in fc.schema_segments(schema):
-        if seg["name"] != "syn_strength":
-            continue
-        for (src_i, tar_i), val in edits.items():
-            pair = (src_i, tar_i)
-            if pair not in key_to_i:
-                raise SystemExit(
-                    f"no type pair {names[src_i]!r} -> {names[tar_i]!r} in connectome"
-                )
-            pair_i = key_to_i[pair]
-            z[start + pair_i] = val
-            _log(f"alpha {names[src_i]} -> {names[tar_i]} = {val:g}")
-        return z
-    raise SystemExit("schema missing syn_strength segment")
+    named = fc.z_to_unit_values(z, schema)
+    if "syn_strength" not in named:
+        raise SystemExit("schema missing syn_strength segment")
+    arr = np.array(named["syn_strength"], dtype=np.float64, copy=True)
+    for (src_i, tar_i), val in edits.items():
+        pair = (src_i, tar_i)
+        if pair not in key_to_i:
+            raise SystemExit(
+                f"no type pair {names[src_i]!r} -> {names[tar_i]!r} in connectome"
+            )
+        pair_i = key_to_i[pair]
+        arr[pair_i] = val
+        _log(f"syn_strength {names[src_i]} -> {names[tar_i]} = {val:g}")
+    named["syn_strength"] = arr
+    return fc.unit_values_to_z(named, schema, dtype=z.dtype, device=z.device)
 
 
 def _bar_meta(session, target: str):
@@ -1690,10 +1690,10 @@ def main() -> None:
         help="save budget time-series PNGs under {run}/cell_dynamics/",
     )
     ap.add_argument(
-        "--alpha",
+        "--syn-strength",
         default=None,
         metavar="SRC,TAR,VALUE,...",
-        help="override syn_strength (alpha); flat SRC,TAR,VALUE triples (comma-separated)",
+        help="override syn_strength; flat SRC,TAR,VALUE triples (comma-separated)",
     )
     ap.add_argument("--json", action="store_true", help="print JSON to stdout")
     args = ap.parse_args()
@@ -1726,9 +1726,9 @@ def main() -> None:
         _log(f"load_best {run_dir} ...")
         session, z, best_i, best_cost = plot_trained.load_best(run_dir)
         schema = list(session.schema)
-        alpha_edits = _parse_alpha(args.alpha, session)
+        syn_strength_edits = _parse_syn_strength(args.syn_strength, session)
         z_t = torch.tensor(np.asarray(z, dtype=np.float64), dtype=torch.float64, device=session.device)
-        z_t = _apply_alpha(z_t, schema, session, alpha_edits)
+        z_t = _apply_syn_strength(z_t, schema, session, syn_strength_edits)
         p = fc.assign_params(z_t, schema, session.backend)
 
         spot_session_cache: dict[str, object] = {}
