@@ -7,6 +7,7 @@ Created on Wed Jul 26 09:53:25 2023
 @author: aborst
 """
 import os
+import sys
 from dataclasses import dataclass, field, replace
 from typing import Dict, List, Optional, Tuple, Union
 
@@ -31,7 +32,7 @@ from training_config import (
     T_ON,
     sim_dtype_from_fp32,
 )
-from param_defaults import P as PARAM_DEFAULTS
+from param_defaults import DEFAULT_IH_GMAX_INDI_NAMES, P as PARAM_DEFAULTS
 
 
 def active_device():
@@ -191,8 +192,6 @@ STATE_CLAMP = 1.0e6  # bound on adaptive state vars to keep explicit Euler finit
 # ``--all-param`` batches all segments; ``--ih-shape`` batches the six Ih shape params.
 # Named ``best_param.npz``.
 LAMINA_SLICE = ml.LAMINA_SLICE  # L1-L5 within the 65 cell types
-DEFAULT_IH_GROUP_NAMES = ('L1', 'L2', 'L3', 'L4', 'L5')
-DEFAULT_IH_GMAX_INDI_NAMES = ('L1', 'L2', 'L4', 'L5')
 PARTITION_BUCKETS = ('indi', 'shared', 'fixed', 'frozen')
 ALL_PARAM_NAMES = (
     'in_gain', 'out_gain', 'out_scale', 'syn_strength',
@@ -480,12 +479,10 @@ def build_conductance_schema(n_types, type_names=None, n_pairs=None):
         raise TypeError('conductance syn_strength requires n_pairs from network ScatterConn')
     n_pairs = int(n_pairs)
     name_to_i = {str(n): i for i, n in enumerate(type_names)}
-    lamina = [name_to_i[n] for n in DEFAULT_IH_GROUP_NAMES]
     ih_gmax = [name_to_i[n] for n in DEFAULT_IH_GMAX_INDI_NAMES]
     D = PARAM_DEFAULTS
     indi_all = _part_indi_all(n_types)
     shared_all = _part_shared_all(n_types)
-    ih_g_off = _part_indi_subset_fixed_rest(n_types, lamina)
     ih_gmax_part = _part_indi_subset_fixed_rest(n_types, ih_gmax)
     return [
         _with_part({'name': 'in_gain',  'count': n_types, 'kind': 'full',   **D['in_gain']}, indi_all),
@@ -494,7 +491,7 @@ def build_conductance_schema(n_types, type_names=None, n_pairs=None):
                    _part_indi_all(n_pairs)),
         _with_part({'name': 'out_scale', 'count': n_types, 'kind': 'output', **D['out_scale']}, indi_all),
         _with_part({'name': 'Ih_gmax', 'count': n_types, 'kind': 'full', **D['Ih_gmax']}, ih_gmax_part),
-        _with_part({'name': 'Ih_gmax_off', 'count': n_types, 'kind': 'full', **D['Ih_gmax_off']}, ih_g_off),
+        _with_part({'name': 'Ih_gmax_off', 'count': n_types, 'kind': 'full', **D['Ih_gmax_off']}, ih_gmax_part),
         _with_part({'name': 'Ih_midv',     'count': n_types, 'kind': 'full', **D['Ih_midv']}, shared_all),
         _with_part({'name': 'Ih_slope',    'count': n_types, 'kind': 'full', **D['Ih_slope']}, shared_all),
         _with_part({'name': 'tau_midv',    'count': n_types, 'kind': 'full', **D['tau_midv']}, shared_all),
@@ -507,10 +504,10 @@ def build_conductance_schema(n_types, type_names=None, n_pairs=None):
 def build_adaptive_schema(n_types, type_names=None):
     type_names = list(ml.ctype if type_names is None else type_names)
     name_to_i = {str(n): i for i, n in enumerate(type_names)}
-    lamina = [name_to_i[n] for n in DEFAULT_IH_GROUP_NAMES]
+    ih_gmax = [name_to_i[n] for n in DEFAULT_IH_GMAX_INDI_NAMES]
     D = PARAM_DEFAULTS
     indi_all = _part_indi_all(n_types)
-    ih_g = _part_indi_subset_fixed_rest(n_types, lamina)
+    ih_g = _part_indi_subset_fixed_rest(n_types, ih_gmax)
     return [
         _with_part({'name': 'in_gain',   'count': n_types, 'kind': 'full',   **D['in_gain']}, indi_all),
         _with_part({'name': 'out_gain',   'count': n_types, 'kind': 'full',   **D['out_gain']}, indi_all),
@@ -783,14 +780,21 @@ def make_spot_stimulus_opts(
     i_baseline=None,
     i_step=None,
     mode="borst",
-    shift_extent=0,
+    shift_extent=None,
     spot_extent=None,
     **extra,
 ):
     """PR step stimulus opts for ``spot_{polarity}`` (baseline pre-``t_on``, step from ``t_on``)."""
     if polarity not in SPOT_POLARITIES:
         raise ValueError(f"spot polarity must be 'bright' or 'dark', got {polarity!r}")
-    from network.spot_target import DEFAULT_FULLY_INSIDE, DEFAULT_MULTI_SPOT, DEFAULT_SPOT_EXTENT
+    from network.spot_target import (
+        DEFAULT_FULLY_INSIDE,
+        DEFAULT_MULTI_SPOT,
+        DEFAULT_SHIFT_EXTENT,
+        DEFAULT_SPOT_EXTENT,
+    )
+    if shift_extent is None:
+        shift_extent = extra.get("shift_extent", DEFAULT_SHIFT_EXTENT)
 
     step_key = _SPOT_STEP_KEY[polarity]
     if i_step is None:
@@ -1398,8 +1402,13 @@ def _build_network_spot_target(
     from network.stimulus import normalize_cost_extent
 
     cost_extent = normalize_cost_extent(opts.get("cost_extent"))
-    shift_extent = int(opts.get("shift_extent", 0))
-    from network.spot_target import DEFAULT_FULLY_INSIDE, DEFAULT_MULTI_SPOT, DEFAULT_SPOT_EXTENT
+    from network.spot_target import (
+        DEFAULT_FULLY_INSIDE,
+        DEFAULT_MULTI_SPOT,
+        DEFAULT_SHIFT_EXTENT,
+        DEFAULT_SPOT_EXTENT,
+    )
+    shift_extent = int(opts.get("shift_extent", DEFAULT_SHIFT_EXTENT))
 
     spot_extent = float(opts.get("spot_extent", DEFAULT_SPOT_EXTENT))
     multi_spot = bool(opts.get("multi_spot", DEFAULT_MULTI_SPOT))
@@ -1723,7 +1732,7 @@ def make_train_opts(
     pack_overrides=None,
     sequential=None,
     cost_extent_by_target=None,
-    shift_extent=0,
+    shift_extent=None,
     spot_extent=None,
     multi_spot=True,
     fully_inside=True,
@@ -1742,12 +1751,14 @@ def make_train_opts(
     fp32=False,
 ):
     """Canonical training opts for :func:`open_session` (Borst or network)."""
-    from network.spot_target import DEFAULT_SPOT_EXTENT
+    from network.spot_target import DEFAULT_SHIFT_EXTENT, DEFAULT_SPOT_EXTENT
 
     tl = _normalize_target_list(target_list)
     mode = "network" if backend == "network" else "borst"
     if spot_extent is None:
         spot_extent = DEFAULT_SPOT_EXTENT
+    if shift_extent is None:
+        shift_extent = DEFAULT_SHIFT_EXTENT
     raw_by_name = {
         "spot_bright": spot_bright_stimulus_opts,
         "spot_dark": spot_dark_stimulus_opts,
@@ -2109,6 +2120,22 @@ def rectsyn(x,thrld):
     
     return result
 
+def _ih_gate_step(Vm, u_on, u_off, Ih_gmax, Ih_gmax_off,
+                  Ih_midv, Ih_slope, tau_midv, Ih_midv_off, Ih_slope_off, tau_midv_off):
+    """Advance Ih gate states and conductances for active columns only."""
+    slope_on = Ih_slope
+    slope_off = -Ih_slope_off
+    Ih_ss_on = 1.0 / (1.0 + torch.exp((Ih_midv - Vm) * slope_on))
+    Ih_ss_off = 1.0 / (1.0 + torch.exp((Ih_midv_off - Vm) * slope_off))
+    tau_on = 1.5 / (torch.exp(-0.1 * (Vm - tau_midv)) + torch.exp(+0.1 * (Vm - tau_midv))) * 1000.0 + 100.0
+    tau_off = 1.5 / (torch.exp(-0.1 * (Vm - tau_midv_off)) + torch.exp(+0.1 * (Vm - tau_midv_off))) * 1000.0 + 100.0
+    u_on = deltat / tau_on * (Ih_ss_on - u_on) + u_on
+    u_off = deltat / tau_off * (Ih_ss_off - u_off) + u_off
+    g_Ih_on = u_on * Ih_gmax * Ih_gain
+    g_Ih_off = u_off * Ih_gmax_off * Ih_gain
+    return u_on, u_off, g_Ih_on, g_Ih_off
+
+
 def update_Vm(Vm, u_on, u_off, in_gain, out_gain, syn_strength, Ih_gmax, Ih_gmax_off,
               Ih_midv, Ih_slope, tau_midv, Ih_midv_off, Ih_slope_off, tau_midv_off,
               signal, backend: ModelBackend, *, return_budget: bool = False):
@@ -2119,17 +2146,30 @@ def update_Vm(Vm, u_on, u_off, in_gain, out_gain, syn_strength, Ih_gmax, Ih_gmax
     # E_IH_OFF=-150).
     e_leak = backend.e_leak
     conn = backend.conn
-    slope_on = Ih_slope
-    slope_off = -Ih_slope_off
-    Ih_ss_on  = 1.0/(1.0+torch.exp((Ih_midv-Vm)*slope_on))
-    Ih_ss_off = 1.0/(1.0+torch.exp((Ih_midv_off-Vm)*slope_off))
-    tau_on  = 1.5/(torch.exp(-0.1*(Vm-tau_midv))+torch.exp(+0.1*(Vm-tau_midv)))*1000.0 + 100.0
-    tau_off = 1.5/(torch.exp(-0.1*(Vm-tau_midv_off))+torch.exp(+0.1*(Vm-tau_midv_off)))*1000.0 + 100.0
-    u_on    = deltat/tau_on*(Ih_ss_on-u_on)+u_on
-    u_off   = deltat/tau_off*(Ih_ss_off-u_off)+u_off
-    g_Ih_on  = u_on * Ih_gmax * Ih_gain
-    g_Ih_off = u_off * Ih_gmax_off * Ih_gain
-    g_Ih     = g_Ih_on + g_Ih_off
+    ih_active = (Ih_gmax + Ih_gmax_off) != 0
+    g_Ih_on = u_on.new_zeros(u_on.shape)
+    g_Ih_off = u_off.new_zeros(u_off.shape)
+    if ih_active.any():
+        ih_kw = dict(
+            Ih_midv=Ih_midv, Ih_slope=Ih_slope, tau_midv=tau_midv,
+            Ih_midv_off=Ih_midv_off, Ih_slope_off=Ih_slope_off, tau_midv_off=tau_midv_off,
+        )
+        if ih_active.all():
+            u_on, u_off, g_Ih_on, g_Ih_off = _ih_gate_step(
+                Vm, u_on, u_off, Ih_gmax, Ih_gmax_off, **ih_kw)
+        else:
+            idx = ih_active
+            u_on_a, u_off_a, g_on_a, g_off_a = _ih_gate_step(
+                Vm[:, idx], u_on[:, idx], u_off[:, idx],
+                Ih_gmax[idx], Ih_gmax_off[idx], **{k: v[idx] for k, v in ih_kw.items()},
+            )
+            u_on = u_on.clone()
+            u_off = u_off.clone()
+            u_on[:, idx] = u_on_a
+            u_off[:, idx] = u_off_a
+            g_Ih_on[:, idx] = g_on_a
+            g_Ih_off[:, idx] = g_off_a
+    g_Ih = g_Ih_on + g_Ih_off
 
     g_exc, g_inh = conn.exc_inh_drive(rectsyn(Vm,trld)*out_gain, syn_strength)
     g_exc   = g_exc*in_gain
@@ -3152,6 +3192,9 @@ def _fmt_cost_parts(parts):
     return "  [" + "  ".join(f"{k}={v:.4f}" for k, v in parts.items()) + "]"
 
 
+_TQDM_REFRESH_INTERVAL = 10
+
+
 def gradient_network(z, lr=0.0001, cost_fn=None, n_steps=100, device="cpu", z_bounds=None,
                      cost_log=None, step_log=None, float_last_parts=None, target_order=None,
                      backward_step=None, eval_cost=None):
@@ -3178,7 +3221,12 @@ def gradient_network(z, lr=0.0001, cost_fn=None, n_steps=100, device="cpu", z_bo
     initial_parts = float_last_parts(target_order) if float_last_parts else None
     best_parts = initial_parts
 
-    progress_bar = tqdm(range(n_steps), desc=f'Cost: {cost:.4f}')
+    progress_bar = tqdm(
+        range(n_steps),
+        desc=f'Cost: {cost:.4f}',
+        miniters=_TQDM_REFRESH_INTERVAL,
+        file=sys.stderr,
+    )
     aborted = None
 
     for i in progress_bar:
@@ -3224,7 +3272,11 @@ def gradient_network(z, lr=0.0001, cost_fn=None, n_steps=100, device="cpu", z_bo
             
             z.clamp_(z_bounds[:, 0].to(device), z_bounds[:, 1].to(device))
 
-        progress_bar.set_description(f'Cost: {cost:.4f}')
+        step_parts = float_last_parts(target_order) if float_last_parts else None
+        if (i + 1) % _TQDM_REFRESH_INTERVAL == 0 or i == n_steps - 1:
+            progress_bar.set_description(
+                f'Cost: {cost:.4f}' + _fmt_cost_parts(step_parts),
+            )
 
     if aborted is None:
         try:

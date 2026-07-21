@@ -26,5 +26,5 @@ echo "GPU:    ${CUDA_VISIBLE_DEVICES:-unset}"
 nvidia-smi -L || true
 "${PYTHON}" -c "import torch; print('cuda:', torch.cuda.is_available(), torch.cuda.get_device_name(0) if torch.cuda.is_available() else '')"
 echo "Start:  $(date)"
-"${PYTHON}" -u train.py  \
- --target spot --syn-strength fixed=all
+"${PYTHON}" -u add_param/add_r.py  \
+ --target spot --syn-strength fixed=all --nofsteps 500

@@ -1,0 +1,107 @@
+{
+  "backend": "network",
+  "target_list": [
+    "spot_bright",
+    "spot_dark",
+    "moving_bar_bright",
+    "moving_bar_dark"
+  ],
+  "cost_weights": {},
+  "sequential": false,
+  "network_json": "/home/yitai/drosophila_vision/temporal_filtering/Connectome/FAFBv783/built_network/right_min_neuron1_extent10/network.json",
+  "spot_bright_stimulus_opts": {
+    "mode": "network",
+    "i_baseline": 20.0,
+    "i_bright": 40.0,
+    "t_on": 50,
+    "maxtime": 200,
+    "deltat_ms": 10.0,
+    "shift_extent": 1,
+    "spot_extent": 1.0,
+    "multi_spot": true,
+    "fully_inside": true,
+    "cost_extent": 9
+  },
+  "spot_dark_stimulus_opts": {
+    "mode": "network",
+    "i_baseline": 20.0,
+    "i_dark": 0.0,
+    "t_on": 50,
+    "maxtime": 200,
+    "deltat_ms": 10.0,
+    "shift_extent": 1,
+    "spot_extent": 1.0,
+    "multi_spot": true,
+    "fully_inside": true,
+    "cost_extent": 9
+  },
+  "moving_bar_bright_stimulus_opts": {
+    "mode": "network",
+    "i_baseline": 20.0,
+    "i_bright_bar": 40.0,
+    "t_on": 50,
+    "deltat_ms": 10.0,
+    "multi_bar": true,
+    "cost_extent": 9,
+    "maxtime": 164,
+    "spec_names": [
+      "right_bright_w1",
+      "right_bright_w4",
+      "left_bright_w1",
+      "left_bright_w4",
+      "up_bright_w1",
+      "up_bright_w4",
+      "down_bright_w1",
+      "down_bright_w4"
+    ],
+    "readout_subtypes": [
+      "T4a",
+      "T4b",
+      "T4c",
+      "T4d",
+      "T5a",
+      "T5b",
+      "T5c",
+      "T5d"
+    ]
+  },
+  "moving_bar_dark_stimulus_opts": {
+    "mode": "network",
+    "i_baseline": 20.0,
+    "i_dark_bar": 0.0,
+    "t_on": 50,
+    "deltat_ms": 10.0,
+    "multi_bar": true,
+    "cost_extent": 9,
+    "maxtime": 164,
+    "spec_names": [
+      "right_dark_w1",
+      "right_dark_w4",
+      "left_dark_w1",
+      "left_dark_w4",
+      "up_dark_w1",
+      "up_dark_w4",
+      "down_dark_w1",
+      "down_dark_w4"
+    ],
+    "readout_subtypes": [
+      "T4a",
+      "T4b",
+      "T4c",
+      "T4d",
+      "T5a",
+      "T5b",
+      "T5c",
+      "T5d"
+    ]
+  },
+  "ih_group": [
+    "L1",
+    "L2",
+    "L3",
+    "L4",
+    "L5"
+  ],
+  "ih_off": "on",
+  "model": "conductance"
+}

@@ -3,7 +3,7 @@
 
 Schema segment *structure* (name, kind, count, indi/shared/fixed partitions)
 stays in ``FiveCol_MedSim_Pytorch.build_*_schema``; this module is the single
-place to edit box bounds and initialisation numbers.
+place to edit box bounds, initialisation numbers, and default partition tokens.
 
 ``fixed_val`` is used for units in the fixed partition when present (else ``init``).
 """
@@ -13,13 +13,16 @@ from training_config import DELTAT_MS
 
 # Shared gain box (in_gain / out_gain / out_scale upper end; syn_strength hi).
 GAIN_LO = 0.1
-GAIN_HI = 100.0
+GAIN_HI = 10.0
+
+# Lamina types with trainable Ih_gmax / Ih_gmax_off / adapt_gain / tau_adapt (L3 fixed at 0).
+DEFAULT_IH_GMAX_INDI_NAMES = ('L1', 'L2', 'L3', 'L4', 'L5')
 
 P = {
     # --- conductance + adaptive shared gains / readout ---
     "in_gain": dict(lo=GAIN_LO, hi=GAIN_HI, init=1, jit=0.1),
-    "out_gain": dict(lo=GAIN_LO, hi=GAIN_HI, init=1, jit=01),
-    "out_scale": dict(lo=GAIN_LO, hi=GAIN_HI, init=1., jit=0.1),
+    "out_gain": dict(lo=GAIN_LO, hi=GAIN_HI, init=1, jit=0.1),
+    "out_scale": dict(lo=GAIN_LO, hi=GAIN_HI, init=1, jit=0.1),
     # --- conductance type→type α (network ScatterConn) ---
     "syn_strength": dict(lo=0.0, hi=GAIN_HI, init=1.0, jit=0.1),
     # --- conductance Ih ---

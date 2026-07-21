@@ -53,6 +53,7 @@ import torch
 
 import network_bootstrap  # noqa: F401 — connectome_io on sys.path
 from connectome_io import DEFAULT_NETWORK_RUN, NETWORK_DIR, resolve_network_json
+from network.spot_target import DEFAULT_SHIFT_EXTENT
 from FiveCol_MedSim_Pytorch import do_many_runs
 import FiveCol_MedSim_Pytorch as fc
 from plot_trained import (
@@ -63,6 +64,7 @@ from plot_trained import (
     resolve_run_dir,
     run_dir,
 )
+from param_defaults import DEFAULT_IH_GMAX_INDI_NAMES
 from training_config import BORST_CTYPE_NPY, run_data_dir
 
 
@@ -406,7 +408,7 @@ def build_session(
     target_list=None,
     cost_weights=None,
     cost_extent_by_target=None,
-    shift_extent=0,
+    shift_extent=DEFAULT_SHIFT_EXTENT,
     spot_extent=None,
     multi_spot=True,
     fully_inside=True,
@@ -466,7 +468,7 @@ def run_training(model, nofruns, nofsteps, lrs, fname=None, outdir=None,
                  ih_off=fc.IH_OFF_DEFAULT,
                  network=None, sequential=False, borst=False,
                  target_list=None, cost_weights=None,
-                 cost_extent_by_target=None, shift_extent=0,
+                 cost_extent_by_target=None, shift_extent=DEFAULT_SHIFT_EXTENT,
                  spot_extent=None,
                  multi_spot=True,
                  fully_inside=True,
@@ -580,10 +582,7 @@ def add_training_arguments(parser):
                              "load named best_param.npz as z init only "
                              "(settings come from this CLI, not train_opts.json)")
     _ih_gmax_default = (
-        "indi=" + ",".join(fc.DEFAULT_IH_GMAX_INDI_NAMES) + ";fixed=all"
-    )
-    _ih_lamina_default = (
-        "indi=" + ",".join(fc.DEFAULT_IH_GROUP_NAMES) + ";fixed=all"
+        "indi=" + ",".join(DEFAULT_IH_GMAX_INDI_NAMES) + ";fixed=all"
     )
     _partition_help = (
         "indi=/shared=/fixed=/frozen= lists joined by ';'; 'all' in one bucket = remainder; "
@@ -603,7 +602,7 @@ def add_training_arguments(parser):
     parser.add_argument("--ih-gmax", default=None, metavar="PART",
                         help=f"Ih_gmax partitions ({_partition_help}; default {_ih_gmax_default})")
     parser.add_argument("--ih-gmax-off", default=None, metavar="PART",
-                        help=f"Ih_gmax_off partitions ({_partition_help}; default {_ih_lamina_default})")
+                        help=f"Ih_gmax_off partitions ({_partition_help}; default {_ih_gmax_default})")
     parser.add_argument("--ih-shape", default=None, metavar="PART",
                         help="batch partitions for Ih_midv/Ih_slope/tau_midv and OFF "
                              f"({_partition_help}; default shared=all)")
@@ -624,9 +623,9 @@ def add_training_arguments(parser):
     parser.add_argument("--bias", default=None, metavar="PART",
                         help=f"adaptive bias partitions ({_partition_help}; default indi=all)")
     parser.add_argument("--adapt-gain", default=None, metavar="PART",
-                        help=f"adaptive adapt_gain partitions ({_partition_help}; default {_ih_lamina_default})")
+                        help=f"adaptive adapt_gain partitions ({_partition_help}; default {_ih_gmax_default})")
     parser.add_argument("--tau-adapt", default=None, metavar="PART",
-                        help=f"adaptive tau_adapt partitions ({_partition_help}; default {_ih_lamina_default})")
+                        help=f"adaptive tau_adapt partitions ({_partition_help}; default {_ih_gmax_default})")
     parser.add_argument("--ih-off", default=fc.IH_OFF_DEFAULT,
                         choices=list(fc.IH_OFF_MODES),
                         help="OFF-channel Ih: on (train Ih_gmax_off+OFF shape; default), "
@@ -671,7 +670,7 @@ def add_training_arguments(parser):
     parser.add_argument(
         "--shift-extent",
         type=int,
-        default=0,
+        default=DEFAULT_SHIFT_EXTENT,
         help="spot sub-shift hex-disc radius for spot targets in --target "
              "(n_shifts=1+3k(k+1); 0->1, 1->7, 2->19, 3->37, ...)",
     )

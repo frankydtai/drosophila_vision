@@ -31,7 +31,7 @@ BORST_INTRA_COL_M_NPY = BORST_CIRCUITS_DIR / "intra_colM.npy"
 BORST_INTER_COL_M_NPY = BORST_CIRCUITS_DIR / "inter_colM.npy"
 BORST_MC_CELL_INDEX_NPY = BORST_CIRCUITS_DIR / "mc_cell_index.npy"
 
-# Per-run artifact subfolder (``.npy`` / ``.npz``, ``train_opts.json``).
+# Per-run artifact subfolder (``.npy`` / ``.npz``, ``train_opts.json``, ``param_schema.json``).
 RUN_DATA_SUBDIR = "data"
 
 

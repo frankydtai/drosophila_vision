@@ -121,6 +121,9 @@ DEFAULT_FULLY_INSIDE: bool = True
 # Tile simultaneous spot centres on network connectome (``False`` → centre ``(0, 0)`` only).
 DEFAULT_MULTI_SPOT: bool = True
 
+# Sub-spot shift hex-disc radius (``members_in_extent``; 1 → 7 shifts).
+DEFAULT_SHIFT_EXTENT: int = 1
+
 
 def _rot60(u: int, v: int) -> Tuple[int, int]:
     """Rotate an axial (u, v) member 60 degrees counter-clockwise about origin."""
@@ -435,7 +438,7 @@ def build_spotting(
 def spotting_from_opts(
     C,
     spot_extent: float = DEFAULT_SPOT_EXTENT,
-    shift_extent: int = 0,
+    shift_extent: int = DEFAULT_SHIFT_EXTENT,
     multi_spot: bool = DEFAULT_MULTI_SPOT,
     fully_inside: bool = DEFAULT_FULLY_INSIDE,
     *,
@@ -647,7 +650,7 @@ def build_shifted_target(
     spot_extent: float = DEFAULT_SPOT_EXTENT,
     multi_spot: bool = DEFAULT_MULTI_SPOT,
     fully_inside: bool = DEFAULT_FULLY_INSIDE,
-    shift_extent: int = 0,
+    shift_extent: int = DEFAULT_SHIFT_EXTENT,
     maxtime: int = IMPULSE_MAXTIME,
     t_on: int = T_ON,
     i_baseline: float = I_BASELINE,
