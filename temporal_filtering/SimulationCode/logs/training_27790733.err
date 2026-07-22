@@ -1,6 +1,0 @@
-Traceback (most recent call last):
-  File "/home/yitai/drosophila_vision/temporal_filtering/SimulationCode/add_param/add_r.py", line 74, in <module>
-    ih_zero = fc.ih_group_zero_indices(groups, fc.IH_GMAX_ZERO_TYPES, ml.ctype)
-  File "/home/yitai/drosophila_vision/temporal_filtering/SimulationCode/FiveCol_MedSim_Pytorch.py", line 46, in __getattr__
-    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
-AttributeError: module 'FiveCol_MedSim_Pytorch' has no attribute 'ih_group_zero_indices'

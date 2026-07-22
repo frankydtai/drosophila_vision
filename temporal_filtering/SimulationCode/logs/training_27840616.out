@@ -1,0 +1,28 @@
+Job ID: 27840616
+Node:   spartan-gpgpu176
+GPU:    0
+GPU 0: NVIDIA H100 80GB HBM3 (UUID: GPU-acf6f894-361f-ac1c-0a4a-241d225c7659)
+cuda: True NVIDIA H100 80GB HBM3
+Start:  Wed 22 Jul 2026 13:27:06 AEST
+device=cuda, model=conductance, nofruns=1, nofsteps=300, lrs=[0.1], nparams=460, fname=training_with_Ih.npy, outdir=/home/yitai/drosophila_vision/temporal_filtering/SimulationCode/0trained/conductance/27840616-add_spot_r_t45-target-spot-out-gain-fixed-all
+
+round 0
+
+
+Initl cost = 183.8147  [spot_bright=82.3226  spot_dark=101.4921]
+Final cost = 54.1275  [spot_bright=26.3595  spot_dark=27.7680]
+Best  cost = 54.1275  [spot_bright=26.3595  spot_dark=27.7680]
+time needed  = 223.43  sec
+
+done in 0.06 hours
+wrote table: /home/yitai/drosophila_vision/temporal_filtering/SimulationCode/0trained/conductance/27840616-add_spot_r_t45-target-spot-out-gain-fixed-all/param.csv (best run #0, cost=54.1275)
+wrote table: /home/yitai/drosophila_vision/temporal_filtering/SimulationCode/0trained/conductance/27840616-add_spot_r_t45-target-spot-out-gain-fixed-all/syn_strength.csv
+plot device=cuda (NVIDIA H100 80GB HBM3)
+1 trained set(s); selected #0 (cost=54.1275)
+plot /home/yitai/drosophila_vision/temporal_filtering/SimulationCode/0trained/conductance/27840616-add_spot_r_t45-target-spot-out-gain-fixed-all/cost_curve.png: draw=0.1s  save=0.2s  total=0.3s
+plot /home/yitai/drosophila_vision/temporal_filtering/SimulationCode/0trained/conductance/27840616-add_spot_r_t45-target-spot-out-gain-fixed-all/model_data_spot.png: prep=0.8s  draw=0.5s  save=0.9s  total=2.1s
+plot /home/yitai/drosophila_vision/temporal_filtering/SimulationCode/0trained/conductance/27840616-add_spot_r_t45-target-spot-out-gain-fixed-all/model_all_spot.png: prep=0.0s  draw=0.6s  save=1.1s  total=1.8s
+plots saved to /home/yitai/drosophila_vision/temporal_filtering/SimulationCode/0trained/conductance/27840616-add_spot_r_t45-target-spot-out-gain-fixed-all
+spot_bright cost cells: 48103
+spot_dark cost cells: 48103
+done -> /home/yitai/drosophila_vision/temporal_filtering/SimulationCode/0trained/conductance/27840616-add_spot_r_t45-target-spot-out-gain-fixed-all

@@ -34,6 +34,10 @@ BORST_MC_CELL_INDEX_NPY = BORST_CIRCUITS_DIR / "mc_cell_index.npy"
 # Per-run artifact subfolder (``.npy`` / ``.npz``, ``train_opts.json``, ``param_schema.json``).
 RUN_DATA_SUBDIR = "data"
 
+# Per-run CSV summaries written next to PNGs under ``<run_name>/`` (not under data/).
+PARAM_CSV = "param.csv"
+SYN_STRENGTH_CSV = "syn_strength.csv"
+
 
 def run_data_dir(outdir: str | Path) -> str:
     return str(Path(outdir) / RUN_DATA_SUBDIR)

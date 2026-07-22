@@ -9,7 +9,7 @@ Interface:
     conn.node_type
 
 ``x`` is the presynaptic output already scaled by the per-source out_gain, i.e.
-``rectsyn(Vm, trld) * out_gain`` for the conductance model or
+``rectsyn(Vm, v_th) * out_gain`` for the conductance model or
 ``relu(activity) * out_gain`` for the adaptive model. The post-synaptic input
 gain (``in_gain``) is applied by the caller AFTER these calls.
 

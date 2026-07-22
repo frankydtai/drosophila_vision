@@ -1,6 +1,0 @@
-Traceback (most recent call last):
-  File "/home/yitai/drosophila_vision/temporal_filtering/SimulationCode/add_param/add_r.py", line 63, in <module>
-    schema = [dict(s) for s in fc.default_schema(MODEL, mb)]
-  File "/home/yitai/drosophila_vision/temporal_filtering/SimulationCode/FiveCol_MedSim_Pytorch.py", line 530, in default_schema
-    raise TypeError('conductance syn_strength requires network ScatterConn backend')
-TypeError: conductance syn_strength requires network ScatterConn backend

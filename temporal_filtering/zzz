@@ -1,1 +1,1 @@
-.venv/bin/python SimulationCode/train.py local --model conductance --nofsteps 500 --lrs 0.1
+--syn-strength indi=Mi1:T4b,Mi4:T4b,Mi9:T4b,Mi1:T4c,Mi4:T4c,Mi9:T4c,Mi1:T4d,Mi4:T4d,Mi9:T4d frozen=all

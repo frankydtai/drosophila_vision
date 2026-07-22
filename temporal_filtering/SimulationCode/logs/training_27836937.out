@@ -1,0 +1,27 @@
+Job ID: 27836937
+Node:   spartan-gpgpu174
+GPU:    0
+GPU 0: NVIDIA H100 80GB HBM3 (UUID: GPU-04fe4a2c-a4b7-518f-99ad-c872ebb3f4c7)
+cuda: True NVIDIA H100 80GB HBM3
+Start:  Wed 22 Jul 2026 12:20:53 AEST
+device=cuda, model=conductance, nofruns=1, nofsteps=1000, lrs=[0.1], nparams=492, fname=training_with_Ih.npy, outdir=/home/yitai/drosophila_vision/temporal_filtering/SimulationCode/0trained/conductance/27836937-add_spot_r_t45-target-spot-in-gain-fixed-all
+
+round 0
+
+
+Initl cost = 149.9192  [spot_bright=73.7698  spot_dark=76.1494]
+Final cost = 50.5140  [spot_bright=24.5444  spot_dark=25.9696]
+Best  cost = 50.4648  [spot_bright=24.5972  spot_dark=25.8675]
+time needed  = 761.14  sec
+
+done in 0.21 hours
+wrote table: /home/yitai/drosophila_vision/temporal_filtering/SimulationCode/0trained/conductance/27836937-add_spot_r_t45-target-spot-in-gain-fixed-all/training_with_Ih_table.csv (best run #0, cost=50.4648)
+plot device=cuda (NVIDIA H100 80GB HBM3)
+1 trained set(s); selected #0 (cost=50.4648)
+plot /home/yitai/drosophila_vision/temporal_filtering/SimulationCode/0trained/conductance/27836937-add_spot_r_t45-target-spot-in-gain-fixed-all/cost_curve.png: draw=0.1s  save=0.2s  total=0.2s
+plot /home/yitai/drosophila_vision/temporal_filtering/SimulationCode/0trained/conductance/27836937-add_spot_r_t45-target-spot-in-gain-fixed-all/model_data_spot.png: prep=0.8s  draw=0.4s  save=0.9s  total=2.1s
+plot /home/yitai/drosophila_vision/temporal_filtering/SimulationCode/0trained/conductance/27836937-add_spot_r_t45-target-spot-in-gain-fixed-all/model_all_spot.png: prep=0.0s  draw=0.6s  save=1.2s  total=1.8s
+plots saved to /home/yitai/drosophila_vision/temporal_filtering/SimulationCode/0trained/conductance/27836937-add_spot_r_t45-target-spot-in-gain-fixed-all
+spot_bright cost cells: 48103
+spot_dark cost cells: 48103
+done -> /home/yitai/drosophila_vision/temporal_filtering/SimulationCode/0trained/conductance/27836937-add_spot_r_t45-target-spot-in-gain-fixed-all

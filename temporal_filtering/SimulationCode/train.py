@@ -6,7 +6,8 @@ All results of a run land in one folder under
     <model>/<run_name>/
 
 Run artifacts (``.npy`` / ``.npz``, ``train_opts.json``) live in
-``<run_name>/data/``; PNGs and ``*_table.csv`` stay in ``<run_name>/``.
+``<run_name>/data/``; PNGs, ``param.csv``, and ``syn_strength.csv`` stay in
+``<run_name>/``.
 
 where <run_name> encodes the CLI, e.g.
 ``26758480-run-nofsteps-50-target-moving_bar,spot-network-right_min_neuron1_extent2-shift``
@@ -34,7 +35,7 @@ where <run_name> encodes the CLI, e.g.
 
     # freeze all syn_strength; only L1,L2,L4,L5 train Ih_gmax
     python train.py --syn-strength frozen=all \\
-                  --ih-gmax indi=L1,L2,L4,L5;fixed=all --ih-shape shared=all
+                  --ih-gmax indi=L1,L2,L4,L5 fixed=all --ih-shape shared=all
 
     # same partition on every parameter (per-param flags override)
     python train.py --all-param indi=all --syn-strength frozen=all
@@ -65,11 +66,16 @@ from plot_trained import (
     run_dir,
 )
 from param_defaults import DEFAULT_IH_GMAX_INDI_NAMES
-from training_config import BORST_CTYPE_NPY, run_data_dir
+from training_config import (
+    BORST_CTYPE_NPY,
+    PARAM_CSV,
+    SYN_STRENGTH_CSV,
+    run_data_dir,
+)
 
 
 DEFAULT_NOFSTEPS_CPU = 50
-DEFAULT_NOFSTEPS_GPU = 1000
+DEFAULT_NOFSTEPS_GPU = 300
 
 
 def make_plots(fname, outdir, session, result=None, *,
@@ -153,6 +159,36 @@ def write_param_table(z_t, session, table_path, extra_cols=None):
         for i in range(n):
             row = ["%.6f" % cols[nm][i] for nm in cell_names] + ["%.6f" % glob[nm] for nm in glob_names]
             f.write("%d,%s," % (i, ctype[i]) + ",".join(row) + "\n")
+    return table_path
+
+
+def write_syn_strength_table(z_t, session, table_path):
+    """Write edge-pair ``syn_strength`` as source×target matrix CSV.
+
+    Rows = source types, columns = target types. Absent connectome pairs are blank.
+    """
+    schema = list(session.schema)
+    seg = next((s for s in schema if s["name"] == "syn_strength"), None)
+    if seg is None or seg["kind"] != "edge_pair":
+        return None
+    unit_vals = fc.z_to_unit_values(z_t, schema)
+    arr = np.asarray(unit_vals["syn_strength"], dtype=np.float64).reshape(-1)
+    names = [str(n) for n in ctype_labels(session)]
+    keys = list(session.backend.conn.pair_keys)
+    if arr.shape[0] != len(keys):
+        raise ValueError(
+            f"syn_strength length {arr.shape[0]} != n_pairs {len(keys)}"
+        )
+    mat = {(int(s), int(t)): float(v) for (s, t), v in zip(keys, arr)}
+    n = len(names)
+    with open(table_path, "w") as f:
+        f.write("," + ",".join(names) + "\n")
+        for i, src in enumerate(names):
+            cells = [
+                ("%.6f" % mat[(i, j)]) if (i, j) in mat else ""
+                for j in range(n)
+            ]
+            f.write(src + "," + ",".join(cells) + "\n")
     return table_path
 
 
@@ -272,17 +308,22 @@ def final_costs_for_params(all_params, session, final_costs=None):
 
 
 def write_best_artifacts(outdir, fname, session, all_params, best_i, final_costs):
-    """Write ``best_param.npz`` and ``*_table.csv`` for one best index."""
+    """Write ``best_param.npz``, ``param.csv``, and ``syn_strength.csv`` for one best index."""
     all_params = np.atleast_2d(all_params)
     best = all_params[best_i]
     os.makedirs(data_dir(outdir), exist_ok=True)
     z_best = torch.tensor(best, dtype=session.sim_dtype, device=session.device)
     save_best_param_named(outdir, z_best, session)
     write_best_i(outdir, best_i)
-    table_path = os.path.join(outdir, _artifact_stem(fname) + '_table.csv')
+    table_path = os.path.join(outdir, PARAM_CSV)
     write_param_table(z_best, session, table_path)
     print("wrote table: %s (best run #%d, cost=%.4f)" % (
         table_path, best_i, final_costs[best_i]))
+    syn_path = write_syn_strength_table(
+        z_best, session, os.path.join(outdir, SYN_STRENGTH_CSV),
+    )
+    if syn_path is not None:
+        print("wrote table: %s" % syn_path)
     return best
 
 
@@ -357,7 +398,7 @@ def save_training_outputs(fname, outdir, session, result):
 
 
 def save_param_tables(fname, outdir, session):
-    """Regenerate ``*_table.csv`` and ``best_param.npz`` from saved ``fname`` on disk."""
+    """Regenerate ``param.csv`` / ``syn_strength.csv`` and ``best_param.npz`` from saved ``fname``."""
     all_params = np.load(params_path(outdir, fname))
     final_costs, _, _, _ = load_stored_costs(outdir, fname, np.atleast_2d(all_params).shape[0])
     final_costs, best_i = final_costs_for_params(all_params, session, final_costs=final_costs)
@@ -582,49 +623,52 @@ def add_training_arguments(parser):
                              "load named best_param.npz as z init only "
                              "(settings come from this CLI, not train_opts.json)")
     _ih_gmax_default = (
-        "indi=" + ",".join(DEFAULT_IH_GMAX_INDI_NAMES) + ";fixed=all"
+        "indi=" + ",".join(DEFAULT_IH_GMAX_INDI_NAMES) + " fixed=all"
     )
     _partition_help = (
-        "indi=/shared=/fixed=/frozen= lists joined by ';'; 'all' in one bucket = remainder; "
-        "types or Src>Tar pairs (syn-strength). Example: indi=L1,L2;frozen=all"
+        "indi=/shared=/fixed=/frozen= lists space-separated; 'all' in one bucket = remainder; "
+        "types or Src:Tar pairs (syn-strength). Example: indi=L1,L2 frozen=all"
     )
-    parser.add_argument("--all-param", default=None, metavar="PART",
+    _partition_kwargs = dict(default=None, nargs='+', metavar="PART")
+    parser.add_argument("--all-param", **_partition_kwargs,
                         help=f"apply partitions to every parameter segment "
                              f"({_partition_help}; overridden by --ih-shape and per-param flags)")
-    parser.add_argument("--in-gain", default=None, metavar="PART",
-                        help=f"in_gain partitions ({_partition_help}; default indi=all)")
-    parser.add_argument("--out-gain", default=None, metavar="PART",
-                        help=f"out_gain partitions ({_partition_help}; default indi=all)")
-    parser.add_argument("--out-scale", default=None, metavar="PART",
+    parser.add_argument("--in-gain", **_partition_kwargs,
+                        help=f"in_gain partitions ({_partition_help}; default fixed=all)")
+    parser.add_argument("--out-gain", **_partition_kwargs,
+                        help=f"out_gain partitions ({_partition_help}; default fixed=all)")
+    parser.add_argument("--out-scale", **_partition_kwargs,
                         help=f"out_scale partitions ({_partition_help}; default indi=all)")
-    parser.add_argument("--syn-strength", default=None, metavar="PART",
+    parser.add_argument("--syn-strength", **_partition_kwargs,
                         help=f"syn_strength partitions ({_partition_help}; default indi=all)")
-    parser.add_argument("--ih-gmax", default=None, metavar="PART",
+    parser.add_argument("--v-th", **_partition_kwargs,
+                        help=f"v_th partitions ({_partition_help}; default fixed=all)")
+    parser.add_argument("--ih-gmax", **_partition_kwargs,
                         help=f"Ih_gmax partitions ({_partition_help}; default {_ih_gmax_default})")
-    parser.add_argument("--ih-gmax-off", default=None, metavar="PART",
+    parser.add_argument("--ih-gmax-off", **_partition_kwargs,
                         help=f"Ih_gmax_off partitions ({_partition_help}; default {_ih_gmax_default})")
-    parser.add_argument("--ih-shape", default=None, metavar="PART",
+    parser.add_argument("--ih-shape", **_partition_kwargs,
                         help="batch partitions for Ih_midv/Ih_slope/tau_midv and OFF "
                              f"({_partition_help}; default shared=all)")
-    parser.add_argument("--ih-midv", default=None, metavar="PART",
+    parser.add_argument("--ih-midv", **_partition_kwargs,
                         help=f"Ih_midv partitions (overrides --ih-shape; {_partition_help})")
-    parser.add_argument("--ih-slope", default=None, metavar="PART",
+    parser.add_argument("--ih-slope", **_partition_kwargs,
                         help=f"Ih_slope partitions (overrides --ih-shape; {_partition_help})")
-    parser.add_argument("--tau-midv", default=None, metavar="PART",
+    parser.add_argument("--tau-midv", **_partition_kwargs,
                         help=f"tau_midv partitions (overrides --ih-shape; {_partition_help})")
-    parser.add_argument("--ih-midv-off", default=None, metavar="PART",
+    parser.add_argument("--ih-midv-off", **_partition_kwargs,
                         help=f"Ih_midv_off partitions (overrides --ih-shape; {_partition_help})")
-    parser.add_argument("--ih-slope-off", default=None, metavar="PART",
+    parser.add_argument("--ih-slope-off", **_partition_kwargs,
                         help=f"Ih_slope_off partitions (overrides --ih-shape; {_partition_help})")
-    parser.add_argument("--tau-midv-off", default=None, metavar="PART",
+    parser.add_argument("--tau-midv-off", **_partition_kwargs,
                         help=f"tau_midv_off partitions (overrides --ih-shape; {_partition_help})")
-    parser.add_argument("--tau-m", default=None, metavar="PART",
+    parser.add_argument("--tau-m", **_partition_kwargs,
                         help=f"adaptive tau_m partitions ({_partition_help}; default indi=all)")
-    parser.add_argument("--bias", default=None, metavar="PART",
+    parser.add_argument("--bias", **_partition_kwargs,
                         help=f"adaptive bias partitions ({_partition_help}; default indi=all)")
-    parser.add_argument("--adapt-gain", default=None, metavar="PART",
+    parser.add_argument("--adapt-gain", **_partition_kwargs,
                         help=f"adaptive adapt_gain partitions ({_partition_help}; default {_ih_gmax_default})")
-    parser.add_argument("--tau-adapt", default=None, metavar="PART",
+    parser.add_argument("--tau-adapt", **_partition_kwargs,
                         help=f"adaptive tau_adapt partitions ({_partition_help}; default {_ih_gmax_default})")
     parser.add_argument("--ih-off", default=fc.IH_OFF_DEFAULT,
                         choices=list(fc.IH_OFF_MODES),
@@ -825,6 +869,13 @@ def parse_spot_cost_r_w(text, spot_extent):
     return parse_spot_cost_r_w_tokens(text, spot_extent=spot_extent)
 
 
+def _partition_cli_text(parts):
+    """Join space-separated partition CLI tokens into one parse string."""
+    if parts is None:
+        return None
+    return ' '.join(parts)
+
+
 def _partition_cli_map(args):
     """Build ``{seg_name: {indi/shared/fixed/frozen: tokens}}`` from partition CLI flags.
 
@@ -832,31 +883,32 @@ def _partition_cli_map(args):
     Omitted segments keep schema defaults (not listed here).
     """
     texts = {}
-    all_param = getattr(args, "all_param", None)
+    all_param = _partition_cli_text(getattr(args, "all_param", None))
     if all_param is not None:
         for name in fc.ALL_PARAM_NAMES:
             texts[name] = all_param
-    shape_text = getattr(args, "ih_shape", None)
+    shape_text = _partition_cli_text(getattr(args, "ih_shape", None))
     if shape_text is not None:
         for name in fc.IH_SHAPE_PARAM_NAMES:
             texts[name] = shape_text
     per_param = {
-        "in_gain": getattr(args, "in_gain", None),
-        "out_gain": getattr(args, "out_gain", None),
-        "out_scale": getattr(args, "out_scale", None),
-        "syn_strength": getattr(args, "syn_strength", None),
-        "Ih_gmax": getattr(args, "ih_gmax", None),
-        "Ih_gmax_off": getattr(args, "ih_gmax_off", None),
-        "Ih_midv": getattr(args, "ih_midv", None),
-        "Ih_slope": getattr(args, "ih_slope", None),
-        "tau_midv": getattr(args, "tau_midv", None),
-        "Ih_midv_off": getattr(args, "ih_midv_off", None),
-        "Ih_slope_off": getattr(args, "ih_slope_off", None),
-        "tau_midv_off": getattr(args, "tau_midv_off", None),
-        "tau_m": getattr(args, "tau_m", None),
-        "bias": getattr(args, "bias", None),
-        "adapt_gain": getattr(args, "adapt_gain", None),
-        "tau_adapt": getattr(args, "tau_adapt", None),
+        "in_gain": _partition_cli_text(getattr(args, "in_gain", None)),
+        "out_gain": _partition_cli_text(getattr(args, "out_gain", None)),
+        "out_scale": _partition_cli_text(getattr(args, "out_scale", None)),
+        "syn_strength": _partition_cli_text(getattr(args, "syn_strength", None)),
+        "v_th": _partition_cli_text(getattr(args, "v_th", None)),
+        "Ih_gmax": _partition_cli_text(getattr(args, "ih_gmax", None)),
+        "Ih_gmax_off": _partition_cli_text(getattr(args, "ih_gmax_off", None)),
+        "Ih_midv": _partition_cli_text(getattr(args, "ih_midv", None)),
+        "Ih_slope": _partition_cli_text(getattr(args, "ih_slope", None)),
+        "tau_midv": _partition_cli_text(getattr(args, "tau_midv", None)),
+        "Ih_midv_off": _partition_cli_text(getattr(args, "ih_midv_off", None)),
+        "Ih_slope_off": _partition_cli_text(getattr(args, "ih_slope_off", None)),
+        "tau_midv_off": _partition_cli_text(getattr(args, "tau_midv_off", None)),
+        "tau_m": _partition_cli_text(getattr(args, "tau_m", None)),
+        "bias": _partition_cli_text(getattr(args, "bias", None)),
+        "adapt_gain": _partition_cli_text(getattr(args, "adapt_gain", None)),
+        "tau_adapt": _partition_cli_text(getattr(args, "tau_adapt", None)),
     }
     for name, text in per_param.items():
         if text is not None:

@@ -28,6 +28,7 @@ os.chdir(ROOT)
 
 import network_bootstrap  # noqa: F401  # FAFB on sys.path
 import cell_syn
+import FiveCol_MedSim_Pytorch as fc
 import plot_trained
 import train as train_mod
 from connectome_io import parse_comma_list
@@ -156,7 +157,7 @@ def main(argv: list[str] | None = None) -> int:
     _pair_idx, n_pairs, pair_keys = build_type_pair_index(src_t, tar_t, n_types)
     key_to_i = {k: i for i, k in enumerate(pair_keys)}
     if pair_names is not None:
-        expected = [f"{type_names[s]}>{type_names[t]}" for s, t in pair_keys]
+        expected = [f"{type_names[s]}{fc.PAIR_SEP}{type_names[t]}" for s, t in pair_keys]
         if list(pair_names) != expected:
             raise SystemExit("pair_names in best_param.npz do not match network.json edges")
 

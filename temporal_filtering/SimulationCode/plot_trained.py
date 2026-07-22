@@ -174,15 +174,20 @@ def resolve_run_dir(path):
 
 
 def find_training_params(outdir):
-    """``training*_table.csv`` stem → ``data/<stem>.npy`` (train.py artifact layout)."""
+    """Locate ``data/training*.npy`` params (exclude ``*_costs*`` sidecars)."""
     import train as train_mod
 
-    tables = sorted(Path(outdir).glob('training*_table.csv'))
-    if len(tables) != 1:
+    data = Path(train_mod.data_dir(outdir))
+    candidates = sorted(
+        p for p in data.glob('training*.npy')
+        if '_costs' not in p.name
+    )
+    if len(candidates) != 1:
         raise SystemExit(
-            f'expected exactly one training*_table.csv in {outdir!r}, found {len(tables)}',
+            f'expected exactly one training*.npy (non-costs) in {str(data)!r}, '
+            f'found {len(candidates)}',
         )
-    fname = tables[0].name.replace('_table.csv', '') + '.npy'
+    fname = candidates[0].name
     params_path = train_mod.params_path(outdir, fname)
     if not os.path.isfile(params_path):
         raise SystemExit(f'missing training params: {params_path!r}')

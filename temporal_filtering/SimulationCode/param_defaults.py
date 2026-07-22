@@ -20,11 +20,13 @@ DEFAULT_IH_GMAX_INDI_NAMES = ('L1', 'L2', 'L4', 'L5')
 
 P = {
     # --- conductance + adaptive shared gains / readout ---
-    "in_gain": dict(lo=GAIN_LO, hi=GAIN_HI, init=0.5, jit=0.2),
-    "out_gain": dict(lo=GAIN_LO, hi=GAIN_HI, init=0.5, jit=0.2),
+    "in_gain": dict(lo=GAIN_LO, hi=GAIN_HI, init=1, jit=0.2),
+    "out_gain": dict(lo=GAIN_LO, hi=GAIN_HI, init=1, jit=0.2),
     "out_scale": dict(lo=GAIN_LO, hi=GAIN_HI, init=1, jit=0.1),
     # --- conductance type→type α (network ScatterConn) ---
-    "syn_strength": dict(lo=0.0, hi=GAIN_HI, init=1.0, jit=0.1),
+    "syn_strength": dict(lo=GAIN_LO, hi=GAIN_HI, init=1.0, jit=0.1),
+    # --- conductance release threshold (mV); below → no transmission ---
+    "v_th": dict(lo=-70.0, hi=-30.0, init=-50.0, jit=0.0, fixed_val=-50.0),
     # --- conductance Ih ---
     "Ih_gmax": dict(lo=0.0, hi=100.0, init=50.0, jit=10.0, fixed_val=0.0),
     "Ih_gmax_off": dict(lo=0.0, hi=100.0, init=50.0, jit=10.0, fixed_val=0.0),

@@ -1,0 +1,6 @@
+Job ID: 27803504
+Node:   spartan-gpgpu011
+GPU:    0
+GPU 0: NVIDIA H100 80GB HBM3 (UUID: GPU-f3ed8a99-8609-726a-bdc8-e3bf127ab717)
+cuda: True NVIDIA H100 80GB HBM3
+Start:  Wed 22 Jul 2026 00:48:10 AEST

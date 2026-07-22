@@ -123,7 +123,6 @@ g_leak    = 1.0   # in nS
 E_exc     = +10.0 # in mV
 E_inh     = -70.0 # in mV
 capac     = +40.0 # in pF, results in 50ms membrane time-constant for g_leak = 1.0 nS
-trld      = -50.0 # in mV: below trld, no signal is transmitted
 cdt       = capac/deltat
 
 Ca_tau    = 50.0  # in msec
@@ -188,13 +187,13 @@ STATE_CLAMP = 1.0e6  # bound on adaptive state vars to keep explicit Euler finit
 #   indi / shared / fixed / frozen : disjoint exhaustive lists of unit indices
 #       frozen: not in z; values from seg['carry'] (resume) or init (cold start)
 # z layout per segment: len(indi) slots + (1 if shared else 0).
-# CLI: per-param ``indi=...;shared=...;fixed=...;frozen=...``; ``all`` = remainder.
+# CLI: per-param ``indi=... shared=... fixed=... frozen=...`` (space-separated); ``all`` = remainder.
 # ``--all-param`` batches all segments; ``--ih-shape`` batches the six Ih shape params.
 # Named ``best_param.npz``.
 LAMINA_SLICE = ml.LAMINA_SLICE  # L1-L5 within the 65 cell types
 PARTITION_BUCKETS = ('indi', 'shared', 'fixed', 'frozen')
 ALL_PARAM_NAMES = (
-    'in_gain', 'out_gain', 'out_scale', 'syn_strength',
+    'in_gain', 'out_gain', 'out_scale', 'syn_strength', 'v_th',
     'Ih_gmax', 'Ih_gmax_off',
     'Ih_midv', 'Ih_slope', 'tau_midv',
     'Ih_midv_off', 'Ih_slope_off', 'tau_midv_off',
@@ -204,7 +203,7 @@ IH_SHAPE_PARAM_NAMES = (
     'Ih_midv', 'Ih_slope', 'tau_midv',
     'Ih_midv_off', 'Ih_slope_off', 'tau_midv_off',
 )
-PAIR_SEP = '>'
+PAIR_SEP = ':'
 
 
 def seg_count(seg):
@@ -241,24 +240,21 @@ def _fixed_const(seg):
 
 
 def parse_partition_text(text):
-    """Parse ``indi=A,B;fixed=all`` (or space-separated buckets) → token lists."""
+    """Parse ``indi=A,B fixed=all`` (space-separated buckets) → token lists."""
     text = (text or '').strip()
     buckets = {b: [] for b in PARTITION_BUCKETS}
     if not text:
         return buckets
-    if ';' in text:
-        parts = [p.strip() for p in text.split(';') if p.strip()]
-    else:
-        parts = []
-        buf = []
-        for tok in text.split():
-            if '=' in tok and tok.split('=', 1)[0] in PARTITION_BUCKETS and buf:
-                parts.append(' '.join(buf))
-                buf = [tok]
-            else:
-                buf.append(tok)
-        if buf:
+    parts = []
+    buf = []
+    for tok in text.split():
+        if '=' in tok and tok.split('=', 1)[0] in PARTITION_BUCKETS and buf:
             parts.append(' '.join(buf))
+            buf = [tok]
+        else:
+            buf.append(tok)
+    if buf:
+        parts.append(' '.join(buf))
     for part in parts:
         if '=' not in part:
             raise ValueError(f"partition chunk {part!r} needs bucket=list")
@@ -387,6 +383,10 @@ def _part_shared_all(n):
     return {'indi': [], 'shared': list(range(n)), 'fixed': [], 'frozen': []}
 
 
+def _part_fixed_all(n):
+    return {'indi': [], 'shared': [], 'fixed': list(range(n)), 'frozen': []}
+
+
 def _part_indi_subset_fixed_rest(n, indi_idx):
     indi_set = set(indi_idx)
     return {
@@ -482,13 +482,15 @@ def build_conductance_schema(n_types, type_names=None, n_pairs=None):
     ih_gmax = [name_to_i[n] for n in DEFAULT_IH_GMAX_INDI_NAMES]
     D = PARAM_DEFAULTS
     indi_all = _part_indi_all(n_types)
+    fixed_all = _part_fixed_all(n_types)
     shared_all = _part_shared_all(n_types)
     ih_gmax_part = _part_indi_subset_fixed_rest(n_types, ih_gmax)
     return [
-        _with_part({'name': 'in_gain',  'count': n_types, 'kind': 'full',   **D['in_gain']}, indi_all),
+        _with_part({'name': 'in_gain',  'count': n_types, 'kind': 'full',   **D['in_gain']}, fixed_all),
         _with_part({'name': 'out_gain',  'count': n_types, 'kind': 'full',   **D['out_gain']}, indi_all),
         _with_part({'name': 'syn_strength', 'count': n_pairs, 'kind': 'edge_pair', **D['syn_strength']},
                    _part_indi_all(n_pairs)),
+        _with_part({'name': 'v_th', 'count': n_types, 'kind': 'full', **D['v_th']}, fixed_all),
         _with_part({'name': 'out_scale', 'count': n_types, 'kind': 'output', **D['out_scale']}, indi_all),
         _with_part({'name': 'Ih_gmax', 'count': n_types, 'kind': 'full', **D['Ih_gmax']}, ih_gmax_part),
         _with_part({'name': 'Ih_gmax_off', 'count': n_types, 'kind': 'full', **D['Ih_gmax_off']}, ih_gmax_part),
@@ -507,9 +509,10 @@ def build_adaptive_schema(n_types, type_names=None):
     ih_gmax = [name_to_i[n] for n in DEFAULT_IH_GMAX_INDI_NAMES]
     D = PARAM_DEFAULTS
     indi_all = _part_indi_all(n_types)
+    fixed_all = _part_fixed_all(n_types)
     ih_g = _part_indi_subset_fixed_rest(n_types, ih_gmax)
     return [
-        _with_part({'name': 'in_gain',   'count': n_types, 'kind': 'full',   **D['in_gain']}, indi_all),
+        _with_part({'name': 'in_gain',   'count': n_types, 'kind': 'full',   **D['in_gain']}, fixed_all),
         _with_part({'name': 'out_gain',   'count': n_types, 'kind': 'full',   **D['out_gain']}, indi_all),
         _with_part({'name': 'out_scale',  'count': n_types, 'kind': 'output', **D['out_scale']}, indi_all),
         _with_part({'name': 'tau_m',      'count': n_types, 'kind': 'full',   **D['tau_m']}, indi_all),
@@ -2136,7 +2139,7 @@ def _ih_gate_step(Vm, u_on, u_off, Ih_gmax, Ih_gmax_off,
     return u_on, u_off, g_Ih_on, g_Ih_off
 
 
-def update_Vm(Vm, u_on, u_off, in_gain, out_gain, syn_strength, Ih_gmax, Ih_gmax_off,
+def update_Vm(Vm, u_on, u_off, in_gain, out_gain, syn_strength, v_th, Ih_gmax, Ih_gmax_off,
               Ih_midv, Ih_slope, tau_midv, Ih_midv_off, Ih_slope_off, tau_midv_off,
               signal, backend: ModelBackend, *, return_budget: bool = False):
     """One conductance step. With ``return_budget=True``, also return the g's that
@@ -2171,7 +2174,7 @@ def update_Vm(Vm, u_on, u_off, in_gain, out_gain, syn_strength, Ih_gmax, Ih_gmax
             g_Ih_off[:, idx] = g_off_a
     g_Ih = g_Ih_on + g_Ih_off
 
-    g_exc, g_inh = conn.exc_inh_drive(rectsyn(Vm,trld)*out_gain, syn_strength)
+    g_exc, g_inh = conn.exc_inh_drive(rectsyn(Vm, v_th)*out_gain, syn_strength)
     g_exc   = g_exc*in_gain
     g_inh   = g_inh*in_gain
 
@@ -2325,6 +2328,7 @@ def _run_conductance_full(session: TrainSession, p, sig, return_ref=False, *, re
     ih_off = (session.train_opts or {}).get('ih_off', IH_OFF_DEFAULT)
     in_gain, out_gain = p['in_gain'], p['out_gain']
     syn_strength = p['syn_strength']
+    v_th = p['v_th']
     Ih_gmax = p['Ih_gmax']
     Ih_gmax_off, Ih_midv_off, Ih_slope_off, tau_midv_off = conductance_ih_off_kwargs(p, ih_off)
     Ih_midv, Ih_slope, tau_midv = p['Ih_midv'], p['Ih_slope'], p['tau_midv']
@@ -2336,7 +2340,7 @@ def _run_conductance_full(session: TrainSession, p, sig, return_ref=False, *, re
     vm_rows = [Vm]
     for t in range(1, t_end):
         Vm, u_on, u_off = update_Vm(
-            Vm, u_on, u_off, in_gain, out_gain, syn_strength, Ih_gmax, Ih_gmax_off,
+            Vm, u_on, u_off, in_gain, out_gain, syn_strength, v_th, Ih_gmax, Ih_gmax_off,
             Ih_midv, Ih_slope, tau_midv, Ih_midv_off, Ih_slope_off, tau_midv_off,
             sig[:, t - 1], backend)
         vm_rows.append(Vm)

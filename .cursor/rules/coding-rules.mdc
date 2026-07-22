@@ -32,14 +32,14 @@ Scope: `temporal_filtering/`.
 5. CLI list values: comma-separated in one token (`a,b,c`); not space-separated (`a b c`). Exception: fixed-length pairs (e.g. `cell_syn.py` `--at-uv U V`, `nargs=2`). Use `parse_comma_list` in `train.py` / `connectome_io.py`; do not add a second splitter.
 6. CLI alias expanders: `expand_<cli_name>_list` or `expand_<cli_name>_dict` (`--kebab-case` → `snake_case`; e.g. `--ih-group` → `expand_ih_group_list`, `--mode` → `expand_mode_dict`). 
 
-## B core script rules: SimulationCode/**`, `Connectome/**` (incl. `add_param/**`).
+## B core script rules: SimulationCode/**`, `Connectome/**` (incl. `add_data/**`).
 
 1. Parameters via schema only; new param = one segment. No scattered `z[...]`.
 2. `forward` / `trainer` / `calc_cost` live in core only.
 3. `train.py`: general driver only; `import train` must not parse argv or touch CUDA.
 4. Path constants in `connectome_io.py` / `training_config.py`. 
 5. CSVs: rectangular; global scalars as constant columns.
-6. Core codes must stay flexible for add_param/ or test/ to easily import, modify, and overwrite without touching core codes.
+6. Core codes must stay flexible for add_data/ or test/ to easily import, modify, and overwrite without touching core codes.
 7. No reverse plot dependency (HARD STOP 5). Scope: `SimulationCode/network/**`, `Connectome/**`, `Medulla_Library.py`, `FiveCol_MedSim_Pytorch.py`, `training_config.py`, `connectome_io.py`. Shared logic needed by both plot and core → move into core (e.g. `network/spot_target.py`, `network/moving_bar_target.py`); never import plot layers from core.
 10. No reverse plot dependency: core must not import or call plotting. Forbidden: `import plot`, `from plot import …`, `import plot_trained`, `from plot_trained import …
 

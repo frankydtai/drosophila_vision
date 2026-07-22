@@ -254,7 +254,7 @@ def _finish_budget_figure_layout(fig, title: str, colors: list[str]) -> None:
 def _vm_step_params(p):
     """Unpack ``assign_params`` fields for ``fc.update_Vm``."""
     return (
-        p["in_gain"], p["out_gain"], p["syn_strength"],
+        p["in_gain"], p["out_gain"], p["syn_strength"], p["v_th"],
         p["Ih_gmax"], p["Ih_gmax_off"],
         p["Ih_midv"], p["Ih_slope"], p["tau_midv"],
         p["Ih_midv_off"], p["Ih_slope_off"], p["tau_midv_off"],
@@ -726,6 +726,7 @@ def _unit_params(p, backend, unit: int) -> dict[str, float]:
     return {
         "in_gain": float(p["in_gain"][unit]),
         "out_gain": float(p["out_gain"][unit]),
+        "v_th_mV": float(p["v_th"][unit]),
         "Ih_gmax": float(p["Ih_gmax"][unit]),
         "Ih_gmax_off": float(p["Ih_gmax_off"][unit]),
         "e_leak_mV": float(backend.e_leak[unit]),
@@ -741,7 +742,6 @@ def _globals():
         "g_leak_nS": fc.g_leak,
         "cdt": fc.cdt,
         "deltat_ms": fc.deltat,
-        "trld_mV": fc.trld,
         "t_on": fc.t_on,
     }
 

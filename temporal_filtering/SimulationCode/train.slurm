@@ -8,7 +8,7 @@
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=1
 #SBATCH --mem=32G
-#SBATCH --time=0:10:00
+#SBATCH --time=0:30:00
 #SBATCH --chdir=/home/yitai/drosophila_vision/temporal_filtering/SimulationCode
 #SBATCH --output=logs/training_%j.out
 #SBATCH --error=logs/training_%j.err
@@ -26,5 +26,5 @@ echo "GPU:    ${CUDA_VISIBLE_DEVICES:-unset}"
 nvidia-smi -L || true
 "${PYTHON}" -c "import torch; print('cuda:', torch.cuda.is_available(), torch.cuda.get_device_name(0) if torch.cuda.is_available() else '')"
 echo "Start:  $(date)"
-"${PYTHON}" -u add_param/add_r.py  \
---target moving_bar --cost-weight DSI --nofsteps 150 --syn-strength fixed=all --from 27803084-add_r-target-spot-nofsteps-150-syn-strength-fixed-all
+"${PYTHON}" -u add_data/add_spot.py r,t45 \
+--target spot --out-gain fixed=all --v_th indi=all
