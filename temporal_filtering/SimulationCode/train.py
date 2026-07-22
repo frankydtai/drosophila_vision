@@ -75,7 +75,7 @@ from training_config import (
 
 
 DEFAULT_NOFSTEPS_CPU = 50
-DEFAULT_NOFSTEPS_GPU = 300
+DEFAULT_NOFSTEPS_GPU = 200
 
 
 def make_plots(fname, outdir, session, result=None, *,
@@ -642,7 +642,7 @@ def add_training_arguments(parser):
     parser.add_argument("--syn-strength", **_partition_kwargs,
                         help=f"syn_strength partitions ({_partition_help}; default indi=all)")
     parser.add_argument("--v-th", **_partition_kwargs,
-                        help=f"v_th partitions ({_partition_help}; default fixed=all)")
+                        help=f"v_th partitions ({_partition_help}; default indi=all)")
     parser.add_argument("--ih-gmax", **_partition_kwargs,
                         help=f"Ih_gmax partitions ({_partition_help}; default {_ih_gmax_default})")
     parser.add_argument("--ih-gmax-off", **_partition_kwargs,

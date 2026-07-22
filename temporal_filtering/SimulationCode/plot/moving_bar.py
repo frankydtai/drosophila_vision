@@ -13,24 +13,36 @@ import torch
 
 import FiveCol_MedSim_Pytorch as fc
 import Medulla_Library as ml
-from t4_t5_dsi import moving_bar_cell_title, moving_bar_dsi_lookup
+from t4_t5_dsi import (
+    READOUT_SUBTYPES,
+    fig1_key_for_stimulus,
+    motion_preference,
+    moving_bar_cell_title,
+    moving_bar_dsi_lookup,
+)
 from plot.readout import pack_readout_types, plot_types_in_order
 from plot.utils import (
     DATA_COLOR,
     TRACE_LW,
+    TRACE_YLIM,
     PlotTimer,
     annotate_baseline,
+    as_numpy,
     baselines_for_types,
+    bundle_panel_title,
     bundle_prep_s,
     column_at_scope_tag,
+    cell_ylabel,
     overlay_model_reds,
+    plot_sem_band,
     plot_timecourse,
     save_figure,
     save_forward_trace_csvs,
     sem_from_traces,
-    slice_axis_label,
-    slice_xy_label,
+    slice_axis_name,
+    slice_coord_specs,
     suppress_cost_sem,
+    v_th_by_type_name,
 )
 from FiveCol_MedSim_Pytorch import t_on
 import network_bootstrap  # noqa: F401  # ensure FAFBv783 modules are importable
@@ -45,11 +57,6 @@ from network.moving_bar_target import (
     moving_bar_units_on_columns,
     network_uv_np,
 )
-from t4_t5_dsi import (
-    READOUT_SUBTYPES,
-    fig1_key_for_stimulus,
-    motion_preference,
-)
 from training_config import (
     COST_WINDOW_AFTER,
     COST_WINDOW_BEFORE,
@@ -57,7 +64,6 @@ from training_config import (
 )
 
 MOVING_BAR_DPI = 100
-MOVING_BAR_TRACE_YLIM = (-30.0, 30.0)
 
 
 def _borst_sti_columns():
@@ -100,6 +106,11 @@ class MovingBarTraceBundle:
     align_at_x: float | None = None
     align_at_y: float | None = None
     prep_s: float = 0.0
+    v_th_by_name: dict = field(default_factory=dict)
+
+    @property
+    def has_slices(self):
+        return bool(self.slice_overlay)
 
 
 def _moving_bar_figure(nrows, ncols, *, sharex='col'):
@@ -118,31 +129,26 @@ def _moving_bar_figure_adjust(fig):
 
 
 def _moving_bar_cell_title(
+    bundle,
     sname,
-    n,
     model_mean,
     data_mean,
     model_dsi_lookup,
     data_dsi_lookup,
     key,
+    *,
+    type_name,
 ):
     return moving_bar_cell_title(
-        sname,
-        n=n,
+        bundle_panel_title(bundle, sname, type_name=type_name),
         model_dsi=model_dsi_lookup.get(key),
         data_dsi=data_dsi_lookup.get(key),
         has_data=data_mean.get(key) is not None,
     )
 
 
-def _tensor_np(x):
-    if torch.is_tensor(x):
-        return x.detach().cpu().numpy()
-    return np.asarray(x)
-
-
 def _type_ids_np(node_type):
-    return np.asarray(_tensor_np(node_type), dtype=np.int64)
+    return np.asarray(as_numpy(node_type), dtype=np.int64)
 
 
 def _type_ids_for_plot_order(connectome_type_names, node_type, plot_types):
@@ -508,49 +514,28 @@ def moving_bar_trace_bundle(session, z, target, *, at_x=None, at_y=None,
     slice_axis = None
     slice_x_list = None
     slice_y_list = None
-    if at_x_list is not None and at_y_list is not None:
-        slice_axis = 'xy'
-        slice_x_list = list(at_x_list)
-        slice_y_list = list(at_y_list)
+    specs = slice_coord_specs(at_x_list, at_y_list)
+    if specs:
+        slice_axis = slice_axis_name(at_x_list, at_y_list)
+        slice_x_list = list(at_x_list) if at_x_list is not None else None
+        slice_y_list = list(at_y_list) if at_y_list is not None else None
         slice_overlay = {}
-        for xv in slice_x_list:
-            for yv in slice_y_list:
-                label = slice_xy_label(xv, yv)
-                wt = _moving_bar_slice_overlay_traces(
-                    session, target, trace_full, traces, spec_names,
-                    at_x=xv, at_y=yv,
-                    align_at_x=align_at_x, align_at_y=align_at_y,
-                    show_pre=show_pre,
-                )
-                if wt is None:
-                    print(f'skip slice overlay {label}: no column within cost_extent')
-                    continue
-                slice_overlay[label] = wt
+        for label, xv, yv in specs:
+            wt = _moving_bar_slice_overlay_traces(
+                session, target, trace_full, traces, spec_names,
+                at_x=xv, at_y=yv,
+                align_at_x=align_at_x, align_at_y=align_at_y,
+                show_pre=show_pre,
+            )
+            if wt is None:
+                print(f'skip slice overlay {label}: no column within cost_extent')
+                continue
+            slice_overlay[label] = wt
         if not slice_overlay:
             slice_overlay = None
             slice_axis = None
             slice_x_list = None
             slice_y_list = None
-    elif at_x_list is not None:
-        slice_axis = 'x'
-        slice_x_list = list(at_x_list)
-        slice_overlay = {}
-        for xv in slice_x_list:
-            slice_overlay[slice_axis_label(xv)] = _moving_bar_slice_overlay_traces(
-                session, target, trace_full, traces, spec_names, at_x=xv,
-                align_at_x=align_at_x, align_at_y=align_at_y,
-                show_pre=show_pre,
-            )
-    elif at_y_list is not None:
-        slice_axis = 'y'
-        slice_y_list = list(at_y_list)
-        slice_overlay = {}
-        for yv in slice_y_list:
-            slice_overlay[slice_axis_label(yv)] = _moving_bar_slice_overlay_traces(
-                session, target, trace_full, traces, spec_names, at_y=yv,
-                align_at_x=align_at_x, align_at_y=align_at_y,
-                show_pre=show_pre,
-            )
     return MovingBarTraceBundle(
         target=target,
         types=types,
@@ -572,6 +557,7 @@ def moving_bar_trace_bundle(session, z, target, *, at_x=None, at_y=None,
         align_at_x=align_at_x,
         align_at_y=align_at_y,
         prep_s=time.perf_counter() - t_prep0,
+        v_th_by_name=v_th_by_type_name(z, session),
     )
 
 
@@ -675,7 +661,7 @@ def _plot_moving_bar_cell(
         )
 
     if ylim is None:
-        ylo, yhi = MOVING_BAR_TRACE_YLIM
+        ylo, yhi = TRACE_YLIM
     else:
         ylo, yhi = ylim
 
@@ -729,7 +715,7 @@ def _plot_moving_bar_cell_slices(
         )
 
     if ylim is None:
-        ylo, yhi = MOVING_BAR_TRACE_YLIM
+        ylo, yhi = TRACE_YLIM
     else:
         ylo, yhi = ylim
     t = np.arange(win_len)
@@ -739,7 +725,6 @@ def _plot_moving_bar_cell_slices(
     for i, label in enumerate(slice_labels):
         ax.plot(t, slice_traces[label], color=colors[i], linewidth=TRACE_LW, label=label)
     if show_sem and sem_trace is not None and np.any(sem_trace):
-        from plot.utils import plot_sem_band
         plot_sem_band(ax, t, total_trace, sem_trace)
     ax.plot(t, total_trace, color=colors[-1], linewidth=TRACE_LW, label='total')
     if title is not None:
@@ -764,55 +749,55 @@ def _bundle_slice_trace(bundle, label, key):
     return bundle.slice_overlay[label].model_mean[key]
 
 
-def _moving_bar_all_scope_label(b_on):
-    if b_on.slice_overlay is not None:
-        pack = b_on.session.primary_pack
+def _moving_bar_all_scope_label(bundle_on):
+    if bundle_on.has_slices:
+        pack = bundle_on.session.primary_pack
         cost_extent = pack.cost_extent
-        at_x = b_on.slice_x_list if b_on.slice_axis in ('x', 'xy') else None
-        at_y = b_on.slice_y_list if b_on.slice_axis in ('y', 'xy') else None
+        at_x = bundle_on.slice_x_list if bundle_on.slice_axis in ('x', 'xy') else None
+        at_y = bundle_on.slice_y_list if bundle_on.slice_axis in ('y', 'xy') else None
         parts = [column_at_scope_tag(at_x, at_y), 'overlay + total']
-        if b_on.align_at_x is not None and b_on.align_at_y is not None:
+        if bundle_on.align_at_x is not None and bundle_on.align_at_y is not None:
             parts.append(
                 'aligned to '
-                + column_at_scope_tag(b_on.align_at_x, b_on.align_at_y),
+                + column_at_scope_tag(bundle_on.align_at_x, bundle_on.align_at_y),
             )
         if cost_extent is not None:
             parts.insert(0, f'cost_extent={cost_extent}')
         return ', '.join(parts)
-    return _moving_bar_scope_label(b_on.session)
+    return _moving_bar_scope_label(bundle_on.session)
 
 
-def _moving_bar_all_figure(b_on, b_2, title, *, right_only=True):
-    single_column = b_on.single_column
-    types = b_on.types
-    wt_on = b_on.traces
-    spec_names = _filter_right_specs(b_on.spec_names, right_only)
+def _moving_bar_all_figure(bundle_on, bundle_2, title, *, right_only=True):
+    single_column = bundle_on.single_column
+    types = bundle_on.types
+    wt_on = bundle_on.traces
+    spec_names = _filter_right_specs(bundle_on.spec_names, right_only)
     ncols_on = len(spec_names)
     model_mean, model_sem, model_n = wt_on.model_mean, wt_on.model_sem, wt_on.model_n
-    data_mean = b_on.data_mean
-    baselines = b_on.baselines
+    data_mean = bundle_on.data_mean
+    baselines = bundle_on.baselines
     baselines_2 = None
     wt_2 = None
-    slice_labels = _bundle_slice_labels(b_on)
-    has_slices = bool(slice_labels)
-    if b_2 is not None:
-        wt_2 = b_2.traces
-        spec_2 = _filter_right_specs(b_2.spec_names, right_only)
+    slice_labels = _bundle_slice_labels(bundle_on)
+    has_slices = bundle_on.has_slices
+    if bundle_2 is not None:
+        wt_2 = bundle_2.traces
+        spec_2 = _filter_right_specs(bundle_2.spec_names, right_only)
         spec_names = list(spec_names) + list(spec_2)
         model_mean = {**model_mean, **wt_2.model_mean}
         model_sem = {**model_sem, **wt_2.model_sem}
         model_n = {**model_n, **wt_2.model_n}
-        data_mean = {**data_mean, **b_2.data_mean}
-        baselines_2 = b_2.baselines
+        data_mean = {**data_mean, **bundle_2.data_mean}
+        baselines_2 = bundle_2.baselines
     show_sem = not single_column and not has_slices
     nrows = len(types)
     ncols = len(spec_names)
-    model_dsi_on = moving_bar_dsi_lookup(wt_on.model_mean, types, b_on.spec_names)
-    data_dsi_on = moving_bar_dsi_lookup(b_on.data_mean, types, b_on.spec_names)
+    model_dsi_on = moving_bar_dsi_lookup(wt_on.model_mean, types, bundle_on.spec_names)
+    data_dsi_on = moving_bar_dsi_lookup(bundle_on.data_mean, types, bundle_on.spec_names)
     model_dsi_2 = data_dsi_2 = None
-    if b_2 is not None:
-        model_dsi_2 = moving_bar_dsi_lookup(wt_2.model_mean, types, b_2.spec_names)
-        data_dsi_2 = moving_bar_dsi_lookup(b_2.data_mean, types, b_2.spec_names)
+    if bundle_2 is not None:
+        model_dsi_2 = moving_bar_dsi_lookup(wt_2.model_mean, types, bundle_2.spec_names)
+        data_dsi_2 = moving_bar_dsi_lookup(bundle_2.data_mean, types, bundle_2.spec_names)
     fig, axes = _moving_bar_figure(nrows, ncols)
     for ri, tname in enumerate(types):
         for ci, sname in enumerate(spec_names):
@@ -822,23 +807,24 @@ def _moving_bar_all_figure(b_on, b_2, title, *, right_only=True):
                 ax.axis('off')
                 continue
             bl = baselines.get(tname)
-            b_src = b_on if ci < ncols_on else b_2
+            bundle_src = bundle_on if ci < ncols_on else bundle_2
             wt = wt_on if ci < ncols_on else wt_2
             if baselines_2 is not None and ci >= ncols_on:
                 bl = baselines_2.get(tname)
             before_steps, after_steps = _window_steps(wt, sname)
             dsi_on = ci < ncols_on
             cell_title = _moving_bar_cell_title(
-                sname, model_n.get(key), model_mean, data_mean,
+                bundle_on, sname, model_mean, data_mean,
                 model_dsi_on if dsi_on else model_dsi_2,
                 data_dsi_on if dsi_on else data_dsi_2,
                 key,
+                type_name=tname,
             )
-            if has_slices and b_src is not None and b_src.slice_overlay is not None:
+            if has_slices and bundle_src is not None and bundle_src.slice_overlay is not None:
                 slice_traces = {
-                    label: _bundle_slice_trace(b_src, label, key)
+                    label: _bundle_slice_trace(bundle_src, label, key)
                     for label in slice_labels
-                    if key in b_src.slice_overlay[label].model_mean
+                    if key in bundle_src.slice_overlay[label].model_mean
                 }
                 if not slice_traces:
                     ax.axis('off')
@@ -869,10 +855,10 @@ def _moving_bar_all_figure(b_on, b_2, title, *, right_only=True):
                     mark_cost_window=True,
                     baseline=bl,
                 )
-        axes[ri, 0].set_ylabel(tname, fontsize=8, labelpad=12)
+        axes[ri, 0].set_ylabel(cell_ylabel(tname, model_n), fontsize=8, labelpad=12)
     if title is None:
         title = 'Moving-bar model-all (right only)' if right_only else 'Moving-bar model-all'
-    scope = _moving_bar_all_scope_label(b_on)
+    scope = _moving_bar_all_scope_label(bundle_on)
     fig.suptitle(title + f'  [{scope}, t_first_sti-aligned full window]', fontsize=12)
     _moving_bar_figure_adjust(fig)
     return fig
@@ -882,15 +868,13 @@ def _moving_bar_all_figure(b_on, b_2, title, *, right_only=True):
 def plot_moving_bar_data(path, *, bundle, bundle_2=None, title=None):
     """Draw model-data figure from a full-scope :class:`MovingBarTraceBundle`."""
     timer = PlotTimer(prior_prep=bundle_prep_s(bundle, bundle_2))
-    b_on = bundle
-    b_2 = bundle_2
     timer.end_prep()
-    single_column = b_on.single_column
-    row_specs = moving_bar_row_specs(b_on.session, b_on.target, b_on.side)
+    single_column = bundle.single_column
+    row_specs = moving_bar_row_specs(bundle.session, bundle.target, bundle.side)
     readout_subtypes = list(row_specs.keys())
     ncols_half = max((len(v) for v in row_specs.values()), default=8)
-    if b_2 is not None:
-        row_specs_2 = moving_bar_row_specs(b_2.session, b_2.target, b_2.side)
+    if bundle_2 is not None:
+        row_specs_2 = moving_bar_row_specs(bundle_2.session, bundle_2.target, bundle_2.side)
         ncols_half = max(ncols_half, max((len(v) for v in row_specs_2.values()), default=8))
         ncols = ncols_half * 2
     else:
@@ -899,15 +883,15 @@ def plot_moving_bar_data(path, *, bundle, bundle_2=None, title=None):
     nrows = len(readout_subtypes)
     fig, axes = _moving_bar_figure(nrows, ncols)
 
-    model_dsi_on = moving_bar_dsi_lookup(b_on.traces.model_mean, readout_subtypes, b_on.spec_names)
-    data_dsi_on = moving_bar_dsi_lookup(b_on.data_mean, readout_subtypes, b_on.spec_names)
+    model_dsi_on = moving_bar_dsi_lookup(bundle.traces.model_mean, readout_subtypes, bundle.spec_names)
+    data_dsi_on = moving_bar_dsi_lookup(bundle.data_mean, readout_subtypes, bundle.spec_names)
     model_dsi_2 = data_dsi_2 = None
-    if b_2 is not None:
-        model_dsi_2 = moving_bar_dsi_lookup(b_2.traces.model_mean, readout_subtypes, b_2.spec_names)
-        data_dsi_2 = moving_bar_dsi_lookup(b_2.data_mean, readout_subtypes, b_2.spec_names)
+    if bundle_2 is not None:
+        model_dsi_2 = moving_bar_dsi_lookup(bundle_2.traces.model_mean, readout_subtypes, bundle_2.spec_names)
+        data_dsi_2 = moving_bar_dsi_lookup(bundle_2.data_mean, readout_subtypes, bundle_2.spec_names)
 
-    def _plot_row(ri, subtype, specs, col_offset, b, plot_side, model_dsi, data_dsi):
-        wt = b.traces
+    def _plot_row(ri, subtype, specs, col_offset, row_bundle, plot_side, model_dsi, data_dsi):
+        wt = row_bundle.traces
         for ci, sname in enumerate(specs):
             ax = axes[ri, col_offset + ci]
             key = (subtype, sname)
@@ -916,27 +900,33 @@ def plot_moving_bar_data(path, *, bundle, bundle_2=None, title=None):
                 continue
             before_steps, after_steps = _window_steps(wt, sname)
             cell_title = _moving_bar_cell_title(
-                sname, wt.model_n.get(key), wt.model_mean, b.data_mean,
+                bundle, sname, wt.model_mean, row_bundle.data_mean,
                 model_dsi, data_dsi, key,
+                type_name=subtype,
             )
             _plot_moving_bar_cell(
                 ax, wt.model_mean[key], wt.model_sem[key],
                 cell_title, before_steps, after_steps,
-                data_trace=b.data_mean.get(key),
+                data_trace=row_bundle.data_mean.get(key),
                 show_ylabel=(col_offset + ci == 0), show_sem=not single_column,
                 mark_cost_window=True,
-                baseline=b.baselines.get(subtype),
+                baseline=row_bundle.baselines.get(subtype),
                 linestyle=_moving_bar_spec_linestyle(plot_side, subtype, sname),
             )
 
     for ri, subtype in enumerate(readout_subtypes):
-        _plot_row(ri, subtype, row_specs[subtype], 0, b_on, b_on.side, model_dsi_on, data_dsi_on)
-        if b_2 is not None:
-            _plot_row(ri, subtype, row_specs_2[subtype], ncols_half, b_2, b_2.side, model_dsi_2, data_dsi_2)
-        axes[ri, 0].set_ylabel(subtype, fontsize=8, labelpad=12)
+        _plot_row(ri, subtype, row_specs[subtype], 0, bundle, bundle.side, model_dsi_on, data_dsi_on)
+        if bundle_2 is not None:
+            _plot_row(
+                ri, subtype, row_specs_2[subtype], ncols_half, bundle_2, bundle_2.side,
+                model_dsi_2, data_dsi_2,
+            )
+        axes[ri, 0].set_ylabel(
+            cell_ylabel(subtype, bundle.traces.model_n), fontsize=8, labelpad=12,
+        )
     if title is None:
         title = 'Moving-bar model-data'
-    scope = _moving_bar_scope_label(b_on.session)
+    scope = _moving_bar_scope_label(bundle.session)
     fig.suptitle(
         title + f'  [{scope}, t_first_sti-aligned full window]',
         fontsize=12,
@@ -951,10 +941,8 @@ def plot_moving_bar_data(path, *, bundle, bundle_2=None, title=None):
 def plot_moving_bar_all(path, *, bundle, bundle_2=None, title=None, right_only=True):
     """Draw model-all figure from a full-scope :class:`MovingBarTraceBundle`."""
     timer = PlotTimer(prior_prep=bundle_prep_s(bundle, bundle_2))
-    b_on = bundle
-    b_2 = bundle_2
     timer.end_prep()
-    fig = _moving_bar_all_figure(b_on, b_2, title, right_only=right_only)
+    fig = _moving_bar_all_figure(bundle, bundle_2, title, right_only=right_only)
     timer.end_draw()
     save_figure(fig, path, dpi=MOVING_BAR_DPI, rasterize=True)
     timer.log(path)

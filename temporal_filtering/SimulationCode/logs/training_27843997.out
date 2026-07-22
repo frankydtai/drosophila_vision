@@ -1,0 +1,27 @@
+Job ID: 27843997
+Node:   spartan-gpgpu176
+GPU:    0
+GPU 0: NVIDIA H100 80GB HBM3 (UUID: GPU-acf6f894-361f-ac1c-0a4a-241d225c7659)
+cuda: True NVIDIA H100 80GB HBM3
+Start:  Wed 22 Jul 2026 15:06:21 AEST
+device=cuda, model=conductance, nofruns=1, nofsteps=200, lrs=[0.1], nparams=24, fname=training_with_Ih.npy, outdir=/home/yitai/drosophila_vision/temporal_filtering/SimulationCode/0trained/conductance/27843997-add_spot_r_t45-target-moving_bar-all-param-frozen-all-syn-strength-indi-Mi1-T4a,Mi4-T4a,Mi9-T4a,Mi1-T4b,Mi4-T4b,Mi9-T4b,Mi1-T4c,Mi4-T4c,Mi9-T4c,Mi1-T4d,Mi4-T4d,Mi9-T4d-out-scale-indi-T4a,T4b,T4c,T4d-from-27842910-add_spot_r_t45-target-spot-out-ga
+from '/home/yitai/drosophila_vision/temporal_filtering/SimulationCode/0trained/conductance/27842910-add_spot_r_t45-target-spot-out-gain-fixed-all-v-th-indi-all' -> '/home/yitai/drosophila_vision/temporal_filtering/SimulationCode/0trained/conductance/27842910-add_spot_r_t45-target-spot-out-gain-fixed-all-v-th-indi-all/data/best_param.npz' (24 trainable slots)
+
+round 0
+
+
+Initl cost = 1574.0522  [moving_bar_bright_PD=121.0854  moving_bar_bright_ND=459.9969  moving_bar_bright_DSI=100.4579  moving_bar_dark_PD=191.6576  moving_bar_dark_ND=600.2685  moving_bar_dark_DSI=100.5859]
+Final cost = 736.9685  [moving_bar_bright_PD=116.8054  moving_bar_bright_ND=217.5634  moving_bar_bright_DSI=88.9151  moving_bar_dark_PD=90.9127  moving_bar_dark_ND=125.7436  moving_bar_dark_DSI=97.0282]
+Best  cost = 736.9685  [moving_bar_bright_PD=116.8054  moving_bar_bright_ND=217.5634  moving_bar_bright_DSI=88.9151  moving_bar_dark_PD=90.9127  moving_bar_dark_ND=125.7436  moving_bar_dark_DSI=97.0282]
+time needed  = 108.06  sec
+
+done in 0.03 hours
+wrote table: /home/yitai/drosophila_vision/temporal_filtering/SimulationCode/0trained/conductance/27843997-add_spot_r_t45-target-moving_bar-all-param-frozen-all-syn-strength-indi-Mi1-T4a,Mi4-T4a,Mi9-T4a,Mi1-T4b,Mi4-T4b,Mi9-T4b,Mi1-T4c,Mi4-T4c,Mi9-T4c,Mi1-T4d,Mi4-T4d,Mi9-T4d-out-scale-indi-T4a,T4b,T4c,T4d-from-27842910-add_spot_r_t45-target-spot-out-ga/param.csv (best run #0, cost=736.9685)
+wrote table: /home/yitai/drosophila_vision/temporal_filtering/SimulationCode/0trained/conductance/27843997-add_spot_r_t45-target-moving_bar-all-param-frozen-all-syn-strength-indi-Mi1-T4a,Mi4-T4a,Mi9-T4a,Mi1-T4b,Mi4-T4b,Mi9-T4b,Mi1-T4c,Mi4-T4c,Mi9-T4c,Mi1-T4d,Mi4-T4d,Mi9-T4d-out-scale-indi-T4a,T4b,T4c,T4d-from-27842910-add_spot_r_t45-target-spot-out-ga/syn_strength.csv
+plot device=cuda (NVIDIA H100 80GB HBM3)
+1 trained set(s); selected #0 (cost=736.9685)
+plot /home/yitai/drosophila_vision/temporal_filtering/SimulationCode/0trained/conductance/27843997-add_spot_r_t45-target-moving_bar-all-param-frozen-all-syn-strength-indi-Mi1-T4a,Mi4-T4a,Mi9-T4a,Mi1-T4b,Mi4-T4b,Mi9-T4b,Mi1-T4c,Mi4-T4c,Mi9-T4c,Mi1-T4d,Mi4-T4d,Mi9-T4d-out-scale-indi-T4a,T4b,T4c,T4d-from-27842910-add_spot_r_t45-target-spot-out-ga/cost_curve.png: draw=0.1s  save=0.3s  total=0.4s
+plot /home/yitai/drosophila_vision/temporal_filtering/SimulationCode/0trained/conductance/27843997-add_spot_r_t45-target-moving_bar-all-param-frozen-all-syn-strength-indi-Mi1-T4a,Mi4-T4a,Mi9-T4a,Mi1-T4b,Mi4-T4b,Mi9-T4b,Mi1-T4c,Mi4-T4c,Mi9-T4c,Mi1-T4d,Mi4-T4d,Mi9-T4d-out-scale-indi-T4a,T4b,T4c,T4d-from-27842910-add_spot_r_t45-target-spot-out-ga/model_data_bar.png: prep=1.3s  draw=0.7s  save=1.1s  total=3.2s
+plot /home/yitai/drosophila_vision/temporal_filtering/SimulationCode/0trained/conductance/27843997-add_spot_r_t45-target-moving_bar-all-param-frozen-all-syn-strength-indi-Mi1-T4a,Mi4-T4a,Mi9-T4a,Mi1-T4b,Mi4-T4b,Mi9-T4b,Mi1-T4c,Mi4-T4c,Mi9-T4c,Mi1-T4d,Mi4-T4d,Mi9-T4d-out-scale-indi-T4a,T4b,T4c,T4d-from-27842910-add_spot_r_t45-target-spot-out-ga/model_all_bar.png: prep=0.0s  draw=1.6s  save=2.3s  total=3.9s
+plots saved to /home/yitai/drosophila_vision/temporal_filtering/SimulationCode/0trained/conductance/27843997-add_spot_r_t45-target-moving_bar-all-param-frozen-all-syn-strength-indi-Mi1-T4a,Mi4-T4a,Mi9-T4a,Mi1-T4b,Mi4-T4b,Mi9-T4b,Mi1-T4c,Mi4-T4c,Mi9-T4c,Mi1-T4d,Mi4-T4d,Mi9-T4d-out-scale-indi-T4a,T4b,T4c,T4d-from-27842910-add_spot_r_t45-target-spot-out-ga
+done -> /home/yitai/drosophila_vision/temporal_filtering/SimulationCode/0trained/conductance/27843997-add_spot_r_t45-target-moving_bar-all-param-frozen-all-syn-strength-indi-Mi1-T4a,Mi4-T4a,Mi9-T4a,Mi1-T4b,Mi4-T4b,Mi9-T4b,Mi1-T4c,Mi4-T4c,Mi9-T4c,Mi1-T4d,Mi4-T4d,Mi9-T4d-out-scale-indi-T4a,T4b,T4c,T4d-from-27842910-add_spot_r_t45-target-spot-out-ga

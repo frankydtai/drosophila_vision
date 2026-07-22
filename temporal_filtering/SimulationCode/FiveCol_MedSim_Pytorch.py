@@ -3211,6 +3211,7 @@ def gradient_network(z, lr=0.0001, cost_fn=None, n_steps=100, device="cpu", z_bo
         range(n_steps),
         desc=f'Cost: {cost:.4f}' + _fmt_cost_parts(initial_parts),
         miniters=_TQDM_REFRESH_INTERVAL,
+        maxinterval=60,
         file=sys.stderr,
     )
     aborted = None

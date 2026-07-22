@@ -6,7 +6,7 @@ Network RF bins are ring means: r=0 -> j4, r=1 -> j3/j5, r=2 -> j2/j6.
 from __future__ import annotations
 
 import time
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -26,11 +26,12 @@ from plot.utils import (
     DATA_COLOR,
     MODEL_COLOR,
     TRACE_LW,
+    TRACE_YLIM,
     PlotTimer,
     annotate_baseline,
     batches_at_stim_xy,
+    bundle_cell_title,
     bundle_prep_s,
-    cell_title_with_n,
     column_at_scope_tag,
     overlay_model_reds,
     plot_timecourse,
@@ -38,9 +39,9 @@ from plot.utils import (
     save_figure,
     save_forward_trace_csvs,
     sem_from_traces,
-    slice_axis_label,
-    slice_xy_label,
+    slice_coord_specs,
     suppress_cost_sem,
+    v_th_by_type_name,
 )
 from column_mapper import borst_sti_columns
 from network.moving_bar_target import filter_borst_sti_columns
@@ -54,8 +55,6 @@ from network.spot_target import (
 
 CENTER_BIN = ml.CENTER_COL + 2
 CTYPE = ml.ctype
-_SPOT_RECF_PROFILE_BINS = 9
-SPOT_TRACE_YLIM = (-30.0, 30.0)
 
 
 def _radius_to_profile_bins(radius):
@@ -174,7 +173,7 @@ def plot_cell_pair(
         model_2_imp_model, model_2_rf_model = scale_curve(model_2_xt, center)
     if ref_2_xt is not None:
         model_2_imp_data, model_2_rf_data = scale_curve(ref_2_xt, center)
-    ylo, yhi = SPOT_TRACE_YLIM
+    ylo, yhi = TRACE_YLIM
 
     if rf_data is not None:
         ax_rf.plot(
@@ -273,7 +272,7 @@ def plot_cell_pair_slices(
             slice_2_imps[label] = imp_s
             slice_2_rfs[label] = rf_s
 
-    ylo, yhi = SPOT_TRACE_YLIM
+    ylo, yhi = TRACE_YLIM
 
     colors = overlay_model_reds(len(slice_labels))
     if rf_data is not None:
@@ -475,7 +474,7 @@ def _fill_member_cube(cube, sem, ti, ft_global, type_idx, du, dv, plot_traces):
 class SpotTraceBundle:
     """One forward pass; full cost-extent readout over all types."""
 
-    cells_on: list
+    cells: list
     group_rows: list | None = None
     session: object = None
     slice_overlay: dict[str, dict[str, np.ndarray]] | None = None
@@ -484,6 +483,7 @@ class SpotTraceBundle:
     slice_y_list: list | None = None
     maxtime: int = IMPULSE_MAXTIME
     prep_s: float = 0.0
+    v_th_by_name: dict = field(default_factory=dict)
 
     @property
     def has_slices(self):
@@ -511,33 +511,21 @@ def _spot_readout_bundle_view(bundle):
     session = bundle.session
     present = pack_readout_types(session, session.primary_pack.name)
     groups, names = plot_present_layout(present)
-    by_name = {c['name']: c for c in bundle.cells_on}
+    by_name = {c['name']: c for c in bundle.cells}
     cells = [by_name[n] for n in names if n in by_name]
     cell_names = [c['name'] for c in cells]
     return SpotTraceBundle(
-        cells_on=cells,
+        cells=cells,
         group_rows=_group_rows_from_groups(groups, cell_names),
         session=session,
         maxtime=bundle.maxtime,
+        v_th_by_name=bundle.v_th_by_name,
     )
 
 
 def _cells_with_group_rows(groups, names, build_cell):
     cells = [build_cell(str(name)) for name in names]
     return cells, _group_rows_from_groups(groups, names)
-
-
-def _spot_slice_specs(at_x_list, at_y_list):
-    if at_x_list is not None and at_y_list is not None:
-        return [
-            (slice_xy_label(xv, yv), xv, yv)
-            for xv in at_x_list for yv in at_y_list
-        ]
-    if at_x_list is not None:
-        return [(slice_axis_label(xv), xv, None) for xv in at_x_list]
-    if at_y_list is not None:
-        return [(slice_axis_label(yv), None, yv) for yv in at_y_list]
-    return []
 
 
 def _spot_cubes_from_row_mask(rows, mask):
@@ -562,7 +550,7 @@ def _spot_slice_overlay(rows, batches, at_x_list, at_y_list):
     overlay = {}
     labels = []
     batch_idx = rows['batch_idx']
-    for label, at_x, at_y in _spot_slice_specs(at_x_list, at_y_list):
+    for label, at_x, at_y in slice_coord_specs(at_x_list, at_y_list):
         match_b = batches_at_stim_xy(batches, at_x=at_x, at_y=at_y)
         if not match_b:
             print(f'skip slice overlay {label}: no stimulus batch')
@@ -584,7 +572,7 @@ def _borst_slice_overlay(model, names, at_x_list, at_y_list):
     labels = []
     cols_all = list(borst_sti_columns())
     mt = model.shape[2]
-    for label, at_x, at_y in _spot_slice_specs(at_x_list, at_y_list):
+    for label, at_x, at_y in slice_coord_specs(at_x_list, at_y_list):
         try:
             filt = filter_borst_sti_columns(
                 cols_all, at_x=at_x, at_y=at_y if at_y is not None else 0.0,
@@ -611,13 +599,14 @@ def _borst_slice_overlay(model, names, at_x_list, at_y_list):
 
 
 def _cells_from_cube(names, cube, sem, baselines, *, single_column, n_by_name=None):
+    n_by_name = n_by_name or {}
     return [
         dict(
             name=n,
             cube=cube[i],
             sem=None if single_column else sem[i],
             baseline=baselines.get(n),
-            n=None if n_by_name is None else n_by_name.get(n),
+            n=n_by_name.get(n),
         )
         for i, n in enumerate(names)
     ]
@@ -773,7 +762,7 @@ def network_spot_trace_bundle(
             rows, rows['batches'], at_x_list, at_y_list,
         )
     return SpotTraceBundle(
-        cells_on=cells,
+        cells=cells,
         group_rows=group_rows,
         session=session,
         slice_overlay=slice_overlay,
@@ -782,6 +771,7 @@ def network_spot_trace_bundle(
         slice_y_list=at_y_list,
         maxtime=maxtime,
         prep_s=time.perf_counter() - t_prep0,
+        v_th_by_name=v_th_by_type_name(z, session),
     )
 
 
@@ -803,7 +793,7 @@ def borst_spot_trace_bundle(
             model, names, at_x_list, at_y_list,
         )
     return SpotTraceBundle(
-        cells_on=cells,
+        cells=cells,
         group_rows=group_rows,
         session=session,
         slice_overlay=slice_overlay,
@@ -812,6 +802,7 @@ def borst_spot_trace_bundle(
         slice_y_list=at_y_list,
         maxtime=session.maxtime,
         prep_s=time.perf_counter() - t_prep0,
+        v_th_by_name=v_th_by_type_name(z, session),
     )
 
 
@@ -837,9 +828,9 @@ def _plot_spot_figure(
 ):
     session_1 = bundle_on.session
     session_2 = bundle_2.session if bundle_2 is not None else None
-    cells_on = bundle_on.cells_on
+    cells = bundle_on.cells
     group_rows = bundle_on.group_rows
-    cells_2 = bundle_2.cells_on if bundle_2 is not None else None
+    cells_2 = bundle_2.cells if bundle_2 is not None else None
     has_slices = bundle_on.has_slices
     slice_labels = bundle_on.slice_labels or []
     slice_overlay_on = bundle_on.slice_overlay
@@ -868,7 +859,7 @@ def _plot_spot_figure(
     def _plot_cell(cell_on, cell_2, ax_rf, ax_time, show_ylabel, show_xlabels):
         nonlocal legend_done
         name = cell_on['name']
-        cell_title = cell_title_with_n(name, cell_on.get('n'))
+        cell_title = bundle_cell_title(bundle_on, name, cell_on.get('n'))
         if has_slices and slice_overlay_on is not None:
             kw_2 = {}
             if dual and cell_2 is not None:
@@ -944,7 +935,7 @@ def _plot_spot_figure(
         start = (ncols - len(row_idx)) // 2
         for j, ci in enumerate(row_idx):
             col = start + j
-            cell_on = cells_on[ci]
+            cell_on = cells[ci]
             cell_2 = cells_2_by_name.get(cell_on['name']) if dual else None
             ax_rf = fig.add_subplot(gs[rf_row, col])
             ax_time = fig.add_subplot(gs[rf_row + 1, col])

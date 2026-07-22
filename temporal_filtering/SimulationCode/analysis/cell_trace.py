@@ -225,9 +225,9 @@ def extract_moving_bar_bundle(session, z, *, target: str, trace_kind: str, x_lis
 
 def extract_spot_cell_curves(bundle, ref_on, *, cell: str, slice_label: str | None = None):
     center = spot_plot.CENTER_BIN
-    cell_on = next((c for c in bundle.cells_on if c["name"] == cell), None)
+    cell_on = next((c for c in bundle.cells if c["name"] == cell), None)
     if cell_on is None:
-        avail = sorted(c["name"] for c in bundle.cells_on)
+        avail = sorted(c["name"] for c in bundle.cells)
         raise SystemExit(f"cell {cell!r} not in spot bundle; available: {avail}")
     if cell not in ref_on:
         raise SystemExit(f"cell {cell!r} not in spot ref cubes; keys={sorted(ref_on)}")

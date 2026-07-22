@@ -526,17 +526,14 @@ def moving_bar_dsi_lookup(
 
 
 def moving_bar_cell_title(
-    label: str,
-    n: Optional[int] = None,
+    head: str,
     model_dsi: Optional[float] = None,
     data_dsi: Optional[float] = None,
     *,
     has_data: bool = False,
 ) -> str:
-    if n is None:
-        lines = [str(label)]
-    else:
-        lines = [f"{label} (n={int(n)})"]
+    """Append DSI lines to a subplot title *head* (e.g. from ``cell_title_with_n``)."""
+    lines = [str(head)]
     if model_dsi is not None:
         lines.append(f"DSI={model_dsi:.3f}")
     if has_data and data_dsi is not None:

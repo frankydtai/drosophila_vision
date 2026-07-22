@@ -1,0 +1,28 @@
+Job ID: 27842910
+Node:   spartan-gpgpu176
+GPU:    0
+GPU 0: NVIDIA H100 80GB HBM3 (UUID: GPU-acf6f894-361f-ac1c-0a4a-241d225c7659)
+cuda: True NVIDIA H100 80GB HBM3
+Start:  Wed 22 Jul 2026 14:27:00 AEST
+device=cuda, model=conductance, nofruns=1, nofsteps=300, lrs=[0.1], nparams=492, fname=training_with_Ih.npy, outdir=/home/yitai/drosophila_vision/temporal_filtering/SimulationCode/0trained/conductance/27842910-add_spot_r_t45-target-spot-out-gain-fixed-all-v-th-indi-all
+
+round 0
+
+
+Initl cost = 170.1797  [spot_bright=79.5203  spot_dark=90.6594]
+Final cost = 51.7076  [spot_bright=25.1179  spot_dark=26.5898]
+Best  cost = 51.7076  [spot_bright=25.1179  spot_dark=26.5898]
+time needed  = 230.58  sec
+
+done in 0.06 hours
+wrote table: /home/yitai/drosophila_vision/temporal_filtering/SimulationCode/0trained/conductance/27842910-add_spot_r_t45-target-spot-out-gain-fixed-all-v-th-indi-all/param.csv (best run #0, cost=51.7076)
+wrote table: /home/yitai/drosophila_vision/temporal_filtering/SimulationCode/0trained/conductance/27842910-add_spot_r_t45-target-spot-out-gain-fixed-all-v-th-indi-all/syn_strength.csv
+plot device=cuda (NVIDIA H100 80GB HBM3)
+1 trained set(s); selected #0 (cost=51.7076)
+plot /home/yitai/drosophila_vision/temporal_filtering/SimulationCode/0trained/conductance/27842910-add_spot_r_t45-target-spot-out-gain-fixed-all-v-th-indi-all/cost_curve.png: draw=0.1s  save=0.2s  total=0.3s
+plot /home/yitai/drosophila_vision/temporal_filtering/SimulationCode/0trained/conductance/27842910-add_spot_r_t45-target-spot-out-gain-fixed-all-v-th-indi-all/model_data_spot.png: prep=0.8s  draw=0.5s  save=0.9s  total=2.2s
+plot /home/yitai/drosophila_vision/temporal_filtering/SimulationCode/0trained/conductance/27842910-add_spot_r_t45-target-spot-out-gain-fixed-all-v-th-indi-all/model_all_spot.png: prep=0.0s  draw=0.7s  save=1.2s  total=1.9s
+plots saved to /home/yitai/drosophila_vision/temporal_filtering/SimulationCode/0trained/conductance/27842910-add_spot_r_t45-target-spot-out-gain-fixed-all-v-th-indi-all
+spot_bright cost cells: 48103
+spot_dark cost cells: 48103
+done -> /home/yitai/drosophila_vision/temporal_filtering/SimulationCode/0trained/conductance/27842910-add_spot_r_t45-target-spot-out-gain-fixed-all-v-th-indi-all

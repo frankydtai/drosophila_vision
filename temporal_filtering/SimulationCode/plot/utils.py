@@ -17,12 +17,18 @@ DATA_COLOR = 'gray'
 MODEL_COLOR = 'red'
 SEM_COLOR = 'pink'
 TRACE_LW = 1.5
+# Fixed symmetric ylim for spot / moving-bar model-data panels (delta-mV).
+TRACE_YLIM = (-30.0, 30.0)
 
 
-def _as_numpy(arr):
+def as_numpy(arr):
     if isinstance(arr, torch.Tensor):
         return arr.detach().cpu().numpy()
     return np.asarray(arr)
+
+
+def _as_numpy(arr):
+    return as_numpy(arr)
 
 
 def save_forward_trace_csvs(
@@ -186,11 +192,65 @@ def readout_n_by_name(type_idx, type_names, names, unit_idx):
     }
 
 
-def cell_title_with_n(label, n=None):
-    """Subplot title with sample count when *n* is set."""
+def v_th_by_type_name(z, session):
+    """Per-type ``v_th`` (mV) keyed by type name; empty if schema has no ``v_th``."""
+    schema = list(session.schema)
+    if not any(s.get('name') == 'v_th' for s in schema):
+        return {}
+    arr = np.asarray(fc.z_to_unit_values(z, schema)['v_th'], dtype=np.float64).reshape(-1)
+    names = fc.type_unit_names(session.backend)
+    if arr.shape[0] != len(names):
+        raise ValueError(f"v_th length {arr.shape[0]} != n_types {len(names)}")
+    return {str(n): float(arr[i]) for i, n in enumerate(names)}
+
+
+def label_with_n(label, n=None):
+    """Cell / row label with optional sample count."""
     if n is None:
         return label
     return f'{label} (n={int(n)})'
+
+
+def n_for_type(model_n, tname):
+    """Sample count for *tname* from keyed ``model_n`` ``{(type, spec): n}``."""
+    for (t, _s), n in model_n.items():
+        if t == tname:
+            return n
+    return None
+
+
+def cell_ylabel(label, model_n=None, n=None):
+    """Row / cell axis label with ``n`` from *model_n* or explicit *n*."""
+    if n is None and model_n is not None:
+        n = n_for_type(model_n, label)
+    return label_with_n(label, n)
+
+
+def cell_title_with_n(label, n=None, v_th=None):
+    """Spot-style panel title: cell name + optional ``n``, ``v_th`` on next line."""
+    head = label_with_n(label, n)
+    if v_th is None:
+        return head
+    return f'{head}\nv_th={float(v_th):.1f} mV'
+
+
+def panel_title_with_v_th(label, v_th=None):
+    """Stimulus / panel title with optional ``v_th`` line (no ``n``)."""
+    if v_th is None:
+        return label
+    return f'{label}\nv_th={float(v_th):.1f} mV'
+
+
+def bundle_cell_title(bundle, label, n=None, *, type_name=None):
+    """Spot panel title from ``bundle.v_th_by_name`` (key = *type_name* or *label*)."""
+    key = label if type_name is None else type_name
+    return cell_title_with_n(label, n, bundle.v_th_by_name.get(key))
+
+
+def bundle_panel_title(bundle, label, *, type_name=None):
+    """Moving-bar panel title from ``bundle.v_th_by_name`` (no ``n``)."""
+    key = label if type_name is None else type_name
+    return panel_title_with_v_th(label, bundle.v_th_by_name.get(key))
 
 
 def network_column_count(C):
@@ -326,6 +386,31 @@ def slice_axis_label(val):
 
 def slice_xy_label(xv, yv):
     return f'({slice_axis_label(xv)},{slice_axis_label(yv)})'
+
+
+def slice_coord_specs(at_x_list, at_y_list):
+    """Expand optional x/y lists to ``[(label, at_x, at_y), ...]`` (missing axis is None)."""
+    if at_x_list is not None and at_y_list is not None:
+        return [
+            (slice_xy_label(xv, yv), xv, yv)
+            for xv in at_x_list for yv in at_y_list
+        ]
+    if at_x_list is not None:
+        return [(slice_axis_label(xv), xv, None) for xv in at_x_list]
+    if at_y_list is not None:
+        return [(slice_axis_label(yv), None, yv) for yv in at_y_list]
+    return []
+
+
+def slice_axis_name(at_x_list, at_y_list):
+    """``'xy'`` / ``'x'`` / ``'y'`` / ``None`` matching :func:`slice_coord_specs`."""
+    if at_x_list is not None and at_y_list is not None:
+        return 'xy'
+    if at_x_list is not None:
+        return 'x'
+    if at_y_list is not None:
+        return 'y'
+    return None
 
 
 def overlay_model_reds(n_slices):

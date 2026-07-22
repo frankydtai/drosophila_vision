@@ -1,0 +1,30 @@
+Job ID: 27849055
+Node:   spartan-gpgpu176
+GPU:    0
+GPU 0: NVIDIA H100 80GB HBM3 (UUID: GPU-acf6f894-361f-ac1c-0a4a-241d225c7659)
+cuda: True NVIDIA H100 80GB HBM3
+Start:  Wed 22 Jul 2026 15:51:20 AEST
+device=cuda, model=conductance, nofruns=1, nofsteps=200, lrs=[0.1], nparams=492, fname=training_with_Ih.npy, outdir=/home/yitai/drosophila_vision/temporal_filtering/SimulationCode/0trained/conductance/27849055-add_spot_r
+
+round 0
+
+
+Initl cost = 865.8271  [spot_bright=79.9431  spot_dark=88.2410  moving_bar_bright_PD=115.1584  moving_bar_bright_ND=175.9775  moving_bar_bright_DSI=105.4273  moving_bar_dark_PD=91.3779  moving_bar_dark_ND=109.8399  moving_bar_dark_DSI=99.8621]
+Final cost = 732.9898  [spot_bright=66.6717  spot_dark=66.6039  moving_bar_bright_PD=99.6361  moving_bar_bright_ND=99.2688  moving_bar_bright_DSI=99.6280  moving_bar_dark_PD=100.2565  moving_bar_dark_ND=100.6804  moving_bar_dark_DSI=100.2443]
+Best  cost = 607.5258  [spot_bright=59.4774  spot_dark=47.2068  moving_bar_bright_PD=102.5871  moving_bar_bright_ND=110.4507  moving_bar_bright_DSI=30.6982  moving_bar_dark_PD=89.5740  moving_bar_dark_ND=80.4192  moving_bar_dark_DSI=87.1125]
+time needed  = 276.14  sec
+
+done in 0.08 hours
+wrote table: /home/yitai/drosophila_vision/temporal_filtering/SimulationCode/0trained/conductance/27849055-add_spot_r/param.csv (best run #0, cost=607.5258)
+wrote table: /home/yitai/drosophila_vision/temporal_filtering/SimulationCode/0trained/conductance/27849055-add_spot_r/syn_strength.csv
+plot device=cuda (NVIDIA H100 80GB HBM3)
+1 trained set(s); selected #0 (cost=607.5258)
+plot /home/yitai/drosophila_vision/temporal_filtering/SimulationCode/0trained/conductance/27849055-add_spot_r/cost_curve.png: draw=0.2s  save=0.4s  total=0.6s
+plot /home/yitai/drosophila_vision/temporal_filtering/SimulationCode/0trained/conductance/27849055-add_spot_r/model_data_spot.png: prep=0.8s  draw=0.3s  save=0.6s  total=1.7s
+plot /home/yitai/drosophila_vision/temporal_filtering/SimulationCode/0trained/conductance/27849055-add_spot_r/model_all_spot.png: prep=0.0s  draw=0.6s  save=1.1s  total=1.8s
+plot /home/yitai/drosophila_vision/temporal_filtering/SimulationCode/0trained/conductance/27849055-add_spot_r/model_data_bar.png: prep=1.3s  draw=0.7s  save=1.1s  total=3.1s
+plot /home/yitai/drosophila_vision/temporal_filtering/SimulationCode/0trained/conductance/27849055-add_spot_r/model_all_bar.png: prep=0.0s  draw=1.6s  save=2.2s  total=3.9s
+plots saved to /home/yitai/drosophila_vision/temporal_filtering/SimulationCode/0trained/conductance/27849055-add_spot_r
+spot_bright cost cells: 34196
+spot_dark cost cells: 34196
+done -> /home/yitai/drosophila_vision/temporal_filtering/SimulationCode/0trained/conductance/27849055-add_spot_r
