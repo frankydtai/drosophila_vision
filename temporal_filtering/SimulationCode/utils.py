@@ -5,7 +5,7 @@ from __future__ import annotations
 import FiveCol_MedSim_Pytorch as fc
 import train
 from param_defaults import DEFAULT_IH_GMAX_INDI_NAMES
-from plot.readout import borst_ref_cubes
+from plot.readout import fit_ref_cubes
 
 
 def merge_ih_param_partitions(train_kw):
@@ -55,7 +55,7 @@ def make_mirror_ref_cubes(mirror_fits, mirror_sign=-1.0):
     specs = _normalize_mirror_fits(mirror_fits, mirror_sign)
 
     def mirror_ref_cubes(dark=False):
-        ref = borst_ref_cubes(dark=dark)
+        ref = fit_ref_cubes(dark=dark)
         for spec in specs:
             src = ref[spec['mirror_fit']]
             sign = spec['mirror_sign']
@@ -85,12 +85,11 @@ def run_mirror_spot_experiment(
     mirror_fits,
     *,
     mirror_sign=-1.0,
-    pass_borst=False,
     configure_parser=None,
 ):
     """CLI entry for spot mirror-fit experiments.
 
-    *script_stem* / *mirror_fits* / *pass_borst*: value or ``callable(args) ->``.
+    *script_stem* / *mirror_fits*: value or ``callable(args) ->``.
     *mirror_fits* entries: ``{mirror_types, mirror_fit[, mirror_sign]}``.
     *configure_parser*: optional ``callable(ap)`` to add experiment-specific args.
     """
@@ -105,7 +104,6 @@ def run_mirror_spot_experiment(
         ap.error(str(exc))
 
     fits = mirror_fits(args) if callable(mirror_fits) else mirror_fits
-    use_borst = pass_borst(args) if callable(pass_borst) else pass_borst
     target_list = train_kw['target_list']
     pack_overrides = spot_pack_overrides(target_list, fits, mirror_sign)
     param_partitions = merge_ih_param_partitions(train_kw)
@@ -115,8 +113,6 @@ def run_mirror_spot_experiment(
     )
 
     run_kw = dict(train_kw)
-    if use_borst:
-        run_kw['borst'] = bool(args.borst)
     fname, outdir, session = train.run_training(
         **run_kw,
         pack_overrides=pack_overrides,

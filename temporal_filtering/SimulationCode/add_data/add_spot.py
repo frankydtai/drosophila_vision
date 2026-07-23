@@ -8,8 +8,8 @@ ROOT = os.path.dirname(HERE)
 sys.path.insert(0, ROOT)
 os.chdir(ROOT)
 
-import Medulla_Library as ml
 import train
+from connectome_io import parse_comma_list
 from t4_t5_dsi import READOUT_SUBTYPES
 from utils import run_mirror_spot_experiment
 
@@ -17,7 +17,7 @@ SPOT_KINDS = ('r', 't45')
 
 
 def parse_kind_list(text):
-    kinds = train.parse_comma_list(text)
+    kinds = parse_comma_list(text)
     unknown = [k for k in kinds if k not in SPOT_KINDS]
     if unknown:
         raise argparse.ArgumentTypeError(
@@ -42,11 +42,7 @@ def configure_parser(ap):
 def mirror_fits(args):
     fits = []
     if 'r' in args.kind:
-        if args.borst:
-            r_names = [str(ml.ctype[i]) for i in range(ml.N_PHOTORECEPTORS)]
-        else:
-            r_names = ['R1-6', 'R7', 'R8']
-        fits.append({'mirror_types': r_names, 'mirror_fit': 'L1'})
+        fits.append({'mirror_types': ['R1-6', 'R7', 'R8'], 'mirror_fit': 'L1'})
     if 't45' in args.kind:
         t4 = [n for n in READOUT_SUBTYPES if n.startswith('T4')]
         t5 = [n for n in READOUT_SUBTYPES if n.startswith('T5')]
@@ -59,6 +55,5 @@ run_mirror_spot_experiment(
     __doc__,
     lambda args: 'add_spot_' + '_'.join(args.kind),
     mirror_fits,
-    pass_borst=lambda args: 'r' in args.kind,
     configure_parser=configure_parser,
 )

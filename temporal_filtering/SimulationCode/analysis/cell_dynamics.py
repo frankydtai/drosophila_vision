@@ -82,7 +82,7 @@ from network.spot_target import (
 from plot.readout import spot_ref_cubes
 from plot.spot import CENTER_BIN
 from plot.utils import plot_sem_band
-from train import parse_comma_list
+from connectome_io import parse_comma_list
 
 
 # Budget-step fields plotted vs time (key, ylabel/legend).

@@ -76,6 +76,7 @@ import network_bootstrap  # noqa: F401
 
 import column_mapper
 
+from connectome_io import parse_comma_list
 from Medulla_Library import DATA_AMP, I_DARK, I_BASELINE, I_BRIGHT, cell_list as _CELL_LIST, read_RecF_ImpR
 from training_config import IMPULSE_MAXTIME, SIM_DTYPE_DEFAULT, T_ON
 from .construction import col2fit, unit_type_names
@@ -321,7 +322,7 @@ def parse_spot_cost_r_w_tokens(
     then set those radii to ``1``. ``r=w`` merges onto extent defaults (or onto
     the exclusive map when mixed with bare keys).
     """
-    tokens = [t.strip() for t in str(text or "").split(",") if t.strip()]
+    tokens = parse_comma_list(text)
     if not tokens:
         return None
     bare: list[float] = []

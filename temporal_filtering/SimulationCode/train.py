@@ -53,7 +53,12 @@ import numpy as np
 import torch
 
 import network_bootstrap  # noqa: F401 — connectome_io on sys.path
-from connectome_io import DEFAULT_NETWORK_RUN, NETWORK_DIR, resolve_network_json
+from connectome_io import (
+    DEFAULT_NETWORK_RUN,
+    NETWORK_DIR,
+    parse_comma_list,
+    resolve_network_json,
+)
 from network.spot_target import DEFAULT_SHIFT_EXTENT
 from FiveCol_MedSim_Pytorch import do_many_runs
 import FiveCol_MedSim_Pytorch as fc
@@ -67,7 +72,6 @@ from plot_trained import (
 )
 from param_defaults import DEFAULT_IH_GMAX_INDI_NAMES
 from training_config import (
-    BORST_CTYPE_NPY,
     PARAM_CSV,
     SYN_STRENGTH_CSV,
     run_data_dir,
@@ -116,9 +120,10 @@ def make_plots(fname, outdir, session, result=None, *,
 
 
 def ctype_labels(session):
-    if session.backend.network is not None:
-        return np.asarray(session.backend.network.type_names)
-    return np.load(BORST_CTYPE_NPY, allow_pickle=True)
+    if session.backend.network is None:
+        raise ValueError("ctype_labels requires session.backend.network")
+    return np.asarray(session.backend.network.type_names)
+
 
 
 def decompose_params(z_t, session):
@@ -443,7 +448,6 @@ def resolve_network(network):
 def build_session(
     model,
     *,
-    borst=False,
     network=None,
     sequential=False,
     target_list=None,
@@ -486,28 +490,25 @@ def build_session(
         moving_bar_bright_stimulus_opts=moving_bar_bright_stimulus_opts,
         moving_bar_dark_stimulus_opts=moving_bar_dark_stimulus_opts,
     )
-    if network and not borst:
-        network = resolve_network(network)
-        opts = fc.make_train_opts(
-            backend="network",
-            network_json=network,
-            dev=dev,
-            ih_off=ih_off,
-            param_partitions=param_partitions,
-            fp32=fp32,
-            **mkw,
-        )
-    else:
-        opts = fc.make_train_opts(
-            backend="borst", ih_off=ih_off, param_partitions=param_partitions, fp32=fp32, **mkw,
-        )
+    if not network:
+        raise ValueError("build_session requires network")
+    network = resolve_network(network)
+    opts = fc.make_train_opts(
+        backend="network",
+        network_json=network,
+        dev=dev,
+        ih_off=ih_off,
+        param_partitions=param_partitions,
+        fp32=fp32,
+        **mkw,
+    )
     return fc.open_session(opts, model, schema=schema, model_backend=model_backend)
 
 
 def run_training(model, nofruns, nofsteps, lrs, fname=None, outdir=None,
                  param_partitions=None,
                  ih_off=fc.IH_OFF_DEFAULT,
-                 network=None, sequential=False, borst=False,
+                 network=None, sequential=False,
                  target_list=None, cost_weights=None,
                  cost_extent_by_target=None, shift_extent=DEFAULT_SHIFT_EXTENT,
                  spot_extent=None,
@@ -530,7 +531,6 @@ def run_training(model, nofruns, nofsteps, lrs, fname=None, outdir=None,
     """Full training pipeline (do_many_runs + save_training_outputs + plots). Returns (fname, outdir, session)."""
     session = build_session(
         model,
-        borst=borst,
         network=network,
         sequential=sequential,
         target_list=target_list,
@@ -679,15 +679,9 @@ def add_training_arguments(parser):
                              "forced on when CUDA is unavailable)")
     parser.add_argument("--sequential", action="store_true",
                         help="one stimulus batch per forward (default: batched forward)")
-    parser.add_argument(
-        "--borst",
-        action="store_true",
-        help="force Borst 5-column simulator backend (ignores --network)",
-    )
     parser.add_argument("--network", default=DEFAULT_NETWORK_RUN, metavar="RUN",
                         help=f"connectome backend: built_network run folder under {NETWORK_DIR} "
-                             f"(default: {DEFAULT_NETWORK_RUN}); "
-                             f"use --borst to force the Borst 5-column simulator")
+                             f"(default: {DEFAULT_NETWORK_RUN})")
     parser.add_argument(
         "--multi-bar",
         type=parse_bool,
@@ -789,11 +783,6 @@ def parse_bool(text):
     if v in ("false", "0", "no"):
         return False
     raise ValueError(f"expected true|false, got {text!r}")
-
-
-def parse_comma_list(text):
-    """Split a comma-separated token list (empty string → ``[]``)."""
-    return [t.strip() for t in str(text or "").split(",") if t.strip()]
 
 
 def parse_comma_kv(text, cast=str):

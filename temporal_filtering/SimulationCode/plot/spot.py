@@ -1,4 +1,4 @@
-"""Spot plotting (Borst + network spot target).
+"""Spot plotting (network spot target).
 
 Network RF bins are ring means: r=0 -> j4, r=1 -> j3/j5, r=2 -> j2/j6.
 """
@@ -12,7 +12,6 @@ import matplotlib.pyplot as plt
 import numpy as np
 import torch
 
-import Medulla_Library as ml
 from training_config import DELTAT_MS, IMPULSE_MAXTIME
 import blindschleiche_py3 as bs
 import FiveCol_MedSim_Pytorch as fc
@@ -43,8 +42,6 @@ from plot.utils import (
     suppress_cost_sem,
     v_th_by_type_name,
 )
-from column_mapper import borst_sti_columns
-from network.moving_bar_target import filter_borst_sti_columns
 from network.spot_target import (
     euclid_hex_dist,
     resolve_spot_cost_radii,
@@ -53,8 +50,7 @@ from network.spot_target import (
     spot_stimulus_batches,
 )
 
-CENTER_BIN = ml.CENTER_COL + 2
-CTYPE = ml.ctype
+CENTER_BIN = 4  # RecF spatial centre bin (j=4 in 0..8)
 
 
 def _radius_to_profile_bins(radius):
@@ -501,9 +497,9 @@ def _group_rows_from_groups(groups, names):
 
 
 def _spot_all_type_names(session):
-    if session.backend.network is not None:
-        return plot_types_in_order(session.backend.network.type_names)
-    return plot_types_in_order([str(CTYPE[i]) for i in range(session.backend.n_types)])
+    if session.backend.network is None:
+        raise ValueError("_spot_all_type_names requires session.backend.network")
+    return plot_types_in_order(session.backend.network.type_names)
 
 
 def _spot_readout_bundle_view(bundle):
@@ -566,36 +562,6 @@ def _spot_slice_overlay(rows, batches, at_x_list, at_y_list):
         return None, None
     return overlay, labels
 
-
-def _borst_slice_overlay(model, names, at_x_list, at_y_list):
-    overlay = {}
-    labels = []
-    cols_all = list(borst_sti_columns())
-    mt = model.shape[2]
-    for label, at_x, at_y in slice_coord_specs(at_x_list, at_y_list):
-        try:
-            filt = filter_borst_sti_columns(
-                cols_all, at_x=at_x, at_y=at_y if at_y is not None else 0.0,
-            )
-        except ValueError as exc:
-            print(f'skip slice overlay {label}: {exc}')
-            continue
-        if not filt:
-            print(f'skip slice overlay {label}: no Borst columns')
-            continue
-        cubes = {}
-        for i, name in enumerate(names):
-            cube = np.full((9, mt), np.nan)
-            for col in filt:
-                bin_j = col.col + 2
-                cube[bin_j] = model[i, bin_j, :]
-            cubes[name] = cube
-        if any(np.isfinite(c).any() for c in cubes.values()):
-            overlay[label] = cubes
-            labels.append(label)
-    if not overlay:
-        return None, None
-    return overlay, labels
 
 
 def _cells_from_cube(names, cube, sem, baselines, *, single_column, n_by_name=None):
@@ -721,89 +687,6 @@ def _spot_cube_from_rows(rows, session):
     group_rows = _group_rows_from_groups(rows['groups'], names)
     return cells, group_rows, mt
 
-
-def _borst_spot_cells(session, z, *, trace_kind='model', show_pre=True):
-    model, ref = calc_model_full_all(
-        session, z, return_ref=True, trace_kind=trace_kind, show_pre=show_pre,
-    )
-    groups, names = plot_present_layout(_spot_all_type_names(session))
-    ctype_to_i = {str(CTYPE[i]): i for i in range(session.backend.n_types)}
-
-    def build_cell(name):
-        ci = ctype_to_i[name]
-        return dict(
-            name=name,
-            cube=model[ci],
-            sem=None,
-            baseline=_baseline_from_ref_grid(ref, ci),
-            n=1,
-        )
-
-    cells, group_rows = _cells_with_group_rows(groups, names, build_cell)
-    return model, names, cells, group_rows
-
-
-@torch.no_grad()
-def network_spot_trace_bundle(
-    session, z, *,
-    at_x_list=None, at_y_list=None, trace_kind='model',
-    save_trace_csv_dir: str | None = None, show_pre=True,
-):
-    """Run one forward; full cost-extent spot traces over all types."""
-    t_prep0 = time.perf_counter()
-    rows = _spot_forward_rows(
-        session, z, trace_kind=trace_kind,
-        save_trace_csv_dir=save_trace_csv_dir, show_pre=show_pre,
-    )
-    cells, group_rows, maxtime = _spot_cube_from_rows(rows, session)
-    slice_overlay, slice_labels = (None, None)
-    if at_x_list is not None or at_y_list is not None:
-        slice_overlay, slice_labels = _spot_slice_overlay(
-            rows, rows['batches'], at_x_list, at_y_list,
-        )
-    return SpotTraceBundle(
-        cells=cells,
-        group_rows=group_rows,
-        session=session,
-        slice_overlay=slice_overlay,
-        slice_labels=slice_labels,
-        slice_x_list=at_x_list,
-        slice_y_list=at_y_list,
-        maxtime=maxtime,
-        prep_s=time.perf_counter() - t_prep0,
-        v_th_by_name=v_th_by_type_name(z, session),
-    )
-
-
-@torch.no_grad()
-def borst_spot_trace_bundle(
-    session, z, *,
-    at_x_list=None, at_y_list=None, trace_kind='model',
-    save_trace_csv_dir: str | None = None, show_pre=True,
-):
-    """Run one Borst forward; full-type spot traces."""
-    _ = save_trace_csv_dir
-    t_prep0 = time.perf_counter()
-    model, names, cells, group_rows = _borst_spot_cells(
-        session, z, trace_kind=trace_kind, show_pre=show_pre,
-    )
-    slice_overlay, slice_labels = (None, None)
-    if at_x_list is not None or at_y_list is not None:
-        slice_overlay, slice_labels = _borst_slice_overlay(
-            model, names, at_x_list, at_y_list,
-        )
-    return SpotTraceBundle(
-        cells=cells,
-        group_rows=group_rows,
-        session=session,
-        slice_overlay=slice_overlay,
-        slice_labels=slice_labels,
-        slice_x_list=at_x_list,
-        slice_y_list=at_y_list,
-        maxtime=session.maxtime,
-        prep_s=time.perf_counter() - t_prep0,
-        v_th_by_name=v_th_by_type_name(z, session),
-    )
 
 
 def _spot_suptitle(title, bundle):
@@ -984,41 +867,3 @@ def plot_network_spot_all(path, *, bundle, bundle_2=None, title,
     )
 
 
-def plot_borst_spot_data(path, *, bundle, bundle_2=None, title,
-                         ref_cubes=None, ref_cubes_2=None):
-    """Draw Borst model-data figure (pack readout types) from a full-scope bundle."""
-    timer = PlotTimer(prior_prep=bundle_prep_s(bundle, bundle_2))
-    view = _spot_readout_bundle_view(bundle)
-    view_2 = _spot_readout_bundle_view(bundle_2) if bundle_2 is not None else None
-    _plot_spot_figure(
-        path,
-        timer=timer,
-        bundle_on=view,
-        bundle_2=view_2,
-        title=title,
-        ref_cubes=ref_cubes,
-        ref_cubes_2=ref_cubes_2,
-        ncols=13,
-        figsize_fn=lambda c, r: (16, 2.5 * r),
-        gridspec_kw=dict(hspace=0.5, wspace=0.55, top=0.95, bottom=0.05, left=0.06, right=0.98),
-        suptitle_fs=12,
-    )
-
-
-def plot_borst_spot_all(path, *, bundle, bundle_2=None, title,
-                        ref_cubes=None, ref_cubes_2=None):
-    """Draw Borst model-all figure (all types) from a full-scope bundle."""
-    timer = PlotTimer(prior_prep=bundle_prep_s(bundle, bundle_2))
-    _plot_spot_figure(
-        path,
-        timer=timer,
-        bundle_on=bundle,
-        bundle_2=bundle_2,
-        title=title,
-        ref_cubes=ref_cubes,
-        ref_cubes_2=ref_cubes_2,
-        ncols=13,
-        figsize_fn=lambda c, r: (26, 32),
-        gridspec_kw=dict(hspace=0.65, wspace=0.45, top=0.97, bottom=0.03, left=0.04, right=0.99),
-        suptitle_fs=14,
-    )

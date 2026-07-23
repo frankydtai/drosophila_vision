@@ -51,39 +51,6 @@ def build_type_pair_index(src_type, tar_type, n_types: int):
     return inv.astype(np.int64), int(len(uniq)), pair_keys
 
 
-class DenseConn:
-    """Dense connectivity backend (historical 5-column ``multi_colM`` path).
-
-    Conductance ``exc_inh_drive`` with type→type ``syn_strength`` is network-only;
-    this class does not implement it.
-    """
-
-    def __init__(
-        self,
-        M_exc: torch.Tensor,
-        M_inh: torch.Tensor,
-        M_signed: torch.Tensor,
-        node_type: torch.Tensor,
-    ) -> None:
-        self.M_exc = M_exc
-        self.M_inh = M_inh
-        self.M_signed = M_signed
-        self.node_type = node_type.to(M_exc.device)
-        self.n_units = M_exc.shape[0]
-
-    @staticmethod
-    def _mv(M: torch.Tensor, x: torch.Tensor) -> torch.Tensor:
-        return torch.matmul(x, M.transpose(-1, -2))
-
-    def exc_inh_drive(self, x: torch.Tensor, syn_strength: torch.Tensor):
-        raise NotImplementedError(
-            "conductance type-pair syn_strength requires network ScatterConn"
-        )
-
-    def signed_drive(self, x: torch.Tensor) -> torch.Tensor:
-        return self._mv(self.M_signed, x)
-
-
 class ScatterConn:
     """Edge-list connectivity backend (connectome sub-graph or full graph).
 

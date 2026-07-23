@@ -54,7 +54,8 @@ from network.spot_target import (
     spot_dist,
     spot_extent_half_steps,
 )
-from train import add_spot_layout_arguments, parse_comma_list
+from connectome_io import parse_comma_list
+from train import add_spot_layout_arguments
 
 _SPOT_EXTENTS_CLI_DEFAULT = ",".join(
     str(int(x)) if float(x) == int(x) else str(x) for x in DEFAULT_SPOT_EXTENTS

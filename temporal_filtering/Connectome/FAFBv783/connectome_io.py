@@ -30,13 +30,6 @@ COLUMN_LOCATION_DIR = DATA_DIR / "column_location"
 # Per-network moving-bar column-current cache (under each built_network run folder).
 MOVING_BAR_CACHE_DIRNAME = "moving_bar_cache"
 
-# Borst 5-column simulator matrices (``FiveCol_MedSim_*`` / ``Circuits/``).
-SIMULATION_CODE_DIR = DATA_DIR.parent.parent / "SimulationCode"
-BORST_CIRCUITS_DIR = SIMULATION_CODE_DIR / "Circuits"
-BORST_MULTI_COL_M = BORST_CIRCUITS_DIR / "multi_colM.npy"
-BORST_CTYPE_NPY = BORST_CIRCUITS_DIR / "ctype.npy"
-
-
 def parse_comma_list(text: str) -> List[str]:
     """Split a comma-separated token list (empty string → ``[]``)."""
     return [t.strip() for t in str(text or "").split(",") if t.strip()]

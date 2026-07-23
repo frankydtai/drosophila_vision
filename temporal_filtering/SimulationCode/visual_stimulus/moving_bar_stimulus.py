@@ -435,28 +435,6 @@ def _bar_rect_lane_clipped(
     raise ValueError(f"unknown direction {d!r}")
 
 
-def _coverage_time_series_whole_field(
-    hex_stack: np.ndarray,
-    spec: MovingBarSpec,
-    field_deg: Tuple[float, float, float, float],
-    maxtime: int,
-    t_on: int,
-    deltat_ms: float,
-) -> np.ndarray:
-    """Coverage ``(maxtime - t_on, n_cols)`` for one whole-field bar (Borst only)."""
-    x0, y0, x1, y1 = field_deg
-    dt_s = deltat_ms / 1000.0
-    step = _trail_step(spec, dt_s)
-    trail = _trail_start(spec, x0, y0, x1, y1)
-    n_cols = hex_stack.shape[0]
-    n_steps = maxtime - t_on
-    out = np.empty((n_steps, n_cols), dtype=np.float64)
-    for i in range(n_steps):
-        bx0, by0, bx1, by1 = _bar_rect(spec, trail, x0, y0, x1, y1)
-        out[i] = _coverage_batch(hex_stack, bx0, by0, bx1, by1)
-        trail += step
-    return out
-
 
 def _coverage_time_series(
     hex_stack: np.ndarray,
@@ -627,26 +605,6 @@ def moving_bar_sweep_end_step(
     return t_exit + 1
 
 
-def whole_field_moving_bar_sweep_end_step(
-    specs: Sequence[MovingBarSpec],
-    field_deg: Tuple[float, float, float, float],
-    t_on: int = T_ON,
-    deltat_ms: float = DELTAT_MS,
-) -> int:
-    """Exclusive sweep end for one whole-field bar (Borst horizontal demo only)."""
-    x0, y0, x1, y1 = field_deg
-    if not specs:
-        return t_on + 1
-    t_exit = t_on
-    for spec in specs:
-        trail_start = _trail_start(spec, x0, y0, x1, y1)
-        trail_exit = _trail_exit(spec, x0, y0, x1, y1)
-        t_exit = max(
-            t_exit,
-            _trail_to_step(spec, trail_start, trail_exit, t_on, deltat_ms),
-        )
-    return t_exit + 1
-
 
 def moving_bar_maxtime(
     specs: Sequence[MovingBarSpec],
@@ -664,19 +622,6 @@ def moving_bar_maxtime(
         specs, field_deg, bar_extent, multi_bar=multi_bar, t_on=t_on, deltat_ms=deltat_ms,
     ) + t_tail
 
-
-def whole_field_moving_bar_maxtime(
-    specs: Sequence[MovingBarSpec],
-    field_deg: Tuple[float, float, float, float],
-    t_on: int = T_ON,
-    deltat_ms: float = DELTAT_MS,
-    t_tail_ms: float = MOVING_BAR_TAIL_MS,
-) -> int:
-    """Simulation length for Borst whole-field moving-bar (no multi-bar lanes)."""
-    t_tail = ms_to_steps(t_tail_ms, deltat_ms=deltat_ms)
-    return whole_field_moving_bar_sweep_end_step(
-        specs, field_deg, t_on=t_on, deltat_ms=deltat_ms,
-    ) + t_tail
 
 
 def moving_bar_transit_times(
@@ -705,22 +650,6 @@ def moving_bar_transit_times(
         _trail_to_step(spec, trail_start, trail_exit_vis, t_on, deltat_ms, maxtime),
     )
 
-
-def whole_field_moving_bar_transit_times(
-    spec: MovingBarSpec,
-    field_deg: Tuple[float, float, float, float],
-    t_on: int = T_ON,
-    maxtime: Optional[int] = None,
-    deltat_ms: float = DELTAT_MS,
-) -> Tuple[int, int, int]:
-    """Return ``(entry, center, exit)`` step indices for one whole-field bar (Borst)."""
-    x0, y0, x1, y1 = field_deg
-    trail_start = _trail_start(spec, x0, y0, x1, y1)
-    return (
-        _trail_to_step(spec, trail_start, trail_start, t_on, deltat_ms, maxtime),
-        _trail_to_step(spec, trail_start, _trail_center_target(spec, x0, y0, x1, y1), t_on, deltat_ms, maxtime),
-        _trail_to_step(spec, trail_start, _trail_exit(spec, x0, y0, x1, y1), t_on, deltat_ms, maxtime),
-    )
 
 
 def column_first_stim_step(
@@ -885,42 +814,3 @@ def build_batched_column_current(
             )
     return out
 
-
-def borst_whole_field_batched_column_current(
-    columns: Sequence[HexColumn],
-    specs: Sequence[MovingBarSpec],
-    maxtime: int,
-    t_on: int = T_ON,
-    deltat_ms: float = DELTAT_MS,
-    i_baseline: float = I_BASELINE,
-    i_bright_bar: Optional[float] = None,
-    i_dark_bar: Optional[float] = None,
-) -> np.ndarray:
-    """Borst-only whole-field batched column currents ``(B, T, n_cols)``."""
-    n_batch = len(specs)
-    n_cols = len(columns)
-    if n_cols == 0 or n_batch == 0:
-        return np.zeros((n_batch, maxtime, n_cols), dtype=np.float64)
-
-    out = np.zeros((n_batch, maxtime, n_cols), dtype=np.float64)
-    for b in range(n_batch):
-        out[b, :t_on] = i_baseline
-
-    field_deg = field_bounds(columns)
-    hex_stack = np.stack([c.hex_xy for c in columns], axis=0)
-
-    groups: dict[Tuple[str, float, float], List[int]] = {}
-    for b, spec in enumerate(specs):
-        groups.setdefault(_geometry_key(spec), []).append(b)
-
-    for batch_idxs in groups.values():
-        cov_ts = _coverage_time_series_whole_field(
-            hex_stack, specs[batch_idxs[0]], field_deg,
-            maxtime=maxtime, t_on=t_on, deltat_ms=deltat_ms,
-        )
-        for b in batch_idxs:
-            out[b, t_on:] = _current_from_coverage(
-                cov_ts, specs[b].contrast, i_baseline=i_baseline,
-                i_bright_bar=i_bright_bar, i_dark_bar=i_dark_bar,
-            )
-    return out

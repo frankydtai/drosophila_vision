@@ -12,7 +12,6 @@ coordinate formulas:
     ``xy_to_xy_deg`` scales hex-step by :data:`DEG`; ``uv_to_xy_deg`` composes both.
   - ``hex_vertices`` / ``draw_hex_patches`` draw degree-space hex patches
     (shared by column maps, moving-bar stimulus, and plots).
-  - :data:`DEG_BORST` and ``borst_sti_columns`` define the five-column Borst layout.
   - :class:`HexGrid` holds an ideal disc's (u, v) coordinates (the plot reference
     panel); ``columns_with_uv(side)`` gives FAFB columns' (u, v).
 
@@ -27,7 +26,6 @@ import argparse
 import logging
 import math
 from pathlib import Path
-from dataclasses import dataclass
 from typing import Dict, List, Optional, Tuple, Union
 
 import numpy as np
@@ -51,8 +49,6 @@ EXTENT = -1
 
 # FAFB inter-ommatidial angle: hex-step (x, y) -> degree via ``xy_to_xy_deg``.
 DEG = 4.5
-# Borst 5-column horizontal row: centre-to-centre spacing along ``x_deg``.
-DEG_BORST = 5.0
 # Drawn hex patch radius in degrees (half the FAFB cell spacing).
 HEX_PATCH_RADIUS = 0.5 * DEG
 # Axis-limit padding (degrees) around column centres in field plots.
@@ -65,68 +61,6 @@ Y_AXIS_LABEL = f"Y ({AXIS_UNIT})"
 # ``uv_to_xy_deg(u,v)``: spaced ``DEG`` apart vertically (step (1,0)),
 # r = DEG/2, so patches are pointy-top.
 HEX_PATCH_ORIENTATION = np.radians(30)
-
-# Borst 5-column horizontal row (SimulationCode moving-bar / spot layout).
-BORST_CENTER_COL = 2
-BORST_N_COLS = 5
-
-
-@dataclass(frozen=True)
-class BorstStiColumn:
-    """One Borst sti column for moving-bar stimulus (no axial coords)."""
-
-    col: int   # 0..4 (``Medulla_Library.CENTER_COL`` == 2)
-    k: int     # col - BORST_CENTER_COL, i.e. -2..+2
-    x_deg: float
-    y_deg: float
-    hex_xy: np.ndarray
-
-
-def borst_sti_columns(
-    *,
-    center_col: int = BORST_CENTER_COL,
-    n_cols: int = BORST_N_COLS,
-    deg_borst: float = DEG_BORST,
-) -> Tuple[BorstStiColumn, ...]:
-    """Five Borst column centres on ``y_deg=0`` with degree-space hex vertices."""
-    out: List[BorstStiColumn] = []
-    for col in range(n_cols):
-        k = col - center_col
-        x_deg = float(deg_borst * k)
-        y_deg = 0.0
-        out.append(
-            BorstStiColumn(
-                col=col,
-                k=k,
-                x_deg=x_deg,
-                y_deg=y_deg,
-                hex_xy=hex_vertices(x_deg, y_deg),
-            )
-        )
-    return tuple(out)
-
-
-def borst_col_at_xy(
-    x_deg: float,
-    y_deg: float,
-    *,
-    tol: float = 1e-6,
-    **kwargs,
-) -> int:
-    """Map ``(x_deg, y_deg)`` to Borst column index 0..4 (centres on ``y_deg≈0``)."""
-    if abs(y_deg) > tol:
-        raise ValueError(
-            f"(x_deg,y_deg)=({x_deg},{y_deg}) is not on the Borst horizontal row "
-            f"(y_deg must be ≈0)"
-        )
-    centers = borst_sti_columns(**kwargs)
-    best = min(centers, key=lambda c: abs(c.x_deg - x_deg))
-    if abs(best.x_deg - x_deg) > tol:
-        raise ValueError(
-            f"(x_deg,y_deg)=({x_deg},{y_deg}) is not a Borst column centre "
-            f"(nearest x_deg={best.x_deg} at col={best.col})"
-        )
-    return best.col
 
 
 # Rendered column map: base filename (no --extent) and the --extent variant.

@@ -19,13 +19,9 @@ import torch
 from torch import nn
 from tqdm import tqdm
 
-from network.connectivity import DenseConn
 import network_bootstrap  # noqa: F401 — connectome_io on sys.path
 from connectome_io import parse_comma_list
 from training_config import (
-    BORST_CTYPE_NPY,
-    BORST_MC_CELL_INDEX_NPY,
-    BORST_MULTI_COL_M_NPY,
     DELTAT_MS,
     IMPULSE_MAXTIME,
     SIM_DTYPE_DEFAULT,
@@ -45,16 +41,6 @@ def __getattr__(name):
         return active_device()
     raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
 
-#################################################################
-# Medulla Library contains:
-# ml.read_ConnMs()
-# ml.read_RecF_data(): RecF_data (13,45), ImpR_data (13,45)
-# plot_ConnM(): Big ConnM + intra + inter M
-# stimulus generation -> signal
-#################################################################
-
-BORST_NOFCELLS = 65
-BORST_NOFCOLS = 5
 t_on = T_ON
 TRAIN_OPTS_FILE = "train_opts.json"
 SPOT_TARGETS = ("spot_bright", "spot_dark")
@@ -132,15 +118,12 @@ E_LEAK_DEPOL = -20.0
 
 def calc_multi_col_params(param, conn):
     # Broadcast a per-cell-TYPE parameter (n_types,) to the full state (n_units,)
-    # via the backend's node_type. For the Borst path node_type == arange%65, so
-    # this reproduces the old 5x concatenation exactly.
+    # via the backend's node_type.
     return param.index_select(0, conn.node_type)
 
 
-def build_e_leak(conn, n_types, depol_cells=None, *, dtype=SIM_DTYPE_DEFAULT):
-    """(conn.n_units,) resting potential; default depol list from ``ml.LEAK_DEPOL_TYPES``."""
-    if depol_cells is None:
-        depol_cells = ml.leak_depol_indices()
+def build_e_leak(conn, n_types, depol_cells=(), *, dtype=SIM_DTYPE_DEFAULT):
+    """(conn.n_units,) resting potential; ``depol_cells`` are type indices at E_LEAK_DEPOL."""
     per_type = torch.full((n_types,), E_LEAK_REST, dtype=dtype, device=conn.node_type.device)
     for c in depol_cells:
         per_type[int(c)] = E_LEAK_DEPOL
@@ -162,7 +145,6 @@ IH_OFF_SCALAR_SEGMENTS = frozenset({'Ih_midv_off', 'Ih_slope_off', 'tau_midv_off
 IH_OFF_GMAX_SEGMENT = 'Ih_gmax_off'
 
 # Per-cell Ih direction: +1 normal; -1 mirrored (reversal flips about 0).
-# Default: none reversed. Pass ih_reverse_cells= to borst_backend().
 IH_DIR_REVERSE_CELLS: Tuple[int, ...] = ()
 
 def build_ih_dir(conn, ih_reverse_cells=IH_DIR_REVERSE_CELLS, *, dtype=SIM_DTYPE_DEFAULT):
@@ -173,7 +155,7 @@ def build_ih_dir(conn, ih_reverse_cells=IH_DIR_REVERSE_CELLS, *, dtype=SIM_DTYPE
     return d
 
 # ---- second neuron model: adaptive temporal filter (flyvis-derived) ----
-# 'conductance' = Borst conductance-based + Ih (update_Vm)
+# 'conductance' = conductance-based + Ih (update_Vm)
 # 'adaptive'    = passive point neuron + low-pass adaptive temporal filter
 
 gate_lag = 1  # delay (in steps) of the stimulus used for the contrast gate
@@ -190,7 +172,6 @@ STATE_CLAMP = 1.0e6  # bound on adaptive state vars to keep explicit Euler finit
 # CLI: per-param ``indi=... shared=... fixed=... frozen=...`` (space-separated); ``all`` = remainder.
 # ``--all-param`` batches all segments; ``--ih-shape`` batches the six Ih shape params.
 # Named ``best_param.npz``.
-LAMINA_SLICE = ml.LAMINA_SLICE  # L1-L5 within the 65 cell types
 PARTITION_BUCKETS = ('indi', 'shared', 'fixed', 'frozen')
 ALL_PARAM_NAMES = (
     'in_gain', 'out_gain', 'out_scale', 'syn_strength', 'v_th',
@@ -358,9 +339,9 @@ def schema_partitions_record(schema, unit_names_for_seg):
 
 
 def type_unit_names(backend: "ModelBackend"):
-    if backend.network is not None:
-        return [str(n) for n in backend.network.type_names]
-    return [str(n) for n in ml.ctype]
+    if backend.network is None:
+        raise ValueError("type_unit_names requires backend.network")
+    return [str(n) for n in backend.network.type_names]
 
 
 def pair_unit_names(backend: "ModelBackend"):
@@ -474,7 +455,9 @@ def conductance_ih_off_kwargs(p, ih_off=IH_OFF_DEFAULT):
 
 
 def build_conductance_schema(n_types, type_names=None, n_pairs=None):
-    type_names = list(ml.ctype if type_names is None else type_names)
+    if type_names is None:
+        raise TypeError('conductance schema requires type_names from network')
+    type_names = list(type_names)
     if n_pairs is None:
         raise TypeError('conductance syn_strength requires n_pairs from network ScatterConn')
     n_pairs = int(n_pairs)
@@ -504,7 +487,9 @@ def build_conductance_schema(n_types, type_names=None, n_pairs=None):
 
 
 def build_adaptive_schema(n_types, type_names=None):
-    type_names = list(ml.ctype if type_names is None else type_names)
+    if type_names is None:
+        raise TypeError('adaptive schema requires type_names from network')
+    type_names = list(type_names)
     name_to_i = {str(n): i for i, n in enumerate(type_names)}
     ih_gmax = [name_to_i[n] for n in DEFAULT_IH_GMAX_INDI_NAMES]
     D = PARAM_DEFAULTS
@@ -662,8 +647,7 @@ class ModelBackend:
     n_types: int
     n_cols: int
     network: Optional[object] = None
-    ctype: Optional[object] = None
-    depol_cells: Tuple[int, ...] = field(default_factory=ml.leak_depol_indices)
+    depol_cells: Tuple[int, ...] = ()
     ih_reverse_cells: Tuple[int, ...] = IH_DIR_REVERSE_CELLS
 
     @property
@@ -782,7 +766,7 @@ def make_spot_stimulus_opts(
     *,
     i_baseline=None,
     i_step=None,
-    mode="borst",
+    mode="network",
     shift_extent=None,
     spot_extent=None,
     **extra,
@@ -825,7 +809,7 @@ def make_moving_bar_stimulus_opts(
     i_baseline=None,
     i_bar=None,
     multi_bar: bool = True,
-    mode="borst",
+    mode="network",
     readout_subtypes=None,
     **extra,
 ):
@@ -888,104 +872,21 @@ def _enrich_moving_bar_stimulus_opts(opts, info, *, cost_extent):
     return out
 
 
-def borst_spot_signal(opts=None, *, polarity: str = "bright", sim_dtype=SIM_DTYPE_DEFAULT):
-    """Build Borst spot PR step stimulus ``(T, N_units)`` for ``spot_{polarity}``."""
-    opts = dict(opts or make_spot_stimulus_opts(polarity))
-    n_units = ml.n_state_units()
-    pr = ml.photoreceptor_slice()
-    t0, T = int(opts["t_on"]), int(opts["maxtime"])
-    b, step = _spot_i_from_opts(opts, polarity)
-    sig = torch.zeros((T, n_units), dtype=sim_dtype, device=active_device())
-    sig[:t0, pr] = b
-    sig[t0:T, pr] = step
-    return sig
-
-
-def _borst_spot_pack_from_data(opts, polarity: str, *, sim_dtype=SIM_DTYPE_DEFAULT):
-    """Shared Borst spot pack builder for bright/dark targets."""
-    if polarity not in SPOT_POLARITIES:
-        raise ValueError(f"spot polarity must be 'bright' or 'dark', got {polarity!r}")
-    opts = dict(opts)
-    u_idx = torch.tensor(
-        np.load(BORST_MC_CELL_INDEX_NPY),
-        dtype=torch.long,
-        device=active_device(),
-    )
-    n = int(u_idx.shape[0])
-    sig = borst_spot_signal(opts, polarity=polarity, sim_dtype=sim_dtype).unsqueeze(0)
-    T = int(sig.shape[1])
-    spot_data = torch.tensor(
-        ml.borst_spot_impulse_data(T, polarity=polarity),
-        dtype=sim_dtype,
-        device=active_device(),
-    )
-    t_data = spot_data[t_on:T].transpose(0, 1).contiguous()
-    spot_power = torch.sum(t_data ** 2)
-    return TargetPack(
-        name=f"spot_{polarity}",
-        signal=sig,
-        data=t_data,
-        power=spot_power,
-        cost_weight=torch.ones(n, dtype=sim_dtype, device=active_device()),
-        readout_batch=torch.zeros(n, dtype=torch.long, device=active_device()),
-        readout_unit=u_idx,
-        cost_t0=None,
-    )
-
-
-def build_borst_spot_pack(opts=None, *, polarity: str = "bright", sim_dtype=SIM_DTYPE_DEFAULT):
-    """Borst spot target as a :class:`TargetPack` (batch B=1)."""
-    return _borst_spot_pack_from_data(
-        opts or make_spot_stimulus_opts(polarity),
-        polarity,
-        sim_dtype=sim_dtype,
-    )
-
-
 def resolve_type_indices(type_names, backend: ModelBackend):
-    """Map cell-type names to indices in the active vocabulary (Borst or network)."""
+    """Map cell-type names to indices in the network vocabulary."""
+    if backend.network is None:
+        raise ValueError("resolve_type_indices requires backend.network")
     names = [str(n) for n in type_names]
-    if backend.network is not None:
-        tn = list(backend.network.type_names)
-        return [tn.index(n) for n in names if n in tn]
-    ctype_arr = backend.ctype
-    out = []
-    for n in names:
-        matches = np.where(ctype_arr == n)[0]
-        if len(matches) != 1:
-            raise KeyError(f"cell type {n!r} not found uniquely in ctype ({len(matches)} matches)")
-        out.append(int(matches[0]))
-    return out
+    tn = list(backend.network.type_names)
+    return [tn.index(n) for n in names if n in tn]
 
 
 def extend_target_pack_mirror_fit(pack, mirror_types, mirror_fit, mirror_sign=-1.0, backend=None):
     """Extend a :class:`TargetPack`: mirror *mirror_fit* targets onto *mirror_types*."""
-    if backend is not None and backend.network is not None:
-        return _extend_pack_mirror_fit_network(
-            pack, mirror_types, mirror_fit, mirror_sign, backend.network,
-        )
-    return _extend_pack_mirror_fit_borst(pack, mirror_types, mirror_fit, mirror_sign, backend)
-
-
-def _extend_pack_mirror_fit_borst(pack, mirror_types, mirror_fit, mirror_sign, backend):
-    base_u = pack.readout_unit.cpu().numpy()
-    mirror_type = ml.fit_type_index(mirror_fit)
-    mirror_indices = resolve_type_indices(mirror_types, backend)
-    n_cols = backend.n_cols
-    n_types = backend.n_types
-    extra_units, extra_rows, extra_pd_nd = [], [], []
-    for col in range(n_cols):
-        mirror_unit = ml.unit_index(col, mirror_type)
-        mirror_row = int(np.where(base_u == mirror_unit)[0][0])
-        mirror_target = float(mirror_sign) * pack.data[mirror_row:mirror_row + 1]
-        for r in mirror_indices:
-            extra_units.append(ml.unit_index(col, int(r)))
-            extra_rows.append(mirror_target)
-            if pack.cost_pd_nd is not None:
-                extra_pd_nd.append(int(pack.cost_pd_nd[mirror_row].item()))
-    return _append_mirror_pack_rows(
-        pack, extra_units, extra_rows,
-        cost_pd_nd=extra_pd_nd if extra_pd_nd else None,
+    if backend is None or backend.network is None:
+        raise ValueError("extend_target_pack_mirror_fit requires backend.network")
+    return _extend_pack_mirror_fit_network(
+        pack, mirror_types, mirror_fit, mirror_sign, backend.network,
     )
 
 
@@ -1123,67 +1024,6 @@ def apply_pack_override(pack, override, backend: ModelBackend):
     raise ValueError(f"unknown pack override {override!r}")
 
 
-def _borst_moving_bar_pack(T, name):
-    return TargetPack(
-        name=name,
-        signal=T.signal,
-        data=T.data,
-        power=T.power,
-        cost_weight=T.cost_weight,
-        readout_batch=T.readout_batch,
-        readout_unit=T.readout_unit,
-        cost_t0=T.cost_t0,
-        cost_pd_nd=T.cost_pd_nd,
-        dsi_pos_rows=T.dsi_pos_rows,
-        dsi_neg_rows=T.dsi_neg_rows,
-        dsi_pos_ptr=T.dsi_pos_ptr,
-        dsi_neg_ptr=T.dsi_neg_ptr,
-        dsi_target=T.dsi_target,
-        dsi_weight=T.dsi_weight,
-        dsi_power=T.dsi_power,
-    )
-
-
-def _load_borst_matrices(dev: Optional[str] = None, *, dtype=SIM_DTYPE_DEFAULT):
-    dev = dev or active_device()
-    multi_colM = np.load(BORST_MULTI_COL_M_NPY)
-    ctype_arr = np.load(BORST_CTYPE_NPY)
-    multi_colM = ml.apply_borst_connectivity_patches(multi_colM)
-    M_exc = exc_synweight * multi_colM * (multi_colM > 0)
-    M_inh = inh_synweight * multi_colM * (multi_colM < 0) * (-1)
-    M_exc = torch.tensor(M_exc, dtype=dtype, device=dev)
-    M_inh = torch.tensor(M_inh, dtype=dtype, device=dev)
-    M_signed = torch.tensor(exc_synweight * multi_colM, dtype=dtype, device=dev)
-    return M_exc, M_inh, M_signed, ctype_arr
-
-
-def borst_backend(
-    dev: Optional[str] = None,
-    *,
-    sim_dtype=SIM_DTYPE_DEFAULT,
-    depol_cells=None,
-    ih_reverse_cells=None,
-) -> ModelBackend:
-    """Default 5-column Borst dense connectivity backend."""
-    dev = dev or active_device()
-    depol = tuple(ml.leak_depol_indices() if depol_cells is None else depol_cells)
-    ih_rev = tuple(ih_reverse_cells if ih_reverse_cells is not None else IH_DIR_REVERSE_CELLS)
-    M_exc, M_inh, M_signed, ctype_arr = _load_borst_matrices(dev, dtype=sim_dtype)
-    node_type = (torch.arange(BORST_NOFCELLS * BORST_NOFCOLS, device=dev) % BORST_NOFCELLS).long()
-    conn = DenseConn(M_exc, M_inh, M_signed, node_type)
-    return ModelBackend(
-        conn=conn,
-        e_leak=build_e_leak(conn, BORST_NOFCELLS, depol_cells=depol, dtype=sim_dtype),
-        ih_dir=build_ih_dir(conn, ih_reverse_cells=ih_rev, dtype=sim_dtype),
-        n_types=BORST_NOFCELLS,
-        n_cols=BORST_NOFCOLS,
-        network=None,
-        ctype=ctype_arr,
-        depol_cells=depol,
-        ih_reverse_cells=ih_rev,
-    )
-
-
 def _network_backend_from_connectome(C, *, sim_dtype=SIM_DTYPE_DEFAULT) -> ModelBackend:
     """Build a :class:`ModelBackend` from an already-loaded connectome graph."""
     tn = list(C.type_names)
@@ -1196,7 +1036,6 @@ def _network_backend_from_connectome(C, *, sim_dtype=SIM_DTYPE_DEFAULT) -> Model
         n_types=C.n_types,
         n_cols=1,
         network=C,
-        ctype=None,
         depol_cells=depol,
     )
 
@@ -1247,58 +1086,6 @@ def _pack_needs_waveform_mse(pack: TargetPack) -> bool:
     return True
 
 
-def _build_borst_spot_target(ctx: _TrainBindCtx, polarity: str) -> Tuple[TargetPack, dict]:
-    if polarity not in SPOT_POLARITIES:
-        raise ValueError(f"spot polarity must be 'bright' or 'dark', got {polarity!r}")
-    ctx_opts = (
-        ctx.spot_bright_stimulus_opts if polarity == "bright" else ctx.spot_dark_stimulus_opts
-    )
-    opts = dict(ctx_opts or make_spot_stimulus_opts(polarity))
-    return build_borst_spot_pack(opts, polarity=polarity, sim_dtype=ctx.sim_dtype), opts
-
-
-def _cost_extent_column_coltag(cost_extent, n_columns):
-    if cost_extent is not None:
-        return f"cost_extent={int(cost_extent)}"
-    if isinstance(n_columns, dict):
-        vals = sorted(set(n_columns.values()))
-        if len(vals) == 1:
-            return f"{vals[0]} columns"
-        return f"{min(vals)}-{max(vals)} columns"
-    return f"{n_columns} columns"
-
-
-def _build_borst_moving_bar_target(ctx: _TrainBindCtx, *, pack_name: str, polarity: str):
-    from network.moving_bar_target import build_borst_moving_bar_target
-
-    opts = _moving_bar_polarity_opts(ctx, polarity)
-    build_kw = dict(
-        device=ctx.dev or active_device(),
-        sim_dtype=ctx.sim_dtype,
-        t_on=t_on,
-        deltat_ms=deltat,
-        i_baseline=opts["i_baseline"],
-        contrasts=(polarity,),
-        readout_subtypes=_readout_subtypes_from_opts(opts),
-        waveform_mse=_moving_bar_waveform_mse_enabled(ctx.cost_weights, pack_name),
-    )
-    if polarity == "bright":
-        build_kw["i_bright_bar"] = opts["i_bright_bar"]
-    else:
-        build_kw["i_dark_bar"] = opts["i_dark_bar"]
-    T = build_borst_moving_bar_target(**build_kw)
-    stim = _enrich_moving_bar_stimulus_opts(opts, T.info, cost_extent=None)
-    return _borst_moving_bar_pack(T, pack_name), stim
-
-
-def _build_borst_moving_bar_bright_target(ctx: _TrainBindCtx) -> Tuple[TargetPack, dict]:
-    return _build_borst_moving_bar_target(ctx, pack_name="moving_bar_bright", polarity="bright")
-
-
-def _build_borst_moving_bar_dark_target(ctx: _TrainBindCtx) -> Tuple[TargetPack, dict]:
-    return _build_borst_moving_bar_target(ctx, pack_name="moving_bar_dark", polarity="dark")
-
-
 def _moving_bar_polarity_opts(ctx: _TrainBindCtx, polarity: str) -> dict:
     if polarity == "bright":
         raw = ctx.moving_bar_bright_stimulus_opts
@@ -1306,10 +1093,9 @@ def _moving_bar_polarity_opts(ctx: _TrainBindCtx, polarity: str) -> dict:
         raw = ctx.moving_bar_dark_stimulus_opts
     else:
         raise ValueError(f"unknown moving-bar polarity {polarity!r}")
-    mode = (raw or {}).get("mode", "borst")
     if raw:
         return dict(raw)
-    return make_moving_bar_stimulus_opts(polarity, mode=mode)
+    return make_moving_bar_stimulus_opts(polarity)
 
 
 def _build_network_moving_bar_target(ctx: _TrainBindCtx, C, *, pack_name: str, polarity: str):
@@ -1455,13 +1241,6 @@ def _build_network_spot_target(
     )
     return pack, stim, tag
 
-
-BORST_TARGET_BUILDERS = {
-    "spot_bright": lambda ctx: _build_borst_spot_target(ctx, "bright"),
-    "spot_dark": lambda ctx: _build_borst_spot_target(ctx, "dark"),
-    "moving_bar_bright": _build_borst_moving_bar_bright_target,
-    "moving_bar_dark": _build_borst_moving_bar_dark_target,
-}
 
 NETWORK_TARGET_BUILDERS = {
     "spot_bright": lambda ctx, C: _build_network_spot_target(ctx, C, polarity="bright"),
@@ -1653,7 +1432,7 @@ def _finalize_stimulus_opts(
     spot_cost_radius_weight,
     i_cli,
 ):
-    build_mode = session_mode if session_mode is not None else (opts or {}).get("mode", "borst")
+    build_mode = session_mode if session_mode is not None else (opts or {}).get("mode", "network")
     if target_name in SPOT_TARGETS:
         polarity = "bright" if target_name == "spot_bright" else "dark"
         step_key = _SPOT_STEP_KEY[polarity]
@@ -1693,8 +1472,6 @@ def _finalize_stimulus_opts(
     out = apply_i_cli_to_stimulus_opts(out, target_name, i_cli)
     if session_mode is not None:
         out["mode"] = session_mode
-        if session_mode == "borst":
-            out.pop("cost_extent", None)
     return out
 
 
@@ -1729,7 +1506,7 @@ def _normalize_target_list(target_list) -> List[str]:
 
 
 def make_train_opts(
-    backend="borst",
+    backend="network",
     target_list=None,
     cost_weights=None,
     pack_overrides=None,
@@ -1753,11 +1530,15 @@ def make_train_opts(
     ih_off=IH_OFF_DEFAULT,
     fp32=False,
 ):
-    """Canonical training opts for :func:`open_session` (Borst or network)."""
+    """Canonical training opts for :func:`open_session` (network backend)."""
     from network.spot_target import DEFAULT_SHIFT_EXTENT, DEFAULT_SPOT_EXTENT
 
+    if backend != "network":
+        raise ValueError(f"backend must be 'network', got {backend!r}")
+    if network is None and network_json is None:
+        raise ValueError("make_train_opts requires network or network_json")
     tl = _normalize_target_list(target_list)
-    mode = "network" if backend == "network" else "borst"
+    mode = "network"
     if spot_extent is None:
         spot_extent = DEFAULT_SPOT_EXTENT
     if shift_extent is None:
@@ -1790,7 +1571,7 @@ def make_train_opts(
             **finalize_kw,
         )
     opts = {
-        "backend": str(backend),
+        "backend": "network",
         "target_list": tl,
         "cost_weights": expand_cost_weight_dict(cost_weights or {}),
         "sequential": sequential,
@@ -1805,12 +1586,11 @@ def make_train_opts(
     opts["ih_off"] = str(ih_off)
     if fp32:
         opts["fp32"] = True
-    if backend == "network":
-        opts.update({
-            "network": network,
-            "network_json": str(network_json) if network_json is not None else None,
-            "dev": dev,
-        })
+    opts.update({
+        "network": network,
+        "network_json": str(network_json) if network_json is not None else None,
+        "dev": dev,
+    })
     return opts
 
 
@@ -1947,75 +1727,15 @@ def open_session(
     model_backend: Optional[ModelBackend] = None,
 ) -> TrainSession:
     """Build a :class:`TrainSession` from canonical training opts."""
-    backend_name = str(opts.get("backend", "borst"))
+    backend_name = str(opts.get("backend", "network"))
+    if backend_name != "network":
+        raise ValueError(f"backend must be 'network', got {backend_name!r}")
     target_list = _normalize_target_list(opts.get("target_list"))
     bad = [t for t in target_list if t not in VALID_TARGETS]
     if bad:
         raise ValueError(f"unknown target(s) {bad!r} (expected {'|'.join(CLI_TARGET_NAMES)})")
     dev = opts.get("dev") or active_device()
     sim_dtype = sim_dtype_from_fp32(bool(opts.get("fp32", False)))
-
-    if backend_name == "borst":
-        model_backend = model_backend or borst_backend(dev, sim_dtype=sim_dtype)
-        ctx = _TrainBindCtx(
-            model_backend=model_backend,
-            dev=dev,
-            sim_dtype=sim_dtype,
-            cost_weights=opts.get("cost_weights"),
-            spot_bright_stimulus_opts=opts.get("spot_bright_stimulus_opts"),
-            spot_dark_stimulus_opts=opts.get("spot_dark_stimulus_opts"),
-            moving_bar_bright_stimulus_opts=opts.get("moving_bar_bright_stimulus_opts"),
-            moving_bar_dark_stimulus_opts=opts.get("moving_bar_dark_stimulus_opts"),
-        )
-        prebuilt = opts.get("packs")
-        pack_overrides = opts.get("pack_overrides") or {}
-        if pack_overrides:
-            prebuilt = None
-        if prebuilt is not None:
-            packs = dict(prebuilt)
-            resolved_spot_bright = opts.get("spot_bright_stimulus_opts")
-            resolved_spot_dark = opts.get("spot_dark_stimulus_opts")
-            resolved_bar_bright = opts.get("moving_bar_bright_stimulus_opts")
-            resolved_bar_dark = opts.get("moving_bar_dark_stimulus_opts")
-        else:
-            packs = {}
-            resolved_spot_bright = resolved_spot_dark = None
-            resolved_bar_bright = resolved_bar_dark = None
-            for tname in target_list:
-                pack, stim = BORST_TARGET_BUILDERS[tname](ctx)
-                if tname in pack_overrides:
-                    pack = apply_pack_override(pack, pack_overrides[tname], model_backend)
-                packs[tname] = pack
-                if tname == "spot_bright":
-                    resolved_spot_bright = stim
-                elif tname == "spot_dark":
-                    resolved_spot_dark = stim
-                elif tname == "moving_bar_bright":
-                    resolved_bar_bright = stim
-                elif tname == "moving_bar_dark":
-                    resolved_bar_dark = stim
-        record = _train_opts_for_sidecar(
-            opts, "borst", target_list,
-            resolved_spot_bright, resolved_spot_dark,
-            resolved_bar_bright, resolved_bar_dark, False,
-        )
-        session = _make_session(
-            model_backend, model, target_list, packs,
-            cost_weights=opts.get("cost_weights"),
-            sequential=opts.get("sequential"),
-            dev=dev,
-            train_opts_record=record,
-            schema=schema,
-            sim_dtype=sim_dtype,
-        )
-        print(
-            f"Borst targets: {'+'.join(target_list)}  "
-            f"(packs={list(packs.keys())}, sequential={session.sequential})",
-        )
-        return session
-
-    if backend_name != "network":
-        raise ValueError(f"unknown backend {backend_name!r} (expected borst|network)")
 
     C = opts.get("network")
     if C is None:
@@ -2083,20 +1803,21 @@ def open_session_from_opts(opts: dict, model: str | None = None, **kwargs) -> Tr
         if not model:
             raise ValueError("train_opts requires model")
     opts["packs"] = None
-    backend = str(opts.get("backend", "borst"))
-    if backend == "network":
-        nj = opts.get("network_json")
-        if not nj:
-            raise ValueError("train_opts with backend=network requires network_json")
-        if not opts.get("target_list"):
-            raise ValueError("train_opts requires target_list")
-        sim_dtype = sim_dtype_from_fp32(bool(opts.get("fp32", False)))
-        mb = load_network_backend(
-            nj, dev=opts.get("dev") or active_device(), sim_dtype=sim_dtype,
-        )
-        opts["network"] = mb.network
-        kwargs.setdefault("model_backend", mb)
-    return open_session({**opts, "backend": backend}, model, **kwargs)
+    backend = str(opts.get("backend", "network"))
+    if backend != "network":
+        raise ValueError(f"backend must be 'network', got {backend!r}")
+    nj = opts.get("network_json")
+    if not nj:
+        raise ValueError("train_opts requires network_json")
+    if not opts.get("target_list"):
+        raise ValueError("train_opts requires target_list")
+    sim_dtype = sim_dtype_from_fp32(bool(opts.get("fp32", False)))
+    mb = load_network_backend(
+        nj, dev=opts.get("dev") or active_device(), sim_dtype=sim_dtype,
+    )
+    opts["network"] = mb.network
+    kwargs.setdefault("model_backend", mb)
+    return open_session({**opts, "backend": "network"}, model, **kwargs)
 
 
 def open_session_from_outdir(

@@ -92,16 +92,12 @@ def run_dir(model, root=None, parent=None, name=None):
 
 
 def spot_bundle_fns(session):
-    if session.backend.network is not None:
-        return (
-            spot_plot.network_spot_trace_bundle,
-            spot_plot.plot_network_spot_data,
-            spot_plot.plot_network_spot_all,
-        )
+    if session.backend.network is None:
+        raise ValueError("spot_bundle_fns requires session.backend.network")
     return (
-        spot_plot.borst_spot_trace_bundle,
-        spot_plot.plot_borst_spot_data,
-        spot_plot.plot_borst_spot_all,
+        spot_plot.network_spot_trace_bundle,
+        spot_plot.plot_network_spot_data,
+        spot_plot.plot_network_spot_all,
     )
 
 
@@ -134,14 +130,13 @@ def load_session(outdir, model=None):
 
 def session_for_target(base_session, tname):
     """Single-target session sharing backend/schema with a multi-target run."""
+    if base_session.backend.network is None:
+        raise ValueError("session_for_target requires base_session.backend.network")
     opts = dict(base_session.train_opts or {})
     opts['target_list'] = [tname]
     opts['packs'] = None
-    if base_session.backend.network is not None:
-        opts['network'] = base_session.backend.network
-        return fc.open_session({**opts, 'backend': 'network'}, base_session.model,
-                               schema=list(base_session.schema))
-    return fc.open_session({**opts, 'backend': 'borst'}, base_session.model,
+    opts['network'] = base_session.backend.network
+    return fc.open_session({**opts, 'backend': 'network'}, base_session.model,
                            schema=list(base_session.schema))
 
 

@@ -59,19 +59,14 @@ def _type_names_for_units(session, unit_indices):
     if torch.is_tensor(u):
         u = u.detach().cpu().numpy()
     u = np.asarray(u, dtype=np.int64)
-    backend = session.backend
-    if backend.network is not None:
-        C = backend.network
-        node_type = C.node_type[u]
-        if torch.is_tensor(node_type):
-            node_type = node_type.detach().cpu().numpy()
-        names = list(C.type_names)
-        return [str(names[int(t)]) for t in node_type]
-    node_type = backend.conn.node_type[u]
+    C = session.backend.network
+    if C is None:
+        raise ValueError("_type_names_for_units requires session.backend.network")
+    node_type = C.node_type[u]
     if torch.is_tensor(node_type):
         node_type = node_type.detach().cpu().numpy()
-    ctype = ml.ctype
-    return [str(ctype[int(t)]) for t in node_type]
+    names = list(C.type_names)
+    return [str(names[int(ti)]) for ti in node_type]
 
 
 def pack_readout_types(session, target=None):
@@ -108,8 +103,8 @@ def _mirror_ref_specs_from_override(override):
     return specs
 
 
-def borst_ref_cubes(dark=False):
-    """RecF reference cubes for the 13 Borst fit cell types."""
+def fit_ref_cubes(dark=False):
+    """RecF reference cubes for the 13 fit cell types."""
     data = ml.read_RecF_data_dark() if dark else ml.read_RecF_data()
     ref = data * ml.DATA_AMP
     return {str(name): ref[i] for i, name in enumerate(ml.cell_list)}
@@ -118,7 +113,7 @@ def borst_ref_cubes(dark=False):
 def spot_ref_cubes(session, target=None, dark=False):
     """Spot model-data reference cubes from ``read_RecF_data`` (shape ``(9, T)``)."""
     target = target or session.primary_pack.name
-    ref = dict(borst_ref_cubes(dark=dark))
+    ref = dict(fit_ref_cubes(dark=dark))
     overrides = (session.train_opts or {}).get('pack_overrides') or {}
     for mirror_types, mirror_fit, mirror_sign in _mirror_ref_specs_from_override(
         overrides.get(target),

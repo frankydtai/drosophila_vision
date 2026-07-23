@@ -1,9 +1,5 @@
 # -*- coding: utf-8 -*-
-"""
-Local replacement for the Borst-lab blindschleiche_py3 utility.
-
-Implementations ported from FigureCode/Borst_Fig1.py and FigureCode/Borst_Fig4-6.py.
-"""
+"""Local signal-processing helpers (Gauss1D, lowpass, bandpass, …)."""
 
 import numpy as np
 import matplotlib.pyplot as plt

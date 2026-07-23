@@ -18,7 +18,7 @@ Spot
 ----
 Center-bin impulse + RF (same scaling as spot plots) via
 ``plot_trained.spot_bundle_fns`` → ``network_spot_trace_bundle`` /
-``borst_spot_trace_bundle``.
+``network_spot_trace_bundle``.
 
 Moving bar
 ----------
@@ -57,7 +57,8 @@ import plot_trained
 from plot import moving_bar as moving_bar_plot
 from plot import spot as spot_plot
 from plot.utils import parse_axis_slice_list, slice_xy_label
-from train import parse_comma_list, parse_target_list
+from connectome_io import parse_comma_list
+from train import parse_target_list
 from network.moving_bar_target import filter_requested_specs
 
 

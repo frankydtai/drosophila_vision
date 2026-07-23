@@ -23,14 +23,6 @@ REPO_ROOT = SIMULATION_DIR.parent.parent
 # Trained-parameter output root (``adaptive/`` and ``conductance/`` run_* subdirs).
 PARAMETER_DIR = SIMULATION_DIR / "0trained"
 
-# Borst 5-column simulator matrices (``FiveCol_MedSim_*`` / ``Circuits/``).
-BORST_CIRCUITS_DIR = SIMULATION_DIR / "Circuits"
-BORST_CTYPE_NPY = BORST_CIRCUITS_DIR / "ctype.npy"
-BORST_MULTI_COL_M_NPY = BORST_CIRCUITS_DIR / "multi_colM.npy"
-BORST_INTRA_COL_M_NPY = BORST_CIRCUITS_DIR / "intra_colM.npy"
-BORST_INTER_COL_M_NPY = BORST_CIRCUITS_DIR / "inter_colM.npy"
-BORST_MC_CELL_INDEX_NPY = BORST_CIRCUITS_DIR / "mc_cell_index.npy"
-
 # Per-run artifact subfolder (``.npy`` / ``.npz``, ``train_opts.json``, ``param_schema.json``).
 RUN_DATA_SUBDIR = "data"
 
@@ -70,9 +62,6 @@ def sim_dtype_from_fp32(fp32: bool) -> torch.dtype:
 #
 # ``read_RecF_data()`` shape (13, 9, T); time indices ``[:T_ON]`` are exactly
 # zero (PR step starts at ``T_ON``; filtered ImpR is nonzero from ~``T_ON+1``).
-#
-# Borst spot cost target: ``data`` is (65, T') — 13 fit types × 5 columns,
-# flattened; NOT a (13, T', 5) tensor.
 #
 # Moving bar uses separate ``COST_WINDOW`` / ``maxtime``; not T or T' above.
 # ---------------------------------------------------------------------------

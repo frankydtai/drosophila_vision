@@ -11,7 +11,7 @@ The JSON contract (see ``Connectome/FAFBv783/.../network.json``):
 override, so the per-edge synaptic weight is simply ``sign * n_syn``.
 
 Units are the nodes in file order; ``node_type[i]`` is the index of
-``nodes[i]['name']`` in the sorted type vocabulary. This mirrors the Borst path
+``nodes[i]['name']`` in the sorted type vocabulary. This broadcasts per-type params
 where unit ``i``'s type is ``i % nofcells`` and lets the schema broadcast a
 ``(n_types,)`` parameter to ``(n_units,)`` via ``param[node_type]``.
 """

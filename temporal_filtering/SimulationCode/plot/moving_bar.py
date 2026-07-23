@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import time
 from dataclasses import dataclass, field
-from importlib import import_module
 from typing import Literal
 
 import matplotlib.pyplot as plt
@@ -12,7 +11,6 @@ import numpy as np
 import torch
 
 import FiveCol_MedSim_Pytorch as fc
-import Medulla_Library as ml
 from t4_t5_dsi import (
     READOUT_SUBTYPES,
     fig1_key_for_stimulus,
@@ -48,7 +46,6 @@ from FiveCol_MedSim_Pytorch import t_on
 import network_bootstrap  # noqa: F401  # ensure FAFBv783 modules are importable
 from network.moving_bar_target import (
     bar_specs_for_session,
-    filter_borst_sti_columns,
     filter_sti_columns,
     load_fig1_trace,
     moving_bar_cost_columns,
@@ -65,52 +62,6 @@ from training_config import (
 
 MOVING_BAR_DPI = 100
 
-
-def _borst_sti_columns():
-    return import_module("column_mapper").borst_sti_columns()
-
-
-@dataclass
-class MovingBarWindowTraces:
-    model_mean: dict
-    model_sem: dict
-    model_n: dict
-    before_steps: dict[str, int] | None = None
-    after_steps: dict[str, int] | None = None
-    t0_bn: np.ndarray | None = field(default=None, repr=False, compare=False)
-    type_ids: np.ndarray | None = field(default=None, repr=False, compare=False)
-    types: list | None = field(default=None, repr=False, compare=False)
-
-
-@dataclass
-class MovingBarTraceBundle:
-    """One forward pass; t_first_sti-aligned full-window model traces."""
-
-    target: str
-    types: list
-    spec_names: list
-    side: str
-    single_column: bool
-    baselines: dict
-    data_mean: dict
-    maxtime: int
-    traces: MovingBarWindowTraces
-    session: object = field(default=None, repr=False, compare=False)
-    at_x: float | None = None
-    at_y: float | None = None
-    n_filter_cols: int | None = None
-    slice_overlay: dict[str, MovingBarWindowTraces] | None = None
-    slice_axis: str | None = None
-    slice_x_list: list | None = None
-    slice_y_list: list | None = None
-    align_at_x: float | None = None
-    align_at_y: float | None = None
-    prep_s: float = 0.0
-    v_th_by_name: dict = field(default_factory=dict)
-
-    @property
-    def has_slices(self):
-        return bool(self.slice_overlay)
 
 
 def _moving_bar_figure(nrows, ncols, *, sharex='col'):
@@ -171,15 +122,10 @@ def _type_ids_for_plot_order(connectome_type_names, node_type, plot_types):
 def _plot_types_and_ids(session):
     """Plot-family type order + remapped ``type_ids`` for bar aggregation."""
     C = session.backend.network
-    if C is not None:
-        types = plot_types_in_order(C.type_names)
-        type_ids = _type_ids_for_plot_order(C.type_names, C.node_type, types)
-    else:
-        ctype_names = [str(ml.ctype[i]) for i in range(len(ml.ctype))]
-        types = plot_types_in_order(ctype_names)
-        type_ids = _type_ids_for_plot_order(
-            ctype_names, session.backend.conn.node_type, types,
-        )
+    if C is None:
+        raise ValueError("_plot_types_and_ids requires session.backend.network")
+    types = plot_types_in_order(C.type_names)
+    type_ids = _type_ids_for_plot_order(C.type_names, C.node_type, types)
     return types, type_ids
 
 
@@ -263,25 +209,15 @@ def _network_column_unit_mask(C, filt_cols, n_batch):
     return np.broadcast_to(unit_in_col, (n_batch, C.n_units)).copy()
 
 
-def _borst_column_unit_mask(filt_cols, n_batch):
-    mask = np.zeros((n_batch, ml.n_state_units()), dtype=bool)
-    for col in filt_cols:
-        mask[:, ml.column_slice(col.col)] = True
-    return mask
-
 
 def _t0_ref_for_align_column(t0_bn, bi, ref_col, *, C):
-    if C is not None:
-        u_np, v_np = network_uv_np(C)
-        on_ref = (u_np == int(ref_col.u)) & (v_np == int(ref_col.v))
-        t0_ref = int(t0_bn[bi, on_ref][0])
-    else:
-        t0_ref = int(t0_bn[bi, ml.column_slice(ref_col.col)][0])
+    if C is None:
+        raise ValueError("_t0_ref_for_align_column requires network C")
+    u_np, v_np = network_uv_np(C)
+    on_ref = (u_np == int(ref_col.u)) & (v_np == int(ref_col.v))
+    t0_ref = int(t0_bn[bi, on_ref][0])
     if t0_ref < 0:
-        if C is not None:
-            loc = f'({int(ref_col.u)},{int(ref_col.v)})'
-        else:
-            loc = f'k={int(ref_col.col)}'
+        loc = f'({int(ref_col.u)},{int(ref_col.v)})'
         raise SystemExit(f'--align-xy ref column {loc} has no valid t0')
     return t0_ref
 
@@ -292,37 +228,23 @@ def _t0_bn_slice_aligned_to_ref(
 ):
     """Copy ``t0_bn`` with slice units forced to the ref column ``t0`` (plot only)."""
     C = session.backend.network
-    if C is not None:
-        all_cols = moving_bar_cost_columns(C, cost_extent=cost_extent)
-        ref_cols = filter_sti_columns(all_cols, at_x=align_at_x, at_y=align_at_y)
-        if len(ref_cols) != 1:
-            raise SystemExit(
-                f'--align-xy must match exactly one sti column within cost_extent, '
-                f'got {len(ref_cols)} for x={align_at_x!r} y={align_at_y!r}',
-            )
-        ref_col = ref_cols[0]
-        u_np, v_np = network_uv_np(C)
-        out = t0_bn.copy()
-        for bi in range(n_batch):
-            t0_ref = _t0_ref_for_align_column(out, bi, ref_col, C=C)
-            for col in filt_cols:
-                on_col = (u_np == int(col.u)) & (v_np == int(col.v))
-                out[bi, on_col] = t0_ref
-        return out
-
-    cols_all = list(_borst_sti_columns())
-    ref_cols = filter_borst_sti_columns(cols_all, at_x=align_at_x, at_y=align_at_y)
+    if C is None:
+        raise ValueError("_t0_bn_slice_aligned_to_ref requires session.backend.network")
+    all_cols = moving_bar_cost_columns(C, cost_extent=cost_extent)
+    ref_cols = filter_sti_columns(all_cols, at_x=align_at_x, at_y=align_at_y)
     if len(ref_cols) != 1:
         raise SystemExit(
-            f'--align-xy must match exactly one Borst column, '
+            f'--align-xy must match exactly one sti column within cost_extent, '
             f'got {len(ref_cols)} for x={align_at_x!r} y={align_at_y!r}',
         )
     ref_col = ref_cols[0]
+    u_np, v_np = network_uv_np(C)
     out = t0_bn.copy()
     for bi in range(n_batch):
-        t0_ref = _t0_ref_for_align_column(out, bi, ref_col, C=None)
+        t0_ref = _t0_ref_for_align_column(out, bi, ref_col, C=C)
         for col in filt_cols:
-            out[bi, ml.column_slice(col.col)] = t0_ref
+            on_col = (u_np == int(col.u)) & (v_np == int(col.v))
+            out[bi, on_col] = t0_ref
     return out
 
 
@@ -339,21 +261,13 @@ def _moving_bar_slice_overlay_traces(
     t0_full_bn = base_wt.t0_bn
     n_batch = len(spec_names)
     C = session.backend.network
-    if C is not None:
-        all_cols = moving_bar_cost_columns(C, cost_extent=pack.cost_extent)
-        filt_cols = filter_sti_columns(all_cols, at_x=at_x, at_y=at_y)
-        if not filt_cols:
-            return None
-        col_mask = _network_column_unit_mask(C, filt_cols, n_batch)
-    else:
-        cols_all = list(_borst_sti_columns())
-        try:
-            filt_cols = filter_borst_sti_columns(cols_all, at_x=at_x, at_y=at_y)
-        except ValueError:
-            return None
-        if not filt_cols:
-            return None
-        col_mask = _borst_column_unit_mask(filt_cols, n_batch)
+    if C is None:
+        raise ValueError("_moving_bar_slice_overlay_traces requires session.backend.network")
+    all_cols = moving_bar_cost_columns(C, cost_extent=pack.cost_extent)
+    filt_cols = filter_sti_columns(all_cols, at_x=at_x, at_y=at_y)
+    if not filt_cols:
+        return None
+    col_mask = _network_column_unit_mask(C, filt_cols, n_batch)
     win_lens = [
         base_wt.before_steps[sname] + base_wt.after_steps[sname] + 1
         for sname in spec_names
@@ -580,6 +494,8 @@ def _moving_bar_scope_label(session, *, at_x=None, at_y=None, n_filter_cols=None
     pack = session.primary_pack
     cost_extent = pack.cost_extent
     C = session.backend.network
+    if C is None:
+        raise ValueError("_moving_bar_scope_label requires session.backend.network")
     if at_x is not None or at_y is not None:
         ncol_part = f'{n_filter_cols} sti column'
         if n_filter_cols != 1:
@@ -589,15 +505,11 @@ def _moving_bar_scope_label(session, *, at_x=None, at_y=None, n_filter_cols=None
             parts.insert(0, f'cost_extent={cost_extent}')
         return ', '.join(parts)
     if cost_extent is not None:
-        if C is not None:
-            from network.moving_bar_target import moving_bar_cost_columns
-            ncols = len(moving_bar_cost_columns(C, cost_extent=cost_extent))
-            return f'cost_extent={cost_extent} ({ncols} sti columns)'
-        return f'cost_extent={cost_extent}'
-    if C is not None:
-        from network.moving_bar_target import sti_columns
-        return f'avg over {len(sti_columns(C))} sti columns'
-    return f'avg over {ml.nofcols} Borst columns'
+        from network.moving_bar_target import moving_bar_cost_columns
+        ncols = len(moving_bar_cost_columns(C, cost_extent=cost_extent))
+        return f'cost_extent={cost_extent} ({ncols} sti columns)'
+    from network.moving_bar_target import sti_columns
+    return f'avg over {len(sti_columns(C))} sti columns'
 
 
 def _style_moving_bar_relative_axis(
