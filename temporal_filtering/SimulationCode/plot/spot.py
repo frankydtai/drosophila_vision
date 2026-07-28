@@ -375,7 +375,7 @@ def _mask_pre_ton_plot_traces(traces, *, show_pre=True, t_on_step=None):
 
 
 def _embed_post_ton_traces(raw, scale, mt, *, t_on_step=None):
-    """Adaptive readout ``(N, T')`` -> full-length plot traces (adaptive only)."""
+    """Activity-model readout ``(N, T')`` -> full-length plot traces (hp_lp)."""
     if t_on_step is None:
         t_on_step = fc.t_on
     n, t_len = raw.shape
@@ -389,9 +389,9 @@ def _simulate(session, z, neuron_index, return_ref=False, *, trace_kind='model',
     neuron_index = _as_index(neuron_index, z.device)
     schema = list(session.schema)
     backend = session.backend
-    if session.model == 'adaptive':
-        p = fc.assign_params_adaptive(z, schema, backend)
-        stacked, ref = fc._run_adaptive(p, session, neuron_index=neuron_index, return_ref=True)
+    if session.model == 'hp_lp':
+        p = fc.assign_params(z, schema, backend)
+        stacked, ref = fc._run_hp_lp(p, session, neuron_index=neuron_index, return_ref=True)
         mt = session.maxtime
         if trace_kind == 'vm':
             scale = torch.ones((int(neuron_index.shape[0]),), dtype=stacked.dtype, device=stacked.device)

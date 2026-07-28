@@ -19,7 +19,7 @@ from plot.utils import parse_axis_slice_list, parse_align_xy, plot_cost, network
 from training_config import PARAMETER_DIR, run_data_dir
 
 TRAIN_OPTS_FILE = fc.TRAIN_OPTS_FILE
-KNOWN_MODELS = ('conductance', 'adaptive')
+KNOWN_MODELS = fc.KNOWN_MODELS
 RUN_NAME_MAX = 255
 DEFAULT_RUN_NAME = """
 27252028-train-nofsteps-1000-lrs-0.1-shift-extent-1-cost-extent-9
@@ -148,13 +148,13 @@ def resolve_model(outdir, override=None):
         if not opts or 'model' not in opts:
             raise SystemExit(
                 f'cannot determine model for {outdir!r}; '
-                f'expected {TRAIN_OPTS_FILE} with "model": conductance or adaptive'
+                f'expected {TRAIN_OPTS_FILE} with "model" in {KNOWN_MODELS}'
             )
         model = opts['model']
     if model not in KNOWN_MODELS:
         raise SystemExit(
             f'invalid model {model!r} in {outdir!r}; '
-            f'expected conductance or adaptive'
+            f'expected one of {KNOWN_MODELS}'
         )
     return model
 

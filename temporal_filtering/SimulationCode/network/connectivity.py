@@ -4,17 +4,17 @@
 Interface:
 
     conn.exc_inh_drive(x, syn_strength) -> (g_exc, g_inh)  # network / ScatterConn
-    conn.signed_drive(x)  -> g_signed
+    conn.signed_drive(x, syn_strength)  -> g_signed
     conn.n_units
     conn.node_type
 
 ``x`` is the presynaptic output already scaled by the per-source out_gain, i.e.
 ``rectsyn(Vm, v_th) * out_gain`` for the conductance model or
-``relu(activity) * out_gain`` for the adaptive model. The post-synaptic input
+``relu(activity) * out_gain`` for hp_lp. The post-synaptic input
 gain (``in_gain``) is applied by the caller AFTER these calls.
 
-Conductance type→type scaling ``syn_strength`` (length ``n_pairs``) multiplies
-each edge as \(\alpha_{t_{\mathrm{src}},t_{\mathrm{tar}}}\), shared across columns.
+Type→type scaling ``syn_strength`` (length ``n_pairs``) multiplies each edge as
+\(\alpha_{t_{\mathrm{src}},t_{\mathrm{tar}}}\), shared across columns.
 Network path only (:class:`ScatterConn`).
 
 Both backends operate on the LAST axis (the units), so a plain 1-D ``(N,)`` state
@@ -119,5 +119,6 @@ class ScatterConn:
         a = self._edge_alpha(syn_strength)
         return self._scatter(xs * self.w_exc * a), self._scatter(xs * self.w_inh * a)
 
-    def signed_drive(self, x: torch.Tensor) -> torch.Tensor:
-        return self._scatter(self._gather(x) * self.w_signed)
+    def signed_drive(self, x: torch.Tensor, syn_strength: torch.Tensor) -> torch.Tensor:
+        a = self._edge_alpha(syn_strength)
+        return self._scatter(self._gather(x) * self.w_signed * a)

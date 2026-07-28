@@ -9,17 +9,17 @@ from plot.readout import fit_ref_cubes
 
 
 def merge_ih_param_partitions(train_kw):
-    """Pop CLI ``param_partitions`` from *train_kw* and merge default Ih/adapt splits.
+    """Pop CLI ``param_partitions`` from *train_kw* and merge default Ih/hp splits.
 
     Conductance: ``Ih_gmax`` / ``Ih_gmax_off``.
-    Else: ``adapt_gain`` / ``tau_adapt``.
+    hp_lp: ``hp_gain`` / ``tau_hp``.
     Indi names: :data:`DEFAULT_IH_GMAX_INDI_NAMES`; ``fixed=['all']``.
     """
     ih_indi = list(DEFAULT_IH_GMAX_INDI_NAMES)
     if train_kw['model'] == 'conductance':
         names = ('Ih_gmax', 'Ih_gmax_off')
     else:
-        names = ('adapt_gain', 'tau_adapt')
+        names = ('hp_gain', 'tau_hp')
     ih_parts = {
         name: {'indi': ih_indi, 'fixed': ['all']}
         for name in names

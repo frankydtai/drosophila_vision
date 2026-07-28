@@ -30,6 +30,53 @@ from training_config import (
 )
 from param_defaults import DEFAULT_IH_GMAX_INDI_NAMES, P as PARAM_DEFAULTS
 
+import neuron_model  # noqa: F401 — package side-effects / discovery
+from neuron_model import (  # noqa: F401 — re-export for callers using fc.*
+    ALL_PARAM_NAMES,
+    IH_DIR_REVERSE_CELLS,
+    IH_OFF_DEFAULT,
+    IH_OFF_GMAX_SEGMENT,
+    IH_OFF_MODES,
+    IH_OFF_SCALAR_SEGMENTS,
+    IH_SHAPE_PARAM_NAMES,
+    KNOWN_MODELS,
+    MODEL_PACK_READOUTS,
+    STATE_CLAMP,
+    Ca_tau,
+    E_IH_OFF,
+    E_Ih,
+    E_LEAK_DEPOL,
+    E_LEAK_REST,
+    E_exc,
+    E_inh,
+    Ih_gain,
+    apply_ih_off_mode,
+    build_conductance_schema,
+    build_hp_lp_schema,
+    capac,
+    cdt,
+    conductance_ih_off_kwargs,
+    conductance_schema,
+    default_schema,
+    deltat,
+    exc_synweight,
+    g_leak,
+    inh_synweight,
+    params_from_z,
+    rectsyn,
+    run_conductance,
+    run_conductance_full,
+    run_hp_lp,
+    update_state_hp_lp,
+    update_Vm,
+    vm_budget_from_g,
+)
+
+# Underscore aliases kept for existing call sites (plot/, analysis/).
+_run_conductance = run_conductance
+_run_conductance_full = run_conductance_full
+_run_hp_lp = run_hp_lp
+
 
 def active_device():
     """Pick CUDA or CPU from current runtime (not frozen at import)."""
@@ -102,19 +149,8 @@ COST_WEIGHT_ALIASES = {
     "DSI": ("moving_bar_bright_DSI", "moving_bar_dark_DSI"),
 }
 
-# important model params
-
-deltat    = DELTAT_MS  # simulation step size [ms]
-g_leak    = 1.0   # in nS
-E_exc     = +10.0 # in mV
-E_inh     = -70.0 # in mV
-capac     = +40.0 # in pF, results in 50ms membrane time-constant for g_leak = 1.0 nS
-cdt       = capac/deltat
-
-Ca_tau    = 50.0  # in msec
-
-E_LEAK_REST = -50.0
-E_LEAK_DEPOL = -20.0
+# Neuron models (conductance / hp_lp): see ``neuron_model/``.
+# Schema partition machinery below; numeric defaults in ``param_defaults.P``.
 
 def calc_multi_col_params(param, conn):
     # Broadcast a per-cell-TYPE parameter (n_types,) to the full state (n_units,)
@@ -129,23 +165,6 @@ def build_e_leak(conn, n_types, depol_cells=(), *, dtype=SIM_DTYPE_DEFAULT):
         per_type[int(c)] = E_LEAK_DEPOL
     return calc_multi_col_params(per_type, conn)
 
-exc_synweight = 0.001
-inh_synweight = 0.001
-
-# ----------- H-Current ----------------------------------------
-
-E_Ih          = +50.0  # in mV, ON-channel reversal
-E_IH_OFF      = -150.0  # OFF-channel reversal (2*E_LEAK_REST - E_Ih)
-
-Ih_gain       = 1.0   # if set to 0, it will block Ih
-
-IH_OFF_MODES = ('on', 'off', 'mirrored')
-IH_OFF_DEFAULT = 'on'
-IH_OFF_SCALAR_SEGMENTS = frozenset({'Ih_midv_off', 'Ih_slope_off', 'tau_midv_off'})
-IH_OFF_GMAX_SEGMENT = 'Ih_gmax_off'
-
-# Per-cell Ih direction: +1 normal; -1 mirrored (reversal flips about 0).
-IH_DIR_REVERSE_CELLS: Tuple[int, ...] = ()
 
 def build_ih_dir(conn, ih_reverse_cells=IH_DIR_REVERSE_CELLS, *, dtype=SIM_DTYPE_DEFAULT):
     """(conn.n_units,) Ih direction (+1 normal, -1 mirrored per cell-type)."""
@@ -154,16 +173,9 @@ def build_ih_dir(conn, ih_reverse_cells=IH_DIR_REVERSE_CELLS, *, dtype=SIM_DTYPE
         d[conn.node_type == int(c)] = -1.0
     return d
 
-# ---- second neuron model: adaptive temporal filter (flyvis-derived) ----
-# 'conductance' = conductance-based + Ih (update_Vm)
-# 'adaptive'    = passive point neuron + low-pass adaptive temporal filter
-
-gate_lag = 1  # delay (in steps) of the stimulus used for the contrast gate
-GATE_PIVOT = 0.5  # fixed contrast-gate pivot (non-trainable); input is normalised to [0,1]
-STATE_CLAMP = 1.0e6  # bound on adaptive state vars to keep explicit Euler finite
-
-# --- parameter schema: SINGLE SOURCE OF TRUTH -------------------------------
+# --- parameter schema partitions --------------------------------------------
 # Numeric lo/hi/init/jit(/fixed_val): ``param_defaults.P``.
+# Model segment lists: ``neuron_model.schema``.
 # Each segment:
 #   name, kind, count, lo/hi/init/jit[, fixed_val]
 #   indi / shared / fixed / frozen : disjoint exhaustive lists of unit indices
@@ -173,17 +185,6 @@ STATE_CLAMP = 1.0e6  # bound on adaptive state vars to keep explicit Euler finit
 # ``--all-param`` batches all segments; ``--ih-shape`` batches the six Ih shape params.
 # Named ``best_param.npz``.
 PARTITION_BUCKETS = ('indi', 'shared', 'fixed', 'frozen')
-ALL_PARAM_NAMES = (
-    'in_gain', 'out_gain', 'out_scale', 'syn_strength', 'v_th',
-    'Ih_gmax', 'Ih_gmax_off',
-    'Ih_midv', 'Ih_slope', 'tau_midv',
-    'Ih_midv_off', 'Ih_slope_off', 'tau_midv_off',
-    'tau_m', 'bias', 'adapt_gain', 'tau_adapt',
-)
-IH_SHAPE_PARAM_NAMES = (
-    'Ih_midv', 'Ih_slope', 'tau_midv',
-    'Ih_midv_off', 'Ih_slope_off', 'tau_midv_off',
-)
 PAIR_SEP = ':'
 
 
@@ -411,114 +412,6 @@ def _with_part(seg, part):
     return s
 
 
-def apply_ih_off_mode(schema, mode=IH_OFF_DEFAULT):
-    """Adjust conductance Ih schema for ON/OFF coupling (``on|off|mirrored``).
-
-    ``mirrored`` / ``off``: drop ``Ih_gmax_off`` and OFF shape params from z;
-    forward resolves OFF via :func:`conductance_ih_off_kwargs`.
-    """
-    if mode not in IH_OFF_MODES:
-        raise ValueError(f"ih_off {mode!r} not in {IH_OFF_MODES}")
-    out = []
-    for seg in schema:
-        s = dict(seg)
-        name = s['name']
-        if mode == 'on':
-            out.append(s)
-            continue
-        if name in IH_OFF_SCALAR_SEGMENTS or name == IH_OFF_GMAX_SEGMENT:
-            continue
-        out.append(s)
-    return out
-
-
-def conductance_schema(model_backend, schema=None, ih_off=IH_OFF_DEFAULT):
-    """Conductance parameter schema with ``ih_off`` segment selection applied."""
-    base = list(schema) if schema is not None else default_schema('conductance', model_backend)
-    return apply_ih_off_mode(base, ih_off)
-
-
-def conductance_ih_off_kwargs(p, ih_off=IH_OFF_DEFAULT):
-    """Resolve OFF-channel Ih kwargs for :func:`update_Vm` from assigned params."""
-    midv_off = p['Ih_midv'] if ih_off != 'on' else p['Ih_midv_off']
-    slope_off = p['Ih_slope'] if ih_off != 'on' else p['Ih_slope_off']
-    tau_off = p['tau_midv'] if ih_off != 'on' else p['tau_midv_off']
-    if ih_off == 'on':
-        gmax_off = p['Ih_gmax_off']
-    elif ih_off == 'mirrored':
-        gmax_off = p['Ih_gmax']
-    elif ih_off == 'off':
-        gmax_off = p['Ih_gmax'] * 0.0
-    else:
-        raise ValueError(f"ih_off {ih_off!r} not in {IH_OFF_MODES}")
-    return gmax_off, midv_off, slope_off, tau_off
-
-
-def build_conductance_schema(n_types, type_names=None, n_pairs=None):
-    if type_names is None:
-        raise TypeError('conductance schema requires type_names from network')
-    type_names = list(type_names)
-    if n_pairs is None:
-        raise TypeError('conductance syn_strength requires n_pairs from network ScatterConn')
-    n_pairs = int(n_pairs)
-    name_to_i = {str(n): i for i, n in enumerate(type_names)}
-    ih_gmax = [name_to_i[n] for n in DEFAULT_IH_GMAX_INDI_NAMES]
-    D = PARAM_DEFAULTS
-    indi_all = _part_indi_all(n_types)
-    fixed_all = _part_fixed_all(n_types)
-    shared_all = _part_shared_all(n_types)
-    ih_gmax_part = _part_indi_subset_fixed_rest(n_types, ih_gmax)
-    return [
-        _with_part({'name': 'in_gain',  'count': n_types, 'kind': 'full',   **D['in_gain']}, fixed_all),
-        _with_part({'name': 'out_gain',  'count': n_types, 'kind': 'full',   **D['out_gain']}, indi_all),
-        _with_part({'name': 'syn_strength', 'count': n_pairs, 'kind': 'edge_pair', **D['syn_strength']},
-                   _part_indi_all(n_pairs)),
-        _with_part({'name': 'v_th', 'count': n_types, 'kind': 'full', **D['v_th']}, fixed_all),
-        _with_part({'name': 'out_scale', 'count': n_types, 'kind': 'output', **D['out_scale']}, indi_all),
-        _with_part({'name': 'Ih_gmax', 'count': n_types, 'kind': 'full', **D['Ih_gmax']}, ih_gmax_part),
-        _with_part({'name': 'Ih_gmax_off', 'count': n_types, 'kind': 'full', **D['Ih_gmax_off']}, ih_gmax_part),
-        _with_part({'name': 'Ih_midv',     'count': n_types, 'kind': 'full', **D['Ih_midv']}, shared_all),
-        _with_part({'name': 'Ih_slope',    'count': n_types, 'kind': 'full', **D['Ih_slope']}, shared_all),
-        _with_part({'name': 'tau_midv',    'count': n_types, 'kind': 'full', **D['tau_midv']}, shared_all),
-        _with_part({'name': 'Ih_midv_off', 'count': n_types, 'kind': 'full', **D['Ih_midv_off']}, shared_all),
-        _with_part({'name': 'Ih_slope_off', 'count': n_types, 'kind': 'full', **D['Ih_slope_off']}, shared_all),
-        _with_part({'name': 'tau_midv_off', 'count': n_types, 'kind': 'full', **D['tau_midv_off']}, shared_all),
-    ]
-
-
-def build_adaptive_schema(n_types, type_names=None):
-    if type_names is None:
-        raise TypeError('adaptive schema requires type_names from network')
-    type_names = list(type_names)
-    name_to_i = {str(n): i for i, n in enumerate(type_names)}
-    ih_gmax = [name_to_i[n] for n in DEFAULT_IH_GMAX_INDI_NAMES]
-    D = PARAM_DEFAULTS
-    indi_all = _part_indi_all(n_types)
-    fixed_all = _part_fixed_all(n_types)
-    ih_g = _part_indi_subset_fixed_rest(n_types, ih_gmax)
-    return [
-        _with_part({'name': 'in_gain',   'count': n_types, 'kind': 'full',   **D['in_gain']}, fixed_all),
-        _with_part({'name': 'out_gain',   'count': n_types, 'kind': 'full',   **D['out_gain']}, indi_all),
-        _with_part({'name': 'out_scale',  'count': n_types, 'kind': 'output', **D['out_scale']}, indi_all),
-        _with_part({'name': 'tau_m',      'count': n_types, 'kind': 'full',   **D['tau_m']}, indi_all),
-        _with_part({'name': 'bias',       'count': n_types, 'kind': 'full',   **D['bias']}, indi_all),
-        _with_part({'name': 'adapt_gain', 'count': n_types, 'kind': 'full', **D['adapt_gain']}, ih_g),
-        _with_part({'name': 'tau_adapt',  'count': n_types, 'kind': 'full', **D['tau_adapt']}, ih_g),
-    ]
-
-
-def default_schema(model: str, backend: "ModelBackend") -> list:
-    """Fresh parameter schema for ``model`` on the given backend."""
-    n = backend.n_types
-    type_names = type_unit_names(backend)
-    if model == 'adaptive':
-        return build_adaptive_schema(n, type_names=type_names)
-    n_pairs = getattr(backend.conn, 'n_pairs', None)
-    if n_pairs is None:
-        raise TypeError('conductance syn_strength requires network ScatterConn backend')
-    return build_conductance_schema(n, type_names=type_names, n_pairs=n_pairs)
-
-
 def z_to_unit_values(z, schema):
     """Full-width per-unit arrays (before column expand) for each segment."""
     import numpy as np
@@ -743,7 +636,7 @@ def _spot_i_from_opts(opts, polarity: str):
 
 
 def _pack_signal_scale(pack: TargetPack, session: TrainSession) -> float:
-    """Peak PR current for adaptive ``sig / scale`` (from per-target sidecar opts)."""
+    """Peak PR current for activity-model ``sig / scale`` (from per-target sidecar opts)."""
     opts = ((session.train_opts or {}).get(f"{pack.name}_stimulus_opts")) or {}
     if pack.name == "spot_bright":
         peak = _opt_float(opts, "i_bright", default=ml.I_BRIGHT)
@@ -1835,94 +1728,8 @@ def open_session_from_outdir(
     return open_session_from_opts(opts, model)
 
 
-# ------- network calculations  -----------------------------------------------
-
-def rectsyn(x,thrld):
-    
-    result=x-thrld
-    result=result*(result>0)
-    
-    return result
-
-def _ih_gate_step(Vm, u_on, u_off, Ih_gmax, Ih_gmax_off,
-                  Ih_midv, Ih_slope, tau_midv, Ih_midv_off, Ih_slope_off, tau_midv_off):
-    """Advance Ih gate states and conductances for active columns only."""
-    slope_on = Ih_slope
-    slope_off = -Ih_slope_off
-    Ih_ss_on = 1.0 / (1.0 + torch.exp((Ih_midv - Vm) * slope_on))
-    Ih_ss_off = 1.0 / (1.0 + torch.exp((Ih_midv_off - Vm) * slope_off))
-    tau_on = 1.5 / (torch.exp(-0.1 * (Vm - tau_midv)) + torch.exp(+0.1 * (Vm - tau_midv))) * 1000.0 + 100.0
-    tau_off = 1.5 / (torch.exp(-0.1 * (Vm - tau_midv_off)) + torch.exp(+0.1 * (Vm - tau_midv_off))) * 1000.0 + 100.0
-    u_on = deltat / tau_on * (Ih_ss_on - u_on) + u_on
-    u_off = deltat / tau_off * (Ih_ss_off - u_off) + u_off
-    g_Ih_on = u_on * Ih_gmax * Ih_gain
-    g_Ih_off = u_off * Ih_gmax_off * Ih_gain
-    return u_on, u_off, g_Ih_on, g_Ih_off
-
-
-def update_Vm(Vm, u_on, u_off, in_gain, out_gain, syn_strength, v_th, Ih_gmax, Ih_gmax_off,
-              Ih_midv, Ih_slope, tau_midv, Ih_midv_off, Ih_slope_off, tau_midv_off,
-              signal, backend: ModelBackend, *, return_budget: bool = False):
-    """One conductance step. With ``return_budget=True``, also return the g's that
-    enter the Vm update (after Ih gate advance; Vm argument is still pre-step).
-    """
-    # ON Ih (hyperpolarization-activated, E_Ih=+50) + OFF Ih (depolarization-activated,
-    # E_IH_OFF=-150).
-    e_leak = backend.e_leak
-    conn = backend.conn
-    ih_active = (Ih_gmax + Ih_gmax_off) != 0
-    g_Ih_on = u_on.new_zeros(u_on.shape)
-    g_Ih_off = u_off.new_zeros(u_off.shape)
-    if ih_active.any():
-        ih_kw = dict(
-            Ih_midv=Ih_midv, Ih_slope=Ih_slope, tau_midv=tau_midv,
-            Ih_midv_off=Ih_midv_off, Ih_slope_off=Ih_slope_off, tau_midv_off=tau_midv_off,
-        )
-        if ih_active.all():
-            u_on, u_off, g_Ih_on, g_Ih_off = _ih_gate_step(
-                Vm, u_on, u_off, Ih_gmax, Ih_gmax_off, **ih_kw)
-        else:
-            idx = ih_active
-            u_on_a, u_off_a, g_on_a, g_off_a = _ih_gate_step(
-                Vm[:, idx], u_on[:, idx], u_off[:, idx],
-                Ih_gmax[idx], Ih_gmax_off[idx], **{k: v[idx] for k, v in ih_kw.items()},
-            )
-            u_on = u_on.clone()
-            u_off = u_off.clone()
-            u_on[:, idx] = u_on_a
-            u_off[:, idx] = u_off_a
-            g_Ih_on[:, idx] = g_on_a
-            g_Ih_off[:, idx] = g_off_a
-    g_Ih = g_Ih_on + g_Ih_off
-
-    g_exc, g_inh = conn.exc_inh_drive(rectsyn(Vm, v_th)*out_gain, syn_strength)
-    g_exc   = g_exc*in_gain
-    g_inh   = g_inh*in_gain
-
-    Vm = (g_exc*E_exc + g_inh*E_inh + g_leak*e_leak
-          + E_Ih * g_Ih_on + E_IH_OFF * g_Ih_off + cdt*Vm + signal)
-    Vm = Vm / (g_exc + g_inh + g_Ih + g_leak + cdt)
-
-    if return_budget:
-        return Vm, u_on, u_off, g_exc, g_inh, g_Ih_on, g_Ih_off
-    return Vm, u_on, u_off
-
-
-def vm_budget_from_g(Vm_pre, g_exc, g_inh, g_Ih_on, g_Ih_off, signal, e_leak):
-    """Numerator / denom terms matching ``update_Vm`` (works on torch or numpy)."""
-    return {
-        "num_exc": g_exc * E_exc,
-        "num_inh": g_inh * E_inh,
-        "num_leak": g_leak * e_leak,
-        "num_ihon": g_Ih_on * E_Ih,
-        "num_ihoff": g_Ih_off * E_IH_OFF,
-        "num_cdt": cdt * Vm_pre,
-        "num_sig": signal,
-        "den": g_exc + g_inh + g_Ih_on + g_Ih_off + g_leak + cdt,
-    }
-
-
-# ---------- adaptive temporal-filter neuron model (flyvis-derived) -----------
+# ------- param unpack / cost / readout helpers -------------------------
+# Neuron dynamics live in ``neuron_model/`` (re-exported at module top).
 
 def _reconstruct_raw(seg, z_slice, z):
     """Build length-`count` per-unit vector from z slice + partition buckets."""
@@ -1967,43 +1774,6 @@ def assign_params(z, schema, backend: ModelBackend):
     return p
 
 
-def assign_params_adaptive(z, schema, backend: ModelBackend):
-    """Adaptive params plus the fixed (non-trainable) contrast-gate pivot."""
-    p = assign_params(z, schema, backend)
-    p['gate_pivot'] = GATE_PIVOT
-    return p
-
-def update_state_adaptive(activity, v_sustained, v_transient, drive_lp, p, x_t, x_t_delayed, backend: ModelBackend):
-    
-    # passive point neuron: tau_m * da/dt = -a + X, with X = bias + syn + x_t.
-    # an adaptive low-pass reference (drive_lp) gates a transient component so
-    # that activity = v_sustained + v_transient.
-    
-    bias  = p['bias']
-    tau   = torch.clamp(p['tau_m'], min=deltat)
-    tau_r = torch.clamp(p['tau_adapt'], min=deltat)
-    ratio = tau / tau_r
-    
-    # presynaptic output gain (per source), postsynaptic input gain (per target)
-    syn     = p['in_gain'] * backend.conn.signed_drive(torch.relu(activity) * p['out_gain'])
-    X       = bias + syn + x_t
-    X_gate  = bias + syn + x_t_delayed
-    gate    = (X_gate - p['gate_pivot']) * p['adapt_gain']
-    gate_src = torch.where(gate >= 0, drive_lp, 1.0 - drive_lp)
-    
-    drive_lp    = drive_lp    + deltat / tau_r * (-drive_lp + X)
-    v_sustained = v_sustained + deltat / tau   * (-v_sustained + (1.0 - gate * ratio) * X)
-    v_transient = v_transient + deltat / tau   * (-v_transient + (-gate * (1.0 - ratio) * gate_src))
-    
-    # explicit Euler on this recurrent ReLU net can diverge for large gains;
-    # clamp persistent states so blow-ups stay finite (large cost) instead of NaN.
-    drive_lp    = torch.clamp(drive_lp,    -STATE_CLAMP, STATE_CLAMP)
-    v_sustained = torch.clamp(v_sustained, -STATE_CLAMP, STATE_CLAMP)
-    v_transient = torch.clamp(v_transient, -STATE_CLAMP, STATE_CLAMP)
-    activity    = v_sustained + v_transient
-    
-    return activity, v_sustained, v_transient, drive_lp
-
 def model_cost(model, data, session: TrainSession, scale=1.0, power=None):
     # normalised MSE over the response window (t=t_on..maxtime-1); ``scale`` is an
     # arbitrary linear gain on ``model`` (diagnostics only — training uses schema out_scale).
@@ -2011,80 +1781,6 @@ def model_cost(model, data, session: TrainSession, scale=1.0, power=None):
         power = session.primary_pack.power
     mt = session.maxtime
     return torch.sum((scale * model - data[t_on:mt])**2) / power * 100.0
-
-
-def _run_conductance(session: TrainSession, p, neuron_index=None, return_ref=False, sig=None, pack=None, *, return_vm=False):
-    if neuron_index is None:
-        pack = pack or session.primary_pack
-        neuron_index = pack.readout_unit
-    if sig is None:
-        sig = session.pack_signal(pack)
-    squeeze = sig.dim() == 2
-    sig_b = sig.unsqueeze(0) if squeeze else sig
-    if return_vm:
-        out, vm_ref, _vm_full = _run_conductance_full(session, p, sig_b, return_ref=True, return_vm=True)
-    else:
-        out, vm_ref = _run_conductance_full(session, p, sig_b, return_ref=True)
-    out = out[:, :, neuron_index]
-    vm_ref = vm_ref[:, neuron_index]
-    if squeeze:
-        out = out.squeeze(0)
-        vm_ref = vm_ref.squeeze(0)
-    if return_ref:
-        return out, vm_ref
-    return out
-
-
-def _ca_readout_step(model, Vm, Vm_ref):
-    return deltat / Ca_tau * (Vm - Vm_ref - model) + model
-
-
-def _run_conductance_full(session: TrainSession, p, sig, return_ref=False, *, return_vm=False):
-    """Conductance forward; ``model_full`` time index ``t`` is post-update at step ``t``.
-
-    ``model_full`` shape ``(B, maxtime, N)`` includes equilibration (index ``0`` = ``e_leak``).
-    Ca resets at ``t_on`` so ``model_full[:, t_on:, :]`` matches the training cost window.
-    """
-    backend = session.backend
-    ih_off = (session.train_opts or {}).get('ih_off', IH_OFF_DEFAULT)
-    in_gain, out_gain = p['in_gain'], p['out_gain']
-    syn_strength = p['syn_strength']
-    v_th = p['v_th']
-    Ih_gmax = p['Ih_gmax']
-    Ih_gmax_off, Ih_midv_off, Ih_slope_off, tau_midv_off = conductance_ih_off_kwargs(p, ih_off)
-    Ih_midv, Ih_slope, tau_midv = p['Ih_midv'], p['Ih_slope'], p['tau_midv']
-    B = sig.shape[0]
-    t_end = sig.shape[1]
-    dev = backend.conn.node_type.device
-    u_on = u_off = torch.zeros((B, backend.n_units), dtype=session.sim_dtype, device=dev)
-    Vm = backend.e_leak.expand(B, backend.n_units).clone()
-    vm_rows = [Vm]
-    for t in range(1, t_end):
-        Vm, u_on, u_off = update_Vm(
-            Vm, u_on, u_off, in_gain, out_gain, syn_strength, v_th, Ih_gmax, Ih_gmax_off,
-            Ih_midv, Ih_slope, tau_midv, Ih_midv_off, Ih_slope_off, tau_midv_off,
-            sig[:, t - 1], backend)
-        vm_rows.append(Vm)
-    vm_full = torch.stack(vm_rows, dim=1)
-    Vm_ref = vm_full[:, t_on - 1, :].clone()
-    vm_delta = vm_full - Vm_ref.unsqueeze(1)
-
-    ca_rows = [torch.zeros((B, backend.n_units), dtype=session.sim_dtype, device=dev)]
-    model = 0
-    for t in range(1, t_end):
-        if t == t_on:
-            model = 0
-        model = _ca_readout_step(model, vm_full[:, t], Vm_ref)
-        ca_rows.append(model)
-    ca_full = torch.stack(ca_rows, dim=1)
-
-    if return_vm:
-        if return_ref:
-            return vm_delta, Vm_ref, vm_full
-        return vm_delta
-    if return_ref:
-        return ca_full, Vm_ref
-    return ca_full
 
 
 def _window_time_traces(model_full, b_idx, u_idx, t0, win=None):
@@ -2136,153 +1832,7 @@ def _pack_out_scale(p, pack: TargetPack, backend: ModelBackend, session: TrainSe
     return out_scale_for_units(p, pack.readout_unit, backend, sim_dtype=session.sim_dtype)
 
 
-def _run_adaptive(p, session: TrainSession, neuron_index=None, return_ref=False, sig=None, pack=None):
-    backend = session.backend
-    mt = session.maxtime
-    if 'gate_pivot' not in p:
-        p = {**p, 'gate_pivot': GATE_PIVOT}
-    pack = pack or session.primary_pack
-    if neuron_index is None:
-        neuron_index = pack.readout_unit
-    if sig is None:
-        sig = session.pack_signal(pack)
-    bias = p['bias']
-    x_signal = sig / _pack_signal_scale(pack, session)
-
-    activity    = bias.clone()
-    v_sustained = bias.clone()
-    v_transient = torch.zeros_like(bias)
-    drive_lp    = bias.clone()
-
-    act_ref = None
-    model = 0
-    rows = []
-    for t in range(1, mt):
-        x_t = x_signal[t - 1]
-        x_d = x_signal[max(t - 1 - gate_lag, 0)]
-        activity, v_sustained, v_transient, drive_lp = update_state_adaptive(
-            activity, v_sustained, v_transient, drive_lp, p, x_t, x_d, backend)
-        if t == t_on - 1:
-            act_ref = 1.0 * activity[neuron_index]
-        elif t >= t_on:
-            model = deltat / Ca_tau * (activity[neuron_index] - act_ref - model) + model
-            rows.append(model)
-    model = torch.stack(rows)
-    if return_ref:
-        return model, act_ref
-    return model
-
-
-def _conductance_pack_readout(p, pack: TargetPack, session: TrainSession, batch_idx=None):
-    """Conductance forward; waveform MSE readout only when pack needs it."""
-    sig = pack.signal if batch_idx is None else pack.signal[batch_idx:batch_idx + 1]
-    model_full = _run_conductance_full(session, p, sig)
-    need_mse = _pack_needs_waveform_mse(pack)
-    if batch_idx is None:
-        dsi_sel = model_full[
-            pack.readout_batch, t_on:, pack.readout_unit,
-        ]
-        if not need_mse:
-            return None, dsi_sel
-        return _readout_model_traces_pack(model_full, pack), dsi_sel
-    mask = pack.readout_batch == int(batch_idx)
-    u_m = pack.readout_unit[mask]
-    dsi_sel = model_full[0, t_on:, u_m].transpose(0, 1)
-    if not need_mse:
-        return None, dsi_sel
-    if pack.cost_t0 is None:
-        return dsi_sel, dsi_sel
-    b_zero = torch.zeros_like(u_m)
-    mse_sel = _window_time_traces(
-        model_full, b_zero, u_m, pack.cost_t0[mask],
-        win=pack.data.shape[1],
-    )
-    return mse_sel, dsi_sel
-
-
-def _window_adaptive_traces(model, t0, win):
-    """Windowed readout from ``_run_adaptive`` output ``(T', K)``."""
-    from network.moving_bar_target import moving_bar_window_t_rel_torch
-
-    dev = active_device()
-    t_rel, pre = moving_bar_window_t_rel_torch(t0, int(t_on), int(win), device=dev)
-    t_max = model.shape[0] - 1
-    t_safe = t_rel.clamp(0, t_max)
-    k_idx = torch.arange(model.shape[1], dtype=torch.long, device=dev)
-    sel = model[t_safe, k_idx[:, None]]
-    return torch.where(pre, torch.zeros_like(sel), sel)
-
-
-def _adaptive_pack_readout(p, pack: TargetPack, session: TrainSession, batch_idx=None):
-    """Adaptive forward; waveform MSE readout only when pack needs it."""
-    p = {**p, 'gate_pivot': GATE_PIVOT}
-    need_mse = _pack_needs_waveform_mse(pack)
-    if batch_idx is not None:
-        sig = pack.signal[batch_idx]
-        mask = pack.readout_batch == int(batch_idx)
-        u = pack.readout_unit[mask]
-        t0 = pack.cost_t0[mask] if pack.cost_t0 is not None else None
-        model = _run_adaptive(p, session, neuron_index=u, sig=sig, pack=pack)
-        dsi_sel = model.transpose(0, 1)
-        if not need_mse:
-            return None, dsi_sel
-        if t0 is None:
-            return dsi_sel, dsi_sel
-        return (
-            _window_adaptive_traces(model, t0, win=pack.data.shape[1]),
-            dsi_sel,
-        )
-
-    sig = session.pack_signal(pack)
-    if sig.dim() == 2:
-        model = _run_adaptive(
-            p, session, neuron_index=pack.readout_unit, sig=sig, pack=pack,
-        )
-        dsi_sel = model.transpose(0, 1)
-        if not need_mse:
-            return None, dsi_sel
-        if pack.cost_t0 is None:
-            return dsi_sel, dsi_sel
-        return (
-            _window_adaptive_traces(
-                model, pack.cost_t0, win=pack.data.shape[1],
-            ),
-            dsi_sel,
-        )
-
-    row_indices = []
-    mse_parts = []
-    dsi_parts = []
-    for b in pack.readout_batch.unique(sorted=True).tolist():
-        mask = pack.readout_batch == int(b)
-        rows = torch.nonzero(mask, as_tuple=False).reshape(-1)
-        model = _run_adaptive(
-            p, session, neuron_index=pack.readout_unit[mask],
-            sig=sig[int(b)], pack=pack,
-        )
-        row_indices.append(rows)
-        dsi_parts.append(model.transpose(0, 1))
-        if need_mse:
-            if pack.cost_t0 is None:
-                mse_parts.append(model.transpose(0, 1))
-            else:
-                mse_parts.append(_window_adaptive_traces(
-                    model, pack.cost_t0[mask], win=pack.data.shape[1],
-                ))
-    row_order = torch.cat(row_indices).argsort()
-    dsi_sel = torch.cat(dsi_parts, dim=0).index_select(0, row_order)
-    if not need_mse:
-        return None, dsi_sel
-    mse_sel = torch.cat(mse_parts, dim=0).index_select(0, row_order)
-    return mse_sel, dsi_sel
-
-
-# Register new model types here only — batching (``batch_idx``) stays in ``_pack_cost``.
-MODEL_PACK_READOUTS = {
-    'conductance': _conductance_pack_readout,
-    'adaptive': _adaptive_pack_readout,
-}
-
+# MODEL_PACK_READOUTS imported from neuron_model
 
 def _pack_model_readouts(p, pack: TargetPack, session: TrainSession, batch_idx=None):
     try:
@@ -2661,11 +2211,7 @@ def _pack_cost_rows(p, pack: TargetPack, session: TrainSession, batch_idx=None):
 
 def _pack_cost_parts_for_pack(z, pack: TargetPack, session: TrainSession, batch_idx=None, p=None):
     if p is None:
-        schema = list(session.schema)
-        if session.model == 'adaptive':
-            p = assign_params_adaptive(z, schema, session.backend)
-        else:
-            p = assign_params(z, schema, session.backend)
+        p = params_from_z(z, session)
     return _pack_cost_parts_from_params(p, pack, session, batch_idx)
 
 
@@ -2682,11 +2228,7 @@ def _pack_cost(z, pack: TargetPack, session: TrainSession, batch_idx=None):
 
 def calc_cost_parts(z, session: TrainSession) -> Dict[str, torch.Tensor]:
     """Per-part unweighted cost (before ``cost_weights``)."""
-    schema = list(session.schema)
-    if session.model == 'adaptive':
-        p = assign_params_adaptive(z, schema, session.backend)
-    else:
-        p = assign_params(z, schema, session.backend)
+    p = params_from_z(z, session)
     if session.fused_conductance:
         return _calc_cost_parts_fused_conductance(p, session)
     parts: Dict[str, torch.Tensor] = {}
@@ -2756,10 +2298,7 @@ def calc_cost(z, session: TrainSession):
 
 
 def _params_from_z(z, session: TrainSession):
-    schema = list(session.schema)
-    if session.model == 'adaptive':
-        return assign_params_adaptive(z, schema, session.backend)
-    return assign_params(z, schema, session.backend)
+    return params_from_z(z, session)
 
 
 def _pack_spec_names(session: TrainSession, pack: TargetPack) -> Tuple[str, ...]:

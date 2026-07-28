@@ -20,7 +20,7 @@ SIMULATION_DIR = Path(__file__).resolve().parent
 # Repo root: .../drosophila_vision
 REPO_ROOT = SIMULATION_DIR.parent.parent
 
-# Trained-parameter output root (``adaptive/`` and ``conductance/`` run_* subdirs).
+# Trained-parameter output root (``hp_lp/`` and ``conductance/`` run_* subdirs).
 PARAMETER_DIR = SIMULATION_DIR / "0trained"
 
 # Per-run artifact subfolder (``.npy`` / ``.npz``, ``train_opts.json``, ``param_schema.json``).

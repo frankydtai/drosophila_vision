@@ -122,9 +122,9 @@ def main(argv: list[str] | None = None) -> int:
     opts = plot_trained.load_train_opts(outdir)
     if not opts:
         raise SystemExit(f"missing train_opts.json under {outdir}")
-    if opts.get("model", "conductance") != "conductance":
+    if opts.get("model", "conductance") not in ("conductance", "hp_lp"):
         raise SystemExit(
-            f"syn_strength requires conductance model, got {opts.get('model')!r}"
+            f"syn_strength requires conductance/hp_lp model, got {opts.get('model')!r}"
         )
     network_json = opts.get("network_json")
     if not network_json:

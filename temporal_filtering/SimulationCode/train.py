@@ -14,7 +14,7 @@ where <run_name> encodes the CLI, e.g.
 (job id under SLURM, else a timestamp prefix).
 
     # short smoke test
-    python train.py --model adaptive --nofsteps 30 --lrs 0.1
+    python train.py --model hp_lp --nofsteps 30 --lrs 0.1
 
     # full training
     python train.py --model conductance --nofruns 1 --nofsteps 10000 \\
@@ -146,8 +146,6 @@ def decompose_params(z_t, session):
         cols[name] = arr
         if seg.get("shared") and not seg.get("indi"):
             glob[name] = float(arr[list(seg["shared"])].mean()) if seg["shared"] else float(arr.mean())
-    if session.model == "adaptive":
-        glob["gate_pivot"] = float(fc.GATE_PIVOT)
     return cols, glob
 
 
@@ -602,7 +600,7 @@ def add_spot_layout_arguments(parser):
 def add_training_arguments(parser):
     """Register train.py training CLI flags on *parser*."""
     parser.add_argument("--model", default="conductance",
-                        choices=["conductance", "adaptive"])
+                        choices=list(fc.KNOWN_MODELS))
     parser.add_argument("--nofruns", type=int, default=1)
     parser.add_argument(
         "--nofsteps",
@@ -663,13 +661,13 @@ def add_training_arguments(parser):
     parser.add_argument("--tau-midv-off", **_partition_kwargs,
                         help=f"tau_midv_off partitions (overrides --ih-shape; {_partition_help})")
     parser.add_argument("--tau-m", **_partition_kwargs,
-                        help=f"adaptive tau_m partitions ({_partition_help}; default indi=all)")
+                        help=f"hp_lp tau_m partitions ({_partition_help}; default indi=all)")
     parser.add_argument("--bias", **_partition_kwargs,
-                        help=f"adaptive bias partitions ({_partition_help}; default indi=all)")
-    parser.add_argument("--adapt-gain", **_partition_kwargs,
-                        help=f"adaptive adapt_gain partitions ({_partition_help}; default {_ih_gmax_default})")
-    parser.add_argument("--tau-adapt", **_partition_kwargs,
-                        help=f"adaptive tau_adapt partitions ({_partition_help}; default {_ih_gmax_default})")
+                        help=f"hp_lp bias partitions ({_partition_help}; default indi=all)")
+    parser.add_argument("--tau-hp", **_partition_kwargs,
+                        help=f"hp_lp tau_hp partitions ({_partition_help}; default indi=all)")
+    parser.add_argument("--hp-gain", **_partition_kwargs,
+                        help=f"hp_lp hp_gain partitions ({_partition_help}; default {_ih_gmax_default})")
     parser.add_argument("--ih-off", default=fc.IH_OFF_DEFAULT,
                         choices=list(fc.IH_OFF_MODES),
                         help="OFF-channel Ih: on (train Ih_gmax_off+OFF shape; default), "
@@ -896,8 +894,8 @@ def _partition_cli_map(args):
         "tau_midv_off": _partition_cli_text(getattr(args, "tau_midv_off", None)),
         "tau_m": _partition_cli_text(getattr(args, "tau_m", None)),
         "bias": _partition_cli_text(getattr(args, "bias", None)),
-        "adapt_gain": _partition_cli_text(getattr(args, "adapt_gain", None)),
-        "tau_adapt": _partition_cli_text(getattr(args, "tau_adapt", None)),
+        "tau_hp": _partition_cli_text(getattr(args, "tau_hp", None)),
+        "hp_gain": _partition_cli_text(getattr(args, "hp_gain", None)),
     }
     for name, text in per_param.items():
         if text is not None:
