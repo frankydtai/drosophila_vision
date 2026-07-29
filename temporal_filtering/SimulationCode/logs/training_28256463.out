@@ -1,0 +1,10 @@
+Job ID: 28256463
+Node:   spartan-gpgpu012
+GPU:    0
+GPU 0: NVIDIA H100 80GB HBM3 (UUID: GPU-22530009-9f8f-1ee4-fdc0-d6acc0f1b949)
+cuda: True NVIDIA H100 80GB HBM3
+Start:  Wed 29 Jul 2026 06:19:03 AEST
+device=cuda, model=hp_lp, nofruns=1, nofsteps=200, lrs=[0.1], nparams=578, fname=training_hp_lp.npy, outdir=/home/yitai/drosophila_vision/temporal_filtering/SimulationCode/0trained/hp_lp/28256463-train-model-hp_lp
+
+round 0
+

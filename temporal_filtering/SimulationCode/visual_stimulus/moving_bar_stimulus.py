@@ -16,7 +16,7 @@ import network_bootstrap  # noqa: F401
 
 from column_mapper import DEG, HEX_PATCH_RADIUS, hex_vertices, uv_to_xy, uv_to_xy_deg
 from Medulla_Library import I_BASELINE, I_BRIGHT, I_DARK
-from training_config import DELTAT_MS, MOVING_BAR_TAIL_MS, T_ON, ms_to_steps
+from training_config import DELTAT_MS, MOVING_BAR_TAIL_MS, ms_to_steps
 
 # Gruntman Fig. 1 Ci fast condition: 40 ms / 2.25 deg per LED step.
 GRUNTMAN_SPEED_DEG_S = 56.0
@@ -588,7 +588,7 @@ def moving_bar_sweep_end_step(
     bar_extent: int,
     *,
     multi_bar: bool = True,
-    t_on: int = T_ON,
+    t_on: int = None,
     deltat_ms: float = DELTAT_MS,
 ) -> int:
     """Exclusive step index where all lanes finish their local sweep (no tail)."""
@@ -612,11 +612,11 @@ def moving_bar_maxtime(
     bar_extent: int,
     *,
     multi_bar: bool = True,
-    t_on: int = T_ON,
+    t_on: int = None,
     deltat_ms: float = DELTAT_MS,
     t_tail_ms: float = MOVING_BAR_TAIL_MS,
 ) -> int:
-    """Simulation length: ``T_ON_MS`` baseline + multi-bar sweep + post-sweep tail."""
+    """Simulation length: baseline + multi-bar sweep + post-sweep tail."""
     t_tail = ms_to_steps(t_tail_ms, deltat_ms=deltat_ms)
     return moving_bar_sweep_end_step(
         specs, field_deg, bar_extent, multi_bar=multi_bar, t_on=t_on, deltat_ms=deltat_ms,
@@ -630,7 +630,7 @@ def moving_bar_transit_times(
     bar_extent: int,
     *,
     multi_bar: bool = True,
-    t_on: int = T_ON,
+    t_on: int = None,
     maxtime: Optional[int] = None,
     deltat_ms: float = DELTAT_MS,
 ) -> Tuple[int, int, int]:
@@ -674,7 +674,7 @@ def bar_lane_rects_at_step(
     t: int,
     *,
     multi_bar: bool = True,
-    t_on: int = T_ON,
+    t_on: int = None,
     deltat_ms: float = DELTAT_MS,
 ) -> List[Tuple[float, float, float, float]]:
     """All lane bar rectangles at simulation step ``t`` (empty outside local sweep)."""
@@ -695,7 +695,7 @@ def bar_trail_at_step(
     spec: MovingBarSpec,
     field_deg: Tuple[float, float, float, float],
     t: int,
-    t_on: int = T_ON,
+    t_on: int = None,
     deltat_ms: float = DELTAT_MS,
 ) -> float:
     x0, y0, x1, y1 = field_deg
@@ -708,7 +708,7 @@ def bar_rect_at_step(
     spec: MovingBarSpec,
     field_deg: Tuple[float, float, float, float],
     t: int,
-    t_on: int = T_ON,
+    t_on: int = None,
     deltat_ms: float = DELTAT_MS,
 ) -> Tuple[float, float, float, float]:
     x0, y0, x1, y1 = field_deg
@@ -739,7 +739,7 @@ def build_column_current(
     bar_extent: int,
     *,
     multi_bar: bool = True,
-    t_on: int = T_ON,
+    t_on: int = None,
     deltat_ms: float = DELTAT_MS,
     i_baseline: float = I_BASELINE,
     i_bright_bar: Optional[float] = None,
@@ -772,7 +772,7 @@ def build_batched_column_current(
     bar_extent: int,
     *,
     multi_bar: bool = True,
-    t_on: int = T_ON,
+    t_on: int = None,
     deltat_ms: float = DELTAT_MS,
     i_baseline: float = I_BASELINE,
     i_bright_bar: Optional[float] = None,

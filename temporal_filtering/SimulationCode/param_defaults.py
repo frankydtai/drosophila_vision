@@ -6,6 +6,12 @@ stays in ``neuron_model.schema``; this module is the single
 place to edit box bounds, initialisation numbers, and default partition tokens.
 
 ``fixed_val`` is used for units in the fixed partition when present (else ``init``).
+
+Optional ``scale`` (default ``linear``): ``log`` stores ``z = log(physical)`` in the
+optimizer; ``inv`` stores ``z = 1/physical``. In both cases
+``lo``/``hi``/``init``/``fixed_val``/``carry`` remain physical units.
+``jit`` for ``scale='log'`` is in natural-log units; for ``scale='inv'`` it is in
+1/physical units.
 """
 from __future__ import annotations
 
@@ -37,8 +43,8 @@ P = {
     "Ih_slope_off": dict(lo=-0.40, hi=-0.20, init=-0.25, jit=0.02),
     "tau_midv_off": dict(lo=-70.0, hi=-40.0, init=-50.0, jit=5.0),
     # --- hp_lp ---
-    "tau_m": dict(lo=DELTAT_MS, hi=1000.0, init=50.0, jit=10.0),
-    "bias": dict(lo=-2.0, hi=2.0, init=0.0, jit=0.1),
-    "tau_hp": dict(lo=DELTAT_MS, hi=2000.0, init=200.0, jit=20.0),
+    "tau_lp": dict(lo=DELTAT_MS, hi=100.0, init=50.0, jit=10.0),
+    "bias": dict(lo=-20.0, hi=20.0, init=0.0, jit=0.1),
+    "tau_hp": dict(lo=100.0, hi=10000.0, init=200.0, jit=0.0001, fixed_val=0.0),
     "hp_gain": dict(lo=0.0, hi=5.0, init=1.0, jit=0.1, fixed_val=1.0),
 }

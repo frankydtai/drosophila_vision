@@ -1,7 +1,7 @@
 #!/bin/bash
 #SBATCH --job-name=train
 #SBATCH --account=punim0477
-#SBATCH --partition=gpu-h100
+#SBATCH --partition=gpu-a100
 #SBATCH --qos=publicgpu
 #SBATCH --gres=gpu:1
 #SBATCH --nodes=1
@@ -26,4 +26,4 @@ echo "GPU:    ${CUDA_VISIBLE_DEVICES:-unset}"
 nvidia-smi -L || true
 "${PYTHON}" -c "import torch; print('cuda:', torch.cuda.is_available(), torch.cuda.get_device_name(0) if torch.cuda.is_available() else '')"
 echo "Start:  $(date)"
-"${PYTHON}" -u train.py --model hp_lp
+"${PYTHON}" -u train.py  --nofsteps 1000 --tau-hp indi=L1,L2,L4,L5 fixed=all

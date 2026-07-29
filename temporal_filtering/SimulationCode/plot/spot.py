@@ -12,7 +12,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import torch
 
-from training_config import DELTAT_MS, IMPULSE_MAXTIME
+from training_config import DELTAT_MS
 import blindschleiche_py3 as bs
 import FiveCol_MedSim_Pytorch as fc
 from plot.readout import (
@@ -70,20 +70,36 @@ def _baseline_from_ref_grid(ref_grid, row_i):
     return ref_grid[row_i, CENTER_BIN]
 
 
+def _session_spot_timing(session):
+    """Extract t_on / maxtime from session stimulus opts (or None for defaults)."""
+    opts = (session.train_opts or {}).get(
+        f"{session.primary_pack.name}_stimulus_opts",
+    ) or {}
+    t_on = opts.get("t_on")
+    maxtime = opts.get("maxtime")
+    return (int(t_on) if t_on is not None else None,
+            int(maxtime) if maxtime is not None else None)
+
+
 def resolve_spot_ref_cubes(session_1, session_2=None, ref_cubes=None, ref_cubes_2=None):
     dual = session_2 is not None
+    t_on_1, mt_1 = _session_spot_timing(session_1)
     if ref_cubes is not None:
         ref_1 = ref_cubes
     elif dual:
-        ref_1 = spot_ref_cubes(session_1, 'spot_bright', dark=False)
+        ref_1 = spot_ref_cubes(session_1, 'spot_bright', dark=False,
+                               t_on=t_on_1, maxtime=mt_1)
     else:
         ref_1 = spot_ref_cubes(
             session_1, session_1.primary_pack.name, dark=_session_dark(session_1),
+            t_on=t_on_1, maxtime=mt_1,
         )
     if ref_cubes_2 is not None:
         ref_2 = ref_cubes_2
     elif dual:
-        ref_2 = spot_ref_cubes(session_2, 'spot_dark', dark=True)
+        t_on_2, mt_2 = _session_spot_timing(session_2)
+        ref_2 = spot_ref_cubes(session_2, 'spot_dark', dark=True,
+                               t_on=t_on_2, maxtime=mt_2)
     else:
         ref_2 = None
     return ref_1, ref_2
@@ -95,7 +111,9 @@ def _session_dark(session):
 
 def scale_curve(xt, center, sem_xt=None, *, response_start=None):
     """Center time course + spatial profile from one ``(9, T)`` cube."""
-    t0 = int(fc.t_on if response_start is None else response_start)
+    if response_start is None:
+        raise ValueError("scale_curve requires response_start (t_on step)")
+    t0 = int(response_start)
     imp = xt[center]
     resp = imp[t0:]
     if not np.isfinite(resp).any():
@@ -143,7 +161,7 @@ def plot_cell_pair(
     show_xlabels=False,
     show_ylabel=False,
     baseline=None,
-    maxtime=IMPULSE_MAXTIME,
+    maxtime=None,
     model_2_xt=None,
     ref_2_xt=None,
     baseline_2=None,
@@ -153,22 +171,24 @@ def plot_cell_pair(
     label_1_model='bright model',
     label_2_data='dark data',
     label_2_model='dark model',
+    response_start=None,
 ):
     center = CENTER_BIN
+    sc_kw = dict(response_start=response_start)
     if sem_xt is not None:
-        imp_model, rf_model, imp_sem = scale_curve(model_xt, center, sem_xt)
+        imp_model, rf_model, imp_sem = scale_curve(model_xt, center, sem_xt, **sc_kw)
     else:
-        imp_model, rf_model = scale_curve(model_xt, center)
+        imp_model, rf_model = scale_curve(model_xt, center, **sc_kw)
         imp_sem = None
     if ref_xt is not None:
-        imp_data, rf_data = scale_curve(ref_xt, center)
+        imp_data, rf_data = scale_curve(ref_xt, center, **sc_kw)
     else:
         imp_data, rf_data = None, None
     model_2_imp_model = model_2_rf_model = model_2_imp_data = model_2_rf_data = None
     if model_2_xt is not None:
-        model_2_imp_model, model_2_rf_model = scale_curve(model_2_xt, center)
+        model_2_imp_model, model_2_rf_model = scale_curve(model_2_xt, center, **sc_kw)
     if ref_2_xt is not None:
-        model_2_imp_data, model_2_rf_data = scale_curve(ref_2_xt, center)
+        model_2_imp_data, model_2_rf_data = scale_curve(ref_2_xt, center, **sc_kw)
     ylo, yhi = TRACE_YLIM
 
     if rf_data is not None:
@@ -234,7 +254,7 @@ def plot_cell_pair_slices(
     show_xlabels=False,
     show_ylabel=False,
     baseline=None,
-    maxtime=IMPULSE_MAXTIME,
+    maxtime=None,
     baseline_2=None,
     linestyle_1='-',
     linestyle_2='--',
@@ -242,17 +262,19 @@ def plot_cell_pair_slices(
     label_1_total='bright total',
     label_2_data='dark data',
     label_2_total='dark total',
+    response_start=None,
 ):
     center = CENTER_BIN
-    imp_model, rf_model = scale_curve(model_xt, center)
+    sc_kw = dict(response_start=response_start)
+    imp_model, rf_model = scale_curve(model_xt, center, **sc_kw)
     imp_data, rf_data = (None, None)
     if ref_xt is not None:
-        imp_data, rf_data = scale_curve(ref_xt, center)
+        imp_data, rf_data = scale_curve(ref_xt, center, **sc_kw)
     model_2_imp_model = model_2_rf_model = model_2_imp_data = model_2_rf_data = None
     if model_2_xt is not None:
-        model_2_imp_model, model_2_rf_model = scale_curve(model_2_xt, center)
+        model_2_imp_model, model_2_rf_model = scale_curve(model_2_xt, center, **sc_kw)
     if ref_2_xt is not None:
-        model_2_imp_data, model_2_rf_data = scale_curve(ref_2_xt, center)
+        model_2_imp_data, model_2_rf_data = scale_curve(ref_2_xt, center, **sc_kw)
 
     slice_imps = {}
     slice_rfs = {}
@@ -260,11 +282,11 @@ def plot_cell_pair_slices(
     slice_2_rfs = {}
     for label in slice_labels:
         if label in slice_overlay_xt:
-            imp_s, rf_s = scale_curve(slice_overlay_xt[label], center)
+            imp_s, rf_s = scale_curve(slice_overlay_xt[label], center, **sc_kw)
             slice_imps[label] = imp_s
             slice_rfs[label] = rf_s
         if slice_overlay_2_xt and label in slice_overlay_2_xt:
-            imp_s, rf_s = scale_curve(slice_overlay_2_xt[label], center)
+            imp_s, rf_s = scale_curve(slice_overlay_2_xt[label], center, **sc_kw)
             slice_2_imps[label] = imp_s
             slice_2_rfs[label] = rf_s
 
@@ -364,7 +386,9 @@ def _mask_pre_ton_plot_traces(traces, *, show_pre=True, t_on_step=None):
     """Zero absolute steps ``[0, t_on)`` when ``show_pre`` is false."""
     if show_pre:
         return traces
-    t_on_step = int(fc.t_on if t_on_step is None else t_on_step)
+    if t_on_step is None:
+        raise ValueError("_mask_pre_ton_plot_traces requires t_on_step")
+    t_on_step = int(t_on_step)
     if torch.is_tensor(traces):
         out = traces.clone()
         out[..., :t_on_step] = 0
@@ -374,43 +398,21 @@ def _mask_pre_ton_plot_traces(traces, *, show_pre=True, t_on_step=None):
     return out
 
 
-def _embed_post_ton_traces(raw, scale, mt, *, t_on_step=None):
-    """Activity-model readout ``(N, T')`` -> full-length plot traces (hp_lp)."""
-    if t_on_step is None:
-        t_on_step = fc.t_on
-    n, t_len = raw.shape
-    trace = torch.zeros(n, mt, dtype=raw.dtype, device=raw.device)
-    trace[:, t_on_step:t_on_step + t_len] = scale[:, None] * raw
-    return trace
-
-
 @torch.no_grad()
 def _simulate(session, z, neuron_index, return_ref=False, *, trace_kind='model', show_pre=True):
     neuron_index = _as_index(neuron_index, z.device)
     schema = list(session.schema)
     backend = session.backend
-    if session.model == 'hp_lp':
-        p = fc.assign_params(z, schema, backend)
-        stacked, ref = fc._run_hp_lp(p, session, neuron_index=neuron_index, return_ref=True)
-        mt = session.maxtime
-        if trace_kind == 'vm':
-            scale = torch.ones((int(neuron_index.shape[0]),), dtype=stacked.dtype, device=stacked.device)
-        else:
-            scale = fc.out_scale_for_units(p, neuron_index, backend)
-        trace = _embed_post_ton_traces(stacked.transpose(0, 1), scale, mt)
+    p = fc.assign_params(z, schema, backend)
+    stacked, ref = fc.run_units(
+        session, p, neuron_index=neuron_index, return_ref=True,
+        return_vm=(trace_kind == 'vm'),
+    )
+    if trace_kind == 'vm':
+        scale = torch.ones((int(neuron_index.shape[0]),), dtype=stacked.dtype, device=stacked.device)
     else:
-        p = fc.assign_params(z, schema, backend)
-        if trace_kind == 'vm':
-            stacked, ref = fc._run_conductance(
-                session, p, neuron_index=neuron_index, return_ref=True, return_vm=True,
-            )
-            scale = torch.ones((int(neuron_index.shape[0]),), dtype=stacked.dtype, device=stacked.device)
-        else:
-            stacked, ref = fc._run_conductance(
-                session, p, neuron_index=neuron_index, return_ref=True,
-            )
-            scale = fc.out_scale_for_units(p, neuron_index, backend)
-        trace = _scale_plot_traces(stacked.transpose(0, 1), scale)
+        scale = fc.out_scale_for_units(p, neuron_index, backend)
+    trace = _scale_plot_traces(stacked.transpose(0, 1), scale)
     trace = _mask_pre_ton_plot_traces(trace, show_pre=show_pre)
     if return_ref:
         return trace, ref
@@ -477,9 +479,10 @@ class SpotTraceBundle:
     slice_labels: list[str] | None = None
     slice_x_list: list | None = None
     slice_y_list: list | None = None
-    maxtime: int = IMPULSE_MAXTIME
+    maxtime: int = 0
     prep_s: float = 0.0
     v_th_by_name: dict = field(default_factory=dict)
+    response_start: int | None = None
 
     @property
     def has_slices(self):
@@ -516,6 +519,7 @@ def _spot_readout_bundle_view(bundle):
         session=session,
         maxtime=bundle.maxtime,
         v_th_by_name=bundle.v_th_by_name,
+        response_start=bundle.response_start,
     )
 
 
@@ -611,11 +615,13 @@ def _spot_forward_rows(
     p = fc.assign_params(z, schema, session.backend)
     sig = pack.signal if pack.signal.dim() == 3 else pack.signal.unsqueeze(0)
     if trace_kind == 'vm':
-        trace_full, vm_ref, _vm_full = fc._run_conductance_full(
-            session, p, sig, return_ref=True, return_vm=True,
+        trace_full, vm_ref, _vm_full = fc.run_full(
+            session, p, sig, return_ref=True, return_vm=True, pack=pack,
         )
     else:
-        trace_full, vm_ref = fc._run_conductance_full(session, p, sig, return_ref=True)
+        trace_full, vm_ref = fc.run_full(
+            session, p, sig, return_ref=True, pack=pack,
+        )
     vm_ref_np = vm_ref[0].cpu().numpy()
     save_forward_trace_csvs(
         save_trace_csv_dir, pack.name,
@@ -624,7 +630,7 @@ def _spot_forward_rows(
     )
     C = session.backend.network
     type_names = list(C.type_names)
-    mt = session.maxtime
+    mt = int(sig.shape[1])
 
     opts = dict((session.train_opts or {}).get(f"{pack.name}_stimulus_opts") or {})
     spotting = spotting_from_opts(C, stimulus_opts=opts)
@@ -643,8 +649,10 @@ def _spot_forward_rows(
         scale = fc.out_scale_for_units(
             p, torch.as_tensor(unit_idx, dtype=torch.long, device=z.device), session.backend,
         )
+    stim_t_on = opts.get("t_on")
     plot_traces = _mask_pre_ton_plot_traces(
         _scale_plot_traces(raw, scale), show_pre=show_pre,
+        t_on_step=int(stim_t_on) if stim_t_on is not None else None,
     ).cpu().numpy()
     rows = dict(
         names=names,
@@ -655,6 +663,7 @@ def _spot_forward_rows(
         dv=dv,
         center_row=center_row,
         plot_traces=plot_traces,
+        t_on=int(stim_t_on) if stim_t_on is not None else None,
         batch_idx=batch_idx,
         batches=batches,
         mt=mt,
@@ -688,6 +697,41 @@ def _spot_cube_from_rows(rows, session):
     return cells, group_rows, mt
 
 
+@torch.no_grad()
+def network_spot_trace_bundle(
+    session, z, *,
+    at_x_list=None, at_y_list=None, trace_kind='model',
+    save_trace_csv_dir: str | None = None, show_pre=True,
+):
+    """Run one forward; full cost-extent spot traces over all types."""
+    t_prep0 = time.perf_counter()
+    at_x = at_x_list[0] if at_x_list else None
+    at_y = at_y_list[0] if at_y_list else None
+    rows = _spot_forward_rows(
+        session, z, trace_kind=trace_kind,
+        save_trace_csv_dir=save_trace_csv_dir,
+        at_x=at_x, at_y=at_y, show_pre=show_pre,
+    )
+    cells, group_rows, maxtime = _spot_cube_from_rows(rows, session)
+    slice_overlay, slice_labels = (None, None)
+    if at_x_list is not None or at_y_list is not None:
+        slice_overlay, slice_labels = _spot_slice_overlay(
+            rows, rows['batches'], at_x_list, at_y_list,
+        )
+    return SpotTraceBundle(
+        cells=cells,
+        group_rows=group_rows,
+        session=session,
+        slice_overlay=slice_overlay,
+        slice_labels=slice_labels,
+        slice_x_list=at_x_list,
+        slice_y_list=at_y_list,
+        maxtime=maxtime,
+        prep_s=time.perf_counter() - t_prep0,
+        v_th_by_name=v_th_by_type_name(z, session),
+        response_start=rows.get('t_on'),
+    )
+
 
 def _spot_suptitle(title, bundle):
     if bundle is not None and bundle.has_slices:
@@ -719,6 +763,7 @@ def _plot_spot_figure(
     slice_overlay_on = bundle_on.slice_overlay
     slice_overlay_2 = bundle_2.slice_overlay if bundle_2 is not None else None
     maxtime = bundle_on.maxtime
+    response_start = bundle_on.response_start
     timer.end_prep()
     dual = session_2 is not None
     ref_1, ref_2 = resolve_spot_ref_cubes(
@@ -783,6 +828,7 @@ def _plot_spot_figure(
                 label_1_total=label_1_total,
                 label_2_data=label_2_data,
                 label_2_total=label_2_total,
+                response_start=response_start,
             )
         else:
             kw_2 = {}
@@ -807,6 +853,7 @@ def _plot_spot_figure(
                 label_1_model=label_1_model,
                 label_2_data=label_2_data,
                 label_2_model=label_2_model,
+                response_start=response_start,
             )
         legend_done = True
 

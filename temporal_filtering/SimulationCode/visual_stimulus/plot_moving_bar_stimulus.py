@@ -29,7 +29,7 @@ from matplotlib.animation import FuncAnimation, PillowWriter
 from matplotlib.patches import Rectangle
 
 from Medulla_Library import I_BASELINE, I_BRIGHT
-from training_config import DELTAT_MS, T_ON
+from training_config import DELTAT_MS
 from network.construction import load_network
 from network.moving_bar_target import build_moving_bar_signals, sti_columns
 from train import parse_bool

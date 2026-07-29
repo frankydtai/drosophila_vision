@@ -1,0 +1,17 @@
+Cost: 99.9664  [spot_bright=99.9664]:   0%|          | 0/200 [00:00<?, ?it/s]Cost: 99.0365  [spot_bright=99.0365]:   5%|▌         | 10/200 [00:08<02:39,  1.19it/s]Cost: 92.0205  [spot_bright=92.0205]:  10%|█         | 20/200 [00:16<02:30,  1.20it/s]Cost: 80.7557  [spot_bright=80.7557]:  15%|█▌        | 30/200 [00:25<02:22,  1.19it/s]Cost: 70.5886  [spot_bright=70.5886]:  20%|██        | 40/200 [00:33<02:13,  1.20it/s]Cost: 63.5503  [spot_bright=63.5503]:  25%|██▌       | 50/200 [00:41<02:05,  1.20it/s]Cost: 54.6423  [spot_bright=54.6423]:  30%|███       | 60/200 [00:50<01:57,  1.20it/s]Cost: 51.4047  [spot_bright=51.4047]:  35%|███▌      | 70/200 [00:58<01:48,  1.20it/s]Cost: 49.2516  [spot_bright=49.2516]:  40%|████      | 80/200 [01:06<01:40,  1.20it/s]Cost: 48.2146  [spot_bright=48.2146]:  45%|████▌     | 90/200 [01:15<01:31,  1.20it/s]Cost: 47.3185  [spot_bright=47.3185]:  50%|█████     | 100/200 [01:23<01:23,  1.20it/s]Cost: 46.8406  [spot_bright=46.8406]:  55%|█████▌    | 110/200 [01:31<01:15,  1.20it/s]Cost: 46.3915  [spot_bright=46.3915]:  60%|██████    | 120/200 [01:40<01:06,  1.20it/s]Cost: 46.0564  [spot_bright=46.0564]:  65%|██████▌   | 130/200 [01:48<00:58,  1.20it/s]Cost: 45.6701  [spot_bright=45.6701]:  70%|███████   | 140/200 [01:56<00:50,  1.20it/s]Cost: 45.3677  [spot_bright=45.3677]:  75%|███████▌  | 150/200 [02:05<00:41,  1.20it/s]Cost: 45.1721  [spot_bright=45.1721]:  80%|████████  | 160/200 [02:13<00:33,  1.20it/s]Cost: 44.9899  [spot_bright=44.9899]:  85%|████████▌ | 170/200 [02:21<00:24,  1.20it/s]Cost: 44.8931  [spot_bright=44.8931]:  90%|█████████ | 180/200 [02:30<00:16,  1.20it/s]Cost: 44.7270  [spot_bright=44.7270]:  95%|█████████▌| 190/200 [02:38<00:08,  1.20it/s]Cost: 44.6502  [spot_bright=44.6502]: 100%|██████████| 200/200 [02:46<00:00,  1.20it/s]Cost: 44.6502  [spot_bright=44.6502]: 100%|██████████| 200/200 [02:46<00:00,  1.20it/s]
+Traceback (most recent call last):
+  File "/home/yitai/drosophila_vision/temporal_filtering/SimulationCode/train.py", line 1003, in <module>
+    main()
+  File "/home/yitai/drosophila_vision/temporal_filtering/SimulationCode/train.py", line 999, in main
+    run_training(**kw)
+  File "/home/yitai/drosophila_vision/temporal_filtering/SimulationCode/train.py", line 568, in run_training
+    make_plots(
+  File "/home/yitai/drosophila_vision/temporal_filtering/SimulationCode/train.py", line 99, in make_plots
+    plot_param_set(
+  File "/home/yitai/drosophila_vision/temporal_filtering/SimulationCode/plot_trained.py", line 545, in plot_param_set
+    _plot_spot_targets(
+  File "/home/yitai/drosophila_vision/temporal_filtering/SimulationCode/plot_trained.py", line 284, in _plot_spot_targets
+    make_bundle, plot_data, plot_all = spot_bundle_fns(session)
+  File "/home/yitai/drosophila_vision/temporal_filtering/SimulationCode/plot_trained.py", line 98, in spot_bundle_fns
+    spot_plot.network_spot_trace_bundle,
+AttributeError: module 'plot.spot' has no attribute 'network_spot_trace_bundle'

@@ -5,8 +5,8 @@ SimulationCode scripts import from here instead of hardcoding paths to
 FAFB connectome build paths live in ``connectome_io``; this module covers
 training data and training output paths.
 
-Spot / impulse step timing (``T`` vs ``T'`` / ``SPOT_RESPONSE_STEPS``) is the
-single source of truth in the constants block below.
+Spot / impulse step timing is set via ``train.py --t-on-ms`` and
+``RESPONSE_DURATION_MS`` below.
 """
 
 from __future__ import annotations
@@ -49,24 +49,26 @@ def sim_dtype_from_fp32(fp32: bool) -> torch.dtype:
 # ---------------------------------------------------------------------------
 # Spot / impulse timing (``DELTAT_MS`` = 10 ms per step at default settings).
 #
-# Step axis (do not confuse T with T' / ``SPOT_RESPONSE_STEPS``):
+# ``t_on`` (stimulus onset step) and ``maxtime`` (total simulation steps) are
+# set per-session via ``train.py --t-on-ms`` (default 500 ms).  Response
+# duration after onset is ``RESPONSE_DURATION_MS`` (1500 ms).
 #
-#   index:     0 … T_ON-1      |  T_ON … IMPULSE_MAXTIME-1
-#   wall time: 0–500 ms        |  500–2000 ms
-#   count:     T_ON (=50)      |  SPOT_RESPONSE_STEPS (=150)
+# Step axis (example at default --t-on-ms 500):
 #
-#   T  = ``IMPULSE_MAXTIME`` (=200): full simulation length (stimulus, ImpR,
-#        ``read_RecF_data`` cubes).  ``signal`` time dim uses T.
-#   T' = ``SPOT_RESPONSE_STEPS`` (=150): post-step response window only;
-#        ``TargetPack.data`` and MSE cost use T' (= ``IMPULSE_MAXTIME - T_ON``).
+#   index:     0 … t_on-1       |  t_on … maxtime-1
+#   wall time: 0–500 ms         |  500–2000 ms
+#   count:     t_on (=50)       |  maxtime - t_on (=150)
 #
-# ``read_RecF_data()`` shape (13, 9, T); time indices ``[:T_ON]`` are exactly
-# zero (PR step starts at ``T_ON``; filtered ImpR is nonzero from ~``T_ON+1``).
+#   maxtime: full simulation length; ``signal`` time dim.
+#   maxtime - t_on: post-step response window;
+#       ``TargetPack.data`` and MSE cost use this window.
 #
-# Moving bar uses separate ``COST_WINDOW`` / ``maxtime``; not T or T' above.
+# ``read_RecF_data()`` shape (13, 9, maxtime); indices ``[:t_on]`` are zero
+# (PR step starts at ``t_on``; filtered ImpR is nonzero from ~``t_on+1``).
+#
+# Moving bar uses separate ``COST_WINDOW`` / ``maxtime``; not the above.
 # ---------------------------------------------------------------------------
-T_ON_MS = 500.0
-IMPULSE_MAXTIME_MS = 2000.0
+RESPONSE_DURATION_MS = 1500.0
 
 # Moving-bar per-column cost window relative to first-stimulus alignment.
 COST_WINDOW_MS = 900.0
@@ -84,9 +86,6 @@ def ms_to_steps(ms: float, *, deltat_ms: float = DELTAT_MS) -> int:
     return int(round(float(ms) / float(deltat_ms)))
 
 
-T_ON = ms_to_steps(T_ON_MS)
-IMPULSE_MAXTIME = ms_to_steps(IMPULSE_MAXTIME_MS)
-SPOT_RESPONSE_STEPS = IMPULSE_MAXTIME - T_ON  # T'; post-step cost window (150 at default)
 T_TAIL = ms_to_steps(MOVING_BAR_TAIL_MS)
 COST_WINDOW_BEFORE = ms_to_steps(COST_WINDOW_BEFORE_MS)
 COST_WINDOW_AFTER = ms_to_steps(COST_WINDOW_AFTER_MS)

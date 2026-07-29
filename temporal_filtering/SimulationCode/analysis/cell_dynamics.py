@@ -493,7 +493,7 @@ def _walk_budget(
     B, T, _N = signal.shape
     if B != len(batches):
         raise SystemExit(f"signal B={B} != len(batches)={len(batches)}")
-    t_on = fc.t_on
+    t_on = int(session.primary_pack.signal.shape[1] - session.primary_pack.data.shape[1])
     trace_len = T - t_on
 
     # Last absolute time that still needs a step for the requested rel window.
@@ -678,7 +678,7 @@ def _finalize_budget_report(
         "rel_window": [rel_lo, rel_hi],
         "vm_post_d_onset_rel": onset,
         "params": _unit_params(p, session.backend, int(units[0])),
-        "globals": _globals(),
+        "globals": _globals(session),
         "steps": steps,
         "peak_step": peak_step,
         "peak_drive": _dominant_drive_from_step(peak_step),
@@ -733,7 +733,8 @@ def _unit_params(p, backend, unit: int) -> dict[str, float]:
     }
 
 
-def _globals():
+def _globals(session):
+    pack = session.primary_pack
     return {
         "E_exc": fc.E_exc,
         "E_inh": fc.E_inh,
@@ -742,7 +743,7 @@ def _globals():
         "g_leak_nS": fc.g_leak,
         "cdt": fc.cdt,
         "deltat_ms": fc.deltat,
-        "t_on": fc.t_on,
+        "t_on": int(pack.signal.shape[1] - pack.data.shape[1]),
     }
 
 
@@ -889,7 +890,7 @@ def _bar_meta(session, target: str):
     pack = session.pack_for(target)
     grids = moving_bar_session_t0_grids(
         session, specs, pack.cost_extent, int(session.maxtime),
-        t_on=fc.t_on, deltat_ms=fc.deltat,
+        t_on=int(pack.signal.shape[1] - pack.data.shape[1]), deltat_ms=fc.deltat,
     )
     return specs, grids
 
@@ -1200,7 +1201,7 @@ def analyze_spot_average(
     pack, batch_idx, unit_idx, type_idx, center_row, type_i = _spot_session_layout(
         session_one, cells,
     )
-    t_on = fc.t_on
+    t_on = int(pack.signal.shape[1] - pack.data.shape[1])
 
     sig = pack.signal if pack.signal.dim() == 3 else pack.signal.unsqueeze(0)
     B_all, T, _N = sig.shape

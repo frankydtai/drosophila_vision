@@ -11,8 +11,9 @@ The JSON contract (see ``Connectome/FAFBv783/.../network.json``):
 override, so the per-edge synaptic weight is simply ``sign * n_syn``.
 
 Units are the nodes in file order; ``node_type[i]`` is the index of
-``nodes[i]['name']`` in the sorted type vocabulary. This broadcasts per-type params
-where unit ``i``'s type is ``i % nofcells`` and lets the schema broadcast a
+``nodes[i]['name']`` in the family-ordered type vocabulary
+(:data:`TYPE_FAMILY_ROWS`). This broadcasts per-type params where unit
+``i``'s type is ``i % nofcells`` and lets the schema broadcast a
 ``(n_types,)`` parameter to ``(n_units,)`` via ``param[node_type]``.
 """
 from __future__ import annotations
@@ -20,17 +21,51 @@ from __future__ import annotations
 import json
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Optional, Sequence, Tuple
 
 import numpy as np
 import torch
 
 from .connectivity import ScatterConn
 from Medulla_Library import I_BASELINE, I_BRIGHT
-from training_config import IMPULSE_MAXTIME, SIM_DTYPE_DEFAULT, T_ON
+from training_config import SIM_DTYPE_DEFAULT
 
 # Default synaptic scale (matches FiveCol exc_synweight == inh_synweight == 0.001).
 DEFAULT_SYNWEIGHT = 0.001
+
+# Canonical cell-type order (photoreceptor → lamina → medulla families).
+TYPE_FAMILY_ROWS: List[List[str]] = [
+    ['R1-6', 'R7', 'R8'],
+    ['L1', 'L2', 'L3', 'L4', 'L5'],
+    ['Mi1', 'Mi4', 'Mi9'],
+    ['T1', 'T2', 'T2a', 'T3'],
+    ['T4a', 'T4b', 'T4c', 'T4d'],
+    ['T5a', 'T5b', 'T5c', 'T5d'],
+    ['Tm1', 'Tm2', 'Tm20', 'Tm21', 'Tm3', 'Tm4', 'Tm9'],
+    ['C2', 'C3'],
+]
+
+
+def type_family_row_groups(present: Sequence[str]) -> List[List[str]]:
+    """Family row groups; skip absent types and empty rows; append leftovers."""
+    present_list = [str(t) for t in present]
+    present_set = set(present_list)
+    rows: List[List[str]] = []
+    used: set = set()
+    for row in TYPE_FAMILY_ROWS:
+        filtered = [str(t) for t in row if str(t) in present_set]
+        if filtered:
+            rows.append(filtered)
+            used.update(filtered)
+    for name in present_list:
+        if name not in used:
+            rows.append([name])
+    return rows
+
+
+def type_names_in_family_order(present: Sequence[str]) -> List[str]:
+    """Flat cell-type order from :func:`type_family_row_groups`."""
+    return [n for row in type_family_row_groups(present) for n in row]
 
 
 @dataclass
@@ -70,10 +105,10 @@ class Network:
 
     def build_signal(
         self,
-        maxtime: int = IMPULSE_MAXTIME,
+        maxtime: int = None,
         i_baseline: float = I_BASELINE,
         i_bright: float = I_BRIGHT,
-        t_on: int = T_ON,
+        t_on: int = None,
         center_uv=(0, 0),
     ) -> torch.Tensor:
         """(maxtime, n_units) injected PR current for one column's inputs."""
@@ -112,7 +147,7 @@ def col2fit(
 
 
 def read_network_json(path) -> Tuple[List[dict], List[dict], List[str], dict]:
-    """Load ``network.json`` → ``(nodes, edges, sorted type_names, metadata)``."""
+    """Load ``network.json`` → ``(nodes, edges, family-ordered type_names, metadata)``."""
     path = Path(path)
     with open(path) as f:
         doc = json.load(f)
@@ -120,9 +155,10 @@ def read_network_json(path) -> Tuple[List[dict], List[dict], List[str], dict]:
     edges = doc.get("edges")
     if not isinstance(nodes, list) or not isinstance(edges, list):
         raise ValueError(f"invalid network.json (need nodes/edges lists): {path}")
-    type_names = sorted(
+    present = sorted(
         {n["name"] for n in nodes if isinstance(n.get("name"), str)}
     )
+    type_names = type_names_in_family_order(present)
     meta = doc.get("metadata", {})
     if not isinstance(meta, dict):
         meta = {}

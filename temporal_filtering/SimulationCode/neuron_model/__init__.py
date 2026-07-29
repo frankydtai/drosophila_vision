@@ -1,8 +1,9 @@
 # -*- coding: utf-8 -*-
 """Neuron models: conductance, hp_lp.
 
-Dynamics / schemas / pack readouts live here. ``FiveCol_MedSim_Pytorch`` owns
-session, cost, and training drivers and re-exports these symbols for callers.
+Dynamics / schemas live in per-model modules. Shared full-T Ca forward is
+``neuron_model.forward``. ``FiveCol_MedSim_Pytorch`` owns session, cost, and
+training drivers and re-exports these symbols for callers.
 """
 from __future__ import annotations
 
@@ -41,23 +42,22 @@ from neuron_model.schema import (
 )
 from neuron_model import conductance as _conductance
 from neuron_model import hp_lp as _hp_lp
+from neuron_model.forward import (
+    MODEL_DRIVERS,
+    MODEL_PACK_READOUTS,
+    ca_readout_step,
+    pack_readout,
+    run_full,
+    run_units,
+)
 
 # --- conductance ---
 rectsyn = _conductance.rectsyn
 update_Vm = _conductance.update_Vm
 vm_budget_from_g = _conductance.vm_budget_from_g
-run_conductance = _conductance.run_conductance
-run_conductance_full = _conductance.run_conductance_full
 
 # --- hp_lp ---
 update_state_hp_lp = _hp_lp.update_state_hp_lp
-run_hp_lp = _hp_lp.run_hp_lp
-
-# Register pack readouts here only — batching stays in FiveCol ``_pack_cost``.
-MODEL_PACK_READOUTS = {
-    "conductance": _conductance.pack_readout,
-    "hp_lp": _hp_lp.pack_readout,
-}
 
 
 def params_from_z(z, session):
@@ -71,6 +71,7 @@ __all__ = [
     "KNOWN_MODELS",
     "ALL_PARAM_NAMES",
     "IH_SHAPE_PARAM_NAMES",
+    "MODEL_DRIVERS",
     "MODEL_PACK_READOUTS",
     "default_schema",
     "build_conductance_schema",
@@ -81,10 +82,11 @@ __all__ = [
     "rectsyn",
     "update_Vm",
     "vm_budget_from_g",
-    "run_conductance",
-    "run_conductance_full",
     "update_state_hp_lp",
-    "run_hp_lp",
+    "ca_readout_step",
+    "run_full",
+    "run_units",
+    "pack_readout",
     "params_from_z",
     "STATE_CLAMP",
     "deltat",

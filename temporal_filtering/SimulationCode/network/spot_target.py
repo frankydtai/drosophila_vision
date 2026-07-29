@@ -78,7 +78,7 @@ import column_mapper
 
 from connectome_io import parse_comma_list
 from Medulla_Library import DATA_AMP, I_DARK, I_BASELINE, I_BRIGHT, cell_list as _CELL_LIST, read_RecF_ImpR
-from training_config import IMPULSE_MAXTIME, SIM_DTYPE_DEFAULT, T_ON
+from training_config import SIM_DTYPE_DEFAULT
 from .construction import col2fit, unit_type_names
 from .stimulus import column_in_cost_extent
 
@@ -652,8 +652,8 @@ def build_shifted_target(
     multi_spot: bool = DEFAULT_MULTI_SPOT,
     fully_inside: bool = DEFAULT_FULLY_INSIDE,
     shift_extent: int = DEFAULT_SHIFT_EXTENT,
-    maxtime: int = IMPULSE_MAXTIME,
-    t_on: int = T_ON,
+    maxtime: int = None,
+    t_on: int = None,
     i_baseline: float = I_BASELINE,
     i_bright: float = I_BRIGHT,
     i_dark: float = I_DARK,
@@ -664,11 +664,13 @@ def build_shifted_target(
     spot_cost_radius_weight: Optional[Dict[float, float]] = None,
     sim_dtype: torch.dtype = SIM_DTYPE_DEFAULT,
 ) -> ShiftedTarget:
+    if t_on is None or maxtime is None:
+        raise ValueError("build_shifted_target requires t_on and maxtime")
     if polarity not in ("bright", "dark"):
         raise ValueError(f"polarity must be 'bright' or 'dark', got {polarity!r}")
     i_step = float(i_bright if polarity == "bright" else i_dark)
     device = device or C.device
-    recf_data, impr_data = read_RecF_ImpR()  # (13,45), (13,IMPULSE_MAXTIME)
+    recf_data, impr_data = read_RecF_ImpR(t_on=t_on, maxtime=maxtime)
     fit_row = {str(ft): i for i, ft in enumerate(_CELL_LIST)}
 
     spotting = spotting_from_opts(
@@ -690,7 +692,7 @@ def build_shifted_target(
                 signal[b, :t_on, idx] = i_baseline
                 signal[b, t_on:, idx] = i_step
 
-    resp = slice(t_on, maxtime)  # post-T_ON cost window; see training_config
+    resp = slice(t_on, maxtime)  # post-onset cost window
 
     cost_radii = resolve_spot_cost_radii(spot_cost_radius_weight, spot_extent=spot_extent)
     cost_cols = spot_cost_columns(batches, cost_radii, cost_extent)

@@ -1,0 +1,16 @@
+Traceback (most recent call last):
+  File "/home/yitai/drosophila_vision/temporal_filtering/SimulationCode/train.py", line 1003, in <module>
+    main()
+  File "/home/yitai/drosophila_vision/temporal_filtering/SimulationCode/train.py", line 999, in main
+    run_training(**kw)
+  File "/home/yitai/drosophila_vision/temporal_filtering/SimulationCode/train.py", line 530, in run_training
+    session = build_session(
+  File "/home/yitai/drosophila_vision/temporal_filtering/SimulationCode/train.py", line 503, in build_session
+    return fc.open_session(opts, model, schema=schema, model_backend=model_backend)
+  File "/home/yitai/drosophila_vision/temporal_filtering/SimulationCode/FiveCol_MedSim_Pytorch.py", line 1663, in open_session
+    pack, stim, _tag = NETWORK_TARGET_BUILDERS[tname](ctx, C)
+  File "/home/yitai/drosophila_vision/temporal_filtering/SimulationCode/FiveCol_MedSim_Pytorch.py", line 1139, in <lambda>
+    "spot_bright": lambda ctx, C: _build_network_spot_target(ctx, C, polarity="bright"),
+  File "/home/yitai/drosophila_vision/temporal_filtering/SimulationCode/FiveCol_MedSim_Pytorch.py", line 1129, in _build_network_spot_target
+    coltag = _cost_extent_column_coltag(cost_extent, T.info["n_cost_columns"])
+NameError: name '_cost_extent_column_coltag' is not defined

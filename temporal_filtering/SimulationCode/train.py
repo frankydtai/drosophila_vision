@@ -408,6 +408,24 @@ def save_param_tables(fname, outdir, session):
     write_best_artifacts(outdir, fname, session, all_params, best_i, final_costs)
 
 
+def print_param_partitions(session):
+    """Print one schema segment per line: indi/shared/fixed/frozen counts and ntrain."""
+    schema = list(session.schema)
+    if not schema:
+        return
+    print("param partitions:")
+    w = max(len(s["name"]) for s in schema)
+    for s in schema:
+        print(
+            f"  {s['name']:<{w}}  "
+            f"indi={len(s.get('indi') or [])}/"
+            f"shared={len(s.get('shared') or [])}/"
+            f"fixed={len(s.get('fixed') or [])}/"
+            f"frozen={len(s.get('frozen') or [])} "
+            f"({fc.seg_ntrain(s)})"
+        )
+
+
 def apply_param_partitions(session, partitions_by_name):
     """Apply CLI/name partitions onto session schema and refresh train_opts record."""
     if not partitions_by_name:
@@ -428,14 +446,7 @@ def apply_param_partitions(session, partitions_by_name):
         schema, lambda seg: fc.unit_names_for_segment(seg, backend),
     )
     session = replace(session, schema=tuple(schema), train_opts=opts)
-    summary = ", ".join(
-        f"{s['name']}:indi={len(s.get('indi') or [])}/"
-        f"shared={len(s.get('shared') or [])}/"
-        f"fixed={len(s.get('fixed') or [])}/"
-        f"frozen={len(s.get('frozen') or [])}({fc.seg_ntrain(s)})"
-        for s in session.schema
-    )
-    print("param partitions -> " + summary)
+    print_param_partitions(session)
     return session
 
 
@@ -555,6 +566,7 @@ def run_training(model, nofruns, nofsteps, lrs, fname=None, outdir=None,
     fname = fname or f"training{suffix or '_with_Ih'}.npy"
     outdir = outdir or run_dir(model)
 
+    print_param_partitions(session)
     print(f"device={session.device}, model={model}, nofruns={nofruns}, nofsteps={nofsteps}, "
           f"lrs={lrs}, nparams={fc.schema_nparams(list(session.schema))}, fname={fname}, outdir={outdir}")
     z_init = None
@@ -599,7 +611,7 @@ def add_spot_layout_arguments(parser):
 
 def add_training_arguments(parser):
     """Register train.py training CLI flags on *parser*."""
-    parser.add_argument("--model", default="conductance",
+    parser.add_argument("--model", default="hp_lp",
                         choices=list(fc.KNOWN_MODELS))
     parser.add_argument("--nofruns", type=int, default=1)
     parser.add_argument(
@@ -660,8 +672,8 @@ def add_training_arguments(parser):
                         help=f"Ih_slope_off partitions (overrides --ih-shape; {_partition_help})")
     parser.add_argument("--tau-midv-off", **_partition_kwargs,
                         help=f"tau_midv_off partitions (overrides --ih-shape; {_partition_help})")
-    parser.add_argument("--tau-m", **_partition_kwargs,
-                        help=f"hp_lp tau_m partitions ({_partition_help}; default indi=all)")
+    parser.add_argument("--tau-lp", **_partition_kwargs,
+                        help=f"hp_lp tau_lp partitions ({_partition_help}; default indi=all)")
     parser.add_argument("--bias", **_partition_kwargs,
                         help=f"hp_lp bias partitions ({_partition_help}; default indi=all)")
     parser.add_argument("--tau-hp", **_partition_kwargs,
@@ -690,7 +702,7 @@ def add_training_arguments(parser):
     )
     parser.add_argument(
         "--target",
-        default="spot,moving_bar",
+        default="spot_bright",
         help="target name(s): spot (=spot_bright+spot_dark), moving_bar (=bright+dark), "
              "or explicit names / comma-separated list, e.g. spot,moving_bar",
     )
@@ -758,6 +770,14 @@ def add_training_arguments(parser):
         metavar="TARGET=VALUE,...",
         help="dark peak/step current (pA); targets: spot_dark, moving_bar_dark "
              "(aliases spot, moving_bar)",
+    )
+    parser.add_argument(
+        "--t-on-ms",
+        type=float,
+        default=500.0,
+        metavar="MS",
+        help="spot stimulus onset time in ms (default %(default)s; "
+             "maxtime auto-extends to t_on + RESPONSE_DURATION)",
     )
     add_plot_arguments(parser)
 
@@ -892,7 +912,7 @@ def _partition_cli_map(args):
         "Ih_midv_off": _partition_cli_text(getattr(args, "ih_midv_off", None)),
         "Ih_slope_off": _partition_cli_text(getattr(args, "ih_slope_off", None)),
         "tau_midv_off": _partition_cli_text(getattr(args, "tau_midv_off", None)),
-        "tau_m": _partition_cli_text(getattr(args, "tau_m", None)),
+        "tau_lp": _partition_cli_text(getattr(args, "tau_lp", None)),
         "bias": _partition_cli_text(getattr(args, "bias", None)),
         "tau_hp": _partition_cli_text(getattr(args, "tau_hp", None)),
         "hp_gain": _partition_cli_text(getattr(args, "hp_gain", None)),
@@ -917,7 +937,7 @@ def training_kwargs_from_args(
             if "/" in str(init_from) or "\\" in str(init_from):
                 raise ValueError(
                     "--from must be a run folder name only (no path); "
-                    "the model subfolder is inferred from --model (default: conductance). "
+                    "the model subfolder is inferred from --model (default: hp_lp). "
                     "Use an absolute path to reference runs outside 0trained.",
                 )
             init_from = f"{args.model}/{init_from}"
@@ -941,8 +961,14 @@ def training_kwargs_from_args(
     spot_extent = DEFAULT_SPOT_EXTENT if args.spot_extent is None else float(args.spot_extent)
     spot_extent_half_steps(spot_extent)
     spot_cost_radius_weight = parse_spot_cost_r_w(args.spot_cost_r_w, spot_extent)
-    moving_bar_bright_stimulus_opts = {"multi_bar": bool(args.multi_bar)}
-    moving_bar_dark_stimulus_opts = {"multi_bar": bool(args.multi_bar)}
+    from training_config import DELTAT_MS, RESPONSE_DURATION_MS, ms_to_steps
+    _t_on_step = ms_to_steps(args.t_on_ms)
+    _maxtime_step = ms_to_steps(args.t_on_ms + RESPONSE_DURATION_MS)
+    _timing = {"t_on": _t_on_step, "maxtime": _maxtime_step, "deltat_ms": DELTAT_MS}
+    moving_bar_bright_stimulus_opts = {"multi_bar": bool(args.multi_bar), "t_on": _t_on_step, "deltat_ms": DELTAT_MS}
+    moving_bar_dark_stimulus_opts = {"multi_bar": bool(args.multi_bar), "t_on": _t_on_step, "deltat_ms": DELTAT_MS}
+    spot_bright_stimulus_opts = dict(_timing)
+    spot_dark_stimulus_opts = dict(_timing)
     i_cli = fc.build_i_cli_by_target({
         "i_baseline": parse_comma_kv(args.i_baseline, float),
         "i_bright": parse_comma_kv(args.i_bright, float),
@@ -980,6 +1006,8 @@ def training_kwargs_from_args(
         spot_cost_radius_weight=spot_cost_radius_weight,
         moving_bar_bright_stimulus_opts=moving_bar_bright_stimulus_opts,
         moving_bar_dark_stimulus_opts=moving_bar_dark_stimulus_opts,
+        spot_bright_stimulus_opts=spot_bright_stimulus_opts,
+        spot_dark_stimulus_opts=spot_dark_stimulus_opts,
         i_cli=i_cli,
         ih_off=args.ih_off,
         fp32=fp32,

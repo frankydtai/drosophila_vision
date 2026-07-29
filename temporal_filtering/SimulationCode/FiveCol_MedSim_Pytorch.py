@@ -23,9 +23,9 @@ import network_bootstrap  # noqa: F401 — connectome_io on sys.path
 from connectome_io import parse_comma_list
 from training_config import (
     DELTAT_MS,
-    IMPULSE_MAXTIME,
+    RESPONSE_DURATION_MS,
     SIM_DTYPE_DEFAULT,
-    T_ON,
+    ms_to_steps,
     sim_dtype_from_fp32,
 )
 from param_defaults import DEFAULT_IH_GMAX_INDI_NAMES, P as PARAM_DEFAULTS
@@ -64,18 +64,12 @@ from neuron_model import (  # noqa: F401 — re-export for callers using fc.*
     inh_synweight,
     params_from_z,
     rectsyn,
-    run_conductance,
-    run_conductance_full,
-    run_hp_lp,
+    run_full,
+    run_units,
     update_state_hp_lp,
     update_Vm,
     vm_budget_from_g,
 )
-
-# Underscore aliases kept for existing call sites (plot/, analysis/).
-_run_conductance = run_conductance
-_run_conductance_full = run_conductance_full
-_run_hp_lp = run_hp_lp
 
 
 def active_device():
@@ -88,7 +82,6 @@ def __getattr__(name):
         return active_device()
     raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
 
-t_on = T_ON
 TRAIN_OPTS_FILE = "train_opts.json"
 SPOT_TARGETS = ("spot_bright", "spot_dark")
 SPOT_POLARITIES = frozenset({"bright", "dark"})
@@ -177,7 +170,8 @@ def build_ih_dir(conn, ih_reverse_cells=IH_DIR_REVERSE_CELLS, *, dtype=SIM_DTYPE
 # Numeric lo/hi/init/jit(/fixed_val): ``param_defaults.P``.
 # Model segment lists: ``neuron_model.schema``.
 # Each segment:
-#   name, kind, count, lo/hi/init/jit[, fixed_val]
+#   name, kind, count, lo/hi/init/jit[, fixed_val][, scale]
+#   scale: ``linear`` (default), ``log`` (z = log(physical)), or ``inv`` (z = 1/physical); lo/hi/init physical
 #   indi / shared / fixed / frozen : disjoint exhaustive lists of unit indices
 #       frozen: not in z; values from seg['carry'] (resume) or init (cold start)
 # z layout per segment: len(indi) slots + (1 if shared else 0).
@@ -186,6 +180,54 @@ def build_ih_dir(conn, ih_reverse_cells=IH_DIR_REVERSE_CELLS, *, dtype=SIM_DTYPE
 # Named ``best_param.npz``.
 PARTITION_BUCKETS = ('indi', 'shared', 'fixed', 'frozen')
 PAIR_SEP = ':'
+
+
+def _seg_scale(seg):
+    scale = seg.get('scale', 'linear')
+    if scale not in ('linear', 'log', 'inv'):
+        raise ValueError(f"{seg.get('name', 'param')}: unknown scale {scale!r}")
+    return scale
+
+
+def _physical_bounds(seg):
+    return float(seg['lo']), float(seg['hi'])
+
+
+def _decode_z(seg, z_val):
+    """Map trainable z slot → physical parameter value."""
+    scale = _seg_scale(seg)
+    if scale == 'log':
+        lo, hi = _physical_bounds(seg)
+        return torch.clamp(torch.exp(z_val), min=lo, max=hi)
+    if scale == 'inv':
+        lo, hi = _physical_bounds(seg)
+        return torch.clamp(1.0 / z_val, min=lo, max=hi)
+    return z_val
+
+
+def _encode_physical(seg, physical):
+    """Map physical parameter value → trainable z slot."""
+    import numpy as np
+    scale = _seg_scale(seg)
+    if scale == 'log':
+        lo, hi = _physical_bounds(seg)
+        return float(np.log(np.clip(float(physical), lo, hi)))
+    if scale == 'inv':
+        lo, hi = _physical_bounds(seg)
+        return 1.0 / float(np.clip(float(physical), lo, hi))
+    return float(physical)
+
+
+def _z_bounds(seg):
+    """Per-slot (lo, hi) in z space."""
+    lo, hi = _physical_bounds(seg)
+    scale = _seg_scale(seg)
+    if scale == 'log':
+        import numpy as np
+        return float(np.log(lo)), float(np.log(hi))
+    if scale == 'inv':
+        return 1.0 / hi, 1.0 / lo
+    return lo, hi
 
 
 def seg_count(seg):
@@ -435,10 +477,11 @@ def unit_values_to_z(named, schema, *, dtype=None, device=None):
             )
         slots = []
         for u in seg.get('indi', ()):
-            slots.append(float(raw[u]))
+            slots.append(_encode_physical(seg, raw[u]))
         if seg.get('shared'):
             vals = [float(raw[u]) for u in seg['shared']]
-            slots.append(float(np.mean(vals)) if vals else float(seg['init']))
+            mean_val = float(np.mean(vals)) if vals else float(seg['init'])
+            slots.append(_encode_physical(seg, mean_val))
         if slots:
             z[start:stop] = torch.tensor(slots, dtype=z.dtype, device=z.device)
     return z
@@ -550,7 +593,7 @@ class ModelBackend:
 
 @dataclass(frozen=True)
 class FusedConductanceForward:
-    """Conductance packs with identical signal (T, N); one ``_run_conductance_full`` per group."""
+    """Conductance packs with identical signal (T, N); one ``run_full`` per group."""
 
     subpacks: Tuple[TargetPack, ...]
     batch_offsets: Tuple[int, ...]
@@ -682,12 +725,16 @@ def make_spot_stimulus_opts(
     step_default = ml.I_BRIGHT if polarity == "bright" else ml.I_DARK
     if spot_extent is None:
         spot_extent = extra.get("spot_extent", DEFAULT_SPOT_EXTENT)
+    _t_on = extra.get("t_on")
+    _maxtime = extra.get("maxtime")
+    if _t_on is None or _maxtime is None:
+        raise ValueError("make_spot_stimulus_opts requires t_on and maxtime (pass via CLI --t-on-ms)")
     return {
         "mode": mode,
         "i_baseline": float(ml.I_BASELINE if i_baseline is None else i_baseline),
         step_key: float(step_default if i_step is None else i_step),
-        "t_on": int(t_on),
-        "maxtime": int(IMPULSE_MAXTIME),
+        "t_on": int(_t_on),
+        "maxtime": int(_maxtime),
         "deltat_ms": float(deltat),
         "shift_extent": int(shift_extent),
         "spot_extent": float(spot_extent),
@@ -715,11 +762,14 @@ def make_moving_bar_stimulus_opts(
     if i_bar is None:
         i_bar = extra.get(bar_key)
     bar_default = ml.I_BRIGHT if polarity == "bright" else ml.I_DARK
+    _t_on = extra.get("t_on")
+    if _t_on is None:
+        raise ValueError("make_moving_bar_stimulus_opts requires t_on (pass via CLI --t-on-ms)")
     out = {
         "mode": mode,
         "i_baseline": resolve_i_baseline(i_baseline),
         bar_key: float(bar_default if i_bar is None else i_bar),
-        "t_on": int(t_on),
+        "t_on": int(_t_on),
         "deltat_ms": float(deltat),
         "multi_bar": bool(extra.get("multi_bar", multi_bar)),
     }
@@ -991,6 +1041,17 @@ def _moving_bar_polarity_opts(ctx: _TrainBindCtx, polarity: str) -> dict:
     return make_moving_bar_stimulus_opts(polarity)
 
 
+def _cost_extent_column_coltag(cost_extent, n_cost_columns) -> str:
+    extent_tag = "all columns" if cost_extent is None else f"extent={int(cost_extent)}"
+    if isinstance(n_cost_columns, dict):
+        cols = ", ".join(
+            f"b{int(batch)}={int(count)}"
+            for batch, count in sorted(n_cost_columns.items())
+        )
+        return f"cost columns per batch [{cols}], {extent_tag}"
+    return f"{int(n_cost_columns)} cost columns, {extent_tag}"
+
+
 def _build_network_moving_bar_target(ctx: _TrainBindCtx, C, *, pack_name: str, polarity: str):
     from network.moving_bar_target import build_moving_bar_target
 
@@ -1011,7 +1072,7 @@ def _build_network_moving_bar_target(ctx: _TrainBindCtx, C, *, pack_name: str, p
         C=C,
         device=dev,
         sim_dtype=ctx.sim_dtype,
-        t_on=t_on,
+        t_on=int(opts["t_on"]),
         cost_extent=cost_extent,
         i_baseline=opts["i_baseline"],
         contrasts=(polarity,),
@@ -1103,8 +1164,8 @@ def _build_network_spot_target(
         shift_extent=shift_extent,
         device=ctx.dev or active_device(),
         sim_dtype=ctx.sim_dtype,
-        maxtime=IMPULSE_MAXTIME,
-        t_on=t_on,
+        maxtime=int(opts["maxtime"]),
+        t_on=int(opts["t_on"]),
         cost_extent=cost_extent,
         spot_cost_radius_weight=expand_spot_cost_r_w_dict(stimulus_opts=opts),
         i_baseline=opts["i_baseline"],
@@ -1333,7 +1394,7 @@ def _finalize_stimulus_opts(
             k: v for k, v in (opts or {}).items()
             if k in (
                 "i_baseline", step_key, "shift_extent", "spot_extent",
-                "multi_spot", "fully_inside",
+                "multi_spot", "fully_inside", "t_on", "maxtime", "deltat_ms",
             )
         })
     elif target_name == "moving_bar_bright":
@@ -1342,7 +1403,8 @@ def _finalize_stimulus_opts(
             mode=build_mode,
             **{
                 k: v for k, v in (opts or {}).items()
-                if k in ("i_baseline", "i_bright_bar", "readout_subtypes", "multi_bar")
+                if k in ("i_baseline", "i_bright_bar", "readout_subtypes", "multi_bar",
+                         "t_on", "deltat_ms")
             },
         )
     elif target_name == "moving_bar_dark":
@@ -1351,7 +1413,8 @@ def _finalize_stimulus_opts(
             mode=build_mode,
             **{
                 k: v for k, v in (opts or {}).items()
-                if k in ("i_baseline", "i_dark_bar", "readout_subtypes", "multi_bar")
+                if k in ("i_baseline", "i_dark_bar", "readout_subtypes", "multi_bar",
+                         "t_on", "deltat_ms")
             },
         )
     else:
@@ -1458,7 +1521,7 @@ def make_train_opts(
             stimulus_opts[opts_key] = None
             continue
         stimulus_opts[opts_key] = _finalize_stimulus_opts(
-            raw if tname in tl else None,
+            raw,
             tname,
             session_mode=mode if tname in tl else None,
             **finalize_kw,
@@ -1732,17 +1795,21 @@ def open_session_from_outdir(
 # Neuron dynamics live in ``neuron_model/`` (re-exported at module top).
 
 def _reconstruct_raw(seg, z_slice, z):
-    """Build length-`count` per-unit vector from z slice + partition buckets."""
+    """Build length-`count` per-unit vector from z slice + partition buckets.
+
+    For non-linear scales (log, inv), trainable slots are decoded to physical;
+    fixed/frozen slots are already physical.
+    """
     count = seg_count(seg)
     const = _fixed_const(seg)
     raw = torch.full((count,), const, dtype=z.dtype, device=z.device)
     carry = seg.get('carry')
     i = 0
     for u in seg.get('indi', ()):
-        raw[int(u)] = z_slice[i]
+        raw[int(u)] = _decode_z(seg, z_slice[i])
         i += 1
     if seg.get('shared'):
-        shared_val = z_slice[i]
+        shared_val = _decode_z(seg, z_slice[i])
         for u in seg['shared']:
             raw[int(u)] = shared_val
     for u in seg.get('frozen', ()):
@@ -1775,15 +1842,15 @@ def assign_params(z, schema, backend: ModelBackend):
 
 
 def model_cost(model, data, session: TrainSession, scale=1.0, power=None):
-    # normalised MSE over the response window (t=t_on..maxtime-1); ``scale`` is an
-    # arbitrary linear gain on ``model`` (diagnostics only — training uses schema out_scale).
     if power is None:
         power = session.primary_pack.power
+    pack = session.primary_pack
+    pack_t_on = int(pack.signal.shape[1] - pack.data.shape[1])
     mt = session.maxtime
-    return torch.sum((scale * model - data[t_on:mt])**2) / power * 100.0
+    return torch.sum((scale * model - data[pack_t_on:mt])**2) / power * 100.0
 
 
-def _window_time_traces(model_full, b_idx, u_idx, t0, win=None):
+def _window_time_traces(model_full, b_idx, u_idx, t0, win=None, *, t_on=0):
     """Extract per-readout windows from ``model_full`` ``(B, maxtime, N)``.
 
     ``t0`` is the absolute simulation step of window start (slot ``k`` uses ``t0 + k``).
@@ -1804,8 +1871,9 @@ def _window_time_traces(model_full, b_idx, u_idx, t0, win=None):
 
 def _readout_model_traces_pack(model_full, pack: TargetPack):
     """Select model traces for cost cells; windowed when ``pack.cost_t0`` is set."""
+    pack_t_on = int(pack.signal.shape[1] - pack.data.shape[1])
     if pack.cost_t0 is None:
-        return model_full[pack.readout_batch, t_on:, pack.readout_unit]
+        return model_full[pack.readout_batch, pack_t_on:, pack.readout_unit]
     return _window_time_traces(
         model_full, pack.readout_batch, pack.readout_unit, pack.cost_t0,
         win=pack.data.shape[1],
@@ -2065,7 +2133,8 @@ def _conductance_readout_from_model_full(
     batch_offset: int = 0,
 ) -> Tuple[Optional[torch.Tensor], torch.Tensor]:
     rb = pack.readout_batch if batch_offset == 0 else pack.readout_batch + batch_offset
-    dsi_sel = model_full[rb, t_on:, pack.readout_unit]
+    pack_t_on = int(pack.signal.shape[1] - pack.data.shape[1])
+    dsi_sel = model_full[rb, pack_t_on:, pack.readout_unit]
     if not _pack_needs_waveform_mse(pack):
         return None, dsi_sel
     if pack.cost_t0 is None:
@@ -2160,7 +2229,7 @@ def _calc_cost_parts_fused_conductance(
             sig = group.subpacks[0].signal
         else:
             sig = torch.cat([pack.signal for pack in group.subpacks], dim=0)
-        model_full = _run_conductance_full(session, p, sig)
+        model_full = run_full(session, p, sig)
         for pack, off in zip(group.subpacks, group.batch_offsets):
             for key, part in _pack_cost_parts_from_conductance_model(
                 p, pack, session, model_full, batch_offset=off,
@@ -2406,8 +2475,9 @@ def backward_accum_weighted_cost(z, session: TrainSession):
 def schema_bounds(schema, sim_dtype=SIM_DTYPE_DEFAULT):
     zb = torch.zeros((schema_nparams(schema), 2), dtype=sim_dtype)
     for seg, start, stop in schema_segments(schema):
-        if stop > start:                       # skip fixed (0 trainable rows)
-            zb[start:stop] = torch.tensor([seg['lo'], seg['hi']], dtype=sim_dtype)
+        if stop > start:
+            zlo, zhi = _z_bounds(seg)
+            zb[start:stop] = torch.tensor([zlo, zhi], dtype=sim_dtype)
     return zb
 
 def schema_guess(schema, sim_dtype=SIM_DTYPE_DEFAULT):
@@ -2416,7 +2486,8 @@ def schema_guess(schema, sim_dtype=SIM_DTYPE_DEFAULT):
         n = stop - start
         if n == 0:
             continue
-        z[start:stop] = seg['init'] + (np.random.rand(n) - 0.5) * seg['jit']
+        z_init = _encode_physical(seg, seg['init'])
+        z[start:stop] = z_init + (np.random.rand(n) - 0.5) * seg['jit']
     return torch.tensor(z, dtype=sim_dtype).to(active_device())
 
 def guess_initial_params(session: TrainSession):

@@ -6,34 +6,18 @@ import numpy as np
 import torch
 
 import Medulla_Library as ml
+from network.construction import (
+    TYPE_FAMILY_ROWS,
+    type_family_row_groups,
+    type_names_in_family_order,
+)
 
-PLOT_FAMILY_ROWS = [
-    np.array(['R1-6', 'R7', 'R8']),
-    np.array(['L1', 'L2', 'L3', 'L4', 'L5']),
-    np.array(['Mi1', 'Mi4', 'Mi9']),
-    np.array(['T1', 'T2', 'T2a', 'T3']),
-    np.array(['T4a', 'T4b', 'T4c', 'T4d']),
-    np.array(['T5a', 'T5b', 'T5c', 'T5d']),
-    np.array(['Tm1', 'Tm2', 'Tm20', 'Tm21', 'Tm3', 'Tm4', 'Tm9']),
-    np.array(['C2', 'C3']),
-]
+PLOT_FAMILY_ROWS = [np.array(row) for row in TYPE_FAMILY_ROWS]
 
 
 def plot_row_groups(present):
     """Family row groups for plots; skip absent types and empty rows."""
-    present_list = [str(t) for t in present]
-    present_set = set(present_list)
-    rows = []
-    used = set()
-    for row in PLOT_FAMILY_ROWS:
-        filtered = [str(t) for t in row if str(t) in present_set]
-        if filtered:
-            rows.append(np.array(filtered))
-            used.update(filtered)
-    for name in present_list:
-        if name not in used:
-            rows.append(np.array([name]))
-    return rows
+    return [np.array(row) for row in type_family_row_groups(present)]
 
 
 def plot_present_layout(present):
@@ -45,7 +29,7 @@ def plot_present_layout(present):
 
 def plot_types_in_order(present):
     """Flat cell-type order from :func:`plot_present_layout`."""
-    return plot_present_layout(present)[1]
+    return type_names_in_family_order(present)
 
 
 def _pack_for(session, target):
@@ -103,17 +87,18 @@ def _mirror_ref_specs_from_override(override):
     return specs
 
 
-def fit_ref_cubes(dark=False):
+def fit_ref_cubes(dark=False, *, t_on=None, maxtime=None):
     """RecF reference cubes for the 13 fit cell types."""
-    data = ml.read_RecF_data_dark() if dark else ml.read_RecF_data()
+    kw = dict(t_on=t_on, maxtime=maxtime)
+    data = ml.read_RecF_data_dark(**kw) if dark else ml.read_RecF_data(**kw)
     ref = data * ml.DATA_AMP
     return {str(name): ref[i] for i, name in enumerate(ml.cell_list)}
 
 
-def spot_ref_cubes(session, target=None, dark=False):
+def spot_ref_cubes(session, target=None, dark=False, *, t_on=None, maxtime=None):
     """Spot model-data reference cubes from ``read_RecF_data`` (shape ``(9, T)``)."""
     target = target or session.primary_pack.name
-    ref = dict(fit_ref_cubes(dark=dark))
+    ref = dict(fit_ref_cubes(dark=dark, t_on=t_on, maxtime=maxtime))
     overrides = (session.train_opts or {}).get('pack_overrides') or {}
     for mirror_types, mirror_fit, mirror_sign in _mirror_ref_specs_from_override(
         overrides.get(target),

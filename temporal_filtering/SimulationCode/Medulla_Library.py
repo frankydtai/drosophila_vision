@@ -9,11 +9,11 @@ import numpy as np
 import blindschleiche_py3 as bs
 
 from training_config import (
-    IMPULSE_MAXTIME,
-    T_ON,
+    RESPONSE_DURATION_MS,
+    ms_to_steps,
 )
 
-I_BASELINE = 20.0  # pA photoreceptor current before T_ON
+I_BASELINE = 20.0  # pA photoreceptor current before stimulus onset
 I_BRIGHT = 40.0    # pA photoreceptor current at bright / on-step peak
 I_DARK = 0.0       # pA photoreceptor current at full dark-bar coverage
 DATA_AMP = 20.0         # pA scale on ImpR target traces (fit cells)
@@ -53,15 +53,19 @@ def normalize_data(x):
     return result
 
 
-def read_RecF_ImpR():
+def read_RecF_ImpR(*, t_on=None, maxtime=None):
     """Return ``(RecF_data, ImpR_data)`` for the 13 fit cell types.
 
-    Shapes: ``RecF_data`` ``(13, 45)``; ``ImpR_data`` ``(13, IMPULSE_MAXTIME)``.
+    Shapes: ``RecF_data`` ``(13, 45)``; ``ImpR_data`` ``(13, maxtime)``.
     Time axis: :mod:`training_config`.
 
     Split out of :func:`read_RecF_data` for hex spot targets that sample RecF at
     non-integer column distances (e.g. ``r=sqrt(3)``).
     """
+    if t_on is None or maxtime is None:
+        raise ValueError("read_RecF_ImpR requires t_on and maxtime")
+    t_on = int(t_on)
+    maxtime = int(maxtime)
 
     RF_center_width = np.array([6, 7, 6, 8, 7, 6, 12, 6, 6, 8, 8, 11, 7])
     RF_surrnd_width = np.array([41, 29, 15, 33, 31, 29, 7, 16, 24, 27, 31, 35, 24])
@@ -85,12 +89,12 @@ def read_RecF_ImpR():
     IR_hp = np.array([39.1, 28.8, 00.0, 38.1, 12.7, 31.8, 26.0, 0.00, 0.00, 29.6, 15.3, 24.9, 0.00])
     IR_lp = np.array([03.8, 05.8, 05.4, 02.3, 04.2, 05.4, 02.7, 03.8, 07.7, 04.4, 01.4, 02.4, 10.7])
 
-    signal = np.zeros(IMPULSE_MAXTIME)
-    signal[T_ON:IMPULSE_MAXTIME] = 1.0
+    signal = np.zeros(maxtime)
+    signal[t_on:maxtime] = 1.0
     signal = bs.lowpass(signal, 5)
     signal = signal / np.max(signal)
 
-    ImpR_data = np.zeros((13, IMPULSE_MAXTIME))
+    ImpR_data = np.zeros((13, maxtime))
 
     for i in range(13):
 
@@ -113,15 +117,16 @@ def read_RecF_ImpR():
     return RecF_data, ImpR_data
 
 
-def read_RecF_data():
-    """Spatial×temporal spot cube ``(13, 9, IMPULSE_MAXTIME)``.
+def read_RecF_data(*, t_on=None, maxtime=None):
+    """Spatial×temporal spot cube ``(13, 9, maxtime)``.
 
     ``data[i, j, :] = RecF_data[i, 5*j+2] * ImpR_data[i]``. Time axis:
     :mod:`training_config`. Spatial ``j=0…8`` (centre ``j=4``).
     """
-    RecF_data, ImpR_data = read_RecF_ImpR()
+    RecF_data, ImpR_data = read_RecF_ImpR(t_on=t_on, maxtime=maxtime)
+    mt = ImpR_data.shape[1]
 
-    data = np.zeros((13, 9, IMPULSE_MAXTIME))
+    data = np.zeros((13, 9, mt))
 
     for i in range(13):
         for j in range(9):
@@ -130,6 +135,6 @@ def read_RecF_data():
     return data
 
 
-def read_RecF_data_dark():
+def read_RecF_data_dark(*, t_on=None, maxtime=None):
     """Dark spot spatial×temporal cube: negated bright ``read_RecF_data()``."""
-    return -read_RecF_data()
+    return -read_RecF_data(t_on=t_on, maxtime=maxtime)

@@ -43,7 +43,6 @@ from training_config import (
     DELTAT_MS,
     FIG1_CI_NPZ,
     SIM_DTYPE_DEFAULT,
-    T_ON,
     ms_to_steps,
 )
 from visual_stimulus.moving_bar_stimulus import (
@@ -191,7 +190,7 @@ def moving_bar_session_t0_grids(
     *,
     at_x=None,
     at_y=None,
-    t_on: int = T_ON,
+    t_on: int = None,
     deltat_ms: float = DELTAT_MS,
 ) -> MovingBarSessionT0:
     """Session-level ``t0`` / horizon grids for moving-bar cost or analysis."""
@@ -516,7 +515,7 @@ def build_moving_bar_signals(
     C,
     specs: Optional[Sequence[MovingBarSpec]] = None,
     maxtime: Optional[int] = None,
-    t_on: int = T_ON,
+    t_on: int = None,
     deltat_ms: float = DELTAT_MS,
     bar_extent: int = DEFAULT_BAR_EXTENT,
     multi_bar: bool = True,
@@ -869,7 +868,7 @@ def _present_readout_subtypes(
 def build_moving_bar_target(
     C,
     device: Optional[str] = None,
-    t_on: int = T_ON,
+    t_on: int = None,
     deltat_ms: float = DELTAT_MS,
     fig1_path: Path = FIG1_CI_NPZ,
     use_cache: bool = True,

@@ -17,7 +17,7 @@ ALL_PARAM_NAMES = (
     "Ih_gmax", "Ih_gmax_off",
     "Ih_midv", "Ih_slope", "tau_midv",
     "Ih_midv_off", "Ih_slope_off", "tau_midv_off",
-    "tau_m", "bias", "tau_hp", "hp_gain",
+    "tau_lp", "bias", "tau_hp", "hp_gain",
 )
 IH_SHAPE_PARAM_NAMES = (
     "Ih_midv", "Ih_slope", "tau_midv",
@@ -117,9 +117,8 @@ def build_conductance_schema(n_types, type_names=None, n_pairs=None):
     ]
 
 
-
 def build_hp_lp_schema(n_types, type_names=None, n_pairs=None):
-    """HP-then-membrane-LP: τ_HP on slow average a, τ_m on V, drive G(X−a)."""
+    """HP-then-membrane-LP: τ_HP on slow average a, τ_lp on V, drive G(X−a)."""
     if type_names is None:
         raise TypeError("hp_lp schema requires type_names from network")
     if n_pairs is None:
@@ -127,11 +126,11 @@ def build_hp_lp_schema(n_types, type_names=None, n_pairs=None):
     type_names = list(type_names)
     n_pairs = int(n_pairs)
     name_to_i = {str(n): i for i, n in enumerate(type_names)}
-    ih_gmax = [name_to_i[n] for n in DEFAULT_IH_GMAX_INDI_NAMES]
+    hp_gain_indi = [name_to_i[n] for n in DEFAULT_IH_GMAX_INDI_NAMES]
     D = PARAM_DEFAULTS
     indi_all = _part_indi_all(n_types)
     fixed_all = _part_fixed_all(n_types)
-    ih_g = _part_indi_subset_fixed_rest(n_types, ih_gmax)
+    hp_gain_part = _part_indi_subset_fixed_rest(n_types, hp_gain_indi)
     return [
         _with_part({"name": "in_gain", "count": n_types, "kind": "full", **D["in_gain"]}, fixed_all),
         _with_part({"name": "out_gain", "count": n_types, "kind": "full", **D["out_gain"]}, indi_all),
@@ -140,10 +139,10 @@ def build_hp_lp_schema(n_types, type_names=None, n_pairs=None):
             _part_indi_all(n_pairs),
         ),
         _with_part({"name": "out_scale", "count": n_types, "kind": "output", **D["out_scale"]}, indi_all),
-        _with_part({"name": "tau_m", "count": n_types, "kind": "full", **D["tau_m"]}, indi_all),
+        _with_part({"name": "tau_lp", "count": n_types, "kind": "full", **D["tau_lp"]}, indi_all),
         _with_part({"name": "tau_hp", "count": n_types, "kind": "full", **D["tau_hp"]}, indi_all),
         _with_part({"name": "bias", "count": n_types, "kind": "full", **D["bias"]}, indi_all),
-        _with_part({"name": "hp_gain", "count": n_types, "kind": "full", **D["hp_gain"]}, ih_g),
+        _with_part({"name": "hp_gain", "count": n_types, "kind": "full", **D["hp_gain"]}, indi_all),
     ]
 
 
@@ -152,7 +151,6 @@ def default_schema(model: str, backend) -> list:
     if model not in KNOWN_MODELS:
         raise ValueError(f"unknown model {model!r}; expected one of {KNOWN_MODELS}")
     n = backend.n_types
-    # lazy to avoid circular import with FiveCol type_unit_names
     import FiveCol_MedSim_Pytorch as fc
 
     type_names = fc.type_unit_names(backend)

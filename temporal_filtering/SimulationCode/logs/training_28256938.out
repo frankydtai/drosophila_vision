@@ -1,0 +1,37 @@
+Job ID: 28256938
+Node:   spartan-gpgpu173
+GPU:    0
+GPU 0: NVIDIA H100 80GB HBM3 (UUID: GPU-096d2167-3fca-dbcb-c31b-34369ce7913d)
+cuda: True NVIDIA H100 80GB HBM3
+Start:  Wed 29 Jul 2026 07:45:58 AEST
+device=cuda, model=conductance, nofruns=1, nofsteps=10000, lrs=[0.1, 0.01, 0.001], nparams=110, fname=training_with_Ih.npy, outdir=/home/yitai/drosophila_vision/temporal_filtering/SimulationCode/0trained/conductance/28256938-train-target-spot_bright-nofsteps-10000-lr-0.1,0.01,0.001-syn-strength-fixed-all-in-gain-indi-all
+
+round 0
+
+
+Initl cost = 93.6007  [spot_bright=93.6007]
+Final cost = 30.8241  [spot_bright=30.8241]
+Best  cost = 30.8238  [spot_bright=30.8238]
+time needed  = 7068.90  sec
+
+
+Initl cost = 30.8238  [spot_bright=30.8238]
+Final cost = 30.8219  [spot_bright=30.8219]
+Best  cost = 30.8218  [spot_bright=30.8218]
+time needed  = 7073.51  sec
+
+
+Initl cost = 30.8218  [spot_bright=30.8218]
+Final cost = 30.8217  [spot_bright=30.8217]
+Best  cost = 30.8217  [spot_bright=30.8217]
+time needed  = 7071.09  sec
+
+done in 5.89 hours
+wrote table: /home/yitai/drosophila_vision/temporal_filtering/SimulationCode/0trained/conductance/28256938-train-target-spot_bright-nofsteps-10000-lr-0.1,0.01,0.001-syn-strength-fixed-all-in-gain-indi-all/param.csv (best run #0, cost=30.8217)
+wrote table: /home/yitai/drosophila_vision/temporal_filtering/SimulationCode/0trained/conductance/28256938-train-target-spot_bright-nofsteps-10000-lr-0.1,0.01,0.001-syn-strength-fixed-all-in-gain-indi-all/syn_strength.csv
+plot device=cuda (NVIDIA H100 80GB HBM3)
+1 trained set(s); selected #0 (cost=30.8217)
+plot /home/yitai/drosophila_vision/temporal_filtering/SimulationCode/0trained/conductance/28256938-train-target-spot_bright-nofsteps-10000-lr-0.1,0.01,0.001-syn-strength-fixed-all-in-gain-indi-all/cost_curve.png: draw=0.1s  save=0.1s  total=0.2s
+plot /home/yitai/drosophila_vision/temporal_filtering/SimulationCode/0trained/conductance/28256938-train-target-spot_bright-nofsteps-10000-lr-0.1,0.01,0.001-syn-strength-fixed-all-in-gain-indi-all/model_data_spot.png: prep=0.4s  draw=0.3s  save=0.5s  total=1.2s
+plot /home/yitai/drosophila_vision/temporal_filtering/SimulationCode/0trained/conductance/28256938-train-target-spot_bright-nofsteps-10000-lr-0.1,0.01,0.001-syn-strength-fixed-all-in-gain-indi-all/model_all_spot.png: prep=0.0s  draw=0.7s  save=1.2s  total=1.8s
+plots saved to /home/yitai/drosophila_vision/temporal_filtering/SimulationCode/0trained/conductance/28256938-train-target-spot_bright-nofsteps-10000-lr-0.1,0.01,0.001-syn-strength-fixed-all-in-gain-indi-all

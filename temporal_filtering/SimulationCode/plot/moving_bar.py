@@ -42,7 +42,6 @@ from plot.utils import (
     suppress_cost_sem,
     v_th_by_type_name,
 )
-from FiveCol_MedSim_Pytorch import t_on
 import network_bootstrap  # noqa: F401  # ensure FAFBv783 modules are importable
 from network.moving_bar_target import (
     bar_specs_for_session,
@@ -148,7 +147,7 @@ def _scale_model_full(model_full, p, backend):
     return model_full * scale[np.newaxis, np.newaxis, :]
 
 
-def _windows_by_batch(model_full, t0_bn, win_lens, *, show_pre=True):
+def _windows_by_batch(model_full, t0_bn, win_lens, *, show_pre=True, t_on=0):
     """``win_lens``: int (uniform) or length-``B`` sequence of window lengths."""
     n_batch = model_full.shape[0]
     if isinstance(win_lens, int):
@@ -278,7 +277,8 @@ def _moving_bar_slice_overlay_traces(
             t0_full_bn, n_batch, filt_cols, align_at_x, align_at_y,
             session=session, cost_extent=pack.cost_extent,
         )
-    windows_full = _windows_by_batch(trace_full, t0_use, win_lens, show_pre=show_pre)
+    _t_on = int(pack.signal.shape[1] - pack.data.shape[1])
+    windows_full = _windows_by_batch(trace_full, t0_use, win_lens, show_pre=show_pre, t_on=_t_on)
     model_mean, model_sem, model_n = _aggregate_moving_bar_traces(
         windows_full, t0_use, type_ids, types, spec_names, True, col_mask=col_mask,
     )
@@ -340,9 +340,10 @@ def _moving_bar_traces_from_forward(
     pack = session.pack_for(target)
     cost_extent = pack.cost_extent
     maxtime = int(session.maxtime)
+    _t_on = int(pack.signal.shape[1] - pack.data.shape[1])
     grids = moving_bar_session_t0_grids(
         session, specs, cost_extent, maxtime, at_x=at_x, at_y=at_y,
-        t_on=t_on, deltat_ms=fc.deltat,
+        t_on=_t_on, deltat_ms=fc.deltat,
     )
     types, type_ids = _plot_types_and_ids(session)
     t0_full_bn = grids.t0_bn
@@ -355,7 +356,7 @@ def _moving_bar_traces_from_forward(
         full_before_steps[sname] + full_after_steps[sname] + 1
         for sname in spec_names
     ]
-    windows_full = _windows_by_batch(trace_full, t0_full_bn, win_lens, show_pre=show_pre)
+    windows_full = _windows_by_batch(trace_full, t0_full_bn, win_lens, show_pre=show_pre, t_on=_t_on)
     trace_mean, trace_sem, trace_n = _aggregate_moving_bar_traces(
         windows_full, t0_full_bn, type_ids, types, spec_names, single_column,
     )
@@ -383,8 +384,8 @@ def moving_bar_trace_bundle(session, z, target, *, at_x=None, at_y=None,
     schema = list(session.schema)
     p = fc.assign_params(z, schema, session.backend)
     if trace_kind == 'vm':
-        vm_delta, vm_ref, _vm_full = fc._run_conductance_full(
-            session, p, pack.signal, return_ref=True, return_vm=True,
+        vm_delta, vm_ref, _vm_full = fc.run_full(
+            session, p, pack.signal, return_ref=True, return_vm=True, pack=pack,
         )
         vm_ref_np = vm_ref[0].cpu().numpy()
         trace_full = vm_delta.cpu().numpy()
@@ -394,7 +395,9 @@ def moving_bar_trace_bundle(session, z, target, *, at_x=None, at_y=None,
             ref_stem='moving_bar_ref_vm',
         )
     else:
-        model_full, vm_ref = fc._run_conductance_full(session, p, pack.signal, return_ref=True)
+        model_full, vm_ref = fc.run_full(
+            session, p, pack.signal, return_ref=True, pack=pack,
+        )
         vm_ref_np = vm_ref[0].cpu().numpy()
         trace_full = _scale_model_full(model_full.cpu().numpy(), p, session.backend)
         save_forward_trace_csvs(
