@@ -2,7 +2,7 @@
 """Parameter schemas for conductance / hp_lp neuron models."""
 from __future__ import annotations
 
-from param_defaults import DEFAULT_IH_GMAX_INDI_NAMES, P as PARAM_DEFAULTS
+from neuron_model.param_defaults import DEFAULT_IH_GMAX_INDI_NAMES, P as PARAM_DEFAULTS
 
 from neuron_model.constants import (
     IH_OFF_DEFAULT,
@@ -181,9 +181,9 @@ def default_schema(model: str, backend, *, syn_mode=SYN_MODE_DEFAULT) -> list:
     if model not in KNOWN_MODELS:
         raise ValueError(f"unknown model {model!r}; expected one of {KNOWN_MODELS}")
     n = backend.n_types
-    import FiveCol_MedSim_Pytorch as fc
-
-    type_names = fc.type_unit_names(backend)
+    if backend.network is None:
+        raise ValueError("default_schema requires backend.network")
+    type_names = [str(t) for t in backend.network.type_names]
     mode = normalize_syn_mode(syn_mode)
     n_pairs = getattr(backend.conn, "n_pairs", None)
     n_edges = getattr(backend.conn, "n_edges", None)

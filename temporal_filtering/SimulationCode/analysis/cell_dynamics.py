@@ -60,23 +60,27 @@ from typing import Any
 import numpy as np
 import torch
 
-import FiveCol_MedSim_Pytorch as fc
-import plot_trained
+import training as fc
+import plot.plot_trained as plot_trained
 from analysis.cell_trace import add_shared_cli, parse_shared_cli
-from network.moving_bar_target import (
+from stimulus.moving_bar.data import (
     bar_specs_for_session,
     col2subtype,
     filter_requested_specs,
-    filter_sti_columns,
-    moving_bar_cost_columns,
     moving_bar_row_specs,
     moving_bar_session_t0_grids,
     moving_bar_units_on_columns,
 )
-from network.spot_target import (
+from stimulus.moving_bar.input import (
+    filter_sti_columns,
+    moving_bar_cost_columns,
+)
+from stimulus.spot.data import (
     resolve_spot_cost_radii,
-    spotting_from_opts,
     spot_center_bin_layout,
+)
+from stimulus.spot.input import (
+    spotting_from_opts,
     spot_stimulus_batches,
 )
 from plot.readout import spot_ref_cubes

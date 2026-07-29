@@ -6,17 +6,33 @@ or unit indexing — :mod:`network.moving_bar_target` maps these currents onto a
 """
 from __future__ import annotations
 
+import hashlib
+import json
+import logging
 import math
-from dataclasses import dataclass
-from typing import List, Optional, Sequence, Tuple
+from dataclasses import dataclass, field
+from pathlib import Path
+from typing import Callable, Dict, List, Optional, Sequence, Tuple
 
 import numpy as np
+import torch
 
-import network_bootstrap  # noqa: F401
+from network import bootstrap  # noqa: F401 -- FAFBv783 on sys.path
 
 from column_mapper import DEG, HEX_PATCH_RADIUS, hex_vertices, uv_to_xy, uv_to_xy_deg
-from Medulla_Library import I_BASELINE, I_BRIGHT, I_DARK
-from training_config import DELTAT_MS, MOVING_BAR_TAIL_MS, ms_to_steps
+from connectome_io import moving_bar_cache_dir
+from config import (
+    I_BASELINE,
+    I_BRIGHT,
+    I_DARK,
+    DELTAT_MS,
+    MOVING_BAR_TAIL_MS,
+    SIM_DTYPE_DEFAULT,
+    ms_to_steps,
+)
+from network.layout import column_in_cost_extent
+
+logger = logging.getLogger(__name__)
 
 # Gruntman Fig. 1 Ci fast condition: 40 ms / 2.25 deg per LED step.
 GRUNTMAN_SPEED_DEG_S = 56.0
@@ -813,4 +829,421 @@ def build_batched_column_current(
                 i_bright_bar=i_bright_bar, i_dark_bar=i_dark_bar,
             )
     return out
+
+
+# -- Connectome mapping: column currents -> unit ``signal`` (was moving_bar_target) --
+
+PD_IDX, ND_IDX = 0, 1
+_TRACE_CACHE: Dict[str, np.ndarray] = {}
+
+
+@dataclass
+class StiColumn(HexColumn):
+    """One sti column on a connectome, with unit indices for scattering."""
+
+    unit_idx: np.ndarray
+
+
+def _sti_column_from_uv(u: int, v: int, unit_idx: np.ndarray) -> StiColumn:
+    base = hex_column_from_uv(u, v)
+    return StiColumn(
+        u=base.u, v=base.v, x=base.x, y=base.y,
+        x_deg=base.x_deg, y_deg=base.y_deg, hex_xy=base.hex_xy,
+        unit_idx=unit_idx,
+    )
+
+
+@dataclass
+class MovingBarStimulus:
+    signal: torch.Tensor
+    column_current: np.ndarray
+    specs: List[MovingBarSpec]
+    info: dict = field(default_factory=dict)
+
+
+def sti_columns(C) -> List[StiColumn]:
+    """Sti columns with photoreceptor units (one per axial ``(u, v)``)."""
+    cols: Dict[Tuple[int, int], StiColumn] = {}
+    u_in = C.u[C.is_input]
+    v_in = C.v[C.is_input]
+    for u, v in zip(u_in.tolist(), v_in.tolist()):
+        key = (int(u), int(v))
+        if key in cols:
+            continue
+        units = C.input_units_at(key[0], key[1])
+        if len(units) == 0:
+            continue
+        cols[key] = _sti_column_from_uv(key[0], key[1], np.asarray(units, dtype=np.int64))
+    return [cols[k] for k in sorted(cols)]
+
+
+def moving_bar_cost_columns(C, cost_extent=None) -> List[StiColumn]:
+    """Sti columns used for moving-bar cost (optional central hex disc)."""
+    cols = sti_columns(C)
+    if cost_extent is None:
+        return cols
+    return [c for c in cols if column_in_cost_extent(c.u, c.v, cost_extent)]
+
+
+def _as_int64_np(x) -> np.ndarray:
+    if torch.is_tensor(x):
+        return np.asarray(x.detach().cpu().numpy(), dtype=np.int64)
+    return np.asarray(x, dtype=np.int64)
+
+
+def network_uv_np(C) -> Tuple[np.ndarray, np.ndarray]:
+    """Connectome axial ``(u, v)`` per unit as int64 numpy arrays."""
+    return _as_int64_np(C.u), _as_int64_np(C.v)
+
+
+def _coord_matches(val, axis_filter, tol=1e-6) -> bool:
+    if axis_filter is None:
+        return True
+    if isinstance(axis_filter, (list, tuple)):
+        return any(np.isclose(val, float(v), atol=tol) for v in axis_filter)
+    return np.isclose(val, float(axis_filter), atol=tol)
+
+
+def filter_sti_columns(cols, *, at_x=None, at_y=None, tol=1e-6):
+    """Keep network sti columns whose hex-step ``(x, y)`` matches ``at_x`` / ``at_y``."""
+    if at_x is None and at_y is None:
+        return list(cols)
+    out = []
+    for col in cols:
+        if not _coord_matches(col.x, at_x, tol=tol):
+            continue
+        if not _coord_matches(col.y, at_y, tol=tol):
+            continue
+        out.append(col)
+    return out
+
+
+def resolve_i_baseline(value: Optional[float] = None) -> float:
+    """Canonical photoreceptor baseline current (pA)."""
+    return float(I_BASELINE if value is None else value)
+
+
+def moving_bar_i_baseline_from_opts(train_opts) -> float:
+    """``i_baseline`` from moving-bar stimulus opts on a train session."""
+    opts = train_opts or {}
+    for key in ("moving_bar_bright_stimulus_opts", "moving_bar_dark_stimulus_opts"):
+        sub = opts.get(key) or {}
+        if "i_baseline" in sub:
+            return resolve_i_baseline(float(sub["i_baseline"]))
+    return resolve_i_baseline(None)
+
+
+def moving_bar_window_t_rel(t0, t_on: int, win: int):
+    """Window index into post-``t_on`` trace columns (numpy)."""
+    t0 = np.asarray(t0, dtype=np.int64)
+    win_ix = np.arange(int(win), dtype=np.int64)
+    t_rel = t0[..., None] - int(t_on) + win_ix
+    return t_rel, t_rel < 0
+
+
+def moving_bar_window_t_rel_torch(t0, t_on: int, win: int, *, device=None):
+    """Torch counterpart of :func:`moving_bar_window_t_rel`."""
+    if not torch.is_tensor(t0):
+        t0 = torch.as_tensor(t0, dtype=torch.long, device=device)
+    else:
+        t0 = t0.to(dtype=torch.long)
+    if device is None:
+        device = t0.device
+    win_ix = torch.arange(int(win), dtype=torch.long, device=device)
+    t_rel = t0[..., None] - int(t_on) + win_ix
+    return t_rel, t_rel < 0
+
+
+@dataclass
+class MovingBarT0Grids:
+    t0_bn: np.ndarray
+    before_steps: Dict[str, int]
+    after_steps: Dict[str, int]
+
+
+def column_first_stim_steps(
+    column_current: np.ndarray,
+    batch_idx: int,
+    col_idxs: Sequence[int],
+    i_baseline: float,
+) -> List[int]:
+    return [
+        column_first_stim_step(column_current[batch_idx, :, col_idx], i_baseline=i_baseline)
+        for col_idx in col_idxs
+    ]
+
+
+def moving_bar_spec_horizon(t_first_stis: Sequence[int], maxtime: int) -> Tuple[int, int, int]:
+    """Return ``(fb, before_steps, after_steps)`` for one spec over all columns."""
+    fb = int(min(t_first_stis))
+    before = fb
+    after = int(maxtime) - int(max(t_first_stis))
+    return fb, before, after
+
+
+def moving_bar_network_t0_bn(C, filt_cols: Sequence[StiColumn], n_batch: int, t0_map: dict) -> np.ndarray:
+    """Expand per-column ``t0`` values to a full unit grid ``(B, N_units)``."""
+    u_np = np.asarray(C.u, dtype=np.int64)
+    v_np = np.asarray(C.v, dtype=np.int64)
+    t0_bn = np.full((n_batch, C.n_units), -1, dtype=np.int64)
+    for bi in range(n_batch):
+        for c in filt_cols:
+            t0 = t0_map.get((bi, int(c.u), int(c.v)))
+            if t0 is None:
+                continue
+            on_col = (u_np == int(c.u)) & (v_np == int(c.v))
+            t0_bn[bi, on_col] = t0
+    return t0_bn
+
+
+def build_moving_bar_t0_grids(
+    column_current: np.ndarray,
+    specs: Sequence[MovingBarSpec],
+    maxtime: int,
+    i_baseline: float,
+    *,
+    all_col_idxs: Sequence[int],
+    filt_col_idxs: Sequence[int],
+    network_C,
+    filt_network_cols: Sequence[StiColumn],
+) -> MovingBarT0Grids:
+    """Plot/training-aligned ``t0`` grid and per-spec full horizons."""
+    before_steps: Dict[str, int] = {}
+    after_steps: Dict[str, int] = {}
+    n_batch = len(specs)
+    i_baseline = resolve_i_baseline(i_baseline)
+
+    t0_map: dict = {}
+    for bi, spec in enumerate(specs):
+        t_first_all = column_first_stim_steps(column_current, bi, all_col_idxs, i_baseline)
+        fb, before, after = moving_bar_spec_horizon(t_first_all, maxtime)
+        before_steps[spec.name] = before
+        after_steps[spec.name] = after
+        t_first_filt = column_first_stim_steps(column_current, bi, filt_col_idxs, i_baseline)
+        for c, tc in zip(filt_network_cols, t_first_filt):
+            t0_map[(bi, int(c.u), int(c.v))] = tc - fb
+    t0_bn = moving_bar_network_t0_bn(network_C, filt_network_cols, n_batch, t0_map)
+    return MovingBarT0Grids(t0_bn=t0_bn, before_steps=before_steps, after_steps=after_steps)
+
+
+def _column_unit_map(columns: Sequence[StiColumn]) -> Tuple[np.ndarray, np.ndarray]:
+    col_idx: List[int] = []
+    unit_idx: List[int] = []
+    for j, col in enumerate(columns):
+        for u in np.asarray(col.unit_idx).ravel():
+            col_idx.append(j)
+            unit_idx.append(int(u))
+    return (
+        np.asarray(col_idx, dtype=np.int64),
+        np.asarray(unit_idx, dtype=np.int64),
+    )
+
+
+def scatter_column_current(column_current, columns, n_units):
+    """Broadcast column current ``(T, n_cols)`` to unit current ``(T, n_units)``."""
+    t_steps = column_current.shape[0]
+    out = np.zeros((t_steps, n_units), dtype=np.float64)
+    col_idx, unit_idx = _column_unit_map(columns)
+    if len(col_idx):
+        out[:, unit_idx] = column_current[:, col_idx]
+    return out
+
+
+def scatter_column_current_batched(column_current, columns, n_units):
+    """Broadcast ``(B, T, n_cols)`` column current to ``(B, T, n_units)``."""
+    n_batch, t_steps, _ = column_current.shape
+    out = np.zeros((n_batch, t_steps, n_units), dtype=np.float64)
+    col_idx, unit_idx = _column_unit_map(columns)
+    if len(col_idx):
+        out[:, :, unit_idx] = column_current[:, :, col_idx]
+    return out
+
+
+def _column_uv(columns: Sequence[StiColumn]) -> List[Tuple[int, int]]:
+    return [(c.u, c.v) for c in columns]
+
+
+def _spec_contrast_set(specs: Sequence[MovingBarSpec]) -> frozenset:
+    return frozenset(s.contrast for s in specs)
+
+
+def _moving_bar_cache_key(
+    network_json: Path,
+    specs: Sequence[MovingBarSpec],
+    column_uv: Sequence[Tuple[int, int]],
+    maxtime: int,
+    t_on: int,
+    deltat_ms: float,
+    i_baseline: float,
+    bar_extent: int,
+    multi_bar: bool = True,
+    i_bright_bar: Optional[float] = None,
+    i_dark_bar: Optional[float] = None,
+) -> str:
+    stat = network_json.stat()
+    payload = {
+        "network": str(network_json.resolve()),
+        "network_mtime_ns": stat.st_mtime_ns,
+        "network_size": stat.st_size,
+        "column_uv": list(column_uv),
+        "bar_extent": int(bar_extent),
+        "multi_bar": bool(multi_bar),
+        "specs": [
+            {
+                "direction": s.direction,
+                "contrast": s.contrast,
+                "width_deg": s.width_deg,
+                "speed_deg_s": s.speed_deg_s,
+            }
+            for s in specs
+        ],
+        "maxtime": maxtime,
+        "t_on": t_on,
+        "deltat_ms": deltat_ms,
+        "i_baseline": i_baseline,
+    }
+    if i_bright_bar is not None:
+        payload["i_bright_bar"] = i_bright_bar
+    if i_dark_bar is not None:
+        payload["i_dark_bar"] = i_dark_bar
+    digest = hashlib.sha256(json.dumps(payload, sort_keys=True).encode()).hexdigest()
+    return digest[:16]
+
+
+def _moving_bar_cache_path(
+    network_json: Path,
+    specs: Sequence[MovingBarSpec],
+    column_uv: Sequence[Tuple[int, int]],
+    maxtime: int,
+    t_on: int,
+    deltat_ms: float,
+    i_baseline: float,
+    bar_extent: int,
+    multi_bar: bool = True,
+    i_bright_bar: Optional[float] = None,
+    i_dark_bar: Optional[float] = None,
+) -> Path:
+    key = _moving_bar_cache_key(
+        network_json, specs, column_uv, maxtime, t_on, deltat_ms,
+        i_baseline, bar_extent, multi_bar, i_bright_bar, i_dark_bar,
+    )
+    return moving_bar_cache_dir(network_json) / f"{key}.npz"
+
+
+def _load_moving_bar_column_cache(path: Path) -> Optional[np.ndarray]:
+    if not path.is_file():
+        return None
+    try:
+        with np.load(path, allow_pickle=False) as data:
+            return np.asarray(data["column_current"], dtype=np.float64)
+    except (OSError, KeyError, ValueError) as exc:
+        logger.warning("Ignoring corrupt moving-bar cache %s: %s", path, exc)
+        return None
+
+
+def _save_moving_bar_column_cache(path: Path, column_current: np.ndarray) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    np.savez_compressed(path, column_current=column_current)
+    logger.info("Cached moving-bar column current to %s", path)
+
+
+def build_moving_bar_signals(
+    C,
+    specs: Optional[Sequence[MovingBarSpec]] = None,
+    maxtime: Optional[int] = None,
+    t_on: int = None,
+    deltat_ms: float = DELTAT_MS,
+    bar_extent: int = DEFAULT_BAR_EXTENT,
+    multi_bar: bool = True,
+    i_baseline: float = I_BASELINE,
+    i_bright_bar: Optional[float] = None,
+    i_dark_bar: Optional[float] = None,
+    device: Optional[str] = None,
+    use_cache: bool = True,
+    refresh_cache: bool = False,
+    network_json: Optional[Path] = None,
+    sim_dtype: torch.dtype = SIM_DTYPE_DEFAULT,
+) -> MovingBarStimulus:
+    """Build batched photoreceptor current for moving-bar stimuli (network connectome).
+
+    Returns ``signal`` with shape ``(B, T, N_units)`` where ``B = len(specs)``.
+    """
+    device = device or C.device
+    bar_extent = int(bar_extent)
+    multi_bar = bool(multi_bar)
+    specs = list(specs if specs is not None else gruntman_moving_bar_specs())
+    contrasts = _spec_contrast_set(specs)
+    i_bright = None
+    i_dark = None
+    if "bright" in contrasts:
+        i_bright = I_BRIGHT if i_bright_bar is None else float(i_bright_bar)
+    if "dark" in contrasts:
+        i_dark = I_DARK if i_dark_bar is None else float(i_dark_bar)
+    sti_cols = sti_columns(C)
+    field_deg = field_bounds(sti_cols)
+    if maxtime is None:
+        maxtime = moving_bar_maxtime(
+            specs, field_deg, bar_extent, multi_bar=multi_bar, t_on=t_on, deltat_ms=deltat_ms,
+        )
+    n_batch = len(specs)
+    n_units = C.n_units
+    sweep_end = moving_bar_sweep_end_step(
+        specs, field_deg, bar_extent, multi_bar=multi_bar, t_on=t_on, deltat_ms=deltat_ms,
+    )
+    sweep_steps = sweep_end - t_on
+    tail_steps = maxtime - sweep_end
+
+    cache_path: Optional[Path] = None
+    source_json = Path(network_json) if network_json is not None else getattr(C, "source_json", None)
+    column_uv = _column_uv(sti_cols)
+    if source_json is not None:
+        cache_path = _moving_bar_cache_path(
+            source_json, specs, column_uv, maxtime, t_on, deltat_ms,
+            i_baseline, bar_extent, multi_bar, i_bright, i_dark,
+        )
+
+    col_curr: Optional[np.ndarray] = None
+    if cache_path is not None and use_cache and not refresh_cache:
+        col_curr = _load_moving_bar_column_cache(cache_path)
+        if col_curr is not None:
+            logger.info("Loaded moving-bar column current from cache %s", cache_path)
+
+    if col_curr is None:
+        col_curr = build_batched_column_current(
+            sti_cols, specs, maxtime=maxtime, bar_extent=bar_extent, multi_bar=multi_bar,
+            t_on=t_on, deltat_ms=deltat_ms,
+            i_baseline=i_baseline, i_bright_bar=i_bright, i_dark_bar=i_dark,
+        )
+        if cache_path is not None and use_cache:
+            _save_moving_bar_column_cache(cache_path, col_curr)
+
+    signal_np = scatter_column_current_batched(col_curr, sti_cols, n_units)
+
+    info = {
+        "n_batch": n_batch,
+        "n_sti_columns": len(sti_cols),
+        "bar_extent": bar_extent,
+        "multi_bar": multi_bar,
+        "field_deg": field_deg,
+        "maxtime": maxtime,
+        "t_on": t_on,
+        "sweep_end": sweep_end,
+        "sweep_steps": sweep_steps,
+        "sweep_time_s": sweep_steps * deltat_ms / 1000.0,
+        "tail_steps": tail_steps,
+        "tail_time_s": tail_steps * deltat_ms / 1000.0,
+        "i_baseline": i_baseline,
+        "speed_deg_s": specs[0].speed_deg_s if specs else GRUNTMAN_SPEED_DEG_S,
+        "spec_names": [s.name for s in specs],
+    }
+    if i_bright is not None:
+        info["i_bright_bar"] = i_bright
+    if i_dark is not None:
+        info["i_dark_bar"] = i_dark
+    return MovingBarStimulus(
+        signal=torch.as_tensor(signal_np, dtype=sim_dtype, device=device),
+        column_current=col_curr,
+        specs=specs,
+        info=info,
+    )
 

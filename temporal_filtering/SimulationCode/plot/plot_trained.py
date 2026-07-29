@@ -10,13 +10,13 @@ from pathlib import Path
 import numpy as np
 import torch
 
-import FiveCol_MedSim_Pytorch as fc
-from network.moving_bar_target import sti_columns
-from network.spot_target import spotting_from_opts
+import training as fc
+from stimulus.moving_bar.input import sti_columns
+from stimulus.spot.input import spotting_from_opts
 from plot import moving_bar as moving_bar_plot
 from plot import spot as spot_plot
 from plot.utils import parse_axis_slice_list, parse_align_xy, plot_cost, network_column_count
-from training_config import PARAMETER_DIR, run_data_dir
+from config import PARAMETER_DIR, run_data_dir
 
 TRAIN_OPTS_FILE = fc.TRAIN_OPTS_FILE
 KNOWN_MODELS = fc.KNOWN_MODELS
@@ -170,7 +170,7 @@ def resolve_run_dir(path):
 
 def find_training_params(outdir):
     """Locate ``data/training*.npy`` params (exclude ``*_costs*`` sidecars)."""
-    import train as train_mod
+    import training.train as train_mod
 
     data = Path(train_mod.data_dir(outdir))
     candidates = sorted(
@@ -240,7 +240,7 @@ def select_best(params, session, *, final_costs=None, best_i=None, verbose=True)
 
 def load_best(outdir, *, model=None, verbose=False):
     """Load session and best ``z`` from a train run (``best_param.npz`` + costs)."""
-    import train as train_mod
+    import training.train as train_mod
 
     outdir = os.path.abspath(outdir)
     if not os.path.isdir(outdir):
@@ -426,7 +426,7 @@ def plot_param_set(params, outdir, model=None, model_all=True,
             costs_by_target = loaded_by_target
 
     if best_i is None:
-        import train as train_mod
+        import training.train as train_mod
         best_i = train_mod.load_best_i(ctx)
 
     print(f'plot device={_plot_device_label()}')
@@ -565,7 +565,7 @@ def plot_param_set(params, outdir, model=None, model_all=True,
         )
 
     if save_artifacts:
-        import train as train_mod
+        import training.train as train_mod
         os.makedirs(train_mod.data_dir(outdir), exist_ok=True)
         z_best = torch.tensor(best, dtype=session.sim_dtype, device=session.device)
         train_mod.save_best_param_named(outdir, z_best, session)
@@ -576,13 +576,13 @@ def plot_param_set(params, outdir, model=None, model_all=True,
 
 def _load_plot_costs(outdir, fname, n_runs):
     """Load per-run and step costs saved by ``train.save_training_outputs``."""
-    import train as train_mod
+    import training.train as train_mod
     return train_mod.load_stored_costs(outdir, fname, n_runs)
 
 
 def add_plot_arguments(parser):
     """Register plot-only CLI flags shared by train.py and plot_trained.py."""
-    from train import parse_bool
+    from training.train import parse_bool
 
     parser.add_argument(
         '--v-delta',

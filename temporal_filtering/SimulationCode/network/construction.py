@@ -28,9 +28,9 @@ import numpy as np
 import torch
 
 from .connectivity import ScatterConn
-from Medulla_Library import I_BASELINE, I_BRIGHT
+from config import I_BASELINE, I_BRIGHT
 from neuron_model.schema import SYN_MODE_DEFAULT, normalize_syn_mode
-from training_config import SIM_DTYPE_DEFAULT
+from config import SIM_DTYPE_DEFAULT
 
 # Default synaptic scale (matches FiveCol exc_synweight == inh_synweight == 0.001).
 DEFAULT_SYNWEIGHT = 0.001

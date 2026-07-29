@@ -4,15 +4,15 @@ Marks spot centres (crimson) and draws each spot's axial-extent hex
 (straight edges through ``(spot_extent + 0.5) * _HEX_DIRECTIONS``, via
 ``uv_to_xy_deg`` — not a Euclidean RegularPolygon) on
 :func:`column_mapper.draw_fafb_columns` for network columns only.
-Spot centres from :func:`network.spot_target.build_spotting`.
+Spot centres from :func:`stimulus.spot.input.build_spotting`.
 
 Usage (from SimulationCode/, project .venv):
 
-    ../.venv/bin/python visual_stimulus/plot_multi_spot.py
-    ../.venv/bin/python visual_stimulus/plot_multi_spot.py --spot-extents 0.5,1,1.5,2
-    ../.venv/bin/python visual_stimulus/plot_multi_spot.py --network right_min_neuron1_extent2
-    ../.venv/bin/python visual_stimulus/plot_multi_spot.py --fully-inside false
-    ../.venv/bin/python visual_stimulus/plot_multi_spot.py --multi-spot false
+    ../.venv/bin/python -m plot.stimulus_preview.plot_multi_spot
+    ../.venv/bin/python -m plot.stimulus_preview.plot_multi_spot --spot-extents 0.5,1,1.5,2
+    ../.venv/bin/python -m plot.stimulus_preview.plot_multi_spot --network right_min_neuron1_extent2
+    ../.venv/bin/python -m plot.stimulus_preview.plot_multi_spot --fully-inside false
+    ../.venv/bin/python -m plot.stimulus_preview.plot_multi_spot --multi-spot false
 """
 from __future__ import annotations
 
@@ -30,13 +30,13 @@ import numpy as np
 import pandas as pd
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-ROOT = os.path.dirname(HERE)
+ROOT = os.path.dirname(os.path.dirname(HERE))
 PLOT_DIR = os.path.join(HERE, "plotted_multi_spot")
 sys.path.insert(0, ROOT)
 os.chdir(ROOT)
 os.environ.setdefault("CUDA_VISIBLE_DEVICES", "")
 
-import network_bootstrap  # noqa: F401
+import network.bootstrap  # noqa: F401
 from column_mapper import (
     FIELD_VIEW_PAD_DEG,
     HEX_PATCH_RADIUS,
@@ -48,14 +48,14 @@ from column_mapper import (
 )
 from connectome_io import DEFAULT_NETWORK_RUN, network_run_tag, resolve_network_json
 from network.construction import Network, load_network
-from network.spot_target import (
+from stimulus.spot.input import (
     DEFAULT_SPOT_EXTENTS,
     build_spotting,
     spot_dist,
     spot_extent_half_steps,
 )
 from connectome_io import parse_comma_list
-from train import add_spot_layout_arguments
+from training.train import add_spot_layout_arguments
 
 _SPOT_EXTENTS_CLI_DEFAULT = ",".join(
     str(int(x)) if float(x) == int(x) else str(x) for x in DEFAULT_SPOT_EXTENTS

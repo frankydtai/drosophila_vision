@@ -15,7 +15,7 @@ optimizer; ``inv`` stores ``z = 1/physical``. In both cases
 """
 from __future__ import annotations
 
-from training_config import DELTAT_MS
+from config import DELTAT_MS
 
 # Shared gain box (in_gain / out_gain / out_scale upper end; syn_strength hi).
 GAIN_LO = 0.1

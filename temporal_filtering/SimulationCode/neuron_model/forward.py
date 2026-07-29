@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import torch
 
-from neuron_model.constants import Ca_tau, deltat
+from neuron_model.ca_filter import ca_readout_step
 from neuron_model import conductance as _conductance
 from neuron_model import hp_lp as _hp_lp
 
@@ -17,11 +17,6 @@ MODEL_DRIVERS = {
     "conductance": _conductance,
     "hp_lp": _hp_lp,
 }
-
-
-def ca_readout_step(ca, v, v_ref):
-    """One Ca low-pass step on ``v - v_ref`` (shared by all models)."""
-    return deltat / Ca_tau * (v - v_ref - ca) + ca
 
 
 def run_full(session, p, sig, *, return_ref=False, return_v_delta=False, pack=None):
@@ -37,8 +32,6 @@ def run_full(session, p, sig, *, return_ref=False, return_v_delta=False, pack=No
     ca_full ``(B, T, N)``, or with ``return_v_delta``: ``v_delta`` / ``(v_delta,
     v_ref, v_full)``.
     """
-    import FiveCol_MedSim_Pytorch as fc
-
     try:
         drv = MODEL_DRIVERS[session.model]
     except KeyError as exc:
@@ -110,38 +103,3 @@ def run_units(
     if return_ref:
         return out, v_ref
     return out
-
-
-def pack_readout(p, pack, session, batch_idx=None):
-    """Shared pack readout via ``run_full`` (waveform MSE only when needed)."""
-    import FiveCol_MedSim_Pytorch as fc
-
-    sig = pack.signal if batch_idx is None else pack.signal[batch_idx:batch_idx + 1]
-    ca_full = run_full(session, p, sig, pack=pack)
-    need_mse = fc._pack_needs_waveform_mse(pack)
-    t_on = int(pack.signal.shape[1] - pack.data.shape[1])
-    if batch_idx is None:
-        dsi_sel = ca_full[pack.readout_batch, t_on:, pack.readout_unit]
-        if not need_mse:
-            return None, dsi_sel
-        return fc._readout_ca_traces_pack(ca_full, pack), dsi_sel
-    mask = pack.readout_batch == int(batch_idx)
-    u_m = pack.readout_unit[mask]
-    dsi_sel = ca_full[0, t_on:, u_m].transpose(0, 1)
-    if not need_mse:
-        return None, dsi_sel
-    if pack.cost_t0 is None:
-        return dsi_sel, dsi_sel
-    b_zero = torch.zeros_like(u_m)
-    mse_sel = fc._window_time_traces(
-        ca_full, b_zero, u_m, pack.cost_t0[mask],
-        win=pack.data.shape[1],
-    )
-    return mse_sel, dsi_sel
-
-
-# Register pack readouts here — batching stays in FiveCol ``_pack_cost``.
-CA_PACK_READOUTS = {
-    "conductance": pack_readout,
-    "hp_lp": pack_readout,
-}

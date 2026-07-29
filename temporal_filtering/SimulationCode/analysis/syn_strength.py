@@ -26,11 +26,11 @@ if ROOT not in sys.path:
     sys.path.insert(0, ROOT)
 os.chdir(ROOT)
 
-import network_bootstrap  # noqa: F401  # FAFB on sys.path
+import network.bootstrap  # noqa: F401  # FAFB on sys.path
 import cell_syn
-import FiveCol_MedSim_Pytorch as fc
-import plot_trained
-import train as train_mod
+import training as fc
+import plot.plot_trained as plot_trained
+import training.train as train_mod
 from connectome_io import parse_comma_list
 from network.connectivity import build_type_pair_index
 from network.construction import read_network_json

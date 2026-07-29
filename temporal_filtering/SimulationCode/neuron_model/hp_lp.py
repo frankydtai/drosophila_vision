@@ -40,11 +40,11 @@ def update_state_hp_lp(v, a, p, x_t, backend):
 def prepare_signal(session, p, sig, pack):
     """PR current scaled by peak ``i_*`` → activity-model drive ``(B, T, N)``."""
     del p
-    import FiveCol_MedSim_Pytorch as fc
+    from training.session import _pack_signal_scale
 
     pack = pack or session.primary_pack
     x = sig.unsqueeze(0) if sig.dim() == 2 else sig
-    return x / fc._pack_signal_scale(pack, session)
+    return x / _pack_signal_scale(pack, session)
 
 
 def init_state(session, p, B):

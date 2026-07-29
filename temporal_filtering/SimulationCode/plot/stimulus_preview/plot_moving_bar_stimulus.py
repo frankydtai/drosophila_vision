@@ -1,13 +1,13 @@
 """Visualise moving-bar column coverage (demo only).
 
-Connectome: hex sti field from ``network.moving_bar_target``.
+Connectome: hex sti field from ``stimulus.moving_bar.input``.
 
 Usage (from SimulationCode/, uses project .venv):
 
-    ../.venv/bin/python visual_stimulus/plot_moving_bar_stimulus.py
-    ../.venv/bin/python visual_stimulus/plot_moving_bar_stimulus.py --gif
-    ../.venv/bin/python visual_stimulus/plot_moving_bar_stimulus.py --network right_min_neuron1_extent2 --direction down --gif
-    ../.venv/bin/python visual_stimulus/plot_moving_bar_stimulus.py --network right_min_neuron1_extent2 --bar-extent 2
+    ../.venv/bin/python -m plot.stimulus_preview.plot_moving_bar_stimulus
+    ../.venv/bin/python -m plot.stimulus_preview.plot_moving_bar_stimulus --gif
+    ../.venv/bin/python -m plot.stimulus_preview.plot_moving_bar_stimulus --network right_min_neuron1_extent2 --direction down --gif
+    ../.venv/bin/python -m plot.stimulus_preview.plot_moving_bar_stimulus --network right_min_neuron1_extent2 --bar-extent 2
 """
 from __future__ import annotations
 
@@ -16,7 +16,7 @@ import os
 import sys
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-ROOT = os.path.dirname(HERE)
+ROOT = os.path.dirname(os.path.dirname(HERE))
 PLOT_DIR = os.path.join(HERE, "plotted_moving_bar")
 sys.path.insert(0, ROOT)
 os.chdir(ROOT)
@@ -28,11 +28,9 @@ import numpy as np
 from matplotlib.animation import FuncAnimation, PillowWriter
 from matplotlib.patches import Rectangle
 
-from Medulla_Library import I_BASELINE, I_BRIGHT
-from training_config import DELTAT_MS
+from config import I_BASELINE, I_BRIGHT, DELTAT_MS
 from network.construction import load_network
-from network.moving_bar_target import build_moving_bar_signals, sti_columns
-from train import parse_bool
+from training.train import parse_bool
 from connectome_io import parse_comma_list
 from column_mapper import (
     FIELD_VIEW_PAD_DEG,
@@ -42,14 +40,16 @@ from column_mapper import (
     set_axis_labels,
     uv_to_xy_deg,
 )
-from visual_stimulus.moving_bar_stimulus import (
+from stimulus.moving_bar.input import (
     DEFAULT_BAR_EXTENT,
     GRUNTMAN_CONTRASTS,
     GRUNTMAN_DIRECTIONS,
     bar_lane_rects_at_step,
+    build_moving_bar_signals,
     field_bounds,
     gruntman_moving_bar_specs,
     moving_bar_transit_times,
+    sti_columns,
 )
 from connectome_io import DEFAULT_NETWORK_RUN, network_run_tag, resolve_network_json
 

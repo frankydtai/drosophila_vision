@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Tuple
 
-from training_config import DELTAT_MS
+from config import DELTAT_MS
 
 # simulation step
 deltat = DELTAT_MS  # [ms]

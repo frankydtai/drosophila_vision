@@ -9,8 +9,8 @@ import matplotlib.pyplot as plt
 import numpy as np
 import torch
 
-import network_bootstrap  # noqa: F401 — connectome_io on sys.path
-import FiveCol_MedSim_Pytorch as fc
+import network.bootstrap  # noqa: F401 — connectome_io on sys.path
+import training as fc
 from connectome_io import parse_comma_list
 
 DATA_COLOR = 'gray'

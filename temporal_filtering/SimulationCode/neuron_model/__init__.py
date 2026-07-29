@@ -2,8 +2,9 @@
 """Neuron models: conductance, hp_lp.
 
 Dynamics / schemas live in per-model modules. Shared full-T Ca forward is
-``neuron_model.forward``. ``FiveCol_MedSim_Pytorch`` owns session, cost, and
-training drivers and re-exports these symbols for callers.
+``neuron_model.forward``; the Ca readout filter and its inverse live in
+``neuron_model.ca_filter``; pack readout selection in ``neuron_model.readout``.
+The ``training`` package owns session, cost, and the CLI driver.
 """
 from __future__ import annotations
 
@@ -46,13 +47,17 @@ from neuron_model.schema import (
 )
 from neuron_model import conductance as _conductance
 from neuron_model import hp_lp as _hp_lp
+from neuron_model.ca_filter import CA_ALPHA, ca_readout_step, ca_to_v_delta
 from neuron_model.forward import (
     MODEL_DRIVERS,
-    CA_PACK_READOUTS,
-    ca_readout_step,
-    pack_readout,
     run_full,
     run_units,
+)
+from neuron_model.readout import (
+    CA_PACK_READOUTS,
+    pack_readout,
+    readout_pack_traces,
+    window_time_traces,
 )
 
 # --- conductance ---
@@ -62,13 +67,6 @@ v_budget_from_g = _conductance.v_budget_from_g
 
 # --- hp_lp ---
 update_state_hp_lp = _hp_lp.update_state_hp_lp
-
-
-def params_from_z(z, session):
-    """Unpack z → param dict for ``session.model``."""
-    import FiveCol_MedSim_Pytorch as fc
-
-    return fc.assign_params(z, list(session.schema), session.backend)
 
 
 __all__ = [
@@ -92,10 +90,13 @@ __all__ = [
     "v_budget_from_g",
     "update_state_hp_lp",
     "ca_readout_step",
+    "ca_to_v_delta",
+    "CA_ALPHA",
     "run_full",
     "run_units",
     "pack_readout",
-    "params_from_z",
+    "readout_pack_traces",
+    "window_time_traces",
     "STATE_CLAMP",
     "deltat",
     "Ca_tau",

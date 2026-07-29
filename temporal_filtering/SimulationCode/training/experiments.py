@@ -2,9 +2,9 @@
 """Shared helpers for ``add_data`` mirror-fit experiment scripts."""
 from __future__ import annotations
 
-import FiveCol_MedSim_Pytorch as fc
-import train
-from param_defaults import DEFAULT_IH_GMAX_INDI_NAMES
+import training as fc
+import training.train as train
+from neuron_model.param_defaults import DEFAULT_IH_GMAX_INDI_NAMES
 from plot.readout import fit_ref_cubes
 
 

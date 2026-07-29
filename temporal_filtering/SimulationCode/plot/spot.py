@@ -12,9 +12,8 @@ import matplotlib.pyplot as plt
 import numpy as np
 import torch
 
-from training_config import DELTAT_MS
-import blindschleiche_py3 as bs
-import FiveCol_MedSim_Pytorch as fc
+from config import DELTAT_MS
+import training as fc
 from plot.readout import (
     pack_readout_types,
     plot_present_layout,
@@ -42,15 +41,19 @@ from plot.utils import (
     suppress_cost_sem,
     v_th_by_type_name,
 )
-from network.spot_target import (
+from stimulus.spot.input import (
     euclid_hex_dist,
-    resolve_spot_cost_radii,
     spotting_from_opts,
-    spot_center_bin_layout,
     spot_stimulus_batches,
+)
+from stimulus.spot.data import (
+    resolve_spot_cost_radii,
+    spot_center_bin_layout,
 )
 
 CENTER_BIN = 4  # RecF spatial centre bin (j=4 in 0..8)
+RF_N_BINS = 9
+RF_BIN_X = np.arange(RF_N_BINS) * 5  # j=0..8 on mirrored RF axis (-20..20)
 
 
 def _radius_to_profile_bins(radius):
@@ -81,25 +84,26 @@ def _session_spot_timing(session):
             int(maxtime) if maxtime is not None else None)
 
 
-def resolve_spot_ref_cubes(session_1, session_2=None, ref_cubes=None, ref_cubes_2=None):
+def resolve_spot_ref_cubes(session_1, session_2=None, ref_cubes=None, ref_cubes_2=None,
+                           *, v_delta=False):
     dual = session_2 is not None
     t_on_1, mt_1 = _session_spot_timing(session_1)
     if ref_cubes is not None:
         ref_1 = ref_cubes
     elif dual:
         ref_1 = spot_ref_cubes(session_1, 'spot_bright', dark=False,
-                               t_on=t_on_1, maxtime=mt_1)
+                               t_on=t_on_1, maxtime=mt_1, v_delta=v_delta)
     else:
         ref_1 = spot_ref_cubes(
             session_1, session_1.primary_pack.name, dark=_session_dark(session_1),
-            t_on=t_on_1, maxtime=mt_1,
+            t_on=t_on_1, maxtime=mt_1, v_delta=v_delta,
         )
     if ref_cubes_2 is not None:
         ref_2 = ref_cubes_2
     elif dual:
         t_on_2, mt_2 = _session_spot_timing(session_2)
         ref_2 = spot_ref_cubes(session_2, 'spot_dark', dark=True,
-                               t_on=t_on_2, maxtime=mt_2)
+                               t_on=t_on_2, maxtime=mt_2, v_delta=v_delta)
     else:
         ref_2 = None
     return ref_1, ref_2
@@ -110,7 +114,7 @@ def _session_dark(session):
 
 
 def scale_curve(xt, center, sem_xt=None, *, response_start=None):
-    """Center time course + spatial profile from one ``(9, T)`` cube."""
+    """Center time course + discrete RF bins from one ``(9, T)`` cube."""
     if response_start is None:
         raise ValueError("scale_curve requires response_start (t_on step)")
     t0 = int(response_start)
@@ -121,13 +125,32 @@ def scale_curve(xt, center, sem_xt=None, *, response_start=None):
             return None, None, None
         return None, None
     maxt = t0 + int(np.argmax(np.abs(resp)))
-    spatial = np.nan_to_num(xt[:, maxt], nan=0.0)
-    rf = bs.blurr(bs.rebin(spatial, 45), 5)
-    amp = float(np.abs(imp[maxt]))
-    rf = rf / (np.max(np.abs(rf)) + 1e-12) * amp
+    spatial = np.asarray(xt[:, maxt], dtype=np.float64)
     if sem_xt is not None:
-        return imp, np.roll(rf, -2), sem_xt[center]
-    return imp, np.roll(rf, -2)
+        return imp, spatial, sem_xt[center]
+    return imp, spatial
+
+
+def _plot_rf_profile(ax, rf, *, color, label=None, linestyle='-'):
+    """Plot finite RF bins only (j=0..8); skip NaN (no cost readout)."""
+    if rf is None:
+        return
+    rf = np.asarray(rf, dtype=np.float64)
+    mask = np.isfinite(rf)
+    if not mask.any():
+        return
+    kw = dict(
+        color=color,
+        label=label,
+        linestyle='none',
+        marker='o',
+        markersize=6,
+        fillstyle='none',
+        markeredgewidth=1.2,
+    )
+    if linestyle == '--':
+        kw['markeredgewidth'] = 1.0
+    ax.plot(RF_BIN_X[mask], rf[mask], **kw)
 
 
 def _style_time_axis(ax, show_xlabel, maxtime):
@@ -191,26 +214,14 @@ def plot_cell_pair(
         model_2_imp_data, model_2_rf_data = scale_curve(ref_2_xt, center, **sc_kw)
     ylo, yhi = TRACE_YLIM
 
-    if rf_data is not None:
-        ax_rf.plot(
-            rf_data, color=DATA_COLOR, linewidth=TRACE_LW,
-            label=label_1_data, linestyle=linestyle_1,
-        )
-    if rf_model is not None:
-        ax_rf.plot(
-            rf_model, color=MODEL_COLOR, linewidth=TRACE_LW,
-            label=label_1_model, linestyle=linestyle_1,
-        )
-    if model_2_rf_data is not None:
-        ax_rf.plot(
-            model_2_rf_data, color=DATA_COLOR, linewidth=TRACE_LW,
-            linestyle=linestyle_2, label=label_2_data,
-        )
-    if model_2_rf_model is not None:
-        ax_rf.plot(
-            model_2_rf_model, color=MODEL_COLOR, linewidth=TRACE_LW,
-            linestyle=linestyle_2, label=label_2_model,
-        )
+    _plot_rf_profile(ax_rf, rf_data, color=DATA_COLOR, label=label_1_data, linestyle=linestyle_1)
+    _plot_rf_profile(ax_rf, rf_model, color=MODEL_COLOR, label=label_1_model, linestyle=linestyle_1)
+    _plot_rf_profile(
+        ax_rf, model_2_rf_data, color=DATA_COLOR, label=label_2_data, linestyle=linestyle_2,
+    )
+    _plot_rf_profile(
+        ax_rf, model_2_rf_model, color=MODEL_COLOR, label=label_2_model, linestyle=linestyle_2,
+    )
     ax_rf.set_title(title, fontsize=8, pad=2)
     ax_rf.set_ylim(ylo, yhi)
     _style_recf_profile_axis(ax_rf, show_xlabels)
@@ -293,40 +304,24 @@ def plot_cell_pair_slices(
     ylo, yhi = TRACE_YLIM
 
     colors = overlay_model_reds(len(slice_labels))
-    if rf_data is not None:
-        ax_rf.plot(
-            rf_data, color=DATA_COLOR, linewidth=TRACE_LW,
-            label=label_1_data, linestyle=linestyle_1,
-        )
+    _plot_rf_profile(ax_rf, rf_data, color=DATA_COLOR, label=label_1_data, linestyle=linestyle_1)
     for i, label in enumerate(slice_labels):
-        rf_s = slice_rfs.get(label)
-        if rf_s is not None:
-            ax_rf.plot(
-                rf_s, color=colors[i], linewidth=TRACE_LW,
-                label=label, linestyle=linestyle_1,
-            )
-    if rf_model is not None:
-        ax_rf.plot(
-            rf_model, color=colors[-1], linewidth=TRACE_LW,
-            label=label_1_total, linestyle=linestyle_1,
+        _plot_rf_profile(
+            ax_rf, slice_rfs.get(label), color=colors[i], label=label, linestyle=linestyle_1,
         )
-    if model_2_rf_data is not None:
-        ax_rf.plot(
-            model_2_rf_data, color=DATA_COLOR, linewidth=TRACE_LW,
-            linestyle=linestyle_2, label=label_2_data,
-        )
+    _plot_rf_profile(
+        ax_rf, rf_model, color=colors[-1], label=label_1_total, linestyle=linestyle_1,
+    )
+    _plot_rf_profile(
+        ax_rf, model_2_rf_data, color=DATA_COLOR, label=label_2_data, linestyle=linestyle_2,
+    )
     for i, label in enumerate(slice_labels):
-        rf_s = slice_2_rfs.get(label)
-        if rf_s is not None:
-            ax_rf.plot(
-                rf_s, color=colors[i], linewidth=TRACE_LW,
-                linestyle=linestyle_2,
-            )
-    if model_2_rf_model is not None:
-        ax_rf.plot(
-            model_2_rf_model, color=colors[-1], linewidth=TRACE_LW,
-            linestyle=linestyle_2, label=label_2_total,
+        _plot_rf_profile(
+            ax_rf, slice_2_rfs.get(label), color=colors[i], linestyle=linestyle_2,
         )
+    _plot_rf_profile(
+        ax_rf, model_2_rf_model, color=colors[-1], label=label_2_total, linestyle=linestyle_2,
+    )
     ax_rf.set_title(title, fontsize=8, pad=2)
     ax_rf.set_ylim(ylo, yhi)
     _style_recf_profile_axis(ax_rf, show_xlabels)
@@ -483,6 +478,7 @@ class SpotTraceBundle:
     prep_s: float = 0.0
     v_th_by_name: dict = field(default_factory=dict)
     response_start: int | None = None
+    trace_kind: str = 'ca'
 
     @property
     def has_slices(self):
@@ -730,6 +726,7 @@ def network_spot_trace_bundle(
         prep_s=time.perf_counter() - t_prep0,
         v_th_by_name=v_th_by_type_name(z, session),
         response_start=rows.get('t_on'),
+        trace_kind=trace_kind,
     )
 
 
@@ -766,8 +763,11 @@ def _plot_spot_figure(
     response_start = bundle_on.response_start
     timer.end_prep()
     dual = session_2 is not None
+    # #5: when the model traces are delta-Vm, invert the Ca filter on the gray
+    # reference data so both curves share the same units.
     ref_1, ref_2 = resolve_spot_ref_cubes(
         session_1, session_2, ref_cubes, ref_cubes_2,
+        v_delta=(getattr(bundle_on, "trace_kind", "ca") == "v"),
     )
     nrows = 2 * len(group_rows)
     fig = plt.figure(figsize=figsize_fn(ncols, nrows))

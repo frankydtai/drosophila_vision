@@ -5,7 +5,10 @@ from __future__ import annotations
 import numpy as np
 import torch
 
-import Medulla_Library as ml
+from config import DATA_AMP
+from neuron_model import ca_to_v_delta
+from stimulus.constants import cell_list
+from stimulus.spot.data import read_RecF_data, read_RecF_data_dark
 from network.construction import (
     TYPE_FAMILY_ROWS,
     type_family_row_groups,
@@ -87,18 +90,24 @@ def _mirror_ref_specs_from_override(override):
     return specs
 
 
-def fit_ref_cubes(dark=False, *, t_on=None, maxtime=None):
-    """RecF reference cubes for the 13 fit cell types."""
+def fit_ref_cubes(dark=False, *, t_on=None, maxtime=None, v_delta=False):
+    """RecF reference cubes for the 13 fit cell types.
+
+    ``v_delta`` inverts the Ca low-pass (``ca_to_v_delta``) so the gray data
+    matches a model delta-Vm readout (#5), using the same filter as ``--readout v``.
+    """
     kw = dict(t_on=t_on, maxtime=maxtime)
-    data = ml.read_RecF_data_dark(**kw) if dark else ml.read_RecF_data(**kw)
-    ref = data * ml.DATA_AMP
-    return {str(name): ref[i] for i, name in enumerate(ml.cell_list)}
+    data = read_RecF_data_dark(**kw) if dark else read_RecF_data(**kw)
+    ref = data * DATA_AMP
+    if v_delta:
+        ref = ca_to_v_delta(ref, t_on=int(t_on or 0))
+    return {str(name): ref[i] for i, name in enumerate(cell_list)}
 
 
-def spot_ref_cubes(session, target=None, dark=False, *, t_on=None, maxtime=None):
+def spot_ref_cubes(session, target=None, dark=False, *, t_on=None, maxtime=None, v_delta=False):
     """Spot model-data reference cubes from ``read_RecF_data`` (shape ``(9, T)``)."""
     target = target or session.primary_pack.name
-    ref = dict(fit_ref_cubes(dark=dark, t_on=t_on, maxtime=maxtime))
+    ref = dict(fit_ref_cubes(dark=dark, t_on=t_on, maxtime=maxtime, v_delta=v_delta))
     overrides = (session.train_opts or {}).get('pack_overrides') or {}
     for mirror_types, mirror_fit, mirror_sign in _mirror_ref_specs_from_override(
         overrides.get(target),

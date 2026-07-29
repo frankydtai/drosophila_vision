@@ -26,4 +26,4 @@ echo "GPU:    ${CUDA_VISIBLE_DEVICES:-unset}"
 nvidia-smi -L || true
 "${PYTHON}" -c "import torch; print('cuda:', torch.cuda.is_available(), torch.cuda.get_device_name(0) if torch.cuda.is_available() else '')"
 echo "Start:  $(date)"
-"${PYTHON}" -u train.py --nofsteps 1000 --tau-hp init=L1,L2,L4,L5:200 all:10000
+"${PYTHON}" -u -m training.train --nofsteps 1000 --tau-hp init=L1,L2,L4,L5:200 all:10000

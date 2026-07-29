@@ -48,6 +48,16 @@ def sim_dtype_from_fp32(fp32: bool) -> torch.dtype:
     return torch.float32 if fp32 else SIM_DTYPE_DEFAULT
 
 # ---------------------------------------------------------------------------
+# Photoreceptor drive currents (pA) and target amplitude scale. Shared by the
+# network signal builder (``network.construction.build_signal``) and every
+# stimulus paradigm, so they live in the foundation rather than in one layer.
+# ---------------------------------------------------------------------------
+I_BASELINE = 20.0  # PR current before stimulus onset
+I_BRIGHT = 40.0    # PR current at bright / on-step peak
+I_DARK = 0.0       # PR current at full dark-bar coverage
+DATA_AMP = 20.0    # pA scale on ImpR target traces (fit cells)
+
+# ---------------------------------------------------------------------------
 # Spot / impulse timing (``DELTAT_MS`` = 10 ms per step at default settings).
 #
 # ``t_on`` (stimulus onset step) and ``maxtime`` (total simulation steps) are

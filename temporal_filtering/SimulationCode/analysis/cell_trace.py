@@ -54,15 +54,15 @@ from dataclasses import dataclass
 
 import numpy as np
 
-import FiveCol_MedSim_Pytorch as fc
-import plot_trained
+import training as fc
+import plot.plot_trained as plot_trained
 from plot import moving_bar as moving_bar_plot
 from plot import spot as spot_plot
 from plot.utils import parse_axis_slice_list, slice_xy_label
 from connectome_io import parse_comma_list
-from train import parse_target_list
-from network.moving_bar_target import filter_requested_specs
-from training_config import run_data_dir
+from training.train import parse_target_list
+from stimulus.moving_bar.data import filter_requested_specs
+from config import run_data_dir
 
 
 DEFAULT_POST_ONSET_MS = 1500.0
@@ -506,7 +506,7 @@ def main():
 
     for run_i, run_arg in enumerate(args.run):
         run_dir = plot_trained.resolve_run_dir(run_arg)
-        import train as train_mod
+        import training.train as train_mod
 
         # Base load: get the stored best parameter + its cost for labeling.
         session0, _z0, best_i, best_cost = plot_trained.load_best(run_dir)

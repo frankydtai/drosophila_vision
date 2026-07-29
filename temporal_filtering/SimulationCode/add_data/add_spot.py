@@ -8,10 +8,10 @@ ROOT = os.path.dirname(HERE)
 sys.path.insert(0, ROOT)
 os.chdir(ROOT)
 
-import train
+import training.train as train
 from connectome_io import parse_comma_list
-from t4_t5_dsi import READOUT_SUBTYPES
-from utils import run_mirror_spot_experiment
+from stimulus.moving_bar.data import READOUT_SUBTYPES
+from training.experiments import run_mirror_spot_experiment
 
 SPOT_KINDS = ('r', 't45')
 

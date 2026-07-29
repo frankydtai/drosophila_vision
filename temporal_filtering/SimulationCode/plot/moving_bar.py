@@ -10,8 +10,8 @@ import matplotlib.pyplot as plt
 import numpy as np
 import torch
 
-import FiveCol_MedSim_Pytorch as fc
-from t4_t5_dsi import (
+import training as fc
+from stimulus.moving_bar.data import (
     READOUT_SUBTYPES,
     fig1_key_for_stimulus,
     motion_preference,
@@ -42,18 +42,20 @@ from plot.utils import (
     suppress_cost_sem,
     v_th_by_type_name,
 )
-import network_bootstrap  # noqa: F401  # ensure FAFBv783 modules are importable
-from network.moving_bar_target import (
+import network.bootstrap  # noqa: F401  # ensure FAFBv783 modules are importable
+from stimulus.moving_bar.data import (
     bar_specs_for_session,
-    filter_sti_columns,
     load_fig1_trace,
-    moving_bar_cost_columns,
     moving_bar_row_specs,
     moving_bar_session_t0_grids,
     moving_bar_units_on_columns,
+)
+from stimulus.moving_bar.input import (
+    filter_sti_columns,
+    moving_bar_cost_columns,
     network_uv_np,
 )
-from training_config import (
+from config import (
     COST_WINDOW_AFTER,
     COST_WINDOW_BEFORE,
     DELTAT_MS,
@@ -548,10 +550,10 @@ def _moving_bar_scope_label(session, *, at_x=None, at_y=None, n_filter_cols=None
             parts.insert(0, f'cost_extent={cost_extent}')
         return ', '.join(parts)
     if cost_extent is not None:
-        from network.moving_bar_target import moving_bar_cost_columns
+        from stimulus.moving_bar.input import moving_bar_cost_columns
         ncols = len(moving_bar_cost_columns(C, cost_extent=cost_extent))
         return f'cost_extent={cost_extent} ({ncols} sti columns)'
-    from network.moving_bar_target import sti_columns
+    from stimulus.moving_bar.input import sti_columns
     return f'avg over {len(sti_columns(C))} sti columns'
 
 

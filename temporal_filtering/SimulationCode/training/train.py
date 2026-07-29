@@ -1,7 +1,7 @@
 """Unified training driver for the FiveCol medulla model.
 
 All results of a run land in one folder under
-``training_config.PARAMETER_DIR`` (default ``SimulationCode/0trained``):
+``config.PARAMETER_DIR`` (default ``SimulationCode/0trained``):
 
     <model>/<run_name>/
 
@@ -16,39 +16,41 @@ where <run_name> encodes the CLI, e.g.
 ``26758480-run-nofsteps-50-target-moving_bar,spot-network-right_min_neuron1_extent2-shift``
 (job id under SLURM, else a timestamp prefix).
 
+From ``SimulationCode/`` with the project ``.venv``:
+
     # short smoke test
-    python train.py --model hp_lp --nofsteps 30 --lrs 0.1
+    ../.venv/bin/python -m training.train --model hp_lp --nofsteps 30 --lrs 0.1
 
     # full training
-    python train.py --model conductance --nofruns 1 --nofsteps 10000 \\
+    ../.venv/bin/python -m training.train --model conductance --nofruns 1 --nofsteps 10000 \\
                   --lrs 0.1,0.01,0.001
 
     # per-target PR currents (comma-separated TARGET=VALUE)
-    python train.py --target spot,moving_bar --i-baseline spot=20,moving_bar=22 \\
+    ../.venv/bin/python -m training.train --target spot,moving_bar --i-baseline spot=20,moving_bar=22 \\
                   --i-bright spot_bright=45 --i-dark spot_dark=0,moving_bar_dark=2
 
     # moving-bar (``--network`` = folder under built_network/)
-    python train.py --target moving_bar --network right_min_neuron1_extent2 \\
+    ../.venv/bin/python -m training.train --target moving_bar --network right_min_neuron1_extent2 \\
                   --nofsteps 5 --lrs 0.1
 
     # warm-start from a previous run (named best_param.npz; settings from this CLI)
-    python train.py --from run_26693975 \\
+    ../.venv/bin/python -m training.train --from run_26693975 \\
                   --network right_min_neuron1_extent2 --target moving_bar_bright \\
                   --nofsteps 10000 --lrs 0.1,0.01,0.001
 
     # freeze all syn_strength; only L1,L2,L4,L5 train Ih_gmax
-    python train.py --syn-strength frozen=all \\
+    ../.venv/bin/python -m training.train --syn-strength frozen=all \\
                   --ih-gmax indi=L1,L2,L4,L5 fixed=all --ih-shape shared=all
 
     # per-edge weights (ignore n_syn; sign fixed; magnitude trainable)
-    python train.py --syn-mode per_edge --edge-weight indi=all \\
+    ../.venv/bin/python -m training.train --syn-mode per_edge --edge-weight indi=all \\
                   --nofsteps 1000 --lrs 0.1
 
     # same partition on every parameter (per-param flags override)
-    python train.py --all-param indi=all --syn-strength frozen=all
+    ../.venv/bin/python -m training.train --all-param indi=all --syn-strength frozen=all
 
-Import-safe: importing this module does NOT parse argv or touch CUDA, so test
-scripts can `import train` and reuse run_training / save_training_outputs / etc.
+Import-safe: importing this module does NOT parse argv or touch CUDA, so other
+scripts can ``import training.train`` and reuse run_training / save_training_outputs.
 """
 import argparse
 import json
@@ -59,17 +61,17 @@ from pathlib import Path
 import numpy as np
 import torch
 
-import network_bootstrap  # noqa: F401 — connectome_io on sys.path
+import network.bootstrap  # noqa: F401 — connectome_io on sys.path
 from connectome_io import (
     DEFAULT_NETWORK_RUN,
     NETWORK_DIR,
     parse_comma_list,
     resolve_network_json,
 )
-from network.spot_target import DEFAULT_SHIFT_EXTENT
-from FiveCol_MedSim_Pytorch import do_many_runs
-import FiveCol_MedSim_Pytorch as fc
-from plot_trained import (
+from stimulus.spot.input import DEFAULT_SHIFT_EXTENT
+from training import do_many_runs
+import training as fc
+from plot.plot_trained import (
     add_plot_arguments,
     command_run_name,
     plot_kwargs_from_args,
@@ -77,8 +79,8 @@ from plot_trained import (
     resolve_run_dir,
     run_dir,
 )
-from param_defaults import DEFAULT_IH_GMAX_INDI_NAMES
-from training_config import (
+from neuron_model.param_defaults import DEFAULT_IH_GMAX_INDI_NAMES
+from config import (
     EDGE_WEIGHT_CSV,
     PARAM_CSV,
     SYN_STRENGTH_CSV,
@@ -758,7 +760,7 @@ def run_training(model, nofruns, nofsteps, lrs, fname=None, outdir=None,
 
 def add_spot_layout_arguments(parser):
     """Spot centre tiling flags (``--multi-spot``, ``--fully-inside``)."""
-    from network.spot_target import DEFAULT_FULLY_INSIDE, DEFAULT_MULTI_SPOT
+    from stimulus.spot.input import DEFAULT_FULLY_INSIDE, DEFAULT_MULTI_SPOT
 
     parser.add_argument(
         "--multi-spot",
@@ -973,6 +975,27 @@ def add_training_arguments(parser):
         help="spot stimulus onset time in ms (default %(default)s; "
              "maxtime auto-extends to t_on + RESPONSE_DURATION)",
     )
+    parser.add_argument(
+        "--pulse-ms",
+        type=float,
+        default=None,
+        metavar="MS",
+        help="spot: bright/dark PR pulse duration in ms from t_on; "
+             "omit = step held to maxtime (#1)",
+    )
+    parser.add_argument(
+        "--cost-time-ms",
+        default="",
+        metavar="MS,MS,...",
+        help="spot: train only on these post-onset times in ms "
+             "(comma list, e.g. 0,100,...,1500); empty = every post-onset step (#4)",
+    )
+    parser.add_argument(
+        "--readout",
+        default="ca",
+        choices=("ca", "v"),
+        help="spot: train on Ca (default) or delta-Vm 'v' (#2)",
+    )
     add_plot_arguments(parser)
 
 
@@ -1015,7 +1038,7 @@ def parse_comma_floats(text):
 
 def parse_target_list(text):
     """Parse comma-separated training targets (with alias expansion)."""
-    return fc._normalize_target_list(parse_comma_list(text))
+    return fc.normalize_target_list(parse_comma_list(text))
 
 
 def parse_target_names(text):
@@ -1065,7 +1088,7 @@ def parse_cost_weight(text, target_list):
 
 def parse_spot_cost_r_w(text, spot_extent):
     """Parse ``--spot-cost-r-w``; empty → ``None`` (extent default at resolve)."""
-    from network.spot_target import parse_spot_cost_r_w_tokens
+    from stimulus.spot.data import parse_spot_cost_r_w_tokens
 
     return parse_spot_cost_r_w_tokens(text, spot_extent=spot_extent)
 
@@ -1165,12 +1188,12 @@ def training_kwargs_from_args(
         raise ValueError("--cost-extent must be -1 or >= 0")
     if args.shift_extent < 0:
         raise ValueError("--shift-extent must be >= 0")
-    from network.spot_target import DEFAULT_SPOT_EXTENT, spot_extent_half_steps
+    from stimulus.spot.input import DEFAULT_SPOT_EXTENT, spot_extent_half_steps
 
     spot_extent = DEFAULT_SPOT_EXTENT if args.spot_extent is None else float(args.spot_extent)
     spot_extent_half_steps(spot_extent)
     spot_cost_radius_weight = parse_spot_cost_r_w(args.spot_cost_r_w, spot_extent)
-    from training_config import DELTAT_MS, RESPONSE_DURATION_MS, ms_to_steps
+    from config import DELTAT_MS, RESPONSE_DURATION_MS, ms_to_steps
     _t_on_step = ms_to_steps(args.t_on_ms)
     _maxtime_step = ms_to_steps(args.t_on_ms + RESPONSE_DURATION_MS)
     _timing = {"t_on": _t_on_step, "maxtime": _maxtime_step, "deltat_ms": DELTAT_MS}
@@ -1178,6 +1201,22 @@ def training_kwargs_from_args(
     moving_bar_dark_stimulus_opts = {"multi_bar": bool(args.multi_bar), "t_on": _t_on_step, "deltat_ms": DELTAT_MS}
     spot_bright_stimulus_opts = dict(_timing)
     spot_dark_stimulus_opts = dict(_timing)
+    # #1 pulse duration / #4 sparse cost times / #2 readout kind -> spot opts.
+    if args.pulse_ms is not None:
+        for _o in (spot_bright_stimulus_opts, spot_dark_stimulus_opts):
+            _o["pulse_ms"] = float(args.pulse_ms)
+    _cost_time_ms = parse_comma_floats(args.cost_time_ms)
+    if _cost_time_ms:
+        # Extend the spot window so the latest requested post-onset time is
+        # actually simulated (post-onset steps are [0, maxtime - t_on)).
+        _max_cost_step = int(round(max(_cost_time_ms) / DELTAT_MS))
+        _needed_maxtime = _t_on_step + _max_cost_step + 1
+        for _o in (spot_bright_stimulus_opts, spot_dark_stimulus_opts):
+            _o["cost_time_ms"] = _cost_time_ms
+            _o["maxtime"] = max(int(_o["maxtime"]), _needed_maxtime)
+    if args.readout != "ca":
+        for _o in (spot_bright_stimulus_opts, spot_dark_stimulus_opts):
+            _o["readout"] = str(args.readout)
     i_cli = fc.build_i_cli_by_target({
         "i_baseline": parse_comma_kv(args.i_baseline, float),
         "i_bright": parse_comma_kv(args.i_bright, float),

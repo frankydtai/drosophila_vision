@@ -28,7 +28,7 @@ from typing import Optional, Tuple
 import numpy as np
 import torch
 
-from training_config import SIM_DTYPE_DEFAULT
+from config import SIM_DTYPE_DEFAULT
 
 
 def _as_long(t, device) -> torch.Tensor:

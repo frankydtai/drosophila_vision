@@ -7,10 +7,10 @@ ROOT = os.path.dirname(HERE)
 sys.path.insert(0, ROOT)
 os.chdir(ROOT)
 
-import FiveCol_MedSim_Pytorch as fc
-import train
+import training as fc
+import training.train as train
 from connectome_io import parse_comma_list
-from t4_t5_dsi import READOUT_SUBTYPE_ALIASES, READOUT_SUBTYPES, expand_remove_subtypes_list
+from stimulus.moving_bar.data import READOUT_SUBTYPE_ALIASES, READOUT_SUBTYPES, expand_remove_subtypes_list
 
 ap = train.make_training_argparser(__doc__)
 valid = ", ".join((*READOUT_SUBTYPE_ALIASES, *READOUT_SUBTYPES))
