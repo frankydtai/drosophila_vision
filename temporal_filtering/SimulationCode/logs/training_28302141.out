@@ -1,6 +1,0 @@
-Job ID: 28302141
-Node:   spartan-gpgpu176
-GPU:    0
-GPU 0: NVIDIA H100 80GB HBM3 (UUID: GPU-8ab6834c-3e6d-f657-117e-c8e87938ca65)
-cuda: True NVIDIA H100 80GB HBM3
-Start:  Wed 29 Jul 2026 19:20:34 AEST

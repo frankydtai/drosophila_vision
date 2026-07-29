@@ -1,8 +1,0 @@
-Traceback (most recent call last):
-  File "/home/yitai/drosophila_vision/temporal_filtering/SimulationCode/train.py", line 65, in <module>
-    from plot_trained import (
-  File "/home/yitai/drosophila_vision/temporal_filtering/SimulationCode/plot_trained.py", line 14, in <module>
-    from network.moving_bar_target import sti_columns
-  File "/home/yitai/drosophila_vision/temporal_filtering/SimulationCode/network/moving_bar_target.py", line 38, in <module>
-    from training_config import (
-ImportError: cannot import name 'T_ON' from 'training_config' (/home/yitai/drosophila_vision/temporal_filtering/SimulationCode/training_config.py)

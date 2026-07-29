@@ -12,8 +12,11 @@ from neuron_model.constants import (
     KNOWN_MODELS,
 )
 
+SYN_MODES = ("type_pair", "per_edge")
+SYN_MODE_DEFAULT = "type_pair"
+
 ALL_PARAM_NAMES = (
-    "in_gain", "out_gain", "out_scale", "syn_strength", "v_th",
+    "in_gain", "out_gain", "out_scale", "syn_strength", "edge_weight", "v_th",
     "Ih_gmax", "Ih_gmax_off",
     "Ih_midv", "Ih_slope", "tau_midv",
     "Ih_midv_off", "Ih_slope_off", "tau_midv_off",
@@ -23,6 +26,20 @@ IH_SHAPE_PARAM_NAMES = (
     "Ih_midv", "Ih_slope", "tau_midv",
     "Ih_midv_off", "Ih_slope_off", "tau_midv_off",
 )
+
+
+def normalize_syn_mode(syn_mode=SYN_MODE_DEFAULT) -> str:
+    mode = str(syn_mode)
+    if mode not in SYN_MODES:
+        raise ValueError(f"syn_mode {mode!r} not in {SYN_MODES}")
+    return mode
+
+
+def synaptic_scale(p):
+    """Edge scaling tensor from assigned params (exactly one of syn_strength / edge_weight)."""
+    if "edge_weight" in p:
+        return p["edge_weight"]
+    return p["syn_strength"]
 
 
 def _part_indi_all(n):
@@ -83,13 +100,33 @@ def conductance_ih_off_kwargs(p, ih_off=IH_OFF_DEFAULT):
     return gmax_off, midv_off, slope_off, tau_off
 
 
-def build_conductance_schema(n_types, type_names=None, n_pairs=None):
+def _syn_segment(syn_mode, n_pairs, n_edges):
+    """One synaptic segment: type-pair α or per-edge magnitude."""
+    D = PARAM_DEFAULTS
+    mode = normalize_syn_mode(syn_mode)
+    if mode == "per_edge":
+        if n_edges is None:
+            raise TypeError("per_edge edge_weight requires n_edges from network ScatterConn")
+        n_edges = int(n_edges)
+        return _with_part(
+            {"name": "edge_weight", "count": n_edges, "kind": "edge", **D["edge_weight"]},
+            _part_indi_all(n_edges),
+        )
+    if n_pairs is None:
+        raise TypeError("type_pair syn_strength requires n_pairs from network ScatterConn")
+    n_pairs = int(n_pairs)
+    return _with_part(
+        {"name": "syn_strength", "count": n_pairs, "kind": "edge_pair", **D["syn_strength"]},
+        _part_indi_all(n_pairs),
+    )
+
+
+def build_conductance_schema(
+    n_types, type_names=None, n_pairs=None, *, syn_mode=SYN_MODE_DEFAULT, n_edges=None,
+):
     if type_names is None:
         raise TypeError("conductance schema requires type_names from network")
     type_names = list(type_names)
-    if n_pairs is None:
-        raise TypeError("conductance syn_strength requires n_pairs from network ScatterConn")
-    n_pairs = int(n_pairs)
     name_to_i = {str(n): i for i, n in enumerate(type_names)}
     ih_gmax = [name_to_i[n] for n in DEFAULT_IH_GMAX_INDI_NAMES]
     D = PARAM_DEFAULTS
@@ -100,10 +137,7 @@ def build_conductance_schema(n_types, type_names=None, n_pairs=None):
     return [
         _with_part({"name": "in_gain", "count": n_types, "kind": "full", **D["in_gain"]}, fixed_all),
         _with_part({"name": "out_gain", "count": n_types, "kind": "full", **D["out_gain"]}, indi_all),
-        _with_part(
-            {"name": "syn_strength", "count": n_pairs, "kind": "edge_pair", **D["syn_strength"]},
-            _part_indi_all(n_pairs),
-        ),
+        _syn_segment(syn_mode, n_pairs, n_edges),
         _with_part({"name": "v_th", "count": n_types, "kind": "full", **D["v_th"]}, fixed_all),
         _with_part({"name": "out_scale", "count": n_types, "kind": "output", **D["out_scale"]}, indi_all),
         _with_part({"name": "Ih_gmax", "count": n_types, "kind": "full", **D["Ih_gmax"]}, ih_gmax_part),
@@ -117,14 +151,13 @@ def build_conductance_schema(n_types, type_names=None, n_pairs=None):
     ]
 
 
-def build_hp_lp_schema(n_types, type_names=None, n_pairs=None):
+def build_hp_lp_schema(
+    n_types, type_names=None, n_pairs=None, *, syn_mode=SYN_MODE_DEFAULT, n_edges=None,
+):
     """HP-then-membrane-LP: τ_HP on slow average a, τ_lp on V, drive G(X−a)."""
     if type_names is None:
         raise TypeError("hp_lp schema requires type_names from network")
-    if n_pairs is None:
-        raise TypeError("hp_lp syn_strength requires n_pairs from network ScatterConn")
     type_names = list(type_names)
-    n_pairs = int(n_pairs)
     name_to_i = {str(n): i for i, n in enumerate(type_names)}
     hp_gain_indi = [name_to_i[n] for n in DEFAULT_IH_GMAX_INDI_NAMES]
     D = PARAM_DEFAULTS
@@ -134,10 +167,7 @@ def build_hp_lp_schema(n_types, type_names=None, n_pairs=None):
     return [
         _with_part({"name": "in_gain", "count": n_types, "kind": "full", **D["in_gain"]}, fixed_all),
         _with_part({"name": "out_gain", "count": n_types, "kind": "full", **D["out_gain"]}, indi_all),
-        _with_part(
-            {"name": "syn_strength", "count": n_pairs, "kind": "edge_pair", **D["syn_strength"]},
-            _part_indi_all(n_pairs),
-        ),
+        _syn_segment(syn_mode, n_pairs, n_edges),
         _with_part({"name": "out_scale", "count": n_types, "kind": "output", **D["out_scale"]}, indi_all),
         _with_part({"name": "tau_lp", "count": n_types, "kind": "full", **D["tau_lp"]}, indi_all),
         _with_part({"name": "tau_hp", "count": n_types, "kind": "full", **D["tau_hp"]}, indi_all),
@@ -146,7 +176,7 @@ def build_hp_lp_schema(n_types, type_names=None, n_pairs=None):
     ]
 
 
-def default_schema(model: str, backend) -> list:
+def default_schema(model: str, backend, *, syn_mode=SYN_MODE_DEFAULT) -> list:
     """Fresh parameter schema for ``model`` on the given backend."""
     if model not in KNOWN_MODELS:
         raise ValueError(f"unknown model {model!r}; expected one of {KNOWN_MODELS}")
@@ -154,15 +184,28 @@ def default_schema(model: str, backend) -> list:
     import FiveCol_MedSim_Pytorch as fc
 
     type_names = fc.type_unit_names(backend)
+    mode = normalize_syn_mode(syn_mode)
     n_pairs = getattr(backend.conn, "n_pairs", None)
-    if n_pairs is None:
-        raise TypeError(f"{model} syn_strength requires network ScatterConn backend")
+    n_edges = getattr(backend.conn, "n_edges", None)
+    if mode == "per_edge":
+        if n_edges is None:
+            raise TypeError(f"{model} edge_weight requires network ScatterConn backend")
+        kw = dict(syn_mode=mode, n_edges=n_edges, n_pairs=n_pairs)
+    else:
+        if n_pairs is None:
+            raise TypeError(f"{model} syn_strength requires network ScatterConn backend")
+        kw = dict(syn_mode=mode, n_pairs=n_pairs, n_edges=n_edges)
     if model == "hp_lp":
-        return build_hp_lp_schema(n, type_names=type_names, n_pairs=n_pairs)
-    return build_conductance_schema(n, type_names=type_names, n_pairs=n_pairs)
+        return build_hp_lp_schema(n, type_names=type_names, **kw)
+    return build_conductance_schema(n, type_names=type_names, **kw)
 
 
-def conductance_schema(model_backend, schema=None, ih_off=IH_OFF_DEFAULT):
+def conductance_schema(model_backend, schema=None, ih_off=IH_OFF_DEFAULT, *, syn_mode=None):
     """Conductance parameter schema with ``ih_off`` segment selection applied."""
-    base = list(schema) if schema is not None else default_schema("conductance", model_backend)
+    if schema is not None:
+        base = list(schema)
+    elif syn_mode is not None:
+        base = default_schema("conductance", model_backend, syn_mode=syn_mode)
+    else:
+        base = default_schema("conductance", model_backend)
     return apply_ih_off_mode(base, ih_off)

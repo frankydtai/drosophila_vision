@@ -13,9 +13,10 @@ Interface:
 ``relu(activity) * out_gain`` for hp_lp. The post-synaptic input
 gain (``in_gain``) is applied by the caller AFTER these calls.
 
-Type→type scaling ``syn_strength`` (length ``n_pairs``) multiplies each edge as
-\(\alpha_{t_{\mathrm{src}},t_{\mathrm{tar}}}\), shared across columns.
-Network path only (:class:`ScatterConn`).
+Synaptic scaling multiplies each edge: length ``n_pairs`` type→type α
+(``syn_strength``, ``--syn-mode type_pair``) or length ``n_edges`` per-edge
+magnitude (``edge_weight``, ``--syn-mode per_edge``). Network path only
+(:class:`ScatterConn`).
 
 Both backends operate on the LAST axis (the units), so a plain 1-D ``(N,)`` state
 and a batched ``(B, N)`` state work without change in the caller.
@@ -55,10 +56,10 @@ class ScatterConn:
     """Edge-list connectivity backend (connectome sub-graph or full graph).
 
     Built from parallel arrays describing directed synaptic edges ``source ->
-    target`` with a signed weight ``base_w = sign * n_syn``. Excitatory and
-    inhibitory drives are accumulated with ``scatter_add`` over the target index.
-    ``syn_strength[pair_idx[e]]`` scales edge ``e`` by its
-    ``(source_type, target_type)`` group.
+    target`` with a signed weight ``base_w`` (``sign * n_syn`` for type_pair,
+    ``sign`` for per_edge). Excitatory and inhibitory drives are accumulated with
+    ``scatter_add`` over the target index. Scaling is either type-pair
+    ``syn_strength[pair_idx[e]]`` or per-edge ``edge_weight[e]``.
     """
 
     def __init__(
@@ -79,6 +80,7 @@ class ScatterConn:
         self.src_idx = _as_long(src_idx, device)
         self.tar_idx = _as_long(tar_idx, device)
         self.node_type = _as_long(node_type, device)
+        self.n_edges = int(self.src_idx.numel())
 
         base_w = torch.as_tensor(base_w, dtype=dtype, device=device)
         pos = base_w > 0
@@ -105,20 +107,24 @@ class ScatterConn:
     def _gather(self, x: torch.Tensor) -> torch.Tensor:
         return x.index_select(-1, self.src_idx)
 
-    def _edge_alpha(self, syn_strength: torch.Tensor) -> torch.Tensor:
-        if syn_strength.shape[-1] != self.n_pairs:
-            raise ValueError(
-                f"syn_strength length {syn_strength.shape[-1]} != n_pairs {self.n_pairs}"
-            )
-        return syn_strength.index_select(-1, self.pair_idx)
+    def _edge_alpha(self, alpha: torch.Tensor) -> torch.Tensor:
+        n = int(alpha.shape[-1])
+        if n == self.n_edges:
+            return alpha
+        if n == self.n_pairs:
+            return alpha.index_select(-1, self.pair_idx)
+        raise ValueError(
+            f"synaptic scale length {n} != n_edges {self.n_edges} "
+            f"or n_pairs {self.n_pairs}"
+        )
 
     def exc_inh_drive(
-        self, x: torch.Tensor, syn_strength: torch.Tensor
+        self, x: torch.Tensor, alpha: torch.Tensor
     ) -> Tuple[torch.Tensor, torch.Tensor]:
         xs = self._gather(x)
-        a = self._edge_alpha(syn_strength)
+        a = self._edge_alpha(alpha)
         return self._scatter(xs * self.w_exc * a), self._scatter(xs * self.w_inh * a)
 
-    def signed_drive(self, x: torch.Tensor, syn_strength: torch.Tensor) -> torch.Tensor:
-        a = self._edge_alpha(syn_strength)
+    def signed_drive(self, x: torch.Tensor, alpha: torch.Tensor) -> torch.Tensor:
+        a = self._edge_alpha(alpha)
         return self._scatter(self._gather(x) * self.w_signed * a)

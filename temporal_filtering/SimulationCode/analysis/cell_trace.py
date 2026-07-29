@@ -48,6 +48,8 @@ Examples
 from __future__ import annotations
 
 import argparse
+import json
+import os
 from dataclasses import dataclass
 
 import numpy as np
@@ -60,6 +62,10 @@ from plot.utils import parse_axis_slice_list, slice_xy_label
 from connectome_io import parse_comma_list
 from train import parse_target_list
 from network.moving_bar_target import filter_requested_specs
+from training_config import run_data_dir
+
+
+DEFAULT_POST_ONSET_MS = 1500.0
 
 
 @dataclass(frozen=True)
@@ -296,16 +302,28 @@ def _print_curve(
     *,
     before_steps: int | None,
     print_values: bool,
+    head_steps: int | None,
+    head_window: str | None,
 ):
-    """Summarize + shape on post-onset when ``before_steps`` is set, else full trace."""
+    """Summarize + (optionally) list values for a trace window."""
     if before_steps is not None and 0 < before_steps < arr.size:
-        use = arr[before_steps:]
-        idx_offset = before_steps
+        start = before_steps
         window = f"post_onset[idx>={before_steps}]"
     else:
-        use = arr
-        idx_offset = 0
+        start = 0
         window = "full"
+
+    if head_steps is not None:
+        end = min(arr.size, start + head_steps)
+        use = arr[start:end]
+        idx_offset = start
+        if head_window:
+            window = f"{window} {head_window}"
+        else:
+            window = f"{window} head[{start}:{end}]"
+    else:
+        use = arr[start:]
+        idx_offset = start
     s = _summarize(use, idx_offset=idx_offset)
     shape = _shape_label(s)
     print(
@@ -333,6 +351,8 @@ def _print_result_block(
     x_list,
     y_list,
     print_values: bool,
+    head_steps: int | None,
+    head_window: str | None,
     spec: str | None = None,
 ):
     before_steps = None
@@ -358,11 +378,71 @@ def _print_result_block(
         print(f"traces ({len(order)}): {', '.join(order)}")
         for name in order:
             _print_curve(
-                name, curves[name], before_steps=before_steps, print_values=print_values,
+                name,
+                curves[name],
+                before_steps=before_steps,
+                print_values=print_values,
+                head_steps=head_steps,
+                head_window=head_window,
             )
     else:
         for key, arr in curves.items():
-            _print_curve(key, arr, before_steps=None, print_values=print_values)
+            _print_curve(
+                key,
+                arr,
+                before_steps=None,
+                print_values=print_values,
+                head_steps=head_steps,
+                head_window=head_window,
+            )
+
+
+def _ms_to_steps(ms: float, deltat_ms: float) -> int:
+    """Map ms to simulation indices (floor division)."""
+    if deltat_ms <= 0:
+        raise ValueError(f"invalid deltat_ms={deltat_ms}")
+    return int(float(ms) / float(deltat_ms))
+
+
+def _load_train_opts(run_dir: str) -> dict:
+    opts_path = os.path.join(run_data_dir(os.path.abspath(run_dir)), fc.TRAIN_OPTS_FILE)
+    with open(opts_path) as f:
+        return json.load(f)
+
+
+def _maybe_override_spot_timing(
+    *,
+    run_dir: str,
+    session,
+    t_on_ms: float | None,
+    maxtime_ms: float | None,
+):
+    """Optionally re-open the session with overridden spot timing.
+
+    This must re-open the session (not just mutate ``session.train_opts``),
+    because the precomputed stimulus tensors (e.g. ``pack.signal``) depend on
+    ``maxtime``.
+    """
+    if t_on_ms is None:
+        return session, None, None
+
+    opts = _load_train_opts(run_dir)
+    orig_stim = opts.get("spot_bright_stimulus_opts") or {}
+    dt = float(orig_stim.get("deltat_ms", 10.0))
+    new_t_on = _ms_to_steps(t_on_ms, dt)
+    if maxtime_ms is None:
+        maxtime_ms = float(t_on_ms) + DEFAULT_POST_ONSET_MS
+    new_maxtime = _ms_to_steps(maxtime_ms, dt)
+
+    for key in ("spot_bright_stimulus_opts", "spot_dark_stimulus_opts"):
+        so = opts.get(key)
+        if so is not None:
+            so["t_on"] = new_t_on
+            so["maxtime"] = new_maxtime
+
+    # Re-open the session with updated stimulus opts.
+    new_session = fc.open_session_from_opts(opts, model=opts.get("model"))
+    return new_session, dt, new_t_on
 
 
 def main():
@@ -388,12 +468,75 @@ def main():
         action="store_true",
         help="print full analysis-window trace arrays",
     )
+    ap.add_argument(
+        "--t-on-ms",
+        type=float,
+        default=None,
+        help="override spot stimulus onset in ms (re-opens session; affects spot_*)",
+    )
+    ap.add_argument(
+        "--maxtime-ms",
+        type=float,
+        default=None,
+        help="override total spot simulation time in ms "
+        "(default: t-on-ms + 1500)",
+    )
+    ap.add_argument(
+        "--t-max-ms",
+        type=float,
+        default=None,
+        help="when --values is set, only print first N ms of each trace",
+    )
     args = ap.parse_args()
     cli = parse_shared_cli(args)
 
     for run_i, run_arg in enumerate(args.run):
         run_dir = plot_trained.resolve_run_dir(run_arg)
-        session, z, best_i, best_cost = plot_trained.load_best(run_dir)
+        import train as train_mod
+
+        # Base load: get the stored best parameter + its cost for labeling.
+        session0, _z0, best_i, best_cost = plot_trained.load_best(run_dir)
+
+        dt_for_head = None
+        head_steps = None
+        head_window = None
+
+        # If requested, re-open session with overridden spot timing, and re-map z.
+        session, z = session0, _z0
+        dt_for_head = None
+        if args.t_on_ms is not None:
+            session, dt_for_head, _new_t_on_step = _maybe_override_spot_timing(
+                run_dir=run_dir,
+                session=session0,
+                t_on_ms=args.t_on_ms,
+                maxtime_ms=args.maxtime_ms,
+            )
+            # Re-load + re-map the best parameters for the new session schema.
+            named, type_names, pair_names = train_mod.load_best_param_named(run_dir)
+            remapped = fc.remap_named_unit_values(
+                named,
+                type_names,
+                pair_names,
+                list(session.schema),
+                session.backend,
+            )
+            schema = fc.attach_param_carry(list(session.schema), remapped)
+            session = session.with_schema(schema)
+            z = fc.unit_values_to_z(
+                remapped,
+                schema,
+                dtype=session.sim_dtype,
+                device=session.device,
+            )
+
+        if args.t_max_ms is not None:
+            if dt_for_head is None:
+                opts = _load_train_opts(run_dir)
+                dt_for_head = float(
+                    (opts.get("spot_bright_stimulus_opts") or {}).get("deltat_ms", 10.0)
+                )
+            head_steps = _ms_to_steps(args.t_max_ms, dt_for_head)
+            head_window = f"head[t<{args.t_max_ms:g}ms]"
 
         spot_cache: dict[str, tuple] = {}
         bar_cache: dict[str, object] = {}
@@ -428,6 +571,8 @@ def main():
                         x_list=cli.x_list,
                         y_list=cli.y_list,
                         print_values=args.values,
+                            head_steps=head_steps,
+                            head_window=head_window,
                     )
             else:
                 if target not in bar_cache:
@@ -459,6 +604,8 @@ def main():
                             x_list=cli.x_list,
                             y_list=cli.y_list,
                             print_values=args.values,
+                            head_steps=head_steps,
+                            head_window=head_window,
                             spec=spec,
                         )
 

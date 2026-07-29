@@ -1,0 +1,20 @@
+Traceback (most recent call last):
+  File "/home/yitai/drosophila_vision/temporal_filtering/SimulationCode/train.py", line 1032, in <module>
+    main()
+  File "/home/yitai/drosophila_vision/temporal_filtering/SimulationCode/train.py", line 1028, in main
+    run_training(**kw)
+  File "/home/yitai/drosophila_vision/temporal_filtering/SimulationCode/train.py", line 541, in run_training
+    session = build_session(
+  File "/home/yitai/drosophila_vision/temporal_filtering/SimulationCode/train.py", line 514, in build_session
+    return fc.open_session(opts, model, schema=schema, model_backend=model_backend)
+  File "/home/yitai/drosophila_vision/temporal_filtering/SimulationCode/FiveCol_MedSim_Pytorch.py", line 1792, in open_session
+    return _make_session(
+  File "/home/yitai/drosophila_vision/temporal_filtering/SimulationCode/FiveCol_MedSim_Pytorch.py", line 1704, in _make_session
+    sch = _schema_from_opts(model, model_backend, None, train_opts_record)
+  File "/home/yitai/drosophila_vision/temporal_filtering/SimulationCode/FiveCol_MedSim_Pytorch.py", line 1671, in _schema_from_opts
+    base = apply_partitions(
+  File "/home/yitai/drosophila_vision/temporal_filtering/SimulationCode/FiveCol_MedSim_Pytorch.py", line 390, in apply_partitions
+    part = resolve_partition_tokens(buckets, units, param_name=name)
+  File "/home/yitai/drosophila_vision/temporal_filtering/SimulationCode/FiveCol_MedSim_Pytorch.py", line 353, in resolve_partition_tokens
+    raise ValueError(
+ValueError: tau_hp: units not assigned (use all= in one bucket): ['R1-6', 'R7', 'R8', 'L1', 'L2', 'L3', 'L4', 'L5']...

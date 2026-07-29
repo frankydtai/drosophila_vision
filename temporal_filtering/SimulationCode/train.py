@@ -6,8 +6,11 @@ All results of a run land in one folder under
     <model>/<run_name>/
 
 Run artifacts (``.npy`` / ``.npz``, ``train_opts.json``) live in
-``<run_name>/data/``; PNGs, ``param.csv``, and ``syn_strength.csv`` stay in
-``<run_name>/``.
+``<run_name>/data/``; PNGs, ``param.csv``, and ``syn_strength.csv`` /
+``edge_weight.csv`` stay in ``<run_name>/``. With ``--checkpoint-interval N``,
+interval-best params are also written as ``data/best_param_step_XXXXX.npz``,
+tables under ``csv/``, and plots under ``png/`` (flat filenames with the same
+step tag).
 
 where <run_name> encodes the CLI, e.g.
 ``26758480-run-nofsteps-50-target-moving_bar,spot-network-right_min_neuron1_extent2-shift``
@@ -36,6 +39,10 @@ where <run_name> encodes the CLI, e.g.
     # freeze all syn_strength; only L1,L2,L4,L5 train Ih_gmax
     python train.py --syn-strength frozen=all \\
                   --ih-gmax indi=L1,L2,L4,L5 fixed=all --ih-shape shared=all
+
+    # per-edge weights (ignore n_syn; sign fixed; magnitude trainable)
+    python train.py --syn-mode per_edge --edge-weight indi=all \\
+                  --nofsteps 1000 --lrs 0.1
 
     # same partition on every parameter (per-param flags override)
     python train.py --all-param indi=all --syn-strength frozen=all
@@ -72,6 +79,7 @@ from plot_trained import (
 )
 from param_defaults import DEFAULT_IH_GMAX_INDI_NAMES
 from training_config import (
+    EDGE_WEIGHT_CSV,
     PARAM_CSV,
     SYN_STRENGTH_CSV,
     run_data_dir,
@@ -81,6 +89,32 @@ from training_config import (
 DEFAULT_NOFSTEPS_CPU = 50
 DEFAULT_NOFSTEPS_GPU = 200
 
+_CHECKPOINT_PNG_STEMS = (
+    'model_data_spot',
+    'model_all_spot',
+    'model_data_bar',
+    'model_all_bar',
+    'model_all_spot_vm',
+    'model_all_bar_vm',
+)
+
+
+def build_plot_kwargs(*, ref_cubes=None, ref_cubes_2=None,
+                      plot_right_only=True, at_x=None, at_y=None,
+                      align_at_x=None, align_at_y=None,
+                      plot_vm=False, show_pre=True):
+    return dict(
+        ref_cubes=ref_cubes, ref_cubes_2=ref_cubes_2,
+        plot_right_only=plot_right_only,
+        at_x=at_x, at_y=at_y,
+        align_at_x=align_at_x, align_at_y=align_at_y,
+        plot_vm=plot_vm, show_pre=show_pre,
+    )
+
+
+def checkpoint_step_tag(step):
+    return f'{int(step):05d}'
+
 
 def make_plots(fname, outdir, session, result=None, *,
                ref_cubes=None, ref_cubes_2=None,
@@ -88,7 +122,7 @@ def make_plots(fname, outdir, session, result=None, *,
                align_at_x=None, align_at_y=None,
                plot_vm=False, show_pre=True):
     """Cost curve + model-vs-data + all-cell-types."""
-    plot_kw = dict(
+    plot_kw = build_plot_kwargs(
         ref_cubes=ref_cubes, ref_cubes_2=ref_cubes_2,
         plot_right_only=plot_right_only,
         at_x=at_x, at_y=at_y,
@@ -138,7 +172,7 @@ def decompose_params(z_t, session):
     cols, glob = {}, {}
     for seg in schema:
         name = seg["name"]
-        if seg["kind"] == "edge_pair":
+        if seg["kind"] in ("edge_pair", "edge"):
             continue
         arr = np.asarray(unit_vals[name], dtype=np.float64).reshape(-1)
         if arr.shape[0] != n:
@@ -195,6 +229,58 @@ def write_syn_strength_table(z_t, session, table_path):
     return table_path
 
 
+def write_edge_weight_table(z_t, session, table_path):
+    """Write per-edge ``edge_weight`` CSV (network edge order)."""
+    schema = list(session.schema)
+    seg = next((s for s in schema if s["name"] == "edge_weight"), None)
+    if seg is None or seg["kind"] != "edge":
+        return None
+    unit_vals = fc.z_to_unit_values(z_t, schema)
+    arr = np.asarray(unit_vals["edge_weight"], dtype=np.float64).reshape(-1)
+    conn = session.backend.conn
+    if arr.shape[0] != conn.n_edges:
+        raise ValueError(
+            f"edge_weight length {arr.shape[0]} != n_edges {conn.n_edges}"
+        )
+    names = [str(n) for n in ctype_labels(session)]
+    src = conn.src_idx.detach().cpu().numpy()
+    tar = conn.tar_idx.detach().cpu().numpy()
+    node_type = conn.node_type.detach().cpu().numpy()
+    sign = torch.sign(conn.w_signed).detach().cpu().numpy()
+    with open(table_path, "w") as f:
+        f.write("edge_idx,src_unit,tar_unit,source_type,target_type,sign,edge_weight\n")
+        for i in range(conn.n_edges):
+            si, ti = int(src[i]), int(tar[i])
+            f.write(
+                "%d,%d,%d,%s,%s,%.0f,%.6f\n"
+                % (
+                    i, si, ti,
+                    names[int(node_type[si])], names[int(node_type[ti])],
+                    float(sign[i]), float(arr[i]),
+                )
+            )
+    return table_path
+
+
+def write_syn_table(z_t, session, outdir_or_path, *, tag=None):
+    """Write ``syn_strength.csv`` or ``edge_weight.csv`` for the active syn mode."""
+    if tag is None:
+        syn_path = write_syn_strength_table(
+            z_t, session, os.path.join(outdir_or_path, SYN_STRENGTH_CSV),
+        )
+        edge_path = write_edge_weight_table(
+            z_t, session, os.path.join(outdir_or_path, EDGE_WEIGHT_CSV),
+        )
+    else:
+        syn_path = write_syn_strength_table(
+            z_t, session, os.path.join(outdir_or_path, f"syn_strength_{tag}.csv"),
+        )
+        edge_path = write_edge_weight_table(
+            z_t, session, os.path.join(outdir_or_path, f"edge_weight_{tag}.csv"),
+        )
+    return syn_path or edge_path
+
+
 def data_dir(outdir):
     return run_data_dir(outdir)
 
@@ -207,8 +293,8 @@ def best_param_path(outdir):
     return os.path.join(data_dir(outdir), 'best_param.npz')
 
 
-def save_best_param_named(outdir, z, session):
-    """Write named full-width unit values to ``data/best_param.npz``."""
+def save_param_named(outdir, z, session, filename):
+    """Write named full-width unit values to ``data/<filename>``."""
     schema = list(session.schema)
     named = fc.z_to_unit_values(z, schema)
     type_names = np.asarray(fc.type_unit_names(session.backend), dtype=object)
@@ -217,7 +303,68 @@ def save_best_param_named(outdir, z, session):
     if any(s['kind'] == 'edge_pair' for s in schema):
         payload['pair_names'] = np.asarray(fc.pair_unit_names(session.backend), dtype=object)
     os.makedirs(data_dir(outdir), exist_ok=True)
-    np.savez(best_param_path(outdir), **payload)
+    np.savez(os.path.join(data_dir(outdir), filename), **payload)
+
+
+def save_best_param_named(outdir, z, session):
+    """Write named full-width unit values to ``data/best_param.npz``."""
+    save_param_named(outdir, z, session, 'best_param.npz')
+
+
+def checkpoint_param_filename(step, run_i=0, nofruns=1):
+    suffix = '' if nofruns == 1 else f'_run{run_i}'
+    return f'best_param_step_{checkpoint_step_tag(step)}{suffix}.npz'
+
+
+def write_checkpoint_csv(outdir, step, z_best, session):
+    tag = checkpoint_step_tag(step)
+    csv_dir = os.path.join(outdir, 'csv')
+    os.makedirs(csv_dir, exist_ok=True)
+    param_path = os.path.join(csv_dir, f'param_{tag}.csv')
+    write_param_table(z_best, session, param_path)
+    syn_path = write_syn_table(z_best, session, csv_dir, tag=tag)
+    print(f'wrote checkpoint csv: {param_path}')
+    if syn_path is not None:
+        print(f'wrote checkpoint csv: {syn_path}')
+
+
+def _rename_checkpoint_pngs(png_dir, tag):
+    for stem in _CHECKPOINT_PNG_STEMS:
+        src = os.path.join(png_dir, f'{stem}.png')
+        if os.path.isfile(src):
+            dst = os.path.join(png_dir, f'{stem}_{tag}.png')
+            os.replace(src, dst)
+
+
+def write_checkpoint_png(outdir, step, z_best, cost_best, session, plot_kw):
+    tag = checkpoint_step_tag(step)
+    png_dir = os.path.join(outdir, 'png')
+    os.makedirs(png_dir, exist_ok=True)
+    z_np = z_best.detach().cpu().numpy()
+    plot_param_set(
+        np.array([z_np]),
+        png_dir,
+        session=session,
+        final_costs=np.array([cost_best]),
+        best_i=0,
+        save_artifacts=False,
+        cost_curve=None,
+        **plot_kw,
+    )
+    _rename_checkpoint_pngs(png_dir, tag)
+    print(f'wrote checkpoint png: {png_dir}/*_{tag}.png')
+
+
+def make_checkpoint_callback(outdir, session, *, run_i=0, nofruns=1, plot_kw=None):
+    plot_kw = plot_kw or {}
+
+    def on_interval_best(step, z_best, cost_best):
+        name = checkpoint_param_filename(step, run_i=run_i, nofruns=nofruns)
+        save_param_named(outdir, z_best, session, name)
+        write_checkpoint_csv(outdir, step, z_best, session)
+        write_checkpoint_png(outdir, step, z_best, cost_best, session, plot_kw)
+        print(f'wrote checkpoint {name} (cost={cost_best:.4f})')
+    return on_interval_best
 
 
 def load_best_param_named(outdir):
@@ -311,7 +458,7 @@ def final_costs_for_params(all_params, session, final_costs=None):
 
 
 def write_best_artifacts(outdir, fname, session, all_params, best_i, final_costs):
-    """Write ``best_param.npz``, ``param.csv``, and ``syn_strength.csv`` for one best index."""
+    """Write ``best_param.npz``, ``param.csv``, and syn/edge CSV for one best index."""
     all_params = np.atleast_2d(all_params)
     best = all_params[best_i]
     os.makedirs(data_dir(outdir), exist_ok=True)
@@ -322,9 +469,7 @@ def write_best_artifacts(outdir, fname, session, all_params, best_i, final_costs
     write_param_table(z_best, session, table_path)
     print("wrote table: %s (best run #%d, cost=%.4f)" % (
         table_path, best_i, final_costs[best_i]))
-    syn_path = write_syn_strength_table(
-        z_best, session, os.path.join(outdir, SYN_STRENGTH_CSV),
-    )
+    syn_path = write_syn_table(z_best, session, outdir)
     if syn_path is not None:
         print("wrote table: %s" % syn_path)
     return best
@@ -401,7 +546,7 @@ def save_training_outputs(fname, outdir, session, result):
 
 
 def save_param_tables(fname, outdir, session):
-    """Regenerate ``param.csv`` / ``syn_strength.csv`` and ``best_param.npz`` from saved ``fname``."""
+    """Regenerate ``param.csv`` / syn or edge CSV and ``best_param.npz`` from saved ``fname``."""
     all_params = np.load(params_path(outdir, fname))
     final_costs, _, _, _ = load_stored_costs(outdir, fname, np.atleast_2d(all_params).shape[0])
     final_costs, best_i = final_costs_for_params(all_params, session, final_costs=final_costs)
@@ -473,6 +618,7 @@ def build_session(
     spot_bright_stimulus_opts=None,
     spot_dark_stimulus_opts=None,
     param_partitions=None,
+    syn_mode=fc.SYN_MODE_DEFAULT,
     ih_off=fc.IH_OFF_DEFAULT,
     fp32=False,
     pack_overrides=None,
@@ -508,6 +654,7 @@ def build_session(
         dev=dev,
         ih_off=ih_off,
         param_partitions=param_partitions,
+        syn_mode=syn_mode,
         fp32=fp32,
         **mkw,
     )
@@ -516,6 +663,7 @@ def build_session(
 
 def run_training(model, nofruns, nofsteps, lrs, fname=None, outdir=None,
                  param_partitions=None,
+                 syn_mode=fc.SYN_MODE_DEFAULT,
                  ih_off=fc.IH_OFF_DEFAULT,
                  network=None, sequential=False,
                  target_list=None, cost_weights=None,
@@ -536,7 +684,8 @@ def run_training(model, nofruns, nofsteps, lrs, fname=None, outdir=None,
                  at_x=None, at_y=None,
                  align_at_x=None, align_at_y=None,
                  plot_vm=False, show_pre=True,
-                 init_from=None):
+                 init_from=None,
+                 checkpoint_interval=None):
     """Full training pipeline (do_many_runs + save_training_outputs + plots). Returns (fname, outdir, session)."""
     session = build_session(
         model,
@@ -556,6 +705,7 @@ def run_training(model, nofruns, nofsteps, lrs, fname=None, outdir=None,
         spot_bright_stimulus_opts=spot_bright_stimulus_opts,
         spot_dark_stimulus_opts=spot_dark_stimulus_opts,
         param_partitions=param_partitions,
+        syn_mode=syn_mode,
         ih_off=ih_off,
         pack_overrides=pack_overrides,
         model_backend=model_backend,
@@ -567,13 +717,32 @@ def run_training(model, nofruns, nofsteps, lrs, fname=None, outdir=None,
     outdir = outdir or run_dir(model)
 
     print_param_partitions(session)
-    print(f"device={session.device}, model={model}, nofruns={nofruns}, nofsteps={nofsteps}, "
+    syn_mode = (session.train_opts or {}).get("syn_mode", fc.SYN_MODE_DEFAULT)
+    print(f"device={session.device}, model={model}, syn_mode={syn_mode}, "
+          f"nofruns={nofruns}, nofsteps={nofsteps}, "
           f"lrs={lrs}, nparams={fc.schema_nparams(list(session.schema))}, fname={fname}, outdir={outdir}")
+    if checkpoint_interval is not None:
+        if checkpoint_interval <= 0:
+            raise ValueError("checkpoint_interval must be a positive integer")
+        print(f"checkpoint_interval={checkpoint_interval}")
+    checkpoint_plot_kw = build_plot_kwargs(
+        ref_cubes=plot_ref_cubes, ref_cubes_2=plot_ref_cubes_2,
+        plot_right_only=plot_right_only,
+        at_x=at_x, at_y=at_y,
+        align_at_x=align_at_x, align_at_y=align_at_y,
+        plot_vm=plot_vm, show_pre=show_pre,
+    )
     z_init = None
     if init_from:
         session, z_init = load_init_z(init_from, session)
     t0 = time.time()
-    result = do_many_runs(session, nofruns, nofsteps, lrs=lrs, z_init=z_init)
+    result = do_many_runs(
+        session, nofruns, nofsteps, lrs=lrs, z_init=z_init,
+        checkpoint_interval=checkpoint_interval,
+        checkpoint_outdir=outdir if checkpoint_interval is not None else None,
+        make_checkpoint_callback=make_checkpoint_callback,
+        checkpoint_plot_kw=checkpoint_plot_kw if checkpoint_interval is not None else None,
+    )
     print(f"done in {(time.time() - t0) / 3600:.2f} hours")
 
     save_training_outputs(fname, outdir, session, result)
@@ -613,6 +782,13 @@ def add_training_arguments(parser):
     """Register train.py training CLI flags on *parser*."""
     parser.add_argument("--model", default="hp_lp",
                         choices=list(fc.KNOWN_MODELS))
+    parser.add_argument(
+        "--syn-mode",
+        default=fc.SYN_MODE_DEFAULT,
+        choices=list(fc.SYN_MODES),
+        help="synaptic scale: type_pair (sign*n_syn + type→type syn_strength; default) "
+             "or per_edge (sign only + per-edge edge_weight magnitude)",
+    )
     parser.add_argument("--nofruns", type=int, default=1)
     parser.add_argument(
         "--nofsteps",
@@ -623,6 +799,16 @@ def add_training_arguments(parser):
     )
     parser.add_argument("--lrs", default="0.1",
                         help="comma-separated learning-rate stages; each runs for --nofsteps steps")
+    parser.add_argument(
+        "--checkpoint-interval",
+        type=int,
+        default=None,
+        metavar="N",
+        help="every N global training steps, snap to the interval-best params and write "
+             "data/best_param_step_XXXXX.npz, csv/param_XXXXX.csv, "
+             "csv/syn_strength_XXXXX.csv or csv/edge_weight_XXXXX.csv, and png/*_XXXXX.png "
+             "(disabled by default)",
+    )
     parser.add_argument("--fname", default=None,
                         help="params filename (default derived from --model)")
     parser.add_argument("--outdir", default=None,
@@ -637,7 +823,12 @@ def add_training_arguments(parser):
     )
     _partition_help = (
         "indi=/shared=/fixed=/frozen= lists space-separated; 'all' in one bucket = remainder; "
-        "types or Src:Tar pairs (syn-strength). Example: indi=L1,L2 frozen=all"
+        "types or Src:Tar pairs (syn-strength); init=NAME:VAL,... overrides initial values. "
+        "Example: indi=all init=L1,L2,L4,L5:200 all:10000"
+    )
+    _edge_weight_help = (
+        "only indi=all / fixed=all / frozen=all "
+        "(--syn-mode per_edge; no shared= / named edges)"
     )
     _partition_kwargs = dict(default=None, nargs='+', metavar="PART")
     parser.add_argument("--all-param", **_partition_kwargs,
@@ -650,7 +841,10 @@ def add_training_arguments(parser):
     parser.add_argument("--out-scale", **_partition_kwargs,
                         help=f"out_scale partitions ({_partition_help}; default indi=all)")
     parser.add_argument("--syn-strength", **_partition_kwargs,
-                        help=f"syn_strength partitions ({_partition_help}; default indi=all)")
+                        help=f"syn_strength partitions ({_partition_help}; default indi=all; "
+                             f"--syn-mode type_pair only)")
+    parser.add_argument("--edge-weight", **_partition_kwargs,
+                        help=f"edge_weight partitions ({_edge_weight_help}; default indi=all)")
     parser.add_argument("--v-th", **_partition_kwargs,
                         help=f"v_th partitions ({_partition_help}; default indi=all)")
     parser.add_argument("--ih-gmax", **_partition_kwargs,
@@ -889,10 +1083,21 @@ def _partition_cli_map(args):
     Precedence: ``--all-param`` → ``--ih-shape`` → per-param flags.
     Omitted segments keep schema defaults (not listed here).
     """
+    syn_mode = fc.normalize_syn_mode(getattr(args, "syn_mode", fc.SYN_MODE_DEFAULT))
+    syn_text = _partition_cli_text(getattr(args, "syn_strength", None))
+    edge_text = _partition_cli_text(getattr(args, "edge_weight", None))
+    if syn_mode == "per_edge" and syn_text is not None:
+        raise ValueError("--syn-strength requires --syn-mode type_pair")
+    if syn_mode == "type_pair" and edge_text is not None:
+        raise ValueError("--edge-weight requires --syn-mode per_edge")
     texts = {}
     all_param = _partition_cli_text(getattr(args, "all_param", None))
     if all_param is not None:
         for name in fc.ALL_PARAM_NAMES:
+            if name == "syn_strength" and syn_mode != "type_pair":
+                continue
+            if name == "edge_weight" and syn_mode != "per_edge":
+                continue
             texts[name] = all_param
     shape_text = _partition_cli_text(getattr(args, "ih_shape", None))
     if shape_text is not None:
@@ -902,7 +1107,8 @@ def _partition_cli_map(args):
         "in_gain": _partition_cli_text(getattr(args, "in_gain", None)),
         "out_gain": _partition_cli_text(getattr(args, "out_gain", None)),
         "out_scale": _partition_cli_text(getattr(args, "out_scale", None)),
-        "syn_strength": _partition_cli_text(getattr(args, "syn_strength", None)),
+        "syn_strength": syn_text,
+        "edge_weight": edge_text,
         "v_th": _partition_cli_text(getattr(args, "v_th", None)),
         "Ih_gmax": _partition_cli_text(getattr(args, "ih_gmax", None)),
         "Ih_gmax_off": _partition_cli_text(getattr(args, "ih_gmax_off", None)),
@@ -920,7 +1126,10 @@ def _partition_cli_map(args):
     for name, text in per_param.items():
         if text is not None:
             texts[name] = text
-    return {name: fc.parse_partition_text(text) for name, text in texts.items()}
+    out = {name: fc.parse_partition_text(text) for name, text in texts.items()}
+    if "edge_weight" in out:
+        fc.validate_edge_weight_partition(out["edge_weight"])
+    return out
 
 
 def training_kwargs_from_args(
@@ -995,6 +1204,7 @@ def training_kwargs_from_args(
         fname=args.fname,
         outdir=outdir,
         param_partitions=param_partitions,
+        syn_mode=fc.normalize_syn_mode(args.syn_mode),
         network=args.network,
         target_list=target_list,
         cost_weights=cost_weights,
@@ -1013,6 +1223,7 @@ def training_kwargs_from_args(
         fp32=fp32,
         sequential=args.sequential,
         init_from=init_from,
+        checkpoint_interval=args.checkpoint_interval,
         **plot_kwargs_from_args(args),
     )
 

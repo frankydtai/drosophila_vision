@@ -28,8 +28,8 @@ import plot_trained
 from training_config import PARAMETER_DIR, run_data_dir
 
 DEFAULT_RUN = (
-    "conductance/"
-    "28256933-train-target-spot_bright-nofsteps-10000-lr-0.1,0.01,0.001"
+    "hp_lp/"
+    "28307204-train-nofsteps-1000-tau-hp-indi-L1,L2,L4,L5"
 )
 DEFAULT_T_ON_MS = 1000.0
 DEFAULT_POST_ONSET_MS = 1500.0

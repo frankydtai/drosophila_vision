@@ -8,7 +8,8 @@ The JSON contract (see ``Connectome/FAFBv783/.../network.json``):
     edges:    [{src, tar, sign, n_syn, source_type, target_type, du, dv}, ...]
 
 ``sign`` already encodes ``nt_to_sign`` and the ``forced_negative_pre_types``
-override, so the per-edge synaptic weight is simply ``sign * n_syn``.
+override. ``--syn-mode type_pair`` uses ``base_w = sign * n_syn``;
+``--syn-mode per_edge`` uses ``base_w = sign`` (ignore ``n_syn``).
 
 Units are the nodes in file order; ``node_type[i]`` is the index of
 ``nodes[i]['name']`` in the family-ordered type vocabulary
@@ -28,6 +29,7 @@ import torch
 
 from .connectivity import ScatterConn
 from Medulla_Library import I_BASELINE, I_BRIGHT
+from neuron_model.schema import SYN_MODE_DEFAULT, normalize_syn_mode
 from training_config import SIM_DTYPE_DEFAULT
 
 # Default synaptic scale (matches FiveCol exc_synweight == inh_synweight == 0.001).
@@ -171,11 +173,14 @@ def load_network(
     exc_synweight: float = DEFAULT_SYNWEIGHT,
     inh_synweight: float = DEFAULT_SYNWEIGHT,
     dtype: torch.dtype = SIM_DTYPE_DEFAULT,
+    *,
+    syn_mode: str = SYN_MODE_DEFAULT,
 ) -> Network:
     """Read ``network.json`` and return a :class:`Network`."""
     device = device or ("cuda" if torch.cuda.is_available() else "cpu")
     path = Path(path)
     nodes, edges, type_names, meta = read_network_json(path)
+    mode = normalize_syn_mode(syn_mode)
 
     n_units = len(nodes)
     node_ids = [int(n["id"]) for n in nodes]
@@ -192,14 +197,18 @@ def load_network(
     )
     is_input = np.array([bool(n.get("input", False)) for n in nodes], dtype=bool)
 
-    # edge list -> unit indices + signed weight (sign * n_syn).
+    # edge list -> unit indices + signed base weight.
     src_idx = np.empty(len(edges), dtype=np.int64)
     tar_idx = np.empty(len(edges), dtype=np.int64)
     base_w = np.empty(len(edges), dtype=np.float64)
     for k, e in enumerate(edges):
         src_idx[k] = id_to_unit[int(e["src"])]
         tar_idx[k] = id_to_unit[int(e["tar"])]
-        base_w[k] = float(e["sign"]) * float(e["n_syn"])
+        sign = float(e["sign"])
+        if mode == "per_edge":
+            base_w[k] = sign
+        else:
+            base_w[k] = sign * float(e["n_syn"])
 
     conn = ScatterConn(
         src_idx=src_idx,

@@ -4,7 +4,8 @@
     τ_HP da/dt = X − a
     τ_lp dV/dt = −(V − bias) + G (X − a)
 
-with X = bias + syn + x_t, syn from relu(V)·out_gain scaled by type→type syn_strength.
+with X = bias + syn + x_t, syn from relu(V)·out_gain scaled by syn_strength
+(type_pair) or edge_weight (per_edge).
 
 Dynamics only: ``prepare_signal`` / ``init_state`` / ``step``. Full-T Ca
 forward lives in ``neuron_model.forward``.
@@ -14,6 +15,7 @@ from __future__ import annotations
 import torch
 
 from neuron_model.constants import STATE_CLAMP, deltat
+from neuron_model.schema import synaptic_scale
 
 
 def update_state_hp_lp(V, a, p, x_t, backend):
@@ -24,7 +26,7 @@ def update_state_hp_lp(V, a, p, x_t, backend):
     G = p["hp_gain"]
 
     syn = p["in_gain"] * backend.conn.signed_drive(
-        torch.relu(V) * p["out_gain"], p["syn_strength"],
+        torch.relu(V) * p["out_gain"], synaptic_scale(p),
     )
     X = bias + syn + x_t
     a = a + deltat / tau_hp * (X - a)

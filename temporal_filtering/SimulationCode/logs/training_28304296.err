@@ -1,8 +1,0 @@
-Traceback (most recent call last):
-  File "/home/yitai/drosophila_vision/temporal_filtering/SimulationCode/train.py", line 62, in <module>
-    from network.spot_target import DEFAULT_SHIFT_EXTENT
-  File "/home/yitai/drosophila_vision/temporal_filtering/SimulationCode/network/spot_target.py", line 82, in <module>
-    from .construction import col2fit, unit_type_names
-  File "/home/yitai/drosophila_vision/temporal_filtering/SimulationCode/network/construction.py", line 31, in <module>
-    from training_config import IMPULSE_MAXTIME, SIM_DTYPE_DEFAULT, T_ON
-ImportError: cannot import name 'IMPULSE_MAXTIME' from 'training_config' (/home/yitai/drosophila_vision/temporal_filtering/SimulationCode/training_config.py)

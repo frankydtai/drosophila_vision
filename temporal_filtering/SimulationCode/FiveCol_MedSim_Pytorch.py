@@ -42,6 +42,8 @@ from neuron_model import (  # noqa: F401 — re-export for callers using fc.*
     KNOWN_MODELS,
     MODEL_PACK_READOUTS,
     STATE_CLAMP,
+    SYN_MODE_DEFAULT,
+    SYN_MODES,
     Ca_tau,
     E_IH_OFF,
     E_Ih,
@@ -62,10 +64,12 @@ from neuron_model import (  # noqa: F401 — re-export for callers using fc.*
     exc_synweight,
     g_leak,
     inh_synweight,
+    normalize_syn_mode,
     params_from_z,
     rectsyn,
     run_full,
     run_units,
+    synaptic_scale,
     update_state_hp_lp,
     update_Vm,
     vm_budget_from_g,
@@ -263,16 +267,40 @@ def _fixed_const(seg):
     return float(seg['init'])
 
 
+def _parse_init_override(text):
+    """Parse ``init=L1,L2,L4,L5:200 all:10000`` → ``{name_str: float}``.
+
+    Space-separated groups, each ``NAMES:VALUE`` where NAMES is
+    comma-separated.  ``all`` key = default for unmentioned cells.
+    """
+    out = {}
+    for group in text.split():
+        if ':' not in group:
+            raise ValueError(f"init override group {group!r} needs NAMES:VALUE")
+        names_part, val_str = group.rsplit(':', 1)
+        val = float(val_str)
+        for n in names_part.split(','):
+            n = n.strip()
+            if n:
+                out[n] = val
+    return out
+
+
 def parse_partition_text(text):
-    """Parse ``indi=A,B fixed=all`` (space-separated buckets) → token lists."""
+    """Parse ``indi=all init=L1,L2,L4,L5:200 all:10000`` → token dict.
+
+    Returns ``{indi: [...], shared: [...], fixed: [...], frozen: [...]}``
+    plus optional ``init_override: {name: float}`` when ``init=`` is present.
+    """
     text = (text or '').strip()
     buckets = {b: [] for b in PARTITION_BUCKETS}
     if not text:
         return buckets
+    _KNOWN_KEYS = set(PARTITION_BUCKETS) | {'init'}
     parts = []
     buf = []
     for tok in text.split():
-        if '=' in tok and tok.split('=', 1)[0] in PARTITION_BUCKETS and buf:
+        if '=' in tok and tok.split('=', 1)[0] in _KNOWN_KEYS and buf:
             parts.append(' '.join(buf))
             buf = [tok]
         else:
@@ -284,6 +312,9 @@ def parse_partition_text(text):
             raise ValueError(f"partition chunk {part!r} needs bucket=list")
         key, rest = part.split('=', 1)
         key = key.strip()
+        if key == 'init':
+            buckets['init_override'] = _parse_init_override(rest)
+            continue
         if key not in PARTITION_BUCKETS:
             raise ValueError(f"unknown partition bucket {key!r}")
         items = [x.strip() for x in rest.split(',') if x.strip()]
@@ -339,6 +370,8 @@ def apply_partitions(schema, partitions_by_name, unit_names_for_seg):
     """Copy schema with resolved partitions.
 
     *partitions_by_name*: ``{seg_name: {indi/shared/fixed: [names|indices]}}``
+    plus optional ``init_override``.  When only ``init_override`` is present
+    (no partition buckets), existing schema partitions are kept.
     *unit_names_for_seg*: ``callable(seg) -> list[str]`` or ``{seg_name: list[str]}``.
     """
     out = []
@@ -356,28 +389,82 @@ def apply_partitions(schema, partitions_by_name, unit_names_for_seg):
         vals = []
         for b in PARTITION_BUCKETS:
             vals.extend(raw.get(b) or [])
-        if vals and all(isinstance(x, int) for x in vals):
+        if s.get('kind') == 'edge' and vals:
+            if all(isinstance(x, int) for x in vals):
+                n = seg_count(s)
+                nonempty = [b for b in PARTITION_BUCKETS if raw.get(b)]
+                if len(nonempty) != 1 or nonempty[0] == 'shared':
+                    raise ValueError(
+                        f"{name}: edge partitions must be a single "
+                        f"indi|fixed|frozen=all bucket"
+                    )
+                if set(raw[nonempty[0]]) != set(range(n)):
+                    raise ValueError(
+                        f"{name}: edge partitions must cover all {n} edges"
+                    )
+            else:
+                buckets = {b: [str(x) for x in (raw.get(b) or [])] for b in PARTITION_BUCKETS}
+                if raw.get('init_override'):
+                    buckets['init_override'] = raw['init_override']
+                validate_edge_weight_partition(buckets, param_name=name)
+        if not vals:
+            part = {b: list(seg.get(b) or []) for b in PARTITION_BUCKETS}
+        elif all(isinstance(x, int) for x in vals):
             part = {b: list(raw.get(b) or []) for b in PARTITION_BUCKETS}
         else:
             buckets = {b: [str(x) for x in (raw.get(b) or [])] for b in PARTITION_BUCKETS}
             part = resolve_partition_tokens(buckets, units, param_name=name)
         for b in PARTITION_BUCKETS:
             s[b] = part[b]
+        raw_io = raw.get('init_override')
+        if raw_io:
+            name_to_idx = {str(u): i for i, u in enumerate(units)}
+            io = {}
+            all_val = raw_io.get('all')
+            for cell_name, val in raw_io.items():
+                if cell_name == 'all':
+                    continue
+                if cell_name not in name_to_idx:
+                    raise ValueError(f"{name}: init override unknown unit {cell_name!r}")
+                io[name_to_idx[cell_name]] = val
+            if all_val is not None:
+                for i in range(len(units)):
+                    if i not in io:
+                        io[i] = all_val
+            s['init_override'] = io
         out.append(s)
     return out
 
 
 def schema_partitions_record(schema, unit_names_for_seg):
-    """Serialize partitions as name lists for train_opts.json."""
+    """Serialize partitions as name lists for train_opts.json.
+
+    ``kind=='edge'`` stores compact ``all`` tokens (no per-edge name explosion).
+    """
     rec = {}
     for seg in schema:
         if callable(unit_names_for_seg):
             units = unit_names_for_seg(seg)
         else:
             units = unit_names_for_seg[seg['name']]
-        rec[seg['name']] = partition_to_names(
-            {b: list(seg.get(b) or []) for b in PARTITION_BUCKETS}, units,
-        )
+        part = {b: list(seg.get(b) or []) for b in PARTITION_BUCKETS}
+        if seg.get('kind') == 'edge':
+            n = seg_count(seg)
+            compact = {b: [] for b in PARTITION_BUCKETS}
+            for b in PARTITION_BUCKETS:
+                idxs = part[b]
+                if not idxs:
+                    continue
+                if len(idxs) == n and set(idxs) == set(range(n)):
+                    compact[b] = ['all']
+                else:
+                    raise ValueError(
+                        f"{seg['name']}: edge partitions must be a single "
+                        f"indi|fixed|frozen=all bucket (got {b}={len(idxs)}/{n})"
+                    )
+            rec[seg['name']] = compact
+        else:
+            rec[seg['name']] = partition_to_names(part, units)
     return rec
 
 
@@ -393,10 +480,43 @@ def pair_unit_names(backend: "ModelBackend"):
     return [f"{names[s]}{PAIR_SEP}{names[t]}" for s, t in keys]
 
 
+def edge_unit_names(backend: "ModelBackend"):
+    """Opaque per-edge labels for partition resolve (``e0`` … ``e{n-1}``)."""
+    n = int(backend.conn.n_edges)
+    return [f"e{i}" for i in range(n)]
+
+
 def unit_names_for_segment(seg, backend: "ModelBackend"):
-    if seg['kind'] == 'edge_pair':
+    kind = seg['kind']
+    if kind == 'edge_pair':
         return pair_unit_names(backend)
+    if kind == 'edge':
+        return edge_unit_names(backend)
     return type_unit_names(backend)
+
+
+def validate_edge_weight_partition(buckets, *, param_name='edge_weight'):
+    """Require a single ``indi|fixed|frozen=all`` bucket (no shared / named edges)."""
+    if buckets.get('init_override'):
+        raise ValueError(f"{param_name}: init= overrides are not supported")
+    if buckets.get('shared'):
+        raise ValueError(f"{param_name}: shared= is not supported (use indi|fixed|frozen=all)")
+    all_bucket = None
+    for b in ('indi', 'fixed', 'frozen'):
+        toks = list(buckets.get(b) or [])
+        if not toks:
+            continue
+        if toks != ['all']:
+            raise ValueError(
+                f"{param_name}: only indi=all / fixed=all / frozen=all "
+                f"(got {b}={','.join(toks)})"
+            )
+        if all_bucket is not None:
+            raise ValueError(f"{param_name}: 'all' in both {all_bucket} and {b}")
+        all_bucket = b
+    if all_bucket is None:
+        raise ValueError(f"{param_name}: need one of indi=all / fixed=all / frozen=all")
+    return buckets
 
 
 def _part_indi_all(n):
@@ -437,7 +557,13 @@ def attach_param_carry(schema, named=None):
         if named is not None and seg['name'] in named:
             carry = np.asarray(named[seg['name']], dtype=np.float64).reshape(-1).copy()
         else:
-            carry = np.full(count, float(seg['init']), dtype=np.float64)
+            io = seg.get('init_override')
+            if io:
+                carry = np.full(count, float(seg['init']), dtype=np.float64)
+                for idx, val in io.items():
+                    carry[int(idx)] = val
+            else:
+                carry = np.full(count, float(seg['init']), dtype=np.float64)
         if carry.shape[0] != count:
             raise ValueError(
                 f"{seg['name']}: carry length {carry.shape[0]} != count {count}"
@@ -513,6 +639,11 @@ def remap_named_unit_values(named, src_type_names, src_pair_names, schema, backe
                     arr[j] = float(src[src_p[pn]])
                 else:
                     arr[j] = float(seg['init'])
+        elif seg['kind'] == 'edge':
+            if src.shape[0] == count:
+                arr[:] = src
+            else:
+                arr[:] = float(seg['init'])
         else:
             for j, tn in enumerate(dst_types):
                 if tn in src_t and src_t[tn] < src.shape[0]:
@@ -983,19 +1114,29 @@ def _network_backend_from_connectome(C, *, sim_dtype=SIM_DTYPE_DEFAULT) -> Model
     )
 
 
-def load_network_backend(network_json, dev: Optional[str] = None, *, sim_dtype=SIM_DTYPE_DEFAULT) -> ModelBackend:
+def load_network_backend(
+    network_json,
+    dev: Optional[str] = None,
+    *,
+    sim_dtype=SIM_DTYPE_DEFAULT,
+    syn_mode=SYN_MODE_DEFAULT,
+) -> ModelBackend:
     """Load connectome network into a :class:`ModelBackend`."""
     from network.construction import load_network
 
     dev = dev or active_device()
-    C = load_network(network_json, device=dev,
-                     exc_synweight=exc_synweight, inh_synweight=inh_synweight,
-                     dtype=sim_dtype)
+    mode = normalize_syn_mode(syn_mode)
+    C = load_network(
+        network_json, device=dev,
+        exc_synweight=exc_synweight, inh_synweight=inh_synweight,
+        dtype=sim_dtype, syn_mode=mode,
+    )
     backend = _network_backend_from_connectome(C, sim_dtype=sim_dtype)
     print(f"network: {network_json}")
     print(f"  n_units={backend.n_units}, n_types={backend.n_types}, "
-          f"n_pairs={backend.conn.n_pairs}, "
-          f"nparams={schema_nparams(default_schema('conductance', backend))}")
+          f"n_pairs={backend.conn.n_pairs}, n_edges={backend.conn.n_edges}, "
+          f"syn_mode={mode}, "
+          f"nparams={schema_nparams(default_schema('conductance', backend, syn_mode=mode))}")
     return backend
 
 
@@ -1481,6 +1622,7 @@ def make_train_opts(
     network_json=None,
     network=None,
     param_partitions=None,
+    syn_mode=SYN_MODE_DEFAULT,
     dev=None,
     packs=None,
     ih_off=IH_OFF_DEFAULT,
@@ -1540,6 +1682,7 @@ def make_train_opts(
     if param_partitions is not None:
         opts["param_partitions"] = param_partitions
     opts["ih_off"] = str(ih_off)
+    opts["syn_mode"] = normalize_syn_mode(syn_mode)
     if fp32:
         opts["fp32"] = True
     opts.update({
@@ -1606,6 +1749,7 @@ def _train_opts_for_sidecar(
         record["param_partitions"] = opts["param_partitions"]
     if "ih_off" in opts:
         record["ih_off"] = str(opts["ih_off"])
+    record["syn_mode"] = normalize_syn_mode(opts.get("syn_mode", SYN_MODE_DEFAULT))
     if opts.get("fp32"):
         record["fp32"] = True
     return record
@@ -1614,7 +1758,10 @@ def _train_opts_for_sidecar(
 def _schema_from_opts(model, model_backend, schema, train_opts_record):
     if schema is not None:
         return list(schema)
-    base = default_schema(model, model_backend)
+    syn_mode = SYN_MODE_DEFAULT
+    if train_opts_record:
+        syn_mode = normalize_syn_mode(train_opts_record.get("syn_mode", SYN_MODE_DEFAULT))
+    base = default_schema(model, model_backend, syn_mode=syn_mode)
     if not train_opts_record:
         return base
     parts = train_opts_record.get("param_partitions")
@@ -1694,6 +1841,7 @@ def open_session(
     sim_dtype = sim_dtype_from_fp32(bool(opts.get("fp32", False)))
 
     C = opts.get("network")
+    syn_mode = normalize_syn_mode(opts.get("syn_mode", SYN_MODE_DEFAULT))
     if C is None:
         nj = opts.get("network_json")
         if not nj:
@@ -1702,7 +1850,7 @@ def open_session(
         C = load_network(
             nj, device=dev,
             exc_synweight=exc_synweight, inh_synweight=inh_synweight,
-            dtype=sim_dtype,
+            dtype=sim_dtype, syn_mode=syn_mode,
         )
     if model_backend is None:
         model_backend = _network_backend_from_connectome(C, sim_dtype=sim_dtype)
@@ -1768,10 +1916,13 @@ def open_session_from_opts(opts: dict, model: str | None = None, **kwargs) -> Tr
     if not opts.get("target_list"):
         raise ValueError("train_opts requires target_list")
     sim_dtype = sim_dtype_from_fp32(bool(opts.get("fp32", False)))
+    syn_mode = normalize_syn_mode(opts.get("syn_mode", SYN_MODE_DEFAULT))
     mb = load_network_backend(
         nj, dev=opts.get("dev") or active_device(), sim_dtype=sim_dtype,
+        syn_mode=syn_mode,
     )
     opts["network"] = mb.network
+    opts["syn_mode"] = syn_mode
     kwargs.setdefault("model_backend", mb)
     return open_session({**opts, "backend": "network"}, model, **kwargs)
 
@@ -1812,11 +1963,13 @@ def _reconstruct_raw(seg, z_slice, z):
         shared_val = _decode_z(seg, z_slice[i])
         for u in seg['shared']:
             raw[int(u)] = shared_val
+    io = seg.get('init_override')
     for u in seg.get('frozen', ()):
         if carry is not None:
             raw[int(u)] = torch.tensor(float(carry[int(u)]), dtype=z.dtype, device=z.device)
         else:
-            raw[int(u)] = torch.tensor(float(seg['init']), dtype=z.dtype, device=z.device)
+            v = io.get(int(u), seg['init']) if io else seg['init']
+            raw[int(u)] = torch.tensor(float(v), dtype=z.dtype, device=z.device)
     return raw
 
 
@@ -1829,6 +1982,8 @@ def _expand_segment(seg, raw, backend: ModelBackend):
     if kind == 'output':
         return raw.to(dev)
     if kind == 'edge_pair':
+        return raw.to(dev)
+    if kind == 'edge':
         return raw.to(dev)
     raise ValueError(f"unknown segment kind: {kind}")
 
@@ -2486,8 +2641,18 @@ def schema_guess(schema, sim_dtype=SIM_DTYPE_DEFAULT):
         n = stop - start
         if n == 0:
             continue
-        z_init = _encode_physical(seg, seg['init'])
-        z[start:stop] = z_init + (np.random.rand(n) - 0.5) * seg['jit']
+        io = seg.get('init_override')
+        if io:
+            i = 0
+            for u in seg.get('indi', ()):
+                phys = io.get(int(u), seg['init'])
+                z[start + i] = _encode_physical(seg, phys) + (np.random.random() - 0.5) * seg['jit']
+                i += 1
+            if seg.get('shared'):
+                z[start + i] = _encode_physical(seg, seg['init']) + (np.random.random() - 0.5) * seg['jit']
+        else:
+            z_init = _encode_physical(seg, seg['init'])
+            z[start:stop] = z_init + (np.random.rand(n) - 0.5) * seg['jit']
     return torch.tensor(z, dtype=sim_dtype).to(active_device())
 
 def guess_initial_params(session: TrainSession):
@@ -2514,7 +2679,8 @@ _TQDM_REFRESH_INTERVAL = 10
 
 def gradient_network(z, lr=0.0001, cost_fn=None, n_steps=100, device="cpu", z_bounds=None,
                      cost_log=None, step_log=None, float_last_parts=None, target_order=None,
-                     backward_step=None, eval_cost=None):
+                     backward_step=None, eval_cost=None,
+                     checkpoint_interval=None, on_interval_best=None, global_step_start=0):
     
     a = time.time()
 
@@ -2522,21 +2688,39 @@ def gradient_network(z, lr=0.0001, cost_fn=None, n_steps=100, device="cpu", z_bo
     
     optimizer = torch.optim.Adam([z], lr=lr)
 
-    try:
+    def _measure_cost(param_z):
         if eval_cost is not None:
-            cost = eval_cost(z)
-        else:
-            cost = cost_fn(z).item()
+            return eval_cost(param_z)
+        return cost_fn(param_z).item()
+
+    try:
+        cost = _measure_cost(z)
     except RuntimeError as e:
         raise RuntimeError(f'non-finite at init: {e}') from e
     if not np.isfinite(cost):
         raise RuntimeError(f'non-finite cost at init: {cost}')
     best_cost = cost
     best_z = z.clone().detach()
+    interval_best_cost = cost
+    interval_best_z = z.clone().detach()
     
     initial_cost = 1.0 * cost
     initial_parts = float_last_parts(target_order) if float_last_parts else None
     best_parts = initial_parts
+
+    def _reset_interval_from_z():
+        nonlocal interval_best_cost, interval_best_z
+        interval_best_cost = _measure_cost(z)
+        interval_best_z = z.clone().detach()
+
+    def _commit_interval_checkpoint(global_step):
+        nonlocal optimizer
+        if on_interval_best is not None:
+            on_interval_best(global_step, interval_best_z, interval_best_cost)
+        with torch.no_grad():
+            z.copy_(interval_best_z)
+        optimizer = torch.optim.Adam([z], lr=lr)
+        _reset_interval_from_z()
 
     progress_bar = tqdm(
         range(n_steps),
@@ -2578,6 +2762,10 @@ def gradient_network(z, lr=0.0001, cost_fn=None, n_steps=100, device="cpu", z_bo
             best_z = z.clone().detach()
             if float_last_parts is not None:
                 best_parts = float_last_parts(target_order)
+
+        if cost < interval_best_cost:
+            interval_best_cost = cost
+            interval_best_z = z.clone().detach()
         
         if cost_log is not None:
             cost_log.append(cost)
@@ -2590,6 +2778,10 @@ def gradient_network(z, lr=0.0001, cost_fn=None, n_steps=100, device="cpu", z_bo
             
             z.clamp_(z_bounds[:, 0].to(device), z_bounds[:, 1].to(device))
 
+        global_step = global_step_start + i + 1
+        if checkpoint_interval and global_step % checkpoint_interval == 0:
+            _commit_interval_checkpoint(global_step)
+
         step_parts = float_last_parts(target_order) if float_last_parts else None
         if (i + 1) % _TQDM_REFRESH_INTERVAL == 0 or i == n_steps - 1:
             progress_bar.set_description(
@@ -2599,10 +2791,7 @@ def gradient_network(z, lr=0.0001, cost_fn=None, n_steps=100, device="cpu", z_bo
 
     if aborted is None:
         try:
-            if eval_cost is not None:
-                cost = eval_cost(z)
-            else:
-                cost = cost_fn(z).item()
+            cost = _measure_cost(z)
             final_parts = float_last_parts(target_order) if float_last_parts else None
         except RuntimeError as e:
             aborted = f'final eval: {e}'
@@ -2633,14 +2822,20 @@ def gradient_network(z, lr=0.0001, cost_fn=None, n_steps=100, device="cpu", z_bo
 
 def train_staged(z, cost_fn, z_bounds, lrs, nsteps, cost_log=None, step_log=None,
                  float_last_parts=None, target_order=None,
-                 backward_step=None, eval_cost=None):
+                 backward_step=None, eval_cost=None,
+                 checkpoint_interval=None, on_interval_best=None, global_step_start=0):
     # run gradient_network once per learning-rate stage, chaining the best params.
+    global_step = global_step_start
     for lr in lrs:
         z = gradient_network(z, lr=lr, n_steps=nsteps, device=active_device(),
                              cost_fn=cost_fn, z_bounds=z_bounds, cost_log=cost_log,
                              step_log=step_log, float_last_parts=float_last_parts,
                              target_order=target_order,
-                             backward_step=backward_step, eval_cost=eval_cost)
+                             backward_step=backward_step, eval_cost=eval_cost,
+                             checkpoint_interval=checkpoint_interval,
+                             on_interval_best=on_interval_best,
+                             global_step_start=global_step)
+        global_step += nsteps
     return z
 
 
@@ -2700,11 +2895,15 @@ def _make_step_logger(session: TrainSession):
 
 
 def do_many_runs(session: TrainSession, nofruns, nofsteps, lrs=(0.1, 0.01, 0.001),
-                 z_init=None) -> TrainingResult:
+                 z_init=None, checkpoint_interval=None, checkpoint_outdir=None,
+                 make_checkpoint_callback=None, checkpoint_plot_kw=None) -> TrainingResult:
     """Run ``nofruns`` independent fits; return arrays (no file I/O).
 
     When *z_init* is set, every round starts from ``z_init.clone()`` instead of
     ``schema_guess``.
+
+    When *checkpoint_interval* is set, each round writes interval-best params via
+    *make_checkpoint_callback(outdir, session, run_i=..., nofruns=...)*.
     """
     schema = list(session.schema)
     n_params = schema_nparams(schema)
@@ -2732,6 +2931,17 @@ def do_many_runs(session: TrainSession, nofruns, nofsteps, lrs=(0.1, 0.01, 0.001
         def step_log(z):
             cost_history.append(log_step(z))
 
+        on_interval_best = None
+        if checkpoint_interval is not None:
+            if checkpoint_outdir is None or make_checkpoint_callback is None:
+                raise ValueError(
+                    "checkpoint_interval requires checkpoint_outdir and make_checkpoint_callback"
+                )
+            on_interval_best = make_checkpoint_callback(
+                checkpoint_outdir, session, run_i=i, nofruns=nofruns,
+                plot_kw=checkpoint_plot_kw,
+            )
+
         z_fit = train_staged(
             z, cost_fn, bounds, lrs, nofsteps,
             step_log=step_log,
@@ -2739,6 +2949,8 @@ def do_many_runs(session: TrainSession, nofruns, nofsteps, lrs=(0.1, 0.01, 0.001
             target_order=list(part_keys),
             backward_step=backward_step,
             eval_cost=eval_cost,
+            checkpoint_interval=checkpoint_interval,
+            on_interval_best=on_interval_best,
         )
 
         all_params[i] = z_fit.detach().cpu().numpy()

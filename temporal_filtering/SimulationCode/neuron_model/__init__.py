@@ -33,12 +33,16 @@ from neuron_model.constants import (
 from neuron_model.schema import (
     ALL_PARAM_NAMES,
     IH_SHAPE_PARAM_NAMES,
+    SYN_MODE_DEFAULT,
+    SYN_MODES,
     apply_ih_off_mode,
     build_conductance_schema,
     build_hp_lp_schema,
     conductance_ih_off_kwargs,
     conductance_schema,
     default_schema,
+    normalize_syn_mode,
+    synaptic_scale,
 )
 from neuron_model import conductance as _conductance
 from neuron_model import hp_lp as _hp_lp
@@ -71,6 +75,8 @@ __all__ = [
     "KNOWN_MODELS",
     "ALL_PARAM_NAMES",
     "IH_SHAPE_PARAM_NAMES",
+    "SYN_MODES",
+    "SYN_MODE_DEFAULT",
     "MODEL_DRIVERS",
     "MODEL_PACK_READOUTS",
     "default_schema",
@@ -79,6 +85,8 @@ __all__ = [
     "conductance_schema",
     "apply_ih_off_mode",
     "conductance_ih_off_kwargs",
+    "normalize_syn_mode",
+    "synaptic_scale",
     "rectsyn",
     "update_Vm",
     "vm_budget_from_g",

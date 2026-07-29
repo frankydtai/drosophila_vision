@@ -19,7 +19,7 @@ from neuron_model.constants import (
     deltat,
     g_leak,
 )
-from neuron_model.schema import conductance_ih_off_kwargs
+from neuron_model.schema import conductance_ih_off_kwargs, synaptic_scale
 
 
 def rectsyn(x, thrld):
@@ -142,7 +142,7 @@ def step(state, V, p, x_t, session):
     )
     V, u_on, u_off = update_Vm(
         V, u_on, u_off,
-        p["in_gain"], p["out_gain"], p["syn_strength"], p["v_th"],
+        p["in_gain"], p["out_gain"], synaptic_scale(p), p["v_th"],
         p["Ih_gmax"], Ih_gmax_off,
         p["Ih_midv"], p["Ih_slope"], p["tau_midv"],
         Ih_midv_off, Ih_slope_off, tau_midv_off,
