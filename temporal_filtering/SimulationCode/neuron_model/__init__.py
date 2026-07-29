@@ -48,7 +48,7 @@ from neuron_model import conductance as _conductance
 from neuron_model import hp_lp as _hp_lp
 from neuron_model.forward import (
     MODEL_DRIVERS,
-    MODEL_PACK_READOUTS,
+    CA_PACK_READOUTS,
     ca_readout_step,
     pack_readout,
     run_full,
@@ -57,8 +57,8 @@ from neuron_model.forward import (
 
 # --- conductance ---
 rectsyn = _conductance.rectsyn
-update_Vm = _conductance.update_Vm
-vm_budget_from_g = _conductance.vm_budget_from_g
+update_v = _conductance.update_v
+v_budget_from_g = _conductance.v_budget_from_g
 
 # --- hp_lp ---
 update_state_hp_lp = _hp_lp.update_state_hp_lp
@@ -78,7 +78,7 @@ __all__ = [
     "SYN_MODES",
     "SYN_MODE_DEFAULT",
     "MODEL_DRIVERS",
-    "MODEL_PACK_READOUTS",
+    "CA_PACK_READOUTS",
     "default_schema",
     "build_conductance_schema",
     "build_hp_lp_schema",
@@ -88,8 +88,8 @@ __all__ = [
     "normalize_syn_mode",
     "synaptic_scale",
     "rectsyn",
-    "update_Vm",
-    "vm_budget_from_g",
+    "update_v",
+    "v_budget_from_g",
     "update_state_hp_lp",
     "ca_readout_step",
     "run_full",

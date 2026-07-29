@@ -90,25 +90,25 @@ DEFAULT_NOFSTEPS_CPU = 50
 DEFAULT_NOFSTEPS_GPU = 200
 
 _CHECKPOINT_PNG_STEMS = (
-    'model_data_spot',
-    'model_all_spot',
-    'model_data_bar',
-    'model_all_bar',
-    'model_all_spot_vm',
-    'model_all_bar_vm',
+    'spot_trained_ca',
+    'spot_all_ca',
+    'bar_trained_ca',
+    'bar_all_ca',
+    'spot_all_v',
+    'bar_all_v',
 )
 
 
 def build_plot_kwargs(*, ref_cubes=None, ref_cubes_2=None,
                       plot_right_only=True, at_x=None, at_y=None,
                       align_at_x=None, align_at_y=None,
-                      plot_vm=False, show_pre=True):
+                      plot_v_delta=False, show_pre=True):
     return dict(
         ref_cubes=ref_cubes, ref_cubes_2=ref_cubes_2,
         plot_right_only=plot_right_only,
         at_x=at_x, at_y=at_y,
         align_at_x=align_at_x, align_at_y=align_at_y,
-        plot_vm=plot_vm, show_pre=show_pre,
+        plot_v_delta=plot_v_delta, show_pre=show_pre,
     )
 
 
@@ -120,14 +120,14 @@ def make_plots(fname, outdir, session, result=None, *,
                ref_cubes=None, ref_cubes_2=None,
                plot_right_only=True, at_x=None, at_y=None,
                align_at_x=None, align_at_y=None,
-               plot_vm=False, show_pre=True):
+               plot_v_delta=False, show_pre=True):
     """Cost curve + model-vs-data + all-cell-types."""
     plot_kw = build_plot_kwargs(
         ref_cubes=ref_cubes, ref_cubes_2=ref_cubes_2,
         plot_right_only=plot_right_only,
         at_x=at_x, at_y=at_y,
         align_at_x=align_at_x, align_at_y=align_at_y,
-        plot_vm=plot_vm, show_pre=show_pre,
+        plot_v_delta=plot_v_delta, show_pre=show_pre,
     )
     if result is not None:
         plot_param_set(
@@ -683,7 +683,7 @@ def run_training(model, nofruns, nofsteps, lrs, fname=None, outdir=None,
                  plot_right_only=True,
                  at_x=None, at_y=None,
                  align_at_x=None, align_at_y=None,
-                 plot_vm=False, show_pre=True,
+                 plot_v_delta=False, show_pre=True,
                  init_from=None,
                  checkpoint_interval=None):
     """Full training pipeline (do_many_runs + save_training_outputs + plots). Returns (fname, outdir, session)."""
@@ -730,7 +730,7 @@ def run_training(model, nofruns, nofsteps, lrs, fname=None, outdir=None,
         plot_right_only=plot_right_only,
         at_x=at_x, at_y=at_y,
         align_at_x=align_at_x, align_at_y=align_at_y,
-        plot_vm=plot_vm, show_pre=show_pre,
+        plot_v_delta=plot_v_delta, show_pre=show_pre,
     )
     z_init = None
     if init_from:
@@ -751,7 +751,7 @@ def run_training(model, nofruns, nofsteps, lrs, fname=None, outdir=None,
         ref_cubes=plot_ref_cubes, ref_cubes_2=plot_ref_cubes_2,
         plot_right_only=plot_right_only, at_x=at_x, at_y=at_y,
         align_at_x=align_at_x, align_at_y=align_at_y,
-        plot_vm=plot_vm, show_pre=show_pre,
+        plot_v_delta=plot_v_delta, show_pre=show_pre,
     )
     return fname, outdir, session
 

@@ -2,9 +2,9 @@
 """HP-then-membrane-LP neuron (``--model hp_lp``).
 
     τ_HP da/dt = X − a
-    τ_lp dV/dt = −(V − bias) + G (X − a)
+    τ_lp dv/dt = −(v − bias) + G (X − a)
 
-with X = bias + syn + x_t, syn from relu(V)·out_gain scaled by syn_strength
+with X = bias + syn + x_t, syn from relu(v)·out_gain scaled by syn_strength
 (type_pair) or edge_weight (per_edge).
 
 Dynamics only: ``prepare_signal`` / ``init_state`` / ``step``. Full-T Ca
@@ -18,23 +18,23 @@ from neuron_model.constants import STATE_CLAMP, deltat
 from neuron_model.schema import synaptic_scale
 
 
-def update_state_hp_lp(V, a, p, x_t, backend):
-    """One HP→LP membrane step; returns (V, a)."""
+def update_state_hp_lp(v, a, p, x_t, backend):
+    """One HP→LP membrane step; returns (v, a)."""
     bias = p["bias"]
     tau_lp = torch.clamp(p["tau_lp"], min=deltat)
     tau_hp = torch.clamp(p["tau_hp"], min=deltat)
     G = p["hp_gain"]
 
     syn = p["in_gain"] * backend.conn.signed_drive(
-        torch.relu(V) * p["out_gain"], synaptic_scale(p),
+        torch.relu(v) * p["out_gain"], synaptic_scale(p),
     )
     X = bias + syn + x_t
     a = a + deltat / tau_hp * (X - a)
-    V = V + deltat / tau_lp * (-(V - bias) + G * (X - a))
+    v = v + deltat / tau_lp * (-(v - bias) + G * (X - a))
 
     a = torch.clamp(a, -STATE_CLAMP, STATE_CLAMP)
-    V = torch.clamp(V, -STATE_CLAMP, STATE_CLAMP)
-    return V, a
+    v = torch.clamp(v, -STATE_CLAMP, STATE_CLAMP)
+    return v, a
 
 
 def prepare_signal(session, p, sig, pack):
@@ -48,16 +48,16 @@ def prepare_signal(session, p, sig, pack):
 
 
 def init_state(session, p, B):
-    """``(a,)``, ``V0 = bias``."""
+    """``(a,)``, ``v0 = bias``."""
     bias = p["bias"]
     n = session.backend.n_units
-    V = bias.expand(B, n).clone()
+    v = bias.expand(B, n).clone()
     a = bias.expand(B, n).clone()
-    return (a,), V
+    return (a,), v
 
 
-def step(state, V, p, x_t, session):
-    """One HP→LP update; returns ``((a,), V)``."""
+def step(state, v, p, x_t, session):
+    """One HP→LP update; returns ``((a,), v)``."""
     (a,) = state
-    V, a = update_state_hp_lp(V, a, p, x_t, session.backend)
-    return (a,), V
+    v, a = update_state_hp_lp(v, a, p, x_t, session.backend)
+    return (a,), v

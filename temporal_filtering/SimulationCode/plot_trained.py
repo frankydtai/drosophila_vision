@@ -295,18 +295,18 @@ def _plot_spot_targets(session, z, outdir, spot_targets, suffix, model_all,
         s_2 = session_for_target(session, 'spot_dark')
         b_1 = make_bundle(s_1, z, **bundle_kw)
         b_2 = make_bundle(s_2, z, **bundle_kw)
-        mvd = os.path.join(outdir, 'model_data_spot.png')
+        mvd = os.path.join(outdir, 'spot_trained_ca.png')
         plot_data(
             mvd, bundle=b_1, bundle_2=b_2,
-            title=f'Spot model-data ({suffix}){net_tag}',
+            title=f'Spot ca-data ({suffix}){net_tag}',
             **plot_kw,
         )
         allc = None
         if model_all:
-            allc = os.path.join(outdir, 'model_all_spot.png')
+            allc = os.path.join(outdir, 'spot_all_ca.png')
             plot_all(
                 allc, bundle=b_1, bundle_2=b_2,
-                title=f'Spot model-all ({suffix}){net_tag}',
+                title=f'Spot ca-all ({suffix}){net_tag}',
                 **plot_kw,
             )
         return mvd, allc
@@ -340,32 +340,32 @@ def _plot_bar_targets(session, z, outdir, bar_targets, suffix, model_all, *,
         b_dark = moving_bar_plot.moving_bar_trace_bundle(
             s_dark, z, 'moving_bar_dark', **bundle_kw,
         )
-        mvd = os.path.join(outdir, 'model_data_bar.png')
+        mvd = os.path.join(outdir, 'bar_trained_ca.png')
         moving_bar_plot.plot_moving_bar_data(
             mvd, bundle=b_bright, bundle_2=b_dark,
-            title=f'Moving-bar model-data ({suffix})',
+            title=f'Moving-bar ca-data ({suffix})',
         )
         allc = None
         if model_all:
-            allc = os.path.join(outdir, 'model_all_bar.png')
+            allc = os.path.join(outdir, 'bar_all_ca.png')
             moving_bar_plot.plot_moving_bar_all(
                 allc, bundle=b_bright, bundle_2=b_dark,
-                title=f'Moving-bar model-all ({suffix})',
+                title=f'Moving-bar ca-all ({suffix})',
                 right_only=plot_right_only,
             )
         return mvd, allc
     for tname in bar_targets:
         one = session_for_target(session, tname)
         b = moving_bar_plot.moving_bar_trace_bundle(one, z, tname, **bundle_kw)
-        mvd = os.path.join(outdir, 'model_data_bar.png')
+        mvd = os.path.join(outdir, 'bar_trained_ca.png')
         moving_bar_plot.plot_moving_bar_data(
-            mvd, bundle=b, title=f'{tname} model-data ({suffix})',
+            mvd, bundle=b, title=f'{tname} ca-data ({suffix})',
         )
         allc = None
         if model_all:
-            allc = os.path.join(outdir, 'model_all_bar.png')
+            allc = os.path.join(outdir, 'bar_all_ca.png')
             moving_bar_plot.plot_moving_bar_all(
-                allc, bundle=b, title=f'{tname} model-all ({suffix})',
+                allc, bundle=b, title=f'{tname} ca-all ({suffix})',
                 right_only=plot_right_only,
             )
         return mvd, allc
@@ -376,8 +376,8 @@ def _plot_one_target(session, z, outdir, tname, suffix, model_all,
                      at_x=None, at_y=None, save_trace_csv_dir=None, show_pre=True):
     if tname not in fc.SPOT_TARGETS:
         raise ValueError(f'unknown plot target {tname!r}')
-    mvd = os.path.join(outdir, 'model_data_spot.png')
-    allc = os.path.join(outdir, 'model_all_spot.png')
+    mvd = os.path.join(outdir, 'spot_trained_ca.png')
+    allc = os.path.join(outdir, 'spot_all_ca.png')
     make_bundle, plot_data, plot_all = spot_bundle_fns(session)
     net_tag = _network_spot_tag(session, tname)
     plot_kw = dict(ref_cubes=ref_cubes, ref_cubes_2=ref_cubes_2)
@@ -387,10 +387,10 @@ def _plot_one_target(session, z, outdir, tname, suffix, model_all,
         save_trace_csv_dir=save_trace_csv_dir, show_pre=show_pre,
     )
     plot_data(
-        mvd, bundle=b, title=f'{tname} model-data ({suffix}){net_tag}', **plot_kw,
+        mvd, bundle=b, title=f'{tname} ca-data ({suffix}){net_tag}', **plot_kw,
     )
     if model_all:
-        plot_all(allc, bundle=b, title=f'{tname} model-all ({suffix}){net_tag}', **plot_kw)
+        plot_all(allc, bundle=b, title=f'{tname} ca-all ({suffix}){net_tag}', **plot_kw)
     return mvd, allc
 
 
@@ -402,7 +402,7 @@ def plot_param_set(params, outdir, model=None, model_all=True,
                    ref_cubes=None, ref_cubes_2=None,
                    plot_right_only=True, at_x=None, at_y=None,
                    align_at_x=None, align_at_y=None,
-                   plot_vm=False, save_csv=False, show_pre=True):
+                   plot_v_delta=False, save_csv=False, show_pre=True):
     os.makedirs(outdir, exist_ok=True)
     data_dir = run_data_dir(os.path.abspath(outdir))
     os.makedirs(data_dir, exist_ok=True)
@@ -456,17 +456,17 @@ def plot_param_set(params, outdir, model=None, model_all=True,
         if not bar_targets:
             raise SystemExit('--align-xy applies to moving_bar slice plots only')
 
-    if plot_vm:
+    if plot_v_delta:
         if session.model != 'conductance':
-            raise SystemExit('--vm requires model conductance')
+            raise SystemExit('--v-delta requires model conductance')
         if other_targets:
-            raise SystemExit(f'--vm does not support plot targets: {other_targets}')
+            raise SystemExit(f'--v-delta does not support plot targets: {other_targets}')
         if bar_targets:
             bar_set = set(bar_targets)
             bundle_kw = dict(
                 at_x_list=at_x, at_y_list=at_y,
                 align_at_x=align_at_x, align_at_y=align_at_y,
-                trace_kind='vm',
+                trace_kind='v',
                 save_trace_csv_dir=save_trace_csv_dir,
                 show_pre=show_pre,
             )
@@ -479,23 +479,23 @@ def plot_param_set(params, outdir, model=None, model_all=True,
                 b_dark = moving_bar_plot.moving_bar_trace_bundle(
                     s_dark, z, 'moving_bar_dark', **bundle_kw,
                 )
-                allc = os.path.join(outdir, 'model_all_bar_vm.png')
+                allc = os.path.join(outdir, 'bar_all_v.png')
                 moving_bar_plot.plot_moving_bar_all(
                     allc, bundle=b_bright, bundle_2=b_dark,
-                    title=f'Moving-bar Vm-all ({suffix})',
+                    title=f'Moving-bar v-all ({suffix})',
                     right_only=plot_right_only,
                 )
             else:
                 tname = bar_targets[0]
                 one = session_for_target(session, tname)
                 b = moving_bar_plot.moving_bar_trace_bundle(one, z, tname, **bundle_kw)
-                allc = os.path.join(outdir, 'model_all_bar_vm.png')
+                allc = os.path.join(outdir, 'bar_all_v.png')
                 moving_bar_plot.plot_moving_bar_all(
                     allc, bundle=b,
-                    title=f'{tname} Vm-all ({suffix})',
+                    title=f'{tname} v-all ({suffix})',
                     right_only=plot_right_only,
                 )
-        # In Vm mode, only emit spot Vm plots when this run actually includes
+        # In v mode, only emit spot v plots when this run actually includes
         # spot targets (or explicit plot target filtering keeps them).
         if spot_targets:
             spot_set = set(spot_targets)
@@ -507,7 +507,7 @@ def plot_param_set(params, outdir, model=None, model_all=True,
             )
             bundle_kw = dict(
                 at_x_list=at_x, at_y_list=at_y,
-                trace_kind='vm',
+                trace_kind='v',
                 save_trace_csv_dir=save_trace_csv_dir,
                 show_pre=show_pre,
             )
@@ -516,20 +516,20 @@ def plot_param_set(params, outdir, model=None, model_all=True,
                 s_2 = session_for_target(session, 'spot_dark')
                 b_1 = make_bundle(s_1, z, **bundle_kw)
                 b_2 = make_bundle(s_2, z, **bundle_kw)
-                allc = os.path.join(outdir, 'model_all_spot_vm.png')
+                allc = os.path.join(outdir, 'spot_all_v.png')
                 plot_all(
                     allc, bundle=b_1, bundle_2=b_2,
-                    title=f'Spot Vm-all ({suffix}){net_tag}',
+                    title=f'Spot v-all ({suffix}){net_tag}',
                     **plot_kw,
                 )
             else:
                 tname = spot_targets[0]
                 one = session_for_target(session, tname)
                 b = make_bundle(one, z, **bundle_kw)
-                allc = os.path.join(outdir, 'model_all_spot_vm.png')
+                allc = os.path.join(outdir, 'spot_all_v.png')
                 plot_all(
                     allc, bundle=b,
-                    title=f'{tname} Vm-all ({suffix}){net_tag}',
+                    title=f'{tname} v-all ({suffix}){net_tag}',
                     **plot_kw,
                 )
         print(f'plots saved to {outdir}')
@@ -585,13 +585,13 @@ def add_plot_arguments(parser):
     from train import parse_bool
 
     parser.add_argument(
-        '--vm',
+        '--v-delta',
         nargs='?',
         const=True,
         default=False,
         type=parse_bool,
         metavar='BOOL',
-        help='only write model_all_bar_vm.png / model_all_spot_vm.png (Vm−Vm_ref); '
+        help='only write bar_all_v.png / spot_all_v.png (v-v_ref); '
              'skip other plots',
     )
     parser.add_argument(
@@ -601,7 +601,7 @@ def add_plot_arguments(parser):
         default=True,
         type=parse_bool,
         metavar='BOOL',
-        help='model_all_bar: right-direction specs only (default true); '
+        help='bar_all_ca: right-direction specs only (default true); '
              'pass false for all directions',
     )
     parser.add_argument(
@@ -618,13 +618,13 @@ def add_plot_arguments(parser):
         '--x',
         default=None,
         metavar='X,...',
-        help='model_all_{bar,spot}{,_vm}: comma-separated x slices; with --y, one trace per (x,y) pair',
+        help='{bar,spot}_all{,_v}: comma-separated x slices; with --y, one trace per (x,y) pair',
     )
     parser.add_argument(
         '--y',
         default=None,
         metavar='Y,...',
-        help='model_all_{bar,spot}{,_vm}: comma-separated y slices; with --x, one trace per (x,y) pair',
+        help='{bar,spot}_all{,_v}: comma-separated y slices; with --x, one trace per (x,y) pair',
     )
     parser.add_argument(
         '--align-xy',
@@ -639,7 +639,7 @@ def plot_kwargs_from_args(args):
     align_xy = parse_align_xy(args.align_xy)
     align_at_x, align_at_y = align_xy if align_xy is not None else (None, None)
     return dict(
-        plot_vm=args.vm,
+        plot_v_delta=args.v_delta,
         plot_right_only=args.plot_right_only,
         show_pre=args.show_pre,
         at_x=parse_axis_slice_list(args.x),

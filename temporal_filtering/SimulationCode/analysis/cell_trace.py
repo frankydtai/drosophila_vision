@@ -23,7 +23,7 @@ Center-bin impulse + RF (same scaling as spot plots) via
 Moving bar
 ----------
 ``t_first_sti``-aligned window; optional ``--x`` / ``--y`` overlays match
-``model_all_bar``. Summary stats and shape labels for bar traces use the
+``bar_all_ca``. Summary stats and shape labels for bar traces use the
 **post-onset** segment (``idx >= cost_window_start_idx``); pre-stim extrema
 are ignored.
 
@@ -33,16 +33,16 @@ Examples
   cd temporal_filtering/SimulationCode
   ../.venv/bin/python -m analysis.cell_trace \\
     --run /abs/path/to/run --cell Mi4,Mi9 \\
-    --target spot_bright,moving_bar_bright --trace-kind vm
+    --target spot_bright,moving_bar_bright --trace-kind v
 
   ../.venv/bin/python -m analysis.cell_trace \\
     --run /abs/path/to/run --cell L4 --target spot_dark \\
-    --trace-kind vm --x 2 --y 1
+    --trace-kind v --x 2 --y 1
 
   ../.venv/bin/python -m analysis.cell_trace \\
     --run /abs/path/to/run --cell Mi4,Mi9 \\
     --target moving_bar_bright --spec right_bright_w1,left_bright_w1 \\
-    --trace-kind vm
+    --trace-kind v
 """
 
 from __future__ import annotations
@@ -239,8 +239,17 @@ def extract_spot_cell_curves(bundle, ref_on, *, cell: str, slice_label: str | No
     if cell not in ref_on:
         raise SystemExit(f"cell {cell!r} not in spot ref cubes; keys={sorted(ref_on)}")
 
-    imp_total, rf_total = spot_plot.scale_curve(cell_on["cube"], center)
-    imp_ref, rf_ref = spot_plot.scale_curve(ref_on[cell], center)
+    if bundle.response_start is None:
+        raise SystemExit(
+            "spot bundle missing response_start (t_on step); "
+            "cannot scale spot time courses"
+        )
+    imp_total, rf_total = spot_plot.scale_curve(
+        cell_on["cube"], center, response_start=bundle.response_start,
+    )
+    imp_ref, rf_ref = spot_plot.scale_curve(
+        ref_on[cell], center, response_start=bundle.response_start,
+    )
 
     out: dict[str, np.ndarray] = {
         "time_total_model": _float_curve(imp_total),
@@ -252,7 +261,9 @@ def extract_spot_cell_curves(bundle, ref_on, *, cell: str, slice_label: str | No
     if slice_label and bundle.slice_overlay and slice_label in bundle.slice_overlay:
         cubes = bundle.slice_overlay[slice_label]
         if cell in cubes:
-            imp_slice, rf_slice = spot_plot.scale_curve(cubes[cell], center)
+            imp_slice, rf_slice = spot_plot.scale_curve(
+                cubes[cell], center, response_start=bundle.response_start,
+            )
             out[f"time_slice_model:{slice_label}"] = _float_curve(imp_slice)
             out[f"rf_slice_model:{slice_label}"] = _float_curve(rf_slice)
     return out
@@ -265,12 +276,12 @@ def _moving_bar_slice_labels(bundle) -> list[str]:
 
 
 def extract_moving_bar_cell_curves(bundle, *, cell: str, spec: str) -> dict[str, np.ndarray]:
-    """Per-spec traces matching one ``model_all_bar`` panel (slices + total)."""
+    """Per-spec traces matching one ``bar_all_ca`` panel (slices + total)."""
     key = (cell, spec)
-    model_mean = bundle.traces.model_mean
-    if key not in model_mean:
-        avail_cells = sorted({c for c, _ in model_mean})
-        avail_specs = sorted(s for c, s in model_mean if c == cell)
+    ca_mean = bundle.traces.ca_mean
+    if key not in ca_mean:
+        avail_cells = sorted({c for c, _ in ca_mean})
+        avail_specs = sorted(s for c, s in ca_mean if c == cell)
         if cell not in avail_cells:
             raise SystemExit(f"cell {cell!r} not in bar bundle; available cells: {avail_cells}")
         raise SystemExit(f"spec {spec!r} not found for cell {cell!r}; available: {avail_specs}")
@@ -278,17 +289,17 @@ def extract_moving_bar_cell_curves(bundle, *, cell: str, spec: str) -> dict[str,
     out: dict[str, np.ndarray] = {}
     for label in _moving_bar_slice_labels(bundle):
         wt = bundle.slice_overlay[label]
-        if key in wt.model_mean:
-            out[label] = _float_curve(wt.model_mean[key])
-    out["total"] = _float_curve(model_mean[key])
+        if key in wt.ca_mean:
+            out[label] = _float_curve(wt.ca_mean[key])
+    out["total"] = _float_curve(ca_mean[key])
     return out
 
 
 def specs_for_cell(bundle, cell: str, requested: list[str] | None) -> list[str]:
-    model_mean = bundle.traces.model_mean
-    avail = sorted(s for c, s in model_mean if c == cell)
+    ca_mean = bundle.traces.ca_mean
+    avail = sorted(s for c, s in ca_mean if c == cell)
     if not avail:
-        cells = sorted({c for c, _ in model_mean})
+        cells = sorted({c for c, _ in ca_mean})
         raise SystemExit(f"cell {cell!r} not in bar bundle; available cells: {cells}")
     try:
         return filter_requested_specs(avail, requested)
@@ -387,6 +398,9 @@ def _print_result_block(
             )
     else:
         for key, arr in curves.items():
+            # RF arrays are spatial profiles, not time courses.
+            if head_steps is not None and not key.startswith("time_"):
+                continue
             _print_curve(
                 key,
                 arr,
@@ -459,9 +473,9 @@ def main():
     add_shared_cli(ap)
     ap.add_argument(
         "--trace-kind",
-        default="vm",
-        choices=("vm", "model"),
-        help="curve kind: vm (Vm-Vm_ref) or model (scaled conductance output)",
+        default="v",
+        choices=("v", "ca"),
+        help="curve kind: v (v-v_ref) or model (scaled Ca readout)",
     )
     ap.add_argument(
         "--values",

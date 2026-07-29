@@ -40,7 +40,7 @@ from neuron_model import (  # noqa: F401 — re-export for callers using fc.*
     IH_OFF_SCALAR_SEGMENTS,
     IH_SHAPE_PARAM_NAMES,
     KNOWN_MODELS,
-    MODEL_PACK_READOUTS,
+    CA_PACK_READOUTS,
     STATE_CLAMP,
     SYN_MODE_DEFAULT,
     SYN_MODES,
@@ -71,8 +71,8 @@ from neuron_model import (  # noqa: F401 — re-export for callers using fc.*
     run_units,
     synaptic_scale,
     update_state_hp_lp,
-    update_Vm,
-    vm_budget_from_g,
+    update_v,
+    v_budget_from_g,
 )
 
 
@@ -1996,17 +1996,17 @@ def assign_params(z, schema, backend: ModelBackend):
     return p
 
 
-def model_cost(model, data, session: TrainSession, scale=1.0, power=None):
+def ca_cost(ca, data, session: TrainSession, scale=1.0, power=None):
     if power is None:
         power = session.primary_pack.power
     pack = session.primary_pack
     pack_t_on = int(pack.signal.shape[1] - pack.data.shape[1])
     mt = session.maxtime
-    return torch.sum((scale * model - data[pack_t_on:mt])**2) / power * 100.0
+    return torch.sum((scale * ca - data[pack_t_on:mt])**2) / power * 100.0
 
 
-def _window_time_traces(model_full, b_idx, u_idx, t0, win=None, *, t_on=0):
-    """Extract per-readout windows from ``model_full`` ``(B, maxtime, N)``.
+def _window_time_traces(ca_full, b_idx, u_idx, t0, win=None, *, t_on=0):
+    """Extract per-readout windows from ``ca_full`` ``(B, maxtime, N)``.
 
     ``t0`` is the absolute simulation step of window start (slot ``k`` uses ``t0 + k``).
     Slots with ``t0 + k < t_on`` are zero (cost / training alignment).
@@ -2014,23 +2014,23 @@ def _window_time_traces(model_full, b_idx, u_idx, t0, win=None, *, t_on=0):
     if win is None:
         raise ValueError("window length win required")
     win = int(win)
-    dev = model_full.device
+    dev = ca_full.device
     k = torch.arange(win, dtype=torch.long, device=dev)
     t_idx = t0[:, None].to(device=dev, dtype=torch.long) + k[None, :]
-    t_max = model_full.shape[1] - 1
+    t_max = ca_full.shape[1] - 1
     t_safe = t_idx.clamp(0, t_max)
-    sel = model_full[b_idx[:, None], t_safe, u_idx[:, None]]
+    sel = ca_full[b_idx[:, None], t_safe, u_idx[:, None]]
     pre = t_idx < int(t_on)
     return torch.where(pre, torch.zeros_like(sel), sel)
 
 
-def _readout_model_traces_pack(model_full, pack: TargetPack):
-    """Select model traces for cost cells; windowed when ``pack.cost_t0`` is set."""
+def _readout_ca_traces_pack(ca_full, pack: TargetPack):
+    """Select Ca traces for cost cells; windowed when ``pack.cost_t0`` is set."""
     pack_t_on = int(pack.signal.shape[1] - pack.data.shape[1])
     if pack.cost_t0 is None:
-        return model_full[pack.readout_batch, pack_t_on:, pack.readout_unit]
+        return ca_full[pack.readout_batch, pack_t_on:, pack.readout_unit]
     return _window_time_traces(
-        model_full, pack.readout_batch, pack.readout_unit, pack.cost_t0,
+        ca_full, pack.readout_batch, pack.readout_unit, pack.cost_t0,
         win=pack.data.shape[1],
     )
 
@@ -2055,11 +2055,11 @@ def _pack_out_scale(p, pack: TargetPack, backend: ModelBackend, session: TrainSe
     return out_scale_for_units(p, pack.readout_unit, backend, sim_dtype=session.sim_dtype)
 
 
-# MODEL_PACK_READOUTS imported from neuron_model
+# CA_PACK_READOUTS imported from neuron_model
 
-def _pack_model_readouts(p, pack: TargetPack, session: TrainSession, batch_idx=None):
+def _pack_ca_readouts(p, pack: TargetPack, session: TrainSession, batch_idx=None):
     try:
-        readout = MODEL_PACK_READOUTS[session.model]
+        readout = CA_PACK_READOUTS[session.model]
     except KeyError:
         raise ValueError(f"no pack readout for model={session.model!r}") from None
     return readout(p, pack, session, batch_idx)
@@ -2281,21 +2281,21 @@ def _build_fused_conductance(
     return tuple(fused)
 
 
-def _conductance_readout_from_model_full(
-    model_full: torch.Tensor,
+def _conductance_readout_from_ca_full(
+    ca_full: torch.Tensor,
     pack: TargetPack,
     *,
     batch_offset: int = 0,
 ) -> Tuple[Optional[torch.Tensor], torch.Tensor]:
     rb = pack.readout_batch if batch_offset == 0 else pack.readout_batch + batch_offset
     pack_t_on = int(pack.signal.shape[1] - pack.data.shape[1])
-    dsi_sel = model_full[rb, pack_t_on:, pack.readout_unit]
+    dsi_sel = ca_full[rb, pack_t_on:, pack.readout_unit]
     if not _pack_needs_waveform_mse(pack):
         return None, dsi_sel
     if pack.cost_t0 is None:
         return dsi_sel, dsi_sel
     mse_sel = _window_time_traces(
-        model_full, rb, pack.readout_unit, pack.cost_t0,
+        ca_full, rb, pack.readout_unit, pack.cost_t0,
         win=pack.data.shape[1],
     )
     return mse_sel, dsi_sel
@@ -2359,17 +2359,17 @@ def _pack_cost_parts_from_sel(
     }
 
 
-def _pack_cost_parts_from_conductance_model(
+def _pack_cost_parts_from_conductance_ca(
     p,
     pack: TargetPack,
     session: TrainSession,
-    model_full: torch.Tensor,
+    ca_full: torch.Tensor,
     *,
     batch_offset: int = 0,
 ) -> Dict[str, torch.Tensor]:
     scale = _pack_out_scale(p, pack, session.backend, session)
-    sel, dsi_sel = _conductance_readout_from_model_full(
-        model_full, pack, batch_offset=batch_offset,
+    sel, dsi_sel = _conductance_readout_from_ca_full(
+        ca_full, pack, batch_offset=batch_offset,
     )
     return _pack_cost_parts_from_sel(pack, session, scale, sel, dsi_sel)
 
@@ -2384,10 +2384,10 @@ def _calc_cost_parts_fused_conductance(
             sig = group.subpacks[0].signal
         else:
             sig = torch.cat([pack.signal for pack in group.subpacks], dim=0)
-        model_full = run_full(session, p, sig)
+        ca_full = run_full(session, p, sig)
         for pack, off in zip(group.subpacks, group.batch_offsets):
-            for key, part in _pack_cost_parts_from_conductance_model(
-                p, pack, session, model_full, batch_offset=off,
+            for key, part in _pack_cost_parts_from_conductance_ca(
+                p, pack, session, ca_full, batch_offset=off,
             ).items():
                 if _part_weight(session, key) != 0.0:
                     parts[key] = part
@@ -2409,7 +2409,7 @@ def _pack_cost_forward(p, pack: TargetPack, session: TrainSession, batch_idx=Non
     else:
         data = pack.data
         weight = pack.cost_weight
-    sel, dsi_sel = _pack_model_readouts(p, pack, session, batch_idx)
+    sel, dsi_sel = _pack_ca_readouts(p, pack, session, batch_idx)
     return scale, data, weight, sel, dsi_sel, pd_nd
 
 

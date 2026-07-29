@@ -399,16 +399,16 @@ def _mask_pre_ton_plot_traces(traces, *, show_pre=True, t_on_step=None):
 
 
 @torch.no_grad()
-def _simulate(session, z, neuron_index, return_ref=False, *, trace_kind='model', show_pre=True):
+def _simulate(session, z, neuron_index, return_ref=False, *, trace_kind='ca', show_pre=True):
     neuron_index = _as_index(neuron_index, z.device)
     schema = list(session.schema)
     backend = session.backend
     p = fc.assign_params(z, schema, backend)
     stacked, ref = fc.run_units(
         session, p, neuron_index=neuron_index, return_ref=True,
-        return_vm=(trace_kind == 'vm'),
+        return_v_delta=(trace_kind == 'v'),
     )
-    if trace_kind == 'vm':
+    if trace_kind == 'v':
         scale = torch.ones((int(neuron_index.shape[0]),), dtype=stacked.dtype, device=stacked.device)
     else:
         scale = fc.out_scale_for_units(p, neuron_index, backend)
@@ -419,10 +419,10 @@ def _simulate(session, z, neuron_index, return_ref=False, *, trace_kind='model',
     return trace
 
 
-def calc_model_full_all(session, z, return_ref=False, *, trace_kind='model', show_pre=True):
+def calc_ca_full_all(session, z, return_ref=False, *, trace_kind='ca', show_pre=True):
     n_types = session.backend.n_types
     mt = session.maxtime
-    model_full = np.zeros((n_types, 9, mt))
+    ca_full = np.zeros((n_types, 9, mt))
     ref_full = np.full((n_types, 9), np.nan)
     for col in range(5):
         col_index = torch.arange(
@@ -435,15 +435,15 @@ def calc_model_full_all(session, z, return_ref=False, *, trace_kind='model', sho
             trace, ref = _simulate(
                 session, z, col_index, return_ref=True, trace_kind=trace_kind, show_pre=show_pre,
             )
-            model_full[:, col + 2] = trace.cpu().numpy()
+            ca_full[:, col + 2] = trace.cpu().numpy()
             ref_full[:, col + 2] = ref.cpu().numpy()
         else:
-            model_full[:, col + 2] = _simulate(
+            ca_full[:, col + 2] = _simulate(
                 session, z, col_index, trace_kind=trace_kind, show_pre=show_pre,
             ).cpu().numpy()
     if return_ref:
-        return model_full, ref_full
-    return model_full
+        return ca_full, ref_full
+    return ca_full
 
 
 def _fill_member_cube(cube, sem, ti, ft_global, type_idx, du, dv, plot_traces):
@@ -506,7 +506,7 @@ def _spot_all_type_names(session):
 
 
 def _spot_readout_bundle_view(bundle):
-    """model-data view: same traces, rows restricted to ``pack_readout_types``."""
+    """ca-data view: same traces, rows restricted to ``pack_readout_types``."""
     session = bundle.session
     present = pack_readout_types(session, session.primary_pack.name)
     groups, names = plot_present_layout(present)
@@ -582,9 +582,9 @@ def _cells_from_cube(names, cube, sem, baselines, *, single_column, n_by_name=No
     ]
 
 
-def _spot_baselines(rows, vm_ref, names, *, at_x=None, at_y=None):
-    """Mean ``Vm_ref`` per type over stim-centred ``(0, 0)`` units (matches trace scope)."""
-    vm_ref = np.asarray(vm_ref, dtype=np.float64)
+def _spot_baselines(rows, v_ref, names, *, at_x=None, at_y=None):
+    """Mean ``v_ref`` per type over stim-centred ``(0, 0)`` units (matches trace scope)."""
+    v_ref = np.asarray(v_ref, dtype=np.float64)
     batch_idx = rows['batch_idx']
     unit_idx = rows['unit_idx']
     type_idx = rows['type_idx']
@@ -600,13 +600,13 @@ def _spot_baselines(rows, vm_ref, names, *, at_x=None, at_y=None):
     for name in names:
         ti = type_names.index(name)
         units = np.unique(unit_idx[mask & (type_idx == ti)])
-        out[name] = float(vm_ref[units].mean()) if units.size else np.nan
+        out[name] = float(v_ref[units].mean()) if units.size else np.nan
     return out
 
 
 @torch.no_grad()
 def _spot_forward_rows(
-    session, z, *, trace_kind='model',
+    session, z, *, trace_kind='ca',
     save_trace_csv_dir=None, at_x=None, at_y=None, show_pre=True,
 ):
     """One forward; cost-extent unit layout over all network types."""
@@ -614,19 +614,19 @@ def _spot_forward_rows(
     schema = list(session.schema)
     p = fc.assign_params(z, schema, session.backend)
     sig = pack.signal if pack.signal.dim() == 3 else pack.signal.unsqueeze(0)
-    if trace_kind == 'vm':
-        trace_full, vm_ref, _vm_full = fc.run_full(
-            session, p, sig, return_ref=True, return_vm=True, pack=pack,
+    if trace_kind == 'v':
+        trace_full, v_ref, _v_full = fc.run_full(
+            session, p, sig, return_ref=True, return_v_delta=True, pack=pack,
         )
     else:
-        trace_full, vm_ref = fc.run_full(
+        trace_full, v_ref = fc.run_full(
             session, p, sig, return_ref=True, pack=pack,
         )
-    vm_ref_np = vm_ref[0].cpu().numpy()
+    v_ref_np = v_ref[0].cpu().numpy()
     save_forward_trace_csvs(
         save_trace_csv_dir, pack.name,
-        trace_kind=trace_kind, ref=vm_ref_np, trace_full=trace_full,
-        ref_stem='spot_ref_vm' if trace_kind == 'vm' else None,
+        trace_kind=trace_kind, ref=v_ref_np, trace_full=trace_full,
+        ref_stem='spot_v_ref' if trace_kind == 'v' else None,
     )
     C = session.backend.network
     type_names = list(C.type_names)
@@ -643,7 +643,7 @@ def _spot_forward_rows(
     ) = spot_center_bin_layout(C, batches, cost_radii, pack.cost_extent)
 
     raw = trace_full[batch_idx, :, unit_idx]
-    if trace_kind == 'vm':
+    if trace_kind == 'v':
         scale = torch.ones((int(raw.shape[0]),), dtype=raw.dtype, device=raw.device)
     else:
         scale = fc.out_scale_for_units(
@@ -669,7 +669,7 @@ def _spot_forward_rows(
         mt=mt,
         pack=pack,
     )
-    rows['baselines'] = _spot_baselines(rows, vm_ref_np, names, at_x=at_x, at_y=at_y)
+    rows['baselines'] = _spot_baselines(rows, v_ref_np, names, at_x=at_x, at_y=at_y)
     rows['groups'] = groups
     return rows
 
@@ -700,7 +700,7 @@ def _spot_cube_from_rows(rows, session):
 @torch.no_grad()
 def network_spot_trace_bundle(
     session, z, *,
-    at_x_list=None, at_y_list=None, trace_kind='model',
+    at_x_list=None, at_y_list=None, trace_kind='ca',
     save_trace_csv_dir: str | None = None, show_pre=True,
 ):
     """Run one forward; full cost-extent spot traces over all types."""
@@ -878,7 +878,7 @@ def _plot_spot_figure(
 
 def plot_network_spot_data(path, *, bundle, bundle_2=None, title,
                            ref_cubes=None, ref_cubes_2=None):
-    """Draw model-data figure (pack readout types) from a full-scope bundle."""
+    """Draw ca-data figure (pack readout types) from a full-scope bundle."""
     timer = PlotTimer(prior_prep=bundle_prep_s(bundle, bundle_2))
     view = _spot_readout_bundle_view(bundle)
     view_2 = _spot_readout_bundle_view(bundle_2) if bundle_2 is not None else None
@@ -898,7 +898,7 @@ def plot_network_spot_data(path, *, bundle, bundle_2=None, title,
 
 def plot_network_spot_all(path, *, bundle, bundle_2=None, title,
                           ref_cubes=None, ref_cubes_2=None):
-    """Draw model-all figure (all types) from a full-scope bundle."""
+    """Draw ca-all figure (all types) from a full-scope bundle."""
     timer = PlotTimer(prior_prep=bundle_prep_s(bundle, bundle_2))
     _plot_spot_figure(
         path,

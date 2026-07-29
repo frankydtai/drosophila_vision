@@ -85,7 +85,7 @@ def apply_ih_off_mode(schema, mode=IH_OFF_DEFAULT):
 
 
 def conductance_ih_off_kwargs(p, ih_off=IH_OFF_DEFAULT):
-    """Resolve OFF-channel Ih kwargs for ``update_Vm`` from assigned params."""
+    """Resolve OFF-channel Ih kwargs for ``update_v`` from assigned params."""
     midv_off = p["Ih_midv"] if ih_off != "on" else p["Ih_midv_off"]
     slope_off = p["Ih_slope"] if ih_off != "on" else p["Ih_slope_off"]
     tau_off = p["tau_midv"] if ih_off != "on" else p["tau_midv_off"]

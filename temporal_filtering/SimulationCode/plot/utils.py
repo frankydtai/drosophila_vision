@@ -43,9 +43,9 @@ def save_forward_trace_csvs(
 ):
     """Write per-target ref + trace CSVs under ``save_dir``.
 
-    ``trace_kind=='vm'`` → ``<target>_ref_vm.csv``, ``<target>_vm.csv`` (unless
+    ``trace_kind=='v'`` → ``<target>_v_ref.csv``, ``<target>_v.csv`` (unless
     overridden by ``ref_stem`` / ``trace_stem``).
-    else → ``<target>_ref.csv``, ``<target>.csv``.
+    else → ``<target>_ca_ref.csv``, ``<target>_ca.csv``.
 
     Ref is one column (``ref``) with constant ``N``. Trace is ``(B*T', N)`` with
     constant ``B`` / ``Tprime`` columns, then one column per unit.
@@ -62,10 +62,10 @@ def save_forward_trace_csvs(
         raise ValueError(
             f'ref length {ref_np.size} != n_units {n_units} for target {target!r}'
         )
-    if trace_kind == 'vm':
-        ref_stem_default, trace_stem_default = f'{target}_ref_vm', f'{target}_vm'
+    if trace_kind == 'v':
+        ref_stem_default, trace_stem_default = f'{target}_v_ref', f'{target}_v'
     else:
-        ref_stem_default, trace_stem_default = f'{target}_ref', f'{target}'
+        ref_stem_default, trace_stem_default = f'{target}_ca_ref', f'{target}_ca'
     ref_stem_final = ref_stem_default if ref_stem is None else ref_stem
     trace_stem_final = trace_stem_default if trace_stem is None else trace_stem
     ref_path = os.path.join(save_dir, f'{ref_stem_final}.csv')
@@ -74,7 +74,7 @@ def save_forward_trace_csvs(
         np.full(ref_np.shape[0], ref_np.size, dtype=np.int64),
         ref_np.astype(np.float64, copy=False),
     ])
-    # Some traces reuse Vm_ref across targets (e.g. bright/dark); avoid redundant writes.
+    # Some traces reuse v_ref across targets (e.g. bright/dark); avoid redundant writes.
     if not os.path.exists(ref_path):
         np.savetxt(
             ref_path, ref_table, delimiter=',', header='N,ref', comments='',
@@ -161,9 +161,9 @@ def readout_center_mask(pack, backend):
     return np.ones(readout.shape[0], dtype=bool)
 
 
-def baselines_for_types(pack, backend, vm_ref, names, type_ids, global_type_names):
-    """Mean Vm_ref at stimulus onset over centre cost-readout units, keyed by type name."""
-    vm_ref = np.asarray(vm_ref, dtype=np.float64)
+def baselines_for_types(pack, backend, v_ref, names, type_ids, global_type_names):
+    """Mean v_ref at stimulus onset over centre cost-readout units, keyed by type name."""
+    v_ref = np.asarray(v_ref, dtype=np.float64)
     readout = pack.readout_unit.cpu().numpy()
     center = readout_center_mask(pack, backend)
     unit_types = type_ids[readout]
@@ -171,7 +171,7 @@ def baselines_for_types(pack, backend, vm_ref, names, type_ids, global_type_name
     for name in names:
         ti = global_type_names.index(name)
         mask = center & (unit_types == ti)
-        out[name] = float(vm_ref[readout[mask]].mean()) if mask.any() else np.nan
+        out[name] = float(v_ref[readout[mask]].mean()) if mask.any() else np.nan
     return out
 
 
@@ -211,18 +211,18 @@ def label_with_n(label, n=None):
     return f'{label} (n={int(n)})'
 
 
-def n_for_type(model_n, tname):
-    """Sample count for *tname* from keyed ``model_n`` ``{(type, spec): n}``."""
-    for (t, _s), n in model_n.items():
+def n_for_type(ca_n, tname):
+    """Sample count for *tname* from keyed ``ca_n`` ``{(type, spec): n}``."""
+    for (t, _s), n in ca_n.items():
         if t == tname:
             return n
     return None
 
 
-def cell_ylabel(label, model_n=None, n=None):
+def cell_ylabel(label, ca_n=None, n=None):
     """Row / cell axis label with ``n`` from *model_n* or explicit *n*."""
-    if n is None and model_n is not None:
-        n = n_for_type(model_n, label)
+    if n is None and ca_n is not None:
+        n = n_for_type(ca_n, label)
     return label_with_n(label, n)
 
 
@@ -445,18 +445,18 @@ def ylim_for_traces(
     return nice_ylim(*curves)
 
 
-def ylim_for_keys(model_mean, model_sem, data_mean, keys, *, show_sem=False):
+def ylim_for_keys(ca_mean, ca_sem, data_mean, keys, *, show_sem=False):
     """Shared y-limits for keyed trace dicts (moving-bar grids)."""
     curves = []
     for key in keys:
-        m = model_mean[key]
+        m = ca_mean[key]
         curves.append(m)
         if data_mean:
             d = data_mean.get(key)
             if d is not None:
                 curves.append(d)
-        if show_sem and key in model_sem:
-            s = model_sem[key]
+        if show_sem and key in ca_sem:
+            s = ca_sem[key]
             if np.any(s):
                 curves.extend([m + s, m - s])
     return nice_ylim(*curves)
