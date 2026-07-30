@@ -42,9 +42,9 @@ def pack_needs_waveform_mse(pack) -> bool:
 
 
 def window_time_traces(trace_full, b_idx, u_idx, t0, win=None, *, t_on=0):
-    """Extract per-readout windows from ``trace_full`` ``(B, maxtime, N)``.
+    """Extract per-readout windows from ``trace_full`` ``(B, n_t, N)``.
 
-    ``t0`` is the absolute simulation step of window start (slot ``k`` uses
+    ``t0`` is the absolute simulation time of window start (slot ``k`` uses
     ``t0 + k``). Slots with ``t0 + k < t_on`` are zeroed (cost alignment).
     """
     if win is None:

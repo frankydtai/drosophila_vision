@@ -85,7 +85,7 @@ def _network_spot_trace_bundle(
         slice_labels=slice_labels,
         slice_x_list=at_x_list,
         slice_y_list=at_y_list,
-        maxtime=mt,
+        n_t=mt,
         prep_s=time.perf_counter() - t0,
         v_th_by_name=spot_plot.v_th_by_type_name(z, session),
     )
@@ -121,13 +121,14 @@ def _session_with_bright_pulse_ms(session, pulse_ms):
     """Return a copy of *session* whose bright stimulus drops to baseline after *pulse_ms*."""
     pack = session.primary_pack
     opts = dict((session.train_opts or {}).get("spot_bright_stimulus_opts") or {})
-    t_on = int(opts["t_on"])
-    deltat_ms = float(opts["deltat_ms"])
-    pulse_steps = max(1, int(round(float(pulse_ms) / deltat_ms)))
+    from neuron.params import ms_to_t
+    delta_ms = float(opts["delta_ms"])
+    t_on = ms_to_t(float(opts["pre_ms"]), delta_ms=delta_ms)
+    pulse_t = max(1, int(round(float(pulse_ms) / delta_ms)))
     signal = pack.signal.clone()
     baseline = signal[:, :1, :].clone()
-    off_step = min(int(signal.shape[1]), t_on + pulse_steps)
-    signal[:, off_step:, :] = baseline
+    t_off = min(int(signal.shape[1]), t_on + pulse_t)
+    signal[:, t_off:, :] = baseline
     pack_short = replace(pack, signal=signal)
     targets = dict(session.targets)
     targets[pack_short.name] = pack_short

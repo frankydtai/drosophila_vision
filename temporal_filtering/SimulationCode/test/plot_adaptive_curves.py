@@ -37,7 +37,7 @@ import numpy as np
 import FiveCol_MedSim_Pytorch as fc
 from connectome_io import parse_comma_list
 from param_defaults import P
-from training_config import DELTAT_MS
+from training_config import DELTA_MS
 
 DEFAULT_SAVE = os.path.join(HERE, "adaptive_curves.png")
 DEFAULT_GADAPT_LIST = "0,0.5,1,2"
@@ -88,7 +88,7 @@ def simulate_pulse(
     gate_lag=None,
 ):
     """Isolated adaptive unit; returns t[ms], activity, v_s, v_t, drive_lp, gate."""
-    dt = float(fc.deltat)
+    dt = float(fc.delta_ms)
     gate_lag = int(fc.gate_lag if gate_lag is None else gate_lag)
     n = int(round(t_total_ms / dt))
     n_settle = int(round(settle_ms / dt))
@@ -271,7 +271,7 @@ def main(argv=None):
 
     fig.suptitle(
         rf"$x$={args.x_base:g}$\rightarrow${args.x_pulse:g}, "
-        rf"bias={bias:g}, $\Delta t$={DELTAT_MS:g} ms, lag={fc.gate_lag}",
+        rf"bias={bias:g}, $\Delta t$={DELTA_MS:g} ms, lag={fc.gate_lag}",
         fontsize=11,
     )
 

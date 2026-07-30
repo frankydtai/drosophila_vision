@@ -9,7 +9,7 @@ every other ``training`` module can import these types without a cycle.
 ``TargetPack`` carries cross-cutting readout / drive controls:
 
 * ``readout_kind`` -- ``'ca'`` (default) or ``'v'`` training (#2).
-* ``cost_time_ix`` -- optional sparse post-onset step indices; the target
+* ``cost_time_ix`` -- optional sparse post-onset t indices; the target
   ``data`` stays full length and the subsample is gathered at cost time (#4).
 * ``always_waveform_mse`` -- spot targets always need a waveform MSE readout;
   moving-bar targets only when a cost window was built. Encoded here so
@@ -41,7 +41,7 @@ class TargetPack:
     """One training target: task drive + readout indices + target traces.
 
     Spot ``signal`` / ``data`` time dims follow ``neuron`` / task
-    timing. Moving bar uses ``COST_WINDOW`` and per-target ``maxtime``.
+    timing. Moving bar uses ``COST_WINDOW`` and per-target ``n_t``.
     """
 
     name: str
@@ -65,7 +65,7 @@ class TargetPack:
     dsi_weight: Optional[torch.Tensor] = None  # (n_dsi,)
     dsi_power: Optional[torch.Tensor] = None  # scalar
     readout_kind: str = "ca"  # 'ca' or 'v' training target/readout
-    cost_time_ix: Optional[torch.Tensor] = None  # (n_sample,) sparse post-onset step idx
+    cost_time_ix: Optional[torch.Tensor] = None  # (n_sample,) sparse post-onset t idx
     always_waveform_mse: bool = True  # spot: True; moving bar: False
     signal_scale: float = 1.0  # peak PR current; hp_lp divides sig by this
 
@@ -121,7 +121,7 @@ class TrainSession:
         return self.targets[self.target_list[0]]
 
     @property
-    def maxtime(self) -> int:
+    def n_t(self) -> int:
         sig = self.primary_pack.signal
         return int(sig.shape[1] if sig.dim() == 3 else sig.shape[0])
 

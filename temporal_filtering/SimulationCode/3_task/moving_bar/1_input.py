@@ -21,7 +21,7 @@ from network import path  # noqa: F401 -- FAFBv783 on sys.path
 
 from column_mapper import DEG, HEX_PATCH_RADIUS, hex_vertices, uv_to_xy, uv_to_xy_deg
 from connectome_io import moving_bar_cache_dir
-from neuron.params import DELTAT_MS, ms_to_steps
+from neuron.params import DELTA_MS, ms_to_t
 from network.construction import I_BASELINE, I_BRIGHT, I_DARK
 from network.connectivity import SIM_DTYPE_DEFAULT
 from network.layout import column_in_cost_extent
@@ -47,10 +47,10 @@ COST_WINDOW_AFTER_MS = COST_WINDOW_MS - COST_ALIGNED_FIRST_STI_MS
 T_TAIL_PAD_MS = 50.0
 MOVING_BAR_TAIL_MS = COST_WINDOW_AFTER_MS + T_TAIL_PAD_MS
 
-T_TAIL = ms_to_steps(MOVING_BAR_TAIL_MS)
-COST_WINDOW_BEFORE = ms_to_steps(COST_WINDOW_BEFORE_MS)
-COST_WINDOW_AFTER = ms_to_steps(COST_WINDOW_AFTER_MS)
-COST_WINDOW = ms_to_steps(COST_WINDOW_MS) + 1
+T_TAIL = ms_to_t(MOVING_BAR_TAIL_MS)
+COST_WINDOW_BEFORE = ms_to_t(COST_WINDOW_BEFORE_MS)
+COST_WINDOW_AFTER = ms_to_t(COST_WINDOW_AFTER_MS)
+COST_WINDOW = ms_to_t(COST_WINDOW_MS) + 1
 
 _HEX_AREA = 1.5 * math.sqrt(3.0) * float(HEX_PATCH_RADIUS) ** 2
 
@@ -465,31 +465,31 @@ def _coverage_time_series(
     hex_stack: np.ndarray,
     spec: MovingBarSpec,
     field_deg: Tuple[float, float, float, float],
-    maxtime: int,
+    n_t: int,
     t_on: int,
-    deltat_ms: float,
+    delta_ms: float,
     bar_extent: int,
     *,
     multi_bar: bool = True,
 ) -> np.ndarray:
     """Superposed coverage from simultaneous per-lane bars (network connectome field)."""
-    dt_s = deltat_ms / 1000.0
-    step = _trail_step(spec, dt_s)
+    dt_s = delta_ms / 1000.0
+    trail_shift_deg = _trail_shift_deg(spec, dt_s)
     lane_origins = _motion_lanes(spec, field_deg, bar_extent, multi_bar=multi_bar)
     n_cols = hex_stack.shape[0]
-    n_steps = maxtime - t_on
-    out = np.zeros((n_steps, n_cols), dtype=np.float64)
+    n_post = n_t - t_on
+    out = np.zeros((n_post, n_cols), dtype=np.float64)
     for lane_origin, lane_pitch in lane_origins:
         trail_start, trail_exit = _lane_sweep_trail_range(spec, lane_origin, lane_pitch)
         trail = float(trail_start)
-        for i in range(n_steps):
+        for i in range(n_post):
             rect = _bar_rect_lane_clipped(
                 spec, trail, lane_origin, lane_pitch, field_deg,
             )
             if rect is not None:
                 bx0, by0, bx1, by1 = rect
                 out[i] += _coverage_batch(hex_stack, bx0, by0, bx1, by1)
-            trail += step
+            trail += trail_shift_deg
     return np.clip(out, 0.0, 1.0)
 
 
@@ -576,7 +576,8 @@ def _trail_center_target(spec: MovingBarSpec, x0: float, y0: float, x1: float, y
     raise ValueError(f"unknown direction {spec.direction!r}")
 
 
-def _trail_step(spec: MovingBarSpec, dt_s: float) -> float:
+def _trail_shift_deg(spec: MovingBarSpec, dt_s: float) -> float:
+    """Signed trail advance (deg) in one sample: ``±speed_deg_s * dt_s``."""
     s = float(spec.speed_deg_s) * dt_s
     if spec.direction == "right":
         return s
@@ -589,34 +590,34 @@ def _trail_step(spec: MovingBarSpec, dt_s: float) -> float:
     raise ValueError(f"unknown direction {spec.direction!r}")
 
 
-def _trail_to_step(
+def _trail_to_t(
     spec: MovingBarSpec,
     trail_start: float,
     trail_target: float,
     t_on: int,
-    deltat_ms: float,
-    maxtime: Optional[int] = None,
+    delta_ms: float,
+    n_t: Optional[int] = None,
 ) -> int:
-    step = _trail_step(spec, deltat_ms / 1000.0)
-    if abs(step) < 1e-15:
+    trail_shift_deg = _trail_shift_deg(spec, delta_ms / 1000.0)
+    if abs(trail_shift_deg) < 1e-15:
         return t_on
-    k = int(round((trail_target - trail_start) / step))
+    k = int(round((trail_target - trail_start) / trail_shift_deg))
     t = t_on + max(0, k)
-    if maxtime is not None:
-        t = min(t, maxtime - 1)
+    if n_t is not None:
+        t = min(t, n_t - 1)
     return t
 
 
-def moving_bar_sweep_end_step(
+def moving_bar_sweep_end_t(
     specs: Sequence[MovingBarSpec],
     field_deg: Tuple[float, float, float, float],
     bar_extent: int,
     *,
     multi_bar: bool = True,
     t_on: int = None,
-    deltat_ms: float = DELTAT_MS,
+    delta_ms: float = DELTA_MS,
 ) -> int:
-    """Exclusive step index where all lanes finish their local sweep (no tail)."""
+    """Exclusive t index where all lanes finish their local sweep (no tail)."""
     if not specs:
         return t_on + 1
     t_exit = t_on
@@ -625,26 +626,26 @@ def moving_bar_sweep_end_step(
             trail_start, trail_exit = _lane_sweep_trail_range(spec, lane_origin, lane_pitch)
             t_exit = max(
                 t_exit,
-                _trail_to_step(spec, trail_start, trail_exit, t_on, deltat_ms),
+                _trail_to_t(spec, trail_start, trail_exit, t_on, delta_ms),
             )
     return t_exit + 1
 
 
 
-def moving_bar_maxtime(
+def moving_bar_n_t(
     specs: Sequence[MovingBarSpec],
     field_deg: Tuple[float, float, float, float],
     bar_extent: int,
     *,
     multi_bar: bool = True,
     t_on: int = None,
-    deltat_ms: float = DELTAT_MS,
+    delta_ms: float = DELTA_MS,
     t_tail_ms: float = MOVING_BAR_TAIL_MS,
 ) -> int:
     """Simulation length: baseline + multi-bar sweep + post-sweep tail."""
-    t_tail = ms_to_steps(t_tail_ms, deltat_ms=deltat_ms)
-    return moving_bar_sweep_end_step(
-        specs, field_deg, bar_extent, multi_bar=multi_bar, t_on=t_on, deltat_ms=deltat_ms,
+    t_tail = ms_to_t(t_tail_ms, delta_ms=delta_ms)
+    return moving_bar_sweep_end_t(
+        specs, field_deg, bar_extent, multi_bar=multi_bar, t_on=t_on, delta_ms=delta_ms,
     ) + t_tail
 
 
@@ -656,43 +657,45 @@ def moving_bar_transit_times(
     *,
     multi_bar: bool = True,
     t_on: int = None,
-    maxtime: Optional[int] = None,
-    deltat_ms: float = DELTAT_MS,
+    n_t: Optional[int] = None,
+    delta_ms: float = DELTA_MS,
 ) -> Tuple[int, int, int]:
-    """Return ``(entry, center, exit)`` step indices for the first multi-bar lane."""
+    """Return ``(entry, center, exit)`` t indices for the first multi-bar lane."""
     lane_origin, lane_pitch = _motion_lanes(spec, field_deg, bar_extent, multi_bar=multi_bar)[0]
     trail_start, trail_exit = _lane_sweep_trail_range(spec, lane_origin, lane_pitch)
     w = float(spec.width_deg)
-    step = _trail_step(spec, deltat_ms / 1000.0)
+    trail_shift_deg = _trail_shift_deg(spec, delta_ms / 1000.0)
     origin = float(lane_origin)
-    # Signed ``step`` encodes sweep direction; same trail targets for all directions.
-    trail_entry = float(trail_start) + step
-    trail_center = origin + 0.5 * (float(lane_pitch) - math.copysign(1.0, step) * w)
-    trail_exit_vis = float(trail_exit) - step
+    # Signed ``trail_shift_deg`` encodes sweep direction; same trail targets for all directions.
+    trail_entry = float(trail_start) + trail_shift_deg
+    trail_center = origin + 0.5 * (
+        float(lane_pitch) - math.copysign(1.0, trail_shift_deg) * w
+    )
+    trail_exit_vis = float(trail_exit) - trail_shift_deg
     return (
-        _trail_to_step(spec, trail_start, trail_entry, t_on, deltat_ms, maxtime),
-        _trail_to_step(spec, trail_start, trail_center, t_on, deltat_ms, maxtime),
-        _trail_to_step(spec, trail_start, trail_exit_vis, t_on, deltat_ms, maxtime),
+        _trail_to_t(spec, trail_start, trail_entry, t_on, delta_ms, n_t),
+        _trail_to_t(spec, trail_start, trail_center, t_on, delta_ms, n_t),
+        _trail_to_t(spec, trail_start, trail_exit_vis, t_on, delta_ms, n_t),
     )
 
 
 
-def column_first_stim_step(
+def column_first_stim_t(
     column_current: np.ndarray,
     i_baseline: float = I_BASELINE,
     *,
     atol: float = 1e-12,
 ) -> int:
-    """First step where a column current differs from baseline (``t_first_sti``)."""
+    """First t where a column current differs from baseline (``t_first_sti``)."""
     curr = np.asarray(column_current, dtype=np.float64).reshape(-1)
     active = ~np.isclose(curr, float(i_baseline), atol=atol, rtol=0.0)
     idx = np.flatnonzero(active)
     if idx.size == 0:
-        raise ValueError("column has no non-baseline stimulus step")
+        raise ValueError("column has no non-baseline stimulus sample")
     return int(idx[0])
 
 
-def bar_lane_rects_at_step(
+def bar_lane_rects_at_t(
     spec: MovingBarSpec,
     field_deg: Tuple[float, float, float, float],
     bar_extent: int,
@@ -700,14 +703,14 @@ def bar_lane_rects_at_step(
     *,
     multi_bar: bool = True,
     t_on: int = None,
-    deltat_ms: float = DELTAT_MS,
+    delta_ms: float = DELTA_MS,
 ) -> List[Tuple[float, float, float, float]]:
-    """All lane bar rectangles at simulation step ``t`` (empty outside local sweep)."""
-    step = _trail_step(spec, deltat_ms / 1000.0)
+    """All lane bar rectangles at simulation time ``t`` (empty outside local sweep)."""
+    trail_shift_deg = _trail_shift_deg(spec, delta_ms / 1000.0)
     rects: List[Tuple[float, float, float, float]] = []
     for lane_origin, lane_pitch in _motion_lanes(spec, field_deg, bar_extent, multi_bar=multi_bar):
         trail_start, _trail_exit = _lane_sweep_trail_range(spec, lane_origin, lane_pitch)
-        trail = float(trail_start) + (t - t_on) * step
+        trail = float(trail_start) + (t - t_on) * trail_shift_deg
         rect = _bar_rect_lane_clipped(
             spec, trail, lane_origin, lane_pitch, field_deg,
         )
@@ -716,28 +719,28 @@ def bar_lane_rects_at_step(
     return rects
 
 
-def bar_trail_at_step(
+def bar_trail_at_t(
     spec: MovingBarSpec,
     field_deg: Tuple[float, float, float, float],
     t: int,
     t_on: int = None,
-    deltat_ms: float = DELTAT_MS,
+    delta_ms: float = DELTA_MS,
 ) -> float:
     x0, y0, x1, y1 = field_deg
     trail = _trail_start(spec, x0, y0, x1, y1)
-    step = _trail_step(spec, deltat_ms / 1000.0)
-    return trail + (t - t_on) * step
+    trail_shift_deg = _trail_shift_deg(spec, delta_ms / 1000.0)
+    return trail + (t - t_on) * trail_shift_deg
 
 
-def bar_rect_at_step(
+def bar_rect_at_t(
     spec: MovingBarSpec,
     field_deg: Tuple[float, float, float, float],
     t: int,
     t_on: int = None,
-    deltat_ms: float = DELTAT_MS,
+    delta_ms: float = DELTA_MS,
 ) -> Tuple[float, float, float, float]:
     x0, y0, x1, y1 = field_deg
-    trail = bar_trail_at_step(spec, field_deg, t, t_on=t_on, deltat_ms=deltat_ms)
+    trail = bar_trail_at_t(spec, field_deg, t, t_on=t_on, delta_ms=delta_ms)
     return _bar_rect(spec, trail, x0, y0, x1, y1)
 
 
@@ -760,26 +763,26 @@ def _current_from_coverage(
 def build_column_current(
     columns: Sequence[HexColumn],
     spec: MovingBarSpec,
-    maxtime: int,
+    n_t: int,
     bar_extent: int,
     *,
     multi_bar: bool = True,
     t_on: int = None,
-    deltat_ms: float = DELTAT_MS,
+    delta_ms: float = DELTA_MS,
     i_baseline: float = I_BASELINE,
     i_bright_bar: Optional[float] = None,
     i_dark_bar: Optional[float] = None,
 ) -> np.ndarray:
     """Column-level current ``(T, n_cols)`` for one multi-bar condition."""
     n_cols = len(columns)
-    out = np.full((maxtime, n_cols), i_baseline, dtype=np.float64)
+    out = np.full((n_t, n_cols), i_baseline, dtype=np.float64)
     if n_cols == 0:
         return out
 
     field_deg = field_bounds(columns)
     hex_stack = np.stack([c.hex_xy for c in columns], axis=0)
     cov_ts = _coverage_time_series(
-        hex_stack, spec, field_deg, maxtime=maxtime, t_on=t_on, deltat_ms=deltat_ms,
+        hex_stack, spec, field_deg, n_t=n_t, t_on=t_on, delta_ms=delta_ms,
         bar_extent=bar_extent,
         multi_bar=multi_bar,
     )
@@ -793,12 +796,12 @@ def build_column_current(
 def build_batched_column_current(
     columns: Sequence[HexColumn],
     specs: Sequence[MovingBarSpec],
-    maxtime: int,
+    n_t: int,
     bar_extent: int,
     *,
     multi_bar: bool = True,
     t_on: int = None,
-    deltat_ms: float = DELTAT_MS,
+    delta_ms: float = DELTA_MS,
     i_baseline: float = I_BASELINE,
     i_bright_bar: Optional[float] = None,
     i_dark_bar: Optional[float] = None,
@@ -812,9 +815,9 @@ def build_batched_column_current(
     n_batch = len(specs)
     n_cols = len(columns)
     if n_cols == 0 or n_batch == 0:
-        return np.zeros((n_batch, maxtime, n_cols), dtype=np.float64)
+        return np.zeros((n_batch, n_t, n_cols), dtype=np.float64)
 
-    out = np.zeros((n_batch, maxtime, n_cols), dtype=np.float64)
+    out = np.zeros((n_batch, n_t, n_cols), dtype=np.float64)
     for b in range(n_batch):
         out[b, :t_on] = i_baseline
 
@@ -828,7 +831,7 @@ def build_batched_column_current(
     for batch_idxs in groups.values():
         cov_ts = _coverage_time_series(
             hex_stack, specs[batch_idxs[0]], field_deg,
-            maxtime=maxtime, t_on=t_on, deltat_ms=deltat_ms,
+            n_t=n_t, t_on=t_on, delta_ms=delta_ms,
             bar_extent=bar_extent,
             multi_bar=multi_bar,
         )
@@ -966,27 +969,15 @@ def moving_bar_window_t_rel_torch(t0, t_on: int, win: int, *, device=None):
 @dataclass
 class MovingBarT0Grids:
     t0_bn: np.ndarray
-    before_steps: Dict[str, int]
-    after_steps: Dict[str, int]
+    before_t: Dict[str, int]
+    after_t: Dict[str, int]
 
 
-def column_first_stim_steps(
-    column_current: np.ndarray,
-    batch_idx: int,
-    col_idxs: Sequence[int],
-    i_baseline: float,
-) -> List[int]:
-    return [
-        column_first_stim_step(column_current[batch_idx, :, col_idx], i_baseline=i_baseline)
-        for col_idx in col_idxs
-    ]
-
-
-def moving_bar_spec_horizon(t_first_stis: Sequence[int], maxtime: int) -> Tuple[int, int, int]:
-    """Return ``(fb, before_steps, after_steps)`` for one spec over all columns."""
+def moving_bar_spec_horizon(t_first_stis: Sequence[int], n_t: int) -> Tuple[int, int, int]:
+    """Return ``(fb, before_t, after_t)`` for one spec over all columns."""
     fb = int(min(t_first_stis))
     before = fb
-    after = int(maxtime) - int(max(t_first_stis))
+    after = int(n_t) - int(max(t_first_stis))
     return fb, before, after
 
 
@@ -1008,7 +999,7 @@ def moving_bar_network_t0_bn(C, filt_cols: Sequence[StiColumn], n_batch: int, t0
 def build_moving_bar_t0_grids(
     column_current: np.ndarray,
     specs: Sequence[MovingBarSpec],
-    maxtime: int,
+    n_t: int,
     i_baseline: float,
     *,
     all_col_idxs: Sequence[int],
@@ -1017,22 +1008,28 @@ def build_moving_bar_t0_grids(
     filt_network_cols: Sequence[StiColumn],
 ) -> MovingBarT0Grids:
     """Plot/training-aligned ``t0`` grid and per-spec full horizons."""
-    before_steps: Dict[str, int] = {}
-    after_steps: Dict[str, int] = {}
+    before_t: Dict[str, int] = {}
+    after_t: Dict[str, int] = {}
     n_batch = len(specs)
     i_baseline = resolve_i_baseline(i_baseline)
 
     t0_map: dict = {}
     for bi, spec in enumerate(specs):
-        t_first_all = column_first_stim_steps(column_current, bi, all_col_idxs, i_baseline)
-        fb, before, after = moving_bar_spec_horizon(t_first_all, maxtime)
-        before_steps[spec.name] = before
-        after_steps[spec.name] = after
-        t_first_filt = column_first_stim_steps(column_current, bi, filt_col_idxs, i_baseline)
+        t_first_all = [
+            column_first_stim_t(column_current[bi, :, col_idx], i_baseline=i_baseline)
+            for col_idx in all_col_idxs
+        ]
+        fb, before, after = moving_bar_spec_horizon(t_first_all, n_t)
+        before_t[spec.name] = before
+        after_t[spec.name] = after
+        t_first_filt = [
+            column_first_stim_t(column_current[bi, :, col_idx], i_baseline=i_baseline)
+            for col_idx in filt_col_idxs
+        ]
         for c, tc in zip(filt_network_cols, t_first_filt):
             t0_map[(bi, int(c.u), int(c.v))] = tc - fb
     t0_bn = moving_bar_network_t0_bn(network_C, filt_network_cols, n_batch, t0_map)
-    return MovingBarT0Grids(t0_bn=t0_bn, before_steps=before_steps, after_steps=after_steps)
+    return MovingBarT0Grids(t0_bn=t0_bn, before_t=before_t, after_t=after_t)
 
 
 def _column_unit_map(columns: Sequence[StiColumn]) -> Tuple[np.ndarray, np.ndarray]:
@@ -1050,8 +1047,8 @@ def _column_unit_map(columns: Sequence[StiColumn]) -> Tuple[np.ndarray, np.ndarr
 
 def scatter_column_current(column_current, columns, n_units):
     """Broadcast column current ``(T, n_cols)`` to unit current ``(T, n_units)``."""
-    t_steps = column_current.shape[0]
-    out = np.zeros((t_steps, n_units), dtype=np.float64)
+    n_t = column_current.shape[0]
+    out = np.zeros((n_t, n_units), dtype=np.float64)
     col_idx, unit_idx = _column_unit_map(columns)
     if len(col_idx):
         out[:, unit_idx] = column_current[:, col_idx]
@@ -1060,8 +1057,8 @@ def scatter_column_current(column_current, columns, n_units):
 
 def scatter_column_current_batched(column_current, columns, n_units):
     """Broadcast ``(B, T, n_cols)`` column current to ``(B, T, n_units)``."""
-    n_batch, t_steps, _ = column_current.shape
-    out = np.zeros((n_batch, t_steps, n_units), dtype=np.float64)
+    n_batch, n_t, _ = column_current.shape
+    out = np.zeros((n_batch, n_t, n_units), dtype=np.float64)
     col_idx, unit_idx = _column_unit_map(columns)
     if len(col_idx):
         out[:, :, unit_idx] = column_current[:, :, col_idx]
@@ -1080,9 +1077,9 @@ def _moving_bar_cache_key(
     network_json: Path,
     specs: Sequence[MovingBarSpec],
     column_uv: Sequence[Tuple[int, int]],
-    maxtime: int,
+    n_t: int,
     t_on: int,
-    deltat_ms: float,
+    delta_ms: float,
     i_baseline: float,
     bar_extent: int,
     multi_bar: bool = True,
@@ -1106,9 +1103,9 @@ def _moving_bar_cache_key(
             }
             for s in specs
         ],
-        "maxtime": maxtime,
+        "n_t": n_t,
         "t_on": t_on,
-        "deltat_ms": deltat_ms,
+        "delta_ms": delta_ms,
         "i_baseline": i_baseline,
     }
     if i_bright_bar is not None:
@@ -1123,9 +1120,9 @@ def _moving_bar_cache_path(
     network_json: Path,
     specs: Sequence[MovingBarSpec],
     column_uv: Sequence[Tuple[int, int]],
-    maxtime: int,
+    n_t: int,
     t_on: int,
-    deltat_ms: float,
+    delta_ms: float,
     i_baseline: float,
     bar_extent: int,
     multi_bar: bool = True,
@@ -1133,7 +1130,7 @@ def _moving_bar_cache_path(
     i_dark_bar: Optional[float] = None,
 ) -> Path:
     key = _moving_bar_cache_key(
-        network_json, specs, column_uv, maxtime, t_on, deltat_ms,
+        network_json, specs, column_uv, n_t, t_on, delta_ms,
         i_baseline, bar_extent, multi_bar, i_bright_bar, i_dark_bar,
     )
     return moving_bar_cache_dir(network_json) / f"{key}.npz"
@@ -1159,9 +1156,9 @@ def _save_moving_bar_column_cache(path: Path, column_current: np.ndarray) -> Non
 def build_moving_bar_signals(
     C,
     specs: Optional[Sequence[MovingBarSpec]] = None,
-    maxtime: Optional[int] = None,
+    n_t: Optional[int] = None,
     t_on: int = None,
-    deltat_ms: float = DELTAT_MS,
+    delta_ms: float = DELTA_MS,
     bar_extent: int = DEFAULT_BAR_EXTENT,
     multi_bar: bool = True,
     i_baseline: float = I_BASELINE,
@@ -1190,24 +1187,24 @@ def build_moving_bar_signals(
         i_dark = I_DARK if i_dark_bar is None else float(i_dark_bar)
     sti_cols = sti_columns(C)
     field_deg = field_bounds(sti_cols)
-    if maxtime is None:
-        maxtime = moving_bar_maxtime(
-            specs, field_deg, bar_extent, multi_bar=multi_bar, t_on=t_on, deltat_ms=deltat_ms,
+    if n_t is None:
+        n_t = moving_bar_n_t(
+            specs, field_deg, bar_extent, multi_bar=multi_bar, t_on=t_on, delta_ms=delta_ms,
         )
     n_batch = len(specs)
     n_units = C.n_units
-    sweep_end = moving_bar_sweep_end_step(
-        specs, field_deg, bar_extent, multi_bar=multi_bar, t_on=t_on, deltat_ms=deltat_ms,
+    sweep_end = moving_bar_sweep_end_t(
+        specs, field_deg, bar_extent, multi_bar=multi_bar, t_on=t_on, delta_ms=delta_ms,
     )
-    sweep_steps = sweep_end - t_on
-    tail_steps = maxtime - sweep_end
+    sweep_t = sweep_end - t_on
+    tail_t = n_t - sweep_end
 
     cache_path: Optional[Path] = None
     source_json = Path(network_json) if network_json is not None else getattr(C, "source_json", None)
     column_uv = _column_uv(sti_cols)
     if source_json is not None:
         cache_path = _moving_bar_cache_path(
-            source_json, specs, column_uv, maxtime, t_on, deltat_ms,
+            source_json, specs, column_uv, n_t, t_on, delta_ms,
             i_baseline, bar_extent, multi_bar, i_bright, i_dark,
         )
 
@@ -1219,8 +1216,8 @@ def build_moving_bar_signals(
 
     if col_curr is None:
         col_curr = build_batched_column_current(
-            sti_cols, specs, maxtime=maxtime, bar_extent=bar_extent, multi_bar=multi_bar,
-            t_on=t_on, deltat_ms=deltat_ms,
+            sti_cols, specs, n_t=n_t, bar_extent=bar_extent, multi_bar=multi_bar,
+            t_on=t_on, delta_ms=delta_ms,
             i_baseline=i_baseline, i_bright_bar=i_bright, i_dark_bar=i_dark,
         )
         if cache_path is not None and use_cache:
@@ -1234,13 +1231,13 @@ def build_moving_bar_signals(
         "bar_extent": bar_extent,
         "multi_bar": multi_bar,
         "field_deg": field_deg,
-        "maxtime": maxtime,
+        "n_t": n_t,
         "t_on": t_on,
         "sweep_end": sweep_end,
-        "sweep_steps": sweep_steps,
-        "sweep_time_s": sweep_steps * deltat_ms / 1000.0,
-        "tail_steps": tail_steps,
-        "tail_time_s": tail_steps * deltat_ms / 1000.0,
+        "sweep_t": sweep_t,
+        "sweep_time_s": sweep_t * delta_ms / 1000.0,
+        "tail_t": tail_t,
+        "tail_time_s": tail_t * delta_ms / 1000.0,
         "i_baseline": i_baseline,
         "speed_deg_s": specs[0].speed_deg_s if specs else GRUNTMAN_SPEED_DEG_S,
         "spec_names": [s.name for s in specs],

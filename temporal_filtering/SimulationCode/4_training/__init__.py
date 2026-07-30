@@ -32,11 +32,12 @@ from neuron import (
     cdt,
     borst_schema,
     default_schema,
-    deltat,
+    delta_ms,
     g_leak,
     normalize_syn_mode,
     run_full,
     run_units,
+    set_delta_ms,
     update_v,
     v_budget_from_g,
 )

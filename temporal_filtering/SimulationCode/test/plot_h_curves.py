@@ -28,7 +28,7 @@ import numpy as np
 import FiveCol_MedSim_Pytorch as fc
 from connectome_io import parse_comma_list
 from param_defaults import P
-from training_config import DELTAT_MS
+from training_config import DELTA_MS
 
 DEFAULT_SAVE = os.path.join(HERE, "h_curves.png")
 DEFAULT_PULSE_SAVE = os.path.join(HERE, "h_pulse_gmax.png")
@@ -83,7 +83,7 @@ def simulate_pulse(
 
     ``tau_const``: if set, gate uses fixed τ [ms]; else voltage-dependent τ(V).
     """
-    dt = float(fc.deltat)
+    dt = float(fc.delta_ms)
     n = int(round(t_total_ms / dt))
     n_settle = int(round(settle_ms / dt))
     i_on = int(round(t_pulse_on_ms / dt))
@@ -246,7 +246,7 @@ def plot_pulse_gmax(args, midv, slope, tau_mid, gmax_list):
     ax_v.set_ylabel(r"$V_m$ [mV]")
     ax_v.set_title(
         rf"hyperpolarizing pulse $I$={args.I_pulse:g} pA, "
-        rf"$E_{{\mathrm{{leak}}}}$={args.e_leak:g} mV, $\Delta t$={DELTAT_MS:g} ms"
+        rf"$E_{{\mathrm{{leak}}}}$={args.e_leak:g} mV, $\Delta t$={DELTA_MS:g} ms"
     )
     ax_g.set_xlabel(r"$t$ [ms]")
     ax_g.set_ylabel(r"$g_h$ [nS]")

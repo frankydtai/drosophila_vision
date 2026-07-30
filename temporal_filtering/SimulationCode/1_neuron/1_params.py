@@ -21,27 +21,41 @@ from __future__ import annotations
 
 from typing import Tuple
 
-# Simulation sampling interval (ms per discrete step).
-DELTAT_MS = 10.0
+# Simulation sampling interval (ms per discrete time index ``t``).
+DELTA_MS = 10.0
 
 
-def ms_to_steps(ms: float, *, deltat_ms: float = DELTAT_MS) -> int:
-    """Convert milliseconds to simulation steps (rounded)."""
-    return int(round(float(ms) / float(deltat_ms)))
+def ms_to_t(ms: float, *, delta_ms: float = DELTA_MS) -> int:
+    """Convert milliseconds to time index count ``t`` (rounded)."""
+    return int(round(float(ms) / float(delta_ms)))
 
 
-# simulation step
-deltat = DELTAT_MS  # [ms]
+# simulation ``delta_ms`` (overwrite via :func:`set_delta_ms`)
+delta_ms = DELTA_MS  # [ms]
 
 # borst membrane
 g_leak = 1.0  # nS
 E_exc = +10.0  # mV
 E_inh = -70.0  # mV
 capac = +40.0  # pF → 50 ms τ_m when g_leak = 1 nS
-cdt = capac / deltat
+cdt = capac / delta_ms
 
 Ca_tau = 50.0  # ms Ca readout
 DATA_AMP = 20.0  # pA scale on ImpR target traces (fit cells)
+
+
+def set_delta_ms(ms: float) -> None:
+    """Overwrite ``delta_ms`` (ms) and recompute ``cdt = capac / delta_ms``.
+
+    ``model_borst`` / ``model_hp_lp`` / ``filter_ca`` read ``neuron.params.delta_ms``
+    (and ``cdt``) at call time.
+    """
+    global delta_ms, cdt
+    ms = float(ms)
+    if ms <= 0:
+        raise ValueError(f"delta_ms must be > 0, got {ms}")
+    delta_ms = ms
+    cdt = capac / delta_ms
 
 E_LEAK_REST = -50.0
 E_LEAK_DEPOL = -20.0
@@ -98,7 +112,7 @@ P = {
     "Ih_slope_off": dict(lo=-0.40, hi=-0.20, init=-0.25, jit=0.02),
     "tau_midv_off": dict(lo=-70.0, hi=-40.0, init=-50.0, jit=5.0),
     # --- hp_lp ---
-    "tau_lp": dict(lo=DELTAT_MS, hi=100.0, init=50.0, jit=10.0),
+    "tau_lp": dict(lo=DELTA_MS, hi=100.0, init=50.0, jit=10.0),
     "bias": dict(lo=-20.0, hi=20.0, init=0.0, jit=0.1),
     "tau_hp": dict(lo=100.0, hi=10000.0, init=200.0, jit=0.0001, fixed_val=10000.0),
     "hp_gain": dict(lo=0.0, hi=5.0, init=1.0, jit=0.1, fixed_val=1.0),

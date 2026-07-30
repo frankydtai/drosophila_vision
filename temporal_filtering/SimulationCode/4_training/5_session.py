@@ -24,7 +24,7 @@ import torch
 
 from network.construction import I_BASELINE, I_BRIGHT, I_DARK
 from network.connectivity import SIM_DTYPE_DEFAULT, sim_dtype_from_fp32
-from neuron.params import DELTAT_MS
+from neuron.params import DELTA_MS, ms_to_t
 from training.config import run_data_dir
 from neuron import (
     IH_OFF_DEFAULT,
@@ -76,6 +76,7 @@ from task.spot.input import (
     DEFAULT_SHIFT_EXTENT,
     DEFAULT_SPOT_EXTENT,
     spot_extent_half_steps,
+    spot_timing_t_from_opts,
 )
 from task.moving_bar.data import (
     _enrich_moving_bar_stimulus_opts,
@@ -386,7 +387,7 @@ def _build_network_moving_bar_target(ctx: _TrainBindCtx, C, *, pack_name: str, p
         C=C,
         device=dev,
         sim_dtype=ctx.sim_dtype,
-        t_on=int(opts["t_on"]),
+        t_on=ms_to_t(float(opts["pre_ms"]), delta_ms=float(opts.get("delta_ms", DELTA_MS))),
         cost_extent=cost_extent,
         i_baseline=opts["i_baseline"],
         contrasts=(polarity,),
@@ -453,37 +454,35 @@ def _spot_cost_times_ms(opts):
     interval_ms = float(interval_ms)
     if interval_ms <= 0:
         raise ValueError("cost_interval_ms must be > 0")
-    deltat_ms = float(opts.get("deltat_ms", DELTAT_MS))
-    t_on = int(opts["t_on"])
-    maxtime = int(opts["maxtime"])
-    post = maxtime - t_on
+    delta_ms = float(opts.get("delta_ms", DELTA_MS))
+    t_on, n_t = spot_timing_t_from_opts(opts)
+    post = n_t - t_on
     if post <= 0:
         raise ValueError("spot post-onset window must be > 0 for cost_interval_ms")
-    interval_steps = max(1, int(round(interval_ms / deltat_ms)))
-    steps = list(range(0, post, interval_steps))
-    if not steps:
-        end_ms = (post - 1) * deltat_ms
+    interval_t = max(1, int(round(interval_ms / delta_ms)))
+    t_list = list(range(0, post, interval_t))
+    if not t_list:
+        end_ms = (post - 1) * delta_ms
         raise ValueError(
             f"cost_interval_ms={interval_ms} exceeds post-onset window "
-            f"({end_ms:g} ms, {post} steps)"
+            f"({end_ms:g} ms, post n_t={post})"
         )
-    return [step * deltat_ms for step in steps]
+    return [t * delta_ms for t in t_list]
 
 
 def _spot_cost_time_ix(opts, *, device):
-    """#4: sparse post-onset step indices from ``cost_interval_ms`` (relative to t_on)."""
+    """#4: sparse post-onset t indices from ``cost_interval_ms`` (relative to onset)."""
     cost_time_ms = _spot_cost_times_ms(opts)
     if not cost_time_ms:
         return None
-    deltat_ms = float(opts.get("deltat_ms", DELTAT_MS))
-    maxtime = int(opts["maxtime"])
-    t_on = int(opts["t_on"])
-    post = maxtime - t_on
-    ix = [int(round(float(ms) / deltat_ms)) for ms in cost_time_ms]
-    bad = [ms for ms, step in zip(cost_time_ms, ix) if step < 0 or step >= post]
+    delta_ms = float(opts.get("delta_ms", DELTA_MS))
+    t_on, n_t = spot_timing_t_from_opts(opts)
+    post = n_t - t_on
+    ix = [int(round(float(ms) / delta_ms)) for ms in cost_time_ms]
+    bad = [ms for ms, t in zip(cost_time_ms, ix) if t < 0 or t >= post]
     if bad:
         raise ValueError(
-            f"cost_interval_ms -> {bad[0]} ms post-onset step out of range [0,{post})"
+            f"cost_interval_ms -> {bad[0]} ms post-onset t out of range [0,{post})"
         )
     ix = sorted(set(ix))
     return torch.tensor(ix, dtype=torch.long, device=device)
@@ -507,6 +506,7 @@ def _build_network_spot_target(
     fully_inside = bool(opts.get("fully_inside", DEFAULT_FULLY_INSIDE))
     dev = ctx.dev or active_device()
     readout_kind = str(opts.get("filter", "ca"))
+    t_on, n_t = spot_timing_t_from_opts(opts)
     T = build_shifted_target(
         C,
         spot_extent=spot_extent,
@@ -515,8 +515,8 @@ def _build_network_spot_target(
         shift_extent=shift_extent,
         device=dev,
         sim_dtype=ctx.sim_dtype,
-        maxtime=int(opts["maxtime"]),
-        t_on=int(opts["t_on"]),
+        n_t=n_t,
+        t_on=t_on,
         cost_extent=cost_extent,
         spot_cost_radius_weight=expand_spot_cost_r_w_dict(stimulus_opts=opts),
         i_baseline=opts["i_baseline"],
@@ -707,7 +707,7 @@ def _finalize_stimulus_opts(
             k: v for k, v in (opts or {}).items()
             if k in (
                 "i_baseline", step_key, "shift_extent", "spot_extent",
-                "multi_spot", "fully_inside", "t_on", "maxtime", "deltat_ms",
+                "multi_spot", "fully_inside", "pre_ms", "response_ms", "delta_ms",
                 "pulse_ms", "cost_interval_ms", "filter",
             )
         })
@@ -718,7 +718,7 @@ def _finalize_stimulus_opts(
             **{
                 k: v for k, v in (opts or {}).items()
                 if k in ("i_baseline", "i_bright_bar", "readout_subtypes", "multi_bar",
-                         "t_on", "deltat_ms")
+                         "pre_ms", "delta_ms")
             },
         )
     elif target_name == "moving_bar_dark":
@@ -728,7 +728,7 @@ def _finalize_stimulus_opts(
             **{
                 k: v for k, v in (opts or {}).items()
                 if k in ("i_baseline", "i_dark_bar", "readout_subtypes", "multi_bar",
-                         "t_on", "deltat_ms")
+                         "pre_ms", "delta_ms")
             },
         )
     else:

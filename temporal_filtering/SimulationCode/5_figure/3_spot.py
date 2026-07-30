@@ -12,7 +12,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import torch
 
-from neuron.params import DELTAT_MS
+from neuron.params import DELTA_MS
 import training as fc
 from figure.readout import (
     pack_readout_types,
@@ -74,16 +74,17 @@ def _baseline_from_ref_grid(ref_grid, row_i):
 
 
 def _session_spot_timing(session):
-    """Extract t_on / maxtime / pulse_ms from session stimulus opts."""
+    """Extract onset ``t_on`` / ``n_t`` and pulse_ms from session stimulus opts."""
+    from task.spot.input import spot_timing_t_from_opts
+
     opts = (session.train_opts or {}).get(
         f"{session.primary_pack.name}_stimulus_opts",
     ) or {}
-    t_on = opts.get("t_on")
-    maxtime = opts.get("maxtime")
+    t_on, n_t = spot_timing_t_from_opts(opts)
     pulse_ms = opts.get("pulse_ms")
     return (
-        int(t_on) if t_on is not None else None,
-        int(maxtime) if maxtime is not None else None,
+        int(t_on),
+        int(n_t),
         float(pulse_ms) if pulse_ms is not None else None,
     )
 
@@ -96,18 +97,18 @@ def resolve_spot_ref_cubes(session_1, session_2=None, ref_cubes=None, ref_cubes_
         ref_1 = ref_cubes
     elif dual:
         ref_1 = spot_ref_cubes(session_1, 'spot_bright', dark=False,
-                               t_on=t_on_1, maxtime=mt_1, pulse_ms=pulse_ms_1, v_delta=v_delta)
+                               t_on=t_on_1, n_t=mt_1, pulse_ms=pulse_ms_1, v_delta=v_delta)
     else:
         ref_1 = spot_ref_cubes(
             session_1, session_1.primary_pack.name, dark=_session_dark(session_1),
-            t_on=t_on_1, maxtime=mt_1, pulse_ms=pulse_ms_1, v_delta=v_delta,
+            t_on=t_on_1, n_t=mt_1, pulse_ms=pulse_ms_1, v_delta=v_delta,
         )
     if ref_cubes_2 is not None:
         ref_2 = ref_cubes_2
     elif dual:
         t_on_2, mt_2, pulse_ms_2 = _session_spot_timing(session_2)
         ref_2 = spot_ref_cubes(session_2, 'spot_dark', dark=True,
-                               t_on=t_on_2, maxtime=mt_2, pulse_ms=pulse_ms_2, v_delta=v_delta)
+                               t_on=t_on_2, n_t=mt_2, pulse_ms=pulse_ms_2, v_delta=v_delta)
     else:
         ref_2 = None
     return ref_1, ref_2
@@ -132,7 +133,7 @@ def _session_cost_time_ix(session, response_start):
 def scale_curve(xt, center, sem_xt=None, *, response_start=None):
     """Center time course + discrete RF bins from one ``(9, T)`` cube."""
     if response_start is None:
-        raise ValueError("scale_curve requires response_start (t_on step)")
+        raise ValueError("scale_curve requires response_start (t_on)")
     t0 = int(response_start)
     imp = xt[center]
     resp = imp[t0:]
@@ -170,11 +171,11 @@ def _plot_rf_profile(ax, rf, *, color, label=None, linestyle='-', filled=False):
     ax.plot(RF_BIN_X[mask], rf[mask], **kw)
 
 
-def _style_time_axis(ax, show_xlabel, maxtime):
-    t_end = maxtime * DELTAT_MS / 1000.0
+def _style_time_axis(ax, show_xlabel, n_t):
+    t_end = n_t * DELTA_MS / 1000.0
     t_mid = t_end / 2.0
-    ax.set_xlim(0, maxtime)
-    ax.set_xticks([0, maxtime // 2, maxtime])
+    ax.set_xlim(0, n_t)
+    ax.set_xticks([0, n_t // 2, n_t])
     ax.set_xticklabels(['0', f'{t_mid:g}', f'{t_end:g}'], fontsize=6)
     if show_xlabel:
         ax.set_xlabel('time [s]', fontsize=7)
@@ -201,7 +202,7 @@ def plot_cell_pair(
     show_xlabels=False,
     show_ylabel=False,
     baseline=None,
-    maxtime=None,
+    n_t=None,
     model_2_xt=None,
     ref_2_xt=None,
     baseline_2=None,
@@ -255,7 +256,7 @@ def plot_cell_pair(
     if show_legend:
         ax_rf.legend(loc='upper right', fontsize=6, frameon=False)
 
-    t = np.arange(maxtime)
+    t = np.arange(n_t)
     plot_timecourse(
         ax_time, t, imp_model,
         data=imp_data,
@@ -268,7 +269,7 @@ def plot_cell_pair(
         baseline=baseline_2 if baseline_2 is not None else baseline,
         show_ylabel=show_ylabel,
         linestyle=linestyle_1,
-        style_xaxis=lambda ax: _style_time_axis(ax, show_xlabels, maxtime),
+        style_xaxis=lambda ax: _style_time_axis(ax, show_xlabels, n_t),
         point_ix=time_point_ix,
         point_ix_2=time_point_ix_2,
     )
@@ -290,7 +291,7 @@ def plot_cell_pair_slices(
     show_xlabels=False,
     show_ylabel=False,
     baseline=None,
-    maxtime=None,
+    n_t=None,
     baseline_2=None,
     linestyle_1='-',
     linestyle_2='--',
@@ -359,7 +360,7 @@ def plot_cell_pair_slices(
     if show_legend:
         ax_rf.legend(loc='upper right', fontsize=6, frameon=False)
 
-    t = np.arange(maxtime)
+    t = np.arange(n_t)
     if imp_data is not None:
         ax_time.plot(t, imp_data, color=DATA_COLOR, linewidth=TRACE_LW, linestyle=linestyle_1)
     for i, label in enumerate(slice_labels):
@@ -386,7 +387,7 @@ def plot_cell_pair_slices(
     if model_2_imp_model is not None:
         ax_time.plot(t, model_2_imp_model, color=colors[-1], linewidth=TRACE_LW, linestyle=linestyle_2)
     ax_time.set_ylim(ylo, yhi)
-    _style_time_axis(ax_time, show_xlabels, maxtime)
+    _style_time_axis(ax_time, show_xlabels, n_t)
     if show_ylabel:
         ax_time.set_ylabel('mV', fontsize=7)
     ax_time.tick_params(labelsize=6)
@@ -400,23 +401,23 @@ def _as_index(neuron_index, device):
 
 
 def _scale_plot_traces(raw, scale):
-    """``(N, maxtime)`` readout -> scaled traces for spot timecourse plots."""
+    """``(N, n_t)`` readout -> scaled traces for spot timecourse plots."""
     return scale[:, None] * raw
 
 
-def _mask_pre_ton_plot_traces(traces, *, show_pre=True, t_on_step=None):
-    """Zero absolute steps ``[0, t_on)`` when ``show_pre`` is false."""
+def _mask_pre_ton_plot_traces(traces, *, show_pre=True, t_on=None):
+    """Zero absolute samples ``[0, t_on)`` when ``show_pre`` is false."""
     if show_pre:
         return traces
-    if t_on_step is None:
-        raise ValueError("_mask_pre_ton_plot_traces requires t_on_step")
-    t_on_step = int(t_on_step)
+    if t_on is None:
+        raise ValueError("_mask_pre_ton_plot_traces requires t_on")
+    t_on = int(t_on)
     if torch.is_tensor(traces):
         out = traces.clone()
-        out[..., :t_on_step] = 0
+        out[..., :t_on] = 0
         return out
     out = np.asarray(traces, dtype=np.float64).copy()
-    out[..., :t_on_step] = 0.0
+    out[..., :t_on] = 0.0
     return out
 
 
@@ -443,7 +444,7 @@ def _simulate(session, z, neuron_index, return_ref=False, *, trace_kind='ca', sh
 
 def calc_ca_full_all(session, z, return_ref=False, *, trace_kind='ca', show_pre=True):
     n_types = session.backend.n_types
-    mt = session.maxtime
+    mt = session.n_t
     ca_full = np.zeros((n_types, 9, mt))
     ref_full = np.full((n_types, 9), np.nan)
     for col in range(5):
@@ -501,7 +502,7 @@ class SpotTraceBundle:
     slice_labels: list[str] | None = None
     slice_x_list: list | None = None
     slice_y_list: list | None = None
-    maxtime: int = 0
+    n_t: int = 0
     prep_s: float = 0.0
     v_th_by_name: dict = field(default_factory=dict)
     response_start: int | None = None
@@ -540,7 +541,7 @@ def _spot_readout_bundle_view(bundle):
         cells=cells,
         group_rows=_group_rows_from_groups(groups, cell_names),
         session=session,
-        maxtime=bundle.maxtime,
+        n_t=bundle.n_t,
         v_th_by_name=bundle.v_th_by_name,
         response_start=bundle.response_start,
         trace_kind=bundle.trace_kind,
@@ -673,10 +674,16 @@ def _spot_forward_rows(
         scale = fc.out_scale_for_units(
             p, torch.as_tensor(unit_idx, dtype=torch.long, device=z.device), session.backend,
         )
-    stim_t_on = opts.get("t_on")
+    from neuron.params import DELTA_MS, ms_to_t
+
+    stim_pre_ms = opts.get("pre_ms")
+    dt = float(opts.get("delta_ms", DELTA_MS))
+    stim_t_on = (
+        ms_to_t(float(stim_pre_ms), delta_ms=dt) if stim_pre_ms is not None else None
+    )
     plot_traces = _mask_pre_ton_plot_traces(
         _scale_plot_traces(raw, scale), show_pre=show_pre,
-        t_on_step=int(stim_t_on) if stim_t_on is not None else None,
+        t_on=int(stim_t_on) if stim_t_on is not None else None,
     ).cpu().numpy()
     rows = dict(
         names=names,
@@ -736,7 +743,7 @@ def network_spot_trace_bundle(
         save_trace_csv_dir=save_trace_csv_dir,
         at_x=at_x, at_y=at_y, show_pre=show_pre,
     )
-    cells, group_rows, maxtime = _spot_cube_from_rows(rows, session)
+    cells, group_rows, n_t = _spot_cube_from_rows(rows, session)
     slice_overlay, slice_labels = (None, None)
     if at_x_list is not None or at_y_list is not None:
         slice_overlay, slice_labels = _spot_slice_overlay(
@@ -750,7 +757,7 @@ def network_spot_trace_bundle(
         slice_labels=slice_labels,
         slice_x_list=at_x_list,
         slice_y_list=at_y_list,
-        maxtime=maxtime,
+        n_t=n_t,
         prep_s=time.perf_counter() - t_prep0,
         v_th_by_name=v_th_by_type_name(z, session),
         response_start=rows.get('t_on'),
@@ -787,7 +794,7 @@ def _plot_spot_figure(
     slice_labels = bundle_on.slice_labels or []
     slice_overlay_on = bundle_on.slice_overlay
     slice_overlay_2 = bundle_2.slice_overlay if bundle_2 is not None else None
-    maxtime = bundle_on.maxtime
+    n_t = bundle_on.n_t
     response_start = bundle_on.response_start
     dual = session_2 is not None
     response_start_2 = bundle_2.response_start if bundle_2 is not None else None
@@ -850,7 +857,7 @@ def _plot_spot_figure(
                 show_legend=not legend_done,
                 show_xlabels=show_xlabels,
                 show_ylabel=show_ylabel,
-                maxtime=maxtime,
+                n_t=n_t,
                 baseline=cell_on.get('baseline'),
                 **kw_2,
                 linestyle_1=linestyle_1,
@@ -875,7 +882,7 @@ def _plot_spot_figure(
                 show_legend=not legend_done,
                 show_xlabels=show_xlabels,
                 show_ylabel=show_ylabel,
-                maxtime=maxtime,
+                n_t=n_t,
                 baseline=cell_on.get('baseline'),
                 **kw_2,
                 linestyle_1=linestyle_1,

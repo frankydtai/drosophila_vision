@@ -29,10 +29,11 @@ from neuron.params import (
     Ih_gain,
     capac,
     cdt,
-    deltat,
+    delta_ms,
     exc_synweight,
     g_leak,
     inh_synweight,
+    set_delta_ms,
 )
 from neuron.schema import (
     ALL_PARAM_NAMES,
@@ -50,7 +51,7 @@ from neuron.schema import (
 )
 from neuron import model_borst as _model_borst
 from neuron import model_hp_lp as _model_hp_lp
-from neuron.filter_ca import CA_ALPHA, ca_readout_step, ca_to_v_delta
+from neuron.filter_ca import ca_alpha, ca_readout_step, ca_to_v_delta
 from neuron.forward import (
     MODEL_DRIVERS,
     run_full,
@@ -94,14 +95,15 @@ __all__ = [
     "update_state_hp_lp",
     "ca_readout_step",
     "ca_to_v_delta",
-    "CA_ALPHA",
+    "ca_alpha",
     "run_full",
     "run_units",
     "pack_readout",
     "readout_pack_traces",
     "window_time_traces",
     "STATE_CLAMP",
-    "deltat",
+    "delta_ms",
+    "set_delta_ms",
     "Ca_tau",
     "g_leak",
     "cdt",

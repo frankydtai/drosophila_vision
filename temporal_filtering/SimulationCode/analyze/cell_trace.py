@@ -242,7 +242,7 @@ def extract_spot_cell_curves(bundle, ref_on, *, cell: str, slice_label: str | No
 
     if bundle.response_start is None:
         raise SystemExit(
-            "spot bundle missing response_start (t_on step); "
+            "spot bundle missing response_start (t_on); "
             "cannot scale spot time courses"
         )
     imp_total, rf_total = spot_plot.scale_curve(
@@ -312,21 +312,21 @@ def _print_curve(
     name: str,
     arr: np.ndarray,
     *,
-    before_steps: int | None,
+    before_t: int | None,
     print_values: bool,
-    head_steps: int | None,
+    head_t: int | None,
     head_window: str | None,
 ):
     """Summarize + (optionally) list values for a trace window."""
-    if before_steps is not None and 0 < before_steps < arr.size:
-        start = before_steps
-        window = f"post_onset[idx>={before_steps}]"
+    if before_t is not None and 0 < before_t < arr.size:
+        start = before_t
+        window = f"post_onset[idx>={before_t}]"
     else:
         start = 0
         window = "full"
 
-    if head_steps is not None:
-        end = min(arr.size, start + head_steps)
+    if head_t is not None:
+        end = min(arr.size, start + head_t)
         use = arr[start:end]
         idx_offset = start
         if head_window:
@@ -363,13 +363,13 @@ def _print_result_block(
     x_list,
     y_list,
     print_values: bool,
-    head_steps: int | None,
+    head_t: int | None,
     head_window: str | None,
     spec: str | None = None,
 ):
-    before_steps = None
-    if spec is not None and bundle.traces.before_steps is not None:
-        before_steps = bundle.traces.before_steps.get(spec)
+    before_t = None
+    if spec is not None and bundle.traces.before_t is not None:
+        before_t = bundle.traces.before_t.get(spec)
     head = (
         f"best_i={best_i}  best_cost={best_cost:.6g}  cell={cell}  "
         f"target={target}  trace_kind={trace_kind}"
@@ -379,11 +379,11 @@ def _print_result_block(
     print("")
     print(f"== RUN {run_i}: {run_dir} ==")
     print(head)
-    print(f"maxtime={bundle.maxtime}  deltat_ms={getattr(session, 'deltat_ms', 'NA')}")
+    print(f"n_t={bundle.n_t}  delta_ms={getattr(session, 'delta_ms', 'NA')}")
     if x_list is not None or y_list is not None:
         print(f"slice_x={x_list}  slice_y={y_list}")
-    if before_steps is not None:
-        print(f"cost_window_start_idx={before_steps}")
+    if before_t is not None:
+        print(f"cost_window_start_idx={before_t}")
     if spec is not None:
         slice_names = [k for k in curves if k != "total"]
         order = slice_names + ["total"]
@@ -392,31 +392,31 @@ def _print_result_block(
             _print_curve(
                 name,
                 curves[name],
-                before_steps=before_steps,
+                before_t=before_t,
                 print_values=print_values,
-                head_steps=head_steps,
+                head_t=head_t,
                 head_window=head_window,
             )
     else:
         for key, arr in curves.items():
             # RF arrays are spatial profiles, not time courses.
-            if head_steps is not None and not key.startswith("time_"):
+            if head_t is not None and not key.startswith("time_"):
                 continue
             _print_curve(
                 key,
                 arr,
-                before_steps=None,
+                before_t=None,
                 print_values=print_values,
-                head_steps=head_steps,
+                head_t=head_t,
                 head_window=head_window,
             )
 
 
-def _ms_to_steps(ms: float, deltat_ms: float) -> int:
+def _ms_to_t(ms: float, delta_ms: float) -> int:
     """Map ms to simulation indices (floor division)."""
-    if deltat_ms <= 0:
-        raise ValueError(f"invalid deltat_ms={deltat_ms}")
-    return int(float(ms) / float(deltat_ms))
+    if delta_ms <= 0:
+        raise ValueError(f"invalid delta_ms={delta_ms}")
+    return int(float(ms) / float(delta_ms))
 
 
 def _load_train_opts(run_dir: str) -> dict:
@@ -429,34 +429,34 @@ def _maybe_override_spot_timing(
     *,
     run_dir: str,
     session,
-    t_on_ms: float | None,
-    maxtime_ms: float | None,
+    pre_ms: float | None,
+    response_ms: float | None,
 ):
     """Optionally re-open the session with overridden spot timing.
 
     This must re-open the session (not just mutate ``session.train_opts``),
     because the precomputed stimulus tensors (e.g. ``pack.signal``) depend on
-    ``maxtime``.
+    ``pre_ms`` / ``response_ms``.
     """
-    if t_on_ms is None:
+    if pre_ms is None:
         return session, None, None
 
     opts = _load_train_opts(run_dir)
-    orig_stim = opts.get("spot_bright_stimulus_opts") or {}
-    dt = float(orig_stim.get("deltat_ms", 10.0))
-    new_t_on = _ms_to_steps(t_on_ms, dt)
-    if maxtime_ms is None:
-        maxtime_ms = float(t_on_ms) + DEFAULT_POST_ONSET_MS
-    new_maxtime = _ms_to_steps(maxtime_ms, dt)
+    if response_ms is None:
+        response_ms = float(DEFAULT_POST_ONSET_MS)
 
     for key in ("spot_bright_stimulus_opts", "spot_dark_stimulus_opts"):
         so = opts.get(key)
         if so is not None:
-            so["t_on"] = new_t_on
-            so["maxtime"] = new_maxtime
+            so["pre_ms"] = float(pre_ms)
+            so["response_ms"] = float(response_ms)
+            so.pop("t_on", None)
+            so.pop("n_t", None)
 
     # Re-open the session with updated stimulus opts.
     new_session = fc.open_session_from_opts(opts, model=opts.get("model"))
+    dt = float((opts.get("spot_bright_stimulus_opts") or {}).get("delta_ms", 10.0))
+    new_t_on = _ms_to_t(pre_ms, dt)
     return new_session, dt, new_t_on
 
 
@@ -484,17 +484,17 @@ def main():
         help="print full analysis-window trace arrays",
     )
     ap.add_argument(
-        "--t-on-ms",
+        "--pre-ms",
         type=float,
         default=None,
-        help="override spot stimulus onset in ms (re-opens session; affects spot_*)",
+        help="override spot pre-stimulus baseline in ms (re-opens session; affects spot_*)",
     )
     ap.add_argument(
-        "--maxtime-ms",
+        "--response-ms",
         type=float,
         default=None,
-        help="override total spot simulation time in ms "
-        "(default: t-on-ms + 1500)",
+        help="override spot post-onset response window in ms "
+        "(default: 1500)",
     )
     ap.add_argument(
         "--t-max-ms",
@@ -513,18 +513,18 @@ def main():
         session0, _z0, best_i, best_cost = plot_trained.load_best(run_dir)
 
         dt_for_head = None
-        head_steps = None
+        head_t = None
         head_window = None
 
         # If requested, re-open session with overridden spot timing, and re-map z.
         session, z = session0, _z0
         dt_for_head = None
-        if args.t_on_ms is not None:
-            session, dt_for_head, _new_t_on_step = _maybe_override_spot_timing(
+        if args.pre_ms is not None:
+            session, dt_for_head, _new_t_on = _maybe_override_spot_timing(
                 run_dir=run_dir,
                 session=session0,
-                t_on_ms=args.t_on_ms,
-                maxtime_ms=args.maxtime_ms,
+                pre_ms=args.pre_ms,
+                response_ms=args.response_ms,
             )
             # Re-load + re-map the best parameters for the new session schema.
             named, type_names, pair_names = train_mod.load_best_param_named(run_dir)
@@ -548,9 +548,9 @@ def main():
             if dt_for_head is None:
                 opts = _load_train_opts(run_dir)
                 dt_for_head = float(
-                    (opts.get("spot_bright_stimulus_opts") or {}).get("deltat_ms", 10.0)
+                    (opts.get("spot_bright_stimulus_opts") or {}).get("delta_ms", 10.0)
                 )
-            head_steps = _ms_to_steps(args.t_max_ms, dt_for_head)
+            head_t = _ms_to_t(args.t_max_ms, dt_for_head)
             head_window = f"head[t<{args.t_max_ms:g}ms]"
 
         spot_cache: dict[str, tuple] = {}
@@ -586,7 +586,7 @@ def main():
                         x_list=cli.x_list,
                         y_list=cli.y_list,
                         print_values=args.values,
-                            head_steps=head_steps,
+                            head_t=head_t,
                             head_window=head_window,
                     )
             else:
@@ -619,7 +619,7 @@ def main():
                             x_list=cli.x_list,
                             y_list=cli.y_list,
                             print_values=args.values,
-                            head_steps=head_steps,
+                            head_t=head_t,
                             head_window=head_window,
                             spec=spec,
                         )

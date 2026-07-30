@@ -30,7 +30,8 @@ from connectome_io import parse_comma_list
 
 from network.construction import I_BASELINE, I_BRIGHT, I_DARK
 from network.connectivity import SIM_DTYPE_DEFAULT
-from neuron.params import DATA_AMP, deltat
+from neuron.params import DATA_AMP
+import neuron.params as params
 from neuron.filter_ca import ca_to_v_delta
 from network.construction import col2fit, unit_type_names
 from network.layout import column_in_cost_extent
@@ -128,16 +129,16 @@ def normalize_data(x):
     return result
 
 
-def read_RecF_ImpR(*, t_on=None, maxtime=None, pulse_ms=None):
+def read_RecF_ImpR(*, t_on=None, n_t=None, pulse_ms=None):
     """Return ``(RecF_data, ImpR_data)`` for the 13 fit cell types.
 
-    Shapes: ``RecF_data`` ``(13, 45)``; ``ImpR_data`` ``(13, maxtime)``. The
+    Shapes: ``RecF_data`` ``(13, 45)``; ``ImpR_data`` ``(13, n_t)``. The
     drive is :func:`task.spot.input.spot_input_waveform` (step or pulse).
     """
-    if t_on is None or maxtime is None:
-        raise ValueError("read_RecF_ImpR requires t_on and maxtime")
+    if t_on is None or n_t is None:
+        raise ValueError("read_RecF_ImpR requires t_on and n_t")
     t_on = int(t_on)
-    maxtime = int(maxtime)
+    n_t = int(n_t)
 
     RF_center_width = np.array([6, 7, 6, 8, 7, 6, 12, 6, 6, 8, 8, 11, 7])
     RF_surrnd_width = np.array([41, 29, 15, 33, 31, 29, 7, 16, 24, 27, 31, 35, 24])
@@ -157,11 +158,11 @@ def read_RecF_ImpR(*, t_on=None, maxtime=None, pulse_ms=None):
     IR_hp = np.array([39.1, 28.8, 00.0, 38.1, 12.7, 31.8, 26.0, 0.00, 0.00, 29.6, 15.3, 24.9, 0.00])
     IR_lp = np.array([03.8, 05.8, 05.4, 02.3, 04.2, 05.4, 02.7, 03.8, 07.7, 04.4, 01.4, 02.4, 10.7])
 
-    signal = spot_input_waveform(t_on, maxtime, pulse_ms)
+    signal = spot_input_waveform(t_on, n_t, pulse_ms)
     signal = _lowpass(signal, 5)
     signal = signal / np.max(signal)
 
-    ImpR_data = np.zeros((13, maxtime))
+    ImpR_data = np.zeros((13, n_t))
     for i in range(13):
         if IR_hp[i] == 0:
             ImpR_data[i] = _lowpass(signal, IR_lp[i])
@@ -174,9 +175,9 @@ def read_RecF_ImpR(*, t_on=None, maxtime=None, pulse_ms=None):
     return RecF_data, ImpR_data
 
 
-def read_RecF_data(*, t_on=None, maxtime=None, pulse_ms=None):
-    """Spatial x temporal spot cube ``(13, 9, maxtime)``."""
-    RecF_data, ImpR_data = read_RecF_ImpR(t_on=t_on, maxtime=maxtime, pulse_ms=pulse_ms)
+def read_RecF_data(*, t_on=None, n_t=None, pulse_ms=None):
+    """Spatial x temporal spot cube ``(13, 9, n_t)``."""
+    RecF_data, ImpR_data = read_RecF_ImpR(t_on=t_on, n_t=n_t, pulse_ms=pulse_ms)
     mt = ImpR_data.shape[1]
     data = np.zeros((13, 9, mt))
     for i in range(13):
@@ -185,9 +186,9 @@ def read_RecF_data(*, t_on=None, maxtime=None, pulse_ms=None):
     return data
 
 
-def read_RecF_data_dark(*, t_on=None, maxtime=None, pulse_ms=None):
+def read_RecF_data_dark(*, t_on=None, n_t=None, pulse_ms=None):
     """Dark spot spatial x temporal cube: negated bright ``read_RecF_data()``."""
-    return -read_RecF_data(t_on=t_on, maxtime=maxtime, pulse_ms=pulse_ms)
+    return -read_RecF_data(t_on=t_on, n_t=n_t, pulse_ms=pulse_ms)
 
 
 # -- Cost-radius weights ------------------------------------------------------
@@ -460,7 +461,7 @@ def build_shifted_target(
     multi_spot: bool = DEFAULT_MULTI_SPOT,
     fully_inside: bool = DEFAULT_FULLY_INSIDE,
     shift_extent: int = DEFAULT_SHIFT_EXTENT,
-    maxtime: int = None,
+    n_t: int = None,
     t_on: int = None,
     i_baseline: float = I_BASELINE,
     i_bright: float = I_BRIGHT,
@@ -474,15 +475,15 @@ def build_shifted_target(
     pulse_ms: Optional[float] = None,
     readout_kind: str = "ca",
 ) -> ShiftedTarget:
-    if t_on is None or maxtime is None:
-        raise ValueError("build_shifted_target requires t_on and maxtime")
+    if t_on is None or n_t is None:
+        raise ValueError("build_shifted_target requires t_on and n_t")
     if polarity not in ("bright", "dark"):
         raise ValueError(f"polarity must be 'bright' or 'dark', got {polarity!r}")
     if readout_kind not in ("ca", "v"):
         raise ValueError(f"readout_kind must be 'ca' or 'v', got {readout_kind!r}")
     i_step = float(i_bright if polarity == "bright" else i_dark)
     device = device or C.device
-    recf_data, impr_data = read_RecF_ImpR(t_on=t_on, maxtime=maxtime, pulse_ms=pulse_ms)
+    recf_data, impr_data = read_RecF_ImpR(t_on=t_on, n_t=n_t, pulse_ms=pulse_ms)
     fit_row = {str(ft): i for i, ft in enumerate(cell_list)}
 
     spot = spot_from_opts(
@@ -496,11 +497,11 @@ def build_shifted_target(
     n_batch = len(batches)
 
     # Single PR waveform source (step or pulse) shared with the ImpR target.
-    u = spot_input_waveform(t_on, maxtime, pulse_ms)
+    u = spot_input_waveform(t_on, n_t, pulse_ms)
     drive = torch.as_tensor(
         i_baseline + (i_step - i_baseline) * u, dtype=sim_dtype, device=device,
     )
-    signal = torch.zeros((n_batch, maxtime, C.n_units), dtype=sim_dtype, device=device)
+    signal = torch.zeros((n_batch, n_t, C.n_units), dtype=sim_dtype, device=device)
     for b, batch in enumerate(batches):
         for su, sv in batch.stim_uv:
             units = C.input_units_at(su, sv)
@@ -508,7 +509,7 @@ def build_shifted_target(
                 idx = torch.as_tensor(units, dtype=torch.long, device=device)
                 signal[b, :, idx] = drive[:, None]
 
-    resp = slice(t_on, maxtime)  # post-onset cost window
+    resp = slice(t_on, n_t)  # post-onset cost window
 
     cost_radii = resolve_spot_cost_radii(spot_cost_radius_weight, spot_extent=spot_extent)
     cost_cols = spot_cost_columns(batches, cost_radii, cost_extent)
@@ -589,7 +590,7 @@ def build_shifted_target(
         "pulse_ms": None if pulse_ms is None else float(pulse_ms),
         "readout_kind": str(readout_kind),
         "t_on": int(t_on),
-        "maxtime": int(maxtime),
+        "n_t": int(n_t),
         "mode": "network",
     }
     return ShiftedTarget(
@@ -628,17 +629,20 @@ def make_spot_stimulus_opts(
     step_default = I_BRIGHT if polarity == "bright" else I_DARK
     if spot_extent is None:
         spot_extent = extra.get("spot_extent", DEFAULT_SPOT_EXTENT)
-    _t_on = extra.get("t_on")
-    _maxtime = extra.get("maxtime")
-    if _t_on is None or _maxtime is None:
-        raise ValueError("make_spot_stimulus_opts requires t_on and maxtime (pass via CLI --t-on-ms)")
+    _pre_ms = extra.get("pre_ms")
+    _response_ms = extra.get("response_ms")
+    if _pre_ms is None or _response_ms is None:
+        raise ValueError(
+            "make_spot_stimulus_opts requires pre_ms and response_ms "
+            "(pass via CLI --pre-ms / --response-ms)"
+        )
     opts = {
         "mode": mode,
         "i_baseline": float(I_BASELINE if i_baseline is None else i_baseline),
         step_key: float(step_default if i_step is None else i_step),
-        "t_on": int(_t_on),
-        "maxtime": int(_maxtime),
-        "deltat_ms": float(deltat),
+        "pre_ms": float(_pre_ms),
+        "response_ms": float(_response_ms),
+        "delta_ms": float(params.delta_ms),
         "shift_extent": int(shift_extent),
         "spot_extent": float(spot_extent),
         "multi_spot": bool(extra.get("multi_spot", DEFAULT_MULTI_SPOT)),

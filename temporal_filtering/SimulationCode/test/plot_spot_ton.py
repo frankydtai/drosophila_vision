@@ -1,14 +1,13 @@
-"""Re-plot spot model-data with a custom t_on.
+"""Re-plot spot model-data with custom ``pre_ms`` / ``response_ms``.
 
-Loads a trained run, overrides spot_bright_stimulus_opts.t_on and .maxtime,
-re-runs the forward pass, and saves ``model_data_spot_ton<ms>.png`` in the
-run dir.
+Loads a trained run, overrides spot stimulus timing, re-runs the forward
+pass, and saves ``model_data_spot_pre<ms>.png`` in the run dir.
 
 Usage (from ``SimulationCode/``):
 
-    ../.venv/bin/python 6_test/plot_spot_ton.py
-    ../.venv/bin/python 6_test/plot_spot_ton.py --run-path borst/OTHER_RUN
-    ../.venv/bin/python 6_test/plot_spot_ton.py --t-on-ms 1500 --maxtime-ms 3000
+    ../.venv/bin/python test/plot_spot_ton.py
+    ../.venv/bin/python test/plot_spot_ton.py --run-path borst/OTHER_RUN
+    ../.venv/bin/python test/plot_spot_ton.py --pre-ms 1500 --response-ms 1500
 """
 from __future__ import annotations
 
@@ -24,16 +23,16 @@ os.chdir(ROOT)
 os.environ.setdefault("CUDA_VISIBLE_DEVICES", "")
 
 import import_bootstrap  # noqa: F401
-import FiveCol_MedSim_Pytorch as fc
-import plot_trained
-from training_config import PARAMETER_DIR, run_data_dir
+import training as fc
+from figure.plot_run import session_for_target, spot_bundle_fns
+from training.config import PARAMETER_DIR, run_data_dir
 
 DEFAULT_RUN = (
     "hp_lp/"
     "28307204-train-nofsteps-1000-tau-hp-indi-L1,L2,L4,L5"
 )
-DEFAULT_T_ON_MS = 1000.0
-DEFAULT_POST_ONSET_MS = 1500.0
+DEFAULT_PRE_MS = 1000.0
+DEFAULT_RESPONSE_MS = 1500.0
 
 
 def main():
@@ -43,12 +42,12 @@ def main():
         help="run folder under PARAMETER_DIR or absolute path",
     )
     ap.add_argument(
-        "--t-on-ms", type=float, default=DEFAULT_T_ON_MS,
-        help="stimulus onset in ms (default %(default)s)",
+        "--pre-ms", type=float, default=DEFAULT_PRE_MS,
+        help="pre-stimulus baseline in ms (default %(default)s)",
     )
     ap.add_argument(
-        "--maxtime-ms", type=float, default=None,
-        help="total simulation time in ms (default: t_on + 1500)",
+        "--response-ms", type=float, default=DEFAULT_RESPONSE_MS,
+        help="post-onset response window in ms (default %(default)s)",
     )
     args = ap.parse_args()
 
@@ -57,34 +56,32 @@ def main():
         run_path = os.path.join(str(PARAMETER_DIR), run_path)
     run_path = os.path.abspath(run_path)
 
-    t_on_ms = args.t_on_ms
-    maxtime_ms = args.maxtime_ms
-    if maxtime_ms is None:
-        maxtime_ms = t_on_ms + DEFAULT_POST_ONSET_MS
+    pre_ms = float(args.pre_ms)
+    response_ms = float(args.response_ms)
 
     opts_path = os.path.join(run_data_dir(run_path), fc.TRAIN_OPTS_FILE)
     with open(opts_path) as f:
         opts = json.load(f)
 
     orig_stim = opts.get("spot_bright_stimulus_opts") or {}
-    dt = orig_stim.get("deltat_ms", 10.0)
-    new_t_on = int(t_on_ms / dt)
-    new_maxtime = int(maxtime_ms / dt)
-
-    print(f"original t_on={orig_stim.get('t_on')} maxtime={orig_stim.get('maxtime')}  "
-          f"dt={dt} ms")
-    print(f"override t_on={new_t_on} ({t_on_ms} ms)  "
-          f"maxtime={new_maxtime} ({maxtime_ms} ms)")
+    print(
+        f"original pre_ms={orig_stim.get('pre_ms')} "
+        f"response_ms={orig_stim.get('response_ms')}  "
+        f"dt={orig_stim.get('delta_ms', 10.0)} ms"
+    )
+    print(f"override pre_ms={pre_ms:g}  response_ms={response_ms:g}")
 
     for key in ("spot_bright_stimulus_opts", "spot_dark_stimulus_opts"):
         so = opts.get(key)
         if so is not None:
-            so["t_on"] = new_t_on
-            so["maxtime"] = new_maxtime
+            so["pre_ms"] = pre_ms
+            so["response_ms"] = response_ms
+            so.pop("t_on", None)
+            so.pop("n_t", None)
 
     session = fc.open_session_from_opts(opts, model=opts.get("model"))
 
-    import train as train_mod
+    import training.driver as train_mod
     named, type_names, pair_names = train_mod.load_best_param_named(run_path)
     remapped = fc.remap_named_unit_values(
         named, type_names, pair_names, list(session.schema), session.backend,
@@ -95,19 +92,19 @@ def main():
         remapped, schema, dtype=session.sim_dtype, device=session.device,
     )
 
-    one = plot_trained.session_for_target(session, "spot_bright")
+    one = session_for_target(session, "spot_bright")
 
     cost = fc.calc_cost(z, one).item()
-    print(f"cost (t_on={t_on_ms:.0f} ms) = {cost:.4f}% of data power")
+    print(f"cost (pre_ms={pre_ms:.0f}) = {cost:.4f}% of data power")
 
-    make_bundle, plot_data, _plot_all = plot_trained.spot_bundle_fns(one)
+    make_bundle, plot_data, _plot_all = spot_bundle_fns(one)
     bundle = make_bundle(one, z)
 
-    out_png = os.path.join(run_path, f"model_data_spot_ton{int(t_on_ms)}.png")
+    out_png = os.path.join(run_path, f"model_data_spot_pre{int(pre_ms)}.png")
     plot_data(
         out_png,
         bundle=bundle,
-        title=f"spot_bright model (t_on={t_on_ms:.0f} ms)",
+        title=f"spot_bright model (pre_ms={pre_ms:.0f})",
     )
     print(f"saved {out_png}")
 

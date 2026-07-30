@@ -618,7 +618,7 @@ def _finalize_budget_report(
     target: str,
     spec: str | None,
     mode: str,
-    before_steps: int,
+    before_t: int,
     units: np.ndarray,
     p,
     session,
@@ -640,7 +640,7 @@ def _finalize_budget_report(
         seg = v_post_d[rel_lo:rel_hi + 1]
         peak_rel = rel_lo + int(np.argmax(np.abs(seg))) if seg.size else rel_lo
     else:
-        peak_rel = _v_post_d_peak_rel(v_post_d, before_steps)
+        peak_rel = _v_post_d_peak_rel(v_post_d, before_t)
         rel_lo = max(0, peak_rel - 4)
         rel_hi = min(v_post_d.size - 1, peak_rel + 8)
     steps: list[dict[str, Any]] = []
@@ -652,7 +652,7 @@ def _finalize_budget_report(
         if ti_mode == "rel":
             ti = rel
         elif ti_mode == "abs_minus_before":
-            ti = rel - before_steps
+            ti = rel - before_t
         else:
             raise ValueError(f"unknown ti_mode {ti_mode!r}")
         step = _step_from_acc(
@@ -666,8 +666,8 @@ def _finalize_budget_report(
             peak_step = step
     if peak_step is None and steps:
         peak_step = steps[len(steps) // 2]
-    if ti_mode == "abs_minus_before" and v_post_d.size > before_steps:
-        onset = _first_nonzero_rel(v_post_d[before_steps:])
+    if ti_mode == "abs_minus_before" and v_post_d.size > before_t:
+        onset = _first_nonzero_rel(v_post_d[before_t:])
     else:
         onset = _first_nonzero_rel(v_post_d)
     report: dict[str, Any] = {
@@ -676,7 +676,7 @@ def _finalize_budget_report(
         "n_units": int(units.size),
         "target": target,
         "spec": spec,
-        "before_steps": before_steps,
+        "before_t": before_t,
         "v_post_d_peak_rel": peak_rel,
         "v_post_d_peak_mV": float(v_post_d[peak_rel]),
         "v_post_d_polarity": _polarity(float(v_post_d[peak_rel])),
@@ -701,20 +701,20 @@ def _first_nonzero_rel(trace: np.ndarray, *, eps: float = 1e-6) -> int | None:
 
 def _v_post_d_peak_rel(
     v_post_d: np.ndarray,
-    before_steps: int | None,
+    before_t: int | None,
     *,
     horizon: int | None = 40,
 ) -> int:
     """Index of largest |v_post_d| (= |v_post − v_ref|) after onset (optional ``horizon``)."""
     arr = np.asarray(v_post_d, dtype=float)
-    if before_steps is not None and 0 < before_steps < arr.size:
+    if before_t is not None and 0 < before_t < arr.size:
         stop = arr.size
         if horizon is not None:
-            stop = min(stop, before_steps + int(horizon))
-        post = arr[before_steps:stop]
+            stop = min(stop, before_t + int(horizon))
+        post = arr[before_t:stop]
         if post.size == 0:
-            return int(before_steps)
-        return int(before_steps + int(np.argmax(np.abs(post))))
+            return int(before_t)
+        return int(before_t + int(np.argmax(np.abs(post))))
     stop = arr.size if horizon is None else min(arr.size, int(horizon))
     return int(np.argmax(np.abs(arr[:stop])))
 
@@ -747,7 +747,7 @@ def _globals(session):
         "E_IH_OFF": fc.E_IH_OFF,
         "g_leak_nS": fc.g_leak,
         "cdt": fc.cdt,
-        "deltat_ms": fc.deltat,
+        "delta_ms": fc.delta_ms,
         "t_on": int(pack.signal.shape[1] - pack.data.shape[1]),
     }
 
@@ -894,8 +894,8 @@ def _bar_meta(session, target: str):
     specs = bar_specs_for_session(session, target)
     pack = session.pack_for(target)
     grids = moving_bar_session_t0_grids(
-        session, specs, pack.cost_extent, int(session.maxtime),
-        t_on=int(pack.signal.shape[1] - pack.data.shape[1]), deltat_ms=fc.deltat,
+        session, specs, pack.cost_extent, int(session.n_t),
+        t_on=int(pack.signal.shape[1] - pack.data.shape[1]), delta_ms=fc.delta_ms,
     )
     return specs, grids
 
@@ -959,7 +959,7 @@ def _analyze_budget_walk(
     target: str,
     signal: torch.Tensor,
     walk_batches: list[_BudgetWalkBatch],
-    before_steps: list[int],
+    before_t: list[int],
     batch_specs: list[str | None],
     rel_start: int | None,
     rel_stop: int | None,
@@ -977,8 +977,8 @@ def _analyze_budget_walk(
     """
     if not walk_batches:
         raise SystemExit("budget walk requires at least one batch")
-    if len(before_steps) != len(walk_batches) or len(batch_specs) != len(walk_batches):
-        raise SystemExit("before_steps/batch_specs length must match walk_batches")
+    if len(before_t) != len(walk_batches) or len(batch_specs) != len(walk_batches):
+        raise SystemExit("before_t/batch_specs length must match walk_batches")
 
     accum = _walk_budget(
         session, p, signal, walk_batches, cells,
@@ -1008,7 +1008,7 @@ def _analyze_budget_walk(
             target=target,
             spec=spec,
             mode=mode,
-            before_steps=before,
+            before_t=before,
             units=units,
             p=p,
             session=session,
@@ -1031,7 +1031,7 @@ def _analyze_budget_walk(
         sums, sumsq, counts, v_post_minus_pre_sums, units_ref = _merge_walk_accum(
             accum, walk_batches, cells, win_len,
         )
-        before = int(before_steps[0])
+        before = int(before_t[0])
         return {
             cell: _one_report(
                 cell=cell,
@@ -1055,7 +1055,7 @@ def _analyze_budget_walk(
             out[spec][cell] = _one_report(
                 cell=cell,
                 spec=spec,
-                before=int(before_steps[b]),
+                before=int(before_t[b]),
                 units=walk_batches[b].units_by_cell[cell],
                 sums=accum.sums[b][cell],
                 sumsq=accum.sumsq[b][cell],
@@ -1088,8 +1088,8 @@ def _analyze_bar_walk(
     walk_batches: list[_BudgetWalkBatch] = []
     for bi, spec in zip(bis, spec_names):
         usets = units_for_bi(bi, spec, pack=pack, t0_bn=t0_bn)
-        before = int(grids.before_steps[spec])
-        after = int(grids.after_steps[spec])
+        before = int(grids.before_t[spec])
+        after = int(grids.after_t[spec])
         before_b.append(before)
         walk_batches.append(
             _make_walk_batch(usets, t0_bn_row=t0_bn[bi], win_len=before + after + 1),
@@ -1101,7 +1101,7 @@ def _analyze_bar_walk(
         target=target,
         signal=signal,
         walk_batches=walk_batches,
-        before_steps=before_b,
+        before_t=before_b,
         batch_specs=list(spec_names),
         rel_start=rel_start,
         rel_stop=rel_stop,
@@ -1262,7 +1262,7 @@ def analyze_spot_average(
         target=target,
         signal=sig[sig_rows],
         walk_batches=walk_batches,
-        before_steps=[t_on] * n_b,
+        before_t=[t_on] * n_b,
         batch_specs=[None] * n_b,
         rel_start=abs_start,
         rel_stop=abs_stop,
@@ -1462,7 +1462,7 @@ def _apply_shared_row_ylim(
             axes[ri, ci].set_ylim(ylo, yhi)
 
 
-def _save_budget_figure(fig, axes, *, before_steps, out_path, save_figure) -> None:
+def _save_budget_figure(fig, axes, *, before_t, out_path, save_figure) -> None:
     _hide_unused_axes(axes)
     last_row = axes.shape[0] - 1
     for ci in range(axes.shape[1]):
@@ -1535,7 +1535,7 @@ def _plot_budget_reports(
     _apply_shared_row_ylim(axes, row_curves)
     _finish_budget_figure_layout(fig, title, colors)
     _save_budget_figure(
-        fig, axes, before_steps=reports[0].get("before_steps"),
+        fig, axes, before_t=reports[0].get("before_t"),
         out_path=out_path, save_figure=save_figure,
     )
 
@@ -1599,7 +1599,7 @@ def _print_report(report: dict[str, Any]) -> None:
         f"v_post_d_peak={report['v_post_d_peak_mV']:+.4f} mV "
         f"v_post_d_polarity={report['v_post_d_polarity']}  "
         f"v_post_d_peak_rel={report['v_post_d_peak_rel']}  "
-        f"before_steps={report.get('before_steps')}  "
+        f"before_t={report.get('before_t')}  "
         f"peak_drive={report.get('peak_drive')}"
     )
     print("trained:", "  ".join(f"{k}={v:.6g}" for k, v in report["params"].items()))

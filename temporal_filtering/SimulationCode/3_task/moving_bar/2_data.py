@@ -17,7 +17,8 @@ from typing import Callable, Dict, List, Mapping, Optional, Sequence, Tuple, Uni
 import numpy as np
 import torch
 
-from neuron.params import DELTAT_MS, deltat, ms_to_steps
+from neuron.params import DELTA_MS, ms_to_t
+import neuron.params as params
 from network.construction import I_BRIGHT, I_DARK
 from network.connectivity import SIM_DTYPE_DEFAULT
 from network.construction import unit_type_names
@@ -32,7 +33,7 @@ from task.moving_bar.input import (
     MovingBarSpec,
     build_moving_bar_signals,
     build_moving_bar_t0_grids,
-    column_first_stim_step,
+    column_first_stim_t,
     filter_sti_columns,
     gruntman_moving_bar_specs,
     moving_bar_cost_columns,
@@ -575,7 +576,7 @@ class MovingBarTarget:
     readout_batch: torch.Tensor
     readout_unit: torch.Tensor
     n_batch: int
-    maxtime: int
+    n_t: int
     info: dict
     cost_t0: Optional[torch.Tensor] = None
     cost_pd_nd: Optional[torch.Tensor] = None
@@ -596,13 +597,13 @@ def _fig1_trace_ids(npz_path: Path) -> List[str]:
 def load_fig1_trace(
     trace_id: str,
     npz_path: Path = FIG1_CI_NPZ,
-    deltat_ms: float = DELTAT_MS,
+    delta_ms: float = DELTA_MS,
 ) -> np.ndarray:
     """Resample one fig1 trace onto the moving-bar cost window."""
-    n_steps = ms_to_steps(COST_WINDOW_MS, deltat_ms=deltat_ms) + 1
-    before_steps = ms_to_steps(COST_ALIGNED_FIRST_STI_MS, deltat_ms=deltat_ms)
+    n_t = ms_to_t(COST_WINDOW_MS, delta_ms=delta_ms) + 1
+    before_t = ms_to_t(COST_ALIGNED_FIRST_STI_MS, delta_ms=delta_ms)
     key = (
-        f"{trace_id}|{n_steps}|{before_steps}|{deltat_ms}"
+        f"{trace_id}|{n_t}|{before_t}|{delta_ms}"
         f"|{COST_WINDOW_MS}|{COST_ALIGNED_FIRST_STI_MS}"
     )
     if key in _TRACE_CACHE:
@@ -613,7 +614,7 @@ def load_fig1_trace(
             raise KeyError(f"missing trace {trace_id!r} in {npz_path}")
         time_ms = np.asarray(d[t_key], dtype=np.float64)
         vm_mv = np.asarray(d[v_key], dtype=np.float64)
-    query_ms = np.arange(n_steps, dtype=np.float64) * deltat_ms
+    query_ms = np.arange(n_t, dtype=np.float64) * delta_ms
     trace = np.interp(query_ms, time_ms, vm_mv, left=vm_mv[0], right=vm_mv[-1])
     _TRACE_CACHE[key] = trace
     return trace
@@ -621,11 +622,11 @@ def load_fig1_trace(
 
 def load_fig1_traces(
     npz_path: Path = FIG1_CI_NPZ,
-    deltat_ms: float = DELTAT_MS,
+    delta_ms: float = DELTA_MS,
 ) -> Dict[str, np.ndarray]:
     """All fig1 traces resampled to the per-column training window."""
     return {
-        tid: load_fig1_trace(tid, npz_path, deltat_ms)
+        tid: load_fig1_trace(tid, npz_path, delta_ms)
         for tid in _fig1_trace_ids(npz_path)
     }
 
@@ -680,9 +681,9 @@ def _assemble_moving_bar_readouts(
     column_current: np.ndarray,
     cost_col_idxs: Sequence[int],
     i_baseline: float,
-    before_steps: int,
-    after_steps: int,
-    maxtime: int,
+    before_t: int,
+    after_t: int,
+    n_t: int,
     side: str,
     fig1: Optional[Dict[str, np.ndarray]],
     present: Sequence[str],
@@ -700,14 +701,14 @@ def _assemble_moving_bar_readouts(
         t0_by_col: Dict[int, int] = {}
         if waveform_mse:
             for col_idx in cost_col_idxs:
-                t_first_sti = column_first_stim_step(
+                t_first_sti = column_first_stim_t(
                     column_current[b, :, col_idx], i_baseline=i_baseline,
                 )
-                t0 = t_first_sti - before_steps
-                if t0 < 0 or t_first_sti + after_steps > maxtime:
+                t0 = t_first_sti - before_t
+                if t0 < 0 or t_first_sti + after_t > n_t:
                     raise ValueError(
                         f"cost window out of range for column index {col_idx} "
-                        f"spec={spec.name}: t_first_sti={t_first_sti}, maxtime={maxtime}"
+                        f"spec={spec.name}: t_first_sti={t_first_sti}, n_t={n_t}"
                     )
                 t0_by_col[col_idx] = t0
         for col_idx in cost_col_idxs:
@@ -802,7 +803,7 @@ def build_moving_bar_target(
     C,
     device: Optional[str] = None,
     t_on: int = None,
-    deltat_ms: float = DELTAT_MS,
+    delta_ms: float = DELTA_MS,
     fig1_path: Path = FIG1_CI_NPZ,
     use_cache: bool = True,
     bar_extent: int = DEFAULT_BAR_EXTENT,
@@ -824,7 +825,7 @@ def build_moving_bar_target(
     contrast_set = frozenset(contrasts)
     i_baseline_val = resolve_i_baseline(i_baseline)
     stim = build_moving_bar_signals(
-        C, specs=specs, t_on=t_on, deltat_ms=deltat_ms,
+        C, specs=specs, t_on=t_on, delta_ms=delta_ms,
         bar_extent=bar_extent, multi_bar=bool(multi_bar),
         device=device, use_cache=use_cache,
         network_json=getattr(C, "source_json", None),
@@ -834,11 +835,11 @@ def build_moving_bar_target(
             contrast_set, i_bright_bar=i_bright_bar, i_dark_bar=i_dark_bar,
         ),
     )
-    maxtime = int(stim.info["maxtime"])
-    fig1 = load_fig1_traces(fig1_path, deltat_ms=deltat_ms) if waveform_mse else None
-    before_steps = ms_to_steps(COST_ALIGNED_FIRST_STI_MS, deltat_ms=deltat_ms)
-    after_steps = ms_to_steps(COST_WINDOW_AFTER_MS, deltat_ms=deltat_ms)
-    win_steps = ms_to_steps(COST_WINDOW_MS, deltat_ms=deltat_ms) + 1
+    n_t = int(stim.info["n_t"])
+    fig1 = load_fig1_traces(fig1_path, delta_ms=delta_ms) if waveform_mse else None
+    before_t = ms_to_t(COST_ALIGNED_FIRST_STI_MS, delta_ms=delta_ms)
+    after_t = ms_to_t(COST_WINDOW_AFTER_MS, delta_ms=delta_ms)
+    win_t = ms_to_t(COST_WINDOW_MS, delta_ms=delta_ms) + 1
 
     present = _present_readout_subtypes(
         readout_subtypes, READOUT_SUBTYPES, C.type_names, context="network",
@@ -861,9 +862,9 @@ def build_moving_bar_target(
         column_current=stim.column_current,
         cost_col_idxs=cost_col_idxs,
         i_baseline=i_baseline_val,
-        before_steps=before_steps,
-        after_steps=after_steps,
-        maxtime=maxtime,
+        before_t=before_t,
+        after_t=after_t,
+        n_t=n_t,
         side=side,
         fig1=fig1,
         present=present,
@@ -906,7 +907,7 @@ def build_moving_bar_target(
         "present_subtypes": present,
         "skipped_orthogonal": skipped_orthogonal,
         "waveform_mse": bool(waveform_mse),
-        "deltat_ms": float(deltat_ms),
+        "delta_ms": float(delta_ms),
     }
     if waveform_mse:
         info.update({
@@ -915,7 +916,7 @@ def build_moving_bar_target(
             "cost_window_after_ms": COST_WINDOW_AFTER_MS,
             "cost_window_ms": COST_WINDOW_MS,
             "cost_aligned_first_sti_ms": COST_ALIGNED_FIRST_STI_MS,
-            "cost_window_steps": win_steps,
+            "cost_window_t": win_t,
         })
     return MovingBarTarget(
         signal=stim.signal,
@@ -927,7 +928,7 @@ def build_moving_bar_target(
         readout_unit=readout_unit,
         cost_pd_nd=cost_pd_nd,
         n_batch=stim.info["n_batch"],
-        maxtime=maxtime,
+        n_t=n_t,
         info=info,
         dsi_pos_rows=dsi_pos_rows,
         dsi_neg_rows=dsi_neg_rows,
@@ -945,8 +946,8 @@ def build_moving_bar_target(
 @dataclass
 class MovingBarSessionT0:
     t0_bn: np.ndarray
-    before_steps: Dict[str, int]
-    after_steps: Dict[str, int]
+    before_t: Dict[str, int]
+    after_t: Dict[str, int]
     side: str
     n_filter_cols: int
 
@@ -963,12 +964,12 @@ def moving_bar_session_t0_grids(
     session,
     specs: Sequence[MovingBarSpec],
     cost_extent,
-    maxtime: int,
+    n_t: int,
     *,
     at_x=None,
     at_y=None,
     t_on: int = None,
-    deltat_ms: float = DELTAT_MS,
+    delta_ms: float = DELTA_MS,
 ) -> MovingBarSessionT0:
     """Session-level ``t0`` / horizon grids for moving-bar cost or analyze."""
     C = session.backend.network
@@ -987,14 +988,14 @@ def moving_bar_session_t0_grids(
     else:
         filt_cols = all_cols
     stim = build_moving_bar_signals(
-        C, specs=specs, maxtime=maxtime, t_on=t_on, deltat_ms=deltat_ms,
+        C, specs=specs, n_t=n_t, t_on=t_on, delta_ms=delta_ms,
         device=C.node_type.device, i_baseline=i_baseline,
     )
     uv_to_idx = {(int(col.u), int(col.v)): j for j, col in enumerate(sti_columns(C))}
     all_col_idxs = [uv_to_idx[(int(c.u), int(c.v))] for c in all_cols]
     filt_col_idxs = [uv_to_idx[(int(c.u), int(c.v))] for c in filt_cols]
     grids = build_moving_bar_t0_grids(
-        stim.column_current, specs, maxtime, i_baseline,
+        stim.column_current, specs, n_t, i_baseline,
         all_col_idxs=all_col_idxs,
         filt_col_idxs=filt_col_idxs,
         network_C=C,
@@ -1002,8 +1003,8 @@ def moving_bar_session_t0_grids(
     )
     return MovingBarSessionT0(
         t0_bn=grids.t0_bn,
-        before_steps=grids.before_steps,
-        after_steps=grids.after_steps,
+        before_t=grids.before_t,
+        after_t=grids.after_t,
         side=side,
         n_filter_cols=len(filt_cols),
     )
@@ -1079,15 +1080,17 @@ def make_moving_bar_stimulus_opts(
     if i_bar is None:
         i_bar = extra.get(bar_key)
     bar_default = I_BRIGHT if polarity == "bright" else I_DARK
-    _t_on = extra.get("t_on")
-    if _t_on is None:
-        raise ValueError("make_moving_bar_stimulus_opts requires t_on (pass via CLI --t-on-ms)")
+    _pre_ms = extra.get("pre_ms")
+    if _pre_ms is None:
+        raise ValueError(
+            "make_moving_bar_stimulus_opts requires pre_ms (pass via CLI --pre-ms)"
+        )
     out = {
         "mode": mode,
         "i_baseline": resolve_i_baseline(i_baseline),
         bar_key: float(bar_default if i_bar is None else i_bar),
-        "t_on": int(_t_on),
-        "deltat_ms": float(deltat),
+        "pre_ms": float(_pre_ms),
+        "delta_ms": float(params.delta_ms),
         "multi_bar": bool(extra.get("multi_bar", multi_bar)),
     }
     rs = _readout_subtypes_stimulus_list(readout_subtypes)
@@ -1104,12 +1107,13 @@ def session_moving_bar_i_baseline(train_opts) -> float:
 def _enrich_moving_bar_stimulus_opts(opts, info, *, cost_extent):
     """Attach runtime fields from a built moving-bar target; keep canonical ``i_*``."""
     out = dict(opts)
-    out["maxtime"] = int(info["maxtime"])
-    out["t_on"] = int(info["t_on"])
+    out["n_t"] = int(info["n_t"])
+    dt = float(out.get("delta_ms", params.delta_ms))
+    out["pre_ms"] = float(info["t_on"]) * dt
     out["spec_names"] = list(info["spec_names"])
     if cost_extent is not None:
         out["cost_extent"] = int(cost_extent)
-    out["deltat_ms"] = float(deltat)
+    out["delta_ms"] = dt
     if "mode" in info:
         out["mode"] = info["mode"]
     if "present_subtypes" in info:

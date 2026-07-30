@@ -59,7 +59,7 @@ from task.moving_bar.input import (
     COST_WINDOW_AFTER,
     COST_WINDOW_BEFORE,
 )
-from neuron.params import DELTAT_MS
+from neuron.params import DELTA_MS
 
 MOVING_BAR_DPI = 100
 
@@ -69,8 +69,8 @@ class MovingBarWindowTraces:
     ca_mean: dict
     ca_sem: dict
     ca_n: dict
-    before_steps: dict
-    after_steps: dict
+    before_t: dict
+    after_t: dict
     t0_bn: np.ndarray
     type_ids: np.ndarray
     types: list
@@ -85,7 +85,7 @@ class MovingBarTraceBundle:
     single_column: bool
     baselines: dict
     data_mean: dict
-    maxtime: int
+    n_t: int
     traces: MovingBarWindowTraces
     session: object
     at_x: int | None = None
@@ -170,9 +170,9 @@ def _plot_types_and_ids(session):
     return types, type_ids
 
 
-def _rel_window_seconds(before_steps, after_steps):
-    scale = DELTAT_MS / 1000.0
-    return before_steps * scale, after_steps * scale
+def _rel_window_seconds(before_t, after_t):
+    scale = DELTA_MS / 1000.0
+    return before_t * scale, after_t * scale
 
 
 def _filter_right_specs(spec_names, right_only):
@@ -310,7 +310,7 @@ def _moving_bar_slice_overlay_traces(
         return None
     col_mask = _network_column_unit_mask(C, filt_cols, n_batch)
     win_lens = [
-        base_wt.before_steps[sname] + base_wt.after_steps[sname] + 1
+        base_wt.before_t[sname] + base_wt.after_t[sname] + 1
         for sname in spec_names
     ]
     t0_use = t0_full_bn
@@ -328,8 +328,8 @@ def _moving_bar_slice_overlay_traces(
         ca_mean=ca_mean,
         ca_sem=ca_sem,
         ca_n=ca_n,
-        before_steps=base_wt.before_steps,
-        after_steps=base_wt.after_steps,
+        before_t=base_wt.before_t,
+        after_t=base_wt.after_t,
         t0_bn=t0_full_bn,
         type_ids=type_ids,
         types=types,
@@ -381,21 +381,21 @@ def _moving_bar_traces_from_forward(
 ):
     pack = session.pack_for(target)
     cost_extent = pack.cost_extent
-    maxtime = int(session.maxtime)
+    n_t = int(session.n_t)
     _t_on = int(pack.signal.shape[1] - pack.data.shape[1])
     grids = moving_bar_session_t0_grids(
-        session, specs, cost_extent, maxtime, at_x=at_x, at_y=at_y,
-        t_on=_t_on, deltat_ms=fc.deltat,
+        session, specs, cost_extent, n_t, at_x=at_x, at_y=at_y,
+        t_on=_t_on, delta_ms=fc.delta_ms,
     )
     types, type_ids = _plot_types_and_ids(session)
     t0_full_bn = grids.t0_bn
-    full_before_steps = grids.before_steps
-    full_after_steps = grids.after_steps
+    full_before_t = grids.before_t
+    full_after_t = grids.after_t
     side = grids.side
     n_filter_cols = grids.n_filter_cols
     single_column = suppress_cost_sem(session, target) or n_filter_cols == 1
     win_lens = [
-        full_before_steps[sname] + full_after_steps[sname] + 1
+        full_before_t[sname] + full_after_t[sname] + 1
         for sname in spec_names
     ]
     windows_full = _windows_by_batch(trace_full, t0_full_bn, win_lens, show_pre=show_pre, t_on=_t_on)
@@ -406,8 +406,8 @@ def _moving_bar_traces_from_forward(
         ca_mean=trace_mean,
         ca_sem=trace_sem,
         ca_n=trace_n,
-        before_steps=full_before_steps,
-        after_steps=full_after_steps,
+        before_t=full_before_t,
+        after_t=full_after_t,
         t0_bn=t0_full_bn,
         type_ids=type_ids,
         types=types,
@@ -448,7 +448,7 @@ def moving_bar_trace_bundle(session, z, target, *, at_x=None, at_y=None,
         )
     specs = bar_specs_for_session(session, target)
     spec_names = [s.name for s in specs]
-    maxtime = int(session.maxtime)
+    n_t = int(session.n_t)
     C = session.backend.network
     traces, types, side, n_filter_cols = _moving_bar_traces_from_forward(
         session, target, trace_full, v_ref_np, specs, spec_names, show_pre=show_pre,
@@ -503,7 +503,7 @@ def moving_bar_trace_bundle(session, z, target, *, at_x=None, at_y=None,
         single_column=single_column,
         baselines=baselines,
         data_mean=data_mean,
-        maxtime=maxtime,
+        n_t=n_t,
         traces=traces,
         session=session,
         at_x=at_x,
@@ -520,13 +520,13 @@ def moving_bar_trace_bundle(session, z, target, *, at_x=None, at_y=None,
     )
 
 
-def _window_steps(wt, sname):
-    return wt.before_steps[sname], wt.after_steps[sname]
+def _window_t(wt, sname):
+    return wt.before_t[sname], wt.after_t[sname]
 
 
-def _cost_window_overlay(cost_trace, before_steps):
+def _cost_window_overlay(cost_trace, before_t):
     """Fig1 overlay x/y within full-window coordinates (cost window only)."""
-    i0 = before_steps - COST_WINDOW_BEFORE
+    i0 = before_t - COST_WINDOW_BEFORE
     trace = np.asarray(cost_trace, dtype=np.float64)
     if i0 < 0:
         trace = trace[-i0:]
@@ -558,18 +558,18 @@ def _moving_bar_scope_label(session, *, at_x=None, at_y=None, n_filter_cols=None
 
 
 def _style_moving_bar_relative_axis(
-    ax, before_steps, after_steps, win_len, *,
+    ax, before_t, after_t, win_len, *,
     show_tick_labels=True, mark_cost_window=False,
 ):
     end = win_len - 1
     ax.set_xlim(0, end)
-    ax.set_xticks([0, before_steps, end])
-    before_s, after_s = _rel_window_seconds(before_steps, after_steps)
+    ax.set_xticks([0, before_t, end])
+    before_s, after_s = _rel_window_seconds(before_t, after_t)
     ax.set_xticklabels([f'{-before_s:g}', '0', f'{after_s:g}'], fontsize=6)
     if not show_tick_labels:
         ax.tick_params(labelbottom=False)
     if mark_cost_window:
-        for x in (before_steps - COST_WINDOW_BEFORE, before_steps + COST_WINDOW_AFTER):
+        for x in (before_t - COST_WINDOW_BEFORE, before_t + COST_WINDOW_AFTER):
             ax.axvline(x, color='0.75', linewidth=0.6, linestyle='--', zorder=0)
 
 
@@ -592,8 +592,8 @@ def _plot_moving_bar_cell(
     ca_trace,
     sem_trace,
     title,
-    before_steps,
-    after_steps,
+    before_t,
+    after_t,
     *,
     data_trace=None,
     show_ylabel=False,
@@ -608,11 +608,11 @@ def _plot_moving_bar_cell(
     win_len = len(ca_trace)
     data_x, data_y = None, None
     if data_trace is not None:
-        data_x, data_y = _cost_window_overlay(data_trace, before_steps)
+        data_x, data_y = _cost_window_overlay(data_trace, before_t)
 
     def style_xaxis(ax):
         _style_moving_bar_relative_axis(
-            ax, before_steps, after_steps, win_len,
+            ax, before_t, after_t, win_len,
             show_tick_labels=show_tick_labels,
             mark_cost_window=mark_cost_window,
         )
@@ -646,8 +646,8 @@ def _plot_moving_bar_cell_slices(
     slice_traces,
     slice_labels,
     title,
-    before_steps,
-    after_steps,
+    before_t,
+    after_t,
     *,
     data_trace=None,
     show_ylabel=False,
@@ -662,11 +662,11 @@ def _plot_moving_bar_cell_slices(
     win_len = len(total_trace)
     data_x, data_y = None, None
     if data_trace is not None:
-        data_x, data_y = _cost_window_overlay(data_trace, before_steps)
+        data_x, data_y = _cost_window_overlay(data_trace, before_t)
 
     def style_xaxis(ax):
         _style_moving_bar_relative_axis(
-            ax, before_steps, after_steps, win_len,
+            ax, before_t, after_t, win_len,
             show_tick_labels=show_tick_labels,
             mark_cost_window=mark_cost_window,
         )
@@ -768,7 +768,7 @@ def _moving_bar_all_figure(bundle_on, bundle_2, title, *, right_only=True):
             wt = wt_on if ci < ncols_on else wt_2
             if baselines_2 is not None and ci >= ncols_on:
                 bl = baselines_2.get(tname)
-            before_steps, after_steps = _window_steps(wt, sname)
+            before_t, after_t = _window_t(wt, sname)
             dsi_on = ci < ncols_on
             cell_title = _moving_bar_cell_title(
                 bundle_on, sname, ca_mean, data_mean,
@@ -790,7 +790,7 @@ def _moving_bar_all_figure(bundle_on, bundle_2, title, *, right_only=True):
                 _plot_moving_bar_cell_slices(
                     ax, ca_mean[key], ca_sem.get(key),
                     slice_traces, plot_labels,
-                    cell_title, before_steps, after_steps,
+                    cell_title, before_t, after_t,
                     data_trace=data_mean.get(key),
                     show_ylabel=(ci == 0),
                     show_sem=show_sem and key in ca_sem and np.any(ca_sem[key]),
@@ -803,7 +803,7 @@ def _moving_bar_all_figure(bundle_on, bundle_2, title, *, right_only=True):
             else:
                 _plot_moving_bar_cell(
                     ax, ca_mean[key], ca_sem.get(key),
-                    cell_title, before_steps, after_steps,
+                    cell_title, before_t, after_t,
                     data_trace=data_mean.get(key),
                     show_ylabel=(ci == 0),
                     show_sem=show_sem and key in ca_sem and np.any(ca_sem[key]),
@@ -855,7 +855,7 @@ def plot_moving_bar_data(path, *, bundle, bundle_2=None, title=None):
             if key not in wt.ca_mean:
                 ax.axis('off')
                 continue
-            before_steps, after_steps = _window_steps(wt, sname)
+            before_t, after_t = _window_t(wt, sname)
             cell_title = _moving_bar_cell_title(
                 bundle, sname, wt.ca_mean, row_bundle.data_mean,
                 ca_dsi, data_dsi, key,
@@ -863,7 +863,7 @@ def plot_moving_bar_data(path, *, bundle, bundle_2=None, title=None):
             )
             _plot_moving_bar_cell(
                 ax, wt.ca_mean[key], wt.ca_sem[key],
-                cell_title, before_steps, after_steps,
+                cell_title, before_t, after_t,
                 data_trace=row_bundle.data_mean.get(key),
                 show_ylabel=(col_offset + ci == 0), show_sem=not single_column,
                 mark_cost_window=True,

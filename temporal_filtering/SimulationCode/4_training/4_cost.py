@@ -68,7 +68,7 @@ def ca_cost(ca, data, session: TrainSession, scale=1.0, power=None):
         power = session.primary_pack.power
     pack = session.primary_pack
     pack_t_on = int(pack.signal.shape[1] - pack.data.shape[1])
-    mt = session.maxtime
+    mt = session.n_t
     return torch.sum((scale * ca - data[pack_t_on:mt])**2) / power * 100.0
 
 
@@ -399,7 +399,7 @@ def _pack_cost_parts_from_sel(
     weight = pack.cost_weight
     power = pack.power
     # #4 sparse time points: gather model + target on the requested post-onset
-    # step indices and recompute power over the subsample.
+    # t indices and recompute power over the subsample.
     if pack.cost_time_ix is not None:
         ix = pack.cost_time_ix.to(device=sel.device)
         sel = sel.index_select(1, ix)

@@ -906,12 +906,13 @@ def add_training_arguments(parser):
              "(aliases spot, moving_bar)",
     )
     parser.add_argument(
-        "--t-on-ms",
+        "--pre-ms",
         type=float,
-        default=500.0,
+        default=None,
         metavar="MS",
-        help="spot stimulus onset time in ms (default %(default)s; "
-             "maxtime = t_on + ms_to_steps(response_ms) + 1)",
+        help="pre-stimulus baseline duration in ms (default: task.spot.input.PRE_MS; "
+             "t_on = ms_to_t(pre_ms); "
+             "n_t = ms_to_t(pre_ms)+ms_to_t(response_ms)+1)",
     )
     parser.add_argument(
         "--response-ms",
@@ -919,15 +920,16 @@ def add_training_arguments(parser):
         default=RESPONSE_MS,
         metavar="MS",
         help="spot: post-onset response window in ms "
-             "(default %(default)s; maxtime = t_on + ms_to_steps(response_ms) + 1)",
+             "(default %(default)s; "
+             "n_t = ms_to_t(pre_ms)+ms_to_t(response_ms)+1)",
     )
     parser.add_argument(
         "--pulse-ms",
         type=float,
         default=None,
         metavar="MS",
-        help="spot: bright/dark PR pulse duration in ms from t_on; "
-             "omit = step held to maxtime (#1)",
+        help="spot: bright/dark PR pulse duration in ms from onset; "
+             "omit = held on through n_t (#1)",
     )
     parser.add_argument(
         "--cost-interval-ms",
@@ -935,7 +937,7 @@ def add_training_arguments(parser):
         default=None,
         metavar="MS",
         help="spot: train on post-onset times 0, interval, 2*interval, ... "
-             "through response window; omit = every post-onset step (#4)",
+             "through response window; omit = every post-onset t (#4)",
     )
     parser.add_argument(
         "--filter",
@@ -1139,12 +1141,25 @@ def training_kwargs_from_args(
     spot_extent = DEFAULT_SPOT_EXTENT if args.spot_extent is None else float(args.spot_extent)
     spot_extent_half_steps(spot_extent)
     spot_cost_radius_weight = parse_spot_cost_r_w(args.spot_cost_r_w, spot_extent)
-    from neuron.params import DELTAT_MS, ms_to_steps
-    _t_on_step = ms_to_steps(args.t_on_ms)
-    _maxtime_step = _t_on_step + ms_to_steps(args.response_ms) + 1
-    _timing = {"t_on": _t_on_step, "maxtime": _maxtime_step, "deltat_ms": DELTAT_MS}
-    moving_bar_bright_stimulus_opts = {"multi_bar": bool(args.multi_bar), "t_on": _t_on_step, "deltat_ms": DELTAT_MS}
-    moving_bar_dark_stimulus_opts = {"multi_bar": bool(args.multi_bar), "t_on": _t_on_step, "deltat_ms": DELTAT_MS}
+    from neuron.params import delta_ms
+    from task.spot.input import PRE_MS
+    _pre_ms = float(PRE_MS if args.pre_ms is None else args.pre_ms)
+    _response_ms = float(args.response_ms)
+    _timing = {
+        "pre_ms": _pre_ms,
+        "response_ms": _response_ms,
+        "delta_ms": float(delta_ms),
+    }
+    moving_bar_bright_stimulus_opts = {
+        "multi_bar": bool(args.multi_bar),
+        "pre_ms": _pre_ms,
+        "delta_ms": float(delta_ms),
+    }
+    moving_bar_dark_stimulus_opts = {
+        "multi_bar": bool(args.multi_bar),
+        "pre_ms": _pre_ms,
+        "delta_ms": float(delta_ms),
+    }
     spot_bright_stimulus_opts = dict(_timing)
     spot_dark_stimulus_opts = dict(_timing)
     # #1 pulse duration / #4 sparse cost times / #2 readout kind -> spot opts.

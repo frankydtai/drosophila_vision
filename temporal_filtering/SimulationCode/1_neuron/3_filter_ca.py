@@ -2,23 +2,28 @@
 """The one Ca readout filter and its exact inverse (shared by all models).
 
 Forward (``ca_readout_step``) is a first-order low-pass on ``v - v_ref`` with
-``alpha = deltat / Ca_tau``. ``ca_to_v_delta`` is its algebraic inverse, used to
+``alpha = delta_ms / Ca_tau``. ``ca_to_v_delta`` is its algebraic inverse, used to
 turn a Ca-proxy trace (ImpR-based target, or a plotted reference cube) back into
 ``'v'``. This is the ONLY Ca filter in the codebase; spot data bandpass/lowpass
 (ImpR shaping) is a different, target-only signal path and lives in
 ``task.spot.data``.
+
+``delta_ms`` / ``Ca_tau`` are read live from ``neuron.params`` so
+:func:`neuron.params.set_delta_ms` takes effect without re-import.
 """
 from __future__ import annotations
 
-from neuron.params import Ca_tau, deltat
+import neuron.params as params
 
-# One-step low-pass coefficient: ca[t] = (1-alpha)*ca[t-1] + alpha*(v[t]-v_ref).
-CA_ALPHA = deltat / Ca_tau  # = 0.2 at deltat=10 ms, Ca_tau=50 ms
+
+def ca_alpha() -> float:
+    """One-step low-pass coefficient ``delta_ms / Ca_tau`` (live)."""
+    return params.delta_ms / params.Ca_tau
 
 
 def ca_readout_step(ca, v, v_ref):
     """One Ca low-pass step on ``v - v_ref`` (shared by all models)."""
-    return deltat / Ca_tau * (v - v_ref - ca) + ca
+    return params.delta_ms / params.Ca_tau * (v - v_ref - ca) + ca
 
 
 def ca_to_v_delta(ca, *, t_on=0):
@@ -33,7 +38,7 @@ def ca_to_v_delta(ca, *, t_on=0):
 
     Works on numpy arrays and torch tensors.
     """
-    alpha = CA_ALPHA
+    alpha = ca_alpha()
     t_on = int(t_on)
     try:
         import torch

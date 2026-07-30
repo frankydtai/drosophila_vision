@@ -36,7 +36,7 @@ import blindschleiche_py3 as bs
 from plot.readout import plot_present_layout
 from plot.spot import CENTER_BIN, _style_time_axis
 from plot.utils import DATA_COLOR, TRACE_LW, TRACE_YLIM, save_figure
-from training_config import DELTAT_MS, IMPULSE_MAXTIME, T_ON, ms_to_steps
+from training_config import DELTA_MS, IMPULSE_MAXTIME, T_ON, ms_to_t
 
 DEFAULT_SAVE = os.path.join(HERE, "spot_data_pulses_LTI.png")
 DEFAULT_SAVE_FILTER = os.path.join(HERE, "spot_data_pulses_filter.png")
@@ -52,24 +52,24 @@ IR_HP = np.array([39.1, 28.8, 00.0, 38.1, 12.7, 31.8, 26.0, 0.00, 0.00, 29.6, 15
 IR_LP = np.array([03.8, 05.8, 05.4, 02.3, 04.2, 05.4, 02.7, 03.8, 07.7, 04.4, 01.4, 02.4, 10.7])
 
 
-def pulse_from_step(step: np.ndarray, pulse_steps: int) -> np.ndarray:
+def pulse_from_step(step: np.ndarray, pulse_t: int) -> np.ndarray:
     """Response to a finite pulse: ``s(t) - s(t - Δ)`` (pre-onset s ≡ 0)."""
     step = np.asarray(step, dtype=np.float64)
     out = np.zeros_like(step)
-    d = int(pulse_steps)
+    d = int(pulse_t)
     for k in range(step.shape[0]):
         k0 = k - d
         out[k] = step[k] - (step[k0] if k0 >= 0 else 0.0)
     return out
 
 
-def make_u(maxtime: int, t_on: int, width_steps: int | None) -> np.ndarray:
-    """Unit pulse/step ``u[t]`` starting at ``t_on``; ``width_steps=None`` → continue on."""
-    u = np.zeros(maxtime, dtype=np.float64)
-    if width_steps is None:
+def make_u(n_t: int, t_on: int, width_t: int | None) -> np.ndarray:
+    """Unit pulse/step ``u[t]`` starting at ``t_on``; ``width_t=None`` → continue on."""
+    u = np.zeros(n_t, dtype=np.float64)
+    if width_t is None:
         u[t_on:] = 1.0
     else:
-        u[t_on:t_on + int(width_steps)] = 1.0
+        u[t_on:t_on + int(width_t)] = 1.0
     return u
 
 
@@ -110,12 +110,12 @@ def fit_filter_traces() -> dict[str, dict[str, np.ndarray]]:
     Returns ``{cell: {"step", "p500", "p50"}}`` scaled like ``DATA_AMP * RecF * ImpR``.
     """
     recf, _ = ml.read_RecF_ImpR()
-    maxtime = IMPULSE_MAXTIME
-    pulse_50 = ms_to_steps(PULSE_50_MS)
-    pulse_500 = ms_to_steps(PULSE_500_MS)
-    u_step = make_u(maxtime, T_ON, None)
-    u_500 = make_u(maxtime, T_ON, pulse_500)
-    u_50 = make_u(maxtime, T_ON, pulse_50)
+    n_t = IMPULSE_MAXTIME
+    pulse_50 = ms_to_t(PULSE_50_MS)
+    pulse_500 = ms_to_t(PULSE_500_MS)
+    u_step = make_u(n_t, T_ON, None)
+    u_500 = make_u(n_t, T_ON, pulse_500)
+    u_50 = make_u(n_t, T_ON, pulse_50)
     s_max = float(np.max(bs.lowpass(u_step, 5)))
     out: dict[str, dict[str, np.ndarray]] = {}
     for i, name in enumerate(ml.cell_list):
@@ -154,8 +154,8 @@ def _plot_pulse_grid(
     show: bool = False,
 ) -> None:
     groups, names = layout_groups()
-    maxtime = IMPULSE_MAXTIME
-    t = np.arange(maxtime)
+    n_t = IMPULSE_MAXTIME
+    t = np.arange(n_t)
     ylo, yhi = TRACE_YLIM
 
     nrows = len(groups)
@@ -194,7 +194,7 @@ def _plot_pulse_grid(
             )
             ax_time.set_title(name, fontsize=8, pad=2)
             ax_time.set_ylim(ylo, yhi)
-            _style_time_axis(ax_time, show_xlabel=True, maxtime=maxtime)
+            _style_time_axis(ax_time, show_xlabel=True, n_t=n_t)
             if j == 0:
                 ax_time.set_ylabel("mV", fontsize=7)
             ax_time.tick_params(labelsize=6)
@@ -219,8 +219,8 @@ def _plot_pulse_grid(
 def plot_data_pulses(path: str, *, show: bool = False) -> None:
     """PNG 1: LTI pulse-from-step on ``read_RecF_data`` center traces."""
     cubes = fit_data_cubes()
-    pulse_50 = ms_to_steps(PULSE_50_MS)
-    pulse_500 = ms_to_steps(PULSE_500_MS)
+    pulse_50 = ms_to_t(PULSE_50_MS)
+    pulse_500 = ms_to_t(PULSE_500_MS)
     series = {}
     for name, cube in cubes.items():
         step = np.asarray(cube[CENTER_BIN], dtype=np.float64)
@@ -229,7 +229,7 @@ def plot_data_pulses(path: str, *, show: bool = False) -> None:
             "p500": pulse_from_step(step, pulse_500),
             "p50": pulse_from_step(step, pulse_50),
         }
-    t_on_s = fc.t_on * DELTAT_MS / 1000.0
+    t_on_s = fc.t_on * DELTA_MS / 1000.0
     _plot_pulse_grid(
         path,
         series_by_name=series,
@@ -245,7 +245,7 @@ def plot_data_pulses(path: str, *, show: bool = False) -> None:
 def plot_data_pulses_filter(path: str, *, show: bool = False) -> None:
     """PNG 2: IR filter responses to different-width ``u[t]`` from ``T_ON``."""
     series = fit_filter_traces()
-    t_on_s = fc.t_on * DELTAT_MS / 1000.0
+    t_on_s = fc.t_on * DELTA_MS / 1000.0
     _plot_pulse_grid(
         path,
         series_by_name=series,

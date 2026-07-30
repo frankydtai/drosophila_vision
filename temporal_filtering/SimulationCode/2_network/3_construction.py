@@ -110,14 +110,14 @@ class Network:
 
     def build_signal(
         self,
-        maxtime: int = None,
+        n_t: int = None,
         i_baseline: float = I_BASELINE,
         i_bright: float = I_BRIGHT,
         t_on: int = None,
         center_uv=(0, 0),
     ) -> torch.Tensor:
-        """(maxtime, n_units) injected PR current for one column's inputs."""
-        sig = torch.zeros((maxtime, self.n_units), dtype=torch.float64, device=self.device)
+        """(n_t, n_units) injected PR current for one column's inputs."""
+        sig = torch.zeros((n_t, self.n_units), dtype=torch.float64, device=self.device)
         units = self.input_units_at(int(center_uv[0]), int(center_uv[1]))
         if len(units):
             idx = torch.as_tensor(units, dtype=torch.long, device=self.device)

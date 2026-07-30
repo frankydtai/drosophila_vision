@@ -18,13 +18,42 @@ import numpy as np
 from network import path  # noqa: F401 -- FAFBv783 on sys.path
 import column_mapper
 
-from neuron.params import DELTAT_MS, ms_to_steps
+from neuron.params import DELTA_MS, ms_to_t
 
 _SPOT_EXTENT_HALF_STEP_TOL = 1e-9
 
-# Default post-onset response window (ms). ``train.py`` sets
-# ``maxtime = t_on + ms_to_steps(response_ms) + 1`` (inclusive endpoint sample).
+# Default pre-stimulus baseline duration (ms). Onset index
+# ``t_on = ms_to_t(pre_ms)``.
+PRE_MS = 500.0
+# Default post-onset response window (ms).
+# ``n_t = ms_to_t(pre_ms) + ms_to_t(response_ms) + 1`` (inclusive endpoint).
 RESPONSE_MS = 1500.0
+
+
+def spot_timing_t(
+    *,
+    pre_ms: float,
+    response_ms: float,
+    delta_ms: float = DELTA_MS,
+) -> Tuple[int, int]:
+    """Return ``(t_on, n_t)`` from ms timing params."""
+    dt = float(delta_ms)
+    t_on = ms_to_t(pre_ms, delta_ms=dt)
+    n_t = t_on + ms_to_t(response_ms, delta_ms=dt) + 1
+    return t_on, n_t
+
+
+def spot_timing_t_from_opts(opts) -> Tuple[int, int]:
+    """``(t_on, n_t)`` from stimulus opts ``pre_ms`` / ``response_ms``."""
+    if opts.get("pre_ms") is None or opts.get("response_ms") is None:
+        raise ValueError(
+            "spot stimulus opts require pre_ms and response_ms (pass via CLI --pre-ms / --response-ms)"
+        )
+    return spot_timing_t(
+        pre_ms=float(opts["pre_ms"]),
+        response_ms=float(opts["response_ms"]),
+        delta_ms=float(opts.get("delta_ms", DELTA_MS)),
+    )
 
 # Default spot footprint / center-tiling radius (0.5 multiples).
 DEFAULT_SPOT_EXTENT: float = 1.0
@@ -38,21 +67,21 @@ DEFAULT_MULTI_SPOT: bool = True
 DEFAULT_SHIFT_EXTENT: int = 1
 
 
-def spot_input_waveform(t_on, maxtime, pulse_ms=None, *, deltat_ms: float = DELTAT_MS) -> np.ndarray:
-    """Normalized 0/1 photoreceptor drive ``u[t]`` over ``maxtime`` steps.
+def spot_input_waveform(t_on, n_t, pulse_ms=None, *, delta_ms: float = DELTA_MS) -> np.ndarray:
+    """Normalized 0/1 photoreceptor drive ``u[t]`` over ``n_t`` samples.
 
     ``pulse_ms`` omitted -> continue-on step (``u[t_on:] = 1``). With a value the
-    stimulus is on only for ``[t_on, t_on + round(pulse_ms/deltat))`` and returns
-    to baseline afterward; ``maxtime`` is unchanged.
+    stimulus is on only for ``[t_on, t_on + round(pulse_ms/delta_ms))`` and returns
+    to baseline afterward; ``n_t`` is unchanged.
     """
     t_on = int(t_on)
-    maxtime = int(maxtime)
-    u = np.zeros(maxtime)
+    n_t = int(n_t)
+    u = np.zeros(n_t)
     if pulse_ms is None:
         u[t_on:] = 1.0
     else:
-        width = max(1, ms_to_steps(pulse_ms, deltat_ms=deltat_ms))
-        u[t_on:min(maxtime, t_on + width)] = 1.0
+        width = max(1, ms_to_t(pulse_ms, delta_ms=delta_ms))
+        u[t_on:min(n_t, t_on + width)] = 1.0
     return u
 
 

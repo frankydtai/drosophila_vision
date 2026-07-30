@@ -33,7 +33,7 @@ import numpy as np
 import FiveCol_MedSim_Pytorch as fc
 from connectome_io import parse_comma_list
 from param_defaults import P
-from training_config import DELTAT_MS
+from training_config import DELTA_MS
 
 DEFAULT_SAVE = os.path.join(HERE, "sag_curves.png")
 DEFAULT_G_LIST = "0,10,25,50,100"
@@ -66,7 +66,7 @@ def simulate_pulse(
     settle_ms,
 ):
     """Option-2 neuron; returns t[ms], Vm, g=gmax*u, u."""
-    dt = float(fc.deltat)
+    dt = float(fc.delta_ms)
     n = int(round(t_total_ms / dt))
     n_settle = int(round(settle_ms / dt))
     i_on = int(round(t_pulse_on_ms / dt))
@@ -231,7 +231,7 @@ def main(argv=None):
     ax_g_sl.set_ylabel(r"$g\,u$ [nS]")
 
     fig.suptitle(
-        rf"$E_h$={E_h:g} mV, $\Delta t$={DELTAT_MS:g} ms, $I$={args.I_pulse:g} pA",
+        rf"$E_h$={E_h:g} mV, $\Delta t$={DELTA_MS:g} ms, $I$={args.I_pulse:g} pA",
         fontsize=11,
     )
 

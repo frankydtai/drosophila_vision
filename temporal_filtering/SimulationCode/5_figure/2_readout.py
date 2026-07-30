@@ -89,13 +89,13 @@ def _mirror_ref_specs_from_override(override):
     return specs
 
 
-def fit_ref_cubes(dark=False, *, t_on=None, maxtime=None, pulse_ms=None, v_delta=False):
+def fit_ref_cubes(dark=False, *, t_on=None, n_t=None, pulse_ms=None, v_delta=False):
     """RecF reference cubes for the 13 fit cell types.
 
     ``v_delta`` inverts the Ca low-pass (``ca_to_v_delta``) so the gray data
     matches a model ``'v'`` readout (#5), using the same filter as ``--filter v``.
     """
-    kw = dict(t_on=t_on, maxtime=maxtime, pulse_ms=pulse_ms)
+    kw = dict(t_on=t_on, n_t=n_t, pulse_ms=pulse_ms)
     data = read_RecF_data_dark(**kw) if dark else read_RecF_data(**kw)
     ref = data * DATA_AMP
     if v_delta:
@@ -109,7 +109,7 @@ def spot_ref_cubes(
     dark=False,
     *,
     t_on=None,
-    maxtime=None,
+    n_t=None,
     pulse_ms=None,
     v_delta=False,
 ):
@@ -117,7 +117,7 @@ def spot_ref_cubes(
     target = target or session.primary_pack.name
     ref = dict(
         fit_ref_cubes(
-            dark=dark, t_on=t_on, maxtime=maxtime, pulse_ms=pulse_ms, v_delta=v_delta,
+            dark=dark, t_on=t_on, n_t=n_t, pulse_ms=pulse_ms, v_delta=v_delta,
         )
     )
     overrides = (session.train_opts or {}).get('pack_overrides') or {}

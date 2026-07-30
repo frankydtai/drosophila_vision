@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import torch
 
+import neuron.params as params
 from neuron.params import (
     E_IH_OFF,
     E_Ih,
@@ -15,8 +16,6 @@ from neuron.params import (
     E_inh,
     IH_OFF_DEFAULT,
     Ih_gain,
-    cdt,
-    deltat,
     g_leak,
 )
 from neuron.schema import borst_ih_off_kwargs, synaptic_scale
@@ -46,8 +45,8 @@ def _ih_gate_step(
         * 1000.0
         + 100.0
     )
-    u_on = deltat / tau_on * (Ih_ss_on - u_on) + u_on
-    u_off = deltat / tau_off * (Ih_ss_off - u_off) + u_off
+    u_on = params.delta_ms / tau_on * (Ih_ss_on - u_on) + u_on
+    u_off = params.delta_ms / tau_off * (Ih_ss_off - u_off) + u_off
     g_Ih_on = u_on * Ih_gmax * Ih_gain
     g_Ih_off = u_off * Ih_gmax_off * Ih_gain
     return u_on, u_off, g_Ih_on, g_Ih_off
@@ -90,6 +89,7 @@ def update_v(
     g_exc = g_exc * in_gain
     g_inh = g_inh * in_gain
 
+    cdt = params.cdt
     v = (
         g_exc * E_exc + g_inh * E_inh + g_leak * e_leak
         + E_Ih * g_Ih_on + E_IH_OFF * g_Ih_off + cdt * v + signal
@@ -103,6 +103,7 @@ def update_v(
 
 def v_budget_from_g(v_pre, g_exc, g_inh, g_Ih_on, g_Ih_off, signal, e_leak):
     """Numerator / denom terms matching ``update_v`` (torch or numpy)."""
+    cdt = params.cdt
     return {
         "num_exc": g_exc * E_exc,
         "num_inh": g_inh * E_inh,

@@ -475,7 +475,7 @@ def add_plot_arguments(parser):
         type=parse_bool,
         metavar='BOOL',
         help='plot pre-t_on equilibration in model traces (default true); '
-             'pass false to zero steps before t_on',
+             'pass false to zero samples before t_on',
     )
     parser.add_argument(
         '--x',

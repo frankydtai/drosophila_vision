@@ -14,23 +14,25 @@ from __future__ import annotations
 
 import torch
 
-from neuron.params import STATE_CLAMP, deltat
+import neuron.params as params
+from neuron.params import STATE_CLAMP
 from neuron.schema import synaptic_scale
 
 
 def update_state_hp_lp(v, a, p, x_t, backend):
     """One HP→LP membrane step; returns (v, a)."""
     bias = p["bias"]
-    tau_lp = torch.clamp(p["tau_lp"], min=deltat)
-    tau_hp = torch.clamp(p["tau_hp"], min=deltat)
+    dt = params.delta_ms
+    tau_lp = torch.clamp(p["tau_lp"], min=dt)
+    tau_hp = torch.clamp(p["tau_hp"], min=dt)
     G = p["hp_gain"]
 
     syn = p["in_gain"] * backend.conn.signed_drive(
         torch.relu(v) * p["out_gain"], synaptic_scale(p),
     )
     X = bias + syn + x_t
-    a = a + deltat / tau_hp * (X - a)
-    v = v + deltat / tau_lp * (-(v - bias) + G * (X - a))
+    a = a + dt / tau_hp * (X - a)
+    v = v + dt / tau_lp * (-(v - bias) + G * (X - a))
 
     a = torch.clamp(a, -STATE_CLAMP, STATE_CLAMP)
     v = torch.clamp(v, -STATE_CLAMP, STATE_CLAMP)
