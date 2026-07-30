@@ -2,9 +2,9 @@
 
 Usage (from ``SimulationCode/``):
 
-    ../.venv/bin/python test/plot_with_Ih_spot.py
-    ../.venv/bin/python test/plot_with_Ih_spot.py --show
-    ../.venv/bin/python test/plot_with_Ih_spot.py --run-path conductance/27849055-add_spot_r
+    ../.venv/bin/python 6_test/plot_with_Ih_spot.py
+    ../.venv/bin/python 6_test/plot_with_Ih_spot.py --show
+    ../.venv/bin/python 6_test/plot_with_Ih_spot.py --run-path conductance/27849055-add_spot_r
 """
 from __future__ import annotations
 
@@ -20,6 +20,7 @@ sys.path.insert(0, ROOT)
 os.chdir(ROOT)
 os.environ.setdefault("CUDA_VISIBLE_DEVICES", "")
 
+import import_bootstrap  # noqa: F401
 import matplotlib.pyplot as plt
 import numpy as np
 
@@ -138,7 +139,7 @@ def parse_args(argv=None):
     p.add_argument(
         "--run-path",
         default=DEFAULT_RUN_PATH,
-        help="run folder under 0trained/ or absolute path",
+        help="run folder under 0_outputs/ or absolute path",
     )
     p.add_argument(
         "--save",

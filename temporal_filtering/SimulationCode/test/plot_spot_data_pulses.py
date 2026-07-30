@@ -12,8 +12,8 @@ Two PNGs:
 
 Usage (from ``SimulationCode/``):
 
-    ../.venv/bin/python test/plot_spot_data_pulses.py
-    ../.venv/bin/python test/plot_spot_data_pulses.py --show
+    ../.venv/bin/python 6_test/plot_spot_data_pulses.py
+    ../.venv/bin/python 6_test/plot_spot_data_pulses.py --show
 """
 from __future__ import annotations
 
@@ -26,6 +26,7 @@ ROOT = os.path.dirname(HERE)
 sys.path.insert(0, ROOT)
 os.chdir(ROOT)
 
+import import_bootstrap  # noqa: F401
 import matplotlib.pyplot as plt
 import numpy as np
 

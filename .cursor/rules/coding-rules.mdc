@@ -10,7 +10,7 @@ Scope: `temporal_filtering/`.
 ## HARD STOPS — violate = do not ship
 
 1. No backward compatibility: 「改成 X」→ only X; old must not remain compatible. No old+new paths, shims, dual parsers, deprecated params, loaders for old runs/sidecars.
-2. When you change core (§B), you must leave `test/**` broken — do not update tests to match. Edit `test/**` only when the user names that test or file in the task or when you must need to run the script.
+2. When you change core (§B), you must leave `6_test/**` (logical `test`) broken — do not update tests to match. Edit `6_test/**` only when the user names that test or file in the task or when you must need to run the script.
 3. Python/pip: Must use `.venv` in the **same top-level subproject** as the script (see §1 table). No bare `python` / `python3` / `pip` / `pip3`; no wrong subproject `.venv`.
 4. Must not automatically add new `*.py` / `*.sh` / `*.ipynb` / `*.m`: must explain + propose path/duties + wait for user approval.
 
@@ -34,17 +34,19 @@ Scope: `temporal_filtering/`.
 
 ## B core script rules: SimulationCode/**`, `Connectome/**` (incl. `add_param/**`).
 
+Disk layout under `SimulationCode/` uses sorted `N_name` prefixes (e.g. `1_neuron_model/`, `2_network/3_layout.py`). Imports use the **logical** name only (`neuron_model`, `network.layout`). Renumber = rename on disk; do not change import strings or `import_bootstrap.py`. Enable via `import import_bootstrap` (and project `.venv` `simulationcode_sorted.pth`).
+
 1. Parameters via schema only; new param = one segment. No scattered `z[...]`.
 2. `forward` / `trainer` / `calc_cost` live in core only.
 3. `train.py`: general driver only; `import train` must not parse argv or touch CUDA.
-4. Path constants in `connectome_io.py` / `training_config.py`. 
+4. Path constants in `connectome_io.py` / `training/config.py` (logical); disk file is under `4_training/`. 
 5. CSVs: rectangular; global scalars as constant columns.
-6. Core codes must stay flexible for add_param/ or test/ to easily import, modify, and overwrite without touching core codes.
-7. No reverse plot dependency (HARD STOP 5). Scope: `SimulationCode/network/**`, `Connectome/**`, `Medulla_Library.py`, `FiveCol_MedSim_Pytorch.py`, `training_config.py`, `connectome_io.py`. Shared logic needed by both plot and core → move into core (e.g. `network/spot_target.py`, `network/moving_bar_target.py`); never import plot layers from core.
-10. No reverse plot dependency: core must not import or call plotting. Forbidden: `import plot`, `from plot import …`, `import plot_trained`, `from plot_trained import …
+6. Core codes must stay flexible for add_param/ or `6_test/` to easily import, modify, and overwrite without touching core codes.
+7. No reverse plot dependency (HARD STOP 5). Scope: `SimulationCode/2_network/**`, `Connectome/**`, `1_neuron_model/**`, `3_task/**`, `4_training/**` (non-plot), `connectome_io.py`. Shared logic needed by both plot and core → move into core (e.g. `3_task/2_spot/`, `3_task/3_moving_bar/`); never import plot layers from core.
+10. No reverse plot dependency: core must not import or call plotting. Forbidden: `import plot`, `from plot import …`, `import plot_trained`, `from plot_trained import …`
 
 ## C non-core script rules
 
 1. `import train` / `import fc` (see HARD STOP 4). imports core.
-2. Training variants: `run_<id>` under `0trained/<model>/`; full `train.py` artifact set and naming.
+2. Training variants: `run_<id>` under `0_outputs/<model>/`; full `train.py` artifact set and naming.
 3. Old directories and files in `run_<id>` must not be renamed or redirected when cores are modified and must remain broken.

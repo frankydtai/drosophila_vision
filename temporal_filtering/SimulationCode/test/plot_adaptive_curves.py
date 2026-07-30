@@ -14,9 +14,9 @@ Top row: activity; bottom row: v_transient.
 
 Usage (from SimulationCode/):
 
-    ../.venv/bin/python test/plot_adaptive_curves.py
-    ../.venv/bin/python test/plot_adaptive_curves.py --show
-    ../.venv/bin/python test/plot_adaptive_curves.py --gadapt-list 0,0.5,1,2 --tau-adapt-list 100,250,500,850
+    ../.venv/bin/python 6_test/plot_adaptive_curves.py
+    ../.venv/bin/python 6_test/plot_adaptive_curves.py --show
+    ../.venv/bin/python 6_test/plot_adaptive_curves.py --gadapt-list 0,0.5,1,2 --tau-adapt-list 100,250,500,850
 """
 from __future__ import annotations
 
@@ -30,6 +30,7 @@ sys.path.insert(0, ROOT)
 os.chdir(ROOT)
 os.environ.setdefault("CUDA_VISIBLE_DEVICES", "")
 
+import import_bootstrap  # noqa: F401
 import matplotlib.pyplot as plt
 import numpy as np
 

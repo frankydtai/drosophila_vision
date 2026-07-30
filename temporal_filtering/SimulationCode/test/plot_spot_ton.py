@@ -6,9 +6,9 @@ run dir.
 
 Usage (from ``SimulationCode/``):
 
-    ../.venv/bin/python test/plot_spot_ton.py
-    ../.venv/bin/python test/plot_spot_ton.py --run-path conductance/OTHER_RUN
-    ../.venv/bin/python test/plot_spot_ton.py --t-on-ms 1500 --maxtime-ms 3000
+    ../.venv/bin/python 6_test/plot_spot_ton.py
+    ../.venv/bin/python 6_test/plot_spot_ton.py --run-path conductance/OTHER_RUN
+    ../.venv/bin/python 6_test/plot_spot_ton.py --t-on-ms 1500 --maxtime-ms 3000
 """
 from __future__ import annotations
 
@@ -23,6 +23,7 @@ sys.path.insert(0, ROOT)
 os.chdir(ROOT)
 os.environ.setdefault("CUDA_VISIBLE_DEVICES", "")
 
+import import_bootstrap  # noqa: F401
 import FiveCol_MedSim_Pytorch as fc
 import plot_trained
 from training_config import PARAMETER_DIR, run_data_dir

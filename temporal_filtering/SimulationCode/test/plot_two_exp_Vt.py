@@ -17,7 +17,7 @@ Closed-form using superposition of a +S0 step at ``t_pulse_on`` and a -S0 step a
            - S0*(Ks*exp(-(t-t_off)/tau_s) - Kf*exp(-(t-t_off)/tau_f)) * 1_{t>=t_off}
 
 Example:
-    ../.venv/bin/python test/plot_two_exp_Vt.py --show
+    ../.venv/bin/python 6_test/plot_two_exp_Vt.py --show
 """
 
 from __future__ import annotations
@@ -34,6 +34,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 TFROOT = os.path.dirname(os.path.dirname(HERE))  # temporal_filtering/
 sys.path.insert(0, os.path.join(TFROOT, "Connectome", "FAFBv783"))
 
+import import_bootstrap  # noqa: F401
 from connectome_io import parse_comma_list  # type: ignore
 
 
