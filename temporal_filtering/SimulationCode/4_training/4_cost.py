@@ -2,7 +2,7 @@
 """Cost assembly, gradient descent, and multi-run driver.
 
 Consumes a :class:`~training.target_pack.TrainSession` and the model forward
-(``neuron_model.run_full`` + ``neuron_model.readout``); produces per-part
+(``neuron.run_full`` + ``neuron.readout``); produces per-part
 unweighted costs, the weighted total, and the Adam training loop.
 
 Readout kind (#2): the per-model ``pack_readout`` already returns ``v_delta``
@@ -27,8 +27,8 @@ from torch import nn
 from tqdm import tqdm
 
 from network.connectivity import SIM_DTYPE_DEFAULT
-from neuron_model import run_full
-from neuron_model.readout import (
+from neuron import run_full
+from neuron.readout import (
     CA_PACK_READOUTS,
     pack_needs_waveform_mse,
     readout_kind,
@@ -90,7 +90,7 @@ def out_scale_for_units(p, unit_index, backend: ModelBackend, *, sim_dtype=SIM_D
 def _pack_out_scale(p, pack: TargetPack, backend: ModelBackend, session: TrainSession):
     """Per-cost-row output scale from schema ``out_scale`` (single source of truth).
 
-    ``readout_kind == 'v'`` trains delta-Vm directly, so it bypasses ``out_scale``
+    ``readout_kind == 'v'`` trains ``'v'`` directly, so it bypasses ``out_scale``
     (scale = 1), matching the plotting convention for v-delta traces.
     """
     if readout_kind(pack) == "v":

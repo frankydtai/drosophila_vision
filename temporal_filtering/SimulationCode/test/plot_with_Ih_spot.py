@@ -1,10 +1,10 @@
-"""Plot the spot model-data figure for the selected conductance run.
+"""Plot the spot model-data figure for the selected borst run.
 
 Usage (from ``SimulationCode/``):
 
     ../.venv/bin/python 6_test/plot_with_Ih_spot.py
     ../.venv/bin/python 6_test/plot_with_Ih_spot.py --show
-    ../.venv/bin/python 6_test/plot_with_Ih_spot.py --run-path conductance/27849055-add_spot_r
+    ../.venv/bin/python 6_test/plot_with_Ih_spot.py --run-path borst/27849055-add_spot_r
 """
 from __future__ import annotations
 
@@ -28,7 +28,7 @@ import FiveCol_MedSim_Pytorch as fc
 from plot import spot as spot_plot
 import plot_trained
 
-DEFAULT_RUN_PATH = "conductance/27849055-add_spot_r"
+DEFAULT_RUN_PATH = "borst/27849055-add_spot_r"
 DEFAULT_SAVE = os.path.join(HERE, "model_data_spot.png")
 SECOND_BRIGHT_MS = 50.0
 
@@ -139,7 +139,7 @@ def parse_args(argv=None):
     p.add_argument(
         "--run-path",
         default=DEFAULT_RUN_PATH,
-        help="run folder under 0_outputs/ or absolute path",
+        help="run folder under 0_runs/ or absolute path",
     )
     p.add_argument(
         "--save",

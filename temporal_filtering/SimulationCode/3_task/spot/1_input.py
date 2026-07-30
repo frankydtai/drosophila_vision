@@ -18,12 +18,13 @@ import numpy as np
 from network import path  # noqa: F401 -- FAFBv783 on sys.path
 import column_mapper
 
-from neuron_model.params import DELTAT_MS, ms_to_steps
+from neuron.params import DELTAT_MS, ms_to_steps
 
 _SPOT_EXTENT_HALF_STEP_TOL = 1e-9
 
-# Default post-onset response window (ms). ``train.py --t-on-ms`` + this → maxtime.
-RESPONSE_DURATION_MS = 1500.0
+# Default post-onset response window (ms). ``train.py`` sets
+# ``maxtime = t_on + ms_to_steps(response_ms) + 1`` (inclusive endpoint sample).
+RESPONSE_MS = 1500.0
 
 # Default spot footprint / center-tiling radius (0.5 multiples).
 DEFAULT_SPOT_EXTENT: float = 1.0

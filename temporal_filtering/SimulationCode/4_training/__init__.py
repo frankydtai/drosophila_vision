@@ -5,12 +5,12 @@ Public facade re-exporting the names callers use as ``fc.*`` (``import training
 as fc``). Engine internals are split across :mod:`training.target_pack`,
 :mod:`training.params`, :mod:`training.cost`, and :mod:`training.session`; the
 shared vocabulary lives in :mod:`training.config`. Lower layers
-(``neuron_model``, ``task``, ``network``) never import this package at load
+(``neuron``, ``task``, ``network``) never import this package at load
 time.
 """
 from __future__ import annotations
 
-from neuron_model import (
+from neuron import (
     ALL_PARAM_NAMES,
     IH_OFF_DEFAULT,
     IH_OFF_MODES,

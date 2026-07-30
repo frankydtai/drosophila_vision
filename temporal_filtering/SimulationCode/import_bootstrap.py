@@ -1,7 +1,7 @@
 """Map logical import names to ``N_name`` disk layout under SimulationCode.
 
 Disk names are ``{n}_{logical}`` (dirs and ``.py`` modules). Imports stay
-logical (``neuron_model.params``, ``task.spot.input``, …). Renumbering is
+logical (``neuron.params``, ``task.spot.input``, …). Renumbering is
 rename-only; this finder has no per-file registry.
 
 ``__init__.py`` is unnumbered. Call :func:`install` (or ``import import_bootstrap``)
@@ -20,7 +20,7 @@ from typing import Iterable, Optional, Sequence
 
 _SORT_PREFIX = re.compile(r"^\d+_")
 _ROOT = Path(__file__).resolve().parent
-_SKIP_NAMES = frozenset({"__pycache__", "0_outputs", "0_logs"})
+_SKIP_NAMES = frozenset({"__pycache__", "0_runs", "0_logs"})
 
 
 def logical_name(name: str) -> str:

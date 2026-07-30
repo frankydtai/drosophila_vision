@@ -12,7 +12,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import torch
 
-from neuron_model.params import DELTAT_MS
+from neuron.params import DELTAT_MS
 import training as fc
 from figure.readout import (
     pack_readout_types,
@@ -74,36 +74,40 @@ def _baseline_from_ref_grid(ref_grid, row_i):
 
 
 def _session_spot_timing(session):
-    """Extract t_on / maxtime from session stimulus opts (or None for defaults)."""
+    """Extract t_on / maxtime / pulse_ms from session stimulus opts."""
     opts = (session.train_opts or {}).get(
         f"{session.primary_pack.name}_stimulus_opts",
     ) or {}
     t_on = opts.get("t_on")
     maxtime = opts.get("maxtime")
-    return (int(t_on) if t_on is not None else None,
-            int(maxtime) if maxtime is not None else None)
+    pulse_ms = opts.get("pulse_ms")
+    return (
+        int(t_on) if t_on is not None else None,
+        int(maxtime) if maxtime is not None else None,
+        float(pulse_ms) if pulse_ms is not None else None,
+    )
 
 
 def resolve_spot_ref_cubes(session_1, session_2=None, ref_cubes=None, ref_cubes_2=None,
                            *, v_delta=False):
     dual = session_2 is not None
-    t_on_1, mt_1 = _session_spot_timing(session_1)
+    t_on_1, mt_1, pulse_ms_1 = _session_spot_timing(session_1)
     if ref_cubes is not None:
         ref_1 = ref_cubes
     elif dual:
         ref_1 = spot_ref_cubes(session_1, 'spot_bright', dark=False,
-                               t_on=t_on_1, maxtime=mt_1, v_delta=v_delta)
+                               t_on=t_on_1, maxtime=mt_1, pulse_ms=pulse_ms_1, v_delta=v_delta)
     else:
         ref_1 = spot_ref_cubes(
             session_1, session_1.primary_pack.name, dark=_session_dark(session_1),
-            t_on=t_on_1, maxtime=mt_1, v_delta=v_delta,
+            t_on=t_on_1, maxtime=mt_1, pulse_ms=pulse_ms_1, v_delta=v_delta,
         )
     if ref_cubes_2 is not None:
         ref_2 = ref_cubes_2
     elif dual:
-        t_on_2, mt_2 = _session_spot_timing(session_2)
+        t_on_2, mt_2, pulse_ms_2 = _session_spot_timing(session_2)
         ref_2 = spot_ref_cubes(session_2, 'spot_dark', dark=True,
-                               t_on=t_on_2, maxtime=mt_2, v_delta=v_delta)
+                               t_on=t_on_2, maxtime=mt_2, pulse_ms=pulse_ms_2, v_delta=v_delta)
     else:
         ref_2 = None
     return ref_1, ref_2
@@ -111,6 +115,18 @@ def resolve_spot_ref_cubes(session_1, session_2=None, ref_cubes=None, ref_cubes_
 
 def _session_dark(session):
     return session.primary_pack.name == "spot_dark"
+
+
+def _session_cost_time_ix(session, response_start):
+    """Absolute time indices used for sparse spot cost (or ``None``)."""
+    if session is None:
+        return None
+    ix = getattr(session.primary_pack, "cost_time_ix", None)
+    if ix is None:
+        return None
+    base = int(response_start or 0)
+    ix_np = ix.detach().cpu().numpy().astype(np.int64, copy=False)
+    return base + ix_np
 
 
 def scale_curve(xt, center, sem_xt=None, *, response_start=None):
@@ -131,7 +147,7 @@ def scale_curve(xt, center, sem_xt=None, *, response_start=None):
     return imp, spatial
 
 
-def _plot_rf_profile(ax, rf, *, color, label=None, linestyle='-'):
+def _plot_rf_profile(ax, rf, *, color, label=None, linestyle='-', filled=False):
     """Plot finite RF bins only (j=0..8); skip NaN (no cost readout)."""
     if rf is None:
         return
@@ -144,12 +160,13 @@ def _plot_rf_profile(ax, rf, *, color, label=None, linestyle='-'):
         label=label,
         linestyle='none',
         marker='o',
-        markersize=6,
-        fillstyle='none',
-        markeredgewidth=1.2,
     )
-    if linestyle == '--':
-        kw['markeredgewidth'] = 1.0
+    if filled:
+        kw.update(markersize=4, fillstyle='full', markeredgewidth=0.8)
+    else:
+        kw.update(markersize=6, fillstyle='none', markeredgewidth=1.2)
+        if linestyle == '--':
+            kw['markeredgewidth'] = 1.0
     ax.plot(RF_BIN_X[mask], rf[mask], **kw)
 
 
@@ -195,6 +212,8 @@ def plot_cell_pair(
     label_2_data='dark data',
     label_2_model='dark model',
     response_start=None,
+    time_point_ix=None,
+    time_point_ix_2=None,
 ):
     center = CENTER_BIN
     sc_kw = dict(response_start=response_start)
@@ -215,12 +234,16 @@ def plot_cell_pair(
     ylo, yhi = TRACE_YLIM
 
     _plot_rf_profile(ax_rf, rf_data, color=DATA_COLOR, label=label_1_data, linestyle=linestyle_1)
-    _plot_rf_profile(ax_rf, rf_model, color=MODEL_COLOR, label=label_1_model, linestyle=linestyle_1)
+    _plot_rf_profile(
+        ax_rf, rf_model, color=MODEL_COLOR, label=label_1_model,
+        linestyle=linestyle_1, filled=True,
+    )
     _plot_rf_profile(
         ax_rf, model_2_rf_data, color=DATA_COLOR, label=label_2_data, linestyle=linestyle_2,
     )
     _plot_rf_profile(
-        ax_rf, model_2_rf_model, color=MODEL_COLOR, label=label_2_model, linestyle=linestyle_2,
+        ax_rf, model_2_rf_model, color=MODEL_COLOR, label=label_2_model,
+        linestyle=linestyle_2, filled=True,
     )
     ax_rf.set_title(title, fontsize=8, pad=2)
     ax_rf.set_ylim(ylo, yhi)
@@ -246,6 +269,8 @@ def plot_cell_pair(
         show_ylabel=show_ylabel,
         linestyle=linestyle_1,
         style_xaxis=lambda ax: _style_time_axis(ax, show_xlabels, maxtime),
+        point_ix=time_point_ix,
+        point_ix_2=time_point_ix_2,
     )
 
 
@@ -310,7 +335,8 @@ def plot_cell_pair_slices(
             ax_rf, slice_rfs.get(label), color=colors[i], label=label, linestyle=linestyle_1,
         )
     _plot_rf_profile(
-        ax_rf, rf_model, color=colors[-1], label=label_1_total, linestyle=linestyle_1,
+        ax_rf, rf_model, color=colors[-1], label=label_1_total,
+        linestyle=linestyle_1, filled=True,
     )
     _plot_rf_profile(
         ax_rf, model_2_rf_data, color=DATA_COLOR, label=label_2_data, linestyle=linestyle_2,
@@ -320,7 +346,8 @@ def plot_cell_pair_slices(
             ax_rf, slice_2_rfs.get(label), color=colors[i], linestyle=linestyle_2,
         )
     _plot_rf_profile(
-        ax_rf, model_2_rf_model, color=colors[-1], label=label_2_total, linestyle=linestyle_2,
+        ax_rf, model_2_rf_model, color=colors[-1], label=label_2_total,
+        linestyle=linestyle_2, filled=True,
     )
     ax_rf.set_title(title, fontsize=8, pad=2)
     ax_rf.set_ylim(ylo, yhi)
@@ -516,6 +543,7 @@ def _spot_readout_bundle_view(bundle):
         maxtime=bundle.maxtime,
         v_th_by_name=bundle.v_th_by_name,
         response_start=bundle.response_start,
+        trace_kind=bundle.trace_kind,
     )
 
 
@@ -761,9 +789,12 @@ def _plot_spot_figure(
     slice_overlay_2 = bundle_2.slice_overlay if bundle_2 is not None else None
     maxtime = bundle_on.maxtime
     response_start = bundle_on.response_start
-    timer.end_prep()
     dual = session_2 is not None
-    # #5: when the model traces are delta-Vm, invert the Ca filter on the gray
+    response_start_2 = bundle_2.response_start if bundle_2 is not None else None
+    time_point_ix_1 = _session_cost_time_ix(session_1, response_start)
+    time_point_ix_2 = _session_cost_time_ix(session_2, response_start_2) if dual else None
+    timer.end_prep()
+    # #5: when the model traces are ``'v'``, invert the Ca filter on the gray
     # reference data so both curves share the same units.
     ref_1, ref_2 = resolve_spot_ref_cubes(
         session_1, session_2, ref_cubes, ref_cubes_2,
@@ -854,6 +885,8 @@ def _plot_spot_figure(
                 label_2_data=label_2_data,
                 label_2_model=label_2_model,
                 response_start=response_start,
+                time_point_ix=time_point_ix_1,
+                time_point_ix_2=time_point_ix_2,
             )
         legend_done = True
 

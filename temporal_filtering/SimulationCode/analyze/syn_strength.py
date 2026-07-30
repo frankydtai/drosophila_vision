@@ -30,7 +30,7 @@ import import_bootstrap  # noqa: F401
 import network.path  # noqa: F401  # FAFB on sys.path
 import cell_syn
 import training as fc
-import figure.plot_runs as plot_trained
+import figure.plot_run as plot_trained
 import training.driver as train_mod
 from connectome_io import parse_comma_list
 from network.connectivity import build_type_pair_index

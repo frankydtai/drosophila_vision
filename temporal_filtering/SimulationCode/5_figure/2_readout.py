@@ -5,8 +5,8 @@ from __future__ import annotations
 import numpy as np
 import torch
 
-from neuron_model.params import DATA_AMP
-from neuron_model import ca_to_v_delta
+from neuron.params import DATA_AMP
+from neuron import ca_to_v_delta
 from task.spot.data import cell_list, read_RecF_data, read_RecF_data_dark
 from network.construction import (
     TYPE_FAMILY_ROWS,
@@ -89,13 +89,13 @@ def _mirror_ref_specs_from_override(override):
     return specs
 
 
-def fit_ref_cubes(dark=False, *, t_on=None, maxtime=None, v_delta=False):
+def fit_ref_cubes(dark=False, *, t_on=None, maxtime=None, pulse_ms=None, v_delta=False):
     """RecF reference cubes for the 13 fit cell types.
 
     ``v_delta`` inverts the Ca low-pass (``ca_to_v_delta``) so the gray data
-    matches a model delta-Vm readout (#5), using the same filter as ``--readout v``.
+    matches a model ``'v'`` readout (#5), using the same filter as ``--filter v``.
     """
-    kw = dict(t_on=t_on, maxtime=maxtime)
+    kw = dict(t_on=t_on, maxtime=maxtime, pulse_ms=pulse_ms)
     data = read_RecF_data_dark(**kw) if dark else read_RecF_data(**kw)
     ref = data * DATA_AMP
     if v_delta:
@@ -103,10 +103,23 @@ def fit_ref_cubes(dark=False, *, t_on=None, maxtime=None, v_delta=False):
     return {str(name): ref[i] for i, name in enumerate(cell_list)}
 
 
-def spot_ref_cubes(session, target=None, dark=False, *, t_on=None, maxtime=None, v_delta=False):
+def spot_ref_cubes(
+    session,
+    target=None,
+    dark=False,
+    *,
+    t_on=None,
+    maxtime=None,
+    pulse_ms=None,
+    v_delta=False,
+):
     """Spot model-data reference cubes from ``read_RecF_data`` (shape ``(9, T)``)."""
     target = target or session.primary_pack.name
-    ref = dict(fit_ref_cubes(dark=dark, t_on=t_on, maxtime=maxtime, v_delta=v_delta))
+    ref = dict(
+        fit_ref_cubes(
+            dark=dark, t_on=t_on, maxtime=maxtime, pulse_ms=pulse_ms, v_delta=v_delta,
+        )
+    )
     overrides = (session.train_opts or {}).get('pack_overrides') or {}
     for mirror_types, mirror_fit, mirror_sign in _mirror_ref_specs_from_override(
         overrides.get(target),

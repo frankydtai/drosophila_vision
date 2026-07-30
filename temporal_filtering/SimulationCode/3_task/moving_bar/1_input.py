@@ -21,7 +21,7 @@ from network import path  # noqa: F401 -- FAFBv783 on sys.path
 
 from column_mapper import DEG, HEX_PATCH_RADIUS, hex_vertices, uv_to_xy, uv_to_xy_deg
 from connectome_io import moving_bar_cache_dir
-from neuron_model.params import DELTAT_MS, ms_to_steps
+from neuron.params import DELTAT_MS, ms_to_steps
 from network.construction import I_BASELINE, I_BRIGHT, I_DARK
 from network.connectivity import SIM_DTYPE_DEFAULT
 from network.layout import column_in_cost_extent

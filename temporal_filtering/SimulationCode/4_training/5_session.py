@@ -24,9 +24,9 @@ import torch
 
 from network.construction import I_BASELINE, I_BRIGHT, I_DARK
 from network.connectivity import SIM_DTYPE_DEFAULT, sim_dtype_from_fp32
-from neuron_model.params import DELTAT_MS
+from neuron.params import DELTAT_MS
 from training.config import run_data_dir
-from neuron_model import (
+from neuron import (
     IH_OFF_DEFAULT,
     SYN_MODE_DEFAULT,
     borst_schema,
@@ -284,7 +284,7 @@ def apply_pack_override(pack, override, backend: ModelBackend):
 
 def _network_backend_from_connectome(C, *, sim_dtype=SIM_DTYPE_DEFAULT) -> ModelBackend:
     """Build a :class:`ModelBackend` from an already-loaded connectome graph."""
-    from neuron_model.params import LEAK_DEPOL_TYPES
+    from neuron.params import LEAK_DEPOL_TYPES
 
     tn = list(C.type_names)
     depol = tuple(tn.index(t) for t in LEAK_DEPOL_TYPES if t in tn)
@@ -445,23 +445,46 @@ def _build_network_moving_bar_dark_target(
     )
 
 
-def _spot_cost_time_ix(opts, *, device):
-    """#4: sparse post-onset step indices from ``cost_time_ms`` (relative to t_on)."""
-    cost_time_ms = opts.get("cost_time_ms")
-    if not cost_time_ms:
+def _spot_cost_times_ms(opts):
+    """Post-onset cost times from ``cost_interval_ms``: 0, interval, 2*interval, ... to last sample."""
+    interval_ms = opts.get("cost_interval_ms")
+    if interval_ms is None:
         return None
+    interval_ms = float(interval_ms)
+    if interval_ms <= 0:
+        raise ValueError("cost_interval_ms must be > 0")
     deltat_ms = float(opts.get("deltat_ms", DELTAT_MS))
     t_on = int(opts["t_on"])
     maxtime = int(opts["maxtime"])
     post = maxtime - t_on
-    ix = []
-    for ms in cost_time_ms:
-        step = int(round(float(ms) / deltat_ms))
-        if step < 0 or step >= post:
-            raise ValueError(
-                f"--cost-time-ms {ms} -> post-onset step {step} out of range [0,{post})"
-            )
-        ix.append(step)
+    if post <= 0:
+        raise ValueError("spot post-onset window must be > 0 for cost_interval_ms")
+    interval_steps = max(1, int(round(interval_ms / deltat_ms)))
+    steps = list(range(0, post, interval_steps))
+    if not steps:
+        end_ms = (post - 1) * deltat_ms
+        raise ValueError(
+            f"cost_interval_ms={interval_ms} exceeds post-onset window "
+            f"({end_ms:g} ms, {post} steps)"
+        )
+    return [step * deltat_ms for step in steps]
+
+
+def _spot_cost_time_ix(opts, *, device):
+    """#4: sparse post-onset step indices from ``cost_interval_ms`` (relative to t_on)."""
+    cost_time_ms = _spot_cost_times_ms(opts)
+    if not cost_time_ms:
+        return None
+    deltat_ms = float(opts.get("deltat_ms", DELTAT_MS))
+    maxtime = int(opts["maxtime"])
+    t_on = int(opts["t_on"])
+    post = maxtime - t_on
+    ix = [int(round(float(ms) / deltat_ms)) for ms in cost_time_ms]
+    bad = [ms for ms, step in zip(cost_time_ms, ix) if step < 0 or step >= post]
+    if bad:
+        raise ValueError(
+            f"cost_interval_ms -> {bad[0]} ms post-onset step out of range [0,{post})"
+        )
     ix = sorted(set(ix))
     return torch.tensor(ix, dtype=torch.long, device=device)
 
@@ -483,7 +506,7 @@ def _build_network_spot_target(
     multi_spot = bool(opts.get("multi_spot", DEFAULT_MULTI_SPOT))
     fully_inside = bool(opts.get("fully_inside", DEFAULT_FULLY_INSIDE))
     dev = ctx.dev or active_device()
-    readout_kind = str(opts.get("readout", "ca"))
+    readout_kind = str(opts.get("filter", "ca"))
     T = build_shifted_target(
         C,
         spot_extent=spot_extent,
@@ -685,7 +708,7 @@ def _finalize_stimulus_opts(
             if k in (
                 "i_baseline", step_key, "shift_extent", "spot_extent",
                 "multi_spot", "fully_inside", "t_on", "maxtime", "deltat_ms",
-                "pulse_ms", "cost_time_ms", "readout",
+                "pulse_ms", "cost_interval_ms", "filter",
             )
         })
     elif target_name == "moving_bar_bright":

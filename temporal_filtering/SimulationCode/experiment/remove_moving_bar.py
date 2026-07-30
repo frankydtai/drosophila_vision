@@ -16,7 +16,7 @@ from task.moving_bar.data import READOUT_SUBTYPE_ALIASES, READOUT_SUBTYPES, expa
 
 ap = train.make_training_argparser(__doc__)
 # plot flags for post-train figures
-from figure.plot_runs import add_plot_arguments
+from figure.plot_run import add_plot_arguments
 add_plot_arguments(ap)
 valid = ", ".join((*READOUT_SUBTYPE_ALIASES, *READOUT_SUBTYPES))
 ap.add_argument(

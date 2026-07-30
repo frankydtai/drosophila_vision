@@ -7,7 +7,7 @@ run dir.
 Usage (from ``SimulationCode/``):
 
     ../.venv/bin/python 6_test/plot_spot_ton.py
-    ../.venv/bin/python 6_test/plot_spot_ton.py --run-path conductance/OTHER_RUN
+    ../.venv/bin/python 6_test/plot_spot_ton.py --run-path borst/OTHER_RUN
     ../.venv/bin/python 6_test/plot_spot_ton.py --t-on-ms 1500 --maxtime-ms 3000
 """
 from __future__ import annotations

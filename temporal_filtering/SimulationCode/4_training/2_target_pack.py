@@ -2,20 +2,20 @@
 """Runtime dataclasses for one training / plotting run.
 
 Leaf of the ``training`` package: depends only on :mod:`config`, the
-``neuron_model`` constants, and :mod:`training.config` vocabulary. Holds no
+``neuron`` constants, and :mod:`training.config` vocabulary. Holds no
 schema, cost, or session-building logic (those live in sibling modules), so
 every other ``training`` module can import these types without a cycle.
 
 ``TargetPack`` carries cross-cutting readout / drive controls:
 
-* ``readout_kind`` -- ``'ca'`` (default) or ``'v'`` delta-Vm training (#2).
+* ``readout_kind`` -- ``'ca'`` (default) or ``'v'`` training (#2).
 * ``cost_time_ix`` -- optional sparse post-onset step indices; the target
   ``data`` stays full length and the subsample is gathered at cost time (#4).
 * ``always_waveform_mse`` -- spot targets always need a waveform MSE readout;
   moving-bar targets only when a cost window was built. Encoded here so
-  ``neuron_model.readout`` needs no paradigm knowledge.
+  ``neuron.readout`` needs no paradigm knowledge.
 * ``signal_scale`` -- peak PR current for hp_lp ``sig / scale``; stamped at
-  session build so ``neuron_model.model_hp_lp`` never imports training.
+  session build so ``neuron.model_hp_lp`` never imports training.
 """
 from __future__ import annotations
 
@@ -26,7 +26,7 @@ import numpy as np
 import torch
 
 from network.connectivity import SIM_DTYPE_DEFAULT
-from neuron_model import IH_DIR_REVERSE_CELLS
+from neuron import IH_DIR_REVERSE_CELLS
 
 from training.config import SPOT_TARGETS
 
@@ -40,7 +40,7 @@ def active_device():
 class TargetPack:
     """One training target: task drive + readout indices + target traces.
 
-    Spot ``signal`` / ``data`` time dims follow ``neuron_model`` / task
+    Spot ``signal`` / ``data`` time dims follow ``neuron`` / task
     timing. Moving bar uses ``COST_WINDOW`` and per-target ``maxtime``.
     """
 
@@ -64,7 +64,7 @@ class TargetPack:
     dsi_target: Optional[torch.Tensor] = None  # (n_dsi,)
     dsi_weight: Optional[torch.Tensor] = None  # (n_dsi,)
     dsi_power: Optional[torch.Tensor] = None  # scalar
-    readout_kind: str = "ca"  # 'ca' or 'v' delta-Vm training target/readout
+    readout_kind: str = "ca"  # 'ca' or 'v' training target/readout
     cost_time_ix: Optional[torch.Tensor] = None  # (n_sample,) sparse post-onset step idx
     always_waveform_mse: bool = True  # spot: True; moving bar: False
     signal_scale: float = 1.0  # peak PR current; hp_lp divides sig by this

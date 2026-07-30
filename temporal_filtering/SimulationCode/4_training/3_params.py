@@ -4,10 +4,10 @@
 Segment layout, partition buckets (indi/shared/fixed/frozen), non-linear
 ``scale`` decoding, and the ``z``-space bounds / initial guess. ``assign_params``
 turns a ``z`` vector into the per-parameter tensors consumed by
-``neuron_model`` dynamics; ``params_from_z`` binds it to a session.
+``neuron`` dynamics; ``params_from_z`` binds it to a session.
 
-Model segment lists come from ``neuron_model.schema``; numeric lo/hi/init/jit
-live in ``neuron_model.params.P``.
+Model segment lists come from ``neuron.schema``; numeric lo/hi/init/jit
+live in ``neuron.params.P``.
 """
 from __future__ import annotations
 
@@ -15,7 +15,7 @@ import numpy as np
 import torch
 
 from network.connectivity import SIM_DTYPE_DEFAULT
-from neuron_model import E_LEAK_DEPOL, E_LEAK_REST, IH_DIR_REVERSE_CELLS
+from neuron import E_LEAK_DEPOL, E_LEAK_REST, IH_DIR_REVERSE_CELLS
 
 from training.target_pack import ModelBackend, active_device
 
@@ -43,8 +43,8 @@ def build_ih_dir(conn, ih_reverse_cells=IH_DIR_REVERSE_CELLS, *, dtype=SIM_DTYPE
 
 
 # --- parameter schema partitions --------------------------------------------
-# Numeric lo/hi/init/jit(/fixed_val): ``neuron_model.params.P``.
-# Model segment lists: ``neuron_model.schema``.
+# Numeric lo/hi/init/jit(/fixed_val): ``neuron.params.P``.
+# Model segment lists: ``neuron.schema``.
 # Each segment:
 #   name, kind, count, lo/hi/init/jit[, fixed_val][, scale]
 #   scale: ``linear`` (default), ``log`` (z = log(physical)), or ``inv`` (z = 1/physical); lo/hi/init physical

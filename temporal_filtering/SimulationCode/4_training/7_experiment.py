@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import training as fc
-from neuron_model.params import DEFAULT_IH_GMAX_INDI_NAMES
+from neuron.params import DEFAULT_IH_GMAX_INDI_NAMES
 
 
 def merge_ih_param_partitions(train_kw):

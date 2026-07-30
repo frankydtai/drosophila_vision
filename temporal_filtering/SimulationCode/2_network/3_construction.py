@@ -29,8 +29,8 @@ import torch
 
 import import_bootstrap  # noqa: F401
 from .connectivity import SIM_DTYPE_DEFAULT, ScatterConn
-import neuron_model.params as nm_param
-from neuron_model.schema import SYN_MODE_DEFAULT, normalize_syn_mode
+import neuron.params as nm_param
+from neuron.schema import SYN_MODE_DEFAULT, normalize_syn_mode
 
 # Photoreceptor drive currents (pA). Owned by the network signal builder;
 # task paradigms import the same defaults for target consistency.

@@ -465,12 +465,33 @@ def ylim_for_keys(ca_mean, ca_sem, data_mean, keys, *, show_sem=False):
 def plot_sem_band(ax, t, model, sem, *, color=None, alpha=None, label=r'$\pm$SEM'):
     if sem is None or not np.any(sem):
         return
-    ax.fill_between(
-        t, model - sem, model + sem,
-        color=SEM_COLOR if color is None else color,
+    ax.errorbar(
+        t, model, yerr=sem,
+        fmt='none',
+        ecolor=SEM_COLOR if color is None else color,
         alpha=0.8 if alpha is None else alpha,
-        linewidth=0, label=label,
+        elinewidth=0.8,
+        capsize=1.5,
+        capthick=0.8,
+        label=label,
     )
+
+
+def _series_points(t, y, point_ix=None):
+    """Return finite ``(x, y)`` points, optionally subsampled by integer indices."""
+    if y is None:
+        return None, None
+    t_arr = np.asarray(t)
+    y_arr = np.asarray(y, dtype=np.float64)
+    if point_ix is not None:
+        ix = np.asarray(point_ix, dtype=np.int64)
+        ix = ix[(ix >= 0) & (ix < y_arr.shape[0])]
+        t_arr = t_arr[ix]
+        y_arr = y_arr[ix]
+    mask = np.isfinite(y_arr)
+    if not np.any(mask):
+        return None, None
+    return t_arr[mask], y_arr[mask]
 
 
 def plot_timecourse(
@@ -493,6 +514,8 @@ def plot_timecourse(
     ticksize=6,
     style_xaxis=None,
     linestyle='-',
+    point_ix=None,
+    point_ix_2=None,
 ):
     """Model (red) vs data (gray) time course with optional SEM and two-trace overlay."""
     if ylim is None:
@@ -502,16 +525,57 @@ def plot_timecourse(
         )
     else:
         ylo, yhi = ylim
-    if data is not None:
-        ax.plot(t, data, color=DATA_COLOR, linewidth=TRACE_LW, linestyle=linestyle)
-    if model is not None:
-        if show_sem:
-            plot_sem_band(ax, t, model, sem)
-        ax.plot(t, model, color=MODEL_COLOR, linewidth=TRACE_LW, linestyle=linestyle)
-    if data_2 is not None:
-        ax.plot(t, data_2, color=DATA_COLOR, linewidth=TRACE_LW, linestyle=linestyle_2)
-    if model_2 is not None:
-        ax.plot(t, model_2, color=MODEL_COLOR, linewidth=TRACE_LW, linestyle=linestyle_2)
+    discrete = point_ix is not None
+    if not discrete:
+        if data is not None:
+            ax.plot(t, data, color=DATA_COLOR, linewidth=TRACE_LW, linestyle=linestyle)
+        if model is not None:
+            if show_sem:
+                plot_sem_band(ax, t, model, sem)
+            ax.plot(t, model, color=MODEL_COLOR, linewidth=TRACE_LW, linestyle=linestyle)
+        if data_2 is not None:
+            ax.plot(t, data_2, color=DATA_COLOR, linewidth=TRACE_LW, linestyle=linestyle_2)
+        if model_2 is not None:
+            ax.plot(t, model_2, color=MODEL_COLOR, linewidth=TRACE_LW, linestyle=linestyle_2)
+    else:
+        x_data, y_data = _series_points(t, data, point_ix=point_ix)
+        if x_data is not None:
+            ax.plot(
+                x_data, y_data, linestyle='none', marker='o', markersize=4,
+                fillstyle='none', markeredgewidth=1.0, color=DATA_COLOR,
+            )
+        if model is not None:
+            model_arr = np.asarray(model, dtype=np.float64)
+            ix_model = np.asarray(point_ix, dtype=np.int64)
+            ix_model = ix_model[(ix_model >= 0) & (ix_model < model_arr.shape[0])]
+            x_model = np.asarray(t)[ix_model]
+            y_model = model_arr[ix_model]
+            mask_model = np.isfinite(y_model)
+            if show_sem and sem is not None:
+                sem_arr = np.asarray(sem, dtype=np.float64)
+                sem_sub = sem_arr[ix_model]
+                mask_sem = mask_model & np.isfinite(sem_sub)
+                if np.any(mask_sem):
+                    plot_sem_band(ax, x_model[mask_sem], y_model[mask_sem], sem_sub[mask_sem])
+            if np.any(mask_model):
+                ax.plot(
+                    x_model[mask_model], y_model[mask_model], linestyle='none',
+                    marker='o', markersize=2.5, fillstyle='full',
+                    markeredgewidth=0.8, color=MODEL_COLOR,
+                )
+        ix_2 = point_ix if point_ix_2 is None else point_ix_2
+        x_data_2, y_data_2 = _series_points(t, data_2, point_ix=ix_2)
+        if x_data_2 is not None:
+            ax.plot(
+                x_data_2, y_data_2, linestyle='none', marker='o', markersize=4,
+                fillstyle='none', markeredgewidth=1.0, color=DATA_COLOR,
+            )
+        x_model_2, y_model_2 = _series_points(t, model_2, point_ix=ix_2)
+        if x_model_2 is not None:
+            ax.plot(
+                x_model_2, y_model_2, linestyle='none', marker='o', markersize=2.5,
+                fillstyle='full', markeredgewidth=0.8, color=MODEL_COLOR,
+            )
     if title is not None:
         ax.set_title(title, fontsize=title_fs, pad=2)
     ax.set_ylim(ylo, yhi)

@@ -18,7 +18,7 @@ from connectome_io import parse_comma_list
 SIMULATION_DIR = Path(__file__).resolve().parent.parent
 
 # Trained-parameter output root (``hp_lp/`` and ``borst/`` run_* subdirs).
-PARAMETER_DIR = SIMULATION_DIR / "0_outputs"
+PARAMETER_DIR = SIMULATION_DIR / "0_runs"
 
 # Per-run artifact subfolder (``.npy`` / ``.npz``, ``train_opts.json``, ``param_schema.json``).
 RUN_DATA_SUBDIR = "data"

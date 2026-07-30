@@ -5,7 +5,7 @@ Orchestration that trains then plots lives in ``SimulationCode/6_run.py``:
     ../.venv/bin/python 6_run.py --model hp_lp --nofsteps 30 --lrs 0.1
 
 All results of a run land under ``training.config.PARAMETER_DIR``
-(``SimulationCode/0_outputs/<model>/<run_name>/``). Artifacts (``.npy`` /
+(``SimulationCode/0_runs/<model>/<run_name>/``). Artifacts (``.npy`` /
 ``.npz``, ``train_opts.json``) go in ``data/``; CSV tables in the run
 folder. Checkpoint PNGs are written by ``6_run.py``, not here.
 
@@ -34,10 +34,10 @@ from connectome_io import (
     parse_comma_list,
     resolve_network_json,
 )
-from task.spot.input import DEFAULT_SHIFT_EXTENT
+from task.spot.input import DEFAULT_SHIFT_EXTENT, RESPONSE_MS
 from training import do_many_runs
 import training as fc
-from neuron_model.params import DEFAULT_IH_GMAX_INDI_NAMES
+from neuron.params import DEFAULT_IH_GMAX_INDI_NAMES
 from training.config import (
     EDGE_WEIGHT_CSV,
     PARAM_CSV,
@@ -755,7 +755,7 @@ def add_training_arguments(parser):
                         help="output dir (default derived from --model)")
     parser.add_argument("--from", dest="init_from", default=None, metavar="RUN",
                         help="prior run folder NAME only (no model/ prefix); "
-                             "resolved under 0_outputs/<model>/NAME unless an absolute path is given; "
+                             "resolved under 0_runs/<model>/NAME unless an absolute path is given; "
                              "load named best_param.npz as z init only "
                              "(settings come from this CLI, not train_opts.json)")
     _ih_gmax_default = (
@@ -911,7 +911,15 @@ def add_training_arguments(parser):
         default=500.0,
         metavar="MS",
         help="spot stimulus onset time in ms (default %(default)s; "
-             "maxtime auto-extends to t_on + RESPONSE_DURATION)",
+             "maxtime = t_on + ms_to_steps(response_ms) + 1)",
+    )
+    parser.add_argument(
+        "--response-ms",
+        type=float,
+        default=RESPONSE_MS,
+        metavar="MS",
+        help="spot: post-onset response window in ms "
+             "(default %(default)s; maxtime = t_on + ms_to_steps(response_ms) + 1)",
     )
     parser.add_argument(
         "--pulse-ms",
@@ -922,17 +930,18 @@ def add_training_arguments(parser):
              "omit = step held to maxtime (#1)",
     )
     parser.add_argument(
-        "--cost-time-ms",
-        default="",
-        metavar="MS,MS,...",
-        help="spot: train only on these post-onset times in ms "
-             "(comma list, e.g. 0,100,...,1500); empty = every post-onset step (#4)",
+        "--cost-interval-ms",
+        type=float,
+        default=None,
+        metavar="MS",
+        help="spot: train on post-onset times 0, interval, 2*interval, ... "
+             "through response window; omit = every post-onset step (#4)",
     )
     parser.add_argument(
-        "--readout",
+        "--filter",
         default="ca",
         choices=("ca", "v"),
-        help="spot: train on Ca (default) or delta-Vm 'v' (#2)",
+        help="spot: train on Ca (default) or 'v' (#2)",
     )
 
 
@@ -1107,7 +1116,7 @@ def training_kwargs_from_args(
                 raise ValueError(
                     "--from must be a run folder name only (no path); "
                     "the model subfolder is inferred from --model (default: hp_lp). "
-                    "Use an absolute path to reference runs outside 0_outputs.",
+                    "Use an absolute path to reference runs outside 0_runs.",
                 )
             init_from = f"{args.model}/{init_from}"
     param_partitions = _partition_cli_map(args) or None
@@ -1130,10 +1139,9 @@ def training_kwargs_from_args(
     spot_extent = DEFAULT_SPOT_EXTENT if args.spot_extent is None else float(args.spot_extent)
     spot_extent_half_steps(spot_extent)
     spot_cost_radius_weight = parse_spot_cost_r_w(args.spot_cost_r_w, spot_extent)
-    from neuron_model.params import DELTAT_MS, ms_to_steps
-    from task.spot.input import RESPONSE_DURATION_MS
+    from neuron.params import DELTAT_MS, ms_to_steps
     _t_on_step = ms_to_steps(args.t_on_ms)
-    _maxtime_step = ms_to_steps(args.t_on_ms + RESPONSE_DURATION_MS)
+    _maxtime_step = _t_on_step + ms_to_steps(args.response_ms) + 1
     _timing = {"t_on": _t_on_step, "maxtime": _maxtime_step, "deltat_ms": DELTAT_MS}
     moving_bar_bright_stimulus_opts = {"multi_bar": bool(args.multi_bar), "t_on": _t_on_step, "deltat_ms": DELTAT_MS}
     moving_bar_dark_stimulus_opts = {"multi_bar": bool(args.multi_bar), "t_on": _t_on_step, "deltat_ms": DELTAT_MS}
@@ -1143,18 +1151,14 @@ def training_kwargs_from_args(
     if args.pulse_ms is not None:
         for _o in (spot_bright_stimulus_opts, spot_dark_stimulus_opts):
             _o["pulse_ms"] = float(args.pulse_ms)
-    _cost_time_ms = parse_comma_floats(args.cost_time_ms)
-    if _cost_time_ms:
-        # Extend the spot window so the latest requested post-onset time is
-        # actually simulated (post-onset steps are [0, maxtime - t_on)).
-        _max_cost_step = int(round(max(_cost_time_ms) / DELTAT_MS))
-        _needed_maxtime = _t_on_step + _max_cost_step + 1
+    if args.cost_interval_ms is not None:
+        if float(args.cost_interval_ms) <= 0:
+            raise ValueError("--cost-interval-ms must be > 0")
         for _o in (spot_bright_stimulus_opts, spot_dark_stimulus_opts):
-            _o["cost_time_ms"] = _cost_time_ms
-            _o["maxtime"] = max(int(_o["maxtime"]), _needed_maxtime)
-    if args.readout != "ca":
+            _o["cost_interval_ms"] = float(args.cost_interval_ms)
+    if args.filter != "ca":
         for _o in (spot_bright_stimulus_opts, spot_dark_stimulus_opts):
-            _o["readout"] = str(args.readout)
+            _o["filter"] = str(args.filter)
     i_cli = fc.build_i_cli_by_target({
         "i_baseline": parse_comma_kv(args.i_baseline, float),
         "i_bright": parse_comma_kv(args.i_bright, float),

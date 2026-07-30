@@ -56,7 +56,7 @@ import numpy as np
 
 import import_bootstrap  # noqa: F401
 import training as fc
-import figure.plot_runs as plot_trained
+import figure.plot_run as plot_trained
 from figure import moving_bar as moving_bar_plot
 from figure import spot as spot_plot
 from figure.util import parse_axis_slice_list, slice_xy_label

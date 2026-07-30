@@ -1,4 +1,4 @@
-"""Moving-bar plotting utilities extracted from ``figure.plot_runs``."""
+"""Moving-bar plotting utilities extracted from ``figure.plot_run``."""
 
 from __future__ import annotations
 
@@ -59,7 +59,7 @@ from task.moving_bar.input import (
     COST_WINDOW_AFTER,
     COST_WINDOW_BEFORE,
 )
-from neuron_model.params import DELTAT_MS
+from neuron.params import DELTAT_MS
 
 MOVING_BAR_DPI = 100
 

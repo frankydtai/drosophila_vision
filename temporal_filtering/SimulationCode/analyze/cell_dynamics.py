@@ -62,7 +62,7 @@ import torch
 
 import import_bootstrap  # noqa: F401
 import training as fc
-import figure.plot_runs as plot_trained
+import figure.plot_run as plot_trained
 from analyze.cell_trace import add_shared_cli, parse_shared_cli
 from task.moving_bar.data import (
     bar_specs_for_session,

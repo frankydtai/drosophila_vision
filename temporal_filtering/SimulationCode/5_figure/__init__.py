@@ -1,4 +1,4 @@
-"""Plot modules split from figure.plot_runs."""
+"""Plot modules split from figure.plot_run."""
 
 import matplotlib.pyplot as plt
 

@@ -10,7 +10,7 @@ New features handled here:
   :func:`task.spot.input.spot_input_waveform`, shared by the network signal
   and the ImpR target.
 - ``readout_kind='v'`` (#2): the ImpR-based Ca-proxy target is inverted with
-  :func:`neuron_model.ca_filter.ca_to_v_delta` to a delta-Vm target and power is
+  :func:`neuron.filter_ca.ca_to_v_delta` to a ``'v'`` target and power is
   recomputed on it.
 
 Sparse cost time points (#4) and the ``TargetPack`` wrapping live in the
@@ -30,8 +30,8 @@ from connectome_io import parse_comma_list
 
 from network.construction import I_BASELINE, I_BRIGHT, I_DARK
 from network.connectivity import SIM_DTYPE_DEFAULT
-from neuron_model.params import DATA_AMP, deltat
-from neuron_model.ca_filter import ca_to_v_delta
+from neuron.params import DATA_AMP, deltat
+from neuron.filter_ca import ca_to_v_delta
 from network.construction import col2fit, unit_type_names
 from network.layout import column_in_cost_extent
 from task.spot.input import (
@@ -560,7 +560,7 @@ def build_shifted_target(
     readout_stim_u = torch.tensor(np.asarray(cost_stim_u), dtype=torch.long, device=device)
     readout_stim_v = torch.tensor(np.asarray(cost_stim_v), dtype=torch.long, device=device)
 
-    # #2 V training: the ImpR target is a Ca-proxy; invert to delta-Vm so it can
+    # #2 V training: the ImpR target is a Ca-proxy; invert to ``'v'`` so it can
     # be compared to the model's v_delta readout. Post-onset slice -> t_on=0.
     if readout_kind == "v":
         data = ca_to_v_delta(data, t_on=0)
@@ -647,8 +647,8 @@ def make_spot_stimulus_opts(
     # #1 pulse duration, #4 sparse cost time points, #2 readout kind.
     if extra.get("pulse_ms") is not None:
         opts["pulse_ms"] = float(extra["pulse_ms"])
-    if extra.get("cost_time_ms") is not None:
-        opts["cost_time_ms"] = [float(x) for x in extra["cost_time_ms"]]
-    if extra.get("readout"):
-        opts["readout"] = str(extra["readout"])
+    if extra.get("cost_interval_ms") is not None:
+        opts["cost_interval_ms"] = float(extra["cost_interval_ms"])
+    if extra.get("filter"):
+        opts["filter"] = str(extra["filter"])
     return opts

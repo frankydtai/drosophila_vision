@@ -12,11 +12,11 @@ Usage (from ``SimulationCode/``, project ``.venv``):
 
     ../.venv/bin/python 6_run.py --model hp_lp --nofsteps 30 --lrs 0.1
     ../.venv/bin/python 6_run.py --target spot_bright --network right_min_neuron1_extent2 \\
-        --nofsteps 5 --lrs 0.1 --v-delta true
+        --nofsteps 5 --lrs 0.1 --filter v
 
 Re-plot an existing run without training:
 
-    ../.venv/bin/python -m figure.plot_runs <model>/<run_name>
+    ../.venv/bin/python -m figure.plot_run <model>/<run_name>
 """
 from __future__ import annotations
 
@@ -32,7 +32,7 @@ if HERE not in sys.path:
 
 import import_bootstrap  # noqa: F401
 import training.driver as train
-from figure.plot_runs import (
+from figure.plot_run import (
     add_plot_arguments,
     plot_kwargs_from_args,
     plot_param_set,
@@ -40,10 +40,12 @@ from figure.plot_runs import (
 
 _CHECKPOINT_PNG_STEMS = (
     "spot_trained_ca",
+    "spot_trained_v",
     "spot_all_ca",
-    "bar_trained_ca",
-    "bar_all_ca",
     "spot_all_v",
+    "bar_trained_ca",
+    "bar_trained_v",
+    "bar_all_ca",
     "bar_all_v",
 )
 
@@ -57,7 +59,6 @@ def build_plot_kwargs(
     at_y=None,
     align_at_x=None,
     align_at_y=None,
-    plot_v_delta=False,
     show_pre=True,
 ):
     return dict(
@@ -68,7 +69,6 @@ def build_plot_kwargs(
         at_y=at_y,
         align_at_x=align_at_x,
         align_at_y=align_at_y,
-        plot_v_delta=plot_v_delta,
         show_pre=show_pre,
     )
 
@@ -86,7 +86,6 @@ def make_plots(
     at_y=None,
     align_at_x=None,
     align_at_y=None,
-    plot_v_delta=False,
     show_pre=True,
 ):
     """Cost curve + model-vs-data + all-cell-types."""
@@ -98,7 +97,6 @@ def make_plots(
         at_y=at_y,
         align_at_x=align_at_x,
         align_at_y=align_at_y,
-        plot_v_delta=plot_v_delta,
         show_pre=show_pre,
     )
     if result is not None:
@@ -176,7 +174,6 @@ def run_training_and_plot(
     at_y=None,
     align_at_x=None,
     align_at_y=None,
-    plot_v_delta=False,
     show_pre=True,
     **train_kw,
 ):
@@ -189,7 +186,6 @@ def run_training_and_plot(
         at_y=at_y,
         align_at_x=align_at_x,
         align_at_y=align_at_y,
-        plot_v_delta=plot_v_delta,
         show_pre=show_pre,
     )
     checkpoint_on_png = None

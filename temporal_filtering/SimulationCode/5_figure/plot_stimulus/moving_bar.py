@@ -30,7 +30,7 @@ from matplotlib.animation import FuncAnimation, PillowWriter
 from matplotlib.patches import Rectangle
 
 from network.construction import I_BASELINE, I_BRIGHT
-from neuron_model.params import DELTAT_MS
+from neuron.params import DELTAT_MS
 from network.construction import load_network
 from training.driver import parse_bool
 from connectome_io import parse_comma_list
