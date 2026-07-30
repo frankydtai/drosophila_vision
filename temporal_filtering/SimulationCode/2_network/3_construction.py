@@ -29,7 +29,7 @@ import torch
 
 import import_bootstrap  # noqa: F401
 from .connectivity import SIM_DTYPE_DEFAULT, ScatterConn
-import neuron_model.param as nm_param
+import neuron_model.params as nm_param
 from neuron_model.schema import SYN_MODE_DEFAULT, normalize_syn_mode
 
 # Photoreceptor drive currents (pA). Owned by the network signal builder;
@@ -97,7 +97,7 @@ class Network:
 
     @property
     def center_units(self) -> np.ndarray:
-        """Units in the centre column (u == 0 and v == 0)."""
+        """Units in the center column (u == 0 and v == 0)."""
         return np.where((self.u == 0) & (self.v == 0))[0]
 
     def units_at(self, u: int, v: int) -> np.ndarray:

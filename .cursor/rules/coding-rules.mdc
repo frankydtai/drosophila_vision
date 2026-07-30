@@ -32,13 +32,19 @@ Scope: `temporal_filtering/`.
 5. CLI list values: comma-separated in one token (`a,b,c`); not space-separated (`a b c`). Exception: fixed-length pairs (e.g. `cell_syn.py` `--at-uv U V`, `nargs=2`). Use `parse_comma_list` in `connectome_io.py` only; do not add a second splitter.
 6. CLI alias expanders: `expand_<cli_name>_list` or `expand_<cli_name>_dict` (`--kebab-case` → `snake_case`; e.g. `--ih-group` → `expand_ih_group_list`, `--mode` → `expand_mode_dict`). 
 
-## B core script rules: SimulationCode/**`, `Connectome/**` (incl. `add_param/**`).
+## B core script rules: SimulationCode/**`
 
-Disk layout under `SimulationCode/` uses sorted `N_name` prefixes (e.g. `1_neuron_model/`, `2_network/3_layout.py`). Imports use the **logical** name only (`neuron_model`, `network.layout`). Renumber = rename on disk; do not change import strings or `import_bootstrap.py`. Enable via `import import_bootstrap` (and project `.venv` `simulationcode_sorted.pth`).
+Disk layout under `SimulationCode/` uses sorted `N_name` prefixes for **core only**. Core = numbered. Numbered = core. Non-core is unnumbered. Core = `1_neuron_model/`, `2_network/`, `3_task/`, `4_training/`, `5_figure/`. Non-core (`run.py`, `analyze/`, `experiment/`, `test/`, `import_bootstrap.py`) is unnumbered. Imports use the **logical** name only (`neuron_model`, `network.layout`). Renumber = rename on disk only; do not change logical import strings or `import_bootstrap.py`. Enable via `import import_bootstrap` (and project `.venv` `simulationcode_sorted.pth`) before logical imports.
+
+Core numbering rules:
+1. Smaller `N` = imported earlier and completed / ready earlier.
+2. Number by both import order and use-completion order.
+3. If `A` must be imported or completed before `B`, then `N(A) <= N(B)`; normally `N(A) < N(B)`.
+4. Same `N` only for same-layer modules that do not import each other and have no earlier/later completion order between them.
 
 1. Parameters via schema only; new param = one segment. No scattered `z[...]`.
 2. `forward` / `trainer` / `calc_cost` live in core only.
-3. `train.py`: general driver only; `import train` must not parse argv or touch CUDA.
+3. `run.py`: general driver only; `import train` must not parse argv or touch CUDA.
 4. Path constants in `connectome_io.py` / `training/config.py` (logical); disk file is under `4_training/`. 
 5. CSVs: rectangular; global scalars as constant columns.
 6. Core codes must stay flexible for add_param/ or `6_test/` to easily import, modify, and overwrite without touching core codes.
@@ -50,3 +56,9 @@ Disk layout under `SimulationCode/` uses sorted `N_name` prefixes (e.g. `1_neuro
 1. `import train` / `import fc` (see HARD STOP 4). imports core.
 2. Training variants: `run_<id>` under `0_outputs/<model>/`; full `train.py` artifact set and naming.
 3. Old directories and files in `run_<id>` must not be renamed or redirected when cores are modified and must remain broken.
+
+## D file/function naming rules
+
+1. Use singular for single entities and concepts; use plural for collections/sequences (e.g. `param` vs `params`, `key` vs `keys`).
+2. Script files/functions must contain exactly one verb across the full path; the verb may appear in a parent directory name or in the basename, but it must not be duplicated.
+3. Output directories use plural nouns.

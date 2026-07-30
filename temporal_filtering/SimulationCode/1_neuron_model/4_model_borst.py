@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import torch
 
-from neuron_model.param import (
+from neuron_model.params import (
     E_IH_OFF,
     E_Ih,
     E_exc,

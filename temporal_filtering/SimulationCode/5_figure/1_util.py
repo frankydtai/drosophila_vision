@@ -162,7 +162,7 @@ def readout_center_mask(pack, backend):
 
 
 def baselines_for_types(pack, backend, v_ref, names, type_ids, global_type_names):
-    """Mean v_ref at stimulus onset over centre cost-readout units, keyed by type name."""
+    """Mean v_ref at stimulus onset over center cost-readout units, keyed by type name."""
     v_ref = np.asarray(v_ref, dtype=np.float64)
     readout = pack.readout_unit.cpu().numpy()
     center = readout_center_mask(pack, backend)

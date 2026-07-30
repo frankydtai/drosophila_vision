@@ -10,7 +10,7 @@ import torch
 import import_bootstrap  # noqa: F401
 import training as fc
 from task.moving_bar.input import sti_columns
-from task.spot.input import spotting_from_opts
+from task.spot.input import spot_from_opts
 from figure import moving_bar as moving_bar_plot
 from figure import spot as spot_plot
 from figure.util import parse_axis_slice_list, parse_align_xy, plot_cost, network_column_count
@@ -48,9 +48,9 @@ def _network_spot_tag(session, tname):
     if session.backend.network is None:
         return ''
     opts = (session.train_opts or {}).get(f'{tname}_stimulus_opts') or {}
-    spotting = spotting_from_opts(session.backend.network, stimulus_opts=opts)
-    n_spots = len(spotting.centers)
-    n_shifts = len(spotting.shifts)
+    spot = spot_from_opts(session.backend.network, stimulus_opts=opts)
+    n_spots = len(spot.centers)
+    n_shifts = len(spot.shifts)
     n_columns = network_column_count(session.backend.network)
     return (
         f'  [avg over {n_spots} spots x {n_shifts} shifts = {n_spots * n_shifts}]\n'

@@ -37,7 +37,7 @@ from connectome_io import (
 from task.spot.input import DEFAULT_SHIFT_EXTENT
 from training import do_many_runs
 import training as fc
-from neuron_model.param import DEFAULT_IH_GMAX_INDI_NAMES
+from neuron_model.params import DEFAULT_IH_GMAX_INDI_NAMES
 from training.config import (
     EDGE_WEIGHT_CSV,
     PARAM_CSV,
@@ -697,7 +697,7 @@ def run_training(model, nofruns, nofsteps, lrs, fname=None, outdir=None,
 
 
 def add_spot_layout_arguments(parser):
-    """Spot centre tiling flags (``--multi-spot``, ``--fully-inside``)."""
+    """Spot center tiling flags (``--multi-spot``, ``--fully-inside``)."""
     from task.spot.input import DEFAULT_FULLY_INSIDE, DEFAULT_MULTI_SPOT
 
     parser.add_argument(
@@ -705,15 +705,15 @@ def add_spot_layout_arguments(parser):
         type=parse_bool,
         default=DEFAULT_MULTI_SPOT,
         metavar="BOOL",
-        help="tile simultaneous spot centres on network connectome "
-             f"(default: {str(DEFAULT_MULTI_SPOT).lower()}; false → centre (0,0) only)",
+        help="tile simultaneous spot centers on network connectome "
+             f"(default: {str(DEFAULT_MULTI_SPOT).lower()}; false → center (0,0) only)",
     )
     parser.add_argument(
         "--fully-inside",
         type=parse_bool,
         default=DEFAULT_FULLY_INSIDE,
         metavar="BOOL",
-        help="with --multi-spot: keep only centres whose spot footprint lies inside "
+        help="with --multi-spot: keep only centers whose spot footprint lies inside "
              f"connectome extent (default: {str(DEFAULT_FULLY_INSIDE).lower()})",
     )
 
@@ -861,7 +861,7 @@ def add_training_arguments(parser):
         type=float,
         default=None,
         metavar="R",
-        help="spot footprint / centre-tiling radius (0.5 multiples; default 1); "
+        help="spot footprint / center-tiling radius (0.5 multiples; default 1); "
              "extent=1 folds RecF(2) into r=1 target amp and defaults cost weights "
              "to 0=1,1=1/6; extent 1.5/2 keep RecF(r) and 0=1,1=1/6,2=1/6",
     )
@@ -1130,7 +1130,7 @@ def training_kwargs_from_args(
     spot_extent = DEFAULT_SPOT_EXTENT if args.spot_extent is None else float(args.spot_extent)
     spot_extent_half_steps(spot_extent)
     spot_cost_radius_weight = parse_spot_cost_r_w(args.spot_cost_r_w, spot_extent)
-    from neuron_model.param import DELTAT_MS, ms_to_steps
+    from neuron_model.params import DELTAT_MS, ms_to_steps
     from task.spot.input import RESPONSE_DURATION_MS
     _t_on_step = ms_to_steps(args.t_on_ms)
     _maxtime_step = ms_to_steps(args.t_on_ms + RESPONSE_DURATION_MS)

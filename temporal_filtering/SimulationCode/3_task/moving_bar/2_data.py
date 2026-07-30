@@ -17,7 +17,7 @@ from typing import Callable, Dict, List, Mapping, Optional, Sequence, Tuple, Uni
 import numpy as np
 import torch
 
-from neuron_model.param import DELTAT_MS, deltat, ms_to_steps
+from neuron_model.params import DELTAT_MS, deltat, ms_to_steps
 from network.construction import I_BRIGHT, I_DARK
 from network.connectivity import SIM_DTYPE_DEFAULT
 from network.construction import unit_type_names

@@ -81,7 +81,7 @@ from task.spot.data import (
     spot_center_bin_layout,
 )
 from task.spot.input import (
-    spotting_from_opts,
+    spot_from_opts,
     spot_stimulus_batches,
 )
 from figure.readout import spot_ref_cubes
@@ -1174,12 +1174,12 @@ def _spot_session_layout(session_one, cells: list[str]):
     if C is None:
         raise SystemExit("spot average requires a network backend")
     opts = dict((session_one.train_opts or {}).get(f"{pack.name}_stimulus_opts") or {})
-    spotting = spotting_from_opts(C, stimulus_opts=opts)
+    spot = spot_from_opts(C, stimulus_opts=opts)
     (
         batch_idx, unit_idx, _radius, type_idx, _stim_u, _stim_v, _du, _dv, center_row,
     ) = spot_center_bin_layout(
         C,
-        spot_stimulus_batches(spotting),
+        spot_stimulus_batches(spot),
         resolve_spot_cost_radii(stimulus_opts=opts),
         pack.cost_extent,
     )

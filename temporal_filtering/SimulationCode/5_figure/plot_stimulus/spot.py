@@ -1,10 +1,10 @@
-"""Visualise multi-spot centre tiling on a connectome column field.
+"""Visualise multi-spot center tiling on a connectome column field.
 
-Marks spot centres (crimson) and draws each spot's axial-extent hex
+Marks spot centers (crimson) and draws each spot's axial-extent hex
 (straight edges through ``(spot_extent + 0.5) * _HEX_DIRECTIONS``, via
 ``uv_to_xy_deg`` — not a Euclidean RegularPolygon) on
 :func:`column_mapper.draw_fafb_columns` for network columns only.
-Spot centres from :func:`task.spot.input.build_spotting`.
+Spot centers from :func:`task.spot.input.build_spot`.
 
 Usage (from SimulationCode/, project .venv):
 
@@ -51,7 +51,7 @@ from connectome_io import DEFAULT_NETWORK_RUN, network_run_tag, resolve_network_
 from network.construction import Network, load_network
 from task.spot.input import (
     DEFAULT_SPOT_EXTENTS,
-    build_spotting,
+    build_spot,
     spot_dist,
     spot_extent_half_steps,
 )
@@ -80,10 +80,10 @@ def _panel_grid(n: int) -> tuple[int, int]:
 
 
 def _draw_spot_extent_hexes(ax, centers_u, centers_v, spot_extent: float) -> None:
-    """Straight axial-extent hex about each centre (vertices along ``_HEX_DIRECTIONS``).
+    """Straight axial-extent hex about each center (vertices along ``_HEX_DIRECTIONS``).
 
     Vertex axial distance is ``spot_extent + 0.5`` (= ``spot_dist/2``): outer
-    boundary of the footprint / halfway to neighbouring spot centres.
+    boundary of the footprint / halfway to neighboring spot centers.
     """
     e = float(spot_extent) + 0.5
     du = np.array([d[0] for d in _HEX_DIRECTIONS], dtype=float)
@@ -151,7 +151,7 @@ def main() -> None:
     counts = {}
     for ax, spot_extent in zip(axes_flat, spot_extents):
         draw_fafb_columns(ax, df_columns, hex_radius_px=HEX_PATCH_RADIUS, label=False)
-        centers = build_spotting(
+        centers = build_spot(
             C,
             spot_extent=spot_extent,
             multi_spot=args.multi_spot,
@@ -184,7 +184,7 @@ def main() -> None:
     for ax in axes_flat[len(spot_extents):]:
         ax.set_visible(False)
 
-    fig.suptitle(f"Spot centres vs spot_extent ({run_tag})", fontsize=13, fontweight="bold")
+    fig.suptitle(f"Spot centers vs spot_extent ({run_tag})", fontsize=13, fontweight="bold")
     plt.tight_layout()
     plt.savefig(output, dpi=200, bbox_inches="tight")
     plt.close(fig)

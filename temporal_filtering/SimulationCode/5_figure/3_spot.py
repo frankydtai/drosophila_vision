@@ -12,7 +12,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import torch
 
-from neuron_model.param import DELTAT_MS
+from neuron_model.params import DELTAT_MS
 import training as fc
 from figure.readout import (
     pack_readout_types,
@@ -43,7 +43,7 @@ from figure.util import (
 )
 from task.spot.input import (
     euclid_hex_dist,
-    spotting_from_opts,
+    spot_from_opts,
     spot_stimulus_batches,
 )
 from task.spot.data import (
@@ -51,7 +51,7 @@ from task.spot.data import (
     spot_center_bin_layout,
 )
 
-CENTER_BIN = 4  # RecF spatial centre bin (j=4 in 0..8)
+CENTER_BIN = 4  # RecF spatial center bin (j=4 in 0..8)
 RF_N_BINS = 9
 RF_BIN_X = np.arange(RF_N_BINS) * 5  # j=0..8 on mirrored RF axis (-20..20)
 
@@ -579,7 +579,7 @@ def _cells_from_cube(names, cube, sem, baselines, *, single_column, n_by_name=No
 
 
 def _spot_baselines(rows, v_ref, names, *, at_x=None, at_y=None):
-    """Mean ``v_ref`` per type over stim-centred ``(0, 0)`` units (matches trace scope)."""
+    """Mean ``v_ref`` per type over stim-centered ``(0, 0)`` units (matches trace scope)."""
     v_ref = np.asarray(v_ref, dtype=np.float64)
     batch_idx = rows['batch_idx']
     unit_idx = rows['unit_idx']
@@ -629,8 +629,8 @@ def _spot_forward_rows(
     mt = int(sig.shape[1])
 
     opts = dict((session.train_opts or {}).get(f"{pack.name}_stimulus_opts") or {})
-    spotting = spotting_from_opts(C, stimulus_opts=opts)
-    batches = spot_stimulus_batches(spotting)
+    spot = spot_from_opts(C, stimulus_opts=opts)
+    batches = spot_stimulus_batches(spot)
     groups, names = plot_present_layout(_spot_all_type_names(session))
 
     cost_radii = resolve_spot_cost_radii(stimulus_opts=opts)

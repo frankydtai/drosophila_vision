@@ -9,7 +9,7 @@ CLI driver.
 """
 from __future__ import annotations
 
-from neuron_model.param import (
+from neuron_model.params import (
     IH_DIR_REVERSE_CELLS,
     IH_OFF_DEFAULT,
     IH_OFF_GMAX_SEGMENT,

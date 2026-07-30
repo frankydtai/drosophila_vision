@@ -5,7 +5,7 @@ from __future__ import annotations
 import numpy as np
 import torch
 
-from neuron_model.param import DATA_AMP
+from neuron_model.params import DATA_AMP
 from neuron_model import ca_to_v_delta
 from task.spot.data import cell_list, read_RecF_data, read_RecF_data_dark
 from network.construction import (

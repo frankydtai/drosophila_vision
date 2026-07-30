@@ -3,7 +3,7 @@
 
 Public facade re-exporting the names callers use as ``fc.*`` (``import training
 as fc``). Engine internals are split across :mod:`training.target_pack`,
-:mod:`training.param`, :mod:`training.cost`, and :mod:`training.session`; the
+:mod:`training.params`, :mod:`training.cost`, and :mod:`training.session`; the
 shared vocabulary lives in :mod:`training.config`. Lower layers
 (``neuron_model``, ``task``, ``network``) never import this package at load
 time.
@@ -65,7 +65,7 @@ from training.target_pack import (
     TrainSession,
     active_device,
 )
-from training.param import (
+from training.params import (
     PAIR_SEP,
     PARTITION_BUCKETS,
     apply_partitions,

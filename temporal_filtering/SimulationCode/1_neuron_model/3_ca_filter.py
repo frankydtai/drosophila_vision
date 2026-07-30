@@ -10,7 +10,7 @@ delta-Vm. This is the ONLY Ca filter in the codebase; spot data bandpass/lowpass
 """
 from __future__ import annotations
 
-from neuron_model.param import Ca_tau, deltat
+from neuron_model.params import Ca_tau, deltat
 
 # One-step low-pass coefficient: ca[t] = (1-alpha)*ca[t-1] + alpha*(v[t]-v_ref).
 CA_ALPHA = deltat / Ca_tau  # = 0.2 at deltat=10 ms, Ca_tau=50 ms

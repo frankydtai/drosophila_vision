@@ -24,7 +24,7 @@ import torch
 
 from network.construction import I_BASELINE, I_BRIGHT, I_DARK
 from network.connectivity import SIM_DTYPE_DEFAULT, sim_dtype_from_fp32
-from neuron_model.param import DELTAT_MS
+from neuron_model.params import DELTAT_MS
 from training.config import run_data_dir
 from neuron_model import (
     IH_OFF_DEFAULT,
@@ -53,7 +53,7 @@ from training.config import (
     normalize_target_list,
 )
 from training.cost import _build_cost_subpacks, _build_fused_borst
-from training.param import (
+from training.params import (
     apply_partitions,
     attach_param_carry,
     build_e_leak,
@@ -284,7 +284,7 @@ def apply_pack_override(pack, override, backend: ModelBackend):
 
 def _network_backend_from_connectome(C, *, sim_dtype=SIM_DTYPE_DEFAULT) -> ModelBackend:
     """Build a :class:`ModelBackend` from an already-loaded connectome graph."""
-    from neuron_model.param import LEAK_DEPOL_TYPES
+    from neuron_model.params import LEAK_DEPOL_TYPES
 
     tn = list(C.type_names)
     depol = tuple(tn.index(t) for t in LEAK_DEPOL_TYPES if t in tn)
@@ -525,7 +525,7 @@ def _build_network_spot_target(
     coltag = _cost_extent_column_coltag(cost_extent, T.info["n_cost_columns"])
     shifttag = f"{T.info['n_shifts']} shifts"
     tag = (
-        f"{pack_name} (B={T.n_batch} stimuli [{T.info['n_centers']} centres simultaneous "
+        f"{pack_name} (B={T.n_batch} stimuli [{T.info['n_centers']} centers simultaneous "
         f"x {shifttag}], {T.info['n_cost']} cost cells, {coltag})"
     )
     return pack, stim, tag

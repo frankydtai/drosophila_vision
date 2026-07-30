@@ -6,7 +6,7 @@ No photoreceptor (R1-6, R7, R8) panels — fit-cell data only.
 Two PNGs:
 
 1. ``spot_data_pulses_LTI.png`` — LTI step difference ``p(t) = s(t) - s(t - Δ)``
-   on centre-bin ImpR×RecF targets from ``read_RecF_data``.
+   on center-bin ImpR×RecF targets from ``read_RecF_data``.
 2. ``spot_data_pulses_filter.png`` — drive each cell's IR filter with
    different-width ``u[t]`` (50 ms / 500 ms / continue-on from ``T_ON``).
 
@@ -105,7 +105,7 @@ def fit_data_cubes() -> dict[str, np.ndarray]:
 
 
 def fit_filter_traces() -> dict[str, dict[str, np.ndarray]]:
-    """Centre-bin responses from driving IR filters with different-width ``u[t]``.
+    """Center-bin responses from driving IR filters with different-width ``u[t]``.
 
     Returns ``{cell: {"step", "p500", "p50"}}`` scaled like ``DATA_AMP * RecF * ImpR``.
     """
@@ -217,7 +217,7 @@ def _plot_pulse_grid(
 
 
 def plot_data_pulses(path: str, *, show: bool = False) -> None:
-    """PNG 1: LTI pulse-from-step on ``read_RecF_data`` centre traces."""
+    """PNG 1: LTI pulse-from-step on ``read_RecF_data`` center traces."""
     cubes = fit_data_cubes()
     pulse_50 = ms_to_steps(PULSE_50_MS)
     pulse_500 = ms_to_steps(PULSE_500_MS)

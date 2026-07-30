@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
-"""Spot paradigm INPUT: connectome spotting geometry + PR drive waveform.
+"""Spot paradigm INPUT: connectome spot geometry + PR drive waveform.
 
-Geometry (centres, sub-spot shifts, Euclidean rings) is split out of the old
+Geometry (centers, sub-spot shifts, Euclidean rings) is split out of the old
 ``network.spot_target`` Section A. The PR drive waveform ``u[t]`` is defined
 here once (``spot_input_waveform``) and consumed by both the network signal and
 the ImpR target in :mod:`task.spot.data`, so pulse duration has a single
@@ -18,20 +18,20 @@ import numpy as np
 from network import path  # noqa: F401 -- FAFBv783 on sys.path
 import column_mapper
 
-from neuron_model.param import DELTAT_MS, ms_to_steps
+from neuron_model.params import DELTAT_MS, ms_to_steps
 
 _SPOT_EXTENT_HALF_STEP_TOL = 1e-9
 
 # Default post-onset response window (ms). ``train.py --t-on-ms`` + this → maxtime.
 RESPONSE_DURATION_MS = 1500.0
 
-# Default spot footprint / centre-tiling radius (0.5 multiples).
+# Default spot footprint / center-tiling radius (0.5 multiples).
 DEFAULT_SPOT_EXTENT: float = 1.0
 # Panel list for multi-spot visualisation.
 DEFAULT_SPOT_EXTENTS: Tuple[float, ...] = (0.5, 1.0, 1.5, 2.0)
-# Keep only centres whose spot footprint lies inside connectome extent.
+# Keep only centers whose spot footprint lies inside connectome extent.
 DEFAULT_FULLY_INSIDE: bool = True
-# Tile simultaneous spot centres on network connectome (``False`` -> centre (0,0) only).
+# Tile simultaneous spot centers on network connectome (``False`` -> center (0,0) only).
 DEFAULT_MULTI_SPOT: bool = True
 # Sub-spot shift hex-disc radius (``members_in_extent``; 1 -> 7 shifts).
 DEFAULT_SHIFT_EXTENT: int = 1
@@ -66,7 +66,7 @@ def euclid_hex_dist(du: int, dv: int) -> float:
 
 
 def members_by_euclid_radius(radii) -> Dict[float, List[Tuple[int, int]]]:
-    """Map each Euclidean radius to stim-centred axial ``(du, dv)`` members."""
+    """Map each Euclidean radius to stim-centered axial ``(du, dv)`` members."""
     radii_set = {round(float(radius), 6) for radius in radii}
     max_shell = int(math.ceil(max(radii_set)))
     by_radius: Dict[float, List[Tuple[int, int]]] = {radius: [] for radius in radii_set}
@@ -95,7 +95,7 @@ def spot_extent_half_steps(spot_extent) -> int:
 
 
 def spot_dist(spot_extent) -> int:
-    """Axial centre spacing: ``2*spot_extent + 1`` (``spot_extent`` in 0.5 steps)."""
+    """Axial center spacing: ``2*spot_extent + 1`` (``spot_extent`` in 0.5 steps)."""
     return spot_extent_half_steps(spot_extent) + 1
 
 
@@ -119,7 +119,7 @@ def spot_centers(
     spot_extent=DEFAULT_SPOT_EXTENT,
     fully_inside: bool = DEFAULT_FULLY_INSIDE,
 ) -> list:
-    """Axial centres of densest packing of radius-``floor(spot_extent)`` hexes."""
+    """Axial centers of densest packing of radius-``floor(spot_extent)`` hexes."""
     m = spot_extent_half_steps(spot_extent)
     k = m // 2
     if m % 2 == 1:
@@ -150,8 +150,8 @@ def spot_centers(
 
 
 @dataclass
-class Spotting:
-    """Spot centres and sub-spot shifts over a loaded connectome."""
+class Spot:
+    """Spot centers and sub-spot shifts over a loaded connectome."""
 
     centers: List[Tuple[int, int]]
     shifts: List[Tuple[int, int]]
@@ -166,13 +166,13 @@ class SpotBatch:
     stim_uv: Tuple[Tuple[int, int], ...]
 
 
-def spot_stimulus_batches(spotting: Spotting) -> List[SpotBatch]:
-    """One batch per shift; each batch steps all spot centres (+ shift) together."""
+def spot_stimulus_batches(spot: Spot) -> List[SpotBatch]:
+    """One batch per shift; each batch steps all spot centers (+ shift) together."""
     batches: List[SpotBatch] = []
-    for du, dv in spotting.shifts:
+    for du, dv in spot.shifts:
         stim_uv = tuple(
             (int(cu + du), int(cv + dv))
-            for cu, cv in spotting.centers
+            for cu, cv in spot.centers
         )
         batches.append(SpotBatch(shift=(int(du), int(dv)), stim_uv=stim_uv))
     return batches
@@ -191,13 +191,13 @@ def _connectome_extent(C, spot_extent: float) -> int:
     return max(radii) if radii else int(spot_extent)
 
 
-def build_spotting(
+def build_spot(
     C,
     spot_extent: float = DEFAULT_SPOT_EXTENT,
     multi_spot: bool = DEFAULT_MULTI_SPOT,
     fully_inside: bool = DEFAULT_FULLY_INSIDE,
-) -> Spotting:
-    """Build a :class:`Spotting` for connectome ``C``."""
+) -> Spot:
+    """Build a :class:`Spot` for connectome ``C``."""
     spot_extent_half_steps(spot_extent)
     connectome_extent = _connectome_extent(C, spot_extent)
     shifts = column_mapper.members_in_extent(1)
@@ -212,10 +212,10 @@ def build_spotting(
                 fully_inside=fully_inside,
             )
         ]
-    return Spotting(centers, shifts, spot_extent)
+    return Spot(centers, shifts, spot_extent)
 
 
-def spotting_from_opts(
+def spot_from_opts(
     C,
     spot_extent: float = DEFAULT_SPOT_EXTENT,
     shift_extent: int = DEFAULT_SHIFT_EXTENT,
@@ -223,18 +223,18 @@ def spotting_from_opts(
     fully_inside: bool = DEFAULT_FULLY_INSIDE,
     *,
     stimulus_opts: Optional[Dict] = None,
-) -> Spotting:
-    """Build :class:`Spotting` with configurable sub-spot shift radius."""
+) -> Spot:
+    """Build :class:`Spot` with configurable sub-spot shift radius."""
     if stimulus_opts is not None:
         spot_extent = float(stimulus_opts.get("spot_extent", spot_extent))
         shift_extent = int(stimulus_opts.get("shift_extent", shift_extent))
         multi_spot = bool(stimulus_opts.get("multi_spot", multi_spot))
         fully_inside = bool(stimulus_opts.get("fully_inside", fully_inside))
-    spotting = build_spotting(
+    spot = build_spot(
         C, spot_extent, multi_spot=multi_spot, fully_inside=fully_inside,
     )
-    spotting.shifts = [
+    spot.shifts = [
         (int(du), int(dv))
         for du, dv in column_mapper.members_in_extent(int(shift_extent))
     ]
-    return spotting
+    return spot

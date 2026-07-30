@@ -7,7 +7,7 @@ turns a ``z`` vector into the per-parameter tensors consumed by
 ``neuron_model`` dynamics; ``params_from_z`` binds it to a session.
 
 Model segment lists come from ``neuron_model.schema``; numeric lo/hi/init/jit
-live in ``neuron_model.param.P``.
+live in ``neuron_model.params.P``.
 """
 from __future__ import annotations
 
@@ -43,7 +43,7 @@ def build_ih_dir(conn, ih_reverse_cells=IH_DIR_REVERSE_CELLS, *, dtype=SIM_DTYPE
 
 
 # --- parameter schema partitions --------------------------------------------
-# Numeric lo/hi/init/jit(/fixed_val): ``neuron_model.param.P``.
+# Numeric lo/hi/init/jit(/fixed_val): ``neuron_model.params.P``.
 # Model segment lists: ``neuron_model.schema``.
 # Each segment:
 #   name, kind, count, lo/hi/init/jit[, fixed_val][, scale]

@@ -45,7 +45,7 @@ from training.config import (
     moving_bar_cost_part_key,
     session_cost_part_keys,
 )
-from training.param import params_from_z, schema_bounds, schema_guess, schema_nparams
+from training.params import params_from_z, schema_bounds, schema_guess, schema_nparams
 from training.target_pack import (
     FusedBorstForward,
     ModelBackend,

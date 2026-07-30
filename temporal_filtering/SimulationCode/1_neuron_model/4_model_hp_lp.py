@@ -14,7 +14,7 @@ from __future__ import annotations
 
 import torch
 
-from neuron_model.param import STATE_CLAMP, deltat
+from neuron_model.params import STATE_CLAMP, deltat
 from neuron_model.schema import synaptic_scale
 
 

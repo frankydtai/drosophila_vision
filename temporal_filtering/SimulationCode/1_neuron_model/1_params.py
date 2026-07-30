@@ -2,7 +2,7 @@
 """Shared neuron-model constants and trainable parameter numeric defaults.
 
 Biophysics / clock constants (used by borst and hp_lp) live here so
-network / stimulus / training import them from ``neuron_model.param`` without
+network / stimulus / training import them from ``neuron_model.params`` without
 a top-level config bag.
 
 Schema segment *structure* (name, kind, count, indi/shared/fixed partitions)

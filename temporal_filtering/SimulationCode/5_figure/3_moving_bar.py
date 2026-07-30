@@ -59,7 +59,7 @@ from task.moving_bar.input import (
     COST_WINDOW_AFTER,
     COST_WINDOW_BEFORE,
 )
-from neuron_model.param import DELTAT_MS
+from neuron_model.params import DELTAT_MS
 
 MOVING_BAR_DPI = 100
 

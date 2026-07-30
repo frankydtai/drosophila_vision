@@ -30,7 +30,7 @@ from connectome_io import parse_comma_list
 
 from network.construction import I_BASELINE, I_BRIGHT, I_DARK
 from network.connectivity import SIM_DTYPE_DEFAULT
-from neuron_model.param import DATA_AMP, deltat
+from neuron_model.params import DATA_AMP, deltat
 from neuron_model.ca_filter import ca_to_v_delta
 from network.construction import col2fit, unit_type_names
 from network.layout import column_in_cost_extent
@@ -45,7 +45,7 @@ from task.spot.input import (
     spot_extent_folds_r2_into_r1,
     spot_input_waveform,
     spot_stimulus_batches,
-    spotting_from_opts,
+    spot_from_opts,
 )
 
 # ImpR / RecF target row order (13 fit cells).
@@ -57,7 +57,7 @@ cell_list = np.array(
 SPOT_POLARITIES = frozenset({"bright", "dark"})
 _SPOT_STEP_KEY = {"bright": "i_bright", "dark": "i_dark"}
 
-# RF sample index of the receptive-field centre, and samples per column step
+# RF sample index of the receptive-field center, and samples per column step
 # (data[i,j] = RecF_data[i, 5j+2]; j=4 -> sample 22 -> radius=0).
 _RF_CENTER_SAMPLE = 22
 _RF_SAMPLES_PER_COL = 5
@@ -485,14 +485,14 @@ def build_shifted_target(
     recf_data, impr_data = read_RecF_ImpR(t_on=t_on, maxtime=maxtime, pulse_ms=pulse_ms)
     fit_row = {str(ft): i for i, ft in enumerate(cell_list)}
 
-    spotting = spotting_from_opts(
+    spot = spot_from_opts(
         C, spot_extent, shift_extent,
         multi_spot=multi_spot, fully_inside=fully_inside,
     )
     names = unit_type_names(C)
     present_fit = [str(ft) for ft in cell_list if str(ft) in set(names.tolist())]
 
-    batches = spot_stimulus_batches(spotting)
+    batches = spot_stimulus_batches(spot)
     n_batch = len(batches)
 
     # Single PR waveform source (step or pulse) shared with the ImpR target.
@@ -573,8 +573,8 @@ def build_shifted_target(
         "n_batch": n_batch,
         "n_cost": data.shape[0],
         "n_cost_columns": spot_n_cost_columns(cost_cols),
-        "n_centers": len(spotting.centers),
-        "n_shifts": len(spotting.shifts),
+        "n_centers": len(spot.centers),
+        "n_shifts": len(spot.shifts),
         "cost_extent": cost_extent,
         "spot_extent": float(spot_extent),
         "multi_spot": bool(multi_spot),

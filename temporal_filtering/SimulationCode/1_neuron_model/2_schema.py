@@ -2,7 +2,7 @@
 """Parameter schemas for borst / hp_lp neuron models."""
 from __future__ import annotations
 
-from neuron_model.param import (
+from neuron_model.params import (
     DEFAULT_IH_GMAX_INDI_NAMES,
     P as PARAM_DEFAULTS,
     IH_OFF_DEFAULT,
