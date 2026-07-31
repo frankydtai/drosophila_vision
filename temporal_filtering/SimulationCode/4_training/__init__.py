@@ -26,44 +26,15 @@ from neuron import (
     v_budget_from_g,
 )
 from training.defaults import (
-    CA_TAU,
-    CAPAC,
-    DATA_AMP,
     IH_GMAX_INDI_NAMES,
-    DELTA_MS,
-    E_EXC,
-    E_IH,
-    E_INH,
-    E_LEAK_DEPOL,
-    E_LEAK_REST,
-    EXC_SYNWEIGHT,
-    G_LEAK,
-    IH_GAIN,
     IH_OFF,
-    INH_SYNWEIGHT,
     PARAM_BOXES,
-    PRE_MS,
-    RESPONSE_MS,
-    STATE_CLAMP,
-    SYN_MODE,
     PHYSICS,
+    PRE_MS,
+    PULSE_MS,
+    RESPONSE_MS,
+    SYN_MODE,
 )
-
-# Derived physics (formulas live on :class:`~neuron.params.Physics`).
-E_IH_OFF = PHYSICS.E_IH_OFF
-cdt = PHYSICS.cdt
-
-# Historical ``fc.*`` attribute aliases.
-E_Ih = E_IH
-Ca_tau = CA_TAU
-capac = CAPAC
-delta_ms = DELTA_MS
-exc_synweight = EXC_SYNWEIGHT
-g_leak = G_LEAK
-inh_synweight = INH_SYNWEIGHT
-Ih_gain = IH_GAIN
-E_exc = E_EXC
-E_inh = E_INH
 
 from training.config import (
     CLI_TARGET_NAMES,

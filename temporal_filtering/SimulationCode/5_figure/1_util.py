@@ -134,6 +134,17 @@ def annotate_baseline(ax, baseline):
     ax.axhline(0.0, color='0.4', linewidth=0.6, linestyle=':', zorder=0)
 
 
+def mark_pulse(ax, pulse_start, pulse_end):
+    """White band for stimulus-on samples ``[pulse_start, pulse_end)`` (axes face is gray)."""
+    if pulse_start is None or pulse_end is None:
+        return
+    t0 = int(pulse_start)
+    t1 = int(pulse_end)
+    if t1 <= t0:
+        return
+    ax.axvspan(t0, t1, facecolor='white', edgecolor='none', zorder=0)
+
+
 def suppress_cost_sem(session, target=None):
     """True when cost uses a single column (no column-mean SEM band)."""
     pack = session.primary_pack if target is None else session.pack_for(target)
@@ -415,27 +426,28 @@ def overlay_model_reds(n_slices):
 
 
 def ylim_for_traces(
-    model,
-    *,
-    data=None,
-    sem=None,
+    *curve_groups,
     show_sem=False,
-    model_2=None,
-    data_2=None,
     extra=(),
 ):
+    """Y-limits from one or more ``(model, data, sem)`` groups plus ``extra`` curves."""
     curves = []
-    if model is not None:
-        curves.append(model)
-    if data is not None:
-        curves.append(data)
-    if show_sem and sem is not None and model is not None:
-        curves.append(model + sem)
-        curves.append(model - sem)
-    if model_2 is not None:
-        curves.append(model_2)
-    if data_2 is not None:
-        curves.append(data_2)
+    for group in curve_groups:
+        if group is None:
+            continue
+        if isinstance(group, dict):
+            model = group.get("model")
+            data = group.get("data")
+            sem = group.get("sem")
+        else:
+            model, data, sem = (list(group) + [None, None, None])[:3]
+        if model is not None:
+            curves.append(model)
+        if data is not None:
+            curves.append(data)
+        if show_sem and sem is not None and model is not None:
+            curves.append(model + sem)
+            curves.append(model - sem)
     curves.extend(c for c in extra if c is not None)
     return nice_ylim(*curves)
 
@@ -537,14 +549,9 @@ def plot_pre_post_line(
 def plot_timecourse(
     ax,
     t,
-    model,
+    traces,
     *,
-    data=None,
-    sem=None,
     show_sem=True,
-    model_2=None,
-    data_2=None,
-    linestyle_2='--',
     title=None,
     title_fs=7,
     ylim=None,
@@ -553,92 +560,76 @@ def plot_timecourse(
     ylabel='mV',
     ticksize=6,
     style_xaxis=None,
-    linestyle='-',
-    point_ix=None,
-    point_ix_2=None,
     pre_end=0,
     show_pre=False,
+    pulse_start=None,
+    pulse_end=None,
 ):
-    """Model (red) vs data (gray) time course with optional SEM and two-trace overlay.
+    """Model (red) vs data (gray) time courses for one or more contrast traces.
 
-    ``pre_end`` / ``show_pre``: gray data never draws ``[0, pre_end)``; red model
-    draws that pre segment dashed only when ``show_pre`` is true.
+    ``traces``: sequence of dicts with keys ``model``, ``data``, optional
+    ``sem``, ``linestyle`` (default ``'-'``), ``point_ix``.
+    Gray data never draws ``[0, pre_end)``; red model draws that pre segment
+    dashed only when ``show_pre`` is true.
+    ``pulse_start`` / ``pulse_end``: white stimulus-on band ``[pulse_start, pulse_end)``.
     """
+    traces = list(traces or ())
     if ylim is None:
-        ylo, yhi = ylim_for_traces(
-            model, data=data, sem=sem, show_sem=show_sem,
-            model_2=model_2, data_2=data_2,
-        )
+        ylo, yhi = ylim_for_traces(*traces, show_sem=show_sem)
     else:
         ylo, yhi = ylim
-    discrete = point_ix is not None
+    mark_pulse(ax, pulse_start, pulse_end)
     split = max(0, int(pre_end or 0))
-    if not discrete:
-        if data is not None:
-            plot_pre_post_line(
-                ax, t, data, pre_end=split, show_pre=False, draw_pre=False,
-                color=DATA_COLOR, linestyle=linestyle, linewidth=TRACE_LW,
-            )
-        if model is not None:
-            if show_sem and sem is not None:
-                t_arr = np.asarray(t)
-                m_arr = np.asarray(model, dtype=np.float64)
-                s_arr = np.asarray(sem, dtype=np.float64)
-                if split < m_arr.shape[0]:
-                    plot_sem_band(ax, t_arr[split:], m_arr[split:], s_arr[split:])
-            plot_pre_post_line(
-                ax, t, model, pre_end=split, show_pre=show_pre, draw_pre=True,
-                color=MODEL_COLOR, linestyle=linestyle, linewidth=TRACE_LW,
-            )
-        if data_2 is not None:
-            plot_pre_post_line(
-                ax, t, data_2, pre_end=split, show_pre=False, draw_pre=False,
-                color=DATA_COLOR, linestyle=linestyle_2, linewidth=TRACE_LW,
-            )
-        if model_2 is not None:
-            plot_pre_post_line(
-                ax, t, model_2, pre_end=split, show_pre=show_pre, draw_pre=True,
-                color=MODEL_COLOR, linestyle=linestyle_2, linewidth=TRACE_LW,
-            )
-    else:
-        x_data, y_data = _series_points(t, data, point_ix=point_ix)
-        if x_data is not None:
-            ax.plot(
-                x_data, y_data, linestyle='none', marker='o', markersize=4,
-                fillstyle='none', markeredgewidth=1.0, color=DATA_COLOR,
-            )
-        if model is not None:
-            model_arr = np.asarray(model, dtype=np.float64)
-            ix_model = np.asarray(point_ix, dtype=np.int64)
-            ix_model = ix_model[(ix_model >= 0) & (ix_model < model_arr.shape[0])]
-            x_model = np.asarray(t)[ix_model]
-            y_model = model_arr[ix_model]
-            mask_model = np.isfinite(y_model)
-            if show_sem and sem is not None:
-                sem_arr = np.asarray(sem, dtype=np.float64)
-                sem_sub = sem_arr[ix_model]
-                mask_sem = mask_model & np.isfinite(sem_sub)
-                if np.any(mask_sem):
-                    plot_sem_band(ax, x_model[mask_sem], y_model[mask_sem], sem_sub[mask_sem])
-            if np.any(mask_model):
-                ax.plot(
-                    x_model[mask_model], y_model[mask_model], linestyle='none',
-                    marker='o', markersize=2.5, fillstyle='full',
-                    markeredgewidth=0.8, color=MODEL_COLOR,
+    for tr in traces:
+        model = tr.get("model")
+        data = tr.get("data")
+        sem = tr.get("sem")
+        linestyle = tr.get("linestyle", "-")
+        point_ix = tr.get("point_ix")
+        discrete = point_ix is not None
+        if not discrete:
+            if data is not None:
+                plot_pre_post_line(
+                    ax, t, data, pre_end=split, show_pre=False, draw_pre=False,
+                    color=DATA_COLOR, linestyle=linestyle, linewidth=TRACE_LW,
                 )
-        ix_2 = point_ix if point_ix_2 is None else point_ix_2
-        x_data_2, y_data_2 = _series_points(t, data_2, point_ix=ix_2)
-        if x_data_2 is not None:
-            ax.plot(
-                x_data_2, y_data_2, linestyle='none', marker='o', markersize=4,
-                fillstyle='none', markeredgewidth=1.0, color=DATA_COLOR,
-            )
-        x_model_2, y_model_2 = _series_points(t, model_2, point_ix=ix_2)
-        if x_model_2 is not None:
-            ax.plot(
-                x_model_2, y_model_2, linestyle='none', marker='o', markersize=2.5,
-                fillstyle='full', markeredgewidth=0.8, color=MODEL_COLOR,
-            )
+            if model is not None:
+                if show_sem and sem is not None:
+                    t_arr = np.asarray(t)
+                    m_arr = np.asarray(model, dtype=np.float64)
+                    s_arr = np.asarray(sem, dtype=np.float64)
+                    if split < m_arr.shape[0]:
+                        plot_sem_band(ax, t_arr[split:], m_arr[split:], s_arr[split:])
+                plot_pre_post_line(
+                    ax, t, model, pre_end=split, show_pre=show_pre, draw_pre=True,
+                    color=MODEL_COLOR, linestyle=linestyle, linewidth=TRACE_LW,
+                )
+        else:
+            x_data, y_data = _series_points(t, data, point_ix=point_ix)
+            if x_data is not None:
+                ax.plot(
+                    x_data, y_data, linestyle='none', marker='o', markersize=4,
+                    fillstyle='none', markeredgewidth=1.0, color=DATA_COLOR,
+                )
+            if model is not None:
+                model_arr = np.asarray(model, dtype=np.float64)
+                ix_model = np.asarray(point_ix, dtype=np.int64)
+                ix_model = ix_model[(ix_model >= 0) & (ix_model < model_arr.shape[0])]
+                x_model = np.asarray(t)[ix_model]
+                y_model = model_arr[ix_model]
+                mask_model = np.isfinite(y_model)
+                if show_sem and sem is not None:
+                    sem_arr = np.asarray(sem, dtype=np.float64)
+                    sem_sub = sem_arr[ix_model]
+                    mask_sem = mask_model & np.isfinite(sem_sub)
+                    if np.any(mask_sem):
+                        plot_sem_band(ax, x_model[mask_sem], y_model[mask_sem], sem_sub[mask_sem])
+                if np.any(mask_model):
+                    ax.plot(
+                        x_model[mask_model], y_model[mask_model], linestyle='none',
+                        marker='o', markersize=2.5, fillstyle='full',
+                        markeredgewidth=0.8, color=MODEL_COLOR,
+                    )
     if title is not None:
         ax.set_title(title, fontsize=title_fs, pad=2)
     ax.set_ylim(ylo, yhi)

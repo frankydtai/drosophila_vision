@@ -17,6 +17,7 @@ import json
 import os
 import sys
 import time
+from dataclasses import replace
 from pathlib import Path
 
 import numpy as np
@@ -34,6 +35,7 @@ from connectome_io import (
     resolve_network_json,
 )
 from training.defaults import (
+    CHECKPOINT_INTERVAL,
     DELTA_MS,
     FP,
     FULLY_INSIDE,
@@ -47,6 +49,7 @@ from training.defaults import (
     NOFRUNS,
     NOFSTEPS_CPU,
     NOFSTEPS_GPU,
+    PHYSICS,
     PRE_GRAD,
     PRE_MS,
     PULSE_MS,
@@ -597,6 +600,7 @@ def build_session(
     pack_overrides=None,
     model_backend=None,
     schema=None,
+    physics=None,
 ):
     """Create a :class:`TrainSession` from run options."""
     tl = list(target_list) if target_list is not None else list(
@@ -632,6 +636,7 @@ def build_session(
         syn_mode=syn_mode,
         fp=fp,
         pre_grad=pre_grad,
+        physics=physics,
         **mkw,
     )
     return fc.open_session(opts, model, schema=schema, model_backend=model_backend)
@@ -656,6 +661,7 @@ def run_training(model, nofruns, nofsteps, lrs, fname=None, outdir=None,
                  pack_overrides=None, model_backend=None, schema=None,
                  fp=FP,
                  pre_grad=PRE_GRAD,
+                 physics=None,
                  init_from=None,
                  checkpoint_interval=None,
                  make_checkpoint_callback=make_checkpoint_callback,
@@ -690,6 +696,7 @@ def run_training(model, nofruns, nofsteps, lrs, fname=None, outdir=None,
         schema=schema,
         fp=fp,
         pre_grad=pre_grad,
+        physics=physics,
     )
     suffix = "" if model == "borst" else f"_{model}"
     fname = fname or f"training{suffix or '_with_Ih'}.npy"
@@ -768,12 +775,12 @@ def add_training_arguments(parser):
     parser.add_argument(
         "--checkpoint-interval",
         type=int,
-        default=None,
+        default=CHECKPOINT_INTERVAL,
         metavar="N",
         help="every N global training steps, snap to the interval-best params and write "
              "data/best_param_step_XXXXX.npz, csv/param_XXXXX.csv, "
              "csv/syn_strength_XXXXX.csv or csv/edge_weight_XXXXX.csv, and png/*_XXXXX.png "
-             "(disabled by default)",
+             f"(default: {CHECKPOINT_INTERVAL})",
     )
     parser.add_argument("--fname", default=None,
                         help="params filename (default derived from --model)")
@@ -839,7 +846,7 @@ def add_training_arguments(parser):
     parser.add_argument("--tau-hp", **_partition_kwargs,
                         help=f"hp_lp tau_hp partitions ({_partition_help}; default indi=all)")
     parser.add_argument("--hp-gain", **_partition_kwargs,
-                        help=f"hp_lp hp_gain partitions ({_partition_help}; default {_ih_gmax_default})")
+                        help=f"hp_lp hp_gain partitions ({_partition_help}; default fixed=all)")
     parser.add_argument("--ih-off", default=IH_OFF,
                         choices=list(fc.IH_OFF_MODES),
                         help="OFF-channel Ih: on (train Ih_gmax_off+OFF shape; default), "
@@ -976,6 +983,14 @@ def add_training_arguments(parser):
         metavar="MS",
         help=f"spot: bright/dark PR pulse duration in ms from onset "
              f"(default: {PULSE_MS})",
+    )
+    parser.add_argument(
+        "--delta-ms",
+        type=float,
+        default=DELTA_MS,
+        metavar="MS",
+        help=f"simulation / stimulus time step in ms (default: {DELTA_MS}; "
+             "sets Physics.delta_ms and all stimulus opts delta_ms)",
     )
     parser.add_argument(
         "--cost-interval-ms",
@@ -1195,27 +1210,30 @@ def training_kwargs_from_args(
     fully_inside = bool(args.fully_inside)
     pre_ms = float(args.pre_ms)
     response_ms = float(args.response_ms)
+    delta_ms = float(args.delta_ms)
+    if delta_ms <= 0:
+        raise ValueError("--delta-ms must be > 0")
+    physics = replace(PHYSICS, delta_ms=delta_ms)
     multi_bar = bool(args.multi_bar)
     _timing = {
         "pre_ms": pre_ms,
         "response_ms": response_ms,
-        "delta_ms": float(DELTA_MS),
+        "delta_ms": delta_ms,
     }
     moving_bar_bright_stimulus_opts = {
         "multi_bar": multi_bar,
         "pre_ms": pre_ms,
-        "delta_ms": float(DELTA_MS),
+        "delta_ms": delta_ms,
     }
     moving_bar_dark_stimulus_opts = {
         "multi_bar": multi_bar,
         "pre_ms": pre_ms,
-        "delta_ms": float(DELTA_MS),
+        "delta_ms": delta_ms,
     }
     spot_bright_stimulus_opts = dict(_timing)
     spot_dark_stimulus_opts = dict(_timing)
-    if args.pulse_ms is not None:
-        for _o in (spot_bright_stimulus_opts, spot_dark_stimulus_opts):
-            _o["pulse_ms"] = float(args.pulse_ms)
+    for _o in (spot_bright_stimulus_opts, spot_dark_stimulus_opts):
+        _o["pulse_ms"] = float(args.pulse_ms)
     if args.cost_interval_ms is not None:
         if float(args.cost_interval_ms) <= 0:
             raise ValueError("--cost-interval-ms must be > 0")
@@ -1265,6 +1283,7 @@ def training_kwargs_from_args(
         fp=fp,
         pre_grad=bool(args.pre_grad),
         sequential=bool(args.sequential),
+        physics=physics,
         init_from=init_from,
         checkpoint_interval=args.checkpoint_interval,
     )

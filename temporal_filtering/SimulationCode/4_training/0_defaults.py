@@ -21,46 +21,33 @@ from neuron.params import Physics
 # ---------------------------------------------------------------------------
 
 DELTA_MS = 10.0
-G_LEAK = 1.0
-E_EXC = 10.0
-E_INH = -70.0
-CAPAC = 40.0
-CA_TAU = 50.0
-DATA_AMP = 20.0
-E_LEAK_REST = -50.0
-E_LEAK_DEPOL = -20.0
-EXC_SYNWEIGHT = 0.001
-INH_SYNWEIGHT = 0.001
-E_IH = 50.0
-IH_GAIN = 1.0
-IH_OFF = "on"
-STATE_CLAMP = 1.0e6
 
 PHYSICS = Physics(
     delta_ms=DELTA_MS,
-    capac=CAPAC,
-    g_leak=G_LEAK,
-    E_exc=E_EXC,
-    E_inh=E_INH,
-    E_Ih=E_IH,
-    E_LEAK_REST=E_LEAK_REST,
-    E_LEAK_DEPOL=E_LEAK_DEPOL,
-    Ih_gain=IH_GAIN,
-    Ca_tau=CA_TAU,
-    DATA_AMP=DATA_AMP,
-    STATE_CLAMP=STATE_CLAMP,
-    exc_synweight=EXC_SYNWEIGHT,
-    inh_synweight=INH_SYNWEIGHT,
+    capac=40.0,
+    g_leak=1.0,
+    E_exc=10.0,
+    E_inh=-70.0,
+    E_Ih=50.0,
+    E_LEAK_REST=-50.0,
+    E_LEAK_DEPOL=-20.0,
+    Ih_gain=1.0,
+    Ca_tau=50.0,
+    DATA_AMP=20.0,
+    STATE_CLAMP=1.0e6,
+    exc_synweight=0.001,
+    inh_synweight=0.001,
 )
+IH_OFF = "on"
 
-GAIN_LO = 0.1
-GAIN_HI = 100.0
+GAIN_LO = 0.5
+GAIN_HI = 5.0
 IH_GMAX_INDI_NAMES = ("L1", "L2", "L4", "L5")
 
 PARAM_BOXES: Dict[str, dict] = {
-    "in_gain": dict(lo=GAIN_LO, hi=GAIN_HI, init=1, jit=0.2),
-    "out_gain": dict(lo=GAIN_LO, hi=GAIN_HI, init=1, jit=0.2),
-    "out_scale": dict(lo=GAIN_LO, hi=GAIN_HI, init=1, jit=0.1),
+    "in_gain": dict(lo=GAIN_LO, hi=GAIN_HI, init=1.0, jit=0.1),
+    "out_gain": dict(lo=GAIN_LO, hi=GAIN_HI, init=1.0, jit=0.1),
+    "out_scale": dict(lo=GAIN_LO, hi=GAIN_HI, init=1.0, jit=0.1),
     "syn_strength": dict(lo=GAIN_LO, hi=GAIN_HI, init=1.0, jit=0.1),
     "edge_weight": dict(lo=GAIN_LO, hi=GAIN_HI, init=1.0, jit=0.1),
     "v_th": dict(lo=-70.0, hi=-30.0, init=-50.0, jit=0.0, fixed_val=-50.0),
@@ -72,10 +59,10 @@ PARAM_BOXES: Dict[str, dict] = {
     "Ih_midv_off": dict(lo=-70.0, hi=-30.0, init=-50.0, jit=5.0),
     "Ih_slope_off": dict(lo=-0.40, hi=-0.20, init=-0.25, jit=0.02),
     "tau_midv_off": dict(lo=-70.0, hi=-40.0, init=-50.0, jit=5.0),
-    "tau_lp": dict(lo=DELTA_MS, hi=100.0, init=50.0, jit=10.0),
-    "v_rest": dict(lo=-20.0, hi=20.0, init=0.0, jit=0.1),
-    "tau_hp": dict(lo=100.0, hi=10000.0, init=200.0, jit=0.0001, fixed_val=10000.0),
-    "hp_gain": dict(lo=0.0, hi=5.0, init=1.0, jit=0.1, fixed_val=1.0),
+    "tau_lp": dict(lo=PHYSICS.delta_ms, hi=100.0, init=50.0, jit=5.0),
+    "v_rest": dict(lo=-20.0, hi=20.0, init=0.0, jit=1.0),
+    "tau_hp": dict(lo=100.0, hi=10000.0, init=200.0, jit=20.0, fixed_val=10000.0),
+    "hp_gain": dict(lo=GAIN_LO, hi=GAIN_HI, init=1.0, jit=0.1, fixed_val=1.0),
 }
 
 MODEL = "hp_lp"
@@ -109,8 +96,9 @@ I_DARK = 0.0
 # 3.1 task.spot.input
 # ---------------------------------------------------------------------------
 
-PRE_MS = 1000.0
-RESPONSE_MS = 1000.0
+PRE_MS = 500.0
+RESPONSE_MS = 500.0
+PULSE_MS = 100.0
 SPOT_EXTENT = 1.0
 SPOT_EXTENTS: Tuple[float, ...] = (0.5, 1.0, 1.5, 2.0)
 FULLY_INSIDE = True
@@ -155,6 +143,7 @@ NOFRUNS = 1
 NOFSTEPS_CPU = 50
 NOFSTEPS_GPU = 200
 LRS = "0.1"
+CHECKPOINT_INTERVAL = 1000
 
 # ---------------------------------------------------------------------------
 # 4.5 training.session

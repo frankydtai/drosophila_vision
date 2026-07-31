@@ -12,10 +12,12 @@ import matplotlib.pyplot as plt
 import numpy as np
 import torch
 
-from training.defaults import DELTA_MS
+from training.defaults import PHYSICS
 import training as fc
 from figure.readout import (
     contrast_for_target,
+    contrast_linestyle,
+    contrast_order,
     pack_readout_types,
     plot_present_layout,
     plot_types_in_order,
@@ -32,6 +34,7 @@ from figure.util import (
     bundle_cell_title,
     bundle_prep_s,
     column_at_scope_tag,
+    mark_pulse,
     overlay_model_reds,
     plot_pre_post_line,
     plot_timecourse,
@@ -48,14 +51,33 @@ from task.spot.input import (
     spot_from_opts,
     spot_stimulus_batches,
 )
-from task.spot.data import (
-    resolve_spot_cost_radii,
-    spot_center_bin_layout,
-)
+from task.spot.data import spot_center_bin_layout
+from neuron.params import ms_to_t
 
 CENTER_BIN = 4  # RecF spatial center bin (j=4 in 0..8)
 RF_N_BINS = 9
 RF_BIN_X = np.arange(RF_N_BINS) * 5  # j=0..8 on mirrored RF axis (-20..20)
+
+
+def _pulse_end_from_opts(opts, t_onset, n_t):
+    """Exclusive end index of stimulus-on ``u[t]`` (matches ``spot_input_waveform``)."""
+    if t_onset is None:
+        return None
+    t0 = int(t_onset)
+    mt = int(n_t)
+    pulse_ms = opts.get("pulse_ms")
+    if pulse_ms is None:
+        return mt
+    dt = float(opts.get("delta_ms", PHYSICS.delta_ms))
+    width = max(1, ms_to_t(float(pulse_ms), delta_ms=dt))
+    return min(mt, t0 + width)
+
+
+def pack_spot_cost_radii(pack) -> tuple[float, ...]:
+    """Active cost rings from ``pack.cost_radius`` (already resolved at pack build)."""
+    if pack.cost_radius is None:
+        raise ValueError(f"{pack.name} pack missing cost_radius")
+    return tuple(sorted({round(float(r), 6) for r in pack.cost_radius.tolist()}))
 
 
 def _radius_to_profile_bins(radius):
@@ -88,28 +110,24 @@ def _session_spot_timing(session):
         int(t_onset),
         int(n_t),
         float(pulse_ms) if pulse_ms is not None else None,
-        float(opts.get("delta_ms", DELTA_MS)),
+        float(opts.get("delta_ms", PHYSICS.delta_ms)),
     )
 
 
-def resolve_spot_data_cubes(session_1, session_2=None, data_cubes=None):
-    """``{contrast: {cell: (9, T)}}`` for session_1 (and session_2 if dual)."""
+def resolve_spot_data_cubes(sessions, data_cubes=None):
+    """``{contrast: {cell: (9, T)}}`` for each entry in ``sessions`` (contrast → session)."""
     if data_cubes is not None:
         return data_cubes
-    t_onset_1, mt_1, pulse_ms_1, delta_ms_1 = _session_spot_timing(session_1)
-    c1 = contrast_for_target(session_1.primary_pack.name)
-    out = spot_data_cubes(
-        session_1, session_1.primary_pack.name, contrasts=(c1,),
-        t_onset=t_onset_1, n_t=mt_1, pulse_ms=pulse_ms_1, delta_ms=delta_ms_1,
-    )
-    if session_2 is not None:
-        t_onset_2, mt_2, pulse_ms_2, delta_ms_2 = _session_spot_timing(session_2)
-        c2 = contrast_for_target(session_2.primary_pack.name)
-        part2 = spot_data_cubes(
-            session_2, session_2.primary_pack.name, contrasts=(c2,),
-            t_onset=t_onset_2, n_t=mt_2, pulse_ms=pulse_ms_2, delta_ms=delta_ms_2,
+    if not sessions:
+        return {}
+    out = {}
+    for contrast, session in sessions.items():
+        t_onset, n_t, pulse_ms, delta_ms = _session_spot_timing(session)
+        part = spot_data_cubes(
+            session, session.primary_pack.name, contrasts=(str(contrast),),
+            t_onset=t_onset, n_t=n_t, pulse_ms=pulse_ms, delta_ms=delta_ms,
         )
-        out = {**out, **part2}
+        out.update(part)
     return out
 
 
@@ -125,13 +143,21 @@ def _session_cost_time_ix(session, response_start):
     return base + ix_np
 
 
-def scale_curve(xt, center, sem_xt=None, *, response_start=None):
-    """Center time course + discrete RF bins from one ``(9, T)`` cube."""
+def scale_curve(xt, center, sem_xt=None, *, response_start=None, pulse_end=None):
+    """Center time course + discrete RF bins from one ``(9, T)`` cube.
+
+    RF peak time ``maxt`` is ``argmax |v_delta|`` inside pulse ``[response_start, pulse_end)``.
+    """
     if response_start is None:
         raise ValueError("scale_curve requires response_start (t_onset)")
+    if pulse_end is None:
+        raise ValueError("scale_curve requires pulse_end")
     t0 = int(response_start)
+    t1 = int(pulse_end)
+    if t1 <= t0:
+        raise ValueError(f"scale_curve requires pulse_end > response_start, got [{t0}, {t1})")
     imp = xt[center]
-    resp = imp[t0:]
+    resp = imp[t0:t1]
     if not np.isfinite(resp).any():
         if sem_xt is not None:
             return None, None, None
@@ -166,8 +192,9 @@ def _plot_rf_profile(ax, rf, *, color, label=None, linestyle='-', filled=False):
     ax.plot(RF_BIN_X[mask], rf[mask], **kw)
 
 
-def _style_time_axis(ax, show_xlabel, n_t):
-    t_end = n_t * DELTA_MS / 1000.0
+def _style_time_axis(ax, show_xlabel, n_t, delta_ms=None):
+    dt = float(PHYSICS.delta_ms if delta_ms is None else delta_ms)
+    t_end = n_t * dt / 1000.0
     t_mid = t_end / 2.0
     ax.set_xlim(0, n_t)
     ax.set_xticks([0, n_t // 2, n_t])
@@ -185,171 +212,252 @@ def _style_recf_profile_axis(ax, show_xlabel):
         ax.set_xlabel('RF profile', fontsize=7)
 
 
+def _scale_contrast_series(series, *, response_start, pulse_end):
+    """Scale each contrast series entry to ImpR + RF bins.
+
+    ``series`` items may include ``model_xt``, ``data_xt``, ``sem_xt``.
+    Returns a list of dicts with ``imp_model``, ``rf_model``, ``imp_sem``,
+    ``imp_data``, ``rf_data`` plus passthrough keys.
+    """
+    center = CENTER_BIN
+    sc_kw = dict(response_start=response_start, pulse_end=pulse_end)
+    out = []
+    for entry in series:
+        item = dict(entry)
+        model_xt = entry.get("model_xt")
+        data_xt = entry.get("data_xt")
+        sem_xt = entry.get("sem_xt")
+        imp_sem = None
+        if model_xt is not None:
+            if sem_xt is not None:
+                imp_model, rf_model, imp_sem = scale_curve(
+                    model_xt, center, sem_xt, **sc_kw,
+                )
+            else:
+                imp_model, rf_model = scale_curve(model_xt, center, **sc_kw)
+        else:
+            imp_model, rf_model = None, None
+        if data_xt is not None:
+            imp_data, rf_data = scale_curve(data_xt, center, **sc_kw)
+        else:
+            imp_data, rf_data = None, None
+        item.update(
+            imp_model=imp_model,
+            rf_model=rf_model,
+            imp_sem=imp_sem,
+            imp_data=imp_data,
+            rf_data=rf_data,
+        )
+        out.append(item)
+    return out
+
+
+def plot_cell_rf(
+    ax,
+    title,
+    series,
+    *,
+    show_legend=False,
+    show_xlabels=False,
+    show_ylabel=False,
+    baseline=None,
+    response_start=None,
+    pulse_end=None,
+):
+    """RF-profile panel for one cell across contrast ``series``."""
+    scaled = _scale_contrast_series(
+        series, response_start=response_start, pulse_end=pulse_end,
+    )
+    ylo, yhi = TRACE_YLIM
+    for item in scaled:
+        ls = item.get("linestyle", "-")
+        _plot_rf_profile(
+            ax, item["rf_data"], color=DATA_COLOR,
+            label=item.get("label_data"), linestyle=ls,
+        )
+        _plot_rf_profile(
+            ax, item["rf_model"], color=MODEL_COLOR,
+            label=item.get("label_model"), linestyle=ls, filled=True,
+        )
+    ax.set_title(title, fontsize=8, pad=2)
+    ax.set_ylim(ylo, yhi)
+    _style_recf_profile_axis(ax, show_xlabels)
+    if show_ylabel:
+        ax.set_ylabel('mV', fontsize=7)
+    ax.tick_params(labelsize=6)
+    annotate_baseline(ax, baseline)
+    if show_legend:
+        ax.legend(loc='upper right', fontsize=6, frameon=False)
+
+
+def plot_cell_time(
+    ax,
+    series,
+    *,
+    title=None,
+    show_xlabels=False,
+    show_ylabel=False,
+    baseline=None,
+    n_t=None,
+    response_start=None,
+    pre_end=None,
+    show_pre=False,
+    pulse_end=None,
+    delta_ms=None,
+):
+    """Time-course panel for one cell across contrast ``series``.
+
+    ``pre_end`` defaults to ``response_start`` (gray data omits ``[0, pre_end)``).
+    Pass ``pre_end=0`` to draw the full data trace including pre-onset.
+    ``pulse_end``: white stimulus-on band ``[response_start, pulse_end)``.
+    """
+    scaled = _scale_contrast_series(
+        series, response_start=response_start, pulse_end=pulse_end,
+    )
+    ylo, yhi = TRACE_YLIM
+    t = np.arange(n_t)
+    split = int(response_start or 0) if pre_end is None else int(pre_end)
+    if title is not None:
+        ax.set_title(title, fontsize=8, pad=2)
+    traces = [
+        {
+            "model": item["imp_model"],
+            "data": item["imp_data"],
+            "sem": item["imp_sem"],
+            "linestyle": item.get("linestyle", "-"),
+            "point_ix": item.get("point_ix"),
+        }
+        for item in scaled
+    ]
+    plot_timecourse(
+        ax, t, traces,
+        show_sem=any(item["imp_sem"] is not None for item in scaled),
+        ylim=(ylo, yhi),
+        baseline=baseline,
+        show_ylabel=show_ylabel,
+        style_xaxis=lambda a: _style_time_axis(a, show_xlabels, n_t, delta_ms),
+        pre_end=split,
+        show_pre=show_pre,
+        pulse_start=response_start,
+        pulse_end=pulse_end,
+    )
+
+
 def plot_cell_pair(
     ax_rf,
     ax_time,
-    model_xt,
-    data_xt,
     title,
+    series,
     *,
-    sem_xt=None,
     show_legend=False,
     show_xlabels=False,
     show_ylabel=False,
     baseline=None,
     n_t=None,
-    model_2_xt=None,
-    data_2_xt=None,
-    baseline_2=None,
-    linestyle_1='-',
-    linestyle_2='--',
-    label_1_data='bright data',
-    label_1_model='bright model',
-    label_2_data='dark data',
-    label_2_model='dark model',
     response_start=None,
-    time_point_ix=None,
-    time_point_ix_2=None,
     show_pre=False,
+    pulse_end=None,
+    delta_ms=None,
 ):
-    center = CENTER_BIN
-    sc_kw = dict(response_start=response_start)
-    if sem_xt is not None:
-        imp_model, rf_model, imp_sem = scale_curve(model_xt, center, sem_xt, **sc_kw)
-    else:
-        imp_model, rf_model = scale_curve(model_xt, center, **sc_kw)
-        imp_sem = None
-    if data_xt is not None:
-        imp_data, rf_data = scale_curve(data_xt, center, **sc_kw)
-    else:
-        imp_data, rf_data = None, None
-    model_2_imp_model = model_2_rf_model = model_2_imp_data = model_2_rf_data = None
-    if model_2_xt is not None:
-        model_2_imp_model, model_2_rf_model = scale_curve(model_2_xt, center, **sc_kw)
-    if data_2_xt is not None:
-        model_2_imp_data, model_2_rf_data = scale_curve(data_2_xt, center, **sc_kw)
-    ylo, yhi = TRACE_YLIM
-
-    _plot_rf_profile(ax_rf, rf_data, color=DATA_COLOR, label=label_1_data, linestyle=linestyle_1)
-    _plot_rf_profile(
-        ax_rf, rf_model, color=MODEL_COLOR, label=label_1_model,
-        linestyle=linestyle_1, filled=True,
-    )
-    _plot_rf_profile(
-        ax_rf, model_2_rf_data, color=DATA_COLOR, label=label_2_data, linestyle=linestyle_2,
-    )
-    _plot_rf_profile(
-        ax_rf, model_2_rf_model, color=MODEL_COLOR, label=label_2_model,
-        linestyle=linestyle_2, filled=True,
-    )
-    ax_rf.set_title(title, fontsize=8, pad=2)
-    ax_rf.set_ylim(ylo, yhi)
-    _style_recf_profile_axis(ax_rf, show_xlabels)
-    if show_ylabel:
-        ax_rf.set_ylabel('mV', fontsize=7)
-    ax_rf.tick_params(labelsize=6)
-    annotate_baseline(ax_rf, baseline)
-    if show_legend:
-        ax_rf.legend(loc='upper right', fontsize=6, frameon=False)
-
-    t = np.arange(n_t)
-    pre_end = int(response_start or 0)
-    plot_timecourse(
-        ax_time, t, imp_model,
-        data=imp_data,
-        sem=imp_sem,
-        show_sem=imp_sem is not None,
-        model_2=model_2_imp_model,
-        data_2=model_2_imp_data,
-        linestyle_2=linestyle_2,
-        ylim=(ylo, yhi),
-        baseline=baseline_2 if baseline_2 is not None else baseline,
+    """RF + time panels for one cell (composes ``plot_cell_rf`` + ``plot_cell_time``)."""
+    plot_cell_rf(
+        ax_rf, title, series,
+        show_legend=show_legend,
+        show_xlabels=show_xlabels,
         show_ylabel=show_ylabel,
-        linestyle=linestyle_1,
-        style_xaxis=lambda ax: _style_time_axis(ax, show_xlabels, n_t),
-        point_ix=time_point_ix,
-        point_ix_2=time_point_ix_2,
-        pre_end=pre_end,
+        baseline=baseline,
+        response_start=response_start,
+        pulse_end=pulse_end,
+    )
+    plot_cell_time(
+        ax_time, series,
+        show_xlabels=show_xlabels,
+        show_ylabel=show_ylabel,
+        baseline=baseline,
+        n_t=n_t,
+        response_start=response_start,
         show_pre=show_pre,
+        pulse_end=pulse_end,
+        delta_ms=delta_ms,
     )
 
 
 def plot_cell_pair_slices(
     ax_rf,
     ax_time,
-    model_xt,
-    data_xt,
     title,
-    slice_overlay_xt,
+    series,
     slice_labels,
     *,
-    model_2_xt=None,
-    data_2_xt=None,
-    slice_overlay_2_xt=None,
     show_legend=False,
     show_xlabels=False,
     show_ylabel=False,
     baseline=None,
     n_t=None,
-    baseline_2=None,
-    linestyle_1='-',
-    linestyle_2='--',
-    label_1_data='bright data',
-    label_1_total='bright total',
-    label_2_data='dark data',
-    label_2_total='dark total',
     response_start=None,
     show_pre=False,
+    pulse_end=None,
+    delta_ms=None,
 ):
+    """RF + time panels with per-slice overlays across contrast ``series``."""
     center = CENTER_BIN
-    sc_kw = dict(response_start=response_start)
-    imp_model, rf_model = scale_curve(model_xt, center, **sc_kw)
-    imp_data, rf_data = (None, None)
-    if data_xt is not None:
-        imp_data, rf_data = scale_curve(data_xt, center, **sc_kw)
-    model_2_imp_model = model_2_rf_model = model_2_imp_data = model_2_rf_data = None
-    if model_2_xt is not None:
-        model_2_imp_model, model_2_rf_model = scale_curve(model_2_xt, center, **sc_kw)
-    if data_2_xt is not None:
-        model_2_imp_data, model_2_rf_data = scale_curve(data_2_xt, center, **sc_kw)
-
-    slice_imps = {}
-    slice_rfs = {}
-    slice_2_imps = {}
-    slice_2_rfs = {}
-    for label in slice_labels:
-        if label in slice_overlay_xt:
-            imp_s, rf_s = scale_curve(slice_overlay_xt[label], center, **sc_kw)
-            slice_imps[label] = imp_s
-            slice_rfs[label] = rf_s
-        if slice_overlay_2_xt and label in slice_overlay_2_xt:
-            imp_s, rf_s = scale_curve(slice_overlay_2_xt[label], center, **sc_kw)
-            slice_2_imps[label] = imp_s
-            slice_2_rfs[label] = rf_s
-
+    sc_kw = dict(response_start=response_start, pulse_end=pulse_end)
     ylo, yhi = TRACE_YLIM
-
     colors = overlay_model_reds(len(slice_labels))
-    _plot_rf_profile(ax_rf, rf_data, color=DATA_COLOR, label=label_1_data, linestyle=linestyle_1)
-    for i, label in enumerate(slice_labels):
+    t = np.arange(n_t)
+    pre_end = int(response_start or 0)
+    mark_pulse(ax_time, response_start, pulse_end)
+
+    for si, item in enumerate(series):
+        ls = item.get("linestyle", "-")
+        model_xt = item.get("model_xt")
+        data_xt = item.get("data_xt")
+        slice_overlay = item.get("slice_overlay") or {}
+        imp_model = rf_model = None
+        if model_xt is not None:
+            imp_model, rf_model = scale_curve(model_xt, center, **sc_kw)
+        imp_data = rf_data = None
+        if data_xt is not None:
+            imp_data, rf_data = scale_curve(data_xt, center, **sc_kw)
+        slice_imps = {}
+        slice_rfs = {}
+        for label in slice_labels:
+            if label in slice_overlay:
+                imp_s, rf_s = scale_curve(slice_overlay[label], center, **sc_kw)
+                slice_imps[label] = imp_s
+                slice_rfs[label] = rf_s
+
         _plot_rf_profile(
-            ax_rf, slice_rfs.get(label), color=colors[i], label=label, linestyle=linestyle_1,
+            ax_rf, rf_data, color=DATA_COLOR,
+            label=item.get("label_data"), linestyle=ls,
         )
-    _plot_rf_profile(
-        ax_rf, rf_model, color=colors[-1], label=label_1_total,
-        linestyle=linestyle_1, filled=True,
-    )
-    _plot_rf_profile(
-        ax_rf, model_2_rf_data, color=DATA_COLOR, label=label_2_data, linestyle=linestyle_2,
-    )
-    for i, label in enumerate(slice_labels):
+        for i, label in enumerate(slice_labels):
+            _plot_rf_profile(
+                ax_rf, slice_rfs.get(label), color=colors[i],
+                label=label if si == 0 else None, linestyle=ls,
+            )
         _plot_rf_profile(
-            ax_rf, slice_2_rfs.get(label), color=colors[i], linestyle=linestyle_2,
+            ax_rf, rf_model, color=colors[-1],
+            label=item.get("label_total"), linestyle=ls, filled=True,
         )
-    _plot_rf_profile(
-        ax_rf, model_2_rf_model, color=colors[-1], label=label_2_total,
-        linestyle=linestyle_2, filled=True,
-    )
+
+        plot_pre_post_line(
+            ax_time, t, imp_data, pre_end=pre_end, show_pre=False, draw_pre=False,
+            color=DATA_COLOR, linestyle=ls, linewidth=TRACE_LW,
+        )
+        for i, label in enumerate(slice_labels):
+            plot_pre_post_line(
+                ax_time, t, slice_imps.get(label), pre_end=pre_end,
+                show_pre=show_pre, draw_pre=True,
+                color=colors[i], linestyle=ls, linewidth=TRACE_LW,
+                label=label if si == 0 else None,
+            )
+        plot_pre_post_line(
+            ax_time, t, imp_model, pre_end=pre_end, show_pre=show_pre, draw_pre=True,
+            color=colors[-1], linestyle=ls, linewidth=TRACE_LW,
+            label=item.get("label_total"),
+        )
+
     ax_rf.set_title(title, fontsize=8, pad=2)
     ax_rf.set_ylim(ylo, yhi)
     _style_recf_profile_axis(ax_rf, show_xlabels)
@@ -360,42 +468,13 @@ def plot_cell_pair_slices(
     if show_legend:
         ax_rf.legend(loc='upper right', fontsize=6, frameon=False)
 
-    t = np.arange(n_t)
-    pre_end = int(response_start or 0)
-    plot_pre_post_line(
-        ax_time, t, imp_data, pre_end=pre_end, show_pre=False, draw_pre=False,
-        color=DATA_COLOR, linestyle=linestyle_1, linewidth=TRACE_LW,
-    )
-    for i, label in enumerate(slice_labels):
-        plot_pre_post_line(
-            ax_time, t, slice_imps.get(label), pre_end=pre_end,
-            show_pre=show_pre, draw_pre=True,
-            color=colors[i], linestyle=linestyle_1, linewidth=TRACE_LW, label=label,
-        )
-    plot_pre_post_line(
-        ax_time, t, imp_model, pre_end=pre_end, show_pre=show_pre, draw_pre=True,
-        color=colors[-1], linestyle=linestyle_1, linewidth=TRACE_LW, label=label_1_total,
-    )
-    plot_pre_post_line(
-        ax_time, t, model_2_imp_data, pre_end=pre_end, show_pre=False, draw_pre=False,
-        color=DATA_COLOR, linestyle=linestyle_2, linewidth=TRACE_LW,
-    )
-    for i, label in enumerate(slice_labels):
-        plot_pre_post_line(
-            ax_time, t, slice_2_imps.get(label), pre_end=pre_end,
-            show_pre=show_pre, draw_pre=True,
-            color=colors[i], linestyle=linestyle_2, linewidth=TRACE_LW,
-        )
-    plot_pre_post_line(
-        ax_time, t, model_2_imp_model, pre_end=pre_end, show_pre=show_pre, draw_pre=True,
-        color=colors[-1], linestyle=linestyle_2, linewidth=TRACE_LW,
-    )
     ax_time.set_ylim(ylo, yhi)
-    _style_time_axis(ax_time, show_xlabels, n_t)
+    _style_time_axis(ax_time, show_xlabels, n_t, delta_ms)
     if show_ylabel:
         ax_time.set_ylabel('mV', fontsize=7)
     ax_time.tick_params(labelsize=6)
-    annotate_baseline(ax_time, baseline_2 if baseline_2 is not None else baseline)
+    annotate_baseline(ax_time, baseline)
+
 
 
 def _as_index(neuron_index, device):
@@ -486,6 +565,7 @@ class SpotTraceBundle:
     v_th_by_name: dict = field(default_factory=dict)
     response_start: int | None = None
     show_pre: bool = True
+    pulse_end: int | None = None
 
     @property
     def has_slices(self):
@@ -524,6 +604,7 @@ def _spot_readout_bundle_view(bundle):
         v_th_by_name=bundle.v_th_by_name,
         response_start=bundle.response_start,
         show_pre=bundle.show_pre,
+        pulse_end=bundle.pulse_end,
     )
 
 
@@ -636,18 +717,17 @@ def _spot_forward_rows(
     batches = spot_stimulus_batches(spot)
     groups, names = plot_present_layout(_spot_all_type_names(session))
 
-    cost_radii = resolve_spot_cost_radii(stimulus_opts=opts)
     (
         batch_idx, unit_idx, _radius, type_idx, _stim_u, _stim_v, du, dv, center_row,
-    ) = spot_center_bin_layout(C, batches, cost_radii, pack.cost_extent)
+    ) = spot_center_bin_layout(
+        C, batches, pack_spot_cost_radii(pack), pack.cost_extent,
+    )
 
     raw = trace_full[batch_idx, :, unit_idx]
     scale = torch.ones((int(raw.shape[0]),), dtype=raw.dtype, device=raw.device)
-    from training.defaults import DELTA_MS
-    from neuron.params import ms_to_t
 
     stim_pre_ms = opts.get("pre_ms")
-    dt = float(opts.get("delta_ms", DELTA_MS))
+    dt = float(opts.get("delta_ms", PHYSICS.delta_ms))
     stim_t_onset = (
         ms_to_t(float(stim_pre_ms), delta_ms=dt) if stim_pre_ms is not None else None
     )
@@ -662,6 +742,7 @@ def _spot_forward_rows(
         center_row=center_row,
         plot_traces=plot_traces,
         t_onset=int(stim_t_onset) if stim_t_onset is not None else None,
+        pulse_end=_pulse_end_from_opts(opts, stim_t_onset, mt),
         batch_idx=batch_idx,
         batches=batches,
         mt=mt,
@@ -729,6 +810,7 @@ def network_spot_trace_bundle(
         v_th_by_name=v_th_by_type_name(z, session),
         response_start=rows.get('t_onset'),
         show_pre=bool(show_pre),
+        pulse_end=rows.get('pulse_end'),
     )
 
 
@@ -742,8 +824,7 @@ def _spot_suptitle(title, bundle):
 def _plot_spot_figure(
     path, *,
     timer,
-    bundle_on,
-    bundle_2=None,
+    bundles,
     title,
     data_cubes=None,
     ncols,
@@ -751,155 +832,134 @@ def _plot_spot_figure(
     gridspec_kw,
     suptitle_fs=12,
 ):
-    session_1 = bundle_on.session
-    session_2 = bundle_2.session if bundle_2 is not None else None
-    cells = bundle_on.cells
-    group_rows = bundle_on.group_rows
-    cells_2 = bundle_2.cells if bundle_2 is not None else None
-    has_slices = bundle_on.has_slices
-    slice_labels = bundle_on.slice_labels or []
-    slice_overlay_on = bundle_on.slice_overlay
-    slice_overlay_2 = bundle_2.slice_overlay if bundle_2 is not None else None
-    n_t = bundle_on.n_t
-    response_start = bundle_on.response_start
-    dual = session_2 is not None
-    response_start_2 = bundle_2.response_start if bundle_2 is not None else None
-    time_point_ix_1 = _session_cost_time_ix(session_1, response_start)
-    time_point_ix_2 = _session_cost_time_ix(session_2, response_start_2) if dual else None
+    """Draw spot figure from ``bundles`` (contrast → SpotTraceBundle)."""
+    order = contrast_order(bundles)
+    if not order:
+        raise ValueError("_plot_spot_figure requires at least one bundle")
+    primary = bundles[order[0]]
+    cells = primary.cells
+    group_rows = primary.group_rows
+    has_slices = primary.has_slices
+    slice_labels = primary.slice_labels or []
+    n_t = primary.n_t
+    response_start = primary.response_start
+    pulse_end = getattr(primary, "pulse_end", None)
+    delta_ms = float(primary.session.physics.delta_ms)
+    show_pre = getattr(primary, "show_pre", True)
     timer.end_prep()
-    # Model and gray RecF data cubes share ``v`` units (data used as-is).
-    # data_cubes: contrast → cell → (9, T)
-    data_by_contrast = resolve_spot_data_cubes(session_1, session_2, data_cubes)
+
+    sessions = {c: bundles[c].session for c in order}
+    data_by_contrast = resolve_spot_data_cubes(sessions, data_cubes)
+
+    cells_by_contrast = {}
+    for c in order:
+        cells_by_contrast[c] = {cell["name"]: cell for cell in bundles[c].cells}
+
     nrows = 2 * len(group_rows)
     fig = plt.figure(figsize=figsize_fn(ncols, nrows))
     gs = fig.add_gridspec(nrows, ncols, **gridspec_kw)
     legend_done = False
-    contrast_1 = contrast_for_target(session_1.primary_pack.name)
-    linestyle_1 = '--' if contrast_1 == 'dark' else '-'
-    label_1_data = f'{contrast_1} data'
-    label_1_model = f'{contrast_1} model'
-    label_1_total = f'{contrast_1} total'
-    contrast_2 = (
-        contrast_for_target(session_2.primary_pack.name) if session_2 is not None else 'bright'
-    )
-    linestyle_2 = '--' if contrast_2 == 'dark' else '-'
-    label_2_data = f'{contrast_2} data'
-    label_2_model = f'{contrast_2} model'
-    label_2_total = f'{contrast_2} total'
-    cells_data_1 = data_by_contrast.get(contrast_1) or {}
-    cells_data_2 = data_by_contrast.get(contrast_2) if dual else None
 
-    def _plot_cell(cell_on, cell_2, ax_rf, ax_time, show_ylabel, show_xlabels):
-        nonlocal legend_done
-        name = cell_on['name']
-        cell_title = bundle_cell_title(bundle_on, name, cell_on.get('n'))
-        if has_slices and slice_overlay_on is not None:
-            kw_2 = {}
-            if dual and cell_2 is not None:
-                slice_2_xt = None
-                if slice_overlay_2 is not None:
-                    slice_2_xt = {
+    def _series_for_cell(name, *, with_slices):
+        series = []
+        for c in order:
+            cell = cells_by_contrast[c].get(name)
+            if cell is None:
+                continue
+            data_cells = data_by_contrast.get(c) or {}
+            entry = {
+                "contrast": c,
+                "model_xt": cell["cube"],
+                "data_xt": data_cells.get(name),
+                "sem_xt": cell.get("sem"),
+                "baseline": cell.get("baseline"),
+                "linestyle": contrast_linestyle(c),
+                "label_data": f"{c} data",
+                "label_model": f"{c} model",
+                "label_total": f"{c} total",
+                "point_ix": _session_cost_time_ix(
+                    bundles[c].session, bundles[c].response_start,
+                ),
+            }
+            if with_slices:
+                overlay = bundles[c].slice_overlay
+                if overlay is not None:
+                    entry["slice_overlay"] = {
                         label: cubes[name]
-                        for label, cubes in slice_overlay_2.items()
+                        for label, cubes in overlay.items()
                         if name in cubes
                     }
-                kw_2 = {
-                    'model_2_xt': cell_2['cube'],
-                    'data_2_xt': (
-                        cells_data_2.get(name) if cells_data_2 is not None else None
-                    ),
-                    'baseline_2': cell_2.get('baseline'),
-                    'slice_overlay_2_xt': slice_2_xt,
-                }
-            slice_xt = {
-                label: cubes[name]
-                for label, cubes in slice_overlay_on.items()
-                if name in cubes
-            }
+                else:
+                    entry["slice_overlay"] = {}
+            series.append(entry)
+        return series
+
+    def _plot_cell(name, cell_primary, ax_rf, ax_time, show_ylabel, show_xlabels):
+        nonlocal legend_done
+        cell_title = bundle_cell_title(primary, name, cell_primary.get("n"))
+        if has_slices and primary.slice_overlay is not None:
+            series = _series_for_cell(name, with_slices=True)
+            slice_xt = (series[0].get("slice_overlay") or {}) if series else {}
             if not slice_xt:
-                ax_rf.axis('off')
-                ax_time.axis('off')
+                ax_rf.axis("off")
+                ax_time.axis("off")
                 return
             plot_cell_pair_slices(
-                ax_rf, ax_time, cell_on['cube'], cells_data_1.get(name), cell_title,
-                slice_xt, slice_labels,
+                ax_rf, ax_time, cell_title, series, slice_labels,
                 show_legend=not legend_done,
                 show_xlabels=show_xlabels,
                 show_ylabel=show_ylabel,
                 n_t=n_t,
-                baseline=cell_on.get('baseline'),
-                **kw_2,
-                linestyle_1=linestyle_1,
-                linestyle_2=linestyle_2,
-                label_1_data=label_1_data,
-                label_1_total=label_1_total,
-                label_2_data=label_2_data,
-                label_2_total=label_2_total,
+                baseline=cell_primary.get("baseline"),
                 response_start=response_start,
-                show_pre=getattr(bundle_on, "show_pre", True),
+                show_pre=show_pre,
+                pulse_end=pulse_end,
+                delta_ms=delta_ms,
             )
         else:
-            kw_2 = {}
-            if dual and cell_2 is not None:
-                kw_2 = {
-                    'model_2_xt': cell_2['cube'],
-                    'data_2_xt': (
-                        cells_data_2.get(name) if cells_data_2 is not None else None
-                    ),
-                    'baseline_2': cell_2.get('baseline'),
-                }
+            series = _series_for_cell(name, with_slices=False)
             plot_cell_pair(
-                ax_rf, ax_time, cell_on['cube'], cells_data_1.get(name), cell_title,
-                sem_xt=cell_on.get('sem'),
+                ax_rf, ax_time, cell_title, series,
                 show_legend=not legend_done,
                 show_xlabels=show_xlabels,
                 show_ylabel=show_ylabel,
                 n_t=n_t,
-                baseline=cell_on.get('baseline'),
-                **kw_2,
-                linestyle_1=linestyle_1,
-                linestyle_2=linestyle_2,
-                label_1_data=label_1_data,
-                label_1_model=label_1_model,
-                label_2_data=label_2_data,
-                label_2_model=label_2_model,
+                baseline=cell_primary.get("baseline"),
                 response_start=response_start,
-                time_point_ix=time_point_ix_1,
-                time_point_ix_2=time_point_ix_2,
-                show_pre=getattr(bundle_on, "show_pre", True),
+                show_pre=show_pre,
+                pulse_end=pulse_end,
+                delta_ms=delta_ms,
             )
         legend_done = True
 
-    cells_2_by_name = (
-        {c['name']: c for c in cells_2} if dual and cells_2 is not None else {}
-    )
     for gi, row_idx in enumerate(group_rows):
         rf_row = 2 * gi
         start = (ncols - len(row_idx)) // 2
         for j, ci in enumerate(row_idx):
             col = start + j
             cell_on = cells[ci]
-            cell_2 = cells_2_by_name.get(cell_on['name']) if dual else None
             ax_rf = fig.add_subplot(gs[rf_row, col])
             ax_time = fig.add_subplot(gs[rf_row + 1, col])
-            _plot_cell(cell_on, cell_2, ax_rf, ax_time, show_ylabel=(j == 0), show_xlabels=True)
-    fig.suptitle(_spot_suptitle(title, bundle_on), fontsize=suptitle_fs)
+            _plot_cell(
+                cell_on["name"], cell_on, ax_rf, ax_time,
+                show_ylabel=(j == 0), show_xlabels=True,
+            )
+    fig.suptitle(_spot_suptitle(title, primary), fontsize=suptitle_fs)
     timer.end_draw()
     save_figure(fig, path, dpi=150)
     timer.log(path)
 
 
-def plot_network_spot_data(path, *, bundle, bundle_2=None, title,
-                           data_cubes=None):
-    """Draw ca-data figure (pack readout types) from a full-scope bundle."""
-    timer = PlotTimer(prior_prep=bundle_prep_s(bundle, bundle_2))
-    view = _spot_readout_bundle_view(bundle)
-    view_2 = _spot_readout_bundle_view(bundle_2) if bundle_2 is not None else None
+def plot_network_spot_data(path, *, bundles, title, data_cubes=None):
+    """Draw ca-data figure (pack readout types) from contrast → bundle."""
+    timer = PlotTimer(prior_prep=bundle_prep_s(*bundles.values()))
+    views = {
+        c: _spot_readout_bundle_view(b) for c, b in bundles.items()
+    }
     _plot_spot_figure(
         path,
         timer=timer,
-        bundle_on=view,
-        bundle_2=view_2,
+        bundles=views,
         title=title,
         data_cubes=data_cubes,
         ncols=5,
@@ -908,20 +968,16 @@ def plot_network_spot_data(path, *, bundle, bundle_2=None, title,
     )
 
 
-def plot_network_spot_all(path, *, bundle, bundle_2=None, title,
-                          data_cubes=None):
-    """Draw ca-all figure (all types) from a full-scope bundle."""
-    timer = PlotTimer(prior_prep=bundle_prep_s(bundle, bundle_2))
+def plot_network_spot_all(path, *, bundles, title, data_cubes=None):
+    """Draw ca-all figure (all types) from contrast → bundle."""
+    timer = PlotTimer(prior_prep=bundle_prep_s(*bundles.values()))
     _plot_spot_figure(
         path,
         timer=timer,
-        bundle_on=bundle,
-        bundle_2=bundle_2,
+        bundles=bundles,
         title=title,
         data_cubes=data_cubes,
         ncols=8,
         figsize_fn=lambda c, r: (2.2 * c, 2.5 * r),
         gridspec_kw=dict(hspace=0.55, wspace=0.55, top=0.95, bottom=0.06, left=0.07, right=0.98),
     )
-
-

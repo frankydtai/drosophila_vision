@@ -217,7 +217,7 @@ def load_best(outdir, *, model=None, verbose=False):
 def _plot_spot_targets(session, z, outdir, spot_targets, suffix, model_all,
                        data_cubes=None,
                        at_x=None, at_y=None, save_trace_csv_dir=None, show_pre=True):
-    """Plot spot target(s); two traces combined in one figure when both are trained."""
+    """Plot spot target(s); contrasts combined in one figure when both are trained."""
     spot_set = set(spot_targets)
     make_bundle, plot_data, plot_all = spot_bundle_fns(session)
     ref_t = 'spot_bright' if 'spot_bright' in spot_set else spot_targets[0]
@@ -230,13 +230,17 @@ def _plot_spot_targets(session, z, outdir, spot_targets, suffix, model_all,
         show_pre=show_pre,
     )
     if spot_set == set(fc.SPOT_TARGETS):
-        s_1 = session_for_target(session, 'spot_bright')
-        s_2 = session_for_target(session, 'spot_dark')
-        b_1 = make_bundle(s_1, z, **bundle_kw)
-        b_2 = make_bundle(s_2, z, **bundle_kw)
+        bundles = {
+            'bright': make_bundle(
+                session_for_target(session, 'spot_bright'), z, **bundle_kw,
+            ),
+            'dark': make_bundle(
+                session_for_target(session, 'spot_dark'), z, **bundle_kw,
+            ),
+        }
         mvd = os.path.join(outdir, f'spot_trained_{kind}.png')
         plot_data(
-            mvd, bundle=b_1, bundle_2=b_2,
+            mvd, bundles=bundles,
             title=f'Spot {kind}-data ({suffix}){net_tag}',
             **plot_kw,
         )
@@ -244,7 +248,7 @@ def _plot_spot_targets(session, z, outdir, spot_targets, suffix, model_all,
         if model_all:
             allc = os.path.join(outdir, f'spot_all_{kind}.png')
             plot_all(
-                allc, bundle=b_1, bundle_2=b_2,
+                allc, bundles=bundles,
                 title=f'Spot {kind}-all ({suffix}){net_tag}',
                 **plot_kw,
             )
@@ -327,11 +331,13 @@ def _plot_one_target(session, z, outdir, tname, suffix, model_all,
         at_x_list=at_x, at_y_list=at_y,
         save_trace_csv_dir=save_trace_csv_dir, show_pre=show_pre,
     )
+    from figure.readout import contrast_for_target
+    bundles = {contrast_for_target(tname): b}
     plot_data(
-        mvd, bundle=b, title=f'{tname} {kind}-data ({suffix}){net_tag}', **plot_kw,
+        mvd, bundles=bundles, title=f'{tname} {kind}-data ({suffix}){net_tag}', **plot_kw,
     )
     if model_all:
-        plot_all(allc, bundle=b, title=f'{tname} {kind}-all ({suffix}){net_tag}', **plot_kw)
+        plot_all(allc, bundles=bundles, title=f'{tname} {kind}-all ({suffix}){net_tag}', **plot_kw)
     return mvd, allc
 
 

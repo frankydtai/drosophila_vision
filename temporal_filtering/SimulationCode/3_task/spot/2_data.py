@@ -101,11 +101,31 @@ def normalize_data(x):
     return result
 
 
+def _shift_right(y, k: int):
+    """Delay ``y`` by ``k`` samples (leading zeros; trailing samples dropped)."""
+    y = np.asarray(y)
+    k = int(k)
+    if k <= 0:
+        return y
+    out = np.zeros_like(y)
+    out[k:] = y[:-k]
+    return out
+
+
+# ImpR onset delay (samples): L1–L5 +1; other fit cells +2.
+_IMPR_SHIFT_RIGHT = {
+    "L1": 1, "L2": 1, "L3": 1, "L4": 1, "L5": 1,
+    "Mi1": 2, "Tm3": 2, "Mi4": 2, "Mi9": 2,
+    "Tm1": 2, "Tm2": 2, "Tm4": 2, "Tm9": 2,
+}
+
+
 def read_RecF_ImpR(*, t_onset=None, n_t=None, pulse_ms=None, delta_ms: float):
     """Return ``(RecF_data, ImpR_data)`` for the 13 fit cell types.
 
     Shapes: ``RecF_data`` ``(13, 45)``; ``ImpR_data`` ``(13, n_t)``. The
     drive is :func:`task.spot.input.spot_input_waveform` (step or pulse).
+    ImpR is delayed per ``_IMPR_SHIFT_RIGHT`` (L1–L5: 1; others: 2).
     """
     if t_onset is None or n_t is None:
         raise ValueError("read_RecF_ImpR requires t_onset and n_t")
@@ -139,9 +159,9 @@ def read_RecF_ImpR(*, t_onset=None, n_t=None, pulse_ms=None, delta_ms: float):
             ImpR_data[i] = _lowpass(signal, IR_lp[i])
         else:
             ImpR_data[i] = _bandpass(signal, IR_hp[i], IR_lp[i])
-        if i < 2:  # L1 and L2
-            ImpR_data[i] = ImpR_data[i] + 0.4 * signal
         ImpR_data[i] = normalize_data(ImpR_data[i])
+        name = str(cell_list[i])
+        ImpR_data[i] = _shift_right(ImpR_data[i], _IMPR_SHIFT_RIGHT[name])
 
     return RecF_data, ImpR_data
 
@@ -255,7 +275,7 @@ def parse_spot_cost_r_w_tokens(
 
 
 def resolve_spot_cost_radii(
-    spot_cost_radius_weight: Optional[Dict[float, float]],
+    spot_cost_radius_weight: Optional[Dict[float, float]] = None,
     *,
     default_weights: Dict[float, float],
     spot_cost_radii: Tuple[float, ...],

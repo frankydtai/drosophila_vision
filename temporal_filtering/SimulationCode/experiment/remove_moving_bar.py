@@ -10,10 +10,10 @@ os.chdir(ROOT)
 import import_bootstrap  # noqa: F401
 from training.defaults import (
     MULTI_BAR,
-    DELTA_MS,
     I_BASELINE,
     I_BRIGHT,
     I_DARK,
+    PHYSICS,
     PRE_MS,
 )
 import training as fc
@@ -63,7 +63,7 @@ if 'moving_bar_bright' in bar_targets:
         i_baseline=I_BASELINE,
         i_bar=I_BRIGHT,
         pre_ms=PRE_MS,
-        delta_ms=DELTA_MS,
+        delta_ms=PHYSICS.delta_ms,
         multi_bar=MULTI_BAR,
         readout_subtypes=readout_subtypes,
     )
@@ -73,7 +73,7 @@ if 'moving_bar_dark' in bar_targets:
         i_baseline=I_BASELINE,
         i_bar=I_DARK,
         pre_ms=PRE_MS,
-        delta_ms=DELTA_MS,
+        delta_ms=PHYSICS.delta_ms,
         multi_bar=MULTI_BAR,
         readout_subtypes=readout_subtypes,
     )

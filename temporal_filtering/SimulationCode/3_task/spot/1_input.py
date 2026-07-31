@@ -234,10 +234,10 @@ def build_spot(
 def spot_from_opts(
     C,
     *,
-    spot_extent: float,
-    shift_extent: int,
-    multi_spot: bool,
-    fully_inside: bool,
+    spot_extent: Optional[float] = None,
+    shift_extent: Optional[int] = None,
+    multi_spot: Optional[bool] = None,
+    fully_inside: Optional[bool] = None,
     stimulus_opts: Optional[Dict] = None,
 ) -> Spot:
     """Build :class:`Spot` with configurable sub-spot shift radius."""
@@ -246,6 +246,16 @@ def spot_from_opts(
         shift_extent = int(stimulus_opts["shift_extent"])
         multi_spot = bool(stimulus_opts["multi_spot"])
         fully_inside = bool(stimulus_opts["fully_inside"])
+    if (
+        spot_extent is None
+        or shift_extent is None
+        or multi_spot is None
+        or fully_inside is None
+    ):
+        raise TypeError(
+            "spot_from_opts requires spot_extent, shift_extent, multi_spot, and "
+            "fully_inside (or stimulus_opts containing them)"
+        )
     spot = build_spot(
         C, spot_extent=spot_extent, multi_spot=multi_spot, fully_inside=fully_inside,
     )

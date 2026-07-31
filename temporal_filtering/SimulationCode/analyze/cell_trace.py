@@ -213,7 +213,10 @@ def extract_spot_bundle(session, z, *, target: str, x_list, y_list):
         at_y_list=y_list,
         save_trace_csv_dir=None,
     )
-    data_cubes = spot_plot.resolve_spot_data_cubes(one)
+    from figure.readout import contrast_for_target
+    data_cubes = spot_plot.resolve_spot_data_cubes(
+        {contrast_for_target(one.primary_pack.name): one},
+    )
     return one, bundle, data_cubes
 
 
@@ -251,11 +254,17 @@ def extract_spot_cell_curves(bundle, data_cubes, *, cell: str, slice_label: str 
             "spot bundle missing response_start (t_onset); "
             "cannot scale spot time courses"
         )
+    if bundle.pulse_end is None:
+        raise SystemExit(
+            "spot bundle missing pulse_end; "
+            "cannot scale spot RF peak inside pulse window"
+        )
+    sc_kw = dict(response_start=bundle.response_start, pulse_end=bundle.pulse_end)
     imp_total, rf_total = spot_plot.scale_curve(
-        cell_on["cube"], center, response_start=bundle.response_start,
+        cell_on["cube"], center, **sc_kw,
     )
     imp_data, rf_data = spot_plot.scale_curve(
-        data_on[cell], center, response_start=bundle.response_start,
+        data_on[cell], center, **sc_kw,
     )
 
     out: dict[str, np.ndarray] = {
@@ -269,7 +278,7 @@ def extract_spot_cell_curves(bundle, data_cubes, *, cell: str, slice_label: str 
         cubes = bundle.slice_overlay[slice_label]
         if cell in cubes:
             imp_slice, rf_slice = spot_plot.scale_curve(
-                cubes[cell], center, response_start=bundle.response_start,
+                cubes[cell], center, **sc_kw,
             )
             out[f"time_slice_model:{slice_label}"] = _float_curve(imp_slice)
             out[f"rf_slice_model:{slice_label}"] = _float_curve(rf_slice)

@@ -24,14 +24,13 @@ from typing import Dict, List, Optional, Tuple
 import numpy as np
 import torch
 
-from neuron.params import ms_to_t
+from neuron.params import ms_to_t, Physics
 from training.config import run_data_dir
 from neuron import (
     default_schema,
     normalize_syn_mode,
 )
 from training.defaults import (
-    DATA_AMP,
     FP,
     FULLY_INSIDE,
     MULTI_BAR,
@@ -41,18 +40,17 @@ from training.defaults import (
     SPOT_COST_RADIUS_WEIGHT,
     SPOT_COST_RADIUS_WEIGHT_EXTENT1,
     SPOT_EXTENT,
-    DELTA_MS,
     IH_GMAX_INDI_NAMES,
     IH_OFF,
     I_BASELINE,
     I_BRIGHT,
     I_DARK,
     PARAM_BOXES,
+    PHYSICS,
     PRE_MS,
     PULSE_MS,
     RESPONSE_MS,
     SYN_MODE,
-    PHYSICS,
 )
 
 from training.config import (
@@ -391,7 +389,7 @@ def _moving_bar_polarity_opts(ctx: _TrainBindCtx, polarity: str) -> dict:
         i_baseline=I_BASELINE,
         i_bar=I_BRIGHT if polarity == "bright" else I_DARK,
         pre_ms=PRE_MS,
-        delta_ms=DELTA_MS,
+        delta_ms=PHYSICS.delta_ms,
         multi_bar=MULTI_BAR,
     )
 
@@ -423,8 +421,8 @@ def _build_network_moving_bar_target(ctx: _TrainBindCtx, C, *, pack_name: str, p
         C=C,
         device=dev,
         sim_dtype=ctx.sim_dtype,
-        t_on=ms_to_t(float(opts["pre_ms"]), delta_ms=float(opts.get("delta_ms", DELTA_MS))),
-        delta_ms=float(opts.get("delta_ms", DELTA_MS)),
+        t_on=ms_to_t(float(opts["pre_ms"]), delta_ms=float(opts.get("delta_ms", PHYSICS.delta_ms))),
+        delta_ms=float(opts.get("delta_ms", PHYSICS.delta_ms)),
         cost_extent=cost_extent,
         i_baseline=opts["i_baseline"],
         contrasts=(polarity,),
@@ -491,7 +489,7 @@ def _spot_cost_times_ms(opts):
     interval_ms = float(interval_ms)
     if interval_ms <= 0:
         raise ValueError("cost_interval_ms must be > 0")
-    delta_ms = float(opts.get("delta_ms", DELTA_MS))
+    delta_ms = float(opts.get("delta_ms", PHYSICS.delta_ms))
     t_onset, n_t = spot_timing_t_from_opts(opts)
     post = n_t - t_onset
     if post <= 0:
@@ -512,7 +510,7 @@ def _spot_cost_time_ix(opts, *, device):
     cost_time_ms = _spot_cost_times_ms(opts)
     if not cost_time_ms:
         return None
-    delta_ms = float(opts.get("delta_ms", DELTA_MS))
+    delta_ms = float(opts.get("delta_ms", PHYSICS.delta_ms))
     t_onset, n_t = spot_timing_t_from_opts(opts)
     post = n_t - t_onset
     ix = [int(round(float(ms) / delta_ms)) for ms in cost_time_ms]
@@ -552,7 +550,7 @@ def _build_network_spot_target(
         weights=SPOT_COST_RADIUS_WEIGHT,
         weights_extent1=SPOT_COST_RADIUS_WEIGHT_EXTENT1,
     )
-    from training.defaults import SPOT_COST_RADII, SPOT_COST_RADIUS_KEY_ALIASES, DATA_AMP as _DATA_AMP
+    from training.defaults import SPOT_COST_RADII, SPOT_COST_RADIUS_KEY_ALIASES
     T = build_shifted_target(
         C,
         spot_extent=spot_extent,
@@ -571,8 +569,8 @@ def _build_network_spot_target(
         i_bright=i_step if polarity == "bright" else float(opts.get("i_bright", I_BRIGHT)),
         i_dark=i_step if polarity == "dark" else float(opts.get("i_dark", I_DARK)),
         polarity=polarity,
-        pulse_ms=opts.get("pulse_ms"),
-        data_amp=_DATA_AMP,
+        pulse_ms=float(opts.get("pulse_ms", PULSE_MS)),
+        data_amp=PHYSICS.DATA_AMP,
         delta_ms=delta_ms,
         default_cost_weights=default_w,
         spot_cost_radii=SPOT_COST_RADII,
@@ -763,12 +761,12 @@ def _finalize_stimulus_opts(
             i_step=float(raw.get(step_key, i_step_default)),
             pre_ms=float(raw.get("pre_ms", PRE_MS)),
             response_ms=float(raw.get("response_ms", RESPONSE_MS)),
-            delta_ms=float(raw.get("delta_ms", DELTA_MS)),
+            delta_ms=float(raw.get("delta_ms", PHYSICS.delta_ms)),
             shift_extent=int(raw.get("shift_extent", shift_extent if shift_extent is not None else SHIFT_EXTENT)),
             spot_extent=float(raw.get("spot_extent", spot_extent if spot_extent is not None else SPOT_EXTENT)),
             multi_spot=bool(raw.get("multi_spot", multi_spot if multi_spot is not None else MULTI_SPOT)),
             fully_inside=bool(raw.get("fully_inside", fully_inside if fully_inside is not None else FULLY_INSIDE)),
-            pulse_ms=raw.get("pulse_ms"),
+            pulse_ms=float(raw.get("pulse_ms", PULSE_MS)),
             cost_interval_ms=raw.get("cost_interval_ms"),
         )
     elif target_name == "moving_bar_bright":
@@ -779,7 +777,7 @@ def _finalize_stimulus_opts(
             i_baseline=float(raw.get("i_baseline", I_BASELINE)),
             i_bar=float(raw.get("i_bright_bar", I_BRIGHT)),
             pre_ms=float(raw.get("pre_ms", PRE_MS)),
-            delta_ms=float(raw.get("delta_ms", DELTA_MS)),
+            delta_ms=float(raw.get("delta_ms", PHYSICS.delta_ms)),
             multi_bar=bool(raw.get("multi_bar", MULTI_BAR)),
             readout_subtypes=raw.get("readout_subtypes"),
         )
@@ -791,7 +789,7 @@ def _finalize_stimulus_opts(
             i_baseline=float(raw.get("i_baseline", I_BASELINE)),
             i_bar=float(raw.get("i_dark_bar", I_DARK)),
             pre_ms=float(raw.get("pre_ms", PRE_MS)),
-            delta_ms=float(raw.get("delta_ms", DELTA_MS)),
+            delta_ms=float(raw.get("delta_ms", PHYSICS.delta_ms)),
             multi_bar=bool(raw.get("multi_bar", MULTI_BAR)),
             readout_subtypes=raw.get("readout_subtypes"),
         )
@@ -1122,6 +1120,24 @@ def open_session(
     )
 
 
+def _physics_from_train_opts(opts: dict) -> Physics:
+    """Physics for a session: in-memory object, else ``delta_ms`` from stimulus opts."""
+    physics = opts.get("physics")
+    if physics is not None:
+        return physics
+    dt = None
+    for _tname, opts_key in _STIMULUS_TRAIN_OPT_SPECS:
+        so = opts.get(opts_key)
+        if isinstance(so, dict) and so.get("delta_ms") is not None:
+            dt = float(so["delta_ms"])
+            break
+    if dt is None:
+        return PHYSICS
+    if dt <= 0:
+        raise ValueError(f"stimulus opts delta_ms must be > 0, got {dt}")
+    return replace(PHYSICS, delta_ms=dt)
+
+
 def open_session_from_opts(opts: dict, model: str | None = None, **kwargs) -> TrainSession:
     """Restore a session from a saved ``train_opts.json`` dict."""
     opts = dict(opts)
@@ -1140,7 +1156,7 @@ def open_session_from_opts(opts: dict, model: str | None = None, **kwargs) -> Tr
         raise ValueError("train_opts requires target_list")
     sim_dtype = sim_dtype_from_fp(int(opts.get("fp", FP)))
     syn_mode = normalize_syn_mode(opts.get("syn_mode", SYN_MODE))
-    physics = opts.get("physics") or PHYSICS
+    physics = _physics_from_train_opts(opts)
     opts["physics"] = physics
     mb = load_network_backend(
         nj, dev=opts.get("dev") or active_device(), sim_dtype=sim_dtype,

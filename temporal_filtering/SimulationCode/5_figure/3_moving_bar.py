@@ -59,12 +59,12 @@ from task.moving_bar.input import (
     cost_window_after_t,
     cost_window_before_t,
 )
-from training.defaults import DELTA_MS
+from training.defaults import PHYSICS
 
 MOVING_BAR_DPI = 100
 
-COST_WINDOW_BEFORE = cost_window_before_t(DELTA_MS)
-COST_WINDOW_AFTER = cost_window_after_t(DELTA_MS)
+COST_WINDOW_BEFORE = cost_window_before_t(PHYSICS.delta_ms)
+COST_WINDOW_AFTER = cost_window_after_t(PHYSICS.delta_ms)
 
 
 @dataclass
@@ -176,7 +176,7 @@ def _plot_types_and_ids(session):
 
 
 def _rel_window_seconds(before_t, after_t):
-    scale = DELTA_MS / 1000.0
+    scale = PHYSICS.delta_ms / 1000.0
     return before_t * scale, after_t * scale
 
 
@@ -377,7 +377,7 @@ def _moving_bar_traces_from_forward(
     _t_onset = int(pack.signal.shape[1] - pack.data.shape[1])
     grids = moving_bar_session_t0_grids(
         session, specs, cost_extent, n_t, at_x=at_x, at_y=at_y,
-        t_onset=_t_onset, delta_ms=fc.delta_ms,
+        t_onset=_t_onset, delta_ms=fc.PHYSICS.delta_ms,
     )
     types, type_ids = _plot_types_and_ids(session)
     t0_full_bn = grids.t0_bn
@@ -629,9 +629,13 @@ def _plot_moving_bar_cell(
         ylo, yhi = ylim
 
     plot_timecourse(
-        ax, np.arange(win_len), ca_trace,
-        data=None,
-        sem=sem_trace,
+        ax, np.arange(win_len),
+        [{
+            "model": ca_trace,
+            "data": None,
+            "sem": sem_trace,
+            "linestyle": linestyle,
+        }],
         show_sem=show_sem and sem_trace is not None and np.any(sem_trace),
         title=title,
         ylim=(ylo, yhi),
@@ -639,7 +643,6 @@ def _plot_moving_bar_cell(
         show_ylabel=show_ylabel,
         ticksize=6 if cell_ticks else 5,
         style_xaxis=style_xaxis,
-        linestyle=linestyle,
         pre_end=pre_end,
         show_pre=show_pre,
     )

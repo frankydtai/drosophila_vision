@@ -76,16 +76,13 @@ from task.moving_bar.input import (
     filter_sti_columns,
     moving_bar_cost_columns,
 )
-from task.spot.data import (
-    resolve_spot_cost_radii,
-    spot_center_bin_layout,
-)
+from task.spot.data import spot_center_bin_layout
 from task.spot.input import (
     spot_from_opts,
     spot_stimulus_batches,
 )
 from figure.readout import contrast_for_target
-from figure.spot import CENTER_BIN, resolve_spot_data_cubes
+from figure.spot import CENTER_BIN, pack_spot_cost_radii, resolve_spot_data_cubes
 from figure.util import plot_sem_band
 from connectome_io import parse_comma_list
 
@@ -217,11 +214,11 @@ _FORMULA_TOKENS: list[tuple[str, str | None]] = [
 def _g_e_note(label: str, *, e_leak_mV: float) -> str | None:
     """Reversal annotation for a conductance subplot (``E_exc=+10 mV`` …)."""
     notes = {
-        "g_exc": f"E_exc={fc.E_exc:+g} mV",
-        "g_inh": f"E_inh={fc.E_inh:+g} mV",
+        "g_exc": f"E_exc={fc.PHYSICS.E_exc:+g} mV",
+        "g_inh": f"E_inh={fc.PHYSICS.E_inh:+g} mV",
         "g_leak": f"E_leak={e_leak_mV:+g} mV",
-        "g_h_on": f"E_h_on={fc.E_Ih:+g} mV",
-        "g_h_off": f"E_h_off={fc.E_IH_OFF:+g} mV",
+        "g_h_on": f"E_h_on={fc.PHYSICS.E_Ih:+g} mV",
+        "g_h_off": f"E_h_off={fc.PHYSICS.E_IH_OFF:+g} mV",
     }
     return notes.get(label)
 
@@ -432,8 +429,8 @@ def _step_from_acc(
         "signal": acc["signal"] / n,
         "g_exc_nS": acc["g_exc"] / n,
         "g_inh_nS": acc["g_inh"] / n,
-        "g_leak_nS": float(fc.g_leak),
-        "cdt_nS": float(fc.cdt),
+        "g_leak_nS": float(fc.PHYSICS.g_leak),
+        "cdt_nS": float(fc.PHYSICS.cdt),
         "g_Ih_on_nS": acc["g_Ih_on"] / n,
         "g_Ih_off_nS": acc["g_Ih_off"] / n,
         "num_exc": acc["num_exc"] / n,
@@ -745,13 +742,13 @@ def _unit_params(p, backend, unit: int) -> dict[str, float]:
 def _globals(session):
     pack = session.primary_pack
     return {
-        "E_exc": fc.E_exc,
-        "E_inh": fc.E_inh,
-        "E_Ih": fc.E_Ih,
-        "E_IH_OFF": fc.E_IH_OFF,
-        "g_leak_nS": fc.g_leak,
-        "cdt": fc.cdt,
-        "delta_ms": fc.delta_ms,
+        "E_exc": fc.PHYSICS.E_exc,
+        "E_inh": fc.PHYSICS.E_inh,
+        "E_Ih": fc.PHYSICS.E_Ih,
+        "E_IH_OFF": fc.PHYSICS.E_IH_OFF,
+        "g_leak_nS": fc.PHYSICS.g_leak,
+        "cdt": fc.PHYSICS.cdt,
+        "delta_ms": fc.PHYSICS.delta_ms,
         "t_onset": int(pack.signal.shape[1] - pack.data.shape[1]),
     }
 
@@ -899,7 +896,7 @@ def _bar_meta(session, target: str):
     pack = session.pack_for(target)
     grids = moving_bar_session_t0_grids(
         session, specs, pack.cost_extent, int(session.n_t),
-        t_onset=int(pack.signal.shape[1] - pack.data.shape[1]), delta_ms=fc.delta_ms,
+        t_onset=int(pack.signal.shape[1] - pack.data.shape[1]), delta_ms=fc.PHYSICS.delta_ms,
     )
     return specs, grids
 
@@ -1184,7 +1181,7 @@ def _spot_session_layout(session_one, cells: list[str]):
     ) = spot_center_bin_layout(
         C,
         spot_stimulus_batches(spot),
-        resolve_spot_cost_radii(stimulus_opts=opts),
+        pack_spot_cost_radii(pack),
         pack.cost_extent,
     )
     type_i: dict[str, int] = {}
@@ -1238,7 +1235,9 @@ def analyze_spot_average(
     if not walk_batches:
         raise SystemExit("no center-bin units for requested cells in spot layout")
 
-    data_by_contrast = resolve_spot_data_cubes(session_one)
+    data_by_contrast = resolve_spot_data_cubes(
+        {contrast_for_target(pack.name): session_one},
+    )
     contrast = contrast_for_target(pack.name)
     data_on = data_by_contrast.get(contrast) or {}
 
@@ -1495,7 +1494,7 @@ def _plot_budget_reports(
     colors = _plot_colors()
     linestyles = ("-", "--", "-.", ":")
     overlay = len(reports) > 1
-    e_leak_mV = float(reports[0].get("params", {}).get("e_leak_mV", fc.E_LEAK_REST))
+    e_leak_mV = float(reports[0].get("params", {}).get("e_leak_mV", fc.PHYSICS.E_LEAK_REST))
     row_curves: dict[int, list[np.ndarray]] = {ri: [] for ri in _ROW_SHARED_YLIM}
 
     for ri, (group_ylabel, series) in enumerate(_PLOT_PANELS):

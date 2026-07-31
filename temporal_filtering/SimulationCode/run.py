@@ -228,7 +228,7 @@ def run_mirror_spot_experiment(
     configure_parser=None,
 ):
     """CLI entry for spot mirror-fit experiments (train + plot)."""
-    from training.defaults import DELTA_MS, PRE_MS, RESPONSE_MS
+    from training.defaults import PHYSICS, PRE_MS, RESPONSE_MS
     from figure.readout import fit_data_cubes
     from neuron.params import ms_to_t
     from training.experiment import (
@@ -240,15 +240,15 @@ def run_mirror_spot_experiment(
 
     def make_mirror_data_cubes(fits, sign):
         specs = _normalize_mirror_fits(fits, sign)
-        t_onset = ms_to_t(PRE_MS, delta_ms=DELTA_MS)
-        n_t = t_onset + ms_to_t(RESPONSE_MS, delta_ms=DELTA_MS) + 1
+        t_onset = ms_to_t(PRE_MS, delta_ms=PHYSICS.delta_ms)
+        n_t = t_onset + ms_to_t(RESPONSE_MS, delta_ms=PHYSICS.delta_ms) + 1
 
         def mirror_data_cubes(contrasts):
             base = fit_data_cubes(
                 contrasts=contrasts,
                 t_onset=t_onset,
                 n_t=n_t,
-                delta_ms=DELTA_MS,
+                delta_ms=PHYSICS.delta_ms,
             )
             out = {}
             for contrast, cells in base.items():
