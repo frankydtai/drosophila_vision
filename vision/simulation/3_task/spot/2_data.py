@@ -534,7 +534,11 @@ def build_shifted_target(
     drive = torch.as_tensor(
         i_baseline + (i_step - i_baseline) * u, dtype=sim_dtype, device=device,
     )
+    # All PR columns hold i_baseline; stim_uv columns then get the step/pulse drive.
+    pr_idx = torch.as_tensor(np.where(C.is_input)[0], dtype=torch.long, device=device)
     signal = torch.zeros((n_batch, n_t, C.n_units), dtype=sim_dtype, device=device)
+    if len(pr_idx):
+        signal[:, :, pr_idx] = float(i_baseline)
     for b, batch in enumerate(batches):
         for su, sv in batch.stim_uv:
             units = C.input_units_at(su, sv)

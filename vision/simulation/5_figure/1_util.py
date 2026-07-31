@@ -134,14 +134,32 @@ def cost_ylim(*curves, pct=99.0, pad=1.1, floor=1.0):
 
 
 def annotate_baseline(ax, baseline):
-    """Middle y tick at 0 with resting-potential label (delta-mV plots)."""
+    """Y-axis: mid tick at 0 labeled with ``v_onset``; dashed line at ``v_th``/``v_rest``.
+
+    ``baseline`` is ``v_onset`` or ``(v_onset, v_ref)`` in absolute mV. Traces are
+    delta-mV, so the line is at ``y = v_ref - v_onset`` (or ``y = 0`` if no ref).
+    """
     ylo, yhi = ax.get_ylim()
+    v_onset, v_ref = _unpack_baseline(baseline)
+    y_line = 0.0
+    if (
+        v_onset is not None and v_ref is not None
+        and np.isfinite(v_onset) and np.isfinite(v_ref)
+    ):
+        y_line = float(v_ref) - float(v_onset)
+    mid = f'{float(v_onset):.1f}' if v_onset is not None and np.isfinite(v_onset) else ''
     ax.set_yticks([ylo, 0.0, yhi])
-    if baseline is None or not np.isfinite(baseline):
-        ax.set_yticklabels([f'{ylo:+.0f}', '', f'{yhi:+.0f}'], fontsize=6)
-    else:
-        ax.set_yticklabels([f'{ylo:+.0f}', f'{baseline:.1f}', f'{yhi:+.0f}'], fontsize=6)
-    ax.axhline(0.0, color='0.4', linewidth=0.6, linestyle=':', zorder=0)
+    ax.set_yticklabels([f'{ylo:+.0f}', mid, f'{yhi:+.0f}'], fontsize=6)
+    ax.axhline(y_line, color='0.4', linewidth=0.6, linestyle=':', zorder=0)
+
+
+def _unpack_baseline(baseline):
+    """Return ``(v_onset, v_ref_or_none)`` from a scalar or ``(onset, ref)`` pair."""
+    if baseline is None:
+        return None, None
+    if isinstance(baseline, (tuple, list)) and len(baseline) >= 2:
+        return baseline[0], baseline[1]
+    return baseline, None
 
 
 def mark_pulse(ax, pulse_start, pulse_end):
@@ -177,17 +195,23 @@ def readout_center_mask(pack, backend):
     return np.ones(readout.shape[0], dtype=bool)
 
 
-def baselines_for_types(pack, backend, v_onset, names, type_ids, global_type_names):
-    """Mean v_onset at stimulus onset over center cost-readout units, keyed by type name."""
+def baselines_for_types(v_onset, units_by_name, v_ref_by_name=None):
+    """``{name: (v_onset_mean, v_ref)}`` from per-type unit index arrays.
+
+    Callers select units (spot center row, moving-bar cost columns, pack
+    readout mask); this only averages ``v_onset`` and pairs with ``v_ref``.
+    """
     v_onset = np.asarray(v_onset, dtype=np.float64)
-    readout = pack.readout_unit.cpu().numpy()
-    center = readout_center_mask(pack, backend)
-    unit_types = type_ids[readout]
+    v_ref_by_name = v_ref_by_name or {}
     out = {}
-    for name in names:
-        ti = global_type_names.index(name)
-        mask = center & (unit_types == ti)
-        out[name] = float(v_onset[readout[mask]].mean()) if mask.any() else np.nan
+    for name, units in units_by_name.items():
+        u = np.asarray(units, dtype=np.int64).reshape(-1)
+        onset = float(v_onset[u].mean()) if u.size else np.nan
+        ref = v_ref_by_name.get(name, np.nan)
+        out[name] = (
+            onset,
+            float(ref) if ref is not None and np.isfinite(ref) else np.nan,
+        )
     return out
 
 
@@ -208,15 +232,26 @@ def readout_n_by_name(type_idx, type_names, names, unit_idx):
     }
 
 
-def v_th_by_type_name(z, session):
-    """Per-type ``v_th`` (mV) keyed by type name; empty if schema has no ``v_th``."""
+def v_ref_schema_name(schema):
+    """``'v_th'`` (borst) or ``'v_rest'`` (hp_lp); ``None`` if neither in schema."""
+    names = {s.get('name') for s in schema}
+    if 'v_th' in names:
+        return 'v_th'
+    if 'v_rest' in names:
+        return 'v_rest'
+    return None
+
+
+def v_ref_by_type_name(z, session):
+    """Per-type ``v_th`` / ``v_rest`` (mV) keyed by type name; empty if schema has neither."""
     schema = list(session.schema)
-    if not any(s.get('name') == 'v_th' for s in schema):
+    key = v_ref_schema_name(schema)
+    if key is None:
         return {}
-    arr = np.asarray(training.z_to_unit_values(z, schema)['v_th'], dtype=np.float64).reshape(-1)
+    arr = np.asarray(training.z_to_unit_values(z, schema)[key], dtype=np.float64).reshape(-1)
     names = training.type_unit_names(session.backend)
     if arr.shape[0] != len(names):
-        raise ValueError(f"v_th length {arr.shape[0]} != n_types {len(names)}")
+        raise ValueError(f"{key} length {arr.shape[0]} != n_types {len(names)}")
     return {str(n): float(arr[i]) for i, n in enumerate(names)}
 
 
@@ -242,31 +277,47 @@ def cell_ylabel(label, ca_n=None, n=None):
     return label_with_n(label, n)
 
 
-def cell_title_with_n(label, n=None, v_th=None):
-    """Spot-style panel title: cell name + optional ``n``, ``v_th`` on next line."""
+def cell_title_with_n(label, n=None, v_ref=None, *, v_ref_name=None):
+    """Spot-style panel title: cell name + optional ``n``, ``v_ref`` on next line."""
     head = label_with_n(label, n)
-    if v_th is None:
+    if v_ref is None or v_ref_name is None:
         return head
-    return f'{head}\nv_th={float(v_th):.1f} mV'
+    return f'{head}\n{v_ref_name}={float(v_ref):.1f} mV'
 
 
-def panel_title_with_v_th(label, v_th=None):
-    """Stimulus / panel title with optional ``v_th`` line (no ``n``)."""
-    if v_th is None:
+def panel_title_with_v_ref(label, v_ref=None, *, v_ref_name=None):
+    """Stimulus / panel title with optional ``v_ref`` line (no ``n``)."""
+    if v_ref is None or v_ref_name is None:
         return label
-    return f'{label}\nv_th={float(v_th):.1f} mV'
+    return f'{label}\n{v_ref_name}={float(v_ref):.1f} mV'
+
+
+def _bundle_v_ref_name(bundle):
+    name = getattr(bundle, 'v_ref_name', None)
+    if name is not None:
+        return name
+    session = getattr(bundle, 'session', None)
+    if session is None:
+        return None
+    return v_ref_schema_name(session.schema)
 
 
 def bundle_cell_title(bundle, label, n=None, *, type_name=None):
-    """Spot panel title from ``bundle.v_th_by_name`` (key = *type_name* or *label*)."""
+    """Spot panel title from ``bundle.v_ref_by_name`` (key = *type_name* or *label*)."""
     key = label if type_name is None else type_name
-    return cell_title_with_n(label, n, bundle.v_th_by_name.get(key))
+    return cell_title_with_n(
+        label, n, bundle.v_ref_by_name.get(key),
+        v_ref_name=_bundle_v_ref_name(bundle),
+    )
 
 
 def bundle_panel_title(bundle, label, *, type_name=None):
-    """Moving-bar panel title from ``bundle.v_th_by_name`` (no ``n``)."""
+    """Moving-bar panel title from ``bundle.v_ref_by_name`` (no ``n``)."""
     key = label if type_name is None else type_name
-    return panel_title_with_v_th(label, bundle.v_th_by_name.get(key))
+    return panel_title_with_v_ref(
+        label, bundle.v_ref_by_name.get(key),
+        v_ref_name=_bundle_v_ref_name(bundle),
+    )
 
 
 def network_column_count(C):

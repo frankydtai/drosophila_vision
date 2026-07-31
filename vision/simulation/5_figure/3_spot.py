@@ -31,6 +31,7 @@ from figure.util import (
     PlotTimer,
     annotate_baseline,
     apply_out_scale,
+    baselines_for_types,
     batches_at_stim_xy,
     bundle_cell_title,
     bundle_prep_s,
@@ -45,7 +46,8 @@ from figure.util import (
     sem_from_traces,
     slice_coord_specs,
     suppress_cost_sem,
-    v_th_by_type_name,
+    v_ref_by_type_name,
+    v_ref_schema_name,
 )
 from task.spot.input import (
     euclid_hex_dist,
@@ -91,11 +93,6 @@ def _radius_to_profile_bins(radius):
     if k == 0:
         return (CENTER_BIN,)
     return (CENTER_BIN - k, CENTER_BIN + k)
-
-
-def _baseline_from_ref_grid(ref_grid, row_i):
-    """Resting potential at stimulus onset for one cell type (center column)."""
-    return ref_grid[row_i, CENTER_BIN]
 
 
 def _session_spot_timing(session):
@@ -211,7 +208,7 @@ def _style_recf_profile_axis(ax, show_xlabel):
     ax.set_xticks([0, 20, 40])
     ax.set_xticklabels(['-20', '0', '20'], fontsize=6)
     if show_xlabel:
-        ax.set_xlabel('RF profile', fontsize=7)
+        ax.set_xlabel('RF (°)', fontsize=7)
 
 
 def _scale_contrast_series(series, *, response_start, pulse_end):
@@ -560,7 +557,8 @@ class SpotTraceBundle:
     slice_y_list: list | None = None
     n_t: int = 0
     prep_s: float = 0.0
-    v_th_by_name: dict = field(default_factory=dict)
+    v_ref_by_name: dict = field(default_factory=dict)
+    v_ref_name: str | None = None
     response_start: int | None = None
     show_pre: bool = True
     pulse_end: int | None = None
@@ -599,7 +597,8 @@ def _spot_readout_bundle_view(bundle):
         group_rows=_group_rows_from_groups(groups, cell_names),
         session=session,
         n_t=bundle.n_t,
-        v_th_by_name=bundle.v_th_by_name,
+        v_ref_by_name=bundle.v_ref_by_name,
+        v_ref_name=bundle.v_ref_name,
         response_start=bundle.response_start,
         show_pre=bundle.show_pre,
         pulse_end=bundle.pulse_end,
@@ -665,28 +664,6 @@ def _cells_from_cube(names, cube, sem, baselines, *, single_column, n_by_name=No
     ]
 
 
-def _spot_baselines(rows, v_onset, names, *, at_x=None, at_y=None):
-    """Mean ``v_onset`` per type over stim-centered ``(0, 0)`` units (matches trace scope)."""
-    v_onset = np.asarray(v_onset, dtype=np.float64)
-    batch_idx = rows['batch_idx']
-    unit_idx = rows['unit_idx']
-    type_idx = rows['type_idx']
-    type_names = rows['type_names']
-    center_row = rows['center_row']
-
-    mask = np.asarray(center_row, dtype=bool)
-    if at_x is not None or at_y is not None:
-        match_b = batches_at_stim_xy(rows['batches'], at_x=at_x, at_y=at_y)
-        mask = mask & np.isin(batch_idx, match_b)
-
-    out = {}
-    for name in names:
-        ti = type_names.index(name)
-        units = np.unique(unit_idx[mask & (type_idx == ti)])
-        out[name] = float(v_onset[units].mean()) if units.size else np.nan
-    return out
-
-
 @torch.no_grad()
 def _spot_forward_rows(
     session, z, *,
@@ -747,7 +724,17 @@ def _spot_forward_rows(
         mt=mt,
         pack=pack,
     )
-    rows['baselines'] = _spot_baselines(rows, v_onset_np, names, at_x=at_x, at_y=at_y)
+    mask = np.asarray(center_row, dtype=bool)
+    if at_x is not None or at_y is not None:
+        match_b = batches_at_stim_xy(batches, at_x=at_x, at_y=at_y)
+        mask = mask & np.isin(batch_idx, match_b)
+    units_by_name = {
+        name: np.unique(unit_idx[mask & (type_idx == type_names.index(name))])
+        for name in names
+    }
+    rows['baselines'] = baselines_for_types(
+        v_onset_np, units_by_name, v_ref_by_type_name(z, session),
+    )
     rows['groups'] = groups
     return rows
 
@@ -806,7 +793,8 @@ def network_spot_trace_bundle(
         slice_y_list=at_y_list,
         n_t=n_t,
         prep_s=time.perf_counter() - t_prep0,
-        v_th_by_name=v_th_by_type_name(z, session),
+        v_ref_by_name=v_ref_by_type_name(z, session),
+        v_ref_name=v_ref_schema_name(session.schema),
         response_start=rows.get('t_onset'),
         show_pre=bool(show_pre),
         pulse_end=rows.get('pulse_end'),

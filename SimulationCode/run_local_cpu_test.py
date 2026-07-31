@@ -204,7 +204,7 @@ def plot_cost(costs, path):
     plt.close()
 
 
-def plot_model_vs_data(z, path, n_steps):
+def plot_model_vs_data(z, path, n_steps, title=None):
     ref_data = ml.read_RecF_data() * data_amp
     model_full = calc_model_full_all(z)
 
@@ -232,12 +232,14 @@ def plot_model_vs_data(z, path, n_steps):
             )
             legend_done = True
 
-    fig.suptitle(f'Model vs data after {n_steps} CPU steps (center column)', fontsize=12)
+    if title is None:
+        title = f'Model vs data after {n_steps} CPU steps (center column)'
+    fig.suptitle(title, fontsize=12)
     fig.savefig(path, dpi=150)
     plt.close(fig)
 
 
-def plot_all_celltypes(z, path, n_steps):
+def plot_all_celltypes(z, path, n_steps, title=None):
     """All 65 cell types: azimuth RF top, time bottom (Borst_Fig4-6 layout)."""
     ref_data = ml.read_RecF_data() * data_amp
     model_full = calc_model_full_all(z)
@@ -260,7 +262,9 @@ def plot_all_celltypes(z, path, n_steps):
             show_ylabel=(col == 0),
         )
 
-    fig.suptitle(f'All {nofcells} cell types after {n_steps} steps', fontsize=14)
+    if title is None:
+        title = f'All {nofcells} cell types after {n_steps} steps'
+    fig.suptitle(title, fontsize=14)
     fig.savefig(path, dpi=150)
     plt.close(fig)
 

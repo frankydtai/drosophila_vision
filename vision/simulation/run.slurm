@@ -1,7 +1,7 @@
 #!/bin/bash
 #SBATCH --job-name=run
 #SBATCH --account=punim0477
-#SBATCH --partition=gpu-h100
+#SBATCH --partition=gpu-l40s
 #SBATCH --qos=publicgpu
 #SBATCH --gres=gpu:1
 #SBATCH --nodes=1

@@ -35,13 +35,15 @@ from figure.util import (
     plot_pre_post_line,
     plot_sem_band,
     plot_timecourse,
+    readout_center_mask,
     save_figure,
     save_forward_trace_csvs,
     sem_from_traces,
     slice_axis_name,
     slice_coord_specs,
     suppress_cost_sem,
-    v_th_by_type_name,
+    v_ref_by_type_name,
+    v_ref_schema_name,
 )
 import network.path  # noqa: F401  # ensure FAFBv783 modules are importable
 from task.moving_bar.data import (
@@ -99,7 +101,8 @@ class MovingBarTraceBundle:
     align_at_x: int | None = None
     align_at_y: int | None = None
     prep_s: float = 0.0
-    v_th_by_name: dict = field(default_factory=dict)
+    v_ref_by_name: dict = field(default_factory=dict)
+    v_ref_name: str | None = None
     show_pre: bool = True
     t_onset: int | None = None
 
@@ -352,19 +355,6 @@ def _load_moving_bar_data_mean(session, target, types, specs, side):
     return data_mean
 
 
-def _moving_bar_baselines(C, v_onset, types, type_ids, type_names, cost_extent, *, at_x=None, at_y=None):
-    """Mean ``v_onset`` per type over units on moving-bar cost columns (matches trace scope)."""
-    cols = moving_bar_cost_columns(C, cost_extent=cost_extent)
-    if at_x is not None or at_y is not None:
-        cols = filter_sti_columns(cols, at_x=at_x, at_y=at_y)
-    v_onset = np.asarray(v_onset, dtype=np.float64)
-    out = {}
-    for tname in types:
-        u = moving_bar_units_on_columns(C, tname, cols)
-        out[tname] = float(v_onset[u].mean()) if u.size else np.nan
-    return out
-
-
 def _moving_bar_traces_from_forward(
     session, target, trace_full, v_onset_np, specs, spec_names, *,
     at_x=None, at_y=None,
@@ -433,18 +423,24 @@ def moving_bar_trace_bundle(session, z, target, *, at_x=None, at_y=None,
     traces, types, side, n_filter_cols, t_onset = _moving_bar_traces_from_forward(
         session, target, trace_full, v_onset_np, specs, spec_names,
     )
+    v_ref = v_ref_by_type_name(z, session)
     if C is not None:
-        type_names = list(C.type_names)
-        type_ids = _type_ids_np(C.node_type)
-        baselines = _moving_bar_baselines(
-            C, v_onset_np, types, type_ids, type_names, pack.cost_extent,
-            at_x=at_x, at_y=at_y,
-        )
+        cols = moving_bar_cost_columns(C, cost_extent=pack.cost_extent)
+        if at_x is not None or at_y is not None:
+            cols = filter_sti_columns(cols, at_x=at_x, at_y=at_y)
+        units_by_name = {
+            tname: moving_bar_units_on_columns(C, tname, cols) for tname in types
+        }
     else:
         type_ids = _type_ids_np(session.backend.conn.node_type)
-        baselines = baselines_for_types(
-            pack, session.backend, v_onset_np, types, type_ids, types,
-        )
+        readout = pack.readout_unit.cpu().numpy()
+        center = readout_center_mask(pack, session.backend)
+        unit_types = type_ids[readout]
+        units_by_name = {
+            name: readout[center & (unit_types == types.index(name))]
+            for name in types
+        }
+    baselines = baselines_for_types(v_onset_np, units_by_name, v_ref)
     single_column = suppress_cost_sem(session, target) or n_filter_cols == 1
     data_mean = _load_moving_bar_data_mean(
         session, target, types, specs, side,
@@ -495,7 +491,8 @@ def moving_bar_trace_bundle(session, z, target, *, at_x=None, at_y=None,
         align_at_x=align_at_x,
         align_at_y=align_at_y,
         prep_s=time.perf_counter() - t_prep0,
-        v_th_by_name=v_th_by_type_name(z, session),
+        v_ref_by_name=v_ref,
+        v_ref_name=v_ref_schema_name(session.schema),
         show_pre=bool(show_pre),
         t_onset=int(t_onset),
     )
