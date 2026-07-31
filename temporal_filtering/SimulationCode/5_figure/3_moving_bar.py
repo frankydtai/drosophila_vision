@@ -9,7 +9,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import torch
 
-import training as fc
+import training
 from task.moving_bar.data import (
     READOUT_SUBTYPES,
     fig1_key_for_stimulus,
@@ -59,12 +59,9 @@ from task.moving_bar.input import (
     cost_window_after_t,
     cost_window_before_t,
 )
-from training.defaults import PHYSICS
 
 MOVING_BAR_DPI = 100
 
-COST_WINDOW_BEFORE = cost_window_before_t(PHYSICS.delta_ms)
-COST_WINDOW_AFTER = cost_window_after_t(PHYSICS.delta_ms)
 
 
 @dataclass
@@ -175,8 +172,8 @@ def _plot_types_and_ids(session):
     return types, type_ids
 
 
-def _rel_window_seconds(before_t, after_t):
-    scale = PHYSICS.delta_ms / 1000.0
+def _rel_window_seconds(before_t, after_t, delta_ms):
+    scale = float(delta_ms) / 1000.0
     return before_t * scale, after_t * scale
 
 
@@ -330,10 +327,10 @@ def _moving_bar_slice_overlay_traces(
     )
 
 
-def _fig1_trace_delta(trace: np.ndarray) -> np.ndarray:
+def _fig1_trace_delta(trace: np.ndarray, delta_ms: float) -> np.ndarray:
     """ΔVm for fig1 cost-window traces (subtract pre-stimulus mean)."""
     trace = np.asarray(trace, dtype=np.float64)
-    i_on = COST_WINDOW_BEFORE
+    i_on = cost_window_before_t(delta_ms)
     if i_on > 0 and i_on < len(trace):
         return trace - float(np.mean(trace[:i_on]))
     return trace - float(trace[0])
@@ -349,7 +346,7 @@ def _load_moving_bar_data_mean(session, target, types, specs, side):
             trace_id = fig1_key_for_stimulus(side, subtype, spec)
             if trace_id is None:
                 continue
-            trace = _fig1_trace_delta(load_fig1_trace(trace_id))
+            trace = _fig1_trace_delta(load_fig1_trace(trace_id), session.delta_ms)
             data_mean[(subtype, spec.name)] = trace
     return data_mean
 
@@ -377,7 +374,7 @@ def _moving_bar_traces_from_forward(
     _t_onset = int(pack.signal.shape[1] - pack.data.shape[1])
     grids = moving_bar_session_t0_grids(
         session, specs, cost_extent, n_t, at_x=at_x, at_y=at_y,
-        t_onset=_t_onset, delta_ms=fc.PHYSICS.delta_ms,
+        t_onset=_t_onset, delta_ms=session.delta_ms,
     )
     types, type_ids = _plot_types_and_ids(session)
     t0_full_bn = grids.t0_bn
@@ -415,8 +412,8 @@ def moving_bar_trace_bundle(session, z, target, *, at_x=None, at_y=None,
     t_prep0 = time.perf_counter()
     pack = session.pack_for(target)
     schema = list(session.schema)
-    p = fc.assign_params(z, schema, session.backend)
-    v_delta, v_onset, _v_full = fc.run_full(
+    p = training.assign_params(z, schema, session.backend)
+    v_delta, v_onset, _v_full = training.run_full(
         session, p, pack.signal, return_v_onset=True, pack=pack,
     )
     v_onset_np = v_onset[0].cpu().numpy()
@@ -528,9 +525,9 @@ def _moving_bar_pre_end(bundle, subtype, sname):
     return int(np.median(pre))
 
 
-def _cost_window_overlay(cost_trace, before_t):
+def _cost_window_overlay(cost_trace, before_t, delta_ms):
     """Fig1 overlay x/y within full-window coordinates (cost window only)."""
-    i0 = before_t - COST_WINDOW_BEFORE
+    i0 = before_t - cost_window_before_t(delta_ms)
     trace = np.asarray(cost_trace, dtype=np.float64)
     if i0 < 0:
         trace = trace[-i0:]
@@ -563,17 +560,20 @@ def _moving_bar_scope_label(session, *, at_x=None, at_y=None, n_filter_cols=None
 
 def _style_moving_bar_relative_axis(
     ax, before_t, after_t, win_len, *,
+    delta_ms,
     show_tick_labels=True, mark_cost_window=False,
 ):
     end = win_len - 1
     ax.set_xlim(0, end)
     ax.set_xticks([0, before_t, end])
-    before_s, after_s = _rel_window_seconds(before_t, after_t)
+    before_s, after_s = _rel_window_seconds(before_t, after_t, delta_ms)
     ax.set_xticklabels([f'{-before_s:g}', '0', f'{after_s:g}'], fontsize=6)
     if not show_tick_labels:
         ax.tick_params(labelbottom=False)
     if mark_cost_window:
-        for x in (before_t - COST_WINDOW_BEFORE, before_t + COST_WINDOW_AFTER):
+        cw_before = cost_window_before_t(delta_ms)
+        cw_after = cost_window_after_t(delta_ms)
+        for x in (before_t - cw_before, before_t + cw_after):
             ax.axvline(x, color='0.75', linewidth=0.6, linestyle='--', zorder=0)
 
 
@@ -610,15 +610,17 @@ def _plot_moving_bar_cell(
     linestyle='-',
     pre_end=0,
     show_pre=False,
+    delta_ms=None,
 ):
     win_len = len(ca_trace)
     data_x, data_y = None, None
     if data_trace is not None:
-        data_x, data_y = _cost_window_overlay(data_trace, before_t)
+        data_x, data_y = _cost_window_overlay(data_trace, before_t, delta_ms)
 
     def style_xaxis(ax):
         _style_moving_bar_relative_axis(
             ax, before_t, after_t, win_len,
+            delta_ms=delta_ms,
             show_tick_labels=show_tick_labels,
             mark_cost_window=mark_cost_window,
         )
@@ -672,15 +674,17 @@ def _plot_moving_bar_cell_slices(
     ylim=None,
     pre_end=0,
     show_pre=False,
+    delta_ms=None,
 ):
     win_len = len(total_trace)
     data_x, data_y = None, None
     if data_trace is not None:
-        data_x, data_y = _cost_window_overlay(data_trace, before_t)
+        data_x, data_y = _cost_window_overlay(data_trace, before_t, delta_ms)
 
     def style_xaxis(ax):
         _style_moving_bar_relative_axis(
             ax, before_t, after_t, win_len,
+            delta_ms=delta_ms,
             show_tick_labels=show_tick_labels,
             mark_cost_window=mark_cost_window,
         )
@@ -824,6 +828,7 @@ def _moving_bar_all_figure(bundle_on, bundle_2, title, *, right_only=True):
                     baseline=bl,
                     pre_end=_moving_bar_pre_end(bundle_src, tname, sname),
                     show_pre=getattr(bundle_src, "show_pre", True),
+                    delta_ms=bundle_src.session.delta_ms,
                 )
             else:
                 _plot_moving_bar_cell(
@@ -838,6 +843,7 @@ def _moving_bar_all_figure(bundle_on, bundle_2, title, *, right_only=True):
                     baseline=bl,
                     pre_end=_moving_bar_pre_end(bundle_src or bundle_on, tname, sname),
                     show_pre=getattr(bundle_src or bundle_on, "show_pre", True),
+                    delta_ms=(bundle_src or bundle_on).session.delta_ms,
                 )
         axes[ri, 0].set_ylabel(cell_ylabel(tname, ca_n), fontsize=8, labelpad=12)
     if title is None:
@@ -898,6 +904,7 @@ def plot_moving_bar_data(path, *, bundle, bundle_2=None, title=None):
                 linestyle=_moving_bar_spec_linestyle(plot_side, subtype, sname),
                 pre_end=_moving_bar_pre_end(row_bundle, subtype, sname),
                 show_pre=getattr(row_bundle, "show_pre", True),
+                delta_ms=row_bundle.session.delta_ms,
             )
 
     for ri, subtype in enumerate(readout_subtypes):

@@ -32,7 +32,7 @@ from matplotlib.patches import Rectangle
 from training.defaults import (
     I_BASELINE,
     I_BRIGHT,
-    PHYSICS,
+    DELTA_MS, EXC_SYNWEIGHT, INH_SYNWEIGHT,
     SYN_MODE,
 )
 from training.target_pack import SIM_DTYPE
@@ -173,7 +173,7 @@ def plot_snapshot(
         columns_are_xy_deg=columns_are_xy_deg,
     )
     _draw_bar_outline(ax, spec, field_deg, t, t_onset, bar_extent=bar_extent, multi_bar=bool(multi_bar))
-    ax.set_title(f"{spec_name}  t={t} ({t * PHYSICS.delta_ms / 1000.0:.2f} s)", fontsize=9)
+    ax.set_title(f"{spec_name}  t={t} ({t * DELTA_MS / 1000.0:.2f} s)", fontsize=9)
 
 
 def write_snapshots(
@@ -274,7 +274,7 @@ def write_animation(
         t = times[frame_idx]
         title.set_text(
             f"Moving-bar column current (pA)  side={side}  "
-            f"{len(plot_columns)} sti columns  I_baseline={i_baseline}  I_max={i_max}  t={t} ({t * PHYSICS.delta_ms / 1000.0:.2f} s)"
+            f"{len(plot_columns)} sti columns  I_baseline={i_baseline}  I_max={i_max}  t={t} ({t * DELTA_MS / 1000.0:.2f} s)"
         )
         for i, spec in enumerate(showcase):
             axes[i, 0].clear()
@@ -341,7 +341,7 @@ def main():
     network_json = str(resolve_network_json(args.network))
     C = load_network(
         network_json, device="cpu",
-        exc_synweight=PHYSICS.exc_synweight, inh_synweight=PHYSICS.inh_synweight,
+        exc_synweight=EXC_SYNWEIGHT, inh_synweight=INH_SYNWEIGHT,
         syn_mode=SYN_MODE, dtype=SIM_DTYPE,
     )
     default_png, default_gif = _default_outputs(network_json, C.meta, args.direction)
@@ -351,7 +351,7 @@ def main():
         specs=showcase,
         bar_extent=args.bar_extent,
         multi_bar=bool(args.multi_bar),
-        delta_ms=PHYSICS.delta_ms,
+        delta_ms=DELTA_MS,
         i_baseline=I_BASELINE,
         i_bright_bar=i_bright,
         sim_dtype=SIM_DTYPE,
@@ -368,7 +368,7 @@ def main():
     info = T.info
     print(
         f"bar_extent={bar_extent}  "
-        f"n_t={n_t} ({n_t * PHYSICS.delta_ms / 1000.0:.2f} s)  "
+        f"n_t={n_t} ({n_t * DELTA_MS / 1000.0:.2f} s)  "
         f"sweep_t={T.info['sweep_t']} ({T.info['sweep_time_s']:.2f} s after t_onset)"
     )
 

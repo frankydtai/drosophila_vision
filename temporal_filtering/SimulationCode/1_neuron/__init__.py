@@ -14,7 +14,8 @@ from neuron.params import (
     IH_OFF_MODES,
     KNOWN_MODELS,
     LEAK_DEPOL_TYPES,
-    Physics,
+    e_ih_off,
+    membrane_cdt,
     ms_to_t,
 )
 from neuron.schema import (
@@ -59,7 +60,8 @@ __all__ = [
     "SYN_MODES",
     "MODEL_DRIVERS",
     "CA_PACK_READOUTS",
-    "Physics",
+    "e_ih_off",
+    "membrane_cdt",
     "ms_to_t",
     "default_schema",
     "build_borst_schema",

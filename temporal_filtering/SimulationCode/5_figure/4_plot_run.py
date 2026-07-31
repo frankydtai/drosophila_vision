@@ -8,7 +8,7 @@ import numpy as np
 import torch
 
 import import_bootstrap  # noqa: F401
-import training as fc
+import training
 from task.moving_bar.input import sti_columns
 from task.spot.input import spot_from_opts
 from figure import moving_bar as moving_bar_plot
@@ -17,8 +17,8 @@ from figure.util import parse_axis_slice_list, parse_align_xy, plot_cost, networ
 from training.config import PARAMETER_DIR, run_data_dir
 from training.driver import resolve_run_dir
 
-TRAIN_OPTS_FILE = fc.TRAIN_OPTS_FILE
-KNOWN_MODELS = fc.KNOWN_MODELS
+TRAIN_OPTS_FILE = training.TRAIN_OPTS_FILE
+KNOWN_MODELS = training.KNOWN_MODELS
 DEFAULT_RUN_NAME = """
 27252028-train-nofsteps-1000-lrs-0.1-shift-extent-1-cost-extent-9
 """.strip()
@@ -26,7 +26,7 @@ DEFAULT_RUN_PATH = 'borst/' + DEFAULT_RUN_NAME
 
 
 def _plot_device_label():
-    dev = fc.active_device()
+    dev = training.active_device()
     if dev == 'cuda' and torch.cuda.is_available():
         import torch as _torch
         return f'cuda ({_torch.cuda.get_device_name(0)})'
@@ -72,7 +72,7 @@ def load_train_opts(outdir):
 
 
 def load_session(outdir, model=None):
-    return fc.open_session_from_outdir(outdir, model)
+    return training.open_session_from_outdir(outdir, model)
 
 
 def session_for_target(base_session, tname):
@@ -83,7 +83,7 @@ def session_for_target(base_session, tname):
     opts['target_list'] = [tname]
     opts['packs'] = None
     opts['network'] = base_session.backend.network
-    return fc.open_session({**opts, 'backend': 'network'}, base_session.model,
+    return training.open_session({**opts, 'backend': 'network'}, base_session.model,
                            schema=list(base_session.schema))
 
 
@@ -144,7 +144,7 @@ def select_best(params, session, *, final_costs=None, best_i=None, verbose=True)
             best_cost = float(final_costs[best_i])
         else:
             z = torch.tensor(valid[loc], dtype=session.sim_dtype, device=session.device)
-            best_cost = fc.calc_cost(z, session).item()
+            best_cost = training.calc_cost(z, session).item()
         if verbose:
             print(f'{len(valid)} trained set(s); selected #{best_i} (cost={best_cost:.4f})')
         return valid[loc], best_cost, best_i
@@ -166,7 +166,7 @@ def select_best(params, session, *, final_costs=None, best_i=None, verbose=True)
     costs_out = []
     for row in valid:
         z = torch.tensor(row, dtype=session.sim_dtype, device=session.device)
-        costs_out.append(fc.calc_cost(z, session).item())
+        costs_out.append(training.calc_cost(z, session).item())
     costs_out = np.array(costs_out)
     best = int(np.argmin(costs_out))
     run_i = int(valid_idx[best])
@@ -186,12 +186,12 @@ def load_best(outdir, *, model=None, verbose=False):
     model = resolve_model(outdir, override=model)
     session = load_session(outdir, model=model)
     named, type_names, pair_names = train_mod.load_best_param_named(outdir)
-    remapped = fc.remap_named_unit_values(
+    remapped = training.remap_named_unit_values(
         named, type_names, pair_names, list(session.schema), session.backend,
     )
-    schema = fc.attach_param_carry(list(session.schema), remapped)
+    schema = training.attach_param_carry(list(session.schema), remapped)
     session = session.with_schema(schema)
-    z = fc.unit_values_to_z(
+    z = training.unit_values_to_z(
         remapped, schema, dtype=session.sim_dtype, device=session.device,
     )
     best_i = train_mod.load_best_i(outdir)
@@ -205,7 +205,7 @@ def load_best(outdir, *, model=None, verbose=False):
     except SystemExit:
         pass
     if best_cost is None:
-        best_cost = fc.calc_cost(z, session).item()
+        best_cost = training.calc_cost(z, session).item()
         best_i = best_i if best_i is not None else 0
     elif best_i is None:
         best_i = 0
@@ -229,7 +229,7 @@ def _plot_spot_targets(session, z, outdir, spot_targets, suffix, model_all,
         save_trace_csv_dir=save_trace_csv_dir,
         show_pre=show_pre,
     )
-    if spot_set == set(fc.SPOT_TARGETS):
+    if spot_set == set(training.SPOT_TARGETS):
         bundles = {
             'bright': make_bundle(
                 session_for_target(session, 'spot_bright'), z, **bundle_kw,
@@ -275,7 +275,7 @@ def _plot_bar_targets(session, z, outdir, bar_targets, suffix, model_all, *,
         show_pre=show_pre,
     )
     bar_set = set(bar_targets)
-    if bar_set == set(fc.MOVING_BAR_TARGETS):
+    if bar_set == set(training.MOVING_BAR_TARGETS):
         s_bright = session_for_target(session, 'moving_bar_bright')
         s_dark = session_for_target(session, 'moving_bar_dark')
         b_bright = moving_bar_plot.moving_bar_trace_bundle(
@@ -318,7 +318,7 @@ def _plot_bar_targets(session, z, outdir, bar_targets, suffix, model_all, *,
 def _plot_one_target(session, z, outdir, tname, suffix, model_all,
                      data_cubes=None,
                      at_x=None, at_y=None, save_trace_csv_dir=None, show_pre=True):
-    if tname not in fc.SPOT_TARGETS:
+    if tname not in training.SPOT_TARGETS:
         raise ValueError(f'unknown plot target {tname!r}')
     kind = _session_trace_kind(session)
     mvd = os.path.join(outdir, f'spot_trained_{kind}.png')
@@ -387,11 +387,11 @@ def plot_param_set(params, outdir, model=None, model_all=True,
     if plot_targets is not None:
         target_list = [t for t in target_list if t in plot_targets]
 
-    spot_targets = [t for t in target_list if t in fc.SPOT_TARGETS]
-    bar_targets = [t for t in target_list if t in fc.MOVING_BAR_TARGETS]
+    spot_targets = [t for t in target_list if t in training.SPOT_TARGETS]
+    bar_targets = [t for t in target_list if t in training.MOVING_BAR_TARGETS]
     other_targets = [
         t for t in target_list
-        if t not in fc.SPOT_TARGETS and t not in fc.MOVING_BAR_TARGETS
+        if t not in training.SPOT_TARGETS and t not in training.MOVING_BAR_TARGETS
     ]
     if (at_x is not None or at_y is not None) and not bar_targets and not spot_targets:
         raise SystemExit('--x/--y require a moving_bar or spot target in this run')
@@ -407,7 +407,7 @@ def plot_param_set(params, outdir, model=None, model_all=True,
         plot_cost(
             cost_curve, os.path.join(outdir, 'cost_curve.png'),
             costs_by_target=costs_by_target,
-            target_order=list(fc.session_cost_part_keys(session.target_list)),
+            target_order=list(training.session_cost_part_keys(session.target_list)),
         )
     if spot_targets:
         _plot_spot_targets(

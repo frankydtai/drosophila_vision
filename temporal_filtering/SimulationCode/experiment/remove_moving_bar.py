@@ -13,10 +13,10 @@ from training.defaults import (
     I_BASELINE,
     I_BRIGHT,
     I_DARK,
-    PHYSICS,
+    DELTA_MS,
     PRE_MS,
 )
-import training as fc
+import training
 import training.driver as train
 from run import run_training_and_plot
 from connectome_io import parse_comma_list
@@ -48,32 +48,32 @@ except ValueError as exc:
     ap.error(str(exc))
 
 target_list = train_kw['target_list']
-bar_targets = [t for t in target_list if t in fc.MOVING_BAR_TARGETS]
+bar_targets = [t for t in target_list if t in training.MOVING_BAR_TARGETS]
 if not bar_targets:
     ap.error(
         f"--target must include a moving-bar target "
-        f"({', '.join(fc.MOVING_BAR_TARGETS)} or moving_bar)",
+        f"({', '.join(training.MOVING_BAR_TARGETS)} or moving_bar)",
     )
 
 moving_bar_bright_stimulus_opts = None
 moving_bar_dark_stimulus_opts = None
 if 'moving_bar_bright' in bar_targets:
-    moving_bar_bright_stimulus_opts = fc.make_moving_bar_stimulus_opts(
+    moving_bar_bright_stimulus_opts = training.make_moving_bar_stimulus_opts(
         "bright",
         i_baseline=I_BASELINE,
         i_bar=I_BRIGHT,
         pre_ms=PRE_MS,
-        delta_ms=PHYSICS.delta_ms,
+        delta_ms=DELTA_MS,
         multi_bar=MULTI_BAR,
         readout_subtypes=readout_subtypes,
     )
 if 'moving_bar_dark' in bar_targets:
-    moving_bar_dark_stimulus_opts = fc.make_moving_bar_stimulus_opts(
+    moving_bar_dark_stimulus_opts = training.make_moving_bar_stimulus_opts(
         "dark",
         i_baseline=I_BASELINE,
         i_bar=I_DARK,
         pre_ms=PRE_MS,
-        delta_ms=PHYSICS.delta_ms,
+        delta_ms=DELTA_MS,
         multi_bar=MULTI_BAR,
         readout_subtypes=readout_subtypes,
     )

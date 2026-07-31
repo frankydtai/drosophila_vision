@@ -1,8 +1,7 @@
 # -*- coding: utf-8 -*-
 """Training package: session assembly, cost, parameter schema, and CLI driver.
 
-Public facade re-exporting the names callers use as ``fc.*`` (``import training
-as fc``). Engine internals are split across :mod:`training.target_pack`,
+Public facade re-exporting training API names (``import training``). Engine internals are split across :mod:`training.target_pack`,
 :mod:`training.params`, :mod:`training.cost`, and :mod:`training.session`; the
 shared vocabulary lives in :mod:`training.config`. Numeric defaults live in
 :mod:`training.defaults`. Lower layers (``neuron``, ``task``, ``network``)
@@ -15,9 +14,10 @@ from neuron import (
     IH_OFF_MODES,
     IH_SHAPE_PARAM_NAMES,
     KNOWN_MODELS,
-    Physics,
     SYN_MODES,
     default_schema,
+    e_ih_off,
+    membrane_cdt,
     ms_to_t,
     normalize_syn_mode,
     run_full,
@@ -26,13 +26,26 @@ from neuron import (
     v_budget_from_g,
 )
 from training.defaults import (
+    CA_TAU,
+    CAPAC,
+    DATA_AMP,
+    DELTA_MS,
+    E_EXC,
+    E_IH,
+    E_INH,
+    E_LEAK_DEPOL,
+    E_LEAK_REST,
+    EXC_SYNWEIGHT,
+    G_LEAK,
+    IH_GAIN,
     IH_GMAX_INDI_NAMES,
     IH_OFF,
+    INH_SYNWEIGHT,
     PARAM_BOXES,
-    PHYSICS,
     PRE_MS,
     PULSE_MS,
     RESPONSE_MS,
+    STATE_CLAMP,
     SYN_MODE,
 )
 

@@ -23,7 +23,7 @@ os.chdir(ROOT)
 os.environ.setdefault("CUDA_VISIBLE_DEVICES", "")
 
 import import_bootstrap  # noqa: F401
-import training as fc
+import training
 from figure.plot_run import session_for_target, spot_bundle_fns
 from training.config import PARAMETER_DIR, run_data_dir
 
@@ -59,7 +59,7 @@ def main():
     pre_ms = float(args.pre_ms)
     response_ms = float(args.response_ms)
 
-    opts_path = os.path.join(run_data_dir(run_path), fc.TRAIN_OPTS_FILE)
+    opts_path = os.path.join(run_data_dir(run_path), training.TRAIN_OPTS_FILE)
     with open(opts_path) as f:
         opts = json.load(f)
 
@@ -79,22 +79,22 @@ def main():
             so.pop("t_on", None)
             so.pop("n_t", None)
 
-    session = fc.open_session_from_opts(opts, model=opts.get("model"))
+    session = training.open_session_from_opts(opts, model=opts.get("model"))
 
     import training.driver as train_mod
     named, type_names, pair_names = train_mod.load_best_param_named(run_path)
-    remapped = fc.remap_named_unit_values(
+    remapped = training.remap_named_unit_values(
         named, type_names, pair_names, list(session.schema), session.backend,
     )
-    schema = fc.attach_param_carry(list(session.schema), remapped)
+    schema = training.attach_param_carry(list(session.schema), remapped)
     session = session.with_schema(schema)
-    z = fc.unit_values_to_z(
+    z = training.unit_values_to_z(
         remapped, schema, dtype=session.sim_dtype, device=session.device,
     )
 
     one = session_for_target(session, "spot_bright")
 
-    cost = fc.calc_cost(z, one).item()
+    cost = training.calc_cost(z, one).item()
     print(f"cost (pre_ms={pre_ms:.0f}) = {cost:.4f}% of data power")
 
     make_bundle, plot_data, _plot_all = spot_bundle_fns(one)

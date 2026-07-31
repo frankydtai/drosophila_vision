@@ -28,7 +28,7 @@ import numpy as np
 import torch
 
 from neuron import IH_DIR_REVERSE_CELLS
-from neuron.params import Physics
+from neuron.params import e_ih_off, membrane_cdt
 
 from training.config import SPOT_TARGETS
 from training.defaults import FP
@@ -118,7 +118,12 @@ class FusedForward:
 
 @dataclass(frozen=True)
 class TrainSession:
-    """Immutable runtime context for one training / plotting run."""
+    """Immutable runtime context for one training / plotting run.
+
+    Membrane / synapse scalars are flat fields (injected from
+    ``training.defaults`` at session open). ``delta_ms`` comes only from
+    stimulus opts — never a separate Physics bag.
+    """
 
     backend: ModelBackend
     model: str
@@ -128,7 +133,20 @@ class TrainSession:
     cost_weights: Dict[str, float]
     sequential: bool
     device: str
-    physics: Physics
+    delta_ms: float
+    capac: float
+    g_leak: float
+    E_exc: float
+    E_inh: float
+    E_Ih: float
+    E_LEAK_REST: float
+    E_LEAK_DEPOL: float
+    Ih_gain: float
+    Ca_tau: float
+    DATA_AMP: float
+    STATE_CLAMP: float
+    exc_synweight: float
+    inh_synweight: float
     sim_dtype: torch.dtype = SIM_DTYPE
     train_opts: Optional[dict] = None
     cost_subpacks: Dict[str, TargetPack] = field(default_factory=dict)
@@ -136,6 +154,14 @@ class TrainSession:
 
     def with_schema(self, schema) -> "TrainSession":
         return replace(self, schema=tuple(schema))
+
+    @property
+    def cdt(self) -> float:
+        return membrane_cdt(self.capac, self.delta_ms)
+
+    @property
+    def E_IH_OFF(self) -> float:
+        return e_ih_off(self.E_LEAK_REST, self.E_Ih)
 
     @property
     def primary_pack(self) -> TargetPack:

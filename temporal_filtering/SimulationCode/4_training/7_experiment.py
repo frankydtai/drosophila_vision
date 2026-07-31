@@ -2,7 +2,7 @@
 """Shared helpers for ``experiment`` mirror-fit experiment scripts (no plotting)."""
 from __future__ import annotations
 
-import training as fc
+import training
 from training.defaults import IH_GMAX_INDI_NAMES
 
 
@@ -28,7 +28,7 @@ def merge_ih_param_partitions(train_kw):
 
 def spot_targets_from(target_list):
     """Return targets in *target_list* that are spot targets."""
-    return [t for t in target_list if t in fc.SPOT_TARGETS]
+    return [t for t in target_list if t in training.SPOT_TARGETS]
 
 
 def _normalize_mirror_fits(mirror_fits, mirror_sign):

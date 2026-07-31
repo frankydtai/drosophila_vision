@@ -10,7 +10,7 @@ import numpy as np
 import torch
 
 import network.path  # noqa: F401 — connectome_io on sys.path
-import training as fc
+import training
 from connectome_io import parse_comma_list
 
 DATA_COLOR = 'gray'
@@ -203,8 +203,8 @@ def v_th_by_type_name(z, session):
     schema = list(session.schema)
     if not any(s.get('name') == 'v_th' for s in schema):
         return {}
-    arr = np.asarray(fc.z_to_unit_values(z, schema)['v_th'], dtype=np.float64).reshape(-1)
-    names = fc.type_unit_names(session.backend)
+    arr = np.asarray(training.z_to_unit_values(z, schema)['v_th'], dtype=np.float64).reshape(-1)
+    names = training.type_unit_names(session.backend)
     if arr.shape[0] != len(names):
         raise ValueError(f"v_th length {arr.shape[0]} != n_types {len(names)}")
     return {str(n): float(arr[i]) for i, n in enumerate(names)}

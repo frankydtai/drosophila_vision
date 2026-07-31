@@ -24,15 +24,28 @@ from typing import Dict, List, Optional, Tuple
 import numpy as np
 import torch
 
-from neuron.params import ms_to_t, Physics
+from neuron.params import ms_to_t
 from training.config import run_data_dir
 from neuron import (
     default_schema,
     normalize_syn_mode,
 )
 from training.defaults import (
+    CA_TAU,
+    CAPAC,
+    DATA_AMP,
+    DELTA_MS,
+    E_EXC,
+    E_IH,
+    E_INH,
+    E_LEAK_DEPOL,
+    E_LEAK_REST,
+    EXC_SYNWEIGHT,
     FP,
     FULLY_INSIDE,
+    G_LEAK,
+    IH_GAIN,
+    INH_SYNWEIGHT,
     MULTI_BAR,
     MULTI_SPOT,
     PRE_GRAD,
@@ -40,13 +53,13 @@ from training.defaults import (
     SPOT_COST_RADIUS_WEIGHT,
     SPOT_COST_RADIUS_WEIGHT_EXTENT1,
     SPOT_EXTENT,
+    STATE_CLAMP,
     IH_GMAX_INDI_NAMES,
     IH_OFF,
     I_BASELINE,
     I_BRIGHT,
     I_DARK,
     PARAM_BOXES,
-    PHYSICS,
     PRE_MS,
     PULSE_MS,
     RESPONSE_MS,
@@ -304,7 +317,9 @@ def apply_pack_override(pack, override, backend: ModelBackend):
     raise ValueError(f"unknown pack override {override!r}")
 
 
-def _network_backend_from_connectome(C, *, physics, sim_dtype=SIM_DTYPE) -> ModelBackend:
+def _network_backend_from_connectome(
+    C, *, e_leak_rest: float, e_leak_depol: float, sim_dtype=SIM_DTYPE,
+) -> ModelBackend:
     """Build a :class:`ModelBackend` from an already-loaded connectome graph."""
     from neuron.params import LEAK_DEPOL_TYPES
 
@@ -315,7 +330,7 @@ def _network_backend_from_connectome(C, *, physics, sim_dtype=SIM_DTYPE) -> Mode
         conn=conn,
         e_leak=build_e_leak(
             conn, C.n_types, depol_cells=depol, dtype=sim_dtype,
-            e_leak_rest=physics.E_LEAK_REST, e_leak_depol=physics.E_LEAK_DEPOL,
+            e_leak_rest=e_leak_rest, e_leak_depol=e_leak_depol,
         ),
         ih_dir=build_ih_dir(conn, dtype=sim_dtype),
         n_types=C.n_types,
@@ -329,7 +344,10 @@ def load_network_backend(
     network_json,
     dev: Optional[str] = None,
     *,
-    physics,
+    exc_synweight: float,
+    inh_synweight: float,
+    e_leak_rest: float,
+    e_leak_depol: float,
     sim_dtype=SIM_DTYPE,
     syn_mode=SYN_MODE,
     param_boxes=PARAM_BOXES,
@@ -340,10 +358,12 @@ def load_network_backend(
     mode = normalize_syn_mode(syn_mode)
     C = load_network(
         network_json, device=dev,
-        exc_synweight=physics.exc_synweight, inh_synweight=physics.inh_synweight,
+        exc_synweight=exc_synweight, inh_synweight=inh_synweight,
         dtype=sim_dtype, syn_mode=mode,
     )
-    backend = _network_backend_from_connectome(C, physics=physics, sim_dtype=sim_dtype)
+    backend = _network_backend_from_connectome(
+        C, e_leak_rest=e_leak_rest, e_leak_depol=e_leak_depol, sim_dtype=sim_dtype,
+    )
     print(f"network: {network_json}")
     print(f"  n_units={backend.n_units}, n_types={backend.n_types}, "
           f"n_pairs={backend.conn.n_pairs}, n_edges={backend.conn.n_edges}, "
@@ -389,9 +409,10 @@ def _moving_bar_polarity_opts(ctx: _TrainBindCtx, polarity: str) -> dict:
         i_baseline=I_BASELINE,
         i_bar=I_BRIGHT if polarity == "bright" else I_DARK,
         pre_ms=PRE_MS,
-        delta_ms=PHYSICS.delta_ms,
+        delta_ms=DELTA_MS,
         multi_bar=MULTI_BAR,
     )
+
 
 
 def _cost_extent_column_coltag(cost_extent, n_cost_columns) -> str:
@@ -421,8 +442,8 @@ def _build_network_moving_bar_target(ctx: _TrainBindCtx, C, *, pack_name: str, p
         C=C,
         device=dev,
         sim_dtype=ctx.sim_dtype,
-        t_on=ms_to_t(float(opts["pre_ms"]), delta_ms=float(opts.get("delta_ms", PHYSICS.delta_ms))),
-        delta_ms=float(opts.get("delta_ms", PHYSICS.delta_ms)),
+        t_on=ms_to_t(float(opts["pre_ms"]), delta_ms=float(opts.get("delta_ms", DELTA_MS))),
+        delta_ms=float(opts.get("delta_ms", DELTA_MS)),
         cost_extent=cost_extent,
         i_baseline=opts["i_baseline"],
         contrasts=(polarity,),
@@ -489,7 +510,7 @@ def _spot_cost_times_ms(opts):
     interval_ms = float(interval_ms)
     if interval_ms <= 0:
         raise ValueError("cost_interval_ms must be > 0")
-    delta_ms = float(opts.get("delta_ms", PHYSICS.delta_ms))
+    delta_ms = float(opts.get("delta_ms", DELTA_MS))
     t_onset, n_t = spot_timing_t_from_opts(opts)
     post = n_t - t_onset
     if post <= 0:
@@ -510,7 +531,7 @@ def _spot_cost_time_ix(opts, *, device):
     cost_time_ms = _spot_cost_times_ms(opts)
     if not cost_time_ms:
         return None
-    delta_ms = float(opts.get("delta_ms", PHYSICS.delta_ms))
+    delta_ms = float(opts.get("delta_ms", DELTA_MS))
     t_onset, n_t = spot_timing_t_from_opts(opts)
     post = n_t - t_onset
     ix = [int(round(float(ms) / delta_ms)) for ms in cost_time_ms]
@@ -570,7 +591,7 @@ def _build_network_spot_target(
         i_dark=i_step if polarity == "dark" else float(opts.get("i_dark", I_DARK)),
         polarity=polarity,
         pulse_ms=float(opts.get("pulse_ms", PULSE_MS)),
-        data_amp=PHYSICS.DATA_AMP,
+        data_amp=DATA_AMP,
         delta_ms=delta_ms,
         default_cost_weights=default_w,
         spot_cost_radii=SPOT_COST_RADII,
@@ -761,7 +782,7 @@ def _finalize_stimulus_opts(
             i_step=float(raw.get(step_key, i_step_default)),
             pre_ms=float(raw.get("pre_ms", PRE_MS)),
             response_ms=float(raw.get("response_ms", RESPONSE_MS)),
-            delta_ms=float(raw.get("delta_ms", PHYSICS.delta_ms)),
+            delta_ms=float(raw.get("delta_ms", DELTA_MS)),
             shift_extent=int(raw.get("shift_extent", shift_extent if shift_extent is not None else SHIFT_EXTENT)),
             spot_extent=float(raw.get("spot_extent", spot_extent if spot_extent is not None else SPOT_EXTENT)),
             multi_spot=bool(raw.get("multi_spot", multi_spot if multi_spot is not None else MULTI_SPOT)),
@@ -777,7 +798,7 @@ def _finalize_stimulus_opts(
             i_baseline=float(raw.get("i_baseline", I_BASELINE)),
             i_bar=float(raw.get("i_bright_bar", I_BRIGHT)),
             pre_ms=float(raw.get("pre_ms", PRE_MS)),
-            delta_ms=float(raw.get("delta_ms", PHYSICS.delta_ms)),
+            delta_ms=float(raw.get("delta_ms", DELTA_MS)),
             multi_bar=bool(raw.get("multi_bar", MULTI_BAR)),
             readout_subtypes=raw.get("readout_subtypes"),
         )
@@ -789,7 +810,7 @@ def _finalize_stimulus_opts(
             i_baseline=float(raw.get("i_baseline", I_BASELINE)),
             i_bar=float(raw.get("i_dark_bar", I_DARK)),
             pre_ms=float(raw.get("pre_ms", PRE_MS)),
-            delta_ms=float(raw.get("delta_ms", PHYSICS.delta_ms)),
+            delta_ms=float(raw.get("delta_ms", DELTA_MS)),
             multi_bar=bool(raw.get("multi_bar", MULTI_BAR)),
             readout_subtypes=raw.get("readout_subtypes"),
         )
@@ -833,15 +854,12 @@ def make_train_opts(
     ih_off=IH_OFF,
     fp=FP,
     pre_grad=PRE_GRAD,
-    physics=None,
 ):
     """Canonical training opts for :func:`open_session` (network backend)."""
     if backend != "network":
         raise ValueError(f"backend must be 'network', got {backend!r}")
     if network is None and network_json is None:
         raise ValueError("make_train_opts requires network or network_json")
-    if physics is None:
-        physics = PHYSICS
     fp = int(fp)
     if fp not in (16, 32, 64):
         raise ValueError(f"fp must be 16, 32, or 64; got {fp!r}")
@@ -899,7 +917,6 @@ def make_train_opts(
         "network": network,
         "network_json": str(network_json) if network_json is not None else None,
         "dev": dev,
-        "physics": physics,
     })
     return opts
 
@@ -995,7 +1012,7 @@ def _make_session(
     target_list: List[str],
     packs: Dict[str, TargetPack],
     *,
-    physics,
+    delta_ms: float,
     cost_weights=None,
     sequential=None,
     dev=None,
@@ -1031,7 +1048,20 @@ def _make_session(
         cost_weights=expand_cost_weight_dict(cost_weights),
         sequential=bool(seq),
         device=dev_ref,
-        physics=physics,
+        delta_ms=float(delta_ms),
+        capac=CAPAC,
+        g_leak=G_LEAK,
+        E_exc=E_EXC,
+        E_inh=E_INH,
+        E_Ih=E_IH,
+        E_LEAK_REST=E_LEAK_REST,
+        E_LEAK_DEPOL=E_LEAK_DEPOL,
+        Ih_gain=IH_GAIN,
+        Ca_tau=CA_TAU,
+        DATA_AMP=DATA_AMP,
+        STATE_CLAMP=STATE_CLAMP,
+        exc_synweight=EXC_SYNWEIGHT,
+        inh_synweight=INH_SYNWEIGHT,
         sim_dtype=sim_dtype,
         train_opts=train_opts_record,
     )
@@ -1057,7 +1087,7 @@ def open_session(
         raise ValueError(f"unknown target(s) {bad!r} (expected {'|'.join(CLI_TARGET_NAMES)})")
     dev = opts.get("dev") or active_device()
     sim_dtype = sim_dtype_from_fp(int(opts.get("fp", FP)))
-    physics = opts.get("physics") or PHYSICS
+    delta_ms = _delta_ms_from_train_opts(opts)
 
     C = opts.get("network")
     syn_mode = normalize_syn_mode(opts.get("syn_mode", SYN_MODE))
@@ -1067,12 +1097,12 @@ def open_session(
             raise ValueError("open_session(network) requires opts['network'] or network_json")
         C = load_network(
             nj, device=dev,
-            exc_synweight=physics.exc_synweight, inh_synweight=physics.inh_synweight,
+            exc_synweight=EXC_SYNWEIGHT, inh_synweight=INH_SYNWEIGHT,
             dtype=sim_dtype, syn_mode=syn_mode,
         )
     if model_backend is None:
         model_backend = _network_backend_from_connectome(
-            C, physics=physics, sim_dtype=sim_dtype,
+            C, e_leak_rest=E_LEAK_REST, e_leak_depol=E_LEAK_DEPOL, sim_dtype=sim_dtype,
         )
     elif model_backend.network is not C:
         raise ValueError("model_backend.network must be opts['network']")
@@ -1106,11 +1136,12 @@ def open_session(
     record = _train_opts_for_sidecar(
         opts, "network", target_list,
         resolved_spot_bright, resolved_spot_dark,
-        resolved_bar_bright, resolved_bar_dark, False,
+        resolved_bar_bright, resolved_bar_dark,
+        bool(opts.get("sequential")),
     )
     return _make_session(
         model_backend, model, target_list, packs,
-        physics=physics,
+        delta_ms=delta_ms,
         cost_weights=opts.get("cost_weights"),
         sequential=opts.get("sequential"),
         dev=dev,
@@ -1120,22 +1151,19 @@ def open_session(
     )
 
 
-def _physics_from_train_opts(opts: dict) -> Physics:
-    """Physics for a session: in-memory object, else ``delta_ms`` from stimulus opts."""
-    physics = opts.get("physics")
-    if physics is not None:
-        return physics
-    dt = None
+def _delta_ms_from_train_opts(opts: dict) -> float:
+    """``delta_ms`` from stimulus opts only (required; no Physics bag)."""
     for _tname, opts_key in _STIMULUS_TRAIN_OPT_SPECS:
         so = opts.get(opts_key)
         if isinstance(so, dict) and so.get("delta_ms") is not None:
             dt = float(so["delta_ms"])
-            break
-    if dt is None:
-        return PHYSICS
-    if dt <= 0:
-        raise ValueError(f"stimulus opts delta_ms must be > 0, got {dt}")
-    return replace(PHYSICS, delta_ms=dt)
+            if dt <= 0:
+                raise ValueError(f"stimulus opts delta_ms must be > 0, got {dt}")
+            return dt
+    raise ValueError(
+        "train opts require delta_ms in a stimulus opts dict "
+        f"(one of {[k for _, k in _STIMULUS_TRAIN_OPT_SPECS]})"
+    )
 
 
 def open_session_from_opts(opts: dict, model: str | None = None, **kwargs) -> TrainSession:
@@ -1156,11 +1184,11 @@ def open_session_from_opts(opts: dict, model: str | None = None, **kwargs) -> Tr
         raise ValueError("train_opts requires target_list")
     sim_dtype = sim_dtype_from_fp(int(opts.get("fp", FP)))
     syn_mode = normalize_syn_mode(opts.get("syn_mode", SYN_MODE))
-    physics = _physics_from_train_opts(opts)
-    opts["physics"] = physics
     mb = load_network_backend(
         nj, dev=opts.get("dev") or active_device(), sim_dtype=sim_dtype,
-        syn_mode=syn_mode, physics=physics,
+        syn_mode=syn_mode,
+        exc_synweight=EXC_SYNWEIGHT, inh_synweight=INH_SYNWEIGHT,
+        e_leak_rest=E_LEAK_REST, e_leak_depol=E_LEAK_DEPOL,
     )
     opts["network"] = mb.network
     opts["syn_mode"] = syn_mode

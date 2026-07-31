@@ -66,27 +66,33 @@ def _gauss1d(fwhm, rfsize):
     return z / np.sum(z)
 
 
-def _lowpass(x, tau):
+def _lowpass(x, tau_ms, *, delta_ms: float):
+    """Euler low-pass; ``tau_ms`` is the time constant in milliseconds."""
     x = x.transpose(np.roll(np.arange(x.ndim), 1))
     n = x.shape[0]
     result = np.zeros_like(x)
-    if tau < 1:
+    tau_ms = float(tau_ms)
+    dt = float(delta_ms)
+    if dt <= 0:
+        raise ValueError(f"delta_ms must be > 0, got {dt}")
+    if tau_ms < dt:
         result = x
-    if tau >= 1:
+    else:
+        alpha = dt / tau_ms
         result[0] = x[0]
         for i in range(0, n - 1):
-            result[i + 1] = 1.0 / tau * (x[i] - result[i]) + result[i]
+            result[i + 1] = alpha * (x[i] - result[i]) + result[i]
     return result.transpose(np.roll(np.arange(result.ndim), -1))
 
 
-def _highpass(x, tau):
-    return x - _lowpass(x, tau)
+def _highpass(x, tau_ms, *, delta_ms: float):
+    return x - _lowpass(x, tau_ms, delta_ms=delta_ms)
 
 
-def _bandpass(signal, hp_tau, lp_tau):
-    result = _lowpass(signal, lp_tau)
-    if hp_tau != 0:
-        result = _highpass(result, hp_tau)
+def _bandpass(signal, hp_tau_ms, lp_tau_ms, *, delta_ms: float):
+    result = _lowpass(signal, lp_tau_ms, delta_ms=delta_ms)
+    if hp_tau_ms != 0:
+        result = _highpass(result, hp_tau_ms, delta_ms=delta_ms)
     return result
 
 
@@ -112,7 +118,7 @@ def _shift_right(y, k: int):
     return out
 
 
-# ImpR onset delay (samples): L1–L5 +1; other fit cells +2.
+# ImpR onset delay (samples / t-index): L1–L5 +1; other fit cells +2.
 _IMPR_SHIFT_RIGHT = {
     "L1": 1, "L2": 1, "L3": 1, "L4": 1, "L5": 1,
     "Mi1": 2, "Tm3": 2, "Mi4": 2, "Mi9": 2,
@@ -125,12 +131,15 @@ def read_RecF_ImpR(*, t_onset=None, n_t=None, pulse_ms=None, delta_ms: float):
 
     Shapes: ``RecF_data`` ``(13, 45)``; ``ImpR_data`` ``(13, n_t)``. The
     drive is :func:`task.spot.input.spot_input_waveform` (step or pulse).
-    ImpR is delayed per ``_IMPR_SHIFT_RIGHT`` (L1–L5: 1; others: 2).
+    ImpR filter taus are in ms (scaled by ``delta_ms``); delay is in samples.
     """
     if t_onset is None or n_t is None:
         raise ValueError("read_RecF_ImpR requires t_onset and n_t")
     t_onset = int(t_onset)
     n_t = int(n_t)
+    delta_ms = float(delta_ms)
+    if delta_ms <= 0:
+        raise ValueError(f"delta_ms must be > 0, got {delta_ms}")
 
     RF_center_width = np.array([6, 7, 6, 8, 7, 6, 12, 6, 6, 8, 8, 11, 7])
     RF_surrnd_width = np.array([41, 29, 15, 33, 31, 29, 7, 16, 24, 27, 31, 35, 24])
@@ -146,19 +155,25 @@ def read_RecF_ImpR(*, t_onset=None, n_t=None, pulse_ms=None, delta_ms: float):
         RecF_data[i] = (center - RF_surrnd_weight[i] * surrnd) * RF_sign[i]
         RecF_data[i] = normalize_data(RecF_data[i])
 
-    # hp and lp time constants * 10 ms
-    IR_hp = np.array([39.1, 28.8, 00.0, 38.1, 12.7, 31.8, 26.0, 0.00, 0.00, 29.6, 15.3, 24.9, 0.00])
-    IR_lp = np.array([03.8, 05.8, 05.4, 02.3, 04.2, 05.4, 02.7, 03.8, 07.7, 04.4, 01.4, 02.4, 10.7])
+    # ImpR HP / LP time constants (ms).
+    IR_hp_ms = np.array(
+        [391.0, 288.0, 0.0, 381.0, 127.0, 318.0, 260.0, 0.0, 0.0, 296.0, 153.0, 249.0, 0.0]
+    )
+    IR_lp_ms = np.array(
+        [38.0, 58.0, 54.0, 23.0, 42.0, 54.0, 27.0, 38.0, 77.0, 44.0, 14.0, 24.0, 107.0]
+    )
 
     signal = spot_input_waveform(t_onset, n_t, pulse_ms, delta_ms=delta_ms)
     signal = signal / np.max(signal)
 
     ImpR_data = np.zeros((13, n_t))
     for i in range(13):
-        if IR_hp[i] == 0:
-            ImpR_data[i] = _lowpass(signal, IR_lp[i])
+        if IR_hp_ms[i] == 0:
+            ImpR_data[i] = _lowpass(signal, IR_lp_ms[i], delta_ms=delta_ms)
         else:
-            ImpR_data[i] = _bandpass(signal, IR_hp[i], IR_lp[i])
+            ImpR_data[i] = _bandpass(
+                signal, IR_hp_ms[i], IR_lp_ms[i], delta_ms=delta_ms,
+            )
         ImpR_data[i] = normalize_data(ImpR_data[i])
         name = str(cell_list[i])
         ImpR_data[i] = _shift_right(ImpR_data[i], _IMPR_SHIFT_RIGHT[name])

@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""Numeric source for physics, schema boxes, stimulus, and CLI values.
+"""Numeric source for membrane constants, schema boxes, stimulus, and CLI values.
 
 Literals / constant bags only — no functions. Only ``4_training`` / figures /
 run scripts import this module. Layers ``1_neuron`` / ``2_network`` /
@@ -14,30 +14,25 @@ from __future__ import annotations
 import math
 from typing import Dict, Tuple
 
-from neuron.params import Physics
-
 # ---------------------------------------------------------------------------
-# 1.1 neuron.params
+# 1.1 neuron.params (flat; no Physics bag)
 # ---------------------------------------------------------------------------
 
 DELTA_MS = 10.0
+CAPAC = 40.0
+G_LEAK = 1.0
+E_EXC = 10.0
+E_INH = -70.0
+E_IH = 50.0
+E_LEAK_REST = -50.0
+E_LEAK_DEPOL = -20.0
+IH_GAIN = 1.0
+CA_TAU = 50.0
+DATA_AMP = 20.0
+STATE_CLAMP = 1.0e6
+EXC_SYNWEIGHT = 0.001
+INH_SYNWEIGHT = 0.001
 
-PHYSICS = Physics(
-    delta_ms=DELTA_MS,
-    capac=40.0,
-    g_leak=1.0,
-    E_exc=10.0,
-    E_inh=-70.0,
-    E_Ih=50.0,
-    E_LEAK_REST=-50.0,
-    E_LEAK_DEPOL=-20.0,
-    Ih_gain=1.0,
-    Ca_tau=50.0,
-    DATA_AMP=20.0,
-    STATE_CLAMP=1.0e6,
-    exc_synweight=0.001,
-    inh_synweight=0.001,
-)
 IH_OFF = "on"
 
 GAIN_LO = 0.5
@@ -59,7 +54,7 @@ PARAM_BOXES: Dict[str, dict] = {
     "Ih_midv_off": dict(lo=-70.0, hi=-30.0, init=-50.0, jit=5.0),
     "Ih_slope_off": dict(lo=-0.40, hi=-0.20, init=-0.25, jit=0.02),
     "tau_midv_off": dict(lo=-70.0, hi=-40.0, init=-50.0, jit=5.0),
-    "tau_lp": dict(lo=PHYSICS.delta_ms, hi=100.0, init=50.0, jit=5.0),
+    "tau_lp": dict(lo=10.0, hi=100.0, init=50.0, jit=5.0),
     "v_rest": dict(lo=-20.0, hi=20.0, init=0.0, jit=1.0),
     "tau_hp": dict(lo=100.0, hi=10000.0, init=200.0, jit=20.0, fixed_val=10000.0),
     "hp_gain": dict(lo=GAIN_LO, hi=GAIN_HI, init=1.0, jit=0.1, fixed_val=1.0),

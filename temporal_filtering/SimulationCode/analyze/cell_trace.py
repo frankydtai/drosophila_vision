@@ -55,7 +55,7 @@ from dataclasses import dataclass
 import numpy as np
 
 import import_bootstrap  # noqa: F401
-import training as fc
+import training
 import figure.plot_run as plot_trained
 from figure import moving_bar as moving_bar_plot
 from figure import spot as spot_plot
@@ -132,7 +132,7 @@ def parse_shared_cli(args: argparse.Namespace) -> SharedCli:
         raise SystemExit("--target is required")
     specs_req = parse_comma_list(args.spec) if args.spec is not None else None
     for t in targets:
-        if t not in fc.SPOT_TARGETS and t not in fc.MOVING_BAR_TARGETS:
+        if t not in training.SPOT_TARGETS and t not in training.MOVING_BAR_TARGETS:
             raise SystemExit(
                 f"unsupported target {t!r}; expected spot_* or moving_bar_* "
                 f"(after TARGET_ALIASES expansion)"
@@ -140,7 +140,7 @@ def parse_shared_cli(args: argparse.Namespace) -> SharedCli:
     x_list = parse_axis_slice_list(args.x)
     y_list = parse_axis_slice_list(args.y)
     if (x_list is None) ^ (y_list is None):
-        if any(t in fc.SPOT_TARGETS for t in targets):
+        if any(t in training.SPOT_TARGETS for t in targets):
             raise SystemExit("spot targets require both --x and --y or neither")
     slice_label = None
     if x_list is not None and y_list is not None and len(x_list) == 1 and len(y_list) == 1:
@@ -434,7 +434,7 @@ def _ms_to_t(ms: float, delta_ms: float) -> int:
 
 
 def _load_train_opts(run_dir: str) -> dict:
-    opts_path = os.path.join(run_data_dir(os.path.abspath(run_dir)), fc.TRAIN_OPTS_FILE)
+    opts_path = os.path.join(run_data_dir(os.path.abspath(run_dir)), training.TRAIN_OPTS_FILE)
     with open(opts_path) as f:
         return json.load(f)
 
@@ -468,7 +468,7 @@ def _maybe_override_spot_timing(
             so.pop("n_t", None)
 
     # Re-open the session with updated stimulus opts.
-    new_session = fc.open_session_from_opts(opts, model=opts.get("model"))
+    new_session = training.open_session_from_opts(opts, model=opts.get("model"))
     dt = float((opts.get("spot_bright_stimulus_opts") or {}).get("delta_ms", 10.0))
     new_t_onset = _ms_to_t(pre_ms, dt)
     return new_session, dt, new_t_onset
@@ -536,16 +536,16 @@ def main():
             )
             # Re-load + re-map the best parameters for the new session schema.
             named, type_names, pair_names = train_mod.load_best_param_named(run_dir)
-            remapped = fc.remap_named_unit_values(
+            remapped = training.remap_named_unit_values(
                 named,
                 type_names,
                 pair_names,
                 list(session.schema),
                 session.backend,
             )
-            schema = fc.attach_param_carry(list(session.schema), remapped)
+            schema = training.attach_param_carry(list(session.schema), remapped)
             session = session.with_schema(schema)
-            z = fc.unit_values_to_z(
+            z = training.unit_values_to_z(
                 remapped,
                 schema,
                 dtype=session.sim_dtype,
@@ -565,7 +565,7 @@ def main():
         bar_cache: dict[str, object] = {}
 
         for target in cli.targets:
-            if target in fc.SPOT_TARGETS:
+            if target in training.SPOT_TARGETS:
                 if target not in spot_cache:
                     spot_cache[target] = extract_spot_bundle(
                         session,

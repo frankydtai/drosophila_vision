@@ -5,7 +5,7 @@ from __future__ import annotations
 import numpy as np
 import torch
 
-from training.defaults import PHYSICS
+from training.defaults import DATA_AMP, DELTA_MS
 from task.spot.data import cell_list, read_RecF_data, read_RecF_data_dark
 from network.construction import (
     TYPE_FAMILY_ROWS,
@@ -129,12 +129,12 @@ def _cell_cubes(*, dark: bool, t_onset=None, n_t=None, pulse_ms=None, delta_ms: 
     """One contrast: ``{cell: (9, T)}``."""
     kw = dict(t_onset=t_onset, n_t=n_t, pulse_ms=pulse_ms, delta_ms=float(delta_ms))
     data = read_RecF_data_dark(**kw) if dark else read_RecF_data(**kw)
-    cubes = data * PHYSICS.DATA_AMP
+    cubes = data * DATA_AMP
     return {str(name): cubes[i] for i, name in enumerate(cell_list)}
 
 
 def fit_data_cubes(
-    *, contrasts=("bright",), t_onset=None, n_t=None, pulse_ms=None, delta_ms: float = PHYSICS.delta_ms,
+    *, contrasts=("bright",), t_onset=None, n_t=None, pulse_ms=None, delta_ms: float = DELTA_MS,
 ):
     """RecF data cubes ``{contrast: {cell: (9, T)}}`` (``v`` target as-is)."""
     out = {}
@@ -159,7 +159,7 @@ def spot_data_cubes(
     t_onset=None,
     n_t=None,
     pulse_ms=None,
-    delta_ms: float = PHYSICS.delta_ms,
+    delta_ms: float = DELTA_MS,
 ):
     """Spot data cubes ``{contrast: {cell: (9, T)}}`` with pack mirror overrides."""
     target = target or session.primary_pack.name

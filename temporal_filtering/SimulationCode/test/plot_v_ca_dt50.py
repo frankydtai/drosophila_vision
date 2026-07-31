@@ -25,7 +25,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import torch
 
-import training as fc
+import training
 from figure.plot_run import load_train_opts, session_for_target
 from figure.readout import plot_present_layout
 from figure.util import TRACE_LW, TRACE_YLIM, save_figure
@@ -64,14 +64,14 @@ def _fit_center_traces(session, z, *, return_v_delta: bool) -> dict[str, np.ndar
     so the three overlays share amplitude).
     """
     pack = session.primary_pack
-    p = fc.assign_params(z, list(session.schema), session.backend)
+    p = training.assign_params(z, list(session.schema), session.backend)
     sig = pack.signal if pack.signal.dim() == 3 else pack.signal.unsqueeze(0)
     if return_v_delta:
-        trace_full = fc.run_full(
+        trace_full = training.run_full(
             session, p, sig, pack=pack, return_v_delta=True,
         )
     else:
-        trace_full = fc.run_full(session, p, sig, pack=pack)
+        trace_full = training.run_full(session, p, sig, pack=pack)
 
     opts = dict((session.train_opts or {}).get(f"{pack.name}_stimulus_opts") or {})
     C = session.backend.network
@@ -82,7 +82,7 @@ def _fit_center_traces(session, z, *, return_v_delta: bool) -> dict[str, np.ndar
         spot_center_bin_layout(C, batches, cost_radii, pack.cost_extent)
     )
     raw = trace_full[batch_idx, :, unit_idx]
-    scale = fc.out_scale_for_units(
+    scale = training.out_scale_for_units(
         p, torch.as_tensor(unit_idx, dtype=torch.long, device=z.device), session.backend,
     )
     scaled = scale[:, None] * raw
@@ -112,13 +112,13 @@ def _session_z_at_delta_ms(base_opts, model, named, type_names, pair_names, dt_m
             continue
         so["delta_ms"] = float(dt_ms)
 
-    session = fc.open_session_from_opts(opts, model=model)
-    remapped = fc.remap_named_unit_values(
+    session = training.open_session_from_opts(opts, model=model)
+    remapped = training.remap_named_unit_values(
         named, type_names, pair_names, list(session.schema), session.backend,
     )
-    schema = fc.attach_param_carry(list(session.schema), remapped)
+    schema = training.attach_param_carry(list(session.schema), remapped)
     session = session.with_schema(schema)
-    z = fc.unit_values_to_z(
+    z = training.unit_values_to_z(
         remapped, schema, dtype=session.sim_dtype, device=session.device,
     )
     return session_for_target(session, "spot_bright"), z
@@ -206,14 +206,14 @@ def main():
         raise SystemExit(f"missing train_opts.json under {run_path}")
     base_opts = _apply_spot_timing(raw_opts, pre_ms=pre_ms, response_ms=response_ms)
     model = base_opts.get("model")
-    session0 = fc.open_session_from_opts(base_opts, model=model)
+    session0 = training.open_session_from_opts(base_opts, model=model)
 
     import training.driver as train_mod
     named, type_names, pair_names = train_mod.load_best_param_named(run_path)
-    remapped = fc.remap_named_unit_values(
+    remapped = training.remap_named_unit_values(
         named, type_names, pair_names, list(session0.schema), session0.backend,
     )
-    schema = fc.attach_param_carry(list(session0.schema), remapped)
+    schema = training.attach_param_carry(list(session0.schema), remapped)
     session0 = session0.with_schema(schema)
     base_opts = copy.deepcopy(session0.train_opts)
 

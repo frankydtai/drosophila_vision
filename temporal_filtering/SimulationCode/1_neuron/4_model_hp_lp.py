@@ -8,7 +8,7 @@ with X = v_rest + syn + x_t, syn from relu(v)·out_gain scaled by syn_strength
 (type_pair) or edge_weight (per_edge).
 
 Dynamics only: ``prepare_signal`` / ``init_state`` / ``step``. Full-T ``v``
-forward lives in ``neuron.forward``. Physics via ``session.physics``.
+forward lives in ``neuron.forward``. Scalars from ``session`` flat fields.
 """
 from __future__ import annotations
 
@@ -17,14 +17,14 @@ import torch
 from neuron.schema import synaptic_scale
 
 
-def update_state_hp_lp(v, a, p, x_t, backend, *, physics):
+def update_state_hp_lp(v, a, p, x_t, backend, *, delta_ms, state_clamp):
     """One HP→LP membrane step; returns (v, a)."""
     v_rest = p["v_rest"]
-    dt = physics.delta_ms
+    dt = float(delta_ms)
     tau_lp = torch.clamp(p["tau_lp"], min=dt)
     tau_hp = torch.clamp(p["tau_hp"], min=dt)
     G = p["hp_gain"]
-    clamp = physics.STATE_CLAMP
+    clamp = float(state_clamp)
 
     syn = p["in_gain"] * backend.conn.signed_drive(
         torch.relu(v) * p["out_gain"], synaptic_scale(p),
@@ -61,6 +61,7 @@ def init_state(session, p, B):
 def step(state, v, p, x_t, session):
     a, = state
     v, a = update_state_hp_lp(
-        v, a, p, x_t, session.backend, physics=session.physics,
+        v, a, p, x_t, session.backend,
+        delta_ms=session.delta_ms, state_clamp=session.STATE_CLAMP,
     )
     return (a,), v

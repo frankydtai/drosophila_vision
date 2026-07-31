@@ -243,7 +243,7 @@ if __name__ == "__main__":
     import sys
 
     from connectome_io import NETWORK_DIR
-    from training.defaults import PHYSICS, SYN_MODE
+    from training.defaults import EXC_SYNWEIGHT, INH_SYNWEIGHT, SYN_MODE
     from training.target_pack import SIM_DTYPE
 
     p = sys.argv[1] if len(sys.argv) > 1 else str(
@@ -251,7 +251,7 @@ if __name__ == "__main__":
     )
     c = load_network(
         p, device="cpu",
-        exc_synweight=PHYSICS.exc_synweight, inh_synweight=PHYSICS.inh_synweight,
+        exc_synweight=EXC_SYNWEIGHT, inh_synweight=INH_SYNWEIGHT,
         syn_mode=SYN_MODE, dtype=SIM_DTYPE,
     )
     print(f"loaded {p}")

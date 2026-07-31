@@ -5,18 +5,16 @@
 ``alpha = delta_ms / Ca_tau``. Training and plots use ``v`` (``v - v_onset``)
 directly; ImpR / RecF targets are used as-is (no Ca conversion).
 
-``delta_ms`` / ``Ca_tau`` come from a required :class:`~neuron.params.Physics`.
+``delta_ms`` / ``Ca_tau`` are injected scalars.
 """
 from __future__ import annotations
 
-from neuron.params import Physics
 
-
-def ca_alpha(*, physics: Physics) -> float:
+def ca_alpha(*, delta_ms: float, Ca_tau: float) -> float:
     """One-step low-pass coefficient ``delta_ms / Ca_tau``."""
-    return physics.delta_ms / physics.Ca_tau
+    return float(delta_ms) / float(Ca_tau)
 
 
-def ca_filter(ca, v, v_onset, *, physics: Physics):
+def ca_filter(ca, v, v_onset, *, delta_ms: float, Ca_tau: float):
     """One Ca low-pass step on ``v - v_onset`` (unused by current forward)."""
-    return physics.delta_ms / physics.Ca_tau * (v - v_onset - ca) + ca
+    return float(delta_ms) / float(Ca_tau) * (v - v_onset - ca) + ca

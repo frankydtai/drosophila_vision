@@ -49,7 +49,7 @@ from training.defaults import (
     NOFRUNS,
     NOFSTEPS_CPU,
     NOFSTEPS_GPU,
-    PHYSICS,
+    DELTA_MS,
     PRE_GRAD,
     PRE_MS,
     PULSE_MS,
@@ -66,7 +66,7 @@ from training.defaults import (
 )
 from task.spot.data import default_spot_cost_radius_weight
 from training import do_many_runs
-import training as fc
+import training
 from training.config import (
     EDGE_WEIGHT_CSV,
     PARAM_CSV,
@@ -170,7 +170,7 @@ def decompose_params(z_t, session):
     """
     n = session.backend.n_types
     schema = list(session.schema)
-    unit_vals = fc.z_to_unit_values(z_t, schema)
+    unit_vals = training.z_to_unit_values(z_t, schema)
     cols, glob = {}, {}
     for seg in schema:
         name = seg["name"]
@@ -210,7 +210,7 @@ def write_syn_strength_table(z_t, session, table_path):
     seg = next((s for s in schema if s["name"] == "syn_strength"), None)
     if seg is None or seg["kind"] != "edge_pair":
         return None
-    unit_vals = fc.z_to_unit_values(z_t, schema)
+    unit_vals = training.z_to_unit_values(z_t, schema)
     arr = np.asarray(unit_vals["syn_strength"], dtype=np.float64).reshape(-1)
     names = [str(n) for n in ctype_labels(session)]
     keys = list(session.backend.conn.pair_keys)
@@ -237,7 +237,7 @@ def write_edge_weight_table(z_t, session, table_path):
     seg = next((s for s in schema if s["name"] == "edge_weight"), None)
     if seg is None or seg["kind"] != "edge":
         return None
-    unit_vals = fc.z_to_unit_values(z_t, schema)
+    unit_vals = training.z_to_unit_values(z_t, schema)
     arr = np.asarray(unit_vals["edge_weight"], dtype=np.float64).reshape(-1)
     conn = session.backend.conn
     if arr.shape[0] != conn.n_edges:
@@ -298,12 +298,12 @@ def best_param_path(outdir):
 def save_param_named(outdir, z, session, filename):
     """Write named full-width unit values to ``data/<filename>``."""
     schema = list(session.schema)
-    named = fc.z_to_unit_values(z, schema)
-    type_names = np.asarray(fc.type_unit_names(session.backend), dtype=object)
+    named = training.z_to_unit_values(z, schema)
+    type_names = np.asarray(training.type_unit_names(session.backend), dtype=object)
     payload = {k: np.asarray(v, dtype=np.float64) for k, v in named.items()}
     payload['type_names'] = type_names
     if any(s['kind'] == 'edge_pair' for s in schema):
-        payload['pair_names'] = np.asarray(fc.pair_unit_names(session.backend), dtype=object)
+        payload['pair_names'] = np.asarray(training.pair_unit_names(session.backend), dtype=object)
     os.makedirs(data_dir(outdir), exist_ok=True)
     np.savez(os.path.join(data_dir(outdir), filename), **payload)
 
@@ -368,16 +368,16 @@ def load_best_param(outdir, session=None):
     if session is None:
         raise TypeError("load_best_param requires session for named best_param.npz")
     named, type_names, pair_names = load_best_param_named(outdir)
-    schema = fc.attach_param_carry(
+    schema = training.attach_param_carry(
         list(session.schema),
-        fc.remap_named_unit_values(
+        training.remap_named_unit_values(
             named, type_names, pair_names, list(session.schema), session.backend,
         ),
     )
-    remapped = fc.remap_named_unit_values(
+    remapped = training.remap_named_unit_values(
         named, type_names, pair_names, schema, session.backend,
     )
-    z = fc.unit_values_to_z(
+    z = training.unit_values_to_z(
         remapped, schema, dtype=session.sim_dtype, device=session.device,
     )
     return z.detach().cpu().numpy().astype(np.float64)
@@ -426,7 +426,7 @@ def final_costs_for_params(all_params, session, final_costs=None):
     if final_costs is not None:
         return np.asarray(final_costs, dtype=np.float64), int(np.argmin(final_costs))
     costs = np.array([
-        fc.calc_cost(
+        training.calc_cost(
             torch.tensor(all_params[i], dtype=torch.float64, device=session.device),
             session,
         ).item()
@@ -488,17 +488,17 @@ def load_init_z(init_from, session):
         raise ValueError(str(exc)) from exc
     named, type_names, pair_names = load_best_param_named(outdir)
     schema = list(session.schema)
-    remapped = fc.remap_named_unit_values(
+    remapped = training.remap_named_unit_values(
         named, type_names, pair_names, schema, session.backend,
     )
-    schema = fc.attach_param_carry(schema, remapped)
+    schema = training.attach_param_carry(schema, remapped)
     session = session.with_schema(schema)
-    z = fc.unit_values_to_z(
+    z = training.unit_values_to_z(
         remapped, schema, dtype=session.sim_dtype, device=session.device,
     )
     print(
         f'from {outdir!r} -> {best_param_path(outdir)!r} '
-        f'({fc.schema_nparams(schema)} trainable slots)'
+        f'({training.schema_nparams(schema)} trainable slots)'
     )
     return session, z
 
@@ -508,7 +508,7 @@ def save_training_outputs(fname, outdir, session, result):
     os.makedirs(outdir, exist_ok=True)
     os.makedirs(data_dir(outdir), exist_ok=True)
     if session.train_opts is not None:
-        with open(os.path.join(data_dir(outdir), fc.TRAIN_OPTS_FILE), 'w') as f:
+        with open(os.path.join(data_dir(outdir), training.TRAIN_OPTS_FILE), 'w') as f:
             json.dump(session.train_opts, f, indent=2)
             f.write('\n')
     np.save(params_path(outdir, fname), result.all_params)
@@ -545,7 +545,7 @@ def print_param_partitions(session):
             f"shared={len(s.get('shared') or [])}/"
             f"fixed={len(s.get('fixed') or [])}/"
             f"frozen={len(s.get('frozen') or [])} "
-            f"({fc.seg_ntrain(s)})"
+            f"({training.seg_ntrain(s)})"
         )
 
 
@@ -555,15 +555,15 @@ def apply_param_partitions(session, partitions_by_name):
         return session
     from dataclasses import replace
     backend = session.backend
-    schema = fc.apply_partitions(
+    schema = training.apply_partitions(
         list(session.schema),
         partitions_by_name,
-        lambda seg: fc.unit_names_for_segment(seg, backend),
+        lambda seg: training.unit_names_for_segment(seg, backend),
     )
-    schema = fc.attach_param_carry(schema)
+    schema = training.attach_param_carry(schema)
     opts = dict(session.train_opts or {})
-    opts['param_partitions'] = fc.schema_partitions_record(
-        schema, lambda seg: fc.unit_names_for_segment(seg, backend),
+    opts['param_partitions'] = training.schema_partitions_record(
+        schema, lambda seg: training.unit_names_for_segment(seg, backend),
     )
     session = replace(session, schema=tuple(schema), train_opts=opts)
     print_param_partitions(session)
@@ -600,13 +600,12 @@ def build_session(
     pack_overrides=None,
     model_backend=None,
     schema=None,
-    physics=None,
 ):
     """Create a :class:`TrainSession` from run options."""
     tl = list(target_list) if target_list is not None else list(
-        fc.normalize_target_list([TARGET])
+        training.normalize_target_list([TARGET])
     )
-    dev = fc.active_device()
+    dev = training.active_device()
     mkw = dict(
         target_list=tl,
         cost_weights=cost_weights,
@@ -627,7 +626,7 @@ def build_session(
     if not network:
         raise ValueError("build_session requires network")
     network = resolve_network(network)
-    opts = fc.make_train_opts(
+    opts = training.make_train_opts(
         backend="network",
         network_json=network,
         dev=dev,
@@ -636,10 +635,9 @@ def build_session(
         syn_mode=syn_mode,
         fp=fp,
         pre_grad=pre_grad,
-        physics=physics,
         **mkw,
     )
-    return fc.open_session(opts, model, schema=schema, model_backend=model_backend)
+    return training.open_session(opts, model, schema=schema, model_backend=model_backend)
 
 
 def run_training(model, nofruns, nofsteps, lrs, fname=None, outdir=None,
@@ -661,7 +659,6 @@ def run_training(model, nofruns, nofsteps, lrs, fname=None, outdir=None,
                  pack_overrides=None, model_backend=None, schema=None,
                  fp=FP,
                  pre_grad=PRE_GRAD,
-                 physics=None,
                  init_from=None,
                  checkpoint_interval=None,
                  make_checkpoint_callback=make_checkpoint_callback,
@@ -696,7 +693,6 @@ def run_training(model, nofruns, nofsteps, lrs, fname=None, outdir=None,
         schema=schema,
         fp=fp,
         pre_grad=pre_grad,
-        physics=physics,
     )
     suffix = "" if model == "borst" else f"_{model}"
     fname = fname or f"training{suffix or '_with_Ih'}.npy"
@@ -706,7 +702,7 @@ def run_training(model, nofruns, nofsteps, lrs, fname=None, outdir=None,
     syn_mode = (session.train_opts or {}).get("syn_mode", SYN_MODE)
     print(f"device={session.device}, model={model}, syn_mode={syn_mode}, "
           f"nofruns={nofruns}, nofsteps={nofsteps}, "
-          f"lrs={lrs}, nparams={fc.schema_nparams(list(session.schema))}, fname={fname}, outdir={outdir}")
+          f"lrs={lrs}, nparams={training.schema_nparams(list(session.schema))}, fname={fname}, outdir={outdir}")
     if checkpoint_interval is not None:
         if checkpoint_interval <= 0:
             raise ValueError("checkpoint_interval must be a positive integer")
@@ -754,11 +750,11 @@ def add_training_arguments(parser):
     Concrete omitted-flag values live in :mod:`training.defaults` and are
     wired here as ``default=CONST``. ``None`` only for omit-disabled flags.
     """
-    parser.add_argument("--model", default=MODEL, choices=list(fc.KNOWN_MODELS))
+    parser.add_argument("--model", default=MODEL, choices=list(training.KNOWN_MODELS))
     parser.add_argument(
         "--syn-mode",
         default=SYN_MODE,
-        choices=list(fc.SYN_MODES),
+        choices=list(training.SYN_MODES),
         help="synaptic scale: type_pair (sign*n_syn + type→type syn_strength; default) "
              "or per_edge (sign only + per-edge edge_weight magnitude)",
     )
@@ -848,7 +844,7 @@ def add_training_arguments(parser):
     parser.add_argument("--hp-gain", **_partition_kwargs,
                         help=f"hp_lp hp_gain partitions ({_partition_help}; default fixed=all)")
     parser.add_argument("--ih-off", default=IH_OFF,
-                        choices=list(fc.IH_OFF_MODES),
+                        choices=list(training.IH_OFF_MODES),
                         help="OFF-channel Ih: on (train Ih_gmax_off+OFF shape; default), "
                              "mirrored (OFF copies ON), off (disable OFF channel)")
     parser.add_argument(
@@ -990,7 +986,7 @@ def add_training_arguments(parser):
         default=DELTA_MS,
         metavar="MS",
         help=f"simulation / stimulus time step in ms (default: {DELTA_MS}; "
-             "sets Physics.delta_ms and all stimulus opts delta_ms)",
+             "writes delta_ms into all stimulus opts)",
     )
     parser.add_argument(
         "--cost-interval-ms",
@@ -1041,7 +1037,7 @@ def parse_comma_floats(text):
 
 def parse_target_list(text):
     """Parse comma-separated training targets (with alias expansion)."""
-    return fc.normalize_target_list(parse_comma_list(text))
+    return training.normalize_target_list(parse_comma_list(text))
 
 
 def parse_target_names(text):
@@ -1083,9 +1079,9 @@ def parse_cost_weight(text, target_list):
             bare.append(tok.strip())
     weights: dict[str, float] = {}
     if bare:
-        weights = {key: 0.0 for key in fc.session_cost_part_keys(target_list)}
-        weights.update(fc.expand_cost_weight_dict({name: 1.0 for name in bare}))
-    weights.update(fc.expand_cost_weight_dict(explicit))
+        weights = {key: 0.0 for key in training.session_cost_part_keys(target_list)}
+        weights.update(training.expand_cost_weight_dict({name: 1.0 for name in bare}))
+    weights.update(training.expand_cost_weight_dict(explicit))
     return weights
 
 
@@ -1118,7 +1114,7 @@ def _partition_cli_map(args):
     Precedence: ``--all-param`` → ``--ih-shape`` → per-param flags.
     Omitted segments keep schema defaults (not listed here).
     """
-    syn_mode = fc.normalize_syn_mode(getattr(args, "syn_mode", SYN_MODE))
+    syn_mode = training.normalize_syn_mode(getattr(args, "syn_mode", SYN_MODE))
     syn_text = _partition_cli_text(getattr(args, "syn_strength", None))
     edge_text = _partition_cli_text(getattr(args, "edge_weight", None))
     if syn_mode == "per_edge" and syn_text is not None:
@@ -1128,7 +1124,7 @@ def _partition_cli_map(args):
     texts = {}
     all_param = _partition_cli_text(getattr(args, "all_param", None))
     if all_param is not None:
-        for name in fc.ALL_PARAM_NAMES:
+        for name in training.ALL_PARAM_NAMES:
             if name == "syn_strength" and syn_mode != "type_pair":
                 continue
             if name == "edge_weight" and syn_mode != "per_edge":
@@ -1136,7 +1132,7 @@ def _partition_cli_map(args):
             texts[name] = all_param
     shape_text = _partition_cli_text(getattr(args, "ih_shape", None))
     if shape_text is not None:
-        for name in fc.IH_SHAPE_PARAM_NAMES:
+        for name in training.IH_SHAPE_PARAM_NAMES:
             texts[name] = shape_text
     per_param = {
         "in_gain": _partition_cli_text(getattr(args, "in_gain", None)),
@@ -1161,9 +1157,9 @@ def _partition_cli_map(args):
     for name, text in per_param.items():
         if text is not None:
             texts[name] = text
-    out = {name: fc.parse_partition_text(text) for name, text in texts.items()}
+    out = {name: training.parse_partition_text(text) for name, text in texts.items()}
     if "edge_weight" in out:
-        fc.validate_edge_weight_partition(out["edge_weight"])
+        training.validate_edge_weight_partition(out["edge_weight"])
     return out
 
 
@@ -1191,7 +1187,7 @@ def training_kwargs_from_args(
     target_list = parse_target_list(args.target)
     cost_weights = parse_cost_weight(args.cost_weight, target_list)
     default_extent, extent_kv = parse_cost_extent(args.cost_extent)
-    cost_extent_by_target = fc.resolve_cost_extent_by_target(
+    cost_extent_by_target = training.resolve_cost_extent_by_target(
         target_list, default_extent, extent_kv,
     )
     if default_extent is not None and default_extent != -1 and default_extent < 0:
@@ -1213,7 +1209,6 @@ def training_kwargs_from_args(
     delta_ms = float(args.delta_ms)
     if delta_ms <= 0:
         raise ValueError("--delta-ms must be > 0")
-    physics = replace(PHYSICS, delta_ms=delta_ms)
     multi_bar = bool(args.multi_bar)
     _timing = {
         "pre_ms": pre_ms,
@@ -1239,7 +1234,7 @@ def training_kwargs_from_args(
             raise ValueError("--cost-interval-ms must be > 0")
         for _o in (spot_bright_stimulus_opts, spot_dark_stimulus_opts):
             _o["cost_interval_ms"] = float(args.cost_interval_ms)
-    i_cli = fc.build_i_cli_by_target({
+    i_cli = training.build_i_cli_by_target({
         "i_baseline": parse_comma_kv(args.i_baseline, float),
         "i_bright": parse_comma_kv(args.i_bright, float),
         "i_dark": parse_comma_kv(args.i_dark, float),
@@ -1264,7 +1259,7 @@ def training_kwargs_from_args(
         fname=args.fname,
         outdir=outdir,
         param_partitions=param_partitions,
-        syn_mode=fc.normalize_syn_mode(args.syn_mode),
+        syn_mode=training.normalize_syn_mode(args.syn_mode),
         network=args.network,
         target_list=target_list,
         cost_weights=cost_weights,
@@ -1283,7 +1278,6 @@ def training_kwargs_from_args(
         fp=fp,
         pre_grad=bool(args.pre_grad),
         sequential=bool(args.sequential),
-        physics=physics,
         init_from=init_from,
         checkpoint_interval=args.checkpoint_interval,
     )

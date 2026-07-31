@@ -50,7 +50,7 @@ from column_mapper import (
 from connectome_io import DEFAULT_NETWORK_RUN, network_run_tag, resolve_network_json
 from network.construction import Network, load_network
 from training.defaults import (
-    PHYSICS,
+    EXC_SYNWEIGHT, INH_SYNWEIGHT,
     SPOT_EXTENTS,
     SYN_MODE,
 )
@@ -140,7 +140,7 @@ def main() -> None:
     network_json = str(resolve_network_json(args.network))
     C = load_network(
         network_json, device="cpu",
-        exc_synweight=PHYSICS.exc_synweight, inh_synweight=PHYSICS.inh_synweight,
+        exc_synweight=EXC_SYNWEIGHT, inh_synweight=INH_SYNWEIGHT,
         syn_mode=SYN_MODE, dtype=SIM_DTYPE,
     )
     run_tag = network_run_tag(network_json, C.meta)

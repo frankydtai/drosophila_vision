@@ -61,7 +61,7 @@ import numpy as np
 import torch
 
 import import_bootstrap  # noqa: F401
-import training as fc
+import training
 import figure.plot_run as plot_trained
 from analyze.cell_trace import add_shared_cli, parse_shared_cli
 from task.moving_bar.data import (
@@ -214,11 +214,11 @@ _FORMULA_TOKENS: list[tuple[str, str | None]] = [
 def _g_e_note(label: str, *, e_leak_mV: float) -> str | None:
     """Reversal annotation for a conductance subplot (``E_exc=+10 mV`` …)."""
     notes = {
-        "g_exc": f"E_exc={fc.PHYSICS.E_exc:+g} mV",
-        "g_inh": f"E_inh={fc.PHYSICS.E_inh:+g} mV",
+        "g_exc": f"E_exc={training.E_EXC:+g} mV",
+        "g_inh": f"E_inh={training.E_INH:+g} mV",
         "g_leak": f"E_leak={e_leak_mV:+g} mV",
-        "g_h_on": f"E_h_on={fc.PHYSICS.E_Ih:+g} mV",
-        "g_h_off": f"E_h_off={fc.PHYSICS.E_IH_OFF:+g} mV",
+        "g_h_on": f"E_h_on={training.E_IH:+g} mV",
+        "g_h_off": f"E_h_off={training.e_ih_off(training.E_LEAK_REST, training.E_IH):+g} mV",
     }
     return notes.get(label)
 
@@ -254,7 +254,7 @@ def _finish_budget_figure_layout(fig, title: str, colors: list[str]) -> None:
     fig.get_layout_engine().set(rect=(0, 0, 1, 0.88))
 
 def _v_step_params(p):
-    """Unpack ``assign_params`` fields for ``fc.update_v``."""
+    """Unpack ``assign_params`` fields for ``training.update_v``."""
     return (
         p["in_gain"], p["out_gain"], p["syn_strength"], p["v_th"],
         p["Ih_gmax"], p["Ih_gmax_off"],
@@ -273,9 +273,9 @@ def _equilibrate(session, p, signal_batch: torch.Tensor, t_onset: int):
     v = backend.e_leak.expand(B, N).clone()
     step_p = _v_step_params(p)
     for t in range(1, min(t_onset, T)):
-        v, u_on, u_off = fc.update_v(
+        v, u_on, u_off = training.update_v(
             v, u_on, u_off, *step_p, signal_batch[:, t - 1], backend,
-            physics=session.physics,
+            delta_ms=session.delta_ms, capac=session.capac, g_leak=session.g_leak, E_exc=session.E_exc, E_inh=session.E_inh, E_Ih=session.E_Ih, E_LEAK_REST=session.E_LEAK_REST, Ih_gain=session.Ih_gain,
         )
     return v, u_on, u_off
 
@@ -293,6 +293,13 @@ def _budget_at_units(
     v_onset: np.ndarray,
     *,
     batch: int = 0,
+    delta_ms: float,
+    capac: float,
+    g_leak: float,
+    E_exc: float,
+    E_inh: float,
+    E_Ih: float,
+    E_LEAK_REST: float,
 ) -> tuple[dict[str, np.ndarray], np.ndarray]:
     """Slice unit budget from a completed ``update_v(..., return_budget=True)`` step."""
     units = np.asarray(units, dtype=np.int64)
@@ -315,8 +322,10 @@ def _budget_at_units(
         ).detach().cpu().numpy()
         v_pre_np = packed[0]
         ref = v_onset[b, units] if np.ndim(v_onset) == 2 else v_onset[units]
-        terms = fc.v_budget_from_g(
+        terms = training.v_budget_from_g(
             v_pre_np, packed[1], packed[2], packed[3], packed[4], packed[5], packed[6],
+            delta_ms=delta_ms, capac=capac, g_leak=g_leak,
+            E_exc=E_exc, E_inh=E_inh, E_Ih=E_Ih, E_LEAK_REST=E_LEAK_REST,
         )
         v_abs = packed[7]
         bud = {
@@ -429,8 +438,8 @@ def _step_from_acc(
         "signal": acc["signal"] / n,
         "g_exc_nS": acc["g_exc"] / n,
         "g_inh_nS": acc["g_inh"] / n,
-        "g_leak_nS": float(fc.PHYSICS.g_leak),
-        "cdt_nS": float(fc.PHYSICS.cdt),
+        "g_leak_nS": float(training.G_LEAK),
+        "cdt_nS": float(training.membrane_cdt(training.CAPAC, training.DELTA_MS)),
         "g_Ih_on_nS": acc["g_Ih_on"] / n,
         "g_Ih_off_nS": acc["g_Ih_off"] / n,
         "num_exc": acc["num_exc"] / n,
@@ -542,17 +551,17 @@ def _walk_budget(
                 actives.append(None)
 
         if not need_budget:
-            v, u_on, u_off = fc.update_v(
+            v, u_on, u_off = training.update_v(
                 v, u_on, u_off, *step_p, sig_t, backend,
-                physics=session.physics,
+                delta_ms=session.delta_ms, capac=session.capac, g_leak=session.g_leak, E_exc=session.E_exc, E_inh=session.E_inh, E_Ih=session.E_Ih, E_LEAK_REST=session.E_LEAK_REST, Ih_gain=session.Ih_gain,
             )
             continue
 
         with torch.no_grad():
             v_pre = v
-            v, u_on, u_off, g_exc, g_inh, g_Ih_on, g_Ih_off = fc.update_v(
+            v, u_on, u_off, g_exc, g_inh, g_Ih_on, g_Ih_off = training.update_v(
                 v, u_on, u_off, *step_p, sig_t, backend, return_budget=True,
-                physics=session.physics,
+                delta_ms=session.delta_ms, capac=session.capac, g_leak=session.g_leak, E_exc=session.E_exc, E_inh=session.E_inh, E_Ih=session.E_Ih, E_LEAK_REST=session.E_LEAK_REST, Ih_gain=session.Ih_gain,
             )
 
         for b, plan in enumerate(batches):
@@ -563,7 +572,9 @@ def _walk_budget(
             bud, v_post_minus_pre_u = _budget_at_units(
                 v_pre, v, g_exc, g_inh, g_Ih_on, g_Ih_off, sig_t,
                 backend, active, v_onset, batch=b,
-                physics=session.physics,
+                delta_ms=session.delta_ms, capac=session.capac, g_leak=session.g_leak,
+                E_exc=session.E_exc, E_inh=session.E_inh, E_Ih=session.E_Ih,
+                E_LEAK_REST=session.E_LEAK_REST,
             )
             bud_mat = _bud_matrix(bud)
             lookup = unit_lookups[b]
@@ -742,13 +753,13 @@ def _unit_params(p, backend, unit: int) -> dict[str, float]:
 def _globals(session):
     pack = session.primary_pack
     return {
-        "E_exc": fc.PHYSICS.E_exc,
-        "E_inh": fc.PHYSICS.E_inh,
-        "E_Ih": fc.PHYSICS.E_Ih,
-        "E_IH_OFF": fc.PHYSICS.E_IH_OFF,
-        "g_leak_nS": fc.PHYSICS.g_leak,
-        "cdt": fc.PHYSICS.cdt,
-        "delta_ms": fc.PHYSICS.delta_ms,
+        "E_exc": training.E_EXC,
+        "E_inh": training.E_INH,
+        "E_Ih": training.E_IH,
+        "E_IH_OFF": training.e_ih_off(training.E_LEAK_REST, training.E_IH),
+        "g_leak_nS": training.G_LEAK,
+        "cdt": training.membrane_cdt(training.CAPAC, training.DELTA_MS),
+        "delta_ms": training.DELTA_MS,
         "t_onset": int(pack.signal.shape[1] - pack.data.shape[1]),
     }
 
@@ -873,7 +884,7 @@ def _apply_syn_strength(
     names = list(session.backend.network.type_names)
     keys = session.backend.conn.pair_keys
     key_to_i = {k: i for i, k in enumerate(keys)}
-    named = fc.z_to_unit_values(z, schema)
+    named = training.z_to_unit_values(z, schema)
     if "syn_strength" not in named:
         raise SystemExit("schema missing syn_strength segment")
     arr = np.array(named["syn_strength"], dtype=np.float64, copy=True)
@@ -887,7 +898,7 @@ def _apply_syn_strength(
         arr[pair_i] = val
         _log(f"syn_strength {names[src_i]} -> {names[tar_i]} = {val:g}")
     named["syn_strength"] = arr
-    return fc.unit_values_to_z(named, schema, dtype=z.dtype, device=z.device)
+    return training.unit_values_to_z(named, schema, dtype=z.dtype, device=z.device)
 
 
 def _bar_meta(session, target: str):
@@ -896,7 +907,7 @@ def _bar_meta(session, target: str):
     pack = session.pack_for(target)
     grids = moving_bar_session_t0_grids(
         session, specs, pack.cost_extent, int(session.n_t),
-        t_onset=int(pack.signal.shape[1] - pack.data.shape[1]), delta_ms=fc.PHYSICS.delta_ms,
+        t_onset=int(pack.signal.shape[1] - pack.data.shape[1]), delta_ms=training.DELTA_MS,
     )
     return specs, grids
 
@@ -937,7 +948,7 @@ def _resolve_bar_spec_signal(
     grids=None,
 ):
     """Validate specs; return ``(pack, specs, grids, bis, signal, t0_bn)``."""
-    if target not in fc.MOVING_BAR_TARGETS:
+    if target not in training.MOVING_BAR_TARGETS:
         raise SystemExit(f"unsupported target {target!r}")
     if not spec_names:
         raise SystemExit("bar budget walk requires at least one spec")
@@ -1202,7 +1213,7 @@ def analyze_spot_average(
     abs_stop: int | None,
 ) -> dict[str, dict[str, Any]]:
     """One batched v walk over spot stimulus rows; mean center-bin budget."""
-    if target not in fc.SPOT_TARGETS:
+    if target not in training.SPOT_TARGETS:
         raise SystemExit(f"unsupported target {target!r}")
     pack, batch_idx, unit_idx, type_idx, center_row, type_i = _spot_session_layout(
         session_one, cells,
@@ -1494,7 +1505,7 @@ def _plot_budget_reports(
     colors = _plot_colors()
     linestyles = ("-", "--", "-.", ":")
     overlay = len(reports) > 1
-    e_leak_mV = float(reports[0].get("params", {}).get("e_leak_mV", fc.PHYSICS.E_LEAK_REST))
+    e_leak_mV = float(reports[0].get("params", {}).get("e_leak_mV", training.E_LEAK_REST))
     row_curves: dict[int, list[np.ndarray]] = {ri: [] for ri in _ROW_SHARED_YLIM}
 
     for ri, (group_ylabel, series) in enumerate(_PLOT_PANELS):
@@ -1716,7 +1727,7 @@ def main() -> None:
                 "omit both for cost-extent averages"
             )
         hex_mode = True
-        if any(t in fc.SPOT_TARGETS for t in cli.targets):
+        if any(t in training.SPOT_TARGETS for t in cli.targets):
             raise SystemExit("hex mode is moving_bar-only; omit --x/--y for spot")
         if len(cli.cells) != 1:
             raise SystemExit("hex mode supports one --cell")
@@ -1738,7 +1749,7 @@ def main() -> None:
         syn_strength_edits = _parse_syn_strength(args.syn_strength, session)
         z_t = torch.tensor(np.asarray(z, dtype=np.float64), dtype=torch.float64, device=session.device)
         z_t = _apply_syn_strength(z_t, schema, session, syn_strength_edits)
-        p = fc.assign_params(z_t, schema, session.backend)
+        p = training.assign_params(z_t, schema, session.backend)
 
         spot_session_cache: dict[str, object] = {}
         bar_meta_cache: dict[str, tuple] = {}
@@ -1754,7 +1765,7 @@ def main() -> None:
             )
 
         for target in cli.targets:
-            if target in fc.SPOT_TARGETS:
+            if target in training.SPOT_TARGETS:
                 if target not in spot_session_cache:
                     spot_session_cache[target] = plot_trained.session_for_target(
                         session, target,

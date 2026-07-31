@@ -12,8 +12,8 @@ import matplotlib.pyplot as plt
 import numpy as np
 import torch
 
-from training.defaults import PHYSICS
-import training as fc
+from training.defaults import DELTA_MS
+import training
 from figure.readout import (
     contrast_for_target,
     contrast_linestyle,
@@ -68,7 +68,7 @@ def _pulse_end_from_opts(opts, t_onset, n_t):
     pulse_ms = opts.get("pulse_ms")
     if pulse_ms is None:
         return mt
-    dt = float(opts.get("delta_ms", PHYSICS.delta_ms))
+    dt = float(opts.get("delta_ms", DELTA_MS))
     width = max(1, ms_to_t(float(pulse_ms), delta_ms=dt))
     return min(mt, t0 + width)
 
@@ -110,7 +110,7 @@ def _session_spot_timing(session):
         int(t_onset),
         int(n_t),
         float(pulse_ms) if pulse_ms is not None else None,
-        float(opts.get("delta_ms", PHYSICS.delta_ms)),
+        float(opts.get("delta_ms", DELTA_MS)),
     )
 
 
@@ -193,7 +193,7 @@ def _plot_rf_profile(ax, rf, *, color, label=None, linestyle='-', filled=False):
 
 
 def _style_time_axis(ax, show_xlabel, n_t, delta_ms=None):
-    dt = float(PHYSICS.delta_ms if delta_ms is None else delta_ms)
+    dt = float(DELTA_MS if delta_ms is None else delta_ms)
     t_end = n_t * dt / 1000.0
     t_mid = t_end / 2.0
     ax.set_xlim(0, n_t)
@@ -493,8 +493,8 @@ def _simulate(session, z, neuron_index, return_v_onset=False):
     neuron_index = _as_index(neuron_index, z.device)
     schema = list(session.schema)
     backend = session.backend
-    p = fc.assign_params(z, schema, backend)
-    stacked, ref = fc.run_units(
+    p = training.assign_params(z, schema, backend)
+    stacked, ref = training.run_units(
         session, p, neuron_index=neuron_index, return_v_onset=True,
     )
     scale = torch.ones((int(neuron_index.shape[0]),), dtype=stacked.dtype, device=stacked.device)
@@ -697,9 +697,9 @@ def _spot_forward_rows(
     """One forward; cost-extent unit layout over all network types."""
     pack = session.primary_pack
     schema = list(session.schema)
-    p = fc.assign_params(z, schema, session.backend)
+    p = training.assign_params(z, schema, session.backend)
     sig = pack.signal if pack.signal.dim() == 3 else pack.signal.unsqueeze(0)
-    trace_full, v_onset, _v_full = fc.run_full(
+    trace_full, v_onset, _v_full = training.run_full(
         session, p, sig, return_v_onset=True, pack=pack,
     )
     v_onset_np = v_onset[0].cpu().numpy()
@@ -727,7 +727,7 @@ def _spot_forward_rows(
     scale = torch.ones((int(raw.shape[0]),), dtype=raw.dtype, device=raw.device)
 
     stim_pre_ms = opts.get("pre_ms")
-    dt = float(opts.get("delta_ms", PHYSICS.delta_ms))
+    dt = float(opts.get("delta_ms", DELTA_MS))
     stim_t_onset = (
         ms_to_t(float(stim_pre_ms), delta_ms=dt) if stim_pre_ms is not None else None
     )
@@ -844,7 +844,7 @@ def _plot_spot_figure(
     n_t = primary.n_t
     response_start = primary.response_start
     pulse_end = getattr(primary, "pulse_end", None)
-    delta_ms = float(primary.session.physics.delta_ms)
+    delta_ms = float(primary.session.delta_ms)
     show_pre = getattr(primary, "show_pre", True)
     timer.end_prep()
 
