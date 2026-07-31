@@ -17,7 +17,7 @@ coordinate formulas:
 
 Run a sanity summary with the project venv:
 
-    .venv/bin/python "connectome/FAFBv783/column_mapper.py"
+    .venv/bin/python "connectome/FAFBv783/2_build_hex.py"
 """
 
 from __future__ import annotations
@@ -31,8 +31,8 @@ from typing import Dict, List, Optional, Tuple, Union
 import numpy as np
 import pandas as pd
 
-import connectome_io
-from connectome_io import COLUMN_MAP_DIR
+import path
+from path import BUILT_HEX_DIR
 
 logger = logging.getLogger(__name__)
 
@@ -468,7 +468,7 @@ def plot_column_map(
 
 def unique_columns(side: str) -> pd.DataFrame:
     """One row per column_id (first p, q) for a hemisphere, from raw data."""
-    df = connectome_io.load_column_assignments()
+    df = path.load_column_assignments()
     if "hemisphere" in df.columns:
         df = df[df["hemisphere"] == side]
     return df.groupby("column_id", as_index=False).first()
@@ -507,11 +507,11 @@ def main() -> None:
     # The CSV needs no grid: (u, v) comes purely from pq_to_uv. --extent only
     # affects the figure colouring, never the tables.
     assigned = {}
-    COLUMN_MAP_DIR.mkdir(parents=True, exist_ok=True)
+    BUILT_HEX_DIR.mkdir(parents=True, exist_ok=True)
     for side in ("left", "right"):
         cols = columns_with_uv(side)
         assigned[side] = cols
-        out_csv = connectome_io.column_map_path(side)
+        out_csv = path.column_map_path(side)
         cols.to_csv(out_csv, index=False)
         print(f"{side:>5}: columns={len(cols)} -> {out_csv.name}")
 
@@ -524,9 +524,9 @@ def main() -> None:
         df_left=assigned["left"],
         df_right=assigned["right"],
         extent=args.extent,
-        save_path=COLUMN_MAP_DIR / fname,
+        save_path=BUILT_HEX_DIR / fname,
     )
-    print(f"Column map written to: {COLUMN_MAP_DIR / fname}")
+    print(f"Column map written to: {BUILT_HEX_DIR / fname}")
 
 
 if __name__ == "__main__":

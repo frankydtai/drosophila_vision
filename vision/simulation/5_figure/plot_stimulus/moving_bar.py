@@ -38,8 +38,8 @@ from training.defaults import (
 from training.target_pack import SIM_DTYPE
 from network.construction import load_network
 from training.driver import parse_bool
-from connectome_io import parse_comma_list
-from column_mapper import (
+from path import parse_comma_list
+from build_hex import (
     FIELD_VIEW_PAD_DEG,
     draw_hex_patches,
     draw_hex_patches_uv,
@@ -58,7 +58,7 @@ from task.moving_bar.input import (
     moving_bar_transit_times,
     sti_columns,
 )
-from connectome_io import DEFAULT_NETWORK_RUN, network_run_tag, resolve_network_json
+from path import DEFAULT_NETWORK_RUN, network_run_tag, resolve_network_json
 
 PLOT_BG = "#F5F0DC"  # axes background (beige), not column baseline color
 _STI_CLI_DEFAULT = ",".join(GRUNTMAN_CONTRASTS)
@@ -297,7 +297,7 @@ def write_animation(
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--network", type=str, default=DEFAULT_NETWORK_RUN,
-                    help=f"built_network run folder name (default: {DEFAULT_NETWORK_RUN})")
+                    help=f"built_networks run folder name (default: {DEFAULT_NETWORK_RUN})")
     ap.add_argument("-o", "--output", type=str, default=None,
                     help="snapshot PNG (default: moving_bar_2<dir>_<side>)")
     ap.add_argument("--gif", nargs="?", const="", default=None,

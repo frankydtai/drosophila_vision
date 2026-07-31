@@ -29,8 +29,8 @@ import import_bootstrap  # noqa: F401
 import matplotlib.pyplot as plt
 import numpy as np
 
-import network.path  # noqa: F401 — connectome_io on sys.path
-from connectome_io import parse_comma_list
+import network.path  # noqa: F401 — FAFB path on sys.path
+from path import parse_comma_list
 from figure.util import TRACE_LW, save_figure
 from neuron.filter_ca import ca_alpha
 from neuron.params import DELTA_MS, Ca_tau, set_delta_ms

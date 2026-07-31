@@ -19,7 +19,7 @@ from training.defaults import (
 import training
 import training.driver as train
 from run import run_training_and_plot
-from connectome_io import parse_comma_list
+from path import parse_comma_list
 from task.moving_bar.data import READOUT_SUBTYPE_ALIASES, READOUT_SUBTYPES, expand_remove_subtypes_list
 
 ap = train.make_training_argparser(__doc__)

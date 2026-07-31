@@ -1,6 +1,6 @@
 """
 For the connectome ``network.json`` files under this folder (built by
-``build_network.py`` and stored in e.g. ``left_min_neuron1/network.json``),
+``4_build_network.py`` and stored in e.g. ``left_min_neuron1/network.json``),
 tabulate the synaptic partners of one or more *cell types*.
 
 By default (incoming / ``pre``) each CELL_TYPE is treated as the postsynaptic
@@ -18,8 +18,8 @@ Optionally restrict to CELL_TYPE *instances* by location: axial ``(u, v)`` with
 ``--u`` and/or ``--v`` (one axis for every column on that line, or both for a single
 column); hex-step ``(x, y)`` with ``--x`` and/or ``--y``; or the central hex disc
 ``--extent N`` (0 = centre column, 1 = 7 columns, 2 = 19, …; uses
-``column_mapper.inside_mask``); or a single hex shell ``--shell N`` (0 = centre
-column, 1 = 6 columns, 2 = 12, …; uses ``column_mapper.hex_radius``). Both are
+``build_hex.inside_mask``); or a single hex shell ``--shell N`` (0 = centre
+column, 1 = 6 columns, 2 = 12, …; uses ``build_hex.hex_radius``). Both are
 FAFB-only and show mean ``pre_d_xy``/``post_d_xy`` only.
 
 Per (cell_type, partner_type): sum ``n_syn`` where ``sign > 0`` vs ``sign < 0``,
@@ -32,25 +32,25 @@ The ``network.json`` schema is ``{"metadata", "nodes", "edges"}`` where each nod
 
 Example::
 
-    python3 "cell_syn.py"
-    python3 "cell_syn.py" L1,L2,L3,L4,L5
-    python3 "cell_syn.py" T4a,T4b,T4c,T4d
-    python3 "cell_syn.py" Mi1 --post
-    python3 "cell_syn.py" :Centrifugal
-    python3 "cell_syn.py" :Centrifugal --family
-    python3 "cell_syn.py" Mi1 --family
-    python3 "cell_syn.py" @720575940622041087
-    python3 "cell_syn.py" Mi1 --network right_min_neuron1
-    python3 "cell_syn.py" L1 --network /abs/path/to/some_folder
-    python3 "cell_syn.py" Mi1 --post --u 0 --v 0
-    python3 "cell_syn.py" Mi1 --post --u 0
-    python3 "cell_syn.py" Mi1 --post --x 0 --y 1
-    python3 "cell_syn.py" Mi1 --x 0
-    python3 "cell_syn.py" Mi1 --extent 0
-    python3 "cell_syn.py" Mi1 --extent 2
-    python3 "cell_syn.py" Mi1 --shell 0
-    python3 "cell_syn.py" Mi1 --shell 2
-    python3 "cell_syn.py" Mi1 --u 0 --v 0 --p-xy
+    python3 "analyze_cell_syn.py"
+    python3 "analyze_cell_syn.py" L1,L2,L3,L4,L5
+    python3 "analyze_cell_syn.py" T4a,T4b,T4c,T4d
+    python3 "analyze_cell_syn.py" Mi1 --post
+    python3 "analyze_cell_syn.py" :Centrifugal
+    python3 "analyze_cell_syn.py" :Centrifugal --family
+    python3 "analyze_cell_syn.py" Mi1 --family
+    python3 "analyze_cell_syn.py" @720575940622041087
+    python3 "analyze_cell_syn.py" Mi1 --network right_min_neuron1
+    python3 "analyze_cell_syn.py" L1 --network /abs/path/to/some_folder
+    python3 "analyze_cell_syn.py" Mi1 --post --u 0 --v 0
+    python3 "analyze_cell_syn.py" Mi1 --post --u 0
+    python3 "analyze_cell_syn.py" Mi1 --post --x 0 --y 1
+    python3 "analyze_cell_syn.py" Mi1 --x 0
+    python3 "analyze_cell_syn.py" Mi1 --extent 0
+    python3 "analyze_cell_syn.py" Mi1 --extent 2
+    python3 "analyze_cell_syn.py" Mi1 --shell 0
+    python3 "analyze_cell_syn.py" Mi1 --shell 2
+    python3 "analyze_cell_syn.py" Mi1 --u 0 --v 0 --p-xy
 """
 
 from __future__ import annotations
@@ -65,13 +65,13 @@ from typing import DefaultDict, Dict, Iterable, List, Optional, Set, Tuple, Unio
 
 _UvCoord = Tuple[Union[int, float], Union[int, float]]
 
-from column_mapper import (
+from build_hex import (
     hex_radius,
     inside_mask,
     uv_to_xy,
     xy_to_uv,
 )
-from connectome_io import (
+from path import (
     DEFAULT_NETWORK_RUN,
     parse_comma_list,
     resolve_network_json,
@@ -930,7 +930,7 @@ def main(argv: List[str] | None = None) -> int:
         help=(
             "FAFB only: restrict to CELL_TYPE instances in the central hex disc of "
             "radius N (0 = centre column, 1 = 7 columns, 2 = 19, …; "
-            "column_mapper.inside_mask). Shows mean pre_d_xy/post_d_xy only. "
+            "build_hex.inside_mask). Shows mean pre_d_xy/post_d_xy only. "
             "Incompatible with --shell, --u/--v, and --x/--y."
         ),
     )
@@ -942,7 +942,7 @@ def main(argv: List[str] | None = None) -> int:
         help=(
             "FAFB only: restrict to CELL_TYPE instances on hex shell N "
             "(0 = centre column, 1 = 6 columns, 2 = 12, …; "
-            "column_mapper.hex_radius). Shows mean pre_d_xy/post_d_xy only. "
+            "build_hex.hex_radius). Shows mean pre_d_xy/post_d_xy only. "
             "Incompatible with --extent, --u/--v, and --x/--y."
         ),
     )

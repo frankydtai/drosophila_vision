@@ -3,7 +3,7 @@
 Marks spot centers (crimson) and draws each spot's axial-extent hex
 (straight edges through ``(spot_extent + 0.5) * _HEX_DIRECTIONS``, via
 ``uv_to_xy_deg`` — not a Euclidean RegularPolygon) on
-:func:`column_mapper.draw_fafb_columns` for network columns only.
+:func:`build_hex.draw_fafb_columns` for network columns only.
 Spot centers from :func:`task.spot.input.build_spot`.
 
 Usage (from simulation/, project .venv):
@@ -38,7 +38,7 @@ os.environ.setdefault("CUDA_VISIBLE_DEVICES", "")
 
 import import_bootstrap  # noqa: F401
 import network.path  # noqa: F401
-from column_mapper import (
+from build_hex import (
     FIELD_VIEW_PAD_DEG,
     HEX_PATCH_RADIUS,
     _HEX_DIRECTIONS,
@@ -47,7 +47,7 @@ from column_mapper import (
     set_axis_labels,
     uv_to_xy_deg,
 )
-from connectome_io import DEFAULT_NETWORK_RUN, network_run_tag, resolve_network_json
+from path import DEFAULT_NETWORK_RUN, network_run_tag, resolve_network_json
 from network.construction import Network, load_network
 from training.defaults import (
     EXC_SYNWEIGHT, INH_SYNWEIGHT,
@@ -60,7 +60,7 @@ from task.spot.input import (
     spot_dist,
     spot_extent_half_steps,
 )
-from connectome_io import parse_comma_list
+from path import parse_comma_list
 from training.driver import add_spot_layout_arguments
 
 _SPOT_EXTENTS_CLI_DEFAULT = ",".join(
@@ -112,7 +112,7 @@ def main() -> None:
         "--network",
         type=str,
         default=DEFAULT_NETWORK_RUN,
-        help=f"built_network run folder name (default: {DEFAULT_NETWORK_RUN})",
+        help=f"built_networks run folder name (default: {DEFAULT_NETWORK_RUN})",
     )
     parser.add_argument(
         "--spot-extents",

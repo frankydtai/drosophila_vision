@@ -1,11 +1,16 @@
-"""Map logical import names to ``N_name`` disk layout under simulation.
+"""Map logical import names to ``N_name`` disk layout under vision.
+
+Roots (tried in order):
+
+  - ``simulation/`` — packages (``neuron.params``, ``network.layout``, …)
+  - ``connectome/FAFBv783/`` — flat modules (``build_hex``, ``build_network``, …)
 
 Disk names are ``{n}_{logical}`` (dirs and ``.py`` modules). Imports stay
-logical (``neuron.params``, ``task.spot.input``, …). Renumbering is
-rename-only; this finder has no per-file registry.
+logical. Renumbering is rename-only; this finder has no per-file registry.
 
 ``__init__.py`` is unnumbered. Call :func:`install` (or ``import import_bootstrap``)
-before any logical package import.
+before any logical import. Project ``.venv`` ``simulation_sorted.pth`` loads this
+at interpreter startup.
 """
 
 from __future__ import annotations
@@ -16,10 +21,14 @@ import importlib.util
 import re
 import sys
 from pathlib import Path
-from typing import Iterable, Optional, Sequence
+from typing import Iterable, Optional, Sequence, Tuple
 
 _SORT_PREFIX = re.compile(r"^\d+_")
-_ROOT = Path(__file__).resolve().parent
+_VISION = Path(__file__).resolve().parent
+_ROOTS: Tuple[Path, ...] = (
+    _VISION / "simulation",
+    _VISION / "connectome" / "FAFBv783",
+)
 _SKIP_NAMES = frozenset({"__pycache__", "0_runs", "0_logs"})
 
 
@@ -57,11 +66,11 @@ def child_by_logical(directory: Path, want: str) -> Optional[Path]:
     return matched
 
 
-def resolve_parts(parts: Sequence[str]) -> Optional[Path]:
-    """Resolve logical dotted parts to a file or package directory under ROOT."""
+def resolve_parts_under(root: Path, parts: Sequence[str]) -> Optional[Path]:
+    """Resolve logical dotted parts under one root."""
     if not parts:
         return None
-    cur = _ROOT
+    cur = root
     for i, part in enumerate(parts):
         hit = child_by_logical(cur, part)
         if hit is None:
@@ -75,8 +84,17 @@ def resolve_parts(parts: Sequence[str]) -> Optional[Path]:
     return None
 
 
+def resolve_parts(parts: Sequence[str]) -> Optional[Path]:
+    """Resolve logical dotted parts under the first matching root."""
+    for root in _ROOTS:
+        hit = resolve_parts_under(root, parts)
+        if hit is not None:
+            return hit
+    return None
+
+
 class SortedLayoutFinder(importlib.abc.MetaPathFinder):
-    """Load ``logical`` packages from ``N_logical`` paths under simulation."""
+    """Load ``logical`` names from ``N_logical`` paths under vision roots."""
 
     def find_spec(self, fullname, path, target=None):  # noqa: ANN001
         del path, target
@@ -100,7 +118,6 @@ class SortedLayoutFinder(importlib.abc.MetaPathFinder):
                 init,
                 submodule_search_locations=[str(hit)],
             )
-        # Namespace package (no __init__.py)
         return importlib.machinery.ModuleSpec(
             fullname,
             loader=None,
@@ -112,20 +129,20 @@ _FINDER: Optional[SortedLayoutFinder] = None
 
 
 def install() -> None:
-    """Insert the sorted-layout finder at the front of ``sys.meta_path`` once."""
+    """Insert the sorted-layout finder and ensure roots are on ``sys.path``."""
     global _FINDER
     if _FINDER is not None and _FINDER in sys.meta_path:
         return
     if _FINDER is None:
         _FINDER = SortedLayoutFinder()
-    # Drop a stale instance after reload
     sys.meta_path = [
         x for x in sys.meta_path if not isinstance(x, SortedLayoutFinder)
     ]
     sys.meta_path.insert(0, _FINDER)
-    root_s = str(_ROOT)
-    if root_s not in sys.path:
-        sys.path.insert(0, root_s)
+    for root in (_VISION, *_ROOTS):
+        root_s = str(root)
+        if root_s not in sys.path:
+            sys.path.insert(0, root_s)
 
 
 install()

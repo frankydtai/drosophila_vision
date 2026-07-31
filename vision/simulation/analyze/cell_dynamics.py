@@ -84,7 +84,7 @@ from task.spot.input import (
 from figure.readout import contrast_for_target
 from figure.spot import CENTER_BIN, pack_spot_cost_radii, resolve_spot_data_cubes
 from figure.util import plot_sem_band
-from connectome_io import parse_comma_list
+from path import parse_comma_list
 
 
 # Budget-step fields plotted vs time (key, ylabel/legend).

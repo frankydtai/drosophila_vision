@@ -242,12 +242,12 @@ def load_network(
 if __name__ == "__main__":
     import sys
 
-    from connectome_io import NETWORK_DIR
+    from path import BUILT_NETWORKS_DIR
     from training.defaults import EXC_SYNWEIGHT, INH_SYNWEIGHT, SYN_MODE
     from training.target_pack import SIM_DTYPE
 
     p = sys.argv[1] if len(sys.argv) > 1 else str(
-        NETWORK_DIR / "right_min_neuron1_extent2" / "network.json"
+        BUILT_NETWORKS_DIR / "right_min_neuron1_extent2" / "network.json"
     )
     c = load_network(
         p, device="cpu",

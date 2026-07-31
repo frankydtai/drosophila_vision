@@ -1,7 +1,7 @@
 """Query trained syn_strength (alpha) joined to connectome partner % n_syn.
 
 Reads ``best_param.npz`` + ``train_opts.json`` only (no training session rebuild).
-Partner % comes from ``cell_syn``; syn_strength / gains from the named npz.
+Partner % comes from ``analyze_cell_syn``; syn_strength / gains from the named npz.
 
 Examples
 --------
@@ -28,11 +28,11 @@ os.chdir(ROOT)
 
 import import_bootstrap  # noqa: F401
 import network.path  # noqa: F401  # FAFB on sys.path
-import cell_syn
+import analyze_cell_syn
 import training
 import figure.plot_run as plot_trained
 import training.driver as train_mod
-from connectome_io import parse_comma_list
+from path import parse_comma_list
 from network.connectivity import build_type_pair_index
 from network.construction import read_network_json
 
@@ -70,7 +70,7 @@ def _alpha_by_partner(
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(
         description=(
-            "Trained syn_strength (alpha) per partner type, with cell_syn "
+            "Trained syn_strength (alpha) per partner type, with analyze_cell_syn "
             "% n_syn+/- from the run's network.json."
         ),
         formatter_class=argparse.RawDescriptionHelpFormatter,
@@ -116,7 +116,7 @@ def main(argv: list[str] | None = None) -> int:
         if tok.startswith(":") or tok.startswith("@"):
             raise SystemExit(
                 f"plain cell-type names only (got {tok!r}); "
-                "use cell_syn.py for :family / @root_id"
+                "use analyze_cell_syn.py for :family / @root_id"
             )
 
     outdir = plot_trained.resolve_run_dir(args.run)
@@ -173,19 +173,19 @@ def main(argv: list[str] | None = None) -> int:
         if key not in named:
             raise SystemExit(f"best_param.npz missing {key}")
 
-    at_x, at_y = cell_syn.cli_xy_filter(args.x, args.y)
+    at_x, at_y = analyze_cell_syn.cli_xy_filter(args.x, args.y)
     hex_note = ""
     ids_at_hex = None
     if at_x is not None or at_y is not None:
         try:
-            ids_at_hex, hex_note, _ref_xy, _single = cell_syn.resolve_xy_instance_ids(
+            ids_at_hex, hex_note, _ref_xy, _single = analyze_cell_syn.resolve_xy_instance_ids(
                 nodes, at_x, at_y
             )
         except ValueError as exc:
             raise SystemExit(str(exc)) from exc
 
     direction = "post" if args.post else "pre"
-    acc = cell_syn.query_partner_syn(
+    acc = analyze_cell_syn.query_partner_syn(
         nodes, edges, tokens, direction=direction, ids_at_hex=ids_at_hex,
     )
 
@@ -208,7 +208,7 @@ def main(argv: list[str] | None = None) -> int:
             )
             for pt in by_partner
         }
-        cell_syn.print_table(
+        analyze_cell_syn.print_table(
             cell,
             by_partner,
             total_syn,

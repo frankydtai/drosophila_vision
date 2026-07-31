@@ -35,7 +35,7 @@ VISION_ROOT = os.path.dirname(os.path.dirname(HERE))  # vision/
 sys.path.insert(0, os.path.join(VISION_ROOT, "Connectome", "FAFBv783"))
 
 import import_bootstrap  # noqa: F401
-from connectome_io import parse_comma_list  # type: ignore
+from path import parse_comma_list  # type: ignore
 
 
 def V_two_exp_step_window(

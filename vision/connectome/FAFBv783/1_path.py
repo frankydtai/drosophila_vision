@@ -1,9 +1,9 @@
 """Shared I/O for the FAFB connectome build: paths and raw-CSV readers.
 
 This is the one place that knows where the raw FAFB files live and how to read
-them. ``build_network.py``, ``column_mapper.py`` and ``column_locator.py`` all import
-from here (they never import each other), so the path constants and the three
-CSV loaders are defined exactly once.
+them. ``4_build_network.py``, ``2_build_hex.py`` and ``3_assign_column.py`` all
+import from here (they never import each other), so the path constants and the
+three CSV loaders are defined exactly once.
 """
 
 from __future__ import annotations
@@ -17,17 +17,17 @@ import pandas as pd
 
 logger = logging.getLogger(__name__)
 
-# Build directory (outputs) and the raw downloaded CSVs (download/).
+# Build directory (outputs) and the raw downloaded CSVs (downloads/).
 DATA_DIR = Path(__file__).resolve().parent
-RAW_DIR = DATA_DIR / "download"
+DOWNLOADS_DIR = DATA_DIR / "downloads"
 # Per-run network folders (<side>_min_neuron<N>/ etc.) live under here.
-NETWORK_DIR = DATA_DIR / "built_network"
+BUILT_NETWORKS_DIR = DATA_DIR / "built_networks"
 DEFAULT_NETWORK_RUN = "right_min_neuron1_extent10"
-# Column map artifacts (per-side column tables + the column_map.png) live here.
-COLUMN_MAP_DIR = DATA_DIR / "column_map"
-# Located-column CSVs (r1_6_<side>_post.csv etc., from column_locator.py) live here.
-COLUMN_LOCATION_DIR = DATA_DIR / "column_location"
-# Per-network moving-bar column-current cache (under each built_network run folder).
+# Hex/column-map artifacts (per-side column tables + the column_map.png) live here.
+BUILT_HEX_DIR = DATA_DIR / "built_hex"
+# Assigned-column CSVs (r1_6_<side>_post.csv etc., from 3_assign_column.py) live here.
+ASSIGNED_COLUMNS_DIR = DATA_DIR / "assigned_columns"
+# Per-network moving-bar column-current cache (under each built_networks run folder).
 MOVING_BAR_CACHE_DIRNAME = "moving_bar_cache"
 
 def parse_comma_list(text: str) -> List[str]:
@@ -37,7 +37,7 @@ def parse_comma_list(text: str) -> List[str]:
 
 def network_json_path(side: str, min_neuron_count: int = 1) -> Path:
     """Path to a built connectome ``network.json`` (default: full FAFB per side)."""
-    return NETWORK_DIR / f"{side}_min_neuron{min_neuron_count}" / "network.json"
+    return BUILT_NETWORKS_DIR / f"{side}_min_neuron{min_neuron_count}" / "network.json"
 
 
 TYPE_COUNTS_ABC_FILE = "type_counts_abc.csv"
@@ -45,9 +45,9 @@ TYPE_COUNTS_ABC_BASE_RUN = "right_min_neuron1"
 
 
 def resolve_network_json(spec: str) -> Path:
-    """Resolve ``built_network/<run_name>/network.json`` or an explicit path.
+    """Resolve ``built_networks/<run_name>/network.json`` or an explicit path.
 
-    * Run name (e.g. ``right_min_neuron1``) → ``NETWORK_DIR/<run_name>/network.json``
+    * Run name (e.g. ``right_min_neuron1``) → ``BUILT_NETWORKS_DIR/<run_name>/network.json``
     * Directory path → ``<dir>/network.json``
     * ``*.json`` path → that file
     """
@@ -58,7 +58,7 @@ def resolve_network_json(spec: str) -> Path:
         return (p / "network.json").resolve()
     if p.is_absolute():
         raise FileNotFoundError(f"not a network run directory: {p}")
-    return (NETWORK_DIR / spec / "network.json").resolve()
+    return (BUILT_NETWORKS_DIR / spec / "network.json").resolve()
 
 
 def network_run_tag(network_path: str, meta: dict) -> str:
@@ -80,7 +80,7 @@ def resolve_type_counts_abc_path(network_json: Path) -> Path:
     """``type_counts_abc.csv`` for family lookup (extent runs share the base table)."""
     net = Path(network_json).resolve()
     if re.search(r"_extent\d+$", net.parent.name):
-        return NETWORK_DIR / TYPE_COUNTS_ABC_BASE_RUN / TYPE_COUNTS_ABC_FILE
+        return BUILT_NETWORKS_DIR / TYPE_COUNTS_ABC_BASE_RUN / TYPE_COUNTS_ABC_FILE
     return type_counts_abc_path(network_json)
 
 
@@ -92,8 +92,8 @@ VISUAL_NEURON_TYPES_FILE = "visual_neuron_types.csv.gz"
 COLUMN_ASSIGNMENT_FILE = "column_assignment.csv.gz"
 CONNECTIONS_FILE = "connections_princeton.csv.gz"
 
-# Per-side column -> (u, v) table: written by column_mapper.py and read back by
-# build_network.py / column_locator.py. Single source for this filename so the
+# Per-side column -> (u, v) table: written by build_hex.py and read back by
+# 4_build_network.py / assign_column.py. Single source for this filename so the
 # pattern is never restated. Columns: column_id, p, q, u, v.
 COLUMN_MAP_FILE = "column_map_{side}.csv"
 
@@ -102,8 +102,8 @@ CONNECTIONS_CHUNK_SIZE = 500_000
 
 
 def column_map_path(side: str) -> Path:
-    """Path to the per-side column_id -> (u, v) table (written by column_mapper.py)."""
-    return COLUMN_MAP_DIR / COLUMN_MAP_FILE.format(side=side)
+    """Path to the per-side column_id -> (u, v) table (written by build_hex.py)."""
+    return BUILT_HEX_DIR / COLUMN_MAP_FILE.format(side=side)
 
 
 def load_column_map(side: str) -> pd.DataFrame:
@@ -113,14 +113,14 @@ def load_column_map(side: str) -> pd.DataFrame:
 
 def load_visual_neurons() -> pd.DataFrame:
     """visual_neuron_types: root_id, type, family, subsystem, category, side."""
-    df = pd.read_csv(RAW_DIR / VISUAL_NEURON_TYPES_FILE, compression="gzip")
+    df = pd.read_csv(DOWNLOADS_DIR / VISUAL_NEURON_TYPES_FILE, compression="gzip")
     logger.info("Loaded %d visual neurons, %d types", len(df), df["type"].nunique())
     return df
 
 
 def load_column_assignments() -> pd.DataFrame:
     """column_assignment: root_id, hemisphere, type, column_id, x, y, p, q."""
-    df = pd.read_csv(RAW_DIR / COLUMN_ASSIGNMENT_FILE, compression="gzip")
+    df = pd.read_csv(DOWNLOADS_DIR / COLUMN_ASSIGNMENT_FILE, compression="gzip")
     logger.info(
         "Loaded %d column assignments, %d columns", len(df), df["column_id"].nunique()
     )
@@ -139,7 +139,7 @@ def load_connections(
     neuropil_set = set(keep_neuropils) if keep_neuropils is not None else None
     chunks: List[pd.DataFrame] = []
     for chunk in pd.read_csv(
-        RAW_DIR / CONNECTIONS_FILE, compression="gzip", chunksize=CONNECTIONS_CHUNK_SIZE
+        DOWNLOADS_DIR / CONNECTIONS_FILE, compression="gzip", chunksize=CONNECTIONS_CHUNK_SIZE
     ):
         if neuropil_set is not None:
             chunk = chunk[chunk["neuropil"].isin(neuropil_set)]

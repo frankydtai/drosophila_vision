@@ -28,9 +28,9 @@ if str(_SIMULATION_CODE) not in sys.path:
     sys.path.insert(0, str(_SIMULATION_CODE))
 
 import import_bootstrap  # noqa: F401
-import network.path  # noqa: F401 — connectome_io on sys.path
-from connectome_io import (
-    NETWORK_DIR,
+import network.path  # noqa: F401 — FAFB path on sys.path
+from path import (
+    BUILT_NETWORKS_DIR,
     parse_comma_list,
     resolve_network_json,
 )
@@ -873,7 +873,7 @@ def add_training_arguments(parser):
         help=f"one stimulus batch per forward (default: {str(SEQUENTIAL).lower()})",
     )
     parser.add_argument("--network", default=NETWORK, metavar="RUN",
-                        help=f"connectome backend: built_network run folder under {NETWORK_DIR} "
+                        help=f"connectome backend: built_networks run folder under {BUILT_NETWORKS_DIR} "
                              f"(default: {NETWORK})")
     parser.add_argument(
         "--multi-bar",

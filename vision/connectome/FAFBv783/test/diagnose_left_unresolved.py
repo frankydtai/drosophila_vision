@@ -18,13 +18,10 @@ from pathlib import Path
 
 import pandas as pd
 
-# Make the pipeline modules (one directory up) importable.
-_PKG_DIR = Path(__file__).resolve().parents[1]
-if str(_PKG_DIR) not in sys.path:
-    sys.path.insert(0, str(_PKG_DIR))
+import import_bootstrap  # noqa: F401
 
 from build_network import FafbDataLoader  # noqa: E402
-from column_locator import locate_neurons  # noqa: E402
+from assign_column import locate_neurons  # noqa: E402
 
 TARGET_TYPE = "R1-6"
 SIDES = ("right", "left")

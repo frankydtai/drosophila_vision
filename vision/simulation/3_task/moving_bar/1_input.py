@@ -19,8 +19,8 @@ import torch
 
 from network import path  # noqa: F401 -- FAFBv783 on sys.path
 
-from column_mapper import DEG, HEX_PATCH_RADIUS, hex_vertices, uv_to_xy, uv_to_xy_deg
-from connectome_io import moving_bar_cache_dir
+from build_hex import DEG, HEX_PATCH_RADIUS, hex_vertices, uv_to_xy, uv_to_xy_deg
+from path import moving_bar_cache_dir
 from neuron.params import ms_to_t
 from network.layout import column_in_cost_extent
 

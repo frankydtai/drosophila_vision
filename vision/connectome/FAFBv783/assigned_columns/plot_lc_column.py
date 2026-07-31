@@ -2,21 +2,21 @@
 filled red when an LC neuron of that type is assigned to it.
 
 "Assigned" means the column appears as ``majority_column_id`` in that type's
-``column_location/<tag>_right_pre.csv`` (produced by column_locator.py). Nothing
-is re-implemented here: the hex lattice + drawing primitive come from column_mapper,
-the per-type CSV path/name from column_locator, and raw I/O from connectome_io.
+``assigned_columns/<tag>_right_pre.csv`` (produced by assign_column.py). Nothing
+is re-implemented here: the hex lattice + drawing primitive come from build_hex,
+the per-type CSV path/name from assign_column, and raw I/O from path.
 
 Outputs are optional: nothing is (re)generated unless you pass a flag.
 
-    .venv/bin/python "connectome/FAFBv783/column_location/lc_columns.py" --png
-    .venv/bin/python "connectome/FAFBv783/column_location/lc_columns.py" --csv
-    .venv/bin/python "connectome/FAFBv783/column_location/lc_columns.py" --png --csv
+    .venv/bin/python "connectome/FAFBv783/assigned_columns/plot_lc_column.py" --png
+    .venv/bin/python "connectome/FAFBv783/assigned_columns/plot_lc_column.py" --csv
+    .venv/bin/python "connectome/FAFBv783/assigned_columns/plot_lc_column.py" --png --csv
 
 Restrict to a subset of LC types with ``--types`` (comma-separated); the table is
 then named after the numeric suffixes of the chosen types (e.g.
 ``LC18,LC21,LC11,LC25`` -> the file ``lc_columns_right_18_21_11_25.csv``)::
 
-    .venv/bin/python "connectome/FAFBv783/column_location/lc_columns.py" \
+    .venv/bin/python "connectome/FAFBv783/assigned_columns/plot_lc_column.py" \
         --csv --types LC18,LC21,LC11,LC25
 """
 
@@ -31,14 +31,11 @@ from typing import List, Set
 import numpy as np
 import pandas as pd
 
-# This script lives in column_location/; make the package modules (one dir up)
-# importable so we reuse connectome_io / column_mapper / column_locator.
-_PKG_DIR = Path(__file__).resolve().parent.parent
-if str(_PKG_DIR) not in sys.path:
-    sys.path.insert(0, str(_PKG_DIR))
+# vision/import_bootstrap resolves N_name modules; FAFB dir for unnumbered paths.
+import import_bootstrap  # noqa: E402, F401
 
-import connectome_io  # noqa: E402
-from column_mapper import (  # noqa: E402
+import path  # noqa: E402
+from build_hex import (  # noqa: E402
     EMPTY_COLOR,
     EXTENT,
     HEX_PATCH_RADIUS,
@@ -49,7 +46,7 @@ from column_mapper import (  # noqa: E402
     inside_mask,
     set_axis_labels,
 )
-from column_locator import _output_name  # noqa: E402
+from assign_column import _output_name  # noqa: E402
 
 logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
 logger = logging.getLogger(__name__)
@@ -67,7 +64,7 @@ LC_TYPES: List[str] = ROW1_TYPES + ROW2_TYPES
 
 # Per-column fill (face, edge) keyed by the neuron count in that column. The count
 # is clamped to the largest key, so >=4 neurons all use the count-4 color.
-#   1: light green / light coral  (column_mapper inside/outside defaults)
+#   1: light green / light coral  (build_hex inside/outside defaults)
 #   2: dark green  / dark red
 #   3: light blue  / light purple
 #   4: dark blue   / dark purple
@@ -113,9 +110,9 @@ def figure_name(lc_types: List[str]) -> str:
 
 def column_counts(lc_type: str) -> pd.Series:
     """Per-column neuron count for ``lc_type`` (index=column_id, value=#neurons)."""
-    csv = connectome_io.COLUMN_LOCATION_DIR / _output_name(SIDE, [lc_type], DIRECTION)
+    csv = path.ASSIGNED_COLUMNS_DIR / _output_name(SIDE, [lc_type], DIRECTION)
     if not csv.exists():
-        logger.warning("Missing %s; run column_locator.py %s first", csv, lc_type)
+        logger.warning("Missing %s; run assign_column.py %s first", csv, lc_type)
         return pd.Series(dtype="int64")
     col = pd.read_csv(csv)["majority_column_id"].dropna().astype(int)
     return col.value_counts()
@@ -132,9 +129,9 @@ def unresolved_neurons(lc_type: str) -> pd.DataFrame:
     These are the neurons excluded from the occupancy table because the locator
     could not assign them to a column.
     """
-    csv = connectome_io.COLUMN_LOCATION_DIR / _output_name(SIDE, [lc_type], DIRECTION)
+    csv = path.ASSIGNED_COLUMNS_DIR / _output_name(SIDE, [lc_type], DIRECTION)
     if not csv.exists():
-        logger.warning("Missing %s; run column_locator.py %s first", csv, lc_type)
+        logger.warning("Missing %s; run assign_column.py %s first", csv, lc_type)
         return pd.DataFrame()
     df = pd.read_csv(csv)
     return df[df["majority_column_id"].isna()]
@@ -293,7 +290,7 @@ def make_figure(cols: pd.DataFrame, lc_types: List[str] = LC_TYPES) -> Path:
     )
     plt.tight_layout(rect=[0, 0, 1, 0.96])
 
-    out = connectome_io.COLUMN_LOCATION_DIR / figure_name(lc_types)
+    out = path.ASSIGNED_COLUMNS_DIR / figure_name(lc_types)
     plt.savefig(out, dpi=300, bbox_inches="tight")
     plt.close(fig)
     logger.info("Saved %s", out)
@@ -304,7 +301,7 @@ def make_figure(cols: pd.DataFrame, lc_types: List[str] = LC_TYPES) -> Path:
 def make_table(cols: pd.DataFrame, lc_types: List[str] = LC_TYPES) -> Path:
     """Build + save the per-column occupancy table (all columns x LC types + sum)."""
     table = build_column_table([int(c) for c in cols["column_id"]], lc_types)
-    table_path = connectome_io.COLUMN_LOCATION_DIR / table_name(lc_types)
+    table_path = path.ASSIGNED_COLUMNS_DIR / table_name(lc_types)
     table.to_csv(table_path)
     logger.info("Saved %s", table_path)
     print(f"Saved {table_path}  ({len(table)} columns)")
@@ -317,9 +314,9 @@ def report_unresolved(lc_types: List[str]) -> None:
     print(f"\n=== neuron counts ({SIDE}, {DIRECTION}) ===")
     print("  type: total located unresolved")
     for lc in lc_types:
-        csv = connectome_io.COLUMN_LOCATION_DIR / _output_name(SIDE, [lc], DIRECTION)
+        csv = path.ASSIGNED_COLUMNS_DIR / _output_name(SIDE, [lc], DIRECTION)
         if not csv.exists():
-            logger.warning("Missing %s; run column_locator.py %s first", csv, lc)
+            logger.warning("Missing %s; run assign_column.py %s first", csv, lc)
             continue
         col = pd.read_csv(csv)["majority_column_id"]
         total = len(col)
@@ -345,7 +342,7 @@ def main(argv=None) -> None:
     )
     args = parser.parse_args(argv)
 
-    requested = connectome_io.parse_comma_list(args.types)
+    requested = path.parse_comma_list(args.types)
     if not requested:
         lc_types = LC_TYPES
     else:
@@ -358,7 +355,7 @@ def main(argv=None) -> None:
         report_unresolved(lc_types)
         return
 
-    cols = connectome_io.load_column_map(SIDE)
+    cols = path.load_column_map(SIDE)
     if args.png:
         make_figure(cols, lc_types)
     if args.csv:

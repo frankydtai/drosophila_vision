@@ -10,7 +10,7 @@ os.chdir(ROOT)
 
 import import_bootstrap  # noqa: F401
 import training.driver as train
-from connectome_io import parse_comma_list
+from path import parse_comma_list
 from task.moving_bar.data import READOUT_SUBTYPES
 from run import run_mirror_spot_experiment
 

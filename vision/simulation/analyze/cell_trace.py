@@ -60,7 +60,7 @@ import figure.plot_run as plot_trained
 from figure import moving_bar as moving_bar_plot
 from figure import spot as spot_plot
 from figure.util import parse_axis_slice_list, slice_xy_label
-from connectome_io import parse_comma_list
+from path import parse_comma_list
 from training.driver import parse_target_list
 from task.moving_bar.data import filter_requested_specs
 from training.config import run_data_dir

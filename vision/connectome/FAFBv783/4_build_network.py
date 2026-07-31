@@ -2,17 +2,17 @@
 
 This single, self-contained module merges the data layer and the network build:
 
-  1. Load the three raw FAFB CSVs (download/) and filter to one hemisphere with
+  1. Load the three raw FAFB CSVs (downloads/) and filter to one hemisphere with
      ``min_neuron_count`` (type cut) and ``min_syn_count`` (weak-edge cut),
      writing <side>_min_neuron<N>/{neurons,columns,connections}.csv.gz etc.
   2. Assemble nodes + edges into <side>_min_neuron<N>/network.json, using the
-     column map (column_map_<side>.csv from column_mapper.py) and the R1-6
-     placement (column_location/r1_6_<side>_post.csv from column_locator.py). Column
+     column map (column_map_<side>.csv from 2_build_hex.py) and the R1-6
+     placement (assigned_columns/r1_6_<side>_post.csv from 3_assign_column.py). Column
      position is OPTIONAL: neurons without a column become nodes with null u/v.
 
 It does not import the other project scripts. Run with the project venv:
 
-    .venv/bin/python "connectome/FAFBv783/build_network.py" --side right --min-neuron-count 1
+    .venv/bin/python "connectome/FAFBv783/4_build_network.py" --side right --min-neuron-count 1
 """
 
 from __future__ import annotations
@@ -27,13 +27,13 @@ from typing import Dict, Optional, Sequence, Set, Tuple
 
 import pandas as pd
 
-import connectome_io
-from connectome_io import NETWORK_DIR
-from column_mapper import EXTENT  # single shared spatial default (<0 = no crop)
+import path
+from path import BUILT_NETWORKS_DIR
+from build_hex import EXTENT  # single shared spatial default (<0 = no crop)
 
 logger = logging.getLogger(__name__)
 
-# -- Build defaults (data-layer paths/loaders live in connectome_io) -----------------
+# -- Build defaults (data-layer paths/loaders live in path) -----------------
 
 # Hemisphere to build by default.
 DEFAULT_SIDE = "right"
@@ -44,7 +44,7 @@ DEFAULT_MIN_SYN_COUNT = 5
 # Optic-lobe neuropil stems; the side suffix (_L / _R) is appended at load time.
 VISUAL_NEUROPIL_STEMS = ("ME", "LO", "LOP", "LA")
 
-# Spatial crop is controlled by the shared column_mapper.EXTENT (imported above):
+# Spatial crop is controlled by the shared build_hex.EXTENT (imported above):
 # extent < 0 (default) = NO crop (keep the full positioned graph); extent >= 0 crops
 # the built graph to the central hex disc of that radius (e.g. 2 -> 19 columns),
 # written to a sibling <run>_extent<N>/ folder.
@@ -82,7 +82,7 @@ class VisualSystem:
             out = Path(output_dir)
         else:
             name = f"{self.metadata['side']}_min_neuron{self.metadata['min_neuron_count']}"
-            out = NETWORK_DIR / name
+            out = BUILT_NETWORKS_DIR / name
         out.mkdir(parents=True, exist_ok=True)
 
         self.neurons.to_csv(out / "neurons.csv.gz", index=False, compression="gzip")
@@ -105,20 +105,20 @@ class VisualSystem:
 
 
 class FafbDataLoader:
-    """Filters the FAFB visual subnetwork (raw I/O delegated to connectome_io)."""
+    """Filters the FAFB visual subnetwork (raw I/O delegated to path)."""
 
     def load_visual_neurons(self) -> pd.DataFrame:
-        return connectome_io.load_visual_neurons()
+        return path.load_visual_neurons()
 
     def load_column_assignments(self) -> pd.DataFrame:
-        return connectome_io.load_column_assignments()
+        return path.load_column_assignments()
 
     def load_connections(
         self,
         keep_neuron_ids: Optional[set] = None,
         keep_neuropils: Optional[Sequence[str]] = None,
     ) -> pd.DataFrame:
-        return connectome_io.load_connections(keep_neuron_ids, keep_neuropils)
+        return path.load_connections(keep_neuron_ids, keep_neuropils)
 
     def filter_visual_system(
         self,
@@ -136,7 +136,7 @@ class FafbDataLoader:
         cache_path: Optional[Path] = None
         if subsystems is None:
             cache_path = (
-                NETWORK_DIR / f"{side}_min_neuron{min_neuron_count}" / ".filter_cache"
+                BUILT_NETWORKS_DIR / f"{side}_min_neuron{min_neuron_count}" / ".filter_cache"
             )
             if use_cache and cache_path.exists():
                 logger.info("Loading filtered visual system from cache %s", cache_path)
@@ -229,7 +229,7 @@ class FafbDataLoader:
 def _require(path: Path) -> Path:
     if not path.exists():
         raise FileNotFoundError(
-            f"Missing input: {path}. Run column_mapper.py and column_locator.py first, "
+            f"Missing input: {path}. Run 2_build_hex.py and 3_assign_column.py first, "
             "or use build_all.py."
         )
     return path
@@ -241,8 +241,8 @@ def _column_to_pos(side: str) -> Dict[int, Tuple[int, int]]:
     The base build is always the full graph (no spatial cap). Spatial cropping is
     the separate merged ``extent`` knob (see :func:`crop_network`).
     """
-    _require(connectome_io.column_map_path(side))
-    df = connectome_io.load_column_map(side)
+    _require(path.column_map_path(side))
+    df = path.load_column_map(side)
     return {
         int(r.column_id): (int(r.u), int(r.v))
         for r in df.itertuples(index=False)
@@ -283,7 +283,7 @@ def build(side: str, min_neuron_count: int) -> Path:
     Always keeps every positioned FAFB column (no spatial cap); cropping to a
     central disc is the separate merged ``extent`` knob (see :func:`crop_network`).
     """
-    run_dir = NETWORK_DIR / f"{side}_min_neuron{min_neuron_count}"
+    run_dir = BUILT_NETWORKS_DIR / f"{side}_min_neuron{min_neuron_count}"
     neurons = pd.read_csv(_require(run_dir / "neurons.csv.gz"))
     columns = pd.read_csv(_require(run_dir / "columns.csv.gz"))
     connections = pd.read_csv(_require(run_dir / "connections.csv.gz"))
@@ -304,7 +304,7 @@ def build(side: str, min_neuron_count: int) -> Path:
         if uv is not None:
             pos[rid] = (uv[0], uv[1], cid)
 
-    loc = pd.read_csv(_require(connectome_io.COLUMN_LOCATION_DIR / f"r1_6_{side}_post.csv"))
+    loc = pd.read_csv(_require(path.ASSIGNED_COLUMNS_DIR / f"r1_6_{side}_post.csv"))
     loc = loc[loc["majority_column_id"].notna()]
     for r in loc.itertuples(index=False):
         rid = int(r.root_id)
@@ -403,8 +403,8 @@ def crop_network(run_dir: Path, crop_extent: int) -> Path:
         run_dir: An existing run folder containing network.json.
         crop_extent: Hex-disc radius to keep around the centre (2 -> 19 columns).
     """
-    # Reuse the shared inside/outside predicate from column_mapper (single source).
-    from column_mapper import inside_mask
+    # Reuse the shared inside/outside predicate from build_hex (single source).
+    from build_hex import inside_mask
 
     src = _require(run_dir / "network.json")
     payload = json.load(open(src))

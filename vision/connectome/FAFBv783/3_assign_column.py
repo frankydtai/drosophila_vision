@@ -13,15 +13,15 @@ Direction matters and depends on the neuron's role:
   - ``pre``   : locate by *upstream* sources' columns. Use for output/projection
                 neurons that read out of the lattice (e.g. LC/VS <- its pre columns).
 
-Cell types are one positional comma-separated token (like cell_syn.py); direction
+Cell types are one positional comma-separated token (like analyze_cell_syn.py); direction
 is a ``--post`` flag (default ``pre``, by upstream sources). Outputs go to the
-``column_location/`` subfolder as ``<tag>_<side>_<direction>.csv`` (e.g.
+``assigned_columns/`` subfolder as ``<tag>_<side>_<direction>.csv`` (e.g.
 ``r1_6_left_post.csv``).
 
 Run with the project venv (defaults to R1-6, right side, pre):
 
-    .venv/bin/python "connectome/FAFBv783/column_locator.py" R1-6 --post
-    .venv/bin/python "connectome/FAFBv783/column_locator.py" TmY11,L3
+    .venv/bin/python "connectome/FAFBv783/3_assign_column.py" R1-6 --post
+    .venv/bin/python "connectome/FAFBv783/3_assign_column.py" TmY11,L3
 """
 
 from __future__ import annotations
@@ -33,7 +33,7 @@ from typing import Optional, Sequence
 
 import pandas as pd
 
-import connectome_io
+import path
 
 logger = logging.getLogger(__name__)
 
@@ -76,7 +76,7 @@ def locate_neurons(
         direction='pre'), votes (descending per-column vote counts as a string,
         e.g. "5, 5, 5, 3"; sums to n_<dir>_with_column), majority_column_id
         (Int64, NA if unresolved). When ``col_to_uv`` is given, also per-coordinate
-        mean/max/min for u, v (hex) and x, y (hex-step via column_mapper.uv_to_xy): mean_* is the
+        mean/max/min for u, v (hex) and x, y (hex-step via build_hex.uv_to_xy): mean_* is the
         vote-weighted average over the column partners, max_*/min_* the extent
         (all NA if unresolved). In this case ``majority_column_id`` keeps the
         top-voted column only when it has >50% of the votes; otherwise it is the
@@ -146,7 +146,7 @@ def locate_neurons(
     out["majority_column_id"] = out["root_id"].map(best["col"]).astype("Int64")
 
     if col_to_uv is not None:
-        from column_mapper import uv_to_xy
+        from build_hex import uv_to_xy
 
         u_by_col = {int(c): uv[0] for c, uv in col_to_uv.items()}
         v_by_col = {int(c): uv[1] for c, uv in col_to_uv.items()}
@@ -229,16 +229,16 @@ def _parse_args() -> argparse.Namespace:
 def main() -> None:
     logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
     args = _parse_args()
-    cell_types = connectome_io.parse_comma_list(args.cell_types)
+    cell_types = path.parse_comma_list(args.cell_types)
     if not cell_types:
         raise SystemExit("cell_types must not be empty")
     direction = "post" if args.post else "pre"
     sides = ["left", "right"] if args.side == "both" else [args.side]
 
-    all_neurons = connectome_io.load_visual_neurons()
-    all_columns = connectome_io.load_column_assignments()
+    all_neurons = path.load_visual_neurons()
+    all_columns = path.load_column_assignments()
 
-    out_dir = connectome_io.COLUMN_LOCATION_DIR
+    out_dir = path.ASSIGNED_COLUMNS_DIR
     out_dir.mkdir(parents=True, exist_ok=True)
 
     for side in sides:
@@ -248,12 +248,12 @@ def main() -> None:
             neurons[neurons["type"].isin(cell_types)]["root_id"].astype("int64")
         )
         # Pull all edges touching the targets on the relevant side (no syn cut).
-        connections = connectome_io.load_connections(keep_neuron_ids=target_ids)
+        connections = path.load_connections(keep_neuron_ids=target_ids)
 
         # column_id -> (u, v) for the per-neuron hex extent (max/min u/v).
         col_to_uv = None
-        if connectome_io.column_map_path(side).exists():
-            hex_df = connectome_io.load_column_map(side)
+        if path.column_map_path(side).exists():
+            hex_df = path.load_column_map(side)
             col_to_uv = {
                 int(r.column_id): (int(r.u), int(r.v))
                 for r in hex_df.itertuples(index=False)
@@ -261,7 +261,7 @@ def main() -> None:
         else:
             logger.warning(
                 "Missing %s; skipping max/min u/v columns",
-                connectome_io.column_map_path(side),
+                path.column_map_path(side),
             )
 
         located = locate_neurons(

@@ -25,7 +25,7 @@ import numpy as np
 import torch
 
 from network import path  # noqa: F401 -- FAFBv783 on sys.path
-from connectome_io import parse_comma_list
+from path import parse_comma_list
 
 import neuron.params as params
 from network.construction import col2fit, unit_type_names

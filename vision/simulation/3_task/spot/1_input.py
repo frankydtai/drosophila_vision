@@ -16,7 +16,7 @@ from typing import Dict, List, Optional, Tuple
 import numpy as np
 
 from network import path  # noqa: F401 -- FAFBv783 on sys.path
-import column_mapper
+import build_hex
 
 from neuron.params import ms_to_t
 
@@ -84,7 +84,7 @@ def members_by_euclid_radius(radii) -> Dict[float, List[Tuple[int, int]]]:
     radii_set = {round(float(radius), 6) for radius in radii}
     max_shell = int(math.ceil(max(radii_set)))
     by_radius: Dict[float, List[Tuple[int, int]]] = {radius: [] for radius in radii_set}
-    for du, dv in column_mapper.members_in_extent(max_shell):
+    for du, dv in build_hex.members_in_extent(max_shell):
         radius = round(euclid_hex_dist(du, dv), 6)
         if radius in radii_set:
             by_radius[radius].append((int(du), int(dv)))
@@ -124,12 +124,12 @@ def spot_extent_folds_r2_into_r1(spot_extent) -> bool:
 
 def _spot_center_angle(u: int, v: int) -> float:
     """Degree-space angle of (u, v), for a stable angular tie-break ordering."""
-    x_deg, y_deg = column_mapper.uv_to_xy_deg(u, v)
+    x_deg, y_deg = build_hex.uv_to_xy_deg(u, v)
     return float(np.arctan2(float(y_deg), float(x_deg)))
 
 
 def spot_centers(
-    extent: int = column_mapper.DEFAULT_EXTENT,
+    extent: int = build_hex.DEFAULT_EXTENT,
     *,
     spot_extent: float,
     fully_inside: bool,
@@ -143,23 +143,23 @@ def spot_centers(
     else:
         a1, b1 = m + 1, -k
     a2, b2 = _rot60(a1, b1)
-    members = column_mapper.members_in_extent((m + 1) // 2)
+    members = build_hex.members_in_extent((m + 1) // 2)
     span = int(2 * (extent // max(k, 1) + 2))
     centers: list = []
     for lm in range(-span, span + 1):
         for ln in range(-span, span + 1):
             cu = lm * a1 + ln * a2
             cv = lm * b1 + ln * b2
-            if column_mapper.hex_radius(cu, cv) > extent:
+            if build_hex.hex_radius(cu, cv) > extent:
                 continue
             if fully_inside and any(
-                column_mapper.hex_radius(cu + du, cv + dv) > extent
+                build_hex.hex_radius(cu + du, cv + dv) > extent
                 for du, dv in members
             ):
                 continue
             centers.append((cu, cv))
     centers.sort(
-        key=lambda c: (column_mapper.hex_radius(*c), _spot_center_angle(*c)),
+        key=lambda c: (build_hex.hex_radius(*c), _spot_center_angle(*c)),
     )
     return centers
 
@@ -200,7 +200,7 @@ def _connectome_extent(C, spot_extent: float) -> int:
         return meta_extent
     positioned = C.column_id >= 0
     radii = [
-        column_mapper.hex_radius(int(u), int(v))
+        build_hex.hex_radius(int(u), int(v))
         for u, v in zip(C.u[positioned], C.v[positioned])
     ]
     return max(radii) if radii else int(spot_extent)
@@ -216,7 +216,7 @@ def build_spot(
     """Build a :class:`Spot` for connectome ``C``."""
     spot_extent_half_steps(spot_extent)
     connectome_extent = _connectome_extent(C, spot_extent)
-    shifts = column_mapper.members_in_extent(1)
+    shifts = build_hex.members_in_extent(1)
     if not multi_spot:
         centers = [(0, 0)]
     else:
@@ -261,6 +261,6 @@ def spot_from_opts(
     )
     spot.shifts = [
         (int(du), int(dv))
-        for du, dv in column_mapper.members_in_extent(int(shift_extent))
+        for du, dv in build_hex.members_in_extent(int(shift_extent))
     ]
     return spot

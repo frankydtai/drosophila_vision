@@ -18,5 +18,5 @@ def column_in_cost_extent(u, v, cost_extent=None) -> bool:
     cost_extent = normalize_cost_extent(cost_extent)
     if cost_extent is None:
         return True
-    import column_mapper
-    return bool(column_mapper.inside_mask(int(u), int(v), int(cost_extent)))
+    import build_hex
+    return bool(build_hex.inside_mask(int(u), int(v), int(cost_extent)))

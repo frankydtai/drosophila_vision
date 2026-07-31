@@ -9,9 +9,9 @@ import matplotlib.pyplot as plt
 import numpy as np
 import torch
 
-import network.path  # noqa: F401 — connectome_io on sys.path
+import network.path  # noqa: F401 — FAFB path on sys.path
 import training
-from connectome_io import parse_comma_list
+from path import parse_comma_list
 
 DATA_COLOR = 'gray'
 MODEL_COLOR = 'red'
@@ -184,11 +184,11 @@ def readout_center_mask(pack, backend):
     readout = pack.readout_unit.cpu().numpy()
     if backend.network is not None:
         if pack.cost_extent is not None:
-            import column_mapper
+            import build_hex
             C = backend.network
             u_all = C.u.detach().cpu().numpy() if hasattr(C.u, "detach") else np.asarray(C.u)
             v_all = C.v.detach().cpu().numpy() if hasattr(C.v, "detach") else np.asarray(C.v)
-            return column_mapper.inside_mask(u_all[readout], v_all[readout], int(pack.cost_extent))
+            return build_hex.inside_mask(u_all[readout], v_all[readout], int(pack.cost_extent))
         if pack.cost_radius is not None:
             return np.round(pack.cost_radius.cpu().numpy(), 6) == 0.0
         return np.ones(readout.shape[0], dtype=bool)
@@ -430,11 +430,11 @@ def batches_at_stim_xy(batches, *, at_x=None, at_y=None, tol=1e-6):
     """Batch indices where any ``stim_uv`` column matches hex-step slice."""
     if at_x is None and at_y is None:
         return list(range(len(batches)))
-    import column_mapper
+    import build_hex
     out = []
     for b, batch in enumerate(batches):
         for su, sv in batch.stim_uv:
-            x, y = column_mapper.uv_to_xy(int(su), int(sv))
+            x, y = build_hex.uv_to_xy(int(su), int(sv))
             if not _coord_matches(x, at_x, tol=tol):
                 continue
             if not _coord_matches(y, at_y, tol=tol):

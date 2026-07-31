@@ -11,8 +11,8 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 
-import network.path  # noqa: F401 -- connectome_io on sys.path
-from connectome_io import parse_comma_list
+import network.path  # noqa: F401 -- FAFB path on sys.path
+from path import parse_comma_list
 
 # simulation root (training/ → parent).
 SIMULATION_DIR = Path(__file__).resolve().parent.parent
