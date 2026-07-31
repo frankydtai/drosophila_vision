@@ -5,6 +5,7 @@ Usage (from ``SimulationCode/``):
     ../.venv/bin/python test/plot_v_ca_dt50.py
     ../.venv/bin/python test/plot_v_ca_dt50.py --show
     ../.venv/bin/python test/plot_v_ca_dt50.py --run-path borst/RUN_NAME
+    ../.venv/bin/python test/plot_v_ca_dt50.py --pre-ms 500 --response-ms 1500
 """
 from __future__ import annotations
 
@@ -25,12 +26,12 @@ import numpy as np
 import torch
 
 import training as fc
-from figure.plot_run import load_best, session_for_target
+from figure.plot_run import load_train_opts, session_for_target
 from figure.readout import plot_present_layout
 from figure.util import TRACE_LW, TRACE_YLIM, save_figure
 from neuron.params import DELTA_MS, set_delta_ms
 from task.spot.data import cell_list, resolve_spot_cost_radii, spot_center_bin_layout
-from task.spot.input import spot_from_opts, spot_stimulus_batches
+from task.spot.input import PRE_MS, RESPONSE_MS, spot_from_opts, spot_stimulus_batches
 from training.config import PARAMETER_DIR
 
 DEFAULT_RUN = (
@@ -39,6 +40,20 @@ DEFAULT_RUN = (
 )
 DEFAULT_SAVE = os.path.join(HERE, "v_ca_dt50.png")
 DT50_MS = 50.0
+
+
+def _apply_spot_timing(opts: dict, *, pre_ms: float, response_ms: float) -> dict:
+    """Set spot ``pre_ms`` / ``response_ms``; drop legacy ``t_on`` / ``n_t``."""
+    out = copy.deepcopy(opts)
+    for key in ("spot_bright_stimulus_opts", "spot_dark_stimulus_opts"):
+        so = out.get(key)
+        if so is None:
+            continue
+        so["pre_ms"] = float(pre_ms)
+        so["response_ms"] = float(response_ms)
+        so.pop("t_on", None)
+        so.pop("n_t", None)
+    return out
 
 
 @torch.no_grad()
@@ -167,6 +182,14 @@ def main():
     ap.add_argument("--save", default=DEFAULT_SAVE)
     ap.add_argument("--show", action="store_true")
     ap.add_argument("--dt50", type=float, default=DT50_MS)
+    ap.add_argument(
+        "--pre-ms", type=float, default=PRE_MS,
+        help="pre-stimulus baseline in ms (default %(default)s)",
+    )
+    ap.add_argument(
+        "--response-ms", type=float, default=RESPONSE_MS,
+        help="post-onset response window in ms (default %(default)s)",
+    )
     args = ap.parse_args()
 
     run_path = args.run_path
@@ -174,12 +197,25 @@ def main():
         run_path = os.path.join(str(PARAMETER_DIR), run_path)
     run_path = os.path.abspath(run_path)
 
+    pre_ms = float(args.pre_ms)
+    response_ms = float(args.response_ms)
+
     set_delta_ms(DELTA_MS)
-    session0, z0, _best_i, _cost = load_best(run_path, verbose=True)
-    model = session0.model
-    base_opts = copy.deepcopy(session0.train_opts)
+    raw_opts = load_train_opts(run_path)
+    if not raw_opts:
+        raise SystemExit(f"missing train_opts.json under {run_path}")
+    base_opts = _apply_spot_timing(raw_opts, pre_ms=pre_ms, response_ms=response_ms)
+    model = base_opts.get("model")
+    session0 = fc.open_session_from_opts(base_opts, model=model)
+
     import training.driver as train_mod
     named, type_names, pair_names = train_mod.load_best_param_named(run_path)
+    remapped = fc.remap_named_unit_values(
+        named, type_names, pair_names, list(session0.schema), session0.backend,
+    )
+    schema = fc.attach_param_carry(list(session0.schema), remapped)
+    session0 = session0.with_schema(schema)
+    base_opts = copy.deepcopy(session0.train_opts)
 
     one10, z10 = _session_z_at_delta_ms(
         base_opts, model, named, type_names, pair_names, DELTA_MS,

@@ -159,7 +159,6 @@ def read_RecF_ImpR(*, t_on=None, n_t=None, pulse_ms=None):
     IR_lp = np.array([03.8, 05.8, 05.4, 02.3, 04.2, 05.4, 02.7, 03.8, 07.7, 04.4, 01.4, 02.4, 10.7])
 
     signal = spot_input_waveform(t_on, n_t, pulse_ms)
-    signal = _lowpass(signal, 5)
     signal = signal / np.max(signal)
 
     ImpR_data = np.zeros((13, n_t))
