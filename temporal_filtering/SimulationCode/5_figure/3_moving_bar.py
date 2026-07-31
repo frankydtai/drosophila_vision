@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import time
 from dataclasses import dataclass, field
-from typing import Literal
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -32,6 +31,7 @@ from figure.util import (
     column_at_scope_tag,
     cell_ylabel,
     overlay_model_reds,
+    plot_pre_post_line,
     plot_sem_band,
     plot_timecourse,
     save_figure,
@@ -56,12 +56,15 @@ from task.moving_bar.input import (
     network_uv_np,
 )
 from task.moving_bar.input import (
-    COST_WINDOW_AFTER,
-    COST_WINDOW_BEFORE,
+    cost_window_after_t,
+    cost_window_before_t,
 )
-from neuron.params import DELTA_MS
+from training.defaults import DELTA_MS
 
 MOVING_BAR_DPI = 100
+
+COST_WINDOW_BEFORE = cost_window_before_t(DELTA_MS)
+COST_WINDOW_AFTER = cost_window_after_t(DELTA_MS)
 
 
 @dataclass
@@ -99,6 +102,8 @@ class MovingBarTraceBundle:
     align_at_y: int | None = None
     prep_s: float = 0.0
     v_th_by_name: dict = field(default_factory=dict)
+    show_pre: bool = True
+    t_onset: int | None = None
 
     @property
     def has_slices(self):
@@ -181,15 +186,7 @@ def _filter_right_specs(spec_names, right_only):
     return list(spec_names)
 
 
-def _scale_ca_full(ca_full, p, backend):
-    """Apply per-unit ``out_scale`` to ``ca_full`` (B, T', N), matching cost."""
-    n_units = ca_full.shape[2]
-    unit_ix = torch.arange(n_units, dtype=torch.long)
-    scale = fc.out_scale_for_units(p, unit_ix, backend).cpu().numpy()
-    return ca_full * scale[np.newaxis, np.newaxis, :]
-
-
-def _windows_by_batch(ca_full, t0_bn, win_lens, *, show_pre=True, t_on=0):
+def _windows_by_batch(ca_full, t0_bn, win_lens):
     """``win_lens``: int (uniform) or length-``B`` sequence of window lengths."""
     n_batch = ca_full.shape[0]
     if isinstance(win_lens, int):
@@ -208,8 +205,6 @@ def _windows_by_batch(ca_full, t0_bn, win_lens, *, show_pre=True, t_on=0):
         u_ix = np.arange(n_units, dtype=np.int64)[None, :, None]
         batch = sl[b_ix, t_safe, u_ix].astype(np.float64, copy=False)
         batch[t_idx < 0] = 0.0
-        if not show_pre:
-            batch[t_idx < int(t_on)] = 0.0
         out.append(batch[0])
     return out
 
@@ -291,7 +286,7 @@ def _t0_bn_slice_aligned_to_ref(
 
 def _moving_bar_slice_overlay_traces(
     session, target, trace_full, base_wt, spec_names, *, at_x=None, at_y=None,
-    align_at_x=None, align_at_y=None, show_pre=True,
+    align_at_x=None, align_at_y=None,
 ):
     """Per-axis slice traces aligned to ``base_wt`` window geometry."""
     if base_wt.t0_bn is None or base_wt.type_ids is None or base_wt.types is None:
@@ -319,8 +314,7 @@ def _moving_bar_slice_overlay_traces(
             t0_full_bn, n_batch, filt_cols, align_at_x, align_at_y,
             session=session, cost_extent=pack.cost_extent,
         )
-    _t_on = int(pack.signal.shape[1] - pack.data.shape[1])
-    windows_full = _windows_by_batch(trace_full, t0_use, win_lens, show_pre=show_pre, t_on=_t_on)
+    windows_full = _windows_by_batch(trace_full, t0_use, win_lens)
     ca_mean, ca_sem, ca_n = _aggregate_moving_bar_traces(
         windows_full, t0_use, type_ids, types, spec_names, True, col_mask=col_mask,
     )
@@ -345,7 +339,7 @@ def _fig1_trace_delta(trace: np.ndarray) -> np.ndarray:
     return trace - float(trace[0])
 
 
-def _load_moving_bar_data_mean(session, target, types, specs, side, *, trace_kind='ca'):
+def _load_moving_bar_data_mean(session, target, types, specs, side):
     data_mean = {}
     row_types = plot_types_in_order(pack_readout_types(session, target))
     for subtype in row_types:
@@ -355,37 +349,35 @@ def _load_moving_bar_data_mean(session, target, types, specs, side, *, trace_kin
             trace_id = fig1_key_for_stimulus(side, subtype, spec)
             if trace_id is None:
                 continue
-            trace = load_fig1_trace(trace_id)
-            if trace_kind == 'v':
-                trace = _fig1_trace_delta(trace)
+            trace = _fig1_trace_delta(load_fig1_trace(trace_id))
             data_mean[(subtype, spec.name)] = trace
     return data_mean
 
 
-def _moving_bar_baselines(C, v_ref, types, type_ids, type_names, cost_extent, *, at_x=None, at_y=None):
-    """Mean ``v_ref`` per type over units on moving-bar cost columns (matches trace scope)."""
+def _moving_bar_baselines(C, v_onset, types, type_ids, type_names, cost_extent, *, at_x=None, at_y=None):
+    """Mean ``v_onset`` per type over units on moving-bar cost columns (matches trace scope)."""
     cols = moving_bar_cost_columns(C, cost_extent=cost_extent)
     if at_x is not None or at_y is not None:
         cols = filter_sti_columns(cols, at_x=at_x, at_y=at_y)
-    v_ref = np.asarray(v_ref, dtype=np.float64)
+    v_onset = np.asarray(v_onset, dtype=np.float64)
     out = {}
     for tname in types:
         u = moving_bar_units_on_columns(C, tname, cols)
-        out[tname] = float(v_ref[u].mean()) if u.size else np.nan
+        out[tname] = float(v_onset[u].mean()) if u.size else np.nan
     return out
 
 
 def _moving_bar_traces_from_forward(
-    session, target, trace_full, v_ref_np, specs, spec_names, *,
-    at_x=None, at_y=None, show_pre=True,
+    session, target, trace_full, v_onset_np, specs, spec_names, *,
+    at_x=None, at_y=None,
 ):
     pack = session.pack_for(target)
     cost_extent = pack.cost_extent
     n_t = int(session.n_t)
-    _t_on = int(pack.signal.shape[1] - pack.data.shape[1])
+    _t_onset = int(pack.signal.shape[1] - pack.data.shape[1])
     grids = moving_bar_session_t0_grids(
         session, specs, cost_extent, n_t, at_x=at_x, at_y=at_y,
-        t_on=_t_on, delta_ms=fc.delta_ms,
+        t_onset=_t_onset, delta_ms=fc.delta_ms,
     )
     types, type_ids = _plot_types_and_ids(session)
     t0_full_bn = grids.t0_bn
@@ -398,7 +390,7 @@ def _moving_bar_traces_from_forward(
         full_before_t[sname] + full_after_t[sname] + 1
         for sname in spec_names
     ]
-    windows_full = _windows_by_batch(trace_full, t0_full_bn, win_lens, show_pre=show_pre, t_on=_t_on)
+    windows_full = _windows_by_batch(trace_full, t0_full_bn, win_lens)
     trace_mean, trace_sem, trace_n = _aggregate_moving_bar_traces(
         windows_full, t0_full_bn, type_ids, types, spec_names, single_column,
     )
@@ -411,63 +403,51 @@ def _moving_bar_traces_from_forward(
         t0_bn=t0_full_bn,
         type_ids=type_ids,
         types=types,
-    ), types, side, n_filter_cols
+    ), types, side, n_filter_cols, _t_onset
 
 
 @torch.no_grad()
 def moving_bar_trace_bundle(session, z, target, *, at_x=None, at_y=None,
                             at_x_list=None, at_y_list=None,
                             align_at_x=None, align_at_y=None,
-                            trace_kind: Literal['ca', 'v'] = 'ca',
                             save_trace_csv_dir: str | None = None, show_pre=True):
     """Run one forward; t_first_sti-aligned full-window model traces."""
     t_prep0 = time.perf_counter()
     pack = session.pack_for(target)
     schema = list(session.schema)
     p = fc.assign_params(z, schema, session.backend)
-    if trace_kind == 'v':
-        v_delta, v_ref, _v_full = fc.run_full(
-            session, p, pack.signal, return_ref=True, return_v_delta=True, pack=pack,
-        )
-        v_ref_np = v_ref[0].cpu().numpy()
-        trace_full = v_delta.cpu().numpy()
-        save_forward_trace_csvs(
-            save_trace_csv_dir, target,
-            trace_kind=trace_kind, ref=v_ref_np, trace_full=trace_full,
-            ref_stem='moving_bar_v_ref',
-        )
-    else:
-        ca_full, v_ref = fc.run_full(
-            session, p, pack.signal, return_ref=True, pack=pack,
-        )
-        v_ref_np = v_ref[0].cpu().numpy()
-        trace_full = _scale_ca_full(ca_full.cpu().numpy(), p, session.backend)
-        save_forward_trace_csvs(
-            save_trace_csv_dir, target,
-            trace_kind=trace_kind, ref=v_ref_np, trace_full=trace_full,
-        )
+    v_delta, v_onset, _v_full = fc.run_full(
+        session, p, pack.signal, return_v_onset=True, pack=pack,
+    )
+    v_onset_np = v_onset[0].cpu().numpy()
+    trace_full = v_delta.cpu().numpy()
+    save_forward_trace_csvs(
+        save_trace_csv_dir, target,
+        ref=v_onset_np, trace_full=trace_full,
+        ref_stem='moving_bar_v_onset',
+    )
     specs = bar_specs_for_session(session, target)
     spec_names = [s.name for s in specs]
     n_t = int(session.n_t)
     C = session.backend.network
-    traces, types, side, n_filter_cols = _moving_bar_traces_from_forward(
-        session, target, trace_full, v_ref_np, specs, spec_names, show_pre=show_pre,
+    traces, types, side, n_filter_cols, t_onset = _moving_bar_traces_from_forward(
+        session, target, trace_full, v_onset_np, specs, spec_names,
     )
     if C is not None:
         type_names = list(C.type_names)
         type_ids = _type_ids_np(C.node_type)
         baselines = _moving_bar_baselines(
-            C, v_ref_np, types, type_ids, type_names, pack.cost_extent,
+            C, v_onset_np, types, type_ids, type_names, pack.cost_extent,
             at_x=at_x, at_y=at_y,
         )
     else:
         type_ids = _type_ids_np(session.backend.conn.node_type)
         baselines = baselines_for_types(
-            pack, session.backend, v_ref_np, types, type_ids, types,
+            pack, session.backend, v_onset_np, types, type_ids, types,
         )
     single_column = suppress_cost_sem(session, target) or n_filter_cols == 1
     data_mean = _load_moving_bar_data_mean(
-        session, target, types, specs, side, trace_kind=trace_kind,
+        session, target, types, specs, side,
     )
     slice_overlay = None
     slice_axis = None
@@ -484,7 +464,6 @@ def moving_bar_trace_bundle(session, z, target, *, at_x=None, at_y=None,
                 session, target, trace_full, traces, spec_names,
                 at_x=xv, at_y=yv,
                 align_at_x=align_at_x, align_at_y=align_at_y,
-                show_pre=show_pre,
             )
             if wt is None:
                 print(f'skip slice overlay {label}: no column within cost_extent')
@@ -517,11 +496,36 @@ def moving_bar_trace_bundle(session, z, target, *, at_x=None, at_y=None,
         align_at_y=align_at_y,
         prep_s=time.perf_counter() - t_prep0,
         v_th_by_name=v_th_by_type_name(z, session),
+        show_pre=bool(show_pre),
+        t_onset=int(t_onset),
     )
 
 
 def _window_t(wt, sname):
     return wt.before_t[sname], wt.after_t[sname]
+
+
+def _moving_bar_pre_end(bundle, subtype, sname):
+    """Median relative index of global ``t_onset`` within the plotted window."""
+    t_onset = getattr(bundle, "t_onset", None)
+    wt = bundle.traces
+    if t_onset is None or wt.t0_bn is None:
+        return 0
+    try:
+        bi = bundle.spec_names.index(sname)
+        ti = wt.types.index(subtype)
+    except ValueError:
+        return 0
+    key = (subtype, sname)
+    if key not in wt.ca_mean:
+        return 0
+    win_len = int(np.asarray(wt.ca_mean[key]).shape[0])
+    type_mask = wt.type_ids == ti
+    valid = (wt.t0_bn[bi] >= 0) & type_mask
+    if not bool(valid.any()):
+        return 0
+    pre = np.clip(int(t_onset) - wt.t0_bn[bi, valid], 0, win_len)
+    return int(np.median(pre))
 
 
 def _cost_window_overlay(cost_trace, before_t):
@@ -604,6 +608,8 @@ def _plot_moving_bar_cell(
     mark_cost_window=False,
     baseline=None,
     linestyle='-',
+    pre_end=0,
+    show_pre=False,
 ):
     win_len = len(ca_trace)
     data_x, data_y = None, None
@@ -634,7 +640,10 @@ def _plot_moving_bar_cell(
         ticksize=6 if cell_ticks else 5,
         style_xaxis=style_xaxis,
         linestyle=linestyle,
+        pre_end=pre_end,
+        show_pre=show_pre,
     )
+    # Gray fig1 overlay is already restricted to the cost window (no global pre).
     if data_x is not None:
         ax.plot(data_x, data_y, color=DATA_COLOR, linewidth=TRACE_LW, linestyle=linestyle)
 
@@ -658,6 +667,8 @@ def _plot_moving_bar_cell_slices(
     mark_cost_window=False,
     baseline=None,
     ylim=None,
+    pre_end=0,
+    show_pre=False,
 ):
     win_len = len(total_trace)
     data_x, data_y = None, None
@@ -680,10 +691,19 @@ def _plot_moving_bar_cell_slices(
         ax.plot(data_x, data_y, color=DATA_COLOR, linewidth=TRACE_LW)
     colors = overlay_model_reds(len(slice_labels))
     for i, label in enumerate(slice_labels):
-        ax.plot(t, slice_traces[label], color=colors[i], linewidth=TRACE_LW, label=label)
+        plot_pre_post_line(
+            ax, t, slice_traces[label], pre_end=pre_end,
+            show_pre=show_pre, draw_pre=True,
+            color=colors[i], linestyle='-', linewidth=TRACE_LW, label=label,
+        )
     if show_sem and sem_trace is not None and np.any(sem_trace):
-        plot_sem_band(ax, t, total_trace, sem_trace)
-    ax.plot(t, total_trace, color=colors[-1], linewidth=TRACE_LW, label='total')
+        split = max(0, min(int(pre_end or 0), win_len))
+        plot_sem_band(ax, t[split:], total_trace[split:], sem_trace[split:])
+    plot_pre_post_line(
+        ax, t, total_trace, pre_end=pre_end,
+        show_pre=show_pre, draw_pre=True,
+        color=colors[-1], linestyle='-', linewidth=TRACE_LW, label='total',
+    )
     if title is not None:
         ax.set_title(title, fontsize=7, pad=2)
     ax.set_ylim(ylo, yhi)
@@ -799,6 +819,8 @@ def _moving_bar_all_figure(bundle_on, bundle_2, title, *, right_only=True):
                     show_tick_labels=(ri == nrows - 1),
                     mark_cost_window=True,
                     baseline=bl,
+                    pre_end=_moving_bar_pre_end(bundle_src, tname, sname),
+                    show_pre=getattr(bundle_src, "show_pre", True),
                 )
             else:
                 _plot_moving_bar_cell(
@@ -811,6 +833,8 @@ def _moving_bar_all_figure(bundle_on, bundle_2, title, *, right_only=True):
                     show_tick_labels=(ri == nrows - 1),
                     mark_cost_window=True,
                     baseline=bl,
+                    pre_end=_moving_bar_pre_end(bundle_src or bundle_on, tname, sname),
+                    show_pre=getattr(bundle_src or bundle_on, "show_pre", True),
                 )
         axes[ri, 0].set_ylabel(cell_ylabel(tname, ca_n), fontsize=8, labelpad=12)
     if title is None:
@@ -869,6 +893,8 @@ def plot_moving_bar_data(path, *, bundle, bundle_2=None, title=None):
                 mark_cost_window=True,
                 baseline=row_bundle.baselines.get(subtype),
                 linestyle=_moving_bar_spec_linestyle(plot_side, subtype, sname),
+                pre_end=_moving_bar_pre_end(row_bundle, subtype, sname),
+                show_pre=getattr(row_bundle, "show_pre", True),
             )
 
     for ri, subtype in enumerate(readout_subtypes):

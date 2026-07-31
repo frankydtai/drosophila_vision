@@ -18,70 +18,54 @@ import numpy as np
 from network import path  # noqa: F401 -- FAFBv783 on sys.path
 import column_mapper
 
-from neuron.params import DELTA_MS, ms_to_t
+from neuron.params import ms_to_t
 
 _SPOT_EXTENT_HALF_STEP_TOL = 1e-9
-
-# Default pre-stimulus baseline duration (ms). Onset index
-# ``t_on = ms_to_t(pre_ms)``.
-PRE_MS = 500.0
-# Default post-onset response window (ms).
-# ``n_t = ms_to_t(pre_ms) + ms_to_t(response_ms) + 1`` (inclusive endpoint).
-RESPONSE_MS = 1500.0
 
 
 def spot_timing_t(
     *,
     pre_ms: float,
     response_ms: float,
-    delta_ms: float = DELTA_MS,
+    delta_ms: float,
 ) -> Tuple[int, int]:
-    """Return ``(t_on, n_t)`` from ms timing params."""
+    """Return ``(t_onset, n_t)`` from ms timing params."""
     dt = float(delta_ms)
-    t_on = ms_to_t(pre_ms, delta_ms=dt)
-    n_t = t_on + ms_to_t(response_ms, delta_ms=dt) + 1
-    return t_on, n_t
+    t_onset = ms_to_t(pre_ms, delta_ms=dt)
+    n_t = t_onset + ms_to_t(response_ms, delta_ms=dt) + 1
+    return t_onset, n_t
 
 
 def spot_timing_t_from_opts(opts) -> Tuple[int, int]:
-    """``(t_on, n_t)`` from stimulus opts ``pre_ms`` / ``response_ms``."""
+    """``(t_onset, n_t)`` from stimulus opts ``pre_ms`` / ``response_ms`` / ``delta_ms``."""
     if opts.get("pre_ms") is None or opts.get("response_ms") is None:
         raise ValueError(
             "spot stimulus opts require pre_ms and response_ms (pass via CLI --pre-ms / --response-ms)"
         )
+    if opts.get("delta_ms") is None:
+        raise ValueError("spot stimulus opts require delta_ms")
     return spot_timing_t(
         pre_ms=float(opts["pre_ms"]),
         response_ms=float(opts["response_ms"]),
-        delta_ms=float(opts.get("delta_ms", DELTA_MS)),
+        delta_ms=float(opts["delta_ms"]),
     )
 
-# Default spot footprint / center-tiling radius (0.5 multiples).
-DEFAULT_SPOT_EXTENT: float = 1.0
-# Panel list for multi-spot visualisation.
-DEFAULT_SPOT_EXTENTS: Tuple[float, ...] = (0.5, 1.0, 1.5, 2.0)
-# Keep only centers whose spot footprint lies inside connectome extent.
-DEFAULT_FULLY_INSIDE: bool = True
-# Tile simultaneous spot centers on network connectome (``False`` -> center (0,0) only).
-DEFAULT_MULTI_SPOT: bool = True
-# Sub-spot shift hex-disc radius (``members_in_extent``; 1 -> 7 shifts).
-DEFAULT_SHIFT_EXTENT: int = 1
 
-
-def spot_input_waveform(t_on, n_t, pulse_ms=None, *, delta_ms: float = DELTA_MS) -> np.ndarray:
+def spot_input_waveform(t_onset, n_t, pulse_ms=None, *, delta_ms: float) -> np.ndarray:
     """Normalized 0/1 photoreceptor drive ``u[t]`` over ``n_t`` samples.
 
-    ``pulse_ms`` omitted -> continue-on step (``u[t_on:] = 1``). With a value the
-    stimulus is on only for ``[t_on, t_on + round(pulse_ms/delta_ms))`` and returns
+    ``pulse_ms`` omitted -> continue-on step (``u[t_onset:] = 1``). With a value the
+    stimulus is on only for ``[t_onset, t_onset + round(pulse_ms/delta_ms))`` and returns
     to baseline afterward; ``n_t`` is unchanged.
     """
-    t_on = int(t_on)
+    t_onset = int(t_onset)
     n_t = int(n_t)
     u = np.zeros(n_t)
     if pulse_ms is None:
-        u[t_on:] = 1.0
+        u[t_onset:] = 1.0
     else:
         width = max(1, ms_to_t(pulse_ms, delta_ms=delta_ms))
-        u[t_on:min(n_t, t_on + width)] = 1.0
+        u[t_onset:min(n_t, t_onset + width)] = 1.0
     return u
 
 
@@ -146,8 +130,9 @@ def _spot_center_angle(u: int, v: int) -> float:
 
 def spot_centers(
     extent: int = column_mapper.DEFAULT_EXTENT,
-    spot_extent=DEFAULT_SPOT_EXTENT,
-    fully_inside: bool = DEFAULT_FULLY_INSIDE,
+    *,
+    spot_extent: float,
+    fully_inside: bool,
 ) -> list:
     """Axial centers of densest packing of radius-``floor(spot_extent)`` hexes."""
     m = spot_extent_half_steps(spot_extent)
@@ -223,9 +208,10 @@ def _connectome_extent(C, spot_extent: float) -> int:
 
 def build_spot(
     C,
-    spot_extent: float = DEFAULT_SPOT_EXTENT,
-    multi_spot: bool = DEFAULT_MULTI_SPOT,
-    fully_inside: bool = DEFAULT_FULLY_INSIDE,
+    *,
+    spot_extent: float,
+    multi_spot: bool,
+    fully_inside: bool,
 ) -> Spot:
     """Build a :class:`Spot` for connectome ``C``."""
     spot_extent_half_steps(spot_extent)
@@ -247,21 +233,21 @@ def build_spot(
 
 def spot_from_opts(
     C,
-    spot_extent: float = DEFAULT_SPOT_EXTENT,
-    shift_extent: int = DEFAULT_SHIFT_EXTENT,
-    multi_spot: bool = DEFAULT_MULTI_SPOT,
-    fully_inside: bool = DEFAULT_FULLY_INSIDE,
     *,
+    spot_extent: float,
+    shift_extent: int,
+    multi_spot: bool,
+    fully_inside: bool,
     stimulus_opts: Optional[Dict] = None,
 ) -> Spot:
     """Build :class:`Spot` with configurable sub-spot shift radius."""
     if stimulus_opts is not None:
-        spot_extent = float(stimulus_opts.get("spot_extent", spot_extent))
-        shift_extent = int(stimulus_opts.get("shift_extent", shift_extent))
-        multi_spot = bool(stimulus_opts.get("multi_spot", multi_spot))
-        fully_inside = bool(stimulus_opts.get("fully_inside", fully_inside))
+        spot_extent = float(stimulus_opts["spot_extent"])
+        shift_extent = int(stimulus_opts["shift_extent"])
+        multi_spot = bool(stimulus_opts["multi_spot"])
+        fully_inside = bool(stimulus_opts["fully_inside"])
     spot = build_spot(
-        C, spot_extent, multi_spot=multi_spot, fully_inside=fully_inside,
+        C, spot_extent=spot_extent, multi_spot=multi_spot, fully_inside=fully_inside,
     )
     spot.shifts = [
         (int(du), int(dv))

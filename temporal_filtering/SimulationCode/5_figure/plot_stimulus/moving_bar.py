@@ -29,8 +29,15 @@ import numpy as np
 from matplotlib.animation import FuncAnimation, PillowWriter
 from matplotlib.patches import Rectangle
 
-from network.construction import I_BASELINE, I_BRIGHT
-from neuron.params import DELTA_MS
+from training.defaults import (
+    DELTA_MS,
+    EXC_SYNWEIGHT,
+    I_BASELINE,
+    I_BRIGHT,
+    INH_SYNWEIGHT,
+    SYN_MODE,
+)
+from training.target_pack import SIM_DTYPE
 from network.construction import load_network
 from training.driver import parse_bool
 from connectome_io import parse_comma_list
@@ -92,7 +99,7 @@ def _field_limits(columns, *, columns_are_xy_deg: bool = False):
 def _transit_frame_times(
     spec,
     field_deg,
-    t_on,
+    t_onset,
     n_t,
     t_stride: int,
     *,
@@ -100,13 +107,13 @@ def _transit_frame_times(
     multi_bar: bool = True,
 ) -> list[int]:
     t0, _, t1 = moving_bar_transit_times(
-        spec, field_deg, bar_extent, multi_bar=bool(multi_bar), t_on=t_on, n_t=n_t,
+        spec, field_deg, bar_extent, multi_bar=bool(multi_bar), t_onset=t_onset, n_t=n_t,
     )
     return list(range(t0, t1 + 1, max(1, t_stride)))
 
 
-def _draw_bar_outline(ax, spec, field_deg, t: int, t_on: int, *, bar_extent: int, multi_bar: bool = True):
-    rects = bar_lane_rects_at_t(spec, field_deg, bar_extent, t, multi_bar=bool(multi_bar), t_on=t_on)
+def _draw_bar_outline(ax, spec, field_deg, t: int, t_onset: int, *, bar_extent: int, multi_bar: bool = True):
+    rects = bar_lane_rects_at_t(spec, field_deg, bar_extent, t, multi_bar=bool(multi_bar), t_onset=t_onset)
     for xmin, ymin, xmax, ymax in rects:
         ax.add_patch(
             Rectangle(
@@ -158,7 +165,7 @@ def _draw_hex_field(ax, columns, vals, i_max, i_baseline, xlim, ylim, *, columns
 
 
 def plot_snapshot(
-    ax, columns, column_current, t, spec, spec_name, i_max, i_baseline, xlim, ylim, t_on, field_deg, *,
+    ax, columns, column_current, t, spec, spec_name, i_max, i_baseline, xlim, ylim, t_onset, field_deg, *,
     columns_are_xy_deg: bool = False,
     bar_extent=None,
     multi_bar: bool = True,
@@ -167,7 +174,7 @@ def plot_snapshot(
         ax, columns, column_current[t], i_max, i_baseline, xlim, ylim,
         columns_are_xy_deg=columns_are_xy_deg,
     )
-    _draw_bar_outline(ax, spec, field_deg, t, t_on, bar_extent=bar_extent, multi_bar=bool(multi_bar))
+    _draw_bar_outline(ax, spec, field_deg, t, t_onset, bar_extent=bar_extent, multi_bar=bool(multi_bar))
     ax.set_title(f"{spec_name}  t={t} ({t * DELTA_MS / 1000.0:.2f} s)", fontsize=9)
 
 
@@ -179,7 +186,7 @@ def write_snapshots(
     i_baseline,
     output,
     side,
-    t_on,
+    t_onset,
     n_t,
     field_deg,
     snapshot_t=None,
@@ -214,14 +221,14 @@ def write_snapshots(
             labels = [f"t={t}" for t in times]
         else:
             start_t, center_t, exit_t = moving_bar_transit_times(
-                spec, field_deg, bar_extent, multi_bar=bool(multi_bar), t_on=t_on, n_t=n_t,
+                spec, field_deg, bar_extent, multi_bar=bool(multi_bar), t_onset=t_onset, n_t=n_t,
             )
             times = [start_t, center_t, exit_t]
             labels = ("start", "center", "exit")
         for j, (t, label) in enumerate(zip(times, labels)):
             plot_snapshot(
                 axes[i, j], plot_columns, column_current[i], t, spec,
-                f"{spec.name} ({label})", i_max, i_baseline, xlim, ylim, t_on, field_deg,
+                f"{spec.name} ({label})", i_max, i_baseline, xlim, ylim, t_onset, field_deg,
                 columns_are_xy_deg=columns_are_xy_deg,
                 bar_extent=bar_extent,
                 multi_bar=bool(multi_bar),
@@ -245,7 +252,7 @@ def write_snapshots(
 
 
 def write_animation(
-    plot_columns, showcase, column_current, i_max, i_baseline, output, side, t_on, n_t, field_deg, t_stride,
+    plot_columns, showcase, column_current, i_max, i_baseline, output, side, t_onset, n_t, field_deg, t_stride,
     *, columns_are_xy_deg: bool = False,
     bar_extent=None,
     multi_bar: bool = True,
@@ -253,7 +260,7 @@ def write_animation(
     times = sorted({
         t for spec in showcase
         for t in _transit_frame_times(
-            spec, field_deg, t_on, n_t, t_stride, bar_extent=bar_extent, multi_bar=bool(multi_bar),
+            spec, field_deg, t_onset, n_t, t_stride, bar_extent=bar_extent, multi_bar=bool(multi_bar),
         )
     })
     if not times:
@@ -275,7 +282,7 @@ def write_animation(
             axes[i, 0].clear()
             plot_snapshot(
                 axes[i, 0], plot_columns, column_current[i], t, spec,
-                spec.name, i_max, i_baseline, xlim, ylim, t_on, field_deg,
+                spec.name, i_max, i_baseline, xlim, ylim, t_onset, field_deg,
                 columns_are_xy_deg=columns_are_xy_deg,
                 bar_extent=bar_extent,
                 multi_bar=bool(multi_bar),
@@ -334,7 +341,11 @@ def main():
     i_bright = args.i_bright
 
     network_json = str(resolve_network_json(args.network))
-    C = load_network(network_json, device="cpu")
+    C = load_network(
+        network_json, device="cpu",
+        exc_synweight=EXC_SYNWEIGHT, inh_synweight=INH_SYNWEIGHT,
+        syn_mode=SYN_MODE, dtype=SIM_DTYPE,
+    )
     default_png, default_gif = _default_outputs(network_json, C.meta, args.direction)
     output = args.output or default_png
     T = build_moving_bar_signals(
@@ -342,10 +353,14 @@ def main():
         specs=showcase,
         bar_extent=args.bar_extent,
         multi_bar=bool(args.multi_bar),
+        delta_ms=DELTA_MS,
+        i_baseline=I_BASELINE,
+        i_bright_bar=i_bright,
+        sim_dtype=SIM_DTYPE,
     )
     plot_columns = [(c.u, c.v) for c in sti_columns(C)]
     column_current = T.column_current
-    t_on = int(T.info["t_on"])
+    t_onset = int(T.info["t_onset"])
     n_t = int(T.info["n_t"])
     field_deg = tuple(T.info["field_deg"])
     i_baseline = float(T.info["i_baseline"])
@@ -356,12 +371,12 @@ def main():
     print(
         f"bar_extent={bar_extent}  "
         f"n_t={n_t} ({n_t * DELTA_MS / 1000.0:.2f} s)  "
-        f"sweep_t={T.info['sweep_t']} ({T.info['sweep_time_s']:.2f} s after t_on)"
+        f"sweep_t={T.info['sweep_t']} ({T.info['sweep_time_s']:.2f} s after t_onset)"
     )
 
     write_snapshots(
         plot_columns, showcase, column_current, i_bright, i_baseline,
-        output, side, t_on, n_t, field_deg, snapshot_t=snapshot_t,
+        output, side, t_onset, n_t, field_deg, snapshot_t=snapshot_t,
         columns_are_xy_deg=columns_are_xy_deg,
         bar_extent=bar_extent,
         multi_bar=bool(args.multi_bar),
@@ -370,7 +385,7 @@ def main():
         gif = default_gif if args.gif == "" else args.gif
         write_animation(
             plot_columns, showcase, column_current, i_bright, i_baseline, gif,
-            side, t_on, n_t, field_deg, args.t_stride,
+            side, t_onset, n_t, field_deg, args.t_stride,
             columns_are_xy_deg=columns_are_xy_deg,
             bar_extent=bar_extent,
             multi_bar=bool(args.multi_bar),

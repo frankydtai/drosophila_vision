@@ -17,10 +17,7 @@ from typing import Callable, Dict, List, Mapping, Optional, Sequence, Tuple, Uni
 import numpy as np
 import torch
 
-from neuron.params import DELTA_MS, ms_to_t
-import neuron.params as params
-from network.construction import I_BRIGHT, I_DARK
-from network.connectivity import SIM_DTYPE_DEFAULT
+from neuron.params import ms_to_t
 from network.construction import unit_type_names
 from task.moving_bar.input import (
     COST_ALIGNED_FIRST_STI_MS,
@@ -597,8 +594,8 @@ def _fig1_trace_ids(npz_path: Path) -> List[str]:
 def load_fig1_trace(
     trace_id: str,
     npz_path: Path = FIG1_CI_NPZ,
-    delta_ms: float = DELTA_MS,
-) -> np.ndarray:
+    *,
+    delta_ms: float) -> np.ndarray:
     """Resample one fig1 trace onto the moving-bar cost window."""
     n_t = ms_to_t(COST_WINDOW_MS, delta_ms=delta_ms) + 1
     before_t = ms_to_t(COST_ALIGNED_FIRST_STI_MS, delta_ms=delta_ms)
@@ -622,8 +619,8 @@ def load_fig1_trace(
 
 def load_fig1_traces(
     npz_path: Path = FIG1_CI_NPZ,
-    delta_ms: float = DELTA_MS,
-) -> Dict[str, np.ndarray]:
+    *,
+    delta_ms: float) -> Dict[str, np.ndarray]:
     """All fig1 traces resampled to the per-column training window."""
     return {
         tid: load_fig1_trace(tid, npz_path, delta_ms)
@@ -803,7 +800,8 @@ def build_moving_bar_target(
     C,
     device: Optional[str] = None,
     t_on: int = None,
-    delta_ms: float = DELTA_MS,
+    *,
+    delta_ms: float,
     fig1_path: Path = FIG1_CI_NPZ,
     use_cache: bool = True,
     bar_extent: int = DEFAULT_BAR_EXTENT,
@@ -814,7 +812,7 @@ def build_moving_bar_target(
     i_dark_bar: Optional[float] = None,
     contrasts: Sequence[str] = ("bright", "dark"),
     readout_subtypes: Optional[Sequence[str]] = None,
-    sim_dtype: torch.dtype = SIM_DTYPE_DEFAULT,
+    sim_dtype: torch.dtype,
     waveform_mse: bool = True,
 ) -> MovingBarTarget:
     """Build multi-bar stimulus + T4/T5 cost readouts."""
@@ -969,7 +967,7 @@ def moving_bar_session_t0_grids(
     at_x=None,
     at_y=None,
     t_on: int = None,
-    delta_ms: float = DELTA_MS,
+    delta_ms: float,
 ) -> MovingBarSessionT0:
     """Session-level ``t0`` / horizon grids for moving-bar cost or analyze."""
     C = session.backend.network
@@ -1066,32 +1064,25 @@ def _readout_subtypes_from_opts(opts):
 def make_moving_bar_stimulus_opts(
     polarity: str,
     *,
-    i_baseline=None,
-    i_bar=None,
-    multi_bar: bool = True,
+    i_baseline: float,
+    i_bar: float,
+    pre_ms: float,
+    delta_ms: float,
+    multi_bar: bool,
     mode="network",
     readout_subtypes=None,
-    **extra,
 ):
     """PR moving-bar stimulus opts for ``moving_bar_{polarity}``."""
     if polarity not in MOVING_BAR_POLARITIES:
         raise ValueError(f"moving-bar polarity must be 'bright' or 'dark', got {polarity!r}")
     bar_key = "i_bright_bar" if polarity == "bright" else "i_dark_bar"
-    if i_bar is None:
-        i_bar = extra.get(bar_key)
-    bar_default = I_BRIGHT if polarity == "bright" else I_DARK
-    _pre_ms = extra.get("pre_ms")
-    if _pre_ms is None:
-        raise ValueError(
-            "make_moving_bar_stimulus_opts requires pre_ms (pass via CLI --pre-ms)"
-        )
     out = {
         "mode": mode,
-        "i_baseline": resolve_i_baseline(i_baseline),
-        bar_key: float(bar_default if i_bar is None else i_bar),
-        "pre_ms": float(_pre_ms),
-        "delta_ms": float(params.delta_ms),
-        "multi_bar": bool(extra.get("multi_bar", multi_bar)),
+        "i_baseline": float(i_baseline),
+        bar_key: float(i_bar),
+        "pre_ms": float(pre_ms),
+        "delta_ms": float(delta_ms),
+        "multi_bar": bool(multi_bar),
     }
     rs = _readout_subtypes_stimulus_list(readout_subtypes)
     if rs is not None:
@@ -1108,7 +1099,9 @@ def _enrich_moving_bar_stimulus_opts(opts, info, *, cost_extent):
     """Attach runtime fields from a built moving-bar target; keep canonical ``i_*``."""
     out = dict(opts)
     out["n_t"] = int(info["n_t"])
-    dt = float(out.get("delta_ms", params.delta_ms))
+    if out.get("delta_ms") is None:
+        raise ValueError("moving-bar stimulus opts require delta_ms")
+    dt = float(out["delta_ms"])
     out["pre_ms"] = float(info["t_on"]) * dt
     out["spec_names"] = list(info["spec_names"])
     if cost_extent is not None:

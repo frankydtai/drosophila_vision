@@ -12,13 +12,14 @@ import matplotlib.pyplot as plt
 import numpy as np
 import torch
 
-from neuron.params import DELTA_MS
+from training.defaults import DELTA_MS
 import training as fc
 from figure.readout import (
+    contrast_for_target,
     pack_readout_types,
     plot_present_layout,
     plot_types_in_order,
-    spot_ref_cubes,
+    spot_data_cubes,
 )
 from figure.util import (
     DATA_COLOR,
@@ -32,6 +33,7 @@ from figure.util import (
     bundle_prep_s,
     column_at_scope_tag,
     overlay_model_reds,
+    plot_pre_post_line,
     plot_timecourse,
     readout_n_by_name,
     save_figure,
@@ -74,48 +76,41 @@ def _baseline_from_ref_grid(ref_grid, row_i):
 
 
 def _session_spot_timing(session):
-    """Extract onset ``t_on`` / ``n_t`` and pulse_ms from session stimulus opts."""
+    """Extract onset ``t_onset`` / ``n_t``, pulse_ms, and delta_ms from session stimulus opts."""
     from task.spot.input import spot_timing_t_from_opts
 
     opts = (session.train_opts or {}).get(
         f"{session.primary_pack.name}_stimulus_opts",
     ) or {}
-    t_on, n_t = spot_timing_t_from_opts(opts)
+    t_onset, n_t = spot_timing_t_from_opts(opts)
     pulse_ms = opts.get("pulse_ms")
     return (
-        int(t_on),
+        int(t_onset),
         int(n_t),
         float(pulse_ms) if pulse_ms is not None else None,
+        float(opts.get("delta_ms", DELTA_MS)),
     )
 
 
-def resolve_spot_ref_cubes(session_1, session_2=None, ref_cubes=None, ref_cubes_2=None,
-                           *, v_delta=False):
-    dual = session_2 is not None
-    t_on_1, mt_1, pulse_ms_1 = _session_spot_timing(session_1)
-    if ref_cubes is not None:
-        ref_1 = ref_cubes
-    elif dual:
-        ref_1 = spot_ref_cubes(session_1, 'spot_bright', dark=False,
-                               t_on=t_on_1, n_t=mt_1, pulse_ms=pulse_ms_1, v_delta=v_delta)
-    else:
-        ref_1 = spot_ref_cubes(
-            session_1, session_1.primary_pack.name, dark=_session_dark(session_1),
-            t_on=t_on_1, n_t=mt_1, pulse_ms=pulse_ms_1, v_delta=v_delta,
+def resolve_spot_data_cubes(session_1, session_2=None, data_cubes=None):
+    """``{contrast: {cell: (9, T)}}`` for session_1 (and session_2 if dual)."""
+    if data_cubes is not None:
+        return data_cubes
+    t_onset_1, mt_1, pulse_ms_1, delta_ms_1 = _session_spot_timing(session_1)
+    c1 = contrast_for_target(session_1.primary_pack.name)
+    out = spot_data_cubes(
+        session_1, session_1.primary_pack.name, contrasts=(c1,),
+        t_onset=t_onset_1, n_t=mt_1, pulse_ms=pulse_ms_1, delta_ms=delta_ms_1,
+    )
+    if session_2 is not None:
+        t_onset_2, mt_2, pulse_ms_2, delta_ms_2 = _session_spot_timing(session_2)
+        c2 = contrast_for_target(session_2.primary_pack.name)
+        part2 = spot_data_cubes(
+            session_2, session_2.primary_pack.name, contrasts=(c2,),
+            t_onset=t_onset_2, n_t=mt_2, pulse_ms=pulse_ms_2, delta_ms=delta_ms_2,
         )
-    if ref_cubes_2 is not None:
-        ref_2 = ref_cubes_2
-    elif dual:
-        t_on_2, mt_2, pulse_ms_2 = _session_spot_timing(session_2)
-        ref_2 = spot_ref_cubes(session_2, 'spot_dark', dark=True,
-                               t_on=t_on_2, n_t=mt_2, pulse_ms=pulse_ms_2, v_delta=v_delta)
-    else:
-        ref_2 = None
-    return ref_1, ref_2
-
-
-def _session_dark(session):
-    return session.primary_pack.name == "spot_dark"
+        out = {**out, **part2}
+    return out
 
 
 def _session_cost_time_ix(session, response_start):
@@ -133,7 +128,7 @@ def _session_cost_time_ix(session, response_start):
 def scale_curve(xt, center, sem_xt=None, *, response_start=None):
     """Center time course + discrete RF bins from one ``(9, T)`` cube."""
     if response_start is None:
-        raise ValueError("scale_curve requires response_start (t_on)")
+        raise ValueError("scale_curve requires response_start (t_onset)")
     t0 = int(response_start)
     imp = xt[center]
     resp = imp[t0:]
@@ -194,7 +189,7 @@ def plot_cell_pair(
     ax_rf,
     ax_time,
     model_xt,
-    ref_xt,
+    data_xt,
     title,
     *,
     sem_xt=None,
@@ -204,7 +199,7 @@ def plot_cell_pair(
     baseline=None,
     n_t=None,
     model_2_xt=None,
-    ref_2_xt=None,
+    data_2_xt=None,
     baseline_2=None,
     linestyle_1='-',
     linestyle_2='--',
@@ -215,6 +210,7 @@ def plot_cell_pair(
     response_start=None,
     time_point_ix=None,
     time_point_ix_2=None,
+    show_pre=False,
 ):
     center = CENTER_BIN
     sc_kw = dict(response_start=response_start)
@@ -223,15 +219,15 @@ def plot_cell_pair(
     else:
         imp_model, rf_model = scale_curve(model_xt, center, **sc_kw)
         imp_sem = None
-    if ref_xt is not None:
-        imp_data, rf_data = scale_curve(ref_xt, center, **sc_kw)
+    if data_xt is not None:
+        imp_data, rf_data = scale_curve(data_xt, center, **sc_kw)
     else:
         imp_data, rf_data = None, None
     model_2_imp_model = model_2_rf_model = model_2_imp_data = model_2_rf_data = None
     if model_2_xt is not None:
         model_2_imp_model, model_2_rf_model = scale_curve(model_2_xt, center, **sc_kw)
-    if ref_2_xt is not None:
-        model_2_imp_data, model_2_rf_data = scale_curve(ref_2_xt, center, **sc_kw)
+    if data_2_xt is not None:
+        model_2_imp_data, model_2_rf_data = scale_curve(data_2_xt, center, **sc_kw)
     ylo, yhi = TRACE_YLIM
 
     _plot_rf_profile(ax_rf, rf_data, color=DATA_COLOR, label=label_1_data, linestyle=linestyle_1)
@@ -257,6 +253,7 @@ def plot_cell_pair(
         ax_rf.legend(loc='upper right', fontsize=6, frameon=False)
 
     t = np.arange(n_t)
+    pre_end = int(response_start or 0)
     plot_timecourse(
         ax_time, t, imp_model,
         data=imp_data,
@@ -272,6 +269,8 @@ def plot_cell_pair(
         style_xaxis=lambda ax: _style_time_axis(ax, show_xlabels, n_t),
         point_ix=time_point_ix,
         point_ix_2=time_point_ix_2,
+        pre_end=pre_end,
+        show_pre=show_pre,
     )
 
 
@@ -279,13 +278,13 @@ def plot_cell_pair_slices(
     ax_rf,
     ax_time,
     model_xt,
-    ref_xt,
+    data_xt,
     title,
     slice_overlay_xt,
     slice_labels,
     *,
     model_2_xt=None,
-    ref_2_xt=None,
+    data_2_xt=None,
     slice_overlay_2_xt=None,
     show_legend=False,
     show_xlabels=False,
@@ -300,18 +299,19 @@ def plot_cell_pair_slices(
     label_2_data='dark data',
     label_2_total='dark total',
     response_start=None,
+    show_pre=False,
 ):
     center = CENTER_BIN
     sc_kw = dict(response_start=response_start)
     imp_model, rf_model = scale_curve(model_xt, center, **sc_kw)
     imp_data, rf_data = (None, None)
-    if ref_xt is not None:
-        imp_data, rf_data = scale_curve(ref_xt, center, **sc_kw)
+    if data_xt is not None:
+        imp_data, rf_data = scale_curve(data_xt, center, **sc_kw)
     model_2_imp_model = model_2_rf_model = model_2_imp_data = model_2_rf_data = None
     if model_2_xt is not None:
         model_2_imp_model, model_2_rf_model = scale_curve(model_2_xt, center, **sc_kw)
-    if ref_2_xt is not None:
-        model_2_imp_data, model_2_rf_data = scale_curve(ref_2_xt, center, **sc_kw)
+    if data_2_xt is not None:
+        model_2_imp_data, model_2_rf_data = scale_curve(data_2_xt, center, **sc_kw)
 
     slice_imps = {}
     slice_rfs = {}
@@ -361,31 +361,35 @@ def plot_cell_pair_slices(
         ax_rf.legend(loc='upper right', fontsize=6, frameon=False)
 
     t = np.arange(n_t)
-    if imp_data is not None:
-        ax_time.plot(t, imp_data, color=DATA_COLOR, linewidth=TRACE_LW, linestyle=linestyle_1)
+    pre_end = int(response_start or 0)
+    plot_pre_post_line(
+        ax_time, t, imp_data, pre_end=pre_end, show_pre=False, draw_pre=False,
+        color=DATA_COLOR, linestyle=linestyle_1, linewidth=TRACE_LW,
+    )
     for i, label in enumerate(slice_labels):
-        imp_s = slice_imps.get(label)
-        if imp_s is not None:
-            ax_time.plot(
-                t, imp_s, color=colors[i], linewidth=TRACE_LW,
-                label=label, linestyle=linestyle_1,
-            )
-    if imp_model is not None:
-        ax_time.plot(
-            t, imp_model, color=colors[-1], linewidth=TRACE_LW,
-            label=label_1_total, linestyle=linestyle_1,
+        plot_pre_post_line(
+            ax_time, t, slice_imps.get(label), pre_end=pre_end,
+            show_pre=show_pre, draw_pre=True,
+            color=colors[i], linestyle=linestyle_1, linewidth=TRACE_LW, label=label,
         )
-    if model_2_imp_data is not None:
-        ax_time.plot(t, model_2_imp_data, color=DATA_COLOR, linewidth=TRACE_LW, linestyle=linestyle_2)
+    plot_pre_post_line(
+        ax_time, t, imp_model, pre_end=pre_end, show_pre=show_pre, draw_pre=True,
+        color=colors[-1], linestyle=linestyle_1, linewidth=TRACE_LW, label=label_1_total,
+    )
+    plot_pre_post_line(
+        ax_time, t, model_2_imp_data, pre_end=pre_end, show_pre=False, draw_pre=False,
+        color=DATA_COLOR, linestyle=linestyle_2, linewidth=TRACE_LW,
+    )
     for i, label in enumerate(slice_labels):
-        imp_s = slice_2_imps.get(label)
-        if imp_s is not None:
-            ax_time.plot(
-                t, imp_s, color=colors[i], linewidth=TRACE_LW,
-                linestyle=linestyle_2,
-            )
-    if model_2_imp_model is not None:
-        ax_time.plot(t, model_2_imp_model, color=colors[-1], linewidth=TRACE_LW, linestyle=linestyle_2)
+        plot_pre_post_line(
+            ax_time, t, slice_2_imps.get(label), pre_end=pre_end,
+            show_pre=show_pre, draw_pre=True,
+            color=colors[i], linestyle=linestyle_2, linewidth=TRACE_LW,
+        )
+    plot_pre_post_line(
+        ax_time, t, model_2_imp_model, pre_end=pre_end, show_pre=show_pre, draw_pre=True,
+        color=colors[-1], linestyle=linestyle_2, linewidth=TRACE_LW,
+    )
     ax_time.set_ylim(ylo, yhi)
     _style_time_axis(ax_time, show_xlabels, n_t)
     if show_ylabel:
@@ -405,44 +409,23 @@ def _scale_plot_traces(raw, scale):
     return scale[:, None] * raw
 
 
-def _mask_pre_ton_plot_traces(traces, *, show_pre=True, t_on=None):
-    """Zero absolute samples ``[0, t_on)`` when ``show_pre`` is false."""
-    if show_pre:
-        return traces
-    if t_on is None:
-        raise ValueError("_mask_pre_ton_plot_traces requires t_on")
-    t_on = int(t_on)
-    if torch.is_tensor(traces):
-        out = traces.clone()
-        out[..., :t_on] = 0
-        return out
-    out = np.asarray(traces, dtype=np.float64).copy()
-    out[..., :t_on] = 0.0
-    return out
-
-
 @torch.no_grad()
-def _simulate(session, z, neuron_index, return_ref=False, *, trace_kind='ca', show_pre=True):
+def _simulate(session, z, neuron_index, return_v_onset=False):
     neuron_index = _as_index(neuron_index, z.device)
     schema = list(session.schema)
     backend = session.backend
     p = fc.assign_params(z, schema, backend)
     stacked, ref = fc.run_units(
-        session, p, neuron_index=neuron_index, return_ref=True,
-        return_v_delta=(trace_kind == 'v'),
+        session, p, neuron_index=neuron_index, return_v_onset=True,
     )
-    if trace_kind == 'v':
-        scale = torch.ones((int(neuron_index.shape[0]),), dtype=stacked.dtype, device=stacked.device)
-    else:
-        scale = fc.out_scale_for_units(p, neuron_index, backend)
+    scale = torch.ones((int(neuron_index.shape[0]),), dtype=stacked.dtype, device=stacked.device)
     trace = _scale_plot_traces(stacked.transpose(0, 1), scale)
-    trace = _mask_pre_ton_plot_traces(trace, show_pre=show_pre)
-    if return_ref:
+    if return_v_onset:
         return trace, ref
     return trace
 
 
-def calc_ca_full_all(session, z, return_ref=False, *, trace_kind='ca', show_pre=True):
+def calc_ca_full_all(session, z, return_v_onset=False):
     n_types = session.backend.n_types
     mt = session.n_t
     ca_full = np.zeros((n_types, 9, mt))
@@ -454,17 +437,13 @@ def calc_ca_full_all(session, z, return_ref=False, *, trace_kind='ca', show_pre=
             dtype=torch.long,
             device=z.device,
         )
-        if return_ref:
-            trace, ref = _simulate(
-                session, z, col_index, return_ref=True, trace_kind=trace_kind, show_pre=show_pre,
-            )
+        if return_v_onset:
+            trace, ref = _simulate(session, z, col_index, return_v_onset=True)
             ca_full[:, col + 2] = trace.cpu().numpy()
             ref_full[:, col + 2] = ref.cpu().numpy()
         else:
-            ca_full[:, col + 2] = _simulate(
-                session, z, col_index, trace_kind=trace_kind, show_pre=show_pre,
-            ).cpu().numpy()
-    if return_ref:
+            ca_full[:, col + 2] = _simulate(session, z, col_index).cpu().numpy()
+    if return_v_onset:
         return ca_full, ref_full
     return ca_full
 
@@ -506,7 +485,7 @@ class SpotTraceBundle:
     prep_s: float = 0.0
     v_th_by_name: dict = field(default_factory=dict)
     response_start: int | None = None
-    trace_kind: str = 'ca'
+    show_pre: bool = True
 
     @property
     def has_slices(self):
@@ -544,7 +523,7 @@ def _spot_readout_bundle_view(bundle):
         n_t=bundle.n_t,
         v_th_by_name=bundle.v_th_by_name,
         response_start=bundle.response_start,
-        trace_kind=bundle.trace_kind,
+        show_pre=bundle.show_pre,
     )
 
 
@@ -607,9 +586,9 @@ def _cells_from_cube(names, cube, sem, baselines, *, single_column, n_by_name=No
     ]
 
 
-def _spot_baselines(rows, v_ref, names, *, at_x=None, at_y=None):
-    """Mean ``v_ref`` per type over stim-centered ``(0, 0)`` units (matches trace scope)."""
-    v_ref = np.asarray(v_ref, dtype=np.float64)
+def _spot_baselines(rows, v_onset, names, *, at_x=None, at_y=None):
+    """Mean ``v_onset`` per type over stim-centered ``(0, 0)`` units (matches trace scope)."""
+    v_onset = np.asarray(v_onset, dtype=np.float64)
     batch_idx = rows['batch_idx']
     unit_idx = rows['unit_idx']
     type_idx = rows['type_idx']
@@ -625,33 +604,28 @@ def _spot_baselines(rows, v_ref, names, *, at_x=None, at_y=None):
     for name in names:
         ti = type_names.index(name)
         units = np.unique(unit_idx[mask & (type_idx == ti)])
-        out[name] = float(v_ref[units].mean()) if units.size else np.nan
+        out[name] = float(v_onset[units].mean()) if units.size else np.nan
     return out
 
 
 @torch.no_grad()
 def _spot_forward_rows(
-    session, z, *, trace_kind='ca',
-    save_trace_csv_dir=None, at_x=None, at_y=None, show_pre=True,
+    session, z, *,
+    save_trace_csv_dir=None, at_x=None, at_y=None,
 ):
     """One forward; cost-extent unit layout over all network types."""
     pack = session.primary_pack
     schema = list(session.schema)
     p = fc.assign_params(z, schema, session.backend)
     sig = pack.signal if pack.signal.dim() == 3 else pack.signal.unsqueeze(0)
-    if trace_kind == 'v':
-        trace_full, v_ref, _v_full = fc.run_full(
-            session, p, sig, return_ref=True, return_v_delta=True, pack=pack,
-        )
-    else:
-        trace_full, v_ref = fc.run_full(
-            session, p, sig, return_ref=True, pack=pack,
-        )
-    v_ref_np = v_ref[0].cpu().numpy()
+    trace_full, v_onset, _v_full = fc.run_full(
+        session, p, sig, return_v_onset=True, pack=pack,
+    )
+    v_onset_np = v_onset[0].cpu().numpy()
     save_forward_trace_csvs(
         save_trace_csv_dir, pack.name,
-        trace_kind=trace_kind, ref=v_ref_np, trace_full=trace_full,
-        ref_stem='spot_v_ref' if trace_kind == 'v' else None,
+        ref=v_onset_np, trace_full=trace_full,
+        ref_stem='spot_v_onset',
     )
     C = session.backend.network
     type_names = list(C.type_names)
@@ -668,23 +642,16 @@ def _spot_forward_rows(
     ) = spot_center_bin_layout(C, batches, cost_radii, pack.cost_extent)
 
     raw = trace_full[batch_idx, :, unit_idx]
-    if trace_kind == 'v':
-        scale = torch.ones((int(raw.shape[0]),), dtype=raw.dtype, device=raw.device)
-    else:
-        scale = fc.out_scale_for_units(
-            p, torch.as_tensor(unit_idx, dtype=torch.long, device=z.device), session.backend,
-        )
-    from neuron.params import DELTA_MS, ms_to_t
+    scale = torch.ones((int(raw.shape[0]),), dtype=raw.dtype, device=raw.device)
+    from training.defaults import DELTA_MS
+    from neuron.params import ms_to_t
 
     stim_pre_ms = opts.get("pre_ms")
     dt = float(opts.get("delta_ms", DELTA_MS))
-    stim_t_on = (
+    stim_t_onset = (
         ms_to_t(float(stim_pre_ms), delta_ms=dt) if stim_pre_ms is not None else None
     )
-    plot_traces = _mask_pre_ton_plot_traces(
-        _scale_plot_traces(raw, scale), show_pre=show_pre,
-        t_on=int(stim_t_on) if stim_t_on is not None else None,
-    ).cpu().numpy()
+    plot_traces = _scale_plot_traces(raw, scale).cpu().numpy()
     rows = dict(
         names=names,
         type_names=type_names,
@@ -694,13 +661,13 @@ def _spot_forward_rows(
         dv=dv,
         center_row=center_row,
         plot_traces=plot_traces,
-        t_on=int(stim_t_on) if stim_t_on is not None else None,
+        t_onset=int(stim_t_onset) if stim_t_onset is not None else None,
         batch_idx=batch_idx,
         batches=batches,
         mt=mt,
         pack=pack,
     )
-    rows['baselines'] = _spot_baselines(rows, v_ref_np, names, at_x=at_x, at_y=at_y)
+    rows['baselines'] = _spot_baselines(rows, v_onset_np, names, at_x=at_x, at_y=at_y)
     rows['groups'] = groups
     return rows
 
@@ -731,7 +698,7 @@ def _spot_cube_from_rows(rows, session):
 @torch.no_grad()
 def network_spot_trace_bundle(
     session, z, *,
-    at_x_list=None, at_y_list=None, trace_kind='ca',
+    at_x_list=None, at_y_list=None,
     save_trace_csv_dir: str | None = None, show_pre=True,
 ):
     """Run one forward; full cost-extent spot traces over all types."""
@@ -739,9 +706,9 @@ def network_spot_trace_bundle(
     at_x = at_x_list[0] if at_x_list else None
     at_y = at_y_list[0] if at_y_list else None
     rows = _spot_forward_rows(
-        session, z, trace_kind=trace_kind,
+        session, z,
         save_trace_csv_dir=save_trace_csv_dir,
-        at_x=at_x, at_y=at_y, show_pre=show_pre,
+        at_x=at_x, at_y=at_y,
     )
     cells, group_rows, n_t = _spot_cube_from_rows(rows, session)
     slice_overlay, slice_labels = (None, None)
@@ -760,8 +727,8 @@ def network_spot_trace_bundle(
         n_t=n_t,
         prep_s=time.perf_counter() - t_prep0,
         v_th_by_name=v_th_by_type_name(z, session),
-        response_start=rows.get('t_on'),
-        trace_kind=trace_kind,
+        response_start=rows.get('t_onset'),
+        show_pre=bool(show_pre),
     )
 
 
@@ -778,8 +745,7 @@ def _plot_spot_figure(
     bundle_on,
     bundle_2=None,
     title,
-    ref_cubes=None,
-    ref_cubes_2=None,
+    data_cubes=None,
     ncols,
     figsize_fn,
     gridspec_kw,
@@ -801,26 +767,27 @@ def _plot_spot_figure(
     time_point_ix_1 = _session_cost_time_ix(session_1, response_start)
     time_point_ix_2 = _session_cost_time_ix(session_2, response_start_2) if dual else None
     timer.end_prep()
-    # #5: when the model traces are ``'v'``, invert the Ca filter on the gray
-    # reference data so both curves share the same units.
-    ref_1, ref_2 = resolve_spot_ref_cubes(
-        session_1, session_2, ref_cubes, ref_cubes_2,
-        v_delta=(getattr(bundle_on, "trace_kind", "ca") == "v"),
-    )
+    # Model and gray RecF data cubes share ``v`` units (data used as-is).
+    # data_cubes: contrast → cell → (9, T)
+    data_by_contrast = resolve_spot_data_cubes(session_1, session_2, data_cubes)
     nrows = 2 * len(group_rows)
     fig = plt.figure(figsize=figsize_fn(ncols, nrows))
     gs = fig.add_gridspec(nrows, ncols, **gridspec_kw)
     legend_done = False
-    contrast_1 = 'dark' if _session_dark(session_1) else 'bright'
+    contrast_1 = contrast_for_target(session_1.primary_pack.name)
     linestyle_1 = '--' if contrast_1 == 'dark' else '-'
     label_1_data = f'{contrast_1} data'
     label_1_model = f'{contrast_1} model'
     label_1_total = f'{contrast_1} total'
-    contrast_2 = 'dark' if (session_2 is not None and _session_dark(session_2)) else 'bright'
+    contrast_2 = (
+        contrast_for_target(session_2.primary_pack.name) if session_2 is not None else 'bright'
+    )
     linestyle_2 = '--' if contrast_2 == 'dark' else '-'
     label_2_data = f'{contrast_2} data'
     label_2_model = f'{contrast_2} model'
     label_2_total = f'{contrast_2} total'
+    cells_data_1 = data_by_contrast.get(contrast_1) or {}
+    cells_data_2 = data_by_contrast.get(contrast_2) if dual else None
 
     def _plot_cell(cell_on, cell_2, ax_rf, ax_time, show_ylabel, show_xlabels):
         nonlocal legend_done
@@ -838,7 +805,9 @@ def _plot_spot_figure(
                     }
                 kw_2 = {
                     'model_2_xt': cell_2['cube'],
-                    'ref_2_xt': ref_2.get(name) if ref_2 else None,
+                    'data_2_xt': (
+                        cells_data_2.get(name) if cells_data_2 is not None else None
+                    ),
                     'baseline_2': cell_2.get('baseline'),
                     'slice_overlay_2_xt': slice_2_xt,
                 }
@@ -852,7 +821,7 @@ def _plot_spot_figure(
                 ax_time.axis('off')
                 return
             plot_cell_pair_slices(
-                ax_rf, ax_time, cell_on['cube'], ref_1.get(name), cell_title,
+                ax_rf, ax_time, cell_on['cube'], cells_data_1.get(name), cell_title,
                 slice_xt, slice_labels,
                 show_legend=not legend_done,
                 show_xlabels=show_xlabels,
@@ -867,17 +836,20 @@ def _plot_spot_figure(
                 label_2_data=label_2_data,
                 label_2_total=label_2_total,
                 response_start=response_start,
+                show_pre=getattr(bundle_on, "show_pre", True),
             )
         else:
             kw_2 = {}
             if dual and cell_2 is not None:
                 kw_2 = {
                     'model_2_xt': cell_2['cube'],
-                    'ref_2_xt': ref_2.get(name) if ref_2 else None,
+                    'data_2_xt': (
+                        cells_data_2.get(name) if cells_data_2 is not None else None
+                    ),
                     'baseline_2': cell_2.get('baseline'),
                 }
             plot_cell_pair(
-                ax_rf, ax_time, cell_on['cube'], ref_1.get(name), cell_title,
+                ax_rf, ax_time, cell_on['cube'], cells_data_1.get(name), cell_title,
                 sem_xt=cell_on.get('sem'),
                 show_legend=not legend_done,
                 show_xlabels=show_xlabels,
@@ -894,6 +866,7 @@ def _plot_spot_figure(
                 response_start=response_start,
                 time_point_ix=time_point_ix_1,
                 time_point_ix_2=time_point_ix_2,
+                show_pre=getattr(bundle_on, "show_pre", True),
             )
         legend_done = True
 
@@ -917,7 +890,7 @@ def _plot_spot_figure(
 
 
 def plot_network_spot_data(path, *, bundle, bundle_2=None, title,
-                           ref_cubes=None, ref_cubes_2=None):
+                           data_cubes=None):
     """Draw ca-data figure (pack readout types) from a full-scope bundle."""
     timer = PlotTimer(prior_prep=bundle_prep_s(bundle, bundle_2))
     view = _spot_readout_bundle_view(bundle)
@@ -928,8 +901,7 @@ def plot_network_spot_data(path, *, bundle, bundle_2=None, title,
         bundle_on=view,
         bundle_2=view_2,
         title=title,
-        ref_cubes=ref_cubes,
-        ref_cubes_2=ref_cubes_2,
+        data_cubes=data_cubes,
         ncols=5,
         figsize_fn=lambda c, r: (3.0 * c, 2.5 * r),
         gridspec_kw=dict(hspace=0.55, wspace=0.55, top=0.95, bottom=0.06, left=0.07, right=0.98),
@@ -937,7 +909,7 @@ def plot_network_spot_data(path, *, bundle, bundle_2=None, title,
 
 
 def plot_network_spot_all(path, *, bundle, bundle_2=None, title,
-                          ref_cubes=None, ref_cubes_2=None):
+                          data_cubes=None):
     """Draw ca-all figure (all types) from a full-scope bundle."""
     timer = PlotTimer(prior_prep=bundle_prep_s(bundle, bundle_2))
     _plot_spot_figure(
@@ -946,8 +918,7 @@ def plot_network_spot_all(path, *, bundle, bundle_2=None, title,
         bundle_on=bundle,
         bundle_2=bundle_2,
         title=title,
-        ref_cubes=ref_cubes,
-        ref_cubes_2=ref_cubes_2,
+        data_cubes=data_cubes,
         ncols=8,
         figsize_fn=lambda c, r: (2.2 * c, 2.5 * r),
         gridspec_kw=dict(hspace=0.55, wspace=0.55, top=0.95, bottom=0.06, left=0.07, right=0.98),

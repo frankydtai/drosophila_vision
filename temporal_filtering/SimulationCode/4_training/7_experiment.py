@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import training as fc
-from neuron.params import DEFAULT_IH_GMAX_INDI_NAMES
+from training.defaults import IH_GMAX_INDI_NAMES
 
 
 def merge_ih_param_partitions(train_kw):
@@ -11,9 +11,9 @@ def merge_ih_param_partitions(train_kw):
 
     Borst: ``Ih_gmax`` / ``Ih_gmax_off``.
     hp_lp: ``hp_gain`` / ``tau_hp``.
-    Indi names: :data:`DEFAULT_IH_GMAX_INDI_NAMES`; ``fixed=['all']``.
+    Indi names: :data:`IH_GMAX_INDI_NAMES`; ``fixed=['all']``.
     """
-    ih_indi = list(DEFAULT_IH_GMAX_INDI_NAMES)
+    ih_indi = list(IH_GMAX_INDI_NAMES)
     if train_kw['model'] == 'borst':
         names = ('Ih_gmax', 'Ih_gmax_off')
     else:

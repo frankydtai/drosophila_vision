@@ -198,10 +198,11 @@ def _float_curve(arr) -> np.ndarray:
     return np.asarray(arr, dtype=float)
 
 
-def extract_spot_bundle(session, z, *, target: str, trace_kind: str, x_list, y_list):
+def extract_spot_bundle(session, z, *, target: str, x_list, y_list):
     """One spot forward via ``plot_trained.spot_bundle_fns``.
 
-    Returns ``(session_one, bundle, ref_on)``.
+    Returns ``(session_one, bundle, data_cubes)`` where ``data_cubes`` is
+    ``{contrast: {cell: (9, T)}}``.
     """
     one = plot_trained.session_for_target(session, target)
     make_bundle, _, _ = plot_trained.spot_bundle_fns(one)
@@ -210,14 +211,13 @@ def extract_spot_bundle(session, z, *, target: str, trace_kind: str, x_list, y_l
         z,
         at_x_list=x_list,
         at_y_list=y_list,
-        trace_kind=trace_kind,
         save_trace_csv_dir=None,
     )
-    ref_on, _ = spot_plot.resolve_spot_ref_cubes(one, None, None, None)
-    return one, bundle, ref_on
+    data_cubes = spot_plot.resolve_spot_data_cubes(one)
+    return one, bundle, data_cubes
 
 
-def extract_moving_bar_bundle(session, z, *, target: str, trace_kind: str, x_list, y_list):
+def extract_moving_bar_bundle(session, z, *, target: str, x_list, y_list):
     """One moving-bar forward; all cells + all specs live on the returned bundle."""
     one = plot_trained.session_for_target(session, target)
     return moving_bar_plot.moving_bar_trace_bundle(
@@ -226,37 +226,43 @@ def extract_moving_bar_bundle(session, z, *, target: str, trace_kind: str, x_lis
         target,
         at_x_list=x_list,
         at_y_list=y_list,
-        trace_kind=trace_kind,
         save_trace_csv_dir=None,
     )
 
 
-def extract_spot_cell_curves(bundle, ref_on, *, cell: str, slice_label: str | None = None):
+def extract_spot_cell_curves(bundle, data_cubes, *, cell: str, slice_label: str | None = None):
+    from figure.readout import contrast_for_target
+
     center = spot_plot.CENTER_BIN
     cell_on = next((c for c in bundle.cells if c["name"] == cell), None)
     if cell_on is None:
         avail = sorted(c["name"] for c in bundle.cells)
         raise SystemExit(f"cell {cell!r} not in spot bundle; available: {avail}")
-    if cell not in ref_on:
-        raise SystemExit(f"cell {cell!r} not in spot ref cubes; keys={sorted(ref_on)}")
+    contrast = contrast_for_target(bundle.session.primary_pack.name)
+    data_on = (data_cubes or {}).get(contrast) or {}
+    if cell not in data_on:
+        raise SystemExit(
+            f"cell {cell!r} not in spot data cubes[{contrast!r}]; "
+            f"keys={sorted(data_on)}"
+        )
 
     if bundle.response_start is None:
         raise SystemExit(
-            "spot bundle missing response_start (t_on); "
+            "spot bundle missing response_start (t_onset); "
             "cannot scale spot time courses"
         )
     imp_total, rf_total = spot_plot.scale_curve(
         cell_on["cube"], center, response_start=bundle.response_start,
     )
-    imp_ref, rf_ref = spot_plot.scale_curve(
-        ref_on[cell], center, response_start=bundle.response_start,
+    imp_data, rf_data = spot_plot.scale_curve(
+        data_on[cell], center, response_start=bundle.response_start,
     )
 
     out: dict[str, np.ndarray] = {
         "time_total_model": _float_curve(imp_total),
-        "time_total_ref": _float_curve(imp_ref),
+        "time_total_data": _float_curve(imp_data),
         "rf_total_model": _float_curve(rf_total),
-        "rf_total_ref": _float_curve(rf_ref),
+        "rf_total_data": _float_curve(rf_data),
     }
 
     if slice_label and bundle.slice_overlay and slice_label in bundle.slice_overlay:
@@ -356,7 +362,6 @@ def _print_result_block(
     best_cost: float,
     cell: str,
     target: str,
-    trace_kind: str,
     session,
     bundle,
     curves: dict[str, np.ndarray],
@@ -372,7 +377,7 @@ def _print_result_block(
         before_t = bundle.traces.before_t.get(spec)
     head = (
         f"best_i={best_i}  best_cost={best_cost:.6g}  cell={cell}  "
-        f"target={target}  trace_kind={trace_kind}"
+        f"target={target}  trace_kind=v"
     )
     if spec is not None:
         head += f"  spec={spec}"
@@ -450,14 +455,14 @@ def _maybe_override_spot_timing(
         if so is not None:
             so["pre_ms"] = float(pre_ms)
             so["response_ms"] = float(response_ms)
-            so.pop("t_on", None)
+            so.pop("t_onset", None)
             so.pop("n_t", None)
 
     # Re-open the session with updated stimulus opts.
     new_session = fc.open_session_from_opts(opts, model=opts.get("model"))
     dt = float((opts.get("spot_bright_stimulus_opts") or {}).get("delta_ms", 10.0))
-    new_t_on = _ms_to_t(pre_ms, dt)
-    return new_session, dt, new_t_on
+    new_t_onset = _ms_to_t(pre_ms, dt)
+    return new_session, dt, new_t_onset
 
 
 def main():
@@ -472,12 +477,6 @@ def main():
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     add_shared_cli(ap)
-    ap.add_argument(
-        "--trace-kind",
-        default="v",
-        choices=("v", "ca"),
-        help="curve kind: v (v-v_ref) or model (scaled Ca readout)",
-    )
     ap.add_argument(
         "--values",
         action="store_true",
@@ -520,7 +519,7 @@ def main():
         session, z = session0, _z0
         dt_for_head = None
         if args.pre_ms is not None:
-            session, dt_for_head, _new_t_on = _maybe_override_spot_timing(
+            session, dt_for_head, _new_t_onset = _maybe_override_spot_timing(
                 run_dir=run_dir,
                 session=session0,
                 pre_ms=args.pre_ms,
@@ -563,14 +562,13 @@ def main():
                         session,
                         z,
                         target=target,
-                        trace_kind=args.trace_kind,
                         x_list=cli.x_list,
                         y_list=cli.y_list,
                     )
-                _one, bundle, ref_on = spot_cache[target]
+                _one, bundle, data_cubes = spot_cache[target]
                 for cell in cli.cells:
                     curves = extract_spot_cell_curves(
-                        bundle, ref_on, cell=cell, slice_label=cli.slice_label,
+                        bundle, data_cubes, cell=cell, slice_label=cli.slice_label,
                     )
                     _print_result_block(
                         run_i=run_i,
@@ -579,7 +577,6 @@ def main():
                         best_cost=best_cost,
                         cell=cell,
                         target=target,
-                        trace_kind=args.trace_kind,
                         session=session,
                         bundle=bundle,
                         curves=curves,
@@ -595,7 +592,6 @@ def main():
                         session,
                         z,
                         target=target,
-                        trace_kind=args.trace_kind,
                         x_list=cli.x_list,
                         y_list=cli.y_list,
                     )
@@ -612,7 +608,6 @@ def main():
                             best_cost=best_cost,
                             cell=cell,
                             target=target,
-                            trace_kind=args.trace_kind,
                             session=session,
                             bundle=bundle,
                             curves=curves,

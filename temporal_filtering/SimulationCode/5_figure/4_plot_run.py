@@ -44,16 +44,8 @@ def spot_bundle_fns(session):
 
 
 def _session_trace_kind(session):
-    """Plot/trace kind from session ``--filter`` / ``readout_kind`` (``ca`` or ``v``)."""
-    pack = session.primary_pack
-    kind = getattr(pack, "readout_kind", None)
-    if kind in ("ca", "v"):
-        return str(kind)
-    opts = (session.train_opts or {}).get(f"{pack.name}_stimulus_opts") or {}
-    kind = str(opts.get("filter", "ca"))
-    if kind not in ("ca", "v"):
-        raise ValueError(f"unsupported filter/readout_kind {kind!r}")
-    return kind
+    """Plot/trace kind is always ``v``."""
+    return "v"
 
 
 def _network_spot_tag(session, tname):
@@ -223,7 +215,7 @@ def load_best(outdir, *, model=None, verbose=False):
 
 
 def _plot_spot_targets(session, z, outdir, spot_targets, suffix, model_all,
-                       ref_cubes=None, ref_cubes_2=None,
+                       data_cubes=None,
                        at_x=None, at_y=None, save_trace_csv_dir=None, show_pre=True):
     """Plot spot target(s); two traces combined in one figure when both are trained."""
     spot_set = set(spot_targets)
@@ -231,10 +223,9 @@ def _plot_spot_targets(session, z, outdir, spot_targets, suffix, model_all,
     ref_t = 'spot_bright' if 'spot_bright' in spot_set else spot_targets[0]
     net_tag = _network_spot_tag(session, ref_t)
     kind = _session_trace_kind(session)
-    plot_kw = dict(ref_cubes=ref_cubes, ref_cubes_2=ref_cubes_2)
+    plot_kw = dict(data_cubes=data_cubes)
     bundle_kw = dict(
         at_x_list=at_x, at_y_list=at_y,
-        trace_kind=kind,
         save_trace_csv_dir=save_trace_csv_dir,
         show_pre=show_pre,
     )
@@ -261,7 +252,7 @@ def _plot_spot_targets(session, z, outdir, spot_targets, suffix, model_all,
     for tname in spot_targets:
         _plot_one_target(
             session_for_target(session, tname), z, outdir, tname, suffix, model_all,
-            ref_cubes=ref_cubes, ref_cubes_2=ref_cubes_2,
+            data_cubes=data_cubes,
             at_x=at_x, at_y=at_y,
             save_trace_csv_dir=save_trace_csv_dir, show_pre=show_pre,
         )
@@ -276,7 +267,6 @@ def _plot_bar_targets(session, z, outdir, bar_targets, suffix, model_all, *,
     bundle_kw = dict(
         at_x_list=at_x, at_y_list=at_y,
         align_at_x=align_at_x, align_at_y=align_at_y,
-        trace_kind=kind,
         save_trace_csv_dir=save_trace_csv_dir,
         show_pre=show_pre,
     )
@@ -322,7 +312,7 @@ def _plot_bar_targets(session, z, outdir, bar_targets, suffix, model_all, *,
 
 
 def _plot_one_target(session, z, outdir, tname, suffix, model_all,
-                     ref_cubes=None, ref_cubes_2=None,
+                     data_cubes=None,
                      at_x=None, at_y=None, save_trace_csv_dir=None, show_pre=True):
     if tname not in fc.SPOT_TARGETS:
         raise ValueError(f'unknown plot target {tname!r}')
@@ -331,11 +321,10 @@ def _plot_one_target(session, z, outdir, tname, suffix, model_all,
     allc = os.path.join(outdir, f'spot_all_{kind}.png')
     make_bundle, plot_data, plot_all = spot_bundle_fns(session)
     net_tag = _network_spot_tag(session, tname)
-    plot_kw = dict(ref_cubes=ref_cubes, ref_cubes_2=ref_cubes_2)
+    plot_kw = dict(data_cubes=data_cubes)
     b = make_bundle(
         session, z,
         at_x_list=at_x, at_y_list=at_y,
-        trace_kind=kind,
         save_trace_csv_dir=save_trace_csv_dir, show_pre=show_pre,
     )
     plot_data(
@@ -351,7 +340,7 @@ def plot_param_set(params, outdir, model=None, model_all=True,
                    plot_targets=None, session=None, *,
                    final_costs=None, cost_curve=None, costs_by_target=None, best_i=None,
                    save_artifacts=True, artifact_fname=None,
-                   ref_cubes=None, ref_cubes_2=None,
+                   data_cubes=None,
                    plot_right_only=True, at_x=None, at_y=None,
                    align_at_x=None, align_at_y=None,
                    save_csv=False, show_pre=True):
@@ -417,7 +406,7 @@ def plot_param_set(params, outdir, model=None, model_all=True,
     if spot_targets:
         _plot_spot_targets(
             session, z, outdir, spot_targets, suffix, model_all,
-            ref_cubes=ref_cubes, ref_cubes_2=ref_cubes_2,
+            data_cubes=data_cubes,
             at_x=at_x, at_y=at_y,
             save_trace_csv_dir=save_trace_csv_dir, show_pre=show_pre,
         )
@@ -433,7 +422,7 @@ def plot_param_set(params, outdir, model=None, model_all=True,
         one = session_for_target(session, tname)
         _plot_one_target(
             one, z, outdir, tname, suffix, model_all,
-            ref_cubes=ref_cubes, ref_cubes_2=ref_cubes_2,
+            data_cubes=data_cubes,
             save_trace_csv_dir=save_trace_csv_dir, show_pre=show_pre,
         )
 
@@ -474,8 +463,8 @@ def add_plot_arguments(parser):
         default=True,
         type=parse_bool,
         metavar='BOOL',
-        help='plot pre-t_on equilibration in model traces (default true); '
-             'pass false to zero samples before t_on',
+        help='model pre-t_onset: dashed red when true (default); omit when false. '
+             'Gray data never draws pre.',
     )
     parser.add_argument(
         '--x',

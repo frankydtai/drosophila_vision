@@ -28,15 +28,11 @@ import numpy as np
 import torch
 
 import import_bootstrap  # noqa: F401
-from .connectivity import SIM_DTYPE_DEFAULT, ScatterConn
-import neuron.params as nm_param
-from neuron.schema import SYN_MODE_DEFAULT, normalize_syn_mode
+from .connectivity import ScatterConn
+from neuron.schema import normalize_syn_mode
 
-# Photoreceptor drive currents (pA). Owned by the network signal builder;
-# task paradigms import the same defaults for target consistency.
-I_BASELINE = 20.0  # PR current before stimulus onset
-I_BRIGHT = 40.0    # PR current at bright / on-step peak
-I_DARK = 0.0       # PR current at full dark-bar coverage
+# Photoreceptor drive currents (pA) are injected by the caller
+# (``training.defaults.I_*``); this module has no numeric bindings.
 
 # Canonical cell-type order (photoreceptor → lamina → medulla families).
 TYPE_FAMILY_ROWS: List[List[str]] = [
@@ -110,10 +106,11 @@ class Network:
 
     def build_signal(
         self,
-        n_t: int = None,
-        i_baseline: float = I_BASELINE,
-        i_bright: float = I_BRIGHT,
-        t_on: int = None,
+        n_t: int,
+        *,
+        i_baseline: float,
+        i_bright: float,
+        t_onset: int,
         center_uv=(0, 0),
     ) -> torch.Tensor:
         """(n_t, n_units) injected PR current for one column's inputs."""
@@ -121,8 +118,8 @@ class Network:
         units = self.input_units_at(int(center_uv[0]), int(center_uv[1]))
         if len(units):
             idx = torch.as_tensor(units, dtype=torch.long, device=self.device)
-            sig[:t_on, idx] = i_baseline
-            sig[t_on:, idx] = i_bright
+            sig[:t_onset, idx] = i_baseline
+            sig[t_onset:, idx] = i_bright
         return sig
 
 
@@ -173,13 +170,13 @@ def read_network_json(path) -> Tuple[List[dict], List[dict], List[str], dict]:
 def load_network(
     path,
     device: Optional[str] = None,
-    exc_synweight: float = nm_param.exc_synweight,
-    inh_synweight: float = nm_param.inh_synweight,
-    dtype: torch.dtype = SIM_DTYPE_DEFAULT,
     *,
-    syn_mode: str = SYN_MODE_DEFAULT,
+    exc_synweight: float,
+    inh_synweight: float,
+    syn_mode: str,
+    dtype: torch.dtype,
 ) -> Network:
-    """Read ``network.json`` and return a :class:`Network`."""
+    """Read ``network.json`` and return a :class:`Network``."""
     device = device or ("cuda" if torch.cuda.is_available() else "cpu")
     path = Path(path)
     nodes, edges, type_names, meta = read_network_json(path)
@@ -245,13 +242,20 @@ def load_network(
 if __name__ == "__main__":
     import sys
 
-    from .construction import load_network
     from connectome_io import NETWORK_DIR
+    from training.defaults import (
+        EXC_SYNWEIGHT, INH_SYNWEIGHT, I_BASELINE, I_BRIGHT, SYN_MODE,
+    )
+    from training.target_pack import SIM_DTYPE
 
     p = sys.argv[1] if len(sys.argv) > 1 else str(
         NETWORK_DIR / "right_min_neuron1_extent2" / "network.json"
     )
-    c = load_network(p, device="cpu")
+    c = load_network(
+        p, device="cpu",
+        exc_synweight=EXC_SYNWEIGHT, inh_synweight=INH_SYNWEIGHT,
+        syn_mode=SYN_MODE, dtype=SIM_DTYPE,
+    )
     print(f"loaded {p}")
     print(f"n_units={c.n_units}  n_types={c.n_types}  n_edges={len(c.conn.src_idx)}")
     print(f"center units (u=v=0): {c.center_units.tolist()}")
@@ -264,5 +268,5 @@ if __name__ == "__main__":
     xb = torch.ones((7, c.n_units), dtype=torch.float64)
     geb, _ = c.conn.exc_inh_drive(xb, alpha)
     print(f"batched (7,N) ok: shape={tuple(geb.shape)}")
-    sig = c.build_signal()
+    sig = c.build_signal(n_t=10, i_baseline=I_BASELINE, i_bright=I_BRIGHT, t_onset=5)
     print(f"signal shape={tuple(sig.shape)}  nonzero cols={int((sig.abs().sum(0)>0).sum())}")

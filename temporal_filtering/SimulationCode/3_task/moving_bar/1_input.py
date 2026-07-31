@@ -21,9 +21,7 @@ from network import path  # noqa: F401 -- FAFBv783 on sys.path
 
 from column_mapper import DEG, HEX_PATCH_RADIUS, hex_vertices, uv_to_xy, uv_to_xy_deg
 from connectome_io import moving_bar_cache_dir
-from neuron.params import DELTA_MS, ms_to_t
-from network.construction import I_BASELINE, I_BRIGHT, I_DARK
-from network.connectivity import SIM_DTYPE_DEFAULT
+from neuron.params import ms_to_t
 from network.layout import column_in_cost_extent
 
 logger = logging.getLogger(__name__)
@@ -47,10 +45,24 @@ COST_WINDOW_AFTER_MS = COST_WINDOW_MS - COST_ALIGNED_FIRST_STI_MS
 T_TAIL_PAD_MS = 50.0
 MOVING_BAR_TAIL_MS = COST_WINDOW_AFTER_MS + T_TAIL_PAD_MS
 
-T_TAIL = ms_to_t(MOVING_BAR_TAIL_MS)
-COST_WINDOW_BEFORE = ms_to_t(COST_WINDOW_BEFORE_MS)
-COST_WINDOW_AFTER = ms_to_t(COST_WINDOW_AFTER_MS)
-COST_WINDOW = ms_to_t(COST_WINDOW_MS) + 1
+def cost_window_before_t(delta_ms: float) -> int:
+    """``ms_to_t(COST_WINDOW_BEFORE_MS)``."""
+    return ms_to_t(COST_WINDOW_BEFORE_MS, delta_ms=delta_ms)
+
+
+def cost_window_after_t(delta_ms: float) -> int:
+    """``ms_to_t(COST_WINDOW_AFTER_MS)``."""
+    return ms_to_t(COST_WINDOW_AFTER_MS, delta_ms=delta_ms)
+
+
+def cost_window_t(delta_ms: float) -> int:
+    """``ms_to_t(COST_WINDOW_MS) + 1`` (inclusive window length)."""
+    return ms_to_t(COST_WINDOW_MS, delta_ms=delta_ms) + 1
+
+
+def t_tail(delta_ms: float) -> int:
+    """``ms_to_t(MOVING_BAR_TAIL_MS)``."""
+    return ms_to_t(MOVING_BAR_TAIL_MS, delta_ms=delta_ms)
 
 _HEX_AREA = 1.5 * math.sqrt(3.0) * float(HEX_PATCH_RADIUS) ** 2
 
@@ -615,7 +627,7 @@ def moving_bar_sweep_end_t(
     *,
     multi_bar: bool = True,
     t_on: int = None,
-    delta_ms: float = DELTA_MS,
+    delta_ms: float,
 ) -> int:
     """Exclusive t index where all lanes finish their local sweep (no tail)."""
     if not specs:
@@ -639,7 +651,7 @@ def moving_bar_n_t(
     *,
     multi_bar: bool = True,
     t_on: int = None,
-    delta_ms: float = DELTA_MS,
+    delta_ms: float,
     t_tail_ms: float = MOVING_BAR_TAIL_MS,
 ) -> int:
     """Simulation length: baseline + multi-bar sweep + post-sweep tail."""
@@ -658,7 +670,7 @@ def moving_bar_transit_times(
     multi_bar: bool = True,
     t_on: int = None,
     n_t: Optional[int] = None,
-    delta_ms: float = DELTA_MS,
+    delta_ms: float,
 ) -> Tuple[int, int, int]:
     """Return ``(entry, center, exit)`` t indices for the first multi-bar lane."""
     lane_origin, lane_pitch = _motion_lanes(spec, field_deg, bar_extent, multi_bar=multi_bar)[0]
@@ -682,7 +694,7 @@ def moving_bar_transit_times(
 
 def column_first_stim_t(
     column_current: np.ndarray,
-    i_baseline: float = I_BASELINE,
+    i_baseline: float,
     *,
     atol: float = 1e-12,
 ) -> int:
@@ -703,7 +715,7 @@ def bar_lane_rects_at_t(
     *,
     multi_bar: bool = True,
     t_on: int = None,
-    delta_ms: float = DELTA_MS,
+    delta_ms: float,
 ) -> List[Tuple[float, float, float, float]]:
     """All lane bar rectangles at simulation time ``t`` (empty outside local sweep)."""
     trail_shift_deg = _trail_shift_deg(spec, delta_ms / 1000.0)
@@ -724,8 +736,8 @@ def bar_trail_at_t(
     field_deg: Tuple[float, float, float, float],
     t: int,
     t_on: int = None,
-    delta_ms: float = DELTA_MS,
-) -> float:
+    *,
+    delta_ms: float) -> float:
     x0, y0, x1, y1 = field_deg
     trail = _trail_start(spec, x0, y0, x1, y1)
     trail_shift_deg = _trail_shift_deg(spec, delta_ms / 1000.0)
@@ -737,8 +749,8 @@ def bar_rect_at_t(
     field_deg: Tuple[float, float, float, float],
     t: int,
     t_on: int = None,
-    delta_ms: float = DELTA_MS,
-) -> Tuple[float, float, float, float]:
+    *,
+    delta_ms: float) -> Tuple[float, float, float, float]:
     x0, y0, x1, y1 = field_deg
     trail = bar_trail_at_t(spec, field_deg, t, t_on=t_on, delta_ms=delta_ms)
     return _bar_rect(spec, trail, x0, y0, x1, y1)
@@ -747,14 +759,15 @@ def bar_rect_at_t(
 def _current_from_coverage(
     coverage: np.ndarray,
     contrast: str,
-    i_baseline: float = I_BASELINE,
-    i_bright_bar: Optional[float] = None,
-    i_dark_bar: Optional[float] = None,
+    i_baseline: float,
+    *,
+    i_bright_bar: float,
+    i_dark_bar: float,
 ) -> np.ndarray:
     if contrast == "bright":
-        peak = I_BRIGHT if i_bright_bar is None else i_bright_bar
+        peak = float(i_bright_bar)
     elif contrast == "dark":
-        peak = I_DARK if i_dark_bar is None else i_dark_bar
+        peak = float(i_dark_bar)
     else:
         raise ValueError(f"unknown contrast {contrast!r}")
     return i_baseline + coverage * (peak - i_baseline)
@@ -768,8 +781,8 @@ def build_column_current(
     *,
     multi_bar: bool = True,
     t_on: int = None,
-    delta_ms: float = DELTA_MS,
-    i_baseline: float = I_BASELINE,
+    delta_ms: float,
+    i_baseline: float,
     i_bright_bar: Optional[float] = None,
     i_dark_bar: Optional[float] = None,
 ) -> np.ndarray:
@@ -801,8 +814,8 @@ def build_batched_column_current(
     *,
     multi_bar: bool = True,
     t_on: int = None,
-    delta_ms: float = DELTA_MS,
-    i_baseline: float = I_BASELINE,
+    delta_ms: float,
+    i_baseline: float,
     i_bright_bar: Optional[float] = None,
     i_dark_bar: Optional[float] = None,
 ) -> np.ndarray:
@@ -930,9 +943,9 @@ def filter_sti_columns(cols, *, at_x=None, at_y=None, tol=1e-6):
     return out
 
 
-def resolve_i_baseline(value: Optional[float] = None) -> float:
-    """Canonical photoreceptor baseline current (pA)."""
-    return float(I_BASELINE if value is None else value)
+def resolve_i_baseline(value: float) -> float:
+    """Cast photoreceptor baseline current (pA)."""
+    return float(value)
 
 
 def moving_bar_i_baseline_from_opts(train_opts) -> float:
@@ -942,7 +955,10 @@ def moving_bar_i_baseline_from_opts(train_opts) -> float:
         sub = opts.get(key) or {}
         if "i_baseline" in sub:
             return resolve_i_baseline(float(sub["i_baseline"]))
-    return resolve_i_baseline(None)
+    raise ValueError(
+        "moving-bar stimulus opts require i_baseline "
+        "(inject via training.defaults.I_BASELINE / CLI)"
+    )
 
 
 def moving_bar_window_t_rel(t0, t_on: int, win: int):
@@ -1158,17 +1174,18 @@ def build_moving_bar_signals(
     specs: Optional[Sequence[MovingBarSpec]] = None,
     n_t: Optional[int] = None,
     t_on: int = None,
-    delta_ms: float = DELTA_MS,
+    *,
+    delta_ms: float,
     bar_extent: int = DEFAULT_BAR_EXTENT,
     multi_bar: bool = True,
-    i_baseline: float = I_BASELINE,
+    i_baseline: float,
     i_bright_bar: Optional[float] = None,
     i_dark_bar: Optional[float] = None,
     device: Optional[str] = None,
     use_cache: bool = True,
     refresh_cache: bool = False,
     network_json: Optional[Path] = None,
-    sim_dtype: torch.dtype = SIM_DTYPE_DEFAULT,
+    sim_dtype: torch.dtype,
 ) -> MovingBarStimulus:
     """Build batched photoreceptor current for moving-bar stimuli (network connectome).
 
@@ -1182,9 +1199,13 @@ def build_moving_bar_signals(
     i_bright = None
     i_dark = None
     if "bright" in contrasts:
-        i_bright = I_BRIGHT if i_bright_bar is None else float(i_bright_bar)
+        if i_bright_bar is None:
+            raise ValueError("i_bright_bar required for bright contrast")
+        i_bright = float(i_bright_bar)
     if "dark" in contrasts:
-        i_dark = I_DARK if i_dark_bar is None else float(i_dark_bar)
+        if i_dark_bar is None:
+            raise ValueError("i_dark_bar required for dark contrast")
+        i_dark = float(i_dark_bar)
     sti_cols = sti_columns(C)
     field_deg = field_bounds(sti_cols)
     if n_t is None:

@@ -12,7 +12,7 @@ Usage (from ``SimulationCode/``, project ``.venv``):
 
     ../.venv/bin/python 6_run.py --model hp_lp --nofsteps 30 --lrs 0.1
     ../.venv/bin/python 6_run.py --target spot_bright --network right_min_neuron1_extent2 \\
-        --nofsteps 5 --lrs 0.1 --filter v
+        --nofsteps 5 --lrs 0.1
 
 Re-plot an existing run without training:
 
@@ -52,8 +52,7 @@ _CHECKPOINT_PNG_STEMS = (
 
 def build_plot_kwargs(
     *,
-    ref_cubes=None,
-    ref_cubes_2=None,
+    data_cubes=None,
     plot_right_only=True,
     at_x=None,
     at_y=None,
@@ -62,8 +61,7 @@ def build_plot_kwargs(
     show_pre=True,
 ):
     return dict(
-        ref_cubes=ref_cubes,
-        ref_cubes_2=ref_cubes_2,
+        data_cubes=data_cubes,
         plot_right_only=plot_right_only,
         at_x=at_x,
         at_y=at_y,
@@ -79,8 +77,7 @@ def make_plots(
     session,
     result=None,
     *,
-    ref_cubes=None,
-    ref_cubes_2=None,
+    data_cubes=None,
     plot_right_only=True,
     at_x=None,
     at_y=None,
@@ -90,8 +87,7 @@ def make_plots(
 ):
     """Cost curve + model-vs-data + all-cell-types."""
     plot_kw = build_plot_kwargs(
-        ref_cubes=ref_cubes,
-        ref_cubes_2=ref_cubes_2,
+        data_cubes=data_cubes,
         plot_right_only=plot_right_only,
         at_x=at_x,
         at_y=at_y,
@@ -167,8 +163,7 @@ def make_checkpoint_on_png(plot_kw):
 
 def run_training_and_plot(
     *,
-    plot_ref_cubes=None,
-    plot_ref_cubes_2=None,
+    plot_data_cubes=None,
     plot_right_only=True,
     at_x=None,
     at_y=None,
@@ -179,8 +174,7 @@ def run_training_and_plot(
 ):
     """Train (``training.driver.run_training``) then plot. Returns ``(fname, outdir, session)``."""
     plot_kw = build_plot_kwargs(
-        ref_cubes=plot_ref_cubes,
-        ref_cubes_2=plot_ref_cubes_2,
+        data_cubes=plot_data_cubes,
         plot_right_only=plot_right_only,
         at_x=at_x,
         at_y=at_y,
@@ -234,7 +228,9 @@ def run_mirror_spot_experiment(
     configure_parser=None,
 ):
     """CLI entry for spot mirror-fit experiments (train + plot)."""
-    from figure.readout import fit_ref_cubes
+    from training.defaults import DELTA_MS, PRE_MS, RESPONSE_MS
+    from figure.readout import fit_data_cubes
+    from neuron.params import ms_to_t
     from training.experiment import (
         merge_ih_param_partitions,
         spot_pack_overrides,
@@ -242,30 +238,40 @@ def run_mirror_spot_experiment(
         _normalize_mirror_fits,
     )
 
-    def make_mirror_ref_cubes(fits, sign):
+    def make_mirror_data_cubes(fits, sign):
         specs = _normalize_mirror_fits(fits, sign)
+        t_onset = ms_to_t(PRE_MS, delta_ms=DELTA_MS)
+        n_t = t_onset + ms_to_t(RESPONSE_MS, delta_ms=DELTA_MS) + 1
 
-        def mirror_ref_cubes(dark=False):
-            ref = fit_ref_cubes(dark=dark)
-            for spec in specs:
-                src = ref[spec["mirror_fit"]]
-                s = spec["mirror_sign"]
-                for name in spec["mirror_types"]:
-                    ref[name] = s * src
-            return ref
+        def mirror_data_cubes(contrasts):
+            base = fit_data_cubes(
+                contrasts=contrasts,
+                t_onset=t_onset,
+                n_t=n_t,
+                delta_ms=DELTA_MS,
+            )
+            out = {}
+            for contrast, cells in base.items():
+                cells = dict(cells)
+                for spec in specs:
+                    src = cells[spec["mirror_fit"]]
+                    s = spec["mirror_sign"]
+                    for name in spec["mirror_types"]:
+                        cells[name] = s * src
+                out[contrast] = cells
+            return out
 
-        return mirror_ref_cubes
+        return mirror_data_cubes
 
-    def resolve_spot_plot_ref_cubes(spot_targets, mirror_ref_cubes):
-        plot_ref_cubes = plot_ref_cubes_2 = None
-        if "spot_bright" in spot_targets and "spot_dark" in spot_targets:
-            plot_ref_cubes = mirror_ref_cubes(dark=False)
-            plot_ref_cubes_2 = mirror_ref_cubes(dark=True)
-        elif "spot_dark" in spot_targets:
-            plot_ref_cubes = mirror_ref_cubes(dark=True)
-        elif "spot_bright" in spot_targets:
-            plot_ref_cubes = mirror_ref_cubes(dark=False)
-        return plot_ref_cubes, plot_ref_cubes_2
+    def resolve_spot_plot_data_cubes(spot_targets, mirror_data_cubes):
+        contrasts = []
+        if "spot_bright" in spot_targets:
+            contrasts.append("bright")
+        if "spot_dark" in spot_targets:
+            contrasts.append("dark")
+        if not contrasts:
+            return None
+        return mirror_data_cubes(tuple(contrasts))
 
     ap = make_run_argparser(description)
     if configure_parser is not None:
@@ -282,16 +288,15 @@ def run_mirror_spot_experiment(
     pack_overrides = spot_pack_overrides(target_list, fits, mirror_sign)
     param_partitions = merge_ih_param_partitions(run_kw)
     spot_targets = spot_targets_from(target_list)
-    plot_ref_cubes, plot_ref_cubes_2 = resolve_spot_plot_ref_cubes(
-        spot_targets, make_mirror_ref_cubes(fits, mirror_sign),
+    plot_data_cubes = resolve_spot_plot_data_cubes(
+        spot_targets, make_mirror_data_cubes(fits, mirror_sign),
     )
 
     fname, outdir, session = run_training_and_plot(
         **run_kw,
         pack_overrides=pack_overrides,
         param_partitions=param_partitions,
-        plot_ref_cubes=plot_ref_cubes,
-        plot_ref_cubes_2=plot_ref_cubes_2,
+        plot_data_cubes=plot_data_cubes,
     )
     for tname in spot_targets:
         print(f"{tname} cost cells:", int(session.pack_for(tname).readout_unit.shape[0]))

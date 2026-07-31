@@ -29,25 +29,47 @@ if str(_SIMULATION_CODE) not in sys.path:
 import import_bootstrap  # noqa: F401
 import network.path  # noqa: F401 — connectome_io on sys.path
 from connectome_io import (
-    DEFAULT_NETWORK_RUN,
     NETWORK_DIR,
     parse_comma_list,
     resolve_network_json,
 )
-from task.spot.input import DEFAULT_SHIFT_EXTENT, RESPONSE_MS
+from training.defaults import (
+    DELTA_MS,
+    FP,
+    FULLY_INSIDE,
+    IH_GMAX_INDI_NAMES,
+    IH_OFF,
+    LRS,
+    MODEL,
+    MULTI_BAR,
+    MULTI_SPOT,
+    NETWORK,
+    NOFRUNS,
+    NOFSTEPS_CPU,
+    NOFSTEPS_GPU,
+    PRE_GRAD,
+    PRE_MS,
+    PULSE_MS,
+    RESPONSE_MS,
+    SEQUENTIAL,
+    SHIFT_EXTENT,
+    SPOT_COST_RADII,
+    SPOT_COST_RADIUS_KEY_ALIASES,
+    SPOT_COST_RADIUS_WEIGHT,
+    SPOT_COST_RADIUS_WEIGHT_EXTENT1,
+    SPOT_EXTENT,
+    SYN_MODE,
+    TARGET,
+)
+from task.spot.data import default_spot_cost_radius_weight
 from training import do_many_runs
 import training as fc
-from neuron.params import DEFAULT_IH_GMAX_INDI_NAMES
 from training.config import (
     EDGE_WEIGHT_CSV,
     PARAM_CSV,
     SYN_STRENGTH_CSV,
     run_data_dir,
 )
-
-
-DEFAULT_NOFSTEPS_CPU = 50
-DEFAULT_NOFSTEPS_GPU = 200
 
 
 RUN_NAME_MAX = 255
@@ -535,9 +557,6 @@ def apply_param_partitions(session, partitions_by_name):
         partitions_by_name,
         lambda seg: fc.unit_names_for_segment(seg, backend),
     )
-    if session.model == 'borst':
-        ih_off = (session.train_opts or {}).get('ih_off', fc.IH_OFF_DEFAULT)
-        schema = fc.apply_ih_off_mode(schema, ih_off)
     schema = fc.attach_param_carry(schema)
     opts = dict(session.train_opts or {})
     opts['param_partitions'] = fc.schema_partitions_record(
@@ -555,15 +574,15 @@ def resolve_network(network):
 def build_session(
     model,
     *,
-    network=None,
-    sequential=False,
+    network=NETWORK,
+    sequential=SEQUENTIAL,
     target_list=None,
     cost_weights=None,
     cost_extent_by_target=None,
-    shift_extent=DEFAULT_SHIFT_EXTENT,
-    spot_extent=None,
-    multi_spot=True,
-    fully_inside=True,
+    shift_extent=SHIFT_EXTENT,
+    spot_extent=SPOT_EXTENT,
+    multi_spot=MULTI_SPOT,
+    fully_inside=FULLY_INSIDE,
     spot_cost_radius_weight=None,
     i_cli=None,
     moving_bar_bright_stimulus_opts=None,
@@ -571,15 +590,18 @@ def build_session(
     spot_bright_stimulus_opts=None,
     spot_dark_stimulus_opts=None,
     param_partitions=None,
-    syn_mode=fc.SYN_MODE_DEFAULT,
-    ih_off=fc.IH_OFF_DEFAULT,
-    fp32=False,
+    syn_mode=SYN_MODE,
+    ih_off=IH_OFF,
+    fp=FP,
+    pre_grad=PRE_GRAD,
     pack_overrides=None,
     model_backend=None,
     schema=None,
 ):
     """Create a :class:`TrainSession` from run options."""
-    tl = list(target_list) if target_list is not None else ["spot_bright"]
+    tl = list(target_list) if target_list is not None else list(
+        fc.normalize_target_list([TARGET])
+    )
     dev = fc.active_device()
     mkw = dict(
         target_list=tl,
@@ -608,7 +630,8 @@ def build_session(
         ih_off=ih_off,
         param_partitions=param_partitions,
         syn_mode=syn_mode,
-        fp32=fp32,
+        fp=fp,
+        pre_grad=pre_grad,
         **mkw,
     )
     return fc.open_session(opts, model, schema=schema, model_backend=model_backend)
@@ -616,14 +639,14 @@ def build_session(
 
 def run_training(model, nofruns, nofsteps, lrs, fname=None, outdir=None,
                  param_partitions=None,
-                 syn_mode=fc.SYN_MODE_DEFAULT,
-                 ih_off=fc.IH_OFF_DEFAULT,
-                 network=None, sequential=False,
+                 syn_mode=SYN_MODE,
+                 ih_off=IH_OFF,
+                 network=NETWORK, sequential=SEQUENTIAL,
                  target_list=None, cost_weights=None,
-                 cost_extent_by_target=None, shift_extent=DEFAULT_SHIFT_EXTENT,
-                 spot_extent=None,
-                 multi_spot=True,
-                 fully_inside=True,
+                 cost_extent_by_target=None, shift_extent=SHIFT_EXTENT,
+                 spot_extent=SPOT_EXTENT,
+                 multi_spot=MULTI_SPOT,
+                 fully_inside=FULLY_INSIDE,
                  spot_cost_radius_weight=None,
                  i_cli=None,
                  moving_bar_bright_stimulus_opts=None,
@@ -631,7 +654,8 @@ def run_training(model, nofruns, nofsteps, lrs, fname=None, outdir=None,
                  spot_bright_stimulus_opts=None,
                  spot_dark_stimulus_opts=None,
                  pack_overrides=None, model_backend=None, schema=None,
-                 fp32=False,
+                 fp=FP,
+                 pre_grad=PRE_GRAD,
                  init_from=None,
                  checkpoint_interval=None,
                  make_checkpoint_callback=make_checkpoint_callback,
@@ -664,14 +688,15 @@ def run_training(model, nofruns, nofsteps, lrs, fname=None, outdir=None,
         pack_overrides=pack_overrides,
         model_backend=model_backend,
         schema=schema,
-        fp32=fp32,
+        fp=fp,
+        pre_grad=pre_grad,
     )
     suffix = "" if model == "borst" else f"_{model}"
     fname = fname or f"training{suffix or '_with_Ih'}.npy"
     outdir = outdir or run_dir(model)
 
     print_param_partitions(session)
-    syn_mode = (session.train_opts or {}).get("syn_mode", fc.SYN_MODE_DEFAULT)
+    syn_mode = (session.train_opts or {}).get("syn_mode", SYN_MODE)
     print(f"device={session.device}, model={model}, syn_mode={syn_mode}, "
           f"nofruns={nofruns}, nofsteps={nofsteps}, "
           f"lrs={lrs}, nparams={fc.schema_nparams(list(session.schema))}, fname={fname}, outdir={outdir}")
@@ -698,46 +723,47 @@ def run_training(model, nofruns, nofsteps, lrs, fname=None, outdir=None,
 
 def add_spot_layout_arguments(parser):
     """Spot center tiling flags (``--multi-spot``, ``--fully-inside``)."""
-    from task.spot.input import DEFAULT_FULLY_INSIDE, DEFAULT_MULTI_SPOT
-
     parser.add_argument(
         "--multi-spot",
         type=parse_bool,
-        default=DEFAULT_MULTI_SPOT,
+        default=MULTI_SPOT,
         metavar="BOOL",
         help="tile simultaneous spot centers on network connectome "
-             f"(default: {str(DEFAULT_MULTI_SPOT).lower()}; false → center (0,0) only)",
+             f"(default: {str(MULTI_SPOT).lower()}; false → center (0,0) only)",
     )
     parser.add_argument(
         "--fully-inside",
         type=parse_bool,
-        default=DEFAULT_FULLY_INSIDE,
+        default=FULLY_INSIDE,
         metavar="BOOL",
         help="with --multi-spot: keep only centers whose spot footprint lies inside "
-             f"connectome extent (default: {str(DEFAULT_FULLY_INSIDE).lower()})",
+             f"connectome extent (default: {str(FULLY_INSIDE).lower()})",
     )
 
 
 def add_training_arguments(parser):
-    """Register train.py training CLI flags on *parser*."""
-    parser.add_argument("--model", default="hp_lp",
-                        choices=list(fc.KNOWN_MODELS))
+    """Register train.py training CLI flags on *parser*.
+
+    Concrete omitted-flag values live in :mod:`training.defaults` and are
+    wired here as ``default=CONST``. ``None`` only for omit-disabled flags.
+    """
+    parser.add_argument("--model", default=MODEL, choices=list(fc.KNOWN_MODELS))
     parser.add_argument(
         "--syn-mode",
-        default=fc.SYN_MODE_DEFAULT,
+        default=SYN_MODE,
         choices=list(fc.SYN_MODES),
         help="synaptic scale: type_pair (sign*n_syn + type→type syn_strength; default) "
              "or per_edge (sign only + per-edge edge_weight magnitude)",
     )
-    parser.add_argument("--nofruns", type=int, default=1)
+    parser.add_argument("--nofruns", type=int, default=NOFRUNS)
     parser.add_argument(
         "--nofsteps",
         type=int,
         default=None,
-        help=f"steps per learning-rate stage (default: {DEFAULT_NOFSTEPS_GPU} on GPU, "
-             f"{DEFAULT_NOFSTEPS_CPU} on CPU)",
+        help=f"steps per learning-rate stage (default: {NOFSTEPS_GPU} on GPU, "
+             f"{NOFSTEPS_CPU} on CPU)",
     )
-    parser.add_argument("--lrs", default="0.1",
+    parser.add_argument("--lrs", default=LRS,
                         help="comma-separated learning-rate stages; each runs for --nofsteps steps")
     parser.add_argument(
         "--checkpoint-interval",
@@ -759,7 +785,7 @@ def add_training_arguments(parser):
                              "load named best_param.npz as z init only "
                              "(settings come from this CLI, not train_opts.json)")
     _ih_gmax_default = (
-        "indi=" + ",".join(DEFAULT_IH_GMAX_INDI_NAMES) + " fixed=all"
+        "indi=" + ",".join(IH_GMAX_INDI_NAMES) + " fixed=all"
     )
     _partition_help = (
         "indi=/shared=/fixed=/frozen= lists space-separated; 'all' in one bucket = remainder; "
@@ -808,41 +834,62 @@ def add_training_arguments(parser):
                         help=f"tau_midv_off partitions (overrides --ih-shape; {_partition_help})")
     parser.add_argument("--tau-lp", **_partition_kwargs,
                         help=f"hp_lp tau_lp partitions ({_partition_help}; default indi=all)")
-    parser.add_argument("--bias", **_partition_kwargs,
-                        help=f"hp_lp bias partitions ({_partition_help}; default indi=all)")
+    parser.add_argument("--v-rest", **_partition_kwargs,
+                        help=f"hp_lp v_rest partitions ({_partition_help}; default indi=all)")
     parser.add_argument("--tau-hp", **_partition_kwargs,
                         help=f"hp_lp tau_hp partitions ({_partition_help}; default indi=all)")
     parser.add_argument("--hp-gain", **_partition_kwargs,
                         help=f"hp_lp hp_gain partitions ({_partition_help}; default {_ih_gmax_default})")
-    parser.add_argument("--ih-off", default=fc.IH_OFF_DEFAULT,
+    parser.add_argument("--ih-off", default=IH_OFF,
                         choices=list(fc.IH_OFF_MODES),
                         help="OFF-channel Ih: on (train Ih_gmax_off+OFF shape; default), "
                              "mirrored (OFF copies ON), off (disable OFF channel)")
-    parser.add_argument("--fp32", action="store_true",
-                        help="run simulation in float32 (default float64 on CUDA; "
-                             "forced on when CUDA is unavailable)")
-    parser.add_argument("--sequential", action="store_true",
-                        help="one stimulus batch per forward (default: batched forward)")
-    parser.add_argument("--network", default=DEFAULT_NETWORK_RUN, metavar="RUN",
+    parser.add_argument(
+        "--fp",
+        type=int,
+        default=FP,
+        choices=(16, 32, 64),
+        metavar="N",
+        help=f"simulation float width (default: {FP}); "
+             "64 is forced to 32 when CUDA is unavailable",
+    )
+    parser.add_argument(
+        "--pre-grad",
+        type=parse_bool,
+        default=PRE_GRAD,
+        metavar="BOOL",
+        help="include t < t_onset in BPTT / v_onset grads "
+             f"(default: {str(PRE_GRAD).lower()}); "
+             "false → no_grad pre + detach state/v/v_onset at onset",
+    )
+    parser.add_argument(
+        "--sequential",
+        type=parse_bool,
+        default=SEQUENTIAL,
+        metavar="BOOL",
+        help=f"one stimulus batch per forward (default: {str(SEQUENTIAL).lower()})",
+    )
+    parser.add_argument("--network", default=NETWORK, metavar="RUN",
                         help=f"connectome backend: built_network run folder under {NETWORK_DIR} "
-                             f"(default: {DEFAULT_NETWORK_RUN})")
+                             f"(default: {NETWORK})")
     parser.add_argument(
         "--multi-bar",
         type=parse_bool,
-        default=True,
+        default=MULTI_BAR,
         metavar="BOOL",
         help="network moving-bar: tile simultaneous lane-clipped bars "
-             "(default true); false → whole-field single bar over the full network field",
+             f"(default: {str(MULTI_BAR).lower()}); "
+             "false → whole-field single bar over the full network field",
     )
     parser.add_argument(
         "--target",
-        default="spot_bright",
+        default=TARGET,
         help="target name(s): spot (=spot_bright+spot_dark), moving_bar (=bright+dark), "
              "or explicit names / comma-separated list, e.g. spot,moving_bar",
     )
     parser.add_argument(
         "--cost-weight",
-        default="",
+        default=None,
         metavar="NAME|NAME=VALUE,...",
         help="per-part cost weights. NAME=VALUE merges onto default 1; bare NAME "
              "(aliases: spot, moving_bar, moving_bar_bright/dark, PD/ND/DSI) zeros "
@@ -852,33 +899,33 @@ def add_training_arguments(parser):
     parser.add_argument(
         "--shift-extent",
         type=int,
-        default=DEFAULT_SHIFT_EXTENT,
+        default=SHIFT_EXTENT,
         help="spot sub-shift hex-disc radius for spot targets in --target "
              "(n_shifts=1+3k(k+1); 0->1, 1->7, 2->19, 3->37, ...)",
     )
     parser.add_argument(
         "--spot-extent",
         type=float,
-        default=None,
+        default=SPOT_EXTENT,
         metavar="R",
-        help="spot footprint / center-tiling radius (0.5 multiples; default 1); "
+        help=f"spot footprint / center-tiling radius (0.5 multiples; default {SPOT_EXTENT}); "
              "extent=1 folds RecF(2) into r=1 target amp and defaults cost weights "
              "to 0=1,1=1/6; extent 1.5/2 keep RecF(r) and 0=1,1=1/6,2=1/6",
     )
     add_spot_layout_arguments(parser)
     parser.add_argument(
         "--spot-cost-r-w",
-        default="",
+        default=None,
         metavar="R|R=W,...",
         help="spot cost weights by Euclidean r from stim column. Same rules as "
              "--cost-weight: R=W merges onto extent defaults; bare R zeros all "
-             "known radii then sets R=1. Empty → extent default "
+             "known radii then sets R=1. Omit → extent default "
              "(1→0=1,1=1/6; else 0=1,1=1/6,2=1/6). Keys: 0,1,2,sqrt3. "
              "Weights only (does not change RecF data)",
     )
     parser.add_argument(
         "--cost-extent",
-        default="",
+        default=None,
         metavar="N|TARGET=N,...",
         help="network cost hex-disc radius (moving-bar default: network extent - 1; "
              "network extent 0/-1 and spot default to all columns): bare N for all "
@@ -887,20 +934,20 @@ def add_training_arguments(parser):
     )
     parser.add_argument(
         "--i-baseline",
-        default="",
+        default=None,
         metavar="TARGET=VALUE,...",
         help="per-target PR baseline (pA); aliases: spot, moving_bar",
     )
     parser.add_argument(
         "--i-bright",
-        default="",
+        default=None,
         metavar="TARGET=VALUE,...",
         help="bright peak/step current (pA); targets: spot_bright, moving_bar_bright "
              "(aliases spot, moving_bar)",
     )
     parser.add_argument(
         "--i-dark",
-        default="",
+        default=None,
         metavar="TARGET=VALUE,...",
         help="dark peak/step current (pA); targets: spot_dark, moving_bar_dark "
              "(aliases spot, moving_bar)",
@@ -908,10 +955,10 @@ def add_training_arguments(parser):
     parser.add_argument(
         "--pre-ms",
         type=float,
-        default=None,
+        default=PRE_MS,
         metavar="MS",
-        help="pre-stimulus baseline duration in ms (default: task.spot.input.PRE_MS; "
-             "t_on = ms_to_t(pre_ms); "
+        help=f"pre-stimulus baseline duration in ms (default: {PRE_MS}; "
+             "t_onset = ms_to_t(pre_ms); "
              "n_t = ms_to_t(pre_ms)+ms_to_t(response_ms)+1)",
     )
     parser.add_argument(
@@ -919,17 +966,16 @@ def add_training_arguments(parser):
         type=float,
         default=RESPONSE_MS,
         metavar="MS",
-        help="spot: post-onset response window in ms "
-             "(default %(default)s; "
+        help=f"spot: post-onset response window in ms (default: {RESPONSE_MS}; "
              "n_t = ms_to_t(pre_ms)+ms_to_t(response_ms)+1)",
     )
     parser.add_argument(
         "--pulse-ms",
         type=float,
-        default=None,
+        default=PULSE_MS,
         metavar="MS",
-        help="spot: bright/dark PR pulse duration in ms from onset; "
-             "omit = held on through n_t (#1)",
+        help=f"spot: bright/dark PR pulse duration in ms from onset "
+             f"(default: {PULSE_MS})",
     )
     parser.add_argument(
         "--cost-interval-ms",
@@ -938,12 +984,6 @@ def add_training_arguments(parser):
         metavar="MS",
         help="spot: train on post-onset times 0, interval, 2*interval, ... "
              "through response window; omit = every post-onset t (#4)",
-    )
-    parser.add_argument(
-        "--filter",
-        default="ca",
-        choices=("ca", "v"),
-        help="spot: train on Ca (default) or 'v' (#2)",
     )
 
 
@@ -1038,7 +1078,16 @@ def parse_spot_cost_r_w(text, spot_extent):
     """Parse ``--spot-cost-r-w``; empty → ``None`` (extent default at resolve)."""
     from task.spot.data import parse_spot_cost_r_w_tokens
 
-    return parse_spot_cost_r_w_tokens(text, spot_extent=spot_extent)
+    return parse_spot_cost_r_w_tokens(
+        text,
+        default_weights=default_spot_cost_radius_weight(
+            spot_extent,
+            weights=SPOT_COST_RADIUS_WEIGHT,
+            weights_extent1=SPOT_COST_RADIUS_WEIGHT_EXTENT1,
+        ),
+        spot_cost_radii=SPOT_COST_RADII,
+        aliases=SPOT_COST_RADIUS_KEY_ALIASES,
+    )
 
 
 def _partition_cli_text(parts):
@@ -1054,7 +1103,7 @@ def _partition_cli_map(args):
     Precedence: ``--all-param`` → ``--ih-shape`` → per-param flags.
     Omitted segments keep schema defaults (not listed here).
     """
-    syn_mode = fc.normalize_syn_mode(getattr(args, "syn_mode", fc.SYN_MODE_DEFAULT))
+    syn_mode = fc.normalize_syn_mode(getattr(args, "syn_mode", SYN_MODE))
     syn_text = _partition_cli_text(getattr(args, "syn_strength", None))
     edge_text = _partition_cli_text(getattr(args, "edge_weight", None))
     if syn_mode == "per_edge" and syn_text is not None:
@@ -1090,7 +1139,7 @@ def _partition_cli_map(args):
         "Ih_slope_off": _partition_cli_text(getattr(args, "ih_slope_off", None)),
         "tau_midv_off": _partition_cli_text(getattr(args, "tau_midv_off", None)),
         "tau_lp": _partition_cli_text(getattr(args, "tau_lp", None)),
-        "bias": _partition_cli_text(getattr(args, "bias", None)),
+        "v_rest": _partition_cli_text(getattr(args, "v_rest", None)),
         "tau_hp": _partition_cli_text(getattr(args, "tau_hp", None)),
         "hp_gain": _partition_cli_text(getattr(args, "hp_gain", None)),
     }
@@ -1109,6 +1158,7 @@ def training_kwargs_from_args(
     script_stem="train",
 ):
     """Parse a training CLI namespace into kwargs for :func:`run_training`."""
+    model = args.model
     init_from = args.init_from
     if init_from:
         p = Path(str(init_from)).expanduser()
@@ -1117,10 +1167,11 @@ def training_kwargs_from_args(
             if "/" in str(init_from) or "\\" in str(init_from):
                 raise ValueError(
                     "--from must be a run folder name only (no path); "
-                    "the model subfolder is inferred from --model (default: hp_lp). "
+                    "the model subfolder is inferred from --model "
+                    f"(default: {MODEL}). "
                     "Use an absolute path to reference runs outside 0_runs.",
                 )
-            init_from = f"{args.model}/{init_from}"
+            init_from = f"{model}/{init_from}"
     param_partitions = _partition_cli_map(args) or None
     target_list = parse_target_list(args.target)
     cost_weights = parse_cost_weight(args.cost_weight, target_list)
@@ -1128,41 +1179,40 @@ def training_kwargs_from_args(
     cost_extent_by_target = fc.resolve_cost_extent_by_target(
         target_list, default_extent, extent_kv,
     )
-    if cost_extent_by_target and args.network is None:
-        raise ValueError("--cost-extent requires --network")
     if default_extent is not None and default_extent != -1 and default_extent < 0:
         raise ValueError("--cost-extent must be -1 or >= 0")
     if any(v != -1 and v < 0 for v in extent_kv.values()):
         raise ValueError("--cost-extent must be -1 or >= 0")
-    if args.shift_extent < 0:
-        raise ValueError("--shift-extent must be >= 0")
-    from task.spot.input import DEFAULT_SPOT_EXTENT, spot_extent_half_steps
+    from task.spot.input import spot_extent_half_steps
 
-    spot_extent = DEFAULT_SPOT_EXTENT if args.spot_extent is None else float(args.spot_extent)
+    shift_extent = int(args.shift_extent)
+    if shift_extent < 0:
+        raise ValueError("--shift-extent must be >= 0")
+    spot_extent = float(args.spot_extent)
     spot_extent_half_steps(spot_extent)
     spot_cost_radius_weight = parse_spot_cost_r_w(args.spot_cost_r_w, spot_extent)
-    from neuron.params import delta_ms
-    from task.spot.input import PRE_MS
-    _pre_ms = float(PRE_MS if args.pre_ms is None else args.pre_ms)
-    _response_ms = float(args.response_ms)
+    multi_spot = bool(args.multi_spot)
+    fully_inside = bool(args.fully_inside)
+    pre_ms = float(args.pre_ms)
+    response_ms = float(args.response_ms)
+    multi_bar = bool(args.multi_bar)
     _timing = {
-        "pre_ms": _pre_ms,
-        "response_ms": _response_ms,
-        "delta_ms": float(delta_ms),
+        "pre_ms": pre_ms,
+        "response_ms": response_ms,
+        "delta_ms": float(DELTA_MS),
     }
     moving_bar_bright_stimulus_opts = {
-        "multi_bar": bool(args.multi_bar),
-        "pre_ms": _pre_ms,
-        "delta_ms": float(delta_ms),
+        "multi_bar": multi_bar,
+        "pre_ms": pre_ms,
+        "delta_ms": float(DELTA_MS),
     }
     moving_bar_dark_stimulus_opts = {
-        "multi_bar": bool(args.multi_bar),
-        "pre_ms": _pre_ms,
-        "delta_ms": float(delta_ms),
+        "multi_bar": multi_bar,
+        "pre_ms": pre_ms,
+        "delta_ms": float(DELTA_MS),
     }
     spot_bright_stimulus_opts = dict(_timing)
     spot_dark_stimulus_opts = dict(_timing)
-    # #1 pulse duration / #4 sparse cost times / #2 readout kind -> spot opts.
     if args.pulse_ms is not None:
         for _o in (spot_bright_stimulus_opts, spot_dark_stimulus_opts):
             _o["pulse_ms"] = float(args.pulse_ms)
@@ -1171,9 +1221,6 @@ def training_kwargs_from_args(
             raise ValueError("--cost-interval-ms must be > 0")
         for _o in (spot_bright_stimulus_opts, spot_dark_stimulus_opts):
             _o["cost_interval_ms"] = float(args.cost_interval_ms)
-    if args.filter != "ca":
-        for _o in (spot_bright_stimulus_opts, spot_dark_stimulus_opts):
-            _o["filter"] = str(args.filter)
     i_cli = fc.build_i_cli_by_target({
         "i_baseline": parse_comma_kv(args.i_baseline, float),
         "i_bright": parse_comma_kv(args.i_bright, float),
@@ -1182,19 +1229,18 @@ def training_kwargs_from_args(
     lrs = parse_comma_floats(args.lrs)
     if not lrs:
         raise ValueError("--lrs must list at least one learning rate")
-    # CLI-only: float64 on CPU is too heavy; force fp32 when CUDA is absent.
-    # Keep CUDA probe out of import / run_training defaults (import-safe).
-    # Run folder name stays strict CLI (command_run_name); do not inject --fp32.
     cuda_available = torch.cuda.is_available()
-    fp32 = bool(args.fp32) or not cuda_available
+    fp = int(args.fp)
+    if not cuda_available and fp == 64:
+        fp = 32
     nofsteps = args.nofsteps
     if nofsteps is None:
-        nofsteps = DEFAULT_NOFSTEPS_GPU if cuda_available else DEFAULT_NOFSTEPS_CPU
+        nofsteps = NOFSTEPS_GPU if cuda_available else NOFSTEPS_CPU
     run_name = command_run_name(script_stem)
-    outdir = run_dir(args.model, parent=args.outdir, name=run_name)
+    outdir = run_dir(model, parent=args.outdir, name=run_name)
     return dict(
-        model=args.model,
-        nofruns=args.nofruns,
+        model=model,
+        nofruns=int(args.nofruns),
         nofsteps=nofsteps,
         lrs=lrs,
         fname=args.fname,
@@ -1205,10 +1251,10 @@ def training_kwargs_from_args(
         target_list=target_list,
         cost_weights=cost_weights,
         cost_extent_by_target=cost_extent_by_target,
-        shift_extent=int(args.shift_extent),
+        shift_extent=shift_extent,
         spot_extent=spot_extent,
-        multi_spot=args.multi_spot,
-        fully_inside=args.fully_inside,
+        multi_spot=multi_spot,
+        fully_inside=fully_inside,
         spot_cost_radius_weight=spot_cost_radius_weight,
         moving_bar_bright_stimulus_opts=moving_bar_bright_stimulus_opts,
         moving_bar_dark_stimulus_opts=moving_bar_dark_stimulus_opts,
@@ -1216,11 +1262,13 @@ def training_kwargs_from_args(
         spot_dark_stimulus_opts=spot_dark_stimulus_opts,
         i_cli=i_cli,
         ih_off=args.ih_off,
-        fp32=fp32,
-        sequential=args.sequential,
+        fp=fp,
+        pre_grad=bool(args.pre_grad),
+        sequential=bool(args.sequential),
         init_from=init_from,
         checkpoint_interval=args.checkpoint_interval,
     )
+
 
 
 def main():

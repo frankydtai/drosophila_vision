@@ -49,8 +49,14 @@ from column_mapper import (
 )
 from connectome_io import DEFAULT_NETWORK_RUN, network_run_tag, resolve_network_json
 from network.construction import Network, load_network
+from training.defaults import (
+    SPOT_EXTENTS,
+    EXC_SYNWEIGHT,
+    INH_SYNWEIGHT,
+    SYN_MODE,
+)
+from training.target_pack import SIM_DTYPE
 from task.spot.input import (
-    DEFAULT_SPOT_EXTENTS,
     build_spot,
     spot_dist,
     spot_extent_half_steps,
@@ -59,7 +65,7 @@ from connectome_io import parse_comma_list
 from training.driver import add_spot_layout_arguments
 
 _SPOT_EXTENTS_CLI_DEFAULT = ",".join(
-    str(int(x)) if float(x) == int(x) else str(x) for x in DEFAULT_SPOT_EXTENTS
+    str(int(x)) if float(x) == int(x) else str(x) for x in SPOT_EXTENTS
 )
 
 
@@ -133,7 +139,11 @@ def main() -> None:
             raise SystemExit(str(exc)) from exc
 
     network_json = str(resolve_network_json(args.network))
-    C = load_network(network_json, device="cpu")
+    C = load_network(
+        network_json, device="cpu",
+        exc_synweight=EXC_SYNWEIGHT, inh_synweight=INH_SYNWEIGHT,
+        syn_mode=SYN_MODE, dtype=SIM_DTYPE,
+    )
     run_tag = network_run_tag(network_json, C.meta)
     output = args.output or _default_output(network_json, C.meta)
 

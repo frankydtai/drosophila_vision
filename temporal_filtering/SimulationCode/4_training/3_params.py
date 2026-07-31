@@ -14,10 +14,8 @@ from __future__ import annotations
 import numpy as np
 import torch
 
-from network.connectivity import SIM_DTYPE_DEFAULT
-from neuron import E_LEAK_DEPOL, E_LEAK_REST, IH_DIR_REVERSE_CELLS
-
-from training.target_pack import ModelBackend, active_device
+from training.target_pack import ModelBackend, active_device, SIM_DTYPE
+from neuron import IH_DIR_REVERSE_CELLS
 
 
 def calc_multi_col_params(param, conn):
@@ -26,15 +24,18 @@ def calc_multi_col_params(param, conn):
     return param.index_select(0, conn.node_type)
 
 
-def build_e_leak(conn, n_types, depol_cells=(), *, dtype=SIM_DTYPE_DEFAULT):
-    """(conn.n_units,) resting potential; ``depol_cells`` are type indices at E_LEAK_DEPOL."""
-    per_type = torch.full((n_types,), E_LEAK_REST, dtype=dtype, device=conn.node_type.device)
+def build_e_leak(
+    conn, n_types, depol_cells=(), *, e_leak_rest: float, e_leak_depol: float,
+    dtype=SIM_DTYPE,
+):
+    """(conn.n_units,) resting potential; ``depol_cells`` are type indices at ``e_leak_depol``."""
+    per_type = torch.full((n_types,), e_leak_rest, dtype=dtype, device=conn.node_type.device)
     for c in depol_cells:
-        per_type[int(c)] = E_LEAK_DEPOL
+        per_type[int(c)] = e_leak_depol
     return calc_multi_col_params(per_type, conn)
 
 
-def build_ih_dir(conn, ih_reverse_cells=IH_DIR_REVERSE_CELLS, *, dtype=SIM_DTYPE_DEFAULT):
+def build_ih_dir(conn, ih_reverse_cells=IH_DIR_REVERSE_CELLS, *, dtype=SIM_DTYPE):
     """(conn.n_units,) Ih direction (+1 normal, -1 mirrored per cell-type)."""
     d = torch.ones(conn.n_units, dtype=dtype, device=conn.node_type.device)
     for c in ih_reverse_cells:
@@ -440,7 +441,7 @@ def z_to_unit_values(z, schema):
 def unit_values_to_z(named, schema, *, dtype=None, device=None):
     """Pack full-width named unit values into trainable z for *schema* partitions."""
     n = schema_nparams(schema)
-    z = torch.zeros(n, dtype=dtype or SIM_DTYPE_DEFAULT, device=device or active_device())
+    z = torch.zeros(n, dtype=dtype or SIM_DTYPE, device=device or active_device())
     for seg, start, stop in schema_segments(schema):
         raw = np.asarray(named[seg['name']], dtype=np.float64).reshape(-1)
         if raw.shape[0] != seg_count(seg):
@@ -551,7 +552,7 @@ def params_from_z(z, session):
     return assign_params(z, list(session.schema), session.backend)
 
 
-def schema_bounds(schema, sim_dtype=SIM_DTYPE_DEFAULT):
+def schema_bounds(schema, sim_dtype=SIM_DTYPE):
     zb = torch.zeros((schema_nparams(schema), 2), dtype=sim_dtype)
     for seg, start, stop in schema_segments(schema):
         if stop > start:
@@ -560,7 +561,7 @@ def schema_bounds(schema, sim_dtype=SIM_DTYPE_DEFAULT):
     return zb
 
 
-def schema_guess(schema, sim_dtype=SIM_DTYPE_DEFAULT):
+def schema_guess(schema, sim_dtype=SIM_DTYPE):
     z = np.zeros(schema_nparams(schema))
     for seg, start, stop in schema_segments(schema):
         n = stop - start

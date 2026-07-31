@@ -2,40 +2,39 @@
 """HP-then-membrane-LP neuron (``--model hp_lp``).
 
     τ_HP da/dt = X − a
-    τ_lp dv/dt = −(v − bias) + G (X − a)
+    τ_lp dv/dt = −(v − v_rest) + G (X − a)
 
-with X = bias + syn + x_t, syn from relu(v)·out_gain scaled by syn_strength
+with X = v_rest + syn + x_t, syn from relu(v)·out_gain scaled by syn_strength
 (type_pair) or edge_weight (per_edge).
 
-Dynamics only: ``prepare_signal`` / ``init_state`` / ``step``. Full-T Ca
-forward lives in ``neuron.forward``.
+Dynamics only: ``prepare_signal`` / ``init_state`` / ``step``. Full-T ``v``
+forward lives in ``neuron.forward``. Physics via ``session.physics``.
 """
 from __future__ import annotations
 
 import torch
 
-import neuron.params as params
-from neuron.params import STATE_CLAMP
 from neuron.schema import synaptic_scale
 
 
-def update_state_hp_lp(v, a, p, x_t, backend):
+def update_state_hp_lp(v, a, p, x_t, backend, *, physics):
     """One HP→LP membrane step; returns (v, a)."""
-    bias = p["bias"]
-    dt = params.delta_ms
+    v_rest = p["v_rest"]
+    dt = physics.delta_ms
     tau_lp = torch.clamp(p["tau_lp"], min=dt)
     tau_hp = torch.clamp(p["tau_hp"], min=dt)
     G = p["hp_gain"]
+    clamp = physics.STATE_CLAMP
 
     syn = p["in_gain"] * backend.conn.signed_drive(
         torch.relu(v) * p["out_gain"], synaptic_scale(p),
     )
-    X = bias + syn + x_t
+    X = v_rest + syn + x_t
     a = a + dt / tau_hp * (X - a)
-    v = v + dt / tau_lp * (-(v - bias) + G * (X - a))
+    v = v + dt / tau_lp * (-(v - v_rest) + G * (X - a))
 
-    a = torch.clamp(a, -STATE_CLAMP, STATE_CLAMP)
-    v = torch.clamp(v, -STATE_CLAMP, STATE_CLAMP)
+    a = torch.clamp(a, -clamp, clamp)
+    v = torch.clamp(v, -clamp, clamp)
     return v, a
 
 
@@ -44,24 +43,24 @@ def prepare_signal(session, p, sig, pack):
 
     Scale is ``pack.signal_scale`` (stamped at session build); no training import.
     """
-    del p
-    pack = pack or session.primary_pack
-    x = sig.unsqueeze(0) if sig.dim() == 2 else sig
     scale = float(getattr(pack, "signal_scale", 1.0) or 1.0)
-    return x / scale
+    if scale == 0.0:
+        raise ValueError("pack.signal_scale must be non-zero")
+    return sig / scale
 
 
 def init_state(session, p, B):
-    """``(a,)``, ``v0 = bias``."""
-    bias = p["bias"]
+    """``(a,)``, ``v0 = v_rest``."""
+    v_rest = p["v_rest"]
     n = session.backend.n_units
-    v = bias.expand(B, n).clone()
-    a = bias.expand(B, n).clone()
+    v = v_rest.expand(B, n).clone()
+    a = v_rest.expand(B, n).clone()
     return (a,), v
 
 
 def step(state, v, p, x_t, session):
-    """One HP→LP update; returns ``((a,), v)``."""
-    (a,) = state
-    v, a = update_state_hp_lp(v, a, p, x_t, session.backend)
+    a, = state
+    v, a = update_state_hp_lp(
+        v, a, p, x_t, session.backend, physics=session.physics,
+    )
     return (a,), v

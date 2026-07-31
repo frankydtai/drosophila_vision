@@ -6,11 +6,13 @@ network backend construction, and the per-target ``TargetPack`` builders. The
 builders wrap the neutral target dataclasses from ``task`` (which sit below
 ``training`` in the import graph) and stamp the cross-cutting readout controls:
 
-* spot: ``readout_kind`` (#2), sparse ``cost_time_ix`` (#4), pulse ``pulse_ms``
-  (#1) already baked into the stimulus, ``always_waveform_mse=True``,
-  ``signal_scale`` (hp_lp peak PR);
+* spot: sparse ``cost_time_ix`` (#4), pulse ``pulse_ms`` (#1) already baked into
+  the stimulus, ``always_waveform_mse=True``, ``signal_scale`` (hp_lp peak PR);
 * moving bar: ``always_waveform_mse=False`` (waveform MSE only when a cost
   window exists), ``signal_scale``.
+
+Model and target traces are ``v`` (``v - v_onset``); ImpR / RecF spot data are
+used as-is.
 """
 from __future__ import annotations
 
@@ -22,18 +24,35 @@ from typing import Dict, List, Optional, Tuple
 import numpy as np
 import torch
 
-from network.construction import I_BASELINE, I_BRIGHT, I_DARK
-from network.connectivity import SIM_DTYPE_DEFAULT, sim_dtype_from_fp32
-from neuron.params import DELTA_MS, ms_to_t
+from neuron.params import ms_to_t
 from training.config import run_data_dir
 from neuron import (
-    IH_OFF_DEFAULT,
-    SYN_MODE_DEFAULT,
-    borst_schema,
     default_schema,
-    exc_synweight,
-    inh_synweight,
     normalize_syn_mode,
+)
+from training.defaults import (
+    DATA_AMP,
+    FP,
+    FULLY_INSIDE,
+    MULTI_BAR,
+    MULTI_SPOT,
+    PRE_GRAD,
+    SHIFT_EXTENT,
+    SPOT_COST_RADIUS_WEIGHT,
+    SPOT_COST_RADIUS_WEIGHT_EXTENT1,
+    SPOT_EXTENT,
+    DELTA_MS,
+    IH_GMAX_INDI_NAMES,
+    IH_OFF,
+    I_BASELINE,
+    I_BRIGHT,
+    I_DARK,
+    PARAM_BOXES,
+    PRE_MS,
+    PULSE_MS,
+    RESPONSE_MS,
+    SYN_MODE,
+    PHYSICS,
 )
 
 from training.config import (
@@ -52,7 +71,15 @@ from training.config import (
     moving_bar_cost_part_key,
     normalize_target_list,
 )
-from training.cost import _build_cost_subpacks, _build_fused_borst
+from training.target_pack import (
+    ModelBackend,
+    TargetPack,
+    TrainSession,
+    TrainingResult,
+    active_device,
+    SIM_DTYPE,
+    sim_dtype_from_fp,
+)
 from training.params import (
     apply_partitions,
     attach_param_carry,
@@ -62,19 +89,16 @@ from training.params import (
     schema_partitions_record,
     unit_names_for_segment,
 )
-from training.target_pack import ModelBackend, TargetPack, TrainSession, active_device
+from training.cost import _build_cost_subpacks, _build_fused_forward
 
 from task.spot.data import (
     SPOT_POLARITIES,
     build_shifted_target,
+    default_spot_cost_radius_weight,
     expand_spot_cost_r_w_dict,
     make_spot_stimulus_opts,
 )
 from task.spot.input import (
-    DEFAULT_FULLY_INSIDE,
-    DEFAULT_MULTI_SPOT,
-    DEFAULT_SHIFT_EXTENT,
-    DEFAULT_SPOT_EXTENT,
     spot_extent_half_steps,
     spot_timing_t_from_opts,
 )
@@ -216,7 +240,7 @@ def _append_mirror_pack_rows(
     cost_radius_out = pack.cost_radius
     if cost_radius is not None:
         base_r = pack.cost_radius
-        r_dtype = base_r.dtype if base_r is not None else SIM_DTYPE_DEFAULT
+        r_dtype = base_r.dtype if base_r is not None else SIM_DTYPE
         extra_r_t = torch.tensor(cost_radius, dtype=r_dtype, device=active_device())
         cost_radius_out = (
             torch.cat([base_r, extra_r_t])
@@ -249,7 +273,6 @@ def _append_mirror_pack_rows(
         dsi_target=pack.dsi_target,
         dsi_weight=pack.dsi_weight,
         dsi_power=pack.dsi_power,
-        readout_kind=pack.readout_kind,
         cost_time_ix=pack.cost_time_ix,
         always_waveform_mse=pack.always_waveform_mse,
         signal_scale=pack.signal_scale,
@@ -283,7 +306,7 @@ def apply_pack_override(pack, override, backend: ModelBackend):
     raise ValueError(f"unknown pack override {override!r}")
 
 
-def _network_backend_from_connectome(C, *, sim_dtype=SIM_DTYPE_DEFAULT) -> ModelBackend:
+def _network_backend_from_connectome(C, *, physics, sim_dtype=SIM_DTYPE) -> ModelBackend:
     """Build a :class:`ModelBackend` from an already-loaded connectome graph."""
     from neuron.params import LEAK_DEPOL_TYPES
 
@@ -292,7 +315,10 @@ def _network_backend_from_connectome(C, *, sim_dtype=SIM_DTYPE_DEFAULT) -> Model
     conn = C.conn
     return ModelBackend(
         conn=conn,
-        e_leak=build_e_leak(conn, C.n_types, depol_cells=depol, dtype=sim_dtype),
+        e_leak=build_e_leak(
+            conn, C.n_types, depol_cells=depol, dtype=sim_dtype,
+            e_leak_rest=physics.E_LEAK_REST, e_leak_depol=physics.E_LEAK_DEPOL,
+        ),
         ih_dir=build_ih_dir(conn, dtype=sim_dtype),
         n_types=C.n_types,
         n_cols=1,
@@ -305,23 +331,26 @@ def load_network_backend(
     network_json,
     dev: Optional[str] = None,
     *,
-    sim_dtype=SIM_DTYPE_DEFAULT,
-    syn_mode=SYN_MODE_DEFAULT,
+    physics,
+    sim_dtype=SIM_DTYPE,
+    syn_mode=SYN_MODE,
+    param_boxes=PARAM_BOXES,
+    ih_gmax_indi_names=IH_GMAX_INDI_NAMES,
 ) -> ModelBackend:
     """Load connectome network into a :class:`ModelBackend`."""
     dev = dev or active_device()
     mode = normalize_syn_mode(syn_mode)
     C = load_network(
         network_json, device=dev,
-        exc_synweight=exc_synweight, inh_synweight=inh_synweight,
+        exc_synweight=physics.exc_synweight, inh_synweight=physics.inh_synweight,
         dtype=sim_dtype, syn_mode=mode,
     )
-    backend = _network_backend_from_connectome(C, sim_dtype=sim_dtype)
+    backend = _network_backend_from_connectome(C, physics=physics, sim_dtype=sim_dtype)
     print(f"network: {network_json}")
     print(f"  n_units={backend.n_units}, n_types={backend.n_types}, "
           f"n_pairs={backend.conn.n_pairs}, n_edges={backend.conn.n_edges}, "
           f"syn_mode={mode}, "
-          f"nparams={schema_nparams(default_schema('borst', backend, syn_mode=mode))}")
+          f"nparams={schema_nparams(default_schema('borst', backend, syn_mode=mode, param_boxes=param_boxes, ih_gmax_indi_names=ih_gmax_indi_names))}")
     return backend
 
 
@@ -331,7 +360,7 @@ class _TrainBindCtx:
 
     model_backend: ModelBackend
     dev: str
-    sim_dtype: torch.dtype = SIM_DTYPE_DEFAULT
+    sim_dtype: torch.dtype = SIM_DTYPE
     cost_weights: Optional[Dict[str, float]] = None
     spot_bright_stimulus_opts: Optional[dict] = None
     spot_dark_stimulus_opts: Optional[dict] = None
@@ -357,7 +386,14 @@ def _moving_bar_polarity_opts(ctx: _TrainBindCtx, polarity: str) -> dict:
         raise ValueError(f"unknown moving-bar polarity {polarity!r}")
     if raw:
         return dict(raw)
-    return make_moving_bar_stimulus_opts(polarity)
+    return make_moving_bar_stimulus_opts(
+        polarity,
+        i_baseline=I_BASELINE,
+        i_bar=I_BRIGHT if polarity == "bright" else I_DARK,
+        pre_ms=PRE_MS,
+        delta_ms=DELTA_MS,
+        multi_bar=MULTI_BAR,
+    )
 
 
 def _cost_extent_column_coltag(cost_extent, n_cost_columns) -> str:
@@ -388,11 +424,12 @@ def _build_network_moving_bar_target(ctx: _TrainBindCtx, C, *, pack_name: str, p
         device=dev,
         sim_dtype=ctx.sim_dtype,
         t_on=ms_to_t(float(opts["pre_ms"]), delta_ms=float(opts.get("delta_ms", DELTA_MS))),
+        delta_ms=float(opts.get("delta_ms", DELTA_MS)),
         cost_extent=cost_extent,
         i_baseline=opts["i_baseline"],
         contrasts=(polarity,),
         readout_subtypes=_readout_subtypes_from_opts(opts),
-        multi_bar=bool(opts.get("multi_bar", True)),
+        multi_bar=bool(opts.get("multi_bar", MULTI_BAR)),
         waveform_mse=_moving_bar_waveform_mse_enabled(ctx.cost_weights, pack_name),
     )
     if polarity == "bright":
@@ -455,8 +492,8 @@ def _spot_cost_times_ms(opts):
     if interval_ms <= 0:
         raise ValueError("cost_interval_ms must be > 0")
     delta_ms = float(opts.get("delta_ms", DELTA_MS))
-    t_on, n_t = spot_timing_t_from_opts(opts)
-    post = n_t - t_on
+    t_onset, n_t = spot_timing_t_from_opts(opts)
+    post = n_t - t_onset
     if post <= 0:
         raise ValueError("spot post-onset window must be > 0 for cost_interval_ms")
     interval_t = max(1, int(round(interval_ms / delta_ms)))
@@ -476,8 +513,8 @@ def _spot_cost_time_ix(opts, *, device):
     if not cost_time_ms:
         return None
     delta_ms = float(opts.get("delta_ms", DELTA_MS))
-    t_on, n_t = spot_timing_t_from_opts(opts)
-    post = n_t - t_on
+    t_onset, n_t = spot_timing_t_from_opts(opts)
+    post = n_t - t_onset
     ix = [int(round(float(ms) / delta_ms)) for ms in cost_time_ms]
     bad = [ms for ms, t in zip(cost_time_ms, ix) if t < 0 or t >= post]
     if bad:
@@ -498,15 +535,24 @@ def _build_network_spot_target(
     ctx_opts = (
         ctx.spot_bright_stimulus_opts if polarity == "bright" else ctx.spot_dark_stimulus_opts
     )
-    opts = dict(ctx_opts or make_spot_stimulus_opts(polarity, mode="network"))
+    if not ctx_opts:
+        raise ValueError(f"{pack_name} requires stimulus opts (from make_train_opts / CLI)")
+    opts = dict(ctx_opts)
     cost_extent = normalize_cost_extent(opts.get("cost_extent"))
-    shift_extent = int(opts.get("shift_extent", DEFAULT_SHIFT_EXTENT))
-    spot_extent = float(opts.get("spot_extent", DEFAULT_SPOT_EXTENT))
-    multi_spot = bool(opts.get("multi_spot", DEFAULT_MULTI_SPOT))
-    fully_inside = bool(opts.get("fully_inside", DEFAULT_FULLY_INSIDE))
+    shift_extent = int(opts["shift_extent"])
+    spot_extent = float(opts["spot_extent"])
+    multi_spot = bool(opts["multi_spot"])
+    fully_inside = bool(opts["fully_inside"])
+    delta_ms = float(opts["delta_ms"])
     dev = ctx.dev or active_device()
-    readout_kind = str(opts.get("filter", "ca"))
-    t_on, n_t = spot_timing_t_from_opts(opts)
+    t_onset, n_t = spot_timing_t_from_opts(opts)
+    i_step = float(opts[step_key])
+    default_w = default_spot_cost_radius_weight(
+        spot_extent,
+        weights=SPOT_COST_RADIUS_WEIGHT,
+        weights_extent1=SPOT_COST_RADIUS_WEIGHT_EXTENT1,
+    )
+    from training.defaults import SPOT_COST_RADII, SPOT_COST_RADIUS_KEY_ALIASES, DATA_AMP as _DATA_AMP
     T = build_shifted_target(
         C,
         spot_extent=spot_extent,
@@ -516,14 +562,20 @@ def _build_network_spot_target(
         device=dev,
         sim_dtype=ctx.sim_dtype,
         n_t=n_t,
-        t_on=t_on,
+        t_onset=t_onset,
         cost_extent=cost_extent,
-        spot_cost_radius_weight=expand_spot_cost_r_w_dict(stimulus_opts=opts),
-        i_baseline=opts["i_baseline"],
+        spot_cost_radius_weight=expand_spot_cost_r_w_dict(
+            stimulus_opts=opts, aliases=SPOT_COST_RADIUS_KEY_ALIASES,
+        ),
+        i_baseline=float(opts["i_baseline"]),
+        i_bright=i_step if polarity == "bright" else float(opts.get("i_bright", I_BRIGHT)),
+        i_dark=i_step if polarity == "dark" else float(opts.get("i_dark", I_DARK)),
         polarity=polarity,
         pulse_ms=opts.get("pulse_ms"),
-        readout_kind=readout_kind,
-        **{step_key: opts[step_key]},
+        data_amp=_DATA_AMP,
+        delta_ms=delta_ms,
+        default_cost_weights=default_w,
+        spot_cost_radii=SPOT_COST_RADII,
     )
     cost_time_ix = _spot_cost_time_ix(opts, device=dev)
     stim = dict(opts)
@@ -540,7 +592,6 @@ def _build_network_spot_target(
         readout_stim_u=T.readout_stim_u,
         readout_stim_v=T.readout_stim_v,
         cost_extent=cost_extent,
-        readout_kind=readout_kind,
         cost_time_ix=cost_time_ix,
         always_waveform_mse=True,
         signal_scale=_signal_scale_from_opts(pack_name, opts),
@@ -703,33 +754,46 @@ def _finalize_stimulus_opts(
     if target_name in SPOT_TARGETS:
         polarity = "bright" if target_name == "spot_bright" else "dark"
         step_key = _SPOT_STEP_KEY[polarity]
-        out = make_spot_stimulus_opts(polarity, mode=build_mode, **{
-            k: v for k, v in (opts or {}).items()
-            if k in (
-                "i_baseline", step_key, "shift_extent", "spot_extent",
-                "multi_spot", "fully_inside", "pre_ms", "response_ms", "delta_ms",
-                "pulse_ms", "cost_interval_ms", "filter",
-            )
-        })
+        raw = dict(opts or {})
+        i_step_default = I_BRIGHT if polarity == "bright" else I_DARK
+        out = make_spot_stimulus_opts(
+            polarity,
+            mode=build_mode,
+            i_baseline=float(raw.get("i_baseline", I_BASELINE)),
+            i_step=float(raw.get(step_key, i_step_default)),
+            pre_ms=float(raw.get("pre_ms", PRE_MS)),
+            response_ms=float(raw.get("response_ms", RESPONSE_MS)),
+            delta_ms=float(raw.get("delta_ms", DELTA_MS)),
+            shift_extent=int(raw.get("shift_extent", shift_extent if shift_extent is not None else SHIFT_EXTENT)),
+            spot_extent=float(raw.get("spot_extent", spot_extent if spot_extent is not None else SPOT_EXTENT)),
+            multi_spot=bool(raw.get("multi_spot", multi_spot if multi_spot is not None else MULTI_SPOT)),
+            fully_inside=bool(raw.get("fully_inside", fully_inside if fully_inside is not None else FULLY_INSIDE)),
+            pulse_ms=raw.get("pulse_ms"),
+            cost_interval_ms=raw.get("cost_interval_ms"),
+        )
     elif target_name == "moving_bar_bright":
+        raw = dict(opts or {})
         out = make_moving_bar_stimulus_opts(
             "bright",
             mode=build_mode,
-            **{
-                k: v for k, v in (opts or {}).items()
-                if k in ("i_baseline", "i_bright_bar", "readout_subtypes", "multi_bar",
-                         "pre_ms", "delta_ms")
-            },
+            i_baseline=float(raw.get("i_baseline", I_BASELINE)),
+            i_bar=float(raw.get("i_bright_bar", I_BRIGHT)),
+            pre_ms=float(raw.get("pre_ms", PRE_MS)),
+            delta_ms=float(raw.get("delta_ms", DELTA_MS)),
+            multi_bar=bool(raw.get("multi_bar", MULTI_BAR)),
+            readout_subtypes=raw.get("readout_subtypes"),
         )
     elif target_name == "moving_bar_dark":
+        raw = dict(opts or {})
         out = make_moving_bar_stimulus_opts(
             "dark",
             mode=build_mode,
-            **{
-                k: v for k, v in (opts or {}).items()
-                if k in ("i_baseline", "i_dark_bar", "readout_subtypes", "multi_bar",
-                         "pre_ms", "delta_ms")
-            },
+            i_baseline=float(raw.get("i_baseline", I_BASELINE)),
+            i_bar=float(raw.get("i_dark_bar", I_DARK)),
+            pre_ms=float(raw.get("pre_ms", PRE_MS)),
+            delta_ms=float(raw.get("delta_ms", DELTA_MS)),
+            multi_bar=bool(raw.get("multi_bar", MULTI_BAR)),
+            readout_subtypes=raw.get("readout_subtypes"),
         )
     else:
         out = dict(opts or {})
@@ -754,8 +818,8 @@ def make_train_opts(
     cost_extent_by_target=None,
     shift_extent=None,
     spot_extent=None,
-    multi_spot=True,
-    fully_inside=True,
+    multi_spot=MULTI_SPOT,
+    fully_inside=FULLY_INSIDE,
     spot_cost_radius_weight=None,
     i_cli=None,
     moving_bar_bright_stimulus_opts=None,
@@ -765,23 +829,30 @@ def make_train_opts(
     network_json=None,
     network=None,
     param_partitions=None,
-    syn_mode=SYN_MODE_DEFAULT,
+    syn_mode=SYN_MODE,
     dev=None,
     packs=None,
-    ih_off=IH_OFF_DEFAULT,
-    fp32=False,
+    ih_off=IH_OFF,
+    fp=FP,
+    pre_grad=PRE_GRAD,
+    physics=None,
 ):
     """Canonical training opts for :func:`open_session` (network backend)."""
     if backend != "network":
         raise ValueError(f"backend must be 'network', got {backend!r}")
     if network is None and network_json is None:
         raise ValueError("make_train_opts requires network or network_json")
+    if physics is None:
+        physics = PHYSICS
+    fp = int(fp)
+    if fp not in (16, 32, 64):
+        raise ValueError(f"fp must be 16, 32, or 64; got {fp!r}")
     tl = normalize_target_list(target_list)
     mode = "network"
     if spot_extent is None:
-        spot_extent = DEFAULT_SPOT_EXTENT
+        spot_extent = SPOT_EXTENT
     if shift_extent is None:
-        shift_extent = DEFAULT_SHIFT_EXTENT
+        shift_extent = SHIFT_EXTENT
     raw_by_name = {
         "spot_bright": spot_bright_stimulus_opts,
         "spot_dark": spot_dark_stimulus_opts,
@@ -824,12 +895,13 @@ def make_train_opts(
         opts["param_partitions"] = param_partitions
     opts["ih_off"] = str(ih_off)
     opts["syn_mode"] = normalize_syn_mode(syn_mode)
-    if fp32:
-        opts["fp32"] = True
+    opts["pre_grad"] = bool(pre_grad)
+    opts["fp"] = fp
     opts.update({
         "network": network,
         "network_json": str(network_json) if network_json is not None else None,
         "dev": dev,
+        "physics": physics,
     })
     return opts
 
@@ -889,19 +961,26 @@ def _train_opts_for_sidecar(
         record["param_partitions"] = opts["param_partitions"]
     if "ih_off" in opts:
         record["ih_off"] = str(opts["ih_off"])
-    record["syn_mode"] = normalize_syn_mode(opts.get("syn_mode", SYN_MODE_DEFAULT))
-    if opts.get("fp32"):
-        record["fp32"] = True
+    record["syn_mode"] = normalize_syn_mode(opts.get("syn_mode", SYN_MODE))
+    record["pre_grad"] = bool(opts.get("pre_grad", True))
+    record["fp"] = int(opts.get("fp", FP))
     return record
 
 
-def _schema_from_opts(model, model_backend, schema, train_opts_record):
+def _schema_from_opts(model, model_backend, schema, train_opts_record, *, ih_off=None):
     if schema is not None:
         return list(schema)
-    syn_mode = SYN_MODE_DEFAULT
+    syn_mode = SYN_MODE
     if train_opts_record:
-        syn_mode = normalize_syn_mode(train_opts_record.get("syn_mode", SYN_MODE_DEFAULT))
-    base = default_schema(model, model_backend, syn_mode=syn_mode)
+        syn_mode = normalize_syn_mode(train_opts_record.get("syn_mode", SYN_MODE))
+    kw = dict(
+        syn_mode=syn_mode,
+        param_boxes=PARAM_BOXES,
+        ih_gmax_indi_names=IH_GMAX_INDI_NAMES,
+    )
+    if model == "borst":
+        kw["ih_off"] = str(ih_off if ih_off is not None else IH_OFF)
+    base = default_schema(model, model_backend, **kw)
     if not train_opts_record:
         return base
     parts = train_opts_record.get("param_partitions")
@@ -918,28 +997,28 @@ def _make_session(
     target_list: List[str],
     packs: Dict[str, TargetPack],
     *,
+    physics,
     cost_weights=None,
     sequential=None,
     dev=None,
     train_opts_record=None,
     schema: Optional[list] = None,
-    sim_dtype=SIM_DTYPE_DEFAULT,
+    sim_dtype=SIM_DTYPE,
 ) -> TrainSession:
     dev_ref = dev or active_device()
     seq = False if sequential is None else bool(sequential)
     if train_opts_record is not None:
         train_opts_record["model"] = model
         train_opts_record["sequential"] = bool(seq)
-    ih_off = IH_OFF_DEFAULT
+    ih_off = IH_OFF
     if train_opts_record is not None and "ih_off" in train_opts_record:
         ih_off = str(train_opts_record["ih_off"])
-    if model == 'borst':
-        base = _schema_from_opts(model, model_backend, schema, train_opts_record)
-        sch = borst_schema(model_backend, base, ih_off)
-    elif schema is not None:
+    if schema is not None:
         sch = list(schema)
     else:
-        sch = _schema_from_opts(model, model_backend, None, train_opts_record)
+        sch = _schema_from_opts(
+            model, model_backend, None, train_opts_record, ih_off=ih_off,
+        )
     if train_opts_record is not None:
         train_opts_record["param_partitions"] = schema_partitions_record(
             sch, lambda seg: unit_names_for_segment(seg, model_backend),
@@ -954,12 +1033,13 @@ def _make_session(
         cost_weights=expand_cost_weight_dict(cost_weights),
         sequential=bool(seq),
         device=dev_ref,
+        physics=physics,
         sim_dtype=sim_dtype,
         train_opts=train_opts_record,
     )
     cost_subpacks = _build_cost_subpacks(session)
-    fused_borst = _build_fused_borst(session, cost_subpacks)
-    return replace(session, cost_subpacks=cost_subpacks, fused_borst=fused_borst)
+    fused_forward = _build_fused_forward(session, cost_subpacks)
+    return replace(session, cost_subpacks=cost_subpacks, fused_forward=fused_forward)
 
 
 def open_session(
@@ -978,21 +1058,24 @@ def open_session(
     if bad:
         raise ValueError(f"unknown target(s) {bad!r} (expected {'|'.join(CLI_TARGET_NAMES)})")
     dev = opts.get("dev") or active_device()
-    sim_dtype = sim_dtype_from_fp32(bool(opts.get("fp32", False)))
+    sim_dtype = sim_dtype_from_fp(int(opts.get("fp", FP)))
+    physics = opts.get("physics") or PHYSICS
 
     C = opts.get("network")
-    syn_mode = normalize_syn_mode(opts.get("syn_mode", SYN_MODE_DEFAULT))
+    syn_mode = normalize_syn_mode(opts.get("syn_mode", SYN_MODE))
     if C is None:
         nj = opts.get("network_json")
         if not nj:
             raise ValueError("open_session(network) requires opts['network'] or network_json")
         C = load_network(
             nj, device=dev,
-            exc_synweight=exc_synweight, inh_synweight=inh_synweight,
+            exc_synweight=physics.exc_synweight, inh_synweight=physics.inh_synweight,
             dtype=sim_dtype, syn_mode=syn_mode,
         )
     if model_backend is None:
-        model_backend = _network_backend_from_connectome(C, sim_dtype=sim_dtype)
+        model_backend = _network_backend_from_connectome(
+            C, physics=physics, sim_dtype=sim_dtype,
+        )
     elif model_backend.network is not C:
         raise ValueError("model_backend.network must be opts['network']")
     ctx = _TrainBindCtx(
@@ -1029,6 +1112,7 @@ def open_session(
     )
     return _make_session(
         model_backend, model, target_list, packs,
+        physics=physics,
         cost_weights=opts.get("cost_weights"),
         sequential=opts.get("sequential"),
         dev=dev,
@@ -1054,11 +1138,13 @@ def open_session_from_opts(opts: dict, model: str | None = None, **kwargs) -> Tr
         raise ValueError("train_opts requires network_json")
     if not opts.get("target_list"):
         raise ValueError("train_opts requires target_list")
-    sim_dtype = sim_dtype_from_fp32(bool(opts.get("fp32", False)))
-    syn_mode = normalize_syn_mode(opts.get("syn_mode", SYN_MODE_DEFAULT))
+    sim_dtype = sim_dtype_from_fp(int(opts.get("fp", FP)))
+    syn_mode = normalize_syn_mode(opts.get("syn_mode", SYN_MODE))
+    physics = opts.get("physics") or PHYSICS
+    opts["physics"] = physics
     mb = load_network_backend(
         nj, dev=opts.get("dev") or active_device(), sim_dtype=sim_dtype,
-        syn_mode=syn_mode,
+        syn_mode=syn_mode, physics=physics,
     )
     opts["network"] = mb.network
     opts["syn_mode"] = syn_mode

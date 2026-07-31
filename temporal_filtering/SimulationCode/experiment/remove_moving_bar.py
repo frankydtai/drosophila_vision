@@ -8,6 +8,14 @@ sys.path.insert(0, ROOT)
 os.chdir(ROOT)
 
 import import_bootstrap  # noqa: F401
+from training.defaults import (
+    MULTI_BAR,
+    DELTA_MS,
+    I_BASELINE,
+    I_BRIGHT,
+    I_DARK,
+    PRE_MS,
+)
 import training as fc
 import training.driver as train
 from run import run_training_and_plot
@@ -52,11 +60,21 @@ moving_bar_dark_stimulus_opts = None
 if 'moving_bar_bright' in bar_targets:
     moving_bar_bright_stimulus_opts = fc.make_moving_bar_stimulus_opts(
         "bright",
+        i_baseline=I_BASELINE,
+        i_bar=I_BRIGHT,
+        pre_ms=PRE_MS,
+        delta_ms=DELTA_MS,
+        multi_bar=MULTI_BAR,
         readout_subtypes=readout_subtypes,
     )
 if 'moving_bar_dark' in bar_targets:
     moving_bar_dark_stimulus_opts = fc.make_moving_bar_stimulus_opts(
         "dark",
+        i_baseline=I_BASELINE,
+        i_bar=I_DARK,
+        pre_ms=PRE_MS,
+        delta_ms=DELTA_MS,
+        multi_bar=MULTI_BAR,
         readout_subtypes=readout_subtypes,
     )
 

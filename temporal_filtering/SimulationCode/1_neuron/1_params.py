@@ -1,119 +1,53 @@
 # -*- coding: utf-8 -*-
-"""Shared neuron-model constants and trainable parameter numeric defaults.
+"""Neuron physics *types* and formulas — no numeric bindings.
 
-Biophysics / clock constants (used by borst and hp_lp) live here so
-network / stimulus / training import them from ``neuron.params`` without
-a top-level config bag.
-
-Schema segment *structure* (name, kind, count, indi/shared/fixed partitions)
-stays in ``neuron.schema``; this module is the single place to edit box
-bounds, initialisation numbers, and default partition tokens.
-
-``fixed_val`` is used for units in the fixed partition when present (else ``init``).
-
-Optional ``scale`` (default ``linear``): ``log`` stores ``z = log(physical)`` in the
-optimizer; ``inv`` stores ``z = 1/physical``. In both cases
-``lo``/``hi``/``init``/``fixed_val``/``carry`` remain physical units.
-``jit`` for ``scale='log'`` is in natural-log units; for ``scale='inv'`` it is in
-1/physical units.
+Numeric values are assembled by the caller (``training.defaults``) into
+:class:`Physics` and passed into dynamics. Schema box numbers live in
+``training.defaults.PARAM_BOXES``.
 """
 from __future__ import annotations
 
+from dataclasses import dataclass
 from typing import Tuple
 
-# Simulation sampling interval (ms per discrete time index ``t``).
-DELTA_MS = 10.0
+
+@dataclass(frozen=True)
+class Physics:
+    """Membrane / synapse / Ih / Ca constants for one run (all fields required)."""
+
+    delta_ms: float
+    capac: float
+    g_leak: float
+    E_exc: float
+    E_inh: float
+    E_Ih: float
+    E_LEAK_REST: float
+    E_LEAK_DEPOL: float
+    Ih_gain: float
+    Ca_tau: float
+    DATA_AMP: float
+    STATE_CLAMP: float
+    exc_synweight: float
+    inh_synweight: float
+
+    @property
+    def cdt(self) -> float:
+        """``capac / delta_ms``."""
+        return self.capac / self.delta_ms
+
+    @property
+    def E_IH_OFF(self) -> float:
+        """OFF-channel reversal ``2 * E_LEAK_REST - E_Ih``."""
+        return 2.0 * self.E_LEAK_REST - self.E_Ih
 
 
-def ms_to_t(ms: float, *, delta_ms: float = DELTA_MS) -> int:
+def ms_to_t(ms: float, *, delta_ms: float) -> int:
     """Convert milliseconds to time index count ``t`` (rounded)."""
     return int(round(float(ms) / float(delta_ms)))
 
 
-# simulation ``delta_ms`` (overwrite via :func:`set_delta_ms`)
-delta_ms = DELTA_MS  # [ms]
-
-# borst membrane
-g_leak = 1.0  # nS
-E_exc = +10.0  # mV
-E_inh = -70.0  # mV
-capac = +40.0  # pF → 50 ms τ_m when g_leak = 1 nS
-cdt = capac / delta_ms
-
-Ca_tau = 50.0  # ms Ca readout
-DATA_AMP = 20.0  # pA scale on ImpR target traces (fit cells)
-
-
-def set_delta_ms(ms: float) -> None:
-    """Overwrite ``delta_ms`` (ms) and recompute ``cdt = capac / delta_ms``.
-
-    ``model_borst`` / ``model_hp_lp`` / ``filter_ca`` read ``neuron.params.delta_ms``
-    (and ``cdt``) at call time.
-    """
-    global delta_ms, cdt
-    ms = float(ms)
-    if ms <= 0:
-        raise ValueError(f"delta_ms must be > 0, got {ms}")
-    delta_ms = ms
-    cdt = capac / delta_ms
-
-E_LEAK_REST = -50.0
-E_LEAK_DEPOL = -20.0
-LEAK_DEPOL_TYPES = ['L1', 'L2', 'L3']  # [] -> all E_LEAK_REST
-
-exc_synweight = 0.001
-inh_synweight = 0.001
-# Fixed edge scales passed to ScatterConn as exc_scale / inh_scale (not trainable).
-# Trainable synaptic α lives in P["syn_strength"] / P["edge_weight"] (schema +
-# ScatterConn._edge_alpha); SYN_MODES / synaptic_scale live in neuron.schema.
-
-# Ih
-E_Ih = +50.0  # mV, ON-channel reversal
-E_IH_OFF = -150.0  # OFF-channel reversal (2*E_LEAK_REST - E_Ih)
-Ih_gain = 1.0
-
+# Non-numeric vocabularies (names / modes), not run defaults.
 IH_OFF_MODES = ("on", "off", "mirrored")
-IH_OFF_DEFAULT = "on"
-IH_OFF_SCALAR_SEGMENTS = frozenset({"Ih_midv_off", "Ih_slope_off", "tau_midv_off"})
-IH_OFF_GMAX_SEGMENT = "Ih_gmax_off"
 IH_DIR_REVERSE_CELLS: Tuple[int, ...] = ()
-
-# hp_lp / explicit-Euler state clamp
-STATE_CLAMP = 1.0e6
-
-# registered model names
+LEAK_DEPOL_TYPES = ["L1", "L2", "L3"]
 KNOWN_MODELS = ("borst", "hp_lp")
-
-# Shared gain box (in_gain / out_gain / out_scale upper end; syn_strength hi).
-GAIN_LO = 0.1
-GAIN_HI = 100.0
-
-# Lamina types with trainable Ih_gmax / Ih_gmax_off / hp_gain (L3 fixed).
-DEFAULT_IH_GMAX_INDI_NAMES = ('L1', 'L2', 'L4', 'L5')
-
-P = {
-    # --- borst + hp_lp shared gains / readout ---
-    "in_gain": dict(lo=GAIN_LO, hi=GAIN_HI, init=1, jit=0.2),
-    "out_gain": dict(lo=GAIN_LO, hi=GAIN_HI, init=1, jit=0.2),
-    "out_scale": dict(lo=GAIN_LO, hi=GAIN_HI, init=1, jit=0.1),
-    # --- borst type→type α (network ScatterConn; --syn-mode type_pair) ---
-    "syn_strength": dict(lo=GAIN_LO, hi=GAIN_HI, init=1.0, jit=0.1),
-    # --- per-edge magnitude (--syn-mode per_edge; sign fixed in base_w) ---
-    "edge_weight": dict(lo=GAIN_LO, hi=GAIN_HI, init=1.0, jit=0.1),
-    # --- borst release threshold (mV); below → no transmission ---
-    "v_th": dict(lo=-70.0, hi=-30.0, init=-50.0, jit=0.0, fixed_val=-50.0),
-    # --- borst Ih ---
-    "Ih_gmax": dict(lo=0.0, hi=100.0, init=50.0, jit=10.0, fixed_val=0.0),
-    "Ih_gmax_off": dict(lo=0.0, hi=100.0, init=50.0, jit=10.0, fixed_val=0.0),
-    "Ih_midv": dict(lo=-70.0, hi=-30.0, init=-50.0, jit=5.0),
-    "Ih_slope": dict(lo=-0.40, hi=-0.20, init=-0.25, jit=0.02),
-    "tau_midv": dict(lo=-70.0, hi=-40.0, init=-50.0, jit=5.0),
-    "Ih_midv_off": dict(lo=-70.0, hi=-30.0, init=-50.0, jit=5.0),
-    "Ih_slope_off": dict(lo=-0.40, hi=-0.20, init=-0.25, jit=0.02),
-    "tau_midv_off": dict(lo=-70.0, hi=-40.0, init=-50.0, jit=5.0),
-    # --- hp_lp ---
-    "tau_lp": dict(lo=DELTA_MS, hi=100.0, init=50.0, jit=10.0),
-    "bias": dict(lo=-20.0, hi=20.0, init=0.0, jit=0.1),
-    "tau_hp": dict(lo=100.0, hi=10000.0, init=200.0, jit=0.0001, fixed_val=10000.0),
-    "hp_gain": dict(lo=0.0, hi=5.0, init=1.0, jit=0.1, fixed_val=1.0),
-}

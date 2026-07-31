@@ -2,19 +2,18 @@
 """Spot paradigm DATA: RecF x ImpR target traces and cost-ring layout.
 
 Merges the old ``Medulla_Library`` RecF/ImpR reader (with its internal
-bandpass/lowpass ImpR shaping -- a target-only signal path, NOT the Ca filter)
-and ``network.spot_target`` Section B (target assembly + Euclidean cost rings).
+bandpass/lowpass ImpR shaping -- a target-only signal path, not the unused
+Ca filter in ``neuron.filter_ca``) and ``network.spot_target`` Section B
+(target assembly + Euclidean cost rings).
 
 New features handled here:
 - ``pulse_ms`` (#1): the PR drive comes from
   :func:`task.spot.input.spot_input_waveform`, shared by the network signal
   and the ImpR target.
-- ``readout_kind='v'`` (#2): the ImpR-based Ca-proxy target is inverted with
-  :func:`neuron.filter_ca.ca_to_v_delta` to a ``'v'`` target and power is
-  recomputed on it.
 
-Sparse cost time points (#4) and the ``TargetPack`` wrapping live in the
-``training`` layer, which reads the :class:`ShiftedTarget` returned here.
+ImpR / RecF traces are the ``v`` training target (used as-is). Sparse cost
+time points (#4) and the ``TargetPack`` wrapping live in the ``training``
+layer, which reads the :class:`ShiftedTarget` returned here.
 """
 from __future__ import annotations
 
@@ -28,18 +27,10 @@ import torch
 from network import path  # noqa: F401 -- FAFBv783 on sys.path
 from connectome_io import parse_comma_list
 
-from network.construction import I_BASELINE, I_BRIGHT, I_DARK
-from network.connectivity import SIM_DTYPE_DEFAULT
-from neuron.params import DATA_AMP
 import neuron.params as params
-from neuron.filter_ca import ca_to_v_delta
 from network.construction import col2fit, unit_type_names
 from network.layout import column_in_cost_extent
 from task.spot.input import (
-    DEFAULT_FULLY_INSIDE,
-    DEFAULT_MULTI_SPOT,
-    DEFAULT_SHIFT_EXTENT,
-    DEFAULT_SPOT_EXTENT,
     SpotBatch,
     euclid_hex_dist,
     members_by_euclid_radius,
@@ -63,27 +54,8 @@ _SPOT_STEP_KEY = {"bright": "i_bright", "dark": "i_dark"}
 _RF_CENTER_SAMPLE = 22
 _RF_SAMPLES_PER_COL = 5
 _RF_NSAMPLES = 45
-
-# Euclidean radii recognised by ``--spot-cost-r-w``.
-DEFAULT_SPOT_COST_RADII: Tuple[float, ...] = (0.0, 1.0, math.sqrt(3), 2.0)
-
-DEFAULT_SPOT_COST_RADIUS_WEIGHT: Dict[float, float] = {
-    0.0: 1.0,
-    1.0: 1.0 / 6.0,
-    2.0: 1.0 / 6.0,
-}
-DEFAULT_SPOT_COST_RADIUS_WEIGHT_EXTENT1: Dict[float, float] = {
-    0.0: 1.0,
-    1.0: 1.0 / 6.0,
-}
-SPOT_COST_RADIUS_KEY_ALIASES: Dict[str, float] = {
-    "sqrt3": math.sqrt(3),
-}
-
-
-# -- RecF / ImpR readers (old Medulla_Library) --------------------------------
-# Target-only ImpR shaping helpers (NOT the Ca filter). Inlined from the old
-# blindschleiche_py3 module so spot/data owns this path alone.
+# Target-only ImpR shaping helpers (not the unused Ca filter). Inlined from the
+# old blindschleiche_py3 module so spot/data owns this path alone.
 
 
 def _gauss1d(fwhm, rfsize):
@@ -129,15 +101,15 @@ def normalize_data(x):
     return result
 
 
-def read_RecF_ImpR(*, t_on=None, n_t=None, pulse_ms=None):
+def read_RecF_ImpR(*, t_onset=None, n_t=None, pulse_ms=None, delta_ms: float):
     """Return ``(RecF_data, ImpR_data)`` for the 13 fit cell types.
 
     Shapes: ``RecF_data`` ``(13, 45)``; ``ImpR_data`` ``(13, n_t)``. The
     drive is :func:`task.spot.input.spot_input_waveform` (step or pulse).
     """
-    if t_on is None or n_t is None:
-        raise ValueError("read_RecF_ImpR requires t_on and n_t")
-    t_on = int(t_on)
+    if t_onset is None or n_t is None:
+        raise ValueError("read_RecF_ImpR requires t_onset and n_t")
+    t_onset = int(t_onset)
     n_t = int(n_t)
 
     RF_center_width = np.array([6, 7, 6, 8, 7, 6, 12, 6, 6, 8, 8, 11, 7])
@@ -158,7 +130,7 @@ def read_RecF_ImpR(*, t_on=None, n_t=None, pulse_ms=None):
     IR_hp = np.array([39.1, 28.8, 00.0, 38.1, 12.7, 31.8, 26.0, 0.00, 0.00, 29.6, 15.3, 24.9, 0.00])
     IR_lp = np.array([03.8, 05.8, 05.4, 02.3, 04.2, 05.4, 02.7, 03.8, 07.7, 04.4, 01.4, 02.4, 10.7])
 
-    signal = spot_input_waveform(t_on, n_t, pulse_ms)
+    signal = spot_input_waveform(t_onset, n_t, pulse_ms, delta_ms=delta_ms)
     signal = signal / np.max(signal)
 
     ImpR_data = np.zeros((13, n_t))
@@ -174,9 +146,11 @@ def read_RecF_ImpR(*, t_on=None, n_t=None, pulse_ms=None):
     return RecF_data, ImpR_data
 
 
-def read_RecF_data(*, t_on=None, n_t=None, pulse_ms=None):
+def read_RecF_data(*, t_onset=None, n_t=None, pulse_ms=None, delta_ms: float):
     """Spatial x temporal spot cube ``(13, 9, n_t)``."""
-    RecF_data, ImpR_data = read_RecF_ImpR(t_on=t_on, n_t=n_t, pulse_ms=pulse_ms)
+    RecF_data, ImpR_data = read_RecF_ImpR(
+        t_onset=t_onset, n_t=n_t, pulse_ms=pulse_ms, delta_ms=delta_ms,
+    )
     mt = ImpR_data.shape[1]
     data = np.zeros((13, 9, mt))
     for i in range(13):
@@ -185,20 +159,22 @@ def read_RecF_data(*, t_on=None, n_t=None, pulse_ms=None):
     return data
 
 
-def read_RecF_data_dark(*, t_on=None, n_t=None, pulse_ms=None):
+def read_RecF_data_dark(*, t_onset=None, n_t=None, pulse_ms=None, delta_ms: float):
     """Dark spot spatial x temporal cube: negated bright ``read_RecF_data()``."""
-    return -read_RecF_data(t_on=t_on, n_t=n_t, pulse_ms=pulse_ms)
+    return -read_RecF_data(
+        t_onset=t_onset, n_t=n_t, pulse_ms=pulse_ms, delta_ms=delta_ms,
+    )
 
 
 # -- Cost-radius weights ------------------------------------------------------
 
 
-def normalize_spot_cost_radius_key(key) -> float:
+def normalize_spot_cost_radius_key(key, *, aliases: Dict[str, float]) -> float:
     if isinstance(key, (int, float)):
         return round(float(key), 6)
     text = str(key).strip().lower()
-    if text in SPOT_COST_RADIUS_KEY_ALIASES:
-        return round(SPOT_COST_RADIUS_KEY_ALIASES[text], 6)
+    if text in aliases:
+        return round(float(aliases[text]), 6)
     return round(float(text), 6)
 
 
@@ -210,20 +186,13 @@ def parse_spot_cost_radius_weight_value(text: str) -> float:
     return float(tok)
 
 
-def default_spot_cost_radius_weight(
-    spot_extent: float = DEFAULT_SPOT_EXTENT,
-) -> Dict[float, float]:
-    if spot_extent_folds_r2_into_r1(spot_extent):
-        return dict(DEFAULT_SPOT_COST_RADIUS_WEIGHT_EXTENT1)
-    return dict(DEFAULT_SPOT_COST_RADIUS_WEIGHT)
-
-
 def spot_cost_radius_weight_resolved(
-    spot_cost_radius_weight: Optional[Dict[float, float]] = None,
-    spot_extent: float = DEFAULT_SPOT_EXTENT,
+    spot_cost_radius_weight: Optional[Dict[float, float]],
+    *,
+    default_weights: Dict[float, float],
 ) -> Dict[float, float]:
     if spot_cost_radius_weight is None:
-        return default_spot_cost_radius_weight(spot_extent)
+        return dict(default_weights)
     return spot_cost_radius_weight
 
 
@@ -231,20 +200,36 @@ def expand_spot_cost_r_w_dict(
     kv: Optional[dict] = None,
     *,
     stimulus_opts: Optional[dict] = None,
+    aliases: Dict[str, float],
 ) -> Optional[Dict[float, float]]:
     if stimulus_opts is not None:
         kv = (stimulus_opts or {}).get("spot_cost_radius_weight")
     if not kv:
         return None
     return {
-        normalize_spot_cost_radius_key(k): parse_spot_cost_radius_weight_value(v)
+        normalize_spot_cost_radius_key(k, aliases=aliases): parse_spot_cost_radius_weight_value(v)
         for k, v in kv.items()
     }
 
 
+def default_spot_cost_radius_weight(
+    spot_extent: float,
+    *,
+    weights: Dict[float, float],
+    weights_extent1: Dict[float, float],
+) -> Dict[float, float]:
+    """Cost-ring weights for ``spot_extent`` (extent-1 folds r=2 into r=1)."""
+    if spot_extent_folds_r2_into_r1(spot_extent):
+        return dict(weights_extent1)
+    return dict(weights)
+
+
 def parse_spot_cost_r_w_tokens(
     text: str,
-    spot_extent: float = DEFAULT_SPOT_EXTENT,
+    *,
+    default_weights: Dict[float, float],
+    spot_cost_radii: Tuple[float, ...],
+    aliases: Dict[str, float],
 ) -> Optional[Dict[float, float]]:
     tokens = parse_comma_list(text)
     if not tokens:
@@ -254,33 +239,40 @@ def parse_spot_cost_r_w_tokens(
     for tok in tokens:
         if "=" in tok:
             key, val = tok.split("=", 1)
-            explicit[normalize_spot_cost_radius_key(key)] = (
+            explicit[normalize_spot_cost_radius_key(key, aliases=aliases)] = (
                 parse_spot_cost_radius_weight_value(val)
             )
         else:
-            bare.append(normalize_spot_cost_radius_key(tok))
+            bare.append(normalize_spot_cost_radius_key(tok, aliases=aliases))
     if bare:
-        weights = {round(float(r), 6): 0.0 for r in DEFAULT_SPOT_COST_RADII}
+        weights = {round(float(r), 6): 0.0 for r in spot_cost_radii}
         for r in bare:
             weights[r] = 1.0
     else:
-        weights = default_spot_cost_radius_weight(spot_extent)
+        weights = dict(default_weights)
     weights.update(explicit)
     return weights
 
 
 def resolve_spot_cost_radii(
-    spot_cost_radius_weight: Optional[Dict[float, float]] = None,
+    spot_cost_radius_weight: Optional[Dict[float, float]],
     *,
-    spot_extent: float = DEFAULT_SPOT_EXTENT,
+    default_weights: Dict[float, float],
+    spot_cost_radii: Tuple[float, ...],
     stimulus_opts: Optional[dict] = None,
+    aliases: Optional[Dict[str, float]] = None,
 ) -> Tuple[float, ...]:
     if stimulus_opts is not None:
-        spot_cost_radius_weight = expand_spot_cost_r_w_dict(stimulus_opts=stimulus_opts)
-        spot_extent = float(stimulus_opts.get("spot_extent", spot_extent))
-    weights = spot_cost_radius_weight_resolved(spot_cost_radius_weight, spot_extent)
+        if aliases is None:
+            raise ValueError("resolve_spot_cost_radii with stimulus_opts requires aliases")
+        spot_cost_radius_weight = expand_spot_cost_r_w_dict(
+            stimulus_opts=stimulus_opts, aliases=aliases,
+        )
+    weights = spot_cost_radius_weight_resolved(
+        spot_cost_radius_weight, default_weights=default_weights,
+    )
     return tuple(
-        radius for radius in DEFAULT_SPOT_COST_RADII
+        radius for radius in spot_cost_radii
         if float(weights.get(round(radius, 6), 0.0)) != 0.0
     )
 
@@ -288,9 +280,12 @@ def resolve_spot_cost_radii(
 def spot_cost_cell_weight(
     radius: float,
     spot_cost_radius_weight: Optional[Dict[float, float]],
-    spot_extent: float = DEFAULT_SPOT_EXTENT,
+    *,
+    default_weights: Dict[float, float],
 ) -> float:
-    weights = spot_cost_radius_weight_resolved(spot_cost_radius_weight, spot_extent)
+    weights = spot_cost_radius_weight_resolved(
+        spot_cost_radius_weight, default_weights=default_weights,
+    )
     return float(weights.get(round(radius, 6), 0.0))
 
 
@@ -456,38 +451,42 @@ class ShiftedTarget:
 
 def build_shifted_target(
     C,
-    spot_extent: float = DEFAULT_SPOT_EXTENT,
-    multi_spot: bool = DEFAULT_MULTI_SPOT,
-    fully_inside: bool = DEFAULT_FULLY_INSIDE,
-    shift_extent: int = DEFAULT_SHIFT_EXTENT,
-    n_t: int = None,
-    t_on: int = None,
-    i_baseline: float = I_BASELINE,
-    i_bright: float = I_BRIGHT,
-    i_dark: float = I_DARK,
-    polarity: str = "bright",
-    data_amp: float = DATA_AMP,
+    *,
+    spot_extent: float,
+    multi_spot: bool,
+    fully_inside: bool,
+    shift_extent: int,
+    n_t: int,
+    t_onset: int,
+    i_baseline: float,
+    i_bright: float,
+    i_dark: float,
+    polarity: str,
+    data_amp: float,
+    delta_ms: float,
+    default_cost_weights: Dict[float, float],
+    spot_cost_radii: Tuple[float, ...],
     device: Optional[str] = None,
     cost_extent: Optional[int] = None,
     spot_cost_radius_weight: Optional[Dict[float, float]] = None,
-    sim_dtype: torch.dtype = SIM_DTYPE_DEFAULT,
+    sim_dtype: torch.dtype,
     pulse_ms: Optional[float] = None,
-    readout_kind: str = "ca",
 ) -> ShiftedTarget:
-    if t_on is None or n_t is None:
-        raise ValueError("build_shifted_target requires t_on and n_t")
     if polarity not in ("bright", "dark"):
         raise ValueError(f"polarity must be 'bright' or 'dark', got {polarity!r}")
-    if readout_kind not in ("ca", "v"):
-        raise ValueError(f"readout_kind must be 'ca' or 'v', got {readout_kind!r}")
     i_step = float(i_bright if polarity == "bright" else i_dark)
     device = device or C.device
-    recf_data, impr_data = read_RecF_ImpR(t_on=t_on, n_t=n_t, pulse_ms=pulse_ms)
+    recf_data, impr_data = read_RecF_ImpR(
+        t_onset=t_onset, n_t=n_t, pulse_ms=pulse_ms, delta_ms=delta_ms,
+    )
     fit_row = {str(ft): i for i, ft in enumerate(cell_list)}
 
     spot = spot_from_opts(
-        C, spot_extent, shift_extent,
-        multi_spot=multi_spot, fully_inside=fully_inside,
+        C,
+        spot_extent=spot_extent,
+        shift_extent=shift_extent,
+        multi_spot=multi_spot,
+        fully_inside=fully_inside,
     )
     names = unit_type_names(C)
     present_fit = [str(ft) for ft in cell_list if str(ft) in set(names.tolist())]
@@ -496,7 +495,7 @@ def build_shifted_target(
     n_batch = len(batches)
 
     # Single PR waveform source (step or pulse) shared with the ImpR target.
-    u = spot_input_waveform(t_on, n_t, pulse_ms)
+    u = spot_input_waveform(t_onset, n_t, pulse_ms, delta_ms=delta_ms)
     drive = torch.as_tensor(
         i_baseline + (i_step - i_baseline) * u, dtype=sim_dtype, device=device,
     )
@@ -508,16 +507,22 @@ def build_shifted_target(
                 idx = torch.as_tensor(units, dtype=torch.long, device=device)
                 signal[b, :, idx] = drive[:, None]
 
-    resp = slice(t_on, n_t)  # post-onset cost window
+    resp = slice(t_onset, n_t)  # post-onset cost window
 
-    cost_radii = resolve_spot_cost_radii(spot_cost_radius_weight, spot_extent=spot_extent)
+    cost_radii = resolve_spot_cost_radii(
+        spot_cost_radius_weight,
+        default_weights=default_cost_weights,
+        spot_cost_radii=spot_cost_radii,
+    )
     cost_cols = spot_cost_columns(batches, cost_radii, cost_extent)
 
     cost_batch, cost_unit, cost_radius_list, cost_target, cost_weight_list = [], [], [], [], []
     cost_stim_u, cost_stim_v = [], []
     trace_cache: Dict[Tuple[int, int, int, int], np.ndarray] = {}
     for b, mu, mv, radius, su, sv in cost_cols:
-        w = spot_cost_cell_weight(radius, spot_cost_radius_weight, spot_extent)
+        w = spot_cost_cell_weight(
+            radius, spot_cost_radius_weight, default_weights=default_cost_weights,
+        )
         if w == 0.0:
             continue
         stim_uv = batches[b].stim_uv
@@ -560,11 +565,6 @@ def build_shifted_target(
     readout_stim_u = torch.tensor(np.asarray(cost_stim_u), dtype=torch.long, device=device)
     readout_stim_v = torch.tensor(np.asarray(cost_stim_v), dtype=torch.long, device=device)
 
-    # #2 V training: the ImpR target is a Ca-proxy; invert to ``'v'`` so it can
-    # be compared to the model's v_delta readout. Post-onset slice -> t_on=0.
-    if readout_kind == "v":
-        data = ca_to_v_delta(data, t_on=0)
-
     power = torch.sum(cost_weight[:, None] * data ** 2)
     if float(power) == 0.0:
         power = torch.tensor(1.0, dtype=sim_dtype, device=device)
@@ -587,8 +587,7 @@ def build_shifted_target(
         "i_dark": float(i_dark),
         "polarity": str(polarity),
         "pulse_ms": None if pulse_ms is None else float(pulse_ms),
-        "readout_kind": str(readout_kind),
-        "t_on": int(t_on),
+        "t_onset": int(t_onset),
         "n_t": int(n_t),
         "mode": "network",
     }
@@ -610,48 +609,37 @@ def build_shifted_target(
 def make_spot_stimulus_opts(
     polarity: str,
     *,
-    i_baseline=None,
-    i_step=None,
+    i_baseline: float,
+    i_step: float,
+    pre_ms: float,
+    response_ms: float,
+    delta_ms: float,
+    shift_extent: int,
+    spot_extent: float,
+    multi_spot: bool,
+    fully_inside: bool,
     mode="network",
-    shift_extent=None,
-    spot_extent=None,
-    **extra,
+    pulse_ms=None,
+    cost_interval_ms=None,
 ):
     """PR step/pulse stimulus opts for ``spot_{polarity}``."""
     if polarity not in SPOT_POLARITIES:
         raise ValueError(f"spot polarity must be 'bright' or 'dark', got {polarity!r}")
-    if shift_extent is None:
-        shift_extent = extra.get("shift_extent", DEFAULT_SHIFT_EXTENT)
     step_key = _SPOT_STEP_KEY[polarity]
-    if i_step is None:
-        i_step = extra.get(step_key)
-    step_default = I_BRIGHT if polarity == "bright" else I_DARK
-    if spot_extent is None:
-        spot_extent = extra.get("spot_extent", DEFAULT_SPOT_EXTENT)
-    _pre_ms = extra.get("pre_ms")
-    _response_ms = extra.get("response_ms")
-    if _pre_ms is None or _response_ms is None:
-        raise ValueError(
-            "make_spot_stimulus_opts requires pre_ms and response_ms "
-            "(pass via CLI --pre-ms / --response-ms)"
-        )
     opts = {
         "mode": mode,
-        "i_baseline": float(I_BASELINE if i_baseline is None else i_baseline),
-        step_key: float(step_default if i_step is None else i_step),
-        "pre_ms": float(_pre_ms),
-        "response_ms": float(_response_ms),
-        "delta_ms": float(params.delta_ms),
+        "i_baseline": float(i_baseline),
+        step_key: float(i_step),
+        "pre_ms": float(pre_ms),
+        "response_ms": float(response_ms),
+        "delta_ms": float(delta_ms),
         "shift_extent": int(shift_extent),
         "spot_extent": float(spot_extent),
-        "multi_spot": bool(extra.get("multi_spot", DEFAULT_MULTI_SPOT)),
-        "fully_inside": bool(extra.get("fully_inside", DEFAULT_FULLY_INSIDE)),
+        "multi_spot": bool(multi_spot),
+        "fully_inside": bool(fully_inside),
     }
-    # #1 pulse duration, #4 sparse cost time points, #2 readout kind.
-    if extra.get("pulse_ms") is not None:
-        opts["pulse_ms"] = float(extra["pulse_ms"])
-    if extra.get("cost_interval_ms") is not None:
-        opts["cost_interval_ms"] = float(extra["cost_interval_ms"])
-    if extra.get("filter"):
-        opts["filter"] = str(extra["filter"])
+    if pulse_ms is not None:
+        opts["pulse_ms"] = float(pulse_ms)
+    if cost_interval_ms is not None:
+        opts["cost_interval_ms"] = float(cost_interval_ms)
     return opts

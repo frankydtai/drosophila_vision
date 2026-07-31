@@ -2,56 +2,35 @@
 """Neuron models: ``--model borst``, hp_lp.
 
 Dynamics live in ``neuron.model_borst`` / ``neuron.model_hp_lp``.
-Shared full-T Ca forward is ``neuron.forward``; the Ca readout filter and
-its inverse live in ``neuron.filter_ca``; pack readout selection in
+Shared full-T ``v`` forward is ``neuron.forward``; the unused Ca filter
+lives in ``neuron.filter_ca``; pack readout selection in
 ``neuron.readout``. The ``training`` package owns session, cost, and the
-CLI driver.
+CLI driver. Numeric defaults live in ``training.defaults``.
 """
 from __future__ import annotations
 
 from neuron.params import (
     IH_DIR_REVERSE_CELLS,
-    IH_OFF_DEFAULT,
-    IH_OFF_GMAX_SEGMENT,
     IH_OFF_MODES,
-    IH_OFF_SCALAR_SEGMENTS,
     KNOWN_MODELS,
     LEAK_DEPOL_TYPES,
-    STATE_CLAMP,
-    Ca_tau,
-    DATA_AMP,
-    E_IH_OFF,
-    E_Ih,
-    E_LEAK_DEPOL,
-    E_LEAK_REST,
-    E_exc,
-    E_inh,
-    Ih_gain,
-    capac,
-    cdt,
-    delta_ms,
-    exc_synweight,
-    g_leak,
-    inh_synweight,
-    set_delta_ms,
+    Physics,
+    ms_to_t,
 )
 from neuron.schema import (
     ALL_PARAM_NAMES,
     IH_SHAPE_PARAM_NAMES,
-    SYN_MODE_DEFAULT,
     SYN_MODES,
-    apply_ih_off_mode,
     build_borst_schema,
     build_hp_lp_schema,
     borst_ih_off_kwargs,
-    borst_schema,
     default_schema,
     normalize_syn_mode,
     synaptic_scale,
 )
 from neuron import model_borst as _model_borst
 from neuron import model_hp_lp as _model_hp_lp
-from neuron.filter_ca import ca_alpha, ca_readout_step, ca_to_v_delta
+from neuron.filter_ca import ca_alpha, ca_filter
 from neuron.forward import (
     MODEL_DRIVERS,
     run_full,
@@ -78,14 +57,13 @@ __all__ = [
     "ALL_PARAM_NAMES",
     "IH_SHAPE_PARAM_NAMES",
     "SYN_MODES",
-    "SYN_MODE_DEFAULT",
     "MODEL_DRIVERS",
     "CA_PACK_READOUTS",
+    "Physics",
+    "ms_to_t",
     "default_schema",
     "build_borst_schema",
     "build_hp_lp_schema",
-    "borst_schema",
-    "apply_ih_off_mode",
     "borst_ih_off_kwargs",
     "normalize_syn_mode",
     "synaptic_scale",
@@ -93,35 +71,14 @@ __all__ = [
     "update_v",
     "v_budget_from_g",
     "update_state_hp_lp",
-    "ca_readout_step",
-    "ca_to_v_delta",
+    "ca_filter",
     "ca_alpha",
     "run_full",
     "run_units",
     "pack_readout",
     "readout_pack_traces",
     "window_time_traces",
-    "STATE_CLAMP",
-    "delta_ms",
-    "set_delta_ms",
-    "Ca_tau",
-    "g_leak",
-    "cdt",
-    "E_exc",
-    "E_inh",
-    "E_Ih",
-    "E_IH_OFF",
-    "E_LEAK_REST",
-    "E_LEAK_DEPOL",
     "LEAK_DEPOL_TYPES",
-    "DATA_AMP",
-    "Ih_gain",
-    "capac",
-    "exc_synweight",
-    "inh_synweight",
     "IH_OFF_MODES",
-    "IH_OFF_DEFAULT",
-    "IH_OFF_SCALAR_SEGMENTS",
-    "IH_OFF_GMAX_SEGMENT",
     "IH_DIR_REVERSE_CELLS",
 ]

@@ -1,26 +1,24 @@
 # -*- coding: utf-8 -*-
-"""Parameter schemas for borst / hp_lp neuron models."""
+"""Parameter schemas for borst / hp_lp neuron models.
+
+Numeric lo/hi/init live in ``training.defaults.PARAM_BOXES`` and are passed
+in as ``param_boxes``. This module only builds structure + partitions.
+"""
 from __future__ import annotations
 
 from neuron.params import (
-    DEFAULT_IH_GMAX_INDI_NAMES,
-    P as PARAM_DEFAULTS,
-    IH_OFF_DEFAULT,
-    IH_OFF_GMAX_SEGMENT,
     IH_OFF_MODES,
-    IH_OFF_SCALAR_SEGMENTS,
     KNOWN_MODELS,
 )
 
 SYN_MODES = ("type_pair", "per_edge")
-SYN_MODE_DEFAULT = "type_pair"
 
 ALL_PARAM_NAMES = (
     "in_gain", "out_gain", "out_scale", "syn_strength", "edge_weight", "v_th",
     "Ih_gmax", "Ih_gmax_off",
     "Ih_midv", "Ih_slope", "tau_midv",
     "Ih_midv_off", "Ih_slope_off", "tau_midv_off",
-    "tau_lp", "bias", "tau_hp", "hp_gain",
+    "tau_lp", "v_rest", "tau_hp", "hp_gain",
 )
 IH_SHAPE_PARAM_NAMES = (
     "Ih_midv", "Ih_slope", "tau_midv",
@@ -28,7 +26,7 @@ IH_SHAPE_PARAM_NAMES = (
 )
 
 
-def normalize_syn_mode(syn_mode=SYN_MODE_DEFAULT) -> str:
+def normalize_syn_mode(syn_mode: str) -> str:
     mode = str(syn_mode)
     if mode not in SYN_MODES:
         raise ValueError(f"syn_mode {mode!r} not in {SYN_MODES}")
@@ -67,24 +65,7 @@ def _with_part(seg, part):
     return s
 
 
-def apply_ih_off_mode(schema, mode=IH_OFF_DEFAULT):
-    """Adjust borst Ih schema for ON/OFF coupling (``on|off|mirrored``)."""
-    if mode not in IH_OFF_MODES:
-        raise ValueError(f"ih_off {mode!r} not in {IH_OFF_MODES}")
-    out = []
-    for seg in schema:
-        s = dict(seg)
-        name = s["name"]
-        if mode == "on":
-            out.append(s)
-            continue
-        if name in IH_OFF_SCALAR_SEGMENTS or name == IH_OFF_GMAX_SEGMENT:
-            continue
-        out.append(s)
-    return out
-
-
-def borst_ih_off_kwargs(p, ih_off=IH_OFF_DEFAULT):
+def borst_ih_off_kwargs(p, ih_off: str):
     """Resolve OFF-channel Ih kwargs for ``update_v`` from assigned params."""
     midv_off = p["Ih_midv"] if ih_off != "on" else p["Ih_midv_off"]
     slope_off = p["Ih_slope"] if ih_off != "on" else p["Ih_slope_off"]
@@ -100,9 +81,9 @@ def borst_ih_off_kwargs(p, ih_off=IH_OFF_DEFAULT):
     return gmax_off, midv_off, slope_off, tau_off
 
 
-def _syn_segment(syn_mode, n_pairs, n_edges):
+def _syn_segment(syn_mode, n_pairs, n_edges, param_boxes):
     """One synaptic segment: type-pair α or per-edge magnitude."""
-    D = PARAM_DEFAULTS
+    D = param_boxes
     mode = normalize_syn_mode(syn_mode)
     if mode == "per_edge":
         if n_edges is None:
@@ -122,62 +103,100 @@ def _syn_segment(syn_mode, n_pairs, n_edges):
 
 
 def build_borst_schema(
-    n_types, type_names=None, n_pairs=None, *, syn_mode=SYN_MODE_DEFAULT, n_edges=None,
+    n_types,
+    type_names=None,
+    n_pairs=None,
+    *,
+    syn_mode: str,
+    param_boxes: dict,
+    ih_gmax_indi_names,
+    ih_off: str,
+    n_edges=None,
 ):
+    """Borst schema; OFF Ih segments only when ``ih_off == 'on'``."""
+    if ih_off not in IH_OFF_MODES:
+        raise ValueError(f"ih_off {ih_off!r} not in {IH_OFF_MODES}")
     if type_names is None:
         raise TypeError("borst schema requires type_names from network")
     type_names = list(type_names)
     name_to_i = {str(n): i for i, n in enumerate(type_names)}
-    ih_gmax = [name_to_i[n] for n in DEFAULT_IH_GMAX_INDI_NAMES]
-    D = PARAM_DEFAULTS
+    ih_gmax = [name_to_i[n] for n in ih_gmax_indi_names]
+    D = param_boxes
     indi_all = _part_indi_all(n_types)
     fixed_all = _part_fixed_all(n_types)
     shared_all = _part_shared_all(n_types)
     ih_gmax_part = _part_indi_subset_fixed_rest(n_types, ih_gmax)
-    return [
+    segs = [
         _with_part({"name": "in_gain", "count": n_types, "kind": "full", **D["in_gain"]}, fixed_all),
         _with_part({"name": "out_gain", "count": n_types, "kind": "full", **D["out_gain"]}, indi_all),
-        _syn_segment(syn_mode, n_pairs, n_edges),
+        _syn_segment(syn_mode, n_pairs, n_edges, D),
         _with_part({"name": "v_th", "count": n_types, "kind": "full", **D["v_th"]}, fixed_all),
         _with_part({"name": "out_scale", "count": n_types, "kind": "output", **D["out_scale"]}, indi_all),
         _with_part({"name": "Ih_gmax", "count": n_types, "kind": "full", **D["Ih_gmax"]}, ih_gmax_part),
-        _with_part({"name": "Ih_gmax_off", "count": n_types, "kind": "full", **D["Ih_gmax_off"]}, ih_gmax_part),
+    ]
+    if ih_off == "on":
+        segs.append(
+            _with_part({"name": "Ih_gmax_off", "count": n_types, "kind": "full", **D["Ih_gmax_off"]}, ih_gmax_part),
+        )
+    segs.extend([
         _with_part({"name": "Ih_midv", "count": n_types, "kind": "full", **D["Ih_midv"]}, shared_all),
         _with_part({"name": "Ih_slope", "count": n_types, "kind": "full", **D["Ih_slope"]}, shared_all),
         _with_part({"name": "tau_midv", "count": n_types, "kind": "full", **D["tau_midv"]}, shared_all),
-        _with_part({"name": "Ih_midv_off", "count": n_types, "kind": "full", **D["Ih_midv_off"]}, shared_all),
-        _with_part({"name": "Ih_slope_off", "count": n_types, "kind": "full", **D["Ih_slope_off"]}, shared_all),
-        _with_part({"name": "tau_midv_off", "count": n_types, "kind": "full", **D["tau_midv_off"]}, shared_all),
-    ]
+    ])
+    if ih_off == "on":
+        segs.extend([
+            _with_part({"name": "Ih_midv_off", "count": n_types, "kind": "full", **D["Ih_midv_off"]}, shared_all),
+            _with_part({"name": "Ih_slope_off", "count": n_types, "kind": "full", **D["Ih_slope_off"]}, shared_all),
+            _with_part({"name": "tau_midv_off", "count": n_types, "kind": "full", **D["tau_midv_off"]}, shared_all),
+        ])
+    return segs
 
 
 def build_hp_lp_schema(
-    n_types, type_names=None, n_pairs=None, *, syn_mode=SYN_MODE_DEFAULT, n_edges=None,
+    n_types,
+    type_names=None,
+    n_pairs=None,
+    *,
+    syn_mode: str,
+    param_boxes: dict,
+    ih_gmax_indi_names,
+    n_edges=None,
 ):
     """HP-then-membrane-LP: τ_HP on slow average a, τ_lp on V, drive G(X−a)."""
     if type_names is None:
         raise TypeError("hp_lp schema requires type_names from network")
     type_names = list(type_names)
     name_to_i = {str(n): i for i, n in enumerate(type_names)}
-    hp_gain_indi = [name_to_i[n] for n in DEFAULT_IH_GMAX_INDI_NAMES]
-    D = PARAM_DEFAULTS
+    hp_gain_indi = [name_to_i[n] for n in ih_gmax_indi_names]
+    D = param_boxes
     indi_all = _part_indi_all(n_types)
     fixed_all = _part_fixed_all(n_types)
     hp_gain_part = _part_indi_subset_fixed_rest(n_types, hp_gain_indi)
     return [
         _with_part({"name": "in_gain", "count": n_types, "kind": "full", **D["in_gain"]}, fixed_all),
         _with_part({"name": "out_gain", "count": n_types, "kind": "full", **D["out_gain"]}, indi_all),
-        _syn_segment(syn_mode, n_pairs, n_edges),
+        _syn_segment(syn_mode, n_pairs, n_edges, D),
         _with_part({"name": "out_scale", "count": n_types, "kind": "output", **D["out_scale"]}, indi_all),
         _with_part({"name": "tau_lp", "count": n_types, "kind": "full", **D["tau_lp"]}, indi_all),
         _with_part({"name": "tau_hp", "count": n_types, "kind": "full", **D["tau_hp"]}, indi_all),
-        _with_part({"name": "bias", "count": n_types, "kind": "full", **D["bias"]}, indi_all),
-        _with_part({"name": "hp_gain", "count": n_types, "kind": "full", **D["hp_gain"]}, indi_all),
+        _with_part({"name": "v_rest", "count": n_types, "kind": "full", **D["v_rest"]}, indi_all),
+        _with_part({"name": "hp_gain", "count": n_types, "kind": "full", **D["hp_gain"]}, hp_gain_part),
     ]
 
 
-def default_schema(model: str, backend, *, syn_mode=SYN_MODE_DEFAULT) -> list:
-    """Fresh parameter schema for ``model`` on the given backend."""
+def default_schema(
+    model: str,
+    backend,
+    *,
+    syn_mode: str,
+    param_boxes: dict,
+    ih_gmax_indi_names,
+    ih_off: str = "on",
+) -> list:
+    """Fresh parameter schema for ``model`` on the given backend.
+
+    ``ih_off`` is used only for borst (OFF Ih segments when ``\"on\"``).
+    """
     if model not in KNOWN_MODELS:
         raise ValueError(f"unknown model {model!r}; expected one of {KNOWN_MODELS}")
     n = backend.n_types
@@ -190,22 +209,17 @@ def default_schema(model: str, backend, *, syn_mode=SYN_MODE_DEFAULT) -> list:
     if mode == "per_edge":
         if n_edges is None:
             raise TypeError(f"{model} edge_weight requires network ScatterConn backend")
-        kw = dict(syn_mode=mode, n_edges=n_edges, n_pairs=n_pairs)
+        kw = dict(
+            syn_mode=mode, n_edges=n_edges, n_pairs=n_pairs,
+            param_boxes=param_boxes, ih_gmax_indi_names=ih_gmax_indi_names,
+        )
     else:
         if n_pairs is None:
             raise TypeError(f"{model} syn_strength requires network ScatterConn backend")
-        kw = dict(syn_mode=mode, n_pairs=n_pairs, n_edges=n_edges)
+        kw = dict(
+            syn_mode=mode, n_pairs=n_pairs, n_edges=n_edges,
+            param_boxes=param_boxes, ih_gmax_indi_names=ih_gmax_indi_names,
+        )
     if model == "hp_lp":
         return build_hp_lp_schema(n, type_names=type_names, **kw)
-    return build_borst_schema(n, type_names=type_names, **kw)
-
-
-def borst_schema(model_backend, schema=None, ih_off=IH_OFF_DEFAULT, *, syn_mode=None):
-    """Borst parameter schema with ``ih_off`` segment selection applied."""
-    if schema is not None:
-        base = list(schema)
-    elif syn_mode is not None:
-        base = default_schema("borst", model_backend, syn_mode=syn_mode)
-    else:
-        base = default_schema("borst", model_backend)
-    return apply_ih_off_mode(base, ih_off)
+    return build_borst_schema(n, type_names=type_names, ih_off=ih_off, **kw)

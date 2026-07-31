@@ -8,7 +8,6 @@ every other ``training`` module can import these types without a cycle.
 
 ``TargetPack`` carries cross-cutting readout / drive controls:
 
-* ``readout_kind`` -- ``'ca'`` (default) or ``'v'`` training (#2).
 * ``cost_time_ix`` -- optional sparse post-onset t indices; the target
   ``data`` stays full length and the subsample is gathered at cost time (#4).
 * ``always_waveform_mse`` -- spot targets always need a waveform MSE readout;
@@ -16,6 +15,9 @@ every other ``training`` module can import these types without a cycle.
   ``neuron.readout`` needs no paradigm knowledge.
 * ``signal_scale`` -- peak PR current for hp_lp ``sig / scale``; stamped at
   session build so ``neuron.model_hp_lp`` never imports training.
+
+Model and target traces are ``v`` (``v - v_onset``); ImpR / RecF spot data are
+used as-is.
 """
 from __future__ import annotations
 
@@ -25,15 +27,34 @@ from typing import Dict, Optional, Tuple
 import numpy as np
 import torch
 
-from network.connectivity import SIM_DTYPE_DEFAULT
 from neuron import IH_DIR_REVERSE_CELLS
+from neuron.params import Physics
 
 from training.config import SPOT_TARGETS
+from training.defaults import FP
 
 
 def active_device():
     """Pick CUDA or CPU from current runtime (not frozen at import)."""
     return 'cuda' if torch.cuda.is_available() else 'cpu'
+
+
+_FP_DTYPE = {
+    16: torch.float16,
+    32: torch.float32,
+    64: torch.float64,
+}
+
+
+def sim_dtype_from_fp(fp: int) -> torch.dtype:
+    """Map ``--fp`` / opts ``fp`` (16|32|64) to simulation tensor dtype."""
+    try:
+        return _FP_DTYPE[int(fp)]
+    except (KeyError, TypeError, ValueError) as e:
+        raise ValueError(f"fp must be 16, 32, or 64; got {fp!r}") from e
+
+
+SIM_DTYPE = sim_dtype_from_fp(FP)
 
 
 @dataclass(frozen=True)
@@ -64,7 +85,6 @@ class TargetPack:
     dsi_target: Optional[torch.Tensor] = None  # (n_dsi,)
     dsi_weight: Optional[torch.Tensor] = None  # (n_dsi,)
     dsi_power: Optional[torch.Tensor] = None  # scalar
-    readout_kind: str = "ca"  # 'ca' or 'v' training target/readout
     cost_time_ix: Optional[torch.Tensor] = None  # (n_sample,) sparse post-onset t idx
     always_waveform_mse: bool = True  # spot: True; moving bar: False
     signal_scale: float = 1.0  # peak PR current; hp_lp divides sig by this
@@ -89,8 +109,8 @@ class ModelBackend:
 
 
 @dataclass(frozen=True)
-class FusedBorstForward:
-    """Borst packs with identical signal (T, N); one ``run_full`` per group."""
+class FusedForward:
+    """Packs with matching signal shape / scale / onset; one ``run_full`` per group."""
 
     subpacks: Tuple[TargetPack, ...]
     batch_offsets: Tuple[int, ...]
@@ -108,10 +128,11 @@ class TrainSession:
     cost_weights: Dict[str, float]
     sequential: bool
     device: str
-    sim_dtype: torch.dtype = SIM_DTYPE_DEFAULT
+    physics: Physics
+    sim_dtype: torch.dtype = SIM_DTYPE
     train_opts: Optional[dict] = None
     cost_subpacks: Dict[str, TargetPack] = field(default_factory=dict)
-    fused_borst: Tuple[FusedBorstForward, ...] = ()
+    fused_forward: Tuple[FusedForward, ...] = ()
 
     def with_schema(self, schema) -> "TrainSession":
         return replace(self, schema=tuple(schema))

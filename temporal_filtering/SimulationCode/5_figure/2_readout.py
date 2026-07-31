@@ -5,8 +5,7 @@ from __future__ import annotations
 import numpy as np
 import torch
 
-from neuron.params import DATA_AMP
-from neuron import ca_to_v_delta
+from training.defaults import DATA_AMP, DELTA_MS
 from task.spot.data import cell_list, read_RecF_data, read_RecF_data_dark
 from network.construction import (
     TYPE_FAMILY_ROWS,
@@ -15,6 +14,8 @@ from network.construction import (
 )
 
 PLOT_FAMILY_ROWS = [np.array(row) for row in TYPE_FAMILY_ROWS]
+
+_VALID_CONTRASTS = ("bright", "dark")
 
 
 def plot_row_groups(present):
@@ -67,7 +68,12 @@ def pack_readout_types(session, target=None):
     return tuple(out)
 
 
-def _mirror_ref_specs_from_override(override):
+def contrast_for_target(target) -> str:
+    """``bright`` / ``dark`` from a spot pack name."""
+    return "dark" if str(target) == "spot_dark" else "bright"
+
+
+def _mirror_data_specs_from_override(override):
     if not override:
         return []
     specs = []
@@ -89,44 +95,67 @@ def _mirror_ref_specs_from_override(override):
     return specs
 
 
-def fit_ref_cubes(dark=False, *, t_on=None, n_t=None, pulse_ms=None, v_delta=False):
-    """RecF reference cubes for the 13 fit cell types.
+def _apply_mirror(cells, override):
+    cells = dict(cells)
+    for mirror_types, mirror_fit, mirror_sign in _mirror_data_specs_from_override(override):
+        if mirror_fit not in cells:
+            continue
+        mirrored = mirror_sign * cells[mirror_fit]
+        for name in mirror_types:
+            cells[name] = mirrored
+    return cells
 
-    ``v_delta`` inverts the Ca low-pass (``ca_to_v_delta``) so the gray data
-    matches a model ``'v'`` readout (#5), using the same filter as ``--filter v``.
-    """
-    kw = dict(t_on=t_on, n_t=n_t, pulse_ms=pulse_ms)
+
+def _cell_cubes(*, dark: bool, t_onset=None, n_t=None, pulse_ms=None, delta_ms: float):
+    """One contrast: ``{cell: (9, T)}``."""
+    kw = dict(t_onset=t_onset, n_t=n_t, pulse_ms=pulse_ms, delta_ms=float(delta_ms))
     data = read_RecF_data_dark(**kw) if dark else read_RecF_data(**kw)
-    ref = data * DATA_AMP
-    if v_delta:
-        ref = ca_to_v_delta(ref, t_on=int(t_on or 0))
-    return {str(name): ref[i] for i, name in enumerate(cell_list)}
+    cubes = data * DATA_AMP
+    return {str(name): cubes[i] for i, name in enumerate(cell_list)}
 
 
-def spot_ref_cubes(
+def fit_data_cubes(
+    *, contrasts=("bright",), t_onset=None, n_t=None, pulse_ms=None, delta_ms: float = DELTA_MS,
+):
+    """RecF data cubes ``{contrast: {cell: (9, T)}}`` (``v`` target as-is)."""
+    out = {}
+    for contrast in contrasts:
+        contrast = str(contrast)
+        if contrast not in _VALID_CONTRASTS:
+            raise ValueError(
+                f"unknown contrast {contrast!r}; expected one of {_VALID_CONTRASTS}"
+            )
+        out[contrast] = _cell_cubes(
+            dark=(contrast == "dark"),
+            t_onset=t_onset, n_t=n_t, pulse_ms=pulse_ms, delta_ms=delta_ms,
+        )
+    return out
+
+
+def spot_data_cubes(
     session,
     target=None,
-    dark=False,
     *,
-    t_on=None,
+    contrasts=None,
+    t_onset=None,
     n_t=None,
     pulse_ms=None,
-    v_delta=False,
+    delta_ms: float = DELTA_MS,
 ):
-    """Spot model-data reference cubes from ``read_RecF_data`` (shape ``(9, T)``)."""
+    """Spot data cubes ``{contrast: {cell: (9, T)}}`` with pack mirror overrides."""
     target = target or session.primary_pack.name
-    ref = dict(
-        fit_ref_cubes(
-            dark=dark, t_on=t_on, n_t=n_t, pulse_ms=pulse_ms, v_delta=v_delta,
-        )
-    )
+    if contrasts is None:
+        contrasts = (contrast_for_target(target),)
     overrides = (session.train_opts or {}).get('pack_overrides') or {}
-    for mirror_types, mirror_fit, mirror_sign in _mirror_ref_specs_from_override(
-        overrides.get(target),
-    ):
-        if mirror_fit not in ref:
-            continue
-        mirrored = mirror_sign * ref[mirror_fit]
-        for name in mirror_types:
-            ref[name] = mirrored
-    return ref
+    base = fit_data_cubes(
+        contrasts=contrasts, t_onset=t_onset, n_t=n_t, pulse_ms=pulse_ms,
+        delta_ms=delta_ms,
+    )
+    out = {}
+    for contrast, cells in base.items():
+        pack_name = "spot_dark" if contrast == "dark" else "spot_bright"
+        ov = overrides.get(pack_name)
+        if ov is None:
+            ov = overrides.get(target)
+        out[contrast] = _apply_mirror(cells, ov)
+    return out

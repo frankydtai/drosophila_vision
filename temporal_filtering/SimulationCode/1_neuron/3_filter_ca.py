@@ -1,65 +1,22 @@
 # -*- coding: utf-8 -*-
-"""The one Ca readout filter and its exact inverse (shared by all models).
+"""The one Ca filter (kept; unused by forward / training / plotting).
 
-Forward (``ca_readout_step``) is a first-order low-pass on ``v - v_ref`` with
-``alpha = delta_ms / Ca_tau``. ``ca_to_v_delta`` is its algebraic inverse, used to
-turn a Ca-proxy trace (ImpR-based target, or a plotted reference cube) back into
-``'v'``. This is the ONLY Ca filter in the codebase; spot data bandpass/lowpass
-(ImpR shaping) is a different, target-only signal path and lives in
-``task.spot.data``.
+``ca_filter`` is a first-order low-pass on ``v - v_onset`` with
+``alpha = delta_ms / Ca_tau``. Training and plots use ``v`` (``v - v_onset``)
+directly; ImpR / RecF targets are used as-is (no Ca conversion).
 
-``delta_ms`` / ``Ca_tau`` are read live from ``neuron.params`` so
-:func:`neuron.params.set_delta_ms` takes effect without re-import.
+``delta_ms`` / ``Ca_tau`` come from a required :class:`~neuron.params.Physics`.
 """
 from __future__ import annotations
 
-import neuron.params as params
+from neuron.params import Physics
 
 
-def ca_alpha() -> float:
-    """One-step low-pass coefficient ``delta_ms / Ca_tau`` (live)."""
-    return params.delta_ms / params.Ca_tau
+def ca_alpha(*, physics: Physics) -> float:
+    """One-step low-pass coefficient ``delta_ms / Ca_tau``."""
+    return physics.delta_ms / physics.Ca_tau
 
 
-def ca_readout_step(ca, v, v_ref):
-    """One Ca low-pass step on ``v - v_ref`` (shared by all models)."""
-    return params.delta_ms / params.Ca_tau * (v - v_ref - ca) + ca
-
-
-def ca_to_v_delta(ca, *, t_on=0):
-    """Invert the Ca low-pass: recover ``v - v_ref`` from a Ca-proxy trace.
-
-    ``ca`` has time on the last axis. ``v_delta[t] = (ca[t] - (1-alpha)*ca[t-1])
-    / alpha`` with ``ca[t_on-1] = 0`` (the integrator resets at ``t_on``).
-
-    ``t_on`` is the absolute onset index for full-length traces (entries before
-    it are forced to 0). For post-onset arrays already sliced at the onset, pass
-    ``t_on=0`` (default): index 0 then uses ``ca[-1]=0``.
-
-    Works on numpy arrays and torch tensors.
-    """
-    alpha = ca_alpha()
-    t_on = int(t_on)
-    try:
-        import torch
-        is_torch = torch.is_tensor(ca)
-    except ImportError:  # pragma: no cover - torch always present in this repo
-        is_torch = False
-
-    if is_torch:
-        prev = torch.zeros_like(ca)
-        prev[..., 1:] = ca[..., :-1]
-    else:
-        import numpy as np
-        ca = np.asarray(ca, dtype=np.float64)
-        prev = np.zeros_like(ca)
-        prev[..., 1:] = ca[..., :-1]
-
-    if t_on > 0:
-        prev[..., t_on] = 0.0  # no carry across the onset reset
-
-    v_delta = (ca - (1.0 - alpha) * prev) / alpha
-
-    if t_on > 0:
-        v_delta[..., :t_on] = 0.0
-    return v_delta
+def ca_filter(ca, v, v_onset, *, physics: Physics):
+    """One Ca low-pass step on ``v - v_onset`` (unused by current forward)."""
+    return physics.delta_ms / physics.Ca_tau * (v - v_onset - ca) + ca

@@ -35,17 +35,15 @@ def save_forward_trace_csvs(
     save_dir,
     target,
     *,
-    trace_kind,
     ref,
     trace_full,
     ref_stem: str | None = None,
     trace_stem: str | None = None,
 ):
-    """Write per-target ref + trace CSVs under ``save_dir``.
+    """Write per-target ref + ``v`` trace CSVs under ``save_dir``.
 
-    ``trace_kind=='v'`` → ``<target>_v_ref.csv``, ``<target>_v.csv`` (unless
+    Default stems: ``<target>_v_onset.csv``, ``<target>_v.csv`` (unless
     overridden by ``ref_stem`` / ``trace_stem``).
-    else → ``<target>_ca_ref.csv``, ``<target>_ca.csv``.
 
     Ref is one column (``ref``) with constant ``N``. Trace is ``(B*T', N)`` with
     constant ``B`` / ``Tprime`` columns, then one column per unit.
@@ -62,10 +60,7 @@ def save_forward_trace_csvs(
         raise ValueError(
             f'ref length {ref_np.size} != n_units {n_units} for target {target!r}'
         )
-    if trace_kind == 'v':
-        ref_stem_default, trace_stem_default = f'{target}_v_ref', f'{target}_v'
-    else:
-        ref_stem_default, trace_stem_default = f'{target}_ca_ref', f'{target}_ca'
+    ref_stem_default, trace_stem_default = f'{target}_v_onset', f'{target}_v'
     ref_stem_final = ref_stem_default if ref_stem is None else ref_stem
     trace_stem_final = trace_stem_default if trace_stem is None else trace_stem
     ref_path = os.path.join(save_dir, f'{ref_stem_final}.csv')
@@ -74,7 +69,7 @@ def save_forward_trace_csvs(
         np.full(ref_np.shape[0], ref_np.size, dtype=np.int64),
         ref_np.astype(np.float64, copy=False),
     ])
-    # Some traces reuse v_ref across targets (e.g. bright/dark); avoid redundant writes.
+    # Some traces reuse v_onset across targets (e.g. bright/dark); avoid redundant writes.
     if not os.path.exists(ref_path):
         np.savetxt(
             ref_path, ref_table, delimiter=',', header='N,ref', comments='',
@@ -161,9 +156,9 @@ def readout_center_mask(pack, backend):
     return np.ones(readout.shape[0], dtype=bool)
 
 
-def baselines_for_types(pack, backend, v_ref, names, type_ids, global_type_names):
-    """Mean v_ref at stimulus onset over center cost-readout units, keyed by type name."""
-    v_ref = np.asarray(v_ref, dtype=np.float64)
+def baselines_for_types(pack, backend, v_onset, names, type_ids, global_type_names):
+    """Mean v_onset at stimulus onset over center cost-readout units, keyed by type name."""
+    v_onset = np.asarray(v_onset, dtype=np.float64)
     readout = pack.readout_unit.cpu().numpy()
     center = readout_center_mask(pack, backend)
     unit_types = type_ids[readout]
@@ -171,7 +166,7 @@ def baselines_for_types(pack, backend, v_ref, names, type_ids, global_type_names
     for name in names:
         ti = global_type_names.index(name)
         mask = center & (unit_types == ti)
-        out[name] = float(v_ref[readout[mask]].mean()) if mask.any() else np.nan
+        out[name] = float(v_onset[readout[mask]].mean()) if mask.any() else np.nan
     return out
 
 
@@ -494,6 +489,51 @@ def _series_points(t, y, point_ix=None):
     return t_arr[mask], y_arr[mask]
 
 
+def plot_pre_post_line(
+    ax,
+    t,
+    y,
+    *,
+    pre_end=0,
+    show_pre=False,
+    color=MODEL_COLOR,
+    linestyle='-',
+    linewidth=TRACE_LW,
+    label=None,
+    draw_pre=False,
+):
+    """Plot a 1-D series with optional dashed pre-``pre_end`` segment.
+
+    ``pre_end`` is the first post-onset index (samples ``[0, pre_end)`` are pre).
+    Gray data uses ``draw_pre=False`` (never draws pre). Model uses
+    ``draw_pre=show_pre`` (dashed pre when true; omit pre when false).
+    """
+    if y is None:
+        return
+    t_arr = np.asarray(t)
+    y_arr = np.asarray(y, dtype=np.float64)
+    if y_arr.ndim != 1 or t_arr.shape[0] != y_arr.shape[0]:
+        raise ValueError(
+            f'plot_pre_post_line expects 1-D t/y of equal length, '
+            f'got t={getattr(t_arr, "shape", None)} y={getattr(y_arr, "shape", None)}'
+        )
+    n = int(y_arr.shape[0])
+    split = max(0, min(int(pre_end or 0), n))
+    if draw_pre and show_pre and split > 0:
+        # Include the onset sample so dashed and solid segments meet.
+        end_pre = min(split + 1, n)
+        ax.plot(
+            t_arr[:end_pre], y_arr[:end_pre],
+            color=color, linewidth=linewidth, linestyle='--',
+        )
+    if split >= n:
+        return
+    ax.plot(
+        t_arr[split:], y_arr[split:],
+        color=color, linewidth=linewidth, linestyle=linestyle, label=label,
+    )
+
+
 def plot_timecourse(
     ax,
     t,
@@ -516,8 +556,14 @@ def plot_timecourse(
     linestyle='-',
     point_ix=None,
     point_ix_2=None,
+    pre_end=0,
+    show_pre=False,
 ):
-    """Model (red) vs data (gray) time course with optional SEM and two-trace overlay."""
+    """Model (red) vs data (gray) time course with optional SEM and two-trace overlay.
+
+    ``pre_end`` / ``show_pre``: gray data never draws ``[0, pre_end)``; red model
+    draws that pre segment dashed only when ``show_pre`` is true.
+    """
     if ylim is None:
         ylo, yhi = ylim_for_traces(
             model, data=data, sem=sem, show_sem=show_sem,
@@ -526,17 +572,34 @@ def plot_timecourse(
     else:
         ylo, yhi = ylim
     discrete = point_ix is not None
+    split = max(0, int(pre_end or 0))
     if not discrete:
         if data is not None:
-            ax.plot(t, data, color=DATA_COLOR, linewidth=TRACE_LW, linestyle=linestyle)
+            plot_pre_post_line(
+                ax, t, data, pre_end=split, show_pre=False, draw_pre=False,
+                color=DATA_COLOR, linestyle=linestyle, linewidth=TRACE_LW,
+            )
         if model is not None:
-            if show_sem:
-                plot_sem_band(ax, t, model, sem)
-            ax.plot(t, model, color=MODEL_COLOR, linewidth=TRACE_LW, linestyle=linestyle)
+            if show_sem and sem is not None:
+                t_arr = np.asarray(t)
+                m_arr = np.asarray(model, dtype=np.float64)
+                s_arr = np.asarray(sem, dtype=np.float64)
+                if split < m_arr.shape[0]:
+                    plot_sem_band(ax, t_arr[split:], m_arr[split:], s_arr[split:])
+            plot_pre_post_line(
+                ax, t, model, pre_end=split, show_pre=show_pre, draw_pre=True,
+                color=MODEL_COLOR, linestyle=linestyle, linewidth=TRACE_LW,
+            )
         if data_2 is not None:
-            ax.plot(t, data_2, color=DATA_COLOR, linewidth=TRACE_LW, linestyle=linestyle_2)
+            plot_pre_post_line(
+                ax, t, data_2, pre_end=split, show_pre=False, draw_pre=False,
+                color=DATA_COLOR, linestyle=linestyle_2, linewidth=TRACE_LW,
+            )
         if model_2 is not None:
-            ax.plot(t, model_2, color=MODEL_COLOR, linewidth=TRACE_LW, linestyle=linestyle_2)
+            plot_pre_post_line(
+                ax, t, model_2, pre_end=split, show_pre=show_pre, draw_pre=True,
+                color=MODEL_COLOR, linestyle=linestyle_2, linewidth=TRACE_LW,
+            )
     else:
         x_data, y_data = _series_points(t, data, point_ix=point_ix)
         if x_data is not None:

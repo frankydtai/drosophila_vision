@@ -28,13 +28,6 @@ from typing import Optional, Tuple
 import numpy as np
 import torch
 
-# Default simulation dtype for connectome tensors / ScatterConn.
-SIM_DTYPE_DEFAULT = torch.float64
-
-
-def sim_dtype_from_fp32(fp32: bool) -> torch.dtype:
-    return torch.float32 if fp32 else SIM_DTYPE_DEFAULT
-
 
 def _as_long(t, device) -> torch.Tensor:
     return torch.as_tensor(t, dtype=torch.long, device=device)
@@ -74,10 +67,11 @@ class ScatterConn:
         base_w,
         n_units: int,
         node_type,
+        *,
+        dtype: torch.dtype,
         exc_scale: float = 1.0,
         inh_scale: float = 1.0,
         device: Optional[str] = None,
-        dtype: torch.dtype = SIM_DTYPE_DEFAULT,
     ) -> None:
         device = device or ("cuda" if torch.cuda.is_available() else "cpu")
         self.device = device

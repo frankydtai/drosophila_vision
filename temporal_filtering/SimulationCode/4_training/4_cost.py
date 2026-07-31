@@ -5,10 +5,7 @@ Consumes a :class:`~training.target_pack.TrainSession` and the model forward
 (``neuron.run_full`` + ``neuron.readout``); produces per-part
 unweighted costs, the weighted total, and the Adam training loop.
 
-Readout kind (#2): the per-model ``pack_readout`` already returns ``v_delta``
-when ``pack.readout_kind == 'v'``; here that path also bypasses ``out_scale``
-(scale = 1) and disables borst signal-fusion (the fused path reuses one
-Ca forward and cannot emit ``v_delta``).
+Traces are ``v`` (``v - v_onset``); cost bypasses ``out_scale`` (scale = 1).
 
 Sparse cost time points (#4): ``pack.data`` stays full post-onset length and the
 subsample is gathered from both model trace and target at cost time via
@@ -26,12 +23,11 @@ import torch
 from torch import nn
 from tqdm import tqdm
 
-from network.connectivity import SIM_DTYPE_DEFAULT
+from training.target_pack import SIM_DTYPE
 from neuron import run_full
 from neuron.readout import (
     CA_PACK_READOUTS,
     pack_needs_waveform_mse,
-    readout_kind,
     window_time_traces,
 )
 
@@ -47,7 +43,7 @@ from training.config import (
 )
 from training.params import params_from_z, schema_bounds, schema_guess, schema_nparams
 from training.target_pack import (
-    FusedBorstForward,
+    FusedForward,
     ModelBackend,
     TargetPack,
     TrainingResult,
@@ -67,12 +63,12 @@ def ca_cost(ca, data, session: TrainSession, scale=1.0, power=None):
     if power is None:
         power = session.primary_pack.power
     pack = session.primary_pack
-    pack_t_on = int(pack.signal.shape[1] - pack.data.shape[1])
+    pack_t_onset = int(pack.signal.shape[1] - pack.data.shape[1])
     mt = session.n_t
-    return torch.sum((scale * ca - data[pack_t_on:mt])**2) / power * 100.0
+    return torch.sum((scale * ca - data[pack_t_onset:mt])**2) / power * 100.0
 
 
-def out_scale_for_units(p, unit_index, backend: ModelBackend, *, sim_dtype=SIM_DTYPE_DEFAULT):
+def out_scale_for_units(p, unit_index, backend: ModelBackend, *, sim_dtype=SIM_DTYPE):
     """Per-unit ``out_scale`` using the same indexing as ``_pack_out_scale``."""
     os_param = p.get('out_scale', 1.0)
     n = int(unit_index.shape[0])
@@ -88,18 +84,12 @@ def out_scale_for_units(p, unit_index, backend: ModelBackend, *, sim_dtype=SIM_D
 
 
 def _pack_out_scale(p, pack: TargetPack, backend: ModelBackend, session: TrainSession):
-    """Per-cost-row output scale from schema ``out_scale`` (single source of truth).
-
-    ``readout_kind == 'v'`` trains ``'v'`` directly, so it bypasses ``out_scale``
-    (scale = 1), matching the plotting convention for v-delta traces.
-    """
-    if readout_kind(pack) == "v":
-        return torch.ones(
-            int(pack.readout_unit.shape[0]),
-            dtype=session.sim_dtype,
-            device=pack.readout_unit.device,
-        )
-    return out_scale_for_units(p, pack.readout_unit, backend, sim_dtype=session.sim_dtype)
+    """Per-cost-row output scale: always 1 for ``v`` training."""
+    return torch.ones(
+        int(pack.readout_unit.shape[0]),
+        dtype=session.sim_dtype,
+        device=pack.readout_unit.device,
+    )
 
 
 def _pack_ca_readouts(p, pack: TargetPack, session: TrainSession, batch_idx=None):
@@ -297,51 +287,56 @@ def _build_cost_subpacks(session: TrainSession) -> Dict[str, TargetPack]:
     return out
 
 
-def _signal_fuse_key(pack: TargetPack) -> Tuple[int, int, str, torch.dtype]:
+def _signal_fuse_key(pack: TargetPack) -> Tuple:
+    """Group packs that can share one ``run_full`` (shape, scale, onset)."""
     sig = pack.signal
-    return (int(sig.shape[1]), int(sig.shape[2]), str(sig.device), sig.dtype)
+    t_onset = int(sig.shape[1] - pack.data.shape[1])
+    return (
+        int(sig.shape[1]),
+        int(sig.shape[2]),
+        str(sig.device),
+        sig.dtype,
+        float(pack.signal_scale),
+        t_onset,
+    )
 
 
-def _build_fused_borst(
+def _build_fused_forward(
     session: TrainSession,
     cost_subpacks: Dict[str, TargetPack],
-) -> Tuple[FusedBorstForward, ...]:
-    if session.model != "borst" or session.sequential or not cost_subpacks:
+) -> Tuple[FusedForward, ...]:
+    if session.sequential or not cost_subpacks:
         return ()
-    # v-delta readout needs a pack-aware forward; the fused path reuses one Ca
-    # forward per signal group and cannot emit v_delta, so skip fusion for it.
-    if any(readout_kind(pk) == "v" for pk in session.targets.values()):
-        return ()
-    by_key: Dict[Tuple[int, int, str, torch.dtype], List[TargetPack]] = {}
+    by_key: Dict[Tuple, List[TargetPack]] = {}
     for pack in cost_subpacks.values():
         by_key.setdefault(_signal_fuse_key(pack), []).append(pack)
-    fused: List[FusedBorstForward] = []
+    fused: List[FusedForward] = []
     for packs in by_key.values():
         offsets: List[int] = []
         off = 0
         for pack in packs:
             offsets.append(off)
             off += int(pack.signal.shape[0])
-        fused.append(FusedBorstForward(subpacks=tuple(packs), batch_offsets=tuple(offsets)))
+        fused.append(FusedForward(subpacks=tuple(packs), batch_offsets=tuple(offsets)))
     return tuple(fused)
 
 
-def _borst_readout_from_ca_full(
-    ca_full: torch.Tensor,
+def _readout_from_trace_full(
+    trace_full: torch.Tensor,
     pack: TargetPack,
     *,
     batch_offset: int = 0,
 ) -> Tuple[Optional[torch.Tensor], torch.Tensor]:
     rb = pack.readout_batch if batch_offset == 0 else pack.readout_batch + batch_offset
-    pack_t_on = int(pack.signal.shape[1] - pack.data.shape[1])
-    dsi_sel = ca_full[rb, pack_t_on:, pack.readout_unit]
+    pack_t_onset = int(pack.signal.shape[1] - pack.data.shape[1])
+    dsi_sel = trace_full[rb, pack_t_onset:, pack.readout_unit]
     if not pack_needs_waveform_mse(pack):
         return None, dsi_sel
     if pack.cost_t0 is None:
         return dsi_sel, dsi_sel
     mse_sel = window_time_traces(
-        ca_full, rb, pack.readout_unit, pack.cost_t0,
-        win=pack.data.shape[1], t_on=pack_t_on,
+        trace_full, rb, pack.readout_unit, pack.cost_t0,
+        win=pack.data.shape[1], t_onset=pack_t_onset,
     )
     return mse_sel, dsi_sel
 
@@ -408,35 +403,36 @@ def _pack_cost_parts_from_sel(
     return {pack.name: _pack_cost_mse(scale, data, weight, sel, power)}
 
 
-def _pack_cost_parts_from_borst_ca(
+def _pack_cost_parts_from_fused_trace(
     p,
     pack: TargetPack,
     session: TrainSession,
-    ca_full: torch.Tensor,
+    trace_full: torch.Tensor,
     *,
     batch_offset: int = 0,
 ) -> Dict[str, torch.Tensor]:
     scale = _pack_out_scale(p, pack, session.backend, session)
-    sel, dsi_sel = _borst_readout_from_ca_full(
-        ca_full, pack, batch_offset=batch_offset,
+    sel, dsi_sel = _readout_from_trace_full(
+        trace_full, pack, batch_offset=batch_offset,
     )
     return _pack_cost_parts_from_sel(pack, session, scale, sel, dsi_sel)
 
 
-def _calc_cost_parts_fused_borst(
+def _calc_cost_parts_fused(
     p,
     session: TrainSession,
 ) -> Dict[str, torch.Tensor]:
     parts: Dict[str, torch.Tensor] = {}
-    for group in session.fused_borst:
+    for group in session.fused_forward:
         if len(group.subpacks) == 1:
             sig = group.subpacks[0].signal
         else:
             sig = torch.cat([pack.signal for pack in group.subpacks], dim=0)
-        ca_full = run_full(session, p, sig)
+        # Same fuse key ⇒ shared signal_scale / t_onset; pass one subpack for prepare.
+        trace_full = run_full(session, p, sig, pack=group.subpacks[0])
         for pack, off in zip(group.subpacks, group.batch_offsets):
-            for key, part in _pack_cost_parts_from_borst_ca(
-                p, pack, session, ca_full, batch_offset=off,
+            for key, part in _pack_cost_parts_from_fused_trace(
+                p, pack, session, trace_full, batch_offset=off,
             ).items():
                 if _part_weight(session, key) != 0.0:
                     parts[key] = part
@@ -502,8 +498,8 @@ def _pack_cost(z, pack: TargetPack, session: TrainSession, batch_idx=None):
 def calc_cost_parts(z, session: TrainSession) -> Dict[str, torch.Tensor]:
     """Per-part unweighted cost (before ``cost_weights``)."""
     p = params_from_z(z, session)
-    if session.fused_borst:
-        return _calc_cost_parts_fused_borst(p, session)
+    if session.fused_forward:
+        return _calc_cost_parts_fused(p, session)
     parts: Dict[str, torch.Tensor] = {}
     zero = torch.zeros((), dtype=session.sim_dtype, device=session.device)
     if session.cost_subpacks and not session.sequential:

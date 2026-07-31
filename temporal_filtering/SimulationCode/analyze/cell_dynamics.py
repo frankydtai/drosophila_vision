@@ -84,8 +84,8 @@ from task.spot.input import (
     spot_from_opts,
     spot_stimulus_batches,
 )
-from figure.readout import spot_ref_cubes
-from figure.spot import CENTER_BIN
+from figure.readout import contrast_for_target
+from figure.spot import CENTER_BIN, resolve_spot_data_cubes
 from figure.util import plot_sem_band
 from connectome_io import parse_comma_list
 
@@ -266,7 +266,7 @@ def _v_step_params(p):
     )
 
 
-def _equilibrate(session, p, signal_batch: torch.Tensor, t_on: int):
+def _equilibrate(session, p, signal_batch: torch.Tensor, t_onset: int):
     backend = session.backend
     B, T, N = signal_batch.shape
     dev = backend.conn.node_type.device
@@ -275,9 +275,10 @@ def _equilibrate(session, p, signal_batch: torch.Tensor, t_on: int):
     u_off = torch.zeros((B, N), dtype=dtype, device=dev)
     v = backend.e_leak.expand(B, N).clone()
     step_p = _v_step_params(p)
-    for t in range(1, min(t_on, T)):
+    for t in range(1, min(t_onset, T)):
         v, u_on, u_off = fc.update_v(
             v, u_on, u_off, *step_p, signal_batch[:, t - 1], backend,
+            physics=session.physics,
         )
     return v, u_on, u_off
 
@@ -292,7 +293,7 @@ def _budget_at_units(
     sig_t,
     backend,
     units: np.ndarray,
-    v_ref: np.ndarray,
+    v_onset: np.ndarray,
     *,
     batch: int = 0,
 ) -> tuple[dict[str, np.ndarray], np.ndarray]:
@@ -316,7 +317,7 @@ def _budget_at_units(
             dim=0,
         ).detach().cpu().numpy()
         v_pre_np = packed[0]
-        ref = v_ref[b, units] if np.ndim(v_ref) == 2 else v_ref[units]
+        ref = v_onset[b, units] if np.ndim(v_onset) == 2 else v_onset[units]
         terms = fc.v_budget_from_g(
             v_pre_np, packed[1], packed[2], packed[3], packed[4], packed[5], packed[6],
         )
@@ -453,7 +454,7 @@ def _step_from_acc(
 
 @dataclass
 class _BudgetWalkBatch:
-    """One signal batch row for the shared post-t_on v walk."""
+    """One signal batch row for the shared post-t_onset v walk."""
 
     all_units: np.ndarray
     t0_u: np.ndarray
@@ -480,7 +481,7 @@ def _walk_budget(
     rel_start: int | None = None,
     rel_stop: int | None = None,
 ) -> _BudgetWalkAccum:
-    """Equilibrate once; walk post-t_on; accumulate budget + absolute v_post.
+    """Equilibrate once; walk post-t_onset; accumulate budget + absolute v_post.
 
     Shared by bar average, spot average, and bar hex. ``rel = t_global - t0_u``.
     v_post is mean absolute ``v_abs``; SEM uses sum / sumsq like ``sem_from_traces``.
@@ -498,16 +499,16 @@ def _walk_budget(
     B, T, _N = signal.shape
     if B != len(batches):
         raise SystemExit(f"signal B={B} != len(batches)={len(batches)}")
-    t_on = int(session.primary_pack.signal.shape[1] - session.primary_pack.data.shape[1])
-    trace_len = T - t_on
+    t_onset = int(session.primary_pack.signal.shape[1] - session.primary_pack.data.shape[1])
+    trace_len = T - t_onset
 
     # Last absolute time that still needs a step for the requested rel window.
     t_last: int | None = None
     if rel_stop is not None:
         t_last = max(int(plan.t0_u.max()) + int(rel_stop) for plan in batches)
 
-    v, u_on, u_off = _equilibrate(session, p, signal, t_on)
-    v_ref = v.detach().cpu().numpy().copy()
+    v, u_on, u_off = _equilibrate(session, p, signal, t_onset)
+    v_onset = v.detach().cpu().numpy().copy()
     backend = session.backend
     step_p = _v_step_params(p)
 
@@ -525,7 +526,7 @@ def _walk_budget(
     unit_lookups = [_unit_cell_lookup(plan, cells) for plan in batches]
 
     for ti in range(trace_len):
-        t_global = t_on + ti
+        t_global = t_onset + ti
         if t_last is not None and t_global > t_last:
             break
         sig_t = signal[:, t_global - 1]
@@ -546,6 +547,7 @@ def _walk_budget(
         if not need_budget:
             v, u_on, u_off = fc.update_v(
                 v, u_on, u_off, *step_p, sig_t, backend,
+                physics=session.physics,
             )
             continue
 
@@ -553,6 +555,7 @@ def _walk_budget(
             v_pre = v
             v, u_on, u_off, g_exc, g_inh, g_Ih_on, g_Ih_off = fc.update_v(
                 v, u_on, u_off, *step_p, sig_t, backend, return_budget=True,
+                physics=session.physics,
             )
 
         for b, plan in enumerate(batches):
@@ -562,7 +565,8 @@ def _walk_budget(
             active, active_rel = active_pack
             bud, v_post_minus_pre_u = _budget_at_units(
                 v_pre, v, g_exc, g_inh, g_Ih_on, g_Ih_off, sig_t,
-                backend, active, v_ref, batch=b,
+                backend, active, v_onset, batch=b,
+                physics=session.physics,
             )
             bud_mat = _bud_matrix(bud)
             lookup = unit_lookups[b]
@@ -597,7 +601,7 @@ def _v_post_from_accum(sums: np.ndarray, counts: np.ndarray) -> np.ndarray:
 def _v_post_d_from_accum(
     sums: np.ndarray, v_post_minus_pre_sums: np.ndarray, counts: np.ndarray,
 ) -> np.ndarray:
-    """Mean ``v_post_d`` = v_post − v_ref = v_pre_d + v_post_minus_pre."""
+    """Mean ``v_post_d`` = v_post − v_onset = v_pre_d + v_post_minus_pre."""
     n = np.maximum(counts, 1)
     v_post_d = sums[:, _I_V_PRE_D] / n + v_post_minus_pre_sums / n
     v_post_d[counts == 0] = 0.0
@@ -633,7 +637,7 @@ def _finalize_budget_report(
     extra: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Build one report dict from a single batch×cell accum row."""
-    # Peak on |v_post_d| (= |v_post − v_ref| = |v_pre_d + v_post_minus_pre|).
+    # Peak on |v_post_d| (= |v_post − v_onset| = |v_pre_d + v_post_minus_pre|).
     v_post_d = _v_post_d_from_accum(sums, v_post_minus_pre_sums, counts)
     if rel_start is not None and rel_stop is not None:
         rel_lo, rel_hi = rel_start, rel_stop
@@ -705,7 +709,7 @@ def _v_post_d_peak_rel(
     *,
     horizon: int | None = 40,
 ) -> int:
-    """Index of largest |v_post_d| (= |v_post − v_ref|) after onset (optional ``horizon``)."""
+    """Index of largest |v_post_d| (= |v_post − v_onset|) after onset (optional ``horizon``)."""
     arr = np.asarray(v_post_d, dtype=float)
     if before_t is not None and 0 < before_t < arr.size:
         stop = arr.size
@@ -748,7 +752,7 @@ def _globals(session):
         "g_leak_nS": fc.g_leak,
         "cdt": fc.cdt,
         "delta_ms": fc.delta_ms,
-        "t_on": int(pack.signal.shape[1] - pack.data.shape[1]),
+        "t_onset": int(pack.signal.shape[1] - pack.data.shape[1]),
     }
 
 
@@ -895,7 +899,7 @@ def _bar_meta(session, target: str):
     pack = session.pack_for(target)
     grids = moving_bar_session_t0_grids(
         session, specs, pack.cost_extent, int(session.n_t),
-        t_on=int(pack.signal.shape[1] - pack.data.shape[1]), delta_ms=fc.delta_ms,
+        t_onset=int(pack.signal.shape[1] - pack.data.shape[1]), delta_ms=fc.delta_ms,
     )
     return specs, grids
 
@@ -1206,7 +1210,7 @@ def analyze_spot_average(
     pack, batch_idx, unit_idx, type_idx, center_row, type_i = _spot_session_layout(
         session_one, cells,
     )
-    t_on = int(pack.signal.shape[1] - pack.data.shape[1])
+    t_onset = int(pack.signal.shape[1] - pack.data.shape[1])
 
     sig = pack.signal if pack.signal.dim() == 3 else pack.signal.unsqueeze(0)
     B_all, T, _N = sig.shape
@@ -1234,20 +1238,20 @@ def analyze_spot_average(
     if not walk_batches:
         raise SystemExit("no center-bin units for requested cells in spot layout")
 
-    ref_on = spot_ref_cubes(
-        session_one, pack.name, dark=(pack.name == "spot_dark"),
-    )
+    data_by_contrast = resolve_spot_data_cubes(session_one)
+    contrast = contrast_for_target(pack.name)
+    data_on = data_by_contrast.get(contrast) or {}
 
     def extra_for_cell(
         cell: str, v_post: np.ndarray, v_post_d: np.ndarray,
     ) -> dict[str, Any]:
         del v_post  # peak time from |v_post_d|; absolute series unused here
-        extra: dict[str, Any] = {"ref_peak_mV": None}
-        if cell in ref_on:
-            peak_probe = _v_post_d_peak_rel(v_post_d, t_on)
-            ref_cube = np.asarray(ref_on[cell], dtype=float)
-            if peak_probe < ref_cube.shape[1]:
-                extra["ref_peak_mV"] = float(ref_cube[CENTER_BIN, peak_probe])
+        extra: dict[str, Any] = {"data_peak_mV": None}
+        if cell in data_on:
+            peak_probe = _v_post_d_peak_rel(v_post_d, t_onset)
+            data_cube = np.asarray(data_on[cell], dtype=float)
+            if peak_probe < data_cube.shape[1]:
+                extra["data_peak_mV"] = float(data_cube[CENTER_BIN, peak_probe])
         return extra
 
     def n_units_for_cell(cell: str) -> int:
@@ -1262,7 +1266,7 @@ def analyze_spot_average(
         target=target,
         signal=sig[sig_rows],
         walk_batches=walk_batches,
-        before_t=[t_on] * n_b,
+        before_t=[t_onset] * n_b,
         batch_specs=[None] * n_b,
         rel_start=abs_start,
         rel_stop=abs_stop,

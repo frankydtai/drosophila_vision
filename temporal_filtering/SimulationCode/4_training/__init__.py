@@ -4,43 +4,66 @@
 Public facade re-exporting the names callers use as ``fc.*`` (``import training
 as fc``). Engine internals are split across :mod:`training.target_pack`,
 :mod:`training.params`, :mod:`training.cost`, and :mod:`training.session`; the
-shared vocabulary lives in :mod:`training.config`. Lower layers
-(``neuron``, ``task``, ``network``) never import this package at load
-time.
+shared vocabulary lives in :mod:`training.config`. Numeric defaults live in
+:mod:`training.defaults`. Lower layers (``neuron``, ``task``, ``network``)
+never import this package at load time.
 """
 from __future__ import annotations
 
 from neuron import (
     ALL_PARAM_NAMES,
-    IH_OFF_DEFAULT,
     IH_OFF_MODES,
     IH_SHAPE_PARAM_NAMES,
     KNOWN_MODELS,
-    SYN_MODE_DEFAULT,
+    Physics,
     SYN_MODES,
-    Ca_tau,
-    E_IH_OFF,
-    E_Ih,
-    E_LEAK_DEPOL,
-    E_LEAK_REST,
-    E_exc,
-    E_inh,
-    Ih_gain,
-    apply_ih_off_mode,
-    ca_to_v_delta,
-    capac,
-    cdt,
-    borst_schema,
     default_schema,
-    delta_ms,
-    g_leak,
+    ms_to_t,
     normalize_syn_mode,
     run_full,
     run_units,
-    set_delta_ms,
     update_v,
     v_budget_from_g,
 )
+from training.defaults import (
+    CA_TAU,
+    CAPAC,
+    DATA_AMP,
+    IH_GMAX_INDI_NAMES,
+    DELTA_MS,
+    E_EXC,
+    E_IH,
+    E_INH,
+    E_LEAK_DEPOL,
+    E_LEAK_REST,
+    EXC_SYNWEIGHT,
+    G_LEAK,
+    IH_GAIN,
+    IH_OFF,
+    INH_SYNWEIGHT,
+    PARAM_BOXES,
+    PRE_MS,
+    RESPONSE_MS,
+    STATE_CLAMP,
+    SYN_MODE,
+    PHYSICS,
+)
+
+# Derived physics (formulas live on :class:`~neuron.params.Physics`).
+E_IH_OFF = PHYSICS.E_IH_OFF
+cdt = PHYSICS.cdt
+
+# Historical ``fc.*`` attribute aliases.
+E_Ih = E_IH
+Ca_tau = CA_TAU
+capac = CAPAC
+delta_ms = DELTA_MS
+exc_synweight = EXC_SYNWEIGHT
+g_leak = G_LEAK
+inh_synweight = INH_SYNWEIGHT
+Ih_gain = IH_GAIN
+E_exc = E_EXC
+E_inh = E_INH
 
 from training.config import (
     CLI_TARGET_NAMES,
@@ -59,7 +82,7 @@ from training.config import (
     session_cost_part_keys,
 )
 from training.target_pack import (
-    FusedBorstForward,
+    FusedForward,
     ModelBackend,
     TargetPack,
     TrainingResult,

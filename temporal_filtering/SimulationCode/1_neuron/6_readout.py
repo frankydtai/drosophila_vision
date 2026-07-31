@@ -1,15 +1,15 @@
 # -*- coding: utf-8 -*-
-"""Pack readout selection: which model trace, which units, which time samples.
+"""Pack readout selection: which units and which time samples from ``v_delta``.
 
 Owns the time-axis gather shared by the continuous moving-bar window
-(``cost_t0``) and the plain post-onset spot readout, plus the ca/v dispatch
-(``readout_kind``). Takes duck-typed ``pack`` objects and primitive tensors only
--- it never imports ``TargetPack`` or the session/training layer, so
-``neuron`` stays below ``training`` in the import graph.
+(``cost_t0``) and the plain post-onset spot readout. Takes duck-typed
+``pack`` objects and primitive tensors only -- it never imports
+``TargetPack`` or the session/training layer, so ``neuron`` stays below
+``training`` in the import graph.
 
 Sparse time-point subsampling (``cost_time_ix``) is applied at cost time in
 ``training.cost`` on the full post-onset trace returned here, so the
-``t_on = signal.shape[1] - data.shape[1]`` convention stays intact.
+``t_onset = signal.shape[1] - data.shape[1]`` convention stays intact.
 """
 from __future__ import annotations
 
@@ -18,15 +18,8 @@ import torch
 from neuron.forward import run_full
 
 
-def readout_kind(pack) -> str:
-    """'ca' (default) or 'v' readout for this pack."""
-    return getattr(pack, "readout_kind", None) or "ca"
-
-
 def pack_trace_full(session, p, sig, pack):
-    """Full ``(B, T, N)`` model trace: v_delta for ``readout_kind='v'`` else Ca."""
-    if readout_kind(pack) == "v":
-        return run_full(session, p, sig, pack=pack, return_v_delta=True)
+    """Full ``(B, T, N)`` model ``v_delta`` trace."""
     return run_full(session, p, sig, pack=pack)
 
 
@@ -41,11 +34,11 @@ def pack_needs_waveform_mse(pack) -> bool:
     return pack.cost_t0 is not None
 
 
-def window_time_traces(trace_full, b_idx, u_idx, t0, win=None, *, t_on=0):
+def window_time_traces(trace_full, b_idx, u_idx, t0, win=None, *, t_onset=0):
     """Extract per-readout windows from ``trace_full`` ``(B, n_t, N)``.
 
     ``t0`` is the absolute simulation time of window start (slot ``k`` uses
-    ``t0 + k``). Slots with ``t0 + k < t_on`` are zeroed (cost alignment).
+    ``t0 + k``). Slots with ``t0 + k < t_onset`` are zeroed (cost alignment).
     """
     if win is None:
         raise ValueError("window length win required")
@@ -56,18 +49,18 @@ def window_time_traces(trace_full, b_idx, u_idx, t0, win=None, *, t_on=0):
     t_max = trace_full.shape[1] - 1
     t_safe = t_idx.clamp(0, t_max)
     sel = trace_full[b_idx[:, None], t_safe, u_idx[:, None]]
-    pre = t_idx < int(t_on)
+    pre = t_idx < int(t_onset)
     return torch.where(pre, torch.zeros_like(sel), sel)
 
 
 def readout_pack_traces(trace_full, pack):
     """Select MSE traces for cost cells; windowed when ``pack.cost_t0`` is set."""
-    pack_t_on = int(pack.signal.shape[1] - pack.data.shape[1])
+    pack_t_onset = int(pack.signal.shape[1] - pack.data.shape[1])
     if pack.cost_t0 is None:
-        return trace_full[pack.readout_batch, pack_t_on:, pack.readout_unit]
+        return trace_full[pack.readout_batch, pack_t_onset:, pack.readout_unit]
     return window_time_traces(
         trace_full, pack.readout_batch, pack.readout_unit, pack.cost_t0,
-        win=pack.data.shape[1], t_on=pack_t_on,
+        win=pack.data.shape[1], t_onset=pack_t_onset,
     )
 
 
@@ -76,15 +69,15 @@ def pack_readout(p, pack, session, batch_idx=None):
     sig = pack.signal if batch_idx is None else pack.signal[batch_idx:batch_idx + 1]
     trace_full = pack_trace_full(session, p, sig, pack)
     need_mse = pack_needs_waveform_mse(pack)
-    t_on = int(pack.signal.shape[1] - pack.data.shape[1])
+    t_onset = int(pack.signal.shape[1] - pack.data.shape[1])
     if batch_idx is None:
-        dsi_sel = trace_full[pack.readout_batch, t_on:, pack.readout_unit]
+        dsi_sel = trace_full[pack.readout_batch, t_onset:, pack.readout_unit]
         if not need_mse:
             return None, dsi_sel
         return readout_pack_traces(trace_full, pack), dsi_sel
     mask = pack.readout_batch == int(batch_idx)
     u_m = pack.readout_unit[mask]
-    dsi_sel = trace_full[0, t_on:, u_m].transpose(0, 1)
+    dsi_sel = trace_full[0, t_onset:, u_m].transpose(0, 1)
     if not need_mse:
         return None, dsi_sel
     if pack.cost_t0 is None:
@@ -92,7 +85,7 @@ def pack_readout(p, pack, session, batch_idx=None):
     b_zero = torch.zeros_like(u_m)
     mse_sel = window_time_traces(
         trace_full, b_zero, u_m, pack.cost_t0[mask],
-        win=pack.data.shape[1], t_on=t_on,
+        win=pack.data.shape[1], t_onset=t_onset,
     )
     return mse_sel, dsi_sel
 
