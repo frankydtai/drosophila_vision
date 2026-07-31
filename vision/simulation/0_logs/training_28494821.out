@@ -1,0 +1,40 @@
+Job ID: 28494821
+Node:   spartan-gpgpu001
+GPU:    0
+GPU 0: NVIDIA L40S (UUID: GPU-aceb862a-cb04-a956-2212-376fdb239fc4)
+cuda: True NVIDIA L40S
+Start:  Fri 31 Jul 2026 23:21:23 AEST
+param partitions:
+  in_gain       indi=0/shared=0/fixed=32/frozen=0 (0)
+  out_gain      indi=32/shared=0/fixed=0/frozen=0 (32)
+  syn_strength  indi=414/shared=0/fixed=0/frozen=0 (414)
+  v_th          indi=0/shared=0/fixed=32/frozen=0 (0)
+  out_scale     indi=32/shared=0/fixed=0/frozen=0 (32)
+  Ih_gmax       indi=4/shared=0/fixed=28/frozen=0 (4)
+  Ih_gmax_off   indi=4/shared=0/fixed=28/frozen=0 (4)
+  Ih_midv       indi=0/shared=32/fixed=0/frozen=0 (1)
+  Ih_slope      indi=0/shared=32/fixed=0/frozen=0 (1)
+  tau_midv      indi=0/shared=32/fixed=0/frozen=0 (1)
+  Ih_midv_off   indi=0/shared=32/fixed=0/frozen=0 (1)
+  Ih_slope_off  indi=0/shared=32/fixed=0/frozen=0 (1)
+  tau_midv_off  indi=0/shared=32/fixed=0/frozen=0 (1)
+device=cuda, model=borst, syn_mode=type_pair, nofruns=1, nofsteps=500, lrs=[0.1], nparams=492, fname=training_with_Ih.npy, outdir=/home/yitai/drosophila_vision/temporal_filtering/SimulationCode/0_runs/borst/28494821-run-nofsteps-500-tau-hp-init-L1,L2,L4,L5-200-pulse-ms-150-delta-ms-5-response-ms-300-model-borst
+checkpoint_interval=1000
+
+round 0
+
+
+Initl cost = 99.6218  [spot_bright=99.6218]
+Final cost = 31.6092  [spot_bright=31.6092]
+Best  cost = 31.6092  [spot_bright=31.6092]
+time needed  = 225.81  sec
+
+done in 0.06 hours
+wrote table: /home/yitai/drosophila_vision/temporal_filtering/SimulationCode/0_runs/borst/28494821-run-nofsteps-500-tau-hp-init-L1,L2,L4,L5-200-pulse-ms-150-delta-ms-5-response-ms-300-model-borst/param.csv (best run #0, cost=31.6092)
+wrote table: /home/yitai/drosophila_vision/temporal_filtering/SimulationCode/0_runs/borst/28494821-run-nofsteps-500-tau-hp-init-L1,L2,L4,L5-200-pulse-ms-150-delta-ms-5-response-ms-300-model-borst/syn_strength.csv
+plot device=cuda (NVIDIA L40S)
+1 trained set(s); selected #0 (cost=31.6092)
+plot /home/yitai/drosophila_vision/temporal_filtering/SimulationCode/0_runs/borst/28494821-run-nofsteps-500-tau-hp-init-L1,L2,L4,L5-200-pulse-ms-150-delta-ms-5-response-ms-300-model-borst/cost_curve.png: draw=0.1s  save=0.1s  total=0.2s
+plot /home/yitai/drosophila_vision/temporal_filtering/SimulationCode/0_runs/borst/28494821-run-nofsteps-500-tau-hp-init-L1,L2,L4,L5-200-pulse-ms-150-delta-ms-5-response-ms-300-model-borst/spot_trained_v.png: prep=0.3s  draw=0.3s  save=0.5s  total=1.1s
+plot /home/yitai/drosophila_vision/temporal_filtering/SimulationCode/0_runs/borst/28494821-run-nofsteps-500-tau-hp-init-L1,L2,L4,L5-200-pulse-ms-150-delta-ms-5-response-ms-300-model-borst/spot_all_v.png: prep=0.0s  draw=0.6s  save=1.2s  total=1.8s
+plots saved to /home/yitai/drosophila_vision/temporal_filtering/SimulationCode/0_runs/borst/28494821-run-nofsteps-500-tau-hp-init-L1,L2,L4,L5-200-pulse-ms-150-delta-ms-5-response-ms-300-model-borst

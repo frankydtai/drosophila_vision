@@ -8,7 +8,7 @@ alwaysApply: false
 
 When asked to convert a `paper.pdf` (e.g. inside a model folder like `LC18_model/`),
 produce two files **next to the PDF**, matching existing summaries
-(`Groschner2022_multiplication/`, `MatlabFunctions/`, `temporal_filtering/`).
+(`Groschner2022_multiplication/`, `MatlabFunctions/`, `vision/`).
 
 ## 1. Extract full text
 - Run `pdftotext paper.pdf paper.txt` (do NOT hand-transcribe). Keep the raw output as-is.

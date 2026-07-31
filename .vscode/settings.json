@@ -1,4 +1,4 @@
 {
-  "python.defaultInterpreterPath": "${workspaceFolder}/temporal_filtering/.venv/bin/python",
+  "python.defaultInterpreterPath": "${workspaceFolder}/vision/.venv/bin/python",
   "python.terminal.activateEnvironment": true
 }

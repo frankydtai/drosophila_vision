@@ -22,10 +22,10 @@ Groschner2022_multiplication/**/*.csv
 Groschner2022_multiplication/**/*.npy
 Groschner2022_multiplication/**/*.npz
 
-# temporal_filtering: FAFB connectome large regenerable data
-temporal_filtering/Connectome/**/network.json
-!temporal_filtering/Connectome/**/*_extent2_col/network.json
-temporal_filtering/SimulationCode/logs/training_26307646.err
+# vision: FAFB connectome large regenerable data
+vision/connectome/**/network.json
+!vision/connectome/**/*_extent2_col/network.json
+vision/simulation/logs/training_26307646.err
 
 
 # LC18 model: large Matlab files
