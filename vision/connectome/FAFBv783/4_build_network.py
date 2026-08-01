@@ -357,11 +357,11 @@ def build(side: str, min_neuron_count: int) -> Path:
         pre_id, post_id = int(pre_id), int(post_id)
         st = id_to_cell[pre_id]
         if st in FORCED_NEGATIVE_PRE_CELLS:
-            sign = -1.0
+            syn_sign = -1.0
         elif SIGN_MODE == "per_pre":
-            sign = pre_sign.get(pre_id, 1.0)
+            syn_sign = pre_sign.get(pre_id, 1.0)
         else:
-            sign = _sign_per_edge(pre_id, post_id, dom_nt)
+            syn_sign = _sign_per_edge(pre_id, post_id, dom_nt)
         sp = pos.get(pre_id)
         tp = pos.get(post_id)
         if sp is not None and tp is not None:
@@ -369,7 +369,7 @@ def build(side: str, min_neuron_count: int) -> Path:
         else:
             du, dv = None, None
         edges.append({
-            "src": pre_id, "tar": post_id, "sign": sign, "n_syn": float(n_syn),
+            "src": pre_id, "tar": post_id, "syn_sign": syn_sign, "n_syn": float(n_syn),
             "source_cell": st, "target_cell": id_to_cell[post_id],
             "du": du, "dv": dv,
         })

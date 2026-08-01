@@ -39,12 +39,12 @@ from figure.plot_run import (
 )
 
 _CHECKPOINT_PNG_STEMS = (
-    "spot_trained_ca",
-    "spot_trained_v",
+    "spot_gt_ca",
+    "spot_gt_v",
     "spot_all_ca",
     "spot_all_v",
-    "bar_trained_ca",
-    "bar_trained_v",
+    "bar_gt_ca",
+    "bar_gt_v",
     "bar_all_ca",
     "bar_all_v",
 )

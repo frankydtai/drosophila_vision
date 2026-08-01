@@ -11,10 +11,10 @@ from neuron.params import (
     KNOWN_MODELS,
 )
 
-SYN_MODES = ("cell_pair", "per_edge")
+SYN_MODES = ("per_cell", "per_edge")
 
 ALL_PARAM_NAMES = (
-    "in_gain", "out_gain", "out_scale", "syn_strength", "edge_weight", "v_th",
+    "in_gain", "out_gain", "out_scale", "syn_strength_cell", "syn_strength_edge", "v_th",
     "Ih_gmax", "Ih_gmax_off",
     "Ih_midv", "Ih_slope", "tau_midv",
     "Ih_midv_off", "Ih_slope_off", "tau_midv_off",
@@ -33,11 +33,11 @@ def normalize_syn_mode(syn_mode: str) -> str:
     return mode
 
 
-def synaptic_scale(p):
-    """Edge scaling tensor from assigned params (exactly one of syn_strength / edge_weight)."""
-    if "edge_weight" in p:
-        return p["edge_weight"]
-    return p["syn_strength"]
+def syn_strength(p):
+    """Active syn_strength tensor (exactly one of syn_strength_cell / syn_strength_edge)."""
+    if "syn_strength_edge" in p:
+        return p["syn_strength_edge"]
+    return p["syn_strength_cell"]
 
 
 def _part_indi_all(n):
@@ -82,22 +82,22 @@ def borst_ih_off_kwargs(p, ih_off: str):
 
 
 def _syn_segment(syn_mode, n_pairs, n_edges, param_boxes):
-    """One synaptic segment: type-pair α or per-edge magnitude."""
+    """One synaptic segment: type-pair or per-edge syn_strength."""
     D = param_boxes
     mode = normalize_syn_mode(syn_mode)
     if mode == "per_edge":
         if n_edges is None:
-            raise TypeError("per_edge edge_weight requires n_edges from network ScatterConn")
+            raise TypeError("per_edge syn_strength_edge requires n_edges from network ScatterConn")
         n_edges = int(n_edges)
         return _with_part(
-            {"name": "edge_weight", "count": n_edges, "kind": "edge", **D["edge_weight"]},
+            {"name": "syn_strength_edge", "count": n_edges, "kind": "edge", **D["syn_strength_edge"]},
             _part_indi_all(n_edges),
         )
     if n_pairs is None:
-        raise TypeError("cell_pair syn_strength requires n_pairs from network ScatterConn")
+        raise TypeError("per_cell syn_strength_cell requires n_pairs from network ScatterConn")
     n_pairs = int(n_pairs)
     return _with_part(
-        {"name": "syn_strength", "count": n_pairs, "kind": "edge_pair", **D["syn_strength"]},
+        {"name": "syn_strength_cell", "count": n_pairs, "kind": "edge_pair", **D["syn_strength_cell"]},
         _part_indi_all(n_pairs),
     )
 
@@ -208,14 +208,14 @@ def default_schema(
     n_edges = getattr(backend.conn, "n_edges", None)
     if mode == "per_edge":
         if n_edges is None:
-            raise TypeError(f"{model} edge_weight requires network ScatterConn backend")
+            raise TypeError(f"{model} syn_strength_edge requires network ScatterConn backend")
         kw = dict(
             syn_mode=mode, n_edges=n_edges, n_pairs=n_pairs,
             param_boxes=param_boxes, ih_gmax_indi_names=ih_gmax_indi_names,
         )
     else:
         if n_pairs is None:
-            raise TypeError(f"{model} syn_strength requires network ScatterConn backend")
+            raise TypeError(f"{model} syn_strength_cell requires network ScatterConn backend")
         kw = dict(
             syn_mode=mode, n_pairs=n_pairs, n_edges=n_edges,
             param_boxes=param_boxes, ih_gmax_indi_names=ih_gmax_indi_names,

@@ -571,7 +571,7 @@ def _pd_nd_index(pd_nd: str) -> int:
 
 @dataclass
 class MovingBarGt:
-    signal: torch.Tensor
+    i_sti: torch.Tensor
     data: torch.Tensor
     power: torch.Tensor
     cost_weight: torch.Tensor
@@ -897,7 +897,7 @@ def build_moving_bar_gt(
             "cost_window_t": win_t,
         })
     return MovingBarGt(
-        signal=stim.signal,
+        i_sti=stim.i_sti,
         data=data,
         power=power,
         cost_weight=cost_weight,

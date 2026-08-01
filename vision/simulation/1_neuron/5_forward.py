@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """Shared full-T ``v`` forward for all neuron models.
 
-Per-model modules supply only ``prepare_signal`` / ``init_state`` / ``step``.
+Per-model modules supply only ``prepare_i_sti`` / ``init_state`` / ``step``.
 This module owns the time loop and ``t_onset`` reference. Training / plots read
 ``v_delta = v - v_onset``; the unused Ca filter stays in ``neuron.filter_ca``.
 """
@@ -12,7 +12,7 @@ import torch
 from neuron import model_borst as _model_borst
 from neuron import model_hp_lp as _model_hp_lp
 
-# Per-model dynamics for ``run_full`` (prepare_signal / init_state / step only).
+# Per-model dynamics for ``run_full`` (prepare_i_sti / init_state / step only).
 MODEL_DRIVERS = {
     "borst": _model_borst,
     "hp_lp": _model_hp_lp,
@@ -24,11 +24,11 @@ def _detach_state(state):
     return tuple(s.detach() for s in state)
 
 
-def run_full(session, p, sig, *, return_v_onset=False, pack=None):
+def run_full(session, p, i_sti, *, return_v_onset=False, pack=None):
     """Shared full-T forward for every ``session.model``.
 
     Time index ``t`` is post-update at step ``t``. Membrane drive comes from
-    ``MODEL_DRIVERS[model].prepare_signal`` / ``init_state`` / ``step``.
+    ``MODEL_DRIVERS[model].prepare_i_sti`` / ``init_state`` / ``step``.
     ``v_onset`` is ``v`` at ``t_onset - 1``.
 
     ``session.train_opts['pre_grad']`` (default ``True``): when ``False``, steps
@@ -48,27 +48,27 @@ def run_full(session, p, sig, *, return_v_onset=False, pack=None):
         ) from exc
 
     pack = pack or session.primary_readout
-    x = drv.prepare_signal(session, p, sig, pack)
-    B, t_end, _n = int(x.shape[0]), int(x.shape[1]), int(x.shape[2])
-    t_onset = int(pack.signal.shape[1] - pack.data.shape[1])
+    i_sti = drv.prepare_i_sti(session, p, i_sti, pack)
+    B, t_end, _n = int(i_sti.shape[0]), int(i_sti.shape[1]), int(i_sti.shape[2])
+    t_onset = int(pack.i_sti.shape[1] - pack.data.shape[1])
     pre_grad = bool((session.train_opts or {})["pre_grad"])
     state, v = drv.init_state(session, p, B)
     v_rows = [v]
     if pre_grad or t_onset <= 0:
         for t in range(1, t_end):
-            state, v = drv.step(state, v, p, x[:, t - 1], session)
+            state, v = drv.step(state, v, p, i_sti[:, t - 1], session)
             v_rows.append(v)
         v_full = torch.stack(v_rows, dim=1)
         v_onset = v_full[:, t_onset - 1, :].clone()
     else:
         with torch.no_grad():
             for t in range(1, t_onset):
-                state, v = drv.step(state, v, p, x[:, t - 1], session)
+                state, v = drv.step(state, v, p, i_sti[:, t - 1], session)
                 v_rows.append(v)
         state = _detach_state(state)
         v = v.detach()
         for t in range(max(t_onset, 1), t_end):
-            state, v = drv.step(state, v, p, x[:, t - 1], session)
+            state, v = drv.step(state, v, p, i_sti[:, t - 1], session)
             v_rows.append(v)
         v_full = torch.stack(v_rows, dim=1)
         v_onset = v_full[:, t_onset - 1, :].detach()
@@ -80,18 +80,18 @@ def run_full(session, p, sig, *, return_v_onset=False, pack=None):
 
 
 def run_nodes(
-    session, p, node_index=None, return_v_onset=False, sig=None, pack=None,
+    session, p, node_index=None, return_v_onset=False, i_sti=None, pack=None,
 ):
-    """``run_full`` then index nodes; squeeze when ``sig`` is ``(T, N)``."""
+    """``run_full`` then index nodes; squeeze when ``i_sti`` is ``(T, N)``."""
     pack = pack or session.primary_readout
     if node_index is None:
         node_index = pack.readout_node
-    if sig is None:
-        sig = session.pack_signal(pack)
-    squeeze = sig.dim() == 2
-    sig_b = sig.unsqueeze(0) if squeeze else sig
+    if i_sti is None:
+        i_sti = session.pack_i_sti(pack)
+    squeeze = i_sti.dim() == 2
+    i_sti_b = i_sti.unsqueeze(0) if squeeze else i_sti
     out, v_onset, _v_full = run_full(
-        session, p, sig_b, return_v_onset=True, pack=pack,
+        session, p, i_sti_b, return_v_onset=True, pack=pack,
     )
     out = out[:, :, node_index]
     v_onset = v_onset[:, node_index]

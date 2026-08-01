@@ -32,13 +32,12 @@ from matplotlib.patches import Rectangle
 from training.defaults import (
     I_BASELINE,
     I_BRIGHT,
-    DELTA_MS, EXC_SYNWEIGHT, INH_SYNWEIGHT,
+    DELTA_MS, SYN_SCALE_EXC, SYN_SCALE_INH,
     SYN_MODE,
 )
 from training.readout_pack import SIM_DTYPE
 from network.construction import load_network
-from training.driver import parse_bool
-from import_bootstrap import parse_comma_list
+from import_bootstrap import parse_bool, parse_comma_list
 from build_hex import (
     FIELD_VIEW_PAD_DEG,
     draw_hex_patches,
@@ -341,7 +340,7 @@ def main():
     network_json = str(resolve_network_json(args.network))
     C = load_network(
         network_json, device="cpu",
-        exc_synweight=EXC_SYNWEIGHT, inh_synweight=INH_SYNWEIGHT,
+        syn_scale_exc=SYN_SCALE_EXC, syn_scale_inh=SYN_SCALE_INH,
         syn_mode=SYN_MODE, dtype=SIM_DTYPE,
     )
     default_png, default_gif = _default_outputs(network_json, C.meta, args.direction)
@@ -388,7 +387,7 @@ def main():
             bar_extent=bar_extent,
             multi_bar=bool(args.multi_bar),
         )
-    print(f"signal shape {tuple(T.signal.shape)}  specs={info['spec_names']}")
+    print(f"i_sti shape {tuple(T.i_sti.shape)}  specs={info['spec_names']}")
 
 
 if __name__ == "__main__":

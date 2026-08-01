@@ -4,49 +4,73 @@
     τ_HP da/dt = X − a
     τ_lp dv/dt = −(v − v_rest) + G (X − a)
 
-with X = v_rest + syn + x_t, syn from relu(v)·out_gain scaled by syn_strength
-(cell_pair) or edge_weight (per_edge).
+with X = v_rest + v_in + v_sti, v_sti = i_sti/g_in (g_in in nS converts pA → mV),
+v_in from relu(v)·out_gain scaled by syn_strength_cell (per_cell) or
+syn_strength_edge (per_edge).
 
-Dynamics only: ``prepare_signal`` / ``init_state`` / ``step``. Full-T ``v``
+Dynamics only: ``prepare_i_sti`` / ``init_state`` / ``step``. Full-T ``v``
 forward lives in ``neuron.forward``. Scalars from ``session`` flat fields.
 """
 from __future__ import annotations
 
 import torch
 
-from neuron.schema import synaptic_scale
+from neuron.schema import syn_strength
 
 
-def update_state_hp_lp(v, a, p, x_t, backend, *, delta_ms, state_clamp):
-    """One HP→LP membrane step; returns (v, a)."""
+def update_state_hp_lp(
+    v, a, p, i_sti, backend, *, delta_ms, state_clamp, g_in, return_component: bool = False,
+):
+    """One HP→LP membrane step; returns ``(v, a)`` or component extras."""
     v_rest = p["v_rest"]
     dt = float(delta_ms)
     tau_lp = torch.clamp(p["tau_lp"], min=dt)
     tau_hp = torch.clamp(p["tau_hp"], min=dt)
     G = p["hp_gain"]
     clamp = float(state_clamp)
+    g_in = float(g_in)
+    if g_in == 0.0:
+        raise ValueError("g_in must be non-zero")
 
-    syn = p["in_gain"] * backend.conn.signed_drive(
-        torch.relu(v) * p["out_gain"], synaptic_scale(p),
-    )
-    X = v_rest + syn + x_t
+    pre = torch.relu(v) * p["out_gain"]
+    w = syn_strength(p)
+    v_in = p["in_gain"] * backend.conn.signed_drive(pre, w)
+    v_sti = i_sti / g_in
+    X = v_rest + v_in + v_sti
     a = a + dt / tau_hp * (X - a)
-    v = v + dt / tau_lp * (-(v - v_rest) + G * (X - a))
+    # LP uses post-HP ``a`` (same as prior identity).
+    X_minus_a = X - a
+    dv_leak = dt / tau_lp * (-(v - v_rest))
+    dv_hp = dt / tau_lp * G * X_minus_a
+    v = v + dv_leak + dv_hp
 
     a = torch.clamp(a, -clamp, clamp)
     v = torch.clamp(v, -clamp, clamp)
-    return v, a
+
+    if not return_component:
+        return v, a
+
+    g_exc, g_inh = backend.conn.exc_inh_drive(pre, w)
+    v_in_exc = p["in_gain"] * g_exc
+    v_in_inh = p["in_gain"] * g_inh
+    return v, a, {
+        "v_in": v_in,
+        "v_in_exc": v_in_exc,
+        "v_in_inh": v_in_inh,
+        "a": a,
+        "X": X,
+        "X_minus_a": X_minus_a,
+        "dv_leak": dv_leak,
+        "dv_hp": dv_hp,
+        "i_sti": i_sti,
+        "v_sti": v_sti,
+    }
 
 
-def prepare_signal(session, p, sig, pack):
-    """PR current scaled by peak ``i_*`` → activity-model drive ``(B, T, N)``.
-
-    Scale is ``pack.signal_scale`` (stamped at session build); no training import.
-    """
-    scale = float(getattr(pack, "signal_scale", 1.0) or 1.0)
-    if scale == 0.0:
-        raise ValueError("pack.signal_scale must be non-zero")
-    return sig / scale
+def prepare_i_sti(session, p, i_sti, pack):
+    """PR current ``(B, T, N)`` as membrane drive (no rescale)."""
+    del p, pack
+    return i_sti.unsqueeze(0) if i_sti.dim() == 2 else i_sti
 
 
 def init_state(session, p, B):
@@ -58,10 +82,17 @@ def init_state(session, p, B):
     return (a,), v
 
 
-def step(state, v, p, x_t, session):
+def step(state, v, p, i_sti, session, *, return_component: bool = False):
+    """One hp_lp update; returns ``((a,), v)`` or + component dict."""
     a, = state
-    v, a = update_state_hp_lp(
-        v, a, p, x_t, session.backend,
+    out = update_state_hp_lp(
+        v, a, p, i_sti, session.backend,
         delta_ms=session.delta_ms, state_clamp=session.STATE_CLAMP,
+        g_in=session.g_in,
+        return_component=return_component,
     )
+    if return_component:
+        v, a, component = out
+        return (a,), v, component
+    v, a = out
     return (a,), v

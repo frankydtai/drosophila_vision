@@ -1,6 +1,0 @@
-Job ID: 28307849
-Node:   spartan-gpgpu113
-GPU:    0
-GPU 0: NVIDIA A100 80GB PCIe (UUID: GPU-50aaae5a-af2d-8326-30c1-4138eb24ab2c)
-cuda: True NVIDIA A100 80GB PCIe
-Start:  Wed 29 Jul 2026 20:14:51 AEST

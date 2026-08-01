@@ -34,7 +34,7 @@ Scope: `vision/`.
 
 ## B core script rules: `simulation/**`
 
-Disk layout under `simulation/` and `connectome/FAFBv783/` uses sorted `N_name` prefixes for **core only**. Core = numbered. Numbered = core. Non-core is unnumbered. Simulation core = `1_neuron_model/`, `2_network/`, `3_task/`, `4_training/`, `5_figure/`. Non-core (`run.py`, `analyze/`, `experiment/`, `test/`) is unnumbered. Imports use the **logical** name only (`neuron_model`, `network.layout`, `map_column`). Renumber = rename on disk only; do not change logical import strings or `vision/import_bootstrap.py`. Enable via `import import_bootstrap` (and project `.venv` `simulation_sorted.pth`) before logical imports.
+Disk layout under `simulation/` and `connectome/FAFBv783/` uses sorted `N_name` prefixes for **core only**. Core = numbered. Numbered = core. Non-core is unnumbered. Simulation core = `1_neuron_model/`, `2_network/`, `3_task/`, `4_training/`, `5_figure/`, `6_analyze/`. Non-core (`experiment/`, `test/`) is unnumbered. Imports use the **logical** name only (`neuron_model`, `network.layout`, `map_column`). Renumber = rename on disk only; do not change logical import strings or `vision/import_bootstrap.py`. Enable via `import import_bootstrap` (and project `.venv` `simulation_sorted.pth`) before logical imports.
 
 Core numbering rules:
 1. Smaller `N` = imported earlier and completed / ready earlier.
@@ -47,7 +47,7 @@ Core numbering rules:
 3. `run.py`: general driver only; `import train` must not parse argv or touch CUDA.
 4. Path constants in `path.py` / `training/config.py` (logical); disk file is under `4_training/`. 
 5. CSVs: rectangular; global scalars as constant columns.
-6. Core codes must stay flexible for add_param/ or `6_test/` to easily import, modify, and overwrite without touching core codes.
+6. Core codes must stay flexible for `experiment/` or `test/` to easily import, modify, and overwrite without touching core codes.
 7. No reverse plot dependency (HARD STOP 5). Scope: `simulation/2_network/**`, `connectome/**`, `1_neuron_model/**`, `3_task/**`, `4_training/**` (non-plot), `path.py`. Shared logic needed by both plot and core → move into core (e.g. `3_task/2_spot/`, `3_task/3_moving_bar/`); never import plot layers from core.
 8. Numeric defaults: sole source is `4_training/0_defaults.py` (logical `training.defaults`) — literals / constant bags only (physics, schema boxes, stimulus, CLI); no functions, no formulas. Only `4_training` / figures / run scripts may import it. `1_neuron` / `2_network` / `3_task` take numbers by injection only and must not import `training.defaults` (Gruntman paradigm ms/geometry constants may live in `task.moving_bar`). Constants in `0_defaults.py` follow original definition order across numbered cores `1.1` … `4.7` (empty cores omitted).
 10. No reverse plot dependency: core must not import or call plotting. Forbidden: `import plot`, `from plot import …`, `import plot_trained`, `from plot_trained import …`
@@ -61,5 +61,5 @@ Core numbering rules:
 ## D file/function naming rules
 
 1. Use singular for single entities and concepts; use plural for collections/sequences (e.g. `param` vs `params`, `key` vs `keys`).
-2. Script files/functions must contain exactly one verb across the full path; the verb may appear in a parent directory name or in the basename, but it must not be duplicated.
+2. Script files must contain exactly one verb across the full path; the verb may appear in a parent directory name or in the basename, but it must not be duplicated.
 3. Output directories use plural nouns.

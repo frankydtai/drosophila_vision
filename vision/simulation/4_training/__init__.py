@@ -22,8 +22,9 @@ from neuron import (
     normalize_syn_mode,
     run_full,
     run_nodes,
+    update_state_hp_lp,
     update_v,
-    v_budget_from_g,
+    v_component_from_g,
 )
 from training.defaults import (
     CA_TAU,
@@ -35,18 +36,21 @@ from training.defaults import (
     E_INH,
     E_LEAK_DEPOL,
     E_LEAK_REST,
-    EXC_SYNWEIGHT,
+    SYN_SCALE_EXC,
     G_LEAK,
+    G_IN,
     IH_GAIN,
     IH_GMAX_INDI_NAMES,
     IH_OFF,
-    INH_SYNWEIGHT,
+    SYN_SCALE_INH,
     PARAM_BOXES,
     PRE_MS,
     PULSE_MS,
     RESPONSE_MS,
     STATE_CLAMP,
     SYN_MODE,
+    T_REL_START,
+    T_REL_STOP,
 )
 
 from training.config import (
@@ -97,7 +101,7 @@ from training.params import (
     cell_node_names,
     node_names_for_segment,
     node_values_to_z,
-    validate_edge_weight_partition,
+    validate_syn_strength_edge_partition,
     z_to_node_values,
 )
 from training.cost import (

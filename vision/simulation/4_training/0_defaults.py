@@ -21,6 +21,7 @@ from typing import Dict, Tuple
 DELTA_MS = 10.0
 CAPAC = 40.0
 G_LEAK = 1.0
+G_IN = 1.0  # nS; hp_lp converts i_sti (pA) → mV via i_sti / g_in
 E_EXC = 10.0
 E_INH = -70.0
 E_IH = 50.0
@@ -30,8 +31,8 @@ IH_GAIN = 1.0
 CA_TAU = 50.0
 DATA_AMP = 20.0
 STATE_CLAMP = 1.0e6
-EXC_SYNWEIGHT = 0.001
-INH_SYNWEIGHT = 0.001
+SYN_SCALE_EXC = 0.001
+SYN_SCALE_INH = 0.001
 
 IH_OFF = "on"
 
@@ -43,8 +44,8 @@ PARAM_BOXES: Dict[str, dict] = {
     "in_gain": dict(lo=GAIN_LO, hi=GAIN_HI, init=1.0, jit=0.1),
     "out_gain": dict(lo=GAIN_LO, hi=GAIN_HI, init=1.0, jit=0.1),
     "out_scale": dict(lo=GAIN_LO, hi=GAIN_HI, init=1.0, jit=0.1),
-    "syn_strength": dict(lo=GAIN_LO, hi=GAIN_HI, init=1.0, jit=0.1),
-    "edge_weight": dict(lo=GAIN_LO, hi=GAIN_HI, init=1.0, jit=0.1),
+    "syn_strength_cell": dict(lo=GAIN_LO, hi=GAIN_HI, init=1.0, jit=0.1),
+    "syn_strength_edge": dict(lo=GAIN_LO, hi=GAIN_HI, init=1.0, jit=0.1),
     "v_th": dict(lo=-70.0, hi=-30.0, init=-50.0, jit=0.0, fixed_val=-50.0),
     "Ih_gmax": dict(lo=0.0, hi=100.0, init=50.0, jit=10.0, fixed_val=0.0),
     "Ih_gmax_off": dict(lo=0.0, hi=100.0, init=50.0, jit=10.0, fixed_val=0.0),
@@ -66,7 +67,7 @@ MODEL = "hp_lp"
 # 1.2 neuron.schema
 # ---------------------------------------------------------------------------
 
-SYN_MODE = "cell_pair"
+SYN_MODE = "per_cell"
 
 # ---------------------------------------------------------------------------
 # 1.2 neuron.forward
@@ -146,3 +147,10 @@ CHECKPOINT_INTERVAL = 1000
 
 FP = 64
 SEQUENTIAL = False
+
+# ---------------------------------------------------------------------------
+# 6 analyze.cell_dynamics
+# ---------------------------------------------------------------------------
+
+T_REL_START = -10
+T_REL_STOP = 10

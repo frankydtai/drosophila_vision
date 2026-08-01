@@ -260,7 +260,7 @@ def apply_partitions(schema, partitions_by_name, node_names_for_seg):
                 buckets = {b: [str(x) for x in (raw.get(b) or [])] for b in PARTITION_BUCKETS}
                 if raw.get('init_override'):
                     buckets['init_override'] = raw['init_override']
-                validate_edge_weight_partition(buckets, param_name=name)
+                validate_syn_strength_edge_partition(buckets, param_name=name)
         if not vals:
             part = {b: list(seg.get(b) or []) for b in PARTITION_BUCKETS}
         elif all(isinstance(x, int) for x in vals):
@@ -346,7 +346,7 @@ def node_names_for_segment(seg, backend: "ModelBackend"):
     return cell_node_names(backend)
 
 
-def validate_edge_weight_partition(buckets, *, param_name='edge_weight'):
+def validate_syn_strength_edge_partition(buckets, *, param_name='syn_strength_edge'):
     """Require a single ``indi|fixed|frozen=all`` bucket (no shared / named edges)."""
     if buckets.get('init_override'):
         raise ValueError(f"{param_name}: init= overrides are not supported")

@@ -238,7 +238,7 @@ def _plot_spot_tasks(session, z, outdir, spot_tasks, suffix, model_all,
                 session_for_task(session, 'spot_dark'), z, **bundle_kw,
             ),
         }
-        mvd = os.path.join(outdir, f'spot_trained_{kind}.png')
+        mvd = os.path.join(outdir, f'spot_gt_{kind}.png')
         plot_data(
             mvd, bundles=bundles,
             title=f'Spot {kind}-data ({suffix}){net_tag}',
@@ -284,7 +284,7 @@ def _plot_bar_readouts(session, z, outdir, bar_readouts, suffix, model_all, *,
         b_dark = moving_bar_plot.moving_bar_trace_bundle(
             s_dark, z, 'moving_bar_dark', **bundle_kw,
         )
-        mvd = os.path.join(outdir, f'bar_trained_{kind}.png')
+        mvd = os.path.join(outdir, f'bar_gt_{kind}.png')
         moving_bar_plot.plot_moving_bar_data(
             mvd, bundle=b_bright, bundle_2=b_dark,
             title=f'Moving-bar {kind}-data ({suffix})',
@@ -301,7 +301,7 @@ def _plot_bar_readouts(session, z, outdir, bar_readouts, suffix, model_all, *,
     for tname in bar_readouts:
         one = session_for_task(session, tname)
         b = moving_bar_plot.moving_bar_trace_bundle(one, z, tname, **bundle_kw)
-        mvd = os.path.join(outdir, f'bar_trained_{kind}.png')
+        mvd = os.path.join(outdir, f'bar_gt_{kind}.png')
         moving_bar_plot.plot_moving_bar_data(
             mvd, bundle=b, title=f'{tname} {kind}-data ({suffix})',
         )
@@ -321,7 +321,7 @@ def _plot_one_task(session, z, outdir, tname, suffix, model_all,
     if tname not in training.SPOT_TASKS:
         raise ValueError(f'unknown plot task {tname!r}')
     kind = _session_trace_kind(session)
-    mvd = os.path.join(outdir, f'spot_trained_{kind}.png')
+    mvd = os.path.join(outdir, f'spot_gt_{kind}.png')
     allc = os.path.join(outdir, f'spot_all_{kind}.png')
     make_bundle, plot_data, plot_all = spot_bundle_fns(session)
     net_tag = _network_spot_tag(session, tname)
@@ -450,7 +450,7 @@ def _load_plot_costs(outdir, fname, n_runs):
 
 def add_plot_arguments(parser):
     """Register plot-only CLI flags shared by ``training.driver`` and ``figure.plot_run``."""
-    from training.driver import parse_bool
+    from import_bootstrap import parse_bool
 
     parser.add_argument(
         '--plot-right-only',

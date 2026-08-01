@@ -7,9 +7,9 @@ builders wrap the neutral gt dataclasses from ``task`` (which sit below
 ``training`` in the import graph) and stamp the cross-cutting readout controls:
 
 * spot: sparse ``cost_time_ix`` (#4), pulse ``pulse_ms`` (#1) already baked into
-  the stimulus, ``waveform_mse=True``, ``signal_scale`` (hp_lp peak PR);
+  the stimulus, ``waveform_mse=True``;
 * moving bar: ``waveform_mse`` from cost weights (True when a cost window is
-  built), ``signal_scale``.
+  built).
 
 Model and gt traces are ``v`` (``v - v_onset``); ImpR / RecF spot data are
 used as-is.
@@ -40,12 +40,13 @@ from training.defaults import (
     E_INH,
     E_LEAK_DEPOL,
     E_LEAK_REST,
-    EXC_SYNWEIGHT,
+    SYN_SCALE_EXC,
     FP,
     FULLY_INSIDE,
     G_LEAK,
+    G_IN,
     IH_GAIN,
-    INH_SYNWEIGHT,
+    SYN_SCALE_INH,
     MULTI_BAR,
     MULTI_SPOT,
     PRE_GRAD,
@@ -148,25 +149,6 @@ def _spot_i_from_opts(opts, polarity: str):
         _opt_float(opts, _SPOT_BASELINE_KEY, default=I_BASELINE),
         _opt_float(opts, peak_key, default=peak_default),
     )
-
-
-def _signal_scale_from_opts(pack_name: str, opts: Optional[dict]) -> float:
-    """Peak PR current for hp_lp ``sig / scale``; stamped onto ``ReadoutPack``."""
-    opts = opts or {}
-    if pack_name == "spot_bright":
-        peak = _opt_float(opts, "i_bright_spot", default=I_BRIGHT)
-    elif pack_name == "spot_dark":
-        peak = _opt_float(opts, "i_dark_spot", default=I_DARK)
-    elif pack_name == "moving_bar_bright":
-        peak = _opt_float(opts, "i_bright_moving_bar", default=I_BRIGHT)
-    elif pack_name == "moving_bar_dark":
-        peak = _opt_float(opts, "i_dark_moving_bar", default=I_DARK)
-    else:
-        peak = I_BRIGHT
-    peak = float(peak)
-    if peak == 0.0:
-        return float(I_BRIGHT)
-    return peak
 
 
 def resolve_cell_indices(cell_names, backend: ModelBackend):
@@ -272,7 +254,7 @@ def _append_mirror_pack_rows(
         )
     return ReadoutPack(
         name=pack.name,
-        signal=pack.signal,
+        i_sti=pack.i_sti,
         data=all_data,
         power=pack.power + torch.sum(extra_data_t ** 2),
         cost_weight=cost_weight,
@@ -291,7 +273,6 @@ def _append_mirror_pack_rows(
         dsi_power=pack.dsi_power,
         cost_time_ix=pack.cost_time_ix,
         waveform_mse=pack.waveform_mse,
-        signal_scale=pack.signal_scale,
     )
 
 
@@ -349,8 +330,8 @@ def load_network_backend(
     network_json,
     dev: Optional[str] = None,
     *,
-    exc_synweight: float,
-    inh_synweight: float,
+    syn_scale_exc: float,
+    syn_scale_inh: float,
     e_leak_rest: float,
     e_leak_depol: float,
     sim_dtype=SIM_DTYPE,
@@ -363,7 +344,7 @@ def load_network_backend(
     mode = normalize_syn_mode(syn_mode)
     C = load_network(
         network_json, device=dev,
-        exc_synweight=exc_synweight, inh_synweight=inh_synweight,
+        syn_scale_exc=syn_scale_exc, syn_scale_inh=syn_scale_inh,
         dtype=sim_dtype, syn_mode=mode,
     )
     backend = _network_backend_from_connectome(
@@ -459,7 +440,7 @@ def _build_network_moving_bar_readout(ctx: _TrainBindCtx, C, *, pack_name: str, 
     stim = _enrich_moving_bar_stimulus_opts(opts, T.info, cost_extent=cost_extent)
     pack = ReadoutPack(
         name=pack_name,
-        signal=T.signal,
+        i_sti=T.i_sti,
         data=T.data,
         power=T.power,
         cost_weight=T.cost_weight,
@@ -476,7 +457,6 @@ def _build_network_moving_bar_readout(ctx: _TrainBindCtx, C, *, pack_name: str, 
         dsi_weight=T.dsi_weight,
         dsi_power=T.dsi_power,
         waveform_mse=bool(T.info["waveform_mse"]),
-        signal_scale=_signal_scale_from_opts(pack_name, opts),
     )
     coltag = _cost_extent_hex_coltag(cost_extent, T.info["n_cost_hexes"])
     tag = (
@@ -603,7 +583,7 @@ def _build_network_spot_task(
         stim["gt_cells"] = list(T.info["present_gts"])
     pack = ReadoutPack(
         name=pack_name,
-        signal=T.signal,
+        i_sti=T.i_sti,
         data=T.data,
         power=T.power,
         cost_weight=T.cost_weight,
@@ -616,7 +596,6 @@ def _build_network_spot_task(
         cost_extent=cost_extent,
         cost_time_ix=cost_time_ix,
         waveform_mse=True,
-        signal_scale=_signal_scale_from_opts(pack_name, opts),
     )
     coltag = _cost_extent_hex_coltag(cost_extent, T.info["n_cost_hexes"])
     shifttag = f"{T.info['n_shifts']} shifts"
@@ -1064,6 +1043,7 @@ def _make_session(
         delta_ms=float(delta_ms),
         capac=CAPAC,
         g_leak=G_LEAK,
+        g_in=G_IN,
         E_exc=E_EXC,
         E_inh=E_INH,
         E_Ih=E_IH,
@@ -1073,8 +1053,8 @@ def _make_session(
         Ca_tau=CA_TAU,
         DATA_AMP=DATA_AMP,
         STATE_CLAMP=STATE_CLAMP,
-        exc_synweight=EXC_SYNWEIGHT,
-        inh_synweight=INH_SYNWEIGHT,
+        syn_scale_exc=SYN_SCALE_EXC,
+        syn_scale_inh=SYN_SCALE_INH,
         sim_dtype=sim_dtype,
         train_opts=train_opts_record,
     )
@@ -1110,7 +1090,7 @@ def open_session(
             raise ValueError("open_session(network) requires opts['network'] or network_json")
         C = load_network(
             nj, device=dev,
-            exc_synweight=EXC_SYNWEIGHT, inh_synweight=INH_SYNWEIGHT,
+            syn_scale_exc=SYN_SCALE_EXC, syn_scale_inh=SYN_SCALE_INH,
             dtype=sim_dtype, syn_mode=syn_mode,
         )
     if model_backend is None:
@@ -1200,7 +1180,7 @@ def open_session_from_opts(opts: dict, model: str | None = None, **kwargs) -> Tr
     mb = load_network_backend(
         nj, dev=opts.get("dev") or active_device(), sim_dtype=sim_dtype,
         syn_mode=syn_mode,
-        exc_synweight=EXC_SYNWEIGHT, inh_synweight=INH_SYNWEIGHT,
+        syn_scale_exc=SYN_SCALE_EXC, syn_scale_inh=SYN_SCALE_INH,
         e_leak_rest=E_LEAK_REST, e_leak_depol=E_LEAK_DEPOL,
     )
     opts["network"] = mb.network

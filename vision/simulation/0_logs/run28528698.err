@@ -1,0 +1,16 @@
+Traceback (most recent call last):
+  File "/home/yitai/drosophila_vision/vision/simulation/run.py", line 318, in <module>
+    main()
+  File "/home/yitai/drosophila_vision/vision/simulation/run.py", line 314, in main
+    run_training_and_plot(**kw)
+  File "/home/yitai/drosophila_vision/vision/simulation/run.py", line 188, in run_training_and_plot
+    fname, outdir, session, result = train.run_training(
+  File "/home/yitai/drosophila_vision/vision/simulation/4_training/6_driver.py", line 717, in run_training
+    result = do_many_runs(
+  File "/home/yitai/drosophila_vision/vision/simulation/4_training/4_cost.py", line 937, in do_many_runs
+    z_fit = train_staged(
+  File "/home/yitai/drosophila_vision/vision/simulation/4_training/4_cost.py", line 834, in train_staged
+    z = gradient_network(z, lr=lr, n_steps=nsteps, device=active_device(),
+  File "/home/yitai/drosophila_vision/vision/simulation/4_training/4_cost.py", line 704, in gradient_network
+    raise RuntimeError(f'non-finite cost at init: {cost}')
+RuntimeError: non-finite cost at init: nan

@@ -843,7 +843,7 @@ def build_batched_hex_current(
     return out
 
 
-# -- Connectome mapping: hex currents -> node ``signal`` (was moving_bar_readout) --
+# -- Connectome mapping: hex currents -> node ``i_sti`` (was moving_bar_readout) --
 
 PD_IDX, ND_IDX = 0, 1
 _TRACE_CACHE: Dict[str, np.ndarray] = {}
@@ -867,7 +867,7 @@ def _sti_hex_from_uv(u: int, v: int, node_idx: np.ndarray) -> StiHex:
 
 @dataclass
 class MovingBarStimulus:
-    signal: torch.Tensor
+    i_sti: torch.Tensor
     hex_current: np.ndarray
     specs: List[MovingBarSpec]
     info: dict = field(default_factory=dict)
@@ -1176,7 +1176,7 @@ def build_moving_bar_signals(
 ) -> MovingBarStimulus:
     """Build batched photoreceptor current for moving-bar stimuli (network connectome).
 
-    Returns ``signal`` with shape ``(B, T, N_nodes)`` where ``B = len(specs)``.
+    Returns ``i_sti`` with shape ``(B, T, N_nodes)`` where ``B = len(specs)``.
     """
     device = device or C.device
     bar_extent = int(bar_extent)
@@ -1231,7 +1231,7 @@ def build_moving_bar_signals(
         if cache_path is not None and use_cache:
             _save_moving_bar_hex_cache(cache_path, hex_curr)
 
-    signal_np = scatter_hex_current_batched(hex_curr, sti, n_nodes)
+    i_sti_np = scatter_hex_current_batched(hex_curr, sti, n_nodes)
 
     info = {
         "n_batch": n_batch,
@@ -1255,7 +1255,7 @@ def build_moving_bar_signals(
     if i_dark is not None:
         info["i_dark_moving_bar"] = i_dark
     return MovingBarStimulus(
-        signal=torch.as_tensor(signal_np, dtype=sim_dtype, device=device),
+        i_sti=torch.as_tensor(i_sti_np, dtype=sim_dtype, device=device),
         hex_current=hex_curr,
         specs=specs,
         info=info,

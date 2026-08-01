@@ -5,11 +5,11 @@ The JSON contract (see ``connectome/FAFBv783/.../network.json``):
 
     metadata: {side, extent, nt_to_sign, forced_negative_pre_cells, ...}
     nodes:    [{id, name, u, v, column_id, input, output}, ...]
-    edges:    [{src, tar, sign, n_syn, source_cell, target_cell, du, dv}, ...]
+    edges:    [{src, tar, syn_sign, n_syn, source_cell, target_cell, du, dv}, ...]
 
-``sign`` already encodes ``nt_to_sign`` and the ``forced_negative_pre_cells``
-override. ``--syn-mode cell_pair`` uses ``base_w = sign * n_syn``;
-``--syn-mode per_edge`` uses ``base_w = sign`` (ignore ``n_syn``).
+``syn_sign`` already encodes ``nt_to_sign`` and the ``forced_negative_pre_cells``
+override. ``--syn-mode per_cell`` uses ``edge_weight = syn_sign * n_syn``;
+``--syn-mode per_edge`` uses ``edge_weight = syn_sign`` (ignore ``n_syn``).
 
 Nodes follow ``network.json`` file order; ``node_cell[i]`` is the index of
 ``nodes[i]['name']`` in the family-ordered cell vocabulary
@@ -103,7 +103,7 @@ class Network:
         """Stimulus (photoreceptor) node indices on hex (u, v)."""
         return np.where((self.u == u) & (self.v == v) & self.is_input)[0]
 
-    def build_signal(
+    def build_i_sti(
         self,
         n_t: int,
         *,
@@ -113,13 +113,13 @@ class Network:
         center_uv=(0, 0),
     ) -> torch.Tensor:
         """(n_t, n_nodes) injected PR current for one hex's inputs."""
-        sig = torch.zeros((n_t, self.n_nodes), dtype=torch.float64, device=self.device)
+        i_sti = torch.zeros((n_t, self.n_nodes), dtype=torch.float64, device=self.device)
         nodes = self.input_nodes_at(int(center_uv[0]), int(center_uv[1]))
         if len(nodes):
             idx = torch.as_tensor(nodes, dtype=torch.long, device=self.device)
-            sig[:t_onset, idx] = i_baseline
-            sig[t_onset:, idx] = i_bright
-        return sig
+            i_sti[:t_onset, idx] = i_baseline
+            i_sti[t_onset:, idx] = i_bright
+        return i_sti
 
 
 def node_cell_names(C: Network) -> np.ndarray:
@@ -202,8 +202,8 @@ def load_network(
     path,
     device: Optional[str] = None,
     *,
-    exc_synweight: float,
-    inh_synweight: float,
+    syn_scale_exc: float,
+    syn_scale_inh: float,
     syn_mode: str,
     dtype: torch.dtype,
 ) -> Network:
@@ -228,27 +228,27 @@ def load_network(
     )
     is_input = np.array([bool(n.get("input", False)) for n in nodes], dtype=bool)
 
-    # edge list -> node indices + signed base weight.
+    # edge list -> node indices + signed edge weight.
     src_idx = np.empty(len(edges), dtype=np.int64)
     tar_idx = np.empty(len(edges), dtype=np.int64)
-    base_w = np.empty(len(edges), dtype=np.float64)
+    edge_weight = np.empty(len(edges), dtype=np.float64)
     for k, e in enumerate(edges):
         src_idx[k] = id_to_node[int(e["src"])]
         tar_idx[k] = id_to_node[int(e["tar"])]
-        sign = float(e["sign"])
+        syn_sign = float(e["syn_sign"])
         if mode == "per_edge":
-            base_w[k] = sign
+            edge_weight[k] = syn_sign
         else:
-            base_w[k] = sign * float(e["n_syn"])
+            edge_weight[k] = syn_sign * float(e["n_syn"])
 
     conn = ScatterConn(
         src_idx=src_idx,
         tar_idx=tar_idx,
-        base_w=base_w,
+        edge_weight=edge_weight,
         n_nodes=n_nodes,
         node_cell=node_cell,
-        exc_scale=exc_synweight,
-        inh_scale=inh_synweight,
+        syn_scale_exc=syn_scale_exc,
+        syn_scale_inh=syn_scale_inh,
         device=device,
         dtype=dtype,
     )
@@ -274,7 +274,7 @@ if __name__ == "__main__":
     import sys
 
     from path import BUILT_NETWORKS_DIR
-    from training.defaults import EXC_SYNWEIGHT, INH_SYNWEIGHT, SYN_MODE
+    from training.defaults import SYN_SCALE_EXC, SYN_SCALE_INH, SYN_MODE
     from training.readout_pack import SIM_DTYPE
 
     p = sys.argv[1] if len(sys.argv) > 1 else str(
@@ -282,7 +282,7 @@ if __name__ == "__main__":
     )
     c = load_network(
         p, device="cpu",
-        exc_synweight=EXC_SYNWEIGHT, inh_synweight=INH_SYNWEIGHT,
+        syn_scale_exc=SYN_SCALE_EXC, syn_scale_inh=SYN_SCALE_INH,
         syn_mode=SYN_MODE, dtype=SIM_DTYPE,
     )
     print(f"loaded {p}")
@@ -290,12 +290,12 @@ if __name__ == "__main__":
     print(f"center nodes (u=v=0): {c.center_nodes.tolist()}")
     print(f"input nodes total: {int(c.is_input.sum())}")
     x = torch.ones(c.n_nodes, dtype=torch.float64)
-    alpha = torch.ones(c.conn.n_pairs, dtype=torch.float64, device=c.device)
-    ge, gi = c.conn.exc_inh_drive(x, alpha)
+    syn_strength = torch.ones(c.conn.n_pairs, dtype=torch.float64, device=c.device)
+    ge, gi = c.conn.exc_inh_drive(x, syn_strength)
     print(f"exc_inh_drive ok: g_exc.sum={float(ge.sum()):.4f} g_inh.sum={float(gi.sum()):.4f} "
           f"n_pairs={c.conn.n_pairs}")
     xb = torch.ones((7, c.n_nodes), dtype=torch.float64)
-    geb, _ = c.conn.exc_inh_drive(xb, alpha)
+    geb, _ = c.conn.exc_inh_drive(xb, syn_strength)
     print(f"batched (7,N) ok: shape={tuple(geb.shape)}")
-    sig = c.build_signal(n_t=10, i_baseline=I_BASELINE, i_bright=I_BRIGHT, t_onset=5)
-    print(f"signal shape={tuple(sig.shape)}  nonzero cols={int((sig.abs().sum(0)>0).sum())}")
+    i_sti = c.build_i_sti(n_t=10, i_baseline=I_BASELINE, i_bright=I_BRIGHT, t_onset=5)
+    print(f"i_sti shape={tuple(i_sti.shape)}  nonzero cols={int((i_sti.abs().sum(0)>0).sum())}")

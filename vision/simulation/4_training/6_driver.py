@@ -29,7 +29,7 @@ if str(_SIMULATION_CODE) not in sys.path:
 
 import import_bootstrap  # noqa: F401
 import network.path  # noqa: F401 — FAFB path on sys.path
-from import_bootstrap import parse_comma_list
+from import_bootstrap import parse_bool, parse_comma_list
 from path import (
     BUILT_NETWORKS_DIR,
     resolve_network_json,
@@ -71,9 +71,9 @@ from task.spot.data import (
 from training import do_many_runs
 import training
 from training.config import (
-    EDGE_WEIGHT_CSV,
     PARAM_CSV,
-    SYN_STRENGTH_CSV,
+    SYN_STRENGTH_CELL_CSV,
+    SYN_STRENGTH_EDGE_CSV,
     run_data_dir,
 )
 
@@ -204,22 +204,22 @@ def write_param_table(z_t, session, table_path, extra_cols=None):
     return table_path
 
 
-def write_syn_strength_table(z_t, session, table_path):
-    """Write edge-pair ``syn_strength`` as source×target matrix CSV.
+def write_syn_strength_cell_table(z_t, session, table_path):
+    """Write edge-pair ``syn_strength_cell`` as source×target matrix CSV.
 
     Rows = source types, columns = target types. Absent connectome pairs are blank.
     """
     schema = list(session.schema)
-    seg = next((s for s in schema if s["name"] == "syn_strength"), None)
+    seg = next((s for s in schema if s["name"] == "syn_strength_cell"), None)
     if seg is None or seg["kind"] != "edge_pair":
         return None
     node_vals = training.z_to_node_values(z_t, schema)
-    arr = np.asarray(node_vals["syn_strength"], dtype=np.float64).reshape(-1)
+    arr = np.asarray(node_vals["syn_strength_cell"], dtype=np.float64).reshape(-1)
     names = [str(n) for n in cell_labels(session)]
     keys = list(session.backend.conn.pair_keys)
     if arr.shape[0] != len(keys):
         raise ValueError(
-            f"syn_strength length {arr.shape[0]} != n_pairs {len(keys)}"
+            f"syn_strength_cell length {arr.shape[0]} != n_pairs {len(keys)}"
         )
     mat = {(int(s), int(t)): float(v) for (s, t), v in zip(keys, arr)}
     n = len(names)
@@ -234,26 +234,26 @@ def write_syn_strength_table(z_t, session, table_path):
     return table_path
 
 
-def write_edge_weight_table(z_t, session, table_path):
-    """Write per-edge ``edge_weight`` CSV (network edge order)."""
+def write_syn_strength_edge_table(z_t, session, table_path):
+    """Write per-edge ``syn_strength_edge`` CSV (network edge order)."""
     schema = list(session.schema)
-    seg = next((s for s in schema if s["name"] == "edge_weight"), None)
+    seg = next((s for s in schema if s["name"] == "syn_strength_edge"), None)
     if seg is None or seg["kind"] != "edge":
         return None
     node_vals = training.z_to_node_values(z_t, schema)
-    arr = np.asarray(node_vals["edge_weight"], dtype=np.float64).reshape(-1)
+    arr = np.asarray(node_vals["syn_strength_edge"], dtype=np.float64).reshape(-1)
     conn = session.backend.conn
     if arr.shape[0] != conn.n_edges:
         raise ValueError(
-            f"edge_weight length {arr.shape[0]} != n_edges {conn.n_edges}"
+            f"syn_strength_edge length {arr.shape[0]} != n_edges {conn.n_edges}"
         )
     names = [str(n) for n in cell_labels(session)]
     src = conn.src_idx.detach().cpu().numpy()
     tar = conn.tar_idx.detach().cpu().numpy()
     node_cell = conn.node_cell.detach().cpu().numpy()
-    sign = torch.sign(conn.w_signed).detach().cpu().numpy()
+    syn_sign = torch.sign(conn.w_signed).detach().cpu().numpy()
     with open(table_path, "w") as f:
-        f.write("edge_idx,src_node,tar_node,source_cell,target_cell,sign,edge_weight\n")
+        f.write("edge_idx,src_node,tar_node,source_cell,target_cell,syn_sign,syn_strength_edge\n")
         for i in range(conn.n_edges):
             si, ti = int(src[i]), int(tar[i])
             f.write(
@@ -261,29 +261,29 @@ def write_edge_weight_table(z_t, session, table_path):
                 % (
                     i, si, ti,
                     names[int(node_cell[si])], names[int(node_cell[ti])],
-                    float(sign[i]), float(arr[i]),
+                    float(syn_sign[i]), float(arr[i]),
                 )
             )
     return table_path
 
 
 def write_syn_table(z_t, session, outdir_or_path, *, tag=None):
-    """Write ``syn_strength.csv`` or ``edge_weight.csv`` for the active syn mode."""
+    """Write ``syn_strength_cell.csv`` or ``syn_strength_edge.csv`` for the active syn mode."""
     if tag is None:
-        syn_path = write_syn_strength_table(
-            z_t, session, os.path.join(outdir_or_path, SYN_STRENGTH_CSV),
+        cell_path = write_syn_strength_cell_table(
+            z_t, session, os.path.join(outdir_or_path, SYN_STRENGTH_CELL_CSV),
         )
-        edge_path = write_edge_weight_table(
-            z_t, session, os.path.join(outdir_or_path, EDGE_WEIGHT_CSV),
+        edge_path = write_syn_strength_edge_table(
+            z_t, session, os.path.join(outdir_or_path, SYN_STRENGTH_EDGE_CSV),
         )
     else:
-        syn_path = write_syn_strength_table(
-            z_t, session, os.path.join(outdir_or_path, f"syn_strength_{tag}.csv"),
+        cell_path = write_syn_strength_cell_table(
+            z_t, session, os.path.join(outdir_or_path, f"syn_strength_cell_{tag}.csv"),
         )
-        edge_path = write_edge_weight_table(
-            z_t, session, os.path.join(outdir_or_path, f"edge_weight_{tag}.csv"),
+        edge_path = write_syn_strength_edge_table(
+            z_t, session, os.path.join(outdir_or_path, f"syn_strength_edge_{tag}.csv"),
         )
-    return syn_path or edge_path
+    return cell_path or edge_path
 
 
 def data_dir(outdir):
@@ -758,8 +758,8 @@ def add_training_arguments(parser):
         "--syn-mode",
         default=SYN_MODE,
         choices=list(training.SYN_MODES),
-        help="synaptic scale: cell_pair (sign*n_syn + type→type syn_strength; default) "
-             "or per_edge (sign only + per-edge edge_weight magnitude)",
+        help="synaptic scale: per_cell (syn_sign*n_syn + type→type syn_strength_cell; default) "
+             "or per_edge (syn_sign only + per-edge syn_strength_edge magnitude)",
     )
     parser.add_argument("--nofruns", type=int, default=NOFRUNS)
     parser.add_argument(
@@ -778,7 +778,7 @@ def add_training_arguments(parser):
         metavar="N",
         help="every N global training steps, snap to the interval-best params and write "
              "data/best_param_step_XXXXX.npz, csv/param_XXXXX.csv, "
-             "csv/syn_strength_XXXXX.csv or csv/edge_weight_XXXXX.csv, and png/*_XXXXX.png "
+             "csv/syn_strength_cell_XXXXX.csv or csv/syn_strength_edge_XXXXX.csv, and png/*_XXXXX.png "
              f"(default: {CHECKPOINT_INTERVAL})",
     )
     parser.add_argument("--fname", default=None,
@@ -795,10 +795,10 @@ def add_training_arguments(parser):
     )
     _partition_help = (
         "indi=/shared=/fixed=/frozen= lists space-separated; 'all' in one bucket = remainder; "
-        "types or Src:Tar pairs (syn-strength); init=NAME:VAL,... overrides initial values. "
+        "types or Src:Tar pairs (syn-strength-cell); init=NAME:VAL,... overrides initial values. "
         "Example: indi=all init=L1,L2,L4,L5:200 all:10000"
     )
-    _edge_weight_help = (
+    _syn_strength_edge_help = (
         "only indi=all / fixed=all / frozen=all "
         "(--syn-mode per_edge; no shared= / named edges)"
     )
@@ -812,11 +812,11 @@ def add_training_arguments(parser):
                         help=f"out_gain partitions ({_partition_help}; default fixed=all)")
     parser.add_argument("--out-scale", **_partition_kwargs,
                         help=f"out_scale partitions ({_partition_help}; default indi=all)")
-    parser.add_argument("--syn-strength", **_partition_kwargs,
-                        help=f"syn_strength partitions ({_partition_help}; default indi=all; "
-                             f"--syn-mode cell_pair only)")
-    parser.add_argument("--edge-weight", **_partition_kwargs,
-                        help=f"edge_weight partitions ({_edge_weight_help}; default indi=all)")
+    parser.add_argument("--syn-strength-cell", **_partition_kwargs,
+                        help=f"syn_strength_cell partitions ({_partition_help}; default indi=all; "
+                             f"--syn-mode per_cell only)")
+    parser.add_argument("--syn-strength-edge", **_partition_kwargs,
+                        help=f"syn_strength_edge partitions ({_syn_strength_edge_help}; default indi=all)")
     parser.add_argument("--v-th", **_partition_kwargs,
                         help=f"v_th partitions ({_partition_help}; default indi=all)")
     parser.add_argument("--ih-gmax", **_partition_kwargs,
@@ -1029,16 +1029,6 @@ def make_training_argparser(description):
     )
 
 
-def parse_bool(text):
-    """Parse CLI boolean (true/false, 1/0, yes/no)."""
-    v = str(text).lower()
-    if v in ("true", "1", "yes"):
-        return True
-    if v in ("false", "0", "no"):
-        return False
-    raise ValueError(f"expected true|false, got {text!r}")
-
-
 def parse_kv_tokens(tokens, cast=str):
     """Parse space-separated ``NAME=VALUE`` tokens (``nargs='+'``)."""
     if not tokens:
@@ -1135,19 +1125,19 @@ def _partition_cli_map(args):
     Omitted segments keep schema defaults (not listed here).
     """
     syn_mode = training.normalize_syn_mode(getattr(args, "syn_mode", SYN_MODE))
-    syn_text = _partition_cli_text(getattr(args, "syn_strength", None))
-    edge_text = _partition_cli_text(getattr(args, "edge_weight", None))
-    if syn_mode == "per_edge" and syn_text is not None:
-        raise ValueError("--syn-strength requires --syn-mode cell_pair")
-    if syn_mode == "cell_pair" and edge_text is not None:
-        raise ValueError("--edge-weight requires --syn-mode per_edge")
+    syn_cell_text = _partition_cli_text(getattr(args, "syn_strength_cell", None))
+    syn_edge_text = _partition_cli_text(getattr(args, "syn_strength_edge", None))
+    if syn_mode == "per_edge" and syn_cell_text is not None:
+        raise ValueError("--syn-strength-cell requires --syn-mode per_cell")
+    if syn_mode == "per_cell" and syn_edge_text is not None:
+        raise ValueError("--syn-strength-edge requires --syn-mode per_edge")
     texts = {}
     all_param = _partition_cli_text(getattr(args, "all_param", None))
     if all_param is not None:
         for name in training.ALL_PARAM_NAMES:
-            if name == "syn_strength" and syn_mode != "cell_pair":
+            if name == "syn_strength_cell" and syn_mode != "per_cell":
                 continue
-            if name == "edge_weight" and syn_mode != "per_edge":
+            if name == "syn_strength_edge" and syn_mode != "per_edge":
                 continue
             texts[name] = all_param
     shape_text = _partition_cli_text(getattr(args, "ih_shape", None))
@@ -1158,8 +1148,8 @@ def _partition_cli_map(args):
         "in_gain": _partition_cli_text(getattr(args, "in_gain", None)),
         "out_gain": _partition_cli_text(getattr(args, "out_gain", None)),
         "out_scale": _partition_cli_text(getattr(args, "out_scale", None)),
-        "syn_strength": syn_text,
-        "edge_weight": edge_text,
+        "syn_strength_cell": syn_cell_text,
+        "syn_strength_edge": syn_edge_text,
         "v_th": _partition_cli_text(getattr(args, "v_th", None)),
         "Ih_gmax": _partition_cli_text(getattr(args, "ih_gmax", None)),
         "Ih_gmax_off": _partition_cli_text(getattr(args, "ih_gmax_off", None)),
@@ -1178,8 +1168,8 @@ def _partition_cli_map(args):
         if text is not None:
             texts[name] = text
     out = {name: training.parse_partition_text(text) for name, text in texts.items()}
-    if "edge_weight" in out:
-        training.validate_edge_weight_partition(out["edge_weight"])
+    if "syn_strength_edge" in out:
+        training.validate_syn_strength_edge_partition(out["syn_strength_edge"])
     return out
 
 

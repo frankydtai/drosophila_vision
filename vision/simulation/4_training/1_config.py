@@ -25,8 +25,8 @@ RUN_DATA_SUBDIR = "data"
 
 # Per-run CSV summaries written next to PNGs under ``<run_name>/`` (not under data/).
 PARAM_CSV = "param.csv"
-SYN_STRENGTH_CSV = "syn_strength.csv"
-EDGE_WEIGHT_CSV = "edge_weight.csv"
+SYN_STRENGTH_CELL_CSV = "syn_strength_cell.csv"
+SYN_STRENGTH_EDGE_CSV = "syn_strength_edge.csv"
 
 
 def run_data_dir(outdir: str | Path) -> str:

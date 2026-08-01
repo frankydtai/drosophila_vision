@@ -9,7 +9,7 @@ Owns the time-axis gather shared by the continuous moving-bar window
 
 Sparse time-point subsampling (``cost_time_ix``) is applied at cost time in
 ``training.cost`` on the full post-onset trace returned here, so the
-``t_onset = signal.shape[1] - data.shape[1]`` convention stays intact.
+``t_onset = i_sti.shape[1] - data.shape[1]`` convention stays intact.
 """
 from __future__ import annotations
 
@@ -18,9 +18,9 @@ import torch
 from neuron.forward import run_full
 
 
-def pack_trace_full(session, p, sig, pack):
+def pack_trace_full(session, p, i_sti, pack):
     """Full ``(B, T, N)`` model ``v_delta`` trace."""
-    return run_full(session, p, sig, pack=pack)
+    return run_full(session, p, i_sti, pack=pack)
 
 
 def pack_needs_waveform_mse(pack) -> bool:
@@ -49,7 +49,7 @@ def window_time_traces(trace_full, b_idx, u_idx, t0, win=None, *, t_onset=0):
 
 def readout_pack_traces(trace_full, pack):
     """Select MSE traces for cost nodes; windowed when ``pack.cost_t0`` is set."""
-    pack_t_onset = int(pack.signal.shape[1] - pack.data.shape[1])
+    pack_t_onset = int(pack.i_sti.shape[1] - pack.data.shape[1])
     if pack.cost_t0 is None:
         return trace_full[pack.readout_batch, pack_t_onset:, pack.readout_node]
     return window_time_traces(
@@ -60,10 +60,10 @@ def readout_pack_traces(trace_full, pack):
 
 def pack_readout(p, pack, session, batch_idx=None):
     """Shared pack readout via ``run_full`` (waveform MSE only when needed)."""
-    sig = pack.signal if batch_idx is None else pack.signal[batch_idx:batch_idx + 1]
-    trace_full = pack_trace_full(session, p, sig, pack)
+    i_sti = pack.i_sti if batch_idx is None else pack.i_sti[batch_idx:batch_idx + 1]
+    trace_full = pack_trace_full(session, p, i_sti, pack)
     need_mse = pack_needs_waveform_mse(pack)
-    t_onset = int(pack.signal.shape[1] - pack.data.shape[1])
+    t_onset = int(pack.i_sti.shape[1] - pack.data.shape[1])
     if batch_idx is None:
         dsi_sel = trace_full[pack.readout_batch, t_onset:, pack.readout_node]
         if not need_mse:

@@ -8,7 +8,8 @@ Roots (tried in order):
 Disk names are ``{n}_{logical}`` (dirs and ``.py`` modules). Imports stay
 logical. Renumbering is rename-only; this finder has no per-file registry.
 
-Also hosts :func:`parse_comma_list` (sole comma-token splitter for CLI lists).
+Also hosts :func:`parse_comma_list` (sole comma-token splitter for CLI lists)
+and :func:`parse_bool` (CLI true/false tokens).
 
 ``__init__.py`` is unnumbered. Call :func:`install` (or ``import import_bootstrap``)
 before any logical import. Project ``.venv`` ``simulation_sorted.pth`` loads this
@@ -37,6 +38,16 @@ _SKIP_NAMES = frozenset({"__pycache__", "0_runs", "0_logs"})
 def parse_comma_list(text: str) -> List[str]:
     """Split a comma-separated token list (empty string → ``[]``)."""
     return [t.strip() for t in str(text or "").split(",") if t.strip()]
+
+
+def parse_bool(text) -> bool:
+    """Parse CLI boolean (true/false, 1/0, yes/no)."""
+    v = str(text).lower()
+    if v in ("true", "1", "yes"):
+        return True
+    if v in ("false", "0", "no"):
+        return False
+    raise ValueError(f"expected true|false, got {text!r}")
 
 
 def logical_name(name: str) -> str:

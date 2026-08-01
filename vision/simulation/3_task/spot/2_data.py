@@ -2,13 +2,13 @@
 """Spot paradigm DATA: RecF x ImpR gt traces and cost-ring layout.
 
 Merges the old ``Medulla_Library`` RecF/ImpR reader (with its internal
-bandpass/lowpass ImpR shaping -- a gt-only signal path, not the unused
+bandpass/lowpass ImpR shaping -- a gt-only pulse path, not the unused
 Ca filter in ``neuron.filter_ca``) and the old network spot-gt section
 (gt assembly + Euclidean cost rings).
 
 New features handled here:
 - ``pulse_ms`` (#1): the PR drive comes from
-  :func:`task.spot.input.spot_input_waveform`, shared by the network signal
+  :func:`task.spot.input.spot_input_waveform`, shared by the network ``i_sti``
   and the ImpR gt.
 
 ImpR / RecF traces are the ``v`` training gt (used as-is). Sparse cost
@@ -110,8 +110,8 @@ def _highpass(x, tau_ms, *, delta_ms: float):
     return x - _lowpass(x, tau_ms, delta_ms=delta_ms)
 
 
-def _bandpass(signal, hp_tau_ms, lp_tau_ms, *, delta_ms: float):
-    result = _lowpass(signal, lp_tau_ms, delta_ms=delta_ms)
+def _bandpass(pulse, hp_tau_ms, lp_tau_ms, *, delta_ms: float):
+    result = _lowpass(pulse, lp_tau_ms, delta_ms=delta_ms)
     if hp_tau_ms != 0:
         result = _highpass(result, hp_tau_ms, delta_ms=delta_ms)
     return result
@@ -185,16 +185,16 @@ def read_RecF_ImpR(*, t_onset=None, n_t=None, pulse_ms=None, delta_ms: float):
         [38.0, 58.0, 54.0, 23.0, 42.0, 54.0, 27.0, 38.0, 77.0, 44.0, 14.0, 24.0, 107.0]
     )
 
-    signal = spot_input_waveform(t_onset, n_t, pulse_ms, delta_ms=delta_ms)
-    signal = signal / np.max(signal)
+    pulse = spot_input_waveform(t_onset, n_t, pulse_ms, delta_ms=delta_ms)
+    pulse = pulse / np.max(pulse)
 
     ImpR_data = np.zeros((n_cells, n_t))
     for i in range(n_cells):
         if IR_hp_ms[i] == 0:
-            ImpR_data[i] = _lowpass(signal, IR_lp_ms[i], delta_ms=delta_ms)
+            ImpR_data[i] = _lowpass(pulse, IR_lp_ms[i], delta_ms=delta_ms)
         else:
             ImpR_data[i] = _bandpass(
-                signal, IR_hp_ms[i], IR_lp_ms[i], delta_ms=delta_ms,
+                pulse, IR_hp_ms[i], IR_lp_ms[i], delta_ms=delta_ms,
             )
         ImpR_data[i] = normalize_data(ImpR_data[i])
         name = str(GT_CELLS[i])
@@ -494,7 +494,7 @@ def spot_center_bin_layout(C, batches, cost_radii, cost_extent):
 
 @dataclass
 class SpotGt:
-    signal: torch.Tensor          # (B, T, N)
+    i_sti: torch.Tensor          # (B, T, N)
     data: torch.Tensor            # (n_cost, T')
     power: torch.Tensor           # scalar
     cost_weight: torch.Tensor     # (n_cost,)
@@ -570,15 +570,15 @@ def build_spot_gt(
     )
     # All PR hexes hold i_baseline; stim_uv hexes then get the step/pulse drive.
     pr_idx = torch.as_tensor(np.where(C.is_input)[0], dtype=torch.long, device=device)
-    signal = torch.zeros((n_batch, n_t, C.n_nodes), dtype=sim_dtype, device=device)
+    i_sti = torch.zeros((n_batch, n_t, C.n_nodes), dtype=sim_dtype, device=device)
     if len(pr_idx):
-        signal[:, :, pr_idx] = float(i_baseline)
+        i_sti[:, :, pr_idx] = float(i_baseline)
     for b, batch in enumerate(batches):
         for su, sv in batch.stim_uv:
             nodes = C.input_nodes_at(su, sv)
             if len(nodes):
                 idx = torch.as_tensor(nodes, dtype=torch.long, device=device)
-                signal[b, :, idx] = drive[:, None]
+                i_sti[b, :, idx] = drive[:, None]
 
     resp = slice(t_onset, n_t)  # post-onset cost window
 
@@ -664,7 +664,7 @@ def build_spot_gt(
         "n_t": int(n_t),
     }
     return SpotGt(
-        signal=signal,
+        i_sti=i_sti,
         data=data,
         power=power,
         cost_weight=cost_weight,

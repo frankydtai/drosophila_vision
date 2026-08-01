@@ -531,6 +531,29 @@ def ylim_for_keys(ca_mean, ca_sem, data_mean, keys, *, show_sem=False):
 
 
 def plot_sem_band(ax, t, model, sem, *, color=None, alpha=None, label=r'$\pm$SEM'):
+    """Shaded ±SEM for continuous line traces."""
+    if sem is None or not np.any(sem):
+        return
+    t_arr = np.asarray(t)
+    m_arr = np.asarray(model, dtype=np.float64)
+    s_arr = np.asarray(sem, dtype=np.float64)
+    mask = np.isfinite(m_arr) & np.isfinite(s_arr)
+    if not np.any(mask):
+        return
+    ax.fill_between(
+        t_arr[mask],
+        m_arr[mask] - s_arr[mask],
+        m_arr[mask] + s_arr[mask],
+        color=SEM_COLOR if color is None else color,
+        alpha=0.3 if alpha is None else alpha,
+        linewidth=0,
+        label=label,
+        zorder=1,
+    )
+
+
+def plot_sem_errorbar(ax, t, model, sem, *, color=None, alpha=None, label=r'$\pm$SEM'):
+    """Error bars for discrete (dot) traces."""
     if sem is None or not np.any(sem):
         return
     ax.errorbar(
@@ -684,7 +707,9 @@ def plot_timecourse(
                     sem_sub = sem_arr[ix_model]
                     mask_sem = mask_model & np.isfinite(sem_sub)
                     if np.any(mask_sem):
-                        plot_sem_band(ax, x_model[mask_sem], y_model[mask_sem], sem_sub[mask_sem])
+                        plot_sem_errorbar(
+                            ax, x_model[mask_sem], y_model[mask_sem], sem_sub[mask_sem],
+                        )
                 if np.any(mask_model):
                     ax.plot(
                         x_model[mask_model], y_model[mask_model], linestyle='none',

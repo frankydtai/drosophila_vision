@@ -176,7 +176,7 @@ def _plot_cells_and_ids(session):
     return cells, cell_ids
 
 
-def _rel_window_seconds(before_t, after_t, delta_ms):
+def _t_rel_window_seconds(before_t, after_t, delta_ms):
     scale = float(delta_ms) / 1000.0
     return before_t * scale, after_t * scale
 
@@ -362,7 +362,7 @@ def _moving_bar_traces_from_forward(
     pack = session.pack_for(task)
     cost_extent = pack.cost_extent
     n_t = int(session.n_t)
-    _t_onset = int(pack.signal.shape[1] - pack.data.shape[1])
+    _t_onset = int(pack.i_sti.shape[1] - pack.data.shape[1])
     grids = moving_bar_session_t0_grids(
         session, specs, cost_extent, n_t, at_x=at_x, at_y=at_y,
         t_onset=_t_onset, delta_ms=session.delta_ms,
@@ -405,7 +405,7 @@ def moving_bar_trace_bundle(session, z, task, *, at_x=None, at_y=None,
     schema = list(session.schema)
     p = training.assign_params(z, schema, session.backend)
     v_delta, v_onset, _v_full = training.run_full(
-        session, p, pack.signal, return_v_onset=True, pack=pack,
+        session, p, pack.i_sti, return_v_onset=True, pack=pack,
     )
     v_onset_np = v_onset[0].cpu().numpy()
     save_forward_trace_csvs(
@@ -566,7 +566,7 @@ def _style_moving_bar_relative_axis(
     end = win_len - 1
     ax.set_xlim(0, end)
     ax.set_xticks([0, before_t, end])
-    before_s, after_s = _rel_window_seconds(before_t, after_t, delta_ms)
+    before_s, after_s = _t_rel_window_seconds(before_t, after_t, delta_ms)
     ax.set_xticklabels([f'{-before_s:g}', '0', f'{after_s:g}'], fontsize=6)
     if not show_tick_labels:
         ax.tick_params(labelbottom=False)

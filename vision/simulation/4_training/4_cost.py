@@ -63,7 +63,7 @@ def ca_cost(ca, data, session: TrainSession, scale=1.0, power=None):
     if power is None:
         power = session.primary_readout.power
     pack = session.primary_readout
-    pack_t_onset = int(pack.signal.shape[1] - pack.data.shape[1])
+    pack_t_onset = int(pack.i_sti.shape[1] - pack.data.shape[1])
     mt = session.n_t
     return torch.sum((scale * ca - data[pack_t_onset:mt])**2) / power * 100.0
 
@@ -215,9 +215,9 @@ def _slice_pack_rows(pack: ReadoutPack, row_ix: torch.Tensor) -> ReadoutPack:
 
 
 def _subset_pack_batches(pack: ReadoutPack, batch_indices: Tuple[int, ...]) -> Optional[ReadoutPack]:
-    if len(batch_indices) == int(pack.signal.shape[0]):
+    if len(batch_indices) == int(pack.i_sti.shape[0]):
         return pack
-    dev = pack.signal.device
+    dev = pack.i_sti.device
     idx_t = torch.tensor(batch_indices, dtype=torch.long, device=dev)
     rb = pack.readout_batch
     keep = torch.isin(rb, idx_t)
@@ -229,7 +229,7 @@ def _subset_pack_batches(pack: ReadoutPack, batch_indices: Tuple[int, ...]) -> O
     new_rb = lut[rb[keep]]
     kept_old = torch.nonzero(keep, as_tuple=False).reshape(-1)
     fields = {
-        "signal": pack.signal.index_select(0, idx_t),
+        "i_sti": pack.i_sti.index_select(0, idx_t),
         "data": pack.data[keep],
         "cost_weight": pack.cost_weight[keep],
         "readout_batch": new_rb,
@@ -285,16 +285,15 @@ def _build_cost_subpacks(session: TrainSession) -> Dict[str, ReadoutPack]:
     return out
 
 
-def _signal_fuse_key(pack: ReadoutPack) -> Tuple:
-    """Group packs that can share one ``run_full`` (shape, scale, onset)."""
-    sig = pack.signal
-    t_onset = int(sig.shape[1] - pack.data.shape[1])
+def _i_sti_fuse_key(pack: ReadoutPack) -> Tuple:
+    """Group packs that can share one ``run_full`` (shape, onset)."""
+    i_sti = pack.i_sti
+    t_onset = int(i_sti.shape[1] - pack.data.shape[1])
     return (
-        int(sig.shape[1]),
-        int(sig.shape[2]),
-        str(sig.device),
-        sig.dtype,
-        float(pack.signal_scale),
+        int(i_sti.shape[1]),
+        int(i_sti.shape[2]),
+        str(i_sti.device),
+        i_sti.dtype,
         t_onset,
     )
 
@@ -307,14 +306,14 @@ def _build_fused_forward(
         return ()
     by_key: Dict[Tuple, List[ReadoutPack]] = {}
     for pack in cost_subpacks.values():
-        by_key.setdefault(_signal_fuse_key(pack), []).append(pack)
+        by_key.setdefault(_i_sti_fuse_key(pack), []).append(pack)
     fused: List[FusedForward] = []
     for packs in by_key.values():
         offsets: List[int] = []
         off = 0
         for pack in packs:
             offsets.append(off)
-            off += int(pack.signal.shape[0])
+            off += int(pack.i_sti.shape[0])
         fused.append(FusedForward(subpacks=tuple(packs), batch_offsets=tuple(offsets)))
     return tuple(fused)
 
@@ -326,7 +325,7 @@ def _readout_from_trace_full(
     batch_offset: int = 0,
 ) -> Tuple[Optional[torch.Tensor], torch.Tensor]:
     rb = pack.readout_batch if batch_offset == 0 else pack.readout_batch + batch_offset
-    pack_t_onset = int(pack.signal.shape[1] - pack.data.shape[1])
+    pack_t_onset = int(pack.i_sti.shape[1] - pack.data.shape[1])
     dsi_sel = trace_full[rb, pack_t_onset:, pack.readout_node]
     if not pack_needs_waveform_mse(pack):
         return None, dsi_sel
@@ -423,11 +422,11 @@ def _calc_cost_parts_fused(
     parts: Dict[str, torch.Tensor] = {}
     for group in session.fused_forward:
         if len(group.subpacks) == 1:
-            sig = group.subpacks[0].signal
+            i_sti = group.subpacks[0].i_sti
         else:
-            sig = torch.cat([pack.signal for pack in group.subpacks], dim=0)
-        # Same fuse key ⇒ shared signal_scale / t_onset; pass one subpack for prepare.
-        trace_full = run_full(session, p, sig, pack=group.subpacks[0])
+            i_sti = torch.cat([pack.i_sti for pack in group.subpacks], dim=0)
+        # Same fuse key ⇒ shared t_onset; pass one subpack for prepare.
+        trace_full = run_full(session, p, i_sti, pack=group.subpacks[0])
         for pack, off in zip(group.subpacks, group.batch_offsets):
             for key, part in _pack_cost_parts_from_fused_trace(
                 p, pack, session, trace_full, batch_offset=off,

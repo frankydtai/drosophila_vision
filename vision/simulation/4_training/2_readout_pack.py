@@ -13,8 +13,6 @@ every other ``training`` module can import these types without a cycle.
 * ``waveform_mse`` -- whether this pack needs a waveform MSE readout
   (spot: always True; moving-bar: True when a cost window was built).
   Encoded here so ``neuron.readout`` needs no paradigm knowledge.
-* ``signal_scale`` -- peak PR current for hp_lp ``sig / scale``; stamped at
-  session build so ``neuron.model_hp_lp`` never imports training.
 
 Model and gt traces are ``v`` (``v - v_onset``); ImpR / RecF spot data are
 used as-is.
@@ -61,12 +59,12 @@ SIM_DTYPE = sim_dtype_from_fp(FP)
 class ReadoutPack:
     """One training pack: task drive + readout indices + gt traces.
 
-    Spot ``signal`` / ``data`` time dims follow ``neuron`` / task
+    Spot ``i_sti`` / ``data`` time dims follow ``neuron`` / task
     timing. Moving bar uses ``COST_WINDOW`` and per-task ``n_t``.
     """
 
     name: str
-    signal: torch.Tensor  # (B, T, N)
+    i_sti: torch.Tensor  # (B, T, N)
     data: torch.Tensor  # (n_cost, T')
     power: torch.Tensor  # scalar
     cost_weight: torch.Tensor  # (n_cost,)
@@ -87,7 +85,6 @@ class ReadoutPack:
     dsi_power: Optional[torch.Tensor] = None  # scalar
     cost_time_ix: Optional[torch.Tensor] = None  # (n_sample,) sparse post-onset t idx
     waveform_mse: bool = True  # spot: True; moving bar: set at build
-    signal_scale: float = 1.0  # peak PR current; hp_lp divides sig by this
 
 
 @dataclass(frozen=True)
@@ -110,7 +107,7 @@ class ModelBackend:
 
 @dataclass(frozen=True)
 class FusedForward:
-    """Packs with matching signal shape / scale / onset; one ``run_full`` per group."""
+    """Packs with matching i_sti shape / onset; one ``run_full`` per group."""
 
     subpacks: Tuple[ReadoutPack, ...]
     batch_offsets: Tuple[int, ...]
@@ -136,6 +133,7 @@ class TrainSession:
     delta_ms: float
     capac: float
     g_leak: float
+    g_in: float
     E_exc: float
     E_inh: float
     E_Ih: float
@@ -145,8 +143,8 @@ class TrainSession:
     Ca_tau: float
     DATA_AMP: float
     STATE_CLAMP: float
-    exc_synweight: float
-    inh_synweight: float
+    syn_scale_exc: float
+    syn_scale_inh: float
     sim_dtype: torch.dtype = SIM_DTYPE
     train_opts: Optional[dict] = None
     cost_subpacks: Dict[str, ReadoutPack] = field(default_factory=dict)
@@ -169,15 +167,15 @@ class TrainSession:
 
     @property
     def n_t(self) -> int:
-        sig = self.primary_readout.signal
-        return int(sig.shape[1] if sig.dim() == 3 else sig.shape[0])
+        i_sti = self.primary_readout.i_sti
+        return int(i_sti.shape[1] if i_sti.dim() == 3 else i_sti.shape[0])
 
-    def pack_signal(self, pack: Optional[ReadoutPack] = None) -> torch.Tensor:
+    def pack_i_sti(self, pack: Optional[ReadoutPack] = None) -> torch.Tensor:
         pack = pack or self.primary_readout
-        sig = pack.signal
-        if pack.name in SPOT_TASKS and sig.dim() == 3 and int(sig.shape[0]) == 1:
-            sig = sig.squeeze(0)
-        return sig
+        i_sti = pack.i_sti
+        if pack.name in SPOT_TASKS and i_sti.dim() == 3 and int(i_sti.shape[0]) == 1:
+            i_sti = i_sti.squeeze(0)
+        return i_sti
 
     def pack_for(self, name: str) -> ReadoutPack:
         if name not in self.readouts:

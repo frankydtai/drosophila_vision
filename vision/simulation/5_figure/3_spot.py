@@ -673,9 +673,9 @@ def _spot_forward_rows(
     pack = session.primary_readout
     schema = list(session.schema)
     p = training.assign_params(z, schema, session.backend)
-    sig = pack.signal if pack.signal.dim() == 3 else pack.signal.unsqueeze(0)
+    i_sti = pack.i_sti if pack.i_sti.dim() == 3 else pack.i_sti.unsqueeze(0)
     trace_full, v_onset, _v_full = training.run_full(
-        session, p, sig, return_v_onset=True, pack=pack,
+        session, p, i_sti, return_v_onset=True, pack=pack,
     )
     v_onset_np = v_onset[0].cpu().numpy()
     save_forward_trace_csvs(
@@ -685,7 +685,7 @@ def _spot_forward_rows(
     )
     C = session.backend.network
     cell_names = list(C.cell_names)
-    mt = int(sig.shape[1])
+    mt = int(i_sti.shape[1])
 
     opts = dict((session.train_opts or {}).get(f"{pack.name}_stimulus_opts") or {})
     spot = spot_from_opts(C, stimulus_opts=opts)

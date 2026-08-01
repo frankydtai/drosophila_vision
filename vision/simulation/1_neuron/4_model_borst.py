@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """Borst neuron + Ih (``--model borst``).
 
-Dynamics only: ``prepare_signal`` / ``init_state`` / ``step``. Full-T Ca
+Dynamics only: ``prepare_i_sti`` / ``init_state`` / ``step``. Full-T Ca
 forward lives in ``neuron.forward``. Membrane scalars are injected kwargs
 (from ``session`` flat fields), never a Physics bag.
 """
@@ -10,7 +10,7 @@ from __future__ import annotations
 import torch
 
 from neuron.params import e_ih_off, membrane_cdt
-from neuron.schema import borst_ih_off_kwargs, synaptic_scale
+from neuron.schema import borst_ih_off_kwargs, syn_strength
 
 
 def rectsyn(x, thrld):
@@ -51,7 +51,7 @@ def _ih_gate_step(
 def update_v(
     v, u_on, u_off, in_gain, out_gain, syn_strength, v_th, Ih_gmax, Ih_gmax_off,
     Ih_midv, Ih_slope, tau_midv, Ih_midv_off, Ih_slope_off, tau_midv_off,
-    signal, backend, *,
+    i_sti, backend, *,
     delta_ms: float,
     capac: float,
     g_leak: float,
@@ -60,7 +60,7 @@ def update_v(
     E_Ih: float,
     E_LEAK_REST: float,
     Ih_gain: float,
-    return_budget: bool = False,
+    return_component: bool = False,
 ):
     """One borst step; membrane / reversal scalars are required kwargs."""
     e_leak = backend.e_leak
@@ -87,10 +87,10 @@ def update_v(
             )
             u_on = u_on.clone()
             u_off = u_off.clone()
-            u_on[:, idx] = u_on_a
-            u_off[:, idx] = u_off_a
-            g_Ih_on[:, idx] = g_on_a
-            g_Ih_off[:, idx] = g_off_a
+            u_on[:, idx] = u_on_a.to(dtype=u_on.dtype)
+            u_off[:, idx] = u_off_a.to(dtype=u_off.dtype)
+            g_Ih_on[:, idx] = g_on_a.to(dtype=g_Ih_on.dtype)
+            g_Ih_off[:, idx] = g_off_a.to(dtype=g_Ih_off.dtype)
     g_Ih = g_Ih_on + g_Ih_off
 
     g_exc, g_inh = conn.exc_inh_drive(rectsyn(v, v_th) * out_gain, syn_strength)
@@ -101,17 +101,17 @@ def update_v(
     E_IH_OFF = e_ih_off(E_LEAK_REST, E_Ih)
     v = (
         g_exc * E_exc + g_inh * E_inh + g_leak * e_leak
-        + E_Ih * g_Ih_on + E_IH_OFF * g_Ih_off + cdt * v + signal
+        + E_Ih * g_Ih_on + E_IH_OFF * g_Ih_off + cdt * v + i_sti
     )
     v = v / (g_exc + g_inh + g_Ih + g_leak + cdt)
 
-    if return_budget:
+    if return_component:
         return v, u_on, u_off, g_exc, g_inh, g_Ih_on, g_Ih_off
     return v, u_on, u_off
 
 
-def v_budget_from_g(
-    v_pre, g_exc, g_inh, g_Ih_on, g_Ih_off, signal, e_leak, *,
+def v_component_from_g(
+    v_pre, g_exc, g_inh, g_Ih_on, g_Ih_off, i_sti, e_leak, *,
     delta_ms: float,
     capac: float,
     g_leak: float,
@@ -130,15 +130,15 @@ def v_budget_from_g(
         "num_ihon": g_Ih_on * E_Ih,
         "num_ihoff": g_Ih_off * E_IH_OFF,
         "num_cdt": cdt * v_pre,
-        "num_sig": signal,
+        "i_sti": i_sti,
         "den": g_exc + g_inh + g_Ih_on + g_Ih_off + g_leak + cdt,
     }
 
 
-def prepare_signal(session, p, sig, pack):
+def prepare_i_sti(session, p, i_sti, pack):
     """PR current ``(B, T, N)`` as membrane drive (no rescale)."""
     del p, pack
-    return sig.unsqueeze(0) if sig.dim() == 2 else sig
+    return i_sti.unsqueeze(0) if i_sti.dim() == 2 else i_sti
 
 
 def init_state(session, p, B):
@@ -166,20 +166,25 @@ def _membrane_kwargs(session):
     )
 
 
-def step(state, v, p, x_t, session):
-    """One borst update; returns ``((u_on, u_off), v)``."""
+def step(state, v, p, i_sti, session, *, return_component: bool = False):
+    """One borst update; returns ``((u_on, u_off), v)`` or + g component tuple."""
     u_on, u_off = state
     ih_off = (session.train_opts or {})["ih_off"]
     Ih_gmax_off, Ih_midv_off, Ih_slope_off, tau_midv_off = borst_ih_off_kwargs(
         p, ih_off,
     )
-    v, u_on, u_off = update_v(
+    out = update_v(
         v, u_on, u_off,
-        p["in_gain"], p["out_gain"], synaptic_scale(p), p["v_th"],
+        p["in_gain"], p["out_gain"], syn_strength(p), p["v_th"],
         p["Ih_gmax"], Ih_gmax_off,
         p["Ih_midv"], p["Ih_slope"], p["tau_midv"],
         Ih_midv_off, Ih_slope_off, tau_midv_off,
-        x_t, session.backend,
+        i_sti, session.backend,
         **_membrane_kwargs(session),
+        return_component=return_component,
     )
+    if return_component:
+        v, u_on, u_off, g_exc, g_inh, g_Ih_on, g_Ih_off = out
+        return (u_on, u_off), v, (g_exc, g_inh, g_Ih_on, g_Ih_off)
+    v, u_on, u_off = out
     return (u_on, u_off), v

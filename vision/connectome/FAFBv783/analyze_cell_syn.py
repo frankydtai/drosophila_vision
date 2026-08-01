@@ -28,7 +28,7 @@ then express each as a percentage of **all** ``n_syn`` for that cell. An
 
 The ``network.json`` schema is ``{"metadata", "nodes", "edges"}`` where each node is
 ``{"id", "name", "u", "v", "column_id", "input", "output"}`` and each edge is
-``{"src", "tar", "sign", "n_syn", "source_cell", "target_cell", "du", "dv"}``.
+``{"src", "tar", "syn_sign", "n_syn", "source_cell", "target_cell", "du", "dv"}``.
 
 Example::
 
@@ -440,10 +440,10 @@ def _instance_ids_on_shell(nodes: List[dict], shell: int) -> Dict[str, Set[int]]
 
 
 
-def _edge_sign(e: dict) -> float:
-    """Signed weight for an edge from its ``sign`` field (±1)."""
+def _syn_sign(e: dict) -> float:
+    """Signed weight for an edge from its ``syn_sign`` field (±1)."""
     try:
-        return float(e.get("sign", 0))
+        return float(e.get("syn_sign", 0))
     except (TypeError, ValueError):
         return 0.0
 
@@ -534,7 +534,7 @@ def accumulate_all(
         pt = e.get(partner_cell_field) or "?"
         if cell_to_family is not None:
             pt = cell_to_family.get(pt, pt)
-        a = _edge_sign(e)
+        a = _syn_sign(e)
         ns = float(e.get("n_syn", 0))
         partner = e.get(partner_id_field)
         for cell in cell_labels:

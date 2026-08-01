@@ -27,7 +27,7 @@ from neuron.schema import (
     borst_ih_off_kwargs,
     default_schema,
     normalize_syn_mode,
-    synaptic_scale,
+    syn_strength,
 )
 from neuron import model_borst as _model_borst
 from neuron import model_hp_lp as _model_hp_lp
@@ -47,7 +47,7 @@ from neuron.readout import (
 # --- borst ---
 rectsyn = _model_borst.rectsyn
 update_v = _model_borst.update_v
-v_budget_from_g = _model_borst.v_budget_from_g
+v_component_from_g = _model_borst.v_component_from_g
 
 # --- hp_lp ---
 update_state_hp_lp = _model_hp_lp.update_state_hp_lp
@@ -68,10 +68,10 @@ __all__ = [
     "build_hp_lp_schema",
     "borst_ih_off_kwargs",
     "normalize_syn_mode",
-    "synaptic_scale",
+    "syn_strength",
     "rectsyn",
     "update_v",
-    "v_budget_from_g",
+    "v_component_from_g",
     "update_state_hp_lp",
     "ca_filter",
     "ca_alpha",
