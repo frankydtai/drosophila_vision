@@ -49,12 +49,12 @@ def window_time_traces(trace_full, b_idx, u_idx, t0, win=None, *, t_onset=0):
 
 def readout_pack_traces(trace_full, pack):
     """Select MSE traces for cost nodes; windowed when ``pack.cost_t0`` is set."""
-    pack_t_onset = int(pack.i_sti.shape[1] - pack.data.shape[1])
+    pack_t_onset = int(pack.i_sti.shape[1] - pack.gt.shape[1])
     if pack.cost_t0 is None:
         return trace_full[pack.readout_batch, pack_t_onset:, pack.readout_node]
     return window_time_traces(
         trace_full, pack.readout_batch, pack.readout_node, pack.cost_t0,
-        win=pack.data.shape[1], t_onset=pack_t_onset,
+        win=pack.gt.shape[1], t_onset=pack_t_onset,
     )
 
 
@@ -63,7 +63,7 @@ def pack_readout(p, pack, session, batch_idx=None):
     i_sti = pack.i_sti if batch_idx is None else pack.i_sti[batch_idx:batch_idx + 1]
     trace_full = pack_trace_full(session, p, i_sti, pack)
     need_mse = pack_needs_waveform_mse(pack)
-    t_onset = int(pack.i_sti.shape[1] - pack.data.shape[1])
+    t_onset = int(pack.i_sti.shape[1] - pack.gt.shape[1])
     if batch_idx is None:
         dsi_sel = trace_full[pack.readout_batch, t_onset:, pack.readout_node]
         if not need_mse:
@@ -79,7 +79,7 @@ def pack_readout(p, pack, session, batch_idx=None):
     b_zero = torch.zeros_like(u_m)
     mse_sel = window_time_traces(
         trace_full, b_zero, u_m, pack.cost_t0[mask],
-        win=pack.data.shape[1], t_onset=t_onset,
+        win=pack.gt.shape[1], t_onset=t_onset,
     )
     return mse_sel, dsi_sel
 

@@ -128,8 +128,8 @@ from training.session import (
     resolve_cell_indices,
 )
 
-from task.spot.data import make_spot_stimulus_opts
-from task.moving_bar.data import (
+from task.spot.gt import make_spot_stimulus_opts
+from task.moving_bar.gt import (
     make_moving_bar_stimulus_opts,
     session_moving_bar_i_baseline,
 )

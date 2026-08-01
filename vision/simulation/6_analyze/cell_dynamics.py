@@ -1,9 +1,9 @@
-"""Borst / hp_lp v component, or ``--trace-only`` response curves."""
+"""Borst / hp_lp v component analysis."""
 
 from __future__ import annotations
 
 DEFAULT_RUN_NAME = """
-28560935-run-nofsteps-500-tau-hp-init-L1,L2,L4,L5-200-pulse-ms-100-delta-ms-5-response-ms-500-gt-spot-L3
+28572097-run-nofsteps-500-tau-hp-init-L1,L2,L4,L5-200-pulse-ms-100-delta-ms-5-response-ms-500-gt-spot-L3-pre-ms-1000
 """.strip()
 DEFAULT_RUN_PATH = "hp_lp/" + DEFAULT_RUN_NAME
 
@@ -26,14 +26,12 @@ os.chdir(ROOT)
 import import_bootstrap  # noqa: F401
 import training
 import figure.plot_run as plot_trained
-from figure import moving_bar as moving_bar_plot
-from figure import spot as spot_plot
 from figure.readout import contrast_for_task
-from figure.spot import pack_spot_cost_radii, resolve_spot_data_cubes
+from figure.spot import pack_spot_cost_radii, resolve_spot_gt_cubes
 from figure.util import parse_axis_slices, plot_sem_band
 from import_bootstrap import parse_bool, parse_comma_list
 from network.construction import col2gt
-from task.moving_bar.data import (
+from task.moving_bar.gt import (
     bar_specs_for_session,
     filter_requested_specs,
     moving_bar_nodes_on_hexes,
@@ -44,46 +42,40 @@ from task.moving_bar.input import (
     filter_sti_hexes,
     moving_bar_cost_hexes,
 )
-from task.spot.data import build_spot_center_readout
+from task.spot.gt import build_spot_center_readout
 from task.spot.input import (
     spot_from_opts,
     spot_stimulus_batches,
 )
 from training.implement import parse_tasks
 
-__doc__ = """Borst / hp_lp v component, or ``--trace-only`` response curves (v).
+__doc__ = """Borst / hp_lp v component analysis.
 
-Shared CLI
-----------
+CLI
+---
 ``CELL,...`` ``--run`` ``--task`` ``--spec`` ``--x`` ``--y``. Pass comma lists in
 one process (do not re-invoke once per cell/spec).
 
-Component mode (default)
----------------------
 Per ``--run``: one ``load_best``; one batched v component forward per distinct task.
-``--t-rel START:STOP`` window vs peak in t (default ``-10:10``);
-``--ms START:STOP|full`` absolute window in ms (``full`` = 0 to last sample; mutually exclusive).
+Default time window: absolute ms from 0 to last sample. Override with
+``--ms START,STOP`` or ``--t-rel START:STOP`` (mutually exclusive).
 
 * Omit ``--x`` / ``--y``: cost-extent **average** (optional ``--radius 0|1``).
 * Exactly one ``--x`` and one ``--y``: **hex** (spot or moving_bar; one cell).
   Incompatible with ``--radius`` (hex is stim-on only).
 * Multiple x/y: rejected.
 
-``--plot true|false``: PNGs under ``{run}/cell_dynamics/`` (default true).
+``--plot true|false``: PNGs under ``{run}/cell_dynamics/`` (default true);
+  per-t step table prints only when ``--plot false``.
 ``--radius 0|1``: spot average Euclidean readout radius (default 0 = stim-on hex; 1 = neighbors).
   Average only; PNGs for ``--radius 1`` get ``_radius1`` in the filename.
-``--syn-strength SRC:TAR=VALUE ...`` overrides ``syn_strength_cell`` before component forward.
+``--param NAME=VALUE`` / ``NAME.NODE=VALUE``: overwrite any schema param before
+  forward (``NODE`` = cell, ``SRC:TAR`` pair, or ``eN``; omit / ``all`` = every node).
 
-``--trace-only``
-----------------
-Full plot forward; print curve summaries (no CSV, no component forward).
-
-* one spot forward per distinct ``spot_*``; one bar forward per ``moving_bar_*``
-* spot: center-radius impulse + RF (same scaling as spot plots)
-* bar: ``t_first_sti``-aligned; summaries use post-onset
-  (``idx >= cost_window_start_idx``)
-* optional ``--x`` / ``--y`` readout-hex overlays (multi ok; same as moving_bar)
-* ``--values`` / ``--pre-ms`` / ``--response-ms`` only here
+``--pre-ms`` / ``--response-ms`` / ``--pulse-ms``: optional timing overrides.
+Unset flags keep the run's train opts. ``--pre-ms`` also updates moving_bar pre;
+response/pulse are spot-only. Re-opens the session and remaps best params when
+any is set.
 
 Examples
 --------
@@ -100,15 +92,12 @@ Examples
 
   ../.venv/bin/python analyze/cell_dynamics.py \\
     T4a --run borst/27252028-... --task moving_bar_bright \\
-    --spec left_bright_w4,right_bright_w4 --syn-strength Mi4:T4a=2.0 Mi9:T4a=1.0 \\
+    --spec left_bright_w4,right_bright_w4 \\
+    --param syn_strength_cell.Mi4:T4a=2.0 syn_strength_cell.Mi9:T4a=1.0 \\
     --t-rel -5:15
 
   ../.venv/bin/python analyze/cell_dynamics.py \\
-    Mi4,Mi9 --run /abs/path/to/run --trace-only \\
-    --task spot_bright,moving_bar_bright
-
-  ../.venv/bin/python analyze/cell_dynamics.py \\
-    L4 --run /abs/path/to/run --trace-only --task spot_dark --x 2 --y 1
+    L3 --run /abs/path/to/run --task spot_bright --param tau_hp.L3=500
 """
 
 
@@ -124,14 +113,11 @@ def _parse_t_range(token: str, *, flag: str) -> tuple[int, int]:
     return start, stop
 
 
-def _parse_ms_range(token: str, *, flag: str) -> tuple[float, float] | None:
-    """Parse ``START:STOP`` ms, or ``full`` → ``None`` (0 to last sample)."""
-    text = str(token).strip()
-    if text.lower() == "full":
-        return None
-    parts = text.split(":")
+def _parse_ms_range(token: str, *, flag: str) -> tuple[float, float]:
+    """Parse ``START,STOP`` ms (comma; one token)."""
+    parts = str(token).strip().split(",")
     if len(parts) != 2 or parts[0] == "" or parts[1] == "":
-        raise SystemExit(f"{flag} must be START:STOP or full")
+        raise SystemExit(f"{flag} must be START,STOP")
     start, stop = float(parts[0]), float(parts[1])
     if start > stop:
         raise SystemExit(f"{flag} START={start} > STOP={stop}")
@@ -168,7 +154,7 @@ class TimeWindow:
 
 @dataclass(frozen=True)
 class SharedCli:
-    """Parsed shared CLI for component / ``--trace-only``."""
+    """Parsed shared CLI."""
 
     cells: list[str]
     tasks: list[str]
@@ -251,380 +237,72 @@ def parse_shared_cli(args: argparse.Namespace) -> SharedCli:
     )
 
 
-# ---------------------------------------------------------------------------
-# --trace-only: response curves (no component forward)
-# ---------------------------------------------------------------------------
-
-
-@dataclass
-class CurveSummary:
-    n: int
-    max: float
-    min: float
-    final: float
-    peak_idx: int
-    trough_idx: int
-    sign_changes: int
-
-
-def _summarize(arr: np.ndarray, *, idx_offset: int = 0) -> CurveSummary:
-    signs = np.sign(arr)
-    sign_changes = int(np.sum(signs[1:] * signs[:-1] < 0))
-    return CurveSummary(
-        n=int(arr.size),
-        max=float(np.max(arr)),
-        min=float(np.min(arr)),
-        final=float(arr[-1]),
-        peak_idx=int(np.argmax(arr)) + idx_offset,
-        trough_idx=int(np.argmin(arr)) + idx_offset,
-        sign_changes=sign_changes,
-    )
-
-
-def _shape_label(s: CurveSummary) -> str:
-    amp = max(abs(s.max), abs(s.min), 1e-9)
-    pos = s.max > 0.05 * amp
-    neg = s.min < -0.05 * amp
-    if pos and neg:
-        order = "+ then -" if s.peak_idx < s.trough_idx else "- then +"
-        return f"biphasic ({order})"
-    if pos:
-        return "monophasic positive"
-    if neg:
-        return "monophasic negative"
-    return "flat/near-zero"
-
-
-def _float_curve(arr) -> np.ndarray:
-    return np.asarray(arr, dtype=float)
-
-
-def extract_spot_bundle(session, z, *, task: str, xs, ys):
-    """One spot forward via ``plot_trained.spot_bundle_fns``.
-
-    Returns ``(session_one, bundle, data_cubes)`` where ``data_cubes`` is
-    ``{contrast: {cell: (RF_N_RADII, T)}}``.
-    """
-    one = plot_trained.session_for_task(session, task)
-    make_bundle, _, _ = plot_trained.spot_bundle_fns(one)
-    bundle = make_bundle(
-        one,
-        z,
-        at_xs=xs,
-        at_ys=ys,
-        save_trace_csv_dir=None,
-    )
-    data_cubes = spot_plot.resolve_spot_data_cubes(
-        {contrast_for_task(one.primary_readout.name): one},
-    )
-    return one, bundle, data_cubes
-
-
-def extract_moving_bar_bundle(session, z, *, task: str, xs, ys):
-    """One moving-bar forward; all cells + all specs live on the returned bundle."""
-    one = plot_trained.session_for_task(session, task)
-    return moving_bar_plot.moving_bar_trace_bundle(
-        one,
-        z,
-        task,
-        at_xs=xs,
-        at_ys=ys,
-        save_trace_csv_dir=None,
-    )
-
-
-def extract_spot_cell_curves(bundle, data_cubes, *, cell: str):
-    center_radius = spot_plot.RF_CENTER_RADIUS
-    cell_on = next((c for c in bundle.cells if c["name"] == cell), None)
-    if cell_on is None:
-        avail = sorted(c["name"] for c in bundle.cells)
-        raise SystemExit(f"cell {cell!r} not in spot bundle; available: {avail}")
-    contrast = contrast_for_task(bundle.session.primary_readout.name)
-    data_on = (data_cubes or {}).get(contrast) or {}
-    if cell not in data_on:
-        raise SystemExit(
-            f"cell {cell!r} not in spot data cubes[{contrast!r}]; "
-            f"keys={sorted(data_on)}"
-        )
-
-    if bundle.response_start is None:
-        raise SystemExit(
-            "spot bundle missing response_start (t_onset); "
-            "cannot scale spot time courses"
-        )
-    if bundle.pulse_end is None:
-        raise SystemExit(
-            "spot bundle missing pulse_end; "
-            "cannot scale spot RF peak inside pulse window"
-        )
-    sc_kw = dict(response_start=bundle.response_start, pulse_end=bundle.pulse_end)
-    imp_total, rf_total = spot_plot.scale_curve(
-        cell_on["cube"], center_radius, **sc_kw,
-    )
-    imp_data, rf_data = spot_plot.scale_curve(
-        data_on[cell], center_radius, **sc_kw,
-    )
-
-    out: dict[str, np.ndarray] = {
-        "time_total_model": _float_curve(imp_total),
-        "time_total_data": _float_curve(imp_data),
-        "rf_total_model": _float_curve(rf_total),
-        "rf_total_data": _float_curve(rf_data),
-    }
-
-    if bundle.slice_overlay:
-        for label, cubes in bundle.slice_overlay.items():
-            if cell not in cubes:
-                continue
-            imp_slice, rf_slice = spot_plot.scale_curve(
-                cubes[cell], center_radius, **sc_kw,
-            )
-            out[f"time_slice_model:{label}"] = _float_curve(imp_slice)
-            out[f"rf_slice_model:{label}"] = _float_curve(rf_slice)
-    return out
-
-
-def extract_moving_bar_cell_curves(bundle, *, cell: str, spec: str) -> dict[str, np.ndarray]:
-    """Per-spec traces matching one ``bar_all_ca`` panel (slices + total)."""
-    key = (cell, spec)
-    ca_mean = bundle.traces.ca_mean
-    if key not in ca_mean:
-        avail_cells = sorted({c for c, _ in ca_mean})
-        avail_specs = sorted(s for c, s in ca_mean if c == cell)
-        if cell not in avail_cells:
-            raise SystemExit(f"cell {cell!r} not in bar bundle; available cells: {avail_cells}")
-        raise SystemExit(f"spec {spec!r} not found for cell {cell!r}; available: {avail_specs}")
-
-    out: dict[str, np.ndarray] = {}
-    labels = list(bundle.slice_overlay.keys()) if bundle.slice_overlay else []
-    for label in labels:
-        wt = bundle.slice_overlay[label]
-        if key in wt.ca_mean:
-            out[label] = _float_curve(wt.ca_mean[key])
-    out["total"] = _float_curve(ca_mean[key])
-    return out
-
-
-def specs_for_cell(bundle, cell: str, requested: list[str] | None) -> list[str]:
-    ca_mean = bundle.traces.ca_mean
-    avail = sorted(s for c, s in ca_mean if c == cell)
-    if not avail:
-        cells = sorted({c for c, _ in ca_mean})
-        raise SystemExit(f"cell {cell!r} not in bar bundle; available cells: {cells}")
-    try:
-        return filter_requested_specs(avail, requested)
-    except ValueError as exc:
-        raise SystemExit(f"{exc}; cell={cell!r}") from exc
-
-
-def _print_trace_curve(
-    name: str,
-    arr: np.ndarray,
-    *,
-    before_t: int | None,
-    print_values: bool,
-):
-    """Summarize + (optionally) list values for a trace window."""
-    if before_t is not None and 0 < before_t < arr.size:
-        start = before_t
-        window = f"post_onset[idx>={before_t}]"
-    else:
-        start = 0
-        window = "full"
-
-    use = arr[start:]
-    idx_offset = start
-    s = _summarize(use, idx_offset=idx_offset)
-    shape = _shape_label(s)
-    print(
-        f"{name} ({window}): n={s.n} max={s.max:.6g} min={s.min:.6g} "
-        f"final={s.final:.6g} peak_idx={s.peak_idx} "
-        f"trough_idx={s.trough_idx} sign_changes={s.sign_changes}  "
-        f"shape={shape}"
-    )
-    if print_values:
-        print(f"  values: {np.round(use, 4).tolist()}")
-
-
-def _print_trace_block(
-    *,
-    run_i: int,
-    run_dir: str,
-    best_i: int,
-    best_cost: float,
-    cell: str,
-    task: str,
-    session,
-    bundle,
-    curves: dict[str, np.ndarray],
-    xs,
-    ys,
-    print_values: bool,
-    spec: str | None = None,
-):
-    before_t = None
-    if spec is not None and bundle.traces.before_t is not None:
-        before_t = bundle.traces.before_t.get(spec)
-    head = (
-        f"best_i={best_i}  best_cost={best_cost:.6g}  cell={cell}  "
-        f"task={task}  trace_kind=v"
-    )
-    if spec is not None:
-        head += f"  spec={spec}"
-    print("")
-    print(f"== RUN {run_i}: {run_dir} ==")
-    print(head)
-    print(f"n_t={bundle.n_t}  delta_ms={getattr(session, 'delta_ms', 'NA')}")
-    if xs is not None or ys is not None:
-        print(f"slice_x={xs}  slice_y={ys}")
-    if before_t is not None:
-        print(f"cost_window_start_idx={before_t}")
-    if spec is not None:
-        slice_names = [k for k in curves if k != "total"]
-        order = slice_names + ["total"]
-        print(f"traces ({len(order)}): {', '.join(order)}")
-        for name in order:
-            _print_trace_curve(
-                name,
-                curves[name],
-                before_t=before_t,
-                print_values=print_values,
-            )
-    else:
-        for key, arr in curves.items():
-            _print_trace_curve(
-                key,
-                arr,
-                before_t=None,
-                print_values=print_values,
-            )
-
-
-def _maybe_override_spot_timing(
+def _maybe_override_stimulus_timing(
     *,
     run_dir: str,
     session,
+    z,
     pre_ms: float | None,
     response_ms: float | None,
+    pulse_ms: float | None,
 ):
-    """Optionally re-open the session with overridden spot timing."""
-    if pre_ms is None:
-        return session, None, None
+    """Re-open session when any timing override is set; remap best ``z``.
+
+    Unset flags keep values from the run's train opts. ``pre_ms`` also updates
+    moving_bar stimulus opts; ``response_ms`` / ``pulse_ms`` are spot-only.
+    """
+    if pre_ms is None and response_ms is None and pulse_ms is None:
+        return session, z
+
+    import training.implement as train_mod
 
     opts = plot_trained.load_train_opts(run_dir)
     if opts is None:
         raise SystemExit(f"missing train opts under {run_dir}")
-    if response_ms is None:
-        response_ms = float(training.RESPONSE_MS)
 
     for key in ("spot_bright_stimulus_opts", "spot_dark_stimulus_opts"):
         so = opts.get(key)
-        if so is not None:
+        if so is None:
+            continue
+        if pre_ms is not None:
             so["pre_ms"] = float(pre_ms)
+        if response_ms is not None:
             so["response_ms"] = float(response_ms)
-            so.pop("t_onset", None)
-            so.pop("n_t", None)
+        if pulse_ms is not None:
+            so["pulse_ms"] = float(pulse_ms)
+        so.pop("t_onset", None)
+        so.pop("n_t", None)
 
-    new_session = training.open_session_from_opts(opts, model=opts.get("model"))
-    dt = float((opts.get("spot_bright_stimulus_opts") or {}).get("delta_ms", 10.0))
-    new_t_onset = training.ms_to_t(pre_ms, delta_ms=dt)
-    return new_session, dt, new_t_onset
+    if pre_ms is not None:
+        for key in (
+            "moving_bar_bright_stimulus_opts",
+            "moving_bar_dark_stimulus_opts",
+        ):
+            so = opts.get(key)
+            if so is not None:
+                so["pre_ms"] = float(pre_ms)
+                so.pop("t_onset", None)
+                so.pop("n_t", None)
 
+    session = training.open_session_from_opts(opts, model=opts.get("model"))
+    named, cell_names, pair_names = train_mod.load_best_param_named(run_dir)
+    remapped = training.remap_named_node_values(
+        named,
+        cell_names,
+        pair_names,
+        list(session.schema),
+        session.backend,
+    )
+    schema = training.attach_param_carry(list(session.schema), remapped)
+    session = session.with_schema(schema)
+    z = training.node_values_to_z(
+        remapped,
+        schema,
+        dtype=session.sim_dtype,
+        device=session.device,
+    )
+    return session, z
 
-def _trace_only(args: argparse.Namespace, cli: SharedCli) -> None:
-    import training.implement as train_mod
-
-    for run_i, run_arg in enumerate(args.run):
-        run_dir = plot_trained.resolve_run_dir(run_arg)
-        session0, _z0, best_i, best_cost = plot_trained.load_best(run_dir)
-
-        session, z = session0, _z0
-        if args.pre_ms is not None:
-            session, _dt, _new_t_onset = _maybe_override_spot_timing(
-                run_dir=run_dir,
-                session=session0,
-                pre_ms=args.pre_ms,
-                response_ms=args.response_ms,
-            )
-            named, cell_names, pair_names = train_mod.load_best_param_named(run_dir)
-            remapped = training.remap_named_node_values(
-                named,
-                cell_names,
-                pair_names,
-                list(session.schema),
-                session.backend,
-            )
-            schema = training.attach_param_carry(list(session.schema), remapped)
-            session = session.with_schema(schema)
-            z = training.node_values_to_z(
-                remapped,
-                schema,
-                dtype=session.sim_dtype,
-                device=session.device,
-            )
-
-        spot_cache: dict[str, tuple] = {}
-        bar_cache: dict[str, object] = {}
-
-        for task in cli.tasks:
-            if task in training.SPOT_TASKS:
-                if task not in spot_cache:
-                    spot_cache[task] = extract_spot_bundle(
-                        session,
-                        z,
-                        task=task,
-                        xs=cli.xs,
-                        ys=cli.ys,
-                    )
-                _one, bundle, data_cubes = spot_cache[task]
-                for cell in cli.cells:
-                    curves = extract_spot_cell_curves(
-                        bundle, data_cubes, cell=cell,
-                    )
-                    _print_trace_block(
-                        run_i=run_i,
-                        run_dir=run_dir,
-                        best_i=best_i,
-                        best_cost=best_cost,
-                        cell=cell,
-                        task=task,
-                        session=session,
-                        bundle=bundle,
-                        curves=curves,
-                        xs=cli.xs,
-                        ys=cli.ys,
-                        print_values=args.values,
-                    )
-            else:
-                if task not in bar_cache:
-                    bar_cache[task] = extract_moving_bar_bundle(
-                        session,
-                        z,
-                        task=task,
-                        xs=cli.xs,
-                        ys=cli.ys,
-                    )
-                bundle = bar_cache[task]
-                for cell in cli.cells:
-                    for spec in specs_for_cell(bundle, cell, cli.specs_req):
-                        curves = extract_moving_bar_cell_curves(
-                            bundle, cell=cell, spec=spec,
-                        )
-                        _print_trace_block(
-                            run_i=run_i,
-                            run_dir=run_dir,
-                            best_i=best_i,
-                            best_cost=best_cost,
-                            cell=cell,
-                            task=task,
-                            session=session,
-                            bundle=bundle,
-                            curves=curves,
-                            xs=cli.xs,
-                            ys=cli.ys,
-                            print_values=args.values,
-                            spec=spec,
-                        )
 
 # Component-step fields plotted vs time (key, ylabel/legend).
 _BORST_PLOT_PANELS: list[tuple[str, list[tuple[str, str]]]] = [
@@ -1226,7 +904,7 @@ def _forward_component(
 
     spec = _component_spec(session.model)
     drive = _prepare_drive(session, p, i_sti)
-    t_onset = int(session.primary_readout.i_sti.shape[1] - session.primary_readout.data.shape[1])
+    t_onset = int(session.primary_readout.i_sti.shape[1] - session.primary_readout.gt.shape[1])
 
     t_last: int | None = None
     if t_stop is not None:
@@ -1391,7 +1069,7 @@ def _finalize_component_report(
         t_hi = training.ms_to_t(time_window.stop, delta_ms=dt)
         if t_lo < 0 or t_hi >= n or t_lo > t_hi:
             raise SystemExit(
-                f"--ms {time_window.start:g}:{time_window.stop:g} "
+                f"--ms {time_window.start:g},{time_window.stop:g} "
                 f"(t={t_lo}:{t_hi}) out of range for accum length {n}"
             )
         seg = v_post_d[t_lo:t_hi + 1]
@@ -1495,10 +1173,25 @@ def _polarity(v: float, *, eps: float = 1e-3) -> str:
 
 def _node_params(p, session, node: int) -> dict[str, float]:
     backend = session.backend
+    if "out_scale" not in p:
+        raise SystemExit("params missing out_scale")
+    os_param = p["out_scale"]
+    if torch.is_tensor(os_param):
+        if os_param.dim() == 0:
+            out_scale = float(os_param.item())
+        else:
+            if backend.network is not None:
+                ci = int(backend.network.node_cell[node])
+            else:
+                ci = int(node) % int(backend.n_cells)
+            out_scale = float(os_param[ci])
+    else:
+        out_scale = float(os_param)
     if session.model == "hp_lp":
         return {
             "in_gain": float(p["in_gain"][node]),
             "out_gain": float(p["out_gain"][node]),
+            "out_scale": out_scale,
             "v_rest_mV": float(p["v_rest"][node]),
             "tau_lp_ms": float(p["tau_lp"][node]),
             "tau_hp_ms": float(p["tau_hp"][node]),
@@ -1511,6 +1204,7 @@ def _node_params(p, session, node: int) -> dict[str, float]:
     return {
         "in_gain": float(p["in_gain"][node]),
         "out_gain": float(p["out_gain"][node]),
+        "out_scale": out_scale,
         "v_th_mV": float(p["v_th"][node]),
         "Ih_gmax": float(p["Ih_gmax"][node]),
         "Ih_gmax_off": float(gmax_off[node]),
@@ -1520,7 +1214,7 @@ def _node_params(p, session, node: int) -> dict[str, float]:
 
 def _globals(session):
     pack = session.primary_readout
-    t_onset = int(pack.i_sti.shape[1] - pack.data.shape[1])
+    t_onset = int(pack.i_sti.shape[1] - pack.gt.shape[1])
     if session.model == "hp_lp":
         return {
             "delta_ms": float(session.delta_ms),
@@ -1618,73 +1312,97 @@ def _make_forward_batch(
 # ---------------------------------------------------------------------------
 
 
-def _parse_syn_strength(
+def _parse_param_tokens(
     tokens: list[str] | None,
-    session,
-) -> dict[tuple[int, int], float]:
-    """Parse ``--syn-strength SRC:TAR=VALUE ...`` (``PAIR_SEP`` between types)."""
+) -> list[tuple[str, str | None, float]]:
+    """Parse ``--param NAME=VALUE`` / ``NAME.NODE=VALUE`` / ``NAME.all=VALUE``."""
     if not tokens:
-        return {}
-    if session.backend.network is None:
-        raise SystemExit("--syn-strength requires a network backend")
-    names = list(session.backend.network.cell_names)
-    name_to_i = {n: i for i, n in enumerate(names)}
-    sep = training.PAIR_SEP
-    out: dict[tuple[int, int], float] = {}
+        return []
+    out: list[tuple[str, str | None, float]] = []
     for tok in tokens:
         if "=" not in tok:
             raise SystemExit(
-                f"--syn-strength expected SRC{sep}TAR=VALUE, got {tok!r}"
+                f"--param expected NAME=VALUE or NAME.NODE=VALUE, got {tok!r}"
             )
         left, val_s = tok.split("=", 1)
-        if sep not in left:
-            raise SystemExit(
-                f"--syn-strength expected SRC{sep}TAR=VALUE, got {tok!r}"
-            )
-        src_name, tar_name = left.split(sep, 1)
-        if not src_name or not tar_name or sep in tar_name:
-            raise SystemExit(
-                f"--syn-strength expected SRC{sep}TAR=VALUE, got {tok!r}"
-            )
-        if src_name not in name_to_i:
-            raise SystemExit(f"--syn-strength unknown source type {src_name!r}")
-        if tar_name not in name_to_i:
-            raise SystemExit(f"--syn-strength unknown target type {tar_name!r}")
+        if not left:
+            raise SystemExit(f"--param expected NAME=VALUE or NAME.NODE=VALUE, got {tok!r}")
+        if "." in left:
+            name, node = left.split(".", 1)
+            if not name or not node:
+                raise SystemExit(
+                    f"--param expected NAME=VALUE or NAME.NODE=VALUE, got {tok!r}"
+                )
+            if node == "all":
+                node = None
+        else:
+            name, node = left, None
         try:
             val = float(val_s)
         except ValueError as exc:
-            raise SystemExit(f"--syn-strength bad VALUE {val_s!r}") from exc
-        out[(name_to_i[src_name], name_to_i[tar_name])] = val
+            raise SystemExit(f"--param bad VALUE {val_s!r}") from exc
+        out.append((name, node, val))
     return out
 
 
-def _apply_syn_strength_cell(
+def _apply_param_overrides(
     z: torch.Tensor,
     schema: list,
     session,
-    edits: dict[tuple[int, int], float],
-) -> torch.Tensor:
-    """Return a copy of ``z`` with ``syn_strength_cell`` overrides applied."""
+    edits: list[tuple[str, str | None, float]],
+) -> tuple[torch.Tensor, list]:
+    """Apply ``--param`` edits; return ``(z, schema)`` (schema may gain frozen carry)."""
     if not edits:
-        return z
-    names = list(session.backend.network.cell_names)
-    keys = session.backend.conn.pair_keys
-    key_to_i = {k: i for i, k in enumerate(keys)}
+        return z, schema
+    if session.backend.network is None:
+        raise SystemExit("--param requires a network backend")
+
     named = training.z_to_node_values(z, schema)
-    if "syn_strength_cell" not in named:
-        raise SystemExit("schema missing syn_strength_cell segment")
-    arr = np.array(named["syn_strength_cell"], dtype=np.float64, copy=True)
-    for (src_i, tar_i), val in edits.items():
-        pair = (src_i, tar_i)
-        if pair not in key_to_i:
+    seg_by_name = {s["name"]: s for s in schema}
+    edited_idxs: dict[str, set[int]] = {}
+
+    for name, node, val in edits:
+        seg = seg_by_name.get(name)
+        if seg is None:
+            avail = sorted(seg_by_name)
             raise SystemExit(
-                f"no type pair {names[src_i]!r} -> {names[tar_i]!r} in connectome"
+                f"--param unknown param {name!r}; schema has: {avail}"
             )
-        pair_i = key_to_i[pair]
-        arr[pair_i] = val
-        _log(f"syn_strength_cell {names[src_i]} -> {names[tar_i]} = {val:g}")
-    named["syn_strength_cell"] = arr
-    return training.node_values_to_z(named, schema, dtype=z.dtype, device=z.device)
+        if name not in named:
+            raise SystemExit(f"--param schema missing values for {name!r}")
+        labels = training.node_names_for_segment(seg, session.backend)
+        label_to_i = {lab: i for i, lab in enumerate(labels)}
+        arr = np.array(named[name], dtype=np.float64, copy=True)
+        if node is None:
+            idxs = list(range(len(labels)))
+        else:
+            if node not in label_to_i:
+                raise SystemExit(
+                    f"--param unknown node {node!r} for {name}; "
+                    f"available: {labels}"
+                )
+            idxs = [label_to_i[node]]
+        for i in idxs:
+            arr[i] = val
+            _log(f"param {name}.{labels[i]} = {val:g}")
+        named[name] = arr
+        edited_idxs.setdefault(name, set()).update(idxs)
+
+    new_schema: list = []
+    for seg in schema:
+        s = dict(seg)
+        hit = edited_idxs.get(s["name"])
+        if hit:
+            for mode in ("indi", "shared", "fixed", "frozen"):
+                s[mode] = [i for i in (s.get(mode) or []) if i not in hit]
+            s["frozen"] = sorted(set(s.get("frozen") or []) | hit)
+        new_schema.append(s)
+
+    new_schema = training.attach_param_carry(new_schema, named)
+    z_new = training.node_values_to_z(
+        named, new_schema, dtype=z.dtype, device=z.device,
+    )
+    return z_new, new_schema
 
 
 def _bar_meta(session, task: str):
@@ -1693,7 +1411,7 @@ def _bar_meta(session, task: str):
     pack = session.pack_for(task)
     grids = moving_bar_session_t0_grids(
         session, specs, pack.cost_extent, int(session.n_t),
-        t_onset=int(pack.i_sti.shape[1] - pack.data.shape[1]),
+        t_onset=int(pack.i_sti.shape[1] - pack.gt.shape[1]),
         delta_ms=float(session.delta_ms),
     )
     return specs, grids
@@ -1995,6 +1713,34 @@ def _spot_radius_row(radii: np.ndarray, radius: int) -> np.ndarray:
     return np.isclose(np.asarray(radii, dtype=np.float64), float(radius))
 
 
+def _spot_gt_v_post_extra(
+    *,
+    cell: str,
+    gt_on: dict,
+    radius: int,
+    v_post: np.ndarray,
+    v_post_d: np.ndarray,
+    t_onset: int,
+) -> dict[str, Any]:
+    """GT on absolute ``v_post`` axis: ``v_onset + gt`` (no ``out_scale``)."""
+    extra: dict[str, Any] = {"gt_peak": None, "gt_v_post": None, "radius": radius}
+    if cell not in gt_on:
+        return extra
+    gt_cube = np.asarray(gt_on[cell], dtype=float)
+    if radius < 0 or radius >= gt_cube.shape[0]:
+        return extra
+    gt_row = gt_cube[radius]
+    peak_probe = _v_post_d_peak_t_rel(v_post_d, t_onset)
+    if 0 <= peak_probe < gt_row.shape[0]:
+        extra["gt_peak"] = float(gt_row[peak_probe])
+    mask = np.isfinite(v_post) & np.isfinite(v_post_d)
+    if not np.any(mask):
+        return extra
+    v_onset_est = float(np.mean(v_post[mask] - v_post_d[mask]))
+    extra["gt_v_post"] = (v_onset_est + gt_row).tolist()
+    return extra
+
+
 def analyze_spot_average(
     session_one,
     *,
@@ -2012,7 +1758,7 @@ def analyze_spot_average(
         session_one, cells,
     )
     radius_row = _spot_radius_row(radii, radius)
-    t_onset = int(pack.i_sti.shape[1] - pack.data.shape[1])
+    t_onset = int(pack.i_sti.shape[1] - pack.gt.shape[1])
 
     i_sti = pack.i_sti if pack.i_sti.dim() == 3 else pack.i_sti.unsqueeze(0)
     B_all, T, _N = i_sti.shape
@@ -2042,26 +1788,23 @@ def analyze_spot_average(
             f"no spot nodes at radius={radius} for requested cells in spot readout"
         )
 
-    data_by_contrast = resolve_spot_data_cubes(
+    gt_by_contrast = resolve_spot_gt_cubes(
         {contrast_for_task(pack.name): session_one},
     )
     contrast = contrast_for_task(pack.name)
-    data_on = data_by_contrast.get(contrast) or {}
+    gt_on = gt_by_contrast.get(contrast) or {}
 
     def extra_for_cell(
         cell: str, v_post: np.ndarray, v_post_d: np.ndarray,
     ) -> dict[str, Any]:
-        del v_post  # peak time from |v_post_d|; absolute series unused here
-        extra: dict[str, Any] = {"data_peak": None, "radius": radius}
-        if cell in data_on:
-            peak_probe = _v_post_d_peak_t_rel(v_post_d, t_onset)
-            data_cube = np.asarray(data_on[cell], dtype=float)
-            if (
-                0 <= radius < data_cube.shape[0]
-                and peak_probe < data_cube.shape[1]
-            ):
-                extra["data_peak"] = float(data_cube[radius, peak_probe])
-        return extra
+        return _spot_gt_v_post_extra(
+            cell=cell,
+            gt_on=gt_on,
+            radius=radius,
+            v_post=v_post,
+            v_post_d=v_post_d,
+            t_onset=t_onset,
+        )
 
     def n_nodes_for_cell(cell: str) -> int:
         return int(np.sum(radius_row & (type_idx == type_i[cell])))
@@ -2157,7 +1900,7 @@ def analyze_spot_hex(
         session_one, cell, at_x=at_x, at_y=at_y,
         cost_extent=pack.cost_extent, node=node,
     )
-    t_onset = int(pack.i_sti.shape[1] - pack.data.shape[1])
+    t_onset = int(pack.i_sti.shape[1] - pack.gt.shape[1])
 
     i_sti = pack.i_sti if pack.i_sti.dim() == 3 else pack.i_sti.unsqueeze(0)
     B_all, T, _N = i_sti.shape
@@ -2187,23 +1930,23 @@ def analyze_spot_hex(
             f"no stim-on spot rows for {cell} node {node} at hex ({at_x},{at_y})"
         )
 
-    data_by_contrast = resolve_spot_data_cubes(
+    gt_by_contrast = resolve_spot_gt_cubes(
         {contrast_for_task(pack.name): session_one},
     )
     contrast = contrast_for_task(pack.name)
-    data_on = data_by_contrast.get(contrast) or {}
+    gt_on = gt_by_contrast.get(contrast) or {}
 
     def extra_for_cell(
         cell_name: str, v_post: np.ndarray, v_post_d: np.ndarray,
     ) -> dict[str, Any]:
-        del v_post
-        extra: dict[str, Any] = {"data_peak": None}
-        if cell_name in data_on:
-            peak_probe = _v_post_d_peak_t_rel(v_post_d, t_onset)
-            data_cube = np.asarray(data_on[cell_name], dtype=float)
-            if peak_probe < data_cube.shape[1]:
-                extra["data_peak"] = float(data_cube[0, peak_probe])
-        return extra
+        return _spot_gt_v_post_extra(
+            cell=cell_name,
+            gt_on=gt_on,
+            radius=0,
+            v_post=v_post,
+            v_post_d=v_post_d,
+            t_onset=t_onset,
+        )
 
     n_b = len(forward_batches)
     return _analyze_component_forward(
@@ -2436,27 +2179,63 @@ def _plot_component_reports(
             ax = axes[ri, ci]
             color = tc[label]
             show_legend = overlay and ri == 0 and ci == 0
+            drew_gt = False
             for si, rep in enumerate(reports):
                 ls = linestyles[si % len(linestyles)] if overlay else "-"
-                xs = np.asarray([s["t"] for s in rep["steps"]], dtype=float) * delta_ms
+                ts = np.asarray([s["t"] for s in rep["steps"]], dtype=int)
+                xs = ts.astype(float) * delta_ms
                 y = np.asarray([s[key] for s in rep["steps"]], dtype=float)
                 sem = np.asarray(
                     [float(s.get("sem", {}).get(key, 0.0)) for s in rep["steps"]],
                     dtype=float,
                 )
+                if key == "v_post":
+                    # Match cost / spot_gt: v_onset + out_scale * (v - v_onset).
+                    # GT stays unscaled (v_onset + gt).
+                    v_post_d = np.asarray(
+                        [
+                            float(s["v_pre_d"]) + float(s["v_post_minus_pre"])
+                            for s in rep["steps"]
+                        ],
+                        dtype=float,
+                    )
+                    out_scale = float(rep["params"]["out_scale"])
+                    v_onset = float(np.mean(y - v_post_d))
+                    y = v_onset + out_scale * v_post_d
+                    sem = np.abs(out_scale) * sem
                 if ri in spec.row_shared_ylim:
                     row_curves[ri].append(y)
                     if np.any(sem):
                         row_curves[ri].append(y + sem)
                         row_curves[ri].append(y - sem)
                 plot_sem_band(ax, xs, y, sem, color=color, alpha=0.3)
+                model_label = (
+                    str(rep["spec"]) if show_legend
+                    else ("v_post" if key == "v_post" and rep.get("gt_v_post") else "_nolegend_")
+                )
                 ax.plot(
                     xs, y,
-                    label=str(rep["spec"]) if show_legend else "_nolegend_",
+                    label=model_label,
                     color=color,
                     linestyle=ls,
                     linewidth=1.4,
                 )
+                if key == "v_post" and rep.get("gt_v_post") is not None:
+                    gt_full = np.asarray(rep["gt_v_post"], dtype=float)
+                    valid = (ts >= 0) & (ts < gt_full.shape[0])
+                    if np.any(valid):
+                        y_gt = gt_full[ts[valid]]
+                        xs_gt = xs[valid]
+                        if ri in spec.row_shared_ylim:
+                            row_curves[ri].append(y_gt)
+                        ax.plot(
+                            xs_gt, y_gt,
+                            color="k",
+                            linestyle="--",
+                            linewidth=1.2,
+                            label="gt" if (show_legend or not overlay) else "_nolegend_",
+                        )
+                        drew_gt = True
             e_note = _g_e_note(label, e_leak_mV=e_leak_mV, globs=globs)
             if e_note is not None:
                 ax.set_title(e_note, fontsize=8)
@@ -2464,7 +2243,7 @@ def _plot_component_reports(
                 ax, _trace_ylabel(panel_ylabel, label),
                 legend_fontsize=6 if overlay else 7,
                 legend_ncol=1,
-                show_legend=show_legend,
+                show_legend=show_legend or drew_gt,
             )
     _apply_shared_row_ylim(axes, row_curves, spec)
     _finish_component_figure(fig, title, colors, spec)
@@ -2508,7 +2287,8 @@ def _emit_report(
 ) -> None:
     if do_print:
         print("")
-        _print_report(report)
+        # Full per-t table only when not plotting (--plot false).
+        _print_report(report, print_steps=not do_plot)
     if do_plot:
         out = os.path.join(run_dir, "cell_dynamics", _plot_filename(report))
         plot_report(report, out)
@@ -2519,7 +2299,7 @@ def _emit_report(
 # ---------------------------------------------------------------------------
 
 
-def _print_report(report: dict[str, Any]) -> None:
+def _print_report(report: dict[str, Any], *, print_steps: bool = True) -> None:
     mode = report.get("mode", "?")
     model = report.get("model", "borst")
     kind = report.get("time_window_kind", "t_rel")
@@ -2547,17 +2327,18 @@ def _print_report(report: dict[str, Any]) -> None:
     print("trained:", "  ".join(f"{k}={v:.6g}" for k, v in report["params"].items()))
 
     if model == "hp_lp":
-        print(
-            f"\n{x_key}  n  v_post  v_pre_d  v_post_minus_pre  i_sti "
-            "v_in  v_in_exc -v_in_inh  dv_leak  dv_hp"
-        )
-        for s in report["steps"]:
+        if print_steps:
             print(
-                f"{s[x_key]:4d} {s.get('n_nodes', 1):3d} {s['v_post']:+8.4f} "
-                f"{s['v_pre_d']:+8.4f} {s['v_post_minus_pre']:+8.4f} "
-                f"{s['i_sti']:+6.3f} {s['v_in']:+6.3f} {s['v_in_exc']:+7.3f} "
-                f"{s['v_in_inh']:+7.3f} {s['dv_leak']:+8.4f} {s['dv_hp']:+7.4f}"
+                f"\n{x_key}  n  v_post  v_pre_d  v_post_minus_pre  i_sti "
+                "v_in  v_in_exc -v_in_inh  dv_leak  dv_hp"
             )
+            for s in report["steps"]:
+                print(
+                    f"{s[x_key]:4d} {s.get('n_nodes', 1):3d} {s['v_post']:+8.4f} "
+                    f"{s['v_pre_d']:+8.4f} {s['v_post_minus_pre']:+8.4f} "
+                    f"{s['i_sti']:+6.3f} {s['v_in']:+6.3f} {s['v_in_exc']:+7.3f} "
+                    f"{s['v_in_inh']:+7.3f} {s['dv_leak']:+8.4f} {s['dv_hp']:+7.4f}"
+                )
         ps = report.get("peak_step")
         if ps is not None:
             print(f"\nHP/LP terms at peak {x_key}={ps[x_key]}:")
@@ -2567,19 +2348,22 @@ def _print_report(report: dict[str, Any]) -> None:
                 ("dv_leak", ps["dv_leak"]), ("dv_hp", ps["dv_hp"]),
             ]:
                 print(f"  {name:8s} {val:+9.4f}")
+        if "cost" in report and "best_cost" in report:
+            print(f"best_cost={report['best_cost']:.4f}  cost={report['cost']:.4f}")
         return
 
-    print(
-        f"\n{x_key}  n  v_post  v_pre_d  v_post_minus_pre  i_sti "
-        "g_inh  g_Ih_off  g_exc  num_inh  num_exc"
-    )
-    for s in report["steps"]:
+    if print_steps:
         print(
-            f"{s[x_key]:4d} {s.get('n_nodes', 1):3d} {s['v_post']:+8.4f} "
-            f"{s['v_pre_d']:+8.4f} {s['v_post_minus_pre']:+8.4f} "
-            f"{s['i_sti']:5.1f} {s['g_inh_nS']:.4f} {s['g_Ih_off_nS']:.4f} "
-            f"{s['g_exc_nS']:.4f} {s['num_inh']:+8.2f} {s['num_exc']:+8.2f}"
+            f"\n{x_key}  n  v_post  v_pre_d  v_post_minus_pre  i_sti "
+            "g_inh  g_Ih_off  g_exc  num_inh  num_exc"
         )
+        for s in report["steps"]:
+            print(
+                f"{s[x_key]:4d} {s.get('n_nodes', 1):3d} {s['v_post']:+8.4f} "
+                f"{s['v_pre_d']:+8.4f} {s['v_post_minus_pre']:+8.4f} "
+                f"{s['i_sti']:5.1f} {s['g_inh_nS']:.4f} {s['g_Ih_off_nS']:.4f} "
+                f"{s['g_exc_nS']:.4f} {s['num_inh']:+8.2f} {s['num_exc']:+8.2f}"
+            )
 
     ps = report.get("peak_step")
     if ps is not None:
@@ -2595,6 +2379,8 @@ def _print_report(report: dict[str, Any]) -> None:
         ]:
             pct = 100.0 * val / num if num else 0.0
             print(f"  {name:8s} {val:+9.2f} ({pct:.0f}%)")
+    if "cost" in report and "best_cost" in report:
+        print(f"best_cost={report['best_cost']:.4f}  cost={report['cost']:.4f}")
 
 
 def _print_polarity_compare(
@@ -2664,27 +2450,22 @@ def main() -> None:
     )
     add_shared_cli(ap, default_run=DEFAULT_RUN_PATH)
     ap.add_argument(
-        "--trace-only",
-        action="store_true",
-        help="print response-curve summaries (full forward; no component forward)",
-    )
-    ap.add_argument(
-        "--values",
-        action="store_true",
-        help="with --trace-only: print full analysis-window trace arrays",
-    )
-    ap.add_argument(
         "--pre-ms",
         type=float,
         default=None,
-        help="with --trace-only: override spot pre-stimulus baseline in ms",
+        help="override pre-stimulus baseline in ms (spot + moving_bar; keep train if omitted)",
     )
     ap.add_argument(
         "--response-ms",
         type=float,
         default=None,
-        help="with --trace-only: override spot post-onset response window in ms "
-        f"(default: {training.RESPONSE_MS:g})",
+        help="override spot post-onset response window in ms (keep train if omitted)",
+    )
+    ap.add_argument(
+        "--pulse-ms",
+        type=float,
+        default=None,
+        help="override spot pulse width in ms (keep train if omitted)",
     )
     ap.add_argument("--node", type=int, default=None, help="hex-mode node index")
     ap.add_argument(
@@ -2702,18 +2483,15 @@ def main() -> None:
         "--t-rel",
         default=None,
         metavar="START:STOP",
-        help=(
-            "window in t relative to |v_post_d| peak (default: "
-            f"{training.T_REL_START}:{training.T_REL_STOP})"
-        ),
+        help="window in t relative to |v_post_d| peak (overrides default 0..last ms)",
     )
     t_group.add_argument(
         "--ms",
         default=None,
-        metavar="START:STOP|full",
+        metavar="START,STOP",
         help=(
-            "absolute aligned ms window (spot: abs; bar: vs t0); "
-            "full = 0 ms to last sample; exclusive with --t-rel"
+            "absolute aligned ms window START,STOP (spot: abs; bar: vs t0); "
+            "default without --ms/--t-rel is 0 to last sample"
         ),
     )
     ap.add_argument(
@@ -2721,39 +2499,27 @@ def main() -> None:
         type=parse_bool,
         default=True,
         metavar="true|false",
-        help="save component time-series PNGs under {run}/cell_dynamics/ (default: true)",
+        help=(
+            "save component PNGs under {run}/cell_dynamics/ (default: true); "
+            "per-t step table prints only when false"
+        ),
     )
     ap.add_argument(
-        "--syn-strength",
+        "--param",
         nargs="+",
         default=None,
-        metavar="SRC:TAR=VALUE",
-        help="override syn_strength_cell; space-separated SRC:TAR=VALUE tokens",
+        metavar="NAME=VALUE|NAME.NODE=VALUE",
+        help=(
+            "overwrite schema params before forward; "
+            "NAME=VALUE or NAME.all=VALUE sets every node; "
+            "NAME.NODE=VALUE for one cell / SRC:TAR pair / eN"
+        ),
     )
     ap.add_argument("--json", action="store_true", help="print JSON to stdout")
     args = ap.parse_args()
     if not args.run:
         args.run = [DEFAULT_RUN_PATH]
     cli = parse_shared_cli(args)
-
-    if args.trace_only:
-        if args.node is not None:
-            raise SystemExit("--node is component/hex only; omit with --trace-only")
-        if args.radius != 0:
-            raise SystemExit("--radius is component only; omit with --trace-only")
-        if args.t_rel is not None or args.ms is not None:
-            raise SystemExit("--t-rel/--ms are component only; omit with --trace-only")
-        if args.syn_strength is not None:
-            raise SystemExit("--syn-strength is component only; omit with --trace-only")
-        if args.json:
-            raise SystemExit("--json is component only; omit with --trace-only")
-        _trace_only(args, cli)
-        return
-
-    if args.values or args.pre_ms is not None or args.response_ms is not None:
-        raise SystemExit(
-            "--values/--pre-ms/--response-ms require --trace-only"
-        )
 
     if args.radius != 0 and not any(t in training.SPOT_TASKS for t in cli.tasks):
         raise SystemExit("--radius requires a spot task")
@@ -2776,21 +2542,30 @@ def main() -> None:
             "--radius is average-only; omit --x/--y, or omit --radius for hex mode"
         )
 
-    use_ms = args.ms is not None
-    ms_range = _parse_ms_range(args.ms, flag="--ms") if use_ms else None
-    if not use_ms:
-        raw = (
-            args.t_rel
-            if args.t_rel is not None
-            else f"{training.T_REL_START}:{training.T_REL_STOP}"
-        )
-        t_lo, t_hi = _parse_t_range(raw, flag="--t-rel")
+    if args.t_rel is not None:
+        t_lo, t_hi = _parse_t_range(args.t_rel, flag="--t-rel")
         time_window = TimeWindow(kind="t_rel", start=t_lo, stop=t_hi)
+        ms_range = None
+        use_ms = False
+    elif args.ms is not None:
+        ms_range = _parse_ms_range(args.ms, flag="--ms")
+        use_ms = True
+    else:
+        ms_range = None  # default: 0 .. last sample
+        use_ms = True
 
     for run_i, run_arg in enumerate(args.run):
         run_dir = plot_trained.resolve_run_dir(run_arg)
         _log(f"load_best {run_dir} ...")
         session, z, best_i, best_cost = plot_trained.load_best(run_dir)
+        session, z = _maybe_override_stimulus_timing(
+            run_dir=run_dir,
+            session=session,
+            z=z,
+            pre_ms=args.pre_ms,
+            response_ms=args.response_ms,
+            pulse_ms=args.pulse_ms,
+        )
         if use_ms:
             lo, hi = (
                 (0.0, (int(session.n_t) - 1) * float(session.delta_ms))
@@ -2798,10 +2573,13 @@ def main() -> None:
             )
             time_window = TimeWindow(kind="ms", start=lo, stop=hi)
         schema = list(session.schema)
-        syn_strength_edits = _parse_syn_strength(args.syn_strength, session)
         z_t = torch.tensor(np.asarray(z, dtype=np.float64), dtype=torch.float64, device=session.device)
-        z_t = _apply_syn_strength_cell(z_t, schema, session, syn_strength_edits)
+        z_t, schema = _apply_param_overrides(
+            z_t, schema, session, _parse_param_tokens(args.param),
+        )
+        session = session.with_schema(schema)
         p = training.assign_params(z_t, schema, session.backend)
+        cost = float(training.calc_cost(z_t, session).item())
 
         spot_session_cache: dict[str, object] = {}
         bar_meta_cache: dict[str, tuple] = {}
@@ -2812,7 +2590,7 @@ def main() -> None:
         if not args.json:
             _log(f"== RUN {run_i}: {run_dir} ==")
             _log(
-                f"best_i={best_i}  best_cost={best_cost:.6g}  "
+                f"best_i={best_i}  best_cost={best_cost:.6g}  cost={cost:.6g}  "
                 f"mode={'hex' if hex_mode else 'average'}  "
                 f"radius={args.radius}  "
                 f"{time_window.kind}={time_window.start}:{time_window.stop}"
@@ -2856,6 +2634,8 @@ def main() -> None:
                         radius=args.radius,
                     )
                 for cell, rep in reports.items():
+                    rep["best_cost"] = best_cost
+                    rep["cost"] = cost
                     spot_by_cell[cell] = rep
                     all_reports.append(rep)
                     _emit_report(
@@ -2914,6 +2694,8 @@ def main() -> None:
                 }
                 for spec in specs_ordered:
                     for c, rep in reports_by_spec[spec].items():
+                        rep["best_cost"] = best_cost
+                        rep["cost"] = cost
                         bar_by_cell[c] = rep
                         all_reports.append(rep)
                         if multi_spec_plot:
@@ -2937,8 +2719,13 @@ def main() -> None:
 
         if args.json:
             print(json.dumps(
-                {"run": run_dir, "best_i": best_i, "best_cost": best_cost,
-                 "reports": all_reports},
+                {
+                    "run": run_dir,
+                    "best_i": best_i,
+                    "best_cost": best_cost,
+                    "cost": cost,
+                    "reports": all_reports,
+                },
                 indent=2,
             ))
 

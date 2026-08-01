@@ -1,4 +1,4 @@
-"""Plot spot RecF data time courses for all fit cells; report first nonzero.
+"""Plot spot RecF gt time courses for all fit cells; report first nonzero.
 
 Timing: ``pre_ms=100``, ``pulse_ms=50``, ``response_ms=400``; ``--delta-ms``
 (default ``DELTA_MS`` from ``param_defaults``). Uses ``figure.spot.plot_cell_time``
@@ -6,8 +6,8 @@ only (no RF panel).
 
 Usage (from ``SimulationCode/``):
 
-    ../.venv/bin/python test/plot_spot_data_time.py
-    ../.venv/bin/python test/plot_spot_data_time.py --delta-ms 5
+    ../.venv/bin/python test/plot_spot_gt_time.py
+    ../.venv/bin/python test/plot_spot_gt_time.py --delta-ms 5
 """
 from __future__ import annotations
 
@@ -25,7 +25,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 from network.build import cell_family_rows, cell_names_in_family_order
-from figure.readout import fit_data_cubes
+from figure.readout import fit_gt_cubes
 from figure.spot import CENTER_BIN, _pulse_end_from_opts, plot_cell_time
 from figure.util import save_figure
 from task.spot.input import spot_timing_t
@@ -95,7 +95,7 @@ def plot_all_cells(
             name = names[ni]
             col = start + j
             ax = fig.add_subplot(gs[gi, col])
-            # pre_end=0: draw full data including pre-onset zeros.
+            # pre_end=0: draw full gt including pre-onset zeros.
             plot_cell_time(
                 ax, None, cells[name],
                 title=name,
@@ -110,7 +110,7 @@ def plot_all_cells(
             )
 
     fig.suptitle(
-        f"spot bright data  (pre_ms={PRE_MS:g}, pulse_ms={PULSE_MS:g}, "
+        f"spot bright gt  (pre_ms={PRE_MS:g}, pulse_ms={PULSE_MS:g}, "
         f"response_ms={RESPONSE_MS:g}, delta_ms={delta_ms:g}; t_onset={t_onset})",
         fontsize=12,
     )
@@ -144,7 +144,7 @@ def main(argv=None):
     pulse_end = _pulse_end_from_opts(
         {"pulse_ms": PULSE_MS, "delta_ms": delta_ms}, t_onset, n_t,
     )
-    cubes = fit_data_cubes(
+    cubes = fit_gt_cubes(
         contrasts=("bright",),
         t_onset=t_onset,
         n_t=n_t,

@@ -20,10 +20,10 @@ from figure.readout import (
     contrast_order,
     pack_readout_cells,
     plot_cells_in_order,
-    spot_data_cubes,
+    spot_gt_cubes,
 )
 from figure.util import (
-    DATA_COLOR,
+    GT_COLOR,
     MODEL_COLOR,
     TRACE_LW,
     TRACE_YLIM,
@@ -58,7 +58,7 @@ from task.spot.input import (
     spot_from_opts,
     spot_stimulus_batches,
 )
-from task.spot.data import (
+from task.spot.gt import (
     RF_CENTER_RADIUS,
     RF_N_RADII,
     RF_RADIUS_DEG,
@@ -119,16 +119,16 @@ def _session_spot_timing(session):
     )
 
 
-def resolve_spot_data_cubes(sessions, data_cubes=None):
+def resolve_spot_gt_cubes(sessions, gt_cubes=None):
     """``{contrast: {cell: (RF_N_RADII, T)}}`` for each entry in ``sessions``."""
-    if data_cubes is not None:
-        return data_cubes
+    if gt_cubes is not None:
+        return gt_cubes
     if not sessions:
         return {}
     out = {}
     for contrast, session in sessions.items():
         t_onset, n_t, pulse_ms, delta_ms = _session_spot_timing(session)
-        part = spot_data_cubes(
+        part = spot_gt_cubes(
             session, session.primary_readout.name, contrasts=(str(contrast),),
             t_onset=t_onset, n_t=n_t, pulse_ms=pulse_ms, delta_ms=delta_ms,
         )
@@ -222,9 +222,9 @@ def _style_recf_profile_axis(ax, show_xlabel):
 def _scale_contrast_series(series, *, response_start, pulse_end):
     """Scale each contrast series entry to ImpR + RF radii.
 
-    ``series`` items may include ``model_xt``, ``data_xt``, ``sem_xt``.
+    ``series`` items may include ``model_xt``, ``gt_xt``, ``sem_xt``.
     Returns a list of dicts with ``imp_model``, ``rf_model``, ``imp_sem``,
-    ``imp_data``, ``rf_data`` plus passthrough keys.
+    ``imp_gt``, ``rf_gt`` plus passthrough keys.
     """
     center_radius = RF_CENTER_RADIUS
     sc_kw = dict(response_start=response_start, pulse_end=pulse_end)
@@ -232,7 +232,7 @@ def _scale_contrast_series(series, *, response_start, pulse_end):
     for entry in series:
         item = dict(entry)
         model_xt = entry.get("model_xt")
-        data_xt = entry.get("data_xt")
+        gt_xt = entry.get("gt_xt")
         sem_xt = entry.get("sem_xt")
         imp_sem = None
         if model_xt is not None:
@@ -244,16 +244,16 @@ def _scale_contrast_series(series, *, response_start, pulse_end):
                 imp_model, rf_model = scale_curve(model_xt, center_radius, **sc_kw)
         else:
             imp_model, rf_model = None, None
-        if data_xt is not None:
-            imp_data, rf_data = scale_curve(data_xt, center_radius, **sc_kw)
+        if gt_xt is not None:
+            imp_gt, rf_gt = scale_curve(gt_xt, center_radius, **sc_kw)
         else:
-            imp_data, rf_data = None, None
+            imp_gt, rf_gt = None, None
         item.update(
             imp_model=imp_model,
             rf_model=rf_model,
             imp_sem=imp_sem,
-            imp_data=imp_data,
-            rf_data=rf_data,
+            imp_gt=imp_gt,
+            rf_gt=rf_gt,
         )
         out.append(item)
     return out
@@ -279,8 +279,8 @@ def plot_cell_rf(
     for item in scaled:
         ls = item.get("linestyle", "-")
         _plot_rf_profile(
-            ax, item["rf_data"], color=DATA_COLOR,
-            label=item.get("label_data"), linestyle=ls,
+            ax, item["rf_gt"], color=GT_COLOR,
+            label=item.get("label_gt"), linestyle=ls,
         )
         _plot_rf_profile(
             ax, item["rf_model"], color=MODEL_COLOR,
@@ -314,8 +314,8 @@ def plot_cell_time(
 ):
     """Time-course panel for one cell across contrast ``series``.
 
-    ``pre_end`` defaults to ``response_start`` (gray data omits ``[0, pre_end)``).
-    Pass ``pre_end=0`` to draw the full data trace including pre-onset.
+    ``pre_end`` defaults to ``response_start`` (gray gt omits ``[0, pre_end)``).
+    Pass ``pre_end=0`` to draw the full gt trace including pre-onset.
     ``pulse_end``: white stimulus-on band ``[response_start, pulse_end)``.
     """
     scaled = _scale_contrast_series(
@@ -329,7 +329,7 @@ def plot_cell_time(
     traces = [
         {
             "model": item["imp_model"],
-            "data": item["imp_data"],
+            "gt": item["imp_gt"],
             "sem": item["imp_sem"],
             "linestyle": item.get("linestyle", "-"),
             "point_ix": item.get("point_ix"),
@@ -418,14 +418,14 @@ def plot_cell_rf_time_slices(
     for si, item in enumerate(series):
         ls = item.get("linestyle", "-")
         model_xt = item.get("model_xt")
-        data_xt = item.get("data_xt")
+        gt_xt = item.get("gt_xt")
         slice_overlay = item.get("slice_overlay") or {}
         imp_model = rf_model = None
         if model_xt is not None:
             imp_model, rf_model = scale_curve(model_xt, center_radius, **sc_kw)
-        imp_data = rf_data = None
-        if data_xt is not None:
-            imp_data, rf_data = scale_curve(data_xt, center_radius, **sc_kw)
+        imp_gt = rf_gt = None
+        if gt_xt is not None:
+            imp_gt, rf_gt = scale_curve(gt_xt, center_radius, **sc_kw)
         slice_imps = {}
         slice_rfs = {}
         for label in slice_labels:
@@ -435,8 +435,8 @@ def plot_cell_rf_time_slices(
                 slice_rfs[label] = rf_s
 
         _plot_rf_profile(
-            ax_rf, rf_data, color=DATA_COLOR,
-            label=item.get("label_data"), linestyle=ls,
+            ax_rf, rf_gt, color=GT_COLOR,
+            label=item.get("label_gt"), linestyle=ls,
         )
         for i, label in enumerate(slice_labels):
             _plot_rf_profile(
@@ -449,8 +449,8 @@ def plot_cell_rf_time_slices(
         )
 
         plot_pre_post_line(
-            ax_time, t, imp_data, pre_end=pre_end, show_pre=False, draw_pre=False,
-            color=DATA_COLOR, linestyle=ls, linewidth=TRACE_LW,
+            ax_time, t, imp_gt, pre_end=pre_end, show_pre=False, draw_pre=False,
+            color=GT_COLOR, linestyle=ls, linewidth=TRACE_LW,
         )
         for i, label in enumerate(slice_labels):
             plot_pre_post_line(
@@ -592,7 +592,7 @@ def _spot_all_cell_names(session):
 
 
 def _spot_readout_bundle_view(bundle):
-    """ca-data view: same traces, rows restricted to ``pack_readout_cells``."""
+    """ca-gt view: same traces, rows restricted to ``pack_readout_cells``."""
     session = bundle.session
     present = pack_readout_cells(session, session.primary_readout.name)
     family_rows = [np.array(row) for row in cell_family_rows(present)]
@@ -847,7 +847,7 @@ def _plot_spot_figure(
     timer,
     bundles,
     title,
-    data_cubes=None,
+    gt_cubes=None,
     ncols,
     figsize_fn,
     gridspec_kw,
@@ -870,7 +870,7 @@ def _plot_spot_figure(
     timer.end_prep()
 
     sessions = {c: bundles[c].session for c in order}
-    data_by_contrast = resolve_spot_data_cubes(sessions, data_cubes)
+    gt_by_contrast = resolve_spot_gt_cubes(sessions, gt_cubes)
 
     cells_by_contrast = {}
     for c in order:
@@ -887,15 +887,15 @@ def _plot_spot_figure(
             cell = cells_by_contrast[c].get(name)
             if cell is None:
                 continue
-            data_cells = data_by_contrast.get(c) or {}
+            gt_by_cell = gt_by_contrast.get(c) or {}
             entry = {
                 "contrast": c,
                 "model_xt": cell["cube"],
-                "data_xt": data_cells.get(name),
+                "gt_xt": gt_by_cell.get(name),
                 "sem_xt": cell.get("sem"),
                 "baseline": cell.get("baseline"),
                 "linestyle": contrast_linestyle(c),
-                "label_data": f"{c} data",
+                "label_gt": f"{c} gt",
                 "label_model": f"{c} model",
                 "label_total": f"{c} total",
                 "point_ix": _session_cost_time_ix(
@@ -971,8 +971,8 @@ def _plot_spot_figure(
     timer.log(path)
 
 
-def plot_network_spot_data(path, *, bundles, title, data_cubes=None):
-    """Draw ca-data figure (pack readout types) from contrast → bundle."""
+def plot_network_spot_gt(path, *, bundles, title, gt_cubes=None):
+    """Draw ca-gt figure (pack readout types) from contrast → bundle."""
     timer = PlotTimer(prior_prep=bundle_prep_s(*bundles.values()))
     views = {
         c: _spot_readout_bundle_view(b) for c, b in bundles.items()
@@ -982,14 +982,14 @@ def plot_network_spot_data(path, *, bundles, title, data_cubes=None):
         timer=timer,
         bundles=views,
         title=title,
-        data_cubes=data_cubes,
+        gt_cubes=gt_cubes,
         ncols=5,
         figsize_fn=lambda c, r: (3.0 * c, 2.5 * r),
         gridspec_kw=dict(hspace=0.55, wspace=0.55, top=0.95, bottom=0.06, left=0.07, right=0.98),
     )
 
 
-def plot_network_spot_all(path, *, bundles, title, data_cubes=None):
+def plot_network_spot_all(path, *, bundles, title, gt_cubes=None):
     """Draw ca-all figure (all types) from contrast → bundle."""
     timer = PlotTimer(prior_prep=bundle_prep_s(*bundles.values()))
     _plot_spot_figure(
@@ -997,7 +997,7 @@ def plot_network_spot_all(path, *, bundles, title, data_cubes=None):
         timer=timer,
         bundles=bundles,
         title=title,
-        data_cubes=data_cubes,
+        gt_cubes=gt_cubes,
         ncols=8,
         figsize_fn=lambda c, r: (2.2 * c, 2.5 * r),
         gridspec_kw=dict(hspace=0.55, wspace=0.55, top=0.95, bottom=0.06, left=0.07, right=0.98),

@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""Spot paradigm DATA: RecF x ImpR gt traces and cost-radius readout.
+"""Spot paradigm GT: RecF x ImpR gt traces and cost-radius readout.
 
 Merges the old ``Medulla_Library`` RecF/ImpR reader (with its internal
 bandpass/lowpass ImpR shaping -- a gt-only pulse path, not the unused
@@ -79,7 +79,7 @@ RF_CENTER_RADIUS = 0
 RF_N_RADII = 5
 RF_RADIUS_DEG = _RF_SAMPLES_PER_COL  # degrees per integer radius on RF plots
 # Gt-only ImpR shaping helpers (not the unused Ca filter). Inlined from the
-# old blindschleiche_py3 module so spot/data owns this path alone.
+# old blindschleiche_py3 module so spot/gt owns this path alone.
 
 
 def _gauss1d(fwhm, rfsize):
@@ -120,7 +120,7 @@ def _bandpass(pulse, hp_tau_ms, lp_tau_ms, *, delta_ms: float):
     return result
 
 
-def normalize_data(x):
+def normalize_gt(x):
     x = x - x[0]
     mymax = np.nanmax(x)
     mymin = np.nanmin(x)
@@ -151,9 +151,9 @@ _IMPR_SHIFT_RIGHT = {
 
 
 def read_RecF_ImpR(*, t_onset=None, n_t=None, pulse_ms=None, delta_ms: float):
-    """Return ``(RecF_data, ImpR_data)`` for the 13 gt cells.
+    """Return ``(RecF_gt, ImpR_gt)`` for the 13 gt cells.
 
-    Shapes: ``RecF_data`` ``(13, 45)``; ``ImpR_data`` ``(13, n_t)``. The
+    Shapes: ``RecF_gt`` ``(13, 45)``; ``ImpR_gt`` ``(13, n_t)``. The
     drive is :func:`task.spot.input.spot_input_waveform` (step or pulse).
     ImpR filter taus are in ms (scaled by ``delta_ms``); delay is in samples.
     """
@@ -173,12 +173,12 @@ def read_RecF_ImpR(*, t_onset=None, n_t=None, pulse_ms=None, delta_ms: float):
     ) * 5.0
     RF_sign = np.array([-1, -1, -1, -1, 1, 1, 1, 1, -1, -1, -1, -1, -1])
 
-    RecF_data = np.zeros((n_cells, 45))
+    RecF_gt = np.zeros((n_cells, 45))
     for i in range(n_cells):
         center = _gauss1d(RF_center_width[i], 44)
         surrnd = _gauss1d(RF_surrnd_width[i], 44)
-        RecF_data[i] = (center - RF_surrnd_weight[i] * surrnd) * RF_sign[i]
-        RecF_data[i] = normalize_data(RecF_data[i])
+        RecF_gt[i] = (center - RF_surrnd_weight[i] * surrnd) * RF_sign[i]
+        RecF_gt[i] = normalize_gt(RecF_gt[i])
 
     # ImpR HP / LP time constants (ms).
     IR_hp_ms = np.array(
@@ -191,39 +191,39 @@ def read_RecF_ImpR(*, t_onset=None, n_t=None, pulse_ms=None, delta_ms: float):
     pulse = spot_input_waveform(t_onset, n_t, pulse_ms, delta_ms=delta_ms)
     pulse = pulse / np.max(pulse)
 
-    ImpR_data = np.zeros((n_cells, n_t))
+    ImpR_gt = np.zeros((n_cells, n_t))
     for i in range(n_cells):
         if IR_hp_ms[i] == 0:
-            ImpR_data[i] = _lowpass(pulse, IR_lp_ms[i], delta_ms=delta_ms)
+            ImpR_gt[i] = _lowpass(pulse, IR_lp_ms[i], delta_ms=delta_ms)
         else:
-            ImpR_data[i] = _bandpass(
+            ImpR_gt[i] = _bandpass(
                 pulse, IR_hp_ms[i], IR_lp_ms[i], delta_ms=delta_ms,
             )
-        ImpR_data[i] = normalize_data(ImpR_data[i])
+        ImpR_gt[i] = normalize_gt(ImpR_gt[i])
         name = str(GT_CELLS[i])
-        ImpR_data[i] = _shift_right(ImpR_data[i], _IMPR_SHIFT_RIGHT[name])
+        ImpR_gt[i] = _shift_right(ImpR_gt[i], _IMPR_SHIFT_RIGHT[name])
 
-    return RecF_data, ImpR_data
+    return RecF_gt, ImpR_gt
 
 
-def read_RecF_data(*, t_onset=None, n_t=None, pulse_ms=None, delta_ms: float):
+def read_RecF_gt(*, t_onset=None, n_t=None, pulse_ms=None, delta_ms: float):
     """Spatial x temporal spot cube ``(n_cells, RF_N_RADII, n_t)``; axis = radius."""
-    RecF_data, ImpR_data = read_RecF_ImpR(
+    RecF_gt, ImpR_gt = read_RecF_ImpR(
         t_onset=t_onset, n_t=n_t, pulse_ms=pulse_ms, delta_ms=delta_ms,
     )
-    mt = ImpR_data.shape[1]
+    mt = ImpR_gt.shape[1]
     n_cells = len(GT_CELLS)
-    data = np.zeros((n_cells, RF_N_RADII, mt))
+    gt = np.zeros((n_cells, RF_N_RADII, mt))
     for i in range(n_cells):
         for radius in range(RF_N_RADII):
             sample = _RF_CENTER_SAMPLE + _RF_SAMPLES_PER_COL * radius
-            data[i, radius] = RecF_data[i, sample] * ImpR_data[i]
-    return data
+            gt[i, radius] = RecF_gt[i, sample] * ImpR_gt[i]
+    return gt
 
 
-def read_RecF_data_dark(*, t_onset=None, n_t=None, pulse_ms=None, delta_ms: float):
-    """Dark spot spatial x temporal cube: negated bright ``read_RecF_data()``."""
-    return -read_RecF_data(
+def read_RecF_gt_dark(*, t_onset=None, n_t=None, pulse_ms=None, delta_ms: float):
+    """Dark spot spatial x temporal cube: negated bright ``read_RecF_gt()``."""
+    return -read_RecF_gt(
         t_onset=t_onset, n_t=n_t, pulse_ms=pulse_ms, delta_ms=delta_ms,
     )
 
@@ -500,7 +500,7 @@ def build_spot_center_readout(C, batches, cost_radii, cost_extent):
 @dataclass
 class SpotGt:
     i_sti: torch.Tensor          # (B, T, N)
-    data: torch.Tensor            # (n_cost, T')
+    gt: torch.Tensor            # (n_cost, T')
     power: torch.Tensor           # scalar
     cost_weight: torch.Tensor     # (n_cost,)
     cost_radius: torch.Tensor     # (n_cost,)
@@ -541,7 +541,7 @@ def build_spot_gt(
     i_baseline = float(i_baseline_spot)
     i_spot = float(i_bright_spot if polarity == "bright" else i_dark_spot)
     device = device or C.device
-    recf_data, impr_data = read_RecF_ImpR(
+    recf_gt, impr_gt = read_RecF_ImpR(
         t_onset=t_onset, n_t=n_t, pulse_ms=pulse_ms, delta_ms=delta_ms,
     )
     type_row = {str(rt): i for i, rt in enumerate(GT_CELLS)}
@@ -612,12 +612,12 @@ def build_spot_gt(
             cache_key = (b, mu, mv, row)
             if cache_key not in trace_cache:
                 trace_cache[cache_key] = _spot_superposed_trace(
-                    recf_data[row],
+                    recf_gt[row],
                     stim_uv,
                     mu,
                     mv,
                     spot_extent,
-                    impr_data[row],
+                    impr_gt[row],
                     resp,
                     data_amp,
                     polarity=polarity,
@@ -635,7 +635,7 @@ def build_spot_gt(
     if not cost_batch:
         raise ValueError("no spot cost nodes (check cost_extent and gt cells)")
 
-    data = torch.tensor(np.asarray(cost_readout), dtype=sim_dtype, device=device)  # (n_cost,T')
+    gt = torch.tensor(np.asarray(cost_readout), dtype=sim_dtype, device=device)  # (n_cost,T')
     cost_weight = torch.tensor(np.asarray(cost_weight_rows), dtype=sim_dtype, device=device)
     cost_radius = torch.tensor(np.asarray(cost_radius_rows), dtype=sim_dtype, device=device)
     readout_batch = torch.tensor(np.asarray(cost_batch), dtype=torch.long, device=device)
@@ -643,13 +643,13 @@ def build_spot_gt(
     readout_stim_u = torch.tensor(np.asarray(cost_stim_u), dtype=torch.long, device=device)
     readout_stim_v = torch.tensor(np.asarray(cost_stim_v), dtype=torch.long, device=device)
 
-    power = torch.sum(cost_weight[:, None] * data ** 2)
+    power = torch.sum(cost_weight[:, None] * gt ** 2)
     if float(power) == 0.0:
         power = torch.tensor(1.0, dtype=sim_dtype, device=device)
 
     info = {
         "n_batch": n_batch,
-        "n_cost": data.shape[0],
+        "n_cost": gt.shape[0],
         "n_cost_hexes": spot_n_cost_hexes(cost_hexes),
         "n_centers": len(spot.centers),
         "n_shifts": len(spot.shifts),
@@ -670,7 +670,7 @@ def build_spot_gt(
     }
     return SpotGt(
         i_sti=i_sti,
-        data=data,
+        gt=gt,
         power=power,
         cost_weight=cost_weight,
         cost_radius=cost_radius,

@@ -10,7 +10,7 @@ import numpy as np
 import torch
 
 import training
-from task.moving_bar.data import (
+from task.moving_bar.gt import (
     GT_CELLS,
     fig1_key_for_stimulus,
     motion_preference,
@@ -19,7 +19,7 @@ from task.moving_bar.data import (
 )
 from figure.readout import pack_readout_cells, plot_cells_in_order
 from figure.util import (
-    DATA_COLOR,
+    GT_COLOR,
     TRACE_LW,
     TRACE_YLIM,
     PlotTimer,
@@ -46,7 +46,7 @@ from figure.util import (
     v_ref_schema_name,
 )
 import network.path  # noqa: F401  # ensure FAFBv783 modules are importable
-from task.moving_bar.data import (
+from task.moving_bar.gt import (
     bar_specs_for_session,
     load_fig1_trace,
     moving_bar_row_specs,
@@ -87,7 +87,7 @@ class MovingBarTraceBundle:
     side: str
     single_hex: bool
     baselines: dict
-    data_mean: dict
+    gt_mean: dict
     n_t: int
     traces: MovingBarWindowTraces
     session: object
@@ -130,9 +130,9 @@ def _moving_bar_cell_title(
     bundle,
     sname,
     ca_mean,
-    data_mean,
+    gt_mean,
     ca_dsi_lookup,
-    data_dsi_lookup,
+    gt_dsi_lookup,
     key,
     *,
     type_name,
@@ -140,8 +140,8 @@ def _moving_bar_cell_title(
     return moving_bar_cell_title(
         bundle_panel_title(bundle, sname, type_name=type_name),
         ca_dsi=ca_dsi_lookup.get(key),
-        data_dsi=data_dsi_lookup.get(key),
-        has_data=data_mean.get(key) is not None,
+        gt_dsi=gt_dsi_lookup.get(key),
+        has_gt=gt_mean.get(key) is not None,
     )
 
 
@@ -340,8 +340,8 @@ def _fig1_trace_delta(trace: np.ndarray, delta_ms: float) -> np.ndarray:
     return trace - float(trace[0])
 
 
-def _load_moving_bar_data_mean(session, task, cells, specs, side):
-    data_mean = {}
+def _load_moving_bar_gt_mean(session, task, cells, specs, side):
+    gt_mean = {}
     row_cells = plot_cells_in_order(pack_readout_cells(session, task))
     for subtype in row_cells:
         if subtype not in cells:
@@ -351,8 +351,8 @@ def _load_moving_bar_data_mean(session, task, cells, specs, side):
             if trace_id is None:
                 continue
             trace = _fig1_trace_delta(load_fig1_trace(trace_id), session.delta_ms)
-            data_mean[(subtype, spec.name)] = trace
-    return data_mean
+            gt_mean[(subtype, spec.name)] = trace
+    return gt_mean
 
 
 def _moving_bar_traces_from_forward(
@@ -362,7 +362,7 @@ def _moving_bar_traces_from_forward(
     pack = session.pack_for(task)
     cost_extent = pack.cost_extent
     n_t = int(session.n_t)
-    _t_onset = int(pack.i_sti.shape[1] - pack.data.shape[1])
+    _t_onset = int(pack.i_sti.shape[1] - pack.gt.shape[1])
     grids = moving_bar_session_t0_grids(
         session, specs, cost_extent, n_t, at_x=at_x, at_y=at_y,
         t_onset=_t_onset, delta_ms=session.delta_ms,
@@ -442,7 +442,7 @@ def moving_bar_trace_bundle(session, z, task, *, at_x=None, at_y=None,
         }
     baselines = baselines_for_types(v_onset_np, nodes_by_name, v_ref)
     single_hex = suppress_cost_sem(session, task) or n_filter_hexes == 1
-    data_mean = _load_moving_bar_data_mean(
+    gt_mean = _load_moving_bar_gt_mean(
         session, task, cells, specs, side,
     )
     slice_overlay = None
@@ -477,7 +477,7 @@ def moving_bar_trace_bundle(session, z, task, *, at_x=None, at_y=None,
         side=side,
         single_hex=single_hex,
         baselines=baselines,
-        data_mean=data_mean,
+        gt_mean=gt_mean,
         n_t=n_t,
         traces=traces,
         session=session,
@@ -599,7 +599,7 @@ def _plot_moving_bar_cell(
     before_t,
     after_t,
     *,
-    data_trace=None,
+    gt_trace=None,
     show_ylabel=False,
     show_sem=True,
     ylim=None,
@@ -613,9 +613,9 @@ def _plot_moving_bar_cell(
     delta_ms=None,
 ):
     win_len = len(ca_trace)
-    data_x, data_y = None, None
-    if data_trace is not None:
-        data_x, data_y = _cost_window_overlay(data_trace, before_t, delta_ms)
+    gt_x, gt_y = None, None
+    if gt_trace is not None:
+        gt_x, gt_y = _cost_window_overlay(gt_trace, before_t, delta_ms)
 
     def style_xaxis(ax):
         _style_moving_bar_relative_axis(
@@ -634,7 +634,7 @@ def _plot_moving_bar_cell(
         ax, np.arange(win_len),
         [{
             "model": ca_trace,
-            "data": None,
+            "gt": None,
             "sem": sem_trace,
             "linestyle": linestyle,
         }],
@@ -649,8 +649,8 @@ def _plot_moving_bar_cell(
         show_pre=show_pre,
     )
     # Gray fig1 overlay is already restricted to the cost window (no global pre).
-    if data_x is not None:
-        ax.plot(data_x, data_y, color=DATA_COLOR, linewidth=TRACE_LW, linestyle=linestyle)
+    if gt_x is not None:
+        ax.plot(gt_x, gt_y, color=GT_COLOR, linewidth=TRACE_LW, linestyle=linestyle)
 
 
 def _plot_moving_bar_cell_slices(
@@ -663,7 +663,7 @@ def _plot_moving_bar_cell_slices(
     before_t,
     after_t,
     *,
-    data_trace=None,
+    gt_trace=None,
     show_ylabel=False,
     show_sem=True,
     show_legend=False,
@@ -677,9 +677,9 @@ def _plot_moving_bar_cell_slices(
     delta_ms=None,
 ):
     win_len = len(total_trace)
-    data_x, data_y = None, None
-    if data_trace is not None:
-        data_x, data_y = _cost_window_overlay(data_trace, before_t, delta_ms)
+    gt_x, gt_y = None, None
+    if gt_trace is not None:
+        gt_x, gt_y = _cost_window_overlay(gt_trace, before_t, delta_ms)
 
     def style_xaxis(ax):
         _style_moving_bar_relative_axis(
@@ -694,8 +694,8 @@ def _plot_moving_bar_cell_slices(
     else:
         ylo, yhi = ylim
     t = np.arange(win_len)
-    if data_x is not None:
-        ax.plot(data_x, data_y, color=DATA_COLOR, linewidth=TRACE_LW)
+    if gt_x is not None:
+        ax.plot(gt_x, gt_y, color=GT_COLOR, linewidth=TRACE_LW)
     colors = overlay_model_reds(len(slice_labels))
     for i, label in enumerate(slice_labels):
         plot_pre_post_line(
@@ -758,7 +758,7 @@ def _moving_bar_all_figure(bundle_on, bundle_2, title, *, right_only=True):
     spec_names = _filter_right_specs(bundle_on.spec_names, right_only)
     ncols_on = len(spec_names)
     ca_mean, ca_sem, ca_n = wt_on.ca_mean, wt_on.ca_sem, wt_on.ca_n
-    data_mean = bundle_on.data_mean
+    gt_mean = bundle_on.gt_mean
     baselines = bundle_on.baselines
     baselines_2 = None
     wt_2 = None
@@ -771,17 +771,17 @@ def _moving_bar_all_figure(bundle_on, bundle_2, title, *, right_only=True):
         ca_mean = {**ca_mean, **wt_2.ca_mean}
         ca_sem = {**ca_sem, **wt_2.ca_sem}
         ca_n = {**ca_n, **wt_2.ca_n}
-        data_mean = {**data_mean, **bundle_2.data_mean}
+        gt_mean = {**gt_mean, **bundle_2.gt_mean}
         baselines_2 = bundle_2.baselines
     show_sem = not single_hex and not has_slices
     nrows = len(cells)
     ncols = len(spec_names)
     ca_dsi_on = moving_bar_dsi_lookup(wt_on.ca_mean, cells, bundle_on.spec_names)
-    data_dsi_on = moving_bar_dsi_lookup(bundle_on.data_mean, cells, bundle_on.spec_names)
-    ca_dsi_2 = data_dsi_2 = None
+    gt_dsi_on = moving_bar_dsi_lookup(bundle_on.gt_mean, cells, bundle_on.spec_names)
+    ca_dsi_2 = gt_dsi_2 = None
     if bundle_2 is not None:
         ca_dsi_2 = moving_bar_dsi_lookup(wt_2.ca_mean, cells, bundle_2.spec_names)
-        data_dsi_2 = moving_bar_dsi_lookup(bundle_2.data_mean, cells, bundle_2.spec_names)
+        gt_dsi_2 = moving_bar_dsi_lookup(bundle_2.gt_mean, cells, bundle_2.spec_names)
     fig, axes = _moving_bar_figure(nrows, ncols)
     for ri, tname in enumerate(cells):
         for ci, sname in enumerate(spec_names):
@@ -798,9 +798,9 @@ def _moving_bar_all_figure(bundle_on, bundle_2, title, *, right_only=True):
             before_t, after_t = _window_t(wt, sname)
             dsi_on = ci < ncols_on
             cell_title = _moving_bar_cell_title(
-                bundle_on, sname, ca_mean, data_mean,
+                bundle_on, sname, ca_mean, gt_mean,
                 ca_dsi_on if dsi_on else ca_dsi_2,
-                data_dsi_on if dsi_on else data_dsi_2,
+                gt_dsi_on if dsi_on else gt_dsi_2,
                 key,
                 type_name=tname,
             )
@@ -818,7 +818,7 @@ def _moving_bar_all_figure(bundle_on, bundle_2, title, *, right_only=True):
                     ax, ca_mean[key], ca_sem.get(key),
                     slice_traces, plot_labels,
                     cell_title, before_t, after_t,
-                    data_trace=data_mean.get(key),
+                    gt_trace=gt_mean.get(key),
                     show_ylabel=(ci == 0),
                     show_sem=show_sem and key in ca_sem and np.any(ca_sem[key]),
                     show_legend=(ri == 0 and ci == 0),
@@ -834,7 +834,7 @@ def _moving_bar_all_figure(bundle_on, bundle_2, title, *, right_only=True):
                 _plot_moving_bar_cell(
                     ax, ca_mean[key], ca_sem.get(key),
                     cell_title, before_t, after_t,
-                    data_trace=data_mean.get(key),
+                    gt_trace=gt_mean.get(key),
                     show_ylabel=(ci == 0),
                     show_sem=show_sem and key in ca_sem and np.any(ca_sem[key]),
                     cell_ticks=False,
@@ -856,7 +856,7 @@ def _moving_bar_all_figure(bundle_on, bundle_2, title, *, right_only=True):
 
 @torch.no_grad()
 def plot_moving_bar_data(path, *, bundle, bundle_2=None, title=None):
-    """Draw ca-data figure from a full-scope :class:`MovingBarTraceBundle`."""
+    """Draw ca-gt figure from a full-scope :class:`MovingBarTraceBundle`."""
     timer = PlotTimer(prior_prep=bundle_prep_s(bundle, bundle_2))
     timer.end_prep()
     single_hex = bundle.single_hex
@@ -874,13 +874,13 @@ def plot_moving_bar_data(path, *, bundle, bundle_2=None, title=None):
     fig, axes = _moving_bar_figure(nrows, ncols)
 
     ca_dsi_on = moving_bar_dsi_lookup(bundle.traces.ca_mean, gt_cells, bundle.spec_names)
-    data_dsi_on = moving_bar_dsi_lookup(bundle.data_mean, gt_cells, bundle.spec_names)
-    ca_dsi_2 = data_dsi_2 = None
+    gt_dsi_on = moving_bar_dsi_lookup(bundle.gt_mean, gt_cells, bundle.spec_names)
+    ca_dsi_2 = gt_dsi_2 = None
     if bundle_2 is not None:
         ca_dsi_2 = moving_bar_dsi_lookup(bundle_2.traces.ca_mean, gt_cells, bundle_2.spec_names)
-        data_dsi_2 = moving_bar_dsi_lookup(bundle_2.data_mean, gt_cells, bundle_2.spec_names)
+        gt_dsi_2 = moving_bar_dsi_lookup(bundle_2.gt_mean, gt_cells, bundle_2.spec_names)
 
-    def _plot_row(ri, subtype, specs, col_offset, row_bundle, plot_side, ca_dsi, data_dsi):
+    def _plot_row(ri, subtype, specs, col_offset, row_bundle, plot_side, ca_dsi, gt_dsi):
         wt = row_bundle.traces
         for ci, sname in enumerate(specs):
             ax = axes[ri, col_offset + ci]
@@ -890,14 +890,14 @@ def plot_moving_bar_data(path, *, bundle, bundle_2=None, title=None):
                 continue
             before_t, after_t = _window_t(wt, sname)
             cell_title = _moving_bar_cell_title(
-                bundle, sname, wt.ca_mean, row_bundle.data_mean,
-                ca_dsi, data_dsi, key,
+                bundle, sname, wt.ca_mean, row_bundle.gt_mean,
+                ca_dsi, gt_dsi, key,
                 type_name=subtype,
             )
             _plot_moving_bar_cell(
                 ax, wt.ca_mean[key], wt.ca_sem[key],
                 cell_title, before_t, after_t,
-                data_trace=row_bundle.data_mean.get(key),
+                gt_trace=row_bundle.gt_mean.get(key),
                 show_ylabel=(col_offset + ci == 0), show_sem=not single_hex,
                 mark_cost_window=True,
                 baseline=row_bundle.baselines.get(subtype),
@@ -908,17 +908,17 @@ def plot_moving_bar_data(path, *, bundle, bundle_2=None, title=None):
             )
 
     for ri, subtype in enumerate(gt_cells):
-        _plot_row(ri, subtype, row_specs[subtype], 0, bundle, bundle.side, ca_dsi_on, data_dsi_on)
+        _plot_row(ri, subtype, row_specs[subtype], 0, bundle, bundle.side, ca_dsi_on, gt_dsi_on)
         if bundle_2 is not None:
             _plot_row(
                 ri, subtype, row_specs_2[subtype], ncols_half, bundle_2, bundle_2.side,
-                ca_dsi_2, data_dsi_2,
+                ca_dsi_2, gt_dsi_2,
             )
         axes[ri, 0].set_ylabel(
             cell_ylabel(subtype, bundle.traces.ca_n), fontsize=8, labelpad=12,
         )
     if title is None:
-        title = 'Moving-bar ca-data'
+        title = 'Moving-bar ca-gt'
     scope = _moving_bar_scope_label(bundle.session)
     fig.suptitle(
         title + f'  [{scope}, t_first_sti-aligned full window]',

@@ -1,19 +1,19 @@
-"""Verify the cells that HAVE recorded data in vision, and
+"""Verify the cells that HAVE recorded gt in vision, and
 check whether each one is column-assigned in FAFB.
 
-"Cells with data" are the 13 cells returned by Medulla_Library.read_RecF_data()
-(ImpR_data / RecF_data, shape (13, 45)); they are listed as ``cell_list`` in
+"Cells with gt" are the 13 cells returned by Medulla_Library.read_RecF_gt()
+(ImpR_gt / RecF_gt, shape (13, 45)); they are listed as ``cell_list`` in
 SimulationCode/Medulla_Library.py. These are the only cells the model is fitted
 against (the other 52 of the 65 cell entries are connectivity-only).
 
-For each data cell this reports, per hemisphere:
+For each gt cell this reports, per hemisphere:
   - whether the cell exists in FAFB visual_neuron_types,
   - how many neurons it has,
   - how many (and what fraction) have a direct column_assignment.
 
 Run with the project venv:
 
-    .venv/bin/python "Connectome/FAFBv783/test/verify_data_celltypes_columns.py"
+    .venv/bin/python "Connectome/FAFBv783/test/verify_gt_celltypes_columns.py"
 """
 
 from __future__ import annotations
@@ -25,8 +25,8 @@ import import_bootstrap  # noqa: F401
 from build_network import FafbDataLoader  # noqa: E402
 
 # vision/SimulationCode/Medulla_Library.py, cell_list (the 13 cells
-# with measured impulse-response data).
-DATA_CELLS = [
+# with measured impulse-response gt).
+GT_CELLS = [
     "L1", "L2", "L3", "L4", "L5",
     "Mi1", "Tm3", "Mi4", "Mi9",
     "Tm1", "Tm2", "Tm4", "Tm9",
@@ -44,7 +44,7 @@ def main() -> None:
         col_ids = set(columns_all[columns_all["hemisphere"] == side]["root_id"])
 
         rows = []
-        for cell in DATA_CELLS:
+        for cell in GT_CELLS:
             ids = set(neurons[neurons["cell"] == cell]["root_id"])
             with_col = len(ids & col_ids)
             n = len(ids)

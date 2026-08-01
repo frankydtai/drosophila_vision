@@ -1,4 +1,4 @@
-"""Model-data readout cell selection from session + task."""
+"""Model-gt readout cell selection from session + task."""
 
 from __future__ import annotations
 
@@ -6,7 +6,7 @@ import numpy as np
 import torch
 
 from param_defaults import DATA_AMP, DELTA_MS
-from task.spot.data import GT_CELLS, read_RecF_data, read_RecF_data_dark
+from task.spot.gt import GT_CELLS, read_RecF_gt, read_RecF_gt_dark
 from network.construction import (
     CELL_FAMILY_ROWS,
     cell_names_in_family_order,
@@ -79,7 +79,7 @@ def contrast_linestyle(contrast: str) -> str:
     return CONTRAST_LINESTYLE.get(str(contrast), "-")
 
 
-def _mirror_data_specs_from_override(override):
+def _mirror_gt_specs_from_override(override):
     if not override:
         return []
     specs = []
@@ -103,7 +103,7 @@ def _mirror_data_specs_from_override(override):
 
 def _apply_mirror(cells, override):
     cells = dict(cells)
-    for mirror_types, mirror_fit, mirror_sign in _mirror_data_specs_from_override(override):
+    for mirror_types, mirror_fit, mirror_sign in _mirror_gt_specs_from_override(override):
         if mirror_fit not in cells:
             continue
         mirrored = mirror_sign * cells[mirror_fit]
@@ -115,15 +115,15 @@ def _apply_mirror(cells, override):
 def _cell_cubes(*, dark: bool, t_onset=None, n_t=None, pulse_ms=None, delta_ms: float):
     """One contrast: ``{cell: (RF_N_RADII, T)}``."""
     kw = dict(t_onset=t_onset, n_t=n_t, pulse_ms=pulse_ms, delta_ms=float(delta_ms))
-    data = read_RecF_data_dark(**kw) if dark else read_RecF_data(**kw)
-    cubes = data * DATA_AMP
+    gt = read_RecF_gt_dark(**kw) if dark else read_RecF_gt(**kw)
+    cubes = gt * DATA_AMP
     return {str(name): cubes[i] for i, name in enumerate(GT_CELLS)}
 
 
-def fit_data_cubes(
+def fit_gt_cubes(
     *, contrasts=("bright",), t_onset=None, n_t=None, pulse_ms=None, delta_ms: float = DELTA_MS,
 ):
-    """RecF data cubes ``{contrast: {cell: (RF_N_RADII, T)}}`` (``v`` readout as-is)."""
+    """RecF gt cubes ``{contrast: {cell: (RF_N_RADII, T)}}`` (``v`` readout as-is)."""
     out = {}
     for contrast in contrasts:
         contrast = str(contrast)
@@ -138,7 +138,7 @@ def fit_data_cubes(
     return out
 
 
-def spot_data_cubes(
+def spot_gt_cubes(
     session,
     task=None,
     *,
@@ -148,12 +148,12 @@ def spot_data_cubes(
     pulse_ms=None,
     delta_ms: float = DELTA_MS,
 ):
-    """Spot data cubes ``{contrast: {cell: (RF_N_RADII, T)}}`` with pack mirror overrides."""
+    """Spot gt cubes ``{contrast: {cell: (RF_N_RADII, T)}}`` with pack mirror overrides."""
     task = task or session.primary_readout.name
     if contrasts is None:
         contrasts = (contrast_for_task(task),)
     overrides = (session.train_opts or {}).get('pack_overrides') or {}
-    base = fit_data_cubes(
+    base = fit_gt_cubes(
         contrasts=contrasts, t_onset=t_onset, n_t=n_t, pulse_ms=pulse_ms,
         delta_ms=delta_ms,
     )

@@ -52,7 +52,7 @@ _CHECKPOINT_PNG_STEMS = (
 
 def build_plot_kwargs(
     *,
-    data_cubes=None,
+    gt_cubes=None,
     plot_right_only=True,
     at_x=None,
     at_y=None,
@@ -61,7 +61,7 @@ def build_plot_kwargs(
     show_pre=True,
 ):
     return dict(
-        data_cubes=data_cubes,
+        gt_cubes=gt_cubes,
         plot_right_only=plot_right_only,
         at_x=at_x,
         at_y=at_y,
@@ -77,7 +77,7 @@ def make_plots(
     session,
     result=None,
     *,
-    data_cubes=None,
+    gt_cubes=None,
     plot_right_only=True,
     at_x=None,
     at_y=None,
@@ -85,9 +85,9 @@ def make_plots(
     align_at_y=None,
     show_pre=True,
 ):
-    """Cost curve + model-vs-data + all-cells."""
+    """Cost curve + model-vs-gt + all-cells."""
     plot_kw = build_plot_kwargs(
-        data_cubes=data_cubes,
+        gt_cubes=gt_cubes,
         plot_right_only=plot_right_only,
         at_x=at_x,
         at_y=at_y,
@@ -163,7 +163,7 @@ def make_checkpoint_on_png(plot_kw):
 
 def run_training_and_plot(
     *,
-    plot_data_cubes=None,
+    plot_gt_cubes=None,
     plot_right_only=True,
     at_x=None,
     at_y=None,
@@ -174,7 +174,7 @@ def run_training_and_plot(
 ):
     """Train (``training.implement.run_training``) then plot. Returns ``(fname, outdir, session)``."""
     plot_kw = build_plot_kwargs(
-        data_cubes=plot_data_cubes,
+        gt_cubes=plot_gt_cubes,
         plot_right_only=plot_right_only,
         at_x=at_x,
         at_y=at_y,
@@ -229,7 +229,7 @@ def run_mirror_spot_experiment(
 ):
     """CLI entry for spot mirror-fit experiments (train + plot)."""
     from param_defaults import DELTA_MS, PRE_MS, RESPONSE_MS
-    from figure.readout import fit_data_cubes
+    from figure.readout import fit_gt_cubes
     from neuron.params import ms_to_t
     from training.experiment import (
         merge_ih_train_modes,
@@ -238,13 +238,13 @@ def run_mirror_spot_experiment(
         _normalize_mirror_fits,
     )
 
-    def make_mirror_data_cubes(fits, sign):
+    def make_mirror_gt_cubes(fits, sign):
         specs = _normalize_mirror_fits(fits, sign)
         t_onset = ms_to_t(PRE_MS, delta_ms=DELTA_MS)
         n_t = t_onset + ms_to_t(RESPONSE_MS, delta_ms=DELTA_MS) + 1
 
-        def mirror_data_cubes(contrasts):
-            base = fit_data_cubes(
+        def mirror_gt_cubes(contrasts):
+            base = fit_gt_cubes(
                 contrasts=contrasts,
                 t_onset=t_onset,
                 n_t=n_t,
@@ -261,9 +261,9 @@ def run_mirror_spot_experiment(
                 out[contrast] = cells
             return out
 
-        return mirror_data_cubes
+        return mirror_gt_cubes
 
-    def resolve_spot_plot_data_cubes(spot_tasks, mirror_data_cubes):
+    def resolve_spot_plot_gt_cubes(spot_tasks, mirror_gt_cubes):
         contrasts = []
         if "spot_bright" in spot_tasks:
             contrasts.append("bright")
@@ -271,7 +271,7 @@ def run_mirror_spot_experiment(
             contrasts.append("dark")
         if not contrasts:
             return None
-        return mirror_data_cubes(tuple(contrasts))
+        return mirror_gt_cubes(tuple(contrasts))
 
     ap = make_run_argparser(description)
     if configure_parser is not None:
@@ -288,15 +288,15 @@ def run_mirror_spot_experiment(
     pack_overrides = spot_pack_overrides(tasks, fits, mirror_sign)
     train_modes = merge_ih_train_modes(run_kw)
     spot_tasks = spot_tasks_from(tasks)
-    plot_data_cubes = resolve_spot_plot_data_cubes(
-        spot_tasks, make_mirror_data_cubes(fits, mirror_sign),
+    plot_gt_cubes = resolve_spot_plot_gt_cubes(
+        spot_tasks, make_mirror_gt_cubes(fits, mirror_sign),
     )
 
     fname, outdir, session = run_training_and_plot(
         **run_kw,
         pack_overrides=pack_overrides,
         train_modes=train_modes,
-        plot_data_cubes=plot_data_cubes,
+        plot_gt_cubes=plot_gt_cubes,
     )
     for tname in spot_tasks:
         print(f"{tname} cost nodes:", int(session.pack_for(tname).readout_node.shape[0]))

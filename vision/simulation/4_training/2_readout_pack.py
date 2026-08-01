@@ -8,13 +8,13 @@ every other ``training`` module can import these types without a cycle.
 
 ``ReadoutPack`` carries cross-cutting readout / drive controls:
 
-* ``cost_time_ix`` -- optional sparse post-onset t indices; the gt
-  ``data`` stays full length and the subsample is gathered at cost time (#4).
+* ``cost_time_ix`` -- optional sparse post-onset t indices; ``gt``
+  stays full length and the subsample is gathered at cost time (#4).
 * ``waveform_mse`` -- whether this pack needs a waveform MSE readout
   (spot: always True; moving-bar: True when a cost window was built).
   Encoded here so ``neuron.readout`` needs no paradigm knowledge.
 
-Model and gt traces are ``v`` (``v - v_onset``); ImpR / RecF spot data are
+Model and gt traces are ``v`` (``v - v_onset``); ImpR / RecF spot gt are
 used as-is.
 """
 from __future__ import annotations
@@ -59,13 +59,13 @@ SIM_DTYPE = sim_dtype_from_fp(FP)
 class ReadoutPack:
     """One training pack: task drive + readout indices + gt traces.
 
-    Spot ``i_sti`` / ``data`` time dims follow ``neuron`` / task
+    Spot ``i_sti`` / ``gt`` time dims follow ``neuron`` / task
     timing. Moving bar uses ``COST_WINDOW`` and per-task ``n_t``.
     """
 
     name: str
     i_sti: torch.Tensor  # (B, T, N)
-    data: torch.Tensor  # (n_cost, T')
+    gt: torch.Tensor  # (n_cost, T')
     power: torch.Tensor  # scalar
     cost_weight: torch.Tensor  # (n_cost,)
     readout_batch: torch.Tensor  # (n_cost,)

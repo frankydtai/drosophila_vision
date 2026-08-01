@@ -1,4 +1,4 @@
-"""Plot the spot model-data figure for the selected borst run.
+"""Plot the spot model-gt figure for the selected borst run.
 
 Usage (from ``SimulationCode/``):
 
@@ -171,10 +171,10 @@ def main(argv=None):
     bundle = spot_plot.network_spot_trace_bundle(bright_session, z_best)
     bundle_50ms = spot_plot.network_spot_trace_bundle(bright_50ms_session, z_best)
     title = (
-        f"spot_bright model-data (trained, cost {best_cost:.2f}% of data power)"
+        f"spot_bright model-gt (trained, cost {best_cost:.2f}% of gt power)"
         f"{plot_trained._network_spot_tag(bright_session, 'spot_bright')}"
     )
-    spot_plot.plot_network_spot_data(
+    spot_plot.plot_network_spot_gt(
         save_path,
         bundle=bundle,
         bundle_2=bundle_50ms,

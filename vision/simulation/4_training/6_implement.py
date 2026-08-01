@@ -65,7 +65,7 @@ from param_defaults import (
     SYN_MODE,
     TASK,
 )
-from task.spot.data import (
+from task.spot.gt import (
     default_spot_cost_radius_weight,
     parse_spot_cost_r_w_tokens,
 )
@@ -951,7 +951,7 @@ def add_training_arguments(parser):
              "Same rules as --cost-weight: R=W merges onto extent defaults; bare R "
              "zeros all known radii then sets R=1. Omit → extent default "
              "(1→0=1 1=1/6; else 0=1 1=1/6 2=1/6). Keys: 0,1,2,sqrt3. "
-             "Weights only (does not change RecF data)",
+             "Weights only (does not change RecF gt)",
     )
     parser.add_argument(
         "--cost-extent",

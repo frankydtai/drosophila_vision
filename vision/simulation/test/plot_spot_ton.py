@@ -1,4 +1,4 @@
-"""Re-plot spot model-data with custom ``pre_ms`` / ``response_ms``.
+"""Re-plot spot model-gt with custom ``pre_ms`` / ``response_ms``.
 
 Loads a trained run, overrides spot stimulus timing, re-runs the forward
 pass, and saves ``model_data_spot_pre<ms>.png`` in the run dir.
@@ -95,13 +95,13 @@ def main():
     one = session_for_target(session, "spot_bright")
 
     cost = training.calc_cost(z, one).item()
-    print(f"cost (pre_ms={pre_ms:.0f}) = {cost:.4f}% of data power")
+    print(f"cost (pre_ms={pre_ms:.0f}) = {cost:.4f}% of gt power")
 
-    make_bundle, plot_data, _plot_all = spot_bundle_fns(one)
+    make_bundle, plot_gt, _plot_all = spot_bundle_fns(one)
     bundle = make_bundle(one, z)
 
     out_png = os.path.join(run_path, f"model_data_spot_pre{int(pre_ms)}.png")
-    plot_data(
+    plot_gt(
         out_png,
         bundle=bundle,
         title=f"spot_bright model (pre_ms={pre_ms:.0f})",

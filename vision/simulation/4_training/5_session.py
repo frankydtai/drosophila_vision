@@ -11,7 +11,7 @@ builders wrap the neutral gt dataclasses from ``task`` (which sit below
 * moving bar: ``waveform_mse`` from cost weights (True when a cost window is
   built).
 
-Model and gt traces are ``v`` (``v - v_onset``); ImpR / RecF spot data are
+Model and gt traces are ``v`` (``v - v_onset``); ImpR / RecF spot gt are
 used as-is.
 """
 from __future__ import annotations
@@ -107,7 +107,7 @@ from training.params import (
 )
 from training.cost import _build_cost_subpacks, _build_fused_forward
 
-from task.spot.data import (
+from task.spot.gt import (
     SPOT_POLARITIES,
     build_spot_gt,
     default_spot_cost_radius_weight,
@@ -119,7 +119,7 @@ from task.spot.input import (
     spot_extent_half_steps,
     spot_timing_t_from_opts,
 )
-from task.moving_bar.data import (
+from task.moving_bar.gt import (
     _enrich_moving_bar_stimulus_opts,
     build_moving_bar_gt,
     expand_gt_cells as expand_moving_bar_gt_cells,
@@ -188,7 +188,7 @@ def _extend_pack_mirror_fit_network(pack, mirror_types, mirror_fit, mirror_sign,
             continue
         b = int(b_arr[row_i])
         col_u, col_v = int(col_u_all[u]), int(col_v_all[u])
-        mirror_readout = float(mirror_sign) * pack.data[row_i:row_i + 1]
+        mirror_readout = float(mirror_sign) * pack.gt[row_i:row_i + 1]
         w = float(w_arr[row_i])
         r = float(r_arr[row_i]) if r_arr is not None else None
         for mtype in mirror_types:
@@ -219,7 +219,7 @@ def _append_mirror_pack_rows(
     cost_pd_nd=None,
 ):
     extra_nodes_t = torch.tensor(extra_nodes, dtype=torch.long, device=active_device())
-    extra_data_t = torch.cat(extra_rows, dim=0)
+    extra_gt_t = torch.cat(extra_rows, dim=0)
     n_all = int(pack.readout_node.shape[0]) + len(extra_nodes)
     n_extra = len(extra_nodes)
     if readout_batch is None:
@@ -245,7 +245,7 @@ def _append_mirror_pack_rows(
             torch.cat([base_r, extra_r_t])
             if base_r is not None else extra_r_t
         )
-    all_data = torch.cat([pack.data, extra_data_t], dim=0)
+    all_gt = torch.cat([pack.gt, extra_gt_t], dim=0)
     cost_pd_nd_out = pack.cost_pd_nd
     if cost_pd_nd is not None:
         extra_pd_t = torch.tensor(cost_pd_nd, dtype=torch.long, device=active_device())
@@ -256,8 +256,8 @@ def _append_mirror_pack_rows(
     return ReadoutPack(
         name=pack.name,
         i_sti=pack.i_sti,
-        data=all_data,
-        power=pack.power + torch.sum(extra_data_t ** 2),
+        gt=all_gt,
+        power=pack.power + torch.sum(extra_gt_t ** 2),
         cost_weight=cost_weight,
         readout_batch=torch.cat([pack.readout_batch, readout_batch]),
         readout_node=torch.cat([pack.readout_node, extra_nodes_t]),
@@ -442,7 +442,7 @@ def _build_network_moving_bar_readout(ctx: _TrainBindCtx, C, *, pack_name: str, 
     pack = ReadoutPack(
         name=pack_name,
         i_sti=T.i_sti,
-        data=T.data,
+        gt=T.gt,
         power=T.power,
         cost_weight=T.cost_weight,
         readout_batch=T.readout_batch,
@@ -585,7 +585,7 @@ def _build_network_spot_task(
     pack = ReadoutPack(
         name=pack_name,
         i_sti=T.i_sti,
-        data=T.data,
+        gt=T.gt,
         power=T.power,
         cost_weight=T.cost_weight,
         readout_batch=T.readout_batch,

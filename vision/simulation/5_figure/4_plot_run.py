@@ -38,7 +38,7 @@ def spot_bundle_fns(session):
         raise ValueError("spot_bundle_fns requires session.backend.network")
     return (
         spot_plot.network_spot_trace_bundle,
-        spot_plot.plot_network_spot_data,
+        spot_plot.plot_network_spot_gt,
         spot_plot.plot_network_spot_all,
     )
 
@@ -215,15 +215,15 @@ def load_best(outdir, *, model=None, verbose=False):
 
 
 def _plot_spot_tasks(session, z, outdir, spot_tasks, suffix, model_all,
-                       data_cubes=None,
+                       gt_cubes=None,
                        at_x=None, at_y=None, save_trace_csv_dir=None, show_pre=True):
     """Plot spot task(s); contrasts combined in one figure when both are trained."""
     spot_set = set(spot_tasks)
-    make_bundle, plot_data, plot_all = spot_bundle_fns(session)
+    make_bundle, plot_gt, plot_all = spot_bundle_fns(session)
     ref_t = 'spot_bright' if 'spot_bright' in spot_set else spot_tasks[0]
     net_tag = _network_spot_tag(session, ref_t)
     kind = _session_trace_kind(session)
-    plot_kw = dict(data_cubes=data_cubes)
+    plot_kw = dict(gt_cubes=gt_cubes)
     bundle_kw = dict(
         at_xs=at_x, at_ys=at_y,
         save_trace_csv_dir=save_trace_csv_dir,
@@ -239,9 +239,9 @@ def _plot_spot_tasks(session, z, outdir, spot_tasks, suffix, model_all,
             ),
         }
         mvd = os.path.join(outdir, f'spot_gt_{kind}.png')
-        plot_data(
+        plot_gt(
             mvd, bundles=bundles,
-            title=f'Spot {kind}-data ({suffix}){net_tag}',
+            title=f'Spot {kind}-gt ({suffix}){net_tag}',
             **plot_kw,
         )
         allc = None
@@ -256,7 +256,7 @@ def _plot_spot_tasks(session, z, outdir, spot_tasks, suffix, model_all,
     for tname in spot_tasks:
         _plot_one_task(
             session_for_task(session, tname), z, outdir, tname, suffix, model_all,
-            data_cubes=data_cubes,
+            gt_cubes=gt_cubes,
             at_x=at_x, at_y=at_y,
             save_trace_csv_dir=save_trace_csv_dir, show_pre=show_pre,
         )
@@ -287,7 +287,7 @@ def _plot_bar_readouts(session, z, outdir, bar_readouts, suffix, model_all, *,
         mvd = os.path.join(outdir, f'bar_gt_{kind}.png')
         moving_bar_plot.plot_moving_bar_data(
             mvd, bundle=b_bright, bundle_2=b_dark,
-            title=f'Moving-bar {kind}-data ({suffix})',
+            title=f'Moving-bar {kind}-gt ({suffix})',
         )
         allc = None
         if model_all:
@@ -303,7 +303,7 @@ def _plot_bar_readouts(session, z, outdir, bar_readouts, suffix, model_all, *,
         b = moving_bar_plot.moving_bar_trace_bundle(one, z, tname, **bundle_kw)
         mvd = os.path.join(outdir, f'bar_gt_{kind}.png')
         moving_bar_plot.plot_moving_bar_data(
-            mvd, bundle=b, title=f'{tname} {kind}-data ({suffix})',
+            mvd, bundle=b, title=f'{tname} {kind}-gt ({suffix})',
         )
         allc = None
         if model_all:
@@ -316,16 +316,16 @@ def _plot_bar_readouts(session, z, outdir, bar_readouts, suffix, model_all, *,
 
 
 def _plot_one_task(session, z, outdir, tname, suffix, model_all,
-                     data_cubes=None,
+                     gt_cubes=None,
                      at_x=None, at_y=None, save_trace_csv_dir=None, show_pre=True):
     if tname not in training.SPOT_TASKS:
         raise ValueError(f'unknown plot task {tname!r}')
     kind = _session_trace_kind(session)
     mvd = os.path.join(outdir, f'spot_gt_{kind}.png')
     allc = os.path.join(outdir, f'spot_all_{kind}.png')
-    make_bundle, plot_data, plot_all = spot_bundle_fns(session)
+    make_bundle, plot_gt, plot_all = spot_bundle_fns(session)
     net_tag = _network_spot_tag(session, tname)
-    plot_kw = dict(data_cubes=data_cubes)
+    plot_kw = dict(gt_cubes=gt_cubes)
     b = make_bundle(
         session, z,
         at_xs=at_x, at_ys=at_y,
@@ -333,8 +333,8 @@ def _plot_one_task(session, z, outdir, tname, suffix, model_all,
     )
     from figure.readout import contrast_for_task
     bundles = {contrast_for_task(tname): b}
-    plot_data(
-        mvd, bundles=bundles, title=f'{tname} {kind}-data ({suffix}){net_tag}', **plot_kw,
+    plot_gt(
+        mvd, bundles=bundles, title=f'{tname} {kind}-gt ({suffix}){net_tag}', **plot_kw,
     )
     if model_all:
         plot_all(allc, bundles=bundles, title=f'{tname} {kind}-all ({suffix}){net_tag}', **plot_kw)
@@ -346,7 +346,7 @@ def plot_param_set(params, outdir, model=None, model_all=True,
                    plot_tasks=None, session=None, *,
                    final_costs=None, cost_curve=None, costs_by_task=None, best_i=None,
                    save_artifacts=True, artifact_fname=None,
-                   data_cubes=None,
+                   gt_cubes=None,
                    plot_right_only=True, at_x=None, at_y=None,
                    align_at_x=None, align_at_y=None,
                    save_csv=False, show_pre=True):
@@ -382,7 +382,7 @@ def plot_param_set(params, outdir, model=None, model_all=True,
     )
     z = torch.tensor(best, dtype=session.sim_dtype, device=session.device)
 
-    suffix = f'trained, cost {best_cost:.2f}% of data power'
+    suffix = f'trained, cost {best_cost:.2f}% of gt power'
     tasks = list(session.tasks)
     if plot_tasks is not None:
         tasks = [t for t in tasks if t in plot_tasks]
@@ -412,7 +412,7 @@ def plot_param_set(params, outdir, model=None, model_all=True,
     if spot_tasks:
         _plot_spot_tasks(
             session, z, outdir, spot_tasks, suffix, model_all,
-            data_cubes=data_cubes,
+            gt_cubes=gt_cubes,
             at_x=at_x, at_y=at_y,
             save_trace_csv_dir=save_trace_csv_dir, show_pre=show_pre,
         )
@@ -428,7 +428,7 @@ def plot_param_set(params, outdir, model=None, model_all=True,
         one = session_for_task(session, tname)
         _plot_one_task(
             one, z, outdir, tname, suffix, model_all,
-            data_cubes=data_cubes,
+            gt_cubes=gt_cubes,
             save_trace_csv_dir=save_trace_csv_dir, show_pre=show_pre,
         )
 
@@ -470,7 +470,7 @@ def add_plot_arguments(parser):
         type=parse_bool,
         metavar='BOOL',
         help='model pre-t_onset: dashed red when true (default); omit when false. '
-             'Gray data never draws pre.',
+             'Gray gt never draws pre.',
     )
     parser.add_argument(
         '--x',

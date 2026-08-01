@@ -13,11 +13,11 @@ import network.path  # noqa: F401 — FAFB path on sys.path
 import training
 from import_bootstrap import parse_comma_list
 
-DATA_COLOR = 'gray'
+GT_COLOR = 'gray'
 MODEL_COLOR = 'red'
 SEM_COLOR = 'pink'
 TRACE_LW = 1.5
-# Fixed symmetric ylim for spot / moving-bar model-data panels (delta-mV).
+# Fixed symmetric ylim for spot / moving-bar model-gt panels (delta-mV).
 TRACE_YLIM = (-30.0, 30.0)
 
 
@@ -465,21 +465,21 @@ def ylim_for_traces(
     show_sem=False,
     extra=(),
 ):
-    """Y-limits from one or more ``(model, data, sem)`` curves plus ``extra`` curves."""
+    """Y-limits from one or more ``(model, gt, sem)`` curves plus ``extra`` curves."""
     out_curves = []
     for item in curves:
         if item is None:
             continue
         if isinstance(item, dict):
             model = item.get("model")
-            data = item.get("data")
+            gt = item.get("gt")
             sem = item.get("sem")
         else:
-            model, data, sem = (list(item) + [None, None, None])[:3]
+            model, gt, sem = (list(item) + [None, None, None])[:3]
         if model is not None:
             out_curves.append(model)
-        if data is not None:
-            out_curves.append(data)
+        if gt is not None:
+            out_curves.append(gt)
         if show_sem and sem is not None and model is not None:
             out_curves.append(model + sem)
             out_curves.append(model - sem)
@@ -487,14 +487,14 @@ def ylim_for_traces(
     return nice_ylim(*out_curves)
 
 
-def ylim_for_keys(ca_mean, ca_sem, data_mean, keys, *, show_sem=False):
+def ylim_for_keys(ca_mean, ca_sem, gt_mean, keys, *, show_sem=False):
     """Shared y-limits for keyed trace dicts (moving-bar grids)."""
     curves = []
     for key in keys:
         m = ca_mean[key]
         curves.append(m)
-        if data_mean:
-            d = data_mean.get(key)
+        if gt_mean:
+            d = gt_mean.get(key)
             if d is not None:
                 curves.append(d)
         if show_sem and key in ca_sem:
@@ -575,7 +575,7 @@ def plot_pre_post_line(
     """Plot a 1-D series with optional dashed pre-``pre_end`` segment.
 
     ``pre_end`` is the first post-onset index (samples ``[0, pre_end)`` are pre).
-    Gray data uses ``draw_pre=False`` (never draws pre). Model uses
+    Gray gt uses ``draw_pre=False`` (never draws pre). Model uses
     ``draw_pre=show_pre`` (dashed pre when true; omit pre when false).
     """
     if y is None:
@@ -623,11 +623,11 @@ def plot_timecourse(
     pulse_start=None,
     pulse_end=None,
 ):
-    """Model (red) vs data (gray) time courses for one or more contrast traces.
+    """Model (red) vs gt (gray) time courses for one or more contrast traces.
 
-    ``traces``: sequence of dicts with keys ``model``, ``data``, optional
+    ``traces``: sequence of dicts with keys ``model``, ``gt``, optional
     ``sem``, ``linestyle`` (default ``'-'``), ``point_ix``.
-    Gray data never draws ``[0, pre_end)``; red model draws that pre segment
+    Gray gt never draws ``[0, pre_end)``; red model draws that pre segment
     dashed only when ``show_pre`` is true.
     ``pulse_start`` / ``pulse_end``: white stimulus-on band ``[pulse_start, pulse_end)``.
     """
@@ -640,16 +640,16 @@ def plot_timecourse(
     split = max(0, int(pre_end or 0))
     for tr in traces:
         model = tr.get("model")
-        data = tr.get("data")
+        gt = tr.get("gt")
         sem = tr.get("sem")
         linestyle = tr.get("linestyle", "-")
         point_ix = tr.get("point_ix")
         discrete = point_ix is not None
         if not discrete:
-            if data is not None:
+            if gt is not None:
                 plot_pre_post_line(
-                    ax, t, data, pre_end=split, show_pre=False, draw_pre=False,
-                    color=DATA_COLOR, linestyle=linestyle, linewidth=TRACE_LW,
+                    ax, t, gt, pre_end=split, show_pre=False, draw_pre=False,
+                    color=GT_COLOR, linestyle=linestyle, linewidth=TRACE_LW,
                 )
             if model is not None:
                 if show_sem and sem is not None:
@@ -663,11 +663,11 @@ def plot_timecourse(
                     color=MODEL_COLOR, linestyle=linestyle, linewidth=TRACE_LW,
                 )
         else:
-            x_data, y_data = _series_points(t, data, point_ix=point_ix)
-            if x_data is not None:
+            x_gt, y_gt = _series_points(t, gt, point_ix=point_ix)
+            if x_gt is not None:
                 ax.plot(
-                    x_data, y_data, linestyle='none', marker='o', markersize=4,
-                    fillstyle='none', markeredgewidth=1.0, color=DATA_COLOR,
+                    x_gt, y_gt, linestyle='none', marker='o', markersize=4,
+                    fillstyle='none', markeredgewidth=1.0, color=GT_COLOR,
                 )
             if model is not None:
                 model_arr = np.asarray(model, dtype=np.float64)
@@ -762,7 +762,7 @@ def plot_cost(costs, path, *, costs_by_task=None, task_order=None):
                 ax.set_ylim(*cost_ylim(*curves))
                 if len(row['curves']) > 1:
                     ax.legend(fontsize=8)
-                ax.set_ylabel('cost [% data power]')
+                ax.set_ylabel('cost [% gt power]')
                 ax.set_title(row['title'])
                 ax.grid(True, alpha=0.3)
             axes[-1].set_xlabel('step')
@@ -778,7 +778,7 @@ def plot_cost(costs, path, *, costs_by_task=None, task_order=None):
     ax.plot(costs, color='steelblue', linewidth=2)
     ax.set_ylim(*cost_ylim(costs))
     ax.set_xlabel('step')
-    ax.set_ylabel('cost [% data power]')
+    ax.set_ylabel('cost [% gt power]')
     ax.set_title(f'Training cost ({len(costs)} steps)')
     ax.grid(True, alpha=0.3)
     fig.tight_layout()

@@ -1,4 +1,4 @@
-"""Plot spot ImpR/Ca data with vs without a 350 ms drive low-pass.
+"""Plot spot ImpR/Ca gt with vs without a 350 ms drive low-pass.
 
 Test drive levels (ratio like network 20/40 pA): baseline 0.5, peak 1.0.
 
@@ -30,11 +30,11 @@ from network.build import cell_family_rows, cell_names_in_family_order
 from figure.spot import CENTER_BIN
 from figure.util import TRACE_LW, TRACE_YLIM, save_figure
 from neuron.params import DATA_AMP, DELTA_MS, ms_to_t
-from task.spot.data import (
+from task.spot.gt import (
     _bandpass,
     _lowpass,
     cell_list,
-    normalize_data,
+    normalize_gt,
     read_RecF_ImpR,
 )
 from task.spot.input import spot_input_waveform
@@ -62,7 +62,7 @@ def _drive_u_s(
 def _impr_cube(
     *, t_on: int, n_t: int, pulse_ms: float, dt_ms: float, prefilter_ms: float | None,
 ) -> np.ndarray:
-    """Center-bin Ca data ``(13, n_t)`` = DATA_AMP × RecF_center × ImpR."""
+    """Center-bin Ca gt ``(13, n_t)`` = DATA_AMP × RecF_center × ImpR."""
     RecF, _ = read_RecF_ImpR(t_on=t_on, n_t=n_t, pulse_ms=pulse_ms)
     u, s_lp = _drive_u_s(
         t_on=t_on, n_t=n_t, pulse_ms=pulse_ms, dt_ms=dt_ms, prefilter_ms=prefilter_ms or PREFILTER_MS,
@@ -81,7 +81,7 @@ def _impr_cube(
             impr = _bandpass(s, IR_HP[i], IR_LP[i])
         if i < 2:
             impr = impr + 0.4 * s
-        impr = normalize_data(impr)
+        impr = normalize_gt(impr)
         out[i] = DATA_AMP * rf_c[i] * impr
     return out
 
@@ -164,13 +164,13 @@ def _plot(
             if r == nrows - 1:
                 ax.set_xlabel("t (s)", fontsize=8)
             if c == 0:
-                ax.set_ylabel("Ca data", fontsize=8)
+                ax.set_ylabel("Ca gt", fontsize=8)
             ax.tick_params(labelsize=7)
 
     handles, labels = axes[0][0].get_legend_handles_labels()
     fig.legend(handles, labels, loc="upper right", fontsize=8)
     fig.suptitle(
-        f"ImpR Ca data: drive LP {prefilter_ms:g} ms on/off  "
+        f"ImpR Ca gt: drive LP {prefilter_ms:g} ms on/off  "
         f"(u={U_BASELINE:g}/{U_PEAK:g}, pulse={pulse_ms:g} ms, t_on={t_on}, Δt={dt_ms:g} ms)",
         fontsize=11,
     )

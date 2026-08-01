@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""Moving-bar paradigm DATA: fig1 Vm gt, T4/T5 DSI cost, and stimulus opts.
+"""Moving-bar paradigm GT: fig1 Vm gt, T4/T5 DSI cost, and stimulus opts.
 
 Merges the old ``t4_t5_dsi`` (motion preference + DSI math) and the gt /
 cost-readout half of ``network.moving_bar_readout`` (fig1 traces, cost windows,
@@ -47,7 +47,7 @@ from task.moving_bar.input import (
 )
 
 # Gruntman Fig. 1 Ci/Cii digitized population Vm (MatlabFunctions/digitize_fig1_ci.py).
-# data.py → moving_bar → task → simulation → vision → repo root.
+# gt.py → moving_bar → task → simulation → vision → repo root.
 FIG1_CI_NPZ = (
     Path(__file__).resolve().parents[4] / "MatlabFunctions" / "fig1_ci_digitized.npz"
 )
@@ -545,16 +545,16 @@ def moving_bar_dsi_lookup(
 def moving_bar_cell_title(
     head: str,
     ca_dsi: Optional[float] = None,
-    data_dsi: Optional[float] = None,
+    gt_dsi: Optional[float] = None,
     *,
-    has_data: bool = False,
+    has_gt: bool = False,
 ) -> str:
     """Append DSI lines to a subplot title *head*."""
     lines = [str(head)]
     if ca_dsi is not None:
         lines.append(f"DSI={ca_dsi:.3f}")
-    if has_data and data_dsi is not None:
-        lines.append(f"data DSI={data_dsi:.3f}")
+    if has_gt and gt_dsi is not None:
+        lines.append(f"gt DSI={gt_dsi:.3f}")
     return "\n".join(lines)
 
 
@@ -572,7 +572,7 @@ def _pd_nd_index(pd_nd: str) -> int:
 @dataclass
 class MovingBarGt:
     i_sti: torch.Tensor
-    data: torch.Tensor
+    gt: torch.Tensor
     power: torch.Tensor
     cost_weight: torch.Tensor
     readout_batch: torch.Tensor
@@ -748,16 +748,16 @@ def _pack_moving_bar_readout_tensors(
     readout_batch = torch.tensor(np.asarray(r_batch), dtype=torch.long, device=device)
     readout_node = torch.tensor(np.asarray(r_node), dtype=torch.long, device=device)
     if not waveform_mse:
-        data = torch.zeros((n, 0), dtype=sim_dtype, device=device)
+        gt = torch.zeros((n, 0), dtype=sim_dtype, device=device)
         power = torch.tensor(1.0, dtype=sim_dtype, device=device)
-        return data, cost_weight, readout_batch, readout_node, None, None, power
+        return gt, cost_weight, readout_batch, readout_node, None, None, power
     cost_pd_nd = torch.tensor(np.asarray(r_pd_nd), dtype=torch.long, device=device)
-    data = torch.tensor(np.asarray(r_readout), dtype=sim_dtype, device=device)
+    gt = torch.tensor(np.asarray(r_readout), dtype=sim_dtype, device=device)
     cost_t0 = torch.tensor(np.asarray(r_t0), dtype=torch.long, device=device)
-    power = torch.sum(cost_weight[:, None] * data ** 2)
+    power = torch.sum(cost_weight[:, None] * gt ** 2)
     if float(power) == 0.0:
         power = torch.tensor(1.0, dtype=sim_dtype, device=device)
-    return data, cost_weight, readout_batch, readout_node, cost_t0, cost_pd_nd, power
+    return gt, cost_weight, readout_batch, readout_node, cost_t0, cost_pd_nd, power
 
 
 def _moving_bar_peak_kwargs(
@@ -857,7 +857,7 @@ def build_moving_bar_gt(
     if not r_batch:
         raise ValueError("no moving-bar cost nodes (check subtypes and sti hexes)")
 
-    data, cost_weight, readout_batch, readout_node, cost_t0, cost_pd_nd, power = (
+    gt, cost_weight, readout_batch, readout_node, cost_t0, cost_pd_nd, power = (
         _pack_moving_bar_readout_tensors(
             r_batch, r_node, r_readout, r_weight, r_t0, r_pd_nd,
             device=device, sim_dtype=sim_dtype, waveform_mse=waveform_mse,
@@ -898,7 +898,7 @@ def build_moving_bar_gt(
         })
     return MovingBarGt(
         i_sti=stim.i_sti,
-        data=data,
+        gt=gt,
         power=power,
         cost_weight=cost_weight,
         cost_t0=cost_t0,

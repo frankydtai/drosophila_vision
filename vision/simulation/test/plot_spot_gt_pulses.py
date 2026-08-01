@@ -1,19 +1,19 @@
-"""Plot spot RecF data time courses: 50 ms pulse, 500 ms pulse, step (continue on).
+"""Plot spot RecF gt time courses: 50 ms pulse, 500 ms pulse, step (continue on).
 
-All traces are aligned with ``t_on = 0.5 s`` like ``model_data_spot.png``.
-No photoreceptor (R1-6, R7, R8) panels — fit-cell data only.
+All traces are aligned with ``t_on = 0.5 s`` like ``model_gt_spot.png``.
+No photoreceptor (R1-6, R7, R8) panels — fit-cell gt only.
 
 Two PNGs:
 
-1. ``spot_data_pulses_LTI.png`` — LTI step difference ``p(t) = s(t) - s(t - Δ)``
-   on center-bin ImpR×RecF targets from ``read_RecF_data``.
-2. ``spot_data_pulses_filter.png`` — drive each cell's IR filter with
+1. ``spot_gt_pulses_LTI.png`` — LTI step difference ``p(t) = s(t) - s(t - Δ)``
+   on center-bin ImpR×RecF targets from Medulla_Library ``read_RecF_data`` (legacy gt).
+2. ``spot_gt_pulses_filter.png`` — drive each cell's IR filter with
    different-width ``u[t]`` (50 ms / 500 ms / continue-on from ``T_ON``).
 
 Usage (from ``SimulationCode/``):
 
-    ../.venv/bin/python 6_test/plot_spot_data_pulses.py
-    ../.venv/bin/python 6_test/plot_spot_data_pulses.py --show
+    ../.venv/bin/python test/plot_spot_gt_pulses.py
+    ../.venv/bin/python test/plot_spot_gt_pulses.py --show
 """
 from __future__ import annotations
 
@@ -35,11 +35,11 @@ import FiveCol_MedSim_Pytorch as fc
 import blindschleiche_py3 as bs
 from network.build import cell_family_rows, cell_names_in_family_order
 from plot.spot import CENTER_BIN, _style_time_axis
-from plot.utils import DATA_COLOR, TRACE_LW, TRACE_YLIM, save_figure
+from figure.util import GT_COLOR, TRACE_LW, TRACE_YLIM, save_figure
 from training_config import DELTA_MS, IMPULSE_MAXTIME, T_ON, ms_to_t
 
-DEFAULT_SAVE = os.path.join(HERE, "spot_data_pulses_LTI.png")
-DEFAULT_SAVE_FILTER = os.path.join(HERE, "spot_data_pulses_filter.png")
+DEFAULT_SAVE = os.path.join(HERE, "spot_gt_pulses_LTI.png")
+DEFAULT_SAVE_FILTER = os.path.join(HERE, "spot_gt_pulses_filter.png")
 EXCLUDE_CELLS = frozenset({"R1-6", "R7", "R8"})
 PULSE_50_MS = 50.0
 PULSE_500_MS = 500.0
@@ -74,7 +74,7 @@ def make_u(n_t: int, t_on: int, width_t: int | None) -> np.ndarray:
 
 
 def filter_impr_raw(u: np.ndarray, hp: float, lp: float, *, s_max: float, add_l12: bool) -> np.ndarray:
-    """IR path matching ``read_RecF_ImpR`` before ``normalize_data``.
+    """IR path matching ``read_RecF_ImpR`` before ``normalize_gt``.
 
     ``s_max`` is the shared prefilter peak (from the continue-on step) so pulse
     widths share the same gain as ImpR construction.
@@ -95,8 +95,8 @@ def absmax_from_zero(x: np.ndarray) -> float:
     return float(max(abs(np.nanmax(x)), abs(np.nanmin(x))))
 
 
-def fit_data_cubes() -> dict[str, np.ndarray]:
-    """Bright spot data cubes ``(9, T)`` keyed by fit cell name."""
+def fit_gt_cubes() -> dict[str, np.ndarray]:
+    """Bright spot gt cubes ``(9, T)`` keyed by fit cell name."""
     raw = ml.read_RecF_data()
     out = {}
     for i, name in enumerate(ml.cell_list):
@@ -175,15 +175,15 @@ def _plot_pulse_grid(
                 continue
 
             ax_time.plot(
-                t, series["step"], color=DATA_COLOR, linewidth=TRACE_LW,
+                t, series["step"], color=GT_COLOR, linewidth=TRACE_LW,
                 linestyle="-", label=LABEL_STEP,
             )
             ax_time.plot(
-                t, series["p500"], color=DATA_COLOR, linewidth=TRACE_LW,
+                t, series["p500"], color=GT_COLOR, linewidth=TRACE_LW,
                 linestyle="--", label=LABEL_500,
             )
             ax_time.plot(
-                t, series["p50"], color=DATA_COLOR, linewidth=0.5,
+                t, series["p50"], color=GT_COLOR, linewidth=0.5,
                 linestyle="none", marker="o", markersize=1, markevery=3,
                 label=LABEL_50,
             )
@@ -211,9 +211,9 @@ def _plot_pulse_grid(
         plt.show()
 
 
-def plot_data_pulses(path: str, *, show: bool = False) -> None:
-    """PNG 1: LTI pulse-from-step on ``read_RecF_data`` center traces."""
-    cubes = fit_data_cubes()
+def plot_gt_pulses(path: str, *, show: bool = False) -> None:
+    """PNG 1: LTI pulse-from-step on Medulla_Library RecF gt center traces."""
+    cubes = fit_gt_cubes()
     pulse_50 = ms_to_t(PULSE_50_MS)
     pulse_500 = ms_to_t(PULSE_500_MS)
     series = {}
@@ -229,7 +229,7 @@ def plot_data_pulses(path: str, *, show: bool = False) -> None:
         path,
         series_by_name=series,
         title=(
-            f"spot bright data  (t_on={t_on_s:g} s; "
+            f"spot bright gt  (t_on={t_on_s:g} s; "
             f"step | {int(PULSE_500_MS)} ms pulse | {int(PULSE_50_MS)} ms pulse; "
             f"LTI s(t)-s(t-Δ))"
         ),
@@ -237,7 +237,7 @@ def plot_data_pulses(path: str, *, show: bool = False) -> None:
     )
 
 
-def plot_data_pulses_filter(path: str, *, show: bool = False) -> None:
+def plot_gt_pulses_filter(path: str, *, show: bool = False) -> None:
     """PNG 2: IR filter responses to different-width ``u[t]`` from ``T_ON``."""
     series = fit_filter_traces()
     t_on_s = fc.t_on * DELTA_MS / 1000.0
@@ -245,7 +245,7 @@ def plot_data_pulses_filter(path: str, *, show: bool = False) -> None:
         path,
         series_by_name=series,
         title=(
-            f"spot bright data  (t_on={t_on_s:g} s; "
+            f"spot bright gt  (t_on={t_on_s:g} s; "
             f"step | {int(PULSE_500_MS)} ms pulse | {int(PULSE_50_MS)} ms pulse; "
             f"filter u[t])"
         ),
@@ -266,8 +266,8 @@ def parse_args(argv=None):
 
 def main(argv=None):
     args = parse_args(argv)
-    plot_data_pulses(args.save, show=False)
-    plot_data_pulses_filter(args.save_filter, show=args.show)
+    plot_gt_pulses(args.save, show=False)
+    plot_gt_pulses_filter(args.save_filter, show=args.show)
 
 
 if __name__ == "__main__":

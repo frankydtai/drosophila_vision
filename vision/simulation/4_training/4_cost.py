@@ -7,7 +7,7 @@ unweighted costs, the weighted total, and the Adam training loop.
 
 Traces are ``v`` (``v - v_onset``); cost multiplies model traces by ``out_scale``.
 
-Sparse cost time points (#4): ``pack.data`` stays full post-onset length and the
+Sparse cost time points (#4): ``pack.gt`` stays full post-onset length and the
 subsample is gathered from both model trace and gt at cost time via
 ``pack.cost_time_ix``; ``power`` is recomputed on the subsample.
 """
@@ -51,7 +51,7 @@ from training.readout_pack import (
     active_device,
 )
 
-from task.moving_bar.data import (
+from task.moving_bar.gt import (
     bar_specs_for_session,
     cost_dsi_from_sel,
     dsi_sequential_batch_groups,
@@ -59,13 +59,13 @@ from task.moving_bar.data import (
 )
 
 
-def ca_cost(ca, data, session: TrainSession, scale=1.0, power=None):
+def ca_cost(ca, gt, session: TrainSession, scale=1.0, power=None):
     if power is None:
         power = session.primary_readout.power
     pack = session.primary_readout
-    pack_t_onset = int(pack.i_sti.shape[1] - pack.data.shape[1])
+    pack_t_onset = int(pack.i_sti.shape[1] - pack.gt.shape[1])
     mt = session.n_t
-    return torch.sum((scale * ca - data[pack_t_onset:mt])**2) / power * 100.0
+    return torch.sum((scale * ca - gt[pack_t_onset:mt])**2) / power * 100.0
 
 
 def out_scale_for_nodes(p, node_index, backend: ModelBackend, *, sim_dtype=SIM_DTYPE):
@@ -98,15 +98,15 @@ def _pack_ca_readouts(p, pack: ReadoutPack, session: TrainSession, batch_idx=Non
     return readout(p, pack, session, batch_idx)
 
 
-def _sel_power(weight, data):
-    power = torch.sum(weight[:, None] * data ** 2)
+def _sel_power(weight, gt):
+    power = torch.sum(weight[:, None] * gt ** 2)
     if float(power) == 0.0:
-        power = torch.tensor(1.0, dtype=data.dtype, device=data.device)
+        power = torch.tensor(1.0, dtype=gt.dtype, device=gt.device)
     return power
 
 
-def _pack_cost_mse(scale, data, weight, sel, power):
-    diff = scale[:, None] * sel - data
+def _pack_cost_mse(scale, gt, weight, sel, power):
+    diff = scale[:, None] * sel - gt
     return torch.sum(weight[:, None] * diff ** 2) / power * 100.0
 
 
@@ -195,7 +195,7 @@ def _active_row_indices(
 
 def _slice_pack_rows(pack: ReadoutPack, row_ix: torch.Tensor) -> ReadoutPack:
     fields = {
-        "data": pack.data[row_ix],
+        "gt": pack.gt[row_ix],
         "cost_weight": pack.cost_weight[row_ix],
         "readout_batch": pack.readout_batch[row_ix],
         "readout_node": pack.readout_node[row_ix],
@@ -230,7 +230,7 @@ def _subset_pack_batches(pack: ReadoutPack, batch_indices: Tuple[int, ...]) -> O
     kept_old = torch.nonzero(keep, as_tuple=False).reshape(-1)
     fields = {
         "i_sti": pack.i_sti.index_select(0, idx_t),
-        "data": pack.data[keep],
+        "gt": pack.gt[keep],
         "cost_weight": pack.cost_weight[keep],
         "readout_batch": new_rb,
         "readout_node": pack.readout_node[keep],
@@ -288,7 +288,7 @@ def _build_cost_subpacks(session: TrainSession) -> Dict[str, ReadoutPack]:
 def _i_sti_fuse_key(pack: ReadoutPack) -> Tuple:
     """Key for packs that can share one ``forward_full`` (shape, onset)."""
     i_sti = pack.i_sti
-    t_onset = int(i_sti.shape[1] - pack.data.shape[1])
+    t_onset = int(i_sti.shape[1] - pack.gt.shape[1])
     return (
         int(i_sti.shape[1]),
         int(i_sti.shape[2]),
@@ -325,7 +325,7 @@ def _readout_from_trace_full(
     batch_offset: int = 0,
 ) -> Tuple[Optional[torch.Tensor], torch.Tensor]:
     rb = pack.readout_batch if batch_offset == 0 else pack.readout_batch + batch_offset
-    pack_t_onset = int(pack.i_sti.shape[1] - pack.data.shape[1])
+    pack_t_onset = int(pack.i_sti.shape[1] - pack.gt.shape[1])
     dsi_sel = trace_full[rb, pack_t_onset:, pack.readout_node]
     if not pack_needs_waveform_mse(pack):
         return None, dsi_sel
@@ -333,7 +333,7 @@ def _readout_from_trace_full(
         return dsi_sel, dsi_sel
     mse_sel = window_time_traces(
         trace_full, rb, pack.readout_node, pack.cost_t0,
-        win=pack.data.shape[1], t_onset=pack_t_onset,
+        win=pack.gt.shape[1], t_onset=pack_t_onset,
     )
     return mse_sel, dsi_sel
 
@@ -376,9 +376,9 @@ def _pack_cost_parts_from_sel(
                         (), dtype=session.sim_dtype, device=session.device,
                     )
                     continue
-                power = _sel_power(pack.cost_weight[mask], pack.data[mask])
+                power = _sel_power(pack.cost_weight[mask], pack.gt[mask])
                 out[key] = _pack_cost_mse(
-                    scale[mask], pack.data[mask], pack.cost_weight[mask],
+                    scale[mask], pack.gt[mask], pack.cost_weight[mask],
                     sel[mask], power,
                 )
         dsi_part = _pack_cost_dsi_from_sel(pack, session, scale, dsi_sel)
@@ -387,7 +387,7 @@ def _pack_cost_parts_from_sel(
         return out
     if sel is None:
         raise ValueError(f"waveform readout required for pack {pack.name!r}")
-    data = pack.data
+    gt = pack.gt
     weight = pack.cost_weight
     power = pack.power
     # #4 sparse time points: gather model + gt on the requested post-onset
@@ -395,9 +395,9 @@ def _pack_cost_parts_from_sel(
     if pack.cost_time_ix is not None:
         ix = pack.cost_time_ix.to(device=sel.device)
         sel = sel.index_select(1, ix)
-        data = data.index_select(1, ix)
-        power = _sel_power(weight, data)
-    return {pack.name: _pack_cost_mse(scale, data, weight, sel, power)}
+        gt = gt.index_select(1, ix)
+        power = _sel_power(weight, gt)
+    return {pack.name: _pack_cost_mse(scale, gt, weight, sel, power)}
 
 
 def _pack_cost_parts_from_fused_trace(
@@ -444,15 +444,15 @@ def _pack_cost_forward(p, pack: ReadoutPack, session: TrainSession, batch_idx=No
         if not bool(mask.any()):
             return None
         scale = scale[mask]
-        data = pack.data[mask]
+        gt = pack.gt[mask]
         weight = pack.cost_weight[mask]
         if pd_nd is not None:
             pd_nd = pd_nd[mask]
     else:
-        data = pack.data
+        gt = pack.gt
         weight = pack.cost_weight
     sel, dsi_sel = _pack_ca_readouts(p, pack, session, batch_idx)
-    return scale, data, weight, sel, dsi_sel, pd_nd
+    return scale, gt, weight, sel, dsi_sel, pd_nd
 
 
 def _pack_cost_parts_from_params(p, pack: ReadoutPack, session: TrainSession, batch_idx=None):
@@ -460,7 +460,7 @@ def _pack_cost_parts_from_params(p, pack: ReadoutPack, session: TrainSession, ba
     fwd = _pack_cost_forward(p, pack, session, batch_idx)
     if fwd is None:
         return {}
-    scale, data, weight, sel, dsi_sel, pd_nd = fwd
+    scale, gt, weight, sel, dsi_sel, pd_nd = fwd
     return _pack_cost_parts_from_sel(pack, session, scale, sel, dsi_sel)
 
 
@@ -469,10 +469,10 @@ def _pack_cost_rows(p, pack: ReadoutPack, session: TrainSession, batch_idx=None)
     fwd = _pack_cost_forward(p, pack, session, batch_idx)
     if fwd is None:
         return None
-    scale, data, weight, sel, dsi_sel, _pd_nd = fwd
+    scale, gt, weight, sel, dsi_sel, _pd_nd = fwd
     if sel is None:
         return _pack_cost_dsi_from_sel(pack, session, scale, dsi_sel)
-    return _pack_cost_mse(scale, data, weight, sel, pack.power)
+    return _pack_cost_mse(scale, gt, weight, sel, pack.power)
 
 
 def _pack_cost_parts_for_pack(z, pack: ReadoutPack, session: TrainSession, batch_idx=None, p=None):

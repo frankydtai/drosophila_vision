@@ -50,7 +50,7 @@ def forward_full(session, p, i_sti, *, return_v_onset=False, pack=None):
     pack = pack or session.primary_readout
     i_sti = drv.prepare_i_sti(session, p, i_sti, pack)
     B, t_end, _n = int(i_sti.shape[0]), int(i_sti.shape[1]), int(i_sti.shape[2])
-    t_onset = int(pack.i_sti.shape[1] - pack.data.shape[1])
+    t_onset = int(pack.i_sti.shape[1] - pack.gt.shape[1])
     pre_grad = bool((session.train_opts or {})["pre_grad"])
     state, v = drv.init_state(session, p, B)
     v_rows = [v]
