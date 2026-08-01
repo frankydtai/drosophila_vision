@@ -1,14 +1,14 @@
 # -*- coding: utf-8 -*-
 """Cost assembly, gradient descent, and multi-run driver.
 
-Consumes a :class:`~training.target_pack.TrainSession` and the model forward
+Consumes a :class:`~training.readout_pack.TrainSession` and the model forward
 (``neuron.run_full`` + ``neuron.readout``); produces per-part
 unweighted costs, the weighted total, and the Adam training loop.
 
 Traces are ``v`` (``v - v_onset``); cost multiplies model traces by ``out_scale``.
 
 Sparse cost time points (#4): ``pack.data`` stays full post-onset length and the
-subsample is gathered from both model trace and target at cost time via
+subsample is gathered from both model trace and gt at cost time via
 ``pack.cost_time_ix``; ``power`` is recomputed on the subsample.
 """
 from __future__ import annotations
@@ -23,7 +23,7 @@ import torch
 from torch import nn
 from tqdm import tqdm
 
-from training.target_pack import SIM_DTYPE
+from training.readout_pack import SIM_DTYPE
 from neuron import run_full
 from neuron.readout import (
     CA_PACK_READOUTS,
@@ -32,20 +32,20 @@ from neuron.readout import (
 )
 
 from training.config import (
-    MOVING_BAR_TARGETS,
+    MOVING_BAR_TASKS,
     ND_IDX,
     PD_IDX,
     PD_ND_LABELS,
-    cost_part_keys_for_target,
+    cost_part_keys_for_readout,
     expand_cost_weight_dict,
     moving_bar_cost_part_key,
     session_cost_part_keys,
 )
 from training.params import params_from_z, schema_bounds, schema_guess, schema_nparams
-from training.target_pack import (
+from training.readout_pack import (
     FusedForward,
     ModelBackend,
-    TargetPack,
+    ReadoutPack,
     TrainingResult,
     TrainSession,
     active_device,
@@ -61,36 +61,36 @@ from task.moving_bar.data import (
 
 def ca_cost(ca, data, session: TrainSession, scale=1.0, power=None):
     if power is None:
-        power = session.primary_pack.power
-    pack = session.primary_pack
+        power = session.primary_readout.power
+    pack = session.primary_readout
     pack_t_onset = int(pack.signal.shape[1] - pack.data.shape[1])
     mt = session.n_t
     return torch.sum((scale * ca - data[pack_t_onset:mt])**2) / power * 100.0
 
 
-def out_scale_for_units(p, unit_index, backend: ModelBackend, *, sim_dtype=SIM_DTYPE):
-    """Per-unit ``out_scale`` using the same indexing as ``_pack_out_scale``."""
+def out_scale_for_nodes(p, node_index, backend: ModelBackend, *, sim_dtype=SIM_DTYPE):
+    """Per-node ``out_scale`` using the same indexing as ``_pack_out_scale``."""
     os_param = p.get('out_scale', 1.0)
-    n = int(unit_index.shape[0])
-    dev = unit_index.device
+    n = int(node_index.shape[0])
+    dev = node_index.device
     if not torch.is_tensor(os_param) or os_param.dim() == 0:
         val = float(os_param if not torch.is_tensor(os_param) else os_param.item())
         return torch.full((n,), val, dtype=sim_dtype, device=dev)
     if backend.network is not None:
-        ci = backend.network.node_type[unit_index]
+        ci = backend.network.node_cell[node_index]
     else:
-        ci = unit_index % backend.n_types
+        ci = node_index % backend.n_cells
     return os_param[ci]
 
 
-def _pack_out_scale(p, pack: TargetPack, backend: ModelBackend, session: TrainSession):
+def _pack_out_scale(p, pack: ReadoutPack, backend: ModelBackend, session: TrainSession):
     """Per-cost-row output scale from schema ``out_scale``."""
-    return out_scale_for_units(
-        p, pack.readout_unit, backend, sim_dtype=session.sim_dtype,
+    return out_scale_for_nodes(
+        p, pack.readout_node, backend, sim_dtype=session.sim_dtype,
     )
 
 
-def _pack_ca_readouts(p, pack: TargetPack, session: TrainSession, batch_idx=None):
+def _pack_ca_readouts(p, pack: ReadoutPack, session: TrainSession, batch_idx=None):
     try:
         readout = CA_PACK_READOUTS[session.model]
     except KeyError:
@@ -114,23 +114,23 @@ def _part_weight(session: TrainSession, part_key: str) -> float:
     return float(session.cost_weights.get(part_key, 1.0))
 
 
-def _pack_part_key_for_cell(pack: TargetPack, cell_idx: int) -> str:
+def _pack_part_key_for_cell(pack: ReadoutPack, cell_idx: int) -> str:
     if pack.cost_pd_nd is not None:
         label = PD_ND_LABELS[int(pack.cost_pd_nd[cell_idx].item())]
         return moving_bar_cost_part_key(pack.name, label)
     return pack.name
 
 
-def _pack_has_active_cost(pack: TargetPack, session: TrainSession) -> bool:
-    for key in cost_part_keys_for_target(pack.name):
+def _pack_has_active_cost(pack: ReadoutPack, session: TrainSession) -> bool:
+    for key in cost_part_keys_for_readout(pack.name):
         if _part_weight(session, key) != 0.0:
             return True
     return False
 
 
-def _pack_has_active_mse(pack: TargetPack, session: TrainSession) -> bool:
+def _pack_has_active_mse(pack: ReadoutPack, session: TrainSession) -> bool:
     """True if waveform MSE parts (pack name or PD/ND) have non-zero weight."""
-    if pack.name in MOVING_BAR_TARGETS:
+    if pack.name in MOVING_BAR_TASKS:
         return any(
             _part_weight(session, moving_bar_cost_part_key(pack.name, lab)) != 0.0
             for lab in PD_ND_LABELS
@@ -138,11 +138,11 @@ def _pack_has_active_mse(pack: TargetPack, session: TrainSession) -> bool:
     return _part_weight(session, pack.name) != 0.0
 
 
-def _mse_active_row_mask(pack: TargetPack, session: TrainSession) -> torch.Tensor:
+def _mse_active_row_mask(pack: ReadoutPack, session: TrainSession) -> torch.Tensor:
     """Boolean mask over cost rows with non-zero PD/ND (or pack) weight."""
     n = int(pack.readout_batch.shape[0])
     dev = pack.readout_batch.device
-    if pack.name in MOVING_BAR_TARGETS:
+    if pack.name in MOVING_BAR_TASKS:
         if not _pack_has_active_mse(pack, session) or pack.cost_pd_nd is None:
             return torch.zeros(n, dtype=torch.bool, device=dev)
         mask = torch.zeros(n, dtype=torch.bool, device=dev)
@@ -154,7 +154,7 @@ def _mse_active_row_mask(pack: TargetPack, session: TrainSession) -> torch.Tenso
     return torch.full((n,), on, dtype=torch.bool, device=dev)
 
 
-def _dsi_active_row_mask(pack: TargetPack, session: TrainSession) -> torch.Tensor:
+def _dsi_active_row_mask(pack: ReadoutPack, session: TrainSession) -> torch.Tensor:
     """Boolean mask over cost rows needed by a non-zero DSI weight."""
     n = int(pack.readout_batch.shape[0])
     dev = pack.readout_batch.device
@@ -171,8 +171,8 @@ def _dsi_active_row_mask(pack: TargetPack, session: TrainSession) -> torch.Tenso
     return mask
 
 
-def _pack_active_batch_indices(pack: TargetPack, session: TrainSession) -> Tuple[int, ...]:
-    """Stimulus batch indices with at least one non-zero-weight cost cell."""
+def _pack_active_batch_indices(pack: ReadoutPack, session: TrainSession) -> Tuple[int, ...]:
+    """Stimulus batch indices with at least one non-zero-weight cost node."""
     row_mask = _mse_active_row_mask(pack, session) | _dsi_active_row_mask(pack, session)
     if not bool(row_mask.any()):
         return ()
@@ -181,7 +181,7 @@ def _pack_active_batch_indices(pack: TargetPack, session: TrainSession) -> Tuple
 
 
 def _active_row_indices(
-    pack: TargetPack,
+    pack: ReadoutPack,
     session: TrainSession,
     batch_idx: Optional[int] = None,
 ) -> Optional[torch.Tensor]:
@@ -193,12 +193,12 @@ def _active_row_indices(
     return torch.nonzero(keep, as_tuple=False).reshape(-1)
 
 
-def _slice_pack_rows(pack: TargetPack, row_ix: torch.Tensor) -> TargetPack:
+def _slice_pack_rows(pack: ReadoutPack, row_ix: torch.Tensor) -> ReadoutPack:
     fields = {
         "data": pack.data[row_ix],
         "cost_weight": pack.cost_weight[row_ix],
         "readout_batch": pack.readout_batch[row_ix],
-        "readout_unit": pack.readout_unit[row_ix],
+        "readout_node": pack.readout_node[row_ix],
     }
     if pack.cost_t0 is not None:
         fields["cost_t0"] = pack.cost_t0[row_ix]
@@ -214,7 +214,7 @@ def _slice_pack_rows(pack: TargetPack, row_ix: torch.Tensor) -> TargetPack:
     return replace(pack, **fields)
 
 
-def _subset_pack_batches(pack: TargetPack, batch_indices: Tuple[int, ...]) -> Optional[TargetPack]:
+def _subset_pack_batches(pack: ReadoutPack, batch_indices: Tuple[int, ...]) -> Optional[ReadoutPack]:
     if len(batch_indices) == int(pack.signal.shape[0]):
         return pack
     dev = pack.signal.device
@@ -233,7 +233,7 @@ def _subset_pack_batches(pack: TargetPack, batch_indices: Tuple[int, ...]) -> Op
         "data": pack.data[keep],
         "cost_weight": pack.cost_weight[keep],
         "readout_batch": new_rb,
-        "readout_unit": pack.readout_unit[keep],
+        "readout_node": pack.readout_node[keep],
     }
     if pack.cost_t0 is not None:
         fields["cost_t0"] = pack.cost_t0[keep]
@@ -250,12 +250,12 @@ def _subset_pack_batches(pack: TargetPack, batch_indices: Tuple[int, ...]) -> Op
 
 
 def _pack_for_active_cost(
-    pack: TargetPack,
+    pack: ReadoutPack,
     session: TrainSession,
     *,
     batch_idx: Optional[int] = None,
     batch_indices: Optional[Tuple[int, ...]] = None,
-) -> Optional[TargetPack]:
+) -> Optional[ReadoutPack]:
     """Drop zero-weight rows and, when requested, inactive stimulus batches."""
     work = pack
     if batch_indices is not None:
@@ -268,12 +268,12 @@ def _pack_for_active_cost(
     return _slice_pack_rows(work, rows)
 
 
-def _build_cost_subpacks(session: TrainSession) -> Dict[str, TargetPack]:
-    """Active cost row/batch subsets per target (batched mode only)."""
+def _build_cost_subpacks(session: TrainSession) -> Dict[str, ReadoutPack]:
+    """Active cost row/batch subsets per task (batched mode only)."""
     if session.sequential:
         return {}
-    out: Dict[str, TargetPack] = {}
-    for name, pack in session.targets.items():
+    out: Dict[str, ReadoutPack] = {}
+    for name, pack in session.readouts.items():
         if not _pack_has_active_cost(pack, session):
             continue
         active_batches = _pack_active_batch_indices(pack, session)
@@ -285,7 +285,7 @@ def _build_cost_subpacks(session: TrainSession) -> Dict[str, TargetPack]:
     return out
 
 
-def _signal_fuse_key(pack: TargetPack) -> Tuple:
+def _signal_fuse_key(pack: ReadoutPack) -> Tuple:
     """Group packs that can share one ``run_full`` (shape, scale, onset)."""
     sig = pack.signal
     t_onset = int(sig.shape[1] - pack.data.shape[1])
@@ -301,11 +301,11 @@ def _signal_fuse_key(pack: TargetPack) -> Tuple:
 
 def _build_fused_forward(
     session: TrainSession,
-    cost_subpacks: Dict[str, TargetPack],
+    cost_subpacks: Dict[str, ReadoutPack],
 ) -> Tuple[FusedForward, ...]:
     if session.sequential or not cost_subpacks:
         return ()
-    by_key: Dict[Tuple, List[TargetPack]] = {}
+    by_key: Dict[Tuple, List[ReadoutPack]] = {}
     for pack in cost_subpacks.values():
         by_key.setdefault(_signal_fuse_key(pack), []).append(pack)
     fused: List[FusedForward] = []
@@ -321,26 +321,26 @@ def _build_fused_forward(
 
 def _readout_from_trace_full(
     trace_full: torch.Tensor,
-    pack: TargetPack,
+    pack: ReadoutPack,
     *,
     batch_offset: int = 0,
 ) -> Tuple[Optional[torch.Tensor], torch.Tensor]:
     rb = pack.readout_batch if batch_offset == 0 else pack.readout_batch + batch_offset
     pack_t_onset = int(pack.signal.shape[1] - pack.data.shape[1])
-    dsi_sel = trace_full[rb, pack_t_onset:, pack.readout_unit]
+    dsi_sel = trace_full[rb, pack_t_onset:, pack.readout_node]
     if not pack_needs_waveform_mse(pack):
         return None, dsi_sel
     if pack.cost_t0 is None:
         return dsi_sel, dsi_sel
     mse_sel = window_time_traces(
-        trace_full, rb, pack.readout_unit, pack.cost_t0,
+        trace_full, rb, pack.readout_node, pack.cost_t0,
         win=pack.data.shape[1], t_onset=pack_t_onset,
     )
     return mse_sel, dsi_sel
 
 
 def _pack_cost_dsi_from_sel(
-    pack: TargetPack,
+    pack: ReadoutPack,
     session: TrainSession,
     scale: torch.Tensor,
     dsi_sel: torch.Tensor,
@@ -353,14 +353,14 @@ def _pack_cost_dsi_from_sel(
 
 
 def _pack_cost_parts_from_sel(
-    pack: TargetPack,
+    pack: ReadoutPack,
     session: TrainSession,
     scale: torch.Tensor,
     sel: Optional[torch.Tensor],
     dsi_sel: torch.Tensor,
 ) -> Dict[str, torch.Tensor]:
     pd_nd = pack.cost_pd_nd
-    if pack.name in MOVING_BAR_TARGETS:
+    if pack.name in MOVING_BAR_TASKS:
         out: Dict[str, torch.Tensor] = {}
         if pd_nd is not None:
             for pd_nd_idx, label in ((PD_IDX, "PD"), (ND_IDX, "ND")):
@@ -391,7 +391,7 @@ def _pack_cost_parts_from_sel(
     data = pack.data
     weight = pack.cost_weight
     power = pack.power
-    # #4 sparse time points: gather model + target on the requested post-onset
+    # #4 sparse time points: gather model + gt on the requested post-onset
     # t indices and recompute power over the subsample.
     if pack.cost_time_ix is not None:
         ix = pack.cost_time_ix.to(device=sel.device)
@@ -403,7 +403,7 @@ def _pack_cost_parts_from_sel(
 
 def _pack_cost_parts_from_fused_trace(
     p,
-    pack: TargetPack,
+    pack: ReadoutPack,
     session: TrainSession,
     trace_full: torch.Tensor,
     *,
@@ -437,7 +437,7 @@ def _calc_cost_parts_fused(
     return parts
 
 
-def _pack_cost_forward(p, pack: TargetPack, session: TrainSession, batch_idx=None):
+def _pack_cost_forward(p, pack: ReadoutPack, session: TrainSession, batch_idx=None):
     scale = _pack_out_scale(p, pack, session.backend, session)
     pd_nd = pack.cost_pd_nd
     if batch_idx is not None:
@@ -456,7 +456,7 @@ def _pack_cost_forward(p, pack: TargetPack, session: TrainSession, batch_idx=Non
     return scale, data, weight, sel, dsi_sel, pd_nd
 
 
-def _pack_cost_parts_from_params(p, pack: TargetPack, session: TrainSession, batch_idx=None):
+def _pack_cost_parts_from_params(p, pack: ReadoutPack, session: TrainSession, batch_idx=None):
     """Unweighted cost parts for one pack (PD/ND split for moving_bar)."""
     fwd = _pack_cost_forward(p, pack, session, batch_idx)
     if fwd is None:
@@ -465,7 +465,7 @@ def _pack_cost_parts_from_params(p, pack: TargetPack, session: TrainSession, bat
     return _pack_cost_parts_from_sel(pack, session, scale, sel, dsi_sel)
 
 
-def _pack_cost_rows(p, pack: TargetPack, session: TrainSession, batch_idx=None):
+def _pack_cost_rows(p, pack: ReadoutPack, session: TrainSession, batch_idx=None):
     """Forward + MSE for one pack (full aggregate; used for diagnostics)."""
     fwd = _pack_cost_forward(p, pack, session, batch_idx)
     if fwd is None:
@@ -476,20 +476,20 @@ def _pack_cost_rows(p, pack: TargetPack, session: TrainSession, batch_idx=None):
     return _pack_cost_mse(scale, data, weight, sel, pack.power)
 
 
-def _pack_cost_parts_for_pack(z, pack: TargetPack, session: TrainSession, batch_idx=None, p=None):
+def _pack_cost_parts_for_pack(z, pack: ReadoutPack, session: TrainSession, batch_idx=None, p=None):
     if p is None:
         p = params_from_z(z, session)
     return _pack_cost_parts_from_params(p, pack, session, batch_idx)
 
 
-def _pack_cost_part(z, pack: TargetPack, session: TrainSession, batch_idx=None):
+def _pack_cost_part(z, pack: ReadoutPack, session: TrainSession, batch_idx=None):
     parts = _pack_cost_parts_for_pack(z, pack, session, batch_idx)
     if not parts:
         return torch.zeros((), dtype=session.sim_dtype, device=session.device)
     return sum(parts.values())
 
 
-def _pack_cost(z, pack: TargetPack, session: TrainSession, batch_idx=None):
+def _pack_cost(z, pack: ReadoutPack, session: TrainSession, batch_idx=None):
     return _pack_cost_part(z, pack, session, batch_idx)
 
 
@@ -510,7 +510,7 @@ def calc_cost_parts(z, session: TrainSession) -> Dict[str, torch.Tensor]:
                     continue
                 parts[part_key] = part
         return parts
-    for _name, pack in session.targets.items():
+    for _name, pack in session.readouts.items():
         if not _pack_has_active_cost(pack, session):
             continue
         active_batches = _pack_active_batch_indices(pack, session)
@@ -568,7 +568,7 @@ def _params_from_z(z, session: TrainSession):
     return params_from_z(z, session)
 
 
-def _pack_spec_names(session: TrainSession, pack: TargetPack) -> Tuple[str, ...]:
+def _pack_spec_names(session: TrainSession, pack: ReadoutPack) -> Tuple[str, ...]:
     opts = ((session.train_opts or {}).get(f"{pack.name}_stimulus_opts")) or {}
     names = opts.get("spec_names")
     if names:
@@ -577,7 +577,7 @@ def _pack_spec_names(session: TrainSession, pack: TargetPack) -> Tuple[str, ...]
 
 
 def _dsi_sequential_batch_groups(
-    pack: TargetPack, session: TrainSession,
+    pack: ReadoutPack, session: TrainSession,
 ) -> Tuple[Tuple[int, ...], ...]:
     """Active DSI microbatches: each group is one axis x width (typically B=2)."""
     active = set(_pack_active_batch_indices(pack, session))
@@ -591,10 +591,10 @@ def _dsi_sequential_batch_groups(
 
 
 def _pack_for_dsi_batch_group(
-    pack: TargetPack,
+    pack: ReadoutPack,
     session: TrainSession,
     batch_indices: Tuple[int, ...],
-) -> Optional[TargetPack]:
+) -> Optional[ReadoutPack]:
     """Subset to one DSI direction pair; keep parent ``dsi_power`` for additive costs."""
     sub = _pack_for_active_cost(pack, session, batch_indices=batch_indices)
     if sub is None or pack.dsi_power is None:
@@ -604,7 +604,7 @@ def _pack_for_dsi_batch_group(
 
 def _iter_cost_microbatches(session: TrainSession):
     """Yield ``(pack, batch_idx, sub_pack)`` for gradient accumulation."""
-    for _name, pack in session.targets.items():
+    for _name, pack in session.readouts.items():
         if not _pack_has_active_cost(pack, session):
             continue
         active_batches = _pack_active_batch_indices(pack, session)
@@ -639,7 +639,7 @@ def backward_accum_weighted_cost(z, session: TrainSession):
         dsi_only = (
             session.sequential
             and batch_idx is None
-            and pack.name in MOVING_BAR_TARGETS
+            and pack.name in MOVING_BAR_TASKS
         )
         dsi_key = moving_bar_cost_part_key(pack.name, "DSI")
         for key, part in _pack_cost_parts_from_params(
@@ -662,12 +662,12 @@ def backward_accum_weighted_cost(z, session: TrainSession):
     return total, parts_sum
 
 
-def _float_parts_dict(parts: Optional[Dict[str, torch.Tensor]], target_order=None):
+def _float_parts_dict(parts: Optional[Dict[str, torch.Tensor]], task_order=None):
     if not parts:
         return None
     out = {k: float(v.item() if torch.is_tensor(v) else v) for k, v in parts.items()}
-    if target_order:
-        return {k: out[k] for k in target_order if k in out}
+    if task_order:
+        return {k: out[k] for k in task_order if k in out}
     return out
 
 
@@ -681,7 +681,7 @@ _TQDM_REFRESH_INTERVAL = 10
 
 
 def gradient_network(z, lr=0.0001, cost_fn=None, n_steps=100, device="cpu", z_bounds=None,
-                     cost_log=None, step_log=None, float_last_parts=None, target_order=None,
+                     cost_log=None, step_log=None, float_last_parts=None, task_order=None,
                      backward_step=None, eval_cost=None,
                      checkpoint_interval=None, on_interval_best=None, global_step_start=0):
 
@@ -708,7 +708,7 @@ def gradient_network(z, lr=0.0001, cost_fn=None, n_steps=100, device="cpu", z_bo
     interval_best_z = z.clone().detach()
 
     initial_cost = 1.0 * cost
-    initial_parts = float_last_parts(target_order) if float_last_parts else None
+    initial_parts = float_last_parts(task_order) if float_last_parts else None
     best_parts = initial_parts
 
     def _reset_interval_from_z():
@@ -764,7 +764,7 @@ def gradient_network(z, lr=0.0001, cost_fn=None, n_steps=100, device="cpu", z_bo
             best_cost = cost
             best_z = z.clone().detach()
             if float_last_parts is not None:
-                best_parts = float_last_parts(target_order)
+                best_parts = float_last_parts(task_order)
 
         if cost < interval_best_cost:
             interval_best_cost = cost
@@ -785,7 +785,7 @@ def gradient_network(z, lr=0.0001, cost_fn=None, n_steps=100, device="cpu", z_bo
         if checkpoint_interval and global_step % checkpoint_interval == 0:
             _commit_interval_checkpoint(global_step)
 
-        step_parts = float_last_parts(target_order) if float_last_parts else None
+        step_parts = float_last_parts(task_order) if float_last_parts else None
         if (i + 1) % _TQDM_REFRESH_INTERVAL == 0 or i == n_steps - 1:
             progress_bar.set_description(
                 f'Cost: {cost:.4f}' + _fmt_cost_parts(step_parts),
@@ -795,7 +795,7 @@ def gradient_network(z, lr=0.0001, cost_fn=None, n_steps=100, device="cpu", z_bo
     if aborted is None:
         try:
             cost = _measure_cost(z)
-            final_parts = float_last_parts(target_order) if float_last_parts else None
+            final_parts = float_last_parts(task_order) if float_last_parts else None
         except RuntimeError as e:
             aborted = f'final eval: {e}'
             cost = float('nan')
@@ -825,7 +825,7 @@ def gradient_network(z, lr=0.0001, cost_fn=None, n_steps=100, device="cpu", z_bo
 
 
 def train_staged(z, cost_fn, z_bounds, lrs, nsteps, cost_log=None, step_log=None,
-                 float_last_parts=None, target_order=None,
+                 float_last_parts=None, task_order=None,
                  backward_step=None, eval_cost=None,
                  checkpoint_interval=None, on_interval_best=None, global_step_start=0):
     # run gradient_network once per learning-rate stage, chaining the best params.
@@ -834,7 +834,7 @@ def train_staged(z, cost_fn, z_bounds, lrs, nsteps, cost_log=None, step_log=None
         z = gradient_network(z, lr=lr, n_steps=nsteps, device=active_device(),
                              cost_fn=cost_fn, z_bounds=z_bounds, cost_log=cost_log,
                              step_log=step_log, float_last_parts=float_last_parts,
-                             target_order=target_order,
+                             task_order=task_order,
                              backward_step=backward_step, eval_cost=eval_cost,
                              checkpoint_interval=checkpoint_interval,
                              on_interval_best=on_interval_best,
@@ -845,7 +845,7 @@ def train_staged(z, cost_fn, z_bounds, lrs, nsteps, cost_log=None, step_log=None
 
 def _make_step_logger(session: TrainSession):
     """Build training step hooks for :func:`gradient_network`."""
-    part_keys = session_cost_part_keys(session.target_list)
+    part_keys = session_cost_part_keys(session.task_list)
     target_history = {name: [] for name in part_keys}
     _last_parts: Optional[Dict[str, float]] = None
     _last_total: Optional[float] = None
@@ -883,10 +883,10 @@ def _make_step_logger(session: TrainSession):
                 target_history[name].append(0.0)
         return float(_last_total)
 
-    def float_last_parts(target_order=None):
+    def float_last_parts(task_order=None):
         if _last_parts is None:
             raise RuntimeError("float_last_parts called before cost_fn")
-        return _float_parts_dict(_last_parts, target_order)
+        return _float_parts_dict(_last_parts, task_order)
 
     if session.sequential:
         return cost_fn, target_history, log_step, float_last_parts, backward_step, eval_cost
@@ -903,12 +903,12 @@ def do_many_runs(session: TrainSession, nofruns, nofsteps, lrs=(0.1, 0.01, 0.001
 
     all_params = np.zeros((nofruns, n_params))
     final_costs = np.zeros(nofruns)
-    part_keys = session_cost_part_keys(session.target_list)
-    final_costs_by_target = {name: np.zeros(nofruns) for name in part_keys}
+    part_keys = session_cost_part_keys(session.task_list)
+    final_costs_by_task = {name: np.zeros(nofruns) for name in part_keys}
     best_i = 0
     best_cost = np.inf
     cost_curve = np.array([], dtype=np.float64)
-    cost_curves_by_target = {}
+    cost_curves_by_task = {}
 
     for i in range(nofruns):
         print()
@@ -938,7 +938,7 @@ def do_many_runs(session: TrainSession, nofruns, nofsteps, lrs=(0.1, 0.01, 0.001
             z, cost_fn, bounds, lrs, nofsteps,
             step_log=step_log,
             float_last_parts=float_last_parts,
-            target_order=list(part_keys),
+            task_order=list(part_keys),
             backward_step=backward_step,
             eval_cost=eval_cost,
             checkpoint_interval=checkpoint_interval,
@@ -949,12 +949,12 @@ def do_many_runs(session: TrainSession, nofruns, nofsteps, lrs=(0.1, 0.01, 0.001
         fit_parts = calc_cost_parts(z_fit, session)
         final_costs[i] = float(_weighted_cost_from_parts(fit_parts, session).item())
         for name, part in fit_parts.items():
-            final_costs_by_target[name][i] = float(part.item())
+            final_costs_by_task[name][i] = float(part.item())
         if final_costs[i] < best_cost:
             best_cost = final_costs[i]
             best_i = i
             cost_curve = np.array(cost_history, dtype=np.float64)
-            cost_curves_by_target = {
+            cost_curves_by_task = {
                 name: np.array(curve, dtype=np.float64)
                 for name, curve in target_history.items()
             }
@@ -964,6 +964,6 @@ def do_many_runs(session: TrainSession, nofruns, nofsteps, lrs=(0.1, 0.01, 0.001
         final_costs=final_costs,
         best_i=best_i,
         cost_curve=cost_curve,
-        cost_curves_by_target=cost_curves_by_target,
-        final_costs_by_target=final_costs_by_target,
+        cost_curves_by_task=cost_curves_by_task,
+        final_costs_by_task=final_costs_by_task,
     )

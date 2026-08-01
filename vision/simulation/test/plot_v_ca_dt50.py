@@ -78,22 +78,22 @@ def _fit_center_traces(session, z, *, return_v_delta: bool) -> dict[str, np.ndar
     spot = spot_from_opts(C, stimulus_opts=opts)
     batches = spot_stimulus_batches(spot)
     cost_radii = resolve_spot_cost_radii(stimulus_opts=opts)
-    batch_idx, unit_idx, _r, type_idx, _su, _sv, _du, _dv, center_row = (
+    batch_idx, node_idx, _r, type_idx, _su, _sv, _du, _dv, center_row = (
         spot_center_bin_layout(C, batches, cost_radii, pack.cost_extent)
     )
-    raw = trace_full[batch_idx, :, unit_idx]
-    scale = training.out_scale_for_units(
-        p, torch.as_tensor(unit_idx, dtype=torch.long, device=z.device), session.backend,
+    raw = trace_full[batch_idx, :, node_idx]
+    scale = training.out_scale_for_nodes(
+        p, torch.as_tensor(node_idx, dtype=torch.long, device=z.device), session.backend,
     )
     scaled = scale[:, None] * raw
 
-    type_names = list(C.type_names)
+    cell_names = list(C.cell_names)
     out: dict[str, np.ndarray] = {}
     for name in cell_list:
         name = str(name)
-        if name not in type_names:
+        if name not in cell_names:
             continue
-        ti = type_names.index(name)
+        ti = cell_names.index(name)
         mask = center_row & (type_idx == ti)
         if not np.any(mask):
             continue
@@ -101,7 +101,7 @@ def _fit_center_traces(session, z, *, return_v_delta: bool) -> dict[str, np.ndar
     return out
 
 
-def _session_z_at_delta_ms(base_opts, model, named, type_names, pair_names, dt_ms: float):
+def _session_z_at_delta_ms(base_opts, model, named, cell_names, pair_names, dt_ms: float):
     """``set_delta_ms`` then rebuild spot session with same physical timing."""
     opts = copy.deepcopy(base_opts)
 
@@ -113,12 +113,12 @@ def _session_z_at_delta_ms(base_opts, model, named, type_names, pair_names, dt_m
         so["delta_ms"] = float(dt_ms)
 
     session = training.open_session_from_opts(opts, model=model)
-    remapped = training.remap_named_unit_values(
-        named, type_names, pair_names, list(session.schema), session.backend,
+    remapped = training.remap_named_node_values(
+        named, cell_names, pair_names, list(session.schema), session.backend,
     )
     schema = training.attach_param_carry(list(session.schema), remapped)
     session = session.with_schema(schema)
-    z = training.unit_values_to_z(
+    z = training.node_values_to_z(
         remapped, schema, dtype=session.sim_dtype, device=session.device,
     )
     return session_for_target(session, "spot_bright"), z
@@ -209,22 +209,22 @@ def main():
     session0 = training.open_session_from_opts(base_opts, model=model)
 
     import training.driver as train_mod
-    named, type_names, pair_names = train_mod.load_best_param_named(run_path)
-    remapped = training.remap_named_unit_values(
-        named, type_names, pair_names, list(session0.schema), session0.backend,
+    named, cell_names, pair_names = train_mod.load_best_param_named(run_path)
+    remapped = training.remap_named_node_values(
+        named, cell_names, pair_names, list(session0.schema), session0.backend,
     )
     schema = training.attach_param_carry(list(session0.schema), remapped)
     session0 = session0.with_schema(schema)
     base_opts = copy.deepcopy(session0.train_opts)
 
     one10, z10 = _session_z_at_delta_ms(
-        base_opts, model, named, type_names, pair_names, DELTA_MS,
+        base_opts, model, named, cell_names, pair_names, DELTA_MS,
     )
     traces_v = _fit_center_traces(one10, z10, return_v_delta=True)
     traces_ca = _fit_center_traces(one10, z10, return_v_delta=False)
 
     one50, z50 = _session_z_at_delta_ms(
-        base_opts, model, named, type_names, pair_names, float(args.dt50),
+        base_opts, model, named, cell_names, pair_names, float(args.dt50),
     )
     traces_v50 = _fit_center_traces(one50, z50, return_v_delta=True)
 

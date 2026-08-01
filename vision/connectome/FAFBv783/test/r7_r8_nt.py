@@ -11,18 +11,13 @@ Run with the project venv:
 
 from __future__ import annotations
 
-import sys
-from pathlib import Path
-
 import pandas as pd
 
-_PKG_DIR = Path(__file__).resolve().parents[1]
-if str(_PKG_DIR) not in sys.path:
-    sys.path.insert(0, str(_PKG_DIR))
+import import_bootstrap  # noqa: F401
 
 from build_network import FafbDataLoader  # noqa: E402
 
-TYPES = ("R7", "R8")
+CELLS = ("R7", "R8")
 SIDES = ("right", "left")
 
 
@@ -32,11 +27,11 @@ def main() -> None:
 
     for side in SIDES:
         side_neurons = neurons[neurons["side"] == side]
-        for cell_type in TYPES:
-            ids = set(side_neurons[side_neurons["type"] == cell_type]["root_id"].astype("int64"))
+        for cell in CELLS:
+            ids = set(side_neurons[side_neurons["cell"] == cell]["root_id"].astype("int64"))
             conn = loader.load_connections(keep_neuron_ids=ids)
             conn = conn[conn["pre_root_id"].isin(ids)]
-            print(f"\n===== {cell_type} ({side}) =====  "
+            print(f"\n===== {cell} ({side}) =====  "
                   f"neurons={len(ids)} edges={len(conn)} syn={int(conn['syn_count'].sum())}")
             if conn.empty:
                 print("  (no outgoing connections)")

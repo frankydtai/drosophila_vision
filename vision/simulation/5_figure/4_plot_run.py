@@ -9,11 +9,11 @@ import torch
 
 import import_bootstrap  # noqa: F401
 import training
-from task.moving_bar.input import sti_columns
+from task.moving_bar.input import sti_hexes
 from task.spot.input import spot_from_opts
 from figure import moving_bar as moving_bar_plot
 from figure import spot as spot_plot
-from figure.util import parse_axis_slice_list, parse_align_xy, plot_cost, network_column_count
+from figure.util import parse_axis_slice_list, parse_align_xy, plot_cost, network_hex_count
 from training.config import PARAMETER_DIR, run_data_dir
 from training.driver import resolve_run_dir
 
@@ -56,10 +56,10 @@ def _network_spot_tag(session, tname):
     spot = spot_from_opts(session.backend.network, stimulus_opts=opts)
     n_spots = len(spot.centers)
     n_shifts = len(spot.shifts)
-    n_columns = network_column_count(session.backend.network)
+    n_columns = network_hex_count(session.backend.network)
     return (
         f'  [avg over {n_spots} spots x {n_shifts} shifts = {n_spots * n_shifts}]\n'
-        f'({n_columns} columns in network)'
+        f'({n_columns} hexes in network)'
     )
 
 
@@ -75,12 +75,12 @@ def load_session(outdir, model=None):
     return training.open_session_from_outdir(outdir, model)
 
 
-def session_for_target(base_session, tname):
-    """Single-target session sharing backend/schema with a multi-target run."""
+def session_for_task(base_session, tname):
+    """Single-task session sharing backend/schema with a multi-task run."""
     if base_session.backend.network is None:
-        raise ValueError("session_for_target requires base_session.backend.network")
+        raise ValueError("session_for_task requires base_session.backend.network")
     opts = dict(base_session.train_opts or {})
-    opts['target_list'] = [tname]
+    opts['task_list'] = [tname]
     opts['packs'] = None
     opts['network'] = base_session.backend.network
     return training.open_session({**opts, 'backend': 'network'}, base_session.model,
@@ -185,13 +185,13 @@ def load_best(outdir, *, model=None, verbose=False):
         raise SystemExit(f'run dir not found: {outdir}')
     model = resolve_model(outdir, override=model)
     session = load_session(outdir, model=model)
-    named, type_names, pair_names = train_mod.load_best_param_named(outdir)
-    remapped = training.remap_named_unit_values(
-        named, type_names, pair_names, list(session.schema), session.backend,
+    named, cell_names, pair_names = train_mod.load_best_param_named(outdir)
+    remapped = training.remap_named_node_values(
+        named, cell_names, pair_names, list(session.schema), session.backend,
     )
     schema = training.attach_param_carry(list(session.schema), remapped)
     session = session.with_schema(schema)
-    z = training.unit_values_to_z(
+    z = training.node_values_to_z(
         remapped, schema, dtype=session.sim_dtype, device=session.device,
     )
     best_i = train_mod.load_best_i(outdir)
@@ -214,13 +214,13 @@ def load_best(outdir, *, model=None, verbose=False):
     return session, z, int(best_i), float(best_cost)
 
 
-def _plot_spot_targets(session, z, outdir, spot_targets, suffix, model_all,
+def _plot_spot_tasks(session, z, outdir, spot_tasks, suffix, model_all,
                        data_cubes=None,
                        at_x=None, at_y=None, save_trace_csv_dir=None, show_pre=True):
-    """Plot spot target(s); contrasts combined in one figure when both are trained."""
-    spot_set = set(spot_targets)
+    """Plot spot task(s); contrasts combined in one figure when both are trained."""
+    spot_set = set(spot_tasks)
     make_bundle, plot_data, plot_all = spot_bundle_fns(session)
-    ref_t = 'spot_bright' if 'spot_bright' in spot_set else spot_targets[0]
+    ref_t = 'spot_bright' if 'spot_bright' in spot_set else spot_tasks[0]
     net_tag = _network_spot_tag(session, ref_t)
     kind = _session_trace_kind(session)
     plot_kw = dict(data_cubes=data_cubes)
@@ -229,13 +229,13 @@ def _plot_spot_targets(session, z, outdir, spot_targets, suffix, model_all,
         save_trace_csv_dir=save_trace_csv_dir,
         show_pre=show_pre,
     )
-    if spot_set == set(training.SPOT_TARGETS):
+    if spot_set == set(training.SPOT_TASKS):
         bundles = {
             'bright': make_bundle(
-                session_for_target(session, 'spot_bright'), z, **bundle_kw,
+                session_for_task(session, 'spot_bright'), z, **bundle_kw,
             ),
             'dark': make_bundle(
-                session_for_target(session, 'spot_dark'), z, **bundle_kw,
+                session_for_task(session, 'spot_dark'), z, **bundle_kw,
             ),
         }
         mvd = os.path.join(outdir, f'spot_trained_{kind}.png')
@@ -253,20 +253,20 @@ def _plot_spot_targets(session, z, outdir, spot_targets, suffix, model_all,
                 **plot_kw,
             )
         return mvd, allc
-    for tname in spot_targets:
-        _plot_one_target(
-            session_for_target(session, tname), z, outdir, tname, suffix, model_all,
+    for tname in spot_tasks:
+        _plot_one_task(
+            session_for_task(session, tname), z, outdir, tname, suffix, model_all,
             data_cubes=data_cubes,
             at_x=at_x, at_y=at_y,
             save_trace_csv_dir=save_trace_csv_dir, show_pre=show_pre,
         )
 
 
-def _plot_bar_targets(session, z, outdir, bar_targets, suffix, model_all, *,
+def _plot_bar_readouts(session, z, outdir, bar_readouts, suffix, model_all, *,
                       plot_right_only=True, at_x=None, at_y=None,
                       align_at_x=None, align_at_y=None,
                       save_trace_csv_dir=None, show_pre=True):
-    """Plot moving-bar target(s); bright left | dark right when both are trained."""
+    """Plot moving-bar task(s); bright left | dark right when both are trained."""
     kind = _session_trace_kind(session)
     bundle_kw = dict(
         at_x_list=at_x, at_y_list=at_y,
@@ -274,10 +274,10 @@ def _plot_bar_targets(session, z, outdir, bar_targets, suffix, model_all, *,
         save_trace_csv_dir=save_trace_csv_dir,
         show_pre=show_pre,
     )
-    bar_set = set(bar_targets)
-    if bar_set == set(training.MOVING_BAR_TARGETS):
-        s_bright = session_for_target(session, 'moving_bar_bright')
-        s_dark = session_for_target(session, 'moving_bar_dark')
+    bar_set = set(bar_readouts)
+    if bar_set == set(training.MOVING_BAR_TASKS):
+        s_bright = session_for_task(session, 'moving_bar_bright')
+        s_dark = session_for_task(session, 'moving_bar_dark')
         b_bright = moving_bar_plot.moving_bar_trace_bundle(
             s_bright, z, 'moving_bar_bright', **bundle_kw,
         )
@@ -298,8 +298,8 @@ def _plot_bar_targets(session, z, outdir, bar_targets, suffix, model_all, *,
                 right_only=plot_right_only,
             )
         return mvd, allc
-    for tname in bar_targets:
-        one = session_for_target(session, tname)
+    for tname in bar_readouts:
+        one = session_for_task(session, tname)
         b = moving_bar_plot.moving_bar_trace_bundle(one, z, tname, **bundle_kw)
         mvd = os.path.join(outdir, f'bar_trained_{kind}.png')
         moving_bar_plot.plot_moving_bar_data(
@@ -315,11 +315,11 @@ def _plot_bar_targets(session, z, outdir, bar_targets, suffix, model_all, *,
         return mvd, allc
 
 
-def _plot_one_target(session, z, outdir, tname, suffix, model_all,
+def _plot_one_task(session, z, outdir, tname, suffix, model_all,
                      data_cubes=None,
                      at_x=None, at_y=None, save_trace_csv_dir=None, show_pre=True):
-    if tname not in training.SPOT_TARGETS:
-        raise ValueError(f'unknown plot target {tname!r}')
+    if tname not in training.SPOT_TASKS:
+        raise ValueError(f'unknown plot task {tname!r}')
     kind = _session_trace_kind(session)
     mvd = os.path.join(outdir, f'spot_trained_{kind}.png')
     allc = os.path.join(outdir, f'spot_all_{kind}.png')
@@ -331,8 +331,8 @@ def _plot_one_target(session, z, outdir, tname, suffix, model_all,
         at_x_list=at_x, at_y_list=at_y,
         save_trace_csv_dir=save_trace_csv_dir, show_pre=show_pre,
     )
-    from figure.readout import contrast_for_target
-    bundles = {contrast_for_target(tname): b}
+    from figure.readout import contrast_for_task
+    bundles = {contrast_for_task(tname): b}
     plot_data(
         mvd, bundles=bundles, title=f'{tname} {kind}-data ({suffix}){net_tag}', **plot_kw,
     )
@@ -343,8 +343,8 @@ def _plot_one_target(session, z, outdir, tname, suffix, model_all,
 
 def plot_param_set(params, outdir, model=None, model_all=True,
                    context_dir=None,
-                   plot_targets=None, session=None, *,
-                   final_costs=None, cost_curve=None, costs_by_target=None, best_i=None,
+                   plot_tasks=None, session=None, *,
+                   final_costs=None, cost_curve=None, costs_by_task=None, best_i=None,
                    save_artifacts=True, artifact_fname=None,
                    data_cubes=None,
                    plot_right_only=True, at_x=None, at_y=None,
@@ -364,13 +364,13 @@ def plot_param_set(params, outdir, model=None, model_all=True,
 
     params = np.atleast_2d(params)
     if final_costs is None and artifact_fname is not None:
-        final_costs, loaded_curve, loaded_by_target, _ = _load_plot_costs(
+        final_costs, loaded_curve, loaded_by_task, _ = _load_plot_costs(
             outdir, artifact_fname, params.shape[0],
         )
         if cost_curve is None:
             cost_curve = loaded_curve
-        if costs_by_target is None:
-            costs_by_target = loaded_by_target
+        if costs_by_task is None:
+            costs_by_task = loaded_by_task
 
     if best_i is None:
         import training.driver as train_mod
@@ -383,50 +383,50 @@ def plot_param_set(params, outdir, model=None, model_all=True,
     z = torch.tensor(best, dtype=session.sim_dtype, device=session.device)
 
     suffix = f'trained, cost {best_cost:.2f}% of data power'
-    target_list = list(session.target_list)
-    if plot_targets is not None:
-        target_list = [t for t in target_list if t in plot_targets]
+    task_list = list(session.task_list)
+    if plot_tasks is not None:
+        task_list = [t for t in task_list if t in plot_tasks]
 
-    spot_targets = [t for t in target_list if t in training.SPOT_TARGETS]
-    bar_targets = [t for t in target_list if t in training.MOVING_BAR_TARGETS]
-    other_targets = [
-        t for t in target_list
-        if t not in training.SPOT_TARGETS and t not in training.MOVING_BAR_TARGETS
+    spot_tasks = [t for t in task_list if t in training.SPOT_TASKS]
+    bar_readouts = [t for t in task_list if t in training.MOVING_BAR_TASKS]
+    other_readouts = [
+        t for t in task_list
+        if t not in training.SPOT_TASKS and t not in training.MOVING_BAR_TASKS
     ]
-    if (at_x is not None or at_y is not None) and not bar_targets and not spot_targets:
-        raise SystemExit('--x/--y require a moving_bar or spot target in this run')
+    if (at_x is not None or at_y is not None) and not bar_readouts and not spot_tasks:
+        raise SystemExit('--x/--y require a moving_bar or spot task in this run')
     if (align_at_x is not None or align_at_y is not None):
         if align_at_x is None or align_at_y is None:
             raise SystemExit('--align-xy requires X,Y')
         if at_x is None and at_y is None:
             raise SystemExit('--align-xy requires --x and/or --y')
-        if not bar_targets:
+        if not bar_readouts:
             raise SystemExit('--align-xy applies to moving_bar slice plots only')
 
     if cost_curve is not None and len(cost_curve) > 0:
         plot_cost(
             cost_curve, os.path.join(outdir, 'cost_curve.png'),
-            costs_by_target=costs_by_target,
-            target_order=list(training.session_cost_part_keys(session.target_list)),
+            costs_by_task=costs_by_task,
+            task_order=list(training.session_cost_part_keys(session.task_list)),
         )
-    if spot_targets:
-        _plot_spot_targets(
-            session, z, outdir, spot_targets, suffix, model_all,
+    if spot_tasks:
+        _plot_spot_tasks(
+            session, z, outdir, spot_tasks, suffix, model_all,
             data_cubes=data_cubes,
             at_x=at_x, at_y=at_y,
             save_trace_csv_dir=save_trace_csv_dir, show_pre=show_pre,
         )
-    if bar_targets:
-        _plot_bar_targets(
-            session, z, outdir, bar_targets, suffix, model_all,
+    if bar_readouts:
+        _plot_bar_readouts(
+            session, z, outdir, bar_readouts, suffix, model_all,
             plot_right_only=plot_right_only,
             at_x=at_x, at_y=at_y,
             align_at_x=align_at_x, align_at_y=align_at_y,
             save_trace_csv_dir=save_trace_csv_dir, show_pre=show_pre,
         )
-    for tname in other_targets:
-        one = session_for_target(session, tname)
-        _plot_one_target(
+    for tname in other_readouts:
+        one = session_for_task(session, tname)
+        _plot_one_task(
             one, z, outdir, tname, suffix, model_all,
             data_cubes=data_cubes,
             save_trace_csv_dir=save_trace_csv_dir, show_pre=show_pre,
@@ -488,7 +488,7 @@ def add_plot_arguments(parser):
         '--align-xy',
         default=None,
         metavar='X,Y',
-        help='moving_bar slice plots: align --x/--y traces to ref column hex (x,y); total unchanged',
+        help='moving_bar slice plots: align --x/--y traces to ref hex hex (x,y); total unchanged',
     )
 
 

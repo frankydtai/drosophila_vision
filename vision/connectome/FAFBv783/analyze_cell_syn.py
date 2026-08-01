@@ -1,20 +1,20 @@
 """
 For the connectome ``network.json`` files under this folder (built by
 ``4_build_network.py`` and stored in e.g. ``left_min_neuron1/network.json``),
-tabulate the synaptic partners of one or more *cell types*.
+tabulate the synaptic partners of one or more *cells*.
 
-By default (incoming / ``pre``) each CELL_TYPE is treated as the postsynaptic
-``target_type`` and broken down by presynaptic ``source_type``. With ``--post``
-(outgoing) each CELL_TYPE is treated as the presynaptic ``source_type`` and broken
-down by postsynaptic ``target_type``.
+By default (incoming / ``pre``) each CELL is treated as the postsynaptic
+``target_cell`` and broken down by presynaptic ``source_cell``. With ``--post``
+(outgoing) each CELL is treated as the presynaptic ``source_cell`` and broken
+down by postsynaptic ``target_cell``.
 
-A CELL_TYPE token may be a cell type (e.g. ``Mi1``); a *family* when prefixed with
-``:`` (e.g. ``:Centrifugal``) which aggregates over all its member types; or a single
+A CELL token may be a cell (e.g. ``Mi1``); a *family* when prefixed with
+``:`` (e.g. ``:Centrifugal``) which aggregates over all its member cells; or a single
 neuron when prefixed with ``@`` (e.g. ``@720575940622041087``) selected by FlyWire
-root id. The breakdown column still shows individual ``source_type``/``target_type``
+root id. The breakdown column still shows individual ``source_cell``/``target_cell``
 unless ``--family`` is given.
 
-Optionally restrict to CELL_TYPE *instances* by location: axial ``(u, v)`` with
+Optionally restrict to CELL *instances* by location: axial ``(u, v)`` with
 ``--u`` and/or ``--v`` (one axis for every column on that line, or both for a single
 column); hex-step ``(x, y)`` with ``--x`` and/or ``--y``; or the central hex disc
 ``--extent N`` (0 = centre column, 1 = 7 columns, 2 = 19, …; uses
@@ -22,13 +22,13 @@ column); hex-step ``(x, y)`` with ``--x`` and/or ``--y``; or the central hex dis
 column, 1 = 6 columns, 2 = 12, …; uses ``build_hex.hex_radius``). Both are
 FAFB-only and show mean ``pre_d_xy``/``post_d_xy`` only.
 
-Per (cell_type, partner_type): sum ``n_syn`` where ``sign > 0`` vs ``sign < 0``,
-then express each as a percentage of **all** ``n_syn`` for that cell type. An
+Per (cell, partner_cell): sum ``n_syn`` where ``sign > 0`` vs ``sign < 0``,
+then express each as a percentage of **all** ``n_syn`` for that cell. An
 ``n_neuron`` column is always shown. The TOTAL row omits the coord columns.
 
 The ``network.json`` schema is ``{"metadata", "nodes", "edges"}`` where each node is
 ``{"id", "name", "u", "v", "column_id", "input", "output"}`` and each edge is
-``{"src", "tar", "sign", "n_syn", "source_type", "target_type", "du", "dv"}``.
+``{"src", "tar", "sign", "n_syn", "source_cell", "target_cell", "du", "dv"}``.
 
 Example::
 
@@ -71,11 +71,11 @@ from build_hex import (
     uv_to_xy,
     xy_to_uv,
 )
+from import_bootstrap import parse_comma_list
 from path import (
     DEFAULT_NETWORK_RUN,
-    parse_comma_list,
     resolve_network_json,
-    resolve_type_counts_abc_path,
+    resolve_cell_counts_abc_path,
 )
 
 logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
@@ -84,70 +84,68 @@ logger = logging.getLogger(__name__)
 _MAX_PARTNER_LIST = 5
 
 
-def _hex_disc_column_count(extent: int) -> int:
+def _hex_disc_count(extent: int) -> int:
     """Hex cells in a disc of axial radius ``extent`` (0 -> 1, 1 -> 7, 2 -> 19, …)."""
     return 3 * extent * (extent + 1) + 1
 
 
-def _shell_column_count(shell: int) -> int:
+def _shell_hex_count(shell: int) -> int:
     """Hex cells on shell ``shell`` (0 -> 1, 1 -> 6, 2 -> 12, …)."""
     return 1 if shell == 0 else 6 * shell
 
 
-def _load_type_to_family(json_path: Path) -> Dict[str, str]:
-    """Map cell ``type`` -> ``family`` from ``type_counts_abc.csv`` for this network."""
-    csv_path = resolve_type_counts_abc_path(json_path)
+def _load_cell_to_family(json_path: Path) -> Dict[str, str]:
+    """Map cell -> ``family`` from ``cell_counts_abc.csv`` for this network."""
+    csv_path = resolve_cell_counts_abc_path(json_path)
     out: Dict[str, str] = {}
     if not csv_path.is_file():
-        logger.warning("No type_counts_abc.csv at %s; family names won't resolve", csv_path)
+        logger.warning("No cell_counts_abc.csv at %s; family names won't resolve", csv_path)
         return out
     import csv
 
     with csv_path.open(newline="") as f:
         for row in csv.DictReader(f):
-            t = row.get("type")
+            t = row.get("cell")
             fam = row.get("family")
             if t:
                 out[t] = fam if fam else t
     return out
 
 
-
-
 def resolve_query_labels(
-    tokens: List[str], type_to_family: Dict[str, str]
+    tokens: List[str], cell_to_family: Dict[str, str]
 ) -> Tuple[List[str], Dict[str, Set[str]], Dict[int, Set[str]]]:
-    """Resolve queried tokens to (ordered labels, self_type -> labels, self_id -> labels).
+    """Resolve queried tokens to (ordered labels, self_cell -> labels, self_id -> labels).
 
     Token prefixes:
-      - ``:Family`` aggregates over every member type of that family.
+      - ``:Family`` aggregates over every member cell of that family.
       - ``@<root_id>`` selects a single neuron by FlyWire root id.
-      - anything else is a literal cell type.
+      - anything else is a literal cell.
     The label shown in the output is the token as typed (e.g. ``:Centrifugal``,
     ``@720575940622041087``).
     """
-    family_to_types: DefaultDict[str, List[str]] = defaultdict(list)
-    for t, fam in type_to_family.items():
-        family_to_types[fam].append(t)
+    family_to_cells: DefaultDict[str, List[str]] = defaultdict(list)
+    for t, fam in cell_to_family.items():
+        family_to_cells[fam].append(t)
     labels: List[str] = list(dict.fromkeys(tokens))
-    self_type_to_labels: DefaultDict[str, Set[str]] = defaultdict(set)
+    self_cell_to_labels: DefaultDict[str, Set[str]] = defaultdict(set)
     self_id_to_labels: DefaultDict[int, Set[str]] = defaultdict(set)
     for tok in labels:
         if tok.startswith(":"):
             fam = tok[1:]
-            members = family_to_types.get(fam, [])
+            members = family_to_cells.get(fam, [])
             if not members:
-                logger.warning("Family %r not found in type_counts_abc.csv", fam)
+                logger.warning("Family %r not found in cell_counts_abc.csv", fam)
             for t in members:
-                self_type_to_labels[t].add(tok)
+                self_cell_to_labels[t].add(tok)
         elif tok.startswith("@"):
             try:
                 self_id_to_labels[int(tok[1:])].add(tok)
             except ValueError:
                 logger.warning("Invalid root id token %r (expected @<int>)", tok)
         else:
-            self_type_to_labels[tok].add(tok)
-    return labels, dict(self_type_to_labels), dict(self_id_to_labels)
+            self_cell_to_labels[tok].add(tok)
+    return labels, dict(self_cell_to_labels), dict(self_id_to_labels)
 
 
 def _format_scalar_for_table(z: float) -> str:
@@ -271,20 +269,20 @@ def _self_node_origin(
 def _mean_self_origin(
     label: str,
     nodes: List[dict],
-    self_type_to_labels: Dict[str, Set[str]],
+    self_cell_to_labels: Dict[str, Set[str]],
     ids_at_hex: Optional[Dict[str, Set[int]]],
     *,
     float_coords: bool
 ) -> Tuple[Optional[Tuple[float, float]], Optional[Tuple[float, float]]]:
     """Mean self centre: FAFB ``(u,v)``/``(x,y)``."""
-    self_types = {t for t, labs in self_type_to_labels.items() if label in labs}
-    if not self_types:
+    self_cells = {t for t, labs in self_cell_to_labels.items() if label in labs}
+    if not self_cells:
         return None, None
     uvs: List[Tuple[float, float]] = []
     xys: List[Tuple[float, float]] = []
     for n in nodes:
         name = n.get("name")
-        if not isinstance(name, str) or name not in self_types:
+        if not isinstance(name, str) or name not in self_cells:
             continue
         try:
             nid = int(n["id"])
@@ -311,7 +309,7 @@ def _mean_self_origin(
 def _label_origins(
     label: str,
     nodes: List[dict],
-    self_type_to_labels: Dict[str, Set[str]],
+    self_cell_to_labels: Dict[str, Set[str]],
     ids_at_hex: Optional[Dict[str, Set[int]]],
     at_ref_uv: Optional[Tuple[float, float]],
     at_ref_xy: Optional[Tuple[float, float]],
@@ -335,7 +333,7 @@ def _label_origins(
         mean_uv, mean_xy = _mean_self_origin(
             label,
             nodes,
-            self_type_to_labels,
+            self_cell_to_labels,
             ids_at_hex,
             float_coords=float_coords,
            
@@ -370,7 +368,7 @@ def _instance_ids_on_uv_line(
     at_u: Optional[int] = None,
     at_v: Optional[int] = None,
 ) -> Dict[str, Set[int]]:
-    """Map cell type -> root ids on a hex ``u`` and/or ``v`` line (FAFB)."""
+    """Map cell -> root ids on a hex ``u`` and/or ``v`` line (FAFB)."""
     out: Dict[str, Set[int]] = {}
     for n in nodes:
         try:
@@ -395,12 +393,12 @@ def _instance_ids_on_uv_line(
 def instance_ids_at_hex(
     nodes: List[dict], u: int, v: int
 ) -> Dict[str, Set[int]]:
-    """Map cell type (node ``name``) -> FlyWire root ids at hex (u, v)."""
+    """Map cell (node ``name``) -> FlyWire root ids at hex (u, v)."""
     return _instance_ids_on_uv_line(nodes, at_u=u, at_v=v)
 
 
 def _instance_ids_in_disc(nodes: List[dict], extent: int) -> Dict[str, Set[int]]:
-    """Map cell type -> root ids inside the central hex disc of radius ``extent``."""
+    """Map cell -> root ids inside the central hex disc of radius ``extent``."""
     out: Dict[str, Set[int]] = {}
     for n in nodes:
         try:
@@ -421,7 +419,7 @@ def _instance_ids_in_disc(nodes: List[dict], extent: int) -> Dict[str, Set[int]]
 
 
 def _instance_ids_on_shell(nodes: List[dict], shell: int) -> Dict[str, Set[int]]:
-    """Map cell type -> root ids on hex shell ``shell`` (exact distance from origin)."""
+    """Map cell -> root ids on hex shell ``shell`` (exact distance from origin)."""
     out: Dict[str, Set[int]] = {}
     for n in nodes:
         try:
@@ -453,13 +451,13 @@ def _edge_sign(e: dict) -> float:
 def accumulate_all(
     edges: List[dict],
     labels: List[str],
-    self_type_to_labels: Dict[str, Set[str]],
+    self_cell_to_labels: Dict[str, Set[str]],
     id_to_uv: Dict[int, _UvCoord],
     *,
     id_to_xy: Optional[Dict[int, Tuple[float, float]]] = None,
     ids_at_hex: Optional[Dict[str, Set[int]]] = None,
     direction: str = "pre",
-    type_to_family: Optional[Dict[str, str]] = None,
+    cell_to_family: Optional[Dict[str, str]] = None,
     self_id_to_labels: Optional[Dict[int, Set[str]]] = None,
 ) -> Dict[
     str,
@@ -474,15 +472,15 @@ def accumulate_all(
 ]:
     """One pass over edges: per queried label, (per partner type syn+/syn-, total n_syn).
 
-    ``labels`` is the ordered list of queried tokens (a cell type, a family entered as
-    ``:Family``, or a single neuron entered as ``@<root_id>``). ``self_type_to_labels``
-    maps each *self* cell type to its label(s); ``self_id_to_labels`` maps a *self* root
-    id to its label(s). A family label aggregates over all its member types.
+    ``labels`` is the ordered list of queried tokens (a cell, a family entered as
+    ``:Family``, or a single neuron entered as ``@<root_id>``). ``self_cell_to_labels``
+    maps each *self* cell to its label(s); ``self_id_to_labels`` maps a *self* root
+    id to its label(s). A family label aggregates over all its member cells.
 
     ``direction="pre"`` (default): query each label as the **postsynaptic** side
-    (``target_type``) and break down by presynaptic ``source_type`` (incoming).
-    ``direction="post"``: query each label as the **presynaptic** side (``source_type``)
-    and break down by postsynaptic ``target_type`` (outgoing).
+    (``target_cell``) and break down by presynaptic ``source_cell`` (incoming).
+    ``direction="post"``: query each label as the **presynaptic** side (``source_cell``)
+    and break down by postsynaptic ``target_cell`` (outgoing).
 
     If ``ids_at_hex`` is set, only edges whose *self* instance id (``tar`` for ``pre``,
     ``src`` for ``post``) sits at the chosen hex are counted. The third return value
@@ -490,10 +488,10 @@ def accumulate_all(
     partner type -> distinct partner ``(u,v)`` centres.
     """
     if direction == "post":
-        self_type_field, partner_type_field = "source_type", "target_type"
+        self_cell_field, partner_cell_field = "source_cell", "target_cell"
         self_id_field, partner_id_field = "src", "tar"
     else:
-        self_type_field, partner_type_field = "target_type", "source_type"
+        self_cell_field, partner_cell_field = "target_cell", "source_cell"
         self_id_field, partner_id_field = "tar", "src"
 
     by_cell: Dict[str, DefaultDict[str, Dict[str, float]]] = {
@@ -512,7 +510,7 @@ def accumulate_all(
     }
     self_ids: Dict[str, Set[int]] = {p: set() for p in labels}
     for e in edges:
-        stype = e.get(self_type_field)
+        stype = e.get(self_cell_field)
         self_id_raw = e.get(self_id_field)
         try:
             self_id_int: Optional[int] = int(self_id_raw)
@@ -520,7 +518,7 @@ def accumulate_all(
             self_id_int = None
 
         cell_labels: Set[str] = set()
-        type_labels = self_type_to_labels.get(stype)
+        type_labels = self_cell_to_labels.get(stype)
         if type_labels:
             cell_labels |= type_labels
         if self_id_to_labels and self_id_int is not None:
@@ -533,9 +531,9 @@ def accumulate_all(
             allowed = ids_at_hex.get(stype, set())
             if not allowed or self_id_int is None or self_id_int not in allowed:
                 continue
-        pt = e.get(partner_type_field) or "?"
-        if type_to_family is not None:
-            pt = type_to_family.get(pt, pt)
+        pt = e.get(partner_cell_field) or "?"
+        if cell_to_family is not None:
+            pt = cell_to_family.get(pt, pt)
         a = _edge_sign(e)
         ns = float(e.get("n_syn", 0))
         partner = e.get(partner_id_field)
@@ -583,11 +581,11 @@ def accumulate_all(
 def query_partner_syn(
     nodes: List[dict],
     edges: List[dict],
-    cell_types: List[str],
+    cells: List[str],
     *,
     direction: str = "pre",
     ids_at_hex: Optional[Dict[str, Set[int]]] = None,
-    type_to_family: Optional[Dict[str, str]] = None,
+    cell_to_family: Optional[Dict[str, str]] = None,
 ) -> Dict[
     str,
     Tuple[
@@ -599,15 +597,15 @@ def query_partner_syn(
         int,
     ],
 ]:
-    """Resolve ``cell_types`` and return ``accumulate_all`` partner syn stats (no print)."""
-    fam = type_to_family if type_to_family is not None else {}
-    labels, self_type_to_labels, self_id_to_labels = resolve_query_labels(
-        list(cell_types), fam
+    """Resolve ``cells`` and return ``accumulate_all`` partner syn stats (no print)."""
+    fam = cell_to_family if cell_to_family is not None else {}
+    labels, self_cell_to_labels, self_id_to_labels = resolve_query_labels(
+        list(cells), fam
     )
     return accumulate_all(
         edges,
         labels,
-        self_type_to_labels,
+        self_cell_to_labels,
         node_id_to_uv(nodes, float_coords=False),
         ids_at_hex=ids_at_hex,
         direction=direction,
@@ -616,7 +614,7 @@ def query_partner_syn(
 
 
 def print_table(
-    cell_type: str,
+    cell: str,
     by_partner: DefaultDict[str, Dict[str, float]],
     total_syn: float,
     n_partner_by_type: Dict[str, int],
@@ -636,8 +634,8 @@ def print_table(
     alpha_by_partner: Optional[Dict[str, str]] = None,
     after_title: Optional[str] = None,
 ) -> None:
-    partner_dim = "family" if use_family else "type"
-    self_dim = "id" if cell_type.startswith("@") else "type"
+    partner_dim = "family" if use_family else "cell"
+    self_dim = "id" if cell.startswith("@") else "cell"
     if direction == "post":
         side = "post"
         self_field, partner_field = f"source_{self_dim}", f"target_{partner_dim}"
@@ -666,7 +664,7 @@ def print_table(
     rows: List[List[str]] = []
     sum_p = sum_m = 0.0
     if total_syn <= 0:
-        logger.warning("No n_syn for %s=%s", self_field, cell_type)
+        logger.warning("No n_syn for %s=%s", self_field, cell)
     else:
         for pt in sorted(by_partner):
             d = by_partner[pt]
@@ -716,18 +714,18 @@ def print_table(
     total_row += [""] * (int(show_uv) + int(show_d_xy) + int(show_xy))
 
     all_rows = [header] + rows + [total_row]
-    n_cols = len(header)
-    widths = [max(len(r[c]) for r in all_rows) for c in range(n_cols)]
+    n_hexes = len(header)
+    widths = [max(len(r[c]) for r in all_rows) for c in range(n_hexes)]
 
     def _fmt(row: List[str]) -> str:
         cells = [row[0].ljust(widths[0])]
-        cells += [row[c].rjust(widths[c]) for c in range(1, n_cols)]
+        cells += [row[c].rjust(widths[c]) for c in range(1, n_hexes)]
         return "  ".join(cells).rstrip()
 
     n_count_label = "n_source" if direction == "post" else "n_target"
     title = (
-        f"{self_field} = {cell_type}  |  {n_count_label} = {n_self}  |  "
-        f"all n_syn {flow_word} {cell_type}{hex_note} = {total_syn:.1f}"
+        f"{self_field} = {cell}  |  {n_count_label} = {n_self}  |  "
+        f"all n_syn {flow_word} {cell}{hex_note} = {total_syn:.1f}"
     )
     sep = "=" * max(60, len(title))
     print(sep)
@@ -753,7 +751,7 @@ def instance_ids_on_xy_line(
     at_y: Optional[float] = None,
     tol: float = 1e-6,
 ) -> Dict[str, Set[int]]:
-    """Map cell type -> root ids on a hex-step ``x`` and/or ``y`` line (FAFB)."""
+    """Map cell -> root ids on a hex-step ``x`` and/or ``y`` line (FAFB)."""
     out: Dict[str, Set[int]] = {}
     for n in nodes:
         centers = _node_centers(n, float_coords=False)
@@ -817,7 +815,7 @@ def resolve_xy_instance_ids(
         )
         logger.info(
             "Restricting to instances at (x,y)=(%s,%s) (u,v)=(%s,%s); "
-            "%d cell types have ≥1 node there",
+            "%d cells have ≥1 node there",
             _format_scalar_for_table(at_ref_xy[0]),
             _format_scalar_for_table(at_ref_xy[1]),
             hu,
@@ -836,7 +834,7 @@ def resolve_xy_instance_ids(
         parts.append(f"y={_format_scalar_for_table(at_y)}")
     hex_note = " at " + ", ".join(parts)
     logger.info(
-        "Restricting to instances on %s; %d cell types have ≥1 node there",
+        "Restricting to instances on %s; %d cells have ≥1 node there",
         ", ".join(parts),
         sum(1 for s in ids_at_hex.values() if s),
     )
@@ -845,17 +843,17 @@ def resolve_xy_instance_ids(
 
 def main(argv: List[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
-        description="Synapse mix between a cell type and its synaptic partners from a connectome network.json."
+        description="Synapse mix between a cell and its synaptic partners from a connectome network.json."
     )
     parser.add_argument(
-        "cell_types",
+        "cells",
         nargs="?",
         default="L1",
-        metavar="CELL_TYPE[,CELL_TYPE...]",
+        metavar="CELL[,CELL...]",
         help=(
-            "Comma-separated cell types to query (e.g. T4a,T4b,T4c or Mi1). "
+            "Comma-separated cells to query (e.g. T4a,T4b,T4c or Mi1). "
             "Prefix with : for a family "
-            "(e.g. :Centrifugal) to aggregate its member types, or @ for a single "
+            "(e.g. :Centrifugal) to aggregate its member cells, or @ for a single "
             "neuron by root id (e.g. @720575940622041087). Default: L1 if omitted"
         ),
     )
@@ -863,9 +861,9 @@ def main(argv: List[str] | None = None) -> int:
         "--post",
         action="store_true",
         help=(
-            "Find outgoing (postsynaptic) connections: treat CELL_TYPE as presynaptic "
-            "source_type and break down by target_type. Default is incoming "
-            "(presynaptic) connections onto CELL_TYPE."
+            "Find outgoing (postsynaptic) connections: treat CELL as presynaptic "
+            "source_cell and break down by target_cell. Default is incoming "
+            "(presynaptic) connections onto CELL."
         ),
     )
     parser.add_argument(
@@ -873,7 +871,7 @@ def main(argv: List[str] | None = None) -> int:
         action="store_true",
         help=(
             "Break down partners by source_family/target_family instead of "
-            "source_type/target_type (family from type_counts_abc.csv)."
+            "source_cell/target_cell (family from cell_counts_abc.csv)."
         ),
     )
     parser.add_argument(
@@ -928,7 +926,7 @@ def main(argv: List[str] | None = None) -> int:
         metavar="N",
         default=None,
         help=(
-            "FAFB only: restrict to CELL_TYPE instances in the central hex disc of "
+            "FAFB only: restrict to CELL instances in the central hex disc of "
             "radius N (0 = centre column, 1 = 7 columns, 2 = 19, …; "
             "build_hex.inside_mask). Shows mean pre_d_xy/post_d_xy only. "
             "Incompatible with --shell, --u/--v, and --x/--y."
@@ -940,7 +938,7 @@ def main(argv: List[str] | None = None) -> int:
         metavar="N",
         default=None,
         help=(
-            "FAFB only: restrict to CELL_TYPE instances on hex shell N "
+            "FAFB only: restrict to CELL instances on hex shell N "
             "(0 = centre column, 1 = 6 columns, 2 = 12, …; "
             "build_hex.hex_radius). Shows mean pre_d_xy/post_d_xy only. "
             "Incompatible with --extent, --u/--v, and --x/--y."
@@ -1015,7 +1013,7 @@ def main(argv: List[str] | None = None) -> int:
         logger.error("Invalid JSON: missing nodes list")
         return 1
 
-    type_to_family_all = _load_type_to_family(json_path)
+    cell_to_family_all = _load_cell_to_family(json_path)
 
     ids_at_hex: Optional[Dict[str, Set[int]]] = None
     hex_note = ""
@@ -1024,22 +1022,22 @@ def main(argv: List[str] | None = None) -> int:
 
     if args.extent is not None:
         ids_at_hex = _instance_ids_in_disc(nodes, args.extent)
-        n_hex = _hex_disc_column_count(args.extent)
+        n_hex = _hex_disc_count(args.extent)
         hex_note += f" extent={args.extent} ({n_hex} hex cols)"
         logger.info(
-            "Restricting to central hex disc extent=%d (%d hex columns); "
-            "%d cell types have ≥1 node there",
+            "Restricting to central hex disc extent=%d (%d hexes); "
+            "%d cells have ≥1 node there",
             args.extent,
             n_hex,
             sum(1 for s in ids_at_hex.values() if s),
         )
     elif args.shell is not None:
         ids_at_hex = _instance_ids_on_shell(nodes, args.shell)
-        n_hex = _shell_column_count(args.shell)
+        n_hex = _shell_hex_count(args.shell)
         hex_note += f" shell={args.shell} ({n_hex} hex cols)"
         logger.info(
-            "Restricting to hex shell=%d (%d hex columns); "
-            "%d cell types have ≥1 node there",
+            "Restricting to hex shell=%d (%d hexes); "
+            "%d cells have ≥1 node there",
             args.shell,
             n_hex,
             sum(1 for s in ids_at_hex.values() if s),
@@ -1058,7 +1056,7 @@ def main(argv: List[str] | None = None) -> int:
             )
             logger.info(
                 "Restricting to instances at (u,v)=(%s,%s) "
-                "(x,y)=(%s,%s); %d cell types have ≥1 node there",
+                "(x,y)=(%s,%s); %d cells have ≥1 node there",
                 hu,
                 hv,
                 _format_scalar_for_table(hx),
@@ -1077,7 +1075,7 @@ def main(argv: List[str] | None = None) -> int:
                 parts.append(f"v={at_v}")
             hex_note += " at " + ", ".join(parts)
             logger.info(
-                "Restricting to instances on %s; %d cell types have ≥1 node there",
+                "Restricting to instances on %s; %d cells have ≥1 node there",
                 ", ".join(parts),
                 sum(1 for s in ids_at_hex.values() if s),
             )
@@ -1097,11 +1095,11 @@ def main(argv: List[str] | None = None) -> int:
         show_partner_uv, show_partner_d_xy = False, True
     mean_partner_delta = not single_uv_hex and not single_xy_column
 
-    partner_type_to_family = type_to_family_all if args.family else None
+    partner_cell_to_family = cell_to_family_all if args.family else None
 
-    cell_types = parse_comma_list(args.cell_types)
-    labels, self_type_to_labels, self_id_to_labels = resolve_query_labels(
-        cell_types, type_to_family_all
+    cells = parse_comma_list(args.cells)
+    labels, self_cell_to_labels, self_id_to_labels = resolve_query_labels(
+        cells, cell_to_family_all
     )
 
     # Partner delta coords: always collected; reference is --at centre or mean self location.
@@ -1110,12 +1108,12 @@ def main(argv: List[str] | None = None) -> int:
     acc = accumulate_all(
         edges,
         labels,
-        self_type_to_labels,
+        self_cell_to_labels,
         id_to_uv,
         id_to_xy=id_to_xy,
         ids_at_hex=ids_at_hex,
         direction=direction,
-        type_to_family=partner_type_to_family,
+        cell_to_family=partner_cell_to_family,
         self_id_to_labels=self_id_to_labels,
     )
     for label in labels:
@@ -1123,7 +1121,7 @@ def main(argv: List[str] | None = None) -> int:
         label_origin_uv, label_origin_xy = _label_origins(
             label,
             nodes,
-            self_type_to_labels,
+            self_cell_to_labels,
             ids_at_hex,
             at_ref_uv,
             at_ref_xy,

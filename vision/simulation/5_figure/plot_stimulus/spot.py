@@ -1,9 +1,9 @@
-"""Visualise multi-spot center tiling on a connectome column field.
+"""Visualise multi-spot center tiling on a connectome hex field.
 
 Marks spot centers (crimson) and draws each spot's axial-extent hex
 (straight edges through ``(spot_extent + 0.5) * _HEX_DIRECTIONS``, via
 ``uv_to_xy_deg`` — not a Euclidean RegularPolygon) on
-:func:`build_hex.draw_fafb_columns` for network columns only.
+:func:`build_hex.draw_fafb_columns` for network hexes only.
 Spot centers from :func:`task.spot.input.build_spot`.
 
 Usage (from simulation/, project .venv):
@@ -54,13 +54,13 @@ from training.defaults import (
     SPOT_EXTENTS,
     SYN_MODE,
 )
-from training.target_pack import SIM_DTYPE
+from training.readout_pack import SIM_DTYPE
 from task.spot.input import (
     build_spot,
     spot_dist,
     spot_extent_half_steps,
 )
-from path import parse_comma_list
+from import_bootstrap import parse_comma_list
 from training.driver import add_spot_layout_arguments
 
 _SPOT_EXTENTS_CLI_DEFAULT = ",".join(
@@ -72,7 +72,7 @@ def _default_output(network_path: str, meta: dict) -> str:
     return os.path.join(PLOT_DIR, f"plotted_multi_spot_{network_run_tag(network_path, meta)}.png")
 
 
-def _network_columns_df(C: Network) -> pd.DataFrame:
+def _network_hexes_df(C: Network) -> pd.DataFrame:
     """One row per unique ``(u, v)`` on connectome ``C``."""
     uv = sorted({(int(u), int(v)) for u, v in zip(C.u, C.v)})
     return pd.DataFrame({"column_id": -1, "u": [u for u, _ in uv], "v": [v for _, v in uv]})
@@ -112,7 +112,7 @@ def main() -> None:
         "--network",
         type=str,
         default=DEFAULT_NETWORK_RUN,
-        help=f"built_networks run folder name (default: {DEFAULT_NETWORK_RUN})",
+        help=f"4_built_networks run folder name (default: {DEFAULT_NETWORK_RUN})",
     )
     parser.add_argument(
         "--spot-extents",
@@ -147,8 +147,8 @@ def main() -> None:
     output = args.output or _default_output(network_json, C.meta)
 
     os.makedirs(os.path.dirname(os.path.abspath(output)), exist_ok=True)
-    df_columns = _network_columns_df(C)
-    x_deg, y_deg = uv_to_xy_deg(df_columns["u"].values, df_columns["v"].values)
+    df_hexes = _network_hexes_df(C)
+    x_deg, y_deg = uv_to_xy_deg(df_hexes["u"].values, df_hexes["v"].values)
     x0, y0, x1, y1 = field_bounds_centers(x_deg, y_deg)
     pad = FIELD_VIEW_PAD_DEG
     xlim = (x0 - pad, x1 + pad)
@@ -159,7 +159,7 @@ def main() -> None:
     axes_flat = np.atleast_1d(axes).ravel()
     counts = {}
     for ax, spot_extent in zip(axes_flat, spot_extents):
-        draw_fafb_columns(ax, df_columns, hex_radius_px=HEX_PATCH_RADIUS, label=False)
+        draw_fafb_columns(ax, df_hexes, hex_radius_px=HEX_PATCH_RADIUS, label=False)
         centers = build_spot(
             C,
             spot_extent=spot_extent,

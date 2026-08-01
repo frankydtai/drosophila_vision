@@ -1,9 +1,9 @@
 """Shared I/O for the FAFB connectome build: paths and raw-CSV readers.
 
 This is the one place that knows where the raw FAFB files live and how to read
-them. ``4_build_network.py``, ``2_build_hex.py`` and ``3_assign_column.py`` all
-import from here (they never import each other), so the path constants and the
-three CSV loaders are defined exactly once.
+them. ``4_build_network.py``, ``2_build_hex.py``, ``3_assign_column.py`` and
+``5_add_extent.py`` all import from here (they never import each other for I/O),
+so the path constants and the three CSV loaders are defined exactly once.
 """
 
 from __future__ import annotations
@@ -21,18 +21,14 @@ logger = logging.getLogger(__name__)
 DATA_DIR = Path(__file__).resolve().parent
 DOWNLOADS_DIR = DATA_DIR / "downloads"
 # Per-run network folders (<side>_min_neuron<N>/ etc.) live under here.
-BUILT_NETWORKS_DIR = DATA_DIR / "built_networks"
-DEFAULT_NETWORK_RUN = "right_min_neuron1_extent10"
+BUILT_NETWORKS_DIR = DATA_DIR / "4_built_networks"
+DEFAULT_NETWORK_RUN = "right_min_neuron1"
 # Hex/column-map artifacts (per-side column tables + the column_map.png) live here.
-BUILT_HEX_DIR = DATA_DIR / "built_hex"
+BUILT_HEX_DIR = DATA_DIR / "2_built_hex"
 # Assigned-column CSVs (r1_6_<side>_post.csv etc., from 3_assign_column.py) live here.
-ASSIGNED_COLUMNS_DIR = DATA_DIR / "assigned_columns"
-# Per-network moving-bar column-current cache (under each built_networks run folder).
+ASSIGNED_COLUMNS_DIR = DATA_DIR / "3_assigned_columns"
+# Per-network moving-bar column-current cache (under each 4_built_networks run folder).
 MOVING_BAR_CACHE_DIRNAME = "moving_bar_cache"
-
-def parse_comma_list(text: str) -> List[str]:
-    """Split a comma-separated token list (empty string → ``[]``)."""
-    return [t.strip() for t in str(text or "").split(",") if t.strip()]
 
 
 def network_json_path(side: str, min_neuron_count: int = 1) -> Path:
@@ -40,12 +36,12 @@ def network_json_path(side: str, min_neuron_count: int = 1) -> Path:
     return BUILT_NETWORKS_DIR / f"{side}_min_neuron{min_neuron_count}" / "network.json"
 
 
-TYPE_COUNTS_ABC_FILE = "type_counts_abc.csv"
-TYPE_COUNTS_ABC_BASE_RUN = "right_min_neuron1"
+CELL_COUNTS_ABC_FILE = "cell_counts_abc.csv"
+CELL_COUNTS_ABC_BASE_RUN = "right_min_neuron1"
 
 
 def resolve_network_json(spec: str) -> Path:
-    """Resolve ``built_networks/<run_name>/network.json`` or an explicit path.
+    """Resolve ``4_built_networks/<run_name>/network.json`` or an explicit path.
 
     * Run name (e.g. ``right_min_neuron1``) → ``BUILT_NETWORKS_DIR/<run_name>/network.json``
     * Directory path → ``<dir>/network.json``
@@ -71,17 +67,17 @@ def network_run_tag(network_path: str, meta: dict) -> str:
     return side
 
 
-def type_counts_abc_path(network_json: Path) -> Path:
-    """``type_counts_abc.csv`` next to a built ``network.json``."""
-    return Path(network_json).resolve().parent / TYPE_COUNTS_ABC_FILE
+def cell_counts_abc_path(network_json: Path) -> Path:
+    """``cell_counts_abc.csv`` next to a built ``network.json``."""
+    return Path(network_json).resolve().parent / CELL_COUNTS_ABC_FILE
 
 
-def resolve_type_counts_abc_path(network_json: Path) -> Path:
-    """``type_counts_abc.csv`` for family lookup (extent runs share the base table)."""
+def resolve_cell_counts_abc_path(network_json: Path) -> Path:
+    """``cell_counts_abc.csv`` for family lookup (extent runs share the base table)."""
     net = Path(network_json).resolve()
     if re.search(r"_extent\d+$", net.parent.name):
-        return BUILT_NETWORKS_DIR / TYPE_COUNTS_ABC_BASE_RUN / TYPE_COUNTS_ABC_FILE
-    return type_counts_abc_path(network_json)
+        return BUILT_NETWORKS_DIR / CELL_COUNTS_ABC_BASE_RUN / CELL_COUNTS_ABC_FILE
+    return cell_counts_abc_path(network_json)
 
 
 def moving_bar_cache_dir(network_json: Path) -> Path:
@@ -111,16 +107,29 @@ def load_column_map(side: str) -> pd.DataFrame:
     return pd.read_csv(column_map_path(side))
 
 
+def _rename_download_cell_col(df: pd.DataFrame) -> pd.DataFrame:
+    """Map FlyWire download column ``type`` → canonical ``cell``."""
+    if "cell" in df.columns:
+        return df
+    if "type" not in df.columns:
+        raise KeyError("download table needs a cell column (FlyWire name: type)")
+    return df.rename(columns={"type": "cell"})
+
+
 def load_visual_neurons() -> pd.DataFrame:
-    """visual_neuron_types: root_id, type, family, subsystem, category, side."""
-    df = pd.read_csv(DOWNLOADS_DIR / VISUAL_NEURON_TYPES_FILE, compression="gzip")
-    logger.info("Loaded %d visual neurons, %d types", len(df), df["type"].nunique())
+    """visual_neuron_types download: root_id, cell, family, subsystem, category, side."""
+    df = _rename_download_cell_col(
+        pd.read_csv(DOWNLOADS_DIR / VISUAL_NEURON_TYPES_FILE, compression="gzip")
+    )
+    logger.info("Loaded %d visual neurons, %d cells", len(df), df["cell"].nunique())
     return df
 
 
 def load_column_assignments() -> pd.DataFrame:
-    """column_assignment: root_id, hemisphere, type, column_id, x, y, p, q."""
-    df = pd.read_csv(DOWNLOADS_DIR / COLUMN_ASSIGNMENT_FILE, compression="gzip")
+    """column_assignment download: root_id, hemisphere, cell, column_id, x, y, p, q."""
+    df = _rename_download_cell_col(
+        pd.read_csv(DOWNLOADS_DIR / COLUMN_ASSIGNMENT_FILE, compression="gzip")
+    )
     logger.info(
         "Loaded %d column assignments, %d columns", len(df), df["column_id"].nunique()
     )

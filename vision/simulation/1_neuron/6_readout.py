@@ -1,10 +1,10 @@
 # -*- coding: utf-8 -*-
-"""Pack readout selection: which units and which time samples from ``v_delta``.
+"""Pack readout selection: which nodes and which time samples from ``v_delta``.
 
 Owns the time-axis gather shared by the continuous moving-bar window
 (``cost_t0``) and the plain post-onset spot readout. Takes duck-typed
 ``pack`` objects and primitive tensors only -- it never imports
-``TargetPack`` or the session/training layer, so ``neuron`` stays below
+``ReadoutPack`` or the session/training layer, so ``neuron`` stays below
 ``training`` in the import graph.
 
 Sparse time-point subsampling (``cost_time_ix``) is applied at cost time in
@@ -24,14 +24,8 @@ def pack_trace_full(session, p, sig, pack):
 
 
 def pack_needs_waveform_mse(pack) -> bool:
-    """Spot always; moving-bar only when cost-window targets were built.
-
-    Encoded on the pack (``always_waveform_mse``) so ``neuron`` needs no
-    knowledge of which paradigm names are moving bars.
-    """
-    if getattr(pack, "always_waveform_mse", True):
-        return True
-    return pack.cost_t0 is not None
+    """Whether ``pack`` needs a waveform MSE readout (``pack.waveform_mse``)."""
+    return bool(pack.waveform_mse)
 
 
 def window_time_traces(trace_full, b_idx, u_idx, t0, win=None, *, t_onset=0):
@@ -54,12 +48,12 @@ def window_time_traces(trace_full, b_idx, u_idx, t0, win=None, *, t_onset=0):
 
 
 def readout_pack_traces(trace_full, pack):
-    """Select MSE traces for cost cells; windowed when ``pack.cost_t0`` is set."""
+    """Select MSE traces for cost nodes; windowed when ``pack.cost_t0`` is set."""
     pack_t_onset = int(pack.signal.shape[1] - pack.data.shape[1])
     if pack.cost_t0 is None:
-        return trace_full[pack.readout_batch, pack_t_onset:, pack.readout_unit]
+        return trace_full[pack.readout_batch, pack_t_onset:, pack.readout_node]
     return window_time_traces(
-        trace_full, pack.readout_batch, pack.readout_unit, pack.cost_t0,
+        trace_full, pack.readout_batch, pack.readout_node, pack.cost_t0,
         win=pack.data.shape[1], t_onset=pack_t_onset,
     )
 
@@ -71,12 +65,12 @@ def pack_readout(p, pack, session, batch_idx=None):
     need_mse = pack_needs_waveform_mse(pack)
     t_onset = int(pack.signal.shape[1] - pack.data.shape[1])
     if batch_idx is None:
-        dsi_sel = trace_full[pack.readout_batch, t_onset:, pack.readout_unit]
+        dsi_sel = trace_full[pack.readout_batch, t_onset:, pack.readout_node]
         if not need_mse:
             return None, dsi_sel
         return readout_pack_traces(trace_full, pack), dsi_sel
     mask = pack.readout_batch == int(batch_idx)
-    u_m = pack.readout_unit[mask]
+    u_m = pack.readout_node[mask]
     dsi_sel = trace_full[0, t_onset:, u_m].transpose(0, 1)
     if not need_mse:
         return None, dsi_sel

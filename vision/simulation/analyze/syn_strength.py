@@ -32,8 +32,8 @@ import analyze_cell_syn
 import training
 import figure.plot_run as plot_trained
 import training.driver as train_mod
-from path import parse_comma_list
-from network.connectivity import build_type_pair_index
+from import_bootstrap import parse_comma_list
+from network.connectivity import build_cell_pair_index
 from network.construction import read_network_json
 
 logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
@@ -76,11 +76,11 @@ def main(argv: list[str] | None = None) -> int:
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     ap.add_argument(
-        "cell_types",
+        "cells",
         nargs="?",
         default="L1",
-        metavar="CELL_TYPE[,CELL_TYPE...]",
-        help="comma-separated cell types (plain names only). Default: L1",
+        metavar="CELL[,CELL...]",
+        help="comma-separated cells (plain names only). Default: L1",
     )
     ap.add_argument(
         "--run",
@@ -91,8 +91,8 @@ def main(argv: list[str] | None = None) -> int:
         "--post",
         action="store_true",
         help=(
-            "outgoing: treat CELL_TYPE as source_type, break down by target_type. "
-            "Default is incoming onto CELL_TYPE."
+            "outgoing: treat CELL as source_cell, break down by target_cell. "
+            "Default is incoming onto CELL."
         ),
     )
     ap.add_argument(
@@ -111,11 +111,11 @@ def main(argv: list[str] | None = None) -> int:
     )
     args = ap.parse_args(argv)
 
-    tokens = parse_comma_list(args.cell_types)
+    tokens = parse_comma_list(args.cells)
     for tok in tokens:
         if tok.startswith(":") or tok.startswith("@"):
             raise SystemExit(
-                f"plain cell-type names only (got {tok!r}); "
+                f"plain cell names only (got {tok!r}); "
                 "use analyze_cell_syn.py for :family / @root_id"
             )
 
@@ -132,33 +132,33 @@ def main(argv: list[str] | None = None) -> int:
         raise SystemExit("train_opts.json missing network_json")
 
     try:
-        named, type_names_npz, pair_names = train_mod.load_best_param_named(outdir)
+        named, cell_names_npz, pair_names = train_mod.load_best_param_named(outdir)
     except FileNotFoundError as exc:
         raise SystemExit(str(exc)) from exc
 
     try:
-        nodes, edges, type_names, _meta = read_network_json(network_json)
+        nodes, edges, cell_names, _meta = read_network_json(network_json)
     except (OSError, ValueError) as exc:
         raise SystemExit(str(exc)) from exc
 
-    if list(type_names) != list(type_names_npz):
+    if list(cell_names) != list(cell_names_npz):
         raise SystemExit(
-            f"type_names mismatch: network.json vs best_param.npz "
-            f"({len(type_names)} vs {len(type_names_npz)})"
+            f"cell_names mismatch: network.json vs best_param.npz "
+            f"({len(cell_names)} vs {len(cell_names_npz)})"
         )
 
-    name_to_i = {n: i for i, n in enumerate(type_names)}
-    n_types = len(type_names)
+    name_to_i = {n: i for i, n in enumerate(cell_names)}
+    n_cells = len(cell_names)
     for tok in tokens:
         if tok not in name_to_i:
-            raise SystemExit(f"unknown cell type {tok!r}; known e.g. {type_names[:8]}...")
+            raise SystemExit(f"unknown cell {tok!r}; known e.g. {cell_names[:8]}...")
 
-    src_t = np.array([name_to_i[e["source_type"]] for e in edges], dtype=np.int64)
-    tar_t = np.array([name_to_i[e["target_type"]] for e in edges], dtype=np.int64)
-    _pair_idx, n_pairs, pair_keys = build_type_pair_index(src_t, tar_t, n_types)
+    src_t = np.array([name_to_i[e["source_cell"]] for e in edges], dtype=np.int64)
+    tar_t = np.array([name_to_i[e["target_cell"]] for e in edges], dtype=np.int64)
+    _pair_idx, n_pairs, pair_keys = build_cell_pair_index(src_t, tar_t, n_cells)
     key_to_i = {k: i for i, k in enumerate(pair_keys)}
     if pair_names is not None:
-        expected = [f"{type_names[s]}{training.PAIR_SEP}{type_names[t]}" for s, t in pair_keys]
+        expected = [f"{cell_names[s]}{training.PAIR_SEP}{cell_names[t]}" for s, t in pair_keys]
         if list(pair_names) != expected:
             raise SystemExit("pair_names in best_param.npz do not match network.json edges")
 

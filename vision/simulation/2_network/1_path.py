@@ -3,7 +3,7 @@
 The FAFB package lives under ``simulation/../connectome/FAFBv783``.
 Importing this module ensures ``vision/import_bootstrap`` is installed so
 simulation can ``import build_hex`` / ``path``. ``network.layout``
-(shared ``column_in_cost_extent``), the task paradigms, and the
+(shared ``hex_in_cost_extent``), the task paradigms, and the
 training/plot layers import this at module load.
 
 Disk path is ``simulation/2_network/1_path.py`` (sorted ``N_name``

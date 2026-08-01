@@ -145,9 +145,9 @@ def init_state(session, p, B):
     """``(u_on, u_off)``, ``v0 = e_leak``."""
     del p
     backend = session.backend
-    dev = backend.conn.node_type.device
+    dev = backend.conn.node_cell.device
     dtype = session.sim_dtype
-    n = backend.n_units
+    n = backend.n_nodes
     u_on = u_off = torch.zeros((B, n), dtype=dtype, device=dev)
     v = backend.e_leak.expand(B, n).clone()
     return (u_on, u_off), v

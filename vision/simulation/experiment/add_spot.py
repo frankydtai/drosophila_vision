@@ -10,8 +10,8 @@ os.chdir(ROOT)
 
 import import_bootstrap  # noqa: F401
 import training.driver as train
-from path import parse_comma_list
-from task.moving_bar.data import READOUT_SUBTYPES
+from import_bootstrap import parse_comma_list
+from task.moving_bar.data import GT_CELLS
 from run import run_mirror_spot_experiment
 
 SPOT_KINDS = ('r', 't45')
@@ -45,8 +45,8 @@ def mirror_fits(args):
     if 'r' in args.kind:
         fits.append({'mirror_types': ['R1-6', 'R7', 'R8'], 'mirror_fit': 'L1'})
     if 't45' in args.kind:
-        t4 = [n for n in READOUT_SUBTYPES if n.startswith('T4')]
-        t5 = [n for n in READOUT_SUBTYPES if n.startswith('T5')]
+        t4 = [n for n in GT_CELLS if n.startswith('T4')]
+        t5 = [n for n in GT_CELLS if n.startswith('T5')]
         fits.append({'mirror_types': t4, 'mirror_fit': 'L4'})
         fits.append({'mirror_types': t5, 'mirror_fit': 'L5'})
     return fits

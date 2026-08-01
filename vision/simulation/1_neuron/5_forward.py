@@ -47,7 +47,7 @@ def run_full(session, p, sig, *, return_v_onset=False, pack=None):
             f"expected one of {tuple(MODEL_DRIVERS)}"
         ) from exc
 
-    pack = pack or session.primary_pack
+    pack = pack or session.primary_readout
     x = drv.prepare_signal(session, p, sig, pack)
     B, t_end, _n = int(x.shape[0]), int(x.shape[1]), int(x.shape[2])
     t_onset = int(pack.signal.shape[1] - pack.data.shape[1])
@@ -79,13 +79,13 @@ def run_full(session, p, sig, *, return_v_onset=False, pack=None):
     return v_delta
 
 
-def run_units(
-    session, p, neuron_index=None, return_v_onset=False, sig=None, pack=None,
+def run_nodes(
+    session, p, node_index=None, return_v_onset=False, sig=None, pack=None,
 ):
-    """``run_full`` then index units; squeeze when ``sig`` is ``(T, N)``."""
-    pack = pack or session.primary_pack
-    if neuron_index is None:
-        neuron_index = pack.readout_unit
+    """``run_full`` then index nodes; squeeze when ``sig`` is ``(T, N)``."""
+    pack = pack or session.primary_readout
+    if node_index is None:
+        node_index = pack.readout_node
     if sig is None:
         sig = session.pack_signal(pack)
     squeeze = sig.dim() == 2
@@ -93,8 +93,8 @@ def run_units(
     out, v_onset, _v_full = run_full(
         session, p, sig_b, return_v_onset=True, pack=pack,
     )
-    out = out[:, :, neuron_index]
-    v_onset = v_onset[:, neuron_index]
+    out = out[:, :, node_index]
+    v_onset = v_onset[:, node_index]
     if squeeze:
         out = out.squeeze(0)
         v_onset = v_onset.squeeze(0)

@@ -1,8 +1,8 @@
 # -*- coding: utf-8 -*-
-"""Moving-bar paradigm DATA: fig1 Vm target, T4/T5 DSI cost, and stimulus opts.
+"""Moving-bar paradigm DATA: fig1 Vm gt, T4/T5 DSI cost, and stimulus opts.
 
-Merges the old ``t4_t5_dsi`` (motion preference + DSI math) and the target /
-cost-readout half of ``network.moving_bar_target`` (fig1 traces, cost windows,
+Merges the old ``t4_t5_dsi`` (motion preference + DSI math) and the gt /
+cost-readout half of ``network.moving_bar_readout`` (fig1 traces, cost windows,
 DSI pack fields), plus the moving-bar ``stimulus_opts`` builders from the old
 ``FiveCol_MedSim_Pytorch``. Signals / geometry / t0 grids live in
 :mod:`task.moving_bar.input`; this module imports downward from it.
@@ -18,7 +18,12 @@ import numpy as np
 import torch
 
 from neuron.params import ms_to_t
-from network.construction import unit_type_names
+from network.construction import (
+    col2gt,
+    present_gt_cells,
+    gt_cells_list,
+    node_cell_names,
+)
 from task.moving_bar.input import (
     COST_ALIGNED_FIRST_STI_MS,
     COST_WINDOW_AFTER_MS,
@@ -30,14 +35,14 @@ from task.moving_bar.input import (
     MovingBarSpec,
     build_moving_bar_signals,
     build_moving_bar_t0_grids,
-    column_first_stim_t,
-    filter_sti_columns,
+    hex_first_stim_t,
+    filter_sti_hexes,
     gruntman_moving_bar_specs,
-    moving_bar_cost_columns,
+    moving_bar_cost_hexes,
     moving_bar_i_baseline_from_opts,
     network_uv_np,
     resolve_i_baseline,
-    sti_columns,
+    sti_hexes,
     _as_int64_np,
 )
 
@@ -57,14 +62,14 @@ MOVING_BAR_POLARITIES = frozenset({"bright", "dark"})
 # T4 / T5 motion preference + DSI (was t4_t5_dsi)
 # =====================================================================
 
-READOUT_SUBTYPES: Tuple[str, ...] = (
+GT_CELLS: Tuple[str, ...] = (
     "T4a", "T4b", "T4c", "T4d",
     "T5a", "T5b", "T5c", "T5d",
 )
 
-READOUT_SUBTYPE_ALIASES: dict = {
-    "T4": tuple(st for st in READOUT_SUBTYPES if st.startswith("T4")),
-    "T5": tuple(st for st in READOUT_SUBTYPES if st.startswith("T5")),
+GT_CELL_ALIASES: dict = {
+    "T4": tuple(st for st in GT_CELLS if st.startswith("T4")),
+    "T5": tuple(st for st in GT_CELLS if st.startswith("T5")),
 }
 
 _HORIZONTAL = frozenset({"right", "left"})
@@ -125,21 +130,21 @@ def dsi_sequential_batch_pairs(spec_names: Sequence[str]) -> Tuple[Tuple[int, ..
     return tuple(pairs)
 
 
-def expand_remove_subtypes_list(names: Sequence[str]) -> Tuple[str, ...]:
-    """Expand ``remove_moving_bar`` SUBTYPES ``READOUT_SUBTYPE_ALIASES`` (e.g. T4, T5)."""
+def expand_gt_cells_list(names: Sequence[str]) -> Tuple[str, ...]:
+    """Expand ``--gt`` moving-bar cell tokens via ``GT_CELL_ALIASES`` (e.g. T4, T5)."""
     if not names:
-        raise ValueError("readout_subtypes must not be empty")
+        raise ValueError("gt_cells must not be empty")
     out: list = []
     seen: set = set()
     for raw in names:
         key = str(raw).strip()
-        if key in READOUT_SUBTYPE_ALIASES:
-            pool = READOUT_SUBTYPE_ALIASES[key]
-        elif key in READOUT_SUBTYPES:
+        if key in GT_CELL_ALIASES:
+            pool = GT_CELL_ALIASES[key]
+        elif key in GT_CELLS:
             pool = (key,)
         else:
-            valid = ", ".join((*READOUT_SUBTYPE_ALIASES, *READOUT_SUBTYPES))
-            raise ValueError(f"unknown readout subtype {key!r} (expected {valid})")
+            valid = ", ".join((*GT_CELL_ALIASES, *GT_CELLS))
+            raise ValueError(f"unknown gt cell {key!r} (expected {valid})")
         for st in pool:
             if st not in seen:
                 seen.add(st)
@@ -187,7 +192,7 @@ def motion_preference(
     contrast: str,
 ) -> Optional[MotionPreference]:
     """Map one cardinal stimulus to PD/ND + PC/NC for a T4/T5 subtype."""
-    if subtype not in READOUT_SUBTYPES:
+    if subtype not in GT_CELLS:
         raise ValueError(f"unknown subtype {subtype!r}")
     direction = str(direction).strip().lower()
     contrast = str(contrast).strip().lower()
@@ -309,7 +314,7 @@ def assemble_moving_bar_dsi_pairs(
 
     pos_groups: List[List[int]] = []
     neg_groups: List[List[int]] = []
-    targets: List[float] = []
+    dsi_vals: List[float] = []
     weights: List[float] = []
     subtypes = sorted({str(st) for st in r_subtype})
     for subtype in subtypes:
@@ -339,9 +344,9 @@ def assemble_moving_bar_dsi_pairs(
                 w_neg = float(np.mean([float(r_weight[i]) for i in neg_rows]))
                 pos_groups.append(pos_rows)
                 neg_groups.append(neg_rows)
-                targets.append(float(dsi))
+                dsi_vals.append(float(dsi))
                 weights.append(0.5 * (w_pos + w_neg))
-    return pos_groups, neg_groups, targets, weights
+    return pos_groups, neg_groups, dsi_vals, weights
 
 
 def _csr_from_groups(
@@ -358,7 +363,7 @@ def _csr_from_groups(
     return rows_t, ptr_t
 
 
-def pack_moving_bar_dsi_tensors(pos_groups, neg_groups, targets, weights, *, device, sim_dtype):
+def pack_moving_bar_dsi_tensors(pos_groups, neg_groups, dsi_vals, weights, *, device, sim_dtype):
     if not pos_groups:
         empty_long = torch.zeros(0, dtype=torch.long, device=device)
         empty = torch.zeros(0, dtype=sim_dtype, device=device)
@@ -367,14 +372,14 @@ def pack_moving_bar_dsi_tensors(pos_groups, neg_groups, targets, weights, *, dev
         return empty_long, empty_long, ptr0, ptr0, empty, empty, power
     dsi_pos_rows, dsi_pos_ptr = _csr_from_groups(pos_groups, device=device)
     dsi_neg_rows, dsi_neg_ptr = _csr_from_groups(neg_groups, device=device)
-    dsi_target = torch.tensor(np.asarray(targets), dtype=sim_dtype, device=device)
+    dsi_gt = torch.tensor(np.asarray(dsi_vals), dtype=sim_dtype, device=device)
     dsi_weight = torch.tensor(np.asarray(weights), dtype=sim_dtype, device=device)
-    power = torch.sum(dsi_weight * dsi_target ** 2)
+    power = torch.sum(dsi_weight * dsi_gt ** 2)
     if float(power) == 0.0:
         power = torch.tensor(1.0, dtype=sim_dtype, device=device)
     return (
         dsi_pos_rows, dsi_neg_rows, dsi_pos_ptr, dsi_neg_ptr,
-        dsi_target, dsi_weight, power,
+        dsi_gt, dsi_weight, power,
     )
 
 
@@ -388,7 +393,7 @@ def build_dsi_pack_fields(
     device,
     sim_dtype,
 ):
-    """Assemble + tensorize subtype-grouped DSI fields for a moving-bar target."""
+    """Assemble + tensorize subtype-grouped DSI fields for a moving-bar task."""
     return pack_moving_bar_dsi_tensors(
         *assemble_moving_bar_dsi_pairs(specs, r_batch, r_subtype, r_weight, side=side),
         device=device,
@@ -398,7 +403,7 @@ def build_dsi_pack_fields(
 
 def _empty_dsi_fields(pack, device) -> dict:
     empty_long = torch.zeros(0, dtype=torch.long, device=device)
-    empty = torch.zeros(0, dtype=pack.dsi_target.dtype, device=device)
+    empty = torch.zeros(0, dtype=pack.dsi_gt.dtype, device=device)
     ptr0 = torch.zeros(1, dtype=torch.long, device=device)
     power = torch.tensor(1.0, dtype=pack.dsi_power.dtype, device=device)
     return {
@@ -406,7 +411,7 @@ def _empty_dsi_fields(pack, device) -> dict:
         "dsi_neg_rows": empty_long,
         "dsi_pos_ptr": ptr0,
         "dsi_neg_ptr": ptr0,
-        "dsi_target": empty,
+        "dsi_gt": empty,
         "dsi_weight": empty,
         "dsi_power": power,
     }
@@ -420,7 +425,7 @@ def remap_dsi_rows(pack, kept_old_rows) -> dict:
             "dsi_neg_rows": pack.dsi_neg_rows,
             "dsi_pos_ptr": pack.dsi_pos_ptr,
             "dsi_neg_ptr": pack.dsi_neg_ptr,
-            "dsi_target": pack.dsi_target,
+            "dsi_gt": pack.dsi_gt,
             "dsi_weight": pack.dsi_weight,
             "dsi_power": pack.dsi_power,
         }
@@ -455,17 +460,17 @@ def remap_dsi_rows(pack, kept_old_rows) -> dict:
     dsi_pos_rows, dsi_pos_ptr = _csr_from_groups(new_pos_groups, device=device)
     dsi_neg_rows, dsi_neg_ptr = _csr_from_groups(new_neg_groups, device=device)
     ix = torch.tensor(keep_g, dtype=torch.long, device=device)
-    dsi_target = pack.dsi_target[ix]
+    dsi_gt = pack.dsi_gt[ix]
     dsi_weight = pack.dsi_weight[ix]
-    power = torch.sum(dsi_weight * dsi_target ** 2)
+    power = torch.sum(dsi_weight * dsi_gt ** 2)
     if float(power) == 0.0:
-        power = torch.tensor(1.0, dtype=dsi_target.dtype, device=device)
+        power = torch.tensor(1.0, dtype=dsi_gt.dtype, device=device)
     return {
         "dsi_pos_rows": dsi_pos_rows,
         "dsi_neg_rows": dsi_neg_rows,
         "dsi_pos_ptr": dsi_pos_ptr,
         "dsi_neg_ptr": dsi_neg_ptr,
-        "dsi_target": dsi_target,
+        "dsi_gt": dsi_gt,
         "dsi_weight": dsi_weight,
         "dsi_power": power,
     }
@@ -497,7 +502,7 @@ def cost_dsi_from_sel(pack, scale: torch.Tensor, sel: torch.Tensor) -> Optional[
     peak_pos = _csr_group_mean(peak_pos_u, pack.dsi_pos_ptr)
     peak_neg = _csr_group_mean(peak_neg_u, pack.dsi_neg_ptr)
     model_dsi = axis_dsi_torch(peak_pos, peak_neg)
-    diff = model_dsi - pack.dsi_target
+    diff = model_dsi - pack.dsi_gt
     return torch.sum(pack.dsi_weight * diff ** 2) / pack.dsi_power * 100.0
 
 
@@ -554,7 +559,7 @@ def moving_bar_cell_title(
 
 
 # =====================================================================
-# fig1 Vm target + T4/T5 cost readouts (was network.moving_bar_target)
+# fig1 Vm gt + T4/T5 cost readouts (was network.moving_bar_readout)
 # =====================================================================
 
 _TRACE_CACHE: Dict[str, np.ndarray] = {}
@@ -565,13 +570,13 @@ def _pd_nd_index(pd_nd: str) -> int:
 
 
 @dataclass
-class MovingBarTarget:
+class MovingBarGt:
     signal: torch.Tensor
     data: torch.Tensor
     power: torch.Tensor
     cost_weight: torch.Tensor
     readout_batch: torch.Tensor
-    readout_unit: torch.Tensor
+    readout_node: torch.Tensor
     n_batch: int
     n_t: int
     info: dict
@@ -581,7 +586,7 @@ class MovingBarTarget:
     dsi_neg_rows: Optional[torch.Tensor] = None
     dsi_pos_ptr: Optional[torch.Tensor] = None
     dsi_neg_ptr: Optional[torch.Tensor] = None
-    dsi_target: Optional[torch.Tensor] = None
+    dsi_gt: Optional[torch.Tensor] = None
     dsi_weight: Optional[torch.Tensor] = None
     dsi_power: Optional[torch.Tensor] = None
 
@@ -621,41 +626,32 @@ def load_fig1_traces(
     npz_path: Path = FIG1_CI_NPZ,
     *,
     delta_ms: float) -> Dict[str, np.ndarray]:
-    """All fig1 traces resampled to the per-column training window."""
+    """All fig1 traces resampled to the per-hex training window."""
     return {
         tid: load_fig1_trace(tid, npz_path, delta_ms)
         for tid in _fig1_trace_ids(npz_path)
     }
 
 
-def col2subtype(C, u: int, v: int, subtype: str, names: Optional[np.ndarray] = None) -> np.ndarray:
-    """Unit indices of ``subtype`` (e.g. ``T4a``) on column ``(u, v)``."""
-    if names is None:
-        names = unit_type_names(C)
-    return np.where(
-        (C.u == int(u)) & (C.v == int(v)) & (names == subtype),
-    )[0]
-
-
-def moving_bar_units_on_columns(C, cell: str, cols: Sequence) -> np.ndarray:
-    """Unit indices of ``cell`` on any of ``cols`` (vectorized axial uv pack)."""
-    if not cols:
+def moving_bar_nodes_on_hexes(C, cell: str, hexes: Sequence) -> np.ndarray:
+    """Node indices of ``cell`` on any of ``hexes`` (vectorized axial uv pack)."""
+    if not hexes:
         return np.zeros(0, dtype=np.int64)
-    if cell not in C.type_names:
-        raise ValueError(f"unknown cell type {cell!r}; known: {list(C.type_names)}")
-    ti = int(C.type_names.index(cell))
+    if cell not in C.cell_names:
+        raise ValueError(f"unknown cell {cell!r}; known: {list(C.cell_names)}")
+    ti = int(C.cell_names.index(cell))
     u_np, v_np = network_uv_np(C)
-    type_ids = _as_int64_np(C.node_type)
+    cell_ids = _as_int64_np(C.node_cell)
     uv_span = int(max(np.max(np.abs(u_np)), np.max(np.abs(v_np)), 1)) + 1
     pack = (u_np + uv_span) * (2 * uv_span + 1) + (v_np + uv_span)
-    col_pack = np.array(
+    hex_pack = np.array(
         [
             (int(c.u) + uv_span) * (2 * uv_span + 1) + (int(c.v) + uv_span)
-            for c in cols
+            for c in hexes
         ],
         dtype=np.int64,
     )
-    return np.where((type_ids == ti) & np.isin(pack, col_pack))[0].astype(np.int64)
+    return np.where((cell_ids == ti) & np.isin(pack, hex_pack))[0].astype(np.int64)
 
 
 def filter_requested_specs(
@@ -675,8 +671,8 @@ def filter_requested_specs(
 def _assemble_moving_bar_readouts(
     *,
     specs: Sequence[MovingBarSpec],
-    column_current: np.ndarray,
-    cost_col_idxs: Sequence[int],
+    hex_current: np.ndarray,
+    cost_hex_idxs: Sequence[int],
     i_baseline: float,
     before_t: int,
     after_t: int,
@@ -684,122 +680,106 @@ def _assemble_moving_bar_readouts(
     side: str,
     fig1: Optional[Dict[str, np.ndarray]],
     present: Sequence[str],
-    units_for_col_subtype: Callable[[int, int, str], Sequence[int]],
+    nodes_for_hex_type: Callable[[int, int, str], Sequence[int]],
     waveform_mse: bool = True,
 ) -> Tuple[
     List[int], List[int], List[str], List[np.ndarray], List[float], List[int], List[int], int,
 ]:
-    r_batch, r_unit, r_subtype, r_target, r_weight, r_t0, r_pd_nd = (
+    r_batch, r_node, r_subtype, r_readout, r_weight, r_t0, r_pd_nd = (
         [], [], [], [], [], [], [],
     )
     skipped_orthogonal = 0
     i_baseline = resolve_i_baseline(i_baseline)
     for b, spec in enumerate(specs):
-        t0_by_col: Dict[int, int] = {}
+        t0_by_hex: Dict[int, int] = {}
         if waveform_mse:
-            for col_idx in cost_col_idxs:
-                t_first_sti = column_first_stim_t(
-                    column_current[b, :, col_idx], i_baseline=i_baseline,
+            for hex_idx in cost_hex_idxs:
+                t_first_sti = hex_first_stim_t(
+                    hex_current[b, :, hex_idx], i_baseline=i_baseline,
                 )
                 t0 = t_first_sti - before_t
                 if t0 < 0 or t_first_sti + after_t > n_t:
                     raise ValueError(
-                        f"cost window out of range for column index {col_idx} "
+                        f"cost window out of range for hex index {hex_idx} "
                         f"spec={spec.name}: t_first_sti={t_first_sti}, n_t={n_t}"
                     )
-                t0_by_col[col_idx] = t0
-        for col_idx in cost_col_idxs:
+                t0_by_hex[hex_idx] = t0
+        for hex_idx in cost_hex_idxs:
             for subtype in present:
                 pref = motion_preference(side, subtype, spec.direction, spec.contrast)
                 if pref is None:
                     skipped_orthogonal += 1
                     continue
-                units = units_for_col_subtype(b, col_idx, subtype)
-                if len(units) == 0:
+                nodes = nodes_for_hex_type(b, hex_idx, subtype)
+                if len(nodes) == 0:
                     continue
-                target = None
+                gt_trace = None
                 if waveform_mse:
                     if fig1 is None:
                         raise ValueError("fig1 traces required when waveform_mse=True")
                     trace_id = fig1_key_for_stimulus(side, subtype, spec)
                     if trace_id not in fig1:
                         raise KeyError(f"fig1 trace missing: {trace_id}")
-                    target = fig1[trace_id]
+                    gt_trace = fig1[trace_id]
                 pd_nd_idx = _pd_nd_index(pref.pd_nd)
-                t0 = t0_by_col.get(col_idx, 0)
-                for uidx in units:
+                t0 = t0_by_hex.get(hex_idx, 0)
+                for uidx in nodes:
                     r_batch.append(b)
-                    r_unit.append(int(uidx))
+                    r_node.append(int(uidx))
                     r_subtype.append(str(subtype))
-                    if target is not None:
-                        r_target.append(target)
+                    if gt_trace is not None:
+                        r_readout.append(gt_trace)
                     r_weight.append(1.0)
                     if waveform_mse:
                         r_t0.append(t0)
                         r_pd_nd.append(pd_nd_idx)
     return (
-        r_batch, r_unit, r_subtype, r_target, r_weight, r_t0, r_pd_nd,
+        r_batch, r_node, r_subtype, r_readout, r_weight, r_t0, r_pd_nd,
         skipped_orthogonal,
     )
 
 
 def _pack_moving_bar_readout_tensors(
-    r_batch, r_unit, r_target, r_weight, r_t0, r_pd_nd, *, device, sim_dtype,
+    r_batch, r_node, r_readout, r_weight, r_t0, r_pd_nd, *, device, sim_dtype,
     waveform_mse: bool = True,
 ):
     n = len(r_batch)
     cost_weight = torch.tensor(np.asarray(r_weight), dtype=sim_dtype, device=device)
     readout_batch = torch.tensor(np.asarray(r_batch), dtype=torch.long, device=device)
-    readout_unit = torch.tensor(np.asarray(r_unit), dtype=torch.long, device=device)
+    readout_node = torch.tensor(np.asarray(r_node), dtype=torch.long, device=device)
     if not waveform_mse:
         data = torch.zeros((n, 0), dtype=sim_dtype, device=device)
         power = torch.tensor(1.0, dtype=sim_dtype, device=device)
-        return data, cost_weight, readout_batch, readout_unit, None, None, power
+        return data, cost_weight, readout_batch, readout_node, None, None, power
     cost_pd_nd = torch.tensor(np.asarray(r_pd_nd), dtype=torch.long, device=device)
-    data = torch.tensor(np.asarray(r_target), dtype=sim_dtype, device=device)
+    data = torch.tensor(np.asarray(r_readout), dtype=sim_dtype, device=device)
     cost_t0 = torch.tensor(np.asarray(r_t0), dtype=torch.long, device=device)
     power = torch.sum(cost_weight[:, None] * data ** 2)
     if float(power) == 0.0:
         power = torch.tensor(1.0, dtype=sim_dtype, device=device)
-    return data, cost_weight, readout_batch, readout_unit, cost_t0, cost_pd_nd, power
+    return data, cost_weight, readout_batch, readout_node, cost_t0, cost_pd_nd, power
 
 
 def _moving_bar_peak_kwargs(
     contrasts: Sequence[str],
     *,
-    i_bright_bar: Optional[float] = None,
-    i_dark_bar: Optional[float] = None,
+    i_bright_moving_bar: Optional[float] = None,
+    i_dark_moving_bar: Optional[float] = None,
 ) -> dict:
     """Peak-current kwargs for specs that only include the relevant contrasts."""
     contrast_set = frozenset(contrasts)
     kw = {}
-    if "bright" in contrast_set and i_bright_bar is not None:
-        kw["i_bright_bar"] = float(i_bright_bar)
-    if "dark" in contrast_set and i_dark_bar is not None:
-        kw["i_dark_bar"] = float(i_dark_bar)
+    if "bright" in contrast_set and i_bright_moving_bar is not None:
+        kw["i_bright_moving_bar"] = float(i_bright_moving_bar)
+    if "dark" in contrast_set and i_dark_moving_bar is not None:
+        kw["i_dark_moving_bar"] = float(i_dark_moving_bar)
     return kw
 
 
-def _present_readout_subtypes(
-    readout_subtypes: Optional[Sequence[str]],
-    default_pool: Sequence[str],
-    available: Sequence[str],
-    *,
-    context: str,
-) -> List[str]:
-    pool = tuple(readout_subtypes) if readout_subtypes is not None else tuple(default_pool)
-    present = [st for st in pool if st in set(available)]
-    if not present:
-        raise ValueError(
-            f"{context} has no moving-bar readout subtypes (requested {list(pool)!r})",
-        )
-    return present
-
-
-def build_moving_bar_target(
+def build_moving_bar_gt(
     C,
     device: Optional[str] = None,
-    t_on: int = None,
+    t_onset: int = None,
     *,
     delta_ms: float,
     fig1_path: Path = FIG1_CI_NPZ,
@@ -807,30 +787,30 @@ def build_moving_bar_target(
     bar_extent: int = DEFAULT_BAR_EXTENT,
     multi_bar: bool = True,
     cost_extent: Optional[int] = None,
-    i_baseline: Optional[float] = None,
-    i_bright_bar: Optional[float] = None,
-    i_dark_bar: Optional[float] = None,
+    i_baseline_moving_bar: Optional[float] = None,
+    i_bright_moving_bar: Optional[float] = None,
+    i_dark_moving_bar: Optional[float] = None,
     contrasts: Sequence[str] = ("bright", "dark"),
-    readout_subtypes: Optional[Sequence[str]] = None,
+    gt_cells: Optional[Sequence[str]] = None,
     sim_dtype: torch.dtype,
     waveform_mse: bool = True,
-) -> MovingBarTarget:
+) -> MovingBarGt:
     """Build multi-bar stimulus + T4/T5 cost readouts."""
     device = device or C.device
     side = normalize_side(C.meta.get("side", "right"))
 
     specs = gruntman_moving_bar_specs(contrasts=tuple(contrasts))
     contrast_set = frozenset(contrasts)
-    i_baseline_val = resolve_i_baseline(i_baseline)
+    i_baseline_val = resolve_i_baseline(i_baseline_moving_bar)
     stim = build_moving_bar_signals(
-        C, specs=specs, t_on=t_on, delta_ms=delta_ms,
+        C, specs=specs, t_onset=t_onset, delta_ms=delta_ms,
         bar_extent=bar_extent, multi_bar=bool(multi_bar),
         device=device, use_cache=use_cache,
         network_json=getattr(C, "source_json", None),
         i_baseline=i_baseline_val,
         sim_dtype=sim_dtype,
         **_moving_bar_peak_kwargs(
-            contrast_set, i_bright_bar=i_bright_bar, i_dark_bar=i_dark_bar,
+            contrast_set, i_bright_moving_bar=i_bright_moving_bar, i_dark_moving_bar=i_dark_moving_bar,
         ),
     )
     n_t = int(stim.info["n_t"])
@@ -839,26 +819,26 @@ def build_moving_bar_target(
     after_t = ms_to_t(COST_WINDOW_AFTER_MS, delta_ms=delta_ms)
     win_t = ms_to_t(COST_WINDOW_MS, delta_ms=delta_ms) + 1
 
-    present = _present_readout_subtypes(
-        readout_subtypes, READOUT_SUBTYPES, C.type_names, context="network",
+    present = present_gt_cells(
+        gt_cells, GT_CELLS, C.cell_names, context="moving_bar",
     )
 
-    type_names = unit_type_names(C)
-    sti_cols = sti_columns(C)
-    uv_to_col_idx = {(int(c.u), int(c.v)): j for j, c in enumerate(sti_cols)}
-    cols = moving_bar_cost_columns(C, cost_extent=cost_extent)
-    center_col = cols[0] if cost_extent == 0 and len(cols) == 1 else None
-    cost_col_idxs = [uv_to_col_idx[(int(c.u), int(c.v))] for c in cols]
-    col_by_idx = {idx: c for c, idx in zip(cols, cost_col_idxs)}
+    cell_names = node_cell_names(C)
+    all_sti = sti_hexes(C)
+    uv_to_hex_idx = {(int(c.u), int(c.v)): j for j, c in enumerate(all_sti)}
+    hexes = moving_bar_cost_hexes(C, cost_extent=cost_extent)
+    center_hex = hexes[0] if cost_extent == 0 and len(hexes) == 1 else None
+    cost_hex_idxs = [uv_to_hex_idx[(int(c.u), int(c.v))] for c in hexes]
+    hex_by_idx = {idx: c for c, idx in zip(hexes, cost_hex_idxs)}
 
-    def _units_for_col_subtype(_b, col_idx, subtype):
-        col = col_by_idx[col_idx]
-        return col2subtype(C, col.u, col.v, subtype, type_names)
+    def _nodes_for_hex_type(_b, hex_idx, subtype):
+        hx = hex_by_idx[hex_idx]
+        return col2gt(C, hx.u, hx.v, subtype, cell_names)
 
     rows = _assemble_moving_bar_readouts(
         specs=stim.specs,
-        column_current=stim.column_current,
-        cost_col_idxs=cost_col_idxs,
+        hex_current=stim.hex_current,
+        cost_hex_idxs=cost_hex_idxs,
         i_baseline=i_baseline_val,
         before_t=before_t,
         after_t=after_t,
@@ -866,20 +846,20 @@ def build_moving_bar_target(
         side=side,
         fig1=fig1,
         present=present,
-        units_for_col_subtype=_units_for_col_subtype,
+        nodes_for_hex_type=_nodes_for_hex_type,
         waveform_mse=waveform_mse,
     )
     (
-        r_batch, r_unit, r_subtype, r_target, r_weight, r_t0, r_pd_nd,
+        r_batch, r_node, r_subtype, r_readout, r_weight, r_t0, r_pd_nd,
         skipped_orthogonal,
     ) = rows
 
     if not r_batch:
-        raise ValueError("no moving-bar cost cells (check subtypes and sti columns)")
+        raise ValueError("no moving-bar cost nodes (check subtypes and sti hexes)")
 
-    data, cost_weight, readout_batch, readout_unit, cost_t0, cost_pd_nd, power = (
+    data, cost_weight, readout_batch, readout_node, cost_t0, cost_pd_nd, power = (
         _pack_moving_bar_readout_tensors(
-            r_batch, r_unit, r_target, r_weight, r_t0, r_pd_nd,
+            r_batch, r_node, r_readout, r_weight, r_t0, r_pd_nd,
             device=device, sim_dtype=sim_dtype, waveform_mse=waveform_mse,
         )
     )
@@ -898,11 +878,11 @@ def build_moving_bar_target(
         "n_cost_nd": int((cost_pd_nd == ND_IDX).sum().item()) if cost_pd_nd is not None else 0,
         "n_cost_dsi": int(dsi_tgt.shape[0]),
         "n_batch": stim.info["n_batch"],
-        "n_cost_columns": len(cols),
+        "n_cost_hexes": len(hexes),
         "cost_extent": cost_extent,
-        "cost_column_uv": (int(center_col.u), int(center_col.v)) if center_col else None,
+        "cost_hex_uv": (int(center_hex.u), int(center_hex.v)) if center_hex else None,
         "side": side,
-        "present_subtypes": present,
+        "present_gts": present,
         "skipped_orthogonal": skipped_orthogonal,
         "waveform_mse": bool(waveform_mse),
         "delta_ms": float(delta_ms),
@@ -916,14 +896,14 @@ def build_moving_bar_target(
             "cost_aligned_first_sti_ms": COST_ALIGNED_FIRST_STI_MS,
             "cost_window_t": win_t,
         })
-    return MovingBarTarget(
+    return MovingBarGt(
         signal=stim.signal,
         data=data,
         power=power,
         cost_weight=cost_weight,
         cost_t0=cost_t0,
         readout_batch=readout_batch,
-        readout_unit=readout_unit,
+        readout_node=readout_node,
         cost_pd_nd=cost_pd_nd,
         n_batch=stim.info["n_batch"],
         n_t=n_t,
@@ -932,7 +912,7 @@ def build_moving_bar_target(
         dsi_neg_rows=dsi_neg_rows,
         dsi_pos_ptr=dsi_pos_ptr,
         dsi_neg_ptr=dsi_neg_ptr,
-        dsi_target=dsi_tgt,
+        dsi_gt=dsi_tgt,
         dsi_weight=dsi_w,
         dsi_power=dsi_pow,
     )
@@ -947,14 +927,14 @@ class MovingBarSessionT0:
     before_t: Dict[str, int]
     after_t: Dict[str, int]
     side: str
-    n_filter_cols: int
+    n_filter_hexes: int
 
 
-def bar_specs_for_session(session, target) -> List[MovingBarSpec]:
-    """Gruntman bar specs for ``target`` (bright/dark)."""
+def bar_specs_for_session(session, task) -> List[MovingBarSpec]:
+    """Gruntman bar specs for ``task`` (bright/dark)."""
     if session.backend.network is None:
         raise ValueError("bar_specs_for_session requires session.backend.network")
-    contrast = "bright" if "bright" in target else "dark"
+    contrast = "bright" if "bright" in task else "dark"
     return list(gruntman_moving_bar_specs(contrasts=(contrast,)))
 
 
@@ -966,7 +946,7 @@ def moving_bar_session_t0_grids(
     *,
     at_x=None,
     at_y=None,
-    t_on: int = None,
+    t_onset: int = None,
     delta_ms: float,
 ) -> MovingBarSessionT0:
     """Session-level ``t0`` / horizon grids for moving-bar cost or analyze."""
@@ -976,53 +956,53 @@ def moving_bar_session_t0_grids(
     i_baseline = moving_bar_i_baseline_from_opts(session.train_opts)
 
     side = normalize_side(C.meta.get('side', 'right'))
-    all_cols = moving_bar_cost_columns(C, cost_extent=cost_extent)
+    all_hexes = moving_bar_cost_hexes(C, cost_extent=cost_extent)
     if at_x is not None or at_y is not None:
-        filt_cols = filter_sti_columns(all_cols, at_x=at_x, at_y=at_y)
-        if not filt_cols:
+        filt_hexes = filter_sti_hexes(all_hexes, at_x=at_x, at_y=at_y)
+        if not filt_hexes:
             raise SystemExit(
-                f'no sti columns match x={at_x!r} y={at_y!r} within cost_extent',
+                f'no sti hexes match x={at_x!r} y={at_y!r} within cost_extent',
             )
     else:
-        filt_cols = all_cols
+        filt_hexes = all_hexes
     stim = build_moving_bar_signals(
-        C, specs=specs, n_t=n_t, t_on=t_on, delta_ms=delta_ms,
-        device=C.node_type.device, i_baseline=i_baseline,
+        C, specs=specs, n_t=n_t, t_onset=t_onset, delta_ms=delta_ms,
+        device=C.node_cell.device, i_baseline=i_baseline,
     )
-    uv_to_idx = {(int(col.u), int(col.v)): j for j, col in enumerate(sti_columns(C))}
-    all_col_idxs = [uv_to_idx[(int(c.u), int(c.v))] for c in all_cols]
-    filt_col_idxs = [uv_to_idx[(int(c.u), int(c.v))] for c in filt_cols]
+    uv_to_idx = {(int(col.u), int(col.v)): j for j, col in enumerate(sti_hexes(C))}
+    all_hex_idxs = [uv_to_idx[(int(c.u), int(c.v))] for c in all_hexes]
+    filt_hex_idxs = [uv_to_idx[(int(c.u), int(c.v))] for c in filt_hexes]
     grids = build_moving_bar_t0_grids(
-        stim.column_current, specs, n_t, i_baseline,
-        all_col_idxs=all_col_idxs,
-        filt_col_idxs=filt_col_idxs,
+        stim.hex_current, specs, n_t, i_baseline,
+        all_hex_idxs=all_hex_idxs,
+        filt_hex_idxs=filt_hex_idxs,
         network_C=C,
-        filt_network_cols=filt_cols,
+        filt_network_hexes=filt_hexes,
     )
     return MovingBarSessionT0(
         t0_bn=grids.t0_bn,
         before_t=grids.before_t,
         after_t=grids.after_t,
         side=side,
-        n_filter_cols=len(filt_cols),
+        n_filter_hexes=len(filt_hexes),
     )
 
 
-def _pack_readout_type_names(session, target: str) -> List[str]:
-    """Unique cell-type names on ``pack.readout_unit`` (pack order)."""
-    pack = session.pack_for(target)
-    u = pack.readout_unit
+def _pack_readout_cell_names(session, task: str) -> List[str]:
+    """Unique cell names on ``pack.readout_node`` (pack order)."""
+    pack = session.pack_for(task)
+    u = pack.readout_node
     if torch.is_tensor(u):
         u = u.detach().cpu().numpy()
     u = np.asarray(u, dtype=np.int64)
     C = session.backend.network
     if C is None:
-        raise ValueError("_pack_readout_type_names requires session.backend.network")
-    node_type = C.node_type[u]
-    if torch.is_tensor(node_type):
-        node_type = node_type.detach().cpu().numpy()
-    names = list(C.type_names)
-    seq = [str(names[int(ti)]) for ti in node_type]
+        raise ValueError("_pack_readout_cell_names requires session.backend.network")
+    node_cell = C.node_cell[u]
+    if torch.is_tensor(node_cell):
+        node_cell = node_cell.detach().cpu().numpy()
+    names = list(C.cell_names)
+    seq = [str(names[int(ti)]) for ti in node_cell]
     seen: set = set()
     out: List[str] = []
     for name in seq:
@@ -1032,83 +1012,66 @@ def _pack_readout_type_names(session, target: str) -> List[str]:
     return out
 
 
-def moving_bar_row_specs(session, target: str, side: str) -> Dict[str, List[str]]:
-    """Per-readout-cell active bar spec names for ``side`` and target contrast."""
-    contrast = "bright" if "bright" in target else "dark"
+def moving_bar_row_specs(session, task: str, side: str) -> Dict[str, List[str]]:
+    """Per-readout-cell active bar spec names for ``side`` and task contrast."""
+    contrast = "bright" if "bright" in task else "dark"
     return {
         st: [
             f'{d}_{c}_{w}'
             for d, c, w in active_stimuli_for_subtype(side, st)
             if c == contrast
         ]
-        for st in _pack_readout_type_names(session, target)
+        for st in _pack_readout_cell_names(session, task)
     }
 
 
 # -- Moving-bar stimulus_opts builders (was FiveCol) --------------------------
 
 
-def _readout_subtypes_stimulus_list(readout_subtypes):
-    if readout_subtypes is None:
-        return None
-    return [str(s) for s in readout_subtypes]
-
-
-def _readout_subtypes_from_opts(opts):
-    rs = (opts or {}).get("readout_subtypes")
-    if rs is None:
-        return None
-    return tuple(str(s) for s in rs)
-
-
 def make_moving_bar_stimulus_opts(
     polarity: str,
     *,
-    i_baseline: float,
-    i_bar: float,
+    i_baseline_moving_bar: float,
+    i_moving_bar: float,
     pre_ms: float,
     delta_ms: float,
     multi_bar: bool,
-    mode="network",
-    readout_subtypes=None,
+    gt_cells=None,
 ):
     """PR moving-bar stimulus opts for ``moving_bar_{polarity}``."""
     if polarity not in MOVING_BAR_POLARITIES:
         raise ValueError(f"moving-bar polarity must be 'bright' or 'dark', got {polarity!r}")
-    bar_key = "i_bright_bar" if polarity == "bright" else "i_dark_bar"
+    bar_key = "i_bright_moving_bar" if polarity == "bright" else "i_dark_moving_bar"
     out = {
-        "mode": mode,
-        "i_baseline": float(i_baseline),
-        bar_key: float(i_bar),
+        "i_baseline_moving_bar": float(i_baseline_moving_bar),
+        bar_key: float(i_moving_bar),
         "pre_ms": float(pre_ms),
         "delta_ms": float(delta_ms),
         "multi_bar": bool(multi_bar),
     }
-    rs = _readout_subtypes_stimulus_list(readout_subtypes)
+    rs = gt_cells_list(gt_cells)
     if rs is not None:
-        out["readout_subtypes"] = rs
+        out["gt_cells"] = rs
     return out
 
 
 def session_moving_bar_i_baseline(train_opts) -> float:
-    """``i_baseline`` from moving-bar stimulus opts on a train session."""
+    """``i_baseline_moving_bar`` from moving-bar stimulus opts on a train session."""
     return moving_bar_i_baseline_from_opts(train_opts)
 
 
 def _enrich_moving_bar_stimulus_opts(opts, info, *, cost_extent):
-    """Attach runtime fields from a built moving-bar target; keep canonical ``i_*``."""
+    """Attach runtime fields from a built moving-bar task; keep canonical ``i_*``."""
     out = dict(opts)
     out["n_t"] = int(info["n_t"])
     if out.get("delta_ms") is None:
         raise ValueError("moving-bar stimulus opts require delta_ms")
     dt = float(out["delta_ms"])
-    out["pre_ms"] = float(info["t_on"]) * dt
+    out["pre_ms"] = float(info["t_onset"]) * dt
     out["spec_names"] = list(info["spec_names"])
     if cost_extent is not None:
         out["cost_extent"] = int(cost_extent)
     out["delta_ms"] = dt
-    if "mode" in info:
-        out["mode"] = info["mode"]
-    if "present_subtypes" in info:
-        out["readout_subtypes"] = list(info["present_subtypes"])
+    if "present_gts" in info:
+        out["gt_cells"] = list(info["present_gts"])
     return out

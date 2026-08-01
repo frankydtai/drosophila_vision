@@ -38,7 +38,7 @@ import numpy as np
 
 import network_bootstrap  # noqa: F401 — FAFB path on sys.path
 import blindschleiche_py3 as bs
-from path import parse_comma_list
+from import_bootstrap import parse_comma_list
 from plot.utils import save_figure
 
 DEFAULT_SAVE = os.path.join(HERE, "lp_hp_curves.png")

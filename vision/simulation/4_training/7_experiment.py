@@ -26,9 +26,9 @@ def merge_ih_param_partitions(train_kw):
     return {**existing, **ih_parts}
 
 
-def spot_targets_from(target_list):
-    """Return targets in *target_list* that are spot targets."""
-    return [t for t in target_list if t in training.SPOT_TARGETS]
+def spot_tasks_from(task_list):
+    """Return tasks in *task_list* that are spot tasks."""
+    return [t for t in task_list if t in training.SPOT_TASKS]
 
 
 def _normalize_mirror_fits(mirror_fits, mirror_sign):
@@ -42,7 +42,7 @@ def _normalize_mirror_fits(mirror_fits, mirror_sign):
     ]
 
 
-def spot_pack_overrides(target_list, mirror_fits, mirror_sign=-1.0):
-    """``{spot_target: mirror_fits override}`` for each spot target in *target_list*."""
+def spot_pack_overrides(task_list, mirror_fits, mirror_sign=-1.0):
+    """``{spot_task: mirror_fits override}`` for each spot task in *task_list*."""
     mirror = {'mirror_fits': _normalize_mirror_fits(mirror_fits, mirror_sign)}
-    return {t: dict(mirror) for t in spot_targets_from(target_list)}
+    return {t: dict(mirror) for t in spot_tasks_from(task_list)}

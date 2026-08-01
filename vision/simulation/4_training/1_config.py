@@ -1,8 +1,8 @@
 # -*- coding: utf-8 -*-
-"""Training vocabulary: target names, cost-part keys, CLI aliases, and run paths.
+"""Training vocabulary: task names, cost-part keys, CLI aliases, and run paths.
 
 Pure data + parsing (no torch engine, no session objects), so both
-:mod:`training.target_pack` and :mod:`training.cost` can import it without a
+:mod:`training.readout_pack` and :mod:`training.cost` can import it without a
 cycle. Session assembly and stimulus-opts finalisation live in
 :mod:`training.session`.
 """
@@ -12,7 +12,7 @@ from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 
 import network.path  # noqa: F401 -- FAFB path on sys.path
-from path import parse_comma_list
+from import_bootstrap import parse_comma_list
 
 # simulation root (training/ → parent).
 SIMULATION_DIR = Path(__file__).resolve().parent.parent
@@ -35,52 +35,55 @@ def run_data_dir(outdir: str | Path) -> str:
 
 TRAIN_OPTS_FILE = "train_opts.json"
 
-SPOT_TARGETS = ("spot_bright", "spot_dark")
-MOVING_BAR_TARGETS = ("moving_bar_bright", "moving_bar_dark")
-VALID_TARGETS = SPOT_TARGETS + MOVING_BAR_TARGETS
+SPOT_TASKS = ("spot_bright", "spot_dark")
+MOVING_BAR_TASKS = ("moving_bar_bright", "moving_bar_dark")
+VALID_TASKS = SPOT_TASKS + MOVING_BAR_TASKS
 
-_SPOT_STEP_KEY = {"bright": "i_bright", "dark": "i_dark"}
+_SPOT_BASELINE_KEY = "i_baseline_spot"
+_MOVING_BAR_BASELINE_KEY = "i_baseline_moving_bar"
+_SPOT_I_KEY = {"bright": "i_bright_spot", "dark": "i_dark_spot"}
+_MOVING_BAR_I_KEY = {"bright": "i_bright_moving_bar", "dark": "i_dark_moving_bar"}
 
 PD_ND_LABELS = ("PD", "ND")
 PD_IDX, ND_IDX = 0, 1
 MOVING_BAR_COST_PARTS = tuple(
-    f"{t}_{lab}" for t in MOVING_BAR_TARGETS for lab in (*PD_ND_LABELS, "DSI")
+    f"{t}_{lab}" for t in MOVING_BAR_TASKS for lab in (*PD_ND_LABELS, "DSI")
 )
-TARGET_ALIASES = {
-    "spot": SPOT_TARGETS,
-    "moving_bar": MOVING_BAR_TARGETS,
+TASK_ALIASES = {
+    "spot": SPOT_TASKS,
+    "moving_bar": MOVING_BAR_TASKS,
 }
-CLI_TARGET_NAMES = VALID_TARGETS + tuple(TARGET_ALIASES.keys())
-TARGET_I_FIELDS = {
-    "spot_bright": frozenset({"i_baseline", "i_bright"}),
-    "spot_dark": frozenset({"i_baseline", "i_dark"}),
-    "moving_bar_bright": frozenset({"i_baseline", "i_bright_bar"}),
-    "moving_bar_dark": frozenset({"i_baseline", "i_dark_bar"}),
+CLI_TASK_NAMES = VALID_TASKS + tuple(TASK_ALIASES.keys())
+TASK_I_FIELDS = {
+    "spot_bright": frozenset({_SPOT_BASELINE_KEY, "i_bright_spot"}),
+    "spot_dark": frozenset({_SPOT_BASELINE_KEY, "i_dark_spot"}),
+    "moving_bar_bright": frozenset({_MOVING_BAR_BASELINE_KEY, "i_bright_moving_bar"}),
+    "moving_bar_dark": frozenset({_MOVING_BAR_BASELINE_KEY, "i_dark_moving_bar"}),
 }
-I_CLI_BRIGHT_TARGETS = {
+I_CLI_BRIGHT_TASKS = {
     "spot": ("spot_bright",),
     "spot_bright": ("spot_bright",),
     "moving_bar": ("moving_bar_bright",),
     "moving_bar_bright": ("moving_bar_bright",),
 }
-I_CLI_DARK_TARGETS = {
+I_CLI_DARK_TASKS = {
     "spot": ("spot_dark",),
     "spot_dark": ("spot_dark",),
     "moving_bar": ("moving_bar_dark",),
     "moving_bar_dark": ("moving_bar_dark",),
 }
 I_CLI_SIDECAR_FIELD = {
-    ("i_baseline", "spot_bright"): "i_baseline",
-    ("i_baseline", "spot_dark"): "i_baseline",
-    ("i_baseline", "moving_bar_bright"): "i_baseline",
-    ("i_baseline", "moving_bar_dark"): "i_baseline",
-    ("i_bright", "spot_bright"): "i_bright",
-    ("i_bright", "moving_bar_bright"): "i_bright_bar",
-    ("i_dark", "spot_dark"): "i_dark",
-    ("i_dark", "moving_bar_dark"): "i_dark_bar",
+    ("i_baseline", "spot_bright"): _SPOT_BASELINE_KEY,
+    ("i_baseline", "spot_dark"): _SPOT_BASELINE_KEY,
+    ("i_baseline", "moving_bar_bright"): _MOVING_BAR_BASELINE_KEY,
+    ("i_baseline", "moving_bar_dark"): _MOVING_BAR_BASELINE_KEY,
+    ("i_bright", "spot_bright"): "i_bright_spot",
+    ("i_bright", "moving_bar_bright"): "i_bright_moving_bar",
+    ("i_dark", "spot_dark"): "i_dark_spot",
+    ("i_dark", "moving_bar_dark"): "i_dark_moving_bar",
 }
 COST_WEIGHT_ALIASES = {
-    "spot": SPOT_TARGETS,
+    "spot": SPOT_TASKS,
     "moving_bar": MOVING_BAR_COST_PARTS,
     "moving_bar_bright": (
         "moving_bar_bright_PD", "moving_bar_bright_ND", "moving_bar_bright_DSI",
@@ -94,62 +97,77 @@ COST_WEIGHT_ALIASES = {
 }
 
 
-def moving_bar_cost_part_key(target_name: str, part: str) -> str:
-    return f"{target_name}_{part}"
+def moving_bar_cost_part_key(task_name: str, part: str) -> str:
+    return f"{task_name}_{part}"
 
 
-def cost_part_keys_for_target(target_name: str) -> Tuple[str, ...]:
-    if target_name in MOVING_BAR_TARGETS:
+def cost_part_keys_for_readout(task_name: str) -> Tuple[str, ...]:
+    if task_name in MOVING_BAR_TASKS:
         return tuple(
-            moving_bar_cost_part_key(target_name, lab)
+            moving_bar_cost_part_key(task_name, lab)
             for lab in (*PD_ND_LABELS, "DSI")
         )
-    return (target_name,)
+    return (task_name,)
 
 
-def session_cost_part_keys(target_list) -> Tuple[str, ...]:
+def session_cost_part_keys(task_list) -> Tuple[str, ...]:
     keys = []
-    for name in target_list:
-        keys.extend(cost_part_keys_for_target(name))
+    for name in task_list:
+        keys.extend(cost_part_keys_for_readout(name))
     return tuple(keys)
 
 
-def expand_target_list(names) -> List[str]:
-    """Expand ``--target`` ``TARGET_ALIASES`` shorthands."""
+def expand_task_list(names) -> List[str]:
+    """Expand ``--task`` ``TASK_ALIASES`` shorthands."""
     out = []
     for name in names:
-        if name in TARGET_ALIASES:
-            out.extend(TARGET_ALIASES[name])
+        if name in TASK_ALIASES:
+            out.extend(TASK_ALIASES[name])
         else:
             out.append(name)
     return out
 
 
 def expand_cost_extent_dict(kv: Optional[dict]) -> Dict[str, int]:
-    """Expand ``--cost-extent`` ``TARGET_ALIASES`` keys."""
+    """Expand ``--cost-extent`` ``TASK_ALIASES`` keys."""
     if not kv:
         return {}
     out: Dict[str, int] = {}
     for name, val in kv.items():
-        if name in TARGET_ALIASES:
-            for t in TARGET_ALIASES[name]:
+        if name in TASK_ALIASES:
+            for t in TASK_ALIASES[name]:
                 out[t] = int(val)
         else:
             out[str(name)] = int(val)
     return out
 
 
-def resolve_cost_extent_by_target(target_list, default, by_target_kv) -> Dict[str, int]:
-    """Map each concrete target to its explicitly requested cost extent."""
-    expanded = expand_cost_extent_dict(by_target_kv or {})
-    bad = [k for k in expanded if k not in VALID_TARGETS]
+def expand_gt_dict(kv: Optional[dict]) -> Dict[str, List[str]]:
+    """Expand ``--gt`` ``TASK_ALIASES`` keys; values are cell-token lists."""
+    if not kv:
+        return {}
+    out: Dict[str, List[str]] = {}
+    for name, cells in kv.items():
+        cell_list = [str(c) for c in cells]
+        if name in TASK_ALIASES:
+            for t in TASK_ALIASES[name]:
+                out[t] = list(cell_list)
+        else:
+            out[str(name)] = cell_list
+    return out
+
+
+def resolve_cost_extent_by_task(task_list, default, by_task_kv) -> Dict[str, int]:
+    """Map each concrete task to its explicitly requested cost extent."""
+    expanded = expand_cost_extent_dict(by_task_kv or {})
+    bad = [k for k in expanded if k not in VALID_TASKS]
     if bad:
         raise ValueError(
-            f"unknown target(s) in --cost-extent: {bad} "
-            f"(expected {'|'.join(CLI_TARGET_NAMES)})",
+            f"unknown task(s) in --cost-extent: {bad} "
+            f"(expected {'|'.join(CLI_TASK_NAMES)})",
         )
     out: Dict[str, int] = {}
-    for tname in target_list:
+    for tname in task_list:
         if tname in expanded:
             out[tname] = int(expanded[tname])
         elif default is not None:
@@ -171,17 +189,17 @@ def expand_cost_weight_dict(weights: Optional[dict]) -> Dict[str, float]:
     return out
 
 
-def normalize_target_list(target_list) -> List[str]:
-    if target_list is None:
-        raise ValueError("target_list required")
-    if isinstance(target_list, str):
-        target_list = parse_comma_list(target_list)
-    tl = expand_target_list(list(target_list))
+def normalize_task_list(task_list) -> List[str]:
+    if task_list is None:
+        raise ValueError("task_list required")
+    if isinstance(task_list, str):
+        task_list = parse_comma_list(task_list)
+    tl = expand_task_list(list(task_list))
     if not tl:
-        raise ValueError("target_list must not be empty")
-    bad = [t for t in tl if t not in VALID_TARGETS]
+        raise ValueError("task_list must not be empty")
+    bad = [t for t in tl if t not in VALID_TASKS]
     if bad:
         raise ValueError(
-            f"unknown target(s) {bad!r} (expected {'|'.join(CLI_TARGET_NAMES)})",
+            f"unknown task(s) {bad!r} (expected {'|'.join(CLI_TASK_NAMES)})",
         )
     return tl

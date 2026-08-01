@@ -2,7 +2,7 @@
 
 Some visual neurons (notably R1-6) never get a direct ``(p, q)`` column in
 ``column_assignment``; they must be placed by their synaptic partners. This
-module is a general locator: for any cell type, it infers each neuron's column
+module is a general locator: for any cell, it infers each neuron's column
 from the majority column of its partners. Neurons keep their original type
 (no per-column slot splitting).
 
@@ -15,7 +15,7 @@ Direction matters and depends on the neuron's role:
 
 Cell types are one positional comma-separated token (like analyze_cell_syn.py); direction
 is a ``--post`` flag (default ``pre``, by upstream sources). Outputs go to the
-``assigned_columns/`` subfolder as ``<tag>_<side>_<direction>.csv`` (e.g.
+``3_assigned_columns/`` subfolder as ``<tag>_<side>_<direction>.csv`` (e.g.
 ``r1_6_left_post.csv``).
 
 Run with the project venv (defaults to R1-6, right side, pre):
@@ -34,24 +34,25 @@ from typing import Optional, Sequence
 import pandas as pd
 
 import path
+from import_bootstrap import parse_comma_list
 
 logger = logging.getLogger(__name__)
 
 # Cell types located by their downstream targets by default.
-DEFAULT_TARGET_TYPES = ("R1-6",)
+DEFAULT_TARGET_CELLS = ("R1-6",)
 DEFAULT_DIRECTION = "post"
 
 
-def _type_tag(cell_type: str) -> str:
-    """Turn a cell type into a filename tag, e.g. 'R1-6' -> 'r1_6'."""
-    return re.sub(r"[^0-9a-z]+", "_", cell_type.lower()).strip("_")
+def _cell_tag(cell: str) -> str:
+    """Turn a cell into a filename tag, e.g. 'R1-6' -> 'r1_6'."""
+    return re.sub(r"[^0-9a-z]+", "_", cell.lower()).strip("_")
 
 
 def locate_neurons(
     neurons: pd.DataFrame,
     columns: pd.DataFrame,
     connections: pd.DataFrame,
-    target_types: Sequence[str],
+    target_cells: Sequence[str],
     side: str,
     direction: str = DEFAULT_DIRECTION,
     weight_by_syn: bool = False,
@@ -63,7 +64,7 @@ def locate_neurons(
         neurons: visual neurons (root_id, type, side) already filtered to ``side``.
         columns: column_assignment rows (root_id, hemisphere, column_id) for ``side``.
         connections: connection rows (pre_root_id, post_root_id, syn_count).
-        target_types: cell types to locate.
+        target_cells: cells to locate.
         side: 'left' or 'right' (for logging only; inputs must already match).
         direction: 'post' (by downstream targets) or 'pre' (by upstream sources).
         weight_by_syn: vote by summed syn_count instead of distinct-partner count.
@@ -85,11 +86,11 @@ def locate_neurons(
     if direction not in ("post", "pre"):
         raise ValueError(f"direction must be 'post' or 'pre', got {direction!r}")
 
-    targets = neurons[neurons["type"].isin(list(target_types))][["root_id", "type"]]
+    targets = neurons[neurons["cell"].isin(list(target_cells))][["root_id", "cell"]]
     target_ids = set(targets["root_id"].astype("int64"))
     logger.info(
-        "Locating %d neurons of types %s (%s, direction=%s)",
-        len(target_ids), list(target_types), side, direction,
+        "Locating %d neurons of cells %s (%s, direction=%s)",
+        len(target_ids), list(target_cells), side, direction,
     )
 
     partner_col = (
@@ -191,27 +192,27 @@ def locate_neurons(
         chosen.loc[use_nearest] = nearest.reindex(chosen.index).loc[use_nearest]
         out["majority_column_id"] = out["root_id"].map(chosen).astype("Int64")
 
-    return out.sort_values(["type", "majority_column_id", "root_id"]).reset_index(
+    return out.sort_values(["cell", "majority_column_id", "root_id"]).reset_index(
         drop=True
     )
 
 
-def _output_name(side: str, target_types: Sequence[str], direction: str) -> str:
-    if list(target_types) == list(DEFAULT_TARGET_TYPES):
-        tag = _type_tag(target_types[0])
+def _output_name(side: str, target_cells: Sequence[str], direction: str) -> str:
+    if list(target_cells) == list(DEFAULT_TARGET_CELLS):
+        tag = _cell_tag(target_cells[0])
     else:
-        tag = "_".join(_type_tag(t) for t in target_types)
+        tag = "_".join(_cell_tag(t) for t in target_cells)
     return f"{tag}_{side}_{direction}.csv"
 
 
 def _parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Locate neurons by partner columns.")
     parser.add_argument(
-        "cell_types",
+        "cells",
         nargs="?",
         default="R1-6",
-        metavar="CELL_TYPE[,CELL_TYPE...]",
-        help="Comma-separated cell types to locate (default: R1-6).",
+        metavar="CELL[,CELL...]",
+        help="Comma-separated cells to locate (default: R1-6).",
     )
     parser.add_argument("--side", default="right", choices=["left", "right", "both"])
     parser.add_argument(
@@ -229,9 +230,9 @@ def _parse_args() -> argparse.Namespace:
 def main() -> None:
     logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
     args = _parse_args()
-    cell_types = path.parse_comma_list(args.cell_types)
-    if not cell_types:
-        raise SystemExit("cell_types must not be empty")
+    cells = parse_comma_list(args.cells)
+    if not cells:
+        raise SystemExit("cells must not be empty")
     direction = "post" if args.post else "pre"
     sides = ["left", "right"] if args.side == "both" else [args.side]
 
@@ -245,7 +246,7 @@ def main() -> None:
         neurons = all_neurons[all_neurons["side"] == side]
         columns = all_columns[all_columns["hemisphere"] == side]
         target_ids = set(
-            neurons[neurons["type"].isin(cell_types)]["root_id"].astype("int64")
+            neurons[neurons["cell"].isin(cells)]["root_id"].astype("int64")
         )
         # Pull all edges touching the targets on the relevant side (no syn cut).
         connections = path.load_connections(keep_neuron_ids=target_ids)
@@ -268,18 +269,18 @@ def main() -> None:
             neurons=neurons,
             columns=columns,
             connections=connections,
-            target_types=cell_types,
+            target_cells=cells,
             side=side,
             direction=direction,
             weight_by_syn=args.weight_by_syn,
             col_to_uv=col_to_uv,
         )
-        out_path = out_dir / _output_name(side, cell_types, direction)
+        out_path = out_dir / _output_name(side, cells, direction)
         located.to_csv(out_path, index=False)
 
         n_total = len(located)
         n_located = int(located["majority_column_id"].notna().sum())
-        print(f"\n=== locate {cell_types} ({side}, direction={direction}) ===")
+        print(f"\n=== locate {cells} ({side}, direction={direction}) ===")
         print(f"  neurons: {n_total}  located: {n_located}  unresolved: {n_total - n_located}")
         print(f"  output: {out_path}")
 

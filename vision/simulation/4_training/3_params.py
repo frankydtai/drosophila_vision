@@ -14,32 +14,32 @@ from __future__ import annotations
 import numpy as np
 import torch
 
-from training.target_pack import ModelBackend, active_device, SIM_DTYPE
+from training.readout_pack import ModelBackend, active_device, SIM_DTYPE
 from neuron import IH_DIR_REVERSE_CELLS
 
 
 def calc_multi_col_params(param, conn):
-    # Broadcast a per-cell-TYPE parameter (n_types,) to the full state (n_units,)
-    # via the backend's node_type.
-    return param.index_select(0, conn.node_type)
+    # Broadcast a per-cell-TYPE parameter (n_cells,) to the full state (n_nodes,)
+    # via the backend's node_cell.
+    return param.index_select(0, conn.node_cell)
 
 
 def build_e_leak(
-    conn, n_types, depol_cells=(), *, e_leak_rest: float, e_leak_depol: float,
+    conn, n_cells, depol_cells=(), *, e_leak_rest: float, e_leak_depol: float,
     dtype=SIM_DTYPE,
 ):
-    """(conn.n_units,) resting potential; ``depol_cells`` are type indices at ``e_leak_depol``."""
-    per_type = torch.full((n_types,), e_leak_rest, dtype=dtype, device=conn.node_type.device)
+    """(conn.n_nodes,) resting potential; ``depol_cells`` are type indices at ``e_leak_depol``."""
+    per_type = torch.full((n_cells,), e_leak_rest, dtype=dtype, device=conn.node_cell.device)
     for c in depol_cells:
         per_type[int(c)] = e_leak_depol
     return calc_multi_col_params(per_type, conn)
 
 
 def build_ih_dir(conn, ih_reverse_cells=IH_DIR_REVERSE_CELLS, *, dtype=SIM_DTYPE):
-    """(conn.n_units,) Ih direction (+1 normal, -1 mirrored per cell-type)."""
-    d = torch.ones(conn.n_units, dtype=dtype, device=conn.node_type.device)
+    """(conn.n_nodes,) Ih direction (+1 normal, -1 mirrored per cell)."""
+    d = torch.ones(conn.n_nodes, dtype=dtype, device=conn.node_cell.device)
     for c in ih_reverse_cells:
-        d[conn.node_type == int(c)] = -1.0
+        d[conn.node_cell == int(c)] = -1.0
     return d
 
 
@@ -49,7 +49,7 @@ def build_ih_dir(conn, ih_reverse_cells=IH_DIR_REVERSE_CELLS, *, dtype=SIM_DTYPE
 # Each segment:
 #   name, kind, count, lo/hi/init/jit[, fixed_val][, scale]
 #   scale: ``linear`` (default), ``log`` (z = log(physical)), or ``inv`` (z = 1/physical); lo/hi/init physical
-#   indi / shared / fixed / frozen : disjoint exhaustive lists of unit indices
+#   indi / shared / fixed / frozen : disjoint exhaustive lists of node indices
 #       frozen: not in z; values from seg['carry'] (resume) or init (cold start)
 # z layout per segment: len(indi) slots + (1 if shared else 0).
 PARTITION_BUCKETS = ('indi', 'shared', 'fixed', 'frozen')
@@ -103,12 +103,12 @@ def _z_bounds(seg):
 
 
 def seg_count(seg):
-    """Full per-unit width (n_types or n_pairs)."""
+    """Full per-node width (n_cells or n_pairs)."""
     return int(seg['count'])
 
 
 def seg_ntrain(seg):
-    """Trainable z width: one slot per indi unit + one if shared nonempty."""
+    """Trainable z width: one slot per indi node + one if shared nonempty."""
     n = len(seg.get('indi', ()))
     if seg.get('shared'):
         n += 1
@@ -129,7 +129,7 @@ def schema_nparams(schema):
 
 
 def _fixed_const(seg):
-    """Constant for units in the fixed partition (fixed_val if set, else init)."""
+    """Constant for nodes in the fixed partition (fixed_val if set, else init)."""
     if 'fixed_val' in seg:
         return float(seg['fixed_val'])
     return float(seg['init'])
@@ -182,11 +182,11 @@ def parse_partition_text(text):
     return buckets
 
 
-def resolve_partition_tokens(buckets, unit_names, *, param_name='param'):
-    """Resolve token lists (with at most one ``all``) to index lists covering unit_names."""
-    unit_names = [str(u) for u in unit_names]
-    name_to_i = {n: i for i, n in enumerate(unit_names)}
-    all_idx = set(range(len(unit_names)))
+def resolve_partition_tokens(buckets, node_names, *, param_name='param'):
+    """Resolve token lists (with at most one ``all``) to index lists covering node_names."""
+    node_names = [str(u) for u in node_names]
+    name_to_i = {n: i for i, n in enumerate(node_names)}
+    all_idx = set(range(len(node_names)))
     explicit = {b: [] for b in PARTITION_BUCKETS}
     all_bucket = None
     for b in PARTITION_BUCKETS:
@@ -200,33 +200,33 @@ def resolve_partition_tokens(buckets, unit_names, *, param_name='param'):
             continue
         for t in toks:
             if t not in name_to_i:
-                raise ValueError(f"{param_name}: unknown unit {t!r}")
+                raise ValueError(f"{param_name}: unknown node {t!r}")
             explicit[b].append(name_to_i[t])
     claimed = []
     for b in PARTITION_BUCKETS:
         claimed.extend(explicit[b])
     if len(claimed) != len(set(claimed)):
-        raise ValueError(f"{param_name}: overlapping units across indi/shared/fixed/frozen")
+        raise ValueError(f"{param_name}: overlapping nodes across indi/shared/fixed/frozen")
     claimed_set = set(claimed)
     leftover = sorted(all_idx - claimed_set)
     if all_bucket is not None:
         explicit[all_bucket] = leftover
         claimed_set |= set(leftover)
     elif claimed_set != all_idx:
-        missing = [unit_names[i] for i in sorted(all_idx - claimed_set)]
+        missing = [node_names[i] for i in sorted(all_idx - claimed_set)]
         raise ValueError(
-            f"{param_name}: units not assigned (use all= in one bucket): {missing[:8]}"
+            f"{param_name}: nodes not assigned (use all= in one bucket): {missing[:8]}"
             + ("..." if len(missing) > 8 else "")
         )
     return {b: list(explicit[b]) for b in PARTITION_BUCKETS}
 
 
-def partition_to_names(part, unit_names):
+def partition_to_names(part, node_names):
     """Index partition -> name lists for train_opts sidecar."""
-    return {b: [str(unit_names[i]) for i in part[b]] for b in PARTITION_BUCKETS}
+    return {b: [str(node_names[i]) for i in part[b]] for b in PARTITION_BUCKETS}
 
 
-def apply_partitions(schema, partitions_by_name, unit_names_for_seg):
+def apply_partitions(schema, partitions_by_name, node_names_for_seg):
     """Copy schema with resolved partitions."""
     out = []
     for seg in schema:
@@ -235,10 +235,10 @@ def apply_partitions(schema, partitions_by_name, unit_names_for_seg):
         if name not in partitions_by_name:
             out.append(s)
             continue
-        if callable(unit_names_for_seg):
-            units = unit_names_for_seg(s)
+        if callable(node_names_for_seg):
+            nodes = node_names_for_seg(s)
         else:
-            units = unit_names_for_seg[name]
+            nodes = node_names_for_seg[name]
         raw = partitions_by_name[name]
         vals = []
         for b in PARTITION_BUCKETS:
@@ -267,22 +267,22 @@ def apply_partitions(schema, partitions_by_name, unit_names_for_seg):
             part = {b: list(raw.get(b) or []) for b in PARTITION_BUCKETS}
         else:
             buckets = {b: [str(x) for x in (raw.get(b) or [])] for b in PARTITION_BUCKETS}
-            part = resolve_partition_tokens(buckets, units, param_name=name)
+            part = resolve_partition_tokens(buckets, nodes, param_name=name)
         for b in PARTITION_BUCKETS:
             s[b] = part[b]
         raw_io = raw.get('init_override')
         if raw_io:
-            name_to_idx = {str(u): i for i, u in enumerate(units)}
+            name_to_idx = {str(u): i for i, u in enumerate(nodes)}
             io = {}
             all_val = raw_io.get('all')
             for cell_name, val in raw_io.items():
                 if cell_name == 'all':
                     continue
                 if cell_name not in name_to_idx:
-                    raise ValueError(f"{name}: init override unknown unit {cell_name!r}")
+                    raise ValueError(f"{name}: init override unknown node {cell_name!r}")
                 io[name_to_idx[cell_name]] = val
             if all_val is not None:
-                for i in range(len(units)):
+                for i in range(len(nodes)):
                     if i not in io:
                         io[i] = all_val
             s['init_override'] = io
@@ -290,14 +290,14 @@ def apply_partitions(schema, partitions_by_name, unit_names_for_seg):
     return out
 
 
-def schema_partitions_record(schema, unit_names_for_seg):
+def schema_partitions_record(schema, node_names_for_seg):
     """Serialize partitions as name lists for train_opts.json."""
     rec = {}
     for seg in schema:
-        if callable(unit_names_for_seg):
-            units = unit_names_for_seg(seg)
+        if callable(node_names_for_seg):
+            nodes = node_names_for_seg(seg)
         else:
-            units = unit_names_for_seg[seg['name']]
+            nodes = node_names_for_seg[seg['name']]
         part = {b: list(seg.get(b) or []) for b in PARTITION_BUCKETS}
         if seg.get('kind') == 'edge':
             n = seg_count(seg)
@@ -315,35 +315,35 @@ def schema_partitions_record(schema, unit_names_for_seg):
                     )
             rec[seg['name']] = compact
         else:
-            rec[seg['name']] = partition_to_names(part, units)
+            rec[seg['name']] = partition_to_names(part, nodes)
     return rec
 
 
-def type_unit_names(backend: "ModelBackend"):
+def cell_node_names(backend: "ModelBackend"):
     if backend.network is None:
-        raise ValueError("type_unit_names requires backend.network")
-    return [str(n) for n in backend.network.type_names]
+        raise ValueError("cell_node_names requires backend.network")
+    return [str(n) for n in backend.network.cell_names]
 
 
-def pair_unit_names(backend: "ModelBackend"):
+def pair_node_names(backend: "ModelBackend"):
     keys = backend.conn.pair_keys
-    names = type_unit_names(backend)
+    names = cell_node_names(backend)
     return [f"{names[s]}{PAIR_SEP}{names[t]}" for s, t in keys]
 
 
-def edge_unit_names(backend: "ModelBackend"):
+def edge_node_names(backend: "ModelBackend"):
     """Opaque per-edge labels for partition resolve (``e0`` ... ``e{n-1}``)."""
     n = int(backend.conn.n_edges)
     return [f"e{i}" for i in range(n)]
 
 
-def unit_names_for_segment(seg, backend: "ModelBackend"):
+def node_names_for_segment(seg, backend: "ModelBackend"):
     kind = seg['kind']
     if kind == 'edge_pair':
-        return pair_unit_names(backend)
+        return pair_node_names(backend)
     if kind == 'edge':
-        return edge_unit_names(backend)
-    return type_unit_names(backend)
+        return edge_node_names(backend)
+    return cell_node_names(backend)
 
 
 def validate_edge_weight_partition(buckets, *, param_name='edge_weight'):
@@ -393,7 +393,7 @@ def _part_indi_subset_fixed_rest(n, indi_idx):
 
 
 def attach_param_carry(schema, named=None):
-    """Return schema copy with per-seg ``carry`` arrays (full width) for frozen units."""
+    """Return schema copy with per-seg ``carry`` arrays (full width) for frozen nodes."""
     out = []
     for seg in schema:
         s = dict(seg)
@@ -429,8 +429,8 @@ def _with_part(seg, part):
     return s
 
 
-def z_to_unit_values(z, schema):
-    """Full-width per-unit arrays (before column expand) for each segment."""
+def z_to_node_values(z, schema):
+    """Full-width per-node arrays (before column expand) for each segment."""
     out = {}
     for seg, start, stop in schema_segments(schema):
         raw = _reconstruct_raw(seg, z[start:stop], z)
@@ -438,8 +438,8 @@ def z_to_unit_values(z, schema):
     return out
 
 
-def unit_values_to_z(named, schema, *, dtype=None, device=None):
-    """Pack full-width named unit values into trainable z for *schema* partitions."""
+def node_values_to_z(named, schema, *, dtype=None, device=None):
+    """Pack full-width named node values into trainable z for *schema* partitions."""
     n = schema_nparams(schema)
     z = torch.zeros(n, dtype=dtype or SIM_DTYPE, device=device or active_device())
     for seg, start, stop in schema_segments(schema):
@@ -460,13 +460,13 @@ def unit_values_to_z(named, schema, *, dtype=None, device=None):
     return z
 
 
-def remap_named_unit_values(named, src_type_names, src_pair_names, schema, backend):
-    """Remap named arrays from a prior run onto *backend* unit order for *schema*."""
-    src_type_names = [str(n) for n in src_type_names]
+def remap_named_node_values(named, src_cell_names, src_pair_names, schema, backend):
+    """Remap named arrays from a prior run onto *backend* node order for *schema*."""
+    src_cell_names = [str(n) for n in src_cell_names]
     src_pair_names = [str(n) for n in (src_pair_names or [])]
-    dst_types = type_unit_names(backend)
-    dst_pairs = pair_unit_names(backend) if any(s['kind'] == 'edge_pair' for s in schema) else []
-    src_t = {n: i for i, n in enumerate(src_type_names)}
+    dst_cells = cell_node_names(backend)
+    dst_pairs = pair_node_names(backend) if any(s['kind'] == 'edge_pair' for s in schema) else []
+    src_t = {n: i for i, n in enumerate(src_cell_names)}
     src_p = {n: i for i, n in enumerate(src_pair_names)}
     out = {}
     for seg in schema:
@@ -491,7 +491,7 @@ def remap_named_unit_values(named, src_type_names, src_pair_names, schema, backe
             else:
                 arr[:] = float(seg['init'])
         else:
-            for j, tn in enumerate(dst_types):
+            for j, tn in enumerate(dst_cells):
                 if tn in src_t and src_t[tn] < src.shape[0]:
                     arr[j] = float(src[src_t[tn]])
                 else:
@@ -501,7 +501,7 @@ def remap_named_unit_values(named, src_type_names, src_pair_names, schema, backe
 
 
 def _reconstruct_raw(seg, z_slice, z):
-    """Build length-`count` per-unit vector from z slice + partition buckets."""
+    """Build length-`count` per-node vector from z slice + partition buckets."""
     count = seg_count(seg)
     const = _fixed_const(seg)
     raw = torch.full((count,), const, dtype=z.dtype, device=z.device)
@@ -525,9 +525,9 @@ def _reconstruct_raw(seg, z_slice, z):
 
 
 def _expand_segment(seg, raw, backend: ModelBackend):
-    """Map a length-`count` per-unit vector to a usable parameter, per its 'kind'."""
+    """Map a length-`count` per-node vector to a usable parameter, per its 'kind'."""
     kind = seg['kind']
-    dev = backend.conn.node_type.device
+    dev = backend.conn.node_cell.device
     if kind == 'full':
         return calc_multi_col_params(raw, backend.conn).to(dev)
     if kind == 'output':

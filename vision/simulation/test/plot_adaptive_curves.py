@@ -35,7 +35,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 import FiveCol_MedSim_Pytorch as fc
-from path import parse_comma_list
+from import_bootstrap import parse_comma_list
 from param_defaults import P
 from training_config import DELTA_MS
 
@@ -87,7 +87,7 @@ def simulate_pulse(
     settle_ms,
     gate_lag=None,
 ):
-    """Isolated adaptive unit; returns t[ms], activity, v_s, v_t, drive_lp, gate."""
+    """Isolated adaptive node; returns t[ms], activity, v_s, v_t, drive_lp, gate."""
     dt = float(fc.delta_ms)
     gate_lag = int(fc.gate_lag if gate_lag is None else gate_lag)
     n = int(round(t_total_ms / dt))

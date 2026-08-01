@@ -40,7 +40,7 @@ from training_config import DELTA_MS, IMPULSE_MAXTIME, T_ON, ms_to_t
 
 DEFAULT_SAVE = os.path.join(HERE, "spot_data_pulses_LTI.png")
 DEFAULT_SAVE_FILTER = os.path.join(HERE, "spot_data_pulses_filter.png")
-EXCLUDE_TYPES = frozenset({"R1-6", "R7", "R8"})
+EXCLUDE_CELLS = frozenset({"R1-6", "R7", "R8"})
 PULSE_50_MS = 50.0
 PULSE_500_MS = 500.0
 LABEL_STEP = "continue on (step)"
@@ -64,7 +64,7 @@ def pulse_from_step(step: np.ndarray, pulse_t: int) -> np.ndarray:
 
 
 def make_u(n_t: int, t_on: int, width_t: int | None) -> np.ndarray:
-    """Unit pulse/step ``u[t]`` starting at ``t_on``; ``width_t=None`` → continue on."""
+    """Node pulse/step ``u[t]`` starting at ``t_on``; ``width_t=None`` → continue on."""
     u = np.zeros(n_t, dtype=np.float64)
     if width_t is None:
         u[t_on:] = 1.0
@@ -141,7 +141,7 @@ def fit_filter_traces() -> dict[str, dict[str, np.ndarray]]:
 
 def layout_groups():
     """Family-row layout for fit cells only (no R types)."""
-    present = [str(n) for n in ml.cell_list if str(n) not in EXCLUDE_TYPES]
+    present = [str(n) for n in ml.cell_list if str(n) not in EXCLUDE_CELLS]
     groups, names = plot_present_layout(present)
     return groups, names
 

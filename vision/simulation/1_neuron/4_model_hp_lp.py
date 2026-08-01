@@ -5,7 +5,7 @@
     τ_lp dv/dt = −(v − v_rest) + G (X − a)
 
 with X = v_rest + syn + x_t, syn from relu(v)·out_gain scaled by syn_strength
-(type_pair) or edge_weight (per_edge).
+(cell_pair) or edge_weight (per_edge).
 
 Dynamics only: ``prepare_signal`` / ``init_state`` / ``step``. Full-T ``v``
 forward lives in ``neuron.forward``. Scalars from ``session`` flat fields.
@@ -52,7 +52,7 @@ def prepare_signal(session, p, sig, pack):
 def init_state(session, p, B):
     """``(a,)``, ``v0 = v_rest``."""
     v_rest = p["v_rest"]
-    n = session.backend.n_units
+    n = session.backend.n_nodes
     v = v_rest.expand(B, n).clone()
     a = v_rest.expand(B, n).clone()
     return (a,), v

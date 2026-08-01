@@ -29,9 +29,9 @@ if str(_SIMULATION_CODE) not in sys.path:
 
 import import_bootstrap  # noqa: F401
 import network.path  # noqa: F401 — FAFB path on sys.path
+from import_bootstrap import parse_comma_list
 from path import (
     BUILT_NETWORKS_DIR,
-    parse_comma_list,
     resolve_network_json,
 )
 from training.defaults import (
@@ -62,9 +62,12 @@ from training.defaults import (
     SPOT_COST_RADIUS_WEIGHT_EXTENT1,
     SPOT_EXTENT,
     SYN_MODE,
-    TARGET,
+    TASK,
 )
-from task.spot.data import default_spot_cost_radius_weight
+from task.spot.data import (
+    default_spot_cost_radius_weight,
+    parse_spot_cost_r_w_tokens,
+)
 from training import do_many_runs
 import training
 from training.config import (
@@ -155,30 +158,30 @@ def checkpoint_step_tag(step):
 
 
 
-def ctype_labels(session):
+def cell_labels(session):
     if session.backend.network is None:
-        raise ValueError("ctype_labels requires session.backend.network")
-    return np.asarray(session.backend.network.type_names)
+        raise ValueError("cell_labels requires session.backend.network")
+    return np.asarray(session.backend.network.cell_names)
 
 
 
 def decompose_params(z_t, session):
     """Return (per_cell_cols, global_scalars) for one parameter vector.
 
-    Per-type columns come from full-width unit values (partition-aware).
-    Shared-only segments also emit a global scalar (mean of shared units).
+    Per-cell columns come from full-width node values (partition-aware).
+    Shared-only segments also emit a global scalar (mean of shared nodes).
     """
-    n = session.backend.n_types
+    n = session.backend.n_cells
     schema = list(session.schema)
-    unit_vals = training.z_to_unit_values(z_t, schema)
+    node_vals = training.z_to_node_values(z_t, schema)
     cols, glob = {}, {}
     for seg in schema:
         name = seg["name"]
         if seg["kind"] in ("edge_pair", "edge"):
             continue
-        arr = np.asarray(unit_vals[name], dtype=np.float64).reshape(-1)
+        arr = np.asarray(node_vals[name], dtype=np.float64).reshape(-1)
         if arr.shape[0] != n:
-            raise ValueError(f"{name}: unit width {arr.shape[0]} != n_types {n}")
+            raise ValueError(f"{name}: node width {arr.shape[0]} != n_cells {n}")
         cols[name] = arr
         if seg.get("shared") and not seg.get("indi"):
             glob[name] = float(arr[list(seg["shared"])].mean()) if seg["shared"] else float(arr.mean())
@@ -189,15 +192,15 @@ def write_param_table(z_t, session, table_path, extra_cols=None):
     cols, glob = decompose_params(z_t, session)
     if extra_cols:
         cols.update(extra_cols)
-    ctype = ctype_labels(session)
+    cell_col = cell_labels(session)
     cell_names = list(cols.keys())
     glob_names = list(glob.keys())
-    n = session.backend.n_types
+    n = session.backend.n_cells
     with open(table_path, "w") as f:
-        f.write("idx,ctype," + ",".join(cell_names + glob_names) + "\n")
+        f.write("idx,cell," + ",".join(cell_names + glob_names) + "\n")
         for i in range(n):
             row = ["%.6f" % cols[nm][i] for nm in cell_names] + ["%.6f" % glob[nm] for nm in glob_names]
-            f.write("%d,%s," % (i, ctype[i]) + ",".join(row) + "\n")
+            f.write("%d,%s," % (i, cell_col[i]) + ",".join(row) + "\n")
     return table_path
 
 
@@ -210,9 +213,9 @@ def write_syn_strength_table(z_t, session, table_path):
     seg = next((s for s in schema if s["name"] == "syn_strength"), None)
     if seg is None or seg["kind"] != "edge_pair":
         return None
-    unit_vals = training.z_to_unit_values(z_t, schema)
-    arr = np.asarray(unit_vals["syn_strength"], dtype=np.float64).reshape(-1)
-    names = [str(n) for n in ctype_labels(session)]
+    node_vals = training.z_to_node_values(z_t, schema)
+    arr = np.asarray(node_vals["syn_strength"], dtype=np.float64).reshape(-1)
+    names = [str(n) for n in cell_labels(session)]
     keys = list(session.backend.conn.pair_keys)
     if arr.shape[0] != len(keys):
         raise ValueError(
@@ -237,27 +240,27 @@ def write_edge_weight_table(z_t, session, table_path):
     seg = next((s for s in schema if s["name"] == "edge_weight"), None)
     if seg is None or seg["kind"] != "edge":
         return None
-    unit_vals = training.z_to_unit_values(z_t, schema)
-    arr = np.asarray(unit_vals["edge_weight"], dtype=np.float64).reshape(-1)
+    node_vals = training.z_to_node_values(z_t, schema)
+    arr = np.asarray(node_vals["edge_weight"], dtype=np.float64).reshape(-1)
     conn = session.backend.conn
     if arr.shape[0] != conn.n_edges:
         raise ValueError(
             f"edge_weight length {arr.shape[0]} != n_edges {conn.n_edges}"
         )
-    names = [str(n) for n in ctype_labels(session)]
+    names = [str(n) for n in cell_labels(session)]
     src = conn.src_idx.detach().cpu().numpy()
     tar = conn.tar_idx.detach().cpu().numpy()
-    node_type = conn.node_type.detach().cpu().numpy()
+    node_cell = conn.node_cell.detach().cpu().numpy()
     sign = torch.sign(conn.w_signed).detach().cpu().numpy()
     with open(table_path, "w") as f:
-        f.write("edge_idx,src_unit,tar_unit,source_type,target_type,sign,edge_weight\n")
+        f.write("edge_idx,src_node,tar_node,source_cell,target_cell,sign,edge_weight\n")
         for i in range(conn.n_edges):
             si, ti = int(src[i]), int(tar[i])
             f.write(
                 "%d,%d,%d,%s,%s,%.0f,%.6f\n"
                 % (
                     i, si, ti,
-                    names[int(node_type[si])], names[int(node_type[ti])],
+                    names[int(node_cell[si])], names[int(node_cell[ti])],
                     float(sign[i]), float(arr[i]),
                 )
             )
@@ -296,20 +299,20 @@ def best_param_path(outdir):
 
 
 def save_param_named(outdir, z, session, filename):
-    """Write named full-width unit values to ``data/<filename>``."""
+    """Write named full-width node values to ``data/<filename>``."""
     schema = list(session.schema)
-    named = training.z_to_unit_values(z, schema)
-    type_names = np.asarray(training.type_unit_names(session.backend), dtype=object)
+    named = training.z_to_node_values(z, schema)
+    cell_names = np.asarray(training.cell_node_names(session.backend), dtype=object)
     payload = {k: np.asarray(v, dtype=np.float64) for k, v in named.items()}
-    payload['type_names'] = type_names
+    payload['cell_names'] = cell_names
     if any(s['kind'] == 'edge_pair' for s in schema):
-        payload['pair_names'] = np.asarray(training.pair_unit_names(session.backend), dtype=object)
+        payload['pair_names'] = np.asarray(training.pair_node_names(session.backend), dtype=object)
     os.makedirs(data_dir(outdir), exist_ok=True)
     np.savez(os.path.join(data_dir(outdir), filename), **payload)
 
 
 def save_best_param_named(outdir, z, session):
-    """Write named full-width unit values to ``data/best_param.npz``."""
+    """Write named full-width node values to ``data/best_param.npz``."""
     save_param_named(outdir, z, session, 'best_param.npz')
 
 
@@ -346,38 +349,38 @@ def make_checkpoint_callback(outdir, session, *, run_i=0, nofruns=1, on_png=None
 
 
 def load_best_param_named(outdir):
-    """Load ``data/best_param.npz`` → (named dict, type_names, pair_names|None)."""
+    """Load ``data/best_param.npz`` → (named dict, cell_names, pair_names|None)."""
     fp = best_param_path(outdir)
     if not os.path.isfile(fp):
         raise FileNotFoundError(fp)
     with np.load(fp, allow_pickle=True) as d:
-        type_names = [str(x) for x in d['type_names'].tolist()]
+        cell_names = [str(x) for x in d['cell_names'].tolist()]
         pair_names = None
         if 'pair_names' in d.files:
             pair_names = [str(x) for x in d['pair_names'].tolist()]
         named = {
             k: np.asarray(d[k], dtype=np.float64)
             for k in d.files
-            if k not in ('type_names', 'pair_names')
+            if k not in ('cell_names', 'pair_names')
         }
-    return named, type_names, pair_names
+    return named, cell_names, pair_names
 
 
 def load_best_param(outdir, session=None):
     """Load best params as 1-D z for *session* (remap from named npz)."""
     if session is None:
         raise TypeError("load_best_param requires session for named best_param.npz")
-    named, type_names, pair_names = load_best_param_named(outdir)
+    named, cell_names, pair_names = load_best_param_named(outdir)
     schema = training.attach_param_carry(
         list(session.schema),
-        training.remap_named_unit_values(
-            named, type_names, pair_names, list(session.schema), session.backend,
+        training.remap_named_node_values(
+            named, cell_names, pair_names, list(session.schema), session.backend,
         ),
     )
-    remapped = training.remap_named_unit_values(
-        named, type_names, pair_names, schema, session.backend,
+    remapped = training.remap_named_node_values(
+        named, cell_names, pair_names, schema, session.backend,
     )
-    z = training.unit_values_to_z(
+    z = training.node_values_to_z(
         remapped, schema, dtype=session.sim_dtype, device=session.device,
     )
     return z.detach().cpu().numpy().astype(np.float64)
@@ -412,12 +415,12 @@ def _cost_curve_path(outdir, fname):
     return os.path.join(data_dir(outdir), _artifact_stem(fname) + '_costs.npy')
 
 
-def _costs_by_target_path(outdir, fname):
-    return os.path.join(data_dir(outdir), _artifact_stem(fname) + '_costs_by_target.npz')
+def _costs_by_task_path(outdir, fname):
+    return os.path.join(data_dir(outdir), _artifact_stem(fname) + '_costs_by_task.npz')
 
 
-def _final_costs_by_target_path(outdir, fname):
-    return os.path.join(data_dir(outdir), _artifact_stem(fname) + '_final_costs_by_target.npz')
+def _final_costs_by_task_path(outdir, fname):
+    return os.path.join(data_dir(outdir), _artifact_stem(fname) + '_final_costs_by_task.npz')
 
 
 def final_costs_for_params(all_params, session, final_costs=None):
@@ -454,11 +457,11 @@ def write_best_artifacts(outdir, fname, session, all_params, best_i, final_costs
 
 
 def load_stored_costs(outdir, fname, n_runs):
-    """Load ``*_final_costs.npy``, step ``*_costs.npy``, and per-target npz when present."""
+    """Load ``*_final_costs.npy``, step ``*_costs.npy``, and per-task npz when present."""
     final_costs = None
     cost_curve = None
-    costs_by_target = None
-    final_costs_by_target = None
+    costs_by_task = None
+    final_costs_by_task = None
     fp = _final_costs_path(outdir, fname)
     if os.path.isfile(fp):
         final_costs = np.load(fp)
@@ -469,15 +472,15 @@ def load_stored_costs(outdir, fname, n_runs):
             final_costs = arr
         else:
             cost_curve = arr
-    cbt = _costs_by_target_path(outdir, fname)
+    cbt = _costs_by_task_path(outdir, fname)
     if os.path.isfile(cbt):
         with np.load(cbt) as d:
-            costs_by_target = {k: np.asarray(d[k]) for k in d.files}
-    fbt = _final_costs_by_target_path(outdir, fname)
+            costs_by_task = {k: np.asarray(d[k]) for k in d.files}
+    fbt = _final_costs_by_task_path(outdir, fname)
     if os.path.isfile(fbt):
         with np.load(fbt) as d:
-            final_costs_by_target = {k: np.asarray(d[k]) for k in d.files}
-    return final_costs, cost_curve, costs_by_target, final_costs_by_target
+            final_costs_by_task = {k: np.asarray(d[k]) for k in d.files}
+    return final_costs, cost_curve, costs_by_task, final_costs_by_task
 
 
 def load_init_z(init_from, session):
@@ -486,14 +489,14 @@ def load_init_z(init_from, session):
         outdir = resolve_run_dir(init_from)
     except SystemExit as exc:
         raise ValueError(str(exc)) from exc
-    named, type_names, pair_names = load_best_param_named(outdir)
+    named, cell_names, pair_names = load_best_param_named(outdir)
     schema = list(session.schema)
-    remapped = training.remap_named_unit_values(
-        named, type_names, pair_names, schema, session.backend,
+    remapped = training.remap_named_node_values(
+        named, cell_names, pair_names, schema, session.backend,
     )
     schema = training.attach_param_carry(schema, remapped)
     session = session.with_schema(schema)
-    z = training.unit_values_to_z(
+    z = training.node_values_to_z(
         remapped, schema, dtype=session.sim_dtype, device=session.device,
     )
     print(
@@ -514,10 +517,10 @@ def save_training_outputs(fname, outdir, session, result):
     np.save(params_path(outdir, fname), result.all_params)
     np.save(_cost_curve_path(outdir, fname), result.cost_curve)
     np.save(_final_costs_path(outdir, fname), result.final_costs)
-    if result.cost_curves_by_target:
-        np.savez(_costs_by_target_path(outdir, fname), **result.cost_curves_by_target)
-    if result.final_costs_by_target:
-        np.savez(_final_costs_by_target_path(outdir, fname), **result.final_costs_by_target)
+    if result.cost_curves_by_task:
+        np.savez(_costs_by_task_path(outdir, fname), **result.cost_curves_by_task)
+    if result.final_costs_by_task:
+        np.savez(_final_costs_by_task_path(outdir, fname), **result.final_costs_by_task)
     write_best_artifacts(
         outdir, fname, session, result.all_params, result.best_i, result.final_costs,
     )
@@ -558,12 +561,12 @@ def apply_param_partitions(session, partitions_by_name):
     schema = training.apply_partitions(
         list(session.schema),
         partitions_by_name,
-        lambda seg: training.unit_names_for_segment(seg, backend),
+        lambda seg: training.node_names_for_segment(seg, backend),
     )
     schema = training.attach_param_carry(schema)
     opts = dict(session.train_opts or {})
     opts['param_partitions'] = training.schema_partitions_record(
-        schema, lambda seg: training.unit_names_for_segment(seg, backend),
+        schema, lambda seg: training.node_names_for_segment(seg, backend),
     )
     session = replace(session, schema=tuple(schema), train_opts=opts)
     print_param_partitions(session)
@@ -579,9 +582,9 @@ def build_session(
     *,
     network=NETWORK,
     sequential=SEQUENTIAL,
-    target_list=None,
+    task_list=None,
     cost_weights=None,
-    cost_extent_by_target=None,
+    cost_extent_by_task=None,
     shift_extent=SHIFT_EXTENT,
     spot_extent=SPOT_EXTENT,
     multi_spot=MULTI_SPOT,
@@ -602,16 +605,16 @@ def build_session(
     schema=None,
 ):
     """Create a :class:`TrainSession` from run options."""
-    tl = list(target_list) if target_list is not None else list(
-        training.normalize_target_list([TARGET])
+    tl = list(task_list) if task_list is not None else list(
+        training.normalize_task_list([TASK])
     )
     dev = training.active_device()
     mkw = dict(
-        target_list=tl,
+        task_list=tl,
         cost_weights=cost_weights,
         pack_overrides=pack_overrides,
         sequential=sequential,
-        cost_extent_by_target=cost_extent_by_target,
+        cost_extent_by_task=cost_extent_by_task,
         shift_extent=shift_extent,
         spot_extent=spot_extent,
         multi_spot=multi_spot,
@@ -645,8 +648,8 @@ def run_training(model, nofruns, nofsteps, lrs, fname=None, outdir=None,
                  syn_mode=SYN_MODE,
                  ih_off=IH_OFF,
                  network=NETWORK, sequential=SEQUENTIAL,
-                 target_list=None, cost_weights=None,
-                 cost_extent_by_target=None, shift_extent=SHIFT_EXTENT,
+                 task_list=None, cost_weights=None,
+                 cost_extent_by_task=None, shift_extent=SHIFT_EXTENT,
                  spot_extent=SPOT_EXTENT,
                  multi_spot=MULTI_SPOT,
                  fully_inside=FULLY_INSIDE,
@@ -672,9 +675,9 @@ def run_training(model, nofruns, nofsteps, lrs, fname=None, outdir=None,
         model,
         network=network,
         sequential=sequential,
-        target_list=target_list,
+        task_list=task_list,
         cost_weights=cost_weights,
-        cost_extent_by_target=cost_extent_by_target,
+        cost_extent_by_task=cost_extent_by_task,
         shift_extent=shift_extent,
         spot_extent=spot_extent,
         multi_spot=multi_spot,
@@ -755,7 +758,7 @@ def add_training_arguments(parser):
         "--syn-mode",
         default=SYN_MODE,
         choices=list(training.SYN_MODES),
-        help="synaptic scale: type_pair (sign*n_syn + type→type syn_strength; default) "
+        help="synaptic scale: cell_pair (sign*n_syn + type→type syn_strength; default) "
              "or per_edge (sign only + per-edge edge_weight magnitude)",
     )
     parser.add_argument("--nofruns", type=int, default=NOFRUNS)
@@ -811,7 +814,7 @@ def add_training_arguments(parser):
                         help=f"out_scale partitions ({_partition_help}; default indi=all)")
     parser.add_argument("--syn-strength", **_partition_kwargs,
                         help=f"syn_strength partitions ({_partition_help}; default indi=all; "
-                             f"--syn-mode type_pair only)")
+                             f"--syn-mode cell_pair only)")
     parser.add_argument("--edge-weight", **_partition_kwargs,
                         help=f"edge_weight partitions ({_edge_weight_help}; default indi=all)")
     parser.add_argument("--v-th", **_partition_kwargs,
@@ -873,7 +876,7 @@ def add_training_arguments(parser):
         help=f"one stimulus batch per forward (default: {str(SEQUENTIAL).lower()})",
     )
     parser.add_argument("--network", default=NETWORK, metavar="RUN",
-                        help=f"connectome backend: built_networks run folder under {BUILT_NETWORKS_DIR} "
+                        help=f"connectome backend: 4_built_networks run folder under {BUILT_NETWORKS_DIR} "
                              f"(default: {NETWORK})")
     parser.add_argument(
         "--multi-bar",
@@ -885,25 +888,27 @@ def add_training_arguments(parser):
              "false → whole-field single bar over the full network field",
     )
     parser.add_argument(
-        "--target",
-        default=TARGET,
-        help="target name(s): spot (=spot_bright+spot_dark), moving_bar (=bright+dark), "
+        "--task",
+        default=TASK,
+        help="task name(s): spot (=spot_bright+spot_dark), moving_bar (=bright+dark), "
              "or explicit names / comma-separated list, e.g. spot,moving_bar",
     )
     parser.add_argument(
         "--cost-weight",
         default=None,
-        metavar="NAME|NAME=VALUE,...",
-        help="per-part cost weights. NAME=VALUE merges onto default 1; bare NAME "
-             "(aliases: spot, moving_bar, moving_bar_bright/dark, PD/ND/DSI) zeros "
-             "all parts for --target then sets those to 1. "
-             "e.g. DSI (=DSI-only), DSI=1 (PD/ND stay 1), DSI,PD=0.2",
+        nargs="+",
+        metavar="NAME|NAME=VALUE",
+        help="per-part cost weights (space-separated tokens). NAME=VALUE merges "
+             "onto default 1; bare NAME (aliases: spot, moving_bar, "
+             "moving_bar_bright/dark, PD/ND/DSI) zeros all parts for --task then "
+             "sets those to 1. e.g. DSI (=DSI-only), DSI=1 (PD/ND stay 1), "
+             "DSI PD=0.2",
     )
     parser.add_argument(
         "--shift-extent",
         type=int,
         default=SHIFT_EXTENT,
-        help="spot sub-shift hex-disc radius for spot targets in --target "
+        help="spot sub-shift hex-disc radius for spot tasks in --task "
              "(n_shifts=1+3k(k+1); 0->1, 1->7, 2->19, 3->37, ...)",
     )
     parser.add_argument(
@@ -912,48 +917,63 @@ def add_training_arguments(parser):
         default=SPOT_EXTENT,
         metavar="R",
         help=f"spot footprint / center-tiling radius (0.5 multiples; default {SPOT_EXTENT}); "
-             "extent=1 folds RecF(2) into r=1 target amp and defaults cost weights "
-             "to 0=1,1=1/6; extent 1.5/2 keep RecF(r) and 0=1,1=1/6,2=1/6",
+             "extent=1 folds RecF(2) into r=1 gt amp and defaults cost weights "
+             "to 0=1 1=1/6; extent 1.5/2 keep RecF(r) and 0=1 1=1/6 2=1/6",
     )
     add_spot_layout_arguments(parser)
     parser.add_argument(
         "--spot-cost-r-w",
         default=None,
-        metavar="R|R=W,...",
-        help="spot cost weights by Euclidean r from stim column. Same rules as "
-             "--cost-weight: R=W merges onto extent defaults; bare R zeros all "
-             "known radii then sets R=1. Omit → extent default "
-             "(1→0=1,1=1/6; else 0=1,1=1/6,2=1/6). Keys: 0,1,2,sqrt3. "
+        nargs="+",
+        metavar="R|R=W",
+        help="spot cost weights by Euclidean r from stim hex (space-separated). "
+             "Same rules as --cost-weight: R=W merges onto extent defaults; bare R "
+             "zeros all known radii then sets R=1. Omit → extent default "
+             "(1→0=1 1=1/6; else 0=1 1=1/6 2=1/6). Keys: 0,1,2,sqrt3. "
              "Weights only (does not change RecF data)",
     )
     parser.add_argument(
         "--cost-extent",
         default=None,
-        metavar="N|TARGET=N,...",
+        nargs="+",
+        metavar="N|TASK=N",
         help="network cost hex-disc radius (moving-bar default: network extent - 1; "
-             "network extent 0/-1 and spot default to all columns): bare N for all "
-             "--target, or per-target e.g. moving_bar_bright=0 "
-             "(aliases: spot, moving_bar); -1 = all columns; requires --network",
+             "network extent 0/-1 and spot default to all hexes): bare N for all "
+             "--task, or per-task space-separated e.g. moving_bar_bright=0 "
+             "(aliases: spot, moving_bar); -1 = all hexes; requires --network",
+    )
+    parser.add_argument(
+        "--gt",
+        default=None,
+        nargs="+",
+        metavar="TASK=CELLS",
+        help="final gt cell keep-set per task (space-separated TASK=CELLS; "
+             "CELLS comma-separated). Aliases: spot, moving_bar; moving-bar "
+             "cell aliases T4, T5. e.g. --gt moving_bar=T4 spot=L1,L2,L3,L4,L5",
     )
     parser.add_argument(
         "--i-baseline",
         default=None,
-        metavar="TARGET=VALUE,...",
-        help="per-target PR baseline (pA); aliases: spot, moving_bar",
+        nargs="+",
+        metavar="TASK=VALUE",
+        help="per-task PR baseline (pA; space-separated TASK=VALUE); "
+             "aliases: spot, moving_bar",
     )
     parser.add_argument(
         "--i-bright",
         default=None,
-        metavar="TARGET=VALUE,...",
-        help="bright peak/step current (pA); targets: spot_bright, moving_bar_bright "
-             "(aliases spot, moving_bar)",
+        nargs="+",
+        metavar="TASK=VALUE",
+        help="bright peak/step current (pA; space-separated TASK=VALUE); "
+             "tasks: spot_bright, moving_bar_bright (aliases spot, moving_bar)",
     )
     parser.add_argument(
         "--i-dark",
         default=None,
-        metavar="TARGET=VALUE,...",
-        help="dark peak/step current (pA); targets: spot_dark, moving_bar_dark "
-             "(aliases spot, moving_bar)",
+        nargs="+",
+        metavar="TASK=VALUE",
+        help="dark peak/step current (pA; space-separated TASK=VALUE); "
+             "tasks: spot_dark, moving_bar_dark (aliases spot, moving_bar)",
     )
     parser.add_argument(
         "--pre-ms",
@@ -1019,10 +1039,12 @@ def parse_bool(text):
     raise ValueError(f"expected true|false, got {text!r}")
 
 
-def parse_comma_kv(text, cast=str):
-    """Parse comma-separated ``NAME=VALUE`` pairs."""
+def parse_kv_tokens(tokens, cast=str):
+    """Parse space-separated ``NAME=VALUE`` tokens (``nargs='+'``)."""
+    if not tokens:
+        return {}
     out = {}
-    for tok in parse_comma_list(text):
+    for tok in tokens:
         if "=" not in tok:
             raise ValueError(f"expected NAME=VALUE, got {tok!r}")
         name, val = tok.split("=", 1)
@@ -1030,45 +1052,59 @@ def parse_comma_kv(text, cast=str):
     return out
 
 
-def parse_comma_floats(text):
-    """Parse comma-separated floats (e.g. learning rates)."""
-    return [float(x) for x in parse_comma_list(text)]
+def parse_task_list(text):
+    """Parse comma-separated training tasks (with alias expansion)."""
+    return training.normalize_task_list(parse_comma_list(text))
 
 
-def parse_target_list(text):
-    """Parse comma-separated training targets (with alias expansion)."""
-    return training.normalize_target_list(parse_comma_list(text))
-
-
-def parse_target_names(text):
-    """Parse comma-separated target names without alias expansion."""
-    return parse_comma_list(text)
-
-
-def parse_cost_extent(text):
-    """Parse ``--cost-extent``: optional bare ``N`` plus ``TARGET=N`` pairs."""
+def parse_cost_extent(tokens):
+    """Parse ``--cost-extent``: optional bare ``N`` plus ``TASK=N`` tokens."""
+    if not tokens:
+        return None, {}
     default = None
-    by_target = {}
-    for tok in parse_comma_list(text):
+    by_task = {}
+    for tok in tokens:
         if "=" in tok:
             name, val = tok.split("=", 1)
-            by_target[name.strip()] = int(val.strip())
+            by_task[name.strip()] = int(val.strip())
         else:
             if default is not None:
                 raise ValueError("only one bare extent allowed in --cost-extent")
             default = int(tok)
-    return default, by_target
+    return default, by_task
 
 
-def parse_cost_weight(text, target_list):
+def parse_gt(tokens):
+    """Parse ``--gt`` space-separated ``TASK=CELLS`` tokens (CELLS comma-separated).
+
+    Values are the final keep-set (not a remove list). Returns ``None`` when
+    omitted; otherwise a concrete-task → type-list map.
+    """
+    if tokens is None:
+        return None
+    raw = {}
+    for tok in tokens:
+        if "=" not in tok:
+            raise ValueError(f"expected TASK=CELLS, got {tok!r}")
+        name, val = tok.split("=", 1)
+        name = name.strip()
+        types = parse_comma_list(val)
+        if not types:
+            raise ValueError(f"--gt {name}=... must list at least one type")
+        raw[name] = types
+    return training.resolve_gt_cells_by_task(raw)
+
+
+def parse_cost_weight(tokens, task_list):
     """Parse ``--cost-weight``: bare alias exclusive, ``NAME=VALUE`` merge.
 
     Bare tokens (aliases or concrete part keys) zero every cost part for
-    ``target_list``, then set those names to ``1``. Explicit ``NAME=VALUE``
+    ``task_list``, then set those names to ``1``. Explicit ``NAME=VALUE``
     always applied last (merge onto defaults / exclusive map). Empty → ``{}``
     (runtime default weight 1).
     """
-    tokens = parse_comma_list(text)
+    if not tokens:
+        return {}
     bare: list[str] = []
     explicit: dict[str, float] = {}
     for tok in tokens:
@@ -1079,26 +1115,10 @@ def parse_cost_weight(text, target_list):
             bare.append(tok.strip())
     weights: dict[str, float] = {}
     if bare:
-        weights = {key: 0.0 for key in training.session_cost_part_keys(target_list)}
+        weights = {key: 0.0 for key in training.session_cost_part_keys(task_list)}
         weights.update(training.expand_cost_weight_dict({name: 1.0 for name in bare}))
     weights.update(training.expand_cost_weight_dict(explicit))
     return weights
-
-
-def parse_spot_cost_r_w(text, spot_extent):
-    """Parse ``--spot-cost-r-w``; empty → ``None`` (extent default at resolve)."""
-    from task.spot.data import parse_spot_cost_r_w_tokens
-
-    return parse_spot_cost_r_w_tokens(
-        text,
-        default_weights=default_spot_cost_radius_weight(
-            spot_extent,
-            weights=SPOT_COST_RADIUS_WEIGHT,
-            weights_extent1=SPOT_COST_RADIUS_WEIGHT_EXTENT1,
-        ),
-        spot_cost_radii=SPOT_COST_RADII,
-        aliases=SPOT_COST_RADIUS_KEY_ALIASES,
-    )
 
 
 def _partition_cli_text(parts):
@@ -1118,14 +1138,14 @@ def _partition_cli_map(args):
     syn_text = _partition_cli_text(getattr(args, "syn_strength", None))
     edge_text = _partition_cli_text(getattr(args, "edge_weight", None))
     if syn_mode == "per_edge" and syn_text is not None:
-        raise ValueError("--syn-strength requires --syn-mode type_pair")
-    if syn_mode == "type_pair" and edge_text is not None:
+        raise ValueError("--syn-strength requires --syn-mode cell_pair")
+    if syn_mode == "cell_pair" and edge_text is not None:
         raise ValueError("--edge-weight requires --syn-mode per_edge")
     texts = {}
     all_param = _partition_cli_text(getattr(args, "all_param", None))
     if all_param is not None:
         for name in training.ALL_PARAM_NAMES:
-            if name == "syn_strength" and syn_mode != "type_pair":
+            if name == "syn_strength" and syn_mode != "cell_pair":
                 continue
             if name == "edge_weight" and syn_mode != "per_edge":
                 continue
@@ -1184,11 +1204,11 @@ def training_kwargs_from_args(
                 )
             init_from = f"{model}/{init_from}"
     param_partitions = _partition_cli_map(args) or None
-    target_list = parse_target_list(args.target)
-    cost_weights = parse_cost_weight(args.cost_weight, target_list)
+    task_list = parse_task_list(args.task)
+    cost_weights = parse_cost_weight(args.cost_weight, task_list)
     default_extent, extent_kv = parse_cost_extent(args.cost_extent)
-    cost_extent_by_target = training.resolve_cost_extent_by_target(
-        target_list, default_extent, extent_kv,
+    cost_extent_by_task = training.resolve_cost_extent_by_task(
+        task_list, default_extent, extent_kv,
     )
     if default_extent is not None and default_extent != -1 and default_extent < 0:
         raise ValueError("--cost-extent must be -1 or >= 0")
@@ -1201,7 +1221,16 @@ def training_kwargs_from_args(
         raise ValueError("--shift-extent must be >= 0")
     spot_extent = float(args.spot_extent)
     spot_extent_half_steps(spot_extent)
-    spot_cost_radius_weight = parse_spot_cost_r_w(args.spot_cost_r_w, spot_extent)
+    spot_cost_radius_weight = parse_spot_cost_r_w_tokens(
+        args.spot_cost_r_w,
+        default_weights=default_spot_cost_radius_weight(
+            spot_extent,
+            weights=SPOT_COST_RADIUS_WEIGHT,
+            weights_extent1=SPOT_COST_RADIUS_WEIGHT_EXTENT1,
+        ),
+        spot_cost_radii=SPOT_COST_RADII,
+        aliases=SPOT_COST_RADIUS_KEY_ALIASES,
+    )
     multi_spot = bool(args.multi_spot)
     fully_inside = bool(args.fully_inside)
     pre_ms = float(args.pre_ms)
@@ -1234,12 +1263,22 @@ def training_kwargs_from_args(
             raise ValueError("--cost-interval-ms must be > 0")
         for _o in (spot_bright_stimulus_opts, spot_dark_stimulus_opts):
             _o["cost_interval_ms"] = float(args.cost_interval_ms)
-    i_cli = training.build_i_cli_by_target({
-        "i_baseline": parse_comma_kv(args.i_baseline, float),
-        "i_bright": parse_comma_kv(args.i_bright, float),
-        "i_dark": parse_comma_kv(args.i_dark, float),
+    gt_by_task = parse_gt(args.gt)
+    if gt_by_task:
+        _gt_opts = {
+            "moving_bar_bright": moving_bar_bright_stimulus_opts,
+            "moving_bar_dark": moving_bar_dark_stimulus_opts,
+            "spot_bright": spot_bright_stimulus_opts,
+            "spot_dark": spot_dark_stimulus_opts,
+        }
+        for _tname, _types in gt_by_task.items():
+            _gt_opts[_tname]["gt_cells"] = list(_types)
+    i_cli = training.build_i_cli_by_task({
+        "i_baseline": parse_kv_tokens(args.i_baseline, float),
+        "i_bright": parse_kv_tokens(args.i_bright, float),
+        "i_dark": parse_kv_tokens(args.i_dark, float),
     })
-    lrs = parse_comma_floats(args.lrs)
+    lrs = [float(x) for x in parse_comma_list(args.lrs)]
     if not lrs:
         raise ValueError("--lrs must list at least one learning rate")
     cuda_available = torch.cuda.is_available()
@@ -1261,9 +1300,9 @@ def training_kwargs_from_args(
         param_partitions=param_partitions,
         syn_mode=training.normalize_syn_mode(args.syn_mode),
         network=args.network,
-        target_list=target_list,
+        task_list=task_list,
         cost_weights=cost_weights,
-        cost_extent_by_target=cost_extent_by_target,
+        cost_extent_by_task=cost_extent_by_task,
         shift_extent=shift_extent,
         spot_extent=spot_extent,
         multi_spot=multi_spot,

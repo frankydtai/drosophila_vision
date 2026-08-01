@@ -42,9 +42,9 @@ logger = logging.getLogger(__name__)
 # panel and the default for HexGrid). extent=10 -> 3*10*11+1 = 331 cells.
 DEFAULT_EXTENT = 10
 
-# EXTENT is the single shared spatial knob (crop in build_network; inside/outside
-# colouring in the figure). < 0 (default) = no cap / no outside; >= 0 = that disc
-# radius. build_network imports this so both scripts share ONE default.
+# EXTENT is the shared spatial knob (inside/outside colouring in the figure;
+# 5_add_extent.py uses the same radius semantics). < 0 (default) = no cap /
+# no outside; >= 0 = that disc radius.
 EXTENT = -1
 
 # FAFB inter-ommatidial angle: hex-step (x, y) -> degree via ``xy_to_xy_deg``.
@@ -106,7 +106,7 @@ def inside_mask(u, v, extent: int) -> np.ndarray:
 
     extent < 0 -> no cap, everything is inside (the shared default, EXTENT). This
     is the single source of truth for the inside/outside split used by
-    draw_fafb_columns, build_network's crop and the LC-column plot.
+    draw_fafb_columns, 5_add_extent.py and the LC-column plot.
     """
     u = np.asarray(u, dtype=np.int64)
     v = np.asarray(v, dtype=np.int64)
@@ -163,8 +163,8 @@ class HexGrid:
     def __init__(self, extent: int = DEFAULT_EXTENT) -> None:
         self.extent = extent
         self.u, self.v = get_hex_coords(extent)
-        self.n_columns = len(self.u)
-        logger.info("HexGrid extent=%d -> %d columns", extent, self.n_columns)
+        self.n_hexes = len(self.u)
+        logger.info("HexGrid extent=%d -> %d hexes", extent, self.n_hexes)
 
 
 def uv_to_xy(u, v) -> Tuple[Union[np.ndarray, float], Union[np.ndarray, float]]:
@@ -415,7 +415,7 @@ def plot_column_map(
         "lightblue", "darkblue", hex_radius_px, fontsize=3.5,
     )
     axes[0].set_title(
-        f"Axial (u, v) coordinates\n{ideal_grid.n_columns} cells, "
+        f"Axial (u, v) coordinates\n{ideal_grid.n_hexes} hexes, "
         f"extent={ideal_grid.extent}",
         fontsize=12, fontweight="bold",
     )

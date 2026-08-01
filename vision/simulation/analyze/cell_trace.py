@@ -3,12 +3,12 @@ Analyze cell time curves (spot + moving bar) without saving CSV.
 
 Speed / agent contract
 ----------------------
-``load_best`` + each target's forward are expensive. This script does, per
+``load_best`` + each task's forward are expensive. This script does, per
 ``--run``:
 
   * one ``load_best``
-  * one spot forward per distinct ``spot_*`` target
-  * one moving-bar forward per distinct ``moving_bar_*`` target
+  * one spot forward per distinct ``spot_*`` task
+  * one moving-bar forward per distinct ``moving_bar_*`` task
 
 All ``--cell`` / ``--spec`` values are read from those cached bundles.
 **Do not** re-invoke this CLI once per cell or once per spec. Pass comma
@@ -33,15 +33,15 @@ Examples
   cd vision/simulation
   ../.venv/bin/python -m analyze.cell_trace \\
     --run /abs/path/to/run --cell Mi4,Mi9 \\
-    --target spot_bright,moving_bar_bright --trace-kind v
+    --task spot_bright,moving_bar_bright --trace-kind v
 
   ../.venv/bin/python -m analyze.cell_trace \\
-    --run /abs/path/to/run --cell L4 --target spot_dark \\
+    --run /abs/path/to/run --cell L4 --task spot_dark \\
     --trace-kind v --x 2 --y 1
 
   ../.venv/bin/python -m analyze.cell_trace \\
     --run /abs/path/to/run --cell Mi4,Mi9 \\
-    --target moving_bar_bright --spec right_bright_w1,left_bright_w1 \\
+    --task moving_bar_bright --spec right_bright_w1,left_bright_w1 \\
     --trace-kind v
 """
 
@@ -60,8 +60,8 @@ import figure.plot_run as plot_trained
 from figure import moving_bar as moving_bar_plot
 from figure import spot as spot_plot
 from figure.util import parse_axis_slice_list, slice_xy_label
-from path import parse_comma_list
-from training.driver import parse_target_list
+from import_bootstrap import parse_comma_list
+from training.driver import parse_task_list
 from task.moving_bar.data import filter_requested_specs
 from training.config import run_data_dir
 
@@ -74,7 +74,7 @@ class SharedCli:
     """Parsed shared CLI for ``cell_trace`` / ``cell_dynamics``."""
 
     cells: list[str]
-    targets: list[str]
+    tasks: list[str]
     specs_req: list[str] | None
     x_list: list | None
     y_list: list | None
@@ -82,7 +82,7 @@ class SharedCli:
 
 
 def add_shared_cli(ap: argparse.ArgumentParser) -> None:
-    """Register ``--run/--cell/--target/--spec/--x/--y`` (shared)."""
+    """Register ``--run/--cell/--task/--spec/--x/--y`` (shared)."""
     ap.add_argument(
         "--run",
         action="append",
@@ -93,14 +93,14 @@ def add_shared_cli(ap: argparse.ArgumentParser) -> None:
         "--cell",
         required=True,
         metavar="CELL,...",
-        help="comma-separated cell types, e.g. Mi4,Mi9 (analyzed from shared bundles)",
+        help="comma-separated cells, e.g. Mi4,Mi9 (analyzed from shared bundles)",
     )
     ap.add_argument(
-        "--target",
+        "--task",
         default="spot_dark",
-        metavar="TARGET,...",
-        help="comma-separated targets (spot_* / moving_bar_* or TARGET_ALIASES); "
-        "one forward per distinct target per run",
+        metavar="TASK,...",
+        help="comma-separated tasks (spot_* / moving_bar_* or TASK_ALIASES); "
+        "one forward per distinct task per run",
     )
     ap.add_argument(
         "--spec",
@@ -127,27 +127,27 @@ def parse_shared_cli(args: argparse.Namespace) -> SharedCli:
     cells = parse_comma_list(args.cell)
     if not cells:
         raise SystemExit("--cell is required")
-    targets = parse_target_list(args.target)
-    if not targets:
-        raise SystemExit("--target is required")
+    tasks = parse_task_list(args.task)
+    if not tasks:
+        raise SystemExit("--task is required")
     specs_req = parse_comma_list(args.spec) if args.spec is not None else None
-    for t in targets:
-        if t not in training.SPOT_TARGETS and t not in training.MOVING_BAR_TARGETS:
+    for t in tasks:
+        if t not in training.SPOT_TASKS and t not in training.MOVING_BAR_TASKS:
             raise SystemExit(
-                f"unsupported target {t!r}; expected spot_* or moving_bar_* "
-                f"(after TARGET_ALIASES expansion)"
+                f"unsupported task {t!r}; expected spot_* or moving_bar_* "
+                f"(after TASK_ALIASES expansion)"
             )
     x_list = parse_axis_slice_list(args.x)
     y_list = parse_axis_slice_list(args.y)
     if (x_list is None) ^ (y_list is None):
-        if any(t in training.SPOT_TARGETS for t in targets):
-            raise SystemExit("spot targets require both --x and --y or neither")
+        if any(t in training.SPOT_TASKS for t in tasks):
+            raise SystemExit("spot tasks require both --x and --y or neither")
     slice_label = None
     if x_list is not None and y_list is not None and len(x_list) == 1 and len(y_list) == 1:
         slice_label = slice_xy_label(x_list[0], y_list[0])
     return SharedCli(
         cells=cells,
-        targets=targets,
+        tasks=tasks,
         specs_req=specs_req,
         x_list=x_list,
         y_list=y_list,
@@ -198,13 +198,13 @@ def _float_curve(arr) -> np.ndarray:
     return np.asarray(arr, dtype=float)
 
 
-def extract_spot_bundle(session, z, *, target: str, x_list, y_list):
+def extract_spot_bundle(session, z, *, task: str, x_list, y_list):
     """One spot forward via ``plot_trained.spot_bundle_fns``.
 
     Returns ``(session_one, bundle, data_cubes)`` where ``data_cubes`` is
     ``{contrast: {cell: (9, T)}}``.
     """
-    one = plot_trained.session_for_target(session, target)
+    one = plot_trained.session_for_task(session, task)
     make_bundle, _, _ = plot_trained.spot_bundle_fns(one)
     bundle = make_bundle(
         one,
@@ -213,20 +213,20 @@ def extract_spot_bundle(session, z, *, target: str, x_list, y_list):
         at_y_list=y_list,
         save_trace_csv_dir=None,
     )
-    from figure.readout import contrast_for_target
+    from figure.readout import contrast_for_task
     data_cubes = spot_plot.resolve_spot_data_cubes(
-        {contrast_for_target(one.primary_pack.name): one},
+        {contrast_for_task(one.primary_readout.name): one},
     )
     return one, bundle, data_cubes
 
 
-def extract_moving_bar_bundle(session, z, *, target: str, x_list, y_list):
+def extract_moving_bar_bundle(session, z, *, task: str, x_list, y_list):
     """One moving-bar forward; all cells + all specs live on the returned bundle."""
-    one = plot_trained.session_for_target(session, target)
+    one = plot_trained.session_for_task(session, task)
     return moving_bar_plot.moving_bar_trace_bundle(
         one,
         z,
-        target,
+        task,
         at_x_list=x_list,
         at_y_list=y_list,
         save_trace_csv_dir=None,
@@ -234,14 +234,14 @@ def extract_moving_bar_bundle(session, z, *, target: str, x_list, y_list):
 
 
 def extract_spot_cell_curves(bundle, data_cubes, *, cell: str, slice_label: str | None = None):
-    from figure.readout import contrast_for_target
+    from figure.readout import contrast_for_task
 
     center = spot_plot.CENTER_BIN
     cell_on = next((c for c in bundle.cells if c["name"] == cell), None)
     if cell_on is None:
         avail = sorted(c["name"] for c in bundle.cells)
         raise SystemExit(f"cell {cell!r} not in spot bundle; available: {avail}")
-    contrast = contrast_for_target(bundle.session.primary_pack.name)
+    contrast = contrast_for_task(bundle.session.primary_readout.name)
     data_on = (data_cubes or {}).get(contrast) or {}
     if cell not in data_on:
         raise SystemExit(
@@ -370,7 +370,7 @@ def _print_result_block(
     best_i: int,
     best_cost: float,
     cell: str,
-    target: str,
+    task: str,
     session,
     bundle,
     curves: dict[str, np.ndarray],
@@ -386,7 +386,7 @@ def _print_result_block(
         before_t = bundle.traces.before_t.get(spec)
     head = (
         f"best_i={best_i}  best_cost={best_cost:.6g}  cell={cell}  "
-        f"target={target}  trace_kind=v"
+        f"task={task}  trace_kind=v"
     )
     if spec is not None:
         head += f"  spec={spec}"
@@ -535,17 +535,17 @@ def main():
                 response_ms=args.response_ms,
             )
             # Re-load + re-map the best parameters for the new session schema.
-            named, type_names, pair_names = train_mod.load_best_param_named(run_dir)
-            remapped = training.remap_named_unit_values(
+            named, cell_names, pair_names = train_mod.load_best_param_named(run_dir)
+            remapped = training.remap_named_node_values(
                 named,
-                type_names,
+                cell_names,
                 pair_names,
                 list(session.schema),
                 session.backend,
             )
             schema = training.attach_param_carry(list(session.schema), remapped)
             session = session.with_schema(schema)
-            z = training.unit_values_to_z(
+            z = training.node_values_to_z(
                 remapped,
                 schema,
                 dtype=session.sim_dtype,
@@ -564,17 +564,17 @@ def main():
         spot_cache: dict[str, tuple] = {}
         bar_cache: dict[str, object] = {}
 
-        for target in cli.targets:
-            if target in training.SPOT_TARGETS:
-                if target not in spot_cache:
-                    spot_cache[target] = extract_spot_bundle(
+        for task in cli.tasks:
+            if task in training.SPOT_TASKS:
+                if task not in spot_cache:
+                    spot_cache[task] = extract_spot_bundle(
                         session,
                         z,
-                        target=target,
+                        task=task,
                         x_list=cli.x_list,
                         y_list=cli.y_list,
                     )
-                _one, bundle, data_cubes = spot_cache[target]
+                _one, bundle, data_cubes = spot_cache[task]
                 for cell in cli.cells:
                     curves = extract_spot_cell_curves(
                         bundle, data_cubes, cell=cell, slice_label=cli.slice_label,
@@ -585,7 +585,7 @@ def main():
                         best_i=best_i,
                         best_cost=best_cost,
                         cell=cell,
-                        target=target,
+                        task=task,
                         session=session,
                         bundle=bundle,
                         curves=curves,
@@ -596,15 +596,15 @@ def main():
                             head_window=head_window,
                     )
             else:
-                if target not in bar_cache:
-                    bar_cache[target] = extract_moving_bar_bundle(
+                if task not in bar_cache:
+                    bar_cache[task] = extract_moving_bar_bundle(
                         session,
                         z,
-                        target=target,
+                        task=task,
                         x_list=cli.x_list,
                         y_list=cli.y_list,
                     )
-                bundle = bar_cache[target]
+                bundle = bar_cache[task]
                 for cell in cli.cells:
                     for spec in specs_for_cell(bundle, cell, cli.specs_req):
                         curves = extract_moving_bar_cell_curves(
@@ -616,7 +616,7 @@ def main():
                             best_i=best_i,
                             best_cost=best_cost,
                             cell=cell,
-                            target=target,
+                            task=task,
                             session=session,
                             bundle=bundle,
                             curves=curves,

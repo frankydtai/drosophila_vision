@@ -11,7 +11,7 @@ Dependency direction:
 Usage (from ``simulation/``, project ``.venv``):
 
     ../.venv/bin/python run.py --model hp_lp --nofsteps 30 --lrs 0.1
-    ../.venv/bin/python run.py --target spot_bright --network right_min_neuron1_extent2 \\
+    ../.venv/bin/python run.py --task spot_bright --network right_min_neuron1_extent2 \\
         --nofsteps 5 --lrs 0.1
 
 Re-plot an existing run without training:
@@ -85,7 +85,7 @@ def make_plots(
     align_at_y=None,
     show_pre=True,
 ):
-    """Cost curve + model-vs-data + all-cell-types."""
+    """Cost curve + model-vs-data + all-cells."""
     plot_kw = build_plot_kwargs(
         data_cubes=data_cubes,
         plot_right_only=plot_right_only,
@@ -102,14 +102,14 @@ def make_plots(
             session=session,
             final_costs=result.final_costs,
             cost_curve=result.cost_curve,
-            costs_by_target=result.cost_curves_by_target,
+            costs_by_task=result.cost_curves_by_task,
             best_i=result.best_i,
             save_artifacts=False,
             **plot_kw,
         )
         return
     params = np.load(train.params_path(outdir, fname))
-    final_costs, cost_curve, costs_by_target, _ = train.load_stored_costs(
+    final_costs, cost_curve, costs_by_task, _ = train.load_stored_costs(
         outdir, fname, np.atleast_2d(params).shape[0],
     )
     plot_param_set(
@@ -118,7 +118,7 @@ def make_plots(
         session=session,
         final_costs=final_costs,
         cost_curve=cost_curve,
-        costs_by_target=costs_by_target,
+        costs_by_task=costs_by_task,
         save_artifacts=False,
         **plot_kw,
     )
@@ -234,7 +234,7 @@ def run_mirror_spot_experiment(
     from training.experiment import (
         merge_ih_param_partitions,
         spot_pack_overrides,
-        spot_targets_from,
+        spot_tasks_from,
         _normalize_mirror_fits,
     )
 
@@ -263,11 +263,11 @@ def run_mirror_spot_experiment(
 
         return mirror_data_cubes
 
-    def resolve_spot_plot_data_cubes(spot_targets, mirror_data_cubes):
+    def resolve_spot_plot_data_cubes(spot_tasks, mirror_data_cubes):
         contrasts = []
-        if "spot_bright" in spot_targets:
+        if "spot_bright" in spot_tasks:
             contrasts.append("bright")
-        if "spot_dark" in spot_targets:
+        if "spot_dark" in spot_tasks:
             contrasts.append("dark")
         if not contrasts:
             return None
@@ -284,12 +284,12 @@ def run_mirror_spot_experiment(
         ap.error(str(exc))
 
     fits = mirror_fits(args) if callable(mirror_fits) else mirror_fits
-    target_list = run_kw["target_list"]
-    pack_overrides = spot_pack_overrides(target_list, fits, mirror_sign)
+    task_list = run_kw["task_list"]
+    pack_overrides = spot_pack_overrides(task_list, fits, mirror_sign)
     param_partitions = merge_ih_param_partitions(run_kw)
-    spot_targets = spot_targets_from(target_list)
+    spot_tasks = spot_tasks_from(task_list)
     plot_data_cubes = resolve_spot_plot_data_cubes(
-        spot_targets, make_mirror_data_cubes(fits, mirror_sign),
+        spot_tasks, make_mirror_data_cubes(fits, mirror_sign),
     )
 
     fname, outdir, session = run_training_and_plot(
@@ -298,8 +298,8 @@ def run_mirror_spot_experiment(
         param_partitions=param_partitions,
         plot_data_cubes=plot_data_cubes,
     )
-    for tname in spot_targets:
-        print(f"{tname} cost cells:", int(session.pack_for(tname).readout_unit.shape[0]))
+    for tname in spot_tasks:
+        print(f"{tname} cost nodes:", int(session.pack_for(tname).readout_node.shape[0]))
     print("done ->", outdir)
     return fname, outdir, session
 

@@ -1,4 +1,4 @@
-"""Shared plotting helpers (no target-specific logic)."""
+"""Shared plotting helpers (no task-specific logic)."""
 
 from __future__ import annotations
 
@@ -11,7 +11,7 @@ import torch
 
 import network.path  # noqa: F401 — FAFB path on sys.path
 import training
-from path import parse_comma_list
+from import_bootstrap import parse_comma_list
 
 DATA_COLOR = 'gray'
 MODEL_COLOR = 'red'
@@ -31,32 +31,32 @@ def _as_numpy(arr):
     return as_numpy(arr)
 
 
-def apply_out_scale(p, traces, unit_index, backend):
+def apply_out_scale(p, traces, node_index, backend):
     """Multiply traces by schema ``out_scale`` (matches cost)."""
-    if unit_index is None:
-        unit_index = torch.arange(traces.shape[-1], device=traces.device)
+    if node_index is None:
+        node_index = torch.arange(traces.shape[-1], device=traces.device)
     else:
-        unit_index = torch.as_tensor(unit_index, dtype=torch.long, device=traces.device)
-    s = training.out_scale_for_units(p, unit_index, backend, sim_dtype=traces.dtype)
+        node_index = torch.as_tensor(node_index, dtype=torch.long, device=traces.device)
+    s = training.out_scale_for_nodes(p, node_index, backend, sim_dtype=traces.dtype)
     return traces * (s if traces.ndim == 3 else s[:, None])
 
 
 def save_forward_trace_csvs(
     save_dir,
-    target,
+    task,
     *,
     ref,
     trace_full,
     ref_stem: str | None = None,
     trace_stem: str | None = None,
 ):
-    """Write per-target ref + ``v`` trace CSVs under ``save_dir``.
+    """Write per-task ref + ``v`` trace CSVs under ``save_dir``.
 
-    Default stems: ``<target>_v_onset.csv``, ``<target>_v.csv`` (unless
+    Default stems: ``<task>_v_onset.csv``, ``<task>_v.csv`` (unless
     overridden by ``ref_stem`` / ``trace_stem``).
 
     Ref is one column (``ref``) with constant ``N``. Trace is ``(B*T', N)`` with
-    constant ``B`` / ``Tprime`` columns, then one column per unit.
+    constant ``B`` / ``Tprime`` columns, then one column per node.
     """
     if save_dir is None:
         return
@@ -65,12 +65,12 @@ def save_forward_trace_csvs(
     trace_np = _as_numpy(trace_full)
     if trace_np.ndim != 3:
         raise ValueError(f'trace_full must be (B, T\', N), got shape {trace_np.shape}')
-    bsz, tprime, n_units = (int(x) for x in trace_np.shape)
-    if ref_np.size != n_units:
+    bsz, tprime, n_nodes = (int(x) for x in trace_np.shape)
+    if ref_np.size != n_nodes:
         raise ValueError(
-            f'ref length {ref_np.size} != n_units {n_units} for target {target!r}'
+            f'ref length {ref_np.size} != n_nodes {n_nodes} for task {task!r}'
         )
-    ref_stem_default, trace_stem_default = f'{target}_v_onset', f'{target}_v'
+    ref_stem_default, trace_stem_default = f'{task}_v_onset', f'{task}_v'
     ref_stem_final = ref_stem_default if ref_stem is None else ref_stem
     trace_stem_final = trace_stem_default if trace_stem is None else trace_stem
     ref_path = os.path.join(save_dir, f'{ref_stem_final}.csv')
@@ -79,22 +79,22 @@ def save_forward_trace_csvs(
         np.full(ref_np.shape[0], ref_np.size, dtype=np.int64),
         ref_np.astype(np.float64, copy=False),
     ])
-    # Some traces reuse v_onset across targets (e.g. bright/dark); avoid redundant writes.
+    # Some traces reuse v_onset across tasks (e.g. bright/dark); avoid redundant writes.
     if not os.path.exists(ref_path):
         np.savetxt(
             ref_path, ref_table, delimiter=',', header='N,ref', comments='',
         )
-    flat = trace_np.reshape(-1, n_units).astype(np.float64, copy=False)
+    flat = trace_np.reshape(-1, n_nodes).astype(np.float64, copy=False)
     n_rows = flat.shape[0]
     trace_table = np.column_stack([
         np.full(n_rows, bsz, dtype=np.int64),
         np.full(n_rows, tprime, dtype=np.int64),
         flat,
     ])
-    unit_header = ','.join(f'u{i}' for i in range(n_units))
+    node_header = ','.join(f'u{i}' for i in range(n_nodes))
     np.savetxt(
         trace_path, trace_table, delimiter=',',
-        header=f'B,Tprime,{unit_header}', comments='',
+        header=f'B,Tprime,{node_header}', comments='',
     )
 
 
@@ -173,15 +173,15 @@ def mark_pulse(ax, pulse_start, pulse_end):
     ax.axvspan(t0, t1, facecolor='white', edgecolor='none', zorder=0)
 
 
-def suppress_cost_sem(session, target=None):
+def suppress_cost_sem(session, task=None):
     """True when cost uses a single column (no column-mean SEM band)."""
-    pack = session.primary_pack if target is None else session.pack_for(target)
+    pack = session.primary_readout if task is None else session.pack_for(task)
     return pack.cost_extent == 0
 
 
 def readout_center_mask(pack, backend):
     """Boolean mask over pack.readout rows included in the cost extent."""
-    readout = pack.readout_unit.cpu().numpy()
+    readout = pack.readout_node.cpu().numpy()
     if backend.network is not None:
         if pack.cost_extent is not None:
             import build_hex
@@ -195,17 +195,17 @@ def readout_center_mask(pack, backend):
     return np.ones(readout.shape[0], dtype=bool)
 
 
-def baselines_for_types(v_onset, units_by_name, v_ref_by_name=None):
-    """``{name: (v_onset_mean, v_ref)}`` from per-type unit index arrays.
+def baselines_for_types(v_onset, nodes_by_name, v_ref_by_name=None):
+    """``{name: (v_onset_mean, v_ref)}`` from per-cell node index arrays.
 
-    Callers select units (spot center row, moving-bar cost columns, pack
+    Callers select nodes (spot center row, moving-bar cost hexes, pack
     readout mask); this only averages ``v_onset`` and pairs with ``v_ref``.
     """
     v_onset = np.asarray(v_onset, dtype=np.float64)
     v_ref_by_name = v_ref_by_name or {}
     out = {}
-    for name, units in units_by_name.items():
-        u = np.asarray(units, dtype=np.int64).reshape(-1)
+    for name, nodes in nodes_by_name.items():
+        u = np.asarray(nodes, dtype=np.int64).reshape(-1)
         onset = float(v_onset[u].mean()) if u.size else np.nan
         ref = v_ref_by_name.get(name, np.nan)
         out[name] = (
@@ -215,19 +215,19 @@ def baselines_for_types(v_onset, units_by_name, v_ref_by_name=None):
     return out
 
 
-def sem_from_traces(traces, single_column=False):
+def sem_from_traces(traces, single_hex=False):
     """Per-time SEM across readout rows; zero when single-column cost or one row."""
-    if single_column or traces.shape[0] == 1:
+    if single_hex or traces.shape[0] == 1:
         return np.zeros(traces.shape[1], dtype=np.float64)
     return traces.std(axis=0) / np.sqrt(traces.shape[0])
 
 
-def readout_n_by_name(type_idx, type_names, names, unit_idx):
-    """Unique readout unit count per plotted type name."""
+def readout_n_by_name(type_idx, cell_names, names, node_idx):
+    """Unique readout node count per plotted type name."""
     type_idx = np.asarray(type_idx)
-    unit_idx = np.asarray(unit_idx)
+    node_idx = np.asarray(node_idx)
     return {
-        name: int(np.unique(unit_idx[type_idx == type_names.index(name)]).size)
+        name: int(np.unique(node_idx[type_idx == cell_names.index(name)]).size)
         for name in names
     }
 
@@ -243,15 +243,15 @@ def v_ref_schema_name(schema):
 
 
 def v_ref_by_type_name(z, session):
-    """Per-type ``v_th`` / ``v_rest`` (mV) keyed by type name; empty if schema has neither."""
+    """Per-cell ``v_th`` / ``v_rest`` (mV) keyed by type name; empty if schema has neither."""
     schema = list(session.schema)
     key = v_ref_schema_name(schema)
     if key is None:
         return {}
-    arr = np.asarray(training.z_to_unit_values(z, schema)[key], dtype=np.float64).reshape(-1)
-    names = training.type_unit_names(session.backend)
+    arr = np.asarray(training.z_to_node_values(z, schema)[key], dtype=np.float64).reshape(-1)
+    names = training.cell_node_names(session.backend)
     if arr.shape[0] != len(names):
-        raise ValueError(f"{key} length {arr.shape[0]} != n_types {len(names)}")
+        raise ValueError(f"{key} length {arr.shape[0]} != n_cells {len(names)}")
     return {str(n): float(arr[i]) for i, n in enumerate(names)}
 
 
@@ -320,8 +320,8 @@ def bundle_panel_title(bundle, label, *, type_name=None):
     )
 
 
-def network_column_count(C):
-    """Unique axial columns on connectome ``C``."""
+def network_hex_count(C):
+    """Unique axial hexes on connectome ``C``."""
     return len({(int(u), int(v)) for u, v in zip(C.u, C.v)})
 
 
@@ -397,7 +397,7 @@ def parse_axis_slice_list(text):
 
 
 def parse_align_xy(text):
-    """Parse ``--align-xy X,Y`` reference sti column (empty → ``None``)."""
+    """Parse ``--align-xy X,Y`` reference sti hex (empty → ``None``)."""
     if not text:
         return None
     parts = parse_comma_list(text)
@@ -414,7 +414,7 @@ def _coord_matches(val, axis_filter, tol=1e-6):
     return np.isclose(val, float(axis_filter), atol=tol)
 
 
-def column_at_scope_tag(at_x, at_y):
+def hex_at_scope_tag(at_x, at_y):
     """Subtitle fragment for plot column slice."""
     parts = []
     if at_x is not None:
@@ -710,43 +710,43 @@ def save_figure(fig, path, dpi=150, rasterize=False):
     plt.close(fig)
 
 
-def _cost_curve_subplot_rows(names, costs_by_target, total_costs):
-    """Build subplot specs; merge moving_bar ``_PD``/``_ND`` part keys per target."""
+def _cost_curve_subplot_rows(names, costs_by_task, total_costs):
+    """Build subplot specs; merge moving_bar ``_PD``/``_ND`` part keys per task."""
     rows = [{'title': 'total (weighted)', 'curves': [(None, np.asarray(total_costs), '-')]}]
     seen = set()
     for key in names:
-        if key not in costs_by_target or key in seen:
+        if key not in costs_by_task or key in seen:
             continue
         if key.endswith('_PD'):
             base = key[:-3]
             nd_key = f"{base}_ND"
-            curves = [('PD', np.asarray(costs_by_target[key]), '-')]
-            if nd_key in costs_by_target:
-                curves.append(('ND', np.asarray(costs_by_target[nd_key]), '--'))
+            curves = [('PD', np.asarray(costs_by_task[key]), '-')]
+            if nd_key in costs_by_task:
+                curves.append(('ND', np.asarray(costs_by_task[nd_key]), '--'))
                 seen.add(nd_key)
             rows.append({'title': base, 'curves': curves})
             seen.add(key)
         elif key.endswith('_ND'):
             base = key[:-3]
-            rows.append({'title': base, 'curves': [('ND', np.asarray(costs_by_target[key]), '--')]})
+            rows.append({'title': base, 'curves': [('ND', np.asarray(costs_by_task[key]), '--')]})
             seen.add(key)
         else:
             rows.append({
                 'title': key,
-                'curves': [(None, np.asarray(costs_by_target[key]), '-')],
+                'curves': [(None, np.asarray(costs_by_task[key]), '-')],
             })
             seen.add(key)
     return rows
 
 
-def plot_cost(costs, path, *, costs_by_target=None, target_order=None):
-    """Plot training cost; total + one subplot per target when ``costs_by_target`` is given."""
+def plot_cost(costs, path, *, costs_by_task=None, task_order=None):
+    """Plot training cost; total + one subplot per task when ``costs_by_task`` is given."""
     t0 = time.perf_counter()
-    if costs_by_target:
-        names = list(target_order) if target_order else list(costs_by_target.keys())
-        names = [n for n in names if n in costs_by_target and len(costs_by_target[n])]
+    if costs_by_task:
+        names = list(task_order) if task_order else list(costs_by_task.keys())
+        names = [n for n in names if n in costs_by_task and len(costs_by_task[n])]
         if names and costs is not None and len(costs):
-            rows = _cost_curve_subplot_rows(names, costs_by_target, costs)
+            rows = _cost_curve_subplot_rows(names, costs_by_task, costs)
             n = len(rows)
             fig, axes = plt.subplots(n, 1, figsize=(8, 2.8 * n), sharex=True)
             if n == 1:
@@ -774,7 +774,7 @@ def plot_cost(costs, path, *, costs_by_target=None, target_order=None):
             log_plot_elapsed(path, t0, draw=t_draw - t0, save=time.perf_counter() - t_draw)
             return
         if len(names) == 1:
-            costs = costs_by_target[names[0]]
+            costs = costs_by_task[names[0]]
     fig, ax = plt.subplots(figsize=(8, 4))
     ax.plot(costs, color='steelblue', linewidth=2)
     ax.set_ylim(*cost_ylim(costs))

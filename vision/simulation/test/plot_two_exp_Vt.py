@@ -30,12 +30,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-# Ensure we can import parse_comma_list without relying on CWD/pythonpath.
-VISION_ROOT = os.path.dirname(os.path.dirname(HERE))  # vision/
-sys.path.insert(0, os.path.join(VISION_ROOT, "Connectome", "FAFBv783"))
-
-import import_bootstrap  # noqa: F401
-from path import parse_comma_list  # type: ignore
+from import_bootstrap import parse_comma_list
 
 
 def V_two_exp_step_window(

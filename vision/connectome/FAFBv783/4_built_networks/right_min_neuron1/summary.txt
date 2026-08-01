@@ -1,0 +1,18 @@
+network summary: right_min_neuron1
+========================================
+side                 : right
+min_neuron_count     : 1
+min_syn_count        : 5
+sign_mode            : per_edge
+
+n_nodes              : 47291
+n_nodes_with_column  : 26654
+n_nodes_without_col  : 20637
+n_input_nodes        : 4751
+n_edges              : 1034445
+n_cells         : 682
+
+n_columns (assigned) : 796
+n_connections (raw)  : 1049023
+forced_negative      : R1-6, R7, R8
+nt_to_sign           : {'ACH': 1.0, 'GLUT': -1.0, 'GABA': -1.0, 'SER': 1.0, 'DA': 1.0, 'OCT': 1.0}

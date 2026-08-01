@@ -9,7 +9,7 @@ Experimental reference traces come from **[`MatlabFunctions/fig1_ci_digitized.cs
 | CSV column   | Meaning |
 | ------------ | ------- |
 | `trace_id`   | Lookup key, e.g. `T4_PC_w1_PD` |
-| `cell_type`  | `T4` or `T5` (pathway; not subtype a–d) |
+| `cell`  | `T4` or `T5` (pathway; not subtype a–d) |
 | `panel`      | `Ci` (T4) or `Cii` (T5) |
 | `contrast`   | `PC` or `NC` (preferred / non-preferred contrast for that pathway) |
 | `width_led`  | Bar width in LED units: `1` → `w1`, `4` → `w4` |

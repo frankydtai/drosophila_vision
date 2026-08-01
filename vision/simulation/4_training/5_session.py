@@ -1,17 +1,17 @@
 # -*- coding: utf-8 -*-
 """Session assembly: build a :class:`TrainSession` from canonical training opts.
 
-Owns stimulus-opts finalisation (CLI overrides -> per-target sidecar dicts),
-network backend construction, and the per-target ``TargetPack`` builders. The
-builders wrap the neutral target dataclasses from ``task`` (which sit below
+Owns stimulus-opts finalisation (CLI overrides -> per-task sidecar dicts),
+network backend construction, and the per-task ``ReadoutPack`` builders. The
+builders wrap the neutral gt dataclasses from ``task`` (which sit below
 ``training`` in the import graph) and stamp the cross-cutting readout controls:
 
 * spot: sparse ``cost_time_ix`` (#4), pulse ``pulse_ms`` (#1) already baked into
-  the stimulus, ``always_waveform_mse=True``, ``signal_scale`` (hp_lp peak PR);
-* moving bar: ``always_waveform_mse=False`` (waveform MSE only when a cost
-  window exists), ``signal_scale``.
+  the stimulus, ``waveform_mse=True``, ``signal_scale`` (hp_lp peak PR);
+* moving bar: ``waveform_mse`` from cost weights (True when a cost window is
+  built), ``signal_scale``.
 
-Model and target traces are ``v`` (``v - v_onset``); ImpR / RecF spot data are
+Model and gt traces are ``v`` (``v - v_onset``); ImpR / RecF spot data are
 used as-is.
 """
 from __future__ import annotations
@@ -67,24 +67,28 @@ from training.defaults import (
 )
 
 from training.config import (
-    CLI_TARGET_NAMES,
-    I_CLI_BRIGHT_TARGETS,
-    I_CLI_DARK_TARGETS,
+    CLI_TASK_NAMES,
+    I_CLI_BRIGHT_TASKS,
+    I_CLI_DARK_TASKS,
     I_CLI_SIDECAR_FIELD,
     PD_ND_LABELS,
-    SPOT_TARGETS,
-    TARGET_ALIASES,
-    TARGET_I_FIELDS,
+    SPOT_TASKS,
+    TASK_ALIASES,
+    TASK_I_FIELDS,
     TRAIN_OPTS_FILE,
-    VALID_TARGETS,
-    _SPOT_STEP_KEY,
+    VALID_TASKS,
+    _MOVING_BAR_BASELINE_KEY,
+    _MOVING_BAR_I_KEY,
+    _SPOT_BASELINE_KEY,
+    _SPOT_I_KEY,
     expand_cost_weight_dict,
+    expand_gt_dict,
     moving_bar_cost_part_key,
-    normalize_target_list,
+    normalize_task_list,
 )
-from training.target_pack import (
+from training.readout_pack import (
     ModelBackend,
-    TargetPack,
+    ReadoutPack,
     TrainSession,
     TrainingResult,
     active_device,
@@ -98,14 +102,15 @@ from training.params import (
     build_ih_dir,
     schema_nparams,
     schema_partitions_record,
-    unit_names_for_segment,
+    node_names_for_segment,
 )
 from training.cost import _build_cost_subpacks, _build_fused_forward
 
 from task.spot.data import (
     SPOT_POLARITIES,
-    build_shifted_target,
+    build_spot_gt,
     default_spot_cost_radius_weight,
+    expand_gt_cells_list as expand_spot_gt_cells_list,
     expand_spot_cost_r_w_dict,
     make_spot_stimulus_opts,
 )
@@ -115,12 +120,12 @@ from task.spot.input import (
 )
 from task.moving_bar.data import (
     _enrich_moving_bar_stimulus_opts,
-    _readout_subtypes_from_opts,
-    build_moving_bar_target,
+    build_moving_bar_gt,
+    expand_gt_cells_list as expand_moving_bar_gt_cells_list,
     make_moving_bar_stimulus_opts,
 )
 from task.moving_bar.input import resolve_i_baseline
-from network.construction import load_network, unit_type_names
+from network.construction import load_network, gt_cells_from_opts, node_cell_names
 from network.layout import normalize_cost_extent
 
 
@@ -134,28 +139,28 @@ def _opt_float(opts, *keys, default=None):
 
 
 def _spot_i_from_opts(opts, polarity: str):
-    """Read spot PR currents (``i_baseline`` / bright or dark step)."""
+    """Read spot PR currents (``i_baseline_spot`` / bright or dark peak)."""
     if polarity not in SPOT_POLARITIES:
         raise ValueError(f"spot polarity must be 'bright' or 'dark', got {polarity!r}")
-    step_key = _SPOT_STEP_KEY[polarity]
-    step_default = I_BRIGHT if polarity == "bright" else I_DARK
+    peak_key = _SPOT_I_KEY[polarity]
+    peak_default = I_BRIGHT if polarity == "bright" else I_DARK
     return (
-        _opt_float(opts, "i_baseline", default=I_BASELINE),
-        _opt_float(opts, step_key, default=step_default),
+        _opt_float(opts, _SPOT_BASELINE_KEY, default=I_BASELINE),
+        _opt_float(opts, peak_key, default=peak_default),
     )
 
 
 def _signal_scale_from_opts(pack_name: str, opts: Optional[dict]) -> float:
-    """Peak PR current for hp_lp ``sig / scale``; stamped onto ``TargetPack``."""
+    """Peak PR current for hp_lp ``sig / scale``; stamped onto ``ReadoutPack``."""
     opts = opts or {}
     if pack_name == "spot_bright":
-        peak = _opt_float(opts, "i_bright", default=I_BRIGHT)
+        peak = _opt_float(opts, "i_bright_spot", default=I_BRIGHT)
     elif pack_name == "spot_dark":
-        peak = _opt_float(opts, "i_dark", default=I_DARK)
+        peak = _opt_float(opts, "i_dark_spot", default=I_DARK)
     elif pack_name == "moving_bar_bright":
-        peak = _opt_float(opts, "i_bright_bar", default=I_BRIGHT)
+        peak = _opt_float(opts, "i_bright_moving_bar", default=I_BRIGHT)
     elif pack_name == "moving_bar_dark":
-        peak = _opt_float(opts, "i_dark_bar", default=I_DARK)
+        peak = _opt_float(opts, "i_dark_moving_bar", default=I_DARK)
     else:
         peak = I_BRIGHT
     peak = float(peak)
@@ -164,27 +169,27 @@ def _signal_scale_from_opts(pack_name: str, opts: Optional[dict]) -> float:
     return peak
 
 
-def resolve_type_indices(type_names, backend: ModelBackend):
-    """Map cell-type names to indices in the network vocabulary."""
+def resolve_cell_indices(cell_names, backend: ModelBackend):
+    """Map cell names to indices in the network vocabulary."""
     if backend.network is None:
-        raise ValueError("resolve_type_indices requires backend.network")
-    names = [str(n) for n in type_names]
-    tn = list(backend.network.type_names)
+        raise ValueError("resolve_cell_indices requires backend.network")
+    names = [str(n) for n in cell_names]
+    tn = list(backend.network.cell_names)
     return [tn.index(n) for n in names if n in tn]
 
 
-def extend_target_pack_mirror_fit(pack, mirror_types, mirror_fit, mirror_sign=-1.0, backend=None):
-    """Extend a :class:`TargetPack`: mirror *mirror_fit* targets onto *mirror_types*."""
+def extend_readout_pack_mirror_fit(pack, mirror_types, mirror_fit, mirror_sign=-1.0, backend=None):
+    """Extend a :class:`ReadoutPack`: mirror *mirror_fit* gts onto *mirror_types*."""
     if backend is None or backend.network is None:
-        raise ValueError("extend_target_pack_mirror_fit requires backend.network")
+        raise ValueError("extend_readout_pack_mirror_fit requires backend.network")
     return _extend_pack_mirror_fit_network(
         pack, mirror_types, mirror_fit, mirror_sign, backend.network,
     )
 
 
 def _extend_pack_mirror_fit_network(pack, mirror_types, mirror_fit, mirror_sign, C):
-    names = unit_type_names(C)
-    u_arr = pack.readout_unit.cpu().numpy()
+    names = node_cell_names(C)
+    u_arr = pack.readout_node.cpu().numpy()
     b_arr = pack.readout_batch.cpu().numpy()
     w_arr = pack.cost_weight.cpu().numpy()
     r_arr = (
@@ -200,7 +205,7 @@ def _extend_pack_mirror_fit_network(pack, mirror_types, mirror_fit, mirror_sign,
             continue
         b = int(b_arr[row_i])
         col_u, col_v = int(col_u_all[u]), int(col_v_all[u])
-        mirror_target = float(mirror_sign) * pack.data[row_i:row_i + 1]
+        mirror_readout = float(mirror_sign) * pack.data[row_i:row_i + 1]
         w = float(w_arr[row_i])
         r = float(r_arr[row_i]) if r_arr is not None else None
         for mtype in mirror_types:
@@ -212,7 +217,7 @@ def _extend_pack_mirror_fit_network(pack, mirror_types, mirror_fit, mirror_sign,
             for uidx in candidates:
                 extra_b.append(b)
                 extra_u.append(int(uidx))
-                extra_rows.append(mirror_target)
+                extra_rows.append(mirror_readout)
                 extra_w.append(w)
                 if r is not None:
                     extra_r.append(r)
@@ -227,13 +232,13 @@ def _extend_pack_mirror_fit_network(pack, mirror_types, mirror_fit, mirror_sign,
 
 
 def _append_mirror_pack_rows(
-    pack, extra_units, extra_rows, readout_batch=None, cost_weight=None, cost_radius=None,
+    pack, extra_nodes, extra_rows, readout_batch=None, cost_weight=None, cost_radius=None,
     cost_pd_nd=None,
 ):
-    extra_units_t = torch.tensor(extra_units, dtype=torch.long, device=active_device())
+    extra_nodes_t = torch.tensor(extra_nodes, dtype=torch.long, device=active_device())
     extra_data_t = torch.cat(extra_rows, dim=0)
-    n_all = int(pack.readout_unit.shape[0]) + len(extra_units)
-    n_extra = len(extra_units)
+    n_all = int(pack.readout_node.shape[0]) + len(extra_nodes)
+    n_extra = len(extra_nodes)
     if readout_batch is None:
         readout_batch = torch.zeros(n_extra, dtype=torch.long, device=active_device())
     else:
@@ -265,14 +270,14 @@ def _append_mirror_pack_rows(
             torch.cat([pack.cost_pd_nd, extra_pd_t])
             if pack.cost_pd_nd is not None else extra_pd_t
         )
-    return TargetPack(
+    return ReadoutPack(
         name=pack.name,
         signal=pack.signal,
         data=all_data,
         power=pack.power + torch.sum(extra_data_t ** 2),
         cost_weight=cost_weight,
         readout_batch=torch.cat([pack.readout_batch, readout_batch]),
-        readout_unit=torch.cat([pack.readout_unit, extra_units_t]),
+        readout_node=torch.cat([pack.readout_node, extra_nodes_t]),
         cost_t0=pack.cost_t0,
         cost_radius=cost_radius_out,
         cost_extent=pack.cost_extent,
@@ -281,11 +286,11 @@ def _append_mirror_pack_rows(
         dsi_neg_rows=pack.dsi_neg_rows,
         dsi_pos_ptr=pack.dsi_pos_ptr,
         dsi_neg_ptr=pack.dsi_neg_ptr,
-        dsi_target=pack.dsi_target,
+        dsi_gt=pack.dsi_gt,
         dsi_weight=pack.dsi_weight,
         dsi_power=pack.dsi_power,
         cost_time_ix=pack.cost_time_ix,
-        always_waveform_mse=pack.always_waveform_mse,
+        waveform_mse=pack.waveform_mse,
         signal_scale=pack.signal_scale,
     )
 
@@ -297,7 +302,7 @@ def _mirror_types_from_spec(spec):
 
 
 def _apply_mirror_fit_spec(pack, spec, backend: ModelBackend):
-    return extend_target_pack_mirror_fit(
+    return extend_readout_pack_mirror_fit(
         pack,
         mirror_types=_mirror_types_from_spec(spec),
         mirror_fit=spec["mirror_fit"],
@@ -321,20 +326,20 @@ def _network_backend_from_connectome(
     C, *, e_leak_rest: float, e_leak_depol: float, sim_dtype=SIM_DTYPE,
 ) -> ModelBackend:
     """Build a :class:`ModelBackend` from an already-loaded connectome graph."""
-    from neuron.params import LEAK_DEPOL_TYPES
+    from neuron.params import LEAK_DEPOL_CELLS
 
-    tn = list(C.type_names)
-    depol = tuple(tn.index(t) for t in LEAK_DEPOL_TYPES if t in tn)
+    tn = list(C.cell_names)
+    depol = tuple(tn.index(t) for t in LEAK_DEPOL_CELLS if t in tn)
     conn = C.conn
     return ModelBackend(
         conn=conn,
         e_leak=build_e_leak(
-            conn, C.n_types, depol_cells=depol, dtype=sim_dtype,
+            conn, C.n_cells, depol_cells=depol, dtype=sim_dtype,
             e_leak_rest=e_leak_rest, e_leak_depol=e_leak_depol,
         ),
         ih_dir=build_ih_dir(conn, dtype=sim_dtype),
-        n_types=C.n_types,
-        n_cols=1,
+        n_cells=C.n_cells,
+        n_hexes=1,
         network=C,
         depol_cells=depol,
     )
@@ -365,7 +370,7 @@ def load_network_backend(
         C, e_leak_rest=e_leak_rest, e_leak_depol=e_leak_depol, sim_dtype=sim_dtype,
     )
     print(f"network: {network_json}")
-    print(f"  n_units={backend.n_units}, n_types={backend.n_types}, "
+    print(f"  n_nodes={backend.n_nodes}, n_cells={backend.n_cells}, "
           f"n_pairs={backend.conn.n_pairs}, n_edges={backend.conn.n_edges}, "
           f"syn_mode={mode}, "
           f"nparams={schema_nparams(default_schema('borst', backend, syn_mode=mode, param_boxes=param_boxes, ih_gmax_indi_names=ih_gmax_indi_names))}")
@@ -374,7 +379,7 @@ def load_network_backend(
 
 @dataclass
 class _TrainBindCtx:
-    """Per-target builder context during :func:`open_session`."""
+    """Per-task builder context during :func:`open_session`."""
 
     model_backend: ModelBackend
     dev: str
@@ -406,8 +411,8 @@ def _moving_bar_polarity_opts(ctx: _TrainBindCtx, polarity: str) -> dict:
         return dict(raw)
     return make_moving_bar_stimulus_opts(
         polarity,
-        i_baseline=I_BASELINE,
-        i_bar=I_BRIGHT if polarity == "bright" else I_DARK,
+        i_baseline_moving_bar=I_BASELINE,
+        i_moving_bar=I_BRIGHT if polarity == "bright" else I_DARK,
         pre_ms=PRE_MS,
         delta_ms=DELTA_MS,
         multi_bar=MULTI_BAR,
@@ -415,23 +420,20 @@ def _moving_bar_polarity_opts(ctx: _TrainBindCtx, polarity: str) -> dict:
 
 
 
-def _cost_extent_column_coltag(cost_extent, n_cost_columns) -> str:
-    extent_tag = "all columns" if cost_extent is None else f"extent={int(cost_extent)}"
-    if isinstance(n_cost_columns, dict):
+def _cost_extent_hex_coltag(cost_extent, n_cost_hexes) -> str:
+    extent_tag = "all hexes" if cost_extent is None else f"extent={int(cost_extent)}"
+    if isinstance(n_cost_hexes, dict):
         cols = ", ".join(
             f"b{int(batch)}={int(count)}"
-            for batch, count in sorted(n_cost_columns.items())
+            for batch, count in sorted(n_cost_hexes.items())
         )
-        return f"cost columns per batch [{cols}], {extent_tag}"
-    return f"{int(n_cost_columns)} cost columns, {extent_tag}"
+        return f"cost hexes per batch [{cols}], {extent_tag}"
+    return f"{int(n_cost_hexes)} cost hexes, {extent_tag}"
 
 
-def _build_network_moving_bar_target(ctx: _TrainBindCtx, C, *, pack_name: str, polarity: str):
+def _build_network_moving_bar_readout(ctx: _TrainBindCtx, C, *, pack_name: str, polarity: str):
     dev = ctx.dev or active_device()
     opts = _moving_bar_polarity_opts(ctx, polarity)
-    if opts.get("mode") != "network":
-        opts = dict(opts)
-        opts["mode"] = "network"
     if "cost_extent" in opts:
         cost_extent = normalize_cost_extent(opts["cost_extent"])
     else:
@@ -442,29 +444,27 @@ def _build_network_moving_bar_target(ctx: _TrainBindCtx, C, *, pack_name: str, p
         C=C,
         device=dev,
         sim_dtype=ctx.sim_dtype,
-        t_on=ms_to_t(float(opts["pre_ms"]), delta_ms=float(opts.get("delta_ms", DELTA_MS))),
+        t_onset=ms_to_t(float(opts["pre_ms"]), delta_ms=float(opts.get("delta_ms", DELTA_MS))),
         delta_ms=float(opts.get("delta_ms", DELTA_MS)),
         cost_extent=cost_extent,
-        i_baseline=opts["i_baseline"],
+        i_baseline_moving_bar=opts[_MOVING_BAR_BASELINE_KEY],
         contrasts=(polarity,),
-        readout_subtypes=_readout_subtypes_from_opts(opts),
+        gt_cells=gt_cells_from_opts(opts),
         multi_bar=bool(opts.get("multi_bar", MULTI_BAR)),
         waveform_mse=_moving_bar_waveform_mse_enabled(ctx.cost_weights, pack_name),
     )
-    if polarity == "bright":
-        build_kw["i_bright_bar"] = opts["i_bright_bar"]
-    else:
-        build_kw["i_dark_bar"] = opts["i_dark_bar"]
-    T = build_moving_bar_target(**build_kw)
+    peak_key = _MOVING_BAR_I_KEY[polarity]
+    build_kw[peak_key] = opts[peak_key]
+    T = build_moving_bar_gt(**build_kw)
     stim = _enrich_moving_bar_stimulus_opts(opts, T.info, cost_extent=cost_extent)
-    pack = TargetPack(
+    pack = ReadoutPack(
         name=pack_name,
         signal=T.signal,
         data=T.data,
         power=T.power,
         cost_weight=T.cost_weight,
         readout_batch=T.readout_batch,
-        readout_unit=T.readout_unit,
+        readout_node=T.readout_node,
         cost_t0=T.cost_t0,
         cost_extent=cost_extent,
         cost_pd_nd=T.cost_pd_nd,
@@ -472,32 +472,32 @@ def _build_network_moving_bar_target(ctx: _TrainBindCtx, C, *, pack_name: str, p
         dsi_neg_rows=T.dsi_neg_rows,
         dsi_pos_ptr=T.dsi_pos_ptr,
         dsi_neg_ptr=T.dsi_neg_ptr,
-        dsi_target=T.dsi_target,
+        dsi_gt=T.dsi_gt,
         dsi_weight=T.dsi_weight,
         dsi_power=T.dsi_power,
-        always_waveform_mse=False,
+        waveform_mse=bool(T.info["waveform_mse"]),
         signal_scale=_signal_scale_from_opts(pack_name, opts),
     )
-    coltag = _cost_extent_column_coltag(cost_extent, T.info["n_cost_columns"])
+    coltag = _cost_extent_hex_coltag(cost_extent, T.info["n_cost_hexes"])
     tag = (
         f"moving-bar {polarity} (B={T.n_batch} stimuli, "
-        f"{T.info['n_cost']} cost cells, {coltag})"
+        f"{T.info['n_cost']} cost nodes, {coltag})"
     )
     return pack, stim, tag
 
 
-def _build_network_moving_bar_bright_target(
+def _build_network_moving_bar_bright_task(
     ctx: _TrainBindCtx, C,
-) -> Tuple[TargetPack, dict, str]:
-    return _build_network_moving_bar_target(
+) -> Tuple[ReadoutPack, dict, str]:
+    return _build_network_moving_bar_readout(
         ctx, C, pack_name="moving_bar_bright", polarity="bright",
     )
 
 
-def _build_network_moving_bar_dark_target(
+def _build_network_moving_bar_dark_task(
     ctx: _TrainBindCtx, C,
-) -> Tuple[TargetPack, dict, str]:
-    return _build_network_moving_bar_target(
+) -> Tuple[ReadoutPack, dict, str]:
+    return _build_network_moving_bar_readout(
         ctx, C, pack_name="moving_bar_dark", polarity="dark",
     )
 
@@ -544,13 +544,13 @@ def _spot_cost_time_ix(opts, *, device):
     return torch.tensor(ix, dtype=torch.long, device=device)
 
 
-def _build_network_spot_target(
+def _build_network_spot_task(
     ctx: _TrainBindCtx, C, *, polarity: str,
-) -> Tuple[TargetPack, dict, str]:
+) -> Tuple[ReadoutPack, dict, str]:
     if polarity not in SPOT_POLARITIES:
         raise ValueError(f"spot polarity must be 'bright' or 'dark', got {polarity!r}")
     pack_name = f"spot_{polarity}"
-    step_key = _SPOT_STEP_KEY[polarity]
+    peak_key = _SPOT_I_KEY[polarity]
     ctx_opts = (
         ctx.spot_bright_stimulus_opts if polarity == "bright" else ctx.spot_dark_stimulus_opts
     )
@@ -565,14 +565,14 @@ def _build_network_spot_target(
     delta_ms = float(opts["delta_ms"])
     dev = ctx.dev or active_device()
     t_onset, n_t = spot_timing_t_from_opts(opts)
-    i_step = float(opts[step_key])
+    i_spot = float(opts[peak_key])
     default_w = default_spot_cost_radius_weight(
         spot_extent,
         weights=SPOT_COST_RADIUS_WEIGHT,
         weights_extent1=SPOT_COST_RADIUS_WEIGHT_EXTENT1,
     )
     from training.defaults import SPOT_COST_RADII, SPOT_COST_RADIUS_KEY_ALIASES
-    T = build_shifted_target(
+    T = build_spot_gt(
         C,
         spot_extent=spot_extent,
         multi_spot=multi_spot,
@@ -586,57 +586,60 @@ def _build_network_spot_target(
         spot_cost_radius_weight=expand_spot_cost_r_w_dict(
             stimulus_opts=opts, aliases=SPOT_COST_RADIUS_KEY_ALIASES,
         ),
-        i_baseline=float(opts["i_baseline"]),
-        i_bright=i_step if polarity == "bright" else float(opts.get("i_bright", I_BRIGHT)),
-        i_dark=i_step if polarity == "dark" else float(opts.get("i_dark", I_DARK)),
+        i_baseline_spot=float(opts[_SPOT_BASELINE_KEY]),
+        i_bright_spot=i_spot if polarity == "bright" else float(opts.get("i_bright_spot", I_BRIGHT)),
+        i_dark_spot=i_spot if polarity == "dark" else float(opts.get("i_dark_spot", I_DARK)),
         polarity=polarity,
         pulse_ms=float(opts.get("pulse_ms", PULSE_MS)),
         data_amp=DATA_AMP,
         delta_ms=delta_ms,
         default_cost_weights=default_w,
         spot_cost_radii=SPOT_COST_RADII,
+        gt_cells=gt_cells_from_opts(opts),
     )
     cost_time_ix = _spot_cost_time_ix(opts, device=dev)
     stim = dict(opts)
-    pack = TargetPack(
+    if "present_gts" in T.info:
+        stim["gt_cells"] = list(T.info["present_gts"])
+    pack = ReadoutPack(
         name=pack_name,
         signal=T.signal,
         data=T.data,
         power=T.power,
         cost_weight=T.cost_weight,
         readout_batch=T.readout_batch,
-        readout_unit=T.readout_unit,
+        readout_node=T.readout_node,
         cost_t0=None,
         cost_radius=T.cost_radius,
         readout_stim_u=T.readout_stim_u,
         readout_stim_v=T.readout_stim_v,
         cost_extent=cost_extent,
         cost_time_ix=cost_time_ix,
-        always_waveform_mse=True,
+        waveform_mse=True,
         signal_scale=_signal_scale_from_opts(pack_name, opts),
     )
-    coltag = _cost_extent_column_coltag(cost_extent, T.info["n_cost_columns"])
+    coltag = _cost_extent_hex_coltag(cost_extent, T.info["n_cost_hexes"])
     shifttag = f"{T.info['n_shifts']} shifts"
     tag = (
         f"{pack_name} (B={T.n_batch} stimuli [{T.info['n_centers']} centers simultaneous "
-        f"x {shifttag}], {T.info['n_cost']} cost cells, {coltag})"
+        f"x {shifttag}], {T.info['n_cost']} cost nodes, {coltag})"
     )
     return pack, stim, tag
 
 
-NETWORK_TARGET_BUILDERS = {
-    "spot_bright": lambda ctx, C: _build_network_spot_target(ctx, C, polarity="bright"),
-    "spot_dark": lambda ctx, C: _build_network_spot_target(ctx, C, polarity="dark"),
-    "moving_bar_bright": _build_network_moving_bar_bright_target,
-    "moving_bar_dark": _build_network_moving_bar_dark_target,
+NETWORK_TASK_BUILDERS = {
+    "spot_bright": lambda ctx, C: _build_network_spot_task(ctx, C, polarity="bright"),
+    "spot_dark": lambda ctx, C: _build_network_spot_task(ctx, C, polarity="dark"),
+    "moving_bar_bright": _build_network_moving_bar_bright_task,
+    "moving_bar_dark": _build_network_moving_bar_dark_task,
 }
 
 
-def apply_cost_extent_to_stimulus_opts(opts, target_name, cost_extent_by_target):
-    """Set an explicitly resolved ``cost_extent`` on one target's options."""
+def apply_cost_extent_to_stimulus_opts(opts, task_name, cost_extent_by_task):
+    """Set an explicitly resolved ``cost_extent`` on one task's options."""
     out = dict(opts or {})
-    if cost_extent_by_target and target_name in cost_extent_by_target:
-        out["cost_extent"] = int(cost_extent_by_target[target_name])
+    if cost_extent_by_task and task_name in cost_extent_by_task:
+        out["cost_extent"] = int(cost_extent_by_task[task_name])
     elif "cost_extent" in out:
         if out["cost_extent"] is None:
             out.pop("cost_extent", None)
@@ -645,18 +648,18 @@ def apply_cost_extent_to_stimulus_opts(opts, target_name, cost_extent_by_target)
     return out
 
 
-def apply_shift_extent_to_stimulus_opts(opts, target_name, shift_extent):
+def apply_shift_extent_to_stimulus_opts(opts, task_name, shift_extent):
     """Set ``shift_extent`` on spot stimulus opts."""
-    if target_name not in SPOT_TARGETS:
+    if task_name not in SPOT_TASKS:
         return opts
     out = dict(opts or {})
     out["shift_extent"] = int(shift_extent)
     return out
 
 
-def apply_spot_extent_to_stimulus_opts(opts, target_name, spot_extent):
+def apply_spot_extent_to_stimulus_opts(opts, task_name, spot_extent):
     """Set ``spot_extent`` on spot stimulus opts."""
-    if target_name not in SPOT_TARGETS:
+    if task_name not in SPOT_TASKS:
         return opts
     spot_extent_half_steps(spot_extent)
     out = dict(opts or {})
@@ -664,27 +667,27 @@ def apply_spot_extent_to_stimulus_opts(opts, target_name, spot_extent):
     return out
 
 
-def apply_multi_spot_to_stimulus_opts(opts, target_name, multi_spot):
+def apply_multi_spot_to_stimulus_opts(opts, task_name, multi_spot):
     """Set ``multi_spot`` on spot stimulus opts."""
-    if target_name not in SPOT_TARGETS:
+    if task_name not in SPOT_TASKS:
         return opts
     out = dict(opts or {})
     out["multi_spot"] = bool(multi_spot)
     return out
 
 
-def apply_fully_inside_to_stimulus_opts(opts, target_name, fully_inside):
+def apply_fully_inside_to_stimulus_opts(opts, task_name, fully_inside):
     """Set ``fully_inside`` on spot stimulus opts."""
-    if target_name not in SPOT_TARGETS:
+    if task_name not in SPOT_TASKS:
         return opts
     out = dict(opts or {})
     out["fully_inside"] = bool(fully_inside)
     return out
 
 
-def apply_spot_cost_radius_weight_to_stimulus_opts(opts, target_name, spot_cost_radius_weight):
+def apply_spot_cost_radius_weight_to_stimulus_opts(opts, task_name, spot_cost_radius_weight):
     """Set ``spot_cost_radius_weight`` on spot stimulus opts (``None`` -> default weights)."""
-    if target_name not in SPOT_TARGETS or spot_cost_radius_weight is None:
+    if task_name not in SPOT_TASKS or spot_cost_radius_weight is None:
         return opts
     out = dict(opts or {})
     out["spot_cost_radius_weight"] = {
@@ -693,57 +696,75 @@ def apply_spot_cost_radius_weight_to_stimulus_opts(opts, target_name, spot_cost_
     return out
 
 
-def _i_cli_target_names(cli_field, name):
-    """Resolve CLI target token for one ``--i_*`` flag."""
-    if name not in CLI_TARGET_NAMES:
+def _i_cli_task_names(cli_field, name):
+    """Resolve CLI task token for one ``--i_*`` flag."""
+    if name not in CLI_TASK_NAMES:
         raise ValueError(
-            f"unknown target {name!r} in --{cli_field} "
-            f"(expected {'|'.join(CLI_TARGET_NAMES)})",
+            f"unknown task {name!r} in --{cli_field} "
+            f"(expected {'|'.join(CLI_TASK_NAMES)})",
         )
     if cli_field == "i_baseline":
-        if name in TARGET_ALIASES:
-            return TARGET_ALIASES[name]
+        if name in TASK_ALIASES:
+            return TASK_ALIASES[name]
         return [name]
     if cli_field == "i_bright":
-        if name not in I_CLI_BRIGHT_TARGETS:
+        if name not in I_CLI_BRIGHT_TASKS:
             raise ValueError(
-                f"--i-bright does not accept target {name!r} "
+                f"--i-bright does not accept task {name!r} "
                 f"(expected spot|spot_bright|moving_bar|moving_bar_bright)",
             )
-        return list(I_CLI_BRIGHT_TARGETS[name])
-    if name not in I_CLI_DARK_TARGETS:
+        return list(I_CLI_BRIGHT_TASKS[name])
+    if name not in I_CLI_DARK_TASKS:
         raise ValueError(
-            f"--i-dark does not accept target {name!r} "
+            f"--i-dark does not accept task {name!r} "
             f"(expected spot|spot_dark|moving_bar|moving_bar_dark)",
         )
-    return list(I_CLI_DARK_TARGETS[name])
+    return list(I_CLI_DARK_TASKS[name])
 
 
-def build_i_cli_by_target(kv_by_field):
-    """Merge per-flag comma KV dicts into ``{'by_target': {target: {field: val}}}``."""
-    by_target = {}
+def build_i_cli_by_task(kv_by_field):
+    """Merge per-flag comma KV dicts into ``{'by_task': {task: {field: val}}}``."""
+    by_task = {}
     for cli_field, kv in kv_by_field.items():
         if not kv:
             continue
         for name, val in kv.items():
-            for t in _i_cli_target_names(cli_field, name):
+            for t in _i_cli_task_names(cli_field, name):
                 sidecar_field = I_CLI_SIDECAR_FIELD[(cli_field, t)]
-                by_target.setdefault(t, {})[sidecar_field] = float(val)
-    return {"by_target": by_target} if by_target else None
+                by_task.setdefault(t, {})[sidecar_field] = float(val)
+    return {"by_task": by_task} if by_task else None
 
 
-def apply_i_cli_to_stimulus_opts(opts, target_name, i_cli):
-    """Merge per-target CLI ``--i_*`` overrides into stimulus opts."""
+def resolve_gt_cells_by_task(by_task_kv) -> Dict[str, List[str]]:
+    """Map concrete tasks to final gt cell lists (task + cell aliases expanded)."""
+    expanded = expand_gt_dict(by_task_kv or {})
+    bad = [k for k in expanded if k not in VALID_TASKS]
+    if bad:
+        raise ValueError(
+            f"unknown task(s) in --gt: {bad} "
+            f"(expected {'|'.join(CLI_TASK_NAMES)})",
+        )
+    out: Dict[str, List[str]] = {}
+    for tname, cells in expanded.items():
+        if tname in SPOT_TASKS:
+            out[tname] = list(expand_spot_gt_cells_list(cells))
+        else:
+            out[tname] = list(expand_moving_bar_gt_cells_list(cells))
+    return out
+
+
+def apply_i_cli_to_stimulus_opts(opts, task_name, i_cli):
+    """Merge per-task CLI ``--i_*`` overrides into stimulus opts."""
     if not i_cli:
         return opts
-    overrides = (i_cli.get("by_target") or {}).get(target_name)
+    overrides = (i_cli.get("by_task") or {}).get(task_name)
     if not overrides:
         return opts
     out = dict(opts or {})
-    allowed = TARGET_I_FIELDS[target_name]
+    allowed = TASK_I_FIELDS[task_name]
     for key, val in overrides.items():
         if key not in allowed:
-            raise ValueError(f"{key!r} not valid for target {target_name!r}")
+            raise ValueError(f"{key!r} not valid for task {task_name!r}")
         out[key] = float(val)
     return out
 
@@ -758,10 +779,9 @@ _STIMULUS_TRAIN_OPT_SPECS = (
 
 def _finalize_stimulus_opts(
     opts,
-    target_name,
+    task_name,
     *,
-    session_mode=None,
-    cost_extent_by_target,
+    cost_extent_by_task,
     shift_extent,
     spot_extent,
     multi_spot,
@@ -769,17 +789,15 @@ def _finalize_stimulus_opts(
     spot_cost_radius_weight,
     i_cli,
 ):
-    build_mode = session_mode if session_mode is not None else (opts or {}).get("mode", "network")
-    if target_name in SPOT_TARGETS:
-        polarity = "bright" if target_name == "spot_bright" else "dark"
-        step_key = _SPOT_STEP_KEY[polarity]
+    if task_name in SPOT_TASKS:
+        polarity = "bright" if task_name == "spot_bright" else "dark"
+        peak_key = _SPOT_I_KEY[polarity]
         raw = dict(opts or {})
-        i_step_default = I_BRIGHT if polarity == "bright" else I_DARK
+        i_spot_default = I_BRIGHT if polarity == "bright" else I_DARK
         out = make_spot_stimulus_opts(
             polarity,
-            mode=build_mode,
-            i_baseline=float(raw.get("i_baseline", I_BASELINE)),
-            i_step=float(raw.get(step_key, i_step_default)),
+            i_baseline_spot=float(raw.get(_SPOT_BASELINE_KEY, I_BASELINE)),
+            i_spot=float(raw.get(peak_key, i_spot_default)),
             pre_ms=float(raw.get("pre_ms", PRE_MS)),
             response_ms=float(raw.get("response_ms", RESPONSE_MS)),
             delta_ms=float(raw.get("delta_ms", DELTA_MS)),
@@ -789,52 +807,49 @@ def _finalize_stimulus_opts(
             fully_inside=bool(raw.get("fully_inside", fully_inside if fully_inside is not None else FULLY_INSIDE)),
             pulse_ms=float(raw.get("pulse_ms", PULSE_MS)),
             cost_interval_ms=raw.get("cost_interval_ms"),
+            gt_cells=raw.get("gt_cells"),
         )
-    elif target_name == "moving_bar_bright":
+    elif task_name == "moving_bar_bright":
         raw = dict(opts or {})
         out = make_moving_bar_stimulus_opts(
             "bright",
-            mode=build_mode,
-            i_baseline=float(raw.get("i_baseline", I_BASELINE)),
-            i_bar=float(raw.get("i_bright_bar", I_BRIGHT)),
+            i_baseline_moving_bar=float(raw.get(_MOVING_BAR_BASELINE_KEY, I_BASELINE)),
+            i_moving_bar=float(raw.get("i_bright_moving_bar", I_BRIGHT)),
             pre_ms=float(raw.get("pre_ms", PRE_MS)),
             delta_ms=float(raw.get("delta_ms", DELTA_MS)),
             multi_bar=bool(raw.get("multi_bar", MULTI_BAR)),
-            readout_subtypes=raw.get("readout_subtypes"),
+            gt_cells=raw.get("gt_cells"),
         )
-    elif target_name == "moving_bar_dark":
+    elif task_name == "moving_bar_dark":
         raw = dict(opts or {})
         out = make_moving_bar_stimulus_opts(
             "dark",
-            mode=build_mode,
-            i_baseline=float(raw.get("i_baseline", I_BASELINE)),
-            i_bar=float(raw.get("i_dark_bar", I_DARK)),
+            i_baseline_moving_bar=float(raw.get(_MOVING_BAR_BASELINE_KEY, I_BASELINE)),
+            i_moving_bar=float(raw.get("i_dark_moving_bar", I_DARK)),
             pre_ms=float(raw.get("pre_ms", PRE_MS)),
             delta_ms=float(raw.get("delta_ms", DELTA_MS)),
             multi_bar=bool(raw.get("multi_bar", MULTI_BAR)),
-            readout_subtypes=raw.get("readout_subtypes"),
+            gt_cells=raw.get("gt_cells"),
         )
     else:
         out = dict(opts or {})
-    out = apply_cost_extent_to_stimulus_opts(out, target_name, cost_extent_by_target)
-    out = apply_shift_extent_to_stimulus_opts(out, target_name, shift_extent)
-    out = apply_spot_extent_to_stimulus_opts(out, target_name, spot_extent)
-    out = apply_multi_spot_to_stimulus_opts(out, target_name, multi_spot)
-    out = apply_fully_inside_to_stimulus_opts(out, target_name, fully_inside)
-    out = apply_spot_cost_radius_weight_to_stimulus_opts(out, target_name, spot_cost_radius_weight)
-    out = apply_i_cli_to_stimulus_opts(out, target_name, i_cli)
-    if session_mode is not None:
-        out["mode"] = session_mode
+    out = apply_cost_extent_to_stimulus_opts(out, task_name, cost_extent_by_task)
+    out = apply_shift_extent_to_stimulus_opts(out, task_name, shift_extent)
+    out = apply_spot_extent_to_stimulus_opts(out, task_name, spot_extent)
+    out = apply_multi_spot_to_stimulus_opts(out, task_name, multi_spot)
+    out = apply_fully_inside_to_stimulus_opts(out, task_name, fully_inside)
+    out = apply_spot_cost_radius_weight_to_stimulus_opts(out, task_name, spot_cost_radius_weight)
+    out = apply_i_cli_to_stimulus_opts(out, task_name, i_cli)
     return out
 
 
 def make_train_opts(
     backend="network",
-    target_list=None,
+    task_list=None,
     cost_weights=None,
     pack_overrides=None,
     sequential=None,
-    cost_extent_by_target=None,
+    cost_extent_by_task=None,
     shift_extent=None,
     spot_extent=None,
     multi_spot=MULTI_SPOT,
@@ -863,8 +878,7 @@ def make_train_opts(
     fp = int(fp)
     if fp not in (16, 32, 64):
         raise ValueError(f"fp must be 16, 32, or 64; got {fp!r}")
-    tl = normalize_target_list(target_list)
-    mode = "network"
+    tl = normalize_task_list(task_list)
     if spot_extent is None:
         spot_extent = SPOT_EXTENT
     if shift_extent is None:
@@ -876,7 +890,7 @@ def make_train_opts(
         "moving_bar_dark": moving_bar_dark_stimulus_opts,
     }
     finalize_kw = dict(
-        cost_extent_by_target=cost_extent_by_target,
+        cost_extent_by_task=cost_extent_by_task,
         shift_extent=shift_extent,
         spot_extent=spot_extent,
         multi_spot=multi_spot,
@@ -893,12 +907,11 @@ def make_train_opts(
         stimulus_opts[opts_key] = _finalize_stimulus_opts(
             raw,
             tname,
-            session_mode=mode if tname in tl else None,
             **finalize_kw,
         )
     opts = {
         "backend": "network",
-        "target_list": tl,
+        "task_list": tl,
         "cost_weights": expand_cost_weight_dict(cost_weights or {}),
         "sequential": sequential,
         **stimulus_opts,
@@ -922,13 +935,13 @@ def make_train_opts(
 
 
 def _train_opts_for_sidecar(
-    opts, backend, target_list,
+    opts, backend, task_list,
     resolved_spot_bright, resolved_spot_dark,
     resolved_bar_bright, resolved_bar_dark, sequential_bool,
 ) -> dict:
     record = {
         "backend": str(backend),
-        "target_list": list(target_list),
+        "task_list": list(task_list),
         "cost_weights": {str(k): float(v) for k, v in (opts.get("cost_weights") or {}).items()},
         "sequential": bool(sequential_bool),
     }
@@ -1001,7 +1014,7 @@ def _schema_from_opts(model, model_backend, schema, train_opts_record, *, ih_off
     parts = train_opts_record.get("param_partitions")
     if parts:
         base = apply_partitions(
-            base, parts, lambda seg: unit_names_for_segment(seg, model_backend),
+            base, parts, lambda seg: node_names_for_segment(seg, model_backend),
         )
     return base
 
@@ -1009,8 +1022,8 @@ def _schema_from_opts(model, model_backend, schema, train_opts_record, *, ih_off
 def _make_session(
     model_backend: ModelBackend,
     model: str,
-    target_list: List[str],
-    packs: Dict[str, TargetPack],
+    task_list: List[str],
+    packs: Dict[str, ReadoutPack],
     *,
     delta_ms: float,
     cost_weights=None,
@@ -1036,15 +1049,15 @@ def _make_session(
         )
     if train_opts_record is not None:
         train_opts_record["param_partitions"] = schema_partitions_record(
-            sch, lambda seg: unit_names_for_segment(seg, model_backend),
+            sch, lambda seg: node_names_for_segment(seg, model_backend),
         )
     sch = attach_param_carry(sch)
     session = TrainSession(
         backend=model_backend,
         model=model,
         schema=tuple(sch),
-        targets=dict(packs),
-        target_list=tuple(target_list),
+        readouts=dict(packs),
+        task_list=tuple(task_list),
         cost_weights=expand_cost_weight_dict(cost_weights),
         sequential=bool(seq),
         device=dev_ref,
@@ -1081,10 +1094,10 @@ def open_session(
     backend_name = str(opts.get("backend", "network"))
     if backend_name != "network":
         raise ValueError(f"backend must be 'network', got {backend_name!r}")
-    target_list = normalize_target_list(opts.get("target_list"))
-    bad = [t for t in target_list if t not in VALID_TARGETS]
+    task_list = normalize_task_list(opts.get("task_list"))
+    bad = [t for t in task_list if t not in VALID_TASKS]
     if bad:
-        raise ValueError(f"unknown target(s) {bad!r} (expected {'|'.join(CLI_TARGET_NAMES)})")
+        raise ValueError(f"unknown task(s) {bad!r} (expected {'|'.join(CLI_TASK_NAMES)})")
     dev = opts.get("dev") or active_device()
     sim_dtype = sim_dtype_from_fp(int(opts.get("fp", FP)))
     delta_ms = _delta_ms_from_train_opts(opts)
@@ -1120,8 +1133,8 @@ def open_session(
     pack_overrides = opts.get("pack_overrides") or {}
     resolved_spot_bright = resolved_spot_dark = None
     resolved_bar_bright = resolved_bar_dark = None
-    for tname in target_list:
-        pack, stim, _tag = NETWORK_TARGET_BUILDERS[tname](ctx, C)
+    for tname in task_list:
+        pack, stim, _tag = NETWORK_TASK_BUILDERS[tname](ctx, C)
         if tname in pack_overrides:
             pack = apply_pack_override(pack, pack_overrides[tname], model_backend)
         packs[tname] = pack
@@ -1134,13 +1147,13 @@ def open_session(
         elif tname == "moving_bar_dark":
             resolved_bar_dark = stim
     record = _train_opts_for_sidecar(
-        opts, "network", target_list,
+        opts, "network", task_list,
         resolved_spot_bright, resolved_spot_dark,
         resolved_bar_bright, resolved_bar_dark,
         bool(opts.get("sequential")),
     )
     return _make_session(
-        model_backend, model, target_list, packs,
+        model_backend, model, task_list, packs,
         delta_ms=delta_ms,
         cost_weights=opts.get("cost_weights"),
         sequential=opts.get("sequential"),
@@ -1180,8 +1193,8 @@ def open_session_from_opts(opts: dict, model: str | None = None, **kwargs) -> Tr
     nj = opts.get("network_json")
     if not nj:
         raise ValueError("train_opts requires network_json")
-    if not opts.get("target_list"):
-        raise ValueError("train_opts requires target_list")
+    if not opts.get("task_list"):
+        raise ValueError("train_opts requires task_list")
     sim_dtype = sim_dtype_from_fp(int(opts.get("fp", FP)))
     syn_mode = normalize_syn_mode(opts.get("syn_mode", SYN_MODE))
     mb = load_network_backend(

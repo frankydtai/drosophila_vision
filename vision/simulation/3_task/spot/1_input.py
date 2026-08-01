@@ -4,7 +4,7 @@
 Geometry (centers, sub-spot shifts, Euclidean rings) is split out of the old
 ``network.spot_target`` Section A. The PR drive waveform ``u[t]`` is defined
 here once (``spot_input_waveform``) and consumed by both the network signal and
-the ImpR target in :mod:`task.spot.data`, so pulse duration has a single
+the ImpR gt in :mod:`task.spot.data`, so pulse duration has a single
 source.
 """
 from __future__ import annotations
@@ -75,7 +75,7 @@ def _rot60(u: int, v: int) -> Tuple[int, int]:
 
 
 def euclid_hex_dist(du: int, dv: int) -> float:
-    """Euclidean distance (in column units) between two axial cells."""
+    """Euclidean distance (in hex nodes) between two axial cells."""
     return math.sqrt(du * du + du * dv + dv * dv)
 
 
@@ -116,7 +116,7 @@ def spot_dist(spot_extent) -> int:
 def spot_extent_folds_r2_into_r1(spot_extent) -> bool:
     """True when ``spot_extent == 1`` (``spot_extent_half_steps == 2``).
 
-    Fold semantics live in :mod:`task.spot.data`: r=1 target amplitude is
+    Fold semantics live in :mod:`task.spot.data`: r=1 gt amplitude is
     ``RecF(1)+RecF(2)`` and r=2 amplitude is 0.
     """
     return spot_extent_half_steps(spot_extent) == 2

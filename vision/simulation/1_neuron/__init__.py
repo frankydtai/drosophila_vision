@@ -13,7 +13,7 @@ from neuron.params import (
     IH_DIR_REVERSE_CELLS,
     IH_OFF_MODES,
     KNOWN_MODELS,
-    LEAK_DEPOL_TYPES,
+    LEAK_DEPOL_CELLS,
     e_ih_off,
     membrane_cdt,
     ms_to_t,
@@ -35,7 +35,7 @@ from neuron.filter_ca import ca_alpha, ca_filter
 from neuron.forward import (
     MODEL_DRIVERS,
     run_full,
-    run_units,
+    run_nodes,
 )
 from neuron.readout import (
     CA_PACK_READOUTS,
@@ -76,11 +76,11 @@ __all__ = [
     "ca_filter",
     "ca_alpha",
     "run_full",
-    "run_units",
+    "run_nodes",
     "pack_readout",
     "readout_pack_traces",
     "window_time_traces",
-    "LEAK_DEPOL_TYPES",
+    "LEAK_DEPOL_CELLS",
     "IH_OFF_MODES",
     "IH_DIR_REVERSE_CELLS",
 ]

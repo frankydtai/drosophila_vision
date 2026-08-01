@@ -7,7 +7,7 @@ Highlights                                                        Authors
 d   All Drosophila OFF motion pathway Tm cells are activated by   Etienne Serbe, Matthias Meier,
     brightness decrements                                         Aljoscha Leonhardt, Alexander Borst
 
-d   None of the four cell types are direction selective           Correspondence
+d   None of the four cells are direction selective           Correspondence
 d   Tm1, Tm2, Tm4, and Tm9 display a variety of temporal filter   serbe@neuro.mpg.de (E.S.),
                                                                   mmeier@neuro.mpg.de (M.M.)
     properties
@@ -18,7 +18,7 @@ d   The four Tm cells are involved in OFF motion processing to    In Brief
                                                                   assess the roles of columnar elements in
                                                                   the OFF motion vision pathway of
                                                                   Drosophila. Here, the complex interaction
-                                                                  of four cell types shapes the flies’
+                                                                  of four cells shapes the flies’
                                                                   responses to motion stimuli.
 
 
@@ -55,7 +55,7 @@ circuit are based on the interaction of two differen-
 tially filtered signals. However, electron microscopy
                                                                         Sánchez, 1915) and exist in four subtypes, depending on their
 studies have shown that T5 cells receive their major                    projection layer in the lobula plate (Figure 1B; Fischbach and Dit-
-input from four classes of neurons: Tm1, Tm2, Tm4,                      trich, 1989). Genetically silencing both cell types turns tangential
+input from four classes of neurons: Tm1, Tm2, Tm4,                      trich, 1989). Genetically silencing both cells turns tangential
 and Tm9. Using two-photon calcium imaging, we                           cells motion insensitive and walking flies motion blind (Schnell
 demonstrate that T5 is the first direction-selective                    et al., 2012; Bahl et al., 2013). Each of the four subtypes
 stage within the OFF pathway. The four cells provide                    responds only to either brightness increments (ON for T4) or
@@ -129,7 +129,7 @@ D                      E                     F                       G          
                                                                                              individually and in combination exclu-
                                                                                              sively impaired OFF motion vision,
                                                                                              though by different magnitudes. Combi-
-                                                                                             natorial blocking of two Tm cell types
+                                                                                             natorial blocking of two Tm cells
                                                                                              resulted in an increased reduction of
                                                                                              the OFF motion response. These data
                                                                                              do not map easily onto classical models
@@ -142,16 +142,16 @@ neither have the roles of the other two input neurons, Tm4 and
 Tm9. We therefore set out to explore the response properties         Response Properties of Tm1, Tm2, Tm4, and Tm9 Cells
 and necessity of all four major inputs to T5 cells, which consti-    To directly examine the response properties of Tm cells, we
 tutes a crucial step toward a mechanistic understanding of           expressed calcium indicator GCaMP5 (Akerboom et al., 2012)
-how direction selectivity is computed in the OFF pathway of          under the control of cell-type-specific Gal4 lines (Brand and
+how direction selectivity is computed in the OFF pathway of          under the control of cell-specific Gal4 lines (Brand and
 Drosophila.                                                          Perrimon, 1993). We manually chose regions of interest that
    First, we performed two-photon calcium imaging (Figure 1C)        corresponded to single axonal terminals in the lobula where T5
 to assess the visual response properties of all major T5 inputs,     dendrites are located (Figures 1D–1G) and determined the
 including direction selectivity, response dynamics, and recep-       fluorescence change during visual stimulation. First, we charac-
 tive fields. Second, we blocked the synaptic output of single-       terized the calcium responses of T5’s presynaptic elements by
-cell types, as well as combinations of two-cell types, using         presenting edges of both polarities (ON and OFF edges) moving
+cells, as well as combinations of two-cells, using         presenting edges of both polarities (ON and OFF edges) moving
 shibirets (Kitamoto, 2001) and analyzed responses of tangential      in the four cardinal directions. With these visual stimuli, we ad-
 cells and walking flies to visual motion stimuli. Our results        dressed two questions: First, are neurons upstream of T5 cells
-demonstrate that all four Tm cell types are activated by             direction selective? Second, do they exhibit rectified responses
+demonstrate that all four Tm cells are activated by             direction selective? Second, do they exhibit rectified responses
 brightness decrements, irrespective of the direction of motion,      with respect to the contrast polarity of the stimulus? In agree-
 confirming the notion that T5 cells are the first direction-se-      ment with previous studies (Meier et al., 2014; Strother et al.,
 lective cells within the OFF pathway (Maisak et al., 2013;           2014; Behnia et al., 2014), we found that Tm1 and Tm2 cells
@@ -197,7 +197,7 @@ acteristics with short increases of activity when stimulated with               
 OFF edges moving along all four cardinal directions (Figure 2C).                  calcium levels to local brightness decrements (Figures 3A–3D).
 The calcium levels of Tm9, however, changed more tonically,                       Consistent with the edge stimulation results, this set of experi-
 inversely following the local luminance level: when presented                     ments revealed a broad range of response kinetics for the four
-with a moving ON edge, the cell’s initial calcium level dropped,                  Tm cell types. Furthermore, we observed a drop in calcium
+with a moving ON edge, the cell’s initial calcium level dropped,                  Tm cells. Furthermore, we observed a drop in calcium
 and it only increased when a dark edge was moved through                          signaling upon stimulus offset. Based on these observations,
 the fly’s visual field (Figure 2D). Again, this was true for all four di-         we simulated their responses by fitting a three-stage filter model
 rections. To quantify the calcium responses to moving edges—                      to the mean calcium traces (Figure 3E). Within this model, inputs
@@ -207,10 +207,10 @@ fluorescence change for each stimulus (Figures 2E–2H). This                   
 demonstrated that all transmedullary neurons, anatomically                        cium dynamics and estimate filter time constants for each cell
 identified to be presynaptic to T5, are not themselves direction                  type from the observed responses (Figures 3F–3I). In agreement
 selective and respond with increased activity to visual stimula-                  with the data from the stimulation with moving edges, the four
-tion with dark edges. The response kinetics of the different Tm                   cell types could be classified in three groups: fast, transient
+tion with dark edges. The response kinetics of the different Tm                   cells could be classified in three groups: fast, transient
 cells, however, looked qualitatively different. To more precisely                 Tm2 (tHP = 0.36 s and tLP = 0.1 s; Figures 3B and 3G) and Tm4
 characterize the temporal properties of Tm cells and to investi-                  (tHP = 0.25 s and tLP = 0.2 s; Figures 3C and 3H), intermediate
-gate whether the four cell types exhibit rectified responses                      Tm1 (tHP = 1.23 s and tLP = 0.23 s; Figures 3A and 3F), and tonic
+gate whether the four cells exhibit rectified responses                      Tm1 (tHP = 1.23 s and tLP = 0.23 s; Figures 3A and 3F), and tonic
 with respect to contrast polarity, we increased the temporal                      Tm9 (tLP = 0.63 s; Figures 3D and 3I). In contrast to the other cell
 resolution of the scanning microscope from 1.8 to 480 Hz by                       types, the slow dynamics of Tm9 responses were best predicted
 
@@ -255,12 +255,12 @@ over intermediate Tm1 to slow and sustained Tm9 cells.                          
 Receptive Field Characteristics of Tm1, Tm2, Tm4,                                   spatial integration properties by centering a flickering dark, ver-
 and Tm9                                                                             tical bar at the position of maximal excitability of individual Tm
 Current models for motion detection are based on the spatio-                        cells. After each period of stimulation, we increased the width
-temporal correlation of input signals. It is thus crucial to charac-                of the bar. All four cell types showed maximum responses
+temporal correlation of input signals. It is thus crucial to charac-                of the bar. All four cells showed maximum responses
 terize receptive field sizes and spatial integration properties of                  when stimulated with bars of a 4.5 to 7.5 width but decreased
 columnar neurons. To probe the receptive fields of the four Tm                      activity when presented with stimuli spanning larger areas in vi-
 cells, we recorded changes in fluorescence at a lower temporal                      sual space (Figures 4F–4I). Hence, all cells seem to be subject to
 resolution of 1.8 Hz. Because our previous experiments (Fig-                        lateral inhibition, preventing them from responding to wide-field
-ures 2 and 3) had revealed that all four cell types respond to                      flicker. The responses of Tm9 cells diverged from the other cell
+ures 2 and 3) had revealed that all four cells respond to                      flicker. The responses of Tm9 cells diverged from the other cell
 changes in local luminance, we stimulated flies with 4.5 -wide,                    types for full-field stimulation (180 azimuth): while the calcium
 dark, vertical bars flickering on a bright background with                          response levels elicited by flicker between a 13.5 and a 67.5
 0.5 Hz at different azimuthal positions, each shifted by 1.5 . All                 width were small, the response to full-field darkening amounted
@@ -298,7 +298,7 @@ tion could be implemented by two different mechanisms in the                    
 OFF pathway. Taken together, using calcium levels as a proxy                          ity-specific effects of Tm cell blocks. Based on the diversity of
 for neuronal activity, we established that Tm1, Tm2, Tm4, and                         temporal response properties observed in our calcium imaging
 Tm9 are small-field columnar neurons that receive isotropic                           experiments reported earlier, we hypothesized that different
-lateral inhibition.                                                                   Tm cell types may play distinct roles depending on motion veloc-
+lateral inhibition.                                                                   Tm cells may play distinct roles depending on motion veloc-
                                                                                       ity, as was recently shown for input elements to the ON direction-
 Blocking OFF Pathway Tm Cells Reduces Responses of                                    selective T4 cells (Ammer et al., 2015). We therefore tested
 Lobula Plate Tangential Cells Specifically to OFF Edges                               flies using edges moving at nine velocities across two orders
@@ -313,12 +313,12 @@ the contribution of presynaptic elements within the motion                      
 detection circuit (Joesch et al., 2010; Schnell et al., 2012; Maisak                  sulted in the strongest effect of all cells tested and, as with the
 et al., 2013; Meier et al., 2014). We performed somatic whole-cell                    other cells, did so consistently across all stimulus velocities (Fig-
 patch clamp recordings from tangential cells of the vertical sys-                     ures 5H and 5L). To our surprise, here, we did not find differential
-tem (VS) and horizontal system (HS) while blocking the output of                      effects of blocking any of the four Tm cell types when using
+tem (VS) and horizontal system (HS) while blocking the output of                      effects of blocking any of the four Tm cells when using
 different Tm cells. We stimulated flies with either multiple ON or                    different edge velocities. To compare the overall effects of
 OFF edges (Figure S7). Synaptic transmission was silenced by                          silencing single Tm cells, we calculated the average response
 expressing temperature-sensitive shibirets (Pfeiffer et al., 2012)                    relative to control flies over the whole range of stimulus velocities
 under the control of specific Gal4 driver lines. We confirmed                         (Figures 5M–5P). Critically, in all silencing experiments, re-
-the identities of cell types in the Gal4 lines by expressing GFP                      sponses to ON edges were not significantly altered. Blocking
+the identities of cells in the Gal4 lines by expressing GFP                      sponses to ON edges were not significantly altered. Blocking
 
 
                                                                                          Neuron 89, 829–841, February 17, 2016 ª2016 Elsevier Inc. 833
@@ -353,14 +353,14 @@ Tm9 > shits/shits (H) flies. Stimulus presentation is indicated by the panels on
 (I–L) Mean PD-ND LPTC responses of control (black), Tm1 (I), Tm2 (J), Tm4 (K), and Tm9 (L) block flies upon ON (left panel) and OFF edge (right panel) stimulation
 for nine velocities (3.125 /s, 6.25 /s, 12.5 /s, 25 /s, 50 /s, 100 /s, 200 /s, 400 /s, and 800 /s).
 (M–P) Responses averaged over all nine velocities of Tm1 (M), Tm2 (N), Tm4 (O), and Tm9 (P) block flies plotted as percentages of the controls. Responses were
-obtained from HS and VS cells. Because no difference was detected, data from both cell types were pooled. CS > shits/shits data are from 13 cells (5 HS, 8 VS) in 5
+obtained from HS and VS cells. Because no difference was detected, data from both cells were pooled. CS > shits/shits data are from 13 cells (5 HS, 8 VS) in 5
 flies, Tm1 block data are from 10 cells (3 HS, 7 VS) in 7 flies, Tm2 block data are from 14 cells (7 HS, 7 VS) in 7 flies, Tm4 block data are from 16 cells (5 HS, 11 VS) in
 9 flies, and Tm9 block data are from 15 cells (3 HS, 12 VS) in 8 flies. In all four Tm cell blocks, ON responses are not significantly reduced in comparison to control
 flies. OFF responses, however, are reduced at different significance levels. *p < 0.05, **p < 0.01, ***p < 0.001, tested using two-tailed t tests against the controls.
 Error shades and error bars indicate ± SEM. See also Figures S2–S4 and S7.
 
 
-any of the four Tm cell types specifically impaired the responses                         shibirets resulted in a response reduction to 69.13% ± 4.25%
+any of the four Tm cells specifically impaired the responses                         shibirets resulted in a response reduction to 69.13% ± 4.25%
 of lobula plate tangential cells to moving dark edges, irrespective                       (n = 11, p = 0.07; Figures 6G and 6H), while blocking Tm4 cells
 of stimulus velocity. The magnitude of effects, however, covered                          did not result in a detectable reduction of tangential cell re-
 a wide range, with strong phenotypes for Tm9 (25.69% ± 6.37%                              sponses (89.17% ± 7.95%, n = 12, p = 0.50; Figures 6M and
@@ -374,8 +374,8 @@ Phenotypes                                                                      
 Tm cells could contribute in parallel or modularly to direction                           nity to compare partial single-cell blocks with the combinations
 selectivity in T5. Combining two cell-specific Gal4 lines, thereby                        of two incompletely blocked classes of neurons. The images in
 driving the expression of shibirets in two cell populations simulta-                      Figure S3 provide an overview of the expression patterns of
-neously, allowed us to investigate how different Tm cells interact.                       the six binary combinations of the four Tm cell types. Combining
-To detect potential synergistic effects, we decreased individual                          Tm9 with one of the other three cell types resulted in the stron-
+neously, allowed us to investigate how different Tm cells interact.                       the six binary combinations of the four Tm cells. Combining
+To detect potential synergistic effects, we decreased individual                          Tm9 with one of the other three cells resulted in the stron-
 blocking strength by using flies with only one copy of shibirets                          gest reductions of tangential cell responses to OFF edges (Fig-
 (shits/+). When we repeated the same experiment as described                              ures 6E, 6J, and 6O–6R). All three Tm9 combinations decreased
 earlier, the tangential cell responses of Tm1 block flies to dark-                        responses beyond what we had determined for the single Tm9
@@ -426,7 +426,7 @@ and double-block experiments with one copy of shibirets,                        
 responses to ON edges remained unaltered. Effects were                                  (Figures S5A–S5N). Compared to controls (Figures S5O–S5X),
 consistent across all velocities tested for PD and ND stimulation                       it is apparent that responses to gratings in almost all blocking
 (Figure S4). These results corroborate the conclusion drawn from                        conditions decreased as temporal frequency increased. This
-single blocks, namely, that all four Tm cell types are involved                         effect can be explained through differentially tuned responses
+single blocks, namely, that all four Tm cells are involved                         effect can be explained through differentially tuned responses
 in the detection of moving brightness decrements. Moreover,                             of lobula plate tangential cells to ON and OFF edges: tangential
 all combinatorial restrictions of two Tm cell outputs decreased                         cells respond maximally to bright edges moving 100 deg/s,
 OFF responses beyond the level of the respective single-cell                            whereas their responses to dark edges peak 300 deg/s (Am-
@@ -526,11 +526,11 @@ of shibirets resulted in the strongest turning response, whereas       velocity 
 flies with blocked Tm1 cells showed only weak turning re-              frequencies ranging from 0.1 to 10 Hz (Figure 8). Except for the
 sponses syndirectional with bright edges. Tm4 and Tm9 block            combination of Tm2 and Tm4, which have almost identical
 flies exhibited intermediate phenotypes. Hence, suppressing            response dynamics, all Tm cell combinations led to direction-
-synaptic transmission in single Tm cell types resulted in pheno-       selective responses that varied in relative amplitude and tuning
+synaptic transmission in single Tm cells resulted in pheno-       selective responses that varied in relative amplitude and tuning
 types that resembled those of T5 block flies (Maisak et al., 2013)     (Figures 8A–8F). Tuning curves of the four pairs Tm1/Tm2,
 and were qualitatively comparable to the results obtained in           Tm1/Tm4, Tm9/Tm2, and Tm9/Tm4 showed similar shapes
 electrophysiological experiments. Next, we looked at the turning       and response amplitudes, peaking 0.5 Hz. The Tm1/Tm9
-responses of flies with combinations of two Tm cell types              model produced the strongest responses, peaking 0.2 Hz.
+responses of flies with combinations of two Tm cells              model produced the strongest responses, peaking 0.2 Hz.
 silenced. When we combined Tm9 with Tm4- or Tm2-specific               We calculated the mean of all detector outputs and normalized
 driver lines, we observed the strongest effects, in accordance         the tuning curve to compare the results with the physiological
 with our electrophysiological data (Figure 7D). For combinatorial      data (from Figure S5). The frequency tuning curves were largely
@@ -544,7 +544,7 @@ silencing observed in the tangential cell responses versus those
 observed in walking flies (Figure 7E). To compare positive mea-        DISCUSSION
 sures of effect strength in behavior and electrophysiology, we
 subtracted the electrophysiological phenotypes (in percent of          In this study, we characterized the response properties of the
-control) from 100 and normalized them via division by the stron-       four Tm cell types Tm1, Tm2, Tm4, and Tm9 and analyzed their
+control) from 100 and normalized them via division by the stron-       four Tm cells Tm1, Tm2, Tm4, and Tm9 and analyzed their
 gest phenotype. We then normalized the behavioral effect in the        involvement in Drosophila OFF motion detection. We demon-
 same way. We found an interesting relationship between the             strated that none of these cells are direction selective and thus
 response reduction at the level of lobula plate tangential cells       conclude that the computation of direction selectivity in the
@@ -553,11 +553,11 @@ is well explained by an exponential fit (black line in Figure 7E),        At mul
 suggesting that the transformation of tangential cell responses        resemblance to a network motif found in the mammalian retina
 into behavioral output is highly nonlinear. A saturating transfer      (Kim et al., 2014). First, comparable to T5 cells, direction-selec-
 function, for instance, would explain how small and intermediate       tive starburst amacrine cells receive synaptic input from several
-block effects at the level of the lobula plate produce compara-        anatomically similar cell types, i.e., the OFF bipolar cells 1, 2, 3a,
+block effects at the level of the lobula plate produce compara-        anatomically similar cells, i.e., the OFF bipolar cells 1, 2, 3a,
 tively weak effects at the level of walking behavior. Only when        3b, and 4 (Masland, 2012). Second, like the Tm cells presynaptic
 lobula plate tangential cell activity is heavily suppressed do         to T5, these OFF bipolar cells have been shown to respond in a
 walking flies show strong deficiencies for dark-edge motion, as        directionally unselective manner (Yonehara et al., 2013; Park
-indicated by the opposing edge results. Given that lobula plate        et al., 2014). Third, the five OFF bipolar cell types show dynamics
+indicated by the opposing edge results. Given that lobula plate        et al., 2014). Third, the five OFF bipolar cells show dynamics
 networks feed into complex post-synaptic cascades before con-          similar to those of the four Tm cells described here, ranging from
 trolling motor output, this is not surprising. Generally, our elec-    sustained over slow decaying to fast transient (Baden et al.,
 trophysiological findings predicted the behavioral phenotypes          2013; Borghuis et al., 2013). Depending on their temporal
@@ -605,7 +605,7 @@ G                                                                F              
                                                                                                  the functional plausibility of the time con-
                                                                                                  stants of the four Tm cells tested.
 cells, Tm2 and Tm4, receive their major input from L2 and L4;              We also demonstrated that the functional importance of
-intermediate Tm1 cells primarily receive input from L2; and             each of the four Tm cell types correlates with the number
+intermediate Tm1 cells primarily receive input from L2; and             each of the four Tm cells correlates with the number
 tonic Tm9 cells receive input from similarly slow and sustained         of synaptic contacts to T5 (Shinomiya et al., 2014). Silencing
 L3 (Clark et al., 2011; Freifeld et al., 2013; Silies et al., 2013;     Tm4 cells, which out of the four provide the smallest number
 Takemura et al., 2013; Meier et al., 2014). Finally, the mecha-         of synapses onto T5 cells, resulted in the weakest phenotype,
@@ -623,7 +623,7 @@ neural circuits between invertebrates and mammals suggests                 Given
 a universality of underlying computational principles (Borst            pairs of Tm cells, we are able to rule out complete redundancy
 and Helmstaedter, 2015).                                                of individual elements (Figures 6 and 7). How do these four cell
    Are the measured temporal response properties functionally           types then map onto the elements of correlation-type models?
-relevant for the computation of direction-selective signals? We         First, the interaction of several Tm cell types may give rise to a
+relevant for the computation of direction-selective signals? We         First, the interaction of several Tm cells may give rise to a
 addressed this question by modeling six elementary motion               nonlinear stage more complex than the simple multiplication in
 detectors through filtering of the signals in the two neighboring       the Hassenstein-Reichardt correlator. It is conceivable that the
 arms with the time constants of all six possible binary combina-        biophysical implementation of a suitable nonlinearity requires
@@ -913,7 +913,7 @@ Figure S3. Related to Figures 5-7. Tm cell expression patterns
 (A-J) Confocal images of the Gal4 driver cell lines used in the silencing experiments, shown in horizontal cross
 sections. Tm1 (A), Tm2 (E), Tm4 (H), and Tm9 (J) neurons are labeled in green (mCD8-GFP expression) and neuro-
 pils in red (antibody against Discs Large). The six possible binary combinations (B-D, F, G, I) of the Gal4 driver lines
-exhibit clear expression of two neuron types.
+exhibit clear expression of two neuron cells.
   A                                                         B         ON                    OFF                              C         ON                    OFF                              D        ON                     OFF                              E        ON                  OFF
                                                        10
                                   LPTC response [mV]
@@ -1336,7 +1336,7 @@ were linear RC filters and of first order. We simulated the visual stimuli as on
 baseline was zero; for the duration of bar presentation, the values were set to one. The fitting procedure
 minimized the mean squared error between model output and the calcium traces by exhaustively scanning the
 two-dimensional parameter space spanned by the time constants of the filters. Errors were summed across
-presentation lengths of the dark bar, yielding a single optimum per cell type across all seven stimuli. We
+presentation lengths of the dark bar, yielding a single optimum per cell across all seven stimuli. We
 mapped time constants up to 2000ms in steps of 10ms and additionally allowed filtering to be switched off,
 equivalent to the time constant being either zero (for a low-pass) or infinite (for a high-pass). The time step for
 the simulations was 1ms.
@@ -1368,7 +1368,7 @@ filtering was applied. An array of 10 detectors viewed the grating. For each pos
 then applied the corresponding filters to the two input signals, multiplied the output, and summed over all
 detectors. This was done twice with spatially mirrored input lines, and results were subtracted and rectified in
 order to generate an approximation of lobula plate tangential cell signals. Finally, we averaged across the
-stimulation period. For each cell type combination, we chose the spatial order of input filters such that the mean
+stimulation period. For each cell combination, we chose the spatial order of input filters such that the mean
 grating responses were positive. This simulation was performed for 150 temporal frequencies located on a
-logarithmic scale. Each output was normalized to the maximum response across all cell type combinations.
+logarithmic scale. Each output was normalized to the maximum response across all cell combinations.
 

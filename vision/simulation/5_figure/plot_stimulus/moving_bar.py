@@ -1,4 +1,4 @@
-"""Visualise moving-bar column coverage (demo only).
+"""Visualise moving-bar hex coverage (demo only).
 
 Connectome: hex sti field from ``task.moving_bar.input``.
 
@@ -35,10 +35,10 @@ from training.defaults import (
     DELTA_MS, EXC_SYNWEIGHT, INH_SYNWEIGHT,
     SYN_MODE,
 )
-from training.target_pack import SIM_DTYPE
+from training.readout_pack import SIM_DTYPE
 from network.construction import load_network
 from training.driver import parse_bool
-from path import parse_comma_list
+from import_bootstrap import parse_comma_list
 from build_hex import (
     FIELD_VIEW_PAD_DEG,
     draw_hex_patches,
@@ -56,11 +56,11 @@ from task.moving_bar.input import (
     field_bounds,
     gruntman_moving_bar_specs,
     moving_bar_transit_times,
-    sti_columns,
+    sti_hexes,
 )
 from path import DEFAULT_NETWORK_RUN, network_run_tag, resolve_network_json
 
-PLOT_BG = "#F5F0DC"  # axes background (beige), not column baseline color
+PLOT_BG = "#F5F0DC"  # axes background (beige), not hex baseline color
 _STI_CLI_DEFAULT = ",".join(GRUNTMAN_CONTRASTS)
 
 
@@ -80,14 +80,14 @@ def _default_outputs(network_path: str, meta: dict, direction: str) -> tuple[str
 
 
 
-def _field_limits(columns, *, columns_are_xy_deg: bool = False):
-    if columns_are_xy_deg:
-        x_deg = [x for x, _ in columns]
-        y_deg = [y for _, y in columns]
+def _field_limits(hexes, *, hexes_are_xy_deg: bool = False):
+    if hexes_are_xy_deg:
+        x_deg = [x for x, _ in hexes]
+        y_deg = [y for _, y in hexes]
     else:
         x_deg, y_deg = uv_to_xy_deg(
-            [u for u, _ in columns],
-            [v for _, v in columns],
+            [u for u, _ in hexes],
+            [v for _, v in hexes],
         )
     x0, y0, x1, y1 = field_bounds_centers(x_deg, y_deg)
     pad = FIELD_VIEW_PAD_DEG
@@ -144,16 +144,16 @@ def _val_to_color(val: float, cmap, i_max: float) -> tuple:
     return cmap(t)
 
 
-def _draw_hex_field(ax, columns, vals, i_max, i_baseline, xlim, ylim, *, columns_are_xy_deg: bool = False):
+def _draw_hex_field(ax, hexes, vals, i_max, i_baseline, xlim, ylim, *, hexes_are_xy_deg: bool = False):
     cmap = _current_cmap(i_max, i_baseline)
     colors = [_val_to_color(val, cmap, i_max) for val in vals]
-    if columns_are_xy_deg:
-        x_deg = [x for x, _ in columns]
-        y_deg = [y for _, y in columns]
+    if hexes_are_xy_deg:
+        x_deg = [x for x, _ in hexes]
+        y_deg = [y for _, y in hexes]
         draw_hex_patches(ax, x_deg, y_deg, colors, linewidth=0.15, alpha=0.95)
     else:
-        u = [uv[0] for uv in columns]
-        v = [uv[1] for uv in columns]
+        u = [uv[0] for uv in hexes]
+        v = [uv[1] for uv in hexes]
         draw_hex_patches_uv(ax, u, v, colors, linewidth=0.15, alpha=0.95)
     ax.set_xlim(*xlim)
     ax.set_ylim(*ylim)
@@ -163,23 +163,23 @@ def _draw_hex_field(ax, columns, vals, i_max, i_baseline, xlim, ylim, *, columns
 
 
 def plot_snapshot(
-    ax, columns, column_current, t, spec, spec_name, i_max, i_baseline, xlim, ylim, t_onset, field_deg, *,
-    columns_are_xy_deg: bool = False,
+    ax, hexes, hex_current, t, spec, spec_name, i_max, i_baseline, xlim, ylim, t_onset, field_deg, *,
+    hexes_are_xy_deg: bool = False,
     bar_extent=None,
     multi_bar: bool = True,
 ):
     _draw_hex_field(
-        ax, columns, column_current[t], i_max, i_baseline, xlim, ylim,
-        columns_are_xy_deg=columns_are_xy_deg,
+        ax, hexes, hex_current[t], i_max, i_baseline, xlim, ylim,
+        hexes_are_xy_deg=hexes_are_xy_deg,
     )
     _draw_bar_outline(ax, spec, field_deg, t, t_onset, bar_extent=bar_extent, multi_bar=bool(multi_bar))
     ax.set_title(f"{spec_name}  t={t} ({t * DELTA_MS / 1000.0:.2f} s)", fontsize=9)
 
 
 def write_snapshots(
-    plot_columns,
+    plot_hexes,
     showcase,
-    column_current,
+    hex_current,
     i_max,
     i_baseline,
     output,
@@ -188,7 +188,7 @@ def write_snapshots(
     n_t,
     field_deg,
     snapshot_t=None,
-    columns_are_xy_deg: bool = False,
+    hexes_are_xy_deg: bool = False,
     bar_extent=None,
     multi_bar: bool = True,
 ):
@@ -199,8 +199,8 @@ def write_snapshots(
         bad = [t for t in snapshot_t if t >= n_t]
         if bad:
             raise SystemExit(f"--t out of range (n_t={n_t}): {bad}")
-    xlim = _field_limits(plot_columns, columns_are_xy_deg=columns_are_xy_deg)[:2]
-    ylim = _field_limits(plot_columns, columns_are_xy_deg=columns_are_xy_deg)[2:]
+    xlim = _field_limits(plot_hexes, hexes_are_xy_deg=hexes_are_xy_deg)[:2]
+    ylim = _field_limits(plot_hexes, hexes_are_xy_deg=hexes_are_xy_deg)[2:]
     xspan = xlim[1] - xlim[0]
     yspan = ylim[1] - ylim[0]
     panel_h = max(2.4, 3.0 * yspan / max(xspan / 3.0, 1.0))
@@ -225,21 +225,21 @@ def write_snapshots(
             labels = ("start", "center", "exit")
         for j, (t, label) in enumerate(zip(times, labels)):
             plot_snapshot(
-                axes[i, j], plot_columns, column_current[i], t, spec,
+                axes[i, j], plot_hexes, hex_current[i], t, spec,
                 f"{spec.name} ({label})", i_max, i_baseline, xlim, ylim, t_onset, field_deg,
-                columns_are_xy_deg=columns_are_xy_deg,
+                hexes_are_xy_deg=hexes_are_xy_deg,
                 bar_extent=bar_extent,
                 multi_bar=bool(multi_bar),
             )
         if len(times) >= 3 and not snapshot_t:
-            spread = float(np.ptp(column_current[i, times[1]]))
+            spread = float(np.ptp(hex_current[i, times[1]]))
             print(f"  {spec.name}: start/center/exit t={times}  center ptp={spread:.1f} pA")
         else:
             print(f"  {spec.name}: snapshot t={times}")
 
     fig.suptitle(
-        f"Moving-bar column current (pA)  side={side}  "
-        f"{len(plot_columns)} sti columns  I_baseline={i_baseline}  I_max={i_max}",
+        f"Moving-bar hex current (pA)  side={side}  "
+        f"{len(plot_hexes)} sti hexes  I_baseline={i_baseline}  I_max={i_max}",
         fontsize=11,
     )
     fig.tight_layout()
@@ -250,8 +250,8 @@ def write_snapshots(
 
 
 def write_animation(
-    plot_columns, showcase, column_current, i_max, i_baseline, output, side, t_onset, n_t, field_deg, t_stride,
-    *, columns_are_xy_deg: bool = False,
+    plot_hexes, showcase, hex_current, i_max, i_baseline, output, side, t_onset, n_t, field_deg, t_stride,
+    *, hexes_are_xy_deg: bool = False,
     bar_extent=None,
     multi_bar: bool = True,
 ):
@@ -265,23 +265,23 @@ def write_animation(
         print("no animation frames")
         return
 
-    xlim = _field_limits(plot_columns, columns_are_xy_deg=columns_are_xy_deg)[:2]
-    ylim = _field_limits(plot_columns, columns_are_xy_deg=columns_are_xy_deg)[2:]
+    xlim = _field_limits(plot_hexes, hexes_are_xy_deg=hexes_are_xy_deg)[:2]
+    ylim = _field_limits(plot_hexes, hexes_are_xy_deg=hexes_are_xy_deg)[2:]
     fig, axes = plt.subplots(len(showcase), 1, figsize=(4.5, 2.8 * len(showcase)), squeeze=False, facecolor=PLOT_BG)
     title = fig.suptitle("", fontsize=11)
 
     def update(frame_idx):
         t = times[frame_idx]
         title.set_text(
-            f"Moving-bar column current (pA)  side={side}  "
-            f"{len(plot_columns)} sti columns  I_baseline={i_baseline}  I_max={i_max}  t={t} ({t * DELTA_MS / 1000.0:.2f} s)"
+            f"Moving-bar hex current (pA)  side={side}  "
+            f"{len(plot_hexes)} sti hexes  I_baseline={i_baseline}  I_max={i_max}  t={t} ({t * DELTA_MS / 1000.0:.2f} s)"
         )
         for i, spec in enumerate(showcase):
             axes[i, 0].clear()
             plot_snapshot(
-                axes[i, 0], plot_columns, column_current[i], t, spec,
+                axes[i, 0], plot_hexes, hex_current[i], t, spec,
                 spec.name, i_max, i_baseline, xlim, ylim, t_onset, field_deg,
-                columns_are_xy_deg=columns_are_xy_deg,
+                hexes_are_xy_deg=hexes_are_xy_deg,
                 bar_extent=bar_extent,
                 multi_bar=bool(multi_bar),
             )
@@ -297,7 +297,7 @@ def write_animation(
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--network", type=str, default=DEFAULT_NETWORK_RUN,
-                    help=f"built_networks run folder name (default: {DEFAULT_NETWORK_RUN})")
+                    help=f"4_built_networks run folder name (default: {DEFAULT_NETWORK_RUN})")
     ap.add_argument("-o", "--output", type=str, default=None,
                     help="snapshot PNG (default: moving_bar_2<dir>_<side>)")
     ap.add_argument("--gif", nargs="?", const="", default=None,
@@ -305,7 +305,7 @@ def main():
     ap.add_argument("--t-stride", type=int, default=2,
                     help="GIF frame stride in t (default 2)")
     ap.add_argument("--t", type=str, default="",
-                    help="comma-separated t indices for snapshot columns, e.g. 50,60,72,90")
+                    help="comma-separated t indices for snapshot hexes, e.g. 50,60,72,90")
     ap.add_argument("--sti", type=str, default=_STI_CLI_DEFAULT,
                     help=f"comma-separated moving-bar contrasts to plot: "
                          f"{_STI_CLI_DEFAULT} (default: {_STI_CLI_DEFAULT})")
@@ -320,7 +320,7 @@ def main():
              "false → whole-field single bar over the full network field",
     )
     ap.add_argument("--bar-extent", type=int, default=DEFAULT_BAR_EXTENT,
-                    help="per-lane spacing width in hex-column units (default 2)")
+                    help="per-lane spacing width in hex nodes (default 2)")
     ap.add_argument("--i-bright", type=float, default=I_BRIGHT)
     args = ap.parse_args()
     snapshot_t = [int(tok) for tok in parse_comma_list(args.t)]
@@ -353,17 +353,17 @@ def main():
         multi_bar=bool(args.multi_bar),
         delta_ms=DELTA_MS,
         i_baseline=I_BASELINE,
-        i_bright_bar=i_bright,
+        i_bright_moving_bar=i_bright,
         sim_dtype=SIM_DTYPE,
     )
-    plot_columns = [(c.u, c.v) for c in sti_columns(C)]
-    column_current = T.column_current
+    plot_hexes = [(c.u, c.v) for c in sti_hexes(C)]
+    hex_current = T.hex_current
     t_onset = int(T.info["t_onset"])
     n_t = int(T.info["n_t"])
     field_deg = tuple(T.info["field_deg"])
-    i_baseline = float(T.info["i_baseline"])
+    i_baseline = float(T.info["i_baseline_moving_bar"])
     side = C.meta.get("side", "?")
-    columns_are_xy_deg = False
+    hexes_are_xy_deg = False
     bar_extent = int(args.bar_extent)
     info = T.info
     print(
@@ -373,18 +373,18 @@ def main():
     )
 
     write_snapshots(
-        plot_columns, showcase, column_current, i_bright, i_baseline,
+        plot_hexes, showcase, hex_current, i_bright, i_baseline,
         output, side, t_onset, n_t, field_deg, snapshot_t=snapshot_t,
-        columns_are_xy_deg=columns_are_xy_deg,
+        hexes_are_xy_deg=hexes_are_xy_deg,
         bar_extent=bar_extent,
         multi_bar=bool(args.multi_bar),
     )
     if args.gif is not None:
         gif = default_gif if args.gif == "" else args.gif
         write_animation(
-            plot_columns, showcase, column_current, i_bright, i_baseline, gif,
+            plot_hexes, showcase, hex_current, i_bright, i_baseline, gif,
             side, t_onset, n_t, field_deg, args.t_stride,
-            columns_are_xy_deg=columns_are_xy_deg,
+            hexes_are_xy_deg=hexes_are_xy_deg,
             bar_extent=bar_extent,
             multi_bar=bool(args.multi_bar),
         )

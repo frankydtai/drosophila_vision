@@ -328,7 +328,7 @@ was high, syndirectional rotation in response to motion was                     
 turning by means of cross-correlation (Figures S2G and S2H).           though not all their medulla inputs are subject to gain control.
 The maximum suppressive effect of background modulation                Finally, sensitivity to foreground contrast was generally higher
 was delayed with respect to the effect of foreground modulation        in ON than OFF units.
-by approximately 70 ms (bootstrapped 95% CI: 33–114 ms). This             Several cell types—particularly medulla transient cells—
+by approximately 70 ms (bootstrapped 95% CI: 33–114 ms). This             Several cells—particularly medulla transient cells—
 supported the previous conclusion that the mechanism for back-         showed a dependency between fluorescence modulation at
 ground contrast estimation operates on slower timescales than          the target frequency and average response (Figure S4), possibly
 the primary motion pathway. Silencing T4 and T5 cells abolished        due to temporal integration by the calcium indicator [47].
@@ -342,19 +342,19 @@ Signal Compression Emerges in Transient Medulla                        (Figures 
 Neurons                                                                   To quantify tuning curves in detail, we fit a closed-form model
 We next used two-photon calcium imaging to locate the neural           resembling common models of divisive normalization to the data
 origin of contrast adaptation. The calcium indicator GCaMP6f           (Figure 3V; STAR Methods) [41, 48]. Here, response gain is regu-
-was genetically expressed in particular cell types [45]. We tar-       lated by a divisive term that depends on background contrast
+was genetically expressed in particular cells [45]. We tar-       lated by a divisive term that depends on background contrast
 geted visual stimuli to individual neurons by determining recep-       while a linear term represents the combined contribution of fore-
 tive field coordinates through a combination of stochastic stimuli     ground contrast and background leakage. The model accurately
-and online reverse correlation (Figures 3A and 3B; STAR                reproduced tuning curves for each cell type (Figure 3W; Table
+and online reverse correlation (Figures 3A and 3B; STAR                reproduced tuning curves for each cell (Figure 3W; Table
 Methods). This procedure additionally yielded estimated linear         S1). Critically, it accounted for vertical shifts as well as sigmoidal
 receptive fields for L1–L5, analogously to the ones previously         tuning curves and context-dependent changes in contrast
 described for medulla neurons [9] (Figures S3A–S3T). Consistent        sensitivity.
 with earlier functional work [29, 46], spatiotemporal filters group-      We computed a normalization index from model parameters
 ed into tonic (L3) or transient units (L1, L2, L4, and L5) like they   that estimates the degree of normalization. Given that different
-did in the medulla. In contrast to all other lamina cells, we found    cell types had different baseline sensitivities and that horizontal
+did in the medulla. In contrast to all other lamina cells, we found    cells had different baseline sensitivities and that horizontal
 that the polarity of the L5 receptive field center is ON.              shifts on a logarithmic scale correspond to multiplication, we
    To precisely map context-dependent changes in contrast              quantified the relative factor by which tuning curves would shift
-sensitivity for a given cell type, we then presented drifting sine     when background contrast was increased from 0% to 100%
+sensitivity for a given cell, we then presented drifting sine     when background contrast was increased from 0% to 100%
 gratings with separately controlled contrast in the foreground         (STAR Methods). This index was substantially higher in transient
 (as defined by a 25 circular window centered on the receptive         medulla cells (Mi1, Tm3, Tm1, Tm2, and Tm4) and direction-
 field) and the background (Figure 3C). At a fixed foreground           selective T4 and T5 cells than in L1–L5 or tonic medulla units
@@ -381,7 +381,7 @@ of divisive contrast normalization [41].                               which aga
 linear receptive fields could not explain the effect given that        findings from behavior (Figure 2).
 the average luminance was constant for all conditions. Curves             To determine the temporal scale of normalization, we de-
 were shifted rightward on the logarithmic axis, which corre-           signed a contrast-step stimulus in which the foreground was
-sponds to divisive stretching in linear contrast space. Impor-         replaced by a single light pulse matching each cell type’s polarity
+sponds to divisive stretching in linear contrast space. Impor-         replaced by a single light pulse matching each cell’s polarity
 tantly, preferred direction responses in T4 and T5 were also           (Figure 4D). By varying the time interval between motion onset of
 strongly background dependent (Figures 3P and 3U) even                 the background grating and the onset of the pulse, we scanned
 
@@ -521,7 +521,7 @@ reproduce our findings, we built a time-resolved, data-driven             sive i
 model. The model faithfully predicted direction, frequency, and              In the OFF pathway, blocking Tm1 cells did not have any sig-
 size tunings, as well as contrast-step ringing, T4 and T5 re-             nificant effects (Figures 5G and 5H). In contrast, when blocking
 sponses, and LPTC output for our behavioral stimuli (Fig-                 Tm2, we observed an almost complete loss of background sup-
-ure S5A–K).                                                               pression across frequencies (Figure 5I). For this cell type, we did
+ure S5A–K).                                                               pression across frequencies (Figure 5I). For this cell, we did
                                                                           not observe any change in contrast tuning curves for the 0%
 Neural Feedback Is Critical for Contrast Normalization                    background condition, and consequently, the fitted semi-satura-
 Spatial pooling, however, could occur over either feedforward             tion constant was not affected (Figure 5J). For full background
@@ -532,7 +532,7 @@ temporal properties (Figures S3U and S3V), and both implemen-             trol f
 tations produce equivalent steady-state output [48], so we used           being disinhibited due to the silencing of a suppressive signal
 genetic silencing to pinpoint the source. We co-expressed a cal-          derived from recurrent output. We therefore conclude that in
 cium indicator and the tetanus toxin light chain (TNT; STAR               the fly, contrast normalization is at least partially based on feed-
-Methods) [52] in different medulla cell types, blocking chemical          back from a combination of medulla neurons.
+Methods) [52] in different medulla cells, blocking chemical          back from a combination of medulla neurons.
 synaptic output and thus feedback from the entire neuron array
 but leaving feedforward input and calcium signals intact.                 Contrast Normalization Improves Robustness to Natural
    For the ON pathway unit Tm3, we observed significantly                 Scene Variability
@@ -802,10 +802,10 @@ signal compression to local elements in the medulla of the fly           behavio
 optic lobe and used targeted circuit manipulation to identify            required.
 neural feedback as a critical underlying mechanism. Finally,                Divisive normalization of local motion signals has previously
 our task-driven approach revealed that the inclusion of spatial          been suggested to occur at the level of LPTCs, through either
-contrast normalization drastically improves velocity estimation          isotropic pooling of EMDs in hypothetical secondary cell types
+contrast normalization drastically improves velocity estimation          isotropic pooling of EMDs in hypothetical secondary cells
 in correlation-based models of fly motion vision.                        [33] or passive membrane properties of LPTCs [61, 62]. Here,
                                                                          we show that gain control already originates upstream of mo-
-Implications for Fly Motion Vision                                       tion-sensitive cell types T4 and T5. However, LPTC-intrinsic
+Implications for Fly Motion Vision                                       tion-sensitive cells T4 and T5. However, LPTC-intrinsic
 Previous work on the function of local units in the Drosophila           gain control mechanisms, including temporal adaptation [32],
 optic lobe mostly explored linear properties of light responses,         could well be complementary such that at each processing
 often relying on first-order systems identification techniques           stage, the fly visual system makes use of compression to opti-
@@ -819,19 +819,19 @@ existing functional descriptions can be generalized. Linear filter       cium im
 estimates are typically based on responses to dynamic noise              Drosophila. It will be of interest to explore whether the properties
 stimuli of fixed amplitude [9, 10, 29]. Our work suggests that           of contrast gain control are modulated by locomotion, particu-
 this contrast regime only corresponds to one particular adapta-          larly in highly state-sensitive units like Mi4 [59].
-tion state for any measured cell type, so filter properties may well
+tion state for any measured cell, so filter properties may well
 differ for stimuli with differing contrast characteristics. Step and     Mechanism of Signal Compression
 edge responses, for instance, are usually measured on back-              Our experiments suggest that neural feedback plays a crucial
 grounds with uniform luminance [11, 12, 18, 59]. This places cells       role in gain adjustment. At this point, the cellular origin of feed-
 in a maximally sensitive state due to lack of surround inhibition        back is unknown. Present experiments indicate a visual integra-
 and is likely to affect both response amplitude and kinetics.            tion field that spans many columns (Figures 2 and 4). Moreover,
 Signal compression may reconcile observed discrepancies be-              the observed contrast compression appears to be suppressive.
-tween studies conducted with different stimuli.                          All tested medulla cell types with strong background contrast
+tween studies conducted with different stimuli.                          All tested medulla cells with strong background contrast
    Interestingly, visual interneurons exhibited qualitatively            dependency emit acetylcholine, which, in the Drosophila visual
 different sensitivity curves even at constant background contrast.       system, is generally thought to be excitatory [68, 69]. Inhibitory
-In the lamina, for instance, only tonic cell type L3 responded lin-      interneurons could mediate the required synaptic sign reversal.
+In the lamina, for instance, only tonic cell L3 responded lin-      interneurons could mediate the required synaptic sign reversal.
 early to increasing visual contrast. Sensitivity curves of transiently   Signal compression could then be implemented through lateral
-responding cell types like L1 and L2, on the other hand, proved          neighbor-to-neighbor interactions between columnar medulla
+responding cells like L1 and L2, on the other hand, proved          neighbor-to-neighbor interactions between columnar medulla
 approximately logarithmic. This is in line with expectations from        units where suppressive signals spread through a local network.
 previous work in other fly species [60] but deviates from predic-        Alternatively, we hypothesize that wide-field interneurons pool
 tions based on white noise characterizations [29].                       local medulla units across multiple columns and provide recur-
@@ -844,25 +844,25 @@ contrast. Notably, due to strong surround suppression, full-field        fects (
 should leave coupling via electrical synapses intact [52, 70]. We       may thus aid the design of low-power, low-latency machine
 can therefore not exclude that gap junctions are also involved in       vision systems suitable for autonomous vehicles [80, 81].
 shaping contrast response properties.
-   Silencing feedback from individual medulla cell types had dif-       Comparison with Other Sensory Systems
+   Silencing feedback from individual medulla cells had dif-       Comparison with Other Sensory Systems
 ferential effects, ranging from completely abolished suppression        Gain control in the Drosophila optic lobe bears a striking resem-
 in Tm2 to unchanged responses in Tm1 (Figure 5). This suggests          blance to normalization in other systems and modalities like fly
-either that multiple cell types feed into the pool signal with vary-    olfaction [82] or mammalian auditory cortex [83] as well as pro-
+either that multiple cells feed into the pool signal with vary-    olfaction [82] or mammalian auditory cortex [83] as well as pro-
 ing weight or that alternative mechanisms provide the compres-          cessing in vertebrate visual areas from retina to V1 [48, 84–86].
 sive signal, for example, in Tm1. Moreover, it is an open question      Spatial and temporal tuning or isotropy of non-linear surround
-whether all cell types are suppressed by one or multiple pool cell      suppression in the lateral geniculate nucleus, in particular, qual-
+whether all cells are suppressed by one or multiple pool cell      suppression in the lateral geniculate nucleus, in particular, qual-
 types. Asymmetries in sensitivity between ON and OFF path-              itatively match that of transient units in the fly medulla [40]. The
 ways, for instance, could be an indicator for polarity-specific         present study suggests differences at the implementation level.
 sources of suppression.                                                 For instance, investigations into divisive normalization in
    In both distal and proximal layers of the medulla, the class of      mammalian V1 cells point to feedforward mechanisms underly-
 neuropil-intrinsic Dm and Pm neurons contains approximately             ing gain control whereas the fly visual system appears to rely pri-
-20 cell types and offers a possible substrate for the mechanism         marily on feedback signals (Figure 5) [50]. Both systems, howev-
+20 cells and offers a possible substrate for the mechanism         marily on feedback signals (Figure 5) [50]. Both systems, howev-
 [71, 72]. These neurons arborize within the medulla and exhibit         er, realize a similar algorithm. This provides further proof for
 diverse stratification and tiling patterns, often spanning dozens       evolutionary convergence on canonical solutions in neural sen-
 of columns and thus approximately matching the observed sup-            sory processing [41].
 pression field of local units. Dm and Pm units release either              Overall, our work establishes the Drosophila visual system
-GABA or glutamate for which receptors in the fly visual system          with its defined cell types, known connectivity patterns, powerful
-are mostly inhibitory [68], pointing to these cell types as potential   genetic toolkit, and direct correspondence between circuit and
+GABA or glutamate for which receptors in the fly visual system          with its defined cells, known connectivity patterns, powerful
+are mostly inhibitory [68], pointing to these cells as potential   genetic toolkit, and direct correspondence between circuit and
 candidates for gain control.                                            task as a novel model for the study of normalization. It thus
                                                                         lays the foundation for future mechanistic inquiries into the func-
 Functional Relevance                                                    tional, cellular, molecular, and biophysical underpinnings of a
@@ -1157,8 +1157,8 @@ Genetic expression of effectors was targeted through the Gal4-UAS system [90]. R
 listed in Table S2.
    Unless stated otherwise, locomotion and tangential cell responses were recorded in wild-type Canton S flies 1 to 5 days after
 eclosion (Figures 1 and 2). We used the genetically encoded calcium indicator GCaMP6f [45] to determine the functional properties
-of individual cell types (Figures 3, 4, and 5). Throughout silencing experiments (Figure 5; Figure S2), we expressed tetanus toxin
-light chain (TNT) or an inactive version (TNTin) in the cell type of interest [52]. For calcium imaging experiments involving silencing
+of individual cells (Figures 3, 4, and 5). Throughout silencing experiments (Figure 5; Figure S2), we expressed tetanus toxin
+light chain (TNT) or an inactive version (TNTin) in the cell of interest [52]. For calcium imaging experiments involving silencing
 (Figure 5), one day old flies were collected and put on 29 C for 3 days to boost expression of TNT or TNTin.
 
 METHOD DETAILS
@@ -1271,7 +1271,7 @@ cells, see below). The stimuli were pre-rendered at 60 Hz and generated as previ
 all white noise stimuli was 2.8 of visual angle corresponding to 64 pixels across the 180 screen. For all lamina cells, the same stim-
 ulus was used in order to provide a systematic description of their spatiotemporal filtering properties (Figure S3). This stimulus had a
 Gaussian autocorrelation with a standard deviation of approximately 45 ms in time and a contrast of 25% around a mean intensity
-value of 50 on an 8 bit grayscale. For some medulla cell types, variants of this stimulus with higher contrast or longer time constants
+value of 50 on an 8 bit grayscale. For some medulla cells, variants of this stimulus with higher contrast or longer time constants
 were used if necessary to reliably locate their RFs on the arena. Specifically, we mapped RFs for Tm4, Mi4, Mi9 and Tm9 with a binary
 stimulus at 100% contrast and a temporal cut-off frequency of 1 Hz. For Mi9, we chose a 1D version of this stimulus, consisting of
 horizontal (1.5 min) and vertical bars (1.5 min) instead of pixels.
@@ -1289,7 +1289,7 @@ border of the screen to allow full display of the foreground. A drifting sine gr
 shown, starting with medium gray at the center of the RF and moving for 4 s after stimulus onset (see Video S3). The contrast of the
 grating was varied independently between background and foreground. A stimulus matrix of 7 foreground contrasts (1.6, 4, 8, 16, 32,
 64 and 100%) and 6 background contrasts (0, 8, 16, 32, 64 and 100%) at a constant mean luminance of 0.5 was presented.
-   For the experiments shown in Figures 4A–4C, the foreground contrast was chosen depending on the cell type as the point where
+   For the experiments shown in Figures 4A–4C, the foreground contrast was chosen depending on the cell as the point where
 the suppression elicited by 100% background contrast (as measured in Figure 3) would be greatest. This was 16% for Mi1, 32% for
 Tm1, 100% for Tm2 and 64% for Tm3. The background had 100% contrast and 30 wavelength. We varied either its direction, its
 velocity (0, 0.25, 0.5, 1, 2, 4, 8, 16, 32 or 64 s-1), or restricted its presentation to an annulus with changing outer diameter. A reference
@@ -1354,10 +1354,10 @@ quantifies how much the sigmoidal tuning curve shifts to the right when cbg is i
 semi-saturation constant. It thus describes the fold decrease in contrast sensitivity between no background contrast and full back-
 ground contrast.
    For evaluation of the normalization index (Figure 3X), this model was fit individually for each cell. Parameter fits to the average
-tuning curve per cell type are listed in Table S1. Since tuning curves from individual cells are subject to measuring inaccuracies,
+tuning curve per cell are listed in Table S1. Since tuning curves from individual cells are subject to measuring inaccuracies,
 we cross-validated fit quality. We optimized model parameters for the average tuning curve of 50% of all measured cells per type
 and evaluated variance explained for the other 50%. This was repeated 100 times with shuffled training and validation sets. For
-all cell types, cross-validated variance explained was more than 90% (see R2DivisiveNorm in Table S1). When we repeated this proced-
+all cells, cross-validated variance explained was more than 90% (see R2DivisiveNorm in Table S1). When we repeated this proced-
 ure with a fully linear model
                                                                 
                                                       R cfg ; cbg = Lfg cfg + Lbg cbg

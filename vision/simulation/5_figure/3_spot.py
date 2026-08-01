@@ -1,4 +1,4 @@
-"""Spot plotting (network spot target).
+"""Spot plotting (network spot task).
 
 Network RF bins are ring means: r=0 -> j4, r=1 -> j3/j5, r=2 -> j2/j6.
 """
@@ -15,12 +15,12 @@ import torch
 from training.defaults import DELTA_MS
 import training
 from figure.readout import (
-    contrast_for_target,
+    contrast_for_task,
     contrast_linestyle,
     contrast_order,
-    pack_readout_types,
+    pack_readout_cells,
     plot_present_layout,
-    plot_types_in_order,
+    plot_cells_in_order,
     spot_data_cubes,
 )
 from figure.util import (
@@ -35,7 +35,7 @@ from figure.util import (
     batches_at_stim_xy,
     bundle_cell_title,
     bundle_prep_s,
-    column_at_scope_tag,
+    hex_at_scope_tag,
     mark_pulse,
     overlay_model_reds,
     plot_pre_post_line,
@@ -100,7 +100,7 @@ def _session_spot_timing(session):
     from task.spot.input import spot_timing_t_from_opts
 
     opts = (session.train_opts or {}).get(
-        f"{session.primary_pack.name}_stimulus_opts",
+        f"{session.primary_readout.name}_stimulus_opts",
     ) or {}
     t_onset, n_t = spot_timing_t_from_opts(opts)
     pulse_ms = opts.get("pulse_ms")
@@ -122,7 +122,7 @@ def resolve_spot_data_cubes(sessions, data_cubes=None):
     for contrast, session in sessions.items():
         t_onset, n_t, pulse_ms, delta_ms = _session_spot_timing(session)
         part = spot_data_cubes(
-            session, session.primary_pack.name, contrasts=(str(contrast),),
+            session, session.primary_readout.name, contrasts=(str(contrast),),
             t_onset=t_onset, n_t=n_t, pulse_ms=pulse_ms, delta_ms=delta_ms,
         )
         out.update(part)
@@ -133,7 +133,7 @@ def _session_cost_time_ix(session, response_start):
     """Absolute time indices used for sparse spot cost (or ``None``)."""
     if session is None:
         return None
-    ix = getattr(session.primary_pack, "cost_time_ix", None)
+    ix = getattr(session.primary_readout, "cost_time_ix", None)
     if ix is None:
         return None
     base = int(response_start or 0)
@@ -476,23 +476,23 @@ def plot_cell_pair_slices(
 
 
 
-def _as_index(neuron_index, device):
-    if not torch.is_tensor(neuron_index):
-        return torch.tensor(neuron_index, dtype=torch.long, device=device)
-    return neuron_index.to(device)
+def _as_index(node_index, device):
+    if not torch.is_tensor(node_index):
+        return torch.tensor(node_index, dtype=torch.long, device=device)
+    return node_index.to(device)
 
 
 @torch.no_grad()
-def _simulate(session, z, neuron_index, return_v_onset=False):
-    neuron_index = _as_index(neuron_index, z.device)
+def _simulate(session, z, node_index, return_v_onset=False):
+    node_index = _as_index(node_index, z.device)
     schema = list(session.schema)
     backend = session.backend
     p = training.assign_params(z, schema, backend)
-    stacked, ref = training.run_units(
-        session, p, neuron_index=neuron_index, return_v_onset=True,
+    stacked, ref = training.run_nodes(
+        session, p, node_index=node_index, return_v_onset=True,
     )
     trace = apply_out_scale(
-        p, stacked.transpose(0, 1), neuron_index, backend,
+        p, stacked.transpose(0, 1), node_index, backend,
     )
     if return_v_onset:
         return trace, ref
@@ -500,14 +500,14 @@ def _simulate(session, z, neuron_index, return_v_onset=False):
 
 
 def calc_ca_full_all(session, z, return_v_onset=False):
-    n_types = session.backend.n_types
+    n_cells = session.backend.n_cells
     mt = session.n_t
-    ca_full = np.zeros((n_types, 9, mt))
-    ref_full = np.full((n_types, 9), np.nan)
+    ca_full = np.zeros((n_cells, 9, mt))
+    ref_full = np.full((n_cells, 9), np.nan)
     for col in range(5):
         col_index = torch.arange(
-            col * n_types,
-            (col + 1) * n_types,
+            col * n_cells,
+            (col + 1) * n_cells,
             dtype=torch.long,
             device=z.device,
         )
@@ -538,7 +538,7 @@ def _fill_member_cube(cube, sem, ti, ft_global, type_idx, du, dv, plot_traces):
             continue
         traces = plot_traces[row_ix]
         mean_trace = traces.mean(axis=0)
-        sem_trace = sem_from_traces(traces, single_column=False)
+        sem_trace = sem_from_traces(traces, single_hex=False)
         for bin_j in bins:
             cube[ti, bin_j] = mean_trace
             sem[ti, bin_j] = sem_trace
@@ -578,16 +578,16 @@ def _group_rows_from_groups(groups, names):
     return group_rows
 
 
-def _spot_all_type_names(session):
+def _spot_all_cell_names(session):
     if session.backend.network is None:
-        raise ValueError("_spot_all_type_names requires session.backend.network")
-    return plot_types_in_order(session.backend.network.type_names)
+        raise ValueError("_spot_all_cell_names requires session.backend.network")
+    return plot_cells_in_order(session.backend.network.cell_names)
 
 
 def _spot_readout_bundle_view(bundle):
-    """ca-data view: same traces, rows restricted to ``pack_readout_types``."""
+    """ca-data view: same traces, rows restricted to ``pack_readout_cells``."""
     session = bundle.session
-    present = pack_readout_types(session, session.primary_pack.name)
+    present = pack_readout_cells(session, session.primary_readout.name)
     groups, names = plot_present_layout(present)
     by_name = {c['name']: c for c in bundle.cells}
     cells = [by_name[n] for n in names if n in by_name]
@@ -612,7 +612,7 @@ def _cells_with_group_rows(groups, names, build_cell):
 
 def _spot_cubes_from_row_mask(rows, mask):
     names = rows['names']
-    type_names = rows['type_names']
+    cell_names = rows['cell_names']
     mt = rows['mt']
     type_idx = rows['type_idx'][mask]
     du = rows['du'][mask]
@@ -622,7 +622,7 @@ def _spot_cubes_from_row_mask(rows, mask):
     sem_dummy = np.full((1, 9, mt), np.nan)
     for ft in names:
         cube = np.full((1, 9, mt), np.nan)
-        ft_global = type_names.index(ft)
+        ft_global = cell_names.index(ft)
         _fill_member_cube(cube, sem_dummy, 0, ft_global, type_idx, du, dv, plot_traces)
         out[ft] = cube[0]
     return out
@@ -650,13 +650,13 @@ def _spot_slice_overlay(rows, batches, at_x_list, at_y_list):
 
 
 
-def _cells_from_cube(names, cube, sem, baselines, *, single_column, n_by_name=None):
+def _cells_from_cube(names, cube, sem, baselines, *, single_hex, n_by_name=None):
     n_by_name = n_by_name or {}
     return [
         dict(
             name=n,
             cube=cube[i],
-            sem=None if single_column else sem[i],
+            sem=None if single_hex else sem[i],
             baseline=baselines.get(n),
             n=n_by_name.get(n),
         )
@@ -669,8 +669,8 @@ def _spot_forward_rows(
     session, z, *,
     save_trace_csv_dir=None, at_x=None, at_y=None,
 ):
-    """One forward; cost-extent unit layout over all network types."""
-    pack = session.primary_pack
+    """One forward; cost-extent node layout over all network types."""
+    pack = session.primary_readout
     schema = list(session.schema)
     p = training.assign_params(z, schema, session.backend)
     sig = pack.signal if pack.signal.dim() == 3 else pack.signal.unsqueeze(0)
@@ -684,23 +684,23 @@ def _spot_forward_rows(
         ref_stem='spot_v_onset',
     )
     C = session.backend.network
-    type_names = list(C.type_names)
+    cell_names = list(C.cell_names)
     mt = int(sig.shape[1])
 
     opts = dict((session.train_opts or {}).get(f"{pack.name}_stimulus_opts") or {})
     spot = spot_from_opts(C, stimulus_opts=opts)
     batches = spot_stimulus_batches(spot)
-    groups, names = plot_present_layout(_spot_all_type_names(session))
+    groups, names = plot_present_layout(_spot_all_cell_names(session))
 
     (
-        batch_idx, unit_idx, _radius, type_idx, _stim_u, _stim_v, du, dv, center_row,
+        batch_idx, node_idx, _radius, type_idx, _stim_u, _stim_v, du, dv, center_row,
     ) = spot_center_bin_layout(
         C, batches, pack_spot_cost_radii(pack), pack.cost_extent,
     )
 
-    raw = trace_full[batch_idx, :, unit_idx]
+    raw = trace_full[batch_idx, :, node_idx]
     plot_traces = apply_out_scale(
-        p, raw, unit_idx, session.backend,
+        p, raw, node_idx, session.backend,
     ).cpu().numpy()
 
     stim_pre_ms = opts.get("pre_ms")
@@ -710,9 +710,9 @@ def _spot_forward_rows(
     )
     rows = dict(
         names=names,
-        type_names=type_names,
+        cell_names=cell_names,
         type_idx=type_idx,
-        unit_idx=unit_idx,
+        node_idx=node_idx,
         du=du,
         dv=dv,
         center_row=center_row,
@@ -728,12 +728,12 @@ def _spot_forward_rows(
     if at_x is not None or at_y is not None:
         match_b = batches_at_stim_xy(batches, at_x=at_x, at_y=at_y)
         mask = mask & np.isin(batch_idx, match_b)
-    units_by_name = {
-        name: np.unique(unit_idx[mask & (type_idx == type_names.index(name))])
+    nodes_by_name = {
+        name: np.unique(node_idx[mask & (type_idx == cell_names.index(name))])
         for name in names
     }
     rows['baselines'] = baselines_for_types(
-        v_onset_np, units_by_name, v_ref_by_type_name(z, session),
+        v_onset_np, nodes_by_name, v_ref_by_type_name(z, session),
     )
     rows['groups'] = groups
     return rows
@@ -745,18 +745,18 @@ def _spot_cube_from_rows(rows, session):
     cube = np.full((len(names), 9, mt), np.nan)
     sem = np.full((len(names), 9, mt), np.nan)
     for ti, ft in enumerate(names):
-        ft_global = rows['type_names'].index(ft)
+        ft_global = rows['cell_names'].index(ft)
         _fill_member_cube(
             cube, sem, ti, ft_global,
             rows['type_idx'], rows['du'], rows['dv'], rows['plot_traces'],
         )
-    single_column = suppress_cost_sem(session, target=rows['pack'].name)
+    single_hex = suppress_cost_sem(session, task=rows['pack'].name)
     n_by_name = readout_n_by_name(
-        rows['type_idx'], rows['type_names'], names, rows['unit_idx'],
+        rows['type_idx'], rows['cell_names'], names, rows['node_idx'],
     )
     cells = _cells_from_cube(
         names, cube, sem, rows['baselines'],
-        single_column=single_column, n_by_name=n_by_name,
+        single_hex=single_hex, n_by_name=n_by_name,
     )
     group_rows = _group_rows_from_groups(rows['groups'], names)
     return cells, group_rows, mt
@@ -803,7 +803,7 @@ def network_spot_trace_bundle(
 
 def _spot_suptitle(title, bundle):
     if bundle is not None and bundle.has_slices:
-        scope = column_at_scope_tag(bundle.slice_x_list, bundle.slice_y_list)
+        scope = hex_at_scope_tag(bundle.slice_x_list, bundle.slice_y_list)
         return f'{title}  [{scope}, overlay + total]'
     return title
 

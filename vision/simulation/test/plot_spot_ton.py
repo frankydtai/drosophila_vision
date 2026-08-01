@@ -82,13 +82,13 @@ def main():
     session = training.open_session_from_opts(opts, model=opts.get("model"))
 
     import training.driver as train_mod
-    named, type_names, pair_names = train_mod.load_best_param_named(run_path)
-    remapped = training.remap_named_unit_values(
-        named, type_names, pair_names, list(session.schema), session.backend,
+    named, cell_names, pair_names = train_mod.load_best_param_named(run_path)
+    remapped = training.remap_named_node_values(
+        named, cell_names, pair_names, list(session.schema), session.backend,
     )
     schema = training.attach_param_carry(list(session.schema), remapped)
     session = session.with_schema(schema)
-    z = training.unit_values_to_z(
+    z = training.node_values_to_z(
         remapped, schema, dtype=session.sim_dtype, device=session.device,
     )
 

@@ -7,7 +7,7 @@ Speed / agent contract
 Per ``--run``:
 
   * one ``plot_trained.load_best``
-  * one batched v budget walk per distinct target (spot / bar average / bar hex)
+  * one batched v budget walk per distinct task (spot / bar average / bar hex)
   * v_post and budget share that walk (no separate plot forward)
 
 ``--rel START,STOP`` limits budget accumulate to that inclusive rel (or abs) window
@@ -30,21 +30,21 @@ Examples
   cd vision/simulation
   ../.venv/bin/python -m analyze.cell_dynamics \\
     --run /abs/path/to/run --cell Mi4,Mi9 \\
-    --target spot_bright,moving_bar_bright --spec right_bright_w1
+    --task spot_bright,moving_bar_bright --spec right_bright_w1
 
   ../.venv/bin/python -m analyze.cell_dynamics \\
-    --run /abs/path/to/run --cell L3 --target moving_bar_bright \\
+    --run /abs/path/to/run --cell L3 --task moving_bar_bright \\
     --spec right_bright_w1 --x -2 --y -1
 
   ../.venv/bin/python -m analyze.cell_dynamics \\
-    --run /abs/path/to/run --cell Mi4 --target spot_bright --plot
+    --run /abs/path/to/run --cell Mi4 --task spot_bright --plot
 
   ../.venv/bin/python -m analyze.cell_dynamics \\
-    --run borst/27252028-... --cell T4a --target moving_bar_bright \\
+    --run borst/27252028-... --cell T4a --task moving_bar_bright \\
     --spec left_bright_w4,right_bright_w4 --plot
 
   ../.venv/bin/python -m analyze.cell_dynamics \\
-    --run borst/27252028-... --cell T4a --target moving_bar_bright \\
+    --run borst/27252028-... --cell T4a --task moving_bar_bright \\
     --spec left_bright_w4,right_bright_w4 --syn-strength Mi4,T4a,2.0,Mi9,T4a,1.0 \\
     --plot --rel 0,176
 """
@@ -66,25 +66,25 @@ import figure.plot_run as plot_trained
 from analyze.cell_trace import add_shared_cli, parse_shared_cli
 from task.moving_bar.data import (
     bar_specs_for_session,
-    col2subtype,
     filter_requested_specs,
     moving_bar_row_specs,
     moving_bar_session_t0_grids,
-    moving_bar_units_on_columns,
+    moving_bar_nodes_on_hexes,
 )
+from network.construction import col2gt
 from task.moving_bar.input import (
-    filter_sti_columns,
-    moving_bar_cost_columns,
+    filter_sti_hexes,
+    moving_bar_cost_hexes,
 )
 from task.spot.data import spot_center_bin_layout
 from task.spot.input import (
     spot_from_opts,
     spot_stimulus_batches,
 )
-from figure.readout import contrast_for_target
+from figure.readout import contrast_for_task
 from figure.spot import CENTER_BIN, pack_spot_cost_radii, resolve_spot_data_cubes
 from figure.util import plot_sem_band
-from path import parse_comma_list
+from import_bootstrap import parse_comma_list
 
 
 # Budget-step fields plotted vs time (key, ylabel/legend).
@@ -142,13 +142,13 @@ def _trace_ylabel(group_ylabel: str, label: str) -> str:
     if label == "den":
         return "den (nS)"
     if "(" in group_ylabel:
-        unit = " " + group_ylabel[group_ylabel.index("("):]
-        return f"{label}{unit}"
+        node = " " + group_ylabel[group_ylabel.index("("):]
+        return f"{label}{node}"
     return label
 
 
 def _budget_axes_grid():
-    """Return ``(n_rows, n_cols)`` grid: one row per ``_PLOT_PANELS`` group."""
+    """Return ``(n_rows, n_hexes)`` grid: one row per ``_PLOT_PANELS`` group."""
     return len(_PLOT_PANELS), _PLOT_NCOLS
 
 
@@ -159,7 +159,7 @@ def _plot_colors():
 
 
 def _plot_trace_colors(colors: list[str]) -> dict[str, str]:
-    """Map trace legend label → subplot color (column index within its row)."""
+    """Map trace legend label → subplot color (hex index within its row)."""
     out: dict[str, str] = {}
     for _group_ylabel, series in _PLOT_PANELS:
         for ci, (_key, label) in enumerate(series):
@@ -266,7 +266,7 @@ def _v_step_params(p):
 def _equilibrate(session, p, signal_batch: torch.Tensor, t_onset: int):
     backend = session.backend
     B, T, N = signal_batch.shape
-    dev = backend.conn.node_type.device
+    dev = backend.conn.node_cell.device
     dtype = session.sim_dtype
     u_on = torch.zeros((B, N), dtype=dtype, device=dev)
     u_off = torch.zeros((B, N), dtype=dtype, device=dev)
@@ -280,7 +280,7 @@ def _equilibrate(session, p, signal_batch: torch.Tensor, t_onset: int):
     return v, u_on, u_off
 
 
-def _budget_at_units(
+def _budget_at_nodes(
     v_pre,
     v_post,
     g_exc,
@@ -289,7 +289,7 @@ def _budget_at_units(
     g_Ih_off,
     sig_t,
     backend,
-    units: np.ndarray,
+    nodes: np.ndarray,
     v_onset: np.ndarray,
     *,
     batch: int = 0,
@@ -301,10 +301,10 @@ def _budget_at_units(
     E_Ih: float,
     E_LEAK_REST: float,
 ) -> tuple[dict[str, np.ndarray], np.ndarray]:
-    """Slice unit budget from a completed ``update_v(..., return_budget=True)`` step."""
-    units = np.asarray(units, dtype=np.int64)
+    """Slice node budget from a completed ``update_v(..., return_budget=True)`` step."""
+    nodes = np.asarray(nodes, dtype=np.int64)
     with torch.no_grad():
-        u = torch.as_tensor(units, device=v_pre.device, dtype=torch.long)
+        u = torch.as_tensor(nodes, device=v_pre.device, dtype=torch.long)
         b = int(batch)
         sig_u = sig_t[b, u] if sig_t.dim() > 1 else sig_t[u]
         packed = torch.stack(
@@ -321,7 +321,7 @@ def _budget_at_units(
             dim=0,
         ).detach().cpu().numpy()
         v_pre_np = packed[0]
-        ref = v_onset[b, units] if np.ndim(v_onset) == 2 else v_onset[units]
+        ref = v_onset[b, nodes] if np.ndim(v_onset) == 2 else v_onset[nodes]
         terms = training.v_budget_from_g(
             v_pre_np, packed[1], packed[2], packed[3], packed[4], packed[5], packed[6],
             delta_ms=delta_ms, capac=capac, g_leak=g_leak,
@@ -383,7 +383,7 @@ _PLOT_KEY_BUDGET: dict[str, str | None] = {
 
 
 def _bud_matrix(bud: dict[str, np.ndarray]) -> np.ndarray:
-    """Stack budget keys to ``(n_units, n_keys)`` for vectorized accumulate."""
+    """Stack budget keys to ``(n_nodes, n_keys)`` for vectorized accumulate."""
     return np.column_stack([bud[k] for k in _BUDGET_KEYS])
 
 
@@ -424,9 +424,9 @@ def _step_from_acc(
     v_post_minus_pre_sum: float,
     n: int,
 ) -> dict[str, Any]:
-    """One step dict from per-key sums over ``n`` units."""
+    """One step dict from per-key sums over ``n`` nodes."""
     if n <= 0:
-        raise ValueError("empty unit set for mean budget")
+        raise ValueError("empty node set for mean budget")
     num = acc["num"] / n
     den = acc["den"] / n
     return {
@@ -451,10 +451,10 @@ def _step_from_acc(
         "num_sig": acc["num_sig"] / n,
         "num": num,
         "den": den,
-        # mean over units of (num_u/den_u); SEM matches ``sem_from_traces`` on those ratios
+        # mean over nodes of (num_u/den_u); SEM matches ``sem_from_traces`` on those ratios
         "num_over_den": acc["v_abs"] / n,
         "sem": _step_sem(acc, accsq, n),
-        "n_units": n,
+        "n_nodes": n,
     }
 
 
@@ -462,11 +462,11 @@ def _step_from_acc(
 class _BudgetWalkBatch:
     """One signal batch row for the shared post-t_onset v walk."""
 
-    all_units: np.ndarray
+    all_nodes: np.ndarray
     t0_u: np.ndarray
     win_len: int
-    unit_to_cell: dict[int, str]
-    units_by_cell: dict[str, np.ndarray]
+    node_to_cell: dict[int, str]
+    nodes_by_cell: dict[str, np.ndarray]
 
 
 @dataclass
@@ -493,7 +493,7 @@ def _walk_budget(
     v_post is mean absolute ``v_abs``; SEM uses sum / sumsq like ``sem_from_traces``.
 
     If ``rel_start``/``rel_stop`` are set, only open budget accumulate inside that
-    inclusive rel window; cheap ``update_v`` before it; break after every unit
+    inclusive rel window; cheap ``update_v`` before it; break after every node
     has passed ``rel_stop``.
     """
     if not batches:
@@ -505,7 +505,7 @@ def _walk_budget(
     B, T, _N = signal.shape
     if B != len(batches):
         raise SystemExit(f"signal B={B} != len(batches)={len(batches)}")
-    t_onset = int(session.primary_pack.signal.shape[1] - session.primary_pack.data.shape[1])
+    t_onset = int(session.primary_readout.signal.shape[1] - session.primary_readout.data.shape[1])
     trace_len = T - t_onset
 
     # Last absolute time that still needs a step for the requested rel window.
@@ -529,7 +529,7 @@ def _walk_budget(
         counts_b.append({c: np.zeros(wl, dtype=np.int64) for c in cells})
         v_post_minus_pre_sums_b.append({c: np.zeros(wl, dtype=float) for c in cells})
 
-    unit_lookups = [_unit_cell_lookup(plan, cells) for plan in batches]
+    node_lookups = [_node_cell_lookup(plan, cells) for plan in batches]
 
     for ti in range(trace_len):
         t_global = t_onset + ti
@@ -539,7 +539,7 @@ def _walk_budget(
         actives: list[tuple[np.ndarray, np.ndarray] | None] = []
         need_budget = False
         for plan in batches:
-            au = plan.all_units
+            au = plan.all_nodes
             rel_u = t_global - plan.t0_u
             in_win = (rel_u >= 0) & (rel_u < plan.win_len)
             if rel_start is not None:
@@ -569,7 +569,7 @@ def _walk_budget(
             if active_pack is None:
                 continue
             active, active_rel = active_pack
-            bud, v_post_minus_pre_u = _budget_at_units(
+            bud, v_post_minus_pre_u = _budget_at_nodes(
                 v_pre, v, g_exc, g_inh, g_Ih_on, g_Ih_off, sig_t,
                 backend, active, v_onset, batch=b,
                 delta_ms=session.delta_ms, capac=session.capac, g_leak=session.g_leak,
@@ -577,7 +577,7 @@ def _walk_budget(
                 E_LEAK_REST=session.E_LEAK_REST,
             )
             bud_mat = _bud_matrix(bud)
-            lookup = unit_lookups[b]
+            lookup = node_lookups[b]
             tags = lookup[active]
             for ci, cell in enumerate(cells):
                 mask = tags == ci
@@ -627,11 +627,11 @@ def _dominant_drive_from_step(step: dict[str, Any] | None) -> str | None:
 def _finalize_budget_report(
     *,
     cell: str,
-    target: str,
+    task: str,
     spec: str | None,
     mode: str,
     before_t: int,
-    units: np.ndarray,
+    nodes: np.ndarray,
     p,
     session,
     sums: np.ndarray,
@@ -685,8 +685,8 @@ def _finalize_budget_report(
     report: dict[str, Any] = {
         "mode": mode,
         "cell": cell,
-        "n_units": int(units.size),
-        "target": target,
+        "n_nodes": int(nodes.size),
+        "task": task,
         "spec": spec,
         "before_t": before_t,
         "v_post_d_peak_rel": peak_rel,
@@ -694,7 +694,7 @@ def _finalize_budget_report(
         "v_post_d_polarity": _polarity(float(v_post_d[peak_rel])),
         "rel_window": [rel_lo, rel_hi],
         "v_post_d_onset_rel": onset,
-        "params": _unit_params(p, session.backend, int(units[0])),
+        "params": _node_params(p, session.backend, int(nodes[0])),
         "globals": _globals(session),
         "steps": steps,
         "peak_step": peak_step,
@@ -739,19 +739,19 @@ def _polarity(v: float, *, eps: float = 1e-3) -> str:
     return "0"
 
 
-def _unit_params(p, backend, unit: int) -> dict[str, float]:
+def _node_params(p, backend, node: int) -> dict[str, float]:
     return {
-        "in_gain": float(p["in_gain"][unit]),
-        "out_gain": float(p["out_gain"][unit]),
-        "v_th_mV": float(p["v_th"][unit]),
-        "Ih_gmax": float(p["Ih_gmax"][unit]),
-        "Ih_gmax_off": float(p["Ih_gmax_off"][unit]),
-        "e_leak_mV": float(backend.e_leak[unit]),
+        "in_gain": float(p["in_gain"][node]),
+        "out_gain": float(p["out_gain"][node]),
+        "v_th_mV": float(p["v_th"][node]),
+        "Ih_gmax": float(p["Ih_gmax"][node]),
+        "Ih_gmax_off": float(p["Ih_gmax_off"][node]),
+        "e_leak_mV": float(backend.e_leak[node]),
     }
 
 
 def _globals(session):
-    pack = session.primary_pack
+    pack = session.primary_readout
     return {
         "E_exc": training.E_EXC,
         "E_inh": training.E_INH,
@@ -764,21 +764,21 @@ def _globals(session):
     }
 
 
-def _unit_to_cell_map(units_by_cell: dict[str, np.ndarray]) -> dict[int, str]:
+def _node_to_cell_map(nodes_by_cell: dict[str, np.ndarray]) -> dict[int, str]:
     u2c: dict[int, str] = {}
-    for cell, us in units_by_cell.items():
+    for cell, us in nodes_by_cell.items():
         for u in np.asarray(us, dtype=np.int64).ravel():
             u2c[int(u)] = cell
     return u2c
 
 
-def _unit_cell_lookup(plan: _BudgetWalkBatch, cells: list[str]) -> np.ndarray:
-    """Map unit id → index in ``cells`` (-1 if absent). Length ``max(unit_id)+1``."""
+def _node_cell_lookup(plan: _BudgetWalkBatch, cells: list[str]) -> np.ndarray:
+    """Map node id → index in ``cells`` (-1 if absent). Length ``max(node_id)+1``."""
     cell_i = {c: i for i, c in enumerate(cells)}
-    if plan.all_units.size == 0:
+    if plan.all_nodes.size == 0:
         return np.empty(0, dtype=np.int32)
-    out = np.full(int(plan.all_units.max()) + 1, -1, dtype=np.int32)
-    for u, cname in plan.unit_to_cell.items():
+    out = np.full(int(plan.all_nodes.max()) + 1, -1, dtype=np.int32)
+    for u, cname in plan.node_to_cell.items():
         ci = cell_i.get(cname)
         if ci is not None:
             out[int(u)] = ci
@@ -802,37 +802,37 @@ def _merge_walk_accum(
     sumsq = {c: np.zeros((win_len, _N_BUDGET_KEYS), dtype=float) for c in cells}
     counts = {c: np.zeros(win_len, dtype=np.int64) for c in cells}
     v_post_minus_pre_sums = {c: np.zeros(win_len, dtype=float) for c in cells}
-    units_ref = {c: np.zeros(0, dtype=np.int64) for c in cells}
+    nodes_ref = {c: np.zeros(0, dtype=np.int64) for c in cells}
     for b, plan in enumerate(walk_batches):
         for cell in cells:
-            if cell not in plan.units_by_cell:
+            if cell not in plan.nodes_by_cell:
                 continue
-            us = plan.units_by_cell[cell]
+            us = plan.nodes_by_cell[cell]
             if us.size == 0:
                 continue
-            if units_ref[cell].size == 0:
-                units_ref[cell] = us
+            if nodes_ref[cell].size == 0:
+                nodes_ref[cell] = us
             sums[cell] += accum.sums[b][cell]
             sumsq[cell] += accum.sumsq[b][cell]
             counts[cell] += accum.counts[b][cell]
             v_post_minus_pre_sums[cell] += accum.v_post_minus_pre_sums[b][cell]
-    return sums, sumsq, counts, v_post_minus_pre_sums, units_ref
+    return sums, sumsq, counts, v_post_minus_pre_sums, nodes_ref
 
 
 def _make_walk_batch(
-    units_by_cell: dict[str, np.ndarray],
+    nodes_by_cell: dict[str, np.ndarray],
     *,
     t0_bn_row: np.ndarray,
     win_len: int,
 ) -> _BudgetWalkBatch:
-    """Build one walk batch; ``t0_u[i] = t0_bn_row[all_units[i]]``."""
-    all_units = np.unique(np.concatenate([us for us in units_by_cell.values()]))
+    """Build one walk batch; ``t0_u[i] = t0_bn_row[all_nodes[i]]``."""
+    all_nodes = np.unique(np.concatenate([us for us in nodes_by_cell.values()]))
     return _BudgetWalkBatch(
-        all_units=all_units,
-        t0_u=np.asarray(t0_bn_row[all_units], dtype=np.int64),
+        all_nodes=all_nodes,
+        t0_u=np.asarray(t0_bn_row[all_nodes], dtype=np.int64),
         win_len=int(win_len),
-        unit_to_cell=_unit_to_cell_map(units_by_cell),
-        units_by_cell=units_by_cell,
+        node_to_cell=_node_to_cell_map(nodes_by_cell),
+        nodes_by_cell=nodes_by_cell,
     )
 
 
@@ -850,7 +850,7 @@ def _parse_syn_strength(
         return {}
     if session.backend.network is None:
         raise SystemExit("--syn-strength requires a network backend")
-    names = list(session.backend.network.type_names)
+    names = list(session.backend.network.cell_names)
     name_to_i = {n: i for i, n in enumerate(names)}
     parts = parse_comma_list(syn_strength)
     if len(parts) % 3 != 0:
@@ -881,10 +881,10 @@ def _apply_syn_strength(
     """Return a copy of ``z`` with ``syn_strength`` overrides applied."""
     if not edits:
         return z
-    names = list(session.backend.network.type_names)
+    names = list(session.backend.network.cell_names)
     keys = session.backend.conn.pair_keys
     key_to_i = {k: i for i, k in enumerate(keys)}
-    named = training.z_to_unit_values(z, schema)
+    named = training.z_to_node_values(z, schema)
     if "syn_strength" not in named:
         raise SystemExit("schema missing syn_strength segment")
     arr = np.array(named["syn_strength"], dtype=np.float64, copy=True)
@@ -898,13 +898,13 @@ def _apply_syn_strength(
         arr[pair_i] = val
         _log(f"syn_strength {names[src_i]} -> {names[tar_i]} = {val:g}")
     named["syn_strength"] = arr
-    return training.unit_values_to_z(named, schema, dtype=z.dtype, device=z.device)
+    return training.node_values_to_z(named, schema, dtype=z.dtype, device=z.device)
 
 
-def _bar_meta(session, target: str):
-    """One-shot ``(specs, grids)`` for a moving-bar target."""
-    specs = bar_specs_for_session(session, target)
-    pack = session.pack_for(target)
+def _bar_meta(session, task: str):
+    """One-shot ``(specs, grids)`` for a moving-bar task."""
+    specs = bar_specs_for_session(session, task)
+    pack = session.pack_for(task)
     grids = moving_bar_session_t0_grids(
         session, specs, pack.cost_extent, int(session.n_t),
         t_onset=int(pack.signal.shape[1] - pack.data.shape[1]), delta_ms=training.DELTA_MS,
@@ -914,7 +914,7 @@ def _bar_meta(session, target: str):
 
 def _bar_specs_requested(
     session,
-    target: str,
+    task: str,
     cells: list[str],
     requested: list[str] | None,
     *,
@@ -923,14 +923,14 @@ def _bar_specs_requested(
 ) -> list[str]:
     """Spec list for average-mode bar without a full forward bundle."""
     if specs is None or grids is None:
-        specs, grids = _bar_meta(session, target)
+        specs, grids = _bar_meta(session, task)
     all_specs = [s.name for s in specs]
     try:
         if requested is not None:
             return filter_requested_specs(all_specs, requested)
     except ValueError as exc:
         raise SystemExit(str(exc)) from exc
-    row = moving_bar_row_specs(session, target, grids.side)
+    row = moving_bar_row_specs(session, task, grids.side)
     out: list[str] = []
     for cell in cells:
         for s in row.get(cell, all_specs):
@@ -941,20 +941,20 @@ def _bar_specs_requested(
 
 def _resolve_bar_spec_signal(
     session,
-    target: str,
+    task: str,
     spec_names: list[str],
     *,
     specs=None,
     grids=None,
 ):
     """Validate specs; return ``(pack, specs, grids, bis, signal, t0_bn)``."""
-    if target not in training.MOVING_BAR_TARGETS:
-        raise SystemExit(f"unsupported target {target!r}")
+    if task not in training.MOVING_BAR_TASKS:
+        raise SystemExit(f"unsupported task {task!r}")
     if not spec_names:
         raise SystemExit("bar budget walk requires at least one spec")
-    pack = session.pack_for(target)
+    pack = session.pack_for(task)
     if specs is None or grids is None:
-        specs, grids = _bar_meta(session, target)
+        specs, grids = _bar_meta(session, task)
     name_to_bi = {s.name: i for i, s in enumerate(specs)}
     missing = [s for s in spec_names if s not in name_to_bi]
     if missing:
@@ -968,7 +968,7 @@ def _analyze_budget_walk(
     *,
     p,
     cells: list[str],
-    target: str,
+    task: str,
     signal: torch.Tensor,
     walk_batches: list[_BudgetWalkBatch],
     before_t: list[int],
@@ -980,7 +980,7 @@ def _analyze_budget_walk(
     merge_batches: bool = False,
     extra: dict[str, Any] | None = None,
     extra_for_cell=None,
-    n_units_for_cell=None,
+    n_nodes_for_cell=None,
 ):
     """Shared spot/bar: ``_walk_budget`` → finalize reports.
 
@@ -1002,14 +1002,14 @@ def _analyze_budget_walk(
         cell: str,
         spec: str | None,
         before: int,
-        units: np.ndarray,
+        nodes: np.ndarray,
         sums: np.ndarray,
         sumsq: np.ndarray,
         counts: np.ndarray,
         v_post_minus_pre_sums: np.ndarray,
     ) -> dict[str, Any]:
-        if units.size == 0:
-            raise SystemExit(f"no units for cell {cell!r}")
+        if nodes.size == 0:
+            raise SystemExit(f"no nodes for cell {cell!r}")
         v_post = _v_post_from_accum(sums, counts)
         v_post_d = _v_post_d_from_accum(sums, v_post_minus_pre_sums, counts)
         cell_extra = dict(extra) if extra else {}
@@ -1017,11 +1017,11 @@ def _analyze_budget_walk(
             cell_extra.update(extra_for_cell(cell, v_post, v_post_d) or {})
         report = _finalize_budget_report(
             cell=cell,
-            target=target,
+            task=task,
             spec=spec,
             mode=mode,
             before_t=before,
-            units=units,
+            nodes=nodes,
             p=p,
             session=session,
             sums=sums,
@@ -1034,13 +1034,13 @@ def _analyze_budget_walk(
             ti_mode=ti_mode,
             extra=cell_extra or None,
         )
-        if n_units_for_cell is not None:
-            report["n_units"] = int(n_units_for_cell(cell))
+        if n_nodes_for_cell is not None:
+            report["n_nodes"] = int(n_nodes_for_cell(cell))
         return report
 
     if merge_batches:
         win_len = walk_batches[0].win_len
-        sums, sumsq, counts, v_post_minus_pre_sums, units_ref = _merge_walk_accum(
+        sums, sumsq, counts, v_post_minus_pre_sums, nodes_ref = _merge_walk_accum(
             accum, walk_batches, cells, win_len,
         )
         before = int(before_t[0])
@@ -1049,7 +1049,7 @@ def _analyze_budget_walk(
                 cell=cell,
                 spec=None,
                 before=before,
-                units=units_ref[cell],
+                nodes=nodes_ref[cell],
                 sums=sums[cell],
                 sumsq=sumsq[cell],
                 counts=counts[cell],
@@ -1068,7 +1068,7 @@ def _analyze_budget_walk(
                 cell=cell,
                 spec=spec,
                 before=int(before_t[b]),
-                units=walk_batches[b].units_by_cell[cell],
+                nodes=walk_batches[b].nodes_by_cell[cell],
                 sums=accum.sums[b][cell],
                 sumsq=accum.sumsq[b][cell],
                 counts=accum.counts[b][cell],
@@ -1082,11 +1082,11 @@ def _analyze_bar_walk(
     *,
     p,
     cells: list[str],
-    target: str,
+    task: str,
     spec_names: list[str],
     rel_start: int | None,
     rel_stop: int | None,
-    units_for_bi,
+    nodes_for_bi,
     mode: str,
     specs=None,
     grids=None,
@@ -1094,12 +1094,12 @@ def _analyze_bar_walk(
 ) -> dict[str, dict[str, dict[str, Any]]]:
     """Bar prep: resolve signal/specs → ``_analyze_budget_walk`` (no merge)."""
     pack, specs, grids, bis, signal, t0_bn = _resolve_bar_spec_signal(
-        session, target, spec_names, specs=specs, grids=grids,
+        session, task, spec_names, specs=specs, grids=grids,
     )
     before_b: list[int] = []
     walk_batches: list[_BudgetWalkBatch] = []
     for bi, spec in zip(bis, spec_names):
-        usets = units_for_bi(bi, spec, pack=pack, t0_bn=t0_bn)
+        usets = nodes_for_bi(bi, spec, pack=pack, t0_bn=t0_bn)
         before = int(grids.before_t[spec])
         after = int(grids.after_t[spec])
         before_b.append(before)
@@ -1110,7 +1110,7 @@ def _analyze_bar_walk(
         session,
         p=p,
         cells=cells,
-        target=target,
+        task=task,
         signal=signal,
         walk_batches=walk_batches,
         before_t=before_b,
@@ -1129,7 +1129,7 @@ def analyze_bar_average(
     *,
     p,
     cells: list[str],
-    target: str,
+    task: str,
     spec_names: list[str],
     rel_start: int | None,
     rel_stop: int | None,
@@ -1142,32 +1142,32 @@ def analyze_bar_average(
     """
     cols_holder: list = []
 
-    def units_for_bi(bi, spec, *, pack, t0_bn):
+    def nodes_for_bi(bi, spec, *, pack, t0_bn):
         C = session.backend.network
         if not cols_holder:
-            cols_holder.append(moving_bar_cost_columns(C, cost_extent=pack.cost_extent))
+            cols_holder.append(moving_bar_cost_hexes(C, cost_extent=pack.cost_extent))
         cols = cols_holder[0]
         out: dict[str, np.ndarray] = {}
         for cell in cells:
             try:
-                units = moving_bar_units_on_columns(C, cell, cols)
+                nodes = moving_bar_nodes_on_hexes(C, cell, hexes)
             except ValueError as exc:
                 raise SystemExit(str(exc)) from exc
-            units = units[t0_bn[bi, units] >= 0]
-            if units.size == 0:
-                raise SystemExit(f"no valid {cell} units in cost_extent for bar aggregation")
-            out[cell] = units
+            nodes = nodes[t0_bn[bi, nodes] >= 0]
+            if nodes.size == 0:
+                raise SystemExit(f"no valid {cell} nodes in cost_extent for bar aggregation")
+            out[cell] = nodes
         return out
 
     return _analyze_bar_walk(
         session,
         p=p,
         cells=cells,
-        target=target,
+        task=task,
         spec_names=spec_names,
         rel_start=rel_start,
         rel_stop=rel_stop,
-        units_for_bi=units_for_bi,
+        nodes_for_bi=nodes_for_bi,
         mode="average",
         specs=specs,
         grids=grids,
@@ -1175,20 +1175,20 @@ def analyze_bar_average(
 
 
 # ---------------------------------------------------------------------------
-# Average spot budgets (center-bin / stim-on-column)
+# Average spot budgets (center-bin / stim-on-hex)
 # ---------------------------------------------------------------------------
 
 
 def _spot_session_layout(session_one, cells: list[str]):
     """Session-scoped center-bin layout for spot budget walks."""
-    pack = session_one.primary_pack
+    pack = session_one.primary_readout
     C = session_one.backend.network
     if C is None:
         raise SystemExit("spot average requires a network backend")
     opts = dict((session_one.train_opts or {}).get(f"{pack.name}_stimulus_opts") or {})
     spot = spot_from_opts(C, stimulus_opts=opts)
     (
-        batch_idx, unit_idx, _radius, type_idx, _stim_u, _stim_v, _du, _dv, center_row,
+        batch_idx, node_idx, _radius, type_idx, _stim_u, _stim_v, _du, _dv, center_row,
     ) = spot_center_bin_layout(
         C,
         spot_stimulus_batches(spot),
@@ -1197,10 +1197,10 @@ def _spot_session_layout(session_one, cells: list[str]):
     )
     type_i: dict[str, int] = {}
     for cell in cells:
-        if cell not in C.type_names:
+        if cell not in C.cell_names:
             raise SystemExit(f"unknown cell {cell!r}")
-        type_i[cell] = C.type_names.index(cell)
-    return pack, batch_idx, unit_idx, type_idx, center_row, type_i
+        type_i[cell] = C.cell_names.index(cell)
+    return pack, batch_idx, node_idx, type_idx, center_row, type_i
 
 
 def analyze_spot_average(
@@ -1208,14 +1208,14 @@ def analyze_spot_average(
     *,
     p,
     cells: list[str],
-    target: str,
+    task: str,
     abs_start: int | None,
     abs_stop: int | None,
 ) -> dict[str, dict[str, Any]]:
     """One batched v walk over spot stimulus rows; mean center-bin budget."""
-    if target not in training.SPOT_TARGETS:
-        raise SystemExit(f"unsupported target {target!r}")
-    pack, batch_idx, unit_idx, type_idx, center_row, type_i = _spot_session_layout(
+    if task not in training.SPOT_TASKS:
+        raise SystemExit(f"unsupported task {task!r}")
+    pack, batch_idx, node_idx, type_idx, center_row, type_i = _spot_session_layout(
         session_one, cells,
     )
     t_onset = int(pack.signal.shape[1] - pack.data.shape[1])
@@ -1235,7 +1235,7 @@ def analyze_spot_average(
         for cell in cells:
             m = row_mask & (type_idx == type_i[cell])
             if np.any(m):
-                usets[cell] = np.unique(unit_idx[m])
+                usets[cell] = np.unique(node_idx[m])
         if not usets:
             continue
         walk_batches.append(
@@ -1244,12 +1244,12 @@ def analyze_spot_average(
         sig_rows.append(b)
 
     if not walk_batches:
-        raise SystemExit("no center-bin units for requested cells in spot layout")
+        raise SystemExit("no center-bin nodes for requested cells in spot layout")
 
     data_by_contrast = resolve_spot_data_cubes(
-        {contrast_for_target(pack.name): session_one},
+        {contrast_for_task(pack.name): session_one},
     )
-    contrast = contrast_for_target(pack.name)
+    contrast = contrast_for_task(pack.name)
     data_on = data_by_contrast.get(contrast) or {}
 
     def extra_for_cell(
@@ -1264,7 +1264,7 @@ def analyze_spot_average(
                 extra["data_peak_mV"] = float(data_cube[CENTER_BIN, peak_probe])
         return extra
 
-    def n_units_for_cell(cell: str) -> int:
+    def n_nodes_for_cell(cell: str) -> int:
         # Total center readouts across layout (matches prior semantics).
         return int(np.sum(center_row & (type_idx == type_i[cell])))
 
@@ -1273,7 +1273,7 @@ def analyze_spot_average(
         session_one,
         p=p,
         cells=cells,
-        target=target,
+        task=task,
         signal=sig[sig_rows],
         walk_batches=walk_batches,
         before_t=[t_onset] * n_b,
@@ -1284,35 +1284,35 @@ def analyze_spot_average(
         ti_mode="abs_minus_before",
         merge_batches=True,
         extra_for_cell=extra_for_cell,
-        n_units_for_cell=n_units_for_cell,
+        n_nodes_for_cell=n_nodes_for_cell,
     )
 
 
 # ---------------------------------------------------------------------------
-# Hex-mode bar (single column; same walk as average)
+# Hex-mode bar (single hex; same walk as average)
 # ---------------------------------------------------------------------------
 
 
-def _units_at_hex(session, cell: str, *, at_x: float, at_y: float, cost_extent: int):
+def _nodes_at_hex(session, cell: str, *, at_x: float, at_y: float, cost_extent: int):
     C = session.backend.network
     if C is None:
         raise SystemExit("hex mode requires a network backend")
-    cols = filter_sti_columns(
-        moving_bar_cost_columns(C, cost_extent=cost_extent),
+    hexes = filter_sti_hexes(
+        moving_bar_cost_hexes(C, cost_extent=cost_extent),
         at_x=at_x,
         at_y=at_y,
     )
     if not cols:
-        raise SystemExit(f"no column at x={at_x!r} y={at_y!r} within cost_extent={cost_extent}")
+        raise SystemExit(f"no hex at x={at_x!r} y={at_y!r} within cost_extent={cost_extent}")
     if len(cols) > 1:
-        raise SystemExit(f"multiple columns at x={at_x!r} y={at_y!r}; pick a unique hex")
+        raise SystemExit(f"multiple hexes at x={at_x!r} y={at_y!r}; pick a unique hex")
     col = cols[0]
-    if cell not in C.type_names:
-        raise SystemExit(f"unknown cell type {cell!r}")
-    units = col2subtype(C, int(col.u), int(col.v), cell).tolist()
-    if not units:
-        raise SystemExit(f"no {cell} unit at hex ({at_x},{at_y})")
-    return col, units
+    if cell not in C.cell_names:
+        raise SystemExit(f"unknown cell {cell!r}")
+    nodes = col2gt(C, int(col.u), int(col.v), cell).tolist()
+    if not nodes:
+        raise SystemExit(f"no {cell} node at hex ({at_x},{at_y})")
+    return col, nodes
 
 
 def analyze_bar_hex(
@@ -1320,49 +1320,49 @@ def analyze_bar_hex(
     *,
     p,
     cell: str,
-    target: str,
+    task: str,
     spec_names: list[str],
     at_x: float,
     at_y: float,
-    unit: int | None,
+    node: int | None,
     rel_start: int | None,
     rel_stop: int | None,
     specs=None,
     grids=None,
 ) -> dict[str, dict[str, dict[str, Any]]]:
     """One batched v walk over specs at one hex; returns ``reports[spec][cell]``."""
-    pack = session.pack_for(target)
-    col, units = _units_at_hex(
+    pack = session.pack_for(task)
+    col, nodes = _nodes_at_hex(
         session, cell, at_x=at_x, at_y=at_y, cost_extent=pack.cost_extent,
     )
-    if unit is None:
-        if len(units) > 1:
-            raise SystemExit(f"multiple {cell} at ({at_x},{at_y}): {units}; pass --unit")
-        unit = units[0]
-    elif unit not in units:
-        raise SystemExit(f"unit {unit} not in {units}")
-    unit_arr = np.asarray([unit], dtype=np.int64)
-    usets = {cell: unit_arr}
+    if node is None:
+        if len(nodes) > 1:
+            raise SystemExit(f"multiple {cell} at ({at_x},{at_y}): {nodes}; pass --node")
+        node = nodes[0]
+    elif node not in nodes:
+        raise SystemExit(f"node {node} not in {nodes}")
+    node_arr = np.asarray([node], dtype=np.int64)
+    usets = {cell: node_arr}
 
-    def units_for_bi(bi, spec, *, pack, t0_bn):
-        if int(t0_bn[bi, unit]) < 0:
-            raise SystemExit(f"no t0 for unit {unit} on spec {spec!r}")
+    def nodes_for_bi(bi, spec, *, pack, t0_bn):
+        if int(t0_bn[bi, node]) < 0:
+            raise SystemExit(f"no t0 for node {node} on spec {spec!r}")
         return usets
 
     return _analyze_bar_walk(
         session,
         p=p,
         cells=[cell],
-        target=target,
+        task=task,
         spec_names=spec_names,
         rel_start=rel_start,
         rel_stop=rel_stop,
-        units_for_bi=units_for_bi,
+        nodes_for_bi=nodes_for_bi,
         mode="hex",
         specs=specs,
         grids=grids,
         extra={
-            "unit": int(unit),
+            "node": int(node),
             "hex": {"x": at_x, "y": at_y},
             "uv": {"u": int(col.u), "v": int(col.v)},
         },
@@ -1376,7 +1376,7 @@ def analyze_bar_hex(
 
 
 def _plot_filename(report: dict[str, Any]) -> str:
-    parts = [report["cell"], report["target"], report.get("mode", "average")]
+    parts = [report["cell"], report["task"], report.get("mode", "average")]
     if report.get("spec"):
         parts.append(str(report["spec"]))
     if report.get("mode") == "hex":
@@ -1389,7 +1389,7 @@ def _plot_filename(report: dict[str, Any]) -> str:
 def _overlay_plot_filename(reports: list[dict[str, Any]]) -> str:
     r0 = reports[0]
     specs = "_".join(str(r["spec"]) for r in reports)
-    return f"{r0['cell']}_{r0['target']}_overlay_{specs}_v.png"
+    return f"{r0['cell']}_{r0['task']}_overlay_{specs}_v.png"
 
 
 def _budget_figure(title: str):
@@ -1400,26 +1400,26 @@ def _budget_figure(title: str):
     import matplotlib.pyplot as plt
     from figure.util import save_figure
 
-    n_rows, n_cols = _budget_axes_grid()
+    n_rows, n_hexes = _budget_axes_grid()
     fig, axes = plt.subplots(
-        n_rows, n_cols,
-        figsize=(2.6 * n_cols, 2.2 * n_rows),
+        n_rows, n_hexes,
+        figsize=(2.6 * n_hexes, 2.2 * n_rows),
         sharex=True,
         constrained_layout=True,
     )
-    if n_rows == 1 and n_cols == 1:
+    if n_rows == 1 and n_hexes == 1:
         axes = np.array([[axes]])
     elif n_rows == 1:
         axes = np.array([axes])
-    elif n_cols == 1:
+    elif n_hexes == 1:
         axes = axes[:, np.newaxis]
     return fig, axes, save_figure
 
 
 def _hide_unused_axes(axes) -> None:
-    n_rows, n_cols = axes.shape
+    n_rows, n_hexes = axes.shape
     for ri, (_group_ylabel, series) in enumerate(_PLOT_PANELS):
-        for ci in range(len(series), n_cols):
+        for ci in range(len(series), n_hexes):
             axes[ri, ci].set_visible(False)
 
 
@@ -1557,9 +1557,9 @@ def _plot_budget_reports(
 def plot_report(report: dict[str, Any], out_path: str) -> None:
     """Write one multi-panel PNG: budget series vs rel (x-axis)."""
     title = (
-        f"{report['cell']}  {report['target']}"
+        f"{report['cell']}  {report['task']}"
         + (f"  {report['spec']}" if report.get("spec") else "")
-        + f"  mode={report.get('mode')}  n={report.get('n_units')}"
+        + f"  mode={report.get('mode')}  n={report.get('n_nodes')}"
     )
     if report.get("mode") == "hex":
         title += f"  hex=({report['hex']['x']},{report['hex']['y']})"
@@ -1573,8 +1573,8 @@ def plot_reports_overlay(reports: list[dict[str, Any]], out_path: str) -> None:
     r0 = reports[0]
     spec_list = ",".join(str(r["spec"]) for r in reports)
     title = (
-        f"{r0['cell']}  {r0['target']}  overlay=[{spec_list}]"
-        f"  mode={r0.get('mode')}  n={r0.get('n_units')}"
+        f"{r0['cell']}  {r0['task']}  overlay=[{spec_list}]"
+        f"  mode={r0.get('mode')}  n={r0.get('n_nodes')}"
     )
     _plot_budget_reports(reports, out_path, title=title)
 
@@ -1601,14 +1601,14 @@ def _emit_report(
 
 def _print_report(report: dict[str, Any]) -> None:
     mode = report.get("mode", "?")
-    hdr = f"cell={report['cell']} mode={mode} n_units={report.get('n_units', '?')}"
+    hdr = f"cell={report['cell']} mode={mode} n_nodes={report.get('n_nodes', '?')}"
     if mode == "hex":
         hdr += (
-            f" unit=#{report['unit']} hex=({report['hex']['x']},{report['hex']['y']}) "
+            f" node=#{report['node']} hex=({report['hex']['x']},{report['hex']['y']}) "
             f"uv=({report['uv']['u']},{report['uv']['v']})"
         )
     print(hdr)
-    print(f"target={report['target']} spec={report.get('spec')}")
+    print(f"task={report['task']} spec={report.get('spec')}")
     print(
         f"v_post_d_peak={report['v_post_d_peak_mV']:+.4f} mV "
         f"v_post_d_polarity={report['v_post_d_polarity']}  "
@@ -1621,7 +1621,7 @@ def _print_report(report: dict[str, Any]) -> None:
     print("\nrel  n  v_post  v_pre_d  v_post_minus_pre  sig   g_inh  g_Ih_off  g_exc  num_inh  num_exc")
     for s in report["steps"]:
         print(
-            f"{s['rel']:4d} {s.get('n_units', 1):3d} {s['v_post_mV']:+8.4f} "
+            f"{s['rel']:4d} {s.get('n_nodes', 1):3d} {s['v_post_mV']:+8.4f} "
             f"{s['v_pre_d_mV']:+8.4f} {s['v_post_minus_pre_mV']:+8.4f} "
             f"{s['signal']:5.1f} {s['g_inh_nS']:.4f} {s['g_Ih_off_nS']:.4f} "
             f"{s['g_exc_nS']:.4f} {s['num_inh']:+8.2f} {s['num_exc']:+8.2f}"
@@ -1702,7 +1702,7 @@ def main() -> None:
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     add_shared_cli(ap)
-    ap.add_argument("--unit", type=int, default=None, help="hex-mode unit index")
+    ap.add_argument("--node", type=int, default=None, help="hex-mode node index")
     ap.add_argument("--rel", default=None, help="rel/abs START,STOP inclusive window")
     ap.add_argument(
         "--plot",
@@ -1727,7 +1727,7 @@ def main() -> None:
                 "omit both for cost-extent averages"
             )
         hex_mode = True
-        if any(t in training.SPOT_TARGETS for t in cli.targets):
+        if any(t in training.SPOT_TASKS for t in cli.tasks):
             raise SystemExit("hex mode is moving_bar-only; omit --x/--y for spot")
         if len(cli.cells) != 1:
             raise SystemExit("hex mode supports one --cell")
@@ -1764,19 +1764,19 @@ def main() -> None:
                 f"mode={'hex' if hex_mode else 'average'}"
             )
 
-        for target in cli.targets:
-            if target in training.SPOT_TARGETS:
-                if target not in spot_session_cache:
-                    spot_session_cache[target] = plot_trained.session_for_target(
-                        session, target,
+        for task in cli.tasks:
+            if task in training.SPOT_TASKS:
+                if task not in spot_session_cache:
+                    spot_session_cache[task] = plot_trained.session_for_task(
+                        session, task,
                     )
-                session_one = spot_session_cache[target]
-                _log(f"budget walk {target} (spot; batched) ...")
+                session_one = spot_session_cache[task]
+                _log(f"budget walk {task} (spot; batched) ...")
                 reports = analyze_spot_average(
                     session_one,
                     p=p,
                     cells=cli.cells,
-                    target=target,
+                    task=task,
                     abs_start=rel_start,
                     abs_stop=rel_stop,
                 )
@@ -1792,29 +1792,29 @@ def main() -> None:
             else:
                 hx = cli.x_list[0] if hex_mode else None
                 hy = cli.y_list[0] if hex_mode else None
-                if target not in bar_meta_cache:
-                    bar_meta_cache[target] = _bar_meta(session, target)
-                specs, grids = bar_meta_cache[target]
+                if task not in bar_meta_cache:
+                    bar_meta_cache[task] = _bar_meta(session, task)
+                specs, grids = bar_meta_cache[task]
                 cells_bar = [cli.cells[0]] if hex_mode else cli.cells
                 specs_ordered = _bar_specs_requested(
-                    session, target, cells_bar, cli.specs_req,
+                    session, task, cells_bar, cli.specs_req,
                     specs=specs, grids=grids,
                 )
                 multi_spec_plot = args.plot and len(specs_ordered) > 1
                 if hex_mode:
                     _log(
-                        f"budget walk {target} specs={specs_ordered} "
+                        f"budget walk {task} specs={specs_ordered} "
                         f"hex=({hx},{hy}) (batched, no full forward) ..."
                     )
                     reports_by_spec = analyze_bar_hex(
                         session,
                         p=p,
                         cell=cells_bar[0],
-                        target=target,
+                        task=task,
                         spec_names=specs_ordered,
                         at_x=float(hx),
                         at_y=float(hy),
-                        unit=args.unit,
+                        node=args.node,
                         rel_start=rel_start,
                         rel_stop=rel_stop,
                         specs=specs,
@@ -1822,14 +1822,14 @@ def main() -> None:
                     )
                 else:
                     _log(
-                        f"budget walk {target} specs={specs_ordered} "
+                        f"budget walk {task} specs={specs_ordered} "
                         f"(batched, no full forward) ..."
                     )
                     reports_by_spec = analyze_bar_average(
                         session,
                         p=p,
                         cells=cells_bar,
-                        target=target,
+                        task=task,
                         spec_names=specs_ordered,
                         rel_start=rel_start,
                         rel_stop=rel_stop,

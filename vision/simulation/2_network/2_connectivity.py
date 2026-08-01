@@ -5,8 +5,8 @@ Interface:
 
     conn.exc_inh_drive(x, syn_strength) -> (g_exc, g_inh)  # network / ScatterConn
     conn.signed_drive(x, syn_strength)  -> g_signed
-    conn.n_units
-    conn.node_type
+    conn.n_nodes
+    conn.node_cell
 
 ``x`` is the presynaptic output already scaled by the per-source out_gain, i.e.
 ``rectsyn(v, v_th) * out_gain`` for the borst model or
@@ -14,11 +14,11 @@ Interface:
 gain (``in_gain``) is applied by the caller AFTER these calls.
 
 Synaptic scaling multiplies each edge: length ``n_pairs`` type→type α
-(``syn_strength``, ``--syn-mode type_pair``) or length ``n_edges`` per-edge
+(``syn_strength``, ``--syn-mode cell_pair``) or length ``n_edges`` per-edge
 magnitude (``edge_weight``, ``--syn-mode per_edge``). Network path only
 (:class:`ScatterConn`).
 
-Both backends operate on the LAST axis (the units), so a plain 1-D ``(N,)`` state
+Both backends operate on the LAST axis (the nodes), so a plain 1-D ``(N,)`` state
 and a batched ``(B, N)`` state work without change in the caller.
 """
 from __future__ import annotations
@@ -33,20 +33,20 @@ def _as_long(t, device) -> torch.Tensor:
     return torch.as_tensor(t, dtype=torch.long, device=device)
 
 
-def build_type_pair_index(src_type, tar_type, n_types: int):
-    """Unique directed ``(source_type, target_type)`` codes → per-edge pair index.
+def build_cell_pair_index(src_cell, tar_cell, n_cells: int):
+    """Unique directed ``(source_cell, target_cell)`` codes → per-edge pair index.
 
     Returns
     -------
     pair_idx : (E,) int64
     n_pairs : int
-    pair_keys : list[(src_type, tar_type)] in index order
+    pair_keys : list[(src_cell, tar_cell)] in index order
     """
-    src_type = np.asarray(src_type, dtype=np.int64)
-    tar_type = np.asarray(tar_type, dtype=np.int64)
-    codes = src_type * int(n_types) + tar_type
+    src_cell = np.asarray(src_cell, dtype=np.int64)
+    tar_cell = np.asarray(tar_cell, dtype=np.int64)
+    codes = src_cell * int(n_cells) + tar_cell
     uniq, inv = np.unique(codes, return_inverse=True)
-    pair_keys = [(int(c // n_types), int(c % n_types)) for c in uniq]
+    pair_keys = [(int(c // n_cells), int(c % n_cells)) for c in uniq]
     return inv.astype(np.int64), int(len(uniq)), pair_keys
 
 
@@ -54,7 +54,7 @@ class ScatterConn:
     """Edge-list connectivity backend (connectome sub-graph or full graph).
 
     Built from parallel arrays describing directed synaptic edges ``source ->
-    target`` with a signed weight ``base_w`` (``sign * n_syn`` for type_pair,
+    target`` with a signed weight ``base_w`` (``sign * n_syn`` for cell_pair,
     ``sign`` for per_edge). Excitatory and inhibitory drives are accumulated with
     ``scatter_add`` over the target index. Scaling is either type-pair
     ``syn_strength[pair_idx[e]]`` or per-edge ``edge_weight[e]``.
@@ -65,8 +65,8 @@ class ScatterConn:
         src_idx,
         tar_idx,
         base_w,
-        n_units: int,
-        node_type,
+        n_nodes: int,
+        node_cell,
         *,
         dtype: torch.dtype,
         exc_scale: float = 1.0,
@@ -75,10 +75,10 @@ class ScatterConn:
     ) -> None:
         device = device or ("cuda" if torch.cuda.is_available() else "cpu")
         self.device = device
-        self.n_units = int(n_units)
+        self.n_nodes = int(n_nodes)
         self.src_idx = _as_long(src_idx, device)
         self.tar_idx = _as_long(tar_idx, device)
-        self.node_type = _as_long(node_type, device)
+        self.node_cell = _as_long(node_cell, device)
         self.n_edges = int(self.src_idx.numel())
 
         base_w = torch.as_tensor(base_w, dtype=dtype, device=device)
@@ -88,16 +88,16 @@ class ScatterConn:
         self.w_inh = torch.where(neg, -base_w, torch.zeros_like(base_w)) * inh_scale
         self.w_signed = base_w * exc_scale
 
-        n_types = int(self.node_type.max().item()) + 1 if self.n_units else 0
-        src_t = self.node_type[self.src_idx].detach().cpu().numpy()
-        tar_t = self.node_type[self.tar_idx].detach().cpu().numpy()
-        pair_idx_np, n_pairs, pair_keys = build_type_pair_index(src_t, tar_t, n_types)
+        n_cells = int(self.node_cell.max().item()) + 1 if self.n_nodes else 0
+        src_t = self.node_cell[self.src_idx].detach().cpu().numpy()
+        tar_t = self.node_cell[self.tar_idx].detach().cpu().numpy()
+        pair_idx_np, n_pairs, pair_keys = build_cell_pair_index(src_t, tar_t, n_cells)
         self.pair_idx = torch.as_tensor(pair_idx_np, dtype=torch.long, device=device)
         self.n_pairs = int(n_pairs)
         self.pair_keys = pair_keys
 
     def _scatter(self, vals: torch.Tensor) -> torch.Tensor:
-        out_shape = vals.shape[:-1] + (self.n_units,)
+        out_shape = vals.shape[:-1] + (self.n_nodes,)
         out = torch.zeros(out_shape, dtype=vals.dtype, device=vals.device)
         idx = self.tar_idx.expand(vals.shape)
         out.scatter_add_(-1, idx, vals)

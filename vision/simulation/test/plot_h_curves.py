@@ -26,7 +26,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 import FiveCol_MedSim_Pytorch as fc
-from path import parse_comma_list
+from import_bootstrap import parse_comma_list
 from param_defaults import P
 from training_config import DELTA_MS
 

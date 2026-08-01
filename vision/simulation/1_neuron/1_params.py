@@ -28,5 +28,5 @@ def e_ih_off(e_leak_rest: float, e_ih: float) -> float:
 # Non-numeric vocabularies (names / modes), not run defaults.
 IH_OFF_MODES = ("on", "off", "mirrored")
 IH_DIR_REVERSE_CELLS: Tuple[int, ...] = ()
-LEAK_DEPOL_TYPES = ["L1", "L2", "L3"]
+LEAK_DEPOL_CELLS = ["L1", "L2", "L3"]
 KNOWN_MODELS = ("borst", "hp_lp")

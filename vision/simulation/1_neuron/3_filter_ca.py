@@ -3,7 +3,7 @@
 
 ``ca_filter`` is a first-order low-pass on ``v - v_onset`` with
 ``alpha = delta_ms / Ca_tau``. Training and plots use ``v`` (``v - v_onset``)
-directly; ImpR / RecF targets are used as-is (no Ca conversion).
+directly; ImpR / RecF gts are used as-is (no Ca conversion).
 
 ``delta_ms`` / ``Ca_tau`` are injected scalars.
 """

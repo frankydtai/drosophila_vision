@@ -13,7 +13,7 @@ Visual interneurons come in many different flavors, representing luminance chang
 signals with different dynamics, ranging from purely sustained to sharply transient responses. While the functional relevance of this representation for subsequent computations like direction-selective motion detection is well understood,
 the mechanisms by which these differences in dynamics arise are unclear. Here, I study this question in the fly optic lobe.
 Taking advantage of the known connectome I simulate a network of five adjacent optical columns each comprising 65
-different cell types. Each neuron is modeled as an electrically compact single compartment, conductance-based element
+different cells. Each neuron is modeled as an electrically compact single compartment, conductance-based element
 that receives input from other neurons within its column and from its neighboring columns according to the intra- and
 inter-columnar connectivity matrix. The sign of the input is determined according to the known transmitter type of the
 presynaptic neuron and the receptor on the postsynaptic side. In addition, some of the neurons are given voltage-dependent
@@ -222,7 +222,7 @@ dg h,i ( Vi (t))
 dt
 τ
 
-With 65 different neuron types and each neuron having an input and an output gain, the total number of
+With 65 different neuron cells and each neuron having an input and an output gain, the total number of
 free parameters, thus, amounted to 130. If the model
 incorporated an H-current, 8 additional parameters
 g( max (L1) , g max (L2)
@@ -259,7 +259,7 @@ Prior to that, model responses were set to zero.
 2.2 Data
 Data were taken from two previous studies (Arenz et al.,
 2017; Drews et al., 2020). There, the impulse responses of
-13 neuronal cell types of the fly optic lobe were determined
+13 neuronal cells of the fly optic lobe were determined
 
 511
 
@@ -275,7 +275,7 @@ their step responses.
 
 2.3 Cost function
 Denoting the free parameters as a vector z, the model
-responses of N = 13 out of the 65 neuron types were compared to the experimental data set (Fig. 1) by the following
+responses of N = 13 out of the 65 neuron cells were compared to the experimental data set (Fig. 1) by the following
 cost function:
 cost (z) =
 
@@ -294,7 +294,7 @@ n,x,t (modeln,x,t
 N,X,T
 n,x,t (datan,x,t )
 
-where N is the number of cell types considered (N = 13),
+where N is the number of cells considered (N = 13),
 X the location within the receptive field (X = 5), and T the
 number of time points (T = 200). The cost function expresses
 the deviation of the model from the data responses as a fraction of the data power and, therefore, allows for a meaningful interpretation.
@@ -315,7 +315,7 @@ shown in Fig. 4 (optimized without an H-current) and Fig. 5
 In order to capture the spatial and the temporal properties of
 columnar neurons in the fly visual system, I simulated the
 neural activity in five adjacent columns arranged in a linear
-way (Fig. 2A). Each column contained 65 cell types, each
+way (Fig. 2A). Each column contained 65 cells, each
 with identical properties across all columns. The connectivity within each column (Fig. 2B) was set according to connectomic data (Shinomiya et al., 2019) with the strength of
 
 13
@@ -437,7 +437,7 @@ parameter set. This time, the model had 5 additional parameters determining the 
 5 lamina neurons and 3 parameters describing the voltage
 characteristics of the H-current, shared for all 5 lamina
 neurons. The resulting receptive field properties of the 13
-selected neuron types were in most cases almost indistinguishable from the experimental data, with a final cost of
+selected neuron cells were in most cases almost indistinguishable from the experimental data, with a final cost of
 only 3% (Fig. 5). As in the data, the spatial profiles of the
 receptive fields of lamina cell L3 and medulla neuron Mi4
 had antagonistic surrounds, and that of medulla cell Tm3
@@ -488,12 +488,12 @@ respond in a sustained way (Fig. 6) emphasizing the critical
 role of this current in lamina cells for the overall response
 dynamics of the circuit elements in the fly optic lobe.
 The approach taken in this study uses data from only 13
-out of the 65 cell types simulated in the network. This is
-because only from these 13 cell types, data were collected
+out of the 65 cells simulated in the network. This is
+because only from these 13 cells, data were collected
 using an identical stimulus protocol and data evaluation.
-On average, the 13 cell types receive 67% of their synaptic
+On average, the 13 cells receive 67% of their synaptic
 input from cells within this group, including photoreceptors, and 33% from other neurons in the optic lobe. While
-there exist data for a couple of other cell types as well in the
+there exist data for a couple of other cells as well in the
 literature, still the vast majority of neurons has unknown
 response properties making the model presented above
 highly under-constrained. Interestingly, however, even with

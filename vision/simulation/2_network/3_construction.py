@@ -3,19 +3,18 @@
 
 The JSON contract (see ``connectome/FAFBv783/.../network.json``):
 
-    metadata: {side, extent, nt_to_sign, forced_negative_pre_types, ...}
+    metadata: {side, extent, nt_to_sign, forced_negative_pre_cells, ...}
     nodes:    [{id, name, u, v, column_id, input, output}, ...]
-    edges:    [{src, tar, sign, n_syn, source_type, target_type, du, dv}, ...]
+    edges:    [{src, tar, sign, n_syn, source_cell, target_cell, du, dv}, ...]
 
-``sign`` already encodes ``nt_to_sign`` and the ``forced_negative_pre_types``
-override. ``--syn-mode type_pair`` uses ``base_w = sign * n_syn``;
+``sign`` already encodes ``nt_to_sign`` and the ``forced_negative_pre_cells``
+override. ``--syn-mode cell_pair`` uses ``base_w = sign * n_syn``;
 ``--syn-mode per_edge`` uses ``base_w = sign`` (ignore ``n_syn``).
 
-Units are the nodes in file order; ``node_type[i]`` is the index of
-``nodes[i]['name']`` in the family-ordered type vocabulary
-(:data:`TYPE_FAMILY_ROWS`). This broadcasts per-type params where unit
-``i``'s type is ``i % nofcells`` and lets the schema broadcast a
-``(n_types,)`` parameter to ``(n_units,)`` via ``param[node_type]``.
+Nodes follow ``network.json`` file order; ``node_cell[i]`` is the index of
+``nodes[i]['name']`` in the family-ordered cell vocabulary
+(:data:`CELL_FAMILY_ROWS`). This broadcasts per-cell params to nodes via
+``param[node_cell]`` (shape ``(n_cells,)`` → ``(n_nodes,)``).
 """
 from __future__ import annotations
 
@@ -34,8 +33,8 @@ from neuron.schema import normalize_syn_mode
 # Photoreceptor drive currents (pA) are injected by the caller
 # (``training.defaults.I_*``); this module has no numeric bindings.
 
-# Canonical cell-type order (photoreceptor → lamina → medulla families).
-TYPE_FAMILY_ROWS: List[List[str]] = [
+# Canonical cell order (photoreceptor → lamina → medulla families).
+CELL_FAMILY_ROWS: List[List[str]] = [
     ['R1-6', 'R7', 'R8'],
     ['L1', 'L2', 'L3', 'L4', 'L5'],
     ['Mi1', 'Mi4', 'Mi9'],
@@ -47,13 +46,13 @@ TYPE_FAMILY_ROWS: List[List[str]] = [
 ]
 
 
-def type_family_row_groups(present: Sequence[str]) -> List[List[str]]:
-    """Family row groups; skip absent types and empty rows; append leftovers."""
+def cell_family_row_groups(present: Sequence[str]) -> List[List[str]]:
+    """Family row groups; skip absent cells and empty rows; append leftovers."""
     present_list = [str(t) for t in present]
     present_set = set(present_list)
     rows: List[List[str]] = []
     used: set = set()
-    for row in TYPE_FAMILY_ROWS:
+    for row in CELL_FAMILY_ROWS:
         filtered = [str(t) for t in row if str(t) in present_set]
         if filtered:
             rows.append(filtered)
@@ -64,9 +63,9 @@ def type_family_row_groups(present: Sequence[str]) -> List[List[str]]:
     return rows
 
 
-def type_names_in_family_order(present: Sequence[str]) -> List[str]:
-    """Flat cell-type order from :func:`type_family_row_groups`."""
-    return [n for row in type_family_row_groups(present) for n in row]
+def cell_names_in_family_order(present: Sequence[str]) -> List[str]:
+    """Flat cell order from :func:`cell_family_row_groups`."""
+    return [n for row in cell_family_row_groups(present) for n in row]
 
 
 @dataclass
@@ -74,34 +73,34 @@ class Network:
     """A loaded network: edge-list backend plus per-node geometry / indices."""
 
     conn: ScatterConn
-    n_units: int
-    node_type: torch.Tensor          # (N,) long, index into type_names
-    type_names: List[str]            # type vocabulary (len = n_types)
+    n_nodes: int
+    node_cell: torch.Tensor          # (N,) long, index into cell_names
+    cell_names: List[str]            # cell vocabulary (len = n_cells)
     u: np.ndarray                    # (N,) axial u
     v: np.ndarray                    # (N,) axial v
     column_id: np.ndarray            # (N,) FAFB column_id (or -1)
     is_input: np.ndarray             # (N,) bool photoreceptor / stimulus node
-    node_ids: List[int]              # (N,) original node ids in unit order
-    id_to_unit: Dict[int, int]       # node id -> unit index
+    node_ids: List[int]              # (N,) original node ids in node order
+    id_to_node: Dict[int, int]       # node id -> node index
     device: str = "cpu"
     meta: dict = field(default_factory=dict)
     source_json: Optional[Path] = None
 
     @property
-    def n_types(self) -> int:
-        return len(self.type_names)
+    def n_cells(self) -> int:
+        return len(self.cell_names)
 
     @property
-    def center_units(self) -> np.ndarray:
-        """Units in the center column (u == 0 and v == 0)."""
+    def center_nodes(self) -> np.ndarray:
+        """Nodes in the center hex (u == 0 and v == 0)."""
         return np.where((self.u == 0) & (self.v == 0))[0]
 
-    def units_at(self, u: int, v: int) -> np.ndarray:
-        """All unit indices sitting on column (u, v)."""
+    def nodes_at(self, u: int, v: int) -> np.ndarray:
+        """All node indices sitting on hex (u, v)."""
         return np.where((self.u == u) & (self.v == v))[0]
 
-    def input_units_at(self, u: int, v: int) -> np.ndarray:
-        """Stimulus (photoreceptor) unit indices on column (u, v)."""
+    def input_nodes_at(self, u: int, v: int) -> np.ndarray:
+        """Stimulus (photoreceptor) node indices on hex (u, v)."""
         return np.where((self.u == u) & (self.v == v) & self.is_input)[0]
 
     def build_signal(
@@ -113,43 +112,75 @@ class Network:
         t_onset: int,
         center_uv=(0, 0),
     ) -> torch.Tensor:
-        """(n_t, n_units) injected PR current for one column's inputs."""
-        sig = torch.zeros((n_t, self.n_units), dtype=torch.float64, device=self.device)
-        units = self.input_units_at(int(center_uv[0]), int(center_uv[1]))
-        if len(units):
-            idx = torch.as_tensor(units, dtype=torch.long, device=self.device)
+        """(n_t, n_nodes) injected PR current for one hex's inputs."""
+        sig = torch.zeros((n_t, self.n_nodes), dtype=torch.float64, device=self.device)
+        nodes = self.input_nodes_at(int(center_uv[0]), int(center_uv[1]))
+        if len(nodes):
+            idx = torch.as_tensor(nodes, dtype=torch.long, device=self.device)
             sig[:t_onset, idx] = i_baseline
             sig[t_onset:, idx] = i_bright
         return sig
 
 
-def unit_type_names(C: Network) -> np.ndarray:
-    """(n_units,) array of each unit's cell-type NAME."""
-    return np.asarray(C.type_names)[C.node_type.detach().cpu().numpy()]
+def node_cell_names(C: Network) -> np.ndarray:
+    """(n_nodes,) array of each node's cell NAME."""
+    return np.asarray(C.cell_names)[C.node_cell.detach().cpu().numpy()]
 
 
 def col2sti(C: Network, u: int, v: int) -> np.ndarray:
-    """Stimulus (photoreceptor / input) unit indices on column (u, v)."""
-    return C.input_units_at(int(u), int(v))
+    """Stimulus (photoreceptor / input) node indices on hex (u, v)."""
+    return C.input_nodes_at(int(u), int(v))
 
 
-def col2fit(
+def col2gt(
     C: Network,
     u: int,
     v: int,
-    fit_type: str,
+    gt_type: str,
     names: Optional[np.ndarray] = None,
 ) -> np.ndarray:
-    """Unit indices of cell type ``fit_type`` on column (u, v)."""
+    """Node indices of cell ``gt_type`` on hex (u, v)."""
     if names is None:
-        names = unit_type_names(C)
+        names = node_cell_names(C)
     return np.where(
-        (C.u == int(u)) & (C.v == int(v)) & (names == fit_type),
+        (C.u == int(u)) & (C.v == int(v)) & (names == gt_type),
     )[0]
 
 
+def present_gt_cells(
+    gt_cells: Optional[Sequence[str]],
+    default_pool: Sequence[str],
+    available: Sequence[str],
+    *,
+    context: str,
+) -> List[str]:
+    """Intersect requested (or default) gt cells with those present in the network."""
+    pool = tuple(gt_cells) if gt_cells is not None else tuple(default_pool)
+    present = [st for st in pool if st in set(available)]
+    if not present:
+        raise ValueError(
+            f"{context} has no gt cells (requested {list(pool)!r})",
+        )
+    return present
+
+
+def gt_cells_from_opts(opts) -> Optional[Tuple[str, ...]]:
+    """``opts['gt_cells']`` as a tuple, or ``None`` if unset."""
+    rs = (opts or {}).get("gt_cells")
+    if rs is None:
+        return None
+    return tuple(str(s) for s in rs)
+
+
+def gt_cells_list(gt_cells: Optional[Sequence[str]]) -> Optional[List[str]]:
+    """Serialize ``gt_cells`` for stimulus opts, or ``None`` if unset."""
+    if gt_cells is None:
+        return None
+    return [str(s) for s in gt_cells]
+
+
 def read_network_json(path) -> Tuple[List[dict], List[dict], List[str], dict]:
-    """Load ``network.json`` → ``(nodes, edges, family-ordered type_names, metadata)``."""
+    """Load ``network.json`` → ``(nodes, edges, family-ordered cell_names, metadata)``."""
     path = Path(path)
     with open(path) as f:
         doc = json.load(f)
@@ -160,11 +191,11 @@ def read_network_json(path) -> Tuple[List[dict], List[dict], List[str], dict]:
     present = sorted(
         {n["name"] for n in nodes if isinstance(n.get("name"), str)}
     )
-    type_names = type_names_in_family_order(present)
+    cell_names = cell_names_in_family_order(present)
     meta = doc.get("metadata", {})
     if not isinstance(meta, dict):
         meta = {}
-    return nodes, edges, type_names, meta
+    return nodes, edges, cell_names, meta
 
 
 def load_network(
@@ -179,15 +210,15 @@ def load_network(
     """Read ``network.json`` and return a :class:`Network``."""
     device = device or ("cuda" if torch.cuda.is_available() else "cpu")
     path = Path(path)
-    nodes, edges, type_names, meta = read_network_json(path)
+    nodes, edges, cell_names, meta = read_network_json(path)
     mode = normalize_syn_mode(syn_mode)
 
-    n_units = len(nodes)
+    n_nodes = len(nodes)
     node_ids = [int(n["id"]) for n in nodes]
-    id_to_unit = {nid: i for i, nid in enumerate(node_ids)}
+    id_to_node = {nid: i for i, nid in enumerate(node_ids)}
 
-    type_to_idx = {t: i for i, t in enumerate(type_names)}
-    node_type = np.array([type_to_idx[n["name"]] for n in nodes], dtype=np.int64)
+    cell_to_idx = {t: i for i, t in enumerate(cell_names)}
+    node_cell = np.array([cell_to_idx[n["name"]] for n in nodes], dtype=np.int64)
 
     u = np.array([n.get("u", 0) if n.get("u") is not None else 0 for n in nodes], dtype=np.int64)
     v = np.array([n.get("v", 0) if n.get("v") is not None else 0 for n in nodes], dtype=np.int64)
@@ -197,13 +228,13 @@ def load_network(
     )
     is_input = np.array([bool(n.get("input", False)) for n in nodes], dtype=bool)
 
-    # edge list -> unit indices + signed base weight.
+    # edge list -> node indices + signed base weight.
     src_idx = np.empty(len(edges), dtype=np.int64)
     tar_idx = np.empty(len(edges), dtype=np.int64)
     base_w = np.empty(len(edges), dtype=np.float64)
     for k, e in enumerate(edges):
-        src_idx[k] = id_to_unit[int(e["src"])]
-        tar_idx[k] = id_to_unit[int(e["tar"])]
+        src_idx[k] = id_to_node[int(e["src"])]
+        tar_idx[k] = id_to_node[int(e["tar"])]
         sign = float(e["sign"])
         if mode == "per_edge":
             base_w[k] = sign
@@ -214,8 +245,8 @@ def load_network(
         src_idx=src_idx,
         tar_idx=tar_idx,
         base_w=base_w,
-        n_units=n_units,
-        node_type=node_type,
+        n_nodes=n_nodes,
+        node_cell=node_cell,
         exc_scale=exc_synweight,
         inh_scale=inh_synweight,
         device=device,
@@ -224,15 +255,15 @@ def load_network(
 
     return Network(
         conn=conn,
-        n_units=n_units,
-        node_type=torch.as_tensor(node_type, dtype=torch.long, device=device),
-        type_names=type_names,
+        n_nodes=n_nodes,
+        node_cell=torch.as_tensor(node_cell, dtype=torch.long, device=device),
+        cell_names=cell_names,
         u=u,
         v=v,
         column_id=column_id,
         is_input=is_input,
         node_ids=node_ids,
-        id_to_unit=id_to_unit,
+        id_to_node=id_to_node,
         device=device,
         meta=meta,
         source_json=path.resolve(),
@@ -244,7 +275,7 @@ if __name__ == "__main__":
 
     from path import BUILT_NETWORKS_DIR
     from training.defaults import EXC_SYNWEIGHT, INH_SYNWEIGHT, SYN_MODE
-    from training.target_pack import SIM_DTYPE
+    from training.readout_pack import SIM_DTYPE
 
     p = sys.argv[1] if len(sys.argv) > 1 else str(
         BUILT_NETWORKS_DIR / "right_min_neuron1_extent2" / "network.json"
@@ -255,15 +286,15 @@ if __name__ == "__main__":
         syn_mode=SYN_MODE, dtype=SIM_DTYPE,
     )
     print(f"loaded {p}")
-    print(f"n_units={c.n_units}  n_types={c.n_types}  n_edges={len(c.conn.src_idx)}")
-    print(f"center units (u=v=0): {c.center_units.tolist()}")
-    print(f"input units total: {int(c.is_input.sum())}")
-    x = torch.ones(c.n_units, dtype=torch.float64)
+    print(f"n_nodes={c.n_nodes}  n_cells={c.n_cells}  n_edges={len(c.conn.src_idx)}")
+    print(f"center nodes (u=v=0): {c.center_nodes.tolist()}")
+    print(f"input nodes total: {int(c.is_input.sum())}")
+    x = torch.ones(c.n_nodes, dtype=torch.float64)
     alpha = torch.ones(c.conn.n_pairs, dtype=torch.float64, device=c.device)
     ge, gi = c.conn.exc_inh_drive(x, alpha)
     print(f"exc_inh_drive ok: g_exc.sum={float(ge.sum()):.4f} g_inh.sum={float(gi.sum()):.4f} "
           f"n_pairs={c.conn.n_pairs}")
-    xb = torch.ones((7, c.n_units), dtype=torch.float64)
+    xb = torch.ones((7, c.n_nodes), dtype=torch.float64)
     geb, _ = c.conn.exc_inh_drive(xb, alpha)
     print(f"batched (7,N) ok: shape={tuple(geb.shape)}")
     sig = c.build_signal(n_t=10, i_baseline=I_BASELINE, i_bright=I_BRIGHT, t_onset=5)

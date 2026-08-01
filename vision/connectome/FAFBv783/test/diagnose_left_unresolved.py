@@ -13,9 +13,6 @@ Run with the project venv:
 
 from __future__ import annotations
 
-import sys
-from pathlib import Path
-
 import pandas as pd
 
 import import_bootstrap  # noqa: F401
@@ -23,7 +20,7 @@ import import_bootstrap  # noqa: F401
 from build_network import FafbDataLoader  # noqa: E402
 from assign_column import locate_neurons  # noqa: E402
 
-TARGET_TYPE = "R1-6"
+TARGET_CELL = "R1-6"
 SIDES = ("right", "left")
 
 
@@ -31,14 +28,14 @@ def main() -> None:
     loader = FafbDataLoader()
     neurons_all = loader.load_visual_neurons()
     columns_all = loader.load_column_assignments()
-    id2type = dict(zip(neurons_all["root_id"], neurons_all["type"]))
+    id2cell = dict(zip(neurons_all["root_id"], neurons_all["cell"]))
 
     for side in SIDES:
         neurons = neurons_all[neurons_all["side"] == side]
         columns = columns_all[columns_all["hemisphere"] == side]
         col_ids = set(columns["root_id"])
         target_ids = set(
-            neurons[neurons["type"] == TARGET_TYPE]["root_id"].astype("int64")
+            neurons[neurons["cell"] == TARGET_CELL]["root_id"].astype("int64")
         )
         connections = loader.load_connections(keep_neuron_ids=target_ids)
 
@@ -46,7 +43,7 @@ def main() -> None:
             neurons=neurons,
             columns=columns,
             connections=connections,
-            target_types=[TARGET_TYPE],
+            target_cells=[TARGET_CELL],
             side=side,
             direction="post",
         )
@@ -56,7 +53,7 @@ def main() -> None:
         no_edges = int((un["n_post"] == 0).sum())
         no_col = int(((un["n_post"] > 0) & (un["n_post_with_column"] == 0)).sum())
 
-        print(f"\n{'='*64}\n{side.upper()}  ({TARGET_TYPE})\n{'='*64}")
+        print(f"\n{'='*64}\n{side.upper()}  ({TARGET_CELL})\n{'='*64}")
         print(f"  neurons            : {total}")
         print(f"  resolved           : {total - len(un)}")
         print(f"  unresolved         : {len(un)}")
@@ -66,9 +63,9 @@ def main() -> None:
               f"median={located['n_post'].median():.0f} "
               f"max={located['n_post'].max()}")
 
-        # Post-target type breakdown + per-type column coverage.
+        # Post-target type breakdown + per-cell column coverage.
         edges = connections[connections["pre_root_id"].isin(target_ids)].copy()
-        edges["post_type"] = edges["post_root_id"].map(id2type).fillna("?")
+        edges["post_type"] = edges["post_root_id"].map(id2cell).fillna("?")
         edges["post_has_col"] = edges["post_root_id"].isin(col_ids)
         frac = edges["post_has_col"].mean() * 100
         print(f"  R1-6 post edges     : {len(edges)}  "

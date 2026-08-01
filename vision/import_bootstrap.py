@@ -3,10 +3,12 @@
 Roots (tried in order):
 
   - ``simulation/`` — packages (``neuron.params``, ``network.layout``, …)
-  - ``connectome/FAFBv783/`` — flat modules (``build_hex``, ``build_network``, …)
+  - ``connectome/FAFBv783/`` — flat modules (``build_hex``, ``build_network``, ``add_extent``, …)
 
 Disk names are ``{n}_{logical}`` (dirs and ``.py`` modules). Imports stay
 logical. Renumbering is rename-only; this finder has no per-file registry.
+
+Also hosts :func:`parse_comma_list` (sole comma-token splitter for CLI lists).
 
 ``__init__.py`` is unnumbered. Call :func:`install` (or ``import import_bootstrap``)
 before any logical import. Project ``.venv`` ``simulation_sorted.pth`` loads this
@@ -21,7 +23,7 @@ import importlib.util
 import re
 import sys
 from pathlib import Path
-from typing import Iterable, Optional, Sequence, Tuple
+from typing import Iterable, List, Optional, Sequence, Tuple
 
 _SORT_PREFIX = re.compile(r"^\d+_")
 _VISION = Path(__file__).resolve().parent
@@ -30,6 +32,11 @@ _ROOTS: Tuple[Path, ...] = (
     _VISION / "connectome" / "FAFBv783",
 )
 _SKIP_NAMES = frozenset({"__pycache__", "0_runs", "0_logs"})
+
+
+def parse_comma_list(text: str) -> List[str]:
+    """Split a comma-separated token list (empty string → ``[]``)."""
+    return [t.strip() for t in str(text or "").split(",") if t.strip()]
 
 
 def logical_name(name: str) -> str:

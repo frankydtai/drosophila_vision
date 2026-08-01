@@ -1,4 +1,4 @@
-"""Model-data readout cell selection from session + target."""
+"""Model-data readout cell selection from session + task."""
 
 from __future__ import annotations
 
@@ -6,21 +6,21 @@ import numpy as np
 import torch
 
 from training.defaults import DATA_AMP, DELTA_MS
-from task.spot.data import cell_list, read_RecF_data, read_RecF_data_dark
+from task.spot.data import GT_CELLS, read_RecF_data, read_RecF_data_dark
 from network.construction import (
-    TYPE_FAMILY_ROWS,
-    type_family_row_groups,
-    type_names_in_family_order,
+    CELL_FAMILY_ROWS,
+    cell_family_row_groups,
+    cell_names_in_family_order,
 )
 
-PLOT_FAMILY_ROWS = [np.array(row) for row in TYPE_FAMILY_ROWS]
+PLOT_FAMILY_ROWS = [np.array(row) for row in CELL_FAMILY_ROWS]
 
 _VALID_CONTRASTS = ("bright", "dark")
 
 
 def plot_row_groups(present):
-    """Family row groups for plots; skip absent types and empty rows."""
-    return [np.array(row) for row in type_family_row_groups(present)]
+    """Family row groups for plots; skip absent cells and empty rows."""
+    return [np.array(row) for row in cell_family_row_groups(present)]
 
 
 def plot_present_layout(present):
@@ -30,47 +30,47 @@ def plot_present_layout(present):
     return groups, names
 
 
-def plot_types_in_order(present):
-    """Flat cell-type order from :func:`plot_present_layout`."""
-    return type_names_in_family_order(present)
+def plot_cells_in_order(present):
+    """Flat cell order from :func:`plot_present_layout`."""
+    return cell_names_in_family_order(present)
 
 
-def _pack_for(session, target):
-    if target is None:
-        return session.primary_pack
-    return session.pack_for(target)
+def _pack_for(session, task):
+    if task is None:
+        return session.primary_readout
+    return session.pack_for(task)
 
 
-def _type_names_for_units(session, unit_indices):
-    u = unit_indices
+def _cell_names_for_nodes(session, node_indices):
+    u = node_indices
     if torch.is_tensor(u):
         u = u.detach().cpu().numpy()
     u = np.asarray(u, dtype=np.int64)
     C = session.backend.network
     if C is None:
-        raise ValueError("_type_names_for_units requires session.backend.network")
-    node_type = C.node_type[u]
-    if torch.is_tensor(node_type):
-        node_type = node_type.detach().cpu().numpy()
-    names = list(C.type_names)
-    return [str(names[int(ti)]) for ti in node_type]
+        raise ValueError("_cell_names_for_nodes requires session.backend.network")
+    node_cell = C.node_cell[u]
+    if torch.is_tensor(node_cell):
+        node_cell = node_cell.detach().cpu().numpy()
+    names = list(C.cell_names)
+    return [str(names[int(ti)]) for ti in node_cell]
 
 
-def pack_readout_types(session, target=None):
-    """Unique cell-type names on pack.readout_unit, pack order."""
-    pack = _pack_for(session, target)
+def pack_readout_cells(session, task=None):
+    """Unique cell names on pack.readout_node, pack order."""
+    pack = _pack_for(session, task)
     seen = set()
     out = []
-    for name in _type_names_for_units(session, pack.readout_unit):
+    for name in _cell_names_for_nodes(session, pack.readout_node):
         if name not in seen:
             seen.add(name)
             out.append(name)
     return tuple(out)
 
 
-def contrast_for_target(target) -> str:
+def contrast_for_task(task) -> str:
     """``bright`` / ``dark`` from a spot pack name."""
-    return "dark" if str(target) == "spot_dark" else "bright"
+    return "dark" if str(task) == "spot_dark" else "bright"
 
 
 def contrast_order(contrasts) -> tuple[str, ...]:
@@ -130,13 +130,13 @@ def _cell_cubes(*, dark: bool, t_onset=None, n_t=None, pulse_ms=None, delta_ms: 
     kw = dict(t_onset=t_onset, n_t=n_t, pulse_ms=pulse_ms, delta_ms=float(delta_ms))
     data = read_RecF_data_dark(**kw) if dark else read_RecF_data(**kw)
     cubes = data * DATA_AMP
-    return {str(name): cubes[i] for i, name in enumerate(cell_list)}
+    return {str(name): cubes[i] for i, name in enumerate(GT_CELLS)}
 
 
 def fit_data_cubes(
     *, contrasts=("bright",), t_onset=None, n_t=None, pulse_ms=None, delta_ms: float = DELTA_MS,
 ):
-    """RecF data cubes ``{contrast: {cell: (9, T)}}`` (``v`` target as-is)."""
+    """RecF data cubes ``{contrast: {cell: (9, T)}}`` (``v`` readout as-is)."""
     out = {}
     for contrast in contrasts:
         contrast = str(contrast)
@@ -153,7 +153,7 @@ def fit_data_cubes(
 
 def spot_data_cubes(
     session,
-    target=None,
+    task=None,
     *,
     contrasts=None,
     t_onset=None,
@@ -162,9 +162,9 @@ def spot_data_cubes(
     delta_ms: float = DELTA_MS,
 ):
     """Spot data cubes ``{contrast: {cell: (9, T)}}`` with pack mirror overrides."""
-    target = target or session.primary_pack.name
+    task = task or session.primary_readout.name
     if contrasts is None:
-        contrasts = (contrast_for_target(target),)
+        contrasts = (contrast_for_task(task),)
     overrides = (session.train_opts or {}).get('pack_overrides') or {}
     base = fit_data_cubes(
         contrasts=contrasts, t_onset=t_onset, n_t=n_t, pulse_ms=pulse_ms,
@@ -175,6 +175,6 @@ def spot_data_cubes(
         pack_name = "spot_dark" if contrast == "dark" else "spot_bright"
         ov = overrides.get(pack_name)
         if ov is None:
-            ov = overrides.get(target)
+            ov = overrides.get(task)
         out[contrast] = _apply_mirror(cells, ov)
     return out

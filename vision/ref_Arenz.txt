@@ -179,7 +179,7 @@ axes. As single photoreceptors respond to local luminance                   ing 
 
 930 Current Biology 27, 929–944, April 3, 2017
 neurons would represent the half-detector units of the fully oppo-                    reduced the optomotor response to OFF edges [20]. However,
-nent motion detector model just before the subtraction stage.                         no blocks of single cell types or of two types in combination
+nent motion detector model just before the subtraction stage.                         no blocks of single cells or of two types in combination
 Although the HR detector describes the responses of lobula                            fully abolished the responses to dark edges, suggesting either
 plate tangential cells well, the responses of T4 and T5 neurons                       redundancy or a more complicated implementation than previ-
 are more directionally selective than would be expected for the                       ously suggested. Fourth, recent experiments based on the
@@ -199,14 +199,14 @@ to Tm3, as well as a similar temporal offset of Tm1 with respect                
 to Tm2 in the OFF pathway [18]. This led to the suggestion of HR                      proposed algorithmic three-arm model of the Drosophila motion
 correlator implementations with Mi1 and Tm1 as the delayed and                        detectors.
 Tm3 and Tm2 as the direct arms in the ON and the OFF pathway,                             In order to dissect the roles and contributions of individual
-respectively [18, 19].                                                                cell types, it would be helpful to modify their temporal response
+respectively [18, 19].                                                                cells, it would be helpful to modify their temporal response
    However, new findings from several recent studies question                         dynamics and observe the effect on the downstream motion
 this model. First, new electron-microscopic circuit reconstruc-                       detectors. One remarkable property of tangential cells is that
 tions show additional synaptic input from Mi4 and Mi9 cells onto                      their velocity tuning is not fixed but dependent on the behav-
 T4 cells (Lou Scheffer, personal communication; https://web.                          ioral state of the fly, as has been observed in Drosophila and
 archive.org/web/20150218101857/http://emanalysis.janelia.org/                         Lucilia. In walking [24] as well as in tethered flying flies
 flyem_tables.php), and from the transmedulla neurons Tm4 and                          [25, 26], the temporal-frequency tuning shifts toward higher fre-
-Tm9 onto T5 cells [5]. Second, when all four input cell types in                      quencies, corresponding to higher velocities, potentially match-
+Tm9 onto T5 cells [5]. Second, when all four input cells in                      quencies, corresponding to higher velocities, potentially match-
 the OFF pathway were considered, large differences in their tem-                      ing the expected change of the stimulus statistics from resting
 poral response kinetics to flashes of dark bars were revealed [20].                   to active locomotion. The behavioral effect can be mimicked in
 Whereas Tm1, Tm2, and Tm4 respond like band-pass filters with                         resting flies by pharmacological activation of octopamine re-
@@ -219,7 +219,7 @@ only affects responses to edges moving at higher angular veloc-                 
 ities but leaves responses to lower velocities unchanged [21].                        Importantly, this change in the temporal tuning could be repro-
 This again argues against Tm3 being one of the two arms of the                        duced in computer simulations by decreasing the low-pass
 motion detector under all conditions. Similarly, in the OFF                           filter time constant in the HR detector [25], indicating that iden-
-pathway, all four cell types were shown to contribute to the detec-                   tifying the input elements that change their kinetics under
+pathway, all four cells were shown to contribute to the detec-                   tifying the input elements that change their kinetics under
 tion of moving OFF edges. Blocking their synaptic output                              octopamine activation might help to pinpoint their functional
 decreased the responses of downstream tangential cells and                            roles in the detector.
 
@@ -301,11 +301,11 @@ The functional role of the input neurons to the elementary motion               
 detectors and their correspondence to elements of any detector                   pass characteristic in the spatial domain.
 model depend crucially on their spatiotemporal response char-                       The temporal component of the spatiotemporal receptive field
 acteristics. For this reason, we characterized the spatial extent                centers yielded the impulse responses, which reflect the tempo-
-of the receptive fields as well as the response dynamics of all pu-              ral filtering properties of the respective cell type. Mi1 and Tm3
+of the receptive fields as well as the response dynamics of all pu-              ral filtering properties of the respective cell. Mi1 and Tm3
 tative input elements to the T4 and T5 cells: Mi1, Tm3, Mi4, and                 showed band-pass filter characteristics, as can be seen in their
 Mi9 in the ON pathway, and Tm1, Tm2, Tm4, and Tm9 in the OFF                     biphasic impulse responses (Figure 2I) and in their response
 pathway. Expressing the genetically encoded calcium indicator                    spectra (Figure 2J). In contrast, Mi4 and Mi9 appeared as pure
-GCaMP6f [30] with cell-type-specific Gal4-driver lines, we                       low-pass filters (Figures 2I and 2J). Surprisingly, and in contrast
+GCaMP6f [30] with cell-specific Gal4-driver lines, we                       low-pass filters (Figures 2I and 2J). Surprisingly, and in contrast
 imaged calcium signals in single terminals in layer 10 of the                    to the other elements of the ON pathway, Mi9 showed the in-
 medulla or the proximal lobula for the ON- and OFF-pathway                       verse contrast preference, with an increased calcium response
 elements, respectively.                                                          to darkening in its receptive field center (OFF response). How-
@@ -329,7 +329,7 @@ poral filters were validated by predicting held-out test sequences              
 of neuronal responses from the stimulus for two example neuron                   characteristic. In contrast to Mi4 and Mi9, however, the surround
 types (Mi1 and Tm9) (Figure S2; see Supplemental Experimental                    inhibition, with respect to the center, was weaker, which should
 Procedures).                                                                     render them more responsive to wide-field flicker. As a parallel to
-   All four cell types in the ON pathway, Mi1, Tm3, Mi4, and Mi9,                the ON-pathway elements, three of the neurons, Tm1, Tm2, and
+   All four cells in the ON pathway, Mi1, Tm3, Mi4, and Mi9,                the ON-pathway elements, three of the neurons, Tm1, Tm2, and
 showed locally confined receptive fields that appeared isotropic                 Tm9, showed a receptive field center with a half-width diameter
 in the horizontal and vertical dimensions (Figures 2E–2H). Mi1,                  of about 7 , whereas one element, Tm4, had a larger receptive
 Mi4, and Mi9 cells revealed a receptive field center with a half-                field center, with a half-width diameter of approximately 10 .
@@ -381,7 +381,7 @@ photon Ca2+ imaging in Drosophila expressing the genetically             vation 
 encoded calcium indicator GCaMP6m in the subset of T4/T5                 to control conditions. Application of CDM left the spatial recep-
 neurons that are upward motion selective and project their axons         tive fields of all four input neurons in the ON pathway unaffected
 to layer 3 of the lobula plate (T4c/T5c) (Figure 3A). Visual stimu-      (Figure 4A). However, it accelerated the response kinetics of all
-lation was presented on a semi-cylindrical LED arena and                 four cell types to different degrees, with much stronger effects
+lation was presented on a semi-cylindrical LED arena and                 four cells to different degrees, with much stronger effects
 consisted of full-contrast square-wave gratings with a spatial           on the fast band-pass elements Mi1 and Tm3 than on the slow
 wavelength of 24 , moving at 12 different velocities ranging            low-pass filters Mi4 and Mi9 (Figures 4B and 4C, magenta
 from 1.2 /s to 480 /s, corresponding to temporal frequencies           traces; Figures S4A, S5Ai, and S5Bi). As for control conditions,
@@ -680,7 +680,7 @@ faster than Mi1 [18] (but see [36]), and Tm2 faster than Tm1            band-pas
 very small. On the other hand, Tm9 in the OFF pathway has                  In the latter case, however, the BL subunit considered alone
 been described as a low-pass filter [20, 35], which matches             contributed very little to the directional tuning (Figure 5B, right),
 our results. In the ON pathway, we find that the previously un-         as the low-pass-filtered central excitatory input tends to outlast
-characterized cell types Mi4 and Mi9 also show pure temporal            the corresponding suppression from the band-pass outer arm.
+characterized cells Mi4 and Mi9 also show pure temporal            the corresponding suppression from the band-pass outer arm.
 low-pass response characteristics. Thus, in both pathways,              This reduces the tuning sharpness of these detectors. Further-
 input elements with slow-sustained and fast-transient responses         more, this implementation does not match the arrangement of
 are found, which then converge onto the dendrites of T4 and T5          PD-enhancement and ND-suppression receptive fields along
@@ -789,7 +789,7 @@ elements with respect to their filter characteristics generally re-    nisms, we
 mained the same under CDM, Tm1 became faster than Tm4 (Fig-            ments alone are sufficient to explain the response properties of
 ure S6). As a consequence, simulated motion detectors using            the elementary motion detectors across different tuning regimes.
 combinations that relied on temporal differences between these         Future studies using the genetic toolbox of Drosophila to activate
-two cell types suffered a strong reduction or complete break-          or block individual input neurons and studying the effects on
+two cells suffered a strong reduction or complete break-          or block individual input neurons and studying the effects on
 down of direction selectivity under CDM (Figure 5). Considering        visual responses in the T4 and T5 cells, as well as neurotrans-
 cell-to-cell variability and such changes under different physio-      mitter and receptor expression pattern analyses and electron-
 logical conditions, detectors relying on small differences in the      microscopic reconstructions of the wiring, will be required to
@@ -1238,7 +1238,7 @@ Flies were raised and kept on standard cornmeal-agar medium on a 12 hour light/1
 cycle at 25°C and 60% humidity. For patch-clamp recordings from tangential cells, Canton S
 flies were used. For calcium imaging experiments, the genetically-encoded calcium indicators
 GCaMP6f or GCaMP6m [S1] were expressed using the Gal4/UAS- or LexA/lexAop-system in
-cell-type specific driver lines, resulting in the following genotypes:
+cell specific driver lines, resulting in the following genotypes:
 
  Short name         Genotype
  Mi1>GC6f           w-; R19F01-AD/UAS-GCaMP6f; R71D01-DBD/UAS-GCaMP6f
@@ -1348,7 +1348,7 @@ in layer 10 of the medulla for the ON, in the lobula for the OFF pathway element
 single terminals. For T4 and T5 neurons, ROIs were routinely chosen in the lobula plate,
 encompassing small regions with single to few axon terminals, or selected to cover single
 neurites between medulla or lobula and lobula plate. For Figure 3D&E, ROIs were drawn in
-the medulla for T4 and in the lobula for T5 neurons to separate those 2 cell types. Averaging
+the medulla for T4 and in the lobula for T5 neurons to separate those 2 cells. Averaging
 the fluorescence change over this ROI in space resulted in a ΔF/F time course. Neuronal
 responses were quantified as the maximum ΔF/F value over the stimulation period plus the
 subsequent 0.5 s, subtracted by the average of the baseline period covering the 2 frames before
