@@ -21,7 +21,7 @@ from neuron.params import ms_to_t
 from network.construction import (
     col2gt,
     present_gt_cells,
-    gt_cells_list,
+    normalize_gt_cells,
     node_cell_names,
 )
 from task.moving_bar.input import (
@@ -109,13 +109,13 @@ class MotionPreference:
     pc_nc: str
 
 
-def dsi_sequential_batch_pairs(spec_names: Sequence[str]) -> Tuple[Tuple[int, ...], ...]:
-    """Minimal stimulus-batch groups for sequential DSI: one ``(pos,neg)`` per axis x width."""
+def dsi_sequential_batch_groups(spec_names: Sequence[str]) -> Tuple[Tuple[int, ...], ...]:
+    """Minimal stimulus-batch groups for sequential DSI: one group per axis x width."""
     batches_by_dir_w: dict[tuple[str, str], list[int]] = {}
     for bi, sname in enumerate(spec_names):
         direction, _contrast, wtag = parse_moving_bar_spec(sname)
         batches_by_dir_w.setdefault((direction, wtag), []).append(int(bi))
-    pairs: list[tuple[int, ...]] = []
+    groups: list[tuple[int, ...]] = []
     for pos_dir, neg_dir in AXIS_DIRECTION_PAIRS:
         wtags = {
             wtag for (direction, wtag) in batches_by_dir_w
@@ -126,11 +126,11 @@ def dsi_sequential_batch_pairs(spec_names: Sequence[str]) -> Tuple[Tuple[int, ..
             neg = batches_by_dir_w.get((neg_dir, wtag), [])
             if not pos or not neg:
                 continue
-            pairs.append(tuple(sorted({*pos, *neg})))
-    return tuple(pairs)
+            groups.append(tuple(sorted({*pos, *neg})))
+    return tuple(groups)
 
 
-def expand_gt_cells_list(names: Sequence[str]) -> Tuple[str, ...]:
+def expand_gt_cells(names: Sequence[str]) -> Tuple[str, ...]:
     """Expand ``--gt`` moving-bar cell tokens via ``GT_CELL_ALIASES`` (e.g. T4, T5)."""
     if not names:
         raise ValueError("gt_cells must not be empty")
@@ -294,7 +294,7 @@ def _hardcoded_axis_dsi(side: str, subtype: str, spec: MovingBarSpec) -> Optiona
     raise ValueError(f"expected PD/ND suffix in {pos_key!r}")
 
 
-def assemble_moving_bar_dsi_pairs(
+def assemble_moving_bar_dsi_groups(
     specs: Sequence[MovingBarSpec],
     r_batch: Sequence[int],
     r_subtype: Sequence[str],
@@ -395,7 +395,7 @@ def build_dsi_pack_fields(
 ):
     """Assemble + tensorize subtype-grouped DSI fields for a moving-bar task."""
     return pack_moving_bar_dsi_tensors(
-        *assemble_moving_bar_dsi_pairs(specs, r_batch, r_subtype, r_weight, side=side),
+        *assemble_moving_bar_dsi_groups(specs, r_batch, r_subtype, r_weight, side=side),
         device=device,
         sim_dtype=sim_dtype,
     )
@@ -1049,7 +1049,7 @@ def make_moving_bar_stimulus_opts(
         "delta_ms": float(delta_ms),
         "multi_bar": bool(multi_bar),
     }
-    rs = gt_cells_list(gt_cells)
+    rs = normalize_gt_cells(gt_cells)
     if rs is not None:
         out["gt_cells"] = rs
     return out

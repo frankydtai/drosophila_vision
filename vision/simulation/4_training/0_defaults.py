@@ -36,29 +36,31 @@ SYN_SCALE_INH = 0.001
 
 IH_OFF = "on"
 
-GAIN_LO = 0.5
-GAIN_HI = 5.0
+GAIN_LO = 0.01
+GAIN_HI = 100.0
 IH_GMAX_INDI_NAMES = ("L1", "L2", "L4", "L5")
 
+# train_mode: indi | shared | fixed | indi_named
+#   indi_named → indi=IH_GMAX_INDI_NAMES, fixed=remainder (Ih_gmax / hp_gain)
 PARAM_BOXES: Dict[str, dict] = {
-    "in_gain": dict(lo=GAIN_LO, hi=GAIN_HI, init=1.0, jit=0.1),
-    "out_gain": dict(lo=GAIN_LO, hi=GAIN_HI, init=1.0, jit=0.1),
-    "out_scale": dict(lo=GAIN_LO, hi=GAIN_HI, init=1.0, jit=0.1),
-    "syn_strength_cell": dict(lo=GAIN_LO, hi=GAIN_HI, init=1.0, jit=0.1),
-    "syn_strength_edge": dict(lo=GAIN_LO, hi=GAIN_HI, init=1.0, jit=0.1),
-    "v_th": dict(lo=-70.0, hi=-30.0, init=-50.0, jit=0.0, fixed_val=-50.0),
-    "Ih_gmax": dict(lo=0.0, hi=100.0, init=50.0, jit=10.0, fixed_val=0.0),
-    "Ih_gmax_off": dict(lo=0.0, hi=100.0, init=50.0, jit=10.0, fixed_val=0.0),
-    "Ih_midv": dict(lo=-70.0, hi=-30.0, init=-50.0, jit=5.0),
-    "Ih_slope": dict(lo=-0.40, hi=-0.20, init=-0.25, jit=0.02),
-    "tau_midv": dict(lo=-70.0, hi=-40.0, init=-50.0, jit=5.0),
-    "Ih_midv_off": dict(lo=-70.0, hi=-30.0, init=-50.0, jit=5.0),
-    "Ih_slope_off": dict(lo=-0.40, hi=-0.20, init=-0.25, jit=0.02),
-    "tau_midv_off": dict(lo=-70.0, hi=-40.0, init=-50.0, jit=5.0),
-    "tau_lp": dict(lo=10.0, hi=100.0, init=50.0, jit=5.0),
-    "v_rest": dict(lo=-20.0, hi=20.0, init=0.0, jit=1.0),
-    "tau_hp": dict(lo=100.0, hi=10000.0, init=200.0, jit=20.0, fixed_val=10000.0),
-    "hp_gain": dict(lo=GAIN_LO, hi=GAIN_HI, init=1.0, jit=0.1, fixed_val=1.0),
+    "in_gain": dict(lo=GAIN_LO, hi=GAIN_HI, init=1.0, jit=0.1, train_mode="shared"),
+    "out_gain": dict(lo=GAIN_LO, hi=GAIN_HI, init=1.0, jit=0.1, train_mode="indi"),
+    "out_scale": dict(lo=GAIN_LO, hi=GAIN_HI, init=1.0, jit=0.1, train_mode="indi"),
+    "syn_strength_cell": dict(lo=GAIN_LO, hi=GAIN_HI, init=1.0, jit=0.1, train_mode="indi"),
+    "syn_strength_edge": dict(lo=GAIN_LO, hi=GAIN_HI, init=1.0, jit=0.1, train_mode="indi"),
+    "v_th": dict(lo=-70.0, hi=-30.0, init=-50.0, jit=0.0, fixed_val=-50.0, train_mode="fixed"),
+    "Ih_gmax": dict(lo=0.0, hi=100.0, init=50.0, jit=10.0, fixed_val=0.0, train_mode="indi_named"),
+    "Ih_gmax_off": dict(lo=0.0, hi=100.0, init=50.0, jit=10.0, fixed_val=0.0, train_mode="indi_named"),
+    "Ih_midv": dict(lo=-70.0, hi=-30.0, init=-50.0, jit=5.0, train_mode="shared"),
+    "Ih_slope": dict(lo=-0.40, hi=-0.20, init=-0.25, jit=0.02, train_mode="shared"),
+    "tau_midv": dict(lo=-70.0, hi=-40.0, init=-50.0, jit=5.0, train_mode="shared"),
+    "Ih_midv_off": dict(lo=-70.0, hi=-30.0, init=-50.0, jit=5.0, train_mode="shared"),
+    "Ih_slope_off": dict(lo=-0.40, hi=-0.20, init=-0.25, jit=0.02, train_mode="shared"),
+    "tau_midv_off": dict(lo=-70.0, hi=-40.0, init=-50.0, jit=5.0, train_mode="shared"),
+    "tau_lp": dict(lo=10.0, hi=100.0, init=50.0, jit=5.0, train_mode="indi"),
+    "v_rest": dict(lo=-20.0, hi=20.0, init=0.0, jit=1.0, train_mode="indi"),
+    "tau_hp": dict(lo=100.0, hi=10000.0, init=200.0, jit=20.0, fixed_val=10000.0, train_mode="indi"),
+    "hp_gain": dict(lo=GAIN_LO, hi=GAIN_HI, init=1.0, jit=0.1, fixed_val=1.0, train_mode="indi_named"),
 }
 
 MODEL = "hp_lp"

@@ -6,8 +6,8 @@ import training
 from training.defaults import IH_GMAX_INDI_NAMES
 
 
-def merge_ih_param_partitions(train_kw):
-    """Pop CLI ``param_partitions`` from *train_kw* and merge default Ih/hp splits.
+def merge_ih_train_modes(train_kw):
+    """Pop CLI ``train_modes`` from *train_kw* and merge default Ih/hp splits.
 
     Borst: ``Ih_gmax`` / ``Ih_gmax_off``.
     hp_lp: ``hp_gain`` / ``tau_hp``.
@@ -18,17 +18,17 @@ def merge_ih_param_partitions(train_kw):
         names = ('Ih_gmax', 'Ih_gmax_off')
     else:
         names = ('hp_gain', 'tau_hp')
-    ih_parts = {
+    ih_modes = {
         name: {'indi': ih_indi, 'fixed': ['all']}
         for name in names
     }
-    existing = train_kw.pop('param_partitions', None) or {}
-    return {**existing, **ih_parts}
+    existing = train_kw.pop('train_modes', None) or {}
+    return {**existing, **ih_modes}
 
 
-def spot_tasks_from(task_list):
-    """Return tasks in *task_list* that are spot tasks."""
-    return [t for t in task_list if t in training.SPOT_TASKS]
+def spot_tasks_from(tasks):
+    """Return tasks in *tasks* that are spot tasks."""
+    return [t for t in tasks if t in training.SPOT_TASKS]
 
 
 def _normalize_mirror_fits(mirror_fits, mirror_sign):
@@ -42,7 +42,7 @@ def _normalize_mirror_fits(mirror_fits, mirror_sign):
     ]
 
 
-def spot_pack_overrides(task_list, mirror_fits, mirror_sign=-1.0):
-    """``{spot_task: mirror_fits override}`` for each spot task in *task_list*."""
+def spot_pack_overrides(tasks, mirror_fits, mirror_sign=-1.0):
+    """``{spot_task: mirror_fits override}`` for each spot task in *tasks*."""
     mirror = {'mirror_fits': _normalize_mirror_fits(mirror_fits, mirror_sign)}
-    return {t: dict(mirror) for t in spot_tasks_from(task_list)}
+    return {t: dict(mirror) for t in spot_tasks_from(tasks)}

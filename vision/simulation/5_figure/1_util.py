@@ -386,7 +386,7 @@ def _hex_coord_token(val):
     return str(v).replace('.', 'p').replace('-', 'm')
 
 
-def parse_axis_slice_list(text):
+def parse_axis_slices(text):
     """Parse comma-separated ``--x`` / ``--y`` values (empty → ``None``)."""
     if not text:
         return None
@@ -455,27 +455,27 @@ def slice_xy_label(xv, yv):
     return f'({slice_axis_label(xv)},{slice_axis_label(yv)})'
 
 
-def slice_coord_specs(at_x_list, at_y_list):
+def slice_coord_specs(at_xs, at_ys):
     """Expand optional x/y lists to ``[(label, at_x, at_y), ...]`` (missing axis is None)."""
-    if at_x_list is not None and at_y_list is not None:
+    if at_xs is not None and at_ys is not None:
         return [
             (slice_xy_label(xv, yv), xv, yv)
-            for xv in at_x_list for yv in at_y_list
+            for xv in at_xs for yv in at_ys
         ]
-    if at_x_list is not None:
-        return [(slice_axis_label(xv), xv, None) for xv in at_x_list]
-    if at_y_list is not None:
-        return [(slice_axis_label(yv), None, yv) for yv in at_y_list]
+    if at_xs is not None:
+        return [(slice_axis_label(xv), xv, None) for xv in at_xs]
+    if at_ys is not None:
+        return [(slice_axis_label(yv), None, yv) for yv in at_ys]
     return []
 
 
-def slice_axis_name(at_x_list, at_y_list):
+def slice_axis_name(at_xs, at_ys):
     """``'xy'`` / ``'x'`` / ``'y'`` / ``None`` matching :func:`slice_coord_specs`."""
-    if at_x_list is not None and at_y_list is not None:
+    if at_xs is not None and at_ys is not None:
         return 'xy'
-    if at_x_list is not None:
+    if at_xs is not None:
         return 'x'
-    if at_y_list is not None:
+    if at_ys is not None:
         return 'y'
     return None
 
@@ -487,30 +487,30 @@ def overlay_model_reds(n_slices):
 
 
 def ylim_for_traces(
-    *curve_groups,
+    *curves,
     show_sem=False,
     extra=(),
 ):
-    """Y-limits from one or more ``(model, data, sem)`` groups plus ``extra`` curves."""
-    curves = []
-    for group in curve_groups:
-        if group is None:
+    """Y-limits from one or more ``(model, data, sem)`` curves plus ``extra`` curves."""
+    out_curves = []
+    for item in curves:
+        if item is None:
             continue
-        if isinstance(group, dict):
-            model = group.get("model")
-            data = group.get("data")
-            sem = group.get("sem")
+        if isinstance(item, dict):
+            model = item.get("model")
+            data = item.get("data")
+            sem = item.get("sem")
         else:
-            model, data, sem = (list(group) + [None, None, None])[:3]
+            model, data, sem = (list(item) + [None, None, None])[:3]
         if model is not None:
-            curves.append(model)
+            out_curves.append(model)
         if data is not None:
-            curves.append(data)
+            out_curves.append(data)
         if show_sem and sem is not None and model is not None:
-            curves.append(model + sem)
-            curves.append(model - sem)
-    curves.extend(c for c in extra if c is not None)
-    return nice_ylim(*curves)
+            out_curves.append(model + sem)
+            out_curves.append(model - sem)
+    out_curves.extend(c for c in extra if c is not None)
+    return nice_ylim(*out_curves)
 
 
 def ylim_for_keys(ca_mean, ca_sem, data_mean, keys, *, show_sem=False):

@@ -232,7 +232,7 @@ def run_mirror_spot_experiment(
     from figure.readout import fit_data_cubes
     from neuron.params import ms_to_t
     from training.experiment import (
-        merge_ih_param_partitions,
+        merge_ih_train_modes,
         spot_pack_overrides,
         spot_tasks_from,
         _normalize_mirror_fits,
@@ -284,10 +284,10 @@ def run_mirror_spot_experiment(
         ap.error(str(exc))
 
     fits = mirror_fits(args) if callable(mirror_fits) else mirror_fits
-    task_list = run_kw["task_list"]
-    pack_overrides = spot_pack_overrides(task_list, fits, mirror_sign)
-    param_partitions = merge_ih_param_partitions(run_kw)
-    spot_tasks = spot_tasks_from(task_list)
+    tasks = run_kw["tasks"]
+    pack_overrides = spot_pack_overrides(tasks, fits, mirror_sign)
+    train_modes = merge_ih_train_modes(run_kw)
+    spot_tasks = spot_tasks_from(tasks)
     plot_data_cubes = resolve_spot_plot_data_cubes(
         spot_tasks, make_mirror_data_cubes(fits, mirror_sign),
     )
@@ -295,7 +295,7 @@ def run_mirror_spot_experiment(
     fname, outdir, session = run_training_and_plot(
         **run_kw,
         pack_overrides=pack_overrides,
-        param_partitions=param_partitions,
+        train_modes=train_modes,
         plot_data_cubes=plot_data_cubes,
     )
     for tname in spot_tasks:

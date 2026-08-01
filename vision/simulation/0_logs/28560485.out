@@ -1,0 +1,35 @@
+Job ID: 28560485
+Node:   spartan-gpgpu110
+GPU:    0
+GPU 0: NVIDIA A100 80GB PCIe (UUID: GPU-aa6198ea-6094-7c48-b87a-94da32a883a4)
+cuda: True NVIDIA A100 80GB PCIe
+Start:  Sat 01 Aug 2026 21:08:26 AEST
+train_modes:
+  in_gain            indi=0/shared=34/fixed=0/frozen=0 (1)
+  out_gain           indi=34/shared=0/fixed=0/frozen=0 (34)
+  syn_strength_cell  indi=459/shared=0/fixed=0/frozen=0 (459)
+  out_scale          indi=34/shared=0/fixed=0/frozen=0 (34)
+  tau_lp             indi=34/shared=0/fixed=0/frozen=0 (34)
+  tau_hp             indi=34/shared=0/fixed=0/frozen=0 (34)
+  v_rest             indi=34/shared=0/fixed=0/frozen=0 (34)
+  hp_gain            indi=4/shared=0/fixed=30/frozen=0 (4)
+device=cuda, model=hp_lp, syn_mode=per_cell, nofruns=1, nofsteps=500, lrs=[0.1], nparams=634, fname=training_hp_lp.npy, outdir=/home/yitai/drosophila_vision/vision/simulation/0_runs/hp_lp/28560485-run-nofsteps-500-tau-hp-init-L1,L2,L4,L5-200-pulse-ms-100-delta-ms-5-response-ms-500-gt-spot-L3
+checkpoint_interval=1000
+
+round 0
+
+
+Initl cost = 89.7159  [spot_bright=89.7159]
+Final cost = 99.8534  [spot_bright=99.8534]
+Best  cost = 48.7506  [spot_bright=48.7506]
+time needed  = 135.45  sec
+
+done in 0.04 hours
+wrote table: /home/yitai/drosophila_vision/vision/simulation/0_runs/hp_lp/28560485-run-nofsteps-500-tau-hp-init-L1,L2,L4,L5-200-pulse-ms-100-delta-ms-5-response-ms-500-gt-spot-L3/param.csv (best run #0, cost=48.7506)
+wrote table: /home/yitai/drosophila_vision/vision/simulation/0_runs/hp_lp/28560485-run-nofsteps-500-tau-hp-init-L1,L2,L4,L5-200-pulse-ms-100-delta-ms-5-response-ms-500-gt-spot-L3/syn_strength_cell.csv
+plot device=cuda (NVIDIA A100 80GB PCIe)
+1 trained set(s); selected #0 (cost=48.7506)
+plot /home/yitai/drosophila_vision/vision/simulation/0_runs/hp_lp/28560485-run-nofsteps-500-tau-hp-init-L1,L2,L4,L5-200-pulse-ms-100-delta-ms-5-response-ms-500-gt-spot-L3/cost_curve.png: draw=0.1s  save=0.3s  total=0.4s
+plot /home/yitai/drosophila_vision/vision/simulation/0_runs/hp_lp/28560485-run-nofsteps-500-tau-hp-init-L1,L2,L4,L5-200-pulse-ms-100-delta-ms-5-response-ms-500-gt-spot-L3/spot_gt_v.png: prep=0.4s  draw=0.0s  save=0.1s  total=0.5s
+plot /home/yitai/drosophila_vision/vision/simulation/0_runs/hp_lp/28560485-run-nofsteps-500-tau-hp-init-L1,L2,L4,L5-200-pulse-ms-100-delta-ms-5-response-ms-500-gt-spot-L3/spot_all_v.png: prep=0.0s  draw=0.8s  save=1.9s  total=2.7s
+plots saved to /home/yitai/drosophila_vision/vision/simulation/0_runs/hp_lp/28560485-run-nofsteps-500-tau-hp-init-L1,L2,L4,L5-200-pulse-ms-100-delta-ms-5-response-ms-500-gt-spot-L3

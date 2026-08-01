@@ -824,11 +824,11 @@ def build_batched_hex_current(
     field_deg = field_bounds(hexes)
     hex_stack = np.stack([c.hex_xy for c in hexes], axis=0)
 
-    groups: dict[Tuple[str, float, float], List[int]] = {}
+    by_geometry: dict[Tuple[str, float, float], List[int]] = {}
     for b, spec in enumerate(specs):
-        groups.setdefault(_geometry_key(spec), []).append(b)
+        by_geometry.setdefault(_geometry_key(spec), []).append(b)
 
-    for batch_idxs in groups.values():
+    for batch_idxs in by_geometry.values():
         cov_ts = _coverage_time_series(
             hex_stack, specs[batch_idxs[0]], field_deg,
             n_t=n_t, t_onset=t_onset, delta_ms=delta_ms,

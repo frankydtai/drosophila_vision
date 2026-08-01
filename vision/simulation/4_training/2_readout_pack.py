@@ -107,7 +107,7 @@ class ModelBackend:
 
 @dataclass(frozen=True)
 class FusedForward:
-    """Packs with matching i_sti shape / onset; one ``run_full`` per group."""
+    """Packs with matching i_sti shape / onset; one ``run_full`` per fuse."""
 
     subpacks: Tuple[ReadoutPack, ...]
     batch_offsets: Tuple[int, ...]
@@ -126,7 +126,7 @@ class TrainSession:
     model: str
     schema: tuple
     readouts: Dict[str, ReadoutPack]
-    task_list: Tuple[str, ...]
+    tasks: Tuple[str, ...]
     cost_weights: Dict[str, float]
     sequential: bool
     device: str
@@ -163,7 +163,7 @@ class TrainSession:
 
     @property
     def primary_readout(self) -> ReadoutPack:
-        return self.readouts[self.task_list[0]]
+        return self.readouts[self.tasks[0]]
 
     @property
     def n_t(self) -> int:

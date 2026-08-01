@@ -54,7 +54,7 @@ from training.readout_pack import (
 from task.moving_bar.data import (
     bar_specs_for_session,
     cost_dsi_from_sel,
-    dsi_sequential_batch_pairs,
+    dsi_sequential_batch_groups,
     remap_dsi_rows,
 )
 
@@ -98,7 +98,7 @@ def _pack_ca_readouts(p, pack: ReadoutPack, session: TrainSession, batch_idx=Non
     return readout(p, pack, session, batch_idx)
 
 
-def _subgroup_power(weight, data):
+def _sel_power(weight, data):
     power = torch.sum(weight[:, None] * data ** 2)
     if float(power) == 0.0:
         power = torch.tensor(1.0, dtype=data.dtype, device=data.device)
@@ -286,7 +286,7 @@ def _build_cost_subpacks(session: TrainSession) -> Dict[str, ReadoutPack]:
 
 
 def _i_sti_fuse_key(pack: ReadoutPack) -> Tuple:
-    """Group packs that can share one ``run_full`` (shape, onset)."""
+    """Key for packs that can share one ``run_full`` (shape, onset)."""
     i_sti = pack.i_sti
     t_onset = int(i_sti.shape[1] - pack.data.shape[1])
     return (
@@ -376,7 +376,7 @@ def _pack_cost_parts_from_sel(
                         (), dtype=session.sim_dtype, device=session.device,
                     )
                     continue
-                power = _subgroup_power(pack.cost_weight[mask], pack.data[mask])
+                power = _sel_power(pack.cost_weight[mask], pack.data[mask])
                 out[key] = _pack_cost_mse(
                     scale[mask], pack.data[mask], pack.cost_weight[mask],
                     sel[mask], power,
@@ -396,7 +396,7 @@ def _pack_cost_parts_from_sel(
         ix = pack.cost_time_ix.to(device=sel.device)
         sel = sel.index_select(1, ix)
         data = data.index_select(1, ix)
-        power = _subgroup_power(weight, data)
+        power = _sel_power(weight, data)
     return {pack.name: _pack_cost_mse(scale, data, weight, sel, power)}
 
 
@@ -420,14 +420,14 @@ def _calc_cost_parts_fused(
     session: TrainSession,
 ) -> Dict[str, torch.Tensor]:
     parts: Dict[str, torch.Tensor] = {}
-    for group in session.fused_forward:
-        if len(group.subpacks) == 1:
-            i_sti = group.subpacks[0].i_sti
+    for fused in session.fused_forward:
+        if len(fused.subpacks) == 1:
+            i_sti = fused.subpacks[0].i_sti
         else:
-            i_sti = torch.cat([pack.i_sti for pack in group.subpacks], dim=0)
+            i_sti = torch.cat([pack.i_sti for pack in fused.subpacks], dim=0)
         # Same fuse key ⇒ shared t_onset; pass one subpack for prepare.
-        trace_full = run_full(session, p, i_sti, pack=group.subpacks[0])
-        for pack, off in zip(group.subpacks, group.batch_offsets):
+        trace_full = run_full(session, p, i_sti, pack=fused.subpacks[0])
+        for pack, off in zip(fused.subpacks, fused.batch_offsets):
             for key, part in _pack_cost_parts_from_fused_trace(
                 p, pack, session, trace_full, batch_offset=off,
             ).items():
@@ -528,8 +528,8 @@ def calc_cost_parts(z, session: TrainSession) -> Dict[str, torch.Tensor]:
                         pack_parts[key] = pack_parts.get(key, zero) + part
             dsi_key = moving_bar_cost_part_key(pack.name, "DSI")
             if _part_weight(session, dsi_key) != 0.0:
-                for group in _dsi_sequential_batch_groups(pack, session):
-                    sub_dsi = _pack_for_dsi_batch_group(pack, session, group)
+                for batch_group in _dsi_sequential_batch_groups(pack, session):
+                    sub_dsi = _pack_for_dsi_batch_group(pack, session, batch_group)
                     if sub_dsi is None:
                         continue
                     dsi_parts = _pack_cost_parts_from_params(
@@ -581,8 +581,8 @@ def _dsi_sequential_batch_groups(
     """Active DSI microbatches: each group is one axis x width (typically B=2)."""
     active = set(_pack_active_batch_indices(pack, session))
     groups: list[tuple[int, ...]] = []
-    for pair in dsi_sequential_batch_pairs(_pack_spec_names(session, pack)):
-        kept = tuple(b for b in pair if b in active)
+    for batch_group in dsi_sequential_batch_groups(_pack_spec_names(session, pack)):
+        kept = tuple(b for b in batch_group if b in active)
         if len(kept) < 2:
             continue
         groups.append(kept)
@@ -594,7 +594,7 @@ def _pack_for_dsi_batch_group(
     session: TrainSession,
     batch_indices: Tuple[int, ...],
 ) -> Optional[ReadoutPack]:
-    """Subset to one DSI direction pair; keep parent ``dsi_power`` for additive costs."""
+    """Subset to one DSI batch group; keep parent ``dsi_power`` for additive costs."""
     sub = _pack_for_active_cost(pack, session, batch_indices=batch_indices)
     if sub is None or pack.dsi_power is None:
         return sub
@@ -617,8 +617,8 @@ def _iter_cost_microbatches(session: TrainSession):
                         yield pack, b, sub
             dsi_key = moving_bar_cost_part_key(pack.name, "DSI")
             if _part_weight(session, dsi_key) != 0.0:
-                for group in _dsi_sequential_batch_groups(pack, session):
-                    sub_dsi = _pack_for_dsi_batch_group(pack, session, group)
+                for batch_group in _dsi_sequential_batch_groups(pack, session):
+                    sub_dsi = _pack_for_dsi_batch_group(pack, session, batch_group)
                     if sub_dsi is not None:
                         yield pack, None, sub_dsi
         else:
@@ -647,7 +647,7 @@ def backward_accum_weighted_cost(z, session: TrainSession):
             if dsi_only and key != dsi_key:
                 continue
             if (not dsi_only) and session.sequential and key == dsi_key:
-                # single-batch slices have no complete DSI pairs; skip zeros
+                # single-batch slices have no complete DSI groups; skip zeros
                 continue
             w = _part_weight(session, key)
             if w == 0.0:
@@ -661,7 +661,8 @@ def backward_accum_weighted_cost(z, session: TrainSession):
     return total, parts_sum
 
 
-def _float_parts_dict(parts: Optional[Dict[str, torch.Tensor]], task_order=None):
+def _float_parts(parts: Optional[Dict[str, torch.Tensor]], task_order=None):
+    """Tensor/number cost parts → ``{key: float}`` (optional key order)."""
     if not parts:
         return None
     out = {k: float(v.item() if torch.is_tensor(v) else v) for k, v in parts.items()}
@@ -844,7 +845,7 @@ def train_staged(z, cost_fn, z_bounds, lrs, nsteps, cost_log=None, step_log=None
 
 def _make_step_logger(session: TrainSession):
     """Build training step hooks for :func:`gradient_network`."""
-    part_keys = session_cost_part_keys(session.task_list)
+    part_keys = session_cost_part_keys(session.tasks)
     target_history = {name: [] for name in part_keys}
     _last_parts: Optional[Dict[str, float]] = None
     _last_total: Optional[float] = None
@@ -885,7 +886,7 @@ def _make_step_logger(session: TrainSession):
     def float_last_parts(task_order=None):
         if _last_parts is None:
             raise RuntimeError("float_last_parts called before cost_fn")
-        return _float_parts_dict(_last_parts, task_order)
+        return _float_parts(_last_parts, task_order)
 
     if session.sequential:
         return cost_fn, target_history, log_step, float_last_parts, backward_step, eval_cost
@@ -902,7 +903,7 @@ def do_many_runs(session: TrainSession, nofruns, nofsteps, lrs=(0.1, 0.01, 0.001
 
     all_params = np.zeros((nofruns, n_params))
     final_costs = np.zeros(nofruns)
-    part_keys = session_cost_part_keys(session.task_list)
+    part_keys = session_cost_part_keys(session.tasks)
     final_costs_by_task = {name: np.zeros(nofruns) for name in part_keys}
     best_i = 0
     best_cost = np.inf

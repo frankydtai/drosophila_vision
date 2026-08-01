@@ -17,7 +17,7 @@ from run import run_mirror_spot_experiment
 SPOT_KINDS = ('r', 't45')
 
 
-def parse_kind_list(text):
+def parse_kinds(text):
     kinds = parse_comma_list(text)
     unknown = [k for k in kinds if k not in SPOT_KINDS]
     if unknown:
@@ -34,7 +34,7 @@ def parse_kind_list(text):
 def configure_parser(ap):
     ap.add_argument(
         'kind',
-        type=parse_kind_list,
+        type=parse_kinds,
         metavar='KIND',
         help='comma-separated: r (photoreceptors→L1), t45 (T4a-d/T5a-d→L4/L5); e.g. r,t45',
     )

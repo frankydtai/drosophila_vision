@@ -110,14 +110,14 @@ def cost_part_keys_for_readout(task_name: str) -> Tuple[str, ...]:
     return (task_name,)
 
 
-def session_cost_part_keys(task_list) -> Tuple[str, ...]:
+def session_cost_part_keys(tasks) -> Tuple[str, ...]:
     keys = []
-    for name in task_list:
+    for name in tasks:
         keys.extend(cost_part_keys_for_readout(name))
     return tuple(keys)
 
 
-def expand_task_list(names) -> List[str]:
+def expand_tasks(names) -> List[str]:
     """Expand ``--task`` ``TASK_ALIASES`` shorthands."""
     out = []
     for name in names:
@@ -148,16 +148,16 @@ def expand_gt_dict(kv: Optional[dict]) -> Dict[str, List[str]]:
         return {}
     out: Dict[str, List[str]] = {}
     for name, cells in kv.items():
-        cell_list = [str(c) for c in cells]
+        cells = [str(c) for c in cells]
         if name in TASK_ALIASES:
             for t in TASK_ALIASES[name]:
-                out[t] = list(cell_list)
+                out[t] = list(cells)
         else:
-            out[str(name)] = cell_list
+            out[str(name)] = cells
     return out
 
 
-def resolve_cost_extent_by_task(task_list, default, by_task_kv) -> Dict[str, int]:
+def resolve_cost_extent_by_task(tasks, default, by_task_kv) -> Dict[str, int]:
     """Map each concrete task to its explicitly requested cost extent."""
     expanded = expand_cost_extent_dict(by_task_kv or {})
     bad = [k for k in expanded if k not in VALID_TASKS]
@@ -167,7 +167,7 @@ def resolve_cost_extent_by_task(task_list, default, by_task_kv) -> Dict[str, int
             f"(expected {'|'.join(CLI_TASK_NAMES)})",
         )
     out: Dict[str, int] = {}
-    for tname in task_list:
+    for tname in tasks:
         if tname in expanded:
             out[tname] = int(expanded[tname])
         elif default is not None:
@@ -189,14 +189,14 @@ def expand_cost_weight_dict(weights: Optional[dict]) -> Dict[str, float]:
     return out
 
 
-def normalize_task_list(task_list) -> List[str]:
-    if task_list is None:
-        raise ValueError("task_list required")
-    if isinstance(task_list, str):
-        task_list = parse_comma_list(task_list)
-    tl = expand_task_list(list(task_list))
+def normalize_tasks(tasks) -> List[str]:
+    if tasks is None:
+        raise ValueError("tasks required")
+    if isinstance(tasks, str):
+        tasks = parse_comma_list(tasks)
+    tl = expand_tasks(list(tasks))
     if not tl:
-        raise ValueError("task_list must not be empty")
+        raise ValueError("tasks must not be empty")
     bad = [t for t in tl if t not in VALID_TASKS]
     if bad:
         raise ValueError(

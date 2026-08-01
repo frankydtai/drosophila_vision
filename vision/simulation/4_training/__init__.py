@@ -64,9 +64,9 @@ from training.config import (
     cost_part_keys_for_readout,
     expand_cost_weight_dict,
     expand_gt_dict,
-    expand_task_list,
+    expand_tasks,
     moving_bar_cost_part_key,
-    normalize_task_list,
+    normalize_tasks,
     resolve_cost_extent_by_task,
     session_cost_part_keys,
 )
@@ -80,8 +80,8 @@ from training.readout_pack import (
 )
 from training.params import (
     PAIR_SEP,
-    PARTITION_BUCKETS,
-    apply_partitions,
+    TRAIN_MODES,
+    apply_train_modes,
     assign_params,
     attach_param_carry,
     build_e_leak,
@@ -91,17 +91,17 @@ from training.params import (
     guess_initial_params,
     pair_node_names,
     params_from_z,
-    parse_partition_text,
+    parse_train_mode_text,
     remap_named_node_values,
     schema_bounds,
     schema_guess,
     schema_nparams,
-    schema_partitions_record,
+    schema_train_modes_record,
     seg_ntrain,
     cell_node_names,
     node_names_for_segment,
     node_values_to_z,
-    validate_syn_strength_edge_partition,
+    validate_syn_strength_edge_train_mode,
     z_to_node_values,
 )
 from training.cost import (

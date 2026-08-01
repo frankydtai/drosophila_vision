@@ -50,6 +50,7 @@ from training.defaults import (
     NOFSTEPS_CPU,
     NOFSTEPS_GPU,
     DELTA_MS,
+    PARAM_BOXES,
     PRE_GRAD,
     PRE_MS,
     PULSE_MS,
@@ -168,7 +169,7 @@ def cell_labels(session):
 def decompose_params(z_t, session):
     """Return (per_cell_cols, global_scalars) for one parameter vector.
 
-    Per-cell columns come from full-width node values (partition-aware).
+    Per-cell columns come from full-width node values (train-mode-aware).
     Shared-only segments also emit a global scalar (mean of shared nodes).
     """
     n = session.backend.n_cells
@@ -534,12 +535,12 @@ def save_param_tables(fname, outdir, session):
     write_best_artifacts(outdir, fname, session, all_params, best_i, final_costs)
 
 
-def print_param_partitions(session):
+def print_train_modes(session):
     """Print one schema segment per line: indi/shared/fixed/frozen counts and ntrain."""
     schema = list(session.schema)
     if not schema:
         return
-    print("param partitions:")
+    print("train_modes:")
     w = max(len(s["name"]) for s in schema)
     for s in schema:
         print(
@@ -552,24 +553,24 @@ def print_param_partitions(session):
         )
 
 
-def apply_param_partitions(session, partitions_by_name):
-    """Apply CLI/name partitions onto session schema and refresh train_opts record."""
-    if not partitions_by_name:
+def apply_session_train_modes(session, train_modes_by_name):
+    """Apply CLI/name train_modes onto session schema and refresh train_opts record."""
+    if not train_modes_by_name:
         return session
     from dataclasses import replace
     backend = session.backend
-    schema = training.apply_partitions(
+    schema = training.apply_train_modes(
         list(session.schema),
-        partitions_by_name,
+        train_modes_by_name,
         lambda seg: training.node_names_for_segment(seg, backend),
     )
     schema = training.attach_param_carry(schema)
     opts = dict(session.train_opts or {})
-    opts['param_partitions'] = training.schema_partitions_record(
+    opts['train_modes'] = training.schema_train_modes_record(
         schema, lambda seg: training.node_names_for_segment(seg, backend),
     )
     session = replace(session, schema=tuple(schema), train_opts=opts)
-    print_param_partitions(session)
+    print_train_modes(session)
     return session
 
 
@@ -582,7 +583,7 @@ def build_session(
     *,
     network=NETWORK,
     sequential=SEQUENTIAL,
-    task_list=None,
+    tasks=None,
     cost_weights=None,
     cost_extent_by_task=None,
     shift_extent=SHIFT_EXTENT,
@@ -595,7 +596,7 @@ def build_session(
     moving_bar_dark_stimulus_opts=None,
     spot_bright_stimulus_opts=None,
     spot_dark_stimulus_opts=None,
-    param_partitions=None,
+    train_modes=None,
     syn_mode=SYN_MODE,
     ih_off=IH_OFF,
     fp=FP,
@@ -605,12 +606,12 @@ def build_session(
     schema=None,
 ):
     """Create a :class:`TrainSession` from run options."""
-    tl = list(task_list) if task_list is not None else list(
-        training.normalize_task_list([TASK])
+    tl = list(tasks) if tasks is not None else list(
+        training.normalize_tasks([TASK])
     )
     dev = training.active_device()
     mkw = dict(
-        task_list=tl,
+        tasks=tl,
         cost_weights=cost_weights,
         pack_overrides=pack_overrides,
         sequential=sequential,
@@ -634,7 +635,7 @@ def build_session(
         network_json=network,
         dev=dev,
         ih_off=ih_off,
-        param_partitions=param_partitions,
+        train_modes=train_modes,
         syn_mode=syn_mode,
         fp=fp,
         pre_grad=pre_grad,
@@ -644,11 +645,11 @@ def build_session(
 
 
 def run_training(model, nofruns, nofsteps, lrs, fname=None, outdir=None,
-                 param_partitions=None,
+                 train_modes=None,
                  syn_mode=SYN_MODE,
                  ih_off=IH_OFF,
                  network=NETWORK, sequential=SEQUENTIAL,
-                 task_list=None, cost_weights=None,
+                 tasks=None, cost_weights=None,
                  cost_extent_by_task=None, shift_extent=SHIFT_EXTENT,
                  spot_extent=SPOT_EXTENT,
                  multi_spot=MULTI_SPOT,
@@ -675,7 +676,7 @@ def run_training(model, nofruns, nofsteps, lrs, fname=None, outdir=None,
         model,
         network=network,
         sequential=sequential,
-        task_list=task_list,
+        tasks=tasks,
         cost_weights=cost_weights,
         cost_extent_by_task=cost_extent_by_task,
         shift_extent=shift_extent,
@@ -688,7 +689,7 @@ def run_training(model, nofruns, nofsteps, lrs, fname=None, outdir=None,
         moving_bar_dark_stimulus_opts=moving_bar_dark_stimulus_opts,
         spot_bright_stimulus_opts=spot_bright_stimulus_opts,
         spot_dark_stimulus_opts=spot_dark_stimulus_opts,
-        param_partitions=param_partitions,
+        train_modes=train_modes,
         syn_mode=syn_mode,
         ih_off=ih_off,
         pack_overrides=pack_overrides,
@@ -701,7 +702,7 @@ def run_training(model, nofruns, nofsteps, lrs, fname=None, outdir=None,
     fname = fname or f"training{suffix or '_with_Ih'}.npy"
     outdir = outdir or run_dir(model)
 
-    print_param_partitions(session)
+    print_train_modes(session)
     syn_mode = (session.train_opts or {}).get("syn_mode", SYN_MODE)
     print(f"device={session.device}, model={model}, syn_mode={syn_mode}, "
           f"nofruns={nofruns}, nofsteps={nofsteps}, "
@@ -793,8 +794,15 @@ def add_training_arguments(parser):
     _ih_gmax_default = (
         "indi=" + ",".join(IH_GMAX_INDI_NAMES) + " fixed=all"
     )
-    _partition_help = (
-        "indi=/shared=/fixed=/frozen= lists space-separated; 'all' in one bucket = remainder; "
+
+    def _box_train_mode_default(name):
+        tm = PARAM_BOXES[name]["train_mode"]
+        if tm == "indi_named":
+            return _ih_gmax_default
+        return f"{tm}=all"
+
+    _train_mode_help = (
+        "indi=/shared=/fixed=/frozen= lists space-separated; 'all' in one train_mode = remainder; "
         "types or Src:Tar pairs (syn-strength-cell); init=NAME:VAL,... overrides initial values. "
         "Example: indi=all init=L1,L2,L4,L5:200 all:10000"
     )
@@ -802,50 +810,62 @@ def add_training_arguments(parser):
         "only indi=all / fixed=all / frozen=all "
         "(--syn-mode per_edge; no shared= / named edges)"
     )
-    _partition_kwargs = dict(default=None, nargs='+', metavar="PART")
-    parser.add_argument("--all-param", **_partition_kwargs,
-                        help=f"apply partitions to every parameter segment "
-                             f"({_partition_help}; overridden by --ih-shape and per-param flags)")
-    parser.add_argument("--in-gain", **_partition_kwargs,
-                        help=f"in_gain partitions ({_partition_help}; default fixed=all)")
-    parser.add_argument("--out-gain", **_partition_kwargs,
-                        help=f"out_gain partitions ({_partition_help}; default fixed=all)")
-    parser.add_argument("--out-scale", **_partition_kwargs,
-                        help=f"out_scale partitions ({_partition_help}; default indi=all)")
-    parser.add_argument("--syn-strength-cell", **_partition_kwargs,
-                        help=f"syn_strength_cell partitions ({_partition_help}; default indi=all; "
+    _train_mode_kwargs = dict(default=None, nargs='+', metavar="MODE")
+    parser.add_argument("--all-param", **_train_mode_kwargs,
+                        help=f"apply train_modes to every parameter segment "
+                             f"({_train_mode_help}; overridden by --ih-shape and per-param flags)")
+    parser.add_argument("--in-gain", **_train_mode_kwargs,
+                        help=f"in_gain train_modes ({_train_mode_help}; "
+                             f"default {_box_train_mode_default('in_gain')})")
+    parser.add_argument("--out-gain", **_train_mode_kwargs,
+                        help=f"out_gain train_modes ({_train_mode_help}; "
+                             f"default {_box_train_mode_default('out_gain')})")
+    parser.add_argument("--out-scale", **_train_mode_kwargs,
+                        help=f"out_scale train_modes ({_train_mode_help}; "
+                             f"default {_box_train_mode_default('out_scale')})")
+    parser.add_argument("--syn-strength-cell", **_train_mode_kwargs,
+                        help=f"syn_strength_cell train_modes ({_train_mode_help}; "
+                             f"default {_box_train_mode_default('syn_strength_cell')}; "
                              f"--syn-mode per_cell only)")
-    parser.add_argument("--syn-strength-edge", **_partition_kwargs,
-                        help=f"syn_strength_edge partitions ({_syn_strength_edge_help}; default indi=all)")
-    parser.add_argument("--v-th", **_partition_kwargs,
-                        help=f"v_th partitions ({_partition_help}; default indi=all)")
-    parser.add_argument("--ih-gmax", **_partition_kwargs,
-                        help=f"Ih_gmax partitions ({_partition_help}; default {_ih_gmax_default})")
-    parser.add_argument("--ih-gmax-off", **_partition_kwargs,
-                        help=f"Ih_gmax_off partitions ({_partition_help}; default {_ih_gmax_default})")
-    parser.add_argument("--ih-shape", **_partition_kwargs,
-                        help="batch partitions for Ih_midv/Ih_slope/tau_midv and OFF "
-                             f"({_partition_help}; default shared=all)")
-    parser.add_argument("--ih-midv", **_partition_kwargs,
-                        help=f"Ih_midv partitions (overrides --ih-shape; {_partition_help})")
-    parser.add_argument("--ih-slope", **_partition_kwargs,
-                        help=f"Ih_slope partitions (overrides --ih-shape; {_partition_help})")
-    parser.add_argument("--tau-midv", **_partition_kwargs,
-                        help=f"tau_midv partitions (overrides --ih-shape; {_partition_help})")
-    parser.add_argument("--ih-midv-off", **_partition_kwargs,
-                        help=f"Ih_midv_off partitions (overrides --ih-shape; {_partition_help})")
-    parser.add_argument("--ih-slope-off", **_partition_kwargs,
-                        help=f"Ih_slope_off partitions (overrides --ih-shape; {_partition_help})")
-    parser.add_argument("--tau-midv-off", **_partition_kwargs,
-                        help=f"tau_midv_off partitions (overrides --ih-shape; {_partition_help})")
-    parser.add_argument("--tau-lp", **_partition_kwargs,
-                        help=f"hp_lp tau_lp partitions ({_partition_help}; default indi=all)")
-    parser.add_argument("--v-rest", **_partition_kwargs,
-                        help=f"hp_lp v_rest partitions ({_partition_help}; default indi=all)")
-    parser.add_argument("--tau-hp", **_partition_kwargs,
-                        help=f"hp_lp tau_hp partitions ({_partition_help}; default indi=all)")
-    parser.add_argument("--hp-gain", **_partition_kwargs,
-                        help=f"hp_lp hp_gain partitions ({_partition_help}; default fixed=all)")
+    parser.add_argument("--syn-strength-edge", **_train_mode_kwargs,
+                        help=f"syn_strength_edge train_modes ({_syn_strength_edge_help}; "
+                             f"default {_box_train_mode_default('syn_strength_edge')})")
+    parser.add_argument("--v-th", **_train_mode_kwargs,
+                        help=f"v_th train_modes ({_train_mode_help}; "
+                             f"default {_box_train_mode_default('v_th')})")
+    parser.add_argument("--ih-gmax", **_train_mode_kwargs,
+                        help=f"Ih_gmax train_modes ({_train_mode_help}; "
+                             f"default {_box_train_mode_default('Ih_gmax')})")
+    parser.add_argument("--ih-gmax-off", **_train_mode_kwargs,
+                        help=f"Ih_gmax_off train_modes ({_train_mode_help}; "
+                             f"default {_box_train_mode_default('Ih_gmax_off')})")
+    parser.add_argument("--ih-shape", **_train_mode_kwargs,
+                        help="batch train_modes for Ih_midv/Ih_slope/tau_midv and OFF "
+                             f"({_train_mode_help}; default {_box_train_mode_default('Ih_midv')})")
+    parser.add_argument("--ih-midv", **_train_mode_kwargs,
+                        help=f"Ih_midv train_modes (overrides --ih-shape; {_train_mode_help})")
+    parser.add_argument("--ih-slope", **_train_mode_kwargs,
+                        help=f"Ih_slope train_modes (overrides --ih-shape; {_train_mode_help})")
+    parser.add_argument("--tau-midv", **_train_mode_kwargs,
+                        help=f"tau_midv train_modes (overrides --ih-shape; {_train_mode_help})")
+    parser.add_argument("--ih-midv-off", **_train_mode_kwargs,
+                        help=f"Ih_midv_off train_modes (overrides --ih-shape; {_train_mode_help})")
+    parser.add_argument("--ih-slope-off", **_train_mode_kwargs,
+                        help=f"Ih_slope_off train_modes (overrides --ih-shape; {_train_mode_help})")
+    parser.add_argument("--tau-midv-off", **_train_mode_kwargs,
+                        help=f"tau_midv_off train_modes (overrides --ih-shape; {_train_mode_help})")
+    parser.add_argument("--tau-lp", **_train_mode_kwargs,
+                        help=f"hp_lp tau_lp train_modes ({_train_mode_help}; "
+                             f"default {_box_train_mode_default('tau_lp')})")
+    parser.add_argument("--v-rest", **_train_mode_kwargs,
+                        help=f"hp_lp v_rest train_modes ({_train_mode_help}; "
+                             f"default {_box_train_mode_default('v_rest')})")
+    parser.add_argument("--tau-hp", **_train_mode_kwargs,
+                        help=f"hp_lp tau_hp train_modes ({_train_mode_help}; "
+                             f"default {_box_train_mode_default('tau_hp')})")
+    parser.add_argument("--hp-gain", **_train_mode_kwargs,
+                        help=f"hp_lp hp_gain train_modes ({_train_mode_help}; "
+                             f"default {_box_train_mode_default('hp_gain')})")
     parser.add_argument("--ih-off", default=IH_OFF,
                         choices=list(training.IH_OFF_MODES),
                         help="OFF-channel Ih: on (train Ih_gmax_off+OFF shape; default), "
@@ -1042,9 +1062,9 @@ def parse_kv_tokens(tokens, cast=str):
     return out
 
 
-def parse_task_list(text):
+def parse_tasks(text):
     """Parse comma-separated training tasks (with alias expansion)."""
-    return training.normalize_task_list(parse_comma_list(text))
+    return training.normalize_tasks(parse_comma_list(text))
 
 
 def parse_cost_extent(tokens):
@@ -1085,11 +1105,11 @@ def parse_gt(tokens):
     return training.resolve_gt_cells_by_task(raw)
 
 
-def parse_cost_weight(tokens, task_list):
+def parse_cost_weight(tokens, tasks):
     """Parse ``--cost-weight``: bare alias exclusive, ``NAME=VALUE`` merge.
 
     Bare tokens (aliases or concrete part keys) zero every cost part for
-    ``task_list``, then set those names to ``1``. Explicit ``NAME=VALUE``
+    ``tasks``, then set those names to ``1``. Explicit ``NAME=VALUE``
     always applied last (merge onto defaults / exclusive map). Empty → ``{}``
     (runtime default weight 1).
     """
@@ -1105,34 +1125,34 @@ def parse_cost_weight(tokens, task_list):
             bare.append(tok.strip())
     weights: dict[str, float] = {}
     if bare:
-        weights = {key: 0.0 for key in training.session_cost_part_keys(task_list)}
+        weights = {key: 0.0 for key in training.session_cost_part_keys(tasks)}
         weights.update(training.expand_cost_weight_dict({name: 1.0 for name in bare}))
     weights.update(training.expand_cost_weight_dict(explicit))
     return weights
 
 
-def _partition_cli_text(parts):
-    """Join space-separated partition CLI tokens into one parse string."""
+def _train_mode_cli_text(parts):
+    """Join space-separated train_mode CLI tokens into one parse string."""
     if parts is None:
         return None
     return ' '.join(parts)
 
 
-def _partition_cli_map(args):
-    """Build ``{seg_name: {indi/shared/fixed/frozen: tokens}}`` from partition CLI flags.
+def _train_mode_cli_map(args):
+    """Build ``{seg_name: {indi/shared/fixed/frozen: tokens}}`` from train_mode CLI flags.
 
     Precedence: ``--all-param`` → ``--ih-shape`` → per-param flags.
     Omitted segments keep schema defaults (not listed here).
     """
     syn_mode = training.normalize_syn_mode(getattr(args, "syn_mode", SYN_MODE))
-    syn_cell_text = _partition_cli_text(getattr(args, "syn_strength_cell", None))
-    syn_edge_text = _partition_cli_text(getattr(args, "syn_strength_edge", None))
+    syn_cell_text = _train_mode_cli_text(getattr(args, "syn_strength_cell", None))
+    syn_edge_text = _train_mode_cli_text(getattr(args, "syn_strength_edge", None))
     if syn_mode == "per_edge" and syn_cell_text is not None:
         raise ValueError("--syn-strength-cell requires --syn-mode per_cell")
     if syn_mode == "per_cell" and syn_edge_text is not None:
         raise ValueError("--syn-strength-edge requires --syn-mode per_edge")
     texts = {}
-    all_param = _partition_cli_text(getattr(args, "all_param", None))
+    all_param = _train_mode_cli_text(getattr(args, "all_param", None))
     if all_param is not None:
         for name in training.ALL_PARAM_NAMES:
             if name == "syn_strength_cell" and syn_mode != "per_cell":
@@ -1140,36 +1160,36 @@ def _partition_cli_map(args):
             if name == "syn_strength_edge" and syn_mode != "per_edge":
                 continue
             texts[name] = all_param
-    shape_text = _partition_cli_text(getattr(args, "ih_shape", None))
+    shape_text = _train_mode_cli_text(getattr(args, "ih_shape", None))
     if shape_text is not None:
         for name in training.IH_SHAPE_PARAM_NAMES:
             texts[name] = shape_text
     per_param = {
-        "in_gain": _partition_cli_text(getattr(args, "in_gain", None)),
-        "out_gain": _partition_cli_text(getattr(args, "out_gain", None)),
-        "out_scale": _partition_cli_text(getattr(args, "out_scale", None)),
+        "in_gain": _train_mode_cli_text(getattr(args, "in_gain", None)),
+        "out_gain": _train_mode_cli_text(getattr(args, "out_gain", None)),
+        "out_scale": _train_mode_cli_text(getattr(args, "out_scale", None)),
         "syn_strength_cell": syn_cell_text,
         "syn_strength_edge": syn_edge_text,
-        "v_th": _partition_cli_text(getattr(args, "v_th", None)),
-        "Ih_gmax": _partition_cli_text(getattr(args, "ih_gmax", None)),
-        "Ih_gmax_off": _partition_cli_text(getattr(args, "ih_gmax_off", None)),
-        "Ih_midv": _partition_cli_text(getattr(args, "ih_midv", None)),
-        "Ih_slope": _partition_cli_text(getattr(args, "ih_slope", None)),
-        "tau_midv": _partition_cli_text(getattr(args, "tau_midv", None)),
-        "Ih_midv_off": _partition_cli_text(getattr(args, "ih_midv_off", None)),
-        "Ih_slope_off": _partition_cli_text(getattr(args, "ih_slope_off", None)),
-        "tau_midv_off": _partition_cli_text(getattr(args, "tau_midv_off", None)),
-        "tau_lp": _partition_cli_text(getattr(args, "tau_lp", None)),
-        "v_rest": _partition_cli_text(getattr(args, "v_rest", None)),
-        "tau_hp": _partition_cli_text(getattr(args, "tau_hp", None)),
-        "hp_gain": _partition_cli_text(getattr(args, "hp_gain", None)),
+        "v_th": _train_mode_cli_text(getattr(args, "v_th", None)),
+        "Ih_gmax": _train_mode_cli_text(getattr(args, "ih_gmax", None)),
+        "Ih_gmax_off": _train_mode_cli_text(getattr(args, "ih_gmax_off", None)),
+        "Ih_midv": _train_mode_cli_text(getattr(args, "ih_midv", None)),
+        "Ih_slope": _train_mode_cli_text(getattr(args, "ih_slope", None)),
+        "tau_midv": _train_mode_cli_text(getattr(args, "tau_midv", None)),
+        "Ih_midv_off": _train_mode_cli_text(getattr(args, "ih_midv_off", None)),
+        "Ih_slope_off": _train_mode_cli_text(getattr(args, "ih_slope_off", None)),
+        "tau_midv_off": _train_mode_cli_text(getattr(args, "tau_midv_off", None)),
+        "tau_lp": _train_mode_cli_text(getattr(args, "tau_lp", None)),
+        "v_rest": _train_mode_cli_text(getattr(args, "v_rest", None)),
+        "tau_hp": _train_mode_cli_text(getattr(args, "tau_hp", None)),
+        "hp_gain": _train_mode_cli_text(getattr(args, "hp_gain", None)),
     }
     for name, text in per_param.items():
         if text is not None:
             texts[name] = text
-    out = {name: training.parse_partition_text(text) for name, text in texts.items()}
+    out = {name: training.parse_train_mode_text(text) for name, text in texts.items()}
     if "syn_strength_edge" in out:
-        training.validate_syn_strength_edge_partition(out["syn_strength_edge"])
+        training.validate_syn_strength_edge_train_mode(out["syn_strength_edge"])
     return out
 
 
@@ -1193,12 +1213,12 @@ def training_kwargs_from_args(
                     "Use an absolute path to reference runs outside 0_runs.",
                 )
             init_from = f"{model}/{init_from}"
-    param_partitions = _partition_cli_map(args) or None
-    task_list = parse_task_list(args.task)
-    cost_weights = parse_cost_weight(args.cost_weight, task_list)
+    train_modes = _train_mode_cli_map(args) or None
+    tasks = parse_tasks(args.task)
+    cost_weights = parse_cost_weight(args.cost_weight, tasks)
     default_extent, extent_kv = parse_cost_extent(args.cost_extent)
     cost_extent_by_task = training.resolve_cost_extent_by_task(
-        task_list, default_extent, extent_kv,
+        tasks, default_extent, extent_kv,
     )
     if default_extent is not None and default_extent != -1 and default_extent < 0:
         raise ValueError("--cost-extent must be -1 or >= 0")
@@ -1287,10 +1307,10 @@ def training_kwargs_from_args(
         lrs=lrs,
         fname=args.fname,
         outdir=outdir,
-        param_partitions=param_partitions,
+        train_modes=train_modes,
         syn_mode=training.normalize_syn_mode(args.syn_mode),
         network=args.network,
-        task_list=task_list,
+        tasks=tasks,
         cost_weights=cost_weights,
         cost_extent_by_task=cost_extent_by_task,
         shift_extent=shift_extent,

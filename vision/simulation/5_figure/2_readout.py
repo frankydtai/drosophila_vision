@@ -9,7 +9,7 @@ from training.defaults import DATA_AMP, DELTA_MS
 from task.spot.data import GT_CELLS, read_RecF_data, read_RecF_data_dark
 from network.construction import (
     CELL_FAMILY_ROWS,
-    cell_family_row_groups,
+    cell_family_rows,
     cell_names_in_family_order,
 )
 
@@ -18,16 +18,11 @@ PLOT_FAMILY_ROWS = [np.array(row) for row in CELL_FAMILY_ROWS]
 _VALID_CONTRASTS = ("bright", "dark")
 
 
-def plot_row_groups(present):
-    """Family row groups for plots; skip absent cells and empty rows."""
-    return [np.array(row) for row in cell_family_row_groups(present)]
-
-
 def plot_present_layout(present):
-    """Return ``(groups, names)`` in canonical family order."""
-    groups = plot_row_groups(present)
-    names = [str(n) for row in groups for n in row]
-    return groups, names
+    """Return ``(family_rows, names)`` in canonical family order."""
+    family_rows = [np.array(row) for row in cell_family_rows(present)]
+    names = [str(n) for row in family_rows for n in row]
+    return family_rows, names
 
 
 def plot_cells_in_order(present):

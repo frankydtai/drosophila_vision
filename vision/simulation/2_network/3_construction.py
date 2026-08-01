@@ -46,10 +46,10 @@ CELL_FAMILY_ROWS: List[List[str]] = [
 ]
 
 
-def cell_family_row_groups(present: Sequence[str]) -> List[List[str]]:
-    """Family row groups; skip absent cells and empty rows; append leftovers."""
-    present_list = [str(t) for t in present]
-    present_set = set(present_list)
+def cell_family_rows(present: Sequence[str]) -> List[List[str]]:
+    """Present cells arranged into family rows; skip empty rows; append leftovers."""
+    present_names = [str(t) for t in present]
+    present_set = set(present_names)
     rows: List[List[str]] = []
     used: set = set()
     for row in CELL_FAMILY_ROWS:
@@ -57,15 +57,15 @@ def cell_family_row_groups(present: Sequence[str]) -> List[List[str]]:
         if filtered:
             rows.append(filtered)
             used.update(filtered)
-    for name in present_list:
+    for name in present_names:
         if name not in used:
             rows.append([name])
     return rows
 
 
 def cell_names_in_family_order(present: Sequence[str]) -> List[str]:
-    """Flat cell order from :func:`cell_family_row_groups`."""
-    return [n for row in cell_family_row_groups(present) for n in row]
+    """Flat cell order from :func:`cell_family_rows`."""
+    return [n for row in cell_family_rows(present) for n in row]
 
 
 @dataclass
@@ -172,7 +172,7 @@ def gt_cells_from_opts(opts) -> Optional[Tuple[str, ...]]:
     return tuple(str(s) for s in rs)
 
 
-def gt_cells_list(gt_cells: Optional[Sequence[str]]) -> Optional[List[str]]:
+def normalize_gt_cells(gt_cells: Optional[Sequence[str]]) -> Optional[List[str]]:
     """Serialize ``gt_cells`` for stimulus opts, or ``None`` if unset."""
     if gt_cells is None:
         return None

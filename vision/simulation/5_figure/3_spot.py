@@ -342,7 +342,7 @@ def plot_cell_time(
     )
 
 
-def plot_cell_pair(
+def plot_cell_rf_time(
     ax_rf,
     ax_time,
     title,
@@ -381,7 +381,7 @@ def plot_cell_pair(
     )
 
 
-def plot_cell_pair_slices(
+def plot_cell_rf_time_slices(
     ax_rf,
     ax_time,
     title,
@@ -549,12 +549,12 @@ class SpotTraceBundle:
     """One forward pass; full cost-extent readout over all types."""
 
     cells: list
-    group_rows: list | None = None
+    family_row_ixs: list | None = None
     session: object = None
     slice_overlay: dict[str, dict[str, np.ndarray]] | None = None
     slice_labels: list[str] | None = None
-    slice_x_list: list | None = None
-    slice_y_list: list | None = None
+    slice_xs: list | None = None
+    slice_ys: list | None = None
     n_t: int = 0
     prep_s: float = 0.0
     v_ref_by_name: dict = field(default_factory=dict)
@@ -568,14 +568,14 @@ class SpotTraceBundle:
         return bool(self.slice_overlay)
 
 
-def _group_rows_from_groups(groups, names):
+def _family_row_ixs_from_rows(family_rows, names):
     name_to_i = {str(n): i for i, n in enumerate(names)}
-    group_rows = []
-    for names_row in groups:
+    family_row_ixs = []
+    for names_row in family_rows:
         row_idx = [name_to_i[str(n)] for n in names_row if str(n) in name_to_i]
         if row_idx:
-            group_rows.append(row_idx)
-    return group_rows
+            family_row_ixs.append(row_idx)
+    return family_row_ixs
 
 
 def _spot_all_cell_names(session):
@@ -588,13 +588,13 @@ def _spot_readout_bundle_view(bundle):
     """ca-data view: same traces, rows restricted to ``pack_readout_cells``."""
     session = bundle.session
     present = pack_readout_cells(session, session.primary_readout.name)
-    groups, names = plot_present_layout(present)
+    family_rows, names = plot_present_layout(present)
     by_name = {c['name']: c for c in bundle.cells}
     cells = [by_name[n] for n in names if n in by_name]
     cell_names = [c['name'] for c in cells]
     return SpotTraceBundle(
         cells=cells,
-        group_rows=_group_rows_from_groups(groups, cell_names),
+        family_row_ixs=_family_row_ixs_from_rows(family_rows, cell_names),
         session=session,
         n_t=bundle.n_t,
         v_ref_by_name=bundle.v_ref_by_name,
@@ -605,9 +605,9 @@ def _spot_readout_bundle_view(bundle):
     )
 
 
-def _cells_with_group_rows(groups, names, build_cell):
+def _cells_with_family_row_ixs(family_rows, names, build_cell):
     cells = [build_cell(str(name)) for name in names]
-    return cells, _group_rows_from_groups(groups, names)
+    return cells, _family_row_ixs_from_rows(family_rows, names)
 
 
 def _spot_cubes_from_row_mask(rows, mask):
@@ -628,11 +628,11 @@ def _spot_cubes_from_row_mask(rows, mask):
     return out
 
 
-def _spot_slice_overlay(rows, batches, at_x_list, at_y_list):
+def _spot_slice_overlay(rows, batches, at_xs, at_ys):
     overlay = {}
     labels = []
     batch_idx = rows['batch_idx']
-    for label, at_x, at_y in slice_coord_specs(at_x_list, at_y_list):
+    for label, at_x, at_y in slice_coord_specs(at_xs, at_ys):
         match_b = batches_at_stim_xy(batches, at_x=at_x, at_y=at_y)
         if not match_b:
             print(f'skip slice overlay {label}: no stimulus batch')
@@ -690,7 +690,7 @@ def _spot_forward_rows(
     opts = dict((session.train_opts or {}).get(f"{pack.name}_stimulus_opts") or {})
     spot = spot_from_opts(C, stimulus_opts=opts)
     batches = spot_stimulus_batches(spot)
-    groups, names = plot_present_layout(_spot_all_cell_names(session))
+    family_rows, names = plot_present_layout(_spot_all_cell_names(session))
 
     (
         batch_idx, node_idx, _radius, type_idx, _stim_u, _stim_v, du, dv, center_row,
@@ -735,7 +735,7 @@ def _spot_forward_rows(
     rows['baselines'] = baselines_for_types(
         v_onset_np, nodes_by_name, v_ref_by_type_name(z, session),
     )
-    rows['groups'] = groups
+    rows['family_rows'] = family_rows
     return rows
 
 
@@ -758,39 +758,39 @@ def _spot_cube_from_rows(rows, session):
         names, cube, sem, rows['baselines'],
         single_hex=single_hex, n_by_name=n_by_name,
     )
-    group_rows = _group_rows_from_groups(rows['groups'], names)
-    return cells, group_rows, mt
+    family_row_ixs = _family_row_ixs_from_rows(rows['family_rows'], names)
+    return cells, family_row_ixs, mt
 
 
 @torch.no_grad()
 def network_spot_trace_bundle(
     session, z, *,
-    at_x_list=None, at_y_list=None,
+    at_xs=None, at_ys=None,
     save_trace_csv_dir: str | None = None, show_pre=True,
 ):
     """Run one forward; full cost-extent spot traces over all types."""
     t_prep0 = time.perf_counter()
-    at_x = at_x_list[0] if at_x_list else None
-    at_y = at_y_list[0] if at_y_list else None
+    at_x = at_xs[0] if at_xs else None
+    at_y = at_ys[0] if at_ys else None
     rows = _spot_forward_rows(
         session, z,
         save_trace_csv_dir=save_trace_csv_dir,
         at_x=at_x, at_y=at_y,
     )
-    cells, group_rows, n_t = _spot_cube_from_rows(rows, session)
+    cells, family_row_ixs, n_t = _spot_cube_from_rows(rows, session)
     slice_overlay, slice_labels = (None, None)
-    if at_x_list is not None or at_y_list is not None:
+    if at_xs is not None or at_ys is not None:
         slice_overlay, slice_labels = _spot_slice_overlay(
-            rows, rows['batches'], at_x_list, at_y_list,
+            rows, rows['batches'], at_xs, at_ys,
         )
     return SpotTraceBundle(
         cells=cells,
-        group_rows=group_rows,
+        family_row_ixs=family_row_ixs,
         session=session,
         slice_overlay=slice_overlay,
         slice_labels=slice_labels,
-        slice_x_list=at_x_list,
-        slice_y_list=at_y_list,
+        slice_xs=at_xs,
+        slice_ys=at_ys,
         n_t=n_t,
         prep_s=time.perf_counter() - t_prep0,
         v_ref_by_name=v_ref_by_type_name(z, session),
@@ -803,7 +803,7 @@ def network_spot_trace_bundle(
 
 def _spot_suptitle(title, bundle):
     if bundle is not None and bundle.has_slices:
-        scope = hex_at_scope_tag(bundle.slice_x_list, bundle.slice_y_list)
+        scope = hex_at_scope_tag(bundle.slice_xs, bundle.slice_ys)
         return f'{title}  [{scope}, overlay + total]'
     return title
 
@@ -825,7 +825,7 @@ def _plot_spot_figure(
         raise ValueError("_plot_spot_figure requires at least one bundle")
     primary = bundles[order[0]]
     cells = primary.cells
-    group_rows = primary.group_rows
+    family_row_ixs = primary.family_row_ixs
     has_slices = primary.has_slices
     slice_labels = primary.slice_labels or []
     n_t = primary.n_t
@@ -842,7 +842,7 @@ def _plot_spot_figure(
     for c in order:
         cells_by_contrast[c] = {cell["name"]: cell for cell in bundles[c].cells}
 
-    nrows = 2 * len(group_rows)
+    nrows = 2 * len(family_row_ixs)
     fig = plt.figure(figsize=figsize_fn(ncols, nrows))
     gs = fig.add_gridspec(nrows, ncols, **gridspec_kw)
     legend_done = False
@@ -891,7 +891,7 @@ def _plot_spot_figure(
                 ax_rf.axis("off")
                 ax_time.axis("off")
                 return
-            plot_cell_pair_slices(
+            plot_cell_rf_time_slices(
                 ax_rf, ax_time, cell_title, series, slice_labels,
                 show_legend=not legend_done,
                 show_xlabels=show_xlabels,
@@ -905,7 +905,7 @@ def _plot_spot_figure(
             )
         else:
             series = _series_for_cell(name, with_slices=False)
-            plot_cell_pair(
+            plot_cell_rf_time(
                 ax_rf, ax_time, cell_title, series,
                 show_legend=not legend_done,
                 show_xlabels=show_xlabels,
@@ -919,7 +919,7 @@ def _plot_spot_figure(
             )
         legend_done = True
 
-    for gi, row_idx in enumerate(group_rows):
+    for gi, row_idx in enumerate(family_row_ixs):
         rf_row = 2 * gi
         start = (ncols - len(row_idx)) // 2
         for j, ci in enumerate(row_idx):

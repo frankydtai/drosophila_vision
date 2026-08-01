@@ -30,7 +30,7 @@ from figure import moving_bar as moving_bar_plot
 from figure import spot as spot_plot
 from figure.readout import contrast_for_task
 from figure.spot import CENTER_BIN, pack_spot_cost_radii, resolve_spot_data_cubes
-from figure.util import parse_axis_slice_list, plot_sem_band, slice_xy_label
+from figure.util import parse_axis_slices, plot_sem_band, slice_xy_label
 from import_bootstrap import parse_bool, parse_comma_list
 from network.construction import col2gt
 from task.moving_bar.data import (
@@ -49,7 +49,7 @@ from task.spot.input import (
     spot_from_opts,
     spot_stimulus_batches,
 )
-from training.driver import parse_task_list
+from training.driver import parse_tasks
 
 __doc__ = """Borst / hp_lp v component, or ``--trace-only`` response curves (v).
 
@@ -146,8 +146,8 @@ class SharedCli:
     cells: list[str]
     tasks: list[str]
     specs_req: list[str] | None
-    x_list: list | None
-    y_list: list | None
+    xs: list | None
+    ys: list | None
     slice_label: str | None
 
 
@@ -204,7 +204,7 @@ def parse_shared_cli(args: argparse.Namespace) -> SharedCli:
     cells = parse_comma_list(args.cell)
     if not cells:
         raise SystemExit("cell is required")
-    tasks = parse_task_list(args.task)
+    tasks = parse_tasks(args.task)
     if not tasks:
         raise SystemExit("--task is required")
     specs_req = parse_comma_list(args.spec) if args.spec is not None else None
@@ -214,20 +214,20 @@ def parse_shared_cli(args: argparse.Namespace) -> SharedCli:
                 f"unsupported task {t!r}; expected spot_* or moving_bar_* "
                 f"(after TASK_ALIASES expansion)"
             )
-    x_list = parse_axis_slice_list(args.x)
-    y_list = parse_axis_slice_list(args.y)
-    if (x_list is None) ^ (y_list is None):
+    xs = parse_axis_slices(args.x)
+    ys = parse_axis_slices(args.y)
+    if (xs is None) ^ (ys is None):
         if any(t in training.SPOT_TASKS for t in tasks):
             raise SystemExit("spot tasks require both --x and --y or neither")
     slice_label = None
-    if x_list is not None and y_list is not None and len(x_list) == 1 and len(y_list) == 1:
-        slice_label = slice_xy_label(x_list[0], y_list[0])
+    if xs is not None and ys is not None and len(xs) == 1 and len(ys) == 1:
+        slice_label = slice_xy_label(xs[0], ys[0])
     return SharedCli(
         cells=cells,
         tasks=tasks,
         specs_req=specs_req,
-        x_list=x_list,
-        y_list=y_list,
+        xs=xs,
+        ys=ys,
         slice_label=slice_label,
     )
 
@@ -280,7 +280,7 @@ def _float_curve(arr) -> np.ndarray:
     return np.asarray(arr, dtype=float)
 
 
-def extract_spot_bundle(session, z, *, task: str, x_list, y_list):
+def extract_spot_bundle(session, z, *, task: str, xs, ys):
     """One spot forward via ``plot_trained.spot_bundle_fns``.
 
     Returns ``(session_one, bundle, data_cubes)`` where ``data_cubes`` is
@@ -291,8 +291,8 @@ def extract_spot_bundle(session, z, *, task: str, x_list, y_list):
     bundle = make_bundle(
         one,
         z,
-        at_x_list=x_list,
-        at_y_list=y_list,
+        at_xs=xs,
+        at_ys=ys,
         save_trace_csv_dir=None,
     )
     data_cubes = spot_plot.resolve_spot_data_cubes(
@@ -301,15 +301,15 @@ def extract_spot_bundle(session, z, *, task: str, x_list, y_list):
     return one, bundle, data_cubes
 
 
-def extract_moving_bar_bundle(session, z, *, task: str, x_list, y_list):
+def extract_moving_bar_bundle(session, z, *, task: str, xs, ys):
     """One moving-bar forward; all cells + all specs live on the returned bundle."""
     one = plot_trained.session_for_task(session, task)
     return moving_bar_plot.moving_bar_trace_bundle(
         one,
         z,
         task,
-        at_x_list=x_list,
-        at_y_list=y_list,
+        at_xs=xs,
+        at_ys=ys,
         save_trace_csv_dir=None,
     )
 
@@ -448,8 +448,8 @@ def _print_trace_block(
     session,
     bundle,
     curves: dict[str, np.ndarray],
-    x_list,
-    y_list,
+    xs,
+    ys,
     print_values: bool,
     head_t: int | None,
     head_window: str | None,
@@ -468,8 +468,8 @@ def _print_trace_block(
     print(f"== RUN {run_i}: {run_dir} ==")
     print(head)
     print(f"n_t={bundle.n_t}  delta_ms={getattr(session, 'delta_ms', 'NA')}")
-    if x_list is not None or y_list is not None:
-        print(f"slice_x={x_list}  slice_y={y_list}")
+    if xs is not None or ys is not None:
+        print(f"slice_x={xs}  slice_y={ys}")
     if before_t is not None:
         print(f"cost_window_start_idx={before_t}")
     if spec is not None:
@@ -586,8 +586,8 @@ def _run_trace_only(args: argparse.Namespace, cli: SharedCli) -> None:
                         session,
                         z,
                         task=task,
-                        x_list=cli.x_list,
-                        y_list=cli.y_list,
+                        xs=cli.xs,
+                        ys=cli.ys,
                     )
                 _one, bundle, data_cubes = spot_cache[task]
                 for cell in cli.cells:
@@ -604,8 +604,8 @@ def _run_trace_only(args: argparse.Namespace, cli: SharedCli) -> None:
                         session=session,
                         bundle=bundle,
                         curves=curves,
-                        x_list=cli.x_list,
-                        y_list=cli.y_list,
+                        xs=cli.xs,
+                        ys=cli.ys,
                         print_values=args.values,
                         head_t=head_t,
                         head_window=head_window,
@@ -616,8 +616,8 @@ def _run_trace_only(args: argparse.Namespace, cli: SharedCli) -> None:
                         session,
                         z,
                         task=task,
-                        x_list=cli.x_list,
-                        y_list=cli.y_list,
+                        xs=cli.xs,
+                        ys=cli.ys,
                     )
                 bundle = bar_cache[task]
                 for cell in cli.cells:
@@ -635,8 +635,8 @@ def _run_trace_only(args: argparse.Namespace, cli: SharedCli) -> None:
                             session=session,
                             bundle=bundle,
                             curves=curves,
-                            x_list=cli.x_list,
-                            y_list=cli.y_list,
+                            xs=cli.xs,
+                            ys=cli.ys,
                             print_values=args.values,
                             head_t=head_t,
                             head_window=head_window,
@@ -876,21 +876,21 @@ def _component_spec(model: str) -> _ComponentSpec:
     raise SystemExit(f"cell_dynamics supports borst|hp_lp; got {model!r}")
 
 
-def _trace_ylabel(group_ylabel: str, label: str) -> str:
+def _trace_ylabel(panel_ylabel: str, label: str) -> str:
     if label == "num/den":
         return "num/den (mV)"
     if label == "num":
         return "num (pA)"
     if label == "den":
         return "den (nS)"
-    if "(" in group_ylabel:
-        node = " " + group_ylabel[group_ylabel.index("("):]
+    if "(" in panel_ylabel:
+        node = " " + panel_ylabel[panel_ylabel.index("("):]
         return f"{label}{node}"
     return label
 
 
 def _component_axes_grid(spec: _ComponentSpec):
-    """Return ``(n_rows, n_hexes)`` grid: one row per plot panel group."""
+    """Return ``(n_rows, n_hexes)`` grid: one row per plot panel."""
     return len(spec.plot_panels), spec.n_plot_cols
 
 
@@ -903,7 +903,7 @@ def _plot_colors():
 def _plot_trace_colors(colors: list[str], spec: _ComponentSpec) -> dict[str, str]:
     """Map trace legend label → subplot color (hex index within its row)."""
     out: dict[str, str] = {}
-    for _group_ylabel, series in spec.plot_panels:
+    for _panel_ylabel, series in spec.plot_panels:
         for ci, (_key, label) in enumerate(series):
             if label in _BLACK_TRACE_LABELS:
                 out[label] = "0.0"
@@ -2187,7 +2187,7 @@ def _overlay_plot_filename(reports: list[dict[str, Any]]) -> str:
 
 
 def _component_figure(title: str, spec: _ComponentSpec):
-    """Shared grid figure: rows = panel groups, cols = traces within a row."""
+    """Shared grid figure: rows = plot panels, cols = traces within a row."""
     import matplotlib
 
     matplotlib.use("Agg")
@@ -2212,7 +2212,7 @@ def _component_figure(title: str, spec: _ComponentSpec):
 
 def _hide_unused_axes(axes, spec: _ComponentSpec) -> None:
     n_rows, n_hexes = axes.shape
-    for ri, (_group_ylabel, series) in enumerate(spec.plot_panels):
+    for ri, (_panel_ylabel, series) in enumerate(spec.plot_panels):
         for ci in range(len(series), n_hexes):
             axes[ri, ci].set_visible(False)
 
@@ -2316,7 +2316,7 @@ def _plot_component_reports(
     row_curves: dict[int, list[np.ndarray]] = {ri: [] for ri in spec.row_shared_ylim}
     tc = _plot_trace_colors(colors, spec)
 
-    for ri, (group_ylabel, series) in enumerate(spec.plot_panels):
+    for ri, (panel_ylabel, series) in enumerate(spec.plot_panels):
         for ci, (key, label) in enumerate(series):
             ax = axes[ri, ci]
             color = tc[label]
@@ -2346,7 +2346,7 @@ def _plot_component_reports(
             if e_note is not None:
                 ax.set_title(e_note, fontsize=8)
             _style_component_ax(
-                ax, _trace_ylabel(group_ylabel, label),
+                ax, _trace_ylabel(panel_ylabel, label),
                 legend_fontsize=6 if overlay else 7,
                 legend_ncol=1,
                 show_legend=show_legend,
@@ -2376,9 +2376,9 @@ def plot_reports_overlay(reports: list[dict[str, Any]], out_path: str) -> None:
     if not reports:
         raise SystemExit("no reports to overlay")
     r0 = reports[0]
-    spec_list = ",".join(str(r["spec"]) for r in reports)
+    specs_csv = ",".join(str(r["spec"]) for r in reports)
     title = (
-        f"{r0['cell']}  {r0['task']}  overlay=[{spec_list}]"
+        f"{r0['cell']}  {r0['task']}  overlay=[{specs_csv}]"
         f"  mode={r0.get('mode')}  n={r0.get('n_nodes')}"
     )
     _plot_component_reports(reports, out_path, title=title)
@@ -2623,7 +2623,7 @@ def main() -> None:
             raise SystemExit("--syn-strength is component only; omit with --trace-only")
         if args.json:
             raise SystemExit("--json is component only; omit with --trace-only")
-        if (cli.x_list is None) ^ (cli.y_list is None):
+        if (cli.xs is None) ^ (cli.ys is None):
             raise SystemExit("pass both --x and --y, or neither")
         _run_trace_only(args, cli)
         return
@@ -2634,8 +2634,8 @@ def main() -> None:
         )
 
     hex_mode = False
-    if cli.x_list is not None and cli.y_list is not None:
-        if len(cli.x_list) != 1 or len(cli.y_list) != 1:
+    if cli.xs is not None and cli.ys is not None:
+        if len(cli.xs) != 1 or len(cli.ys) != 1:
             raise SystemExit(
                 "hex mode needs exactly one --x and one --y; "
                 "omit both for cost-extent averages"
@@ -2645,7 +2645,7 @@ def main() -> None:
             raise SystemExit("hex mode is moving_bar-only; omit --x/--y for spot")
         if len(cli.cells) != 1:
             raise SystemExit("hex mode supports one cell")
-    elif cli.x_list is not None or cli.y_list is not None:
+    elif cli.xs is not None or cli.ys is not None:
         raise SystemExit("pass both --x and --y for hex mode, or neither for averages")
 
     if args.t is not None:
@@ -2709,8 +2709,8 @@ def main() -> None:
                         do_plot=args.plot,
                     )
             else:
-                hx = cli.x_list[0] if hex_mode else None
-                hy = cli.y_list[0] if hex_mode else None
+                hx = cli.xs[0] if hex_mode else None
+                hy = cli.ys[0] if hex_mode else None
                 if task not in bar_meta_cache:
                     bar_meta_cache[task] = _bar_meta(session, task)
                 specs, grids = bar_meta_cache[task]

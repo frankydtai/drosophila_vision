@@ -85,7 +85,7 @@ from training.config import (
     expand_cost_weight_dict,
     expand_gt_dict,
     moving_bar_cost_part_key,
-    normalize_task_list,
+    normalize_tasks,
 )
 from training.readout_pack import (
     ModelBackend,
@@ -97,12 +97,12 @@ from training.readout_pack import (
     sim_dtype_from_fp,
 )
 from training.params import (
-    apply_partitions,
+    apply_train_modes,
     attach_param_carry,
     build_e_leak,
     build_ih_dir,
     schema_nparams,
-    schema_partitions_record,
+    schema_train_modes_record,
     node_names_for_segment,
 )
 from training.cost import _build_cost_subpacks, _build_fused_forward
@@ -111,7 +111,7 @@ from task.spot.data import (
     SPOT_POLARITIES,
     build_spot_gt,
     default_spot_cost_radius_weight,
-    expand_gt_cells_list as expand_spot_gt_cells_list,
+    expand_gt_cells as expand_spot_gt_cells,
     expand_spot_cost_r_w_dict,
     make_spot_stimulus_opts,
 )
@@ -122,7 +122,7 @@ from task.spot.input import (
 from task.moving_bar.data import (
     _enrich_moving_bar_stimulus_opts,
     build_moving_bar_gt,
-    expand_gt_cells_list as expand_moving_bar_gt_cells_list,
+    expand_gt_cells as expand_moving_bar_gt_cells,
     make_moving_bar_stimulus_opts,
 )
 from task.moving_bar.input import resolve_i_baseline
@@ -496,14 +496,14 @@ def _spot_cost_times_ms(opts):
     if post <= 0:
         raise ValueError("spot post-onset window must be > 0 for cost_interval_ms")
     interval_t = max(1, int(round(interval_ms / delta_ms)))
-    t_list = list(range(0, post, interval_t))
-    if not t_list:
+    t_ixs = list(range(0, post, interval_t))
+    if not t_ixs:
         end_ms = (post - 1) * delta_ms
         raise ValueError(
             f"cost_interval_ms={interval_ms} exceeds post-onset window "
             f"({end_ms:g} ms, post n_t={post})"
         )
-    return [t * delta_ms for t in t_list]
+    return [t * delta_ms for t in t_ixs]
 
 
 def _spot_cost_time_ix(opts, *, device):
@@ -726,9 +726,9 @@ def resolve_gt_cells_by_task(by_task_kv) -> Dict[str, List[str]]:
     out: Dict[str, List[str]] = {}
     for tname, cells in expanded.items():
         if tname in SPOT_TASKS:
-            out[tname] = list(expand_spot_gt_cells_list(cells))
+            out[tname] = list(expand_spot_gt_cells(cells))
         else:
-            out[tname] = list(expand_moving_bar_gt_cells_list(cells))
+            out[tname] = list(expand_moving_bar_gt_cells(cells))
     return out
 
 
@@ -824,7 +824,7 @@ def _finalize_stimulus_opts(
 
 def make_train_opts(
     backend="network",
-    task_list=None,
+    tasks=None,
     cost_weights=None,
     pack_overrides=None,
     sequential=None,
@@ -841,7 +841,7 @@ def make_train_opts(
     spot_dark_stimulus_opts=None,
     network_json=None,
     network=None,
-    param_partitions=None,
+    train_modes=None,
     syn_mode=SYN_MODE,
     dev=None,
     packs=None,
@@ -857,7 +857,7 @@ def make_train_opts(
     fp = int(fp)
     if fp not in (16, 32, 64):
         raise ValueError(f"fp must be 16, 32, or 64; got {fp!r}")
-    tl = normalize_task_list(task_list)
+    tl = normalize_tasks(tasks)
     if spot_extent is None:
         spot_extent = SPOT_EXTENT
     if shift_extent is None:
@@ -890,7 +890,7 @@ def make_train_opts(
         )
     opts = {
         "backend": "network",
-        "task_list": tl,
+        "tasks": tl,
         "cost_weights": expand_cost_weight_dict(cost_weights or {}),
         "sequential": sequential,
         **stimulus_opts,
@@ -899,8 +899,8 @@ def make_train_opts(
         opts["pack_overrides"] = pack_overrides
     if packs is not None:
         opts["packs"] = packs
-    if param_partitions is not None:
-        opts["param_partitions"] = param_partitions
+    if train_modes is not None:
+        opts["train_modes"] = train_modes
     opts["ih_off"] = str(ih_off)
     opts["syn_mode"] = normalize_syn_mode(syn_mode)
     opts["pre_grad"] = bool(pre_grad)
@@ -914,13 +914,13 @@ def make_train_opts(
 
 
 def _train_opts_for_sidecar(
-    opts, backend, task_list,
+    opts, backend, tasks,
     resolved_spot_bright, resolved_spot_dark,
     resolved_bar_bright, resolved_bar_dark, sequential_bool,
 ) -> dict:
     record = {
         "backend": str(backend),
-        "task_list": list(task_list),
+        "tasks": list(tasks),
         "cost_weights": {str(k): float(v) for k, v in (opts.get("cost_weights") or {}).items()},
         "sequential": bool(sequential_bool),
     }
@@ -964,8 +964,8 @@ def _train_opts_for_sidecar(
     overrides = opts.get("pack_overrides")
     if overrides:
         record["pack_overrides"] = overrides
-    if opts.get("param_partitions"):
-        record["param_partitions"] = opts["param_partitions"]
+    if opts.get("train_modes"):
+        record["train_modes"] = opts["train_modes"]
     if "ih_off" in opts:
         record["ih_off"] = str(opts["ih_off"])
     record["syn_mode"] = normalize_syn_mode(opts.get("syn_mode", SYN_MODE))
@@ -990,10 +990,10 @@ def _schema_from_opts(model, model_backend, schema, train_opts_record, *, ih_off
     base = default_schema(model, model_backend, **kw)
     if not train_opts_record:
         return base
-    parts = train_opts_record.get("param_partitions")
-    if parts:
-        base = apply_partitions(
-            base, parts, lambda seg: node_names_for_segment(seg, model_backend),
+    modes = train_opts_record.get("train_modes")
+    if modes:
+        base = apply_train_modes(
+            base, modes, lambda seg: node_names_for_segment(seg, model_backend),
         )
     return base
 
@@ -1001,7 +1001,7 @@ def _schema_from_opts(model, model_backend, schema, train_opts_record, *, ih_off
 def _make_session(
     model_backend: ModelBackend,
     model: str,
-    task_list: List[str],
+    tasks: List[str],
     packs: Dict[str, ReadoutPack],
     *,
     delta_ms: float,
@@ -1027,7 +1027,7 @@ def _make_session(
             model, model_backend, None, train_opts_record, ih_off=ih_off,
         )
     if train_opts_record is not None:
-        train_opts_record["param_partitions"] = schema_partitions_record(
+        train_opts_record["train_modes"] = schema_train_modes_record(
             sch, lambda seg: node_names_for_segment(seg, model_backend),
         )
     sch = attach_param_carry(sch)
@@ -1036,7 +1036,7 @@ def _make_session(
         model=model,
         schema=tuple(sch),
         readouts=dict(packs),
-        task_list=tuple(task_list),
+        tasks=tuple(tasks),
         cost_weights=expand_cost_weight_dict(cost_weights),
         sequential=bool(seq),
         device=dev_ref,
@@ -1074,8 +1074,8 @@ def open_session(
     backend_name = str(opts.get("backend", "network"))
     if backend_name != "network":
         raise ValueError(f"backend must be 'network', got {backend_name!r}")
-    task_list = normalize_task_list(opts.get("task_list"))
-    bad = [t for t in task_list if t not in VALID_TASKS]
+    tasks = normalize_tasks(opts.get("tasks"))
+    bad = [t for t in tasks if t not in VALID_TASKS]
     if bad:
         raise ValueError(f"unknown task(s) {bad!r} (expected {'|'.join(CLI_TASK_NAMES)})")
     dev = opts.get("dev") or active_device()
@@ -1113,7 +1113,7 @@ def open_session(
     pack_overrides = opts.get("pack_overrides") or {}
     resolved_spot_bright = resolved_spot_dark = None
     resolved_bar_bright = resolved_bar_dark = None
-    for tname in task_list:
+    for tname in tasks:
         pack, stim, _tag = NETWORK_TASK_BUILDERS[tname](ctx, C)
         if tname in pack_overrides:
             pack = apply_pack_override(pack, pack_overrides[tname], model_backend)
@@ -1127,13 +1127,13 @@ def open_session(
         elif tname == "moving_bar_dark":
             resolved_bar_dark = stim
     record = _train_opts_for_sidecar(
-        opts, "network", task_list,
+        opts, "network", tasks,
         resolved_spot_bright, resolved_spot_dark,
         resolved_bar_bright, resolved_bar_dark,
         bool(opts.get("sequential")),
     )
     return _make_session(
-        model_backend, model, task_list, packs,
+        model_backend, model, tasks, packs,
         delta_ms=delta_ms,
         cost_weights=opts.get("cost_weights"),
         sequential=opts.get("sequential"),
@@ -1173,8 +1173,8 @@ def open_session_from_opts(opts: dict, model: str | None = None, **kwargs) -> Tr
     nj = opts.get("network_json")
     if not nj:
         raise ValueError("train_opts requires network_json")
-    if not opts.get("task_list"):
-        raise ValueError("train_opts requires task_list")
+    if not opts.get("tasks"):
+        raise ValueError("train_opts requires tasks")
     sim_dtype = sim_dtype_from_fp(int(opts.get("fp", FP)))
     syn_mode = normalize_syn_mode(opts.get("syn_mode", SYN_MODE))
     mb = load_network_backend(

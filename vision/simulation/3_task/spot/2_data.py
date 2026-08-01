@@ -29,7 +29,7 @@ import neuron.params as params
 from network.construction import (
     col2gt,
     present_gt_cells,
-    gt_cells_list,
+    normalize_gt_cells,
     node_cell_names,
 )
 from network.layout import hex_in_cost_extent
@@ -49,7 +49,7 @@ GT_CELLS: Tuple[str, ...] = (
 )
 
 
-def expand_gt_cells_list(names: Sequence[str]) -> Tuple[str, ...]:
+def expand_gt_cells(names: Sequence[str]) -> Tuple[str, ...]:
     """Validate ``--gt`` spot cell tokens against ``GT_CELLS`` (final keep-set)."""
     if not names:
         raise ValueError("gt_cells must not be empty")
@@ -589,7 +589,7 @@ def build_spot_gt(
     )
     cost_hexes = spot_cost_hexes(batches, cost_radii, cost_extent)
 
-    cost_batch, cost_node, cost_radius_list, cost_readout, cost_weight_list = [], [], [], [], []
+    cost_batch, cost_node, cost_radius_rows, cost_readout, cost_weight_rows = [], [], [], [], []
     cost_stim_u, cost_stim_v = [], []
     trace_cache: Dict[Tuple[int, int, int, int], np.ndarray] = {}
     for b, mu, mv, radius, su, sv in cost_hexes:
@@ -621,9 +621,9 @@ def build_spot_gt(
             for uidx in nodes:
                 cost_batch.append(b)
                 cost_node.append(int(uidx))
-                cost_radius_list.append(radius)
+                cost_radius_rows.append(radius)
                 cost_readout.append(trace)
-                cost_weight_list.append(w)
+                cost_weight_rows.append(w)
                 cost_stim_u.append(int(su))
                 cost_stim_v.append(int(sv))
 
@@ -631,8 +631,8 @@ def build_spot_gt(
         raise ValueError("no spot cost nodes (check cost_extent and gt cells)")
 
     data = torch.tensor(np.asarray(cost_readout), dtype=sim_dtype, device=device)  # (n_cost,T')
-    cost_weight = torch.tensor(np.asarray(cost_weight_list), dtype=sim_dtype, device=device)
-    cost_radius = torch.tensor(np.asarray(cost_radius_list), dtype=sim_dtype, device=device)
+    cost_weight = torch.tensor(np.asarray(cost_weight_rows), dtype=sim_dtype, device=device)
+    cost_radius = torch.tensor(np.asarray(cost_radius_rows), dtype=sim_dtype, device=device)
     readout_batch = torch.tensor(np.asarray(cost_batch), dtype=torch.long, device=device)
     readout_node = torch.tensor(np.asarray(cost_node), dtype=torch.long, device=device)
     readout_stim_u = torch.tensor(np.asarray(cost_stim_u), dtype=torch.long, device=device)
@@ -713,7 +713,7 @@ def make_spot_stimulus_opts(
         opts["pulse_ms"] = float(pulse_ms)
     if cost_interval_ms is not None:
         opts["cost_interval_ms"] = float(cost_interval_ms)
-    rs = gt_cells_list(gt_cells)
+    rs = normalize_gt_cells(gt_cells)
     if rs is not None:
         opts["gt_cells"] = rs
     return opts

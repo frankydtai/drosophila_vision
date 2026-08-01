@@ -96,8 +96,8 @@ class MovingBarTraceBundle:
     n_filter_hexes: int = 0
     slice_overlay: dict | None = None
     slice_axis: str | None = None
-    slice_x_list: list | None = None
-    slice_y_list: list | None = None
+    slice_xs: list | None = None
+    slice_ys: list | None = None
     align_at_x: int | None = None
     align_at_y: int | None = None
     prep_s: float = 0.0
@@ -396,7 +396,7 @@ def _moving_bar_traces_from_forward(
 
 @torch.no_grad()
 def moving_bar_trace_bundle(session, z, task, *, at_x=None, at_y=None,
-                            at_x_list=None, at_y_list=None,
+                            at_xs=None, at_ys=None,
                             align_at_x=None, align_at_y=None,
                             save_trace_csv_dir: str | None = None, show_pre=True):
     """Run one forward; t_first_sti-aligned full-window model traces."""
@@ -447,13 +447,13 @@ def moving_bar_trace_bundle(session, z, task, *, at_x=None, at_y=None,
     )
     slice_overlay = None
     slice_axis = None
-    slice_x_list = None
-    slice_y_list = None
-    specs = slice_coord_specs(at_x_list, at_y_list)
+    slice_xs = None
+    slice_ys = None
+    specs = slice_coord_specs(at_xs, at_ys)
     if specs:
-        slice_axis = slice_axis_name(at_x_list, at_y_list)
-        slice_x_list = list(at_x_list) if at_x_list is not None else None
-        slice_y_list = list(at_y_list) if at_y_list is not None else None
+        slice_axis = slice_axis_name(at_xs, at_ys)
+        slice_xs = list(at_xs) if at_xs is not None else None
+        slice_ys = list(at_ys) if at_ys is not None else None
         slice_overlay = {}
         for label, xv, yv in specs:
             wt = _moving_bar_slice_overlay_traces(
@@ -468,8 +468,8 @@ def moving_bar_trace_bundle(session, z, task, *, at_x=None, at_y=None,
         if not slice_overlay:
             slice_overlay = None
             slice_axis = None
-            slice_x_list = None
-            slice_y_list = None
+            slice_xs = None
+            slice_ys = None
     return MovingBarTraceBundle(
         task=task,
         cells=cells,
@@ -486,8 +486,8 @@ def moving_bar_trace_bundle(session, z, task, *, at_x=None, at_y=None,
         n_filter_hexes=n_filter_hexes,
         slice_overlay=slice_overlay,
         slice_axis=slice_axis,
-        slice_x_list=slice_x_list,
-        slice_y_list=slice_y_list,
+        slice_xs=slice_xs,
+        slice_ys=slice_ys,
         align_at_x=align_at_x,
         align_at_y=align_at_y,
         prep_s=time.perf_counter() - t_prep0,
@@ -737,8 +737,8 @@ def _moving_bar_all_scope_label(bundle_on):
     if bundle_on.has_slices:
         pack = bundle_on.session.primary_readout
         cost_extent = pack.cost_extent
-        at_x = bundle_on.slice_x_list if bundle_on.slice_axis in ('x', 'xy') else None
-        at_y = bundle_on.slice_y_list if bundle_on.slice_axis in ('y', 'xy') else None
+        at_x = bundle_on.slice_xs if bundle_on.slice_axis in ('x', 'xy') else None
+        at_y = bundle_on.slice_ys if bundle_on.slice_axis in ('y', 'xy') else None
         parts = [hex_at_scope_tag(at_x, at_y), 'overlay + total']
         if bundle_on.align_at_x is not None and bundle_on.align_at_y is not None:
             parts.append(

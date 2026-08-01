@@ -13,7 +13,7 @@ from task.moving_bar.input import sti_hexes
 from task.spot.input import spot_from_opts
 from figure import moving_bar as moving_bar_plot
 from figure import spot as spot_plot
-from figure.util import parse_axis_slice_list, parse_align_xy, plot_cost, network_hex_count
+from figure.util import parse_axis_slices, parse_align_xy, plot_cost, network_hex_count
 from training.config import PARAMETER_DIR, run_data_dir
 from training.driver import resolve_run_dir
 
@@ -80,7 +80,7 @@ def session_for_task(base_session, tname):
     if base_session.backend.network is None:
         raise ValueError("session_for_task requires base_session.backend.network")
     opts = dict(base_session.train_opts or {})
-    opts['task_list'] = [tname]
+    opts['tasks'] = [tname]
     opts['packs'] = None
     opts['network'] = base_session.backend.network
     return training.open_session({**opts, 'backend': 'network'}, base_session.model,
@@ -225,7 +225,7 @@ def _plot_spot_tasks(session, z, outdir, spot_tasks, suffix, model_all,
     kind = _session_trace_kind(session)
     plot_kw = dict(data_cubes=data_cubes)
     bundle_kw = dict(
-        at_x_list=at_x, at_y_list=at_y,
+        at_xs=at_x, at_ys=at_y,
         save_trace_csv_dir=save_trace_csv_dir,
         show_pre=show_pre,
     )
@@ -269,7 +269,7 @@ def _plot_bar_readouts(session, z, outdir, bar_readouts, suffix, model_all, *,
     """Plot moving-bar task(s); bright left | dark right when both are trained."""
     kind = _session_trace_kind(session)
     bundle_kw = dict(
-        at_x_list=at_x, at_y_list=at_y,
+        at_xs=at_x, at_ys=at_y,
         align_at_x=align_at_x, align_at_y=align_at_y,
         save_trace_csv_dir=save_trace_csv_dir,
         show_pre=show_pre,
@@ -328,7 +328,7 @@ def _plot_one_task(session, z, outdir, tname, suffix, model_all,
     plot_kw = dict(data_cubes=data_cubes)
     b = make_bundle(
         session, z,
-        at_x_list=at_x, at_y_list=at_y,
+        at_xs=at_x, at_ys=at_y,
         save_trace_csv_dir=save_trace_csv_dir, show_pre=show_pre,
     )
     from figure.readout import contrast_for_task
@@ -383,14 +383,14 @@ def plot_param_set(params, outdir, model=None, model_all=True,
     z = torch.tensor(best, dtype=session.sim_dtype, device=session.device)
 
     suffix = f'trained, cost {best_cost:.2f}% of data power'
-    task_list = list(session.task_list)
+    tasks = list(session.tasks)
     if plot_tasks is not None:
-        task_list = [t for t in task_list if t in plot_tasks]
+        tasks = [t for t in tasks if t in plot_tasks]
 
-    spot_tasks = [t for t in task_list if t in training.SPOT_TASKS]
-    bar_readouts = [t for t in task_list if t in training.MOVING_BAR_TASKS]
+    spot_tasks = [t for t in tasks if t in training.SPOT_TASKS]
+    bar_readouts = [t for t in tasks if t in training.MOVING_BAR_TASKS]
     other_readouts = [
-        t for t in task_list
+        t for t in tasks
         if t not in training.SPOT_TASKS and t not in training.MOVING_BAR_TASKS
     ]
     if (at_x is not None or at_y is not None) and not bar_readouts and not spot_tasks:
@@ -407,7 +407,7 @@ def plot_param_set(params, outdir, model=None, model_all=True,
         plot_cost(
             cost_curve, os.path.join(outdir, 'cost_curve.png'),
             costs_by_task=costs_by_task,
-            task_order=list(training.session_cost_part_keys(session.task_list)),
+            task_order=list(training.session_cost_part_keys(session.tasks)),
         )
     if spot_tasks:
         _plot_spot_tasks(
@@ -499,8 +499,8 @@ def plot_kwargs_from_args(args):
     return dict(
         plot_right_only=args.plot_right_only,
         show_pre=args.show_pre,
-        at_x=parse_axis_slice_list(args.x),
-        at_y=parse_axis_slice_list(args.y),
+        at_x=parse_axis_slices(args.x),
+        at_y=parse_axis_slices(args.y),
         align_at_x=align_at_x,
         align_at_y=align_at_y,
     )
