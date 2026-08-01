@@ -11,9 +11,10 @@ New features handled here:
   :func:`task.spot.input.spot_input_waveform`, shared by the network ``i_sti``
   and the ImpR gt.
 
-ImpR / RecF traces are the ``v`` training gt (used as-is). Sparse cost
-time points (#4) and the ``ReadoutPack`` wrapping live in the ``training``
-layer, which reads the :class:`SpotGt` returned here.
+ImpR / RecF traces are the raw training gt; cost compares absolute model
+``v`` to ``gt_scale * gt + gt_bias``. Sparse cost time points (#4) and the
+``ReadoutPack`` wrapping live in the ``training`` layer, which reads the
+:class:`SpotGt` returned here.
 """
 from __future__ import annotations
 

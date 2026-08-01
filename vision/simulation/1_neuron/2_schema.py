@@ -16,7 +16,8 @@ SYN_MODES = ("per_cell", "per_edge")
 TRAIN_MODE_KEYS = ("indi", "shared", "fixed", "frozen")
 
 ALL_PARAM_NAMES = (
-    "in_gain", "out_gain", "out_scale", "syn_strength_cell", "syn_strength_edge", "v_th",
+    "in_gain", "out_gain", "bias", "gt_scale", "gt_bias",
+    "syn_strength_cell", "syn_strength_edge", "v_th",
     "Ih_gmax", "Ih_gmax_off",
     "Ih_midv", "Ih_slope", "tau_midv",
     "Ih_midv_off", "Ih_slope_off", "tau_midv_off",
@@ -154,7 +155,8 @@ def build_borst_schema(
         _seg("out_gain", n_cells, "full", D["out_gain"], n_cells),
         _syn_segment(syn_mode, n_pairs, n_edges, D),
         _seg("v_th", n_cells, "full", D["v_th"], n_cells),
-        _seg("out_scale", n_cells, "output", D["out_scale"], n_cells),
+        _seg("gt_scale", n_cells, "output", D["gt_scale"], n_cells),
+        _seg("gt_bias", n_cells, "output", D["gt_bias"], n_cells),
         _seg("Ih_gmax", n_cells, "full", D["Ih_gmax"], n_cells, **named_kw),
     ]
     if ih_off == "on":
@@ -195,8 +197,10 @@ def build_hp_lp_schema(
     return [
         _seg("in_gain", n_cells, "full", D["in_gain"], n_cells),
         _seg("out_gain", n_cells, "full", D["out_gain"], n_cells),
+        _seg("bias", n_cells, "full", D["bias"], n_cells),
         _syn_segment(syn_mode, n_pairs, n_edges, D),
-        _seg("out_scale", n_cells, "output", D["out_scale"], n_cells),
+        _seg("gt_scale", n_cells, "output", D["gt_scale"], n_cells),
+        _seg("gt_bias", n_cells, "output", D["gt_bias"], n_cells),
         _seg("tau_lp", n_cells, "full", D["tau_lp"], n_cells),
         _seg("tau_hp", n_cells, "full", D["tau_hp"], n_cells),
         _seg("v_rest", n_cells, "full", D["v_rest"], n_cells),

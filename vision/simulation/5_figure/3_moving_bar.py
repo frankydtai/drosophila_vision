@@ -21,16 +21,16 @@ from figure.readout import pack_readout_cells, plot_cells_in_order
 from figure.util import (
     GT_COLOR,
     TRACE_LW,
-    TRACE_YLIM,
     PlotTimer,
     annotate_baseline,
-    apply_out_scale,
     as_numpy,
     baselines_for_types,
     bundle_panel_title,
     bundle_prep_s,
     hex_at_scope_tag,
     cell_ylabel,
+    gt_affine_scalars_for_cell,
+    nice_ylim,
     overlay_model_reds,
     plot_pre_post_line,
     plot_sem_band,
@@ -44,6 +44,7 @@ from figure.util import (
     suppress_cost_sem,
     v_ref_by_type_name,
     v_ref_schema_name,
+    ylim_for_traces,
 )
 import network.path  # noqa: F401  # ensure FAFBv783 modules are importable
 from task.moving_bar.gt import (
@@ -105,10 +106,19 @@ class MovingBarTraceBundle:
     v_ref_name: str | None = None
     show_pre: bool = True
     t_onset: int | None = None
+    gt_affine_by_name: dict = field(default_factory=dict)
 
     @property
     def has_slices(self):
         return bool(self.slice_overlay)
+
+
+def _gt_trace_affine(bundle, cell_name, gt_trace):
+    """Plot gt as ``gt_scale * gt + gt_bias`` (matches cost)."""
+    if gt_trace is None:
+        return None
+    scale, bias = bundle.gt_affine_by_name.get(str(cell_name), (1.0, 0.0))
+    return float(scale) * np.asarray(gt_trace, dtype=float) + float(bias)
 
 
 def _moving_bar_figure(nrows, ncols, *, sharex='col'):
@@ -356,7 +366,7 @@ def _load_moving_bar_gt_mean(session, task, cells, specs, side):
 
 
 def _moving_bar_traces_from_forward(
-    session, task, trace_full, v_onset_np, specs, spec_names, *,
+    session, task, trace_full, specs, spec_names, *,
     at_x=None, at_y=None,
 ):
     pack = session.pack_for(task)
@@ -404,24 +414,18 @@ def moving_bar_trace_bundle(session, z, task, *, at_x=None, at_y=None,
     pack = session.pack_for(task)
     schema = list(session.schema)
     p = training.assign_params(z, schema, session.backend)
-    v_delta, v_onset, _v_full = training.forward_full(
-        session, p, pack.i_sti, return_v_onset=True, pack=pack,
-    )
-    v_onset_np = v_onset[0].cpu().numpy()
+    trace_t = training.forward_full(session, p, pack.i_sti, pack=pack)
     save_forward_trace_csvs(
         save_trace_csv_dir, task,
-        ref=v_onset_np, trace_full=v_delta,
-        ref_stem='moving_bar_v_onset',
+        trace_full=trace_t,
     )
-    trace_full = apply_out_scale(
-        p, v_delta, None, session.backend,
-    ).cpu().numpy()
+    trace_full = trace_t.detach().cpu().numpy()
     specs = bar_specs_for_session(session, task)
     spec_names = [s.name for s in specs]
     n_t = int(session.n_t)
     C = session.backend.network
     traces, cells, side, n_filter_hexes, t_onset = _moving_bar_traces_from_forward(
-        session, task, trace_full, v_onset_np, specs, spec_names,
+        session, task, trace_full, specs, spec_names,
     )
     v_ref = v_ref_by_type_name(z, session)
     if C is not None:
@@ -440,11 +444,15 @@ def moving_bar_trace_bundle(session, z, task, *, at_x=None, at_y=None,
             name: readout[center & (node_cells == cells.index(name))]
             for name in cells
         }
-    baselines = baselines_for_types(v_onset_np, nodes_by_name, v_ref)
+    baselines = baselines_for_types(nodes_by_name, v_ref)
     single_hex = suppress_cost_sem(session, task) or n_filter_hexes == 1
     gt_mean = _load_moving_bar_gt_mean(
         session, task, cells, specs, side,
     )
+    gt_affine_by_name = {
+        str(name): gt_affine_scalars_for_cell(p, name, session.backend)
+        for name in cells
+    }
     slice_overlay = None
     slice_axis = None
     slice_xs = None
@@ -495,6 +503,7 @@ def moving_bar_trace_bundle(session, z, task, *, at_x=None, at_y=None,
         v_ref_name=v_ref_schema_name(session.schema),
         show_pre=bool(show_pre),
         t_onset=int(t_onset),
+        gt_affine_by_name=gt_affine_by_name,
     )
 
 
@@ -626,7 +635,15 @@ def _plot_moving_bar_cell(
         )
 
     if ylim is None:
-        ylo, yhi = TRACE_YLIM
+        ylo, yhi = ylim_for_traces(
+            {
+                "model": ca_trace,
+                "gt": None,
+                "sem": sem_trace,
+            },
+            show_sem=show_sem and sem_trace is not None and np.any(sem_trace),
+            extra=(gt_y,) if gt_y is not None else (),
+        )
     else:
         ylo, yhi = ylim
 
@@ -690,7 +707,12 @@ def _plot_moving_bar_cell_slices(
         )
 
     if ylim is None:
-        ylo, yhi = TRACE_YLIM
+        curves = [total_trace, *slice_traces.values()]
+        if gt_y is not None:
+            curves.append(gt_y)
+        if show_sem and sem_trace is not None and np.any(sem_trace):
+            curves.extend([total_trace + sem_trace, total_trace - sem_trace])
+        ylo, yhi = nice_ylim(*curves)
     else:
         ylo, yhi = ylim
     t = np.arange(win_len)
@@ -818,7 +840,7 @@ def _moving_bar_all_figure(bundle_on, bundle_2, title, *, right_only=True):
                     ax, ca_mean[key], ca_sem.get(key),
                     slice_traces, plot_labels,
                     cell_title, before_t, after_t,
-                    gt_trace=gt_mean.get(key),
+                    gt_trace=_gt_trace_affine(bundle_src, tname, gt_mean.get(key)),
                     show_ylabel=(ci == 0),
                     show_sem=show_sem and key in ca_sem and np.any(ca_sem[key]),
                     show_legend=(ri == 0 and ci == 0),
@@ -834,7 +856,9 @@ def _moving_bar_all_figure(bundle_on, bundle_2, title, *, right_only=True):
                 _plot_moving_bar_cell(
                     ax, ca_mean[key], ca_sem.get(key),
                     cell_title, before_t, after_t,
-                    gt_trace=gt_mean.get(key),
+                    gt_trace=_gt_trace_affine(
+                        bundle_src or bundle_on, tname, gt_mean.get(key),
+                    ),
                     show_ylabel=(ci == 0),
                     show_sem=show_sem and key in ca_sem and np.any(ca_sem[key]),
                     cell_ticks=False,
@@ -897,7 +921,9 @@ def plot_moving_bar_data(path, *, bundle, bundle_2=None, title=None):
             _plot_moving_bar_cell(
                 ax, wt.ca_mean[key], wt.ca_sem[key],
                 cell_title, before_t, after_t,
-                gt_trace=row_bundle.gt_mean.get(key),
+                gt_trace=_gt_trace_affine(
+                    row_bundle, subtype, row_bundle.gt_mean.get(key),
+                ),
                 show_ylabel=(col_offset + ci == 0), show_sem=not single_hex,
                 mark_cost_window=True,
                 baseline=row_bundle.baselines.get(subtype),

@@ -123,7 +123,7 @@ def _cell_cubes(*, dark: bool, t_onset=None, n_t=None, pulse_ms=None, delta_ms: 
 def fit_gt_cubes(
     *, contrasts=("bright",), t_onset=None, n_t=None, pulse_ms=None, delta_ms: float = DELTA_MS,
 ):
-    """RecF gt cubes ``{contrast: {cell: (RF_N_RADII, T)}}`` (``v`` readout as-is)."""
+    """RecF gt cubes ``{contrast: {cell: (RF_N_RADII, T)}}`` (raw gt before affine)."""
     out = {}
     for contrast in contrasts:
         contrast = str(contrast)

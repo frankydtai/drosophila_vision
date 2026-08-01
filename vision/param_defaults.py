@@ -18,7 +18,7 @@ from typing import Dict, Tuple
 # 1.1 neuron.params (flat; no Physics bag)
 # ---------------------------------------------------------------------------
 
-DELTA_MS = 10.0
+DELTA_MS = 5.0
 CAPAC = 40.0
 G_LEAK = 1.0
 G_IN = 1.0  # nS; hp_lp converts i_sti (pA) → mV via i_sti / g_in
@@ -45,7 +45,8 @@ IH_GMAX_INDI_NAMES = ("L1", "L2", "L4", "L5")
 PARAM_BOXES: Dict[str, dict] = {
     "in_gain": dict(lo=GAIN_LO, hi=GAIN_HI, init=1.0, jit=0.1, train_mode="fixed"),
     "out_gain": dict(lo=GAIN_LO, hi=GAIN_HI, init=1.0, jit=0.1, train_mode="indi"),
-    "out_scale": dict(lo=GAIN_LO, hi=GAIN_HI, init=1.0, jit=0.1, train_mode="indi"),
+    "gt_scale": dict(lo=GAIN_LO, hi=GAIN_HI, init=1.0, jit=0.1, train_mode="indi"),
+    "gt_bias": dict(lo=-20.0, hi=20.0, init=0.0, jit=1.0, train_mode="indi"),
     "syn_strength_cell": dict(lo=GAIN_LO, hi=GAIN_HI, init=1.0, jit=0.1, train_mode="indi"),
     "syn_strength_edge": dict(lo=GAIN_LO, hi=GAIN_HI, init=1.0, jit=0.1, train_mode="indi"),
     "v_th": dict(lo=-70.0, hi=-30.0, init=-50.0, jit=0.0, fixed_val=-50.0, train_mode="fixed"),
@@ -58,7 +59,8 @@ PARAM_BOXES: Dict[str, dict] = {
     "Ih_slope_off": dict(lo=-0.40, hi=-0.20, init=-0.25, jit=0.02, train_mode="shared"),
     "tau_midv_off": dict(lo=-70.0, hi=-40.0, init=-50.0, jit=5.0, train_mode="shared"),
     "tau_lp": dict(lo=10.0, hi=100.0, init=50.0, jit=5.0, train_mode="indi"),
-    "v_rest": dict(lo=-20.0, hi=20.0, init=0.0, jit=1.0, train_mode="indi"),
+    "v_rest": dict(lo=-20.0, hi=20.0, init=0.0, jit=1.0, train_mode="fixed"),
+    "bias": dict(lo=-20.0, hi=20.0, init=0.0, jit=1.0, train_mode="indi"),
     "tau_hp": dict(lo=100.0, hi=10000.0, init=200.0, jit=20.0, fixed_val=10000.0, train_mode="indi"),
     "hp_gain": dict(lo=GAIN_LO, hi=GAIN_HI, init=1.0, jit=0.1, fixed_val=1.0, train_mode="indi_named"),
 }

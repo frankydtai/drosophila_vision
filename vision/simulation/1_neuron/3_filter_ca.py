@@ -2,8 +2,8 @@
 """The one Ca filter (kept; unused by forward / training / plotting).
 
 ``ca_filter`` is a first-order low-pass on ``v - v_onset`` with
-``alpha = delta_ms / Ca_tau``. Training and plots use ``v`` (``v - v_onset``)
-directly; ImpR / RecF gts are used as-is (no Ca conversion).
+``alpha = delta_ms / Ca_tau``. Training and plots use absolute ``v``;
+cost compares ``v`` to ``gt_scale * gt + gt_bias``.
 
 ``delta_ms`` / ``Ca_tau`` are injected scalars.
 """

@@ -17,8 +17,6 @@ GT_COLOR = 'gray'
 MODEL_COLOR = 'red'
 SEM_COLOR = 'pink'
 TRACE_LW = 1.5
-# Fixed symmetric ylim for spot / moving-bar model-gt panels (delta-mV).
-TRACE_YLIM = (-30.0, 30.0)
 
 
 def as_numpy(arr):
@@ -31,59 +29,55 @@ def _as_numpy(arr):
     return as_numpy(arr)
 
 
-def apply_out_scale(p, traces, node_index, backend):
-    """Multiply traces by schema ``out_scale`` (matches cost)."""
-    if node_index is None:
-        node_index = torch.arange(traces.shape[-1], device=traces.device)
-    else:
-        node_index = torch.as_tensor(node_index, dtype=torch.long, device=traces.device)
-    s = training.out_scale_for_nodes(p, node_index, backend, sim_dtype=traces.dtype)
-    return traces * (s if traces.ndim == 3 else s[:, None])
+def apply_gt_affine(p, gt, node_index, backend):
+    """``gt_scale * gt + gt_bias`` (matches cost); ``gt`` leading axis = nodes."""
+    node_index = torch.as_tensor(node_index, dtype=torch.long)
+    scale, bias = training.gt_affine_for_nodes(
+        p, node_index, backend, sim_dtype=torch.float32,
+    )
+    scale_np = scale.detach().cpu().numpy()
+    bias_np = bias.detach().cpu().numpy()
+    g = np.asarray(gt, dtype=np.float64)
+    if g.ndim == 1:
+        return scale_np * g + bias_np
+    return (
+        scale_np.reshape(-1, *([1] * (g.ndim - 1))) * g
+        + bias_np.reshape(-1, *([1] * (g.ndim - 1)))
+    )
+
+
+def gt_affine_scalars_for_cell(p, cell_name, backend) -> tuple[float, float]:
+    """``(gt_scale, gt_bias)`` for one cell type name."""
+    names = [str(n) for n in backend.network.cell_names]
+    ci = names.index(str(cell_name))
+    gs = p["gt_scale"]
+    gb = p["gt_bias"]
+    scale = float(gs[ci] if torch.is_tensor(gs) and gs.dim() > 0 else gs)
+    bias = float(gb[ci] if torch.is_tensor(gb) and gb.dim() > 0 else gb)
+    return scale, bias
 
 
 def save_forward_trace_csvs(
     save_dir,
     task,
     *,
-    ref,
     trace_full,
-    ref_stem: str | None = None,
     trace_stem: str | None = None,
 ):
-    """Write per-task ref + ``v`` trace CSVs under ``save_dir``.
+    """Write per-task absolute ``v`` trace CSV under ``save_dir``.
 
-    Default stems: ``<task>_v_onset.csv``, ``<task>_v.csv`` (unless
-    overridden by ``ref_stem`` / ``trace_stem``).
-
-    Ref is one column (``ref``) with constant ``N``. Trace is ``(B*T', N)`` with
-    constant ``B`` / ``Tprime`` columns, then one column per node.
+    Default stem: ``<task>_v.csv``. Trace is ``(B*T', N)`` with constant
+    ``B`` / ``Tprime`` columns, then one column per node.
     """
     if save_dir is None:
         return
     os.makedirs(save_dir, exist_ok=True)
-    ref_np = _as_numpy(ref).reshape(-1)
     trace_np = _as_numpy(trace_full)
     if trace_np.ndim != 3:
         raise ValueError(f'trace_full must be (B, T\', N), got shape {trace_np.shape}')
     bsz, tprime, n_nodes = (int(x) for x in trace_np.shape)
-    if ref_np.size != n_nodes:
-        raise ValueError(
-            f'ref length {ref_np.size} != n_nodes {n_nodes} for task {task!r}'
-        )
-    ref_stem_default, trace_stem_default = f'{task}_v_onset', f'{task}_v'
-    ref_stem_final = ref_stem_default if ref_stem is None else ref_stem
-    trace_stem_final = trace_stem_default if trace_stem is None else trace_stem
-    ref_path = os.path.join(save_dir, f'{ref_stem_final}.csv')
+    trace_stem_final = f'{task}_v' if trace_stem is None else trace_stem
     trace_path = os.path.join(save_dir, f'{trace_stem_final}.csv')
-    ref_table = np.column_stack([
-        np.full(ref_np.shape[0], ref_np.size, dtype=np.int64),
-        ref_np.astype(np.float64, copy=False),
-    ])
-    # Some traces reuse v_onset across tasks (e.g. bright/dark); avoid redundant writes.
-    if not os.path.exists(ref_path):
-        np.savetxt(
-            ref_path, ref_table, delimiter=',', header='N,ref', comments='',
-        )
     flat = trace_np.reshape(-1, n_nodes).astype(np.float64, copy=False)
     n_rows = flat.shape[0]
     trace_table = np.column_stack([
@@ -134,32 +128,29 @@ def cost_ylim(*curves, pct=99.0, pad=1.1, floor=1.0):
 
 
 def annotate_baseline(ax, baseline):
-    """Y-axis: mid tick at 0 labeled with ``v_onset``; dashed line at ``v_th``/``v_rest``.
+    """Horizontal dashed line at ``v_rest`` (hp_lp) / ``v_th`` (borst).
 
-    ``baseline`` is ``v_onset`` or ``(v_onset, v_ref)`` in absolute mV. Traces are
-    delta-mV, so the line is at ``y = v_ref - v_onset`` (or ``y = 0`` if no ref).
+    ``baseline`` is absolute mV; mid tick labels that value.
     """
     ylo, yhi = ax.get_ylim()
-    v_onset, v_ref = _unpack_baseline(baseline)
-    y_line = 0.0
-    if (
-        v_onset is not None and v_ref is not None
-        and np.isfinite(v_onset) and np.isfinite(v_ref)
-    ):
-        y_line = float(v_ref) - float(v_onset)
-    mid = f'{float(v_onset):.1f}' if v_onset is not None and np.isfinite(v_onset) else ''
-    ax.set_yticks([ylo, 0.0, yhi])
-    ax.set_yticklabels([f'{ylo:+.0f}', mid, f'{yhi:+.0f}'], fontsize=6)
+    if baseline is None or not np.isfinite(baseline):
+        ax.set_yticks([ylo, yhi])
+        ax.set_yticklabels([f'{ylo:+.0f}', f'{yhi:+.0f}'], fontsize=6)
+        return
+    y_line = float(baseline)
+    ax.set_yticks([ylo, y_line, yhi])
+    ax.set_yticklabels([f'{ylo:+.0f}', f'{y_line:.1f}', f'{yhi:+.0f}'], fontsize=6)
     ax.axhline(y_line, color='0.4', linewidth=0.6, linestyle=':', zorder=0)
 
 
-def _unpack_baseline(baseline):
-    """Return ``(v_onset, v_ref_or_none)`` from a scalar or ``(onset, ref)`` pair."""
-    if baseline is None:
-        return None, None
-    if isinstance(baseline, (tuple, list)) and len(baseline) >= 2:
-        return baseline[0], baseline[1]
-    return baseline, None
+def baselines_for_types(nodes_by_name, v_ref_by_name=None):
+    """``{name: v_ref}`` from per-cell ``v_rest`` / ``v_th`` (absolute mV)."""
+    v_ref_by_name = v_ref_by_name or {}
+    out = {}
+    for name in nodes_by_name:
+        ref = v_ref_by_name.get(name, np.nan)
+        out[name] = float(ref) if ref is not None and np.isfinite(ref) else np.nan
+    return out
 
 
 def mark_pulse(ax, pulse_start, pulse_end):
@@ -193,26 +184,6 @@ def readout_center_mask(pack, backend):
             return np.round(pack.cost_radius.cpu().numpy(), 6) == 0.0
         return np.ones(readout.shape[0], dtype=bool)
     return np.ones(readout.shape[0], dtype=bool)
-
-
-def baselines_for_types(v_onset, nodes_by_name, v_ref_by_name=None):
-    """``{name: (v_onset_mean, v_ref)}`` from per-cell node index arrays.
-
-    Callers select nodes (spot center row, moving-bar cost hexes, pack
-    readout mask); this only averages ``v_onset`` and pairs with ``v_ref``.
-    """
-    v_onset = np.asarray(v_onset, dtype=np.float64)
-    v_ref_by_name = v_ref_by_name or {}
-    out = {}
-    for name, nodes in nodes_by_name.items():
-        u = np.asarray(nodes, dtype=np.int64).reshape(-1)
-        onset = float(v_onset[u].mean()) if u.size else np.nan
-        ref = v_ref_by_name.get(name, np.nan)
-        out[name] = (
-            onset,
-            float(ref) if ref is not None and np.isfinite(ref) else np.nan,
-        )
-    return out
 
 
 def sem_from_traces(traces, single_hex=False):

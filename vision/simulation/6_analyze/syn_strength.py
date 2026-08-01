@@ -168,7 +168,7 @@ def main(argv: list[str] | None = None) -> int:
         raise SystemExit(
             f"syn_strength_cell length {syn_strength_cell.shape[0]} != n_pairs {n_pairs}"
         )
-    for key in ("in_gain", "out_gain", "out_scale"):
+    for key in ("in_gain", "out_gain", "gt_scale", "gt_bias"):
         if key not in named:
             raise SystemExit(f"best_param.npz missing {key}")
 
@@ -223,7 +223,8 @@ def main(argv: list[str] | None = None) -> int:
             after_title=(
                 f"in_gain={float(named['in_gain'][ti]):g}, "
                 f"out_gain={float(named['out_gain'][ti]):g}, "
-                f"scale={float(named['out_scale'][ti]):g}"
+                f"gt_scale={float(named['gt_scale'][ti]):g}, "
+                f"gt_bias={float(named['gt_bias'][ti]):g}"
             ),
         )
     return 0

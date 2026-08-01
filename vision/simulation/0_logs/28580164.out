@@ -1,0 +1,37 @@
+Job ID: 28580164
+Node:   spartan-gpgpu175
+GPU:    0
+GPU 0: NVIDIA H100 80GB HBM3 (UUID: GPU-91929a47-96c6-4006-3b89-5fc57cd35197)
+cuda: True NVIDIA H100 80GB HBM3
+Start:  Sun 02 Aug 2026 01:56:23 AEST
+train_modes:
+  in_gain            indi=0/shared=0/fixed=34/frozen=0 (0)
+  out_gain           indi=34/shared=0/fixed=0/frozen=0 (34)
+  bias               indi=34/shared=0/fixed=0/frozen=0 (34)
+  syn_strength_cell  indi=459/shared=0/fixed=0/frozen=0 (459)
+  gt_scale           indi=34/shared=0/fixed=0/frozen=0 (34)
+  gt_bias            indi=34/shared=0/fixed=0/frozen=0 (34)
+  tau_lp             indi=34/shared=0/fixed=0/frozen=0 (34)
+  tau_hp             indi=34/shared=0/fixed=0/frozen=0 (34)
+  v_rest             indi=0/shared=0/fixed=34/frozen=0 (0)
+  hp_gain            indi=4/shared=0/fixed=30/frozen=0 (4)
+device=cuda, model=hp_lp, syn_mode=per_cell, nofruns=1, nofsteps=200, lrs=[0.1], nparams=667, fname=training_hp_lp.npy, outdir=/home/yitai/drosophila_vision/vision/simulation/0_runs/hp_lp/28580164-run-nofsteps-200-tau-hp-init.L1,L2,L4,L5-200-pre-ms-1000-pulse-ms-100-response-ms-500-gt-spot-L3
+checkpoint_interval=1000
+
+round 0
+
+
+Initl cost = 104.9814  [spot_bright=104.9814]
+Final cost = 0.8342  [spot_bright=0.8342]
+Best  cost = 0.8342  [spot_bright=0.8342]
+time needed  = 40.89  sec
+
+done in 0.01 hours
+wrote table: /home/yitai/drosophila_vision/vision/simulation/0_runs/hp_lp/28580164-run-nofsteps-200-tau-hp-init.L1,L2,L4,L5-200-pre-ms-1000-pulse-ms-100-response-ms-500-gt-spot-L3/param.csv (best run #0, cost=0.8342)
+wrote table: /home/yitai/drosophila_vision/vision/simulation/0_runs/hp_lp/28580164-run-nofsteps-200-tau-hp-init.L1,L2,L4,L5-200-pre-ms-1000-pulse-ms-100-response-ms-500-gt-spot-L3/syn_strength_cell.csv
+plot device=cuda (NVIDIA H100 80GB HBM3)
+1 trained set(s); selected #0 (cost=0.8342)
+plot /home/yitai/drosophila_vision/vision/simulation/0_runs/hp_lp/28580164-run-nofsteps-200-tau-hp-init.L1,L2,L4,L5-200-pre-ms-1000-pulse-ms-100-response-ms-500-gt-spot-L3/cost_curve.png: draw=0.1s  save=0.1s  total=0.2s
+plot /home/yitai/drosophila_vision/vision/simulation/0_runs/hp_lp/28580164-run-nofsteps-200-tau-hp-init.L1,L2,L4,L5-200-pre-ms-1000-pulse-ms-100-response-ms-500-gt-spot-L3/spot_gt_v.png: prep=0.3s  draw=0.0s  save=0.1s  total=0.4s
+plot /home/yitai/drosophila_vision/vision/simulation/0_runs/hp_lp/28580164-run-nofsteps-200-tau-hp-init.L1,L2,L4,L5-200-pre-ms-1000-pulse-ms-100-response-ms-500-gt-spot-L3/spot_all_v.png: prep=0.0s  draw=0.6s  save=1.2s  total=1.9s
+plots saved to /home/yitai/drosophila_vision/vision/simulation/0_runs/hp_lp/28580164-run-nofsteps-200-tau-hp-init.L1,L2,L4,L5-200-pre-ms-1000-pulse-ms-100-response-ms-500-gt-spot-L3

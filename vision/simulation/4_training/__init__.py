@@ -105,12 +105,11 @@ from training.params import (
     z_to_node_values,
 )
 from training.cost import (
-    ca_cost,
     calc_cost,
     calc_cost_parts,
     do_many_runs,
     gradient_network,
-    out_scale_for_nodes,
+    gt_affine_for_nodes,
     train_staged,
 )
 from training.session import (

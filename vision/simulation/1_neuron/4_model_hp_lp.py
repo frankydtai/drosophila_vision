@@ -5,7 +5,7 @@
     τ_lp dv/dt = −(v − v_rest) + G (X − a)
 
 with X = v_rest + v_in + v_sti, v_sti = i_sti/g_in (g_in in nS converts pA → mV),
-v_in from relu(v)·out_gain scaled by syn_strength_cell (per_cell) or
+v_in from relu(v+bias)·out_gain scaled by syn_strength_cell (per_cell) or
 syn_strength_edge (per_edge).
 
 Dynamics only: ``prepare_i_sti`` / ``init_state`` / ``step``. Full-T ``v``
@@ -32,7 +32,7 @@ def update_state_hp_lp(
     if g_in == 0.0:
         raise ValueError("g_in must be non-zero")
 
-    pre = torch.relu(v) * p["out_gain"]
+    pre = torch.relu(v + p["bias"]) * p["out_gain"]
     w = syn_strength(p)
     v_in = p["in_gain"] * backend.conn.signed_drive(pre, w)
     v_sti = i_sti / g_in

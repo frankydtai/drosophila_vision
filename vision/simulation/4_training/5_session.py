@@ -11,8 +11,8 @@ builders wrap the neutral gt dataclasses from ``task`` (which sit below
 * moving bar: ``waveform_mse`` from cost weights (True when a cost window is
   built).
 
-Model and gt traces are ``v`` (``v - v_onset``); ImpR / RecF spot gt are
-used as-is.
+Model traces are absolute ``v``; cost compares ``v`` to
+``gt_scale * gt + gt_bias``. ImpR / RecF spot gt are used as-is before affine.
 """
 from __future__ import annotations
 

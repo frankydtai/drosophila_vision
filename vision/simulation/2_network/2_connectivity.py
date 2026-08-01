@@ -10,7 +10,7 @@ Interface:
 
 ``x`` is the presynaptic output already scaled by the per-source out_gain, i.e.
 ``rectsyn(v, v_th) * out_gain`` for the borst model or
-``relu(activity) * out_gain`` for hp_lp. The post-synaptic input
+``relu(v + bias) * out_gain`` for hp_lp. The post-synaptic input
 gain (``in_gain``) is applied by the caller AFTER these calls.
 
 Synaptic scaling multiplies each edge: length ``n_pairs`` type→type

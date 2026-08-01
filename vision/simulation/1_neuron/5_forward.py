@@ -1,9 +1,10 @@
 # -*- coding: utf-8 -*-
-"""Shared full-T ``v`` forward for all neuron models.
+"""Shared full-T absolute ``v`` forward for all neuron models.
 
 Per-model modules supply only ``prepare_i_sti`` / ``init_state`` / ``step``.
-This module owns the time loop and ``t_onset`` reference. Training / plots read
-``v_delta = v - v_onset``; the unused Ca filter stays in ``neuron.filter_ca``.
+This module owns the time loop. Training / plots read absolute membrane ``v``;
+cost compares ``v`` to ``gt_scale * gt + gt_bias``. The unused Ca filter stays
+in ``neuron.filter_ca``.
 """
 from __future__ import annotations
 
@@ -24,20 +25,19 @@ def _detach_state(state):
     return tuple(s.detach() for s in state)
 
 
-def forward_full(session, p, i_sti, *, return_v_onset=False, pack=None):
+def forward_full(session, p, i_sti, *, pack=None):
     """Shared full-T forward for every ``session.model``.
 
     Time index ``t`` is post-update at step ``t``. Membrane drive comes from
     ``MODEL_DRIVERS[model].prepare_i_sti`` / ``init_state`` / ``step``.
-    ``v_onset`` is ``v`` at ``t_onset - 1``.
 
     ``session.train_opts['pre_grad']`` (default ``True``): when ``False``, steps
-    with ``t < t_onset`` run under ``torch.no_grad()``, then ``v`` / ``state`` /
-    ``v_onset`` are detached before post steps so BPTT does not enter pre.
+    with ``t < t_onset`` run under ``torch.no_grad()``, then ``v`` / ``state``
+    are detached before post steps so BPTT does not enter pre.
 
     Returns
     -------
-    ``v_delta`` ``(B, T, N)``, or with ``return_v_onset``: ``(v_delta, v_onset, v_full)``.
+    Absolute ``v`` ``(B, T, N)``.
     """
     try:
         drv = MODEL_DRIVERS[session.model]
@@ -58,30 +58,20 @@ def forward_full(session, p, i_sti, *, return_v_onset=False, pack=None):
         for t in range(1, t_end):
             state, v = drv.step(state, v, p, i_sti[:, t - 1], session)
             v_rows.append(v)
-        v_full = torch.stack(v_rows, dim=1)
-        v_onset = v_full[:, t_onset - 1, :].clone()
-    else:
-        with torch.no_grad():
-            for t in range(1, t_onset):
-                state, v = drv.step(state, v, p, i_sti[:, t - 1], session)
-                v_rows.append(v)
-        state = _detach_state(state)
-        v = v.detach()
-        for t in range(max(t_onset, 1), t_end):
+        return torch.stack(v_rows, dim=1)
+    with torch.no_grad():
+        for t in range(1, t_onset):
             state, v = drv.step(state, v, p, i_sti[:, t - 1], session)
             v_rows.append(v)
-        v_full = torch.stack(v_rows, dim=1)
-        v_onset = v_full[:, t_onset - 1, :].detach()
-    v_delta = v_full - v_onset.unsqueeze(1)
+    state = _detach_state(state)
+    v = v.detach()
+    for t in range(max(t_onset, 1), t_end):
+        state, v = drv.step(state, v, p, i_sti[:, t - 1], session)
+        v_rows.append(v)
+    return torch.stack(v_rows, dim=1)
 
-    if return_v_onset:
-        return v_delta, v_onset, v_full
-    return v_delta
 
-
-def forward_nodes(
-    session, p, node_index=None, return_v_onset=False, i_sti=None, pack=None,
-):
+def forward_nodes(session, p, node_index=None, i_sti=None, pack=None):
     """``forward_full`` then index nodes; squeeze when ``i_sti`` is ``(T, N)``."""
     pack = pack or session.primary_readout
     if node_index is None:
@@ -90,14 +80,8 @@ def forward_nodes(
         i_sti = session.pack_i_sti(pack)
     squeeze = i_sti.dim() == 2
     i_sti_b = i_sti.unsqueeze(0) if squeeze else i_sti
-    out, v_onset, _v_full = forward(
-        session, p, i_sti_b, return_v_onset=True, pack=pack,
-    )
+    out = forward_full(session, p, i_sti_b, pack=pack)
     out = out[:, :, node_index]
-    v_onset = v_onset[:, node_index]
     if squeeze:
         out = out.squeeze(0)
-        v_onset = v_onset.squeeze(0)
-    if return_v_onset:
-        return out, v_onset
     return out

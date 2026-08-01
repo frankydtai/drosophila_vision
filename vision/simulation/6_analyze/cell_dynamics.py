@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 DEFAULT_RUN_NAME = """
-28572097-run-nofsteps-500-tau-hp-init-L1,L2,L4,L5-200-pulse-ms-100-delta-ms-5-response-ms-500-gt-spot-L3-pre-ms-1000
+28577927-run-nofsteps-500-tau-hp-init-L1,L2,L4,L5-200-pre-ms-1000-pulse-ms-100-response-ms-500-gt-spot-L3
 """.strip()
 DEFAULT_RUN_PATH = "hp_lp/" + DEFAULT_RUN_NAME
 
@@ -1171,27 +1171,34 @@ def _polarity(v: float, *, eps: float = 1e-3) -> str:
     return "0"
 
 
+def _scalar_param_at_node(p, key: str, session, node: int) -> float:
+    raw = p[key]
+    backend = session.backend
+    if torch.is_tensor(raw):
+        if raw.dim() == 0:
+            return float(raw.item())
+        if backend.network is not None:
+            ci = int(backend.network.node_cell[node])
+        else:
+            ci = int(node) % int(backend.n_cells)
+        return float(raw[ci])
+    return float(raw)
+
+
 def _node_params(p, session, node: int) -> dict[str, float]:
     backend = session.backend
-    if "out_scale" not in p:
-        raise SystemExit("params missing out_scale")
-    os_param = p["out_scale"]
-    if torch.is_tensor(os_param):
-        if os_param.dim() == 0:
-            out_scale = float(os_param.item())
-        else:
-            if backend.network is not None:
-                ci = int(backend.network.node_cell[node])
-            else:
-                ci = int(node) % int(backend.n_cells)
-            out_scale = float(os_param[ci])
-    else:
-        out_scale = float(os_param)
+    for key in ("gt_scale", "gt_bias"):
+        if key not in p:
+            raise SystemExit(f"params missing {key}")
+    gt_scale = _scalar_param_at_node(p, "gt_scale", session, node)
+    gt_bias = _scalar_param_at_node(p, "gt_bias", session, node)
     if session.model == "hp_lp":
         return {
             "in_gain": float(p["in_gain"][node]),
             "out_gain": float(p["out_gain"][node]),
-            "out_scale": out_scale,
+            "bias": float(p["bias"][node]),
+            "gt_scale": gt_scale,
+            "gt_bias": gt_bias,
             "v_rest_mV": float(p["v_rest"][node]),
             "tau_lp_ms": float(p["tau_lp"][node]),
             "tau_hp_ms": float(p["tau_hp"][node]),
@@ -1204,7 +1211,8 @@ def _node_params(p, session, node: int) -> dict[str, float]:
     return {
         "in_gain": float(p["in_gain"][node]),
         "out_gain": float(p["out_gain"][node]),
-        "out_scale": out_scale,
+        "gt_scale": gt_scale,
+        "gt_bias": gt_bias,
         "v_th_mV": float(p["v_th"][node]),
         "Ih_gmax": float(p["Ih_gmax"][node]),
         "Ih_gmax_off": float(gmax_off[node]),
@@ -1713,6 +1721,16 @@ def _spot_radius_row(radii: np.ndarray, radius: int) -> np.ndarray:
     return np.isclose(np.asarray(radii, dtype=np.float64), float(radius))
 
 
+def _gt_affine_for_cell(p, session, cell: str) -> tuple[float, float]:
+    """``(gt_scale, gt_bias)`` for one cell type name."""
+    names = [str(n) for n in session.backend.network.cell_names]
+    ci = names.index(str(cell))
+    gs, gb = p["gt_scale"], p["gt_bias"]
+    scale = float(gs[ci] if torch.is_tensor(gs) and gs.dim() > 0 else gs)
+    bias = float(gb[ci] if torch.is_tensor(gb) and gb.dim() > 0 else gb)
+    return scale, bias
+
+
 def _spot_gt_v_post_extra(
     *,
     cell: str,
@@ -1721,8 +1739,10 @@ def _spot_gt_v_post_extra(
     v_post: np.ndarray,
     v_post_d: np.ndarray,
     t_onset: int,
+    gt_scale: float,
+    gt_bias: float,
 ) -> dict[str, Any]:
-    """GT on absolute ``v_post`` axis: ``v_onset + gt`` (no ``out_scale``)."""
+    """GT on absolute ``v`` axis: ``gt_scale * gt + gt_bias`` (matches cost)."""
     extra: dict[str, Any] = {"gt_peak": None, "gt_v_post": None, "radius": radius}
     if cell not in gt_on:
         return extra
@@ -1730,14 +1750,14 @@ def _spot_gt_v_post_extra(
     if radius < 0 or radius >= gt_cube.shape[0]:
         return extra
     gt_row = gt_cube[radius]
+    gt_aff = float(gt_scale) * gt_row + float(gt_bias)
     peak_probe = _v_post_d_peak_t_rel(v_post_d, t_onset)
-    if 0 <= peak_probe < gt_row.shape[0]:
-        extra["gt_peak"] = float(gt_row[peak_probe])
+    if 0 <= peak_probe < gt_aff.shape[0]:
+        extra["gt_peak"] = float(gt_aff[peak_probe])
     mask = np.isfinite(v_post) & np.isfinite(v_post_d)
     if not np.any(mask):
         return extra
-    v_onset_est = float(np.mean(v_post[mask] - v_post_d[mask]))
-    extra["gt_v_post"] = (v_onset_est + gt_row).tolist()
+    extra["gt_v_post"] = gt_aff.tolist()
     return extra
 
 
@@ -1797,6 +1817,7 @@ def analyze_spot_average(
     def extra_for_cell(
         cell: str, v_post: np.ndarray, v_post_d: np.ndarray,
     ) -> dict[str, Any]:
+        gt_scale, gt_bias = _gt_affine_for_cell(p, session_one, cell)
         return _spot_gt_v_post_extra(
             cell=cell,
             gt_on=gt_on,
@@ -1804,6 +1825,8 @@ def analyze_spot_average(
             v_post=v_post,
             v_post_d=v_post_d,
             t_onset=t_onset,
+            gt_scale=gt_scale,
+            gt_bias=gt_bias,
         )
 
     def n_nodes_for_cell(cell: str) -> int:
@@ -1939,6 +1962,7 @@ def analyze_spot_hex(
     def extra_for_cell(
         cell_name: str, v_post: np.ndarray, v_post_d: np.ndarray,
     ) -> dict[str, Any]:
+        gt_scale, gt_bias = _gt_affine_for_cell(p, session_one, cell_name)
         return _spot_gt_v_post_extra(
             cell=cell_name,
             gt_on=gt_on,
@@ -1946,6 +1970,8 @@ def analyze_spot_hex(
             v_post=v_post,
             v_post_d=v_post_d,
             t_onset=t_onset,
+            gt_scale=gt_scale,
+            gt_bias=gt_bias,
         )
 
     n_b = len(forward_batches)
@@ -2189,20 +2215,6 @@ def _plot_component_reports(
                     [float(s.get("sem", {}).get(key, 0.0)) for s in rep["steps"]],
                     dtype=float,
                 )
-                if key == "v_post":
-                    # Match cost / spot_gt: v_onset + out_scale * (v - v_onset).
-                    # GT stays unscaled (v_onset + gt).
-                    v_post_d = np.asarray(
-                        [
-                            float(s["v_pre_d"]) + float(s["v_post_minus_pre"])
-                            for s in rep["steps"]
-                        ],
-                        dtype=float,
-                    )
-                    out_scale = float(rep["params"]["out_scale"])
-                    v_onset = float(np.mean(y - v_post_d))
-                    y = v_onset + out_scale * v_post_d
-                    sem = np.abs(out_scale) * sem
                 if ri in spec.row_shared_ylim:
                     row_curves[ri].append(y)
                     if np.any(sem):
@@ -2329,13 +2341,14 @@ def _print_report(report: dict[str, Any], *, print_steps: bool = True) -> None:
     if model == "hp_lp":
         if print_steps:
             print(
-                f"\n{x_key}  n  v_post  v_pre_d  v_post_minus_pre  i_sti "
+                f"\n{x_key}  n  v_post  v_pre  v_post_minus_pre  i_sti "
                 "v_in  v_in_exc -v_in_inh  dv_leak  dv_hp"
             )
             for s in report["steps"]:
+                v_pre = float(s["v_post"]) - float(s["v_post_minus_pre"])
                 print(
                     f"{s[x_key]:4d} {s.get('n_nodes', 1):3d} {s['v_post']:+8.4f} "
-                    f"{s['v_pre_d']:+8.4f} {s['v_post_minus_pre']:+8.4f} "
+                    f"{v_pre:+8.4f} {s['v_post_minus_pre']:+8.4f} "
                     f"{s['i_sti']:+6.3f} {s['v_in']:+6.3f} {s['v_in_exc']:+7.3f} "
                     f"{s['v_in_inh']:+7.3f} {s['dv_leak']:+8.4f} {s['dv_hp']:+7.4f}"
                 )
@@ -2354,13 +2367,14 @@ def _print_report(report: dict[str, Any], *, print_steps: bool = True) -> None:
 
     if print_steps:
         print(
-            f"\n{x_key}  n  v_post  v_pre_d  v_post_minus_pre  i_sti "
+            f"\n{x_key}  n  v_post  v_pre  v_post_minus_pre  i_sti "
             "g_inh  g_Ih_off  g_exc  num_inh  num_exc"
         )
         for s in report["steps"]:
+            v_pre = float(s["v_post"]) - float(s["v_post_minus_pre"])
             print(
                 f"{s[x_key]:4d} {s.get('n_nodes', 1):3d} {s['v_post']:+8.4f} "
-                f"{s['v_pre_d']:+8.4f} {s['v_post_minus_pre']:+8.4f} "
+                f"{v_pre:+8.4f} {s['v_post_minus_pre']:+8.4f} "
                 f"{s['i_sti']:5.1f} {s['g_inh_nS']:.4f} {s['g_Ih_off_nS']:.4f} "
                 f"{s['g_exc_nS']:.4f} {s['num_inh']:+8.2f} {s['num_exc']:+8.2f}"
             )
@@ -2421,23 +2435,23 @@ def _print_polarity_compare(
             print(
                 f"       spot@peak: v_in_exc={sps['v_in_exc']:+.4f} -v_in_inh={sps['v_in_inh']:+.4f} "
                 f"dv_hp={sps['dv_hp']:+.4f} dv_leak={sps['dv_leak']:+.4f} "
-                f"v_pre_d={sps['v_pre_d']:+.3f}"
+                f"v_pre={float(sps['v_post']) - float(sps['v_post_minus_pre']):+.3f}"
             )
             print(
                 f"       bar @peak: v_in_exc={bps['v_in_exc']:+.4f} -v_in_inh={bps['v_in_inh']:+.4f} "
                 f"dv_hp={bps['dv_hp']:+.4f} dv_leak={bps['dv_leak']:+.4f} "
-                f"v_pre_d={bps['v_pre_d']:+.3f}"
+                f"v_pre={float(bps['v_post']) - float(bps['v_post_minus_pre']):+.3f}"
             )
         else:
             print(
                 f"       spot@peak: g_exc={sps['g_exc_nS']:.4f} g_inh={sps['g_inh_nS']:.4f} "
                 f"num_exc={sps['num_exc']:+.1f} num_inh={sps['num_inh']:+.1f} "
-                f"v_pre_d={sps['v_pre_d']:+.3f}"
+                f"v_pre={float(sps['v_post']) - float(sps['v_post_minus_pre']):+.3f}"
             )
             print(
                 f"       bar @peak: g_exc={bps['g_exc_nS']:.4f} g_inh={bps['g_inh_nS']:.4f} "
                 f"num_exc={bps['num_exc']:+.1f} num_inh={bps['num_inh']:+.1f} "
-                f"v_pre_d={bps['v_pre_d']:+.3f}"
+                f"v_pre={float(bps['v_post']) - float(bps['v_post_minus_pre']):+.3f}"
             )
 
 

@@ -1,0 +1,8 @@
+Traceback (most recent call last):
+  File "/home/yitai/drosophila_vision/vision/simulation/run.py", line 34, in <module>
+    import training.implement as train
+  File "/home/yitai/drosophila_vision/vision/simulation/4_training/__init__.py", line 29, in <module>
+    from param_defaults import (
+  File "/home/yitai/drosophila_vision/vision/param_defaults.py", line 62, in <module>
+    "bias": dict[str, float | str](lo=-20.0, hi=20.0, init=0.0, jit=1.0, train_mode="indi"),
+TypeError: unsupported operand type(s) for |: 'type' and 'type'

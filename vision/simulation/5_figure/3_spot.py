@@ -26,15 +26,15 @@ from figure.util import (
     GT_COLOR,
     MODEL_COLOR,
     TRACE_LW,
-    TRACE_YLIM,
     PlotTimer,
     annotate_baseline,
-    apply_out_scale,
     baselines_for_types,
     bundle_cell_title,
     bundle_prep_s,
+    gt_affine_scalars_for_cell,
     hex_at_scope_tag,
     mark_pulse,
+    nice_ylim,
     overlay_model_reds,
     plot_pre_post_line,
     plot_timecourse,
@@ -151,7 +151,7 @@ def _session_cost_time_ix(session, response_start):
 def scale_curve(xt, center_radius, sem_xt=None, *, response_start=None, pulse_end=None):
     """Center-radius time course + RF profile from one ``(RF_N_RADII, T)`` cube.
 
-    RF peak time ``maxt`` is ``argmax |v_delta|`` inside pulse ``[response_start, pulse_end)``.
+    RF peak time ``maxt`` is ``argmax |v|`` inside pulse ``[response_start, pulse_end)``.
     """
     if response_start is None:
         raise ValueError("scale_curve requires response_start (t_onset)")
@@ -275,7 +275,6 @@ def plot_cell_rf(
     scaled = _scale_contrast_series(
         series, response_start=response_start, pulse_end=pulse_end,
     )
-    ylo, yhi = TRACE_YLIM
     for item in scaled:
         ls = item.get("linestyle", "-")
         _plot_rf_profile(
@@ -287,7 +286,10 @@ def plot_cell_rf(
             label=item.get("label_model"), linestyle=ls, filled=True,
         )
     ax.set_title(title, fontsize=8, pad=2)
-    ax.set_ylim(ylo, yhi)
+    ax.set_ylim(*nice_ylim(
+        *(item["rf_gt"] for item in scaled),
+        *(item["rf_model"] for item in scaled),
+    ))
     _style_recf_profile_axis(ax, show_xlabels)
     if show_ylabel:
         ax.set_ylabel('mV', fontsize=7)
@@ -321,7 +323,6 @@ def plot_cell_time(
     scaled = _scale_contrast_series(
         series, response_start=response_start, pulse_end=pulse_end,
     )
-    ylo, yhi = TRACE_YLIM
     t = np.arange(n_t)
     split = int(response_start or 0) if pre_end is None else int(pre_end)
     if title is not None:
@@ -339,7 +340,6 @@ def plot_cell_time(
     plot_timecourse(
         ax, t, traces,
         show_sem=any(item["imp_sem"] is not None for item in scaled),
-        ylim=(ylo, yhi),
         baseline=baseline,
         show_ylabel=show_ylabel,
         style_xaxis=lambda a: _style_time_axis(a, show_xlabels, n_t, delta_ms),
@@ -409,11 +409,11 @@ def plot_cell_rf_time_slices(
     """RF + time panels with per-slice overlays across contrast ``series``."""
     center_radius = RF_CENTER_RADIUS
     sc_kw = dict(response_start=response_start, pulse_end=pulse_end)
-    ylo, yhi = TRACE_YLIM
     colors = overlay_model_reds(len(slice_labels))
     t = np.arange(n_t)
     pre_end = int(response_start or 0)
     mark_pulse(ax_time, response_start, pulse_end)
+    ylim_curves = []
 
     for si, item in enumerate(series):
         ls = item.get("linestyle", "-")
@@ -464,7 +464,12 @@ def plot_cell_rf_time_slices(
             color=colors[-1], linestyle=ls, linewidth=TRACE_LW,
             label=item.get("label_total"),
         )
+        ylim_curves.extend(
+            c for c in (rf_gt, rf_model, imp_gt, imp_model, *slice_rfs.values(), *slice_imps.values())
+            if c is not None
+        )
 
+    ylo, yhi = nice_ylim(*ylim_curves)
     ax_rf.set_title(title, fontsize=8, pad=2)
     ax_rf.set_ylim(ylo, yhi)
     _style_recf_profile_axis(ax_rf, show_xlabels)
@@ -491,27 +496,20 @@ def _as_index(node_index, device):
 
 
 @torch.no_grad()
-def _simulate(session, z, node_index, return_v_onset=False):
+def _simulate(session, z, node_index):
     node_index = _as_index(node_index, z.device)
     schema = list(session.schema)
     backend = session.backend
     p = training.assign_params(z, schema, backend)
-    stacked, ref = training.forward_nodes(
-        session, p, node_index=node_index, return_v_onset=True,
-    )
-    trace = apply_out_scale(
-        p, stacked.transpose(0, 1), node_index, backend,
-    )
-    if return_v_onset:
-        return trace, ref
-    return trace
+    stacked = training.forward_nodes(session, p, node_index=node_index)
+    # Match prior layout: (n_nodes, T) for 2-D forward_nodes output.
+    return stacked.transpose(0, 1) if stacked.dim() == 2 else stacked
 
 
-def calc_ca_full_all(session, z, return_v_onset=False):
+def calc_ca_full_all(session, z):
     n_cells = session.backend.n_cells
     mt = session.n_t
     ca_full = np.zeros((n_cells, RF_N_RADII, mt))
-    ref_full = np.full((n_cells, RF_N_RADII), np.nan)
     for radius in range(RF_N_RADII):
         col_index = torch.arange(
             radius * n_cells,
@@ -519,14 +517,7 @@ def calc_ca_full_all(session, z, return_v_onset=False):
             dtype=torch.long,
             device=z.device,
         )
-        if return_v_onset:
-            trace, ref = _simulate(session, z, col_index, return_v_onset=True)
-            ca_full[:, radius] = trace.cpu().numpy()
-            ref_full[:, radius] = ref.cpu().numpy()
-        else:
-            ca_full[:, radius] = _simulate(session, z, col_index).cpu().numpy()
-    if return_v_onset:
-        return ca_full, ref_full
+        ca_full[:, radius] = _simulate(session, z, col_index).cpu().numpy()
     return ca_full
 
 
@@ -678,18 +669,24 @@ def _spot_slice_overlay(rows, C, at_xs, at_ys):
 
 
 
-def _cells_from_cube(names, cube, sem, baselines, *, single_hex, n_by_name=None):
+def _cells_from_cube(
+    names, cube, sem, baselines, *, single_hex, n_by_name=None, gt_affine_by_name=None,
+):
     n_by_name = n_by_name or {}
-    return [
-        dict(
+    gt_affine_by_name = gt_affine_by_name or {}
+    out = []
+    for i, n in enumerate(names):
+        scale, bias = gt_affine_by_name.get(n, (1.0, 0.0))
+        out.append(dict(
             name=n,
             cube=cube[i],
             sem=None if single_hex else sem[i],
             baseline=baselines.get(n),
             n=n_by_name.get(n),
-        )
-        for i, n in enumerate(names)
-    ]
+            gt_scale=float(scale),
+            gt_bias=float(bias),
+        ))
+    return out
 
 
 @torch.no_grad()
@@ -702,14 +699,10 @@ def _spot_forward_rows(
     schema = list(session.schema)
     p = training.assign_params(z, schema, session.backend)
     i_sti = pack.i_sti if pack.i_sti.dim() == 3 else pack.i_sti.unsqueeze(0)
-    trace_full, v_onset, _v_full = training.forward_full(
-        session, p, i_sti, return_v_onset=True, pack=pack,
-    )
-    v_onset_np = v_onset[0].cpu().numpy()
+    trace_full = training.forward_full(session, p, i_sti, pack=pack)
     save_forward_trace_csvs(
         save_trace_csv_dir, pack.name,
-        ref=v_onset_np, trace_full=trace_full,
-        ref_stem='spot_v_onset',
+        trace_full=trace_full,
     )
     C = session.backend.network
     cell_names = list(C.cell_names)
@@ -728,10 +721,7 @@ def _spot_forward_rows(
         C, batches, pack_spot_cost_radii(pack), pack.cost_extent,
     )
 
-    raw = trace_full[batch_idx, :, node_idx]
-    plot_traces = apply_out_scale(
-        p, raw, node_idx, session.backend,
-    ).cpu().numpy()
+    plot_traces = trace_full[batch_idx, :, node_idx].cpu().numpy()
 
     stim_pre_ms = opts.get("pre_ms")
     dt = float(opts.get("delta_ms", DELTA_MS))
@@ -764,8 +754,12 @@ def _spot_forward_rows(
         for name in names
     }
     rows['baselines'] = baselines_for_types(
-        v_onset_np, nodes_by_name, v_ref_by_type_name(z, session),
+        nodes_by_name, v_ref_by_type_name(z, session),
     )
+    rows['gt_affine_by_name'] = {
+        name: gt_affine_scalars_for_cell(p, name, session.backend)
+        for name in names
+    }
     rows['family_rows'] = family_rows
     return rows
 
@@ -788,6 +782,7 @@ def _spot_cube_from_rows(rows, session):
     cells = _cells_from_cube(
         names, cube, sem, rows['baselines'],
         single_hex=single_hex, n_by_name=n_by_name,
+        gt_affine_by_name=rows.get('gt_affine_by_name'),
     )
     family_row_ixs = _family_row_ixs_from_rows(rows['family_rows'], names)
     return cells, family_row_ixs, mt
@@ -888,10 +883,18 @@ def _plot_spot_figure(
             if cell is None:
                 continue
             gt_by_cell = gt_by_contrast.get(c) or {}
+            gt_raw = gt_by_cell.get(name)
+            if gt_raw is not None:
+                gt_xt = (
+                    float(cell.get("gt_scale", 1.0)) * np.asarray(gt_raw, dtype=float)
+                    + float(cell.get("gt_bias", 0.0))
+                )
+            else:
+                gt_xt = None
             entry = {
                 "contrast": c,
                 "model_xt": cell["cube"],
-                "gt_xt": gt_by_cell.get(name),
+                "gt_xt": gt_xt,
                 "sem_xt": cell.get("sem"),
                 "baseline": cell.get("baseline"),
                 "linestyle": contrast_linestyle(c),

@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""Pack readout selection: which nodes and which time samples from ``v_delta``.
+"""Pack readout selection: which nodes and which time samples from absolute ``v``.
 
 Owns the time-axis gather shared by the continuous moving-bar window
 (``cost_t0``) and the plain post-onset spot readout. Takes duck-typed
@@ -19,7 +19,7 @@ from neuron.forward import forward_full
 
 
 def pack_trace_full(session, p, i_sti, pack):
-    """Full ``(B, T, N)`` model ``v_delta`` trace."""
+    """Full ``(B, T, N)`` model absolute ``v`` trace."""
     return forward_full(session, p, i_sti, pack=pack)
 
 

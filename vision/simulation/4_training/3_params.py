@@ -135,50 +135,41 @@ def _fixed_const(seg):
     return float(seg['init'])
 
 
-def _parse_init_override(text):
-    """Parse ``init=L1,L2,L4,L5:200 all:10000`` -> ``{name_str: float}``."""
-    out = {}
-    for token in text.split():
-        if ':' not in token:
-            raise ValueError(f"init override token {token!r} needs NAMES:VALUE")
-        names_part, val_str = token.rsplit(':', 1)
-        val = float(val_str)
-        for n in names_part.split(','):
-            n = n.strip()
-            if n:
-                out[n] = val
-    return out
+def _merge_init_override(dst, names_part, val):
+    """Write ``NAMES`` / ``all`` into init_override dict from one ``=VAL`` token."""
+    for n in names_part.split(','):
+        n = n.strip()
+        if n:
+            dst[n] = val
 
 
 def parse_train_mode_text(text):
-    """Parse ``indi=all init=L1,L2,L4,L5:200 all:10000`` -> token dict."""
+    """Parse ``indi=all init.L1,L2,L4,L5=200 all=10000`` -> token dict."""
     text = (text or '').strip()
     mode_tokens = {b: [] for b in TRAIN_MODES}
     if not text:
         return mode_tokens
-    _KNOWN_KEYS = set(TRAIN_MODES) | {'init'}
-    parts = []
-    buf = []
+    init_override = {}
     for tok in text.split():
-        if '=' in tok and tok.split('=', 1)[0] in _KNOWN_KEYS and buf:
-            parts.append(' '.join(buf))
-            buf = [tok]
-        else:
-            buf.append(tok)
-    if buf:
-        parts.append(' '.join(buf))
-    for chunk in parts:
-        if '=' not in chunk:
-            raise ValueError(f"train_mode chunk {chunk!r} needs train_mode=list")
-        key, rest = chunk.split('=', 1)
+        if '=' not in tok:
+            raise ValueError(f"train_mode token {tok!r} needs KEY=VALUE")
+        key, rest = tok.split('=', 1)
         key = key.strip()
-        if key == 'init':
-            mode_tokens['init_override'] = _parse_init_override(rest)
+        if key in TRAIN_MODES:
+            mode_tokens[key] = [x.strip() for x in rest.split(',') if x.strip()]
             continue
-        if key not in TRAIN_MODES:
-            raise ValueError(f"unknown train_mode {key!r}")
-        items = [x.strip() for x in rest.split(',') if x.strip()]
-        mode_tokens[key] = items
+        if key == 'all':
+            init_override['all'] = float(rest)
+            continue
+        if key.startswith('init.'):
+            names_part = key[len('init.'):]
+            if not names_part:
+                raise ValueError(f"init override token {tok!r} needs init.NAMES=VALUE")
+            _merge_init_override(init_override, names_part, float(rest))
+            continue
+        raise ValueError(f"unknown train_mode {key!r}")
+    if init_override:
+        mode_tokens['init_override'] = init_override
     return mode_tokens
 
 
@@ -349,7 +340,7 @@ def node_names_for_segment(seg, backend: "ModelBackend"):
 def validate_syn_strength_edge_train_mode(mode_tokens, *, param_name='syn_strength_edge'):
     """Require a single ``indi|fixed|frozen=all`` train_mode (no shared / named edges)."""
     if mode_tokens.get('init_override'):
-        raise ValueError(f"{param_name}: init= overrides are not supported")
+        raise ValueError(f"{param_name}: init. overrides are not supported")
     if mode_tokens.get('shared'):
         raise ValueError(f"{param_name}: shared= is not supported (use indi|fixed|frozen=all)")
     all_mode = None

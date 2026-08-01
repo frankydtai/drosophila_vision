@@ -804,8 +804,8 @@ def add_training_arguments(parser):
 
     _train_mode_help = (
         "indi=/shared=/fixed=/frozen= lists space-separated; 'all' in one train_mode = remainder; "
-        "types or Src:Tar pairs (syn-strength-cell); init=NAME:VAL,... overrides initial values. "
-        "Example: indi=all init=L1,L2,L4,L5:200 all:10000"
+        "types or Src:Tar pairs (syn-strength-cell); init.NAMES=VAL / all=VAL overrides initial values. "
+        "Example: indi=all init.L1,L2,L4,L5=200 all=10000"
     )
     _syn_strength_edge_help = (
         "only indi=all / fixed=all / frozen=all "
@@ -821,9 +821,15 @@ def add_training_arguments(parser):
     parser.add_argument("--out-gain", **_train_mode_kwargs,
                         help=f"out_gain train_modes ({_train_mode_help}; "
                              f"default {_box_train_mode_default('out_gain')})")
-    parser.add_argument("--out-scale", **_train_mode_kwargs,
-                        help=f"out_scale train_modes ({_train_mode_help}; "
-                             f"default {_box_train_mode_default('out_scale')})")
+    parser.add_argument("--bias", **_train_mode_kwargs,
+                        help=f"hp_lp bias train_modes ({_train_mode_help}; "
+                             f"default {_box_train_mode_default('bias')})")
+    parser.add_argument("--gt-scale", **_train_mode_kwargs,
+                        help=f"gt_scale train_modes ({_train_mode_help}; "
+                             f"default {_box_train_mode_default('gt_scale')})")
+    parser.add_argument("--gt-bias", **_train_mode_kwargs,
+                        help=f"gt_bias train_modes ({_train_mode_help}; "
+                             f"default {_box_train_mode_default('gt_bias')})")
     parser.add_argument("--syn-strength-cell", **_train_mode_kwargs,
                         help=f"syn_strength_cell train_modes ({_train_mode_help}; "
                              f"default {_box_train_mode_default('syn_strength_cell')}; "
@@ -885,9 +891,9 @@ def add_training_arguments(parser):
         type=parse_bool,
         default=PRE_GRAD,
         metavar="BOOL",
-        help="include t < t_onset in BPTT / v_onset grads "
+        help="include t < t_onset in BPTT "
              f"(default: {str(PRE_GRAD).lower()}); "
-             "false → no_grad pre + detach state/v/v_onset at onset",
+             "false → no_grad pre + detach state/v at onset",
     )
     parser.add_argument(
         "--sequential",
@@ -1168,7 +1174,9 @@ def _train_mode_cli_map(args):
     per_param = {
         "in_gain": _train_mode_cli_text(getattr(args, "in_gain", None)),
         "out_gain": _train_mode_cli_text(getattr(args, "out_gain", None)),
-        "out_scale": _train_mode_cli_text(getattr(args, "out_scale", None)),
+        "bias": _train_mode_cli_text(getattr(args, "bias", None)),
+        "gt_scale": _train_mode_cli_text(getattr(args, "gt_scale", None)),
+        "gt_bias": _train_mode_cli_text(getattr(args, "gt_bias", None)),
         "syn_strength_cell": syn_cell_text,
         "syn_strength_edge": syn_edge_text,
         "v_th": _train_mode_cli_text(getattr(args, "v_th", None)),
