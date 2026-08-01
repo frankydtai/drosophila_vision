@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import training
-from training.defaults import IH_GMAX_INDI_NAMES
+from param_defaults import IH_GMAX_INDI_NAMES
 
 
 def merge_ih_train_modes(train_kw):

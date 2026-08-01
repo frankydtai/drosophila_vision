@@ -5,7 +5,7 @@ Dynamics live in ``neuron.model_borst`` / ``neuron.model_hp_lp``.
 Shared full-T ``v`` forward is ``neuron.forward``; the unused Ca filter
 lives in ``neuron.filter_ca``; pack readout selection in
 ``neuron.readout``. The ``training`` package owns session, cost, and the
-CLI driver. Numeric defaults live in ``training.defaults``.
+CLI driver. Numeric defaults live in ``param_defaults``.
 """
 from __future__ import annotations
 
@@ -34,8 +34,8 @@ from neuron import model_hp_lp as _model_hp_lp
 from neuron.filter_ca import ca_alpha, ca_filter
 from neuron.forward import (
     MODEL_DRIVERS,
-    run_full,
-    run_nodes,
+    forward_full,
+    forward_nodes,
 )
 from neuron.readout import (
     CA_PACK_READOUTS,
@@ -75,8 +75,8 @@ __all__ = [
     "update_state_hp_lp",
     "ca_filter",
     "ca_alpha",
-    "run_full",
-    "run_nodes",
+    "forward_full",
+    "forward_nodes",
     "pack_readout",
     "readout_pack_traces",
     "window_time_traces",

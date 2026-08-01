@@ -15,12 +15,12 @@ from __future__ import annotations
 
 import torch
 
-from neuron.forward import run_full
+from neuron.forward import forward_full
 
 
 def pack_trace_full(session, p, i_sti, pack):
     """Full ``(B, T, N)`` model ``v_delta`` trace."""
-    return run_full(session, p, i_sti, pack=pack)
+    return forward_full(session, p, i_sti, pack=pack)
 
 
 def pack_needs_waveform_mse(pack) -> bool:
@@ -59,7 +59,7 @@ def readout_pack_traces(trace_full, pack):
 
 
 def pack_readout(p, pack, session, batch_idx=None):
-    """Shared pack readout via ``run_full`` (waveform MSE only when needed)."""
+    """Shared pack readout via ``forward_full`` (waveform MSE only when needed)."""
     i_sti = pack.i_sti if batch_idx is None else pack.i_sti[batch_idx:batch_idx + 1]
     trace_full = pack_trace_full(session, p, i_sti, pack)
     need_mse = pack_needs_waveform_mse(pack)

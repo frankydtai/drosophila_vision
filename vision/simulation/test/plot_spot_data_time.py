@@ -1,7 +1,7 @@
 """Plot spot RecF data time courses for all fit cells; report first nonzero.
 
 Timing: ``pre_ms=100``, ``pulse_ms=50``, ``response_ms=400``; ``--delta-ms``
-(default ``DELTA_MS`` from ``training.defaults``). Uses ``figure.spot.plot_cell_time``
+(default ``DELTA_MS`` from ``param_defaults``). Uses ``figure.spot.plot_cell_time``
 only (no RF panel).
 
 Usage (from ``SimulationCode/``):
@@ -24,11 +24,12 @@ import import_bootstrap  # noqa: F401
 import matplotlib.pyplot as plt
 import numpy as np
 
-from figure.readout import fit_data_cubes, plot_present_layout
+from network.build import cell_family_rows, cell_names_in_family_order
+from figure.readout import fit_data_cubes
 from figure.spot import CENTER_BIN, _pulse_end_from_opts, plot_cell_time
 from figure.util import save_figure
 from task.spot.input import spot_timing_t
-from training.defaults import DELTA_MS
+from param_defaults import DELTA_MS
 
 PRE_MS = 100.0
 PULSE_MS = 50.0
@@ -77,7 +78,8 @@ def plot_all_cells(
     delta_ms: float,
 ) -> None:
     """Time-only grid for every fit cell via ``plot_cell_time``."""
-    groups, names = plot_present_layout(list(cells))
+    groups = [np.array(row) for row in cell_family_rows(list(cells))]
+    names = cell_names_in_family_order(list(cells))
     nrows = len(groups)
     ncols = 5
     fig = plt.figure(figsize=(3.0 * ncols, 2.0 * nrows))

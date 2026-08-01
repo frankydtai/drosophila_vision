@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """Spot paradigm INPUT: connectome spot geometry + PR drive waveform.
 
-Geometry (centers, sub-spot shifts, Euclidean rings) is split out of the old
+Geometry (centers, sub-spot shifts, Euclidean radii) is split out of the old
 ``network.spot_target`` Section A. The PR drive waveform ``u[t]`` is defined
 here once (``spot_input_waveform``) and consumed by both the network ``i_sti`` and
 the ImpR gt in :mod:`task.spot.data`, so pulse duration has a single

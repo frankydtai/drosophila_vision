@@ -1,6 +1,6 @@
 """Compare Ca low-pass drive at v[t] vs v[t-1] on a pulse v_delta.
 
-Current code (``ca_readout_step`` / ``run_full``):
+Current code (``ca_readout_step`` / ``forward_full``):
 
     ca[t] = ca[t-1] + α ((v[t] - v_ref) - ca[t-1])
 

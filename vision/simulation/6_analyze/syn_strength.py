@@ -30,7 +30,7 @@ import network.path  # noqa: F401  # FAFB on sys.path
 import analyze_cell_syn
 import training
 import figure.plot_run as plot_trained
-import training.driver as train_mod
+import training.implement as train_mod
 from import_bootstrap import parse_comma_list
 from network.connectivity import build_cell_pair_index
 from network.construction import read_network_json

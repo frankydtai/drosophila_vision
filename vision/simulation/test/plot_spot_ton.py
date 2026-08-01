@@ -81,7 +81,7 @@ def main():
 
     session = training.open_session_from_opts(opts, model=opts.get("model"))
 
-    import training.driver as train_mod
+    import training.implement as train_mod
     named, cell_names, pair_names = train_mod.load_best_param_named(run_path)
     remapped = training.remap_named_node_values(
         named, cell_names, pair_names, list(session.schema), session.backend,

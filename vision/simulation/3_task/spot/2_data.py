@@ -1,10 +1,10 @@
 # -*- coding: utf-8 -*-
-"""Spot paradigm DATA: RecF x ImpR gt traces and cost-ring layout.
+"""Spot paradigm DATA: RecF x ImpR gt traces and cost-radius readout.
 
 Merges the old ``Medulla_Library`` RecF/ImpR reader (with its internal
 bandpass/lowpass ImpR shaping -- a gt-only pulse path, not the unused
 Ca filter in ``neuron.filter_ca``) and the old network spot-gt section
-(gt assembly + Euclidean cost rings).
+(gt assembly + Euclidean cost radii).
 
 New features handled here:
 - ``pulse_ms`` (#1): the PR drive comes from
@@ -28,11 +28,11 @@ from network import path  # noqa: F401 -- FAFBv783 on sys.path
 import neuron.params as params
 from network.construction import (
     col2gt,
+    hex_in_cost_extent,
     present_gt_cells,
     normalize_gt_cells,
     node_cell_names,
 )
-from network.layout import hex_in_cost_extent
 from task.spot.input import (
     SpotBatch,
     euclid_hex_dist,
@@ -70,11 +70,14 @@ SPOT_POLARITIES = frozenset({"bright", "dark"})
 _SPOT_BASELINE_KEY = "i_baseline_spot"
 _SPOT_I_KEY = {"bright": "i_bright_spot", "dark": "i_dark_spot"}
 
-# RF sample index of the receptive-field center, and samples per hex step
-# (data[i,j] = RecF_data[i, 5j+2]; j=4 -> sample 22 -> radius=0).
+# RecF sample grid: center at sample 22; one integer radius step = 5 samples.
+# Profile cube axis is Euclidean radius (0 .. RF_N_RADII-1), not a mirrored bin.
 _RF_CENTER_SAMPLE = 22
 _RF_SAMPLES_PER_COL = 5
 _RF_NSAMPLES = 45
+RF_CENTER_RADIUS = 0
+RF_N_RADII = 5
+RF_RADIUS_DEG = _RF_SAMPLES_PER_COL  # degrees per integer radius on RF plots
 # Gt-only ImpR shaping helpers (not the unused Ca filter). Inlined from the
 # old blindschleiche_py3 module so spot/data owns this path alone.
 
@@ -204,16 +207,17 @@ def read_RecF_ImpR(*, t_onset=None, n_t=None, pulse_ms=None, delta_ms: float):
 
 
 def read_RecF_data(*, t_onset=None, n_t=None, pulse_ms=None, delta_ms: float):
-    """Spatial x temporal spot cube ``(n_cells, 9, n_t)``."""
+    """Spatial x temporal spot cube ``(n_cells, RF_N_RADII, n_t)``; axis = radius."""
     RecF_data, ImpR_data = read_RecF_ImpR(
         t_onset=t_onset, n_t=n_t, pulse_ms=pulse_ms, delta_ms=delta_ms,
     )
     mt = ImpR_data.shape[1]
     n_cells = len(GT_CELLS)
-    data = np.zeros((n_cells, 9, mt))
+    data = np.zeros((n_cells, RF_N_RADII, mt))
     for i in range(n_cells):
-        for j in range(9):
-            data[i, j] = RecF_data[i, j * 5 + 2] * ImpR_data[i]
+        for radius in range(RF_N_RADII):
+            sample = _RF_CENTER_SAMPLE + _RF_SAMPLES_PER_COL * radius
+            data[i, radius] = RecF_data[i, sample] * ImpR_data[i]
     return data
 
 
@@ -276,7 +280,7 @@ def default_spot_cost_radius_weight(
     weights: Dict[float, float],
     weights_extent1: Dict[float, float],
 ) -> Dict[float, float]:
-    """Cost-ring weights for ``spot_extent`` (extent-1 folds r=2 into r=1)."""
+    """Cost-radius weights for ``spot_extent`` (extent-1 folds r=2 into r=1)."""
     if spot_extent_folds_r2_into_r1(spot_extent):
         return dict(weights_extent1)
     return dict(weights)
@@ -404,7 +408,7 @@ def spot_cost_hexes(
     cost_radii,
     cost_extent,
 ) -> List[Tuple[int, int, int, float, int, int]]:
-    """Cost readouts: ``(batch, mu, mv, radius_key, su, sv)`` per stim ring."""
+    """Cost readouts: ``(batch, mu, mv, radius_key, su, sv)`` per stim radius."""
     by_radius = members_by_euclid_radius(cost_radii)
     cols: List[Tuple[int, int, int, float, int, int]] = []
     for b, batch in enumerate(batches):
@@ -432,7 +436,7 @@ def spot_n_cost_hexes(cost_hexes):
     return {b: counts[b] for b in sorted(counts)}
 
 
-def spot_cost_node_radius_layout(C, batches, cost_radii, cost_extent):
+def build_spot_cost_readout(C, batches, cost_radii, cost_extent):
     u = C.u.detach().cpu().numpy() if hasattr(C.u, "detach") else np.asarray(C.u)
     v = C.v.detach().cpu().numpy() if hasattr(C.v, "detach") else np.asarray(C.v)
     type_all = (
@@ -471,8 +475,9 @@ def spot_readout_duv(C, batch_idx, node_idx, *, stim_u, stim_v):
     return mu - stim_u, mv - stim_v
 
 
-def spot_center_bin_layout(C, batches, cost_radii, cost_extent):
-    batch_idx, node_idx, radius, type_idx, stim_u, stim_v = spot_cost_node_radius_layout(
+def build_spot_center_readout(C, batches, cost_radii, cost_extent):
+    """Cost-node readout plus ``center_row`` mask for stim-on hex (radius 0)."""
+    batch_idx, node_idx, radius, type_idx, stim_u, stim_v = build_spot_cost_readout(
         C, batches, cost_radii, cost_extent,
     )
     du, dv = spot_readout_duv(C, batch_idx, node_idx, stim_u=stim_u, stim_v=stim_v)

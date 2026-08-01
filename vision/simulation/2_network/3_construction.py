@@ -31,7 +31,7 @@ from .connectivity import ScatterConn
 from neuron.schema import normalize_syn_mode
 
 # Photoreceptor drive currents (pA) are injected by the caller
-# (``training.defaults.I_*``); this module has no numeric bindings.
+# (``param_defaults.I_*``); this module has no numeric bindings.
 
 # Canonical cell order (photoreceptor → lamina → medulla families).
 CELL_FAMILY_ROWS: List[List[str]] = [
@@ -145,6 +145,25 @@ def col2gt(
     return np.where(
         (C.u == int(u)) & (C.v == int(v)) & (names == gt_type),
     )[0]
+
+
+def normalize_cost_extent(cost_extent=None):
+    """``None`` or ``-1`` → unrestricted (all hexes); else non-negative int."""
+    if cost_extent is None:
+        return None
+    v = int(cost_extent)
+    if v == -1:
+        return None
+    return v
+
+
+def hex_in_cost_extent(u, v, cost_extent=None) -> bool:
+    """True when axial ``(u, v)`` lies in the cost hex disc (``None`` = all hexes)."""
+    cost_extent = normalize_cost_extent(cost_extent)
+    if cost_extent is None:
+        return True
+    import build_hex
+    return bool(build_hex.inside_mask(int(u), int(v), int(cost_extent)))
 
 
 def present_gt_cells(
@@ -268,34 +287,3 @@ def load_network(
         meta=meta,
         source_json=path.resolve(),
     )
-
-
-if __name__ == "__main__":
-    import sys
-
-    from path import BUILT_NETWORKS_DIR
-    from training.defaults import SYN_SCALE_EXC, SYN_SCALE_INH, SYN_MODE
-    from training.readout_pack import SIM_DTYPE
-
-    p = sys.argv[1] if len(sys.argv) > 1 else str(
-        BUILT_NETWORKS_DIR / "right_min_neuron1_extent2" / "network.json"
-    )
-    c = load_network(
-        p, device="cpu",
-        syn_scale_exc=SYN_SCALE_EXC, syn_scale_inh=SYN_SCALE_INH,
-        syn_mode=SYN_MODE, dtype=SIM_DTYPE,
-    )
-    print(f"loaded {p}")
-    print(f"n_nodes={c.n_nodes}  n_cells={c.n_cells}  n_edges={len(c.conn.src_idx)}")
-    print(f"center nodes (u=v=0): {c.center_nodes.tolist()}")
-    print(f"input nodes total: {int(c.is_input.sum())}")
-    x = torch.ones(c.n_nodes, dtype=torch.float64)
-    syn_strength = torch.ones(c.conn.n_pairs, dtype=torch.float64, device=c.device)
-    ge, gi = c.conn.exc_inh_drive(x, syn_strength)
-    print(f"exc_inh_drive ok: g_exc.sum={float(ge.sum()):.4f} g_inh.sum={float(gi.sum()):.4f} "
-          f"n_pairs={c.conn.n_pairs}")
-    xb = torch.ones((7, c.n_nodes), dtype=torch.float64)
-    geb, _ = c.conn.exc_inh_drive(xb, syn_strength)
-    print(f"batched (7,N) ok: shape={tuple(geb.shape)}")
-    i_sti = c.build_i_sti(n_t=10, i_baseline=I_BASELINE, i_bright=I_BRIGHT, t_onset=5)
-    print(f"i_sti shape={tuple(i_sti.shape)}  nonzero cols={int((i_sti.abs().sum(0)>0).sum())}")

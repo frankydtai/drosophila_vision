@@ -406,14 +406,6 @@ def parse_align_xy(text):
     return float(parts[0]), float(parts[1])
 
 
-def _coord_matches(val, axis_filter, tol=1e-6):
-    if axis_filter is None:
-        return True
-    if isinstance(axis_filter, (list, tuple)):
-        return any(np.isclose(val, float(v), atol=tol) for v in axis_filter)
-    return np.isclose(val, float(axis_filter), atol=tol)
-
-
 def hex_at_scope_tag(at_x, at_y):
     """Subtitle fragment for plot column slice."""
     parts = []
@@ -424,24 +416,6 @@ def hex_at_scope_tag(at_x, at_y):
         ys = at_y if isinstance(at_y, (list, tuple)) else [at_y]
         parts.append('y=' + ','.join(_hex_coord_token(v) for v in ys))
     return ', '.join(parts)
-
-
-def batches_at_stim_xy(batches, *, at_x=None, at_y=None, tol=1e-6):
-    """Batch indices where any ``stim_uv`` column matches hex-step slice."""
-    if at_x is None and at_y is None:
-        return list(range(len(batches)))
-    import build_hex
-    out = []
-    for b, batch in enumerate(batches):
-        for su, sv in batch.stim_uv:
-            x, y = build_hex.uv_to_xy(int(su), int(sv))
-            if not _coord_matches(x, at_x, tol=tol):
-                continue
-            if not _coord_matches(y, at_y, tol=tol):
-                continue
-            out.append(b)
-            break
-    return out
 
 
 def slice_axis_label(val):

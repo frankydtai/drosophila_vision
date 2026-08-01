@@ -9,7 +9,7 @@ sys.path.insert(0, ROOT)
 os.chdir(ROOT)
 
 import import_bootstrap  # noqa: F401
-import training.driver as train
+import training.implement as train
 from import_bootstrap import parse_comma_list
 from task.moving_bar.data import GT_CELLS
 from run import run_mirror_spot_experiment

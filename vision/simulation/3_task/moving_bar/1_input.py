@@ -22,7 +22,7 @@ from network import path  # noqa: F401 -- FAFBv783 on sys.path
 from build_hex import DEG, HEX_PATCH_RADIUS, hex_vertices, uv_to_xy, uv_to_xy_deg
 from path import moving_bar_cache_dir
 from neuron.params import ms_to_t
-from network.layout import hex_in_cost_extent
+from network.construction import hex_in_cost_extent
 
 logger = logging.getLogger(__name__)
 
@@ -944,7 +944,7 @@ def moving_bar_i_baseline_from_opts(train_opts) -> float:
             return resolve_i_baseline(float(sub["i_baseline_moving_bar"]))
     raise ValueError(
         "moving-bar stimulus opts require i_baseline_moving_bar "
-        "(inject via training.defaults.I_BASELINE / CLI)"
+        "(inject via param_defaults.I_BASELINE / CLI)"
     )
 
 

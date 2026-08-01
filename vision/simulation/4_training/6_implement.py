@@ -1,4 +1,4 @@
-"""Pure training driver (no plotting).
+"""Pure training implement (no plotting).
 
 Orchestration that trains then plots lives in ``simulation/run.py``:
 
@@ -29,12 +29,12 @@ if str(_SIMULATION_CODE) not in sys.path:
 
 import import_bootstrap  # noqa: F401
 import network.path  # noqa: F401 — FAFB path on sys.path
-from import_bootstrap import parse_bool, parse_comma_list
+from import_bootstrap import normalize_option_dashes, parse_bool, parse_comma_list
 from path import (
     BUILT_NETWORKS_DIR,
     resolve_network_json,
 )
-from training.defaults import (
+from param_defaults import (
     CHECKPOINT_INTERVAL,
     DELTA_MS,
     FP,
@@ -91,6 +91,7 @@ def _argv_cli_tokens(argv):
     """Drop the script path; yield long-option tokens from *argv*."""
     if argv and argv[0].endswith('.py'):
         argv = argv[1:]
+    argv = normalize_option_dashes(argv)
     i = 0
     while i < len(argv):
         tok = argv[i]
@@ -728,7 +729,7 @@ def run_training(model, nofruns, nofsteps, lrs, fname=None, outdir=None,
     return fname, outdir, session, result
 
 
-def add_spot_layout_arguments(parser):
+def add_multi_spot_arguments(parser):
     """Spot center tiling flags (``--multi-spot``, ``--fully-inside``)."""
     parser.add_argument(
         "--multi-spot",
@@ -751,7 +752,7 @@ def add_spot_layout_arguments(parser):
 def add_training_arguments(parser):
     """Register train.py training CLI flags on *parser*.
 
-    Concrete omitted-flag values live in :mod:`training.defaults` and are
+    Concrete omitted-flag values live in :mod:`param_defaults` and are
     wired here as ``default=CONST``. ``None`` only for omit-disabled flags.
     """
     parser.add_argument("--model", default=MODEL, choices=list(training.KNOWN_MODELS))
@@ -940,7 +941,7 @@ def add_training_arguments(parser):
              "extent=1 folds RecF(2) into r=1 gt amp and defaults cost weights "
              "to 0=1 1=1/6; extent 1.5/2 keep RecF(r) and 0=1 1=1/6 2=1/6",
     )
-    add_spot_layout_arguments(parser)
+    add_multi_spot_arguments(parser)
     parser.add_argument(
         "--spot-cost-r-w",
         default=None,
@@ -1335,7 +1336,7 @@ def training_kwargs_from_args(
 
 def main():
     raise SystemExit(
-        "training.driver is the pure training library; use simulation/run.py:\n"
+        "training.implement is the pure training library; use simulation/run.py:\n"
         "  ../.venv/bin/python run.py --help"
     )
 

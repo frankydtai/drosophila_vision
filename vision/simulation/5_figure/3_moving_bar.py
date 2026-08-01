@@ -404,7 +404,7 @@ def moving_bar_trace_bundle(session, z, task, *, at_x=None, at_y=None,
     pack = session.pack_for(task)
     schema = list(session.schema)
     p = training.assign_params(z, schema, session.backend)
-    v_delta, v_onset, _v_full = training.run_full(
+    v_delta, v_onset, _v_full = training.forward_full(
         session, p, pack.i_sti, return_v_onset=True, pack=pack,
     )
     v_onset_np = v_onset[0].cpu().numpy()

@@ -49,7 +49,7 @@ from build_hex import (
 )
 from path import DEFAULT_NETWORK_RUN, network_run_tag, resolve_network_json
 from network.construction import Network, load_network
-from training.defaults import (
+from param_defaults import (
     SYN_SCALE_EXC, SYN_SCALE_INH,
     SPOT_EXTENTS,
     SYN_MODE,
@@ -61,7 +61,7 @@ from task.spot.input import (
     spot_extent_half_steps,
 )
 from import_bootstrap import parse_comma_list
-from training.driver import add_spot_layout_arguments
+from training.implement import add_multi_spot_arguments
 
 _SPOT_EXTENTS_CLI_DEFAULT = ",".join(
     str(int(x)) if float(x) == int(x) else str(x) for x in SPOT_EXTENTS
@@ -122,11 +122,11 @@ def main() -> None:
              f"(default: {_SPOT_EXTENTS_CLI_DEFAULT})",
     )
     parser.add_argument(
-        "-o", "--output",
+        "--output",
         default=None,
         help="output PNG (default: plotted_multi_spot/plotted_multi_spot_<side>_extentN.png)",
     )
-    add_spot_layout_arguments(parser)
+    add_multi_spot_arguments(parser)
     args = parser.parse_args()
     spot_extents = [float(x) for x in parse_comma_list(args.spot_extents)]
     if not spot_extents:

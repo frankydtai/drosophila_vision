@@ -1,9 +1,9 @@
 # -*- coding: utf-8 -*-
 """Neuron parameter formulas — no numeric bindings.
 
-Numeric literals live in ``training.defaults`` and are injected by the
+Numeric literals live in ``param_defaults`` and are injected by the
 caller (session fields / kwargs). Schema box numbers live in
-``training.defaults.PARAM_BOXES``.
+``param_defaults.PARAM_BOXES``.
 """
 from __future__ import annotations
 

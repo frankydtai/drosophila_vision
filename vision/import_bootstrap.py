@@ -1,15 +1,17 @@
-"""Map logical import names to ``N_name`` disk layout under vision.
+"""Map logical import names to ``N_name`` disk paths under vision.
 
 Roots (tried in order):
 
-  - ``simulation/`` — packages (``neuron.params``, ``network.layout``, …)
+  - ``simulation/`` — packages (``neuron.params``, ``network.construction``, …)
   - ``connectome/FAFBv783/`` — flat modules (``build_hex``, ``build_network``, ``add_extent``, …)
 
 Disk names are ``{n}_{logical}`` (dirs and ``.py`` modules). Imports stay
 logical. Renumbering is rename-only; this finder has no per-file registry.
 
-Also hosts :func:`parse_comma_list` (sole comma-token splitter for CLI lists)
-and :func:`parse_bool` (CLI true/false tokens).
+Also hosts :func:`parse_comma_list` (sole comma-token splitter for CLI lists),
+:func:`parse_bool` (CLI true/false tokens), and :func:`normalize_option_dashes`
+(single-dash long options → double-dash; applied to all ``argparse`` parses via
+:func:`install`).
 
 ``__init__.py`` is unnumbered. Call :func:`install` (or ``import import_bootstrap``)
 before any logical import. Project ``.venv`` ``simulation_sorted.pth`` loads this
@@ -18,6 +20,7 @@ at interpreter startup.
 
 from __future__ import annotations
 
+import argparse
 import importlib.abc
 import importlib.machinery
 import importlib.util
@@ -33,6 +36,8 @@ _ROOTS: Tuple[Path, ...] = (
     _VISION / "connectome" / "FAFBv783",
 )
 _SKIP_NAMES = frozenset({"__pycache__", "0_runs", "0_logs"})
+_ORIG_PARSE_KNOWN_ARGS = argparse.ArgumentParser.parse_known_args
+_ARGPARSE_DASH_PATCHED = False
 
 
 def parse_comma_list(text: str) -> List[str]:
@@ -48,6 +53,44 @@ def parse_bool(text) -> bool:
     if v in ("false", "0", "no"):
         return False
     raise ValueError(f"expected true|false, got {text!r}")
+
+
+def normalize_option_dashes(argv: Sequence[str]) -> List[str]:
+    """Rewrite single-dash options to double-dash (``-pre-ms`` → ``--pre-ms``).
+
+    Also rewrites one-letter forms (``-x`` → ``--x``). Leaves ``-h`` (argparse
+    help), ``--foo``, ``--``, ``-``, and non-letter bodies (``-1``, ``-0.5``).
+    """
+    out: List[str] = []
+    for tok in argv:
+        if (
+            isinstance(tok, str)
+            and tok.startswith("-")
+            and not tok.startswith("--")
+            and len(tok) >= 2
+        ):
+            name = tok[1:].split("=", 1)[0]
+            if name and name[0].isalpha() and name != "h":
+                tok = "-" + tok
+        out.append(tok)
+    return out
+
+
+def _parse_known_args_normalize(self, args=None, namespace=None):
+    if args is None:
+        args = sys.argv[1:]
+    else:
+        args = list(args)
+    return _ORIG_PARSE_KNOWN_ARGS(self, normalize_option_dashes(args), namespace)
+
+
+def _install_argparse_dash_normalize() -> None:
+    """Make every ArgumentParser accept ``-long-opt`` as ``--long-opt``."""
+    global _ARGPARSE_DASH_PATCHED
+    if _ARGPARSE_DASH_PATCHED:
+        return
+    argparse.ArgumentParser.parse_known_args = _parse_known_args_normalize
+    _ARGPARSE_DASH_PATCHED = True
 
 
 def logical_name(name: str) -> str:
@@ -77,8 +120,8 @@ def child_by_logical(directory: Path, want: str) -> Optional[Path]:
             continue
         if matched is not None:
             raise ImportError(
-                f"ambiguous sorted layout under {directory}: "
-                f"multiple children map to logical name {want!r}"
+                f"ambiguous logical name under {directory}: "
+                f"multiple children map to {want!r}"
             )
         matched = child
     return matched
@@ -111,7 +154,7 @@ def resolve_parts(parts: Sequence[str]) -> Optional[Path]:
     return None
 
 
-class SortedLayoutFinder(importlib.abc.MetaPathFinder):
+class LogicalImportFinder(importlib.abc.MetaPathFinder):
     """Load ``logical`` names from ``N_logical`` paths under vision roots."""
 
     def find_spec(self, fullname, path, target=None):  # noqa: ANN001
@@ -143,18 +186,19 @@ class SortedLayoutFinder(importlib.abc.MetaPathFinder):
         )
 
 
-_FINDER: Optional[SortedLayoutFinder] = None
+_FINDER: Optional[LogicalImportFinder] = None
 
 
 def install() -> None:
-    """Insert the sorted-layout finder and ensure roots are on ``sys.path``."""
+    """Insert the logical-import finder, dash-normalize argparse, and sys.path."""
     global _FINDER
+    _install_argparse_dash_normalize()
     if _FINDER is not None and _FINDER in sys.meta_path:
         return
     if _FINDER is None:
-        _FINDER = SortedLayoutFinder()
+        _FINDER = LogicalImportFinder()
     sys.meta_path = [
-        x for x in sys.meta_path if not isinstance(x, SortedLayoutFinder)
+        x for x in sys.meta_path if not isinstance(x, LogicalImportFinder)
     ]
     sys.meta_path.insert(0, _FINDER)
     for root in (_VISION, *_ROOTS):

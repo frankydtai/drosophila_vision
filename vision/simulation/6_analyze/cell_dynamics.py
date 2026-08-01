@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 DEFAULT_RUN_NAME = """
-0801_183307-run-nofsteps-0
+28560935-run-nofsteps-500-tau-hp-init-L1,L2,L4,L5-200-pulse-ms-100-delta-ms-5-response-ms-500-gt-spot-L3
 """.strip()
 DEFAULT_RUN_PATH = "hp_lp/" + DEFAULT_RUN_NAME
 
@@ -29,8 +29,8 @@ import figure.plot_run as plot_trained
 from figure import moving_bar as moving_bar_plot
 from figure import spot as spot_plot
 from figure.readout import contrast_for_task
-from figure.spot import CENTER_BIN, pack_spot_cost_radii, resolve_spot_data_cubes
-from figure.util import parse_axis_slices, plot_sem_band, slice_xy_label
+from figure.spot import pack_spot_cost_radii, resolve_spot_data_cubes
+from figure.util import parse_axis_slices, plot_sem_band
 from import_bootstrap import parse_bool, parse_comma_list
 from network.construction import col2gt
 from task.moving_bar.data import (
@@ -44,12 +44,12 @@ from task.moving_bar.input import (
     filter_sti_hexes,
     moving_bar_cost_hexes,
 )
-from task.spot.data import spot_center_bin_layout
+from task.spot.data import build_spot_center_readout
 from task.spot.input import (
     spot_from_opts,
     spot_stimulus_batches,
 )
-from training.driver import parse_tasks
+from training.implement import parse_tasks
 
 __doc__ = """Borst / hp_lp v component, or ``--trace-only`` response curves (v).
 
@@ -60,33 +60,39 @@ one process (do not re-invoke once per cell/spec).
 
 Component mode (default)
 ---------------------
-Per ``--run``: one ``load_best``; one batched v component walk per distinct task.
-``--t-rel START:STOP`` window vs peak (default ``-10:10``);
-``--t START:STOP`` absolute window (mutually exclusive).
+Per ``--run``: one ``load_best``; one batched v component forward per distinct task.
+``--t-rel START:STOP`` window vs peak in t (default ``-10:10``);
+``--ms START:STOP|full`` absolute window in ms (``full`` = 0 to last sample; mutually exclusive).
 
-* Omit ``--x`` / ``--y``: cost-extent **average**.
-* Exactly one ``--x`` and one ``--y``: **hex** (moving_bar only; one cell).
+* Omit ``--x`` / ``--y``: cost-extent **average** (optional ``--radius 0|1``).
+* Exactly one ``--x`` and one ``--y``: **hex** (spot or moving_bar; one cell).
+  Incompatible with ``--radius`` (hex is stim-on only).
 * Multiple x/y: rejected.
 
 ``--plot true|false``: PNGs under ``{run}/cell_dynamics/`` (default true).
-``--syn-strength SRC:TAR=VALUE ...`` overrides ``syn_strength_cell`` before walks.
+``--radius 0|1``: spot average Euclidean readout radius (default 0 = stim-on hex; 1 = neighbors).
+  Average only; PNGs for ``--radius 1`` get ``_radius1`` in the filename.
+``--syn-strength SRC:TAR=VALUE ...`` overrides ``syn_strength_cell`` before component forward.
 
 ``--trace-only``
 ----------------
-Full plot forward; print curve summaries (no CSV, no component walk).
+Full plot forward; print curve summaries (no CSV, no component forward).
 
 * one spot forward per distinct ``spot_*``; one bar forward per ``moving_bar_*``
-* spot: center-bin impulse + RF (same scaling as spot plots)
+* spot: center-radius impulse + RF (same scaling as spot plots)
 * bar: ``t_first_sti``-aligned; summaries use post-onset
   (``idx >= cost_window_start_idx``)
-* optional ``--x`` / ``--y`` overlays (multi ok); spot needs both or neither
-* ``--values`` / ``--pre-ms`` / ``--response-ms`` / ``--t-max-ms`` only here
+* optional ``--x`` / ``--y`` readout-hex overlays (multi ok; same as moving_bar)
+* ``--values`` / ``--pre-ms`` / ``--response-ms`` only here
 
 Examples
 --------
   ../.venv/bin/python analyze/cell_dynamics.py \\
     Mi4,Mi9 --run /abs/path/to/run \\
     --task spot_bright,moving_bar_bright --spec right_bright_w1
+
+  ../.venv/bin/python analyze/cell_dynamics.py \\
+    L3 --run /abs/path/to/run --task spot_bright --x 1 --y 0
 
   ../.venv/bin/python analyze/cell_dynamics.py \\
     L3 --run /abs/path/to/run --task moving_bar_bright \\
@@ -108,7 +114,7 @@ Examples
 
 
 def _parse_t_range(token: str, *, flag: str) -> tuple[int, int]:
-    """Parse ``START:STOP`` (colon; one token)."""
+    """Parse ``START:STOP`` in t indices (colon; one token)."""
     parts = str(token).split(":")
     if len(parts) != 2 or parts[0] == "" or parts[1] == "":
         raise SystemExit(f"{flag} must be START:STOP")
@@ -118,25 +124,46 @@ def _parse_t_range(token: str, *, flag: str) -> tuple[int, int]:
     return start, stop
 
 
+def _parse_ms_range(token: str, *, flag: str) -> tuple[float, float] | None:
+    """Parse ``START:STOP`` ms, or ``full`` → ``None`` (0 to last sample)."""
+    text = str(token).strip()
+    if text.lower() == "full":
+        return None
+    parts = text.split(":")
+    if len(parts) != 2 or parts[0] == "" or parts[1] == "":
+        raise SystemExit(f"{flag} must be START:STOP or full")
+    start, stop = float(parts[0]), float(parts[1])
+    if start > stop:
+        raise SystemExit(f"{flag} START={start} > STOP={stop}")
+    return start, stop
+
+
 @dataclass(frozen=True)
 class TimeWindow:
-    """``t_rel``: offsets vs |v_post_d| peak; ``t``: absolute aligned indices."""
+    """``t_rel``: t offsets vs |v_post_d| peak; ``ms``: absolute aligned ms."""
 
-    kind: str  # "t_rel" | "t"
-    start: int
-    stop: int
+    kind: str  # "t_rel" | "ms"
+    start: float
+    stop: float
 
     def __post_init__(self) -> None:
-        if self.kind not in ("t_rel", "t"):
-            raise ValueError(f"TimeWindow.kind must be t_rel|t; got {self.kind!r}")
+        if self.kind not in ("t_rel", "ms"):
+            raise ValueError(f"TimeWindow.kind must be t_rel|ms; got {self.kind!r}")
 
-    @property
-    def walk_t_start(self) -> int | None:
-        return self.start if self.kind == "t" else None
+    def forward_t_start(self, *, delta_ms: float) -> int | None:
+        if self.kind != "ms":
+            return None
+        return training.ms_to_t(self.start, delta_ms=delta_ms)
 
-    @property
-    def walk_t_stop(self) -> int | None:
-        return self.stop if self.kind == "t" else None
+    def forward_t_stop(self, *, delta_ms: float) -> int | None:
+        if self.kind != "ms":
+            return None
+        return training.ms_to_t(self.stop, delta_ms=delta_ms)
+
+    def aligned_win_len(self, T: int, *, delta_ms: float) -> int:
+        if self.kind != "ms":
+            return T
+        return training.ms_to_t(self.stop, delta_ms=delta_ms) + 1
 
 
 @dataclass(frozen=True)
@@ -148,7 +175,6 @@ class SharedCli:
     specs_req: list[str] | None
     xs: list | None
     ys: list | None
-    slice_label: str | None
 
 
 def add_shared_cli(
@@ -216,24 +242,17 @@ def parse_shared_cli(args: argparse.Namespace) -> SharedCli:
             )
     xs = parse_axis_slices(args.x)
     ys = parse_axis_slices(args.y)
-    if (xs is None) ^ (ys is None):
-        if any(t in training.SPOT_TASKS for t in tasks):
-            raise SystemExit("spot tasks require both --x and --y or neither")
-    slice_label = None
-    if xs is not None and ys is not None and len(xs) == 1 and len(ys) == 1:
-        slice_label = slice_xy_label(xs[0], ys[0])
     return SharedCli(
         cells=cells,
         tasks=tasks,
         specs_req=specs_req,
         xs=xs,
         ys=ys,
-        slice_label=slice_label,
     )
 
 
 # ---------------------------------------------------------------------------
-# --trace-only: response curves (no component walk)
+# --trace-only: response curves (no component forward)
 # ---------------------------------------------------------------------------
 
 
@@ -284,7 +303,7 @@ def extract_spot_bundle(session, z, *, task: str, xs, ys):
     """One spot forward via ``plot_trained.spot_bundle_fns``.
 
     Returns ``(session_one, bundle, data_cubes)`` where ``data_cubes`` is
-    ``{contrast: {cell: (9, T)}}``.
+    ``{contrast: {cell: (RF_N_RADII, T)}}``.
     """
     one = plot_trained.session_for_task(session, task)
     make_bundle, _, _ = plot_trained.spot_bundle_fns(one)
@@ -314,8 +333,8 @@ def extract_moving_bar_bundle(session, z, *, task: str, xs, ys):
     )
 
 
-def extract_spot_cell_curves(bundle, data_cubes, *, cell: str, slice_label: str | None = None):
-    center = spot_plot.CENTER_BIN
+def extract_spot_cell_curves(bundle, data_cubes, *, cell: str):
+    center_radius = spot_plot.RF_CENTER_RADIUS
     cell_on = next((c for c in bundle.cells if c["name"] == cell), None)
     if cell_on is None:
         avail = sorted(c["name"] for c in bundle.cells)
@@ -340,10 +359,10 @@ def extract_spot_cell_curves(bundle, data_cubes, *, cell: str, slice_label: str 
         )
     sc_kw = dict(response_start=bundle.response_start, pulse_end=bundle.pulse_end)
     imp_total, rf_total = spot_plot.scale_curve(
-        cell_on["cube"], center, **sc_kw,
+        cell_on["cube"], center_radius, **sc_kw,
     )
     imp_data, rf_data = spot_plot.scale_curve(
-        data_on[cell], center, **sc_kw,
+        data_on[cell], center_radius, **sc_kw,
     )
 
     out: dict[str, np.ndarray] = {
@@ -353,14 +372,15 @@ def extract_spot_cell_curves(bundle, data_cubes, *, cell: str, slice_label: str 
         "rf_total_data": _float_curve(rf_data),
     }
 
-    if slice_label and bundle.slice_overlay and slice_label in bundle.slice_overlay:
-        cubes = bundle.slice_overlay[slice_label]
-        if cell in cubes:
+    if bundle.slice_overlay:
+        for label, cubes in bundle.slice_overlay.items():
+            if cell not in cubes:
+                continue
             imp_slice, rf_slice = spot_plot.scale_curve(
-                cubes[cell], center, **sc_kw,
+                cubes[cell], center_radius, **sc_kw,
             )
-            out[f"time_slice_model:{slice_label}"] = _float_curve(imp_slice)
-            out[f"rf_slice_model:{slice_label}"] = _float_curve(rf_slice)
+            out[f"time_slice_model:{label}"] = _float_curve(imp_slice)
+            out[f"rf_slice_model:{label}"] = _float_curve(rf_slice)
     return out
 
 
@@ -403,8 +423,6 @@ def _print_trace_curve(
     *,
     before_t: int | None,
     print_values: bool,
-    head_t: int | None,
-    head_window: str | None,
 ):
     """Summarize + (optionally) list values for a trace window."""
     if before_t is not None and 0 < before_t < arr.size:
@@ -414,17 +432,8 @@ def _print_trace_curve(
         start = 0
         window = "full"
 
-    if head_t is not None:
-        end = min(arr.size, start + head_t)
-        use = arr[start:end]
-        idx_offset = start
-        if head_window:
-            window = f"{window} {head_window}"
-        else:
-            window = f"{window} head[{start}:{end}]"
-    else:
-        use = arr[start:]
-        idx_offset = start
+    use = arr[start:]
+    idx_offset = start
     s = _summarize(use, idx_offset=idx_offset)
     shape = _shape_label(s)
     print(
@@ -451,8 +460,6 @@ def _print_trace_block(
     xs,
     ys,
     print_values: bool,
-    head_t: int | None,
-    head_window: str | None,
     spec: str | None = None,
 ):
     before_t = None
@@ -482,20 +489,14 @@ def _print_trace_block(
                 curves[name],
                 before_t=before_t,
                 print_values=print_values,
-                head_t=head_t,
-                head_window=head_window,
             )
     else:
         for key, arr in curves.items():
-            if head_t is not None and not key.startswith("time_"):
-                continue
             _print_trace_curve(
                 key,
                 arr,
                 before_t=None,
                 print_values=print_values,
-                head_t=head_t,
-                head_window=head_window,
             )
 
 
@@ -530,19 +531,16 @@ def _maybe_override_spot_timing(
     return new_session, dt, new_t_onset
 
 
-def _run_trace_only(args: argparse.Namespace, cli: SharedCli) -> None:
-    import training.driver as train_mod
+def _trace_only(args: argparse.Namespace, cli: SharedCli) -> None:
+    import training.implement as train_mod
 
     for run_i, run_arg in enumerate(args.run):
         run_dir = plot_trained.resolve_run_dir(run_arg)
         session0, _z0, best_i, best_cost = plot_trained.load_best(run_dir)
 
         session, z = session0, _z0
-        dt_for_head = None
-        head_t = None
-        head_window = None
         if args.pre_ms is not None:
-            session, dt_for_head, _new_t_onset = _maybe_override_spot_timing(
+            session, _dt, _new_t_onset = _maybe_override_spot_timing(
                 run_dir=run_dir,
                 session=session0,
                 pre_ms=args.pre_ms,
@@ -565,17 +563,6 @@ def _run_trace_only(args: argparse.Namespace, cli: SharedCli) -> None:
                 device=session.device,
             )
 
-        if args.t_max_ms is not None:
-            if dt_for_head is None:
-                opts = plot_trained.load_train_opts(run_dir)
-                if opts is None:
-                    raise SystemExit(f"missing train opts under {run_dir}")
-                dt_for_head = float(
-                    (opts.get("spot_bright_stimulus_opts") or {}).get("delta_ms", 10.0)
-                )
-            head_t = training.ms_to_t(args.t_max_ms, delta_ms=dt_for_head)
-            head_window = f"head[t<{args.t_max_ms:g}ms]"
-
         spot_cache: dict[str, tuple] = {}
         bar_cache: dict[str, object] = {}
 
@@ -592,7 +579,7 @@ def _run_trace_only(args: argparse.Namespace, cli: SharedCli) -> None:
                 _one, bundle, data_cubes = spot_cache[task]
                 for cell in cli.cells:
                     curves = extract_spot_cell_curves(
-                        bundle, data_cubes, cell=cell, slice_label=cli.slice_label,
+                        bundle, data_cubes, cell=cell,
                     )
                     _print_trace_block(
                         run_i=run_i,
@@ -607,8 +594,6 @@ def _run_trace_only(args: argparse.Namespace, cli: SharedCli) -> None:
                         xs=cli.xs,
                         ys=cli.ys,
                         print_values=args.values,
-                        head_t=head_t,
-                        head_window=head_window,
                     )
             else:
                 if task not in bar_cache:
@@ -638,8 +623,6 @@ def _run_trace_only(args: argparse.Namespace, cli: SharedCli) -> None:
                             xs=cli.xs,
                             ys=cli.ys,
                             print_values=args.values,
-                            head_t=head_t,
-                            head_window=head_window,
                             spec=spec,
                         )
 
@@ -648,7 +631,7 @@ _BORST_PLOT_PANELS: list[tuple[str, list[tuple[str, str]]]] = [
     (
         "v_post (mV)",
         [
-            ("v_post_mV", "v_post"),
+            ("v_post", "v_post"),
         ],
     ),
     (
@@ -688,7 +671,7 @@ _HP_LP_PLOT_PANELS: list[tuple[str, list[tuple[str, str]]]] = [
     (
         "v_post (mV)",
         [
-            ("v_post_mV", "v_post"),
+            ("v_post", "v_post"),
         ],
     ),
     (
@@ -729,7 +712,7 @@ _HP_LP_COMPONENT_KEYS = (
 )
 
 _BORST_PLOT_KEY_COMPONENT: dict[str, str | None] = {
-    "v_post_mV": "v_abs",
+    "v_post": "v_abs",
     "cdt_nS": None,
     "g_exc_nS": "g_exc",
     "g_inh_nS": "g_inh",
@@ -748,7 +731,7 @@ _BORST_PLOT_KEY_COMPONENT: dict[str, str | None] = {
     "den": "den",
 }
 _HP_LP_PLOT_KEY_COMPONENT: dict[str, str | None] = {
-    "v_post_mV": "v_abs",
+    "v_post": "v_abs",
     "v_in": "v_in",
     "v_in_exc": "v_in_exc",
     "v_in_inh": "v_in_inh",
@@ -957,7 +940,7 @@ def _add_component_formula_row(
         x = inv.transform((bbox.x1, bbox.y0))[0] + 0.003
 
 
-def _finish_component_figure_layout(
+def _finish_component_figure(
     fig, title: str, colors: list[str], spec: _ComponentSpec,
 ) -> None:
     fig.suptitle(title, fontsize=11, y=0.995)
@@ -1147,9 +1130,9 @@ def _step_from_acc(
         "t": t,
         "t_rel": t_rel,
         "ti": ti,
-        "v_post_mV": float(v_post_val),
-        "v_pre_d_mV": acc["v_pre_d"] / n,
-        "v_post_minus_pre_mV": v_post_minus_pre_sum / n,
+        "v_post": float(v_post_val),
+        "v_pre_d": acc["v_pre_d"] / n,
+        "v_post_minus_pre": v_post_minus_pre_sum / n,
         "i_sti": acc["i_sti"] / n,
         "sem": _step_sem(acc, accsq, n, spec),
         "n_nodes": n,
@@ -1191,8 +1174,8 @@ def _step_from_acc(
 
 
 @dataclass
-class _ComponentWalkBatch:
-    """One i_sti batch row for the shared post-t_onset v walk."""
+class _ComponentForwardBatch:
+    """One i_sti batch row for the shared full-T component forward."""
 
     all_nodes: np.ndarray
     t0_u: np.ndarray
@@ -1202,7 +1185,7 @@ class _ComponentWalkBatch:
 
 
 @dataclass
-class _ComponentWalkAccum:
+class _ComponentForwardAccum:
     sums: list[dict[str, np.ndarray]]
     sumsq: list[dict[str, np.ndarray]]
     counts: list[dict[str, np.ndarray]]
@@ -1210,28 +1193,29 @@ class _ComponentWalkAccum:
     spec: _ComponentSpec
 
 
-def _walk_component(
+def _forward_component(
     session,
     p,
     i_sti: torch.Tensor,
-    batches: list[_ComponentWalkBatch],
+    batches: list[_ComponentForwardBatch],
     cells: list[str],
     *,
     t_start: int | None = None,
     t_stop: int | None = None,
-) -> _ComponentWalkAccum:
-    """Equilibrate once; walk post-t_onset; accumulate component + absolute v_post.
+) -> _ComponentForwardAccum:
+    """Full-T step from t=0 (same loop as ``forward_full``); accumulate component.
 
-    Shared by bar average, spot average, and bar hex.
-    Aligned index ``t = t_global - t0_u``. v_post is mean absolute ``v_abs``;
-    SEM uses sum / sumsq like ``sem_from_traces``.
+    Shared by bar/spot average and bar/spot hex.
+    ``v_onset`` matches ``forward_full`` (``v`` at ``t_onset - 1``). Aligned index
+    ``t = t_global - t0_u``. v_post is mean absolute ``v_abs``; SEM uses sum /
+    sumsq like ``sem_from_traces``.
 
-    If ``t_start``/``t_stop`` are set (``--t``), only accumulate inside that
-    inclusive absolute window; cheap steps before it; break after every node
-    has passed ``t_stop``.
+    If ``t_start``/``t_stop`` are set (from ``--ms`` via ``ms_to_t``), only
+    accumulate inside that inclusive aligned window; cheap steps outside it;
+    break after every node has passed ``t_stop``.
     """
     if not batches:
-        raise SystemExit("component walk requires at least one batch")
+        raise SystemExit("component forward requires at least one batch")
     if (t_start is None) ^ (t_stop is None):
         raise SystemExit("t_start and t_stop must both be set or both omitted")
     if t_start is not None and t_start > t_stop:
@@ -1243,16 +1227,18 @@ def _walk_component(
     spec = _component_spec(session.model)
     drive = _prepare_drive(session, p, i_sti)
     t_onset = int(session.primary_readout.i_sti.shape[1] - session.primary_readout.data.shape[1])
-    trace_len = T - t_onset
 
     t_last: int | None = None
     if t_stop is not None:
         t_last = max(int(plan.t0_u.max()) + int(t_stop) for plan in batches)
 
-    v, state = _equilibrate(session, p, drive, t_onset)
-    v_onset = v.detach().cpu().numpy().copy()
+    # Same ref as forward_full: v at t_onset-1, then restart so pre is stepped+accum'd.
+    v_at_onset, _ = _equilibrate(session, p, drive, t_onset)
+    v_onset = v_at_onset.detach().cpu().numpy().copy()
     backend = session.backend
     n_keys = spec.n_keys
+    drv = _model_driver(session)
+    state, v = drv.init_state(session, p, B)
 
     sums_b: list[dict[str, np.ndarray]] = []
     sumsq_b: list[dict[str, np.ndarray]] = []
@@ -1266,10 +1252,8 @@ def _walk_component(
         v_post_minus_pre_sums_b.append({c: np.zeros(wl, dtype=float) for c in cells})
 
     node_lookups = [_node_cell_lookup(plan, cells) for plan in batches]
-    drv = _model_driver(session)
 
-    for ti in range(trace_len):
-        t_global = t_onset + ti
+    for t_global in range(1, T):
         if t_last is not None and t_global > t_last:
             break
         sig_t = drive[:, t_global - 1]
@@ -1333,7 +1317,7 @@ def _walk_component(
                 np.add.at(v_post_minus_pre_sums_b[b][cell], ts, v_post_minus_pre_u[mask])
                 np.add.at(counts_b[b][cell], ts, 1)
 
-    return _ComponentWalkAccum(
+    return _ComponentForwardAccum(
         sums=sums_b,
         sumsq=sumsq_b,
         counts=counts_b,
@@ -1401,11 +1385,14 @@ def _finalize_component_report(
     # Peak on |v_post_d| (= |v_post − v_onset| = |v_pre_d + v_post_minus_pre|).
     v_post_d = _v_post_d_from_accum(sums, v_post_minus_pre_sums, counts, component_spec)
     n = int(v_post_d.size)
-    if time_window.kind == "t":
-        t_lo, t_hi = int(time_window.start), int(time_window.stop)
+    if time_window.kind == "ms":
+        dt = float(session.delta_ms)
+        t_lo = training.ms_to_t(time_window.start, delta_ms=dt)
+        t_hi = training.ms_to_t(time_window.stop, delta_ms=dt)
         if t_lo < 0 or t_hi >= n or t_lo > t_hi:
             raise SystemExit(
-                f"--t {t_lo}:{t_hi} out of range for accum length {n}"
+                f"--ms {time_window.start:g}:{time_window.stop:g} "
+                f"(t={t_lo}:{t_hi}) out of range for accum length {n}"
             )
         seg = v_post_d[t_lo:t_hi + 1]
         peak_t = t_lo + int(np.argmax(np.abs(seg))) if seg.size else t_lo
@@ -1456,7 +1443,7 @@ def _finalize_component_report(
         "time_window": [time_window.start, time_window.stop],
         "t_window": [t_lo, t_hi],
         "v_post_d_peak_t": peak_t,
-        "v_post_d_peak_mV": float(v_post_d[peak_t]),
+        "v_post_d_peak": float(v_post_d[peak_t]),
         "v_post_d_polarity": _polarity(float(v_post_d[peak_t])),
         "v_post_d_onset_t": onset,
         "params": _node_params(p, session, int(nodes[0])),
@@ -1561,7 +1548,7 @@ def _node_to_cell_map(nodes_by_cell: dict[str, np.ndarray]) -> dict[int, str]:
     return u2c
 
 
-def _node_cell_lookup(plan: _ComponentWalkBatch, cells: list[str]) -> np.ndarray:
+def _node_cell_lookup(plan: _ComponentForwardBatch, cells: list[str]) -> np.ndarray:
     """Map node id → index in ``cells`` (-1 if absent). Length ``max(node_id)+1``."""
     cell_i = {c: i for i, c in enumerate(cells)}
     if plan.all_nodes.size == 0:
@@ -1574,9 +1561,9 @@ def _node_cell_lookup(plan: _ComponentWalkBatch, cells: list[str]) -> np.ndarray
     return out
 
 
-def _merge_walk_accum(
-    accum: _ComponentWalkAccum,
-    walk_batches: list[_ComponentWalkBatch],
+def _merge_forward_accum(
+    accum: _ComponentForwardAccum,
+    forward_batches: list[_ComponentForwardBatch],
     cells: list[str],
     win_len: int,
 ) -> tuple[
@@ -1586,14 +1573,14 @@ def _merge_walk_accum(
     dict[str, np.ndarray],
     dict[str, np.ndarray],
 ]:
-    """Sum per-cell accum rows across walk batches (spot multi-stimulus mean)."""
+    """Sum per-cell accum rows across run batches (spot multi-stimulus mean)."""
     n_keys = accum.spec.n_keys
     sums = {c: np.zeros((win_len, n_keys), dtype=float) for c in cells}
     sumsq = {c: np.zeros((win_len, n_keys), dtype=float) for c in cells}
     counts = {c: np.zeros(win_len, dtype=np.int64) for c in cells}
     v_post_minus_pre_sums = {c: np.zeros(win_len, dtype=float) for c in cells}
     nodes_ref = {c: np.zeros(0, dtype=np.int64) for c in cells}
-    for b, plan in enumerate(walk_batches):
+    for b, plan in enumerate(forward_batches):
         for cell in cells:
             if cell not in plan.nodes_by_cell:
                 continue
@@ -1609,15 +1596,15 @@ def _merge_walk_accum(
     return sums, sumsq, counts, v_post_minus_pre_sums, nodes_ref
 
 
-def _make_walk_batch(
+def _make_forward_batch(
     nodes_by_cell: dict[str, np.ndarray],
     *,
     t0_bn_row: np.ndarray,
     win_len: int,
-) -> _ComponentWalkBatch:
-    """Build one walk batch; ``t0_u[i] = t0_bn_row[all_nodes[i]]``."""
+) -> _ComponentForwardBatch:
+    """Build one run batch; ``t0_u[i] = t0_bn_row[all_nodes[i]]``."""
     all_nodes = np.unique(np.concatenate([us for us in nodes_by_cell.values()]))
-    return _ComponentWalkBatch(
+    return _ComponentForwardBatch(
         all_nodes=all_nodes,
         t0_u=np.asarray(t0_bn_row[all_nodes], dtype=np.int64),
         win_len=int(win_len),
@@ -1751,7 +1738,7 @@ def _resolve_bar_spec_i_sti(
     if task not in training.MOVING_BAR_TASKS:
         raise SystemExit(f"unsupported task {task!r}")
     if not spec_names:
-        raise SystemExit("bar component walk requires at least one spec")
+        raise SystemExit("bar component forward requires at least one spec")
     pack = session.pack_for(task)
     if specs is None or grids is None:
         specs, grids = _bar_meta(session, task)
@@ -1763,14 +1750,14 @@ def _resolve_bar_spec_i_sti(
     return pack, specs, grids, bis, pack.i_sti[bis], np.asarray(grids.t0_bn)
 
 
-def _analyze_component_walk(
+def _analyze_component_forward(
     session,
     *,
     p,
     cells: list[str],
     task: str,
     i_sti: torch.Tensor,
-    walk_batches: list[_ComponentWalkBatch],
+    forward_batches: list[_ComponentForwardBatch],
     before_t: list[int],
     batch_specs: list[str | None],
     time_window: TimeWindow,
@@ -1781,19 +1768,21 @@ def _analyze_component_walk(
     extra_for_cell=None,
     n_nodes_for_cell=None,
 ):
-    """Shared spot/bar: ``_walk_component`` → finalize reports.
+    """Shared spot/bar: ``_forward_component`` → finalize reports.
 
     * ``merge_batches=False`` (bar): ``reports[spec][cell]``; ``batch_specs`` are str.
     * ``merge_batches=True`` (spot): sum across batches → ``reports[cell]``.
     """
-    if not walk_batches:
-        raise SystemExit("component walk requires at least one batch")
-    if len(before_t) != len(walk_batches) or len(batch_specs) != len(walk_batches):
-        raise SystemExit("before_t/batch_specs length must match walk_batches")
+    if not forward_batches:
+        raise SystemExit("component forward requires at least one batch")
+    if len(before_t) != len(forward_batches) or len(batch_specs) != len(forward_batches):
+        raise SystemExit("before_t/batch_specs length must match forward_batches")
 
-    accum = _walk_component(
-        session, p, i_sti, walk_batches, cells,
-        t_start=time_window.walk_t_start, t_stop=time_window.walk_t_stop,
+    dt = float(session.delta_ms)
+    accum = _forward_component(
+        session, p, i_sti, forward_batches, cells,
+        t_start=time_window.forward_t_start(delta_ms=dt),
+        t_stop=time_window.forward_t_stop(delta_ms=dt),
     )
     component_spec = accum.spec
 
@@ -1841,9 +1830,9 @@ def _analyze_component_walk(
         return report
 
     if merge_batches:
-        win_len = walk_batches[0].win_len
-        sums, sumsq, counts, v_post_minus_pre_sums, nodes_ref = _merge_walk_accum(
-            accum, walk_batches, cells, win_len,
+        win_len = forward_batches[0].win_len
+        sums, sumsq, counts, v_post_minus_pre_sums, nodes_ref = _merge_forward_accum(
+            accum, forward_batches, cells, win_len,
         )
         before = int(before_t[0])
         return {
@@ -1863,14 +1852,14 @@ def _analyze_component_walk(
     out: dict[str, dict[str, dict[str, Any]]] = {}
     for b, spec in enumerate(batch_specs):
         if spec is None:
-            raise SystemExit("non-merge component walk requires batch_specs as str")
+            raise SystemExit("non-merge component forward requires batch_specs as str")
         out[spec] = {}
         for cell in cells:
             out[spec][cell] = _one_report(
                 cell=cell,
                 spec=spec,
                 before=int(before_t[b]),
-                nodes=walk_batches[b].nodes_by_cell[cell],
+                nodes=forward_batches[b].nodes_by_cell[cell],
                 sums=accum.sums[b][cell],
                 sumsq=accum.sumsq[b][cell],
                 counts=accum.counts[b][cell],
@@ -1879,7 +1868,7 @@ def _analyze_component_walk(
     return out
 
 
-def _analyze_bar_walk(
+def _analyze_bar_forward(
     session,
     *,
     p,
@@ -1893,27 +1882,27 @@ def _analyze_bar_walk(
     grids=None,
     extra: dict[str, Any] | None = None,
 ) -> dict[str, dict[str, dict[str, Any]]]:
-    """Bar prep: resolve i_sti/specs → ``_analyze_component_walk`` (no merge)."""
+    """Bar prep: resolve i_sti/specs → ``_analyze_component_forward`` (no merge)."""
     pack, specs, grids, bis, i_sti, t0_bn = _resolve_bar_spec_i_sti(
         session, task, spec_names, specs=specs, grids=grids,
     )
     before_b: list[int] = []
-    walk_batches: list[_ComponentWalkBatch] = []
+    forward_batches: list[_ComponentForwardBatch] = []
     for bi, spec in zip(bis, spec_names):
         usets = nodes_for_bi(bi, spec, pack=pack, t0_bn=t0_bn)
         before = int(grids.before_t[spec])
         after = int(grids.after_t[spec])
         before_b.append(before)
-        walk_batches.append(
-            _make_walk_batch(usets, t0_bn_row=t0_bn[bi], win_len=before + after + 1),
+        forward_batches.append(
+            _make_forward_batch(usets, t0_bn_row=t0_bn[bi], win_len=before + after + 1),
         )
-    return _analyze_component_walk(
+    return _analyze_component_forward(
         session,
         p=p,
         cells=cells,
         task=task,
         i_sti=i_sti,
-        walk_batches=walk_batches,
+        forward_batches=forward_batches,
         before_t=before_b,
         batch_specs=list(spec_names),
         time_window=time_window,
@@ -1935,9 +1924,9 @@ def analyze_bar_average(
     specs=None,
     grids=None,
 ) -> dict[str, dict[str, dict[str, Any]]]:
-    """One batched v walk over all requested specs; mean component per cell.
+    """One batched v forward over all requested specs; mean component per cell.
 
-    Returns ``reports[spec][cell]``. v_post + component share ``_walk_component``.
+    Returns ``reports[spec][cell]``. v_post + component share ``_forward_component``.
     """
     cols_holder: list = []
 
@@ -1958,7 +1947,7 @@ def analyze_bar_average(
             out[cell] = nodes
         return out
 
-    return _analyze_bar_walk(
+    return _analyze_bar_forward(
         session,
         p=p,
         cells=cells,
@@ -1973,12 +1962,12 @@ def analyze_bar_average(
 
 
 # ---------------------------------------------------------------------------
-# Average spot components (center-bin / stim-on-hex)
+# Average spot components (Euclidean radius)
 # ---------------------------------------------------------------------------
 
 
-def _spot_session_layout(session_one, cells: list[str]):
-    """Session-scoped center-bin layout for spot component walks."""
+def _spot_session_readout(session_one, cells: list[str]):
+    """Session-scoped spot cost readout (all radii) for component forward."""
     pack = session_one.primary_readout
     C = session_one.backend.network
     if C is None:
@@ -1986,8 +1975,8 @@ def _spot_session_layout(session_one, cells: list[str]):
     opts = dict((session_one.train_opts or {}).get(f"{pack.name}_stimulus_opts") or {})
     spot = spot_from_opts(C, stimulus_opts=opts)
     (
-        batch_idx, node_idx, _radius, type_idx, _stim_u, _stim_v, _du, _dv, center_row,
-    ) = spot_center_bin_layout(
+        batch_idx, node_idx, radii, type_idx, _stim_u, _stim_v, _du, _dv, _center_row,
+    ) = build_spot_center_readout(
         C,
         spot_stimulus_batches(spot),
         pack_spot_cost_radii(pack),
@@ -1998,7 +1987,12 @@ def _spot_session_layout(session_one, cells: list[str]):
         if cell not in C.cell_names:
             raise SystemExit(f"unknown cell {cell!r}")
         type_i[cell] = C.cell_names.index(cell)
-    return pack, batch_idx, node_idx, type_idx, center_row, type_i
+    return pack, batch_idx, node_idx, radii, type_idx, type_i
+
+
+def _spot_radius_row(radii: np.ndarray, radius: int) -> np.ndarray:
+    """True for cost-readout rows at Euclidean ``radius``."""
+    return np.isclose(np.asarray(radii, dtype=np.float64), float(radius))
 
 
 def analyze_spot_average(
@@ -2008,24 +2002,27 @@ def analyze_spot_average(
     cells: list[str],
     task: str,
     time_window: TimeWindow,
+    radius: int = 0,
 ) -> dict[str, dict[str, Any]]:
-    """One batched v walk over spot stimulus rows; mean center-bin component."""
+    """One batched v forward over spot stimulus rows; mean at Euclidean ``radius``."""
     if task not in training.SPOT_TASKS:
         raise SystemExit(f"unsupported task {task!r}")
-    pack, batch_idx, node_idx, type_idx, center_row, type_i = _spot_session_layout(
+    radius = int(radius)
+    pack, batch_idx, node_idx, radii, type_idx, type_i = _spot_session_readout(
         session_one, cells,
     )
+    radius_row = _spot_radius_row(radii, radius)
     t_onset = int(pack.i_sti.shape[1] - pack.data.shape[1])
 
     i_sti = pack.i_sti if pack.i_sti.dim() == 3 else pack.i_sti.unsqueeze(0)
     B_all, T, _N = i_sti.shape
     t0_abs = np.zeros(_N, dtype=np.int64)
-    win_len = int(time_window.stop) + 1 if time_window.kind == "t" else T
+    win_len = time_window.aligned_win_len(T, delta_ms=float(session_one.delta_ms))
 
-    walk_batches: list[_ComponentWalkBatch] = []
+    forward_batches: list[_ComponentForwardBatch] = []
     i_sti_rows: list[int] = []
     for b in range(B_all):
-        row_mask = center_row & (batch_idx == b)
+        row_mask = radius_row & (batch_idx == b)
         if not np.any(row_mask):
             continue
         usets: dict[str, np.ndarray] = {}
@@ -2035,13 +2032,15 @@ def analyze_spot_average(
                 usets[cell] = np.unique(node_idx[m])
         if not usets:
             continue
-        walk_batches.append(
-            _make_walk_batch(usets, t0_bn_row=t0_abs, win_len=win_len),
+        forward_batches.append(
+            _make_forward_batch(usets, t0_bn_row=t0_abs, win_len=win_len),
         )
         i_sti_rows.append(b)
 
-    if not walk_batches:
-        raise SystemExit("no center-bin nodes for requested cells in spot layout")
+    if not forward_batches:
+        raise SystemExit(
+            f"no spot nodes at radius={radius} for requested cells in spot readout"
+        )
 
     data_by_contrast = resolve_spot_data_cubes(
         {contrast_for_task(pack.name): session_one},
@@ -2053,39 +2052,42 @@ def analyze_spot_average(
         cell: str, v_post: np.ndarray, v_post_d: np.ndarray,
     ) -> dict[str, Any]:
         del v_post  # peak time from |v_post_d|; absolute series unused here
-        extra: dict[str, Any] = {"data_peak_mV": None}
+        extra: dict[str, Any] = {"data_peak": None, "radius": radius}
         if cell in data_on:
             peak_probe = _v_post_d_peak_t_rel(v_post_d, t_onset)
             data_cube = np.asarray(data_on[cell], dtype=float)
-            if peak_probe < data_cube.shape[1]:
-                extra["data_peak_mV"] = float(data_cube[CENTER_BIN, peak_probe])
+            if (
+                0 <= radius < data_cube.shape[0]
+                and peak_probe < data_cube.shape[1]
+            ):
+                extra["data_peak"] = float(data_cube[radius, peak_probe])
         return extra
 
     def n_nodes_for_cell(cell: str) -> int:
-        # Total center readouts across layout (matches prior semantics).
-        return int(np.sum(center_row & (type_idx == type_i[cell])))
+        return int(np.sum(radius_row & (type_idx == type_i[cell])))
 
-    n_b = len(walk_batches)
-    return _analyze_component_walk(
+    n_b = len(forward_batches)
+    return _analyze_component_forward(
         session_one,
         p=p,
         cells=cells,
         task=task,
         i_sti=i_sti[i_sti_rows],
-        walk_batches=walk_batches,
+        forward_batches=forward_batches,
         before_t=[t_onset] * n_b,
         batch_specs=[None] * n_b,
         time_window=time_window,
         mode="average",
         ti_mode="abs_minus_before",
         merge_batches=True,
+        extra={"radius": radius},
         extra_for_cell=extra_for_cell,
         n_nodes_for_cell=n_nodes_for_cell,
     )
 
 
 # ---------------------------------------------------------------------------
-# Hex-mode bar (single hex; same walk as average)
+# Hex mode (single hex; same run as average)
 # ---------------------------------------------------------------------------
 
 
@@ -2098,17 +2100,133 @@ def _nodes_at_hex(session, cell: str, *, at_x: float, at_y: float, cost_extent: 
         at_x=at_x,
         at_y=at_y,
     )
-    if not cols:
+    if not hexes:
         raise SystemExit(f"no hex at x={at_x!r} y={at_y!r} within cost_extent={cost_extent}")
-    if len(cols) > 1:
+    if len(hexes) > 1:
         raise SystemExit(f"multiple hexes at x={at_x!r} y={at_y!r}; pick a unique hex")
-    col = cols[0]
+    col = hexes[0]
     if cell not in C.cell_names:
         raise SystemExit(f"unknown cell {cell!r}")
     nodes = col2gt(C, int(col.u), int(col.v), cell).tolist()
     if not nodes:
         raise SystemExit(f"no {cell} node at hex ({at_x},{at_y})")
     return col, nodes
+
+
+def _resolve_hex_node(
+    session,
+    cell: str,
+    *,
+    at_x: float,
+    at_y: float,
+    cost_extent: int,
+    node: int | None,
+):
+    """Resolve ``(col, node_id)`` for hex mode; ``--node`` if multiple at hex."""
+    col, nodes = _nodes_at_hex(
+        session, cell, at_x=at_x, at_y=at_y, cost_extent=cost_extent,
+    )
+    if node is None:
+        if len(nodes) > 1:
+            raise SystemExit(f"multiple {cell} at ({at_x},{at_y}): {nodes}; pass --node")
+        node = nodes[0]
+    elif node not in nodes:
+        raise SystemExit(f"node {node} not in {nodes}")
+    return col, int(node)
+
+
+def analyze_spot_hex(
+    session_one,
+    *,
+    p,
+    cell: str,
+    task: str,
+    at_x: float,
+    at_y: float,
+    node: int | None,
+    time_window: TimeWindow,
+) -> dict[str, dict[str, Any]]:
+    """One batched v forward at one hex; stim-on (radius 0) rows for that node only."""
+    if task not in training.SPOT_TASKS:
+        raise SystemExit(f"unsupported task {task!r}")
+    pack, batch_idx, node_idx, radii, type_idx, type_i = _spot_session_readout(
+        session_one, [cell],
+    )
+    radius_row = _spot_radius_row(radii, 0)
+    col, node = _resolve_hex_node(
+        session_one, cell, at_x=at_x, at_y=at_y,
+        cost_extent=pack.cost_extent, node=node,
+    )
+    t_onset = int(pack.i_sti.shape[1] - pack.data.shape[1])
+
+    i_sti = pack.i_sti if pack.i_sti.dim() == 3 else pack.i_sti.unsqueeze(0)
+    B_all, T, _N = i_sti.shape
+    t0_abs = np.zeros(_N, dtype=np.int64)
+    win_len = time_window.aligned_win_len(T, delta_ms=float(session_one.delta_ms))
+    node_arr = np.asarray([node], dtype=np.int64)
+    type_cell = type_i[cell]
+
+    forward_batches: list[_ComponentForwardBatch] = []
+    i_sti_rows: list[int] = []
+    for b in range(B_all):
+        row_mask = (
+            radius_row
+            & (batch_idx == b)
+            & (type_idx == type_cell)
+            & (node_idx == node)
+        )
+        if not np.any(row_mask):
+            continue
+        forward_batches.append(
+            _make_forward_batch({cell: node_arr}, t0_bn_row=t0_abs, win_len=win_len),
+        )
+        i_sti_rows.append(b)
+
+    if not forward_batches:
+        raise SystemExit(
+            f"no stim-on spot rows for {cell} node {node} at hex ({at_x},{at_y})"
+        )
+
+    data_by_contrast = resolve_spot_data_cubes(
+        {contrast_for_task(pack.name): session_one},
+    )
+    contrast = contrast_for_task(pack.name)
+    data_on = data_by_contrast.get(contrast) or {}
+
+    def extra_for_cell(
+        cell_name: str, v_post: np.ndarray, v_post_d: np.ndarray,
+    ) -> dict[str, Any]:
+        del v_post
+        extra: dict[str, Any] = {"data_peak": None}
+        if cell_name in data_on:
+            peak_probe = _v_post_d_peak_t_rel(v_post_d, t_onset)
+            data_cube = np.asarray(data_on[cell_name], dtype=float)
+            if peak_probe < data_cube.shape[1]:
+                extra["data_peak"] = float(data_cube[0, peak_probe])
+        return extra
+
+    n_b = len(forward_batches)
+    return _analyze_component_forward(
+        session_one,
+        p=p,
+        cells=[cell],
+        task=task,
+        i_sti=i_sti[i_sti_rows],
+        forward_batches=forward_batches,
+        before_t=[t_onset] * n_b,
+        batch_specs=[None] * n_b,
+        time_window=time_window,
+        mode="hex",
+        ti_mode="abs_minus_before",
+        merge_batches=True,
+        extra={
+            "node": node,
+            "hex": {"x": at_x, "y": at_y},
+            "uv": {"u": int(col.u), "v": int(col.v)},
+        },
+        extra_for_cell=extra_for_cell,
+        n_nodes_for_cell=lambda _c: 1,
+    )
 
 
 def analyze_bar_hex(
@@ -2125,17 +2243,12 @@ def analyze_bar_hex(
     specs=None,
     grids=None,
 ) -> dict[str, dict[str, dict[str, Any]]]:
-    """One batched v walk over specs at one hex; returns ``reports[spec][cell]``."""
+    """One batched v forward over specs at one hex; returns ``reports[spec][cell]``."""
     pack = session.pack_for(task)
-    col, nodes = _nodes_at_hex(
-        session, cell, at_x=at_x, at_y=at_y, cost_extent=pack.cost_extent,
+    col, node = _resolve_hex_node(
+        session, cell, at_x=at_x, at_y=at_y,
+        cost_extent=pack.cost_extent, node=node,
     )
-    if node is None:
-        if len(nodes) > 1:
-            raise SystemExit(f"multiple {cell} at ({at_x},{at_y}): {nodes}; pass --node")
-        node = nodes[0]
-    elif node not in nodes:
-        raise SystemExit(f"node {node} not in {nodes}")
     node_arr = np.asarray([node], dtype=np.int64)
     usets = {cell: node_arr}
 
@@ -2144,7 +2257,7 @@ def analyze_bar_hex(
             raise SystemExit(f"no t0 for node {node} on spec {spec!r}")
         return usets
 
-    return _analyze_bar_walk(
+    return _analyze_bar_forward(
         session,
         p=p,
         cells=[cell],
@@ -2156,7 +2269,7 @@ def analyze_bar_hex(
         specs=specs,
         grids=grids,
         extra={
-            "node": int(node),
+            "node": node,
             "hex": {"x": at_x, "y": at_y},
             "uv": {"u": int(col.u), "v": int(col.v)},
         },
@@ -2170,20 +2283,22 @@ def analyze_bar_hex(
 
 
 def _plot_filename(report: dict[str, Any]) -> str:
-    parts = [report["cell"], report["task"], report.get("mode", "average")]
+    parts = [report["cell"], report["task"], "v", report.get("mode", "average")]
     if report.get("spec"):
         parts.append(str(report["spec"]))
     if report.get("mode") == "hex":
         hx = report["hex"]
         parts.append(f"x{hx['x']}_y{hx['y']}")
-    parts.append("v")
+    radius = report.get("radius")
+    if radius is not None and int(radius) != 0:
+        parts.append(f"radius{int(radius)}")
     return "_".join(parts) + ".png"
 
 
 def _overlay_plot_filename(reports: list[dict[str, Any]]) -> str:
     r0 = reports[0]
     specs = "_".join(str(r["spec"]) for r in reports)
-    return f"{r0['cell']}_{r0['task']}_overlay_{specs}_v.png"
+    return f"{r0['cell']}_{r0['task']}_v_overlay_{specs}.png"
 
 
 def _component_figure(title: str, spec: _ComponentSpec):
@@ -2352,7 +2467,7 @@ def _plot_component_reports(
                 show_legend=show_legend,
             )
     _apply_shared_row_ylim(axes, row_curves, spec)
-    _finish_component_figure_layout(fig, title, colors, spec)
+    _finish_component_figure(fig, title, colors, spec)
     _save_component_figure(
         fig, axes, xlabel="t (ms)",
         out_path=out_path, save_figure=save_figure, spec=spec,
@@ -2422,7 +2537,7 @@ def _print_report(report: dict[str, Any]) -> None:
     print(f"task={report['task']} spec={report.get('spec')}")
     tw = report.get("time_window")
     print(
-        f"v_post_d_peak={report['v_post_d_peak_mV']:+.4f} mV "
+        f"v_post_d_peak={report['v_post_d_peak']:+.4f} mV "
         f"v_post_d_polarity={report['v_post_d_polarity']}  "
         f"v_post_d_peak_t={report['v_post_d_peak_t']}  "
         f"before_t={report.get('before_t')}  "
@@ -2438,8 +2553,8 @@ def _print_report(report: dict[str, Any]) -> None:
         )
         for s in report["steps"]:
             print(
-                f"{s[x_key]:4d} {s.get('n_nodes', 1):3d} {s['v_post_mV']:+8.4f} "
-                f"{s['v_pre_d_mV']:+8.4f} {s['v_post_minus_pre_mV']:+8.4f} "
+                f"{s[x_key]:4d} {s.get('n_nodes', 1):3d} {s['v_post']:+8.4f} "
+                f"{s['v_pre_d']:+8.4f} {s['v_post_minus_pre']:+8.4f} "
                 f"{s['i_sti']:+6.3f} {s['v_in']:+6.3f} {s['v_in_exc']:+7.3f} "
                 f"{s['v_in_inh']:+7.3f} {s['dv_leak']:+8.4f} {s['dv_hp']:+7.4f}"
             )
@@ -2460,8 +2575,8 @@ def _print_report(report: dict[str, Any]) -> None:
     )
     for s in report["steps"]:
         print(
-            f"{s[x_key]:4d} {s.get('n_nodes', 1):3d} {s['v_post_mV']:+8.4f} "
-            f"{s['v_pre_d_mV']:+8.4f} {s['v_post_minus_pre_mV']:+8.4f} "
+            f"{s[x_key]:4d} {s.get('n_nodes', 1):3d} {s['v_post']:+8.4f} "
+            f"{s['v_pre_d']:+8.4f} {s['v_post_minus_pre']:+8.4f} "
             f"{s['i_sti']:5.1f} {s['g_inh_nS']:.4f} {s['g_Ih_off_nS']:.4f} "
             f"{s['g_exc_nS']:.4f} {s['num_inh']:+8.2f} {s['num_exc']:+8.2f}"
         )
@@ -2507,9 +2622,9 @@ def _print_polarity_compare(
             else:
                 note += f" (same drive={s['peak_drive']}; see num terms)"
         print(
-            f"{cell:6s} {s['v_post_d_peak_mV']:+11.4f} {s['v_post_d_polarity']:>8s} "
+            f"{cell:6s} {s['v_post_d_peak']:+11.4f} {s['v_post_d_polarity']:>8s} "
             f"{str(s.get('peak_drive')):>8s} "
-            f"{b['v_post_d_peak_mV']:+10.4f} {b['v_post_d_polarity']:>8s} "
+            f"{b['v_post_d_peak']:+10.4f} {b['v_post_d_polarity']:>8s} "
             f"{str(b.get('peak_drive')):>8s}  {note}"
         )
         sps, bps = s.get("peak_step"), b.get("peak_step")
@@ -2520,23 +2635,23 @@ def _print_polarity_compare(
             print(
                 f"       spot@peak: v_in_exc={sps['v_in_exc']:+.4f} -v_in_inh={sps['v_in_inh']:+.4f} "
                 f"dv_hp={sps['dv_hp']:+.4f} dv_leak={sps['dv_leak']:+.4f} "
-                f"v_pre_d={sps['v_pre_d_mV']:+.3f}"
+                f"v_pre_d={sps['v_pre_d']:+.3f}"
             )
             print(
                 f"       bar @peak: v_in_exc={bps['v_in_exc']:+.4f} -v_in_inh={bps['v_in_inh']:+.4f} "
                 f"dv_hp={bps['dv_hp']:+.4f} dv_leak={bps['dv_leak']:+.4f} "
-                f"v_pre_d={bps['v_pre_d_mV']:+.3f}"
+                f"v_pre_d={bps['v_pre_d']:+.3f}"
             )
         else:
             print(
                 f"       spot@peak: g_exc={sps['g_exc_nS']:.4f} g_inh={sps['g_inh_nS']:.4f} "
                 f"num_exc={sps['num_exc']:+.1f} num_inh={sps['num_inh']:+.1f} "
-                f"v_pre_d={sps['v_pre_d_mV']:+.3f}"
+                f"v_pre_d={sps['v_pre_d']:+.3f}"
             )
             print(
                 f"       bar @peak: g_exc={bps['g_exc_nS']:.4f} g_inh={bps['g_inh_nS']:.4f} "
                 f"num_exc={bps['num_exc']:+.1f} num_inh={bps['num_inh']:+.1f} "
-                f"v_pre_d={bps['v_pre_d_mV']:+.3f}"
+                f"v_pre_d={bps['v_pre_d']:+.3f}"
             )
 
 
@@ -2551,7 +2666,7 @@ def main() -> None:
     ap.add_argument(
         "--trace-only",
         action="store_true",
-        help="print response-curve summaries (full forward; no component walk)",
+        help="print response-curve summaries (full forward; no component forward)",
     )
     ap.add_argument(
         "--values",
@@ -2571,28 +2686,35 @@ def main() -> None:
         help="with --trace-only: override spot post-onset response window in ms "
         f"(default: {training.RESPONSE_MS:g})",
     )
-    ap.add_argument(
-        "--t-max-ms",
-        type=float,
-        default=None,
-        help="with --trace-only --values: only print first N ms of each trace",
-    )
     ap.add_argument("--node", type=int, default=None, help="hex-mode node index")
+    ap.add_argument(
+        "--radius",
+        type=int,
+        choices=(0, 1),
+        default=0,
+        help=(
+            "spot average Euclidean readout radius (0=stim-on, 1=neighbors); "
+            "average mode only (not with --x/--y); PNG gets _radius1 when 1"
+        ),
+    )
     t_group = ap.add_mutually_exclusive_group()
     t_group.add_argument(
         "--t-rel",
         default=None,
         metavar="START:STOP",
         help=(
-            "window relative to |v_post_d| peak (default: "
+            "window in t relative to |v_post_d| peak (default: "
             f"{training.T_REL_START}:{training.T_REL_STOP})"
         ),
     )
     t_group.add_argument(
-        "--t",
+        "--ms",
         default=None,
-        metavar="START:STOP",
-        help="absolute aligned t window (spot: abs; bar: vs t0); exclusive with --t-rel",
+        metavar="START:STOP|full",
+        help=(
+            "absolute aligned ms window (spot: abs; bar: vs t0); "
+            "full = 0 ms to last sample; exclusive with --t-rel"
+        ),
     )
     ap.add_argument(
         "--plot",
@@ -2617,21 +2739,24 @@ def main() -> None:
     if args.trace_only:
         if args.node is not None:
             raise SystemExit("--node is component/hex only; omit with --trace-only")
-        if args.t_rel is not None or args.t is not None:
-            raise SystemExit("--t-rel/--t are component only; omit with --trace-only")
+        if args.radius != 0:
+            raise SystemExit("--radius is component only; omit with --trace-only")
+        if args.t_rel is not None or args.ms is not None:
+            raise SystemExit("--t-rel/--ms are component only; omit with --trace-only")
         if args.syn_strength is not None:
             raise SystemExit("--syn-strength is component only; omit with --trace-only")
         if args.json:
             raise SystemExit("--json is component only; omit with --trace-only")
-        if (cli.xs is None) ^ (cli.ys is None):
-            raise SystemExit("pass both --x and --y, or neither")
-        _run_trace_only(args, cli)
+        _trace_only(args, cli)
         return
 
-    if args.values or args.pre_ms is not None or args.response_ms is not None or args.t_max_ms is not None:
+    if args.values or args.pre_ms is not None or args.response_ms is not None:
         raise SystemExit(
-            "--values/--pre-ms/--response-ms/--t-max-ms require --trace-only"
+            "--values/--pre-ms/--response-ms require --trace-only"
         )
+
+    if args.radius != 0 and not any(t in training.SPOT_TASKS for t in cli.tasks):
+        raise SystemExit("--radius requires a spot task")
 
     hex_mode = False
     if cli.xs is not None and cli.ys is not None:
@@ -2641,17 +2766,19 @@ def main() -> None:
                 "omit both for cost-extent averages"
             )
         hex_mode = True
-        if any(t in training.SPOT_TASKS for t in cli.tasks):
-            raise SystemExit("hex mode is moving_bar-only; omit --x/--y for spot")
         if len(cli.cells) != 1:
             raise SystemExit("hex mode supports one cell")
     elif cli.xs is not None or cli.ys is not None:
         raise SystemExit("pass both --x and --y for hex mode, or neither for averages")
 
-    if args.t is not None:
-        t_lo, t_hi = _parse_t_range(args.t, flag="--t")
-        time_window = TimeWindow(kind="t", start=t_lo, stop=t_hi)
-    else:
+    if hex_mode and args.radius != 0:
+        raise SystemExit(
+            "--radius is average-only; omit --x/--y, or omit --radius for hex mode"
+        )
+
+    use_ms = args.ms is not None
+    ms_range = _parse_ms_range(args.ms, flag="--ms") if use_ms else None
+    if not use_ms:
         raw = (
             args.t_rel
             if args.t_rel is not None
@@ -2664,6 +2791,12 @@ def main() -> None:
         run_dir = plot_trained.resolve_run_dir(run_arg)
         _log(f"load_best {run_dir} ...")
         session, z, best_i, best_cost = plot_trained.load_best(run_dir)
+        if use_ms:
+            lo, hi = (
+                (0.0, (int(session.n_t) - 1) * float(session.delta_ms))
+                if ms_range is None else ms_range
+            )
+            time_window = TimeWindow(kind="ms", start=lo, stop=hi)
         schema = list(session.schema)
         syn_strength_edits = _parse_syn_strength(args.syn_strength, session)
         z_t = torch.tensor(np.asarray(z, dtype=np.float64), dtype=torch.float64, device=session.device)
@@ -2681,6 +2814,7 @@ def main() -> None:
             _log(
                 f"best_i={best_i}  best_cost={best_cost:.6g}  "
                 f"mode={'hex' if hex_mode else 'average'}  "
+                f"radius={args.radius}  "
                 f"{time_window.kind}={time_window.start}:{time_window.stop}"
             )
 
@@ -2691,14 +2825,36 @@ def main() -> None:
                         session, task,
                     )
                 session_one = spot_session_cache[task]
-                _log(f"component walk {task} (spot; batched) ...")
-                reports = analyze_spot_average(
-                    session_one,
-                    p=p,
-                    cells=cli.cells,
-                    task=task,
-                    time_window=time_window,
-                )
+                if hex_mode:
+                    hx = cli.xs[0]
+                    hy = cli.ys[0]
+                    _log(
+                        f"component forward {task} "
+                        f"(spot hex=({hx},{hy}); batched) ..."
+                    )
+                    reports = analyze_spot_hex(
+                        session_one,
+                        p=p,
+                        cell=cli.cells[0],
+                        task=task,
+                        at_x=float(hx),
+                        at_y=float(hy),
+                        node=args.node,
+                        time_window=time_window,
+                    )
+                else:
+                    _log(
+                        f"component forward {task} "
+                        f"(spot radius={args.radius}; batched) ..."
+                    )
+                    reports = analyze_spot_average(
+                        session_one,
+                        p=p,
+                        cells=cli.cells,
+                        task=task,
+                        time_window=time_window,
+                        radius=args.radius,
+                    )
                 for cell, rep in reports.items():
                     spot_by_cell[cell] = rep
                     all_reports.append(rep)
@@ -2722,7 +2878,7 @@ def main() -> None:
                 multi_spec_plot = args.plot and len(specs_ordered) > 1
                 if hex_mode:
                     _log(
-                        f"component walk {task} specs={specs_ordered} "
+                        f"component forward {task} specs={specs_ordered} "
                         f"hex=({hx},{hy}) (batched, no full forward) ..."
                     )
                     reports_by_spec = analyze_bar_hex(
@@ -2740,7 +2896,7 @@ def main() -> None:
                     )
                 else:
                     _log(
-                        f"component walk {task} specs={specs_ordered} "
+                        f"component forward {task} specs={specs_ordered} "
                         f"(batched, no full forward) ..."
                     )
                     reports_by_spec = analyze_bar_average(

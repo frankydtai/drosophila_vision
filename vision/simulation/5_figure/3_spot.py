@@ -1,6 +1,6 @@
 """Spot plotting (network spot task).
 
-Network RF bins are ring means: r=0 -> j4, r=1 -> j3/j5, r=2 -> j2/j6.
+Network RF profile axis is Euclidean radius: cube[..., radius] = mean at that radius.
 """
 
 from __future__ import annotations
@@ -12,14 +12,13 @@ import matplotlib.pyplot as plt
 import numpy as np
 import torch
 
-from training.defaults import DELTA_MS
+from param_defaults import DELTA_MS
 import training
 from figure.readout import (
     contrast_for_task,
     contrast_linestyle,
     contrast_order,
     pack_readout_cells,
-    plot_present_layout,
     plot_cells_in_order,
     spot_data_cubes,
 )
@@ -32,7 +31,6 @@ from figure.util import (
     annotate_baseline,
     apply_out_scale,
     baselines_for_types,
-    batches_at_stim_xy,
     bundle_cell_title,
     bundle_prep_s,
     hex_at_scope_tag,
@@ -49,17 +47,26 @@ from figure.util import (
     v_ref_by_type_name,
     v_ref_schema_name,
 )
+from network.construction import cell_family_rows, cell_names_in_family_order
+from task.moving_bar.input import (
+    filter_sti_hexes,
+    moving_bar_cost_hexes,
+    network_uv_np,
+)
 from task.spot.input import (
     euclid_hex_dist,
     spot_from_opts,
     spot_stimulus_batches,
 )
-from task.spot.data import spot_center_bin_layout
+from task.spot.data import (
+    RF_CENTER_RADIUS,
+    RF_N_RADII,
+    RF_RADIUS_DEG,
+    build_spot_center_readout,
+)
 from neuron.params import ms_to_t
 
-CENTER_BIN = 4  # RecF spatial center bin (j=4 in 0..8)
-RF_N_BINS = 9
-RF_BIN_X = np.arange(RF_N_BINS) * 5  # j=0..8 on mirrored RF axis (-20..20)
+RF_RADIUS_X = np.arange(RF_N_RADII) * RF_RADIUS_DEG
 
 
 def _pulse_end_from_opts(opts, t_onset, n_t):
@@ -77,22 +84,22 @@ def _pulse_end_from_opts(opts, t_onset, n_t):
 
 
 def pack_spot_cost_radii(pack) -> tuple[float, ...]:
-    """Active cost rings from ``pack.cost_radius`` (already resolved at pack build)."""
+    """Active cost radii from ``pack.cost_radius`` (already resolved at pack build)."""
     if pack.cost_radius is None:
         raise ValueError(f"{pack.name} pack missing cost_radius")
-    return tuple(sorted({round(float(r), 6) for r in pack.cost_radius.tolist()}))
+    return tuple(
+        sorted({round(float(radius), 6) for radius in pack.cost_radius.tolist()})
+    )
 
 
-def _radius_to_profile_bins(radius):
-    """Map integer radius ring to mirrored profile bins."""
+def _integer_profile_radius(radius):
+    """Return profile axis index for integer Euclidean radius, else ``None``."""
     k = int(round(float(radius)))
     if abs(float(radius) - k) > 1e-6:
-        return ()
-    if k < 0 or k > CENTER_BIN:
-        return ()
-    if k == 0:
-        return (CENTER_BIN,)
-    return (CENTER_BIN - k, CENTER_BIN + k)
+        return None
+    if k < 0 or k >= RF_N_RADII:
+        return None
+    return k
 
 
 def _session_spot_timing(session):
@@ -113,7 +120,7 @@ def _session_spot_timing(session):
 
 
 def resolve_spot_data_cubes(sessions, data_cubes=None):
-    """``{contrast: {cell: (9, T)}}`` for each entry in ``sessions`` (contrast → session)."""
+    """``{contrast: {cell: (RF_N_RADII, T)}}`` for each entry in ``sessions``."""
     if data_cubes is not None:
         return data_cubes
     if not sessions:
@@ -141,8 +148,8 @@ def _session_cost_time_ix(session, response_start):
     return base + ix_np
 
 
-def scale_curve(xt, center, sem_xt=None, *, response_start=None, pulse_end=None):
-    """Center time course + discrete RF bins from one ``(9, T)`` cube.
+def scale_curve(xt, center_radius, sem_xt=None, *, response_start=None, pulse_end=None):
+    """Center-radius time course + RF profile from one ``(RF_N_RADII, T)`` cube.
 
     RF peak time ``maxt`` is ``argmax |v_delta|`` inside pulse ``[response_start, pulse_end)``.
     """
@@ -154,7 +161,7 @@ def scale_curve(xt, center, sem_xt=None, *, response_start=None, pulse_end=None)
     t1 = int(pulse_end)
     if t1 <= t0:
         raise ValueError(f"scale_curve requires pulse_end > response_start, got [{t0}, {t1})")
-    imp = xt[center]
+    imp = xt[center_radius]
     resp = imp[t0:t1]
     if not np.isfinite(resp).any():
         if sem_xt is not None:
@@ -163,12 +170,12 @@ def scale_curve(xt, center, sem_xt=None, *, response_start=None, pulse_end=None)
     maxt = t0 + int(np.argmax(np.abs(resp)))
     spatial = np.asarray(xt[:, maxt], dtype=np.float64)
     if sem_xt is not None:
-        return imp, spatial, sem_xt[center]
+        return imp, spatial, sem_xt[center_radius]
     return imp, spatial
 
 
 def _plot_rf_profile(ax, rf, *, color, label=None, linestyle='-', filled=False):
-    """Plot finite RF bins only (j=0..8); skip NaN (no cost readout)."""
+    """Plot finite RF radii only; skip NaN (no cost readout)."""
     if rf is None:
         return
     rf = np.asarray(rf, dtype=np.float64)
@@ -187,7 +194,7 @@ def _plot_rf_profile(ax, rf, *, color, label=None, linestyle='-', filled=False):
         kw.update(markersize=6, fillstyle='none', markeredgewidth=1.2)
         if linestyle == '--':
             kw['markeredgewidth'] = 1.0
-    ax.plot(RF_BIN_X[mask], rf[mask], **kw)
+    ax.plot(RF_RADIUS_X[mask], rf[mask], **kw)
 
 
 def _style_time_axis(ax, show_xlabel, n_t, delta_ms=None):
@@ -203,22 +210,23 @@ def _style_time_axis(ax, show_xlabel, n_t, delta_ms=None):
 
 
 def _style_recf_profile_axis(ax, show_xlabel):
-    """Style mirrored RF-profile axis."""
-    ax.set_xlim(0, 40)
-    ax.set_xticks([0, 20, 40])
-    ax.set_xticklabels(['-20', '0', '20'], fontsize=6)
+    """Style RF profile axis (degrees from center; index = radius)."""
+    x_max = float((RF_N_RADII - 1) * RF_RADIUS_DEG)
+    ax.set_xlim(-2, x_max + 2)
+    ax.set_xticks([0, x_max / 2.0, x_max])
+    ax.set_xticklabels(['0', f'{x_max / 2.0:g}', f'{x_max:g}'], fontsize=6)
     if show_xlabel:
         ax.set_xlabel('RF (°)', fontsize=7)
 
 
 def _scale_contrast_series(series, *, response_start, pulse_end):
-    """Scale each contrast series entry to ImpR + RF bins.
+    """Scale each contrast series entry to ImpR + RF radii.
 
     ``series`` items may include ``model_xt``, ``data_xt``, ``sem_xt``.
     Returns a list of dicts with ``imp_model``, ``rf_model``, ``imp_sem``,
     ``imp_data``, ``rf_data`` plus passthrough keys.
     """
-    center = CENTER_BIN
+    center_radius = RF_CENTER_RADIUS
     sc_kw = dict(response_start=response_start, pulse_end=pulse_end)
     out = []
     for entry in series:
@@ -230,14 +238,14 @@ def _scale_contrast_series(series, *, response_start, pulse_end):
         if model_xt is not None:
             if sem_xt is not None:
                 imp_model, rf_model, imp_sem = scale_curve(
-                    model_xt, center, sem_xt, **sc_kw,
+                    model_xt, center_radius, sem_xt, **sc_kw,
                 )
             else:
-                imp_model, rf_model = scale_curve(model_xt, center, **sc_kw)
+                imp_model, rf_model = scale_curve(model_xt, center_radius, **sc_kw)
         else:
             imp_model, rf_model = None, None
         if data_xt is not None:
-            imp_data, rf_data = scale_curve(data_xt, center, **sc_kw)
+            imp_data, rf_data = scale_curve(data_xt, center_radius, **sc_kw)
         else:
             imp_data, rf_data = None, None
         item.update(
@@ -399,7 +407,7 @@ def plot_cell_rf_time_slices(
     delta_ms=None,
 ):
     """RF + time panels with per-slice overlays across contrast ``series``."""
-    center = CENTER_BIN
+    center_radius = RF_CENTER_RADIUS
     sc_kw = dict(response_start=response_start, pulse_end=pulse_end)
     ylo, yhi = TRACE_YLIM
     colors = overlay_model_reds(len(slice_labels))
@@ -414,15 +422,15 @@ def plot_cell_rf_time_slices(
         slice_overlay = item.get("slice_overlay") or {}
         imp_model = rf_model = None
         if model_xt is not None:
-            imp_model, rf_model = scale_curve(model_xt, center, **sc_kw)
+            imp_model, rf_model = scale_curve(model_xt, center_radius, **sc_kw)
         imp_data = rf_data = None
         if data_xt is not None:
-            imp_data, rf_data = scale_curve(data_xt, center, **sc_kw)
+            imp_data, rf_data = scale_curve(data_xt, center_radius, **sc_kw)
         slice_imps = {}
         slice_rfs = {}
         for label in slice_labels:
             if label in slice_overlay:
-                imp_s, rf_s = scale_curve(slice_overlay[label], center, **sc_kw)
+                imp_s, rf_s = scale_curve(slice_overlay[label], center_radius, **sc_kw)
                 slice_imps[label] = imp_s
                 slice_rfs[label] = rf_s
 
@@ -488,7 +496,7 @@ def _simulate(session, z, node_index, return_v_onset=False):
     schema = list(session.schema)
     backend = session.backend
     p = training.assign_params(z, schema, backend)
-    stacked, ref = training.run_nodes(
+    stacked, ref = training.forward_nodes(
         session, p, node_index=node_index, return_v_onset=True,
     )
     trace = apply_out_scale(
@@ -502,28 +510,28 @@ def _simulate(session, z, node_index, return_v_onset=False):
 def calc_ca_full_all(session, z, return_v_onset=False):
     n_cells = session.backend.n_cells
     mt = session.n_t
-    ca_full = np.zeros((n_cells, 9, mt))
-    ref_full = np.full((n_cells, 9), np.nan)
-    for col in range(5):
+    ca_full = np.zeros((n_cells, RF_N_RADII, mt))
+    ref_full = np.full((n_cells, RF_N_RADII), np.nan)
+    for radius in range(RF_N_RADII):
         col_index = torch.arange(
-            col * n_cells,
-            (col + 1) * n_cells,
+            radius * n_cells,
+            (radius + 1) * n_cells,
             dtype=torch.long,
             device=z.device,
         )
         if return_v_onset:
             trace, ref = _simulate(session, z, col_index, return_v_onset=True)
-            ca_full[:, col + 2] = trace.cpu().numpy()
-            ref_full[:, col + 2] = ref.cpu().numpy()
+            ca_full[:, radius] = trace.cpu().numpy()
+            ref_full[:, radius] = ref.cpu().numpy()
         else:
-            ca_full[:, col + 2] = _simulate(session, z, col_index).cpu().numpy()
+            ca_full[:, radius] = _simulate(session, z, col_index).cpu().numpy()
     if return_v_onset:
         return ca_full, ref_full
     return ca_full
 
 
 def _fill_member_cube(cube, sem, ti, ft_global, type_idx, du, dv, plot_traces):
-    """Fill mirrored profile bins from radius-ring means."""
+    """Fill profile radii from Euclidean radius means."""
     mask = type_idx == ft_global
     if not mask.any():
         return
@@ -533,15 +541,14 @@ def _fill_member_cube(cube, sem, ti, ft_global, type_idx, du, dv, plot_traces):
         radius = round(float(euclid_hex_dist(int(du[row]), int(dv[row]))), 6)
         by_radius.setdefault(radius, []).append(int(row))
     for radius, row_ix in by_radius.items():
-        bins = _radius_to_profile_bins(radius)
-        if not bins:
+        profile_radius = _integer_profile_radius(radius)
+        if profile_radius is None:
             continue
         traces = plot_traces[row_ix]
         mean_trace = traces.mean(axis=0)
         sem_trace = sem_from_traces(traces, single_hex=False)
-        for bin_j in bins:
-            cube[ti, bin_j] = mean_trace
-            sem[ti, bin_j] = sem_trace
+        cube[ti, profile_radius] = mean_trace
+        sem[ti, profile_radius] = sem_trace
 
 
 @dataclass
@@ -588,7 +595,8 @@ def _spot_readout_bundle_view(bundle):
     """ca-data view: same traces, rows restricted to ``pack_readout_cells``."""
     session = bundle.session
     present = pack_readout_cells(session, session.primary_readout.name)
-    family_rows, names = plot_present_layout(present)
+    family_rows = [np.array(row) for row in cell_family_rows(present)]
+    names = cell_names_in_family_order(present)
     by_name = {c['name']: c for c in bundle.cells}
     cells = [by_name[n] for n in names if n in by_name]
     cell_names = [c['name'] for c in cells]
@@ -619,25 +627,45 @@ def _spot_cubes_from_row_mask(rows, mask):
     dv = rows['dv'][mask]
     plot_traces = rows['plot_traces'][mask]
     out = {}
-    sem_dummy = np.full((1, 9, mt), np.nan)
+    sem_dummy = np.full((1, RF_N_RADII, mt), np.nan)
     for ft in names:
-        cube = np.full((1, 9, mt), np.nan)
+        cube = np.full((1, RF_N_RADII, mt), np.nan)
         ft_global = cell_names.index(ft)
         _fill_member_cube(cube, sem_dummy, 0, ft_global, type_idx, du, dv, plot_traces)
         out[ft] = cube[0]
     return out
 
 
-def _spot_slice_overlay(rows, batches, at_xs, at_ys):
+def _spot_readout_hex_mask(C, node_idx, cost_extent, *, at_x=None, at_y=None):
+    """True for readout rows whose node sits on matching cost-extent hexes."""
+    filt = filter_sti_hexes(
+        moving_bar_cost_hexes(C, cost_extent=cost_extent),
+        at_x=at_x,
+        at_y=at_y,
+    )
+    if not filt:
+        return np.zeros(len(node_idx), dtype=bool)
+    u_np, v_np = network_uv_np(C)
+    col_uv = {(int(c.u), int(c.v)) for c in filt}
+    return np.array(
+        [(int(u_np[n]), int(v_np[n])) in col_uv for n in node_idx],
+        dtype=bool,
+    )
+
+
+def _spot_slice_overlay(rows, C, at_xs, at_ys):
+    """Per-hex readout overlays (same ``filter_sti_hexes`` scope as moving_bar)."""
     overlay = {}
     labels = []
-    batch_idx = rows['batch_idx']
+    pack = rows['pack']
+    node_idx = rows['node_idx']
     for label, at_x, at_y in slice_coord_specs(at_xs, at_ys):
-        match_b = batches_at_stim_xy(batches, at_x=at_x, at_y=at_y)
-        if not match_b:
-            print(f'skip slice overlay {label}: no stimulus batch')
+        mask = _spot_readout_hex_mask(
+            C, node_idx, pack.cost_extent, at_x=at_x, at_y=at_y,
+        )
+        if not np.any(mask):
+            print(f'skip slice overlay {label}: no column within cost_extent')
             continue
-        mask = np.isin(batch_idx, match_b)
         cubes = _spot_cubes_from_row_mask(rows, mask)
         if not any(np.isfinite(c).any() for c in cubes.values()):
             print(f'skip slice overlay {label}: no readouts')
@@ -669,12 +697,12 @@ def _spot_forward_rows(
     session, z, *,
     save_trace_csv_dir=None, at_x=None, at_y=None,
 ):
-    """One forward; cost-extent node layout over all network types."""
+    """One forward; cost-extent node readout over all network types."""
     pack = session.primary_readout
     schema = list(session.schema)
     p = training.assign_params(z, schema, session.backend)
     i_sti = pack.i_sti if pack.i_sti.dim() == 3 else pack.i_sti.unsqueeze(0)
-    trace_full, v_onset, _v_full = training.run_full(
+    trace_full, v_onset, _v_full = training.forward_full(
         session, p, i_sti, return_v_onset=True, pack=pack,
     )
     v_onset_np = v_onset[0].cpu().numpy()
@@ -690,11 +718,13 @@ def _spot_forward_rows(
     opts = dict((session.train_opts or {}).get(f"{pack.name}_stimulus_opts") or {})
     spot = spot_from_opts(C, stimulus_opts=opts)
     batches = spot_stimulus_batches(spot)
-    family_rows, names = plot_present_layout(_spot_all_cell_names(session))
+    present = _spot_all_cell_names(session)
+    family_rows = [np.array(row) for row in cell_family_rows(present)]
+    names = cell_names_in_family_order(present)
 
     (
         batch_idx, node_idx, _radius, type_idx, _stim_u, _stim_v, du, dv, center_row,
-    ) = spot_center_bin_layout(
+    ) = build_spot_center_readout(
         C, batches, pack_spot_cost_radii(pack), pack.cost_extent,
     )
 
@@ -726,8 +756,9 @@ def _spot_forward_rows(
     )
     mask = np.asarray(center_row, dtype=bool)
     if at_x is not None or at_y is not None:
-        match_b = batches_at_stim_xy(batches, at_x=at_x, at_y=at_y)
-        mask = mask & np.isin(batch_idx, match_b)
+        mask = mask & _spot_readout_hex_mask(
+            C, node_idx, pack.cost_extent, at_x=at_x, at_y=at_y,
+        )
     nodes_by_name = {
         name: np.unique(node_idx[mask & (type_idx == cell_names.index(name))])
         for name in names
@@ -742,8 +773,8 @@ def _spot_forward_rows(
 def _spot_cube_from_rows(rows, session):
     names = rows['names']
     mt = rows['mt']
-    cube = np.full((len(names), 9, mt), np.nan)
-    sem = np.full((len(names), 9, mt), np.nan)
+    cube = np.full((len(names), RF_N_RADII, mt), np.nan)
+    sem = np.full((len(names), RF_N_RADII, mt), np.nan)
     for ti, ft in enumerate(names):
         ft_global = rows['cell_names'].index(ft)
         _fill_member_cube(
@@ -780,8 +811,11 @@ def network_spot_trace_bundle(
     cells, family_row_ixs, n_t = _spot_cube_from_rows(rows, session)
     slice_overlay, slice_labels = (None, None)
     if at_xs is not None or at_ys is not None:
+        C = session.backend.network
+        if C is None:
+            raise ValueError("spot slice overlay requires a network backend")
         slice_overlay, slice_labels = _spot_slice_overlay(
-            rows, rows['batches'], at_xs, at_ys,
+            rows, C, at_xs, at_ys,
         )
     return SpotTraceBundle(
         cells=cells,

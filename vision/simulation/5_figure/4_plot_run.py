@@ -15,7 +15,7 @@ from figure import moving_bar as moving_bar_plot
 from figure import spot as spot_plot
 from figure.util import parse_axis_slices, parse_align_xy, plot_cost, network_hex_count
 from training.config import PARAMETER_DIR, run_data_dir
-from training.driver import resolve_run_dir
+from training.implement import resolve_run_dir
 
 TRAIN_OPTS_FILE = training.TRAIN_OPTS_FILE
 KNOWN_MODELS = training.KNOWN_MODELS
@@ -108,7 +108,7 @@ def resolve_model(outdir, override=None):
 
 def find_training_params(outdir):
     """Locate ``data/training*.npy`` params (exclude ``*_costs*`` sidecars)."""
-    import training.driver as train_mod
+    import training.implement as train_mod
 
     data = Path(train_mod.data_dir(outdir))
     candidates = sorted(
@@ -178,7 +178,7 @@ def select_best(params, session, *, final_costs=None, best_i=None, verbose=True)
 
 def load_best(outdir, *, model=None, verbose=False):
     """Load session and best ``z`` from a train run (``best_param.npz`` + costs)."""
-    import training.driver as train_mod
+    import training.implement as train_mod
 
     outdir = os.path.abspath(outdir)
     if not os.path.isdir(outdir):
@@ -373,7 +373,7 @@ def plot_param_set(params, outdir, model=None, model_all=True,
             costs_by_task = loaded_by_task
 
     if best_i is None:
-        import training.driver as train_mod
+        import training.implement as train_mod
         best_i = train_mod.load_best_i(ctx)
 
     print(f'plot device={_plot_device_label()}')
@@ -433,7 +433,7 @@ def plot_param_set(params, outdir, model=None, model_all=True,
         )
 
     if save_artifacts:
-        import training.driver as train_mod
+        import training.implement as train_mod
         os.makedirs(train_mod.data_dir(outdir), exist_ok=True)
         z_best = torch.tensor(best, dtype=session.sim_dtype, device=session.device)
         train_mod.save_best_param_named(outdir, z_best, session)
@@ -443,13 +443,13 @@ def plot_param_set(params, outdir, model=None, model_all=True,
 
 
 def _load_plot_costs(outdir, fname, n_runs):
-    """Load per-run and step costs saved by ``training.driver.save_training_outputs``."""
-    import training.driver as train_mod
+    """Load per-run and step costs saved by ``training.implement.save_training_outputs``."""
+    import training.implement as train_mod
     return train_mod.load_stored_costs(outdir, fname, n_runs)
 
 
 def add_plot_arguments(parser):
-    """Register plot-only CLI flags shared by ``training.driver`` and ``figure.plot_run``."""
+    """Register plot-only CLI flags shared by ``training.implement`` and ``figure.plot_run``."""
     from import_bootstrap import parse_bool
 
     parser.add_argument(

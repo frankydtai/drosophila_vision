@@ -29,7 +29,7 @@ import numpy as np
 from matplotlib.animation import FuncAnimation, PillowWriter
 from matplotlib.patches import Rectangle
 
-from training.defaults import (
+from param_defaults import (
     I_BASELINE,
     I_BRIGHT,
     DELTA_MS, SYN_SCALE_EXC, SYN_SCALE_INH,
@@ -297,7 +297,7 @@ def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--network", type=str, default=DEFAULT_NETWORK_RUN,
                     help=f"4_built_networks run folder name (default: {DEFAULT_NETWORK_RUN})")
-    ap.add_argument("-o", "--output", type=str, default=None,
+    ap.add_argument("--output", type=str, default=None,
                     help="snapshot PNG (default: moving_bar_2<dir>_<side>)")
     ap.add_argument("--gif", nargs="?", const="", default=None,
                     help="write GIF; default path if flag alone, or pass a path")

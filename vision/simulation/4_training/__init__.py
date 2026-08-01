@@ -1,10 +1,10 @@
 # -*- coding: utf-8 -*-
-"""Training package: session assembly, cost, parameter schema, and CLI driver.
+"""Training package: session assembly, cost, parameter schema, and implement.
 
 Public facade re-exporting training API names (``import training``). Engine internals are split across :mod:`training.readout_pack`,
 :mod:`training.params`, :mod:`training.cost`, and :mod:`training.session`; the
 shared vocabulary lives in :mod:`training.config`. Numeric defaults live in
-:mod:`training.defaults`. Lower layers (``neuron``, ``task``, ``network``)
+:mod:`param_defaults`. Lower layers (``neuron``, ``task``, ``network``)
 never import this package at load time.
 """
 from __future__ import annotations
@@ -20,13 +20,13 @@ from neuron import (
     membrane_cdt,
     ms_to_t,
     normalize_syn_mode,
-    run_full,
-    run_nodes,
+    forward_full,
+    forward_nodes,
     update_state_hp_lp,
     update_v,
     v_component_from_g,
 )
-from training.defaults import (
+from param_defaults import (
     CA_TAU,
     CAPAC,
     DATA_AMP,

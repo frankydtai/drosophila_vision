@@ -2,9 +2,9 @@
 """Numeric source for membrane constants, schema boxes, stimulus, and CLI values.
 
 Literals / constant bags only — no functions. Only ``4_training`` / figures /
-run scripts import this module. Layers ``1_neuron`` / ``2_network`` /
-``3_task`` take numbers by injection only (Gruntman paradigm ms/geometry
-constants may live in ``task.moving_bar``).
+analyze / run scripts may import this module. Layers ``1_neuron`` /
+``2_network`` / ``3_task`` take numbers by injection only (Gruntman paradigm
+ms/geometry constants may live in ``task.moving_bar``).
 
 Constants follow original definition order across numbered cores
 ``1.1`` … ``4.7`` (empty cores omitted).
@@ -36,14 +36,14 @@ SYN_SCALE_INH = 0.001
 
 IH_OFF = "on"
 
-GAIN_LO = 0.01
-GAIN_HI = 100.0
+GAIN_LO = 0.1
+GAIN_HI = 10.0
 IH_GMAX_INDI_NAMES = ("L1", "L2", "L4", "L5")
 
 # train_mode: indi | shared | fixed | indi_named
 #   indi_named → indi=IH_GMAX_INDI_NAMES, fixed=remainder (Ih_gmax / hp_gain)
 PARAM_BOXES: Dict[str, dict] = {
-    "in_gain": dict(lo=GAIN_LO, hi=GAIN_HI, init=1.0, jit=0.1, train_mode="shared"),
+    "in_gain": dict(lo=GAIN_LO, hi=GAIN_HI, init=1.0, jit=0.1, train_mode="fixed"),
     "out_gain": dict(lo=GAIN_LO, hi=GAIN_HI, init=1.0, jit=0.1, train_mode="indi"),
     "out_scale": dict(lo=GAIN_LO, hi=GAIN_HI, init=1.0, jit=0.1, train_mode="indi"),
     "syn_strength_cell": dict(lo=GAIN_LO, hi=GAIN_HI, init=1.0, jit=0.1, train_mode="indi"),

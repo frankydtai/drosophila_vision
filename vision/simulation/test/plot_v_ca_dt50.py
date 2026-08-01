@@ -27,10 +27,10 @@ import torch
 
 import training
 from figure.plot_run import load_train_opts, session_for_target
-from figure.readout import plot_present_layout
+from network.build import cell_family_rows, cell_names_in_family_order
 from figure.util import TRACE_LW, TRACE_YLIM, save_figure
 from neuron.params import DELTA_MS, set_delta_ms
-from task.spot.data import cell_list, resolve_spot_cost_radii, spot_center_bin_layout
+from task.spot.data import cell_list, resolve_spot_cost_radii, build_spot_center_readout
 from task.spot.input import PRE_MS, RESPONSE_MS, spot_from_opts, spot_stimulus_batches
 from training.config import PARAMETER_DIR
 
@@ -58,7 +58,7 @@ def _apply_spot_timing(opts: dict, *, pre_ms: float, response_ms: float) -> dict
 
 @torch.no_grad()
 def _fit_center_traces(session, z, *, return_v_delta: bool) -> dict[str, np.ndarray]:
-    """Mean center-column (du=dv=0) trace per fit cell from one ``run_full``.
+    """Mean center-column (du=dv=0) trace per fit cell from one ``forward_full``.
 
     Apply ``out_scale`` like ``model_data_spot`` ca traces (same for v / vΔt
     so the three overlays share amplitude).
@@ -67,11 +67,11 @@ def _fit_center_traces(session, z, *, return_v_delta: bool) -> dict[str, np.ndar
     p = training.assign_params(z, list(session.schema), session.backend)
     sig = pack.signal if pack.signal.dim() == 3 else pack.signal.unsqueeze(0)
     if return_v_delta:
-        trace_full = training.run_full(
+        trace_full = training.forward_full(
             session, p, sig, pack=pack, return_v_delta=True,
         )
     else:
-        trace_full = training.run_full(session, p, sig, pack=pack)
+        trace_full = training.forward_full(session, p, sig, pack=pack)
 
     opts = dict((session.train_opts or {}).get(f"{pack.name}_stimulus_opts") or {})
     C = session.backend.network
@@ -79,7 +79,7 @@ def _fit_center_traces(session, z, *, return_v_delta: bool) -> dict[str, np.ndar
     batches = spot_stimulus_batches(spot)
     cost_radii = resolve_spot_cost_radii(stimulus_opts=opts)
     batch_idx, node_idx, _r, type_idx, _su, _sv, _du, _dv, center_row = (
-        spot_center_bin_layout(C, batches, cost_radii, pack.cost_extent)
+        build_spot_center_readout(C, batches, cost_radii, pack.cost_extent)
     )
     raw = trace_full[batch_idx, :, node_idx]
     scale = training.out_scale_for_nodes(
@@ -126,7 +126,8 @@ def _session_z_at_delta_ms(base_opts, model, named, cell_names, pair_names, dt_m
 
 def _plot(traces_v, traces_ca, traces_v50, dt10, dt50, save, show):
     present = [str(n) for n in cell_list if str(n) in traces_v]
-    groups, names = plot_present_layout(present)
+    groups = [np.array(row) for row in cell_family_rows(present)]
+    names = cell_names_in_family_order(present)
     nrows = len(groups)
     ncols = max(len(g) for g in groups)
     fig, axes = plt.subplots(
@@ -208,7 +209,7 @@ def main():
     model = base_opts.get("model")
     session0 = training.open_session_from_opts(base_opts, model=model)
 
-    import training.driver as train_mod
+    import training.implement as train_mod
     named, cell_names, pair_names = train_mod.load_best_param_named(run_path)
     remapped = training.remap_named_node_values(
         named, cell_names, pair_names, list(session0.schema), session0.backend,

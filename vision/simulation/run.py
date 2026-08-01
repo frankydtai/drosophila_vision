@@ -31,7 +31,7 @@ if HERE not in sys.path:
     sys.path.insert(0, HERE)
 
 import import_bootstrap  # noqa: F401
-import training.driver as train
+import training.implement as train
 from figure.plot_run import (
     add_plot_arguments,
     plot_kwargs_from_args,
@@ -172,7 +172,7 @@ def run_training_and_plot(
     show_pre=True,
     **train_kw,
 ):
-    """Train (``training.driver.run_training``) then plot. Returns ``(fname, outdir, session)``."""
+    """Train (``training.implement.run_training``) then plot. Returns ``(fname, outdir, session)``."""
     plot_kw = build_plot_kwargs(
         data_cubes=plot_data_cubes,
         plot_right_only=plot_right_only,
@@ -228,7 +228,7 @@ def run_mirror_spot_experiment(
     configure_parser=None,
 ):
     """CLI entry for spot mirror-fit experiments (train + plot)."""
-    from training.defaults import DELTA_MS, PRE_MS, RESPONSE_MS
+    from param_defaults import DELTA_MS, PRE_MS, RESPONSE_MS
     from figure.readout import fit_data_cubes
     from neuron.params import ms_to_t
     from training.experiment import (

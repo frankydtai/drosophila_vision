@@ -33,7 +33,7 @@ import numpy as np
 import Medulla_Library as ml
 import FiveCol_MedSim_Pytorch as fc
 import blindschleiche_py3 as bs
-from plot.readout import plot_present_layout
+from network.build import cell_family_rows, cell_names_in_family_order
 from plot.spot import CENTER_BIN, _style_time_axis
 from plot.utils import DATA_COLOR, TRACE_LW, TRACE_YLIM, save_figure
 from training_config import DELTA_MS, IMPULSE_MAXTIME, T_ON, ms_to_t
@@ -139,13 +139,6 @@ def fit_filter_traces() -> dict[str, dict[str, np.ndarray]]:
     return out
 
 
-def layout_groups():
-    """Family-row layout for fit cells only (no R types)."""
-    present = [str(n) for n in ml.cell_list if str(n) not in EXCLUDE_CELLS]
-    groups, names = plot_present_layout(present)
-    return groups, names
-
-
 def _plot_pulse_grid(
     path: str,
     *,
@@ -153,7 +146,9 @@ def _plot_pulse_grid(
     title: str,
     show: bool = False,
 ) -> None:
-    groups, names = layout_groups()
+    present = [str(n) for n in ml.cell_list if str(n) not in EXCLUDE_CELLS]
+    groups = [np.array(row) for row in cell_family_rows(present)]
+    names = cell_names_in_family_order(present)
     n_t = IMPULSE_MAXTIME
     t = np.arange(n_t)
     ylo, yhi = TRACE_YLIM

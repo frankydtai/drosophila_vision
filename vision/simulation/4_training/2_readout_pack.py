@@ -29,7 +29,7 @@ from neuron import IH_DIR_REVERSE_CELLS
 from neuron.params import e_ih_off, membrane_cdt
 
 from training.config import SPOT_TASKS
-from training.defaults import FP
+from param_defaults import FP
 
 
 def active_device():
@@ -107,7 +107,7 @@ class ModelBackend:
 
 @dataclass(frozen=True)
 class FusedForward:
-    """Packs with matching i_sti shape / onset; one ``run_full`` per fuse."""
+    """Packs with matching i_sti shape / onset; one ``forward_full`` per fuse."""
 
     subpacks: Tuple[ReadoutPack, ...]
     batch_offsets: Tuple[int, ...]
@@ -118,7 +118,7 @@ class TrainSession:
     """Immutable runtime context for one training / plotting run.
 
     Membrane / synapse scalars are flat fields (injected from
-    ``training.defaults`` at session open). ``delta_ms`` comes only from
+    ``param_defaults`` at session open). ``delta_ms`` comes only from
     stimulus opts — never a separate Physics bag.
     """
 

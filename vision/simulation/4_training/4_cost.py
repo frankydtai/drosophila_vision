@@ -1,8 +1,8 @@
 # -*- coding: utf-8 -*-
-"""Cost assembly, gradient descent, and multi-run driver.
+"""Cost assembly, gradient descent, and multi-run loop.
 
 Consumes a :class:`~training.readout_pack.TrainSession` and the model forward
-(``neuron.run_full`` + ``neuron.readout``); produces per-part
+(``neuron.forward`` + ``neuron.readout``); produces per-part
 unweighted costs, the weighted total, and the Adam training loop.
 
 Traces are ``v`` (``v - v_onset``); cost multiplies model traces by ``out_scale``.
@@ -24,7 +24,7 @@ from torch import nn
 from tqdm import tqdm
 
 from training.readout_pack import SIM_DTYPE
-from neuron import run_full
+from neuron import forward_full
 from neuron.readout import (
     CA_PACK_READOUTS,
     pack_needs_waveform_mse,
@@ -286,7 +286,7 @@ def _build_cost_subpacks(session: TrainSession) -> Dict[str, ReadoutPack]:
 
 
 def _i_sti_fuse_key(pack: ReadoutPack) -> Tuple:
-    """Key for packs that can share one ``run_full`` (shape, onset)."""
+    """Key for packs that can share one ``forward_full`` (shape, onset)."""
     i_sti = pack.i_sti
     t_onset = int(i_sti.shape[1] - pack.data.shape[1])
     return (
@@ -426,7 +426,7 @@ def _calc_cost_parts_fused(
         else:
             i_sti = torch.cat([pack.i_sti for pack in fused.subpacks], dim=0)
         # Same fuse key ⇒ shared t_onset; pass one subpack for prepare.
-        trace_full = run_full(session, p, i_sti, pack=fused.subpacks[0])
+        trace_full = forward_full(session, p, i_sti, pack=fused.subpacks[0])
         for pack, off in zip(fused.subpacks, fused.batch_offsets):
             for key, part in _pack_cost_parts_from_fused_trace(
                 p, pack, session, trace_full, batch_offset=off,

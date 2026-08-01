@@ -30,7 +30,7 @@ from neuron import (
     default_schema,
     normalize_syn_mode,
 )
-from training.defaults import (
+from param_defaults import (
     CA_TAU,
     CAPAC,
     DATA_AMP,
@@ -126,8 +126,9 @@ from task.moving_bar.data import (
     make_moving_bar_stimulus_opts,
 )
 from task.moving_bar.input import resolve_i_baseline
-from network.construction import load_network, gt_cells_from_opts, node_cell_names
-from network.layout import normalize_cost_extent
+from network.construction import (
+    load_network, gt_cells_from_opts, node_cell_names, normalize_cost_extent,
+)
 
 
 def _opt_float(opts, *keys, default=None):
@@ -551,7 +552,7 @@ def _build_network_spot_task(
         weights=SPOT_COST_RADIUS_WEIGHT,
         weights_extent1=SPOT_COST_RADIUS_WEIGHT_EXTENT1,
     )
-    from training.defaults import SPOT_COST_RADII, SPOT_COST_RADIUS_KEY_ALIASES
+    from param_defaults import SPOT_COST_RADII, SPOT_COST_RADIUS_KEY_ALIASES
     T = build_spot_gt(
         C,
         spot_extent=spot_extent,

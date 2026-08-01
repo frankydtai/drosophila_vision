@@ -2,7 +2,7 @@
 """Parameter schemas for borst / hp_lp neuron models.
 
 Numeric lo/hi/init/jit(/fixed_val) and default ``train_mode`` live in
-``training.defaults.PARAM_BOXES`` and are passed in as ``param_boxes``.
+``param_defaults.PARAM_BOXES`` and are passed in as ``param_boxes``.
 This module builds segment structure and resolves train_modes.
 """
 from __future__ import annotations

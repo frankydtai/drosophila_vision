@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """Parameter schema train_modes: pack/unpack trainable ``z`` <-> physical params.
 
-Segment layout, train_modes (indi/shared/fixed/frozen), non-linear
+Segment packing, train_modes (indi/shared/fixed/frozen), non-linear
 ``scale`` decoding, and the ``z``-space bounds / initial guess. ``assign_params``
 turns a ``z`` vector into the per-parameter tensors consumed by
 ``neuron`` dynamics; ``params_from_z`` binds it to a session.
@@ -44,14 +44,14 @@ def build_ih_dir(conn, ih_reverse_cells=IH_DIR_REVERSE_CELLS, *, dtype=SIM_DTYPE
 
 
 # --- parameter schema train_modes --------------------------------------------
-# Numeric lo/hi/init/jit(/fixed_val) + train_mode: ``training.defaults.PARAM_BOXES``.
+# Numeric lo/hi/init/jit(/fixed_val) + train_mode: ``param_defaults.PARAM_BOXES``.
 # Model segment lists: ``neuron.schema``.
 # Each segment:
 #   name, kind, count, lo/hi/init/jit[, fixed_val][, scale]
 #   scale: ``linear`` (default), ``log`` (z = log(physical)), or ``inv`` (z = 1/physical); lo/hi/init physical
 #   indi / shared / fixed / frozen : disjoint exhaustive lists of node indices
 #       frozen: not in z; values from seg['carry'] (resume) or init (cold start)
-# z layout per segment: len(indi) slots + (1 if shared else 0).
+# z packing per segment: len(indi) slots + (1 if shared else 0).
 TRAIN_MODES = ('indi', 'shared', 'fixed', 'frozen')
 PAIR_SEP = ':'
 

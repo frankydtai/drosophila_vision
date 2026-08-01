@@ -5,11 +5,10 @@ from __future__ import annotations
 import numpy as np
 import torch
 
-from training.defaults import DATA_AMP, DELTA_MS
+from param_defaults import DATA_AMP, DELTA_MS
 from task.spot.data import GT_CELLS, read_RecF_data, read_RecF_data_dark
 from network.construction import (
     CELL_FAMILY_ROWS,
-    cell_family_rows,
     cell_names_in_family_order,
 )
 
@@ -18,15 +17,8 @@ PLOT_FAMILY_ROWS = [np.array(row) for row in CELL_FAMILY_ROWS]
 _VALID_CONTRASTS = ("bright", "dark")
 
 
-def plot_present_layout(present):
-    """Return ``(family_rows, names)`` in canonical family order."""
-    family_rows = [np.array(row) for row in cell_family_rows(present)]
-    names = [str(n) for row in family_rows for n in row]
-    return family_rows, names
-
-
 def plot_cells_in_order(present):
-    """Flat cell order from :func:`plot_present_layout`."""
+    """Flat cell order from :func:`network.construction.cell_names_in_family_order`."""
     return cell_names_in_family_order(present)
 
 
@@ -121,7 +113,7 @@ def _apply_mirror(cells, override):
 
 
 def _cell_cubes(*, dark: bool, t_onset=None, n_t=None, pulse_ms=None, delta_ms: float):
-    """One contrast: ``{cell: (9, T)}``."""
+    """One contrast: ``{cell: (RF_N_RADII, T)}``."""
     kw = dict(t_onset=t_onset, n_t=n_t, pulse_ms=pulse_ms, delta_ms=float(delta_ms))
     data = read_RecF_data_dark(**kw) if dark else read_RecF_data(**kw)
     cubes = data * DATA_AMP
@@ -131,7 +123,7 @@ def _cell_cubes(*, dark: bool, t_onset=None, n_t=None, pulse_ms=None, delta_ms: 
 def fit_data_cubes(
     *, contrasts=("bright",), t_onset=None, n_t=None, pulse_ms=None, delta_ms: float = DELTA_MS,
 ):
-    """RecF data cubes ``{contrast: {cell: (9, T)}}`` (``v`` readout as-is)."""
+    """RecF data cubes ``{contrast: {cell: (RF_N_RADII, T)}}`` (``v`` readout as-is)."""
     out = {}
     for contrast in contrasts:
         contrast = str(contrast)
@@ -156,7 +148,7 @@ def spot_data_cubes(
     pulse_ms=None,
     delta_ms: float = DELTA_MS,
 ):
-    """Spot data cubes ``{contrast: {cell: (9, T)}}`` with pack mirror overrides."""
+    """Spot data cubes ``{contrast: {cell: (RF_N_RADII, T)}}`` with pack mirror overrides."""
     task = task or session.primary_readout.name
     if contrasts is None:
         contrasts = (contrast_for_task(task),)

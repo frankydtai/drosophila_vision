@@ -12,7 +12,7 @@ import torch
 from neuron import model_borst as _model_borst
 from neuron import model_hp_lp as _model_hp_lp
 
-# Per-model dynamics for ``run_full`` (prepare_i_sti / init_state / step only).
+# Per-model dynamics for ``forward_full`` (prepare_i_sti / init_state / step only).
 MODEL_DRIVERS = {
     "borst": _model_borst,
     "hp_lp": _model_hp_lp,
@@ -24,7 +24,7 @@ def _detach_state(state):
     return tuple(s.detach() for s in state)
 
 
-def run_full(session, p, i_sti, *, return_v_onset=False, pack=None):
+def forward_full(session, p, i_sti, *, return_v_onset=False, pack=None):
     """Shared full-T forward for every ``session.model``.
 
     Time index ``t`` is post-update at step ``t``. Membrane drive comes from
@@ -79,10 +79,10 @@ def run_full(session, p, i_sti, *, return_v_onset=False, pack=None):
     return v_delta
 
 
-def run_nodes(
+def forward_nodes(
     session, p, node_index=None, return_v_onset=False, i_sti=None, pack=None,
 ):
-    """``run_full`` then index nodes; squeeze when ``i_sti`` is ``(T, N)``."""
+    """``forward_full`` then index nodes; squeeze when ``i_sti`` is ``(T, N)``."""
     pack = pack or session.primary_readout
     if node_index is None:
         node_index = pack.readout_node
@@ -90,7 +90,7 @@ def run_nodes(
         i_sti = session.pack_i_sti(pack)
     squeeze = i_sti.dim() == 2
     i_sti_b = i_sti.unsqueeze(0) if squeeze else i_sti
-    out, v_onset, _v_full = run_full(
+    out, v_onset, _v_full = forward(
         session, p, i_sti_b, return_v_onset=True, pack=pack,
     )
     out = out[:, :, node_index]

@@ -18,3 +18,18 @@ checkpoint_interval=1000
 
 round 0
 
+
+Initl cost = 90.3959  [spot_bright=90.3959]
+Final cost = 61.4396  [spot_bright=61.4396]
+Best  cost = 61.4396  [spot_bright=61.4396]
+time needed  = 72.64  sec
+
+done in 0.02 hours
+wrote table: /home/yitai/drosophila_vision/vision/simulation/0_runs/hp_lp/28560854-run-nofsteps-500-tau-hp-init-L1,L2,L4,L5-200-pulse-ms-100-delta-ms-5-response-ms-500-gt-spot-L3/param.csv (best run #0, cost=61.4396)
+wrote table: /home/yitai/drosophila_vision/vision/simulation/0_runs/hp_lp/28560854-run-nofsteps-500-tau-hp-init-L1,L2,L4,L5-200-pulse-ms-100-delta-ms-5-response-ms-500-gt-spot-L3/syn_strength_cell.csv
+plot device=cuda (NVIDIA H100 80GB HBM3)
+1 trained set(s); selected #0 (cost=61.4396)
+plot /home/yitai/drosophila_vision/vision/simulation/0_runs/hp_lp/28560854-run-nofsteps-500-tau-hp-init-L1,L2,L4,L5-200-pulse-ms-100-delta-ms-5-response-ms-500-gt-spot-L3/cost_curve.png: draw=0.1s  save=0.2s  total=0.3s
+plot /home/yitai/drosophila_vision/vision/simulation/0_runs/hp_lp/28560854-run-nofsteps-500-tau-hp-init-L1,L2,L4,L5-200-pulse-ms-100-delta-ms-5-response-ms-500-gt-spot-L3/spot_gt_v.png: prep=0.2s  draw=0.0s  save=0.1s  total=0.3s
+plot /home/yitai/drosophila_vision/vision/simulation/0_runs/hp_lp/28560854-run-nofsteps-500-tau-hp-init-L1,L2,L4,L5-200-pulse-ms-100-delta-ms-5-response-ms-500-gt-spot-L3/spot_all_v.png: prep=0.0s  draw=0.6s  save=1.2s  total=1.8s
+plots saved to /home/yitai/drosophila_vision/vision/simulation/0_runs/hp_lp/28560854-run-nofsteps-500-tau-hp-init-L1,L2,L4,L5-200-pulse-ms-100-delta-ms-5-response-ms-500-gt-spot-L3
