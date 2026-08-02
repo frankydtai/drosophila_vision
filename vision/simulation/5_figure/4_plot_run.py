@@ -198,7 +198,7 @@ def _cost_parts_for_plot(session, z):
 
 def _plot_spot_tasks(session, z, outdir, spot_tasks, suffix, model_all,
                        gt_cubes=None,
-                       at_x=None, at_y=None, save_trace_csv_dir=None, show_pre=True):
+                       at_x=None, at_y=None, show_pre=True):
     """Plot spot task(s); contrasts combined in one figure when both are trained."""
     spot_set = set(spot_tasks)
     make_bundle, plot_gt, plot_all = spot_bundle_fns(session)
@@ -209,7 +209,6 @@ def _plot_spot_tasks(session, z, outdir, spot_tasks, suffix, model_all,
     plot_kw = dict(gt_cubes=gt_cubes, cost_parts=cost_parts)
     bundle_kw = dict(
         at_xs=at_x, at_ys=at_y,
-        save_trace_csv_dir=save_trace_csv_dir,
         show_pre=show_pre,
     )
     if spot_set == set(training.SPOT_TASKS):
@@ -241,7 +240,7 @@ def _plot_spot_tasks(session, z, outdir, spot_tasks, suffix, model_all,
             session_for_task(session, tname), z, outdir, tname, suffix, model_all,
             gt_cubes=gt_cubes,
             at_x=at_x, at_y=at_y,
-            save_trace_csv_dir=save_trace_csv_dir, show_pre=show_pre,
+            show_pre=show_pre,
             cost_parts=cost_parts,
         )
 
@@ -249,14 +248,13 @@ def _plot_spot_tasks(session, z, outdir, spot_tasks, suffix, model_all,
 def _plot_bar_readouts(session, z, outdir, bar_readouts, suffix, model_all, *,
                       plot_right_only=True, at_x=None, at_y=None,
                       align_at_x=None, align_at_y=None,
-                      save_trace_csv_dir=None, show_pre=True):
+                      show_pre=True):
     """Plot moving-bar task(s); bright left | dark right when both are trained."""
     kind = _session_trace_kind(session)
     cost_parts = _cost_parts_for_plot(session, z)
     bundle_kw = dict(
         at_xs=at_x, at_ys=at_y,
         align_at_x=align_at_x, align_at_y=align_at_y,
-        save_trace_csv_dir=save_trace_csv_dir,
         show_pre=show_pre,
     )
     bar_set = set(bar_readouts)
@@ -306,7 +304,7 @@ def _plot_bar_readouts(session, z, outdir, bar_readouts, suffix, model_all, *,
 
 def _plot_one_task(session, z, outdir, tname, suffix, model_all,
                      gt_cubes=None,
-                     at_x=None, at_y=None, save_trace_csv_dir=None, show_pre=True,
+                     at_x=None, at_y=None, show_pre=True,
                      cost_parts=None):
     if tname not in training.SPOT_TASKS:
         raise ValueError(f'unknown plot task {tname!r}')
@@ -321,7 +319,7 @@ def _plot_one_task(session, z, outdir, tname, suffix, model_all,
     b = make_bundle(
         session, z,
         at_xs=at_x, at_ys=at_y,
-        save_trace_csv_dir=save_trace_csv_dir, show_pre=show_pre,
+        show_pre=show_pre,
     )
     from figure.readout import contrast_for_task
     bundles = {contrast_for_task(tname): b}
@@ -341,11 +339,10 @@ def plot_param_set(params, outdir, model=None, model_all=True,
                    gt_cubes=None,
                    plot_right_only=True, at_x=None, at_y=None,
                    align_at_x=None, align_at_y=None,
-                   save_csv=False, show_pre=True):
+                   show_pre=True):
     os.makedirs(outdir, exist_ok=True)
     data_dir = run_data_dir(os.path.abspath(outdir))
     os.makedirs(data_dir, exist_ok=True)
-    save_trace_csv_dir = data_dir if save_csv else None
     ctx = context_dir or outdir
     if model is None and session is not None:
         model = session.model
@@ -406,7 +403,7 @@ def plot_param_set(params, outdir, model=None, model_all=True,
             session, z, outdir, spot_tasks, suffix, model_all,
             gt_cubes=gt_cubes,
             at_x=at_x, at_y=at_y,
-            save_trace_csv_dir=save_trace_csv_dir, show_pre=show_pre,
+            show_pre=show_pre,
         )
     if bar_readouts:
         _plot_bar_readouts(
@@ -414,14 +411,14 @@ def plot_param_set(params, outdir, model=None, model_all=True,
             plot_right_only=plot_right_only,
             at_x=at_x, at_y=at_y,
             align_at_x=align_at_x, align_at_y=align_at_y,
-            save_trace_csv_dir=save_trace_csv_dir, show_pre=show_pre,
+            show_pre=show_pre,
         )
     for tname in other_readouts:
         one = session_for_task(session, tname)
         _plot_one_task(
             one, z, outdir, tname, suffix, model_all,
             gt_cubes=gt_cubes,
-            save_trace_csv_dir=save_trace_csv_dir, show_pre=show_pre,
+            show_pre=show_pre,
         )
 
     if save_artifacts:
@@ -506,11 +503,6 @@ def main():
         default=DEFAULT_RUN_PATH,
         help='run folder under PARAMETER_DIR or absolute path (default: %(default)s)',
     )
-    ap.add_argument(
-        '--save-csv',
-        action='store_true',
-        help='save trace CSV files to the run data directory',
-    )
     add_plot_arguments(ap)
     args = ap.parse_args()
     try:
@@ -533,7 +525,6 @@ def main():
         session=session,
         best_i=0,
         final_costs=np.array([best_cost]),
-        save_csv=args.save_csv,
         **plot_kw,
     )
 

@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import os
 import time
 
 import matplotlib.pyplot as plt
@@ -55,41 +54,6 @@ def gt_affine_scalars_for_cell(p, cell_name, backend) -> tuple[float, float]:
     scale = float(gs[ci] if torch.is_tensor(gs) and gs.dim() > 0 else gs)
     bias = float(gb[ci] if torch.is_tensor(gb) and gb.dim() > 0 else gb)
     return scale, bias
-
-
-def save_forward_trace_csvs(
-    save_dir,
-    task,
-    *,
-    trace_full,
-    trace_stem: str | None = None,
-):
-    """Write per-task absolute ``v`` trace CSV under ``save_dir``.
-
-    Default stem: ``<task>_v.csv``. Trace is ``(B*T', N)`` with constant
-    ``B`` / ``Tprime`` columns, then one column per node.
-    """
-    if save_dir is None:
-        return
-    os.makedirs(save_dir, exist_ok=True)
-    trace_np = _as_numpy(trace_full)
-    if trace_np.ndim != 3:
-        raise ValueError(f'trace_full must be (B, T\', N), got shape {trace_np.shape}')
-    bsz, tprime, n_nodes = (int(x) for x in trace_np.shape)
-    trace_stem_final = f'{task}_v' if trace_stem is None else trace_stem
-    trace_path = os.path.join(save_dir, f'{trace_stem_final}.csv')
-    flat = trace_np.reshape(-1, n_nodes).astype(np.float64, copy=False)
-    n_rows = flat.shape[0]
-    trace_table = np.column_stack([
-        np.full(n_rows, bsz, dtype=np.int64),
-        np.full(n_rows, tprime, dtype=np.int64),
-        flat,
-    ])
-    node_header = ','.join(f'u{i}' for i in range(n_nodes))
-    np.savetxt(
-        trace_path, trace_table, delimiter=',',
-        header=f'B,Tprime,{node_header}', comments='',
-    )
 
 
 def cost_ylim(*curves, pct=99.0, pad=1.1, floor=1.0):

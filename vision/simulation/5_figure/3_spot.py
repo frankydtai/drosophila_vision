@@ -39,7 +39,6 @@ from figure.util import (
     plot_timecourse,
     readout_n_by_name,
     save_figure,
-    save_forward_trace_csvs,
     sem_from_traces,
     slice_coord_specs,
     suppress_cost_sem,
@@ -679,7 +678,7 @@ def _cells_from_cube(
 @torch.no_grad()
 def _spot_forward_rows(
     session, z, *,
-    save_trace_csv_dir=None, at_x=None, at_y=None,
+    at_x=None, at_y=None,
 ):
     """One forward; cost-extent node readout over all network types."""
     pack = session.primary_readout
@@ -687,10 +686,6 @@ def _spot_forward_rows(
     p = training.assign_params(z, schema, session.backend)
     i_sti = pack.i_sti if pack.i_sti.dim() == 3 else pack.i_sti.unsqueeze(0)
     trace_full = training.forward_full(session, p, i_sti, pack=pack)
-    save_forward_trace_csvs(
-        save_trace_csv_dir, pack.name,
-        trace_full=trace_full,
-    )
     C = session.backend.network
     cell_names = list(C.cell_names)
     mt = int(i_sti.shape[1])
@@ -779,7 +774,7 @@ def _spot_cube_from_rows(rows, session):
 def network_spot_trace_bundle(
     session, z, *,
     at_xs=None, at_ys=None,
-    save_trace_csv_dir: str | None = None, show_pre=True,
+    show_pre=True,
 ):
     """Run one forward; full cost-extent spot traces over all types."""
     t_prep0 = time.perf_counter()
@@ -787,7 +782,6 @@ def network_spot_trace_bundle(
     at_y = at_ys[0] if at_ys else None
     rows = _spot_forward_rows(
         session, z,
-        save_trace_csv_dir=save_trace_csv_dir,
         at_x=at_x, at_y=at_y,
     )
     cells, family_row_ixs, n_t = _spot_cube_from_rows(rows, session)

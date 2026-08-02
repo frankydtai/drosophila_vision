@@ -37,7 +37,6 @@ from figure.util import (
     plot_timecourse,
     readout_center_mask,
     save_figure,
-    save_forward_trace_csvs,
     sem_from_traces,
     slice_axis_name,
     slice_coord_specs,
@@ -414,17 +413,13 @@ def _moving_bar_traces_from_forward(
 def moving_bar_trace_bundle(session, z, task, *, at_x=None, at_y=None,
                             at_xs=None, at_ys=None,
                             align_at_x=None, align_at_y=None,
-                            save_trace_csv_dir: str | None = None, show_pre=True):
+                            show_pre=True):
     """Run one forward; t_first_sti-aligned full-window model traces."""
     t_prep0 = time.perf_counter()
     pack = session.pack_for(task)
     schema = list(session.schema)
     p = training.assign_params(z, schema, session.backend)
     trace_t = training.forward_full(session, p, pack.i_sti, pack=pack)
-    save_forward_trace_csvs(
-        save_trace_csv_dir, task,
-        trace_full=trace_t,
-    )
     trace_full = trace_t.detach().cpu().numpy()
     specs = bar_specs_for_session(session, task)
     spec_names = [s.name for s in specs]
