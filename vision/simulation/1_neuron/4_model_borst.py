@@ -141,9 +141,9 @@ def prepare_i_sti(session, p, i_sti, pack):
     return i_sti.unsqueeze(0) if i_sti.dim() == 2 else i_sti
 
 
-def init_state(session, p, B):
+def init_state(session, p, B, i_sti=None):
     """``(u_on, u_off)``, ``v0 = e_leak``."""
-    del p
+    del p, i_sti
     backend = session.backend
     dev = backend.conn.node_cell.device
     dtype = session.sim_dtype

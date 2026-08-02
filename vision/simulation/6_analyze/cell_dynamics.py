@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 DEFAULT_RUN_NAME = """
-28603731-run-nofsteps-200-tau-hp-init.L1,L2,L4,L5-200-ms-pre-1000-ms-pulse-100-ms-response-500
+28610118-run-nofsteps-200-tau-hp-init.L1,L2,L4,L5-200-ms-pre-1000-ms-pulse-100-ms-response-500
 """.strip()
 DEFAULT_RUN_PATH = "hp_lp/" + DEFAULT_RUN_NAME
 
@@ -575,7 +575,7 @@ def _equilibrate(session, p, i_sti_batch: torch.Tensor, t_onset: int):
     _component_spec(session.model)  # validate early
     B, T, _N = i_sti_batch.shape
     drv = _model_driver(session)
-    state, v = drv.init_state(session, p, B)
+    state, v = drv.init_state(session, p, B, i_sti=i_sti_batch)
     for t in range(1, min(t_onset, T)):
         state, v = drv.step(state, v, p, i_sti_batch[:, t - 1], session)
     return v, state
@@ -842,7 +842,7 @@ def _forward_component(
     backend = session.backend
     n_keys = spec.n_keys
     drv = _model_driver(session)
-    state, v = drv.init_state(session, p, B)
+    state, v = drv.init_state(session, p, B, i_sti=drive)
 
     sums_b: list[dict[str, np.ndarray]] = []
     sumsq_b: list[dict[str, np.ndarray]] = []

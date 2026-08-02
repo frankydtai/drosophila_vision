@@ -66,7 +66,7 @@ def forward_full(session, p, i_sti, *, pack=None):
     B, t_end, _n = int(i_sti.shape[0]), int(i_sti.shape[1]), int(i_sti.shape[2])
     t_onset = pack_t_onset(pack)
     pre_grad = bool((session.train_opts or {})["pre_grad"])
-    state, v = drv.init_state(session, p, B)
+    state, v = drv.init_state(session, p, B, i_sti=i_sti)
     v_rows = [v]
     if pre_grad or t_onset <= 0:
         for t in range(1, t_end):
