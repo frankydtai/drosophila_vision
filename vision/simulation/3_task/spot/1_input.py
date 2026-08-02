@@ -28,16 +28,40 @@ def spot_timing_t(
     ms_pre: float,
     ms_response: float,
     delta_ms: float,
+    ms_post: float = 0.0,
 ) -> Tuple[int, int]:
-    """Return ``(t_onset, n_t)`` from ms timing params."""
+    """Return ``(t_onset, n_t)`` from ms timing params.
+
+    ``n_t`` is the forward length: pre + response + post. Cost / ImpR gt use
+    only through response (see :func:`spot_gt_n_t`); ``ms_post`` does not enter gt.
+    """
     dt = float(delta_ms)
     t_onset = ms_to_t(ms_pre, delta_ms=dt)
-    n_t = t_onset + ms_to_t(ms_response, delta_ms=dt) + 1
+    n_t = (
+        t_onset
+        + ms_to_t(ms_response, delta_ms=dt)
+        + ms_to_t(ms_post, delta_ms=dt)
+        + 1
+    )
     return t_onset, n_t
 
 
+def spot_gt_n_t(
+    *,
+    ms_pre: float,
+    ms_response: float,
+    delta_ms: float,
+) -> int:
+    """ImpR / cost timeline length (no ``ms_post``)."""
+    dt = float(delta_ms)
+    return ms_to_t(ms_pre, delta_ms=dt) + ms_to_t(ms_response, delta_ms=dt) + 1
+
+
 def spot_timing_t_from_opts(opts) -> Tuple[int, int]:
-    """``(t_onset, n_t)`` from stimulus opts ``ms_pre`` / ``ms_response`` / ``delta_ms``."""
+    """``(t_onset, n_t)`` from stimulus opts ``ms_pre`` / ``ms_response`` / ``delta_ms``.
+
+    Optional ``ms_post`` (default 0) extends forward only.
+    """
     if opts.get("ms_pre") is None or opts.get("ms_response") is None:
         raise ValueError(
             "spot stimulus opts require ms_pre and ms_response (pass via CLI --ms-pre / --ms-response)"
@@ -45,6 +69,22 @@ def spot_timing_t_from_opts(opts) -> Tuple[int, int]:
     if opts.get("delta_ms") is None:
         raise ValueError("spot stimulus opts require delta_ms")
     return spot_timing_t(
+        ms_pre=float(opts["ms_pre"]),
+        ms_response=float(opts["ms_response"]),
+        delta_ms=float(opts["delta_ms"]),
+        ms_post=float(opts.get("ms_post", 0.0)),
+    )
+
+
+def spot_gt_n_t_from_opts(opts) -> int:
+    """ImpR / cost ``n_t`` from opts (ignores ``ms_post``)."""
+    if opts.get("ms_pre") is None or opts.get("ms_response") is None:
+        raise ValueError(
+            "spot stimulus opts require ms_pre and ms_response (pass via CLI --ms-pre / --ms-response)"
+        )
+    if opts.get("delta_ms") is None:
+        raise ValueError("spot stimulus opts require delta_ms")
+    return spot_gt_n_t(
         ms_pre=float(opts["ms_pre"]),
         ms_response=float(opts["ms_response"]),
         delta_ms=float(opts["delta_ms"]),

@@ -516,9 +516,16 @@ def plot_pre_post_line(
         return
     t_arr = np.asarray(t)
     y_arr = np.asarray(y, dtype=np.float64)
-    if y_arr.ndim != 1 or t_arr.shape[0] != y_arr.shape[0]:
+    if y_arr.ndim != 1:
         raise ValueError(
-            f'plot_pre_post_line expects 1-D t/y of equal length, '
+            f'plot_pre_post_line expects 1-D y, got y={getattr(y_arr, "shape", None)}'
+        )
+    if t_arr.shape[0] > y_arr.shape[0]:
+        # Spot gt omits ms_post; model / axis may be longer.
+        t_arr = t_arr[: y_arr.shape[0]]
+    elif t_arr.shape[0] < y_arr.shape[0]:
+        raise ValueError(
+            f'plot_pre_post_line expects t length >= y length, '
             f'got t={getattr(t_arr, "shape", None)} y={getattr(y_arr, "shape", None)}'
         )
     n = int(y_arr.shape[0])

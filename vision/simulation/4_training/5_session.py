@@ -62,6 +62,7 @@ from param_defaults import (
     I_DARK,
     PARAM_BOXES,
     MS_PRE,
+    MS_POST,
     MS_PULSE,
     MS_RESPONSE,
     SYN_MODE,
@@ -117,6 +118,7 @@ from task.spot.gt import (
 )
 from task.spot.input import (
     spot_extent_half_steps,
+    spot_gt_n_t_from_opts,
     spot_timing_t_from_opts,
 )
 from task.moving_bar.gt import (
@@ -274,6 +276,7 @@ def _append_mirror_pack_rows(
         dsi_power=pack.dsi_power,
         cost_time_ix=pack.cost_time_ix,
         waveform_mse=pack.waveform_mse,
+        t_onset=pack.t_onset,
     )
 
 
@@ -492,8 +495,8 @@ def _spot_cost_times_ms(opts):
     if interval_ms <= 0:
         raise ValueError("cost_interval_ms must be > 0")
     delta_ms = float(opts.get("delta_ms", DELTA_MS))
-    t_onset, n_t = spot_timing_t_from_opts(opts)
-    post = n_t - t_onset
+    t_onset, _n_t = spot_timing_t_from_opts(opts)
+    post = spot_gt_n_t_from_opts(opts) - t_onset
     if post <= 0:
         raise ValueError("spot post-onset window must be > 0 for cost_interval_ms")
     interval_t = max(1, int(round(interval_ms / delta_ms)))
@@ -513,8 +516,8 @@ def _spot_cost_time_ix(opts, *, device):
     if not cost_time_ms:
         return None
     delta_ms = float(opts.get("delta_ms", DELTA_MS))
-    t_onset, n_t = spot_timing_t_from_opts(opts)
-    post = n_t - t_onset
+    t_onset, _n_t = spot_timing_t_from_opts(opts)
+    post = spot_gt_n_t_from_opts(opts) - t_onset
     ix = [int(round(float(ms) / delta_ms)) for ms in cost_time_ms]
     bad = [ms for ms, t in zip(cost_time_ms, ix) if t < 0 or t >= post]
     if bad:
@@ -572,6 +575,7 @@ def _build_network_spot_task(
         i_dark_spot=i_spot if polarity == "dark" else float(opts.get("i_dark_spot", I_DARK)),
         polarity=polarity,
         ms_pulse=float(opts.get("ms_pulse", MS_PULSE)),
+        ms_response=float(opts["ms_response"]),
         data_amp=DATA_AMP,
         delta_ms=delta_ms,
         default_cost_weights=default_w,
@@ -597,6 +601,7 @@ def _build_network_spot_task(
         cost_extent=cost_extent,
         cost_time_ix=cost_time_ix,
         waveform_mse=True,
+        t_onset=int(t_onset),
     )
     coltag = _cost_extent_hex_coltag(cost_extent, T.info["n_cost_hexes"])
     shifttag = f"{T.info['n_shifts']} shifts"
@@ -780,6 +785,7 @@ def _finalize_stimulus_opts(
             i_spot=float(raw.get(peak_key, i_spot_default)),
             ms_pre=float(raw.get("ms_pre", MS_PRE)),
             ms_response=float(raw.get("ms_response", MS_RESPONSE)),
+            ms_post=float(raw.get("ms_post", MS_POST)),
             delta_ms=float(raw.get("delta_ms", DELTA_MS)),
             shift_extent=int(raw.get("shift_extent", shift_extent if shift_extent is not None else SHIFT_EXTENT)),
             spot_extent=float(raw.get("spot_extent", spot_extent if spot_extent is not None else SPOT_EXTENT)),

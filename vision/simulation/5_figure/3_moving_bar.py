@@ -374,7 +374,7 @@ def _moving_bar_traces_from_forward(
     pack = session.pack_for(task)
     cost_extent = pack.cost_extent
     n_t = int(session.n_t)
-    _t_onset = int(pack.i_sti.shape[1] - pack.gt.shape[1])
+    _t_onset = training.pack_t_onset(pack)
     grids = moving_bar_session_t0_grids(
         session, specs, cost_extent, n_t, at_x=at_x, at_y=at_y,
         t_onset=_t_onset, delta_ms=session.delta_ms,

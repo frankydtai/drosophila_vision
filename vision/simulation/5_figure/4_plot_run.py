@@ -25,7 +25,7 @@ from training.implement import resolve_run_dir
 TRAIN_OPTS_FILE = training.TRAIN_OPTS_FILE
 KNOWN_MODELS = training.KNOWN_MODELS
 DEFAULT_RUN_NAME = """
-28603731-run-nofsteps-200-tau-hp-init.L1,L2,L4,L5-200-ms-pre-1000-ms-pulse-100-ms-response-500
+28607990-run-nofsteps-500-tau-hp-init.L1,L2,L4,L5-200-ms-pre-3000-ms-pulse-100-ms-response-500
 """.strip()
 DEFAULT_RUN_PATH = 'hp_lp/' + DEFAULT_RUN_NAME
 
@@ -203,18 +203,20 @@ def maybe_override_stimulus_timing(
     z,
     ms_pre=None,
     ms_response=None,
+    ms_post=None,
     ms_pulse=None,
     delta_ms=None,
 ):
     """Re-open session when any timing override is set; remap best ``z``.
 
     Unset flags keep values from the run's train opts. ``ms_pre`` / ``delta_ms``
-    also update moving_bar stimulus opts; ``ms_response`` / ``ms_pulse`` are
-    spot-only.
+    also update moving_bar stimulus opts; ``ms_response`` / ``ms_post`` /
+    ``ms_pulse`` are spot-only.
     """
     if (
         ms_pre is None
         and ms_response is None
+        and ms_post is None
         and ms_pulse is None
         and delta_ms is None
     ):
@@ -222,6 +224,8 @@ def maybe_override_stimulus_timing(
 
     if delta_ms is not None and float(delta_ms) <= 0:
         raise SystemExit("--delta-ms must be > 0")
+    if ms_post is not None and float(ms_post) < 0:
+        raise SystemExit("--ms-post must be >= 0")
 
     import training.implement as train_mod
 
@@ -237,6 +241,8 @@ def maybe_override_stimulus_timing(
             so["ms_pre"] = float(ms_pre)
         if ms_response is not None:
             so["ms_response"] = float(ms_response)
+        if ms_post is not None:
+            so["ms_post"] = float(ms_post)
         if ms_pulse is not None:
             so["ms_pulse"] = float(ms_pulse)
         if delta_ms is not None:
@@ -291,13 +297,14 @@ def stimulus_timing_filename_suffix(
     ms_pre=None,
     ms_pulse=None,
     ms_response=None,
+    ms_post=None,
     delta_ms=None,
 ):
     """PNG stem suffix for non-``None`` timing overrides (plot / analyze).
 
-    Order: pre, pulse, response, delta. Example::
+    Order: pre, pulse, response, post, delta. Example::
 
-        _pulse_200_response_2000
+        _ms_post_2500
 
     Empty string when every override is unset (keep run train opts).
     """
@@ -306,6 +313,7 @@ def stimulus_timing_filename_suffix(
         ("ms_pre", ms_pre),
         ("ms_pulse", ms_pulse),
         ("ms_response", ms_response),
+        ("ms_post", ms_post),
         ("delta", delta_ms),
     ):
         if val is not None:
@@ -651,6 +659,7 @@ def add_plot_timing_arguments(parser):
         parser,
         default_ms_pre=None,
         default_ms_response=None,
+        default_ms_post=None,
         default_ms_pulse=None,
         default_delta_ms=None,
     )

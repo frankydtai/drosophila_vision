@@ -102,8 +102,8 @@ def _integer_profile_radius(radius):
 
 
 def _session_spot_timing(session):
-    """Extract onset ``t_onset`` / ``n_t``, ms_pulse, and delta_ms from session stimulus opts."""
-    from task.spot.input import spot_timing_t_from_opts
+    """Extract onset ``t_onset`` / forward ``n_t``, ms_pulse, and delta_ms from session."""
+    from task.spot.input import spot_gt_n_t_from_opts, spot_timing_t_from_opts
 
     opts = (session.train_opts or {}).get(
         f"{session.primary_readout.name}_stimulus_opts",
@@ -113,23 +113,27 @@ def _session_spot_timing(session):
     return (
         int(t_onset),
         int(n_t),
+        int(spot_gt_n_t_from_opts(opts)),
         float(ms_pulse) if ms_pulse is not None else None,
         float(opts.get("delta_ms", DELTA_MS)),
     )
 
 
 def resolve_spot_gt_cubes(sessions, gt_cubes=None):
-    """``{contrast: {cell: (RF_N_RADII, T)}}`` for each entry in ``sessions``."""
+    """``{contrast: {cell: (RF_N_RADII, T)}}`` for each entry in ``sessions``.
+
+    Gt time length is response-only (no ``ms_post``).
+    """
     if gt_cubes is not None:
         return gt_cubes
     if not sessions:
         return {}
     out = {}
     for contrast, session in sessions.items():
-        t_onset, n_t, ms_pulse, delta_ms = _session_spot_timing(session)
+        t_onset, _n_t, n_t_gt, ms_pulse, delta_ms = _session_spot_timing(session)
         part = spot_gt_cubes(
             session, session.primary_readout.name, contrasts=(str(contrast),),
-            t_onset=t_onset, n_t=n_t, ms_pulse=ms_pulse, delta_ms=delta_ms,
+            t_onset=t_onset, n_t=n_t_gt, ms_pulse=ms_pulse, delta_ms=delta_ms,
         )
         out.update(part)
     return out

@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 DEFAULT_RUN_NAME = """
-28587868-run-nofsteps-200-tau-hp-init.L1,L2,L4,L5-200-pre-ms-1000-pulse-ms-100-response-ms-500
+28603731-run-nofsteps-200-tau-hp-init.L1,L2,L4,L5-200-ms-pre-1000-ms-pulse-100-ms-response-500
 """.strip()
 DEFAULT_RUN_PATH = "hp_lp/" + DEFAULT_RUN_NAME
 
@@ -71,13 +71,15 @@ Default time window: absolute ms from 0 to last sample. Override with
   Average only; PNGs for ``--radius 1`` get ``_radius1`` in the filename.
 ``--param NAME=VALUE`` / ``NAME.NODE=VALUE``: overwrite any schema param before
   forward (``NODE`` = cell, ``SRC:TAR`` pair, or ``eN``; omit / ``all`` = every node).
+  Each edit appends ``_NAME_NODE_VALUE`` (``:`` in NODE → ``_``; no NODE when
+  omitted / ``all``) to PNG stems, in CLI order, after timing suffixes.
 
 ``--ms-pre`` / ``--ms-response`` / ``--ms-pulse`` / ``--delta-ms``: optional
 timing overrides from the train CLI (via ``figure.plot_run``). Unset flags keep
 the run's train opts. ``--ms-pre`` / ``--delta-ms`` also update moving_bar;
 response/pulse are spot-only. Re-opens the session and remaps best params when
 any is set. Set flags append
-``_ms_pre_…_ms_pulse_…_ms_response_…_delta_…`` (only those set; that order) to PNG stems.
+``_ms_pre_…_ms_pulse_…_ms_response_…_ms_post_…_delta_…`` (only those set; that order) to PNG stems.
 
 Examples
 --------
@@ -828,7 +830,7 @@ def _forward_component(
 
     spec = _component_spec(session.model)
     drive = _prepare_drive(session, p, i_sti)
-    t_onset = int(session.primary_readout.i_sti.shape[1] - session.primary_readout.gt.shape[1])
+    t_onset = training.pack_t_onset(session.primary_readout)
 
     t_last: int | None = None
     if t_stop is not None:
@@ -1146,7 +1148,7 @@ def _node_params(p, session, node: int) -> dict[str, float]:
 
 def _globals(session):
     pack = session.primary_readout
-    t_onset = int(pack.i_sti.shape[1] - pack.gt.shape[1])
+    t_onset = training.pack_t_onset(pack)
     if session.model == "hp_lp":
         return {
             "delta_ms": float(session.delta_ms),
@@ -1277,6 +1279,32 @@ def _parse_param_tokens(
     return out
 
 
+def _format_param_filename_token(value: float) -> str:
+    v = float(value)
+    if v == int(v):
+        return str(int(v))
+    return "%g" % v
+
+
+def _param_filename_suffix(
+    edits: list[tuple[str, str | None, float]],
+) -> str:
+    """PNG stem suffix for ``--param`` edits; empty when none.
+
+    Example: ``hp_lp.L1=1000`` → ``_hp_lp_L1_1000``.
+    """
+    if not edits:
+        return ""
+    parts: list[str] = []
+    for name, node, val in edits:
+        bits = [name]
+        if node is not None:
+            bits.append(str(node).replace(":", "_"))
+        bits.append(_format_param_filename_token(val))
+        parts.append("_".join(bits))
+    return "_" + "_".join(parts)
+
+
 def _apply_param_overrides(
     z: torch.Tensor,
     schema: list,
@@ -1343,7 +1371,7 @@ def _bar_meta(session, task: str):
     pack = session.pack_for(task)
     grids = moving_bar_session_t0_grids(
         session, specs, pack.cost_extent, int(session.n_t),
-        t_onset=int(pack.i_sti.shape[1] - pack.gt.shape[1]),
+        t_onset=training.pack_t_onset(pack),
         delta_ms=float(session.delta_ms),
     )
     return specs, grids
@@ -1705,7 +1733,7 @@ def analyze_spot_average(
         session_one, cells,
     )
     radius_row = _spot_radius_row(radii, radius)
-    t_onset = int(pack.i_sti.shape[1] - pack.gt.shape[1])
+    t_onset = training.pack_t_onset(pack)
 
     i_sti = pack.i_sti if pack.i_sti.dim() == 3 else pack.i_sti.unsqueeze(0)
     B_all, T, _N = i_sti.shape
@@ -1850,7 +1878,7 @@ def analyze_spot_hex(
         session_one, cell, at_x=at_x, at_y=at_y,
         cost_extent=pack.cost_extent, node=node,
     )
-    t_onset = int(pack.i_sti.shape[1] - pack.gt.shape[1])
+    t_onset = training.pack_t_onset(pack)
 
     i_sti = pack.i_sti if pack.i_sti.dim() == 3 else pack.i_sti.unsqueeze(0)
     B_all, T, _N = i_sti.shape
@@ -2449,7 +2477,8 @@ def main() -> None:
         help=(
             "overwrite schema params before forward; "
             "NAME=VALUE or NAME.all=VALUE sets every node; "
-            "NAME.NODE=VALUE for one cell / SRC:TAR pair / eN"
+            "NAME.NODE=VALUE for one cell / SRC:TAR pair / eN; "
+            "PNG stem gets _NAME_NODE_VALUE per edit (after timing suffixes)"
         ),
     )
     ap.add_argument("--json", action="store_true", help="print JSON to stdout")
@@ -2494,11 +2523,16 @@ def main() -> None:
         ms_range = None  # default: 0 .. last sample
         use_ms = True
 
-    file_suffix = plot_trained.stimulus_timing_filename_suffix(
-        ms_pre=args.ms_pre,
-        ms_pulse=args.ms_pulse,
-        ms_response=args.ms_response,
-        delta_ms=args.delta_ms,
+    param_edits = _parse_param_tokens(args.param)
+    file_suffix = (
+        plot_trained.stimulus_timing_filename_suffix(
+            ms_pre=args.ms_pre,
+            ms_pulse=args.ms_pulse,
+            ms_response=args.ms_response,
+            ms_post=args.ms_post,
+            delta_ms=args.delta_ms,
+        )
+        + _param_filename_suffix(param_edits)
     )
 
     for run_i, run_arg in enumerate(args.run):
@@ -2511,6 +2545,7 @@ def main() -> None:
             z=z,
             ms_pre=args.ms_pre,
             ms_response=args.ms_response,
+            ms_post=args.ms_post,
             ms_pulse=args.ms_pulse,
             delta_ms=args.delta_ms,
         )
@@ -2523,7 +2558,7 @@ def main() -> None:
         schema = list(session.schema)
         z_t = torch.tensor(np.asarray(z, dtype=np.float64), dtype=torch.float64, device=session.device)
         z_t, schema = _apply_param_overrides(
-            z_t, schema, session, _parse_param_tokens(args.param),
+            z_t, schema, session, param_edits,
         )
         session = session.with_schema(schema)
         p = training.assign_params(z_t, schema, session.backend)

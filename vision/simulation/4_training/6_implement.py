@@ -53,6 +53,7 @@ from param_defaults import (
     PARAM_BOXES,
     PRE_GRAD,
     MS_PRE,
+    MS_POST,
     MS_PULSE,
     MS_RESPONSE,
     SEQUENTIAL,
@@ -1014,10 +1015,11 @@ def add_stimulus_timing_arguments(
     *,
     default_ms_pre=MS_PRE,
     default_ms_response=MS_RESPONSE,
+    default_ms_post=MS_POST,
     default_ms_pulse=MS_PULSE,
     default_delta_ms=DELTA_MS,
 ):
-    """Register ``--ms-pre`` / ``--ms-response`` / ``--ms-pulse`` / ``--delta-ms``.
+    """Register ``--ms-pre`` / ``--ms-response`` / ``--ms-post`` / ``--ms-pulse`` / ``--delta-ms``.
 
     Train uses ``param_defaults`` values. Plot / analyze pass ``None`` so
     omitted flags keep the run's ``train_opts.json``.
@@ -1031,16 +1033,26 @@ def add_stimulus_timing_arguments(
         pre_help = (
             f"pre-stimulus baseline duration in ms (default: {default_ms_pre}; "
             "t_onset = ms_to_t(ms_pre); "
-            "n_t = ms_to_t(ms_pre)+ms_to_t(ms_response)+1)"
+            "n_t = ms_to_t(ms_pre)+ms_to_t(ms_response)+ms_to_t(ms_post)+1)"
         )
     if default_ms_response is None:
         response_help = (
-            "override spot post-onset response window in ms (keep train if omitted)"
+            "override spot post-onset cost/gt window in ms (keep train if omitted)"
         )
     else:
         response_help = (
-            f"spot: post-onset response window in ms (default: {default_ms_response}; "
-            "n_t = ms_to_t(ms_pre)+ms_to_t(ms_response)+1)"
+            f"spot: post-onset cost/gt window in ms (default: {default_ms_response}; "
+            "excludes ms_post)"
+        )
+    if default_ms_post is None:
+        post_help = (
+            "override spot forward-only tail after response in ms "
+            "(not in gt/cost; keep train if omitted)"
+        )
+    else:
+        post_help = (
+            f"spot: forward-only tail after response in ms (default: {default_ms_post}; "
+            "not in gt/cost)"
         )
     if default_ms_pulse is None:
         pulse_help = "override spot pulse width in ms (keep train if omitted)"
@@ -1074,6 +1086,13 @@ def add_stimulus_timing_arguments(
         help=response_help,
     )
     parser.add_argument(
+        "--ms-post",
+        type=float,
+        default=default_ms_post,
+        metavar="MS",
+        help=post_help,
+    )
+    parser.add_argument(
         "--ms-pulse",
         type=float,
         default=default_ms_pulse,
@@ -1094,6 +1113,7 @@ def stimulus_timing_kwargs_from_args(args):
     return dict(
         ms_pre=args.ms_pre,
         ms_response=args.ms_response,
+        ms_post=args.ms_post,
         ms_pulse=args.ms_pulse,
         delta_ms=args.delta_ms,
     )
@@ -1308,13 +1328,17 @@ def training_kwargs_from_args(
     fully_inside = bool(args.fully_inside)
     ms_pre = float(args.ms_pre)
     ms_response = float(args.ms_response)
+    ms_post = float(args.ms_post)
     delta_ms = float(args.delta_ms)
     if delta_ms <= 0:
         raise ValueError("--delta-ms must be > 0")
+    if ms_post < 0:
+        raise ValueError("--ms-post must be >= 0")
     multi_bar = bool(args.multi_bar)
     _timing = {
         "ms_pre": ms_pre,
         "ms_response": ms_response,
+        "ms_post": ms_post,
         "delta_ms": delta_ms,
     }
     moving_bar_bright_stimulus_opts = {

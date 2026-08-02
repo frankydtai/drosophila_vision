@@ -44,6 +44,8 @@ from task.spot.input import (
     spot_from_opts,
 )
 
+ms_to_t = params.ms_to_t
+
 # ImpR / RecF gt row order (13 gt cells).
 GT_CELLS: Tuple[str, ...] = (
     "L1", "L2", "L3", "L4", "L5", "Mi1", "Tm3", "Mi4", "Mi9", "Tm1", "Tm2", "Tm4", "Tm9",
@@ -535,6 +537,7 @@ def build_spot_gt(
     spot_cost_radius_weight: Optional[Dict[float, float]] = None,
     sim_dtype: torch.dtype,
     ms_pulse: Optional[float] = None,
+    ms_response: Optional[float] = None,
     gt_cells: Optional[Sequence[str]] = None,
 ) -> SpotGt:
     if polarity not in ("bright", "dark"):
@@ -542,8 +545,16 @@ def build_spot_gt(
     i_baseline = float(i_baseline_spot)
     i_spot = float(i_bright_spot if polarity == "bright" else i_dark_spot)
     device = device or C.device
+    if ms_response is None:
+        raise ValueError("build_spot_gt requires ms_response")
+    n_t_gt = int(t_onset) + ms_to_t(float(ms_response), delta_ms=float(delta_ms)) + 1
+    if n_t_gt > int(n_t):
+        raise ValueError(
+            f"spot gt n_t={n_t_gt} exceeds forward n_t={n_t} "
+            f"(ms_response={ms_response:g}, t_onset={t_onset})"
+        )
     recf_gt, impr_gt = read_RecF_ImpR(
-        t_onset=t_onset, n_t=n_t, ms_pulse=ms_pulse, delta_ms=delta_ms,
+        t_onset=t_onset, n_t=n_t_gt, ms_pulse=ms_pulse, delta_ms=delta_ms,
     )
     type_row = {str(rt): i for i, rt in enumerate(GT_CELLS)}
     if gt_cells is not None:
@@ -586,7 +597,7 @@ def build_spot_gt(
                 idx = torch.as_tensor(nodes, dtype=torch.long, device=device)
                 i_sti[b, :, idx] = drive[:, None]
 
-    resp = slice(t_onset, n_t)  # post-onset cost window
+    resp = slice(t_onset, n_t_gt)  # cost window: response only (no ms_post)
 
     cost_radii = resolve_spot_cost_radii(
         spot_cost_radius_weight,
@@ -666,8 +677,10 @@ def build_spot_gt(
         "i_dark_spot": float(i_dark_spot),
         "polarity": str(polarity),
         "ms_pulse": None if ms_pulse is None else float(ms_pulse),
+        "ms_response": float(ms_response),
         "t_onset": int(t_onset),
         "n_t": int(n_t),
+        "n_t_gt": int(n_t_gt),
     }
     return SpotGt(
         i_sti=i_sti,
@@ -697,6 +710,7 @@ def make_spot_stimulus_opts(
     multi_spot: bool,
     fully_inside: bool,
     ms_pulse=None,
+    ms_post: float = 0.0,
     cost_interval_ms=None,
     gt_cells=None,
 ):
@@ -709,6 +723,7 @@ def make_spot_stimulus_opts(
         peak_key: float(i_spot),
         "ms_pre": float(ms_pre),
         "ms_response": float(ms_response),
+        "ms_post": float(ms_post),
         "delta_ms": float(delta_ms),
         "shift_extent": int(shift_extent),
         "spot_extent": float(spot_extent),

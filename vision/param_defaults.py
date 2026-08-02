@@ -98,12 +98,13 @@ I_DARK = 0.0
 
 MS_PRE = 500.0
 MS_RESPONSE = 500.0
+MS_POST = 0.0
 MS_PULSE = 100.0
 SPOT_EXTENT = 1.0
 SPOT_EXTENTS: Tuple[float, ...] = (0.5, 1.0, 1.5, 2.0)
 FULLY_INSIDE = True
 MULTI_SPOT = True
-SHIFT_EXTENT = 1
+SHIFT_EXTENT = 1.0
 
 # ---------------------------------------------------------------------------
 # 3.2 task.spot.gt

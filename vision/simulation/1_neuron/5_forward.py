@@ -20,6 +20,20 @@ MODEL_DRIVERS = {
 }
 
 
+def pack_t_onset(pack) -> int:
+    """Stimulus onset index for ``pack``.
+
+    Prefer explicit ``pack.t_onset`` (spot when ``ms_post`` extends ``i_sti`` past
+    ``gt``). Else ``n_t - gt.shape[1]`` (moving_bar / ``ms_post=0``).
+    """
+    t = getattr(pack, "t_onset", None)
+    if t is not None:
+        return int(t)
+    i_sti = pack.i_sti
+    n_t = int(i_sti.shape[1] if i_sti.dim() == 3 else i_sti.shape[0])
+    return n_t - int(pack.gt.shape[1])
+
+
 def _detach_state(state):
     """Detach every tensor in a model ``state`` tuple."""
     return tuple(s.detach() for s in state)
@@ -50,7 +64,7 @@ def forward_full(session, p, i_sti, *, pack=None):
     pack = pack or session.primary_readout
     i_sti = drv.prepare_i_sti(session, p, i_sti, pack)
     B, t_end, _n = int(i_sti.shape[0]), int(i_sti.shape[1]), int(i_sti.shape[2])
-    t_onset = int(pack.i_sti.shape[1] - pack.gt.shape[1])
+    t_onset = pack_t_onset(pack)
     pre_grad = bool((session.train_opts or {})["pre_grad"])
     state, v = drv.init_state(session, p, B)
     v_rows = [v]

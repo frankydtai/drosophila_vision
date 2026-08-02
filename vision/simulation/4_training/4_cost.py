@@ -12,9 +12,10 @@ normalized by ``Σ weight·(gt_scale·gt)²`` (no bias / ``v_th`` in power)
 **within each part**. The training total averages those part costs (equal
 weight per cell×radius unless ``cost_weights`` says otherwise).
 
-Sparse cost time points (#4): ``pack.gt`` stays full post-onset length and the
-subsample is gathered from both model trace and gt at cost time via
-``pack.cost_time_ix``; ``power`` is recomputed on the subsample.
+Sparse cost time points (#4): ``pack.gt`` stays the response-window length
+(spot excludes ``ms_post``) and the subsample is gathered from both model
+trace and gt at cost time via ``pack.cost_time_ix``; ``power`` is recomputed
+on the subsample.
 """
 from __future__ import annotations
 
@@ -30,6 +31,7 @@ from tqdm import tqdm
 
 from training.readout_pack import SIM_DTYPE
 from neuron import forward_full
+from neuron.forward import pack_t_onset
 from neuron.readout import (
     CA_PACK_READOUTS,
     pack_needs_waveform_mse,
@@ -401,13 +403,12 @@ def _build_cost_subpacks(session: TrainSession) -> Dict[str, ReadoutPack]:
 def _i_sti_fuse_key(pack: ReadoutPack) -> Tuple:
     """Key for packs that can share one ``forward_full`` (shape, onset)."""
     i_sti = pack.i_sti
-    t_onset = int(i_sti.shape[1] - pack.gt.shape[1])
     return (
         int(i_sti.shape[1]),
         int(i_sti.shape[2]),
         str(i_sti.device),
         i_sti.dtype,
-        t_onset,
+        pack_t_onset(pack),
     )
 
 
@@ -438,15 +439,16 @@ def _readout_from_trace_full(
     batch_offset: int = 0,
 ) -> Tuple[Optional[torch.Tensor], torch.Tensor]:
     rb = pack.readout_batch if batch_offset == 0 else pack.readout_batch + batch_offset
-    pack_t_onset = int(pack.i_sti.shape[1] - pack.gt.shape[1])
-    dsi_sel = trace_full[rb, pack_t_onset:, pack.readout_node]
+    t0 = pack_t_onset(pack)
+    win = int(pack.gt.shape[1])
+    dsi_sel = trace_full[rb, t0:t0 + win, pack.readout_node]
     if not pack_needs_waveform_mse(pack):
         return None, dsi_sel
     if pack.cost_t0 is None:
         return dsi_sel, dsi_sel
     mse_sel = window_time_traces(
         trace_full, rb, pack.readout_node, pack.cost_t0,
-        win=pack.gt.shape[1], t_onset=pack_t_onset,
+        win=win, t_onset=t0,
     )
     return mse_sel, dsi_sel
 

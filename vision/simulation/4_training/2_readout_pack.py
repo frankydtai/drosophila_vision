@@ -85,6 +85,7 @@ class ReadoutPack:
     dsi_power: Optional[torch.Tensor] = None  # scalar
     cost_time_ix: Optional[torch.Tensor] = None  # (n_sample,) sparse post-onset t idx
     waveform_mse: bool = True  # spot: True; moving bar: set at build
+    t_onset: Optional[int] = None  # explicit onset; spot when ms_post extends i_sti past gt
 
 
 @dataclass(frozen=True)

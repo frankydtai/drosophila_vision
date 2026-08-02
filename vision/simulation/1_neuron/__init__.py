@@ -36,6 +36,7 @@ from neuron.forward import (
     MODEL_DRIVERS,
     forward_full,
     forward_nodes,
+    pack_t_onset,
 )
 from neuron.readout import (
     CA_PACK_READOUTS,
@@ -77,6 +78,7 @@ __all__ = [
     "ca_alpha",
     "forward_full",
     "forward_nodes",
+    "pack_t_onset",
     "pack_readout",
     "readout_pack_traces",
     "window_time_traces",
