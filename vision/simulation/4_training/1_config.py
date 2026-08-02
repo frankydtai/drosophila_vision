@@ -101,7 +101,20 @@ def moving_bar_cost_part_key(task_name: str, part: str) -> str:
     return f"{task_name}_{part}"
 
 
+def spot_cost_part_key(task_name: str, cell: str, radius) -> str:
+    """Fine spot part: ``{task}_{cell}_r{radius}`` (only radii with cost readout)."""
+    r = float(radius)
+    r_s = str(int(r)) if r == int(r) else str(r)
+    return f"{task_name}_{cell}_r{r_s}"
+
+
+def moving_bar_cell_cost_part_key(task_name: str, cell: str, part: str) -> str:
+    """Fine moving-bar waveform part: ``{task}_{cell}_{PD|ND}``."""
+    return f"{task_name}_{cell}_{part}"
+
+
 def cost_part_keys_for_readout(task_name: str) -> Tuple[str, ...]:
+    """Coarse keys for CLI ``--cost-weight`` (before packs exist)."""
     if task_name in MOVING_BAR_TASKS:
         return tuple(
             moving_bar_cost_part_key(task_name, lab)
@@ -110,11 +123,88 @@ def cost_part_keys_for_readout(task_name: str) -> Tuple[str, ...]:
     return (task_name,)
 
 
-def session_cost_part_keys(tasks) -> Tuple[str, ...]:
+def cost_part_keys_for_pack(pack, backend) -> Tuple[str, ...]:
+    """Fine keys from pack rows with ``cost_weight > 0`` (+ pack-level DSI)."""
+    net = backend.network
+    if net is None:
+        raise ValueError("cost_part_keys_for_pack requires backend.network")
+    w = pack.cost_weight
+    active = w > 0
+    cell_ids = net.node_cell[pack.readout_node]
+    names = net.cell_names
+    keys: List[str] = []
+    seen = set()
+
+    def _add(key: str) -> None:
+        if key not in seen:
+            seen.add(key)
+            keys.append(key)
+
+    if pack.name in MOVING_BAR_TASKS:
+        pd_nd = pack.cost_pd_nd
+        if pd_nd is not None and bool(active.any()):
+            for i in range(int(pack.readout_node.shape[0])):
+                if not bool(active[i]):
+                    continue
+                cell = str(names[int(cell_ids[i].item())])
+                lab = PD_ND_LABELS[int(pd_nd[i].item())]
+                _add(moving_bar_cell_cost_part_key(pack.name, cell, lab))
+        if (
+            pack.dsi_pos_ptr is not None
+            and int(pack.dsi_pos_ptr.numel()) > 1
+        ):
+            _add(moving_bar_cost_part_key(pack.name, "DSI"))
+        return tuple(keys)
+
+    if pack.cost_radius is None or not bool(active.any()):
+        return tuple(keys)
+    radii = pack.cost_radius
+    for i in range(int(pack.readout_node.shape[0])):
+        if not bool(active[i]):
+            continue
+        cell = str(names[int(cell_ids[i].item())])
+        _add(spot_cost_part_key(pack.name, cell, float(radii[i].item())))
+    return tuple(keys)
+
+
+def session_cost_part_keys(tasks, session=None) -> Tuple[str, ...]:
+    """Cost-part keys for ``tasks``.
+
+    With ``session``, discover fine per-cell keys from packs; otherwise
+    return coarse CLI keys (``spot_bright``, ``moving_bar_*_PD``, …).
+    """
+    if session is not None:
+        keys: List[str] = []
+        for name in session.tasks:
+            keys.extend(cost_part_keys_for_pack(session.pack_for(name), session.backend))
+        return tuple(keys)
     keys = []
     for name in tasks:
         keys.extend(cost_part_keys_for_readout(name))
     return tuple(keys)
+
+
+def coarse_weight_keys_for_part(part_key: str) -> Tuple[str, ...]:
+    """Parent coarse keys a fine part inherits ``cost_weights`` from."""
+    for lab in (*PD_ND_LABELS, "DSI"):
+        suf = f"_{lab}"
+        if not part_key.endswith(suf):
+            continue
+        body = part_key[: -len(suf)]
+        for task in sorted(MOVING_BAR_TASKS, key=len, reverse=True):
+            if body == task:
+                return (moving_bar_cost_part_key(task, lab), task)
+            prefix = f"{task}_"
+            if body.startswith(prefix):
+                return (moving_bar_cost_part_key(task, lab), task)
+        return ()
+    for task in sorted(SPOT_TASKS, key=len, reverse=True):
+        if part_key == task:
+            return ()
+        prefix = f"{task}_"
+        if part_key.startswith(prefix) and "_r" in part_key[len(prefix):]:
+            return (task,)
+    return ()
 
 
 def expand_tasks(names) -> List[str]:

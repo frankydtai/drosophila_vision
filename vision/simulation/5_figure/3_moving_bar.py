@@ -26,6 +26,7 @@ from figure.util import (
     as_numpy,
     baselines_for_types,
     bundle_panel_title,
+    format_moving_bar_cell_cost_lines,
     bundle_prep_s,
     hex_at_scope_tag,
     cell_ylabel,
@@ -146,9 +147,16 @@ def _moving_bar_cell_title(
     key,
     *,
     type_name,
+    cost_parts=None,
+    cost_tasks=None,
 ):
+    head = bundle_panel_title(bundle, sname, type_name=type_name)
+    if cost_parts is not None and cost_tasks:
+        cost_lines = format_moving_bar_cell_cost_lines(type_name, cost_parts, cost_tasks)
+        if cost_lines:
+            head = '\n'.join([f'{type_name} Cost', *cost_lines, head])
     return moving_bar_cell_title(
-        bundle_panel_title(bundle, sname, type_name=type_name),
+        head,
         ca_dsi=ca_dsi_lookup.get(key),
         gt_dsi=gt_dsi_lookup.get(key),
         has_gt=gt_mean.get(key) is not None,
@@ -773,7 +781,14 @@ def _moving_bar_all_scope_label(bundle_on):
     return _moving_bar_scope_label(bundle_on.session)
 
 
-def _moving_bar_all_figure(bundle_on, bundle_2, title, *, right_only=True):
+def _moving_bar_cost_tasks(bundle_on, bundle_2=None):
+    tasks = [bundle_on.task]
+    if bundle_2 is not None and bundle_2.task not in tasks:
+        tasks.append(bundle_2.task)
+    return tasks
+
+
+def _moving_bar_all_figure(bundle_on, bundle_2, title, *, right_only=True, cost_parts=None):
     single_hex = bundle_on.single_hex
     cells = bundle_on.cells
     wt_on = bundle_on.traces
@@ -786,6 +801,7 @@ def _moving_bar_all_figure(bundle_on, bundle_2, title, *, right_only=True):
     wt_2 = None
     slice_labels = _bundle_slice_labels(bundle_on)
     has_slices = bundle_on.has_slices
+    cost_tasks = _moving_bar_cost_tasks(bundle_on, bundle_2)
     if bundle_2 is not None:
         wt_2 = bundle_2.traces
         spec_2 = _filter_right_specs(bundle_2.spec_names, right_only)
@@ -825,6 +841,8 @@ def _moving_bar_all_figure(bundle_on, bundle_2, title, *, right_only=True):
                 gt_dsi_on if dsi_on else gt_dsi_2,
                 key,
                 type_name=tname,
+                cost_parts=cost_parts,
+                cost_tasks=cost_tasks,
             )
             if has_slices and bundle_src is not None and bundle_src.slice_overlay is not None:
                 slice_traces = {
@@ -879,7 +897,7 @@ def _moving_bar_all_figure(bundle_on, bundle_2, title, *, right_only=True):
 
 
 @torch.no_grad()
-def plot_moving_bar_data(path, *, bundle, bundle_2=None, title=None):
+def plot_moving_bar_data(path, *, bundle, bundle_2=None, title=None, cost_parts=None):
     """Draw ca-gt figure from a full-scope :class:`MovingBarTraceBundle`."""
     timer = PlotTimer(prior_prep=bundle_prep_s(bundle, bundle_2))
     timer.end_prep()
@@ -887,6 +905,7 @@ def plot_moving_bar_data(path, *, bundle, bundle_2=None, title=None):
     row_specs = moving_bar_row_specs(bundle.session, bundle.task, bundle.side)
     gt_cells = list(row_specs.keys())
     ncols_half = max((len(v) for v in row_specs.values()), default=8)
+    cost_tasks = _moving_bar_cost_tasks(bundle, bundle_2)
     if bundle_2 is not None:
         row_specs_2 = moving_bar_row_specs(bundle_2.session, bundle_2.task, bundle_2.side)
         ncols_half = max(ncols_half, max((len(v) for v in row_specs_2.values()), default=8))
@@ -917,6 +936,8 @@ def plot_moving_bar_data(path, *, bundle, bundle_2=None, title=None):
                 bundle, sname, wt.ca_mean, row_bundle.gt_mean,
                 ca_dsi, gt_dsi, key,
                 type_name=subtype,
+                cost_parts=cost_parts,
+                cost_tasks=cost_tasks,
             )
             _plot_moving_bar_cell(
                 ax, wt.ca_mean[key], wt.ca_sem[key],
@@ -957,11 +978,14 @@ def plot_moving_bar_data(path, *, bundle, bundle_2=None, title=None):
 
 
 @torch.no_grad()
-def plot_moving_bar_all(path, *, bundle, bundle_2=None, title=None, right_only=True):
+def plot_moving_bar_all(path, *, bundle, bundle_2=None, title=None, right_only=True,
+                        cost_parts=None):
     """Draw ca-all figure from a full-scope :class:`MovingBarTraceBundle`."""
     timer = PlotTimer(prior_prep=bundle_prep_s(bundle, bundle_2))
     timer.end_prep()
-    fig = _moving_bar_all_figure(bundle, bundle_2, title, right_only=right_only)
+    fig = _moving_bar_all_figure(
+        bundle, bundle_2, title, right_only=right_only, cost_parts=cost_parts,
+    )
     timer.end_draw()
     save_figure(fig, path, dpi=MOVING_BAR_DPI, rasterize=True)
     timer.log(path)

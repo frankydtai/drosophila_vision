@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 DEFAULT_RUN_NAME = """
-28577927-run-nofsteps-500-tau-hp-init-L1,L2,L4,L5-200-pre-ms-1000-pulse-ms-100-response-ms-500-gt-spot-L3
+28587868-run-nofsteps-200-tau-hp-init.L1,L2,L4,L5-200-pre-ms-1000-pulse-ms-100-response-ms-500
 """.strip()
 DEFAULT_RUN_PATH = "hp_lp/" + DEFAULT_RUN_NAME
 

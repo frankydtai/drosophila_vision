@@ -102,23 +102,30 @@ def make_plots(
             session=session,
             final_costs=result.final_costs,
             cost_curve=result.cost_curve,
-            costs_by_task=result.cost_curves_by_task,
+            costs_by_part=result.cost_curves_by_part,
             best_i=result.best_i,
             save_artifacts=False,
             **plot_kw,
         )
         return
-    params = np.load(train.params_path(outdir, fname))
-    final_costs, cost_curve, costs_by_task, _ = train.load_stored_costs(
-        outdir, fname, np.atleast_2d(params).shape[0],
+    z = train.load_best_param(outdir, session)
+    best_i = train.load_best_i(outdir)
+    if best_i is None:
+        best_i = 0
+    final_costs, cost_curve, costs_by_part, _ = train.load_stored_costs(
+        outdir, fname, best_i + 1,
     )
+    best_cost = None
+    if final_costs is not None and best_i < len(final_costs):
+        best_cost = float(final_costs[best_i])
     plot_param_set(
-        params,
+        np.atleast_2d(z),
         outdir,
         session=session,
-        final_costs=final_costs,
+        final_costs=np.array([best_cost]) if best_cost is not None else None,
         cost_curve=cost_curve,
-        costs_by_task=costs_by_task,
+        costs_by_part=costs_by_part,
+        best_i=0,
         save_artifacts=False,
         **plot_kw,
     )

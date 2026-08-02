@@ -3,14 +3,18 @@
 
 Consumes a :class:`~training.readout_pack.TrainSession` and the model forward
 (``neuron.forward`` + ``neuron.readout``); produces per-part
-unweighted costs, the weighted total, and the Adam training loop.
+local-% costs, the mean weighted total (``Σ W·cost / Σ W``), and the Adam
+training loop.
 
 Model traces are absolute ``v``; cost compares ``v`` to
-``gt_aff = gt_scale * gt + gt_bias``, normalized by ``Σ weight·gt_aff²``.
+``gt_aff = gt_scale * gt + gt_bias``, normalized by
+``Σ weight·(gt_scale·gt)²`` (no bias in power) **within each part**.
+The training total averages those part costs (equal weight per cell×radius
+unless ``cost_weights`` says otherwise).
 
 Sparse cost time points (#4): ``pack.gt`` stays full post-onset length and the
 subsample is gathered from both model trace and gt at cost time via
-``pack.cost_time_ix``; ``power`` is recomputed on the subsample ``gt_aff``.
+``pack.cost_time_ix``; ``power`` is recomputed on the subsample.
 """
 from __future__ import annotations
 
@@ -37,10 +41,12 @@ from training.config import (
     ND_IDX,
     PD_IDX,
     PD_ND_LABELS,
+    coarse_weight_keys_for_part,
     cost_part_keys_for_readout,
-    expand_cost_weight_dict,
+    moving_bar_cell_cost_part_key,
     moving_bar_cost_part_key,
     session_cost_part_keys,
+    spot_cost_part_key,
 )
 from training.params import params_from_z, schema_bounds, schema_guess, schema_nparams
 from training.readout_pack import (
@@ -97,28 +103,130 @@ def _pack_ca_readouts(p, pack: ReadoutPack, session: TrainSession, batch_idx=Non
     return readout(p, pack, session, batch_idx)
 
 
-def _sel_power(weight, gt_aff):
-    power = torch.sum(weight[:, None] * gt_aff ** 2)
-    if float(power) == 0.0:
-        power = torch.tensor(1.0, dtype=gt_aff.dtype, device=gt_aff.device)
-    return power
+def _sel_power(weight, gt_scaled):
+    """Σ w·(gt_scale·gt)²; replace exact 0 without GPU→CPU sync."""
+    power = torch.sum(weight[:, None] * gt_scaled ** 2)
+    return torch.where(power > 0, power, torch.ones_like(power))
 
 
 def _pack_cost_mse(gt_scale, gt_bias, gt, weight, sel):
-    gt_aff = gt_scale[:, None] * gt + gt_bias[:, None]
-    power = _sel_power(weight, gt_aff)
+    gt_scaled = gt_scale[:, None] * gt
+    gt_aff = gt_scaled + gt_bias[:, None]
+    power = _sel_power(weight, gt_scaled)
     diff = sel - gt_aff
     return torch.sum(weight[:, None] * diff ** 2) / power * 100.0
 
+
+def _mse_parts_scatter(
+    gt_scale: torch.Tensor,
+    gt_bias: torch.Tensor,
+    gt: torch.Tensor,
+    weight: torch.Tensor,
+    sel: torch.Tensor,
+    group_id: torch.Tensor,
+    keys: List[str],
+    session: TrainSession,
+) -> Dict[str, torch.Tensor]:
+    """Local-% costs for groups via one scatter (``group_id`` -1 = skip row)."""
+    if not keys:
+        return {}
+    gt_scaled = gt_scale[:, None] * gt
+    sse_row = (weight[:, None] * (sel - gt_scaled - gt_bias[:, None]) ** 2).sum(dim=-1)
+    p_row = (weight[:, None] * gt_scaled ** 2).sum(dim=-1)
+    n_g = len(keys)
+    sse = sse_row.new_zeros((n_g,))
+    power = p_row.new_zeros((n_g,))
+    keep_f = (group_id >= 0).to(dtype=sse_row.dtype)
+    gid = group_id.clamp(min=0)
+    sse.scatter_add_(0, gid, sse_row * keep_f)
+    power.scatter_add_(0, gid, p_row * keep_f)
+    power = torch.where(power > 0, power, torch.ones_like(power))
+    costs = sse / power * 100.0
+    out: Dict[str, torch.Tensor] = {}
+    for g, key in enumerate(keys):
+        if _part_weight(session, key) == 0.0:
+            continue
+        out[key] = costs[g]
+    return out
+
+
+def _spot_row_groups(
+    pack: ReadoutPack, backend: ModelBackend,
+) -> Tuple[torch.Tensor, List[str]]:
+    """``(group_id, keys)`` for spot cell×radius; one CPU sync of row meta."""
+    n = int(pack.readout_node.shape[0])
+    net = backend.network
+    if net is None:
+        raise ValueError("per-cell cost parts require backend.network")
+    ci = net.node_cell[pack.readout_node].detach().cpu().numpy()
+    rad = pack.cost_radius.detach().cpu().numpy()
+    w = pack.cost_weight.detach().cpu().numpy()
+    names = net.cell_names
+    key_to_g: Dict[str, int] = {}
+    keys: List[str] = []
+    group_id_np = np.full(n, -1, dtype=np.int64)
+    for i in range(n):
+        if w[i] <= 0.0:
+            continue
+        key = spot_cost_part_key(pack.name, str(names[int(ci[i])]), float(rad[i]))
+        g = key_to_g.get(key)
+        if g is None:
+            g = len(keys)
+            key_to_g[key] = g
+            keys.append(key)
+        group_id_np[i] = g
+    group_id = torch.as_tensor(
+        group_id_np, dtype=torch.long, device=pack.readout_node.device,
+    )
+    return group_id, keys
+
+
+def _moving_bar_row_groups(
+    pack: ReadoutPack, backend: ModelBackend,
+) -> Tuple[torch.Tensor, List[str]]:
+    """``(group_id, keys)`` for moving-bar cell×PD/ND; one CPU sync of row meta."""
+    n = int(pack.readout_node.shape[0])
+    net = backend.network
+    if net is None:
+        raise ValueError("per-cell cost parts require backend.network")
+    if pack.cost_pd_nd is None:
+        return (
+            torch.full((n,), -1, dtype=torch.long, device=pack.readout_node.device),
+            [],
+        )
+    ci = net.node_cell[pack.readout_node].detach().cpu().numpy()
+    pd_nd = pack.cost_pd_nd.detach().cpu().numpy()
+    w = pack.cost_weight.detach().cpu().numpy()
+    names = net.cell_names
+    key_to_g: Dict[str, int] = {}
+    keys: List[str] = []
+    group_id_np = np.full(n, -1, dtype=np.int64)
+    for i in range(n):
+        if w[i] <= 0.0:
+            continue
+        lab = PD_ND_LABELS[int(pd_nd[i])]
+        key = moving_bar_cell_cost_part_key(pack.name, str(names[int(ci[i])]), lab)
+        g = key_to_g.get(key)
+        if g is None:
+            g = len(keys)
+            key_to_g[key] = g
+            keys.append(key)
+        group_id_np[i] = g
+    group_id = torch.as_tensor(
+        group_id_np, dtype=torch.long, device=pack.readout_node.device,
+    )
+    return group_id, keys
+
+
 def _part_weight(session: TrainSession, part_key: str) -> float:
-    return float(session.cost_weights.get(part_key, 1.0))
-
-
-def _pack_part_key_for_cell(pack: ReadoutPack, cell_idx: int) -> str:
-    if pack.cost_pd_nd is not None:
-        label = PD_ND_LABELS[int(pack.cost_pd_nd[cell_idx].item())]
-        return moving_bar_cost_part_key(pack.name, label)
-    return pack.name
+    """Weight for a cost part; fine keys inherit coarse ``cost_weights``."""
+    w = session.cost_weights or {}
+    if part_key in w:
+        return float(w[part_key])
+    for coarse in coarse_weight_keys_for_part(part_key):
+        if coarse in w:
+            return float(w[coarse])
+    return 1.0
 
 
 def _pack_has_active_cost(pack: ReadoutPack, session: TrainSession) -> bool:
@@ -359,27 +467,28 @@ def _pack_cost_parts_from_sel(
     sel: Optional[torch.Tensor],
     dsi_sel: torch.Tensor,
 ) -> Dict[str, torch.Tensor]:
-    pd_nd = pack.cost_pd_nd
+    backend = session.backend
     if pack.name in MOVING_BAR_TASKS:
         out: Dict[str, torch.Tensor] = {}
-        if pd_nd is not None:
-            for pd_nd_idx, label in ((PD_IDX, "PD"), (ND_IDX, "ND")):
-                key = moving_bar_cost_part_key(pack.name, label)
-                if _part_weight(session, key) == 0.0:
-                    continue
-                if sel is None:
+        if pack.cost_pd_nd is not None:
+            if sel is None:
+                group_id, keys = _moving_bar_row_groups(pack, backend)
+                need = any(
+                    _part_weight(session, key) != 0.0
+                    for key in keys
+                )
+                if need:
                     raise ValueError(
-                        f"waveform readout required for {key} but pack has no cost window",
+                        f"waveform readout required for {pack.name} "
+                        "PD/ND but pack has no cost window",
                     )
-                mask = pd_nd == pd_nd_idx
-                if not bool(mask.any()):
-                    out[key] = torch.zeros(
-                        (), dtype=session.sim_dtype, device=session.device,
+            else:
+                group_id, keys = _moving_bar_row_groups(pack, backend)
+                out.update(
+                    _mse_parts_scatter(
+                        gt_scale, gt_bias, pack.gt, pack.cost_weight, sel,
+                        group_id, keys, session,
                     )
-                    continue
-                out[key] = _pack_cost_mse(
-                    gt_scale[mask], gt_bias[mask], pack.gt[mask], pack.cost_weight[mask],
-                    sel[mask],
                 )
         dsi_part = _pack_cost_dsi_from_sel(pack, session, gt_bias, dsi_sel)
         if dsi_part is not None:
@@ -390,12 +499,17 @@ def _pack_cost_parts_from_sel(
     gt = pack.gt
     weight = pack.cost_weight
     # #4 sparse time points: gather model + gt on the requested post-onset
-    # t indices; power uses gt_aff on the subsample inside _pack_cost_mse.
+    # t indices; power uses gt_scale·gt (no bias) inside MSE.
     if pack.cost_time_ix is not None:
         ix = pack.cost_time_ix.to(device=sel.device)
         sel = sel.index_select(1, ix)
         gt = gt.index_select(1, ix)
-    return {pack.name: _pack_cost_mse(gt_scale, gt_bias, gt, weight, sel)}
+    if pack.cost_radius is None:
+        raise ValueError(f"spot pack {pack.name!r} missing cost_radius")
+    group_id, keys = _spot_row_groups(pack, backend)
+    return _mse_parts_scatter(
+        gt_scale, gt_bias, gt, weight, sel, group_id, keys, session,
+    )
 
 
 def _pack_cost_parts_from_fused_trace(
@@ -482,7 +596,7 @@ def _pack_cost_part(z, pack: ReadoutPack, session: TrainSession, batch_idx=None)
     parts = _pack_cost_parts_for_pack(z, pack, session, batch_idx)
     if not parts:
         return torch.zeros((), dtype=session.sim_dtype, device=session.device)
-    return sum(parts.values())
+    return _weighted_cost_from_parts(parts, session)
 
 
 def _pack_cost(z, pack: ReadoutPack, session: TrainSession, batch_idx=None):
@@ -548,12 +662,27 @@ def calc_cost_parts(z, session: TrainSession) -> Dict[str, torch.Tensor]:
     return parts
 
 
+def _session_part_weight_sum(session: TrainSession) -> float:
+    """Σ W over discovered fine keys (e.g. 13·(1+6·1/6)=26 for spot r0+r1)."""
+    keys = session_cost_part_keys(session.tasks, session=session)
+    return float(
+        sum(_part_weight(session, k) for k in keys if _part_weight(session, k) != 0.0)
+    )
+
+
 def _weighted_cost_from_parts(parts: Dict[str, torch.Tensor], session: TrainSession):
+    """Mean of local-% parts: ``Σ W·cost / Σ W``."""
     total = torch.zeros((), dtype=session.sim_dtype, device=session.device)
+    w_sum = 0.0
     for name, part in parts.items():
-        w = float(session.cost_weights.get(name, 1.0))
+        w = _part_weight(session, name)
+        if w == 0.0:
+            continue
         total = total + w * part
-    return total
+        w_sum += w
+    if w_sum == 0.0:
+        return total
+    return total / w_sum
 
 
 def calc_cost(z, session: TrainSession):
@@ -625,9 +754,16 @@ def _iter_cost_microbatches(session: TrainSession):
 
 
 def backward_accum_weighted_cost(z, session: TrainSession):
-    """Backward weighted cost one micro-batch at a time (releases graph each step)."""
+    """Backward mean local-% cost one micro-batch at a time.
+
+    Each microbatch contributes ``Σ (W·cost) / W_norm`` so gradients match
+    ``calc_cost`` (``Σ W·cost / Σ W``).
+    """
     parts_sum: Dict[str, float] = {}
     zero = torch.zeros((), dtype=session.sim_dtype, device=session.device)
+    w_norm = _session_part_weight_sum(session)
+    if w_norm == 0.0:
+        return 0.0, {}
     for pack, batch_idx, sub in _iter_cost_microbatches(session):
         p = _params_from_z(z, session)
         mb_loss = zero
@@ -649,12 +785,12 @@ def backward_accum_weighted_cost(z, session: TrainSession):
             w = _part_weight(session, key)
             if w == 0.0:
                 continue
-            mb_loss = mb_loss + w * part
+            mb_loss = mb_loss + (w / w_norm) * part
             has_loss = True
             parts_sum[key] = parts_sum.get(key, 0.0) + float(part.item())
         if has_loss:
             mb_loss.backward()
-    total = sum(_part_weight(session, k) * v for k, v in parts_sum.items())
+    total = sum(_part_weight(session, k) * v for k, v in parts_sum.items()) / w_norm
     return total, parts_sum
 
 
@@ -725,6 +861,10 @@ def gradient_network(z, lr=0.0001, cost_fn=None, n_steps=100, device="cpu", z_bo
     progress_bar = tqdm(
         range(n_steps),
         desc=f'Cost: {cost:.4f}' + _fmt_cost_parts(initial_parts),
+        bar_format=(
+            '{percentage:3.0f}%|{bar}| {n_fmt}/{total_fmt} '
+            '[{elapsed}<{remaining}, {rate_fmt}] {desc}'
+        ),
         miniters=_TQDM_REFRESH_INTERVAL,
         maxinterval=60,
         file=sys.stderr,
@@ -842,7 +982,7 @@ def train_staged(z, cost_fn, z_bounds, lrs, nsteps, cost_log=None, step_log=None
 
 def _make_step_logger(session: TrainSession):
     """Build training step hooks for :func:`gradient_network`."""
-    part_keys = session_cost_part_keys(session.tasks)
+    part_keys = session_cost_part_keys(session.tasks, session=session)
     target_history = {name: [] for name in part_keys}
     _last_parts: Optional[Dict[str, float]] = None
     _last_total: Optional[float] = None
@@ -900,12 +1040,12 @@ def do_many_runs(session: TrainSession, nofruns, nofsteps, lrs=(0.1, 0.01, 0.001
 
     all_params = np.zeros((nofruns, n_params))
     final_costs = np.zeros(nofruns)
-    part_keys = session_cost_part_keys(session.tasks)
-    final_costs_by_task = {name: np.zeros(nofruns) for name in part_keys}
+    part_keys = session_cost_part_keys(session.tasks, session=session)
+    final_costs_by_part = {name: np.zeros(nofruns) for name in part_keys}
     best_i = 0
     best_cost = np.inf
     cost_curve = np.array([], dtype=np.float64)
-    cost_curves_by_task = {}
+    cost_curves_by_part = {}
 
     for i in range(nofruns):
         print()
@@ -946,12 +1086,12 @@ def do_many_runs(session: TrainSession, nofruns, nofsteps, lrs=(0.1, 0.01, 0.001
         fit_parts = calc_cost_parts(z_fit, session)
         final_costs[i] = float(_weighted_cost_from_parts(fit_parts, session).item())
         for name, part in fit_parts.items():
-            final_costs_by_task[name][i] = float(part.item())
+            final_costs_by_part[name][i] = float(part.item())
         if final_costs[i] < best_cost:
             best_cost = final_costs[i]
             best_i = i
             cost_curve = np.array(cost_history, dtype=np.float64)
-            cost_curves_by_task = {
+            cost_curves_by_part = {
                 name: np.array(curve, dtype=np.float64)
                 for name, curve in target_history.items()
             }
@@ -961,6 +1101,6 @@ def do_many_runs(session: TrainSession, nofruns, nofsteps, lrs=(0.1, 0.01, 0.001
         final_costs=final_costs,
         best_i=best_i,
         cost_curve=cost_curve,
-        cost_curves_by_task=cost_curves_by_task,
-        final_costs_by_task=final_costs_by_task,
+        cost_curves_by_part=cost_curves_by_part,
+        final_costs_by_part=final_costs_by_part,
     )

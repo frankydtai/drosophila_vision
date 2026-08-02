@@ -248,47 +248,68 @@ def cell_ylabel(label, ca_n=None, n=None):
     return label_with_n(label, n)
 
 
-def cell_title_with_n(label, n=None, v_ref=None, *, v_ref_name=None):
-    """Spot-style panel title: cell name + optional ``n``, ``v_ref`` on next line."""
-    head = label_with_n(label, n)
-    if v_ref is None or v_ref_name is None:
-        return head
-    return f'{head}\n{v_ref_name}={float(v_ref):.1f} mV'
+def cell_title_with_n(label, n=None):
+    """Spot-style panel title: cell name + optional ``n``."""
+    return label_with_n(label, n)
 
 
-def panel_title_with_v_ref(label, v_ref=None, *, v_ref_name=None):
-    """Stimulus / panel title with optional ``v_ref`` line (no ``n``)."""
-    if v_ref is None or v_ref_name is None:
-        return label
-    return f'{label}\n{v_ref_name}={float(v_ref):.1f} mV'
+def format_spot_cell_cost_title(label, n, cost_parts, contrasts):
+    """``Mi1 (n=307) Cost`` + ``bright: xx @r0, …`` / ``dark: …`` lines."""
+    lines = [f'{label_with_n(label, n)} Cost']
+    if not cost_parts:
+        return lines[0]
+    for contrast in contrasts:
+        task = f'spot_{contrast}'
+        prefix = f'{task}_{label}_r'
+        matches = []
+        for key, val in cost_parts.items():
+            if not key.startswith(prefix):
+                continue
+            r_s = key[len(prefix):]
+            try:
+                r_sort = float(r_s)
+            except ValueError:
+                r_sort = r_s
+            matches.append((r_sort, r_s, float(val)))
+        matches.sort(key=lambda t: (isinstance(t[0], str), t[0], t[1]))
+        bits = [f'{val:.1f} @r{r_s}' for _, r_s, val in matches]
+        if bits:
+            lines.append(f'{contrast}: {", ".join(bits)}')
+    return '\n'.join(lines)
 
 
-def _bundle_v_ref_name(bundle):
-    name = getattr(bundle, 'v_ref_name', None)
-    if name is not None:
-        return name
-    session = getattr(bundle, 'session', None)
-    if session is None:
-        return None
-    return v_ref_schema_name(session.schema)
+def format_moving_bar_cell_cost_lines(cell, cost_parts, task_names):
+    """Lines ``ON: xx @PD yy @ND`` / ``OFF: …`` for moving-bar titles."""
+    tag = {
+        'moving_bar_bright': 'ON',
+        'moving_bar_dark': 'OFF',
+    }
+    lines = []
+    if not cost_parts:
+        return lines
+    for task in task_names:
+        bits = []
+        for lab in ('PD', 'ND'):
+            key = f'{task}_{cell}_{lab}'
+            if key in cost_parts:
+                bits.append(f'{float(cost_parts[key]):.1f} @{lab}')
+        if bits:
+            lines.append(f'{tag.get(task, task)}: {" ".join(bits)}')
+    return lines
 
 
-def bundle_cell_title(bundle, label, n=None, *, type_name=None):
-    """Spot panel title from ``bundle.v_ref_by_name`` (key = *type_name* or *label*)."""
-    key = label if type_name is None else type_name
-    return cell_title_with_n(
-        label, n, bundle.v_ref_by_name.get(key),
-        v_ref_name=_bundle_v_ref_name(bundle),
-    )
+def bundle_cell_title(bundle, label, n=None, *, type_name=None, cost_parts=None, contrasts=None):
+    """Spot panel title; optional per-cell×radius cost lines."""
+    _ = (bundle, type_name)
+    if cost_parts is not None and contrasts is not None:
+        return format_spot_cell_cost_title(label, n, cost_parts, contrasts)
+    return cell_title_with_n(label, n)
 
 
 def bundle_panel_title(bundle, label, *, type_name=None):
-    """Moving-bar panel title from ``bundle.v_ref_by_name`` (no ``n``)."""
-    key = label if type_name is None else type_name
-    return panel_title_with_v_ref(
-        label, bundle.v_ref_by_name.get(key),
-        v_ref_name=_bundle_v_ref_name(bundle),
-    )
+    """Moving-bar panel base title (cell / stimulus label; no ``v_rest``)."""
+    _ = (bundle, type_name)
+    return label
 
 
 def network_hex_count(C):
@@ -680,43 +701,43 @@ def save_figure(fig, path, dpi=150, rasterize=False):
     plt.close(fig)
 
 
-def _cost_curve_subplot_rows(names, costs_by_task, total_costs):
-    """Build subplot specs; merge moving_bar ``_PD``/``_ND`` part keys per task."""
+def _cost_curve_subplot_rows(names, costs_by_part, total_costs):
+    """Build subplot specs; merge moving_bar ``_PD``/``_ND`` part keys per task/cell."""
     rows = [{'title': 'total (weighted)', 'curves': [(None, np.asarray(total_costs), '-')]}]
     seen = set()
     for key in names:
-        if key not in costs_by_task or key in seen:
+        if key not in costs_by_part or key in seen:
             continue
         if key.endswith('_PD'):
             base = key[:-3]
             nd_key = f"{base}_ND"
-            curves = [('PD', np.asarray(costs_by_task[key]), '-')]
-            if nd_key in costs_by_task:
-                curves.append(('ND', np.asarray(costs_by_task[nd_key]), '--'))
+            curves = [('PD', np.asarray(costs_by_part[key]), '-')]
+            if nd_key in costs_by_part:
+                curves.append(('ND', np.asarray(costs_by_part[nd_key]), '--'))
                 seen.add(nd_key)
             rows.append({'title': base, 'curves': curves})
             seen.add(key)
         elif key.endswith('_ND'):
             base = key[:-3]
-            rows.append({'title': base, 'curves': [('ND', np.asarray(costs_by_task[key]), '--')]})
+            rows.append({'title': base, 'curves': [('ND', np.asarray(costs_by_part[key]), '--')]})
             seen.add(key)
         else:
             rows.append({
                 'title': key,
-                'curves': [(None, np.asarray(costs_by_task[key]), '-')],
+                'curves': [(None, np.asarray(costs_by_part[key]), '-')],
             })
             seen.add(key)
     return rows
 
 
-def plot_cost(costs, path, *, costs_by_task=None, task_order=None):
-    """Plot training cost; total + one subplot per task when ``costs_by_task`` is given."""
+def plot_cost(costs, path, *, costs_by_part=None, part_order=None):
+    """Plot training cost; total + one subplot per part when ``costs_by_part`` is given."""
     t0 = time.perf_counter()
-    if costs_by_task:
-        names = list(task_order) if task_order else list(costs_by_task.keys())
-        names = [n for n in names if n in costs_by_task and len(costs_by_task[n])]
+    if costs_by_part:
+        names = list(part_order) if part_order else list(costs_by_part.keys())
+        names = [n for n in names if n in costs_by_part and len(costs_by_part[n])]
         if names and costs is not None and len(costs):
-            rows = _cost_curve_subplot_rows(names, costs_by_task, costs)
+            rows = _cost_curve_subplot_rows(names, costs_by_part, costs)
             n = len(rows)
             fig, axes = plt.subplots(n, 1, figsize=(8, 2.8 * n), sharex=True)
             if n == 1:
@@ -744,7 +765,7 @@ def plot_cost(costs, path, *, costs_by_task=None, task_order=None):
             log_plot_elapsed(path, t0, draw=t_draw - t0, save=time.perf_counter() - t_draw)
             return
         if len(names) == 1:
-            costs = costs_by_task[names[0]]
+            costs = costs_by_part[names[0]]
     fig, ax = plt.subplots(figsize=(8, 4))
     ax.plot(costs, color='steelblue', linewidth=2)
     ax.set_ylim(*cost_ylim(costs))

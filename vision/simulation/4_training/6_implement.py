@@ -405,24 +405,24 @@ def load_best_i(outdir):
     return None
 
 
-def _artifact_stem(fname):
-    return fname.replace('.npy', '')
+def _costs_path(outdir):
+    """Per-run end weighted total costs."""
+    return os.path.join(data_dir(outdir), 'costs.npy')
 
 
-def _final_costs_path(outdir, fname):
-    return os.path.join(data_dir(outdir), _artifact_stem(fname) + '_final_costs.npy')
+def _best_costs_path(outdir):
+    """Best-run per-step weighted total cost curve."""
+    return os.path.join(data_dir(outdir), 'best_costs.npy')
 
 
-def _cost_curve_path(outdir, fname):
-    return os.path.join(data_dir(outdir), _artifact_stem(fname) + '_costs.npy')
+def _costs_by_part_path(outdir):
+    """Per-run end per-part costs."""
+    return os.path.join(data_dir(outdir), 'costs_by_part.npz')
 
 
-def _costs_by_task_path(outdir, fname):
-    return os.path.join(data_dir(outdir), _artifact_stem(fname) + '_costs_by_task.npz')
-
-
-def _final_costs_by_task_path(outdir, fname):
-    return os.path.join(data_dir(outdir), _artifact_stem(fname) + '_final_costs_by_task.npz')
+def _best_costs_by_part_path(outdir):
+    """Best-run per-step per-part cost curves."""
+    return os.path.join(data_dir(outdir), 'best_costs_by_part.npz')
 
 
 def final_costs_for_params(all_params, session, final_costs=None):
@@ -459,30 +459,27 @@ def write_best_artifacts(outdir, fname, session, all_params, best_i, final_costs
 
 
 def load_stored_costs(outdir, fname, n_runs):
-    """Load ``*_final_costs.npy``, step ``*_costs.npy``, and per-task npz when present."""
+    """Load ``costs.npy``, ``best_costs.npy``, and per-part npz when present."""
+    _ = (fname, n_runs)  # fname unused; fixed names under data/
     final_costs = None
     cost_curve = None
-    costs_by_task = None
-    final_costs_by_task = None
-    fp = _final_costs_path(outdir, fname)
+    costs_by_part = None
+    final_costs_by_part = None
+    fp = _costs_path(outdir)
     if os.path.isfile(fp):
         final_costs = np.load(fp)
-    cp = _cost_curve_path(outdir, fname)
+    cp = _best_costs_path(outdir)
     if os.path.isfile(cp):
-        arr = np.load(cp)
-        if arr.ndim == 1 and arr.shape[0] == n_runs and final_costs is None:
-            final_costs = arr
-        else:
-            cost_curve = arr
-    cbt = _costs_by_task_path(outdir, fname)
+        cost_curve = np.load(cp)
+    cbt = _best_costs_by_part_path(outdir)
     if os.path.isfile(cbt):
         with np.load(cbt) as d:
-            costs_by_task = {k: np.asarray(d[k]) for k in d.files}
-    fbt = _final_costs_by_task_path(outdir, fname)
+            costs_by_part = {k: np.asarray(d[k]) for k in d.files}
+    fbt = _costs_by_part_path(outdir)
     if os.path.isfile(fbt):
         with np.load(fbt) as d:
-            final_costs_by_task = {k: np.asarray(d[k]) for k in d.files}
-    return final_costs, cost_curve, costs_by_task, final_costs_by_task
+            final_costs_by_part = {k: np.asarray(d[k]) for k in d.files}
+    return final_costs, cost_curve, costs_by_part, final_costs_by_part
 
 
 def load_init_z(init_from, session):
@@ -517,12 +514,12 @@ def save_training_outputs(fname, outdir, session, result):
             json.dump(session.train_opts, f, indent=2)
             f.write('\n')
     np.save(params_path(outdir, fname), result.all_params)
-    np.save(_cost_curve_path(outdir, fname), result.cost_curve)
-    np.save(_final_costs_path(outdir, fname), result.final_costs)
-    if result.cost_curves_by_task:
-        np.savez(_costs_by_task_path(outdir, fname), **result.cost_curves_by_task)
-    if result.final_costs_by_task:
-        np.savez(_final_costs_by_task_path(outdir, fname), **result.final_costs_by_task)
+    np.save(_best_costs_path(outdir), result.cost_curve)
+    np.save(_costs_path(outdir), result.final_costs)
+    if result.cost_curves_by_part:
+        np.savez(_best_costs_by_part_path(outdir), **result.cost_curves_by_part)
+    if result.final_costs_by_part:
+        np.savez(_costs_by_part_path(outdir), **result.final_costs_by_part)
     write_best_artifacts(
         outdir, fname, session, result.all_params, result.best_i, result.final_costs,
     )

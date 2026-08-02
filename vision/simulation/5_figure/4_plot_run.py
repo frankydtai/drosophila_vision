@@ -2,8 +2,6 @@
 import argparse
 import json
 import os
-from pathlib import Path
-
 import numpy as np
 import torch
 
@@ -106,25 +104,14 @@ def resolve_model(outdir, override=None):
     return model
 
 
-def find_training_params(outdir):
-    """Locate ``data/training*.npy`` params (exclude ``*_costs*`` sidecars)."""
+def find_artifact_fname(outdir):
+    """Locate cost artifact stem (``training*.npy``) from saved cost files."""
     import training.implement as train_mod
 
-    data = Path(train_mod.data_dir(outdir))
-    candidates = sorted(
-        p for p in data.glob('training*.npy')
-        if '_costs' not in p.name
-    )
-    if len(candidates) != 1:
-        raise SystemExit(
-            f'expected exactly one training*.npy (non-costs) in {str(data)!r}, '
-            f'found {len(candidates)}',
-        )
-    fname = candidates[0].name
-    params_path = train_mod.params_path(outdir, fname)
-    if not os.path.isfile(params_path):
-        raise SystemExit(f'missing training params: {params_path!r}')
-    return params_path, fname
+    try:
+        return train_mod.find_artifact_fname(outdir)
+    except FileNotFoundError as exc:
+        raise SystemExit(str(exc)) from exc
 
 
 def select_best(params, session, *, final_costs=None, best_i=None, verbose=True):
@@ -197,11 +184,15 @@ def load_best(outdir, *, model=None, verbose=False):
     best_i = train_mod.load_best_i(outdir)
     best_cost = None
     try:
-        params_path, fname = find_training_params(outdir)
-        params = np.atleast_2d(np.load(params_path))
-        final_costs, _, _, _ = train_mod.load_stored_costs(outdir, fname, params.shape[0])
-        if final_costs is not None and best_i is not None and best_i < len(final_costs):
-            best_cost = float(final_costs[best_i])
+        fname = find_artifact_fname(outdir)
+        final_costs, _, _, _ = train_mod.load_stored_costs(
+            outdir, fname, (best_i or 0) + 1,
+        )
+        if final_costs is not None:
+            idx = best_i if best_i is not None else int(np.argmin(final_costs))
+            if idx < len(final_costs):
+                best_cost = float(final_costs[idx])
+                best_i = idx
     except SystemExit:
         pass
     if best_cost is None:
@@ -214,6 +205,13 @@ def load_best(outdir, *, model=None, verbose=False):
     return session, z, int(best_i), float(best_cost)
 
 
+def _cost_parts_for_plot(session, z):
+    """Unweighted per-part costs at ``z`` for panel titles."""
+    with torch.no_grad():
+        parts = training.calc_cost_parts(z, session)
+    return {k: float(v.item()) for k, v in parts.items()}
+
+
 def _plot_spot_tasks(session, z, outdir, spot_tasks, suffix, model_all,
                        gt_cubes=None,
                        at_x=None, at_y=None, save_trace_csv_dir=None, show_pre=True):
@@ -223,7 +221,8 @@ def _plot_spot_tasks(session, z, outdir, spot_tasks, suffix, model_all,
     ref_t = 'spot_bright' if 'spot_bright' in spot_set else spot_tasks[0]
     net_tag = _network_spot_tag(session, ref_t)
     kind = _session_trace_kind(session)
-    plot_kw = dict(gt_cubes=gt_cubes)
+    cost_parts = _cost_parts_for_plot(session, z)
+    plot_kw = dict(gt_cubes=gt_cubes, cost_parts=cost_parts)
     bundle_kw = dict(
         at_xs=at_x, at_ys=at_y,
         save_trace_csv_dir=save_trace_csv_dir,
@@ -259,6 +258,7 @@ def _plot_spot_tasks(session, z, outdir, spot_tasks, suffix, model_all,
             gt_cubes=gt_cubes,
             at_x=at_x, at_y=at_y,
             save_trace_csv_dir=save_trace_csv_dir, show_pre=show_pre,
+            cost_parts=cost_parts,
         )
 
 
@@ -268,6 +268,7 @@ def _plot_bar_readouts(session, z, outdir, bar_readouts, suffix, model_all, *,
                       save_trace_csv_dir=None, show_pre=True):
     """Plot moving-bar task(s); bright left | dark right when both are trained."""
     kind = _session_trace_kind(session)
+    cost_parts = _cost_parts_for_plot(session, z)
     bundle_kw = dict(
         at_xs=at_x, at_ys=at_y,
         align_at_x=align_at_x, align_at_y=align_at_y,
@@ -288,6 +289,7 @@ def _plot_bar_readouts(session, z, outdir, bar_readouts, suffix, model_all, *,
         moving_bar_plot.plot_moving_bar_data(
             mvd, bundle=b_bright, bundle_2=b_dark,
             title=f'Moving-bar {kind}-gt ({suffix})',
+            cost_parts=cost_parts,
         )
         allc = None
         if model_all:
@@ -296,6 +298,7 @@ def _plot_bar_readouts(session, z, outdir, bar_readouts, suffix, model_all, *,
                 allc, bundle=b_bright, bundle_2=b_dark,
                 title=f'Moving-bar {kind}-all ({suffix})',
                 right_only=plot_right_only,
+                cost_parts=cost_parts,
             )
         return mvd, allc
     for tname in bar_readouts:
@@ -304,6 +307,7 @@ def _plot_bar_readouts(session, z, outdir, bar_readouts, suffix, model_all, *,
         mvd = os.path.join(outdir, f'bar_gt_{kind}.png')
         moving_bar_plot.plot_moving_bar_data(
             mvd, bundle=b, title=f'{tname} {kind}-gt ({suffix})',
+            cost_parts=cost_parts,
         )
         allc = None
         if model_all:
@@ -311,13 +315,15 @@ def _plot_bar_readouts(session, z, outdir, bar_readouts, suffix, model_all, *,
             moving_bar_plot.plot_moving_bar_all(
                 allc, bundle=b, title=f'{tname} {kind}-all ({suffix})',
                 right_only=plot_right_only,
+                cost_parts=cost_parts,
             )
         return mvd, allc
 
 
 def _plot_one_task(session, z, outdir, tname, suffix, model_all,
                      gt_cubes=None,
-                     at_x=None, at_y=None, save_trace_csv_dir=None, show_pre=True):
+                     at_x=None, at_y=None, save_trace_csv_dir=None, show_pre=True,
+                     cost_parts=None):
     if tname not in training.SPOT_TASKS:
         raise ValueError(f'unknown plot task {tname!r}')
     kind = _session_trace_kind(session)
@@ -325,7 +331,9 @@ def _plot_one_task(session, z, outdir, tname, suffix, model_all,
     allc = os.path.join(outdir, f'spot_all_{kind}.png')
     make_bundle, plot_gt, plot_all = spot_bundle_fns(session)
     net_tag = _network_spot_tag(session, tname)
-    plot_kw = dict(gt_cubes=gt_cubes)
+    if cost_parts is None:
+        cost_parts = _cost_parts_for_plot(session, z)
+    plot_kw = dict(gt_cubes=gt_cubes, cost_parts=cost_parts)
     b = make_bundle(
         session, z,
         at_xs=at_x, at_ys=at_y,
@@ -344,7 +352,7 @@ def _plot_one_task(session, z, outdir, tname, suffix, model_all,
 def plot_param_set(params, outdir, model=None, model_all=True,
                    context_dir=None,
                    plot_tasks=None, session=None, *,
-                   final_costs=None, cost_curve=None, costs_by_task=None, best_i=None,
+                   final_costs=None, cost_curve=None, costs_by_part=None, best_i=None,
                    save_artifacts=True, artifact_fname=None,
                    gt_cubes=None,
                    plot_right_only=True, at_x=None, at_y=None,
@@ -363,14 +371,16 @@ def plot_param_set(params, outdir, model=None, model_all=True,
         session = load_session(ctx, model)
 
     params = np.atleast_2d(params)
-    if final_costs is None and artifact_fname is not None:
-        final_costs, loaded_curve, loaded_by_task, _ = _load_plot_costs(
+    if artifact_fname is not None:
+        loaded_final, loaded_curve, loaded_by_part, _ = _load_plot_costs(
             outdir, artifact_fname, params.shape[0],
         )
+        if final_costs is None:
+            final_costs = loaded_final
         if cost_curve is None:
             cost_curve = loaded_curve
-        if costs_by_task is None:
-            costs_by_task = loaded_by_task
+        if costs_by_part is None:
+            costs_by_part = loaded_by_part
 
     if best_i is None:
         import training.implement as train_mod
@@ -406,8 +416,8 @@ def plot_param_set(params, outdir, model=None, model_all=True,
     if cost_curve is not None and len(cost_curve) > 0:
         plot_cost(
             cost_curve, os.path.join(outdir, 'cost_curve.png'),
-            costs_by_task=costs_by_task,
-            task_order=list(training.session_cost_part_keys(session.tasks)),
+            costs_by_part=costs_by_part,
+            part_order=list(training.session_cost_part_keys(session.tasks, session=session)),
         )
     if spot_tasks:
         _plot_spot_tasks(
@@ -515,12 +525,6 @@ def main():
         help='run folder under PARAMETER_DIR or absolute path (default: %(default)s)',
     )
     ap.add_argument(
-        '--best-i',
-        type=int,
-        default=None,
-        help='force parameter row index (default: data/best_i.txt, else infer from costs)',
-    )
-    ap.add_argument(
         '--save-csv',
         action='store_true',
         help='save trace CSV files to the run data directory',
@@ -531,17 +535,24 @@ def main():
         plot_kw = plot_kwargs_from_args(args)
     except ValueError as exc:
         raise SystemExit(str(exc)) from exc
+    import training.implement as train_mod
+
     outdir = resolve_run_dir(args.run_path)
-    params_path, artifact_fname = find_training_params(outdir)
-    params = np.load(params_path)
+    session, z, _stored_best_i, best_cost = load_best(outdir, verbose=True)
+    artifact_fname = find_artifact_fname(outdir)
     model = resolve_model(outdir)
+    z_np = z.detach().cpu().numpy() if torch.is_tensor(z) else np.asarray(z)
     print(f'outdir={outdir}')
-    print(f'params={params_path}')
-    print(f'model={model} ({params.shape[-1]} params per set)')
+    print(f'params={train_mod.best_param_path(outdir)}')
+    print(f'model={model} ({z_np.shape[-1]} params)')
     plot_param_set(
-        params, outdir, model=model,
+        np.atleast_2d(z_np),
+        outdir,
+        model=model,
+        session=session,
         artifact_fname=artifact_fname,
-        best_i=args.best_i,
+        best_i=0,
+        final_costs=np.array([best_cost]),
         save_csv=args.save_csv,
         **plot_kw,
     )

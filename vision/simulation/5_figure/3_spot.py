@@ -847,6 +847,7 @@ def _plot_spot_figure(
     figsize_fn,
     gridspec_kw,
     suptitle_fs=12,
+    cost_parts=None,
 ):
     """Draw spot figure from ``bundles`` (contrast → SpotTraceBundle)."""
     order = contrast_order(bundles)
@@ -920,7 +921,10 @@ def _plot_spot_figure(
 
     def _plot_cell(name, cell_primary, ax_rf, ax_time, show_ylabel, show_xlabels):
         nonlocal legend_done
-        cell_title = bundle_cell_title(primary, name, cell_primary.get("n"))
+        cell_title = bundle_cell_title(
+            primary, name, cell_primary.get("n"),
+            cost_parts=cost_parts, contrasts=order,
+        )
         if has_slices and primary.slice_overlay is not None:
             series = _series_for_cell(name, with_slices=True)
             slice_xt = (series[0].get("slice_overlay") or {}) if series else {}
@@ -974,7 +978,7 @@ def _plot_spot_figure(
     timer.log(path)
 
 
-def plot_network_spot_gt(path, *, bundles, title, gt_cubes=None):
+def plot_network_spot_gt(path, *, bundles, title, gt_cubes=None, cost_parts=None):
     """Draw ca-gt figure (pack readout types) from contrast → bundle."""
     timer = PlotTimer(prior_prep=bundle_prep_s(*bundles.values()))
     views = {
@@ -989,10 +993,11 @@ def plot_network_spot_gt(path, *, bundles, title, gt_cubes=None):
         ncols=5,
         figsize_fn=lambda c, r: (3.0 * c, 2.5 * r),
         gridspec_kw=dict(hspace=0.55, wspace=0.55, top=0.95, bottom=0.06, left=0.07, right=0.98),
+        cost_parts=cost_parts,
     )
 
 
-def plot_network_spot_all(path, *, bundles, title, gt_cubes=None):
+def plot_network_spot_all(path, *, bundles, title, gt_cubes=None, cost_parts=None):
     """Draw ca-all figure (all types) from contrast → bundle."""
     timer = PlotTimer(prior_prep=bundle_prep_s(*bundles.values()))
     _plot_spot_figure(
@@ -1004,4 +1009,5 @@ def plot_network_spot_all(path, *, bundles, title, gt_cubes=None):
         ncols=8,
         figsize_fn=lambda c, r: (2.2 * c, 2.5 * r),
         gridspec_kw=dict(hspace=0.55, wspace=0.55, top=0.95, bottom=0.06, left=0.07, right=0.98),
+        cost_parts=cost_parts,
     )
