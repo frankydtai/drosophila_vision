@@ -1,0 +1,6 @@
+Job ID: 28602746
+Node:   spartan-gpgpu002
+GPU:    0
+GPU 0: NVIDIA L40S (UUID: GPU-e39be93d-c1c2-ce9c-6a14-46f04653dde9)
+cuda: True NVIDIA L40S
+Start:  Sun 02 Aug 2026 21:31:36 AEST

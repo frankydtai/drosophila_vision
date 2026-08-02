@@ -7,10 +7,10 @@ local-% costs, the mean weighted total (``Σ W·cost / Σ W``), and the Adam
 training loop.
 
 Model traces are absolute ``v``; cost compares ``v`` to
-``gt_aff = gt_scale * gt + gt_bias``, normalized by
-``Σ weight·(gt_scale·gt)²`` (no bias in power) **within each part**.
-The training total averages those part costs (equal weight per cell×radius
-unless ``cost_weights`` says otherwise).
+``gt_aff = gt_scale * gt + gt_bias`` (``+ v_th`` when present, i.e. borst),
+normalized by ``Σ weight·(gt_scale·gt)²`` (no bias / ``v_th`` in power)
+**within each part**. The training total averages those part costs (equal
+weight per cell×radius unless ``cost_weights`` says otherwise).
 
 Sparse cost time points (#4): ``pack.gt`` stays full post-onset length and the
 subsample is gathered from both model trace and gt at cost time via
@@ -82,9 +82,14 @@ def _param_for_nodes(p, key: str, node_index, backend: ModelBackend, *, sim_dtyp
 
 
 def gt_affine_for_nodes(p, node_index, backend: ModelBackend, *, sim_dtype=SIM_DTYPE):
-    """Per-node ``(gt_scale, gt_bias)`` for cost / plot affine on gt."""
+    """Per-node ``(gt_scale, effective_bias)`` for cost / plot affine on gt.
+
+    ``effective_bias = gt_bias``; if ``v_th`` is in ``p`` (borst), add it.
+    """
     scale = _param_for_nodes(p, "gt_scale", node_index, backend, sim_dtype=sim_dtype)
     bias = _param_for_nodes(p, "gt_bias", node_index, backend, sim_dtype=sim_dtype)
+    if "v_th" in p:
+        bias = bias + _param_for_nodes(p, "v_th", node_index, backend, sim_dtype=sim_dtype)
     return scale, bias
 
 

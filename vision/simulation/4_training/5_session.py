@@ -6,7 +6,7 @@ network backend construction, and the per-task ``ReadoutPack`` builders. The
 builders wrap the neutral gt dataclasses from ``task`` (which sit below
 ``training`` in the import graph) and stamp the cross-cutting readout controls:
 
-* spot: sparse ``cost_time_ix`` (#4), pulse ``pulse_ms`` (#1) already baked into
+* spot: sparse ``cost_time_ix`` (#4), pulse ``ms_pulse`` (#1) already baked into
   the stimulus, ``waveform_mse=True``;
 * moving bar: ``waveform_mse`` from cost weights (True when a cost window is
   built).
@@ -61,9 +61,9 @@ from param_defaults import (
     I_BRIGHT,
     I_DARK,
     PARAM_BOXES,
-    PRE_MS,
-    PULSE_MS,
-    RESPONSE_MS,
+    MS_PRE,
+    MS_PULSE,
+    MS_RESPONSE,
     SYN_MODE,
 )
 
@@ -395,7 +395,7 @@ def _moving_bar_polarity_opts(ctx: _TrainBindCtx, polarity: str) -> dict:
         polarity,
         i_baseline_moving_bar=I_BASELINE,
         i_moving_bar=I_BRIGHT if polarity == "bright" else I_DARK,
-        pre_ms=PRE_MS,
+        ms_pre=MS_PRE,
         delta_ms=DELTA_MS,
         multi_bar=MULTI_BAR,
     )
@@ -426,7 +426,7 @@ def _build_network_moving_bar_readout(ctx: _TrainBindCtx, C, *, pack_name: str, 
         C=C,
         device=dev,
         sim_dtype=ctx.sim_dtype,
-        t_onset=ms_to_t(float(opts["pre_ms"]), delta_ms=float(opts.get("delta_ms", DELTA_MS))),
+        t_onset=ms_to_t(float(opts["ms_pre"]), delta_ms=float(opts.get("delta_ms", DELTA_MS))),
         delta_ms=float(opts.get("delta_ms", DELTA_MS)),
         cost_extent=cost_extent,
         i_baseline_moving_bar=opts[_MOVING_BAR_BASELINE_KEY],
@@ -571,7 +571,7 @@ def _build_network_spot_task(
         i_bright_spot=i_spot if polarity == "bright" else float(opts.get("i_bright_spot", I_BRIGHT)),
         i_dark_spot=i_spot if polarity == "dark" else float(opts.get("i_dark_spot", I_DARK)),
         polarity=polarity,
-        pulse_ms=float(opts.get("pulse_ms", PULSE_MS)),
+        ms_pulse=float(opts.get("ms_pulse", MS_PULSE)),
         data_amp=DATA_AMP,
         delta_ms=delta_ms,
         default_cost_weights=default_w,
@@ -778,14 +778,14 @@ def _finalize_stimulus_opts(
             polarity,
             i_baseline_spot=float(raw.get(_SPOT_BASELINE_KEY, I_BASELINE)),
             i_spot=float(raw.get(peak_key, i_spot_default)),
-            pre_ms=float(raw.get("pre_ms", PRE_MS)),
-            response_ms=float(raw.get("response_ms", RESPONSE_MS)),
+            ms_pre=float(raw.get("ms_pre", MS_PRE)),
+            ms_response=float(raw.get("ms_response", MS_RESPONSE)),
             delta_ms=float(raw.get("delta_ms", DELTA_MS)),
             shift_extent=int(raw.get("shift_extent", shift_extent if shift_extent is not None else SHIFT_EXTENT)),
             spot_extent=float(raw.get("spot_extent", spot_extent if spot_extent is not None else SPOT_EXTENT)),
             multi_spot=bool(raw.get("multi_spot", multi_spot if multi_spot is not None else MULTI_SPOT)),
             fully_inside=bool(raw.get("fully_inside", fully_inside if fully_inside is not None else FULLY_INSIDE)),
-            pulse_ms=float(raw.get("pulse_ms", PULSE_MS)),
+            ms_pulse=float(raw.get("ms_pulse", MS_PULSE)),
             cost_interval_ms=raw.get("cost_interval_ms"),
             gt_cells=raw.get("gt_cells"),
         )
@@ -795,7 +795,7 @@ def _finalize_stimulus_opts(
             "bright",
             i_baseline_moving_bar=float(raw.get(_MOVING_BAR_BASELINE_KEY, I_BASELINE)),
             i_moving_bar=float(raw.get("i_bright_moving_bar", I_BRIGHT)),
-            pre_ms=float(raw.get("pre_ms", PRE_MS)),
+            ms_pre=float(raw.get("ms_pre", MS_PRE)),
             delta_ms=float(raw.get("delta_ms", DELTA_MS)),
             multi_bar=bool(raw.get("multi_bar", MULTI_BAR)),
             gt_cells=raw.get("gt_cells"),
@@ -806,7 +806,7 @@ def _finalize_stimulus_opts(
             "dark",
             i_baseline_moving_bar=float(raw.get(_MOVING_BAR_BASELINE_KEY, I_BASELINE)),
             i_moving_bar=float(raw.get("i_dark_moving_bar", I_DARK)),
-            pre_ms=float(raw.get("pre_ms", PRE_MS)),
+            ms_pre=float(raw.get("ms_pre", MS_PRE)),
             delta_ms=float(raw.get("delta_ms", DELTA_MS)),
             multi_bar=bool(raw.get("multi_bar", MULTI_BAR)),
             gt_cells=raw.get("gt_cells"),

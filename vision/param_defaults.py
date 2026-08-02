@@ -96,9 +96,9 @@ I_DARK = 0.0
 # 3.1 task.spot.input
 # ---------------------------------------------------------------------------
 
-PRE_MS = 500.0
-RESPONSE_MS = 500.0
-PULSE_MS = 100.0
+MS_PRE = 500.0
+MS_RESPONSE = 500.0
+MS_PULSE = 100.0
 SPOT_EXTENT = 1.0
 SPOT_EXTENTS: Tuple[float, ...] = (0.5, 1.0, 1.5, 2.0)
 FULLY_INSIDE = True

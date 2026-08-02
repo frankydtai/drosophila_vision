@@ -3,9 +3,9 @@
 from __future__ import annotations
 
 DEFAULT_RUN_NAME = """
-28587868-run-nofsteps-200-tau-hp-init.L1,L2,L4,L5-200-pre-ms-1000-pulse-ms-100-response-ms-500
+28596459-run-nofsteps-200-tau-hp-init.L1,L2,L4,L5-200-pre-ms-1000-pulse-ms-100-response-ms-500-model-borst
 """.strip()
-DEFAULT_RUN_PATH = "hp_lp/" + DEFAULT_RUN_NAME
+DEFAULT_RUN_PATH = "borst/" + DEFAULT_RUN_NAME
 
 import argparse
 import json
@@ -28,7 +28,7 @@ import training
 import figure.plot_run as plot_trained
 from figure.readout import contrast_for_task
 from figure.spot import pack_spot_cost_radii, resolve_spot_gt_cubes
-from figure.util import parse_axis_slices, plot_sem_band
+from figure.util import add_ms_shown_argument, parse_axis_slices, parse_ms_shown_range, plot_sem_band
 from import_bootstrap import parse_bool, parse_comma_list
 from network.construction import col2gt
 from task.moving_bar.gt import (
@@ -58,7 +58,7 @@ one process (do not re-invoke once per cell/spec).
 
 Per ``--run``: one ``load_best``; one batched v component forward per distinct task.
 Default time window: absolute ms from 0 to last sample. Override with
-``--ms START,STOP`` or ``--t-rel START:STOP`` (mutually exclusive).
+``--ms-shown START,STOP`` or ``--t-rel START:STOP`` (mutually exclusive).
 
 * Omit ``--x`` / ``--y``: cost-extent **average** (optional ``--radius 0|1``).
 * Exactly one ``--x`` and one ``--y``: **hex** (spot or moving_bar; one cell).
@@ -72,10 +72,12 @@ Default time window: absolute ms from 0 to last sample. Override with
 ``--param NAME=VALUE`` / ``NAME.NODE=VALUE``: overwrite any schema param before
   forward (``NODE`` = cell, ``SRC:TAR`` pair, or ``eN``; omit / ``all`` = every node).
 
-``--pre-ms`` / ``--response-ms`` / ``--pulse-ms``: optional timing overrides.
-Unset flags keep the run's train opts. ``--pre-ms`` also updates moving_bar pre;
+``--ms-pre`` / ``--ms-response`` / ``--ms-pulse`` / ``--delta-ms``: optional
+timing overrides from the train CLI (via ``figure.plot_run``). Unset flags keep
+the run's train opts. ``--ms-pre`` / ``--delta-ms`` also update moving_bar;
 response/pulse are spot-only. Re-opens the session and remaps best params when
-any is set.
+any is set. Set flags append
+``_ms_pre_…_ms_pulse_…_ms_response_…_delta_…`` (only those set; that order) to PNG stems.
 
 Examples
 --------
@@ -108,17 +110,6 @@ def _parse_t_range(token: str, *, flag: str) -> tuple[int, int]:
     if len(parts) != 2 or parts[0] == "" or parts[1] == "":
         raise SystemExit(f"{flag} must be START:STOP")
     start, stop = int(parts[0]), int(parts[1])
-    if start > stop:
-        raise SystemExit(f"{flag} START={start} > STOP={stop}")
-    return start, stop
-
-
-def _parse_ms_range(token: str, *, flag: str) -> tuple[float, float]:
-    """Parse ``START,STOP`` ms (comma; one token)."""
-    parts = str(token).strip().split(",")
-    if len(parts) != 2 or parts[0] == "" or parts[1] == "":
-        raise SystemExit(f"{flag} must be START,STOP")
-    start, stop = float(parts[0]), float(parts[1])
     if start > stop:
         raise SystemExit(f"{flag} START={start} > STOP={stop}")
     return start, stop
@@ -235,73 +226,6 @@ def parse_shared_cli(args: argparse.Namespace) -> SharedCli:
         xs=xs,
         ys=ys,
     )
-
-
-def _maybe_override_stimulus_timing(
-    *,
-    run_dir: str,
-    session,
-    z,
-    pre_ms: float | None,
-    response_ms: float | None,
-    pulse_ms: float | None,
-):
-    """Re-open session when any timing override is set; remap best ``z``.
-
-    Unset flags keep values from the run's train opts. ``pre_ms`` also updates
-    moving_bar stimulus opts; ``response_ms`` / ``pulse_ms`` are spot-only.
-    """
-    if pre_ms is None and response_ms is None and pulse_ms is None:
-        return session, z
-
-    import training.implement as train_mod
-
-    opts = plot_trained.load_train_opts(run_dir)
-    if opts is None:
-        raise SystemExit(f"missing train opts under {run_dir}")
-
-    for key in ("spot_bright_stimulus_opts", "spot_dark_stimulus_opts"):
-        so = opts.get(key)
-        if so is None:
-            continue
-        if pre_ms is not None:
-            so["pre_ms"] = float(pre_ms)
-        if response_ms is not None:
-            so["response_ms"] = float(response_ms)
-        if pulse_ms is not None:
-            so["pulse_ms"] = float(pulse_ms)
-        so.pop("t_onset", None)
-        so.pop("n_t", None)
-
-    if pre_ms is not None:
-        for key in (
-            "moving_bar_bright_stimulus_opts",
-            "moving_bar_dark_stimulus_opts",
-        ):
-            so = opts.get(key)
-            if so is not None:
-                so["pre_ms"] = float(pre_ms)
-                so.pop("t_onset", None)
-                so.pop("n_t", None)
-
-    session = training.open_session_from_opts(opts, model=opts.get("model"))
-    named, cell_names, pair_names = train_mod.load_best_param_named(run_dir)
-    remapped = training.remap_named_node_values(
-        named,
-        cell_names,
-        pair_names,
-        list(session.schema),
-        session.backend,
-    )
-    schema = training.attach_param_carry(list(session.schema), remapped)
-    session = session.with_schema(schema)
-    z = training.node_values_to_z(
-        remapped,
-        schema,
-        dtype=session.sim_dtype,
-        device=session.device,
-    )
-    return session, z
 
 
 # Component-step fields plotted vs time (key, ylabel/legend).
@@ -888,7 +812,7 @@ def _forward_component(
     ``t = t_global - t0_u``. v_post is mean absolute ``v_abs``; SEM uses sum /
     sumsq like ``sem_from_traces``.
 
-    If ``t_start``/``t_stop`` are set (from ``--ms`` via ``ms_to_t``), only
+    If ``t_start``/``t_stop`` are set (from ``--ms-shown`` via ``ms_to_t``), only
     accumulate inside that inclusive aligned window; cheap steps outside it;
     break after every node has passed ``t_stop``.
     """
@@ -1069,7 +993,7 @@ def _finalize_component_report(
         t_hi = training.ms_to_t(time_window.stop, delta_ms=dt)
         if t_lo < 0 or t_hi >= n or t_lo > t_hi:
             raise SystemExit(
-                f"--ms {time_window.start:g},{time_window.stop:g} "
+                f"--ms-shown {time_window.start:g},{time_window.stop:g} "
                 f"(t={t_lo}:{t_hi}) out of range for accum length {n}"
             )
         seg = v_post_d[t_lo:t_hi + 1]
@@ -1722,12 +1646,15 @@ def _spot_radius_row(radii: np.ndarray, radius: int) -> np.ndarray:
 
 
 def _gt_affine_for_cell(p, session, cell: str) -> tuple[float, float]:
-    """``(gt_scale, gt_bias)`` for one cell type name."""
+    """``(gt_scale, effective_bias)`` for one cell type name (matches cost)."""
     names = [str(n) for n in session.backend.network.cell_names]
     ci = names.index(str(cell))
     gs, gb = p["gt_scale"], p["gt_bias"]
     scale = float(gs[ci] if torch.is_tensor(gs) and gs.dim() > 0 else gs)
     bias = float(gb[ci] if torch.is_tensor(gb) and gb.dim() > 0 else gb)
+    if "v_th" in p:
+        vt = p["v_th"]
+        bias = bias + float(vt[ci] if torch.is_tensor(vt) and vt.dim() > 0 else vt)
     return scale, bias
 
 
@@ -1742,7 +1669,7 @@ def _spot_gt_v_post_extra(
     gt_scale: float,
     gt_bias: float,
 ) -> dict[str, Any]:
-    """GT on absolute ``v`` axis: ``gt_scale * gt + gt_bias`` (matches cost)."""
+    """GT on absolute ``v`` axis: ``gt_scale * gt + effective_bias`` (matches cost)."""
     extra: dict[str, Any] = {"gt_peak": None, "gt_v_post": None, "radius": radius}
     if cell not in gt_on:
         return extra
@@ -2051,7 +1978,9 @@ def analyze_bar_hex(
 # ---------------------------------------------------------------------------
 
 
-def _plot_filename(report: dict[str, Any]) -> str:
+def _plot_filename(report: dict[str, Any], *, file_suffix: str = "", html: bool = False) -> str:
+    from figure.util import plot_file_ext
+
     parts = [report["cell"], report["task"], "v", report.get("mode", "average")]
     if report.get("spec"):
         parts.append(str(report["spec"]))
@@ -2061,13 +1990,20 @@ def _plot_filename(report: dict[str, Any]) -> str:
     radius = report.get("radius")
     if radius is not None and int(radius) != 0:
         parts.append(f"radius{int(radius)}")
-    return "_".join(parts) + ".png"
+    return "_".join(parts) + f"{file_suffix}{plot_file_ext(html=html)}"
 
 
-def _overlay_plot_filename(reports: list[dict[str, Any]]) -> str:
+def _overlay_plot_filename(
+    reports: list[dict[str, Any]], *, file_suffix: str = "", html: bool = False,
+) -> str:
+    from figure.util import plot_file_ext
+
     r0 = reports[0]
     specs = "_".join(str(r["spec"]) for r in reports)
-    return f"{r0['cell']}_{r0['task']}_v_overlay_{specs}.png"
+    return (
+        f"{r0['cell']}_{r0['task']}_v_overlay_{specs}"
+        f"{file_suffix}{plot_file_ext(html=html)}"
+    )
 
 
 def _component_figure(title: str, spec: _ComponentSpec):
@@ -2296,13 +2232,19 @@ def _emit_report(
     run_dir: str,
     do_print: bool,
     do_plot: bool,
+    file_suffix: str = "",
+    html: bool = False,
 ) -> None:
     if do_print:
         print("")
         # Full per-t table only when not plotting (--plot false).
         _print_report(report, print_steps=not do_plot)
     if do_plot:
-        out = os.path.join(run_dir, "cell_dynamics", _plot_filename(report))
+        out = os.path.join(
+            run_dir,
+            "cell_dynamics",
+            _plot_filename(report, file_suffix=file_suffix, html=html),
+        )
         plot_report(report, out)
 
 
@@ -2463,24 +2405,7 @@ def main() -> None:
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     add_shared_cli(ap, default_run=DEFAULT_RUN_PATH)
-    ap.add_argument(
-        "--pre-ms",
-        type=float,
-        default=None,
-        help="override pre-stimulus baseline in ms (spot + moving_bar; keep train if omitted)",
-    )
-    ap.add_argument(
-        "--response-ms",
-        type=float,
-        default=None,
-        help="override spot post-onset response window in ms (keep train if omitted)",
-    )
-    ap.add_argument(
-        "--pulse-ms",
-        type=float,
-        default=None,
-        help="override spot pulse width in ms (keep train if omitted)",
-    )
+    plot_trained.add_plot_timing_arguments(ap)
     ap.add_argument("--node", type=int, default=None, help="hex-mode node index")
     ap.add_argument(
         "--radius",
@@ -2499,24 +2424,22 @@ def main() -> None:
         metavar="START:STOP",
         help="window in t relative to |v_post_d| peak (overrides default 0..last ms)",
     )
-    t_group.add_argument(
-        "--ms",
-        default=None,
-        metavar="START,STOP",
-        help=(
-            "absolute aligned ms window START,STOP (spot: abs; bar: vs t0); "
-            "default without --ms/--t-rel is 0 to last sample"
-        ),
-    )
+    add_ms_shown_argument(t_group)
+    # Mutual-exclusion help: default without --ms-shown/--t-rel is 0..last sample.
     ap.add_argument(
         "--plot",
         type=parse_bool,
         default=True,
         metavar="true|false",
         help=(
-            "save component PNGs under {run}/cell_dynamics/ (default: true); "
+            "save component figures under {run}/cell_dynamics/ (default: true); "
             "per-t step table prints only when false"
         ),
+    )
+    ap.add_argument(
+        "--html",
+        action="store_true",
+        help="save interactive plotly HTML (hover x/y) instead of PNG",
     )
     ap.add_argument(
         "--param",
@@ -2561,24 +2484,35 @@ def main() -> None:
         time_window = TimeWindow(kind="t_rel", start=t_lo, stop=t_hi)
         ms_range = None
         use_ms = False
-    elif args.ms is not None:
-        ms_range = _parse_ms_range(args.ms, flag="--ms")
+    elif args.ms_shown is not None:
+        try:
+            ms_range = parse_ms_shown_range(args.ms_shown)
+        except ValueError as exc:
+            raise SystemExit(str(exc)) from exc
         use_ms = True
     else:
         ms_range = None  # default: 0 .. last sample
         use_ms = True
 
+    file_suffix = plot_trained.stimulus_timing_filename_suffix(
+        ms_pre=args.ms_pre,
+        ms_pulse=args.ms_pulse,
+        ms_response=args.ms_response,
+        delta_ms=args.delta_ms,
+    )
+
     for run_i, run_arg in enumerate(args.run):
         run_dir = plot_trained.resolve_run_dir(run_arg)
         _log(f"load_best {run_dir} ...")
         session, z, best_i, best_cost = plot_trained.load_best(run_dir)
-        session, z = _maybe_override_stimulus_timing(
+        session, z = plot_trained.maybe_override_stimulus_timing(
             run_dir=run_dir,
             session=session,
             z=z,
-            pre_ms=args.pre_ms,
-            response_ms=args.response_ms,
-            pulse_ms=args.pulse_ms,
+            ms_pre=args.ms_pre,
+            ms_response=args.ms_response,
+            ms_pulse=args.ms_pulse,
+            delta_ms=args.delta_ms,
         )
         if use_ms:
             lo, hi = (
@@ -2657,6 +2591,8 @@ def main() -> None:
                         run_dir=run_dir,
                         do_print=not args.json,
                         do_plot=args.plot,
+                        file_suffix=file_suffix,
+                        html=args.html,
                     )
             else:
                 hx = cli.xs[0] if hex_mode else None
@@ -2719,12 +2655,18 @@ def main() -> None:
                             run_dir=run_dir,
                             do_print=not args.json,
                             do_plot=args.plot and not multi_spec_plot,
+                            file_suffix=file_suffix,
+                            html=args.html,
                         )
                 if multi_spec_plot:
                     for c in cells_bar:
                         reps = overlay_by_cell[c]
                         out = os.path.join(
-                            run_dir, "cell_dynamics", _overlay_plot_filename(reps),
+                            run_dir,
+                            "cell_dynamics",
+                            _overlay_plot_filename(
+                                reps, file_suffix=file_suffix, html=args.html,
+                            ),
                         )
                         plot_reports_overlay(reps, out)
 

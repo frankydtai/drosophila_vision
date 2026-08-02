@@ -9,7 +9,7 @@ Usage (from ``SimulationCode/``):
 
     ../.venv/bin/python test/plot_impr_prefilter.py
     ../.venv/bin/python test/plot_impr_prefilter.py --show
-    ../.venv/bin/python test/plot_impr_prefilter.py --pulse-ms 50
+    ../.venv/bin/python test/plot_impr_prefilter.py --ms-pulse 50
 """
 from __future__ import annotations
 
@@ -48,10 +48,10 @@ U_PEAK = 1.0
 
 
 def _drive_u_s(
-    *, t_on: int, n_t: int, pulse_ms: float, dt_ms: float, prefilter_ms: float,
+    *, t_on: int, n_t: int, ms_pulse: float, dt_ms: float, prefilter_ms: float,
 ) -> tuple[np.ndarray, np.ndarray]:
     """PR drive ``u`` and peak-normalized LP(u, prefilter_ms) ``s``."""
-    gate = np.asarray(spot_input_waveform(t_on, n_t, pulse_ms), dtype=np.float64)
+    gate = np.asarray(spot_input_waveform(t_on, n_t, ms_pulse), dtype=np.float64)
     u = U_BASELINE + (U_PEAK - U_BASELINE) * gate
     tau = float(ms_to_t(prefilter_ms, delta_ms=dt_ms))
     s = _lowpass(u, tau)
@@ -60,12 +60,12 @@ def _drive_u_s(
 
 
 def _impr_cube(
-    *, t_on: int, n_t: int, pulse_ms: float, dt_ms: float, prefilter_ms: float | None,
+    *, t_on: int, n_t: int, ms_pulse: float, dt_ms: float, prefilter_ms: float | None,
 ) -> np.ndarray:
     """Center-bin Ca gt ``(13, n_t)`` = DATA_AMP × RecF_center × ImpR."""
-    RecF, _ = read_RecF_ImpR(t_on=t_on, n_t=n_t, pulse_ms=pulse_ms)
+    RecF, _ = read_RecF_ImpR(t_on=t_on, n_t=n_t, ms_pulse=ms_pulse)
     u, s_lp = _drive_u_s(
-        t_on=t_on, n_t=n_t, pulse_ms=pulse_ms, dt_ms=dt_ms, prefilter_ms=prefilter_ms or PREFILTER_MS,
+        t_on=t_on, n_t=n_t, ms_pulse=ms_pulse, dt_ms=dt_ms, prefilter_ms=prefilter_ms or PREFILTER_MS,
     )
     if prefilter_ms is not None:
         s = s_lp
@@ -102,7 +102,7 @@ def _first_change(tr: np.ndarray) -> int | None:
 
 
 def _plot(
-    with_lp, without_lp, u, s_lp, *, t_on, dt_ms, pulse_ms, prefilter_ms, save, show,
+    with_lp, without_lp, u, s_lp, *, t_on, dt_ms, ms_pulse, prefilter_ms, save, show,
 ):
     present = [str(n) for n in cell_list]
     groups = [np.array(row) for row in cell_family_rows(present)]
@@ -171,7 +171,7 @@ def _plot(
     fig.legend(handles, labels, loc="upper right", fontsize=8)
     fig.suptitle(
         f"ImpR Ca gt: drive LP {prefilter_ms:g} ms on/off  "
-        f"(u={U_BASELINE:g}/{U_PEAK:g}, pulse={pulse_ms:g} ms, t_on={t_on}, Δt={dt_ms:g} ms)",
+        f"(u={U_BASELINE:g}/{U_PEAK:g}, pulse={ms_pulse:g} ms, t_on={t_on}, Δt={dt_ms:g} ms)",
         fontsize=11,
     )
     fig.tight_layout(rect=[0, 0, 1, 0.95])
@@ -193,7 +193,7 @@ def main():
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--save", default=DEFAULT_SAVE)
     ap.add_argument("--show", action="store_true")
-    ap.add_argument("--pulse-ms", type=float, default=50.0)
+    ap.add_argument("--ms-pulse", type=float, default=50.0)
     ap.add_argument("--t-on", type=int, default=50)
     ap.add_argument("--n-t", type=int, default=151)
     ap.add_argument("--delta-ms", type=float, default=DELTA_MS)
@@ -203,20 +203,20 @@ def main():
     dt_ms = float(args.delta_ms)
     prefilter_ms = float(args.prefilter_ms)
     u, s_lp = _drive_u_s(
-        t_on=args.t_on, n_t=args.n_t, pulse_ms=args.pulse_ms,
+        t_on=args.t_on, n_t=args.n_t, ms_pulse=args.ms_pulse,
         dt_ms=dt_ms, prefilter_ms=prefilter_ms,
     )
     with_lp = _impr_cube(
-        t_on=args.t_on, n_t=args.n_t, pulse_ms=args.pulse_ms,
+        t_on=args.t_on, n_t=args.n_t, ms_pulse=args.ms_pulse,
         dt_ms=dt_ms, prefilter_ms=prefilter_ms,
     )
     without_lp = _impr_cube(
-        t_on=args.t_on, n_t=args.n_t, pulse_ms=args.pulse_ms,
+        t_on=args.t_on, n_t=args.n_t, ms_pulse=args.ms_pulse,
         dt_ms=dt_ms, prefilter_ms=None,
     )
     _plot(
         with_lp, without_lp, u, s_lp,
-        t_on=args.t_on, dt_ms=dt_ms, pulse_ms=float(args.pulse_ms),
+        t_on=args.t_on, dt_ms=dt_ms, ms_pulse=float(args.ms_pulse),
         prefilter_ms=prefilter_ms, save=args.save, show=args.show,
     )
 

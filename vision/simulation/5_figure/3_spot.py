@@ -34,6 +34,7 @@ from figure.util import (
     gt_affine_scalars_for_cell,
     hex_at_scope_tag,
     mark_pulse,
+    ms_shown_axis_xlim,
     overlay_model_reds,
     plot_pre_post_line,
     plot_timecourse,
@@ -73,11 +74,11 @@ def _pulse_end_from_opts(opts, t_onset, n_t):
         return None
     t0 = int(t_onset)
     mt = int(n_t)
-    pulse_ms = opts.get("pulse_ms")
-    if pulse_ms is None:
+    ms_pulse = opts.get("ms_pulse")
+    if ms_pulse is None:
         return mt
     dt = float(opts.get("delta_ms", DELTA_MS))
-    width = max(1, ms_to_t(float(pulse_ms), delta_ms=dt))
+    width = max(1, ms_to_t(float(ms_pulse), delta_ms=dt))
     return min(mt, t0 + width)
 
 
@@ -101,18 +102,18 @@ def _integer_profile_radius(radius):
 
 
 def _session_spot_timing(session):
-    """Extract onset ``t_onset`` / ``n_t``, pulse_ms, and delta_ms from session stimulus opts."""
+    """Extract onset ``t_onset`` / ``n_t``, ms_pulse, and delta_ms from session stimulus opts."""
     from task.spot.input import spot_timing_t_from_opts
 
     opts = (session.train_opts or {}).get(
         f"{session.primary_readout.name}_stimulus_opts",
     ) or {}
     t_onset, n_t = spot_timing_t_from_opts(opts)
-    pulse_ms = opts.get("pulse_ms")
+    ms_pulse = opts.get("ms_pulse")
     return (
         int(t_onset),
         int(n_t),
-        float(pulse_ms) if pulse_ms is not None else None,
+        float(ms_pulse) if ms_pulse is not None else None,
         float(opts.get("delta_ms", DELTA_MS)),
     )
 
@@ -125,10 +126,10 @@ def resolve_spot_gt_cubes(sessions, gt_cubes=None):
         return {}
     out = {}
     for contrast, session in sessions.items():
-        t_onset, n_t, pulse_ms, delta_ms = _session_spot_timing(session)
+        t_onset, n_t, ms_pulse, delta_ms = _session_spot_timing(session)
         part = spot_gt_cubes(
             session, session.primary_readout.name, contrasts=(str(contrast),),
-            t_onset=t_onset, n_t=n_t, pulse_ms=pulse_ms, delta_ms=delta_ms,
+            t_onset=t_onset, n_t=n_t, ms_pulse=ms_pulse, delta_ms=delta_ms,
         )
         out.update(part)
     return out
@@ -195,14 +196,23 @@ def _plot_rf_profile(ax, rf, *, color, label=None, linestyle='-', filled=False):
     ax.plot(RF_RADIUS_X[mask], rf[mask], **kw)
 
 
-def _style_time_axis(ax, show_xlabel, n_t, delta_ms=None):
+def _style_time_axis(ax, show_xlabel, n_t, delta_ms=None, ms_shown=None):
     dt = float(DELTA_MS if delta_ms is None else delta_ms)
     t_last = max(int(n_t) - 1, 0)
-    t_end = t_last * dt / 1000.0
-    t_mid = t_end / 2.0
-    ax.set_xlim(0, t_last)
-    ax.set_xticks([0, t_last // 2, t_last])
-    ax.set_xticklabels(['0', f'{t_mid:g}', f'{t_end:g}'], fontsize=6)
+    xlim = ms_shown_axis_xlim(ms_shown, delta_ms=dt, origin_t=0)
+    if xlim is None:
+        lo, hi = 0, t_last
+    else:
+        lo, hi = max(0, xlim[0]), min(t_last, xlim[1])
+        if lo > hi:
+            lo, hi = 0, t_last
+    t_lo_s = lo * dt / 1000.0
+    t_hi_s = hi * dt / 1000.0
+    t_mid_s = (t_lo_s + t_hi_s) / 2.0
+    mid = (lo + hi) // 2
+    ax.set_xlim(lo, hi)
+    ax.set_xticks([lo, mid, hi])
+    ax.set_xticklabels([f'{t_lo_s:g}', f'{t_mid_s:g}', f'{t_hi_s:g}'], fontsize=6)
     if show_xlabel:
         ax.set_xlabel('time [s]', fontsize=7)
 
@@ -307,6 +317,7 @@ def plot_cell_time(
     show_pre=False,
     pulse_end=None,
     delta_ms=None,
+    ms_shown=None,
 ):
     """Time-course panel for one cell across contrast ``series``.
 
@@ -336,7 +347,9 @@ def plot_cell_time(
         show_sem=any(item["imp_sem"] is not None for item in scaled),
         baseline=baseline,
         show_ylabel=show_ylabel,
-        style_xaxis=lambda a: _style_time_axis(a, show_xlabels, n_t, delta_ms),
+        style_xaxis=lambda a: _style_time_axis(
+            a, show_xlabels, n_t, delta_ms, ms_shown=ms_shown,
+        ),
         pre_end=split,
         show_pre=show_pre,
         pulse_start=response_start,
@@ -359,6 +372,7 @@ def plot_cell_rf_time(
     show_pre=False,
     pulse_end=None,
     delta_ms=None,
+    ms_shown=None,
 ):
     """RF + time panels for one cell (composes ``plot_cell_rf`` + ``plot_cell_time``)."""
     plot_cell_rf(
@@ -380,6 +394,7 @@ def plot_cell_rf_time(
         show_pre=show_pre,
         pulse_end=pulse_end,
         delta_ms=delta_ms,
+        ms_shown=ms_shown,
     )
 
 
@@ -399,6 +414,7 @@ def plot_cell_rf_time_slices(
     show_pre=False,
     pulse_end=None,
     delta_ms=None,
+    ms_shown=None,
 ):
     """RF + time panels with per-slice overlays across contrast ``series``."""
     center_radius = RF_CENTER_RADIUS
@@ -467,7 +483,7 @@ def plot_cell_rf_time_slices(
     if show_legend:
         ax_rf.legend(loc='upper right', fontsize=6, frameon=False)
 
-    _style_time_axis(ax_time, show_xlabels, n_t, delta_ms)
+    _style_time_axis(ax_time, show_xlabels, n_t, delta_ms, ms_shown=ms_shown)
     if show_ylabel:
         ax_time.set_ylabel('mV', fontsize=7)
     ax_time.tick_params(labelsize=6)
@@ -546,6 +562,7 @@ class SpotTraceBundle:
     response_start: int | None = None
     show_pre: bool = True
     pulse_end: int | None = None
+    ms_shown: tuple[float, float] | None = None
 
     @property
     def has_slices(self):
@@ -705,10 +722,10 @@ def _spot_forward_rows(
 
     plot_traces = trace_full[batch_idx, :, node_idx].cpu().numpy()
 
-    stim_pre_ms = opts.get("pre_ms")
+    stim_ms_pre = opts.get("ms_pre")
     dt = float(opts.get("delta_ms", DELTA_MS))
     stim_t_onset = (
-        ms_to_t(float(stim_pre_ms), delta_ms=dt) if stim_pre_ms is not None else None
+        ms_to_t(float(stim_ms_pre), delta_ms=dt) if stim_ms_pre is not None else None
     )
     rows = dict(
         names=names,
@@ -775,6 +792,7 @@ def network_spot_trace_bundle(
     session, z, *,
     at_xs=None, at_ys=None,
     show_pre=True,
+    ms_shown=None,
 ):
     """Run one forward; full cost-extent spot traces over all types."""
     t_prep0 = time.perf_counter()
@@ -808,6 +826,7 @@ def network_spot_trace_bundle(
         response_start=rows.get('t_onset'),
         show_pre=bool(show_pre),
         pulse_end=rows.get('pulse_end'),
+        ms_shown=ms_shown,
     )
 
 
@@ -844,6 +863,7 @@ def _plot_spot_figure(
     pulse_end = getattr(primary, "pulse_end", None)
     delta_ms = float(primary.session.delta_ms)
     show_pre = getattr(primary, "show_pre", True)
+    ms_shown = getattr(primary, "ms_shown", None)
     timer.end_prep()
 
     sessions = {c: bundles[c].session for c in order}
@@ -924,6 +944,7 @@ def _plot_spot_figure(
                 show_pre=show_pre,
                 pulse_end=pulse_end,
                 delta_ms=delta_ms,
+                ms_shown=ms_shown,
             )
         else:
             series = _series_for_cell(name, with_slices=False)
@@ -938,6 +959,7 @@ def _plot_spot_figure(
                 show_pre=show_pre,
                 pulse_end=pulse_end,
                 delta_ms=delta_ms,
+                ms_shown=ms_shown,
             )
         legend_done = True
 

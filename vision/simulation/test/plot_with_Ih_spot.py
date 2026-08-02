@@ -117,14 +117,14 @@ _ORIG_PLOT_CELL_PAIR = spot_plot.plot_cell_pair
 _ORIG_PLOT_CELL_PAIR_SLICES = spot_plot.plot_cell_pair_slices
 
 
-def _session_with_bright_pulse_ms(session, pulse_ms):
-    """Return a copy of *session* whose bright stimulus drops to baseline after *pulse_ms*."""
+def _session_with_bright_ms_pulse(session, ms_pulse):
+    """Return a copy of *session* whose bright stimulus drops to baseline after *ms_pulse*."""
     pack = session.primary_pack
     opts = dict((session.train_opts or {}).get("spot_bright_stimulus_opts") or {})
     from neuron.params import ms_to_t
     delta_ms = float(opts["delta_ms"])
-    t_on = ms_to_t(float(opts["pre_ms"]), delta_ms=delta_ms)
-    pulse_t = max(1, int(round(float(pulse_ms) / delta_ms)))
+    t_on = ms_to_t(float(opts["ms_pre"]), delta_ms=delta_ms)
+    pulse_t = max(1, int(round(float(ms_pulse) / delta_ms)))
     signal = pack.signal.clone()
     baseline = signal[:, :1, :].clone()
     t_off = min(int(signal.shape[1]), t_on + pulse_t)
@@ -167,7 +167,7 @@ def main(argv=None):
 
     session, z_best, _best_i, best_cost = plot_trained.load_best(run_dir, verbose=True)
     bright_session = plot_trained.session_for_target(session, "spot_bright")
-    bright_50ms_session = _session_with_bright_pulse_ms(bright_session, SECOND_BRIGHT_MS)
+    bright_50ms_session = _session_with_bright_ms_pulse(bright_session, SECOND_BRIGHT_MS)
     bundle = spot_plot.network_spot_trace_bundle(bright_session, z_best)
     bundle_50ms = spot_plot.network_spot_trace_bundle(bright_50ms_session, z_best)
     title = (

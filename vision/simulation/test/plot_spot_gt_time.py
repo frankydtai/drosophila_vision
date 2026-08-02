@@ -1,6 +1,6 @@
 """Plot spot RecF gt time courses for all fit cells; report first nonzero.
 
-Timing: ``pre_ms=100``, ``pulse_ms=50``, ``response_ms=400``; ``--delta-ms``
+Timing: ``ms_pre=100``, ``ms_pulse=50``, ``ms_response=400``; ``--delta-ms``
 (default ``DELTA_MS`` from ``param_defaults``). Uses ``figure.spot.plot_cell_time``
 only (no RF panel).
 
@@ -31,9 +31,9 @@ from figure.util import save_figure
 from task.spot.input import spot_timing_t
 from param_defaults import DELTA_MS
 
-PRE_MS = 100.0
-PULSE_MS = 50.0
-RESPONSE_MS = 400.0
+MS_PRE = 100.0
+MS_PULSE = 50.0
+MS_RESPONSE = 400.0
 DEFAULT_SAVE = os.path.join(HERE, "spot_data_time.png")
 ABS_TOL = 1e-12
 
@@ -50,8 +50,8 @@ def first_nonzero_t(y: np.ndarray, *, atol: float = ABS_TOL) -> int | None:
 def report_first_nonzero(cells: dict[str, np.ndarray], *, t_onset: int, delta_ms: float) -> None:
     """Print center-bin first nonzero vs global t=0 and vs onset."""
     print(
-        f"timing: pre_ms={PRE_MS:g} pulse_ms={PULSE_MS:g} "
-        f"response_ms={RESPONSE_MS:g} delta_ms={delta_ms:g}  "
+        f"timing: ms_pre={MS_PRE:g} ms_pulse={MS_PULSE:g} "
+        f"ms_response={MS_RESPONSE:g} delta_ms={delta_ms:g}  "
         f"t_onset={t_onset} ({t_onset * delta_ms:g} ms)"
     )
     print(f"{'cell':<6} {'t':>5} {'ms':>8} {'t-t_onset':>10} {'ms-onset':>10}")
@@ -110,8 +110,8 @@ def plot_all_cells(
             )
 
     fig.suptitle(
-        f"spot bright gt  (pre_ms={PRE_MS:g}, pulse_ms={PULSE_MS:g}, "
-        f"response_ms={RESPONSE_MS:g}, delta_ms={delta_ms:g}; t_onset={t_onset})",
+        f"spot bright gt  (ms_pre={MS_PRE:g}, ms_pulse={MS_PULSE:g}, "
+        f"ms_response={MS_RESPONSE:g}, delta_ms={delta_ms:g}; t_onset={t_onset})",
         fontsize=12,
     )
     save_figure(fig, path, dpi=150)
@@ -139,16 +139,16 @@ def main(argv=None):
     if delta_ms <= 0:
         raise SystemExit("--delta-ms must be > 0")
     t_onset, n_t = spot_timing_t(
-        pre_ms=PRE_MS, response_ms=RESPONSE_MS, delta_ms=delta_ms,
+        ms_pre=MS_PRE, ms_response=MS_RESPONSE, delta_ms=delta_ms,
     )
     pulse_end = _pulse_end_from_opts(
-        {"pulse_ms": PULSE_MS, "delta_ms": delta_ms}, t_onset, n_t,
+        {"ms_pulse": MS_PULSE, "delta_ms": delta_ms}, t_onset, n_t,
     )
     cubes = fit_gt_cubes(
         contrasts=("bright",),
         t_onset=t_onset,
         n_t=n_t,
-        pulse_ms=PULSE_MS,
+        ms_pulse=MS_PULSE,
         delta_ms=delta_ms,
     )
     cells = cubes["bright"]

@@ -1036,7 +1036,7 @@ def make_moving_bar_stimulus_opts(
     *,
     i_baseline_moving_bar: float,
     i_moving_bar: float,
-    pre_ms: float,
+    ms_pre: float,
     delta_ms: float,
     multi_bar: bool,
     gt_cells=None,
@@ -1048,7 +1048,7 @@ def make_moving_bar_stimulus_opts(
     out = {
         "i_baseline_moving_bar": float(i_baseline_moving_bar),
         bar_key: float(i_moving_bar),
-        "pre_ms": float(pre_ms),
+        "ms_pre": float(ms_pre),
         "delta_ms": float(delta_ms),
         "multi_bar": bool(multi_bar),
     }
@@ -1070,7 +1070,7 @@ def _enrich_moving_bar_stimulus_opts(opts, info, *, cost_extent):
     if out.get("delta_ms") is None:
         raise ValueError("moving-bar stimulus opts require delta_ms")
     dt = float(out["delta_ms"])
-    out["pre_ms"] = float(info["t_onset"]) * dt
+    out["ms_pre"] = float(info["t_onset"]) * dt
     out["spec_names"] = list(info["spec_names"])
     if cost_extent is not None:
         out["cost_extent"] = int(cost_extent)

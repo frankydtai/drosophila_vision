@@ -63,8 +63,8 @@ def _ca_from_v(v_delta: np.ndarray, *, use_v_prev: bool, t_on: int) -> np.ndarra
     return ca
 
 
-def _plot(pulse_ms_list, dt_ms, save, show):
-    n_pulse = len(pulse_ms_list)
+def _plot(ms_pulse_list, dt_ms, save, show):
+    n_pulse = len(ms_pulse_list)
     fig, axes = plt.subplots(
         3, n_pulse, figsize=(3.2 * n_pulse, 7.2), squeeze=False, sharex="col",
     )
@@ -73,8 +73,8 @@ def _plot(pulse_ms_list, dt_ms, save, show):
     t_s = np.arange(n) * dt_ms / 1000.0
     alpha = float(ca_alpha())
 
-    for c, pulse_ms in enumerate(pulse_ms_list):
-        pulse_t = max(1, int(round(float(pulse_ms) / dt_ms)))
+    for c, ms_pulse in enumerate(ms_pulse_list):
+        pulse_t = max(1, int(round(float(ms_pulse) / dt_ms)))
         v = _v_pulse(n, t_on, pulse_t, V_AMP)
         ca_t = _ca_from_v(v, use_v_prev=False, t_on=t_on)
         ca_tm1 = _ca_from_v(v, use_v_prev=True, t_on=t_on)
@@ -82,7 +82,7 @@ def _plot(pulse_ms_list, dt_ms, save, show):
 
         ax0, ax1, ax2 = axes[0][c], axes[1][c], axes[2][c]
         ax0.plot(t_s, v, color="0.35", lw=TRACE_LW, label="v − v_ref")
-        ax0.set_title(f"pulse {pulse_ms:g} ms", fontsize=10)
+        ax0.set_title(f"pulse {ms_pulse:g} ms", fontsize=10)
         ax0.set_ylabel("mV", fontsize=8)
         ax0.axhline(0.0, color="0.8", lw=0.5)
         ax0.tick_params(labelsize=7)
@@ -135,10 +135,10 @@ def main():
     args = ap.parse_args()
 
     set_delta_ms(float(args.delta_ms))
-    pulse_ms_list = [float(x) for x in parse_comma_list(args.pulse_list)]
-    if not pulse_ms_list:
+    ms_pulse_list = [float(x) for x in parse_comma_list(args.pulse_list)]
+    if not ms_pulse_list:
         raise SystemExit("empty --pulse-list")
-    _plot(pulse_ms_list, float(args.delta_ms), args.save, args.show)
+    _plot(ms_pulse_list, float(args.delta_ms), args.save, args.show)
 
 
 if __name__ == "__main__":

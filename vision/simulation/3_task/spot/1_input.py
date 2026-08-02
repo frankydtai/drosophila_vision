@@ -25,46 +25,46 @@ _SPOT_EXTENT_HALF_STEP_TOL = 1e-9
 
 def spot_timing_t(
     *,
-    pre_ms: float,
-    response_ms: float,
+    ms_pre: float,
+    ms_response: float,
     delta_ms: float,
 ) -> Tuple[int, int]:
     """Return ``(t_onset, n_t)`` from ms timing params."""
     dt = float(delta_ms)
-    t_onset = ms_to_t(pre_ms, delta_ms=dt)
-    n_t = t_onset + ms_to_t(response_ms, delta_ms=dt) + 1
+    t_onset = ms_to_t(ms_pre, delta_ms=dt)
+    n_t = t_onset + ms_to_t(ms_response, delta_ms=dt) + 1
     return t_onset, n_t
 
 
 def spot_timing_t_from_opts(opts) -> Tuple[int, int]:
-    """``(t_onset, n_t)`` from stimulus opts ``pre_ms`` / ``response_ms`` / ``delta_ms``."""
-    if opts.get("pre_ms") is None or opts.get("response_ms") is None:
+    """``(t_onset, n_t)`` from stimulus opts ``ms_pre`` / ``ms_response`` / ``delta_ms``."""
+    if opts.get("ms_pre") is None or opts.get("ms_response") is None:
         raise ValueError(
-            "spot stimulus opts require pre_ms and response_ms (pass via CLI --pre-ms / --response-ms)"
+            "spot stimulus opts require ms_pre and ms_response (pass via CLI --ms-pre / --ms-response)"
         )
     if opts.get("delta_ms") is None:
         raise ValueError("spot stimulus opts require delta_ms")
     return spot_timing_t(
-        pre_ms=float(opts["pre_ms"]),
-        response_ms=float(opts["response_ms"]),
+        ms_pre=float(opts["ms_pre"]),
+        ms_response=float(opts["ms_response"]),
         delta_ms=float(opts["delta_ms"]),
     )
 
 
-def spot_input_waveform(t_onset, n_t, pulse_ms=None, *, delta_ms: float) -> np.ndarray:
+def spot_input_waveform(t_onset, n_t, ms_pulse=None, *, delta_ms: float) -> np.ndarray:
     """Normalized 0/1 photoreceptor drive ``u[t]`` over ``n_t`` samples.
 
-    ``pulse_ms`` omitted -> continue-on step (``u[t_onset:] = 1``). With a value the
-    stimulus is on only for ``[t_onset, t_onset + round(pulse_ms/delta_ms))`` and returns
+    ``ms_pulse`` omitted -> continue-on step (``u[t_onset:] = 1``). With a value the
+    stimulus is on only for ``[t_onset, t_onset + round(ms_pulse/delta_ms))`` and returns
     to baseline afterward; ``n_t`` is unchanged.
     """
     t_onset = int(t_onset)
     n_t = int(n_t)
     u = np.zeros(n_t)
-    if pulse_ms is None:
+    if ms_pulse is None:
         u[t_onset:] = 1.0
     else:
-        width = max(1, ms_to_t(pulse_ms, delta_ms=delta_ms))
+        width = max(1, ms_to_t(ms_pulse, delta_ms=delta_ms))
         u[t_onset:min(n_t, t_onset + width)] = 1.0
     return u
 

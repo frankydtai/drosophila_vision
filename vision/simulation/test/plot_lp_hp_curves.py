@@ -51,8 +51,8 @@ def tau_ms_to_samples(tau_ms: float, dt_ms: float) -> float:
     return float(tau_ms) / float(dt_ms)
 
 
-def make_pulse(t_ms: np.ndarray, *, t_on_ms: float, pulse_ms: float, s0: float) -> np.ndarray:
-    t_off_ms = t_on_ms + pulse_ms
+def make_pulse(t_ms: np.ndarray, *, t_on_ms: float, ms_pulse: float, s0: float) -> np.ndarray:
+    t_off_ms = t_on_ms + ms_pulse
     return np.where((t_ms >= t_on_ms) & (t_ms < t_off_ms), s0, 0.0).astype(np.float64)
 
 
@@ -100,7 +100,7 @@ def _fill_column(
     t_ms: np.ndarray,
     t_s: np.ndarray,
     t_on_ms: float,
-    pulse_ms: float,
+    ms_pulse: float,
     s0: float,
     v_rest: float,
     gain: float,
@@ -118,8 +118,8 @@ def _fill_column(
 ) -> None:
     ax0, ax1, ax2, ax3, ax4, ax5 = axes_col
     t_on_s = t_on_ms / 1000.0
-    t_off_s = (t_on_ms + pulse_ms) / 1000.0
-    s_in = make_pulse(t_ms, t_on_ms=t_on_ms, pulse_ms=pulse_ms, s0=s0)
+    t_off_s = (t_on_ms + ms_pulse) / 1000.0
+    s_in = make_pulse(t_ms, t_on_ms=t_on_ms, ms_pulse=ms_pulse, s0=s0)
 
     v_lp = membrane_lp(s_in, tau_lp_samples=tau_lp, v_rest=v_rest, gain=gain)
     v_hp_lp, a, s_hp = membrane_hp_lp(
@@ -181,7 +181,7 @@ def _fill_column(
         ax4.legend(loc="upper right", fontsize=6, frameon=False, ncol=min(3, len(tau_hp_list)))
 
     for pw, color in zip(pulse_list, _cmap_colors(len(pulse_list))):
-        s_pw = make_pulse(t_ms, t_on_ms=t_on_ms, pulse_ms=pw, s0=s0)
+        s_pw = make_pulse(t_ms, t_on_ms=t_on_ms, ms_pulse=pw, s0=s0)
         v, _, _ = membrane_hp_lp(
             s_pw,
             tau_hp_samples=tau_hp,
@@ -215,7 +215,7 @@ def plot_lp_hp(
     dt_ms: float = 1.0,
     t_total_ms: float = 3000.0,
     t_on_ms: float = 500.0,
-    pulse_ms: float = 1500.0,
+    ms_pulse: float = 1500.0,
     s0: float = 1.0,
     v_rest: float = 0.0,
     gain: float = 1.0,
@@ -251,7 +251,7 @@ def plot_lp_hp(
         t_ms=t_ms,
         t_s=t_s,
         t_on_ms=t_on_ms,
-        pulse_ms=pulse_ms,
+        ms_pulse=ms_pulse,
         v_rest=v_rest,
         gain=gain,
         tau_lp=tau_lp,
@@ -264,7 +264,7 @@ def plot_lp_hp(
         pulse_list=pulse_list,
     )
     param_line = (
-        rf"pulse={pulse_ms:g} ms, $\tau_lp$={tau_lp_ms:g} ms, "
+        rf"pulse={ms_pulse:g} ms, $\tau_lp$={tau_lp_ms:g} ms, "
         rf"$\tau_{{\mathrm{{HP}}}}$={tau_hp_ms:g} ms, $G$={gain:g}, "
         rf"$V_{{\mathrm{{rest}}}}$={v_rest:g}, $|S_0|$={abs(s0):g}"
     )
@@ -309,7 +309,7 @@ def parse_args(argv=None):
     p.add_argument("--dt-ms", type=float, default=1.0)
     p.add_argument("--t-total-ms", type=float, default=3000.0)
     p.add_argument("--t-on-ms", type=float, default=500.0)
-    p.add_argument("--pulse-ms", type=float, default=1500.0)
+    p.add_argument("--ms-pulse", type=float, default=1500.0)
     p.add_argument("--s0", type=float, default=1.0, help="pulse amplitude (|S0|; right column uses −|S0|)")
     p.add_argument("--v-rest", type=float, default=0.0)
     p.add_argument("--gain", type=float, default=1.0, help="baseline G (also used in τ_HP sweep)")
@@ -326,7 +326,7 @@ def main(argv=None):
     for name, val in (
         ("--dt-ms", args.dt_ms),
         ("--t-total-ms", args.t_total_ms),
-        ("--pulse-ms", args.pulse_ms),
+        ("--ms-pulse", args.ms_pulse),
         ("--tau-lp", args.tau_lp),
         ("--tau-hp", args.tau_hp),
     ):
@@ -353,7 +353,7 @@ def main(argv=None):
         dt_ms=args.dt_ms,
         t_total_ms=args.t_total_ms,
         t_on_ms=args.t_on_ms,
-        pulse_ms=args.pulse_ms,
+        ms_pulse=args.ms_pulse,
         s0=args.s0,
         v_rest=args.v_rest,
         gain=args.gain,

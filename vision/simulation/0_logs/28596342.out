@@ -1,0 +1,41 @@
+Job ID: 28596342
+Node:   spartan-gpgpu004
+GPU:    0
+GPU 0: NVIDIA L40S (UUID: GPU-7877dc75-afaf-81b8-ea27-1e1896d9c9c2)
+cuda: True NVIDIA L40S
+Start:  Sun 02 Aug 2026 19:46:14 AEST
+train_modes:
+  in_gain            indi=0/shared=0/fixed=34/frozen=0 (0)
+  out_gain           indi=34/shared=0/fixed=0/frozen=0 (34)
+  syn_strength_cell  indi=459/shared=0/fixed=0/frozen=0 (459)
+  v_th               indi=0/shared=0/fixed=34/frozen=0 (0)
+  gt_scale           indi=34/shared=0/fixed=0/frozen=0 (34)
+  gt_bias            indi=34/shared=0/fixed=0/frozen=0 (34)
+  Ih_gmax            indi=4/shared=0/fixed=30/frozen=0 (4)
+  Ih_gmax_off        indi=4/shared=0/fixed=30/frozen=0 (4)
+  Ih_midv            indi=0/shared=34/fixed=0/frozen=0 (1)
+  Ih_slope           indi=0/shared=34/fixed=0/frozen=0 (1)
+  tau_midv           indi=0/shared=34/fixed=0/frozen=0 (1)
+  Ih_midv_off        indi=0/shared=34/fixed=0/frozen=0 (1)
+  Ih_slope_off       indi=0/shared=34/fixed=0/frozen=0 (1)
+  tau_midv_off       indi=0/shared=34/fixed=0/frozen=0 (1)
+device=cuda, model=borst, syn_mode=per_cell, nofruns=1, nofsteps=200, lrs=[0.1], nparams=575, fname=training_with_Ih.npy, outdir=/home/yitai/drosophila_vision/vision/simulation/0_runs/borst/28596342-run-nofsteps-200-tau-hp-init.L1,L2,L4,L5-200-pre-ms-1000-pulse-ms-100-response-ms-500-model-borst
+checkpoint_interval=1000
+
+round 0
+
+
+Initl cost = 85273.2681  [spot_bright_L1_r0=3607.4378  spot_bright_L2_r0=4337.0287  spot_bright_L4_r0=4488.1385  spot_bright_L5_r0=3730.6393  spot_bright_Mi1_r0=4306.4747  spot_bright_Tm3_r0=1114.9295  spot_bright_Mi4_r0=9969.5799  spot_bright_Mi9_r0=3518.1284  spot_bright_Tm1_r0=5489.9313  spot_bright_Tm2_r0=4248.8829  spot_bright_Tm4_r0=4735.3957  spot_bright_Tm9_r0=3550.3282  spot_bright_L1_r1=223071.6498  spot_bright_L2_r1=87578.0579  spot_bright_L3_r1=10929.9807  spot_bright_L4_r1=62285.0465  spot_bright_L5_r1=129282.7266  spot_bright_Mi1_r1=455844.8049  spot_bright_Tm3_r1=1437.2365  spot_bright_Mi4_r1=35071.0340  spot_bright_Mi9_r1=597428.3065  spot_bright_Tm1_r1=81453.0482  spot_bright_Tm2_r1=48506.7807  spot_bright_Tm4_r1=9705.4955  spot_bright_Tm9_r1=411211.3849  spot_bright_L3_r0=10202.5232]
+Final cost = 417.2510  [spot_bright_L1_r0=101.3702  spot_bright_L2_r0=145.5247  spot_bright_L4_r0=184.7139  spot_bright_L5_r0=108.4085  spot_bright_Mi1_r0=100.5043  spot_bright_Tm3_r0=99.8115  spot_bright_Mi4_r0=110.6657  spot_bright_Mi9_r0=115.7473  spot_bright_Tm1_r0=119.2446  spot_bright_Tm2_r0=116.6188  spot_bright_Tm4_r0=118.0861  spot_bright_Tm9_r0=121.8508  spot_bright_L1_r1=786.8803  spot_bright_L2_r1=1482.4625  spot_bright_L3_r1=164.0465  spot_bright_L4_r1=1647.0066  spot_bright_L5_r1=403.3505  spot_bright_Mi1_r1=358.4628  spot_bright_Tm3_r1=100.6307  spot_bright_Mi4_r1=151.3073  spot_bright_Mi9_r1=556.8932  spot_bright_Tm1_r1=285.6560  spot_bright_Tm2_r1=271.6434  spot_bright_Tm4_r1=137.5254  spot_bright_Tm9_r1=2917.7474  spot_bright_L3_r0=142.3674]
+Best  cost = 417.2510  [spot_bright_L1_r0=101.3702  spot_bright_L2_r0=145.5247  spot_bright_L4_r0=184.7139  spot_bright_L5_r0=108.4085  spot_bright_Mi1_r0=100.5043  spot_bright_Tm3_r0=99.8115  spot_bright_Mi4_r0=110.6657  spot_bright_Mi9_r0=115.7473  spot_bright_Tm1_r0=119.2446  spot_bright_Tm2_r0=116.6188  spot_bright_Tm4_r0=118.0861  spot_bright_Tm9_r0=121.8508  spot_bright_L1_r1=786.8803  spot_bright_L2_r1=1482.4625  spot_bright_L3_r1=164.0465  spot_bright_L4_r1=1647.0066  spot_bright_L5_r1=403.3505  spot_bright_Mi1_r1=358.4628  spot_bright_Tm3_r1=100.6307  spot_bright_Mi4_r1=151.3073  spot_bright_Mi9_r1=556.8932  spot_bright_Tm1_r1=285.6560  spot_bright_Tm2_r1=271.6434  spot_bright_Tm4_r1=137.5254  spot_bright_Tm9_r1=2917.7474  spot_bright_L3_r0=142.3674]
+time needed  = 170.90  sec
+
+done in 0.05 hours
+wrote table: /home/yitai/drosophila_vision/vision/simulation/0_runs/borst/28596342-run-nofsteps-200-tau-hp-init.L1,L2,L4,L5-200-pre-ms-1000-pulse-ms-100-response-ms-500-model-borst/param.csv (best run #0, cost=417.2510)
+wrote table: /home/yitai/drosophila_vision/vision/simulation/0_runs/borst/28596342-run-nofsteps-200-tau-hp-init.L1,L2,L4,L5-200-pre-ms-1000-pulse-ms-100-response-ms-500-model-borst/syn_strength_cell.csv
+plot device=cuda (NVIDIA L40S)
+1 trained set(s); selected #0 (cost=417.2510)
+plot /home/yitai/drosophila_vision/vision/simulation/0_runs/borst/28596342-run-nofsteps-200-tau-hp-init.L1,L2,L4,L5-200-pre-ms-1000-pulse-ms-100-response-ms-500-model-borst/cost_curve.png: draw=0.8s  save=1.5s  total=2.3s
+plot /home/yitai/drosophila_vision/vision/simulation/0_runs/borst/28596342-run-nofsteps-200-tau-hp-init.L1,L2,L4,L5-200-pre-ms-1000-pulse-ms-100-response-ms-500-model-borst/spot_gt_v.png: prep=0.5s  draw=0.2s  save=0.7s  total=1.4s
+plot /home/yitai/drosophila_vision/vision/simulation/0_runs/borst/28596342-run-nofsteps-200-tau-hp-init.L1,L2,L4,L5-200-pre-ms-1000-pulse-ms-100-response-ms-500-model-borst/spot_all_v.png: prep=0.0s  draw=0.6s  save=2.0s  total=2.6s
+plots saved to /home/yitai/drosophila_vision/vision/simulation/0_runs/borst/28596342-run-nofsteps-200-tau-hp-init.L1,L2,L4,L5-200-pre-ms-1000-pulse-ms-100-response-ms-500-model-borst

@@ -59,6 +59,8 @@ def build_plot_kwargs(
     align_at_x=None,
     align_at_y=None,
     show_pre=True,
+    html=False,
+    ms_shown=None,
 ):
     return dict(
         gt_cubes=gt_cubes,
@@ -68,6 +70,8 @@ def build_plot_kwargs(
         align_at_x=align_at_x,
         align_at_y=align_at_y,
         show_pre=show_pre,
+        html=html,
+        ms_shown=ms_shown,
     )
 
 
@@ -83,6 +87,8 @@ def make_plots(
     align_at_x=None,
     align_at_y=None,
     show_pre=True,
+    html=False,
+    ms_shown=None,
 ):
     """Cost curve + model-vs-gt + all-cells."""
     plot_kw = build_plot_kwargs(
@@ -93,6 +99,8 @@ def make_plots(
         align_at_x=align_at_x,
         align_at_y=align_at_y,
         show_pre=show_pre,
+        html=html,
+        ms_shown=ms_shown,
     )
     if result is not None:
         plot_param_set(
@@ -174,6 +182,8 @@ def run_training_and_plot(
     align_at_x=None,
     align_at_y=None,
     show_pre=True,
+    html=False,
+    ms_shown=None,
     **train_kw,
 ):
     """Train (``training.implement.run_training``) then plot. Returns ``(fname, outdir, session)``."""
@@ -185,6 +195,8 @@ def run_training_and_plot(
         align_at_x=align_at_x,
         align_at_y=align_at_y,
         show_pre=show_pre,
+        html=html,
+        ms_shown=ms_shown,
     )
     checkpoint_on_png = None
     if train_kw.get("checkpoint_interval") is not None:
@@ -231,7 +243,7 @@ def run_mirror_spot_experiment(
     configure_parser=None,
 ):
     """CLI entry for spot mirror-fit experiments (train + plot)."""
-    from param_defaults import DELTA_MS, PRE_MS, RESPONSE_MS
+    from param_defaults import DELTA_MS, MS_PRE, MS_RESPONSE
     from figure.readout import fit_gt_cubes
     from neuron.params import ms_to_t
     from training.experiment import (
@@ -243,8 +255,8 @@ def run_mirror_spot_experiment(
 
     def make_mirror_gt_cubes(fits, sign):
         specs = _normalize_mirror_fits(fits, sign)
-        t_onset = ms_to_t(PRE_MS, delta_ms=DELTA_MS)
-        n_t = t_onset + ms_to_t(RESPONSE_MS, delta_ms=DELTA_MS) + 1
+        t_onset = ms_to_t(MS_PRE, delta_ms=DELTA_MS)
+        n_t = t_onset + ms_to_t(MS_RESPONSE, delta_ms=DELTA_MS) + 1
 
         def mirror_gt_cubes(contrasts):
             base = fit_gt_cubes(

@@ -56,7 +56,7 @@ def parse_bool(text) -> bool:
 
 
 def normalize_option_dashes(argv: Sequence[str]) -> List[str]:
-    """Rewrite single-dash options to double-dash (``-pre-ms`` → ``--pre-ms``).
+    """Rewrite single-dash options to double-dash (``-ms-pre`` → ``--ms-pre``).
 
     Also rewrites one-letter forms (``-x`` → ``--x``). Leaves ``-h`` (argparse
     help), ``--foo``, ``--``, ``-``, and non-letter bodies (``-1``, ``-0.5``).

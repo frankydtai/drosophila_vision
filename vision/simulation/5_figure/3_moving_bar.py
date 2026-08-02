@@ -31,6 +31,7 @@ from figure.util import (
     hex_at_scope_tag,
     cell_ylabel,
     gt_affine_scalars_for_cell,
+    ms_shown_axis_xlim,
     overlay_model_reds,
     plot_pre_post_line,
     plot_sem_band,
@@ -105,6 +106,7 @@ class MovingBarTraceBundle:
     show_pre: bool = True
     t_onset: int | None = None
     gt_affine_by_name: dict = field(default_factory=dict)
+    ms_shown: tuple[float, float] | None = None
 
     @property
     def has_slices(self):
@@ -112,7 +114,7 @@ class MovingBarTraceBundle:
 
 
 def _gt_trace_affine(bundle, cell_name, gt_trace):
-    """Plot gt as ``gt_scale * gt + gt_bias`` (matches cost)."""
+    """Plot gt as ``gt_scale * gt + effective_bias`` (matches cost)."""
     if gt_trace is None:
         return None
     scale, bias = bundle.gt_affine_by_name.get(str(cell_name), (1.0, 0.0))
@@ -189,11 +191,6 @@ def _plot_cells_and_ids(session):
     cells = plot_cells_in_order(C.cell_names)
     cell_ids = _cell_ids_for_plot_order(C.cell_names, C.node_cell, cells)
     return cells, cell_ids
-
-
-def _t_rel_window_seconds(before_t, after_t, delta_ms):
-    scale = float(delta_ms) / 1000.0
-    return before_t * scale, after_t * scale
 
 
 def _filter_right_specs(spec_names, right_only):
@@ -413,7 +410,7 @@ def _moving_bar_traces_from_forward(
 def moving_bar_trace_bundle(session, z, task, *, at_x=None, at_y=None,
                             at_xs=None, at_ys=None,
                             align_at_x=None, align_at_y=None,
-                            show_pre=True):
+                            show_pre=True, ms_shown=None):
     """Run one forward; t_first_sti-aligned full-window model traces."""
     t_prep0 = time.perf_counter()
     pack = session.pack_for(task)
@@ -505,6 +502,7 @@ def moving_bar_trace_bundle(session, z, task, *, at_x=None, at_y=None,
         show_pre=bool(show_pre),
         t_onset=int(t_onset),
         gt_affine_by_name=gt_affine_by_name,
+        ms_shown=ms_shown,
     )
 
 
@@ -572,19 +570,34 @@ def _style_moving_bar_relative_axis(
     ax, before_t, after_t, win_len, *,
     delta_ms,
     show_tick_labels=True, mark_cost_window=False,
+    ms_shown=None,
 ):
     end = win_len - 1
-    ax.set_xlim(0, end)
-    ax.set_xticks([0, before_t, end])
-    before_s, after_s = _t_rel_window_seconds(before_t, after_t, delta_ms)
-    ax.set_xticklabels([f'{-before_s:g}', '0', f'{after_s:g}'], fontsize=6)
+    xlim = ms_shown_axis_xlim(ms_shown, delta_ms=delta_ms, origin_t=before_t)
+    if xlim is None:
+        lo, hi = 0, end
+    else:
+        lo, hi = max(0, xlim[0]), min(end, xlim[1])
+        if lo > hi:
+            lo, hi = 0, end
+    ax.set_xlim(lo, hi)
+    ticks = [t for t in (lo, before_t, hi) if lo <= t <= hi]
+    if len(ticks) < 2:
+        ticks = [lo, hi]
+    ax.set_xticks(ticks)
+    scale = float(delta_ms) / 1000.0
+    ax.set_xticklabels(
+        [f'{(t - before_t) * scale:g}' for t in ticks],
+        fontsize=6,
+    )
     if not show_tick_labels:
         ax.tick_params(labelbottom=False)
     if mark_cost_window:
         cw_before = cost_window_before_t(delta_ms)
         cw_after = cost_window_after_t(delta_ms)
         for x in (before_t - cw_before, before_t + cw_after):
-            ax.axvline(x, color='0.75', linewidth=0.6, linestyle='--', zorder=0)
+            if lo <= x <= hi:
+                ax.axvline(x, color='0.75', linewidth=0.6, linestyle='--', zorder=0)
 
 
 def _moving_bar_spec_linestyle(side, subtype, sname):
@@ -620,6 +633,7 @@ def _plot_moving_bar_cell(
     pre_end=0,
     show_pre=False,
     delta_ms=None,
+    ms_shown=None,
 ):
     win_len = len(ca_trace)
     gt_x, gt_y = None, None
@@ -632,6 +646,7 @@ def _plot_moving_bar_cell(
             delta_ms=delta_ms,
             show_tick_labels=show_tick_labels,
             mark_cost_window=mark_cost_window,
+            ms_shown=ms_shown,
         )
 
     plot_timecourse(
@@ -677,6 +692,7 @@ def _plot_moving_bar_cell_slices(
     pre_end=0,
     show_pre=False,
     delta_ms=None,
+    ms_shown=None,
 ):
     win_len = len(total_trace)
     gt_x, gt_y = None, None
@@ -689,6 +705,7 @@ def _plot_moving_bar_cell_slices(
             delta_ms=delta_ms,
             show_tick_labels=show_tick_labels,
             mark_cost_window=mark_cost_window,
+            ms_shown=ms_shown,
         )
 
     t = np.arange(win_len)
@@ -836,6 +853,7 @@ def _moving_bar_all_figure(bundle_on, bundle_2, title, *, right_only=True, cost_
                     pre_end=_moving_bar_pre_end(bundle_src, tname, sname),
                     show_pre=getattr(bundle_src, "show_pre", True),
                     delta_ms=bundle_src.session.delta_ms,
+                    ms_shown=getattr(bundle_src, "ms_shown", None),
                 )
             else:
                 _plot_moving_bar_cell(
@@ -853,6 +871,7 @@ def _moving_bar_all_figure(bundle_on, bundle_2, title, *, right_only=True, cost_
                     pre_end=_moving_bar_pre_end(bundle_src or bundle_on, tname, sname),
                     show_pre=getattr(bundle_src or bundle_on, "show_pre", True),
                     delta_ms=(bundle_src or bundle_on).session.delta_ms,
+                    ms_shown=getattr(bundle_src or bundle_on, "ms_shown", None),
                 )
         axes[ri, 0].set_ylabel(cell_ylabel(tname, ca_n), fontsize=8, labelpad=12)
     if title is None:
@@ -919,6 +938,7 @@ def plot_moving_bar_data(path, *, bundle, bundle_2=None, title=None, cost_parts=
                 pre_end=_moving_bar_pre_end(row_bundle, subtype, sname),
                 show_pre=getattr(row_bundle, "show_pre", True),
                 delta_ms=row_bundle.session.delta_ms,
+                ms_shown=getattr(row_bundle, "ms_shown", None),
             )
 
     for ri, subtype in enumerate(gt_cells):

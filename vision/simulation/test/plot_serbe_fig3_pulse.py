@@ -29,7 +29,7 @@ import blindschleiche_py3 as bs
 from plot.utils import save_figure
 
 DEFAULT_SAVE = os.path.join(HERE, "serbe_fig3_pulse.png")
-PULSE_MS = 225.0
+MS_PULSE = 225.0
 
 # Serbe et al. 2016 Neuron Figure 3 fitted time constants (seconds).
 SERBE_TM = {
@@ -46,9 +46,9 @@ def tau_s_to_samples(tau_s: float | None, dt_ms: float) -> float:
     return tau_s * 1000.0 / dt_ms
 
 
-def dark_bar_pulse(t_ms: np.ndarray, *, t_on_ms: float, pulse_ms: float) -> np.ndarray:
+def dark_bar_pulse(t_ms: np.ndarray, *, t_on_ms: float, ms_pulse: float) -> np.ndarray:
     """1 while the dark bar is on, else 0 (Serbe supplemental stimulus encoding)."""
-    t_off_ms = t_on_ms + pulse_ms
+    t_off_ms = t_on_ms + ms_pulse
     return ((t_ms >= t_on_ms) & (t_ms < t_off_ms)).astype(np.float64)
 
 
@@ -101,7 +101,7 @@ def plot_serbe_pulse(
     path: str,
     *,
     show: bool = False,
-    pulse_ms: float = PULSE_MS,
+    ms_pulse: float = MS_PULSE,
     t_on_ms: float = 500.0,
     t_total_ms: float = 3000.0,
     dt_ms: float = 1.0,
@@ -109,7 +109,7 @@ def plot_serbe_pulse(
 ) -> None:
     n = int(round(t_total_ms / dt_ms)) + 1
     t_ms = np.arange(n, dtype=np.float64) * dt_ms
-    stimulus = dark_bar_pulse(t_ms, t_on_ms=t_on_ms, pulse_ms=pulse_ms)
+    stimulus = dark_bar_pulse(t_ms, t_on_ms=t_on_ms, ms_pulse=ms_pulse)
 
     stage_labels = ("input", "after HP", "after rec", "after LP")
     stage_colors = ("0.15", "C0", "C1", "C2")
@@ -157,7 +157,7 @@ def plot_serbe_pulse(
             )
             ax.axvspan(
                 t_on_ms / 1000.0,
-                (t_on_ms + pulse_ms) / 1000.0,
+                (t_on_ms + ms_pulse) / 1000.0,
                 color="0.9",
                 zorder=0,
             )
@@ -193,7 +193,7 @@ def plot_serbe_pulse(
                     legend_done = True
 
     fig.suptitle(
-        f"Serbe Fig. 3 filter chain — {pulse_ms:g} ms dark-bar pulse "
+        f"Serbe Fig. 3 filter chain — {ms_pulse:g} ms dark-bar pulse "
         f"(t_on={t_on_ms / 1000:g} s)",
         fontsize=11,
     )
@@ -209,7 +209,7 @@ def parse_args(argv=None):
     p = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     p.add_argument("--save", default=DEFAULT_SAVE, help="output PNG path")
     p.add_argument("--show", action="store_true")
-    p.add_argument("--pulse-ms", type=float, default=PULSE_MS, help="dark-bar duration (ms)")
+    p.add_argument("--ms-pulse", type=float, default=MS_PULSE, help="dark-bar duration (ms)")
     p.add_argument("--t-on-ms", type=float, default=500.0, help="pulse onset (ms)")
     p.add_argument("--t-total-ms", type=float, default=3000.0, help="simulation length (ms)")
     p.add_argument("--dt-ms", type=float, default=1.0, help="time step (ms)")
@@ -225,15 +225,15 @@ def parse_args(argv=None):
 
 def main(argv=None):
     args = parse_args(argv)
-    if args.pulse_ms <= 0:
-        raise ValueError("--pulse-ms must be > 0")
+    if args.ms_pulse <= 0:
+        raise ValueError("--ms-pulse must be > 0")
     if args.dt_ms <= 0:
         raise ValueError("--dt-ms must be > 0")
     cells = tuple(args.cells) if args.cells else tuple(SERBE_TM)
     plot_serbe_pulse(
         args.save,
         show=args.show,
-        pulse_ms=args.pulse_ms,
+        ms_pulse=args.ms_pulse,
         t_on_ms=args.t_on_ms,
         t_total_ms=args.t_total_ms,
         dt_ms=args.dt_ms,

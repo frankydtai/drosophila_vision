@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 import time
 
 import matplotlib.pyplot as plt
@@ -29,7 +30,10 @@ def _as_numpy(arr):
 
 
 def apply_gt_affine(p, gt, node_index, backend):
-    """``gt_scale * gt + gt_bias`` (matches cost); ``gt`` leading axis = nodes."""
+    """``gt_scale * gt + gt_bias`` (``+ v_th`` if present; matches cost).
+
+    ``gt`` leading axis = nodes.
+    """
     node_index = torch.as_tensor(node_index, dtype=torch.long)
     scale, bias = training.gt_affine_for_nodes(
         p, node_index, backend, sim_dtype=torch.float32,
@@ -46,13 +50,16 @@ def apply_gt_affine(p, gt, node_index, backend):
 
 
 def gt_affine_scalars_for_cell(p, cell_name, backend) -> tuple[float, float]:
-    """``(gt_scale, gt_bias)`` for one cell type name."""
+    """``(gt_scale, effective_bias)`` for one cell type name (matches cost)."""
     names = [str(n) for n in backend.network.cell_names]
     ci = names.index(str(cell_name))
     gs = p["gt_scale"]
     gb = p["gt_bias"]
     scale = float(gs[ci] if torch.is_tensor(gs) and gs.dim() > 0 else gs)
     bias = float(gb[ci] if torch.is_tensor(gb) and gb.dim() > 0 else gb)
+    if "v_th" in p:
+        vt = p["v_th"]
+        bias = bias + float(vt[ci] if torch.is_tensor(vt) and vt.dim() > 0 else vt)
     return scale, bias
 
 
@@ -341,6 +348,42 @@ def parse_align_xy(text):
     return float(parts[0]), float(parts[1])
 
 
+def add_ms_shown_argument(parser):
+    """Register ``--ms-shown START,STOP`` display / analyze time window."""
+    parser.add_argument(
+        '--ms-shown',
+        default=None,
+        metavar='START,STOP',
+        help=(
+            'absolute aligned ms window START,STOP (spot: abs; bar: vs t0); '
+            'omit = full trace'
+        ),
+    )
+
+
+def parse_ms_shown_range(token, *, flag='--ms-shown'):
+    """Parse ``START,STOP`` ms (comma; one token)."""
+    parts = parse_comma_list(token)
+    if len(parts) != 2:
+        raise ValueError(f'{flag} must be START,STOP')
+    start, stop = float(parts[0]), float(parts[1])
+    if start > stop:
+        raise ValueError(f'{flag} START={start} > STOP={stop}')
+    return start, stop
+
+
+def ms_shown_axis_xlim(ms_shown, *, delta_ms, origin_t=0):
+    """Inclusive t-index xlim from ``--ms-shown``; ``origin_t`` is t0 on the axis."""
+    if ms_shown is None:
+        return None
+    start, stop = ms_shown
+    lo = int(origin_t) + int(training.ms_to_t(float(start), delta_ms=float(delta_ms)))
+    hi = int(origin_t) + int(training.ms_to_t(float(stop), delta_ms=float(delta_ms)))
+    if lo > hi:
+        raise ValueError(f'ms-shown xlim START t={lo} > STOP t={hi}')
+    return lo, hi
+
+
 def hex_at_scope_tag(at_x, at_y):
     """Subtitle fragment for plot column slice."""
     parts = []
@@ -587,11 +630,224 @@ def plot_timecourse(
     annotate_baseline(ax, baseline)
 
 
+_MPL_DASH = {
+    '-': 'solid',
+    '--': 'dash',
+    '-.': 'dashdot',
+    ':': 'dot',
+    'None': 'solid',
+    'none': 'solid',
+    '': 'solid',
+}
+
+
+def plot_file_ext(*, html=False):
+    """Figure extension: ``.png`` (default) or ``.html`` when ``html``."""
+    return '.html' if html else '.png'
+
+
+def plot_html_path(path):
+    """Rewrite path stem to ``.html``."""
+    path = os.fspath(path)
+    root, ext = os.path.splitext(path)
+    if ext.lower() == '.html':
+        return path
+    return root + '.html'
+
+
+def _mpl_color_hex(color):
+    from matplotlib.colors import to_hex
+
+    try:
+        return to_hex(color, keep_alpha=False)
+    except (ValueError, TypeError):
+        return '#1f77b4'
+
+
+def _mpl_color_rgba(color):
+    from matplotlib.colors import to_rgba
+
+    try:
+        r, g, b, a = to_rgba(color)
+    except (ValueError, TypeError):
+        return 'rgba(31,119,180,1)'
+    return f'rgba({int(round(r * 255))},{int(round(g * 255))},{int(round(b * 255))},{a:g})'
+
+
+def _write_interactive_html(fig, path):
+    """Write standalone HTML: hover traces for x/y (plotly), matching PNG style."""
+    import plotly.graph_objects as go
+    from matplotlib.collections import PolyCollection
+    from matplotlib.patches import Rectangle
+
+    fig.canvas.draw()
+    visible_axes = [ax for ax in fig.axes if ax.get_visible()]
+    plot_bg = (
+        _mpl_color_hex(visible_axes[0].get_facecolor())
+        if visible_axes else plt.rcParams['axes.facecolor']
+    )
+    traces = []
+    shapes = []
+    layout = {
+        'autosize': False,
+        'width': max(400, int(fig.get_figwidth() * 100)),
+        'height': max(300, int(fig.get_figheight() * 100)),
+        'margin': dict(l=40, r=20, t=60, b=40),
+        'hovermode': 'closest',
+        'showlegend': False,
+        'plot_bgcolor': plot_bg,
+        'paper_bgcolor': _mpl_color_hex(fig.get_facecolor()),
+    }
+    if fig._suptitle is not None:
+        layout['title'] = dict(text=fig._suptitle.get_text(), x=0.5, xanchor='center')
+
+    axis_i = 0
+    for ax in visible_axes:
+        axis_i += 1
+        xaxis = 'x' if axis_i == 1 else f'x{axis_i}'
+        yaxis = 'y' if axis_i == 1 else f'y{axis_i}'
+        xkey = 'xaxis' if axis_i == 1 else f'xaxis{axis_i}'
+        ykey = 'yaxis' if axis_i == 1 else f'yaxis{axis_i}'
+        pos = ax.get_position()
+        layout[xkey] = dict(
+            domain=[float(pos.x0), float(pos.x1)],
+            anchor=yaxis,
+            title=ax.get_xlabel() or None,
+            showgrid=True,
+            zeroline=False,
+            mirror=True,
+            ticks='outside',
+            showline=True,
+            linecolor='#444',
+            gridcolor='#ddd',
+        )
+        layout[ykey] = dict(
+            domain=[float(pos.y0), float(pos.y1)],
+            anchor=xaxis,
+            title=ax.get_ylabel() or None,
+            showgrid=True,
+            zeroline=False,
+            mirror=True,
+            ticks='outside',
+            showline=True,
+            linecolor='#444',
+            gridcolor='#ddd',
+        )
+        xlim = ax.get_xlim()
+        ylim = ax.get_ylim()
+        layout[xkey]['range'] = [float(xlim[0]), float(xlim[1])]
+        layout[ykey]['range'] = [float(ylim[0]), float(ylim[1])]
+        if ax.get_title():
+            layout.setdefault('annotations', []).append(dict(
+                text=ax.get_title(),
+                xref='paper',
+                yref='paper',
+                x=(float(pos.x0) + float(pos.x1)) / 2,
+                y=float(pos.y1),
+                xanchor='center',
+                yanchor='bottom',
+                showarrow=False,
+                font=dict(size=10),
+            ))
+
+        # Pulse / axvspan bands (data-x, axes-y) → shapes under traces.
+        for patch in ax.patches:
+            if not isinstance(patch, Rectangle):
+                continue
+            x0 = float(patch.get_x())
+            x1 = x0 + float(patch.get_width())
+            shapes.append(dict(
+                type='rect',
+                xref=xaxis,
+                yref=f'{yaxis} domain',
+                x0=x0,
+                x1=x1,
+                y0=0,
+                y1=1,
+                fillcolor=_mpl_color_rgba(patch.get_facecolor()),
+                line=dict(width=0),
+                layer='below',
+            ))
+
+        # SEM fill_between etc. before line traces (same stacking as PNG).
+        for coll in ax.collections:
+            if not isinstance(coll, PolyCollection):
+                continue
+            fcs = coll.get_facecolors()
+            if fcs is None or len(fcs) == 0:
+                continue
+            for pi, coll_path in enumerate(coll.get_paths()):
+                verts = np.asarray(coll_path.vertices, dtype=float)
+                if verts.size == 0:
+                    continue
+                fc = fcs[min(pi, len(fcs) - 1)]
+                traces.append(go.Scatter(
+                    x=verts[:, 0],
+                    y=verts[:, 1],
+                    mode='lines',
+                    fill='toself',
+                    fillcolor=_mpl_color_rgba(fc),
+                    line=dict(width=0, color=_mpl_color_rgba(fc)),
+                    hoverinfo='skip',
+                    showlegend=False,
+                    xaxis=xaxis,
+                    yaxis=yaxis,
+                ))
+
+        for li, line in enumerate(ax.get_lines()):
+            xd = np.asarray(line.get_xdata(), dtype=float)
+            yd = np.asarray(line.get_ydata(), dtype=float)
+            if xd.size == 0:
+                continue
+            label = line.get_label()
+            if not label or str(label).startswith('_'):
+                label = ax.get_title() or f'trace{li}'
+            ls = line.get_linestyle()
+            if isinstance(ls, (tuple, list)):
+                dash = 'dash' if ls not in (None, 'None', 'none', '-', 'solid') else 'solid'
+            else:
+                dash = _MPL_DASH.get(str(ls), 'solid')
+            marker = line.get_marker()
+            mode = 'lines'
+            if marker not in (None, 'None', 'none', ''):
+                mode = 'lines+markers' if dash != 'solid' or line.get_linewidth() else 'markers'
+                if line.get_linestyle() in ('None', 'none', ''):
+                    mode = 'markers'
+            traces.append(go.Scatter(
+                x=xd,
+                y=yd,
+                mode=mode,
+                name=str(label),
+                line=dict(
+                    color=_mpl_color_hex(line.get_color()),
+                    width=float(line.get_linewidth() or 1.0),
+                    dash=dash,
+                ),
+                marker=dict(size=max(4.0, float(line.get_markersize() or 4.0))),
+                xaxis=xaxis,
+                yaxis=yaxis,
+                hovertemplate='x=%{x}<br>y=%{y}<extra>%{fullData.name}</extra>',
+            ))
+
+    if shapes:
+        layout['shapes'] = shapes
+    pfig = go.Figure(data=traces, layout=layout)
+    pfig.write_html(path, include_plotlyjs=True, full_html=True, config={
+        'displayModeBar': True,
+        'scrollZoom': True,
+    })
+
+
 def save_figure(fig, path, dpi=150, rasterize=False):
-    if rasterize:
-        for ax in fig.axes:
-            ax.set_rasterized(True)
-    fig.savefig(path, dpi=dpi, bbox_inches='tight')
+    """Save figure: ``.png`` (default) or interactive ``.html`` (plotly hover x/y)."""
+    path = os.fspath(path)
+    if path.lower().endswith('.html'):
+        _write_interactive_html(fig, path)
+    else:
+        if rasterize:
+            for ax in fig.axes:
+                ax.set_rasterized(True)
+        fig.savefig(path, dpi=dpi, bbox_inches='tight')
     plt.close(fig)
 
 

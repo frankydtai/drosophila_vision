@@ -52,9 +52,9 @@ from param_defaults import (
     DELTA_MS,
     PARAM_BOXES,
     PRE_GRAD,
-    PRE_MS,
-    PULSE_MS,
-    RESPONSE_MS,
+    MS_PRE,
+    MS_PULSE,
+    MS_RESPONSE,
     SEQUENTIAL,
     SHIFT_EXTENT,
     SPOT_COST_RADII,
@@ -998,39 +998,7 @@ def add_training_arguments(parser):
         help="dark peak/step current (pA; space-separated TASK=VALUE); "
              "tasks: spot_dark, moving_bar_dark (aliases spot, moving_bar)",
     )
-    parser.add_argument(
-        "--pre-ms",
-        type=float,
-        default=PRE_MS,
-        metavar="MS",
-        help=f"pre-stimulus baseline duration in ms (default: {PRE_MS}; "
-             "t_onset = ms_to_t(pre_ms); "
-             "n_t = ms_to_t(pre_ms)+ms_to_t(response_ms)+1)",
-    )
-    parser.add_argument(
-        "--response-ms",
-        type=float,
-        default=RESPONSE_MS,
-        metavar="MS",
-        help=f"spot: post-onset response window in ms (default: {RESPONSE_MS}; "
-             "n_t = ms_to_t(pre_ms)+ms_to_t(response_ms)+1)",
-    )
-    parser.add_argument(
-        "--pulse-ms",
-        type=float,
-        default=PULSE_MS,
-        metavar="MS",
-        help=f"spot: bright/dark PR pulse duration in ms from onset "
-             f"(default: {PULSE_MS})",
-    )
-    parser.add_argument(
-        "--delta-ms",
-        type=float,
-        default=DELTA_MS,
-        metavar="MS",
-        help=f"simulation / stimulus time step in ms (default: {DELTA_MS}; "
-             "writes delta_ms into all stimulus opts)",
-    )
+    add_stimulus_timing_arguments(parser)
     parser.add_argument(
         "--cost-interval-ms",
         type=float,
@@ -1038,6 +1006,96 @@ def add_training_arguments(parser):
         metavar="MS",
         help="spot: train on post-onset times 0, interval, 2*interval, ... "
              "through response window; omit = every post-onset t (#4)",
+    )
+
+
+def add_stimulus_timing_arguments(
+    parser,
+    *,
+    default_ms_pre=MS_PRE,
+    default_ms_response=MS_RESPONSE,
+    default_ms_pulse=MS_PULSE,
+    default_delta_ms=DELTA_MS,
+):
+    """Register ``--ms-pre`` / ``--ms-response`` / ``--ms-pulse`` / ``--delta-ms``.
+
+    Train uses ``param_defaults`` values. Plot / analyze pass ``None`` so
+    omitted flags keep the run's ``train_opts.json``.
+    """
+    if default_ms_pre is None:
+        pre_help = (
+            "override pre-stimulus baseline in ms (spot + moving_bar; "
+            "keep train if omitted)"
+        )
+    else:
+        pre_help = (
+            f"pre-stimulus baseline duration in ms (default: {default_ms_pre}; "
+            "t_onset = ms_to_t(ms_pre); "
+            "n_t = ms_to_t(ms_pre)+ms_to_t(ms_response)+1)"
+        )
+    if default_ms_response is None:
+        response_help = (
+            "override spot post-onset response window in ms (keep train if omitted)"
+        )
+    else:
+        response_help = (
+            f"spot: post-onset response window in ms (default: {default_ms_response}; "
+            "n_t = ms_to_t(ms_pre)+ms_to_t(ms_response)+1)"
+        )
+    if default_ms_pulse is None:
+        pulse_help = "override spot pulse width in ms (keep train if omitted)"
+    else:
+        pulse_help = (
+            "spot: bright/dark PR pulse duration in ms from onset "
+            f"(default: {default_ms_pulse})"
+        )
+    if default_delta_ms is None:
+        delta_help = (
+            "override simulation / stimulus time step in ms "
+            "(writes delta_ms into all stimulus opts; keep train if omitted)"
+        )
+    else:
+        delta_help = (
+            f"simulation / stimulus time step in ms (default: {default_delta_ms}; "
+            "writes delta_ms into all stimulus opts)"
+        )
+    parser.add_argument(
+        "--ms-pre",
+        type=float,
+        default=default_ms_pre,
+        metavar="MS",
+        help=pre_help,
+    )
+    parser.add_argument(
+        "--ms-response",
+        type=float,
+        default=default_ms_response,
+        metavar="MS",
+        help=response_help,
+    )
+    parser.add_argument(
+        "--ms-pulse",
+        type=float,
+        default=default_ms_pulse,
+        metavar="MS",
+        help=pulse_help,
+    )
+    parser.add_argument(
+        "--delta-ms",
+        type=float,
+        default=default_delta_ms,
+        metavar="MS",
+        help=delta_help,
+    )
+
+
+def stimulus_timing_kwargs_from_args(args):
+    """Map parsed timing flags to kwargs for :func:`figure.plot_run.maybe_override_stimulus_timing`."""
+    return dict(
+        ms_pre=args.ms_pre,
+        ms_response=args.ms_response,
+        ms_pulse=args.ms_pulse,
+        delta_ms=args.delta_ms,
     )
 
 
@@ -1248,31 +1306,31 @@ def training_kwargs_from_args(
     )
     multi_spot = bool(args.multi_spot)
     fully_inside = bool(args.fully_inside)
-    pre_ms = float(args.pre_ms)
-    response_ms = float(args.response_ms)
+    ms_pre = float(args.ms_pre)
+    ms_response = float(args.ms_response)
     delta_ms = float(args.delta_ms)
     if delta_ms <= 0:
         raise ValueError("--delta-ms must be > 0")
     multi_bar = bool(args.multi_bar)
     _timing = {
-        "pre_ms": pre_ms,
-        "response_ms": response_ms,
+        "ms_pre": ms_pre,
+        "ms_response": ms_response,
         "delta_ms": delta_ms,
     }
     moving_bar_bright_stimulus_opts = {
         "multi_bar": multi_bar,
-        "pre_ms": pre_ms,
+        "ms_pre": ms_pre,
         "delta_ms": delta_ms,
     }
     moving_bar_dark_stimulus_opts = {
         "multi_bar": multi_bar,
-        "pre_ms": pre_ms,
+        "ms_pre": ms_pre,
         "delta_ms": delta_ms,
     }
     spot_bright_stimulus_opts = dict(_timing)
     spot_dark_stimulus_opts = dict(_timing)
     for _o in (spot_bright_stimulus_opts, spot_dark_stimulus_opts):
-        _o["pulse_ms"] = float(args.pulse_ms)
+        _o["ms_pulse"] = float(args.ms_pulse)
     if args.cost_interval_ms is not None:
         if float(args.cost_interval_ms) <= 0:
             raise ValueError("--cost-interval-ms must be > 0")
