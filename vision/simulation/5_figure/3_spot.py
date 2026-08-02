@@ -34,7 +34,6 @@ from figure.util import (
     gt_affine_scalars_for_cell,
     hex_at_scope_tag,
     mark_pulse,
-    nice_ylim,
     overlay_model_reds,
     plot_pre_post_line,
     plot_timecourse,
@@ -286,10 +285,6 @@ def plot_cell_rf(
             label=item.get("label_model"), linestyle=ls, filled=True,
         )
     ax.set_title(title, fontsize=8, pad=2)
-    ax.set_ylim(*nice_ylim(
-        *(item["rf_gt"] for item in scaled),
-        *(item["rf_model"] for item in scaled),
-    ))
     _style_recf_profile_axis(ax, show_xlabels)
     if show_ylabel:
         ax.set_ylabel('mV', fontsize=7)
@@ -413,7 +408,6 @@ def plot_cell_rf_time_slices(
     t = np.arange(n_t)
     pre_end = int(response_start or 0)
     mark_pulse(ax_time, response_start, pulse_end)
-    ylim_curves = []
 
     for si, item in enumerate(series):
         ls = item.get("linestyle", "-")
@@ -464,14 +458,8 @@ def plot_cell_rf_time_slices(
             color=colors[-1], linestyle=ls, linewidth=TRACE_LW,
             label=item.get("label_total"),
         )
-        ylim_curves.extend(
-            c for c in (rf_gt, rf_model, imp_gt, imp_model, *slice_rfs.values(), *slice_imps.values())
-            if c is not None
-        )
 
-    ylo, yhi = nice_ylim(*ylim_curves)
     ax_rf.set_title(title, fontsize=8, pad=2)
-    ax_rf.set_ylim(ylo, yhi)
     _style_recf_profile_axis(ax_rf, show_xlabels)
     if show_ylabel:
         ax_rf.set_ylabel('mV', fontsize=7)
@@ -480,7 +468,6 @@ def plot_cell_rf_time_slices(
     if show_legend:
         ax_rf.legend(loc='upper right', fontsize=6, frameon=False)
 
-    ax_time.set_ylim(ylo, yhi)
     _style_time_axis(ax_time, show_xlabels, n_t, delta_ms)
     if show_ylabel:
         ax_time.set_ylabel('mV', fontsize=7)

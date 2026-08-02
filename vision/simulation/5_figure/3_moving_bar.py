@@ -31,7 +31,6 @@ from figure.util import (
     hex_at_scope_tag,
     cell_ylabel,
     gt_affine_scalars_for_cell,
-    nice_ylim,
     overlay_model_reds,
     plot_pre_post_line,
     plot_sem_band,
@@ -45,7 +44,6 @@ from figure.util import (
     suppress_cost_sem,
     v_ref_by_type_name,
     v_ref_schema_name,
-    ylim_for_traces,
 )
 import network.path  # noqa: F401  # ensure FAFBv783 modules are importable
 from task.moving_bar.gt import (
@@ -619,7 +617,6 @@ def _plot_moving_bar_cell(
     gt_trace=None,
     show_ylabel=False,
     show_sem=True,
-    ylim=None,
     cell_ticks=True,
     show_tick_labels=True,
     mark_cost_window=False,
@@ -642,19 +639,6 @@ def _plot_moving_bar_cell(
             mark_cost_window=mark_cost_window,
         )
 
-    if ylim is None:
-        ylo, yhi = ylim_for_traces(
-            {
-                "model": ca_trace,
-                "gt": None,
-                "sem": sem_trace,
-            },
-            show_sem=show_sem and sem_trace is not None and np.any(sem_trace),
-            extra=(gt_y,) if gt_y is not None else (),
-        )
-    else:
-        ylo, yhi = ylim
-
     plot_timecourse(
         ax, np.arange(win_len),
         [{
@@ -665,7 +649,6 @@ def _plot_moving_bar_cell(
         }],
         show_sem=show_sem and sem_trace is not None and np.any(sem_trace),
         title=title,
-        ylim=(ylo, yhi),
         baseline=baseline,
         show_ylabel=show_ylabel,
         ticksize=6 if cell_ticks else 5,
@@ -696,7 +679,6 @@ def _plot_moving_bar_cell_slices(
     show_tick_labels=True,
     mark_cost_window=False,
     baseline=None,
-    ylim=None,
     pre_end=0,
     show_pre=False,
     delta_ms=None,
@@ -714,15 +696,6 @@ def _plot_moving_bar_cell_slices(
             mark_cost_window=mark_cost_window,
         )
 
-    if ylim is None:
-        curves = [total_trace, *slice_traces.values()]
-        if gt_y is not None:
-            curves.append(gt_y)
-        if show_sem and sem_trace is not None and np.any(sem_trace):
-            curves.extend([total_trace + sem_trace, total_trace - sem_trace])
-        ylo, yhi = nice_ylim(*curves)
-    else:
-        ylo, yhi = ylim
     t = np.arange(win_len)
     if gt_x is not None:
         ax.plot(gt_x, gt_y, color=GT_COLOR, linewidth=TRACE_LW)
@@ -743,7 +716,6 @@ def _plot_moving_bar_cell_slices(
     )
     if title is not None:
         ax.set_title(title, fontsize=7, pad=2)
-    ax.set_ylim(ylo, yhi)
     style_xaxis(ax)
     if show_ylabel:
         ax.set_ylabel('mV', fontsize=7)

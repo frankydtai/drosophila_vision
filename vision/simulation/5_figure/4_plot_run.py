@@ -104,16 +104,6 @@ def resolve_model(outdir, override=None):
     return model
 
 
-def find_artifact_fname(outdir):
-    """Locate cost artifact stem (``training*.npy``) from saved cost files."""
-    import training.implement as train_mod
-
-    try:
-        return train_mod.find_artifact_fname(outdir)
-    except FileNotFoundError as exc:
-        raise SystemExit(str(exc)) from exc
-
-
 def select_best(params, session, *, final_costs=None, best_i=None, verbose=True):
     """Pick the best parameter row; recompute costs only when not supplied."""
     params = np.atleast_2d(params)
@@ -183,18 +173,12 @@ def load_best(outdir, *, model=None, verbose=False):
     )
     best_i = train_mod.load_best_i(outdir)
     best_cost = None
-    try:
-        fname = find_artifact_fname(outdir)
-        final_costs, _, _, _ = train_mod.load_stored_costs(
-            outdir, fname, (best_i or 0) + 1,
-        )
-        if final_costs is not None:
-            idx = best_i if best_i is not None else int(np.argmin(final_costs))
-            if idx < len(final_costs):
-                best_cost = float(final_costs[idx])
-                best_i = idx
-    except SystemExit:
-        pass
+    final_costs, _, _, _ = train_mod.load_stored_costs(outdir)
+    if final_costs is not None:
+        idx = best_i if best_i is not None else int(np.argmin(final_costs))
+        if idx < len(final_costs):
+            best_cost = float(final_costs[idx])
+            best_i = idx
     if best_cost is None:
         best_cost = training.calc_cost(z, session).item()
         best_i = best_i if best_i is not None else 0
@@ -353,7 +337,7 @@ def plot_param_set(params, outdir, model=None, model_all=True,
                    context_dir=None,
                    plot_tasks=None, session=None, *,
                    final_costs=None, cost_curve=None, costs_by_part=None, best_i=None,
-                   save_artifacts=True, artifact_fname=None,
+                   save_artifacts=True,
                    gt_cubes=None,
                    plot_right_only=True, at_x=None, at_y=None,
                    align_at_x=None, align_at_y=None,
@@ -371,10 +355,8 @@ def plot_param_set(params, outdir, model=None, model_all=True,
         session = load_session(ctx, model)
 
     params = np.atleast_2d(params)
-    if artifact_fname is not None:
-        loaded_final, loaded_curve, loaded_by_part, _ = _load_plot_costs(
-            outdir, artifact_fname, params.shape[0],
-        )
+    if final_costs is None or cost_curve is None or costs_by_part is None:
+        loaded_final, loaded_curve, loaded_by_part, _ = _load_plot_costs(outdir)
         if final_costs is None:
             final_costs = loaded_final
         if cost_curve is None:
@@ -452,10 +434,10 @@ def plot_param_set(params, outdir, model=None, model_all=True,
     return best, best_cost
 
 
-def _load_plot_costs(outdir, fname, n_runs):
+def _load_plot_costs(outdir):
     """Load per-run and step costs saved by ``training.implement.save_training_outputs``."""
     import training.implement as train_mod
-    return train_mod.load_stored_costs(outdir, fname, n_runs)
+    return train_mod.load_stored_costs(outdir)
 
 
 def add_plot_arguments(parser):
@@ -539,7 +521,6 @@ def main():
 
     outdir = resolve_run_dir(args.run_path)
     session, z, _stored_best_i, best_cost = load_best(outdir, verbose=True)
-    artifact_fname = find_artifact_fname(outdir)
     model = resolve_model(outdir)
     z_np = z.detach().cpu().numpy() if torch.is_tensor(z) else np.asarray(z)
     print(f'outdir={outdir}')
@@ -550,7 +531,6 @@ def main():
         outdir,
         model=model,
         session=session,
-        artifact_fname=artifact_fname,
         best_i=0,
         final_costs=np.array([best_cost]),
         save_csv=args.save_csv,

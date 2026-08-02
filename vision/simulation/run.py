@@ -72,7 +72,6 @@ def build_plot_kwargs(
 
 
 def make_plots(
-    fname,
     outdir,
     session,
     result=None,
@@ -112,9 +111,7 @@ def make_plots(
     best_i = train.load_best_i(outdir)
     if best_i is None:
         best_i = 0
-    final_costs, cost_curve, costs_by_part, _ = train.load_stored_costs(
-        outdir, fname, best_i + 1,
-    )
+    final_costs, cost_curve, costs_by_part, _ = train.load_stored_costs(outdir)
     best_cost = None
     if final_costs is not None and best_i < len(final_costs):
         best_cost = float(final_costs[best_i])
@@ -197,7 +194,6 @@ def run_training_and_plot(
         checkpoint_on_png=checkpoint_on_png,
     )
     make_plots(
-        fname,
         outdir,
         session,
         result=result,

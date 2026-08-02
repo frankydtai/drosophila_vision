@@ -92,24 +92,6 @@ def save_forward_trace_csvs(
     )
 
 
-def nice_ylim(*curves, margin=1.25, step=5.0, floor=5.0, min_pad=3.0):
-    """Symmetric y-limits that comfortably contain all provided curves."""
-    chunks = []
-    for c in curves:
-        if c is None:
-            continue
-        v = np.asarray(c).ravel()
-        v = v[np.isfinite(v)]
-        if v.size:
-            chunks.append(v)
-    if not chunks:
-        return -floor, floor
-    peak = float(np.max(np.abs(np.concatenate(chunks))))
-    ymax = max(peak * margin, peak + min_pad, floor)
-    ymax = float(np.ceil(ymax / step) * step)
-    return -ymax, ymax
-
-
 def cost_ylim(*curves, pct=99.0, pad=1.1, floor=1.0):
     """Non-negative ylim from high percentile so cost spikes do not dominate."""
     chunks = []
@@ -128,23 +110,17 @@ def cost_ylim(*curves, pct=99.0, pad=1.1, floor=1.0):
 
 
 def annotate_baseline(ax, baseline):
-    """Horizontal dashed line at ``v_rest`` (hp_lp) / ``v_th`` (borst).
+    """Horizontal dashed line at ``v_th`` (borst) / ``-bias`` (hp_lp).
 
-    ``baseline`` is absolute mV; mid tick labels that value.
+    Leaves matplotlib auto y-ticks / labels alone.
     """
-    ylo, yhi = ax.get_ylim()
     if baseline is None or not np.isfinite(baseline):
-        ax.set_yticks([ylo, yhi])
-        ax.set_yticklabels([f'{ylo:+.0f}', f'{yhi:+.0f}'], fontsize=6)
         return
-    y_line = float(baseline)
-    ax.set_yticks([ylo, y_line, yhi])
-    ax.set_yticklabels([f'{ylo:+.0f}', f'{y_line:.1f}', f'{yhi:+.0f}'], fontsize=6)
-    ax.axhline(y_line, color='0.4', linewidth=0.6, linestyle=':', zorder=0)
+    ax.axhline(float(baseline), color='0.4', linewidth=0.6, linestyle=':', zorder=0)
 
 
 def baselines_for_types(nodes_by_name, v_ref_by_name=None):
-    """``{name: v_ref}`` from per-cell ``v_rest`` / ``v_th`` (absolute mV)."""
+    """``{name: baseline}`` from per-cell ``v_th`` / ``-bias`` (absolute mV)."""
     v_ref_by_name = v_ref_by_name or {}
     out = {}
     for name in nodes_by_name:
@@ -204,25 +180,28 @@ def readout_n_by_name(type_idx, cell_names, names, node_idx):
 
 
 def v_ref_schema_name(schema):
-    """``'v_th'`` (borst) or ``'v_rest'`` (hp_lp); ``None`` if neither in schema."""
+    """``'v_th'`` (borst) or ``'-bias'`` (hp_lp); ``None`` if neither applies."""
     names = {s.get('name') for s in schema}
     if 'v_th' in names:
         return 'v_th'
-    if 'v_rest' in names:
-        return 'v_rest'
+    if 'bias' in names:
+        return '-bias'
     return None
 
 
 def v_ref_by_type_name(z, session):
-    """Per-cell ``v_th`` / ``v_rest`` (mV) keyed by type name; empty if schema has neither."""
+    """Per-cell baseline mV: ``v_th`` (borst) or ``-bias`` (hp_lp)."""
     schema = list(session.schema)
     key = v_ref_schema_name(schema)
     if key is None:
         return {}
-    arr = np.asarray(training.z_to_node_values(z, schema)[key], dtype=np.float64).reshape(-1)
+    param = 'v_th' if key == 'v_th' else 'bias'
+    arr = np.asarray(training.z_to_node_values(z, schema)[param], dtype=np.float64).reshape(-1)
+    if key == '-bias':
+        arr = -arr
     names = training.cell_node_names(session.backend)
     if arr.shape[0] != len(names):
-        raise ValueError(f"{key} length {arr.shape[0]} != n_cells {len(names)}")
+        raise ValueError(f"{param} length {arr.shape[0]} != n_cells {len(names)}")
     return {str(n): float(arr[i]) for i, n in enumerate(names)}
 
 
@@ -452,50 +431,6 @@ def overlay_model_reds(n_slices):
     return [plt.cm.Reds(v) for v in np.linspace(0.35, 0.95, n)]
 
 
-def ylim_for_traces(
-    *curves,
-    show_sem=False,
-    extra=(),
-):
-    """Y-limits from one or more ``(model, gt, sem)`` curves plus ``extra`` curves."""
-    out_curves = []
-    for item in curves:
-        if item is None:
-            continue
-        if isinstance(item, dict):
-            model = item.get("model")
-            gt = item.get("gt")
-            sem = item.get("sem")
-        else:
-            model, gt, sem = (list(item) + [None, None, None])[:3]
-        if model is not None:
-            out_curves.append(model)
-        if gt is not None:
-            out_curves.append(gt)
-        if show_sem and sem is not None and model is not None:
-            out_curves.append(model + sem)
-            out_curves.append(model - sem)
-    out_curves.extend(c for c in extra if c is not None)
-    return nice_ylim(*out_curves)
-
-
-def ylim_for_keys(ca_mean, ca_sem, gt_mean, keys, *, show_sem=False):
-    """Shared y-limits for keyed trace dicts (moving-bar grids)."""
-    curves = []
-    for key in keys:
-        m = ca_mean[key]
-        curves.append(m)
-        if gt_mean:
-            d = gt_mean.get(key)
-            if d is not None:
-                curves.append(d)
-        if show_sem and key in ca_sem:
-            s = ca_sem[key]
-            if np.any(s):
-                curves.extend([m + s, m - s])
-    return nice_ylim(*curves)
-
-
 def plot_sem_band(ax, t, model, sem, *, color=None, alpha=None, label=r'$\pm$SEM'):
     """Shaded ±SEM for continuous line traces."""
     if sem is None or not np.any(sem):
@@ -604,7 +539,6 @@ def plot_timecourse(
     show_sem=True,
     title=None,
     title_fs=7,
-    ylim=None,
     baseline=None,
     show_ylabel=False,
     ylabel='mV',
@@ -622,12 +556,9 @@ def plot_timecourse(
     Gray gt never draws ``[0, pre_end)``; red model draws that pre segment
     dashed only when ``show_pre`` is true.
     ``pulse_start`` / ``pulse_end``: white stimulus-on band ``[pulse_start, pulse_end)``.
+    Y-limits / ticks: matplotlib autoscale.
     """
     traces = list(traces or ())
-    if ylim is None:
-        ylo, yhi = ylim_for_traces(*traces, show_sem=show_sem)
-    else:
-        ylo, yhi = ylim
     mark_pulse(ax, pulse_start, pulse_end)
     split = max(0, int(pre_end or 0))
     for tr in traces:
@@ -684,7 +615,6 @@ def plot_timecourse(
                     )
     if title is not None:
         ax.set_title(title, fontsize=title_fs, pad=2)
-    ax.set_ylim(ylo, yhi)
     if style_xaxis is not None:
         style_xaxis(ax)
     if show_ylabel:

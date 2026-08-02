@@ -458,9 +458,8 @@ def write_best_artifacts(outdir, fname, session, all_params, best_i, final_costs
     return best
 
 
-def load_stored_costs(outdir, fname, n_runs):
+def load_stored_costs(outdir):
     """Load ``costs.npy``, ``best_costs.npy``, and per-part npz when present."""
-    _ = (fname, n_runs)  # fname unused; fixed names under data/
     final_costs = None
     cost_curve = None
     costs_by_part = None
@@ -528,7 +527,7 @@ def save_training_outputs(fname, outdir, session, result):
 def save_param_tables(fname, outdir, session):
     """Regenerate ``param.csv`` / syn or edge CSV and ``best_param.npz`` from saved ``fname``."""
     all_params = np.load(params_path(outdir, fname))
-    final_costs, _, _, _ = load_stored_costs(outdir, fname, np.atleast_2d(all_params).shape[0])
+    final_costs, _, _, _ = load_stored_costs(outdir)
     final_costs, best_i = final_costs_for_params(all_params, session, final_costs=final_costs)
     write_best_artifacts(outdir, fname, session, all_params, best_i, final_costs)
 
