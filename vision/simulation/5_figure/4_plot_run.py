@@ -25,9 +25,9 @@ from training.implement import resolve_run_dir
 TRAIN_OPTS_FILE = training.TRAIN_OPTS_FILE
 KNOWN_MODELS = training.KNOWN_MODELS
 DEFAULT_RUN_NAME = """
-28602804-run-nofsteps-200-tau-hp-init.L1,L2,L4,L5-200-ms-pre-1000-ms-pulse-100-ms-response-500-model-borst
+28603731-run-nofsteps-200-tau-hp-init.L1,L2,L4,L5-200-ms-pre-1000-ms-pulse-100-ms-response-500
 """.strip()
-DEFAULT_RUN_PATH = 'borst/' + DEFAULT_RUN_NAME
+DEFAULT_RUN_PATH = 'hp_lp/' + DEFAULT_RUN_NAME
 
 
 def _plot_device_label():
