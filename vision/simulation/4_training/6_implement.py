@@ -37,6 +37,7 @@ from path import (
 from param_defaults import (
     CHECKPOINT_INTERVAL,
     DELTA_MS,
+    EULER,
     FP,
     FULLY_INSIDE,
     IH_GMAX_INDI_NAMES,
@@ -597,6 +598,7 @@ def build_session(
     train_modes=None,
     syn_mode=SYN_MODE,
     ih_off=IH_OFF,
+    euler=EULER,
     fp=FP,
     pre_grad=PRE_GRAD,
     pack_overrides=None,
@@ -633,6 +635,7 @@ def build_session(
         network_json=network,
         dev=dev,
         ih_off=ih_off,
+        euler=euler,
         train_modes=train_modes,
         syn_mode=syn_mode,
         fp=fp,
@@ -646,6 +649,7 @@ def run_training(model, nofruns, nofsteps, lrs, fname=None, outdir=None,
                  train_modes=None,
                  syn_mode=SYN_MODE,
                  ih_off=IH_OFF,
+                 euler=EULER,
                  network=NETWORK, sequential=SEQUENTIAL,
                  tasks=None, cost_weights=None,
                  cost_extent_by_task=None, shift_extent=SHIFT_EXTENT,
@@ -690,6 +694,7 @@ def run_training(model, nofruns, nofsteps, lrs, fname=None, outdir=None,
         train_modes=train_modes,
         syn_mode=syn_mode,
         ih_off=ih_off,
+        euler=euler,
         pack_overrides=pack_overrides,
         model_backend=model_backend,
         schema=schema,
@@ -702,7 +707,7 @@ def run_training(model, nofruns, nofsteps, lrs, fname=None, outdir=None,
 
     print_train_modes(session)
     syn_mode = (session.train_opts or {}).get("syn_mode", SYN_MODE)
-    print(f"device={session.device}, model={model}, syn_mode={syn_mode}, "
+    print(f"device={session.device}, model={model}, syn_mode={syn_mode}, euler={session.euler}, "
           f"nofruns={nofruns}, nofsteps={nofsteps}, "
           f"lrs={lrs}, nparams={training.schema_nparams(list(session.schema))}, fname={fname}, outdir={outdir}")
     if checkpoint_interval is not None:
@@ -874,6 +879,13 @@ def add_training_arguments(parser):
                         choices=list(training.IH_OFF_MODES),
                         help="OFF-channel Ih: on (train Ih_gmax_off+OFF shape; default), "
                              "mirrored (OFF copies ON), off (disable OFF channel)")
+    parser.add_argument(
+        "--euler",
+        default=EULER,
+        choices=list(training.EULER_CLI),
+        help="membrane Euler: im=implicit (default), ex=explicit; "
+             "Ih gates always explicit",
+    )
     parser.add_argument(
         "--fp",
         type=int,
@@ -1411,6 +1423,7 @@ def training_kwargs_from_args(
         spot_dark_stimulus_opts=spot_dark_stimulus_opts,
         i_cli=i_cli,
         ih_off=args.ih_off,
+        euler=args.euler,
         fp=fp,
         pre_grad=bool(args.pre_grad),
         sequential=bool(args.sequential),

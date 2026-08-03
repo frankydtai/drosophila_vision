@@ -10,12 +10,15 @@ CLI driver. Numeric defaults live in ``param_defaults``.
 from __future__ import annotations
 
 from neuron.params import (
+    EULER_CLI,
+    EULER_MODES,
     IH_DIR_REVERSE_CELLS,
     IH_OFF_MODES,
     KNOWN_MODELS,
     LEAK_DEPOL_CELLS,
     e_ih_off,
-    membrane_cdt,
+    expand_euler,
+    membrane_dt_over_c,
     ms_to_t,
 )
 from neuron.schema import (
@@ -62,7 +65,7 @@ __all__ = [
     "MODEL_DRIVERS",
     "CA_PACK_READOUTS",
     "e_ih_off",
-    "membrane_cdt",
+    "membrane_dt_over_c",
     "ms_to_t",
     "default_schema",
     "build_borst_schema",
@@ -85,4 +88,7 @@ __all__ = [
     "LEAK_DEPOL_CELLS",
     "IH_OFF_MODES",
     "IH_DIR_REVERSE_CELLS",
+    "EULER_MODES",
+    "EULER_CLI",
+    "expand_euler",
 ]

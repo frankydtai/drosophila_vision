@@ -35,6 +35,7 @@ SYN_SCALE_EXC = 0.001
 SYN_SCALE_INH = 0.001
 
 IH_OFF = "on"
+EULER = "im"  # CLI token; expand to implicit|explicit via neuron.params.expand_euler
 
 GAIN_LO = 0.1
 GAIN_HI = 10.0
@@ -152,6 +153,15 @@ CHECKPOINT_INTERVAL = 1000
 
 FP = 64
 SEQUENTIAL = False
+
+# ---------------------------------------------------------------------------
+# 5 figure.plot_run / 6 analyze.cell_dynamics
+# ---------------------------------------------------------------------------
+
+DEFAULT_RUN_NAME = """
+28677936-run-nofsteps-500-lrs-0.1-tau-hp-init.L1,L2,L4,L5-200-ms-pre-1000-ms-pulse-100-ms-response-500
+""".strip()
+DEFAULT_RUN_PATH = "hp_lp/" + DEFAULT_RUN_NAME
 
 # ---------------------------------------------------------------------------
 # 6 analyze.cell_dynamics

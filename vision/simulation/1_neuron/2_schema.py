@@ -187,7 +187,7 @@ def build_hp_lp_schema(
     ih_gmax_indi_names,
     n_edges=None,
 ):
-    """HP-then-membrane-LP: τ_HP on slow average a, τ_lp on V, drive G(X−a)."""
+    """HP-then-membrane-LP: τ_HP on v_slow, τ_lp on V, drive G(v_tot−v_slow)."""
     if cell_names is None:
         raise TypeError("hp_lp schema requires cell_names from network")
     cell_names = list(cell_names)

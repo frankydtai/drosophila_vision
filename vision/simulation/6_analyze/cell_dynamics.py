@@ -2,10 +2,6 @@
 
 from __future__ import annotations
 
-DEFAULT_RUN_NAME = """
-28613815-run-nofsteps-10000-lrs-0.1,0.01,0.001-tau-hp-init.L1,L2,L4,L5-200-ms-pre-1000-ms-pulse-100-ms-response-500""".strip()
-DEFAULT_RUN_PATH = "hp_lp/" + DEFAULT_RUN_NAME
-
 import argparse
 import json
 import os
@@ -24,6 +20,7 @@ os.chdir(ROOT)
 
 import import_bootstrap  # noqa: F401
 import training
+from param_defaults import DEFAULT_RUN_PATH
 import figure.plot_run as plot_trained
 from figure.readout import contrast_for_task
 from figure.spot import pack_spot_cost_radii, resolve_spot_gt_cubes
@@ -79,6 +76,11 @@ the run's train opts. ``--ms-pre`` / ``--delta-ms`` also update moving_bar;
 response/pulse are spot-only. Re-opens the session and remaps best params when
 any is set. Set flags append
 ``_ms_pre_…_ms_pulse_…_ms_response_…_ms_post_…_delta_…`` (only those set; that order) to PNG stems.
+
+``--euler im|ex``: optional membrane Euler override (default: keep run
+``train_opts.euler``). Re-opens the session with timing overrides when set;
+PNG stem gets ``_im`` / ``_ex``. Component formula rows follow
+implicit vs explicit.
 
 Examples
 --------
@@ -240,7 +242,6 @@ _BORST_PLOT_PANELS: list[tuple[str, list[tuple[str, str]]]] = [
     (
         "conductance (nS)",
         [
-            ("cdt_nS", "cdt"),
             ("g_exc_nS", "g_exc"),
             ("g_inh_nS", "g_inh"),
             ("g_leak_nS", "g_leak"),
@@ -251,7 +252,7 @@ _BORST_PLOT_PANELS: list[tuple[str, list[tuple[str, str]]]] = [
     (
         "i (pA)",
         [
-            ("num_cdt", "i_cdt"),
+            ("num_v", "num_v"),
             ("num_exc", "i_exc"),
             ("num_inh", "i_inh"),
             ("num_leak", "i_leak"),
@@ -289,9 +290,9 @@ _HP_LP_PLOT_PANELS: list[tuple[str, list[tuple[str, str]]]] = [
     (
         "HP state",
         [
-            ("X", "X"),
-            ("a", "a"),
-            ("X_minus_a", "X-a"),
+            ("v_tot", "v_tot"),
+            ("v_slow", "v_slow"),
+            ("v_hp", "v_hp"),
         ],
     ),
     (
@@ -306,23 +307,22 @@ _HP_LP_PLOT_PANELS: list[tuple[str, list[tuple[str, str]]]] = [
 
 _BORST_COMPONENT_KEYS = (
     "v_pre_d", "v_abs", "i_sti", "g_exc", "g_inh", "g_Ih_on", "g_Ih_off",
-    "num_exc", "num_inh", "num_leak", "num_ihon", "num_ihoff", "num_cdt",
+    "num_exc", "num_inh", "num_leak", "num_ihon", "num_ihoff", "num_v",
     "num", "den",
 )
 _HP_LP_COMPONENT_KEYS = (
     "v_pre_d", "v_abs", "i_sti", "v_sti", "v_in", "v_in_exc", "v_in_inh",
-    "a", "X", "X_minus_a", "dv_leak", "dv_hp",
+    "v_slow", "v_tot", "v_hp", "dv_leak", "dv_hp",
 )
 
 _BORST_PLOT_KEY_COMPONENT: dict[str, str | None] = {
     "v_post": "v_abs",
-    "cdt_nS": None,
     "g_exc_nS": "g_exc",
     "g_inh_nS": "g_inh",
     "g_leak_nS": None,
     "g_Ih_on_nS": "g_Ih_on",
     "g_Ih_off_nS": "g_Ih_off",
-    "num_cdt": "num_cdt",
+    "num_v": "num_v",
     "num_exc": "num_exc",
     "num_inh": "num_inh",
     "num_leak": "num_leak",
@@ -339,69 +339,110 @@ _HP_LP_PLOT_KEY_COMPONENT: dict[str, str | None] = {
     "v_in_exc": "v_in_exc",
     "v_in_inh": "v_in_inh",
     "v_sti": "v_sti",
-    "a": "a",
-    "X": "X",
-    "X_minus_a": "X_minus_a",
+    "v_slow": "v_slow",
+    "v_tot": "v_tot",
+    "v_hp": "v_hp",
     "dv_leak": "dv_leak",
     "dv_hp": "dv_hp",
     "dv_leak_plus_hp": None,
 }
 
-_BORST_FORMULA_G_TOKENS: list[tuple[str, str | None]] = [
+_BORST_FORMULA_G_IMPLICIT: list[tuple[str, str | None]] = [
     ("v_post", "v_post"),
-    (" = (", None),
-    ("cdt", "cdt"), ("·v_pre + ", None),
+    (" = (v_pre + ", None),
+    ("dt_over_c", None), ("·(i_sti + ", None),
     ("E_exc·", None), ("g_exc", "g_exc"), (" + ", None),
     ("E_inh·", None), ("g_inh", "g_inh"), (" + ", None),
     ("E_leak·", None), ("g_leak", "g_leak"), (" + ", None),
     ("E_h_on·", None), ("g_h_on", "g_h_on"), (" + ", None),
-    ("E_h_off·", None), ("g_h_off", "g_h_off"), (" + ", None),
-    ("i_sti", "i_sti"),
-    (") / (", None),
-    ("cdt", "cdt"), (" + ", None),
+    ("E_h_off·", None), ("g_h_off", "g_h_off"),
+    (")) / (1 + ", None),
+    ("dt_over_c", None), ("·(", None),
     ("g_exc", "g_exc"), (" + ", None),
     ("g_inh", "g_inh"), (" + ", None),
     ("g_h_on", "g_h_on"), (" + ", None),
     ("g_h_off", "g_h_off"), (" + ", None),
     ("g_leak", "g_leak"),
-    (")", None),
+    ("))", None),
 ]
 
-_BORST_FORMULA_TOKENS: list[tuple[str, str | None]] = [
+_BORST_FORMULA_I_IMPLICIT: list[tuple[str, str | None]] = [
     ("v_post", "v_post"),
     (" = (", None),
-    ("i_cdt", "i_cdt"), (" + ", None),
+    ("num_v", "num_v"), (" + ", None),
+    ("dt_over_c", None), ("·(", None),
+    ("i_sti", "i_sti"), (" + ", None),
     ("i_exc", "i_exc"), (" + ", None),
     ("i_inh", "i_inh"), (" + ", None),
     ("i_leak", "i_leak"), (" + ", None),
     ("i_h_on", "i_h_on"), (" + ", None),
-    ("i_h_off", "i_h_off"), (" + ", None),
-    ("i_sti", "i_sti"),
-    (") / (", None),
-    ("cdt", "cdt"), (" + ", None),
+    ("i_h_off", "i_h_off"),
+    (")) / (", None),
+    ("den", "den"),
+    (")", None),
+]
+
+_BORST_FORMULA_G_EXPLICIT: list[tuple[str, str | None]] = [
+    ("v_post", "v_post"),
+    (" = v_pre + ", None),
+    ("dt_over_c", None), ("·(i_sti + ", None),
+    ("E_exc·", None), ("g_exc", "g_exc"), (" + ", None),
+    ("E_inh·", None), ("g_inh", "g_inh"), (" + ", None),
+    ("E_leak·", None), ("g_leak", "g_leak"), (" + ", None),
+    ("E_h_on·", None), ("g_h_on", "g_h_on"), (" + ", None),
+    ("E_h_off·", None), ("g_h_off", "g_h_off"),
+    (" − (", None),
     ("g_exc", "g_exc"), (" + ", None),
     ("g_inh", "g_inh"), (" + ", None),
     ("g_h_on", "g_h_on"), (" + ", None),
     ("g_h_off", "g_h_off"), (" + ", None),
     ("g_leak", "g_leak"),
+    (")·v_pre)", None),
+]
+
+_BORST_FORMULA_I_EXPLICIT: list[tuple[str, str | None]] = [
+    ("v_post", "v_post"),
+    (" = ", None),
+    ("num_v", "num_v"), (" + ", None),
+    ("dt_over_c", None), ("·(", None),
+    ("i_sti", "i_sti"), (" + ", None),
+    ("i_exc", "i_exc"), (" + ", None),
+    ("i_inh", "i_inh"), (" + ", None),
+    ("i_leak", "i_leak"), (" + ", None),
+    ("i_h_on", "i_h_on"), (" + ", None),
+    ("i_h_off", "i_h_off"),
     (")", None),
 ]
 
-_HP_LP_FORMULA_G_TOKENS: list[tuple[str, str | None]] = [
+_HP_LP_FORMULA_G_IMPLICIT: list[tuple[str, str | None]] = [
     ("v_post", "v_post"),
-    (" = v_pre + (dt/τ_lp)[-(v_pre−v_rest) + G·(v_rest + ", None),
+    (" = (v_pre + (dt/τ_lp)·(v_rest + G·(v_rest + ", None),
     ("v_in", "v_in"), (" + ", None),
     ("i_sti/g_in", "v_sti"), (" − ", None),
-    ("a", "a"), (")]", None),
+    ("v_slow", "v_slow"), ("))) / (1 + dt/τ_lp)", None),
 ]
 
-_HP_LP_FORMULA_TOKENS: list[tuple[str, str | None]] = [
+_HP_LP_FORMULA_I_IMPLICIT: list[tuple[str, str | None]] = [
     ("v_post", "v_post"), (" = v_pre + ", None),
     ("dv_leak", "dv_leak"), (" + ", None),
     ("dv_hp", "dv_hp"),
 ]
 
-_BLACK_TRACE_LABELS = frozenset({"num", "den", "X", "a", "X-a", "dv_hp"})
+_HP_LP_FORMULA_G_EXPLICIT: list[tuple[str, str | None]] = [
+    ("v_post", "v_post"),
+    (" = v_pre + (dt/τ_lp)[-(v_pre−v_rest) + G·(v_rest + ", None),
+    ("v_in", "v_in"), (" + ", None),
+    ("i_sti/g_in", "v_sti"), (" − ", None),
+    ("v_slow", "v_slow"), (")]", None),
+]
+
+_HP_LP_FORMULA_I_EXPLICIT: list[tuple[str, str | None]] = [
+    ("v_post", "v_post"), (" = v_pre + ", None),
+    ("dv_leak", "dv_leak"), (" + ", None),
+    ("dv_hp", "dv_hp"),
+]
+
+_BLACK_TRACE_LABELS = frozenset({"num", "den", "v_tot", "v_slow", "v_hp", "dv_hp"})
 # Label → reuse another label's plot color (same row cycle).
 _TRACE_COLOR_MATCH: dict[str, str] = {
     "dv_leak+dv_hp": "dv_leak",
@@ -438,25 +479,34 @@ class _ComponentSpec:
         return max(len(series) for _, series in self.plot_panels)
 
 
-def _component_spec(model: str) -> _ComponentSpec:
+def _component_spec(model: str, euler: str) -> _ComponentSpec:
+    euler = training.expand_euler(euler)
     if model == "borst":
+        if euler == "implicit":
+            formula_g, formula_i = _BORST_FORMULA_G_IMPLICIT, _BORST_FORMULA_I_IMPLICIT
+        else:
+            formula_g, formula_i = _BORST_FORMULA_G_EXPLICIT, _BORST_FORMULA_I_EXPLICIT
         return _ComponentSpec(
             model="borst",
             keys=_BORST_COMPONENT_KEYS,
             plot_panels=_BORST_PLOT_PANELS,
             plot_key_component=_BORST_PLOT_KEY_COMPONENT,
-            formula_g=_BORST_FORMULA_G_TOKENS,
-            formula_i=_BORST_FORMULA_TOKENS,
+            formula_g=formula_g,
+            formula_i=formula_i,
             row_shared_ylim=_BORST_ROW_SHARED_YLIM,
         )
     if model == "hp_lp":
+        if euler == "implicit":
+            formula_g, formula_i = _HP_LP_FORMULA_G_IMPLICIT, _HP_LP_FORMULA_I_IMPLICIT
+        else:
+            formula_g, formula_i = _HP_LP_FORMULA_G_EXPLICIT, _HP_LP_FORMULA_I_EXPLICIT
         return _ComponentSpec(
             model="hp_lp",
             keys=_HP_LP_COMPONENT_KEYS,
             plot_panels=_HP_LP_PLOT_PANELS,
             plot_key_component=_HP_LP_PLOT_KEY_COMPONENT,
-            formula_g=_HP_LP_FORMULA_G_TOKENS,
-            formula_i=_HP_LP_FORMULA_TOKENS,
+            formula_g=formula_g,
+            formula_i=formula_i,
             row_shared_ylim=_HP_LP_ROW_SHARED_YLIM,
         )
     raise SystemExit(f"cell_dynamics supports borst|hp_lp; got {model!r}")
@@ -571,7 +621,7 @@ def _prepare_drive(session, p, i_sti: torch.Tensor) -> torch.Tensor:
 
 def _equilibrate(session, p, i_sti_batch: torch.Tensor, t_onset: int):
     """Equilibrate to ``t_onset``; returns ``(v, state)`` where state is model-specific."""
-    _component_spec(session.model)  # validate early
+    _component_spec(session.model, session.euler)  # validate early
     B, T, _N = i_sti_batch.shape
     drv = _model_driver(session)
     state, v = drv.init_state(session, p, B, i_sti=i_sti_batch)
@@ -600,6 +650,7 @@ def _component_at_nodes_borst(
     E_inh: float,
     E_Ih: float,
     E_LEAK_REST: float,
+    euler: str,
 ) -> tuple[dict[str, np.ndarray], np.ndarray]:
     """Slice node component from a completed ``update_v(..., return_component=True)`` step."""
     nodes = np.asarray(nodes, dtype=np.int64)
@@ -626,6 +677,7 @@ def _component_at_nodes_borst(
             v_pre_np, packed[1], packed[2], packed[3], packed[4], packed[5], packed[6],
             delta_ms=delta_ms, capac=capac, g_leak=g_leak,
             E_exc=E_exc, E_inh=E_inh, E_Ih=E_Ih, E_LEAK_REST=E_LEAK_REST,
+            euler=euler,
         )
         v_abs = packed[7]
         component = {
@@ -636,10 +688,7 @@ def _component_at_nodes_borst(
             "g_Ih_on": packed[3],
             "g_Ih_off": packed[4],
             **terms,
-            "num": (
-                terms["num_exc"] + terms["num_inh"] + terms["num_leak"]
-                + terms["num_ihon"] + terms["num_ihoff"] + terms["num_cdt"] + terms["i_sti"]
-            ),
+            "num": terms["num"],
         }
         v_post_minus_pre_u = v_abs - v_pre_np
     return component, v_post_minus_pre_u
@@ -667,7 +716,7 @@ def _component_at_nodes_hp_lp(
             "v_abs": v_abs,
         }
         for k in (
-            "i_sti", "v_sti", "v_in", "v_in_exc", "v_in_inh", "a", "X", "X_minus_a",
+            "i_sti", "v_sti", "v_in", "v_in_exc", "v_in_inh", "v_slow", "v_tot", "v_hp",
             "dv_leak", "dv_hp",
         ):
             t = component_t[k]
@@ -724,7 +773,7 @@ def _step_from_acc(
     n: int,
     spec: _ComponentSpec,
     g_leak: float = 0.0,
-    cdt: float = 0.0,
+    dt_over_c: float = 0.0,
 ) -> dict[str, Any]:
     """One step dict from per-key sums over ``n`` nodes."""
     if n <= 0:
@@ -747,7 +796,7 @@ def _step_from_acc(
             "g_exc_nS": acc["g_exc"] / n,
             "g_inh_nS": acc["g_inh"] / n,
             "g_leak_nS": float(g_leak),
-            "cdt_nS": float(cdt),
+            "dt_over_c": float(dt_over_c),
             "g_Ih_on_nS": acc["g_Ih_on"] / n,
             "g_Ih_off_nS": acc["g_Ih_off"] / n,
             "num_exc": acc["num_exc"] / n,
@@ -755,7 +804,7 @@ def _step_from_acc(
             "num_leak": acc["num_leak"] / n,
             "num_ihon": acc["num_ihon"] / n,
             "num_ihoff": acc["num_ihoff"] / n,
-            "num_cdt": acc["num_cdt"] / n,
+            "num_v": acc["num_v"] / n,
             "num": num,
             "den": den,
             "num_over_den": acc["v_abs"] / n,
@@ -766,9 +815,9 @@ def _step_from_acc(
         "v_in_exc": acc["v_in_exc"] / n,
         "v_in_inh": -acc["v_in_inh"] / n,
         "v_sti": acc["v_sti"] / n,
-        "a": acc["a"] / n,
-        "X": acc["X"] / n,
-        "X_minus_a": acc["X_minus_a"] / n,
+        "v_slow": acc["v_slow"] / n,
+        "v_tot": acc["v_tot"] / n,
+        "v_hp": acc["v_hp"] / n,
         "dv_leak": acc["dv_leak"] / n,
         "dv_hp": acc["dv_hp"] / n,
         "dv_leak_plus_hp": (acc["dv_leak"] + acc["dv_hp"]) / n,
@@ -827,7 +876,7 @@ def _forward_component(
     if B != len(batches):
         raise SystemExit(f"i_sti B={B} != len(batches)={len(batches)}")
 
-    spec = _component_spec(session.model)
+    spec = _component_spec(session.model, session.euler)
     drive = _prepare_drive(session, p, i_sti)
     t_onset = training.pack_t_onset(session.primary_readout)
 
@@ -900,7 +949,7 @@ def _forward_component(
                     backend, active, v_onset, batch=b,
                     delta_ms=session.delta_ms, capac=session.capac, g_leak=session.g_leak,
                     E_exc=session.E_exc, E_inh=session.E_inh, E_Ih=session.E_Ih,
-                    E_LEAK_REST=session.E_LEAK_REST,
+                    E_LEAK_REST=session.E_LEAK_REST, euler=session.euler,
                 )
             else:
                 component, v_post_minus_pre_u = _component_at_nodes_hp_lp(
@@ -1023,7 +1072,7 @@ def _finalize_component_report(
             v_post_minus_pre_sum=float(v_post_minus_pre_sums[t]), n=n_nodes,
             spec=component_spec,
             g_leak=float(session.g_leak),
-            cdt=float(training.membrane_cdt(session.capac, session.delta_ms)),
+            dt_over_c=float(training.membrane_dt_over_c(session.capac, session.delta_ms)),
         )
         steps.append(step)
         if t == peak_t:
@@ -1153,6 +1202,7 @@ def _globals(session):
             "delta_ms": float(session.delta_ms),
             "state_clamp": float(session.STATE_CLAMP),
             "g_in_nS": float(session.g_in),
+            "euler": str(session.euler),
             "t_onset": t_onset,
         }
     return {
@@ -1161,8 +1211,9 @@ def _globals(session):
         "E_Ih": float(session.E_Ih),
         "E_IH_OFF": float(training.e_ih_off(session.E_LEAK_REST, session.E_Ih)),
         "g_leak_nS": float(session.g_leak),
-        "cdt": float(training.membrane_cdt(session.capac, session.delta_ms)),
+        "dt_over_c": float(training.membrane_dt_over_c(session.capac, session.delta_ms)),
         "delta_ms": float(session.delta_ms),
+        "euler": str(session.euler),
         "t_onset": t_onset,
     }
 
@@ -2151,7 +2202,13 @@ def _plot_component_reports(
     kinds = {str(r.get("time_window_kind", "t_rel")) for r in reports}
     if len(kinds) != 1:
         raise SystemExit(f"overlay requires one time_window_kind; got {sorted(kinds)}")
-    spec = _component_spec(models.pop())
+    eulers = {
+        training.expand_euler((r.get("globals") or {}).get("euler", "implicit"))
+        for r in reports
+    }
+    if len(eulers) != 1:
+        raise SystemExit(f"overlay requires one euler; got {sorted(eulers)}")
+    spec = _component_spec(models.pop(), eulers.pop())
 
     fig, axes, save_figure = _component_figure(title, spec)
     colors = _plot_colors()
@@ -2326,7 +2383,7 @@ def _print_report(report: dict[str, Any], *, print_steps: bool = True) -> None:
             print(f"\nHP/LP terms at peak {x_key}={ps[x_key]}:")
             for name, val in [
                 ("v_in", ps["v_in"]), ("v_in_exc", ps["v_in_exc"]), ("-v_in_inh", ps["v_in_inh"]),
-                ("a", ps["a"]), ("X", ps["X"]), ("X-a", ps["X_minus_a"]),
+                ("v_slow", ps["v_slow"]), ("v_tot", ps["v_tot"]), ("v_hp", ps["v_hp"]),
                 ("dv_leak", ps["dv_leak"]), ("dv_hp", ps["dv_hp"]),
             ]:
                 print(f"  {name:8s} {val:+9.4f}")
@@ -2350,18 +2407,20 @@ def _print_report(report: dict[str, Any], *, print_steps: bool = True) -> None:
 
     ps = report.get("peak_step")
     if ps is not None:
-        num = (
-            ps["num_exc"] + ps["num_inh"] + ps["num_leak"]
-            + ps["num_ihon"] + ps["num_ihoff"] + ps["num_cdt"] + ps["i_sti"]
-        )
+        num = float(ps["num"])
+        dt_over_c = float(ps.get("dt_over_c", 0.0))
         print(f"\nNumerator at peak {x_key}={ps[x_key]} (num={num:.2f}):")
         for name, val in [
-            ("i_cdt", ps["num_cdt"]), ("i_exc", ps["num_exc"]), ("i_inh", ps["num_inh"]),
-            ("i_leak", ps["num_leak"]), ("i_h_on", ps["num_ihon"]), ("i_h_off", ps["num_ihoff"]),
-            ("i_sti", ps["i_sti"]),
+            ("num_v", ps["num_v"]),
+            ("dt_over_c*i_sti", dt_over_c * ps["i_sti"]),
+            ("dt_over_c*i_exc", dt_over_c * ps["num_exc"]),
+            ("dt_over_c*i_inh", dt_over_c * ps["num_inh"]),
+            ("dt_over_c*i_leak", dt_over_c * ps["num_leak"]),
+            ("dt_over_c*i_h_on", dt_over_c * ps["num_ihon"]),
+            ("dt_over_c*i_h_off", dt_over_c * ps["num_ihoff"]),
         ]:
             pct = 100.0 * val / num if num else 0.0
-            print(f"  {name:8s} {val:+9.2f} ({pct:.0f}%)")
+            print(f"  {name:20s} {val:+9.2f} ({pct:.0f}%)")
     if "cost" in report and "best_cost" in report:
         print(f"best_cost={report['best_cost']:.4f}  cost={report['cost']:.4f}")
 
@@ -2433,6 +2492,7 @@ def main() -> None:
     )
     add_shared_cli(ap, default_run=DEFAULT_RUN_PATH)
     plot_trained.add_plot_timing_arguments(ap)
+    plot_trained.add_plot_euler_argument(ap)
     ap.add_argument("--node", type=int, default=None, help="hex-mode node index")
     ap.add_argument(
         "--radius",
@@ -2531,6 +2591,7 @@ def main() -> None:
             ms_post=args.ms_post,
             delta_ms=args.delta_ms,
         )
+        + plot_trained.euler_filename_suffix(args.euler)
         + _param_filename_suffix(param_edits)
     )
 
@@ -2547,6 +2608,7 @@ def main() -> None:
             ms_post=args.ms_post,
             ms_pulse=args.ms_pulse,
             delta_ms=args.delta_ms,
+            euler=args.euler,
         )
         if use_ms:
             lo, hi = (

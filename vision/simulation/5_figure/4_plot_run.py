@@ -19,15 +19,12 @@ from figure.util import (
     plot_cost,
     network_hex_count,
 )
+from param_defaults import DEFAULT_RUN_PATH
 from training.config import PARAMETER_DIR, run_data_dir
 from training.implement import resolve_run_dir
 
 TRAIN_OPTS_FILE = training.TRAIN_OPTS_FILE
 KNOWN_MODELS = training.KNOWN_MODELS
-DEFAULT_RUN_NAME = """
-28613422-run-nofsteps-500-tau-hp-init.L1,L2,L4,L5-200-ms-pre-1000-ms-pulse-100-ms-response-500
-""".strip()
-DEFAULT_RUN_PATH = 'hp_lp/' + DEFAULT_RUN_NAME
 
 
 def _plot_device_label():
@@ -206,12 +203,14 @@ def maybe_override_stimulus_timing(
     ms_post=None,
     ms_pulse=None,
     delta_ms=None,
+    euler=None,
 ):
-    """Re-open session when any timing override is set; remap best ``z``.
+    """Re-open session when any timing / euler override is set; remap best ``z``.
 
     Unset flags keep values from the run's train opts. ``ms_pre`` / ``delta_ms``
     also update moving_bar stimulus opts; ``ms_response`` / ``ms_post`` /
-    ``ms_pulse`` are spot-only.
+    ``ms_pulse`` are spot-only. ``euler`` is CLI ``im``/``ex`` (or already
+    expanded ``implicit``/``explicit``).
     """
     if (
         ms_pre is None
@@ -219,6 +218,7 @@ def maybe_override_stimulus_timing(
         and ms_post is None
         and ms_pulse is None
         and delta_ms is None
+        and euler is None
     ):
         return session, z
 
@@ -264,6 +264,9 @@ def maybe_override_stimulus_timing(
                 so["delta_ms"] = float(delta_ms)
             so.pop("t_onset", None)
             so.pop("n_t", None)
+
+    if euler is not None:
+        opts["euler"] = training.expand_euler(euler)
 
     session = training.open_session_from_opts(opts, model=opts.get("model"))
     named, cell_names, pair_names = train_mod.load_best_param_named(run_dir)
@@ -321,6 +324,20 @@ def stimulus_timing_filename_suffix(
     if not parts:
         return ""
     return "_" + "_".join(parts)
+
+
+def euler_filename_suffix(euler=None):
+    """PNG stem suffix for a non-``None`` ``--euler`` override (``_im`` / ``_ex``)."""
+    if euler is None:
+        return ""
+    token = str(euler)
+    # Prefer CLI short form in filenames.
+    if token in ("implicit", "explicit"):
+        token = "im" if token == "implicit" else "ex"
+    elif token not in ("im", "ex"):
+        token = training.expand_euler(token)
+        token = "im" if token == "implicit" else "ex"
+    return f"_{token}"
 
 
 def _cost_parts_for_plot(session, z):
@@ -665,6 +682,17 @@ def add_plot_timing_arguments(parser):
     )
 
 
+def add_plot_euler_argument(parser):
+    """``--euler im|ex`` for plot / analyze (default: keep run train opts)."""
+    parser.add_argument(
+        "--euler",
+        default=None,
+        choices=list(training.EULER_CLI),
+        help="membrane Euler override: im=implicit, ex=explicit "
+             "(default: keep run train_opts.euler); Ih gates always explicit",
+    )
+
+
 def plot_kwargs_from_args(args):
     """Map a parsed CLI namespace to :func:`plot_param_set` plot kwargs."""
     align_xy = parse_align_xy(args.align_xy)
@@ -696,18 +724,23 @@ def main():
     )
     add_plot_arguments(ap)
     add_plot_timing_arguments(ap)
+    add_plot_euler_argument(ap)
     args = ap.parse_args()
     try:
         plot_kw = plot_kwargs_from_args(args)
     except ValueError as exc:
         raise SystemExit(str(exc)) from exc
     timing_kw = train_mod.stimulus_timing_kwargs_from_args(args)
-    file_suffix = stimulus_timing_filename_suffix(**timing_kw)
+    file_suffix = (
+        stimulus_timing_filename_suffix(**timing_kw)
+        + euler_filename_suffix(getattr(args, "euler", None))
+    )
 
     outdir = resolve_run_dir(args.run_path)
     session, z, _stored_best_i, best_cost = load_best(outdir, verbose=True)
     session, z = maybe_override_stimulus_timing(
         run_dir=outdir, session=session, z=z, **timing_kw,
+        euler=getattr(args, "euler", None),
     )
     model = resolve_model(outdir)
     z_np = z.detach().cpu().numpy() if torch.is_tensor(z) else np.asarray(z)

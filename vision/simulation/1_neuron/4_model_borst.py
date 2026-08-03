@@ -4,12 +4,21 @@
 Dynamics only: ``prepare_i_sti`` / ``init_state`` / ``step``. Full-T Ca
 forward lives in ``neuron.forward``. Membrane scalars are injected kwargs
 (from ``session`` flat fields), never a Physics bag.
+
+Membrane Euler (``session.euler`` = ``implicit`` | ``explicit``):
+
+    C dv/dt = i_sti + Σ g_i (E_i − v)
+
+    implicit:  v ← (v + α (i_sti + Σ gE)) / (1 + α Σ g),  α = Δt/C
+    explicit:  v ← v + α (i_sti + Σ gE − Σ g · v)
+
+Ih gate kinetics are always explicit Euler, independent of ``euler``.
 """
 from __future__ import annotations
 
 import torch
 
-from neuron.params import e_ih_off, membrane_cdt
+from neuron.params import e_ih_off, expand_euler, membrane_dt_over_c
 from neuron.schema import borst_ih_off_kwargs, syn_strength
 
 
@@ -25,7 +34,10 @@ def _ih_gate_step(
     delta_ms: float,
     Ih_gain: float,
 ):
-    """Advance Ih gate states and channel conductances for active columns only."""
+    """Advance Ih gate states and channel conductances for active columns only.
+
+    Gate ODE uses explicit Euler regardless of membrane ``euler``.
+    """
     slope_on = Ih_slope
     slope_off = -Ih_slope_off
     Ih_ss_on = 1.0 / (1.0 + torch.exp((Ih_midv - v) * slope_on))
@@ -60,9 +72,11 @@ def update_v(
     E_Ih: float,
     E_LEAK_REST: float,
     Ih_gain: float,
+    euler: str,
     return_component: bool = False,
 ):
     """One borst step; membrane / reversal scalars are required kwargs."""
+    euler = expand_euler(euler)
     e_leak = backend.e_leak
     conn = backend.conn
     ih_active = (Ih_gmax + Ih_gmax_off) != 0
@@ -97,13 +111,17 @@ def update_v(
     g_exc = g_exc * in_gain
     g_inh = g_inh * in_gain
 
-    cdt = membrane_cdt(capac, delta_ms)
+    dt_over_c = membrane_dt_over_c(capac, delta_ms)
     E_IH_OFF = e_ih_off(E_LEAK_REST, E_Ih)
-    v = (
+    sum_gE = (
         g_exc * E_exc + g_inh * E_inh + g_leak * e_leak
-        + E_Ih * g_Ih_on + E_IH_OFF * g_Ih_off + cdt * v + i_sti
+        + E_Ih * g_Ih_on + E_IH_OFF * g_Ih_off
     )
-    v = v / (g_exc + g_inh + g_Ih + g_leak + cdt)
+    sum_g = g_exc + g_inh + g_Ih + g_leak
+    if euler == "implicit":
+        v = (v + dt_over_c * (i_sti + sum_gE)) / (1.0 + dt_over_c * sum_g)
+    else:
+        v = v + dt_over_c * (i_sti + sum_gE - sum_g * v)
 
     if return_component:
         return v, u_on, u_off, g_exc, g_inh, g_Ih_on, g_Ih_off
@@ -119,19 +137,40 @@ def v_component_from_g(
     E_inh: float,
     E_Ih: float,
     E_LEAK_REST: float,
+    euler: str,
 ):
     """Numerator / denom terms matching ``update_v`` (torch or numpy)."""
-    cdt = membrane_cdt(capac, delta_ms)
+    euler = expand_euler(euler)
+    dt_over_c = membrane_dt_over_c(capac, delta_ms)
     E_IH_OFF = e_ih_off(E_LEAK_REST, E_Ih)
+    num_exc = g_exc * E_exc
+    num_inh = g_inh * E_inh
+    num_leak = g_leak * e_leak
+    num_ihon = g_Ih_on * E_Ih
+    num_ihoff = g_Ih_off * E_IH_OFF
+    sum_gE = num_exc + num_inh + num_leak + num_ihon + num_ihoff
+    sum_g = g_exc + g_inh + g_Ih_on + g_Ih_off + g_leak
+    if euler == "implicit":
+        num = v_pre + dt_over_c * (i_sti + sum_gE)
+        den = 1.0 + dt_over_c * sum_g
+        num_v = v_pre
+    else:
+        num = v_pre + dt_over_c * (i_sti + sum_gE - sum_g * v_pre)
+        den = 1.0
+        num_v = v_pre * (1.0 - dt_over_c * sum_g)
     return {
-        "num_exc": g_exc * E_exc,
-        "num_inh": g_inh * E_inh,
-        "num_leak": g_leak * e_leak,
-        "num_ihon": g_Ih_on * E_Ih,
-        "num_ihoff": g_Ih_off * E_IH_OFF,
-        "num_cdt": cdt * v_pre,
+        "num_exc": num_exc,
+        "num_inh": num_inh,
+        "num_leak": num_leak,
+        "num_ihon": num_ihon,
+        "num_ihoff": num_ihoff,
+        "num_v": num_v,
         "i_sti": i_sti,
-        "den": g_exc + g_inh + g_Ih_on + g_Ih_off + g_leak + cdt,
+        "sum_gE": sum_gE,
+        "sum_g": sum_g,
+        "dt_over_c": dt_over_c,
+        "num": num,
+        "den": den,
     }
 
 
@@ -163,6 +202,7 @@ def _membrane_kwargs(session):
         E_Ih=session.E_Ih,
         E_LEAK_REST=session.E_LEAK_REST,
         Ih_gain=session.Ih_gain,
+        euler=session.euler,
     )
 
 

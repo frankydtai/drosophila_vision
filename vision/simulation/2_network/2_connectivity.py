@@ -86,7 +86,7 @@ class ScatterConn:
         neg = edge_weight < 0
         self.w_exc = torch.where(pos, edge_weight, torch.zeros_like(edge_weight)) * syn_scale_exc
         self.w_inh = torch.where(neg, -edge_weight, torch.zeros_like(edge_weight)) * syn_scale_inh
-        self.w_signed = edge_weight * syn_scale_exc
+        self.w_signed = self.w_exc - self.w_inh
 
         n_cells = int(self.node_cell.max().item()) + 1 if self.n_nodes else 0
         src_t = self.node_cell[self.src_idx].detach().cpu().numpy()

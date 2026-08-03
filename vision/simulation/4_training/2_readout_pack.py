@@ -26,7 +26,7 @@ import numpy as np
 import torch
 
 from neuron import IH_DIR_REVERSE_CELLS
-from neuron.params import e_ih_off, membrane_cdt
+from neuron.params import e_ih_off, membrane_dt_over_c
 
 from training.config import SPOT_TASKS
 from param_defaults import FP
@@ -146,6 +146,7 @@ class TrainSession:
     STATE_CLAMP: float
     syn_scale_exc: float
     syn_scale_inh: float
+    euler: str
     sim_dtype: torch.dtype = SIM_DTYPE
     train_opts: Optional[dict] = None
     cost_subpacks: Dict[str, ReadoutPack] = field(default_factory=dict)
@@ -155,8 +156,8 @@ class TrainSession:
         return replace(self, schema=tuple(schema))
 
     @property
-    def cdt(self) -> float:
-        return membrane_cdt(self.capac, self.delta_ms)
+    def dt_over_c(self) -> float:
+        return membrane_dt_over_c(self.capac, self.delta_ms)
 
     @property
     def E_IH_OFF(self) -> float:

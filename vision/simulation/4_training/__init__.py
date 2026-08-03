@@ -11,13 +11,16 @@ from __future__ import annotations
 
 from neuron import (
     ALL_PARAM_NAMES,
+    EULER_CLI,
+    EULER_MODES,
     IH_OFF_MODES,
     IH_SHAPE_PARAM_NAMES,
     KNOWN_MODELS,
     SYN_MODES,
     default_schema,
     e_ih_off,
-    membrane_cdt,
+    expand_euler,
+    membrane_dt_over_c,
     ms_to_t,
     normalize_syn_mode,
     forward_full,

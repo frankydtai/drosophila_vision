@@ -28,6 +28,7 @@ from neuron.params import ms_to_t
 from training.config import run_data_dir
 from neuron import (
     default_schema,
+    expand_euler,
     normalize_syn_mode,
 )
 from param_defaults import (
@@ -40,6 +41,7 @@ from param_defaults import (
     E_INH,
     E_LEAK_DEPOL,
     E_LEAK_REST,
+    EULER,
     SYN_SCALE_EXC,
     FP,
     FULLY_INSIDE,
@@ -853,6 +855,7 @@ def make_train_opts(
     dev=None,
     packs=None,
     ih_off=IH_OFF,
+    euler=EULER,
     fp=FP,
     pre_grad=PRE_GRAD,
 ):
@@ -909,6 +912,7 @@ def make_train_opts(
     if train_modes is not None:
         opts["train_modes"] = train_modes
     opts["ih_off"] = str(ih_off)
+    opts["euler"] = expand_euler(euler)
     opts["syn_mode"] = normalize_syn_mode(syn_mode)
     opts["pre_grad"] = bool(pre_grad)
     opts["fp"] = fp
@@ -975,6 +979,9 @@ def _train_opts_for_sidecar(
         record["train_modes"] = opts["train_modes"]
     if "ih_off" in opts:
         record["ih_off"] = str(opts["ih_off"])
+    if "euler" not in opts:
+        raise ValueError("train opts require euler (implicit|explicit)")
+    record["euler"] = expand_euler(opts["euler"])
     record["syn_mode"] = normalize_syn_mode(opts.get("syn_mode", SYN_MODE))
     record["pre_grad"] = bool(opts.get("pre_grad", True))
     record["fp"] = int(opts.get("fp", FP))
@@ -1027,6 +1034,9 @@ def _make_session(
     ih_off = IH_OFF
     if train_opts_record is not None and "ih_off" in train_opts_record:
         ih_off = str(train_opts_record["ih_off"])
+    if train_opts_record is None or "euler" not in train_opts_record:
+        raise ValueError("train opts require euler (implicit|explicit)")
+    euler = expand_euler(train_opts_record["euler"])
     if schema is not None:
         sch = list(schema)
     else:
@@ -1062,6 +1072,7 @@ def _make_session(
         STATE_CLAMP=STATE_CLAMP,
         syn_scale_exc=SYN_SCALE_EXC,
         syn_scale_inh=SYN_SCALE_INH,
+        euler=euler,
         sim_dtype=sim_dtype,
         train_opts=train_opts_record,
     )
