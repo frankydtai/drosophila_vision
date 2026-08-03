@@ -1,7 +1,7 @@
 #!/bin/bash
 #SBATCH --job-name=run
 #SBATCH --account=punim0477
-#SBATCH --partition=gpu-h100
+#SBATCH --partition=gpu-a100
 #SBATCH --qos=publicgpu
 #SBATCH --gres=gpu:1
 #SBATCH --nodes=1
@@ -27,4 +27,4 @@ nvidia-smi -L || true
 "${PYTHON}" -c "import torch; print('cuda:', torch.cuda.is_available(), torch.cuda.get_device_name(0) if torch.cuda.is_available() else '')"
 echo "Start:  $(date)"
 # Sorted N_name layout: import_bootstrap via venv .pth; train via run.py (not -m training.driver).
-"${PYTHON}" -u run.py --nofsteps 500 --lrs 0.1 --tau-hp init.L1,L2,L4,L5=200 all=1000 --ms-pre 1000 --ms-pulse 100 --ms-response 500 --gt spot=L3
+"${PYTHON}" -u run.py --nofsteps 500 --lrs 0.1 --tau-hp init.L1,L2,L4,L5=200 all=1000 --ms-pre 1000 --ms-pulse 100 --ms-response 500 

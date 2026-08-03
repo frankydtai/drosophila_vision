@@ -33,21 +33,24 @@ from neuron.schema import normalize_syn_mode
 # Photoreceptor drive currents (pA) are injected by the caller
 # (``param_defaults.I_*``); this module has no numeric bindings.
 
-# Canonical cell order (photoreceptor → lamina → medulla families).
+# Canonical cell order for plot / param broadcast (family rows).
+# Leftovers (not listed) are appended alphabetically, five per row.
 CELL_FAMILY_ROWS: List[List[str]] = [
     ['R1-6', 'R7', 'R8'],
     ['L1', 'L2', 'L3', 'L4', 'L5'],
-    ['Mi1', 'Mi4', 'Mi9'],
-    ['T1', 'T2', 'T2a', 'T3'],
+    ['Mi1', 'Tm3', 'Mi4', 'Mi9'],
     ['T4a', 'T4b', 'T4c', 'T4d'],
+    ['Tm1', 'Tm2', 'Tm4', 'Tm9'],
     ['T5a', 'T5b', 'T5c', 'T5d'],
-    ['Tm1', 'Tm2', 'Tm20', 'Tm21', 'Tm3', 'Tm4', 'Tm9'],
-    ['C2', 'C3'],
+    ['T1', 'T2', 'T2a', 'T3'],
+    ['C2', 'C3', 'Lawf1', 'Lawf2'],
 ]
+
+_LEFTOVER_ROW_LEN = 5
 
 
 def cell_family_rows(present: Sequence[str]) -> List[List[str]]:
-    """Present cells arranged into family rows; skip empty rows; append leftovers."""
+    """Present cells into family rows; leftovers alphabetical, ``_LEFTOVER_ROW_LEN`` per row."""
     present_names = [str(t) for t in present]
     present_set = set(present_names)
     rows: List[List[str]] = []
@@ -57,9 +60,9 @@ def cell_family_rows(present: Sequence[str]) -> List[List[str]]:
         if filtered:
             rows.append(filtered)
             used.update(filtered)
-    for name in present_names:
-        if name not in used:
-            rows.append([name])
+    leftover = sorted(name for name in present_names if name not in used)
+    for i in range(0, len(leftover), _LEFTOVER_ROW_LEN):
+        rows.append(leftover[i : i + _LEFTOVER_ROW_LEN])
     return rows
 
 

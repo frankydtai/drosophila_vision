@@ -14,7 +14,7 @@
   "min_neuron_count": 1,
   "min_syn_count": 5,
   "n_neurons": 47291,
+  "n_cells": 682,
   "n_columns": 796,
-  "n_connections": 1049023,
-  "n_cells": 682
+  "n_connections": 1049023
 }

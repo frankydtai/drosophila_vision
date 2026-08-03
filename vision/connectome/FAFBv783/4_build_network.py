@@ -7,14 +7,14 @@ This single, self-contained module merges the data layer and the network build:
      writing <side>_min_neuron<N>/{neurons,columns,connections}.csv.gz etc.
   2. Assemble nodes + edges into <side>_min_neuron<N>/network.json, using the
      column map (column_map_<side>.csv from 2_build_hex.py) and located placements
-     from ``ASSIGNED_COLUMN_CELLS`` (3_assigned_columns/<tag>_<side>_<direction>.csv
-     from 3_assign_column.py; missing CSVs are built by running that script).
-     Column position is OPTIONAL: neurons without a column become nodes with
-     null u/v.
+     from ``ASSIGNED_COLUMN_CELLS`` in assign_column
+     (3_assigned_columns/<tag>_<side>_<direction>.csv; missing CSVs are built by
+     running 3_assign_column.py). Column position is OPTIONAL: neurons without a
+     column become nodes with null u/v.
 
 Spatial cropping to a central hex disc is ``5_add_extent.py``, not this script.
 
-It does not import the other project scripts. Run with the project venv:
+Run with the project venv:
 
     .venv/bin/python "connectome/FAFBv783/4_build_network.py" --side right --min-neuron-count 1
 """
@@ -34,6 +34,7 @@ from typing import Dict, List, Optional, Sequence, Set, Tuple
 import pandas as pd
 
 import path
+from assign_column import ASSIGNED_COLUMN_CELLS
 from path import BUILT_NETWORKS_DIR
 
 logger = logging.getLogger(__name__)
@@ -48,14 +49,7 @@ DEFAULT_MIN_NEURON_COUNT = 1
 DEFAULT_MIN_SYN_COUNT = 5
 # Optic-lobe neuropil stems; the side suffix (_L / _R) is appended at load time.
 VISUAL_NEUROPIL_STEMS = ("ME", "LO", "LOP", "LA")
-# Located cells merged into node positions from 3_assigned_columns/.
-# Each entry is (cell, direction); CSV is <tag>_<side>_<direction>.csv.
-# Missing CSVs are built by running 3_assign_column.py automatically.
-ASSIGNED_COLUMN_CELLS: List[Tuple[str, str]] = [
-    ("R1-6", "post"),
-    ("Lawf1", "pre"),
-    ("Lawf2", "pre"),
-]
+# ASSIGNED_COLUMN_CELLS: sole list lives in assign_column (3_assign_column.py).
 _ASSIGN_COLUMN_SCRIPT = Path(__file__).resolve().parent / "3_assign_column.py"
 
 # Neurotransmitter -> synapse sign. Glutamate is inhibitory (Drosophila GluClalpha).

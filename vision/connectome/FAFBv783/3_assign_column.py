@@ -13,13 +13,19 @@ Direction matters and depends on the neuron's role:
   - ``pre``   : locate by *upstream* sources' columns. Use for output/projection
                 neurons that read out of the lattice (e.g. LC/VS <- its pre columns).
 
+``ASSIGNED_COLUMN_CELLS`` is the sole list of (cell, direction) pairs merged into
+``network.json`` by ``4_build_network.py`` (and thus eligible for extent crops).
+It includes R1-6, Lawf1/Lawf2, and SimulationCode-mapped FAFB types that lack
+native column_assignment.
+
 Cell types are one positional comma-separated token (like analyze_cell_syn.py); direction
 is a ``--post`` flag (default ``pre``, by upstream sources). Outputs go to the
 ``3_assigned_columns/`` subfolder as ``<tag>_<side>_<direction>.csv`` (e.g.
 ``r1_6_left_post.csv``).
 
-Run with the project venv (defaults to R1-6, right side, pre):
+Run with the project venv (default: all ``ASSIGNED_COLUMN_CELLS``):
 
+    .venv/bin/python "connectome/FAFBv783/3_assign_column.py"
     .venv/bin/python "connectome/FAFBv783/3_assign_column.py" R1-6 --post
     .venv/bin/python "connectome/FAFBv783/3_assign_column.py" TmY11,L3
 """
@@ -29,7 +35,7 @@ from __future__ import annotations
 import argparse
 import logging
 import re
-from typing import Optional, Sequence
+from typing import List, Optional, Sequence, Tuple
 
 import pandas as pd
 
@@ -38,9 +44,40 @@ from import_bootstrap import parse_comma_list
 
 logger = logging.getLogger(__name__)
 
-# Cell types located by their downstream targets by default.
-DEFAULT_TARGET_CELLS = ("R1-6",)
-DEFAULT_DIRECTION = "post"
+# Sole (cell, direction) list for partner-based column placement. Consumed by
+# 4_build_network.py; CSV path is <tag>_<side>_<direction>.csv under
+# 3_assigned_columns/. FAFB Matsliah names only (not Borst aliases).
+ASSIGNED_COLUMN_CELLS: List[Tuple[str, str]] = [
+    ("R1-6", "post"),
+    ("Lawf1", "pre"),
+    ("Lawf2", "pre"),
+    # SimulationCode extras with no native column_assignment
+    ("Lai", "pre"),
+    ("Mi2", "pre"),
+    ("Mi10", "pre"),
+    ("Mi13", "pre"),
+    ("Mi14", "pre"),
+    ("Mi15", "pre"),
+    ("Tm5f", "pre"),
+    ("Tm5a", "pre"),
+    ("Tm5b", "pre"),
+    ("Tm5c", "pre"),
+    ("Tm16", "pre"),
+    ("Dm3v", "pre"),
+    ("Tm31", "pre"),
+    ("TmY3", "pre"),
+    ("TmY4", "pre"),
+    ("TmY5a", "pre"),
+    ("TmY9q", "pre"),
+    ("TmY9q__perp", "pre"),
+    ("TmY10", "pre"),
+    ("TmY11", "pre"),
+    ("TmY14", "pre"),
+    ("TmY15", "pre"),
+    ("Tm27", "pre"),
+]
+
+DEFAULT_DIRECTION = "pre"
 
 
 def _cell_tag(cell: str) -> str:
@@ -198,10 +235,7 @@ def locate_neurons(
 
 
 def _output_name(side: str, target_cells: Sequence[str], direction: str) -> str:
-    if list(target_cells) == list(DEFAULT_TARGET_CELLS):
-        tag = _cell_tag(target_cells[0])
-    else:
-        tag = "_".join(_cell_tag(t) for t in target_cells)
+    tag = "_".join(_cell_tag(t) for t in target_cells)
     return f"{tag}_{side}_{direction}.csv"
 
 
@@ -210,15 +244,16 @@ def _parse_args() -> argparse.Namespace:
     parser.add_argument(
         "cells",
         nargs="?",
-        default="R1-6",
+        default=None,
         metavar="CELL[,CELL...]",
-        help="Comma-separated cells to locate (default: R1-6).",
+        help="Comma-separated cells to locate. Default: every entry in "
+             "ASSIGNED_COLUMN_CELLS (one CSV per cell, using that entry's direction).",
     )
     parser.add_argument("--side", default="right", choices=["left", "right", "both"])
     parser.add_argument(
         "--post", action="store_true",
         help="Locate by downstream targets (post). Default is pre (by upstream "
-             "sources).",
+             "sources). Ignored when running the full ASSIGNED_COLUMN_CELLS list.",
     )
     parser.add_argument(
         "--weight-by-syn", action="store_true",
@@ -227,13 +262,73 @@ def _parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
-def main() -> None:
-    logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
-    args = _parse_args()
+def _jobs_from_args(args: argparse.Namespace) -> List[Tuple[List[str], str]]:
+    """Return [(cells, direction), ...] jobs to run."""
+    if args.cells is None:
+        return [([cell], direction) for cell, direction in ASSIGNED_COLUMN_CELLS]
     cells = parse_comma_list(args.cells)
     if not cells:
         raise SystemExit("cells must not be empty")
     direction = "post" if args.post else "pre"
+    return [(cells, direction)]
+
+
+def _locate_and_write(
+    *,
+    cells: Sequence[str],
+    direction: str,
+    side: str,
+    all_neurons: pd.DataFrame,
+    all_columns: pd.DataFrame,
+    out_dir,
+    weight_by_syn: bool,
+) -> None:
+    neurons = all_neurons[all_neurons["side"] == side]
+    columns = all_columns[all_columns["hemisphere"] == side]
+    target_ids = set(
+        neurons[neurons["cell"].isin(list(cells))]["root_id"].astype("int64")
+    )
+    # Pull all edges touching the targets on the relevant side (no syn cut).
+    connections = path.load_connections(keep_neuron_ids=target_ids)
+
+    # column_id -> (u, v) for the per-neuron hex extent (max/min u/v).
+    col_to_uv = None
+    if path.column_map_path(side).exists():
+        hex_df = path.load_column_map(side)
+        col_to_uv = {
+            int(r.column_id): (int(r.u), int(r.v))
+            for r in hex_df.itertuples(index=False)
+        }
+    else:
+        logger.warning(
+            "Missing %s; skipping max/min u/v columns",
+            path.column_map_path(side),
+        )
+
+    located = locate_neurons(
+        neurons=neurons,
+        columns=columns,
+        connections=connections,
+        target_cells=cells,
+        side=side,
+        direction=direction,
+        weight_by_syn=weight_by_syn,
+        col_to_uv=col_to_uv,
+    )
+    out_path = out_dir / _output_name(side, cells, direction)
+    located.to_csv(out_path, index=False)
+
+    n_total = len(located)
+    n_located = int(located["majority_column_id"].notna().sum())
+    print(f"\n=== locate {list(cells)} ({side}, direction={direction}) ===")
+    print(f"  neurons: {n_total}  located: {n_located}  unresolved: {n_total - n_located}")
+    print(f"  output: {out_path}")
+
+
+def main() -> None:
+    logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
+    args = _parse_args()
+    jobs = _jobs_from_args(args)
     sides = ["left", "right"] if args.side == "both" else [args.side]
 
     all_neurons = path.load_visual_neurons()
@@ -242,47 +337,17 @@ def main() -> None:
     out_dir = path.ASSIGNED_COLUMNS_DIR
     out_dir.mkdir(parents=True, exist_ok=True)
 
-    for side in sides:
-        neurons = all_neurons[all_neurons["side"] == side]
-        columns = all_columns[all_columns["hemisphere"] == side]
-        target_ids = set(
-            neurons[neurons["cell"].isin(cells)]["root_id"].astype("int64")
-        )
-        # Pull all edges touching the targets on the relevant side (no syn cut).
-        connections = path.load_connections(keep_neuron_ids=target_ids)
-
-        # column_id -> (u, v) for the per-neuron hex extent (max/min u/v).
-        col_to_uv = None
-        if path.column_map_path(side).exists():
-            hex_df = path.load_column_map(side)
-            col_to_uv = {
-                int(r.column_id): (int(r.u), int(r.v))
-                for r in hex_df.itertuples(index=False)
-            }
-        else:
-            logger.warning(
-                "Missing %s; skipping max/min u/v columns",
-                path.column_map_path(side),
+    for cells, direction in jobs:
+        for side in sides:
+            _locate_and_write(
+                cells=cells,
+                direction=direction,
+                side=side,
+                all_neurons=all_neurons,
+                all_columns=all_columns,
+                out_dir=out_dir,
+                weight_by_syn=args.weight_by_syn,
             )
-
-        located = locate_neurons(
-            neurons=neurons,
-            columns=columns,
-            connections=connections,
-            target_cells=cells,
-            side=side,
-            direction=direction,
-            weight_by_syn=args.weight_by_syn,
-            col_to_uv=col_to_uv,
-        )
-        out_path = out_dir / _output_name(side, cells, direction)
-        located.to_csv(out_path, index=False)
-
-        n_total = len(located)
-        n_located = int(located["majority_column_id"].notna().sum())
-        print(f"\n=== locate {cells} ({side}, direction={direction}) ===")
-        print(f"  neurons: {n_total}  located: {n_located}  unresolved: {n_total - n_located}")
-        print(f"  output: {out_path}")
 
 
 if __name__ == "__main__":

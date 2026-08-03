@@ -1,4 +1,4 @@
-type,root_id,n_pre,n_pre_with_column,votes,majority_column_id,mean_u,max_u,min_u,mean_v,max_v,min_v,mean_x,max_x,min_x,mean_y,max_y,min_y
+cell,root_id,n_pre,n_pre_with_column,votes,majority_column_id,mean_u,max_u,min_u,mean_v,max_v,min_v,mean_x,max_x,min_x,mean_y,max_y,min_y
 Lawf1,720575940621824091,19,1,1,4,6.0,6,6,9.0,9,9,9.0,9.0,9.0,10.5,10.5,10.5
 Lawf1,720575940627594585,18,1,1,14,14.0,14,14,-1.0,-1,-1,-1.0,-1.0,-1.0,13.5,13.5,13.5
 Lawf1,720575940620992165,18,1,1,22,-2.0,-2,-2,1.0,1,1,1.0,1.0,1.0,-1.5,-1.5,-1.5
