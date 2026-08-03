@@ -61,8 +61,8 @@ PARAM_BOXES: Dict[str, dict] = {
     "tau_lp": dict(lo=10.0, hi=100.0, init=50.0, jit=5.0, train_mode="indi"),
     "v_rest": dict(lo=-20.0, hi=20.0, init=0.0, jit=1.0, train_mode="fixed"),
     "bias": dict(lo=-20.0, hi=20.0, init=0.0, jit=1.0, train_mode="indi"),
-    "tau_hp": dict(lo=100.0, hi=10000.0, init=200.0, jit=20.0, fixed_val=10000.0, train_mode="indi"),
-    "hp_gain": dict(lo=GAIN_LO, hi=GAIN_HI, init=1.0, jit=0.1, fixed_val=1.0, train_mode="indi_named"),
+    "tau_hp": dict(lo=100.0, hi=1100.0, init=200.0, jit=20.0, fixed_val=10000.0, train_mode="indi"),
+    "hp_gain": dict(lo=0.01, hi=1.0, init=0.5, jit=0.05, fixed_val=0.5, train_mode="indi"),
 }
 
 MODEL = "hp_lp"

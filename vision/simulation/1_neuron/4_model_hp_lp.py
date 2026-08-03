@@ -10,7 +10,8 @@ syn_strength_edge (per_edge).
 
 Dynamics only: ``prepare_i_sti`` / ``init_state`` / ``step``. Full-T ``v``
 forward lives in ``neuron.forward``. Scalars from ``session`` flat fields.
-PR cells (R1-6, R7, R8) start with ``a0 = i_sti[t=0]/g_in``; others ``a0 = v_rest``.
+``init_state`` starts at the pre steady state: ``v0 = v_rest``, ``a0 = X0``
+with ``X0`` from ``v_rest`` and ``i_sti[t=0]`` (HP contributes 0 at DC).
 """
 from __future__ import annotations
 
@@ -75,30 +76,21 @@ def prepare_i_sti(session, p, i_sti, pack):
 
 
 def init_state(session, p, B, i_sti=None):
-    """``(a,)``, ``v0 = v_rest``; PR ``a0 = i_sti[t=0]/g_in``."""
+    """``(a,)`` at pre steady state: ``v0 = v_rest``, ``a0 = X0``."""
     if i_sti is None:
         raise TypeError("hp_lp init_state requires i_sti")
     v_rest = p["v_rest"]
     backend = session.backend
     n = backend.n_nodes
-    v = v_rest.expand(B, n).clone()
-    a = v_rest.expand(B, n).clone()
     g_in = float(session.g_in)
     if g_in == 0.0:
         raise ValueError("g_in must be non-zero")
-    C = backend.network
-    if C is None:
-        raise TypeError("hp_lp init_state requires backend.network")
-    pr = {"R1-6", "R7", "R8"}
-    cell_i = {str(name): i for i, name in enumerate(C.cell_names)}
-    pr_ci = [cell_i[name] for name in pr if name in cell_i]
-    if pr_ci:
-        mask = torch.isin(
-            C.node_cell,
-            torch.tensor(pr_ci, device=C.node_cell.device, dtype=C.node_cell.dtype),
-        )
-        a0 = (i_sti[:, 0, :] / g_in).to(dtype=a.dtype, device=a.device)
-        a = torch.where(mask.unsqueeze(0), a0, a)
+    v = v_rest.expand(B, n).clone()
+    pre = torch.relu(v + p["bias"]) * p["out_gain"]
+    w = syn_strength(p)
+    v_in = p["in_gain"] * backend.conn.signed_drive(pre, w)
+    v_sti = i_sti[:, 0, :] / g_in
+    a = v_rest + v_in + v_sti
     return (a,), v
 
 

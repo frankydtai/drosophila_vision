@@ -25,7 +25,7 @@ from training.implement import resolve_run_dir
 TRAIN_OPTS_FILE = training.TRAIN_OPTS_FILE
 KNOWN_MODELS = training.KNOWN_MODELS
 DEFAULT_RUN_NAME = """
-28607990-run-nofsteps-500-tau-hp-init.L1,L2,L4,L5-200-ms-pre-3000-ms-pulse-100-ms-response-500
+28613422-run-nofsteps-500-tau-hp-init.L1,L2,L4,L5-200-ms-pre-1000-ms-pulse-100-ms-response-500
 """.strip()
 DEFAULT_RUN_PATH = 'hp_lp/' + DEFAULT_RUN_NAME
 

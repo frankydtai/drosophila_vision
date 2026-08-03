@@ -3,8 +3,7 @@
 from __future__ import annotations
 
 DEFAULT_RUN_NAME = """
-28610118-run-nofsteps-200-tau-hp-init.L1,L2,L4,L5-200-ms-pre-1000-ms-pulse-100-ms-response-500
-""".strip()
+28613815-run-nofsteps-10000-lrs-0.1,0.01,0.001-tau-hp-init.L1,L2,L4,L5-200-ms-pre-1000-ms-pulse-100-ms-response-500""".strip()
 DEFAULT_RUN_PATH = "hp_lp/" + DEFAULT_RUN_NAME
 
 import argparse
