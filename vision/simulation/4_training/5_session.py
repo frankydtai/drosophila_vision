@@ -12,7 +12,7 @@ builders wrap the neutral gt dataclasses from ``task`` (which sit below
   built).
 
 Model traces are absolute ``v``; cost compares ``v`` to
-``gt_scale * gt + gt_bias``. ImpR / RecF spot gt are used as-is before affine.
+``a_gt * gt + bias_gt``. ImpR / RecF spot gt are used as-is before affine.
 """
 from __future__ import annotations
 

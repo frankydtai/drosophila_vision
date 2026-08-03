@@ -1,54 +1,68 @@
-"""Plot passive membrane LP-only vs HP-then-LP on a pulse input.
+"""Plot isolated hp_lp membrane on a pulse (no network).
 
-LP-only (membrane low-pass):
+Uses ``neuron.model_hp_lp.update_state_hp_lp`` (same Euler as training):
 
-    τ_lp dV/dt = -(V - V_rest) + G S_in(t)
+    τ_HP d v_slow / dt = v_tot − v_slow
+    v_hp = v_tot − a_slow v_slow
+    τ_lp dv/dt = −(v − v_rest) + v_hp
 
-HP + LP (slow average a, high-pass drive into membrane):
+with v_tot = v_rest + v_sti (v_in = 0), v_sti = i_sti / g_in.
+Time indexing matches ``neuron.forward.forward_full``: v[0] from init;
+v[t] uses i_sti[t-1].
 
-    τ_HP da/dt = S_in - a
-    S_HP = S_in - a
-    τ_lp dV/dt = -(V - V_rest) + G S_HP
+LP-only row uses τ_HP = PARAM_BOXES['tau_hp']['fixed_val'] (HP off).
 
-Rows: input | HP stage | baseline LP vs HP→LP | sweep G | sweep τ_HP | sweep pulse width.
-Columns: left = +pulse (S0), right = −pulse (−S0).
+Rows: input | HP stage | LP-only vs HP→LP | sweep a_slow | sweep τ_HP | sweep τ_lp | sweep pulse.
+Columns: left = +pulse, right = −pulse.
 
-Uses ``blindschleiche_py3.lowpass`` / ``highpass`` (tau in samples).
+Usage (from ``vision/simulation/``):
 
-Usage (from ``SimulationCode/``):
-
-    ../.venv/bin/python 6_test/plot_lp_hp_curves.py
-    ../.venv/bin/python 6_test/plot_lp_hp_curves.py --show
-    ../.venv/bin/python 6_test/plot_lp_hp_curves.py --gain-list 0.5,1,2 --tau-hp-list 80,200,500,2000 --pulse-list 50,100,500
+    ../.venv/bin/python test/plot_lp_hp_curves.py
+    ../.venv/bin/python test/plot_lp_hp_curves.py --show
+    ../.venv/bin/python test/plot_lp_hp_curves.py --euler ex --a-slow-list 0,0.5,1,1.5
 """
 from __future__ import annotations
 
 import argparse
 import os
 import sys
+from types import SimpleNamespace
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(HERE)
 sys.path.insert(0, ROOT)
 os.chdir(ROOT)
+os.environ.setdefault("CUDA_VISIBLE_DEVICES", "")
 
 import import_bootstrap  # noqa: F401
 import matplotlib.pyplot as plt
 import numpy as np
+import torch
 
-import network_bootstrap  # noqa: F401 — FAFB path on sys.path
-import blindschleiche_py3 as bs
+from figure.util import save_figure
 from import_bootstrap import parse_comma_list
-from plot.utils import save_figure
+from neuron.model_hp_lp import update_state_hp_lp
+from neuron.params import expand_euler
+from param_defaults import EULER, G_IN, PARAM_BOXES, STATE_CLAMP
 
 DEFAULT_SAVE = os.path.join(HERE, "lp_hp_curves.png")
-DEFAULT_GAIN_LIST = "0.5,1,2"
+DEFAULT_A_SLOW = float(PARAM_BOXES["a_slow"]["init"])
+DEFAULT_A_SLOW_LIST = "0,0.5,1,1.5"
 DEFAULT_TAU_HP_LIST = "80,200,500,2000"
+DEFAULT_TAU_LP_LIST = "20,50,100"
 DEFAULT_PULSE_LIST = "50,100,500"
+TAU_HP_OFF_MS = float(PARAM_BOXES["tau_hp"]["fixed_val"])
 
-
-def tau_ms_to_samples(tau_ms: float, dt_ms: float) -> float:
-    return float(tau_ms) / float(dt_ms)
+_BACKEND = SimpleNamespace(
+    n_nodes=1,
+    conn=SimpleNamespace(
+        signed_drive=lambda x, syn_strength: torch.zeros_like(x),
+        exc_inh_drive=lambda x, syn_strength: (
+            torch.zeros_like(x),
+            torch.zeros_like(x),
+        ),
+    ),
+)
 
 
 def make_pulse(t_ms: np.ndarray, *, t_on_ms: float, ms_pulse: float, s0: float) -> np.ndarray:
@@ -56,29 +70,64 @@ def make_pulse(t_ms: np.ndarray, *, t_on_ms: float, ms_pulse: float, s0: float) 
     return np.where((t_ms >= t_on_ms) & (t_ms < t_off_ms), s0, 0.0).astype(np.float64)
 
 
-def membrane_lp(s_in: np.ndarray, *, tau_lp_samples: float, v_rest: float, gain: float) -> np.ndarray:
-    """V = V_rest + G * lowpass(S_in)."""
-    return v_rest + gain * bs.lowpass(np.asarray(s_in, dtype=np.float64), tau_lp_samples)
+def _p_tensors(*, v_rest, tau_lp_ms, tau_hp_ms, a_slow):
+    z = torch.zeros(1, dtype=torch.float32)
+    one = torch.ones(1, dtype=torch.float32)
+    return {
+        "v_rest": torch.tensor([float(v_rest)], dtype=torch.float32),
+        "tau_lp": torch.tensor([float(tau_lp_ms)], dtype=torch.float32),
+        "tau_hp": torch.tensor([float(tau_hp_ms)], dtype=torch.float32),
+        "a_slow": torch.tensor([float(a_slow)], dtype=torch.float32),
+        "bias": z.clone(),
+        "out_gain": one.clone(),
+        "in_gain": one.clone(),
+        "syn_strength_cell": one.clone(),
+    }
 
 
-def membrane_hp_lp(
-    s_in: np.ndarray,
+def simulate_hp_lp(
+    v_sti: np.ndarray,
     *,
-    tau_hp_samples: float,
-    tau_lp_samples: float,
+    tau_lp_ms: float,
+    tau_hp_ms: float,
     v_rest: float,
-    gain: float,
+    a_slow: float,
+    delta_ms: float,
+    g_in: float,
+    state_clamp: float,
+    euler: str,
 ) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
-    """Return (V, a, S_HP) for HP-then-membrane-LP."""
-    x = np.asarray(s_in, dtype=np.float64)
-    if tau_hp_samples < 1.0:
-        a = np.zeros_like(x)
-        s_hp = x.copy()
-    else:
-        a = bs.lowpass(x, tau_hp_samples)
-        s_hp = x - a
-    v = v_rest + gain * bs.lowpass(s_hp, tau_lp_samples)
-    return v, a, s_hp
+    """Return (v, v_slow, v_hp); time index matches ``forward_full``."""
+    euler = expand_euler(euler)
+    g_in = float(g_in)
+    if g_in == 0.0:
+        raise ValueError("g_in must be non-zero")
+    x = np.asarray(v_sti, dtype=np.float64)
+    i_sti = torch.as_tensor(x * g_in, dtype=torch.float32)
+    t_end = int(i_sti.numel())
+    p = _p_tensors(
+        v_rest=v_rest, tau_lp_ms=tau_lp_ms, tau_hp_ms=tau_hp_ms, a_slow=a_slow,
+    )
+    # init_state: v_slow0 = v_tot0, v0 = v_rest + v_tot0 − a_slow v_slow0
+    v_tot0 = p["v_rest"] + i_sti[0] / g_in
+    v_slow = v_tot0.view(1, 1).clone()
+    v = (p["v_rest"] + v_tot0 - p["a_slow"] * v_slow.view(-1)).view(1, 1).clone()
+    v_out = np.empty(t_end, dtype=np.float64)
+    slow_out = np.empty(t_end, dtype=np.float64)
+    hp_out = np.empty(t_end, dtype=np.float64)
+    v_out[0] = float(v.item())
+    slow_out[0] = float(v_slow.item())
+    hp_out[0] = float((v_tot0 - p["a_slow"] * v_slow.view(-1)).item())
+    for t in range(1, t_end):
+        v, v_slow, comp = update_state_hp_lp(
+            v, v_slow, p, i_sti[t - 1].view(1, 1), _BACKEND,
+            delta_ms=delta_ms, state_clamp=state_clamp, g_in=g_in, euler=euler,
+            return_component=True,
+        )
+        v_out[t] = float(v.item())
+        slow_out[t] = float(comp["v_slow"].item())
+        hp_out[t] = float(comp["v_hp"].item())
+    return v_out, slow_out, hp_out
 
 
 def _shade_and_grid(ax, t_on_s: float, t_off_s: float, v_rest: float) -> None:
@@ -103,109 +152,123 @@ def _fill_column(
     ms_pulse: float,
     s0: float,
     v_rest: float,
-    gain: float,
-    tau_lp: float,
-    tau_hp: float,
+    a_slow: float,
     tau_lp_ms: float,
     tau_hp_ms: float,
     dt_ms: float,
-    gain_list: list[float],
+    g_in: float,
+    state_clamp: float,
+    euler: str,
+    a_slow_list: list[float],
     tau_hp_list: list[float],
+    tau_lp_list: list[float],
     pulse_list: list[float],
     show_ylabel: bool,
     show_legend: bool,
     col_title: str,
 ) -> None:
-    ax0, ax1, ax2, ax3, ax4, ax5 = axes_col
+    ax0, ax1, ax2, ax3, ax4, ax5, ax6 = axes_col
     t_on_s = t_on_ms / 1000.0
     t_off_s = (t_on_ms + ms_pulse) / 1000.0
-    s_in = make_pulse(t_ms, t_on_ms=t_on_ms, ms_pulse=ms_pulse, s0=s0)
-
-    v_lp = membrane_lp(s_in, tau_lp_samples=tau_lp, v_rest=v_rest, gain=gain)
-    v_hp_lp, a, s_hp = membrane_hp_lp(
-        s_in,
-        tau_hp_samples=tau_hp,
-        tau_lp_samples=tau_lp,
-        v_rest=v_rest,
-        gain=gain,
+    v_sti = make_pulse(t_ms, t_on_ms=t_on_ms, ms_pulse=ms_pulse, s0=s0)
+    sim_kw = dict(
+        v_rest=v_rest, a_slow=a_slow, delta_ms=dt_ms,
+        g_in=g_in, state_clamp=state_clamp, euler=euler,
     )
 
-    for ax in (ax0, ax1, ax2, ax3, ax4):
-        _shade_and_grid(ax, t_on_s, t_off_s, v_rest if ax in (ax2, ax3, ax4) else 0.0)
-    ax5.axhline(v_rest, color="0.5", lw=0.6, ls=":")
-    ax5.axvline(t_on_s, color="0.6", lw=0.7, ls="--")
-    ax5.grid(True, alpha=0.25)
+    v_lp, _, _ = simulate_hp_lp(
+        v_sti, tau_lp_ms=tau_lp_ms, tau_hp_ms=TAU_HP_OFF_MS, **sim_kw,
+    )
+    v_hp_lp, v_slow, v_hp = simulate_hp_lp(
+        v_sti, tau_lp_ms=tau_lp_ms, tau_hp_ms=tau_hp_ms, **sim_kw,
+    )
 
-    ax0.plot(t_s, s_in, color="0.15", lw=1.6, label=r"$S_{\mathrm{in}}$")
+    for ax in (ax0, ax1, ax2, ax3, ax4, ax5):
+        _shade_and_grid(ax, t_on_s, t_off_s, v_rest if ax in (ax2, ax3, ax4, ax5) else 0.0)
+    ax6.axhline(v_rest, color="0.5", lw=0.6, ls=":")
+    ax6.axvline(t_on_s, color="0.6", lw=0.7, ls="--")
+    ax6.grid(True, alpha=0.25)
+
+    ax0.plot(t_s, v_sti, color="0.15", lw=1.6, label=r"$v_{\mathrm{sti}}$")
     ax0.set_title(col_title, fontsize=10)
     if show_legend:
         ax0.legend(loc="upper right", fontsize=7, frameon=False)
 
-    ax1.plot(t_s, a, color="C0", lw=1.4, label=r"$a$")
-    ax1.plot(t_s, s_hp, color="C1", lw=1.4, label=r"$S_{\mathrm{HP}}$")
+    ax1.plot(t_s, v_slow, color="C0", lw=1.4, label=r"$v_{\mathrm{slow}}$")
+    ax1.plot(t_s, v_hp, color="C1", lw=1.4, label=r"$v_{\mathrm{hp}}$")
     if show_legend:
         ax1.legend(loc="upper right", fontsize=7, frameon=False)
 
-    ax2.plot(t_s, v_lp, color="C2", lw=1.8, label="LP only")
+    ax2.plot(t_s, v_lp, color="C2", lw=1.8, label=rf"LP only ($\tau_{{\mathrm{{HP}}}}$={TAU_HP_OFF_MS:g})")
     ax2.plot(t_s, v_hp_lp, color="C3", lw=1.8, label="HP → LP")
     if show_legend:
         ax2.legend(loc="upper right", fontsize=7, frameon=False)
 
-    for g, color in zip(gain_list, _cmap_colors(len(gain_list))):
-        v, _, _ = membrane_hp_lp(
-            s_in,
-            tau_hp_samples=tau_hp,
-            tau_lp_samples=tau_lp,
-            v_rest=v_rest,
-            gain=g,
+    for a, color in zip(a_slow_list, _cmap_colors(len(a_slow_list))):
+        v, _, _ = simulate_hp_lp(
+            v_sti, tau_lp_ms=tau_lp_ms, tau_hp_ms=tau_hp_ms,
+            v_rest=v_rest, a_slow=a, delta_ms=dt_ms,
+            g_in=g_in, state_clamp=state_clamp, euler=euler,
         )
-        ax3.plot(t_s, v, color=color, lw=1.6, label=rf"$G$={g:g}")
+        ax3.plot(t_s, v, color=color, lw=1.6, label=rf"$a_{{\mathrm{{slow}}}}$={a:g}")
     ax3.set_title(
-        rf"sweep $G$ ($\tau_{{\mathrm{{HP}}}}$={tau_hp_ms:g} ms)",
+        rf"sweep $a_{{\mathrm{{slow}}}}$ ($\tau_{{\mathrm{{HP}}}}$={tau_hp_ms:g} ms, "
+        rf"$\tau_{{\mathrm{{lp}}}}$={tau_lp_ms:g} ms)",
         fontsize=8,
     )
     if show_legend:
-        ax3.legend(loc="upper right", fontsize=6, frameon=False, ncol=min(3, len(gain_list)))
+        ax3.legend(loc="upper right", fontsize=6, frameon=False, ncol=min(3, len(a_slow_list)))
 
     for thp, color in zip(tau_hp_list, _cmap_colors(len(tau_hp_list))):
-        v, _, _ = membrane_hp_lp(
-            s_in,
-            tau_hp_samples=tau_ms_to_samples(thp, dt_ms),
-            tau_lp_samples=tau_lp,
-            v_rest=v_rest,
-            gain=gain,
+        v, _, _ = simulate_hp_lp(
+            v_sti, tau_lp_ms=tau_lp_ms, tau_hp_ms=thp, **sim_kw,
         )
         ax4.plot(t_s, v, color=color, lw=1.6, label=rf"$\tau_{{\mathrm{{HP}}}}$={thp:g}")
-    ax4.set_title(rf"sweep $\tau_{{\mathrm{{HP}}}}$ ($G$={gain:g})", fontsize=8)
+    ax4.set_title(
+        rf"sweep $\tau_{{\mathrm{{HP}}}}$ ($a_{{\mathrm{{slow}}}}$={a_slow:g}, "
+        rf"$\tau_{{\mathrm{{lp}}}}$={tau_lp_ms:g} ms)",
+        fontsize=8,
+    )
     if show_legend:
         ax4.legend(loc="upper right", fontsize=6, frameon=False, ncol=min(3, len(tau_hp_list)))
 
-    for pw, color in zip(pulse_list, _cmap_colors(len(pulse_list))):
-        s_pw = make_pulse(t_ms, t_on_ms=t_on_ms, ms_pulse=pw, s0=s0)
-        v, _, _ = membrane_hp_lp(
-            s_pw,
-            tau_hp_samples=tau_hp,
-            tau_lp_samples=tau_lp,
-            v_rest=v_rest,
-            gain=gain,
+    for tlp, color in zip(tau_lp_list, _cmap_colors(len(tau_lp_list))):
+        v, _, _ = simulate_hp_lp(
+            v_sti, tau_lp_ms=tlp, tau_hp_ms=tau_hp_ms, **sim_kw,
         )
-        ax5.axvspan(t_on_s, (t_on_ms + pw) / 1000.0, color=color, alpha=0.08, zorder=0)
-        ax5.plot(t_s, v, color=color, lw=1.6, label=rf"$T$={pw:g} ms")
+        ax5.plot(t_s, v, color=color, lw=1.6, label=rf"$\tau_{{\mathrm{{lp}}}}$={tlp:g}")
     ax5.set_title(
-        rf"sweep pulse ($G$={gain:g}, $\tau_{{\mathrm{{HP}}}}$={tau_hp_ms:g} ms)",
+        rf"sweep $\tau_{{\mathrm{{lp}}}}$ ($a_{{\mathrm{{slow}}}}$={a_slow:g}, "
+        rf"$\tau_{{\mathrm{{HP}}}}$={tau_hp_ms:g} ms)",
         fontsize=8,
     )
-    ax5.set_xlabel("time (s)")
     if show_legend:
-        ax5.legend(loc="upper right", fontsize=6, frameon=False, ncol=min(3, len(pulse_list)))
+        ax5.legend(loc="upper right", fontsize=6, frameon=False, ncol=min(3, len(tau_lp_list)))
+
+    for pw, color in zip(pulse_list, _cmap_colors(len(pulse_list))):
+        v_pw = make_pulse(t_ms, t_on_ms=t_on_ms, ms_pulse=pw, s0=s0)
+        v, _, _ = simulate_hp_lp(
+            v_pw, tau_lp_ms=tau_lp_ms, tau_hp_ms=tau_hp_ms, **sim_kw,
+        )
+        ax6.axvspan(t_on_s, (t_on_ms + pw) / 1000.0, color=color, alpha=0.08, zorder=0)
+        ax6.plot(t_s, v, color=color, lw=1.6, label=rf"$T$={pw:g} ms")
+    ax6.set_title(
+        rf"sweep pulse ($a_{{\mathrm{{slow}}}}$={a_slow:g}, $\tau_{{\mathrm{{HP}}}}$={tau_hp_ms:g} ms, "
+        rf"$\tau_{{\mathrm{{lp}}}}$={tau_lp_ms:g} ms)",
+        fontsize=8,
+    )
+    ax6.set_xlabel("time (s)")
+    if show_legend:
+        ax6.legend(loc="upper right", fontsize=6, frameon=False, ncol=min(3, len(pulse_list)))
 
     if show_ylabel:
-        ax0.set_ylabel("input")
+        ax0.set_ylabel(r"$v_{\mathrm{sti}}$")
         ax1.set_ylabel("HP stage")
-        ax2.set_ylabel(r"$V$")
-        ax3.set_ylabel(r"$V$ (sweep $G$)")
-        ax4.set_ylabel(r"$V$ (sweep $\tau_{\mathrm{HP}}$)")
-        ax5.set_ylabel(r"$V$ (sweep pulse)")
+        ax2.set_ylabel(r"$v$")
+        ax3.set_ylabel(r"$v$ (sweep $a_{\mathrm{slow}}$)")
+        ax4.set_ylabel(r"$v$ (sweep $\tau_{\mathrm{HP}}$)")
+        ax5.set_ylabel(r"$v$ (sweep $\tau_{\mathrm{lp}}$)")
+        ax6.set_ylabel(r"$v$ (sweep pulse)")
 
 
 def plot_lp_hp(
@@ -218,30 +281,35 @@ def plot_lp_hp(
     ms_pulse: float = 1500.0,
     s0: float = 1.0,
     v_rest: float = 0.0,
-    gain: float = 1.0,
+    a_slow: float = DEFAULT_A_SLOW,
     tau_lp_ms: float = 50.0,
     tau_hp_ms: float = 200.0,
-    gain_list: list[float] | None = None,
+    g_in: float = float(G_IN),
+    state_clamp: float = float(STATE_CLAMP),
+    euler: str = EULER,
+    a_slow_list: list[float] | None = None,
     tau_hp_list: list[float] | None = None,
+    tau_lp_list: list[float] | None = None,
     pulse_list: list[float] | None = None,
 ) -> None:
-    if gain_list is None:
-        gain_list = [float(x) for x in parse_comma_list(DEFAULT_GAIN_LIST)]
+    if a_slow_list is None:
+        a_slow_list = [float(x) for x in parse_comma_list(DEFAULT_A_SLOW_LIST)]
     if tau_hp_list is None:
         tau_hp_list = [float(x) for x in parse_comma_list(DEFAULT_TAU_HP_LIST)]
+    if tau_lp_list is None:
+        tau_lp_list = [float(x) for x in parse_comma_list(DEFAULT_TAU_LP_LIST)]
     if pulse_list is None:
         pulse_list = [float(x) for x in parse_comma_list(DEFAULT_PULSE_LIST)]
+    euler = expand_euler(euler)
 
     n = int(round(t_total_ms / dt_ms)) + 1
     t_ms = np.arange(n, dtype=np.float64) * dt_ms
     t_s = t_ms / 1000.0
-    tau_lp = tau_ms_to_samples(tau_lp_ms, dt_ms)
-    tau_hp = tau_ms_to_samples(tau_hp_ms, dt_ms)
 
     fig, axes = plt.subplots(
-        6,
+        7,
         2,
-        figsize=(12.0, 12.5),
+        figsize=(12.0, 14.5),
         sharex=True,
         sharey="row",
         constrained_layout=True,
@@ -253,27 +321,30 @@ def plot_lp_hp(
         t_on_ms=t_on_ms,
         ms_pulse=ms_pulse,
         v_rest=v_rest,
-        gain=gain,
-        tau_lp=tau_lp,
-        tau_hp=tau_hp,
+        a_slow=a_slow,
         tau_lp_ms=tau_lp_ms,
         tau_hp_ms=tau_hp_ms,
         dt_ms=dt_ms,
-        gain_list=gain_list,
+        g_in=g_in,
+        state_clamp=state_clamp,
+        euler=euler,
+        a_slow_list=a_slow_list,
         tau_hp_list=tau_hp_list,
+        tau_lp_list=tau_lp_list,
         pulse_list=pulse_list,
     )
     param_line = (
-        rf"pulse={ms_pulse:g} ms, $\tau_lp$={tau_lp_ms:g} ms, "
-        rf"$\tau_{{\mathrm{{HP}}}}$={tau_hp_ms:g} ms, $G$={gain:g}, "
-        rf"$V_{{\mathrm{{rest}}}}$={v_rest:g}, $|S_0|$={abs(s0):g}"
+        rf"pulse={ms_pulse:g} ms, $\tau_{{\mathrm{{lp}}}}$={tau_lp_ms:g} ms, "
+        rf"$\tau_{{\mathrm{{HP}}}}$={tau_hp_ms:g} ms, $a_{{\mathrm{{slow}}}}$={a_slow:g}, "
+        rf"$V_{{\mathrm{{rest}}}}$={v_rest:g}, $|v_{{\mathrm{{sti}}}}|$={abs(s0):g}, "
+        rf"euler={euler}, $\Delta t$={dt_ms:g} ms"
     )
     _fill_column(
         axes[:, 0],
         s0=abs(s0),
         show_ylabel=True,
         show_legend=True,
-        col_title=rf"+pulse ($S_0$={abs(s0):g})",
+        col_title=rf"+pulse ($v_{{\mathrm{{sti}}}}$={abs(s0):g})",
         **common,
     )
     _fill_column(
@@ -281,7 +352,7 @@ def plot_lp_hp(
         s0=-abs(s0),
         show_ylabel=False,
         show_legend=False,
-        col_title=rf"−pulse ($S_0$={-abs(s0):g})",
+        col_title=rf"−pulse ($v_{{\mathrm{{sti}}}}$={-abs(s0):g})",
         **common,
     )
     axes[0, 0].annotate(
@@ -293,7 +364,10 @@ def plot_lp_hp(
         va="bottom",
     )
 
-    fig.suptitle("Passive membrane: LP-only vs HP-then-LP (+pulse | −pulse)", fontsize=12)
+    fig.suptitle(
+        "hp_lp isolated membrane: LP-only vs HP→LP (+pulse | −pulse)",
+        fontsize=12,
+    )
     os.makedirs(os.path.dirname(os.path.abspath(path)) or ".", exist_ok=True)
     save_figure(fig, path, dpi=150)
     print(f"saved {path}")
@@ -310,13 +384,16 @@ def parse_args(argv=None):
     p.add_argument("--t-total-ms", type=float, default=3000.0)
     p.add_argument("--t-on-ms", type=float, default=500.0)
     p.add_argument("--ms-pulse", type=float, default=1500.0)
-    p.add_argument("--s0", type=float, default=1.0, help="pulse amplitude (|S0|; right column uses −|S0|)")
+    p.add_argument("--s0", type=float, default=1.0, help="pulse |v_sti| (right column uses −|v_sti|)")
     p.add_argument("--v-rest", type=float, default=0.0)
-    p.add_argument("--gain", type=float, default=1.0, help="baseline G (also used in τ_HP sweep)")
-    p.add_argument("--tau-lp", type=float, default=50.0, help="LP membrane tau [ms]")
-    p.add_argument("--tau-hp", type=float, default=200.0, help="baseline high-pass tau [ms] (also used in G sweep)")
-    p.add_argument("--gain-list", type=str, default=DEFAULT_GAIN_LIST, help="comma-separated G sweep")
+    p.add_argument("--a-slow", type=float, default=DEFAULT_A_SLOW, help="baseline a_slow")
+    p.add_argument("--tau-lp", type=float, default=50.0, help="baseline membrane tau_lp [ms]")
+    p.add_argument("--tau-hp", type=float, default=200.0, help="baseline tau_hp [ms]")
+    p.add_argument("--g-in", type=float, default=float(G_IN))
+    p.add_argument("--euler", default=EULER, choices=("im", "ex", "implicit", "explicit"))
+    p.add_argument("--a-slow-list", type=str, default=DEFAULT_A_SLOW_LIST, help="comma-separated a_slow sweep")
     p.add_argument("--tau-hp-list", type=str, default=DEFAULT_TAU_HP_LIST, help="comma-separated τ_HP sweep [ms]")
+    p.add_argument("--tau-lp-list", type=str, default=DEFAULT_TAU_LP_LIST, help="comma-separated τ_lp sweep [ms]")
     p.add_argument("--pulse-list", type=str, default=DEFAULT_PULSE_LIST, help="comma-separated pulse widths [ms]")
     return p.parse_args(argv)
 
@@ -329,22 +406,28 @@ def main(argv=None):
         ("--ms-pulse", args.ms_pulse),
         ("--tau-lp", args.tau_lp),
         ("--tau-hp", args.tau_hp),
+        ("--g-in", args.g_in),
     ):
         if val <= 0:
             raise ValueError(f"{name} must be > 0")
-    gain_list = [float(x) for x in parse_comma_list(args.gain_list)]
+    a_slow_list = [float(x) for x in parse_comma_list(args.a_slow_list)]
     tau_hp_list = [float(x) for x in parse_comma_list(args.tau_hp_list)]
+    tau_lp_list = [float(x) for x in parse_comma_list(args.tau_lp_list)]
     pulse_list = [float(x) for x in parse_comma_list(args.pulse_list)]
-    if not gain_list:
-        raise ValueError("--gain-list must be non-empty")
+    if not a_slow_list:
+        raise ValueError("--a-slow-list must be non-empty")
     if not tau_hp_list:
         raise ValueError("--tau-hp-list must be non-empty")
+    if not tau_lp_list:
+        raise ValueError("--tau-lp-list must be non-empty")
     if not pulse_list:
         raise ValueError("--pulse-list must be non-empty")
-    if any(g < 0 for g in gain_list):
-        raise ValueError("--gain-list values must be >= 0")
+    if any(a < 0 for a in a_slow_list):
+        raise ValueError("--a-slow-list values must be >= 0")
     if any(t <= 0 for t in tau_hp_list):
         raise ValueError("--tau-hp-list values must be > 0")
+    if any(t <= 0 for t in tau_lp_list):
+        raise ValueError("--tau-lp-list values must be > 0")
     if any(t <= 0 for t in pulse_list):
         raise ValueError("--pulse-list values must be > 0")
     plot_lp_hp(
@@ -356,11 +439,14 @@ def main(argv=None):
         ms_pulse=args.ms_pulse,
         s0=args.s0,
         v_rest=args.v_rest,
-        gain=args.gain,
+        a_slow=args.a_slow,
         tau_lp_ms=args.tau_lp,
         tau_hp_ms=args.tau_hp,
-        gain_list=gain_list,
+        g_in=args.g_in,
+        euler=args.euler,
+        a_slow_list=a_slow_list,
         tau_hp_list=tau_hp_list,
+        tau_lp_list=tau_lp_list,
         pulse_list=pulse_list,
     )
 

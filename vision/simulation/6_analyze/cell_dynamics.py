@@ -1162,32 +1162,32 @@ def _scalar_param_at_node(p, key: str, session, node: int) -> float:
 
 def _node_params(p, session, node: int) -> dict[str, float]:
     backend = session.backend
-    for key in ("gt_scale", "gt_bias"):
+    for key in ("a_gt", "bias_gt"):
         if key not in p:
             raise SystemExit(f"params missing {key}")
-    gt_scale = _scalar_param_at_node(p, "gt_scale", session, node)
-    gt_bias = _scalar_param_at_node(p, "gt_bias", session, node)
+    a_gt = _scalar_param_at_node(p, "a_gt", session, node)
+    bias_gt = _scalar_param_at_node(p, "bias_gt", session, node)
     if session.model == "hp_lp":
         return {
-            "in_gain": float(p["in_gain"][node]),
-            "out_gain": float(p["out_gain"][node]),
-            "bias": float(p["bias"][node]),
-            "gt_scale": gt_scale,
-            "gt_bias": gt_bias,
+            "a_in": float(p["a_in"][node]),
+            "a_out": float(p["a_out"][node]),
+            "bias_out": float(p["bias_out"][node]),
+            "a_gt": a_gt,
+            "bias_gt": bias_gt,
             "v_rest_mV": float(p["v_rest"][node]),
             "tau_lp_ms": float(p["tau_lp"][node]),
             "tau_hp_ms": float(p["tau_hp"][node]),
-            "hp_gain": float(p["hp_gain"][node]),
+            "a_slow": float(p["a_slow"][node]),
         }
     from neuron.schema import borst_ih_off_kwargs
 
     ih_off = (session.train_opts or {})["ih_off"]
     gmax_off, *_rest = borst_ih_off_kwargs(p, ih_off)
     return {
-        "in_gain": float(p["in_gain"][node]),
-        "out_gain": float(p["out_gain"][node]),
-        "gt_scale": gt_scale,
-        "gt_bias": gt_bias,
+        "a_in": float(p["a_in"][node]),
+        "a_out": float(p["a_out"][node]),
+        "a_gt": a_gt,
+        "bias_gt": bias_gt,
         "v_th_mV": float(p["v_th"][node]),
         "Ih_gmax": float(p["Ih_gmax"][node]),
         "Ih_gmax_off": float(gmax_off[node]),
@@ -1725,10 +1725,10 @@ def _spot_radius_row(radii: np.ndarray, radius: int) -> np.ndarray:
 
 
 def _gt_affine_for_cell(p, session, cell: str) -> tuple[float, float]:
-    """``(gt_scale, effective_bias)`` for one cell type name (matches cost)."""
+    """``(a_gt, effective_bias)`` for one cell type name (matches cost)."""
     names = [str(n) for n in session.backend.network.cell_names]
     ci = names.index(str(cell))
-    gs, gb = p["gt_scale"], p["gt_bias"]
+    gs, gb = p["a_gt"], p["bias_gt"]
     scale = float(gs[ci] if torch.is_tensor(gs) and gs.dim() > 0 else gs)
     bias = float(gb[ci] if torch.is_tensor(gb) and gb.dim() > 0 else gb)
     if "v_th" in p:
@@ -1745,10 +1745,10 @@ def _spot_gt_v_post_extra(
     v_post: np.ndarray,
     v_post_d: np.ndarray,
     t_onset: int,
-    gt_scale: float,
-    gt_bias: float,
+    a_gt: float,
+    bias_gt: float,
 ) -> dict[str, Any]:
-    """GT on absolute ``v`` axis: ``gt_scale * gt + effective_bias`` (matches cost)."""
+    """GT on absolute ``v`` axis: ``a_gt * gt + effective_bias`` (matches cost)."""
     extra: dict[str, Any] = {"gt_peak": None, "gt_v_post": None, "radius": radius}
     if cell not in gt_on:
         return extra
@@ -1756,7 +1756,7 @@ def _spot_gt_v_post_extra(
     if radius < 0 or radius >= gt_cube.shape[0]:
         return extra
     gt_row = gt_cube[radius]
-    gt_aff = float(gt_scale) * gt_row + float(gt_bias)
+    gt_aff = float(a_gt) * gt_row + float(bias_gt)
     peak_probe = _v_post_d_peak_t_rel(v_post_d, t_onset)
     if 0 <= peak_probe < gt_aff.shape[0]:
         extra["gt_peak"] = float(gt_aff[peak_probe])
@@ -1823,7 +1823,7 @@ def analyze_spot_average(
     def extra_for_cell(
         cell: str, v_post: np.ndarray, v_post_d: np.ndarray,
     ) -> dict[str, Any]:
-        gt_scale, gt_bias = _gt_affine_for_cell(p, session_one, cell)
+        a_gt, bias_gt = _gt_affine_for_cell(p, session_one, cell)
         return _spot_gt_v_post_extra(
             cell=cell,
             gt_on=gt_on,
@@ -1831,8 +1831,8 @@ def analyze_spot_average(
             v_post=v_post,
             v_post_d=v_post_d,
             t_onset=t_onset,
-            gt_scale=gt_scale,
-            gt_bias=gt_bias,
+            a_gt=a_gt,
+            bias_gt=bias_gt,
         )
 
     def n_nodes_for_cell(cell: str) -> int:
@@ -1968,7 +1968,7 @@ def analyze_spot_hex(
     def extra_for_cell(
         cell_name: str, v_post: np.ndarray, v_post_d: np.ndarray,
     ) -> dict[str, Any]:
-        gt_scale, gt_bias = _gt_affine_for_cell(p, session_one, cell_name)
+        a_gt, bias_gt = _gt_affine_for_cell(p, session_one, cell_name)
         return _spot_gt_v_post_extra(
             cell=cell_name,
             gt_on=gt_on,
@@ -1976,8 +1976,8 @@ def analyze_spot_hex(
             v_post=v_post,
             v_post_d=v_post_d,
             t_onset=t_onset,
-            gt_scale=gt_scale,
-            gt_bias=gt_bias,
+            a_gt=a_gt,
+            bias_gt=bias_gt,
         )
 
     n_b = len(forward_batches)

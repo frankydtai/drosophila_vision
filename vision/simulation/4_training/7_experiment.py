@@ -10,14 +10,14 @@ def merge_ih_train_modes(train_kw):
     """Pop CLI ``train_modes`` from *train_kw* and merge default Ih/hp splits.
 
     Borst: ``Ih_gmax`` / ``Ih_gmax_off``.
-    hp_lp: ``hp_gain`` / ``tau_hp``.
+    hp_lp: ``a_slow`` / ``tau_hp``.
     Indi names: :data:`IH_GMAX_INDI_NAMES`; ``fixed=['all']``.
     """
     ih_indi = list(IH_GMAX_INDI_NAMES)
     if train_kw['model'] == 'borst':
         names = ('Ih_gmax', 'Ih_gmax_off')
     else:
-        names = ('hp_gain', 'tau_hp')
+        names = ('a_slow', 'tau_hp')
     ih_modes = {
         name: {'indi': ih_indi, 'fixed': ['all']}
         for name in names

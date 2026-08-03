@@ -114,7 +114,7 @@ class MovingBarTraceBundle:
 
 
 def _gt_trace_affine(bundle, cell_name, gt_trace):
-    """Plot gt as ``gt_scale * gt + effective_bias`` (matches cost)."""
+    """Plot gt as ``a_gt * gt + effective_bias`` (matches cost)."""
     if gt_trace is None:
         return None
     scale, bias = bundle.gt_affine_by_name.get(str(cell_name), (1.0, 0.0))

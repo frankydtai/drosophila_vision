@@ -3,7 +3,7 @@
 
 Per-model modules supply only ``prepare_i_sti`` / ``init_state`` / ``step``.
 This module owns the time loop. Training / plots read absolute membrane ``v``;
-cost compares ``v`` to ``gt_scale * gt + gt_bias``. The unused Ca filter stays
+cost compares ``v`` to ``a_gt * gt + bias_gt``. The unused Ca filter stays
 in ``neuron.filter_ca``.
 """
 from __future__ import annotations

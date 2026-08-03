@@ -580,7 +580,6 @@ def plot_param_set(params, outdir, model=None, model_all=True,
             file_suffix=file_suffix,
             html=html,
             ms_shown=ms_shown,
-            r0_only=r0_only,
         )
     for tname in other_readouts:
         one = session_for_task(session, tname)

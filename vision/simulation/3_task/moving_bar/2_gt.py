@@ -491,15 +491,15 @@ def _csr_group_mean(values: torch.Tensor, ptr: torch.Tensor) -> torch.Tensor:
     return sums / counts.to(dtype=values.dtype).clamp(min=1)
 
 
-def cost_dsi_from_sel(pack, gt_bias: torch.Tensor, sel: torch.Tensor) -> Optional[torch.Tensor]:
+def cost_dsi_from_sel(pack, bias_gt: torch.Tensor, sel: torch.Tensor) -> Optional[torch.Tensor]:
     """Unweighted DSI MSE (% of dsi_power); None if no complete groups.
 
-    Peaks use baseline-subtracted absolute ``v`` (``sel - gt_bias``).
+    Peaks use baseline-subtracted absolute ``v`` (``sel - bias_gt``).
     """
     if pack.dsi_pos_ptr is None or int(pack.dsi_pos_ptr.numel()) <= 1:
         return None
-    peak_pos_u = (sel[pack.dsi_pos_rows] - gt_bias[pack.dsi_pos_rows, None]).amax(dim=-1)
-    peak_neg_u = (sel[pack.dsi_neg_rows] - gt_bias[pack.dsi_neg_rows, None]).amax(dim=-1)
+    peak_pos_u = (sel[pack.dsi_pos_rows] - bias_gt[pack.dsi_pos_rows, None]).amax(dim=-1)
+    peak_neg_u = (sel[pack.dsi_neg_rows] - bias_gt[pack.dsi_neg_rows, None]).amax(dim=-1)
     if not (torch.isfinite(peak_pos_u).all() and torch.isfinite(peak_neg_u).all()):
         raise RuntimeError("non-finite DSI peaks (NaN/Inf in readout)")
     peak_pos = _csr_group_mean(peak_pos_u, pack.dsi_pos_ptr)

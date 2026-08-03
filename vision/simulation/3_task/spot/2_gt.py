@@ -12,7 +12,7 @@ New features handled here:
   and the ImpR gt.
 
 ImpR / RecF traces are the raw training gt; cost compares absolute model
-``v`` to ``gt_scale * gt + gt_bias``. Sparse cost time points (#4) and the
+``v`` to ``a_gt * gt + bias_gt``. Sparse cost time points (#4) and the
 ``ReadoutPack`` wrapping live in the ``training`` layer, which reads the
 :class:`SpotGt` returned here.
 """

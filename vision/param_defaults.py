@@ -42,12 +42,12 @@ GAIN_HI = 10.0
 IH_GMAX_INDI_NAMES = ("L1", "L2", "L4", "L5")
 
 # train_mode: indi | shared | fixed | indi_named
-#   indi_named → indi=IH_GMAX_INDI_NAMES, fixed=remainder (Ih_gmax / hp_gain)
+#   indi_named → indi=IH_GMAX_INDI_NAMES, fixed=remainder (Ih_gmax)
 PARAM_BOXES: Dict[str, dict] = {
-    "in_gain": dict(lo=GAIN_LO, hi=GAIN_HI, init=1.0, jit=0.1, train_mode="fixed"),
-    "out_gain": dict(lo=GAIN_LO, hi=GAIN_HI, init=1.0, jit=0.1, train_mode="indi"),
-    "gt_scale": dict(lo=GAIN_LO, hi=GAIN_HI, init=1.0, jit=0.1, train_mode="indi"),
-    "gt_bias": dict(lo=-20.0, hi=20.0, init=0.0, jit=1.0, train_mode="indi"),
+    "a_in": dict(lo=GAIN_LO, hi=GAIN_HI, init=1.0, jit=0.1, train_mode="fixed"),
+    "a_out": dict(lo=GAIN_LO, hi=GAIN_HI, init=1.0, jit=0.1, train_mode="indi"),
+    "a_gt": dict(lo=GAIN_LO, hi=GAIN_HI, init=1.0, jit=0.1, train_mode="indi"),
+    "bias_gt": dict(lo=-20.0, hi=20.0, init=0.0, jit=1.0, train_mode="indi"),
     "syn_strength_cell": dict(lo=GAIN_LO, hi=GAIN_HI, init=1.0, jit=0.1, train_mode="indi"),
     "syn_strength_edge": dict(lo=GAIN_LO, hi=GAIN_HI, init=1.0, jit=0.1, train_mode="indi"),
     "v_th": dict(lo=-70.0, hi=-30.0, init=-50.0, jit=0.0, fixed_val=-50.0, train_mode="fixed"),
@@ -61,9 +61,9 @@ PARAM_BOXES: Dict[str, dict] = {
     "tau_midv_off": dict(lo=-70.0, hi=-40.0, init=-50.0, jit=5.0, train_mode="shared"),
     "tau_lp": dict(lo=10.0, hi=100.0, init=50.0, jit=5.0, train_mode="indi"),
     "v_rest": dict(lo=-20.0, hi=20.0, init=0.0, jit=1.0, train_mode="fixed"),
-    "bias": dict(lo=-20.0, hi=20.0, init=0.0, jit=1.0, train_mode="indi"),
-    "tau_hp": dict(lo=100.0, hi=1100.0, init=200.0, jit=20.0, fixed_val=10000.0, train_mode="indi"),
-    "hp_gain": dict(lo=0.01, hi=1.0, init=0.5, jit=0.05, fixed_val=0.5, train_mode="indi"),
+    "bias_out": dict(lo=-20.0, hi=20.0, init=0.0, jit=1.0, train_mode="indi"),
+    "tau_hp": dict(lo=100.0, hi=500.0, init=200.0, jit=20.0, train_mode="indi"),
+    "a_slow": dict(lo=0.0, hi=1.0, init=0.5, jit=0.05, train_mode="indi"),
 }
 
 MODEL = "hp_lp"

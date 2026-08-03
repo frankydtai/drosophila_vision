@@ -3,7 +3,7 @@
 
 ``ca_filter`` is a first-order low-pass on ``v - v_onset`` with
 ``alpha = delta_ms / Ca_tau``. Training and plots use absolute ``v``;
-cost compares ``v`` to ``gt_scale * gt + gt_bias``.
+cost compares ``v`` to ``a_gt * gt + bias_gt``.
 
 ``delta_ms`` / ``Ca_tau`` are injected scalars.
 """

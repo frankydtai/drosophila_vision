@@ -61,7 +61,7 @@ def _ih_gate_step(
 
 
 def update_v(
-    v, u_on, u_off, in_gain, out_gain, syn_strength, v_th, Ih_gmax, Ih_gmax_off,
+    v, u_on, u_off, a_in, a_out, syn_strength, v_th, Ih_gmax, Ih_gmax_off,
     Ih_midv, Ih_slope, tau_midv, Ih_midv_off, Ih_slope_off, tau_midv_off,
     i_sti, backend, *,
     delta_ms: float,
@@ -107,9 +107,9 @@ def update_v(
             g_Ih_off[:, idx] = g_off_a.to(dtype=g_Ih_off.dtype)
     g_Ih = g_Ih_on + g_Ih_off
 
-    g_exc, g_inh = conn.exc_inh_drive(rectsyn(v, v_th) * out_gain, syn_strength)
-    g_exc = g_exc * in_gain
-    g_inh = g_inh * in_gain
+    g_exc, g_inh = conn.exc_inh_drive(rectsyn(v, v_th) * a_out, syn_strength)
+    g_exc = g_exc * a_in
+    g_inh = g_inh * a_in
 
     dt_over_c = membrane_dt_over_c(capac, delta_ms)
     E_IH_OFF = e_ih_off(E_LEAK_REST, E_Ih)
@@ -215,7 +215,7 @@ def step(state, v, p, i_sti, session, *, return_component: bool = False):
     )
     out = update_v(
         v, u_on, u_off,
-        p["in_gain"], p["out_gain"], syn_strength(p), p["v_th"],
+        p["a_in"], p["a_out"], syn_strength(p), p["v_th"],
         p["Ih_gmax"], Ih_gmax_off,
         p["Ih_midv"], p["Ih_slope"], p["tau_midv"],
         Ih_midv_off, Ih_slope_off, tau_midv_off,

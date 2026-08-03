@@ -817,21 +817,21 @@ def add_training_arguments(parser):
     parser.add_argument("--all-param", **_train_mode_kwargs,
                         help=f"apply train_modes to every parameter segment "
                              f"({_train_mode_help}; overridden by --ih-shape and per-param flags)")
-    parser.add_argument("--in-gain", **_train_mode_kwargs,
-                        help=f"in_gain train_modes ({_train_mode_help}; "
-                             f"default {_box_train_mode_default('in_gain')})")
-    parser.add_argument("--out-gain", **_train_mode_kwargs,
-                        help=f"out_gain train_modes ({_train_mode_help}; "
-                             f"default {_box_train_mode_default('out_gain')})")
-    parser.add_argument("--bias", **_train_mode_kwargs,
-                        help=f"hp_lp bias train_modes ({_train_mode_help}; "
-                             f"default {_box_train_mode_default('bias')})")
-    parser.add_argument("--gt-scale", **_train_mode_kwargs,
-                        help=f"gt_scale train_modes ({_train_mode_help}; "
-                             f"default {_box_train_mode_default('gt_scale')})")
-    parser.add_argument("--gt-bias", **_train_mode_kwargs,
-                        help=f"gt_bias train_modes ({_train_mode_help}; "
-                             f"default {_box_train_mode_default('gt_bias')})")
+    parser.add_argument("--a-in", **_train_mode_kwargs,
+                        help=f"a_in train_modes ({_train_mode_help}; "
+                             f"default {_box_train_mode_default('a_in')})")
+    parser.add_argument("--a-out", **_train_mode_kwargs,
+                        help=f"a_out train_modes ({_train_mode_help}; "
+                             f"default {_box_train_mode_default('a_out')})")
+    parser.add_argument("--bias-out", **_train_mode_kwargs,
+                        help=f"hp_lp bias_out train_modes ({_train_mode_help}; "
+                             f"default {_box_train_mode_default('bias_out')})")
+    parser.add_argument("--a-gt", **_train_mode_kwargs,
+                        help=f"a_gt train_modes ({_train_mode_help}; "
+                             f"default {_box_train_mode_default('a_gt')})")
+    parser.add_argument("--bias-gt", **_train_mode_kwargs,
+                        help=f"bias_gt train_modes ({_train_mode_help}; "
+                             f"default {_box_train_mode_default('bias_gt')})")
     parser.add_argument("--syn-strength-cell", **_train_mode_kwargs,
                         help=f"syn_strength_cell train_modes ({_train_mode_help}; "
                              f"default {_box_train_mode_default('syn_strength_cell')}; "
@@ -872,9 +872,9 @@ def add_training_arguments(parser):
     parser.add_argument("--tau-hp", **_train_mode_kwargs,
                         help=f"hp_lp tau_hp train_modes ({_train_mode_help}; "
                              f"default {_box_train_mode_default('tau_hp')})")
-    parser.add_argument("--hp-gain", **_train_mode_kwargs,
-                        help=f"hp_lp hp_gain train_modes ({_train_mode_help}; "
-                             f"default {_box_train_mode_default('hp_gain')})")
+    parser.add_argument("--a-slow", **_train_mode_kwargs,
+                        help=f"hp_lp a_slow train_modes ({_train_mode_help}; "
+                             f"default {_box_train_mode_default('a_slow')})")
     parser.add_argument("--ih-off", default=IH_OFF,
                         choices=list(training.IH_OFF_MODES),
                         help="OFF-channel Ih: on (train Ih_gmax_off+OFF shape; default), "
@@ -1320,11 +1320,11 @@ def _train_mode_cli_map(args):
         for name in training.IH_SHAPE_PARAM_NAMES:
             texts[name] = shape_text
     per_param = {
-        "in_gain": _train_mode_cli_text(getattr(args, "in_gain", None)),
-        "out_gain": _train_mode_cli_text(getattr(args, "out_gain", None)),
-        "bias": _train_mode_cli_text(getattr(args, "bias", None)),
-        "gt_scale": _train_mode_cli_text(getattr(args, "gt_scale", None)),
-        "gt_bias": _train_mode_cli_text(getattr(args, "gt_bias", None)),
+        "a_in": _train_mode_cli_text(getattr(args, "a_in", None)),
+        "a_out": _train_mode_cli_text(getattr(args, "a_out", None)),
+        "bias_out": _train_mode_cli_text(getattr(args, "bias_out", None)),
+        "a_gt": _train_mode_cli_text(getattr(args, "a_gt", None)),
+        "bias_gt": _train_mode_cli_text(getattr(args, "bias_gt", None)),
         "syn_strength_cell": syn_cell_text,
         "syn_strength_edge": syn_edge_text,
         "v_th": _train_mode_cli_text(getattr(args, "v_th", None)),
@@ -1339,7 +1339,7 @@ def _train_mode_cli_map(args):
         "tau_lp": _train_mode_cli_text(getattr(args, "tau_lp", None)),
         "v_rest": _train_mode_cli_text(getattr(args, "v_rest", None)),
         "tau_hp": _train_mode_cli_text(getattr(args, "tau_hp", None)),
-        "hp_gain": _train_mode_cli_text(getattr(args, "hp_gain", None)),
+        "a_slow": _train_mode_cli_text(getattr(args, "a_slow", None)),
     }
     for name, text in per_param.items():
         if text is not None:

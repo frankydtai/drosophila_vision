@@ -30,7 +30,7 @@ def _as_numpy(arr):
 
 
 def apply_gt_affine(p, gt, node_index, backend):
-    """``gt_scale * gt + gt_bias`` (``+ v_th`` if present; matches cost).
+    """``a_gt * gt + bias_gt`` (``+ v_th`` if present; matches cost).
 
     ``gt`` leading axis = nodes.
     """
@@ -50,11 +50,11 @@ def apply_gt_affine(p, gt, node_index, backend):
 
 
 def gt_affine_scalars_for_cell(p, cell_name, backend) -> tuple[float, float]:
-    """``(gt_scale, effective_bias)`` for one cell type name (matches cost)."""
+    """``(a_gt, effective_bias)`` for one cell type name (matches cost)."""
     names = [str(n) for n in backend.network.cell_names]
     ci = names.index(str(cell_name))
-    gs = p["gt_scale"]
-    gb = p["gt_bias"]
+    gs = p["a_gt"]
+    gb = p["bias_gt"]
     scale = float(gs[ci] if torch.is_tensor(gs) and gs.dim() > 0 else gs)
     bias = float(gb[ci] if torch.is_tensor(gb) and gb.dim() > 0 else gb)
     if "v_th" in p:
@@ -81,7 +81,7 @@ def cost_ylim(*curves, pct=99.0, pad=1.1, floor=1.0):
 
 
 def annotate_baseline(ax, baseline):
-    """Horizontal dashed line at ``v_th`` (borst) / ``-bias`` (hp_lp).
+    """Horizontal dashed line at ``v_th`` (borst) / ``-bias_out`` (hp_lp).
 
     Leaves matplotlib auto y-ticks / labels alone.
     """
@@ -91,7 +91,7 @@ def annotate_baseline(ax, baseline):
 
 
 def baselines_for_types(nodes_by_name, v_ref_by_name=None):
-    """``{name: baseline}`` from per-cell ``v_th`` / ``-bias`` (absolute mV)."""
+    """``{name: baseline}`` from per-cell ``v_th`` / ``-bias_out`` (absolute mV)."""
     v_ref_by_name = v_ref_by_name or {}
     out = {}
     for name in nodes_by_name:
@@ -151,24 +151,24 @@ def readout_n_by_name(type_idx, cell_names, names, node_idx):
 
 
 def v_ref_schema_name(schema):
-    """``'v_th'`` (borst) or ``'-bias'`` (hp_lp); ``None`` if neither applies."""
+    """``'v_th'`` (borst) or ``'-bias_out'`` (hp_lp); ``None`` if neither applies."""
     names = {s.get('name') for s in schema}
     if 'v_th' in names:
         return 'v_th'
-    if 'bias' in names:
-        return '-bias'
+    if 'bias_out' in names:
+        return '-bias_out'
     return None
 
 
 def v_ref_by_type_name(z, session):
-    """Per-cell baseline mV: ``v_th`` (borst) or ``-bias`` (hp_lp)."""
+    """Per-cell baseline mV: ``v_th`` (borst) or ``-bias_out`` (hp_lp)."""
     schema = list(session.schema)
     key = v_ref_schema_name(schema)
     if key is None:
         return {}
-    param = 'v_th' if key == 'v_th' else 'bias'
+    param = 'v_th' if key == 'v_th' else 'bias_out'
     arr = np.asarray(training.z_to_node_values(z, schema)[param], dtype=np.float64).reshape(-1)
-    if key == '-bias':
+    if key == '-bias_out':
         arr = -arr
     names = training.cell_node_names(session.backend)
     if arr.shape[0] != len(names):

@@ -16,12 +16,12 @@ SYN_MODES = ("per_cell", "per_edge")
 TRAIN_MODE_KEYS = ("indi", "shared", "fixed", "frozen")
 
 ALL_PARAM_NAMES = (
-    "in_gain", "out_gain", "bias", "gt_scale", "gt_bias",
+    "a_in", "a_out", "bias_out", "a_gt", "bias_gt",
     "syn_strength_cell", "syn_strength_edge", "v_th",
     "Ih_gmax", "Ih_gmax_off",
     "Ih_midv", "Ih_slope", "tau_midv",
     "Ih_midv_off", "Ih_slope_off", "tau_midv_off",
-    "tau_lp", "v_rest", "tau_hp", "hp_gain",
+    "tau_lp", "v_rest", "tau_hp", "a_slow",
 )
 IH_SHAPE_PARAM_NAMES = (
     "Ih_midv", "Ih_slope", "tau_midv",
@@ -151,12 +151,12 @@ def build_borst_schema(
     D = param_boxes
     named_kw = dict(name_to_i=name_to_i, indi_names=ih_gmax_indi_names)
     segs = [
-        _seg("in_gain", n_cells, "full", D["in_gain"], n_cells),
-        _seg("out_gain", n_cells, "full", D["out_gain"], n_cells),
+        _seg("a_in", n_cells, "full", D["a_in"], n_cells),
+        _seg("a_out", n_cells, "full", D["a_out"], n_cells),
         _syn_segment(syn_mode, n_pairs, n_edges, D),
         _seg("v_th", n_cells, "full", D["v_th"], n_cells),
-        _seg("gt_scale", n_cells, "output", D["gt_scale"], n_cells),
-        _seg("gt_bias", n_cells, "output", D["gt_bias"], n_cells),
+        _seg("a_gt", n_cells, "output", D["a_gt"], n_cells),
+        _seg("bias_gt", n_cells, "output", D["bias_gt"], n_cells),
         _seg("Ih_gmax", n_cells, "full", D["Ih_gmax"], n_cells, **named_kw),
     ]
     if ih_off == "on":
@@ -187,7 +187,7 @@ def build_hp_lp_schema(
     ih_gmax_indi_names,
     n_edges=None,
 ):
-    """HP-then-membrane-LP: τ_HP on v_slow, τ_lp on V, drive G(v_tot−v_slow)."""
+    """HP-then-membrane-LP: τ_HP on v_slow, τ_lp on V, drive v_tot−a_slow v_slow."""
     if cell_names is None:
         raise TypeError("hp_lp schema requires cell_names from network")
     cell_names = list(cell_names)
@@ -195,16 +195,16 @@ def build_hp_lp_schema(
     D = param_boxes
     named_kw = dict(name_to_i=name_to_i, indi_names=ih_gmax_indi_names)
     return [
-        _seg("in_gain", n_cells, "full", D["in_gain"], n_cells),
-        _seg("out_gain", n_cells, "full", D["out_gain"], n_cells),
-        _seg("bias", n_cells, "full", D["bias"], n_cells),
+        _seg("a_in", n_cells, "full", D["a_in"], n_cells),
+        _seg("a_out", n_cells, "full", D["a_out"], n_cells),
+        _seg("bias_out", n_cells, "full", D["bias_out"], n_cells),
         _syn_segment(syn_mode, n_pairs, n_edges, D),
-        _seg("gt_scale", n_cells, "output", D["gt_scale"], n_cells),
-        _seg("gt_bias", n_cells, "output", D["gt_bias"], n_cells),
+        _seg("a_gt", n_cells, "output", D["a_gt"], n_cells),
+        _seg("bias_gt", n_cells, "output", D["bias_gt"], n_cells),
         _seg("tau_lp", n_cells, "full", D["tau_lp"], n_cells),
         _seg("tau_hp", n_cells, "full", D["tau_hp"], n_cells),
         _seg("v_rest", n_cells, "full", D["v_rest"], n_cells),
-        _seg("hp_gain", n_cells, "full", D["hp_gain"], n_cells, **named_kw),
+        _seg("a_slow", n_cells, "full", D["a_slow"], n_cells, **named_kw),
     ]
 
 

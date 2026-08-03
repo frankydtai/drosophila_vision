@@ -8,10 +8,10 @@ Interface:
     conn.n_nodes
     conn.node_cell
 
-``x`` is the presynaptic output already scaled by the per-source out_gain, i.e.
-``rectsyn(v, v_th) * out_gain`` for the borst model or
-``relu(v + bias) * out_gain`` for hp_lp. The post-synaptic input
-gain (``in_gain``) is applied by the caller AFTER these calls.
+``x`` is the presynaptic output already scaled by the per-source a_out, i.e.
+``rectsyn(v, v_th) * a_out`` for the borst model or
+``relu(v + bias_out) * a_out`` for hp_lp. The post-synaptic input
+gain (``a_in``) is applied by the caller AFTER these calls.
 
 Synaptic scaling multiplies each edge: length ``n_pairs`` type→type
 (``syn_strength_cell``, ``--syn-mode per_cell``) or length ``n_edges`` per-edge

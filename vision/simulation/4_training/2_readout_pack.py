@@ -15,7 +15,7 @@ every other ``training`` module can import these types without a cycle.
   Encoded here so ``neuron.readout`` needs no paradigm knowledge.
 
 Model traces are absolute ``v``; cost compares ``v`` to
-``gt_scale * gt + gt_bias``. ImpR / RecF spot gt are used as-is before affine.
+``a_gt * gt + bias_gt``. ImpR / RecF spot gt are used as-is before affine.
 """
 from __future__ import annotations
 

@@ -698,8 +698,8 @@ def _cells_from_cube(
             sem=None if single_hex else sem[i],
             baseline=baselines.get(n),
             n=n_by_name.get(n),
-            gt_scale=float(scale),
-            gt_bias=float(bias),
+            a_gt=float(scale),
+            bias_gt=float(bias),
         ))
     return out
 
@@ -937,8 +937,8 @@ def _plot_spot_figure(
             gt_raw = gt_by_cell.get(name)
             if gt_raw is not None:
                 gt_xt = (
-                    float(cell.get("gt_scale", 1.0)) * np.asarray(gt_raw, dtype=float)
-                    + float(cell.get("gt_bias", 0.0))
+                    float(cell.get("a_gt", 1.0)) * np.asarray(gt_raw, dtype=float)
+                    + float(cell.get("bias_gt", 0.0))
                 )
             else:
                 gt_xt = None

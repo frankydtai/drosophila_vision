@@ -2,11 +2,13 @@
 """HP-then-membrane-LP neuron (``--model hp_lp``).
 
     τ_HP d v_slow / dt = v_tot − v_slow
-    τ_lp dv/dt = −(v − v_rest) + G (v_tot − v_slow)
+    v_hp = v_tot − a_slow v_slow
+    τ_lp dv/dt = −(v − v_rest) + v_hp
 
 with v_tot = v_rest + v_in + v_sti, v_sti = i_sti/g_in (g_in in nS converts pA → mV),
-v_in from relu(v+bias)·out_gain scaled by syn_strength_cell (per_cell) or
-syn_strength_edge (per_edge). v_hp = v_tot − v_slow is the HP output.
+v_in from relu(v+bias_out)·a_out scaled by syn_strength_cell (per_cell) or
+syn_strength_edge (per_edge). a_slow = 1 recovers classical HP
+(v_hp = v_tot − v_slow); DC then has v_hp → 0 when v_slow → v_tot.
 
 Membrane / HP Euler (``session.euler`` = ``implicit`` | ``explicit``):
 
@@ -15,14 +17,14 @@ Membrane / HP Euler (``session.euler`` = ``implicit`` | ``explicit``):
     implicit HP:  v_slow ← (v_slow + α_hp v_tot) / (1 + α_hp)
     explicit HP:  v_slow ← v_slow + α_hp (v_tot − v_slow)
 
-    implicit LP:  v ← (v + α_lp (v_rest + G v_hp)) / (1 + α_lp)
-    explicit LP:  v ← v + α_lp (−(v − v_rest) + G v_hp)
+    implicit LP:  v ← (v + α_lp (v_rest + v_hp)) / (1 + α_lp)
+    explicit LP:  v ← v + α_lp (−(v − v_rest) + v_hp)
 
 Dynamics only: ``prepare_i_sti`` / ``init_state`` / ``step``. Full-T ``v``
 forward lives in ``neuron.forward``. Scalars from ``session`` flat fields.
-``init_state`` starts at the pre steady state: ``v0 = v_rest``,
-``v_slow0 = v_tot0`` with ``v_tot0`` from ``v_rest`` and ``i_sti[t=0]``
-(HP contributes 0 at DC).
+``init_state`` starts at the pre steady state: ``v_slow0 = v_tot0``,
+``v0 = v_rest + v_tot0 − a_slow v_slow0`` (with ``v_tot0`` from ``v_rest``
+and ``i_sti[t=0]``; classical HP when ``a_slow = 1`` → ``v0 = v_rest``).
 """
 from __future__ import annotations
 
@@ -42,15 +44,15 @@ def update_state_hp_lp(
     dt = float(delta_ms)
     tau_lp = torch.clamp(p["tau_lp"], min=dt)
     tau_hp = torch.clamp(p["tau_hp"], min=dt)
-    G = p["hp_gain"]
+    a_slow = p["a_slow"]
     clamp = float(state_clamp)
     g_in = float(g_in)
     if g_in == 0.0:
         raise ValueError("g_in must be non-zero")
 
-    pre = torch.relu(v + p["bias"]) * p["out_gain"]
+    pre = torch.relu(v + p["bias_out"]) * p["a_out"]
     w = syn_strength(p)
-    v_in = p["in_gain"] * backend.conn.signed_drive(pre, w)
+    v_in = p["a_in"] * backend.conn.signed_drive(pre, w)
     v_sti = i_sti / g_in
     v_tot = v_rest + v_in + v_sti
     hp_dt_over_tau = dt / tau_hp
@@ -59,16 +61,16 @@ def update_state_hp_lp(
     else:
         v_slow = v_slow + hp_dt_over_tau * (v_tot - v_slow)
     # LP uses post-HP ``v_slow`` (same as prior identity).
-    v_hp = v_tot - v_slow
+    v_hp = v_tot - a_slow * v_slow
     lp_dt_over_tau = dt / tau_lp
     if euler == "implicit":
         scale = lp_dt_over_tau / (1.0 + lp_dt_over_tau)
         dv_leak = scale * (-(v - v_rest))
-        dv_hp = scale * G * v_hp
-        v = (v + lp_dt_over_tau * (v_rest + G * v_hp)) / (1.0 + lp_dt_over_tau)
+        dv_hp = scale * v_hp
+        v = (v + lp_dt_over_tau * (v_rest + v_hp)) / (1.0 + lp_dt_over_tau)
     else:
         dv_leak = lp_dt_over_tau * (-(v - v_rest))
-        dv_hp = lp_dt_over_tau * G * v_hp
+        dv_hp = lp_dt_over_tau * v_hp
         v = v + dv_leak + dv_hp
 
     v_slow = torch.clamp(v_slow, -clamp, clamp)
@@ -78,8 +80,8 @@ def update_state_hp_lp(
         return v, v_slow
 
     g_exc, g_inh = backend.conn.exc_inh_drive(pre, w)
-    v_in_exc = p["in_gain"] * g_exc
-    v_in_inh = p["in_gain"] * g_inh
+    v_in_exc = p["a_in"] * g_exc
+    v_in_inh = p["a_in"] * g_inh
     return v, v_slow, {
         "v_in": v_in,
         "v_in_exc": v_in_exc,
@@ -101,7 +103,7 @@ def prepare_i_sti(session, p, i_sti, pack):
 
 
 def init_state(session, p, B, i_sti=None):
-    """``(v_slow,)`` at pre steady state: ``v0 = v_rest``, ``v_slow0 = v_tot0``."""
+    """``(v_slow,)`` at pre steady state: ``v_slow0 = v_tot0``, ``v0 = v_rest + v_hp0``."""
     if i_sti is None:
         raise TypeError("hp_lp init_state requires i_sti")
     v_rest = p["v_rest"]
@@ -110,12 +112,14 @@ def init_state(session, p, B, i_sti=None):
     g_in = float(session.g_in)
     if g_in == 0.0:
         raise ValueError("g_in must be non-zero")
-    v = v_rest.expand(B, n).clone()
-    pre = torch.relu(v + p["bias"]) * p["out_gain"]
+    v_probe = v_rest.expand(B, n).clone()
+    pre = torch.relu(v_probe + p["bias_out"]) * p["a_out"]
     w = syn_strength(p)
-    v_in = p["in_gain"] * backend.conn.signed_drive(pre, w)
+    v_in = p["a_in"] * backend.conn.signed_drive(pre, w)
     v_sti = i_sti[:, 0, :] / g_in
-    v_slow = v_rest + v_in + v_sti
+    v_tot = v_rest + v_in + v_sti
+    v_slow = v_tot
+    v = v_rest + v_tot - p["a_slow"] * v_slow
     return (v_slow,), v
 
 
