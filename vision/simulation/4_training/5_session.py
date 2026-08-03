@@ -119,6 +119,7 @@ from task.spot.gt import (
     make_spot_stimulus_opts,
 )
 from task.spot.input import (
+    normalize_spot_timing,
     spot_extent_half_steps,
     spot_gt_n_t_from_opts,
     spot_timing_t_from_opts,
@@ -542,7 +543,7 @@ def _build_network_spot_task(
     )
     if not ctx_opts:
         raise ValueError(f"{pack_name} requires stimulus opts (from make_train_opts / CLI)")
-    opts = dict(ctx_opts)
+    opts = normalize_spot_timing(dict(ctx_opts))
     cost_extent = normalize_cost_extent(opts.get("cost_extent"))
     shift_extent = int(opts["shift_extent"])
     spot_extent = float(opts["spot_extent"])

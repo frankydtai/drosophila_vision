@@ -43,7 +43,7 @@ from task.spot.input import (
     spot_from_opts,
     spot_stimulus_batches,
 )
-from training.implement import parse_tasks
+from training.implement import parse_tasks, stimulus_timing_kwargs_from_args
 
 __doc__ = """Borst / hp_lp v component analysis.
 
@@ -74,8 +74,9 @@ Default time window: absolute ms from 0 to last sample. Override with
 timing overrides from the train CLI (via ``figure.plot_run``). Unset flags keep
 the run's train opts. ``--ms-pre`` / ``--delta-ms`` also update moving_bar;
 response/pulse are spot-only. Re-opens the session and remaps best params when
-any is set. Set flags append
-``_ms_pre_…_ms_pulse_…_ms_response_…_ms_post_…_delta_…`` (only those set; that order) to PNG stems.
+any is set. Effective timing changes (including auto-raised ``ms_response`` when
+pulse is longer) append
+``_ms_pre_…_ms_pulse_…_ms_response_…_ms_post_…_delta_…`` (only changed keys; that order) to PNG stems.
 
 ``--euler im|ex``: optional membrane Euler override (default: keep run
 ``train_opts.euler``). Re-opens the session with timing overrides when set;
@@ -2582,33 +2583,26 @@ def main() -> None:
         ms_range = None  # default: 0 .. last sample
         use_ms = True
 
+    timing_kw = stimulus_timing_kwargs_from_args(args)
     param_edits = _parse_param_tokens(args.param)
-    file_suffix = (
-        plot_trained.stimulus_timing_filename_suffix(
-            ms_pre=args.ms_pre,
-            ms_pulse=args.ms_pulse,
-            ms_response=args.ms_response,
-            ms_post=args.ms_post,
-            delta_ms=args.delta_ms,
-        )
-        + plot_trained.euler_filename_suffix(args.euler)
-        + _param_filename_suffix(param_edits)
-    )
 
     for run_i, run_arg in enumerate(args.run):
         run_dir = plot_trained.resolve_run_dir(run_arg)
         _log(f"load_best {run_dir} ...")
         session, z, best_i, best_cost = plot_trained.load_best(run_dir)
-        session, z = plot_trained.maybe_override_stimulus_timing(
+        session, z, timing_changed = plot_trained.maybe_override_stimulus_timing(
             run_dir=run_dir,
             session=session,
             z=z,
-            ms_pre=args.ms_pre,
-            ms_response=args.ms_response,
-            ms_post=args.ms_post,
-            ms_pulse=args.ms_pulse,
-            delta_ms=args.delta_ms,
+            **timing_kw,
             euler=args.euler,
+        )
+        file_suffix = (
+            plot_trained.stimulus_timing_filename_suffix(
+                **timing_changed,
+            )
+            + plot_trained.euler_filename_suffix(args.euler)
+            + _param_filename_suffix(param_edits)
         )
         if use_ms:
             lo, hi = (

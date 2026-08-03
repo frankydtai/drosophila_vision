@@ -38,6 +38,7 @@ from task.spot.input import (
     SpotBatch,
     euclid_hex_dist,
     members_by_euclid_radius,
+    normalize_spot_timing,
     spot_extent_folds_r2_into_r1,
     spot_input_waveform,
     spot_stimulus_batches,
@@ -737,4 +738,4 @@ def make_spot_stimulus_opts(
     rs = normalize_gt_cells(gt_cells)
     if rs is not None:
         opts["gt_cells"] = rs
-    return opts
+    return normalize_spot_timing(opts)

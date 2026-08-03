@@ -231,14 +231,15 @@ def _style_recf_profile_axis(ax, show_xlabel):
         ax.set_xlabel('RF (°)', fontsize=7)
 
 
-def _scale_contrast_series(series, *, response_start, pulse_end):
+def _scale_contrast_series(
+    series, *, response_start, pulse_end, center_radius=RF_CENTER_RADIUS,
+):
     """Scale each contrast series entry to ImpR + RF radii.
 
     ``series`` items may include ``model_xt``, ``gt_xt``, ``sem_xt``.
     Returns a list of dicts with ``imp_model``, ``rf_model``, ``imp_sem``,
     ``imp_gt``, ``rf_gt`` plus passthrough keys.
     """
-    center_radius = RF_CENTER_RADIUS
     sc_kw = dict(response_start=response_start, pulse_end=pulse_end)
     out = []
     for entry in series:
@@ -322,6 +323,7 @@ def plot_cell_time(
     pulse_end=None,
     delta_ms=None,
     ms_shown=None,
+    center_radius=RF_CENTER_RADIUS,
 ):
     """Time-course panel for one cell across contrast ``series``.
 
@@ -330,7 +332,10 @@ def plot_cell_time(
     ``pulse_end``: white stimulus-on band ``[response_start, pulse_end)``.
     """
     scaled = _scale_contrast_series(
-        series, response_start=response_start, pulse_end=pulse_end,
+        series,
+        response_start=response_start,
+        pulse_end=pulse_end,
+        center_radius=int(center_radius),
     )
     t = np.arange(n_t)
     split = int(response_start or 0) if pre_end is None else int(pre_end)
@@ -567,6 +572,7 @@ class SpotTraceBundle:
     show_pre: bool = True
     pulse_end: int | None = None
     ms_shown: tuple[float, float] | None = None
+    r0_only: bool = False
 
     @property
     def has_slices(self):
@@ -608,6 +614,8 @@ def _spot_readout_bundle_view(bundle):
         response_start=bundle.response_start,
         show_pre=bundle.show_pre,
         pulse_end=bundle.pulse_end,
+        ms_shown=bundle.ms_shown,
+        r0_only=bool(getattr(bundle, "r0_only", False)),
     )
 
 
@@ -797,6 +805,7 @@ def network_spot_trace_bundle(
     at_xs=None, at_ys=None,
     show_pre=True,
     ms_shown=None,
+    r0_only=False,
 ):
     """Run one forward; full cost-extent spot traces over all types."""
     t_prep0 = time.perf_counter()
@@ -831,6 +840,7 @@ def network_spot_trace_bundle(
         show_pre=bool(show_pre),
         pulse_end=rows.get('pulse_end'),
         ms_shown=ms_shown,
+        r0_only=bool(r0_only),
     )
 
 
@@ -839,6 +849,36 @@ def _spot_suptitle(title, bundle):
         scope = hex_at_scope_tag(bundle.slice_xs, bundle.slice_ys)
         return f'{title}  [{scope}, overlay + total]'
     return title
+
+
+def _trained_radii(cost_parts, contrasts, *, r0_only=False):
+    """Sorted integer radii from spot cost parts (``spot_{contrast}_{cell}_r*``)."""
+    if r0_only:
+        return [int(RF_CENTER_RADIUS)]
+    if not cost_parts:
+        return [int(RF_CENTER_RADIUS)]
+    out = set()
+    for contrast in contrasts:
+        prefix = f"spot_{contrast}_"
+        for key in cost_parts:
+            if not key.startswith(prefix):
+                continue
+            pos = key.rfind("_r")
+            if pos < 0:
+                continue
+            r_s = key[pos + 2:]
+            try:
+                r_f = float(r_s)
+            except ValueError:
+                continue
+            r_i = int(round(r_f))
+            if abs(r_f - r_i) > 1e-6:
+                continue
+            if 0 <= r_i < RF_N_RADII:
+                out.add(r_i)
+    if not out:
+        return [int(RF_CENTER_RADIUS)]
+    return sorted(out)
 
 
 def _plot_spot_figure(
@@ -877,7 +917,12 @@ def _plot_spot_figure(
     for c in order:
         cells_by_contrast[c] = {cell["name"]: cell for cell in bundles[c].cells}
 
-    nrows = 2 * len(family_row_ixs)
+    r0_only = bool(getattr(primary, "r0_only", False))
+    radii = _trained_radii(cost_parts, order, r0_only=r0_only)
+    family_heights = [
+        1 + len(radii) for _ in family_row_ixs
+    ]
+    nrows = int(sum(family_heights))
     fig = plt.figure(figsize=figsize_fn(ncols, nrows))
     gs = fig.add_gridspec(nrows, ncols, **gridspec_kw)
     legend_done = False
@@ -967,18 +1012,71 @@ def _plot_spot_figure(
             )
         legend_done = True
 
+    row_cursor = 0
     for gi, row_idx in enumerate(family_row_ixs):
-        rf_row = 2 * gi
+        group_h = int(family_heights[gi])
+        rf_row = row_cursor
+        time_row0 = row_cursor + 1
         start = (ncols - len(row_idx)) // 2
         for j, ci in enumerate(row_idx):
             col = start + j
             cell_on = cells[ci]
             ax_rf = fig.add_subplot(gs[rf_row, col])
-            ax_time = fig.add_subplot(gs[rf_row + 1, col])
-            _plot_cell(
-                cell_on["name"], cell_on, ax_rf, ax_time,
-                show_ylabel=(j == 0), show_xlabels=True,
+            if has_slices:
+                ax_time = fig.add_subplot(gs[time_row0, col])
+                _plot_cell(
+                    cell_on["name"], cell_on, ax_rf, ax_time,
+                    show_ylabel=(j == 0), show_xlabels=True,
+                )
+                for rr in range(time_row0 + 1, row_cursor + group_h):
+                    ax_off = fig.add_subplot(gs[rr, col])
+                    ax_off.axis("off")
+                continue
+
+            name = cell_on["name"]
+            cell_title = bundle_cell_title(
+                primary, name, cell_on.get("n"),
+                cost_parts=cost_parts, contrasts=order,
             )
+            series = _series_for_cell(name, with_slices=False)
+            show_legend = not legend_done
+            plot_cell_rf(
+                ax_rf, cell_title, series,
+                show_legend=show_legend,
+                show_xlabels=False,
+                show_ylabel=(j == 0),
+                baseline=cell_on.get("baseline"),
+                response_start=response_start,
+                pulse_end=pulse_end,
+            )
+            legend_done = True
+            ylim0 = None
+            for local_i, rr in enumerate(range(time_row0, row_cursor + group_h)):
+                ax_t = fig.add_subplot(gs[rr, col])
+                if local_i >= len(radii):
+                    ax_t.axis("off")
+                    continue
+                radius = int(radii[local_i])
+                title = f"r={radius}"
+                plot_cell_time(
+                    ax_t, series,
+                    title=title,
+                    show_xlabels=(local_i == len(radii) - 1),
+                    show_ylabel=(j == 0),
+                    baseline=cell_on.get("baseline"),
+                    n_t=n_t,
+                    response_start=response_start,
+                    show_pre=show_pre,
+                    pulse_end=pulse_end,
+                    delta_ms=delta_ms,
+                    ms_shown=ms_shown,
+                    center_radius=radius,
+                )
+                if local_i == 0:
+                    ylim0 = ax_t.get_ylim()
+                elif ylim0 is not None:
+                    ax_t.set_ylim(*ylim0)
+        row_cursor += group_h
     fig.suptitle(_spot_suptitle(title, primary), fontsize=suptitle_fs)
     timer.end_draw()
     save_figure(fig, path, dpi=150)

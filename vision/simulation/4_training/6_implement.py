@@ -1067,11 +1067,14 @@ def add_stimulus_timing_arguments(
             "not in gt/cost)"
         )
     if default_ms_pulse is None:
-        pulse_help = "override spot pulse width in ms (keep train if omitted)"
+        pulse_help = (
+            "override spot pulse width in ms "
+            "(keep train if omitted; raises ms_response if shorter)"
+        )
     else:
         pulse_help = (
             "spot: bright/dark PR pulse duration in ms from onset "
-            f"(default: {default_ms_pulse})"
+            f"(default: {default_ms_pulse}; raises ms_response if shorter)"
         )
     if default_delta_ms is None:
         delta_help = (
@@ -1118,6 +1121,65 @@ def add_stimulus_timing_arguments(
         metavar="MS",
         help=delta_help,
     )
+
+
+def apply_train_opts_timing(
+    opts,
+    *,
+    ms_pre=None,
+    ms_response=None,
+    ms_post=None,
+    ms_pulse=None,
+    delta_ms=None,
+):
+    """Merge timing overrides into train-opts spot/bar stimulus dicts.
+
+    Spot opts go through :func:`task.spot.input.apply_spot_timing_overrides`
+    (normalize + drop derived ``t_onset``/``n_t``). Returns timing keys that
+    changed on spot opts (for filename suffixes); bar-only ``ms_pre`` /
+    ``delta_ms`` changes are included when no spot opts are present.
+    """
+    from task.spot.input import apply_spot_timing_overrides
+
+    changed = {}
+    for key in ("spot_bright_stimulus_opts", "spot_dark_stimulus_opts"):
+        so = opts.get(key)
+        if so is None:
+            continue
+        changed = apply_spot_timing_overrides(
+            so,
+            ms_pre=ms_pre,
+            ms_response=ms_response,
+            ms_post=ms_post,
+            ms_pulse=ms_pulse,
+            delta_ms=delta_ms,
+        )
+    if ms_pre is not None or delta_ms is not None:
+        for key in (
+            "moving_bar_bright_stimulus_opts",
+            "moving_bar_dark_stimulus_opts",
+        ):
+            so = opts.get(key)
+            if so is None:
+                continue
+            before_pre = so.get("ms_pre")
+            before_dt = so.get("delta_ms")
+            if ms_pre is not None:
+                so["ms_pre"] = float(ms_pre)
+            if delta_ms is not None:
+                so["delta_ms"] = float(delta_ms)
+            so.pop("t_onset", None)
+            so.pop("n_t", None)
+            if not changed:
+                if ms_pre is not None and (
+                    before_pre is None or float(before_pre) != float(ms_pre)
+                ):
+                    changed["ms_pre"] = float(ms_pre)
+                if delta_ms is not None and (
+                    before_dt is None or float(before_dt) != float(delta_ms)
+                ):
+                    changed["delta_ms"] = float(delta_ms)
+    return changed
 
 
 def stimulus_timing_kwargs_from_args(args):
@@ -1341,6 +1403,7 @@ def training_kwargs_from_args(
     ms_pre = float(args.ms_pre)
     ms_response = float(args.ms_response)
     ms_post = float(args.ms_post)
+    ms_pulse = float(args.ms_pulse)
     delta_ms = float(args.delta_ms)
     if delta_ms <= 0:
         raise ValueError("--delta-ms must be > 0")
@@ -1352,6 +1415,7 @@ def training_kwargs_from_args(
         "ms_response": ms_response,
         "ms_post": ms_post,
         "delta_ms": delta_ms,
+        "ms_pulse": ms_pulse,
     }
     moving_bar_bright_stimulus_opts = {
         "multi_bar": multi_bar,
@@ -1365,8 +1429,6 @@ def training_kwargs_from_args(
     }
     spot_bright_stimulus_opts = dict(_timing)
     spot_dark_stimulus_opts = dict(_timing)
-    for _o in (spot_bright_stimulus_opts, spot_dark_stimulus_opts):
-        _o["ms_pulse"] = float(args.ms_pulse)
     if args.cost_interval_ms is not None:
         if float(args.cost_interval_ms) <= 0:
             raise ValueError("--cost-interval-ms must be > 0")

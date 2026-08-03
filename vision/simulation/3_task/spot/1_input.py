@@ -23,6 +23,61 @@ from neuron.params import ms_to_t
 _SPOT_EXTENT_HALF_STEP_TOL = 1e-9
 
 
+_SPOT_TIMING_KEYS = ("ms_pre", "ms_response", "ms_post", "ms_pulse", "delta_ms")
+
+
+def _timing_equal(a, b) -> bool:
+    if a is None and b is None:
+        return True
+    if a is None or b is None:
+        return False
+    return float(a) == float(b)
+
+
+def normalize_spot_timing(so: dict) -> dict:
+    """In-place: ``ms_response = max(ms_response, ms_pulse)`` when both set."""
+    pulse = so.get("ms_pulse")
+    resp = so.get("ms_response")
+    if pulse is not None and resp is not None and float(resp) < float(pulse):
+        so["ms_response"] = float(pulse)
+    return so
+
+
+def apply_spot_timing_overrides(
+    so: dict,
+    *,
+    ms_pre=None,
+    ms_response=None,
+    ms_post=None,
+    ms_pulse=None,
+    delta_ms=None,
+) -> dict:
+    """Merge non-None timing into ``so``, normalize, drop derived ``t_onset``/``n_t``.
+
+    Returns timing keys whose values differ from the pre-merge snapshot (for
+    plot / analyze filename suffixes).
+    """
+    before = {k: so.get(k) for k in _SPOT_TIMING_KEYS}
+    if ms_pre is not None:
+        so["ms_pre"] = float(ms_pre)
+    if ms_response is not None:
+        so["ms_response"] = float(ms_response)
+    if ms_post is not None:
+        so["ms_post"] = float(ms_post)
+    if ms_pulse is not None:
+        so["ms_pulse"] = float(ms_pulse)
+    if delta_ms is not None:
+        so["delta_ms"] = float(delta_ms)
+    normalize_spot_timing(so)
+    so.pop("t_onset", None)
+    so.pop("n_t", None)
+    return {
+        k: so.get(k)
+        for k in _SPOT_TIMING_KEYS
+        if not _timing_equal(before.get(k), so.get(k))
+    }
+
+
 def spot_timing_t(
     *,
     ms_pre: float,

@@ -211,6 +211,9 @@ def maybe_override_stimulus_timing(
     also update moving_bar stimulus opts; ``ms_response`` / ``ms_post`` /
     ``ms_pulse`` are spot-only. ``euler`` is CLI ``im``/``ex`` (or already
     expanded ``implicit``/``explicit``).
+
+    Returns ``(session, z, timing_changed)`` where ``timing_changed`` maps
+    timing keys that differ from the run (for filename suffixes).
     """
     if (
         ms_pre is None
@@ -220,7 +223,7 @@ def maybe_override_stimulus_timing(
         and delta_ms is None
         and euler is None
     ):
-        return session, z
+        return session, z, {}
 
     if delta_ms is not None and float(delta_ms) <= 0:
         raise SystemExit("--delta-ms must be > 0")
@@ -233,37 +236,22 @@ def maybe_override_stimulus_timing(
     if opts is None:
         raise SystemExit(f"missing train opts under {run_dir}")
 
-    for key in ("spot_bright_stimulus_opts", "spot_dark_stimulus_opts"):
-        so = opts.get(key)
-        if so is None:
-            continue
-        if ms_pre is not None:
-            so["ms_pre"] = float(ms_pre)
-        if ms_response is not None:
-            so["ms_response"] = float(ms_response)
-        if ms_post is not None:
-            so["ms_post"] = float(ms_post)
-        if ms_pulse is not None:
-            so["ms_pulse"] = float(ms_pulse)
-        if delta_ms is not None:
-            so["delta_ms"] = float(delta_ms)
-        so.pop("t_onset", None)
-        so.pop("n_t", None)
-
-    if ms_pre is not None or delta_ms is not None:
-        for key in (
-            "moving_bar_bright_stimulus_opts",
-            "moving_bar_dark_stimulus_opts",
-        ):
-            so = opts.get(key)
-            if so is None:
-                continue
-            if ms_pre is not None:
-                so["ms_pre"] = float(ms_pre)
-            if delta_ms is not None:
-                so["delta_ms"] = float(delta_ms)
-            so.pop("t_onset", None)
-            so.pop("n_t", None)
+    timing_changed = {}
+    if (
+        ms_pre is not None
+        or ms_response is not None
+        or ms_post is not None
+        or ms_pulse is not None
+        or delta_ms is not None
+    ):
+        timing_changed = train_mod.apply_train_opts_timing(
+            opts,
+            ms_pre=ms_pre,
+            ms_response=ms_response,
+            ms_post=ms_post,
+            ms_pulse=ms_pulse,
+            delta_ms=delta_ms,
+        )
 
     if euler is not None:
         opts["euler"] = training.expand_euler(euler)
@@ -285,7 +273,7 @@ def maybe_override_stimulus_timing(
         dtype=session.sim_dtype,
         device=session.device,
     )
-    return session, z
+    return session, z, timing_changed
 
 
 def _format_ms_filename_token(value):
@@ -303,13 +291,13 @@ def stimulus_timing_filename_suffix(
     ms_post=None,
     delta_ms=None,
 ):
-    """PNG stem suffix for non-``None`` timing overrides (plot / analyze).
+    """PNG stem suffix for timing keys that differ from the run (plot / analyze).
 
     Order: pre, pulse, response, post, delta. Example::
 
         _ms_post_2500
 
-    Empty string when every override is unset (keep run train opts).
+    Empty string when every value is unset.
     """
     parts = []
     for name, val in (
@@ -356,7 +344,8 @@ def _plot_path(outdir, stem, file_suffix="", *, html=False):
 def _plot_spot_tasks(session, z, outdir, spot_tasks, suffix, model_all,
                        gt_cubes=None,
                        at_x=None, at_y=None, show_pre=True,
-                       file_suffix="", html=False, ms_shown=None):
+                       file_suffix="", html=False, ms_shown=None,
+                       r0_only=False):
     """Plot spot task(s); contrasts combined in one figure when both are trained."""
     spot_set = set(spot_tasks)
     make_bundle, plot_gt, plot_all = spot_bundle_fns(session)
@@ -369,6 +358,7 @@ def _plot_spot_tasks(session, z, outdir, spot_tasks, suffix, model_all,
         at_xs=at_x, at_ys=at_y,
         show_pre=show_pre,
         ms_shown=ms_shown,
+        r0_only=r0_only,
     )
     if spot_set == set(training.SPOT_TASKS):
         bundles = {
@@ -404,6 +394,7 @@ def _plot_spot_tasks(session, z, outdir, spot_tasks, suffix, model_all,
             file_suffix=file_suffix,
             html=html,
             ms_shown=ms_shown,
+            r0_only=r0_only,
         )
 
 
@@ -468,7 +459,8 @@ def _plot_bar_readouts(session, z, outdir, bar_readouts, suffix, model_all, *,
 def _plot_one_task(session, z, outdir, tname, suffix, model_all,
                      gt_cubes=None,
                      at_x=None, at_y=None, show_pre=True,
-                     cost_parts=None, file_suffix="", html=False, ms_shown=None):
+                     cost_parts=None, file_suffix="", html=False, ms_shown=None,
+                     r0_only=False):
     if tname not in training.SPOT_TASKS:
         raise ValueError(f'unknown plot task {tname!r}')
     kind = _session_trace_kind(session)
@@ -484,6 +476,7 @@ def _plot_one_task(session, z, outdir, tname, suffix, model_all,
         at_xs=at_x, at_ys=at_y,
         show_pre=show_pre,
         ms_shown=ms_shown,
+        r0_only=r0_only,
     )
     from figure.readout import contrast_for_task
     bundles = {contrast_for_task(tname): b}
@@ -503,7 +496,8 @@ def plot_param_set(params, outdir, model=None, model_all=True,
                    gt_cubes=None,
                    plot_right_only=True, at_x=None, at_y=None,
                    align_at_x=None, align_at_y=None,
-                   show_pre=True, file_suffix="", html=False, ms_shown=None):
+                   show_pre=True, file_suffix="", html=False, ms_shown=None,
+                   r0_only=False):
     from figure.util import plot_file_ext
 
     os.makedirs(outdir, exist_ok=True)
@@ -574,6 +568,7 @@ def plot_param_set(params, outdir, model=None, model_all=True,
             file_suffix=file_suffix,
             html=html,
             ms_shown=ms_shown,
+            r0_only=r0_only,
         )
     if bar_readouts:
         _plot_bar_readouts(
@@ -585,6 +580,7 @@ def plot_param_set(params, outdir, model=None, model_all=True,
             file_suffix=file_suffix,
             html=html,
             ms_shown=ms_shown,
+            r0_only=r0_only,
         )
     for tname in other_readouts:
         one = session_for_task(session, tname)
@@ -648,6 +644,15 @@ def add_plot_arguments(parser):
              'Gray gt never draws pre.',
     )
     parser.add_argument(
+        '--r0only',
+        nargs='?',
+        const=True,
+        default=False,
+        type=parse_bool,
+        metavar='BOOL',
+        help='spot_gt/spot_all: only plot r=0 time row (default false: plot all trained r rows)',
+    )
+    parser.add_argument(
         '--x',
         default=None,
         metavar='X,...',
@@ -703,6 +708,7 @@ def plot_kwargs_from_args(args):
     return dict(
         plot_right_only=args.plot_right_only,
         show_pre=args.show_pre,
+        r0_only=args.r0only,
         at_x=parse_axis_slices(args.x),
         at_y=parse_axis_slices(args.y),
         align_at_x=align_at_x,
@@ -730,17 +736,18 @@ def main():
         plot_kw = plot_kwargs_from_args(args)
     except ValueError as exc:
         raise SystemExit(str(exc)) from exc
+
     timing_kw = train_mod.stimulus_timing_kwargs_from_args(args)
-    file_suffix = (
-        stimulus_timing_filename_suffix(**timing_kw)
-        + euler_filename_suffix(getattr(args, "euler", None))
-    )
 
     outdir = resolve_run_dir(args.run_path)
     session, z, _stored_best_i, best_cost = load_best(outdir, verbose=True)
-    session, z = maybe_override_stimulus_timing(
+    session, z, timing_changed = maybe_override_stimulus_timing(
         run_dir=outdir, session=session, z=z, **timing_kw,
         euler=getattr(args, "euler", None),
+    )
+    file_suffix = (
+        stimulus_timing_filename_suffix(**timing_changed)
+        + euler_filename_suffix(getattr(args, "euler", None))
     )
     model = resolve_model(outdir)
     z_np = z.detach().cpu().numpy() if torch.is_tensor(z) else np.asarray(z)
