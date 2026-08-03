@@ -349,14 +349,20 @@ def parse_align_xy(text):
 
 
 def add_ms_shown_argument(parser):
-    """Register ``--ms-shown START,STOP`` display / analyze time window."""
+    """Register ``--ms-shown START,STOP`` display / analyze time window.
+
+    Absolute aligned ms — not stimulus-length (``--ms-pre``) and not
+    onset-relative for spot. Spot: ``0`` = trial start, pre = ``0,ms_pre``.
+    Bar: ``0`` = bar t0 at the node. See ``analyze.cell_dynamics`` module doc.
+    """
     parser.add_argument(
         '--ms-shown',
         default=None,
         metavar='START,STOP',
         help=(
-            'absolute aligned ms window START,STOP (spot: abs; bar: vs t0); '
-            'omit = full trace'
+            'absolute aligned ms START,STOP (not --ms-pre; not onset-relative). '
+            'spot: 0=trial start, pre=0,ms_pre (e.g. 0,1000); '
+            'bar: 0=t0 at node (neg START ok); omit = full trace'
         ),
     )
 

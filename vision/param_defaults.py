@@ -63,7 +63,7 @@ PARAM_BOXES: Dict[str, dict] = {
     "v_rest": dict(lo=-20.0, hi=20.0, init=0.0, jit=1.0, train_mode="fixed"),
     "bias_out": dict(lo=-20.0, hi=20.0, init=0.0, jit=1.0, train_mode="indi"),
     "tau_hp": dict(lo=100.0, hi=500.0, init=200.0, jit=20.0, train_mode="indi"),
-    "a_slow": dict(lo=0.0, hi=1.0, init=0.5, jit=0.05, train_mode="indi"),
+    "a_slow": dict(lo=0.0, hi=1.0, init=0.5, jit=0.05, train_mode="fixed"),
 }
 
 MODEL = "hp_lp"

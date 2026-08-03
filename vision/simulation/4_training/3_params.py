@@ -50,7 +50,8 @@ def build_ih_dir(conn, ih_reverse_cells=IH_DIR_REVERSE_CELLS, *, dtype=SIM_DTYPE
 #   name, kind, count, lo/hi/init/jit[, fixed_val][, scale]
 #   scale: ``linear`` (default), ``log`` (z = log(physical)), or ``inv`` (z = 1/physical); lo/hi/init physical
 #   indi / shared / fixed / frozen : disjoint exhaustive lists of node indices
-#       frozen: not in z; values from seg['carry'] (resume) or init (cold start)
+#       fixed: fixed_value(seg, u) = fixed_val if set else effective_init(seg, u)
+#       frozen: not in z; values from seg['carry'] (resume) or effective_init (cold)
 # z packing per segment: len(indi) slots + (1 if shared else 0).
 TRAIN_MODES = ('indi', 'shared', 'fixed', 'frozen')
 PAIR_SEP = ':'
@@ -128,11 +129,20 @@ def schema_nparams(schema):
     return sum(seg_ntrain(seg) for seg in schema)
 
 
-def _fixed_const(seg):
-    """Constant for nodes in the fixed train_mode (fixed_val if set, else init)."""
+def effective_init(seg, u):
+    """Per-node init: ``init_override[u]`` if present, else ``seg['init']``."""
+    io = seg.get('init_override')
+    iu = int(u)
+    if io is not None and iu in io:
+        return float(io[iu])
+    return float(seg['init'])
+
+
+def fixed_value(seg, u):
+    """Value for a fixed-mode node: ``fixed_val`` if set, else ``effective_init``."""
     if 'fixed_val' in seg:
         return float(seg['fixed_val'])
-    return float(seg['init'])
+    return effective_init(seg, u)
 
 
 def _merge_init_override(dst, names_part, val):
@@ -397,13 +407,9 @@ def attach_param_carry(schema, named=None):
         if named is not None and seg['name'] in named:
             carry = np.asarray(named[seg['name']], dtype=np.float64).reshape(-1).copy()
         else:
-            io = seg.get('init_override')
-            if io:
-                carry = np.full(count, float(seg['init']), dtype=np.float64)
-                for idx, val in io.items():
-                    carry[int(idx)] = val
-            else:
-                carry = np.full(count, float(seg['init']), dtype=np.float64)
+            carry = np.asarray(
+                [effective_init(seg, i) for i in range(count)], dtype=np.float64,
+            )
         if carry.shape[0] != count:
             raise ValueError(
                 f"{seg['name']}: carry length {carry.shape[0]} != count {count}"
@@ -463,8 +469,9 @@ def remap_named_node_values(named, src_cell_names, src_pair_names, schema, backe
     for seg in schema:
         name = seg['name']
         count = seg_count(seg)
-        fixed_val = _fixed_const(seg)
-        arr = np.full(count, fixed_val, dtype=np.float64)
+        arr = np.asarray(
+            [fixed_value(seg, j) for j in range(count)], dtype=np.float64,
+        )
         src = named.get(name)
         if src is None:
             out[name] = arr
@@ -475,18 +482,19 @@ def remap_named_node_values(named, src_cell_names, src_pair_names, schema, backe
                 if pn in src_p:
                     arr[j] = float(src[src_p[pn]])
                 else:
-                    arr[j] = float(seg['init'])
+                    arr[j] = fixed_value(seg, j)
         elif seg['kind'] == 'edge':
             if src.shape[0] == count:
                 arr[:] = src
             else:
-                arr[:] = float(seg['init'])
+                for j in range(count):
+                    arr[j] = fixed_value(seg, j)
         else:
             for j, tn in enumerate(dst_cells):
                 if tn in src_t and src_t[tn] < src.shape[0]:
                     arr[j] = float(src[src_t[tn]])
                 else:
-                    arr[j] = float(seg['init']) if 'fixed_val' not in seg else fixed_val
+                    arr[j] = fixed_value(seg, j)
         out[name] = arr
     return out
 
@@ -494,9 +502,10 @@ def remap_named_node_values(named, src_cell_names, src_pair_names, schema, backe
 def _reconstruct_raw(seg, z_slice, z):
     """Build length-`count` per-node vector from z slice + train_mode lists."""
     count = seg_count(seg)
-    const = _fixed_const(seg)
-    raw = torch.full((count,), const, dtype=z.dtype, device=z.device)
+    raw = torch.empty((count,), dtype=z.dtype, device=z.device)
     carry = seg.get('carry')
+    for u in seg.get('fixed', ()):
+        raw[int(u)] = fixed_value(seg, u)
     i = 0
     for u in seg.get('indi', ()):
         raw[int(u)] = _decode_z(seg, z_slice[i])
@@ -505,13 +514,11 @@ def _reconstruct_raw(seg, z_slice, z):
         shared_val = _decode_z(seg, z_slice[i])
         for u in seg['shared']:
             raw[int(u)] = shared_val
-    io = seg.get('init_override')
     for u in seg.get('frozen', ()):
         if carry is not None:
-            raw[int(u)] = torch.tensor(float(carry[int(u)]), dtype=z.dtype, device=z.device)
+            raw[int(u)] = float(carry[int(u)])
         else:
-            v = io.get(int(u), seg['init']) if io else seg['init']
-            raw[int(u)] = torch.tensor(float(v), dtype=z.dtype, device=z.device)
+            raw[int(u)] = effective_init(seg, u)
     return raw
 
 
@@ -558,18 +565,18 @@ def schema_guess(schema, sim_dtype=SIM_DTYPE):
         n = stop - start
         if n == 0:
             continue
-        io = seg.get('init_override')
-        if io:
-            i = 0
-            for u in seg.get('indi', ()):
-                phys = io.get(int(u), seg['init'])
-                z[start + i] = _encode_physical(seg, phys) + (np.random.random() - 0.5) * seg['jit']
-                i += 1
-            if seg.get('shared'):
-                z[start + i] = _encode_physical(seg, seg['init']) + (np.random.random() - 0.5) * seg['jit']
-        else:
-            z_init = _encode_physical(seg, seg['init'])
-            z[start:stop] = z_init + (np.random.rand(n) - 0.5) * seg['jit']
+        i = 0
+        for u in seg.get('indi', ()):
+            phys = effective_init(seg, u)
+            z[start + i] = (
+                _encode_physical(seg, phys) + (np.random.random() - 0.5) * seg['jit']
+            )
+            i += 1
+        if seg.get('shared'):
+            phys = effective_init(seg, seg['shared'][0])
+            z[start + i] = (
+                _encode_physical(seg, phys) + (np.random.random() - 0.5) * seg['jit']
+            )
     return torch.tensor(z, dtype=sim_dtype).to(active_device())
 
 

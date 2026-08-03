@@ -47,14 +47,55 @@ from training.implement import parse_tasks, stimulus_timing_kwargs_from_args
 
 __doc__ = """Borst / hp_lp v component analysis.
 
+Consumers (CLI or ``import analyze.cell_dynamics``) must reuse this module's
+forward helpers. Do not re-implement spot/bar readout + step loops in test/.
+
+Time axis (read this before ``--ms-shown`` / ``TimeWindow``)
+------------------------------------------------------------
+Two *different* knobs — do not mix them:
+
+1. **Stimulus length** (``--ms-pre`` / ``--ms-pulse`` / ``--ms-response`` /
+   ``--ms-post`` / ``--delta-ms``): rebuilds the session stimulus (via
+   ``figure.plot_run.maybe_override_stimulus_timing``). Unset = keep the run's
+   train opts. These change *how long* pre/pulse/response *are*, not which
+   slice of an existing trace you plot.
+
+2. **Analyze / plot window** (``--ms-shown START,STOP`` or ``--t-rel START:STOP``,
+   mutually exclusive): which inclusive slice of the forward to accumulate and
+   report. Default if both omitted: absolute ms ``0`` .. last sample.
+
+``--ms-shown`` is **absolute aligned ms**, never "ms before onset":
+
+* **spot**: aligned ``t = 0`` is trial start. Stimulus onset is at
+  ``t_onset = ms_to_t(ms_pre)`` (e.g. ``ms_pre=1000``, ``delta_ms=5`` →
+  ``t_onset=200`` ↔ **1000 ms**). Pre-stimulus is therefore
+  ``--ms-shown 0,1000`` (or ``0,ms_pre``), **not** ``-1000,0``.
+  Negative START is wrong for spot (aligned index goes negative; accum window
+  collapses).
+* **moving_bar**: aligned ``t = 0`` is bar ``t0`` at the node (crossing), so
+  ``--ms-shown`` is ms relative to that ``t0`` (negative START is valid).
+
+``--t-rel START:STOP`` is **t-index offsets from the |v_post_d| peak** (not from
+onset, not absolute ms). Example: ``--t-rel -5:15``.
+
+``TimeWindow(kind="ms", start, stop)`` uses the same absolute-aligned-ms rule as
+``--ms-shown``. ``kind="t_rel"`` matches ``--t-rel``. Spot R0-average API:
+``analyze_spot_average(..., time_window=TimeWindow("ms", 0, ms_pre), radius=0)``.
+
+Programmatic reuse
+------------------
+* Spot R0 / R1 average: ``analyze_spot_average`` (omit hex; ``radius=0|1``).
+* Spot one hex: ``analyze_spot_hex``.
+* Bar average / hex: ``analyze_bar_average`` / ``analyze_bar_hex``.
+* Load run: ``figure.plot_run.load_best`` + ``assign_params``; do not invent a
+  second forward path.
+
 CLI
 ---
 ``CELL,...`` ``--run`` ``--task`` ``--spec`` ``--x`` ``--y``. Pass comma lists in
 one process (do not re-invoke once per cell/spec).
 
 Per ``--run``: one ``load_best``; one batched v component forward per distinct task.
-Default time window: absolute ms from 0 to last sample. Override with
-``--ms-shown START,STOP`` or ``--t-rel START:STOP`` (mutually exclusive).
 
 * Omit ``--x`` / ``--y``: cost-extent **average** (optional ``--radius 0|1``).
 * Exactly one ``--x`` and one ``--y``: **hex** (spot or moving_bar; one cell).
@@ -70,14 +111,6 @@ Default time window: absolute ms from 0 to last sample. Override with
   Each edit appends ``_NAME_NODE_VALUE`` (``:`` in NODE → ``_``; no NODE when
   omitted / ``all``) to PNG stems, in CLI order, after timing suffixes.
 
-``--ms-pre`` / ``--ms-response`` / ``--ms-pulse`` / ``--delta-ms``: optional
-timing overrides from the train CLI (via ``figure.plot_run``). Unset flags keep
-the run's train opts. ``--ms-pre`` / ``--delta-ms`` also update moving_bar;
-response/pulse are spot-only. Re-opens the session and remaps best params when
-any is set. Effective timing changes (including auto-raised ``ms_response`` when
-pulse is longer) append
-``_ms_pre_…_ms_pulse_…_ms_response_…_ms_post_…_delta_…`` (only changed keys; that order) to PNG stems.
-
 ``--euler im|ex``: optional membrane Euler override (default: keep run
 ``train_opts.euler``). Re-opens the session with timing overrides when set;
 PNG stem gets ``_im`` / ``_ex``. Component formula rows follow
@@ -85,6 +118,11 @@ implicit vs explicit.
 
 Examples
 --------
+  # Spot R0 average, pre window only (ms_pre=1000 on the run → 0..1000 ms):
+  ../.venv/bin/python analyze/cell_dynamics.py \\
+    L1,L2,Mi1 --run hp_lp/28693664-... \\
+    --task spot_bright --radius 0 --ms-shown 0,1000 --plot false
+
   ../.venv/bin/python analyze/cell_dynamics.py \\
     Mi4,Mi9 --run /abs/path/to/run \\
     --task spot_bright,moving_bar_bright --spec right_bright_w1
@@ -121,7 +159,18 @@ def _parse_t_range(token: str, *, flag: str) -> tuple[int, int]:
 
 @dataclass(frozen=True)
 class TimeWindow:
-    """``t_rel``: t offsets vs |v_post_d| peak; ``ms``: absolute aligned ms."""
+    """Inclusive analyze window for component forward / finalize.
+
+    ``kind="ms"``
+        Absolute **aligned** ms (same as ``--ms-shown``). Spot: ``0`` = trial
+        start, onset ≈ ``ms_pre``; pre = ``TimeWindow("ms", 0, ms_pre)``.
+        Never use negative ``start`` for spot "pre" (that is not onset-relative).
+        Bar: ``0`` = bar ``t0`` at the node (negative ``start`` OK).
+    ``kind="t_rel"``
+        Integer t offsets from the |v_post_d| peak (same as ``--t-rel``).
+
+    Not stimulus-length overrides (``--ms-pre`` / …); those rebuild the session.
+    """
 
     kind: str  # "t_rel" | "ms"
     start: float
@@ -142,6 +191,11 @@ class TimeWindow:
         return training.ms_to_t(self.stop, delta_ms=delta_ms)
 
     def aligned_win_len(self, T: int, *, delta_ms: float) -> int:
+        """Buffer length for spot (``t0=0``): indices ``0 .. stop`` inclusive.
+
+        For ``kind="ms"``, length is ``ms_to_t(stop) + 1``. ``stop`` must be
+        non-negative for a useful buffer (spot pre → ``stop=ms_pre``).
+        """
         if self.kind != "ms":
             return T
         return training.ms_to_t(self.stop, delta_ms=delta_ms) + 1
@@ -1776,7 +1830,12 @@ def analyze_spot_average(
     time_window: TimeWindow,
     radius: int = 0,
 ) -> dict[str, dict[str, Any]]:
-    """One batched v forward over spot stimulus rows; mean at Euclidean ``radius``."""
+    """One batched v forward over spot stimulus rows; mean at Euclidean ``radius``.
+
+    ``time_window`` is absolute aligned ms for spot (``0`` = trial start). Pre
+    only: ``TimeWindow("ms", 0, ms_pre)``. Do not pass negative ``start`` for
+    "before onset" — that confuses stimulus length with the analyze window.
+    """
     if task not in training.SPOT_TASKS:
         raise SystemExit(f"unsupported task {task!r}")
     radius = int(radius)
@@ -2510,10 +2569,14 @@ def main() -> None:
         "--t-rel",
         default=None,
         metavar="START:STOP",
-        help="window in t relative to |v_post_d| peak (overrides default 0..last ms)",
+        help=(
+            "t-index window relative to |v_post_d| peak (not onset, not abs ms); "
+            "mutually exclusive with --ms-shown; default without either: 0..last ms"
+        ),
     )
     add_ms_shown_argument(t_group)
-    # Mutual-exclusion help: default without --ms-shown/--t-rel is 0..last sample.
+    # --ms-shown: absolute aligned ms (spot 0=trial start; pre = 0,ms_pre).
+    # --ms-pre/…: stimulus length overrides (rebuild session). Do not confuse.
     ap.add_argument(
         "--plot",
         type=parse_bool,
