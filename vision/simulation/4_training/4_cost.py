@@ -7,15 +7,20 @@ local-% costs, the mean weighted total (``Σ W·cost / Σ W``), and the Adam
 training loop.
 
 Model traces are absolute ``v``; cost compares ``v`` to
-``gt_aff = a_gt * gt + bias_gt`` (``+ v_th`` when present, i.e. borst),
-normalized by ``Σ weight·(a_gt·gt)²`` (no ``bias_gt`` / ``v_th`` in power)
+``gt_aff = a_gt * gt + bias_gt`` (``+ v_th`` when present, i.e. borst).
+Waveform MSE normalization is ``session`` / ``train_opts`` ``cost_norm``:
+
+* ``gt_power``: ``100 * Σ w (sel−gt_aff)² / Σ w (a_gt·gt)²``
+  (no ``bias_gt`` / ``v_th`` in the denominator)
+* ``a_gt2`` (default): ``Σ w (sel−gt_aff)² / a_gt²`` (per-row ``a_i²``; bias not in denom)
+
 **within each part**. The training total averages those part costs (equal
 weight per cell×radius unless ``cost_weights`` says otherwise).
 
 Sparse cost time points (#4): ``pack.gt`` stays the response-window length
 (spot excludes ``ms_post``) and the subsample is gathered from both model
-trace and gt at cost time via ``pack.cost_time_ix``; ``power`` is recomputed
-on the subsample.
+trace and gt at cost time via ``pack.cost_time_ix``; ``gt_power`` is
+recomputed on the subsample.
 """
 from __future__ import annotations
 
@@ -39,17 +44,20 @@ from neuron.readout import (
 )
 
 from training.config import (
+    COST_NORMS,
     MOVING_BAR_TASKS,
     ND_IDX,
     PD_IDX,
     PD_ND_LABELS,
     coarse_weight_keys_for_part,
     cost_part_keys_for_readout,
+    expand_cost_norm,
     moving_bar_cell_cost_part_key,
     moving_bar_cost_part_key,
     session_cost_part_keys,
     spot_cost_part_key,
 )
+from param_defaults import COST_NORM as DEFAULT_COST_NORM
 from training.params import params_from_z, schema_bounds, schema_guess, schema_nparams
 from training.readout_pack import (
     FusedForward,
@@ -110,18 +118,33 @@ def _pack_ca_readouts(p, pack: ReadoutPack, session: TrainSession, batch_idx=Non
     return readout(p, pack, session, batch_idx)
 
 
-def _sel_power(weight, gt_scaled):
+def _session_cost_norm(session: TrainSession) -> str:
+    """``cost_norm`` from train_opts; default ``a_gt2``."""
+    opts = session.train_opts or {}
+    raw = opts.get("cost_norm", DEFAULT_COST_NORM)
+    return expand_cost_norm(raw)
+
+
+def _sel_gt_power(weight, gt_scaled):
     """Σ w·(a_gt·gt)²; replace exact 0 without GPU→CPU sync."""
-    power = torch.sum(weight[:, None] * gt_scaled ** 2)
-    return torch.where(power > 0, power, torch.ones_like(power))
+    gt_power = torch.sum(weight[:, None] * gt_scaled ** 2)
+    return torch.where(gt_power > 0, gt_power, torch.ones_like(gt_power))
 
 
-def _pack_cost_mse(a_gt, bias_gt, gt, weight, sel):
+def _pack_cost_mse(a_gt, bias_gt, gt, weight, sel, *, cost_norm: str):
     gt_scaled = a_gt[:, None] * gt
     gt_aff = gt_scaled + bias_gt[:, None]
-    power = _sel_power(weight, gt_scaled)
     diff = sel - gt_aff
-    return torch.sum(weight[:, None] * diff ** 2) / power * 100.0
+    sse = torch.sum(weight[:, None] * diff ** 2)
+    if cost_norm == "gt_power":
+        gt_power = _sel_gt_power(weight, gt_scaled)
+        return sse / gt_power * 100.0
+    if cost_norm == "a_gt2":
+        # Σ_i (sse_row_i / a_i²); a constant within a cell part → sse / a².
+        a2 = (a_gt * a_gt).clamp(min=torch.finfo(a_gt.dtype).tiny)
+        sse_row = (weight[:, None] * diff ** 2).sum(dim=-1)
+        return (sse_row / a2).sum()
+    raise ValueError(f"cost_norm must be one of {COST_NORMS}; got {cost_norm!r}")
 
 
 def _mse_parts_scatter(
@@ -134,21 +157,30 @@ def _mse_parts_scatter(
     keys: List[str],
     session: TrainSession,
 ) -> Dict[str, torch.Tensor]:
-    """Local-% costs for groups via one scatter (``group_id`` -1 = skip row)."""
+    """Local costs for groups via one scatter (``group_id`` -1 = skip row)."""
     if not keys:
         return {}
+    cost_norm = _session_cost_norm(session)
     gt_scaled = a_gt[:, None] * gt
     sse_row = (weight[:, None] * (sel - gt_scaled - bias_gt[:, None]) ** 2).sum(dim=-1)
-    p_row = (weight[:, None] * gt_scaled ** 2).sum(dim=-1)
     n_g = len(keys)
-    sse = sse_row.new_zeros((n_g,))
-    power = p_row.new_zeros((n_g,))
     keep_f = (group_id >= 0).to(dtype=sse_row.dtype)
     gid = group_id.clamp(min=0)
-    sse.scatter_add_(0, gid, sse_row * keep_f)
-    power.scatter_add_(0, gid, p_row * keep_f)
-    power = torch.where(power > 0, power, torch.ones_like(power))
-    costs = sse / power * 100.0
+    if cost_norm == "gt_power":
+        p_row = (weight[:, None] * gt_scaled ** 2).sum(dim=-1)
+        sse = sse_row.new_zeros((n_g,))
+        gt_power = p_row.new_zeros((n_g,))
+        sse.scatter_add_(0, gid, sse_row * keep_f)
+        gt_power.scatter_add_(0, gid, p_row * keep_f)
+        gt_power = torch.where(gt_power > 0, gt_power, torch.ones_like(gt_power))
+        costs = sse / gt_power * 100.0
+    elif cost_norm == "a_gt2":
+        a2 = (a_gt * a_gt).clamp(min=torch.finfo(a_gt.dtype).tiny)
+        contrib = sse_row / a2
+        costs = contrib.new_zeros((n_g,))
+        costs.scatter_add_(0, gid, contrib * keep_f)
+    else:
+        raise ValueError(f"cost_norm must be one of {COST_NORMS}; got {cost_norm!r}")
     out: Dict[str, torch.Tensor] = {}
     for g, key in enumerate(keys):
         if _part_weight(session, key) == 0.0:
@@ -506,7 +538,7 @@ def _pack_cost_parts_from_sel(
     gt = pack.gt
     weight = pack.cost_weight
     # #4 sparse time points: gather model + gt on the requested post-onset
-    # t indices; power uses a_gt·gt (no bias_gt) inside MSE.
+    # t indices; gt_power uses a_gt·gt (no bias_gt) inside MSE when cost_norm=gt_power.
     if pack.cost_time_ix is not None:
         ix = pack.cost_time_ix.to(device=sel.device)
         sel = sel.index_select(1, ix)
@@ -591,7 +623,9 @@ def _pack_cost_rows(p, pack: ReadoutPack, session: TrainSession, batch_idx=None)
     a_gt, bias_gt, gt, weight, sel, dsi_sel, _pd_nd = fwd
     if sel is None:
         return _pack_cost_dsi_from_sel(pack, session, bias_gt, dsi_sel)
-    return _pack_cost_mse(a_gt, bias_gt, gt, weight, sel)
+    return _pack_cost_mse(
+        a_gt, bias_gt, gt, weight, sel, cost_norm=_session_cost_norm(session),
+    )
 
 def _pack_cost_parts_for_pack(z, pack: ReadoutPack, session: TrainSession, batch_idx=None, p=None):
     if p is None:
@@ -1049,10 +1083,8 @@ def do_many_runs(session: TrainSession, nofruns, nofsteps, lrs=(0.1, 0.01, 0.001
     final_costs = np.zeros(nofruns)
     part_keys = session_cost_part_keys(session.tasks, session=session)
     final_costs_by_part = {name: np.zeros(nofruns) for name in part_keys}
-    best_i = 0
-    best_cost = np.inf
-    cost_curve = np.array([], dtype=np.float64)
-    cost_curves_by_part = {}
+    cost_histories = [None] * nofruns
+    part_histories = [None] * nofruns
 
     for i in range(nofruns):
         print()
@@ -1094,19 +1126,23 @@ def do_many_runs(session: TrainSession, nofruns, nofsteps, lrs=(0.1, 0.01, 0.001
         final_costs[i] = float(_weighted_cost_from_parts(fit_parts, session).item())
         for name, part in fit_parts.items():
             final_costs_by_part[name][i] = float(part.item())
-        if final_costs[i] < best_cost:
-            best_cost = final_costs[i]
-            best_i = i
-            cost_curve = np.array(cost_history, dtype=np.float64)
-            cost_curves_by_part = {
-                name: np.array(curve, dtype=np.float64)
-                for name, curve in target_history.items()
-            }
+        cost_histories[i] = np.array(cost_history, dtype=np.float64)
+        part_histories[i] = {
+            name: np.array(curve, dtype=np.float64)
+            for name, curve in target_history.items()
+        }
+
+    run_i = int(np.argmin(final_costs)) if nofruns else 0
+    cost_curve = (
+        cost_histories[run_i]
+        if cost_histories[run_i] is not None
+        else np.array([], dtype=np.float64)
+    )
+    cost_curves_by_part = part_histories[run_i] or {}
 
     return TrainingResult(
         all_params=all_params,
         final_costs=final_costs,
-        best_i=best_i,
         cost_curve=cost_curve,
         cost_curves_by_part=cost_curves_by_part,
         final_costs_by_part=final_costs_by_part,

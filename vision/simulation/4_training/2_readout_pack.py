@@ -191,7 +191,6 @@ class TrainingResult:
 
     all_params: np.ndarray   # (nofruns, n_params)
     final_costs: np.ndarray  # (nofruns,) weighted total
-    best_i: int
-    cost_curve: np.ndarray   # per-step weighted total for ``best_i``
+    cost_curve: np.ndarray   # per-step weighted total for ``argmin(final_costs)``
     cost_curves_by_part: Dict[str, np.ndarray] = field(default_factory=dict)
     final_costs_by_part: Dict[str, np.ndarray] = field(default_factory=dict)

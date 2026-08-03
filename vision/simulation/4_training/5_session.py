@@ -68,6 +68,7 @@ from param_defaults import (
     MS_PULSE,
     MS_RESPONSE,
     SYN_MODE,
+    COST_NORM,
 )
 
 from training.config import (
@@ -85,6 +86,7 @@ from training.config import (
     _MOVING_BAR_I_KEY,
     _SPOT_BASELINE_KEY,
     _SPOT_I_KEY,
+    expand_cost_norm,
     expand_cost_weight_dict,
     expand_gt_dict,
     moving_bar_cost_part_key,
@@ -853,6 +855,7 @@ def make_train_opts(
     network=None,
     train_modes=None,
     syn_mode=SYN_MODE,
+    cost_norm=COST_NORM,
     dev=None,
     packs=None,
     ih_off=IH_OFF,
@@ -868,6 +871,7 @@ def make_train_opts(
     fp = int(fp)
     if fp not in (16, 32, 64):
         raise ValueError(f"fp must be 16, 32, or 64; got {fp!r}")
+    cost_norm = expand_cost_norm(cost_norm)
     tl = normalize_tasks(tasks)
     if spot_extent is None:
         spot_extent = SPOT_EXTENT
@@ -903,6 +907,7 @@ def make_train_opts(
         "backend": "network",
         "tasks": tl,
         "cost_weights": expand_cost_weight_dict(cost_weights or {}),
+        "cost_norm": cost_norm,
         "sequential": sequential,
         **stimulus_opts,
     }
@@ -934,6 +939,7 @@ def _train_opts_for_sidecar(
         "backend": str(backend),
         "tasks": list(tasks),
         "cost_weights": {str(k): float(v) for k, v in (opts.get("cost_weights") or {}).items()},
+        "cost_norm": expand_cost_norm(opts.get("cost_norm", COST_NORM)),
         "sequential": bool(sequential_bool),
     }
     if backend == "network":

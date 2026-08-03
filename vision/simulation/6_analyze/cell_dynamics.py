@@ -2652,7 +2652,7 @@ def main() -> None:
     for run_i, run_arg in enumerate(args.run):
         run_dir = plot_trained.resolve_run_dir(run_arg)
         _log(f"load_best {run_dir} ...")
-        session, z, best_i, best_cost = plot_trained.load_best(run_dir)
+        session, z, best_cost = plot_trained.load_best(run_dir)
         session, z, timing_changed = plot_trained.maybe_override_stimulus_timing(
             run_dir=run_dir,
             session=session,
@@ -2691,7 +2691,7 @@ def main() -> None:
         if not args.json:
             _log(f"== RUN {run_i}: {run_dir} ==")
             _log(
-                f"best_i={best_i}  best_cost={best_cost:.6g}  cost={cost:.6g}  "
+                f"best_cost={best_cost:.6g}  cost={cost:.6g}  "
                 f"mode={'hex' if hex_mode else 'average'}  "
                 f"radius={args.radius}  "
                 f"{time_window.kind}={time_window.start}:{time_window.stop}"
@@ -2830,7 +2830,6 @@ def main() -> None:
             print(json.dumps(
                 {
                     "run": run_dir,
-                    "best_i": best_i,
                     "best_cost": best_cost,
                     "cost": cost,
                     "reports": all_reports,

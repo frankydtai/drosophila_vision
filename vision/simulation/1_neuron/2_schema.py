@@ -1,9 +1,10 @@
 # -*- coding: utf-8 -*-
 """Parameter schemas for borst / hp_lp neuron models.
 
-Numeric lo/hi/init/jit(/fixed_val) and default ``train_mode`` live in
+Numeric lo/hi/init/jit and default ``train_mode`` live in
 ``param_defaults.PARAM_BOXES`` and are passed in as ``param_boxes``.
 This module builds segment structure and resolves train_modes.
+Fixed nodes always use ``effective_init`` (init / init_override); no ``fixed_val``.
 """
 from __future__ import annotations
 
@@ -93,10 +94,15 @@ def _with_train_mode(seg, mode):
 
 
 def _seg(name, count, kind, box, n, *, name_to_i=None, indi_names=()):
-    return _with_train_mode(
+    mode = _mode_from_box(box, n, name_to_i=name_to_i, indi_names=indi_names)
+    s = _with_train_mode(
         {"name": name, "count": count, "kind": kind, **_box_numeric(box)},
-        _mode_from_box(box, n, name_to_i=name_to_i, indi_names=indi_names),
+        mode,
     )
+    # indi_named: fixed remainder off (0); indi keep box init via effective_init.
+    if box.get("train_mode") == "indi_named" and mode["fixed"]:
+        s["init_override"] = {int(i): 0.0 for i in mode["fixed"]}
+    return s
 
 
 def borst_ih_off_kwargs(p, ih_off: str):

@@ -29,8 +29,8 @@ from figure.util import (
     PlotTimer,
     annotate_baseline,
     baselines_for_types,
-    bundle_cell_title,
     bundle_prep_s,
+    format_spot_radius_time_title,
     gt_affine_scalars_for_cell,
     hex_at_scope_tag,
     mark_pulse,
@@ -38,7 +38,6 @@ from figure.util import (
     overlay_model_reds,
     plot_pre_post_line,
     plot_timecourse,
-    readout_n_by_name,
     save_figure,
     sem_from_traces,
     slice_coord_specs,
@@ -372,6 +371,7 @@ def plot_cell_rf_time(
     title,
     series,
     *,
+    time_title=None,
     show_legend=False,
     show_xlabels=False,
     show_ylabel=False,
@@ -395,6 +395,7 @@ def plot_cell_rf_time(
     )
     plot_cell_time(
         ax_time, series,
+        title=time_title,
         show_xlabels=show_xlabels,
         show_ylabel=show_ylabel,
         baseline=baseline,
@@ -414,6 +415,7 @@ def plot_cell_rf_time_slices(
     series,
     slice_labels,
     *,
+    time_title=None,
     show_legend=False,
     show_xlabels=False,
     show_ylabel=False,
@@ -492,6 +494,8 @@ def plot_cell_rf_time_slices(
     if show_legend:
         ax_rf.legend(loc='upper right', fontsize=6, frameon=False)
 
+    if time_title is not None:
+        ax_time.set_title(time_title, fontsize=8, pad=2)
     _style_time_axis(ax_time, show_xlabels, n_t, delta_ms, ms_shown=ms_shown)
     if show_ylabel:
         ax_time.set_ylabel('mV', fontsize=7)
@@ -533,15 +537,16 @@ def calc_ca_full_all(session, z):
 
 
 def _fill_member_cube(cube, sem, ti, ft_global, type_idx, du, dv, plot_traces):
-    """Fill profile radii from Euclidean radius means."""
+    """Fill profile radii from Euclidean radius means; return ``{r: n_rows}``."""
     mask = type_idx == ft_global
     if not mask.any():
-        return
+        return {}
     rows = np.where(mask)[0]
     by_radius: dict[float, list] = {}
     for row in rows:
         radius = round(float(euclid_hex_dist(int(du[row]), int(dv[row]))), 6)
         by_radius.setdefault(radius, []).append(int(row))
+    n_by_radius = {}
     for radius, row_ix in by_radius.items():
         profile_radius = _integer_profile_radius(radius)
         if profile_radius is None:
@@ -551,6 +556,8 @@ def _fill_member_cube(cube, sem, ti, ft_global, type_idx, du, dv, plot_traces):
         sem_trace = sem_from_traces(traces, single_hex=False)
         cube[ti, profile_radius] = mean_trace
         sem[ti, profile_radius] = sem_trace
+        n_by_radius[profile_radius] = len(row_ix)
+    return n_by_radius
 
 
 @dataclass
@@ -685,9 +692,10 @@ def _spot_slice_overlay(rows, C, at_xs, at_ys):
 
 
 def _cells_from_cube(
-    names, cube, sem, baselines, *, single_hex, n_by_name=None, gt_affine_by_name=None,
+    names, cube, sem, baselines, *, single_hex,
+    n_by_radius_by_name=None, gt_affine_by_name=None,
 ):
-    n_by_name = n_by_name or {}
+    n_by_radius_by_name = n_by_radius_by_name or {}
     gt_affine_by_name = gt_affine_by_name or {}
     out = []
     for i, n in enumerate(names):
@@ -697,7 +705,7 @@ def _cells_from_cube(
             cube=cube[i],
             sem=None if single_hex else sem[i],
             baseline=baselines.get(n),
-            n=n_by_name.get(n),
+            n_by_radius=dict(n_by_radius_by_name.get(n) or {}),
             a_gt=float(scale),
             bias_gt=float(bias),
         ))
@@ -780,19 +788,17 @@ def _spot_cube_from_rows(rows, session):
     mt = rows['mt']
     cube = np.full((len(names), RF_N_RADII, mt), np.nan)
     sem = np.full((len(names), RF_N_RADII, mt), np.nan)
+    n_by_radius_by_name = {}
     for ti, ft in enumerate(names):
         ft_global = rows['cell_names'].index(ft)
-        _fill_member_cube(
+        n_by_radius_by_name[ft] = _fill_member_cube(
             cube, sem, ti, ft_global,
             rows['type_idx'], rows['du'], rows['dv'], rows['plot_traces'],
         )
     single_hex = suppress_cost_sem(session, task=rows['pack'].name)
-    n_by_name = readout_n_by_name(
-        rows['type_idx'], rows['cell_names'], names, rows['node_idx'],
-    )
     cells = _cells_from_cube(
         names, cube, sem, rows['baselines'],
-        single_hex=single_hex, n_by_name=n_by_name,
+        single_hex=single_hex, n_by_radius_by_name=n_by_radius_by_name,
         gt_affine_by_name=rows.get('gt_affine_by_name'),
     )
     family_row_ixs = _family_row_ixs_from_rows(rows['family_rows'], names)
@@ -971,9 +977,13 @@ def _plot_spot_figure(
 
     def _plot_cell(name, cell_primary, ax_rf, ax_time, show_ylabel, show_xlabels):
         nonlocal legend_done
-        cell_title = bundle_cell_title(
-            primary, name, cell_primary.get("n"),
-            cost_parts=cost_parts, contrasts=order,
+        r0 = int(RF_CENTER_RADIUS)
+        time_title = format_spot_radius_time_title(
+            r0,
+            (cell_primary.get("n_by_radius") or {}).get(r0),
+            name,
+            cost_parts,
+            order,
         )
         if has_slices and primary.slice_overlay is not None:
             series = _series_for_cell(name, with_slices=True)
@@ -983,7 +993,8 @@ def _plot_spot_figure(
                 ax_time.axis("off")
                 return
             plot_cell_rf_time_slices(
-                ax_rf, ax_time, cell_title, series, slice_labels,
+                ax_rf, ax_time, name, series, slice_labels,
+                time_title=time_title,
                 show_legend=not legend_done,
                 show_xlabels=show_xlabels,
                 show_ylabel=show_ylabel,
@@ -998,7 +1009,8 @@ def _plot_spot_figure(
         else:
             series = _series_for_cell(name, with_slices=False)
             plot_cell_rf_time(
-                ax_rf, ax_time, cell_title, series,
+                ax_rf, ax_time, name, series,
+                time_title=time_title,
                 show_legend=not legend_done,
                 show_xlabels=show_xlabels,
                 show_ylabel=show_ylabel,
@@ -1034,14 +1046,10 @@ def _plot_spot_figure(
                 continue
 
             name = cell_on["name"]
-            cell_title = bundle_cell_title(
-                primary, name, cell_on.get("n"),
-                cost_parts=cost_parts, contrasts=order,
-            )
             series = _series_for_cell(name, with_slices=False)
             show_legend = not legend_done
             plot_cell_rf(
-                ax_rf, cell_title, series,
+                ax_rf, name, series,
                 show_legend=show_legend,
                 show_xlabels=False,
                 show_ylabel=(j == 0),
@@ -1051,13 +1059,16 @@ def _plot_spot_figure(
             )
             legend_done = True
             ylim0 = None
+            n_by_radius = cell_on.get("n_by_radius") or {}
             for local_i, rr in enumerate(range(time_row0, row_cursor + group_h)):
                 ax_t = fig.add_subplot(gs[rr, col])
                 if local_i >= len(radii):
                     ax_t.axis("off")
                     continue
                 radius = int(radii[local_i])
-                title = f"r={radius}"
+                title = format_spot_radius_time_title(
+                    radius, n_by_radius.get(radius), name, cost_parts, order,
+                )
                 plot_cell_time(
                     ax_t, series,
                     title=title,

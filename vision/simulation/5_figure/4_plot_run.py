@@ -108,27 +108,14 @@ def resolve_model(outdir, override=None):
     return model
 
 
-def select_best(params, session, *, final_costs=None, best_i=None, verbose=True):
-    """Pick the best parameter row; recompute costs only when not supplied."""
+def select_best(params, session, *, final_costs=None, verbose=True):
+    """Pick the best parameter row via ``argmin`` of costs; recompute only when not supplied."""
     params = np.atleast_2d(params)
     valid_mask = np.any(params != 0, axis=1)
     valid = params[valid_mask]
     if len(valid) == 0:
         raise SystemExit('no trained parameter sets found (file all zeros)')
     valid_idx = np.where(valid_mask)[0]
-
-    if best_i is not None:
-        if best_i not in valid_idx:
-            raise ValueError(f'best_i={best_i} is not a valid trained run index')
-        loc = int(np.where(valid_idx == best_i)[0][0])
-        if final_costs is not None:
-            best_cost = float(final_costs[best_i])
-        else:
-            z = torch.tensor(valid[loc], dtype=session.sim_dtype, device=session.device)
-            best_cost = training.calc_cost(z, session).item()
-        if verbose:
-            print(f'{len(valid)} trained set(s); selected #{best_i} (cost={best_cost:.4f})')
-        return valid[loc], best_cost, best_i
 
     if final_costs is not None:
         costs_arr = np.asarray(final_costs, dtype=np.float64)
@@ -142,7 +129,7 @@ def select_best(params, session, *, final_costs=None, best_i=None, verbose=True)
         if verbose:
             print(f'{len(valid)} trained set(s); costs min={valid_costs.min():.4f} '
                   f'max={valid_costs.max():.4f}; selected #{run_i} (from saved final costs)')
-        return valid[best], float(costs_arr[run_i]), run_i
+        return valid[best], float(costs_arr[run_i])
 
     costs_out = []
     for row in valid:
@@ -154,7 +141,7 @@ def select_best(params, session, *, final_costs=None, best_i=None, verbose=True)
     if verbose:
         print(f'{len(valid)} trained set(s); costs min={costs_out.min():.4f} '
               f'max={costs_out.max():.4f}; selected #{run_i}')
-    return valid[best], costs_out[best], run_i
+    return valid[best], float(costs_out[best])
 
 
 def load_best(outdir, *, model=None, verbose=False):
@@ -175,22 +162,15 @@ def load_best(outdir, *, model=None, verbose=False):
     z = training.node_values_to_z(
         remapped, schema, dtype=session.sim_dtype, device=session.device,
     )
-    best_i = train_mod.load_best_i(outdir)
     best_cost = None
     final_costs, _, _, _ = train_mod.load_stored_costs(outdir)
-    if final_costs is not None:
-        idx = best_i if best_i is not None else int(np.argmin(final_costs))
-        if idx < len(final_costs):
-            best_cost = float(final_costs[idx])
-            best_i = idx
+    if final_costs is not None and len(final_costs) > 0:
+        best_cost = float(final_costs[int(np.argmin(final_costs))])
     if best_cost is None:
         best_cost = training.calc_cost(z, session).item()
-        best_i = best_i if best_i is not None else 0
-    elif best_i is None:
-        best_i = 0
     if verbose:
-        print(f'loaded best_param.npz (cost={best_cost:.4f}, best_i={best_i})')
-    return session, z, int(best_i), float(best_cost)
+        print(f'loaded best_param.npz (cost={best_cost:.4f})')
+    return session, z, float(best_cost)
 
 
 def maybe_override_stimulus_timing(
@@ -491,7 +471,7 @@ def _plot_one_task(session, z, outdir, tname, suffix, model_all,
 def plot_param_set(params, outdir, model=None, model_all=True,
                    context_dir=None,
                    plot_tasks=None, session=None, *,
-                   final_costs=None, cost_curve=None, costs_by_part=None, best_i=None,
+                   final_costs=None, cost_curve=None, costs_by_part=None,
                    save_artifacts=True,
                    gt_cubes=None,
                    plot_right_only=True, at_x=None, at_y=None,
@@ -521,17 +501,18 @@ def plot_param_set(params, outdir, model=None, model_all=True,
         if costs_by_part is None:
             costs_by_part = loaded_by_part
 
-    if best_i is None:
-        import training.implement as train_mod
-        best_i = train_mod.load_best_i(ctx)
-
     print(f'plot device={_plot_device_label()}')
-    best, best_cost, best_i = select_best(
-        params, session, final_costs=final_costs, best_i=best_i,
+    best, best_cost = select_best(
+        params, session, final_costs=final_costs,
     )
     z = torch.tensor(best, dtype=session.sim_dtype, device=session.device)
 
-    suffix = f'trained, cost {best_cost:.2f}% of gt power'
+    suffix = f'trained, cost {best_cost:.2f}'
+    cost_norm = (session.train_opts or {}).get("cost_norm", "a_gt2")
+    if cost_norm == "gt_power":
+        suffix = f'{suffix}% of gt power'
+    else:
+        suffix = f'{suffix} ({cost_norm})'
     tasks = list(session.tasks)
     if plot_tasks is not None:
         tasks = [t for t in tasks if t in plot_tasks]
@@ -597,7 +578,6 @@ def plot_param_set(params, outdir, model=None, model_all=True,
         os.makedirs(train_mod.data_dir(outdir), exist_ok=True)
         z_best = torch.tensor(best, dtype=session.sim_dtype, device=session.device)
         train_mod.save_best_param_named(outdir, z_best, session)
-        train_mod.write_best_i(outdir, best_i)
     print(f'plots saved to {outdir}')
     return best, best_cost
 
@@ -739,7 +719,7 @@ def main():
     timing_kw = train_mod.stimulus_timing_kwargs_from_args(args)
 
     outdir = resolve_run_dir(args.run_path)
-    session, z, _stored_best_i, best_cost = load_best(outdir, verbose=True)
+    session, z, best_cost = load_best(outdir, verbose=True)
     session, z, timing_changed = maybe_override_stimulus_timing(
         run_dir=outdir, session=session, z=z, **timing_kw,
         euler=getattr(args, "euler", None),
@@ -758,7 +738,6 @@ def main():
         outdir,
         model=model,
         session=session,
-        best_i=0,
         final_costs=np.array([best_cost]),
         file_suffix=file_suffix,
         **plot_kw,

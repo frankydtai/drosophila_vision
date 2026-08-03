@@ -114,19 +114,15 @@ def make_plots(
             final_costs=result.final_costs,
             cost_curve=result.cost_curve,
             costs_by_part=result.cost_curves_by_part,
-            best_i=result.best_i,
             save_artifacts=False,
             **plot_kw,
         )
         return
     z = train.load_best_param(outdir, session)
-    best_i = train.load_best_i(outdir)
-    if best_i is None:
-        best_i = 0
     final_costs, cost_curve, costs_by_part, _ = train.load_stored_costs(outdir)
     best_cost = None
-    if final_costs is not None and best_i < len(final_costs):
-        best_cost = float(final_costs[best_i])
+    if final_costs is not None and len(final_costs) > 0:
+        best_cost = float(final_costs[int(np.argmin(final_costs))])
     plot_param_set(
         np.atleast_2d(z),
         outdir,
@@ -134,7 +130,6 @@ def make_plots(
         final_costs=np.array([best_cost]) if best_cost is not None else None,
         cost_curve=cost_curve,
         costs_by_part=costs_by_part,
-        best_i=0,
         save_artifacts=False,
         **plot_kw,
     )
@@ -158,7 +153,6 @@ def write_checkpoint_png(outdir, step, z_best, cost_best, session, plot_kw):
         png_dir,
         session=session,
         final_costs=np.array([cost_best]),
-        best_i=0,
         save_artifacts=False,
         cost_curve=None,
         **plot_kw,

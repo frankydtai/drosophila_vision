@@ -60,6 +60,7 @@ from param_defaults import (
 
 from training.config import (
     CLI_TASK_NAMES,
+    COST_NORMS,
     MOVING_BAR_TASKS,
     PD_ND_LABELS,
     SPOT_TASKS,
@@ -67,6 +68,7 @@ from training.config import (
     TRAIN_OPTS_FILE,
     VALID_TASKS,
     cost_part_keys_for_readout,
+    expand_cost_norm,
     expand_cost_weight_dict,
     expand_gt_dict,
     expand_tasks,

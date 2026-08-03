@@ -140,16 +140,6 @@ def sem_from_traces(traces, single_hex=False):
     return traces.std(axis=0) / np.sqrt(traces.shape[0])
 
 
-def readout_n_by_name(type_idx, cell_names, names, node_idx):
-    """Unique readout node count per plotted type name."""
-    type_idx = np.asarray(type_idx)
-    node_idx = np.asarray(node_idx)
-    return {
-        name: int(np.unique(node_idx[type_idx == cell_names.index(name)]).size)
-        for name in names
-    }
-
-
 def v_ref_schema_name(schema):
     """``'v_th'`` (borst) or ``'-bias_out'`` (hp_lp); ``None`` if neither applies."""
     names = {s.get('name') for s in schema}
@@ -198,33 +188,22 @@ def cell_ylabel(label, ca_n=None, n=None):
     return label_with_n(label, n)
 
 
-def cell_title_with_n(label, n=None):
-    """Spot-style panel title: cell name + optional ``n``."""
-    return label_with_n(label, n)
+def format_spot_radius_time_title(radius, n, cell, cost_parts, contrasts):
+    """Time-panel title: ``r=0 (n=252)`` + ``bright: 63.3`` / ``dark: …``."""
+    from training.config import spot_cost_part_key
 
-
-def format_spot_cell_cost_title(label, n, cost_parts, contrasts):
-    """``Mi1 (n=307) Cost`` + ``bright: xx @r0, …`` / ``dark: …`` lines."""
-    lines = [f'{label_with_n(label, n)} Cost']
-    if not cost_parts:
-        return lines[0]
+    r = float(radius)
+    r_s = str(int(r)) if r == int(r) else str(r)
+    head = f'r={r_s}'
+    if n is not None:
+        head = f'{head} (n={int(n)})'
+    if not cost_parts or not contrasts:
+        return head
+    lines = [head]
     for contrast in contrasts:
-        task = f'spot_{contrast}'
-        prefix = f'{task}_{label}_r'
-        matches = []
-        for key, val in cost_parts.items():
-            if not key.startswith(prefix):
-                continue
-            r_s = key[len(prefix):]
-            try:
-                r_sort = float(r_s)
-            except ValueError:
-                r_sort = r_s
-            matches.append((r_sort, r_s, float(val)))
-        matches.sort(key=lambda t: (isinstance(t[0], str), t[0], t[1]))
-        bits = [f'{val:.1f} @r{r_s}' for _, r_s, val in matches]
-        if bits:
-            lines.append(f'{contrast}: {", ".join(bits)}')
+        key = spot_cost_part_key(f'spot_{contrast}', cell, r)
+        if key in cost_parts:
+            lines.append(f'{contrast}: {float(cost_parts[key]):.1f}')
     return '\n'.join(lines)
 
 
@@ -246,14 +225,6 @@ def format_moving_bar_cell_cost_lines(cell, cost_parts, task_names):
         if bits:
             lines.append(f'{tag.get(task, task)}: {" ".join(bits)}')
     return lines
-
-
-def bundle_cell_title(bundle, label, n=None, *, type_name=None, cost_parts=None, contrasts=None):
-    """Spot panel title; optional per-cell×radius cost lines."""
-    _ = (bundle, type_name)
-    if cost_parts is not None and contrasts is not None:
-        return format_spot_cell_cost_title(label, n, cost_parts, contrasts)
-    return cell_title_with_n(label, n)
 
 
 def bundle_panel_title(bundle, label, *, type_name=None):

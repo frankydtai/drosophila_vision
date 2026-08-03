@@ -44,13 +44,13 @@ def build_ih_dir(conn, ih_reverse_cells=IH_DIR_REVERSE_CELLS, *, dtype=SIM_DTYPE
 
 
 # --- parameter schema train_modes --------------------------------------------
-# Numeric lo/hi/init/jit(/fixed_val) + train_mode: ``param_defaults.PARAM_BOXES``.
+# Numeric lo/hi/init/jit + train_mode: ``param_defaults.PARAM_BOXES``.
 # Model segment lists: ``neuron.schema``.
 # Each segment:
-#   name, kind, count, lo/hi/init/jit[, fixed_val][, scale]
+#   name, kind, count, lo/hi/init/jit[, scale]
 #   scale: ``linear`` (default), ``log`` (z = log(physical)), or ``inv`` (z = 1/physical); lo/hi/init physical
 #   indi / shared / fixed / frozen : disjoint exhaustive lists of node indices
-#       fixed: fixed_value(seg, u) = fixed_val if set else effective_init(seg, u)
+#       fixed: not in z; value = effective_init(seg, u)  (init_override or init)
 #       frozen: not in z; values from seg['carry'] (resume) or effective_init (cold)
 # z packing per segment: len(indi) slots + (1 if shared else 0).
 TRAIN_MODES = ('indi', 'shared', 'fixed', 'frozen')
@@ -130,19 +130,15 @@ def schema_nparams(schema):
 
 
 def effective_init(seg, u):
-    """Per-node init: ``init_override[u]`` if present, else ``seg['init']``."""
+    """Per-node init: ``init_override[u]`` if present, else ``seg['init']``.
+
+    Fixed-mode nodes always use this (no separate ``fixed_val``).
+    """
     io = seg.get('init_override')
     iu = int(u)
     if io is not None and iu in io:
         return float(io[iu])
     return float(seg['init'])
-
-
-def fixed_value(seg, u):
-    """Value for a fixed-mode node: ``fixed_val`` if set, else ``effective_init``."""
-    if 'fixed_val' in seg:
-        return float(seg['fixed_val'])
-    return effective_init(seg, u)
 
 
 def _merge_init_override(dst, names_part, val):
@@ -292,7 +288,7 @@ def apply_train_modes(schema, train_modes_by_name, node_names_for_seg):
 
 
 def schema_train_modes_record(schema, node_names_for_seg):
-    """Serialize train_modes as name lists for train_opts.json."""
+    """Serialize train_modes (+ init_override) as name lists for train_opts.json."""
     rec = {}
     for seg in schema:
         if callable(node_names_for_seg):
@@ -314,9 +310,16 @@ def schema_train_modes_record(schema, node_names_for_seg):
                         f"{seg['name']}: edge train_modes must be a single "
                         f"indi|fixed|frozen=all train_mode (got {b}={len(idxs)}/{n})"
                     )
-            rec[seg['name']] = compact
+            entry = compact
         else:
-            rec[seg['name']] = train_mode_to_names(mode, nodes)
+            entry = train_mode_to_names(mode, nodes)
+        io = seg.get('init_override')
+        if io:
+            entry = dict(entry)
+            entry['init_override'] = {
+                str(nodes[int(i)]): float(v) for i, v in io.items()
+            }
+        rec[seg['name']] = entry
     return rec
 
 
@@ -470,7 +473,7 @@ def remap_named_node_values(named, src_cell_names, src_pair_names, schema, backe
         name = seg['name']
         count = seg_count(seg)
         arr = np.asarray(
-            [fixed_value(seg, j) for j in range(count)], dtype=np.float64,
+            [effective_init(seg, j) for j in range(count)], dtype=np.float64,
         )
         src = named.get(name)
         if src is None:
@@ -482,19 +485,19 @@ def remap_named_node_values(named, src_cell_names, src_pair_names, schema, backe
                 if pn in src_p:
                     arr[j] = float(src[src_p[pn]])
                 else:
-                    arr[j] = fixed_value(seg, j)
+                    arr[j] = effective_init(seg, j)
         elif seg['kind'] == 'edge':
             if src.shape[0] == count:
                 arr[:] = src
             else:
                 for j in range(count):
-                    arr[j] = fixed_value(seg, j)
+                    arr[j] = effective_init(seg, j)
         else:
             for j, tn in enumerate(dst_cells):
                 if tn in src_t and src_t[tn] < src.shape[0]:
                     arr[j] = float(src[src_t[tn]])
                 else:
-                    arr[j] = fixed_value(seg, j)
+                    arr[j] = effective_init(seg, j)
         out[name] = arr
     return out
 
@@ -505,7 +508,7 @@ def _reconstruct_raw(seg, z_slice, z):
     raw = torch.empty((count,), dtype=z.dtype, device=z.device)
     carry = seg.get('carry')
     for u in seg.get('fixed', ()):
-        raw[int(u)] = fixed_value(seg, u)
+        raw[int(u)] = effective_init(seg, u)
     i = 0
     for u in seg.get('indi', ()):
         raw[int(u)] = _decode_z(seg, z_slice[i])

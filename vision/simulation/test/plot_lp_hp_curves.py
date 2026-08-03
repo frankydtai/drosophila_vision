@@ -10,7 +10,7 @@ with v_tot = v_rest + v_sti (v_in = 0), v_sti = i_sti / g_in.
 Time indexing matches ``neuron.forward.forward_full``: v[0] from init;
 v[t] uses i_sti[t-1].
 
-LP-only row uses τ_HP = PARAM_BOXES['tau_hp']['fixed_val'] (HP off).
+LP-only row uses a large τ_HP (HP effectively off).
 
 Rows: input | HP stage | LP-only vs HP→LP | sweep a_slow | sweep τ_HP | sweep τ_lp | sweep pulse.
 Columns: left = +pulse, right = −pulse.
@@ -51,7 +51,7 @@ DEFAULT_A_SLOW_LIST = "0,0.5,1,1.5"
 DEFAULT_TAU_HP_LIST = "80,200,500,2000"
 DEFAULT_TAU_LP_LIST = "20,50,100"
 DEFAULT_PULSE_LIST = "50,100,500"
-TAU_HP_OFF_MS = float(PARAM_BOXES["tau_hp"]["fixed_val"])
+TAU_HP_OFF_MS = 1.0e6
 
 _BACKEND = SimpleNamespace(
     n_nodes=1,

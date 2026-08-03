@@ -49,6 +49,22 @@ PD_IDX, ND_IDX = 0, 1
 MOVING_BAR_COST_PARTS = tuple(
     f"{t}_{lab}" for t in MOVING_BAR_TASKS for lab in (*PD_ND_LABELS, "DSI")
 )
+
+# Waveform MSE normalization (``--cost-norm``); shared by spot + moving_bar MSE.
+# gt_power: 100 * Σ w (sel−gt_aff)² / Σ w (a_gt·gt)²
+# a_gt2:         Σ w (sel−gt_aff)² / a_gt²   (per-row a_i²; bias not in denom)
+COST_NORMS = ("gt_power", "a_gt2")
+
+
+def expand_cost_norm(name) -> str:
+    """Validate ``--cost-norm`` token; canonical names only (no aliases)."""
+    key = str(name).strip()
+    if key not in COST_NORMS:
+        raise ValueError(
+            f"cost_norm must be one of {COST_NORMS}; got {name!r}"
+        )
+    return key
+
 TASK_ALIASES = {
     "spot": SPOT_TASKS,
     "moving_bar": MOVING_BAR_TASKS,

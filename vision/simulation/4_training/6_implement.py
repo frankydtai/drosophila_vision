@@ -36,6 +36,7 @@ from path import (
 )
 from param_defaults import (
     CHECKPOINT_INTERVAL,
+    COST_NORM,
     DELTA_MS,
     EULER,
     FP,
@@ -74,9 +75,11 @@ from task.spot.gt import (
 from training import do_many_runs
 import training
 from training.config import (
+    COST_NORMS,
     PARAM_CSV,
     SYN_STRENGTH_CELL_CSV,
     SYN_STRENGTH_EDGE_CSV,
+    expand_cost_norm,
     run_data_dir,
 )
 
@@ -390,23 +393,6 @@ def load_best_param(outdir, session=None):
     return z.detach().cpu().numpy().astype(np.float64)
 
 
-def best_i_path(outdir):
-    return os.path.join(data_dir(outdir), 'best_i.txt')
-
-
-def write_best_i(outdir, best_i):
-    os.makedirs(data_dir(outdir), exist_ok=True)
-    with open(best_i_path(outdir), 'w') as f:
-        f.write(f'{int(best_i)}\n')
-
-
-def load_best_i(outdir):
-    fp = best_i_path(outdir)
-    if os.path.isfile(fp):
-        return int(Path(fp).read_text().strip())
-    return None
-
-
 def _costs_path(outdir):
     """Per-run end weighted total costs."""
     return os.path.join(data_dir(outdir), 'costs.npy')
@@ -431,29 +417,29 @@ def final_costs_for_params(all_params, session, final_costs=None):
     """Per-run final costs; recompute only when not supplied."""
     all_params = np.atleast_2d(all_params)
     if final_costs is not None:
-        return np.asarray(final_costs, dtype=np.float64), int(np.argmin(final_costs))
-    costs = np.array([
+        return np.asarray(final_costs, dtype=np.float64)
+    return np.array([
         training.calc_cost(
             torch.tensor(all_params[i], dtype=torch.float64, device=session.device),
             session,
         ).item()
         for i in range(all_params.shape[0])
     ])
-    return costs, int(np.argmin(costs))
 
 
-def write_best_artifacts(outdir, fname, session, all_params, best_i, final_costs):
-    """Write ``best_param.npz``, ``param.csv``, and syn/edge CSV for one best index."""
+def write_best_artifacts(outdir, fname, session, all_params, final_costs):
+    """Write ``best_param.npz``, ``param.csv``, and syn/edge CSV for ``argmin(final_costs)``."""
     all_params = np.atleast_2d(all_params)
-    best = all_params[best_i]
+    final_costs = np.asarray(final_costs, dtype=np.float64)
+    run_i = int(np.argmin(final_costs))
+    best = all_params[run_i]
     os.makedirs(data_dir(outdir), exist_ok=True)
     z_best = torch.tensor(best, dtype=session.sim_dtype, device=session.device)
     save_best_param_named(outdir, z_best, session)
-    write_best_i(outdir, best_i)
     table_path = os.path.join(outdir, PARAM_CSV)
     write_param_table(z_best, session, table_path)
     print("wrote table: %s (best run #%d, cost=%.4f)" % (
-        table_path, best_i, final_costs[best_i]))
+        table_path, run_i, final_costs[run_i]))
     syn_path = write_syn_table(z_best, session, outdir)
     if syn_path is not None:
         print("wrote table: %s" % syn_path)
@@ -522,7 +508,7 @@ def save_training_outputs(fname, outdir, session, result):
     if result.final_costs_by_part:
         np.savez(_costs_by_part_path(outdir), **result.final_costs_by_part)
     write_best_artifacts(
-        outdir, fname, session, result.all_params, result.best_i, result.final_costs,
+        outdir, fname, session, result.all_params, result.final_costs,
     )
 
 
@@ -530,8 +516,8 @@ def save_param_tables(fname, outdir, session):
     """Regenerate ``param.csv`` / syn or edge CSV and ``best_param.npz`` from saved ``fname``."""
     all_params = np.load(params_path(outdir, fname))
     final_costs, _, _, _ = load_stored_costs(outdir)
-    final_costs, best_i = final_costs_for_params(all_params, session, final_costs=final_costs)
-    write_best_artifacts(outdir, fname, session, all_params, best_i, final_costs)
+    final_costs = final_costs_for_params(all_params, session, final_costs=final_costs)
+    write_best_artifacts(outdir, fname, session, all_params, final_costs)
 
 
 def print_train_modes(session):
@@ -584,6 +570,7 @@ def build_session(
     sequential=SEQUENTIAL,
     tasks=None,
     cost_weights=None,
+    cost_norm=COST_NORM,
     cost_extent_by_task=None,
     shift_extent=SHIFT_EXTENT,
     spot_extent=SPOT_EXTENT,
@@ -613,6 +600,7 @@ def build_session(
     mkw = dict(
         tasks=tl,
         cost_weights=cost_weights,
+        cost_norm=expand_cost_norm(cost_norm),
         pack_overrides=pack_overrides,
         sequential=sequential,
         cost_extent_by_task=cost_extent_by_task,
@@ -652,6 +640,7 @@ def run_training(model, nofruns, nofsteps, lrs, fname=None, outdir=None,
                  euler=EULER,
                  network=NETWORK, sequential=SEQUENTIAL,
                  tasks=None, cost_weights=None,
+                 cost_norm=COST_NORM,
                  cost_extent_by_task=None, shift_extent=SHIFT_EXTENT,
                  spot_extent=SPOT_EXTENT,
                  multi_spot=MULTI_SPOT,
@@ -680,6 +669,7 @@ def run_training(model, nofruns, nofsteps, lrs, fname=None, outdir=None,
         sequential=sequential,
         tasks=tasks,
         cost_weights=cost_weights,
+        cost_norm=cost_norm,
         cost_extent_by_task=cost_extent_by_task,
         shift_extent=shift_extent,
         spot_extent=spot_extent,
@@ -1019,6 +1009,13 @@ def add_training_arguments(parser):
         metavar="MS",
         help="spot: train on post-onset times 0, interval, 2*interval, ... "
              "through response window; omit = every post-onset t (#4)",
+    )
+    parser.add_argument(
+        "--cost-norm",
+        default=COST_NORM,
+        choices=list(COST_NORMS),
+        help="waveform MSE normalization: gt_power = 100*SSE/Σw(a_gt·gt)²; "
+             f"a_gt2 = SSE/a_gt² (default: {COST_NORM})",
     )
 
 
@@ -1473,6 +1470,7 @@ def training_kwargs_from_args(
         network=args.network,
         tasks=tasks,
         cost_weights=cost_weights,
+        cost_norm=expand_cost_norm(args.cost_norm),
         cost_extent_by_task=cost_extent_by_task,
         shift_extent=shift_extent,
         spot_extent=spot_extent,

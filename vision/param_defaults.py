@@ -14,6 +14,11 @@ from __future__ import annotations
 import math
 from typing import Dict, Tuple
 
+DEFAULT_RUN_NAME = """
+28702898-run-nofsteps-200-lrs-0.1-a-slow-init.L1,L2-0.6-ms-pre-1000-ms-pulse-100-ms-response-500
+""".strip()
+DEFAULT_RUN_PATH = "hp_lp/" + DEFAULT_RUN_NAME
+
 # ---------------------------------------------------------------------------
 # 1.1 neuron.params (flat; no Physics bag)
 # ---------------------------------------------------------------------------
@@ -42,7 +47,8 @@ GAIN_HI = 10.0
 IH_GMAX_INDI_NAMES = ("L1", "L2", "L4", "L5")
 
 # train_mode: indi | shared | fixed | indi_named
-#   indi_named → indi=IH_GMAX_INDI_NAMES, fixed=remainder (Ih_gmax)
+#   indi_named → indi=IH_GMAX_INDI_NAMES, fixed=remainder with init_override=0
+# Fixed nodes always use init / init_override (no fixed_val).
 PARAM_BOXES: Dict[str, dict] = {
     "a_in": dict(lo=GAIN_LO, hi=GAIN_HI, init=1.0, jit=0.1, train_mode="fixed"),
     "a_out": dict(lo=GAIN_LO, hi=GAIN_HI, init=1.0, jit=0.1, train_mode="indi"),
@@ -50,9 +56,9 @@ PARAM_BOXES: Dict[str, dict] = {
     "bias_gt": dict(lo=-20.0, hi=20.0, init=0.0, jit=1.0, train_mode="indi"),
     "syn_strength_cell": dict(lo=GAIN_LO, hi=GAIN_HI, init=1.0, jit=0.1, train_mode="indi"),
     "syn_strength_edge": dict(lo=GAIN_LO, hi=GAIN_HI, init=1.0, jit=0.1, train_mode="indi"),
-    "v_th": dict(lo=-70.0, hi=-30.0, init=-50.0, jit=0.0, fixed_val=-50.0, train_mode="fixed"),
-    "Ih_gmax": dict(lo=0.0, hi=100.0, init=50.0, jit=10.0, fixed_val=0.0, train_mode="indi_named"),
-    "Ih_gmax_off": dict(lo=0.0, hi=100.0, init=50.0, jit=10.0, fixed_val=0.0, train_mode="indi_named"),
+    "v_th": dict(lo=-70.0, hi=-30.0, init=-50.0, jit=0.0, train_mode="fixed"),
+    "Ih_gmax": dict(lo=0.0, hi=100.0, init=50.0, jit=10.0, train_mode="indi_named"),
+    "Ih_gmax_off": dict(lo=0.0, hi=100.0, init=50.0, jit=10.0, train_mode="indi_named"),
     "Ih_midv": dict(lo=-70.0, hi=-30.0, init=-50.0, jit=5.0, train_mode="shared"),
     "Ih_slope": dict(lo=-0.40, hi=-0.20, init=-0.25, jit=0.02, train_mode="shared"),
     "tau_midv": dict(lo=-70.0, hi=-40.0, init=-50.0, jit=5.0, train_mode="shared"),
@@ -141,6 +147,7 @@ TASK = "spot_bright"
 # 4.4 training.cost
 # ---------------------------------------------------------------------------
 
+COST_NORM = "a_gt2"  # gt_power | a_gt2; see training.config.COST_NORMS
 NOFRUNS = 1
 NOFSTEPS_CPU = 50
 NOFSTEPS_GPU = 200
@@ -154,14 +161,6 @@ CHECKPOINT_INTERVAL = 1000
 FP = 64
 SEQUENTIAL = False
 
-# ---------------------------------------------------------------------------
-# 5 figure.plot_run / 6 analyze.cell_dynamics
-# ---------------------------------------------------------------------------
-
-DEFAULT_RUN_NAME = """
-28677936-run-nofsteps-500-lrs-0.1-tau-hp-init.L1,L2,L4,L5-200-ms-pre-1000-ms-pulse-100-ms-response-500
-""".strip()
-DEFAULT_RUN_PATH = "hp_lp/" + DEFAULT_RUN_NAME
 
 # ---------------------------------------------------------------------------
 # 6 analyze.cell_dynamics
