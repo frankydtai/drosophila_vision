@@ -22,9 +22,12 @@ Membrane / HP Euler (``session.euler`` = ``implicit`` | ``explicit``):
 
 Dynamics only: ``prepare_i_sti`` / ``init_state`` / ``step``. Full-T ``v``
 forward lives in ``neuron.forward``. Scalars from ``session`` flat fields.
-``init_state`` starts at the pre steady state: ``v_slow0 = v_tot0``,
-``v0 = v_rest + v_tot0 − a_slow v_slow0`` (with ``v_tot0`` from ``v_rest``
-and ``i_sti[t=0]``; classical HP when ``a_slow = 1`` → ``v0 = v_rest``).
+
+t=0 membrane state uses ``session.pre_steady`` (``--pre-steady hp_lp=…``):
+
+* ``solve`` (default): fixed-iter DC map with ``session.pre_steady_iters`` /
+  ``session.pre_steady_damp`` (under-relaxation; not part of dynamics)
+* ``probe``: one ``v_in`` from ``v_rest`` (legacy)
 """
 from __future__ import annotations
 
@@ -102,25 +105,64 @@ def prepare_i_sti(session, p, i_sti, pack):
     return i_sti.unsqueeze(0) if i_sti.dim() == 2 else i_sti
 
 
-def init_state(session, p, B, i_sti=None):
-    """``(v_slow,)`` at pre steady state: ``v_slow0 = v_tot0``, ``v0 = v_rest + v_hp0``."""
-    if i_sti is None:
-        raise TypeError("hp_lp init_state requires i_sti")
-    v_rest = p["v_rest"]
-    backend = session.backend
-    n = backend.n_nodes
-    g_in = float(session.g_in)
-    if g_in == 0.0:
-        raise ValueError("g_in must be non-zero")
-    v_probe = v_rest.expand(B, n).clone()
-    pre = torch.relu(v_probe + p["bias_out"]) * p["a_out"]
+def _v_in_from_v(v, p, backend):
+    pre = torch.relu(v + p["bias_out"]) * p["a_out"]
     w = syn_strength(p)
-    v_in = p["a_in"] * backend.conn.signed_drive(pre, w)
-    v_sti = i_sti[:, 0, :] / g_in
-    v_tot = v_rest + v_in + v_sti
+    return p["a_in"] * backend.conn.signed_drive(pre, w)
+
+
+def _dc_v_star(v, p, v_sti, backend):
+    """Algebraic DC target: ``v★ = v_rest + (1−a_slow)·v_tot(v)``."""
+    v_rest = p["v_rest"]
+    v_tot = v_rest + _v_in_from_v(v, p, backend) + v_sti
+    return v_rest + (1.0 - p["a_slow"]) * v_tot, v_tot
+
+
+def _pre_steady_probe(p, B, v_sti, backend):
+    """One-shot: ``v_in`` from ``v=v_rest`` (not self-consistent)."""
+    v_rest = p["v_rest"]
+    n = backend.n_nodes
+    v_probe = v_rest.expand(B, n).clone()
+    v_tot = v_rest + _v_in_from_v(v_probe, p, backend) + v_sti
     v_slow = v_tot
     v = v_rest + v_tot - p["a_slow"] * v_slow
     return (v_slow,), v
+
+
+def _pre_steady_solve(p, B, v_sti, backend, *, iters: int, damp: float):
+    """Fixed-iter under-relaxed solve of the DC map (not time stepping)."""
+    v_rest = p["v_rest"]
+    n = backend.n_nodes
+    v = v_rest.expand(B, n).clone()
+    v_tot = v_rest + _v_in_from_v(v, p, backend) + v_sti
+    for _ in range(int(iters)):
+        v_star, v_tot = _dc_v_star(v, p, v_sti, backend)
+        v = v + float(damp) * (v_star - v)
+    v_slow = v_tot
+    return (v_slow,), v
+
+
+def init_state(session, p, B, i_sti=None):
+    """``(v_slow,)``, ``v`` at t=0 from ``session.pre_steady``."""
+    if i_sti is None:
+        raise TypeError("hp_lp init_state requires i_sti")
+    backend = session.backend
+    g_in = float(session.g_in)
+    if g_in == 0.0:
+        raise ValueError("g_in must be non-zero")
+    v_sti = i_sti[:, 0, :] / g_in
+    mode = str(session.pre_steady)
+    if mode == "probe":
+        return _pre_steady_probe(p, B, v_sti, backend)
+    if mode == "solve":
+        return _pre_steady_solve(
+            p, B, v_sti, backend,
+            iters=int(session.pre_steady_iters),
+            damp=float(session.pre_steady_damp),
+        )
+    raise ValueError(
+        f"hp_lp pre_steady must be probe|solve; got {mode!r}"
+    )
 
 
 def step(state, v, p, i_sti, session, *, return_component: bool = False):

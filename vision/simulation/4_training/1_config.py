@@ -65,6 +65,47 @@ def expand_cost_norm(name) -> str:
         )
     return key
 
+
+# t=0 membrane pre steady (``--pre-steady MODEL=MODE``); not param init.
+# borst: e_leak. hp_lp: probe | solve (default solve; see param_defaults.PRE_STEADY).
+PRE_STEADY_BY_MODEL = {
+    "borst": ("e_leak",),
+    "hp_lp": ("probe", "solve"),
+}
+
+
+def expand_pre_steady_mode(model: str, mode) -> str:
+    """Validate one ``MODEL`` pre-steady mode token."""
+    model_key = str(model).strip()
+    allowed = PRE_STEADY_BY_MODEL.get(model_key)
+    if allowed is None:
+        raise ValueError(
+            f"pre_steady model must be one of {tuple(PRE_STEADY_BY_MODEL)}; "
+            f"got {model_key!r}"
+        )
+    key = str(mode).strip()
+    if key not in allowed:
+        raise ValueError(
+            f"pre_steady {model_key} must be one of {allowed}; got {key!r}"
+        )
+    return key
+
+
+def expand_pre_steady_dict(raw, *, defaults: dict) -> dict:
+    """Merge ``MODEL=MODE`` overrides onto ``defaults``; validate every model."""
+    out = {
+        model: expand_pre_steady_mode(model, defaults[model])
+        for model in PRE_STEADY_BY_MODEL
+        if model in defaults
+    }
+    for model in PRE_STEADY_BY_MODEL:
+        if model not in out:
+            out[model] = PRE_STEADY_BY_MODEL[model][0]
+    for model, mode in dict(raw or {}).items():
+        out[str(model)] = expand_pre_steady_mode(model, mode)
+    return out
+
+
 TASK_ALIASES = {
     "spot": SPOT_TASKS,
     "moving_bar": MOVING_BAR_TASKS,

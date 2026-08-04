@@ -1,14 +1,14 @@
 #!/bin/bash
 #SBATCH --job-name=run
 #SBATCH --account=punim0477
-#SBATCH --partition=gpu-a100
+#SBATCH --partition=gpu-l40s
 #SBATCH --qos=publicgpu
 #SBATCH --gres=gpu:1
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=1
 #SBATCH --mem=32G
-#SBATCH --time=0:30:00
+#SBATCH --time=0:20:00
 #SBATCH --chdir=/home/yitai/drosophila_vision/vision/simulation
 #SBATCH --output=0_logs/%j.out
 #SBATCH --error=0_logs/%j.out
@@ -27,4 +27,4 @@ nvidia-smi -L || true
 "${PYTHON}" -c "import torch; print('cuda:', torch.cuda.is_available(), torch.cuda.get_device_name(0) if torch.cuda.is_available() else '')"
 echo "Start:  $(date)"
 # Sorted N_name layout: import_bootstrap via venv .pth; train via run.py (not -m training.driver).
-"${PYTHON}" -u run.py --nofsteps 300 --lrs 0.1 --a-slow init.L1,L2=0.6 init.L4,L5=1 all=0 --ms-pre 1000 --ms-pulse 1000 --ms-response 1000 
+"${PYTHON}" -u run.py --nofsteps 300 --lrs 0.1 --a-slow init.L1,L2=0.6 init.L4,L5=1 all=0 --ms-pre 1000 --ms-pulse 100 --ms-response 500 

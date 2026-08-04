@@ -5,6 +5,9 @@ Dynamics only: ``prepare_i_sti`` / ``init_state`` / ``step``. Full-T Ca
 forward lives in ``neuron.forward``. Membrane scalars are injected kwargs
 (from ``session`` flat fields), never a Physics bag.
 
+t=0 membrane state uses ``session.pre_steady`` (``--pre-steady borst=…``);
+only ``e_leak`` is defined (``v0 = e_leak``, ``u_on/u_off = 0``).
+
 Membrane Euler (``session.euler`` = ``implicit`` | ``explicit``):
 
     C dv/dt = i_sti + Σ g_i (E_i − v)
@@ -181,8 +184,13 @@ def prepare_i_sti(session, p, i_sti, pack):
 
 
 def init_state(session, p, B, i_sti=None):
-    """``(u_on, u_off)``, ``v0 = e_leak``."""
+    """``(u_on, u_off)``, ``v`` at t=0 from ``session.pre_steady``."""
     del p, i_sti
+    mode = str(session.pre_steady)
+    if mode != "e_leak":
+        raise ValueError(
+            f"borst pre_steady must be e_leak; got {mode!r}"
+        )
     backend = session.backend
     dev = backend.conn.node_cell.device
     dtype = session.sim_dtype

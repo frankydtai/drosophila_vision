@@ -147,6 +147,9 @@ class TrainSession:
     syn_scale_exc: float
     syn_scale_inh: float
     euler: str
+    pre_steady: str = "solve"
+    pre_steady_iters: int = 60
+    pre_steady_damp: float = 1.0
     sim_dtype: torch.dtype = SIM_DTYPE
     train_opts: Optional[dict] = None
     cost_subpacks: Dict[str, ReadoutPack] = field(default_factory=dict)

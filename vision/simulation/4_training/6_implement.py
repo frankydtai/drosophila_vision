@@ -65,6 +65,9 @@ from param_defaults import (
     SPOT_COST_RADIUS_WEIGHT,
     SPOT_COST_RADIUS_WEIGHT_EXTENT1,
     SPOT_EXTENT,
+    PRE_STEADY,
+    PRE_STEADY_DAMP,
+    PRE_STEADY_ITERS,
     SYN_MODE,
     TASK,
 )
@@ -77,9 +80,11 @@ import training
 from training.config import (
     COST_NORMS,
     PARAM_CSV,
+    PRE_STEADY_BY_MODEL,
     SYN_STRENGTH_CELL_CSV,
     SYN_STRENGTH_EDGE_CSV,
     expand_cost_norm,
+    expand_pre_steady_dict,
     run_data_dir,
 )
 
@@ -586,6 +591,9 @@ def build_session(
     syn_mode=SYN_MODE,
     ih_off=IH_OFF,
     euler=EULER,
+    pre_steady=None,
+    pre_steady_iters=PRE_STEADY_ITERS,
+    pre_steady_damp=PRE_STEADY_DAMP,
     fp=FP,
     pre_grad=PRE_GRAD,
     pack_overrides=None,
@@ -624,6 +632,9 @@ def build_session(
         dev=dev,
         ih_off=ih_off,
         euler=euler,
+        pre_steady=pre_steady,
+        pre_steady_iters=pre_steady_iters,
+        pre_steady_damp=pre_steady_damp,
         train_modes=train_modes,
         syn_mode=syn_mode,
         fp=fp,
@@ -638,6 +649,9 @@ def run_training(model, nofruns, nofsteps, lrs, fname=None, outdir=None,
                  syn_mode=SYN_MODE,
                  ih_off=IH_OFF,
                  euler=EULER,
+                 pre_steady=None,
+                 pre_steady_iters=PRE_STEADY_ITERS,
+                 pre_steady_damp=PRE_STEADY_DAMP,
                  network=NETWORK, sequential=SEQUENTIAL,
                  tasks=None, cost_weights=None,
                  cost_norm=COST_NORM,
@@ -685,6 +699,9 @@ def run_training(model, nofruns, nofsteps, lrs, fname=None, outdir=None,
         syn_mode=syn_mode,
         ih_off=ih_off,
         euler=euler,
+        pre_steady=pre_steady,
+        pre_steady_iters=pre_steady_iters,
+        pre_steady_damp=pre_steady_damp,
         pack_overrides=pack_overrides,
         model_backend=model_backend,
         schema=schema,
@@ -698,6 +715,7 @@ def run_training(model, nofruns, nofsteps, lrs, fname=None, outdir=None,
     print_train_modes(session)
     syn_mode = (session.train_opts or {}).get("syn_mode", SYN_MODE)
     print(f"device={session.device}, model={model}, syn_mode={syn_mode}, euler={session.euler}, "
+          f"pre_steady={session.pre_steady}, "
           f"nofruns={nofruns}, nofsteps={nofsteps}, "
           f"lrs={lrs}, nparams={training.schema_nparams(list(session.schema))}, fname={fname}, outdir={outdir}")
     if checkpoint_interval is not None:
@@ -875,6 +893,22 @@ def add_training_arguments(parser):
         choices=list(training.EULER_CLI),
         help="membrane Euler: im=implicit (default), ex=explicit; "
              "Ih gates always explicit",
+    )
+    _ss_help = "; ".join(
+        f"{m}=" + "|".join(modes)
+        for m, modes in PRE_STEADY_BY_MODEL.items()
+    )
+    parser.add_argument(
+        "--pre-steady",
+        nargs="+",
+        default=None,
+        metavar="MODEL=MODE",
+        help=(
+            "t=0 membrane pre steady as MODEL=MODE tokens "
+            f"({_ss_help}; defaults: "
+            + " ".join(f"{m}={PRE_STEADY[m]}" for m in PRE_STEADY_BY_MODEL)
+            + "); hp_lp solve uses fixed iters/damp from param_defaults"
+        ),
     )
     parser.add_argument(
         "--fp",
@@ -1484,6 +1518,12 @@ def training_kwargs_from_args(
         i_cli=i_cli,
         ih_off=args.ih_off,
         euler=args.euler,
+        pre_steady=expand_pre_steady_dict(
+            parse_kv_tokens(args.pre_steady, str),
+            defaults=PRE_STEADY,
+        ),
+        pre_steady_iters=PRE_STEADY_ITERS,
+        pre_steady_damp=PRE_STEADY_DAMP,
         fp=fp,
         pre_grad=bool(args.pre_grad),
         sequential=bool(args.sequential),

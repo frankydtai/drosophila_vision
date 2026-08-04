@@ -148,6 +148,16 @@ TASK = "spot_bright"
 # ---------------------------------------------------------------------------
 
 COST_NORM = "a_gt2"  # gt_power | a_gt2; see training.config.COST_NORMS
+
+# Membrane t=0 pre steady (``--pre-steady MODEL=MODE``). Not param init.
+# borst: e_leak only. hp_lp: probe (one-shot) | solve (fixed-iter DC; default).
+PRE_STEADY = {
+    "borst": "e_leak",
+    "hp_lp": "solve",
+}
+PRE_STEADY_ITERS = 60  # hp_lp solve only
+PRE_STEADY_DAMP = 1.0  # hp_lp solve under-relaxation
+
 NOFRUNS = 1
 NOFSTEPS_CPU = 50
 NOFSTEPS_GPU = 200
