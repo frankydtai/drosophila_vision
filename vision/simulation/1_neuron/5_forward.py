@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """Shared full-T absolute ``v`` forward for all neuron models.
 
-Per-model modules supply only ``prepare_i_sti`` / ``init_state`` / ``step``.
+Per-model modules supply only ``prepare_i_sti`` / ``pre_steady`` / ``step``.
 This module owns the time loop. Training / plots read absolute membrane ``v``;
 cost compares ``v`` to ``a_gt * gt + bias_gt``. The unused Ca filter stays
 in ``neuron.filter_ca``.
@@ -13,7 +13,7 @@ import torch
 from neuron import model_borst as _model_borst
 from neuron import model_hp_lp as _model_hp_lp
 
-# Per-model dynamics for ``forward_full`` (prepare_i_sti / init_state / step only).
+# Per-model dynamics for ``forward_full`` (prepare_i_sti / pre_steady / step only).
 MODEL_DRIVERS = {
     "borst": _model_borst,
     "hp_lp": _model_hp_lp,
@@ -43,7 +43,7 @@ def forward_full(session, p, i_sti, *, pack=None):
     """Shared full-T forward for every ``session.model``.
 
     Time index ``t`` is post-update at step ``t``. Membrane drive comes from
-    ``MODEL_DRIVERS[model].prepare_i_sti`` / ``init_state`` / ``step``.
+    ``MODEL_DRIVERS[model].prepare_i_sti`` / ``pre_steady`` / ``step``.
 
     ``session.train_opts['pre_grad']`` (default ``True``): when ``False``, steps
     with ``t < t_onset`` run under ``torch.no_grad()``, then ``v`` / ``state``
@@ -66,7 +66,7 @@ def forward_full(session, p, i_sti, *, pack=None):
     B, t_end, _n = int(i_sti.shape[0]), int(i_sti.shape[1]), int(i_sti.shape[2])
     t_onset = pack_t_onset(pack)
     pre_grad = bool((session.train_opts or {})["pre_grad"])
-    state, v = drv.init_state(session, p, B, i_sti=i_sti)
+    state, v = drv.pre_steady(session, p, B, i_sti=i_sti)
     v_rows = [v]
     if pre_grad or t_onset <= 0:
         for t in range(1, t_end):

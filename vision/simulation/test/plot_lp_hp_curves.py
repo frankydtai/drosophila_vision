@@ -108,7 +108,7 @@ def simulate_hp_lp(
     p = _p_tensors(
         v_rest=v_rest, tau_lp_ms=tau_lp_ms, tau_hp_ms=tau_hp_ms, a_slow=a_slow,
     )
-    # init_state: v_slow0 = v_tot0, v0 = v_rest + v_tot0 − a_slow v_slow0
+    # pre_steady: v_slow0 = v_tot0, v0 = v_rest + v_tot0 − a_slow v_slow0
     v_tot0 = p["v_rest"] + i_sti[0] / g_in
     v_slow = v_tot0.view(1, 1).clone()
     v = (p["v_rest"] + v_tot0 - p["a_slow"] * v_slow.view(-1)).view(1, 1).clone()

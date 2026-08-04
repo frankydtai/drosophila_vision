@@ -679,7 +679,7 @@ def _equilibrate(session, p, i_sti_batch: torch.Tensor, t_onset: int):
     _component_spec(session.model, session.euler)  # validate early
     B, T, _N = i_sti_batch.shape
     drv = _model_driver(session)
-    state, v = drv.init_state(session, p, B, i_sti=i_sti_batch)
+    state, v = drv.pre_steady(session, p, B, i_sti=i_sti_batch)
     for t in range(1, min(t_onset, T)):
         state, v = drv.step(state, v, p, i_sti_batch[:, t - 1], session)
     return v, state
@@ -945,7 +945,7 @@ def _forward_component(
     backend = session.backend
     n_keys = spec.n_keys
     drv = _model_driver(session)
-    state, v = drv.init_state(session, p, B, i_sti=drive)
+    state, v = drv.pre_steady(session, p, B, i_sti=drive)
 
     sums_b: list[dict[str, np.ndarray]] = []
     sumsq_b: list[dict[str, np.ndarray]] = []

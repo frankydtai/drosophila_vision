@@ -157,7 +157,6 @@ PRE_STEADY = {
 }
 PRE_STEADY_ITERS = 60  # hp_lp solve only
 PRE_STEADY_DAMP = 1.0  # hp_lp solve under-relaxation
-
 NOFRUNS = 1
 NOFSTEPS_CPU = 50
 NOFSTEPS_GPU = 200

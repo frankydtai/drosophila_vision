@@ -20,7 +20,7 @@ Membrane / HP Euler (``session.euler`` = ``implicit`` | ``explicit``):
     implicit LP:  v ← (v + α_lp (v_rest + v_hp)) / (1 + α_lp)
     explicit LP:  v ← v + α_lp (−(v − v_rest) + v_hp)
 
-Dynamics only: ``prepare_i_sti`` / ``init_state`` / ``step``. Full-T ``v``
+Dynamics only: ``prepare_i_sti`` / ``pre_steady`` / ``step``. Full-T ``v``
 forward lives in ``neuron.forward``. Scalars from ``session`` flat fields.
 
 t=0 membrane state uses ``session.pre_steady`` (``--pre-steady hp_lp=…``):
@@ -142,10 +142,10 @@ def _pre_steady_solve(p, B, v_sti, backend, *, iters: int, damp: float):
     return (v_slow,), v
 
 
-def init_state(session, p, B, i_sti=None):
+def pre_steady(session, p, B, i_sti=None):
     """``(v_slow,)``, ``v`` at t=0 from ``session.pre_steady``."""
     if i_sti is None:
-        raise TypeError("hp_lp init_state requires i_sti")
+        raise TypeError("hp_lp pre_steady requires i_sti")
     backend = session.backend
     g_in = float(session.g_in)
     if g_in == 0.0:

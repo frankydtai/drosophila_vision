@@ -200,8 +200,49 @@ def decompose_params(z_t, session):
     return cols, glob
 
 
+def v_pre_onset_by_cell(z_t, session):
+    """Per-cell-type mean membrane ``v`` at pre start and pulse start.
+
+    * ``v_pre``: ``t=0`` after ``pre_steady`` (``v_rows[0]``).
+    * ``v_onset``: ``t=t_onset`` (``v_rows[t_onset]``), pulse onset / end of pre.
+
+    Uses ``session.primary_readout`` stimulus (``i_sti`` + ``pack_t_onset``).
+    """
+    schema = list(session.schema)
+    z = torch.as_tensor(z_t, dtype=session.sim_dtype, device=session.device)
+    p = training.assign_params(z, schema, session.backend)
+    pack = session.primary_readout
+    i_sti = session.pack_i_sti(pack)
+    t_onset = training.pack_t_onset(pack)
+    with torch.no_grad():
+        v = training.forward_full(
+            session, p, i_sti.unsqueeze(0) if i_sti.dim() == 2 else i_sti, pack=pack,
+        )
+    # v: (B, T, N)
+    if t_onset < 0 or t_onset >= int(v.shape[1]):
+        raise ValueError(
+            f"t_onset={t_onset} out of range for forward T={int(v.shape[1])}"
+        )
+    v_pre_n = v[0, 0].detach().cpu().numpy()
+    v_onset_n = v[0, t_onset].detach().cpu().numpy()
+    node_cell = session.backend.conn.node_cell.detach().cpu().numpy()
+    n_cells = int(session.backend.n_cells)
+    v_pre = np.empty(n_cells, dtype=np.float64)
+    v_onset = np.empty(n_cells, dtype=np.float64)
+    for i in range(n_cells):
+        m = node_cell == i
+        if not np.any(m):
+            v_pre[i] = np.nan
+            v_onset[i] = np.nan
+        else:
+            v_pre[i] = float(v_pre_n[m].mean())
+            v_onset[i] = float(v_onset_n[m].mean())
+    return {"v_pre": v_pre, "v_onset": v_onset}
+
+
 def write_param_table(z_t, session, table_path, extra_cols=None):
     cols, glob = decompose_params(z_t, session)
+    cols.update(v_pre_onset_by_cell(z_t, session))
     if extra_cols:
         cols.update(extra_cols)
     cell_col = cell_labels(session)

@@ -13,7 +13,7 @@ Scope: `vision/`.
 2. When you change core (§B), you must leave `6_test/**` (logical `test`) broken — do not update tests to match. Edit `6_test/**` only when the user names that test or file in the task or when you must need to run the script.
 3. Python/pip: Must use `.venv` in the **same top-level subproject** as the script (see §1 table). No bare `python` / `python3` / `pip` / `pip3`; no wrong subproject `.venv`.
 4. Must not automatically add new `*.py` / `*.sh` / `*.ipynb` / `*.m`: must explain + propose path/duties + wait for user approval.
-
+5. Rename completeness: when the user renames a parameter / CLI flag / train_opts key / concept (e.g. `init_state` → `pre_steady`), you MUST in the same change also rename every corresponding **function**, **method**, **attribute**, **constant**, **CLI**, and **docstring / comment** that still uses the old name for that concept. Partial renames (opts only, or CLI only, leaving `def old_name` / call sites / docs) = do not ship. 
 
 - **Python** (script location → interpreter):
 | Script location | Interpreter |
