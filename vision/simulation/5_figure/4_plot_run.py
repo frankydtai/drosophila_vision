@@ -12,10 +12,6 @@ from task.spot.input import spot_from_opts
 from figure import moving_bar as moving_bar_plot
 from figure import spot as spot_plot
 from figure.util import (
-    add_ms_shown_argument,
-    parse_axis_slices,
-    parse_align_xy,
-    parse_ms_shown_range,
     plot_cost,
     network_hex_count,
 )
@@ -650,6 +646,51 @@ def add_plot_arguments(parser):
         help='moving_bar slice plots: align --x/--y traces to ref hex hex (x,y); total unchanged',
     )
     add_ms_shown_argument(parser)
+
+
+def parse_axis_slices(text):
+    """Parse comma-separated ``--x`` / ``--y`` values (empty -> ``None``)."""
+    if not text:
+        return None
+    vals = [float(x) for x in import_bootstrap.parse_comma_list(text)]
+    if not vals:
+        raise ValueError("empty comma-separated axis slice")
+    return vals
+
+
+def parse_align_xy(text):
+    """Parse ``--align-xy X,Y`` reference sti hex (empty -> ``None``)."""
+    if not text:
+        return None
+    parts = import_bootstrap.parse_comma_list(text)
+    if len(parts) != 2:
+        raise ValueError("--align-xy requires exactly two comma-separated values X,Y")
+    return float(parts[0]), float(parts[1])
+
+
+def add_ms_shown_argument(parser):
+    """Register ``--ms-shown START,STOP`` display / analyze time window."""
+    parser.add_argument(
+        "--ms-shown",
+        default=None,
+        metavar="START,STOP",
+        help=(
+            "absolute aligned ms START,STOP (not --ms-pre; not onset-relative). "
+            "spot: 0=trial start, pre=0,ms_pre (e.g. 0,1000); "
+            "bar: 0=t0 at node (neg START ok); omit = full trace"
+        ),
+    )
+
+
+def parse_ms_shown_range(token, *, flag="--ms-shown"):
+    """Parse ``START,STOP`` ms (comma; one token)."""
+    parts = import_bootstrap.parse_comma_list(token)
+    if len(parts) != 2:
+        raise ValueError(f"{flag} must be START,STOP")
+    start, stop = float(parts[0]), float(parts[1])
+    if start > stop:
+        raise ValueError(f"{flag} START={start} > STOP={stop}")
+    return start, stop
 
 
 def add_plot_timing_arguments(parser):

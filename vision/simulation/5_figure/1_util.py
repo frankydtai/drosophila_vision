@@ -11,7 +11,6 @@ import torch
 
 import network.path  # noqa: F401 — FAFB path on sys.path
 import training
-from import_bootstrap import parse_comma_list
 
 GT_COLOR = 'gray'
 MODEL_COLOR = 'red'
@@ -23,30 +22,6 @@ def as_numpy(arr):
     if isinstance(arr, torch.Tensor):
         return arr.detach().cpu().numpy()
     return np.asarray(arr)
-
-
-def _as_numpy(arr):
-    return as_numpy(arr)
-
-
-def apply_gt_affine(p, gt, node_index, backend):
-    """``a_gt * gt + bias_gt`` (``+ v_th`` if present; matches cost).
-
-    ``gt`` leading axis = nodes.
-    """
-    node_index = torch.as_tensor(node_index, dtype=torch.long)
-    scale, bias = training.gt_affine_for_nodes(
-        p, node_index, backend, sim_dtype=torch.float32,
-    )
-    scale_np = scale.detach().cpu().numpy()
-    bias_np = bias.detach().cpu().numpy()
-    g = np.asarray(gt, dtype=np.float64)
-    if g.ndim == 1:
-        return scale_np * g + bias_np
-    return (
-        scale_np.reshape(-1, *([1] * (g.ndim - 1))) * g
-        + bias_np.reshape(-1, *([1] * (g.ndim - 1)))
-    )
 
 
 def gt_affine_scalars_for_cell(p, cell_name, backend) -> tuple[float, float]:
@@ -297,56 +272,6 @@ def _hex_coord_token(val):
     if np.isclose(v, round(v)):
         return str(int(round(v)))
     return str(v).replace('.', 'p').replace('-', 'm')
-
-
-def parse_axis_slices(text):
-    """Parse comma-separated ``--x`` / ``--y`` values (empty → ``None``)."""
-    if not text:
-        return None
-    vals = [float(x) for x in parse_comma_list(text)]
-    if not vals:
-        raise ValueError('empty comma-separated axis slice')
-    return vals
-
-
-def parse_align_xy(text):
-    """Parse ``--align-xy X,Y`` reference sti hex (empty → ``None``)."""
-    if not text:
-        return None
-    parts = parse_comma_list(text)
-    if len(parts) != 2:
-        raise ValueError('--align-xy requires exactly two comma-separated values X,Y')
-    return float(parts[0]), float(parts[1])
-
-
-def add_ms_shown_argument(parser):
-    """Register ``--ms-shown START,STOP`` display / analyze time window.
-
-    Absolute aligned ms — not stimulus-length (``--ms-pre``) and not
-    onset-relative for spot. Spot: ``0`` = trial start, pre = ``0,ms_pre``.
-    Bar: ``0`` = bar t0 at the node. See ``analyze.cell_dynamics`` module doc.
-    """
-    parser.add_argument(
-        '--ms-shown',
-        default=None,
-        metavar='START,STOP',
-        help=(
-            'absolute aligned ms START,STOP (not --ms-pre; not onset-relative). '
-            'spot: 0=trial start, pre=0,ms_pre (e.g. 0,1000); '
-            'bar: 0=t0 at node (neg START ok); omit = full trace'
-        ),
-    )
-
-
-def parse_ms_shown_range(token, *, flag='--ms-shown'):
-    """Parse ``START,STOP`` ms (comma; one token)."""
-    parts = parse_comma_list(token)
-    if len(parts) != 2:
-        raise ValueError(f'{flag} must be START,STOP')
-    start, stop = float(parts[0]), float(parts[1])
-    if start > stop:
-        raise ValueError(f'{flag} START={start} > STOP={stop}')
-    return start, stop
 
 
 def ms_shown_axis_xlim(ms_shown, *, delta_ms, origin_t=0):
@@ -630,15 +555,6 @@ def plot_file_ext(*, html=False):
     return '.html' if html else '.png'
 
 
-def plot_html_path(path):
-    """Rewrite path stem to ``.html``."""
-    path = os.fspath(path)
-    root, ext = os.path.splitext(path)
-    if ext.lower() == '.html':
-        return path
-    return root + '.html'
-
-
 def _mpl_color_hex(color):
     from matplotlib.colors import to_hex
 
@@ -835,78 +751,246 @@ def save_figure(fig, path, dpi=150, rasterize=False):
     plt.close(fig)
 
 
-def _cost_curve_subplot_rows(names, costs_by_part, total_costs):
-    """Build subplot specs; merge moving_bar ``_PD``/``_ND`` part keys per task/cell."""
-    rows = [{'title': 'total (weighted)', 'curves': [(None, np.asarray(total_costs), '-')]}]
-    seen = set()
-    for key in names:
-        if key not in costs_by_part or key in seen:
-            continue
-        if key.endswith('_PD'):
-            base = key[:-3]
-            nd_key = f"{base}_ND"
-            curves = [('PD', np.asarray(costs_by_part[key]), '-')]
-            if nd_key in costs_by_part:
-                curves.append(('ND', np.asarray(costs_by_part[nd_key]), '--'))
-                seen.add(nd_key)
-            rows.append({'title': base, 'curves': curves})
-            seen.add(key)
-        elif key.endswith('_ND'):
-            base = key[:-3]
-            rows.append({'title': base, 'curves': [('ND', np.asarray(costs_by_part[key]), '--')]})
-            seen.add(key)
-        else:
-            rows.append({
-                'title': key,
-                'curves': [(None, np.asarray(costs_by_part[key]), '-')],
-            })
-            seen.add(key)
-    return rows
-
-
 def plot_cost(costs, path, *, costs_by_part=None, part_order=None):
-    """Plot training cost; total + one subplot per part when ``costs_by_part`` is given."""
+    """Plot training cost; total + grouped subplots with role colors.
+
+    Rules (applies to spot / moving_bar / future tasks):
+    - All curves are solid (``linestyle='-'``).
+    - Colors are assigned by *role order* (R0, R1, R2, ... for spot radii; PD/ND/DSI for moving bar).
+    - The cell subplot layout follows the canonical order rows (total row unchanged).
+    """
+    from network.construction import CELL_ORDER_ROWS, cell_order_rows
+
     t0 = time.perf_counter()
-    if costs_by_part:
-        names = list(part_order) if part_order else list(costs_by_part.keys())
-        names = [n for n in names if n in costs_by_part and len(costs_by_part[n])]
-        if names and costs is not None and len(costs):
-            rows = _cost_curve_subplot_rows(names, costs_by_part, costs)
-            n = len(rows)
-            fig, axes = plt.subplots(n, 1, figsize=(8, 2.8 * n), sharex=True)
-            if n == 1:
-                axes = [axes]
-            nsteps = len(costs)
-            for ax, row in zip(axes, rows):
-                curves = []
-                for leg, curve, ls in row['curves']:
-                    curves.append(curve)
-                    ax.plot(
-                        curve, color='steelblue', linewidth=2, linestyle=ls,
-                        label=leg,
-                    )
+    if costs is None or not hasattr(costs, "__len__") or len(costs) == 0:
+        raise ValueError("plot_cost requires non-empty `costs` array")
+
+    if not costs_by_part:
+        fig, ax = plt.subplots(figsize=(8, 4))
+        ax.plot(costs, color='steelblue', linewidth=2, linestyle='-')
+        ax.set_ylim(*cost_ylim(costs))
+        ax.set_xlabel('step')
+        ax.set_ylabel('cost [% gt power]')
+        ax.set_title(f'Training cost ({len(costs)} steps)')
+        ax.grid(True, alpha=0.3)
+        fig.tight_layout()
+        t_draw = time.perf_counter()
+        save_figure(fig, path, dpi=150)
+        log_plot_elapsed(path, t0, draw=t_draw - t0, save=time.perf_counter() - t_draw)
+        return
+
+    part_keys = list(part_order) if part_order else list(costs_by_part.keys())
+    part_keys = [k for k in part_keys if k in costs_by_part and len(costs_by_part[k])]
+
+    if not part_keys:
+        # fallback: only total exists
+        fig, ax = plt.subplots(figsize=(8, 4))
+        ax.plot(costs, color='steelblue', linewidth=2, linestyle='-')
+        ax.set_ylim(*cost_ylim(costs))
+        ax.set_xlabel('step')
+        ax.set_ylabel('cost [% gt power]')
+        ax.set_title(f'Training cost ({len(costs)} steps)')
+        ax.grid(True, alpha=0.3)
+        fig.tight_layout()
+        t_draw = time.perf_counter()
+        save_figure(fig, path, dpi=150)
+        log_plot_elapsed(path, t0, draw=t_draw - t0, save=time.perf_counter() - t_draw)
+        return
+
+    def _normalize_radius(r_f: float):
+        r_i = int(round(r_f))
+        if abs(r_f - r_i) < 1e-6:
+            return r_i
+        return float(r_f)
+
+    def _spot_parse(key: str):
+        if key.startswith("spot_bright_"):
+            contrast = "bright"
+            task = "spot_bright"
+        elif key.startswith("spot_dark_"):
+            contrast = "dark"
+            task = "spot_dark"
+        else:
+            return None
+        pos = key.rfind("_r")
+        if pos < 0:
+            return None
+        r_s = key[pos + 2:]
+        try:
+            r_f = float(r_s)
+        except ValueError:
+            return None
+        r = _normalize_radius(r_f)
+        # prefix is "{task}_{cell}"
+        cell = key[len(task) + 1:pos]
+        return cell, contrast, r
+
+    def _moving_bar_parse(key: str):
+        if key.startswith("moving_bar_bright_"):
+            contrast = "bright"
+            task = "moving_bar_bright"
+        elif key.startswith("moving_bar_dark_"):
+            contrast = "dark"
+            task = "moving_bar_dark"
+        else:
+            return None
+        if key == f"{task}_DSI":
+            return None, contrast, "DSI"
+        for role in ("PD", "ND"):
+            suf = f"_{role}"
+            if key.endswith(suf) and key != f"{task}_{role}":
+                cell = key[len(task) + 1: -len(suf)]
+                return cell, contrast, role
+        return None
+
+    # role universe (for color indexing)
+    spot_radii: set = set()
+    moving_roles: set = set()
+    other_role_ids_order: list = []
+    other_role_ids_seen: set = set()
+
+    curve_specs_by_cell: dict[str, list] = {}
+    curve_specs_global: list = []
+
+    for key in part_keys:
+        curve = np.asarray(costs_by_part[key], dtype=np.float64)
+        if curve.size == 0:
+            continue
+
+        parsed_spot = _spot_parse(key)
+        if parsed_spot is not None:
+            cell, contrast, r = parsed_spot
+            spot_radii.add(r)
+            role_id = ("spot_r", r)
+            label = f"R{r} ({contrast})" if contrast else f"R{r}"
+            curve_specs_by_cell.setdefault(cell, []).append((role_id, label, curve))
+            continue
+
+        parsed_moving = _moving_bar_parse(key)
+        if parsed_moving is not None:
+            cell, contrast, role = parsed_moving
+            if cell is None:
+                moving_roles.add(role)
+                role_id = ("moving_role", role)
+                label = f"{role} ({contrast})" if contrast else role
+                curve_specs_global.append((role_id, label, curve))
+            else:
+                moving_roles.add(role)
+                role_id = ("moving_role", role)
+                label = f"{role} ({contrast})" if contrast else role
+                curve_specs_by_cell.setdefault(cell, []).append((role_id, label, curve))
+            continue
+
+        # unknown / future task parts:
+        # - try to place into cell grid if the key contains a known cell name substring
+        # - otherwise treat as global (global panels come after cell panels).
+        role_id = ("other", key)
+        if role_id not in other_role_ids_seen:
+            other_role_ids_seen.add(role_id)
+            other_role_ids_order.append(role_id)
+        known_cells = {n for row in CELL_ORDER_ROWS for n in row}
+        matches = [c for c in known_cells if c and c in key]
+        if matches:
+            cell = max(matches, key=len)
+            curve_specs_by_cell.setdefault(cell, []).append((role_id, key, curve))
+        else:
+            curve_specs_global.append((role_id, key, curve))
+
+    # Build deterministic color mapping:
+    # - spot radii first: R0, R1, R2, ...
+    # - then moving bar roles: PD, ND, DSI
+    # - then other roles in the order they appear in `part_order`.
+    palette = list(plt.get_cmap("tab20").colors)
+    role_id_order: list = []
+    for r in sorted(spot_radii, key=lambda x: (isinstance(x, float), x)):
+        role_id_order.append(("spot_r", r))
+
+    moving_role_order = [r for r in ("PD", "ND", "DSI") if r in moving_roles]
+    extra_moving = sorted([r for r in moving_roles if r not in moving_role_order])
+    moving_role_order.extend(extra_moving)
+    for r in moving_role_order:
+        role_id_order.append(("moving_role", r))
+
+    role_id_order.extend(other_role_ids_order)
+
+    role_id_to_color = {rid: palette[i % len(palette)] for i, rid in enumerate(role_id_order)}
+
+    # Layout: total row unchanged; subsequent rows are cell order rows (second row starts after total).
+    ncols = 5
+    present_cells = set(curve_specs_by_cell.keys())
+    order_rows = cell_order_rows(sorted(present_cells))
+    n_cell_rows = len(order_rows)
+
+    n_global_axes = len(curve_specs_global)
+    n_global_rows = (n_global_axes + ncols - 1) // ncols if n_global_axes else 0
+    nrows = 1 + n_cell_rows + n_global_rows
+
+    fig = plt.figure(figsize=(3.0 * ncols, 2.2 * nrows))
+    gs = fig.add_gridspec(
+        nrows, ncols,
+        hspace=0.55, wspace=0.45,
+        top=0.95, bottom=0.06, left=0.07, right=0.98,
+    )
+
+    # Total (unchanged)
+    ax_total = fig.add_subplot(gs[0, :])
+    ax_total.plot(costs, color='steelblue', linewidth=2, linestyle='-')
+    ax_total.set_ylim(*cost_ylim(costs))
+    ax_total.set_title("total (weighted)")
+    ax_total.set_ylabel("cost [% gt power]")
+    ax_total.grid(True, alpha=0.3)
+
+    legend_done = False
+
+    # Cell panels
+    for gi, row_cells in enumerate(order_rows):
+        row_idx = 1 + gi
+        start = (ncols - len(row_cells)) // 2
+        for j, cell in enumerate(row_cells):
+            col = start + j
+            ax = fig.add_subplot(gs[row_idx, col])
+
+            specs = curve_specs_by_cell.get(cell) or []
+            # sort by global role index so R0/R1/... order is stable in each panel
+            specs = sorted(
+                specs,
+                key=lambda x: role_id_order.index(x[0]) if x[0] in role_id_order else 10**9,
+            )
+
+            curves = []
+            for role_id, label, curve in specs:
+                curves.append(curve)
+                ax.plot(curve, color=role_id_to_color.get(role_id), linewidth=2, linestyle='-', label=label)
+
+            if curves:
                 ax.set_ylim(*cost_ylim(*curves))
-                if len(row['curves']) > 1:
-                    ax.legend(fontsize=8)
-                ax.set_ylabel('cost [% gt power]')
-                ax.set_title(row['title'])
-                ax.grid(True, alpha=0.3)
-            axes[-1].set_xlabel('step')
-            fig.suptitle(f'Training cost ({nsteps} steps)', fontsize=12, y=1.01)
-            fig.tight_layout()
-            t_draw = time.perf_counter()
-            save_figure(fig, path, dpi=150)
-            log_plot_elapsed(path, t0, draw=t_draw - t0, save=time.perf_counter() - t_draw)
-            return
-        if len(names) == 1:
-            costs = costs_by_part[names[0]]
-    fig, ax = plt.subplots(figsize=(8, 4))
-    ax.plot(costs, color='steelblue', linewidth=2)
-    ax.set_ylim(*cost_ylim(costs))
-    ax.set_xlabel('step')
-    ax.set_ylabel('cost [% gt power]')
-    ax.set_title(f'Training cost ({len(costs)} steps)')
-    ax.grid(True, alpha=0.3)
+            if j == 0:
+                ax.set_ylabel("cost [% gt power]", fontsize=8)
+            ax.set_title(str(cell), fontsize=8)
+            ax.grid(True, alpha=0.3)
+
+            if (not legend_done) and len(specs) > 1:
+                ax.legend(fontsize=7)
+                legend_done = True
+
+            if row_idx == nrows - 1:
+                ax.set_xlabel("step")
+
+    # Global panels (after cell grid)
+    for gi, (role_id, label, curve) in enumerate(curve_specs_global):
+        row_idx = 1 + n_cell_rows + gi // ncols
+        col = gi % ncols
+        ax = fig.add_subplot(gs[row_idx, col])
+        ax.plot(curve, color=role_id_to_color.get(role_id), linewidth=2, linestyle='-')
+        ax.set_ylim(*cost_ylim(curve))
+        ax.set_title(label, fontsize=8)
+        ax.grid(True, alpha=0.3)
+        if col == 0:
+            ax.set_ylabel("cost [% gt power]", fontsize=8)
+        if row_idx == nrows - 1:
+            ax.set_xlabel("step")
+
+    fig.suptitle(f'Training cost ({len(costs)} steps)', fontsize=12, y=1.01)
     fig.tight_layout()
     t_draw = time.perf_counter()
     save_figure(fig, path, dpi=150)

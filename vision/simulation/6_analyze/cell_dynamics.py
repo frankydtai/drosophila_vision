@@ -24,7 +24,7 @@ from param_defaults import DEFAULT_RUN_PATH
 import figure.plot_run as plot_trained
 from figure.readout import contrast_for_task
 from figure.spot import pack_spot_cost_radii, resolve_spot_gt_cubes
-from figure.util import add_ms_shown_argument, parse_axis_slices, parse_ms_shown_range, plot_sem_band
+from figure.util import plot_sem_band
 from import_bootstrap import parse_bool, parse_comma_list
 from network.construction import col2gt
 from task.moving_bar.gt import (
@@ -275,8 +275,8 @@ def parse_shared_cli(args: argparse.Namespace) -> SharedCli:
                 f"unsupported task {t!r}; expected spot_* or moving_bar_* "
                 f"(after TASK_ALIASES expansion)"
             )
-    xs = parse_axis_slices(args.x)
-    ys = parse_axis_slices(args.y)
+    xs = plot_trained.parse_axis_slices(args.x)
+    ys = plot_trained.parse_axis_slices(args.y)
     return SharedCli(
         cells=cells,
         tasks=tasks,
@@ -2574,7 +2574,7 @@ def main() -> None:
             "mutually exclusive with --ms-shown; default without either: 0..last ms"
         ),
     )
-    add_ms_shown_argument(t_group)
+    plot_trained.add_ms_shown_argument(t_group)
     # --ms-shown: absolute aligned ms (spot 0=trial start; pre = 0,ms_pre).
     # --ms-pre/…: stimulus length overrides (rebuild session). Do not confuse.
     ap.add_argument(
@@ -2638,7 +2638,7 @@ def main() -> None:
         use_ms = False
     elif args.ms_shown is not None:
         try:
-            ms_range = parse_ms_shown_range(args.ms_shown)
+            ms_range = plot_trained.parse_ms_shown_range(args.ms_shown)
         except ValueError as exc:
             raise SystemExit(str(exc)) from exc
         use_ms = True

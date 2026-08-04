@@ -12,8 +12,8 @@ override. ``--syn-mode per_cell`` uses ``edge_weight = syn_sign * n_syn``;
 ``--syn-mode per_edge`` uses ``edge_weight = syn_sign`` (ignore ``n_syn``).
 
 Nodes follow ``network.json`` file order; ``node_cell[i]`` is the index of
-``nodes[i]['name']`` in the family-ordered cell vocabulary
-(:data:`CELL_FAMILY_ROWS`). This broadcasts per-cell params to nodes via
+``nodes[i]['name']`` in the order-ordered cell vocabulary
+(:data:`CELL_ORDER_ROWS`). This broadcasts per-cell params to nodes via
 ``param[node_cell]`` (shape ``(n_cells,)`` → ``(n_nodes,)``).
 """
 from __future__ import annotations
@@ -33,9 +33,9 @@ from neuron.schema import normalize_syn_mode
 # Photoreceptor drive currents (pA) are injected by the caller
 # (``param_defaults.I_*``); this module has no numeric bindings.
 
-# Canonical cell order for plot / param broadcast (family rows).
+# Canonical cell order for plot / param broadcast (order rows).
 # Leftovers (not listed) are appended alphabetically, five per row.
-CELL_FAMILY_ROWS: List[List[str]] = [
+CELL_ORDER_ROWS: List[List[str]] = [
     ['R1-6', 'R7', 'R8'],
     ['L1', 'L2', 'L3', 'L4', 'L5'],
     ['Mi1', 'Tm3', 'Mi4', 'Mi9'],
@@ -49,13 +49,13 @@ CELL_FAMILY_ROWS: List[List[str]] = [
 _LEFTOVER_ROW_LEN = 5
 
 
-def cell_family_rows(present: Sequence[str]) -> List[List[str]]:
-    """Present cells into family rows; leftovers alphabetical, ``_LEFTOVER_ROW_LEN`` per row."""
+def cell_order_rows(present: Sequence[str]) -> List[List[str]]:
+    """Present cells into order rows; leftovers alphabetical, ``_LEFTOVER_ROW_LEN`` per row."""
     present_names = [str(t) for t in present]
     present_set = set(present_names)
     rows: List[List[str]] = []
     used: set = set()
-    for row in CELL_FAMILY_ROWS:
+    for row in CELL_ORDER_ROWS:
         filtered = [str(t) for t in row if str(t) in present_set]
         if filtered:
             rows.append(filtered)
@@ -66,9 +66,9 @@ def cell_family_rows(present: Sequence[str]) -> List[List[str]]:
     return rows
 
 
-def cell_names_in_family_order(present: Sequence[str]) -> List[str]:
-    """Flat cell order from :func:`cell_family_rows`."""
-    return [n for row in cell_family_rows(present) for n in row]
+def cell_names_in_order(present: Sequence[str]) -> List[str]:
+    """Flat cell order from :func:`cell_order_rows`."""
+    return [n for row in cell_order_rows(present) for n in row]
 
 
 @dataclass
@@ -202,7 +202,7 @@ def normalize_gt_cells(gt_cells: Optional[Sequence[str]]) -> Optional[List[str]]
 
 
 def read_network_json(path) -> Tuple[List[dict], List[dict], List[str], dict]:
-    """Load ``network.json`` → ``(nodes, edges, family-ordered cell_names, metadata)``."""
+    """Load ``network.json`` → ``(nodes, edges, order-ordered cell_names, metadata)``."""
     path = Path(path)
     with open(path) as f:
         doc = json.load(f)
@@ -213,7 +213,7 @@ def read_network_json(path) -> Tuple[List[dict], List[dict], List[str], dict]:
     present = sorted(
         {n["name"] for n in nodes if isinstance(n.get("name"), str)}
     )
-    cell_names = cell_names_in_family_order(present)
+    cell_names = cell_names_in_order(present)
     meta = doc.get("metadata", {})
     if not isinstance(meta, dict):
         meta = {}

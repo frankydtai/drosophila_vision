@@ -26,7 +26,7 @@ import import_bootstrap  # noqa: F401
 import matplotlib.pyplot as plt
 import numpy as np
 
-from network.build import cell_family_rows, cell_names_in_family_order
+from network.construction import cell_order_rows, cell_names_in_order
 from figure.spot import CENTER_BIN
 from figure.util import TRACE_LW, TRACE_YLIM, save_figure
 from neuron.params import DATA_AMP, DELTA_MS, ms_to_t
@@ -105,8 +105,8 @@ def _plot(
     with_lp, without_lp, u, s_lp, *, t_on, dt_ms, ms_pulse, prefilter_ms, save, show,
 ):
     present = [str(n) for n in cell_list]
-    groups = [np.array(row) for row in cell_family_rows(present)]
-    names = cell_names_in_family_order(present)
+    groups = [np.array(row) for row in cell_order_rows(present)]
+    names = cell_names_in_order(present)
     nrows = len(groups)
     ncols = max(len(g) for g in groups)
     fig = plt.figure(figsize=(2.2 * ncols, 1.6 + 2.0 * nrows))

@@ -8,18 +8,18 @@ import torch
 from param_defaults import DATA_AMP, DELTA_MS
 from task.spot.gt import GT_CELLS, read_RecF_gt, read_RecF_gt_dark
 from network.construction import (
-    CELL_FAMILY_ROWS,
-    cell_names_in_family_order,
+    CELL_ORDER_ROWS,
+    cell_names_in_order,
 )
 
-PLOT_FAMILY_ROWS = [np.array(row) for row in CELL_FAMILY_ROWS]
+PLOT_ORDER_ROWS = [np.array(row) for row in CELL_ORDER_ROWS]
 
 _VALID_CONTRASTS = ("bright", "dark")
 
 
 def plot_cells_in_order(present):
-    """Flat cell order from :func:`network.construction.cell_names_in_family_order`."""
-    return cell_names_in_family_order(present)
+    """Flat cell order from :func:`network.construction.cell_names_in_order`."""
+    return cell_names_in_order(present)
 
 
 def _pack_for(session, task):

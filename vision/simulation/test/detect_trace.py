@@ -55,7 +55,6 @@ from analyze.cell_dynamics import (
     _parse_param_tokens,
     analyze_spot_average,
 )
-from figure.util import parse_ms_shown_range
 from import_bootstrap import parse_comma_list
 
 CHECK_OSCILLATION = "oscillation"
@@ -297,13 +296,13 @@ def _default_baseline_ms_shown(
 
 def _resolve_windows(args, ms_pre, ms_pulse, ms_response):
     if args.ms_shown is not None:
-        analyze = parse_ms_shown_range(args.ms_shown, flag="--ms-shown")
+        analyze = plot_trained.parse_ms_shown_range(args.ms_shown, flag="--ms-shown")
     else:
         analyze = _default_ms_shown(args.check, ms_pre, ms_pulse, ms_response)
 
     need_baseline = args.check in (CHECK_FLAT, CHECK_STABILITY)
     if args.baseline_ms_shown is not None:
-        baseline = parse_ms_shown_range(
+        baseline = plot_trained.parse_ms_shown_range(
             args.baseline_ms_shown, flag="--baseline-ms-shown",
         )
     elif need_baseline:

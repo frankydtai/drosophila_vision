@@ -15,7 +15,7 @@ import math
 from typing import Dict, Tuple
 
 DEFAULT_RUN_NAME = """
-28702898-run-nofsteps-200-lrs-0.1-a-slow-init.L1,L2-0.6-ms-pre-1000-ms-pulse-100-ms-response-500
+28771069-run-nofsteps-300-lrs-0.1-a-slow-init.L1,L2-0.6-ms-pre-100-ms-pulse-100-ms-response-500-ms-post-500
 """.strip()
 DEFAULT_RUN_PATH = "hp_lp/" + DEFAULT_RUN_NAME
 
@@ -50,7 +50,7 @@ IH_GMAX_INDI_NAMES = ("L1", "L2", "L4", "L5")
 #   indi_named → indi=IH_GMAX_INDI_NAMES, fixed=remainder with init_override=0
 # Fixed nodes always use init / init_override (no fixed_val).
 PARAM_BOXES: Dict[str, dict] = {
-    "a_in": dict(lo=GAIN_LO, hi=GAIN_HI, init=1.0, jit=0.1, train_mode="fixed"),
+    "a_in": dict(lo=0.01, hi=100, init=1.0, jit=0.1, train_mode="shared"),
     "a_out": dict(lo=GAIN_LO, hi=GAIN_HI, init=1.0, jit=0.1, train_mode="indi"),
     "a_gt": dict(lo=GAIN_LO, hi=GAIN_HI, init=1.0, jit=0.1, train_mode="indi"),
     "bias_gt": dict(lo=-20.0, hi=20.0, init=0.0, jit=1.0, train_mode="indi"),
@@ -67,7 +67,7 @@ PARAM_BOXES: Dict[str, dict] = {
     "tau_midv_off": dict(lo=-70.0, hi=-40.0, init=-50.0, jit=5.0, train_mode="shared"),
     "tau_lp": dict(lo=10.0, hi=100.0, init=50.0, jit=5.0, train_mode="indi"),
     "v_rest": dict(lo=-20.0, hi=20.0, init=0.0, jit=1.0, train_mode="fixed"),
-    "bias_out": dict(lo=-20.0, hi=20.0, init=0.0, jit=1.0, train_mode="indi"),
+    "bias_out": dict(lo=-30.0, hi=30.0, init=0.0, jit=1.0, train_mode="indi"),
     "tau_hp": dict(lo=100.0, hi=500.0, init=200.0, jit=20.0, train_mode="indi"),
     "a_slow": dict(lo=0.0, hi=1.0, init=0.5, jit=0.05, train_mode="fixed"),
 }
@@ -120,12 +120,12 @@ SHIFT_EXTENT = 1.0
 SPOT_COST_RADII: Tuple[float, ...] = (0.0, 1.0, math.sqrt(3), 2.0)
 SPOT_COST_RADIUS_WEIGHT: Dict[float, float] = {
     0.0: 1.0,
-    1.0: 1.0 / 6.0,
-    2.0: 1.0 / 6.0,
+    1.0: 1.0 / 3.0,
+    2.0: 1.0 / 3.0,
 }
 SPOT_COST_RADIUS_WEIGHT_EXTENT1: Dict[float, float] = {
     0.0: 1.0,
-    1.0: 1.0 / 6.0,
+    1.0: 1.0,
 }
 SPOT_COST_RADIUS_KEY_ALIASES: Dict[str, float] = {
     "sqrt3": math.sqrt(3),
@@ -161,7 +161,7 @@ NOFRUNS = 1
 NOFSTEPS_CPU = 50
 NOFSTEPS_GPU = 200
 LRS = "0.1"
-CHECKPOINT_INTERVAL = 1000
+CHECKPOINT_INTERVAL = 2000
 
 # ---------------------------------------------------------------------------
 # 4.5 training.session

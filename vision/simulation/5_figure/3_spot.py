@@ -45,7 +45,7 @@ from figure.util import (
     v_ref_by_type_name,
     v_ref_schema_name,
 )
-from network.construction import cell_family_rows, cell_names_in_family_order
+from network.construction import cell_order_rows, cell_names_in_order
 from task.moving_bar.input import (
     filter_sti_hexes,
     moving_bar_cost_hexes,
@@ -565,7 +565,7 @@ class SpotTraceBundle:
     """One forward pass; full cost-extent readout over all types."""
 
     cells: list
-    family_row_ixs: list | None = None
+    order_row_ixs: list | None = None
     session: object = None
     slice_overlay: dict[str, dict[str, np.ndarray]] | None = None
     slice_labels: list[str] | None = None
@@ -586,14 +586,14 @@ class SpotTraceBundle:
         return bool(self.slice_overlay)
 
 
-def _family_row_ixs_from_rows(family_rows, names):
+def _order_row_ixs_from_rows(order_rows, names):
     name_to_i = {str(n): i for i, n in enumerate(names)}
-    family_row_ixs = []
-    for names_row in family_rows:
+    order_row_ixs = []
+    for names_row in order_rows:
         row_idx = [name_to_i[str(n)] for n in names_row if str(n) in name_to_i]
         if row_idx:
-            family_row_ixs.append(row_idx)
-    return family_row_ixs
+            order_row_ixs.append(row_idx)
+    return order_row_ixs
 
 
 def _spot_all_cell_names(session):
@@ -606,14 +606,14 @@ def _spot_readout_bundle_view(bundle):
     """ca-gt view: same traces, rows restricted to ``pack_readout_cells``."""
     session = bundle.session
     present = pack_readout_cells(session, session.primary_readout.name)
-    family_rows = [np.array(row) for row in cell_family_rows(present)]
-    names = cell_names_in_family_order(present)
+    order_rows = [np.array(row) for row in cell_order_rows(present)]
+    names = cell_names_in_order(present)
     by_name = {c['name']: c for c in bundle.cells}
     cells = [by_name[n] for n in names if n in by_name]
     cell_names = [c['name'] for c in cells]
     return SpotTraceBundle(
         cells=cells,
-        family_row_ixs=_family_row_ixs_from_rows(family_rows, cell_names),
+        order_row_ixs=_order_row_ixs_from_rows(order_rows, cell_names),
         session=session,
         n_t=bundle.n_t,
         v_ref_by_name=bundle.v_ref_by_name,
@@ -626,9 +626,9 @@ def _spot_readout_bundle_view(bundle):
     )
 
 
-def _cells_with_family_row_ixs(family_rows, names, build_cell):
+def _cells_with_order_row_ixs(order_rows, names, build_cell):
     cells = [build_cell(str(name)) for name in names]
-    return cells, _family_row_ixs_from_rows(family_rows, names)
+    return cells, _order_row_ixs_from_rows(order_rows, names)
 
 
 def _spot_cubes_from_row_mask(rows, mask):
@@ -731,8 +731,8 @@ def _spot_forward_rows(
     spot = spot_from_opts(C, stimulus_opts=opts)
     batches = spot_stimulus_batches(spot)
     present = _spot_all_cell_names(session)
-    family_rows = [np.array(row) for row in cell_family_rows(present)]
-    names = cell_names_in_family_order(present)
+    order_rows = [np.array(row) for row in cell_order_rows(present)]
+    names = cell_names_in_order(present)
 
     (
         batch_idx, node_idx, _radius, type_idx, _stim_u, _stim_v, du, dv, center_row,
@@ -779,7 +779,7 @@ def _spot_forward_rows(
         name: gt_affine_scalars_for_cell(p, name, session.backend)
         for name in names
     }
-    rows['family_rows'] = family_rows
+    rows['order_rows'] = order_rows
     return rows
 
 
@@ -801,8 +801,8 @@ def _spot_cube_from_rows(rows, session):
         single_hex=single_hex, n_by_radius_by_name=n_by_radius_by_name,
         gt_affine_by_name=rows.get('gt_affine_by_name'),
     )
-    family_row_ixs = _family_row_ixs_from_rows(rows['family_rows'], names)
-    return cells, family_row_ixs, mt
+    order_row_ixs = _order_row_ixs_from_rows(rows['order_rows'], names)
+    return cells, order_row_ixs, mt
 
 
 @torch.no_grad()
@@ -821,7 +821,7 @@ def network_spot_trace_bundle(
         session, z,
         at_x=at_x, at_y=at_y,
     )
-    cells, family_row_ixs, n_t = _spot_cube_from_rows(rows, session)
+    cells, order_row_ixs, n_t = _spot_cube_from_rows(rows, session)
     slice_overlay, slice_labels = (None, None)
     if at_xs is not None or at_ys is not None:
         C = session.backend.network
@@ -832,7 +832,7 @@ def network_spot_trace_bundle(
         )
     return SpotTraceBundle(
         cells=cells,
-        family_row_ixs=family_row_ixs,
+        order_row_ixs=order_row_ixs,
         session=session,
         slice_overlay=slice_overlay,
         slice_labels=slice_labels,
@@ -905,7 +905,7 @@ def _plot_spot_figure(
         raise ValueError("_plot_spot_figure requires at least one bundle")
     primary = bundles[order[0]]
     cells = primary.cells
-    family_row_ixs = primary.family_row_ixs
+    order_row_ixs = primary.order_row_ixs
     has_slices = primary.has_slices
     slice_labels = primary.slice_labels or []
     n_t = primary.n_t
@@ -925,10 +925,10 @@ def _plot_spot_figure(
 
     r0_only = bool(getattr(primary, "r0_only", False))
     radii = _trained_radii(cost_parts, order, r0_only=r0_only)
-    family_heights = [
-        1 + len(radii) for _ in family_row_ixs
+    order_heights = [
+        1 + len(radii) for _ in order_row_ixs
     ]
-    nrows = int(sum(family_heights))
+    nrows = int(sum(order_heights))
     fig = plt.figure(figsize=figsize_fn(ncols, nrows))
     gs = fig.add_gridspec(nrows, ncols, **gridspec_kw)
     legend_done = False
@@ -1025,8 +1025,8 @@ def _plot_spot_figure(
         legend_done = True
 
     row_cursor = 0
-    for gi, row_idx in enumerate(family_row_ixs):
-        group_h = int(family_heights[gi])
+    for gi, row_idx in enumerate(order_row_ixs):
+        group_h = int(order_heights[gi])
         rf_row = row_cursor
         time_row0 = row_cursor + 1
         start = (ncols - len(row_idx)) // 2

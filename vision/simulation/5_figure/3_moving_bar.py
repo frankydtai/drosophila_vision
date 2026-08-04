@@ -184,7 +184,7 @@ def _cell_ids_for_plot_order(connectome_cell_names, node_cell, plot_cells):
 
 
 def _plot_cells_and_ids(session):
-    """Plot-family cell order + remapped ``cell_ids`` for bar aggregation."""
+    """Plot-order cell order + remapped ``cell_ids`` for bar aggregation."""
     C = session.backend.network
     if C is None:
         raise ValueError("_plot_cells_and_ids requires session.backend.network")
