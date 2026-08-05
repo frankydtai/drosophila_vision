@@ -86,6 +86,11 @@ class ReadoutPack:
     cost_time_ix: Optional[torch.Tensor] = None  # (n_sample,) sparse post-onset t idx
     waveform_mse: bool = True  # spot: True; moving bar: set at build
     t_onset: Optional[int] = None  # explicit onset; spot when ms_post extends i_sti past gt
+    # Spot a_sti_r: i = i_sti + a_sti_r[r] * sti_wave on (sti_batch, sti_node).
+    sti_wave: Optional[torch.Tensor] = None  # (T,) (i_peak - i_baseline) * u(t)
+    sti_batch: Optional[torch.Tensor] = None  # (n_contrib,) long
+    sti_node: Optional[torch.Tensor] = None  # (n_contrib,) long
+    sti_r: Optional[torch.Tensor] = None  # (n_contrib,) long → a_sti_r index
 
 
 @dataclass(frozen=True)

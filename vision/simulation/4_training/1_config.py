@@ -27,6 +27,7 @@ RUN_DATA_SUBDIR = "data"
 PARAM_CSV = "param.csv"
 SYN_STRENGTH_CELL_CSV = "syn_strength_cell.csv"
 SYN_STRENGTH_EDGE_CSV = "syn_strength_edge.csv"
+A_STI_R_CSV = "a_sti_r.csv"
 
 
 def run_data_dir(outdir: str | Path) -> str:

@@ -8,6 +8,9 @@ training loop.
 
 Model traces are absolute ``v``; cost compares ``v`` to
 ``gt_aff = a_gt * gt + bias_gt`` (``+ v_th`` when present, i.e. borst).
+When ``train_opts['bias_gt_from_v_onset']``, ``bias_gt`` is replaced by
+``v`` at ``t_onset`` (per readout node); ``bias_gt_from_v_onset_grad``
+controls whether that onset stays in the graph (default detach).
 Waveform MSE normalization is ``session`` / ``train_opts`` ``cost_norm``:
 
 * ``gt_power``: ``100 * Σ w (sel−gt_aff)² / Σ w (a_gt·gt)²``
@@ -38,7 +41,6 @@ from training.readout_pack import SIM_DTYPE
 from neuron import forward_full
 from neuron.forward import pack_t_onset
 from neuron.readout import (
-    CA_PACK_READOUTS,
     pack_needs_waveform_mse,
     window_time_traces,
 )
@@ -57,7 +59,11 @@ from training.config import (
     session_cost_part_keys,
     spot_cost_part_key,
 )
-from param_defaults import COST_NORM as DEFAULT_COST_NORM
+from param_defaults import (
+    COST_NORM as DEFAULT_COST_NORM,
+    BIAS_GT_FROM_V_ONSET as DEFAULT_BIAS_GT_FROM_V_ONSET,
+    BIAS_GT_FROM_V_ONSET_GRAD as DEFAULT_BIAS_GT_FROM_V_ONSET_GRAD,
+)
 from training.params import params_from_z, schema_bounds, schema_guess, schema_nparams
 from training.readout_pack import (
     FusedForward,
@@ -103,6 +109,41 @@ def gt_affine_for_nodes(p, node_index, backend: ModelBackend, *, sim_dtype=SIM_D
     return scale, bias
 
 
+def _session_bias_gt_from_v_onset(session: TrainSession) -> bool:
+    opts = session.train_opts or {}
+    return bool(opts.get("bias_gt_from_v_onset", DEFAULT_BIAS_GT_FROM_V_ONSET))
+
+
+def _session_bias_gt_from_v_onset_grad(session: TrainSession) -> bool:
+    opts = session.train_opts or {}
+    return bool(opts.get("bias_gt_from_v_onset_grad", DEFAULT_BIAS_GT_FROM_V_ONSET_GRAD))
+
+
+def _v_onset_bias_for_pack(
+    trace_full: torch.Tensor,
+    pack: ReadoutPack,
+    session: TrainSession,
+    *,
+    batch_offset: int = 0,
+    batch_idx=None,
+) -> torch.Tensor:
+    """Per-cost-row ``v`` at ``t_onset``; detach unless ``bias_gt_from_v_onset_grad``."""
+    t0 = pack_t_onset(pack)
+    if batch_idx is None:
+        rb = (
+            pack.readout_batch
+            if batch_offset == 0
+            else pack.readout_batch + int(batch_offset)
+        )
+        bias = trace_full[rb, t0, pack.readout_node]
+    else:
+        mask = pack.readout_batch == int(batch_idx)
+        bias = trace_full[0, t0, pack.readout_node[mask]]
+    if not _session_bias_gt_from_v_onset_grad(session):
+        bias = bias.detach()
+    return bias
+
+
 def _pack_gt_affine(p, pack: ReadoutPack, backend: ModelBackend, session: TrainSession):
     """Per-cost-row ``(a_gt, bias_gt)`` from schema."""
     return gt_affine_for_nodes(
@@ -110,12 +151,26 @@ def _pack_gt_affine(p, pack: ReadoutPack, backend: ModelBackend, session: TrainS
     )
 
 
-def _pack_ca_readouts(p, pack: ReadoutPack, session: TrainSession, batch_idx=None):
-    try:
-        readout = CA_PACK_READOUTS[session.model]
-    except KeyError:
-        raise ValueError(f"no pack readout for model={session.model!r}") from None
-    return readout(p, pack, session, batch_idx)
+def _pack_gt_affine_for_cost(
+    p,
+    pack: ReadoutPack,
+    session: TrainSession,
+    trace_full: Optional[torch.Tensor] = None,
+    *,
+    batch_offset: int = 0,
+    batch_idx=None,
+):
+    """Schema ``a_gt``; bias from schema or ``v`` at onset when flag set."""
+    a_gt, bias_gt = _pack_gt_affine(p, pack, session.backend, session)
+    if not _session_bias_gt_from_v_onset(session):
+        return a_gt, bias_gt
+    if trace_full is None:
+        raise ValueError("bias_gt_from_v_onset requires trace_full")
+    if batch_idx is not None:
+        a_gt = a_gt[pack.readout_batch == int(batch_idx)]
+    return a_gt, _v_onset_bias_for_pack(
+        trace_full, pack, session, batch_offset=batch_offset, batch_idx=batch_idx,
+    )
 
 
 def _session_cost_norm(session: TrainSession) -> str:
@@ -433,7 +488,7 @@ def _build_cost_subpacks(session: TrainSession) -> Dict[str, ReadoutPack]:
 
 
 def _i_sti_fuse_key(pack: ReadoutPack) -> Tuple:
-    """Key for packs that can share one ``forward_full`` (shape, onset)."""
+    """Key for packs that can share one ``forward_full`` (shape, onset, polarity)."""
     i_sti = pack.i_sti
     return (
         int(i_sti.shape[1]),
@@ -441,6 +496,7 @@ def _i_sti_fuse_key(pack: ReadoutPack) -> Tuple:
         str(i_sti.device),
         i_sti.dtype,
         pack_t_onset(pack),
+        str(pack.name),
     )
 
 
@@ -559,7 +615,9 @@ def _pack_cost_parts_from_fused_trace(
     *,
     batch_offset: int = 0,
 ) -> Dict[str, torch.Tensor]:
-    a_gt, bias_gt = _pack_gt_affine(p, pack, session.backend, session)
+    a_gt, bias_gt = _pack_gt_affine_for_cost(
+        p, pack, session, trace_full, batch_offset=batch_offset,
+    )
     sel, dsi_sel = _readout_from_trace_full(
         trace_full, pack, batch_offset=batch_offset,
     )
@@ -587,22 +645,45 @@ def _calc_cost_parts_fused(
 
 
 def _pack_cost_forward(p, pack: ReadoutPack, session: TrainSession, batch_idx=None):
-    a_gt, bias_gt = _pack_gt_affine(p, pack, session.backend, session)
-    pd_nd = pack.cost_pd_nd
     if batch_idx is not None:
         mask = pack.readout_batch == int(batch_idx)
         if not bool(mask.any()):
             return None
-        a_gt = a_gt[mask]
-        bias_gt = bias_gt[mask]
+    i_sti = pack.i_sti if batch_idx is None else pack.i_sti[batch_idx:batch_idx + 1]
+    trace_full = forward_full(session, p, i_sti, pack=pack)
+    a_gt, bias_gt = _pack_gt_affine_for_cost(
+        p, pack, session, trace_full, batch_idx=batch_idx,
+    )
+    pd_nd = pack.cost_pd_nd
+    if batch_idx is not None:
+        mask = pack.readout_batch == int(batch_idx)
+        if not _session_bias_gt_from_v_onset(session):
+            a_gt = a_gt[mask]
+            bias_gt = bias_gt[mask]
         gt = pack.gt[mask]
         weight = pack.cost_weight[mask]
         if pd_nd is not None:
             pd_nd = pd_nd[mask]
+        rb = torch.zeros(
+            int(mask.sum()), dtype=torch.long, device=pack.readout_node.device,
+        )
+        t0 = pack_t_onset(pack)
+        win = int(pack.gt.shape[1])
+        u_m = pack.readout_node[mask]
+        dsi_sel = trace_full[0, t0:t0 + win, u_m].transpose(0, 1)
+        if not pack_needs_waveform_mse(pack):
+            sel = None
+        elif pack.cost_t0 is None:
+            sel = dsi_sel
+        else:
+            sel = window_time_traces(
+                trace_full, rb, u_m, pack.cost_t0[mask],
+                win=win, t_onset=t0,
+            )
     else:
         gt = pack.gt
         weight = pack.cost_weight
-    sel, dsi_sel = _pack_ca_readouts(p, pack, session, batch_idx)
+        sel, dsi_sel = _readout_from_trace_full(trace_full, pack)
     return a_gt, bias_gt, gt, weight, sel, dsi_sel, pd_nd
 
 

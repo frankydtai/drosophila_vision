@@ -32,6 +32,8 @@ from figure.util import (
     bundle_prep_s,
     format_spot_radius_time_title,
     gt_affine_scalars_for_cell,
+    bias_gt_from_v_onset_enabled,
+    mean_v_onset_by_cell_name,
     hex_at_scope_tag,
     mark_pulse,
     ms_shown_axis_xlim,
@@ -580,6 +582,7 @@ class SpotTraceBundle:
     pulse_end: int | None = None
     ms_shown: tuple[float, float] | None = None
     r0_only: bool = False
+    a_sti_r: dict[str, float] = field(default_factory=dict)
 
     @property
     def has_slices(self):
@@ -623,6 +626,7 @@ def _spot_readout_bundle_view(bundle):
         pulse_end=bundle.pulse_end,
         ms_shown=bundle.ms_shown,
         r0_only=bool(getattr(bundle, "r0_only", False)),
+        a_sti_r=dict(getattr(bundle, "a_sti_r", None) or {}),
     )
 
 
@@ -721,6 +725,17 @@ def _spot_forward_rows(
     pack = session.primary_readout
     schema = list(session.schema)
     p = training.assign_params(z, schema, session.backend)
+    a_sti_r_by_name = {}
+    if "a_sti_r" in p:
+        for seg in schema:
+            if seg.get("name") != "a_sti_r":
+                continue
+            names = [str(n) for n in (seg.get("node_names") or ())]
+            raw = p["a_sti_r"].detach().cpu().numpy().reshape(-1)
+            a_sti_r_by_name = {
+                names[i]: float(raw[i]) for i in range(min(len(names), raw.size))
+            }
+            break
     i_sti = pack.i_sti if pack.i_sti.dim() == 3 else pack.i_sti.unsqueeze(0)
     trace_full = training.forward_full(session, p, i_sti, pack=pack)
     C = session.backend.network
@@ -762,6 +777,7 @@ def _spot_forward_rows(
         batches=batches,
         mt=mt,
         pack=pack,
+        a_sti_r=a_sti_r_by_name,
     )
     mask = np.asarray(center_row, dtype=bool)
     if at_x is not None or at_y is not None:
@@ -775,8 +791,16 @@ def _spot_forward_rows(
     rows['baselines'] = baselines_for_types(
         nodes_by_name, v_ref_by_type_name(z, session),
     )
+    onset_bias = None
+    if bias_gt_from_v_onset_enabled(session):
+        onset_bias = mean_v_onset_by_cell_name(
+            plot_traces, type_idx, cell_names, names, rows.get('t_onset'),
+        )
     rows['gt_affine_by_name'] = {
-        name: gt_affine_scalars_for_cell(p, name, session.backend)
+        name: gt_affine_scalars_for_cell(
+            p, name, session.backend,
+            bias_gt=None if onset_bias is None else onset_bias.get(name),
+        )
         for name in names
     }
     rows['order_rows'] = order_rows
@@ -847,14 +871,27 @@ def network_spot_trace_bundle(
         pulse_end=rows.get('pulse_end'),
         ms_shown=ms_shown,
         r0_only=bool(r0_only),
+        a_sti_r=dict(rows.get('a_sti_r') or {}),
     )
 
 
+def _format_a_sti_r_suptitle(a_sti_r):
+    """Figure title ``a_sti_r 1 = <value>`` from named slot values."""
+    if not a_sti_r or "1" not in a_sti_r:
+        return None
+    return f"a_sti_r 1 = {float(a_sti_r['1']):.4g}"
+
+
 def _spot_suptitle(title, bundle):
+    head = title
+    if bundle is not None:
+        formatted = _format_a_sti_r_suptitle(getattr(bundle, "a_sti_r", None) or {})
+        if formatted is not None:
+            head = formatted
     if bundle is not None and bundle.has_slices:
         scope = hex_at_scope_tag(bundle.slice_xs, bundle.slice_ys)
-        return f'{title}  [{scope}, overlay + total]'
-    return title
+        return f'{head}  [{scope}, overlay + total]'
+    return head
 
 
 def _trained_radii(cost_parts, contrasts, *, r0_only=False):
@@ -1066,12 +1103,12 @@ def _plot_spot_figure(
                     ax_t.axis("off")
                     continue
                 radius = int(radii[local_i])
-                title = format_spot_radius_time_title(
+                time_title = format_spot_radius_time_title(
                     radius, n_by_radius.get(radius), name, cost_parts, order,
                 )
                 plot_cell_time(
                     ax_t, series,
-                    title=title,
+                    title=time_title,
                     show_xlabels=(local_i == len(radii) - 1),
                     show_ylabel=(j == 0),
                     baseline=cell_on.get("baseline"),

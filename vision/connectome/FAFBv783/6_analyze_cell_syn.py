@@ -914,7 +914,7 @@ def main(argv: List[str] | None = None) -> int:
     )
     parser.add_argument(
         "--network",
-        default="right_min_neuron1",
+        default="right_min_neuron1_extent10",
         help=(
             "Network folder (e.g. right_min_neuron1_extent10, resolved next to this script) or a "
             "direct path to a folder / network.json."

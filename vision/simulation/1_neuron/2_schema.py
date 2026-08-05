@@ -22,7 +22,7 @@ ALL_PARAM_NAMES = (
     "Ih_gmax", "Ih_gmax_off",
     "Ih_midv", "Ih_slope", "tau_midv",
     "Ih_midv_off", "Ih_slope_off", "tau_midv_off",
-    "tau_lp", "v_rest", "tau_hp", "a_slow",
+    "tau_lp", "v_rest", "tau_hp", "a_slow", "a_sti_r",
 )
 IH_SHAPE_PARAM_NAMES = (
     "Ih_midv", "Ih_slope", "tau_midv",
@@ -136,6 +136,22 @@ def _syn_segment(syn_mode, n_pairs, n_edges, param_boxes):
     return _seg("syn_strength_cell", n_pairs, "edge_pair", D["syn_strength_cell"], n_pairs)
 
 
+def _a_sti_r_segment(param_boxes: dict, sti_r_names):
+    """Per-radius spot drive scale; r=0 fixed at 1, other radii indi init=0."""
+    names = [str(n) for n in sti_r_names]
+    n = len(names)
+    if n == 0:
+        raise ValueError("a_sti_r requires non-empty sti_r_names")
+    seg = _seg("a_sti_r", n, "output", param_boxes["a_sti_r"], n)
+    seg["node_names"] = names
+    seg["indi"] = list(range(1, n))
+    seg["shared"] = []
+    seg["fixed"] = [0]
+    seg["frozen"] = []
+    seg["init_override"] = {0: 1.0}
+    return seg
+
+
 def build_borst_schema(
     n_cells,
     cell_names=None,
@@ -146,6 +162,7 @@ def build_borst_schema(
     ih_gmax_indi_names,
     ih_off: str,
     n_edges=None,
+    sti_r_names=(),
 ):
     """Borst schema; OFF Ih segments only when ``ih_off == 'on'``."""
     if ih_off not in IH_OFF_MODES:
@@ -180,6 +197,7 @@ def build_borst_schema(
             _seg("Ih_slope_off", n_cells, "full", D["Ih_slope_off"], n_cells),
             _seg("tau_midv_off", n_cells, "full", D["tau_midv_off"], n_cells),
         ])
+    segs.append(_a_sti_r_segment(D, sti_r_names))
     return segs
 
 
@@ -192,6 +210,7 @@ def build_hp_lp_schema(
     param_boxes: dict,
     ih_gmax_indi_names,
     n_edges=None,
+    sti_r_names=(),
 ):
     """HP-then-membrane-LP: τ_HP on v_slow, τ_lp on V, drive v_tot−a_slow v_slow."""
     if cell_names is None:
@@ -211,6 +230,7 @@ def build_hp_lp_schema(
         _seg("tau_hp", n_cells, "full", D["tau_hp"], n_cells),
         _seg("v_rest", n_cells, "full", D["v_rest"], n_cells),
         _seg("a_slow", n_cells, "full", D["a_slow"], n_cells, **named_kw),
+        _a_sti_r_segment(D, sti_r_names),
     ]
 
 
@@ -222,10 +242,12 @@ def default_schema(
     param_boxes: dict,
     ih_gmax_indi_names,
     ih_off: str = "on",
+    sti_r_names=(),
 ) -> list:
     """Fresh parameter schema for ``model`` on the given backend.
 
     ``ih_off`` is used only for borst (OFF Ih segments when ``\"on\"``).
+    ``sti_r_names`` labels ``a_sti_r`` slots (injected from training).
     """
     if model not in KNOWN_MODELS:
         raise ValueError(f"unknown model {model!r}; expected one of {KNOWN_MODELS}")
@@ -242,6 +264,7 @@ def default_schema(
         kw = dict(
             syn_mode=mode, n_edges=n_edges, n_pairs=n_pairs,
             param_boxes=param_boxes, ih_gmax_indi_names=ih_gmax_indi_names,
+            sti_r_names=sti_r_names,
         )
     else:
         if n_pairs is None:
@@ -249,6 +272,7 @@ def default_schema(
         kw = dict(
             syn_mode=mode, n_pairs=n_pairs, n_edges=n_edges,
             param_boxes=param_boxes, ih_gmax_indi_names=ih_gmax_indi_names,
+            sti_r_names=sti_r_names,
         )
     if model == "hp_lp":
         return build_hp_lp_schema(n, cell_names=cell_names, **kw)

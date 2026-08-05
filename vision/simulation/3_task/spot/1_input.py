@@ -359,3 +359,57 @@ def spot_from_opts(
         for du, dv in build_hex.members_in_extent(int(shift_extent))
     ]
     return spot
+
+
+def build_spot_a_sti_r_drive(
+    C,
+    batches: List[SpotBatch],
+    *,
+    sti_radii,
+    t_onset: int,
+    n_t: int,
+    ms_pulse,
+    delta_ms: float,
+    i_baseline: float,
+    i_peak: float,
+    sim_dtype,
+    device,
+):
+    """Baseline ``i_sti`` + ring contribs for ``a_sti_r`` composition in forward.
+
+    Returns ``(i_sti, sti_wave, sti_batch, sti_node, sti_r)`` where
+    ``i(r,t) = i_baseline + a_sti_r[r] * sti_wave[t]`` on contrib PR nodes.
+    Does not modify gt construction.
+    """
+    import torch
+
+    radii = tuple(round(float(r), 6) for r in sti_radii)
+    if not radii:
+        raise ValueError("sti_radii must be non-empty")
+    by_radius = members_by_euclid_radius(radii)
+    radius_to_i = {r: i for i, r in enumerate(radii)}
+    batch_l: List[int] = []
+    node_l: List[int] = []
+    r_l: List[int] = []
+    for b, batch in enumerate(batches):
+        for su, sv in batch.stim_uv:
+            for radius_key, members in by_radius.items():
+                ri = radius_to_i[round(float(radius_key), 6)]
+                for du, dv in members:
+                    for nid in C.input_nodes_at(int(su) + int(du), int(sv) + int(dv)):
+                        batch_l.append(int(b))
+                        node_l.append(int(nid))
+                        r_l.append(int(ri))
+    u = spot_input_waveform(t_onset, n_t, ms_pulse, delta_ms=delta_ms)
+    n_batch = len(batches)
+    pr_idx = torch.as_tensor(np.where(C.is_input)[0], dtype=torch.long, device=device)
+    i_sti = torch.zeros((n_batch, n_t, C.n_nodes), dtype=sim_dtype, device=device)
+    if len(pr_idx):
+        i_sti[:, :, pr_idx] = float(i_baseline)
+    sti_wave = torch.as_tensor(
+        (float(i_peak) - float(i_baseline)) * u, dtype=sim_dtype, device=device,
+    )
+    sti_batch = torch.tensor(batch_l, dtype=torch.long, device=device)
+    sti_node = torch.tensor(node_l, dtype=torch.long, device=device)
+    sti_r = torch.tensor(r_l, dtype=torch.long, device=device)
+    return i_sti, sti_wave, sti_batch, sti_node, sti_r

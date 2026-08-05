@@ -54,6 +54,8 @@ from param_defaults import (
     DELTA_MS,
     PARAM_BOXES,
     PRE_GRAD,
+    BIAS_GT_FROM_V_ONSET,
+    BIAS_GT_FROM_V_ONSET_GRAD,
     MS_PRE,
     MS_POST,
     MS_PULSE,
@@ -178,26 +180,27 @@ def cell_labels(session):
 
 
 def decompose_params(z_t, session):
-    """Return (per_cell_cols, global_scalars) for one parameter vector.
+    """Return per-cell columns for one parameter vector.
 
-    Per-cell columns come from full-width node values (train-mode-aware).
-    Shared-only segments also emit a global scalar (mean of shared nodes).
+    This powers the ``param.csv`` table. For CSV output we intentionally do
+    *not* emit separate "global" scalar columns (shared-only means), because
+    they can collide with per-cell column names and become redundant.
     """
     n = session.backend.n_cells
     schema = list(session.schema)
     node_vals = training.z_to_node_values(z_t, schema)
-    cols, glob = {}, {}
+    cols = {}
     for seg in schema:
         name = seg["name"]
         if seg["kind"] in ("edge_pair", "edge"):
             continue
+        if seg.get("node_names") is not None:
+            continue  # e.g. a_sti_r (per-radius, not per-cell)
         arr = np.asarray(node_vals[name], dtype=np.float64).reshape(-1)
         if arr.shape[0] != n:
             raise ValueError(f"{name}: node width {arr.shape[0]} != n_cells {n}")
         cols[name] = arr
-        if seg.get("shared") and not seg.get("indi"):
-            glob[name] = float(arr[list(seg["shared"])].mean()) if seg["shared"] else float(arr.mean())
-    return cols, glob
+    return cols
 
 
 def v_pre_onset_by_cell(z_t, session):
@@ -241,18 +244,17 @@ def v_pre_onset_by_cell(z_t, session):
 
 
 def write_param_table(z_t, session, table_path, extra_cols=None):
-    cols, glob = decompose_params(z_t, session)
+    cols = decompose_params(z_t, session)
     cols.update(v_pre_onset_by_cell(z_t, session))
     if extra_cols:
         cols.update(extra_cols)
     cell_col = cell_labels(session)
     cell_names = list(cols.keys())
-    glob_names = list(glob.keys())
     n = session.backend.n_cells
     with open(table_path, "w") as f:
-        f.write("idx,cell," + ",".join(cell_names + glob_names) + "\n")
+        f.write("idx,cell," + ",".join(cell_names) + "\n")
         for i in range(n):
-            row = ["%.6f" % cols[nm][i] for nm in cell_names] + ["%.6f" % glob[nm] for nm in glob_names]
+            row = ["%.6f" % cols[nm][i] for nm in cell_names]
             f.write("%d,%s," % (i, cell_col[i]) + ",".join(row) + "\n")
     return table_path
 
@@ -637,6 +639,8 @@ def build_session(
     pre_steady_damp=PRE_STEADY_DAMP,
     fp=FP,
     pre_grad=PRE_GRAD,
+    bias_gt_from_v_onset=BIAS_GT_FROM_V_ONSET,
+    bias_gt_from_v_onset_grad=BIAS_GT_FROM_V_ONSET_GRAD,
     pack_overrides=None,
     model_backend=None,
     schema=None,
@@ -680,6 +684,8 @@ def build_session(
         syn_mode=syn_mode,
         fp=fp,
         pre_grad=pre_grad,
+        bias_gt_from_v_onset=bias_gt_from_v_onset,
+        bias_gt_from_v_onset_grad=bias_gt_from_v_onset_grad,
         **mkw,
     )
     return training.open_session(opts, model, schema=schema, model_backend=model_backend)
@@ -709,6 +715,8 @@ def run_training(model, nofruns, nofsteps, lrs, fname=None, outdir=None,
                  pack_overrides=None, model_backend=None, schema=None,
                  fp=FP,
                  pre_grad=PRE_GRAD,
+                 bias_gt_from_v_onset=BIAS_GT_FROM_V_ONSET,
+                 bias_gt_from_v_onset_grad=BIAS_GT_FROM_V_ONSET_GRAD,
                  init_from=None,
                  checkpoint_interval=None,
                  make_checkpoint_callback=make_checkpoint_callback,
@@ -748,6 +756,8 @@ def run_training(model, nofruns, nofsteps, lrs, fname=None, outdir=None,
         schema=schema,
         fp=fp,
         pre_grad=pre_grad,
+        bias_gt_from_v_onset=bias_gt_from_v_onset,
+        bias_gt_from_v_onset_grad=bias_gt_from_v_onset_grad,
     )
     suffix = "" if model == "borst" else f"_{model}"
     fname = fname or f"training{suffix or '_with_Ih'}.npy"
@@ -924,6 +934,9 @@ def add_training_arguments(parser):
     parser.add_argument("--a-slow", **_train_mode_kwargs,
                         help=f"hp_lp a_slow train_modes ({_train_mode_help}; "
                              f"default {_box_train_mode_default('a_slow')})")
+    parser.add_argument("--a-sti-r", **_train_mode_kwargs,
+                        help=f"spot a_sti_r train_modes (r=0 fixed=1 by default; "
+                             f"radii 1,sqrt3,2; {_train_mode_help})")
     parser.add_argument("--ih-off", default=IH_OFF,
                         choices=list(training.IH_OFF_MODES),
                         help="OFF-channel Ih: on (train Ih_gmax_off+OFF shape; default), "
@@ -968,6 +981,24 @@ def add_training_arguments(parser):
         help="include t < t_onset in BPTT "
              f"(default: {str(PRE_GRAD).lower()}); "
              "false → no_grad pre + detach state/v at onset",
+    )
+    parser.add_argument(
+        "--bias-gt-from-v-onset",
+        type=parse_bool,
+        default=BIAS_GT_FROM_V_ONSET,
+        metavar="BOOL",
+        help="use v at t_onset as cost/plot bias instead of schema bias_gt "
+             f"(default: {str(BIAS_GT_FROM_V_ONSET).lower()}); "
+             "forces bias_gt frozen=all",
+    )
+    parser.add_argument(
+        "--bias-gt-from-v-onset-grad",
+        type=parse_bool,
+        default=BIAS_GT_FROM_V_ONSET_GRAD,
+        metavar="BOOL",
+        help="with --bias-gt-from-v-onset: keep onset in the graph "
+             f"(default: {str(BIAS_GT_FROM_V_ONSET_GRAD).lower()}); "
+             "ignored when --bias-gt-from-v-onset false",
     )
     parser.add_argument(
         "--sequential",
@@ -1412,6 +1443,7 @@ def _train_mode_cli_map(args):
         "v_rest": _train_mode_cli_text(getattr(args, "v_rest", None)),
         "tau_hp": _train_mode_cli_text(getattr(args, "tau_hp", None)),
         "a_slow": _train_mode_cli_text(getattr(args, "a_slow", None)),
+        "a_sti_r": _train_mode_cli_text(getattr(args, "a_sti_r", None)),
     }
     for name, text in per_param.items():
         if text is not None:
@@ -1443,6 +1475,18 @@ def training_kwargs_from_args(
                 )
             init_from = f"{model}/{init_from}"
     train_modes = _train_mode_cli_map(args) or None
+    bias_gt_from_v_onset = bool(args.bias_gt_from_v_onset)
+    bias_gt_from_v_onset_grad = bool(args.bias_gt_from_v_onset_grad)
+    if not bias_gt_from_v_onset:
+        bias_gt_from_v_onset_grad = False
+    if bias_gt_from_v_onset:
+        if _train_mode_cli_text(getattr(args, "bias_gt", None)) is not None:
+            raise ValueError(
+                "--bias-gt conflicts with --bias-gt-from-v-onset "
+                "(bias_gt is forced frozen=all)"
+            )
+        train_modes = dict(train_modes or {})
+        train_modes["bias_gt"] = training.parse_train_mode_text("frozen=all")
     tasks = parse_tasks(args.task)
     cost_weights = parse_cost_weight(args.cost_weight, tasks)
     default_extent, extent_kv = parse_cost_extent(args.cost_extent)
@@ -1567,6 +1611,8 @@ def training_kwargs_from_args(
         pre_steady_damp=PRE_STEADY_DAMP,
         fp=fp,
         pre_grad=bool(args.pre_grad),
+        bias_gt_from_v_onset=bias_gt_from_v_onset,
+        bias_gt_from_v_onset_grad=bias_gt_from_v_onset_grad,
         sequential=bool(args.sequential),
         init_from=init_from,
         checkpoint_interval=args.checkpoint_interval,

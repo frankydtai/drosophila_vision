@@ -669,9 +669,12 @@ def _model_driver(session):
 
 
 def _prepare_drive(session, p, i_sti: torch.Tensor) -> torch.Tensor:
-    """Model ``prepare_i_sti`` on a ``(B, T, N)`` pack ``i_sti``."""
+    """Model ``prepare_i_sti`` + spot ``a_sti_r`` on a ``(B, T, N)`` pack ``i_sti``."""
+    from neuron.forward import apply_a_sti_r
+
     pack = session.primary_readout
-    return _model_driver(session).prepare_i_sti(session, p, i_sti, pack)
+    drive = _model_driver(session).prepare_i_sti(session, p, i_sti, pack)
+    return apply_a_sti_r(drive, p, pack)
 
 
 def _equilibrate(session, p, i_sti_batch: torch.Tensor, t_onset: int):

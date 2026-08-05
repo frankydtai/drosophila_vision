@@ -1,5 +1,0 @@
-Job ID: 28680940
-Node:   spartan-gpgpu119
-GPU:    0
-GPU 0: NVIDIA A100 80GB PCIe (UUID: GPU-56eea3cd-2f9e-e000-f1c6-f4a20d6aaa6b)
-[2026-08-03T20:57:34.220] error: *** JOB 28680940 ON spartan-gpgpu119 CANCELLED AT 2026-08-03T20:57:34 DUE to SIGNAL Terminated ***

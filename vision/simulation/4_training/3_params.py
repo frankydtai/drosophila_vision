@@ -342,6 +342,8 @@ def edge_node_names(backend: "ModelBackend"):
 
 
 def node_names_for_segment(seg, backend: "ModelBackend"):
+    if seg.get('node_names') is not None:
+        return [str(n) for n in seg['node_names']]
     kind = seg['kind']
     if kind == 'edge_pair':
         return pair_node_names(backend)
@@ -492,6 +494,9 @@ def remap_named_node_values(named, src_cell_names, src_pair_names, schema, backe
             else:
                 for j in range(count):
                     arr[j] = effective_init(seg, j)
+        elif seg.get('node_names') is not None:
+            n_copy = min(count, int(src.shape[0]))
+            arr[:n_copy] = src[:n_copy]
         else:
             for j, tn in enumerate(dst_cells):
                 if tn in src_t and src_t[tn] < src.shape[0]:

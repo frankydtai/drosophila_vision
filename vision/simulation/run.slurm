@@ -27,4 +27,5 @@ nvidia-smi -L || true
 "${PYTHON}" -c "import torch; print('cuda:', torch.cuda.is_available(), torch.cuda.get_device_name(0) if torch.cuda.is_available() else '')"
 echo "Start:  $(date)"
 # Sorted N_name layout: import_bootstrap via venv .pth; train via run.py (not -m training.driver).
-"${PYTHON}" -u run.py --nofsteps 1000 --lrs 0.1 --a-slow init.L1,L2=0.6 init.L4,L5=1 all=0 --ms-pre 100 --ms-pulse 100 --ms-response 500
+"${PYTHON}" -u run.py --nofsteps 300 --a-slow init.L1,L2=0.6 init.L4,L5=1 all=0 --ms-pre 200 --ms-pulse 100 --ms-response 300 --gt spot=L1,L2,L3,L4,L5 --bias-out init.L1,L2,L3=20 init.R1-6,R7,R8=-20
+

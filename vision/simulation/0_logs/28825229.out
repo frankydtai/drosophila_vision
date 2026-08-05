@@ -1,0 +1,40 @@
+Job ID: 28825229
+Node:   spartan-gpgpu006
+GPU:    0
+GPU 0: NVIDIA L40S (UUID: GPU-8e02a2b8-57d0-7fa8-5357-570bea34490d)
+cuda: True NVIDIA L40S
+Start:  Thu 06 Aug 2026 01:31:09 AEST
+usage: run.py [-h] [--model {borst,hp_lp}] [--syn-mode {per_cell,per_edge}]
+              [--nofruns NOFRUNS] [--nofsteps NOFSTEPS] [--lrs LRS]
+              [--checkpoint-interval N] [--fname FNAME] [--outdir OUTDIR]
+              [--from RUN] [--all-param MODE [MODE ...]]
+              [--a-in MODE [MODE ...]] [--a-out MODE [MODE ...]]
+              [--bias-out MODE [MODE ...]] [--a-gt MODE [MODE ...]]
+              [--bias-gt MODE [MODE ...]]
+              [--syn-strength-cell MODE [MODE ...]]
+              [--syn-strength-edge MODE [MODE ...]] [--v-th MODE [MODE ...]]
+              [--ih-gmax MODE [MODE ...]] [--ih-gmax-off MODE [MODE ...]]
+              [--ih-shape MODE [MODE ...]] [--ih-midv MODE [MODE ...]]
+              [--ih-slope MODE [MODE ...]] [--tau-midv MODE [MODE ...]]
+              [--ih-midv-off MODE [MODE ...]] [--ih-slope-off MODE [MODE ...]]
+              [--tau-midv-off MODE [MODE ...]] [--tau-lp MODE [MODE ...]]
+              [--v-rest MODE [MODE ...]] [--tau-hp MODE [MODE ...]]
+              [--a-slow MODE [MODE ...]] [--ih-off {on,off,mirrored}]
+              [--euler {im,ex}] [--pre-steady MODEL=MODE [MODEL=MODE ...]]
+              [--fp N] [--pre-grad BOOL] [--sequential BOOL] [--network RUN]
+              [--multi-bar BOOL] [--task TASK]
+              [--cost-weight NAME|NAME=VALUE [NAME|NAME=VALUE ...]]
+              [--shift-extent SHIFT_EXTENT] [--spot-extent R]
+              [--multi-spot BOOL] [--fully-inside BOOL]
+              [--spot-cost-r-w R|R=W [R|R=W ...]]
+              [--cost-extent N|TASK=N [N|TASK=N ...]]
+              [--gt TASK=CELLS [TASK=CELLS ...]]
+              [--i-baseline TASK=VALUE [TASK=VALUE ...]]
+              [--i-bright TASK=VALUE [TASK=VALUE ...]]
+              [--i-dark TASK=VALUE [TASK=VALUE ...]] [--ms-pre MS]
+              [--ms-response MS] [--ms-post MS] [--ms-pulse MS]
+              [--delta-ms MS] [--cost-interval-ms MS]
+              [--cost-norm {gt_power,a_gt2}] [--html]
+              [--plot-right-only [BOOL]] [--show-pre [BOOL]] [--r0only [BOOL]]
+              [--x X,...] [--y Y,...] [--align-xy X,Y] [--ms-shown START,STOP]
+run.py: error: argument --nofsteps: invalid int value: '8th'

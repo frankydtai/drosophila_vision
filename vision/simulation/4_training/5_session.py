@@ -12,7 +12,9 @@ builders wrap the neutral gt dataclasses from ``task`` (which sit below
   built).
 
 Model traces are absolute ``v``; cost compares ``v`` to
-``a_gt * gt + bias_gt``. ImpR / RecF spot gt are used as-is before affine.
+``a_gt * gt + bias_gt``. When ``bias_gt_from_v_onset``, bias is ``v`` at
+``t_onset`` instead of schema ``bias_gt``. ImpR / RecF spot gt are used
+as-is before affine.
 """
 from __future__ import annotations
 
@@ -52,9 +54,12 @@ from param_defaults import (
     MULTI_BAR,
     MULTI_SPOT,
     PRE_GRAD,
+    BIAS_GT_FROM_V_ONSET,
+    BIAS_GT_FROM_V_ONSET_GRAD,
     SHIFT_EXTENT,
     SPOT_COST_RADIUS_WEIGHT,
     SPOT_COST_RADIUS_WEIGHT_EXTENT1,
+    SPOT_STI_R_NAMES,
     SPOT_EXTENT,
     STATE_CLAMP,
     IH_GMAX_INDI_NAMES,
@@ -126,9 +131,12 @@ from task.spot.gt import (
     make_spot_stimulus_opts,
 )
 from task.spot.input import (
+    build_spot_a_sti_r_drive,
     normalize_spot_timing,
     spot_extent_half_steps,
+    spot_from_opts,
     spot_gt_n_t_from_opts,
+    spot_stimulus_batches,
     spot_timing_t_from_opts,
 )
 from task.moving_bar.gt import (
@@ -368,7 +376,7 @@ def load_network_backend(
     print(f"  n_nodes={backend.n_nodes}, n_cells={backend.n_cells}, "
           f"n_pairs={backend.conn.n_pairs}, n_edges={backend.conn.n_edges}, "
           f"syn_mode={mode}, "
-          f"nparams={schema_nparams(default_schema('borst', backend, syn_mode=mode, param_boxes=param_boxes, ih_gmax_indi_names=ih_gmax_indi_names))}")
+          f"nparams={schema_nparams(default_schema('borst', backend, syn_mode=mode, param_boxes=param_boxes, ih_gmax_indi_names=ih_gmax_indi_names, sti_r_names=SPOT_STI_R_NAMES))}")
     return backend
 
 
@@ -596,9 +604,26 @@ def _build_network_spot_task(
     stim = dict(opts)
     if "present_gts" in T.info:
         stim["gt_cells"] = list(T.info["present_gts"])
+    # Replace center-only bake from build_spot_gt with baseline + a_sti_r rings.
+    i_baseline = float(opts[_SPOT_BASELINE_KEY])
+    spot = spot_from_opts(C, stimulus_opts=opts)
+    batches = spot_stimulus_batches(spot)
+    i_sti, sti_wave, sti_batch, sti_node, sti_r = build_spot_a_sti_r_drive(
+        C,
+        batches,
+        sti_radii=SPOT_COST_RADII,
+        t_onset=int(t_onset),
+        n_t=int(n_t),
+        ms_pulse=float(opts.get("ms_pulse", MS_PULSE)),
+        delta_ms=delta_ms,
+        i_baseline=i_baseline,
+        i_peak=i_spot,
+        sim_dtype=ctx.sim_dtype,
+        device=dev,
+    )
     pack = ReadoutPack(
         name=pack_name,
-        i_sti=T.i_sti,
+        i_sti=i_sti,
         gt=T.gt,
         power=T.power,
         cost_weight=T.cost_weight,
@@ -612,6 +637,10 @@ def _build_network_spot_task(
         cost_time_ix=cost_time_ix,
         waveform_mse=True,
         t_onset=int(t_onset),
+        sti_wave=sti_wave,
+        sti_batch=sti_batch,
+        sti_node=sti_node,
+        sti_r=sti_r,
     )
     coltag = _cost_extent_hex_coltag(cost_extent, T.info["n_cost_hexes"])
     shifttag = f"{T.info['n_shifts']} shifts"
@@ -870,6 +899,8 @@ def make_train_opts(
     pre_steady_damp=PRE_STEADY_DAMP,
     fp=FP,
     pre_grad=PRE_GRAD,
+    bias_gt_from_v_onset=BIAS_GT_FROM_V_ONSET,
+    bias_gt_from_v_onset_grad=BIAS_GT_FROM_V_ONSET_GRAD,
 ):
     """Canonical training opts for :func:`open_session` (network backend)."""
     if backend != "network":
@@ -889,6 +920,15 @@ def make_train_opts(
         raise ValueError(
             f"pre_steady_damp must be in (0, 1]; got {pre_steady_damp}"
         )
+    bias_gt_from_v_onset = bool(bias_gt_from_v_onset)
+    bias_gt_from_v_onset_grad = bool(bias_gt_from_v_onset_grad)
+    if not bias_gt_from_v_onset:
+        bias_gt_from_v_onset_grad = False
+    if bias_gt_from_v_onset:
+        train_modes = dict(train_modes or {})
+        train_modes["bias_gt"] = {
+            "indi": [], "shared": [], "fixed": [], "frozen": ["all"],
+        }
     tl = normalize_tasks(tasks)
     if spot_extent is None:
         spot_extent = SPOT_EXTENT
@@ -941,6 +981,8 @@ def make_train_opts(
     opts["euler"] = expand_euler(euler)
     opts["syn_mode"] = normalize_syn_mode(syn_mode)
     opts["pre_grad"] = bool(pre_grad)
+    opts["bias_gt_from_v_onset"] = bias_gt_from_v_onset
+    opts["bias_gt_from_v_onset_grad"] = bias_gt_from_v_onset_grad
     opts["fp"] = fp
     opts.update({
         "network": network,
@@ -1020,6 +1062,12 @@ def _train_opts_for_sidecar(
     record["euler"] = expand_euler(opts["euler"])
     record["syn_mode"] = normalize_syn_mode(opts.get("syn_mode", SYN_MODE))
     record["pre_grad"] = bool(opts.get("pre_grad", True))
+    record["bias_gt_from_v_onset"] = bool(
+        opts.get("bias_gt_from_v_onset", BIAS_GT_FROM_V_ONSET)
+    )
+    record["bias_gt_from_v_onset_grad"] = bool(
+        opts.get("bias_gt_from_v_onset_grad", BIAS_GT_FROM_V_ONSET_GRAD)
+    )
     record["fp"] = int(opts.get("fp", FP))
     return record
 
@@ -1034,6 +1082,7 @@ def _schema_from_opts(model, model_backend, schema, train_opts_record, *, ih_off
         syn_mode=syn_mode,
         param_boxes=PARAM_BOXES,
         ih_gmax_indi_names=IH_GMAX_INDI_NAMES,
+        sti_r_names=SPOT_STI_R_NAMES,
     )
     if model == "borst":
         kw["ih_off"] = str(ih_off if ih_off is not None else IH_OFF)

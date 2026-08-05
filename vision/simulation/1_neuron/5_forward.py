@@ -20,6 +20,29 @@ MODEL_DRIVERS = {
 }
 
 
+def apply_a_sti_r(i_sti, p, pack):
+    """``i += a_sti_r[r] * sti_wave`` on spot ring PR contribs; else pass-through."""
+    sti_r = getattr(pack, "sti_r", None) if pack is not None else None
+    if sti_r is None or "a_sti_r" not in p:
+        return i_sti
+    wave = pack.sti_wave
+    batch = pack.sti_batch
+    node = pack.sti_node
+    if wave is None or batch is None or node is None:
+        raise ValueError("spot pack sti_r set but sti_wave/sti_batch/sti_node missing")
+    if i_sti.dim() == 2:
+        i_sti = i_sti.unsqueeze(0)
+    alpha = p["a_sti_r"]
+    out = i_sti.clone()
+    if batch.numel() == 0:
+        return out
+    B, T, N = out.shape
+    add = alpha[sti_r][:, None] * wave[None, :]
+    flat = out.permute(0, 2, 1).reshape(B * N, T)
+    flat.index_add_(0, batch * N + node, add)
+    return flat.reshape(B, N, T).permute(0, 2, 1).contiguous()
+
+
 def pack_t_onset(pack) -> int:
     """Stimulus onset index for ``pack``.
 
@@ -63,6 +86,7 @@ def forward_full(session, p, i_sti, *, pack=None):
 
     pack = pack or session.primary_readout
     i_sti = drv.prepare_i_sti(session, p, i_sti, pack)
+    i_sti = apply_a_sti_r(i_sti, p, pack)
     B, t_end, _n = int(i_sti.shape[0]), int(i_sti.shape[1]), int(i_sti.shape[2])
     t_onset = pack_t_onset(pack)
     pre_grad = bool((session.train_opts or {})["pre_grad"])

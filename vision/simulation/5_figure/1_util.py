@@ -24,18 +24,50 @@ def as_numpy(arr):
     return np.asarray(arr)
 
 
-def gt_affine_scalars_for_cell(p, cell_name, backend) -> tuple[float, float]:
-    """``(a_gt, effective_bias)`` for one cell type name (matches cost)."""
+def gt_affine_scalars_for_cell(p, cell_name, backend, *, bias_gt=None) -> tuple[float, float]:
+    """``(a_gt, effective_bias)`` for one cell type name (matches cost).
+
+    Pass ``bias_gt`` to override schema bias (e.g. mean ``v`` at onset when
+    ``bias_gt_from_v_onset``).
+    """
     names = [str(n) for n in backend.network.cell_names]
     ci = names.index(str(cell_name))
     gs = p["a_gt"]
-    gb = p["bias_gt"]
     scale = float(gs[ci] if torch.is_tensor(gs) and gs.dim() > 0 else gs)
-    bias = float(gb[ci] if torch.is_tensor(gb) and gb.dim() > 0 else gb)
-    if "v_th" in p:
-        vt = p["v_th"]
-        bias = bias + float(vt[ci] if torch.is_tensor(vt) and vt.dim() > 0 else vt)
+    if bias_gt is not None:
+        bias = float(bias_gt)
+    else:
+        gb = p["bias_gt"]
+        bias = float(gb[ci] if torch.is_tensor(gb) and gb.dim() > 0 else gb)
+        if "v_th" in p:
+            vt = p["v_th"]
+            bias = bias + float(vt[ci] if torch.is_tensor(vt) and vt.dim() > 0 else vt)
     return scale, bias
+
+
+def bias_gt_from_v_onset_enabled(session) -> bool:
+    from param_defaults import BIAS_GT_FROM_V_ONSET
+    opts = session.train_opts or {}
+    return bool(opts.get("bias_gt_from_v_onset", BIAS_GT_FROM_V_ONSET))
+
+
+def mean_v_onset_by_cell_name(traces, type_idx, cell_names, names, t_onset):
+    """Per-type mean of ``traces[row, t_onset]`` for names in ``names``."""
+    if t_onset is None:
+        raise ValueError("t_onset required for bias_gt_from_v_onset plot affine")
+    t0 = int(t_onset)
+    out = {}
+    for name in names:
+        ci = cell_names.index(name) if name in cell_names else None
+        if ci is None:
+            out[str(name)] = float("nan")
+            continue
+        m = np.asarray(type_idx) == int(ci)
+        if not np.any(m):
+            out[str(name)] = float("nan")
+            continue
+        out[str(name)] = float(np.nanmean(np.asarray(traces)[m, t0]))
+    return out
 
 
 def cost_ylim(*curves, pct=99.0, pad=1.1, floor=1.0):
@@ -469,8 +501,10 @@ def plot_timecourse(
 
     ``traces``: sequence of dicts with keys ``model``, ``gt``, optional
     ``sem``, ``linestyle`` (default ``'-'``), ``point_ix``.
-    Gray gt never draws ``[0, pre_end)``; red model draws that pre segment
-    dashed only when ``show_pre`` is true.
+    When ``point_ix`` is set, gray gt is drawn as open dots at those indices
+    (still never draws ``[0, pre_end)`` via line); otherwise gt is a solid
+    post-onset line. Red model always uses continuous pre/post lines: dashed
+    pre when ``show_pre`` is true, solid after.
     ``pulse_start`` / ``pulse_end``: white stimulus-on band ``[pulse_start, pulse_end)``.
     Y-limits / ticks: matplotlib autoscale.
     """
@@ -483,52 +517,29 @@ def plot_timecourse(
         sem = tr.get("sem")
         linestyle = tr.get("linestyle", "-")
         point_ix = tr.get("point_ix")
-        discrete = point_ix is not None
-        if not discrete:
-            if gt is not None:
-                plot_pre_post_line(
-                    ax, t, gt, pre_end=split, show_pre=False, draw_pre=False,
-                    color=GT_COLOR, linestyle=linestyle, linewidth=TRACE_LW,
-                )
-            if model is not None:
-                if show_sem and sem is not None:
-                    t_arr = np.asarray(t)
-                    m_arr = np.asarray(model, dtype=np.float64)
-                    s_arr = np.asarray(sem, dtype=np.float64)
-                    if split < m_arr.shape[0]:
-                        plot_sem_band(ax, t_arr[split:], m_arr[split:], s_arr[split:])
-                plot_pre_post_line(
-                    ax, t, model, pre_end=split, show_pre=show_pre, draw_pre=True,
-                    color=MODEL_COLOR, linestyle=linestyle, linewidth=TRACE_LW,
-                )
-        else:
+        if point_ix is not None:
             x_gt, y_gt = _series_points(t, gt, point_ix=point_ix)
             if x_gt is not None:
                 ax.plot(
                     x_gt, y_gt, linestyle='none', marker='o', markersize=4,
                     fillstyle='none', markeredgewidth=1.0, color=GT_COLOR,
                 )
-            if model is not None:
-                model_arr = np.asarray(model, dtype=np.float64)
-                ix_model = np.asarray(point_ix, dtype=np.int64)
-                ix_model = ix_model[(ix_model >= 0) & (ix_model < model_arr.shape[0])]
-                x_model = np.asarray(t)[ix_model]
-                y_model = model_arr[ix_model]
-                mask_model = np.isfinite(y_model)
-                if show_sem and sem is not None:
-                    sem_arr = np.asarray(sem, dtype=np.float64)
-                    sem_sub = sem_arr[ix_model]
-                    mask_sem = mask_model & np.isfinite(sem_sub)
-                    if np.any(mask_sem):
-                        plot_sem_errorbar(
-                            ax, x_model[mask_sem], y_model[mask_sem], sem_sub[mask_sem],
-                        )
-                if np.any(mask_model):
-                    ax.plot(
-                        x_model[mask_model], y_model[mask_model], linestyle='none',
-                        marker='o', markersize=2.5, fillstyle='full',
-                        markeredgewidth=0.8, color=MODEL_COLOR,
-                    )
+        elif gt is not None:
+            plot_pre_post_line(
+                ax, t, gt, pre_end=split, show_pre=False, draw_pre=False,
+                color=GT_COLOR, linestyle=linestyle, linewidth=TRACE_LW,
+            )
+        if model is not None:
+            if show_sem and sem is not None:
+                t_arr = np.asarray(t)
+                m_arr = np.asarray(model, dtype=np.float64)
+                s_arr = np.asarray(sem, dtype=np.float64)
+                if split < m_arr.shape[0]:
+                    plot_sem_band(ax, t_arr[split:], m_arr[split:], s_arr[split:])
+            plot_pre_post_line(
+                ax, t, model, pre_end=split, show_pre=show_pre, draw_pre=True,
+                color=MODEL_COLOR, linestyle=linestyle, linewidth=TRACE_LW,
+            )
     if title is not None:
         ax.set_title(title, fontsize=title_fs, pad=2)
     if style_xaxis is not None:

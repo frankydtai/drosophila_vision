@@ -70,6 +70,7 @@ PARAM_BOXES: Dict[str, dict] = {
     "bias_out": dict(lo=-30.0, hi=30.0, init=0.0, jit=1.0, train_mode="indi"),
     "tau_hp": dict(lo=100.0, hi=500.0, init=200.0, jit=20.0, train_mode="indi"),
     "a_slow": dict(lo=0.0, hi=1.0, init=0.5, jit=0.05, train_mode="fixed"),
+    "a_sti_r": dict(lo=0.0, hi=1.0, init=0.0, jit=0.05, train_mode="indi"),
 }
 
 MODEL = "hp_lp"
@@ -118,6 +119,7 @@ SHIFT_EXTENT = 1.0
 # ---------------------------------------------------------------------------
 
 SPOT_COST_RADII: Tuple[float, ...] = (0.0, 1.0, math.sqrt(3), 2.0)
+SPOT_STI_R_NAMES: Tuple[str, ...] = ("0", "1", "sqrt3", "2")
 SPOT_COST_RADIUS_WEIGHT: Dict[float, float] = {
     0.0: 1.0,
     1.0: 1.0 / 3.0,
@@ -148,6 +150,10 @@ TASK = "spot_bright"
 # ---------------------------------------------------------------------------
 
 COST_NORM = "a_gt2"  # gt_power | a_gt2; see training.config.COST_NORMS
+# Cost/plot affine bias = v at t_onset (not schema bias_gt).
+BIAS_GT_FROM_V_ONSET = True
+# With bias_gt_from_v_onset: True keeps onset in graph; False detaches.
+BIAS_GT_FROM_V_ONSET_GRAD = False
 
 # Membrane t=0 pre steady (``--pre-steady MODEL=MODE``). Not param init.
 # borst: e_leak only. hp_lp: probe (one-shot) | solve (fixed-iter DC; default).

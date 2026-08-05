@@ -25,6 +25,7 @@ from figure.util import (
     annotate_baseline,
     as_numpy,
     baselines_for_types,
+    bias_gt_from_v_onset_enabled,
     bundle_panel_title,
     format_moving_bar_cell_cost_lines,
     bundle_prep_s,
@@ -447,8 +448,23 @@ def moving_bar_trace_bundle(session, z, task, *, at_x=None, at_y=None,
     gt_mean = _load_moving_bar_gt_mean(
         session, task, cells, specs, side,
     )
+    onset_bias = None
+    if bias_gt_from_v_onset_enabled(session):
+        t0 = int(training.pack_t_onset(pack))
+        onset_bias = {}
+        for name, nodes in nodes_by_name.items():
+            nodes = np.asarray(nodes, dtype=np.int64).ravel()
+            if nodes.size == 0:
+                onset_bias[str(name)] = float("nan")
+            else:
+                onset_bias[str(name)] = float(
+                    np.nanmean(trace_full[:, t0, nodes])
+                )
     gt_affine_by_name = {
-        str(name): gt_affine_scalars_for_cell(p, name, session.backend)
+        str(name): gt_affine_scalars_for_cell(
+            p, name, session.backend,
+            bias_gt=None if onset_bias is None else onset_bias.get(str(name)),
+        )
         for name in cells
     }
     slice_overlay = None
