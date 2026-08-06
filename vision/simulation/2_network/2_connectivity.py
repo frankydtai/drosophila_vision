@@ -9,8 +9,7 @@ Interface:
     conn.node_cell
 
 ``x`` is the presynaptic output already scaled by the per-source a_out, i.e.
-``rectsyn(v, v_th) * a_out`` for the borst model or
-``relu(v + bias_out) * a_out`` for hp_lp. The post-synaptic input
+``max(v − v_th, 0) * a_out`` (borst / hp_lp). The post-synaptic input
 gain (``a_in``) is applied by the caller AFTER these calls.
 
 Synaptic scaling multiplies each edge: length ``n_pairs`` type→type

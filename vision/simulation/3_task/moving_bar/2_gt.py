@@ -1038,6 +1038,7 @@ def make_moving_bar_stimulus_opts(
     i_moving_bar: float,
     ms_pre: float,
     delta_ms: float,
+    delta_ms_pre: float,
     multi_bar: bool,
     gt_cells=None,
 ):
@@ -1050,6 +1051,7 @@ def make_moving_bar_stimulus_opts(
         bar_key: float(i_moving_bar),
         "ms_pre": float(ms_pre),
         "delta_ms": float(delta_ms),
+        "delta_ms_pre": float(delta_ms_pre),
         "multi_bar": bool(multi_bar),
     }
     rs = normalize_gt_cells(gt_cells)
@@ -1069,12 +1071,16 @@ def _enrich_moving_bar_stimulus_opts(opts, info, *, cost_extent):
     out["n_t"] = int(info["n_t"])
     if out.get("delta_ms") is None:
         raise ValueError("moving-bar stimulus opts require delta_ms")
+    if out.get("delta_ms_pre") is None:
+        raise ValueError("moving-bar stimulus opts require delta_ms_pre")
     dt = float(out["delta_ms"])
-    out["ms_pre"] = float(info["t_onset"]) * dt
+    dt_pre = float(out["delta_ms_pre"])
+    out["ms_pre"] = float(info["t_onset"]) * dt_pre
     out["spec_names"] = list(info["spec_names"])
     if cost_extent is not None:
         out["cost_extent"] = int(cost_extent)
     out["delta_ms"] = dt
+    out["delta_ms_pre"] = dt_pre
     if "present_gts" in info:
         out["gt_cells"] = list(info["present_gts"])
     return out

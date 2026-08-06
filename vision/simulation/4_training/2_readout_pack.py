@@ -25,8 +25,8 @@ from typing import Dict, Optional, Tuple
 import numpy as np
 import torch
 
-from neuron import IH_DIR_REVERSE_CELLS
-from neuron.params import e_ih_off, membrane_dt_over_c
+from neuron import I_H_DIR_REVERSE_CELLS
+from neuron.params import e_h_off as calc_e_h_off, membrane_dt_over_c
 
 from training.config import SPOT_TASKS
 from param_defaults import FP
@@ -95,16 +95,16 @@ class ReadoutPack:
 
 @dataclass(frozen=True)
 class ModelBackend:
-    """Connectivity + leak/Ih tensors for one simulation graph."""
+    """Connectivity + leak/i_h tensors for one simulation graph."""
 
     conn: object
     e_leak: torch.Tensor
-    ih_dir: torch.Tensor
+    i_h_dir: torch.Tensor
     n_cells: int
     n_hexes: int
     network: Optional[object] = None
     depol_cells: Tuple[int, ...] = ()
-    ih_reverse_cells: Tuple[int, ...] = IH_DIR_REVERSE_CELLS
+    i_h_reverse_cells: Tuple[int, ...] = I_H_DIR_REVERSE_CELLS
 
     @property
     def n_nodes(self) -> int:
@@ -124,8 +124,8 @@ class TrainSession:
     """Immutable runtime context for one training / plotting run.
 
     Membrane / synapse scalars are flat fields (injected from
-    ``param_defaults`` at session open). ``delta_ms`` comes only from
-    stimulus opts — never a separate Physics bag.
+    ``param_defaults`` at session open). ``delta_ms`` / ``delta_ms_pre`` come
+    only from stimulus opts — never a separate Physics bag.
     """
 
     backend: ModelBackend
@@ -137,15 +137,16 @@ class TrainSession:
     sequential: bool
     device: str
     delta_ms: float
-    capac: float
+    delta_ms_pre: float
+    cap: float
     g_leak: float
     g_in: float
-    E_exc: float
-    E_inh: float
-    E_Ih: float
-    E_LEAK_REST: float
-    E_LEAK_DEPOL: float
-    Ih_gain: float
+    e_exc: float
+    e_inh: float
+    e_h: float
+    e_leak_rest: float
+    e_leak_depol: float
+    a_h: float
     Ca_tau: float
     DATA_AMP: float
     STATE_CLAMP: float
@@ -165,11 +166,11 @@ class TrainSession:
 
     @property
     def dt_over_c(self) -> float:
-        return membrane_dt_over_c(self.capac, self.delta_ms)
+        return membrane_dt_over_c(self.cap, self.delta_ms)
 
     @property
-    def E_IH_OFF(self) -> float:
-        return e_ih_off(self.E_LEAK_REST, self.E_Ih)
+    def e_h_off(self) -> float:
+        return calc_e_h_off(self.e_leak_rest, self.e_h)
 
     @property
     def primary_readout(self) -> ReadoutPack:

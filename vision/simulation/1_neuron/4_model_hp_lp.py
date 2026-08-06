@@ -6,7 +6,7 @@
     τ_lp dv/dt = −(v − v_rest) + v_hp
 
 with v_tot = v_rest + v_in + v_sti, v_sti = i_sti/g_in (g_in in nS converts pA → mV),
-v_in from relu(v+bias_out)·a_out scaled by syn_strength_cell (per_cell) or
+v_in from max(v−v_th, 0)·a_out scaled by syn_strength_cell (per_cell) or
 syn_strength_edge (per_edge). a_slow = 1 recovers classical HP
 (v_hp = v_tot − v_slow); DC then has v_hp → 0 when v_slow → v_tot.
 
@@ -53,7 +53,7 @@ def update_state_hp_lp(
     if g_in == 0.0:
         raise ValueError("g_in must be non-zero")
 
-    pre = torch.relu(v + p["bias_out"]) * p["a_out"]
+    pre = torch.relu(v - p["v_th"]) * p["a_out"]
     w = syn_strength(p)
     v_in = p["a_in"] * backend.conn.signed_drive(pre, w)
     v_sti = i_sti / g_in
@@ -106,7 +106,7 @@ def prepare_i_sti(session, p, i_sti, pack):
 
 
 def _v_in_from_v(v, p, backend):
-    pre = torch.relu(v + p["bias_out"]) * p["a_out"]
+    pre = torch.relu(v - p["v_th"]) * p["a_out"]
     w = syn_strength(p)
     return p["a_in"] * backend.conn.signed_drive(pre, w)
 
@@ -165,12 +165,12 @@ def pre_steady(session, p, B, i_sti=None):
     )
 
 
-def step(state, v, p, i_sti, session, *, return_component: bool = False):
+def step(state, v, p, i_sti, session, *, delta_ms: float, return_component: bool = False):
     """One hp_lp update; returns ``((v_slow,), v)`` or + component dict."""
     v_slow, = state
     out = update_state_hp_lp(
         v, v_slow, p, i_sti, session.backend,
-        delta_ms=session.delta_ms, state_clamp=session.STATE_CLAMP,
+        delta_ms=float(delta_ms), state_clamp=session.STATE_CLAMP,
         g_in=session.g_in, euler=session.euler,
         return_component=return_component,
     )

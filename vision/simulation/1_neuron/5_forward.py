@@ -57,6 +57,17 @@ def pack_t_onset(pack) -> int:
     return n_t - int(pack.gt.shape[1])
 
 
+def step_delta_ms(session, t: int, t_onset: int) -> float:
+    """``delta_ms`` for the update that produces sample ``t`` (from ``t-1`` → ``t``).
+
+    Pre-onset steps (``t <= t_onset``) use ``session.delta_ms_pre``; later steps
+    use ``session.delta_ms``.
+    """
+    return float(
+        session.delta_ms_pre if int(t) <= int(t_onset) else session.delta_ms
+    )
+
+
 def _detach_state(state):
     """Detach every tensor in a model ``state`` tuple."""
     return tuple(s.detach() for s in state)
@@ -94,17 +105,26 @@ def forward_full(session, p, i_sti, *, pack=None):
     v_rows = [v]
     if pre_grad or t_onset <= 0:
         for t in range(1, t_end):
-            state, v = drv.step(state, v, p, i_sti[:, t - 1], session)
+            state, v = drv.step(
+                state, v, p, i_sti[:, t - 1], session,
+                delta_ms=step_delta_ms(session, t, t_onset),
+            )
             v_rows.append(v)
         return torch.stack(v_rows, dim=1)
     with torch.no_grad():
         for t in range(1, t_onset):
-            state, v = drv.step(state, v, p, i_sti[:, t - 1], session)
+            state, v = drv.step(
+                state, v, p, i_sti[:, t - 1], session,
+                delta_ms=step_delta_ms(session, t, t_onset),
+            )
             v_rows.append(v)
     state = _detach_state(state)
     v = v.detach()
     for t in range(max(t_onset, 1), t_end):
-        state, v = drv.step(state, v, p, i_sti[:, t - 1], session)
+        state, v = drv.step(
+            state, v, p, i_sti[:, t - 1], session,
+            delta_ms=step_delta_ms(session, t, t_onset),
+        )
         v_rows.append(v)
     return torch.stack(v_rows, dim=1)
 

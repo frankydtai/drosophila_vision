@@ -14,6 +14,7 @@ import torch
 
 from param_defaults import DELTA_MS
 import training
+from neuron.params import ms_to_t, ms_to_t_abs, t_to_ms
 from figure.readout import (
     contrast_for_task,
     contrast_linestyle,
@@ -35,8 +36,7 @@ from figure.util import (
     bias_gt_from_v_onset_enabled,
     mean_v_onset_by_cell_name,
     hex_at_scope_tag,
-    mark_pulse,
-    ms_shown_axis_xlim,
+    mark_spot,
     overlay_model_reds,
     plot_pre_post_line,
     plot_timecourse,
@@ -65,22 +65,21 @@ from task.spot.gt import (
     RF_RADIUS_DEG,
     build_spot_center_readout,
 )
-from neuron.params import ms_to_t
 
 RF_RADIUS_X = np.arange(RF_N_RADII) * RF_RADIUS_DEG
 
 
-def _pulse_end_from_opts(opts, t_onset, n_t):
+def _t_spot_end_from_opts(opts, t_onset, n_t):
     """Exclusive end index of stimulus-on ``u[t]`` (matches ``spot_input_waveform``)."""
     if t_onset is None:
         return None
     t0 = int(t_onset)
     mt = int(n_t)
-    ms_pulse = opts.get("ms_pulse")
-    if ms_pulse is None:
+    ms_spot = opts.get("ms_spot")
+    if ms_spot is None:
         return mt
     dt = float(opts.get("delta_ms", DELTA_MS))
-    width = max(1, ms_to_t(float(ms_pulse), delta_ms=dt))
+    width = max(1, ms_to_t(float(ms_spot), delta_ms=dt))
     return min(mt, t0 + width)
 
 
@@ -104,20 +103,20 @@ def _integer_profile_radius(radius):
 
 
 def _session_spot_timing(session):
-    """Extract onset ``t_onset`` / forward ``n_t``, ms_pulse, and delta_ms from session."""
+    """Extract onset ``t_onset`` / forward ``n_t``, ms_spot, and delta_ms from session."""
     from task.spot.input import spot_gt_n_t_from_opts, spot_timing_t_from_opts
 
     opts = (session.train_opts or {}).get(
         f"{session.primary_readout.name}_stimulus_opts",
     ) or {}
     t_onset, n_t = spot_timing_t_from_opts(opts)
-    ms_pulse = opts.get("ms_pulse")
+    ms_spot = opts.get("ms_spot")
     return (
         int(t_onset),
         int(n_t),
         int(spot_gt_n_t_from_opts(opts)),
-        float(ms_pulse) if ms_pulse is not None else None,
-        float(opts.get("delta_ms", DELTA_MS)),
+        float(ms_spot) if ms_spot is not None else None,
+        float(opts["delta_ms"]),
     )
 
 
@@ -132,10 +131,10 @@ def resolve_spot_gt_cubes(sessions, gt_cubes=None):
         return {}
     out = {}
     for contrast, session in sessions.items():
-        t_onset, _n_t, n_t_gt, ms_pulse, delta_ms = _session_spot_timing(session)
+        t_onset, _n_t, n_t_gt, ms_spot, delta_ms = _session_spot_timing(session)
         part = spot_gt_cubes(
             session, session.primary_readout.name, contrasts=(str(contrast),),
-            t_onset=t_onset, n_t=n_t_gt, ms_pulse=ms_pulse, delta_ms=delta_ms,
+            t_onset=t_onset, n_t=n_t_gt, ms_spot=ms_spot, delta_ms=delta_ms,
         )
         out.update(part)
     return out
@@ -153,25 +152,25 @@ def _session_cost_time_ix(session, t_onset):
     return base + ix_np
 
 
-def scale_curve(xt, center_radius, sem_xt=None, *, t_onset=None, pulse_end=None, t_lag=0):
+def scale_curve(xt, center_radius, sem_xt=None, *, t_onset=None, t_spot_end=None, t_lag=0):
     """Center-radius time course + RF profile from one ``(RF_N_RADII, T)`` cube.
 
     RF peak time ``t_v_max`` is ``argmax |v - v_onset|`` inside the
-    lag-shifted pulse window ``[t_onset + t_lag, pulse_end + t_lag)``
+    lag-shifted spot-on window ``[t_onset + t_lag, t_spot_end + t_lag)``
     (onset = first sample of that shifted window).
     Absolute ``|v|`` would pick onset when a large bias moves toward zero.
     """
     if t_onset is None:
         raise ValueError("scale_curve requires t_onset")
-    if pulse_end is None:
-        raise ValueError("scale_curve requires pulse_end")
+    if t_spot_end is None:
+        raise ValueError("scale_curve requires t_spot_end")
     imp = xt[center_radius]
     t_lag = int(t_lag)
     t0 = max(0, int(t_onset) + t_lag)
-    t1 = min(int(imp.shape[0]), int(pulse_end) + t_lag)
+    t1 = min(int(imp.shape[0]), int(t_spot_end) + t_lag)
     if t1 <= t0:
         raise ValueError(
-            "scale_curve requires shifted pulse_end > shifted t_onset, "
+            "scale_curve requires shifted t_spot_end > shifted t_onset, "
             f"got [{t0}, {t1}) with t_lag={t_lag}"
         )
     resp = imp[t0:t1]
@@ -210,18 +209,28 @@ def _plot_rf_profile(ax, rf, *, color, label=None, linestyle='-', filled=False):
     ax.plot(RF_RADIUS_X[mask], rf[mask], **kw)
 
 
-def _style_time_axis(ax, show_xlabel, n_t, delta_ms=None, ms_shown=None):
-    dt = float(DELTA_MS if delta_ms is None else delta_ms)
+def _style_time_axis(
+    ax, show_xlabel, n_t, *, delta_ms, delta_ms_pre, t_onset, ms_shown=None,
+):
+    dt = float(delta_ms)
+    dt_pre = float(delta_ms_pre)
+    t0 = int(t_onset or 0)
     t_last = max(int(n_t) - 1, 0)
-    xlim = ms_shown_axis_xlim(ms_shown, delta_ms=dt, origin_t=0)
-    if xlim is None:
+    if ms_shown is None:
         lo, hi = 0, t_last
     else:
-        lo, hi = max(0, xlim[0]), min(t_last, xlim[1])
+        start, stop = ms_shown
+        lo = ms_to_t_abs(
+            float(start), t_onset=t0, delta_ms_pre=dt_pre, delta_ms=dt,
+        )
+        hi = ms_to_t_abs(
+            float(stop), t_onset=t0, delta_ms_pre=dt_pre, delta_ms=dt,
+        )
+        lo, hi = max(0, lo), min(t_last, hi)
         if lo > hi:
             lo, hi = 0, t_last
-    t_lo_s = lo * dt / 1000.0
-    t_hi_s = hi * dt / 1000.0
+    t_lo_s = t_to_ms(lo, t_onset=t0, delta_ms_pre=dt_pre, delta_ms=dt) / 1000.0
+    t_hi_s = t_to_ms(hi, t_onset=t0, delta_ms_pre=dt_pre, delta_ms=dt) / 1000.0
     t_mid_s = (t_lo_s + t_hi_s) / 2.0
     mid = (lo + hi) // 2
     ax.set_xlim(lo, hi)
@@ -242,7 +251,7 @@ def _style_recf_profile_axis(ax, show_xlabel):
 
 
 def _scale_contrast_series(
-    series, *, t_onset, pulse_end, center_radius=RF_CENTER_RADIUS, t_lag=0,
+    series, *, t_onset, t_spot_end, center_radius=RF_CENTER_RADIUS, t_lag=0,
 ):
     """Scale each contrast series entry to ImpR + RF radii.
 
@@ -250,7 +259,7 @@ def _scale_contrast_series(
     Returns a list of dicts with ``imp_model``, ``rf_model``, ``imp_sem``,
     ``imp_gt``, ``rf_gt`` plus passthrough keys.
     """
-    sc_kw = dict(t_onset=t_onset, pulse_end=pulse_end, t_lag=t_lag)
+    sc_kw = dict(t_onset=t_onset, t_spot_end=t_spot_end, t_lag=t_lag)
     out = []
     for entry in series:
         item = dict(entry)
@@ -292,12 +301,12 @@ def plot_cell_rf(
     show_ylabel=False,
     baseline=None,
     t_onset=None,
-    pulse_end=None,
+    t_spot_end=None,
     t_lag=0,
 ):
     """RF-profile panel for one cell across contrast ``series``."""
     scaled = _scale_contrast_series(
-        series, t_onset=t_onset, pulse_end=pulse_end, t_lag=t_lag,
+        series, t_onset=t_onset, t_spot_end=t_spot_end, t_lag=t_lag,
     )
     for item in scaled:
         ls = item.get("linestyle", "-")
@@ -331,9 +340,10 @@ def plot_cell_time(
     t_onset=None,
     pre_end=None,
     show_pre=False,
-    pulse_end=None,
+    t_spot_end=None,
     t_lag=0,
-    delta_ms=None,
+    delta_ms,
+    delta_ms_pre,
     ms_shown=None,
     center_radius=RF_CENTER_RADIUS,
 ):
@@ -341,12 +351,12 @@ def plot_cell_time(
 
     ``pre_end`` defaults to ``t_onset`` (gray gt omits ``[0, pre_end)``).
     Pass ``pre_end=0`` to draw the full gt trace including pre-onset.
-    ``pulse_end``: white stimulus-on band ``[t_onset, pulse_end)``.
+    ``t_spot_end``: white stimulus-on band ``[t_onset, t_spot_end)``.
     """
     scaled = _scale_contrast_series(
         series,
         t_onset=t_onset,
-        pulse_end=pulse_end,
+        t_spot_end=t_spot_end,
         t_lag=t_lag,
         center_radius=int(center_radius),
     )
@@ -370,12 +380,14 @@ def plot_cell_time(
         baseline=baseline,
         show_ylabel=show_ylabel,
         style_xaxis=lambda a: _style_time_axis(
-            a, show_xlabels, n_t, delta_ms, ms_shown=ms_shown,
+            a, show_xlabels, n_t,
+            delta_ms=delta_ms, delta_ms_pre=delta_ms_pre, t_onset=t_onset,
+            ms_shown=ms_shown,
         ),
         pre_end=split,
         show_pre=show_pre,
-        pulse_start=t_onset,
-        pulse_end=pulse_end,
+        t_onset=t_onset,
+        t_spot_end=t_spot_end,
     )
 
 
@@ -393,9 +405,10 @@ def plot_cell_rf_time(
     n_t=None,
     t_onset=None,
     show_pre=False,
-    pulse_end=None,
+    t_spot_end=None,
     t_lag=0,
-    delta_ms=None,
+    delta_ms,
+    delta_ms_pre,
     ms_shown=None,
 ):
     """RF + time panels for one cell (composes ``plot_cell_rf`` + ``plot_cell_time``)."""
@@ -406,7 +419,7 @@ def plot_cell_rf_time(
         show_ylabel=show_ylabel,
         baseline=baseline,
         t_onset=t_onset,
-        pulse_end=pulse_end,
+        t_spot_end=t_spot_end,
         t_lag=t_lag,
     )
     plot_cell_time(
@@ -418,9 +431,10 @@ def plot_cell_rf_time(
         n_t=n_t,
         t_onset=t_onset,
         show_pre=show_pre,
-        pulse_end=pulse_end,
+        t_spot_end=t_spot_end,
         t_lag=t_lag,
         delta_ms=delta_ms,
+        delta_ms_pre=delta_ms_pre,
         ms_shown=ms_shown,
     )
 
@@ -440,18 +454,19 @@ def plot_cell_rf_time_slices(
     n_t=None,
     t_onset=None,
     show_pre=False,
-    pulse_end=None,
+    t_spot_end=None,
     t_lag=0,
-    delta_ms=None,
+    delta_ms,
+    delta_ms_pre,
     ms_shown=None,
 ):
     """RF + time panels with per-slice overlays across contrast ``series``."""
     center_radius = RF_CENTER_RADIUS
-    sc_kw = dict(t_onset=t_onset, pulse_end=pulse_end, t_lag=t_lag)
+    sc_kw = dict(t_onset=t_onset, t_spot_end=t_spot_end, t_lag=t_lag)
     colors = overlay_model_reds(len(slice_labels))
     t = np.arange(n_t)
     pre_end = int(t_onset or 0)
-    mark_pulse(ax_time, t_onset, pulse_end)
+    mark_spot(ax_time, t_onset, t_spot_end)
 
     for si, item in enumerate(series):
         ls = item.get("linestyle", "-")
@@ -514,7 +529,11 @@ def plot_cell_rf_time_slices(
 
     if time_title is not None:
         ax_time.set_title(time_title, fontsize=8, pad=2)
-    _style_time_axis(ax_time, show_xlabels, n_t, delta_ms, ms_shown=ms_shown)
+    _style_time_axis(
+        ax_time, show_xlabels, n_t,
+        delta_ms=delta_ms, delta_ms_pre=delta_ms_pre, t_onset=t_onset,
+        ms_shown=ms_shown,
+    )
     if show_ylabel:
         ax_time.set_ylabel('mV', fontsize=7)
     ax_time.tick_params(labelsize=6)
@@ -595,7 +614,7 @@ class SpotTraceBundle:
     v_ref_name: str | None = None
     t_onset: int | None = None
     show_pre: bool = True
-    pulse_end: int | None = None
+    t_spot_end: int | None = None
     ms_shown: tuple[float, float] | None = None
     r0_only: bool = False
     a_sti_r: dict[str, float] = field(default_factory=dict)
@@ -639,7 +658,7 @@ def _spot_readout_bundle_view(bundle):
         v_ref_name=bundle.v_ref_name,
         t_onset=bundle.t_onset,
         show_pre=bundle.show_pre,
-        pulse_end=bundle.pulse_end,
+        t_spot_end=bundle.t_spot_end,
         ms_shown=bundle.ms_shown,
         r0_only=bool(getattr(bundle, "r0_only", False)),
         a_sti_r=dict(getattr(bundle, "a_sti_r", None) or {}),
@@ -774,9 +793,11 @@ def _spot_forward_rows(
     plot_traces = trace_full[batch_idx, :, node_idx].cpu().numpy()
 
     stim_ms_pre = opts.get("ms_pre")
-    dt = float(opts.get("delta_ms", DELTA_MS))
+    dt = float(opts["delta_ms"])
+    dt_pre = float(opts["delta_ms_pre"])
     stim_t_onset = (
-        ms_to_t(float(stim_ms_pre), delta_ms=dt) if stim_ms_pre is not None else None
+        ms_to_t(float(stim_ms_pre), delta_ms=dt_pre)
+        if stim_ms_pre is not None else None
     )
     rows = dict(
         names=names,
@@ -788,7 +809,7 @@ def _spot_forward_rows(
         center_row=center_row,
         plot_traces=plot_traces,
         t_onset=int(stim_t_onset) if stim_t_onset is not None else None,
-        pulse_end=_pulse_end_from_opts(opts, stim_t_onset, mt),
+        t_spot_end=_t_spot_end_from_opts(opts, stim_t_onset, mt),
         batch_idx=batch_idx,
         batches=batches,
         mt=mt,
@@ -884,7 +905,7 @@ def network_spot_trace_bundle(
         v_ref_name=v_ref_schema_name(session.schema),
         t_onset=rows.get('t_onset'),
         show_pre=bool(show_pre),
-        pulse_end=rows.get('pulse_end'),
+        t_spot_end=rows.get('t_spot_end'),
         ms_shown=ms_shown,
         r0_only=bool(r0_only),
         a_sti_r=dict(rows.get('a_sti_r') or {}),
@@ -963,8 +984,9 @@ def _plot_spot_figure(
     slice_labels = primary.slice_labels or []
     n_t = primary.n_t
     t_onset = primary.t_onset
-    pulse_end = getattr(primary, "pulse_end", None)
+    t_spot_end = getattr(primary, "t_spot_end", None)
     delta_ms = float(primary.session.delta_ms)
+    delta_ms_pre = float(primary.session.delta_ms_pre)
     show_pre = getattr(primary, "show_pre", True)
     ms_shown = getattr(primary, "ms_shown", None)
     timer.end_prep()
@@ -1056,9 +1078,10 @@ def _plot_spot_figure(
                 baseline=cell_primary.get("baseline"),
                 t_onset=t_onset,
                 show_pre=show_pre,
-                pulse_end=pulse_end,
+                t_spot_end=t_spot_end,
                 t_lag=t_lag,
                 delta_ms=delta_ms,
+                delta_ms_pre=delta_ms_pre,
                 ms_shown=ms_shown,
             )
         else:
@@ -1073,9 +1096,10 @@ def _plot_spot_figure(
                 baseline=cell_primary.get("baseline"),
                 t_onset=t_onset,
                 show_pre=show_pre,
-                pulse_end=pulse_end,
+                t_spot_end=t_spot_end,
                 t_lag=t_lag,
                 delta_ms=delta_ms,
+                delta_ms_pre=delta_ms_pre,
                 ms_shown=ms_shown,
             )
         legend_done = True
@@ -1111,7 +1135,7 @@ def _plot_spot_figure(
                 show_ylabel=(j == 0),
                 baseline=cell_on.get("baseline"),
                 t_onset=t_onset,
-                pulse_end=pulse_end,
+                t_spot_end=t_spot_end,
                 t_lag=int(_IMPR_SHIFT_RIGHT.get(name, 0)),
             )
             legend_done = True
@@ -1135,9 +1159,10 @@ def _plot_spot_figure(
                     n_t=n_t,
                     t_onset=t_onset,
                     show_pre=show_pre,
-                    pulse_end=pulse_end,
+                    t_spot_end=t_spot_end,
                     t_lag=int(_IMPR_SHIFT_RIGHT.get(name, 0)),
                     delta_ms=delta_ms,
+                    delta_ms_pre=delta_ms_pre,
                     ms_shown=ms_shown,
                     center_radius=radius,
                 )

@@ -28,14 +28,19 @@ def gt_affine_scalars_for_cell(p, cell_name, backend, *, bias_gt=None) -> tuple[
     """``(a_gt, effective_bias)`` for one cell type name (matches cost).
 
     Pass ``bias_gt`` to override schema bias (e.g. mean ``v`` at onset when
-    ``bias_gt_from_v_onset``).
+    ``bias_gt_from_v_onset``). Onset overrides are clipped to schema
+    ``bias_gt`` lo/hi (same as cost).
     """
     names = [str(n) for n in backend.network.cell_names]
     ci = names.index(str(cell_name))
     gs = p["a_gt"]
     scale = float(gs[ci] if torch.is_tensor(gs) and gs.dim() > 0 else gs)
     if bias_gt is not None:
+        from param_defaults import PARAM_BOXES
+        box = PARAM_BOXES["bias_gt"]
         bias = float(bias_gt)
+        if np.isfinite(bias):
+            bias = float(np.clip(bias, float(box["lo"]), float(box["hi"])))
     else:
         gb = p["bias_gt"]
         bias = float(gb[ci] if torch.is_tensor(gb) and gb.dim() > 0 else gb)
@@ -88,7 +93,7 @@ def cost_ylim(*curves, pct=99.0, pad=1.1, floor=1.0):
 
 
 def annotate_baseline(ax, baseline):
-    """Horizontal dashed line at ``v_th`` (borst) / ``-bias_out`` (hp_lp).
+    """Horizontal dashed line at ``v_th``.
 
     Leaves matplotlib auto y-ticks / labels alone.
     """
@@ -98,7 +103,7 @@ def annotate_baseline(ax, baseline):
 
 
 def baselines_for_types(nodes_by_name, v_ref_by_name=None):
-    """``{name: baseline}`` from per-cell ``v_th`` / ``-bias_out`` (absolute mV)."""
+    """``{name: baseline}`` from per-cell ``v_th`` (absolute mV)."""
     v_ref_by_name = v_ref_by_name or {}
     out = {}
     for name in nodes_by_name:
@@ -107,12 +112,12 @@ def baselines_for_types(nodes_by_name, v_ref_by_name=None):
     return out
 
 
-def mark_pulse(ax, pulse_start, pulse_end):
-    """White band for stimulus-on samples ``[pulse_start, pulse_end)`` (axes face is gray)."""
-    if pulse_start is None or pulse_end is None:
+def mark_spot(ax, t_onset, t_spot_end):
+    """White band for stimulus-on samples ``[t_onset, t_spot_end)`` (axes face is gray)."""
+    if t_onset is None or t_spot_end is None:
         return
-    t0 = int(pulse_start)
-    t1 = int(pulse_end)
+    t0 = int(t_onset)
+    t1 = int(t_spot_end)
     if t1 <= t0:
         return
     ax.axvspan(t0, t1, facecolor='white', edgecolor='none', zorder=0)
@@ -148,28 +153,23 @@ def sem_from_traces(traces, single_hex=False):
 
 
 def v_ref_schema_name(schema):
-    """``'v_th'`` (borst) or ``'-bias_out'`` (hp_lp); ``None`` if neither applies."""
+    """``'v_th'`` when present; ``None`` otherwise."""
     names = {s.get('name') for s in schema}
     if 'v_th' in names:
         return 'v_th'
-    if 'bias_out' in names:
-        return '-bias_out'
     return None
 
 
 def v_ref_by_type_name(z, session):
-    """Per-cell baseline mV: ``v_th`` (borst) or ``-bias_out`` (hp_lp)."""
+    """Per-cell baseline mV from ``v_th``."""
     schema = list(session.schema)
     key = v_ref_schema_name(schema)
     if key is None:
         return {}
-    param = 'v_th' if key == 'v_th' else 'bias_out'
-    arr = np.asarray(training.z_to_node_values(z, schema)[param], dtype=np.float64).reshape(-1)
-    if key == '-bias_out':
-        arr = -arr
+    arr = np.asarray(training.z_to_node_values(z, schema)['v_th'], dtype=np.float64).reshape(-1)
     names = training.cell_node_names(session.backend)
     if arr.shape[0] != len(names):
-        raise ValueError(f"{param} length {arr.shape[0]} != n_cells {len(names)}")
+        raise ValueError(f"v_th length {arr.shape[0]} != n_cells {len(names)}")
     return {str(n): float(arr[i]) for i, n in enumerate(names)}
 
 
@@ -494,8 +494,8 @@ def plot_timecourse(
     style_xaxis=None,
     pre_end=0,
     show_pre=False,
-    pulse_start=None,
-    pulse_end=None,
+    t_onset=None,
+    t_spot_end=None,
 ):
     """Model (red) vs gt (gray) time courses for one or more contrast traces.
 
@@ -505,11 +505,11 @@ def plot_timecourse(
     (still never draws ``[0, pre_end)`` via line); otherwise gt is a solid
     post-onset line. Red model always uses continuous pre/post lines: dashed
     pre when ``show_pre`` is true, solid after.
-    ``pulse_start`` / ``pulse_end``: white stimulus-on band ``[pulse_start, pulse_end)``.
+    ``t_onset`` / ``t_spot_end``: white stimulus-on band ``[t_onset, t_spot_end)``.
     Y-limits / ticks: matplotlib autoscale.
     """
     traces = list(traces or ())
-    mark_pulse(ax, pulse_start, pulse_end)
+    mark_spot(ax, t_onset, t_spot_end)
     split = max(0, int(pre_end or 0))
     for tr in traces:
         model = tr.get("model")
@@ -661,7 +661,7 @@ def _write_interactive_html(fig, path):
                 font=dict(size=10),
             ))
 
-        # Pulse / axvspan bands (data-x, axes-y) → shapes under traces.
+        # Spot-on / axvspan bands (data-x, axes-y) → shapes under traces.
         for patch in ax.patches:
             if not isinstance(patch, Rectangle):
                 continue

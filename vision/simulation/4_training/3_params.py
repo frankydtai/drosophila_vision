@@ -15,7 +15,7 @@ import numpy as np
 import torch
 
 from training.readout_pack import ModelBackend, active_device, SIM_DTYPE
-from neuron import IH_DIR_REVERSE_CELLS
+from neuron import I_H_DIR_REVERSE_CELLS
 
 
 def calc_multi_col_params(param, conn):
@@ -35,10 +35,10 @@ def build_e_leak(
     return calc_multi_col_params(per_type, conn)
 
 
-def build_ih_dir(conn, ih_reverse_cells=IH_DIR_REVERSE_CELLS, *, dtype=SIM_DTYPE):
-    """(conn.n_nodes,) Ih direction (+1 normal, -1 mirrored per cell)."""
+def build_i_h_dir(conn, i_h_reverse_cells=I_H_DIR_REVERSE_CELLS, *, dtype=SIM_DTYPE):
+    """(conn.n_nodes,) i_h direction (+1 normal, -1 mirrored per cell)."""
     d = torch.ones(conn.n_nodes, dtype=dtype, device=conn.node_cell.device)
-    for c in ih_reverse_cells:
+    for c in i_h_reverse_cells:
         d[conn.node_cell == int(c)] = -1.0
     return d
 

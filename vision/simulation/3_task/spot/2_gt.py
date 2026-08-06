@@ -2,12 +2,12 @@
 """Spot paradigm GT: RecF x ImpR gt traces and cost-radius readout.
 
 Merges the old ``Medulla_Library`` RecF/ImpR reader (with its internal
-bandpass/lowpass ImpR shaping -- a gt-only pulse path, not the unused
+bandpass/lowpass ImpR shaping -- a gt-only spot-drive path, not the unused
 Ca filter in ``neuron.filter_ca``) and the old network spot-gt section
 (gt assembly + Euclidean cost radii).
 
 New features handled here:
-- ``ms_pulse`` (#1): the PR drive comes from
+- ``ms_spot`` (#1): the PR drive comes from
   :func:`task.spot.input.spot_input_waveform`, shared by the network ``i_sti``
   and the ImpR gt.
 
@@ -117,8 +117,8 @@ def _highpass(x, tau_ms, *, delta_ms: float):
     return x - _lowpass(x, tau_ms, delta_ms=delta_ms)
 
 
-def _bandpass(pulse, hp_tau_ms, lp_tau_ms, *, delta_ms: float):
-    result = _lowpass(pulse, lp_tau_ms, delta_ms=delta_ms)
+def _bandpass(x, hp_tau_ms, lp_tau_ms, *, delta_ms: float):
+    result = _lowpass(x, lp_tau_ms, delta_ms=delta_ms)
     if hp_tau_ms != 0:
         result = _highpass(result, hp_tau_ms, delta_ms=delta_ms)
     return result
@@ -148,17 +148,17 @@ def _shift_right(y, k: int):
 
 # ImpR onset delay (samples / t-index): L1–L5 +1; other gt cells +2.
 _IMPR_SHIFT_RIGHT = {
-    "L1": 5, "L2": 5, "L3": 5, "L4": 10, "L5": 10,
-    "Mi1": 15, "Tm3": 15, "Mi4": 15, "Mi9": 15,
-    "Tm1": 15, "Tm2": 15, "Tm4": 15, "Tm9": 15,
+    "L1": 5, "L2": 5, "L3": 5, "L4": 5, "L5": 5,
+    "Mi1": 5, "Tm3": 5, "Mi4": 5, "Mi9": 5,
+    "Tm1": 5, "Tm2": 5, "Tm4": 5, "Tm9": 5,
 }
 
 
-def read_RecF_ImpR(*, t_onset=None, n_t=None, ms_pulse=None, delta_ms: float):
+def read_RecF_ImpR(*, t_onset=None, n_t=None, ms_spot=None, delta_ms: float):
     """Return ``(RecF_gt, ImpR_gt)`` for the 13 gt cells.
 
     Shapes: ``RecF_gt`` ``(13, 45)``; ``ImpR_gt`` ``(13, n_t)``. The
-    drive is :func:`task.spot.input.spot_input_waveform` (step or pulse).
+    drive is :func:`task.spot.input.spot_input_waveform` (step or finite spot).
     ImpR filter taus are in ms (scaled by ``delta_ms``); delay is in samples.
     """
     if t_onset is None or n_t is None:
@@ -208,16 +208,16 @@ def read_RecF_ImpR(*, t_onset=None, n_t=None, ms_pulse=None, delta_ms: float):
         [38.0, 58.0, 54.0, 23.0, 42.0, 54.0, 27.0, 38.0, 77.0, 44.0, 14.0, 24.0, 107.0]
     )
 
-    pulse = spot_input_waveform(t_onset, n_t, ms_pulse, delta_ms=delta_ms)
-    pulse = pulse / np.max(pulse)
+    u = spot_input_waveform(t_onset, n_t, ms_spot, delta_ms=delta_ms)
+    u = u / np.max(u)
 
     ImpR_gt = np.zeros((n_cells, n_t))
     for i in range(n_cells):
         if IR_hp_ms[i] == 0:
-            ImpR_gt[i] = _lowpass(pulse, IR_lp_ms[i], delta_ms=delta_ms)
+            ImpR_gt[i] = _lowpass(u, IR_lp_ms[i], delta_ms=delta_ms)
         else:
             ImpR_gt[i] = _bandpass(
-                pulse, IR_hp_ms[i], IR_lp_ms[i], delta_ms=delta_ms,
+                u, IR_hp_ms[i], IR_lp_ms[i], delta_ms=delta_ms,
             )
         ImpR_gt[i] = normalize_gt(ImpR_gt[i])
         name = str(GT_CELLS[i])
@@ -226,10 +226,10 @@ def read_RecF_ImpR(*, t_onset=None, n_t=None, ms_pulse=None, delta_ms: float):
     return RecF_gt, ImpR_gt
 
 
-def read_RecF_gt(*, t_onset=None, n_t=None, ms_pulse=None, delta_ms: float):
+def read_RecF_gt(*, t_onset=None, n_t=None, ms_spot=None, delta_ms: float):
     """Spatial x temporal spot cube ``(n_cells, RF_N_RADII, n_t)``; axis = radius."""
     RecF_gt, ImpR_gt = read_RecF_ImpR(
-        t_onset=t_onset, n_t=n_t, ms_pulse=ms_pulse, delta_ms=delta_ms,
+        t_onset=t_onset, n_t=n_t, ms_spot=ms_spot, delta_ms=delta_ms,
     )
     mt = ImpR_gt.shape[1]
     n_cells = len(GT_CELLS)
@@ -241,10 +241,10 @@ def read_RecF_gt(*, t_onset=None, n_t=None, ms_pulse=None, delta_ms: float):
     return gt
 
 
-def read_RecF_gt_dark(*, t_onset=None, n_t=None, ms_pulse=None, delta_ms: float):
+def read_RecF_gt_dark(*, t_onset=None, n_t=None, ms_spot=None, delta_ms: float):
     """Dark spot spatial x temporal cube: negated bright ``read_RecF_gt()``."""
     return -read_RecF_gt(
-        t_onset=t_onset, n_t=n_t, ms_pulse=ms_pulse, delta_ms=delta_ms,
+        t_onset=t_onset, n_t=n_t, ms_spot=ms_spot, delta_ms=delta_ms,
     )
 
 
@@ -553,7 +553,7 @@ def build_spot_gt(
     cost_extent: Optional[int] = None,
     spot_cost_radius_weight: Optional[Dict[float, float]] = None,
     sim_dtype: torch.dtype,
-    ms_pulse: Optional[float] = None,
+    ms_spot: Optional[float] = None,
     ms_response: Optional[float] = None,
     gt_cells: Optional[Sequence[str]] = None,
 ) -> SpotGt:
@@ -571,7 +571,7 @@ def build_spot_gt(
             f"(ms_response={ms_response:g}, t_onset={t_onset})"
         )
     recf_gt, impr_gt = read_RecF_ImpR(
-        t_onset=t_onset, n_t=n_t_gt, ms_pulse=ms_pulse, delta_ms=delta_ms,
+        t_onset=t_onset, n_t=n_t_gt, ms_spot=ms_spot, delta_ms=delta_ms,
     )
     type_row = {str(rt): i for i, rt in enumerate(GT_CELLS)}
     if gt_cells is not None:
@@ -597,12 +597,12 @@ def build_spot_gt(
     batches = spot_stimulus_batches(spot)
     n_batch = len(batches)
 
-    # Single PR waveform source (step or pulse) shared with the ImpR gt.
-    u = spot_input_waveform(t_onset, n_t, ms_pulse, delta_ms=delta_ms)
+    # Single PR waveform source (step or finite spot) shared with the ImpR gt.
+    u = spot_input_waveform(t_onset, n_t, ms_spot, delta_ms=delta_ms)
     drive = torch.as_tensor(
         i_baseline + (i_spot - i_baseline) * u, dtype=sim_dtype, device=device,
     )
-    # All PR hexes hold i_baseline; stim_uv hexes then get the step/pulse drive.
+    # All PR hexes hold i_baseline; stim_uv hexes then get the step/spot drive.
     pr_idx = torch.as_tensor(np.where(C.is_input)[0], dtype=torch.long, device=device)
     i_sti = torch.zeros((n_batch, n_t, C.n_nodes), dtype=sim_dtype, device=device)
     if len(pr_idx):
@@ -693,7 +693,7 @@ def build_spot_gt(
         "i_bright_spot": float(i_bright_spot),
         "i_dark_spot": float(i_dark_spot),
         "polarity": str(polarity),
-        "ms_pulse": None if ms_pulse is None else float(ms_pulse),
+        "ms_spot": None if ms_spot is None else float(ms_spot),
         "ms_response": float(ms_response),
         "t_onset": int(t_onset),
         "n_t": int(n_t),
@@ -722,16 +722,17 @@ def make_spot_stimulus_opts(
     ms_pre: float,
     ms_response: float,
     delta_ms: float,
+    delta_ms_pre: float,
     shift_extent: int,
     spot_extent: float,
     multi_spot: bool,
     fully_inside: bool,
-    ms_pulse=None,
+    ms_spot=None,
     ms_post: float = 0.0,
     cost_interval_ms=None,
     gt_cells=None,
 ):
-    """PR step/pulse stimulus opts for ``spot_{polarity}``."""
+    """PR step/spot stimulus opts for ``spot_{polarity}``."""
     if polarity not in SPOT_POLARITIES:
         raise ValueError(f"spot polarity must be 'bright' or 'dark', got {polarity!r}")
     peak_key = _SPOT_I_KEY[polarity]
@@ -742,13 +743,14 @@ def make_spot_stimulus_opts(
         "ms_response": float(ms_response),
         "ms_post": float(ms_post),
         "delta_ms": float(delta_ms),
+        "delta_ms_pre": float(delta_ms_pre),
         "shift_extent": int(shift_extent),
         "spot_extent": float(spot_extent),
         "multi_spot": bool(multi_spot),
         "fully_inside": bool(fully_inside),
     }
-    if ms_pulse is not None:
-        opts["ms_pulse"] = float(ms_pulse)
+    if ms_spot is not None:
+        opts["ms_spot"] = float(ms_spot)
     if cost_interval_ms is not None:
         opts["cost_interval_ms"] = float(cost_interval_ms)
     rs = normalize_gt_cells(gt_cells)

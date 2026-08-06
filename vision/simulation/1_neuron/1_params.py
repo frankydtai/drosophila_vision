@@ -15,20 +15,53 @@ def ms_to_t(ms: float, *, delta_ms: float) -> int:
     return int(round(float(ms) / float(delta_ms)))
 
 
-def membrane_dt_over_c(capac: float, delta_ms: float) -> float:
-    """``delta_ms / capac``."""
-    return float(delta_ms) / float(capac)
+def t_to_ms(
+    t: float,
+    *,
+    t_onset: int,
+    delta_ms_pre: float,
+    delta_ms: float,
+) -> float:
+    """Absolute ms at sample index ``t`` (piecewise pre / post-onset dt)."""
+    t = float(t)
+    t0 = int(t_onset)
+    dt_pre = float(delta_ms_pre)
+    dt = float(delta_ms)
+    if t <= t0:
+        return t * dt_pre
+    return float(t0) * dt_pre + (t - float(t0)) * dt
 
 
-def e_ih_off(e_leak_rest: float, e_ih: float) -> float:
-    """OFF-channel reversal ``2 * E_LEAK_REST - E_Ih``."""
-    return 2.0 * float(e_leak_rest) - float(e_ih)
+def ms_to_t_abs(
+    ms: float,
+    *,
+    t_onset: int,
+    delta_ms_pre: float,
+    delta_ms: float,
+) -> int:
+    """Absolute sample index for ms from t=0 with piecewise pre / post dt."""
+    ms = float(ms)
+    t0 = int(t_onset)
+    dt_pre = float(delta_ms_pre)
+    ms_pre = float(t0) * dt_pre
+    if ms <= ms_pre:
+        return ms_to_t(ms, delta_ms=dt_pre)
+    return t0 + ms_to_t(ms - ms_pre, delta_ms=delta_ms)
+
+
+def membrane_dt_over_c(cap: float, delta_ms: float) -> float:
+    """``delta_ms / cap``."""
+    return float(delta_ms) / float(cap)
+
+
+def e_h_off(e_leak_rest: float, e_h: float) -> float:
+    """OFF-channel reversal ``2 * e_leak_rest - e_h``."""
+    return 2.0 * float(e_leak_rest) - float(e_h)
 
 
 # Non-numeric vocabularies (names / modes), not run defaults.
-IH_OFF_MODES = ("on", "off", "mirrored")
-IH_DIR_REVERSE_CELLS: Tuple[int, ...] = ()
-LEAK_DEPOL_CELLS = ["L1", "L2", "L3"]
+I_H_OFF_MODES = ("on", "off", "mirrored")
+I_H_DIR_REVERSE_CELLS: Tuple[int, ...] = ()
 KNOWN_MODELS = ("borst", "hp_lp")
 EULER_MODES = ("implicit", "explicit")
 EULER_CLI = {"im": "implicit", "ex": "explicit"}

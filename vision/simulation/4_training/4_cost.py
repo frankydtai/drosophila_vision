@@ -7,10 +7,11 @@ local-% costs, the mean weighted total (``Σ W·cost / Σ W``), and the Adam
 training loop.
 
 Model traces are absolute ``v``; cost compares ``v`` to
-``gt_aff = a_gt * gt + bias_gt`` (``+ v_th`` when present, i.e. borst).
+``gt_aff = a_gt * gt + bias_gt`` (``+ v_th`` when present).
 When ``train_opts['bias_gt_from_v_onset']``, ``bias_gt`` is replaced by
-``v`` at ``t_onset`` (per readout node); ``bias_gt_from_v_onset_grad``
-controls whether that onset stays in the graph (default detach).
+``v`` at ``t_onset`` (per readout node), clamped to schema ``bias_gt``
+``lo``/``hi``; ``bias_gt_from_v_onset_grad`` controls whether that onset
+stays in the graph (default detach).
 Waveform MSE normalization is ``session`` / ``train_opts`` ``cost_norm``:
 
 * ``gt_power``: ``100 * Σ w (sel−gt_aff)² / Σ w (a_gt·gt)²``
@@ -64,7 +65,11 @@ from param_defaults import (
     COST_NORM as DEFAULT_COST_NORM,
     BIAS_GT_FROM_V_ONSET as DEFAULT_BIAS_GT_FROM_V_ONSET,
     BIAS_GT_FROM_V_ONSET_GRAD as DEFAULT_BIAS_GT_FROM_V_ONSET_GRAD,
+    PARAM_BOXES,
 )
+
+_BIAS_GT_LO = float(PARAM_BOXES["bias_gt"]["lo"])
+_BIAS_GT_HI = float(PARAM_BOXES["bias_gt"]["hi"])
 from training.params import params_from_z, schema_bounds, schema_guess, schema_nparams
 from training.readout_pack import (
     FusedForward,
@@ -101,7 +106,7 @@ def _param_for_nodes(p, key: str, node_index, backend: ModelBackend, *, sim_dtyp
 def gt_affine_for_nodes(p, node_index, backend: ModelBackend, *, sim_dtype=SIM_DTYPE):
     """Per-node ``(a_gt, effective_bias)`` for cost / plot affine on gt.
 
-    ``effective_bias = bias_gt``; if ``v_th`` is in ``p`` (borst), add it.
+    ``effective_bias = bias_gt``; if ``v_th`` is in ``p``, add it.
     """
     scale = _param_for_nodes(p, "a_gt", node_index, backend, sim_dtype=sim_dtype)
     bias = _param_for_nodes(p, "bias_gt", node_index, backend, sim_dtype=sim_dtype)
@@ -128,7 +133,10 @@ def _v_onset_bias_for_pack(
     batch_offset: int = 0,
     batch_idx=None,
 ) -> torch.Tensor:
-    """Per-cost-row ``v`` at ``t_onset``; detach unless ``bias_gt_from_v_onset_grad``."""
+    """Per-cost-row ``v`` at ``t_onset``; clamp to schema ``bias_gt`` lo/hi.
+
+    Detach unless ``bias_gt_from_v_onset_grad``.
+    """
     t0 = pack_t_onset(pack)
     if batch_idx is None:
         rb = (
@@ -142,7 +150,7 @@ def _v_onset_bias_for_pack(
         bias = trace_full[0, t0, pack.readout_node[mask]]
     if not _session_bias_gt_from_v_onset_grad(session):
         bias = bias.detach()
-    return bias
+    return torch.clamp(bias, min=_BIAS_GT_LO, max=_BIAS_GT_HI)
 
 
 def _pack_gt_affine(p, pack: ReadoutPack, backend: ModelBackend, session: TrainSession):

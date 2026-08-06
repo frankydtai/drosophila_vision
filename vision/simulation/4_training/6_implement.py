@@ -39,11 +39,12 @@ from param_defaults import (
     COST_INTERVAL_MS,
     COST_NORM,
     DELTA_MS,
+    DELTA_MS_PRE,
     EULER,
     FP,
     FULLY_INSIDE,
-    IH_GMAX_INDI_NAMES,
-    IH_OFF,
+    H_CELLS,
+    I_H_OFF,
     LRS,
     MODEL,
     MULTI_BAR,
@@ -52,14 +53,13 @@ from param_defaults import (
     NOFRUNS,
     NOFSTEPS_CPU,
     NOFSTEPS_GPU,
-    DELTA_MS,
     PARAM_BOXES,
     PRE_GRAD,
     BIAS_GT_FROM_V_ONSET,
     BIAS_GT_FROM_V_ONSET_GRAD,
     MS_PRE,
     MS_POST,
-    MS_PULSE,
+    MS_SPOT,
     MS_RESPONSE,
     SEQUENTIAL,
     SHIFT_EXTENT,
@@ -205,10 +205,10 @@ def decompose_params(z_t, session):
 
 
 def v_pre_onset_by_cell(z_t, session):
-    """Per-cell-type mean membrane ``v`` at pre start and pulse start.
+    """Per-cell-type mean membrane ``v`` at pre start and spot onset.
 
     * ``v_pre``: ``t=0`` after ``pre_steady`` (``v_rows[0]``).
-    * ``v_onset``: ``t=t_onset`` (``v_rows[t_onset]``), pulse onset / end of pre.
+    * ``v_onset``: ``t=t_onset`` (``v_rows[t_onset]``), spot onset / end of pre.
 
     Uses ``session.primary_readout`` stimulus (``i_sti`` + ``pack_t_onset``).
     """
@@ -729,7 +729,7 @@ def build_session(
     spot_dark_stimulus_opts=None,
     train_modes=None,
     syn_mode=SYN_MODE,
-    ih_off=IH_OFF,
+    i_h_off=I_H_OFF,
     euler=EULER,
     pre_steady=None,
     pre_steady_iters=PRE_STEADY_ITERS,
@@ -772,7 +772,7 @@ def build_session(
         backend="network",
         network_json=network,
         dev=dev,
-        ih_off=ih_off,
+        i_h_off=i_h_off,
         euler=euler,
         pre_steady=pre_steady,
         pre_steady_iters=pre_steady_iters,
@@ -791,7 +791,7 @@ def build_session(
 def run_training(model, nofruns, nofsteps, lrs, fname=None, outdir=None,
                  train_modes=None,
                  syn_mode=SYN_MODE,
-                 ih_off=IH_OFF,
+                 i_h_off=I_H_OFF,
                  euler=EULER,
                  pre_steady=None,
                  pre_steady_iters=PRE_STEADY_ITERS,
@@ -843,7 +843,7 @@ def run_training(model, nofruns, nofsteps, lrs, fname=None, outdir=None,
         spot_dark_stimulus_opts=spot_dark_stimulus_opts,
         train_modes=train_modes,
         syn_mode=syn_mode,
-        ih_off=ih_off,
+        i_h_off=i_h_off,
         euler=euler,
         pre_steady=pre_steady,
         pre_steady_iters=pre_steady_iters,
@@ -857,7 +857,7 @@ def run_training(model, nofruns, nofsteps, lrs, fname=None, outdir=None,
         bias_gt_from_v_onset_grad=bias_gt_from_v_onset_grad,
     )
     suffix = "" if model == "borst" else f"_{model}"
-    fname = fname or f"training{suffix or '_with_Ih'}.npy"
+    fname = fname or f"training{suffix or '_with_i_h'}.npy"
     outdir = outdir or run_dir(model)
 
     print_train_modes(session)
@@ -951,14 +951,14 @@ def add_training_arguments(parser):
                              "resolved under 0_runs/<model>/NAME unless an absolute path is given; "
                              "load named best_param.npz as z init and best_adam.npz as Adam m/v "
                              "(settings come from this CLI, not train_opts.json)")
-    _ih_gmax_default = (
-        "indi=" + ",".join(IH_GMAX_INDI_NAMES) + " fixed=all"
+    _h_g_max_default = (
+        "indi=" + ",".join(H_CELLS) + " fixed=all"
     )
 
     def _box_train_mode_default(name):
         tm = PARAM_BOXES[name]["train_mode"]
         if tm == "indi_named":
-            return _ih_gmax_default
+            return _h_g_max_default
         return f"{tm}=all"
 
     _train_mode_help = (
@@ -973,16 +973,13 @@ def add_training_arguments(parser):
     _train_mode_kwargs = dict(default=None, nargs='+', metavar="MODE")
     parser.add_argument("--all-param", **_train_mode_kwargs,
                         help=f"apply train_modes to every parameter segment "
-                             f"({_train_mode_help}; overridden by --ih-shape and per-param flags)")
+                             f"({_train_mode_help}; overridden by --i-h-shape and per-param flags)")
     parser.add_argument("--a-in", **_train_mode_kwargs,
                         help=f"a_in train_modes ({_train_mode_help}; "
                              f"default {_box_train_mode_default('a_in')})")
     parser.add_argument("--a-out", **_train_mode_kwargs,
                         help=f"a_out train_modes ({_train_mode_help}; "
                              f"default {_box_train_mode_default('a_out')})")
-    parser.add_argument("--bias-out", **_train_mode_kwargs,
-                        help=f"hp_lp bias_out train_modes ({_train_mode_help}; "
-                             f"default {_box_train_mode_default('bias_out')})")
     parser.add_argument("--a-gt", **_train_mode_kwargs,
                         help=f"a_gt train_modes ({_train_mode_help}; "
                              f"default {_box_train_mode_default('a_gt')})")
@@ -999,27 +996,27 @@ def add_training_arguments(parser):
     parser.add_argument("--v-th", **_train_mode_kwargs,
                         help=f"v_th train_modes ({_train_mode_help}; "
                              f"default {_box_train_mode_default('v_th')})")
-    parser.add_argument("--ih-gmax", **_train_mode_kwargs,
-                        help=f"Ih_gmax train_modes ({_train_mode_help}; "
-                             f"default {_box_train_mode_default('Ih_gmax')})")
-    parser.add_argument("--ih-gmax-off", **_train_mode_kwargs,
-                        help=f"Ih_gmax_off train_modes ({_train_mode_help}; "
-                             f"default {_box_train_mode_default('Ih_gmax_off')})")
-    parser.add_argument("--ih-shape", **_train_mode_kwargs,
-                        help="batch train_modes for Ih_midv/Ih_slope/tau_midv and OFF "
-                             f"({_train_mode_help}; default {_box_train_mode_default('Ih_midv')})")
-    parser.add_argument("--ih-midv", **_train_mode_kwargs,
-                        help=f"Ih_midv train_modes (overrides --ih-shape; {_train_mode_help})")
-    parser.add_argument("--ih-slope", **_train_mode_kwargs,
-                        help=f"Ih_slope train_modes (overrides --ih-shape; {_train_mode_help})")
-    parser.add_argument("--tau-midv", **_train_mode_kwargs,
-                        help=f"tau_midv train_modes (overrides --ih-shape; {_train_mode_help})")
-    parser.add_argument("--ih-midv-off", **_train_mode_kwargs,
-                        help=f"Ih_midv_off train_modes (overrides --ih-shape; {_train_mode_help})")
-    parser.add_argument("--ih-slope-off", **_train_mode_kwargs,
-                        help=f"Ih_slope_off train_modes (overrides --ih-shape; {_train_mode_help})")
-    parser.add_argument("--tau-midv-off", **_train_mode_kwargs,
-                        help=f"tau_midv_off train_modes (overrides --ih-shape; {_train_mode_help})")
+    parser.add_argument("--h-g-max", **_train_mode_kwargs,
+                        help=f"h_g_max train_modes ({_train_mode_help}; "
+                             f"default {_box_train_mode_default('h_g_max')})")
+    parser.add_argument("--h-g-max-off", **_train_mode_kwargs,
+                        help=f"h_g_max_off train_modes ({_train_mode_help}; "
+                             f"default {_box_train_mode_default('h_g_max_off')})")
+    parser.add_argument("--i-h-shape", **_train_mode_kwargs,
+                        help="batch train_modes for h_v_mid/h_slope/tau_v_mid and OFF "
+                             f"({_train_mode_help}; default {_box_train_mode_default('h_v_mid')})")
+    parser.add_argument("--h-v-mid", **_train_mode_kwargs,
+                        help=f"h_v_mid train_modes (overrides --i-h-shape; {_train_mode_help})")
+    parser.add_argument("--h-slope", **_train_mode_kwargs,
+                        help=f"h_slope train_modes (overrides --i-h-shape; {_train_mode_help})")
+    parser.add_argument("--tau-v-mid", **_train_mode_kwargs,
+                        help=f"tau_v_mid train_modes (overrides --i-h-shape; {_train_mode_help})")
+    parser.add_argument("--h-v-mid-off", **_train_mode_kwargs,
+                        help=f"h_v_mid_off train_modes (overrides --i-h-shape; {_train_mode_help})")
+    parser.add_argument("--h-slope-off", **_train_mode_kwargs,
+                        help=f"h_slope_off train_modes (overrides --i-h-shape; {_train_mode_help})")
+    parser.add_argument("--tau-v-mid-off", **_train_mode_kwargs,
+                        help=f"tau_v_mid_off train_modes (overrides --i-h-shape; {_train_mode_help})")
     parser.add_argument("--tau-lp", **_train_mode_kwargs,
                         help=f"hp_lp tau_lp train_modes ({_train_mode_help}; "
                              f"default {_box_train_mode_default('tau_lp')})")
@@ -1033,19 +1030,19 @@ def add_training_arguments(parser):
                         help=f"hp_lp a_slow train_modes ({_train_mode_help}; "
                              f"default {_box_train_mode_default('a_slow')})")
     parser.add_argument("--a-sti-r", **_train_mode_kwargs,
-                        help=f"spot a_sti_r train_modes (r=0 init=1; "
-                             f"{_train_mode_help}; "
-                             f"default {_box_train_mode_default('a_sti_r')})")
-    parser.add_argument("--ih-off", default=IH_OFF,
-                        choices=list(training.IH_OFF_MODES),
-                        help="OFF-channel Ih: on (train Ih_gmax_off+OFF shape; default), "
+                        help="spot a_sti_r train_modes "
+                             "(default: fixed=0 init=1, indi=1,sqrt3,2; "
+                             f"{_train_mode_help})")
+    parser.add_argument("--i-h-off", default=I_H_OFF,
+                        choices=list(training.I_H_OFF_MODES),
+                        help="OFF-channel i_h: on (train h_g_max_off+OFF shape; default), "
                              "mirrored (OFF copies ON), off (disable OFF channel)")
     parser.add_argument(
         "--euler",
         default=EULER,
         choices=list(training.EULER_CLI),
         help="membrane Euler: im=implicit (default), ex=explicit; "
-             "Ih gates always explicit",
+             "i_h gates always explicit",
     )
     parser.add_argument(
         "--pre-steady",
@@ -1224,10 +1221,12 @@ def add_stimulus_timing_arguments(
     default_ms_pre=MS_PRE,
     default_ms_response=MS_RESPONSE,
     default_ms_post=MS_POST,
-    default_ms_pulse=MS_PULSE,
+    default_ms_spot=MS_SPOT,
     default_delta_ms=DELTA_MS,
+    default_delta_ms_pre=DELTA_MS_PRE,
 ):
-    """Register ``--ms-pre`` / ``--ms-response`` / ``--ms-post`` / ``--ms-pulse`` / ``--delta-ms``.
+    """Register ``--ms-pre`` / ``--ms-response`` / ``--ms-post`` / ``--ms-spot`` /
+    ``--delta-ms`` / ``--delta-ms-pre``.
 
     Train uses ``param_defaults`` values. Plot / analyze pass ``None`` so
     omitted flags keep the run's ``train_opts.json``.
@@ -1240,8 +1239,8 @@ def add_stimulus_timing_arguments(
     else:
         pre_help = (
             f"pre-stimulus baseline duration in ms (default: {default_ms_pre}; "
-            "t_onset = ms_to_t(ms_pre); "
-            "n_t = ms_to_t(ms_pre)+ms_to_t(ms_response)+ms_to_t(ms_post)+1)"
+            "t_onset = ms_to_t(ms_pre, delta_ms=delta_ms_pre); "
+            "n_t = t_onset+ms_to_t(ms_response)+ms_to_t(ms_post)+1)"
         )
     if default_ms_response is None:
         response_help = (
@@ -1262,25 +1261,36 @@ def add_stimulus_timing_arguments(
             f"spot: forward-only tail after response in ms (default: {default_ms_post}; "
             "not in gt/cost)"
         )
-    if default_ms_pulse is None:
-        pulse_help = (
-            "override spot pulse width in ms "
+    if default_ms_spot is None:
+        spot_help = (
+            "override spot-on width in ms "
             "(keep train if omitted; raises ms_response if shorter)"
         )
     else:
-        pulse_help = (
-            "spot: bright/dark PR pulse duration in ms from onset "
-            f"(default: {default_ms_pulse}; raises ms_response if shorter)"
+        spot_help = (
+            "spot: bright/dark PR on-duration in ms from onset "
+            f"(default: {default_ms_spot}; raises ms_response if shorter)"
         )
     if default_delta_ms is None:
         delta_help = (
-            "override simulation / stimulus time step in ms "
+            "override post-onset simulation / stimulus time step in ms "
             "(writes delta_ms into all stimulus opts; keep train if omitted)"
         )
     else:
         delta_help = (
-            f"simulation / stimulus time step in ms (default: {default_delta_ms}; "
-            "writes delta_ms into all stimulus opts)"
+            f"post-onset simulation / stimulus time step in ms "
+            f"(default: {default_delta_ms}; writes delta_ms into all stimulus opts)"
+        )
+    if default_delta_ms_pre is None:
+        delta_pre_help = (
+            "override pre-onset simulation time step in ms "
+            "(writes delta_ms_pre into all stimulus opts; keep train if omitted)"
+        )
+    else:
+        delta_pre_help = (
+            f"pre-onset simulation time step in ms "
+            f"(default: {default_delta_ms_pre}; writes delta_ms_pre into all "
+            "stimulus opts; t_onset = ms_to_t(ms_pre, delta_ms=delta_ms_pre))"
         )
     parser.add_argument(
         "--ms-pre",
@@ -1304,11 +1314,11 @@ def add_stimulus_timing_arguments(
         help=post_help,
     )
     parser.add_argument(
-        "--ms-pulse",
+        "--ms-spot",
         type=float,
-        default=default_ms_pulse,
+        default=default_ms_spot,
         metavar="MS",
-        help=pulse_help,
+        help=spot_help,
     )
     parser.add_argument(
         "--delta-ms",
@@ -1316,6 +1326,13 @@ def add_stimulus_timing_arguments(
         default=default_delta_ms,
         metavar="MS",
         help=delta_help,
+    )
+    parser.add_argument(
+        "--delta-ms-pre",
+        type=float,
+        default=default_delta_ms_pre,
+        metavar="MS",
+        help=delta_pre_help,
     )
 
 
@@ -1325,15 +1342,17 @@ def apply_train_opts_timing(
     ms_pre=None,
     ms_response=None,
     ms_post=None,
-    ms_pulse=None,
+    ms_spot=None,
     delta_ms=None,
+    delta_ms_pre=None,
 ):
     """Merge timing overrides into train-opts spot/bar stimulus dicts.
 
     Spot opts go through :func:`task.spot.input.apply_spot_timing_overrides`
     (normalize + drop derived ``t_onset``/``n_t``). Returns timing keys that
     changed on spot opts (for filename suffixes); bar-only ``ms_pre`` /
-    ``delta_ms`` changes are included when no spot opts are present.
+    ``delta_ms`` / ``delta_ms_pre`` changes are included when no spot opts
+    are present.
     """
     from task.spot.input import apply_spot_timing_overrides
 
@@ -1347,10 +1366,11 @@ def apply_train_opts_timing(
             ms_pre=ms_pre,
             ms_response=ms_response,
             ms_post=ms_post,
-            ms_pulse=ms_pulse,
+            ms_spot=ms_spot,
             delta_ms=delta_ms,
+            delta_ms_pre=delta_ms_pre,
         )
-    if ms_pre is not None or delta_ms is not None:
+    if ms_pre is not None or delta_ms is not None or delta_ms_pre is not None:
         for key in (
             "moving_bar_bright_stimulus_opts",
             "moving_bar_dark_stimulus_opts",
@@ -1360,10 +1380,13 @@ def apply_train_opts_timing(
                 continue
             before_pre = so.get("ms_pre")
             before_dt = so.get("delta_ms")
+            before_dt_pre = so.get("delta_ms_pre")
             if ms_pre is not None:
                 so["ms_pre"] = float(ms_pre)
             if delta_ms is not None:
                 so["delta_ms"] = float(delta_ms)
+            if delta_ms_pre is not None:
+                so["delta_ms_pre"] = float(delta_ms_pre)
             so.pop("t_onset", None)
             so.pop("n_t", None)
             if not changed:
@@ -1375,6 +1398,11 @@ def apply_train_opts_timing(
                     before_dt is None or float(before_dt) != float(delta_ms)
                 ):
                     changed["delta_ms"] = float(delta_ms)
+                if delta_ms_pre is not None and (
+                    before_dt_pre is None
+                    or float(before_dt_pre) != float(delta_ms_pre)
+                ):
+                    changed["delta_ms_pre"] = float(delta_ms_pre)
     return changed
 
 
@@ -1384,8 +1412,9 @@ def stimulus_timing_kwargs_from_args(args):
         ms_pre=args.ms_pre,
         ms_response=args.ms_response,
         ms_post=args.ms_post,
-        ms_pulse=args.ms_pulse,
+        ms_spot=args.ms_spot,
         delta_ms=args.delta_ms,
+        delta_ms_pre=args.delta_ms_pre,
     )
 
 
@@ -1492,7 +1521,7 @@ def _train_mode_cli_text(parts):
 def _train_mode_cli_map(args):
     """Build ``{seg_name: {indi/shared/fixed/frozen: tokens}}`` from train_mode CLI flags.
 
-    Precedence: ``--all-param`` → ``--ih-shape`` → per-param flags.
+    Precedence: ``--all-param`` → ``--i-h-shape`` → per-param flags.
     Omitted segments keep schema defaults (not listed here).
     """
     syn_mode = training.normalize_syn_mode(getattr(args, "syn_mode", SYN_MODE))
@@ -1511,27 +1540,26 @@ def _train_mode_cli_map(args):
             if name == "syn_strength_edge" and syn_mode != "per_edge":
                 continue
             texts[name] = all_param
-    shape_text = _train_mode_cli_text(getattr(args, "ih_shape", None))
+    shape_text = _train_mode_cli_text(getattr(args, "i_h_shape", None))
     if shape_text is not None:
-        for name in training.IH_SHAPE_PARAM_NAMES:
+        for name in training.I_H_SHAPE_PARAM_NAMES:
             texts[name] = shape_text
     per_param = {
         "a_in": _train_mode_cli_text(getattr(args, "a_in", None)),
         "a_out": _train_mode_cli_text(getattr(args, "a_out", None)),
-        "bias_out": _train_mode_cli_text(getattr(args, "bias_out", None)),
         "a_gt": _train_mode_cli_text(getattr(args, "a_gt", None)),
         "bias_gt": _train_mode_cli_text(getattr(args, "bias_gt", None)),
         "syn_strength_cell": syn_cell_text,
         "syn_strength_edge": syn_edge_text,
         "v_th": _train_mode_cli_text(getattr(args, "v_th", None)),
-        "Ih_gmax": _train_mode_cli_text(getattr(args, "ih_gmax", None)),
-        "Ih_gmax_off": _train_mode_cli_text(getattr(args, "ih_gmax_off", None)),
-        "Ih_midv": _train_mode_cli_text(getattr(args, "ih_midv", None)),
-        "Ih_slope": _train_mode_cli_text(getattr(args, "ih_slope", None)),
-        "tau_midv": _train_mode_cli_text(getattr(args, "tau_midv", None)),
-        "Ih_midv_off": _train_mode_cli_text(getattr(args, "ih_midv_off", None)),
-        "Ih_slope_off": _train_mode_cli_text(getattr(args, "ih_slope_off", None)),
-        "tau_midv_off": _train_mode_cli_text(getattr(args, "tau_midv_off", None)),
+        "h_g_max": _train_mode_cli_text(getattr(args, "h_g_max", None)),
+        "h_g_max_off": _train_mode_cli_text(getattr(args, "h_g_max_off", None)),
+        "h_v_mid": _train_mode_cli_text(getattr(args, "h_v_mid", None)),
+        "h_slope": _train_mode_cli_text(getattr(args, "h_slope", None)),
+        "tau_v_mid": _train_mode_cli_text(getattr(args, "tau_v_mid", None)),
+        "h_v_mid_off": _train_mode_cli_text(getattr(args, "h_v_mid_off", None)),
+        "h_slope_off": _train_mode_cli_text(getattr(args, "h_slope_off", None)),
+        "tau_v_mid_off": _train_mode_cli_text(getattr(args, "tau_v_mid_off", None)),
         "tau_lp": _train_mode_cli_text(getattr(args, "tau_lp", None)),
         "v_rest": _train_mode_cli_text(getattr(args, "v_rest", None)),
         "tau_hp": _train_mode_cli_text(getattr(args, "tau_hp", None)),
@@ -1612,10 +1640,13 @@ def training_kwargs_from_args(
     ms_pre = float(args.ms_pre)
     ms_response = float(args.ms_response)
     ms_post = float(args.ms_post)
-    ms_pulse = float(args.ms_pulse)
+    ms_spot = float(args.ms_spot)
     delta_ms = float(args.delta_ms)
+    delta_ms_pre = float(args.delta_ms_pre)
     if delta_ms <= 0:
         raise ValueError("--delta-ms must be > 0")
+    if delta_ms_pre <= 0:
+        raise ValueError("--delta-ms-pre must be > 0")
     if ms_post < 0:
         raise ValueError("--ms-post must be >= 0")
     multi_bar = bool(args.multi_bar)
@@ -1624,17 +1655,20 @@ def training_kwargs_from_args(
         "ms_response": ms_response,
         "ms_post": ms_post,
         "delta_ms": delta_ms,
-        "ms_pulse": ms_pulse,
+        "delta_ms_pre": delta_ms_pre,
+        "ms_spot": ms_spot,
     }
     moving_bar_bright_stimulus_opts = {
         "multi_bar": multi_bar,
         "ms_pre": ms_pre,
         "delta_ms": delta_ms,
+        "delta_ms_pre": delta_ms_pre,
     }
     moving_bar_dark_stimulus_opts = {
         "multi_bar": multi_bar,
         "ms_pre": ms_pre,
         "delta_ms": delta_ms,
+        "delta_ms_pre": delta_ms_pre,
     }
     spot_bright_stimulus_opts = dict(_timing)
     spot_dark_stimulus_opts = dict(_timing)
@@ -1693,7 +1727,7 @@ def training_kwargs_from_args(
         spot_bright_stimulus_opts=spot_bright_stimulus_opts,
         spot_dark_stimulus_opts=spot_dark_stimulus_opts,
         i_cli=i_cli,
-        ih_off=args.ih_off,
+        i_h_off=args.i_h_off,
         euler=args.euler,
         pre_steady=expand_pre_steady_mode(args.pre_steady),
         pre_steady_iters=PRE_STEADY_ITERS,

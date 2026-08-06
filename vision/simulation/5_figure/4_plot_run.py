@@ -177,16 +177,17 @@ def maybe_override_stimulus_timing(
     ms_pre=None,
     ms_response=None,
     ms_post=None,
-    ms_pulse=None,
+    ms_spot=None,
     delta_ms=None,
+    delta_ms_pre=None,
     euler=None,
 ):
     """Re-open session when any timing / euler override is set; remap best ``z``.
 
-    Unset flags keep values from the run's train opts. ``ms_pre`` / ``delta_ms``
-    also update moving_bar stimulus opts; ``ms_response`` / ``ms_post`` /
-    ``ms_pulse`` are spot-only. ``euler`` is CLI ``im``/``ex`` (or already
-    expanded ``implicit``/``explicit``).
+    Unset flags keep values from the run's train opts. ``ms_pre`` /
+    ``delta_ms`` / ``delta_ms_pre`` also update moving_bar stimulus opts;
+    ``ms_response`` / ``ms_post`` / ``ms_spot`` are spot-only. ``euler`` is
+    CLI ``im``/``ex`` (or already expanded ``implicit``/``explicit``).
 
     Returns ``(session, z, timing_changed)`` where ``timing_changed`` maps
     timing keys that differ from the run (for filename suffixes).
@@ -195,14 +196,17 @@ def maybe_override_stimulus_timing(
         ms_pre is None
         and ms_response is None
         and ms_post is None
-        and ms_pulse is None
+        and ms_spot is None
         and delta_ms is None
+        and delta_ms_pre is None
         and euler is None
     ):
         return session, z, {}
 
     if delta_ms is not None and float(delta_ms) <= 0:
         raise SystemExit("--delta-ms must be > 0")
+    if delta_ms_pre is not None and float(delta_ms_pre) <= 0:
+        raise SystemExit("--delta-ms-pre must be > 0")
     if ms_post is not None and float(ms_post) < 0:
         raise SystemExit("--ms-post must be >= 0")
 
@@ -217,16 +221,18 @@ def maybe_override_stimulus_timing(
         ms_pre is not None
         or ms_response is not None
         or ms_post is not None
-        or ms_pulse is not None
+        or ms_spot is not None
         or delta_ms is not None
+        or delta_ms_pre is not None
     ):
         timing_changed = train_mod.apply_train_opts_timing(
             opts,
             ms_pre=ms_pre,
             ms_response=ms_response,
             ms_post=ms_post,
-            ms_pulse=ms_pulse,
+            ms_spot=ms_spot,
             delta_ms=delta_ms,
+            delta_ms_pre=delta_ms_pre,
         )
 
     if euler is not None:
@@ -262,14 +268,15 @@ def _format_ms_filename_token(value):
 def stimulus_timing_filename_suffix(
     *,
     ms_pre=None,
-    ms_pulse=None,
+    ms_spot=None,
     ms_response=None,
     ms_post=None,
     delta_ms=None,
+    delta_ms_pre=None,
 ):
     """PNG stem suffix for timing keys that differ from the run (plot / analyze).
 
-    Order: pre, pulse, response, post, delta. Example::
+    Order: pre, spot, response, post, delta, delta_pre. Example::
 
         _ms_post_2500
 
@@ -278,10 +285,11 @@ def stimulus_timing_filename_suffix(
     parts = []
     for name, val in (
         ("ms_pre", ms_pre),
-        ("ms_pulse", ms_pulse),
+        ("ms_spot", ms_spot),
         ("ms_response", ms_response),
         ("ms_post", ms_post),
         ("delta", delta_ms),
+        ("delta_pre", delta_ms_pre),
     ):
         if val is not None:
             parts.append(f"{name}_{_format_ms_filename_token(val)}")
@@ -700,8 +708,9 @@ def add_plot_timing_arguments(parser):
         default_ms_pre=None,
         default_ms_response=None,
         default_ms_post=None,
-        default_ms_pulse=None,
+        default_ms_spot=None,
         default_delta_ms=None,
+        default_delta_ms_pre=None,
     )
 
 
@@ -712,7 +721,7 @@ def add_plot_euler_argument(parser):
         default=None,
         choices=list(training.EULER_CLI),
         help="membrane Euler override: im=implicit, ex=explicit "
-             "(default: keep run train_opts.euler); Ih gates always explicit",
+             "(default: keep run train_opts.euler); i_h gates always explicit",
     )
 
 

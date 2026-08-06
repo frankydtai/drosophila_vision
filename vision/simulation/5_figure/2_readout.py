@@ -112,16 +112,16 @@ def _apply_mirror(cells, override):
     return cells
 
 
-def _cell_cubes(*, dark: bool, t_onset=None, n_t=None, ms_pulse=None, delta_ms: float):
+def _cell_cubes(*, dark: bool, t_onset=None, n_t=None, ms_spot=None, delta_ms: float):
     """One contrast: ``{cell: (RF_N_RADII, T)}``."""
-    kw = dict(t_onset=t_onset, n_t=n_t, ms_pulse=ms_pulse, delta_ms=float(delta_ms))
+    kw = dict(t_onset=t_onset, n_t=n_t, ms_spot=ms_spot, delta_ms=float(delta_ms))
     gt = read_RecF_gt_dark(**kw) if dark else read_RecF_gt(**kw)
     cubes = gt * DATA_AMP
     return {str(name): cubes[i] for i, name in enumerate(GT_CELLS)}
 
 
 def fit_gt_cubes(
-    *, contrasts=("bright",), t_onset=None, n_t=None, ms_pulse=None, delta_ms: float = DELTA_MS,
+    *, contrasts=("bright",), t_onset=None, n_t=None, ms_spot=None, delta_ms: float = DELTA_MS,
 ):
     """RecF gt cubes ``{contrast: {cell: (RF_N_RADII, T)}}`` (raw gt before affine)."""
     out = {}
@@ -133,7 +133,7 @@ def fit_gt_cubes(
             )
         out[contrast] = _cell_cubes(
             dark=(contrast == "dark"),
-            t_onset=t_onset, n_t=n_t, ms_pulse=ms_pulse, delta_ms=delta_ms,
+            t_onset=t_onset, n_t=n_t, ms_spot=ms_spot, delta_ms=delta_ms,
         )
     return out
 
@@ -145,7 +145,7 @@ def spot_gt_cubes(
     contrasts=None,
     t_onset=None,
     n_t=None,
-    ms_pulse=None,
+    ms_spot=None,
     delta_ms: float = DELTA_MS,
 ):
     """Spot gt cubes ``{contrast: {cell: (RF_N_RADII, T)}}`` with pack mirror overrides."""
@@ -154,7 +154,7 @@ def spot_gt_cubes(
         contrasts = (contrast_for_task(task),)
     overrides = (session.train_opts or {}).get('pack_overrides') or {}
     base = fit_gt_cubes(
-        contrasts=contrasts, t_onset=t_onset, n_t=n_t, ms_pulse=ms_pulse,
+        contrasts=contrasts, t_onset=t_onset, n_t=n_t, ms_spot=ms_spot,
         delta_ms=delta_ms,
     )
     out = {}

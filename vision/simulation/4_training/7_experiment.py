@@ -3,27 +3,27 @@
 from __future__ import annotations
 
 import training
-from param_defaults import IH_GMAX_INDI_NAMES
+from param_defaults import H_CELLS
 
 
-def merge_ih_train_modes(train_kw):
-    """Pop CLI ``train_modes`` from *train_kw* and merge default Ih/hp splits.
+def merge_i_h_train_modes(train_kw):
+    """Pop CLI ``train_modes`` from *train_kw* and merge default i_h/hp splits.
 
-    Borst: ``Ih_gmax`` / ``Ih_gmax_off``.
+    Borst: ``h_g_max`` / ``h_g_max_off``.
     hp_lp: ``a_slow`` / ``tau_hp``.
-    Indi names: :data:`IH_GMAX_INDI_NAMES`; ``fixed=['all']``.
+    Indi cells: :data:`H_CELLS`; ``fixed=['all']``.
     """
-    ih_indi = list(IH_GMAX_INDI_NAMES)
+    i_h_indi = list(H_CELLS)
     if train_kw['model'] == 'borst':
-        names = ('Ih_gmax', 'Ih_gmax_off')
+        names = ('h_g_max', 'h_g_max_off')
     else:
         names = ('a_slow', 'tau_hp')
-    ih_modes = {
-        name: {'indi': ih_indi, 'fixed': ['all']}
+    i_h_modes = {
+        name: {'indi': i_h_indi, 'fixed': ['all']}
         for name in names
     }
     existing = train_kw.pop('train_modes', None) or {}
-    return {**existing, **ih_modes}
+    return {**existing, **i_h_modes}
 
 
 def spot_tasks_from(tasks):

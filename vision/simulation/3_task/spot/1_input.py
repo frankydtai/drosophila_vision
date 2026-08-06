@@ -4,7 +4,7 @@
 Geometry (centers, sub-spot shifts, Euclidean radii) is split out of the old
 ``network.spot_target`` Section A. The PR drive waveform ``u[t]`` is defined
 here once (``spot_input_waveform``) and consumed by both the network ``i_sti`` and
-the ImpR gt in :mod:`task.spot.gt`, so pulse duration has a single
+the ImpR gt in :mod:`task.spot.gt`, so spot-on duration has a single
 source.
 """
 from __future__ import annotations
@@ -23,7 +23,9 @@ from neuron.params import ms_to_t
 _SPOT_EXTENT_HALF_STEP_TOL = 1e-9
 
 
-_SPOT_TIMING_KEYS = ("ms_pre", "ms_response", "ms_post", "ms_pulse", "delta_ms")
+_SPOT_TIMING_KEYS = (
+    "ms_pre", "ms_response", "ms_post", "ms_spot", "delta_ms", "delta_ms_pre",
+)
 
 
 def _timing_equal(a, b) -> bool:
@@ -35,11 +37,11 @@ def _timing_equal(a, b) -> bool:
 
 
 def normalize_spot_timing(so: dict) -> dict:
-    """In-place: ``ms_response = max(ms_response, ms_pulse)`` when both set."""
-    pulse = so.get("ms_pulse")
+    """In-place: ``ms_response = max(ms_response, ms_spot)`` when both set."""
+    ms_spot = so.get("ms_spot")
     resp = so.get("ms_response")
-    if pulse is not None and resp is not None and float(resp) < float(pulse):
-        so["ms_response"] = float(pulse)
+    if ms_spot is not None and resp is not None and float(resp) < float(ms_spot):
+        so["ms_response"] = float(ms_spot)
     return so
 
 
@@ -49,8 +51,9 @@ def apply_spot_timing_overrides(
     ms_pre=None,
     ms_response=None,
     ms_post=None,
-    ms_pulse=None,
+    ms_spot=None,
     delta_ms=None,
+    delta_ms_pre=None,
 ) -> dict:
     """Merge non-None timing into ``so``, normalize, drop derived ``t_onset``/``n_t``.
 
@@ -64,10 +67,12 @@ def apply_spot_timing_overrides(
         so["ms_response"] = float(ms_response)
     if ms_post is not None:
         so["ms_post"] = float(ms_post)
-    if ms_pulse is not None:
-        so["ms_pulse"] = float(ms_pulse)
+    if ms_spot is not None:
+        so["ms_spot"] = float(ms_spot)
     if delta_ms is not None:
         so["delta_ms"] = float(delta_ms)
+    if delta_ms_pre is not None:
+        so["delta_ms_pre"] = float(delta_ms_pre)
     normalize_spot_timing(so)
     so.pop("t_onset", None)
     so.pop("n_t", None)
@@ -83,15 +88,18 @@ def spot_timing_t(
     ms_pre: float,
     ms_response: float,
     delta_ms: float,
+    delta_ms_pre: float,
     ms_post: float = 0.0,
 ) -> Tuple[int, int]:
     """Return ``(t_onset, n_t)`` from ms timing params.
 
-    ``n_t`` is the forward length: pre + response + post. Cost / ImpR gt use
-    only through response (see :func:`spot_gt_n_t`); ``ms_post`` does not enter gt.
+    Pre uses ``delta_ms_pre``; response / post use ``delta_ms``. ``n_t`` is the
+    forward length: pre + response + post. Cost / ImpR gt use only through
+    response (see :func:`spot_gt_n_t`); ``ms_post`` does not enter gt.
     """
     dt = float(delta_ms)
-    t_onset = ms_to_t(ms_pre, delta_ms=dt)
+    dt_pre = float(delta_ms_pre)
+    t_onset = ms_to_t(ms_pre, delta_ms=dt_pre)
     n_t = (
         t_onset
         + ms_to_t(ms_response, delta_ms=dt)
@@ -106,14 +114,18 @@ def spot_gt_n_t(
     ms_pre: float,
     ms_response: float,
     delta_ms: float,
+    delta_ms_pre: float,
 ) -> int:
     """ImpR / cost timeline length (no ``ms_post``)."""
-    dt = float(delta_ms)
-    return ms_to_t(ms_pre, delta_ms=dt) + ms_to_t(ms_response, delta_ms=dt) + 1
+    return (
+        ms_to_t(ms_pre, delta_ms=float(delta_ms_pre))
+        + ms_to_t(ms_response, delta_ms=float(delta_ms))
+        + 1
+    )
 
 
 def spot_timing_t_from_opts(opts) -> Tuple[int, int]:
-    """``(t_onset, n_t)`` from stimulus opts ``ms_pre`` / ``ms_response`` / ``delta_ms``.
+    """``(t_onset, n_t)`` from stimulus opts timing + piecewise ``delta_ms*``.
 
     Optional ``ms_post`` (default 0) extends forward only.
     """
@@ -123,10 +135,13 @@ def spot_timing_t_from_opts(opts) -> Tuple[int, int]:
         )
     if opts.get("delta_ms") is None:
         raise ValueError("spot stimulus opts require delta_ms")
+    if opts.get("delta_ms_pre") is None:
+        raise ValueError("spot stimulus opts require delta_ms_pre")
     return spot_timing_t(
         ms_pre=float(opts["ms_pre"]),
         ms_response=float(opts["ms_response"]),
         delta_ms=float(opts["delta_ms"]),
+        delta_ms_pre=float(opts["delta_ms_pre"]),
         ms_post=float(opts.get("ms_post", 0.0)),
     )
 
@@ -139,27 +154,30 @@ def spot_gt_n_t_from_opts(opts) -> int:
         )
     if opts.get("delta_ms") is None:
         raise ValueError("spot stimulus opts require delta_ms")
+    if opts.get("delta_ms_pre") is None:
+        raise ValueError("spot stimulus opts require delta_ms_pre")
     return spot_gt_n_t(
         ms_pre=float(opts["ms_pre"]),
         ms_response=float(opts["ms_response"]),
         delta_ms=float(opts["delta_ms"]),
+        delta_ms_pre=float(opts["delta_ms_pre"]),
     )
 
 
-def spot_input_waveform(t_onset, n_t, ms_pulse=None, *, delta_ms: float) -> np.ndarray:
+def spot_input_waveform(t_onset, n_t, ms_spot=None, *, delta_ms: float) -> np.ndarray:
     """Normalized 0/1 photoreceptor drive ``u[t]`` over ``n_t`` samples.
 
-    ``ms_pulse`` omitted -> continue-on step (``u[t_onset:] = 1``). With a value the
-    stimulus is on only for ``[t_onset, t_onset + round(ms_pulse/delta_ms))`` and returns
+    ``ms_spot`` omitted -> continue-on step (``u[t_onset:] = 1``). With a value the
+    stimulus is on only for ``[t_onset, t_onset + round(ms_spot/delta_ms))`` and returns
     to baseline afterward; ``n_t`` is unchanged.
     """
     t_onset = int(t_onset)
     n_t = int(n_t)
     u = np.zeros(n_t)
-    if ms_pulse is None:
+    if ms_spot is None:
         u[t_onset:] = 1.0
     else:
-        width = max(1, ms_to_t(ms_pulse, delta_ms=delta_ms))
+        width = max(1, ms_to_t(ms_spot, delta_ms=delta_ms))
         u[t_onset:min(n_t, t_onset + width)] = 1.0
     return u
 
@@ -212,7 +230,10 @@ def spot_extent_folds_r2_into_r1(spot_extent) -> bool:
     """True when ``spot_extent == 1`` (``spot_extent_half_steps == 2``).
 
     Fold semantics live in :mod:`task.spot.gt`: r=1 gt amplitude is
-    ``RecF(1)+RecF(2)`` and r=2 amplitude is 0.
+    ``RecF(1)+RecF(2)`` and r=2 amplitude is 0. Drive
+    (:func:`build_spot_a_sti_r_drive`) also omits Euclidean ``r > 1``
+    PR contribs (``sqrt3``, ``2``) so those ``a_sti_r`` slots cannot
+    stimulate photoreceptors.
     """
     return spot_extent_half_steps(spot_extent) == 2
 
@@ -366,9 +387,10 @@ def build_spot_a_sti_r_drive(
     batches: List[SpotBatch],
     *,
     sti_radii,
+    spot_extent: float,
     t_onset: int,
     n_t: int,
-    ms_pulse,
+    ms_spot,
     delta_ms: float,
     i_baseline: float,
     i_peak: float,
@@ -379,13 +401,16 @@ def build_spot_a_sti_r_drive(
 
     Returns ``(i_sti, sti_wave, sti_batch, sti_node, sti_r)`` where
     ``i(r,t) = i_baseline + a_sti_r[r] * sti_wave[t]`` on contrib PR nodes.
-    Does not modify gt construction.
+    ``sti_r`` indexes the full ``sti_radii`` / ``a_sti_r`` vector. When
+    ``spot_extent`` folds r2 into r1, Euclidean ``r > 1`` rings are omitted
+    from contribs (params may remain). Does not modify gt construction.
     """
     import torch
 
     radii = tuple(round(float(r), 6) for r in sti_radii)
     if not radii:
         raise ValueError("sti_radii must be non-empty")
+    omit_r_gt_1 = spot_extent_folds_r2_into_r1(spot_extent)
     by_radius = members_by_euclid_radius(radii)
     radius_to_i = {r: i for i, r in enumerate(radii)}
     batch_l: List[int] = []
@@ -394,13 +419,16 @@ def build_spot_a_sti_r_drive(
     for b, batch in enumerate(batches):
         for su, sv in batch.stim_uv:
             for radius_key, members in by_radius.items():
-                ri = radius_to_i[round(float(radius_key), 6)]
+                r_key = round(float(radius_key), 6)
+                if omit_r_gt_1 and r_key > 1.0:
+                    continue
+                ri = radius_to_i[r_key]
                 for du, dv in members:
                     for nid in C.input_nodes_at(int(su) + int(du), int(sv) + int(dv)):
                         batch_l.append(int(b))
                         node_l.append(int(nid))
                         r_l.append(int(ri))
-    u = spot_input_waveform(t_onset, n_t, ms_pulse, delta_ms=delta_ms)
+    u = spot_input_waveform(t_onset, n_t, ms_spot, delta_ms=delta_ms)
     n_batch = len(batches)
     pr_idx = torch.as_tensor(np.where(C.is_input)[0], dtype=torch.long, device=device)
     i_sti = torch.zeros((n_batch, n_t, C.n_nodes), dtype=sim_dtype, device=device)

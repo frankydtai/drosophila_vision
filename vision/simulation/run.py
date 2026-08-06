@@ -243,11 +243,11 @@ def run_mirror_spot_experiment(
     configure_parser=None,
 ):
     """CLI entry for spot mirror-fit experiments (train + plot)."""
-    from param_defaults import DELTA_MS, MS_PRE, MS_RESPONSE
+    from param_defaults import DELTA_MS, DELTA_MS_PRE, MS_PRE, MS_RESPONSE
     from figure.readout import fit_gt_cubes
     from neuron.params import ms_to_t
     from training.experiment import (
-        merge_ih_train_modes,
+        merge_i_h_train_modes,
         spot_pack_overrides,
         spot_tasks_from,
         _normalize_mirror_fits,
@@ -255,7 +255,7 @@ def run_mirror_spot_experiment(
 
     def make_mirror_gt_cubes(fits, sign):
         specs = _normalize_mirror_fits(fits, sign)
-        t_onset = ms_to_t(MS_PRE, delta_ms=DELTA_MS)
+        t_onset = ms_to_t(MS_PRE, delta_ms=DELTA_MS_PRE)
         n_t = t_onset + ms_to_t(MS_RESPONSE, delta_ms=DELTA_MS) + 1
 
         def mirror_gt_cubes(contrasts):
@@ -301,7 +301,7 @@ def run_mirror_spot_experiment(
     fits = mirror_fits(args) if callable(mirror_fits) else mirror_fits
     tasks = run_kw["tasks"]
     pack_overrides = spot_pack_overrides(tasks, fits, mirror_sign)
-    train_modes = merge_ih_train_modes(run_kw)
+    train_modes = merge_i_h_train_modes(run_kw)
     spot_tasks = spot_tasks_from(tasks)
     plot_gt_cubes = resolve_spot_plot_gt_cubes(
         spot_tasks, make_mirror_gt_cubes(fits, mirror_sign),

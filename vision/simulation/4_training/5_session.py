@@ -6,7 +6,7 @@ network backend construction, and the per-task ``ReadoutPack`` builders. The
 builders wrap the neutral gt dataclasses from ``task`` (which sit below
 ``training`` in the import graph) and stamp the cross-cutting readout controls:
 
-* spot: sparse ``cost_time_ix`` (#4), pulse ``ms_pulse`` (#1) already baked into
+* spot: sparse ``cost_time_ix`` (#4), ``ms_spot`` (#1) already baked into
   the stimulus, ``waveform_mse=True``;
 * moving bar: ``waveform_mse`` from cost weights (True when a cost window is
   built).
@@ -35,11 +35,12 @@ from neuron import (
 )
 from param_defaults import (
     CA_TAU,
-    CAPAC,
+    CAP,
     DATA_AMP,
     DELTA_MS,
+    DELTA_MS_PRE,
     E_EXC,
-    E_IH,
+    E_H,
     E_INH,
     E_LEAK_DEPOL,
     E_LEAK_REST,
@@ -49,7 +50,7 @@ from param_defaults import (
     FULLY_INSIDE,
     G_LEAK,
     G_IN,
-    IH_GAIN,
+    A_H,
     SYN_SCALE_INH,
     MULTI_BAR,
     MULTI_SPOT,
@@ -62,15 +63,16 @@ from param_defaults import (
     SPOT_STI_R_NAMES,
     SPOT_EXTENT,
     STATE_CLAMP,
-    IH_GMAX_INDI_NAMES,
-    IH_OFF,
+    H_CELLS,
+    I_H_OFF,
+    LEAK_DEPOL_CELLS,
     I_BASELINE,
     I_BRIGHT,
     I_DARK,
     PARAM_BOXES,
     MS_PRE,
     MS_POST,
-    MS_PULSE,
+    MS_SPOT,
     MS_RESPONSE,
     SYN_MODE,
     COST_NORM,
@@ -114,7 +116,7 @@ from training.params import (
     apply_train_modes,
     attach_param_carry,
     build_e_leak,
-    build_ih_dir,
+    build_i_h_dir,
     schema_nparams,
     schema_train_modes_record,
     node_names_for_segment,
@@ -328,8 +330,6 @@ def _network_backend_from_connectome(
     C, *, e_leak_rest: float, e_leak_depol: float, sim_dtype=SIM_DTYPE,
 ) -> ModelBackend:
     """Build a :class:`ModelBackend` from an already-loaded connectome graph."""
-    from neuron.params import LEAK_DEPOL_CELLS
-
     tn = list(C.cell_names)
     depol = tuple(tn.index(t) for t in LEAK_DEPOL_CELLS if t in tn)
     conn = C.conn
@@ -339,7 +339,7 @@ def _network_backend_from_connectome(
             conn, C.n_cells, depol_cells=depol, dtype=sim_dtype,
             e_leak_rest=e_leak_rest, e_leak_depol=e_leak_depol,
         ),
-        ih_dir=build_ih_dir(conn, dtype=sim_dtype),
+        i_h_dir=build_i_h_dir(conn, dtype=sim_dtype),
         n_cells=C.n_cells,
         n_hexes=1,
         network=C,
@@ -358,7 +358,7 @@ def load_network_backend(
     sim_dtype=SIM_DTYPE,
     syn_mode=SYN_MODE,
     param_boxes=PARAM_BOXES,
-    ih_gmax_indi_names=IH_GMAX_INDI_NAMES,
+    h_cells=H_CELLS,
 ) -> ModelBackend:
     """Load connectome network into a :class:`ModelBackend`."""
     dev = dev or active_device()
@@ -375,7 +375,7 @@ def load_network_backend(
     print(f"  n_nodes={backend.n_nodes}, n_cells={backend.n_cells}, "
           f"n_pairs={backend.conn.n_pairs}, n_edges={backend.conn.n_edges}, "
           f"syn_mode={mode}, "
-          f"nparams={schema_nparams(default_schema('borst', backend, syn_mode=mode, param_boxes=param_boxes, ih_gmax_indi_names=ih_gmax_indi_names, sti_r_names=SPOT_STI_R_NAMES))}")
+          f"nparams={schema_nparams(default_schema('borst', backend, syn_mode=mode, param_boxes=param_boxes, h_cells=h_cells, sti_r_names=SPOT_STI_R_NAMES))}")
     return backend
 
 
@@ -417,6 +417,7 @@ def _moving_bar_polarity_opts(ctx: _TrainBindCtx, polarity: str) -> dict:
         i_moving_bar=I_BRIGHT if polarity == "bright" else I_DARK,
         ms_pre=MS_PRE,
         delta_ms=DELTA_MS,
+        delta_ms_pre=DELTA_MS_PRE,
         multi_bar=MULTI_BAR,
     )
 
@@ -446,8 +447,11 @@ def _build_network_moving_bar_readout(ctx: _TrainBindCtx, C, *, pack_name: str, 
         C=C,
         device=dev,
         sim_dtype=ctx.sim_dtype,
-        t_onset=ms_to_t(float(opts["ms_pre"]), delta_ms=float(opts.get("delta_ms", DELTA_MS))),
-        delta_ms=float(opts.get("delta_ms", DELTA_MS)),
+        t_onset=ms_to_t(
+            float(opts["ms_pre"]),
+            delta_ms=float(opts["delta_ms_pre"]),
+        ),
+        delta_ms=float(opts["delta_ms"]),
         cost_extent=cost_extent,
         i_baseline_moving_bar=opts[_MOVING_BAR_BASELINE_KEY],
         contrasts=(polarity,),
@@ -511,7 +515,7 @@ def _spot_cost_times_ms(opts):
     interval_ms = float(interval_ms)
     if interval_ms <= 0:
         raise ValueError("cost_interval_ms must be > 0")
-    delta_ms = float(opts.get("delta_ms", DELTA_MS))
+    delta_ms = float(opts["delta_ms"])
     t_onset, _n_t = spot_timing_t_from_opts(opts)
     post = spot_gt_n_t_from_opts(opts) - t_onset
     if post <= 0:
@@ -532,7 +536,7 @@ def _spot_cost_time_ix(opts, *, device):
     cost_time_ms = _spot_cost_times_ms(opts)
     if not cost_time_ms:
         return None
-    delta_ms = float(opts.get("delta_ms", DELTA_MS))
+    delta_ms = float(opts["delta_ms"])
     t_onset, _n_t = spot_timing_t_from_opts(opts)
     post = spot_gt_n_t_from_opts(opts) - t_onset
     ix = [int(round(float(ms) / delta_ms)) for ms in cost_time_ms]
@@ -591,7 +595,7 @@ def _build_network_spot_task(
         i_bright_spot=i_spot if polarity == "bright" else float(opts.get("i_bright_spot", I_BRIGHT)),
         i_dark_spot=i_spot if polarity == "dark" else float(opts.get("i_dark_spot", I_DARK)),
         polarity=polarity,
-        ms_pulse=float(opts.get("ms_pulse", MS_PULSE)),
+        ms_spot=float(opts.get("ms_spot", MS_SPOT)),
         ms_response=float(opts["ms_response"]),
         data_amp=DATA_AMP,
         delta_ms=delta_ms,
@@ -611,9 +615,10 @@ def _build_network_spot_task(
         C,
         batches,
         sti_radii=SPOT_COST_RADII,
+        spot_extent=spot_extent,
         t_onset=int(t_onset),
         n_t=int(n_t),
-        ms_pulse=float(opts.get("ms_pulse", MS_PULSE)),
+        ms_spot=float(opts.get("ms_spot", MS_SPOT)),
         delta_ms=delta_ms,
         i_baseline=i_baseline,
         i_peak=i_spot,
@@ -825,11 +830,12 @@ def _finalize_stimulus_opts(
             ms_response=float(raw.get("ms_response", MS_RESPONSE)),
             ms_post=float(raw.get("ms_post", MS_POST)),
             delta_ms=float(raw.get("delta_ms", DELTA_MS)),
+            delta_ms_pre=float(raw.get("delta_ms_pre", DELTA_MS_PRE)),
             shift_extent=int(raw.get("shift_extent", shift_extent if shift_extent is not None else SHIFT_EXTENT)),
             spot_extent=float(raw.get("spot_extent", spot_extent if spot_extent is not None else SPOT_EXTENT)),
             multi_spot=bool(raw.get("multi_spot", multi_spot if multi_spot is not None else MULTI_SPOT)),
             fully_inside=bool(raw.get("fully_inside", fully_inside if fully_inside is not None else FULLY_INSIDE)),
-            ms_pulse=float(raw.get("ms_pulse", MS_PULSE)),
+            ms_spot=float(raw.get("ms_spot", MS_SPOT)),
             cost_interval_ms=raw.get("cost_interval_ms"),
             gt_cells=raw.get("gt_cells"),
         )
@@ -841,6 +847,7 @@ def _finalize_stimulus_opts(
             i_moving_bar=float(raw.get("i_bright_moving_bar", I_BRIGHT)),
             ms_pre=float(raw.get("ms_pre", MS_PRE)),
             delta_ms=float(raw.get("delta_ms", DELTA_MS)),
+            delta_ms_pre=float(raw.get("delta_ms_pre", DELTA_MS_PRE)),
             multi_bar=bool(raw.get("multi_bar", MULTI_BAR)),
             gt_cells=raw.get("gt_cells"),
         )
@@ -852,6 +859,7 @@ def _finalize_stimulus_opts(
             i_moving_bar=float(raw.get("i_dark_moving_bar", I_DARK)),
             ms_pre=float(raw.get("ms_pre", MS_PRE)),
             delta_ms=float(raw.get("delta_ms", DELTA_MS)),
+            delta_ms_pre=float(raw.get("delta_ms_pre", DELTA_MS_PRE)),
             multi_bar=bool(raw.get("multi_bar", MULTI_BAR)),
             gt_cells=raw.get("gt_cells"),
         )
@@ -891,7 +899,7 @@ def make_train_opts(
     cost_norm=COST_NORM,
     dev=None,
     packs=None,
-    ih_off=IH_OFF,
+    i_h_off=I_H_OFF,
     euler=EULER,
     pre_steady=None,
     pre_steady_iters=PRE_STEADY_ITERS,
@@ -978,7 +986,7 @@ def make_train_opts(
         opts["packs"] = packs
     if train_modes is not None:
         opts["train_modes"] = train_modes
-    opts["ih_off"] = str(ih_off)
+    opts["i_h_off"] = str(i_h_off)
     opts["euler"] = expand_euler(euler)
     opts["syn_mode"] = normalize_syn_mode(syn_mode)
     opts["pre_grad"] = bool(pre_grad)
@@ -1056,8 +1064,8 @@ def _train_opts_for_sidecar(
         record["pack_overrides"] = overrides
     if opts.get("train_modes"):
         record["train_modes"] = opts["train_modes"]
-    if "ih_off" in opts:
-        record["ih_off"] = str(opts["ih_off"])
+    if "i_h_off" in opts:
+        record["i_h_off"] = str(opts["i_h_off"])
     if "euler" not in opts:
         raise ValueError("train opts require euler (implicit|explicit)")
     record["euler"] = expand_euler(opts["euler"])
@@ -1073,7 +1081,7 @@ def _train_opts_for_sidecar(
     return record
 
 
-def _schema_from_opts(model, model_backend, schema, train_opts_record, *, ih_off=None):
+def _schema_from_opts(model, model_backend, schema, train_opts_record, *, i_h_off=None):
     if schema is not None:
         return list(schema)
     syn_mode = SYN_MODE
@@ -1082,11 +1090,11 @@ def _schema_from_opts(model, model_backend, schema, train_opts_record, *, ih_off
     kw = dict(
         syn_mode=syn_mode,
         param_boxes=PARAM_BOXES,
-        ih_gmax_indi_names=IH_GMAX_INDI_NAMES,
+        h_cells=H_CELLS,
         sti_r_names=SPOT_STI_R_NAMES,
     )
     if model == "borst":
-        kw["ih_off"] = str(ih_off if ih_off is not None else IH_OFF)
+        kw["i_h_off"] = str(i_h_off if i_h_off is not None else I_H_OFF)
     base = default_schema(model, model_backend, **kw)
     if not train_opts_record:
         return base
@@ -1105,6 +1113,7 @@ def _make_session(
     packs: Dict[str, ReadoutPack],
     *,
     delta_ms: float,
+    delta_ms_pre: float,
     cost_weights=None,
     sequential=None,
     dev=None,
@@ -1117,9 +1126,9 @@ def _make_session(
     if train_opts_record is not None:
         train_opts_record["model"] = model
         train_opts_record["sequential"] = bool(seq)
-    ih_off = IH_OFF
-    if train_opts_record is not None and "ih_off" in train_opts_record:
-        ih_off = str(train_opts_record["ih_off"])
+    i_h_off = I_H_OFF
+    if train_opts_record is not None and "i_h_off" in train_opts_record:
+        i_h_off = str(train_opts_record["i_h_off"])
     if train_opts_record is None or "euler" not in train_opts_record:
         raise ValueError("train opts require euler (implicit|explicit)")
     euler = expand_euler(train_opts_record["euler"])
@@ -1139,7 +1148,7 @@ def _make_session(
         sch = list(schema)
     else:
         sch = _schema_from_opts(
-            model, model_backend, None, train_opts_record, ih_off=ih_off,
+            model, model_backend, None, train_opts_record, i_h_off=i_h_off,
         )
     if train_opts_record is not None:
         train_opts_record["train_modes"] = schema_train_modes_record(
@@ -1156,15 +1165,16 @@ def _make_session(
         sequential=bool(seq),
         device=dev_ref,
         delta_ms=float(delta_ms),
-        capac=CAPAC,
+        delta_ms_pre=float(delta_ms_pre),
+        cap=CAP,
         g_leak=G_LEAK,
         g_in=G_IN,
-        E_exc=E_EXC,
-        E_inh=E_INH,
-        E_Ih=E_IH,
-        E_LEAK_REST=E_LEAK_REST,
-        E_LEAK_DEPOL=E_LEAK_DEPOL,
-        Ih_gain=IH_GAIN,
+        e_exc=E_EXC,
+        e_inh=E_INH,
+        e_h=E_H,
+        e_leak_rest=E_LEAK_REST,
+        e_leak_depol=E_LEAK_DEPOL,
+        a_h=A_H,
         Ca_tau=CA_TAU,
         DATA_AMP=DATA_AMP,
         STATE_CLAMP=STATE_CLAMP,
@@ -1200,6 +1210,7 @@ def open_session(
     dev = opts.get("dev") or active_device()
     sim_dtype = sim_dtype_from_fp(int(opts.get("fp", FP)))
     delta_ms = _delta_ms_from_train_opts(opts)
+    delta_ms_pre = _delta_ms_pre_from_train_opts(opts)
 
     C = opts.get("network")
     syn_mode = normalize_syn_mode(opts.get("syn_mode", SYN_MODE))
@@ -1254,6 +1265,7 @@ def open_session(
     return _make_session(
         model_backend, model, tasks, packs,
         delta_ms=delta_ms,
+        delta_ms_pre=delta_ms_pre,
         cost_weights=opts.get("cost_weights"),
         sequential=opts.get("sequential"),
         dev=dev,
@@ -1274,6 +1286,21 @@ def _delta_ms_from_train_opts(opts: dict) -> float:
             return dt
     raise ValueError(
         "train opts require delta_ms in a stimulus opts dict "
+        f"(one of {[k for _, k in _STIMULUS_TRAIN_OPT_SPECS]})"
+    )
+
+
+def _delta_ms_pre_from_train_opts(opts: dict) -> float:
+    """``delta_ms_pre`` from stimulus opts only (required; no Physics bag)."""
+    for _tname, opts_key in _STIMULUS_TRAIN_OPT_SPECS:
+        so = opts.get(opts_key)
+        if isinstance(so, dict) and so.get("delta_ms_pre") is not None:
+            dt = float(so["delta_ms_pre"])
+            if dt <= 0:
+                raise ValueError(f"stimulus opts delta_ms_pre must be > 0, got {dt}")
+            return dt
+    raise ValueError(
+        "train opts require delta_ms_pre in a stimulus opts dict "
         f"(one of {[k for _, k in _STIMULUS_TRAIN_OPT_SPECS]})"
     )
 
