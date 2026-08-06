@@ -27,6 +27,7 @@ recomputed on the subsample.
 """
 from __future__ import annotations
 
+import copy
 import sys
 import time
 from dataclasses import replace
@@ -961,23 +962,28 @@ def gradient_network(z, lr=0.0001, cost_fn=None, n_steps=100, device="cpu", z_bo
     best_z = z.clone().detach()
     interval_best_cost = cost
     interval_best_z = z.clone().detach()
+    # Adam m/v at the z that achieved interval_best (before the step that left it).
+    interval_best_opt = copy.deepcopy(optimizer.state_dict())
 
     initial_cost = 1.0 * cost
     initial_parts = float_last_parts(task_order) if float_last_parts else None
     best_parts = initial_parts
 
-    def _reset_interval_from_z():
-        nonlocal interval_best_cost, interval_best_z
-        interval_best_cost = _measure_cost(z)
+    def _snapshot_interval_best(cost_value):
+        nonlocal interval_best_cost, interval_best_z, interval_best_opt
+        interval_best_cost = cost_value
         interval_best_z = z.clone().detach()
+        interval_best_opt = copy.deepcopy(optimizer.state_dict())
+
+    def _reset_interval_from_z():
+        _snapshot_interval_best(_measure_cost(z))
 
     def _commit_interval_checkpoint(global_step):
-        nonlocal optimizer
         if on_interval_best is not None:
             on_interval_best(global_step, interval_best_z, interval_best_cost)
         with torch.no_grad():
             z.copy_(interval_best_z)
-        optimizer = torch.optim.Adam([z], lr=lr)
+        optimizer.load_state_dict(interval_best_opt)
         _reset_interval_from_z()
 
     progress_bar = tqdm(
@@ -1026,8 +1032,7 @@ def gradient_network(z, lr=0.0001, cost_fn=None, n_steps=100, device="cpu", z_bo
                 best_parts = float_last_parts(task_order)
 
         if cost < interval_best_cost:
-            interval_best_cost = cost
-            interval_best_z = z.clone().detach()
+            _snapshot_interval_best(cost)
 
         if cost_log is not None:
             cost_log.append(cost)

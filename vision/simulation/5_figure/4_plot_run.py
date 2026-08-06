@@ -477,8 +477,6 @@ def plot_param_set(params, outdir, model=None, model_all=True,
     from figure.util import plot_file_ext
 
     os.makedirs(outdir, exist_ok=True)
-    data_dir = run_data_dir(os.path.abspath(outdir))
-    os.makedirs(data_dir, exist_ok=True)
     ctx = context_dir or outdir
     if model is None and session is not None:
         model = session.model

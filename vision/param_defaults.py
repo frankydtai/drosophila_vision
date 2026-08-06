@@ -15,7 +15,7 @@ import math
 from typing import Dict, Tuple
 
 DEFAULT_RUN_NAME = """
-28771069-run-nofsteps-300-lrs-0.1-a-slow-init.L1,L2-0.6-ms-pre-100-ms-pulse-100-ms-response-500-ms-post-500
+28826501-run-nofsteps-300-a-slow-init.L1,L2-0.6-ms-pre-200-ms-pulse-100-ms-response-300-gt-spot-L1,L2,L3,L4,L5-bias-out-init.L1,L2,L3-20
 """.strip()
 DEFAULT_RUN_PATH = "hp_lp/" + DEFAULT_RUN_NAME
 
@@ -67,9 +67,9 @@ PARAM_BOXES: Dict[str, dict] = {
     "tau_midv_off": dict(lo=-70.0, hi=-40.0, init=-50.0, jit=5.0, train_mode="shared"),
     "tau_lp": dict(lo=10.0, hi=100.0, init=50.0, jit=5.0, train_mode="indi"),
     "v_rest": dict(lo=-20.0, hi=20.0, init=0.0, jit=1.0, train_mode="fixed"),
-    "bias_out": dict(lo=-30.0, hi=30.0, init=0.0, jit=1.0, train_mode="indi"),
+    "bias_out": dict(lo=-50.0, hi=50.0, init=0.0, jit=1.0, train_mode="indi"),
     "tau_hp": dict(lo=100.0, hi=500.0, init=200.0, jit=20.0, train_mode="indi"),
-    "a_slow": dict(lo=0.0, hi=1.0, init=0.5, jit=0.05, train_mode="fixed"),
+    "a_slow": dict(lo=0.0, hi=1.0, init=0.0, jit=0.05, train_mode="indi"),
     "a_sti_r": dict(lo=0.0, hi=1.0, init=0.0, jit=0.05, train_mode="indi"),
 }
 
@@ -143,7 +143,7 @@ MULTI_BAR = True
 # 4.1 training.config
 # ---------------------------------------------------------------------------
 
-TASK = "spot_bright"
+TASK = "spot"
 
 # ---------------------------------------------------------------------------
 # 4.4 training.cost
@@ -167,7 +167,7 @@ NOFRUNS = 1
 NOFSTEPS_CPU = 50
 NOFSTEPS_GPU = 200
 LRS = "0.1"
-CHECKPOINT_INTERVAL = 2000
+CHECKPOINT_INTERVAL = 500
 
 # ---------------------------------------------------------------------------
 # 4.5 training.session

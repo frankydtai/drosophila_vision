@@ -59,6 +59,7 @@ from task.spot.input import (
     spot_stimulus_batches,
 )
 from task.spot.gt import (
+    _IMPR_SHIFT_RIGHT,
     RF_CENTER_RADIUS,
     RF_N_RADII,
     RF_RADIUS_DEG,
@@ -140,39 +141,47 @@ def resolve_spot_gt_cubes(sessions, gt_cubes=None):
     return out
 
 
-def _session_cost_time_ix(session, response_start):
+def _session_cost_time_ix(session, t_onset):
     """Absolute time indices used for sparse spot cost (or ``None``)."""
     if session is None:
         return None
     ix = getattr(session.primary_readout, "cost_time_ix", None)
     if ix is None:
         return None
-    base = int(response_start or 0)
+    base = int(t_onset or 0)
     ix_np = ix.detach().cpu().numpy().astype(np.int64, copy=False)
     return base + ix_np
 
 
-def scale_curve(xt, center_radius, sem_xt=None, *, response_start=None, pulse_end=None):
+def scale_curve(xt, center_radius, sem_xt=None, *, t_onset=None, pulse_end=None, t_lag=0):
     """Center-radius time course + RF profile from one ``(RF_N_RADII, T)`` cube.
 
-    RF peak time ``maxt`` is ``argmax |v|`` inside pulse ``[response_start, pulse_end)``.
+    RF peak time ``t_v_max`` is ``argmax |v - v_onset|`` inside the
+    lag-shifted pulse window ``[t_onset + t_lag, pulse_end + t_lag)``
+    (onset = first sample of that shifted window).
+    Absolute ``|v|`` would pick onset when a large bias moves toward zero.
     """
-    if response_start is None:
-        raise ValueError("scale_curve requires response_start (t_onset)")
+    if t_onset is None:
+        raise ValueError("scale_curve requires t_onset")
     if pulse_end is None:
         raise ValueError("scale_curve requires pulse_end")
-    t0 = int(response_start)
-    t1 = int(pulse_end)
-    if t1 <= t0:
-        raise ValueError(f"scale_curve requires pulse_end > response_start, got [{t0}, {t1})")
     imp = xt[center_radius]
+    t_lag = int(t_lag)
+    t0 = max(0, int(t_onset) + t_lag)
+    t1 = min(int(imp.shape[0]), int(pulse_end) + t_lag)
+    if t1 <= t0:
+        raise ValueError(
+            "scale_curve requires shifted pulse_end > shifted t_onset, "
+            f"got [{t0}, {t1}) with t_lag={t_lag}"
+        )
     resp = imp[t0:t1]
     if not np.isfinite(resp).any():
         if sem_xt is not None:
             return None, None, None
         return None, None
-    maxt = t0 + int(np.argmax(np.abs(resp)))
-    spatial = np.asarray(xt[:, maxt], dtype=np.float64)
+    ref = float(resp[0]) if np.isfinite(resp[0]) else float(resp[np.isfinite(resp)][0])
+    t_v_max = t0 + int(np.nanargmax(np.abs(resp - ref)))
+    spatial = np.asarray(xt[:, t_v_max], dtype=np.float64)
     if sem_xt is not None:
         return imp, spatial, sem_xt[center_radius]
     return imp, spatial
@@ -233,7 +242,7 @@ def _style_recf_profile_axis(ax, show_xlabel):
 
 
 def _scale_contrast_series(
-    series, *, response_start, pulse_end, center_radius=RF_CENTER_RADIUS,
+    series, *, t_onset, pulse_end, center_radius=RF_CENTER_RADIUS, t_lag=0,
 ):
     """Scale each contrast series entry to ImpR + RF radii.
 
@@ -241,7 +250,7 @@ def _scale_contrast_series(
     Returns a list of dicts with ``imp_model``, ``rf_model``, ``imp_sem``,
     ``imp_gt``, ``rf_gt`` plus passthrough keys.
     """
-    sc_kw = dict(response_start=response_start, pulse_end=pulse_end)
+    sc_kw = dict(t_onset=t_onset, pulse_end=pulse_end, t_lag=t_lag)
     out = []
     for entry in series:
         item = dict(entry)
@@ -282,12 +291,13 @@ def plot_cell_rf(
     show_xlabels=False,
     show_ylabel=False,
     baseline=None,
-    response_start=None,
+    t_onset=None,
     pulse_end=None,
+    t_lag=0,
 ):
     """RF-profile panel for one cell across contrast ``series``."""
     scaled = _scale_contrast_series(
-        series, response_start=response_start, pulse_end=pulse_end,
+        series, t_onset=t_onset, pulse_end=pulse_end, t_lag=t_lag,
     )
     for item in scaled:
         ls = item.get("linestyle", "-")
@@ -318,28 +328,30 @@ def plot_cell_time(
     show_ylabel=False,
     baseline=None,
     n_t=None,
-    response_start=None,
+    t_onset=None,
     pre_end=None,
     show_pre=False,
     pulse_end=None,
+    t_lag=0,
     delta_ms=None,
     ms_shown=None,
     center_radius=RF_CENTER_RADIUS,
 ):
     """Time-course panel for one cell across contrast ``series``.
 
-    ``pre_end`` defaults to ``response_start`` (gray gt omits ``[0, pre_end)``).
+    ``pre_end`` defaults to ``t_onset`` (gray gt omits ``[0, pre_end)``).
     Pass ``pre_end=0`` to draw the full gt trace including pre-onset.
-    ``pulse_end``: white stimulus-on band ``[response_start, pulse_end)``.
+    ``pulse_end``: white stimulus-on band ``[t_onset, pulse_end)``.
     """
     scaled = _scale_contrast_series(
         series,
-        response_start=response_start,
+        t_onset=t_onset,
         pulse_end=pulse_end,
+        t_lag=t_lag,
         center_radius=int(center_radius),
     )
     t = np.arange(n_t)
-    split = int(response_start or 0) if pre_end is None else int(pre_end)
+    split = int(t_onset or 0) if pre_end is None else int(pre_end)
     if title is not None:
         ax.set_title(title, fontsize=8, pad=2)
     traces = [
@@ -362,7 +374,7 @@ def plot_cell_time(
         ),
         pre_end=split,
         show_pre=show_pre,
-        pulse_start=response_start,
+        pulse_start=t_onset,
         pulse_end=pulse_end,
     )
 
@@ -379,9 +391,10 @@ def plot_cell_rf_time(
     show_ylabel=False,
     baseline=None,
     n_t=None,
-    response_start=None,
+    t_onset=None,
     show_pre=False,
     pulse_end=None,
+    t_lag=0,
     delta_ms=None,
     ms_shown=None,
 ):
@@ -392,8 +405,9 @@ def plot_cell_rf_time(
         show_xlabels=show_xlabels,
         show_ylabel=show_ylabel,
         baseline=baseline,
-        response_start=response_start,
+        t_onset=t_onset,
         pulse_end=pulse_end,
+        t_lag=t_lag,
     )
     plot_cell_time(
         ax_time, series,
@@ -402,9 +416,10 @@ def plot_cell_rf_time(
         show_ylabel=show_ylabel,
         baseline=baseline,
         n_t=n_t,
-        response_start=response_start,
+        t_onset=t_onset,
         show_pre=show_pre,
         pulse_end=pulse_end,
+        t_lag=t_lag,
         delta_ms=delta_ms,
         ms_shown=ms_shown,
     )
@@ -423,19 +438,20 @@ def plot_cell_rf_time_slices(
     show_ylabel=False,
     baseline=None,
     n_t=None,
-    response_start=None,
+    t_onset=None,
     show_pre=False,
     pulse_end=None,
+    t_lag=0,
     delta_ms=None,
     ms_shown=None,
 ):
     """RF + time panels with per-slice overlays across contrast ``series``."""
     center_radius = RF_CENTER_RADIUS
-    sc_kw = dict(response_start=response_start, pulse_end=pulse_end)
+    sc_kw = dict(t_onset=t_onset, pulse_end=pulse_end, t_lag=t_lag)
     colors = overlay_model_reds(len(slice_labels))
     t = np.arange(n_t)
-    pre_end = int(response_start or 0)
-    mark_pulse(ax_time, response_start, pulse_end)
+    pre_end = int(t_onset or 0)
+    mark_pulse(ax_time, t_onset, pulse_end)
 
     for si, item in enumerate(series):
         ls = item.get("linestyle", "-")
@@ -577,7 +593,7 @@ class SpotTraceBundle:
     prep_s: float = 0.0
     v_ref_by_name: dict = field(default_factory=dict)
     v_ref_name: str | None = None
-    response_start: int | None = None
+    t_onset: int | None = None
     show_pre: bool = True
     pulse_end: int | None = None
     ms_shown: tuple[float, float] | None = None
@@ -621,7 +637,7 @@ def _spot_readout_bundle_view(bundle):
         n_t=bundle.n_t,
         v_ref_by_name=bundle.v_ref_by_name,
         v_ref_name=bundle.v_ref_name,
-        response_start=bundle.response_start,
+        t_onset=bundle.t_onset,
         show_pre=bundle.show_pre,
         pulse_end=bundle.pulse_end,
         ms_shown=bundle.ms_shown,
@@ -866,7 +882,7 @@ def network_spot_trace_bundle(
         prep_s=time.perf_counter() - t_prep0,
         v_ref_by_name=v_ref_by_type_name(z, session),
         v_ref_name=v_ref_schema_name(session.schema),
-        response_start=rows.get('t_onset'),
+        t_onset=rows.get('t_onset'),
         show_pre=bool(show_pre),
         pulse_end=rows.get('pulse_end'),
         ms_shown=ms_shown,
@@ -946,7 +962,7 @@ def _plot_spot_figure(
     has_slices = primary.has_slices
     slice_labels = primary.slice_labels or []
     n_t = primary.n_t
-    response_start = primary.response_start
+    t_onset = primary.t_onset
     pulse_end = getattr(primary, "pulse_end", None)
     delta_ms = float(primary.session.delta_ms)
     show_pre = getattr(primary, "show_pre", True)
@@ -996,7 +1012,7 @@ def _plot_spot_figure(
                 "label_model": f"{c} model",
                 "label_total": f"{c} total",
                 "point_ix": _session_cost_time_ix(
-                    bundles[c].session, bundles[c].response_start,
+                    bundles[c].session, bundles[c].t_onset,
                 ),
             }
             if with_slices:
@@ -1015,6 +1031,7 @@ def _plot_spot_figure(
     def _plot_cell(name, cell_primary, ax_rf, ax_time, show_ylabel, show_xlabels):
         nonlocal legend_done
         r0 = int(RF_CENTER_RADIUS)
+        t_lag = int(_IMPR_SHIFT_RIGHT.get(name, 0))
         time_title = format_spot_radius_time_title(
             r0,
             (cell_primary.get("n_by_radius") or {}).get(r0),
@@ -1037,9 +1054,10 @@ def _plot_spot_figure(
                 show_ylabel=show_ylabel,
                 n_t=n_t,
                 baseline=cell_primary.get("baseline"),
-                response_start=response_start,
+                t_onset=t_onset,
                 show_pre=show_pre,
                 pulse_end=pulse_end,
+                t_lag=t_lag,
                 delta_ms=delta_ms,
                 ms_shown=ms_shown,
             )
@@ -1053,9 +1071,10 @@ def _plot_spot_figure(
                 show_ylabel=show_ylabel,
                 n_t=n_t,
                 baseline=cell_primary.get("baseline"),
-                response_start=response_start,
+                t_onset=t_onset,
                 show_pre=show_pre,
                 pulse_end=pulse_end,
+                t_lag=t_lag,
                 delta_ms=delta_ms,
                 ms_shown=ms_shown,
             )
@@ -1091,8 +1110,9 @@ def _plot_spot_figure(
                 show_xlabels=False,
                 show_ylabel=(j == 0),
                 baseline=cell_on.get("baseline"),
-                response_start=response_start,
+                t_onset=t_onset,
                 pulse_end=pulse_end,
+                t_lag=int(_IMPR_SHIFT_RIGHT.get(name, 0)),
             )
             legend_done = True
             ylim0 = None
@@ -1113,9 +1133,10 @@ def _plot_spot_figure(
                     show_ylabel=(j == 0),
                     baseline=cell_on.get("baseline"),
                     n_t=n_t,
-                    response_start=response_start,
+                    t_onset=t_onset,
                     show_pre=show_pre,
                     pulse_end=pulse_end,
+                    t_lag=int(_IMPR_SHIFT_RIGHT.get(name, 0)),
                     delta_ms=delta_ms,
                     ms_shown=ms_shown,
                     center_radius=radius,

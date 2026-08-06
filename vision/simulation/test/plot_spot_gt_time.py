@@ -102,7 +102,7 @@ def plot_all_cells(
                 show_xlabels=True,
                 show_ylabel=(j == 0),
                 n_t=n_t,
-                response_start=t_onset,
+                t_onset=t_onset,
                 pre_end=0,
                 show_pre=False,
                 pulse_end=pulse_end,

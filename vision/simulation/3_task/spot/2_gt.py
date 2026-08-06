@@ -148,7 +148,7 @@ def _shift_right(y, k: int):
 
 # ImpR onset delay (samples / t-index): L1–L5 +1; other gt cells +2.
 _IMPR_SHIFT_RIGHT = {
-    "L1": 1, "L2": 1, "L3": 1, "L4": 1, "L5": 1,
+    "L1": 1, "L2": 1, "L3": 1, "L4": 2, "L5": 2,
     "Mi1": 2, "Tm3": 2, "Mi4": 2, "Mi9": 2,
     "Tm1": 2, "Tm2": 2, "Tm4": 2, "Tm9": 2,
 }

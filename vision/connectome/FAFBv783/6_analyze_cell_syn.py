@@ -1102,7 +1102,7 @@ def main(argv: List[str] | None = None) -> int:
         cells, cell_to_family_all
     )
 
-    # Partner delta coords: always collected; reference is --at centre or mean self location.
+    # Partner delta coords: always collected; reference is --at center or mean self location.
     id_to_uv = node_id_to_uv(nodes, float_coords=False)
     id_to_xy = None
     acc = accumulate_all(
