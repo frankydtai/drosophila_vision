@@ -1,0 +1,24 @@
+Job ID: 28848624
+Node:   spartan-gpgpu102
+GPU:    0
+GPU 0: NVIDIA A100 80GB PCIe (UUID: GPU-e21a24ec-c6f2-d776-61dd-aa6238ef1b6f)
+cuda: True NVIDIA A100 80GB PCIe
+Start:  Thu 06 Aug 2026 20:51:55 AEST
+train_modes:
+  a_in               indi=0/shared=56/fixed=0/frozen=0 (1)
+  a_out              indi=56/shared=0/fixed=0/frozen=0 (56)
+  bias_out           indi=56/shared=0/fixed=0/frozen=0 (56)
+  syn_strength_cell  indi=1035/shared=0/fixed=0/frozen=0 (1035)
+  a_gt               indi=56/shared=0/fixed=0/frozen=0 (56)
+  bias_gt            indi=0/shared=0/fixed=0/frozen=56 (0)
+  tau_lp             indi=56/shared=0/fixed=0/frozen=0 (56)
+  tau_hp             indi=56/shared=0/fixed=0/frozen=0 (56)
+  v_rest             indi=0/shared=0/fixed=56/frozen=0 (0)
+  a_slow             indi=0/shared=0/fixed=56/frozen=0 (0)
+  a_sti_r            indi=3/shared=0/fixed=1/frozen=0 (3)
+device=cuda, model=hp_lp, syn_mode=per_cell, euler=implicit, pre_steady=solve, nofruns=1, nofsteps=200, lrs=[0.1], nparams=1319, fname=training_hp_lp.npy, outdir=/home/yitai/drosophila_vision/vision/simulation/0_runs/hp_lp/28848624-run-nofsteps-200-a-slow-init.L1,L2-0.6-bias-out-init.R1-6,R7,R8-0
+checkpoint_interval=500
+
+round 0
+
+  0%|          | 0/200 [00:00<?, ?it/s] Cost: 3538173.0829  [spot_bright_L1_r0=3268139.7476  spot_bright_L2_r0=3264988.6806  spot_bright_L4_r0=3054600.5701  spot_bright_L5_r0=3541080.1185  spot_bright_Mi1_r0=3891289.7628  spot_bright_Tm3_r0=5409406.5196  spot_bright_Mi4_r0=2476685.6885  spot_bright_Mi9_r0=4033476.0386  spot_bright_Tm1_r0=3078573.1212  spot_bright_Tm2_r0=3855235.0318  spot_bright_Tm4_r0=3203534.0586  spot_bright_Tm9_r0=5223547.1276  spot_bright_L3_r0=1695693.6119  spot_dark_L1_r0=3268139.7476  spot_dark_L2_r0=3264988.6806  spot_dark_L4_r0=3054600.5701  spot_dark_L5_r0=3541080.1185  spot_dark_Mi1_r0=3891289.7628  spot_dark_Tm3_r0=5409406.5196  spot_dark_Mi4_r0=2476685.6885  spot_dark_Mi9_r0=4033476.0386  spot_dark_Tm1_r0=3078573.1212  spot_dark_Tm2_r0=3855235.0318  spot_dark_Tm4_r0=3203534.0586  spot_dark_Tm9_r0=5223547.1276  spot_dark_L3_r0=1695693.6119]  5%|▌         | 10/200 [00:12<03:55,  1.24s/it] Cost: 2896293.7316  [spot_bright_L1_r0=1800265.1030  spot_bright_L2_r0=1527333.5636  spot_bright_L4_r0=2942052.3019  spot_bright_L5_r0=3156480.9753  spot_bright_Mi1_r0=3074556.6124  spot_bright_Tm3_r0=5284470.4526  spot_bright_Mi4_r0=2346184.3887  spot_bright_Mi9_r0=2473056.5712  spot_bright_Tm1_r0=2713615.9225  spot_bright_Tm2_r0=3839644.8922  spot_bright_Tm4_r0=3169740.3695  spot_bright_Tm9_r0=4156432.4304  spot_bright_L3_r0=836607.2557  spot_dark_L1_r0=1805340.9484  spot_dark_L2_r0=1527663.1006  spot_dark_L4_r0=2938705.7948  spot_dark_L5_r0=3141905.0104  spot_dark_Mi1_r0=3067408.3897  spot_dark_Tm3_r0=5284542.0954  spot_dark_Mi4_r0=2343019.3080  spot_dark_Mi9_r0=3357952.2720  spot_dark_Tm1_r0=2716707.9700  spot_dark_Tm2_r0=3839361.6028  spot_dark_Tm4_r0=3170832.3057  spot_dark_Tm9_r0=3950175.0667  spot_dark_L3_r0=839582.3181]: [2026-08-06T20:52:29.599] error: *** JOB 28848624 ON spartan-gpgpu102 CANCELLED AT 2026-08-06T20:52:29 DUE to SIGNAL Terminated ***

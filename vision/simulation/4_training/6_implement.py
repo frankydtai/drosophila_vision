@@ -36,6 +36,7 @@ from path import (
 )
 from param_defaults import (
     CHECKPOINT_INTERVAL,
+    COST_INTERVAL_MS,
     COST_NORM,
     DELTA_MS,
     EULER,
@@ -82,11 +83,11 @@ import training
 from training.config import (
     COST_NORMS,
     PARAM_CSV,
-    PRE_STEADY_BY_MODEL,
+    PRE_STEADY_MODES,
     SYN_STRENGTH_CELL_CSV,
     SYN_STRENGTH_EDGE_CSV,
     expand_cost_norm,
-    expand_pre_steady_dict,
+    expand_pre_steady_mode,
     run_data_dir,
 )
 
@@ -353,6 +354,10 @@ def best_param_path(outdir):
     return os.path.join(data_dir(outdir), 'best_param.npz')
 
 
+def best_adam_path(outdir):
+    return os.path.join(data_dir(outdir), 'best_adam.npz')
+
+
 def save_param_named(outdir, z, session, filename):
     """Write named full-width node values to ``data/<filename>``."""
     schema = list(session.schema)
@@ -366,14 +371,41 @@ def save_param_named(outdir, z, session, filename):
     np.savez(os.path.join(data_dir(outdir), filename), **payload)
 
 
+def save_adam_named(outdir, exp_avg, exp_avg_sq, step, session, filename):
+    """Write named Adam m/v (z-space) to ``data/<filename>``."""
+    schema = list(session.schema)
+    named_m, named_v = training.z_moments_to_named(exp_avg, exp_avg_sq, schema)
+    cell_names = np.asarray(training.cell_node_names(session.backend), dtype=object)
+    payload = {'step': np.asarray(int(step), dtype=np.int64)}
+    payload['cell_names'] = cell_names
+    if any(s['kind'] == 'edge_pair' for s in schema):
+        payload['pair_names'] = np.asarray(training.pair_node_names(session.backend), dtype=object)
+    for name, arr in named_m.items():
+        payload[f'm_{name}'] = np.asarray(arr, dtype=np.float64)
+    for name, arr in named_v.items():
+        payload[f'v_{name}'] = np.asarray(arr, dtype=np.float64)
+    os.makedirs(data_dir(outdir), exist_ok=True)
+    np.savez(os.path.join(data_dir(outdir), filename), **payload)
+
+
 def save_best_param_named(outdir, z, session):
     """Write named full-width node values to ``data/best_param.npz``."""
     save_param_named(outdir, z, session, 'best_param.npz')
 
 
+def save_best_adam_named(outdir, exp_avg, exp_avg_sq, step, session):
+    """Write named Adam moments to ``data/best_adam.npz``."""
+    save_adam_named(outdir, exp_avg, exp_avg_sq, step, session, 'best_adam.npz')
+
+
 def checkpoint_param_filename(step, run_i=0, nofruns=1):
     suffix = '' if nofruns == 1 else f'_run{run_i}'
     return f'best_param_step_{checkpoint_step_tag(step)}{suffix}.npz'
+
+
+def checkpoint_adam_filename(step, run_i=0, nofruns=1):
+    suffix = '' if nofruns == 1 else f'_run{run_i}'
+    return f'best_adam_step_{checkpoint_step_tag(step)}{suffix}.npz'
 
 
 def write_checkpoint_csv(outdir, step, z_best, session):
@@ -393,9 +425,24 @@ def write_checkpoint_csv(outdir, step, z_best, session):
 def make_checkpoint_callback(outdir, session, *, run_i=0, nofruns=1, on_png=None):
     """Write interval-best npz/csv; optional *on_png* for plot layer (from ``run.py``)."""
 
-    def on_interval_best(step, z_best, cost_best):
+    def on_interval_best(step, z_best, cost_best, opt_state=None):
         name = checkpoint_param_filename(step, run_i=run_i, nofruns=nofruns)
         save_param_named(outdir, z_best, session, name)
+        if opt_state is not None:
+            n = int(np.asarray(z_best.detach().cpu()).reshape(-1).shape[0])
+            exp_avg, exp_avg_sq, adam_step = training.adam_moments_from_state_dict(
+                opt_state, n, dtype=torch.float64, device='cpu',
+            )
+            adam_name = checkpoint_adam_filename(step, run_i=run_i, nofruns=nofruns)
+            save_adam_named(
+                outdir,
+                exp_avg.numpy(),
+                exp_avg_sq.numpy(),
+                adam_step,
+                session,
+                adam_name,
+            )
+            print(f'wrote checkpoint {adam_name}')
         write_checkpoint_csv(outdir, step, z_best, session)
         if on_png is not None:
             on_png(outdir, step, z_best, cost_best, session)
@@ -419,6 +466,29 @@ def load_best_param_named(outdir):
             if k not in ('cell_names', 'pair_names')
         }
     return named, cell_names, pair_names
+
+
+def load_best_adam_named(outdir):
+    """Load ``data/best_adam.npz`` → (named_m, named_v, step, cell_names, pair_names)."""
+    fp = best_adam_path(outdir)
+    if not os.path.isfile(fp):
+        raise FileNotFoundError(fp)
+    with np.load(fp, allow_pickle=True) as d:
+        cell_names = [str(x) for x in d['cell_names'].tolist()]
+        pair_names = None
+        if 'pair_names' in d.files:
+            pair_names = [str(x) for x in d['pair_names'].tolist()]
+        if 'step' not in d.files:
+            raise ValueError(f'{fp}: missing step')
+        step = int(np.asarray(d['step']).reshape(-1)[0])
+        named_m = {}
+        named_v = {}
+        for k in d.files:
+            if k.startswith('m_'):
+                named_m[k[2:]] = np.asarray(d[k], dtype=np.float64)
+            elif k.startswith('v_'):
+                named_v[k[2:]] = np.asarray(d[k], dtype=np.float64)
+    return named_m, named_v, step, cell_names, pair_names
 
 
 def load_best_param(outdir, session=None):
@@ -475,8 +545,12 @@ def final_costs_for_params(all_params, session, final_costs=None):
     ])
 
 
-def write_best_artifacts(outdir, fname, session, all_params, final_costs):
-    """Write ``best_param.npz``, ``param.csv``, and syn/edge CSV for ``argmin(final_costs)``."""
+def write_best_artifacts(outdir, fname, session, all_params, final_costs, adam=None):
+    """Write ``best_param.npz``, ``param.csv``, and syn/edge CSV for ``argmin(final_costs)``.
+
+    *adam* is the best-run moment dict ``{exp_avg, exp_avg_sq, step}`` (required for a
+    fresh write from training; omit when regenerating tables from saved params only).
+    """
     all_params = np.atleast_2d(all_params)
     final_costs = np.asarray(final_costs, dtype=np.float64)
     run_i = int(np.argmin(final_costs))
@@ -484,6 +558,11 @@ def write_best_artifacts(outdir, fname, session, all_params, final_costs):
     os.makedirs(data_dir(outdir), exist_ok=True)
     z_best = torch.tensor(best, dtype=session.sim_dtype, device=session.device)
     save_best_param_named(outdir, z_best, session)
+    if adam is not None:
+        save_best_adam_named(
+            outdir, adam['exp_avg'], adam['exp_avg_sq'], adam['step'], session,
+        )
+        print(f"wrote {best_adam_path(outdir)} (best run #{run_i})")
     table_path = os.path.join(outdir, PARAM_CSV)
     write_param_table(z_best, session, table_path)
     print("wrote table: %s (best run #%d, cost=%.4f)" % (
@@ -518,12 +597,13 @@ def load_stored_costs(outdir):
 
 
 def load_init_z(init_from, session):
-    """Load named best params; return ``(session, z)`` with frozen carry attached."""
+    """Load named best params + Adam moments; return ``(session, z, opt_init)``."""
     try:
         outdir = resolve_run_dir(init_from)
     except SystemExit as exc:
         raise ValueError(str(exc)) from exc
     named, cell_names, pair_names = load_best_param_named(outdir)
+    named_m, named_v, adam_step, adam_cells, adam_pairs = load_best_adam_named(outdir)
     schema = list(session.schema)
     remapped = training.remap_named_node_values(
         named, cell_names, pair_names, schema, session.backend,
@@ -533,11 +613,26 @@ def load_init_z(init_from, session):
     z = training.node_values_to_z(
         remapped, schema, dtype=session.sim_dtype, device=session.device,
     )
-    print(
-        f'from {outdir!r} -> {best_param_path(outdir)!r} '
-        f'({training.schema_nparams(schema)} trainable slots)'
+    remapped_m = training.remap_named_moments(
+        named_m, adam_cells, adam_pairs, schema, session.backend,
     )
-    return session, z
+    remapped_v = training.remap_named_moments(
+        named_v, adam_cells, adam_pairs, schema, session.backend,
+    )
+    exp_avg, exp_avg_sq = training.named_moments_to_z(
+        remapped_m, remapped_v, schema,
+        dtype=session.sim_dtype, device=session.device,
+    )
+    opt_init = {
+        'exp_avg': exp_avg,
+        'exp_avg_sq': exp_avg_sq,
+        'step': int(adam_step),
+    }
+    print(
+        f'from {outdir!r} -> {best_param_path(outdir)!r} + {best_adam_path(outdir)!r} '
+        f'({training.schema_nparams(schema)} trainable slots, adam_step={adam_step})'
+    )
+    return session, z, opt_init
 
 
 def save_training_outputs(fname, outdir, session, result):
@@ -555,8 +650,10 @@ def save_training_outputs(fname, outdir, session, result):
         np.savez(_best_costs_by_part_path(outdir), **result.cost_curves_by_part)
     if result.final_costs_by_part:
         np.savez(_costs_by_part_path(outdir), **result.final_costs_by_part)
+    run_i = int(np.argmin(result.final_costs)) if len(result.final_costs) else 0
+    adam = result.all_adam[run_i] if result.all_adam else None
     write_best_artifacts(
-        outdir, fname, session, result.all_params, result.final_costs,
+        outdir, fname, session, result.all_params, result.final_costs, adam=adam,
     )
 
 
@@ -774,11 +871,12 @@ def run_training(model, nofruns, nofsteps, lrs, fname=None, outdir=None,
             raise ValueError("checkpoint_interval must be a positive integer")
         print(f"checkpoint_interval={checkpoint_interval}")
     z_init = None
+    opt_init = None
     if init_from:
-        session, z_init = load_init_z(init_from, session)
+        session, z_init, opt_init = load_init_z(init_from, session)
     t0 = time.time()
     result = do_many_runs(
-        session, nofruns, nofsteps, lrs=lrs, z_init=z_init,
+        session, nofruns, nofsteps, lrs=lrs, z_init=z_init, opt_init=opt_init,
         checkpoint_interval=checkpoint_interval,
         checkpoint_outdir=outdir if checkpoint_interval is not None else None,
         make_checkpoint_callback=make_checkpoint_callback,
@@ -848,10 +946,10 @@ def add_training_arguments(parser):
                         help="params filename (default derived from --model)")
     parser.add_argument("--outdir", default=None,
                         help="output dir (default derived from --model)")
-    parser.add_argument("--from", dest="init_from", default=None, metavar="RUN",
+    parser.add_argument("--init-from", dest="init_from", default=None, metavar="RUN",
                         help="prior run folder NAME only (no model/ prefix); "
                              "resolved under 0_runs/<model>/NAME unless an absolute path is given; "
-                             "load named best_param.npz as z init only "
+                             "load named best_param.npz as z init and best_adam.npz as Adam m/v "
                              "(settings come from this CLI, not train_opts.json)")
     _ih_gmax_default = (
         "indi=" + ",".join(IH_GMAX_INDI_NAMES) + " fixed=all"
@@ -935,8 +1033,9 @@ def add_training_arguments(parser):
                         help=f"hp_lp a_slow train_modes ({_train_mode_help}; "
                              f"default {_box_train_mode_default('a_slow')})")
     parser.add_argument("--a-sti-r", **_train_mode_kwargs,
-                        help=f"spot a_sti_r train_modes (r=0 fixed=1 by default; "
-                             f"radii 1,sqrt3,2; {_train_mode_help})")
+                        help=f"spot a_sti_r train_modes (r=0 init=1; "
+                             f"{_train_mode_help}; "
+                             f"default {_box_train_mode_default('a_sti_r')})")
     parser.add_argument("--ih-off", default=IH_OFF,
                         choices=list(training.IH_OFF_MODES),
                         help="OFF-channel Ih: on (train Ih_gmax_off+OFF shape; default), "
@@ -948,20 +1047,14 @@ def add_training_arguments(parser):
         help="membrane Euler: im=implicit (default), ex=explicit; "
              "Ih gates always explicit",
     )
-    _ss_help = "; ".join(
-        f"{m}=" + "|".join(modes)
-        for m, modes in PRE_STEADY_BY_MODEL.items()
-    )
     parser.add_argument(
         "--pre-steady",
-        nargs="+",
-        default=None,
-        metavar="MODEL=MODE",
+        default=PRE_STEADY,
+        choices=list(PRE_STEADY_MODES),
         help=(
-            "t=0 membrane pre steady as MODEL=MODE tokens "
-            f"({_ss_help}; defaults: "
-            + " ".join(f"{m}={PRE_STEADY[m]}" for m in PRE_STEADY_BY_MODEL)
-            + "); hp_lp solve uses fixed iters/damp from param_defaults"
+            "t=0 membrane pre steady shared by borst/hp_lp "
+            f"({'|'.join(PRE_STEADY_MODES)}; default: {PRE_STEADY}); "
+            "solve uses fixed iters/damp from param_defaults"
         ),
     )
     parser.add_argument(
@@ -1111,10 +1204,10 @@ def add_training_arguments(parser):
     parser.add_argument(
         "--cost-interval-ms",
         type=float,
-        default=None,
+        default=COST_INTERVAL_MS,
         metavar="MS",
         help="spot: train on post-onset times 0, interval, 2*interval, ... "
-             "through response window; omit = every post-onset t (#4)",
+             f"through response window (default: {COST_INTERVAL_MS})",
     )
     parser.add_argument(
         "--cost-norm",
@@ -1465,10 +1558,10 @@ def training_kwargs_from_args(
     if init_from:
         p = Path(str(init_from)).expanduser()
         if not p.is_absolute():
-            # HARD STOP: no backward-compat. --from takes a run folder name only.
+            # HARD STOP: no backward-compat. --init-from takes a run folder name only.
             if "/" in str(init_from) or "\\" in str(init_from):
                 raise ValueError(
-                    "--from must be a run folder name only (no path); "
+                    "--init-from must be a run folder name only (no path); "
                     "the model subfolder is inferred from --model "
                     f"(default: {MODEL}). "
                     "Use an absolute path to reference runs outside 0_runs.",
@@ -1545,11 +1638,10 @@ def training_kwargs_from_args(
     }
     spot_bright_stimulus_opts = dict(_timing)
     spot_dark_stimulus_opts = dict(_timing)
-    if args.cost_interval_ms is not None:
-        if float(args.cost_interval_ms) <= 0:
-            raise ValueError("--cost-interval-ms must be > 0")
-        for _o in (spot_bright_stimulus_opts, spot_dark_stimulus_opts):
-            _o["cost_interval_ms"] = float(args.cost_interval_ms)
+    if float(args.cost_interval_ms) <= 0:
+        raise ValueError("--cost-interval-ms must be > 0")
+    for _o in (spot_bright_stimulus_opts, spot_dark_stimulus_opts):
+        _o["cost_interval_ms"] = float(args.cost_interval_ms)
     gt_by_task = parse_gt(args.gt)
     if gt_by_task:
         _gt_opts = {
@@ -1603,10 +1695,7 @@ def training_kwargs_from_args(
         i_cli=i_cli,
         ih_off=args.ih_off,
         euler=args.euler,
-        pre_steady=expand_pre_steady_dict(
-            parse_kv_tokens(args.pre_steady, str),
-            defaults=PRE_STEADY,
-        ),
+        pre_steady=expand_pre_steady_mode(args.pre_steady),
         pre_steady_iters=PRE_STEADY_ITERS,
         pre_steady_damp=PRE_STEADY_DAMP,
         fp=fp,

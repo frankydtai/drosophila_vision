@@ -939,13 +939,16 @@ _TQDM_REFRESH_INTERVAL = 10
 def gradient_network(z, lr=0.0001, cost_fn=None, n_steps=100, device="cpu", z_bounds=None,
                      cost_log=None, step_log=None, float_last_parts=None, task_order=None,
                      backward_step=None, eval_cost=None,
-                     checkpoint_interval=None, on_interval_best=None, global_step_start=0):
+                     checkpoint_interval=None, on_interval_best=None, global_step_start=0,
+                     opt_init=None):
 
     a = time.time()
 
     z = nn.Parameter(z.clone().to(device))
 
     optimizer = torch.optim.Adam([z], lr=lr)
+    if opt_init is not None:
+        _load_adam_moments(optimizer, z, opt_init)
 
     def _measure_cost(param_z):
         if eval_cost is not None:
@@ -962,8 +965,9 @@ def gradient_network(z, lr=0.0001, cost_fn=None, n_steps=100, device="cpu", z_bo
     best_z = z.clone().detach()
     interval_best_cost = cost
     interval_best_z = z.clone().detach()
-    # Adam m/v at the z that achieved interval_best (before the step that left it).
+    # Adam m/v at the z that achieved interval_best / best (before the step that left it).
     interval_best_opt = copy.deepcopy(optimizer.state_dict())
+    best_opt = copy.deepcopy(optimizer.state_dict())
 
     initial_cost = 1.0 * cost
     initial_parts = float_last_parts(task_order) if float_last_parts else None
@@ -980,7 +984,10 @@ def gradient_network(z, lr=0.0001, cost_fn=None, n_steps=100, device="cpu", z_bo
 
     def _commit_interval_checkpoint(global_step):
         if on_interval_best is not None:
-            on_interval_best(global_step, interval_best_z, interval_best_cost)
+            on_interval_best(
+                global_step, interval_best_z, interval_best_cost,
+                opt_state=interval_best_opt,
+            )
         with torch.no_grad():
             z.copy_(interval_best_z)
         optimizer.load_state_dict(interval_best_opt)
@@ -1028,6 +1035,7 @@ def gradient_network(z, lr=0.0001, cost_fn=None, n_steps=100, device="cpu", z_bo
 
             best_cost = cost
             best_z = z.clone().detach()
+            best_opt = copy.deepcopy(optimizer.state_dict())
             if float_last_parts is not None:
                 best_parts = float_last_parts(task_order)
 
@@ -1068,6 +1076,7 @@ def gradient_network(z, lr=0.0001, cost_fn=None, n_steps=100, device="cpu", z_bo
             if np.isfinite(cost) and cost < best_cost:
                 best_cost = cost
                 best_z = z.clone().detach()
+                best_opt = copy.deepcopy(optimizer.state_dict())
                 best_parts = final_parts
     else:
         cost = float('nan')
@@ -1085,26 +1094,71 @@ def gradient_network(z, lr=0.0001, cost_fn=None, n_steps=100, device="cpu", z_bo
     print('time needed  =', format(b - a, '.2f'), ' sec')
     print()
 
-    return best_z
+    return best_z, best_opt
+
+
+def adam_moments_from_state_dict(state_dict, n_params, *, dtype, device):
+    """Pull ``(exp_avg, exp_avg_sq, step)`` from a single-param Adam ``state_dict``."""
+    state = state_dict.get('state') or {}
+    if not state:
+        zeros = torch.zeros(n_params, dtype=dtype, device=device)
+        return zeros, zeros.clone(), 0
+    pstate = next(iter(state.values()))
+    exp_avg = pstate.get('exp_avg')
+    exp_avg_sq = pstate.get('exp_avg_sq')
+    if exp_avg is None or exp_avg_sq is None:
+        zeros = torch.zeros(n_params, dtype=dtype, device=device)
+        return zeros, zeros.clone(), 0
+    step = pstate.get('step', 0)
+    step_i = int(step.item()) if torch.is_tensor(step) else int(step)
+    return (
+        exp_avg.detach().to(device=device, dtype=dtype).clone(),
+        exp_avg_sq.detach().to(device=device, dtype=dtype).clone(),
+        step_i,
+    )
+
+
+def _load_adam_moments(optimizer, z, opt_init):
+    """Install named/z Adam moments into *optimizer* for parameter *z* (keep group lr)."""
+    exp_avg = opt_init['exp_avg'].detach().to(device=z.device, dtype=z.dtype)
+    exp_avg_sq = opt_init['exp_avg_sq'].detach().to(device=z.device, dtype=z.dtype)
+    if exp_avg.shape != z.shape or exp_avg_sq.shape != z.shape:
+        raise ValueError(
+            f"adam moment shape {tuple(exp_avg.shape)}/{tuple(exp_avg_sq.shape)} "
+            f"!= z shape {tuple(z.shape)}"
+        )
+    step = float(opt_init.get('step', 0))
+    # Match torch.optim.Adam: step is a CPU float scalar; moments match *z*.
+    optimizer.state[z] = {
+        'step': torch.tensor(step, dtype=torch.float32),
+        'exp_avg': exp_avg.clone(),
+        'exp_avg_sq': exp_avg_sq.clone(),
+    }
 
 
 def train_staged(z, cost_fn, z_bounds, lrs, nsteps, cost_log=None, step_log=None,
                  float_last_parts=None, task_order=None,
                  backward_step=None, eval_cost=None,
-                 checkpoint_interval=None, on_interval_best=None, global_step_start=0):
+                 checkpoint_interval=None, on_interval_best=None, global_step_start=0,
+                 opt_init=None):
     # run gradient_network once per learning-rate stage, chaining the best params.
+    # Adam moments restore only into the first stage; later stages start cold.
     global_step = global_step_start
-    for lr in lrs:
-        z = gradient_network(z, lr=lr, n_steps=nsteps, device=active_device(),
-                             cost_fn=cost_fn, z_bounds=z_bounds, cost_log=cost_log,
-                             step_log=step_log, float_last_parts=float_last_parts,
-                             task_order=task_order,
-                             backward_step=backward_step, eval_cost=eval_cost,
-                             checkpoint_interval=checkpoint_interval,
-                             on_interval_best=on_interval_best,
-                             global_step_start=global_step)
+    opt_state = None
+    for stage_i, lr in enumerate(lrs):
+        z, opt_state = gradient_network(
+            z, lr=lr, n_steps=nsteps, device=active_device(),
+            cost_fn=cost_fn, z_bounds=z_bounds, cost_log=cost_log,
+            step_log=step_log, float_last_parts=float_last_parts,
+            task_order=task_order,
+            backward_step=backward_step, eval_cost=eval_cost,
+            checkpoint_interval=checkpoint_interval,
+            on_interval_best=on_interval_best,
+            global_step_start=global_step,
+            opt_init=opt_init if stage_i == 0 else None,
+        )
         global_step += nsteps
-    return z
+    return z, opt_state
 
 
 def _make_step_logger(session: TrainSession):
@@ -1158,7 +1212,7 @@ def _make_step_logger(session: TrainSession):
 
 
 def do_many_runs(session: TrainSession, nofruns, nofsteps, lrs=(0.1, 0.01, 0.001),
-                 z_init=None, checkpoint_interval=None, checkpoint_outdir=None,
+                 z_init=None, opt_init=None, checkpoint_interval=None, checkpoint_outdir=None,
                  make_checkpoint_callback=None, checkpoint_on_png=None) -> TrainingResult:
     """Run ``nofruns`` independent fits; return arrays (no file I/O)."""
     schema = list(session.schema)
@@ -1166,6 +1220,7 @@ def do_many_runs(session: TrainSession, nofruns, nofsteps, lrs=(0.1, 0.01, 0.001
     bounds = schema_bounds(schema, session.sim_dtype)
 
     all_params = np.zeros((nofruns, n_params))
+    all_adam = []
     final_costs = np.zeros(nofruns)
     part_keys = session_cost_part_keys(session.tasks, session=session)
     final_costs_by_part = {name: np.zeros(nofruns) for name in part_keys}
@@ -1196,7 +1251,7 @@ def do_many_runs(session: TrainSession, nofruns, nofsteps, lrs=(0.1, 0.01, 0.001
                 on_png=checkpoint_on_png,
             )
 
-        z_fit = train_staged(
+        z_fit, opt_state = train_staged(
             z, cost_fn, bounds, lrs, nofsteps,
             step_log=step_log,
             float_last_parts=float_last_parts,
@@ -1205,9 +1260,18 @@ def do_many_runs(session: TrainSession, nofruns, nofsteps, lrs=(0.1, 0.01, 0.001
             eval_cost=eval_cost,
             checkpoint_interval=checkpoint_interval,
             on_interval_best=on_interval_best,
+            opt_init=opt_init,
         )
 
         all_params[i] = z_fit.detach().cpu().numpy()
+        exp_avg, exp_avg_sq, step = adam_moments_from_state_dict(
+            opt_state, n_params, dtype=z_fit.dtype, device='cpu',
+        )
+        all_adam.append({
+            'exp_avg': exp_avg.numpy().astype(np.float64),
+            'exp_avg_sq': exp_avg_sq.numpy().astype(np.float64),
+            'step': int(step),
+        })
         fit_parts = calc_cost_parts(z_fit, session)
         final_costs[i] = float(_weighted_cost_from_parts(fit_parts, session).item())
         for name, part in fit_parts.items():
@@ -1232,4 +1296,5 @@ def do_many_runs(session: TrainSession, nofruns, nofsteps, lrs=(0.1, 0.01, 0.001
         cost_curve=cost_curve,
         cost_curves_by_part=cost_curves_by_part,
         final_costs_by_part=final_costs_by_part,
+        all_adam=tuple(all_adam),
     )

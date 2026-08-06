@@ -5,8 +5,12 @@ Dynamics only: ``prepare_i_sti`` / ``pre_steady`` / ``step``. Full-T Ca
 forward lives in ``neuron.forward``. Membrane scalars are injected kwargs
 (from ``session`` flat fields), never a Physics bag.
 
-t=0 membrane state uses ``session.pre_steady`` (``--pre-steady borst=…``);
-only ``e_leak`` is defined (``v0 = e_leak``, ``u_on/u_off = 0``).
+t=0 membrane state uses ``session.pre_steady`` (``--pre-steady …``):
+
+* ``probe``: ``g_syn`` from ``v=e_leak``, ``u_on/u_off=0``, then ohmic
+  ``v = (i_sti + Σ gE) / Σ g``
+* ``solve``: fixed-iter under-relaxed DC map with Ih at ``ss(v)``;
+  uses ``session.pre_steady_iters`` / ``session.pre_steady_damp``
 
 Membrane Euler (``session.euler`` = ``implicit`` | ``explicit``):
 
@@ -183,21 +187,109 @@ def prepare_i_sti(session, p, i_sti, pack):
     return i_sti.unsqueeze(0) if i_sti.dim() == 2 else i_sti
 
 
-def pre_steady(session, p, B, i_sti=None):
-    """``(u_on, u_off)``, ``v`` at t=0 from ``session.pre_steady``."""
-    del p, i_sti
-    mode = str(session.pre_steady)
-    if mode != "e_leak":
-        raise ValueError(
-            f"borst pre_steady must be e_leak; got {mode!r}"
+def _ih_ss(v, Ih_gmax, Ih_gmax_off, Ih_midv, Ih_slope, Ih_midv_off, Ih_slope_off, *, Ih_gain: float):
+    """DC Ih gates ``u = ss(v)`` and conductances (no time step)."""
+    Ih_ss_on = 1.0 / (1.0 + torch.exp((Ih_midv - v) * Ih_slope))
+    Ih_ss_off = 1.0 / (1.0 + torch.exp((Ih_midv_off - v) * (-Ih_slope_off)))
+    gain = float(Ih_gain)
+    return (
+        Ih_ss_on,
+        Ih_ss_off,
+        Ih_ss_on * Ih_gmax * gain,
+        Ih_ss_off * Ih_gmax_off * gain,
+    )
+
+
+def _ohmic_v(i0, g_exc, g_inh, g_Ih_on, g_Ih_off, e_leak, session):
+    """``v★ = (i + Σ gE) / Σ g`` for frozen conductances."""
+    g_leak = float(session.g_leak)
+    E_IH_OFF = e_ih_off(session.E_LEAK_REST, session.E_Ih)
+    sum_gE = (
+        g_exc * float(session.E_exc)
+        + g_inh * float(session.E_inh)
+        + g_leak * e_leak
+        + float(session.E_Ih) * g_Ih_on
+        + E_IH_OFF * g_Ih_off
+    )
+    sum_g = g_exc + g_inh + g_Ih_on + g_Ih_off + g_leak
+    return (i0 + sum_gE) / sum_g
+
+
+def _syn_g(v, p, backend):
+    g_exc, g_inh = backend.conn.exc_inh_drive(
+        rectsyn(v, p["v_th"]) * p["a_out"], syn_strength(p),
+    )
+    return g_exc * p["a_in"], g_inh * p["a_in"]
+
+
+def _dc_v_star(v, p, i0, e_leak, session, *, with_ih_ss: bool):
+    """One DC map step: ohmic ``v★`` from ``g_syn(v)`` (+ Ih ``ss(v)`` if asked)."""
+    g_exc, g_inh = _syn_g(v, p, session.backend)
+    if with_ih_ss:
+        ih_off = (session.train_opts or {})["ih_off"]
+        Ih_gmax_off, Ih_midv_off, Ih_slope_off, _tau = borst_ih_off_kwargs(p, ih_off)
+        u_on, u_off, g_Ih_on, g_Ih_off = _ih_ss(
+            v, p["Ih_gmax"], Ih_gmax_off,
+            p["Ih_midv"], p["Ih_slope"], Ih_midv_off, Ih_slope_off,
+            Ih_gain=session.Ih_gain,
         )
+    else:
+        u_on = torch.zeros_like(v)
+        u_off = torch.zeros_like(v)
+        g_Ih_on = torch.zeros_like(v)
+        g_Ih_off = torch.zeros_like(v)
+    v_star = _ohmic_v(i0, g_exc, g_inh, g_Ih_on, g_Ih_off, e_leak, session)
+    return v_star, u_on, u_off
+
+
+def _pre_steady_probe(session, p, B, i_sti):
+    """One-shot ohmic: ``g_syn`` from ``v=e_leak``, Ih off; balance membrane."""
     backend = session.backend
-    dev = backend.conn.node_cell.device
     dtype = session.sim_dtype
     n = backend.n_nodes
-    u_on = u_off = torch.zeros((B, n), dtype=dtype, device=dev)
-    v = backend.e_leak.expand(B, n).clone()
+    dev = backend.conn.node_cell.device
+    e_leak = backend.e_leak.to(device=dev, dtype=dtype)
+    v_probe = e_leak.expand(B, n).clone()
+    i0 = i_sti[:, 0, :]
+    v_star, u_on, u_off = _dc_v_star(
+        v_probe, p, i0, e_leak, session, with_ih_ss=False,
+    )
+    return (u_on, u_off), v_star
+
+
+def _pre_steady_solve(session, p, B, i_sti, *, iters: int, damp: float):
+    """Fixed-iter under-relaxed DC map with Ih at ``ss(v)`` (not time stepping)."""
+    backend = session.backend
+    dtype = session.sim_dtype
+    n = backend.n_nodes
+    dev = backend.conn.node_cell.device
+    e_leak = backend.e_leak.to(device=dev, dtype=dtype)
+    v = e_leak.expand(B, n).clone()
+    i0 = i_sti[:, 0, :]
+    damp = float(damp)
+    for _ in range(int(iters)):
+        v_star, _, _ = _dc_v_star(
+            v, p, i0, e_leak, session, with_ih_ss=True,
+        )
+        v = v + damp * (v_star - v)
+    _, u_on, u_off = _dc_v_star(v, p, i0, e_leak, session, with_ih_ss=True)
     return (u_on, u_off), v
+
+
+def pre_steady(session, p, B, i_sti=None):
+    """``(u_on, u_off)``, ``v`` at t=0 from ``session.pre_steady``."""
+    if i_sti is None:
+        raise TypeError("borst pre_steady requires i_sti")
+    mode = str(session.pre_steady)
+    if mode == "probe":
+        return _pre_steady_probe(session, p, B, i_sti)
+    if mode == "solve":
+        return _pre_steady_solve(
+            session, p, B, i_sti,
+            iters=int(session.pre_steady_iters),
+            damp=float(session.pre_steady_damp),
+        )
+    raise ValueError(f"borst pre_steady must be probe|solve; got {mode!r}")
 
 
 def _membrane_kwargs(session):

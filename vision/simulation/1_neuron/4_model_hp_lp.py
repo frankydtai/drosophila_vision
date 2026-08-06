@@ -23,7 +23,7 @@ Membrane / HP Euler (``session.euler`` = ``implicit`` | ``explicit``):
 Dynamics only: ``prepare_i_sti`` / ``pre_steady`` / ``step``. Full-T ``v``
 forward lives in ``neuron.forward``. Scalars from ``session`` flat fields.
 
-t=0 membrane state uses ``session.pre_steady`` (``--pre-steady hp_lp=…``):
+t=0 membrane state uses ``session.pre_steady`` (``--pre-steady …``):
 
 * ``solve`` (default): fixed-iter DC map with ``session.pre_steady_iters`` /
   ``session.pre_steady_damp`` (under-relaxation; not part of dynamics)

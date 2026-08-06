@@ -462,6 +462,107 @@ def node_values_to_z(named, schema, *, dtype=None, device=None):
     return z
 
 
+def z_moments_to_named(exp_avg, exp_avg_sq, schema):
+    """Expand Adam z-space moments to full-width named arrays (no encode/decode).
+
+    ``indi`` slots map 1:1 onto nodes; a ``shared`` slot is broadcast to every
+    shared node. Fixed/frozen nodes are 0.
+    """
+    exp_avg = np.asarray(exp_avg, dtype=np.float64).reshape(-1)
+    exp_avg_sq = np.asarray(exp_avg_sq, dtype=np.float64).reshape(-1)
+    if exp_avg.shape[0] != schema_nparams(schema) or exp_avg_sq.shape[0] != exp_avg.shape[0]:
+        raise ValueError(
+            f"moment length {exp_avg.shape[0]}/{exp_avg_sq.shape[0]} "
+            f"!= schema nparams {schema_nparams(schema)}"
+        )
+    named_m = {}
+    named_v = {}
+    for seg, start, stop in schema_segments(schema):
+        count = seg_count(seg)
+        m_arr = np.zeros(count, dtype=np.float64)
+        v_arr = np.zeros(count, dtype=np.float64)
+        i = 0
+        for u in seg.get('indi', ()):
+            m_arr[int(u)] = float(exp_avg[start + i])
+            v_arr[int(u)] = float(exp_avg_sq[start + i])
+            i += 1
+        if seg.get('shared'):
+            m_s = float(exp_avg[start + i])
+            v_s = float(exp_avg_sq[start + i])
+            for u in seg['shared']:
+                m_arr[int(u)] = m_s
+                v_arr[int(u)] = v_s
+        named_m[seg['name']] = m_arr
+        named_v[seg['name']] = v_arr
+    return named_m, named_v
+
+
+def named_moments_to_z(named_m, named_v, schema, *, dtype=None, device=None):
+    """Pack named Adam moments into z-space tensors (no encode; shared = mean)."""
+    n = schema_nparams(schema)
+    dt = dtype or SIM_DTYPE
+    dev = device or active_device()
+    exp_avg = torch.zeros(n, dtype=dt, device=dev)
+    exp_avg_sq = torch.zeros(n, dtype=dt, device=dev)
+    for seg, start, stop in schema_segments(schema):
+        m_raw = np.asarray(named_m[seg['name']], dtype=np.float64).reshape(-1)
+        v_raw = np.asarray(named_v[seg['name']], dtype=np.float64).reshape(-1)
+        if m_raw.shape[0] != seg_count(seg) or v_raw.shape[0] != seg_count(seg):
+            raise ValueError(
+                f"{seg['name']}: moment length "
+                f"{m_raw.shape[0]}/{v_raw.shape[0]} != count {seg_count(seg)}"
+            )
+        slots_m = []
+        slots_v = []
+        for u in seg.get('indi', ()):
+            slots_m.append(float(m_raw[u]))
+            slots_v.append(float(v_raw[u]))
+        if seg.get('shared'):
+            idxs = list(seg['shared'])
+            slots_m.append(float(np.mean([m_raw[u] for u in idxs])) if idxs else 0.0)
+            slots_v.append(float(np.mean([v_raw[u] for u in idxs])) if idxs else 0.0)
+        if slots_m:
+            exp_avg[start:stop] = torch.tensor(slots_m, dtype=dt, device=dev)
+            exp_avg_sq[start:stop] = torch.tensor(slots_v, dtype=dt, device=dev)
+    return exp_avg, exp_avg_sq
+
+
+def remap_named_moments(named, src_cell_names, src_pair_names, schema, backend):
+    """Remap named moment arrays; missing nodes/params fill 0."""
+    src_cell_names = [str(n) for n in src_cell_names]
+    src_pair_names = [str(n) for n in (src_pair_names or [])]
+    dst_cells = cell_node_names(backend)
+    dst_pairs = pair_node_names(backend) if any(s['kind'] == 'edge_pair' for s in schema) else []
+    src_t = {n: i for i, n in enumerate(src_cell_names)}
+    src_p = {n: i for i, n in enumerate(src_pair_names)}
+    out = {}
+    for seg in schema:
+        name = seg['name']
+        count = seg_count(seg)
+        arr = np.zeros(count, dtype=np.float64)
+        src = named.get(name)
+        if src is None:
+            out[name] = arr
+            continue
+        src = np.asarray(src, dtype=np.float64).reshape(-1)
+        if seg['kind'] == 'edge_pair':
+            for j, pn in enumerate(dst_pairs):
+                if pn in src_p and src_p[pn] < src.shape[0]:
+                    arr[j] = float(src[src_p[pn]])
+        elif seg['kind'] == 'edge':
+            if src.shape[0] == count:
+                arr[:] = src
+        elif seg.get('node_names') is not None:
+            n_copy = min(count, int(src.shape[0]))
+            arr[:n_copy] = src[:n_copy]
+        else:
+            for j, tn in enumerate(dst_cells):
+                if tn in src_t and src_t[tn] < src.shape[0]:
+                    arr[j] = float(src[src_t[tn]])
+        out[name] = arr
+    return out
+
+
 def remap_named_node_values(named, src_cell_names, src_pair_names, schema, backend):
     """Remap named arrays from a prior run onto *backend* node order for *schema*."""
     src_cell_names = [str(n) for n in src_cell_names]

@@ -1,0 +1,16 @@
+Job ID: 28847979
+Node:   spartan-gpgpu172
+GPU:    0
+GPU 0: NVIDIA H100 80GB HBM3 (UUID: GPU-924b13cd-cb9b-7a22-b3a8-597d3c1f6b1a)
+cuda: True NVIDIA H100 80GB HBM3
+Start:  Thu 06 Aug 2026 20:18:13 AEST
+Traceback (most recent call last):
+  File "/home/yitai/drosophila_vision/vision/simulation/run.py", line 333, in <module>
+    main()
+  File "/home/yitai/drosophila_vision/vision/simulation/run.py", line 326, in main
+    kw = run_kwargs_from_args(args)
+  File "/home/yitai/drosophila_vision/vision/simulation/run.py", line 232, in run_kwargs_from_args
+    train_kw = train.training_kwargs_from_args(args, script_stem=script_stem)
+  File "/home/yitai/drosophila_vision/vision/simulation/4_training/6_implement.py", line 1509, in training_kwargs_from_args
+    default_weights=default_spot_cost_radius_weight(
+TypeError: default_spot_cost_radius_weight() got an unexpected keyword argument 'weights_extent1'

@@ -1,0 +1,46 @@
+Job ID: 28851292
+Node:   spartan-gpgpu003
+GPU:    0
+GPU 0: NVIDIA L40S (UUID: GPU-77768aa8-360c-07fe-e20f-dfb971849850)
+cuda: True NVIDIA L40S
+Start:  Thu 06 Aug 2026 23:22:26 AEST
+train_modes:
+  a_in               indi=0/shared=56/fixed=0/frozen=0 (1)
+  a_out              indi=56/shared=0/fixed=0/frozen=0 (56)
+  syn_strength_cell  indi=1035/shared=0/fixed=0/frozen=0 (1035)
+  v_th               indi=0/shared=0/fixed=56/frozen=0 (0)
+  a_gt               indi=56/shared=0/fixed=0/frozen=0 (56)
+  bias_gt            indi=0/shared=0/fixed=0/frozen=56 (0)
+  Ih_gmax            indi=4/shared=0/fixed=52/frozen=0 (4)
+  Ih_gmax_off        indi=4/shared=0/fixed=52/frozen=0 (4)
+  Ih_midv            indi=0/shared=56/fixed=0/frozen=0 (1)
+  Ih_slope           indi=0/shared=56/fixed=0/frozen=0 (1)
+  tau_midv           indi=0/shared=56/fixed=0/frozen=0 (1)
+  Ih_midv_off        indi=0/shared=56/fixed=0/frozen=0 (1)
+  Ih_slope_off       indi=0/shared=56/fixed=0/frozen=0 (1)
+  tau_midv_off       indi=0/shared=56/fixed=0/frozen=0 (1)
+  a_sti_r            indi=3/shared=0/fixed=1/frozen=0 (3)
+device=cuda, model=borst, syn_mode=per_cell, euler=implicit, pre_steady=solve, nofruns=1, nofsteps=10, lrs=[0.1], nparams=1165, fname=training_with_Ih.npy, outdir=/home/yitai/drosophila_vision/vision/simulation/0_runs/borst/28851292-run-nofsteps-10-a-slow-init.L1,L2-0.6-bias-out-init.R1-6,R7,R8-0-model-borst-cost-norm-gt_power
+checkpoint_interval=500
+
+round 0
+
+  0%|          | 0/10 [00:00<?, ?it/s] Cost: 107.7355  [spot_bright_L1_r0=219.7105  spot_bright_L2_r0=226.2657  spot_bright_L4_r0=199.9769  spot_bright_L5_r0=54.9721  spot_bright_Mi1_r0=134.5301  spot_bright_Tm3_r0=116.5457  spot_bright_Mi4_r0=148.2204  spot_bright_Mi9_r0=65.9658  spot_bright_Tm1_r0=104.1022  spot_bright_Tm2_r0=94.8262  spot_bright_Tm4_r0=95.9551  spot_bright_Tm9_r0=90.5010  spot_bright_L3_r0=41.5449  spot_dark_L1_r0=43.5380  spot_dark_L2_r0=35.0455  spot_dark_L4_r0=58.5278  spot_dark_L5_r0=228.0306  spot_dark_Mi1_r0=155.8621  spot_dark_Tm3_r0=100.8568  spot_dark_Mi4_r0=139.9462  spot_dark_Mi9_r0=48.7399  spot_dark_Tm1_r0=110.5479  spot_dark_Tm2_r0=109.1904  spot_dark_Tm4_r0=108.2204  spot_dark_Tm9_r0=57.7802  spot_dark_L3_r0=11.7193]100%|██████████| 10/10 [00:21<00:00,  2.19s/it] Cost: 94.5996  [spot_bright_L1_r0=152.4379  spot_bright_L2_r0=155.8274  spot_bright_L4_r0=148.7776  spot_bright_L5_r0=66.5584  spot_bright_Mi1_r0=102.8705  spot_bright_Tm3_r0=100.5001  spot_bright_Mi4_r0=111.4811  spot_bright_Mi9_r0=59.3532  spot_bright_Tm1_r0=77.0227  spot_bright_Tm2_r0=90.7578  spot_bright_Tm4_r0=72.8972  spot_bright_Tm9_r0=65.8224  spot_bright_L3_r0=24.8101  spot_dark_L1_r0=59.2868  spot_dark_L2_r0=54.4019  spot_dark_L4_r0=69.9270  spot_dark_L5_r0=158.3114  spot_dark_Mi1_r0=102.2305  spot_dark_Tm3_r0=99.6223  spot_dark_Mi4_r0=83.9747  spot_dark_Mi9_r0=82.8758  spot_dark_Tm1_r0=134.8064  spot_dark_Tm2_r0=116.1413  spot_dark_Tm4_r0=167.2001  spot_dark_Tm9_r0=78.2086  spot_dark_L3_r0=23.4858]: 100%|██████████| 10/10 [00:21<00:00,  2.19s/it] Cost: 94.5996  [spot_bright_L1_r0=152.4379  spot_bright_L2_r0=155.8274  spot_bright_L4_r0=148.7776  spot_bright_L5_r0=66.5584  spot_bright_Mi1_r0=102.8705  spot_bright_Tm3_r0=100.5001  spot_bright_Mi4_r0=111.4811  spot_bright_Mi9_r0=59.3532  spot_bright_Tm1_r0=77.0227  spot_bright_Tm2_r0=90.7578  spot_bright_Tm4_r0=72.8972  spot_bright_Tm9_r0=65.8224  spot_bright_L3_r0=24.8101  spot_dark_L1_r0=59.2868  spot_dark_L2_r0=54.4019  spot_dark_L4_r0=69.9270  spot_dark_L5_r0=158.3114  spot_dark_Mi1_r0=102.2305  spot_dark_Tm3_r0=99.6223  spot_dark_Mi4_r0=83.9747  spot_dark_Mi9_r0=82.8758  spot_dark_Tm1_r0=134.8064  spot_dark_Tm2_r0=116.1413  spot_dark_Tm4_r0=167.2001  spot_dark_Tm9_r0=78.2086  spot_dark_L3_r0=23.4858]: 
+
+Initl cost = 107.7355  [spot_bright_L1_r0=219.7105  spot_bright_L2_r0=226.2657  spot_bright_L4_r0=199.9769  spot_bright_L5_r0=54.9721  spot_bright_Mi1_r0=134.5301  spot_bright_Tm3_r0=116.5457  spot_bright_Mi4_r0=148.2204  spot_bright_Mi9_r0=65.9658  spot_bright_Tm1_r0=104.1022  spot_bright_Tm2_r0=94.8262  spot_bright_Tm4_r0=95.9551  spot_bright_Tm9_r0=90.5010  spot_bright_L3_r0=41.5449  spot_dark_L1_r0=43.5380  spot_dark_L2_r0=35.0455  spot_dark_L4_r0=58.5278  spot_dark_L5_r0=228.0306  spot_dark_Mi1_r0=155.8621  spot_dark_Tm3_r0=100.8568  spot_dark_Mi4_r0=139.9462  spot_dark_Mi9_r0=48.7399  spot_dark_Tm1_r0=110.5479  spot_dark_Tm2_r0=109.1904  spot_dark_Tm4_r0=108.2204  spot_dark_Tm9_r0=57.7802  spot_dark_L3_r0=11.7193]
+Final cost = 94.7093  [spot_bright_L1_r0=149.5449  spot_bright_L2_r0=152.7355  spot_bright_L4_r0=146.6730  spot_bright_L5_r0=67.6570  spot_bright_Mi1_r0=101.6655  spot_bright_Tm3_r0=100.2193  spot_bright_Mi4_r0=114.2721  spot_bright_Mi9_r0=67.8651  spot_bright_Tm1_r0=77.3419  spot_bright_Tm2_r0=91.2707  spot_bright_Tm4_r0=76.1496  spot_bright_Tm9_r0=74.8211  spot_bright_L3_r0=26.9972  spot_dark_L1_r0=60.1244  spot_dark_L2_r0=55.4344  spot_dark_L4_r0=70.6983  spot_dark_L5_r0=155.3086  spot_dark_Mi1_r0=100.9373  spot_dark_Tm3_r0=99.7402  spot_dark_Mi4_r0=81.8836  spot_dark_Mi9_r0=82.5940  spot_dark_Tm1_r0=133.8602  spot_dark_Tm2_r0=113.9731  spot_dark_Tm4_r0=158.2470  spot_dark_Tm9_r0=81.2178  spot_dark_L3_r0=21.2099]
+Best  cost = 94.3800  [spot_bright_L1_r0=163.7200  spot_bright_L2_r0=167.7097  spot_bright_L4_r0=157.2233  spot_bright_L5_r0=62.4107  spot_bright_Mi1_r0=106.9666  spot_bright_Tm3_r0=102.1947  spot_bright_Mi4_r0=100.0312  spot_bright_Mi9_r0=42.6780  spot_bright_Tm1_r0=88.0499  spot_bright_Tm2_r0=91.8361  spot_bright_Tm4_r0=71.0475  spot_bright_Tm9_r0=58.8897  spot_bright_L3_r0=24.6850  spot_dark_L1_r0=55.7259  spot_dark_L2_r0=50.1926  spot_dark_L4_r0=67.1476  spot_dark_L5_r0=171.4087  spot_dark_Mi1_r0=109.3711  spot_dark_Tm3_r0=99.2930  spot_dark_Mi4_r0=93.9124  spot_dark_Mi9_r0=84.8788  spot_dark_Tm1_r0=118.6515  spot_dark_Tm2_r0=112.1206  spot_dark_Tm4_r0=150.3362  spot_dark_Tm9_r0=75.4939  spot_dark_L3_r0=27.9057]
+time needed  = 26.55  sec
+
+done in 0.01 hours
+wrote /home/yitai/drosophila_vision/vision/simulation/0_runs/borst/28851292-run-nofsteps-10-a-slow-init.L1,L2-0.6-bias-out-init.R1-6,R7,R8-0-model-borst-cost-norm-gt_power/data/best_adam.npz (best run #0)
+wrote table: /home/yitai/drosophila_vision/vision/simulation/0_runs/borst/28851292-run-nofsteps-10-a-slow-init.L1,L2-0.6-bias-out-init.R1-6,R7,R8-0-model-borst-cost-norm-gt_power/param.csv (best run #0, cost=94.3800)
+wrote table: /home/yitai/drosophila_vision/vision/simulation/0_runs/borst/28851292-run-nofsteps-10-a-slow-init.L1,L2-0.6-bias-out-init.R1-6,R7,R8-0-model-borst-cost-norm-gt_power/syn_strength_cell.csv
+plot device=cuda (NVIDIA L40S)
+1 trained set(s); costs min=94.3800 max=94.3800; selected #0 (from saved final costs)
+/home/yitai/drosophila_vision/vision/simulation/5_figure/1_util.py:1005: UserWarning: This figure includes Axes that are not compatible with tight_layout, so results might be incorrect.
+  fig.tight_layout()
+plot /home/yitai/drosophila_vision/vision/simulation/0_runs/borst/28851292-run-nofsteps-10-a-slow-init.L1,L2-0.6-bias-out-init.R1-6,R7,R8-0-model-borst-cost-norm-gt_power/cost_curve.png: draw=0.1s  save=0.5s  total=0.6s
+plot /home/yitai/drosophila_vision/vision/simulation/0_runs/borst/28851292-run-nofsteps-10-a-slow-init.L1,L2-0.6-bias-out-init.R1-6,R7,R8-0-model-borst-cost-norm-gt_power/spot_gt_v.png: prep=0.5s  draw=0.3s  save=0.8s  total=1.7s
+plot /home/yitai/drosophila_vision/vision/simulation/0_runs/borst/28851292-run-nofsteps-10-a-slow-init.L1,L2-0.6-bias-out-init.R1-6,R7,R8-0-model-borst-cost-norm-gt_power/spot_all_v.png: prep=0.0s  draw=1.1s  save=3.2s  total=4.3s
+plots saved to /home/yitai/drosophila_vision/vision/simulation/0_runs/borst/28851292-run-nofsteps-10-a-slow-init.L1,L2-0.6-bias-out-init.R1-6,R7,R8-0-model-borst-cost-norm-gt_power

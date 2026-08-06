@@ -716,6 +716,134 @@ def add_plot_euler_argument(parser):
     )
 
 
+def add_param_argument(parser):
+    """``--param NAME=VALUE`` / ``NAME.NODE=VALUE`` for plot / analyze."""
+    parser.add_argument(
+        "--param",
+        nargs="+",
+        default=None,
+        metavar="NAME=VALUE|NAME.NODE=VALUE",
+        help=(
+            "overwrite schema params before forward; "
+            "NAME=VALUE or NAME.all=VALUE sets every node; "
+            "NAME.NODE=VALUE for one cell / SRC:TAR pair / eN; "
+            "PNG stem gets _NAME_NODE_VALUE per edit (after timing suffixes)"
+        ),
+    )
+
+
+def parse_param_tokens(tokens):
+    """Parse ``--param NAME=VALUE`` / ``NAME.NODE=VALUE`` / ``NAME.all=VALUE``."""
+    if not tokens:
+        return []
+    out = []
+    for tok in tokens:
+        if "=" not in tok:
+            raise SystemExit(
+                f"--param expected NAME=VALUE or NAME.NODE=VALUE, got {tok!r}"
+            )
+        left, val_s = tok.split("=", 1)
+        if not left:
+            raise SystemExit(
+                f"--param expected NAME=VALUE or NAME.NODE=VALUE, got {tok!r}"
+            )
+        if "." in left:
+            name, node = left.split(".", 1)
+            if not name or not node:
+                raise SystemExit(
+                    f"--param expected NAME=VALUE or NAME.NODE=VALUE, got {tok!r}"
+                )
+            if node == "all":
+                node = None
+        else:
+            name, node = left, None
+        try:
+            val = float(val_s)
+        except ValueError as exc:
+            raise SystemExit(f"--param bad VALUE {val_s!r}") from exc
+        out.append((name, node, val))
+    return out
+
+
+def _format_param_filename_token(value):
+    v = float(value)
+    if v == int(v):
+        return str(int(v))
+    return "%g" % v
+
+
+def param_filename_suffix(edits):
+    """PNG stem suffix for ``--param`` edits; empty when none.
+
+    Example: ``hp_lp.L1=1000`` → ``_hp_lp_L1_1000``.
+    """
+    if not edits:
+        return ""
+    parts = []
+    for name, node, val in edits:
+        bits = [name]
+        if node is not None:
+            bits.append(str(node).replace(":", "_"))
+        bits.append(_format_param_filename_token(val))
+        parts.append("_".join(bits))
+    return "_" + "_".join(parts)
+
+
+def apply_param_overrides(z, schema, session, edits):
+    """Apply ``--param`` edits; return ``(z, schema)`` (schema may gain frozen carry)."""
+    if not edits:
+        return z, schema
+    if session.backend.network is None:
+        raise SystemExit("--param requires a network backend")
+
+    named = training.z_to_node_values(z, schema)
+    seg_by_name = {s["name"]: s for s in schema}
+    edited_idxs = {}
+
+    for name, node, val in edits:
+        seg = seg_by_name.get(name)
+        if seg is None:
+            avail = sorted(seg_by_name)
+            raise SystemExit(
+                f"--param unknown param {name!r}; schema has: {avail}"
+            )
+        if name not in named:
+            raise SystemExit(f"--param schema missing values for {name!r}")
+        labels = training.node_names_for_segment(seg, session.backend)
+        label_to_i = {lab: i for i, lab in enumerate(labels)}
+        arr = np.array(named[name], dtype=np.float64, copy=True)
+        if node is None:
+            idxs = list(range(len(labels)))
+        else:
+            if node not in label_to_i:
+                raise SystemExit(
+                    f"--param unknown node {node!r} for {name}; "
+                    f"available: {labels}"
+                )
+            idxs = [label_to_i[node]]
+        for i in idxs:
+            arr[i] = val
+            print(f"param {name}.{labels[i]} = {val:g}", flush=True)
+        named[name] = arr
+        edited_idxs.setdefault(name, set()).update(idxs)
+
+    new_schema = []
+    for seg in schema:
+        s = dict(seg)
+        hit = edited_idxs.get(s["name"])
+        if hit:
+            for mode in ("indi", "shared", "fixed", "frozen"):
+                s[mode] = [i for i in (s.get(mode) or []) if i not in hit]
+            s["frozen"] = sorted(set(s.get("frozen") or []) | hit)
+        new_schema.append(s)
+
+    new_schema = training.attach_param_carry(new_schema, named)
+    z_new = training.node_values_to_z(
+        named, new_schema, dtype=z.dtype, device=z.device,
+    )
+    return z_new, new_schema
+
+
 def plot_kwargs_from_args(args):
     """Map a parsed CLI namespace to :func:`plot_param_set` plot kwargs."""
     align_xy = parse_align_xy(args.align_xy)
@@ -749,6 +877,7 @@ def main():
     add_plot_arguments(ap)
     add_plot_timing_arguments(ap)
     add_plot_euler_argument(ap)
+    add_param_argument(ap)
     args = ap.parse_args()
     try:
         plot_kw = plot_kwargs_from_args(args)
@@ -756,6 +885,7 @@ def main():
         raise SystemExit(str(exc)) from exc
 
     timing_kw = train_mod.stimulus_timing_kwargs_from_args(args)
+    param_edits = parse_param_tokens(args.param)
 
     outdir = resolve_run_dir(args.run_path)
     session, z, best_cost = load_best(outdir, verbose=True)
@@ -763,12 +893,22 @@ def main():
         run_dir=outdir, session=session, z=z, **timing_kw,
         euler=getattr(args, "euler", None),
     )
+    z_t = (
+        z if torch.is_tensor(z)
+        else torch.tensor(np.asarray(z, dtype=np.float64), dtype=torch.float64,
+                          device=session.device)
+    )
+    z_t, schema = apply_param_overrides(
+        z_t, list(session.schema), session, param_edits,
+    )
+    session = session.with_schema(schema)
     file_suffix = (
         stimulus_timing_filename_suffix(**timing_changed)
         + euler_filename_suffix(getattr(args, "euler", None))
+        + param_filename_suffix(param_edits)
     )
     model = resolve_model(outdir)
-    z_np = z.detach().cpu().numpy() if torch.is_tensor(z) else np.asarray(z)
+    z_np = z_t.detach().cpu().numpy()
     print(f'outdir={outdir}')
     print(f'params={train_mod.best_param_path(outdir)}')
     print(f'model={model} ({z_np.shape[-1]} params)')
@@ -779,6 +919,7 @@ def main():
         session=session,
         final_costs=np.array([best_cost]),
         file_suffix=file_suffix,
+        save_artifacts=not param_edits,
         **plot_kw,
     )
 

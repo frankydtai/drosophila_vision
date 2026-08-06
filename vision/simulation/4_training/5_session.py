@@ -97,7 +97,6 @@ from training.config import (
     expand_cost_norm,
     expand_cost_weight_dict,
     expand_gt_dict,
-    expand_pre_steady_dict,
     expand_pre_steady_mode,
     moving_bar_cost_part_key,
     normalize_tasks,
@@ -911,7 +910,9 @@ def make_train_opts(
     if fp not in (16, 32, 64):
         raise ValueError(f"fp must be 16, 32, or 64; got {fp!r}")
     cost_norm = expand_cost_norm(cost_norm)
-    pre_steady = expand_pre_steady_dict(pre_steady, defaults=PRE_STEADY)
+    pre_steady = expand_pre_steady_mode(
+        PRE_STEADY if pre_steady is None else pre_steady
+    )
     pre_steady_iters = int(pre_steady_iters)
     pre_steady_damp = float(pre_steady_damp)
     if pre_steady_iters < 1:
@@ -1002,8 +1003,8 @@ def _train_opts_for_sidecar(
         "tasks": list(tasks),
         "cost_weights": {str(k): float(v) for k, v in (opts.get("cost_weights") or {}).items()},
         "cost_norm": expand_cost_norm(opts.get("cost_norm", COST_NORM)),
-        "pre_steady": expand_pre_steady_dict(
-            opts.get("pre_steady"), defaults=PRE_STEADY,
+        "pre_steady": expand_pre_steady_mode(
+            opts.get("pre_steady", PRE_STEADY),
         ),
         "pre_steady_iters": int(
             opts.get("pre_steady_iters", PRE_STEADY_ITERS)
@@ -1122,11 +1123,10 @@ def _make_session(
     if train_opts_record is None or "euler" not in train_opts_record:
         raise ValueError("train opts require euler (implicit|explicit)")
     euler = expand_euler(train_opts_record["euler"])
-    pre_steady_map = expand_pre_steady_dict(
-        train_opts_record.get("pre_steady"), defaults=PRE_STEADY,
+    pre_steady = expand_pre_steady_mode(
+        train_opts_record.get("pre_steady", PRE_STEADY),
     )
-    train_opts_record["pre_steady"] = pre_steady_map
-    pre_steady = expand_pre_steady_mode(model, pre_steady_map[model])
+    train_opts_record["pre_steady"] = pre_steady
     pre_steady_iters = int(
         train_opts_record.get("pre_steady_iters", PRE_STEADY_ITERS)
     )

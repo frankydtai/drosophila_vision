@@ -106,10 +106,11 @@ Per ``--run``: one ``load_best``; one batched v component forward per distinct t
   per-t step table prints only when ``--plot false``.
 ``--radius 0|1``: spot average Euclidean readout radius (default 0 = stim-on hex; 1 = neighbors).
   Average only; PNGs for ``--radius 1`` get ``_radius1`` in the filename.
-``--param NAME=VALUE`` / ``NAME.NODE=VALUE``: overwrite any schema param before
-  forward (``NODE`` = cell, ``SRC:TAR`` pair, or ``eN``; omit / ``all`` = every node).
-  Each edit appends ``_NAME_NODE_VALUE`` (``:`` in NODE → ``_``; no NODE when
-  omitted / ``all``) to PNG stems, in CLI order, after timing suffixes.
+``--param NAME=VALUE`` / ``NAME.NODE=VALUE``: via ``figure.plot_run`` — overwrite
+  any schema param before forward (``NODE`` = cell, ``SRC:TAR`` pair, or ``eN``;
+  omit / ``all`` = every node). Each edit appends ``_NAME_NODE_VALUE`` (``:`` in
+  NODE → ``_``; no NODE when omitted / ``all``) to PNG stems, in CLI order,
+  after timing suffixes.
 
 ``--euler im|ex``: optional membrane Euler override (default: keep run
 ``train_opts.euler``). Re-opens the session with timing overrides when set;
@@ -1354,125 +1355,6 @@ def _make_forward_batch(
 # ---------------------------------------------------------------------------
 
 
-def _parse_param_tokens(
-    tokens: list[str] | None,
-) -> list[tuple[str, str | None, float]]:
-    """Parse ``--param NAME=VALUE`` / ``NAME.NODE=VALUE`` / ``NAME.all=VALUE``."""
-    if not tokens:
-        return []
-    out: list[tuple[str, str | None, float]] = []
-    for tok in tokens:
-        if "=" not in tok:
-            raise SystemExit(
-                f"--param expected NAME=VALUE or NAME.NODE=VALUE, got {tok!r}"
-            )
-        left, val_s = tok.split("=", 1)
-        if not left:
-            raise SystemExit(f"--param expected NAME=VALUE or NAME.NODE=VALUE, got {tok!r}")
-        if "." in left:
-            name, node = left.split(".", 1)
-            if not name or not node:
-                raise SystemExit(
-                    f"--param expected NAME=VALUE or NAME.NODE=VALUE, got {tok!r}"
-                )
-            if node == "all":
-                node = None
-        else:
-            name, node = left, None
-        try:
-            val = float(val_s)
-        except ValueError as exc:
-            raise SystemExit(f"--param bad VALUE {val_s!r}") from exc
-        out.append((name, node, val))
-    return out
-
-
-def _format_param_filename_token(value: float) -> str:
-    v = float(value)
-    if v == int(v):
-        return str(int(v))
-    return "%g" % v
-
-
-def _param_filename_suffix(
-    edits: list[tuple[str, str | None, float]],
-) -> str:
-    """PNG stem suffix for ``--param`` edits; empty when none.
-
-    Example: ``hp_lp.L1=1000`` → ``_hp_lp_L1_1000``.
-    """
-    if not edits:
-        return ""
-    parts: list[str] = []
-    for name, node, val in edits:
-        bits = [name]
-        if node is not None:
-            bits.append(str(node).replace(":", "_"))
-        bits.append(_format_param_filename_token(val))
-        parts.append("_".join(bits))
-    return "_" + "_".join(parts)
-
-
-def _apply_param_overrides(
-    z: torch.Tensor,
-    schema: list,
-    session,
-    edits: list[tuple[str, str | None, float]],
-) -> tuple[torch.Tensor, list]:
-    """Apply ``--param`` edits; return ``(z, schema)`` (schema may gain frozen carry)."""
-    if not edits:
-        return z, schema
-    if session.backend.network is None:
-        raise SystemExit("--param requires a network backend")
-
-    named = training.z_to_node_values(z, schema)
-    seg_by_name = {s["name"]: s for s in schema}
-    edited_idxs: dict[str, set[int]] = {}
-
-    for name, node, val in edits:
-        seg = seg_by_name.get(name)
-        if seg is None:
-            avail = sorted(seg_by_name)
-            raise SystemExit(
-                f"--param unknown param {name!r}; schema has: {avail}"
-            )
-        if name not in named:
-            raise SystemExit(f"--param schema missing values for {name!r}")
-        labels = training.node_names_for_segment(seg, session.backend)
-        label_to_i = {lab: i for i, lab in enumerate(labels)}
-        arr = np.array(named[name], dtype=np.float64, copy=True)
-        if node is None:
-            idxs = list(range(len(labels)))
-        else:
-            if node not in label_to_i:
-                raise SystemExit(
-                    f"--param unknown node {node!r} for {name}; "
-                    f"available: {labels}"
-                )
-            idxs = [label_to_i[node]]
-        for i in idxs:
-            arr[i] = val
-            _log(f"param {name}.{labels[i]} = {val:g}")
-        named[name] = arr
-        edited_idxs.setdefault(name, set()).update(idxs)
-
-    new_schema: list = []
-    for seg in schema:
-        s = dict(seg)
-        hit = edited_idxs.get(s["name"])
-        if hit:
-            for mode in ("indi", "shared", "fixed", "frozen"):
-                s[mode] = [i for i in (s.get(mode) or []) if i not in hit]
-            s["frozen"] = sorted(set(s.get("frozen") or []) | hit)
-        new_schema.append(s)
-
-    new_schema = training.attach_param_carry(new_schema, named)
-    z_new = training.node_values_to_z(
-        named, new_schema, dtype=z.dtype, device=z.device,
-    )
-    return z_new, new_schema
-
-
 def _bar_meta(session, task: str):
     """One-shot ``(specs, grids)`` for a moving-bar task."""
     specs = bar_specs_for_session(session, task)
@@ -2556,6 +2438,7 @@ def main() -> None:
     add_shared_cli(ap, default_run=DEFAULT_RUN_PATH)
     plot_trained.add_plot_timing_arguments(ap)
     plot_trained.add_plot_euler_argument(ap)
+    plot_trained.add_param_argument(ap)
     ap.add_argument("--node", type=int, default=None, help="hex-mode node index")
     ap.add_argument(
         "--radius",
@@ -2594,18 +2477,6 @@ def main() -> None:
         "--html",
         action="store_true",
         help="save interactive plotly HTML (hover x/y) instead of PNG",
-    )
-    ap.add_argument(
-        "--param",
-        nargs="+",
-        default=None,
-        metavar="NAME=VALUE|NAME.NODE=VALUE",
-        help=(
-            "overwrite schema params before forward; "
-            "NAME=VALUE or NAME.all=VALUE sets every node; "
-            "NAME.NODE=VALUE for one cell / SRC:TAR pair / eN; "
-            "PNG stem gets _NAME_NODE_VALUE per edit (after timing suffixes)"
-        ),
     )
     ap.add_argument("--json", action="store_true", help="print JSON to stdout")
     args = ap.parse_args()
@@ -2650,7 +2521,7 @@ def main() -> None:
         use_ms = True
 
     timing_kw = stimulus_timing_kwargs_from_args(args)
-    param_edits = _parse_param_tokens(args.param)
+    param_edits = plot_trained.parse_param_tokens(args.param)
 
     for run_i, run_arg in enumerate(args.run):
         run_dir = plot_trained.resolve_run_dir(run_arg)
@@ -2668,7 +2539,7 @@ def main() -> None:
                 **timing_changed,
             )
             + plot_trained.euler_filename_suffix(args.euler)
-            + _param_filename_suffix(param_edits)
+            + plot_trained.param_filename_suffix(param_edits)
         )
         if use_ms:
             lo, hi = (
@@ -2678,7 +2549,7 @@ def main() -> None:
             time_window = TimeWindow(kind="ms", start=lo, stop=hi)
         schema = list(session.schema)
         z_t = torch.tensor(np.asarray(z, dtype=np.float64), dtype=torch.float64, device=session.device)
-        z_t, schema = _apply_param_overrides(
+        z_t, schema = plot_trained.apply_param_overrides(
             z_t, schema, session, param_edits,
         )
         session = session.with_schema(schema)

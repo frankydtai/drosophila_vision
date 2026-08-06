@@ -1,0 +1,59 @@
+Job ID: 28850329
+Node:   spartan-gpgpu006
+GPU:    0
+GPU 0: NVIDIA L40S (UUID: GPU-62e38f02-0d03-6c97-2f6a-027d1715147b)
+cuda: True NVIDIA L40S
+Start:  Thu 06 Aug 2026 22:19:44 AEST
+train_modes:
+  a_in               indi=0/shared=56/fixed=0/frozen=0 (1)
+  a_out              indi=56/shared=0/fixed=0/frozen=0 (56)
+  bias_out           indi=56/shared=0/fixed=0/frozen=0 (56)
+  syn_strength_cell  indi=1035/shared=0/fixed=0/frozen=0 (1035)
+  a_gt               indi=56/shared=0/fixed=0/frozen=0 (56)
+  bias_gt            indi=0/shared=0/fixed=0/frozen=56 (0)
+  tau_lp             indi=56/shared=0/fixed=0/frozen=0 (56)
+  tau_hp             indi=56/shared=0/fixed=0/frozen=0 (56)
+  v_rest             indi=0/shared=0/fixed=56/frozen=0 (0)
+  a_slow             indi=0/shared=0/fixed=56/frozen=0 (0)
+  a_sti_r            indi=3/shared=0/fixed=1/frozen=0 (3)
+device=cuda, model=hp_lp, syn_mode=per_cell, euler=implicit, pre_steady=solve, nofruns=1, nofsteps=150, lrs=[0.1], nparams=1319, fname=training_hp_lp.npy, outdir=/home/yitai/drosophila_vision/vision/simulation/0_runs/hp_lp/28850329-run-nofsteps-150-a-slow-init.L1,L2-0.6-bias-out-init.R1-6,R7,R8-0-init-from-28849982-run-nofsteps-150-a-slow-init.L1,L2-0.6-bias-out-init.R1-6,R7,R8-0
+checkpoint_interval=500
+from '/home/yitai/drosophila_vision/vision/simulation/0_runs/hp_lp/28849982-run-nofsteps-150-a-slow-init.L1,L2-0.6-bias-out-init.R1-6,R7,R8-0' -> '/home/yitai/drosophila_vision/vision/simulation/0_runs/hp_lp/28849982-run-nofsteps-150-a-slow-init.L1,L2-0.6-bias-out-init.R1-6,R7,R8-0/data/best_param.npz' + '/home/yitai/drosophila_vision/vision/simulation/0_runs/hp_lp/28849982-run-nofsteps-150-a-slow-init.L1,L2-0.6-bias-out-init.R1-6,R7,R8-0/data/best_adam.npz' (1319 trainable slots, adam_step=150)
+
+round 0
+
+  0%|          | 0/150 [00:00<?, ?it/s] Cost: 301295.8892  [spot_bright_L1_r0=124486.2945  spot_bright_L2_r0=117713.2684  spot_bright_L4_r0=325257.7847  spot_bright_L5_r0=154650.9949  spot_bright_Mi1_r0=213431.4833  spot_bright_Tm3_r0=629552.3403  spot_bright_Mi4_r0=170654.6706  spot_bright_Mi9_r0=323831.4051  spot_bright_Tm1_r0=392296.8059  spot_bright_Tm2_r0=624052.6333  spot_bright_Tm4_r0=471534.1804  spot_bright_Tm9_r0=404745.7567  spot_bright_L3_r0=86784.3132  spot_dark_L1_r0=125948.3635  spot_dark_L2_r0=110043.6167  spot_dark_L4_r0=295830.8929  spot_dark_L5_r0=155109.5441  spot_dark_Mi1_r0=209120.2766  spot_dark_Tm3_r0=623167.2793  spot_dark_Mi4_r0=168381.0040  spot_dark_Mi9_r0=312069.4505  spot_dark_Tm1_r0=357190.7450  spot_dark_Tm2_r0=548632.3638  spot_dark_Tm4_r0=437247.8326  spot_dark_Tm9_r0=368437.2849  spot_dark_L3_r0=83522.5342]  0%|          | 0/150 [00:00<?, ?it/s] Cost: 301295.8892  [spot_bright_L1_r0=124486.2945  spot_bright_L2_r0=117713.2684  spot_bright_L4_r0=325257.7847  spot_bright_L5_r0=154650.9949  spot_bright_Mi1_r0=213431.4833  spot_bright_Tm3_r0=629552.3403  spot_bright_Mi4_r0=170654.6706  spot_bright_Mi9_r0=323831.4051  spot_bright_Tm1_r0=392296.8059  spot_bright_Tm2_r0=624052.6333  spot_bright_Tm4_r0=471534.1804  spot_bright_Tm9_r0=404745.7567  spot_bright_L3_r0=86784.3132  spot_dark_L1_r0=125948.3635  spot_dark_L2_r0=110043.6167  spot_dark_L4_r0=295830.8929  spot_dark_L5_r0=155109.5441  spot_dark_Mi1_r0=209120.2766  spot_dark_Tm3_r0=623167.2793  spot_dark_Mi4_r0=168381.0040  spot_dark_Mi9_r0=312069.4505  spot_dark_Tm1_r0=357190.7450  spot_dark_Tm2_r0=548632.3638  spot_dark_Tm4_r0=437247.8326  spot_dark_Tm9_r0=368437.2849  spot_dark_L3_r0=83522.5342]
+Traceback (most recent call last):
+  File "/home/yitai/drosophila_vision/vision/simulation/run.py", line 333, in <module>
+    main()
+  File "/home/yitai/drosophila_vision/vision/simulation/run.py", line 329, in main
+    run_training_and_plot(**kw)
+  File "/home/yitai/drosophila_vision/vision/simulation/run.py", line 204, in run_training_and_plot
+    fname, outdir, session, result = train.run_training(
+  File "/home/yitai/drosophila_vision/vision/simulation/4_training/6_implement.py", line 878, in run_training
+    result = do_many_runs(
+  File "/home/yitai/drosophila_vision/vision/simulation/4_training/4_cost.py", line 1254, in do_many_runs
+    z_fit, opt_state = train_staged(
+  File "/home/yitai/drosophila_vision/vision/simulation/4_training/4_cost.py", line 1149, in train_staged
+    z, opt_state = gradient_network(
+  File "/home/yitai/drosophila_vision/vision/simulation/4_training/4_cost.py", line 1050, in gradient_network
+    optimizer.step()
+  File "/home/yitai/drosophila_vision/vision/.venv/lib64/python3.9/site-packages/torch/optim/optimizer.py", line 516, in wrapper
+    out = func(*args, **kwargs)
+  File "/home/yitai/drosophila_vision/vision/.venv/lib64/python3.9/site-packages/torch/optim/optimizer.py", line 81, in _use_grad
+    ret = func(*args, **kwargs)
+  File "/home/yitai/drosophila_vision/vision/.venv/lib64/python3.9/site-packages/torch/optim/adam.py", line 247, in step
+    adam(
+  File "/home/yitai/drosophila_vision/vision/.venv/lib64/python3.9/site-packages/torch/optim/optimizer.py", line 149, in maybe_fallback
+    return func(*args, **kwargs)
+  File "/home/yitai/drosophila_vision/vision/.venv/lib64/python3.9/site-packages/torch/optim/adam.py", line 949, in adam
+    func(
+  File "/home/yitai/drosophila_vision/vision/.venv/lib64/python3.9/site-packages/torch/optim/adam.py", line 611, in _multi_tensor_adam
+    grouped_tensors = Optimizer._group_tensors_by_device_and_dtype(
+  File "/home/yitai/drosophila_vision/vision/.venv/lib64/python3.9/site-packages/torch/optim/optimizer.py", line 545, in _group_tensors_by_device_and_dtype
+    return _group_tensors_by_device_and_dtype(tensorlistlist, with_indices)  # type: ignore[return-value, arg-type]
+  File "/home/yitai/drosophila_vision/vision/.venv/lib64/python3.9/site-packages/torch/utils/_contextlib.py", line 120, in decorate_context
+    return func(*args, **kwargs)
+  File "/home/yitai/drosophila_vision/vision/.venv/lib64/python3.9/site-packages/torch/utils/_foreach_utils.py", line 47, in _group_tensors_by_device_and_dtype
+    return torch._C._group_tensors_by_device_and_dtype(tensorlistlist, with_indices)
+RuntimeError: Tensors of the same index must be on the same device and the same dtype except `step` tensors that can be CPU and float32/64 notwithstanding

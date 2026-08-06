@@ -202,3 +202,5 @@ class TrainingResult:
     cost_curve: np.ndarray   # per-step weighted total for ``argmin(final_costs)``
     cost_curves_by_part: Dict[str, np.ndarray] = field(default_factory=dict)
     final_costs_by_part: Dict[str, np.ndarray] = field(default_factory=dict)
+    # Per-run Adam moments at best_z: exp_avg, exp_avg_sq (n_params,), step (int).
+    all_adam: tuple = ()

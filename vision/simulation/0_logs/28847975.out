@@ -1,0 +1,16 @@
+Job ID: 28847975
+Node:   spartan-gpgpu122
+GPU:    0
+GPU 0: NVIDIA A100 80GB PCIe (UUID: GPU-ec56f42d-3fbb-6631-85da-9817266f7523)
+cuda: True NVIDIA A100 80GB PCIe
+Start:  Thu 06 Aug 2026 20:17:00 AEST
+Traceback (most recent call last):
+  File "/home/yitai/drosophila_vision/vision/simulation/run.py", line 333, in <module>
+    main()
+  File "/home/yitai/drosophila_vision/vision/simulation/run.py", line 326, in main
+    kw = run_kwargs_from_args(args)
+  File "/home/yitai/drosophila_vision/vision/simulation/run.py", line 232, in run_kwargs_from_args
+    train_kw = train.training_kwargs_from_args(args, script_stem=script_stem)
+  File "/home/yitai/drosophila_vision/vision/simulation/4_training/6_implement.py", line 1509, in training_kwargs_from_args
+    default_weights=default_spot_cost_radius_weight(
+TypeError: default_spot_cost_radius_weight() got an unexpected keyword argument 'weights_extent1'

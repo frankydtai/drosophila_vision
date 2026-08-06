@@ -137,17 +137,13 @@ def _syn_segment(syn_mode, n_pairs, n_edges, param_boxes):
 
 
 def _a_sti_r_segment(param_boxes: dict, sti_r_names):
-    """Per-radius spot drive scale; r=0 fixed at 1, other radii indi init=0."""
+    """Per-radius spot drive scale; train_mode from box; r=0 init_override=1."""
     names = [str(n) for n in sti_r_names]
     n = len(names)
     if n == 0:
         raise ValueError("a_sti_r requires non-empty sti_r_names")
     seg = _seg("a_sti_r", n, "output", param_boxes["a_sti_r"], n)
     seg["node_names"] = names
-    seg["indi"] = list(range(1, n))
-    seg["shared"] = []
-    seg["fixed"] = [0]
-    seg["frozen"] = []
     seg["init_override"] = {0: 1.0}
     return seg
 

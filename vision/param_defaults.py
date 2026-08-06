@@ -15,7 +15,7 @@ import math
 from typing import Dict, Tuple
 
 DEFAULT_RUN_NAME = """
-28826501-run-nofsteps-300-a-slow-init.L1,L2-0.6-ms-pre-200-ms-pulse-100-ms-response-300-gt-spot-L1,L2,L3,L4,L5-bias-out-init.L1,L2,L3-20
+28850391-run-nofsteps-150-a-slow-init.L1,L2-0.6-bias-out-init.R1-6,R7,R8-0-init-from-28849982-run-nofsteps-150-a-slow-init.L1,L2-0.6-bias-out-init.R1-6,R7,R8-0
 """.strip()
 DEFAULT_RUN_PATH = "hp_lp/" + DEFAULT_RUN_NAME
 
@@ -23,7 +23,7 @@ DEFAULT_RUN_PATH = "hp_lp/" + DEFAULT_RUN_NAME
 # 1.1 neuron.params (flat; no Physics bag)
 # ---------------------------------------------------------------------------
 
-DELTA_MS = 5.0
+DELTA_MS = 1.0
 CAPAC = 40.0
 G_LEAK = 1.0
 G_IN = 1.0  # nS; hp_lp converts i_sti (pA) → mV via i_sti / g_in
@@ -65,12 +65,12 @@ PARAM_BOXES: Dict[str, dict] = {
     "Ih_midv_off": dict(lo=-70.0, hi=-30.0, init=-50.0, jit=5.0, train_mode="shared"),
     "Ih_slope_off": dict(lo=-0.40, hi=-0.20, init=-0.25, jit=0.02, train_mode="shared"),
     "tau_midv_off": dict(lo=-70.0, hi=-40.0, init=-50.0, jit=5.0, train_mode="shared"),
-    "tau_lp": dict(lo=10.0, hi=100.0, init=50.0, jit=5.0, train_mode="indi"),
+    "tau_lp": dict(lo=10.0, hi=100.0, init=40.0, jit=2.0, train_mode="indi"),
     "v_rest": dict(lo=-20.0, hi=20.0, init=0.0, jit=1.0, train_mode="fixed"),
-    "bias_out": dict(lo=-50.0, hi=50.0, init=0.0, jit=1.0, train_mode="indi"),
+    "bias_out": dict(lo=-50.0, hi=55.0, init=50.0, jit=1.0, train_mode="indi"),
     "tau_hp": dict(lo=100.0, hi=500.0, init=200.0, jit=20.0, train_mode="indi"),
-    "a_slow": dict(lo=0.0, hi=1.0, init=0.0, jit=0.05, train_mode="indi"),
-    "a_sti_r": dict(lo=0.0, hi=1.0, init=0.0, jit=0.05, train_mode="indi"),
+    "a_slow": dict(lo=0.0, hi=1.0, init=0.0, jit=0.05, train_mode="fixed"),
+    "a_sti_r": dict(lo=0.0, hi=1.0, init=0.0, jit=0.05, train_mode="fixed"),
 }
 
 MODEL = "hp_lp"
@@ -104,10 +104,10 @@ I_DARK = 0.0
 # 3.1 task.spot.input
 # ---------------------------------------------------------------------------
 
-MS_PRE = 500.0
-MS_RESPONSE = 500.0
+MS_PRE = 100.0
+MS_PULSE = 50.0
+MS_RESPONSE = 120.0
 MS_POST = 0.0
-MS_PULSE = 100.0
 SPOT_EXTENT = 1.0
 SPOT_EXTENTS: Tuple[float, ...] = (0.5, 1.0, 1.5, 2.0)
 FULLY_INSIDE = True
@@ -127,7 +127,7 @@ SPOT_COST_RADIUS_WEIGHT: Dict[float, float] = {
 }
 SPOT_COST_RADIUS_WEIGHT_EXTENT1: Dict[float, float] = {
     0.0: 1.0,
-    1.0: 1.0,
+    1.0: 0.0,
 }
 SPOT_COST_RADIUS_KEY_ALIASES: Dict[str, float] = {
     "sqrt3": math.sqrt(3),
@@ -150,19 +150,18 @@ TASK = "spot"
 # ---------------------------------------------------------------------------
 
 COST_NORM = "a_gt2"  # gt_power | a_gt2; see training.config.COST_NORMS
+# Spot: post-onset cost sample spacing (ms); 0, interval, 2*interval, ...
+COST_INTERVAL_MS = 5.0
 # Cost/plot affine bias = v at t_onset (not schema bias_gt).
 BIAS_GT_FROM_V_ONSET = True
 # With bias_gt_from_v_onset: True keeps onset in graph; False detaches.
-BIAS_GT_FROM_V_ONSET_GRAD = False
+BIAS_GT_FROM_V_ONSET_GRAD = True
 
-# Membrane t=0 pre steady (``--pre-steady MODEL=MODE``). Not param init.
-# borst: e_leak only. hp_lp: probe (one-shot) | solve (fixed-iter DC; default).
-PRE_STEADY = {
-    "borst": "e_leak",
-    "hp_lp": "solve",
-}
-PRE_STEADY_ITERS = 60  # hp_lp solve only
-PRE_STEADY_DAMP = 1.0  # hp_lp solve under-relaxation
+# Membrane t=0 pre steady (``--pre-steady MODE``). Not param init.
+# Shared by borst / hp_lp: probe (ohmic one-shot) | solve (fixed-iter DC).
+PRE_STEADY = "solve"
+PRE_STEADY_ITERS = 60  # solve only
+PRE_STEADY_DAMP = 1.0  # solve under-relaxation
 NOFRUNS = 1
 NOFSTEPS_CPU = 50
 NOFSTEPS_GPU = 200
