@@ -15,7 +15,7 @@ import math
 from typing import Dict, Tuple
 
 DEFAULT_RUN_NAME = """
-28850391-run-nofsteps-150-a-slow-init.L1,L2-0.6-bias-out-init.R1-6,R7,R8-0-init-from-28849982-run-nofsteps-150-a-slow-init.L1,L2-0.6-bias-out-init.R1-6,R7,R8-0
+28613815-run-nofsteps-10000-lrs-0.1,0.01,0.001-tau-hp-init.L1,L2,L4,L5-200-ms-pre-1000-ms-pulse-100-ms-response-500
 """.strip()
 DEFAULT_RUN_PATH = "hp_lp/" + DEFAULT_RUN_NAME
 
