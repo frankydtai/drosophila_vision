@@ -44,7 +44,7 @@ from param_defaults import (
     FP,
     FULLY_INSIDE,
     H_CELLS,
-    I_H_OFF,
+    I_H_REV,
     LRS,
     MODEL,
     MULTI_BAR,
@@ -729,7 +729,7 @@ def build_session(
     spot_dark_stimulus_opts=None,
     train_modes=None,
     syn_mode=SYN_MODE,
-    i_h_off=I_H_OFF,
+    i_h_rev=I_H_REV,
     euler=EULER,
     pre_steady=None,
     pre_steady_iters=PRE_STEADY_ITERS,
@@ -772,7 +772,7 @@ def build_session(
         backend="network",
         network_json=network,
         dev=dev,
-        i_h_off=i_h_off,
+        i_h_rev=i_h_rev,
         euler=euler,
         pre_steady=pre_steady,
         pre_steady_iters=pre_steady_iters,
@@ -791,7 +791,7 @@ def build_session(
 def run_training(model, nofruns, nofsteps, lrs, fname=None, outdir=None,
                  train_modes=None,
                  syn_mode=SYN_MODE,
-                 i_h_off=I_H_OFF,
+                 i_h_rev=I_H_REV,
                  euler=EULER,
                  pre_steady=None,
                  pre_steady_iters=PRE_STEADY_ITERS,
@@ -843,7 +843,7 @@ def run_training(model, nofruns, nofsteps, lrs, fname=None, outdir=None,
         spot_dark_stimulus_opts=spot_dark_stimulus_opts,
         train_modes=train_modes,
         syn_mode=syn_mode,
-        i_h_off=i_h_off,
+        i_h_rev=i_h_rev,
         euler=euler,
         pre_steady=pre_steady,
         pre_steady_iters=pre_steady_iters,
@@ -946,19 +946,19 @@ def add_training_arguments(parser):
                         help="params filename (default derived from --model)")
     parser.add_argument("--outdir", default=None,
                         help="output dir (default derived from --model)")
-    parser.add_argument("--init-from", dest="init_from", default=None, metavar="RUN",
-                        help="prior run folder NAME only (no model/ prefix); "
-                             "resolved under 0_runs/<model>/NAME unless an absolute path is given; "
-                             "load named best_param.npz as z init and best_adam.npz as Adam m/v "
+    parser.add_argument("--init-from", dest="init_from", default=None, metavar="MODEL/RUN",
+                        help="prior run as MODEL/RUN under 0_runs (e.g. borst/<run>); "
+                             "or an absolute path; load named best_param.npz as z init "
+                             "and best_adam.npz as Adam m/v "
                              "(settings come from this CLI, not train_opts.json)")
-    _h_g_max_default = (
+    _indi_named_default = (
         "indi=" + ",".join(H_CELLS) + " fixed=all"
     )
 
     def _box_train_mode_default(name):
         tm = PARAM_BOXES[name]["train_mode"]
         if tm == "indi_named":
-            return _h_g_max_default
+            return _indi_named_default
         return f"{tm}=all"
 
     _train_mode_help = (
@@ -996,47 +996,44 @@ def add_training_arguments(parser):
     parser.add_argument("--v-th", **_train_mode_kwargs,
                         help=f"v_th train_modes ({_train_mode_help}; "
                              f"default {_box_train_mode_default('v_th')})")
-    parser.add_argument("--h-g-max", **_train_mode_kwargs,
-                        help=f"h_g_max train_modes ({_train_mode_help}; "
-                             f"default {_box_train_mode_default('h_g_max')})")
-    parser.add_argument("--h-g-max-off", **_train_mode_kwargs,
-                        help=f"h_g_max_off train_modes ({_train_mode_help}; "
-                             f"default {_box_train_mode_default('h_g_max_off')})")
+    parser.add_argument("--a-h", **_train_mode_kwargs,
+                        help=f"a_h train_modes (borst i_h gain / hp_lp HP mix; {_train_mode_help}; "
+                             f"default {_box_train_mode_default('a_h')})")
+    parser.add_argument("--a-h-rev", **_train_mode_kwargs,
+                        help=f"a_h_rev train_modes ({_train_mode_help}; "
+                             f"default {_box_train_mode_default('a_h_rev')})")
     parser.add_argument("--i-h-shape", **_train_mode_kwargs,
-                        help="batch train_modes for h_v_mid/h_slope/tau_v_mid and OFF "
+                        help="batch train_modes for h_v_mid/h_slope/tau_h_v and rev "
                              f"({_train_mode_help}; default {_box_train_mode_default('h_v_mid')})")
     parser.add_argument("--h-v-mid", **_train_mode_kwargs,
                         help=f"h_v_mid train_modes (overrides --i-h-shape; {_train_mode_help})")
     parser.add_argument("--h-slope", **_train_mode_kwargs,
                         help=f"h_slope train_modes (overrides --i-h-shape; {_train_mode_help})")
-    parser.add_argument("--tau-v-mid", **_train_mode_kwargs,
-                        help=f"tau_v_mid train_modes (overrides --i-h-shape; {_train_mode_help})")
-    parser.add_argument("--h-v-mid-off", **_train_mode_kwargs,
-                        help=f"h_v_mid_off train_modes (overrides --i-h-shape; {_train_mode_help})")
-    parser.add_argument("--h-slope-off", **_train_mode_kwargs,
-                        help=f"h_slope_off train_modes (overrides --i-h-shape; {_train_mode_help})")
-    parser.add_argument("--tau-v-mid-off", **_train_mode_kwargs,
-                        help=f"tau_v_mid_off train_modes (overrides --i-h-shape; {_train_mode_help})")
+    parser.add_argument("--tau-h-v", **_train_mode_kwargs,
+                        help=f"tau_h_v train_modes (overrides --i-h-shape; {_train_mode_help})")
+    parser.add_argument("--h-v-mid-rev", **_train_mode_kwargs,
+                        help=f"h_v_mid_rev train_modes (overrides --i-h-shape; {_train_mode_help})")
+    parser.add_argument("--h-slope-rev", **_train_mode_kwargs,
+                        help=f"h_slope_rev train_modes (overrides --i-h-shape; {_train_mode_help})")
+    parser.add_argument("--tau-h-v-rev", **_train_mode_kwargs,
+                        help=f"tau_h_v_rev train_modes (overrides --i-h-shape; {_train_mode_help})")
     parser.add_argument("--tau-lp", **_train_mode_kwargs,
                         help=f"hp_lp tau_lp train_modes ({_train_mode_help}; "
                              f"default {_box_train_mode_default('tau_lp')})")
-    parser.add_argument("--v-rest", **_train_mode_kwargs,
-                        help=f"hp_lp v_rest train_modes ({_train_mode_help}; "
-                             f"default {_box_train_mode_default('v_rest')})")
+    parser.add_argument("--e-leak", **_train_mode_kwargs,
+                        help=f"e_leak train_modes ({_train_mode_help}; "
+                             f"default {_box_train_mode_default('e_leak')})")
     parser.add_argument("--tau-hp", **_train_mode_kwargs,
                         help=f"hp_lp tau_hp train_modes ({_train_mode_help}; "
                              f"default {_box_train_mode_default('tau_hp')})")
-    parser.add_argument("--a-slow", **_train_mode_kwargs,
-                        help=f"hp_lp a_slow train_modes ({_train_mode_help}; "
-                             f"default {_box_train_mode_default('a_slow')})")
     parser.add_argument("--a-sti-r", **_train_mode_kwargs,
                         help="spot a_sti_r train_modes "
                              "(default: fixed=0 init=1, indi=1,sqrt3,2; "
                              f"{_train_mode_help})")
-    parser.add_argument("--i-h-off", default=I_H_OFF,
-                        choices=list(training.I_H_OFF_MODES),
-                        help="OFF-channel i_h: on (train h_g_max_off+OFF shape; default), "
-                             "mirrored (OFF copies ON), off (disable OFF channel)")
+    parser.add_argument("--i-h-rev", default=I_H_REV,
+                        choices=list(training.I_H_REV_MODES),
+                        help="rev-channel i_h: on (train a_h_rev+rev shape), "
+                             "mirrored (rev copies forward), off (disable rev; default)")
     parser.add_argument(
         "--euler",
         default=EULER,
@@ -1552,18 +1549,17 @@ def _train_mode_cli_map(args):
         "syn_strength_cell": syn_cell_text,
         "syn_strength_edge": syn_edge_text,
         "v_th": _train_mode_cli_text(getattr(args, "v_th", None)),
-        "h_g_max": _train_mode_cli_text(getattr(args, "h_g_max", None)),
-        "h_g_max_off": _train_mode_cli_text(getattr(args, "h_g_max_off", None)),
+        "a_h": _train_mode_cli_text(getattr(args, "a_h", None)),
+        "a_h_rev": _train_mode_cli_text(getattr(args, "a_h_rev", None)),
         "h_v_mid": _train_mode_cli_text(getattr(args, "h_v_mid", None)),
         "h_slope": _train_mode_cli_text(getattr(args, "h_slope", None)),
-        "tau_v_mid": _train_mode_cli_text(getattr(args, "tau_v_mid", None)),
-        "h_v_mid_off": _train_mode_cli_text(getattr(args, "h_v_mid_off", None)),
-        "h_slope_off": _train_mode_cli_text(getattr(args, "h_slope_off", None)),
-        "tau_v_mid_off": _train_mode_cli_text(getattr(args, "tau_v_mid_off", None)),
+        "tau_h_v": _train_mode_cli_text(getattr(args, "tau_h_v", None)),
+        "h_v_mid_rev": _train_mode_cli_text(getattr(args, "h_v_mid_rev", None)),
+        "h_slope_rev": _train_mode_cli_text(getattr(args, "h_slope_rev", None)),
+        "tau_h_v_rev": _train_mode_cli_text(getattr(args, "tau_h_v_rev", None)),
         "tau_lp": _train_mode_cli_text(getattr(args, "tau_lp", None)),
-        "v_rest": _train_mode_cli_text(getattr(args, "v_rest", None)),
+        "e_leak": _train_mode_cli_text(getattr(args, "e_leak", None)),
         "tau_hp": _train_mode_cli_text(getattr(args, "tau_hp", None)),
-        "a_slow": _train_mode_cli_text(getattr(args, "a_slow", None)),
         "a_sti_r": _train_mode_cli_text(getattr(args, "a_sti_r", None)),
     }
     for name, text in per_param.items():
@@ -1586,15 +1582,20 @@ def training_kwargs_from_args(
     if init_from:
         p = Path(str(init_from)).expanduser()
         if not p.is_absolute():
-            # HARD STOP: no backward-compat. --init-from takes a run folder name only.
-            if "/" in str(init_from) or "\\" in str(init_from):
+            text = str(init_from).replace("\\", "/")
+            parts = text.split("/")
+            if len(parts) != 2 or not parts[0] or not parts[1]:
                 raise ValueError(
-                    "--init-from must be a run folder name only (no path); "
-                    "the model subfolder is inferred from --model "
-                    f"(default: {MODEL}). "
-                    "Use an absolute path to reference runs outside 0_runs.",
+                    "--init-from must be MODEL/RUN under 0_runs "
+                    f"(models: {training.KNOWN_MODELS}) or an absolute path; "
+                    f"got {init_from!r}"
                 )
-            init_from = f"{model}/{init_from}"
+            src_model, run_name = parts
+            if src_model not in training.KNOWN_MODELS:
+                raise ValueError(
+                    f"--init-from model {src_model!r} not in {training.KNOWN_MODELS}"
+                )
+            init_from = f"{src_model}/{run_name}"
     train_modes = _train_mode_cli_map(args) or None
     bias_gt_from_v_onset = bool(args.bias_gt_from_v_onset)
     bias_gt_from_v_onset_grad = bool(args.bias_gt_from_v_onset_grad)
@@ -1727,7 +1728,7 @@ def training_kwargs_from_args(
         spot_bright_stimulus_opts=spot_bright_stimulus_opts,
         spot_dark_stimulus_opts=spot_dark_stimulus_opts,
         i_cli=i_cli,
-        i_h_off=args.i_h_off,
+        i_h_rev=args.i_h_rev,
         euler=args.euler,
         pre_steady=expand_pre_steady_mode(args.pre_steady),
         pre_steady_iters=PRE_STEADY_ITERS,

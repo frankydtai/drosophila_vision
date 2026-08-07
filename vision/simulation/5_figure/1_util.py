@@ -93,13 +93,17 @@ def cost_ylim(*curves, pct=99.0, pad=1.1, floor=1.0):
 
 
 def annotate_baseline(ax, baseline):
-    """Horizontal dashed line at ``v_th``.
-
-    Leaves matplotlib auto y-ticks / labels alone.
-    """
+    """Text annotation ``v_th=…`` (no horizontal line)."""
     if baseline is None or not np.isfinite(baseline):
         return
-    ax.axhline(float(baseline), color='0.4', linewidth=0.6, linestyle=':', zorder=0)
+    ax.text(
+        0.98, 0.02,
+        f"v_th={float(baseline):.1f}",
+        transform=ax.transAxes,
+        ha="right", va="bottom",
+        fontsize=6, color="k",
+        clip_on=False,
+    )
 
 
 def baselines_for_types(nodes_by_name, v_ref_by_name=None):
@@ -235,7 +239,7 @@ def format_moving_bar_cell_cost_lines(cell, cost_parts, task_names):
 
 
 def bundle_panel_title(bundle, label, *, type_name=None):
-    """Moving-bar panel base title (cell / stimulus label; no ``v_rest``)."""
+    """Moving-bar panel base title (cell / stimulus label; no ``e_leak``)."""
     _ = (bundle, type_name)
     return label
 

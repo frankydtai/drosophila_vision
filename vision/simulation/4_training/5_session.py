@@ -42,15 +42,13 @@ from param_defaults import (
     E_EXC,
     E_H,
     E_INH,
-    E_LEAK_DEPOL,
-    E_LEAK_REST,
     EULER,
     SYN_SCALE_EXC,
     FP,
     FULLY_INSIDE,
     G_LEAK,
     G_IN,
-    A_H,
+    H_G_MAX,
     SYN_SCALE_INH,
     MULTI_BAR,
     MULTI_SPOT,
@@ -64,8 +62,7 @@ from param_defaults import (
     SPOT_EXTENT,
     STATE_CLAMP,
     H_CELLS,
-    I_H_OFF,
-    LEAK_DEPOL_CELLS,
+    I_H_REV,
     I_BASELINE,
     I_BRIGHT,
     I_DARK,
@@ -115,7 +112,6 @@ from training.readout_pack import (
 from training.params import (
     apply_train_modes,
     attach_param_carry,
-    build_e_leak,
     build_i_h_dir,
     schema_nparams,
     schema_train_modes_record,
@@ -327,23 +323,16 @@ def apply_pack_override(pack, override, backend: ModelBackend):
 
 
 def _network_backend_from_connectome(
-    C, *, e_leak_rest: float, e_leak_depol: float, sim_dtype=SIM_DTYPE,
+    C, *, sim_dtype=SIM_DTYPE,
 ) -> ModelBackend:
     """Build a :class:`ModelBackend` from an already-loaded connectome graph."""
-    tn = list(C.cell_names)
-    depol = tuple(tn.index(t) for t in LEAK_DEPOL_CELLS if t in tn)
     conn = C.conn
     return ModelBackend(
         conn=conn,
-        e_leak=build_e_leak(
-            conn, C.n_cells, depol_cells=depol, dtype=sim_dtype,
-            e_leak_rest=e_leak_rest, e_leak_depol=e_leak_depol,
-        ),
         i_h_dir=build_i_h_dir(conn, dtype=sim_dtype),
         n_cells=C.n_cells,
         n_hexes=1,
         network=C,
-        depol_cells=depol,
     )
 
 
@@ -353,8 +342,6 @@ def load_network_backend(
     *,
     syn_scale_exc: float,
     syn_scale_inh: float,
-    e_leak_rest: float,
-    e_leak_depol: float,
     sim_dtype=SIM_DTYPE,
     syn_mode=SYN_MODE,
     param_boxes=PARAM_BOXES,
@@ -368,9 +355,7 @@ def load_network_backend(
         syn_scale_exc=syn_scale_exc, syn_scale_inh=syn_scale_inh,
         dtype=sim_dtype, syn_mode=mode,
     )
-    backend = _network_backend_from_connectome(
-        C, e_leak_rest=e_leak_rest, e_leak_depol=e_leak_depol, sim_dtype=sim_dtype,
-    )
+    backend = _network_backend_from_connectome(C, sim_dtype=sim_dtype)
     print(f"network: {network_json}")
     print(f"  n_nodes={backend.n_nodes}, n_cells={backend.n_cells}, "
           f"n_pairs={backend.conn.n_pairs}, n_edges={backend.conn.n_edges}, "
@@ -899,7 +884,7 @@ def make_train_opts(
     cost_norm=COST_NORM,
     dev=None,
     packs=None,
-    i_h_off=I_H_OFF,
+    i_h_rev=I_H_REV,
     euler=EULER,
     pre_steady=None,
     pre_steady_iters=PRE_STEADY_ITERS,
@@ -986,7 +971,7 @@ def make_train_opts(
         opts["packs"] = packs
     if train_modes is not None:
         opts["train_modes"] = train_modes
-    opts["i_h_off"] = str(i_h_off)
+    opts["i_h_rev"] = str(i_h_rev)
     opts["euler"] = expand_euler(euler)
     opts["syn_mode"] = normalize_syn_mode(syn_mode)
     opts["pre_grad"] = bool(pre_grad)
@@ -1064,8 +1049,8 @@ def _train_opts_for_sidecar(
         record["pack_overrides"] = overrides
     if opts.get("train_modes"):
         record["train_modes"] = opts["train_modes"]
-    if "i_h_off" in opts:
-        record["i_h_off"] = str(opts["i_h_off"])
+    if "i_h_rev" in opts:
+        record["i_h_rev"] = str(opts["i_h_rev"])
     if "euler" not in opts:
         raise ValueError("train opts require euler (implicit|explicit)")
     record["euler"] = expand_euler(opts["euler"])
@@ -1081,7 +1066,7 @@ def _train_opts_for_sidecar(
     return record
 
 
-def _schema_from_opts(model, model_backend, schema, train_opts_record, *, i_h_off=None):
+def _schema_from_opts(model, model_backend, schema, train_opts_record, *, i_h_rev=None):
     if schema is not None:
         return list(schema)
     syn_mode = SYN_MODE
@@ -1094,7 +1079,7 @@ def _schema_from_opts(model, model_backend, schema, train_opts_record, *, i_h_of
         sti_r_names=SPOT_STI_R_NAMES,
     )
     if model == "borst":
-        kw["i_h_off"] = str(i_h_off if i_h_off is not None else I_H_OFF)
+        kw["i_h_rev"] = str(i_h_rev if i_h_rev is not None else I_H_REV)
     base = default_schema(model, model_backend, **kw)
     if not train_opts_record:
         return base
@@ -1126,9 +1111,9 @@ def _make_session(
     if train_opts_record is not None:
         train_opts_record["model"] = model
         train_opts_record["sequential"] = bool(seq)
-    i_h_off = I_H_OFF
-    if train_opts_record is not None and "i_h_off" in train_opts_record:
-        i_h_off = str(train_opts_record["i_h_off"])
+    i_h_rev = I_H_REV
+    if train_opts_record is not None and "i_h_rev" in train_opts_record:
+        i_h_rev = str(train_opts_record["i_h_rev"])
     if train_opts_record is None or "euler" not in train_opts_record:
         raise ValueError("train opts require euler (implicit|explicit)")
     euler = expand_euler(train_opts_record["euler"])
@@ -1148,7 +1133,7 @@ def _make_session(
         sch = list(schema)
     else:
         sch = _schema_from_opts(
-            model, model_backend, None, train_opts_record, i_h_off=i_h_off,
+            model, model_backend, None, train_opts_record, i_h_rev=i_h_rev,
         )
     if train_opts_record is not None:
         train_opts_record["train_modes"] = schema_train_modes_record(
@@ -1172,9 +1157,7 @@ def _make_session(
         e_exc=E_EXC,
         e_inh=E_INH,
         e_h=E_H,
-        e_leak_rest=E_LEAK_REST,
-        e_leak_depol=E_LEAK_DEPOL,
-        a_h=A_H,
+        h_g_max=H_G_MAX,
         Ca_tau=CA_TAU,
         DATA_AMP=DATA_AMP,
         STATE_CLAMP=STATE_CLAMP,
@@ -1225,7 +1208,7 @@ def open_session(
         )
     if model_backend is None:
         model_backend = _network_backend_from_connectome(
-            C, e_leak_rest=E_LEAK_REST, e_leak_depol=E_LEAK_DEPOL, sim_dtype=sim_dtype,
+            C, sim_dtype=sim_dtype,
         )
     elif model_backend.network is not C:
         raise ValueError("model_backend.network must be opts['network']")
@@ -1327,7 +1310,6 @@ def open_session_from_opts(opts: dict, model: str | None = None, **kwargs) -> Tr
         nj, dev=opts.get("dev") or active_device(), sim_dtype=sim_dtype,
         syn_mode=syn_mode,
         syn_scale_exc=SYN_SCALE_EXC, syn_scale_inh=SYN_SCALE_INH,
-        e_leak_rest=E_LEAK_REST, e_leak_depol=E_LEAK_DEPOL,
     )
     opts["network"] = mb.network
     opts["syn_mode"] = syn_mode

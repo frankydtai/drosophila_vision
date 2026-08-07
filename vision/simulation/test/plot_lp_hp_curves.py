@@ -2,11 +2,11 @@
 
 Uses ``neuron.model_hp_lp.update_state_hp_lp`` (same Euler as training):
 
-    τ_HP d v_slow / dt = v_tot − v_slow
-    v_hp = v_tot − a_slow v_slow
+    τ_HP d v_slow / dt = v_drive − v_slow
+    v_hp = v_drive − a_slow v_slow
     τ_lp dv/dt = −(v − v_rest) + v_hp
 
-with v_tot = v_rest + v_sti (v_in = 0), v_sti = i_sti / g_in.
+with v_drive = v_sti (v_in = 0; no v_rest in HP path), v_sti = i_sti / g_in.
 Time indexing matches ``neuron.forward.forward_full``: v[0] from init;
 v[t] uses i_sti[t-1].
 
@@ -19,7 +19,7 @@ Usage (from ``vision/simulation/``):
 
     ../.venv/bin/python test/plot_lp_hp_curves.py
     ../.venv/bin/python test/plot_lp_hp_curves.py --show
-    ../.venv/bin/python test/plot_lp_hp_curves.py --euler ex --a-slow-list 0,0.5,1,1.5
+    ../.venv/bin/python test/plot_lp_hp_curves.py --euler ex --hp-a-slow-list 0.1,0.5,1
 """
 from __future__ import annotations
 
@@ -43,11 +43,12 @@ from figure.util import save_figure
 from import_bootstrap import parse_comma_list
 from neuron.model_hp_lp import update_state_hp_lp
 from neuron.params import expand_euler
-from param_defaults import EULER, G_IN, PARAM_BOXES, STATE_CLAMP
+from param_defaults import EULER, G_IN, STATE_CLAMP
 
 DEFAULT_SAVE = os.path.join(HERE, "lp_hp_curves.png")
-DEFAULT_A_SLOW = float(PARAM_BOXES["a_slow"]["init"])
+DEFAULT_A_SLOW = 1.0
 DEFAULT_A_SLOW_LIST = "0,0.5,1,1.5"
+DEFAULT_HP_A_SLOW_LIST = "0.1,0.5,1"
 DEFAULT_TAU_HP_LIST = "80,200,500,2000"
 DEFAULT_TAU_LP_LIST = "20,50,100"
 DEFAULT_PULSE_LIST = "50,100,500"
@@ -78,9 +79,9 @@ def _p_tensors(*, v_rest, tau_lp_ms, tau_hp_ms, a_slow):
         "tau_lp": torch.tensor([float(tau_lp_ms)], dtype=torch.float32),
         "tau_hp": torch.tensor([float(tau_hp_ms)], dtype=torch.float32),
         "a_slow": torch.tensor([float(a_slow)], dtype=torch.float32),
-        "bias": z.clone(),
-        "out_gain": one.clone(),
-        "in_gain": one.clone(),
+        "a_in": one.clone(),
+        "a_out": one.clone(),
+        "v_th": z.clone(),
         "syn_strength_cell": one.clone(),
     }
 
@@ -108,16 +109,16 @@ def simulate_hp_lp(
     p = _p_tensors(
         v_rest=v_rest, tau_lp_ms=tau_lp_ms, tau_hp_ms=tau_hp_ms, a_slow=a_slow,
     )
-    # pre_steady: v_slow0 = v_tot0, v0 = v_rest + v_tot0 − a_slow v_slow0
-    v_tot0 = p["v_rest"] + i_sti[0] / g_in
-    v_slow = v_tot0.view(1, 1).clone()
-    v = (p["v_rest"] + v_tot0 - p["a_slow"] * v_slow.view(-1)).view(1, 1).clone()
+    # pre_steady: v_slow0 = v_drive0, v0 = v_rest + v_drive0 − a_slow v_slow0
+    v_drive0 = i_sti[0] / g_in
+    v_slow = v_drive0.view(1, 1).clone()
+    v = (p["v_rest"] + v_drive0 - p["a_slow"] * v_slow.view(-1)).view(1, 1).clone()
     v_out = np.empty(t_end, dtype=np.float64)
     slow_out = np.empty(t_end, dtype=np.float64)
     hp_out = np.empty(t_end, dtype=np.float64)
     v_out[0] = float(v.item())
     slow_out[0] = float(v_slow.item())
-    hp_out[0] = float((v_tot0 - p["a_slow"] * v_slow.view(-1)).item())
+    hp_out[0] = float((v_drive0 - p["a_slow"] * v_slow.view(-1)).item())
     for t in range(1, t_end):
         v, v_slow, comp = update_state_hp_lp(
             v, v_slow, p, i_sti[t - 1].view(1, 1), _BACKEND,
@@ -160,6 +161,7 @@ def _fill_column(
     state_clamp: float,
     euler: str,
     a_slow_list: list[float],
+    hp_a_slow_list: list[float],
     tau_hp_list: list[float],
     tau_lp_list: list[float],
     pulse_list: list[float],
@@ -179,7 +181,7 @@ def _fill_column(
     v_lp, _, _ = simulate_hp_lp(
         v_sti, tau_lp_ms=tau_lp_ms, tau_hp_ms=TAU_HP_OFF_MS, **sim_kw,
     )
-    v_hp_lp, v_slow, v_hp = simulate_hp_lp(
+    v_hp_lp, v_slow, _ = simulate_hp_lp(
         v_sti, tau_lp_ms=tau_lp_ms, tau_hp_ms=tau_hp_ms, **sim_kw,
     )
 
@@ -194,10 +196,24 @@ def _fill_column(
     if show_legend:
         ax0.legend(loc="upper right", fontsize=7, frameon=False)
 
-    ax1.plot(t_s, v_slow, color="C0", lw=1.4, label=r"$v_{\mathrm{slow}}$")
-    ax1.plot(t_s, v_hp, color="C1", lw=1.4, label=r"$v_{\mathrm{hp}}$")
+    ax1.plot(t_s, v_slow, color="0.35", lw=1.2, ls="--", label=r"$v_{\mathrm{slow}}$")
+    for a, color in zip(hp_a_slow_list, _cmap_colors(len(hp_a_slow_list))):
+        _, _, v_hp = simulate_hp_lp(
+            v_sti, tau_lp_ms=tau_lp_ms, tau_hp_ms=tau_hp_ms,
+            v_rest=v_rest, a_slow=a, delta_ms=dt_ms,
+            g_in=g_in, state_clamp=state_clamp, euler=euler,
+        )
+        ax1.plot(
+            t_s, v_hp, color=color, lw=1.5,
+            label=rf"$v_{{\mathrm{{hp}}}}$ ($a_{{\mathrm{{slow}}}}$={a:g})",
+        )
+    ax1.set_title(
+        rf"HP stage sweep $a_{{\mathrm{{slow}}}}$ "
+        rf"($\tau_{{\mathrm{{HP}}}}$={tau_hp_ms:g} ms)",
+        fontsize=8,
+    )
     if show_legend:
-        ax1.legend(loc="upper right", fontsize=7, frameon=False)
+        ax1.legend(loc="upper right", fontsize=6, frameon=False)
 
     ax2.plot(t_s, v_lp, color="C2", lw=1.8, label=rf"LP only ($\tau_{{\mathrm{{HP}}}}$={TAU_HP_OFF_MS:g})")
     ax2.plot(t_s, v_hp_lp, color="C3", lw=1.8, label="HP → LP")
@@ -288,12 +304,15 @@ def plot_lp_hp(
     state_clamp: float = float(STATE_CLAMP),
     euler: str = EULER,
     a_slow_list: list[float] | None = None,
+    hp_a_slow_list: list[float] | None = None,
     tau_hp_list: list[float] | None = None,
     tau_lp_list: list[float] | None = None,
     pulse_list: list[float] | None = None,
 ) -> None:
     if a_slow_list is None:
         a_slow_list = [float(x) for x in parse_comma_list(DEFAULT_A_SLOW_LIST)]
+    if hp_a_slow_list is None:
+        hp_a_slow_list = [float(x) for x in parse_comma_list(DEFAULT_HP_A_SLOW_LIST)]
     if tau_hp_list is None:
         tau_hp_list = [float(x) for x in parse_comma_list(DEFAULT_TAU_HP_LIST)]
     if tau_lp_list is None:
@@ -329,6 +348,7 @@ def plot_lp_hp(
         state_clamp=state_clamp,
         euler=euler,
         a_slow_list=a_slow_list,
+        hp_a_slow_list=hp_a_slow_list,
         tau_hp_list=tau_hp_list,
         tau_lp_list=tau_lp_list,
         pulse_list=pulse_list,
@@ -391,7 +411,11 @@ def parse_args(argv=None):
     p.add_argument("--tau-hp", type=float, default=200.0, help="baseline tau_hp [ms]")
     p.add_argument("--g-in", type=float, default=float(G_IN))
     p.add_argument("--euler", default=EULER, choices=("im", "ex", "implicit", "explicit"))
-    p.add_argument("--a-slow-list", type=str, default=DEFAULT_A_SLOW_LIST, help="comma-separated a_slow sweep")
+    p.add_argument("--a-slow-list", type=str, default=DEFAULT_A_SLOW_LIST, help="comma-separated a_slow sweep (row v)")
+    p.add_argument(
+        "--hp-a-slow-list", type=str, default=DEFAULT_HP_A_SLOW_LIST,
+        help="comma-separated a_slow for HP-stage v_hp sweep (row 2)",
+    )
     p.add_argument("--tau-hp-list", type=str, default=DEFAULT_TAU_HP_LIST, help="comma-separated τ_HP sweep [ms]")
     p.add_argument("--tau-lp-list", type=str, default=DEFAULT_TAU_LP_LIST, help="comma-separated τ_lp sweep [ms]")
     p.add_argument("--pulse-list", type=str, default=DEFAULT_PULSE_LIST, help="comma-separated pulse widths [ms]")
@@ -411,11 +435,14 @@ def main(argv=None):
         if val <= 0:
             raise ValueError(f"{name} must be > 0")
     a_slow_list = [float(x) for x in parse_comma_list(args.a_slow_list)]
+    hp_a_slow_list = [float(x) for x in parse_comma_list(args.hp_a_slow_list)]
     tau_hp_list = [float(x) for x in parse_comma_list(args.tau_hp_list)]
     tau_lp_list = [float(x) for x in parse_comma_list(args.tau_lp_list)]
     pulse_list = [float(x) for x in parse_comma_list(args.pulse_list)]
     if not a_slow_list:
         raise ValueError("--a-slow-list must be non-empty")
+    if not hp_a_slow_list:
+        raise ValueError("--hp-a-slow-list must be non-empty")
     if not tau_hp_list:
         raise ValueError("--tau-hp-list must be non-empty")
     if not tau_lp_list:
@@ -424,6 +451,8 @@ def main(argv=None):
         raise ValueError("--pulse-list must be non-empty")
     if any(a < 0 for a in a_slow_list):
         raise ValueError("--a-slow-list values must be >= 0")
+    if any(a < 0 for a in hp_a_slow_list):
+        raise ValueError("--hp-a-slow-list values must be >= 0")
     if any(t <= 0 for t in tau_hp_list):
         raise ValueError("--tau-hp-list values must be > 0")
     if any(t <= 0 for t in tau_lp_list):
@@ -445,6 +474,7 @@ def main(argv=None):
         g_in=args.g_in,
         euler=args.euler,
         a_slow_list=a_slow_list,
+        hp_a_slow_list=hp_a_slow_list,
         tau_hp_list=tau_hp_list,
         tau_lp_list=tau_lp_list,
         pulse_list=pulse_list,

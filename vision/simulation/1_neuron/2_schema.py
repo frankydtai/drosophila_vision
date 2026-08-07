@@ -9,7 +9,7 @@ Fixed nodes always use ``effective_init`` (init / init_override); no ``fixed_val
 from __future__ import annotations
 
 from neuron.params import (
-    I_H_OFF_MODES,
+    I_H_REV_MODES,
     KNOWN_MODELS,
 )
 
@@ -19,14 +19,14 @@ TRAIN_MODE_KEYS = ("indi", "shared", "fixed", "frozen")
 ALL_PARAM_NAMES = (
     "a_in", "a_out", "a_gt", "bias_gt",
     "syn_strength_cell", "syn_strength_edge", "v_th",
-    "h_g_max", "h_g_max_off",
-    "h_v_mid", "h_slope", "tau_v_mid",
-    "h_v_mid_off", "h_slope_off", "tau_v_mid_off",
-    "tau_lp", "v_rest", "tau_hp", "a_slow", "a_sti_r",
+    "a_h", "a_h_rev",
+    "h_v_mid", "h_slope", "tau_h_v",
+    "h_v_mid_rev", "h_slope_rev", "tau_h_v_rev",
+    "tau_lp", "e_leak", "tau_hp", "a_sti_r",
 )
 I_H_SHAPE_PARAM_NAMES = (
-    "h_v_mid", "h_slope", "tau_v_mid",
-    "h_v_mid_off", "h_slope_off", "tau_v_mid_off",
+    "h_v_mid", "h_slope", "tau_h_v",
+    "h_v_mid_rev", "h_slope_rev", "tau_h_v_rev",
 )
 
 
@@ -105,20 +105,20 @@ def _seg(name, count, kind, box, n, *, name_to_i=None, indi_names=()):
     return s
 
 
-def borst_i_h_off_kwargs(p, i_h_off: str):
-    """Resolve OFF-channel i_h kwargs for ``update_v`` from assigned params."""
-    v_mid_off = p["h_v_mid"] if i_h_off != "on" else p["h_v_mid_off"]
-    slope_off = p["h_slope"] if i_h_off != "on" else p["h_slope_off"]
-    tau_off = p["tau_v_mid"] if i_h_off != "on" else p["tau_v_mid_off"]
-    if i_h_off == "on":
-        gmax_off = p["h_g_max_off"]
-    elif i_h_off == "mirrored":
-        gmax_off = p["h_g_max"]
-    elif i_h_off == "off":
-        gmax_off = p["h_g_max"] * 0.0
+def borst_i_h_rev_kwargs(p, i_h_rev: str):
+    """Resolve rev-channel i_h kwargs for ``update_v`` from assigned params."""
+    v_mid_rev = p["h_v_mid"] if i_h_rev != "on" else p["h_v_mid_rev"]
+    slope_rev = p["h_slope"] if i_h_rev != "on" else p["h_slope_rev"]
+    tau_rev = p["tau_h_v"] if i_h_rev != "on" else p["tau_h_v_rev"]
+    if i_h_rev == "on":
+        a_h_rev = p["a_h_rev"]
+    elif i_h_rev == "mirrored":
+        a_h_rev = p["a_h"]
+    elif i_h_rev == "off":
+        a_h_rev = p["a_h"] * 0.0
     else:
-        raise ValueError(f"i_h_off {i_h_off!r} not in {I_H_OFF_MODES}")
-    return gmax_off, v_mid_off, slope_off, tau_off
+        raise ValueError(f"i_h_rev {i_h_rev!r} not in {I_H_REV_MODES}")
+    return a_h_rev, v_mid_rev, slope_rev, tau_rev
 
 
 def _syn_segment(syn_mode, n_pairs, n_edges, param_boxes):
@@ -168,13 +168,13 @@ def build_borst_schema(
     syn_mode: str,
     param_boxes: dict,
     h_cells,
-    i_h_off: str,
+    i_h_rev: str,
     n_edges=None,
     sti_r_names=(),
 ):
-    """Borst schema; OFF i_h segments only when ``i_h_off == 'on'``."""
-    if i_h_off not in I_H_OFF_MODES:
-        raise ValueError(f"i_h_off {i_h_off!r} not in {I_H_OFF_MODES}")
+    """Borst schema; rev i_h segments only when ``i_h_rev == 'on'``."""
+    if i_h_rev not in I_H_REV_MODES:
+        raise ValueError(f"i_h_rev {i_h_rev!r} not in {I_H_REV_MODES}")
     if cell_names is None:
         raise TypeError("borst schema requires cell_names from network")
     cell_names = list(cell_names)
@@ -186,24 +186,25 @@ def build_borst_schema(
         _seg("a_out", n_cells, "full", D["a_out"], n_cells),
         _syn_segment(syn_mode, n_pairs, n_edges, D),
         _seg("v_th", n_cells, "full", D["v_th"], n_cells),
+        _seg("e_leak", n_cells, "full", D["e_leak"], n_cells),
         _seg("a_gt", n_cells, "output", D["a_gt"], n_cells),
         _seg("bias_gt", n_cells, "output", D["bias_gt"], n_cells),
-        _seg("h_g_max", n_cells, "full", D["h_g_max"], n_cells, **named_kw),
+        _seg("a_h", n_cells, "full", D["a_h"], n_cells, **named_kw),
     ]
-    if i_h_off == "on":
+    if i_h_rev == "on":
         segs.append(
-            _seg("h_g_max_off", n_cells, "full", D["h_g_max_off"], n_cells, **named_kw),
+            _seg("a_h_rev", n_cells, "full", D["a_h_rev"], n_cells, **named_kw),
         )
     segs.extend([
         _seg("h_v_mid", n_cells, "full", D["h_v_mid"], n_cells),
         _seg("h_slope", n_cells, "full", D["h_slope"], n_cells),
-        _seg("tau_v_mid", n_cells, "full", D["tau_v_mid"], n_cells),
+        _seg("tau_h_v", n_cells, "full", D["tau_h_v"], n_cells),
     ])
-    if i_h_off == "on":
+    if i_h_rev == "on":
         segs.extend([
-            _seg("h_v_mid_off", n_cells, "full", D["h_v_mid_off"], n_cells),
-            _seg("h_slope_off", n_cells, "full", D["h_slope_off"], n_cells),
-            _seg("tau_v_mid_off", n_cells, "full", D["tau_v_mid_off"], n_cells),
+            _seg("h_v_mid_rev", n_cells, "full", D["h_v_mid_rev"], n_cells),
+            _seg("h_slope_rev", n_cells, "full", D["h_slope_rev"], n_cells),
+            _seg("tau_h_v_rev", n_cells, "full", D["tau_h_v_rev"], n_cells),
         ])
     segs.append(_a_sti_r_segment(D, sti_r_names))
     return segs
@@ -220,7 +221,7 @@ def build_hp_lp_schema(
     n_edges=None,
     sti_r_names=(),
 ):
-    """HP-then-membrane-LP: τ_HP on v_slow, τ_lp on V, drive v_tot−a_slow v_slow."""
+    """HP-then-membrane-LP: τ_HP on v_slow, τ_lp on V, drive v_drive−a_h v_slow."""
     if cell_names is None:
         raise TypeError("hp_lp schema requires cell_names from network")
     cell_names = list(cell_names)
@@ -236,8 +237,8 @@ def build_hp_lp_schema(
         _seg("bias_gt", n_cells, "output", D["bias_gt"], n_cells),
         _seg("tau_lp", n_cells, "full", D["tau_lp"], n_cells),
         _seg("tau_hp", n_cells, "full", D["tau_hp"], n_cells),
-        _seg("v_rest", n_cells, "full", D["v_rest"], n_cells),
-        _seg("a_slow", n_cells, "full", D["a_slow"], n_cells, **named_kw),
+        _seg("e_leak", n_cells, "full", D["e_leak"], n_cells),
+        _seg("a_h", n_cells, "full", D["a_h"], n_cells, **named_kw),
         _a_sti_r_segment(D, sti_r_names),
     ]
 
@@ -249,12 +250,12 @@ def default_schema(
     syn_mode: str,
     param_boxes: dict,
     h_cells,
-    i_h_off: str = "on",
+    i_h_rev: str = "on",
     sti_r_names=(),
 ) -> list:
     """Fresh parameter schema for ``model`` on the given backend.
 
-    ``i_h_off`` is used only for borst (OFF i_h segments when ``\"on\"``).
+    ``i_h_rev`` is used only for borst (rev i_h segments when ``\"on\"``).
     ``sti_r_names`` labels ``a_sti_r`` slots (injected from training).
     """
     if model not in KNOWN_MODELS:
@@ -284,4 +285,4 @@ def default_schema(
         )
     if model == "hp_lp":
         return build_hp_lp_schema(n, cell_names=cell_names, **kw)
-    return build_borst_schema(n, cell_names=cell_names, i_h_off=i_h_off, **kw)
+    return build_borst_schema(n, cell_names=cell_names, i_h_rev=i_h_rev, **kw)

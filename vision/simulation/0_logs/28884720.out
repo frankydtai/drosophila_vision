@@ -1,0 +1,121 @@
+Job ID: 28884720
+Node:   spartan-gpgpu003
+GPU:    0
+GPU 0: NVIDIA L40S (UUID: GPU-77768aa8-360c-07fe-e20f-dfb971849850)
+cuda: True NVIDIA L40S
+Start:  Fri 07 Aug 2026 16:09:47 AEST
+==== param_defaults ====
+{'DEFAULT_RUN_NAME': '28857316-run-nofsteps-300-a-slow-init.L1,L2-0.6-v-th-init.R1-6,R7,R8-0-task-spot_bright',
+ 'DEFAULT_RUN_PATH': 'hp_lp/28857316-run-nofsteps-300-a-slow-init.L1,L2-0.6-v-th-init.R1-6,R7,R8-0-task-spot_bright',
+ 'DELTA_MS': 1.0,
+ 'DELTA_MS_PRE': 1.0,
+ 'CAP': 40.0,
+ 'G_LEAK': 1.0,
+ 'G_IN': 1.0,
+ 'E_EXC': 10.0,
+ 'E_INH': -70.0,
+ 'E_H': 50.0,
+ 'H_G_MAX': 100.0,
+ 'CA_TAU': 50.0,
+ 'DATA_AMP': 20.0,
+ 'STATE_CLAMP': 1000000.0,
+ 'SYN_SCALE_EXC': 0.001,
+ 'SYN_SCALE_INH': 0.001,
+ 'I_H_REV': 'off',
+ 'EULER': 'im',
+ 'GAIN_LO': 0.1,
+ 'GAIN_HI': 10.0,
+ 'H_CELLS': ('L1', 'L2', 'L4', 'L5'),
+ 'PARAM_BOXES': {'a_in': {'lo': 0.01, 'hi': 100, 'init': 1.0, 'jit': 0.1, 'train_mode': 'shared'},
+                 'a_out': {'lo': 0.1, 'hi': 10.0, 'init': 1.0, 'jit': 0.1, 'train_mode': 'indi'},
+                 'a_gt': {'lo': 0.1, 'hi': 10.0, 'init': 1.0, 'jit': 0.1, 'train_mode': 'indi'},
+                 'bias_gt': {'lo': -50.0, 'hi': 50.0, 'init': 0.0, 'jit': 1.0, 'train_mode': 'indi'},
+                 'syn_strength_cell': {'lo': 0.1, 'hi': 10.0, 'init': 1.0, 'jit': 0.1, 'train_mode': 'indi'},
+                 'syn_strength_edge': {'lo': 0.1, 'hi': 10.0, 'init': 1.0, 'jit': 0.1, 'train_mode': 'indi'},
+                 'v_th': {'lo': -70.0, 'hi': -30.0, 'init': -50.0, 'jit': 0.0, 'train_mode': 'indi'},
+                 'a_h': {'lo': 0.0, 'hi': 1.0, 'init': 0.5, 'jit': 0.1, 'train_mode': 'indi_named'},
+                 'a_h_rev': {'lo': 0.0, 'hi': 1.0, 'init': 0.5, 'jit': 0.1, 'train_mode': 'indi_named'},
+                 'h_v_mid': {'lo': -70.0, 'hi': -30.0, 'init': -50.0, 'jit': 5.0, 'train_mode': 'shared'},
+                 'h_slope': {'lo': -0.4, 'hi': -0.2, 'init': -0.25, 'jit': 0.02, 'train_mode': 'shared'},
+                 'tau_h_v': {'lo': -70.0, 'hi': -40.0, 'init': -50.0, 'jit': 5.0, 'train_mode': 'shared'},
+                 'h_v_mid_rev': {'lo': -70.0, 'hi': -30.0, 'init': -50.0, 'jit': 5.0, 'train_mode': 'shared'},
+                 'h_slope_rev': {'lo': -0.4, 'hi': -0.2, 'init': -0.25, 'jit': 0.02, 'train_mode': 'shared'},
+                 'tau_h_v_rev': {'lo': -70.0, 'hi': -40.0, 'init': -50.0, 'jit': 5.0, 'train_mode': 'shared'},
+                 'tau_lp': {'lo': 10.0, 'hi': 100.0, 'init': 40.0, 'jit': 2.0, 'train_mode': 'indi'},
+                 'e_leak': {'lo': -50.0, 'hi': 50.0, 'init': -50.0, 'jit': 1.0, 'train_mode': 'fixed'},
+                 'tau_hp': {'lo': 100.0, 'hi': 500.0, 'init': 200.0, 'jit': 20.0, 'train_mode': 'indi'},
+                 'a_sti_r': {'lo': 0.0, 'hi': 1.0, 'init': 0.0, 'jit': 0.05, 'train_mode': 'indi'}},
+ 'MODEL': 'hp_lp',
+ 'SYN_MODE': 'per_cell',
+ 'PRE_GRAD': True,
+ 'NETWORK': 'right_min_neuron1_extent10',
+ 'I_BASELINE': 20.0,
+ 'I_BRIGHT': 40.0,
+ 'I_DARK': 0.0,
+ 'MS_PRE': 10.0,
+ 'MS_SPOT': 50.0,
+ 'MS_RESPONSE': 120.0,
+ 'MS_POST': 0.0,
+ 'SPOT_EXTENT': 1.0,
+ 'SPOT_EXTENTS': (0.5, 1.0, 1.5, 2.0),
+ 'FULLY_INSIDE': True,
+ 'MULTI_SPOT': True,
+ 'SHIFT_EXTENT': 1.0,
+ 'SPOT_COST_RADII': (0.0, 1.0, 1.7320508075688772, 2.0),
+ 'SPOT_STI_R_NAMES': ('0', '1', 'sqrt3', '2'),
+ 'SPOT_COST_RADIUS_WEIGHT': {0.0: 1.0, 1.0: 0.3333333333333333, 2.0: 0.3333333333333333},
+ 'SPOT_COST_RADIUS_WEIGHT_EXTENT1': {0.0: 1.0, 1.0: 1.0},
+ 'SPOT_COST_RADIUS_KEY_ALIASES': {'sqrt3': 1.7320508075688772},
+ 'MULTI_BAR': True,
+ 'TASK': 'spot',
+ 'COST_NORM': 'a_gt2',
+ 'COST_INTERVAL_MS': 5.0,
+ 'BIAS_GT_FROM_V_ONSET': True,
+ 'BIAS_GT_FROM_V_ONSET_GRAD': True,
+ 'PRE_STEADY': 'solve',
+ 'PRE_STEADY_ITERS': 50,
+ 'PRE_STEADY_DAMP': 1,
+ 'NOFRUNS': 1,
+ 'NOFSTEPS_CPU': 50,
+ 'NOFSTEPS_GPU': 200,
+ 'LRS': '0.1',
+ 'CHECKPOINT_INTERVAL': 500,
+ 'FP': 64,
+ 'SEQUENTIAL': False,
+ 'T_REL_START': -10,
+ 'T_REL_STOP': 10}
+==== end param_defaults ====
+usage: run.py [-h] [--model {borst,hp_lp}] [--syn-mode {per_cell,per_edge}]
+              [--nofruns NOFRUNS] [--nofsteps NOFSTEPS] [--lrs LRS]
+              [--checkpoint-interval N] [--fname FNAME] [--outdir OUTDIR]
+              [--init-from MODEL/RUN] [--all-param MODE [MODE ...]]
+              [--a-in MODE [MODE ...]] [--a-out MODE [MODE ...]]
+              [--a-gt MODE [MODE ...]] [--bias-gt MODE [MODE ...]]
+              [--syn-strength-cell MODE [MODE ...]]
+              [--syn-strength-edge MODE [MODE ...]] [--v-th MODE [MODE ...]]
+              [--a-h MODE [MODE ...]] [--a-h-rev MODE [MODE ...]]
+              [--i-h-shape MODE [MODE ...]] [--h-v-mid MODE [MODE ...]]
+              [--h-slope MODE [MODE ...]] [--tau-h-v MODE [MODE ...]]
+              [--h-v-mid-rev MODE [MODE ...]] [--h-slope-rev MODE [MODE ...]]
+              [--tau-h-v-rev MODE [MODE ...]] [--tau-lp MODE [MODE ...]]
+              [--e-leak MODE [MODE ...]] [--tau-hp MODE [MODE ...]]
+              [--a-sti-r MODE [MODE ...]] [--i-h-rev {on,off,mirrored}]
+              [--euler {im,ex}] [--pre-steady {probe,solve}] [--fp N]
+              [--pre-grad BOOL] [--bias-gt-from-v-onset BOOL]
+              [--bias-gt-from-v-onset-grad BOOL] [--sequential BOOL]
+              [--network RUN] [--multi-bar BOOL] [--task TASK]
+              [--cost-weight NAME|NAME=VALUE [NAME|NAME=VALUE ...]]
+              [--shift-extent SHIFT_EXTENT] [--spot-extent R]
+              [--multi-spot BOOL] [--fully-inside BOOL]
+              [--spot-cost-r-w R|R=W [R|R=W ...]]
+              [--cost-extent N|TASK=N [N|TASK=N ...]]
+              [--gt TASK=CELLS [TASK=CELLS ...]]
+              [--i-baseline TASK=VALUE [TASK=VALUE ...]]
+              [--i-bright TASK=VALUE [TASK=VALUE ...]]
+              [--i-dark TASK=VALUE [TASK=VALUE ...]] [--ms-pre MS]
+              [--ms-response MS] [--ms-post MS] [--ms-spot MS] [--delta-ms MS]
+              [--delta-ms-pre MS] [--cost-interval-ms MS]
+              [--cost-norm {gt_power,a_gt2}] [--html]
+              [--plot-right-only [BOOL]] [--show-pre [BOOL]] [--r0only [BOOL]]
+              [--x X,...] [--y Y,...] [--align-xy X,Y] [--ms-shown START,STOP]
+run.py: error: unrecognized arguments: --a-slow init.L1,L2,L4,L5=0.5

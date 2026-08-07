@@ -301,8 +301,8 @@ _BORST_PLOT_PANELS: list[tuple[str, list[tuple[str, str]]]] = [
             ("g_exc_nS", "g_exc"),
             ("g_inh_nS", "g_inh"),
             ("g_leak_nS", "g_leak"),
-            ("g_i_h_on_nS", "g_h_on"),
-            ("g_i_h_off_nS", "g_h_off"),
+            ("g_h_nS", "g_h"),
+            ("g_h_rev_nS", "g_h_rev"),
         ],
     ),
     (
@@ -312,8 +312,8 @@ _BORST_PLOT_PANELS: list[tuple[str, list[tuple[str, str]]]] = [
             ("num_exc", "i_exc"),
             ("num_inh", "i_inh"),
             ("num_leak", "i_leak"),
-            ("num_i_h_on", "i_h_on"),
-            ("num_i_h_off", "i_h_off"),
+            ("num_i_h", "i_h"),
+            ("num_i_h_rev", "i_h_rev"),
             ("i_sti", "i_sti"),
         ],
     ),
@@ -346,7 +346,7 @@ _HP_LP_PLOT_PANELS: list[tuple[str, list[tuple[str, str]]]] = [
     (
         "HP state",
         [
-            ("v_tot", "v_tot"),
+            ("v_drive", "v_drive"),
             ("v_slow", "v_slow"),
             ("v_hp", "v_hp"),
         ],
@@ -362,13 +362,13 @@ _HP_LP_PLOT_PANELS: list[tuple[str, list[tuple[str, str]]]] = [
 ]
 
 _BORST_COMPONENT_KEYS = (
-    "v_pre_d", "v_abs", "i_sti", "g_exc", "g_inh", "g_i_h_on", "g_i_h_off",
-    "num_exc", "num_inh", "num_leak", "num_i_h_on", "num_i_h_off", "num_v",
+    "v_pre_d", "v_abs", "i_sti", "g_exc", "g_inh", "g_h", "g_h_rev",
+    "num_exc", "num_inh", "num_leak", "num_i_h", "num_i_h_rev", "num_v",
     "num", "den",
 )
 _HP_LP_COMPONENT_KEYS = (
     "v_pre_d", "v_abs", "i_sti", "v_sti", "v_in", "v_in_exc", "v_in_inh",
-    "v_slow", "v_tot", "v_hp", "dv_leak", "dv_hp",
+    "v_slow", "v_drive", "v_hp", "dv_leak", "dv_hp",
 )
 
 _BORST_PLOT_KEY_COMPONENT: dict[str, str | None] = {
@@ -376,14 +376,14 @@ _BORST_PLOT_KEY_COMPONENT: dict[str, str | None] = {
     "g_exc_nS": "g_exc",
     "g_inh_nS": "g_inh",
     "g_leak_nS": None,
-    "g_i_h_on_nS": "g_i_h_on",
-    "g_i_h_off_nS": "g_i_h_off",
+    "g_h_nS": "g_h",
+    "g_h_rev_nS": "g_h_rev",
     "num_v": "num_v",
     "num_exc": "num_exc",
     "num_inh": "num_inh",
     "num_leak": "num_leak",
-    "num_i_h_on": "num_i_h_on",
-    "num_i_h_off": "num_i_h_off",
+    "num_i_h": "num_i_h",
+    "num_i_h_rev": "num_i_h_rev",
     "i_sti": "i_sti",
     "num_over_den": "v_abs",
     "num": "num",
@@ -396,7 +396,7 @@ _HP_LP_PLOT_KEY_COMPONENT: dict[str, str | None] = {
     "v_in_inh": "v_in_inh",
     "v_sti": "v_sti",
     "v_slow": "v_slow",
-    "v_tot": "v_tot",
+    "v_drive": "v_drive",
     "v_hp": "v_hp",
     "dv_leak": "dv_leak",
     "dv_hp": "dv_hp",
@@ -410,14 +410,14 @@ _BORST_FORMULA_G_IMPLICIT: list[tuple[str, str | None]] = [
     ("e_exc·", None), ("g_exc", "g_exc"), (" + ", None),
     ("e_inh·", None), ("g_inh", "g_inh"), (" + ", None),
     ("E_leak·", None), ("g_leak", "g_leak"), (" + ", None),
-    ("E_h_on·", None), ("g_h_on", "g_h_on"), (" + ", None),
-    ("E_h_off·", None), ("g_h_off", "g_h_off"),
+    ("E_h·", None), ("g_h", "g_h"), (" + ", None),
+    ("E_h_rev·", None), ("g_h_rev", "g_h_rev"),
     (")) / (1 + ", None),
     ("dt_over_c", None), ("·(", None),
     ("g_exc", "g_exc"), (" + ", None),
     ("g_inh", "g_inh"), (" + ", None),
-    ("g_h_on", "g_h_on"), (" + ", None),
-    ("g_h_off", "g_h_off"), (" + ", None),
+    ("g_h", "g_h"), (" + ", None),
+    ("g_h_rev", "g_h_rev"), (" + ", None),
     ("g_leak", "g_leak"),
     ("))", None),
 ]
@@ -431,8 +431,8 @@ _BORST_FORMULA_I_IMPLICIT: list[tuple[str, str | None]] = [
     ("i_exc", "i_exc"), (" + ", None),
     ("i_inh", "i_inh"), (" + ", None),
     ("i_leak", "i_leak"), (" + ", None),
-    ("i_h_on", "i_h_on"), (" + ", None),
-    ("i_h_off", "i_h_off"),
+    ("i_h", "i_h"), (" + ", None),
+    ("i_h_rev", "i_h_rev"),
     (")) / (", None),
     ("den", "den"),
     (")", None),
@@ -445,13 +445,13 @@ _BORST_FORMULA_G_EXPLICIT: list[tuple[str, str | None]] = [
     ("e_exc·", None), ("g_exc", "g_exc"), (" + ", None),
     ("e_inh·", None), ("g_inh", "g_inh"), (" + ", None),
     ("E_leak·", None), ("g_leak", "g_leak"), (" + ", None),
-    ("E_h_on·", None), ("g_h_on", "g_h_on"), (" + ", None),
-    ("E_h_off·", None), ("g_h_off", "g_h_off"),
+    ("E_h·", None), ("g_h", "g_h"), (" + ", None),
+    ("E_h_rev·", None), ("g_h_rev", "g_h_rev"),
     (" − (", None),
     ("g_exc", "g_exc"), (" + ", None),
     ("g_inh", "g_inh"), (" + ", None),
-    ("g_h_on", "g_h_on"), (" + ", None),
-    ("g_h_off", "g_h_off"), (" + ", None),
+    ("g_h", "g_h"), (" + ", None),
+    ("g_h_rev", "g_h_rev"), (" + ", None),
     ("g_leak", "g_leak"),
     (")·v_pre)", None),
 ]
@@ -465,14 +465,14 @@ _BORST_FORMULA_I_EXPLICIT: list[tuple[str, str | None]] = [
     ("i_exc", "i_exc"), (" + ", None),
     ("i_inh", "i_inh"), (" + ", None),
     ("i_leak", "i_leak"), (" + ", None),
-    ("i_h_on", "i_h_on"), (" + ", None),
-    ("i_h_off", "i_h_off"),
+    ("i_h", "i_h"), (" + ", None),
+    ("i_h_rev", "i_h_rev"),
     (")", None),
 ]
 
 _HP_LP_FORMULA_G_IMPLICIT: list[tuple[str, str | None]] = [
     ("v_post", "v_post"),
-    (" = (v_pre + (dt/τ_lp)·(v_rest + G·(v_rest + ", None),
+    (" = (v_pre + (dt/τ_lp)·(e_leak + G·(e_leak + ", None),
     ("v_in", "v_in"), (" + ", None),
     ("i_sti/g_in", "v_sti"), (" − ", None),
     ("v_slow", "v_slow"), ("))) / (1 + dt/τ_lp)", None),
@@ -486,7 +486,7 @@ _HP_LP_FORMULA_I_IMPLICIT: list[tuple[str, str | None]] = [
 
 _HP_LP_FORMULA_G_EXPLICIT: list[tuple[str, str | None]] = [
     ("v_post", "v_post"),
-    (" = v_pre + (dt/τ_lp)[-(v_pre−v_rest) + G·(v_rest + ", None),
+    (" = v_pre + (dt/τ_lp)[-(v_pre−e_leak) + G·(e_leak + ", None),
     ("v_in", "v_in"), (" + ", None),
     ("i_sti/g_in", "v_sti"), (" − ", None),
     ("v_slow", "v_slow"), (")]", None),
@@ -498,7 +498,7 @@ _HP_LP_FORMULA_I_EXPLICIT: list[tuple[str, str | None]] = [
     ("dv_hp", "dv_hp"),
 ]
 
-_BLACK_TRACE_LABELS = frozenset({"num", "den", "v_tot", "v_slow", "v_hp", "dv_hp"})
+_BLACK_TRACE_LABELS = frozenset({"num", "den", "v_drive", "v_slow", "v_hp", "dv_hp"})
 # Label → reuse another label's plot color (same row cycle).
 _TRACE_COLOR_MATCH: dict[str, str] = {
     "dv_leak+dv_hp": "dv_leak",
@@ -607,21 +607,26 @@ def _plot_trace_colors(colors: list[str], spec: _ComponentSpec) -> dict[str, str
     return out
 
 
-def _g_e_note(label: str, *, e_leak_mV: float, globs: dict[str, Any]) -> str | None:
+def _g_e_note(label: str, *, e_leak_mV: float, globs: dict[str, Any], params: dict[str, Any] | None = None) -> str | None:
     """Reversal annotation for a conductance subplot (``e_exc=+10 mV`` …)."""
     if label == "g_leak":
         return f"E_leak={e_leak_mV:+g} mV"
     notes = {
         "g_exc": "e_exc",
         "g_inh": "e_inh",
-        "g_h_on": "e_h",
-        "g_h_off": "e_h_off",
+        "g_h": "e_h",
+        "g_h_rev": "e_h_rev",
     }
     gkey = notes.get(label)
-    if gkey is None or gkey not in globs:
+    if gkey is None:
         return None
-    pretty = {"e_h": "E_h_on", "e_h_off": "E_h_off"}.get(gkey, gkey)
-    return f"{pretty}={globs[gkey]:+g} mV"
+    src = globs
+    if gkey not in src and params is not None and gkey in params:
+        src = params
+    if gkey not in src:
+        return None
+    pretty = {"e_h": "E_h", "e_h_rev": "E_h_rev"}.get(gkey, gkey)
+    return f"{pretty}={src[gkey]:+g} mV"
 
 
 def _add_component_formula_row(
@@ -697,10 +702,10 @@ def _component_at_nodes_borst(
     v_post,
     g_exc,
     g_inh,
-    g_i_h_on,
-    g_i_h_off,
+    g_h,
+    g_h_rev,
     sig_t,
-    backend,
+    e_leak,
     nodes: np.ndarray,
     v_onset: np.ndarray,
     *,
@@ -711,7 +716,6 @@ def _component_at_nodes_borst(
     e_exc: float,
     e_inh: float,
     e_h: float,
-    e_leak_rest: float,
     euler: str,
 ) -> tuple[dict[str, np.ndarray], np.ndarray]:
     """Slice node component from a completed ``update_v(..., return_component=True)`` step."""
@@ -725,10 +729,10 @@ def _component_at_nodes_borst(
                 v_pre[b, u],
                 g_exc[b, u],
                 g_inh[b, u],
-                g_i_h_on[b, u],
-                g_i_h_off[b, u],
+                g_h[b, u],
+                g_h_rev[b, u],
                 sig_u,
-                backend.e_leak[u],
+                e_leak[u],
                 v_post[b, u],
             ),
             dim=0,
@@ -738,7 +742,7 @@ def _component_at_nodes_borst(
         terms = training.v_component_from_g(
             v_pre_np, packed[1], packed[2], packed[3], packed[4], packed[5], packed[6],
             delta_ms=delta_ms, cap=cap, g_leak=g_leak,
-            e_exc=e_exc, e_inh=e_inh, e_h=e_h, e_leak_rest=e_leak_rest,
+            e_exc=e_exc, e_inh=e_inh, e_h=e_h,
             euler=euler,
         )
         v_abs = packed[7]
@@ -747,8 +751,8 @@ def _component_at_nodes_borst(
             "v_abs": v_abs,
             "g_exc": packed[1],
             "g_inh": packed[2],
-            "g_i_h_on": packed[3],
-            "g_i_h_off": packed[4],
+            "g_h": packed[3],
+            "g_h_rev": packed[4],
             **terms,
             "num": terms["num"],
         }
@@ -778,7 +782,7 @@ def _component_at_nodes_hp_lp(
             "v_abs": v_abs,
         }
         for k in (
-            "i_sti", "v_sti", "v_in", "v_in_exc", "v_in_inh", "v_slow", "v_tot", "v_hp",
+            "i_sti", "v_sti", "v_in", "v_in_exc", "v_in_inh", "v_slow", "v_drive", "v_hp",
             "dv_leak", "dv_hp",
         ):
             t = component_t[k]
@@ -859,13 +863,13 @@ def _step_from_acc(
             "g_inh_nS": acc["g_inh"] / n,
             "g_leak_nS": float(g_leak),
             "dt_over_c": float(dt_over_c),
-            "g_i_h_on_nS": acc["g_i_h_on"] / n,
-            "g_i_h_off_nS": acc["g_i_h_off"] / n,
+            "g_h_nS": acc["g_h"] / n,
+            "g_h_rev_nS": acc["g_h_rev"] / n,
             "num_exc": acc["num_exc"] / n,
             "num_inh": acc["num_inh"] / n,
             "num_leak": acc["num_leak"] / n,
-            "num_i_h_on": acc["num_i_h_on"] / n,
-            "num_i_h_off": acc["num_i_h_off"] / n,
+            "num_i_h": acc["num_i_h"] / n,
+            "num_i_h_rev": acc["num_i_h_rev"] / n,
             "num_v": acc["num_v"] / n,
             "num": num,
             "den": den,
@@ -878,7 +882,7 @@ def _step_from_acc(
         "v_in_inh": -acc["v_in_inh"] / n,
         "v_sti": acc["v_sti"] / n,
         "v_slow": acc["v_slow"] / n,
-        "v_tot": acc["v_tot"] / n,
+        "v_drive": acc["v_drive"] / n,
         "v_hp": acc["v_hp"] / n,
         "dv_leak": acc["dv_leak"] / n,
         "dv_hp": acc["dv_hp"] / n,
@@ -996,7 +1000,7 @@ def _forward_component(
         with torch.no_grad():
             v_pre = v
             if spec.model == "borst":
-                state, v, (g_exc, g_inh, g_i_h_on, g_i_h_off) = drv.step(
+                state, v, (g_exc, g_inh, g_h, g_h_rev) = drv.step(
                     state, v, p, sig_t, session,
                     delta_ms=step_dt, return_component=True,
                 )
@@ -1013,11 +1017,11 @@ def _forward_component(
             active, active_t = active_pack
             if spec.model == "borst":
                 component, v_post_minus_pre_u = _component_at_nodes_borst(
-                    v_pre, v, g_exc, g_inh, g_i_h_on, g_i_h_off, sig_t,
-                    backend, active, v_onset, batch=b,
+                    v_pre, v, g_exc, g_inh, g_h, g_h_rev, sig_t,
+                    p["e_leak"], active, v_onset, batch=b,
                     delta_ms=step_dt, cap=session.cap, g_leak=session.g_leak,
                     e_exc=session.e_exc, e_inh=session.e_inh, e_h=session.e_h,
-                    e_leak_rest=session.e_leak_rest, euler=session.euler,
+                    euler=session.euler,
                 )
             else:
                 component, v_post_minus_pre_u = _component_at_nodes_hp_lp(
@@ -1241,24 +1245,27 @@ def _node_params(p, session, node: int) -> dict[str, float]:
             "v_th": float(p["v_th"][node]),
             "a_gt": a_gt,
             "bias_gt": bias_gt,
-            "v_rest_mV": float(p["v_rest"][node]),
+            "e_leak_mV": float(p["e_leak"][node]),
             "tau_lp_ms": float(p["tau_lp"][node]),
             "tau_hp_ms": float(p["tau_hp"][node]),
-            "a_slow": float(p["a_slow"][node]),
+            "a_h": float(p["a_h"][node]),
         }
-    from neuron.schema import borst_i_h_off_kwargs
+    from neuron.schema import borst_i_h_rev_kwargs
 
-    i_h_off = (session.train_opts or {})["i_h_off"]
-    gmax_off, *_rest = borst_i_h_off_kwargs(p, i_h_off)
+    i_h_rev = (session.train_opts or {})["i_h_rev"]
+    a_h_rev, *_rest = borst_i_h_rev_kwargs(p, i_h_rev)
+    e_leak = float(p["e_leak"][node])
     return {
         "a_in": float(p["a_in"][node]),
         "a_out": float(p["a_out"][node]),
         "a_gt": a_gt,
         "bias_gt": bias_gt,
         "v_th": float(p["v_th"][node]),
-        "h_g_max": float(p["h_g_max"][node]),
-        "h_g_max_off": float(gmax_off[node]),
-        "e_leak_mV": float(backend.e_leak[node]),
+        "h_g_max": float(session.h_g_max),
+        "a_h": float(p["a_h"][node]),
+        "a_h_rev": float(a_h_rev[node]),
+        "e_leak_mV": e_leak,
+        "e_h_rev": float(training.e_h_rev(e_leak, session.e_h)),
     }
 
 
@@ -1277,7 +1284,6 @@ def _globals(session):
         "e_exc": float(session.e_exc),
         "e_inh": float(session.e_inh),
         "e_h": float(session.e_h),
-        "e_h_off": float(training.e_h_off(session.e_leak_rest, session.e_h)),
         "g_leak_nS": float(session.g_leak),
         "dt_over_c": float(training.membrane_dt_over_c(session.cap, session.delta_ms)),
         "delta_ms": float(session.delta_ms),
@@ -2170,6 +2176,7 @@ def _plot_component_reports(
     overlay = len(reports) > 1
     e_leak_mV = float(reports[0].get("params", {}).get("e_leak_mV", 0.0))
     globs = reports[0].get("globals") or {}
+    params0 = reports[0].get("params") or {}
     delta_ms = float(globs.get("delta_ms", training.DELTA_MS))
     row_curves: dict[int, list[np.ndarray]] = {ri: [] for ri in spec.row_shared_ylim}
     tc = _plot_trace_colors(colors, spec)
@@ -2222,7 +2229,7 @@ def _plot_component_reports(
                             label="gt" if (show_legend or not overlay) else "_nolegend_",
                         )
                         drew_gt = True
-            e_note = _g_e_note(label, e_leak_mV=e_leak_mV, globs=globs)
+            e_note = _g_e_note(label, e_leak_mV=e_leak_mV, globs=globs, params=params0)
             if e_note is not None:
                 ax.set_title(e_note, fontsize=8)
             _style_component_ax(
@@ -2337,7 +2344,7 @@ def _print_report(report: dict[str, Any], *, print_steps: bool = True) -> None:
             print(f"\nHP/LP terms at peak {x_key}={ps[x_key]}:")
             for name, val in [
                 ("v_in", ps["v_in"]), ("v_in_exc", ps["v_in_exc"]), ("-v_in_inh", ps["v_in_inh"]),
-                ("v_slow", ps["v_slow"]), ("v_tot", ps["v_tot"]), ("v_hp", ps["v_hp"]),
+                ("v_slow", ps["v_slow"]), ("v_drive", ps["v_drive"]), ("v_hp", ps["v_hp"]),
                 ("dv_leak", ps["dv_leak"]), ("dv_hp", ps["dv_hp"]),
             ]:
                 print(f"  {name:8s} {val:+9.4f}")
@@ -2348,14 +2355,14 @@ def _print_report(report: dict[str, Any], *, print_steps: bool = True) -> None:
     if print_steps:
         print(
             f"\n{x_key}  n  v_post  v_pre  v_post_minus_pre  i_sti "
-            "g_inh  g_i_h_off  g_exc  num_inh  num_exc"
+            "g_inh  g_h_rev  g_exc  num_inh  num_exc"
         )
         for s in report["steps"]:
             v_pre = float(s["v_post"]) - float(s["v_post_minus_pre"])
             print(
                 f"{s[x_key]:4d} {s.get('n_nodes', 1):3d} {s['v_post']:+8.4f} "
                 f"{v_pre:+8.4f} {s['v_post_minus_pre']:+8.4f} "
-                f"{s['i_sti']:5.1f} {s['g_inh_nS']:.4f} {s['g_i_h_off_nS']:.4f} "
+                f"{s['i_sti']:5.1f} {s['g_inh_nS']:.4f} {s['g_h_rev_nS']:.4f} "
                 f"{s['g_exc_nS']:.4f} {s['num_inh']:+8.2f} {s['num_exc']:+8.2f}"
             )
 
@@ -2370,8 +2377,8 @@ def _print_report(report: dict[str, Any], *, print_steps: bool = True) -> None:
             ("dt_over_c*i_exc", dt_over_c * ps["num_exc"]),
             ("dt_over_c*i_inh", dt_over_c * ps["num_inh"]),
             ("dt_over_c*i_leak", dt_over_c * ps["num_leak"]),
-            ("dt_over_c*i_h_on", dt_over_c * ps["num_i_h_on"]),
-            ("dt_over_c*i_h_off", dt_over_c * ps["num_i_h_off"]),
+            ("dt_over_c*i_h", dt_over_c * ps["num_i_h"]),
+            ("dt_over_c*i_h_rev", dt_over_c * ps["num_i_h_rev"]),
         ]:
             pct = 100.0 * val / num if num else 0.0
             print(f"  {name:20s} {val:+9.2f} ({pct:.0f}%)")

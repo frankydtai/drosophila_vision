@@ -2,9 +2,10 @@
 """Spot paradigm GT: RecF x ImpR gt traces and cost-radius readout.
 
 Merges the old ``Medulla_Library`` RecF/ImpR reader (with its internal
-bandpass/lowpass ImpR shaping -- a gt-only spot-drive path, not the unused
-Ca filter in ``neuron.filter_ca``) and the old network spot-gt section
-(gt assembly + Euclidean cost radii).
+bandpass/lowpass ImpR shaping and L1/L2 ``+0.4 * drive`` sustained mix --
+a gt-only spot-drive path, not the unused Ca filter in
+``neuron.filter_ca``) and the old network spot-gt section (gt assembly +
+Euclidean cost radii).
 
 New features handled here:
 - ``ms_spot`` (#1): the PR drive comes from
@@ -148,10 +149,13 @@ def _shift_right(y, k: int):
 
 # ImpR onset delay (samples / t-index): L1–L5 +1; other gt cells +2.
 _IMPR_SHIFT_RIGHT = {
-    "L1": 5, "L2": 5, "L3": 5, "L4": 5, "L5": 5,
-    "Mi1": 5, "Tm3": 5, "Mi4": 5, "Mi9": 5,
-    "Tm1": 5, "Tm2": 5, "Tm4": 5, "Tm9": 5,
+    "L1": 1, "L2": 1, "L3": 1, "L4": 2, "L5": 2,
+    "Mi1": 3, "Tm3": 3, "Mi4": 3, "Mi9": 3,
+    "Tm1": 3, "Tm2": 3, "Tm4": 3, "Tm9": 3,
 }
+# L1/L2: mix sustained drive into bandpass ImpR (Medulla_Library).
+_IMPR_SUSTAINED_CELLS = frozenset({"L1", "L2"})
+_IMPR_SUSTAINED_WEIGHT = 0.4
 
 
 def read_RecF_ImpR(*, t_onset=None, n_t=None, ms_spot=None, delta_ms: float):
@@ -219,8 +223,10 @@ def read_RecF_ImpR(*, t_onset=None, n_t=None, ms_spot=None, delta_ms: float):
             ImpR_gt[i] = _bandpass(
                 u, IR_hp_ms[i], IR_lp_ms[i], delta_ms=delta_ms,
             )
-        ImpR_gt[i] = normalize_gt(ImpR_gt[i])
         name = str(GT_CELLS[i])
+        if name in _IMPR_SUSTAINED_CELLS:
+            ImpR_gt[i] = ImpR_gt[i] + _IMPR_SUSTAINED_WEIGHT * u
+        ImpR_gt[i] = normalize_gt(ImpR_gt[i])
         ImpR_gt[i] = _shift_right(ImpR_gt[i], _IMPR_SHIFT_RIGHT[name])
 
     return RecF_gt, ImpR_gt

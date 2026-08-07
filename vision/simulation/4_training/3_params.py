@@ -24,17 +24,6 @@ def calc_multi_col_params(param, conn):
     return param.index_select(0, conn.node_cell)
 
 
-def build_e_leak(
-    conn, n_cells, depol_cells=(), *, e_leak_rest: float, e_leak_depol: float,
-    dtype=SIM_DTYPE,
-):
-    """(conn.n_nodes,) resting potential; ``depol_cells`` are type indices at ``e_leak_depol``."""
-    per_type = torch.full((n_cells,), e_leak_rest, dtype=dtype, device=conn.node_cell.device)
-    for c in depol_cells:
-        per_type[int(c)] = e_leak_depol
-    return calc_multi_col_params(per_type, conn)
-
-
 def build_i_h_dir(conn, i_h_reverse_cells=I_H_DIR_REVERSE_CELLS, *, dtype=SIM_DTYPE):
     """(conn.n_nodes,) i_h direction (+1 normal, -1 mirrored per cell)."""
     d = torch.ones(conn.n_nodes, dtype=dtype, device=conn.node_cell.device)

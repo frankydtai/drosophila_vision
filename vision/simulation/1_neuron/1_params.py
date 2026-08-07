@@ -54,13 +54,13 @@ def membrane_dt_over_c(cap: float, delta_ms: float) -> float:
     return float(delta_ms) / float(cap)
 
 
-def e_h_off(e_leak_rest: float, e_h: float) -> float:
-    """OFF-channel reversal ``2 * e_leak_rest - e_h``."""
-    return 2.0 * float(e_leak_rest) - float(e_h)
+def e_h_rev(e_leak, e_h: float):
+    """Rev-channel reversal ``2 * e_leak - e_h`` (scalar or per-node)."""
+    return 2.0 * e_leak - float(e_h)
 
 
 # Non-numeric vocabularies (names / modes), not run defaults.
-I_H_OFF_MODES = ("on", "off", "mirrored")
+I_H_REV_MODES = ("on", "off", "mirrored")
 I_H_DIR_REVERSE_CELLS: Tuple[int, ...] = ()
 KNOWN_MODELS = ("borst", "hp_lp")
 EULER_MODES = ("implicit", "explicit")

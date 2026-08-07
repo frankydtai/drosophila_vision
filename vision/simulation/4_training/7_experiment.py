@@ -9,15 +9,15 @@ from param_defaults import H_CELLS
 def merge_i_h_train_modes(train_kw):
     """Pop CLI ``train_modes`` from *train_kw* and merge default i_h/hp splits.
 
-    Borst: ``h_g_max`` / ``h_g_max_off``.
-    hp_lp: ``a_slow`` / ``tau_hp``.
+    Borst: ``a_h`` / ``a_h_rev``.
+    hp_lp: ``a_h`` / ``tau_hp``.
     Indi cells: :data:`H_CELLS`; ``fixed=['all']``.
     """
     i_h_indi = list(H_CELLS)
     if train_kw['model'] == 'borst':
-        names = ('h_g_max', 'h_g_max_off')
+        names = ('a_h', 'a_h_rev')
     else:
-        names = ('a_slow', 'tau_hp')
+        names = ('a_h', 'tau_hp')
     i_h_modes = {
         name: {'indi': i_h_indi, 'fixed': ['all']}
         for name in names

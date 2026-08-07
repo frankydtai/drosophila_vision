@@ -26,7 +26,7 @@ import numpy as np
 import torch
 
 from neuron import I_H_DIR_REVERSE_CELLS
-from neuron.params import e_h_off as calc_e_h_off, membrane_dt_over_c
+from neuron.params import membrane_dt_over_c
 
 from training.config import SPOT_TASKS
 from param_defaults import FP
@@ -95,15 +95,13 @@ class ReadoutPack:
 
 @dataclass(frozen=True)
 class ModelBackend:
-    """Connectivity + leak/i_h tensors for one simulation graph."""
+    """Connectivity + i_h tensors for one simulation graph."""
 
     conn: object
-    e_leak: torch.Tensor
     i_h_dir: torch.Tensor
     n_cells: int
     n_hexes: int
     network: Optional[object] = None
-    depol_cells: Tuple[int, ...] = ()
     i_h_reverse_cells: Tuple[int, ...] = I_H_DIR_REVERSE_CELLS
 
     @property
@@ -144,9 +142,7 @@ class TrainSession:
     e_exc: float
     e_inh: float
     e_h: float
-    e_leak_rest: float
-    e_leak_depol: float
-    a_h: float
+    h_g_max: float
     Ca_tau: float
     DATA_AMP: float
     STATE_CLAMP: float
@@ -167,10 +163,6 @@ class TrainSession:
     @property
     def dt_over_c(self) -> float:
         return membrane_dt_over_c(self.cap, self.delta_ms)
-
-    @property
-    def e_h_off(self) -> float:
-        return calc_e_h_off(self.e_leak_rest, self.e_h)
 
     @property
     def primary_readout(self) -> ReadoutPack:
