@@ -1,9 +1,9 @@
 """Inspect one fine cost part at best ``z`` (SSE / denom / per-t breakdown).
 
-Reuses training cost internals — does not reimplement MSE or row grouping.
+Reuses training cost internals — does not reimplement MSE or entry grouping.
 
 * ``gt_power``: ``cost = 100 * SSE / Σ w (a_gt·gt)²``
-* ``a_gt2``: ``cost = Σ_i sse_row_i / a_i²`` (no ×100)
+* ``a_gt2``: ``cost = Σ_i sse_entry_i / a_i²`` (no ×100)
 
 Usage (from ``vision/simulation/``)::
 
@@ -38,7 +38,7 @@ from training.config import COST_NORMS, expand_cost_norm, spot_cost_part_key
 from training.cost import (
     _pack_cost_forward,
     _session_cost_norm,
-    _spot_row_groups,
+    _spot_entry_groups,
     calc_cost_parts,
 )
 from training.params import params_from_z
@@ -71,12 +71,12 @@ def _session_with_opts(session, opts: dict):
     return replace(session, train_opts=opts)
 
 
-def _subsample_cost_time(pack, sel, gt):
-    """Match ``_pack_cost_parts_from_sel`` sparse ``cost_time_ix`` gather."""
+def _subsample_cost_time(pack, v_readout, gt):
+    """Match ``_pack_cost_parts_from_v_readout`` sparse ``cost_time_ix`` gather."""
     if pack.cost_time_ix is None:
-        return sel, gt
-    ix = pack.cost_time_ix.to(device=sel.device)
-    return sel.index_select(1, ix), gt.index_select(1, ix)
+        return v_readout, gt
+    ix = pack.cost_time_ix.to(device=v_readout.device)
+    return v_readout.index_select(1, ix), gt.index_select(1, ix)
 
 
 def _delta_ms_for_pack(session, pack) -> float:
@@ -105,12 +105,12 @@ def inspect_part(session, z, part_key: str) -> dict:
     fwd = _pack_cost_forward(p, pack, session)
     if fwd is None:
         raise SystemExit(f"no cost forward for pack {task!r}")
-    a_gt, bias_gt, gt, weight, sel, _dsi_sel, _pd_nd = fwd
-    if sel is None:
-        raise SystemExit(f"waveform sel required for {task!r}")
-    sel, gt = _subsample_cost_time(pack, sel, gt)
+    a_gt, bias_gt, gt, weight, v_readout, _v_readout_dsi, _pd_nd = fwd
+    if v_readout is None:
+        raise SystemExit(f"waveform v_readout required for {task!r}")
+    v_readout, gt = _subsample_cost_time(pack, v_readout, gt)
 
-    group_id, keys = _spot_row_groups(pack, session.backend)
+    group_id, keys = _spot_entry_groups(pack, session.backend)
     if part_key not in keys:
         raise SystemExit(
             f"part {part_key!r} not in pack groups; available:\n  "
@@ -119,49 +119,50 @@ def inspect_part(session, z, part_key: str) -> dict:
     g = keys.index(part_key)
     idx = (group_id == g).nonzero(as_tuple=False).reshape(-1)
     if idx.numel() == 0:
-        raise SystemExit(f"part {part_key!r} has zero active rows")
+        raise SystemExit(f"part {part_key!r} has zero active entries")
 
     a = a_gt[idx]
     b = bias_gt[idx]
     w = weight[idx]
     gtr = gt[idx]
-    selr = sel[idx]
+    v_readout_r = v_readout[idx]
     gt_scaled = a[:, None] * gtr
     gt_aff = gt_scaled + b[:, None]
-    diff = selr - gt_aff
+    diff = v_readout_r - gt_aff
 
-    sse_t = (w[:, None] * diff ** 2).sum(dim=0)
+    sse = (w[:, None] * diff ** 2).sum(dim=0)
     power_t = (w[:, None] * gt_scaled ** 2).sum(dim=0)
     n = int(idx.numel())
-    n_t = int(sse_t.numel())
-    W = float(w.sum().item())
+    n_t = int(sse.numel())
+    w_sum = float(w.sum().item())
+    if w_sum <= 0:
+        raise SystemExit(f"part {part_key!r} has zero total weight")
     a0 = float(a[0].item())
     b0 = float(b[0].item())
     a2 = max(a0 * a0, float(torch.finfo(a.dtype).tiny))
 
-    sse_sum = float(sse_t.sum().item())
+    sse_sum = float(sse.sum().item())
     power_sum = float(power_t.sum().item())
     if cost_norm == "gt_power":
         denom = power_sum if power_sum > 0 else 1.0
         cost = 100.0 * sse_sum / denom
-        cost_t = torch.where(
+        cost_mean = torch.where(
             power_t > 0,
-            100.0 * sse_t / power_t,
-            torch.full_like(sse_t, float("nan")),
+            100.0 * sse / power_t / w_sum,
+            torch.full_like(sse, float("nan")),
         )
         denom_t = power_t
         denom_name = "POWER"
     elif cost_norm == "a_gt2":
         cost = sse_sum / a2
-        cost_t = sse_t / a2
-        denom_t = torch.full_like(sse_t, a2)
+        cost_mean = sse / a2 / w_sum
+        denom_t = torch.full_like(sse, a2)
         denom_name = "a_gt2"
     else:
         raise SystemExit(f"unsupported cost_norm {cost_norm!r}")
 
-    gt_aff_mean = (w[:, None] * gt_aff).sum(dim=0) / W
-    gt_mean = (w[:, None] * gtr).sum(dim=0) / W
-    sel_mean = (w[:, None] * selr).sum(dim=0) / W
+    gt_aff_mean = (w[:, None] * gt_aff).sum(dim=0) / w_sum
+    v_readout_mean = (w[:, None] * v_readout_r).sum(dim=0) / w_sum
 
     official = calc_cost_parts(z, session)
     official_val = float(official[part_key].item()) if part_key in official else None
@@ -171,6 +172,7 @@ def inspect_part(session, z, part_key: str) -> dict:
         "task": task,
         "cost_norm": cost_norm,
         "n": n,
+        "w_sum": w_sum,
         "n_t": n_t,
         "a_gt": a0,
         "bias_gt": b0,
@@ -180,12 +182,11 @@ def inspect_part(session, z, part_key: str) -> dict:
         "cost": cost,
         "official": official_val,
         "denom_name": denom_name,
-        "sse_t": sse_t.detach().cpu().numpy(),
+        "sse": sse.detach().cpu().numpy(),
         "denom_t": denom_t.detach().cpu().numpy(),
-        "cost_t": cost_t.detach().cpu().numpy(),
+        "cost_mean": cost_mean.detach().cpu().numpy(),
         "gt_aff_mean": gt_aff_mean.detach().cpu().numpy(),
-        "gt_mean": gt_mean.detach().cpu().numpy(),
-        "sel_mean": sel_mean.detach().cpu().numpy(),
+        "v_readout_mean": v_readout_mean.detach().cpu().numpy(),
         "delta_ms": _delta_ms_for_pack(session, pack),
     }
 
@@ -214,60 +215,56 @@ def _print_summary(info: dict) -> None:
 
 
 def _print_table(info: dict, *, stride: int, per_node: bool) -> None:
-    n = info["n"]
+    w_sum = info["w_sum"]
     denom_name = info["denom_name"]
-    sse_lab = "SSE_avg" if per_node else "SSE_t"
     den_lab = f"{denom_name}_avg" if per_node and denom_name == "POWER" else denom_name
     print(
-        f"{'t':>4} {'ms':>7} {'cost_t':>14} {'gt_aff':>14} "
-        f"{sse_lab:>14} {den_lab:>14}",
+        f"{'t':>4} {'ms':>7} {'cost_mean':>14} {'gt_aff':>14} "
+        f"{'SSE_mean':>14} {den_lab:>14}",
         flush=True,
     )
     ms = np.arange(info["n_t"], dtype=float) * float(info["delta_ms"])
     for t in range(0, info["n_t"], max(1, int(stride))):
-        c = info["cost_t"][t]
+        c = info["cost_mean"][t]
         c_s = "nan" if not np.isfinite(c) else f"{c:.10f}"
-        sse = info["sse_t"][t]
+        sse_mean = info["sse"][t] / w_sum
         den = info["denom_t"][t]
-        if per_node:
-            sse = sse / n
-            if denom_name == "POWER":
-                den = den / n
+        if per_node and denom_name == "POWER":
+            den = den / w_sum
         print(
             f"{t:4d} {ms[t]:7g} {c_s:>14} {info['gt_aff_mean'][t]:14.10f} "
-            f"{sse:14.6f} {den:14.6f}",
+            f"{sse_mean:14.6f} {den:14.6f}",
             flush=True,
         )
 
 
 def _write_csv(path: str, info: dict, *, per_node: bool) -> None:
-    n = info["n"]
+    w_sum = info["w_sum"]
     ms = np.arange(info["n_t"], dtype=float) * float(info["delta_ms"])
     denom_name = info["denom_name"]
     with open(path, "w", newline="") as f:
         w = csv.writer(f)
         w.writerow(
             [
-                "t", "ms", "cost_t", "gt_aff_mean", "gt_mean", "sel_mean",
-                "SSE_t", denom_name, "SSE_avg",
+                "t", "ms", "cost_mean", "gt_aff_mean", "v_readout_mean",
+                "SSE_mean", denom_name,
                 f"{denom_name}_avg" if denom_name == "POWER" else denom_name,
                 "cost_norm", "part",
             ],
         )
         for t in range(info["n_t"]):
-            c = info["cost_t"][t]
+            c = info["cost_mean"][t]
             c_s = "" if not np.isfinite(c) else f"{c:.10f}"
-            sse = float(info["sse_t"][t])
+            sse_mean = float(info["sse"][t]) / w_sum
             den = float(info["denom_t"][t])
-            den_avg = den / n if denom_name == "POWER" else den
+            den_avg = den / w_sum if denom_name == "POWER" else den
             w.writerow(
                 [
                     t, f"{ms[t]:g}", c_s,
                     f"{info['gt_aff_mean'][t]:.10f}",
-                    f"{info['gt_mean'][t]:.10f}",
-                    f"{info['sel_mean'][t]:.10e}",
-                    f"{sse:.10f}", f"{den:.10f}",
-                    f"{sse / n:.10f}", f"{den_avg:.10f}",
+                    f"{info['v_readout_mean'][t]:.10e}",
+                    f"{sse_mean:.10f}", f"{den:.10f}",
+                    f"{den_avg:.10f}",
                     info["cost_norm"], info["part_key"],
                 ],
             )
@@ -320,7 +317,7 @@ def main(argv=None) -> None:
     ap.add_argument(
         "--per-node",
         action="store_true",
-        help="print SSE/N and POWER/N (gt_power denom only)",
+        help="print POWER/W for gt_power denom (SSE_mean always uses W=Σ w_i)",
     )
     ap.add_argument(
         "--csv",
@@ -337,9 +334,9 @@ def main(argv=None) -> None:
 
     run_dir = plot_run.resolve_run_dir(args.run)
     print(f"run={run_dir}", flush=True)
-    session, z, best_i, best_cost = plot_run.load_best(run_dir, verbose=True)
+    session, z, best_cost = plot_run.load_best(run_dir, verbose=True)
     session, cost_norm = _apply_cost_norm_override(session, args.cost_norm)
-    print(f"cost_norm={cost_norm}  saved_total={best_cost:.6f}  best_i={best_i}", flush=True)
+    print(f"cost_norm={cost_norm}  saved_total={best_cost:.6f}", flush=True)
 
     if args.list_parts and args.part is None and args.cell is None:
         _list_parts(session, z)

@@ -58,7 +58,7 @@ def _apply_spot_timing(opts: dict, *, ms_pre: float, ms_response: float) -> dict
 
 @torch.no_grad()
 def _fit_center_traces(session, z, *, return_v_delta: bool) -> dict[str, np.ndarray]:
-    """Mean center-column (du=dv=0) trace per fit cell from one ``forward_full``.
+    """Mean center-hex (du=dv=0) trace per fit cell from one ``forward_full``.
 
     Apply ``out_scale`` like ``model_data_spot`` ca traces (same for v / vΔt
     so the three overlays share amplitude).

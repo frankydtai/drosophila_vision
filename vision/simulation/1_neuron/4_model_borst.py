@@ -39,26 +39,26 @@ def rectsyn(x, thrld):
 
 def _i_h_gate_step(
     v, u, u_rev, a_h, a_h_rev,
-    h_v_mid, h_slope, tau_h_v, h_v_mid_rev, h_slope_rev, tau_h_v_rev,
+    v_mid_h_g, h_slope, v_mid_h_tau, v_mid_h_g_rev, h_slope_rev, v_mid_h_tau_rev,
     *,
     delta_ms: float,
     h_g_max: float,
 ):
-    """Advance i_h gate states and channel conductances for active columns only.
+    """Advance i_h gate states and channel conductances for active hexes only.
 
     Gate ODE uses explicit Euler regardless of membrane ``euler``.
     """
     slope = h_slope
     slope_rev = -h_slope_rev
-    i_h_ss = 1.0 / (1.0 + torch.exp((h_v_mid - v) * slope))
-    i_h_ss_rev = 1.0 / (1.0 + torch.exp((h_v_mid_rev - v) * slope_rev))
+    i_h_ss = 1.0 / (1.0 + torch.exp((v_mid_h_g - v) * slope))
+    i_h_ss_rev = 1.0 / (1.0 + torch.exp((v_mid_h_g_rev - v) * slope_rev))
     tau = (
-        1.5 / (torch.exp(-0.1 * (v - tau_h_v)) + torch.exp(+0.1 * (v - tau_h_v))) * 1000.0
+        1.5 / (torch.exp(-0.1 * (v - v_mid_h_tau)) + torch.exp(+0.1 * (v - v_mid_h_tau))) * 1000.0
         + 100.0
     )
     tau_rev = (
         1.5
-        / (torch.exp(-0.1 * (v - tau_h_v_rev)) + torch.exp(+0.1 * (v - tau_h_v_rev)))
+        / (torch.exp(-0.1 * (v - v_mid_h_tau_rev)) + torch.exp(+0.1 * (v - v_mid_h_tau_rev)))
         * 1000.0
         + 100.0
     )
@@ -73,7 +73,7 @@ def _i_h_gate_step(
 
 def update_v(
     v, u, u_rev, a_in, a_out, syn_strength, v_th, a_h, a_h_rev,
-    h_v_mid, h_slope, tau_h_v, h_v_mid_rev, h_slope_rev, tau_h_v_rev,
+    v_mid_h_g, h_slope, v_mid_h_tau, v_mid_h_g_rev, h_slope_rev, v_mid_h_tau_rev,
     i_sti, backend, e_leak, *,
     delta_ms: float,
     cap: float,
@@ -94,8 +94,8 @@ def update_v(
     i_h_kw_common = dict(delta_ms=delta_ms, h_g_max=h_g_max)
     if i_h_active.any():
         i_h_kw = dict(
-            h_v_mid=h_v_mid, h_slope=h_slope, tau_h_v=tau_h_v,
-            h_v_mid_rev=h_v_mid_rev, h_slope_rev=h_slope_rev, tau_h_v_rev=tau_h_v_rev,
+            v_mid_h_g=v_mid_h_g, h_slope=h_slope, v_mid_h_tau=v_mid_h_tau,
+            v_mid_h_g_rev=v_mid_h_g_rev, h_slope_rev=h_slope_rev, v_mid_h_tau_rev=v_mid_h_tau_rev,
         )
         if i_h_active.all():
             u, u_rev, g_h, g_h_rev = _i_h_gate_step(
@@ -188,10 +188,10 @@ def prepare_i_sti(session, p, i_sti, pack):
     return i_sti.unsqueeze(0) if i_sti.dim() == 2 else i_sti
 
 
-def _i_h_ss(v, a_h, a_h_rev, h_v_mid, h_slope, h_v_mid_rev, h_slope_rev, *, h_g_max: float):
+def _i_h_ss(v, a_h, a_h_rev, v_mid_h_g, h_slope, v_mid_h_g_rev, h_slope_rev, *, h_g_max: float):
     """DC i_h gates ``u = ss(v)`` and conductances (no time step)."""
-    i_h_ss = 1.0 / (1.0 + torch.exp((h_v_mid - v) * h_slope))
-    i_h_ss_rev = 1.0 / (1.0 + torch.exp((h_v_mid_rev - v) * (-h_slope_rev)))
+    i_h_ss = 1.0 / (1.0 + torch.exp((v_mid_h_g - v) * h_slope))
+    i_h_ss_rev = 1.0 / (1.0 + torch.exp((v_mid_h_g_rev - v) * (-h_slope_rev)))
     gmax = float(h_g_max)
     return (
         i_h_ss,
@@ -228,10 +228,10 @@ def _dc_v_star(v, p, i0, e_leak, session, *, with_i_h_ss: bool):
     g_exc, g_inh = _syn_g(v, p, session.backend)
     if with_i_h_ss:
         i_h_rev = (session.train_opts or {})["i_h_rev"]
-        a_h_rev, h_v_mid_rev, h_slope_rev, _tau = borst_i_h_rev_kwargs(p, i_h_rev)
+        a_h_rev, v_mid_h_g_rev, h_slope_rev, _v_mid_h_tau = borst_i_h_rev_kwargs(p, i_h_rev)
         u, u_rev, g_h, g_h_rev = _i_h_ss(
             v, p["a_h"], a_h_rev,
-            p["h_v_mid"], p["h_slope"], h_v_mid_rev, h_slope_rev,
+            p["v_mid_h_g"], p["h_slope"], v_mid_h_g_rev, h_slope_rev,
             h_g_max=session.h_g_max,
         )
     else:
@@ -306,15 +306,15 @@ def step(state, v, p, i_sti, session, *, delta_ms: float, return_component: bool
     """One borst update; returns ``((u, u_rev), v)`` or + g component tuple."""
     u, u_rev = state
     i_h_rev = (session.train_opts or {})["i_h_rev"]
-    a_h_rev, h_v_mid_rev, h_slope_rev, tau_h_v_rev = borst_i_h_rev_kwargs(
+    a_h_rev, v_mid_h_g_rev, h_slope_rev, v_mid_h_tau_rev = borst_i_h_rev_kwargs(
         p, i_h_rev,
     )
     out = update_v(
         v, u, u_rev,
         p["a_in"], p["a_out"], syn_strength(p), p["v_th"],
         p["a_h"], a_h_rev,
-        p["h_v_mid"], p["h_slope"], p["tau_h_v"],
-        h_v_mid_rev, h_slope_rev, tau_h_v_rev,
+        p["v_mid_h_g"], p["h_slope"], p["v_mid_h_tau"],
+        v_mid_h_g_rev, h_slope_rev, v_mid_h_tau_rev,
         i_sti, session.backend, p["e_leak"],
         **_membrane_kwargs(session, delta_ms),
         return_component=return_component,

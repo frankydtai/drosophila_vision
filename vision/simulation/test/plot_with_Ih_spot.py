@@ -33,16 +33,16 @@ DEFAULT_SAVE = os.path.join(HERE, "model_data_spot.png")
 SECOND_BRIGHT_MS = 50.0
 
 
-def _cost_extent_column_coltag(cost_extent, n_cost_columns) -> str:
+def _cost_extent_hex_tag(cost_extent, n_cost_hexes) -> str:
     """Backfill missing tag helper without modifying core code."""
-    extent_tag = "all columns" if cost_extent is None else f"extent={int(cost_extent)}"
-    if isinstance(n_cost_columns, dict):
+    extent_tag = "all hexes" if cost_extent is None else f"extent={int(cost_extent)}"
+    if isinstance(n_cost_hexes, dict):
         cols = ", ".join(
             f"b{int(batch)}={int(count)}"
-            for batch, count in sorted(n_cost_columns.items())
+            for batch, count in sorted(n_cost_hexes.items())
         )
-        return f"cost columns per batch [{cols}], {extent_tag}"
-    return f"{int(n_cost_columns)} cost columns, {extent_tag}"
+        return f"cost hexes per batch [{cols}], {extent_tag}"
+    return f"{int(n_cost_hexes)} cost hexes, {extent_tag}"
 
 
 def _network_spot_trace_bundle(
@@ -153,7 +153,7 @@ def parse_args(argv=None):
 
 def main(argv=None):
     args = parse_args(argv)
-    fc._cost_extent_column_coltag = _cost_extent_column_coltag
+    fc._cost_extent_hex_tag = _cost_extent_hex_tag
     spot_plot.network_spot_trace_bundle = _network_spot_trace_bundle
     spot_plot.annotate_baseline = _annotate_baseline_zero_no_dashed
     spot_plot.plot_cell_pair = _plot_cell_pair_second_bright_dashed

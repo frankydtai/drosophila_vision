@@ -22,18 +22,19 @@ from figure.util import (
     GT_COLOR,
     TRACE_LW,
     PlotTimer,
-    annotate_baseline,
+    annotate_v_th,
     as_numpy,
-    baselines_for_types,
+    params_for_types,
     bias_gt_from_v_onset_enabled,
     bundle_panel_title,
+    e_leak_by_type_name,
     format_moving_bar_cell_cost_lines,
     bundle_prep_s,
     hex_at_scope_tag,
     cell_ylabel,
     gt_affine_scalars_for_cell,
     ms_shown_axis_xlim,
-    overlay_model_reds,
+    overlay_v_readout_reds,
     plot_pre_post_line,
     plot_sem_band,
     plot_timecourse,
@@ -43,8 +44,7 @@ from figure.util import (
     slice_axis_name,
     slice_coord_specs,
     suppress_cost_sem,
-    v_ref_by_type_name,
-    v_ref_schema_name,
+    v_th_by_type_name,
 )
 import network.path  # noqa: F401  # ensure FAFBv783 modules are importable
 from task.moving_bar.gt import (
@@ -87,7 +87,8 @@ class MovingBarTraceBundle:
     spec_names: list
     side: str
     single_hex: bool
-    baselines: dict
+    v_th_by_name: dict
+    e_leaks: dict
     gt_mean: dict
     n_t: int
     traces: MovingBarWindowTraces
@@ -102,8 +103,6 @@ class MovingBarTraceBundle:
     align_at_x: int | None = None
     align_at_y: int | None = None
     prep_s: float = 0.0
-    v_ref_by_name: dict = field(default_factory=dict)
-    v_ref_name: str | None = None
     show_pre: bool = True
     t_onset: int | None = None
     gt_affine_by_name: dict = field(default_factory=dict)
@@ -251,12 +250,12 @@ def _aggregate_moving_bar_traces(
 
 def _network_hex_node_mask(C, filt_hexes, n_batch):
     u_np, v_np = network_uv_np(C)
-    col_uv = {(int(c.u), int(c.v)) for c in filt_hexes}
-    node_in_col = np.array(
-        [(int(u), int(v)) in col_uv for u, v in zip(u_np, v_np)],
+    hex_uv = {(int(c.u), int(c.v)) for c in filt_hexes}
+    node_in_hex = np.array(
+        [(int(u), int(v)) in hex_uv for u, v in zip(u_np, v_np)],
         dtype=bool,
     )
-    return np.broadcast_to(node_in_col, (n_batch, C.n_nodes)).copy()
+    return np.broadcast_to(node_in_hex, (n_batch, C.n_nodes)).copy()
 
 
 
@@ -292,9 +291,9 @@ def _t0_bn_slice_aligned_to_ref(
     out = t0_bn.copy()
     for bi in range(n_batch):
         t0_ref = _t0_ref_for_align_hex(out, bi, ref_hex, C=C)
-        for col in filt_hexes:
-            on_col = (u_np == int(col.u)) & (v_np == int(col.v))
-            out[bi, on_col] = t0_ref
+        for hex in filt_hexes:
+            on_hex = (u_np == int(hex.u)) & (v_np == int(hex.v))
+            out[bi, on_hex] = t0_ref
     return out
 
 
@@ -412,7 +411,7 @@ def moving_bar_trace_bundle(session, z, task, *, at_x=None, at_y=None,
                             at_xs=None, at_ys=None,
                             align_at_x=None, align_at_y=None,
                             show_pre=True, ms_shown=None):
-    """Run one forward; t_first_sti-aligned full-window model traces."""
+    """Run one forward; t_first_sti-aligned full-window v_readout traces."""
     t_prep0 = time.perf_counter()
     pack = session.pack_for(task)
     schema = list(session.schema)
@@ -426,7 +425,7 @@ def moving_bar_trace_bundle(session, z, task, *, at_x=None, at_y=None,
     traces, cells, side, n_filter_hexes, t_onset = _moving_bar_traces_from_forward(
         session, task, trace_full, specs, spec_names,
     )
-    v_ref = v_ref_by_type_name(z, session)
+    v_th = v_th_by_type_name(z, session)
     if C is not None:
         hexes = moving_bar_cost_hexes(C, cost_extent=pack.cost_extent)
         if at_x is not None or at_y is not None:
@@ -443,7 +442,8 @@ def moving_bar_trace_bundle(session, z, task, *, at_x=None, at_y=None,
             name: readout[center & (node_cells == cells.index(name))]
             for name in cells
         }
-    baselines = baselines_for_types(nodes_by_name, v_ref)
+    v_th_by_name = params_for_types(nodes_by_name, v_th)
+    e_leaks = params_for_types(nodes_by_name, e_leak_by_type_name(z, session))
     single_hex = suppress_cost_sem(session, task) or n_filter_hexes == 1
     gt_mean = _load_moving_bar_gt_mean(
         session, task, cells, specs, side,
@@ -484,7 +484,7 @@ def moving_bar_trace_bundle(session, z, task, *, at_x=None, at_y=None,
                 align_at_x=align_at_x, align_at_y=align_at_y,
             )
             if wt is None:
-                print(f'skip slice overlay {label}: no column within cost_extent')
+                print(f'skip slice overlay {label}: no hex within cost_extent')
                 continue
             slice_overlay[label] = wt
         if not slice_overlay:
@@ -498,7 +498,8 @@ def moving_bar_trace_bundle(session, z, task, *, at_x=None, at_y=None,
         spec_names=spec_names,
         side=side,
         single_hex=single_hex,
-        baselines=baselines,
+        v_th_by_name=v_th_by_name,
+        e_leaks=e_leaks,
         gt_mean=gt_mean,
         n_t=n_t,
         traces=traces,
@@ -513,8 +514,6 @@ def moving_bar_trace_bundle(session, z, task, *, at_x=None, at_y=None,
         align_at_x=align_at_x,
         align_at_y=align_at_y,
         prep_s=time.perf_counter() - t_prep0,
-        v_ref_by_name=v_ref,
-        v_ref_name=v_ref_schema_name(session.schema),
         show_pre=bool(show_pre),
         t_onset=int(t_onset),
         gt_affine_by_name=gt_affine_by_name,
@@ -644,7 +643,8 @@ def _plot_moving_bar_cell(
     cell_ticks=True,
     show_tick_labels=True,
     mark_cost_window=False,
-    baseline=None,
+    v_th=None,
+    e_leak=None,
     linestyle='-',
     pre_end=0,
     show_pre=False,
@@ -668,14 +668,15 @@ def _plot_moving_bar_cell(
     plot_timecourse(
         ax, np.arange(win_len),
         [{
-            "model": ca_trace,
+            "v_readout": ca_trace,
             "gt": None,
             "sem": sem_trace,
             "linestyle": linestyle,
         }],
         show_sem=show_sem and sem_trace is not None and np.any(sem_trace),
         title=title,
-        baseline=baseline,
+        v_th=v_th,
+        e_leak=e_leak,
         show_ylabel=show_ylabel,
         ticksize=6 if cell_ticks else 5,
         style_xaxis=style_xaxis,
@@ -704,7 +705,8 @@ def _plot_moving_bar_cell_slices(
     cell_ticks=True,
     show_tick_labels=True,
     mark_cost_window=False,
-    baseline=None,
+    v_th=None,
+    e_leak=None,
     pre_end=0,
     show_pre=False,
     delta_ms=None,
@@ -727,7 +729,7 @@ def _plot_moving_bar_cell_slices(
     t = np.arange(win_len)
     if gt_x is not None:
         ax.plot(gt_x, gt_y, color=GT_COLOR, linewidth=TRACE_LW)
-    colors = overlay_model_reds(len(slice_labels))
+    colors = overlay_v_readout_reds(len(slice_labels))
     for i, label in enumerate(slice_labels):
         plot_pre_post_line(
             ax, t, slice_traces[label], pre_end=pre_end,
@@ -748,7 +750,7 @@ def _plot_moving_bar_cell_slices(
     if show_ylabel:
         ax.set_ylabel('mV', fontsize=7)
     ax.tick_params(labelsize=6 if cell_ticks else 5)
-    annotate_baseline(ax, baseline)
+    annotate_v_th(ax, v_th, e_leak=e_leak)
     if show_legend:
         ax.legend(fontsize=5, loc='upper right', framealpha=0.85)
 
@@ -796,8 +798,10 @@ def _moving_bar_all_figure(bundle_on, bundle_2, title, *, right_only=True, cost_
     ncols_on = len(spec_names)
     ca_mean, ca_sem, ca_n = wt_on.ca_mean, wt_on.ca_sem, wt_on.ca_n
     gt_mean = bundle_on.gt_mean
-    baselines = bundle_on.baselines
-    baselines_2 = None
+    v_th_by_name = bundle_on.v_th_by_name
+    e_leaks = bundle_on.e_leaks
+    v_th_by_name_2 = None
+    e_leaks_2 = None
     wt_2 = None
     slice_labels = _bundle_slice_labels(bundle_on)
     has_slices = bundle_on.has_slices
@@ -810,7 +814,8 @@ def _moving_bar_all_figure(bundle_on, bundle_2, title, *, right_only=True, cost_
         ca_sem = {**ca_sem, **wt_2.ca_sem}
         ca_n = {**ca_n, **wt_2.ca_n}
         gt_mean = {**gt_mean, **bundle_2.gt_mean}
-        baselines_2 = bundle_2.baselines
+        v_th_by_name_2 = bundle_2.v_th_by_name
+        e_leaks_2 = bundle_2.e_leaks
     show_sem = not single_hex and not has_slices
     nrows = len(cells)
     ncols = len(spec_names)
@@ -828,11 +833,13 @@ def _moving_bar_all_figure(bundle_on, bundle_2, title, *, right_only=True, cost_
             if key not in ca_mean:
                 ax.axis('off')
                 continue
-            bl = baselines.get(tname)
+            v_th = v_th_by_name.get(tname)
+            el = e_leaks.get(tname)
             bundle_src = bundle_on if ci < ncols_on else bundle_2
             wt = wt_on if ci < ncols_on else wt_2
-            if baselines_2 is not None and ci >= ncols_on:
-                bl = baselines_2.get(tname)
+            if v_th_by_name_2 is not None and ci >= ncols_on:
+                v_th = v_th_by_name_2.get(tname)
+                el = e_leaks_2.get(tname)
             before_t, after_t = _window_t(wt, sname)
             dsi_on = ci < ncols_on
             cell_title = _moving_bar_cell_title(
@@ -865,7 +872,8 @@ def _moving_bar_all_figure(bundle_on, bundle_2, title, *, right_only=True, cost_
                     cell_ticks=False,
                     show_tick_labels=(ri == nrows - 1),
                     mark_cost_window=True,
-                    baseline=bl,
+                    v_th=v_th,
+                    e_leak=el,
                     pre_end=_moving_bar_pre_end(bundle_src, tname, sname),
                     show_pre=getattr(bundle_src, "show_pre", True),
                     delta_ms=bundle_src.session.delta_ms,
@@ -883,7 +891,8 @@ def _moving_bar_all_figure(bundle_on, bundle_2, title, *, right_only=True, cost_
                     cell_ticks=False,
                     show_tick_labels=(ri == nrows - 1),
                     mark_cost_window=True,
-                    baseline=bl,
+                    v_th=v_th,
+                    e_leak=el,
                     pre_end=_moving_bar_pre_end(bundle_src or bundle_on, tname, sname),
                     show_pre=getattr(bundle_src or bundle_on, "show_pre", True),
                     delta_ms=(bundle_src or bundle_on).session.delta_ms,
@@ -949,7 +958,8 @@ def plot_moving_bar_data(path, *, bundle, bundle_2=None, title=None, cost_parts=
                 ),
                 show_ylabel=(col_offset + ci == 0), show_sem=not single_hex,
                 mark_cost_window=True,
-                baseline=row_bundle.baselines.get(subtype),
+                v_th=row_bundle.v_th_by_name.get(subtype),
+                e_leak=row_bundle.e_leaks.get(subtype),
                 linestyle=_moving_bar_spec_linestyle(plot_side, subtype, sname),
                 pre_end=_moving_bar_pre_end(row_bundle, subtype, sname),
                 show_pre=getattr(row_bundle, "show_pre", True),

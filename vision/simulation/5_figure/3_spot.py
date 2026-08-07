@@ -25,27 +25,27 @@ from figure.readout import (
 )
 from figure.util import (
     GT_COLOR,
-    MODEL_COLOR,
+    V_READOUT_COLOR,
     TRACE_LW,
     PlotTimer,
-    annotate_baseline,
-    baselines_for_types,
+    annotate_v_th,
+    params_for_types,
     bundle_prep_s,
     format_spot_radius_time_title,
     gt_affine_scalars_for_cell,
     bias_gt_from_v_onset_enabled,
+    e_leak_by_type_name,
     mean_v_onset_by_cell_name,
     hex_at_scope_tag,
     mark_spot,
-    overlay_model_reds,
+    overlay_v_readout_reds,
     plot_pre_post_line,
     plot_timecourse,
     save_figure,
     sem_from_traces,
     slice_coord_specs,
     suppress_cost_sem,
-    v_ref_by_type_name,
-    v_ref_schema_name,
+    v_th_by_type_name,
 )
 from network.construction import cell_order_rows, cell_names_in_order
 from task.moving_bar.input import (
@@ -255,34 +255,36 @@ def _scale_contrast_series(
 ):
     """Scale each contrast series entry to ImpR + RF radii.
 
-    ``series`` items may include ``model_xt``, ``gt_xt``, ``sem_xt``.
-    Returns a list of dicts with ``imp_model``, ``rf_model``, ``imp_sem``,
+    ``series`` items may include ``v_readout_xt``, ``gt_xt``, ``sem_xt``.
+    Returns a list of dicts with ``imp_v_readout``, ``rf_v_readout``, ``imp_sem``,
     ``imp_gt``, ``rf_gt`` plus passthrough keys.
     """
     sc_kw = dict(t_onset=t_onset, t_spot_end=t_spot_end, t_lag=t_lag)
     out = []
     for entry in series:
         item = dict(entry)
-        model_xt = entry.get("model_xt")
+        v_readout_xt = entry.get("v_readout_xt")
         gt_xt = entry.get("gt_xt")
         sem_xt = entry.get("sem_xt")
         imp_sem = None
-        if model_xt is not None:
+        if v_readout_xt is not None:
             if sem_xt is not None:
-                imp_model, rf_model, imp_sem = scale_curve(
-                    model_xt, center_radius, sem_xt, **sc_kw,
+                imp_v_readout, rf_v_readout, imp_sem = scale_curve(
+                    v_readout_xt, center_radius, sem_xt, **sc_kw,
                 )
             else:
-                imp_model, rf_model = scale_curve(model_xt, center_radius, **sc_kw)
+                imp_v_readout, rf_v_readout = scale_curve(
+                    v_readout_xt, center_radius, **sc_kw,
+                )
         else:
-            imp_model, rf_model = None, None
+            imp_v_readout, rf_v_readout = None, None
         if gt_xt is not None:
             imp_gt, rf_gt = scale_curve(gt_xt, center_radius, **sc_kw)
         else:
             imp_gt, rf_gt = None, None
         item.update(
-            imp_model=imp_model,
-            rf_model=rf_model,
+            imp_v_readout=imp_v_readout,
+            rf_v_readout=rf_v_readout,
             imp_sem=imp_sem,
             imp_gt=imp_gt,
             rf_gt=rf_gt,
@@ -299,7 +301,6 @@ def plot_cell_rf(
     show_legend=False,
     show_xlabels=False,
     show_ylabel=False,
-    baseline=None,
     t_onset=None,
     t_spot_end=None,
     t_lag=0,
@@ -315,15 +316,14 @@ def plot_cell_rf(
             label=item.get("label_gt"), linestyle=ls,
         )
         _plot_rf_profile(
-            ax, item["rf_model"], color=MODEL_COLOR,
-            label=item.get("label_model"), linestyle=ls, filled=True,
+            ax, item["rf_v_readout"], color=V_READOUT_COLOR,
+            label=item.get("label_v_readout"), linestyle=ls, filled=True,
         )
     ax.set_title(title, fontsize=8, pad=2)
     _style_recf_profile_axis(ax, show_xlabels)
     if show_ylabel:
         ax.set_ylabel('mV', fontsize=7)
     ax.tick_params(labelsize=6)
-    annotate_baseline(ax, baseline)
     if show_legend:
         ax.legend(loc='upper right', fontsize=6, frameon=False)
 
@@ -335,7 +335,8 @@ def plot_cell_time(
     title=None,
     show_xlabels=False,
     show_ylabel=False,
-    baseline=None,
+    v_th=None,
+    e_leak=None,
     n_t=None,
     t_onset=None,
     pre_end=None,
@@ -366,7 +367,7 @@ def plot_cell_time(
         ax.set_title(title, fontsize=8, pad=2)
     traces = [
         {
-            "model": item["imp_model"],
+            "v_readout": item["imp_v_readout"],
             "gt": item["imp_gt"],
             "sem": item["imp_sem"],
             "linestyle": item.get("linestyle", "-"),
@@ -377,7 +378,8 @@ def plot_cell_time(
     plot_timecourse(
         ax, t, traces,
         show_sem=any(item["imp_sem"] is not None for item in scaled),
-        baseline=baseline,
+        v_th=v_th,
+        e_leak=e_leak,
         show_ylabel=show_ylabel,
         style_xaxis=lambda a: _style_time_axis(
             a, show_xlabels, n_t,
@@ -401,7 +403,8 @@ def plot_cell_rf_time(
     show_legend=False,
     show_xlabels=False,
     show_ylabel=False,
-    baseline=None,
+    v_th=None,
+    e_leak=None,
     n_t=None,
     t_onset=None,
     show_pre=False,
@@ -417,7 +420,6 @@ def plot_cell_rf_time(
         show_legend=show_legend,
         show_xlabels=show_xlabels,
         show_ylabel=show_ylabel,
-        baseline=baseline,
         t_onset=t_onset,
         t_spot_end=t_spot_end,
         t_lag=t_lag,
@@ -427,7 +429,8 @@ def plot_cell_rf_time(
         title=time_title,
         show_xlabels=show_xlabels,
         show_ylabel=show_ylabel,
-        baseline=baseline,
+        v_th=v_th,
+        e_leak=e_leak,
         n_t=n_t,
         t_onset=t_onset,
         show_pre=show_pre,
@@ -450,7 +453,8 @@ def plot_cell_rf_time_slices(
     show_legend=False,
     show_xlabels=False,
     show_ylabel=False,
-    baseline=None,
+    v_th=None,
+    e_leak=None,
     n_t=None,
     t_onset=None,
     show_pre=False,
@@ -463,19 +467,21 @@ def plot_cell_rf_time_slices(
     """RF + time panels with per-slice overlays across contrast ``series``."""
     center_radius = RF_CENTER_RADIUS
     sc_kw = dict(t_onset=t_onset, t_spot_end=t_spot_end, t_lag=t_lag)
-    colors = overlay_model_reds(len(slice_labels))
+    colors = overlay_v_readout_reds(len(slice_labels))
     t = np.arange(n_t)
     pre_end = int(t_onset or 0)
     mark_spot(ax_time, t_onset, t_spot_end)
 
     for si, item in enumerate(series):
         ls = item.get("linestyle", "-")
-        model_xt = item.get("model_xt")
+        v_readout_xt = item.get("v_readout_xt")
         gt_xt = item.get("gt_xt")
         slice_overlay = item.get("slice_overlay") or {}
-        imp_model = rf_model = None
-        if model_xt is not None:
-            imp_model, rf_model = scale_curve(model_xt, center_radius, **sc_kw)
+        imp_v_readout = rf_v_readout = None
+        if v_readout_xt is not None:
+            imp_v_readout, rf_v_readout = scale_curve(
+                v_readout_xt, center_radius, **sc_kw,
+            )
         imp_gt = rf_gt = None
         if gt_xt is not None:
             imp_gt, rf_gt = scale_curve(gt_xt, center_radius, **sc_kw)
@@ -497,7 +503,7 @@ def plot_cell_rf_time_slices(
                 label=label if si == 0 else None, linestyle=ls,
             )
         _plot_rf_profile(
-            ax_rf, rf_model, color=colors[-1],
+            ax_rf, rf_v_readout, color=colors[-1],
             label=item.get("label_total"), linestyle=ls, filled=True,
         )
 
@@ -513,7 +519,7 @@ def plot_cell_rf_time_slices(
                 label=label if si == 0 else None,
             )
         plot_pre_post_line(
-            ax_time, t, imp_model, pre_end=pre_end, show_pre=show_pre, draw_pre=True,
+            ax_time, t, imp_v_readout, pre_end=pre_end, show_pre=show_pre, draw_pre=True,
             color=colors[-1], linestyle=ls, linewidth=TRACE_LW,
             label=item.get("label_total"),
         )
@@ -523,7 +529,6 @@ def plot_cell_rf_time_slices(
     if show_ylabel:
         ax_rf.set_ylabel('mV', fontsize=7)
     ax_rf.tick_params(labelsize=6)
-    annotate_baseline(ax_rf, baseline)
     if show_legend:
         ax_rf.legend(loc='upper right', fontsize=6, frameon=False)
 
@@ -537,7 +542,7 @@ def plot_cell_rf_time_slices(
     if show_ylabel:
         ax_time.set_ylabel('mV', fontsize=7)
     ax_time.tick_params(labelsize=6)
-    annotate_baseline(ax_time, baseline)
+    annotate_v_th(ax_time, v_th, e_leak=e_leak)
 
 
 
@@ -610,8 +615,7 @@ class SpotTraceBundle:
     slice_ys: list | None = None
     n_t: int = 0
     prep_s: float = 0.0
-    v_ref_by_name: dict = field(default_factory=dict)
-    v_ref_name: str | None = None
+    v_th_by_name: dict = field(default_factory=dict)
     t_onset: int | None = None
     show_pre: bool = True
     t_spot_end: int | None = None
@@ -654,8 +658,7 @@ def _spot_readout_bundle_view(bundle):
         order_row_ixs=_order_row_ixs_from_rows(order_rows, cell_names),
         session=session,
         n_t=bundle.n_t,
-        v_ref_by_name=bundle.v_ref_by_name,
-        v_ref_name=bundle.v_ref_name,
+        v_th_by_name=bundle.v_th_by_name,
         t_onset=bundle.t_onset,
         show_pre=bundle.show_pre,
         t_spot_end=bundle.t_spot_end,
@@ -689,7 +692,7 @@ def _spot_cubes_from_row_mask(rows, mask):
 
 
 def _spot_readout_hex_mask(C, node_idx, cost_extent, *, at_x=None, at_y=None):
-    """True for readout rows whose node sits on matching cost-extent hexes."""
+    """True for cost entries whose node sits on matching cost-extent hexes."""
     filt = filter_sti_hexes(
         moving_bar_cost_hexes(C, cost_extent=cost_extent),
         at_x=at_x,
@@ -698,9 +701,9 @@ def _spot_readout_hex_mask(C, node_idx, cost_extent, *, at_x=None, at_y=None):
     if not filt:
         return np.zeros(len(node_idx), dtype=bool)
     u_np, v_np = network_uv_np(C)
-    col_uv = {(int(c.u), int(c.v)) for c in filt}
+    hex_uv = {(int(c.u), int(c.v)) for c in filt}
     return np.array(
-        [(int(u_np[n]), int(v_np[n])) in col_uv for n in node_idx],
+        [(int(u_np[n]), int(v_np[n])) in hex_uv for n in node_idx],
         dtype=bool,
     )
 
@@ -716,7 +719,7 @@ def _spot_slice_overlay(rows, C, at_xs, at_ys):
             C, node_idx, pack.cost_extent, at_x=at_x, at_y=at_y,
         )
         if not np.any(mask):
-            print(f'skip slice overlay {label}: no column within cost_extent')
+            print(f'skip slice overlay {label}: no hex within cost_extent')
             continue
         cubes = _spot_cubes_from_row_mask(rows, mask)
         if not any(np.isfinite(c).any() for c in cubes.values()):
@@ -731,11 +734,13 @@ def _spot_slice_overlay(rows, C, at_xs, at_ys):
 
 
 def _cells_from_cube(
-    names, cube, sem, baselines, *, single_hex,
+    names, cube, sem, v_th_by_name, *, single_hex,
+    e_leaks=None,
     n_by_radius_by_name=None, gt_affine_by_name=None,
 ):
     n_by_radius_by_name = n_by_radius_by_name or {}
     gt_affine_by_name = gt_affine_by_name or {}
+    e_leaks = e_leaks or {}
     out = []
     for i, n in enumerate(names):
         scale, bias = gt_affine_by_name.get(n, (1.0, 0.0))
@@ -743,7 +748,8 @@ def _cells_from_cube(
             name=n,
             cube=cube[i],
             sem=None if single_hex else sem[i],
-            baseline=baselines.get(n),
+            v_th=v_th_by_name.get(n),
+            e_leak=e_leaks.get(n),
             n_by_radius=dict(n_by_radius_by_name.get(n) or {}),
             a_gt=float(scale),
             bias_gt=float(bias),
@@ -825,8 +831,11 @@ def _spot_forward_rows(
         name: np.unique(node_idx[mask & (type_idx == cell_names.index(name))])
         for name in names
     }
-    rows['baselines'] = baselines_for_types(
-        nodes_by_name, v_ref_by_type_name(z, session),
+    rows['v_th_by_name'] = params_for_types(
+        nodes_by_name, v_th_by_type_name(z, session),
+    )
+    rows['e_leaks'] = params_for_types(
+        nodes_by_name, e_leak_by_type_name(z, session),
     )
     onset_bias = None
     if bias_gt_from_v_onset_enabled(session):
@@ -858,7 +867,8 @@ def _spot_cube_from_rows(rows, session):
         )
     single_hex = suppress_cost_sem(session, task=rows['pack'].name)
     cells = _cells_from_cube(
-        names, cube, sem, rows['baselines'],
+        names, cube, sem, rows['v_th_by_name'],
+        e_leaks=rows.get('e_leaks'),
         single_hex=single_hex, n_by_radius_by_name=n_by_radius_by_name,
         gt_affine_by_name=rows.get('gt_affine_by_name'),
     )
@@ -901,8 +911,7 @@ def network_spot_trace_bundle(
         slice_ys=at_ys,
         n_t=n_t,
         prep_s=time.perf_counter() - t_prep0,
-        v_ref_by_name=v_ref_by_type_name(z, session),
-        v_ref_name=v_ref_schema_name(session.schema),
+        v_th_by_name=v_th_by_type_name(z, session),
         t_onset=rows.get('t_onset'),
         show_pre=bool(show_pre),
         t_spot_end=rows.get('t_spot_end'),
@@ -1025,13 +1034,13 @@ def _plot_spot_figure(
                 gt_xt = None
             entry = {
                 "contrast": c,
-                "model_xt": cell["cube"],
+                "v_readout_xt": cell["cube"],
                 "gt_xt": gt_xt,
                 "sem_xt": cell.get("sem"),
-                "baseline": cell.get("baseline"),
+                "v_th": cell.get("v_th"),
                 "linestyle": contrast_linestyle(c),
                 "label_gt": f"{c} gt",
-                "label_model": f"{c} model",
+                "label_v_readout": f"{c} v",
                 "label_total": f"{c} total",
                 "point_ix": _session_cost_time_ix(
                     bundles[c].session, bundles[c].t_onset,
@@ -1075,7 +1084,8 @@ def _plot_spot_figure(
                 show_xlabels=show_xlabels,
                 show_ylabel=show_ylabel,
                 n_t=n_t,
-                baseline=cell_primary.get("baseline"),
+                v_th=cell_primary.get("v_th"),
+                e_leak=cell_primary.get("e_leak"),
                 t_onset=t_onset,
                 show_pre=show_pre,
                 t_spot_end=t_spot_end,
@@ -1093,7 +1103,8 @@ def _plot_spot_figure(
                 show_xlabels=show_xlabels,
                 show_ylabel=show_ylabel,
                 n_t=n_t,
-                baseline=cell_primary.get("baseline"),
+                v_th=cell_primary.get("v_th"),
+                e_leak=cell_primary.get("e_leak"),
                 t_onset=t_onset,
                 show_pre=show_pre,
                 t_spot_end=t_spot_end,
@@ -1133,7 +1144,6 @@ def _plot_spot_figure(
                 show_legend=show_legend,
                 show_xlabels=False,
                 show_ylabel=(j == 0),
-                baseline=cell_on.get("baseline"),
                 t_onset=t_onset,
                 t_spot_end=t_spot_end,
                 t_lag=int(_IMPR_SHIFT_RIGHT.get(name, 0)),
@@ -1155,7 +1165,8 @@ def _plot_spot_figure(
                     title=time_title,
                     show_xlabels=(local_i == len(radii) - 1),
                     show_ylabel=(j == 0),
-                    baseline=cell_on.get("baseline"),
+                    v_th=cell_on.get("v_th"),
+                    e_leak=cell_on.get("e_leak"),
                     n_t=n_t,
                     t_onset=t_onset,
                     show_pre=show_pre,

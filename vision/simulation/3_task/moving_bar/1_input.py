@@ -1038,8 +1038,8 @@ def build_moving_bar_t0_grids(
 def _hex_node_map(hexes: Sequence[StiHex]) -> Tuple[np.ndarray, np.ndarray]:
     hex_idx: List[int] = []
     node_idx: List[int] = []
-    for j, hx in enumerate(hexes):
-        for u in np.asarray(hx.node_idx).ravel():
+    for j, hex in enumerate(hexes):
+        for u in np.asarray(hex.node_idx).ravel():
             hex_idx.append(j)
             node_idx.append(int(u))
     return (

@@ -49,26 +49,26 @@ H_CELLS = ("L1", "L2", "L4", "L5")
 #   indi_named → indi=H_CELLS, fixed=remainder with init_override=0
 # Fixed nodes always use init / init_override.
 PARAM_BOXES: Dict[str, dict] = {
-    "a_in": dict(lo=0.01, hi=100, init=1.0, jit=0.1, train_mode="shared"),
-    "a_out": dict(lo=GAIN_LO, hi=GAIN_HI, init=1.0, jit=0.1, train_mode="indi"),
     "a_gt": dict(lo=GAIN_LO, hi=GAIN_HI, init=1.0, jit=0.1, train_mode="indi"),
     "bias_gt": dict(lo=-50.0, hi=50.0, init=0.0, jit=1.0, train_mode="indi"),
     "syn_strength_cell": dict(lo=GAIN_LO, hi=GAIN_HI, init=1.0, jit=0.1, train_mode="indi"),
     "syn_strength_edge": dict(lo=GAIN_LO, hi=GAIN_HI, init=1.0, jit=0.1, train_mode="indi"),
-    "v_th": dict(lo=-70.0, hi=-30.0, init=-50.0, jit=0.0, train_mode="indi"),
-    "a_h": dict(lo=0.0, hi=1.0, init=0, jit=0.1, train_mode="indi_named"),
-    "a_h_rev": dict(lo=0.0, hi=1.0, init=0.5, jit=0.1, train_mode="indi_named"),
-    "h_v_mid": dict(lo=-70.0, hi=-30.0, init=-50.0, jit=5.0, train_mode="shared"),
-    "h_slope": dict(lo=-0.40, hi=-0.20, init=-0.25, jit=0.02, train_mode="shared"),
-    "tau_h_v": dict(lo=-70.0, hi=-40.0, init=-50.0, jit=5.0, train_mode="shared"),
-    "h_v_mid_rev": dict(lo=-70.0, hi=-30.0, init=-50.0, jit=5.0, train_mode="shared"),
-    "h_slope_rev": dict(lo=-0.40, hi=-0.20, init=-0.25, jit=0.02, train_mode="shared"),
-    "tau_h_v_rev": dict(lo=-70.0, hi=-40.0, init=-50.0, jit=5.0, train_mode="shared"),
-    "tau_lp": dict(lo=10.0, hi=100.0, init=40.0, jit=2.0, train_mode="indi"),
+    "a_in": dict(lo=0.01, hi=100, init=1.0, jit=0.1, train_mode="shared"),
+    "a_out": dict(lo=GAIN_LO, hi=GAIN_HI, init=1.0, jit=0.1, train_mode="indi"),
     "e_leak": dict(lo=-50.0, hi=50.0, init=-50.0, jit=1.0, train_mode="fixed"),
-    "tau_hp": dict(lo=100.0, hi=500.0, init=200.0, jit=20.0, train_mode="indi"),
-    # Schema forces r=0 fixed@1 and other radii indi; box train_mode unused.
-    "a_sti_r": dict(lo=0.0, hi=1.0, init=0.0, jit=0.05, train_mode="indi"),
+    "v_th": dict(lo=-70.0, hi=-30.0, init=-50.0, jit=0.0, train_mode="fixed"),
+    "tau_lp": dict(lo=10.0, hi=100.0, init=40.0, jit=2.0, train_mode="fixed"),
+    "tau_hp": dict(lo=100.0, hi=500.0, init=200.0, jit=20.0, train_mode="shared"),
+    "a_h": dict(lo=0.0, hi=1.0, init=0, jit=0.1, train_mode="indi_named"),
+    "v_mid_h_g": dict(lo=-70.0, hi=-30.0, init=-50.0, jit=5.0, train_mode="shared"),
+    "v_mid_h_tau": dict(lo=-70.0, hi=-40.0, init=-50.0, jit=5.0, train_mode="shared"),
+    "h_slope": dict(lo=-0.40, hi=-0.20, init=-0.25, jit=0.02, train_mode="shared"),
+    "a_h_rev": dict(lo=0.0, hi=1.0, init=0.5, jit=0.1, train_mode="indi_named"),
+    "v_mid_h_g_rev": dict(lo=-70.0, hi=-30.0, init=-50.0, jit=5.0, train_mode="shared"),
+    "v_mid_h_tau_rev": dict(lo=-70.0, hi=-40.0, init=-50.0, jit=5.0, train_mode="shared"),
+    "h_slope_rev": dict(lo=-0.40, hi=-0.20, init=-0.25, jit=0.02, train_mode="shared"),
+    # Slots from SPOT_STI_RADII via SPOT_COST_RADIUS_KEY_ALIASES; r=0 baked @1.
+    "a_sti_r": dict(lo=0.0, hi=1.0, init=0.0, jit=0.05, train_mode="fixed"),
 }
 
 MODEL = "hp_lp"
@@ -117,7 +117,8 @@ SHIFT_EXTENT = 1.0
 # ---------------------------------------------------------------------------
 
 SPOT_COST_RADII: Tuple[float, ...] = (0.0, 1.0, math.sqrt(3), 2.0)
-SPOT_STI_R_NAMES: Tuple[str, ...] = ("0", "1", "sqrt3", "2")
+# a_sti_r slots only (center r=0 is fixed drive @1, not a param).
+SPOT_STI_RADII: Tuple[float, ...] = (1.0, math.sqrt(3), 2.0)
 SPOT_COST_RADIUS_WEIGHT: Dict[float, float] = {
     0.0: 1.0,
     1.0: 1.0 / 3.0,
@@ -127,6 +128,7 @@ SPOT_COST_RADIUS_WEIGHT_EXTENT1: Dict[float, float] = {
     0.0: 1.0,
     1.0: 0,
 }
+# name → float for cost CLI and a_sti_r node_names (reverse of SPOT_*_RADII).
 SPOT_COST_RADIUS_KEY_ALIASES: Dict[str, float] = {
     "sqrt3": math.sqrt(3),
 }

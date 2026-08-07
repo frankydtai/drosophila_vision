@@ -32,7 +32,7 @@ import numpy as np
 import pandas as pd
 
 import path
-from path import BUILT_HEX_DIR
+from path import BUILT_HEXES_DIR
 
 logger = logging.getLogger(__name__)
 
@@ -507,7 +507,7 @@ def main() -> None:
     # The CSV needs no grid: (u, v) comes purely from pq_to_uv. --extent only
     # affects the figure colouring, never the tables.
     assigned = {}
-    BUILT_HEX_DIR.mkdir(parents=True, exist_ok=True)
+    BUILT_HEXES_DIR.mkdir(parents=True, exist_ok=True)
     for side in ("left", "right"):
         cols = columns_with_uv(side)
         assigned[side] = cols
@@ -524,9 +524,9 @@ def main() -> None:
         df_left=assigned["left"],
         df_right=assigned["right"],
         extent=args.extent,
-        save_path=BUILT_HEX_DIR / fname,
+        save_path=BUILT_HEXES_DIR / fname,
     )
-    print(f"Column map written to: {BUILT_HEX_DIR / fname}")
+    print(f"Column map written to: {BUILT_HEXES_DIR / fname}")
 
 
 if __name__ == "__main__":

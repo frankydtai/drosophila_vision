@@ -13,7 +13,7 @@ import network.path  # noqa: F401 — FAFB path on sys.path
 import training
 
 GT_COLOR = 'gray'
-MODEL_COLOR = 'red'
+V_READOUT_COLOR = 'red'
 SEM_COLOR = 'pink'
 TRACE_LW = 1.5
 
@@ -92,13 +92,18 @@ def cost_ylim(*curves, pct=99.0, pad=1.1, floor=1.0):
     return 0.0, yhi
 
 
-def annotate_baseline(ax, baseline):
-    """Text annotation ``v_th=…`` (no horizontal line)."""
-    if baseline is None or not np.isfinite(baseline):
+def annotate_v_th(ax, v_th, *, e_leak=None):
+    """Text annotation ``e_leak=…`` / ``v_th=…`` on time panels (no horizontal line)."""
+    lines = []
+    if v_th is not None and np.isfinite(v_th):
+        lines.append(f"v_th={float(v_th):.1f}")
+    if e_leak is not None and np.isfinite(e_leak):
+        lines.append(f"e_leak={float(e_leak):.1f}")
+    if not lines:
         return
     ax.text(
         0.98, 0.02,
-        f"v_th={float(baseline):.1f}",
+        '\n'.join(lines),
         transform=ax.transAxes,
         ha="right", va="bottom",
         fontsize=6, color="k",
@@ -106,13 +111,13 @@ def annotate_baseline(ax, baseline):
     )
 
 
-def baselines_for_types(nodes_by_name, v_ref_by_name=None):
-    """``{name: baseline}`` from per-cell ``v_th`` (absolute mV)."""
-    v_ref_by_name = v_ref_by_name or {}
+def params_for_types(nodes_by_name, param_by_name=None):
+    """``{cell_name: value}`` per type from *param_by_name*."""
+    param_by_name = param_by_name or {}
     out = {}
     for name in nodes_by_name:
-        ref = v_ref_by_name.get(name, np.nan)
-        out[name] = float(ref) if ref is not None and np.isfinite(ref) else np.nan
+        val = param_by_name.get(name, np.nan)
+        out[name] = float(val) if val is not None and np.isfinite(val) else np.nan
     return out
 
 
@@ -128,13 +133,13 @@ def mark_spot(ax, t_onset, t_spot_end):
 
 
 def suppress_cost_sem(session, task=None):
-    """True when cost uses a single column (no column-mean SEM band)."""
+    """True when cost uses a single hex (no hex-mean SEM band)."""
     pack = session.primary_readout if task is None else session.pack_for(task)
     return pack.cost_extent == 0
 
 
 def readout_center_mask(pack, backend):
-    """Boolean mask over pack.readout rows included in the cost extent."""
+    """Boolean mask over pack cost entries included in the cost extent."""
     readout = pack.readout_node.cpu().numpy()
     if backend.network is not None:
         if pack.cost_extent is not None:
@@ -150,31 +155,36 @@ def readout_center_mask(pack, backend):
 
 
 def sem_from_traces(traces, single_hex=False):
-    """Per-time SEM across readout rows; zero when single-column cost or one row."""
+    """Per-time SEM across cost entries; zero when single-hex cost or one entry."""
     if single_hex or traces.shape[0] == 1:
         return np.zeros(traces.shape[1], dtype=np.float64)
     return traces.std(axis=0) / np.sqrt(traces.shape[0])
 
 
-def v_ref_schema_name(schema):
-    """``'v_th'`` when present; ``None`` otherwise."""
-    names = {s.get('name') for s in schema}
-    if 'v_th' in names:
-        return 'v_th'
-    return None
-
-
-def v_ref_by_type_name(z, session):
-    """Per-cell baseline mV from ``v_th``."""
+def v_th_by_type_name(z, session):
+    """Per-cell ``v_th`` (absolute mV)."""
     schema = list(session.schema)
-    key = v_ref_schema_name(schema)
-    if key is None:
+    names = {s.get('name') for s in schema}
+    if 'v_th' not in names:
         return {}
     arr = np.asarray(training.z_to_node_values(z, schema)['v_th'], dtype=np.float64).reshape(-1)
-    names = training.cell_node_names(session.backend)
-    if arr.shape[0] != len(names):
-        raise ValueError(f"v_th length {arr.shape[0]} != n_cells {len(names)}")
-    return {str(n): float(arr[i]) for i, n in enumerate(names)}
+    cell_names = training.cell_node_names(session.backend)
+    if arr.shape[0] != len(cell_names):
+        raise ValueError(f"v_th length {arr.shape[0]} != n_cells {len(cell_names)}")
+    return {str(n): float(arr[i]) for i, n in enumerate(cell_names)}
+
+
+def e_leak_by_type_name(z, session):
+    """Per-cell leak reversal mV from ``e_leak``."""
+    schema = list(session.schema)
+    names = {s.get('name') for s in schema}
+    if 'e_leak' not in names:
+        return {}
+    arr = np.asarray(training.z_to_node_values(z, schema)['e_leak'], dtype=np.float64).reshape(-1)
+    cell_names = training.cell_node_names(session.backend)
+    if arr.shape[0] != len(cell_names):
+        raise ValueError(f"e_leak length {arr.shape[0]} != n_cells {len(cell_names)}")
+    return {str(n): float(arr[i]) for i, n in enumerate(cell_names)}
 
 
 def label_with_n(label, n=None):
@@ -323,7 +333,7 @@ def ms_shown_axis_xlim(ms_shown, *, delta_ms, origin_t=0):
 
 
 def hex_at_scope_tag(at_x, at_y):
-    """Subtitle fragment for plot column slice."""
+    """Subtitle fragment for plot hex slice."""
     parts = []
     if at_x is not None:
         xs = at_x if isinstance(at_x, (list, tuple)) else [at_x]
@@ -370,18 +380,18 @@ def slice_axis_name(at_xs, at_ys):
     return None
 
 
-def overlay_model_reds(n_slices):
+def overlay_v_readout_reds(n_slices):
     """Red shades for per-slice traces plus a darker ``total`` trace."""
     n = n_slices + 1
     return [plt.cm.Reds(v) for v in np.linspace(0.35, 0.95, n)]
 
 
-def plot_sem_band(ax, t, model, sem, *, color=None, alpha=None, label=r'$\pm$SEM'):
+def plot_sem_band(ax, t, v_readout, sem, *, color=None, alpha=None, label=r'$\pm$SEM'):
     """Shaded ±SEM for continuous line traces."""
     if sem is None or not np.any(sem):
         return
     t_arr = np.asarray(t)
-    m_arr = np.asarray(model, dtype=np.float64)
+    m_arr = np.asarray(v_readout, dtype=np.float64)
     s_arr = np.asarray(sem, dtype=np.float64)
     mask = np.isfinite(m_arr) & np.isfinite(s_arr)
     if not np.any(mask):
@@ -398,12 +408,12 @@ def plot_sem_band(ax, t, model, sem, *, color=None, alpha=None, label=r'$\pm$SEM
     )
 
 
-def plot_sem_errorbar(ax, t, model, sem, *, color=None, alpha=None, label=r'$\pm$SEM'):
+def plot_sem_errorbar(ax, t, v_readout, sem, *, color=None, alpha=None, label=r'$\pm$SEM'):
     """Error bars for discrete (dot) traces."""
     if sem is None or not np.any(sem):
         return
     ax.errorbar(
-        t, model, yerr=sem,
+        t, v_readout, yerr=sem,
         fmt='none',
         ecolor=SEM_COLOR if color is None else color,
         alpha=0.8 if alpha is None else alpha,
@@ -438,7 +448,7 @@ def plot_pre_post_line(
     *,
     pre_end=0,
     show_pre=False,
-    color=MODEL_COLOR,
+    color=V_READOUT_COLOR,
     linestyle='-',
     linewidth=TRACE_LW,
     label=None,
@@ -447,7 +457,7 @@ def plot_pre_post_line(
     """Plot a 1-D series with optional dashed pre-``pre_end`` segment.
 
     ``pre_end`` is the first post-onset index (samples ``[0, pre_end)`` are pre).
-    Gray gt uses ``draw_pre=False`` (never draws pre). Model uses
+    Gray gt uses ``draw_pre=False`` (never draws pre). v_readout uses
     ``draw_pre=show_pre`` (dashed pre when true; omit pre when false).
     """
     if y is None:
@@ -459,7 +469,7 @@ def plot_pre_post_line(
             f'plot_pre_post_line expects 1-D y, got y={getattr(y_arr, "shape", None)}'
         )
     if t_arr.shape[0] > y_arr.shape[0]:
-        # Spot gt omits ms_post; model / axis may be longer.
+        # Spot gt omits ms_post; v_readout / axis may be longer.
         t_arr = t_arr[: y_arr.shape[0]]
     elif t_arr.shape[0] < y_arr.shape[0]:
         raise ValueError(
@@ -491,7 +501,8 @@ def plot_timecourse(
     show_sem=True,
     title=None,
     title_fs=7,
-    baseline=None,
+    v_th=None,
+    e_leak=None,
     show_ylabel=False,
     ylabel='mV',
     ticksize=6,
@@ -501,13 +512,13 @@ def plot_timecourse(
     t_onset=None,
     t_spot_end=None,
 ):
-    """Model (red) vs gt (gray) time courses for one or more contrast traces.
+    """v_readout (red) vs gt (gray) time courses for one or more contrast traces.
 
-    ``traces``: sequence of dicts with keys ``model``, ``gt``, optional
+    ``traces``: sequence of dicts with keys ``v_readout``, ``gt``, optional
     ``sem``, ``linestyle`` (default ``'-'``), ``point_ix``.
     When ``point_ix`` is set, gray gt is drawn as open dots at those indices
     (still never draws ``[0, pre_end)`` via line); otherwise gt is a solid
-    post-onset line. Red model always uses continuous pre/post lines: dashed
+    post-onset line. Red v_readout always uses continuous pre/post lines: dashed
     pre when ``show_pre`` is true, solid after.
     ``t_onset`` / ``t_spot_end``: white stimulus-on band ``[t_onset, t_spot_end)``.
     Y-limits / ticks: matplotlib autoscale.
@@ -516,7 +527,7 @@ def plot_timecourse(
     mark_spot(ax, t_onset, t_spot_end)
     split = max(0, int(pre_end or 0))
     for tr in traces:
-        model = tr.get("model")
+        v_readout = tr.get("v_readout")
         gt = tr.get("gt")
         sem = tr.get("sem")
         linestyle = tr.get("linestyle", "-")
@@ -533,16 +544,16 @@ def plot_timecourse(
                 ax, t, gt, pre_end=split, show_pre=False, draw_pre=False,
                 color=GT_COLOR, linestyle=linestyle, linewidth=TRACE_LW,
             )
-        if model is not None:
+        if v_readout is not None:
             if show_sem and sem is not None:
                 t_arr = np.asarray(t)
-                m_arr = np.asarray(model, dtype=np.float64)
+                m_arr = np.asarray(v_readout, dtype=np.float64)
                 s_arr = np.asarray(sem, dtype=np.float64)
                 if split < m_arr.shape[0]:
                     plot_sem_band(ax, t_arr[split:], m_arr[split:], s_arr[split:])
             plot_pre_post_line(
-                ax, t, model, pre_end=split, show_pre=show_pre, draw_pre=True,
-                color=MODEL_COLOR, linestyle=linestyle, linewidth=TRACE_LW,
+                ax, t, v_readout, pre_end=split, show_pre=show_pre, draw_pre=True,
+                color=V_READOUT_COLOR, linestyle=linestyle, linewidth=TRACE_LW,
             )
     if title is not None:
         ax.set_title(title, fontsize=title_fs, pad=2)
@@ -551,7 +562,7 @@ def plot_timecourse(
     if show_ylabel:
         ax.set_ylabel(ylabel, fontsize=7)
     ax.tick_params(labelsize=ticksize)
-    annotate_baseline(ax, baseline)
+    annotate_v_th(ax, v_th, e_leak=e_leak)
 
 
 _MPL_DASH = {

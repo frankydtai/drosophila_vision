@@ -52,8 +52,8 @@ MOVING_BAR_COST_PARTS = tuple(
 )
 
 # Waveform MSE normalization (``--cost-norm``); shared by spot + moving_bar MSE.
-# gt_power: 100 * Σ w (sel−gt_aff)² / Σ w (a_gt·gt)²
-# a_gt2:         Σ w (sel−gt_aff)² / a_gt²   (per-row a_i²; bias not in denom)
+# gt_power: 100 * Σ w (v_readout−gt_aff)² / Σ w (a_gt·gt)²
+# a_gt2:         Σ w (v_readout−gt_aff)² / a_gt²   (per-entry a_i²; bias not in denom)
 COST_NORMS = ("gt_power", "a_gt2")
 
 
@@ -157,7 +157,7 @@ def cost_part_keys_for_readout(task_name: str) -> Tuple[str, ...]:
 
 
 def cost_part_keys_for_pack(pack, backend) -> Tuple[str, ...]:
-    """Fine keys from pack rows with ``cost_weight > 0`` (+ pack-level DSI)."""
+    """Fine keys from pack entries with ``cost_weight > 0`` (+ pack-level DSI)."""
     net = backend.network
     if net is None:
         raise ValueError("cost_part_keys_for_pack requires backend.network")

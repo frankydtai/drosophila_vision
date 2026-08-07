@@ -24,7 +24,7 @@ DOWNLOADS_DIR = DATA_DIR / "downloads"
 BUILT_NETWORKS_DIR = DATA_DIR / "4_built_networks"
 DEFAULT_NETWORK_RUN = "right_min_neuron1"
 # Hex/column-map artifacts (per-side column tables + the column_map.png) live here.
-BUILT_HEX_DIR = DATA_DIR / "2_built_hex"
+BUILT_HEXES_DIR = DATA_DIR / "2_built_hexes"
 # Assigned-column CSVs (r1_6_<side>_post.csv etc., from 3_assign_column.py) live here.
 ASSIGNED_COLUMNS_DIR = DATA_DIR / "3_assigned_columns"
 # Per-network moving-bar column-current cache (under each 4_built_networks run folder).
@@ -99,7 +99,7 @@ CONNECTIONS_CHUNK_SIZE = 500_000
 
 def column_map_path(side: str) -> Path:
     """Path to the per-side column_id -> (u, v) table (written by build_hex.py)."""
-    return BUILT_HEX_DIR / COLUMN_MAP_FILE.format(side=side)
+    return BUILT_HEXES_DIR / COLUMN_MAP_FILE.format(side=side)
 
 
 def load_column_map(side: str) -> pd.DataFrame:

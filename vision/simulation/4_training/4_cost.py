@@ -6,7 +6,7 @@ Consumes a :class:`~training.readout_pack.TrainSession` and the model forward
 local-% costs, the mean weighted total (``Σ W·cost / Σ W``), and the Adam
 training loop.
 
-Model traces are absolute ``v``; cost compares ``v`` to
+Readout traces are absolute ``v``; cost compares ``v`` to
 ``gt_aff = a_gt * gt + bias_gt`` (``+ v_th`` when present).
 When ``train_opts['bias_gt_from_v_onset']``, ``bias_gt`` is replaced by
 ``v`` at ``t_onset`` (per readout node), clamped to schema ``bias_gt``
@@ -14,15 +14,15 @@ When ``train_opts['bias_gt_from_v_onset']``, ``bias_gt`` is replaced by
 stays in the graph (default detach).
 Waveform MSE normalization is ``session`` / ``train_opts`` ``cost_norm``:
 
-* ``gt_power``: ``100 * Σ w (sel−gt_aff)² / Σ w (a_gt·gt)²``
+* ``gt_power``: ``100 * Σ w (v_readout−gt_aff)² / Σ w (a_gt·gt)²``
   (no ``bias_gt`` / ``v_th`` in the denominator)
-* ``a_gt2`` (default): ``Σ w (sel−gt_aff)² / a_gt²`` (per-row ``a_i²``; bias not in denom)
+* ``a_gt2`` (default): ``Σ w (v_readout−gt_aff)² / a_gt²`` (per-entry ``a_i²``; bias not in denom)
 
 **within each part**. The training total averages those part costs (equal
 weight per cell×radius unless ``cost_weights`` says otherwise).
 
 Sparse cost time points (#4): ``pack.gt`` stays the response-window length
-(spot excludes ``ms_post``) and the subsample is gathered from both model
+(spot excludes ``ms_post``) and the subsample is gathered from both v_readout
 trace and gt at cost time via ``pack.cost_time_ix``; ``gt_power`` is
 recomputed on the subsample.
 """
@@ -82,9 +82,9 @@ from training.readout_pack import (
 
 from task.moving_bar.gt import (
     bar_specs_for_session,
-    cost_dsi_from_sel,
+    cost_dsi_from_v_readout_dsi,
     dsi_sequential_batch_groups,
-    remap_dsi_rows,
+    remap_dsi_entries,
 )
 
 
@@ -133,7 +133,7 @@ def _v_onset_bias_for_pack(
     batch_offset: int = 0,
     batch_idx=None,
 ) -> torch.Tensor:
-    """Per-cost-row ``v`` at ``t_onset``; clamp to schema ``bias_gt`` lo/hi.
+    """Per-cost-entry ``v`` at ``t_onset``; clamp to schema ``bias_gt`` lo/hi.
 
     Detach unless ``bias_gt_from_v_onset_grad``.
     """
@@ -154,7 +154,7 @@ def _v_onset_bias_for_pack(
 
 
 def _pack_gt_affine(p, pack: ReadoutPack, backend: ModelBackend, session: TrainSession):
-    """Per-cost-row ``(a_gt, bias_gt)`` from schema."""
+    """Per-cost-entry ``(a_gt, bias_gt)`` from schema."""
     return gt_affine_for_nodes(
         p, pack.readout_node, backend, sim_dtype=session.sim_dtype,
     )
@@ -189,25 +189,25 @@ def _session_cost_norm(session: TrainSession) -> str:
     return expand_cost_norm(raw)
 
 
-def _sel_gt_power(weight, gt_scaled):
+def _gt_power_denom(weight, gt_scaled):
     """Σ w·(a_gt·gt)²; replace exact 0 without GPU→CPU sync."""
     gt_power = torch.sum(weight[:, None] * gt_scaled ** 2)
     return torch.where(gt_power > 0, gt_power, torch.ones_like(gt_power))
 
 
-def _pack_cost_mse(a_gt, bias_gt, gt, weight, sel, *, cost_norm: str):
+def _pack_cost_mse(a_gt, bias_gt, gt, weight, v_readout, *, cost_norm: str):
     gt_scaled = a_gt[:, None] * gt
     gt_aff = gt_scaled + bias_gt[:, None]
-    diff = sel - gt_aff
+    diff = v_readout - gt_aff
     sse = torch.sum(weight[:, None] * diff ** 2)
     if cost_norm == "gt_power":
-        gt_power = _sel_gt_power(weight, gt_scaled)
+        gt_power = _gt_power_denom(weight, gt_scaled)
         return sse / gt_power * 100.0
     if cost_norm == "a_gt2":
-        # Σ_i (sse_row_i / a_i²); a constant within a cell part → sse / a².
+        # Σ_i (sse_entry_i / a_i²); a constant within a cell part → sse / a².
         a2 = (a_gt * a_gt).clamp(min=torch.finfo(a_gt.dtype).tiny)
-        sse_row = (weight[:, None] * diff ** 2).sum(dim=-1)
-        return (sse_row / a2).sum()
+        sse_entry = (weight[:, None] * diff ** 2).sum(dim=-1)
+        return (sse_entry / a2).sum()
     raise ValueError(f"cost_norm must be one of {COST_NORMS}; got {cost_norm!r}")
 
 
@@ -216,31 +216,33 @@ def _mse_parts_scatter(
     bias_gt: torch.Tensor,
     gt: torch.Tensor,
     weight: torch.Tensor,
-    sel: torch.Tensor,
+    v_readout: torch.Tensor,
     group_id: torch.Tensor,
     keys: List[str],
     session: TrainSession,
 ) -> Dict[str, torch.Tensor]:
-    """Local costs for groups via one scatter (``group_id`` -1 = skip row)."""
+    """Local costs for groups via one scatter (``group_id`` -1 = skip entry)."""
     if not keys:
         return {}
     cost_norm = _session_cost_norm(session)
     gt_scaled = a_gt[:, None] * gt
-    sse_row = (weight[:, None] * (sel - gt_scaled - bias_gt[:, None]) ** 2).sum(dim=-1)
+    sse_entry = (
+        weight[:, None] * (v_readout - gt_scaled - bias_gt[:, None]) ** 2
+    ).sum(dim=-1)
     n_g = len(keys)
-    keep_f = (group_id >= 0).to(dtype=sse_row.dtype)
+    keep_f = (group_id >= 0).to(dtype=sse_entry.dtype)
     gid = group_id.clamp(min=0)
     if cost_norm == "gt_power":
-        p_row = (weight[:, None] * gt_scaled ** 2).sum(dim=-1)
-        sse = sse_row.new_zeros((n_g,))
-        gt_power = p_row.new_zeros((n_g,))
-        sse.scatter_add_(0, gid, sse_row * keep_f)
-        gt_power.scatter_add_(0, gid, p_row * keep_f)
+        p_entry = (weight[:, None] * gt_scaled ** 2).sum(dim=-1)
+        sse = sse_entry.new_zeros((n_g,))
+        gt_power = p_entry.new_zeros((n_g,))
+        sse.scatter_add_(0, gid, sse_entry * keep_f)
+        gt_power.scatter_add_(0, gid, p_entry * keep_f)
         gt_power = torch.where(gt_power > 0, gt_power, torch.ones_like(gt_power))
         costs = sse / gt_power * 100.0
     elif cost_norm == "a_gt2":
         a2 = (a_gt * a_gt).clamp(min=torch.finfo(a_gt.dtype).tiny)
-        contrib = sse_row / a2
+        contrib = sse_entry / a2
         costs = contrib.new_zeros((n_g,))
         costs.scatter_add_(0, gid, contrib * keep_f)
     else:
@@ -253,10 +255,10 @@ def _mse_parts_scatter(
     return out
 
 
-def _spot_row_groups(
+def _spot_entry_groups(
     pack: ReadoutPack, backend: ModelBackend,
 ) -> Tuple[torch.Tensor, List[str]]:
-    """``(group_id, keys)`` for spot cell×radius; one CPU sync of row meta."""
+    """``(group_id, keys)`` for spot cell×radius; one CPU sync of entry meta."""
     n = int(pack.readout_node.shape[0])
     net = backend.network
     if net is None:
@@ -284,10 +286,10 @@ def _spot_row_groups(
     return group_id, keys
 
 
-def _moving_bar_row_groups(
+def _moving_bar_entry_groups(
     pack: ReadoutPack, backend: ModelBackend,
 ) -> Tuple[torch.Tensor, List[str]]:
-    """``(group_id, keys)`` for moving-bar cell×PD/ND; one CPU sync of row meta."""
+    """``(group_id, keys)`` for moving-bar cell×PD/ND; one CPU sync of entry meta."""
     n = int(pack.readout_node.shape[0])
     net = backend.network
     if net is None:
@@ -349,8 +351,8 @@ def _pack_has_active_mse(pack: ReadoutPack, session: TrainSession) -> bool:
     return _part_weight(session, pack.name) != 0.0
 
 
-def _mse_active_row_mask(pack: ReadoutPack, session: TrainSession) -> torch.Tensor:
-    """Boolean mask over cost rows with non-zero PD/ND (or pack) weight."""
+def _mse_active_entry_mask(pack: ReadoutPack, session: TrainSession) -> torch.Tensor:
+    """Boolean mask over cost entries with non-zero PD/ND (or pack) weight."""
     n = int(pack.readout_batch.shape[0])
     dev = pack.readout_batch.device
     if pack.name in MOVING_BAR_TASKS:
@@ -365,38 +367,38 @@ def _mse_active_row_mask(pack: ReadoutPack, session: TrainSession) -> torch.Tens
     return torch.full((n,), on, dtype=torch.bool, device=dev)
 
 
-def _dsi_active_row_mask(pack: ReadoutPack, session: TrainSession) -> torch.Tensor:
-    """Boolean mask over cost rows needed by a non-zero DSI weight."""
+def _dsi_active_entry_mask(pack: ReadoutPack, session: TrainSession) -> torch.Tensor:
+    """Boolean mask over cost entries needed by a non-zero DSI weight."""
     n = int(pack.readout_batch.shape[0])
     dev = pack.readout_batch.device
     mask = torch.zeros(n, dtype=torch.bool, device=dev)
     dsi_key = moving_bar_cost_part_key(pack.name, "DSI")
     if (
-        pack.dsi_pos_rows is None
-        or pack.dsi_pos_rows.numel() == 0
+        pack.dsi_pos_entries is None
+        or pack.dsi_pos_entries.numel() == 0
         or _part_weight(session, dsi_key) == 0.0
     ):
         return mask
-    mask[pack.dsi_pos_rows] = True
-    mask[pack.dsi_neg_rows] = True
+    mask[pack.dsi_pos_entries] = True
+    mask[pack.dsi_neg_entries] = True
     return mask
 
 
 def _pack_active_batch_indices(pack: ReadoutPack, session: TrainSession) -> Tuple[int, ...]:
     """Stimulus batch indices with at least one non-zero-weight cost node."""
-    row_mask = _mse_active_row_mask(pack, session) | _dsi_active_row_mask(pack, session)
-    if not bool(row_mask.any()):
+    entry_mask = _mse_active_entry_mask(pack, session) | _dsi_active_entry_mask(pack, session)
+    if not bool(entry_mask.any()):
         return ()
-    batches = pack.readout_batch[row_mask].unique(sorted=True)
+    batches = pack.readout_batch[entry_mask].unique(sorted=True)
     return tuple(int(b) for b in batches.tolist())
 
 
-def _active_row_indices(
+def _active_entry_indices(
     pack: ReadoutPack,
     session: TrainSession,
     batch_idx: Optional[int] = None,
 ) -> Optional[torch.Tensor]:
-    keep = _mse_active_row_mask(pack, session) | _dsi_active_row_mask(pack, session)
+    keep = _mse_active_entry_mask(pack, session) | _dsi_active_entry_mask(pack, session)
     if batch_idx is not None:
         keep = keep & (pack.readout_batch == int(batch_idx))
     if not bool(keep.any()):
@@ -404,24 +406,24 @@ def _active_row_indices(
     return torch.nonzero(keep, as_tuple=False).reshape(-1)
 
 
-def _slice_pack_rows(pack: ReadoutPack, row_ix: torch.Tensor) -> ReadoutPack:
+def _slice_pack_entries(pack: ReadoutPack, entry_ix: torch.Tensor) -> ReadoutPack:
     fields = {
-        "gt": pack.gt[row_ix],
-        "cost_weight": pack.cost_weight[row_ix],
-        "readout_batch": pack.readout_batch[row_ix],
-        "readout_node": pack.readout_node[row_ix],
+        "gt": pack.gt[entry_ix],
+        "cost_weight": pack.cost_weight[entry_ix],
+        "readout_batch": pack.readout_batch[entry_ix],
+        "readout_node": pack.readout_node[entry_ix],
     }
     if pack.cost_t0 is not None:
-        fields["cost_t0"] = pack.cost_t0[row_ix]
+        fields["cost_t0"] = pack.cost_t0[entry_ix]
     if pack.cost_radius is not None:
-        fields["cost_radius"] = pack.cost_radius[row_ix]
-    if pack.readout_stim_u is not None:
-        fields["readout_stim_u"] = pack.readout_stim_u[row_ix]
-    if pack.readout_stim_v is not None:
-        fields["readout_stim_v"] = pack.readout_stim_v[row_ix]
+        fields["cost_radius"] = pack.cost_radius[entry_ix]
+    if pack.cost_stim_u is not None:
+        fields["cost_stim_u"] = pack.cost_stim_u[entry_ix]
+    if pack.cost_stim_v is not None:
+        fields["cost_stim_v"] = pack.cost_stim_v[entry_ix]
     if pack.cost_pd_nd is not None:
-        fields["cost_pd_nd"] = pack.cost_pd_nd[row_ix]
-    fields.update(remap_dsi_rows(pack, row_ix))
+        fields["cost_pd_nd"] = pack.cost_pd_nd[entry_ix]
+    fields.update(remap_dsi_entries(pack, entry_ix))
     return replace(pack, **fields)
 
 
@@ -450,13 +452,13 @@ def _subset_pack_batches(pack: ReadoutPack, batch_indices: Tuple[int, ...]) -> O
         fields["cost_t0"] = pack.cost_t0[keep]
     if pack.cost_radius is not None:
         fields["cost_radius"] = pack.cost_radius[keep]
-    if pack.readout_stim_u is not None:
-        fields["readout_stim_u"] = pack.readout_stim_u[keep]
-    if pack.readout_stim_v is not None:
-        fields["readout_stim_v"] = pack.readout_stim_v[keep]
+    if pack.cost_stim_u is not None:
+        fields["cost_stim_u"] = pack.cost_stim_u[keep]
+    if pack.cost_stim_v is not None:
+        fields["cost_stim_v"] = pack.cost_stim_v[keep]
     if pack.cost_pd_nd is not None:
         fields["cost_pd_nd"] = pack.cost_pd_nd[keep]
-    fields.update(remap_dsi_rows(pack, kept_old))
+    fields.update(remap_dsi_entries(pack, kept_old))
     return replace(pack, **fields)
 
 
@@ -467,20 +469,20 @@ def _pack_for_active_cost(
     batch_idx: Optional[int] = None,
     batch_indices: Optional[Tuple[int, ...]] = None,
 ) -> Optional[ReadoutPack]:
-    """Drop zero-weight rows and, when requested, inactive stimulus batches."""
+    """Drop zero-weight entries and, when requested, inactive stimulus batches."""
     work = pack
     if batch_indices is not None:
         work = _subset_pack_batches(pack, batch_indices)
         if work is None:
             return None
-    rows = _active_row_indices(work, session, batch_idx=batch_idx)
-    if rows is None:
+    entries = _active_entry_indices(work, session, batch_idx=batch_idx)
+    if entries is None:
         return None
-    return _slice_pack_rows(work, rows)
+    return _slice_pack_entries(work, entries)
 
 
 def _build_cost_subpacks(session: TrainSession) -> Dict[str, ReadoutPack]:
-    """Active cost row/batch subsets per task (batched mode only)."""
+    """Active cost entry/batch subsets per task (batched mode only)."""
     if session.sequential:
         return {}
     out: Dict[str, ReadoutPack] = {}
@@ -538,45 +540,45 @@ def _readout_from_trace_full(
     rb = pack.readout_batch if batch_offset == 0 else pack.readout_batch + batch_offset
     t0 = pack_t_onset(pack)
     win = int(pack.gt.shape[1])
-    dsi_sel = trace_full[rb, t0:t0 + win, pack.readout_node]
+    v_readout_dsi = trace_full[rb, t0:t0 + win, pack.readout_node]
     if not pack_needs_waveform_mse(pack):
-        return None, dsi_sel
+        return None, v_readout_dsi
     if pack.cost_t0 is None:
-        return dsi_sel, dsi_sel
-    mse_sel = window_time_traces(
+        return v_readout_dsi, v_readout_dsi
+    v_readout = window_time_traces(
         trace_full, rb, pack.readout_node, pack.cost_t0,
         win=win, t_onset=t0,
     )
-    return mse_sel, dsi_sel
+    return v_readout, v_readout_dsi
 
 
-def _pack_cost_dsi_from_sel(
+def _pack_cost_dsi_from_v_readout_dsi(
     pack: ReadoutPack,
     session: TrainSession,
     bias_gt: torch.Tensor,
-    dsi_sel: torch.Tensor,
+    v_readout_dsi: torch.Tensor,
 ) -> Optional[torch.Tensor]:
     """DSI cost from full post-stimulus traces; independent of cost windows."""
     key = moving_bar_cost_part_key(pack.name, "DSI")
     if _part_weight(session, key) == 0.0:
         return None
-    return cost_dsi_from_sel(pack, bias_gt, dsi_sel)
+    return cost_dsi_from_v_readout_dsi(pack, bias_gt, v_readout_dsi)
 
 
-def _pack_cost_parts_from_sel(
+def _pack_cost_parts_from_v_readout(
     pack: ReadoutPack,
     session: TrainSession,
     a_gt: torch.Tensor,
     bias_gt: torch.Tensor,
-    sel: Optional[torch.Tensor],
-    dsi_sel: torch.Tensor,
+    v_readout: Optional[torch.Tensor],
+    v_readout_dsi: torch.Tensor,
 ) -> Dict[str, torch.Tensor]:
     backend = session.backend
     if pack.name in MOVING_BAR_TASKS:
         out: Dict[str, torch.Tensor] = {}
         if pack.cost_pd_nd is not None:
-            if sel is None:
-                group_id, keys = _moving_bar_row_groups(pack, backend)
+            if v_readout is None:
+                group_id, keys = _moving_bar_entry_groups(pack, backend)
                 need = any(
                     _part_weight(session, key) != 0.0
                     for key in keys
@@ -587,32 +589,34 @@ def _pack_cost_parts_from_sel(
                         "PD/ND but pack has no cost window",
                     )
             else:
-                group_id, keys = _moving_bar_row_groups(pack, backend)
+                group_id, keys = _moving_bar_entry_groups(pack, backend)
                 out.update(
                     _mse_parts_scatter(
-                        a_gt, bias_gt, pack.gt, pack.cost_weight, sel,
+                        a_gt, bias_gt, pack.gt, pack.cost_weight, v_readout,
                         group_id, keys, session,
                     )
                 )
-        dsi_part = _pack_cost_dsi_from_sel(pack, session, bias_gt, dsi_sel)
+        dsi_part = _pack_cost_dsi_from_v_readout_dsi(
+            pack, session, bias_gt, v_readout_dsi,
+        )
         if dsi_part is not None:
             out[moving_bar_cost_part_key(pack.name, "DSI")] = dsi_part
         return out
-    if sel is None:
+    if v_readout is None:
         raise ValueError(f"waveform readout required for pack {pack.name!r}")
     gt = pack.gt
     weight = pack.cost_weight
-    # #4 sparse time points: gather model + gt on the requested post-onset
+    # #4 sparse time points: gather v_readout + gt on the requested post-onset
     # t indices; gt_power uses a_gt·gt (no bias_gt) inside MSE when cost_norm=gt_power.
     if pack.cost_time_ix is not None:
-        ix = pack.cost_time_ix.to(device=sel.device)
-        sel = sel.index_select(1, ix)
+        ix = pack.cost_time_ix.to(device=v_readout.device)
+        v_readout = v_readout.index_select(1, ix)
         gt = gt.index_select(1, ix)
     if pack.cost_radius is None:
         raise ValueError(f"spot pack {pack.name!r} missing cost_radius")
-    group_id, keys = _spot_row_groups(pack, backend)
+    group_id, keys = _spot_entry_groups(pack, backend)
     return _mse_parts_scatter(
-        a_gt, bias_gt, gt, weight, sel, group_id, keys, session,
+        a_gt, bias_gt, gt, weight, v_readout, group_id, keys, session,
     )
 
 
@@ -627,10 +631,12 @@ def _pack_cost_parts_from_fused_trace(
     a_gt, bias_gt = _pack_gt_affine_for_cost(
         p, pack, session, trace_full, batch_offset=batch_offset,
     )
-    sel, dsi_sel = _readout_from_trace_full(
+    v_readout, v_readout_dsi = _readout_from_trace_full(
         trace_full, pack, batch_offset=batch_offset,
     )
-    return _pack_cost_parts_from_sel(pack, session, a_gt, bias_gt, sel, dsi_sel)
+    return _pack_cost_parts_from_v_readout(
+        pack, session, a_gt, bias_gt, v_readout, v_readout_dsi,
+    )
 
 def _calc_cost_parts_fused(
     p,
@@ -679,21 +685,21 @@ def _pack_cost_forward(p, pack: ReadoutPack, session: TrainSession, batch_idx=No
         t0 = pack_t_onset(pack)
         win = int(pack.gt.shape[1])
         u_m = pack.readout_node[mask]
-        dsi_sel = trace_full[0, t0:t0 + win, u_m].transpose(0, 1)
+        v_readout_dsi = trace_full[0, t0:t0 + win, u_m].transpose(0, 1)
         if not pack_needs_waveform_mse(pack):
-            sel = None
+            v_readout = None
         elif pack.cost_t0 is None:
-            sel = dsi_sel
+            v_readout = v_readout_dsi
         else:
-            sel = window_time_traces(
+            v_readout = window_time_traces(
                 trace_full, rb, u_m, pack.cost_t0[mask],
                 win=win, t_onset=t0,
             )
     else:
         gt = pack.gt
         weight = pack.cost_weight
-        sel, dsi_sel = _readout_from_trace_full(trace_full, pack)
-    return a_gt, bias_gt, gt, weight, sel, dsi_sel, pd_nd
+        v_readout, v_readout_dsi = _readout_from_trace_full(trace_full, pack)
+    return a_gt, bias_gt, gt, weight, v_readout, v_readout_dsi, pd_nd
 
 
 def _pack_cost_parts_from_params(p, pack: ReadoutPack, session: TrainSession, batch_idx=None):
@@ -701,20 +707,22 @@ def _pack_cost_parts_from_params(p, pack: ReadoutPack, session: TrainSession, ba
     fwd = _pack_cost_forward(p, pack, session, batch_idx)
     if fwd is None:
         return {}
-    a_gt, bias_gt, gt, weight, sel, dsi_sel, pd_nd = fwd
-    return _pack_cost_parts_from_sel(pack, session, a_gt, bias_gt, sel, dsi_sel)
+    a_gt, bias_gt, gt, weight, v_readout, v_readout_dsi, pd_nd = fwd
+    return _pack_cost_parts_from_v_readout(
+        pack, session, a_gt, bias_gt, v_readout, v_readout_dsi,
+    )
 
 
-def _pack_cost_rows(p, pack: ReadoutPack, session: TrainSession, batch_idx=None):
+def _pack_cost_entries(p, pack: ReadoutPack, session: TrainSession, batch_idx=None):
     """Forward + MSE for one pack (full aggregate; used for diagnostics)."""
     fwd = _pack_cost_forward(p, pack, session, batch_idx)
     if fwd is None:
         return None
-    a_gt, bias_gt, gt, weight, sel, dsi_sel, _pd_nd = fwd
-    if sel is None:
-        return _pack_cost_dsi_from_sel(pack, session, bias_gt, dsi_sel)
+    a_gt, bias_gt, gt, weight, v_readout, v_readout_dsi, _pd_nd = fwd
+    if v_readout is None:
+        return _pack_cost_dsi_from_v_readout_dsi(pack, session, bias_gt, v_readout_dsi)
     return _pack_cost_mse(
-        a_gt, bias_gt, gt, weight, sel, cost_norm=_session_cost_norm(session),
+        a_gt, bias_gt, gt, weight, v_readout, cost_norm=_session_cost_norm(session),
     )
 
 def _pack_cost_parts_for_pack(z, pack: ReadoutPack, session: TrainSession, batch_idx=None, p=None):

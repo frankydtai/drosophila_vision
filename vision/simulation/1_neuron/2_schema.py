@@ -20,13 +20,13 @@ ALL_PARAM_NAMES = (
     "a_in", "a_out", "a_gt", "bias_gt",
     "syn_strength_cell", "syn_strength_edge", "v_th",
     "a_h", "a_h_rev",
-    "h_v_mid", "h_slope", "tau_h_v",
-    "h_v_mid_rev", "h_slope_rev", "tau_h_v_rev",
+    "v_mid_h_g", "h_slope", "v_mid_h_tau",
+    "v_mid_h_g_rev", "h_slope_rev", "v_mid_h_tau_rev",
     "tau_lp", "e_leak", "tau_hp", "a_sti_r",
 )
 I_H_SHAPE_PARAM_NAMES = (
-    "h_v_mid", "h_slope", "tau_h_v",
-    "h_v_mid_rev", "h_slope_rev", "tau_h_v_rev",
+    "v_mid_h_g", "h_slope", "v_mid_h_tau",
+    "v_mid_h_g_rev", "h_slope_rev", "v_mid_h_tau_rev",
 )
 
 
@@ -107,9 +107,9 @@ def _seg(name, count, kind, box, n, *, name_to_i=None, indi_names=()):
 
 def borst_i_h_rev_kwargs(p, i_h_rev: str):
     """Resolve rev-channel i_h kwargs for ``update_v`` from assigned params."""
-    v_mid_rev = p["h_v_mid"] if i_h_rev != "on" else p["h_v_mid_rev"]
+    v_mid_h_g_rev = p["v_mid_h_g"] if i_h_rev != "on" else p["v_mid_h_g_rev"]
     slope_rev = p["h_slope"] if i_h_rev != "on" else p["h_slope_rev"]
-    tau_rev = p["tau_h_v"] if i_h_rev != "on" else p["tau_h_v_rev"]
+    v_mid_h_tau_rev = p["v_mid_h_tau"] if i_h_rev != "on" else p["v_mid_h_tau_rev"]
     if i_h_rev == "on":
         a_h_rev = p["a_h_rev"]
     elif i_h_rev == "mirrored":
@@ -118,7 +118,7 @@ def borst_i_h_rev_kwargs(p, i_h_rev: str):
         a_h_rev = p["a_h"] * 0.0
     else:
         raise ValueError(f"i_h_rev {i_h_rev!r} not in {I_H_REV_MODES}")
-    return a_h_rev, v_mid_rev, slope_rev, tau_rev
+    return a_h_rev, v_mid_h_g_rev, slope_rev, v_mid_h_tau_rev
 
 
 def _syn_segment(syn_mode, n_pairs, n_edges, param_boxes):
@@ -136,27 +136,31 @@ def _syn_segment(syn_mode, n_pairs, n_edges, param_boxes):
     return _seg("syn_strength_cell", n_pairs, "edge_pair", D["syn_strength_cell"], n_pairs)
 
 
-def _a_sti_r_segment(param_boxes: dict, sti_r_names):
-    """Per-radius spot drive scale; r=0 fixed at 1, other radii indi.
+def spot_radius_key(radius, *, aliases) -> str:
+    """Label for a Euclidean spot radius (alias name, else integer / float text)."""
+    r = round(float(radius), 6)
+    for name, val in aliases.items():
+        if round(float(val), 6) == r:
+            return str(name)
+    if r == int(r):
+        return str(int(r))
+    return str(r)
 
-    Box ``train_mode`` is ignored (CLI ``--a-sti-r`` may still override).
+
+def _a_sti_r_segment(param_boxes: dict, sti_radii, radius_key_aliases):
+    """Per-radius spot drive scale for non-center rings (``sti_radii`` order).
+
+    Center r=0 is baked into ``i_sti`` at scale 1 (not a param). Slot
+    names come from ``radius_key_aliases`` via :func:`spot_radius_key`.
+    Box ``train_mode`` applies; CLI ``--a-sti-r`` may still override.
     """
-    names = [str(n) for n in sti_r_names]
-    n = len(names)
+    radii = list(sti_radii)
+    n = len(radii)
     if n == 0:
-        raise ValueError("a_sti_r requires non-empty sti_r_names")
-    mode = _mode_indi_subset_fixed_rest(n, list(range(1, n)))
-    seg = _with_train_mode(
-        {
-            "name": "a_sti_r",
-            "count": n,
-            "kind": "output",
-            **_box_numeric(param_boxes["a_sti_r"]),
-        },
-        mode,
-    )
+        raise ValueError("a_sti_r requires non-empty sti_radii")
+    names = [spot_radius_key(r, aliases=radius_key_aliases) for r in radii]
+    seg = _seg("a_sti_r", n, "output", param_boxes["a_sti_r"], n)
     seg["node_names"] = names
-    seg["init_override"] = {0: 1.0}
     return seg
 
 
@@ -170,7 +174,8 @@ def build_borst_schema(
     h_cells,
     i_h_rev: str,
     n_edges=None,
-    sti_r_names=(),
+    sti_radii=(),
+    radius_key_aliases=None,
 ):
     """Borst schema; rev i_h segments only when ``i_h_rev == 'on'``."""
     if i_h_rev not in I_H_REV_MODES:
@@ -196,17 +201,17 @@ def build_borst_schema(
             _seg("a_h_rev", n_cells, "full", D["a_h_rev"], n_cells, **named_kw),
         )
     segs.extend([
-        _seg("h_v_mid", n_cells, "full", D["h_v_mid"], n_cells),
+        _seg("v_mid_h_g", n_cells, "full", D["v_mid_h_g"], n_cells),
         _seg("h_slope", n_cells, "full", D["h_slope"], n_cells),
-        _seg("tau_h_v", n_cells, "full", D["tau_h_v"], n_cells),
+        _seg("v_mid_h_tau", n_cells, "full", D["v_mid_h_tau"], n_cells),
     ])
     if i_h_rev == "on":
         segs.extend([
-            _seg("h_v_mid_rev", n_cells, "full", D["h_v_mid_rev"], n_cells),
+            _seg("v_mid_h_g_rev", n_cells, "full", D["v_mid_h_g_rev"], n_cells),
             _seg("h_slope_rev", n_cells, "full", D["h_slope_rev"], n_cells),
-            _seg("tau_h_v_rev", n_cells, "full", D["tau_h_v_rev"], n_cells),
+            _seg("v_mid_h_tau_rev", n_cells, "full", D["v_mid_h_tau_rev"], n_cells),
         ])
-    segs.append(_a_sti_r_segment(D, sti_r_names))
+    segs.append(_a_sti_r_segment(D, sti_radii, radius_key_aliases or {}))
     return segs
 
 
@@ -219,7 +224,8 @@ def build_hp_lp_schema(
     param_boxes: dict,
     h_cells,
     n_edges=None,
-    sti_r_names=(),
+    sti_radii=(),
+    radius_key_aliases=None,
 ):
     """HP-then-membrane-LP: τ_HP on v_slow, τ_lp on V, drive v_drive−a_h v_slow."""
     if cell_names is None:
@@ -239,7 +245,7 @@ def build_hp_lp_schema(
         _seg("tau_hp", n_cells, "full", D["tau_hp"], n_cells),
         _seg("e_leak", n_cells, "full", D["e_leak"], n_cells),
         _seg("a_h", n_cells, "full", D["a_h"], n_cells, **named_kw),
-        _a_sti_r_segment(D, sti_r_names),
+        _a_sti_r_segment(D, sti_radii, radius_key_aliases or {}),
     ]
 
 
@@ -251,12 +257,14 @@ def default_schema(
     param_boxes: dict,
     h_cells,
     i_h_rev: str = "on",
-    sti_r_names=(),
+    sti_radii=(),
+    radius_key_aliases=None,
 ) -> list:
     """Fresh parameter schema for ``model`` on the given backend.
 
     ``i_h_rev`` is used only for borst (rev i_h segments when ``\"on\"``).
-    ``sti_r_names`` labels ``a_sti_r`` slots (injected from training).
+    ``sti_radii`` + ``radius_key_aliases`` label ``a_sti_r`` slots
+    (injected from training).
     """
     if model not in KNOWN_MODELS:
         raise ValueError(f"unknown model {model!r}; expected one of {KNOWN_MODELS}")
@@ -267,21 +275,23 @@ def default_schema(
     mode = normalize_syn_mode(syn_mode)
     n_pairs = getattr(backend.conn, "n_pairs", None)
     n_edges = getattr(backend.conn, "n_edges", None)
+    sti_kw = dict(
+        sti_radii=sti_radii,
+        radius_key_aliases=radius_key_aliases,
+    )
     if mode == "per_edge":
         if n_edges is None:
             raise TypeError(f"{model} syn_strength_edge requires network ScatterConn backend")
         kw = dict(
             syn_mode=mode, n_edges=n_edges, n_pairs=n_pairs,
-            param_boxes=param_boxes, h_cells=h_cells,
-            sti_r_names=sti_r_names,
+            param_boxes=param_boxes, h_cells=h_cells, **sti_kw,
         )
     else:
         if n_pairs is None:
             raise TypeError(f"{model} syn_strength_cell requires network ScatterConn backend")
         kw = dict(
             syn_mode=mode, n_pairs=n_pairs, n_edges=n_edges,
-            param_boxes=param_boxes, h_cells=h_cells,
-            sti_r_names=sti_r_names,
+            param_boxes=param_boxes, h_cells=h_cells, **sti_kw,
         )
     if model == "hp_lp":
         return build_hp_lp_schema(n, cell_names=cell_names, **kw)

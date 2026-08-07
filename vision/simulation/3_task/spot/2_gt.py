@@ -29,7 +29,7 @@ import torch
 from network import path  # noqa: F401 -- FAFBv783 on sys.path
 import neuron.params as params
 from network.construction import (
-    col2gt,
+    hex2gt,
     hex_in_cost_extent,
     present_gt_cells,
     normalize_gt_cells,
@@ -377,7 +377,7 @@ def spot_cost_node_weight(
     return float(weights.get(round(radius, 6), 0.0))
 
 
-# -- RecF sampling / superposed gt ----------------------------------------
+# -- RecF sampling / hex gt -------------------------------------------------
 
 
 def _recf_at(recf_row: np.ndarray, radius: float) -> float:
@@ -396,25 +396,24 @@ def _spot_readout_amp(recf_row: np.ndarray, radius: float, spot_extent: float) -
     return _recf_at(recf_row, r)
 
 
-def _spot_superposed_amp(
+def _spot_hex_amp(
     recf_row: np.ndarray,
-    stim_uv: Sequence[Tuple[int, int]],
     mu: int,
     mv: int,
+    su: int,
+    sv: int,
     spot_extent: float,
 ) -> float:
-    total = 0.0
-    for su, sv in stim_uv:
-        dist = round(euclid_hex_dist(int(mu) - int(su), int(mv) - int(sv)), 6)
-        total += _spot_readout_amp(recf_row, dist, spot_extent)
-    return total
+    dist = round(euclid_hex_dist(int(mu) - int(su), int(mv) - int(sv)), 6)
+    return _spot_readout_amp(recf_row, dist, spot_extent)
 
 
-def _spot_superposed_trace(
+def _spot_hex_trace(
     recf_row: np.ndarray,
-    stim_uv: Sequence[Tuple[int, int]],
     mu: int,
     mv: int,
+    su: int,
+    sv: int,
     spot_extent: float,
     impr_row: np.ndarray,
     resp: slice,
@@ -422,7 +421,7 @@ def _spot_superposed_trace(
     *,
     polarity: str,
 ) -> np.ndarray:
-    amp = _spot_superposed_amp(recf_row, stim_uv, mu, mv, spot_extent)
+    amp = _spot_hex_amp(recf_row, mu, mv, su, sv, spot_extent)
     trace = amp * impr_row[resp] * data_amp
     if polarity == "dark":
         trace = -trace
@@ -473,8 +472,8 @@ def build_spot_cost_readout(C, batches, cost_radii, cost_extent):
     for b, mu, mv, cell_radius, su, sv in spot_cost_hexes(
         batches, cost_radii, cost_extent,
     ):
-        on_col = (u == mu) & (v == mv)
-        for uid in np.where(on_col)[0]:
+        on_hex = (u == mu) & (v == mv)
+        for uid in np.where(on_hex)[0]:
             batch_idx.append(b)
             node_idx.append(int(uid))
             radius.append(cell_radius)
@@ -532,8 +531,8 @@ class SpotGt:
     cost_radius: torch.Tensor     # (n_cost,)
     readout_batch: torch.Tensor   # (n_cost,) long
     readout_node: torch.Tensor    # (n_cost,) long
-    readout_stim_u: torch.Tensor  # (n_cost,) long
-    readout_stim_v: torch.Tensor  # (n_cost,) long
+    cost_stim_u: torch.Tensor  # (n_cost,) long
+    cost_stim_v: torch.Tensor  # (n_cost,) long
     n_batch: int
     info: dict
 
@@ -629,28 +628,28 @@ def build_spot_gt(
     )
     cost_hexes = spot_cost_hexes(batches, cost_radii, cost_extent)
 
-    cost_batch, cost_node, cost_radius_rows, cost_readout, cost_weight_rows = [], [], [], [], []
+    cost_batch, cost_node, cost_radius_entries, cost_readout, cost_weight_entries = [], [], [], [], []
     cost_stim_u, cost_stim_v = [], []
-    trace_cache: Dict[Tuple[int, int, int, int], np.ndarray] = {}
+    trace_cache: Dict[Tuple[int, int, int, int, int, int], np.ndarray] = {}
     for b, mu, mv, radius, su, sv in cost_hexes:
         w = spot_cost_node_weight(
             radius, spot_cost_radius_weight, default_weights=default_cost_weights,
         )
         if w == 0.0:
             continue
-        stim_uv = batches[b].stim_uv
         for rt in present:
-            nodes = col2gt(C, mu, mv, rt, names)
+            nodes = hex2gt(C, mu, mv, rt, names)
             if len(nodes) == 0:
                 continue
             row = type_row[rt]
-            cache_key = (b, mu, mv, row)
+            cache_key = (b, mu, mv, su, sv, row)
             if cache_key not in trace_cache:
-                trace_cache[cache_key] = _spot_superposed_trace(
+                trace_cache[cache_key] = _spot_hex_trace(
                     recf_gt[row],
-                    stim_uv,
                     mu,
                     mv,
+                    su,
+                    sv,
                     spot_extent,
                     impr_gt[row],
                     resp,
@@ -661,9 +660,9 @@ def build_spot_gt(
             for uidx in nodes:
                 cost_batch.append(b)
                 cost_node.append(int(uidx))
-                cost_radius_rows.append(radius)
+                cost_radius_entries.append(radius)
                 cost_readout.append(trace)
-                cost_weight_rows.append(w)
+                cost_weight_entries.append(w)
                 cost_stim_u.append(int(su))
                 cost_stim_v.append(int(sv))
 
@@ -671,12 +670,12 @@ def build_spot_gt(
         raise ValueError("no spot cost nodes (check cost_extent and gt cells)")
 
     gt = torch.tensor(np.asarray(cost_readout), dtype=sim_dtype, device=device)  # (n_cost,T')
-    cost_weight = torch.tensor(np.asarray(cost_weight_rows), dtype=sim_dtype, device=device)
-    cost_radius = torch.tensor(np.asarray(cost_radius_rows), dtype=sim_dtype, device=device)
+    cost_weight = torch.tensor(np.asarray(cost_weight_entries), dtype=sim_dtype, device=device)
+    cost_radius = torch.tensor(np.asarray(cost_radius_entries), dtype=sim_dtype, device=device)
     readout_batch = torch.tensor(np.asarray(cost_batch), dtype=torch.long, device=device)
     readout_node = torch.tensor(np.asarray(cost_node), dtype=torch.long, device=device)
-    readout_stim_u = torch.tensor(np.asarray(cost_stim_u), dtype=torch.long, device=device)
-    readout_stim_v = torch.tensor(np.asarray(cost_stim_v), dtype=torch.long, device=device)
+    cost_stim_u_t = torch.tensor(np.asarray(cost_stim_u), dtype=torch.long, device=device)
+    cost_stim_v_t = torch.tensor(np.asarray(cost_stim_v), dtype=torch.long, device=device)
 
     power = torch.sum(cost_weight[:, None] * gt ** 2)
     if float(power) == 0.0:
@@ -713,8 +712,8 @@ def build_spot_gt(
         cost_radius=cost_radius,
         readout_batch=readout_batch,
         readout_node=readout_node,
-        readout_stim_u=readout_stim_u,
-        readout_stim_v=readout_stim_v,
+        cost_stim_u=cost_stim_u_t,
+        cost_stim_v=cost_stim_v_t,
         n_batch=n_batch,
         info=info,
     )

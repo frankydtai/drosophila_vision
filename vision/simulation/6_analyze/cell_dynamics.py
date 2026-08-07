@@ -26,7 +26,7 @@ from figure.readout import contrast_for_task
 from figure.spot import pack_spot_cost_radii, resolve_spot_gt_cubes
 from figure.util import plot_sem_band
 from import_bootstrap import parse_bool, parse_comma_list
-from network.construction import col2gt
+from network.construction import hex2gt
 from task.moving_bar.gt import (
     bar_specs_for_session,
     filter_requested_specs,
@@ -1835,13 +1835,13 @@ def _nodes_at_hex(session, cell: str, *, at_x: float, at_y: float, cost_extent: 
         raise SystemExit(f"no hex at x={at_x!r} y={at_y!r} within cost_extent={cost_extent}")
     if len(hexes) > 1:
         raise SystemExit(f"multiple hexes at x={at_x!r} y={at_y!r}; pick a unique hex")
-    col = hexes[0]
+    hex = hexes[0]
     if cell not in C.cell_names:
         raise SystemExit(f"unknown cell {cell!r}")
-    nodes = col2gt(C, int(col.u), int(col.v), cell).tolist()
+    nodes = hex2gt(C, int(hex.u), int(hex.v), cell).tolist()
     if not nodes:
         raise SystemExit(f"no {cell} node at hex ({at_x},{at_y})")
-    return col, nodes
+    return hex, nodes
 
 
 def _resolve_hex_node(
@@ -1853,8 +1853,8 @@ def _resolve_hex_node(
     cost_extent: int,
     node: int | None,
 ):
-    """Resolve ``(col, node_id)`` for hex mode; ``--node`` if multiple at hex."""
-    col, nodes = _nodes_at_hex(
+    """Resolve ``(hex, node_id)`` for hex mode; ``--node`` if multiple at hex."""
+    hex, nodes = _nodes_at_hex(
         session, cell, at_x=at_x, at_y=at_y, cost_extent=cost_extent,
     )
     if node is None:
@@ -1863,7 +1863,7 @@ def _resolve_hex_node(
         node = nodes[0]
     elif node not in nodes:
         raise SystemExit(f"node {node} not in {nodes}")
-    return col, int(node)
+    return hex, int(node)
 
 
 def analyze_spot_hex(
@@ -1884,7 +1884,7 @@ def analyze_spot_hex(
         session_one, [cell],
     )
     radius_row = _spot_radius_row(radii, 0)
-    col, node = _resolve_hex_node(
+    hex, node = _resolve_hex_node(
         session_one, cell, at_x=at_x, at_y=at_y,
         cost_extent=pack.cost_extent, node=node,
     )
@@ -1956,7 +1956,7 @@ def analyze_spot_hex(
         extra={
             "node": node,
             "hex": {"x": at_x, "y": at_y},
-            "uv": {"u": int(col.u), "v": int(col.v)},
+            "uv": {"u": int(hex.u), "v": int(hex.v)},
         },
         extra_for_cell=extra_for_cell,
         n_nodes_for_cell=lambda _c: 1,
@@ -1979,7 +1979,7 @@ def analyze_bar_hex(
 ) -> dict[str, dict[str, dict[str, Any]]]:
     """One batched v forward over specs at one hex; returns ``reports[spec][cell]``."""
     pack = session.pack_for(task)
-    col, node = _resolve_hex_node(
+    hex, node = _resolve_hex_node(
         session, cell, at_x=at_x, at_y=at_y,
         cost_extent=pack.cost_extent, node=node,
     )
@@ -2005,7 +2005,7 @@ def analyze_bar_hex(
         extra={
             "node": node,
             "hex": {"x": at_x, "y": at_y},
-            "uv": {"u": int(col.u), "v": int(col.v)},
+            "uv": {"u": int(hex.u), "v": int(hex.v)},
         },
     )
 
@@ -2023,8 +2023,8 @@ def _plot_filename(report: dict[str, Any], *, file_suffix: str = "", html: bool 
     if report.get("spec"):
         parts.append(str(report["spec"]))
     if report.get("mode") == "hex":
-        hx = report["hex"]
-        parts.append(f"x{hx['x']}_y{hx['y']}")
+        hex = report["hex"]
+        parts.append(f"x{hex['x']}_y{hex['y']}")
     radius = report.get("radius")
     if radius is not None and int(radius) != 0:
         parts.append(f"radius{int(radius)}")
@@ -2595,19 +2595,19 @@ def main() -> None:
                     )
                 session_one = spot_session_cache[task]
                 if hex_mode:
-                    hx = cli.xs[0]
-                    hy = cli.ys[0]
+                    at_x = cli.xs[0]
+                    at_y = cli.ys[0]
                     _log(
                         f"component forward {task} "
-                        f"(spot hex=({hx},{hy}); batched) ..."
+                        f"(spot hex=({at_x},{at_y}); batched) ..."
                     )
                     reports = analyze_spot_hex(
                         session_one,
                         p=p,
                         cell=cli.cells[0],
                         task=task,
-                        at_x=float(hx),
-                        at_y=float(hy),
+                        at_x=float(at_x),
+                        at_y=float(at_y),
                         node=args.node,
                         time_window=time_window,
                     )
@@ -2638,8 +2638,8 @@ def main() -> None:
                         html=args.html,
                     )
             else:
-                hx = cli.xs[0] if hex_mode else None
-                hy = cli.ys[0] if hex_mode else None
+                at_x = cli.xs[0] if hex_mode else None
+                at_y = cli.ys[0] if hex_mode else None
                 if task not in bar_meta_cache:
                     bar_meta_cache[task] = _bar_meta(session, task)
                 specs, grids = bar_meta_cache[task]
@@ -2652,7 +2652,7 @@ def main() -> None:
                 if hex_mode:
                     _log(
                         f"component forward {task} specs={specs_ordered} "
-                        f"hex=({hx},{hy}) (batched, no full forward) ..."
+                        f"hex=({at_x},{at_y}) (batched, no full forward) ..."
                     )
                     reports_by_spec = analyze_bar_hex(
                         session,
@@ -2660,8 +2660,8 @@ def main() -> None:
                         cell=cells_bar[0],
                         task=task,
                         spec_names=specs_ordered,
-                        at_x=float(hx),
-                        at_y=float(hy),
+                        at_x=float(at_x),
+                        at_y=float(at_y),
                         node=args.node,
                         time_window=time_window,
                         specs=specs,

@@ -233,7 +233,7 @@ def spot_extent_folds_r2_into_r1(spot_extent) -> bool:
     ``RecF(1)+RecF(2)`` and r=2 amplitude is 0. Drive
     (:func:`build_spot_a_sti_r_drive`) also omits Euclidean ``r > 1``
     PR contribs (``sqrt3``, ``2``) so those ``a_sti_r`` slots cannot
-    stimulate photoreceptors.
+    stimulate photoreceptors. Center r=0 remains baked at scale 1.
     """
     return spot_extent_half_steps(spot_extent) == 2
 
@@ -291,7 +291,7 @@ class Spot:
 
 @dataclass(frozen=True)
 class SpotBatch:
-    """One simultaneous spot stimulus: all ``stim_uv`` columns step in one batch."""
+    """One simultaneous spot stimulus: all ``stim_uv`` hexes step in one batch."""
 
     shift: Tuple[int, int]
     stim_uv: Tuple[Tuple[int, int], ...]
@@ -397,11 +397,12 @@ def build_spot_a_sti_r_drive(
     sim_dtype,
     device,
 ):
-    """Baseline ``i_sti`` + ring contribs for ``a_sti_r`` composition in forward.
+    """Baseline ``i_sti`` + center bake + ring contribs for ``a_sti_r``.
 
-    Returns ``(i_sti, sti_wave, sti_batch, sti_node, sti_r)`` where
-    ``i(r,t) = i_baseline + a_sti_r[r] * sti_wave[t]`` on contrib PR nodes.
-    ``sti_r`` indexes the full ``sti_radii`` / ``a_sti_r`` vector. When
+    Returns ``(i_sti, sti_wave, sti_batch, sti_node, sti_r)`` where center
+    r=0 is baked into ``i_sti`` at scale 1, and ring contribs compose as
+    ``i += a_sti_r[r] * sti_wave`` on ``(sti_batch, sti_node)``. ``sti_r``
+    indexes ``sti_radii`` / ``a_sti_r`` (no center slot). When
     ``spot_extent`` folds r2 into r1, Euclidean ``r > 1`` rings are omitted
     from contribs (params may remain). Does not modify gt construction.
     """
@@ -410,14 +411,19 @@ def build_spot_a_sti_r_drive(
     radii = tuple(round(float(r), 6) for r in sti_radii)
     if not radii:
         raise ValueError("sti_radii must be non-empty")
+    if any(r == 0.0 for r in radii):
+        raise ValueError("sti_radii must omit center r=0 (baked into i_sti @1)")
     omit_r_gt_1 = spot_extent_folds_r2_into_r1(spot_extent)
     by_radius = members_by_euclid_radius(radii)
     radius_to_i = {r: i for i, r in enumerate(radii)}
     batch_l: List[int] = []
     node_l: List[int] = []
     r_l: List[int] = []
+    center_nodes: List[Tuple[int, int]] = []
     for b, batch in enumerate(batches):
         for su, sv in batch.stim_uv:
+            for nid in C.input_nodes_at(int(su), int(sv)):
+                center_nodes.append((int(b), int(nid)))
             for radius_key, members in by_radius.items():
                 r_key = round(float(radius_key), 6)
                 if omit_r_gt_1 and r_key > 1.0:
@@ -437,6 +443,8 @@ def build_spot_a_sti_r_drive(
     sti_wave = torch.as_tensor(
         (float(i_peak) - float(i_baseline)) * u, dtype=sim_dtype, device=device,
     )
+    for b, nid in center_nodes:
+        i_sti[b, :, nid] = i_sti[b, :, nid] + sti_wave
     sti_batch = torch.tensor(batch_l, dtype=torch.long, device=device)
     sti_node = torch.tensor(node_l, dtype=torch.long, device=device)
     sti_r = torch.tensor(r_l, dtype=torch.long, device=device)

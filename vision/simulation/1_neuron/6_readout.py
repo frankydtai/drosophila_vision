@@ -42,9 +42,9 @@ def window_time_traces(trace_full, b_idx, u_idx, t0, win=None, *, t_onset=0):
     t_idx = t0[:, None].to(device=dev, dtype=torch.long) + k[None, :]
     t_max = trace_full.shape[1] - 1
     t_safe = t_idx.clamp(0, t_max)
-    sel = trace_full[b_idx[:, None], t_safe, u_idx[:, None]]
+    v_readout = trace_full[b_idx[:, None], t_safe, u_idx[:, None]]
     pre = t_idx < int(t_onset)
-    return torch.where(pre, torch.zeros_like(sel), sel)
+    return torch.where(pre, torch.zeros_like(v_readout), v_readout)
 
 
 def readout_pack_traces(trace_full, pack):
@@ -67,23 +67,23 @@ def pack_readout(p, pack, session, batch_idx=None):
     t0 = pack_t_onset(pack)
     win = int(pack.gt.shape[1])
     if batch_idx is None:
-        dsi_sel = trace_full[pack.readout_batch, t0:t0 + win, pack.readout_node]
+        v_readout_dsi = trace_full[pack.readout_batch, t0:t0 + win, pack.readout_node]
         if not need_mse:
-            return None, dsi_sel
-        return readout_pack_traces(trace_full, pack), dsi_sel
+            return None, v_readout_dsi
+        return readout_pack_traces(trace_full, pack), v_readout_dsi
     mask = pack.readout_batch == int(batch_idx)
     u_m = pack.readout_node[mask]
-    dsi_sel = trace_full[0, t0:t0 + win, u_m].transpose(0, 1)
+    v_readout_dsi = trace_full[0, t0:t0 + win, u_m].transpose(0, 1)
     if not need_mse:
-        return None, dsi_sel
+        return None, v_readout_dsi
     if pack.cost_t0 is None:
-        return dsi_sel, dsi_sel
+        return v_readout_dsi, v_readout_dsi
     b_zero = torch.zeros_like(u_m)
-    mse_sel = window_time_traces(
+    v_readout = window_time_traces(
         trace_full, b_zero, u_m, pack.cost_t0[mask],
         win=win, t_onset=t0,
     )
-    return mse_sel, dsi_sel
+    return v_readout, v_readout_dsi
 
 
 # Register pack readouts here -- batching stays in training cost.

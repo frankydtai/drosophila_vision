@@ -135,7 +135,7 @@ def col2sti(C: Network, u: int, v: int) -> np.ndarray:
     return C.input_nodes_at(int(u), int(v))
 
 
-def col2gt(
+def hex2gt(
     C: Network,
     u: int,
     v: int,

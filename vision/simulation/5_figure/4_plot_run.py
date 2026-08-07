@@ -54,10 +54,10 @@ def _network_spot_tag(session, tname):
     spot = spot_from_opts(session.backend.network, stimulus_opts=opts)
     n_spots = len(spot.centers)
     n_shifts = len(spot.shifts)
-    n_columns = network_hex_count(session.backend.network)
+    n_hexes = network_hex_count(session.backend.network)
     return (
         f'  [avg over {n_spots} spots x {n_shifts} shifts = {n_spots * n_shifts}]\n'
-        f'({n_columns} hexes in network)'
+        f'({n_hexes} hexes in network)'
     )
 
 

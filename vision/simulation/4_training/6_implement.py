@@ -68,6 +68,7 @@ from param_defaults import (
     SPOT_COST_RADIUS_WEIGHT,
     SPOT_COST_RADIUS_WEIGHT_EXTENT1,
     SPOT_EXTENT,
+    SPOT_STI_RADII,
     PRE_STEADY,
     PRE_STEADY_DAMP,
     PRE_STEADY_ITERS,
@@ -78,6 +79,7 @@ from task.spot.gt import (
     default_spot_cost_radius_weight,
     parse_spot_cost_r_w_tokens,
 )
+from neuron.schema import spot_radius_key
 from training import do_many_runs
 import training
 from training.config import (
@@ -1003,20 +1005,20 @@ def add_training_arguments(parser):
                         help=f"a_h_rev train_modes ({_train_mode_help}; "
                              f"default {_box_train_mode_default('a_h_rev')})")
     parser.add_argument("--i-h-shape", **_train_mode_kwargs,
-                        help="batch train_modes for h_v_mid/h_slope/tau_h_v and rev "
-                             f"({_train_mode_help}; default {_box_train_mode_default('h_v_mid')})")
-    parser.add_argument("--h-v-mid", **_train_mode_kwargs,
-                        help=f"h_v_mid train_modes (overrides --i-h-shape; {_train_mode_help})")
+                        help="batch train_modes for v_mid_h_g/h_slope/v_mid_h_tau and rev "
+                             f"({_train_mode_help}; default {_box_train_mode_default('v_mid_h_g')})")
+    parser.add_argument("--v-mid-h-g", **_train_mode_kwargs,
+                        help=f"v_mid_h_g train_modes (overrides --i-h-shape; {_train_mode_help})")
     parser.add_argument("--h-slope", **_train_mode_kwargs,
                         help=f"h_slope train_modes (overrides --i-h-shape; {_train_mode_help})")
-    parser.add_argument("--tau-h-v", **_train_mode_kwargs,
-                        help=f"tau_h_v train_modes (overrides --i-h-shape; {_train_mode_help})")
-    parser.add_argument("--h-v-mid-rev", **_train_mode_kwargs,
-                        help=f"h_v_mid_rev train_modes (overrides --i-h-shape; {_train_mode_help})")
+    parser.add_argument("--v-mid-h-tau", **_train_mode_kwargs,
+                        help=f"v_mid_h_tau train_modes (overrides --i-h-shape; {_train_mode_help})")
+    parser.add_argument("--v-mid-h-g-rev", **_train_mode_kwargs,
+                        help=f"v_mid_h_g_rev train_modes (overrides --i-h-shape; {_train_mode_help})")
     parser.add_argument("--h-slope-rev", **_train_mode_kwargs,
                         help=f"h_slope_rev train_modes (overrides --i-h-shape; {_train_mode_help})")
-    parser.add_argument("--tau-h-v-rev", **_train_mode_kwargs,
-                        help=f"tau_h_v_rev train_modes (overrides --i-h-shape; {_train_mode_help})")
+    parser.add_argument("--v-mid-h-tau-rev", **_train_mode_kwargs,
+                        help=f"v_mid_h_tau_rev train_modes (overrides --i-h-shape; {_train_mode_help})")
     parser.add_argument("--tau-lp", **_train_mode_kwargs,
                         help=f"hp_lp tau_lp train_modes ({_train_mode_help}; "
                              f"default {_box_train_mode_default('tau_lp')})")
@@ -1027,9 +1029,12 @@ def add_training_arguments(parser):
                         help=f"hp_lp tau_hp train_modes ({_train_mode_help}; "
                              f"default {_box_train_mode_default('tau_hp')})")
     parser.add_argument("--a-sti-r", **_train_mode_kwargs,
-                        help="spot a_sti_r train_modes "
-                             "(default: fixed=0 init=1, indi=1,sqrt3,2; "
-                             f"{_train_mode_help})")
+                        help=(
+                            "spot a_sti_r train_modes "
+                            f"(slots {','.join(spot_radius_key(r, aliases=SPOT_COST_RADIUS_KEY_ALIASES) for r in SPOT_STI_RADII)}; "
+                            f"default {_box_train_mode_default('a_sti_r')}; "
+                            f"{_train_mode_help})"
+                        ))
     parser.add_argument("--i-h-rev", default=I_H_REV,
                         choices=list(training.I_H_REV_MODES),
                         help="rev-channel i_h: on (train a_h_rev+rev shape), "
@@ -1551,12 +1556,12 @@ def _train_mode_cli_map(args):
         "v_th": _train_mode_cli_text(getattr(args, "v_th", None)),
         "a_h": _train_mode_cli_text(getattr(args, "a_h", None)),
         "a_h_rev": _train_mode_cli_text(getattr(args, "a_h_rev", None)),
-        "h_v_mid": _train_mode_cli_text(getattr(args, "h_v_mid", None)),
+        "v_mid_h_g": _train_mode_cli_text(getattr(args, "v_mid_h_g", None)),
         "h_slope": _train_mode_cli_text(getattr(args, "h_slope", None)),
-        "tau_h_v": _train_mode_cli_text(getattr(args, "tau_h_v", None)),
-        "h_v_mid_rev": _train_mode_cli_text(getattr(args, "h_v_mid_rev", None)),
+        "v_mid_h_tau": _train_mode_cli_text(getattr(args, "v_mid_h_tau", None)),
+        "v_mid_h_g_rev": _train_mode_cli_text(getattr(args, "v_mid_h_g_rev", None)),
         "h_slope_rev": _train_mode_cli_text(getattr(args, "h_slope_rev", None)),
-        "tau_h_v_rev": _train_mode_cli_text(getattr(args, "tau_h_v_rev", None)),
+        "v_mid_h_tau_rev": _train_mode_cli_text(getattr(args, "v_mid_h_tau_rev", None)),
         "tau_lp": _train_mode_cli_text(getattr(args, "tau_lp", None)),
         "e_leak": _train_mode_cli_text(getattr(args, "e_leak", None)),
         "tau_hp": _train_mode_cli_text(getattr(args, "tau_hp", None)),

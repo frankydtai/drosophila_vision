@@ -58,7 +58,8 @@ from param_defaults import (
     SHIFT_EXTENT,
     SPOT_COST_RADIUS_WEIGHT,
     SPOT_COST_RADIUS_WEIGHT_EXTENT1,
-    SPOT_STI_R_NAMES,
+    SPOT_COST_RADIUS_KEY_ALIASES,
+    SPOT_STI_RADII,
     SPOT_EXTENT,
     STATE_CLAMP,
     H_CELLS,
@@ -198,16 +199,16 @@ def _extend_pack_mirror_fit_network(pack, mirror_types, mirror_fit, mirror_sign,
     )
     col_u_all = C.u.detach().cpu().numpy() if hasattr(C.u, "detach") else np.asarray(C.u)
     col_v_all = C.v.detach().cpu().numpy() if hasattr(C.v, "detach") else np.asarray(C.v)
-    extra_b, extra_u, extra_rows, extra_w, extra_r, extra_pd_nd = [], [], [], [], [], []
-    for row_i in range(len(u_arr)):
-        u = int(u_arr[row_i])
+    extra_b, extra_u, extra_entries, extra_w, extra_r, extra_pd_nd = [], [], [], [], [], []
+    for entry_i in range(len(u_arr)):
+        u = int(u_arr[entry_i])
         if str(names[u]) != mirror_fit:
             continue
-        b = int(b_arr[row_i])
+        b = int(b_arr[entry_i])
         col_u, col_v = int(col_u_all[u]), int(col_v_all[u])
-        mirror_readout = float(mirror_sign) * pack.gt[row_i:row_i + 1]
-        w = float(w_arr[row_i])
-        r = float(r_arr[row_i]) if r_arr is not None else None
+        mirror_readout = float(mirror_sign) * pack.gt[entry_i:entry_i + 1]
+        w = float(w_arr[entry_i])
+        r = float(r_arr[entry_i]) if r_arr is not None else None
         for mtype in mirror_types:
             candidates = np.where(
                 (col_u_all == col_u)
@@ -217,26 +218,26 @@ def _extend_pack_mirror_fit_network(pack, mirror_types, mirror_fit, mirror_sign,
             for uidx in candidates:
                 extra_b.append(b)
                 extra_u.append(int(uidx))
-                extra_rows.append(mirror_readout)
+                extra_entries.append(mirror_readout)
                 extra_w.append(w)
                 if r is not None:
                     extra_r.append(r)
                 if pack.cost_pd_nd is not None:
-                    extra_pd_nd.append(int(pack.cost_pd_nd[row_i].item()))
-    return _append_mirror_pack_rows(
-        pack, extra_u, extra_rows,
+                    extra_pd_nd.append(int(pack.cost_pd_nd[entry_i].item()))
+    return _append_mirror_pack_entries(
+        pack, extra_u, extra_entries,
         readout_batch=extra_b, cost_weight=extra_w,
         cost_radius=extra_r if extra_r else None,
         cost_pd_nd=extra_pd_nd if extra_pd_nd else None,
     )
 
 
-def _append_mirror_pack_rows(
-    pack, extra_nodes, extra_rows, readout_batch=None, cost_weight=None, cost_radius=None,
+def _append_mirror_pack_entries(
+    pack, extra_nodes, extra_entries, readout_batch=None, cost_weight=None, cost_radius=None,
     cost_pd_nd=None,
 ):
     extra_nodes_t = torch.tensor(extra_nodes, dtype=torch.long, device=active_device())
-    extra_gt_t = torch.cat(extra_rows, dim=0)
+    extra_gt_t = torch.cat(extra_entries, dim=0)
     n_all = int(pack.readout_node.shape[0]) + len(extra_nodes)
     n_extra = len(extra_nodes)
     if readout_batch is None:
@@ -282,8 +283,8 @@ def _append_mirror_pack_rows(
         cost_radius=cost_radius_out,
         cost_extent=pack.cost_extent,
         cost_pd_nd=cost_pd_nd_out,
-        dsi_pos_rows=pack.dsi_pos_rows,
-        dsi_neg_rows=pack.dsi_neg_rows,
+        dsi_pos_entries=pack.dsi_pos_entries,
+        dsi_neg_entries=pack.dsi_neg_entries,
         dsi_pos_ptr=pack.dsi_pos_ptr,
         dsi_neg_ptr=pack.dsi_neg_ptr,
         dsi_gt=pack.dsi_gt,
@@ -360,7 +361,7 @@ def load_network_backend(
     print(f"  n_nodes={backend.n_nodes}, n_cells={backend.n_cells}, "
           f"n_pairs={backend.conn.n_pairs}, n_edges={backend.conn.n_edges}, "
           f"syn_mode={mode}, "
-          f"nparams={schema_nparams(default_schema('borst', backend, syn_mode=mode, param_boxes=param_boxes, h_cells=h_cells, sti_r_names=SPOT_STI_R_NAMES))}")
+          f"nparams={schema_nparams(default_schema('borst', backend, syn_mode=mode, param_boxes=param_boxes, h_cells=h_cells, sti_radii=SPOT_STI_RADII, radius_key_aliases=SPOT_COST_RADIUS_KEY_ALIASES))}")
     return backend
 
 
@@ -459,8 +460,8 @@ def _build_network_moving_bar_readout(ctx: _TrainBindCtx, C, *, pack_name: str, 
         cost_t0=T.cost_t0,
         cost_extent=cost_extent,
         cost_pd_nd=T.cost_pd_nd,
-        dsi_pos_rows=T.dsi_pos_rows,
-        dsi_neg_rows=T.dsi_neg_rows,
+        dsi_pos_entries=T.dsi_pos_entries,
+        dsi_neg_entries=T.dsi_neg_entries,
         dsi_pos_ptr=T.dsi_pos_ptr,
         dsi_neg_ptr=T.dsi_neg_ptr,
         dsi_gt=T.dsi_gt,
@@ -561,7 +562,7 @@ def _build_network_spot_task(
         weights=SPOT_COST_RADIUS_WEIGHT,
         weights_extent1=SPOT_COST_RADIUS_WEIGHT_EXTENT1,
     )
-    from param_defaults import SPOT_COST_RADII, SPOT_COST_RADIUS_KEY_ALIASES
+    from param_defaults import SPOT_COST_RADII
     T = build_spot_gt(
         C,
         spot_extent=spot_extent,
@@ -592,14 +593,14 @@ def _build_network_spot_task(
     stim = dict(opts)
     if "present_gts" in T.info:
         stim["gt_cells"] = list(T.info["present_gts"])
-    # Replace center-only bake from build_spot_gt with baseline + a_sti_r rings.
+    # Replace center-only bake from build_spot_gt: center @1 in i_sti + a_sti_r rings.
     i_baseline = float(opts[_SPOT_BASELINE_KEY])
     spot = spot_from_opts(C, stimulus_opts=opts)
     batches = spot_stimulus_batches(spot)
     i_sti, sti_wave, sti_batch, sti_node, sti_r = build_spot_a_sti_r_drive(
         C,
         batches,
-        sti_radii=SPOT_COST_RADII,
+        sti_radii=SPOT_STI_RADII,
         spot_extent=spot_extent,
         t_onset=int(t_onset),
         n_t=int(n_t),
@@ -620,8 +621,8 @@ def _build_network_spot_task(
         readout_node=T.readout_node,
         cost_t0=None,
         cost_radius=T.cost_radius,
-        readout_stim_u=T.readout_stim_u,
-        readout_stim_v=T.readout_stim_v,
+        cost_stim_u=T.cost_stim_u,
+        cost_stim_v=T.cost_stim_v,
         cost_extent=cost_extent,
         cost_time_ix=cost_time_ix,
         waveform_mse=True,
@@ -1076,7 +1077,8 @@ def _schema_from_opts(model, model_backend, schema, train_opts_record, *, i_h_re
         syn_mode=syn_mode,
         param_boxes=PARAM_BOXES,
         h_cells=H_CELLS,
-        sti_r_names=SPOT_STI_R_NAMES,
+        sti_radii=SPOT_STI_RADII,
+        radius_key_aliases=SPOT_COST_RADIUS_KEY_ALIASES,
     )
     if model == "borst":
         kw["i_h_rev"] = str(i_h_rev if i_h_rev is not None else I_H_REV)

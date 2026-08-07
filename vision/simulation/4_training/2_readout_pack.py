@@ -72,12 +72,12 @@ class ReadoutPack:
     readout_node: torch.Tensor  # (n_cost,)
     cost_t0: Optional[torch.Tensor] = None  # (n_cost,) absolute step for windowed readouts
     cost_radius: Optional[torch.Tensor] = None  # (n_cost,) Euclidean radius for network spot
-    readout_stim_u: Optional[torch.Tensor] = None  # (n_cost,) stim anchor u per spot cost row
-    readout_stim_v: Optional[torch.Tensor] = None  # (n_cost,) stim anchor v per spot cost row
+    cost_stim_u: Optional[torch.Tensor] = None  # (n_cost,) stim anchor u per spot cost entry
+    cost_stim_v: Optional[torch.Tensor] = None  # (n_cost,) stim anchor v per spot cost entry
     cost_extent: Optional[int] = None  # network hex-disc radius for cost readouts
     cost_pd_nd: Optional[torch.Tensor] = None  # (n_cost,) long; 0=PD, 1=ND (moving_bar)
-    dsi_pos_rows: Optional[torch.Tensor] = None  # flat cost-row idx (right|up)
-    dsi_neg_rows: Optional[torch.Tensor] = None  # flat cost-row idx (left|down)
+    dsi_pos_entries: Optional[torch.Tensor] = None  # flat cost-entry idx (right|up)
+    dsi_neg_entries: Optional[torch.Tensor] = None  # flat cost-entry idx (left|down)
     dsi_pos_ptr: Optional[torch.Tensor] = None  # (n_dsi+1,) CSR
     dsi_neg_ptr: Optional[torch.Tensor] = None  # (n_dsi+1,) CSR
     dsi_gt: Optional[torch.Tensor] = None  # (n_dsi,)

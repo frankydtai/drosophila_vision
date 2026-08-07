@@ -99,14 +99,14 @@ def main(argv: list[str] | None = None) -> int:
         type=float,
         default=None,
         metavar="X",
-        help="hex-step x (FAFB); with --y selects one column, alone a line",
+        help="hex-step x (FAFB); with --y selects one hex, alone a line",
     )
     ap.add_argument(
         "--y",
         type=float,
         default=None,
         metavar="Y",
-        help="hex-step y (FAFB); with --x selects one column, alone a line",
+        help="hex-step y (FAFB); with --x selects one hex, alone a line",
     )
     args = ap.parse_args(argv)
 
