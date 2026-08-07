@@ -39,7 +39,8 @@ def build_i_h_dir(conn, i_h_reverse_cells=I_H_DIR_REVERSE_CELLS, *, dtype=SIM_DT
 #   name, kind, count, lo/hi/init/jit[, scale]
 #   scale: ``linear`` (default), ``log`` (z = log(physical)), or ``inv`` (z = 1/physical); lo/hi/init physical
 #   indi / shared / fixed / frozen : disjoint exhaustive lists of node indices
-#       fixed: not in z; value = effective_init(seg, u)  (init_override or init)
+#       fixed: not in z; value = effective_init(seg, u)  (init_override or init);
+#              --init-from seeds fixed via seed_fixed_from_named → init_override
 #       frozen: not in z; values from seg['carry'] (resume) or effective_init (cold)
 # z packing per segment: len(indi) slots + (1 if shared else 0).
 TRAIN_MODES = ('indi', 'shared', 'fixed', 'frozen')
@@ -385,6 +386,26 @@ def _mode_indi_subset_fixed_rest(n, indi_idx):
         'fixed': [i for i in range(n) if i not in indi_set],
         'frozen': [],
     }
+
+
+def seed_fixed_from_named(schema, named):
+    """Stamp *named* values into ``init_override`` for fixed nodes (not in z)."""
+    out = []
+    for seg in schema:
+        s = dict(seg)
+        fixed = list(seg.get('fixed') or [])
+        if not fixed or seg['name'] not in named:
+            out.append(s)
+            continue
+        arr = np.asarray(named[seg['name']], dtype=np.float64).reshape(-1)
+        io = dict(seg.get('init_override') or {})
+        for u in fixed:
+            iu = int(u)
+            if 0 <= iu < arr.shape[0]:
+                io[iu] = float(arr[iu])
+        s['init_override'] = io
+        out.append(s)
+    return out
 
 
 def attach_param_carry(schema, named=None):

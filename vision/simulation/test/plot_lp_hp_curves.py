@@ -6,7 +6,7 @@ Uses ``neuron.model_hp_lp.update_state_hp_lp`` (same Euler as training):
     v_hp = v_drive − a_slow v_slow
     τ_lp dv/dt = −(v − v_rest) + v_hp
 
-with v_drive = v_sti (v_in = 0; no v_rest in HP path), v_sti = i_sti / g_in.
+with v_drive = v_sti (v_in = 0; no v_rest in HP path), v_sti = i_sti / g_leak.
 Time indexing matches ``neuron.forward.forward_full``: v[0] from init;
 v[t] uses i_sti[t-1].
 
@@ -43,7 +43,7 @@ from figure.util import save_figure
 from import_bootstrap import parse_comma_list
 from neuron.model_hp_lp import update_state_hp_lp
 from neuron.params import expand_euler
-from param_defaults import EULER, G_IN, STATE_CLAMP
+from param_defaults import EULER, G_LEAK, STATE_CLAMP
 
 DEFAULT_SAVE = os.path.join(HERE, "lp_hp_curves.png")
 DEFAULT_A_SLOW = 1.0
@@ -94,23 +94,23 @@ def simulate_hp_lp(
     v_rest: float,
     a_slow: float,
     delta_ms: float,
-    g_in: float,
+    g_leak: float,
     state_clamp: float,
     euler: str,
 ) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
     """Return (v, v_slow, v_hp); time index matches ``forward_full``."""
     euler = expand_euler(euler)
-    g_in = float(g_in)
-    if g_in == 0.0:
-        raise ValueError("g_in must be non-zero")
+    g_leak = float(g_leak)
+    if g_leak == 0.0:
+        raise ValueError("g_leak must be non-zero")
     x = np.asarray(v_sti, dtype=np.float64)
-    i_sti = torch.as_tensor(x * g_in, dtype=torch.float32)
+    i_sti = torch.as_tensor(x * g_leak, dtype=torch.float32)
     t_end = int(i_sti.numel())
     p = _p_tensors(
         v_rest=v_rest, tau_lp_ms=tau_lp_ms, tau_hp_ms=tau_hp_ms, a_slow=a_slow,
     )
     # pre_steady: v_slow0 = v_drive0, v0 = v_rest + v_drive0 − a_slow v_slow0
-    v_drive0 = i_sti[0] / g_in
+    v_drive0 = i_sti[0] / g_leak
     v_slow = v_drive0.view(1, 1).clone()
     v = (p["v_rest"] + v_drive0 - p["a_slow"] * v_slow.view(-1)).view(1, 1).clone()
     v_out = np.empty(t_end, dtype=np.float64)
@@ -122,7 +122,7 @@ def simulate_hp_lp(
     for t in range(1, t_end):
         v, v_slow, comp = update_state_hp_lp(
             v, v_slow, p, i_sti[t - 1].view(1, 1), _BACKEND,
-            delta_ms=delta_ms, state_clamp=state_clamp, g_in=g_in, euler=euler,
+            delta_ms=delta_ms, state_clamp=state_clamp, g_leak=g_leak, euler=euler,
             return_component=True,
         )
         v_out[t] = float(v.item())
@@ -157,7 +157,7 @@ def _fill_column(
     tau_lp_ms: float,
     tau_hp_ms: float,
     dt_ms: float,
-    g_in: float,
+    g_leak: float,
     state_clamp: float,
     euler: str,
     a_slow_list: list[float],
@@ -175,7 +175,7 @@ def _fill_column(
     v_sti = make_pulse(t_ms, t_on_ms=t_on_ms, ms_pulse=ms_pulse, s0=s0)
     sim_kw = dict(
         v_rest=v_rest, a_slow=a_slow, delta_ms=dt_ms,
-        g_in=g_in, state_clamp=state_clamp, euler=euler,
+        g_leak=g_leak, state_clamp=state_clamp, euler=euler,
     )
 
     v_lp, _, _ = simulate_hp_lp(
@@ -201,7 +201,7 @@ def _fill_column(
         _, _, v_hp = simulate_hp_lp(
             v_sti, tau_lp_ms=tau_lp_ms, tau_hp_ms=tau_hp_ms,
             v_rest=v_rest, a_slow=a, delta_ms=dt_ms,
-            g_in=g_in, state_clamp=state_clamp, euler=euler,
+            g_leak=g_leak, state_clamp=state_clamp, euler=euler,
         )
         ax1.plot(
             t_s, v_hp, color=color, lw=1.5,
@@ -224,7 +224,7 @@ def _fill_column(
         v, _, _ = simulate_hp_lp(
             v_sti, tau_lp_ms=tau_lp_ms, tau_hp_ms=tau_hp_ms,
             v_rest=v_rest, a_slow=a, delta_ms=dt_ms,
-            g_in=g_in, state_clamp=state_clamp, euler=euler,
+            g_leak=g_leak, state_clamp=state_clamp, euler=euler,
         )
         ax3.plot(t_s, v, color=color, lw=1.6, label=rf"$a_{{\mathrm{{slow}}}}$={a:g}")
     ax3.set_title(
@@ -300,7 +300,7 @@ def plot_lp_hp(
     a_slow: float = DEFAULT_A_SLOW,
     tau_lp_ms: float = 50.0,
     tau_hp_ms: float = 200.0,
-    g_in: float = float(G_IN),
+    g_leak: float = float(G_LEAK),
     state_clamp: float = float(STATE_CLAMP),
     euler: str = EULER,
     a_slow_list: list[float] | None = None,
@@ -344,7 +344,7 @@ def plot_lp_hp(
         tau_lp_ms=tau_lp_ms,
         tau_hp_ms=tau_hp_ms,
         dt_ms=dt_ms,
-        g_in=g_in,
+        g_leak=g_leak,
         state_clamp=state_clamp,
         euler=euler,
         a_slow_list=a_slow_list,
@@ -409,7 +409,7 @@ def parse_args(argv=None):
     p.add_argument("--a-slow", type=float, default=DEFAULT_A_SLOW, help="baseline a_slow")
     p.add_argument("--tau-lp", type=float, default=50.0, help="baseline membrane tau_lp [ms]")
     p.add_argument("--tau-hp", type=float, default=200.0, help="baseline tau_hp [ms]")
-    p.add_argument("--g-in", type=float, default=float(G_IN))
+    p.add_argument("--g-leak", type=float, default=float(G_LEAK))
     p.add_argument("--euler", default=EULER, choices=("im", "ex", "implicit", "explicit"))
     p.add_argument("--a-slow-list", type=str, default=DEFAULT_A_SLOW_LIST, help="comma-separated a_slow sweep (row v)")
     p.add_argument(
@@ -430,7 +430,7 @@ def main(argv=None):
         ("--ms-pulse", args.ms_pulse),
         ("--tau-lp", args.tau_lp),
         ("--tau-hp", args.tau_hp),
-        ("--g-in", args.g_in),
+        ("--g-leak", args.g_leak),
     ):
         if val <= 0:
             raise ValueError(f"{name} must be > 0")
@@ -471,7 +471,7 @@ def main(argv=None):
         a_slow=args.a_slow,
         tau_lp_ms=args.tau_lp,
         tau_hp_ms=args.tau_hp,
-        g_in=args.g_in,
+        g_leak=args.g_leak,
         euler=args.euler,
         a_slow_list=a_slow_list,
         hp_a_slow_list=hp_a_slow_list,

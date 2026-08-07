@@ -599,7 +599,12 @@ def load_stored_costs(outdir):
 
 
 def load_init_z(init_from, session):
-    """Load named best params + Adam moments; return ``(session, z, opt_init)``."""
+    """Load named best params + Adam moments; return ``(session, z, opt_init)``.
+
+    Trainable slots come from *z*; fixed nodes are seeded via ``init_override``
+    (still not in z); frozen nodes use ``carry``.
+    """
+    from dataclasses import replace
     try:
         outdir = resolve_run_dir(init_from)
     except SystemExit as exc:
@@ -610,8 +615,13 @@ def load_init_z(init_from, session):
     remapped = training.remap_named_node_values(
         named, cell_names, pair_names, schema, session.backend,
     )
+    schema = training.seed_fixed_from_named(schema, remapped)
     schema = training.attach_param_carry(schema, remapped)
-    session = session.with_schema(schema)
+    opts = dict(session.train_opts or {})
+    opts['train_modes'] = training.schema_train_modes_record(
+        schema, lambda seg: training.node_names_for_segment(seg, session.backend),
+    )
+    session = replace(session, schema=tuple(schema), train_opts=opts)
     z = training.node_values_to_z(
         remapped, schema, dtype=session.sim_dtype, device=session.device,
     )
@@ -1005,7 +1015,7 @@ def add_training_arguments(parser):
                         help=f"a_h_rev train_modes ({_train_mode_help}; "
                              f"default {_box_train_mode_default('a_h_rev')})")
     parser.add_argument("--i-h-shape", **_train_mode_kwargs,
-                        help="batch train_modes for v_mid_h_g/h_slope/v_mid_h_tau and rev "
+                        help="batch train_modes for v_mid_h_g/v_mid_h_tau/h_slope and rev "
                              f"({_train_mode_help}; default {_box_train_mode_default('v_mid_h_g')})")
     parser.add_argument("--v-mid-h-g", **_train_mode_kwargs,
                         help=f"v_mid_h_g train_modes (overrides --i-h-shape; {_train_mode_help})")
@@ -1546,25 +1556,26 @@ def _train_mode_cli_map(args):
     if shape_text is not None:
         for name in training.I_H_SHAPE_PARAM_NAMES:
             texts[name] = shape_text
+    # Keys follow PARAM_BOXES / ALL_PARAM_NAMES order.
     per_param = {
-        "a_in": _train_mode_cli_text(getattr(args, "a_in", None)),
-        "a_out": _train_mode_cli_text(getattr(args, "a_out", None)),
         "a_gt": _train_mode_cli_text(getattr(args, "a_gt", None)),
         "bias_gt": _train_mode_cli_text(getattr(args, "bias_gt", None)),
         "syn_strength_cell": syn_cell_text,
         "syn_strength_edge": syn_edge_text,
-        "v_th": _train_mode_cli_text(getattr(args, "v_th", None)),
-        "a_h": _train_mode_cli_text(getattr(args, "a_h", None)),
-        "a_h_rev": _train_mode_cli_text(getattr(args, "a_h_rev", None)),
-        "v_mid_h_g": _train_mode_cli_text(getattr(args, "v_mid_h_g", None)),
-        "h_slope": _train_mode_cli_text(getattr(args, "h_slope", None)),
-        "v_mid_h_tau": _train_mode_cli_text(getattr(args, "v_mid_h_tau", None)),
-        "v_mid_h_g_rev": _train_mode_cli_text(getattr(args, "v_mid_h_g_rev", None)),
-        "h_slope_rev": _train_mode_cli_text(getattr(args, "h_slope_rev", None)),
-        "v_mid_h_tau_rev": _train_mode_cli_text(getattr(args, "v_mid_h_tau_rev", None)),
-        "tau_lp": _train_mode_cli_text(getattr(args, "tau_lp", None)),
+        "a_in": _train_mode_cli_text(getattr(args, "a_in", None)),
+        "a_out": _train_mode_cli_text(getattr(args, "a_out", None)),
         "e_leak": _train_mode_cli_text(getattr(args, "e_leak", None)),
+        "v_th": _train_mode_cli_text(getattr(args, "v_th", None)),
+        "tau_lp": _train_mode_cli_text(getattr(args, "tau_lp", None)),
         "tau_hp": _train_mode_cli_text(getattr(args, "tau_hp", None)),
+        "a_h": _train_mode_cli_text(getattr(args, "a_h", None)),
+        "v_mid_h_g": _train_mode_cli_text(getattr(args, "v_mid_h_g", None)),
+        "v_mid_h_tau": _train_mode_cli_text(getattr(args, "v_mid_h_tau", None)),
+        "h_slope": _train_mode_cli_text(getattr(args, "h_slope", None)),
+        "a_h_rev": _train_mode_cli_text(getattr(args, "a_h_rev", None)),
+        "v_mid_h_g_rev": _train_mode_cli_text(getattr(args, "v_mid_h_g_rev", None)),
+        "v_mid_h_tau_rev": _train_mode_cli_text(getattr(args, "v_mid_h_tau_rev", None)),
+        "h_slope_rev": _train_mode_cli_text(getattr(args, "h_slope_rev", None)),
         "a_sti_r": _train_mode_cli_text(getattr(args, "a_sti_r", None)),
     }
     for name, text in per_param.items():

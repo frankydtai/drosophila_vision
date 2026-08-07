@@ -138,7 +138,6 @@ class TrainSession:
     delta_ms_pre: float
     cap: float
     g_leak: float
-    g_in: float
     e_exc: float
     e_inh: float
     e_h: float

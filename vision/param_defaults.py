@@ -15,9 +15,9 @@ import math
 from typing import Dict, Tuple
 
 DEFAULT_RUN_NAME = """
-28857316-run-nofsteps-300-a-slow-init.L1,L2-0.6-v-th-init.R1-6,R7,R8-0-task-spot_bright
+28898905-run-nofsteps-500-a-h-init.L1,L2,L4,L5-0.5-e-leak-init.L1,L2--20-task-spot_bright-model-borst
 """.strip()
-DEFAULT_RUN_PATH = "hp_lp/" + DEFAULT_RUN_NAME
+DEFAULT_RUN_PATH = "borst/" + DEFAULT_RUN_NAME
 
 # ---------------------------------------------------------------------------
 # 1.1 neuron.params (flat; no Physics bag)
@@ -26,8 +26,7 @@ DEFAULT_RUN_PATH = "hp_lp/" + DEFAULT_RUN_NAME
 DELTA_MS = 1.0
 DELTA_MS_PRE = 1.0  # pre-onset (t < t_onset) step; post-onset uses DELTA_MS
 CAP = 40.0
-G_LEAK = 1.0
-G_IN = 1.0  # nS; hp_lp converts i_sti (pA) → mV via i_sti / g_in
+G_LEAK = 1.0  # nS; borst leak conductance; hp_lp converts i_sti (pA) → mV via i_sti / g_leak
 E_EXC = 10.0
 E_INH = -70.0
 E_H = 50.0
@@ -55,9 +54,9 @@ PARAM_BOXES: Dict[str, dict] = {
     "syn_strength_edge": dict(lo=GAIN_LO, hi=GAIN_HI, init=1.0, jit=0.1, train_mode="indi"),
     "a_in": dict(lo=0.01, hi=100, init=1.0, jit=0.1, train_mode="shared"),
     "a_out": dict(lo=GAIN_LO, hi=GAIN_HI, init=1.0, jit=0.1, train_mode="indi"),
-    "e_leak": dict(lo=-100.0, hi=100.0, init=-50.0, jit=1.0, train_mode="fixed"),
+    "e_leak": dict(lo=-50.0, hi=50.0, init=-50.0, jit=1.0, train_mode="fixed"),
     "v_th": dict(lo=-100.0, hi=-100.0, init=-50.0, jit=0.0, train_mode="fixed"),
-    "tau_lp": dict(lo=10.0, hi=100.0, init=40.0, jit=2.0, train_mode="fixed"),
+    "tau_lp": dict(lo=10.0, hi=100.0, init=10.0, jit=2.0, train_mode="fixed"),
     "tau_hp": dict(lo=100.0, hi=500.0, init=200.0, jit=20.0, train_mode="shared"),
     "a_h": dict(lo=0.0, hi=1.0, init=0, jit=0.1, train_mode="indi_named"),
     "v_mid_h_g": dict(lo=-70.0, hi=-30.0, init=-50.0, jit=5.0, train_mode="shared"),
@@ -167,7 +166,7 @@ NOFRUNS = 1
 NOFSTEPS_CPU = 0
 NOFSTEPS_GPU = 200
 LRS = "0.1"
-CHECKPOINT_INTERVAL = 500
+CHECKPOINT_INTERVAL = 1000
 
 # ---------------------------------------------------------------------------
 # 4.5 training.session

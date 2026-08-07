@@ -16,18 +16,30 @@ from neuron.params import (
 SYN_MODES = ("per_cell", "per_edge")
 TRAIN_MODE_KEYS = ("indi", "shared", "fixed", "frozen")
 
+# Mirror ``param_defaults.PARAM_BOXES`` insertion order (injected; no import).
 ALL_PARAM_NAMES = (
-    "a_in", "a_out", "a_gt", "bias_gt",
-    "syn_strength_cell", "syn_strength_edge", "v_th",
-    "a_h", "a_h_rev",
-    "v_mid_h_g", "h_slope", "v_mid_h_tau",
-    "v_mid_h_g_rev", "h_slope_rev", "v_mid_h_tau_rev",
-    "tau_lp", "e_leak", "tau_hp", "a_sti_r",
+    "a_gt", "bias_gt",
+    "syn_strength_cell", "syn_strength_edge",
+    "a_in", "a_out", "e_leak", "v_th",
+    "tau_lp", "tau_hp",
+    "a_h", "v_mid_h_g", "v_mid_h_tau", "h_slope",
+    "a_h_rev", "v_mid_h_g_rev", "v_mid_h_tau_rev", "h_slope_rev",
+    "a_sti_r",
 )
 I_H_SHAPE_PARAM_NAMES = (
-    "v_mid_h_g", "h_slope", "v_mid_h_tau",
-    "v_mid_h_g_rev", "h_slope_rev", "v_mid_h_tau_rev",
+    "v_mid_h_g", "v_mid_h_tau", "h_slope",
+    "v_mid_h_g_rev", "v_mid_h_tau_rev", "h_slope_rev",
 )
+_HP_LP_ONLY = frozenset({"tau_lp", "tau_hp"})
+_BORST_ONLY = frozenset({
+    "v_mid_h_g", "v_mid_h_tau", "h_slope",
+    "a_h_rev", "v_mid_h_g_rev", "v_mid_h_tau_rev", "h_slope_rev",
+})
+_I_H_REV_ONLY = frozenset({
+    "a_h_rev", "v_mid_h_g_rev", "v_mid_h_tau_rev", "h_slope_rev",
+})
+_OUTPUT_KIND = frozenset({"a_gt", "bias_gt"})
+_NAMED_H = frozenset({"a_h", "a_h_rev"})
 
 
 def normalize_syn_mode(syn_mode: str) -> str:
@@ -164,6 +176,49 @@ def _a_sti_r_segment(param_boxes: dict, sti_radii, radius_key_aliases):
     return seg
 
 
+def _segments_from_boxes(
+    param_boxes,
+    *,
+    skip,
+    n_cells,
+    cell_names,
+    syn_mode,
+    n_pairs,
+    n_edges,
+    h_cells,
+    sti_radii,
+    radius_key_aliases,
+):
+    """Build segments in ``param_boxes`` insertion order; ``skip`` omits unused names."""
+    name_to_i = {str(n): i for i, n in enumerate(cell_names)}
+    named_kw = dict(name_to_i=name_to_i, indi_names=h_cells)
+    active_syn = (
+        "syn_strength_edge"
+        if normalize_syn_mode(syn_mode) == "per_edge"
+        else "syn_strength_cell"
+    )
+    segs = []
+    for name in param_boxes:
+        if name in skip:
+            continue
+        if name in ("syn_strength_cell", "syn_strength_edge"):
+            if name != active_syn:
+                continue
+            segs.append(_syn_segment(syn_mode, n_pairs, n_edges, param_boxes))
+            continue
+        if name == "a_sti_r":
+            segs.append(
+                _a_sti_r_segment(param_boxes, sti_radii, radius_key_aliases or {})
+            )
+            continue
+        kind = "output" if name in _OUTPUT_KIND else "full"
+        kw = named_kw if name in _NAMED_H else {}
+        segs.append(
+            _seg(name, n_cells, kind, param_boxes[name], n_cells, **kw)
+        )
+    return segs
+
+
 def build_borst_schema(
     n_cells,
     cell_names=None,
@@ -177,42 +232,26 @@ def build_borst_schema(
     sti_radii=(),
     radius_key_aliases=None,
 ):
-    """Borst schema; rev i_h segments only when ``i_h_rev == 'on'``."""
+    """Borst schema in PARAM_BOXES order; rev i_h only when ``i_h_rev == 'on'``."""
     if i_h_rev not in I_H_REV_MODES:
         raise ValueError(f"i_h_rev {i_h_rev!r} not in {I_H_REV_MODES}")
     if cell_names is None:
         raise TypeError("borst schema requires cell_names from network")
-    cell_names = list(cell_names)
-    name_to_i = {str(n): i for i, n in enumerate(cell_names)}
-    D = param_boxes
-    named_kw = dict(name_to_i=name_to_i, indi_names=h_cells)
-    segs = [
-        _seg("a_in", n_cells, "full", D["a_in"], n_cells),
-        _seg("a_out", n_cells, "full", D["a_out"], n_cells),
-        _syn_segment(syn_mode, n_pairs, n_edges, D),
-        _seg("v_th", n_cells, "full", D["v_th"], n_cells),
-        _seg("e_leak", n_cells, "full", D["e_leak"], n_cells),
-        _seg("a_gt", n_cells, "output", D["a_gt"], n_cells),
-        _seg("bias_gt", n_cells, "output", D["bias_gt"], n_cells),
-        _seg("a_h", n_cells, "full", D["a_h"], n_cells, **named_kw),
-    ]
-    if i_h_rev == "on":
-        segs.append(
-            _seg("a_h_rev", n_cells, "full", D["a_h_rev"], n_cells, **named_kw),
-        )
-    segs.extend([
-        _seg("v_mid_h_g", n_cells, "full", D["v_mid_h_g"], n_cells),
-        _seg("h_slope", n_cells, "full", D["h_slope"], n_cells),
-        _seg("v_mid_h_tau", n_cells, "full", D["v_mid_h_tau"], n_cells),
-    ])
-    if i_h_rev == "on":
-        segs.extend([
-            _seg("v_mid_h_g_rev", n_cells, "full", D["v_mid_h_g_rev"], n_cells),
-            _seg("h_slope_rev", n_cells, "full", D["h_slope_rev"], n_cells),
-            _seg("v_mid_h_tau_rev", n_cells, "full", D["v_mid_h_tau_rev"], n_cells),
-        ])
-    segs.append(_a_sti_r_segment(D, sti_radii, radius_key_aliases or {}))
-    return segs
+    skip = set(_HP_LP_ONLY)
+    if i_h_rev != "on":
+        skip |= _I_H_REV_ONLY
+    return _segments_from_boxes(
+        param_boxes,
+        skip=skip,
+        n_cells=n_cells,
+        cell_names=list(cell_names),
+        syn_mode=syn_mode,
+        n_pairs=n_pairs,
+        n_edges=n_edges,
+        h_cells=h_cells,
+        sti_radii=sti_radii,
+        radius_key_aliases=radius_key_aliases,
+    )
 
 
 def build_hp_lp_schema(
@@ -227,26 +266,21 @@ def build_hp_lp_schema(
     sti_radii=(),
     radius_key_aliases=None,
 ):
-    """HP-then-membrane-LP: τ_HP on v_slow, τ_lp on V, drive v_drive−a_h v_slow."""
+    """HP-then-membrane-LP schema in PARAM_BOXES order (borst-only keys skipped)."""
     if cell_names is None:
         raise TypeError("hp_lp schema requires cell_names from network")
-    cell_names = list(cell_names)
-    name_to_i = {str(n): i for i, n in enumerate(cell_names)}
-    D = param_boxes
-    named_kw = dict(name_to_i=name_to_i, indi_names=h_cells)
-    return [
-        _seg("a_in", n_cells, "full", D["a_in"], n_cells),
-        _seg("a_out", n_cells, "full", D["a_out"], n_cells),
-        _syn_segment(syn_mode, n_pairs, n_edges, D),
-        _seg("v_th", n_cells, "full", D["v_th"], n_cells),
-        _seg("a_gt", n_cells, "output", D["a_gt"], n_cells),
-        _seg("bias_gt", n_cells, "output", D["bias_gt"], n_cells),
-        _seg("tau_lp", n_cells, "full", D["tau_lp"], n_cells),
-        _seg("tau_hp", n_cells, "full", D["tau_hp"], n_cells),
-        _seg("e_leak", n_cells, "full", D["e_leak"], n_cells),
-        _seg("a_h", n_cells, "full", D["a_h"], n_cells, **named_kw),
-        _a_sti_r_segment(D, sti_radii, radius_key_aliases or {}),
-    ]
+    return _segments_from_boxes(
+        param_boxes,
+        skip=_BORST_ONLY,
+        n_cells=n_cells,
+        cell_names=list(cell_names),
+        syn_mode=syn_mode,
+        n_pairs=n_pairs,
+        n_edges=n_edges,
+        h_cells=h_cells,
+        sti_radii=sti_radii,
+        radius_key_aliases=radius_key_aliases,
+    )
 
 
 def default_schema(

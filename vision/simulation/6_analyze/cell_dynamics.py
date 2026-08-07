@@ -474,7 +474,7 @@ _HP_LP_FORMULA_G_IMPLICIT: list[tuple[str, str | None]] = [
     ("v_post", "v_post"),
     (" = (v_pre + (dt/τ_lp)·(e_leak + G·(e_leak + ", None),
     ("v_in", "v_in"), (" + ", None),
-    ("i_sti/g_in", "v_sti"), (" − ", None),
+    ("i_sti/g_leak", "v_sti"), (" − ", None),
     ("v_slow", "v_slow"), ("))) / (1 + dt/τ_lp)", None),
 ]
 
@@ -488,7 +488,7 @@ _HP_LP_FORMULA_G_EXPLICIT: list[tuple[str, str | None]] = [
     ("v_post", "v_post"),
     (" = v_pre + (dt/τ_lp)[-(v_pre−e_leak) + G·(e_leak + ", None),
     ("v_in", "v_in"), (" + ", None),
-    ("i_sti/g_in", "v_sti"), (" − ", None),
+    ("i_sti/g_leak", "v_sti"), (" − ", None),
     ("v_slow", "v_slow"), (")]", None),
 ]
 
@@ -1276,7 +1276,7 @@ def _globals(session):
         return {
             "delta_ms": float(session.delta_ms),
             "state_clamp": float(session.STATE_CLAMP),
-            "g_in_nS": float(session.g_in),
+            "g_leak_nS": float(session.g_leak),
             "euler": str(session.euler),
             "t_onset": t_onset,
         }
@@ -2564,7 +2564,11 @@ def main() -> None:
             )
             time_window = TimeWindow(kind="ms", start=lo, stop=hi)
         schema = list(session.schema)
-        z_t = torch.tensor(np.asarray(z, dtype=np.float64), dtype=torch.float64, device=session.device)
+        z_t = torch.tensor(
+            np.asarray(z, dtype=np.float64),
+            dtype=session.sim_dtype,
+            device=session.device,
+        )
         z_t, schema = plot_trained.apply_param_overrides(
             z_t, schema, session, param_edits,
         )

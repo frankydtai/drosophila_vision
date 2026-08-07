@@ -5,9 +5,9 @@
     v_hp = v_drive − a_h v_slow
     τ_lp dv/dt = −(v − e_leak) + v_hp
 
-with v_drive = v_in + v_sti (no e_leak; leak alone sets rest), v_sti = i_sti/g_in
-(g_in in nS converts pA → mV), v_in from max(v−v_th, 0)·a_out scaled by
-syn_strength_cell (per_cell) or syn_strength_edge (per_edge). a_h = 1
+with v_drive = v_in + v_sti (no e_leak; leak alone sets rest), v_sti = i_sti/g_leak
+(g_leak in nS converts pA → mV; same scalar as borst), v_in from max(v−v_th, 0)·a_out
+scaled by syn_strength_cell (per_cell) or syn_strength_edge (per_edge). a_h = 1
 recovers classical HP (v_hp = v_drive − v_slow); DC then has v_hp → 0 when
 v_slow → v_drive, so v → e_leak.
 
@@ -39,7 +39,7 @@ from neuron.schema import syn_strength
 
 
 def update_state_hp_lp(
-    v, v_slow, p, i_sti, backend, *, delta_ms, state_clamp, g_in, euler,
+    v, v_slow, p, i_sti, backend, *, delta_ms, state_clamp, g_leak, euler,
     return_component: bool = False,
 ):
     """One HP→LP membrane step; returns ``(v, v_slow)`` or component extras."""
@@ -50,14 +50,14 @@ def update_state_hp_lp(
     tau_hp = torch.clamp(p["tau_hp"], min=dt)
     a_h = p["a_h"]
     clamp = float(state_clamp)
-    g_in = float(g_in)
-    if g_in == 0.0:
-        raise ValueError("g_in must be non-zero")
+    g_leak = float(g_leak)
+    if g_leak == 0.0:
+        raise ValueError("g_leak must be non-zero")
 
     pre = torch.relu(v - p["v_th"]) * p["a_out"]
     w = syn_strength(p)
     v_in = p["a_in"] * backend.conn.signed_drive(pre, w)
-    v_sti = i_sti / g_in
+    v_sti = i_sti / g_leak
     v_drive = v_in + v_sti
     hp_dt_over_tau = dt / tau_hp
     if euler == "implicit":
@@ -149,10 +149,10 @@ def pre_steady(session, p, B, i_sti=None):
     if i_sti is None:
         raise TypeError("hp_lp pre_steady requires i_sti")
     backend = session.backend
-    g_in = float(session.g_in)
-    if g_in == 0.0:
-        raise ValueError("g_in must be non-zero")
-    v_sti = i_sti[:, 0, :] / g_in
+    g_leak = float(session.g_leak)
+    if g_leak == 0.0:
+        raise ValueError("g_leak must be non-zero")
+    v_sti = i_sti[:, 0, :] / g_leak
     mode = str(session.pre_steady)
     if mode == "probe":
         return _pre_steady_probe(p, B, v_sti, backend)
@@ -174,7 +174,7 @@ def step(state, v, p, i_sti, session, *, delta_ms: float, return_component: bool
         v, v_slow, p, i_sti, session.backend,
         delta_ms=float(delta_ms),
         state_clamp=session.STATE_CLAMP,
-        g_in=session.g_in,
+        g_leak=session.g_leak,
         euler=session.euler,
         return_component=return_component,
     )
