@@ -1,0 +1,6 @@
+# Generic 2-compartment neuron (soma + dendrite)
+# Created for FAFB multi-compartment HH network
+# Units: micrometers
+# PointNo Label X Y Z Radius Parent
+1 1 0 0 0 5.0 -1
+2 3 0 0 30 1.5 1

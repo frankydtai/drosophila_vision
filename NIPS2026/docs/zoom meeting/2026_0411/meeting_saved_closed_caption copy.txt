@@ -1,0 +1,1563 @@
+[Yi-De Tai] 21:02:36
+我觉得我，我觉得他这边这边的nature我已经彻底的。
+
+[Yi-De Tai] 21:02:41
+很质疑了。
+
+[Jizheng Dong] 21:02:44
+你要不直接问他们。
+
+[Yi-De Tai] 21:02:46
+我直接问他们嘛。直接直接去说，你们这边有那种问题，那我应该会直接被。
+
+[Jizheng Dong] 21:02:50
+还有。
+
+[Yi-De Tai] 21:02:54
+这个大佬给。
+
+[Yi-De Tai] 21:02:56
+That you were.
+
+[Jizheng Dong] 21:02:59
+你可以问一做。
+
+[Yi-De Tai] 21:03:04
+你是跟他们谁聊过。应该他们主人聊过嘛。
+
+[Jizheng Dong] 21:03:08
+我，我知道那个taraga。然后michael好像人人也蛮好的。
+
+[Yi-De Tai] 21:03:16
+是吗？
+
+[Yi-De Tai] 21:03:21
+没有。我觉得最矛盾的点就是。
+
+[Yi-De Tai] 21:03:23
+另外一篇，那个。哎，那个是nyu还是colombia？就是上次我跟你讲那篇在。
+
+[Yi-De Tai] 21:03:32
+Nature, neuroscians.
+
+[Yi-De Tai] 21:03:34
+他不是用个模拟的网路，他就是说，如果你。
+
+[Jizheng Dong] 21:03:37
+你说kuma kuma那个。
+
+[Yi-De Tai] 21:03:39
+对他们就是说你光用加上也没办法真正训练出来，你必须要有一些activity的。
+
+[Jizheng Dong] 21:03:41
+Question?
+
+[Yi-De Tai] 21:03:48
+The recording.
+
+[Yi-De Tai] 21:03:54
+是这两篇的结论完全相反。
+
+[Yi-De Tai] 21:03:58
+他，他主要改制片数。
+
+[Jizheng Dong] 21:04:00
+没有。不相反吧，就是他们，他们结论也不矛盾，就是。
+
+[Jizheng Dong] 21:04:05
+你总是要加更多的constream，进去。
+
+[Yi-De Tai] 21:04:12
+其实另外那篇他说的是，如果你没有一些。
+
+[Yi-De Tai] 21:04:16
+Activity recording当做training时候的。
+
+[Yi-De Tai] 21:04:20
+The constraint的话。测测出来有可能很多local minimal，所以activity根本不准。
+
+[Yi-De Tai] 21:04:33
+所以这个差不多的结果，因为这篇的结果也是说他50个，里面有可能很多个不准，有几个是准的，有几个不准。
+
+[Jizheng Dong] 21:04:43
+我想想就是。一个是我觉得他的。
+
+[Jizheng Dong] 21:04:50
+先先批判一下的话，就是。
+
+[Jizheng Dong] 21:04:53
+Nature。这一篇。他的task，其实有，我觉得是有一些问题的，因为。
+
+[Jizheng Dong] 21:05:00
+比如说你不是直接解码这些new的activity。
+
+[Yi-De Tai] 21:05:05
+对。第二层decoder。
+
+[Jizheng Dong] 21:05:05
+对吧，你去拿了一个。一个decoder的。
+
+[Jizheng Dong] 21:05:10
+毛。是multi layer perception的。一个还是一个单词的连接。
+
+[Jizheng Dong] 21:05:18
+就做了这样的后面的一个cv的任务。
+
+[Jizheng Dong] 21:05:24
+这个。这里就。
+
+[Jizheng Dong] 21:05:27
+我觉得是很可疑的一件事情。
+
+[Yi-De Tai] 21:05:33
+如果现在最主要问题都还不是说。
+
+[Yi-De Tai] 21:05:36
+解出来不对，而且根本劝就。
+
+[Yi-De Tai] 21:05:39
+没有他的梯度就没有下降。
+
+[Yi-De Tai] 21:05:44
+所以。用原始的，可以。
+
+[Jizheng Dong] 21:05:46
+你即使用于他们原始的connection也是这样。
+
+[Yi-De Tai] 21:05:50
+但是换成。
+
+[Yi-De Tai] 21:05:53
+Fb以后，它就不下降了。
+
+[Yi-De Tai] 21:05:56
+然后我试了好几个方法嘛，包括把它的那个。
+
+[Yi-De Tai] 21:06:00
+So activation. It's already got some.
+
+[Yi-De Tai] 21:06:05
+Sigmoe，因为我之前认为它那个value数值太高我发现它那个动不动跳了几百几千。
+
+[Yi-De Tai] 21:06:11
+我会爆掉
+
+[Jizheng Dong] 21:06:14
+这个的话可能会会有更多的问题，就是。
+
+[Jizheng Dong] 21:06:17
+你一旦原始的。的。
+
+[Jizheng Dong] 21:06:23
+它跟真实的差的很多的话，那。
+
+[Jizheng Dong] 21:06:26
+你的loss function永远是集中在零或者一的这两端。
+
+[Yi-De Tai] 21:06:30
+对是这个系。
+
+[Jizheng Dong] 21:06:31
+所以这两端的话，它的gradient就会很小。
+
+[Yi-De Tai] 21:06:37
+然后这边是配合，还有一个很可疑，就是。
+
+[Yi-De Tai] 21:06:41
+他的synaptic strength。他是对他初始的时候是把每一个位置都变成0.01。
+
+[Yi-De Tai] 21:06:49
+就是如果他今天snap count是100的话，它是它有一个snap strength是0.01除以100。
+
+[Yi-De Tai] 21:06:56
+学校。等于他，他等于他完全没有照真实的的。
+
+[Yi-De Tai] 21:07:01
+的的数量去。
+
+[Yi-De Tai] 21:07:04
+She scale up.
+
+[Jizheng Dong] 21:07:08
+所以你你的里面。我想想，其实还是point应用对吧。
+
+[Yi-De Tai] 21:07:13
+对。
+
+[Jizheng Dong] 21:07:22
+对这里，这里的问题就是他们它的设置里面所有new type的数量是相等的。
+
+[Yi-De Tai] 21:07:31
+对。
+
+[Jizheng Dong] 21:07:31
+所以即使你说他和前面三个neuron连在一起。
+
+[Jizheng Dong] 21:07:37
+那也不会有什么太大问题，但是在你的这里面，你可能会。
+
+[Jizheng Dong] 21:07:44
+我，我会有这样的问题，就是跟其中一个内容他可能有几十个链接，几百个。
+
+[Jizheng Dong] 21:07:51
+连接，但是跟其他的可能只有几个，这这里会有一个非常大的imbalance。
+
+[Yi-De Tai] 21:07:51
+对。
+
+[Jizheng Dong] 21:07:57
+然后你在。除以那个你说的synaps count的话。
+
+[Jizheng Dong] 21:08:03
+就是就是可能会有问题。
+
+[Jizheng Dong] 21:08:06
+所以。一个一个方法是做normalization，就是你按照pre synaps neuron的比例来。
+
+[Jizheng Dong] 21:08:18
+就是说，我有十个。我有我有十个连接a，然后20个连接b。
+
+[Jizheng Dong] 21:08:27
+然后另外还有20个连接c，那它的比例就是0.20点四零.4。
+
+[Jizheng Dong] 21:08:33
+对吧，这样就是可能会比你单纯的直接除以那个synapse account要好一些。
+
+[Yi-De Tai] 21:08:43
+因为他直接就等于说它让所有的wait一开始都是同数值。
+
+[Yi-De Tai] 21:08:50
+那等于他就是重新完全出现一个跟完全没有关系的。
+
+[Yi-De Tai] 21:08:55
+的。这一网路。
+
+[Yi-De Tai] 21:09:00
+所以我觉得他这点很奇怪。
+
+[Jizheng Dong] 21:09:02
+等会儿。我，我。我现在有点疑惑，你，你能你能直接。
+
+[Jizheng Dong] 21:09:07
+看一下code吗？
+
+[Yi-De Tai] 21:09:12
+不是我，我直接给你看他那个。
+
+[Yi-De Tai] 21:09:15
+那个paper里面，公式。比较。
+
+[Yi-De Tai] 21:09:59
+就是你看他这个数字。
+
+[Yi-De Tai] 21:10:02
+他是照里面。
+
+[Yi-De Tai] 21:10:07
+的假设有account是100，然后有一count是一。
+
+[Yi-De Tai] 21:10:13
+啊，这样他就会造成它的weight不同，就是照理说是这样。
+
+[Yi-De Tai] 21:10:16
+但他这个数字是。啊，是这个数字，相反也就是如果这边是100的时候，它这个数字初始值就是一。
+
+[Jizheng Dong] 21:10:18
+N是什么？
+
+[Yi-De Tai] 21:10:24
+然后这个数字如果是一的话，它初始值就是100，它等于初始的网路，每一个的位置W都是一样的。
+
+[Yi-De Tai] 21:10:33
+那你这样还穿个毛线，你这样。
+
+[Jizheng Dong] 21:10:35
+你，你的恩是什么呀。
+
+[Yi-De Tai] 21:10:39
+等一下。刚刚是。我看啊不对，我讲错了，这个是正负号，这个应该是。
+
+[Yi-De Tai] 21:10:49
+是就是正义或-1，然后这个是。
+
+[Yi-De Tai] 21:10:52
+Cynic counter.
+
+[Yi-De Tai] 21:10:54
+这个假设他100的时候。
+
+[Yi-De Tai] 21:10:57
+它这个数字就会很低，他这个数字可能就是一。
+
+[Yi-De Tai] 21:10:59
+那这个数值是一的时候。
+
+[Jizheng Dong] 21:11:00
+你没必要完全按照它的原始设定一样啊，因为。
+
+[Yi-De Tai] 21:11:03
+对，所以我觉得它这个原始设定很有问题，它这原始设定把每一个位置都设成一样。
+
+[Yi-De Tai] 21:11:09
+它等于他在串的时候完全没有。
+
+[Yi-De Tai] 21:11:12
+完全没有。它等于这个数字已经没有意义啊，因为它这个数字会被这个数字给。
+
+[Yi-De Tai] 21:11:18
+低销量，所以他完全是能对抗期已经没有意义了。
+
+[Jizheng Dong] 21:11:21
+所以它的阿尔法是可以学的呀。
+
+[Yi-De Tai] 21:11:25
+对，但是他等于阿宝在学的时候就是这个connection。
+
+[Yi-De Tai] 21:11:29
+你初始的资料已经是完全不不在乎他们。
+
+[Jizheng Dong] 21:11:32
+你，你可以把这个设置改一下，我觉得我觉得是可能会有问题，因为。
+
+[Jizheng Dong] 21:11:38
+在它的数据集里的account是不准确的。
+
+[Yi-De Tai] 21:11:42
+对，然后我现在改，我把这个数字。
+
+[Jizheng Dong] 21:11:43
+可能你可以直接换。
+
+[Yi-De Tai] 21:11:44
+改成一个，就是每一个数字初始值都是0.05。
+
+[Jizheng Dong] 21:11:48
+你对你，你可以设置成一样的，然后它是trainable的。
+
+[Yi-De Tai] 21:11:52
+对，如果改sms还是没有用啊。
+
+[Yi-De Tai] 21:11:55
+然后反正我目前试了各种方法，都还是没有训练。
+
+[Jizheng Dong] 21:11:59
+然后。然后你我说的一个方法就是，你可能要根据它的总和来求一下这种normalization。
+
+[Yi-De Tai] 21:12:00
+出一个1℃会下降的状态。
+
+[Yi-De Tai] 21:12:13
+你的意思是说。如果他如果他有一个数字很大的时候要把它normalize变小。比如假如说今天有10,000个某些很极端的话，10,000个。
+
+[Jizheng Dong] 21:12:20
+因为因为比如你，你就你就单纯从理论上进行分析嘛，这是个100。
+
+[Jizheng Dong] 21:12:25
+然后呢？这个如果设成一样的话。
+
+[Jizheng Dong] 21:12:28
+那前面这个会变得很。
+
+[Jizheng Dong] 21:12:31
+就是很很大。
+
+[Yi-De Tai] 21:12:33
+对
+
+[Jizheng Dong] 21:12:37
+然后从而你这里相对于其他的就会变得很大。但是如果你在这里加一个。
+
+[Jizheng Dong] 21:12:44
+除以一个总和，除以一个sum。
+
+[Jizheng Dong] 21:12:49
+你就可以把这些进行平均掉了。
+
+[Jizheng Dong] 21:12:57
+或者你可以用那个。
+
+[Jizheng Dong] 21:12:59
+Segment。Sigmoid，还是就是E的什么。
+
+[Yi-De Tai] 21:13:04
+Experience某一种
+
+[Jizheng Dong] 21:13:07
+E的N比如说ni。然后这个是一的。
+
+[Yi-De Tai] 21:13:17
+我想想看啊。
+
+[Jizheng Dong] 21:13:24
+这个函数叫什么。
+
+[Yi-De Tai] 21:13:25
+因为我现在。我现在是把这个F改成sequenoid了，它原本这个F是value嘛，我先把这个F已经改成c。
+
+[Yi-De Tai] 21:13:34
+所以他这样子的话。
+
+[Jizheng Dong] 21:13:36
+我，我，我，我的意思是说，你在这儿就在这个W这儿改。
+
+[Jizheng Dong] 21:13:40
+不是改后面的那个f。
+
+[Jizheng Dong] 21:13:44
+F应该。
+
+[Yi-De Tai] 21:13:45
+被赋为职业路。
+
+[Jizheng Dong] 21:13:53
+百F其实。我想想。
+
+[Jizheng Dong] 21:13:59
+来分时，安路其实可能没有太大问题。
+
+[Jizheng Dong] 21:14:01
+只是你当时不是为了要解决那个。
+
+[Jizheng Dong] 21:14:07
+t four人员的反应过大。
+
+[Yi-De Tai] 21:14:07
+对，当时就是就是我们讲的这一个部分。
+
+[Jizheng Dong] 21:14:10
+那个你可以在这儿加另外一个f，这儿加一个G什么的。
+
+[Yi-De Tai] 21:14:16
+可以。
+
+[Jizheng Dong] 21:14:17
+这样应该不会变太剧烈。
+
+[Jizheng Dong] 21:14:20
+或者或者你看吧，就是。
+
+[Jizheng Dong] 21:14:25
+我，就是有有很多不一样的形式。
+
+[Jizheng Dong] 21:14:28
+有的是在这儿加的，有的是在整体加的。
+
+[Yi-De Tai] 21:14:41
+然后。
+
+[Jizheng Dong] 21:14:44
+我，我先给sherry打个电话。
+
+[Yi-De Tai] 21:14:47
+对好。
+
+[Jizheng Dong] 21:15:27
+天啊。欸这样啊对。
+
+[Jizheng Dong] 21:15:31
+你需要晚上吗。是要不你们先开吧。
+
+[Jizheng Dong] 21:15:37
+好的，因为我还在，我在值班，我在辛苦了辛苦。
+
+[Jizheng Dong] 21:15:43
+还没事，没事，你们先开吧，然后有什么事叫我告诉我就行。好。
+
+[Yi-De Tai] 21:15:48
+会。
+
+[Jizheng Dong] 21:15:49
+对拜拜。
+
+[Yi-De Tai] 21:15:57
+他以为是晚上吗。整个。
+
+[Yi-De Tai] 21:16:12
+不过我看看。我，如果我还试过一个，就是我把它的。
+
+[Yi-De Tai] 21:16:17
+他的那个synaptic count max设成100吧。
+
+[Yi-De Tai] 21:16:22
+就是100以上，全部变成100。
+
+[Yi-De Tai] 21:16:25
+那还是没有用。所以。
+
+[Yi-De Tai] 21:16:32
+所以我，所以我。所以我现在这个进度有点有点慢，因为我靠。
+
+[Yi-De Tai] 21:16:37
+我现在还不知道什么时候能够把它的训练。
+
+[Yi-De Tai] 21:16:41
+做出个节目啊。
+
+[Jizheng Dong] 21:16:44
+我觉得可能我想想最主要的几个东西是。
+
+[Jizheng Dong] 21:16:50
+就是我刚才说的那种设置。
+
+[Jizheng Dong] 21:16:53
+然后。另外。
+
+[Jizheng Dong] 21:16:58
+另外要看看他有多少的recruitment链接。
+
+[Jizheng Dong] 21:17:02
+就是我们。假设他是。可能整体结构是个非forward。
+
+[Jizheng Dong] 21:17:07
+但是可能会有很多recruitment，然后。
+
+[Yi-De Tai] 21:17:08
+对我都没在。
+
+[Jizheng Dong] 21:17:12
+还有。还有一个点儿是。
+
+[Jizheng Dong] 21:17:17
+你的时间尺度设的多少。
+
+[Jizheng Dong] 21:17:19
+他能不能把它传过去。
+
+[Jizheng Dong] 21:17:23
+你可以先看一下flash的反应。
+
+[Jizheng Dong] 21:17:26
+然后在多少秒之后，它会。
+
+[Jizheng Dong] 21:17:29
+就有有几个点，一个是你设置完网络之后，它会。
+
+[Jizheng Dong] 21:17:33
+这个网络会自动进行进入一个调整的状态。
+
+[Jizheng Dong] 21:17:39
+然后可能需要个，比如说0.1秒或者0.5秒。
+
+[Jizheng Dong] 21:17:45
+之后的话，你再给一个刺激。
+
+[Jizheng Dong] 21:17:47
+它才会有反应。
+
+[Jizheng Dong] 21:17:53
+就是因为。有可能说你现在给了一个自己，然后立马按照目前的一个反应是没有办法。
+
+[Jizheng Dong] 21:18:01
+观察到的。
+
+[Yi-De Tai] 21:18:03
+那你可能是我们训练的时候用的也不是flash，训练的时候用的是那个。
+
+[Yi-De Tai] 21:18:07
+Intel.
+
+[Jizheng Dong] 21:18:08
+对对，对，就是就是你要你要在一段时间之后再给自己就是等那个网络相对稳定之后。
+
+[Yi-De Tai] 21:18:16
+你说，过一段时间再给训练。
+
+[Jizheng Dong] 21:18:19
+对对。
+
+[Yi-De Tai] 21:18:19
+对，这要怎么调？这个。他，他现在是这样，他现在一开始就直接给了，然后。
+
+[Yi-De Tai] 21:18:26
+然后开始训练。
+
+[Jizheng Dong] 21:18:30
+反正我我这边会遇到过这样的情况。
+
+[Yi-De Tai] 21:18:35
+你会一开始就是什么都不给，或者给noise。
+
+[Jizheng Dong] 21:18:36
+So you guys。他一开始的网络是完全一个震荡的。
+
+[Yi-De Tai] 21:18:45
+然后你会开始给他弄一次，让他跑。
+
+[Yi-De Tai] 21:18:48
+一段时间。
+
+[Jizheng Dong] 21:18:49
+对对，让他这个网络稳定下来，你再去看。
+
+[Yi-De Tai] 21:18:53
+那他稳定之前，他要去给他训练吗？
+
+[Jizheng Dong] 21:18:55
+不用。或者你可以。
+
+[Yi-De Tai] 21:18:57
+他也不不。反向传播。
+
+[Jizheng Dong] 21:19:00
+你可以等。比如说，比如说你开始会把那个voltage设成一个固定的参数，对吧？
+
+[Jizheng Dong] 21:19:08
+然后还有其他一些可能。
+
+[Jizheng Dong] 21:19:11
+其他的latent，variable。然后你可以等他，就。
+
+[Jizheng Dong] 21:19:19
+跑一段时间稳定之后，你再把这个数值记下来，然后每次之后再初始化的时候，每次就用这个。
+
+[Jizheng Dong] 21:19:26
+刚才记录下来的，跑过一段时间之后的。
+
+[Yi-De Tai] 21:19:33
+确实他一开始的时候，activity会有某些特别大。
+
+[Yi-De Tai] 21:19:38
+哼，那后面会比较稳一样。
+
+[Jizheng Dong] 21:19:43
+对，因为因为可能。可能一开始某一些那个voltage，它就比较高的这个内容处于一个。
+
+[Jizheng Dong] 21:19:52
+活跃的状态。你需要设置一下这个部分。
+
+[Yi-De Tai] 21:20:01
+然后还有一个小问题，就是。
+
+[Yi-De Tai] 21:20:05
+你，如果你现在新的训练，如果还是用你之前写的那个代码。你之前写的那个代码是在选选visual。
+
+[Yi-De Tai] 21:20:12
+越秀区域的时候。他是那个子区域嘛，你那时候子区域是调一些什么photo receptor，然后。
+
+[Yi-De Tai] 21:20:21
+然后还有一些其他什么motion，这些。
+
+[Jizheng Dong] 21:20:26
+你说哪一部分我不太清楚你说的哪。
+
+[Yi-De Tai] 21:20:26
+你记得吗。我看我找一下再吧。
+
+[Yi-De Tai] 21:20:33
+等一下啊。
+
+[Yi-De Tai] 21:22:51
+找到。
+
+[Yi-De Tai] 21:23:01
+你看，这样你你原本写的他那个subsistence，里面是motion color off跟。
+
+[Yi-De Tai] 21:23:07
+Photo, receptors.
+
+[Yi-De Tai] 21:23:11
+然后。
+
+[Jizheng Dong] 21:23:12
+这个是按照。
+
+[Jizheng Dong] 21:23:24
+对这个应该只是按照那个。
+
+[Jizheng Dong] 21:23:29
+有一篇paper，它的分类。
+
+[Yi-De Tai] 21:23:32
+反正你后面如果要训练的时候，他我一开始用这个list，然后他少掉一些重要的，比如说led三，它就没有在里面。
+
+[Jizheng Dong] 21:23:41
+什么。哪个。
+
+[Yi-De Tai] 21:23:41
+所以所以你你如果。L1跟L3。
+
+[Jizheng Dong] 21:23:47
+喔对我，我，我应该没怎么用这部分。
+
+[Yi-De Tai] 21:23:53
+Okay，反正后来我把它给他弄，他才有全部的。
+
+[Yi-De Tai] 21:23:58
+全部该有的。神经。
+
+[Jizheng Dong] 21:24:05
+我应该没怎么用这一部分吧。
+
+[Jizheng Dong] 21:24:10
+我等会给你看，我这周在做啥？得了。
+
+[Yi-De Tai] 21:24:14
+行。我差不多。就这样，我现在。
+
+[Yi-De Tai] 21:24:22
+我现在这就是再看一下他。
+
+[Yi-De Tai] 21:24:25
+还有什么劝不出来问题，然后。
+
+[Yi-De Tai] 21:24:27
+然后我要再确认不出来，我想把它那个flash也变成training的一部分。
+
+[Yi-De Tai] 21:24:33
+就是。有有参照另外一篇那个。
+
+[Yi-De Tai] 21:24:38
+Nature用30次方法就是让其中一些recording。
+
+[Yi-De Tai] 21:24:42
+也并入是一个训练的过程中。
+
+[Yi-De Tai] 21:24:45
+这flash，它不是有一个就是哪些是flash说on哪些flash说off。
+
+[Yi-De Tai] 21:24:51
+把这里加入训练的部分。
+
+[Jizheng Dong] 21:25:01
+我来试一下我屏幕。
+
+[Jizheng Dong] 21:25:20
+我大概是在之前那个基础上。
+
+[Jizheng Dong] 21:25:26
+就是加入所有内容，尽可能加入所有内容。
+
+[Jizheng Dong] 21:25:30
+然后你可以现在看到。
+
+[Jizheng Dong] 21:25:34
+反正这这有一大堆函数主要是看notebook吧。
+
+[Jizheng Dong] 21:25:38
+就是这个是会加在应该是加载所有的。
+
+[Jizheng Dong] 21:25:42
+比如说你可以加载vivo的。
+
+[Jizheng Dong] 21:25:45
+围绕区域，然后或者说optic lobe，或者说。
+
+[Jizheng Dong] 21:25:50
+部分的牛肉，然后应该也可以加载所有的。
+
+[Jizheng Dong] 21:25:56
+然后大概是这样的一个。
+
+[Jizheng Dong] 21:25:59
+看一下。比如说fab的这一部分只是看optic lobe的话。
+
+[Yi-De Tai] 21:26:07
+哼。
+
+[Jizheng Dong] 21:26:07
+那就是大概会有。这么多个synapse，然后neil，对这儿。
+
+[Jizheng Dong] 21:26:15
+另外，有这么多。还有两百两百多个。
+
+[Jizheng Dong] 21:26:21
+然后。
+
+[Jizheng Dong] 21:26:29
+这个我看一下。
+
+[Jizheng Dong] 21:26:34
+这是加载。Optic lobe的。然后。
+
+[Jizheng Dong] 21:26:41
+微弱type的。这个就是检查一下它的分布什么的。
+
+[Jizheng Dong] 21:26:49
+然后bank的。然后一个password。
+
+[Jizheng Dong] 21:26:55
+然后这个就用这个方。
+
+[Jizheng Dong] 21:26:57
+这一部分的话，就可以。
+
+[Jizheng Dong] 21:27:00
+直接加载所有的。这一部分应该还是default t，four，lc的一些。
+
+[Jizheng Dong] 21:27:09
+然后构建的是那个voltage。
+
+[Jizheng Dong] 21:27:11
+就是你现在那个model。然后也可以的。
+
+[Jizheng Dong] 21:27:18
+在这儿改就可以了。然后hh model的话也可以。
+
+[Jizheng Dong] 21:27:28
+就是主要看这个loader就好了。
+
+[Jizheng Dong] 21:27:31
+Loader这边基本上都有。
+
+[Yi-De Tai] 21:27:33
+哼。
+
+[Jizheng Dong] 21:27:36
+然后这个给一个随机的刺激，然后后面我是加了一个。
+
+[Jizheng Dong] 21:27:42
+比较重要的。就是简化后的customer。
+
+[Jizheng Dong] 21:27:52
+我看一下这个还有值得看的。
+
+[Jizheng Dong] 21:28:03
+这个这个可能东西太杂了。
+
+[Jizheng Dong] 21:28:13
+然后。
+
+[Jizheng Dong] 21:28:25
+这个就是做了一些这样的简化。
+
+[Jizheng Dong] 21:28:29
+然后你可以看到。比如说原来可能几千个。
+
+[Jizheng Dong] 21:28:34
+几百个，然后降降到四分之一的，这样子样。
+
+[Jizheng Dong] 21:28:39
+但是这个我目前感觉可能还是有一些问题。
+
+[Jizheng Dong] 21:28:43
+就是他。他把那个。的部分，讲话的太多了。
+
+[Jizheng Dong] 21:28:48
+然后讲话的又不太够。
+
+[Jizheng Dong] 21:28:56
+下面一个是。就是展示一下部分的。
+
+[Jizheng Dong] 21:29:00
+另外一些牛肉大概就是简化成。
+
+[Jizheng Dong] 21:29:04
+简化到这个程度吧。我后面可能还会再改一下这个简化算法。
+
+[Yi-De Tai] 21:29:10
+这个讲话就是让它的体积。
+
+[Jizheng Dong] 21:29:15
+就是。去掉一些branch。
+
+[Yi-De Tai] 21:29:15
+对就是它表面积啊。
+
+[Jizheng Dong] 21:29:20
+然后。我们就。
+
+[Jizheng Dong] 21:29:23
+来看一下，假如使用fab的所有零。
+
+[Jizheng Dong] 21:29:28
+也不一定是所有，就是t four的这个passway。
+
+[Jizheng Dong] 21:29:31
+这样的password。
+
+[Jizheng Dong] 21:29:38
+目前在这个里面还是使用的非常简单的一个只有两个component，就是简化成两个点的。
+
+[Jizheng Dong] 21:29:45
+一个利用奖换成两两个点。
+
+[Jizheng Dong] 21:29:49
+然后它会有一些这种树立。数量的统计，connectivity的统计。
+
+[Jizheng Dong] 21:29:59
+然后他的初始的。
+
+[Jizheng Dong] 21:30:03
+hh model的。设置。
+
+[Jizheng Dong] 21:30:09
+还有。对这个，这个问题就是我刚才跟你说过的。
+
+[Jizheng Dong] 21:30:16
+你在设置好这个网络之后，它可能会有一些变化。
+
+[Jizheng Dong] 21:30:22
+这个是给刺激之前的。
+
+[Jizheng Dong] 21:30:26
+然后给一个。这种ok。Photo receptor一个slap current。
+
+[Jizheng Dong] 21:30:33
+然后他就会明显的有一些变化。
+
+[Jizheng Dong] 21:30:36
+然后你要在经过一段时间之后再去看这个它的反应。
+
+[Yi-De Tai] 21:30:36
+哼。
+
+[Jizheng Dong] 21:30:44
+然后另外两个文件夹就是给flash和moving edge的。
+
+[Jizheng Dong] 21:30:50
+因为可以看一下。大概是这样的。
+
+[Yi-De Tai] 21:31:00
+这应该分下去的时候。
+
+[Yi-De Tai] 21:31:03
+他身高的。他mostly就会升到多少，它玻璃冲。
+
+[Jizheng Dong] 21:31:12
+这个我觉得生的不太够。
+
+[Yi-De Tai] 21:31:12
+Who's who's.
+
+[Jizheng Dong] 21:31:14
+这是不过就我也没时间探索所有的。
+
+[Jizheng Dong] 21:31:20
+就是简单的随便系列一些参数吧。
+
+[Jizheng Dong] 21:31:24
+看一下。好了。
+
+[Jizheng Dong] 21:31:29
+这是r one到r，six。
+
+[Jizheng Dong] 21:31:35
+One five g这个应该都是对的。
+
+[Jizheng Dong] 21:31:40
+只不过数量上没有特别明显。
+
+[Yi-De Tai] 21:31:42
+你现在每一个应用，他们的初始的。
+
+[Yi-De Tai] 21:31:46
+这些。参数是怎么调的。
+
+[Yi-De Tai] 21:31:51
+因为他的那个越simple的人秀，这些。
+
+[Jizheng Dong] 21:31:56
+Sync。什么。
+
+[Yi-De Tai] 21:31:57
+它的resting potential。这些初始的参数你是怎么。
+
+[Yi-De Tai] 21:32:01
+跳了。
+
+[Jizheng Dong] 21:32:03
+这个是基本上是根据我之前的经验调的。
+
+[Yi-De Tai] 21:32:09
+那每一个他每一个type，你给他不同的参数吗？
+
+[Jizheng Dong] 21:32:16
+对。
+
+[Jizheng Dong] 21:32:23
+这个反应应该也是对的，然后后面是。
+
+[Jizheng Dong] 21:32:29
+目，这个是我在群里发的那个。
+
+[Jizheng Dong] 21:32:31
+就是给不同方向的moving。
+
+[Jizheng Dong] 21:32:46
+我，我，我，我没搞清楚。我没搞清楚这个图，它是怎么画的。我回头再研究一下。
+
+[Jizheng Dong] 21:32:55
+然后不同。不同角度的。
+
+[Jizheng Dong] 21:32:59
+然后不同内容的反应然后最后画出来是。
+
+[Yi-De Tai] 21:33:03
+你要开始换notebook。我发现他开始他的处理notebook很差，就是。
+
+[Yi-De Tai] 21:33:10
+他不像处理一个人生的拍照档案，他可以直接跑，然后直接。
+
+[Jizheng Dong] 21:33:15
+对。所以你让他跑的时候尽量你不要有任何的图在里面。
+
+[Jizheng Dong] 21:33:22
+然后另一个方法是，你先生成这样的python文件，然后来转。
+
+[Yi-De Tai] 21:33:28
+对，然后才自己在改过。
+
+[Jizheng Dong] 21:33:30
+对，所以我我很多，你可以看到其实是这样转的。
+
+[Yi-De Tai] 21:33:35
+而且它那个api是不是现在挂了。
+
+[Jizheng Dong] 21:33:39
+对他有时候会挂。
+
+[Yi-De Tai] 21:33:41
+那个。
+
+[Jizheng Dong] 21:33:44
+然后有这样的。
+
+[Jizheng Dong] 21:33:48
+Turning curve.
+
+[Jizheng Dong] 21:33:49
+在这个还挺漂亮的。
+
+[Yi-De Tai] 21:33:50
+哼。
+
+[Jizheng Dong] 21:33:55
+大概是这样，这个有点结构有一点奇怪，有第二个有点奇怪。
+
+[Yi-De Tai] 21:33:57
+Oh.
+
+[Jizheng Dong] 21:34:03
+不算特别好吧，就大概有这样的结果。
+
+[Yi-De Tai] 21:34:08
+哼。
+
+[Jizheng Dong] 21:34:14
+然后再后面一个。
+
+[Jizheng Dong] 21:34:24
+这个是什么。对，这个还是用了两个的。
+
+[Jizheng Dong] 21:34:49
+也是给个flash的刺激。
+
+[Jizheng Dong] 21:34:55
+然后看那个反应。然后这个是检查它是不是能够执行梯度下降。
+
+[Jizheng Dong] 21:35:02
+能够训练。然后再看一下它的原始的那个。
+
+[Jizheng Dong] 21:35:11
+然后fnib的数据对应回去的话，会有一些问题，就是它。
+
+[Jizheng Dong] 21:35:19
+不是。一个完整的那种。
+
+[Jizheng Dong] 21:35:23
+六边形的那种。网格。
+
+[Jizheng Dong] 21:35:27
+就是在正式的数据里，然后所以要做了一些。
+
+[Jizheng Dong] 21:35:32
+Normalization吧。大概是这样的，分布。
+
+[Jizheng Dong] 21:35:45
+对应不同的方向。
+
+[Jizheng Dong] 21:35:52
+这个我，我得到的结果不是很好。
+
+[Jizheng Dong] 21:35:57
+这边它基本上都一样。
+
+[Jizheng Dong] 21:36:02
+所以这边我我要后面再调一下，或者直接拿。
+
+[Jizheng Dong] 21:36:07
+拿去做训练什么的。
+
+[Jizheng Dong] 21:36:14
+大概这些吧，其他的应该也。
+
+[Jizheng Dong] 21:36:18
+大同小异。支付用了不一样的数据。
+
+[Yi-De Tai] 21:36:24
+本人主要这个是背上嘛。
+
+[Jizheng Dong] 21:36:29
+对加了一些。公民加会加更多嘛。这。
+
+[Yi-De Tai] 21:36:44
+所以你现在的时候，m开头的英文网名都没有加进来。
+
+[Yi-De Tai] 21:36:48
+有mile。
+
+[Jizheng Dong] 21:36:53
+没有完全吧？另一个，这个这个里面应该有，但我没有完全弄完。
+
+[Jizheng Dong] 21:37:08
+感觉工作量巨大。
+
+[Yi-De Tai] 21:37:12
+对。
+
+[Jizheng Dong] 21:37:15
+大概就就是这三个年假。
+
+[Yi-De Tai] 21:37:19
+Okay?
+
+[Jizheng Dong] 21:37:21
+四个吧，这四个我年假。
+
+[Yi-De Tai] 21:37:28
+好喔。
+
+[Jizheng Dong] 21:37:33
+所以我目前就是用了两个点的，这个。
+
+[Yi-De Tai] 21:37:47
+我这边也差不多，我就是目前遇到的几个问题。
+
+[Yi-De Tai] 21:37:51
+Sees all the GGG.
+
+[Yi-De Tai] 21:37:54
+试试看。
+
+[Jizheng Dong] 21:37:58
+我觉得能能接下来一两周能把它训好，就。
+
+[Jizheng Dong] 21:38:02
+好，不管是你那边或者我这边。
+
+[Jizheng Dong] 21:38:06
+有一个能train得通的我我也可以把我这边。
+
+[Jizheng Dong] 21:38:10
+的，到时候发给您。我就是把模型给你，然后你来测一下。
+
+[Yi-De Tai] 21:38:16
+好的。
+
+[Jizheng Dong] 21:38:23
+然后可能。大家也就这个样子。
+
+[Yi-De Tai] 21:38:27
+是。
+
+[Jizheng Dong] 21:38:30
+感觉这些模型参数好复杂呀。
+
+[Yi-De Tai] 21:38:35
+对我主要是觉得他。很多问题真的是每个问题。虽然说每一个问题。
+
+[Yi-De Tai] 21:38:42
+就代表说他还有一个刻意。
+
+[Yi-De Tai] 21:38:45
+工作的新方向。但是对。
+
+[Jizheng Dong] 21:38:49
+你，你这样想，至少。你遇到这些问题，你还可以来问我，我可以告诉你可能是哪儿有问题。
+
+[Yi-De Tai] 21:38:54
+Yeah.
+
+[Yi-De Tai] 21:39:01
+你不是也认识很多这个行业的。
+
+[Yi-De Tai] 21:39:04
+老师，同学，你可以问问他们。
+
+[Jizheng Dong] 21:39:10
+我目前没有听说他们在做比较更加复杂的模型。
+
+[Jizheng Dong] 21:39:17
+然后。其他的paper倒是有一些日本那边很喜欢用。
+
+[Jizheng Dong] 21:39:24
+这种来做，但是。他们好像没有做什么training。
+
+[Jizheng Dong] 21:39:31
+所以这一部分要我们自己探索。
+
+[Yi-De Tai] 21:39:34
+做圈里的人用convention，然后又做圈里的人，目前看来还是不多。
+
+[Yi-De Tai] 21:39:39
+可能还会。
+
+[Jizheng Dong] 21:39:39
+很少。然后对，如果你，你要加可能那个activity的话，你可以用这篇paper。
+
+[Jizheng Dong] 21:39:49
+等一下。
+
+[Jizheng Dong] 21:39:56
+是不是。
+
+[Jizheng Dong] 21:40:20
+这个这个因为frequency这个。
+
+[Yi-De Tai] 21:40:28
+没看过。
+
+[Jizheng Dong] 21:40:31
+这个这个数据还是蛮好的，就是。
+
+[Yi-De Tai] 21:40:38
+这是在做什么。
+
+[Jizheng Dong] 21:40:43
+他就记录了一些我等一下，我打开。
+
+[Jizheng Dong] 21:41:10
+就是他给了这些new room。
+
+[Jizheng Dong] 21:41:14
+这样不一样的刺激。这种不一样的刺激，然后记录这些牛肉。
+
+[Jizheng Dong] 21:41:21
+不同内容type，它之间的一个。
+
+[Jizheng Dong] 21:41:24
+反应。然后他们记录到的反应大概。
+
+[Jizheng Dong] 21:41:31
+有这些吧。至少这些是有的啊。
+
+[Jizheng Dong] 21:41:36
+就可以用了。然后这个是paper，然后这个是之前的哪个paper的。
+
+[Jizheng Dong] 21:41:46
+用的是cost imaging的，所以你大概可以。
+
+[Jizheng Dong] 21:41:50
+把它用了什么函数转化成。
+
+[Jizheng Dong] 21:41:54
+不是转换。对把你的voltage转化成。
+
+[Yi-De Tai] 21:41:54
+是的。
+
+[Jizheng Dong] 21:42:02
+那个costimedia，你可以，你可以用这篇paper里的一个方法。
+
+[Yi-De Tai] 21:42:10
+因为这样的link丢到丢到chat里面吧。
+
+[Yi-De Tai] 21:42:15
+我先直接去打开。
+
+[Jizheng Dong] 21:42:37
+哎，我想再重发一个。这个文档。
+
+[Jizheng Dong] 21:42:57
+就复制过来。
+
+[Jizheng Dong] 21:43:28
+这个是。很多内容都有嘛？T four主要是t four，t，five的。
+
+[Jizheng Dong] 21:43:36
+然后它这里有那个causing。
+
+[Jizheng Dong] 21:43:42
+到某高铁，直到call center。
+
+[Jizheng Dong] 21:44:03
+然后这篇paper。
+
+[Jizheng Dong] 21:44:08
+就是是有挺多的数据的。
+
+[Jizheng Dong] 21:44:33
+他这篇paper的主要结论其实挺不可靠的。
+
+[Jizheng Dong] 21:44:36
+但是数据还可以。
+
+[Yi-De Tai] 21:44:39
+为什么不可靠。
+
+[Jizheng Dong] 21:44:45
+我，我觉得他的结论太过片面。
+
+[Jizheng Dong] 21:44:48
+它的，它的模型太简陋了。
+
+[Jizheng Dong] 21:44:51
+大概是这个。
+
+[Jizheng Dong] 21:45:01
+那么这个我也放了图过来。
+
+[Jizheng Dong] 21:45:18
+ok.
+
+[Yi-De Tai] 21:45:22
+行，我就去看看。
+
+[Yi-De Tai] 21:45:37
+那我们要讨论的应该也。
+
+[Yi-De Tai] 21:45:39
+差不多。你持沙倒过来吗？
+
+[Jizheng Dong] 21:45:42
+给我来一个。真的导。
+
+[Yi-De Tai] 21:45:45
+你现在在正常美国时差吗？
+
+[Jizheng Dong] 21:45:48
+也不怎么正常，现在。
+
+[Yi-De Tai] 21:45:50
+那感冒好了吗。哇，那跟你跟我们的研究进度一样，都又不是很快。
+
+[Jizheng Dong] 21:45:55
+也没完全好。
+
+[Jizheng Dong] 21:46:08
+对，这反正这这这。几个paper，它是有非常好的数据的。
+
+[Jizheng Dong] 21:46:15
+这个，这个还有这个。就放图的这三个。
+
+[Yi-De Tai] 21:46:18
+那个说是。
+
+[Yi-De Tai] 21:46:26
+多用一些别人的数据，让我们不用做实验，我们只要。
+
+[Yi-De Tai] 21:46:30
+只要搞model就好了。
+
+[Jizheng Dong] 21:46:33
+然后我建议，如果你要用的话，你可以先从这个开始。
+
+[Jizheng Dong] 21:46:38
+如果你没有ilc，你不打，目前不打算加ilc的话。
+
+[Yi-De Tai] 21:46:42
+确实。
+
+[Jizheng Dong] 21:46:45
+然后不要用所有的数据。
+
+[Jizheng Dong] 21:46:48
+用一部分。然后剩下做测试。剧。
+
+[Yi-De Tai] 21:46:55
+可以。
+
+[Jizheng Dong] 21:46:56
+但可能这些数据也。也都太少了。
+
+[Jizheng Dong] 21:47:01
+让他们还记录了什么其他的牛肉，没有。
+
+[Yi-De Tai] 21:47:08
+没有他，就算只有一种牛肉。
+
+[Yi-De Tai] 21:47:11
+你现在有700个column，你就可以把它数据。
+
+[Yi-De Tai] 21:47:15
+延伸扩大成很多个数据。
+
+[Jizheng Dong] 21:47:17
+这个，这个也许还行。
+
+[Yi-De Tai] 21:47:21
+可以这个蛮多的。
+
+[Yi-De Tai] 21:47:28
+Orientations, like directions, like pending.
+
+[Jizheng Dong] 21:47:31
+对这个，这个应该如果有的话。
+
+[Jizheng Dong] 21:47:34
+可以的。
+
+[Jizheng Dong] 21:47:41
+它定义的指标也挺好的。
+
+[Jizheng Dong] 21:47:43
+可以试试。
+
+[Yi-De Tai] 21:47:51
+这不错，他这个还有还有平均数值，不像是。
+
+[Yi-De Tai] 21:47:56
+第二门呢？平常只是它的光处是只有正义或者是-1，这这个看起来还有每一个不同的。
+
+[Yi-De Tai] 21:48:04
+Make me two了。
+
+[Jizheng Dong] 21:48:09
+就是你可以看一下这个，然后。
+
+[Jizheng Dong] 21:48:11
+看看能不能用。
+
+[Yi-De Tai] 21:48:14
+我觉得可以这。乍看之前。
+
+[Yi-De Tai] 21:48:23
+因为我现在主要自己弄出一个他相应的。
+
+[Yi-De Tai] 21:48:27
+Visual stimulus.
+
+[Jizheng Dong] 21:48:33
+它可能都有代码，你让chatgbd去爬一下就好了。
+
+[Yi-De Tai] 21:48:36
+他这个是有代码，他这个不是。对，因为他实验他也会给你对。
+
+[Yi-De Tai] 21:48:40
+那更好。
+
+[Jizheng Dong] 21:49:05
+那就你还有什么其他问题吗？
+
+[Jizheng Dong] 21:49:08
+就如果要train的话。我想想我，我想想你可以，你可以。
+
+[Yi-De Tai] 21:49:11
+其实反正我。
+
+[Jizheng Dong] 21:49:17
+你可以把我的。网络跑一下。
+
+[Jizheng Dong] 21:49:21
+然后看能不能去，如果可以的话，其实可以直接在我的这边。
+
+[Jizheng Dong] 21:49:27
+No. Yeah.
+
+[Yi-De Tai] 21:49:30
+洗，你说你的hh还是。
+
+[Jizheng Dong] 21:49:32
+对，因为他他已经算是有一个初始化。
+
+[Jizheng Dong] 21:49:36
+过后的参数了。
+
+[Yi-De Tai] 21:49:39
+然后你h，你的hh。他要劝的话就是他的券。
+
+[Yi-De Tai] 21:49:44
+看这些不同的什么kelsey的，然后。
+
+[Yi-De Tai] 21:49:48
+So the parameter.
+
+[Jizheng Dong] 21:49:50
+应该我给你看。
+
+[Yi-De Tai] 21:50:01
+你跟我说一下，用哪一个档案。
+
+[Yi-De Tai] 21:50:03
+现在是你要跑圈那个。
+
+[Jizheng Dong] 21:50:08
+其实我这边应该我看一下。
+
+[Jizheng Dong] 21:50:18
+我最终定一个吧，我可能用用这个，或者说用这个的。
+
+[Jizheng Dong] 21:50:23
+这两个之一吧。
+
+[Yi-De Tai] 21:50:26
+She.
+
+[Jizheng Dong] 21:50:28
+然后大概。
+
+[Jizheng Dong] 21:50:35
+这个有这儿，这个操作。
+
+[Jizheng Dong] 21:50:38
+可以看一下。我，到时候我到时候写清楚了，给你吧。
+
+[Yi-De Tai] 21:50:44
+好
+
+[Jizheng Dong] 21:50:46
+然后你可以跑一下。对你，你也许可以这两天先。
+
+[Yi-De Tai] 21:50:48
+Ok.
+
+[Jizheng Dong] 21:50:53
+在我给你代码之前，先去一个是调一下刚才我们说的。
+
+[Jizheng Dong] 21:50:58
+那些函数的设置。就是那个synapse with。
+
+[Jizheng Dong] 21:51:04
+然后还有就是看一下数据集。
+
+[Yi-De Tai] 21:51:05
+是的
+
+[Jizheng Dong] 21:51:07
+大概两，然后我把我的整理。
+
+[Jizheng Dong] 21:51:11
+晚安发给你，然后你来跑一下。
+
+[Yi-De Tai] 21:51:15
+Oh, oh, the.
+
+[Jizheng Dong] 21:51:21
+可以，那就那就这样。加油。
+
+[Yi-De Tai] 21:51:22
+好，那谢谢再加油。
+
+[Jizheng Dong] 21:51:28
+Okay，我们，我们能赶得上吗？还有。
+
+[Yi-De Tai] 21:51:28
+Bye, bye, man.
+
+[Jizheng Dong] 21:51:31
+不到一个月。
+
+[Yi-De Tai] 21:51:33
+看看能出什么成果吧。我觉得。
+
+[Jizheng Dong] 21:51:36
+可以。
+
+[Yi-De Tai] 21:51:37
+或者是我们赶下一个下一个。
+
+[Yi-De Tai] 21:51:41
+他不是有三大年会吗？那另外两个是。
+
+[Yi-De Tai] 21:51:44
+另外两个是什么时候。
+
+[Jizheng Dong] 21:51:44
+可能就很晚了，就是。先试试吧，先试试吧，先尽快搞一下吧。
+
+[Yi-De Tai] 21:51:51
+行，谢谢。各位。
+
+[Jizheng Dong] 21:51:53
+你觉得这样拜拜。
+

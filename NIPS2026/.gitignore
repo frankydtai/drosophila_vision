@@ -1,0 +1,36 @@
+.DS_Store
+/flyvis/docs/docs/examples
+*.pyc
+/flyvis/notebooks/outputs
+/flyvis/data/connectome/ConnectomeFromAvgFilters_0000
+/docs/zoom meeting/2026_0323_Justin
+Connectome Dataset/Banc/connections_princeton.csv.gz
+Connectome Dataset/Banc/neurons.csv.gz
+Connectome Dataset/FAFB/consolidated_cell_types.csv.gz
+Connectome Dataset/FAFB/classification.csv.gz
+Connectome Dataset/FAFB/neurons.csv.gz
+Connectome Dataset/FAFB/connections_princeton.csv.gz
+Connectome Dataset/FAFB/connections_princeton_no_threshold.csv.gz
+Connectome Dataset/FAFB/connections_buhmann_no_threshold.csv.gz
+Jaxley_notebook/jaxley_tutorial-sjcabs/tutorial/ct1_10009.swc
+Jaxley_notebook/jaxley_tutorial-sjcabs/tutorial/hse_10016.swc
+Jaxley_notebook/jaxley_tutorial-sjcabs/tutorial/malecns_09_optic_lobe_hex_08_meta.feather
+Jaxley_notebook/jaxley_tutorial-sjcabs/tutorial/malecns_09_optic_lobe_hex_08_simple_edgelist.feather
+Jaxley_notebook/jaxley_tutorial-sjcabs/tutorial/hse_10016_um.swc
+Jaxley_notebook/jaxley_tutorial-sjcabs/tutorial/optic_lobe_v_recordings.pkl
+Jaxley_notebook/jaxley_tutorial-sjcabs/tutorial/optic_lobe_syn_strenghts.pkl
+Jaxley_notebook/jaxley_tutorial-sjcabs/tutorial/optic_lobe_input_resistances.pkl
+.venv/
+flyvis/data/
+BANC_dataset/data/connections_princeton.csv.gz
+BANC_dataset/data/neurons.csv.gz
+/neuro_framework/notebooks/figures
+/mcHH/data/simplified_swc
+/mcHH/data/simplified_morphologies
+/mcHH/data/optic_lobe_right_motion
+/mcHH/data/visual_whole_brain
+/mcHH/data/optic_lobe_right
+/mcHH/data/optic_lobe_type_packages_v1
+/mcHH/data/optic_lobe_type_packages_v1_test
+/RT3D/RT3D_2flies
+/mcHH/data/cache

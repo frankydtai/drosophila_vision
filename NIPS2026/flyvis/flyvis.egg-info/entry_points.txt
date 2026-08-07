@@ -1,0 +1,2 @@
+[console_scripts]
+flyvis = flyvis_cli.flyvis_cli:main

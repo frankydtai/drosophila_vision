@@ -1,0 +1,6 @@
+nt_type,gNa,gK,gLeak,eNa,eK,eLeak,notes
+acetylcholine,0.0035,0.0019,0.0015,50.0,-77.0,-48.0,cholinergic prior for visually excitatory or modulatory cell classes
+gaba,0.0025,0.0022,0.0018,50.0,-77.0,-52.0,gabaergic prior with slightly stronger leak and lower excitability
+glutamate,0.0030,0.0020,0.0016,50.0,-77.0,-50.0,visual-system glutamatergic prior kept neutral because fly glutamate is not uniformly excitatory
+histamine,0.0028,0.0021,0.0018,50.0,-77.0,-53.0,histaminergic photoreceptor-associated prior with hyperpolarized leak
+unknown,0.0030,0.0020,0.0015,50.0,-77.0,-50.0,fallback prior when neurotransmitter is unknown

@@ -1,0 +1,23 @@
+source_type,target_type,rule_kind,notes
+R1-R6,R1-6,alias,naming normalization
+T4b,T4a,family_merge,T4 subtypes share initial intrinsic prior before subtype-specific fitting
+T4c,T4a,family_merge,T4 subtypes share initial intrinsic prior before subtype-specific fitting
+T4d,T4a,family_merge,T4 subtypes share initial intrinsic prior before subtype-specific fitting
+T5a,T4a,family_merge,T5 family initialized from motion-detection prior close to T4 until dedicated fit exists
+T5b,T4a,family_merge,T5 family initialized from motion-detection prior close to T4 until dedicated fit exists
+T5c,T4a,family_merge,T5 family initialized from motion-detection prior close to T4 until dedicated fit exists
+T5d,T4a,family_merge,T5 family initialized from motion-detection prior close to T4 until dedicated fit exists
+L2,L1,family_neighbor,adjacent lamina monopolar cells share initial prior when direct fit is unavailable
+L4,L3,family_neighbor,adjacent lamina monopolar cells share initial prior when direct fit is unavailable
+T1,Mi1,pathway_proxy,centripetal T1 initialized from ON-pathway medulla intrinsic prior
+C2,L5,pathway_proxy,centrifugal lamina cell initialized from nearby lamina pathway proxy
+C3,L5,pathway_proxy,centrifugal lamina cell initialized from nearby lamina pathway proxy
+Tm1,Tm3,family_neighbor,transmedullary fallback within same broad family
+Tm2,Tm3,family_neighbor,transmedullary fallback within same broad family
+Tm4,Tm3,family_neighbor,transmedullary fallback within same broad family
+Tm9,Tm3,family_neighbor,transmedullary fallback within same broad family
+Tm20,Tm3,family_neighbor,transmedullary fallback within same broad family
+Tm21,Tm3,family_neighbor,transmedullary fallback within same broad family
+T2,Mi1,pathway_proxy,T2 initialized from Mi1 ON-pathway proxy
+T2a,Mi1,pathway_proxy,T2a initialized from Mi1 ON-pathway proxy
+T3,Mi1,pathway_proxy,T3 initialized from Mi1 ON-pathway proxy
