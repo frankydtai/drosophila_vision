@@ -55,8 +55,8 @@ PARAM_BOXES: Dict[str, dict] = {
     "syn_strength_edge": dict(lo=GAIN_LO, hi=GAIN_HI, init=1.0, jit=0.1, train_mode="indi"),
     "a_in": dict(lo=0.01, hi=100, init=1.0, jit=0.1, train_mode="shared"),
     "a_out": dict(lo=GAIN_LO, hi=GAIN_HI, init=1.0, jit=0.1, train_mode="indi"),
-    "e_leak": dict(lo=-50.0, hi=50.0, init=-50.0, jit=1.0, train_mode="fixed"),
-    "v_th": dict(lo=-70.0, hi=-30.0, init=-50.0, jit=0.0, train_mode="fixed"),
+    "e_leak": dict(lo=-100.0, hi=100.0, init=-50.0, jit=1.0, train_mode="fixed"),
+    "v_th": dict(lo=-100.0, hi=-100.0, init=-50.0, jit=0.0, train_mode="fixed"),
     "tau_lp": dict(lo=10.0, hi=100.0, init=40.0, jit=2.0, train_mode="fixed"),
     "tau_hp": dict(lo=100.0, hi=500.0, init=200.0, jit=20.0, train_mode="shared"),
     "a_h": dict(lo=0.0, hi=1.0, init=0, jit=0.1, train_mode="indi_named"),
@@ -143,7 +143,7 @@ MULTI_BAR = True
 # 4.1 training.config
 # ---------------------------------------------------------------------------
 
-TASK = "spot"
+TASK = "spot_bright"
 
 # ---------------------------------------------------------------------------
 # 4.4 training.cost
@@ -164,7 +164,7 @@ PRE_STEADY = "solve"
 PRE_STEADY_ITERS = 50  # solve only
 PRE_STEADY_DAMP = 0.1  # solve under-relaxation
 NOFRUNS = 1
-NOFSTEPS_CPU = 50
+NOFSTEPS_CPU = 0
 NOFSTEPS_GPU = 200
 LRS = "0.1"
 CHECKPOINT_INTERVAL = 500

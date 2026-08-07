@@ -163,6 +163,7 @@ def inspect_part(session, z, part_key: str) -> dict:
 
     gt_aff_mean = (w[:, None] * gt_aff).sum(dim=0) / w_sum
     v_readout_mean = (w[:, None] * v_readout_r).sum(dim=0) / w_sum
+    sse_mean = sse / w_sum
 
     official = calc_cost_parts(z, session)
     official_val = float(official[part_key].item()) if part_key in official else None
@@ -182,7 +183,7 @@ def inspect_part(session, z, part_key: str) -> dict:
         "cost": cost,
         "official": official_val,
         "denom_name": denom_name,
-        "sse": sse.detach().cpu().numpy(),
+        "sse_mean": sse_mean.detach().cpu().numpy(),
         "denom_t": denom_t.detach().cpu().numpy(),
         "cost_mean": cost_mean.detach().cpu().numpy(),
         "gt_aff_mean": gt_aff_mean.detach().cpu().numpy(),
@@ -227,7 +228,7 @@ def _print_table(info: dict, *, stride: int, per_node: bool) -> None:
     for t in range(0, info["n_t"], max(1, int(stride))):
         c = info["cost_mean"][t]
         c_s = "nan" if not np.isfinite(c) else f"{c:.10f}"
-        sse_mean = info["sse"][t] / w_sum
+        sse_mean = info["sse_mean"][t]
         den = info["denom_t"][t]
         if per_node and denom_name == "POWER":
             den = den / w_sum
@@ -255,7 +256,7 @@ def _write_csv(path: str, info: dict, *, per_node: bool) -> None:
         for t in range(info["n_t"]):
             c = info["cost_mean"][t]
             c_s = "" if not np.isfinite(c) else f"{c:.10f}"
-            sse_mean = float(info["sse"][t]) / w_sum
+            sse_mean = float(info["sse_mean"][t])
             den = float(info["denom_t"][t])
             den_avg = den / w_sum if denom_name == "POWER" else den
             w.writerow(

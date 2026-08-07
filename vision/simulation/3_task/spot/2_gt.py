@@ -2,10 +2,9 @@
 """Spot paradigm GT: RecF x ImpR gt traces and cost-radius readout.
 
 Merges the old ``Medulla_Library`` RecF/ImpR reader (with its internal
-bandpass/lowpass ImpR shaping and L1/L2 ``+0.4 * drive`` sustained mix --
-a gt-only spot-drive path, not the unused Ca filter in
-``neuron.filter_ca``) and the old network spot-gt section (gt assembly +
-Euclidean cost radii).
+bandpass/lowpass ImpR shaping -- a gt-only spot-drive path, not the unused
+Ca filter in ``neuron.filter_ca``) and the old network spot-gt section
+(gt assembly + Euclidean cost radii).
 
 New features handled here:
 - ``ms_spot`` (#1): the PR drive comes from
@@ -149,13 +148,10 @@ def _shift_right(y, k: int):
 
 # ImpR onset delay (samples / t-index): L1–L5 +1; other gt cells +2.
 _IMPR_SHIFT_RIGHT = {
-    "L1": 1, "L2": 1, "L3": 1, "L4": 2, "L5": 2,
-    "Mi1": 3, "Tm3": 3, "Mi4": 3, "Mi9": 3,
-    "Tm1": 3, "Tm2": 3, "Tm4": 3, "Tm9": 3,
+    "L1": 5, "L2": 5, "L3": 5, "L4": 5, "L5": 5,
+    "Mi1": 5, "Tm3": 5, "Mi4": 5, "Mi9": 5,
+    "Tm1": 5, "Tm2": 5, "Tm4": 5, "Tm9": 5,
 }
-# L1/L2: mix sustained drive into bandpass ImpR (Medulla_Library).
-_IMPR_SUSTAINED_CELLS = frozenset({"L1", "L2"})
-_IMPR_SUSTAINED_WEIGHT = 0.4
 
 
 def read_RecF_ImpR(*, t_onset=None, n_t=None, ms_spot=None, delta_ms: float):
@@ -223,10 +219,8 @@ def read_RecF_ImpR(*, t_onset=None, n_t=None, ms_spot=None, delta_ms: float):
             ImpR_gt[i] = _bandpass(
                 u, IR_hp_ms[i], IR_lp_ms[i], delta_ms=delta_ms,
             )
-        name = str(GT_CELLS[i])
-        if name in _IMPR_SUSTAINED_CELLS:
-            ImpR_gt[i] = ImpR_gt[i] + _IMPR_SUSTAINED_WEIGHT * u
         ImpR_gt[i] = normalize_gt(ImpR_gt[i])
+        name = str(GT_CELLS[i])
         ImpR_gt[i] = _shift_right(ImpR_gt[i], _IMPR_SHIFT_RIGHT[name])
 
     return RecF_gt, ImpR_gt
@@ -377,7 +371,7 @@ def spot_cost_node_weight(
     return float(weights.get(round(radius, 6), 0.0))
 
 
-# -- RecF sampling / hex gt -------------------------------------------------
+# -- RecF sampling / superposed gt ----------------------------------------
 
 
 def _recf_at(recf_row: np.ndarray, radius: float) -> float:
@@ -396,24 +390,25 @@ def _spot_readout_amp(recf_row: np.ndarray, radius: float, spot_extent: float) -
     return _recf_at(recf_row, r)
 
 
-def _spot_hex_amp(
+def _spot_superposed_amp(
     recf_row: np.ndarray,
+    stim_uv: Sequence[Tuple[int, int]],
     mu: int,
     mv: int,
-    su: int,
-    sv: int,
     spot_extent: float,
 ) -> float:
-    dist = round(euclid_hex_dist(int(mu) - int(su), int(mv) - int(sv)), 6)
-    return _spot_readout_amp(recf_row, dist, spot_extent)
+    total = 0.0
+    for su, sv in stim_uv:
+        dist = round(euclid_hex_dist(int(mu) - int(su), int(mv) - int(sv)), 6)
+        total += _spot_readout_amp(recf_row, dist, spot_extent)
+    return total
 
 
-def _spot_hex_trace(
+def _spot_superposed_trace(
     recf_row: np.ndarray,
+    stim_uv: Sequence[Tuple[int, int]],
     mu: int,
     mv: int,
-    su: int,
-    sv: int,
     spot_extent: float,
     impr_row: np.ndarray,
     resp: slice,
@@ -421,7 +416,7 @@ def _spot_hex_trace(
     *,
     polarity: str,
 ) -> np.ndarray:
-    amp = _spot_hex_amp(recf_row, mu, mv, su, sv, spot_extent)
+    amp = _spot_superposed_amp(recf_row, stim_uv, mu, mv, spot_extent)
     trace = amp * impr_row[resp] * data_amp
     if polarity == "dark":
         trace = -trace
@@ -472,8 +467,8 @@ def build_spot_cost_readout(C, batches, cost_radii, cost_extent):
     for b, mu, mv, cell_radius, su, sv in spot_cost_hexes(
         batches, cost_radii, cost_extent,
     ):
-        on_hex = (u == mu) & (v == mv)
-        for uid in np.where(on_hex)[0]:
+        on_col = (u == mu) & (v == mv)
+        for uid in np.where(on_col)[0]:
             batch_idx.append(b)
             node_idx.append(int(uid))
             radius.append(cell_radius)
@@ -531,8 +526,8 @@ class SpotGt:
     cost_radius: torch.Tensor     # (n_cost,)
     readout_batch: torch.Tensor   # (n_cost,) long
     readout_node: torch.Tensor    # (n_cost,) long
-    cost_stim_u: torch.Tensor  # (n_cost,) long
-    cost_stim_v: torch.Tensor  # (n_cost,) long
+    readout_stim_u: torch.Tensor  # (n_cost,) long
+    readout_stim_v: torch.Tensor  # (n_cost,) long
     n_batch: int
     info: dict
 
@@ -628,28 +623,28 @@ def build_spot_gt(
     )
     cost_hexes = spot_cost_hexes(batches, cost_radii, cost_extent)
 
-    cost_batch, cost_node, cost_radius_entries, cost_readout, cost_weight_entries = [], [], [], [], []
+    cost_batch, cost_node, cost_radius_rows, cost_readout, cost_weight_rows = [], [], [], [], []
     cost_stim_u, cost_stim_v = [], []
-    trace_cache: Dict[Tuple[int, int, int, int, int, int], np.ndarray] = {}
+    trace_cache: Dict[Tuple[int, int, int, int], np.ndarray] = {}
     for b, mu, mv, radius, su, sv in cost_hexes:
         w = spot_cost_node_weight(
             radius, spot_cost_radius_weight, default_weights=default_cost_weights,
         )
         if w == 0.0:
             continue
+        stim_uv = batches[b].stim_uv
         for rt in present:
             nodes = hex2gt(C, mu, mv, rt, names)
             if len(nodes) == 0:
                 continue
             row = type_row[rt]
-            cache_key = (b, mu, mv, su, sv, row)
+            cache_key = (b, mu, mv, row)
             if cache_key not in trace_cache:
-                trace_cache[cache_key] = _spot_hex_trace(
+                trace_cache[cache_key] = _spot_superposed_trace(
                     recf_gt[row],
+                    stim_uv,
                     mu,
                     mv,
-                    su,
-                    sv,
                     spot_extent,
                     impr_gt[row],
                     resp,
@@ -660,9 +655,9 @@ def build_spot_gt(
             for uidx in nodes:
                 cost_batch.append(b)
                 cost_node.append(int(uidx))
-                cost_radius_entries.append(radius)
+                cost_radius_rows.append(radius)
                 cost_readout.append(trace)
-                cost_weight_entries.append(w)
+                cost_weight_rows.append(w)
                 cost_stim_u.append(int(su))
                 cost_stim_v.append(int(sv))
 
@@ -670,12 +665,12 @@ def build_spot_gt(
         raise ValueError("no spot cost nodes (check cost_extent and gt cells)")
 
     gt = torch.tensor(np.asarray(cost_readout), dtype=sim_dtype, device=device)  # (n_cost,T')
-    cost_weight = torch.tensor(np.asarray(cost_weight_entries), dtype=sim_dtype, device=device)
-    cost_radius = torch.tensor(np.asarray(cost_radius_entries), dtype=sim_dtype, device=device)
+    cost_weight = torch.tensor(np.asarray(cost_weight_rows), dtype=sim_dtype, device=device)
+    cost_radius = torch.tensor(np.asarray(cost_radius_rows), dtype=sim_dtype, device=device)
     readout_batch = torch.tensor(np.asarray(cost_batch), dtype=torch.long, device=device)
     readout_node = torch.tensor(np.asarray(cost_node), dtype=torch.long, device=device)
-    cost_stim_u_t = torch.tensor(np.asarray(cost_stim_u), dtype=torch.long, device=device)
-    cost_stim_v_t = torch.tensor(np.asarray(cost_stim_v), dtype=torch.long, device=device)
+    readout_stim_u = torch.tensor(np.asarray(cost_stim_u), dtype=torch.long, device=device)
+    readout_stim_v = torch.tensor(np.asarray(cost_stim_v), dtype=torch.long, device=device)
 
     power = torch.sum(cost_weight[:, None] * gt ** 2)
     if float(power) == 0.0:
@@ -712,8 +707,8 @@ def build_spot_gt(
         cost_radius=cost_radius,
         readout_batch=readout_batch,
         readout_node=readout_node,
-        cost_stim_u=cost_stim_u_t,
-        cost_stim_v=cost_stim_v_t,
+        readout_stim_u=readout_stim_u,
+        readout_stim_v=readout_stim_v,
         n_batch=n_batch,
         info=info,
     )
