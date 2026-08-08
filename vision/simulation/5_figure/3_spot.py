@@ -16,7 +16,6 @@ from param_defaults import DELTA_MS
 import training
 from neuron.params import ms_to_t, ms_to_t_abs, t_to_ms
 from figure.readout import (
-    contrast_for_task,
     contrast_linestyle,
     contrast_order,
     pack_readout_cells,
@@ -59,7 +58,7 @@ from task.spot.input import (
     spot_stimulus_batches,
 )
 from task.spot.gt import (
-    _IMPR_SHIFT_RIGHT,
+    _IMPR_SHIFT,
     RF_CENTER_RADIUS,
     RF_N_RADII,
     RF_RADIUS_DEG,
@@ -90,16 +89,6 @@ def pack_spot_cost_radii(pack) -> tuple[float, ...]:
     return tuple(
         sorted({round(float(radius), 6) for radius in pack.cost_radius.tolist()})
     )
-
-
-def _integer_profile_radius(radius):
-    """Return profile axis index for integer Euclidean radius, else ``None``."""
-    k = int(round(float(radius)))
-    if abs(float(radius) - k) > 1e-6:
-        return None
-    if k < 0 or k >= RF_N_RADII:
-        return None
-    return k
 
 
 def _session_spot_timing(session):
@@ -140,15 +129,32 @@ def resolve_spot_gt_cubes(sessions, gt_cubes=None):
     return out
 
 
-def _session_cost_time_ix(session, t_onset):
-    """Absolute time indices used for sparse spot cost (or ``None``)."""
+def _session_cost_time_ix(session, t_onset, radius=None):
+    """Absolute time indices used for sparse spot cost (or ``None``).
+
+    When ``radius`` is set and ``cost_time_mask`` is present, keep only columns
+    used by that Euclidean cost radius.
+    """
     if session is None:
         return None
-    ix = getattr(session.primary_readout, "cost_time_ix", None)
+    pack = session.primary_readout
+    ix = getattr(pack, "cost_time_ix", None)
     if ix is None:
         return None
     base = int(t_onset or 0)
     ix_np = ix.detach().cpu().numpy().astype(np.int64, copy=False)
+    mask = getattr(pack, "cost_time_mask", None)
+    cost_radius = getattr(pack, "cost_radius", None)
+    if (
+        radius is not None
+        and mask is not None
+        and cost_radius is not None
+    ):
+        rad = np.round(cost_radius.detach().cpu().numpy().astype(float), 6)
+        hit = np.where(rad == round(float(radius), 6))[0]
+        if hit.size:
+            col = mask[int(hit[0])].detach().cpu().numpy() > 0
+            ix_np = ix_np[col]
     return base + ix_np
 
 
@@ -175,15 +181,12 @@ def scale_curve(xt, center_radius, sem_xt=None, *, t_onset=None, t_spot_end=None
         )
     resp = imp[t0:t1]
     if not np.isfinite(resp).any():
-        if sem_xt is not None:
-            return None, None, None
-        return None, None
+        return None, None, None
     ref = float(resp[0]) if np.isfinite(resp[0]) else float(resp[np.isfinite(resp)][0])
     t_v_max = t0 + int(np.nanargmax(np.abs(resp - ref)))
     spatial = np.asarray(xt[:, t_v_max], dtype=np.float64)
-    if sem_xt is not None:
-        return imp, spatial, sem_xt[center_radius]
-    return imp, spatial
+    sem = None if sem_xt is None else sem_xt[center_radius]
+    return imp, spatial, sem
 
 
 def _plot_rf_profile(ax, rf, *, color, label=None, linestyle='-', filled=False):
@@ -265,21 +268,14 @@ def _scale_contrast_series(
         item = dict(entry)
         v_readout_xt = entry.get("v_readout_xt")
         gt_xt = entry.get("gt_xt")
-        sem_xt = entry.get("sem_xt")
-        imp_sem = None
         if v_readout_xt is not None:
-            if sem_xt is not None:
-                imp_v_readout, rf_v_readout, imp_sem = scale_curve(
-                    v_readout_xt, center_radius, sem_xt, **sc_kw,
-                )
-            else:
-                imp_v_readout, rf_v_readout = scale_curve(
-                    v_readout_xt, center_radius, **sc_kw,
-                )
+            imp_v_readout, rf_v_readout, imp_sem = scale_curve(
+                v_readout_xt, center_radius, entry.get("sem_xt"), **sc_kw,
+            )
         else:
-            imp_v_readout, rf_v_readout = None, None
+            imp_v_readout, rf_v_readout, imp_sem = None, None, None
         if gt_xt is not None:
-            imp_gt, rf_gt = scale_curve(gt_xt, center_radius, **sc_kw)
+            imp_gt, rf_gt, _ = scale_curve(gt_xt, center_radius, **sc_kw)
         else:
             imp_gt, rf_gt = None, None
         item.update(
@@ -479,17 +475,17 @@ def plot_cell_rf_time_slices(
         slice_overlay = item.get("slice_overlay") or {}
         imp_v_readout = rf_v_readout = None
         if v_readout_xt is not None:
-            imp_v_readout, rf_v_readout = scale_curve(
+            imp_v_readout, rf_v_readout, _ = scale_curve(
                 v_readout_xt, center_radius, **sc_kw,
             )
         imp_gt = rf_gt = None
         if gt_xt is not None:
-            imp_gt, rf_gt = scale_curve(gt_xt, center_radius, **sc_kw)
+            imp_gt, rf_gt, _ = scale_curve(gt_xt, center_radius, **sc_kw)
         slice_imps = {}
         slice_rfs = {}
         for label in slice_labels:
             if label in slice_overlay:
-                imp_s, rf_s = scale_curve(slice_overlay[label], center_radius, **sc_kw)
+                imp_s, rf_s, _ = scale_curve(slice_overlay[label], center_radius, **sc_kw)
                 slice_imps[label] = imp_s
                 slice_rfs[label] = rf_s
 
@@ -545,39 +541,6 @@ def plot_cell_rf_time_slices(
     annotate_v_th(ax_time, v_th, e_leak=e_leak)
 
 
-
-def _as_index(node_index, device):
-    if not torch.is_tensor(node_index):
-        return torch.tensor(node_index, dtype=torch.long, device=device)
-    return node_index.to(device)
-
-
-@torch.no_grad()
-def _simulate(session, z, node_index):
-    node_index = _as_index(node_index, z.device)
-    schema = list(session.schema)
-    backend = session.backend
-    p = training.assign_params(z, schema, backend)
-    stacked = training.forward_nodes(session, p, node_index=node_index)
-    # Match prior layout: (n_nodes, T) for 2-D forward_nodes output.
-    return stacked.transpose(0, 1) if stacked.dim() == 2 else stacked
-
-
-def calc_ca_full_all(session, z):
-    n_cells = session.backend.n_cells
-    mt = session.n_t
-    ca_full = np.zeros((n_cells, RF_N_RADII, mt))
-    for radius in range(RF_N_RADII):
-        col_index = torch.arange(
-            radius * n_cells,
-            (radius + 1) * n_cells,
-            dtype=torch.long,
-            device=z.device,
-        )
-        ca_full[:, radius] = _simulate(session, z, col_index).cpu().numpy()
-    return ca_full
-
-
 def _fill_member_cube(cube, sem, ti, ft_global, type_idx, du, dv, plot_traces):
     """Fill profile radii from Euclidean radius means; return ``{r: n_rows}``."""
     mask = type_idx == ft_global
@@ -590,15 +553,13 @@ def _fill_member_cube(cube, sem, ti, ft_global, type_idx, du, dv, plot_traces):
         by_radius.setdefault(radius, []).append(int(row))
     n_by_radius = {}
     for radius, row_ix in by_radius.items():
-        profile_radius = _integer_profile_radius(radius)
-        if profile_radius is None:
+        k = int(round(float(radius)))
+        if abs(float(radius) - k) > 1e-6 or k < 0 or k >= RF_N_RADII:
             continue
         traces = plot_traces[row_ix]
-        mean_trace = traces.mean(axis=0)
-        sem_trace = sem_from_traces(traces, single_hex=False)
-        cube[ti, profile_radius] = mean_trace
-        sem[ti, profile_radius] = sem_trace
-        n_by_radius[profile_radius] = len(row_ix)
+        cube[ti, k] = traces.mean(axis=0)
+        sem[ti, k] = sem_from_traces(traces, single_hex=False)
+        n_by_radius[k] = len(row_ix)
     return n_by_radius
 
 
@@ -620,7 +581,7 @@ class SpotTraceBundle:
     show_pre: bool = True
     t_spot_end: int | None = None
     ms_shown: tuple[float, float] | None = None
-    r0_only: bool = False
+    center_only: bool = False
     a_sti_r: dict[str, float] = field(default_factory=dict)
 
     @property
@@ -636,12 +597,6 @@ def _order_row_ixs_from_rows(order_rows, names):
         if row_idx:
             order_row_ixs.append(row_idx)
     return order_row_ixs
-
-
-def _spot_all_cell_names(session):
-    if session.backend.network is None:
-        raise ValueError("_spot_all_cell_names requires session.backend.network")
-    return plot_cells_in_order(session.backend.network.cell_names)
 
 
 def _spot_readout_bundle_view(bundle):
@@ -663,14 +618,9 @@ def _spot_readout_bundle_view(bundle):
         show_pre=bundle.show_pre,
         t_spot_end=bundle.t_spot_end,
         ms_shown=bundle.ms_shown,
-        r0_only=bool(getattr(bundle, "r0_only", False)),
-        a_sti_r=dict(getattr(bundle, "a_sti_r", None) or {}),
+        center_only=bool(bundle.center_only),
+        a_sti_r=dict(bundle.a_sti_r),
     )
-
-
-def _cells_with_order_row_ixs(order_rows, names, build_cell):
-    cells = [build_cell(str(name)) for name in names]
-    return cells, _order_row_ixs_from_rows(order_rows, names)
 
 
 def _spot_cubes_from_row_mask(rows, mask):
@@ -786,7 +736,7 @@ def _spot_forward_rows(
     opts = dict((session.train_opts or {}).get(f"{pack.name}_stimulus_opts") or {})
     spot = spot_from_opts(C, stimulus_opts=opts)
     batches = spot_stimulus_batches(spot)
-    present = _spot_all_cell_names(session)
+    present = plot_cells_in_order(C.cell_names)
     order_rows = [np.array(row) for row in cell_order_rows(present)]
     names = cell_names_in_order(present)
 
@@ -882,7 +832,7 @@ def network_spot_trace_bundle(
     at_xs=None, at_ys=None,
     show_pre=True,
     ms_shown=None,
-    r0_only=False,
+    center_only=False,
 ):
     """Run one forward; full cost-extent spot traces over all types."""
     t_prep0 = time.perf_counter()
@@ -916,35 +866,26 @@ def network_spot_trace_bundle(
         show_pre=bool(show_pre),
         t_spot_end=rows.get('t_spot_end'),
         ms_shown=ms_shown,
-        r0_only=bool(r0_only),
+        center_only=bool(center_only),
         a_sti_r=dict(rows.get('a_sti_r') or {}),
     )
-
-
-def _format_a_sti_r_suptitle(a_sti_r):
-    """Figure title ``a_sti_r 1 = <value>`` from named slot values."""
-    if not a_sti_r or "1" not in a_sti_r:
-        return None
-    return f"a_sti_r 1 = {float(a_sti_r['1']):.4g}"
 
 
 def _spot_suptitle(title, bundle):
     head = title
     if bundle is not None:
-        formatted = _format_a_sti_r_suptitle(getattr(bundle, "a_sti_r", None) or {})
-        if formatted is not None:
-            head = formatted
-    if bundle is not None and bundle.has_slices:
-        scope = hex_at_scope_tag(bundle.slice_xs, bundle.slice_ys)
-        return f'{head}  [{scope}, overlay + total]'
+        a_sti_r = bundle.a_sti_r
+        if a_sti_r and "1" in a_sti_r:
+            head = f"a_sti_r 1 = {float(a_sti_r['1']):.4g}"
+        if bundle.has_slices:
+            scope = hex_at_scope_tag(bundle.slice_xs, bundle.slice_ys)
+            return f'{head}  [{scope}, overlay + total]'
     return head
 
 
-def _trained_radii(cost_parts, contrasts, *, r0_only=False):
+def _trained_radii(cost_parts, contrasts, *, center_only=False):
     """Sorted integer radii from spot cost parts (``spot_{contrast}_{cell}_r*``)."""
-    if r0_only:
-        return [int(RF_CENTER_RADIUS)]
-    if not cost_parts:
+    if center_only or not cost_parts:
         return [int(RF_CENTER_RADIUS)]
     out = set()
     for contrast in contrasts:
@@ -993,11 +934,11 @@ def _plot_spot_figure(
     slice_labels = primary.slice_labels or []
     n_t = primary.n_t
     t_onset = primary.t_onset
-    t_spot_end = getattr(primary, "t_spot_end", None)
+    t_spot_end = primary.t_spot_end
     delta_ms = float(primary.session.delta_ms)
     delta_ms_pre = float(primary.session.delta_ms_pre)
-    show_pre = getattr(primary, "show_pre", True)
-    ms_shown = getattr(primary, "ms_shown", None)
+    show_pre = primary.show_pre
+    ms_shown = primary.ms_shown
     timer.end_prep()
 
     sessions = {c: bundles[c].session for c in order}
@@ -1007,8 +948,9 @@ def _plot_spot_figure(
     for c in order:
         cells_by_contrast[c] = {cell["name"]: cell for cell in bundles[c].cells}
 
-    r0_only = bool(getattr(primary, "r0_only", False))
-    radii = _trained_radii(cost_parts, order, r0_only=r0_only)
+    center_only = bool(primary.center_only)
+    radii = _trained_radii(cost_parts, order, center_only=center_only)
+    center_radius = int(RF_CENTER_RADIUS)
     order_heights = [
         1 + len(radii) for _ in order_row_ixs
     ]
@@ -1044,6 +986,7 @@ def _plot_spot_figure(
                 "label_total": f"{c} total",
                 "point_ix": _session_cost_time_ix(
                     bundles[c].session, bundles[c].t_onset,
+                    radius=center_radius,
                 ),
             }
             if with_slices:
@@ -1061,11 +1004,10 @@ def _plot_spot_figure(
 
     def _plot_cell(name, cell_primary, ax_rf, ax_time, show_ylabel, show_xlabels):
         nonlocal legend_done
-        r0 = int(RF_CENTER_RADIUS)
-        t_lag = int(_IMPR_SHIFT_RIGHT.get(name, 0))
+        t_lag = int(_IMPR_SHIFT)
         time_title = format_spot_radius_time_title(
-            r0,
-            (cell_primary.get("n_by_radius") or {}).get(r0),
+            center_radius,
+            (cell_primary.get("n_by_radius") or {}).get(center_radius),
             name,
             cost_parts,
             order,
@@ -1146,7 +1088,7 @@ def _plot_spot_figure(
                 show_ylabel=(j == 0),
                 t_onset=t_onset,
                 t_spot_end=t_spot_end,
-                t_lag=int(_IMPR_SHIFT_RIGHT.get(name, 0)),
+                t_lag=int(_IMPR_SHIFT),
             )
             legend_done = True
             ylim0 = None
@@ -1171,7 +1113,7 @@ def _plot_spot_figure(
                     t_onset=t_onset,
                     show_pre=show_pre,
                     t_spot_end=t_spot_end,
-                    t_lag=int(_IMPR_SHIFT_RIGHT.get(name, 0)),
+                    t_lag=int(_IMPR_SHIFT),
                     delta_ms=delta_ms,
                     delta_ms_pre=delta_ms_pre,
                     ms_shown=ms_shown,
@@ -1190,13 +1132,10 @@ def _plot_spot_figure(
 
 def plot_network_spot_gt(path, *, bundles, title, gt_cubes=None, cost_parts=None):
     """Draw ca-gt figure (pack readout types) from contrast → bundle."""
-    timer = PlotTimer(prior_prep=bundle_prep_s(*bundles.values()))
-    views = {
-        c: _spot_readout_bundle_view(b) for c, b in bundles.items()
-    }
+    views = {c: _spot_readout_bundle_view(b) for c, b in bundles.items()}
     _plot_spot_figure(
         path,
-        timer=timer,
+        timer=PlotTimer(prior_prep=bundle_prep_s(*bundles.values())),
         bundles=views,
         title=title,
         gt_cubes=gt_cubes,
@@ -1209,10 +1148,9 @@ def plot_network_spot_gt(path, *, bundles, title, gt_cubes=None, cost_parts=None
 
 def plot_network_spot_all(path, *, bundles, title, gt_cubes=None, cost_parts=None):
     """Draw ca-all figure (all types) from contrast → bundle."""
-    timer = PlotTimer(prior_prep=bundle_prep_s(*bundles.values()))
     _plot_spot_figure(
         path,
-        timer=timer,
+        timer=PlotTimer(prior_prep=bundle_prep_s(*bundles.values())),
         bundles=bundles,
         title=title,
         gt_cubes=gt_cubes,

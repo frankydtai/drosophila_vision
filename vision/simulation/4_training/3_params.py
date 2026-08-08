@@ -61,25 +61,21 @@ def _physical_bounds(seg):
 def _decode_z(seg, z_val):
     """Map trainable z slot -> physical parameter value."""
     scale = _seg_scale(seg)
-    if scale == 'log':
-        lo, hi = _physical_bounds(seg)
-        return torch.clamp(torch.exp(z_val), min=lo, max=hi)
-    if scale == 'inv':
-        lo, hi = _physical_bounds(seg)
-        return torch.clamp(1.0 / z_val, min=lo, max=hi)
-    return z_val
+    if scale == 'linear':
+        return z_val
+    lo, hi = _physical_bounds(seg)
+    phys = torch.exp(z_val) if scale == 'log' else 1.0 / z_val
+    return torch.clamp(phys, min=lo, max=hi)
 
 
 def _encode_physical(seg, physical):
     """Map physical parameter value -> trainable z slot."""
     scale = _seg_scale(seg)
-    if scale == 'log':
-        lo, hi = _physical_bounds(seg)
-        return float(np.log(np.clip(float(physical), lo, hi)))
-    if scale == 'inv':
-        lo, hi = _physical_bounds(seg)
-        return 1.0 / float(np.clip(float(physical), lo, hi))
-    return float(physical)
+    if scale == 'linear':
+        return float(physical)
+    lo, hi = _physical_bounds(seg)
+    clipped = float(np.clip(float(physical), lo, hi))
+    return float(np.log(clipped)) if scale == 'log' else 1.0 / clipped
 
 
 def _z_bounds(seg):
@@ -131,14 +127,6 @@ def effective_init(seg, u):
     return float(seg['init'])
 
 
-def _merge_init_override(dst, names_part, val):
-    """Write ``NAMES`` / ``all`` into init_override dict from one ``=VAL`` token."""
-    for n in names_part.split(','):
-        n = n.strip()
-        if n:
-            dst[n] = val
-
-
 def parse_train_mode_text(text):
     """Parse ``indi=all init.L1,L2,L4,L5=200 all=10000`` -> token dict."""
     text = (text or '').strip()
@@ -161,7 +149,10 @@ def parse_train_mode_text(text):
             names_part = key[len('init.'):]
             if not names_part:
                 raise ValueError(f"init override token {tok!r} needs init.NAMES=VALUE")
-            _merge_init_override(init_override, names_part, float(rest))
+            for n in names_part.split(','):
+                n = n.strip()
+                if n:
+                    init_override[n] = float(rest)
             continue
         raise ValueError(f"unknown train_mode {key!r}")
     if init_override:
@@ -366,28 +357,6 @@ def validate_syn_strength_edge_train_mode(mode_tokens, *, param_name='syn_streng
     return mode_tokens
 
 
-def _mode_indi_all(n):
-    return {'indi': list(range(n)), 'shared': [], 'fixed': [], 'frozen': []}
-
-
-def _mode_shared_all(n):
-    return {'indi': [], 'shared': list(range(n)), 'fixed': [], 'frozen': []}
-
-
-def _mode_fixed_all(n):
-    return {'indi': [], 'shared': [], 'fixed': list(range(n)), 'frozen': []}
-
-
-def _mode_indi_subset_fixed_rest(n, indi_idx):
-    indi_set = set(indi_idx)
-    return {
-        'indi': list(indi_idx),
-        'shared': [],
-        'fixed': [i for i in range(n) if i not in indi_set],
-        'frozen': [],
-    }
-
-
 def seed_fixed_from_named(schema, named):
     """Stamp *named* values into ``init_override`` for fixed nodes (not in z)."""
     out = []
@@ -432,13 +401,6 @@ def attach_param_carry(schema, named=None):
         s['carry'] = carry
         out.append(s)
     return out
-
-
-def _with_train_mode(seg, mode):
-    s = dict(seg)
-    for b in TRAIN_MODES:
-        s[b] = list(mode[b])
-    return s
 
 
 def z_to_node_values(z, schema):
@@ -537,19 +499,21 @@ def named_moments_to_z(named_m, named_v, schema, *, dtype=None, device=None):
     return exp_avg, exp_avg_sq
 
 
-def remap_named_moments(named, src_cell_names, src_pair_names, schema, backend):
-    """Remap named moment arrays; missing nodes/params fill 0."""
+def _remap_named(named, src_cell_names, src_pair_names, schema, backend, *, fill):
+    """Remap named arrays onto *backend* node order; ``fill(seg, j)`` for gaps."""
     src_cell_names = [str(n) for n in src_cell_names]
     src_pair_names = [str(n) for n in (src_pair_names or [])]
     dst_cells = cell_node_names(backend)
-    dst_pairs = pair_node_names(backend) if any(s['kind'] == 'edge_pair' for s in schema) else []
+    dst_pairs = (
+        pair_node_names(backend) if any(s['kind'] == 'edge_pair' for s in schema) else []
+    )
     src_t = {n: i for i, n in enumerate(src_cell_names)}
     src_p = {n: i for i, n in enumerate(src_pair_names)}
     out = {}
     for seg in schema:
         name = seg['name']
         count = seg_count(seg)
-        arr = np.zeros(count, dtype=np.float64)
+        arr = np.asarray([fill(seg, j) for j in range(count)], dtype=np.float64)
         src = named.get(name)
         if src is None:
             out[name] = arr
@@ -573,49 +537,19 @@ def remap_named_moments(named, src_cell_names, src_pair_names, schema, backend):
     return out
 
 
+def remap_named_moments(named, src_cell_names, src_pair_names, schema, backend):
+    """Remap named moment arrays; missing nodes/params fill 0."""
+    return _remap_named(
+        named, src_cell_names, src_pair_names, schema, backend,
+        fill=lambda _seg, _j: 0.0,
+    )
+
+
 def remap_named_node_values(named, src_cell_names, src_pair_names, schema, backend):
     """Remap named arrays from a prior run onto *backend* node order for *schema*."""
-    src_cell_names = [str(n) for n in src_cell_names]
-    src_pair_names = [str(n) for n in (src_pair_names or [])]
-    dst_cells = cell_node_names(backend)
-    dst_pairs = pair_node_names(backend) if any(s['kind'] == 'edge_pair' for s in schema) else []
-    src_t = {n: i for i, n in enumerate(src_cell_names)}
-    src_p = {n: i for i, n in enumerate(src_pair_names)}
-    out = {}
-    for seg in schema:
-        name = seg['name']
-        count = seg_count(seg)
-        arr = np.asarray(
-            [effective_init(seg, j) for j in range(count)], dtype=np.float64,
-        )
-        src = named.get(name)
-        if src is None:
-            out[name] = arr
-            continue
-        src = np.asarray(src, dtype=np.float64).reshape(-1)
-        if seg['kind'] == 'edge_pair':
-            for j, pn in enumerate(dst_pairs):
-                if pn in src_p:
-                    arr[j] = float(src[src_p[pn]])
-                else:
-                    arr[j] = effective_init(seg, j)
-        elif seg['kind'] == 'edge':
-            if src.shape[0] == count:
-                arr[:] = src
-            else:
-                for j in range(count):
-                    arr[j] = effective_init(seg, j)
-        elif seg.get('node_names') is not None:
-            n_copy = min(count, int(src.shape[0]))
-            arr[:n_copy] = src[:n_copy]
-        else:
-            for j, tn in enumerate(dst_cells):
-                if tn in src_t and src_t[tn] < src.shape[0]:
-                    arr[j] = float(src[src_t[tn]])
-                else:
-                    arr[j] = effective_init(seg, j)
-        out[name] = arr
-    return out
+    return _remap_named(
+        named, src_cell_names, src_pair_names, schema, backend, fill=effective_init,
+    )
 
 
 def _reconstruct_raw(seg, z_slice, z):
@@ -647,11 +581,7 @@ def _expand_segment(seg, raw, backend: ModelBackend):
     dev = backend.conn.node_cell.device
     if kind == 'full':
         return calc_multi_col_params(raw, backend.conn).to(dev)
-    if kind == 'output':
-        return raw.to(dev)
-    if kind == 'edge_pair':
-        return raw.to(dev)
-    if kind == 'edge':
+    if kind in ('output', 'edge_pair', 'edge'):
         return raw.to(dev)
     raise ValueError(f"unknown segment kind: {kind}")
 

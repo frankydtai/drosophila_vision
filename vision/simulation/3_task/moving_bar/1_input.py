@@ -12,7 +12,7 @@ import logging
 import math
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Callable, Dict, List, Optional, Sequence, Tuple
+from typing import Dict, List, Optional, Sequence, Tuple
 
 import numpy as np
 import torch
@@ -45,6 +45,7 @@ COST_WINDOW_AFTER_MS = COST_WINDOW_MS - COST_ALIGNED_FIRST_STI_MS
 T_TAIL_PAD_MS = 50.0
 MOVING_BAR_TAIL_MS = COST_WINDOW_AFTER_MS + T_TAIL_PAD_MS
 
+
 def cost_window_before_t(delta_ms: float) -> int:
     """``ms_to_t(COST_WINDOW_BEFORE_MS)``."""
     return ms_to_t(COST_WINDOW_BEFORE_MS, delta_ms=delta_ms)
@@ -54,15 +55,6 @@ def cost_window_after_t(delta_ms: float) -> int:
     """``ms_to_t(COST_WINDOW_AFTER_MS)``."""
     return ms_to_t(COST_WINDOW_AFTER_MS, delta_ms=delta_ms)
 
-
-def cost_window_t(delta_ms: float) -> int:
-    """``ms_to_t(COST_WINDOW_MS) + 1`` (inclusive window length)."""
-    return ms_to_t(COST_WINDOW_MS, delta_ms=delta_ms) + 1
-
-
-def t_tail(delta_ms: float) -> int:
-    """``ms_to_t(MOVING_BAR_TAIL_MS)``."""
-    return ms_to_t(MOVING_BAR_TAIL_MS, delta_ms=delta_ms)
 
 _HEX_AREA = 1.5 * math.sqrt(3.0) * float(HEX_PATCH_RADIUS) ** 2
 
@@ -142,100 +134,39 @@ def _seg_intersect(
     return px0 + t * rx, py0 + t * ry
 
 
-def _clip_halfplane_xmin(
-    px: np.ndarray, py: np.ndarray, n: int, xmin: float,
-    outx: np.ndarray, outy: np.ndarray,
+def _clip_halfplane(
+    px: np.ndarray,
+    py: np.ndarray,
+    n: int,
+    bound: float,
+    *,
+    axis: int,
+    keep_ge: bool,
+    outx: np.ndarray,
+    outy: np.ndarray,
 ) -> int:
+    """Sutherland–Hodgman half-plane clip; ``axis`` 0=x / 1=y."""
     m = 0
     prev_x, prev_y = float(px[n - 1]), float(py[n - 1])
-    prev_in = prev_x >= xmin
+    prev_c = prev_x if axis == 0 else prev_y
+    prev_in = prev_c >= bound if keep_ge else prev_c <= bound
+    if axis == 0:
+        qx0, qy0, qx1, qy1 = bound, -1e6, bound, 1e6
+    else:
+        qx0, qy0, qx1, qy1 = -1e6, bound, 1e6, bound
     for i in range(n):
         cur_x, cur_y = float(px[i]), float(py[i])
-        cur_in = cur_x >= xmin
+        cur_c = cur_x if axis == 0 else cur_y
+        cur_in = cur_c >= bound if keep_ge else cur_c <= bound
         if cur_in:
             if not prev_in:
-                ix, iy = _seg_intersect(prev_x, prev_y, cur_x, cur_y, xmin, -1e6, xmin, 1e6)
+                ix, iy = _seg_intersect(prev_x, prev_y, cur_x, cur_y, qx0, qy0, qx1, qy1)
                 outx[m], outy[m] = ix, iy
                 m += 1
             outx[m], outy[m] = cur_x, cur_y
             m += 1
         elif prev_in:
-            ix, iy = _seg_intersect(prev_x, prev_y, cur_x, cur_y, xmin, -1e6, xmin, 1e6)
-            outx[m], outy[m] = ix, iy
-            m += 1
-        prev_x, prev_y, prev_in = cur_x, cur_y, cur_in
-    return m
-
-
-def _clip_halfplane_xmax(
-    px: np.ndarray, py: np.ndarray, n: int, xmax: float,
-    outx: np.ndarray, outy: np.ndarray,
-) -> int:
-    m = 0
-    prev_x, prev_y = float(px[n - 1]), float(py[n - 1])
-    prev_in = prev_x <= xmax
-    for i in range(n):
-        cur_x, cur_y = float(px[i]), float(py[i])
-        cur_in = cur_x <= xmax
-        if cur_in:
-            if not prev_in:
-                ix, iy = _seg_intersect(prev_x, prev_y, cur_x, cur_y, xmax, -1e6, xmax, 1e6)
-                outx[m], outy[m] = ix, iy
-                m += 1
-            outx[m], outy[m] = cur_x, cur_y
-            m += 1
-        elif prev_in:
-            ix, iy = _seg_intersect(prev_x, prev_y, cur_x, cur_y, xmax, -1e6, xmax, 1e6)
-            outx[m], outy[m] = ix, iy
-            m += 1
-        prev_x, prev_y, prev_in = cur_x, cur_y, cur_in
-    return m
-
-
-def _clip_halfplane_ymin(
-    px: np.ndarray, py: np.ndarray, n: int, ymin: float,
-    outx: np.ndarray, outy: np.ndarray,
-) -> int:
-    m = 0
-    prev_x, prev_y = float(px[n - 1]), float(py[n - 1])
-    prev_in = prev_y >= ymin
-    for i in range(n):
-        cur_x, cur_y = float(px[i]), float(py[i])
-        cur_in = cur_y >= ymin
-        if cur_in:
-            if not prev_in:
-                ix, iy = _seg_intersect(prev_x, prev_y, cur_x, cur_y, -1e6, ymin, 1e6, ymin)
-                outx[m], outy[m] = ix, iy
-                m += 1
-            outx[m], outy[m] = cur_x, cur_y
-            m += 1
-        elif prev_in:
-            ix, iy = _seg_intersect(prev_x, prev_y, cur_x, cur_y, -1e6, ymin, 1e6, ymin)
-            outx[m], outy[m] = ix, iy
-            m += 1
-        prev_x, prev_y, prev_in = cur_x, cur_y, cur_in
-    return m
-
-
-def _clip_halfplane_ymax(
-    px: np.ndarray, py: np.ndarray, n: int, ymax: float,
-    outx: np.ndarray, outy: np.ndarray,
-) -> int:
-    m = 0
-    prev_x, prev_y = float(px[n - 1]), float(py[n - 1])
-    prev_in = prev_y <= ymax
-    for i in range(n):
-        cur_x, cur_y = float(px[i]), float(py[i])
-        cur_in = cur_y <= ymax
-        if cur_in:
-            if not prev_in:
-                ix, iy = _seg_intersect(prev_x, prev_y, cur_x, cur_y, -1e6, ymax, 1e6, ymax)
-                outx[m], outy[m] = ix, iy
-                m += 1
-            outx[m], outy[m] = cur_x, cur_y
-            m += 1
-        elif prev_in:
-            ix, iy = _seg_intersect(prev_x, prev_y, cur_x, cur_y, -1e6, ymax, 1e6, ymax)
+            ix, iy = _seg_intersect(prev_x, prev_y, cur_x, cur_y, qx0, qy0, qx1, qy1)
             outx[m], outy[m] = ix, iy
             m += 1
         prev_x, prev_y, prev_in = cur_x, cur_y, cur_in
@@ -268,26 +199,18 @@ def _clip_rect_area(
     px, py, ox, oy = w1x, w1y, w2x, w2y
     n = 6
 
-    n = _clip_halfplane_xmin(px, py, n, xmin, ox, oy)
-    if n == 0:
-        return 0.0
-    px, py, ox, oy = ox, oy, px, py
+    for axis, bound, keep_ge in (
+        (0, xmin, True),
+        (0, xmax, False),
+        (1, ymin, True),
+        (1, ymax, False),
+    ):
+        n = _clip_halfplane(px, py, n, bound, axis=axis, keep_ge=keep_ge, outx=ox, outy=oy)
+        if n == 0:
+            return 0.0
+        px, py, ox, oy = ox, oy, px, py
 
-    n = _clip_halfplane_xmax(px, py, n, xmax, ox, oy)
-    if n == 0:
-        return 0.0
-    px, py, ox, oy = ox, oy, px, py
-
-    n = _clip_halfplane_ymin(px, py, n, ymin, ox, oy)
-    if n == 0:
-        return 0.0
-    px, py, ox, oy = ox, oy, px, py
-
-    n = _clip_halfplane_ymax(px, py, n, ymax, ox, oy)
-    if n == 0:
-        return 0.0
-
-    return min(1.0, _poly_area_xy(ox, oy, n) / hex_area)
+    return min(1.0, _poly_area_xy(px, py, n) / hex_area)
 
 
 def _coverage_batch(
@@ -303,22 +226,6 @@ def _coverage_batch(
     for j in range(n_hexes):
         out[j] = _clip_rect_area(hex_stack[j], xmin, ymin, xmax, ymax)
     return out
-
-
-def _geometry_key(spec: MovingBarSpec) -> Tuple[str, float, float]:
-    return (spec.direction, float(spec.width_deg), float(spec.speed_deg_s))
-
-
-def bar_spacing_deg(bar_extent: int) -> float:
-    """Lane spacing width in degrees (``bar_extent`` hex nodes × ``DEG``)."""
-    if int(bar_extent) < 0:
-        raise ValueError(f"bar_extent must be >= 0, got {bar_extent!r}")
-    return float(bar_extent) * float(DEG)
-
-
-def bar_width_cols(spec: MovingBarSpec) -> int:
-    """Bar width in whole hexes, quantized by ``ceil(width_deg / DEG)``."""
-    return int(math.ceil(float(spec.width_deg) / float(DEG)))
 
 
 def bar_lane_pitch_deg(
@@ -344,8 +251,8 @@ def bar_lane_pitch_deg(
         if spec.direction in ("up", "down"):
             return float(y1) - float(y0)
         raise ValueError(f"unknown direction {spec.direction!r}")
-    pitch_cols = bar_width_cols(spec) + int(bar_extent)
-    return float(pitch_cols) * float(DEG)
+    width_cols = int(math.ceil(float(spec.width_deg) / float(DEG)))
+    return float(width_cols + int(bar_extent)) * float(DEG)
 
 
 def _motion_field_lo_hi(
@@ -420,16 +327,11 @@ def _lane_sweep_trail_range(
     w = float(spec.width_deg)
     pitch = float(lane_pitch)
     origin = float(lane_origin)
-    d = spec.direction
-    if d == "right":
+    if spec.direction in ("right", "up"):
         return origin - w, origin + pitch
-    if d == "left":
+    if spec.direction in ("left", "down"):
         return origin + pitch + w, origin
-    if d == "up":
-        return origin - w, origin + pitch
-    if d == "down":
-        return origin + pitch + w, origin
-    raise ValueError(f"unknown direction {d!r}")
+    raise ValueError(f"unknown direction {spec.direction!r}")
 
 
 def _bar_rect_lane_clipped(
@@ -445,31 +347,19 @@ def _bar_rect_lane_clipped(
     origin = float(lane_origin)
     lane_end = origin + float(lane_pitch)
     d = spec.direction
-    if d == "right":
+    if d in ("right", "up"):
         vis_lo = max(float(trail), origin)
         vis_hi = min(float(trail) + w, lane_end)
-        if vis_lo >= vis_hi - 1e-12:
-            return None
-        return vis_lo, y0, vis_hi, y1
-    if d == "left":
+    elif d in ("left", "down"):
         vis_lo = max(float(trail) - w, origin)
         vis_hi = min(float(trail), lane_end)
-        if vis_lo >= vis_hi - 1e-12:
-            return None
+    else:
+        raise ValueError(f"unknown direction {d!r}")
+    if vis_lo >= vis_hi - 1e-12:
+        return None
+    if d in ("right", "left"):
         return vis_lo, y0, vis_hi, y1
-    if d == "up":
-        vis_lo = max(float(trail), origin)
-        vis_hi = min(float(trail) + w, lane_end)
-        if vis_lo >= vis_hi - 1e-12:
-            return None
-        return x0, vis_lo, x1, vis_hi
-    if d == "down":
-        vis_lo = max(float(trail) - w, origin)
-        vis_hi = min(float(trail), lane_end)
-        if vis_lo >= vis_hi - 1e-12:
-            return None
-        return x0, vis_lo, x1, vis_hi
-    raise ValueError(f"unknown direction {d!r}")
+    return x0, vis_lo, x1, vis_hi
 
 
 
@@ -505,18 +395,6 @@ def _coverage_time_series(
     return np.clip(out, 0.0, 1.0)
 
 
-def coverage_hex_bar(
-    hex_xy: np.ndarray,
-    xmin: float,
-    ymin: float,
-    xmax: float,
-    ymax: float,
-    hex_area: float = _HEX_AREA,
-) -> float:
-    """Fraction of a hex covered by an axis-aligned bar rectangle."""
-    return _clip_rect_area(hex_xy, xmin, ymin, xmax, ymax, hex_area=hex_area)
-
-
 def field_bounds(hexes: Sequence[Hex]) -> Tuple[float, float, float, float]:
     """Sti-field extent in degrees from hex vertices (not centers)."""
     if not hexes:
@@ -528,63 +406,12 @@ def field_bounds(hexes: Sequence[Hex]) -> Tuple[float, float, float, float]:
     return min(xmins), min(ymins), max(xmaxs), max(ymaxs)
 
 
-def _bar_rect(
-    spec: MovingBarSpec,
-    trail_pos: float,
-    x0: float,
-    y0: float,
-    x1: float,
-    y1: float,
-) -> Tuple[float, float, float, float]:
-    w = float(spec.width_deg)
-    d = spec.direction
-    if d == "right":
-        return trail_pos, y0, trail_pos + w, y1
-    if d == "left":
-        return trail_pos - w, y0, trail_pos, y1
-    if d == "up":
-        return x0, trail_pos, x1, trail_pos + w
-    if d == "down":
-        return x0, trail_pos - w, x1, trail_pos
-    raise ValueError(f"unknown direction {d!r}")
-
-
-def _trail_start(spec: MovingBarSpec, x0: float, y0: float, x1: float, y1: float) -> float:
-    w = float(spec.width_deg)
-    if spec.direction == "right":
-        return x0 - w
-    if spec.direction == "left":
-        return x1 + w
-    if spec.direction == "up":
-        return y0 - w
-    if spec.direction == "down":
-        return y1 + w
-    raise ValueError(f"unknown direction {spec.direction!r}")
-
-
-def _trail_exit(spec: MovingBarSpec, x0: float, y0: float, x1: float, y1: float) -> float:
-    w = float(spec.width_deg)
-    if spec.direction == "right":
-        return x1 - w
-    if spec.direction == "left":
-        return x0 + w
-    if spec.direction == "up":
-        return y1 - w
-    if spec.direction == "down":
-        return y0 + w
-    raise ValueError(f"unknown direction {spec.direction!r}")
-
-
 def _trail_shift_deg(spec: MovingBarSpec, dt_s: float) -> float:
     """Signed trail advance (deg) in one sample: ``±speed_deg_s * dt_s``."""
     s = float(spec.speed_deg_s) * dt_s
-    if spec.direction == "right":
+    if spec.direction in ("right", "up"):
         return s
-    if spec.direction == "left":
-        return -s
-    if spec.direction == "up":
-        return s
-    if spec.direction == "down":
+    if spec.direction in ("left", "down"):
         return -s
     raise ValueError(f"unknown direction {spec.direction!r}")
 
@@ -708,7 +535,7 @@ def bar_lane_rects_at_t(
     trail_shift_deg = _trail_shift_deg(spec, delta_ms / 1000.0)
     rects: List[Tuple[float, float, float, float]] = []
     for lane_origin, lane_pitch in _motion_lanes(spec, field_deg, bar_extent, multi_bar=multi_bar):
-        trail_start, _trail_exit = _lane_sweep_trail_range(spec, lane_origin, lane_pitch)
+        trail_start, _ = _lane_sweep_trail_range(spec, lane_origin, lane_pitch)
         trail = float(trail_start) + (t - t_onset) * trail_shift_deg
         rect = _bar_rect_lane_clipped(
             spec, trail, lane_origin, lane_pitch, field_deg,
@@ -716,31 +543,6 @@ def bar_lane_rects_at_t(
         if rect is not None:
             rects.append(rect)
     return rects
-
-
-def bar_trail_at_t(
-    spec: MovingBarSpec,
-    field_deg: Tuple[float, float, float, float],
-    t: int,
-    t_onset: int = None,
-    *,
-    delta_ms: float) -> float:
-    x0, y0, x1, y1 = field_deg
-    trail = _trail_start(spec, x0, y0, x1, y1)
-    trail_shift_deg = _trail_shift_deg(spec, delta_ms / 1000.0)
-    return trail + (t - t_onset) * trail_shift_deg
-
-
-def bar_rect_at_t(
-    spec: MovingBarSpec,
-    field_deg: Tuple[float, float, float, float],
-    t: int,
-    t_onset: int = None,
-    *,
-    delta_ms: float) -> Tuple[float, float, float, float]:
-    x0, y0, x1, y1 = field_deg
-    trail = bar_trail_at_t(spec, field_deg, t, t_onset=t_onset, delta_ms=delta_ms)
-    return _bar_rect(spec, trail, x0, y0, x1, y1)
 
 
 def _current_from_coverage(
@@ -758,39 +560,6 @@ def _current_from_coverage(
     else:
         raise ValueError(f"unknown contrast {contrast!r}")
     return i_baseline + coverage * (peak - i_baseline)
-
-
-def build_hex_current(
-    hexes: Sequence[Hex],
-    spec: MovingBarSpec,
-    n_t: int,
-    bar_extent: int,
-    *,
-    multi_bar: bool = True,
-    t_onset: int = None,
-    delta_ms: float,
-    i_baseline: float,
-    i_bright_moving_bar: Optional[float] = None,
-    i_dark_moving_bar: Optional[float] = None,
-) -> np.ndarray:
-    """Hex-level current ``(T, n_hexes)`` for one multi-bar condition."""
-    n_hexes = len(hexes)
-    out = np.full((n_t, n_hexes), i_baseline, dtype=np.float64)
-    if n_hexes == 0:
-        return out
-
-    field_deg = field_bounds(hexes)
-    hex_stack = np.stack([c.hex_xy for c in hexes], axis=0)
-    cov_ts = _coverage_time_series(
-        hex_stack, spec, field_deg, n_t=n_t, t_onset=t_onset, delta_ms=delta_ms,
-        bar_extent=bar_extent,
-        multi_bar=multi_bar,
-    )
-    out[t_onset:] = _current_from_coverage(
-        cov_ts, spec.contrast, i_baseline=i_baseline,
-        i_bright_moving_bar=i_bright_moving_bar, i_dark_moving_bar=i_dark_moving_bar,
-    )
-    return out
 
 
 def build_batched_hex_current(
@@ -826,7 +595,8 @@ def build_batched_hex_current(
 
     by_geometry: dict[Tuple[str, float, float], List[int]] = {}
     for b, spec in enumerate(specs):
-        by_geometry.setdefault(_geometry_key(spec), []).append(b)
+        key = (spec.direction, float(spec.width_deg), float(spec.speed_deg_s))
+        by_geometry.setdefault(key, []).append(b)
 
     for batch_idxs in by_geometry.values():
         cov_ts = _coverage_time_series(
@@ -846,7 +616,6 @@ def build_batched_hex_current(
 # -- Connectome mapping: hex currents -> node ``i_sti`` (was moving_bar_readout) --
 
 PD_IDX, ND_IDX = 0, 1
-_TRACE_CACHE: Dict[str, np.ndarray] = {}
 
 
 @dataclass
@@ -854,15 +623,6 @@ class StiHex(Hex):
     """One sti hex on a connectome, with node indices for scattering."""
 
     node_idx: np.ndarray
-
-
-def _sti_hex_from_uv(u: int, v: int, node_idx: np.ndarray) -> StiHex:
-    base = hex_from_uv(u, v)
-    return StiHex(
-        u=base.u, v=base.v, x=base.x, y=base.y,
-        x_deg=base.x_deg, y_deg=base.y_deg, hex_xy=base.hex_xy,
-        node_idx=node_idx,
-    )
 
 
 @dataclass
@@ -885,7 +645,12 @@ def sti_hexes(C) -> List[StiHex]:
         nodes = C.input_nodes_at(key[0], key[1])
         if len(nodes) == 0:
             continue
-        by_uv[key] = _sti_hex_from_uv(key[0], key[1], np.asarray(nodes, dtype=np.int64))
+        base = hex_from_uv(key[0], key[1])
+        by_uv[key] = StiHex(
+            u=base.u, v=base.v, x=base.x, y=base.y,
+            x_deg=base.x_deg, y_deg=base.y_deg, hex_xy=base.hex_xy,
+            node_idx=np.asarray(nodes, dtype=np.int64),
+        )
     return [by_uv[k] for k in sorted(by_uv)]
 
 
@@ -946,27 +711,6 @@ def moving_bar_i_baseline_from_opts(train_opts) -> float:
         "moving-bar stimulus opts require i_baseline_moving_bar "
         "(inject via param_defaults.I_BASELINE / CLI)"
     )
-
-
-def moving_bar_window_t_rel(t0, t_onset: int, win: int):
-    """Window index into post-``t_onset`` trace columns (numpy)."""
-    t0 = np.asarray(t0, dtype=np.int64)
-    win_ix = np.arange(int(win), dtype=np.int64)
-    t_rel = t0[..., None] - int(t_onset) + win_ix
-    return t_rel, t_rel < 0
-
-
-def moving_bar_window_t_rel_torch(t0, t_onset: int, win: int, *, device=None):
-    """Torch counterpart of :func:`moving_bar_window_t_rel`."""
-    if not torch.is_tensor(t0):
-        t0 = torch.as_tensor(t0, dtype=torch.long, device=device)
-    else:
-        t0 = t0.to(dtype=torch.long)
-    if device is None:
-        device = t0.device
-    win_ix = torch.arange(int(win), dtype=torch.long, device=device)
-    t_rel = t0[..., None] - int(t_onset) + win_ix
-    return t_rel, t_rel < 0
 
 
 @dataclass
@@ -1048,16 +792,6 @@ def _hex_node_map(hexes: Sequence[StiHex]) -> Tuple[np.ndarray, np.ndarray]:
     )
 
 
-def scatter_hex_current(hex_current, hexes, n_nodes):
-    """Broadcast hex current ``(T, n_hexes)`` to node current ``(T, n_nodes)``."""
-    n_t = hex_current.shape[0]
-    out = np.zeros((n_t, n_nodes), dtype=np.float64)
-    hex_idx, node_idx = _hex_node_map(hexes)
-    if len(hex_idx):
-        out[:, node_idx] = hex_current[:, hex_idx]
-    return out
-
-
 def scatter_hex_current_batched(hex_current, hexes, n_nodes):
     """Broadcast ``(B, T, n_hexes)`` hex current to ``(B, T, n_nodes)``."""
     n_batch, n_t, _ = hex_current.shape
@@ -1066,14 +800,6 @@ def scatter_hex_current_batched(hex_current, hexes, n_nodes):
     if len(hex_idx):
         out[:, :, node_idx] = hex_current[:, :, hex_idx]
     return out
-
-
-def _hex_uv(hexes: Sequence[StiHex]) -> List[Tuple[int, int]]:
-    return [(c.u, c.v) for c in hexes]
-
-
-def _spec_contrast_set(specs: Sequence[MovingBarSpec]) -> frozenset:
-    return frozenset(s.contrast for s in specs)
 
 
 def _moving_bar_cache_key(
@@ -1182,7 +908,7 @@ def build_moving_bar_signals(
     bar_extent = int(bar_extent)
     multi_bar = bool(multi_bar)
     specs = list(specs if specs is not None else gruntman_moving_bar_specs())
-    contrasts = _spec_contrast_set(specs)
+    contrasts = {s.contrast for s in specs}
     i_bright = None
     i_dark = None
     if "bright" in contrasts:
@@ -1209,7 +935,7 @@ def build_moving_bar_signals(
 
     cache_path: Optional[Path] = None
     source_json = Path(network_json) if network_json is not None else getattr(C, "source_json", None)
-    hex_uv = _hex_uv(sti)
+    hex_uv = [(c.u, c.v) for c in sti]
     if source_json is not None:
         cache_path = _moving_bar_cache_path(
             source_json, specs, hex_uv, n_t, t_onset, delta_ms,

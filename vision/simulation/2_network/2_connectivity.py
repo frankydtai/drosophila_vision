@@ -1,9 +1,9 @@
 # -*- coding: utf-8 -*-
-"""Connectivity backends for the medulla simulation.
+"""Connectivity backend for the medulla simulation.
 
-Interface:
+Interface (:class:`ScatterConn`):
 
-    conn.exc_inh_drive(x, syn_strength) -> (g_exc, g_inh)  # network / ScatterConn
+    conn.exc_inh_drive(x, syn_strength) -> (g_exc, g_inh)
     conn.signed_drive(x, syn_strength)  -> g_signed
     conn.n_nodes
     conn.node_cell
@@ -14,15 +14,12 @@ gain (``a_in``) is applied by the caller AFTER these calls.
 
 Synaptic scaling multiplies each edge: length ``n_pairs`` type→type
 (``syn_strength_cell``, ``--syn-mode per_cell``) or length ``n_edges`` per-edge
-(``syn_strength_edge``, ``--syn-mode per_edge``). Network path only
-(:class:`ScatterConn`).
+(``syn_strength_edge``, ``--syn-mode per_edge``).
 
-Both backends operate on the LAST axis (the nodes), so a plain 1-D ``(N,)`` state
+Operates on the LAST axis (the nodes), so a plain 1-D ``(N,)`` state
 and a batched ``(B, N)`` state work without change in the caller.
 """
 from __future__ import annotations
-
-from typing import Optional, Tuple
 
 import numpy as np
 import torch
@@ -70,7 +67,7 @@ class ScatterConn:
         dtype: torch.dtype,
         syn_scale_exc: float = 1.0,
         syn_scale_inh: float = 1.0,
-        device: Optional[str] = None,
+        device: str | None = None,
     ) -> None:
         device = device or ("cuda" if torch.cuda.is_available() else "cpu")
         self.device = device
@@ -81,10 +78,8 @@ class ScatterConn:
         self.n_edges = int(self.src_idx.numel())
 
         edge_weight = torch.as_tensor(edge_weight, dtype=dtype, device=device)
-        pos = edge_weight > 0
-        neg = edge_weight < 0
-        self.w_exc = torch.where(pos, edge_weight, torch.zeros_like(edge_weight)) * syn_scale_exc
-        self.w_inh = torch.where(neg, -edge_weight, torch.zeros_like(edge_weight)) * syn_scale_inh
+        self.w_exc = edge_weight.clamp(min=0) * syn_scale_exc
+        self.w_inh = (-edge_weight).clamp(min=0) * syn_scale_inh
         self.w_signed = self.w_exc - self.w_inh
 
         n_cells = int(self.node_cell.max().item()) + 1 if self.n_nodes else 0
@@ -116,16 +111,18 @@ class ScatterConn:
             f"or n_pairs {self.n_pairs}"
         )
 
+    def _pre_edges(self, x: torch.Tensor, syn_strength: torch.Tensor):
+        return self._gather(x), self._edge_syn_strength(syn_strength)
+
     def exc_inh_drive(
         self, x: torch.Tensor, syn_strength: torch.Tensor
-    ) -> Tuple[torch.Tensor, torch.Tensor]:
-        xs = self._gather(x)
-        syn_strength = self._edge_syn_strength(syn_strength)
+    ) -> tuple[torch.Tensor, torch.Tensor]:
+        xs, syn_strength = self._pre_edges(x, syn_strength)
         return (
             self._scatter(xs * self.w_exc * syn_strength),
             self._scatter(xs * self.w_inh * syn_strength),
         )
 
     def signed_drive(self, x: torch.Tensor, syn_strength: torch.Tensor) -> torch.Tensor:
-        syn_strength = self._edge_syn_strength(syn_strength)
-        return self._scatter(self._gather(x) * self.w_signed * syn_strength)
+        xs, syn_strength = self._pre_edges(x, syn_strength)
+        return self._scatter(xs * self.w_signed * syn_strength)

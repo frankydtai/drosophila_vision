@@ -61,7 +61,7 @@ def build_plot_kwargs(
     show_pre=True,
     html=False,
     ms_shown=None,
-    r0_only=False,
+    center_only=False,
 ):
     return dict(
         gt_cubes=gt_cubes,
@@ -73,7 +73,7 @@ def build_plot_kwargs(
         show_pre=show_pre,
         html=html,
         ms_shown=ms_shown,
-        r0_only=r0_only,
+        center_only=center_only,
     )
 
 
@@ -91,7 +91,7 @@ def make_plots(
     show_pre=True,
     html=False,
     ms_shown=None,
-    r0_only=False,
+    center_only=False,
 ):
     """Cost curve + model-vs-gt + all-cells."""
     plot_kw = build_plot_kwargs(
@@ -104,7 +104,7 @@ def make_plots(
         show_pre=show_pre,
         html=html,
         ms_shown=ms_shown,
-        r0_only=r0_only,
+        center_only=center_only,
     )
     if result is not None:
         plot_param_set(
@@ -182,7 +182,7 @@ def run_training_and_plot(
     show_pre=True,
     html=False,
     ms_shown=None,
-    r0_only=False,
+    center_only=False,
     **train_kw,
 ):
     """Train (``training.implement.run_training``) then plot. Returns ``(fname, outdir, session)``."""
@@ -196,7 +196,7 @@ def run_training_and_plot(
         show_pre=show_pre,
         html=html,
         ms_shown=ms_shown,
-        r0_only=r0_only,
+        center_only=center_only,
     )
     checkpoint_on_png = None
     if train_kw.get("checkpoint_interval") is not None:

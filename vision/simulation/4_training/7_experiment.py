@@ -13,17 +13,12 @@ def merge_i_h_train_modes(train_kw):
     hp_lp: ``a_h`` / ``tau_hp``.
     Indi cells: :data:`H_CELLS`; ``fixed=['all']``.
     """
-    i_h_indi = list(H_CELLS)
-    if train_kw['model'] == 'borst':
-        names = ('a_h', 'a_h_rev')
-    else:
-        names = ('a_h', 'tau_hp')
-    i_h_modes = {
-        name: {'indi': i_h_indi, 'fixed': ['all']}
-        for name in names
-    }
+    names = ('a_h', 'a_h_rev') if train_kw['model'] == 'borst' else ('a_h', 'tau_hp')
     existing = train_kw.pop('train_modes', None) or {}
-    return {**existing, **i_h_modes}
+    return {
+        **existing,
+        **{name: {'indi': list(H_CELLS), 'fixed': ['all']} for name in names},
+    }
 
 
 def spot_tasks_from(tasks):
@@ -44,5 +39,5 @@ def _normalize_mirror_fits(mirror_fits, mirror_sign):
 
 def spot_pack_overrides(tasks, mirror_fits, mirror_sign=-1.0):
     """``{spot_task: mirror_fits override}`` for each spot task in *tasks*."""
-    mirror = {'mirror_fits': _normalize_mirror_fits(mirror_fits, mirror_sign)}
-    return {t: dict(mirror) for t in spot_tasks_from(tasks)}
+    fits = _normalize_mirror_fits(mirror_fits, mirror_sign)
+    return {t: {'mirror_fits': fits} for t in spot_tasks_from(tasks)}

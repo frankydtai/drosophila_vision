@@ -14,11 +14,8 @@ from typing import Dict, List, Optional, Tuple
 import network.path  # noqa: F401 -- FAFB path on sys.path
 from import_bootstrap import parse_comma_list
 
-# simulation root (training/ → parent).
-SIMULATION_DIR = Path(__file__).resolve().parent.parent
-
 # Trained-parameter output root (``hp_lp/`` and ``borst/`` run_* subdirs).
-PARAMETER_DIR = SIMULATION_DIR / "0_runs"
+PARAMETER_DIR = Path(__file__).resolve().parent.parent / "0_runs"
 
 # Per-run artifact subfolder (``.npy`` / ``.npz``, ``train_opts.json``, ``param_schema.json``).
 RUN_DATA_SUBDIR = "data"
@@ -27,7 +24,6 @@ RUN_DATA_SUBDIR = "data"
 PARAM_CSV = "param.csv"
 SYN_STRENGTH_CELL_CSV = "syn_strength_cell.csv"
 SYN_STRENGTH_EDGE_CSV = "syn_strength_edge.csv"
-A_STI_R_CSV = "a_sti_r.csv"
 
 
 def run_data_dir(outdir: str | Path) -> str:
@@ -56,30 +52,26 @@ MOVING_BAR_COST_PARTS = tuple(
 # a_gt2:         Σ w (v_readout−gt_aff)² / a_gt²   (per-entry a_i²; bias not in denom)
 COST_NORMS = ("gt_power", "a_gt2")
 
-
-def expand_cost_norm(name) -> str:
-    """Validate ``--cost-norm`` token; canonical names only (no aliases)."""
-    key = str(name).strip()
-    if key not in COST_NORMS:
-        raise ValueError(
-            f"cost_norm must be one of {COST_NORMS}; got {name!r}"
-        )
-    return key
-
-
 # t=0 membrane pre steady (``--pre-steady MODE``); not param init.
 # Shared by borst / hp_lp (default: param_defaults.PRE_STEADY).
 PRE_STEADY_MODES = ("probe", "solve")
 
 
+def _expand_choice(name, allowed: Tuple[str, ...], *, flag: str) -> str:
+    key = str(name).strip()
+    if key not in allowed:
+        raise ValueError(f"{flag} must be one of {allowed}; got {key!r}")
+    return key
+
+
+def expand_cost_norm(name) -> str:
+    """Validate ``--cost-norm`` token; canonical names only (no aliases)."""
+    return _expand_choice(name, COST_NORMS, flag="cost_norm")
+
+
 def expand_pre_steady_mode(mode) -> str:
     """Validate shared pre-steady mode token (``probe`` | ``solve``)."""
-    key = str(mode).strip()
-    if key not in PRE_STEADY_MODES:
-        raise ValueError(
-            f"pre_steady must be one of {PRE_STEADY_MODES}; got {key!r}"
-        )
-    return key
+    return _expand_choice(mode, PRE_STEADY_MODES, flag="pre_steady")
 
 
 TASK_ALIASES = {
@@ -225,10 +217,7 @@ def coarse_weight_keys_for_part(part_key: str) -> Tuple[str, ...]:
             continue
         body = part_key[: -len(suf)]
         for task in sorted(MOVING_BAR_TASKS, key=len, reverse=True):
-            if body == task:
-                return (moving_bar_cost_part_key(task, lab), task)
-            prefix = f"{task}_"
-            if body.startswith(prefix):
+            if body == task or body.startswith(f"{task}_"):
                 return (moving_bar_cost_part_key(task, lab), task)
         return ()
     for task in sorted(SPOT_TASKS, key=len, reverse=True):
@@ -244,40 +233,29 @@ def expand_tasks(names) -> List[str]:
     """Expand ``--task`` ``TASK_ALIASES`` shorthands."""
     out = []
     for name in names:
-        if name in TASK_ALIASES:
-            out.extend(TASK_ALIASES[name])
-        else:
-            out.append(name)
+        out.extend(TASK_ALIASES.get(name, (name,)))
+    return out
+
+
+def _expand_alias_dict(kv: Optional[dict], aliases: dict, map_value) -> dict:
+    if not kv:
+        return {}
+    out = {}
+    for name, val in kv.items():
+        targets = aliases[name] if name in aliases else (str(name),)
+        for t in targets:
+            out[t] = map_value(val)
     return out
 
 
 def expand_cost_extent_dict(kv: Optional[dict]) -> Dict[str, int]:
     """Expand ``--cost-extent`` ``TASK_ALIASES`` keys."""
-    if not kv:
-        return {}
-    out: Dict[str, int] = {}
-    for name, val in kv.items():
-        if name in TASK_ALIASES:
-            for t in TASK_ALIASES[name]:
-                out[t] = int(val)
-        else:
-            out[str(name)] = int(val)
-    return out
+    return _expand_alias_dict(kv, TASK_ALIASES, int)
 
 
 def expand_gt_dict(kv: Optional[dict]) -> Dict[str, List[str]]:
     """Expand ``--gt`` ``TASK_ALIASES`` keys; values are cell-token lists."""
-    if not kv:
-        return {}
-    out: Dict[str, List[str]] = {}
-    for name, cells in kv.items():
-        cells = [str(c) for c in cells]
-        if name in TASK_ALIASES:
-            for t in TASK_ALIASES[name]:
-                out[t] = list(cells)
-        else:
-            out[str(name)] = cells
-    return out
+    return _expand_alias_dict(kv, TASK_ALIASES, lambda cells: [str(c) for c in cells])
 
 
 def resolve_cost_extent_by_task(tasks, default, by_task_kv) -> Dict[str, int]:
@@ -300,16 +278,7 @@ def resolve_cost_extent_by_task(tasks, default, by_task_kv) -> Dict[str, int]:
 
 def expand_cost_weight_dict(weights: Optional[dict]) -> Dict[str, float]:
     """Expand ``--cost-weight`` ``COST_WEIGHT_ALIASES`` keys."""
-    if not weights:
-        return {}
-    out: Dict[str, float] = {}
-    for name, val in weights.items():
-        if name in COST_WEIGHT_ALIASES:
-            for t in COST_WEIGHT_ALIASES[name]:
-                out[t] = float(val)
-        else:
-            out[str(name)] = float(val)
-    return out
+    return _expand_alias_dict(weights, COST_WEIGHT_ALIASES, float)
 
 
 def normalize_tasks(tasks) -> List[str]:

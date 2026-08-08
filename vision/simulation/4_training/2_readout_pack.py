@@ -6,16 +6,8 @@ Leaf of the ``training`` package: depends only on :mod:`config`, the
 schema, cost, or session-building logic (those live in sibling modules), so
 every other ``training`` module can import these types without a cycle.
 
-``ReadoutPack`` carries cross-cutting readout / drive controls:
-
-* ``cost_time_ix`` -- optional sparse post-onset t indices; ``gt``
-  stays full length and the subsample is gathered at cost time (#4).
-* ``waveform_mse`` -- whether this pack needs a waveform MSE readout
-  (spot: always True; moving-bar: True when a cost window was built).
-  Encoded here so ``neuron.readout`` needs no paradigm knowledge.
-
 Model traces are absolute ``v``; cost compares ``v`` to
-``a_gt * gt + bias_gt``. ImpR / RecF spot gt are used as-is before affine.
+``a_gt * gt + bias_gt``.
 """
 from __future__ import annotations
 
@@ -25,7 +17,6 @@ from typing import Dict, Optional, Tuple
 import numpy as np
 import torch
 
-from neuron import I_H_DIR_REVERSE_CELLS
 from neuron.params import membrane_dt_over_c
 
 from training.config import SPOT_TASKS
@@ -84,6 +75,7 @@ class ReadoutPack:
     dsi_weight: Optional[torch.Tensor] = None  # (n_dsi,)
     dsi_power: Optional[torch.Tensor] = None  # scalar
     cost_time_ix: Optional[torch.Tensor] = None  # (n_sample,) sparse post-onset t idx
+    cost_time_mask: Optional[torch.Tensor] = None  # (n_cost, n_sample) 0/1 per-radius
     waveform_mse: bool = True  # spot: True; moving bar: set at build
     t_onset: Optional[int] = None  # explicit onset; spot when ms_post extends i_sti past gt
     # Spot a_sti_r: i = i_sti + a_sti_r[r] * sti_wave on (sti_batch, sti_node).
@@ -102,7 +94,6 @@ class ModelBackend:
     n_cells: int
     n_hexes: int
     network: Optional[object] = None
-    i_h_reverse_cells: Tuple[int, ...] = I_H_DIR_REVERSE_CELLS
 
     @property
     def n_nodes(self) -> int:

@@ -163,50 +163,35 @@ def sem_from_traces(traces, single_hex=False):
 
 def v_th_by_type_name(z, session):
     """Per-cell ``v_th`` (absolute mV)."""
-    schema = list(session.schema)
-    names = {s.get('name') for s in schema}
-    if 'v_th' not in names:
-        return {}
-    arr = np.asarray(training.z_to_node_values(z, schema)['v_th'], dtype=np.float64).reshape(-1)
-    cell_names = training.cell_node_names(session.backend)
-    if arr.shape[0] != len(cell_names):
-        raise ValueError(f"v_th length {arr.shape[0]} != n_cells {len(cell_names)}")
-    return {str(n): float(arr[i]) for i, n in enumerate(cell_names)}
+    return _param_by_type_name(z, session, 'v_th')
 
 
 def e_leak_by_type_name(z, session):
     """Per-cell leak reversal mV from ``e_leak``."""
+    return _param_by_type_name(z, session, 'e_leak')
+
+
+def _param_by_type_name(z, session, name):
     schema = list(session.schema)
-    names = {s.get('name') for s in schema}
-    if 'e_leak' not in names:
+    if name not in {s.get('name') for s in schema}:
         return {}
-    arr = np.asarray(training.z_to_node_values(z, schema)['e_leak'], dtype=np.float64).reshape(-1)
+    arr = np.asarray(training.z_to_node_values(z, schema)[name], dtype=np.float64).reshape(-1)
     cell_names = training.cell_node_names(session.backend)
     if arr.shape[0] != len(cell_names):
-        raise ValueError(f"e_leak length {arr.shape[0]} != n_cells {len(cell_names)}")
+        raise ValueError(f"{name} length {arr.shape[0]} != n_cells {len(cell_names)}")
     return {str(n): float(arr[i]) for i, n in enumerate(cell_names)}
 
 
-def label_with_n(label, n=None):
-    """Cell / row label with optional sample count."""
+def cell_ylabel(label, ca_n=None, n=None):
+    """Row / cell axis label with ``n`` from *ca_n* or explicit *n*."""
+    if n is None and ca_n is not None:
+        for (t, _s), count in ca_n.items():
+            if t == label:
+                n = count
+                break
     if n is None:
         return label
     return f'{label} (n={int(n)})'
-
-
-def n_for_type(ca_n, tname):
-    """Sample count for *tname* from keyed ``ca_n`` ``{(type, spec): n}``."""
-    for (t, _s), n in ca_n.items():
-        if t == tname:
-            return n
-    return None
-
-
-def cell_ylabel(label, ca_n=None, n=None):
-    """Row / cell axis label with ``n`` from *model_n* or explicit *n*."""
-    if n is None and ca_n is not None:
-        n = n_for_type(ca_n, label)
-    return label_with_n(label, n)
 
 
 def format_spot_radius_time_title(radius, n, cell, cost_parts, contrasts):
@@ -313,13 +298,6 @@ class PlotTimer:
         )
 
 
-def _hex_coord_token(val):
-    v = float(val)
-    if np.isclose(v, round(v)):
-        return str(int(round(v)))
-    return str(v).replace('.', 'p').replace('-', 'm')
-
-
 def ms_shown_axis_xlim(ms_shown, *, delta_ms, origin_t=0):
     """Inclusive t-index xlim from ``--ms-shown``; ``origin_t`` is t0 on the axis."""
     if ms_shown is None:
@@ -334,38 +312,41 @@ def ms_shown_axis_xlim(ms_shown, *, delta_ms, origin_t=0):
 
 def hex_at_scope_tag(at_x, at_y):
     """Subtitle fragment for plot hex slice."""
+
+    def token(val):
+        v = float(val)
+        if np.isclose(v, round(v)):
+            return str(int(round(v)))
+        return str(v).replace('.', 'p').replace('-', 'm')
+
     parts = []
     if at_x is not None:
         xs = at_x if isinstance(at_x, (list, tuple)) else [at_x]
-        parts.append('x=' + ','.join(_hex_coord_token(v) for v in xs))
+        parts.append('x=' + ','.join(token(v) for v in xs))
     if at_y is not None:
         ys = at_y if isinstance(at_y, (list, tuple)) else [at_y]
-        parts.append('y=' + ','.join(_hex_coord_token(v) for v in ys))
+        parts.append('y=' + ','.join(token(v) for v in ys))
     return ', '.join(parts)
-
-
-def slice_axis_label(val):
-    fv = float(val)
-    if np.isclose(fv, round(fv)):
-        return str(int(round(fv)))
-    return str(fv)
-
-
-def slice_xy_label(xv, yv):
-    return f'({slice_axis_label(xv)},{slice_axis_label(yv)})'
 
 
 def slice_coord_specs(at_xs, at_ys):
     """Expand optional x/y lists to ``[(label, at_x, at_y), ...]`` (missing axis is None)."""
+
+    def axis_label(val):
+        fv = float(val)
+        if np.isclose(fv, round(fv)):
+            return str(int(round(fv)))
+        return str(fv)
+
     if at_xs is not None and at_ys is not None:
         return [
-            (slice_xy_label(xv, yv), xv, yv)
+            (f'({axis_label(xv)},{axis_label(yv)})', xv, yv)
             for xv in at_xs for yv in at_ys
         ]
     if at_xs is not None:
-        return [(slice_axis_label(xv), xv, None) for xv in at_xs]
+        return [(axis_label(xv), xv, None) for xv in at_xs]
     if at_ys is not None:
-        return [(slice_axis_label(yv), None, yv) for yv in at_ys]
+        return [(axis_label(yv), None, yv) for yv in at_ys]
     return []
 
 
@@ -405,22 +386,6 @@ def plot_sem_band(ax, t, v_readout, sem, *, color=None, alpha=None, label=r'$\pm
         linewidth=0,
         label=label,
         zorder=1,
-    )
-
-
-def plot_sem_errorbar(ax, t, v_readout, sem, *, color=None, alpha=None, label=r'$\pm$SEM'):
-    """Error bars for discrete (dot) traces."""
-    if sem is None or not np.any(sem):
-        return
-    ax.errorbar(
-        t, v_readout, yerr=sem,
-        fmt='none',
-        ecolor=SEM_COLOR if color is None else color,
-        alpha=0.8 if alpha is None else alpha,
-        elinewidth=0.8,
-        capsize=1.5,
-        capthick=0.8,
-        label=label,
     )
 
 
@@ -791,7 +756,7 @@ def plot_cost(costs, path, *, costs_by_part=None, part_order=None):
     if costs is None or not hasattr(costs, "__len__") or len(costs) == 0:
         raise ValueError("plot_cost requires non-empty `costs` array")
 
-    if not costs_by_part:
+    def _save_total_only():
         fig, ax = plt.subplots(figsize=(8, 4))
         ax.plot(costs, color='steelblue', linewidth=2, linestyle='-')
         ax.set_ylim(*cost_ylim(costs))
@@ -803,24 +768,16 @@ def plot_cost(costs, path, *, costs_by_part=None, part_order=None):
         t_draw = time.perf_counter()
         save_figure(fig, path, dpi=150)
         log_plot_elapsed(path, t0, draw=t_draw - t0, save=time.perf_counter() - t_draw)
+
+    if not costs_by_part:
+        _save_total_only()
         return
 
     part_keys = list(part_order) if part_order else list(costs_by_part.keys())
     part_keys = [k for k in part_keys if k in costs_by_part and len(costs_by_part[k])]
 
     if not part_keys:
-        # fallback: only total exists
-        fig, ax = plt.subplots(figsize=(8, 4))
-        ax.plot(costs, color='steelblue', linewidth=2, linestyle='-')
-        ax.set_ylim(*cost_ylim(costs))
-        ax.set_xlabel('step')
-        ax.set_ylabel('cost [% gt power]')
-        ax.set_title(f'Training cost ({len(costs)} steps)')
-        ax.grid(True, alpha=0.3)
-        fig.tight_layout()
-        t_draw = time.perf_counter()
-        save_figure(fig, path, dpi=150)
-        log_plot_elapsed(path, t0, draw=t_draw - t0, save=time.perf_counter() - t_draw)
+        _save_total_only()
         return
 
     def _normalize_radius(r_f: float):
@@ -895,15 +852,12 @@ def plot_cost(costs, path, *, costs_by_part=None, part_order=None):
         parsed_moving = _moving_bar_parse(key)
         if parsed_moving is not None:
             cell, contrast, role = parsed_moving
+            moving_roles.add(role)
+            role_id = ("moving_role", role)
+            label = f"{role} ({contrast})" if contrast else role
             if cell is None:
-                moving_roles.add(role)
-                role_id = ("moving_role", role)
-                label = f"{role} ({contrast})" if contrast else role
                 curve_specs_global.append((role_id, label, curve))
             else:
-                moving_roles.add(role)
-                role_id = ("moving_role", role)
-                label = f"{role} ({contrast})" if contrast else role
                 curve_specs_by_cell.setdefault(cell, []).append((role_id, label, curve))
             continue
 

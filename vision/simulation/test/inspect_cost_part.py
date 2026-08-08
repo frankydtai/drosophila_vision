@@ -74,9 +74,14 @@ def _session_with_opts(session, opts: dict):
 def _subsample_cost_time(pack, v_readout, gt):
     """Match ``_pack_cost_parts_from_v_readout`` sparse ``cost_time_ix`` gather."""
     if pack.cost_time_ix is None:
-        return v_readout, gt
+        return v_readout, gt, None
     ix = pack.cost_time_ix.to(device=v_readout.device)
-    return v_readout.index_select(1, ix), gt.index_select(1, ix)
+    v_readout = v_readout.index_select(1, ix)
+    gt = gt.index_select(1, ix)
+    time_mask = getattr(pack, "cost_time_mask", None)
+    if time_mask is not None:
+        time_mask = time_mask.to(device=v_readout.device)
+    return v_readout, gt, time_mask
 
 
 def _delta_ms_for_pack(session, pack) -> float:
@@ -108,7 +113,7 @@ def inspect_part(session, z, part_key: str) -> dict:
     a_gt, bias_gt, gt, weight, v_readout, _v_readout_dsi, _pd_nd = fwd
     if v_readout is None:
         raise SystemExit(f"waveform v_readout required for {task!r}")
-    v_readout, gt = _subsample_cost_time(pack, v_readout, gt)
+    v_readout, gt, time_mask = _subsample_cost_time(pack, v_readout, gt)
 
     group_id, keys = _spot_entry_groups(pack, session.backend)
     if part_key not in keys:
@@ -129,9 +134,12 @@ def inspect_part(session, z, part_key: str) -> dict:
     gt_scaled = a[:, None] * gtr
     gt_aff = gt_scaled + b[:, None]
     diff = v_readout_r - gt_aff
+    w2d = w[:, None]
+    if time_mask is not None:
+        w2d = w2d * time_mask[idx].to(dtype=w.dtype)
 
-    sse = (w[:, None] * diff ** 2).sum(dim=0)
-    power_t = (w[:, None] * gt_scaled ** 2).sum(dim=0)
+    sse = (w2d * diff ** 2).sum(dim=0)
+    power_t = (w2d * gt_scaled ** 2).sum(dim=0)
     n = int(idx.numel())
     n_t = int(sse.numel())
     w_sum = float(w.sum().item())
@@ -161,8 +169,8 @@ def inspect_part(session, z, part_key: str) -> dict:
     else:
         raise SystemExit(f"unsupported cost_norm {cost_norm!r}")
 
-    gt_aff_mean = (w[:, None] * gt_aff).sum(dim=0) / w_sum
-    v_readout_mean = (w[:, None] * v_readout_r).sum(dim=0) / w_sum
+    gt_aff_mean = (w2d * gt_aff).sum(dim=0) / w_sum
+    v_readout_mean = (w2d * v_readout_r).sum(dim=0) / w_sum
     sse_mean = sse / w_sum
 
     official = calc_cost_parts(z, session)

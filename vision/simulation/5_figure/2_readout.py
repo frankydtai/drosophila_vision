@@ -7,12 +7,7 @@ import torch
 
 from param_defaults import DATA_AMP, DELTA_MS
 from task.spot.gt import GT_CELLS, read_RecF_gt, read_RecF_gt_dark
-from network.construction import (
-    CELL_ORDER_ROWS,
-    cell_names_in_order,
-)
-
-PLOT_ORDER_ROWS = [np.array(row) for row in CELL_ORDER_ROWS]
+from network.construction import cell_names_in_order
 
 _VALID_CONTRASTS = ("bright", "dark")
 
@@ -20,12 +15,6 @@ _VALID_CONTRASTS = ("bright", "dark")
 def plot_cells_in_order(present):
     """Flat cell order from :func:`network.construction.cell_names_in_order`."""
     return cell_names_in_order(present)
-
-
-def _pack_for(session, task):
-    if task is None:
-        return session.primary_readout
-    return session.pack_for(task)
 
 
 def _cell_names_for_nodes(session, node_indices):
@@ -45,7 +34,7 @@ def _cell_names_for_nodes(session, node_indices):
 
 def pack_readout_cells(session, task=None):
     """Unique cell names on pack.readout_node, pack order."""
-    pack = _pack_for(session, task)
+    pack = session.primary_readout if task is None else session.pack_for(task)
     seen = set()
     out = []
     for name in _cell_names_for_nodes(session, pack.readout_node):
@@ -69,55 +58,29 @@ def contrast_order(contrasts) -> tuple[str, ...]:
     )
 
 
-CONTRAST_LINESTYLE = {
-    "bright": "-",
-    "dark": "--",
-}
-
-
 def contrast_linestyle(contrast: str) -> str:
-    return CONTRAST_LINESTYLE.get(str(contrast), "-")
-
-
-def _mirror_gt_specs_from_override(override):
-    if not override:
-        return []
-    specs = []
-    if 'mirror_fits' in override:
-        for spec in override['mirror_fits']:
-            specs.append((
-                [str(t) for t in spec['mirror_types']],
-                str(spec['mirror_fit']),
-                float(spec.get('mirror_sign', -1.0)),
-            ))
-    elif 'mirror_fit' in override:
-        spec = override['mirror_fit']
-        if isinstance(spec, dict) and 'mirror_types' in spec:
-            specs.append((
-                [str(t) for t in spec['mirror_types']],
-                str(spec['mirror_fit']),
-                float(spec.get('mirror_sign', -1.0)),
-            ))
-    return specs
+    return {"bright": "-", "dark": "--"}.get(str(contrast), "-")
 
 
 def _apply_mirror(cells, override):
     cells = dict(cells)
-    for mirror_types, mirror_fit, mirror_sign in _mirror_gt_specs_from_override(override):
+    if not override:
+        return cells
+    if "mirror_fits" in override:
+        specs = override["mirror_fits"]
+    elif "mirror_fit" in override:
+        spec = override["mirror_fit"]
+        specs = [spec] if isinstance(spec, dict) and "mirror_types" in spec else []
+    else:
+        specs = []
+    for spec in specs:
+        mirror_fit = str(spec["mirror_fit"])
         if mirror_fit not in cells:
             continue
-        mirrored = mirror_sign * cells[mirror_fit]
-        for name in mirror_types:
-            cells[name] = mirrored
+        mirrored = float(spec.get("mirror_sign", -1.0)) * cells[mirror_fit]
+        for name in spec["mirror_types"]:
+            cells[str(name)] = mirrored
     return cells
-
-
-def _cell_cubes(*, dark: bool, t_onset=None, n_t=None, ms_spot=None, delta_ms: float):
-    """One contrast: ``{cell: (RF_N_RADII, T)}``."""
-    kw = dict(t_onset=t_onset, n_t=n_t, ms_spot=ms_spot, delta_ms=float(delta_ms))
-    gt = read_RecF_gt_dark(**kw) if dark else read_RecF_gt(**kw)
-    cubes = gt * DATA_AMP
-    return {str(name): cubes[i] for i, name in enumerate(GT_CELLS)}
 
 
 def fit_gt_cubes(
@@ -131,10 +94,10 @@ def fit_gt_cubes(
             raise ValueError(
                 f"unknown contrast {contrast!r}; expected one of {_VALID_CONTRASTS}"
             )
-        out[contrast] = _cell_cubes(
-            dark=(contrast == "dark"),
-            t_onset=t_onset, n_t=n_t, ms_spot=ms_spot, delta_ms=delta_ms,
-        )
+        kw = dict(t_onset=t_onset, n_t=n_t, ms_spot=ms_spot, delta_ms=float(delta_ms))
+        gt = read_RecF_gt_dark(**kw) if contrast == "dark" else read_RecF_gt(**kw)
+        cubes = gt * DATA_AMP
+        out[contrast] = {str(name): cubes[i] for i, name in enumerate(GT_CELLS)}
     return out
 
 

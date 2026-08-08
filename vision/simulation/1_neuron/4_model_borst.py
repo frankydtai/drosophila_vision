@@ -37,6 +37,17 @@ def rectsyn(x, thrld):
     return result * (result > 0)
 
 
+def _gate_ss(v, v_mid, slope):
+    return 1.0 / (1.0 + torch.exp((v_mid - v) * slope))
+
+
+def _i_h_tau(v, v_mid):
+    return (
+        1.5 / (torch.exp(-0.1 * (v - v_mid)) + torch.exp(+0.1 * (v - v_mid))) * 1000.0
+        + 100.0
+    )
+
+
 def _i_h_gate_step(
     v, u, u_rev, a_h, a_h_rev,
     v_mid_h_g, h_slope, v_mid_h_tau, v_mid_h_g_rev, h_slope_rev, v_mid_h_tau_rev,
@@ -48,27 +59,23 @@ def _i_h_gate_step(
 
     Gate ODE uses explicit Euler regardless of membrane ``euler``.
     """
-    slope = h_slope
-    slope_rev = -h_slope_rev
-    i_h_ss = 1.0 / (1.0 + torch.exp((v_mid_h_g - v) * slope))
-    i_h_ss_rev = 1.0 / (1.0 + torch.exp((v_mid_h_g_rev - v) * slope_rev))
-    tau = (
-        1.5 / (torch.exp(-0.1 * (v - v_mid_h_tau)) + torch.exp(+0.1 * (v - v_mid_h_tau))) * 1000.0
-        + 100.0
-    )
-    tau_rev = (
-        1.5
-        / (torch.exp(-0.1 * (v - v_mid_h_tau_rev)) + torch.exp(+0.1 * (v - v_mid_h_tau_rev)))
-        * 1000.0
-        + 100.0
-    )
+    i_h_ss = _gate_ss(v, v_mid_h_g, h_slope)
+    i_h_ss_rev = _gate_ss(v, v_mid_h_g_rev, -h_slope_rev)
     dt = float(delta_ms)
-    u = dt / tau * (i_h_ss - u) + u
-    u_rev = dt / tau_rev * (i_h_ss_rev - u_rev) + u_rev
+    u = dt / _i_h_tau(v, v_mid_h_tau) * (i_h_ss - u) + u
+    u_rev = dt / _i_h_tau(v, v_mid_h_tau_rev) * (i_h_ss_rev - u_rev) + u_rev
     gmax = float(h_g_max)
-    g_h = u * gmax * a_h
-    g_h_rev = u_rev * gmax * a_h_rev
-    return u, u_rev, g_h, g_h_rev
+    return u, u_rev, u * gmax * a_h, u_rev * gmax * a_h_rev
+
+
+def _sum_gE_g(g_exc, g_inh, g_h, g_h_rev, e_leak, *, e_exc, e_inh, e_h, g_leak):
+    e_hr = calc_e_h_rev(e_leak, e_h)
+    sum_gE = (
+        g_exc * e_exc + g_inh * e_inh + g_leak * e_leak
+        + e_h * g_h + e_hr * g_h_rev
+    )
+    sum_g = g_exc + g_inh + g_h + g_h_rev + g_leak
+    return sum_gE, sum_g
 
 
 def update_v(
@@ -114,19 +121,16 @@ def update_v(
             u_rev[:, idx] = u_rev_a.to(dtype=u_rev.dtype)
             g_h[:, idx] = g_a.to(dtype=g_h.dtype)
             g_h_rev[:, idx] = g_rev_a.to(dtype=g_h_rev.dtype)
-    g_i_h = g_h + g_h_rev
 
     g_exc, g_inh = conn.exc_inh_drive(rectsyn(v, v_th) * a_out, syn_strength)
     g_exc = g_exc * a_in
     g_inh = g_inh * a_in
 
     dt_over_c = membrane_dt_over_c(cap, delta_ms)
-    e_h_rev = calc_e_h_rev(e_leak, e_h)
-    sum_gE = (
-        g_exc * e_exc + g_inh * e_inh + g_leak * e_leak
-        + e_h * g_h + e_h_rev * g_h_rev
+    sum_gE, sum_g = _sum_gE_g(
+        g_exc, g_inh, g_h, g_h_rev, e_leak,
+        e_exc=e_exc, e_inh=e_inh, e_h=e_h, g_leak=g_leak,
     )
-    sum_g = g_exc + g_inh + g_i_h + g_leak
     if euler == "implicit":
         v = (v + dt_over_c * (i_sti + sum_gE)) / (1.0 + dt_over_c * sum_g)
     else:
@@ -150,12 +154,12 @@ def v_component_from_g(
     """Numerator / denom terms matching ``update_v`` (torch or numpy)."""
     euler = expand_euler(euler)
     dt_over_c = membrane_dt_over_c(cap, delta_ms)
-    e_h_rev = calc_e_h_rev(e_leak, e_h)
+    e_hr = calc_e_h_rev(e_leak, e_h)
     num_exc = g_exc * e_exc
     num_inh = g_inh * e_inh
     num_leak = g_leak * e_leak
     num_i_h = g_h * e_h
-    num_i_h_rev = g_h_rev * e_h_rev
+    num_i_h_rev = g_h_rev * e_hr
     sum_gE = num_exc + num_inh + num_leak + num_i_h + num_i_h_rev
     sum_g = g_exc + g_inh + g_h + g_h_rev + g_leak
     if euler == "implicit":
@@ -190,8 +194,8 @@ def prepare_i_sti(session, p, i_sti, pack):
 
 def _i_h_ss(v, a_h, a_h_rev, v_mid_h_g, h_slope, v_mid_h_g_rev, h_slope_rev, *, h_g_max: float):
     """DC i_h gates ``u = ss(v)`` and conductances (no time step)."""
-    i_h_ss = 1.0 / (1.0 + torch.exp((v_mid_h_g - v) * h_slope))
-    i_h_ss_rev = 1.0 / (1.0 + torch.exp((v_mid_h_g_rev - v) * (-h_slope_rev)))
+    i_h_ss = _gate_ss(v, v_mid_h_g, h_slope)
+    i_h_ss_rev = _gate_ss(v, v_mid_h_g_rev, -h_slope_rev)
     gmax = float(h_g_max)
     return (
         i_h_ss,
@@ -203,16 +207,13 @@ def _i_h_ss(v, a_h, a_h_rev, v_mid_h_g, h_slope, v_mid_h_g_rev, h_slope_rev, *, 
 
 def _ohmic_v(i0, g_exc, g_inh, g_h, g_h_rev, e_leak, session):
     """``v★ = (i + Σ gE) / Σ g`` for frozen conductances."""
-    g_leak = float(session.g_leak)
-    e_h_rev = calc_e_h_rev(e_leak, session.e_h)
-    sum_gE = (
-        g_exc * float(session.e_exc)
-        + g_inh * float(session.e_inh)
-        + g_leak * e_leak
-        + float(session.e_h) * g_h
-        + e_h_rev * g_h_rev
+    sum_gE, sum_g = _sum_gE_g(
+        g_exc, g_inh, g_h, g_h_rev, e_leak,
+        e_exc=float(session.e_exc),
+        e_inh=float(session.e_inh),
+        e_h=float(session.e_h),
+        g_leak=float(session.g_leak),
     )
-    sum_g = g_exc + g_inh + g_h + g_h_rev + g_leak
     return (i0 + sum_gE) / sum_g
 
 
@@ -239,38 +240,7 @@ def _dc_v_star(v, p, i0, e_leak, session, *, with_i_h_ss: bool):
         u_rev = torch.zeros_like(v)
         g_h = torch.zeros_like(v)
         g_h_rev = torch.zeros_like(v)
-    v_star = _ohmic_v(i0, g_exc, g_inh, g_h, g_h_rev, e_leak, session)
-    return v_star, u, u_rev
-
-
-def _pre_steady_probe(session, p, B, i_sti):
-    """One-shot ohmic: ``g_syn`` from ``v=e_leak``, i_h off; balance membrane."""
-    backend = session.backend
-    n = backend.n_nodes
-    e_leak = p["e_leak"]
-    v_probe = e_leak.expand(B, n).clone()
-    i0 = i_sti[:, 0, :]
-    v_star, u, u_rev = _dc_v_star(
-        v_probe, p, i0, e_leak, session, with_i_h_ss=False,
-    )
-    return (u, u_rev), v_star
-
-
-def _pre_steady_solve(session, p, B, i_sti, *, iters: int, damp: float):
-    """Fixed-iter under-relaxed DC map with i_h at ``ss(v)`` (not time stepping)."""
-    backend = session.backend
-    n = backend.n_nodes
-    e_leak = p["e_leak"]
-    v = e_leak.expand(B, n).clone()
-    i0 = i_sti[:, 0, :]
-    damp = float(damp)
-    for _ in range(int(iters)):
-        v_star, _, _ = _dc_v_star(
-            v, p, i0, e_leak, session, with_i_h_ss=True,
-        )
-        v = v + damp * (v_star - v)
-    _, u, u_rev = _dc_v_star(v, p, i0, e_leak, session, with_i_h_ss=True)
-    return (u, u_rev), v
+    return _ohmic_v(i0, g_exc, g_inh, g_h, g_h_rev, e_leak, session), u, u_rev
 
 
 def pre_steady(session, p, B, i_sti=None):
@@ -278,28 +248,20 @@ def pre_steady(session, p, B, i_sti=None):
     if i_sti is None:
         raise TypeError("borst pre_steady requires i_sti")
     mode = str(session.pre_steady)
+    if mode not in ("probe", "solve"):
+        raise ValueError(f"borst pre_steady must be probe|solve; got {mode!r}")
+    e_leak = p["e_leak"]
+    v = e_leak.expand(B, session.backend.n_nodes).clone()
+    i0 = i_sti[:, 0, :]
     if mode == "probe":
-        return _pre_steady_probe(session, p, B, i_sti)
-    if mode == "solve":
-        return _pre_steady_solve(
-            session, p, B, i_sti,
-            iters=int(session.pre_steady_iters),
-            damp=float(session.pre_steady_damp),
-        )
-    raise ValueError(f"borst pre_steady must be probe|solve; got {mode!r}")
-
-
-def _membrane_kwargs(session, delta_ms: float):
-    return dict(
-        delta_ms=float(delta_ms),
-        cap=session.cap,
-        g_leak=session.g_leak,
-        e_exc=session.e_exc,
-        e_inh=session.e_inh,
-        e_h=session.e_h,
-        h_g_max=session.h_g_max,
-        euler=session.euler,
-    )
+        v_star, u, u_rev = _dc_v_star(v, p, i0, e_leak, session, with_i_h_ss=False)
+        return (u, u_rev), v_star
+    damp = float(session.pre_steady_damp)
+    for _ in range(int(session.pre_steady_iters)):
+        v_star, _, _ = _dc_v_star(v, p, i0, e_leak, session, with_i_h_ss=True)
+        v = v + damp * (v_star - v)
+    _, u, u_rev = _dc_v_star(v, p, i0, e_leak, session, with_i_h_ss=True)
+    return (u, u_rev), v
 
 
 def step(state, v, p, i_sti, session, *, delta_ms: float, return_component: bool = False):
@@ -316,7 +278,14 @@ def step(state, v, p, i_sti, session, *, delta_ms: float, return_component: bool
         p["v_mid_h_g"], p["h_slope"], p["v_mid_h_tau"],
         v_mid_h_g_rev, h_slope_rev, v_mid_h_tau_rev,
         i_sti, session.backend, p["e_leak"],
-        **_membrane_kwargs(session, delta_ms),
+        delta_ms=float(delta_ms),
+        cap=session.cap,
+        g_leak=session.g_leak,
+        e_exc=session.e_exc,
+        e_inh=session.e_inh,
+        e_h=session.e_h,
+        h_g_max=session.h_g_max,
+        euler=session.euler,
         return_component=return_component,
     )
     if return_component:

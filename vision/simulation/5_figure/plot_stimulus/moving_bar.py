@@ -52,7 +52,6 @@ from task.moving_bar.input import (
     GRUNTMAN_DIRECTIONS,
     bar_lane_rects_at_t,
     build_moving_bar_signals,
-    field_bounds,
     gruntman_moving_bar_specs,
     moving_bar_transit_times,
     sti_hexes,
@@ -61,22 +60,6 @@ from path import DEFAULT_NETWORK_RUN, network_run_tag, resolve_network_json
 
 PLOT_BG = "#F5F0DC"  # axes background (beige), not hex baseline color
 _STI_CLI_DEFAULT = ",".join(GRUNTMAN_CONTRASTS)
-
-
-def _output_tag(network_path: str, meta: dict, direction: str) -> str:
-    """``2{direction}_{side}`` or ``2{direction}_{side}_extentN``."""
-    return f"2{direction}_{network_run_tag(network_path, meta)}"
-
-
-def _default_outputs(network_path: str, meta: dict, direction: str) -> tuple[str, str]:
-    tag = _output_tag(network_path, meta, direction)
-    return (
-        os.path.join(PLOT_DIR, f"moving_bar_{tag}.png"),
-        os.path.join(PLOT_DIR, f"moving_bar_{tag}.gif"),
-    )
-
-
-
 
 
 def _field_limits(hexes, *, hexes_are_xy_deg: bool = False):
@@ -90,23 +73,7 @@ def _field_limits(hexes, *, hexes_are_xy_deg: bool = False):
         )
     x0, y0, x1, y1 = field_bounds_centers(x_deg, y_deg)
     pad = FIELD_VIEW_PAD_DEG
-    return x0 - pad, x1 + pad, y0 - pad, y1 + pad
-
-
-def _transit_frame_times(
-    spec,
-    field_deg,
-    t_onset,
-    n_t,
-    t_stride: int,
-    *,
-    bar_extent: int,
-    multi_bar: bool = True,
-) -> list[int]:
-    t0, _, t1 = moving_bar_transit_times(
-        spec, field_deg, bar_extent, multi_bar=bool(multi_bar), t_onset=t_onset, n_t=n_t,
-    )
-    return list(range(t0, t1 + 1, max(1, t_stride)))
+    return (x0 - pad, x1 + pad), (y0 - pad, y1 + pad)
 
 
 def _draw_bar_outline(ax, spec, field_deg, t: int, t_onset: int, *, bar_extent: int, multi_bar: bool = True):
@@ -134,18 +101,12 @@ def _current_cmap(i_max: float, i_baseline: float):
     )
 
 
-def _style_axes(ax):
-    ax.set_facecolor(PLOT_BG)
-
-
-def _val_to_color(val: float, cmap, i_max: float) -> tuple:
-    t = float(np.clip(val / i_max if i_max > 0 else 0.0, 0.0, 1.0))
-    return cmap(t)
-
-
 def _draw_hex_field(ax, hexes, vals, i_max, i_baseline, xlim, ylim, *, hexes_are_xy_deg: bool = False):
     cmap = _current_cmap(i_max, i_baseline)
-    colors = [_val_to_color(val, cmap, i_max) for val in vals]
+    colors = [
+        cmap(float(np.clip(val / i_max if i_max > 0 else 0.0, 0.0, 1.0)))
+        for val in vals
+    ]
     if hexes_are_xy_deg:
         x_deg = [x for x, _ in hexes]
         y_deg = [y for _, y in hexes]
@@ -157,7 +118,7 @@ def _draw_hex_field(ax, hexes, vals, i_max, i_baseline, xlim, ylim, *, hexes_are
     ax.set_xlim(*xlim)
     ax.set_ylim(*ylim)
     ax.set_aspect("equal")
-    _style_axes(ax)
+    ax.set_facecolor(PLOT_BG)
     set_axis_labels(ax, fontsize=8)
 
 
@@ -198,8 +159,7 @@ def write_snapshots(
         bad = [t for t in snapshot_t if t >= n_t]
         if bad:
             raise SystemExit(f"--t out of range (n_t={n_t}): {bad}")
-    xlim = _field_limits(plot_hexes, hexes_are_xy_deg=hexes_are_xy_deg)[:2]
-    ylim = _field_limits(plot_hexes, hexes_are_xy_deg=hexes_are_xy_deg)[2:]
+    xlim, ylim = _field_limits(plot_hexes, hexes_are_xy_deg=hexes_are_xy_deg)
     xspan = xlim[1] - xlim[0]
     yspan = ylim[1] - ylim[0]
     panel_h = max(2.4, 3.0 * yspan / max(xspan / 3.0, 1.0))
@@ -254,18 +214,19 @@ def write_animation(
     bar_extent=None,
     multi_bar: bool = True,
 ):
-    times = sorted({
-        t for spec in showcase
-        for t in _transit_frame_times(
-            spec, field_deg, t_onset, n_t, t_stride, bar_extent=bar_extent, multi_bar=bool(multi_bar),
+    stride = max(1, t_stride)
+    times = set()
+    for spec in showcase:
+        t0, _, t1 = moving_bar_transit_times(
+            spec, field_deg, bar_extent, multi_bar=bool(multi_bar), t_onset=t_onset, n_t=n_t,
         )
-    })
+        times.update(range(t0, t1 + 1, stride))
+    times = sorted(times)
     if not times:
         print("no animation frames")
         return
 
-    xlim = _field_limits(plot_hexes, hexes_are_xy_deg=hexes_are_xy_deg)[:2]
-    ylim = _field_limits(plot_hexes, hexes_are_xy_deg=hexes_are_xy_deg)[2:]
+    xlim, ylim = _field_limits(plot_hexes, hexes_are_xy_deg=hexes_are_xy_deg)
     fig, axes = plt.subplots(len(showcase), 1, figsize=(4.5, 2.8 * len(showcase)), squeeze=False, facecolor=PLOT_BG)
     title = fig.suptitle("", fontsize=11)
 
@@ -343,7 +304,9 @@ def main():
         syn_scale_exc=SYN_SCALE_EXC, syn_scale_inh=SYN_SCALE_INH,
         syn_mode=SYN_MODE, dtype=SIM_DTYPE,
     )
-    default_png, default_gif = _default_outputs(network_json, C.meta, args.direction)
+    tag = f"2{args.direction}_{network_run_tag(network_json, C.meta)}"
+    default_png = os.path.join(PLOT_DIR, f"moving_bar_{tag}.png")
+    default_gif = os.path.join(PLOT_DIR, f"moving_bar_{tag}.gif")
     output = args.output or default_png
     T = build_moving_bar_signals(
         C,
@@ -362,9 +325,7 @@ def main():
     field_deg = tuple(T.info["field_deg"])
     i_baseline = float(T.info["i_baseline_moving_bar"])
     side = C.meta.get("side", "?")
-    hexes_are_xy_deg = False
     bar_extent = int(args.bar_extent)
-    info = T.info
     print(
         f"bar_extent={bar_extent}  "
         f"n_t={n_t} ({n_t * DELTA_MS / 1000.0:.2f} s)  "
@@ -374,7 +335,7 @@ def main():
     write_snapshots(
         plot_hexes, showcase, hex_current, i_bright, i_baseline,
         output, side, t_onset, n_t, field_deg, snapshot_t=snapshot_t,
-        hexes_are_xy_deg=hexes_are_xy_deg,
+        hexes_are_xy_deg=False,
         bar_extent=bar_extent,
         multi_bar=bool(args.multi_bar),
     )
@@ -383,11 +344,11 @@ def main():
         write_animation(
             plot_hexes, showcase, hex_current, i_bright, i_baseline, gif,
             side, t_onset, n_t, field_deg, args.t_stride,
-            hexes_are_xy_deg=hexes_are_xy_deg,
+            hexes_are_xy_deg=False,
             bar_extent=bar_extent,
             multi_bar=bool(args.multi_bar),
         )
-    print(f"i_sti shape {tuple(T.i_sti.shape)}  specs={info['spec_names']}")
+    print(f"i_sti shape {tuple(T.i_sti.shape)}  specs={T.info['spec_names']}")
 
 
 if __name__ == "__main__":

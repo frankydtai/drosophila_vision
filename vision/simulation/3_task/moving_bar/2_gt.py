@@ -30,6 +30,7 @@ from task.moving_bar.input import (
     COST_WINDOW_BEFORE_MS,
     COST_WINDOW_MS,
     DEFAULT_BAR_EXTENT,
+    GRUNTMAN_WIDTHS_DEG,
     ND_IDX,
     PD_IDX,
     MovingBarSpec,
@@ -51,7 +52,6 @@ from task.moving_bar.input import (
 FIG1_CI_NPZ = (
     Path(__file__).resolve().parents[4] / "MatlabFunctions" / "fig1_ci_digitized.npz"
 )
-from task.moving_bar.input import GRUNTMAN_WIDTHS_DEG
 
 logger = logging.getLogger(__name__)
 
@@ -73,9 +73,6 @@ GT_CELL_ALIASES: dict = {
 }
 
 _HORIZONTAL = frozenset({"right", "left"})
-_VERTICAL = frozenset({"up", "down"})
-_HORIZONTAL_AXIS: Tuple[str, ...] = ("right", "left")
-_VERTICAL_AXIS: Tuple[str, ...] = ("up", "down")
 _OPPOSITE = {"right": "left", "left": "right", "up": "down", "down": "up"}
 _SUBTYPE_PD_RIGHT = {"a": "right", "b": "left", "c": "up", "d": "down"}
 
@@ -83,6 +80,7 @@ AXIS_DIRECTION_PAIRS: Tuple[Tuple[str, str], ...] = (
     ("right", "left"),
     ("up", "down"),
 )
+_CARDINAL = frozenset(_OPPOSITE)
 _POS_DIRS = frozenset(pos for pos, _neg in AXIS_DIRECTION_PAIRS)
 _DIR_TO_AXIS = {
     **{pos: (pos, neg) for pos, neg in AXIS_DIRECTION_PAIRS},
@@ -165,10 +163,6 @@ def width_tag(width_deg: float) -> str:
     return "w1" if float(width_deg) <= 3.0 else "w4"
 
 
-def width_tag_from_deg(width_deg: float) -> str:
-    return width_tag(width_deg)
-
-
 def pd_direction(side: str, subtype: str) -> str:
     """Preferred-direction motion for ``subtype`` on ``side`` (right or left eye)."""
     side = normalize_side(side)
@@ -182,7 +176,7 @@ def pd_direction(side: str, subtype: str) -> str:
 
 
 def _axis_directions(subtype: str) -> Tuple[str, ...]:
-    return _HORIZONTAL_AXIS if subtype[-1] in "ab" else _VERTICAL_AXIS
+    return AXIS_DIRECTION_PAIRS[0] if subtype[-1] in "ab" else AXIS_DIRECTION_PAIRS[1]
 
 
 def motion_preference(
@@ -196,7 +190,7 @@ def motion_preference(
         raise ValueError(f"unknown subtype {subtype!r}")
     direction = str(direction).strip().lower()
     contrast = str(contrast).strip().lower()
-    if direction not in _HORIZONTAL | _VERTICAL:
+    if direction not in _CARDINAL:
         raise ValueError(f"unknown direction {direction!r}")
     if contrast not in ("bright", "dark"):
         raise ValueError(f"unknown contrast {contrast!r}")
@@ -219,11 +213,6 @@ def motion_preference(
     return MotionPreference(pd_nd=pd_nd, pc_nc=pc_nc)
 
 
-def fig1_trace_key(pathway: str, pc_nc: str, width: str, pd_nd: str) -> str:
-    """Key in ``fig1_ci_digitized.npz`` (e.g. ``T4_PC_w1_PD``)."""
-    return f"{pathway}_{pc_nc}_{width}_{pd_nd}"
-
-
 def fig1_key_for_stimulus(
     side: str,
     subtype: str,
@@ -241,7 +230,7 @@ def fig1_key_for_stimulus(
     pref = motion_preference(side, subtype, direction, contrast)
     if pref is None:
         return None
-    return fig1_trace_key(subtype[:2], pref.pc_nc, width_tag(width_deg), pref.pd_nd)
+    return f"{subtype[:2]}_{pref.pc_nc}_{width_tag(width_deg)}_{pref.pd_nd}"
 
 
 def active_stimuli_for_subtype(side: str, subtype: str) -> Sequence[Tuple[str, str, str]]:
@@ -258,10 +247,6 @@ def active_stimuli_for_subtype(side: str, subtype: str) -> Sequence[Tuple[str, s
 def parse_moving_bar_spec(sname: str) -> Tuple[str, str, str]:
     direction, contrast, wtag = str(sname).split("_", 2)
     return direction, contrast, wtag
-
-
-def trace_peak(trace: np.ndarray) -> float:
-    return float(np.max(np.asarray(trace, dtype=np.float64)))
 
 
 def axis_dsi(peak_pos: float, peak_neg: float) -> Optional[float]:
@@ -380,24 +365,6 @@ def pack_moving_bar_dsi_tensors(pos_groups, neg_groups, dsi_vals, weights, *, de
     return (
         dsi_pos_entries, dsi_neg_entries, dsi_pos_ptr, dsi_neg_ptr,
         dsi_gt, dsi_weight, power,
-    )
-
-
-def build_dsi_pack_fields(
-    specs: Sequence[MovingBarSpec],
-    r_batch: Sequence[int],
-    r_subtype: Sequence[str],
-    r_weight: Sequence[float],
-    *,
-    side: str,
-    device,
-    sim_dtype,
-):
-    """Assemble + tensorize subtype-grouped DSI fields for a moving-bar task."""
-    return pack_moving_bar_dsi_tensors(
-        *assemble_moving_bar_dsi_groups(specs, r_batch, r_subtype, r_weight, side=side),
-        device=device,
-        sim_dtype=sim_dtype,
     )
 
 
@@ -529,7 +496,10 @@ def moving_bar_dsi_for_spec(
     neg_key = (cell_name, f"{neg_dir}_{contrast}_{wtag}")
     if pos_key not in trace_map or neg_key not in trace_map:
         return None
-    dsi = axis_dsi(trace_peak(trace_map[pos_key]), trace_peak(trace_map[neg_key]))
+    dsi = axis_dsi(
+        float(np.max(np.asarray(trace_map[pos_key], dtype=np.float64))),
+        float(np.max(np.asarray(trace_map[neg_key], dtype=np.float64))),
+    )
     if dsi is None:
         return None
     if direction in _POS_DIRS:
@@ -574,10 +544,6 @@ def moving_bar_cell_title(
 _TRACE_CACHE: Dict[str, np.ndarray] = {}
 
 
-def _pd_nd_index(pd_nd: str) -> int:
-    return PD_IDX if pd_nd == "PD" else ND_IDX
-
-
 @dataclass
 class MovingBarGt:
     i_sti: torch.Tensor
@@ -600,11 +566,6 @@ class MovingBarGt:
     dsi_power: Optional[torch.Tensor] = None
 
 
-def _fig1_trace_ids(npz_path: Path) -> List[str]:
-    with np.load(npz_path) as d:
-        return sorted({k.replace("__time_ms", "") for k in d.files if k.endswith("__time_ms")})
-
-
 def load_fig1_trace(
     trace_id: str,
     npz_path: Path = FIG1_CI_NPZ,
@@ -612,11 +573,7 @@ def load_fig1_trace(
     delta_ms: float) -> np.ndarray:
     """Resample one fig1 trace onto the moving-bar cost window."""
     n_t = ms_to_t(COST_WINDOW_MS, delta_ms=delta_ms) + 1
-    before_t = ms_to_t(COST_ALIGNED_FIRST_STI_MS, delta_ms=delta_ms)
-    key = (
-        f"{trace_id}|{n_t}|{before_t}|{delta_ms}"
-        f"|{COST_WINDOW_MS}|{COST_ALIGNED_FIRST_STI_MS}"
-    )
+    key = f"{trace_id}|{n_t}|{delta_ms}|{COST_WINDOW_MS}|{COST_ALIGNED_FIRST_STI_MS}"
     if key in _TRACE_CACHE:
         return _TRACE_CACHE[key]
     with np.load(npz_path) as d:
@@ -636,9 +593,11 @@ def load_fig1_traces(
     *,
     delta_ms: float) -> Dict[str, np.ndarray]:
     """All fig1 traces resampled to the per-hex training window."""
+    with np.load(npz_path) as d:
+        tids = sorted({k.replace("__time_ms", "") for k in d.files if k.endswith("__time_ms")})
     return {
-        tid: load_fig1_trace(tid, npz_path, delta_ms)
-        for tid in _fig1_trace_ids(npz_path)
+        tid: load_fig1_trace(tid, npz_path, delta_ms=delta_ms)
+        for tid in tids
     }
 
 
@@ -730,7 +689,7 @@ def _assemble_moving_bar_readouts(
                     if trace_id not in fig1:
                         raise KeyError(f"fig1 trace missing: {trace_id}")
                     gt_trace = fig1[trace_id]
-                pd_nd_idx = _pd_nd_index(pref.pd_nd)
+                pd_nd_idx = PD_IDX if pref.pd_nd == "PD" else ND_IDX
                 t0 = t0_by_hex.get(hex_idx, 0)
                 for uidx in nodes:
                     r_batch.append(b)
@@ -769,22 +728,6 @@ def _pack_moving_bar_readout_tensors(
     return gt, cost_weight, readout_batch, readout_node, cost_t0, cost_pd_nd, power
 
 
-def _moving_bar_peak_kwargs(
-    contrasts: Sequence[str],
-    *,
-    i_bright_moving_bar: Optional[float] = None,
-    i_dark_moving_bar: Optional[float] = None,
-) -> dict:
-    """Peak-current kwargs for specs that only include the relevant contrasts."""
-    contrast_set = frozenset(contrasts)
-    kw = {}
-    if "bright" in contrast_set and i_bright_moving_bar is not None:
-        kw["i_bright_moving_bar"] = float(i_bright_moving_bar)
-    if "dark" in contrast_set and i_dark_moving_bar is not None:
-        kw["i_dark_moving_bar"] = float(i_dark_moving_bar)
-    return kw
-
-
 def build_moving_bar_gt(
     C,
     device: Optional[str] = None,
@@ -811,6 +754,11 @@ def build_moving_bar_gt(
     specs = gruntman_moving_bar_specs(contrasts=tuple(contrasts))
     contrast_set = frozenset(contrasts)
     i_baseline_val = resolve_i_baseline(i_baseline_moving_bar)
+    peak_kw = {}
+    if "bright" in contrast_set and i_bright_moving_bar is not None:
+        peak_kw["i_bright_moving_bar"] = float(i_bright_moving_bar)
+    if "dark" in contrast_set and i_dark_moving_bar is not None:
+        peak_kw["i_dark_moving_bar"] = float(i_dark_moving_bar)
     stim = build_moving_bar_signals(
         C, specs=specs, t_onset=t_onset, delta_ms=delta_ms,
         bar_extent=bar_extent, multi_bar=bool(multi_bar),
@@ -818,9 +766,7 @@ def build_moving_bar_gt(
         network_json=getattr(C, "source_json", None),
         i_baseline=i_baseline_val,
         sim_dtype=sim_dtype,
-        **_moving_bar_peak_kwargs(
-            contrast_set, i_bright_moving_bar=i_bright_moving_bar, i_dark_moving_bar=i_dark_moving_bar,
-        ),
+        **peak_kw,
     )
     n_t = int(stim.info["n_t"])
     fig1 = load_fig1_traces(fig1_path, delta_ms=delta_ms) if waveform_mse else None
@@ -875,9 +821,12 @@ def build_moving_bar_gt(
     (
         dsi_pos_entries, dsi_neg_entries, dsi_pos_ptr, dsi_neg_ptr,
         dsi_tgt, dsi_w, dsi_pow,
-    ) = build_dsi_pack_fields(
-        stim.specs, r_batch, r_subtype, r_weight,
-        side=side, device=device, sim_dtype=sim_dtype,
+    ) = pack_moving_bar_dsi_tensors(
+        *assemble_moving_bar_dsi_groups(
+            stim.specs, r_batch, r_subtype, r_weight, side=side,
+        ),
+        device=device,
+        sim_dtype=sim_dtype,
     )
 
     info = {

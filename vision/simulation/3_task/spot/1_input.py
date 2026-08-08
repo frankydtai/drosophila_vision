@@ -11,9 +11,10 @@ from __future__ import annotations
 
 import math
 from dataclasses import dataclass
-from typing import Dict, List, Optional, Tuple
+from typing import Sequence
 
 import numpy as np
+import torch
 
 from network import path  # noqa: F401 -- FAFBv783 on sys.path
 import build_hex
@@ -21,7 +22,6 @@ import build_hex
 from neuron.params import ms_to_t
 
 _SPOT_EXTENT_HALF_STEP_TOL = 1e-9
-
 
 _SPOT_TIMING_KEYS = (
     "ms_pre", "ms_response", "ms_post", "ms_spot", "delta_ms", "delta_ms_pre",
@@ -61,18 +61,16 @@ def apply_spot_timing_overrides(
     plot / analyze filename suffixes).
     """
     before = {k: so.get(k) for k in _SPOT_TIMING_KEYS}
-    if ms_pre is not None:
-        so["ms_pre"] = float(ms_pre)
-    if ms_response is not None:
-        so["ms_response"] = float(ms_response)
-    if ms_post is not None:
-        so["ms_post"] = float(ms_post)
-    if ms_spot is not None:
-        so["ms_spot"] = float(ms_spot)
-    if delta_ms is not None:
-        so["delta_ms"] = float(delta_ms)
-    if delta_ms_pre is not None:
-        so["delta_ms_pre"] = float(delta_ms_pre)
+    for key, val in (
+        ("ms_pre", ms_pre),
+        ("ms_response", ms_response),
+        ("ms_post", ms_post),
+        ("ms_spot", ms_spot),
+        ("delta_ms", delta_ms),
+        ("delta_ms_pre", delta_ms_pre),
+    ):
+        if val is not None:
+            so[key] = float(val)
     normalize_spot_timing(so)
     so.pop("t_onset", None)
     so.pop("n_t", None)
@@ -90,12 +88,12 @@ def spot_timing_t(
     delta_ms: float,
     delta_ms_pre: float,
     ms_post: float = 0.0,
-) -> Tuple[int, int]:
+) -> tuple[int, int]:
     """Return ``(t_onset, n_t)`` from ms timing params.
 
     Pre uses ``delta_ms_pre``; response / post use ``delta_ms``. ``n_t`` is the
     forward length: pre + response + post. Cost / ImpR gt use only through
-    response (see :func:`spot_gt_n_t`); ``ms_post`` does not enter gt.
+    response (``ms_post=0``); ``ms_post`` does not enter gt.
     """
     dt = float(delta_ms)
     dt_pre = float(delta_ms_pre)
@@ -109,59 +107,50 @@ def spot_timing_t(
     return t_onset, n_t
 
 
-def spot_gt_n_t(
-    *,
-    ms_pre: float,
-    ms_response: float,
-    delta_ms: float,
-    delta_ms_pre: float,
-) -> int:
-    """ImpR / cost timeline length (no ``ms_post``)."""
-    return (
-        ms_to_t(ms_pre, delta_ms=float(delta_ms_pre))
-        + ms_to_t(ms_response, delta_ms=float(delta_ms))
-        + 1
-    )
-
-
-def spot_timing_t_from_opts(opts) -> Tuple[int, int]:
-    """``(t_onset, n_t)`` from stimulus opts timing + piecewise ``delta_ms*``.
-
-    Optional ``ms_post`` (default 0) extends forward only.
-    """
+def _require_spot_timing_opts(opts):
     if opts.get("ms_pre") is None or opts.get("ms_response") is None:
         raise ValueError(
-            "spot stimulus opts require ms_pre and ms_response (pass via CLI --ms-pre / --ms-response)"
+            "spot stimulus opts require ms_pre and ms_response "
+            "(pass via CLI --ms-pre / --ms-response)"
         )
     if opts.get("delta_ms") is None:
         raise ValueError("spot stimulus opts require delta_ms")
     if opts.get("delta_ms_pre") is None:
         raise ValueError("spot stimulus opts require delta_ms_pre")
+    return (
+        float(opts["ms_pre"]),
+        float(opts["ms_response"]),
+        float(opts["delta_ms"]),
+        float(opts["delta_ms_pre"]),
+        float(opts.get("ms_post", 0.0)),
+    )
+
+
+def spot_timing_t_from_opts(opts) -> tuple[int, int]:
+    """``(t_onset, n_t)`` from stimulus opts timing + piecewise ``delta_ms*``.
+
+    Optional ``ms_post`` (default 0) extends forward only.
+    """
+    ms_pre, ms_response, delta_ms, delta_ms_pre, ms_post = _require_spot_timing_opts(opts)
     return spot_timing_t(
-        ms_pre=float(opts["ms_pre"]),
-        ms_response=float(opts["ms_response"]),
-        delta_ms=float(opts["delta_ms"]),
-        delta_ms_pre=float(opts["delta_ms_pre"]),
-        ms_post=float(opts.get("ms_post", 0.0)),
+        ms_pre=ms_pre,
+        ms_response=ms_response,
+        delta_ms=delta_ms,
+        delta_ms_pre=delta_ms_pre,
+        ms_post=ms_post,
     )
 
 
 def spot_gt_n_t_from_opts(opts) -> int:
     """ImpR / cost ``n_t`` from opts (ignores ``ms_post``)."""
-    if opts.get("ms_pre") is None or opts.get("ms_response") is None:
-        raise ValueError(
-            "spot stimulus opts require ms_pre and ms_response (pass via CLI --ms-pre / --ms-response)"
-        )
-    if opts.get("delta_ms") is None:
-        raise ValueError("spot stimulus opts require delta_ms")
-    if opts.get("delta_ms_pre") is None:
-        raise ValueError("spot stimulus opts require delta_ms_pre")
-    return spot_gt_n_t(
-        ms_pre=float(opts["ms_pre"]),
-        ms_response=float(opts["ms_response"]),
-        delta_ms=float(opts["delta_ms"]),
-        delta_ms_pre=float(opts["delta_ms_pre"]),
-    )
+    ms_pre, ms_response, delta_ms, delta_ms_pre, _ = _require_spot_timing_opts(opts)
+    return spot_timing_t(
+        ms_pre=ms_pre,
+        ms_response=ms_response,
+        delta_ms=delta_ms,
+        delta_ms_pre=delta_ms_pre,
+        ms_post=0.0,
+    )[1]
 
 
 def spot_input_waveform(t_onset, n_t, ms_spot=None, *, delta_ms: float) -> np.ndarray:
@@ -182,21 +171,16 @@ def spot_input_waveform(t_onset, n_t, ms_spot=None, *, delta_ms: float) -> np.nd
     return u
 
 
-def _rot60(u: int, v: int) -> Tuple[int, int]:
-    """Rotate an axial (u, v) member 60 degrees counter-clockwise about origin."""
-    return -v, u + v
-
-
 def euclid_hex_dist(du: int, dv: int) -> float:
     """Euclidean distance (in hex nodes) between two axial cells."""
     return math.sqrt(du * du + du * dv + dv * dv)
 
 
-def members_by_euclid_radius(radii) -> Dict[float, List[Tuple[int, int]]]:
+def members_by_euclid_radius(radii) -> dict[float, list[tuple[int, int]]]:
     """Map each Euclidean radius to stim-centered axial ``(du, dv)`` members."""
     radii_set = {round(float(radius), 6) for radius in radii}
     max_shell = int(math.ceil(max(radii_set)))
-    by_radius: Dict[float, List[Tuple[int, int]]] = {radius: [] for radius in radii_set}
+    by_radius: dict[float, list[tuple[int, int]]] = {radius: [] for radius in radii_set}
     for du, dv in build_hex.members_in_extent(max_shell):
         radius = round(euclid_hex_dist(du, dv), 6)
         if radius in radii_set:
@@ -258,7 +242,7 @@ def spot_centers(
         a1, b1 = e, e
     else:
         a1, b1 = m + 1, -k
-    a2, b2 = _rot60(a1, b1)
+    a2, b2 = -b1, a1 + b1  # 60° CCW about origin
     members = build_hex.members_in_extent((m + 1) // 2)
     span = int(2 * (extent // max(k, 1) + 2))
     centers: list = []
@@ -284,8 +268,8 @@ def spot_centers(
 class Spot:
     """Spot centers and sub-spot shifts over a loaded connectome."""
 
-    centers: List[Tuple[int, int]]
-    shifts: List[Tuple[int, int]]
+    centers: list[tuple[int, int]]
+    shifts: list[tuple[int, int]]
     spot_extent: float
 
 
@@ -293,20 +277,21 @@ class Spot:
 class SpotBatch:
     """One simultaneous spot stimulus: all ``stim_uv`` hexes step in one batch."""
 
-    shift: Tuple[int, int]
-    stim_uv: Tuple[Tuple[int, int], ...]
+    shift: tuple[int, int]
+    stim_uv: tuple[tuple[int, int], ...]
 
 
-def spot_stimulus_batches(spot: Spot) -> List[SpotBatch]:
+def spot_stimulus_batches(spot: Spot) -> list[SpotBatch]:
     """One batch per shift; each batch steps all spot centers (+ shift) together."""
-    batches: List[SpotBatch] = []
-    for du, dv in spot.shifts:
-        stim_uv = tuple(
-            (int(cu + du), int(cv + dv))
-            for cu, cv in spot.centers
+    return [
+        SpotBatch(
+            shift=(int(du), int(dv)),
+            stim_uv=tuple(
+                (int(cu + du), int(cv + dv)) for cu, cv in spot.centers
+            ),
         )
-        batches.append(SpotBatch(shift=(int(du), int(dv)), stim_uv=stim_uv))
-    return batches
+        for du, dv in spot.shifts
+    ]
 
 
 def _connectome_extent(C, spot_extent: float) -> int:
@@ -350,11 +335,11 @@ def build_spot(
 def spot_from_opts(
     C,
     *,
-    spot_extent: Optional[float] = None,
-    shift_extent: Optional[int] = None,
-    multi_spot: Optional[bool] = None,
-    fully_inside: Optional[bool] = None,
-    stimulus_opts: Optional[Dict] = None,
+    spot_extent: float | None = None,
+    shift_extent: int | None = None,
+    multi_spot: bool | None = None,
+    fully_inside: bool | None = None,
+    stimulus_opts: dict | None = None,
 ) -> Spot:
     """Build :class:`Spot` with configurable sub-spot shift radius."""
     if stimulus_opts is not None:
@@ -384,7 +369,7 @@ def spot_from_opts(
 
 def build_spot_a_sti_r_drive(
     C,
-    batches: List[SpotBatch],
+    batches: Sequence[SpotBatch],
     *,
     sti_radii,
     spot_extent: float,
@@ -406,8 +391,6 @@ def build_spot_a_sti_r_drive(
     ``spot_extent`` folds r2 into r1, Euclidean ``r > 1`` rings are omitted
     from contribs (params may remain). Does not modify gt construction.
     """
-    import torch
-
     radii = tuple(round(float(r), 6) for r in sti_radii)
     if not radii:
         raise ValueError("sti_radii must be non-empty")
@@ -416,19 +399,18 @@ def build_spot_a_sti_r_drive(
     omit_r_gt_1 = spot_extent_folds_r2_into_r1(spot_extent)
     by_radius = members_by_euclid_radius(radii)
     radius_to_i = {r: i for i, r in enumerate(radii)}
-    batch_l: List[int] = []
-    node_l: List[int] = []
-    r_l: List[int] = []
-    center_nodes: List[Tuple[int, int]] = []
+    batch_l: list[int] = []
+    node_l: list[int] = []
+    r_l: list[int] = []
+    center_nodes: list[tuple[int, int]] = []
     for b, batch in enumerate(batches):
         for su, sv in batch.stim_uv:
             for nid in C.input_nodes_at(int(su), int(sv)):
                 center_nodes.append((int(b), int(nid)))
             for radius_key, members in by_radius.items():
-                r_key = round(float(radius_key), 6)
-                if omit_r_gt_1 and r_key > 1.0:
+                if omit_r_gt_1 and radius_key > 1.0:
                     continue
-                ri = radius_to_i[r_key]
+                ri = radius_to_i[radius_key]
                 for du, dv in members:
                     for nid in C.input_nodes_at(int(su) + int(du), int(sv) + int(dv)):
                         batch_l.append(int(b))

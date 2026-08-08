@@ -17,4 +17,4 @@ def ca_alpha(*, delta_ms: float, Ca_tau: float) -> float:
 
 def ca_filter(ca, v, v_onset, *, delta_ms: float, Ca_tau: float):
     """One Ca low-pass step on ``v - v_onset`` (unused by current forward)."""
-    return float(delta_ms) / float(Ca_tau) * (v - v_onset - ca) + ca
+    return ca_alpha(delta_ms=delta_ms, Ca_tau=Ca_tau) * (v - v_onset - ca) + ca

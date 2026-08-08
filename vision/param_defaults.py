@@ -54,7 +54,7 @@ PARAM_BOXES: Dict[str, dict] = {
     "syn_strength_edge": dict(lo=GAIN_LO, hi=GAIN_HI, init=1.0, jit=0.1, train_mode="indi"),
     "a_in": dict(lo=0.01, hi=100, init=1.0, jit=0.1, train_mode="shared"),
     "a_out": dict(lo=GAIN_LO, hi=GAIN_HI, init=1.0, jit=0.1, train_mode="indi"),
-    "e_leak": dict(lo=-50.0, hi=50.0, init=-50.0, jit=1.0, train_mode="fixed"),
+    "e_leak": dict(lo=-50.0, hi=50.0, init=-50.0, jit=1.0, train_mode="indi"),
     "v_th": dict(lo=-100.0, hi=-100.0, init=-50.0, jit=0.0, train_mode="fixed"),
     "tau_lp": dict(lo=10.0, hi=100.0, init=10.0, jit=2.0, train_mode="fixed"),
     "tau_hp": dict(lo=100.0, hi=500.0, init=200.0, jit=20.0, train_mode="shared"),
@@ -103,7 +103,7 @@ I_DARK = 0.0
 
 MS_PRE = 10.0
 MS_SPOT = 50.0
-MS_RESPONSE = 120.0
+MS_RESPONSE = 100.0
 MS_POST = 0.0
 SPOT_EXTENT = 1.0
 SPOT_EXTENTS: Tuple[float, ...] = (0.5, 1.0, 1.5, 2.0)
@@ -125,7 +125,7 @@ SPOT_COST_RADIUS_WEIGHT: Dict[float, float] = {
 }
 SPOT_COST_RADIUS_WEIGHT_EXTENT1: Dict[float, float] = {
     0.0: 1.0,
-    1.0: 0,
+    1.0: 10,
 }
 # name → float for cost CLI and a_sti_r node_names (reverse of SPOT_*_RADII).
 SPOT_COST_RADIUS_KEY_ALIASES: Dict[str, float] = {
@@ -150,7 +150,11 @@ TASK = "spot_bright"
 
 COST_NORM = "a_gt2"  # gt_power | a_gt2; see training.config.COST_NORMS
 # Spot: post-onset cost sample spacing (ms); 0, interval, 2*interval, ...
-COST_INTERVAL_MS = 5.0
+COST_INTERVAL_MS = 10.0
+# Spot: per-radius explicit post-onset ms (overwrites COST_INTERVAL_MS for that r).
+COST_MS: Dict[float, Tuple[float, ...]] = {
+    1.0: (0.0, MS_SPOT),
+}
 # Cost/plot affine bias = v at t_onset (not schema bias_gt), clamped to
 # PARAM_BOXES["bias_gt"] lo/hi.
 BIAS_GT_FROM_V_ONSET = True

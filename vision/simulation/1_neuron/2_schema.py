@@ -31,13 +31,10 @@ I_H_SHAPE_PARAM_NAMES = (
     "v_mid_h_g_rev", "v_mid_h_tau_rev", "h_slope_rev",
 )
 _HP_LP_ONLY = frozenset({"tau_lp", "tau_hp"})
-_BORST_ONLY = frozenset({
-    "v_mid_h_g", "v_mid_h_tau", "h_slope",
-    "a_h_rev", "v_mid_h_g_rev", "v_mid_h_tau_rev", "h_slope_rev",
-})
 _I_H_REV_ONLY = frozenset({
     "a_h_rev", "v_mid_h_g_rev", "v_mid_h_tau_rev", "h_slope_rev",
 })
+_BORST_ONLY = frozenset({"v_mid_h_g", "v_mid_h_tau", "h_slope"}) | _I_H_REV_ONLY
 _OUTPUT_KIND = frozenset({"a_gt", "bias_gt"})
 _NAMED_H = frozenset({"a_h", "a_h_rev"})
 
@@ -56,61 +53,36 @@ def syn_strength(p):
     return p["syn_strength_cell"]
 
 
-def _mode_indi_all(n):
-    return {"indi": list(range(n)), "shared": [], "fixed": [], "frozen": []}
-
-
-def _mode_shared_all(n):
-    return {"indi": [], "shared": list(range(n)), "fixed": [], "frozen": []}
-
-
-def _mode_fixed_all(n):
-    return {"indi": [], "shared": [], "fixed": list(range(n)), "frozen": []}
-
-
-def _mode_indi_subset_fixed_rest(n, indi_idx):
-    indi = sorted({int(i) for i in indi_idx})
-    fixed = [i for i in range(n) if i not in set(indi)]
-    return {"indi": indi, "shared": [], "fixed": fixed, "frozen": []}
-
-
-def _box_numeric(box):
-    """PARAM_BOXES entry without ``train_mode`` (segment numeric fields only)."""
-    return {k: v for k, v in box.items() if k != "train_mode"}
+def _mode_all(n, key):
+    return {k: (list(range(n)) if k == key else []) for k in TRAIN_MODE_KEYS}
 
 
 def _mode_from_box(box, n, *, name_to_i=None, indi_names=()):
     """Resolve ``box['train_mode']`` to indi/shared/fixed/frozen index lists."""
     tm = box["train_mode"]
-    if tm == "fixed":
-        return _mode_fixed_all(n)
-    if tm == "indi":
-        return _mode_indi_all(n)
-    if tm == "shared":
-        return _mode_shared_all(n)
+    if tm in ("fixed", "indi", "shared"):
+        return _mode_all(n, tm)
     if tm == "indi_named":
         if name_to_i is None:
             raise TypeError("indi_named train_mode requires cell name_to_i")
-        idxs = [name_to_i[str(n)] for n in indi_names]
-        return _mode_indi_subset_fixed_rest(n, idxs)
+        indi = sorted({int(name_to_i[str(name)]) for name in indi_names})
+        fixed = [i for i in range(n) if i not in set(indi)]
+        return {"indi": indi, "shared": [], "fixed": fixed, "frozen": []}
     raise ValueError(
         f"unknown train_mode {tm!r}; expected indi|shared|fixed|indi_named"
     )
 
 
-def _with_train_mode(seg, mode):
-    s = dict(seg)
-    for b in TRAIN_MODE_KEYS:
-        s[b] = list(mode[b])
-    return s
-
-
 def _seg(name, count, kind, box, n, *, name_to_i=None, indi_names=()):
     mode = _mode_from_box(box, n, name_to_i=name_to_i, indi_names=indi_names)
-    s = _with_train_mode(
-        {"name": name, "count": count, "kind": kind, **_box_numeric(box)},
-        mode,
-    )
+    s = {
+        "name": name,
+        "count": count,
+        "kind": kind,
+        **{k: v for k, v in box.items() if k != "train_mode"},
+    }
+    for b in TRAIN_MODE_KEYS:
+        s[b] = list(mode[b])
     # indi_named: fixed remainder off (0); indi keep box init via effective_init.
     if box.get("train_mode") == "indi_named" and mode["fixed"]:
         s["init_override"] = {int(i): 0.0 for i in mode["fixed"]}
@@ -119,33 +91,28 @@ def _seg(name, count, kind, box, n, *, name_to_i=None, indi_names=()):
 
 def borst_i_h_rev_kwargs(p, i_h_rev: str):
     """Resolve rev-channel i_h kwargs for ``update_v`` from assigned params."""
-    v_mid_h_g_rev = p["v_mid_h_g"] if i_h_rev != "on" else p["v_mid_h_g_rev"]
-    slope_rev = p["h_slope"] if i_h_rev != "on" else p["h_slope_rev"]
-    v_mid_h_tau_rev = p["v_mid_h_tau"] if i_h_rev != "on" else p["v_mid_h_tau_rev"]
     if i_h_rev == "on":
-        a_h_rev = p["a_h_rev"]
-    elif i_h_rev == "mirrored":
+        return p["a_h_rev"], p["v_mid_h_g_rev"], p["h_slope_rev"], p["v_mid_h_tau_rev"]
+    if i_h_rev == "mirrored":
         a_h_rev = p["a_h"]
     elif i_h_rev == "off":
         a_h_rev = p["a_h"] * 0.0
     else:
         raise ValueError(f"i_h_rev {i_h_rev!r} not in {I_H_REV_MODES}")
-    return a_h_rev, v_mid_h_g_rev, slope_rev, v_mid_h_tau_rev
+    return a_h_rev, p["v_mid_h_g"], p["h_slope"], p["v_mid_h_tau"]
 
 
 def _syn_segment(syn_mode, n_pairs, n_edges, param_boxes):
     """One synaptic segment: type-pair or per-edge syn_strength."""
-    D = param_boxes
-    mode = normalize_syn_mode(syn_mode)
-    if mode == "per_edge":
+    if syn_mode == "per_edge":
         if n_edges is None:
             raise TypeError("per_edge syn_strength_edge requires n_edges from network ScatterConn")
         n_edges = int(n_edges)
-        return _seg("syn_strength_edge", n_edges, "edge", D["syn_strength_edge"], n_edges)
+        return _seg("syn_strength_edge", n_edges, "edge", param_boxes["syn_strength_edge"], n_edges)
     if n_pairs is None:
         raise TypeError("per_cell syn_strength_cell requires n_pairs from network ScatterConn")
     n_pairs = int(n_pairs)
-    return _seg("syn_strength_cell", n_pairs, "edge_pair", D["syn_strength_cell"], n_pairs)
+    return _seg("syn_strength_cell", n_pairs, "edge_pair", param_boxes["syn_strength_cell"], n_pairs)
 
 
 def spot_radius_key(radius, *, aliases) -> str:
@@ -192,10 +159,9 @@ def _segments_from_boxes(
     """Build segments in ``param_boxes`` insertion order; ``skip`` omits unused names."""
     name_to_i = {str(n): i for i, n in enumerate(cell_names)}
     named_kw = dict(name_to_i=name_to_i, indi_names=h_cells)
+    mode = normalize_syn_mode(syn_mode)
     active_syn = (
-        "syn_strength_edge"
-        if normalize_syn_mode(syn_mode) == "per_edge"
-        else "syn_strength_cell"
+        "syn_strength_edge" if mode == "per_edge" else "syn_strength_cell"
     )
     segs = []
     for name in param_boxes:
@@ -204,7 +170,7 @@ def _segments_from_boxes(
         if name in ("syn_strength_cell", "syn_strength_edge"):
             if name != active_syn:
                 continue
-            segs.append(_syn_segment(syn_mode, n_pairs, n_edges, param_boxes))
+            segs.append(_syn_segment(mode, n_pairs, n_edges, param_boxes))
             continue
         if name == "a_sti_r":
             segs.append(
@@ -309,24 +275,20 @@ def default_schema(
     mode = normalize_syn_mode(syn_mode)
     n_pairs = getattr(backend.conn, "n_pairs", None)
     n_edges = getattr(backend.conn, "n_edges", None)
-    sti_kw = dict(
-        sti_radii=sti_radii,
-        radius_key_aliases=radius_key_aliases,
-    )
     if mode == "per_edge":
         if n_edges is None:
             raise TypeError(f"{model} syn_strength_edge requires network ScatterConn backend")
-        kw = dict(
-            syn_mode=mode, n_edges=n_edges, n_pairs=n_pairs,
-            param_boxes=param_boxes, h_cells=h_cells, **sti_kw,
-        )
-    else:
-        if n_pairs is None:
-            raise TypeError(f"{model} syn_strength_cell requires network ScatterConn backend")
-        kw = dict(
-            syn_mode=mode, n_pairs=n_pairs, n_edges=n_edges,
-            param_boxes=param_boxes, h_cells=h_cells, **sti_kw,
-        )
+    elif n_pairs is None:
+        raise TypeError(f"{model} syn_strength_cell requires network ScatterConn backend")
+    kw = dict(
+        syn_mode=mode,
+        n_pairs=n_pairs,
+        n_edges=n_edges,
+        param_boxes=param_boxes,
+        h_cells=h_cells,
+        sti_radii=sti_radii,
+        radius_key_aliases=radius_key_aliases,
+    )
     if model == "hp_lp":
         return build_hp_lp_schema(n, cell_names=cell_names, **kw)
     return build_borst_schema(n, cell_names=cell_names, i_h_rev=i_h_rev, **kw)

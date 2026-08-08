@@ -18,7 +18,6 @@ ImpR / RecF traces are the raw training gt; cost compares absolute model
 """
 from __future__ import annotations
 
-import math
 from dataclasses import dataclass
 from typing import Dict, List, Optional, Sequence, Tuple
 
@@ -26,7 +25,7 @@ import numpy as np
 import torch
 
 from network import path  # noqa: F401 -- FAFBv783 on sys.path
-import neuron.params as params
+from import_bootstrap import parse_comma_list
 from network.construction import (
     hex2gt,
     hex_in_cost_extent,
@@ -34,6 +33,7 @@ from network.construction import (
     normalize_gt_cells,
     node_cell_names,
 )
+from neuron.params import ms_to_t
 from task.spot.input import (
     SpotBatch,
     euclid_hex_dist,
@@ -44,8 +44,6 @@ from task.spot.input import (
     spot_stimulus_batches,
     spot_from_opts,
 )
-
-ms_to_t = params.ms_to_t
 
 # ImpR / RecF gt row order (13 gt cells).
 GT_CELLS: Tuple[str, ...] = (
@@ -113,14 +111,10 @@ def _lowpass(x, tau_ms, *, delta_ms: float):
     return result.transpose(np.roll(np.arange(result.ndim), -1))
 
 
-def _highpass(x, tau_ms, *, delta_ms: float):
-    return x - _lowpass(x, tau_ms, delta_ms=delta_ms)
-
-
 def _bandpass(x, hp_tau_ms, lp_tau_ms, *, delta_ms: float):
     result = _lowpass(x, lp_tau_ms, delta_ms=delta_ms)
     if hp_tau_ms != 0:
-        result = _highpass(result, hp_tau_ms, delta_ms=delta_ms)
+        result = result - _lowpass(result, hp_tau_ms, delta_ms=delta_ms)
     return result
 
 
@@ -128,11 +122,9 @@ def normalize_gt(x):
     x = x - x[0]
     mymax = np.nanmax(x)
     mymin = np.nanmin(x)
-    absmax = np.abs(mymax) if np.abs(mymax) > np.abs(mymin) else np.abs(mymin)
-    result = x / absmax
     if mymax == mymin:
-        result = x * 0.0
-    return result
+        return x * 0.0
+    return x / max(abs(mymax), abs(mymin))
 
 
 def _shift_right(y, k: int):
@@ -146,12 +138,8 @@ def _shift_right(y, k: int):
     return out
 
 
-# ImpR onset delay (samples / t-index): L1–L5 +1; other gt cells +2.
-_IMPR_SHIFT_RIGHT = {
-    "L1": 5, "L2": 5, "L3": 5, "L4": 5, "L5": 5,
-    "Mi1": 5, "Tm3": 5, "Mi4": 5, "Mi9": 5,
-    "Tm1": 5, "Tm2": 5, "Tm4": 5, "Tm9": 5,
-}
+# ImpR onset delay (samples / t-index); same for all gt cells.
+_IMPR_SHIFT = 5
 
 
 def read_RecF_ImpR(*, t_onset=None, n_t=None, ms_spot=None, delta_ms: float):
@@ -177,28 +165,13 @@ def read_RecF_ImpR(*, t_onset=None, n_t=None, ms_spot=None, delta_ms: float):
     ) * 5.0
     RF_sign = np.array([-1, -1, -1, -1, 1, 1, 1, 1, -1, -1, -1, -1, -1])
 
-    # Reference RecF amplitudes (current constants; sampled at r=1 and r=2):
-    # cell  r1_orig    r2_orig    r1_folded=r1+r2
-    # L1   -0.141098   0.003917  -0.137181
-    # L2   -0.234082   0.005272  -0.228811
-    # L3    0.213540   0.176277   0.389817
-    # L4   -0.311943   0.017892  -0.294051
-    # L5    0.220646  -0.018857   0.201789
-    # Mi1   0.130834  -0.012393   0.118440
-    # Tm3   0.617913   0.145739   0.763652
-    # Mi4  -0.055521  -0.108958  -0.164479
-    # Mi9  -0.088378   0.044981  -0.043398
-    # Tm1  -0.307913   0.020679  -0.287234
-    # Tm2  -0.316558   0.012149  -0.304409
-    # Tm4  -0.539370  -0.059829  -0.599200
-    # Tm9  -0.201116   0.034566  -0.166550
-
     RecF_gt = np.zeros((n_cells, 45))
     for i in range(n_cells):
         center = _gauss1d(RF_center_width[i], 44)
         surrnd = _gauss1d(RF_surrnd_width[i], 44)
-        RecF_gt[i] = (center - RF_surrnd_weight[i] * surrnd) * RF_sign[i]
-        RecF_gt[i] = normalize_gt(RecF_gt[i])
+        RecF_gt[i] = normalize_gt(
+            (center - RF_surrnd_weight[i] * surrnd) * RF_sign[i]
+        )
 
     # ImpR HP / LP time constants (ms).
     IR_hp_ms = np.array(
@@ -213,15 +186,10 @@ def read_RecF_ImpR(*, t_onset=None, n_t=None, ms_spot=None, delta_ms: float):
 
     ImpR_gt = np.zeros((n_cells, n_t))
     for i in range(n_cells):
-        if IR_hp_ms[i] == 0:
-            ImpR_gt[i] = _lowpass(u, IR_lp_ms[i], delta_ms=delta_ms)
-        else:
-            ImpR_gt[i] = _bandpass(
-                u, IR_hp_ms[i], IR_lp_ms[i], delta_ms=delta_ms,
-            )
-        ImpR_gt[i] = normalize_gt(ImpR_gt[i])
-        name = str(GT_CELLS[i])
-        ImpR_gt[i] = _shift_right(ImpR_gt[i], _IMPR_SHIFT_RIGHT[name])
+        ImpR_gt[i] = _shift_right(
+            normalize_gt(_bandpass(u, IR_hp_ms[i], IR_lp_ms[i], delta_ms=delta_ms)),
+            _IMPR_SHIFT,
+        )
 
     return RecF_gt, ImpR_gt
 
@@ -268,16 +236,6 @@ def parse_spot_cost_radius_weight_value(text: str) -> float:
     return float(tok)
 
 
-def spot_cost_radius_weight_resolved(
-    spot_cost_radius_weight: Optional[Dict[float, float]],
-    *,
-    default_weights: Dict[float, float],
-) -> Dict[float, float]:
-    if spot_cost_radius_weight is None:
-        return dict(default_weights)
-    return spot_cost_radius_weight
-
-
 def expand_spot_cost_r_w_dict(
     kv: Optional[dict] = None,
     *,
@@ -292,6 +250,49 @@ def expand_spot_cost_r_w_dict(
         normalize_spot_cost_radius_key(k, aliases=aliases): parse_spot_cost_radius_weight_value(v)
         for k, v in kv.items()
     }
+
+
+def expand_cost_ms_dict(
+    *,
+    stimulus_opts: Optional[dict] = None,
+    aliases: Dict[str, float],
+) -> Dict[float, Tuple[float, ...]]:
+    """Radius → explicit post-onset ms; empty when unset."""
+    kv = (stimulus_opts or {}).get("cost_ms") if stimulus_opts is not None else None
+    if not kv:
+        return {}
+    out: Dict[float, Tuple[float, ...]] = {}
+    for k, v in kv.items():
+        r = normalize_spot_cost_radius_key(k, aliases=aliases)
+        vals = parse_comma_list(v) if isinstance(v, str) else list(v)
+        if not vals:
+            raise ValueError(f"cost_ms[{k!r}] must list at least one ms")
+        out[r] = tuple(float(x) for x in vals)
+    return out
+
+
+def parse_cost_ms_tokens(
+    tokens: Optional[Sequence[str]],
+    *,
+    aliases: Dict[str, float],
+) -> Optional[Dict[float, Tuple[float, ...]]]:
+    """Parse ``--cost-ms``: ``none``/``off`` → ``{}``; else ``R=MS,...``. Omit → ``None``."""
+    if tokens is None:
+        return None
+    if len(tokens) == 1 and str(tokens[0]).strip().lower() in ("none", "off"):
+        return {}
+    out: Dict[float, Tuple[float, ...]] = {}
+    for tok in tokens:
+        if "=" not in tok:
+            raise ValueError(f"expected R=MS,... or none|off, got {tok!r}")
+        key, val = tok.split("=", 1)
+        vals = parse_comma_list(val)
+        if not vals:
+            raise ValueError(f"--cost-ms {key}=... must list at least one ms")
+        out[normalize_spot_cost_radius_key(key, aliases=aliases)] = tuple(
+            float(x) for x in vals
+        )
+    return out
 
 
 def default_spot_cost_radius_weight(
@@ -350,8 +351,10 @@ def resolve_spot_cost_radii(
         spot_cost_radius_weight = expand_spot_cost_r_w_dict(
             stimulus_opts=stimulus_opts, aliases=aliases,
         )
-    weights = spot_cost_radius_weight_resolved(
-        spot_cost_radius_weight, default_weights=default_weights,
+    weights = (
+        dict(default_weights)
+        if spot_cost_radius_weight is None
+        else spot_cost_radius_weight
     )
     return tuple(
         radius for radius in spot_cost_radii
@@ -365,8 +368,10 @@ def spot_cost_node_weight(
     *,
     default_weights: Dict[float, float],
 ) -> float:
-    weights = spot_cost_radius_weight_resolved(
-        spot_cost_radius_weight, default_weights=default_weights,
+    weights = (
+        dict(default_weights)
+        if spot_cost_radius_weight is None
+        else spot_cost_radius_weight
     )
     return float(weights.get(round(radius, 6), 0.0))
 
@@ -390,20 +395,6 @@ def _spot_readout_amp(recf_row: np.ndarray, radius: float, spot_extent: float) -
     return _recf_at(recf_row, r)
 
 
-def _spot_superposed_amp(
-    recf_row: np.ndarray,
-    stim_uv: Sequence[Tuple[int, int]],
-    mu: int,
-    mv: int,
-    spot_extent: float,
-) -> float:
-    total = 0.0
-    for su, sv in stim_uv:
-        dist = round(euclid_hex_dist(int(mu) - int(su), int(mv) - int(sv)), 6)
-        total += _spot_readout_amp(recf_row, dist, spot_extent)
-    return total
-
-
 def _spot_superposed_trace(
     recf_row: np.ndarray,
     stim_uv: Sequence[Tuple[int, int]],
@@ -416,7 +407,10 @@ def _spot_superposed_trace(
     *,
     polarity: str,
 ) -> np.ndarray:
-    amp = _spot_superposed_amp(recf_row, stim_uv, mu, mv, spot_extent)
+    amp = 0.0
+    for su, sv in stim_uv:
+        dist = round(euclid_hex_dist(int(mu) - int(su), int(mv) - int(sv)), 6)
+        amp += _spot_readout_amp(recf_row, dist, spot_extent)
     trace = amp * impr_row[resp] * data_amp
     if polarity == "dark":
         trace = -trace
@@ -456,13 +450,14 @@ def spot_n_cost_hexes(cost_hexes):
     return {b: counts[b] for b in sorted(counts)}
 
 
+def _as_np(arr) -> np.ndarray:
+    return arr.detach().cpu().numpy() if hasattr(arr, "detach") else np.asarray(arr)
+
+
 def build_spot_cost_readout(C, batches, cost_radii, cost_extent):
-    u = C.u.detach().cpu().numpy() if hasattr(C.u, "detach") else np.asarray(C.u)
-    v = C.v.detach().cpu().numpy() if hasattr(C.v, "detach") else np.asarray(C.v)
-    type_all = (
-        C.node_cell.detach().cpu().numpy()
-        if hasattr(C.node_cell, "detach") else np.asarray(C.node_cell)
-    )
+    u = _as_np(C.u)
+    v = _as_np(C.v)
+    type_all = _as_np(C.node_cell)
     batch_idx, node_idx, radius, type_idx, stim_u, stim_v = [], [], [], [], [], []
     for b, mu, mv, cell_radius, su, sv in spot_cost_hexes(
         batches, cost_radii, cost_extent,
@@ -485,32 +480,25 @@ def build_spot_cost_readout(C, batches, cost_radii, cost_extent):
     )
 
 
-def spot_readout_duv(C, batch_idx, node_idx, *, stim_u, stim_v):
-    u_all = C.u.detach().cpu().numpy() if hasattr(C.u, "detach") else np.asarray(C.u)
-    v_all = C.v.detach().cpu().numpy() if hasattr(C.v, "detach") else np.asarray(C.v)
-    stim_u = np.asarray(stim_u, dtype=np.int64)
-    stim_v = np.asarray(stim_v, dtype=np.int64)
-    mu = u_all[node_idx]
-    mv = v_all[node_idx]
-    return mu - stim_u, mv - stim_v
-
-
 def build_spot_center_readout(C, batches, cost_radii, cost_extent):
     """Cost-node readout plus ``center_row`` mask for stim-on hex (radius 0)."""
     batch_idx, node_idx, radius, type_idx, stim_u, stim_v = build_spot_cost_readout(
         C, batches, cost_radii, cost_extent,
     )
-    du, dv = spot_readout_duv(C, batch_idx, node_idx, stim_u=stim_u, stim_v=stim_v)
-    du = np.asarray(du, dtype=np.int64)
-    dv = np.asarray(dv, dtype=np.int64)
+    stim_u = np.asarray(stim_u, dtype=np.int64)
+    stim_v = np.asarray(stim_v, dtype=np.int64)
+    u_all = _as_np(C.u)
+    v_all = _as_np(C.v)
+    du = np.asarray(u_all[node_idx] - stim_u, dtype=np.int64)
+    dv = np.asarray(v_all[node_idx] - stim_v, dtype=np.int64)
     center_row = (du == 0) & (dv == 0)
     return (
         np.asarray(batch_idx, dtype=np.int64),
         np.asarray(node_idx, dtype=np.int64),
         np.asarray(radius, dtype=np.float64),
         np.asarray(type_idx, dtype=np.int64),
-        np.asarray(stim_u, dtype=np.int64),
-        np.asarray(stim_v, dtype=np.int64),
+        stim_u,
+        stim_v,
         du,
         dv,
         center_row,
@@ -557,7 +545,7 @@ def build_spot_gt(
     ms_response: Optional[float] = None,
     gt_cells: Optional[Sequence[str]] = None,
 ) -> SpotGt:
-    if polarity not in ("bright", "dark"):
+    if polarity not in SPOT_POLARITIES:
         raise ValueError(f"polarity must be 'bright' or 'dark', got {polarity!r}")
     i_baseline = float(i_baseline_spot)
     i_spot = float(i_bright_spot if polarity == "bright" else i_dark_spot)
@@ -730,6 +718,7 @@ def make_spot_stimulus_opts(
     ms_spot=None,
     ms_post: float = 0.0,
     cost_interval_ms=None,
+    cost_ms=None,
     gt_cells=None,
 ):
     """PR step/spot stimulus opts for ``spot_{polarity}``."""
@@ -753,6 +742,10 @@ def make_spot_stimulus_opts(
         opts["ms_spot"] = float(ms_spot)
     if cost_interval_ms is not None:
         opts["cost_interval_ms"] = float(cost_interval_ms)
+    if cost_ms is not None:
+        opts["cost_ms"] = {
+            str(float(k)): [float(x) for x in v] for k, v in cost_ms.items()
+        }
     rs = normalize_gt_cells(gt_cells)
     if rs is not None:
         opts["gt_cells"] = rs

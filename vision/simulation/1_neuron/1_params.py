@@ -7,8 +7,6 @@ caller (session fields / kwargs). Schema box numbers live in
 """
 from __future__ import annotations
 
-from typing import Tuple
-
 
 def ms_to_t(ms: float, *, delta_ms: float) -> int:
     """Convert milliseconds to time index count ``t`` (rounded)."""
@@ -25,11 +23,9 @@ def t_to_ms(
     """Absolute ms at sample index ``t`` (piecewise pre / post-onset dt)."""
     t = float(t)
     t0 = int(t_onset)
-    dt_pre = float(delta_ms_pre)
-    dt = float(delta_ms)
     if t <= t0:
-        return t * dt_pre
-    return float(t0) * dt_pre + (t - float(t0)) * dt
+        return t * float(delta_ms_pre)
+    return t0 * float(delta_ms_pre) + (t - t0) * float(delta_ms)
 
 
 def ms_to_t_abs(
@@ -43,7 +39,7 @@ def ms_to_t_abs(
     ms = float(ms)
     t0 = int(t_onset)
     dt_pre = float(delta_ms_pre)
-    ms_pre = float(t0) * dt_pre
+    ms_pre = t0 * dt_pre
     if ms <= ms_pre:
         return ms_to_t(ms, delta_ms=dt_pre)
     return t0 + ms_to_t(ms - ms_pre, delta_ms=delta_ms)
@@ -61,19 +57,17 @@ def e_h_rev(e_leak, e_h: float):
 
 # Non-numeric vocabularies (names / modes), not run defaults.
 I_H_REV_MODES = ("on", "off", "mirrored")
-I_H_DIR_REVERSE_CELLS: Tuple[int, ...] = ()
+I_H_DIR_REVERSE_CELLS: tuple[int, ...] = ()
 KNOWN_MODELS = ("borst", "hp_lp")
-EULER_MODES = ("implicit", "explicit")
 EULER_CLI = {"im": "implicit", "ex": "explicit"}
+EULER_MODES = tuple(EULER_CLI.values())
 
 
 def expand_euler(token: str) -> str:
     """Map CLI ``im``/``ex`` (or already-expanded name) → ``implicit``/``explicit``."""
-    key = str(token)
-    if key in EULER_MODES:
-        return key
-    if key in EULER_CLI:
-        return EULER_CLI[key]
-    raise ValueError(
-        f"euler {token!r} not in CLI {tuple(EULER_CLI)} or modes {EULER_MODES}"
-    )
+    key = EULER_CLI.get(str(token), str(token))
+    if key not in EULER_MODES:
+        raise ValueError(
+            f"euler {token!r} not in CLI {tuple(EULER_CLI)} or modes {EULER_MODES}"
+        )
+    return key

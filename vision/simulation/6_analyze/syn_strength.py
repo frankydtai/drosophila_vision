@@ -12,10 +12,8 @@ Examples
 from __future__ import annotations
 
 import argparse
-import logging
 import os
 import sys
-from pathlib import Path
 
 import numpy as np
 
@@ -35,35 +33,10 @@ from import_bootstrap import parse_comma_list
 from network.connectivity import build_cell_pair_index
 from network.construction import read_network_json
 
-logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
-logger = logging.getLogger(__name__)
-
-DEFAULT_RUN_NAME = """
-27252028-train-nofsteps-1000-lrs-0.1-shift-extent-1-cost-extent-9
-""".strip()
+DEFAULT_RUN_NAME = (
+    "27252028-train-nofsteps-1000-lrs-0.1-shift-extent-1-cost-extent-9"
+)
 DEFAULT_RUN_PATH = "borst/" + DEFAULT_RUN_NAME
-
-
-def _syn_strength_by_partner(
-    *,
-    cell: str,
-    partner: str,
-    direction: str,
-    name_to_i: dict[str, int],
-    key_to_i: dict[tuple[int, int], int],
-    syn_strength_cell: np.ndarray,
-) -> str:
-    """Format syn_strength_cell for one partner row; ``-`` if type pair absent."""
-    if cell not in name_to_i or partner not in name_to_i:
-        return "-"
-    if direction == "post":
-        pair = (name_to_i[cell], name_to_i[partner])
-    else:
-        pair = (name_to_i[partner], name_to_i[cell])
-    pi = key_to_i.get(pair)
-    if pi is None:
-        return "-"
-    return f"{float(syn_strength_cell[pi]):.6g}"
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -154,23 +127,21 @@ def main(argv: list[str] | None = None) -> int:
 
     src_t = np.array([name_to_i[e["source_cell"]] for e in edges], dtype=np.int64)
     tar_t = np.array([name_to_i[e["target_cell"]] for e in edges], dtype=np.int64)
-    _pair_idx, n_pairs, pair_keys = build_cell_pair_index(src_t, tar_t, n_cells)
+    _, n_pairs, pair_keys = build_cell_pair_index(src_t, tar_t, n_cells)
     key_to_i = {k: i for i, k in enumerate(pair_keys)}
     if pair_names is not None:
         expected = [f"{cell_names[s]}{training.PAIR_SEP}{cell_names[t]}" for s, t in pair_keys]
         if list(pair_names) != expected:
             raise SystemExit("pair_names in best_param.npz do not match network.json edges")
 
-    if "syn_strength_cell" not in named:
-        raise SystemExit("best_param.npz missing syn_strength_cell")
+    for key in ("syn_strength_cell", "a_in", "a_out", "a_gt", "bias_gt"):
+        if key not in named:
+            raise SystemExit(f"best_param.npz missing {key}")
     syn_strength_cell = np.asarray(named["syn_strength_cell"], dtype=np.float64).reshape(-1)
     if syn_strength_cell.shape[0] != n_pairs:
         raise SystemExit(
             f"syn_strength_cell length {syn_strength_cell.shape[0]} != n_pairs {n_pairs}"
         )
-    for key in ("a_in", "a_out", "a_gt", "bias_gt"):
-        if key not in named:
-            raise SystemExit(f"best_param.npz missing {key}")
 
     at_x, at_y = analyze_cell_syn.cli_xy_filter(args.x, args.y)
     hex_note = ""
@@ -192,21 +163,23 @@ def main(argv: list[str] | None = None) -> int:
     print(f"n_pairs={n_pairs}  best_param.npz syn_strength_cell={syn_strength_cell.shape[0]}")
     for cell in tokens:
         if cell not in acc:
-            logger.warning("no accumulate result for %s", cell)
+            print(f"warning: no accumulate result for {cell}", flush=True)
             continue
         ti = name_to_i[cell]
         by_partner, total_syn, n_partner, partner_uv, partner_xy, n_self = acc[cell]
-        alpha_map = {
-            pt: _syn_strength_by_partner(
-                cell=cell,
-                partner=pt,
-                direction=direction,
-                name_to_i=name_to_i,
-                key_to_i=key_to_i,
-                syn_strength_cell=syn_strength_cell,
+        alpha_map = {}
+        for partner in by_partner:
+            if partner not in name_to_i:
+                alpha_map[partner] = "-"
+                continue
+            pair = (
+                (name_to_i[cell], name_to_i[partner]) if direction == "post"
+                else (name_to_i[partner], name_to_i[cell])
             )
-            for pt in by_partner
-        }
+            pi = key_to_i.get(pair)
+            alpha_map[partner] = (
+                "-" if pi is None else f"{float(syn_strength_cell[pi]):.6g}"
+            )
         analyze_cell_syn.print_table(
             cell,
             by_partner,

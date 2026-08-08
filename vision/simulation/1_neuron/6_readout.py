@@ -18,33 +18,26 @@ import torch
 from neuron.forward import forward_full, pack_t_onset
 
 
-def pack_trace_full(session, p, i_sti, pack):
-    """Full ``(B, T, N)`` model absolute ``v`` trace."""
-    return forward_full(session, p, i_sti, pack=pack)
-
-
 def pack_needs_waveform_mse(pack) -> bool:
     """Whether ``pack`` needs a waveform MSE readout (``pack.waveform_mse``)."""
     return bool(pack.waveform_mse)
 
 
-def window_time_traces(trace_full, b_idx, u_idx, t0, win=None, *, t_onset=0):
+def window_time_traces(trace_full, b_idx, u_idx, t0, win, *, t_onset=0):
     """Extract per-readout windows from ``trace_full`` ``(B, n_t, N)``.
 
     ``t0`` is the absolute simulation time of window start (slot ``k`` uses
     ``t0 + k``). Slots with ``t0 + k < t_onset`` are zeroed (cost alignment).
     """
-    if win is None:
-        raise ValueError("window length win required")
     win = int(win)
     dev = trace_full.device
     k = torch.arange(win, dtype=torch.long, device=dev)
     t_idx = t0[:, None].to(device=dev, dtype=torch.long) + k[None, :]
-    t_max = trace_full.shape[1] - 1
-    t_safe = t_idx.clamp(0, t_max)
+    t_safe = t_idx.clamp(0, trace_full.shape[1] - 1)
     v_readout = trace_full[b_idx[:, None], t_safe, u_idx[:, None]]
-    pre = t_idx < int(t_onset)
-    return torch.where(pre, torch.zeros_like(v_readout), v_readout)
+    return torch.where(
+        t_idx < int(t_onset), torch.zeros_like(v_readout), v_readout,
+    )
 
 
 def readout_pack_traces(trace_full, pack):
@@ -55,39 +48,36 @@ def readout_pack_traces(trace_full, pack):
         return trace_full[pack.readout_batch, t0:t0 + win, pack.readout_node]
     return window_time_traces(
         trace_full, pack.readout_batch, pack.readout_node, pack.cost_t0,
-        win=win, t_onset=t0,
+        win, t_onset=t0,
     )
 
 
 def pack_readout(p, pack, session, batch_idx=None):
     """Shared pack readout via ``forward_full`` (waveform MSE only when needed)."""
     i_sti = pack.i_sti if batch_idx is None else pack.i_sti[batch_idx:batch_idx + 1]
-    trace_full = pack_trace_full(session, p, i_sti, pack)
-    need_mse = pack_needs_waveform_mse(pack)
+    trace_full = forward_full(session, p, i_sti, pack=pack)
     t0 = pack_t_onset(pack)
     win = int(pack.gt.shape[1])
+    need_mse = pack_needs_waveform_mse(pack)
     if batch_idx is None:
-        v_readout_dsi = trace_full[pack.readout_batch, t0:t0 + win, pack.readout_node]
+        v_dsi = trace_full[pack.readout_batch, t0:t0 + win, pack.readout_node]
         if not need_mse:
-            return None, v_readout_dsi
-        return readout_pack_traces(trace_full, pack), v_readout_dsi
+            return None, v_dsi
+        if pack.cost_t0 is None:
+            return v_dsi, v_dsi
+        return readout_pack_traces(trace_full, pack), v_dsi
     mask = pack.readout_batch == int(batch_idx)
     u_m = pack.readout_node[mask]
-    v_readout_dsi = trace_full[0, t0:t0 + win, u_m].transpose(0, 1)
+    v_dsi = trace_full[0, t0:t0 + win, u_m].transpose(0, 1)
     if not need_mse:
-        return None, v_readout_dsi
+        return None, v_dsi
     if pack.cost_t0 is None:
-        return v_readout_dsi, v_readout_dsi
-    b_zero = torch.zeros_like(u_m)
-    v_readout = window_time_traces(
-        trace_full, b_zero, u_m, pack.cost_t0[mask],
-        win=win, t_onset=t0,
-    )
-    return v_readout, v_readout_dsi
+        return v_dsi, v_dsi
+    return window_time_traces(
+        trace_full, torch.zeros_like(u_m), u_m, pack.cost_t0[mask],
+        win, t_onset=t0,
+    ), v_dsi
 
 
-# Register pack readouts here -- batching stays in training cost.
-CA_PACK_READOUTS = {
-    "borst": pack_readout,
-    "hp_lp": pack_readout,
-}
+# Model → pack readout (both share ``pack_readout``; batching in training.cost).
+CA_PACK_READOUTS = {"borst": pack_readout, "hp_lp": pack_readout}

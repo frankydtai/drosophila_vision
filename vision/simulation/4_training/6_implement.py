@@ -37,6 +37,7 @@ from path import (
 from param_defaults import (
     CHECKPOINT_INTERVAL,
     COST_INTERVAL_MS,
+    COST_MS,
     COST_NORM,
     DELTA_MS,
     DELTA_MS_PRE,
@@ -77,6 +78,7 @@ from param_defaults import (
 )
 from task.spot.gt import (
     default_spot_cost_radius_weight,
+    parse_cost_ms_tokens,
     parse_spot_cost_r_w_tokens,
 )
 from neuron.schema import spot_radius_key
@@ -158,28 +160,22 @@ def run_dir(model, root=None, parent=None, name=None):
 
 def resolve_run_dir(path):
     """Resolve a run folder under ``PARAMETER_DIR`` or an absolute path."""
-    from pathlib import Path as _Path
     from training.config import PARAMETER_DIR
-    pth = _Path(path).expanduser()
+    pth = Path(path).expanduser()
     outdir = pth.resolve() if pth.is_absolute() else (PARAMETER_DIR / pth).resolve()
     if not outdir.is_dir():
         raise SystemExit(f'run folder not found: {path!r} -> {outdir}')
     return str(outdir)
 
 
-
-
 def checkpoint_step_tag(step):
     return f'{int(step):05d}'
-
-
 
 
 def cell_labels(session):
     if session.backend.network is None:
         raise ValueError("cell_labels requires session.backend.network")
     return np.asarray(session.backend.network.cell_names)
-
 
 
 def decompose_params(z_t, session):
@@ -246,11 +242,9 @@ def v_pre_onset_by_cell(z_t, session):
     return {"v_pre": v_pre, "v_onset": v_onset}
 
 
-def write_param_table(z_t, session, table_path, extra_cols=None):
+def write_param_table(z_t, session, table_path):
     cols = decompose_params(z_t, session)
     cols.update(v_pre_onset_by_cell(z_t, session))
-    if extra_cols:
-        cols.update(extra_cols)
     cell_col = cell_labels(session)
     cell_names = list(cols.keys())
     n = session.backend.n_cells
@@ -328,28 +322,21 @@ def write_syn_strength_edge_table(z_t, session, table_path):
 def write_syn_table(z_t, session, outdir_or_path, *, tag=None):
     """Write ``syn_strength_cell.csv`` or ``syn_strength_edge.csv`` for the active syn mode."""
     if tag is None:
-        cell_path = write_syn_strength_cell_table(
-            z_t, session, os.path.join(outdir_or_path, SYN_STRENGTH_CELL_CSV),
-        )
-        edge_path = write_syn_strength_edge_table(
-            z_t, session, os.path.join(outdir_or_path, SYN_STRENGTH_EDGE_CSV),
-        )
+        cell_name, edge_name = SYN_STRENGTH_CELL_CSV, SYN_STRENGTH_EDGE_CSV
     else:
-        cell_path = write_syn_strength_cell_table(
-            z_t, session, os.path.join(outdir_or_path, f"syn_strength_cell_{tag}.csv"),
-        )
-        edge_path = write_syn_strength_edge_table(
-            z_t, session, os.path.join(outdir_or_path, f"syn_strength_edge_{tag}.csv"),
-        )
+        cell_name = f"syn_strength_cell_{tag}.csv"
+        edge_name = f"syn_strength_edge_{tag}.csv"
+    cell_path = write_syn_strength_cell_table(
+        z_t, session, os.path.join(outdir_or_path, cell_name),
+    )
+    edge_path = write_syn_strength_edge_table(
+        z_t, session, os.path.join(outdir_or_path, edge_name),
+    )
     return cell_path or edge_path
 
 
 def data_dir(outdir):
     return run_data_dir(outdir)
-
-
-def params_path(outdir, fname):
-    return os.path.join(data_dir(outdir), fname)
 
 
 def best_param_path(outdir):
@@ -358,6 +345,10 @@ def best_param_path(outdir):
 
 def best_adam_path(outdir):
     return os.path.join(data_dir(outdir), 'best_adam.npz')
+
+
+def _data_file(outdir, name):
+    return os.path.join(data_dir(outdir), name)
 
 
 def save_param_named(outdir, z, session, filename):
@@ -395,19 +386,9 @@ def save_best_param_named(outdir, z, session):
     save_param_named(outdir, z, session, 'best_param.npz')
 
 
-def save_best_adam_named(outdir, exp_avg, exp_avg_sq, step, session):
-    """Write named Adam moments to ``data/best_adam.npz``."""
-    save_adam_named(outdir, exp_avg, exp_avg_sq, step, session, 'best_adam.npz')
-
-
-def checkpoint_param_filename(step, run_i=0, nofruns=1):
+def _checkpoint_artifact_filename(kind, step, run_i=0, nofruns=1):
     suffix = '' if nofruns == 1 else f'_run{run_i}'
-    return f'best_param_step_{checkpoint_step_tag(step)}{suffix}.npz'
-
-
-def checkpoint_adam_filename(step, run_i=0, nofruns=1):
-    suffix = '' if nofruns == 1 else f'_run{run_i}'
-    return f'best_adam_step_{checkpoint_step_tag(step)}{suffix}.npz'
+    return f'best_{kind}_step_{checkpoint_step_tag(step)}{suffix}.npz'
 
 
 def write_checkpoint_csv(outdir, step, z_best, session):
@@ -422,20 +403,20 @@ def write_checkpoint_csv(outdir, step, z_best, session):
         print(f'wrote checkpoint csv: {syn_path}')
 
 
-
-
 def make_checkpoint_callback(outdir, session, *, run_i=0, nofruns=1, on_png=None):
     """Write interval-best npz/csv; optional *on_png* for plot layer (from ``run.py``)."""
 
     def on_interval_best(step, z_best, cost_best, opt_state=None):
-        name = checkpoint_param_filename(step, run_i=run_i, nofruns=nofruns)
+        name = _checkpoint_artifact_filename('param', step, run_i=run_i, nofruns=nofruns)
         save_param_named(outdir, z_best, session, name)
         if opt_state is not None:
             n = int(np.asarray(z_best.detach().cpu()).reshape(-1).shape[0])
             exp_avg, exp_avg_sq, adam_step = training.adam_moments_from_state_dict(
                 opt_state, n, dtype=torch.float64, device='cpu',
             )
-            adam_name = checkpoint_adam_filename(step, run_i=run_i, nofruns=nofruns)
+            adam_name = _checkpoint_artifact_filename(
+                'adam', step, run_i=run_i, nofruns=nofruns,
+            )
             save_adam_named(
                 outdir,
                 exp_avg.numpy(),
@@ -493,10 +474,8 @@ def load_best_adam_named(outdir):
     return named_m, named_v, step, cell_names, pair_names
 
 
-def load_best_param(outdir, session=None):
+def load_best_param(outdir, session):
     """Load best params as 1-D z for *session* (remap from named npz)."""
-    if session is None:
-        raise TypeError("load_best_param requires session for named best_param.npz")
     named, cell_names, pair_names = load_best_param_named(outdir)
     schema = training.attach_param_carry(
         list(session.schema),
@@ -513,41 +492,7 @@ def load_best_param(outdir, session=None):
     return z.detach().cpu().numpy().astype(np.float64)
 
 
-def _costs_path(outdir):
-    """Per-run end weighted total costs."""
-    return os.path.join(data_dir(outdir), 'costs.npy')
-
-
-def _best_costs_path(outdir):
-    """Best-run per-step weighted total cost curve."""
-    return os.path.join(data_dir(outdir), 'best_costs.npy')
-
-
-def _costs_by_part_path(outdir):
-    """Per-run end per-part costs."""
-    return os.path.join(data_dir(outdir), 'costs_by_part.npz')
-
-
-def _best_costs_by_part_path(outdir):
-    """Best-run per-step per-part cost curves."""
-    return os.path.join(data_dir(outdir), 'best_costs_by_part.npz')
-
-
-def final_costs_for_params(all_params, session, final_costs=None):
-    """Per-run final costs; recompute only when not supplied."""
-    all_params = np.atleast_2d(all_params)
-    if final_costs is not None:
-        return np.asarray(final_costs, dtype=np.float64)
-    return np.array([
-        training.calc_cost(
-            torch.tensor(all_params[i], dtype=torch.float64, device=session.device),
-            session,
-        ).item()
-        for i in range(all_params.shape[0])
-    ])
-
-
-def write_best_artifacts(outdir, fname, session, all_params, final_costs, adam=None):
+def write_best_artifacts(outdir, session, all_params, final_costs, adam=None):
     """Write ``best_param.npz``, ``param.csv``, and syn/edge CSV for ``argmin(final_costs)``.
 
     *adam* is the best-run moment dict ``{exp_avg, exp_avg_sq, step}`` (required for a
@@ -561,8 +506,9 @@ def write_best_artifacts(outdir, fname, session, all_params, final_costs, adam=N
     z_best = torch.tensor(best, dtype=session.sim_dtype, device=session.device)
     save_best_param_named(outdir, z_best, session)
     if adam is not None:
-        save_best_adam_named(
+        save_adam_named(
             outdir, adam['exp_avg'], adam['exp_avg_sq'], adam['step'], session,
+            'best_adam.npz',
         )
         print(f"wrote {best_adam_path(outdir)} (best run #{run_i})")
     table_path = os.path.join(outdir, PARAM_CSV)
@@ -581,17 +527,17 @@ def load_stored_costs(outdir):
     cost_curve = None
     costs_by_part = None
     final_costs_by_part = None
-    fp = _costs_path(outdir)
+    fp = _data_file(outdir, 'costs.npy')
     if os.path.isfile(fp):
         final_costs = np.load(fp)
-    cp = _best_costs_path(outdir)
+    cp = _data_file(outdir, 'best_costs.npy')
     if os.path.isfile(cp):
         cost_curve = np.load(cp)
-    cbt = _best_costs_by_part_path(outdir)
+    cbt = _data_file(outdir, 'best_costs_by_part.npz')
     if os.path.isfile(cbt):
         with np.load(cbt) as d:
             costs_by_part = {k: np.asarray(d[k]) for k in d.files}
-    fbt = _costs_by_part_path(outdir)
+    fbt = _data_file(outdir, 'costs_by_part.npz')
     if os.path.isfile(fbt):
         with np.load(fbt) as d:
             final_costs_by_part = {k: np.asarray(d[k]) for k in d.files}
@@ -604,7 +550,6 @@ def load_init_z(init_from, session):
     Trainable slots come from *z*; fixed nodes are seeded via ``init_override``
     (still not in z); frozen nodes use ``carry``.
     """
-    from dataclasses import replace
     try:
         outdir = resolve_run_dir(init_from)
     except SystemExit as exc:
@@ -655,26 +600,18 @@ def save_training_outputs(fname, outdir, session, result):
         with open(os.path.join(data_dir(outdir), training.TRAIN_OPTS_FILE), 'w') as f:
             json.dump(session.train_opts, f, indent=2)
             f.write('\n')
-    np.save(params_path(outdir, fname), result.all_params)
-    np.save(_best_costs_path(outdir), result.cost_curve)
-    np.save(_costs_path(outdir), result.final_costs)
+    np.save(_data_file(outdir, fname), result.all_params)
+    np.save(_data_file(outdir, 'best_costs.npy'), result.cost_curve)
+    np.save(_data_file(outdir, 'costs.npy'), result.final_costs)
     if result.cost_curves_by_part:
-        np.savez(_best_costs_by_part_path(outdir), **result.cost_curves_by_part)
+        np.savez(_data_file(outdir, 'best_costs_by_part.npz'), **result.cost_curves_by_part)
     if result.final_costs_by_part:
-        np.savez(_costs_by_part_path(outdir), **result.final_costs_by_part)
+        np.savez(_data_file(outdir, 'costs_by_part.npz'), **result.final_costs_by_part)
     run_i = int(np.argmin(result.final_costs)) if len(result.final_costs) else 0
     adam = result.all_adam[run_i] if result.all_adam else None
     write_best_artifacts(
-        outdir, fname, session, result.all_params, result.final_costs, adam=adam,
+        outdir, session, result.all_params, result.final_costs, adam=adam,
     )
-
-
-def save_param_tables(fname, outdir, session):
-    """Regenerate ``param.csv`` / syn or edge CSV and ``best_param.npz`` from saved ``fname``."""
-    all_params = np.load(params_path(outdir, fname))
-    final_costs, _, _, _ = load_stored_costs(outdir)
-    final_costs = final_costs_for_params(all_params, session, final_costs=final_costs)
-    write_best_artifacts(outdir, fname, session, all_params, final_costs)
 
 
 def print_train_modes(session):
@@ -693,31 +630,6 @@ def print_train_modes(session):
             f"frozen={len(s.get('frozen') or [])} "
             f"({training.seg_ntrain(s)})"
         )
-
-
-def apply_session_train_modes(session, train_modes_by_name):
-    """Apply CLI/name train_modes onto session schema and refresh train_opts record."""
-    if not train_modes_by_name:
-        return session
-    from dataclasses import replace
-    backend = session.backend
-    schema = training.apply_train_modes(
-        list(session.schema),
-        train_modes_by_name,
-        lambda seg: training.node_names_for_segment(seg, backend),
-    )
-    schema = training.attach_param_carry(schema)
-    opts = dict(session.train_opts or {})
-    opts['train_modes'] = training.schema_train_modes_record(
-        schema, lambda seg: training.node_names_for_segment(seg, backend),
-    )
-    session = replace(session, schema=tuple(schema), train_opts=opts)
-    print_train_modes(session)
-    return session
-
-
-def resolve_network(network):
-    return str(resolve_network_json(network))
 
 
 def build_session(
@@ -779,7 +691,7 @@ def build_session(
     )
     if not network:
         raise ValueError("build_session requires network")
-    network = resolve_network(network)
+    network = str(resolve_network_json(network))
     opts = training.make_train_opts(
         backend="network",
         network_json=network,
@@ -1215,8 +1127,23 @@ def add_training_arguments(parser):
         type=float,
         default=COST_INTERVAL_MS,
         metavar="MS",
-        help="spot: train on post-onset times 0, interval, 2*interval, ... "
-             f"through response window (default: {COST_INTERVAL_MS})",
+        help="spot: default post-onset times 0, interval, 2*interval, ... "
+             f"through response window (default: {COST_INTERVAL_MS}); "
+             "overwritten per radius by --cost-ms",
+    )
+    _cost_ms_default = " ".join(
+        f"{spot_radius_key(r, aliases=SPOT_COST_RADIUS_KEY_ALIASES)}="
+        f"{','.join(str(x) for x in ms)}"
+        for r, ms in sorted(COST_MS.items())
+    ) or "none"
+    parser.add_argument(
+        "--cost-ms",
+        default=None,
+        nargs="+",
+        metavar="R=MS,...",
+        help="spot: explicit post-onset ms per Euclidean r (space-separated "
+             "R=MS,...); overwrites --cost-interval-ms for those radii. "
+             f"Omit → {_cost_ms_default}; none|off → all radii use interval",
     )
     parser.add_argument(
         "--cost-norm",
@@ -1427,17 +1354,6 @@ def stimulus_timing_kwargs_from_args(args):
         ms_spot=args.ms_spot,
         delta_ms=args.delta_ms,
         delta_ms_pre=args.delta_ms_pre,
-    )
-
-
-def make_training_argparser(description):
-    """Argparse parser with the full train.py training CLI."""
-    common = argparse.ArgumentParser(add_help=False)
-    add_training_arguments(common)
-    return argparse.ArgumentParser(
-        description=description,
-        parents=[common],
-        formatter_class=argparse.RawDescriptionHelpFormatter,
     )
 
 
@@ -1691,8 +1607,16 @@ def training_kwargs_from_args(
     spot_dark_stimulus_opts = dict(_timing)
     if float(args.cost_interval_ms) <= 0:
         raise ValueError("--cost-interval-ms must be > 0")
+    cost_ms = parse_cost_ms_tokens(
+        args.cost_ms, aliases=SPOT_COST_RADIUS_KEY_ALIASES,
+    )
+    if cost_ms is None:
+        cost_ms = dict(COST_MS)
     for _o in (spot_bright_stimulus_opts, spot_dark_stimulus_opts):
         _o["cost_interval_ms"] = float(args.cost_interval_ms)
+        _o["cost_ms"] = {
+            str(float(k)): [float(x) for x in v] for k, v in cost_ms.items()
+        }
     gt_by_task = parse_gt(args.gt)
     if gt_by_task:
         _gt_opts = {

@@ -1,5 +1,3 @@
-"""Borst / hp_lp v component analysis."""
-
 from __future__ import annotations
 
 import argparse
@@ -24,7 +22,7 @@ from param_defaults import DEFAULT_RUN_PATH
 import figure.plot_run as plot_trained
 from figure.readout import contrast_for_task
 from figure.spot import pack_spot_cost_radii, resolve_spot_gt_cubes
-from figure.util import plot_sem_band
+from figure.util import gt_affine_scalars_for_cell, plot_sem_band
 from import_bootstrap import parse_bool, parse_comma_list
 from network.construction import hex2gt
 from task.moving_bar.gt import (
@@ -335,18 +333,18 @@ _HP_LP_PLOT_PANELS: list[tuple[str, list[tuple[str, str]]]] = [
         ],
     ),
     (
-        "v_in (mV)",
+        "v_syn (mV)",
         [
-            ("v_in", "v_in"),
-            ("v_in_exc", "v_in_exc"),
-            ("v_in_inh", "-v_in_inh"),
+            ("v_syn", "v_syn"),
+            ("v_syn_exc", "v_syn_exc"),
+            ("v_syn_inh", "-v_syn_inh"),
             ("v_sti", "v_sti"),
         ],
     ),
     (
         "HP state",
         [
-            ("v_drive", "v_drive"),
+            ("v_in", "v_in"),
             ("v_slow", "v_slow"),
             ("v_hp", "v_hp"),
         ],
@@ -367,8 +365,8 @@ _BORST_COMPONENT_KEYS = (
     "num", "den",
 )
 _HP_LP_COMPONENT_KEYS = (
-    "v_pre_d", "v_abs", "i_sti", "v_sti", "v_in", "v_in_exc", "v_in_inh",
-    "v_slow", "v_drive", "v_hp", "dv_leak", "dv_hp",
+    "v_pre_d", "v_abs", "i_sti", "v_sti", "v_syn", "v_syn_exc", "v_syn_inh",
+    "v_slow", "v_in", "v_hp", "dv_leak", "dv_hp",
 )
 
 _BORST_PLOT_KEY_COMPONENT: dict[str, str | None] = {
@@ -391,12 +389,12 @@ _BORST_PLOT_KEY_COMPONENT: dict[str, str | None] = {
 }
 _HP_LP_PLOT_KEY_COMPONENT: dict[str, str | None] = {
     "v_post": "v_abs",
-    "v_in": "v_in",
-    "v_in_exc": "v_in_exc",
-    "v_in_inh": "v_in_inh",
+    "v_syn": "v_syn",
+    "v_syn_exc": "v_syn_exc",
+    "v_syn_inh": "v_syn_inh",
     "v_sti": "v_sti",
     "v_slow": "v_slow",
-    "v_drive": "v_drive",
+    "v_in": "v_in",
     "v_hp": "v_hp",
     "dv_leak": "dv_leak",
     "dv_hp": "dv_hp",
@@ -473,7 +471,7 @@ _BORST_FORMULA_I_EXPLICIT: list[tuple[str, str | None]] = [
 _HP_LP_FORMULA_G_IMPLICIT: list[tuple[str, str | None]] = [
     ("v_post", "v_post"),
     (" = (v_pre + (dt/τ_lp)·(e_leak + G·(e_leak + ", None),
-    ("v_in", "v_in"), (" + ", None),
+    ("v_syn", "v_syn"), (" + ", None),
     ("i_sti/g_leak", "v_sti"), (" − ", None),
     ("v_slow", "v_slow"), ("))) / (1 + dt/τ_lp)", None),
 ]
@@ -487,7 +485,7 @@ _HP_LP_FORMULA_I_IMPLICIT: list[tuple[str, str | None]] = [
 _HP_LP_FORMULA_G_EXPLICIT: list[tuple[str, str | None]] = [
     ("v_post", "v_post"),
     (" = v_pre + (dt/τ_lp)[-(v_pre−e_leak) + G·(e_leak + ", None),
-    ("v_in", "v_in"), (" + ", None),
+    ("v_syn", "v_syn"), (" + ", None),
     ("i_sti/g_leak", "v_sti"), (" − ", None),
     ("v_slow", "v_slow"), (")]", None),
 ]
@@ -498,7 +496,7 @@ _HP_LP_FORMULA_I_EXPLICIT: list[tuple[str, str | None]] = [
     ("dv_hp", "dv_hp"),
 ]
 
-_BLACK_TRACE_LABELS = frozenset({"num", "den", "v_drive", "v_slow", "v_hp", "dv_hp"})
+_BLACK_TRACE_LABELS = frozenset({"num", "den", "v_in", "v_slow", "v_hp", "dv_hp"})
 # Label → reuse another label's plot color (same row cycle).
 _TRACE_COLOR_MATCH: dict[str, str] = {
     "dv_leak+dv_hp": "dv_leak",
@@ -579,17 +577,6 @@ def _trace_ylabel(panel_ylabel: str, label: str) -> str:
         node = " " + panel_ylabel[panel_ylabel.index("("):]
         return f"{label}{node}"
     return label
-
-
-def _component_axes_grid(spec: _ComponentSpec):
-    """Return ``(n_rows, n_hexes)`` grid: one row per plot panel."""
-    return len(spec.plot_panels), spec.n_plot_cols
-
-
-def _plot_colors():
-    import matplotlib.pyplot as plt
-
-    return plt.rcParams["axes.prop_cycle"].by_key()["color"]
 
 
 def _plot_trace_colors(colors: list[str], spec: _ComponentSpec) -> dict[str, str]:
@@ -782,7 +769,7 @@ def _component_at_nodes_hp_lp(
             "v_abs": v_abs,
         }
         for k in (
-            "i_sti", "v_sti", "v_in", "v_in_exc", "v_in_inh", "v_slow", "v_drive", "v_hp",
+            "i_sti", "v_sti", "v_syn", "v_syn_exc", "v_syn_inh", "v_slow", "v_in", "v_hp",
             "dv_leak", "dv_hp",
         ):
             t = component_t[k]
@@ -877,12 +864,12 @@ def _step_from_acc(
         })
         return base
     base.update({
-        "v_in": acc["v_in"] / n,
-        "v_in_exc": acc["v_in_exc"] / n,
-        "v_in_inh": -acc["v_in_inh"] / n,
+        "v_syn": acc["v_syn"] / n,
+        "v_syn_exc": acc["v_syn_exc"] / n,
+        "v_syn_inh": -acc["v_syn_inh"] / n,
         "v_sti": acc["v_sti"] / n,
         "v_slow": acc["v_slow"] / n,
-        "v_drive": acc["v_drive"] / n,
+        "v_in": acc["v_in"] / n,
         "v_hp": acc["v_hp"] / n,
         "dv_leak": acc["dv_leak"] / n,
         "dv_hp": acc["dv_hp"] / n,
@@ -1077,8 +1064,8 @@ def _dominant_drive_from_step(
     if step is None:
         return None
     if model == "hp_lp":
-        if abs(step["v_in_exc"]) >= abs(step["v_in_inh"]):
-            return "exc" if abs(step["v_in_exc"]) > 1e-9 else "none"
+        if abs(step["v_syn_exc"]) >= abs(step["v_syn_inh"]):
+            return "exc" if abs(step["v_syn_exc"]) > 1e-9 else "none"
         return "inh"
     if abs(step["num_exc"]) >= abs(step["num_inh"]):
         return "exc" if abs(step["num_exc"]) > 1e-9 else "none"
@@ -1678,19 +1665,6 @@ def _spot_radius_row(radii: np.ndarray, radius: int) -> np.ndarray:
     return np.isclose(np.asarray(radii, dtype=np.float64), float(radius))
 
 
-def _gt_affine_for_cell(p, session, cell: str) -> tuple[float, float]:
-    """``(a_gt, effective_bias)`` for one cell type name (matches cost)."""
-    names = [str(n) for n in session.backend.network.cell_names]
-    ci = names.index(str(cell))
-    gs, gb = p["a_gt"], p["bias_gt"]
-    scale = float(gs[ci] if torch.is_tensor(gs) and gs.dim() > 0 else gs)
-    bias = float(gb[ci] if torch.is_tensor(gb) and gb.dim() > 0 else gb)
-    if "v_th" in p:
-        vt = p["v_th"]
-        bias = bias + float(vt[ci] if torch.is_tensor(vt) and vt.dim() > 0 else vt)
-    return scale, bias
-
-
 def _spot_gt_v_post_extra(
     *,
     cell: str,
@@ -1719,6 +1693,29 @@ def _spot_gt_v_post_extra(
         return extra
     extra["gt_v_post"] = gt_aff.tolist()
     return extra
+
+
+def _spot_extra_for_cell_fn(session_one, p, pack, *, radius: int, t_onset: int):
+    """Build ``extra_for_cell`` closure with affine GT for one spot pack."""
+    contrast = contrast_for_task(pack.name)
+    gt_on = resolve_spot_gt_cubes({contrast: session_one}).get(contrast) or {}
+
+    def extra_for_cell(
+        cell: str, v_post: np.ndarray, v_post_d: np.ndarray,
+    ) -> dict[str, Any]:
+        a_gt, bias_gt = gt_affine_scalars_for_cell(p, cell, session_one.backend)
+        return _spot_gt_v_post_extra(
+            cell=cell,
+            gt_on=gt_on,
+            radius=radius,
+            v_post=v_post,
+            v_post_d=v_post_d,
+            t_onset=t_onset,
+            a_gt=a_gt,
+            bias_gt=bias_gt,
+        )
+
+    return extra_for_cell
 
 
 def analyze_spot_average(
@@ -1773,30 +1770,6 @@ def analyze_spot_average(
             f"no spot nodes at radius={radius} for requested cells in spot readout"
         )
 
-    gt_by_contrast = resolve_spot_gt_cubes(
-        {contrast_for_task(pack.name): session_one},
-    )
-    contrast = contrast_for_task(pack.name)
-    gt_on = gt_by_contrast.get(contrast) or {}
-
-    def extra_for_cell(
-        cell: str, v_post: np.ndarray, v_post_d: np.ndarray,
-    ) -> dict[str, Any]:
-        a_gt, bias_gt = _gt_affine_for_cell(p, session_one, cell)
-        return _spot_gt_v_post_extra(
-            cell=cell,
-            gt_on=gt_on,
-            radius=radius,
-            v_post=v_post,
-            v_post_d=v_post_d,
-            t_onset=t_onset,
-            a_gt=a_gt,
-            bias_gt=bias_gt,
-        )
-
-    def n_nodes_for_cell(cell: str) -> int:
-        return int(np.sum(radius_row & (type_idx == type_i[cell])))
-
     n_b = len(forward_batches)
     return _analyze_component_forward(
         session_one,
@@ -1812,8 +1785,12 @@ def analyze_spot_average(
         ti_mode="abs_minus_before",
         merge_batches=True,
         extra={"radius": radius},
-        extra_for_cell=extra_for_cell,
-        n_nodes_for_cell=n_nodes_for_cell,
+        extra_for_cell=_spot_extra_for_cell_fn(
+            session_one, p, pack, radius=radius, t_onset=t_onset,
+        ),
+        n_nodes_for_cell=lambda cell: int(
+            np.sum(radius_row & (type_idx == type_i[cell]))
+        ),
     )
 
 
@@ -1918,27 +1895,6 @@ def analyze_spot_hex(
             f"no stim-on spot rows for {cell} node {node} at hex ({at_x},{at_y})"
         )
 
-    gt_by_contrast = resolve_spot_gt_cubes(
-        {contrast_for_task(pack.name): session_one},
-    )
-    contrast = contrast_for_task(pack.name)
-    gt_on = gt_by_contrast.get(contrast) or {}
-
-    def extra_for_cell(
-        cell_name: str, v_post: np.ndarray, v_post_d: np.ndarray,
-    ) -> dict[str, Any]:
-        a_gt, bias_gt = _gt_affine_for_cell(p, session_one, cell_name)
-        return _spot_gt_v_post_extra(
-            cell=cell_name,
-            gt_on=gt_on,
-            radius=0,
-            v_post=v_post,
-            v_post_d=v_post_d,
-            t_onset=t_onset,
-            a_gt=a_gt,
-            bias_gt=bias_gt,
-        )
-
     n_b = len(forward_batches)
     return _analyze_component_forward(
         session_one,
@@ -1958,7 +1914,9 @@ def analyze_spot_hex(
             "hex": {"x": at_x, "y": at_y},
             "uv": {"u": int(hex.u), "v": int(hex.v)},
         },
-        extra_for_cell=extra_for_cell,
+        extra_for_cell=_spot_extra_for_cell_fn(
+            session_one, p, pack, radius=0, t_onset=t_onset,
+        ),
         n_nodes_for_cell=lambda _c: 1,
     )
 
@@ -2036,10 +1994,10 @@ def _overlay_plot_filename(
 ) -> str:
     from figure.util import plot_file_ext
 
-    r0 = reports[0]
+    first_report = reports[0]
     specs = "_".join(str(r["spec"]) for r in reports)
     return (
-        f"{r0['cell']}_{r0['task']}_v_overlay_{specs}"
+        f"{first_report['cell']}_{first_report['task']}_v_overlay_{specs}"
         f"{file_suffix}{plot_file_ext(html=html)}"
     )
 
@@ -2052,7 +2010,7 @@ def _component_figure(title: str, spec: _ComponentSpec):
     import matplotlib.pyplot as plt
     from figure.util import save_figure
 
-    n_rows, n_hexes = _component_axes_grid(spec)
+    n_rows, n_hexes = len(spec.plot_panels), spec.n_plot_cols
     fig, axes = plt.subplots(
         n_rows, n_hexes,
         figsize=(2.6 * n_hexes, 2.2 * n_rows),
@@ -2073,10 +2031,6 @@ def _hide_unused_axes(axes, spec: _ComponentSpec) -> None:
     for ri, (_panel_ylabel, series) in enumerate(spec.plot_panels):
         for ci in range(len(series), n_hexes):
             axes[ri, ci].set_visible(False)
-
-
-def _visible_axes(axes):
-    return [ax for ax in axes.ravel() if ax.get_visible()]
 
 
 def _style_component_ax(
@@ -2171,7 +2125,9 @@ def _plot_component_reports(
     spec = _component_spec(models.pop(), eulers.pop())
 
     fig, axes, save_figure = _component_figure(title, spec)
-    colors = _plot_colors()
+    import matplotlib.pyplot as plt
+
+    colors = plt.rcParams["axes.prop_cycle"].by_key()["color"]
     linestyles = ("-", "--", "-.", ":")
     overlay = len(reports) > 1
     e_leak_mV = float(reports[0].get("params", {}).get("e_leak_mV", 0.0))
@@ -2262,11 +2218,11 @@ def plot_reports_overlay(reports: list[dict[str, Any]], out_path: str) -> None:
     """One grid PNG: specs share color per subplot, differ by linestyle."""
     if not reports:
         raise SystemExit("no reports to overlay")
-    r0 = reports[0]
+    first_report = reports[0]
     specs_csv = ",".join(str(r["spec"]) for r in reports)
     title = (
-        f"{r0['cell']}  {r0['task']}  overlay=[{specs_csv}]"
-        f"  mode={r0.get('mode')}  n={r0.get('n_nodes')}"
+        f"{first_report['cell']}  {first_report['task']}  overlay=[{specs_csv}]"
+        f"  mode={first_report.get('mode')}  n={first_report.get('n_nodes')}"
     )
     _plot_component_reports(reports, out_path, title=title)
 
@@ -2329,22 +2285,22 @@ def _print_report(report: dict[str, Any], *, print_steps: bool = True) -> None:
         if print_steps:
             print(
                 f"\n{x_key}  n  v_post  v_pre  v_post_minus_pre  i_sti "
-                "v_in  v_in_exc -v_in_inh  dv_leak  dv_hp"
+                "v_syn  v_syn_exc -v_syn_inh  dv_leak  dv_hp"
             )
             for s in report["steps"]:
                 v_pre = float(s["v_post"]) - float(s["v_post_minus_pre"])
                 print(
                     f"{s[x_key]:4d} {s.get('n_nodes', 1):3d} {s['v_post']:+8.4f} "
                     f"{v_pre:+8.4f} {s['v_post_minus_pre']:+8.4f} "
-                    f"{s['i_sti']:+6.3f} {s['v_in']:+6.3f} {s['v_in_exc']:+7.3f} "
-                    f"{s['v_in_inh']:+7.3f} {s['dv_leak']:+8.4f} {s['dv_hp']:+7.4f}"
+                    f"{s['i_sti']:+6.3f} {s['v_syn']:+6.3f} {s['v_syn_exc']:+7.3f} "
+                    f"{s['v_syn_inh']:+7.3f} {s['dv_leak']:+8.4f} {s['dv_hp']:+7.4f}"
                 )
         ps = report.get("peak_step")
         if ps is not None:
             print(f"\nHP/LP terms at peak {x_key}={ps[x_key]}:")
             for name, val in [
-                ("v_in", ps["v_in"]), ("v_in_exc", ps["v_in_exc"]), ("-v_in_inh", ps["v_in_inh"]),
-                ("v_slow", ps["v_slow"]), ("v_drive", ps["v_drive"]), ("v_hp", ps["v_hp"]),
+                ("v_syn", ps["v_syn"]), ("v_syn_exc", ps["v_syn_exc"]), ("-v_syn_inh", ps["v_syn_inh"]),
+                ("v_slow", ps["v_slow"]), ("v_in", ps["v_in"]), ("v_hp", ps["v_hp"]),
                 ("dv_leak", ps["dv_leak"]), ("dv_hp", ps["dv_hp"]),
             ]:
                 print(f"  {name:8s} {val:+9.4f}")
@@ -2422,12 +2378,12 @@ def _print_polarity_compare(
         model = s.get("model", "borst")
         if model == "hp_lp":
             print(
-                f"       spot@peak: v_in_exc={sps['v_in_exc']:+.4f} -v_in_inh={sps['v_in_inh']:+.4f} "
+                f"       spot@peak: v_syn_exc={sps['v_syn_exc']:+.4f} -v_syn_inh={sps['v_syn_inh']:+.4f} "
                 f"dv_hp={sps['dv_hp']:+.4f} dv_leak={sps['dv_leak']:+.4f} "
                 f"v_pre={float(sps['v_post']) - float(sps['v_post_minus_pre']):+.3f}"
             )
             print(
-                f"       bar @peak: v_in_exc={bps['v_in_exc']:+.4f} -v_in_inh={bps['v_in_inh']:+.4f} "
+                f"       bar @peak: v_syn_exc={bps['v_syn_exc']:+.4f} -v_syn_inh={bps['v_syn_inh']:+.4f} "
                 f"dv_hp={bps['dv_hp']:+.4f} dv_leak={bps['dv_leak']:+.4f} "
                 f"v_pre={float(bps['v_post']) - float(bps['v_post_minus_pre']):+.3f}"
             )

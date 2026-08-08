@@ -1,0 +1,59 @@
+2026-08-08T14:50:37+10:00 continue pending=28
+2026-08-08T14:54:22+10:00 continue pending=26
+2026-08-08T14:56:01+10:00 continue pending=25
+2026-08-08T14:57:19+10:00 continue pending=24
+2026-08-08T14:57:33+10:00 continue pending=24
+2026-08-08T14:58:06+10:00 continue pending=23
+2026-08-08T14:58:27+10:00 continue pending=23
+2026-08-08T14:59:02+10:00 continue pending=22
+2026-08-08T14:59:33+10:00 continue pending=22
+2026-08-08T14:59:50+10:00 continue pending=21
+2026-08-08T15:00:25+10:00 continue pending=20
+2026-08-08T15:00:44+10:00 continue pending=20
+2026-08-08T15:01:49+10:00 continue pending=19
+2026-08-08T15:03:14+10:00 continue pending=18
+2026-08-08T15:03:37+10:00 continue pending=18 cid=d916db21-1c8e-4df7-8cd1-07d9efa3a4e3
+2026-08-08T15:06:34+10:00 stop status=completed loop_count=12 cid=d916db21-1c8e-4df7-8cd1-07d9efa3a4e3
+2026-08-08T15:06:34+10:00 emit followup pending=17 loop_count=12
+2026-08-08T15:27:12+10:00 stop status=completed loop_count=0 cid=d916db21-1c8e-4df7-8cd1-07d9efa3a4e3
+2026-08-08T15:27:12+10:00 emit followup pending=14 loop_count=0
+2026-08-08T15:27:26+10:00 stop status=completed loop_count=0 cid=77af99d6-d44a-48e1-aa28-22ac661011fd bound=77af99d6-d44a-48e1-aa28-22ac661011fd match=1
+2026-08-08T15:27:26+10:00 emit followup pending=14 loop_count=0 cid=77af99d6-d44a-48e1-aa28-22ac661011fd
+2026-08-08T15:27:37+10:00 stop status=completed loop_count=0 cid=99f7435a-a93a-46f9-8d18-88c98004678a bound=77af99d6-d44a-48e1-aa28-22ac661011fd match=0
+2026-08-08T15:27:46+10:00 stop status=completed loop_count=0 cid=77af99d6-d44a-48e1-aa28-22ac661011fd bound=77af99d6-d44a-48e1-aa28-22ac661011fd match=1
+2026-08-08T15:27:46+10:00 emit followup pending=13 loop_count=0 cid=77af99d6-d44a-48e1-aa28-22ac661011fd
+2026-08-08T15:29:05+10:00 stop status=completed loop_count=0 cid=99f7435a-a93a-46f9-8d18-88c98004678a bound=77af99d6-d44a-48e1-aa28-22ac661011fd match=0
+2026-08-08T15:29:19+10:00 stop status=completed loop_count=1 cid=77af99d6-d44a-48e1-aa28-22ac661011fd bound=77af99d6-d44a-48e1-aa28-22ac661011fd match=1
+2026-08-08T15:29:19+10:00 emit followup pending=12 loop_count=1 cid=77af99d6-d44a-48e1-aa28-22ac661011fd
+2026-08-08T15:32:50+10:00 stop status=completed loop_count=2 cid=77af99d6-d44a-48e1-aa28-22ac661011fd bound=77af99d6-d44a-48e1-aa28-22ac661011fd match=1
+2026-08-08T15:32:50+10:00 emit followup pending=11 loop_count=2 cid=77af99d6-d44a-48e1-aa28-22ac661011fd
+2026-08-08T15:36:27+10:00 stop status=completed loop_count=3 cid=77af99d6-d44a-48e1-aa28-22ac661011fd bound=77af99d6-d44a-48e1-aa28-22ac661011fd match=1
+2026-08-08T15:36:27+10:00 emit followup pending=10 loop_count=3 cid=77af99d6-d44a-48e1-aa28-22ac661011fd
+2026-08-08T15:36:48+10:00 stop status=completed loop_count=0 cid=99f7435a-a93a-46f9-8d18-88c98004678a bound=77af99d6-d44a-48e1-aa28-22ac661011fd match=0
+2026-08-08T15:37:17+10:00 stop status=completed loop_count=4 cid=77af99d6-d44a-48e1-aa28-22ac661011fd bound=77af99d6-d44a-48e1-aa28-22ac661011fd match=1
+2026-08-08T15:37:17+10:00 emit followup pending=9 loop_count=4 cid=77af99d6-d44a-48e1-aa28-22ac661011fd
+2026-08-08T15:38:09+10:00 stop status=completed loop_count=0 cid=99f7435a-a93a-46f9-8d18-88c98004678a bound=77af99d6-d44a-48e1-aa28-22ac661011fd match=0
+2026-08-08T15:39:44+10:00 stop status=completed loop_count=0 cid=99f7435a-a93a-46f9-8d18-88c98004678a bound=77af99d6-d44a-48e1-aa28-22ac661011fd match=0
+2026-08-08T15:39:44+10:00 stop status=completed loop_count=5 cid=77af99d6-d44a-48e1-aa28-22ac661011fd bound=77af99d6-d44a-48e1-aa28-22ac661011fd match=1
+2026-08-08T15:39:44+10:00 emit followup pending=8 loop_count=5 cid=77af99d6-d44a-48e1-aa28-22ac661011fd
+2026-08-08T15:40:43+10:00 stop status=completed loop_count=6 cid=77af99d6-d44a-48e1-aa28-22ac661011fd bound=77af99d6-d44a-48e1-aa28-22ac661011fd match=1
+2026-08-08T15:40:43+10:00 emit followup pending=7 loop_count=6 cid=77af99d6-d44a-48e1-aa28-22ac661011fd
+2026-08-08T15:41:20+10:00 stop status=completed loop_count=0 cid=99f7435a-a93a-46f9-8d18-88c98004678a bound=77af99d6-d44a-48e1-aa28-22ac661011fd match=0
+2026-08-08T15:42:24+10:00 stop status=completed loop_count=0 cid=99f7435a-a93a-46f9-8d18-88c98004678a bound=77af99d6-d44a-48e1-aa28-22ac661011fd match=0
+2026-08-08T15:42:33+10:00 stop status=completed loop_count=7 cid=77af99d6-d44a-48e1-aa28-22ac661011fd bound=77af99d6-d44a-48e1-aa28-22ac661011fd match=1
+2026-08-08T15:42:33+10:00 emit followup pending=6 loop_count=7 cid=77af99d6-d44a-48e1-aa28-22ac661011fd
+2026-08-08T15:43:16+10:00 stop status=completed loop_count=0 cid=99f7435a-a93a-46f9-8d18-88c98004678a bound=77af99d6-d44a-48e1-aa28-22ac661011fd match=0
+2026-08-08T15:44:26+10:00 stop status=completed loop_count=0 cid=99f7435a-a93a-46f9-8d18-88c98004678a bound=77af99d6-d44a-48e1-aa28-22ac661011fd match=0
+2026-08-08T15:45:14+10:00 stop status=completed loop_count=8 cid=77af99d6-d44a-48e1-aa28-22ac661011fd bound=77af99d6-d44a-48e1-aa28-22ac661011fd match=1
+2026-08-08T15:45:14+10:00 emit followup pending=5 loop_count=8 cid=77af99d6-d44a-48e1-aa28-22ac661011fd
+2026-08-08T15:45:44+10:00 stop status=completed loop_count=0 cid=99f7435a-a93a-46f9-8d18-88c98004678a bound=77af99d6-d44a-48e1-aa28-22ac661011fd match=0
+2026-08-08T15:48:15+10:00 stop status=completed loop_count=9 cid=77af99d6-d44a-48e1-aa28-22ac661011fd bound=77af99d6-d44a-48e1-aa28-22ac661011fd match=1
+2026-08-08T15:48:15+10:00 emit followup pending=4 loop_count=9 cid=77af99d6-d44a-48e1-aa28-22ac661011fd
+2026-08-08T15:49:39+10:00 stop status=completed loop_count=10 cid=77af99d6-d44a-48e1-aa28-22ac661011fd bound=77af99d6-d44a-48e1-aa28-22ac661011fd match=1
+2026-08-08T15:49:39+10:00 emit followup pending=3 loop_count=10 cid=77af99d6-d44a-48e1-aa28-22ac661011fd
+2026-08-08T15:51:00+10:00 stop status=completed loop_count=11 cid=77af99d6-d44a-48e1-aa28-22ac661011fd bound=77af99d6-d44a-48e1-aa28-22ac661011fd match=1
+2026-08-08T15:51:00+10:00 emit followup pending=2 loop_count=11 cid=77af99d6-d44a-48e1-aa28-22ac661011fd
+2026-08-08T15:53:17+10:00 stop status=completed loop_count=12 cid=77af99d6-d44a-48e1-aa28-22ac661011fd bound=77af99d6-d44a-48e1-aa28-22ac661011fd match=1
+2026-08-08T15:53:17+10:00 emit followup pending=1 loop_count=12 cid=77af99d6-d44a-48e1-aa28-22ac661011fd
+2026-08-08T15:54:34+10:00 stop status=completed loop_count=13 cid=77af99d6-d44a-48e1-aa28-22ac661011fd bound=77af99d6-d44a-48e1-aa28-22ac661011fd match=1
+2026-08-08T15:54:34+10:00 queue empty; disarmed auto

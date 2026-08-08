@@ -7,7 +7,6 @@ import torch
 
 import import_bootstrap  # noqa: F401
 import training
-from task.moving_bar.input import sti_hexes
 from task.spot.input import spot_from_opts
 from figure import moving_bar as moving_bar_plot
 from figure import spot as spot_plot
@@ -16,18 +15,14 @@ from figure.util import (
     network_hex_count,
 )
 from param_defaults import DEFAULT_RUN_PATH
-from training.config import PARAMETER_DIR, run_data_dir
+from training.config import run_data_dir
 from training.implement import resolve_run_dir
-
-TRAIN_OPTS_FILE = training.TRAIN_OPTS_FILE
-KNOWN_MODELS = training.KNOWN_MODELS
 
 
 def _plot_device_label():
     dev = training.active_device()
     if dev == 'cuda' and torch.cuda.is_available():
-        import torch as _torch
-        return f'cuda ({_torch.cuda.get_device_name(0)})'
+        return f'cuda ({torch.cuda.get_device_name(0)})'
     return dev
 
 
@@ -39,11 +34,6 @@ def spot_bundle_fns(session):
         spot_plot.plot_network_spot_gt,
         spot_plot.plot_network_spot_all,
     )
-
-
-def _session_trace_kind(session):
-    """Plot/trace kind is always ``v``."""
-    return "v"
 
 
 def _network_spot_tag(session, tname):
@@ -62,7 +52,9 @@ def _network_spot_tag(session, tname):
 
 
 def load_train_opts(outdir):
-    opts_path = os.path.join(run_data_dir(os.path.abspath(outdir)), TRAIN_OPTS_FILE)
+    opts_path = os.path.join(
+        run_data_dir(os.path.abspath(outdir)), training.TRAIN_OPTS_FILE,
+    )
     if not os.path.isfile(opts_path):
         return None
     with open(opts_path) as f:
@@ -93,13 +85,14 @@ def resolve_model(outdir, override=None):
         if not opts or 'model' not in opts:
             raise SystemExit(
                 f'cannot determine model for {outdir!r}; '
-                f'expected {TRAIN_OPTS_FILE} with "model" in {KNOWN_MODELS}'
+                f'expected {training.TRAIN_OPTS_FILE} with "model" in '
+                f'{training.KNOWN_MODELS}'
             )
         model = opts['model']
-    if model not in KNOWN_MODELS:
+    if model not in training.KNOWN_MODELS:
         raise SystemExit(
             f'invalid model {model!r} in {outdir!r}; '
-            f'expected one of {KNOWN_MODELS}'
+            f'expected one of {training.KNOWN_MODELS}'
         )
     return model
 
@@ -113,6 +106,7 @@ def select_best(params, session, *, final_costs=None, verbose=True):
         raise SystemExit('no trained parameter sets found (file all zeros)')
     valid_idx = np.where(valid_mask)[0]
 
+    note = ''
     if final_costs is not None:
         costs_arr = np.asarray(final_costs, dtype=np.float64)
         if costs_arr.shape[0] != params.shape[0]:
@@ -122,22 +116,37 @@ def select_best(params, session, *, final_costs=None, verbose=True):
         valid_costs = costs_arr[valid_mask]
         best = int(np.argmin(valid_costs))
         run_i = int(valid_idx[best])
-        if verbose:
-            print(f'{len(valid)} trained set(s); costs min={valid_costs.min():.4f} '
-                  f'max={valid_costs.max():.4f}; selected #{run_i} (from saved final costs)')
-        return valid[best], float(costs_arr[run_i])
-
-    costs_out = []
-    for row in valid:
-        z = torch.tensor(row, dtype=session.sim_dtype, device=session.device)
-        costs_out.append(training.calc_cost(z, session).item())
-    costs_out = np.array(costs_out)
-    best = int(np.argmin(costs_out))
-    run_i = int(valid_idx[best])
+        selected = float(costs_arr[run_i])
+        note = ' (from saved final costs)'
+    else:
+        costs_out = []
+        for row in valid:
+            z = torch.tensor(row, dtype=session.sim_dtype, device=session.device)
+            costs_out.append(training.calc_cost(z, session).item())
+        valid_costs = np.array(costs_out)
+        best = int(np.argmin(valid_costs))
+        run_i = int(valid_idx[best])
+        selected = float(valid_costs[best])
     if verbose:
-        print(f'{len(valid)} trained set(s); costs min={costs_out.min():.4f} '
-              f'max={costs_out.max():.4f}; selected #{run_i}')
-    return valid[best], float(costs_out[best])
+        print(f'{len(valid)} trained set(s); costs min={valid_costs.min():.4f} '
+              f'max={valid_costs.max():.4f}; selected #{run_i}{note}')
+    return valid[best], selected
+
+
+def _session_z_from_best_named(session, run_dir):
+    """Remap ``best_param.npz`` named values onto ``session``; return ``(session, z)``."""
+    import training.implement as train_mod
+
+    named, cell_names, pair_names = train_mod.load_best_param_named(run_dir)
+    remapped = training.remap_named_node_values(
+        named, cell_names, pair_names, list(session.schema), session.backend,
+    )
+    schema = training.attach_param_carry(list(session.schema), remapped)
+    session = session.with_schema(schema)
+    z = training.node_values_to_z(
+        remapped, schema, dtype=session.sim_dtype, device=session.device,
+    )
+    return session, z
 
 
 def load_best(outdir, *, model=None, verbose=False):
@@ -148,16 +157,7 @@ def load_best(outdir, *, model=None, verbose=False):
     if not os.path.isdir(outdir):
         raise SystemExit(f'run dir not found: {outdir}')
     model = resolve_model(outdir, override=model)
-    session = load_session(outdir, model=model)
-    named, cell_names, pair_names = train_mod.load_best_param_named(outdir)
-    remapped = training.remap_named_node_values(
-        named, cell_names, pair_names, list(session.schema), session.backend,
-    )
-    schema = training.attach_param_carry(list(session.schema), remapped)
-    session = session.with_schema(schema)
-    z = training.node_values_to_z(
-        remapped, schema, dtype=session.sim_dtype, device=session.device,
-    )
+    session, z = _session_z_from_best_named(load_session(outdir, model=model), outdir)
     best_cost = None
     final_costs, _, _, _ = train_mod.load_stored_costs(outdir)
     if final_costs is not None and len(final_costs) > 0:
@@ -239,30 +239,15 @@ def maybe_override_stimulus_timing(
         opts["euler"] = training.expand_euler(euler)
 
     session = training.open_session_from_opts(opts, model=opts.get("model"))
-    named, cell_names, pair_names = train_mod.load_best_param_named(run_dir)
-    remapped = training.remap_named_node_values(
-        named,
-        cell_names,
-        pair_names,
-        list(session.schema),
-        session.backend,
-    )
-    schema = training.attach_param_carry(list(session.schema), remapped)
-    session = session.with_schema(schema)
-    z = training.node_values_to_z(
-        remapped,
-        schema,
-        dtype=session.sim_dtype,
-        device=session.device,
-    )
+    session, z = _session_z_from_best_named(session, run_dir)
     return session, z, timing_changed
 
 
-def _format_ms_filename_token(value):
+def _format_filename_token(value):
     v = float(value)
     if v == int(v):
         return str(int(v))
-    return ("%g" % v)
+    return "%g" % v
 
 
 def stimulus_timing_filename_suffix(
@@ -292,7 +277,7 @@ def stimulus_timing_filename_suffix(
         ("delta_pre", delta_ms_pre),
     ):
         if val is not None:
-            parts.append(f"{name}_{_format_ms_filename_token(val)}")
+            parts.append(f"{name}_{_format_filename_token(val)}")
     if not parts:
         return ""
     return "_" + "_".join(parts)
@@ -329,20 +314,19 @@ def _plot_spot_tasks(session, z, outdir, spot_tasks, suffix, model_all,
                        gt_cubes=None,
                        at_x=None, at_y=None, show_pre=True,
                        file_suffix="", html=False, ms_shown=None,
-                       r0_only=False):
+                       center_only=False):
     """Plot spot task(s); contrasts combined in one figure when both are trained."""
     spot_set = set(spot_tasks)
     make_bundle, plot_gt, plot_all = spot_bundle_fns(session)
     ref_t = 'spot_bright' if 'spot_bright' in spot_set else spot_tasks[0]
     net_tag = _network_spot_tag(session, ref_t)
-    kind = _session_trace_kind(session)
     cost_parts = _cost_parts_for_plot(session, z)
     plot_kw = dict(gt_cubes=gt_cubes, cost_parts=cost_parts)
     bundle_kw = dict(
         at_xs=at_x, at_ys=at_y,
         show_pre=show_pre,
         ms_shown=ms_shown,
-        r0_only=r0_only,
+        center_only=center_only,
     )
     if spot_set == set(training.SPOT_TASKS):
         bundles = {
@@ -353,18 +337,18 @@ def _plot_spot_tasks(session, z, outdir, spot_tasks, suffix, model_all,
                 session_for_task(session, 'spot_dark'), z, **bundle_kw,
             ),
         }
-        mvd = _plot_path(outdir, f'spot_gt_{kind}', file_suffix, html=html)
+        mvd = _plot_path(outdir, 'spot_gt_v', file_suffix, html=html)
         plot_gt(
             mvd, bundles=bundles,
-            title=f'Spot {kind}-gt ({suffix}){net_tag}',
+            title=f'Spot v-gt ({suffix}){net_tag}',
             **plot_kw,
         )
         allc = None
         if model_all:
-            allc = _plot_path(outdir, f'spot_all_{kind}', file_suffix, html=html)
+            allc = _plot_path(outdir, 'spot_all_v', file_suffix, html=html)
             plot_all(
                 allc, bundles=bundles,
-                title=f'Spot {kind}-all ({suffix}){net_tag}',
+                title=f'Spot v-all ({suffix}){net_tag}',
                 **plot_kw,
             )
         return mvd, allc
@@ -378,7 +362,7 @@ def _plot_spot_tasks(session, z, outdir, spot_tasks, suffix, model_all,
             file_suffix=file_suffix,
             html=html,
             ms_shown=ms_shown,
-            r0_only=r0_only,
+            center_only=center_only,
         )
 
 
@@ -387,7 +371,6 @@ def _plot_bar_readouts(session, z, outdir, bar_readouts, suffix, model_all, *,
                       align_at_x=None, align_at_y=None,
                       show_pre=True, file_suffix="", html=False, ms_shown=None):
     """Plot moving-bar task(s); bright left | dark right when both are trained."""
-    kind = _session_trace_kind(session)
     cost_parts = _cost_parts_for_plot(session, z)
     bundle_kw = dict(
         at_xs=at_x, at_ys=at_y,
@@ -405,18 +388,18 @@ def _plot_bar_readouts(session, z, outdir, bar_readouts, suffix, model_all, *,
         b_dark = moving_bar_plot.moving_bar_trace_bundle(
             s_dark, z, 'moving_bar_dark', **bundle_kw,
         )
-        mvd = _plot_path(outdir, f'bar_gt_{kind}', file_suffix, html=html)
+        mvd = _plot_path(outdir, 'bar_gt_v', file_suffix, html=html)
         moving_bar_plot.plot_moving_bar_data(
             mvd, bundle=b_bright, bundle_2=b_dark,
-            title=f'Moving-bar {kind}-gt ({suffix})',
+            title=f'Moving-bar v-gt ({suffix})',
             cost_parts=cost_parts,
         )
         allc = None
         if model_all:
-            allc = _plot_path(outdir, f'bar_all_{kind}', file_suffix, html=html)
+            allc = _plot_path(outdir, 'bar_all_v', file_suffix, html=html)
             moving_bar_plot.plot_moving_bar_all(
                 allc, bundle=b_bright, bundle_2=b_dark,
-                title=f'Moving-bar {kind}-all ({suffix})',
+                title=f'Moving-bar v-all ({suffix})',
                 right_only=plot_right_only,
                 cost_parts=cost_parts,
             )
@@ -424,16 +407,16 @@ def _plot_bar_readouts(session, z, outdir, bar_readouts, suffix, model_all, *,
     for tname in bar_readouts:
         one = session_for_task(session, tname)
         b = moving_bar_plot.moving_bar_trace_bundle(one, z, tname, **bundle_kw)
-        mvd = _plot_path(outdir, f'bar_gt_{kind}', file_suffix, html=html)
+        mvd = _plot_path(outdir, 'bar_gt_v', file_suffix, html=html)
         moving_bar_plot.plot_moving_bar_data(
-            mvd, bundle=b, title=f'{tname} {kind}-gt ({suffix})',
+            mvd, bundle=b, title=f'{tname} v-gt ({suffix})',
             cost_parts=cost_parts,
         )
         allc = None
         if model_all:
-            allc = _plot_path(outdir, f'bar_all_{kind}', file_suffix, html=html)
+            allc = _plot_path(outdir, 'bar_all_v', file_suffix, html=html)
             moving_bar_plot.plot_moving_bar_all(
-                allc, bundle=b, title=f'{tname} {kind}-all ({suffix})',
+                allc, bundle=b, title=f'{tname} v-all ({suffix})',
                 right_only=plot_right_only,
                 cost_parts=cost_parts,
             )
@@ -444,12 +427,11 @@ def _plot_one_task(session, z, outdir, tname, suffix, model_all,
                      gt_cubes=None,
                      at_x=None, at_y=None, show_pre=True,
                      cost_parts=None, file_suffix="", html=False, ms_shown=None,
-                     r0_only=False):
+                     center_only=False):
     if tname not in training.SPOT_TASKS:
         raise ValueError(f'unknown plot task {tname!r}')
-    kind = _session_trace_kind(session)
-    mvd = _plot_path(outdir, f'spot_gt_{kind}', file_suffix, html=html)
-    allc = _plot_path(outdir, f'spot_all_{kind}', file_suffix, html=html)
+    mvd = _plot_path(outdir, 'spot_gt_v', file_suffix, html=html)
+    allc = _plot_path(outdir, 'spot_all_v', file_suffix, html=html)
     make_bundle, plot_gt, plot_all = spot_bundle_fns(session)
     net_tag = _network_spot_tag(session, tname)
     if cost_parts is None:
@@ -460,15 +442,15 @@ def _plot_one_task(session, z, outdir, tname, suffix, model_all,
         at_xs=at_x, at_ys=at_y,
         show_pre=show_pre,
         ms_shown=ms_shown,
-        r0_only=r0_only,
+        center_only=center_only,
     )
     from figure.readout import contrast_for_task
     bundles = {contrast_for_task(tname): b}
     plot_gt(
-        mvd, bundles=bundles, title=f'{tname} {kind}-gt ({suffix}){net_tag}', **plot_kw,
+        mvd, bundles=bundles, title=f'{tname} v-gt ({suffix}){net_tag}', **plot_kw,
     )
     if model_all:
-        plot_all(allc, bundles=bundles, title=f'{tname} {kind}-all ({suffix}){net_tag}', **plot_kw)
+        plot_all(allc, bundles=bundles, title=f'{tname} v-all ({suffix}){net_tag}', **plot_kw)
     return mvd, allc
 
 
@@ -481,7 +463,7 @@ def plot_param_set(params, outdir, model=None, model_all=True,
                    plot_right_only=True, at_x=None, at_y=None,
                    align_at_x=None, align_at_y=None,
                    show_pre=True, file_suffix="", html=False, ms_shown=None,
-                   r0_only=False):
+                   center_only=False):
     from figure.util import plot_file_ext
 
     os.makedirs(outdir, exist_ok=True)
@@ -521,10 +503,6 @@ def plot_param_set(params, outdir, model=None, model_all=True,
 
     spot_tasks = [t for t in tasks if t in training.SPOT_TASKS]
     bar_readouts = [t for t in tasks if t in training.MOVING_BAR_TASKS]
-    other_readouts = [
-        t for t in tasks
-        if t not in training.SPOT_TASKS and t not in training.MOVING_BAR_TASKS
-    ]
     if (at_x is not None or at_y is not None) and not bar_readouts and not spot_tasks:
         raise SystemExit('--x/--y require a moving_bar or spot task in this run')
     if (align_at_x is not None or align_at_y is not None):
@@ -551,7 +529,7 @@ def plot_param_set(params, outdir, model=None, model_all=True,
             file_suffix=file_suffix,
             html=html,
             ms_shown=ms_shown,
-            r0_only=r0_only,
+            center_only=center_only,
         )
     if bar_readouts:
         _plot_bar_readouts(
@@ -559,16 +537,6 @@ def plot_param_set(params, outdir, model=None, model_all=True,
             plot_right_only=plot_right_only,
             at_x=at_x, at_y=at_y,
             align_at_x=align_at_x, align_at_y=align_at_y,
-            show_pre=show_pre,
-            file_suffix=file_suffix,
-            html=html,
-            ms_shown=ms_shown,
-        )
-    for tname in other_readouts:
-        one = session_for_task(session, tname)
-        _plot_one_task(
-            one, z, outdir, tname, suffix, model_all,
-            gt_cubes=gt_cubes,
             show_pre=show_pre,
             file_suffix=file_suffix,
             html=html,
@@ -631,7 +599,8 @@ def add_plot_arguments(parser):
         default=False,
         type=parse_bool,
         metavar='BOOL',
-        help='spot_gt/spot_all: only plot r=0 time row (default false: plot all trained r rows)',
+        help='spot_gt/spot_all: only plot center-radius (r=0) time row '
+             '(default false: plot all trained r rows)',
     )
     parser.add_argument(
         '--x',
@@ -774,13 +743,6 @@ def parse_param_tokens(tokens):
     return out
 
 
-def _format_param_filename_token(value):
-    v = float(value)
-    if v == int(v):
-        return str(int(v))
-    return "%g" % v
-
-
 def param_filename_suffix(edits):
     """PNG stem suffix for ``--param`` edits; empty when none.
 
@@ -793,7 +755,7 @@ def param_filename_suffix(edits):
         bits = [name]
         if node is not None:
             bits.append(str(node).replace(":", "_"))
-        bits.append(_format_param_filename_token(val))
+        bits.append(_format_filename_token(val))
         parts.append("_".join(bits))
     return "_" + "_".join(parts)
 
@@ -858,17 +820,17 @@ def plot_kwargs_from_args(args):
     align_xy = parse_align_xy(args.align_xy)
     align_at_x, align_at_y = align_xy if align_xy is not None else (None, None)
     ms_shown = None
-    if getattr(args, 'ms_shown', None) is not None:
+    if args.ms_shown is not None:
         ms_shown = parse_ms_shown_range(args.ms_shown)
     return dict(
         plot_right_only=args.plot_right_only,
         show_pre=args.show_pre,
-        r0_only=args.r0only,
+        center_only=bool(args.r0only),
         at_x=parse_axis_slices(args.x),
         at_y=parse_axis_slices(args.y),
         align_at_x=align_at_x,
         align_at_y=align_at_y,
-        html=bool(getattr(args, 'html', False)),
+        html=bool(args.html),
         ms_shown=ms_shown,
     )
 
@@ -900,7 +862,7 @@ def main():
     session, z, best_cost = load_best(outdir, verbose=True)
     session, z, timing_changed = maybe_override_stimulus_timing(
         run_dir=outdir, session=session, z=z, **timing_kw,
-        euler=getattr(args, "euler", None),
+        euler=args.euler,
     )
     z_t = (
         z if torch.is_tensor(z)
@@ -913,7 +875,7 @@ def main():
     session = session.with_schema(schema)
     file_suffix = (
         stimulus_timing_filename_suffix(**timing_changed)
-        + euler_filename_suffix(getattr(args, "euler", None))
+        + euler_filename_suffix(args.euler)
         + param_filename_suffix(param_edits)
     )
     model = resolve_model(outdir)

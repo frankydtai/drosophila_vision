@@ -1,22 +1,22 @@
 # -*- coding: utf-8 -*-
 """HP-then-membrane-LP neuron (``--model hp_lp``).
 
-    τ_HP d v_slow / dt = v_drive − v_slow
-    v_hp = v_drive − a_h v_slow
+    τ_HP d v_slow / dt = v_in − v_slow
+    v_hp = v_in − a_h v_slow
     τ_lp dv/dt = −(v − e_leak) + v_hp
 
-with v_drive = v_in + v_sti (no e_leak; leak alone sets rest), v_sti = i_sti/g_leak
-(g_leak in nS converts pA → mV; same scalar as borst), v_in from max(v−v_th, 0)·a_out
+with v_in = v_syn + v_sti (no e_leak; leak alone sets rest), v_sti = i_sti/g_leak
+(g_leak in nS converts pA → mV; same scalar as borst), v_syn from max(v−v_th, 0)·a_out
 scaled by syn_strength_cell (per_cell) or syn_strength_edge (per_edge). a_h = 1
-recovers classical HP (v_hp = v_drive − v_slow); DC then has v_hp → 0 when
-v_slow → v_drive, so v → e_leak.
+recovers classical HP (v_hp = v_in − v_slow); DC then has v_hp → 0 when
+v_slow → v_in, so v → e_leak.
 
 Membrane / HP Euler (``session.euler`` = ``implicit`` | ``explicit``):
 
     α_hp = Δt/τ_hp,  α_lp = Δt/τ_lp
 
-    implicit HP:  v_slow ← (v_slow + α_hp v_drive) / (1 + α_hp)
-    explicit HP:  v_slow ← v_slow + α_hp (v_drive − v_slow)
+    implicit HP:  v_slow ← (v_slow + α_hp v_in) / (1 + α_hp)
+    explicit HP:  v_slow ← v_slow + α_hp (v_in − v_slow)
 
     implicit LP:  v ← (v + α_lp (e_leak + v_hp)) / (1 + α_lp)
     explicit LP:  v ← v + α_lp (−(v − e_leak) + v_hp)
@@ -28,7 +28,7 @@ t=0 membrane state uses ``session.pre_steady`` (``--pre-steady …``):
 
 * ``solve`` (default): fixed-iter DC map with ``session.pre_steady_iters`` /
   ``session.pre_steady_damp`` (under-relaxation; not part of dynamics)
-* ``probe``: one ``v_in`` from ``e_leak`` (legacy)
+* ``probe``: one ``v_syn`` from ``e_leak`` (legacy)
 """
 from __future__ import annotations
 
@@ -36,6 +36,13 @@ import torch
 
 from neuron.params import expand_euler
 from neuron.schema import syn_strength
+
+
+def _syn_drive(v, p, backend):
+    """``pre``, ``w``, ``v_syn = a_in · signed_drive(pre, w)``."""
+    pre = torch.relu(v - p["v_th"]) * p["a_out"]
+    w = syn_strength(p)
+    return pre, w, p["a_in"] * backend.conn.signed_drive(pre, w)
 
 
 def update_state_hp_lp(
@@ -54,28 +61,26 @@ def update_state_hp_lp(
     if g_leak == 0.0:
         raise ValueError("g_leak must be non-zero")
 
-    pre = torch.relu(v - p["v_th"]) * p["a_out"]
-    w = syn_strength(p)
-    v_in = p["a_in"] * backend.conn.signed_drive(pre, w)
+    pre, w, v_syn = _syn_drive(v, p, backend)
     v_sti = i_sti / g_leak
-    v_drive = v_in + v_sti
+    v_in = v_syn + v_sti
     hp_dt_over_tau = dt / tau_hp
-    if euler == "implicit":
-        v_slow = (v_slow + hp_dt_over_tau * v_drive) / (1.0 + hp_dt_over_tau)
-    else:
-        v_slow = v_slow + hp_dt_over_tau * (v_drive - v_slow)
+    hp_scale = (
+        hp_dt_over_tau / (1.0 + hp_dt_over_tau) if euler == "implicit" else hp_dt_over_tau
+    )
+    v_slow = v_slow + hp_scale * (v_in - v_slow)
     # LP uses post-HP ``v_slow`` (same as prior identity).
-    v_hp = v_drive - a_h * v_slow
+    v_hp = v_in - a_h * v_slow
     lp_dt_over_tau = dt / tau_lp
-    if euler == "implicit":
-        scale = lp_dt_over_tau / (1.0 + lp_dt_over_tau)
-        dv_leak = scale * (-(v - e_leak))
-        dv_hp = scale * v_hp
-        v = (v + lp_dt_over_tau * (e_leak + v_hp)) / (1.0 + lp_dt_over_tau)
-    else:
-        dv_leak = lp_dt_over_tau * (-(v - e_leak))
-        dv_hp = lp_dt_over_tau * v_hp
+    lp_scale = (
+        lp_dt_over_tau / (1.0 + lp_dt_over_tau) if euler == "implicit" else lp_dt_over_tau
+    )
+    if return_component:
+        dv_leak = lp_scale * (-(v - e_leak))
+        dv_hp = lp_scale * v_hp
         v = v + dv_leak + dv_hp
+    else:
+        v = v + lp_scale * (-(v - e_leak) + v_hp)
 
     v_slow = torch.clamp(v_slow, -clamp, clamp)
     v = torch.clamp(v, -clamp, clamp)
@@ -84,14 +89,12 @@ def update_state_hp_lp(
         return v, v_slow
 
     g_exc, g_inh = backend.conn.exc_inh_drive(pre, w)
-    v_in_exc = p["a_in"] * g_exc
-    v_in_inh = p["a_in"] * g_inh
     return v, v_slow, {
-        "v_in": v_in,
-        "v_in_exc": v_in_exc,
-        "v_in_inh": v_in_inh,
+        "v_syn": v_syn,
+        "v_syn_exc": p["a_in"] * g_exc,
+        "v_syn_inh": p["a_in"] * g_inh,
         "v_slow": v_slow,
-        "v_drive": v_drive,
+        "v_in": v_in,
         "v_hp": v_hp,
         "dv_leak": dv_leak,
         "dv_hp": dv_hp,
@@ -106,65 +109,36 @@ def prepare_i_sti(session, p, i_sti, pack):
     return i_sti.unsqueeze(0) if i_sti.dim() == 2 else i_sti
 
 
-def _v_in_from_v(v, p, backend):
-    pre = torch.relu(v - p["v_th"]) * p["a_out"]
-    w = syn_strength(p)
-    return p["a_in"] * backend.conn.signed_drive(pre, w)
-
-
 def _dc_v_star(v, p, v_sti, backend):
-    """Algebraic DC target: ``v★ = e_leak + (1−a_h)·v_drive(v)``."""
-    e_leak = p["e_leak"]
-    v_drive = _v_in_from_v(v, p, backend) + v_sti
-    return e_leak + (1.0 - p["a_h"]) * v_drive, v_drive
-
-
-def _pre_steady_probe(p, B, v_sti, backend):
-    """One-shot: ``v_in`` from ``v=e_leak`` (not self-consistent)."""
-    e_leak = p["e_leak"]
-    n = backend.n_nodes
-    v_probe = e_leak.expand(B, n).clone()
-    v_drive = _v_in_from_v(v_probe, p, backend) + v_sti
-    v_slow = v_drive
-    v = e_leak + v_drive - p["a_h"] * v_slow
-    return (v_slow,), v
-
-
-def _pre_steady_solve(p, B, v_sti, backend, *, iters: int, damp: float):
-    """Fixed-iter under-relaxed DC map (not time stepping)."""
-    e_leak = p["e_leak"]
-    n = backend.n_nodes
-    v = e_leak.expand(B, n).clone()
-    damp = float(damp)
-    for _ in range(int(iters)):
-        v_star, v_drive = _dc_v_star(v, p, v_sti, backend)
-        v = v + damp * (v_star - v)
-    _, v_drive = _dc_v_star(v, p, v_sti, backend)
-    v_slow = v_drive
-    return (v_slow,), v
+    """Algebraic DC target: ``v★ = e_leak + (1−a_h)·v_in(v)``."""
+    _, _, v_syn = _syn_drive(v, p, backend)
+    v_in = v_syn + v_sti
+    return p["e_leak"] + (1.0 - p["a_h"]) * v_in, v_in
 
 
 def pre_steady(session, p, B, i_sti=None):
     """``(v_slow,)``, ``v`` at t=0 from ``session.pre_steady``."""
     if i_sti is None:
         raise TypeError("hp_lp pre_steady requires i_sti")
+    mode = str(session.pre_steady)
+    if mode not in ("probe", "solve"):
+        raise ValueError(f"hp_lp pre_steady must be probe|solve; got {mode!r}")
     backend = session.backend
     g_leak = float(session.g_leak)
     if g_leak == 0.0:
         raise ValueError("g_leak must be non-zero")
     v_sti = i_sti[:, 0, :] / g_leak
-    mode = str(session.pre_steady)
+    e_leak = p["e_leak"]
+    v = e_leak.expand(B, backend.n_nodes).clone()
     if mode == "probe":
-        return _pre_steady_probe(p, B, v_sti, backend)
-    if mode == "solve":
-        return _pre_steady_solve(
-            p, B, v_sti, backend,
-            iters=int(session.pre_steady_iters),
-            damp=float(session.pre_steady_damp),
-        )
-    raise ValueError(
-        f"hp_lp pre_steady must be probe|solve; got {mode!r}"
-    )
+        v_star, v_in = _dc_v_star(v, p, v_sti, backend)
+        return (v_in,), v_star
+    damp = float(session.pre_steady_damp)
+    for _ in range(int(session.pre_steady_iters)):
+        v_star, _ = _dc_v_star(v, p, v_sti, backend)
+        v = v + damp * (v_star - v)
+    _, v_in = _dc_v_star(v, p, v_sti, backend)
+    return (v_in,), v
 
 
 def step(state, v, p, i_sti, session, *, delta_ms: float, return_component: bool = False):

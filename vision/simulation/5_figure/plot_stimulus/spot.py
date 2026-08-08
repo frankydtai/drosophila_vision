@@ -8,11 +8,11 @@ Spot centers from :func:`task.spot.input.build_spot`.
 
 Usage (from simulation/, project .venv):
 
-    ../.venv/bin/python 5_figure/plot_stimulus/2_plot_multi_spot.py
-    ../.venv/bin/python 5_figure/plot_stimulus/2_plot_multi_spot.py --spot-extents 0.5,1,1.5,2
-    ../.venv/bin/python 5_figure/plot_stimulus/2_plot_multi_spot.py --network right_min_neuron1_extent2
-    ../.venv/bin/python 5_figure/plot_stimulus/2_plot_multi_spot.py --fully-inside false
-    ../.venv/bin/python 5_figure/plot_stimulus/2_plot_multi_spot.py --multi-spot false
+    ../.venv/bin/python 5_figure/plot_stimulus/spot.py
+    ../.venv/bin/python 5_figure/plot_stimulus/spot.py --spot-extents 0.5,1,1.5,2
+    ../.venv/bin/python 5_figure/plot_stimulus/spot.py --network right_min_neuron1_extent2
+    ../.venv/bin/python 5_figure/plot_stimulus/spot.py --fully-inside false
+    ../.venv/bin/python 5_figure/plot_stimulus/spot.py --multi-spot false
 """
 from __future__ import annotations
 
@@ -68,20 +68,10 @@ _SPOT_EXTENTS_CLI_DEFAULT = ",".join(
 )
 
 
-def _default_output(network_path: str, meta: dict) -> str:
-    return os.path.join(PLOT_DIR, f"plotted_multi_spot_{network_run_tag(network_path, meta)}.png")
-
-
 def _network_hexes_df(C: Network) -> pd.DataFrame:
     """One row per unique ``(u, v)`` on connectome ``C``."""
     uv = sorted({(int(u), int(v)) for u, v in zip(C.u, C.v)})
     return pd.DataFrame({"column_id": -1, "u": [u for u, _ in uv], "v": [v for _, v in uv]})
-
-
-def _panel_grid(n: int) -> tuple[int, int]:
-    ncol = max(1, int(math.ceil(math.sqrt(n))))
-    nrow = int(math.ceil(n / ncol))
-    return nrow, ncol
 
 
 def _draw_spot_extent_hexes(ax, centers_u, centers_v, spot_extent: float) -> None:
@@ -144,7 +134,9 @@ def main() -> None:
         syn_mode=SYN_MODE, dtype=SIM_DTYPE,
     )
     run_tag = network_run_tag(network_json, C.meta)
-    output = args.output or _default_output(network_json, C.meta)
+    output = args.output or os.path.join(
+        PLOT_DIR, f"plotted_multi_spot_{run_tag}.png",
+    )
 
     os.makedirs(os.path.dirname(os.path.abspath(output)), exist_ok=True)
     df_hexes = _network_hexes_df(C)
@@ -154,7 +146,9 @@ def main() -> None:
     xlim = (x0 - pad, x1 + pad)
     ylim = (y0 - pad, y1 + pad)
 
-    nrow, ncol = _panel_grid(len(spot_extents))
+    n = len(spot_extents)
+    ncol = max(1, int(math.ceil(math.sqrt(n))))
+    nrow = int(math.ceil(n / ncol))
     fig, axes = plt.subplots(nrow, ncol, figsize=(7 * ncol, 6.5 * nrow), sharex=True, sharey=True)
     axes_flat = np.atleast_1d(axes).ravel()
     counts = {}
@@ -166,10 +160,12 @@ def main() -> None:
             multi_spot=args.multi_spot,
             fully_inside=args.fully_inside,
         ).centers
-        counts[spot_extent] = len(centers)
+        n_spots = len(centers)
+        counts[spot_extent] = n_spots
+        dist = spot_dist(spot_extent)
         print(
             f"network={run_tag}  spot_extent={spot_extent}  "
-            f"spot_dist={spot_dist(spot_extent)}  n_spots={counts[spot_extent]}",
+            f"spot_dist={dist}  n_spots={n_spots}",
         )
         if centers:
             cu = np.array([c[0] for c in centers], dtype=np.int64)
@@ -181,7 +177,7 @@ def main() -> None:
                 markeredgecolor="black", markeredgewidth=0.4,
             )
         ax.set_title(
-            f"spot_extent={spot_extent}  spot_dist={spot_dist(spot_extent)}  n={len(centers)}",
+            f"spot_extent={spot_extent}  spot_dist={dist}  n={n_spots}",
             fontsize=11,
             fontweight="bold",
         )

@@ -68,11 +68,6 @@ def step_delta_ms(session, t: int, t_onset: int) -> float:
     )
 
 
-def _detach_state(state):
-    """Detach every tensor in a model ``state`` tuple."""
-    return tuple(s.detach() for s in state)
-
-
 def forward_full(session, p, i_sti, *, pack=None):
     """Shared full-T forward for every ``session.model``.
 
@@ -87,45 +82,39 @@ def forward_full(session, p, i_sti, *, pack=None):
     -------
     Absolute ``v`` ``(B, T, N)``.
     """
-    try:
-        drv = MODEL_DRIVERS[session.model]
-    except KeyError as exc:
+    if session.model not in MODEL_DRIVERS:
         raise ValueError(
             f"no MODEL_DRIVERS entry for model={session.model!r}; "
             f"expected one of {tuple(MODEL_DRIVERS)}"
-        ) from exc
-
+        )
+    drv = MODEL_DRIVERS[session.model]
     pack = pack or session.primary_readout
-    i_sti = drv.prepare_i_sti(session, p, i_sti, pack)
-    i_sti = apply_a_sti_r(i_sti, p, pack)
-    B, t_end, _n = int(i_sti.shape[0]), int(i_sti.shape[1]), int(i_sti.shape[2])
+    i_sti = apply_a_sti_r(drv.prepare_i_sti(session, p, i_sti, pack), p, pack)
+    B, t_end = int(i_sti.shape[0]), int(i_sti.shape[1])
     t_onset = pack_t_onset(pack)
     pre_grad = bool((session.train_opts or {})["pre_grad"])
     state, v = drv.pre_steady(session, p, B, i_sti=i_sti)
     v_rows = [v]
-    if pre_grad or t_onset <= 0:
-        for t in range(1, t_end):
-            state, v = drv.step(
-                state, v, p, i_sti[:, t - 1], session,
-                delta_ms=step_delta_ms(session, t, t_onset),
-            )
-            v_rows.append(v)
-        return torch.stack(v_rows, dim=1)
-    with torch.no_grad():
-        for t in range(1, t_onset):
-            state, v = drv.step(
-                state, v, p, i_sti[:, t - 1], session,
-                delta_ms=step_delta_ms(session, t, t_onset),
-            )
-            v_rows.append(v)
-    state = _detach_state(state)
-    v = v.detach()
-    for t in range(max(t_onset, 1), t_end):
+
+    def take(t):
+        nonlocal state, v
         state, v = drv.step(
             state, v, p, i_sti[:, t - 1], session,
             delta_ms=step_delta_ms(session, t, t_onset),
         )
         v_rows.append(v)
+
+    if pre_grad or t_onset <= 0:
+        for t in range(1, t_end):
+            take(t)
+        return torch.stack(v_rows, dim=1)
+    with torch.no_grad():
+        for t in range(1, t_onset):
+            take(t)
+    state = tuple(s.detach() for s in state)
+    v = v.detach()
+    for t in range(max(t_onset, 1), t_end):
+        take(t)
     return torch.stack(v_rows, dim=1)
 
 

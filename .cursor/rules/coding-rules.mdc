@@ -13,7 +13,9 @@ Scope: `vision/`.
 2. When you change core (§B), you must leave `6_test/**` (logical `test`) broken — do not update tests to match. Edit `6_test/**` only when the user names that test or file in the task or when you must need to run the script.
 3. Python/pip: Must use `.venv` in the **same top-level subproject** as the script (see §1 table). No bare `python` / `python3` / `pip` / `pip3`; no wrong subproject `.venv`.
 4. Must not automatically add new `*.py` / `*.sh` / `*.ipynb` / `*.m`: must explain + propose path/duties + wait for user approval.
-5. Rename completeness: when the user renames a parameter / CLI flag / train_opts key / concept (e.g. `init_state` → `pre_steady`), you MUST in the same change also rename every corresponding **function**, **method**, **attribute**, **constant**, **CLI**, and **docstring / comment** that still uses the old name for that concept. Partial renames (opts only, or CLI only, leaving `def old_name` / call sites / docs) = do not ship. 
+5. Rename completeness: when the user renames a parameter / CLI flag / train_opts key / concept (e.g. `init_state` → `pre_steady`), you MUST in the same change also rename every corresponding **function**, **method**, **attribute**, **constant**, **CLI**, and **docstring / comment** that still uses the old name for that concept. Partial renames (opts only, or CLI only, leaving `def old_name` / call sites / docs) = do not ship.
+6. Minimal new code: every new function / method must use the fewest lines that correctly implement the behavior. Forbidden: dead branches, unused locals, re-computing values already in hand, defensive try/except that cannot fire, copy-paste “symmetry” APIs unused by callers, bytes/None guards for types that never appear, splitting one trivial helper into many without a second call site. Prefer extend/replace an existing function over adding a parallel one. Verbose first draft = do not ship; slim before done.
+
 
 - **Python** (script location → interpreter):
 | Script location | Interpreter |
@@ -31,6 +33,7 @@ Scope: `vision/`.
 4. No duplicate functions or wrappers (see HARD STOP 3).
 5. CLI list values: comma-separated in one token (`a,b,c`); not space-separated (`a b c`). Exception: (a) fixed-length pairs (e.g. `cell_syn.py` `--at-uv U V`, `nargs=2`); (b) top-level `KEY=VALUE` / bare-token bags (`nargs='+'`, space between tokens — e.g. `--gt moving_bar=T4 spot=L1,L2`, `--cost-weight DSI PD=0.2`, partition buckets). Commas stay only inside a single token's value list. Use `parse_comma_list` in `import_bootstrap` only; do not add a second splitter.
 6. CLI alias expanders: `expand_<cli_name>_list` or `expand_<cli_name>_dict` (`--kebab-case` → `snake_case`; e.g. `--ih-group` → `expand_ih_group_list`, `--mode` → `expand_mode_dict`). 
+7. Full names inside code: abbreviations only on CLI flags / argparse dest (e.g. `--r0only`). Internals (params, attributes, locals, functions) use complete words (`center_only`, `center_radius` — never `r0` / `r0_only`).
 
 ## B core script rules: `simulation/**`
 
