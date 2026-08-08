@@ -128,9 +128,10 @@ from task.spot.gt import (
     expand_gt_cells as expand_spot_gt_cells,
     expand_spot_cost_r_w_dict,
     make_spot_stimulus_opts,
+    spot_sti_radius_gate,
 )
 from task.spot.input import (
-    build_spot_a_sti_r_drive,
+    build_spot_a_sti_radius_drive,
     normalize_spot_timing,
     spot_extent_half_steps,
     spot_from_opts,
@@ -557,15 +558,22 @@ def _build_network_spot_task(
     stim = dict(opts)
     if "present_gts" in T.info:
         stim["gt_cells"] = list(T.info["present_gts"])
-    # Replace center-only bake from build_spot_gt: center @1 in i_sti + a_sti_r rings.
+    # Replace center-only bake from build_spot_gt: center @1 in i_sti + a_sti_radius radii.
     i_baseline = float(opts[_SPOT_BASELINE_KEY])
     spot = spot_from_opts(C, stimulus_opts=opts)
     batches = spot_stimulus_batches(spot)
-    i_sti, sti_wave, sti_batch, sti_node, sti_r = build_spot_a_sti_r_drive(
+    cost_r_w = expand_spot_cost_r_w_dict(
+        stimulus_opts=opts, aliases=SPOT_COST_RADIUS_KEY_ALIASES,
+    )
+    gate = spot_sti_radius_gate(
+        cost_r_w,
+        default_weights=default_w,
+        spot_sti_radii=SPOT_STI_RADII,
+    )
+    i_sti, sti_wave, sti_batch, sti_node, sti_radius = build_spot_a_sti_radius_drive(
         C,
         batches,
         sti_radii=SPOT_STI_RADII,
-        spot_extent=spot_extent,
         t_onset=int(t_onset),
         n_t=int(n_t),
         ms_spot=float(opts.get("ms_spot", MS_SPOT)),
@@ -595,7 +603,8 @@ def _build_network_spot_task(
         sti_wave=sti_wave,
         sti_batch=sti_batch,
         sti_node=sti_node,
-        sti_r=sti_r,
+        sti_radius=sti_radius,
+        sti_radius_gate=torch.as_tensor(gate, dtype=ctx.sim_dtype, device=dev),
     )
     coltag = _cost_extent_hex_coltag(cost_extent, T.info["n_cost_hexes"])
     shifttag = f"{T.info['n_shifts']} shifts"

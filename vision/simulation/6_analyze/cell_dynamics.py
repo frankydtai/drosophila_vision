@@ -22,7 +22,7 @@ from param_defaults import DEFAULT_RUN_PATH
 import figure.plot_run as plot_trained
 from figure.readout import contrast_for_task
 from figure.spot import pack_spot_cost_radii, resolve_spot_gt_cubes
-from figure.util import gt_affine_scalars_for_cell, plot_sem_band
+from figure.util import gt_affine_scalars_for_cell, plot_std_band
 from import_bootstrap import parse_bool, parse_comma_list
 from network.construction import hex2gt
 from task.moving_bar.gt import (
@@ -662,12 +662,12 @@ def _model_driver(session):
 
 
 def _prepare_drive(session, p, i_sti: torch.Tensor) -> torch.Tensor:
-    """Model ``prepare_i_sti`` + spot ``a_sti_r`` on a ``(B, T, N)`` pack ``i_sti``."""
-    from neuron.forward import apply_a_sti_r
+    """Model ``prepare_i_sti`` + spot ``a_sti_radius`` on a ``(B, T, N)`` pack ``i_sti``."""
+    from neuron.forward import apply_a_sti_radius
 
     pack = session.primary_readout
     drive = _model_driver(session).prepare_i_sti(session, p, i_sti, pack)
-    return apply_a_sti_r(drive, p, pack)
+    return apply_a_sti_radius(drive, p, pack)
 
 
 def _equilibrate(session, p, i_sti_batch: torch.Tensor, t_onset: int):
@@ -791,18 +791,18 @@ def _acc_dict_from_row(row: np.ndarray, keys: tuple[str, ...]) -> dict[str, floa
     return {k: float(row[i]) for i, k in enumerate(keys)}
 
 
-def _sem_from_sum_sumsq(sum_: float, sumsq: float, n: int) -> float:
-    """Match ``figure.util.sem_from_traces`` (population std / sqrt(n))."""
+def _std_from_sum_sumsq(sum_: float, sumsq: float, n: int) -> float:
+    """Match ``figure.util.std_from_traces`` (population std)."""
     if n <= 1:
         return 0.0
     mean = sum_ / n
     var = sumsq / n - mean * mean
     if var <= 0.0:
         return 0.0
-    return float(np.sqrt(var) / np.sqrt(n))
+    return float(np.sqrt(var))
 
 
-def _step_sem(
+def _step_std(
     acc: dict[str, float], accsq: dict[str, float], n: int, spec: _ComponentSpec,
 ) -> dict[str, float]:
     out: dict[str, float] = {}
@@ -810,7 +810,7 @@ def _step_sem(
         if component_key is None:
             out[plot_key] = 0.0
         else:
-            out[plot_key] = _sem_from_sum_sumsq(acc[component_key], accsq[component_key], n)
+            out[plot_key] = _std_from_sum_sumsq(acc[component_key], accsq[component_key], n)
     return out
 
 
@@ -839,7 +839,7 @@ def _step_from_acc(
         "v_pre_d": acc["v_pre_d"] / n,
         "v_post_minus_pre": v_post_minus_pre_sum / n,
         "i_sti": acc["i_sti"] / n,
-        "sem": _step_sem(acc, accsq, n, spec),
+        "std": _step_std(acc, accsq, n, spec),
         "n_nodes": n,
     }
     if spec.model == "borst":
@@ -912,8 +912,8 @@ def _forward_component(
 
     Shared by bar/spot average and bar/spot hex.
     ``v_onset`` matches ``forward_full`` (``v`` at ``t_onset - 1``). Aligned index
-    ``t = t_global - t0_u``. v_post is mean absolute ``v_abs``; SEM uses sum /
-    sumsq like ``sem_from_traces``.
+    ``t = t_global - t0_u``. v_post is mean absolute ``v_abs``; STD uses sum /
+    sumsq like ``std_from_traces``.
 
     If ``t_start``/``t_stop`` are set (from ``--ms-shown`` via ``ms_to_t``), only
     accumulate inside that inclusive aligned window; cheap steps outside it;
@@ -2148,16 +2148,16 @@ def _plot_component_reports(
                 ts = np.asarray([s["t"] for s in rep["steps"]], dtype=int)
                 xs = ts.astype(float) * delta_ms
                 y = np.asarray([s[key] for s in rep["steps"]], dtype=float)
-                sem = np.asarray(
-                    [float(s.get("sem", {}).get(key, 0.0)) for s in rep["steps"]],
+                std = np.asarray(
+                    [float(s.get("std", {}).get(key, 0.0)) for s in rep["steps"]],
                     dtype=float,
                 )
                 if ri in spec.row_shared_ylim:
                     row_curves[ri].append(y)
-                    if np.any(sem):
-                        row_curves[ri].append(y + sem)
-                        row_curves[ri].append(y - sem)
-                plot_sem_band(ax, xs, y, sem, color=color, alpha=0.3)
+                    if np.any(std):
+                        row_curves[ri].append(y + std)
+                        row_curves[ri].append(y - std)
+                plot_std_band(ax, xs, y, std, color=color, alpha=0.3)
                 model_label = (
                     str(rep["spec"]) if show_legend
                     else ("v_post" if key == "v_post" and rep.get("gt_v_post") else "_nolegend_")

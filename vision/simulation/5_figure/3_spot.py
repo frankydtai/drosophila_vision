@@ -41,9 +41,9 @@ from figure.util import (
     plot_pre_post_line,
     plot_timecourse,
     save_figure,
-    sem_from_traces,
+    std_from_traces,
     slice_coord_specs,
-    suppress_cost_sem,
+    suppress_cost_std,
     v_th_by_type_name,
 )
 from network.construction import cell_order_rows, cell_names_in_order
@@ -129,36 +129,29 @@ def resolve_spot_gt_cubes(sessions, gt_cubes=None):
     return out
 
 
-def _session_cost_time_ix(session, t_onset, radius=None):
-    """Absolute time indices used for sparse spot cost (or ``None``).
-
-    When ``radius`` is set and ``cost_time_mask`` is present, keep only columns
-    used by that Euclidean cost radius.
-    """
+def _session_cost_time_ix(session, t_onset, *, cost_radius=None):
+    """Absolute time indices for sparse spot cost (pack contract; or ``None``)."""
     if session is None:
         return None
-    pack = session.primary_readout
-    ix = getattr(pack, "cost_time_ix", None)
-    if ix is None:
-        return None
-    base = int(t_onset or 0)
-    ix_np = ix.detach().cpu().numpy().astype(np.int64, copy=False)
-    mask = getattr(pack, "cost_time_mask", None)
-    cost_radius = getattr(pack, "cost_radius", None)
-    if (
-        radius is not None
-        and mask is not None
-        and cost_radius is not None
-    ):
-        rad = np.round(cost_radius.detach().cpu().numpy().astype(float), 6)
-        hit = np.where(rad == round(float(radius), 6))[0]
-        if hit.size:
-            col = mask[int(hit[0])].detach().cpu().numpy() > 0
-            ix_np = ix_np[col]
-    return base + ix_np
+    return training.pack_cost_abs_time_ix(
+        session.primary_readout, t_onset, cost_radius=cost_radius,
+    )
 
 
-def scale_curve(xt, center_radius, sem_xt=None, *, t_onset=None, t_spot_end=None, t_lag=0):
+def _series_with_cost_points(series, bundles, cost_radius):
+    """Copy ``series`` with ``point_ix`` for Euclidean ``cost_radius``."""
+    out = []
+    for entry in series:
+        item = dict(entry)
+        c = entry["contrast"]
+        item["point_ix"] = _session_cost_time_ix(
+            bundles[c].session, bundles[c].t_onset, cost_radius=cost_radius,
+        )
+        out.append(item)
+    return out
+
+
+def scale_curve(xt, center_radius, std_xt=None, *, t_onset=None, t_spot_end=None, t_lag=0):
     """Center-radius time course + RF profile from one ``(RF_N_RADII, T)`` cube.
 
     RF peak time ``t_v_max`` is ``argmax |v - v_onset|`` inside the
@@ -185,8 +178,8 @@ def scale_curve(xt, center_radius, sem_xt=None, *, t_onset=None, t_spot_end=None
     ref = float(resp[0]) if np.isfinite(resp[0]) else float(resp[np.isfinite(resp)][0])
     t_v_max = t0 + int(np.nanargmax(np.abs(resp - ref)))
     spatial = np.asarray(xt[:, t_v_max], dtype=np.float64)
-    sem = None if sem_xt is None else sem_xt[center_radius]
-    return imp, spatial, sem
+    std = None if std_xt is None else std_xt[center_radius]
+    return imp, spatial, std
 
 
 def _plot_rf_profile(ax, rf, *, color, label=None, linestyle='-', filled=False):
@@ -258,8 +251,8 @@ def _scale_contrast_series(
 ):
     """Scale each contrast series entry to ImpR + RF radii.
 
-    ``series`` items may include ``v_readout_xt``, ``gt_xt``, ``sem_xt``.
-    Returns a list of dicts with ``imp_v_readout``, ``rf_v_readout``, ``imp_sem``,
+    ``series`` items may include ``v_readout_xt``, ``gt_xt``, ``std_xt``.
+    Returns a list of dicts with ``imp_v_readout``, ``rf_v_readout``, ``imp_std``,
     ``imp_gt``, ``rf_gt`` plus passthrough keys.
     """
     sc_kw = dict(t_onset=t_onset, t_spot_end=t_spot_end, t_lag=t_lag)
@@ -269,11 +262,11 @@ def _scale_contrast_series(
         v_readout_xt = entry.get("v_readout_xt")
         gt_xt = entry.get("gt_xt")
         if v_readout_xt is not None:
-            imp_v_readout, rf_v_readout, imp_sem = scale_curve(
-                v_readout_xt, center_radius, entry.get("sem_xt"), **sc_kw,
+            imp_v_readout, rf_v_readout, imp_std = scale_curve(
+                v_readout_xt, center_radius, entry.get("std_xt"), **sc_kw,
             )
         else:
-            imp_v_readout, rf_v_readout, imp_sem = None, None, None
+            imp_v_readout, rf_v_readout, imp_std = None, None, None
         if gt_xt is not None:
             imp_gt, rf_gt, _ = scale_curve(gt_xt, center_radius, **sc_kw)
         else:
@@ -281,7 +274,7 @@ def _scale_contrast_series(
         item.update(
             imp_v_readout=imp_v_readout,
             rf_v_readout=rf_v_readout,
-            imp_sem=imp_sem,
+            imp_std=imp_std,
             imp_gt=imp_gt,
             rf_gt=rf_gt,
         )
@@ -365,7 +358,7 @@ def plot_cell_time(
         {
             "v_readout": item["imp_v_readout"],
             "gt": item["imp_gt"],
-            "sem": item["imp_sem"],
+            "std": item["imp_std"],
             "linestyle": item.get("linestyle", "-"),
             "point_ix": item.get("point_ix"),
         }
@@ -373,7 +366,7 @@ def plot_cell_time(
     ]
     plot_timecourse(
         ax, t, traces,
-        show_sem=any(item["imp_sem"] is not None for item in scaled),
+        show_std=any(item["imp_std"] is not None for item in scaled),
         v_th=v_th,
         e_leak=e_leak,
         show_ylabel=show_ylabel,
@@ -541,7 +534,7 @@ def plot_cell_rf_time_slices(
     annotate_v_th(ax_time, v_th, e_leak=e_leak)
 
 
-def _fill_member_cube(cube, sem, ti, ft_global, type_idx, du, dv, plot_traces):
+def _fill_member_cube(cube, std, ti, ft_global, type_idx, du, dv, plot_traces):
     """Fill profile radii from Euclidean radius means; return ``{r: n_rows}``."""
     mask = type_idx == ft_global
     if not mask.any():
@@ -558,7 +551,7 @@ def _fill_member_cube(cube, sem, ti, ft_global, type_idx, du, dv, plot_traces):
             continue
         traces = plot_traces[row_ix]
         cube[ti, k] = traces.mean(axis=0)
-        sem[ti, k] = sem_from_traces(traces, single_hex=False)
+        std[ti, k] = std_from_traces(traces, single_hex=False)
         n_by_radius[k] = len(row_ix)
     return n_by_radius
 
@@ -582,7 +575,7 @@ class SpotTraceBundle:
     t_spot_end: int | None = None
     ms_shown: tuple[float, float] | None = None
     center_only: bool = False
-    a_sti_r: dict[str, float] = field(default_factory=dict)
+    a_sti_radius: dict[str, float] = field(default_factory=dict)
 
     @property
     def has_slices(self):
@@ -619,7 +612,7 @@ def _spot_readout_bundle_view(bundle):
         t_spot_end=bundle.t_spot_end,
         ms_shown=bundle.ms_shown,
         center_only=bool(bundle.center_only),
-        a_sti_r=dict(bundle.a_sti_r),
+        a_sti_radius=dict(bundle.a_sti_radius),
     )
 
 
@@ -632,11 +625,11 @@ def _spot_cubes_from_row_mask(rows, mask):
     dv = rows['dv'][mask]
     plot_traces = rows['plot_traces'][mask]
     out = {}
-    sem_dummy = np.full((1, RF_N_RADII, mt), np.nan)
+    std_dummy = np.full((1, RF_N_RADII, mt), np.nan)
     for ft in names:
         cube = np.full((1, RF_N_RADII, mt), np.nan)
         ft_global = cell_names.index(ft)
-        _fill_member_cube(cube, sem_dummy, 0, ft_global, type_idx, du, dv, plot_traces)
+        _fill_member_cube(cube, std_dummy, 0, ft_global, type_idx, du, dv, plot_traces)
         out[ft] = cube[0]
     return out
 
@@ -684,7 +677,7 @@ def _spot_slice_overlay(rows, C, at_xs, at_ys):
 
 
 def _cells_from_cube(
-    names, cube, sem, v_th_by_name, *, single_hex,
+    names, cube, std, v_th_by_name, *, single_hex,
     e_leaks=None,
     n_by_radius_by_name=None, gt_affine_by_name=None,
 ):
@@ -697,7 +690,7 @@ def _cells_from_cube(
         out.append(dict(
             name=n,
             cube=cube[i],
-            sem=None if single_hex else sem[i],
+            std=None if single_hex else std[i],
             v_th=v_th_by_name.get(n),
             e_leak=e_leaks.get(n),
             n_by_radius=dict(n_by_radius_by_name.get(n) or {}),
@@ -716,14 +709,14 @@ def _spot_forward_rows(
     pack = session.primary_readout
     schema = list(session.schema)
     p = training.assign_params(z, schema, session.backend)
-    a_sti_r_by_name = {}
-    if "a_sti_r" in p:
+    a_sti_radius_by_name = {}
+    if "a_sti_radius" in p:
         for seg in schema:
-            if seg.get("name") != "a_sti_r":
+            if seg.get("name") != "a_sti_radius":
                 continue
             names = [str(n) for n in (seg.get("node_names") or ())]
-            raw = p["a_sti_r"].detach().cpu().numpy().reshape(-1)
-            a_sti_r_by_name = {
+            raw = p["a_sti_radius"].detach().cpu().numpy().reshape(-1)
+            a_sti_radius_by_name = {
                 names[i]: float(raw[i]) for i in range(min(len(names), raw.size))
             }
             break
@@ -770,7 +763,7 @@ def _spot_forward_rows(
         batches=batches,
         mt=mt,
         pack=pack,
-        a_sti_r=a_sti_r_by_name,
+        a_sti_radius=a_sti_radius_by_name,
     )
     mask = np.asarray(center_row, dtype=bool)
     if at_x is not None or at_y is not None:
@@ -807,17 +800,17 @@ def _spot_cube_from_rows(rows, session):
     names = rows['names']
     mt = rows['mt']
     cube = np.full((len(names), RF_N_RADII, mt), np.nan)
-    sem = np.full((len(names), RF_N_RADII, mt), np.nan)
+    std = np.full((len(names), RF_N_RADII, mt), np.nan)
     n_by_radius_by_name = {}
     for ti, ft in enumerate(names):
         ft_global = rows['cell_names'].index(ft)
         n_by_radius_by_name[ft] = _fill_member_cube(
-            cube, sem, ti, ft_global,
+            cube, std, ti, ft_global,
             rows['type_idx'], rows['du'], rows['dv'], rows['plot_traces'],
         )
-    single_hex = suppress_cost_sem(session, task=rows['pack'].name)
+    single_hex = suppress_cost_std(session, task=rows['pack'].name)
     cells = _cells_from_cube(
-        names, cube, sem, rows['v_th_by_name'],
+        names, cube, std, rows['v_th_by_name'],
         e_leaks=rows.get('e_leaks'),
         single_hex=single_hex, n_by_radius_by_name=n_by_radius_by_name,
         gt_affine_by_name=rows.get('gt_affine_by_name'),
@@ -867,16 +860,16 @@ def network_spot_trace_bundle(
         t_spot_end=rows.get('t_spot_end'),
         ms_shown=ms_shown,
         center_only=bool(center_only),
-        a_sti_r=dict(rows.get('a_sti_r') or {}),
+        a_sti_radius=dict(rows.get('a_sti_radius') or {}),
     )
 
 
 def _spot_suptitle(title, bundle):
     head = title
     if bundle is not None:
-        a_sti_r = bundle.a_sti_r
-        if a_sti_r and "1" in a_sti_r:
-            head = f"a_sti_r 1 = {float(a_sti_r['1']):.4g}"
+        a_sti_radius = bundle.a_sti_radius
+        if a_sti_radius and "1" in a_sti_radius:
+            head = f"a_sti_radius 1 = {float(a_sti_radius['1']):.4g}"
         if bundle.has_slices:
             scope = hex_at_scope_tag(bundle.slice_xs, bundle.slice_ys)
             return f'{head}  [{scope}, overlay + total]'
@@ -978,16 +971,12 @@ def _plot_spot_figure(
                 "contrast": c,
                 "v_readout_xt": cell["cube"],
                 "gt_xt": gt_xt,
-                "sem_xt": cell.get("sem"),
+                "std_xt": cell.get("std"),
                 "v_th": cell.get("v_th"),
                 "linestyle": contrast_linestyle(c),
                 "label_gt": f"{c} gt",
                 "label_v_readout": f"{c} v",
                 "label_total": f"{c} total",
-                "point_ix": _session_cost_time_ix(
-                    bundles[c].session, bundles[c].t_onset,
-                    radius=center_radius,
-                ),
             }
             if with_slices:
                 overlay = bundles[c].slice_overlay
@@ -1013,7 +1002,11 @@ def _plot_spot_figure(
             order,
         )
         if has_slices and primary.slice_overlay is not None:
-            series = _series_for_cell(name, with_slices=True)
+            series = _series_with_cost_points(
+                _series_for_cell(name, with_slices=True),
+                bundles,
+                float(center_radius),
+            )
             slice_xt = (series[0].get("slice_overlay") or {}) if series else {}
             if not slice_xt:
                 ax_rf.axis("off")
@@ -1037,7 +1030,11 @@ def _plot_spot_figure(
                 ms_shown=ms_shown,
             )
         else:
-            series = _series_for_cell(name, with_slices=False)
+            series = _series_with_cost_points(
+                _series_for_cell(name, with_slices=False),
+                bundles,
+                float(center_radius),
+            )
             plot_cell_rf_time(
                 ax_rf, ax_time, name, series,
                 time_title=time_title,
@@ -1103,7 +1100,8 @@ def _plot_spot_figure(
                     radius, n_by_radius.get(radius), name, cost_parts, order,
                 )
                 plot_cell_time(
-                    ax_t, series,
+                    ax_t,
+                    _series_with_cost_points(series, bundles, float(radius)),
                     title=time_title,
                     show_xlabels=(local_i == len(radii) - 1),
                     show_ylabel=(j == 0),

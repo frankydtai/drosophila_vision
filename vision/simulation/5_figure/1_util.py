@@ -14,7 +14,7 @@ import training
 
 GT_COLOR = 'gray'
 V_READOUT_COLOR = 'red'
-SEM_COLOR = 'pink'
+STD_COLOR = 'pink'
 TRACE_LW = 1.5
 
 
@@ -75,8 +75,11 @@ def mean_v_onset_by_cell_name(traces, type_idx, cell_names, names, t_onset):
     return out
 
 
-def cost_ylim(*curves, pct=99.0, pad=1.1, floor=1.0):
-    """Non-negative ylim from high percentile so cost spikes do not dominate."""
+def cost_ylim(*curves, pct=99.0, pad=1.1, floor=1.0, log=False):
+    """Ylim from high percentile so cost spikes do not dominate.
+
+    ``log=True`` returns a positive lower bound (for ``yscale('log')``).
+    """
     chunks = []
     for c in curves:
         if c is None:
@@ -86,10 +89,25 @@ def cost_ylim(*curves, pct=99.0, pad=1.1, floor=1.0):
         if v.size:
             chunks.append(v)
     if not chunks:
-        return 0.0, floor
-    hi = float(np.percentile(np.concatenate(chunks), pct))
+        return (floor, floor * 10.0) if log else (0.0, floor)
+    all_v = np.concatenate(chunks)
+    hi = float(np.percentile(all_v, pct))
     yhi = max(hi * pad, floor)
-    return 0.0, yhi
+    if not log:
+        return 0.0, yhi
+    pos = all_v[all_v > 0]
+    if not pos.size:
+        return floor, max(yhi, floor * 10.0)
+    ylo = max(float(pos.min()) / pad, floor)
+    if ylo >= yhi:
+        yhi = ylo * 10.0
+    return ylo, yhi
+
+
+def _apply_cost_yscale(ax, *curves):
+    """Log y-scale with shared-style ylim from *curves*."""
+    ax.set_yscale('log')
+    ax.set_ylim(*cost_ylim(*curves, log=True))
 
 
 def annotate_v_th(ax, v_th, *, e_leak=None):
@@ -132,8 +150,8 @@ def mark_spot(ax, t_onset, t_spot_end):
     ax.axvspan(t0, t1, facecolor='white', edgecolor='none', zorder=0)
 
 
-def suppress_cost_sem(session, task=None):
-    """True when cost uses a single hex (no hex-mean SEM band)."""
+def suppress_cost_std(session, task=None):
+    """True when cost uses a single hex (no hex-mean STD band)."""
     pack = session.primary_readout if task is None else session.pack_for(task)
     return pack.cost_extent == 0
 
@@ -154,11 +172,11 @@ def readout_center_mask(pack, backend):
     return np.ones(readout.shape[0], dtype=bool)
 
 
-def sem_from_traces(traces, single_hex=False):
-    """Per-time SEM across cost entries; zero when single-hex cost or one entry."""
+def std_from_traces(traces, single_hex=False):
+    """Per-time STD across cost entries; zero when single-hex cost or one entry."""
     if single_hex or traces.shape[0] == 1:
         return np.zeros(traces.shape[1], dtype=np.float64)
-    return traces.std(axis=0) / np.sqrt(traces.shape[0])
+    return traces.std(axis=0)
 
 
 def v_th_by_type_name(z, session):
@@ -367,13 +385,13 @@ def overlay_v_readout_reds(n_slices):
     return [plt.cm.Reds(v) for v in np.linspace(0.35, 0.95, n)]
 
 
-def plot_sem_band(ax, t, v_readout, sem, *, color=None, alpha=None, label=r'$\pm$SEM'):
-    """Shaded ±SEM for continuous line traces."""
-    if sem is None or not np.any(sem):
+def plot_std_band(ax, t, v_readout, std, *, color=None, alpha=None, label=r'$\pm$STD'):
+    """Shaded ±STD for continuous line traces."""
+    if std is None or not np.any(std):
         return
     t_arr = np.asarray(t)
     m_arr = np.asarray(v_readout, dtype=np.float64)
-    s_arr = np.asarray(sem, dtype=np.float64)
+    s_arr = np.asarray(std, dtype=np.float64)
     mask = np.isfinite(m_arr) & np.isfinite(s_arr)
     if not np.any(mask):
         return
@@ -381,7 +399,7 @@ def plot_sem_band(ax, t, v_readout, sem, *, color=None, alpha=None, label=r'$\pm
         t_arr[mask],
         m_arr[mask] - s_arr[mask],
         m_arr[mask] + s_arr[mask],
-        color=SEM_COLOR if color is None else color,
+        color=STD_COLOR if color is None else color,
         alpha=0.3 if alpha is None else alpha,
         linewidth=0,
         label=label,
@@ -463,7 +481,7 @@ def plot_timecourse(
     t,
     traces,
     *,
-    show_sem=True,
+    show_std=True,
     title=None,
     title_fs=7,
     v_th=None,
@@ -480,7 +498,7 @@ def plot_timecourse(
     """v_readout (red) vs gt (gray) time courses for one or more contrast traces.
 
     ``traces``: sequence of dicts with keys ``v_readout``, ``gt``, optional
-    ``sem``, ``linestyle`` (default ``'-'``), ``point_ix``.
+    ``std``, ``linestyle`` (default ``'-'``), ``point_ix``.
     When ``point_ix`` is set, gray gt is drawn as open dots at those indices
     (still never draws ``[0, pre_end)`` via line); otherwise gt is a solid
     post-onset line. Red v_readout always uses continuous pre/post lines: dashed
@@ -494,7 +512,7 @@ def plot_timecourse(
     for tr in traces:
         v_readout = tr.get("v_readout")
         gt = tr.get("gt")
-        sem = tr.get("sem")
+        std = tr.get("std")
         linestyle = tr.get("linestyle", "-")
         point_ix = tr.get("point_ix")
         if point_ix is not None:
@@ -510,12 +528,12 @@ def plot_timecourse(
                 color=GT_COLOR, linestyle=linestyle, linewidth=TRACE_LW,
             )
         if v_readout is not None:
-            if show_sem and sem is not None:
+            if show_std and std is not None:
                 t_arr = np.asarray(t)
                 m_arr = np.asarray(v_readout, dtype=np.float64)
-                s_arr = np.asarray(sem, dtype=np.float64)
+                s_arr = np.asarray(std, dtype=np.float64)
                 if split < m_arr.shape[0]:
-                    plot_sem_band(ax, t_arr[split:], m_arr[split:], s_arr[split:])
+                    plot_std_band(ax, t_arr[split:], m_arr[split:], s_arr[split:])
             plot_pre_post_line(
                 ax, t, v_readout, pre_end=split, show_pre=show_pre, draw_pre=True,
                 color=V_READOUT_COLOR, linestyle=linestyle, linewidth=TRACE_LW,
@@ -660,7 +678,7 @@ def _write_interactive_html(fig, path):
                 layer='below',
             ))
 
-        # SEM fill_between etc. before line traces (same stacking as PNG).
+        # STD fill_between etc. before line traces (same stacking as PNG).
         for coll in ax.collections:
             if not isinstance(coll, PolyCollection):
                 continue
@@ -748,7 +766,8 @@ def plot_cost(costs, path, *, costs_by_part=None, part_order=None):
     Rules (applies to spot / moving_bar / future tasks):
     - All curves are solid (``linestyle='-'``).
     - Colors are assigned by *role order* (R0, R1, R2, ... for spot radii; PD/ND/DSI for moving bar).
-    - The cell subplot layout follows the canonical order rows (total row unchanged).
+    - Cell layout follows canonical order rows: first block log + shared ylim, then
+      linear total + linear per-panel ylim (original).
     """
     from network.construction import CELL_ORDER_ROWS, cell_order_rows
 
@@ -759,11 +778,11 @@ def plot_cost(costs, path, *, costs_by_part=None, part_order=None):
     def _save_total_only():
         fig, ax = plt.subplots(figsize=(8, 4))
         ax.plot(costs, color='steelblue', linewidth=2, linestyle='-')
-        ax.set_ylim(*cost_ylim(costs))
+        _apply_cost_yscale(ax, costs)
         ax.set_xlabel('step')
         ax.set_ylabel('cost [% gt power]')
         ax.set_title(f'Training cost ({len(costs)} steps)')
-        ax.grid(True, alpha=0.3)
+        ax.grid(True, alpha=0.3, which='both')
         fig.tight_layout()
         t_draw = time.perf_counter()
         save_figure(fig, path, dpi=150)
@@ -895,7 +914,7 @@ def plot_cost(costs, path, *, costs_by_part=None, part_order=None):
 
     role_id_to_color = {rid: palette[i % len(palette)] for i, rid in enumerate(role_id_order)}
 
-    # Layout: total row unchanged; subsequent rows are cell order rows (second row starts after total).
+    # Layout: [total log + parts log] then [total linear + parts linear].
     ncols = 5
     present_cells = set(curve_specs_by_cell.keys())
     order_rows = cell_order_rows(sorted(present_cells))
@@ -903,7 +922,9 @@ def plot_cost(costs, path, *, costs_by_part=None, part_order=None):
 
     n_global_axes = len(curve_specs_global)
     n_global_rows = (n_global_axes + ncols - 1) // ncols if n_global_axes else 0
-    nrows = 1 + n_cell_rows + n_global_rows
+    n_part_rows = n_cell_rows + n_global_rows
+    n_block_rows = 1 + n_part_rows
+    nrows = 2 * n_block_rows
 
     fig = plt.figure(figsize=(3.0 * ncols, 2.2 * nrows))
     gs = fig.add_gridspec(
@@ -912,63 +933,82 @@ def plot_cost(costs, path, *, costs_by_part=None, part_order=None):
         top=0.95, bottom=0.06, left=0.07, right=0.98,
     )
 
-    # Total (unchanged)
-    ax_total = fig.add_subplot(gs[0, :])
-    ax_total.plot(costs, color='steelblue', linewidth=2, linestyle='-')
-    ax_total.set_ylim(*cost_ylim(costs))
-    ax_total.set_title("total (weighted)")
-    ax_total.set_ylabel("cost [% gt power]")
-    ax_total.grid(True, alpha=0.3)
+    cell_curves = [
+        curve
+        for specs in curve_specs_by_cell.values()
+        for _, _, curve in specs
+    ]
 
-    legend_done = False
+    def _sorted_specs(cell):
+        specs = curve_specs_by_cell.get(cell) or []
+        return sorted(
+            specs,
+            key=lambda x: role_id_order.index(x[0]) if x[0] in role_id_order else 10**9,
+        )
 
-    # Cell panels
-    for gi, row_cells in enumerate(order_rows):
-        row_idx = 1 + gi
-        start = (ncols - len(row_cells)) // 2
-        for j, cell in enumerate(row_cells):
-            col = start + j
+    def _draw_total(row_idx, *, log):
+        ax = fig.add_subplot(gs[row_idx, :])
+        ax.plot(costs, color='steelblue', linewidth=2, linestyle='-')
+        if log:
+            _apply_cost_yscale(ax, costs)
+        else:
+            ax.set_ylim(*cost_ylim(costs))
+        ax.set_title("total (weighted)")
+        ax.set_ylabel("cost [% gt power]")
+        ax.grid(True, alpha=0.3, which='both' if log else 'major')
+
+    def _draw_part_block(row0, *, log, shared_cell_ylim, with_legend):
+        legend_done = False
+        for gi, row_cells in enumerate(order_rows):
+            row_idx = row0 + gi
+            start = (ncols - len(row_cells)) // 2
+            for j, cell in enumerate(row_cells):
+                ax = fig.add_subplot(gs[row_idx, start + j])
+                specs = _sorted_specs(cell)
+                curves = []
+                for role_id, label, curve in specs:
+                    curves.append(curve)
+                    ax.plot(
+                        curve, color=role_id_to_color.get(role_id),
+                        linewidth=2, linestyle='-', label=label,
+                    )
+                if log and shared_cell_ylim and cell_curves:
+                    _apply_cost_yscale(ax, *cell_curves)
+                elif curves:
+                    if log:
+                        _apply_cost_yscale(ax, *curves)
+                    else:
+                        ax.set_ylim(*cost_ylim(*curves))
+                if j == 0:
+                    ax.set_ylabel("cost [% gt power]", fontsize=8)
+                ax.set_title(str(cell), fontsize=8)
+                ax.grid(True, alpha=0.3, which='both' if log else 'major')
+                if with_legend and (not legend_done) and len(specs) > 1:
+                    ax.legend(fontsize=7)
+                    legend_done = True
+                if gi == n_cell_rows - 1:
+                    ax.set_xlabel("step")
+
+        for gi, (role_id, label, curve) in enumerate(curve_specs_global):
+            row_idx = row0 + n_cell_rows + gi // ncols
+            col = gi % ncols
             ax = fig.add_subplot(gs[row_idx, col])
-
-            specs = curve_specs_by_cell.get(cell) or []
-            # sort by global role index so R0/R1/... order is stable in each panel
-            specs = sorted(
-                specs,
-                key=lambda x: role_id_order.index(x[0]) if x[0] in role_id_order else 10**9,
-            )
-
-            curves = []
-            for role_id, label, curve in specs:
-                curves.append(curve)
-                ax.plot(curve, color=role_id_to_color.get(role_id), linewidth=2, linestyle='-', label=label)
-
-            if curves:
-                ax.set_ylim(*cost_ylim(*curves))
-            if j == 0:
+            ax.plot(curve, color=role_id_to_color.get(role_id), linewidth=2, linestyle='-')
+            if log:
+                _apply_cost_yscale(ax, curve)
+            else:
+                ax.set_ylim(*cost_ylim(curve))
+            ax.set_title(label, fontsize=8)
+            ax.grid(True, alpha=0.3, which='both' if log else 'major')
+            if col == 0:
                 ax.set_ylabel("cost [% gt power]", fontsize=8)
-            ax.set_title(str(cell), fontsize=8)
-            ax.grid(True, alpha=0.3)
-
-            if (not legend_done) and len(specs) > 1:
-                ax.legend(fontsize=7)
-                legend_done = True
-
-            if row_idx == nrows - 1:
+            if gi // ncols == n_global_rows - 1:
                 ax.set_xlabel("step")
 
-    # Global panels (after cell grid)
-    for gi, (role_id, label, curve) in enumerate(curve_specs_global):
-        row_idx = 1 + n_cell_rows + gi // ncols
-        col = gi % ncols
-        ax = fig.add_subplot(gs[row_idx, col])
-        ax.plot(curve, color=role_id_to_color.get(role_id), linewidth=2, linestyle='-')
-        ax.set_ylim(*cost_ylim(curve))
-        ax.set_title(label, fontsize=8)
-        ax.grid(True, alpha=0.3)
-        if col == 0:
-            ax.set_ylabel("cost [% gt power]", fontsize=8)
-        if row_idx == nrows - 1:
-            ax.set_xlabel("step")
+    _draw_total(0, log=True)
+    _draw_part_block(1, log=True, shared_cell_ylim=True, with_legend=True)
+    _draw_total(n_block_rows, log=False)
+    _draw_part_block(n_block_rows + 1, log=False, shared_cell_ylim=False, with_legend=False)
 
     fig.suptitle(f'Training cost ({len(costs)} steps)', fontsize=12, y=1.01)
     fig.tight_layout()

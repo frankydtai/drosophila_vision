@@ -87,6 +87,7 @@ from training.readout_pack import (
     TrainingResult,
     TrainSession,
     active_device,
+    pack_cost_abs_time_ix,
 )
 from training.params import (
     PAIR_SEP,

@@ -186,6 +186,36 @@ def _session_cost_norm(session: TrainSession) -> str:
     return expand_cost_norm(raw)
 
 
+def _gather_cost_time(pack: ReadoutPack, v_readout: torch.Tensor, gt: torch.Tensor):
+    """Sparse ``cost_time_ix`` gather; ``cost_time_mask`` on ``v_readout`` device."""
+    if pack.cost_time_ix is not None:
+        ix = pack.cost_time_ix.to(device=v_readout.device)
+        v_readout = v_readout.index_select(1, ix)
+        gt = gt.index_select(1, ix)
+    time_mask = pack.cost_time_mask
+    if time_mask is not None:
+        time_mask = time_mask.to(device=v_readout.device)
+    return v_readout, gt, time_mask
+
+
+def _weighted_mse_terms(
+    a_gt: torch.Tensor,
+    bias_gt: torch.Tensor,
+    gt: torch.Tensor,
+    weight: torch.Tensor,
+    v_readout: torch.Tensor,
+    time_mask: Optional[torch.Tensor] = None,
+):
+    """``gt_scaled``, weight ``w`` (n,t), weighted SSE and gt-power (n,t)."""
+    gt_scaled = a_gt[:, None] * gt
+    w = weight[:, None]
+    if time_mask is not None:
+        w = w * time_mask.to(dtype=w.dtype, device=w.device)
+    sse = w * (v_readout - gt_scaled - bias_gt[:, None]) ** 2
+    power = w * gt_scaled ** 2
+    return gt_scaled, w, sse, power
+
+
 def _mse_parts_scatter(
     a_gt: torch.Tensor,
     bias_gt: torch.Tensor,
@@ -201,16 +231,15 @@ def _mse_parts_scatter(
     if not keys:
         return {}
     cost_norm = _session_cost_norm(session)
-    gt_scaled = a_gt[:, None] * gt
-    w = weight[:, None]
-    if time_mask is not None:
-        w = w * time_mask.to(dtype=w.dtype, device=w.device)
-    sse_entry = (w * (v_readout - gt_scaled - bias_gt[:, None]) ** 2).sum(dim=-1)
+    _gt_scaled, _w, sse_wt, power_wt = _weighted_mse_terms(
+        a_gt, bias_gt, gt, weight, v_readout, time_mask=time_mask,
+    )
+    sse_entry = sse_wt.sum(dim=-1)
     n_g = len(keys)
     keep_f = (group_id >= 0).to(dtype=sse_entry.dtype)
     gid = group_id.clamp(min=0)
     if cost_norm == "gt_power":
-        p_entry = (w * gt_scaled ** 2).sum(dim=-1)
+        p_entry = power_wt.sum(dim=-1)
         sse = sse_entry.new_zeros((n_g,))
         gt_power = p_entry.new_zeros((n_g,))
         sse.scatter_add_(0, gid, sse_entry * keep_f)
@@ -562,22 +591,13 @@ def _pack_cost_parts_from_v_readout(
         return out
     if v_readout is None:
         raise ValueError(f"waveform readout required for pack {pack.name!r}")
-    gt = pack.gt
-    weight = pack.cost_weight
-    # #4 sparse time points: gather v_readout + gt on the requested post-onset
-    # t indices; gt_power uses a_gt·gt (no bias_gt) inside MSE when cost_norm=gt_power.
-    if pack.cost_time_ix is not None:
-        ix = pack.cost_time_ix.to(device=v_readout.device)
-        v_readout = v_readout.index_select(1, ix)
-        gt = gt.index_select(1, ix)
+    # #4 sparse time: gather on ``cost_time_ix``; gt_power uses a_gt·gt (no bias).
+    v_readout, gt, time_mask = _gather_cost_time(pack, v_readout, pack.gt)
     if pack.cost_radius is None:
         raise ValueError(f"spot pack {pack.name!r} missing cost_radius")
     group_id, keys = _spot_entry_groups(pack, backend)
-    time_mask = pack.cost_time_mask
-    if time_mask is not None:
-        time_mask = time_mask.to(device=v_readout.device)
     return _mse_parts_scatter(
-        a_gt, bias_gt, gt, weight, v_readout, group_id, keys, session,
+        a_gt, bias_gt, gt, pack.cost_weight, v_readout, group_id, keys, session,
         time_mask=time_mask,
     )
 

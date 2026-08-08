@@ -66,8 +66,8 @@ PARAM_BOXES: Dict[str, dict] = {
     "v_mid_h_g_rev": dict(lo=-70.0, hi=-30.0, init=-50.0, jit=5.0, train_mode="shared"),
     "v_mid_h_tau_rev": dict(lo=-70.0, hi=-40.0, init=-50.0, jit=5.0, train_mode="shared"),
     "h_slope_rev": dict(lo=-0.40, hi=-0.20, init=-0.25, jit=0.02, train_mode="shared"),
-    # Slots from SPOT_STI_RADII via SPOT_COST_RADIUS_KEY_ALIASES; r=0 baked @1.
-    "a_sti_r": dict(lo=0.0, hi=1.0, init=0.0, jit=0.05, train_mode="fixed"),
+    # Slots from SPOT_STI_RADII; cost-radius weight==0 gates slot to 0 in forward.
+    "a_sti_radius": dict(lo=0.0, hi=1.0, init=0.0, jit=0.05, train_mode="indi"),
 }
 
 MODEL = "hp_lp"
@@ -116,7 +116,8 @@ SHIFT_EXTENT = 1.0
 # ---------------------------------------------------------------------------
 
 SPOT_COST_RADII: Tuple[float, ...] = (0.0, 1.0, math.sqrt(3), 2.0)
-# a_sti_r slots only (center r=0 is fixed drive @1, not a param).
+# a_sti_radius: center r=0 baked @1; all SPOT_STI_RADII are slots.
+# Cost-radius weight==0 → sti_radius_gate forces that slot to 0 in forward.
 SPOT_STI_RADII: Tuple[float, ...] = (1.0, math.sqrt(3), 2.0)
 SPOT_COST_RADIUS_WEIGHT: Dict[float, float] = {
     0.0: 1.0,
@@ -125,9 +126,9 @@ SPOT_COST_RADIUS_WEIGHT: Dict[float, float] = {
 }
 SPOT_COST_RADIUS_WEIGHT_EXTENT1: Dict[float, float] = {
     0.0: 1.0,
-    1.0: 10,
+    1.0: 0,
 }
-# name → float for cost CLI and a_sti_r node_names (reverse of SPOT_*_RADII).
+# name → float for cost CLI and a_sti_radius node_names (reverse of SPOT_*_RADII).
 SPOT_COST_RADIUS_KEY_ALIASES: Dict[str, float] = {
     "sqrt3": math.sqrt(3),
 }

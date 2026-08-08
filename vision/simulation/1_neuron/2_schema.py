@@ -24,7 +24,7 @@ ALL_PARAM_NAMES = (
     "tau_lp", "tau_hp",
     "a_h", "v_mid_h_g", "v_mid_h_tau", "h_slope",
     "a_h_rev", "v_mid_h_g_rev", "v_mid_h_tau_rev", "h_slope_rev",
-    "a_sti_r",
+    "a_sti_radius",
 )
 I_H_SHAPE_PARAM_NAMES = (
     "v_mid_h_g", "v_mid_h_tau", "h_slope",
@@ -126,19 +126,19 @@ def spot_radius_key(radius, *, aliases) -> str:
     return str(r)
 
 
-def _a_sti_r_segment(param_boxes: dict, sti_radii, radius_key_aliases):
-    """Per-radius spot drive scale for non-center rings (``sti_radii`` order).
+def _a_sti_radius_segment(param_boxes: dict, sti_radii, radius_key_aliases):
+    """Per-radius spot drive scale for non-center radii (``sti_radii`` order).
 
     Center r=0 is baked into ``i_sti`` at scale 1 (not a param). Slot
     names come from ``radius_key_aliases`` via :func:`spot_radius_key`.
-    Box ``train_mode`` applies; CLI ``--a-sti-r`` may still override.
+    Box ``train_mode`` applies; CLI ``--a-sti-radius`` may still override.
     """
     radii = list(sti_radii)
     n = len(radii)
     if n == 0:
-        raise ValueError("a_sti_r requires non-empty sti_radii")
+        raise ValueError("a_sti_radius requires non-empty sti_radii")
     names = [spot_radius_key(r, aliases=radius_key_aliases) for r in radii]
-    seg = _seg("a_sti_r", n, "output", param_boxes["a_sti_r"], n)
+    seg = _seg("a_sti_radius", n, "output", param_boxes["a_sti_radius"], n)
     seg["node_names"] = names
     return seg
 
@@ -172,9 +172,13 @@ def _segments_from_boxes(
                 continue
             segs.append(_syn_segment(mode, n_pairs, n_edges, param_boxes))
             continue
-        if name == "a_sti_r":
+        if name == "a_sti_radius":
+            if not sti_radii:
+                continue
             segs.append(
-                _a_sti_r_segment(param_boxes, sti_radii, radius_key_aliases or {})
+                _a_sti_radius_segment(
+                    param_boxes, sti_radii, radius_key_aliases or {},
+                )
             )
             continue
         kind = "output" if name in _OUTPUT_KIND else "full"
@@ -263,7 +267,7 @@ def default_schema(
     """Fresh parameter schema for ``model`` on the given backend.
 
     ``i_h_rev`` is used only for borst (rev i_h segments when ``\"on\"``).
-    ``sti_radii`` + ``radius_key_aliases`` label ``a_sti_r`` slots
+    ``sti_radii`` + ``radius_key_aliases`` label ``a_sti_radius`` slots
     (injected from training).
     """
     if model not in KNOWN_MODELS:

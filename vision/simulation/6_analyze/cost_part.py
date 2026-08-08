@@ -1,4 +1,4 @@
-"""Inspect one fine cost part at best ``z`` (SSE / denom / per-t breakdown).
+"""One fine cost part at best ``z`` (SSE / denom / per-t breakdown).
 
 Reuses training cost internals — does not reimplement MSE or entry grouping.
 
@@ -7,13 +7,13 @@ Reuses training cost internals — does not reimplement MSE or entry grouping.
 
 Usage (from ``vision/simulation/``)::
 
-    ../.venv/bin/python test/inspect_cost_part.py \\
+    ../.venv/bin/python analyze/cost_part.py \\
       hp_lp/28703323-... --cell L4 --radius 0 --stride 5 --per-node
 
-    ../.venv/bin/python test/inspect_cost_part.py \\
+    ../.venv/bin/python analyze/cost_part.py \\
       hp_lp/28703323-... --part spot_bright_L4_r0 --list-parts
 
-    ../.venv/bin/python test/inspect_cost_part.py \\
+    ../.venv/bin/python analyze/cost_part.py \\
       hp_lp/28703323-... --cell L4 --radius 0 --cost-norm a_gt2 --stride 5
 """
 from __future__ import annotations
@@ -22,10 +22,12 @@ import argparse
 import csv
 import os
 import sys
+from dataclasses import replace
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(HERE)
-sys.path.insert(0, ROOT)
+if ROOT not in sys.path:
+    sys.path.insert(0, ROOT)
 os.chdir(ROOT)
 
 import import_bootstrap  # noqa: F401
@@ -36,9 +38,12 @@ import figure.plot_run as plot_run
 import training
 from training.config import COST_NORMS, expand_cost_norm, spot_cost_part_key
 from training.cost import (
+    _gather_cost_time,
+    _mse_parts_scatter,
     _pack_cost_forward,
     _session_cost_norm,
     _spot_entry_groups,
+    _weighted_mse_terms,
     calc_cost_parts,
 )
 from training.params import params_from_z
@@ -59,43 +64,13 @@ def _apply_cost_norm_override(session, cost_norm: str | None):
     key = expand_cost_norm(cost_norm)
     opts = dict(session.train_opts or {})
     opts["cost_norm"] = key
-    return session.with_train_opts(opts) if hasattr(session, "with_train_opts") else _session_with_opts(
-        session, opts,
-    ), key
+    return replace(session, train_opts=opts), key
 
 
-def _session_with_opts(session, opts: dict):
-    """Fallback when TrainSession has no ``with_train_opts``."""
-    from dataclasses import replace
-
-    return replace(session, train_opts=opts)
-
-
-def _subsample_cost_time(pack, v_readout, gt):
-    """Match ``_pack_cost_parts_from_v_readout`` sparse ``cost_time_ix`` gather."""
-    if pack.cost_time_ix is None:
-        return v_readout, gt, None
-    ix = pack.cost_time_ix.to(device=v_readout.device)
-    v_readout = v_readout.index_select(1, ix)
-    gt = gt.index_select(1, ix)
-    time_mask = getattr(pack, "cost_time_mask", None)
-    if time_mask is not None:
-        time_mask = time_mask.to(device=v_readout.device)
-    return v_readout, gt, time_mask
-
-
-def _delta_ms_for_pack(session, pack) -> float:
-    opts = (session.train_opts or {}).get(f"{pack.name}_stimulus_opts") or {}
-    if "delta_ms" in opts:
-        return float(opts["delta_ms"])
-    return float(getattr(session, "delta_ms", 5.0))
-
-
-def inspect_part(session, z, part_key: str) -> dict:
+def cost_part(session, z, part_key: str) -> dict:
     """Build per-part tensors using the same forward + grouping as training cost."""
     p = params_from_z(z, session)
     cost_norm = _session_cost_norm(session)
-    # Spot fine keys: ``{task}_{cell}_r{radius}``.
     task = None
     for tname in training.SPOT_TASKS:
         if part_key.startswith(f"{tname}_"):
@@ -113,7 +88,7 @@ def inspect_part(session, z, part_key: str) -> dict:
     a_gt, bias_gt, gt, weight, v_readout, _v_readout_dsi, _pd_nd = fwd
     if v_readout is None:
         raise SystemExit(f"waveform v_readout required for {task!r}")
-    v_readout, gt, time_mask = _subsample_cost_time(pack, v_readout, gt)
+    v_readout, gt, time_mask = _gather_cost_time(pack, v_readout, gt)
 
     group_id, keys = _spot_entry_groups(pack, session.backend)
     if part_key not in keys:
@@ -129,17 +104,12 @@ def inspect_part(session, z, part_key: str) -> dict:
     a = a_gt[idx]
     b = bias_gt[idx]
     w = weight[idx]
-    gtr = gt[idx]
-    v_readout_r = v_readout[idx]
-    gt_scaled = a[:, None] * gtr
-    gt_aff = gt_scaled + b[:, None]
-    diff = v_readout_r - gt_aff
-    w2d = w[:, None]
-    if time_mask is not None:
-        w2d = w2d * time_mask[idx].to(dtype=w.dtype)
-
-    sse = (w2d * diff ** 2).sum(dim=0)
-    power_t = (w2d * gt_scaled ** 2).sum(dim=0)
+    mask_r = None if time_mask is None else time_mask[idx]
+    gt_scaled, w2d, sse_wt, power_wt = _weighted_mse_terms(
+        a, b, gt[idx], w, v_readout[idx], time_mask=mask_r,
+    )
+    sse = sse_wt.sum(dim=0)
+    power_t = power_wt.sum(dim=0)
     n = int(idx.numel())
     n_t = int(sse.numel())
     w_sum = float(w.sum().item())
@@ -148,12 +118,19 @@ def inspect_part(session, z, part_key: str) -> dict:
     a0 = float(a[0].item())
     b0 = float(b[0].item())
     a2 = max(a0 * a0, float(torch.finfo(a.dtype).tiny))
-
     sse_sum = float(sse.sum().item())
     power_sum = float(power_t.sum().item())
+
+    official = _mse_parts_scatter(
+        a_gt, bias_gt, gt, weight, v_readout, group_id, keys, session,
+        time_mask=time_mask,
+    )
+    if part_key not in official:
+        raise SystemExit(f"part {part_key!r} has zero cost weight")
+    cost = float(official[part_key].item())
+
+    # Per-t display (/ w_sum); scalar ``cost`` is from ``_mse_parts_scatter``.
     if cost_norm == "gt_power":
-        denom = power_sum if power_sum > 0 else 1.0
-        cost = 100.0 * sse_sum / denom
         cost_mean = torch.where(
             power_t > 0,
             100.0 * sse / power_t / w_sum,
@@ -162,19 +139,44 @@ def inspect_part(session, z, part_key: str) -> dict:
         denom_t = power_t
         denom_name = "POWER"
     elif cost_norm == "a_gt2":
-        cost = sse_sum / a2
         cost_mean = sse / a2 / w_sum
         denom_t = torch.full_like(sse, a2)
         denom_name = "a_gt2"
     else:
         raise SystemExit(f"unsupported cost_norm {cost_norm!r}")
 
+    gt_aff = gt_scaled + b[:, None]
     gt_aff_mean = (w2d * gt_aff).sum(dim=0) / w_sum
-    v_readout_mean = (w2d * v_readout_r).sum(dim=0) / w_sum
+    v_readout_mean = (w2d * v_readout[idx]).sum(dim=0) / w_sum
     sse_mean = sse / w_sum
 
-    official = calc_cost_parts(z, session)
-    official_val = float(official[part_key].item()) if part_key in official else None
+    # ``t_cost`` / ``ms_cost``: post-onset cost samples. Bare ``t`` / ``ms``: absolute.
+    delta_ms = float(session.delta_ms)
+    delta_ms_pre = float(session.delta_ms_pre)
+    t_onset = training.pack_t_onset(pack)
+    if pack.cost_time_ix is None:
+        t_cost = np.arange(n_t, dtype=np.int64)
+        t = t_onset + t_cost
+    else:
+        t_cost = pack.cost_time_ix.detach().cpu().numpy().astype(np.int64, copy=False)
+        if t_cost.shape[0] != n_t:
+            raise SystemExit(
+                f"cost_time_ix length {t_cost.shape[0]} != n_t {n_t}",
+            )
+        t = training.pack_cost_abs_time_ix(pack, t_onset)
+    ms_cost = t_cost.astype(float) * delta_ms
+    ms = np.array(
+        [
+            training.t_to_ms(
+                int(ti),
+                t_onset=t_onset,
+                delta_ms_pre=delta_ms_pre,
+                delta_ms=delta_ms,
+            )
+            for ti in t
+        ],
+        dtype=float,
+    )
 
     return {
         "part_key": part_key,
@@ -189,14 +191,19 @@ def inspect_part(session, z, part_key: str) -> dict:
         "sse_sum": sse_sum,
         "power_sum": power_sum,
         "cost": cost,
-        "official": official_val,
         "denom_name": denom_name,
         "sse_mean": sse_mean.detach().cpu().numpy(),
         "denom_t": denom_t.detach().cpu().numpy(),
         "cost_mean": cost_mean.detach().cpu().numpy(),
         "gt_aff_mean": gt_aff_mean.detach().cpu().numpy(),
         "v_readout_mean": v_readout_mean.detach().cpu().numpy(),
-        "delta_ms": _delta_ms_for_pack(session, pack),
+        "delta_ms": delta_ms,
+        "delta_ms_pre": delta_ms_pre,
+        "t_onset": t_onset,
+        "t": t,
+        "ms": ms,
+        "t_cost": t_cost,
+        "ms_cost": ms_cost,
     }
 
 
@@ -214,13 +221,6 @@ def _print_summary(info: dict) -> None:
         flush=True,
     )
     print(f"cost={info['cost']:.10f}", flush=True)
-    if info["official"] is not None:
-        ok = np.isclose(info["cost"], info["official"], rtol=1e-6, atol=1e-8)
-        print(
-            f"calc_cost_parts[{info['part_key']}]={info['official']:.10f}  "
-            f"match={ok}",
-            flush=True,
-        )
 
 
 def _print_table(info: dict, *, stride: int, per_node: bool) -> None:
@@ -228,20 +228,25 @@ def _print_table(info: dict, *, stride: int, per_node: bool) -> None:
     denom_name = info["denom_name"]
     den_lab = f"{denom_name}_avg" if per_node and denom_name == "POWER" else denom_name
     print(
-        f"{'t':>4} {'ms':>7} {'cost_mean':>14} {'gt_aff':>14} "
+        f"{'t':>4} {'ms':>7} {'t_cost':>6} {'ms_cost':>7} "
+        f"{'cost_mean':>14} {'gt_aff':>14} "
         f"{'SSE_mean':>14} {den_lab:>14}",
         flush=True,
     )
-    ms = np.arange(info["n_t"], dtype=float) * float(info["delta_ms"])
-    for t in range(0, info["n_t"], max(1, int(stride))):
-        c = info["cost_mean"][t]
+    t = info["t"]
+    ms = info["ms"]
+    t_cost = info["t_cost"]
+    ms_cost = info["ms_cost"]
+    for j in range(0, info["n_t"], max(1, int(stride))):
+        c = info["cost_mean"][j]
         c_s = "nan" if not np.isfinite(c) else f"{c:.10f}"
-        sse_mean = info["sse_mean"][t]
-        den = info["denom_t"][t]
+        sse_mean = info["sse_mean"][j]
+        den = info["denom_t"][j]
         if per_node and denom_name == "POWER":
             den = den / w_sum
         print(
-            f"{t:4d} {ms[t]:7g} {c_s:>14} {info['gt_aff_mean'][t]:14.10f} "
+            f"{int(t[j]):4d} {ms[j]:7g} {int(t_cost[j]):6d} {ms_cost[j]:7g} "
+            f"{c_s:>14} {info['gt_aff_mean'][j]:14.10f} "
             f"{sse_mean:14.6f} {den:14.6f}",
             flush=True,
         )
@@ -249,29 +254,35 @@ def _print_table(info: dict, *, stride: int, per_node: bool) -> None:
 
 def _write_csv(path: str, info: dict, *, per_node: bool) -> None:
     w_sum = info["w_sum"]
-    ms = np.arange(info["n_t"], dtype=float) * float(info["delta_ms"])
+    t = info["t"]
+    ms = info["ms"]
+    t_cost = info["t_cost"]
+    ms_cost = info["ms_cost"]
     denom_name = info["denom_name"]
     with open(path, "w", newline="") as f:
         w = csv.writer(f)
         w.writerow(
             [
-                "t", "ms", "cost_mean", "gt_aff_mean", "v_readout_mean",
+                "t", "ms", "t_cost", "ms_cost",
+                "cost_mean", "gt_aff_mean", "v_readout_mean",
                 "SSE_mean", denom_name,
                 f"{denom_name}_avg" if denom_name == "POWER" else denom_name,
                 "cost_norm", "part",
             ],
         )
-        for t in range(info["n_t"]):
-            c = info["cost_mean"][t]
+        for j in range(info["n_t"]):
+            c = info["cost_mean"][j]
             c_s = "" if not np.isfinite(c) else f"{c:.10f}"
-            sse_mean = float(info["sse_mean"][t])
-            den = float(info["denom_t"][t])
+            sse_mean = float(info["sse_mean"][j])
+            den = float(info["denom_t"][j])
             den_avg = den / w_sum if denom_name == "POWER" else den
             w.writerow(
                 [
-                    t, f"{ms[t]:g}", c_s,
-                    f"{info['gt_aff_mean'][t]:.10f}",
-                    f"{info['v_readout_mean'][t]:.10e}",
+                    int(t[j]), f"{ms[j]:g}",
+                    int(t_cost[j]), f"{ms_cost[j]:g}",
+                    c_s,
+                    f"{info['gt_aff_mean'][j]:.10f}",
+                    f"{info['v_readout_mean'][j]:.10e}",
                     f"{sse_mean:.10f}", f"{den:.10f}",
                     f"{den_avg:.10f}",
                     info["cost_norm"], info["part_key"],
@@ -337,7 +348,7 @@ def main(argv=None) -> None:
     ap.add_argument(
         "--list-parts",
         action="store_true",
-        help="print all fine part costs and exit (or also inspect if part set)",
+        help="print all fine part costs and exit (or also report if part set)",
     )
     args = ap.parse_args(argv)
 
@@ -356,7 +367,7 @@ def main(argv=None) -> None:
         print(flush=True)
 
     part_key = _resolve_part_key(args)
-    info = inspect_part(session, z, part_key)
+    info = cost_part(session, z, part_key)
     _print_summary(info)
     print(flush=True)
     _print_table(info, stride=max(1, args.stride), per_node=bool(args.per_node))

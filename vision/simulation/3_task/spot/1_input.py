@@ -214,10 +214,9 @@ def spot_extent_folds_r2_into_r1(spot_extent) -> bool:
     """True when ``spot_extent == 1`` (``spot_extent_half_steps == 2``).
 
     Fold semantics live in :mod:`task.spot.gt`: r=1 gt amplitude is
-    ``RecF(1)+RecF(2)`` and r=2 amplitude is 0. Drive
-    (:func:`build_spot_a_sti_r_drive`) also omits Euclidean ``r > 1``
-    PR contribs (``sqrt3``, ``2``) so those ``a_sti_r`` slots cannot
-    stimulate photoreceptors. Center r=0 remains baked at scale 1.
+    ``RecF(1)+RecF(2)`` and r=2 amplitude is 0. Non-center drive scales
+    use ``a_sti_radius`` gated by cost-radius weight (weight==0 → force 0).
+    Center r=0 remains baked at scale 1.
     """
     return spot_extent_half_steps(spot_extent) == 2
 
@@ -367,12 +366,11 @@ def spot_from_opts(
     return spot
 
 
-def build_spot_a_sti_r_drive(
+def build_spot_a_sti_radius_drive(
     C,
     batches: Sequence[SpotBatch],
     *,
     sti_radii,
-    spot_extent: float,
     t_onset: int,
     n_t: int,
     ms_spot,
@@ -382,22 +380,18 @@ def build_spot_a_sti_r_drive(
     sim_dtype,
     device,
 ):
-    """Baseline ``i_sti`` + center bake + ring contribs for ``a_sti_r``.
+    """Baseline ``i_sti`` + center bake + radius contribs for ``a_sti_radius``.
 
-    Returns ``(i_sti, sti_wave, sti_batch, sti_node, sti_r)`` where center
-    r=0 is baked into ``i_sti`` at scale 1, and ring contribs compose as
-    ``i += a_sti_r[r] * sti_wave`` on ``(sti_batch, sti_node)``. ``sti_r``
-    indexes ``sti_radii`` / ``a_sti_r`` (no center slot). When
-    ``spot_extent`` folds r2 into r1, Euclidean ``r > 1`` rings are omitted
-    from contribs (params may remain). Does not modify gt construction.
+    Returns ``(i_sti, sti_wave, sti_batch, sti_node, sti_radius)`` where center
+    r=0 is baked into ``i_sti`` at scale 1, and radius contribs compose as
+    ``i += a_sti_radius[r] * sti_wave`` on ``(sti_batch, sti_node)``. ``sti_radius``
+    indexes ``sti_radii`` / ``a_sti_radius`` (no center slot). Empty
+    ``sti_radii`` → center-only drive. Does not modify gt construction.
     """
     radii = tuple(round(float(r), 6) for r in sti_radii)
-    if not radii:
-        raise ValueError("sti_radii must be non-empty")
     if any(r == 0.0 for r in radii):
         raise ValueError("sti_radii must omit center r=0 (baked into i_sti @1)")
-    omit_r_gt_1 = spot_extent_folds_r2_into_r1(spot_extent)
-    by_radius = members_by_euclid_radius(radii)
+    by_radius = members_by_euclid_radius(radii) if radii else {}
     radius_to_i = {r: i for i, r in enumerate(radii)}
     batch_l: list[int] = []
     node_l: list[int] = []
@@ -408,8 +402,6 @@ def build_spot_a_sti_r_drive(
             for nid in C.input_nodes_at(int(su), int(sv)):
                 center_nodes.append((int(b), int(nid)))
             for radius_key, members in by_radius.items():
-                if omit_r_gt_1 and radius_key > 1.0:
-                    continue
                 ri = radius_to_i[radius_key]
                 for du, dv in members:
                     for nid in C.input_nodes_at(int(su) + int(du), int(sv) + int(dv)):
@@ -429,5 +421,5 @@ def build_spot_a_sti_r_drive(
         i_sti[b, :, nid] = i_sti[b, :, nid] + sti_wave
     sti_batch = torch.tensor(batch_l, dtype=torch.long, device=device)
     sti_node = torch.tensor(node_l, dtype=torch.long, device=device)
-    sti_r = torch.tensor(r_l, dtype=torch.long, device=device)
-    return i_sti, sti_wave, sti_batch, sti_node, sti_r
+    sti_radius = torch.tensor(r_l, dtype=torch.long, device=device)
+    return i_sti, sti_wave, sti_batch, sti_node, sti_radius

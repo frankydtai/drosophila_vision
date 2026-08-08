@@ -20,24 +20,33 @@ MODEL_DRIVERS = {
 }
 
 
-def apply_a_sti_r(i_sti, p, pack):
-    """``i += a_sti_r[r] * sti_wave`` on spot ring PR contribs; else pass-through."""
-    sti_r = getattr(pack, "sti_r", None) if pack is not None else None
-    if sti_r is None or "a_sti_r" not in p:
+def apply_a_sti_radius(i_sti, p, pack):
+    """``i += a_sti_radius[r] * sti_wave`` on spot radius PR contribs; else pass-through.
+
+    ``pack.sti_radius_gate`` (cost-radius weight ≠ 0 → 1) forces gated slots to 0
+    whether ``a_sti_radius`` is indi or fixed.
+    """
+    sti_radius = getattr(pack, "sti_radius", None) if pack is not None else None
+    if sti_radius is None or "a_sti_radius" not in p:
         return i_sti
     wave = pack.sti_wave
     batch = pack.sti_batch
     node = pack.sti_node
     if wave is None or batch is None or node is None:
-        raise ValueError("spot pack sti_r set but sti_wave/sti_batch/sti_node missing")
+        raise ValueError(
+            "spot pack sti_radius set but sti_wave/sti_batch/sti_node missing"
+        )
     if i_sti.dim() == 2:
         i_sti = i_sti.unsqueeze(0)
-    alpha = p["a_sti_r"]
+    alpha = p["a_sti_radius"]
+    gate = getattr(pack, "sti_radius_gate", None)
+    if gate is not None:
+        alpha = alpha * gate.to(device=alpha.device, dtype=alpha.dtype)
     out = i_sti.clone()
     if batch.numel() == 0:
         return out
     B, T, N = out.shape
-    add = alpha[sti_r][:, None] * wave[None, :]
+    add = alpha[sti_radius][:, None] * wave[None, :]
     flat = out.permute(0, 2, 1).reshape(B * N, T)
     flat.index_add_(0, batch * N + node, add)
     return flat.reshape(B, N, T).permute(0, 2, 1).contiguous()
@@ -89,7 +98,9 @@ def forward_full(session, p, i_sti, *, pack=None):
         )
     drv = MODEL_DRIVERS[session.model]
     pack = pack or session.primary_readout
-    i_sti = apply_a_sti_r(drv.prepare_i_sti(session, p, i_sti, pack), p, pack)
+    i_sti = apply_a_sti_radius(
+        drv.prepare_i_sti(session, p, i_sti, pack), p, pack,
+    )
     B, t_end = int(i_sti.shape[0]), int(i_sti.shape[1])
     t_onset = pack_t_onset(pack)
     pre_grad = bool((session.train_opts or {})["pre_grad"])

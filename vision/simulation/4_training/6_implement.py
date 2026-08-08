@@ -194,7 +194,7 @@ def decompose_params(z_t, session):
         if seg["kind"] in ("edge_pair", "edge"):
             continue
         if seg.get("node_names") is not None:
-            continue  # e.g. a_sti_r (per-radius, not per-cell)
+            continue  # e.g. a_sti_radius (per-radius, not per-cell)
         arr = np.asarray(node_vals[name], dtype=np.float64).reshape(-1)
         if arr.shape[0] != n:
             raise ValueError(f"{name}: node width {arr.shape[0]} != n_cells {n}")
@@ -950,11 +950,12 @@ def add_training_arguments(parser):
     parser.add_argument("--tau-hp", **_train_mode_kwargs,
                         help=f"hp_lp tau_hp train_modes ({_train_mode_help}; "
                              f"default {_box_train_mode_default('tau_hp')})")
-    parser.add_argument("--a-sti-r", **_train_mode_kwargs,
+    parser.add_argument("--a-sti-radius", **_train_mode_kwargs,
                         help=(
-                            "spot a_sti_r train_modes "
+                            "spot a_sti_radius train_modes "
                             f"(slots {','.join(spot_radius_key(r, aliases=SPOT_COST_RADIUS_KEY_ALIASES) for r in SPOT_STI_RADII)}; "
-                            f"default {_box_train_mode_default('a_sti_r')}; "
+                            "cost-radius weight==0 forces slot to 0 in forward; "
+                            f"default {_box_train_mode_default('a_sti_radius')}; "
                             f"{_train_mode_help})"
                         ))
     parser.add_argument("--i-h-rev", default=I_H_REV,
@@ -1492,7 +1493,7 @@ def _train_mode_cli_map(args):
         "v_mid_h_g_rev": _train_mode_cli_text(getattr(args, "v_mid_h_g_rev", None)),
         "v_mid_h_tau_rev": _train_mode_cli_text(getattr(args, "v_mid_h_tau_rev", None)),
         "h_slope_rev": _train_mode_cli_text(getattr(args, "h_slope_rev", None)),
-        "a_sti_r": _train_mode_cli_text(getattr(args, "a_sti_r", None)),
+        "a_sti_radius": _train_mode_cli_text(getattr(args, "a_sti_radius", None)),
     }
     for name, text in per_param.items():
         if text is not None:

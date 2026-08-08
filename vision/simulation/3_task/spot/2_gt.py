@@ -362,6 +362,27 @@ def resolve_spot_cost_radii(
     )
 
 
+def spot_sti_radius_gate(
+    spot_cost_radius_weight: Optional[Dict[float, float]] = None,
+    *,
+    default_weights: Dict[float, float],
+    spot_sti_radii: Tuple[float, ...],
+) -> Tuple[float, ...]:
+    """Per ``spot_sti_radii`` slot: ``1`` if cost-radius weight ≠ 0 else ``0``.
+
+    Forward multiplies ``a_sti_radius`` by this gate (indi or fixed).
+    """
+    weights = (
+        dict(default_weights)
+        if spot_cost_radius_weight is None
+        else spot_cost_radius_weight
+    )
+    return tuple(
+        0.0 if float(weights.get(round(float(r), 6), 0.0)) == 0.0 else 1.0
+        for r in spot_sti_radii
+    )
+
+
 def spot_cost_node_weight(
     radius: float,
     spot_cost_radius_weight: Optional[Dict[float, float]],

@@ -78,11 +78,39 @@ class ReadoutPack:
     cost_time_mask: Optional[torch.Tensor] = None  # (n_cost, n_sample) 0/1 per-radius
     waveform_mse: bool = True  # spot: True; moving bar: set at build
     t_onset: Optional[int] = None  # explicit onset; spot when ms_post extends i_sti past gt
-    # Spot a_sti_r: i = i_sti + a_sti_r[r] * sti_wave on (sti_batch, sti_node).
+    # Spot a_sti_radius: i = i_sti + a_sti_radius[r] * sti_wave on (sti_batch, sti_node).
     sti_wave: Optional[torch.Tensor] = None  # (T,) (i_peak - i_baseline) * u(t)
     sti_batch: Optional[torch.Tensor] = None  # (n_contrib,) long
     sti_node: Optional[torch.Tensor] = None  # (n_contrib,) long
-    sti_r: Optional[torch.Tensor] = None  # (n_contrib,) long → a_sti_r index
+    sti_radius: Optional[torch.Tensor] = None  # (n_contrib,) long → a_sti_radius index
+    # (n_sti_slots,) 0/1: cost-radius weight==0 forces a_sti_radius slot to 0 in forward.
+    sti_radius_gate: Optional[torch.Tensor] = None
+
+
+def pack_cost_abs_time_ix(pack: ReadoutPack, t_onset, *, cost_radius=None):
+    """Absolute time indices for sparse spot cost samples (or ``None``).
+
+    Sole reader of ``cost_time_ix`` / ``cost_time_mask`` / ``cost_radius``.
+    ``cost_radius`` is Euclidean; when set and a mask exists, keep that
+    radius's columns only. Omit ``cost_radius`` → union of all radii.
+    """
+    ix = pack.cost_time_ix
+    if ix is None:
+        return None
+    base = int(t_onset or 0)
+    ix_np = ix.detach().cpu().numpy().astype(np.int64, copy=False)
+    if cost_radius is None:
+        return base + ix_np
+    mask = pack.cost_time_mask
+    rad_t = pack.cost_radius
+    if mask is None or rad_t is None:
+        return base + ix_np
+    rad = np.round(rad_t.detach().cpu().numpy().astype(float), 6)
+    hit = np.where(rad == round(float(cost_radius), 6))[0]
+    if not hit.size:
+        return base + np.zeros(0, dtype=np.int64)
+    col = mask[int(hit[0])].detach().cpu().numpy() > 0
+    return base + ix_np[col]
 
 
 @dataclass(frozen=True)
