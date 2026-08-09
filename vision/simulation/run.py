@@ -51,63 +51,28 @@ _CHECKPOINT_PNG_STEMS = (
     "bar_all_v",
 )
 
-
-def build_plot_kwargs(
-    *,
-    gt_cubes=None,
-    plot_right_only=True,
-    at_x=None,
-    at_y=None,
-    align_at_x=None,
-    align_at_y=None,
-    show_pre=True,
-    html=False,
-    ms_shown=None,
-    center_only=False,
-):
-    return dict(
-        gt_cubes=gt_cubes,
-        plot_right_only=plot_right_only,
-        at_x=at_x,
-        at_y=at_y,
-        align_at_x=align_at_x,
-        align_at_y=align_at_y,
-        show_pre=show_pre,
-        html=html,
-        ms_shown=ms_shown,
-        center_only=center_only,
-    )
+_PLOT_KEYS = (
+    "plot_right_only",
+    "show_pre",
+    "center_only",
+    "at_x",
+    "at_y",
+    "align_at_x",
+    "align_at_y",
+    "html",
+    "ms_shown",
+)
 
 
-def make_plots(
-    outdir,
-    session,
-    result=None,
-    *,
-    gt_cubes=None,
-    plot_right_only=True,
-    at_x=None,
-    at_y=None,
-    align_at_x=None,
-    align_at_y=None,
-    show_pre=True,
-    html=False,
-    ms_shown=None,
-    center_only=False,
-):
+def _take_plot_kw(kw, *, gt_cubes=None):
+    """Pop plot keys from *kw* (values come from CLI via ``plot_kwargs_from_args``)."""
+    plot_kw = {k: kw.pop(k) for k in _PLOT_KEYS}
+    plot_kw["gt_cubes"] = gt_cubes
+    return plot_kw
+
+
+def make_plots(outdir, session, result=None, **plot_kw):
     """Cost curve + model-vs-gt + all-cells."""
-    plot_kw = build_plot_kwargs(
-        gt_cubes=gt_cubes,
-        plot_right_only=plot_right_only,
-        at_x=at_x,
-        at_y=at_y,
-        align_at_x=align_at_x,
-        align_at_y=align_at_y,
-        show_pre=show_pre,
-        html=html,
-        ms_shown=ms_shown,
-        center_only=center_only,
-    )
     if result is not None:
         plot_param_set(
             result.all_params,
@@ -173,52 +138,22 @@ def make_checkpoint_on_png(plot_kw):
     return on_png
 
 
-def run_training_and_plot(
-    *,
-    plot_gt_cubes=None,
-    plot_right_only=True,
-    at_x=None,
-    at_y=None,
-    align_at_x=None,
-    align_at_y=None,
-    show_pre=True,
-    html=False,
-    ms_shown=None,
-    center_only=False,
-    syn_sign=True,
-    **train_kw,
-):
+def run_training_and_plot(*, plot_gt_cubes=None, **kw):
     """Train (``training.implement.run_training``) then plot. Returns ``(fname, outdir, session)``."""
-    plot_kw = build_plot_kwargs(
-        gt_cubes=plot_gt_cubes,
-        plot_right_only=plot_right_only,
-        at_x=at_x,
-        at_y=at_y,
-        align_at_x=align_at_x,
-        align_at_y=align_at_y,
-        show_pre=show_pre,
-        html=html,
-        ms_shown=ms_shown,
-        center_only=center_only,
-    )
+    syn_sign = kw.pop("syn_sign")
+    plot_kw = _take_plot_kw(kw, gt_cubes=plot_gt_cubes)
     checkpoint_on_png = None
-    if train_kw.get("checkpoint_interval") is not None:
+    if kw.get("checkpoint_interval") is not None:
         checkpoint_on_png = make_checkpoint_on_png(plot_kw)
     fname, outdir, session, result = train.run_training(
-        **train_kw,
+        **kw,
         checkpoint_on_png=checkpoint_on_png,
     )
-    make_plots(
-        outdir,
-        session,
-        result=result,
-        **plot_kw,
-    )
+    make_plots(outdir, session, result=result, **plot_kw)
     if syn_sign:
         from analyze.syn_sign import write_syn_sign_plots
         write_syn_sign_plots(outdir)
     return fname, outdir, session
-
 
 def make_run_argparser(description=None):
     """Training CLI + plot flags."""
@@ -230,11 +165,10 @@ def make_run_argparser(description=None):
         '--syn-sign',
         nargs='?',
         const=True,
-        default=True,
+        default=False,
         type=parse_bool,
         metavar='BOOL',
-        help='after plots, write pre_syn/syn_gt.png and syn_all.png '
-             '(default true); pass false to skip',
+        help='after plots, write pre_syn/syn_gt.png and syn_all.png',
     )
     return argparse.ArgumentParser(
         description=description,
@@ -247,7 +181,7 @@ def run_kwargs_from_args(args, *, script_stem="run"):
     """Merge training kwargs with plot kwargs for :func:`run_training_and_plot`."""
     train_kw = train.training_kwargs_from_args(args, script_stem=script_stem)
     train_kw.update(plot_kwargs_from_args(args))
-    train_kw['syn_sign'] = bool(args.syn_sign)
+    train_kw['syn_sign'] = args.syn_sign
     return train_kw
 
 

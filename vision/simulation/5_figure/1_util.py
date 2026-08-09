@@ -144,14 +144,15 @@ def params_for_types(nodes_by_name, param_by_name=None):
 
 
 def mark_spot(ax, t_onset, t_spot_end):
-    """White band for stimulus-on samples ``[t_onset, t_spot_end)`` (axes face is gray)."""
+    """White band for stimulus-on samples ``[t_onset, t_spot_end]`` (axes face is gray)."""
     if t_onset is None or t_spot_end is None:
         return
     t0 = int(t_onset)
     t1 = int(t_spot_end)
-    if t1 <= t0:
+    if t1 < t0:
         return
-    ax.axvspan(t0, t1, facecolor='white', edgecolor='none', zorder=0)
+    # axvspan end is exclusive in continuous x; +1 covers inclusive last sample.
+    ax.axvspan(t0, t1 + 1, facecolor='white', edgecolor='none', zorder=0)
 
 
 def suppress_cost_std(session, task=None):
@@ -507,7 +508,7 @@ def plot_timecourse(
     (still never draws ``[0, pre_end)`` via line); otherwise gt is a solid
     post-onset line. Red v_readout always uses continuous pre/post lines: dashed
     pre when ``show_pre`` is true, solid after.
-    ``t_onset`` / ``t_spot_end``: white stimulus-on band ``[t_onset, t_spot_end)``.
+    ``t_onset`` / ``t_spot_end``: white stimulus-on band ``[t_onset, t_spot_end]``.
     Y-limits / ticks: matplotlib autoscale.
     """
     traces = list(traces or ())
@@ -751,9 +752,17 @@ def _write_interactive_html(fig, path):
     })
 
 
-def save_figure(fig, path, dpi=150, rasterize=False):
-    """Save figure: ``.png`` (default) or interactive ``.html`` (plotly hover x/y)."""
+def save_figure(fig, path, dpi=150, rasterize=False, *, timer=None):
+    """Save figure: ``.png`` (default) or interactive ``.html`` (plotly hover x/y).
+
+    Always prints prep/draw/save via :class:`PlotTimer`. Pass *timer* when the
+    caller already marked prep/draw; otherwise only *save* is timed.
+    """
     path = os.fspath(path)
+    if timer is None:
+        timer = PlotTimer()
+        timer.end_prep()
+        timer.end_draw()
     if path.lower().endswith('.html'):
         _write_interactive_html(fig, path)
     else:
@@ -762,6 +771,7 @@ def save_figure(fig, path, dpi=150, rasterize=False):
                 ax.set_rasterized(True)
         fig.savefig(path, dpi=dpi, bbox_inches='tight')
     plt.close(fig)
+    timer.log(path)
 
 
 def plot_cost(costs, path, *, costs_by_part=None, part_order=None):
@@ -775,7 +785,8 @@ def plot_cost(costs, path, *, costs_by_part=None, part_order=None):
     """
     from network.construction import CELL_ORDER_ROWS, cell_order_rows
 
-    t0 = time.perf_counter()
+    timer = PlotTimer()
+    timer.end_prep()
     if costs is None or not hasattr(costs, "__len__") or len(costs) == 0:
         raise ValueError("plot_cost requires non-empty `costs` array")
 
@@ -788,9 +799,8 @@ def plot_cost(costs, path, *, costs_by_part=None, part_order=None):
         ax.set_title(f'Training cost ({len(costs)} steps)')
         ax.grid(True, alpha=0.3, which='both')
         fig.tight_layout()
-        t_draw = time.perf_counter()
-        save_figure(fig, path, dpi=150)
-        log_plot_elapsed(path, t0, draw=t_draw - t0, save=time.perf_counter() - t_draw)
+        timer.end_draw()
+        save_figure(fig, path, dpi=150, timer=timer)
 
     if not costs_by_part:
         _save_total_only()
@@ -1016,6 +1026,5 @@ def plot_cost(costs, path, *, costs_by_part=None, part_order=None):
 
     fig.suptitle(f'Training cost ({len(costs)} steps)', fontsize=12, y=1.01)
     fig.tight_layout()
-    t_draw = time.perf_counter()
-    save_figure(fig, path, dpi=150)
-    log_plot_elapsed(path, t0, draw=t_draw - t0, save=time.perf_counter() - t_draw)
+    timer.end_draw()
+    save_figure(fig, path, dpi=150, timer=timer)

@@ -81,6 +81,7 @@ from task.spot.gt import (
     parse_cost_ms_tokens,
     parse_spot_cost_r_w_tokens,
 )
+from task.spot.input import spot_t_spot_end
 from neuron.schema import spot_radius_key
 from training import do_many_runs
 import training
@@ -202,11 +203,14 @@ def decompose_params(z_t, session):
     return cols
 
 
-def v_pre_onset_by_cell(z_t, session):
-    """Per-cell-type mean membrane ``v`` at pre start and spot onset.
+def v_spot_markers_by_cell(z_t, session):
+    """Per-cell-type mean membrane ``v`` at pre, onset, and spot end.
 
     * ``v_pre``: ``t=0`` after ``pre_steady`` (``v_rows[0]``).
     * ``v_onset``: ``t=t_onset`` (``v_rows[t_onset]``), spot onset / end of pre.
+    * ``v_spot_end``: ``t=t_spot_end`` inclusive last on sample
+      (``spot_t_spot_end``).
+    * ``delta_v``: ``v_spot_end - v_onset``.
 
     Uses ``session.primary_readout`` stimulus (``i_sti`` + ``pack_t_onset``).
     """
@@ -221,30 +225,50 @@ def v_pre_onset_by_cell(z_t, session):
             session, p, i_sti.unsqueeze(0) if i_sti.dim() == 2 else i_sti, pack=pack,
         )
     # v: (B, T, N)
-    if t_onset < 0 or t_onset >= int(v.shape[1]):
+    n_t = int(v.shape[1])
+    if t_onset < 0 or t_onset >= n_t:
+        raise ValueError(f"t_onset={t_onset} out of range for forward T={n_t}")
+    opts = (session.train_opts or {}).get(f"{pack.name}_stimulus_opts") or {}
+    t_end = spot_t_spot_end(
+        t_onset, n_t, opts.get("ms_spot"),
+        delta_ms=float(opts.get("delta_ms", session.delta_ms)),
+    )
+    if t_end < t_onset or t_end >= n_t:
         raise ValueError(
-            f"t_onset={t_onset} out of range for forward T={int(v.shape[1])}"
+            f"t_spot_end={t_end} out of range for t_onset={t_onset}, T={n_t}"
         )
     v_pre_n = v[0, 0].detach().cpu().numpy()
     v_onset_n = v[0, t_onset].detach().cpu().numpy()
+    v_spot_end_n = v[0, t_end].detach().cpu().numpy()
     node_cell = session.backend.conn.node_cell.detach().cpu().numpy()
     n_cells = int(session.backend.n_cells)
     v_pre = np.empty(n_cells, dtype=np.float64)
     v_onset = np.empty(n_cells, dtype=np.float64)
+    v_spot_end = np.empty(n_cells, dtype=np.float64)
+    delta_v = np.empty(n_cells, dtype=np.float64)
     for i in range(n_cells):
         m = node_cell == i
         if not np.any(m):
             v_pre[i] = np.nan
             v_onset[i] = np.nan
+            v_spot_end[i] = np.nan
+            delta_v[i] = np.nan
         else:
             v_pre[i] = float(v_pre_n[m].mean())
             v_onset[i] = float(v_onset_n[m].mean())
-    return {"v_pre": v_pre, "v_onset": v_onset}
+            v_spot_end[i] = float(v_spot_end_n[m].mean())
+            delta_v[i] = v_spot_end[i] - v_onset[i]
+    return {
+        "v_pre": v_pre,
+        "v_onset": v_onset,
+        "v_spot_end": v_spot_end,
+        "delta_v": delta_v,
+    }
 
 
 def write_param_table(z_t, session, table_path):
     cols = decompose_params(z_t, session)
-    cols.update(v_pre_onset_by_cell(z_t, session))
+    cols.update(v_spot_markers_by_cell(z_t, session))
     cell_col = cell_labels(session)
     cell_names = list(cols.keys())
     n = session.backend.n_cells

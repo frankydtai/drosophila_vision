@@ -10,8 +10,8 @@
 #SBATCH --mem=32G
 #SBATCH --time=0:10:00
 #SBATCH --chdir=/home/yitai/drosophila_vision/vision/simulation
-#SBATCH --output=0_logs/%j.out
-#SBATCH --error=0_logs/%j.out
+#SBATCH --output=0_logs/%j.log
+#SBATCH --error=0_logs/%j.log
 
 # Repo on $HOME (scratch/punim0477/.../simulation is 0_logs-only).
 REPO=/home/yitai/drosophila_vision/vision
@@ -40,5 +40,5 @@ pprint(params, sort_dicts=False, width=120)
 PY
 echo "==== end param_defaults ===="
 # Sorted N_name layout: import_bootstrap via venv .pth; train via run.py (not -m training.driver).
-"${PYTHON}" -u run.py --nofsteps 500 --a-h init.L1,L2,L4,L5=0.5 --e-leak init.L1,L2,L3,Lai,Mi10,Mi15,Tm16,Tm5a,Tm5b,TmY11=0 init.R1-6,R7,R8,L4,T4a,T4b,T4c,T4d,Tm1,Tm2,Tm4,T5a,T5b,T5c,T5d,T2,T2a,T3,Lawf1,Lawf2,Dm3v,Mi14,Mi2,Tm21,Tm27,Tm5c,Tm5f,TmY14,TmY15,TmY5a,TmY9q,TmY9q__perp=-40 --task spot
+"${PYTHON}" -u run.py --nofsteps 500 --a-h init.L1,L2,L4,L5=0.5 --e-leak init.L1,L2,L3=0 --task spot
 

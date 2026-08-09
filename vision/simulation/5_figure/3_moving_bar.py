@@ -953,8 +953,7 @@ def plot_moving_bar_data(path, *, bundle, bundle_2=None, title=None, cost_parts=
     )
     fig.subplots_adjust(top=0.90, bottom=0.08, hspace=0.50, wspace=0.35)
     timer.end_draw()
-    save_figure(fig, path, dpi=MOVING_BAR_DPI, rasterize=True)
-    timer.log(path)
+    save_figure(fig, path, dpi=MOVING_BAR_DPI, rasterize=True, timer=timer)
 
 
 @torch.no_grad()
@@ -967,5 +966,4 @@ def plot_moving_bar_all(path, *, bundle, bundle_2=None, title=None, right_only=T
         bundle, bundle_2, title, right_only=right_only, cost_parts=cost_parts,
     )
     timer.end_draw()
-    save_figure(fig, path, dpi=MOVING_BAR_DPI, rasterize=True)
-    timer.log(path)
+    save_figure(fig, path, dpi=MOVING_BAR_DPI, rasterize=True, timer=timer)

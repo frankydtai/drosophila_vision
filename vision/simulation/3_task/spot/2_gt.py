@@ -36,7 +36,6 @@ from network.construction import (
 from neuron.params import ms_to_t
 from task.spot.input import (
     SpotBatch,
-    euclid_hex_dist,
     members_by_euclid_radius,
     normalize_spot_timing,
     spot_extent_folds_r2_into_r1,
@@ -397,7 +396,7 @@ def spot_cost_node_weight(
     return float(weights.get(round(radius, 6), 0.0))
 
 
-# -- RecF sampling / superposed gt ----------------------------------------
+# -- RecF sampling --------------------------------------------------------
 
 
 def _recf_at(recf_row: np.ndarray, radius: float) -> float:
@@ -414,28 +413,6 @@ def _spot_readout_amp(recf_row: np.ndarray, radius: float, spot_extent: float) -
         if r == 2.0:
             return 0.0
     return _recf_at(recf_row, r)
-
-
-def _spot_superposed_trace(
-    recf_row: np.ndarray,
-    stim_uv: Sequence[Tuple[int, int]],
-    mu: int,
-    mv: int,
-    spot_extent: float,
-    impr_row: np.ndarray,
-    resp: slice,
-    data_amp: float,
-    *,
-    polarity: str,
-) -> np.ndarray:
-    amp = 0.0
-    for su, sv in stim_uv:
-        dist = round(euclid_hex_dist(int(mu) - int(su), int(mv) - int(sv)), 6)
-        amp += _spot_readout_amp(recf_row, dist, spot_extent)
-    trace = amp * impr_row[resp] * data_amp
-    if polarity == "dark":
-        trace = -trace
-    return trace
 
 
 def spot_cost_hexes(
@@ -634,32 +611,25 @@ def build_spot_gt(
 
     cost_batch, cost_node, cost_radius_rows, cost_readout, cost_weight_rows = [], [], [], [], []
     cost_stim_u, cost_stim_v = [], []
-    trace_cache: Dict[Tuple[int, int, int, int], np.ndarray] = {}
+    trace_cache: Dict[Tuple[float, int], np.ndarray] = {}
     for b, mu, mv, radius, su, sv in cost_hexes:
         w = spot_cost_node_weight(
             radius, spot_cost_radius_weight, default_weights=default_cost_weights,
         )
         if w == 0.0:
             continue
-        stim_uv = batches[b].stim_uv
         for rt in present:
             nodes = hex2gt(C, mu, mv, rt, names)
             if len(nodes) == 0:
                 continue
             row = type_row[rt]
-            cache_key = (b, mu, mv, row)
+            cache_key = (round(float(radius), 6), row)
             if cache_key not in trace_cache:
-                trace_cache[cache_key] = _spot_superposed_trace(
-                    recf_gt[row],
-                    stim_uv,
-                    mu,
-                    mv,
-                    spot_extent,
-                    impr_gt[row],
-                    resp,
-                    data_amp,
-                    polarity=polarity,
-                )
+                amp = _spot_readout_amp(recf_gt[row], radius, spot_extent)
+                trace = amp * impr_gt[row][resp] * data_amp
+                if polarity == "dark":
+                    trace = -trace
+                trace_cache[cache_key] = trace
             trace = trace_cache[cache_key]
             for uidx in nodes:
                 cost_batch.append(b)

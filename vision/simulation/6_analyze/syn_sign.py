@@ -34,7 +34,14 @@ import training
 import training.implement as train_mod
 import figure.plot_run as plot_trained
 import figure.spot as spot_plot
-from figure.util import NCOLS_ALL, NCOLS_GT, PANEL_H, PANEL_W, save_figure
+from figure.util import (
+    NCOLS_ALL,
+    NCOLS_GT,
+    PANEL_H,
+    PANEL_W,
+    PlotTimer,
+    save_figure,
+)
 from network.connectivity import build_cell_pair_index
 from network.construction import (
     cell_order_rows,
@@ -205,6 +212,8 @@ def plot_syn_sign(
     radii,
 ):
     """Draw hist + per-radius Δv scatters for ``present`` cells."""
+    timer = PlotTimer()
+    timer.end_prep()
     order_rows = cell_order_rows(present)
     flow = "out of" if direction == "post" else "onto"
     n_sub = 1 + len(radii)
@@ -278,8 +287,8 @@ def plot_syn_sign(
                 ax.set_title(f"r={rk}  n={len(xs)}", fontsize=8)
                 ax.tick_params(labelsize=6)
                 ax.axhline(0.0, color="0.6", linewidth=0.5)
-    save_figure(fig, path)
-    print(f"wrote {path}")
+    timer.end_draw()
+    save_figure(fig, path, timer=timer)
 
 
 def write_syn_sign_plots(outdir, *, post=False, bins=DEFAULT_BINS) -> None:

@@ -153,12 +153,30 @@ def spot_gt_n_t_from_opts(opts) -> int:
     )[1]
 
 
+def spot_t_spot_end(t_onset, n_t, ms_spot=None, *, delta_ms: float) -> int:
+    """Inclusive last stimulus-on sample index (matches ``spot_input_waveform``).
+
+    On samples are ``[t_onset, t_spot_end]``. With ``ms_spot``, that is
+    ``t_onset + max(1, round(ms_spot/delta_ms)) - 1`` (clamped to ``n_t - 1``).
+    ``ms_spot`` omitted → continue-on through the last sample (``n_t - 1``).
+    """
+    t0 = int(t_onset)
+    mt = int(n_t)
+    if mt <= 0:
+        raise ValueError(f"n_t must be positive, got {n_t}")
+    if ms_spot is None:
+        return mt - 1
+    width = max(1, ms_to_t(float(ms_spot), delta_ms=float(delta_ms)))
+    return min(mt - 1, t0 + width - 1)
+
+
 def spot_input_waveform(t_onset, n_t, ms_spot=None, *, delta_ms: float) -> np.ndarray:
     """Normalized 0/1 photoreceptor drive ``u[t]`` over ``n_t`` samples.
 
     ``ms_spot`` omitted -> continue-on step (``u[t_onset:] = 1``). With a value the
-    stimulus is on only for ``[t_onset, t_onset + round(ms_spot/delta_ms))`` and returns
-    to baseline afterward; ``n_t`` is unchanged.
+    stimulus is on for inclusive ``[t_onset, spot_t_spot_end(...)]`` (slice
+    ``[t_onset, t_onset + round(ms_spot/delta_ms))``) and returns to baseline
+    afterward; ``n_t`` is unchanged.
     """
     t_onset = int(t_onset)
     n_t = int(n_t)

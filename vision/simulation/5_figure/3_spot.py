@@ -59,6 +59,7 @@ from task.spot.input import (
     euclid_hex_dist,
     spot_from_opts,
     spot_stimulus_batches,
+    spot_t_spot_end,
 )
 from task.spot.gt import (
     _IMPR_SHIFT,
@@ -69,20 +70,6 @@ from task.spot.gt import (
 )
 
 RF_RADIUS_X = np.arange(RF_N_RADII) * RF_RADIUS_DEG
-
-
-def _t_spot_end_from_opts(opts, t_onset, n_t):
-    """Exclusive end index of stimulus-on ``u[t]`` (matches ``spot_input_waveform``)."""
-    if t_onset is None:
-        return None
-    t0 = int(t_onset)
-    mt = int(n_t)
-    ms_spot = opts.get("ms_spot")
-    if ms_spot is None:
-        return mt
-    dt = float(opts.get("delta_ms", DELTA_MS))
-    width = max(1, ms_to_t(float(ms_spot), delta_ms=dt))
-    return min(mt, t0 + width)
 
 
 def pack_spot_cost_radii(pack) -> tuple[float, ...]:
@@ -158,7 +145,7 @@ def scale_curve(xt, center_radius, std_xt=None, *, t_onset=None, t_spot_end=None
     """Center-radius time course + RF profile from one ``(RF_N_RADII, T)`` cube.
 
     RF peak time ``t_v_max`` is ``argmax |v - v_onset|`` inside the
-    lag-shifted spot-on window ``[t_onset + t_lag, t_spot_end + t_lag)``
+    lag-shifted spot-on window ``[t_onset + t_lag, t_spot_end + t_lag]``
     (onset = first sample of that shifted window).
     Absolute ``|v|`` would pick onset when a large bias moves toward zero.
     """
@@ -169,13 +156,13 @@ def scale_curve(xt, center_radius, std_xt=None, *, t_onset=None, t_spot_end=None
     imp = xt[center_radius]
     t_lag = int(t_lag)
     t0 = max(0, int(t_onset) + t_lag)
-    t1 = min(int(imp.shape[0]), int(t_spot_end) + t_lag)
-    if t1 <= t0:
+    t1 = min(int(imp.shape[0]) - 1, int(t_spot_end) + t_lag)
+    if t1 < t0:
         raise ValueError(
-            "scale_curve requires shifted t_spot_end > shifted t_onset, "
-            f"got [{t0}, {t1}) with t_lag={t_lag}"
+            "scale_curve requires shifted t_spot_end >= shifted t_onset, "
+            f"got [{t0}, {t1}] with t_lag={t_lag}"
         )
-    resp = imp[t0:t1]
+    resp = imp[t0:t1 + 1]
     if not np.isfinite(resp).any():
         return None, None, None
     ref = float(resp[0]) if np.isfinite(resp[0]) else float(resp[np.isfinite(resp)][0])
@@ -344,7 +331,7 @@ def plot_cell_time(
 
     ``pre_end`` defaults to ``t_onset`` (gray gt omits ``[0, pre_end)``).
     Pass ``pre_end=0`` to draw the full gt trace including pre-onset.
-    ``t_spot_end``: white stimulus-on band ``[t_onset, t_spot_end)``.
+    ``t_spot_end``: white stimulus-on band ``[t_onset, t_spot_end]``.
     """
     scaled = _scale_contrast_series(
         series,
@@ -761,7 +748,12 @@ def _spot_forward_rows(
         center_row=center_row,
         plot_traces=plot_traces,
         t_onset=int(stim_t_onset) if stim_t_onset is not None else None,
-        t_spot_end=_t_spot_end_from_opts(opts, stim_t_onset, mt),
+        t_spot_end=(
+            None if stim_t_onset is None else spot_t_spot_end(
+                stim_t_onset, mt, opts.get("ms_spot"),
+                delta_ms=float(opts.get("delta_ms", DELTA_MS)),
+            )
+        ),
         batch_idx=batch_idx,
         batches=batches,
         mt=mt,
@@ -1127,8 +1119,7 @@ def _plot_spot_figure(
         row_cursor += group_h
     fig.suptitle(_spot_suptitle(title, primary), fontsize=suptitle_fs)
     timer.end_draw()
-    save_figure(fig, path, dpi=150)
-    timer.log(path)
+    save_figure(fig, path, dpi=150, timer=timer)
 
 
 def plot_network_spot_gt(path, *, bundles, title, gt_cubes=None, cost_parts=None):
