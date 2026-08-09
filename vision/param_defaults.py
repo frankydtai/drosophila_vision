@@ -54,7 +54,7 @@ PARAM_BOXES: Dict[str, dict] = {
     "syn_strength_edge": dict(lo=GAIN_LO, hi=GAIN_HI, init=1.0, jit=0.1, train_mode="indi"),
     "a_in": dict(lo=0.01, hi=100, init=1.0, jit=0.1, train_mode="shared"),
     "a_out": dict(lo=GAIN_LO, hi=GAIN_HI, init=1.0, jit=0.1, train_mode="indi"),
-    "e_leak": dict(lo=-50.0, hi=50.0, init=-50.0, jit=1.0, train_mode="indi"),
+    "e_leak": dict(lo=-50.0, hi=50.0, init=-20.0, jit=1.0, train_mode="indi"),
     "v_th": dict(lo=-100.0, hi=-100.0, init=-50.0, jit=0.0, train_mode="fixed"),
     "tau_lp": dict(lo=10.0, hi=100.0, init=10.0, jit=2.0, train_mode="fixed"),
     "tau_hp": dict(lo=100.0, hi=500.0, init=200.0, jit=20.0, train_mode="shared"),
@@ -93,9 +93,9 @@ NETWORK = "right_min_neuron1_extent10"
 # 2.3 network.construction
 # ---------------------------------------------------------------------------
 
-I_BASELINE = 20.0
-I_BRIGHT = 40.0
-I_DARK = 0.0
+I_BASELINE = 0.0
+I_BRIGHT = 20.0
+I_DARK = -20.0
 
 # ---------------------------------------------------------------------------
 # 3.1 task.spot.input
@@ -126,7 +126,7 @@ SPOT_COST_RADIUS_WEIGHT: Dict[float, float] = {
 }
 SPOT_COST_RADIUS_WEIGHT_EXTENT1: Dict[float, float] = {
     0.0: 1.0,
-    1.0: 0,
+    1.0: 2,
 }
 # name → float for cost CLI and a_sti_radius node_names (reverse of SPOT_*_RADII).
 SPOT_COST_RADIUS_KEY_ALIASES: Dict[str, float] = {

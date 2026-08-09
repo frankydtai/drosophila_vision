@@ -20,11 +20,21 @@ MODEL_DRIVERS = {
 }
 
 
+def a_sti_radius_effective(p, pack):
+    """``a_sti_radius`` after ``pack.sti_radius_gate`` (cost weight==0 → 0)."""
+    alpha = p["a_sti_radius"]
+    if pack is None:
+        return alpha
+    gate = getattr(pack, "sti_radius_gate", None)
+    if gate is None:
+        return alpha
+    return alpha * gate.to(device=alpha.device, dtype=alpha.dtype)
+
+
 def apply_a_sti_radius(i_sti, p, pack):
     """``i += a_sti_radius[r] * sti_wave`` on spot radius PR contribs; else pass-through.
 
-    ``pack.sti_radius_gate`` (cost-radius weight ≠ 0 → 1) forces gated slots to 0
-    whether ``a_sti_radius`` is indi or fixed.
+    Uses :func:`a_sti_radius_effective` so gated slots are 0 whether indi or fixed.
     """
     sti_radius = getattr(pack, "sti_radius", None) if pack is not None else None
     if sti_radius is None or "a_sti_radius" not in p:
@@ -38,10 +48,7 @@ def apply_a_sti_radius(i_sti, p, pack):
         )
     if i_sti.dim() == 2:
         i_sti = i_sti.unsqueeze(0)
-    alpha = p["a_sti_radius"]
-    gate = getattr(pack, "sti_radius_gate", None)
-    if gate is not None:
-        alpha = alpha * gate.to(device=alpha.device, dtype=alpha.dtype)
+    alpha = a_sti_radius_effective(p, pack)
     out = i_sti.clone()
     if batch.numel() == 0:
         return out
