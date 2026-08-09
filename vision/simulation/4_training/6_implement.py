@@ -76,7 +76,7 @@ from param_defaults import (
     SYN_MODE,
     TASK,
 )
-from task.spot.gt import (
+from task.spot.readout import (
     default_spot_cost_radius_weight,
     parse_cost_ms_tokens,
     parse_spot_cost_r_w_tokens,

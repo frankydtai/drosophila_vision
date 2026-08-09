@@ -4,8 +4,8 @@
 Geometry (centers, sub-spot shifts, Euclidean radii) is split out of the old
 ``network.spot_target`` Section A. The PR drive waveform ``u[t]`` is defined
 here once (``spot_input_waveform``) and consumed by both the network ``i_sti`` and
-the ImpR gt in :mod:`task.spot.gt`, so spot-on duration has a single
-source.
+the ImpR gt in :mod:`task.spot.gt` (and ``i_sti`` via :mod:`task.spot.readout`),
+so spot-on duration has a single source.
 """
 from __future__ import annotations
 
@@ -231,10 +231,10 @@ def spot_dist(spot_extent) -> int:
 def spot_extent_folds_r2_into_r1(spot_extent) -> bool:
     """True when ``spot_extent == 1`` (``spot_extent_half_steps == 2``).
 
-    Fold semantics live in :mod:`task.spot.gt`: r=1 gt amplitude is
-    ``RecF(1)+RecF(2)`` and r=2 amplitude is 0. Non-center drive scales
-    use ``a_sti_radius`` gated by cost-radius weight (weight==0 → force 0).
-    Center r=0 remains baked at scale 1.
+    Fold semantics live in :func:`task.spot.gt._spot_readout_amp`: r=1 gt
+    amplitude is ``RecF(1)+RecF(2)`` and r=2 amplitude is 0. Non-center drive
+    scales use ``a_sti_radius`` gated by cost-radius weight (weight==0 → force
+    0). Center r=0 remains baked at scale 1.
     """
     return spot_extent_half_steps(spot_extent) == 2
 

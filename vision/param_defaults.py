@@ -15,9 +15,9 @@ import math
 from typing import Dict, Tuple
 
 DEFAULT_RUN_NAME = """
-28898905-run-nofsteps-500-a-h-init.L1,L2,L4,L5-0.5-e-leak-init.L1,L2--20-task-spot_bright-model-borst
+29008568-run-nofsteps-500-a-h-init.L1,L2,L4,L5-0.5-e-leak-init.L1,L2,L3-0-task-spot
 """.strip()
-DEFAULT_RUN_PATH = "borst/" + DEFAULT_RUN_NAME
+DEFAULT_RUN_PATH = "hp_lp/" + DEFAULT_RUN_NAME
 
 # ---------------------------------------------------------------------------
 # 1.1 neuron.params (flat; no Physics bag)
@@ -48,14 +48,14 @@ H_CELLS = ("L1", "L2", "L4", "L5")
 #   indi_named → indi=H_CELLS, fixed=remainder with init_override=0
 # Fixed nodes always use init / init_override.
 PARAM_BOXES: Dict[str, dict] = {
-    "a_gt": dict(lo=GAIN_LO, hi=GAIN_HI, init=1.0, jit=0.1, train_mode="indi"),
+    "a_gt": dict(lo=0.5, hi=2.0, init=1.0, jit=0.1, train_mode="indi"),
     "bias_gt": dict(lo=-50.0, hi=50.0, init=0.0, jit=1.0, train_mode="indi"),
     "syn_strength_cell": dict(lo=GAIN_LO, hi=GAIN_HI, init=1.0, jit=0.1, train_mode="indi"),
     "syn_strength_edge": dict(lo=GAIN_LO, hi=GAIN_HI, init=1.0, jit=0.1, train_mode="indi"),
     "a_in": dict(lo=0.01, hi=100, init=1.0, jit=0.1, train_mode="shared"),
     "a_out": dict(lo=GAIN_LO, hi=GAIN_HI, init=1.0, jit=0.1, train_mode="indi"),
-    "e_leak": dict(lo=-50.0, hi=50.0, init=-40.0, jit=1.0, train_mode="indi"),
-    "v_th": dict(lo=-100.0, hi=-100.0, init=-50.0, jit=0.0, train_mode="fixed"),
+    "e_leak": dict(lo=-50.0, hi=50.0, init=0.0, jit=1.0, train_mode="indi"),
+    "v_th": dict(lo=-100.0, hi=-100.0, init=-50.0, jit=0.0, train_mode="indi"),
     "tau_lp": dict(lo=10.0, hi=100.0, init=10.0, jit=2.0, train_mode="fixed"),
     "tau_hp": dict(lo=100.0, hi=500.0, init=200.0, jit=20.0, train_mode="shared"),
     "a_h": dict(lo=0.0, hi=1.0, init=0, jit=0.1, train_mode="indi_named"),
@@ -112,7 +112,8 @@ MULTI_SPOT = True
 SHIFT_EXTENT = 1.0
 
 # ---------------------------------------------------------------------------
-# 3.2 task.spot.gt
+# 3.2 task.spot.gt (RecF/ImpR literals live in task.spot.gt)
+# 3.3 task.spot.readout
 # ---------------------------------------------------------------------------
 
 SPOT_COST_RADII: Tuple[float, ...] = (0.0, 1.0, math.sqrt(3), 2.0)

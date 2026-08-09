@@ -374,7 +374,7 @@ def _coverage_time_series(
     *,
     multi_bar: bool = True,
 ) -> np.ndarray:
-    """Superposed coverage from simultaneous per-lane bars (network connectome field)."""
+    """Coverage from simultaneous per-lane bars (network connectome field)."""
     dt_s = delta_ms / 1000.0
     trail_shift_deg = _trail_shift_deg(spec, dt_s)
     lane_origins = _motion_lanes(spec, field_deg, bar_extent, multi_bar=multi_bar)

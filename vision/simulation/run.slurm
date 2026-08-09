@@ -40,5 +40,5 @@ pprint(params, sort_dicts=False, width=120)
 PY
 echo "==== end param_defaults ===="
 # Sorted N_name layout: import_bootstrap via venv .pth; train via run.py (not -m training.driver).
-"${PYTHON}" -u run.py --nofsteps 500 --a-h init.L1,L2,L4,L5=0.5 --e-leak init.L1,L2,L3=0 --task spot
+"${PYTHON}" -u run.py --nofsteps 500 --a-h init.L1,L2,L4,L5=0.5 --task spot
 

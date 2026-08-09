@@ -47,10 +47,13 @@ from task.moving_bar.input import (
     _as_int64_np,
 )
 
-# Gruntman Fig. 1 Ci/Cii digitized population Vm (MatlabFunctions/digitize_fig1_ci.py).
+# Gruntman Fig. 1 Ci/Cii digitized population Vm (figure_digitization/gruntman2021/1ci.py).
 # gt.py → moving_bar → task → simulation → vision → repo root.
 FIG1_CI_NPZ = (
-    Path(__file__).resolve().parents[4] / "MatlabFunctions" / "fig1_ci_digitized.npz"
+    Path(__file__).resolve().parents[4]
+    / "figure_digitization"
+    / "gruntman2021"
+    / "1ci_digitized.npz"
 )
 
 logger = logging.getLogger(__name__)

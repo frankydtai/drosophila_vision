@@ -52,7 +52,7 @@ logger = logging.getLogger(__name__)
 SIDE = "right"
 DIRECTION = "pre"
 # The 10 LC types split into the two functional groups of the paper
-# (LC18_model/paper.txt). These define the FIXED two-row panel:
+# (figure_digitization/klapoetke2022/paper.txt). These define the FIXED two-row panel:
 #   ROW 1 = Figure 2I, looming-responsive group   (always the first row)
 #   ROW 2 = Figure 2J, moving-object-responsive group (always the second row)
 # Order within each list is the fixed column position of that type.

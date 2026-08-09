@@ -66,8 +66,8 @@ from task.spot.gt import (
     RF_CENTER_RADIUS,
     RF_N_RADII,
     RF_RADIUS_DEG,
-    build_spot_center_readout,
 )
+from task.spot.readout import build_spot_center_readout
 
 RF_RADIUS_X = np.arange(RF_N_RADII) * RF_RADIUS_DEG
 

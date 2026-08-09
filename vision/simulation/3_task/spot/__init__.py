@@ -1,1 +1,1 @@
-"""Spot paradigm: ``input`` (geometry + PR waveform) and ``gt`` (RecF x ImpR gt)."""
+"""Spot paradigm: ``input``, ``gt`` (RecF x ImpR numbers), ``readout`` (GT↔network)."""

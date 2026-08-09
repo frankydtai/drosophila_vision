@@ -36,7 +36,7 @@ from task.moving_bar.input import (
     filter_sti_hexes,
     moving_bar_cost_hexes,
 )
-from task.spot.gt import build_spot_center_readout
+from task.spot.readout import build_spot_center_readout
 from task.spot.input import (
     spot_from_opts,
     spot_stimulus_batches,

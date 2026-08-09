@@ -120,12 +120,12 @@ from training.params import (
 )
 from training.cost import _build_cost_subpacks, _build_fused_forward
 
-from task.spot.gt import (
+from task.spot.gt import expand_gt_cells as expand_spot_gt_cells
+from task.spot.readout import (
     SPOT_POLARITIES,
     build_spot_gt,
     default_spot_cost_radius_weight,
     expand_cost_ms_dict,
-    expand_gt_cells as expand_spot_gt_cells,
     expand_spot_cost_r_w_dict,
     make_spot_stimulus_opts,
     spot_sti_radius_gate,

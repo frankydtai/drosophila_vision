@@ -1,0 +1,804 @@
+LETTER                                                                                                                                                              doi:10.1038/nature13427
+
+
+
+
+Processing properties of ON and OFF pathways for
+Drosophila motion detection
+Rudy Behnia1, Damon A. Clark2,3, Adam G. Carter4, Thomas R. Clandinin3 & Claude Desplan1,5
+
+
+The algorithms and neural circuits that process spatio-temporal changes                                Since L1 and L2 relay information about both contrast increments
+in luminance to extract visual motion cues have been the focus of                                   and decrements3 (they hyperpolarize in response to light increments
+intense research. An influential model, the Hassenstein–Reichardt                                   and depolarize in response to decrements) and act as inputs to motion
+correlator1, relies on differential temporal filtering of two spatially                             pathways, we focused on medulla neurons that link L1 and L2 to T4 and
+separated input channels, delaying one input signal with respect to                                 T5 to identify potential sites of half-wave rectification and delay. Elec-
+the other. Motion in a particular direction causes these delayed and                                tron microscopic reconstruction of the medulla has identified columnar
+non-delayed luminance signals to arrive simultaneously at a subse-                                  neurons types Tm3 and Mi1 as receiving the large majority of synapses
+quent processing step in the brain; these signals are then nonlinearly
+amplified to produce a direction-selective response. Recent work in
+Drosophila has identified two parallel pathways that selectively respond                             a                                       b
+                                                                                                         Input 1     Input 2                 Moving light edge                        Moving dark edge
+to either moving light or dark edges2,3. Each of these pathways requires                                                                                            L1
+                                                                                                                                                                            R1–6
+two critical processing steps to be applied to incoming signals: differ-                                                                                      Lamina
+                                                                                                                                                                                   L2
+
+ential delay between the spatial input channels, and distinct processing
+of brightness increment and decrement signals. Here we demonstrate,
+using in vivo patch-clamp recordings, that four medulla neurons imple-                                      τ                                          Mi1
+                                                                                                                                                                         Tm3             Tm2
+ment these two processing steps. The neurons Mi1 and Tm3 respond                                                                                 Medulla
+selectively to brightness increments, with the response of Mi1 delayed
+                                                                                                                                                                                                   Tm1
+relative to Tm3. Conversely, Tm1 and Tm2 respond selectively to                                            M
+brightness decrements, with the response of Tm1 delayed compared
+with Tm2. Remarkably, constraining Hassenstein–Reichardt corre-
+lator models using these measurements produces outputs consistent                                   c
+                                                                                                     Digital light
+with previously measured properties of motion detectors, including                                    projector
+temporal frequency tuning and specificity for light versus dark edges.
+                                                                                                                                                                                              T5
+We propose that Mi1 and Tm3 perform critical processing of the
+delayed and non-delayed input channels of the correlator responsible                                                                                                                     T4
+
+for the detection of light edges, while Tm1 and Tm2 play analogous                                               Lens                                                          LPTCs
+roles in the detection of moving dark edges. Our data show that spe-                                 Coherent
+                                                                                                                            Screen                         Lobula      Lobula plate
+cific medulla neurons possess response properties that allow them                                    fibre optic bundle
+to implement the algorithmic steps that precede the correlative oper-                               Figure 1 | Motion detection and the fly optic lobe. a, A half HRC sensitive to
+ation in the Hassenstein–Reichardt correlator, revealing elements of                                rightward motion. An object moving from left to right first activates input 1
+the long-sought neural substrates of motion detection in the fly.                                   and then input 2. The signal from input 1 is delayed (t) and arrives at the
+   Behavioural and electrophysiological studies in flies have demonstrated                          correlation stage (M for multiplication) close in time to the signal from unit 2,
+that visual motion responses display the fundamental signatures pre-                                nonlinearly enhancing the signal. For leftward motion, the signals are separated
+dicted by the Hassenstein–Reichardt correlator (HRC)1,4,5. In Drosophila,                           in time by the delay and no motion signal is generated. In the full correlator
+photoreceptors R1–R6 are required for motion detection, and synapse                                 model, two mirror symmetric correlators are subtracted, producing responses
+onto three lamina monopolar cells L1, L2 and L3 (ref. 6), which provide                             that have opposite signs for opposite directions (see Fig. 4a). b, Light edge (L1)
+                                                                                                    and dark edge (L2) motion-sensitive pathways in the Drosophila optic lobe.
+inputs to distinct motion pathways2,3,7–11. L1 feeds into pathways involved                         L1 and L2 lamina monopolar cells in the lamina provide inputs to two distinct
+in detecting moving light edges2,3 while L2, with contributions from L1                             motion-sensitive pathways that selectively respond to moving light edges and
+and L3, is involved in detecting moving dark edges2,3,10 (Fig. 1b). Deeper                          dark edges, respectively. L1 and L3 also contribute to the pathway detecting
+in the optic lobe, two direction-selective neuronal types, T4 and T5, are                           moving dark edge (not shown). T4 and T5 in the lobula complex are the main
+also differentially tuned: T4 cells respond to moving light edges while                             inputs to lobula plate tangential cells (LPTCs), and are themselves direction
+T5 cells respond to moving dark edges12. Both T4 and T5 are required                                selective. T4 neurons respond selectively to moving light edges and T5 neurons
+for downstream, direction-selective responses of the visual system out-                             respond to moving dark edges. Mi1 and Tm3 are the main postsynaptic targets
+put cells called lobula plate tangential cells13,14. According to the HRC                           of L1 while Tm1 and Tm2 are the main postsynaptic targets of L2. The
+                                                                                                    axons of Mi1 and Tm3 contact T4 in the most proximal medulla layer, whereas
+model, these light and dark edge direction-selective pathways each require
+                                                                                                    Tm1 and Tm2 contact T5 dendrites in superficial lobula layers (modified from
+two processing steps: differential temporal delay and nonlinear amplifica-                          ref. 30). c, In vivo electrophysiology set up: a window is cut in a dorsal
+tion (Fig. 1a). Moreover, these two pathways must process changes in                                region of the head cuticle of an immobilized live fly to expose the cell bodies of
+contrast differently to respond differentially to light and dark edges. One                         medulla neurons to a glass pipette used to perform the recordings. Grey-scale
+such asymmetric mechanism is ‘half-wave rectification’, where inputs of one                         images are displayed on a screen positioned in front of the fly, using a digital
+polarity are amplified and inputs of the opposite polarity are suppressed.                          light projector coupled to a coherent fibre optic bundle.
+1
+  Center for Developmental Genetics, Department of Biology, New York University, New York, New York 10003-6688, USA. 2Department of Molecular, Cellular, and Developmental Biology, Yale University,
+New Haven, Connecticut 06511, USA. 3Department of Neurobiology, Stanford University, Stanford, California 94305, USA. 4Center for Neural Science, New York University, New York, New York 10003, USA.
+5
+  Center for Genomics & Systems Biology, New York University Abu Dhabi Institute, Abu Dhabi, United Arab Emirates.
+
+
+                                                                                                                                2 8 AU G U S T 2 0 1 4 | VO L 5 1 2 | N AT U R E | 4 2 7
+                                                          ©2014 Macmillan Publishers Limited. All rights reserved
+ RESEARCH LETTER
+
+from L1 (refs 15, 16). Similarly, Tm1 and Tm2 are the main synaptic tar-         rapid sequential presentations of light caused repolarization of these
+gets of L2 (refs 15, 16). Furthermore, Mi1 and Tm3 together constitute           cells while their membrane potential was still peaking or decaying from
+over 80% of the presynaptic inputs to T4 (ref. 16) and both Tm1 and              a previous flash (Fig. 2b middle). Thus, Mi1 and Tm3, the postsynaptic
+Tm2 provide input to T5 (ref. 17). Based on their innervation patterns,          targets of L1, respond mostly to brightness increments. Conversely, Tm1
+Mi1 and Tm3 have been proposed to be core components of the motion               and Tm2, the postsynaptic targets of L2, respond most strongly to bright-
+detector for light edges involving T4 (ref. 16). Similarly, Tm1 and Tm2 are      ness decrements, consistent with calcium imaging studies of Tm2 (ref. 18).
+likely candidates for analogous roles in a motion detector for dark edges.       All four cells showed asymmetries in their responses to brightness changes,
+   Since changes in luminance are central to motion detection, we first          consistent with a role in conferring edge selectivity to each pathway. In
+examined the responses of Mi1, Tm3, Tm1 and Tm2 to step changes in               addition, we examined whether these medulla neurons could relay long-
+light intensity by performing whole-cell current-clamp recordings on             term information about contrast to downstream circuitry by charac-
+awake immobilized fruit flies (Fig. 1c). Both Mi1 and Tm3 responded              terizing responses evoked by 5 s brightness increments or decrements
+with a strong, transient depolarization at the onset of a 1 s light step, and    presented on an intermediate grey background (Extended Data Fig. 2a–d).
+then transiently hyperpolarized to below pre-stimulus levels at light            All four neurons displayed a sustained response for both brightness incre-
+offset (Fig. 2a right and Extended Data Fig. 1a). The responses to onset         ments and decrements, consistent with observations that motion res-
+and offset of light differed in magnitude: in Mi1, the offset hyperpolar-        ponses can be evoked even when a sequential change in luminance at
+ization amplitude was only 11% (s.e.m. 5 3.5%) of the onset depolari-            two points in space occurs with a delay period of up to 10 s in experi-
+zation, while in Tm3 this fraction was 36.6% (s.e.m. 5 7.1%) (Extended           ments using apparent motion stimuli3,19.
+Data Fig. 1c). A brief flash of light (200 ms) elicited a sharper depolar-          In HRC models, the individual inputs to the cells that perform the
+ization in both cells, with the offset hyperpolarization terminating the         nonlinear amplification step are not themselves direction selective. We
+depolarization phase of the response (Fig. 2a left). The responses observed      therefore tested the responses of Mi1, Tm3, Tm1 and Tm2 to motion
+in Tm1 and Tm2 were similar to each other, yet were strikingly different         stimuli, using light and dark bars moving in different directions, under
+from those in Mi1 and Tm3 (Fig. 2b and Extended Data Fig. 1b). Tm1               conditions that evoke strong responses from lobula plate tangential cells20
+and Tm2 hyperpolarized at light onset, and depolarized strongly at light         (Extended Data Fig. 3). All four neurons responded to moving bars with
+offset. The hyperpolarization of Tm1 evoked by stimulus onset was 26.1%          a sharp depolarization (Extended Data Fig. 3a, b) but the amplitude of
+(s.e.m. 5 3.8%) as large as the depolarization evoked at offset; for Tm2,        these responses was independent of the direction of motion (Extended
+this number was 17.7% (s.e.m. 5 2.3%) (Extended Data Fig. 1c). Finally,          Data Fig. 3c). Thus, Mi1, Tm3, Tm1 and Tm2 are not direction selective
+                                                                                 under these conditions, consistent with these cells acting upstream of the
+a                                                                  10 mV         nonlinear correlation stage of motion detection, as recently reported for
+                                                                           1s    Tm2 (ref. 18).
+                                                                                    We next examined whether Mi1 and Tm3, or Tm1 and Tm2, have
+                 Mi1                                                             different response latencies that would allow them to differentially delay
+                                                                                 responses to contrast changes. To quantitatively capture the responses
+                                                                                 of these neurons to dynamic stimuli spanning a wide range of contrast
+                                                                                 values and time-scales, we used an approximately Gaussian-distributed
+    L1 pathway
+
+
+
+
+                                                                                 random flicker stimulus with a 50% contrast (standard deviation) and
+                 Tm3
+                                                                                 an exponential correlation time of 10 ms (see Methods). We used stan-
+                                                                                 dard procedures to extract the linear filter that best described the tem-
+                                                                                 poral properties of the response21,22 (see Methods). The responses of Mi1
+                                                                                 and Tm3 to the noise stimuli were very similar (r 5 0.91 between mean
+                                                                                 response traces), with temporal filters that comprised a large positive
+                                                                                 lobe reflecting a sign-conserving relationship between the contrast input
+                       1
+    Intensity          0                                                         and the neural response (Fig. 3a, b left (arrow) and Extended Data Figs 4a
+                           200 ms   4 × 500 ms               1s                  and 5a, b). Mean Tm1 and Tm2 responses to these noise stimuli were
+                                                                                 also similar to one another (r 5 0.90), with temporal filters that included
+b                                                                  10 mV         a large negative lobe, reflecting a sign-inversion between the contrast
+                                                                           1s    input and the neural response (Fig. 3d, e left, arrow; Extended Data Figs 4b
+                                                                                 and 5e, g). For Mi1 the average peak response time was 71 ms after a
+                 Tm1                                                             contrast change (s.e.m. 5 3.8 ms) while it was 53 ms (s.e.m. 5 5.2 ms)
+                                                                                 for Tm3. Thus, a difference of 18 ms existed between the peak times of
+                                                                                 the filters for Mi1 and Tm3 (Fig. 3b right; P , 0.01). Similarly, the average
+    L2 pathway
+
+
+
+
+                                                                                 peak time was 56 ms (s.e.m. 5 3.8 ms) for Tm1 and 43 ms (s.e.m. 5 2.7 ms)
+                 Tm2                                                             for Tm2. The difference in latency between the two cells was 13 ms (Fig. 3e
+                                                                                 right; P , 0.002). Thus, in both cases, there was a small but significant
+                                                                                 temporal offset, with Mi1 exhibiting a delayed response compared with
+                                                                                 Tm3, and Tm1 being delayed relative to Tm2. Notably, these peak delay
+                                                                                 differences are not much smaller than delays inferred from some lobula
+                                                                                 plate tangential cells recordings and behavioural experiments3,23,24.
+    Intensity          1                                                            We next asked whether neuronal responses to this stochastic stimulus
+                       0
+                           200 ms   4 × 500 ms               1s                  were linear or whether different gains were applied to brightness incre-
+                                                                                 ments and decrements. The noise stimulus was convolved with the cor-
+Figure 2 | Mi1/Tm3 respond selectively to brightness increments while
+                                                                                 responding filters for each neuron type to obtain the predicted linear
+Tm1/Tm2 respond selectively to brightness decrements. a, Average evoked
+responses of Mi1 (n 5 7) and Tm3 (n 5 10) in the L1 pathway, in response to      response of each neuron. We then compared the linear predictions with
+200 ms, four consecutive 500 ms and 1 s full-field flashes of light from dark.   the actual response to define the instantaneous nonlinearity for each neu-
+Thick lines indicate the mean; shaded region indicates s.e.m. b, Averaged        ron. Consistent with the light step results, the nonlinearities extracted for
+evoked responses (6 s.e.m.) of Tm1 (n 5 10) and Tm2 (n 5 11) in the L2           Mi1 and Tm3 revealed that these cells respond more strongly to brightness
+pathway in response to the same stimuli.                                         increments than to decrements (Fig. 3c and Extended Data Fig. 5b, d).
+4 2 8 | N AT U R E | VO L 5 1 2 | 2 8 AU G U S T 2 0 1 4
+                                                  ©2014 Macmillan Publishers Limited. All rights reserved
+                                                                                                                                                                                                                                                                                  LETTER RESEARCH
+
+a                                      1.0
+                                                                                  b                                                                                                   nonlinearities as the two channels preceding multiplication and sub-
+                                                                                                                                                                       * P < 0.01
+                                                                                                                                                                                      traction, and a second one that used Tm1 and Tm2 filters and nonline-
+     Stimulus
+     intensity
+
+
+
+
+                                                                               (mV contrast–1 ms–1)
+                                       0.5                                                                                           50 ms                      80
+                                                                                                                                                                                      arities (Fig. 4a and data from Extended Data Fig. 6). We examined whether
+
+
+
+
+                                                                                  Filter strength
+
+
+
+
+                                                                                                                                               Peak time (ms)
+                                                                                                                    0.5
+                                       0.0                                                                                                                                 18 ms
+                                             Mi1                                                                                                                60
+                                                                                                                                                                                      these model motion detectors produced temporal frequency tuning curves
+                                       10
+                                                                                                                                                                                      similar to those previously measured in flies. When we presented these
+                                        0
+                                                                                                                    0.0                                         40                    models with moving sine waves of 20% contrast at various contrast fre-
+             Voltage response (mV)
+
+
+
+
+                                       –10
+                                                                                                                          Delay                                                       quencies, we observed a peak response at approximately 1 Hz for both
+L1 pathway
+
+
+
+
+                                                   Predicted linear response                                                                                         Mi1        Tm3
+                                             Tm3                                  c
+                                       10
+                                                                                                                    20                                                                the Mi1/Tm3 and the Tm1/Tm2 models (Fig. 4b). This computed tem-
+                                        0
+
+
+
+
+                                                                                          Actual response (mV)
+                                       –10
+                                                                                                                                                                                      poral frequency optimum compares favourably with the optima mea-
+                                                                                                                    10
+                                                                                                                                                                                      sured in blowflies and Drosophila14.
+                                       10                                                                            0                                                                   Another measured feature of these two motion pathways is their selec-
+                                        0
+                                       –10
+                                                                                                                 –10                                                                  tivity for edges of particular contrast polarity. We presented our model
+                                                                      200 ms                                                                                                          correlators with light and dark edges of 100% contrast, moving across
+                                                                                                                           –10        0                         10         20
+                                                                                                                          Predicted linear response (mV)                              a grey background. The Tm1/Tm2 model was highly selective for dark
+d                                                                                 e                                                                                                   edges over a range of speeds. The Mi1/Tm3 model was only mildly selec-
+                                       1.0                                                                                                                             * P < 0.002
+                                                                                                                          Delay                                                       tive for light edges, owing to the more linear responses measured in Mi1
+       Stimulus
+       intensity
+
+
+
+
+                                                                                                                                                                80
+                                                                               (mV contrast–1 ms–1)
+
+
+
+
+                                       0.5                                                                          0.0                                                               and Tm3 compared with Tm1 and Tm2 (Fig. 4c). These modelling results
+                                                                                  Filter strength
+
+
+
+
+                                                                                                                                             Peak time (ms)
+                                                                                                                                                                60
+                                       0.0
+                                                                                                                                                                           13 ms
+                                                                                                                                                                                      are consistent with experimentally measured high selectivity of the dark
+                                             Tm1
+                                       10
+                                                                                                                                                                40
+                                                                                                                                                                                      edge motion pathway2,3, and a more modest selectivity of the light edge
+                                                                                                                 –0.5
+                                        0
+                                                                                                                                                                                      motion pathway3.
+               Voltage response (mV)
+
+
+
+
+                                       –10
+                                                                                                                                    50 ms                       20                       Taken together, our data are consistent with a model in which Mi1
+L2 pathway
+
+
+
+
+                                             Tm2   Predicted linear response      f                                                                                  Tm1        Tm2
+                                       10
+                                                                                                                    20
+                                                                                                                                                                                      and Tm3 represent central components of the input channels of a cor-
+                                                                                             Actual response (mV)
+
+
+
+
+                                        0
+                                                                                                                                                                                      relator detecting moving light edges, while Tm1 and Tm2 represent anal-
+                                       –10                                                                          10
+                                                                                                                                                                                      ogous components for a correlator that is tuned to detect moving dark
+                                       10                                                                             0                                                               edges. The asymmetric responses of these four neurons to brightness
+                                        0
+                                                                                                                    –10
+                                                                                                                                                                                      increments and decrements corroborates previous studies that argued
+                                       –10
+                                                                      200 ms                                                                                                          for separate processing of ON and OFF inputs by distinct channels15,25
+                                                                                                                           –10         0        10       20
+                                                                                                                          Predicted linear response (mV)
+                                                                                                                                                                                      a                                                    L1 pathway                                                   L2 pathway
+Figure 3 | Mi1/Tm3 and Tm1/Tm2 respond with different delays and                                                                                                                                                                   Mi1                   Tm3                                     Tm1                   Tm2
+nonlinearities to a Gaussian noise stimulus. a, Top: 2 s excerpt of the intensity
+signal from a 10 s full-field Gaussian noise stimulus. Signal correlation time was                                                                                                     Temporal linear
+10 ms (see Methods). Middle: average voltage response (6 s.e.m.) of Mi1                                                                                                                   filters
+(n 5 7) and Tm3 (n 5 11) to the 2 s noise stimulus on top. The black trace
+corresponds to the average predicted linear response (6 s.e.m.) obtained by
+convolving the stimulus with the filters in (b). Bottom: overlay of the Mi1 and                                                                                                           Nonlinearities
+Tm3 responses showing the high similarity in their response. b, Left: average
+linear filters extracted from the data in a that best predict the measured
+response of Mi1 and Tm3 as a function of preceding light intensity changes
+                                                                                                                                                                                                                                  Mi1       Tm3        Tm3    Mi1                               Tm1       Tm2        Tm2   Tm1
+(6 s.e.m.). The filters comprise a large positive lobe (arrow) and shallow                                                                                                            Model correlators
+negative lobe (see Extended Data Fig. 5). Right: box plots of the distribution of                                                                                                                                                  M                          M                                     M                      M
+the timing of the peak responses of the Mi1 and Tm3 neurons. There is, on                                                                                                                                                         +                           –                                 +                          –
+                                                                                                                                                                                                                                             Summation                                                    Summation
+average, an 18 ms delay between the peak of Mi1 filters and Tm3 filters. Black
+line is the median, coloured line is the average. c, Average actual responses of
+                                                                                                                                                                                                            Normalized response
+
+
+
+
+                                                                                                                                                                                                                                                                          Normalized response
+
+
+
+                                                                                                                                                                                      b                                            1                                                            1
+Mi1 and Tm3 plotted against their average linear predicted responses. Error
+bars, s.e.m. A line of slope 1 is shown in black. d–f, Same as above for Tm1
+(n 5 15) and Tm2 (n 5 14). The filters comprise a large negative lobe (arrow)
+and a shallow positive lobe (Extended Data Fig. 5). The average peak delay
+between the peak of Tm1 and Tm2 filters is 13 ms.                                                                                                                                                                                  0
+                                                                                                                                                                                                                                    0.1            1              10
+                                                                                                                                                                                                                                                                                                0
+                                                                                                                                                                                                                                                                                                 0.1             1             10
+                                                                                                                                                                                                                                   Temporal frequency (Hz)                                       Temporal frequency (Hz)
+                                                                                                                                                                                                            Normalized response
+
+
+
+
+                                                                                                                                                                                                                                                                          Normalized response
+
+
+
+
+Similarly, both Tm1 and Tm2 neurons were less hyperpolarized in res-                                                                                                                  c
+ponse to brightness increments and more depolarized in response to                                                                                                                                                                 1                              Light                          1
+                                                                                                                                                                                                                                                                  Dark
+brightness decrements than predicted by the linear model (Fig. 3f and
+Extended Data Fig. 5f, h). The noise stimuli evoked smaller response asym-
+metries than those observed with brightness steps, possibly because these                                                                                                                                                          0
+                                                                                                                                                                                                                                       0     100        200       300
+                                                                                                                                                                                                                                                                                                 0
+                                                                                                                                                                                                                                                                                                  0        100       200       300
+stimuli use smaller changes in intensity than our step stimuli. Such dif-                                                                                                                                                         Edge velocity (degrees s–1)                                   Edge velocity (degrees s–1)
+ferences in gain for brightness increments and decrements reflect par-                                                                                                                Figure 4 | Modelling Mi1/Tm3 and Tm1/Tm2 as the delayed and non-
+tial half-wave rectification, a central feature of models that selectively                                                                                                            delayed channels of light edges and dark edges correlators. a, Left: the
+respond to one contrast polarity2,3,19,25.                                                                                                                                            average filters and nonlinearities from the receptive field stochastic data set
+   Can the dynamics of the linear filters and the extent of the nonline-                                                                                                              (200 s noise presentation, 50 ms correlation time, Extended Data Fig. 6) were
+arities we measured account for well-characterized properties of motion                                                                                                               used to model Mi1 and Tm3 as the delayed and non-delayed channels of a
+detecting pathways? One hallmark of the HRC is that it displays a peak                                                                                                                correlator model in bottom left. Right: same as left with Tm1 and Tm2 as
+response to a defined temporal frequency, creating a temporal frequency                                                                                                               the delayed and non-delayed channels of correlator model. b, Computed
+                                                                                                                                                                                      normalized temporal frequency tuning curves obtained numerically for the
+optimum. Because of its structure, the output of an HRC is not propor-                                                                                                                Mi1/Tm3 model correlator (left) and the Tm1/Tm2 model correlator (right)
+tional to the speed of motion, but rather increases to a maximum value,                                                                                                               using sine waves of different temporal frequencies. c, Computed normalized
+before decaying at faster speeds. The shape of this tuning curve depends                                                                                                              response of the Mi1/Tm3 model correlator (left) and the Tm1/Tm2 model
+on the temporal properties of its two input channels26. We constructed                                                                                                                correlator (right) to light or dark edges of 100% contrast, moving at a range
+two separate model correlators, one that used Mi1 and Tm3 filters and                                                                                                                 of speeds.
+
+                                                                                                                                                                                                                      2 8 AU G U S T 2 0 1 4 | VO L 5 1 2 | N AT U R E | 4 2 9
+                                                                                                                          ©2014 Macmillan Publishers Limited. All rights reserved
+ RESEARCH LETTER
+
+to explain the segregation between light and dark edge processing. This                          4.    Borst, A. & Egelhaaf, M. Principles of visual motion detection. Trends Neurosci. 12,
+                                                                                                       297–306 (1989).
+situation is similar to separate processing of ON and OFF signals by                             5.    Buchner, E. Elementary movement detectors in an insect visual system. Biol.
+bipolar cells in the vertebrate retina27.                                                              Cybern. 24, 85–101 (1976).
+    The relative delays we measured between the peak responses in these                          6.    Meinertzhagen, I. & O’Neil, S. Synaptic organization of columnar elements in the
+                                                                                                       lamina of the wild type in Drosophila melanogaster. J. Comp. Neurol. 305, 232–263
+cells is roughly ten times smaller than previously calculated for idealized                            (1991).
+motion detector models that fit a host of experimental data. In classic                          7.    Rister, J. et al. Dissection of the peripheral motion channel in the visual system of
+HRC models, input to one channel is not filtered, while input to the                                   Drosophila melanogaster. Neuron 56, 155–170 (2007).
+                                                                                                 8.    Katsov, A. Y. & Clandinin, T. R. Motion processing streams in Drosophila are
+second channel is low-pass filtered with a time constant of t. In these                                behaviorally specialized. Neuron 59, 322–335 (2008).
+models, the maximum response occurs at a temporal frequency of 1/2pt,                            9.    Tuthill, J. C., Nern, A., Holtz, S. L., Rubin, G. M. & Reiser, M. B. Contributions of the 12
+so that the delay for a 1 Hz optimum is t , 150 ms26. However, since both                              neuron classes in the fly lamina to motion vision. Neuron 79, 128–140 (2013).
+                                                                                                 10.   Silies, M. et al. Modular use of peripheral input channels tunes motion-detecting
+filters we measured act as band-pass filters, they suppress high-frequency                             circuitry. Neuron 79, 111–127 (2013).
+inputs, while still producing delay differences between the channels. Thus,                      11.   Bausenwein, B., Dittrich, A. & Fischbach, K.-F. The optic lobe of Drosophila
+when input channels contain both these measured filters, a peak timing                                 melanogaster. Cell Tissue Res. 267, 17–28 (1992).
+                                                                                                 12.   Maisak, M. S. et al. A directional tuning map of Drosophila elementary motion
+difference of ,15 ms can result in a temporal frequency optimum of 1 Hz                                detectors. Nature 500, 212–216 (2013).
+(see Methods and Extended Data Fig. 7). Furthermore, two considera-                              13.   Schnell, B., Raghu, S. V., Nern, A. & Borst, A. Columnar cells necessary for motion
+tions might lengthen the actual relative delays between pathways. First,                               responses of wide-field visual interneurons in Drosophila. J. Comp. Physiol. A. 198,
+                                                                                                       389–395 (2012).
+we performed somatic recordings that may only approximate the true                               14.   Borst, A., Haag, J. & Reiff, D. F. Fly motion vision. Annu. Rev. Neurosci. 33, 49–70
+axonal response of the neurons. Second, the synapses between Mi1/Tm3                                   (2010).
+and T4, and those between Tm1/Tm2 and T5 could impose additional                                 15.   Bausenwein, B. & Fischbach, K.-F. Activity labeling patterns in the medulla of
+delays to either input channel before a correlation operation.                                         Drosophila melanogaster caused by motion stimuli. Cell Tissue Res. 270, 25–35
+                                                                                                       (1992).
+    Anatomical reconstruction of the Drosophila medulla connected the                            16.   Takemura, S.-y. et al. A visual motion detection circuit suggested by Drosophila
+predicted spatial receptive fields of Mi1 and Tm3 cells to the dendritic                               connectomics. Nature 500, 175–181 (2013).
+arbors of individual T4 cells with known directional preferences16. Accord-                      17.   Shinomiya, K. et al. Candidate neural substrates for off-edge motion detection in
+                                                                                                       Drosophila. Curr. Biol. 24, 1–9 (2014).
+ing to predictions derived from that analysis, if Mi1 signals are delayed                        18.   Meier, M. et al. Neural circuit components of the Drosophila OFF motion vision
+relative to those of Tm3, as our recordings indicate, the observed direc-                              pathway. Current Biol. (2014).
+tion selectivity in T4 could be accomplished by combining Mi1 and Tm3                            19.   Eichner, H., Joesch, M., Schnell, B., Reiff, D. F. & Borst, A. Internal structure of the fly
+                                                                                                       elementary motion detector. Neuron 70, 1155–1164 (2011).
+inputs with opposite signs onto T4 (one inhibitory and the other excit-                          20.   Joesch, M., Plett, J., Borst, A. & Reiff, D. F. Response properties of motion-sensitive
+atory). Such an arrangement could be similar to the motion detection                                   visual interneurons in the lobula plate of Drosophila melanogaster. Curr. Biol. 18,
+model proposed to explain direction selective responses in the verte-                                  368–374 (2008).
+                                                                                                 21.   Chichilnisky, E. J. A simple white noise analysis of neuronal light responses.
+brate retina16,28.                                                                                     Network 12, 199–213 (2001).
+    Given the cellular and synaptic complexity of medulla circuitry, as                          22.   Baccus, S. A. & Meister, M. Fast and slow contrast adaptation in retinal circuitry.
+well as the wealth of distinct behaviours that are guided by visual motion,                            Neuron 36, 909–919 (2002).
+                                                                                                 23.   Harris, R. A., O’Carroll, D. C. & Laughlin, S. B. Contrast gain reduction in fly motion
+additional cell types are likely to play computational roles in Drosophila                             adaptation. Neuron 28, 595–606 (2000).
+elementary motion detectors. Nonetheless, our data show that Mi1, Tm3,                           24.   Marmarelis, P. Z. & McCann, G. D. Development and application of white-noise
+Tm1 and Tm2 possess response properties that are consistent with imple-                                modeling techniques for studies of insect visual nervous system. Kybernetik 12,
+                                                                                                       74–89 (1973).
+menting the algorithmic steps that precede the correlation operations                            25.   Franceschini, N., Riehle, A. & Le Nestour, A. in Facets of Vision (eds Stavenga, D. G. &
+in the motion detecting pathways in Drosophila.                                                        Hardie, R. C.) Ch. 17, 360–390 (Springer, 1989).
+                                                                                                 26.   Borst, A. & Bahde, S. What kind of movement detector is triggering the landing
+                                                                                                       response of the housefly? Biol. Cybern. 55, 59–69 (1986).
+METHODS SUMMARY                                                                                  27.   Wässle, H. Parallel processing in the mammalian retina. Nature Rev. Neurosci. 5,
+Green fluorescent protein (GFP)-targeted recordings were performed as described                        747–757 (2004).
+previously29 under visual control using an Olympus microscope and a 360 objective.               28.   Barlow, H. & Levick, W. R. The mechanism of directionally selective units in rabbit’s
+Electrophysiology data were collected using Igor (Wavemetrics) running mafPC                           retina. J. Physiol. (Lond.) 178, 477–504 (1965).
+                                                                                                 29.   Wilson, R. I., Turner, G. C. & Laurent, G. Transformation of olfactory representations
+(courtesy of M. A. Xu-Friedman).
+                                                                                                       in the Drosophila antennal lobe. Science 303, 366–370 (2004).
+  The drivers 686b-Gal4 and Bsh-Gal4 were used to target Mi1 neurons, R13E12-                    30.   Fischbach, K.-F. & Dittrich, A. The optic lobe of Drosophila melanogaster. I. A Golgi
+Gal4 for Tm3, 27b-Gal4 for Tm1, otd-Gal4 for Tm2 (see Methods for details about                        analysis of wild-type structure. Cell Tissue Res. 258, 441–475 (1989).
+Gal4 driver lines). A cytosolic variant of UAS–GFP (a gift from G. Turner) was expressed
+                                                                                                 Acknowledgements We thank G. Turner for his initial help on whole-cell recordings;
+under the control of the drivers to visualize the neurons.                                       X. Li for providing the confocal image of the 686-Gal4 flip-out clone, and N. Vogt,
+  Visual stimulation used a digital light projector coupled to a coherent fibre optic            J. Rister and members of the Clandinin laboratory, as well as H. S. Seung and
+bundle to project images on a screen as described previously3.                                   S. A. Baccus, for reading of the manuscript. We also thank D. B. Chklovskii for suggesting
+  Data were analysed using custom-written Matlab code. Filter extraction used stan-              recording from Tm3 and T. Erclick for identifying the Tm3 Gal4 line. This work was
+                                                                                                 supported by a grant from the National Institutes of Health (NIH) (R01EY017916) and
+dard methods22.
+                                                                                                 a grant from New York University Abu Dhabi Institute (G1205C) to C.D.; R.B. was
+                                                                                                 supported by fellowships from EMBO and the Human Frontier Science Program. This
+Online Content Methods, along with any additional Extended Data display items
+                                                                                                 work was also supported by grants from the NIH to T.R.C. (R01EY022638 and DP1
+and Source Data, are available in the online version of the paper; references unique
+                                                                                                 OD003530). D.A.C. was partly supported by an NIH T32 Vision Training Grant and a
+to these sections appear only in the online paper.
+                                                                                                 Jane Coffin Childs postdoctoral fellowship. A.G.C. was supported by a Scholar Award
+                                                                                                 from The McKnight Foundation.
+Received 17 November 2013; accepted 1 May 2014.
+                                                                                                 Author Contributions R.B. designed experiments, performed electrophysiological
+Published online 6 July 2014.
+                                                                                                 recordings and analysed the data. D.A.C. designed visual stimuli and experiments,
+                                                                                                 analysed the data and performed modelling. A.G.C. provided electrophysiological
+1.   Hassenstein, V. & Reichardt, W. System theoretical analysis of time, sequence               training and advice to R.B. T.R.C. and C.D. contributed to the design of experiments.
+     and sign analysis of the motion perception of the snout-beetle Chlorophanus.                R.B., D.A.C., T.R.C. and C.D. wrote the manuscript.
+     Z. Naturforsch. B 11, 513–524 (1956).
+2.   Joesch, M., Schnell, B., Raghu, S. V., Reiff, D. F. & Borst, A. ON and OFF pathways in      Author Information Reprints and permissions information is available at
+     Drosophila motion vision. Nature 468, 300–304 (2010).                                       www.nature.com/reprints. The authors declare no competing financial interests.
+3.   Clark, D. A., Bursztyn, L., Horowitz, M. A., Schnitzer, M. J. & Clandinin, T. R. Defining   Readers are welcome to comment on the online version of the paper. Correspondence
+     the computational structure of the motion detector in Drosophila. Neuron 70,                and requests for materials should be addressed to R.B. (rb141@nyu.edu) or
+     1165–1177 (2011).                                                                           D.A.C. (damon.clark@yale.edu).
+
+
+
+
+4 3 0 | N AT U R E | VO L 5 1 2 | 2 8 AU G U S T 2 0 1 4
+                                                           ©2014 Macmillan Publishers Limited. All rights reserved
+                                                                                                                                                            LETTER RESEARCH
+
+METHODS                                                                                       (see below) accounts for these stimulus correlations when computing the empirical
+Flies. Flies were reared on standard molasses-based medium at 25 uC. Flies used               linear filters. Qualitatively, the response of each of the four cell types to this stimulus
+for electrophysiology were of the following genotype: w1; UAS–cytosolicGFP/UAS–               was robust and highly reproducible, with no systematic differences observed across
+cytosolicGFP; 686-Gal4/1 or TM2 (Extended Data Fig. 8a, also labels Tm2 in the                identical presentations of the same stimulus (Extended Data Fig. 4a, b).
+medulla) or w1; UAS–cytosolicGFP/UAS–cytosolicGFP; Bsh-Gal4/1 or TM2 for Mi131                Filters and nonlinearities. Linear filters were extracted using methods described
+(also labels L4 and L5 in the lamina), w1; UAS–cytosolicGFP/UAS–cytosolicGFP;                 in ref. 22. Before extracting filters, membrane voltage measurements were filtered
+R13E12-Gal4/1 or TM2 from the Janelia Farms Gal4 collection32 for Tm3 (Extended               with a 60 Hz notch filter to exclude noise in that frequency, and with a high-pass
+                                                                                              filter with cutoff frequency of 0.008 Hz. Briefly, the filter estimate, K^ ðvÞ, for a stim-
+Data Fig. 8a, also labels unidentified medulla tangential cells), w1; UAS–cytosolicGFP/
+UAS–cytosolicGFP; 27b-Gal4/1 or TM2 for Tm1 (ref. 33) (also labels Pm1 and Pm2                ulus, s(t), and response, r(t), was computed in Fourier space to be
+in the medulla), w1; UAS–cytosolicGFP/UAS–cytosolicGFP; otd-Gal4/1 or TM2 for                                                             ^
+Tm2 (ref. 33) (also labels photoreceptors). All experimental animals were briefly ana-                                             ^ ðvÞ~ Crs ðvÞ
+                                                                                                                                   K
+                                                                                                                                          ^ ss ðvÞ
+                                                                                                                                          C
+esthetized using carbon dioxide within 1 to 2 days of eclosion, and tested at least 3 h
+later at room temperature.                                                                    where the numerator is the covariance between stimulus and response and the denom-
+Electrophysiology. Flies were prepared for in vivo whole-cell patch-clamp record-             inator is the autocovariance of the stimulus. These two functions were estimated by
+ing using the following procedure, based on ref. 34. The flies were immobilized in a          computing
+perforated piece of foil. A window was cut in the caudal backside of the head at the                                           ^ rs ðvÞ~h~rðvÞ~s ðvÞi
+                                                                                                                               C
+edge of the retina to expose the cell bodies of medulla cortex neurons. The eyes and
+the ventral side of the fly were facing down under the foil, which separates the upper
+                                                                                                                                ^ ss ðvÞ~h~sðvÞ~s ðvÞi
+                                                                                                                                C
+part of the preparation covered with saline, from the lower dry part. The saline com-
+position was as follows (in mM): 103 NaCl, 3 KCl, 5 N-tris(hydroxymethyl) methyl-
+2-aminoethane-sulphfonic acid, 8 trehalose, 10 glucose, 26 NaHCO3, 1 NaH2PO4,                 where ~r ðvÞ and ~sðvÞ are the Fourier transforms of r(t) and s(t). The averages in
+1.5 CaCl2, and 4 MgCl2, adjusted to 270 mOsm. The pH of the saline equilibrated               each case are performed over 5-s-long snippets of stimulus and response traces,
+near 7.3 when bubbled with 95% O2/5% CO2 and perfused continuously over the                   taken every 0.1 s over the entire trace. The snippets were zero-padded before the
+preparation at 2 ml min21. Patch-clamp electrodes (resistance 6–12 MV) were pres-             fast Fourier transform. To prevent the amplification of high frequencies in the filter,
+sure polished and filled with a solution composed of the following (in mM): 125               the quotient was regularized by adding to C    ^ ss ðvÞ a small term equal to 1% of the aver-
+potassium aspartate, 10 HEPES, 1 KCl, 4 MgATP, 0.5 Na3GTP, and 1 EGTA, 13                     age value of C^ ss ðvÞ over all frequencies. Lengthening the snippet duration, eliminat-
+biocytin hydrazide, pH 7.3, adjusted to 265 mOsm. In most cells, it was necessary             ing the zero-padding and using a non-Fourier-transformed estimate of the filter19
+to inject a small constant hyperpolarizing current immediately after break-in (0–             all yielded filters with shapes and peak locations almost indistinguishable from this
+5 pA), to bring the membrane potential close to 260 mV, which had no effects on               method. The filters shown in the figures are the inverse Fourier transforms of the
+the character of light responses while the potential was in the range 250 to 260 mV,                  ^ ðvÞ computed for each neuron.
+                                                                                              filters K
+spanning the likely range of physiological resting potentials.                                    Instantaneous (‘static’) nonlinearities were obtained by plotting actual responses
+   The membrane potential was measured in current-clamp mode using a Multiclamp               against linear predictions. The linear predictions were binned and the mean actual
+700B amplifier (Axon). Electrophysiology data were collected using Igor Pro (Wave-            response was computed for each bin. This operation was performed across cells, and
+metrics) running mafPC (courtesy of M. A. Xu-Friedman). The analysis used Igor                then averaged by bin to obtain the mean and s.e.m. values of the nonlinearity.
+Pro and Matlab.                                                                                   In addition to the filter relating output to input, we also computed the coherence
+   Recordings were obtained under visual control using an Olympus BX51 with                   between input and output for all four neurons, shown in Extended Data Fig. 4c.
+360 water-immersion objective. The preparation was visualized using transmitted               The coherence, c2, was computed as
+infrared illumination and a long-pass filter (850 nm). The contrast was adjusted on                                                                   
+the camera to visualize the shape of the neurons. Neurons of interest were marked                                                         C^ rs ðvÞ2
+                                                                                                                                  c2 ~
+using a cytosolic variant of GFP, and the fluorescence excitation was briefly turned                                                   ^ ss ðvÞC
+                                                                                                                                       C           ^ rr ðvÞ
+on before patching for identification. One neuron was recorded per fly. Recordings
+were discarded if large changes in input resistance or resting potential were detected.       where C  ^ ss ðvÞ and C ^ rs ðvÞ were computed as before, and C   ^ rr ðvÞ~h~rðvÞ~r  ðvÞi.
+   Two distinct classes of Mi1 responses were found (Fig. 2a and Extended Data                Regularization was unnecessary, since coherence is bounded above by 1.
+Fig. 9). In one class, detailed in the results, responses to steps were transient (Fig. 2).   Deviations of the coherence from 1 show the influence of nonlinearities in the
+The second class (65% of recorded Mi1 neurons) comprised cells that depolarized               input–output relationship or the influence of noise in the response.
+in response to brightness increments, but responded tonically (that is, persistently)         Statistics. Sample sizes were commensurate with other studies in the field. All sta-
+during light presentation and returned to pre-step levels only when the light was             tistical tests were two-tailed Student’s t-tests. Some results are presented using Pear-
+turned off (Extended Data Fig. 9a, b). These Mi1 neurons depolarized fully in response        son correlation coefficients (r values). We did not test for normality of distributions.
+to very small increases in light and, given their elevated membrane potential, could          Modelling. To model the responses of the four interneurons, we gathered a dis-
+not respond strongly to further brightness increments (Extended Data Fig. 9b). In             tinct set of data to sample a range of lower frequencies. Indeed, the full-field pre-
+some instances, cells switched from the transient class to this tonic class over a few        sentations of the noise stimulus in Fig. 3 were 10 s long, which did not provide many
+minutes, and remained tonic thereafter. The converse switch from tonic to transient           instances of low-frequency stimuli that could be used to fit a filter. To generate the
+was never observed. A similar phenomenon was also observed in a small fraction of             new stimuli and responses, we displayed a grid of 256 squares to flies (each square
+Tm3 neurons (18%). For these reasons we believe that the tonic neuronal measure-              was approximately 5u across, depending on position on the screen), with each square
+ments are non-physiological, and have excluded those neurons’ responses from all              displaying a Gaussian noise stimulus with a correlation time of 50 ms. The entire
+subsequent analyses.                                                                          stimulus in this case lasted 200 s, so that low-frequency stimuli were sampled better
+Visual stimulation. Visual stimulation was performed as described previously3,35.             than in the 10 s presentations. The temporal filters and nonlinearities obtained
+Grey-scale images were projected onto a screen using a digital light projector (Infocus       with this stimulus were similar to those computed with the full-field noise stimulus,
+DepthQ) coupled with a coherent fibre optic (100 fibres per millimetre, 0.63 numer-           but the longer stimulus allowed a higher-quality estimate at longer times (Extended
+ical aperture) (Schott) and a lens. The screen was 55 mm 3 55 mm, placed 40 mm                Data Fig. 6).
+away from the fly. Visual stimuli were created using custom-written code in Matlab,              Examples of receptive fields obtained with this method are presented in Extended
+using PsychToolBox36. The mean radiance was 1.1 W sr21 m22, which corresponds                 Data Fig. 6a. In these experiments, we chose the strongest pixels, whose filter ampli-
+to ,250 cd m22, and the stimulus was updated at 240 Hz, by using colour channels              tudes were 3.7 or more standard deviations from the mean (P , 0.05, Bonferroni-
+as independent intensity channels with the colour wheel removed3.                             corrected for the number of squares), and summed them to obtain a filter for each
+   The random flicker stimuli were presented on a background luminance, so that               cell. Instantaneous nonlinearities in these experiments were computed by compar-
+the intensity q(t) 5 m(1 1 s(t)), where m is the mean background luminance and                ing the actual response to the sum of the predicted responses due to these pixels.
+s(t) is constructed to be Gaussian distributed with zero mean and standard devi-                 Using this data set, we created two models to test hypotheses about the filters
+ation s. The timelag autocovariance of s(t) was constructed to be Css(t) 5 s2e2jtj/t,         and nonlinearities we measured in these four neurons. The first was a detailed model,
+where t is the reported correlation time for the input and s is the reported contrast.        in which we incorporated as many measurements and known quantities as possible.
+The intensity q(t) was bounded below by 0 and above by 2m, so that the distribu-              We used this model to compare predictions from our data to two prominent mea-
+tion was approximately Gaussian and rarely clipped when contrast was 50% or                   surements in the literature. The second model was a toy model, which was entirely
+below. Slower correlation times put more power into low frequencies, which were               linear in its filtering and could include far simpler filters than the empirical ones. We
+less attenuated by low-pass filter properties of the system. Our filter extraction method     used the toy model to gain insight into how filter combinations with small timing
+
+
+                                                       ©2014 Macmillan Publishers Limited. All rights reserved
+ RESEARCH LETTER
+                                                                                                                          1
+differences could generate peak stimulus responses at relatively low temporal fre-           If f1 ðt Þ~dðt Þ and f2 ðt Þ~ e{t=t , then
+                                                                                                                          t
+quencies. All modelling used custom-written code in Matlab (Mathworks).                                                                 vt
+Detailed model. Our detailed model used the linear filters and instantaneous non-                                           RðvÞ*
+                                                                                                                                      1zv2 t2
+linearities shown in Fig. 4, extracted from the long stimulus presentation (Extended
+Data Fig. 6). Two photoreceptors, a and b, with Gaussian angular acceptance func-          which has a maximum value at v 5 1/t, or a frequency of 1/2pt cycles per second,
+                                                                                           which equals 1 Hz when t , 150 ms. This is the origin of the 150 ms time constant
+tions and spacing Dw, equal to 5.1u, served as inputs to our motion detector. The
+                                                                                           often referred to in the literature23. Extended Data Fig. 7c shows the components of
+spatial filter was
+                                                                                           the HRC response for this model, with t 5 150 ms. The decrease in response at
+                                             1 { h2                                        high frequency comes from the low-pass filter, while the decrease at low frequency
+                                    g ðhÞ~ e 2q2
+                                            Z                                              comes from the phase term.
+                                                                                                                                                                             1
+where Z is chosen to normalize the function, h is azimuthal angle and q was chosen            If the filters in the toy model are both first-order low-pass, so that f1 ðt Þ~ e{t=t1
+                                                                                                           1 {t=t2                                                           t1
+to match the measured value of full width at half maximum of 5.7u (ref. 37). The           and f2 ðt Þ~ e            , then the steady-state response can also be worked out:
+photoreceptor spatial receptive fields were centred on ha and hb, so that Dw 5 wb 2 wa.                   t2
+Thus, from a space–time contrast input S(h,t) (similar to our s(t) above, but also a                                                     vðt2 {t1 Þ
+                                                                                                                          RðvÞ*
+function of azimuthal angle h), two signals emerged from the model photoreceptors:                                                  ð1zv2 t21 Þð1zv2 t22 Þ
+                                     Ð
+                           sa ðt Þ~ dh0 S(h0 ,t)g ðh0 {ha Þ                                This simplifies to the previous result as one takes t1 R 0. The location of max-
+                                    Ð                                                      imum response can be found numerically, or analytically with this solution:
+                            sb ðt Þ~ dh0 S(h0 ,t)g ðh0 {hb Þ                                                            spﬃﬃﬃﬃﬃﬃﬃﬃﬃﬃﬃﬃﬃﬃﬃﬃﬃﬃﬃﬃﬃﬃﬃﬃﬃﬃﬃﬃﬃﬃﬃﬃﬃﬃﬃﬃﬃﬃﬃﬃﬃﬃﬃﬃﬃﬃﬃﬃﬃﬃﬃﬃﬃﬃﬃﬃ
+                                                                                                                               ﬃﬃﬃﬃﬃﬃﬃﬃﬃﬃﬃﬃﬃﬃﬃﬃﬃﬃﬃﬃﬃﬃﬃﬃﬃﬃﬃﬃﬃﬃﬃ
+These two signals were each filtered by two empirical temporal filters, f1(t) and f2(t),                             1         t41 zt42 z14t21 t22                  1          1
+                                                                                                                v~ pﬃﬃﬃ                                        { 2{ 2
+where the pairing was Tm2-and-Tm1 or Tm3-and-Mi1. After filtering, the signals                                        6                 t21 t22                    t1 t2
+were transformed by the empirical nonlinearities, N1(.) and N2(.). Thus, the two signals
+originating at photoreceptor a, after filtering and including the nonlinearity, were           In Extended Data Fig. 7d, we plot the components of the HRC response in the
+                                                                                           case of two low-pass filters, with time constants of 40 and 55 ms, which roughly
+                                    t                              
+                                       Ð                                                   match the peak times we found in Tm2 and Tm1. This combination of filters gives
+                       Fia ðt Þ~Ni         dt 0 sa ðt 0 Þfi ðt{t 0 Þ                       a frequency optimum around 2 Hz, even though the difference in time constants is
+                                      {?
+                                                                                           a factor of 10 smaller than the 150 ms found with the first model above. Note that
+where Fia(t) is the output of the linear–nonlinear model corresponding to filter i         these toy filters are pure low-pass filters, and look quite different from the biphasic
+on the signal from photoreceptor a. Thus, with two photoreceptors and two filters,         filters we found empirically. The goal of this exercise was to gain intuition about
+there were four total signals after filtering and including the static nonlinearities.     simple filters on the two arms of an HRC.
+To obtain the model output, we combined the signals in the antisymmetric fash-                 In Extended Data Fig. 7E, we plot the contrast frequency optimum (in hertz) for
+ion of the HRC1:                                                                           various combinations of t1 and t2. There are many combinations of these two filter
+                                                                                           values that result in contrast frequency optima in 1–3 Hz range. (When t1 and t2
+                   Rðt Þ~(F2a ðt Þ | F1b ðt Þ){(F2b ðt Þ | F1a ðt Þ)                ð1Þ    invert order, so that t1 , t2 becomes t1 . t2, the response inverts, so we locate the
+                                                                                           minimum of this inverted response.) When the two time-constants are very sim-
+where the subscripts 1 and 2 refer to filters and subscripts a and b refer to the pho-     ilar, the phase term in the response, along with the total response itself, becomes
+toreceptor position. This model was used to compute the mean responses in Fig. 4b.         small (Extended Data Fig. 7f; again, when the order of t1 and t2 changes, we invert
+The responses in Fig. 4c are the integrated responses of this model to high-contrast       the response sign). In our normalized scaling, when the responses are small com-
+light and dark edges moving over a grey background.                                        pared with 1, they may be susceptible to noise, since the signal is the difference
+Toy model. In addition to the detailed models in Fig. 4 for Mi1/Tm3 and Tm1/Tm2,           between two signals of from the multiplication steps, which can be much larger than
+we constructed a second ‘toy model’. The aim of the toy model was to gain intuition        their difference. Filter pairings with phase terms (and responses) that are closer to 1
+for how a small difference in filter timescales could produce a relatively low tem-        are less susceptible to noise during the subtraction step of the HRC computation. In
+poral frequency optimum. This model is like the realistic one, except that the two         the empirical cases (Extended Data Fig. 7a, b), the phase terms and relative res-
+spatial filters were represented by spatially separated delta functions, and no non-       ponses are larger than those in our toy model (Extended Data Fig. 7d) and closer to
+linearities were applied before the multiplication step. In this case, it is possible to   the toy model with very different low-pass filters (Extended Data Fig. 7c).
+compute analytical results26. The classic equation for the steady-state HRC res-           Generation of clones. The flies hsFLP, FRT40A,UAS-CD8::GFP,UAS-rCD2-miRNA/
+ponse to a moving sine wave grating of wavelength l, contrast DI and temporal              CyO,y1 were crossed with hsFLP; FRT40A,UAS-rCD2RFP,UAS–GFP-miRNA/
+frequency v, is:                                                                           CyO,y1 (gifts from T. Lee). The progeny larvae were heat-shocked at 37 uC for
+                                                                                       12 min, and dissected as adults.
+           RðvÞ~ ~f1 ðvÞ ~f2 ðvÞ sinðW1 ðvÞ{W2 ðvÞÞðDI Þ2 sinð2pDw=lÞ           ð2Þ    Immunostainings. These were done as described38 with some modifications. Adult
+where ~f1 ðvÞ and ~f2 ðvÞ are the Fourier transforms of the filters for the two input      brains were dissected in 13 PBS, and fixed in 4% formaldehyde for 45 min on ice.
+arms to the correlator, W1 ðvÞ and W2 ðvÞ are the phase shift of each filter, and Dw is    Brains were incubated in primary antibody solution overnight at 4 uC and in secon-
+the angular separation between the two photoreceptor inputs.                               dary antibody solution at room temperature for 3 h. We used the following anti-
+    Equation (2) gives the predicted response of an HRC to a sine wave of a given          bodies: sheep anti-GFP (1:500, AbD Serotec), rat anti-DN-cadherin (1:20, DSHB)
+temporal frequency, and simplifies easily under certain circumstances. The first           and mouse anti-chaoptin (1/20, DSHB) diluted in 0.3% PBST (Triton X-100 in PBS).
+two terms give the amplitudes of the input sine waves after passing through the            Images were acquired using a Leica SP5 confocal. Figures were assembled using
+                                                                                           Adobe Photoshop.
+filters, while the phase term sinðW1 ðvÞ{W2 ðvÞÞ relies on the different phases gen-
+erated by the two filters, and is a result of the antisymmetric subtraction in the         31.   Hasegawa, E. et al. Concentric zones, cell migration and neuronal circuits in the
+model. The last term is a geometrical term that relates the overall response ampli-              Drosophila visual center. Development 138, 983–993 (2011).
+tude to the wavelength of the sinewave input and the distance between photore-             32.   Jenett, A. et al. A GAL4-driver line resource for Drosophila neurobiology. Cell Rep.
+ceptor receptive fields.                                                                         2, 991–1001 (2012).
+                                                                                           33.   Morante, J. & Desplan, C. The color-vision circuit in the medulla of Drosophila.
+    In Extended Data Fig. 7a, we plot the first three terms
+                                                         in equation (2) (normalizing
+                                                                                           Curr. Biol. 18, 553–565 (2008).
+the two filters by the maximum filter strengths, max  ~f1 ðvÞ and max  ~f2 ðvÞ ),      34.   Wilson, R. I. & Laurent, G. Role of GABAergic inhibition in shaping odor-evoked
+and the relative total response. The relative total response is the product of the first         spatiotemporal patterns in the Drosophila antennal lobe. J. Neurosci. 25,
+                                                                                                 9069–9079 (2005).
+three terms in equation (2) (with filters normalized as above), effectively setting        35.   Freifeld, L., Clark, D. A., Schnitzer, M. J., Horowitz, M. A. & Clandinin, T. R.
+(DI)2sin(2pDw/l) 5 1. For the two model HRCs we compute both Tm3 1 Mi1 and                       GABAergic lateral interactions tune the early stages of visual processing in
+Tm2 1 Tm1. The phase terms are 0.2–0.4 for these filter pairings in the region                   Drosophila. Neuron 78, 1075–1089 (2013).
+around 1 Hz. Much of the decrease in response at higher frequencies comes from             36.   Brainard, D. H. The psychophysics toolbox. Spat. Vis. 10, 433–436 (1997).
+the low-pass nature of the filters, rather than from the phase term. These analytical      37.   Stavenga, D. Angular and spectral sensitivity of fly photoreceptors. II.
+                                                                                                 Dependence on facet lens F-number and rhabdomere type in Drosophila.
+HRC responses agree closely with our numerical computations in Fig. 4 when the                   J. Comp. Physiol. A 189, 189–202 (2003).
+input amplitude is small, so that the nonlinearities do not greatly affect the numer-      38.   Morante, J. & Desplan, C. Dissection and staining of Drosophila optic lobes at
+ical results.                                                                                    different stages of development. Cold Spring Harb. Protoc. 2011, 652–656 (2011).
+
+
+
+                                                        ©2014 Macmillan Publishers Limited. All rights reserved
+                                                                                                                                     LETTER RESEARCH
+
+
+
+
+Extended Data Figure 1 | Representative raw traces of responses to flashes       Tm2 neuron. c, Box plots illustrating the distribution of the OFF response as a
+of light of different duration from dark. a, Top: response of an Mi1 neuron to   percentage of the ON response for Mi1 (n 5 7) and Tm3 (n 5 10) and the ON
+200 ms, four consecutive 250 ms and 1 s full-field flashes of light from dark.   response as a percentage of the OFF response for Tm1 (n 5 10) and Tm2
+Bottom: same as top for a Tm3 neuron. b, Same as a for a Tm1 neuron and a        (n 5 11) averaged in Fig. 1. Black line, median; coloured line, average.
+
+
+
+
+                                               ©2014 Macmillan Publishers Limited. All rights reserved
+ RESEARCH LETTER
+
+
+
+
+Extended Data Figure 2 | Mi1, Tm3, Tm1 and Tm2 neurons encode stable                5 s after contrast change) as a percentage of the maximum peak response for
+information about luminance. a, Top left: averaged evoked responses                 brightness increments of the corresponding contrast difference. Error bars,
+(6 s.e.m.) of Mi1 (n 5 7) in response to 5 s steps of light from dark to grey       s.e.m. c, d, Same as a and b for Tm1 (n 5 9) and Tm2 (n 5 7). The tonic
+(0.5 intensity) to light to grey to dark. Top right: excerpts from the left trace   component was measured as a percentage of the peak response for brightness
+where the pre-contrast change voltages have been matched. Bottom left and           decrements of the corresponding contrast difference. In all cases, expect for
+right: same as above for Tm3 (n 5 10). b, Tonic component (average difference       those marked with a cross, the distributions are significantly different from zero
+in membrane potential between post- and pre-contrast change between 4 and           (P , 0.05).
+
+
+
+                                                   ©2014 Macmillan Publishers Limited. All rights reserved
+                                                                                                                                     LETTER RESEARCH
+
+
+
+
+Extended Data Figure 3 | Mi1, Tm3, Tm1 and Tm2 are not direction                 light background. Bottom: same as top for a Tm2 neuron. c, Average amplitude
+selective. a, Top: response of an Mi1 neuron to a white bar moving rightwards,   of the voltage response as a function of angle (0u, 90u, 180u and 270u) for Mi1
+upwards, leftwards and downwards at 100u s21 on a dark background. Bottom:       (n 5 2), Tm3 (n 5 2), Tm1 (n 5 2) and Tm2 (n 5 3) for a bar moving at
+same as top for a Tm3 neuron. b, Top: response of a Tm1 neuron to a black        100u s21 (solid lines) and 400u s21 (dashed lines). The response amplitude was
+bar moving rightwards, upwards, leftwards and downwards at 100u s21 on a         independent of the direction of motion in all cases.
+
+
+
+
+                                               ©2014 Macmillan Publishers Limited. All rights reserved
+ RESEARCH LETTER
+
+
+
+
+Extended Data Figure 4 | The response of Mi1, Tm3, Tm1 and Tm2 to a               in the output is not entirely accounted for by a linear transformation of the
+Gaussian noise stimulus is very reliable. a, Left: response of an Mi1 neuron to   input. This can be caused by noise in the response unrelated to the input, or by
+three consecutive 10 s presentations of an approximate Gaussian noise stimulus    the nonlinearities in the system response that we measured. The linear filter
+with 50% standard deviation and correlation time of 10 ms. Right: same as         amplitude for each frequency is distinct from coherence, and those amplitudes
+left for Tm3. b, Same as a for Tm1 (left) and Tm2 (right). c, Coherence of the    as a function of frequency are plotted in Extended Data Fig. 7a, b.
+measured responses in the four cell types. Deviations from 1 mean that variance
+
+
+
+
+                                                  ©2014 Macmillan Publishers Limited. All rights reserved
+                                                                                                                                           LETTER RESEARCH
+
+
+
+
+Extended Data Figure 5 | Individual filters and nonlinearities from the              nonlinearities (in grey) overlaid on the averaged nonlinearity (6 s.e.m.) for Mi1
+Gaussian noise analysis of Mi1, Tm3, Tm1 and Tm2. a, Individual filters              neurons. c, d, Same as a and b for Tm3. e, f, Same as a and b for Tm1. g, h, Same
+(in grey) overlaid on the average filter (6 s.e.m.) for Mi1 neurons. b, Individual   as a and b for Tm2.
+
+
+
+
+                                                  ©2014 Macmillan Publishers Limited. All rights reserved
+ RESEARCH LETTER
+
+
+
+
+Extended Data Figure 6 | Spatio-temporal analysis of Mi, Tm3, Tm1 and              inset. c, Average nonlinearities over several neurons for both Mi1 and Tm3.
+Tm2. a, Representative receptive fields of Mi1, Tm3, Tm1 and Tm2 neurons           To obtain each neuron’s nonlinearity, the neuron’s measured response was
+shown as a heat map of 256 pixels using the r value of linear prediction for       plotted against the linear prediction from the relevant pixels. Error bars, s.e.m.
+each pixel intensity. b, Average temporal filters (6 s.e.m.) extracted from the    A line of slope 1 is shown in black. d, e, Equivalent to b and c for Tm1 (n 5 8)
+highest responding pixels for each neuron for Mi1 (n 5 4) and Tm3 (n 5 8) (see     and Tm2 (n 5 7).
+Methods). The peaks of the filters, with the average timing, are enlarged in the
+
+
+
+
+                                                  ©2014 Macmillan Publishers Limited. All rights reserved
+                                                                                                                                              LETTER RESEARCH
+
+
+
+
+Extended Data Figure 7 | Numerical and analytical HRC responses. a, b, We               respectively. e, False-colour plot of the temporal frequency optimum for
+plot three terms in equation (2) of the Methods, and the total HRC response,            various combinations of t1 and t2. Many combinations result in frequency
+using the empirical measurements for Tm1/Tm2 and Mi1/Tm3 as the two                     optima near 1 Hz. f, The value of the relative HRC response at the optimal
+input arms for the correlator (f2(t) and f1(t), respectively). The analytical results   frequency in e is plotted for those same combinations of t1 and t2. To compute
+computed here match the numerical ones shown in Fig. 4. Here and in all                 this, temporal filters have a maximum gain of 1, as in a–d. The responses
+subsequent plots, we normalize the filter values so that they have a maximum of         become small primarily when the phase term becomes small. When the phase
+1, and compute the relative HRC response from those normalized filters and the          term is very small, the subtraction performed by the HRC is susceptible to noise,
+phase term. c, The same three components of equation (2) are plotted in the             since it can be subtracting two larger numbers to yield the small difference.
+                                              1                                         Therefore, filter combinations with very small differences seem less biologically
+special case where f1(t) 5 d(t) and f2 ðt Þ~ e{t=t . We plot the result with
+                                              t                                         plausible than those with larger phase terms. The phase terms for the two
+t 5 150 ms, so that the peak response occurs at ,1 Hz. d, The same
+                                                                                        model HRCs in a and b are between 0.2 and 0.4 in the 1-Hz region, larger than
+components of equation (2) are plotted in the case where both f1(t) and f2(t)
+                                                                                        for the toy model shown in d.
+are first-order low-pass filters, with time constants of 40 ms and 55 ms,
+
+
+
+
+                                                    ©2014 Macmillan Publishers Limited. All rights reserved
+ RESEARCH LETTER
+
+
+
+
+Extended Data Figure 8 | 686-Gal4 labels Mi1 neurons and R13E12-Gal4 is         distinguishable both visually and functionally. b, Confocal image of twin-spot
+specific to Tm3 neurons. a, Confocal image of a single Mi1 neuron obtained      MARCM clones obtained using R13E12-Gal4. Tm3 neurons present processes
+through a flip-out clone procedure with 686-Gal4. Mi1 neurons present           at the medulla layers M1 and M5 and project to proximal layers of the
+processes at the level of M1 and M5 and terminate in the most proximal layers   medulla and superficial layers of the lobula.
+of the medulla. This line also sparsely labels Tm2 neurons, which were
+
+
+
+
+                                                ©2014 Macmillan Publishers Limited. All rights reserved
+                                                                                                                                              LETTER RESEARCH
+
+
+
+
+Extended Data Figure 9 | Evoked response of ‘tonic’ Mi1 neurons.                       measured response of ‘tonic’ Mi1 as a function of contrast history. Individual
+a, Average evoked responses (6 s.e.m.) of ‘tonic’ Mi1 (n 5 9) in response to           filters are shown in grey. e, Nonlinearities for ‘tonic’ Mi1 cells. Actual responses
+200 ms, four consecutive 250 ms and 1 s full-field flashes of light from dark.         are plotted against their linear predicted responses. Individual cell
+b, Average evoked responses (6 s.e.m.) of ‘tonic’ Mi1 (n 5 7) in response to 5 s       nonlinearities in grey; mean and s.e.m. are represented by the coloured line and
+steps of light. c, Top: 2 s excerpt of the intensity signal from the 10 s full-field   patch. A line of slope 1 is shown in black. f, Average temporal filters (6 s.e.m.)
+Gaussian noise stimulus. Correlation time is 10 ms. Bottom: average voltage            extracted from the highest-responding pixels for each ‘tonic’ Mi1 neuron in the
+response (6 s.e.m.) of ‘tonic’ Mi1 (n 5 8) in response to the 2 s noise stimulus       spatio-temporal experiments. g, Averaged actual responses of ‘tonic’ Mi1
+on top. The black trace corresponds to the average predicted linear response           plotted against their averaged linear predicted responses in the spatio-temporal
+obtained by convolving the stimulus with the filters in d (6 s.e.m.). d, Average       experiments. Error bars, s.e.m. A line of slope 1 is shown in black.
+temporal filters (6 s.e.m.) extracted from the data in c that best predict the
+
+
+                                                   ©2014 Macmillan Publishers Limited. All rights reserved
+
