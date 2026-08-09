@@ -1,0 +1,3052 @@
+Article
+
+The Emergence of Directional Selectivity in the
+Visual Motion Pathway of Drosophila
+Highlights
+d
+
+Each major T4 input encodes different features of ON and
+OFF visual stimuli
+
+d
+
+Directional selectivity for ON motion emerges in the dendrites
+of T4 cells
+
+Authors
+James A. Strother, Shiuan-Tze Wu,
+Allan M. Wong, ..., Jasmine Q. Le,
+Gerald M. Rubin, Michael B. Reiser
+
+Correspondence
+
+d
+
+Mi1 and Tm3 cells excite T4s while Mi4 and Mi9 cells
+inhibit T4s
+
+reiserm@janelia.hhmi.org
+
+d
+
+T4 cells compute motion using elements from two classic
+motion detection models
+
+Strother et al. dissect the responses of
+directionally selective visual neurons in
+Drosophila, by systematically recording,
+silencing, and activating each of the
+major input cells. Their results suggest
+motion detection is implemented using a
+hybrid of two classic theoretical models.
+
+Strother et al., 2017, Neuron 94, 168–182
+April 5, 2017 ª 2017 Elsevier Inc.
+http://dx.doi.org/10.1016/j.neuron.2017.03.010
+
+In Brief
+
+Neuron
+
+Article
+The Emergence of Directional Selectivity
+in the Visual Motion Pathway of Drosophila
+James A. Strother,1,3 Shiuan-Tze Wu,1,2 Allan M. Wong,1,2 Aljoscha Nern,1,2 Edward M. Rogers,1,2 Jasmine Q. Le,1
+Gerald M. Rubin,1 and Michael B. Reiser1,4,*
+1Janelia
+
+Research Campus, Howard Hughes Medical Institute, 19700 Helix Drive, Ashburn, VA 20147, USA
+authors contributed equally
+3Present address: Department of Integrative Biology, Oregon State University, Cordley Hall, Corvallis, OR 97331, USA
+4Lead Contact
+*Correspondence: reiserm@janelia.hhmi.org
+http://dx.doi.org/10.1016/j.neuron.2017.03.010
+2These
+
+SUMMARY
+
+The perception of visual motion is critical for animal
+navigation, and flies are a prominent model system
+for exploring this neural computation. In Drosophila,
+the T4 cells of the medulla are directionally selective
+and necessary for ON motion behavioral responses.
+To examine the emergence of directional selectivity,
+we developed genetic driver lines for the neuron
+types with the most synapses onto T4 cells. Using
+calcium imaging, we found that these neuron types
+are not directionally selective and that selectivity
+arises in the T4 dendrites. By silencing each input
+neuron type, we identified which neurons are necessary for T4 directional selectivity and ON motion
+behavioral responses. We then determined the sign
+of the connections between these neurons and T4
+cells using neuronal photoactivation. Our results indicate a computational architecture for motion detection that is a hybrid of classic theoretical models.
+INTRODUCTION
+As an animal navigates through its environment, the perceived
+movement of its visual surroundings provides critical information
+for planning future movements. The response of insects to visual
+motion has been a model system for examining these behaviors
+and their underlying computations. Classic studies have demonstrated that motion detection in insects is a local computation
+(Buchner, 1976; Hassenstein and Reichardt, 1956), which is
+likely implemented by integration of neuronal signals across
+neighboring columns in the early visual system. Downstream
+neurons integrate locally computed motion signals to produce
+outputs that are selective for particular types of body movement
+(Krapp and Hengstenberg, 1996). However, despite decades of
+study into the neuronal representation of visual motion in insects,
+the basic mechanism by which the local motion signal is
+computed from local luminance changes remains an active
+area of investigation.
+The visual system of Drosophila is retinotopically organized,
+with each column mapping to a 5 patch of visual space (Fig168 Neuron 94, 168–182, April 5, 2017 ª 2017 Elsevier Inc.
+
+ure 1A). The neuron types of the medulla, the largest neuropil
+in the visual system, have been carefully described (Fischbach
+and Dittrich, 1989), and the synaptic connectivity of these neurons has been examined using electron microscopy reconstructions (Takemura et al., 2013, 2015). Recent work indicates that
+visual stimuli are processed through largely independent ON
+and OFF pathways, which respectively process luminance increases and decreases (Joesch et al., 2010; Clark et al., 2011;
+Strother et al., 2014). The first neurons along these pathways
+known to encode directional selectivity are believed to be the
+medulla output neurons T4, encoding ON motion, and the lobula
+output neurons T5, which encode OFF motion (Maisak et al.,
+2013). Interestingly, these features suggest a striking similarity
+to the vertebrate visual system, which is also organized into
+distinct ON and OFF pathways (Borst and Helmstaedter, 2015).
+Our present understanding of the visual system makes it
+possible to compare the responses of identified neurons within
+the medulla to classic theoretical models that postulate how directionally selective signals can be computed from local luminance signals. Hassenstein and Reichardt (1956) proposed a
+model for motion detection in insects, in which excitatory inputs
+from spatially offset receptors are integrated by a coincidence detector (Figure 1B). This mechanism contrasts the model developed by Barlow and Levick (1965) to account for motion detection
+in the mammalian retina, in which spatially offset inhibition suppresses the response to motion in the null direction (Figure 1B).
+The Hassenstein-Reichardt (HR) and Barlow-Levick (BL) models
+postulate simple, hypothetical circuits that compute directional
+selectivity by combining inputs that are offset in both space and
+time (Figure 1B). Although these two models were developed in
+different organisms, they both capture the essential, minimal elements theoretically required for motion detection (Borst and Egelhaaf, 1989) and have been widely used to explain results from
+both vertebrates and invertebrates. Recent functional imaging
+studies in Drosophila (Haag et al., 2016; Leong et al., 2016)
+show that T4 and T5 cells feature enhanced response to preferred
+direction motion and suppressed responses to null direction motion, which may indicate that these neurons implement a combination of HR-like and BL-like elements. However, understanding
+the mechanistic origin of these proposed computational elements
+requires a systematic analysis of each neuron in the circuit.
+In this study, we focus on the T4 neurons of the ON pathway,
+which show directionally selective responses to ON motion
+
+A
+
+B
+
+Figure 1. T4 Neurons Receive an Array of Input Signals
+(A) A schematic model for the fly visual system showing the primary columnar neuron types that contribute to the computation of directionally selective signals.
+Neurons in gray provide the primary inputs to the medulla columnar neurons of the ON and OFF pathways. T4 cells encode ON directionally selective signals,
+while T5 cells encode OFF directionally selective signals. The inset schematic shows the approximate locations along the T4 dendrites, where each columnar
+neuron type provides synaptic input (Takemura et al., 2013; S.Y. Takemura and L.K. Scheffer, personal communications). The neurotransmitter types of each
+input neuron type have been identified by RNA profiling (F.P. Davis, S.R. Eddy, and G.L. Henry, personal communication) of isolated nuclei (Henry et al., 2012).
+The cholinergic identity of Mi1 and Tm3 has been confirmed by knock in of a tagged VAChT gene (Pankova and Borst, 2017). The schematized neurons indicate
+the arborization layers for each cell type (also see Figure S1C).
+(B) Two classical models for the computation of directional selectivity from non-selective input signals. Both models require spatially offset inputs, a time delay,
+and a non-linear interaction (differences in red). The Hassenstein-Reichardt detector (1956) uses a coincidence detector of two excitatory inputs, while the
+Barlow-Levick detector (1965) employs a rectifier with one excitatory and one inhibitory input.
+
+(Maisak et al., 2013). The four subtypes of T4 neurons are each
+selective for one of the cardinal directions and have dendrites
+in the medulla that span multiple columns with an orientation
+that corresponds to their preferred direction (Strausfeld and
+Lee, 1991; Takemura et al., 2013; Figure 1A). T4 cells receive inputs from multiple neurons that signal using excitatory or inhibitory neurotransmitters. In addition to the columnar inputs, T4
+cells also receive synaptic input from other T4 cells with the
+same directional selectivity (S.Y. Takemura and L.K. Scheffer,
+personal communication). In order to unravel how these inputs
+give rise to directional selectivity in T4 cells, we developed specific driver lines for each of the major T4 input neuron types (Mi1,
+Tm3, Mi4, Mi9, and T4 itself) and used these drivers to probe the
+contribution of each neuron type to T4 responses. Previous
+studies showed that Mi1 and Tm3 have non-directionally selective responses to ON stimuli (Behnia et al., 2014; Strother et al.,
+2014) and that silencing either cell type affects neuronal and
+behavioral responses (Ammer et al., 2015). However, the responses of the neurons Mi4 and Mi9 have not been examined,
+and the relative contribution of each input neuron type to the
+directional selectivity of T4 neurons is unknown. To address
+this question, we examined the signals carried by each of these
+input neurons using calcium imaging, we investigated how these
+signals affected T4 responses using neuron silencing with calcium imaging and behavioral assays, and we determined the
+functional signs of the connections between these input neurons
+and T4 cells by combining photoactivation with calcium imaging.
+Since all of the major input neurons were assayed, this approach
+
+allows for a direct test of the most commonly hypothesized
+mechanisms for the computation of directional selectivity.
+RESULTS
+Localizing the Emergence of Directional Selectivity
+within the T4 Pathway
+We began by characterizing the responses of Mi1, Tm3, Mi4,
+Mi9, and T4 to visual stimuli. Each cell type was targeted by identifying candidate driver lines from a large collection of imaged
+GAL4 lines (Jenett et al., 2012; Kvon et al., 2014), and then developing two specific genetic driver lines for each cell type using the
+split-GAL4 technique (Luan et al., 2006; Pfeiffer et al., 2010; Figures 2A and S1). We then selected the strongest, most complete
+driver for each cell type for subsequent imaging experiments.
+We first expressed the genetically encoded fluorescent calcium indicator GCaMP6m (Chen et al., 2013) in T4 cells, using
+a driver line that simultaneously expresses in T4 and T5 neurons,
+and recorded calcium responses to visual stimuli in T4 dendrites
+in the medulla (Figures 2B–2D). Flies were tethered to a perfusion
+chamber, and the cuticle of the head was dissected away to
+expose the brain. We recorded calcium signals using in vivo
+two-photon microscopy, while visual stimuli were projected
+onto a display (Figures 2B and 2C). We compared the response
+to an instantaneous luminance change with the response to a
+moving edge. Since the stimulus cycles between ON and OFF,
+the pre-stimulus response may be observed at the end of the
+complementary stimulus. Edges were presented moving in the
+
+Neuron 94, 168–182, April 5, 2017 169
+
+Figure 2. T4 Neurons Encode ON Directionally Selective Signals
+
+A
+
+B
+
+C
+
+D
+
+E
+
+170 Neuron 94, 168–182, April 5, 2017
+
+(A) To target the major columnar neuron types of the ON motion pathway, we
+developed specific genetic driver lines using the split-GAL4 technique.
+Expression patterns were visualized using UAS-driven expression of a membrane-targeted GFP and anti-GFP antibody staining (green); anti-Brp antibody
+staining (red) was used to visualize the optic lobe neuropil (me, medulla; lo,
+lobula; lp, lobula plate). Additional driver lines for these cell types were also
+generated (Figure S1).
+(B) Schematic representation of the in vivo two-photon microscopy setup used
+to record the responses of neurons expressing a fluorescent calcium indicator.
+(C) Example image of the medulla, recorded from flies that expressed a calcium indicator in both T4 and T5 cells. The brown polygon shows a typical
+region of interest used to calculate the DF/F for the dendrites of T4 cells.
+(D) Responses of T4 neurons to ON stimuli (increasing luminance) are shown in
+the top row, while the responses to OFF stimuli (decreasing luminance) are
+shown in the bottom row (shaded gray). Results are presented for luminance
+changes (left trace) and edges moving in the anterior direction (middle trace)
+and posterior direction (right trace) at 90 /s, all confined to a 30 disc centered
+over the receptive field of the imaged neurons. Since the stimulus cycles between ON and OFF, the pre-stimulus response may be observed at the end of
+the complementary stimulus (e.g., pre-stimulus condition for ON is at the end
+of OFF). Two dashed vertical lines represent the times at which the edge begins moving and reaches the end of the disc, respectively, and are also shown
+for responses to luminance changes to aid comparisons. T4 dendrites exhibit
+an enhanced response only to moving ON edges (n = 7 individuals; median
+values ± SEM). Since this is a population measurement, enhanced responses
+are recorded for all directions of motion.
+(E) Individual axons show selectivity to specific directions of motion, but in the
+medulla the dendrites of multiple neurons overlap and this selectivity cannot
+be observed. The preferred direction is computed on a pixel-wise basis using a
+color map that produces bright colors for pixels that respond with strong
+directional selectivity, white labeling for pixels that respond strongly to multiple
+directions, and dark labeling for pixels that respond weakly (color wheel shows
+map for anterior, posterior, dorsal, and ventral motion). In the lower left the
+lobula plate—containing responses of both T4 and T5 neurons—is visible, in
+which 2 of the 4 layers can clearly be seen with strong directional preference.
+Genotypes used in this figure (Table S1 panel/stock number): A/1, 2, 4, 6, 8;
+C–E/24, 25.
+
+four cardinal directions, but only the responses to anterior-toposterior and posterior-to-anterior motion are shown (Figure 2D;
+Movie S1). T4 dendrites responded both to luminance increases
+(ON) and luminance decreases (OFF), but responses to ON moving edges were faster and larger, a feature of the T4 response we
+refer to as motion selectivity. Directionally selective responses
+can be measured in individual T4 axons (Figure 2E; Maisak
+et al., 2013) and prominently seen in the axon terminals within
+the lobula plate. However, since the dendrites of all four T4 subtypes are densely intermingled, it is difficult to measure selectivity for specific directions in T4 dendrites. Nonetheless, we recorded principally from the T4 dendrites since the ON motion
+selectivity (Figure 2D) is a clear population signature of directional selectivity, the dendrites of T4 cells are well separated
+from any T5 cell processes, and recording from the T4 dendrites
+was more robust than recording from T4 axons.
+Since the T4 dendrites responded preferentially to ON moving
+edges, we next examined whether this selectivity could be
+observed in the T4 input neurons. We expressed GCaMP in
+each of the four input neuron types (Mi1 data reproduced from
+Strother et al., 2014) and examined the response of these cells
+to luminance changes and moving edges. Since similar responses
+were observed to motion in all directions, only the responses to
+anterior-to-posterior motion are presented (Figure 3B). We found
+
+A
+
+B
+
+Figure 3. The Directional Selectivity of the ON
+Motion Pathway Results from Integration of
+Mi1 and Tm3 Inputs at the Dendrites of T4
+
+D
+
+C
+
+E
+
+(A) Schematic representation of in vivo two-photon
+microscopy setup.
+(B) Mi1, Tm3, Mi4, Mi9, and T4 calcium responses to
+a moving edge stimulus. The first column shows the
+response to an instantaneous change in luminance
+across a 30 disc centered over the receptive field
+of the imaged neurons, with a background that is
+held constant at intermediate luminance. The second
+column shows the response to an edge moving
+across the disc at 90 /s in the anterior-to-posterior
+direction. For each input neuron type, the responses
+are displayed as in Figure 2D. Since the stimulus
+cycles between ON and OFF, the pre-stimulus
+response may be observed at the end of the complementary stimulus (e.g., pre-stimulus condition for
+ON is at the end of OFF). For the T4 row, the driver line
+expressed GCaMP in both T4 and T5 cells, but only
+the response from the T4 dendrites was recorded.
+Results shown are the median values (±SEM) from
+multiple individuals (Mi1 n = 6, Tm3 n = 5, Mi4 n = 5,
+Mi9 n = 5, T4 n = 7). Data for Mi1, Tm3, Mi4, and Mi9
+cells were collected at 20 C, and data for T4 cells
+were collected at 30 C. Data for Mi1 are from
+Strother et al. (2014), but were reanalyzed to match
+the analysis performed in this study. n represents
+individual flies.
+(C) T4 calcium responses to a moving edge stimulus,
+after input neurons have been silenced using
+shibirets1. Data are presented as in (B). The dark gray
+line represents the response of T4 in genetic control
+animals, and the colored lines represent the response
+after the respective neuron type has been silenced.
+Results shown are the median values (±SEM) from
+multiple individuals (Control n = 6, Mi1 n = 5,
+Tm3 n = 8, Mi4 n = 7, Mi9 n = 7, T4 n = 6), and were
+collected at 30 C. Asterisks indicate responses
+where the mean during the first 2 s after the stimulus
+is significantly different from control (t test with false
+discovery rate control).
+(D) Schematic representation of the fly-on-the-ball
+walking behavioral apparatus.
+(E) Behavioral turning responses to the presentation
+of multiple repeating edges (ON in the top row, OFF in
+the bottom row, shaded gray) moving at 90 /s. The
+dark gray line represents the behavioral responses of
+tethered flies with the control genotype, and the
+colored lines represent the responses after the
+respective subset of neurons have been silenced.
+Two dashed vertical lines represent the period of
+stimulus movement. Results shown are the median
+values (±SEM) from multiple individuals (n = 10 individuals for all subsets) and were collected at 34 C.
+Asterisks indicate responses where the mean during
+the second half of the stimulus period is significantly
+different from the control line (t test with false discovery rate control). Genotypes used in this figure
+(Table S1 panel/stock number): B/10–13, 24, 25;
+C/14, 16, 18, 20, 22, 24, 25; E/14, 16, 18, 20, 22, 23.
+
+Neuron 94, 168–182, April 5, 2017 171
+
+that Mi1 and Tm3 cells both showed an increase in activity to ON
+stimuli, although the Tm3 response was more transient. This is
+consistent with previous electrophysiological recordings (Behnia
+et al., 2014), and the finding that Tm3 is required for faster motion
+responses (Ammer et al., 2015). In contrast, Mi4 cells slowly
+increased activity in response to ON stimuli but rapidly decreased
+activity in response to OFF stimuli. Unlike the other input neurons,
+Mi9 cells exhibited a rapid and sustained OFF response as well as
+a rapid decrease in activity to ON stimuli. In contrast to the T4 dendrites, the input neurons (Mi1, Tm3, Mi4, and Mi9) show similar
+calcium responses to instantaneous luminance changes and to
+moving edges, indicating that they lack enhanced responses for
+directional motion.
+None of the major inputs to T4 cells show motion selectivity,
+but T4 dendrites show strong motion selectivity for ON, but not
+OFF, moving edges. These results support the proposal that
+directional selectivity of the ON pathway emerges in the dendrites of T4 cells through nonlinear integration of its inputs
+(in agreement with recent studies of the OFF pathway [Fisher
+et al., 2015; Serbe et al., 2016]). They also suggest that the ON
+edge response of T4 cells is mediated principally by excitatory
+input from Mi1 and Tm3 cells. Mi1 and Tm3 respond immediately
+to ON stimuli with a rapid increase in activity. Although the Mi1
+and Tm3 responses peak after the T4 response has reached a
+maximum (also when recorded at 20 C, Figure S2A), this is
+consistent with a nonlinear integration process in T4 dendrites.
+In contrast, Mi4 cells encode ON edges with much slower
+changes in activity, and Mi9 cells show increased activity in
+response to OFF stimuli. Given the short time window in which
+the input neurons could depolarize T4, the rapid response of
+T4 cells to ON edges is likely contributed by Mi1 and Tm3 inputs,
+with minimal contributions from Mi4 and Mi9 inputs.
+In order to identify the specific contribution of each of the major input neuron types to the T4 responses, we silenced each
+input neuron type and recorded the response of T4 cells to visual
+stimuli. We expressed Shibirets1, a temperature-sensitive ortholog of dynamin that blocks synaptic transmission at elevated
+temperatures (Kitamoto, 2001; Pfeiffer et al., 2012), in each of
+the input neuron types. Simultaneously, the orthogonal LexA/
+LexAop system (Lai and Lee, 2006; Pfeiffer et al., 2010) was
+used to express the fluorescent calcium indicator GCaMP6m
+(Chen et al., 2013) in T4 and T5 cells. For all experiments, the
+perfusion bath temperature was held at 30 C to ensure shibirets1
+blockade of synaptic transmission (genetic control flies were run
+at the same elevated temperature).
+Blocking synaptic release from each input neuron produced a
+characteristic change in the response of T4 cells (Figures 3C and
+S2B). Silencing Mi1 significantly reduced the response to all
+stimuli. In contrast, blockade of Tm3 significantly reduced the
+response of T4 cells to ON edges but not ON luminance
+changes, and also reduced the response of T4 cells to both
+OFF luminance changes and OFF edges. Silencing either Mi4
+or Mi9 did not have a significant effect on T4 responses. To
+determine the contributions of the presumed excitatory dendritic
+connections between T4 cells (Figure 1A; Takemura et al., 2013;
+Shinomiya et al., 2014), we expressed Shibirets1 in T4 and T5
+cells and recorded the effect on the T4 calcium response to
+moving edges. Shibirets1 interferes with synaptic vesicle cycling
+
+172 Neuron 94, 168–182, April 5, 2017
+
+and reduces synaptic transmission to downstream neurons
+(Kitamoto, 2001) but should not prevent membrane potential
+changes or shifts in intracellular calcium levels. Strikingly, blocking the T4-T4 connections had very little effect on the response
+to any stimulus condition, in agreement with the results of a
+recent study (Haag et al., 2016). This further demonstrates that
+individual T4 neurons synthesize directionally selective signals
+using their direct columnar inputs.
+Silencing Mi1 had a greater effect than silencing Tm3, and we
+considered whether this may be an indirect effect resulting from
+synapses from Mi1 onto Tm3 cells (Takemura et al., 2013). To
+address this concern, we silenced Mi1 cells using Shibirets1
+and imaged Tm3 cell responses (Figures S2C and S2D).
+Silencing Mi1 did not have a significant effect on Tm3 responses
+to ON or OFF stimuli. In addition, we briefly surveyed the spatial
+extent of the receptive fields of the input neurons. We examined
+the responses to small (5 ) and large (30 ) flickering discs (Figures S2E and S2F). The responses of Mi1 and Tm3 cells to a
+flickering disc were modestly affected by the disc size. However, Mi4 and Mi9 cells both responded much more strongly
+to small discs than large discs, suggestive of a pronounced
+inhibitory surround.
+Since silencing either Mi1 or Tm3 altered the response of T4
+cells to ON edges, our results suggest that the directional selectivity of T4 emerges through the integration of inputs from these
+two cell types. The modest effects observed when Mi4 or Mi9
+cells were silenced is evidence against a substantial role for
+these inputs in the response of T4 cells to moving edges.
+Furthermore, the T4-T4 connections do not appear to be critical
+for the T4 response to moving edge stimuli and therefore to the
+emergence of directional selectivity.
+We next examined how each of these neurons in the ON
+pathway contributes to the behavioral response to visual motion.
+Stocks were constructed using flies with genetic backgrounds
+that were capable of vigorous behavior, making it possible to
+perform imaging and behavioral experiments using animals
+with the same genotypes. Importantly, this allows for direct comparisons between these two datasets. We expressed Shibirets1
+in each T4 input neuron and recorded the response of walking
+flies to moving edges. Flies were tethered and allowed to walk
+on an air-supported ball (Seelig et al., 2010), while visual stimuli
+were presented on an LED display (Reiser and Dickinson, 2008)
+(Figure 3D).
+When either Mi1 or Tm3 cells were silenced there was a
+significant reduction in the turning response to multiple moving
+ON, but not OFF, edges (Figure 3E). This reduction in turning
+response echoes the strong effects observed in the imaging
+experiments (Figure 3C) and is consistent with the removal of
+excitatory input from Mi1 and Tm3 onto T4 cells. When Mi9
+was silenced, there was little effect on the turning response to
+ON edges, also consistent with the weak effects observed in
+the imaging experiments. Intriguingly, silencing Mi4 produced
+a modest increase in the turning response to ON edges, even
+though we observed no effect of silencing Mi4 on the response
+of T4 cells to a similar stimulus. This increase in the turning
+response might suggest that Mi4 inputs to T4 are inhibitory, since
+removal of an inhibitory input would potentially lead to an
+enhanced response. Lastly, as has been previously observed
+
+A
+
+B
+
+C
+
+D
+
+E
+
+Figure 4. Mi1, Tm3, Mi4, and Mi9 Inputs All Shape the Temporal Properties of the ON Motion Pathway
+(A) Tuning curves for T4 calcium response to a moving grating, after input neurons have been silenced using shibirets1. The black line represents the response of
+T4 in the absence of silencing, and the colored lines represent the response after the respective neuron has been silenced. Results shown are the median values
+(±SEM) from multiple individuals (control n = 6, Mi1 n = 5, Tm3 n = 8, Mi4 n = 7, Mi9 n = 7, T4/T5 n = 6) collected at 30 C.
+(B–E) Tuning curves for turning response of fly in walking behavioral assay, after input neurons have been silenced using shibirets1. (B) Behavioral responses to 30
+(spatial) period ON+OFF gratings (n = 10 for all genotypes), (C) 60 period Repeating ON Edges, (D) 60 period Repeating OFF Edges, and (E) 60 period
+Increasing ON Edges (n = 12 individuals for all genotypes in C–E). Results shown are the median values (±SEM, error bars often not visible) from multiple
+individuals, collected at 34 C. In the top data panel of (B), the control T4 calcium response has been reproduced (in gray) to emphasize the difference between the
+speed tuning of the neuronal and the behavioral responses.
+(legend continued on next page)
+
+Neuron 94, 168–182, April 5, 2017 173
+
+(Bahl et al., 2013), silencing both T4 and T5 produces essentially
+complete abolishment of the turning response, consistent with
+the proposal that these neurons are the primary motion detectors that feed into optomotor behaviors.
+The Contribution of T4 Inputs to the Speed Tuning of the
+ON Motion Pathway
+The speed tuning of the motion pathway has long been an important consideration in constraining the computation of motion
+(Hassenstein and Reichardt, 1956; Zanker et al., 1999; Tuthill
+et al., 2013; Behnia et al., 2014; Ammer et al., 2015; Serbe
+et al., 2016). In order to examine how Mi1, Tm3, Mi4, and M9
+contributes to speed tuning, we silenced each of these neurons
+and recorded the calcium response of T4 dendrites to a full-field
+grating (contains both ON and OFF edges) moving at different
+speeds. Because the kinetics of GCaMP limits our ability to
+observe instantaneous fluctuations in calcium concentration,
+we used the time-averaged fluorescence to characterize how
+the neuronal activity is affected by the temporal frequency of
+the grating stimulus (Strother et al., 2014).
+In the genetic control flies (Figure 4A), T4 cells showed the
+greatest response to slow moving gratings, and the response
+amplitude decreased sharply for grating speeds faster than
+180 /s (>6 Hz). These data show responses at higher speeds
+than previously reported for T4 neurons (Maisak et al., 2013)
+or for downstream neurons in the lobula plate (Mauss et al.,
+2015), which is most likely a consequence of the elevated bath
+temperature. When synaptic transmission from either Mi1 or
+Tm3 cells was blocked, the response to the grating decreased
+significantly across all frequencies (Figure 4A). When synaptic
+transmission of Mi4, Mi9, or T4 cells was blocked, the response
+to the moving grating was essentially unaltered across all frequencies. These results are consistent with the conclusions
+derived from imaging the T4 dendritic calcium responses to single moving edges (Figure 3C).
+To further explore the contributions of the T4 input neurons to
+motion detection, we examined how silencing these neurons
+affected the turning response of walking flies. When presented
+with a 100% contrast grating (Movie S2), control flies respond
+with a typical optomotor response, turning with the direction of
+motion (Figure 4B). There is a notable difference between the
+speed tuning of fly behavioral responses compared to that of
+T4 neurons (Figure 4A). Similar differences have been observed
+previously (Chiappe et al., 2010; Jung et al., 2011; Longden and
+Krapp, 2009; Suver et al., 2012; Tuthill et al., 2014) and may
+result from downstream processing or behavioral state modulation. Individually blocking each of the T4 input neurons had very
+little effect on the turning responses to grating motion. Only
+silencing both T4 and T5 abolished the turning response to this
+stimulus. Although this result is perhaps surprising, it is consistent with the proposal that T4 and T5 outputs are summed by
+downstream neurons in the lobula plate and that these downstream neurons are saturated by strong stimuli. For very strong
+
+visual stimuli, even if T4 outputs are somewhat reduced, the T5
+contribution from the OFF motion pathway appears to be strong
+enough to mask this ON pathway deficit. This interpretation is
+supported by experiments with additional visual stimuli, in which
+we also observed reductions in turning responses only for lower
+contrast stimuli (Figures S3A–S3E).
+To explore how the T4 input neurons might contribute to motion detection for stimuli that independently activate the ON and
+OFF pathways, we examined the speed tuning of turning
+response to repeating ON or OFF edge stimuli. Silencing either
+Mi1 or Tm3 cells substantially reduced the turning response to
+the Repeating ON Edges stimulus (Figure 4C) but did not alter
+the response to Repeating OFF Edges (Figure 4D). Conversely,
+blocking Mi4 or Mi9 cells increased the turning response to
+Repeating ON Edges but only at high temporal frequencies.
+Silencing Mi4 cells also produced a modest increase to
+Repeating OFF Edge motion at higher speeds, which is not unexpected as Mi4s are also presynaptic to prominent members
+of the OFF pathway, especially Tm9 (Takemura et al., 2013).
+Blockade of T4 and T5 cells completely abolished the turning
+response to these stimuli. These silencing phenotypes were
+generally reproducible with additional driver lines (Figure S3H).
+Since our calcium imaging experiments showed that Mi9 neurons increase activity in response to OFF edges (Figure 3B), we
+considered whether these neurons might be sensitive to the fullfield OFF luminance change that occurs when the stimulus cycles (see arrowhead in stimulus cartoon of Figure 4C). Consistent
+with this hypothesis, we found that an enhanced response to ON
+edges was still observed when the duration of the OFF stimulus
+period was varied (Figure S4A). To test whether this brief OFF
+stimulus contributes to the phenotypes in Figure 4C, we examined the turning response of flies to an ‘‘Increasing ON Edges’’
+stimulus in which a series of edges were swept across the field,
+each edge having a slightly higher luminance than the one preceding it, yielding a stimulus that contained multiple edges and
+produced a robust behavioral response but did not contain any
+luminance decrements (Figure 4E). To achieve the faster speeds
+this stimulus must be run for shorter durations, which accounts
+for the reduction in the turning response for increasing speeds
+(compare control behavior between Figures 4C and 4E). When
+Mi1, Tm3, or Mi4 cells were silenced, the Increasing ON Edges
+stimulus elicited phenotypes that were similar to those observed
+for the Repeating ON stimulus. However, when Mi9 cells were
+silenced, this stimulus no longer induced the enhanced turning
+response that we had seen for the faster Repeating ON Edges
+conditions. These results suggest that Mi9 cells alter the
+response of the ON pathway in response to OFF stimuli.
+We were surprised to find that silencing Mi4 and Mi9 neurons
+produced increased turning responses for fast visual stimuli,
+since our calcium imaging experiments had shown that silencing
+these neurons had no significant effect on T4 responses (Figures
+3C and 4A). To verify that silencing Mi4 or Mi9 cells did not alter
+the T4 responses in a way that was masked by our population
+
+Responses to additional grating stimuli are shown in Figure S3. Filled and empty circles indicate responses that are significantly and non-significantly different
+from wild-type, respectively (t test controlled for false discovery rate). The control flies’ responses are shown with filled circles, although this does not represent
+any statistical test. Further evidence for the role of Mi4 and Mi9 in shaping motion responses is presented in Figure S4. Genotypes used in this figure (Table S1
+panel/stock number): A/14, 16, 18, 20, 22, 24, 25; B–E/14, 16, 18, 20, 22, 23.
+
+174 Neuron 94, 168–182, April 5, 2017
+
+A
+
+B
+
+C
+
+Figure 5. Reducing GluCla Expression in T4/T5 Cells Increases
+Behavioral Response to Fast Visual Stimuli, Similar to Silencing
+Mi9 Cells
+(A–C) Turning responses of walking flies to visual stimuli, to compare the effect
+of reducing the expression of GluCla channels in T4 and T5 cells by expression
+of GluCla RNAi (n = 12 for both genotypes). (A) Behavioral responses to 60
+period Repeating ON Edges. (B) Behavioral responses to 60 period Repeating
+OFF Edges. (C) Behavioral responses to 60 period Increasing ON Edges.
+Results shown are the median values from multiple individuals (±SEM). All data
+were collected at 34 C. Filled and empty circles indicate responses that are
+significantly and non-significantly different from wild-type, respectively (t test
+controlled for false discovery rate). The control genotype responses are shown
+with filled circles, although this does not represent any statistical test. Genotypes used in this figure (Table S1 panel/stock number): A–C/47, 48.
+
+measurements of T4 dendrites, we performed separate experiments (in genetic control animals as well as flies in which Mi4
+or Mi9 cells were silenced as above) that were optimized for
+measuring the directional selectivity of individual neurons. The
+responses recorded from control animals showed clear directional selectivity: the distribution of per-pixel directional selectivity values was significantly skewed toward higher values
+compared to a shuffled control, and axonal tracts with welldefined directional selectivity were clearly visible (Figure S4B).
+However, silencing Mi4 or Mi9 cells had little effect on the directional selectivity of the responses of T4 cells to this stimulus
+(Figures S4C and S4D).
+Although silencing Mi4 or Mi9 neurons did not have a significant
+effect on T4 visual responses, both of these neuron types have a
+substantial number of synapses onto T4 neurons (S.Y. Takemura
+and L.K. Scheffer, personal communication), and silencing Mi4 or
+Mi9 neurons produced changes in behavioral responses to visual
+stimuli (Figures 4C–4E). This likely suggests that Mi4 and Mi9 do
+play important roles in the ON motion pathway, but these roles
+were not exposed in the conditions present during our imaging experiments. At least three factors may contribute to this disparity.
+(1) The T4 neurons were recorded in quiescent animals while
+behavioral responses were measured in active animals. We found
+that walking flies turn rapidly in response to fast moving gratings
+
+(>9 Hz) and silencing Mi4 or Mi9 cells enhanced these responses
+(Figures 4C–4E). However, in quiescent animals T4 neurons
+respond weakly to these same stimuli (Figure 4A). These tuning
+differences suggest that these neurons may be sensitive to the
+behavioral state of the animal. (2) The calcium imaging experiments used high-contrast visual stimuli (100%) to elicit stronger
+T4 responses, while the behavioral experiments used lowercontrast stimuli (45%) to avoid saturation of the turning
+response (Figures S3A and S3B). It is possible that the contributions of Mi4 and Mi9 to this pathway are overwhelmed by other inputs for high-contrast stimuli, and therefore were not readily
+detectable during our imaging experiments. (3) We also found
+that Mi4 and Mi9 cells responded weakly to wide-field stimuli
+and strongly to small-field visual stimuli (Figures S2E and S2F),
+presumably as a result of a strong inhibitory surround. So it is
+also possible that as an edge passes through the visual field,
+Mi4 and Mi9 provide transient inputs to T4 cells that cannot be
+resolved by our imaging experiments. Despite the interesting dichotomy between the imaging and behavioral data, our results
+suggest that Mi4 and Mi9 neurons tune the T4 responses but
+are not necessary for directional selectivity of T4 neurons.
+Our behavioral results confirm that Mi1 and Tm3 cells provide
+inputs that are critical to the directional selectivity of the ON motion pathway. These results also suggest that Mi4 and Mi9 tune
+the ON motion pathway in distinct ways. Since silencing Mi4
+neurons yields an enhanced turning response to ON edges (Figures 4C–4E), our data suggest that these neurons may inhibit T4
+during ON edge motion. In contrast, silencing Mi9 neurons yields
+an enhanced turning response to Repeating ON Edges but not
+Increasing ON Edges (Figures 4C–4E), which might suggest
+that Mi9 neurons inhibit T4 during OFF stimulation.
+Mi4 and Mi9 Provide Inhibition to T4
+A transcriptional profiling study of optic lobe cell types found that
+Mi4 neurons are GABAergic, while Mi9 cells are glutamatergic
+(F.P. Davis, S.R. Eddy, and G.L. Henry, personal communication).
+GABAergic neurons are typically inhibitory, but in invertebrates, a
+glutamatergic neuron could either inhibit or excite depending on
+the postsynaptic receptors. T4 cells express the glutamate-gated
+chloride channel, GluCla (F.P. Davis, S.R. Eddy, and G.L. Henry,
+personal communication), which mediates glutamatergic inhibition (Liu and Wilson, 2013; Mauss et al., 2015). To test whether
+Mi9 neurons inhibit T4 cells via GluCla receptors, we knocked
+down the expression of the GluCla gene by expressing GluCla
+RNAi specifically in T4 and T5 cells (Figure S5) and repeated
+the behavioral experiments of Figure 4. Much like the effect of
+silencing Mi9 (Figures 4C–4E), this manipulation resulted in
+enhanced turning reactions (Figure 5) to the faster speeds of
+Repeating ON Edges, but not the Increasing ON Edges motion
+(which lacked OFF components). Since we also observed an
+enhanced OFF response for the Repeating OFF Edges stimulus
+(Figure 5B), it is likely that T5 cells are also inhibited by some glutamatergic neurons. These results show that Mi9 neurons likely
+inhibit T4 via the GluCla channel. In addition, these data indicate
+that removing a source of inhibition from a directionally selective
+neuron like T4 can produce an enhanced turning response,
+consistent with our interpretation of the enhanced behavioral
+response observed when either Mi4 or Mi9 cells were silenced.
+
+Neuron 94, 168–182, April 5, 2017 175
+
+A
+
+B
+
+C
+
+E
+
+F
+
+Mi1 and Tm3 Are Nonlinearly Integrated at the T4
+Dendrites
+The imaging, silencing, and behavioral experiments all suggest
+that directional selectivity emerges in the T4 dendrites primarily
+through the integration of Mi1 and Tm3 inputs. This conclusion
+is inferred based on loss-of-function experiments. We next em-
+
+176 Neuron 94, 168–182, April 5, 2017
+
+Figure 6. Mi1 and Tm3 Are Nonlinearly Integrated at the T4 Dendrites
+
+D
+
+G
+
+(A) The functional connectivity between neurons
+was examined in excised brains. The light-gated
+ion channel Chrimson was expressed in targeted
+neuron types, which was activated by pulses of
+590 nm light. The fluorescent calcium indicator
+GCaMP was expressed in either the same, or a
+downstream neuron type, and was imaged using a
+two-photon microscope.
+(B) Chrimson and GCaMP were co-expressed in
+each of the T4 input neuron types to verify the
+effectiveness of this approach. This image shows a
+cross-section through the medulla of a fly co-expressing Chrimson (tdTomato tag) and GCaMP6f
+in Mi1 neurons. Layer M10 of the medulla is outlined with white dashed lines.
+(C) Calcium responses of input neurons co-expressing Chrimson and GCaMP. Photoactivation
+produced a robust response in each input neuron
+type (shown in rows; recorded from layer M10).
+The photoactivation period is shown as a dark gray
+vertical bar. Data are shown as median ± SEM.
+(D) A cross-section through the medulla of a
+fly expressing Chrimson in Mi1 neurons and
+GCaMP6s in T4/T5 neurons. Layer M10 of the
+medulla is outlined with white dashed lines.
+(E) Calcium response of T4 neurons to photoactivation of each input neuron type (shown in rows;
+recorded from layer M10). The photoactivation
+period is shown as a dark gray vertical bar. Control
+animals that did not express Chrimson showed very
+little activity (top row, black line, reproduced in
+other time series for comparison). Responses for
+(E–G) were analyzed by calculating the mean DF/F
+for a time window (1–5 s after start of photoactivation) and analyzed using a stepwise generalized linear model (n = 5 for each input neuron
+type). Responses with a DF/F that were significantly
+different from zero are marked with asterisks.
+(F) The calcium response of T4 neurons to simultaneous photoactivation of Mi1 neurons and one other
+input neuron type. Chrimson was expressed in Mi1
+neurons using a GAL4 driver, and simultaneously
+expressed in each input neuron using a split-GAL4
+driver. For the Mi1 row, Chrimson is expressed using
+both genetic drivers. Data are analyzed (n = 4–6 individuals for each input neuron type) and presented
+as in (E). Magenta asterisks represent responses
+that are significantly different from the sum of the
+individual neuron type activation responses.
+(G) Experiments were performed and are presented
+as in (F), except Tm3 neurons were photoactivated
+with one other neuron type. Similar to (F), for the Tm3
+row, Chrimson is expressed using both a GAL4
+driver and a split-GAL4 driver.
+Genotypes used in this figure (Table S1 panel/stock
+number): B/28; C/28–31; D/32; E/32–35, 46; F/36–
+40, 46; G/41–45, 46.
+
+ployed a gain-of-function method to examine the ‘‘functional
+connectivity’’ between the input neurons and T4 cells. We expressed the light-gated ion channel Chrimson (Klapoetke et al.,
+2014) in each of the input neuron types. We then verified
+that the Chrimson expression in each input neuron was sufficient to depolarize the neuron by simultaneously expressing a
+
+fluorescent calcium indicator. Flies were dissected and whole
+brains (lacking the photoreceptors) were imaged using in vitro
+two-photon microscopy. A 590 nm light was directed through
+the microscope objective to activate the Chrimson protein and
+depolarize the input neurons (Figures 6A–6C and S6). In all
+cases, photoactivation of the input neuron produced calcium responses that were larger than those recorded for the same neurons during in vivo imaging (compare Figure 6C to Figure 3B).
+We then examined how depolarization of each input neuron
+type affected the post-synaptic T4 cells, by recording the calcium response of T4 dendrites to photoactivation of the input
+neuron (Figures 6D and S6). We found that independently activating each of the T4 input neurons produced only small calcium
+responses in the downstream T4 cells (Figures 6E and S6B).
+While there was a statistically significant response to Mi1 activation, the magnitude of the response (<0.5 DF/F) was far less than
+that previously observed in in vivo recordings of T4 (>1 DF/F).
+Mindful of the HR mechanism, whereby multiple excitatory inputs interact in a synergistic fashion to compute directional
+selectivity, we next examined the effects of simultaneously activating two of the input neuron types. We used split-GAL4 driver
+lines in combination with a cell-type-specific GAL4 driver to
+express Chrimson in two different cell types simultaneously.
+Since the in vivo imaging experiments suggested that Mi1 and
+Tm3 were the only necessary T4 input neurons, we examined
+all possible combinations of Mi1 or Tm3 co-expression with
+Mi1, Tm3, Mi4, or Mi9.
+While photoactivating any single T4 input neuron produced
+only weak T4 calcium responses, simultaneously activating
+Mi1 and Tm3 produced large, robust T4 responses (Figures 6F,
+6G, S6C, and S6D). To determine whether these responses represented additive or synergistic effects, the magnitude of the
+response was fit to a stepwise generalized linear model. The
+null hypothesis for this statistical model is that activation of
+each neuron type contributes additively to the response. When
+the data are significantly different from that null hypothesis
+(p < 0.05, F-test), interaction terms are added to the model to
+represent synergistic effects. Only Mi1 3 Tm3 interaction terms
+were significant in this model, and all possible Mi1 3 Tm3 interaction terms were significant (regardless of the driver combination used). These data suggest that Mi1 and Tm3 inputs are
+not simply summed by T4, but instead these results point to a
+synergistic, and nonlinear, interaction of inputs from these two
+neuron types. Mi4 and Mi9 contributions to T4 activity were not
+observed, either in isolation or in combination with Mi1 or Tm3.
+If Mi4 and Mi9 inhibit T4 cells, then some inhibitory effects might
+be expected when Mi4 or Mi9 were photoactivated with Mi1 or
+Tm3. However, it is not clear that we would be able to discern
+a reduction in the already small T4 responses (10% DF/F) produced by independent photoactivation of Mi1 or Tm3. Consequently, the absence of T4 responses to photoactivation of Mi4
+and Mi9 is not definitive but is most consistent with these neurons inhibiting T4 cells.
+DISCUSSION
+The anatomy of the medulla has been extensively studied, and
+analysis of synaptic connectivity suggests that the most promi-
+
+nent neurons on the ON motion pathway are the cell types L1,
+Mi1, Tm3, Mi4, Mi9, and T4 (Takemura et al., 2013; S.Y. Takemura and L.K. Scheffer, personal communications). The L1 cells
+appear to be the dominant inputs into the pathway, and exhibit
+neither ON selectivity nor directional selectivity (Clark et al.,
+2011; Strother et al., 2014). Although prior to this study the responses of Mi4 and Mi9 cells to visual stimuli had not been
+described, Mi1 and Tm3 cells have been shown to be ON selective but not directionally selective (Behnia et al., 2014; Strother
+et al., 2014). Finally, the output T4 cells are both ON and directionally selective (Maisak et al., 2013). Although our understanding for this circuit has progressed rapidly over the last decade,
+the mechanism responsible for the directional selectivity in T4
+cells has remained unclear.
+Excitatory Inputs onto T4
+Our results indicate that Mi1 and Tm3 are both depolarized in
+response to ON stimuli (Figure 3B; Behnia et al., 2014; Strother
+et al., 2014), that neither of these inputs are themselves directionally selective (Figure 3B; Behnia et al., 2014; Strother et al.,
+2014), that these are the only major T4 inputs neurons that are
+necessary for ON motion selectivity (Figures 3C, 3E, and 4),
+that both neurons are excitatory (Figures 1, 3C, 4, and 6; Pankova and Borst, 2017), and that these inputs act synergistically
+at the dendrites of T4 (Figure 6). Since we examined each of
+the major columnar T4 input neurons, we may conclude that
+Mi1 and Tm3 provide the primary excitatory inputs to T4 cells
+relevant for directional selectivity. This suggests that Mi1 and
+Tm3 inputs are integrated at the dendrites of T4 cells via a mechanism similar to the HR detector (Figure 1B). Recent studies
+characterizing T4 responses to components of motion stimuli
+(Fisher et al., 2015; Haag et al., 2016; Leong et al., 2016) provide
+further evidence for a synergistic enhancement of motion signals
+in the preferred direction, consistent with an HR-like mechanism,
+but do not address its implementation. A prevalent hypothesis
+for how T4 cells could function as HR detectors is based on
+Mi1 cells providing the slow, spatially leading inputs, while
+Tm3 cells provide the faster, spatially trailing inputs to the detector (Behnia et al., 2014). However, since Mi1 and Tm3 are now
+both shown to be excitatory, this architecture is inconsistent
+with the anatomical analysis, which showed Mi1 receptive fields
+as slightly offset from Tm3 receptive fields, but in the opposite
+direction of what an HR detector requires (Takemura et al.,
+2013). By ruling out this circuit mechanism, our results suggest
+that intracellular dynamics within T4 cells could play a critical
+role in the emergence of directional selectivity. In the computational model that follows (Figure 7A), we implement an HR detector in which a T4 cell receives inputs from both Mi1 and Tm3 cells
+at each spatial location, and the time delay and nonlinear integration are hypothesized to occur as intracellular processes within
+T4 dendrites.
+Inhibitory Inputs onto T4
+We have shown that neither Mi4 nor Mi9 cells are necessary for
+the directionally selective responses of T4 neurons to ON edges
+but that both of these cells contribute to the temporal tuning of
+the ON motion pathway. The available evidence suggests that
+these neurons form inhibitory synapses with T4 neurons. This
+
+Neuron 94, 168–182, April 5, 2017 177
+
+Figure 7. A Computational Architecture for
+ON Motion Detection
+
+A
+
+B
+
+178 Neuron 94, 168–182, April 5, 2017
+
+C
+
+D
+
+(A) Schematic of a computational model for the ON
+motion pathway. In our model, signals from the
+photoreceptors are filtered by Mi9, Mi1, Tm3, and
+Mi4 columnar medulla neurons. T4 cells then integrate these inputs from multiple spatially offset medulla columns. Mi1 and Tm3 cells provide the inputs
+to a Hassenstein-Reichardt (HR) type detector in T4
+cells, in which two excitatory inputs interact multiplicatively. Mi4 and Mi9 cells provide the inputs to an
+attenuator after the HR detector, which reduces the
+output when either Mi4 or Mi9 inputs are active.
+(B–D) Tuning curves showing the response of
+modeled T4 cells to a grating moving at a range
+of frequencies (30 period, as in Figure 4B). The
+response of T4 cells in our control model is shown
+in the first row, and subsequent rows show the
+response after silencing one of the input neurons. (B)
+The response of T4 cells to a grating moving in the
+preferred direction (PD, solid line) and null direction
+(ND, dashed line). For plots showing the response
+after silencing an input neuron, the response to PD
+and ND motion are shown in color, and the control
+response to PD motion is shown as a solid black line.
+(C) To compare these results with the calcium imaging experiments, in which we recorded the
+average responses of a population of neurons with
+mixed directional selectivities, we show the
+response of T4 cell model to a moving grating after
+averaging the response to motion in the preferred
+and null directions. (D) For comparison to the
+behavioral experiment results, we also plot the
+response of T4 cells after subtracting the null direction response from the preferred direction response,
+since the neural circuits driving the behavioral
+response are expected to show directional opponency (Mauss et al., 2015).
+
+conclusion is consistent with the behavioral effects of silencing
+these neurons (Figures 4C–4E), the behavioral effects of RNAi
+knockdown of receptors in T4 cells (Figure 5), photoactivation
+experiments (Figure 6), and a recent gene expression study of
+these neurons (Figure 1A; F.P. Davis, S.R. Eddy, and G.L. Henry,
+personal communication).
+Since Mi4 neurons encode ON edges (Figure 3B), have inhibitory synapses onto T4 cells, and have receptive fields that are
+spatially offset in the trailing direction relative to T4 cells (S.Y.
+Takemura and L.K. Scheffer, personal communication), they
+are well positioned to supply the inhibitory inputs for a BarlowLevick (BL) detector. However, the evidence for this hypothesis
+is inconclusive: Mi4 neurons respond slowly to ON edges (Figure 3B, S2E, and S2F), silencing Mi4 neurons has little effect
+on the directional selectivity of T4 responses (Figure 3C, 4A,
+S2B, and S4C), but silencing Mi4 does alter the behavioral responses to ON edge stimuli (Figures 4C–4E and S4A). Nevertheless, our results suggest that Mi4 inhibits the response to ON
+stimuli and that this inhibition is reduced for ON motion in the
+preferred direction. In a Barlow-Levick detector, this inhibition
+must be sufficiently strong and long-lasting to produce directionally selective responses. Whether Mi4 contributes substantially
+to the directional selectivity of T4 based on this mechanism is
+likely to depend on several unresolved factors, such as the relative timing of Mi4 visual responses (which is strongly influenced
+by spatial scale, Figures S2E and S2F) and the effects of this inhibition on the intracellular dynamics in T4 cells. We examine the
+contribution of Mi4 based on the currently available evidence in
+the computational model that follows.
+Our finding that Mi4 cells provide inhibition to T4 cells in the
+trailing direction is consistent with two recent functional imaging
+studies (Haag et al., 2016; Leong et al., 2016) that have shown
+that T4 responses are inhibited by null direction motion. It is
+also possible that T4 cells receive additional trailing edge inhibitory inputs from neuron types that escaped this study. Other
+GABAergic cells do provide inputs to T4 near the Mi4 synapses,
+although these are either non-columnar cells or have fewer synapses onto T4 than the cells examined here (S.Y. Takemura and
+L.K. Scheffer, personal communication). Resolving the fine
+spatiotemporal structure of the inhibitory component of motion
+detection will likely require additional studies, ideally carried
+out with intracellular recordings that are faster and capture hyperpolarization of the cell more readily than Ca2+ indicators.
+Similar to Mi4 cells, our results indicate that Mi9 cells are not
+required for the directionally selective responses of T4 cells to
+ON edges (Figures 3C, 4A, S2B, and S4D), but the behavioral results indicate that they shape the tuning properties of T4 neurons
+when ON motion is intermixed with OFF stimuli (Figures 4C–4E
+and S4A). Our experiments show that Mi9 cells are depolarized
+in response to OFF stimuli (Figures 3B, S2E, and S2F) and
+most likely have inhibitory synapses onto T4 cells (Figure 1A)
+mediated by GluCla channels expressed in T4 cells (Figure 5).
+As a result, Mi9 cells would be expected to inhibit T4 cells
+in response to OFF stimuli, while releasing this inhibition in
+response to ON stimuli. Classically, this type of inhibition is
+termed ‘‘cross-over’’ inhibition and has been widely observed
+across sensory systems, particularly within the mammalian
+retina where it has been attributed to a number of functional vir-
+
+tues (Werblin, 2010). In addition, since Mi9 inputs have receptive
+fields that are spatially offset in the leading direction relative to T4
+cells (Figure 1A; S.Y. Takemura and L.K. Scheffer, personal
+communication), Mi9 also has the potential to contribute to
+directional selectivity. If ON stimuli release Mi9 inhibition of T4,
+then this input would provide excitatory drive to T4 on the leading
+side of this detector. Excitation of this form is a feature of both
+the HR and BL mechanisms (Figure 1B). However, the relative
+magnitude of Mi9’s contribution to the directional selectivity of
+T4 cells is likely to depend on the visual stimulus presented. In
+the model that follows, we have implemented Mi9 input as inhibiting T4 in response to OFF stimuli and we find that this model
+provides good agreement with our experimental results. Finally,
+it is notable that Mi9 synapses onto the tips of the T4 dendrites,
+where sealed-end effects could make inhibition especially
+potent (Rall, 1967).
+A Unified Computational Model for T4 Directional
+Selectivity
+Our results suggest a specific architecture for the ON motion
+pathway (Figure 7A). To test whether this architecture captures
+the essential details required to predict the results of our calcium
+imaging and behavioral experiments, we constructed a computational model. This model incorporates both synergistic interactions and inhibition similar to a recently proposed conceptual
+model (Haag et al., 2016) but is focused on examining the mechanistic basis underlying directional selectivity based on the cell
+properties and connectivity identified in this study.
+In this model, we simulate the transformation of visual signals
+by columnar neurons and then simulate the integration of these
+signals by a single T4 cell. Mi9 and Mi4 cells were both modeled
+as having an inhibitory surround receptive field, while Mi1 and
+Tm3 cells were modeled without an inhibitory surround (Figures
+S2E and S2F). In addition, Mi9 cells were modeled as OFF
+neurons while Mi1, Tm3, and Mi4 cells were all modeled as ON
+neurons (Figure 3B). For simplicity, we model the T4 dendrite
+as integrating input along a single dimension aligned with the
+preferred direction of motion. We implemented the HR detector
+as receiving summed Mi1 and Tm3 inputs from each medulla
+column, with these inputs from spatially offset medulla columns
+multiplied together (Figure 7A). We modeled the inputs of Mi4
+and Mi9 cells from spatially offset medulla columns as attenuating the output of T4 cells.
+This model allows us to ask whether the proposed computational architecture reproduces the most prominent features
+of the T4 responses that we had observed experimentally. The
+computational model predicted that T4 cells are strongly directionally selective, and respond to a grating moving in the
+preferred direction (PD) but not in the null direction (ND; Figure 7B). We then examined whether this computational model reproduced the phenotypes we observed when each one of the
+input neurons was silenced by setting that signal to zero (the internal signals are detailed in Figure S7). We found that silencing
+either Mi1 or Tm3 cells substantially decreased the predicted
+response of the T4 cells (Figure 7B), consistent with both our calcium imaging experiments and behavioral data (Figure 4).
+In contrast, when Mi4 or Mi9 cells were silenced our computational model predicted more subtle changes in the T4 responses.
+
+Neuron 94, 168–182, April 5, 2017 179
+
+When the Mi4 or Mi9 cells were silenced, the response to PD and
+ND motion at low stimulus frequencies was not substantially
+altered, but at high stimulus frequencies the response to PD motion increased and the response to ND motion increased slightly
+(Figure 7B). Since our calcium imaging experiments measured
+the response of a population of T4 cells with different directional
+selectivities, we calculated the average response to PD and ND
+motion and used this metric for comparisons to our calcium imaging experiments. We found that silencing Mi4 or Mi9 cells had
+a modest effect on the PD+ND (Figure 7C), consistent with
+the results of our imaging experiments (Figure 4A). Since the
+neurons downstream of T4 cells show directional opponency
+(Mauss et al., 2015), which has long been thought to be an important component of the HR mechanism (Hassenstein and Reichardt, 1956), we also calculated the difference of the response to
+PD and ND motion and used this metric for comparisons to our
+behavioral turning experiments. We found that when Mi4 or
+Mi9 cells were silenced, our model predicted that the PD-ND
+response increased at higher stimulus frequencies (Figure 7D),
+consistent with the results of our behavioral experiments (Figures 4C–4E).
+The specific architecture that we propose for T4 cells of the
+ON motion pathway is different from the emerging understanding for the computation performed by the directionally selective
+T5 cells of the OFF motion pathway. The T5 cells also receive inputs from at least four columnar cell types (Shinomiya et al.,
+2014). However, each of these input neurons is an OFF-responsive cell (Serbe et al., 2016) and the available evidence (Serbe
+et al., 2016; F.P. Davis, S.R. Eddy, and G.L. Henry, personal
+communications) suggests that they all have excitatory synapses onto T5. As such, the T5 pathway appears to implement
+some form of an HR-like computation on its excitatory inputs
+(Serbe et al., 2016), while the T4 circuit may implement several
+computations. The nature of these T4/T5 differences will be
+interesting to understand. These differences may be adaptations
+to asymmetries in ON and OFF signals in the natural world (Fitzgerald and Clark, 2015; Leonhardt et al., 2016), or may reflect the
+evolutionary origins of these pathways (Shinomiya et al., 2015).
+A Proposed Intracellular Mechanism for Directional
+Selectivity
+Our results indicate that the directional selectivity of T4 cells
+emerges through the nonlinear integration of Mi1 and Tm3 inputs
+in the dendrites of T4 cells. Although there is insufficient evidence to identify the underlying intracellular dynamics, an
+intriguing possibility is that a combination of metabotropic and
+inotropic receptors could implement an HR-like mechanism if
+the metabotropic receptors were preferentially expressed toward the leading edge of the dendrites. In this case, the spatial
+offset would be produced by offset inputs along the spatially oriented T4 dendritic branches, the delay would be provided by the
+diffusion of the second messenger along the dendritic branches,
+and coincidence detection would be produced by interaction
+of a second messenger released by a metabotropic receptor
+with an ionotropic receptor. While such a mechanism is highly
+speculative, it appears to be possible based on the available
+evidence. In addition to our results, cell-type-specific transcript
+profiling has shown that Mi1 and Tm3 are both cholinergic
+
+180 Neuron 94, 168–182, April 5, 2017
+
+(F.P. Davis, S.R. Eddy, and G.L. Henry, personal communication)
+and that T4 cells strongly express both the G-protein-coupled
+acetylcholine receptor mAChR-B and several ionotropic nicotinic acetylcholine receptor (nAChR) subunits (Figure S5; Pankova and Borst, 2016; Shinomiya et al., 2014). Such a mechanism simply and directly produces both a time delay and a
+nonlinearity, which are two of the three critical components in
+each of the motion detector models (Figure 1B). Although a complete understanding of the relevant intracellular processes in this
+pathway is likely to require numerous additional experiments, the
+prominent role of intracellular processes in the pathway parallels
+recent developments in the mouse retina (Kim et al., 2014; Vlasits
+et al., 2016; Yonehara et al., 2013). As our understanding of
+these circuits continues to develop, it is likely that comparisons
+between these two genetic model organisms will yield deep
+insights into this fundamental visual computation.
+STAR+METHODS
+Detailed methods are provided in the online version of this paper
+and include the following:
+d
+d
+d
+
+d
+
+d
+
+d
+d
+
+KEY RESOURCES TABLE
+CONTACT FOR REAGENT AND RESOURCE SHARING
+EXPERIMENTAL MODEL AND SUBJECT DETAILS
+B Driver Lines
+B Calcium Imaging Experiments
+B Behavioral Experiments
+B Functional Connectivity Experiments
+B Transcriptional Profiling
+METHOD DETAILS
+B Driver Lines: Construction
+B Driver Lines: Imaging and Verification
+B Calcium Imaging Experiments: Preparation and Microscopy
+B Calcium imaging Experiments: Visual stimuli
+B Behavioral experiments: Preparation and Arena
+B Behavioral experiments: Visual stimuli
+B Functional Connectivity Experiments
+B Transcriptional Profiling to Quantify RNAi Knockdown
+B Computational Model
+QUANTIFICATION AND STATISTICAL ANALYSIS
+B Calcium imaging
+B Behavioral experiments
+B Functional Connectivity Experiments
+B Transcriptional Profiling to Quantify RNAi Knockdown
+DATA AND SOFTWARE AVAILABILITY
+ADDITIONAL RESOURCES
+
+SUPPLEMENTAL INFORMATION
+Supplemental Information includes seven figures, two tables, and two movies
+and can be found with this article online at http://dx.doi.org/10.1016/j.neuron.
+2017.03.010.
+AUTHOR CONTRIBUTIONS
+Conceptualization, J.A.S. and M.B.R.; Methodology, J.A.S., S.-T.W., A.M.W.,
+A.N., E.M.R., and M.B.R.; Software: J.A.S., S.-T.W., A.M.W., and M.B.R.;
+
+Formal Analysis: J.A.S., S.-T.W., A.M.W., and M.B.R.; Investigation, J.A.S., S.T.W., A.M.W., A.N., and J.Q.L.; Resources, A.M.W., A.N., E.M.R., and J.Q.L.;
+Writing – Original Draft, J.A.S., S.-T.W., A.M.W., A.N., E.M.R., J.Q.L., G.M.R.,
+and M.B.R.; Writing – Review & Editing, J.A.S. and M.B.R.; Visualization:
+J.A.S., S.-T.W., A.M.W., A.N., J.Q.L., and M.B.R.; Supervision, G.M.R. and
+M.B.R.; Funding Acquisition, G.M.R. and M.B.R.
+ACKNOWLEDGMENTS
+We wish to thank the Janelia Fly Light Project Team for help with imaging driver
+lines and E. Willis for assistance with artwork. We thank B. Pfeiffer and D.J. Anderson for Chrimson and GCaMP fly stocks. We also thank the Fly Functional
+Connectome project for supporting the functional connectivity experiments,
+and S. Ballard, L. Wang, and A. Lemire of the Janelia Quantitative Genomics
+core for the RNA-seq experiments. We wish to thank L. Henry, F. Davis, S.
+Eddy, S.Y. Takemura, L. Scheffer, and the Janelia FlyEM Project Team for
+sharing results prior to publication. We are also grateful to J. Tuthill, B. Borghuis, and members of the Reiser Lab for comments on the manuscript.
+This project was supported by HHMI.
+Received: September 5, 2016
+Revised: December 22, 2016
+Accepted: March 8, 2017
+Published: April 5, 2017
+REFERENCES
+Ammer, G., Leonhardt, A., Bahl, A., Dickson, B.J., and Borst, A. (2015).
+Functional specialization of neural input elements to the Drosophila ON motion
+detector. Curr. Biol. 25, 2247–2253.
+Bahl, A., Ammer, G., Schilling, T., and Borst, A. (2013). Object tracking in
+motion-blind flies. Nat. Neurosci. 16, 730–738.
+Barlow, H.B., and Levick, W.R. (1965). The mechanism of directionally selective units in rabbit’s retina. J. Physiol. 178, 477–504.
+Behnia, R., Clark, D.A., Carter, A.G., Clandinin, T.R., and Desplan, C. (2014).
+Processing properties of ON and OFF pathways for Drosophila motion detection. Nature 512, 427–430.
+Benjamini, Y., and Hochberg, Y. (1995). Controlling the False Discovery
+Rate - a Practical and Powerful Approach to Multiple Testing. J. R. Stat.
+Soc. B Met. 57, 289–300.
+Borst, A., and Egelhaaf, M. (1989). Principles of visual motion detection.
+Trends Neurosci. 12, 297–306.
+Borst, A., and Helmstaedter, M. (2015). Common circuit design in fly and
+mammalian motion vision. Nat. Neurosci. 18, 1067–1076.
+€chner, E. (1974). Bewegungsperzeption in einem visuellen System mit
+Bu
+gerastertem Eingang. Doct Thesis, Univ Tubingen.
+Buchner, E. (1976). Elementary movement detectors in an insect visual system. Biol. Cybern. 24, 85–101.
+Chen, T.W., Wardill, T.J., Sun, Y., Pulver, S.R., Renninger, S.L., Baohan, A.,
+Schreiter, E.R., Kerr, R.A., Orger, M.B., Jayaraman, V., et al. (2013).
+Ultrasensitive fluorescent proteins for imaging neuronal activity. Nature 499,
+295–300.
+Chiappe, M.E., Seelig, J.D., Reiser, M.B., and Jayaraman, V. (2010). Walking
+modulates speed sensitivity in Drosophila motion vision. Curr. Biol. 20,
+1470–1475.
+Clark, D.A., Bursztyn, L., Horowitz, M.A., Schnitzer, M.J., and Clandinin, T.R.
+(2011). Defining the computational structure of the motion detector in
+Drosophila. Neuron 70, 1165–1177.
+Demerec, M. (1965). Biology of Drosophila (Hafner Press).
+Fischbach, K.-F., and Dittrich, A. (1989). The optic lobe of Drosophila melanogaster. I. A Golgi analysis of wild-type structure. Cell Tissue Res. 258,
+441–475.
+Fisher, Y.E., Silies, M., and Clandinin, T.R. (2015). Orientation selectivity
+sharpens motion detection in Drosophila. Neuron 88, 390–402.
+
+Fitzgerald, J.E., and Clark, D.A. (2015). Nonlinear circuits for naturalistic visual
+motion estimation. eLife 4, e09123.
+Haag, J., Arenz, A., Serbe, E., Gabbiani, F., and Borst, A. (2016). Complementary
+mechanisms create direction selectivity in the fly. eLife 5, 5.
+Hampel, S., Franconville, R., Simpson, J.H., and Seeds, A.M. (2015). A neural
+command circuit for grooming movement control. eLife 4, e08758.
+Hassenstein, V.B., and Reichardt, W. (1956). Systemtheoretische Analyse der
+Zeit-, Reihenfolgen- und Vorzeichenauswertung bei der Bewegungsperzeption
+€fers Chlorophanus. Z. Naturforsch. B 11, 513–524.
+€sselka
+des Ru
+Hempel, C.M., Sugino, K., and Nelson, S.B. (2007). A manual method for the
+purification of fluorescently labeled neurons from the mammalian brain. Nat.
+Protoc. 2, 2924–2929.
+Henry, G.L., Davis, F.P., Picard, S., and Eddy, S.R. (2012). Cell type-specific
+genomics of Drosophila neurons. Nucleic Acids Res. 40, 9691–9704.
+Jenett, A., Rubin, G.M., Ngo, T.T., Shepherd, D., Murphy, C., Dionne, H.,
+Pfeiffer, B.D., Cavallaro, A., Hall, D., Jeter, J., et al. (2012). A GAL4-driver
+line resource for Drosophila neurobiology. Cell Rep. 2, 991–1001.
+Joesch, M., Schnell, B., Raghu, S.V., Reiff, D.F., and Borst, A. (2010). ON and
+OFF pathways in Drosophila motion vision. Nature 468, 300–304.
+Jung, S.N., Borst, A., and Haag, J. (2011). Flight activity alters velocity tuning of
+fly motion-sensitive neurons. J. Neurosci. 31, 9231–9237.
+Kim, J.S., Greene, M.J., Zlateski, A., Lee, K., Richardson, M., Turaga, S.C.,
+Purcaro, M., Balkam, M., Robinson, A., Behabadi, B.F., et al.; EyeWirers
+(2014). Space-time wiring specificity supports direction selectivity in the retina.
+Nature 509, 331–336.
+Kitamoto, T. (2001). Conditional modification of behavior in Drosophila by targeted expression of a temperature-sensitive shibire allele in defined neurons.
+J. Neurobiol. 47, 81–92.
+Klapoetke, N.C., Murata, Y., Kim, S.S., Pulver, S.R., Birdsey-Benson, A., Cho,
+Y.K., Morimoto, T.K., Chuong, A.S., Carpenter, E.J., Tian, Z., et al. (2014).
+Independent optical excitation of distinct neural populations. Nat. Methods
+11, 338–346.
+Krapp, H.G., and Hengstenberg, R. (1996). Estimation of self-motion by optic
+flow processing in single visual interneurons. Nature 384, 463–466.
+Kvon, E.Z., Kazmar, T., Stampfel, G., Yáñez-Cuna, J.O., Pagani, M.,
+Schernhuber, K., Dickson, B.J., and Stark, A. (2014). Genome-scale functional
+characterization of Drosophila developmental enhancers in vivo. Nature
+512, 91–95.
+Lai, S.L., and Lee, T. (2006). Genetic mosaic with dual binary transcriptional
+systems in Drosophila. Nat. Neurosci. 9, 703–709.
+Langmead, B., Trapnell, C., Pop, M., and Salzberg, S.L. (2009). Ultrafast and
+memory-efficient alignment of short DNA sequences to the human genome.
+Genome Biol. 10, R25.
+Leong, J.C., Esch, J.J., Poole, B., Ganguli, S., and Clandinin, T.R. (2016).
+Direction selectivity in Drosophila emerges from preferred-direction enhancement and null-direction suppression. J. Neurosci. 36, 8078–8092.
+Leonhardt, A., Ammer, G., Meier, M., Serbe, E., Bahl, A., and Borst, A. (2016).
+Asymmetry of Drosophila ON and OFF motion detectors enhances real-world
+velocity estimation. Nat. Neurosci. 19, 706–715.
+Li, B., and Dewey, C.N. (2011). RSEM: accurate transcript quantification from
+RNA-Seq data with or without a reference genome. BMC Bioinformatics
+12, 323.
+Liu, W.W., and Wilson, R.I. (2013). Glutamate is an inhibitory neurotransmitter
+in the Drosophila olfactory system. Proc. Natl. Acad. Sci. USA 110, 10294–
+10299.
+Longden, K.D., and Krapp, H.G. (2009). State-dependent performance of
+optic-flow processing interneurons. J. Neurophysiol. 102, 3606–3618.
+Luan, H., Peabody, N.C., Vinson, C.R., and White, B.H. (2006). Refined spatial
+manipulation of neuronal function by combinatorial restriction of transgene
+expression. Neuron 52, 425–436.
+
+Neuron 94, 168–182, April 5, 2017 181
+
+Maisak, M.S., Haag, J., Ammer, G., Serbe, E., Meier, M., Leonhardt, A.,
+Schilling, T., Bahl, A., Rubin, G.M., Nern, A., et al. (2013). A directional tuning
+map of Drosophila elementary motion detectors. Nature 500, 212–216.
+
+Shinomiya, K., Karuppudurai, T., Lin, T.Y., Lu, Z., Lee, C.H., and
+Meinertzhagen, I.A. (2014). Candidate neural substrates for off-edge motion
+detection in Drosophila. Curr. Biol. 24, 1062–1070.
+
+Martin, M. (2011). Cutadapt removes adapter sequences from highthroughput sequencing reads. EMBnet.journal 17, 10–12.
+
+Shinomiya, K., Takemura, S.Y., Rivlin, P.K., Plaza, S.M., Scheffer, L.K., and
+Meinertzhagen, I.A. (2015). A common evolutionary origin for the ON- and
+OFF-edge motion detection pathways of the Drosophila visual system.
+Front. Neural Circuits 9, 33.
+
+Mauss, A.S., Pankova, K., Arenz, A., Nern, A., Rubin, G.M., and Borst, A.
+(2015). Neural circuit to integrate opposing motions in the visual field. Cell
+162, 351–362.
+Mazurek, M., Kager, M., and Van Hooser, S.D. (2014). Robust quantification of
+orientation selectivity and direction selectivity. Front. Neural Circuits 8, 92.
+Nern, A., Pfeiffer, B.D., and Rubin, G.M. (2015). Optimized tools for multicolor
+stochastic labeling reveal diverse stereotyped cell arrangements in the fly visual system. Proc. Natl. Acad. Sci. USA 112, E2967–E2976.
+Ni, J.Q., Zhou, R., Czech, B., Liu, L.P., Holderbaum, L., Yang-Zhou, D., Shim,
+H.S., Tao, R., Handler, D., Karpowicz, P., et al. (2011). A genome-scale shRNA
+resource for transgenic RNAi in Drosophila. Nat. Methods 8, 405–407.
+Ofstad, T.A., Zuker, C.S., and Reiser, M.B. (2011). Visual place learning in
+Drosophila melanogaster. Nature 474, 204–207.
+Pankova, K., and Borst, A. (2016). RNA-Seq Transcriptome Analysis of
+Direction-Selective T4/T5 Neurons in Drosophila. PLoS ONE 11, e0163986.
+Pankova, K., and Borst, A. (2017). Transgenic line for the identification of
+cholinergic release sites in Drosophila melanogaster. J. Exp. Biol. Published
+online February 6, 2017. http://dx.doi.org/10.1242/jeb.149369.
+Peng, H., Ruan, Z., Long, F., Simpson, J.H., and Myers, E.W. (2010). V3D
+enables real-time 3D visualization and quantitative analysis of large-scale biological image data sets. Nat. Biotechnol. 28, 348–353.
+Pfeiffer, B.D., Ngo, T.T., Hibbard, K.L., Murphy, C., Jenett, A., Truman, J.W.,
+and Rubin, G.M. (2010). Refinement of tools for targeted gene expression in
+Drosophila. Genetics 186, 735–755.
+Pfeiffer, B.D., Truman, J.W., and Rubin, G.M. (2012). Using translational
+enhancers to increase transgene expression in Drosophila. Proc. Natl. Acad.
+Sci. USA 109, 6626–6631.
+Rall, W. (1967). Distinguishing theoretical synaptic potentials computed for
+different soma-dendritic distributions of synaptic input. J. Neurophysiol. 30,
+1138–1168.
+Reiser, M.B., and Dickinson, M.H. (2008). A modular display system for insect
+behavioral neuroscience. J. Neurosci. Methods 167, 127–139.
+
+Snyder, A.W. (1979). Physics of vision in compound eyes. In Handbook of
+Sensory Physiology, Volume 7, H. Atrum, ed. (Springer), pp. 225–313.
+Strausfeld, N.J., and Lee, J.K. (1991). Neuronal basis for parallel visual processing in the fly. Vis. Neurosci. 7, 13–33.
+Strother, J.A., Nern, A., and Reiser, M.B. (2014). Direct observation of ON and
+OFF pathways in the Drosophila visual system. Curr. Biol. 24, 976–983.
+Suver, M.P., Mamiya, A., and Dickinson, M.H. (2012). Octopamine neurons
+mediate flight-induced modulation of visual processing in Drosophila. Curr.
+Biol. 22, 2294–2302.
+Takemura, S.Y., Bharioke, A., Lu, Z., Nern, A., Vitaladevuni, S., Rivlin, P.K.,
+Katz, W.T., Olbris, D.J., Plaza, S.M., Winston, P., et al. (2013). A visual motion
+detection circuit suggested by Drosophila connectomics. Nature 500,
+175–181.
+Takemura, S.Y., Xu, C.S., Lu, Z., Rivlin, P.K., Parag, T., Olbris, D.J., Plaza, S.,
+Zhao, T., Katz, W.T., Umayam, L., et al. (2015). Synaptic circuits and their
+variations within different columns in the visual system of Drosophila. Proc.
+Natl. Acad. Sci. USA 112, 13711–13716.
+Tuthill, J.C., Nern, A., Holtz, S.L., Rubin, G.M., and Reiser, M.B. (2013).
+Contributions of the 12 neuron classes in the fly lamina to motion vision.
+Neuron 79, 128–140.
+Tuthill, J.C., Nern, A., Rubin, G.M., and Reiser, M.B. (2014). Wide-field feedback neurons dynamically tune early visual processing. Neuron 82, 887–895.
+Vlasits, A.L., Morrie, R.D., Tran-Van-Minh, A., Bleckert, A., Gainer, C.F.,
+DiGregorio, D.A., and Feller, M.B. (2016). A Role for synaptic input distribution
+in a dendritic computation of motion direction in the retina. Neuron 89,
+1317–1330.
+Werblin, F.S. (2010). Six different roles for crossover inhibition in the retina:
+correcting the nonlinearities of synaptic transmission. Vis. Neurosci. 27, 1–8.
+
+Seelig, J.D., Chiappe, M.E., Lott, G.K., Dutta, A., Osborne, J.E., Reiser, M.B.,
+and Jayaraman, V. (2010). Two-photon calcium imaging from head-fixed
+Drosophila during optomotor walking behavior. Nat. Methods 7, 535–540.
+
+Yonehara, K., Farrow, K., Ghanem, A., Hillier, D., Balint, K., Teixeira, M.,
+€ttner, J., Noda, M., Neve, R.L., Conzelmann, K.K., and Roska, B. (2013).
+Ju
+The first stage of cardinal direction selectivity is localized to the dendrites of
+retinal ganglion cells. Neuron 79, 1078–1085.
+
+Serbe, E., Meier, M., Leonhardt, A., and Borst, A. (2016). Comprehensive characterization of the major presynaptic elements to the Drosophila OFF motion
+detector. Neuron 89, 829–841.
+
+Zanker, J.M., Srinivasan, M.V., and Egelhaaf, M. (1999). Speed tuning in
+elementary motion detectors of the correlation type. Biol. Cybern. 80,
+109–116.
+
+182 Neuron 94, 168–182, April 5, 2017
+
+STAR+METHODS
+KEY RESOURCES TABLE
+
+REAGENT or RESOURCE
+
+SOURCE
+
+IDENTIFIER
+
+Antibodies
+anti-GFP rabbit polyclonal antibody
+
+ThermoFisher Scientific
+
+#A-11122; RRID: AB_10073917
+
+anti-Brp mouse monoclonal antibody
+
+Developmental Studies
+Hybridoma Bank
+
+Nc82; RRID: AB_ 2314865
+
+Alexa Fluor 488, donkey anti-rabbit IgG (H+L)
+
+ThermoFisher Scientific
+
+#A-21206; RRID: AB_2535792
+
+DyLight 649 AffiniPure goat anti-mouse IgG (H+L)
+
+Jackson ImmunoResearch
+Laboratories
+
+#115-495-166
+
+Experimental Models: Organisms/Strains
+Drosophila: w1118
+
+Bloomington
+
+#3605
+
+Drosophila: w+(DL)
+
+Janelia Research Campus,
+Howard Hughes Medical
+Institute (JRC, HHMI),
+Ofstad et al., 2011
+
+N/A
+
+Drosophila: pJFRC225-5XUAS-IVS-myr::smGFPFLAG (VK00005)
+
+JRC,HHMI, Nern et al., 2015
+
+N/A
+
+Drosophila: pJFRC32-10XUAS-IVS-nlsGFP(attP18)
+
+Rubin Lab, JRC, HHMI,
+This paper
+
+N/A
+
+Drosophila: 20XUAS-IVS-GCaMP5g (VK00005)
+
+Bloomington
+
+#42038
+
+Drosophila: pGP-JFRC7-20XUAS-IVS-GCaMP6f
+(VK00005)
+
+Bloomington
+
+#52869
+
+Drosophila: 20XUAS-IVS-Syn21-opGCaMP6f-p10
+(su(Hw)attP8)
+
+D.J. Anderson Lab, Caltech,
+JRC, HHMI, This paper
+
+N/A
+
+Drosophila: 10XUAS-Syn21-Chrimson88-tdT-3.1 (attP18)
+
+D.J. Anderson Lab, Caltech
+JRC, HHMI, This paper
+
+N/A
+
+Drosophila: LexAop2-Syn21-opGCaMP6s (su(Hw)attP8)
+
+D.J. Anderson Lab, Caltech
+JRC, HHMI, This paper
+
+N/A
+
+Drosophila: 20XUAS-IVS-Syn21-opGCaMP6f-p10
+(su(Hw)attP8); 10XUAS-Syn21-Chrimson88-tdT-3.1 (attP18)
+
+JRC, HHMI, This paper
+
+N/A
+
+Drosophila: 10XUAS-Syn21-Chrimson88-tdT-3.1 (attP18);
+10XUAS-Syn21-Chrimson88-tdT-3.1 (attP18)
+
+JRC, HHMI, This paper
+
+N/A
+
+Drosophila: UAS-GluCl-Alpha-RNAi (P{TRiP.HMC03585})
+
+Bloomington
+
+#53356
+
+Drosophila: R57C10-Flp2::PEST (attP18); pJFRC21010XUAS-FRT > STOP > FRT-myr::smGFP-OLLAS (attP2),
+pJFRC201-10XUAS-FRT > STOP > FRT-myr::smGFP-HA
+(VK0005), pJFRC240-10XUAS-FRT > STOP > FRTmyr::smGFP-V5-THS-10XUAS-FRT > STOP > FRTmyr::smGFP-FLAG (su(Hw)attP1)]
+
+Bloomington, Nern et al. (2015)
+
+#64090, MCFO-6
+
+Drosophila: pBPhsFlp2::PEST (attP3); pJFRC201-10XUASFRT > STOP > FRT-myr::smGFP-HA (VK0005), pJFRC24010XUAS-FRT > STOP > FRT-myr::smGFP-V5-THS-10XUASFRT > STOP > FRT-myr::smGFP-FLAG (su(Hw)attP1)
+
+Bloomington, Nern et al. (2015)
+
+#64085, MCFO-1
+
+Drosophila: pJFRC99-20XUAS-IVS-Syn21- Shibirets1 -p10
+(VK00005)
+
+Rubin Lab, JRC, HHMI, Pfeiffer
+et al., 2012
+
+N/A
+
+Drosophila: pGP-JFRC59-13XLexAop2-IVS-p10-GCaMP6m
+(su(Hw)attP1)
+
+Bloomington
+
+#44275
+
+Drosophila: pJFRC99-20XUAS-IVS-Syn21- Shibirets1 -p10
+(VK00005), pGP-JFRC59-13XLexAop2-IVS-p10-GCaMP6m
+(su(Hw)attP1)
+
+JRC, HHMI, This paper
+
+N/A
+
+Drosophila: BPp65ADZp(attP40); BPZpGdbd(attP2)
+
+JRC, HHMI, Hampel et al., 2015
+
+N/A
+(Continued on next page)
+
+Neuron 94, 168–182.e1–e10, April 5, 2017 e1
+
+Continued
+REAGENT or RESOURCE
+
+SOURCE
+
+IDENTIFIER
+
+Drosophila: T4/T5-SplitGal4 [R59E08-p65ADZp (attP40);
+R42F06-ZpGdbd (attP2)]
+
+This Study (available from
+http://splitgal4.janelia.org)
+
+JRC_SS00324
+
+Drosophila: Mi1-1-SplitGal4 [w1118; R55C05-p65ADZp(attP40);
+R71D01-ZpGdbd (attP2)]
+
+This Study (available from
+http://splitgal4.janelia.org)
+
+JRC_SS00955
+
+Drosophila: Mi1-2-SplitGal4 [w1118; R19F01-p65ADZp(attP40);
+R71D01-ZpGdbd (attP2)]
+
+This Study (available from
+http://splitgal4.janelia.org)
+
+JRC_SS00809
+
+Drosophila: Tm3-1-SplitGal4 [w1118; R38C11-p65ADZp(attP40);
+R59C10-ZpGdbd(attP2)]
+
+This Study (available from
+http://splitgal4.janelia.org)
+
+JRC_SS00300
+
+Drosophila: Tm3-2-SplitGal4 [w1118; R13E12-p65ADZp(attP40);
+R59C10-ZpGdbd(attP2)]
+
+This Study (available from
+http://splitgal4.janelia.org)
+
+JRC_SS00313
+
+Drosophila: Mi4-1-SplitGal4 [w1118; R48A07-p65ADZp(attP40);
+R79H02-ZpGdbd(attP2)]
+
+This Study (available from
+http://splitgal4.janelia.org)
+
+JRC_SS00316
+
+Drosophila: Mi4-2-SplitGal4 [w1118; R48A07-p65ADZp(attP40);
+R13F11-ZpGdbd(attP2)]
+
+This Study (available from
+http://splitgal4.janelia.org)
+
+JRC_SS01019
+
+Drosophila: Mi9-1-SplitGal4 [w1118; R48A07-p65ADZp(attP40);
+VT046779-ZpGdbd(attP2)]
+
+This Study (available from
+http://splitgal4.janelia.org)
+
+JRC_SS02432
+
+Drosophila: Mi9-2-SplitGal4 [w1118; VT044843-p65ADZp(attP40);
+VT046779-ZpGdbd(attP2)]
+
+This Study (available from
+http://splitgal4.janelia.org)
+
+JRC_SS02430
+
+Drosophila: Enhancerless-Gal4 [pDPGal4U(attP2)]
+
+JRC, HHMI; Pfeiffer et al., 2010
+
+N/A
+
+Drosophila: Mi1-Gal4 [R19F01-Gal4 (attP2)]
+
+Bloomington
+
+#48852
+
+Drosophila: Tm3-Gal4 [R59C10-Gal4 (attP2)]
+
+Bloomington
+
+#39212
+
+Drosophila: T4/T5-LexA [R42F06-LexAp65 (su(Hw)attP5)]
+
+This paper
+
+Based on Bloomington #54203
+
+Drosophila: T4/T5-LexA [R42F06-LexAp65 (VK00022)]
+
+This paper
+
+Based on Bloomington #54203
+
+Drosophila: Tm3-LexA [R59C10-LexAp65c(su(Hw)attP5)]
+
+This paper
+
+Based on Bloomington #39212
+
+Drosophila: y v sc; P{y[+t7.7] = CaryP}attP40
+
+Bloomington
+
+#36304
+
+MATLAB and Simulink, R2016a
+
+MathWorks
+
+http://www.mathworks.com/
+
+cutadapt v1.9.1
+
+Martin, 2011
+
+http://dx.doi.org/10.14806/ej.17.1.200
+
+RSEM v1.2.31
+
+Li and Dewey, 2011
+
+https://deweylab.github.io/RSEM/
+
+bowtie v1.1.2
+
+Langmead et al., 2009
+
+http://bowtie-bio.sourceforge.net/
+index.shtml
+
+nia (neuron_image_analysis)
+
+Strother et al., 2014
+
+https://bitbucket.org/jastrother/
+neuron_image_analysis
+
+Software and Algorithms
+
+CONTACT FOR REAGENT AND RESOURCE SHARING
+Further information and requests for resources and reagents should be directed to and will be fulfilled by the Lead Contact, Michael
+Reiser (reiserm@janelia.hhmi.org).
+EXPERIMENTAL MODEL AND SUBJECT DETAILS
+Driver Lines
+Cell type specific expression of indicators, activators, and activators was achieved using the GAL4/UAS, LexA/LexAop (Lai and Lee,
+2006; Pfeiffer et al., 2010) and Split-GAL4/UAS expression control systems (Luan et al., 2006; Pfeiffer et al., 2010). Table S1 provides
+the complete genotype for the animals used in each experiment.
+Calcium Imaging Experiments
+Flies were reared under standard conditions (60% humidity, 12h light/12h dark, cornmeal agar diet). Flies used in experiments that
+examined the responses of the input neurons were reared at 25 C (Figure 3B, S2E-F), while flies used in experiments that examined
+the effects of silencing these inputs neurons using shiberets1 were reared at 21 C (Figures 2C-E, 3C, 4A, S2A-D, S4B-D) . All imaging
+experiments were performed on females 1-6 days post-eclosion.
+
+e2 Neuron 94, 168–182.e1–e10, April 5, 2017
+
+Behavioral Experiments
+Flies were reared under standard conditions (60% humidity, 16h light / 8h dark, cornmeal agar diet) 21 C. All experiments were
+performed on female flies, 3-5 days after eclosion.
+Functional Connectivity Experiments
+Flies were reared under standard conditions (60% humidity, 25 C, 24h dark), on a cornmeal agar diet supplemented with retinal
+(0.2mM) in vials. Dark rearing was maintained by wrapping vials in foil. Female flies were collected 24-48 post-eclosion and held
+under the same rearing conditions until experiments were performed.
+Transcriptional Profiling
+All experiments were performed on brains dissected from 3-5 day old adult females flies, raised under standard conditions.
+METHOD DETAILS
+Driver Lines: Construction
+Cell-type specific expression of fluorescent calcium indicators (Chen et al., 2013), Chrimson-tdTomato (Klapoetke et al., 2014), UAS
+RNAi constructs (Ni et al., 2011) and anatomy markers (Nern et al., 2015) was achieved using the GAL4/UAS, LexA/LexAop (Lai and
+Lee, 2006; Pfeiffer et al., 2010) and Split-GAL4/UAS expression systems (Luan et al., 2006; Pfeiffer et al., 2010). GAL4 lines, SplitGAL4 hemidrivers (Luan et al., 2006; Pfeiffer et al., 2010) and LexA-lines for targeting specific cell types were chosen based on
+GAL4-line expression patterns (Jenett et al., 2012; Kvon et al., 2014 and personal communication from Barry J. Dickson) and new
+transgenes constructed as previously described (Pfeiffer et al., 2010). We prescreened candidate split-GAL4 combinations for
+expression in the cell types of interest using a UAS reporter on the X chromosome (pJFRC200-10XUAS-IVS-myr::smGFP-HA in
+attP18) and generated stable fly stocks of selected combinations for subsequent experiments. The 9 new Split-Gal4 lines presented
+here are quite specific in targeting the identified neuron type. The specificity of these drivers was confirmed by examining several
+brains for each genotype labeling sparse subsets of neurons in the optic lobes. Some of the driver lines included an occasional
+neuron of another cell type, but with one exception (Mi9-2 also showed some Mi13 cells (Takemura et al., 2013)), these were rare.
+Some lines included expression in a few cell types outside of the optic lobes. All experimental genotypes (organized by Figure panel)
+are listed in Table S1. ‘‘w+(DL)’’ denotes an X chromosome from a particular laboratory strain (‘‘DL’’ for ‘‘Dickinson Lab wild-type’’)
+(Ofstad et al., 2011).
+Driver Lines: Imaging and Verification
+The expression of split-GAL4 driver lines was visualized using the reporter pJFRC225-5XUAS-IVS-myr::smGFP-FLAG in VK00005
+(Nern et al., 2015). Brains of female flies were dissected in insect cell culture medium (Schneider’s Insect Medium, Sigma Aldrich,
+#S0146) and fixed with 2% (v/v) paraformaldehyde (PFA) (prepared from a 20% stock solution in cell culture medium, Electron
+Microscopy Sciences, #15713) for 1 hr at room temperature (RT). After several washes with PBT (phosphate buffered saline with
+0.5% (v/v) Triton X-100), the fixed brains were incubated first with PBT-NGS (5% Normal Goat Serum in PBT) for 30 min at RT
+and then with primary antibodies (anti-GFP rabbit polyclonal antibody, ThermoFisher Scientific, #A-11122, 1:1000 dilution and
+anti-Brp mouse mAb Nc82, Developmental Studies Hybridoma Bank, 1:50 dilution) in PBT-NGS at 4 C overnight. This was followed
+by several washes with PBT and incubation with secondary antibodies (Alexa Fluor 488, donkey anti-rabbit IgG (H+L), ThermoFisher
+Scientific, #A-21206, 1:1000 dilution and DyLight 649 AffiniPure goat anti-mouse IgG (H+L), Jackson ImmunoResearch Laboratories,
+#115-495-166, 1:300 dilution) in PBT-NGS at 4 C overnight and further washes. For imaging, brains were mounted in SlowfadeGold
+antifade (ThermoFisher Scientific) under a #1.5 coverslip using small amounts of modeling clay as flexible spacers. Images were acquired on a Zeiss LSM 710 confocal microscope using a 40x NA 1.3 objective. Since the expression level of the myr::smGFP-FLAG
+marker varied between driver lines, gain and laser power were set individually for each sample and some further adjustments of
+brightness and contrast made post-imaging in Fiji (http://fiji.sc/). For display purposes, some images were rotated. To verify the
+expression pattern of each Split-GAL4 line we used sparse labeling of neurons. For these images (Figure S1B) we followed the exact
+protocol for the Multicolor FlpOut (MCFO) method of Nern et al. (2015). Split-GAL4 driver lines were crossed to MCFO-1 (SS02432,
+SS02430, SS00955, SS00809, SS01019, SS00316) or MCFO-7 (SS00313, SS00300, SS00324)—these are listed as stocks 51-59 in
+Table S1. Adult flies from crosses to MCFO-1 were incubated at 37 C for 15 min two or more days prior to dissection (no heat-shock
+is required for the MCFO-7 crosses). Fly brains were dissected, fixed, processed for immunofluorescence labeling of three different
+epitope-tagged marker proteins (with HA, V5 and FLAG epitopes, respectively) and a neuropile marker (anti-Brp), mounted in DPX
+and imaged as described (Nern et al., 2015). Detailed protocols can also be found online (https://www.janelia.org/project-team/
+flylight/protocols under ‘‘IHC - MCFO’’). Images were acquired with a 63x 1.4 NA objective and 0.19x0.19x0.38 mm3 voxel size. Images shown in Figure S1BC are reoriented substack projections that were generated from confocal stack using the Neuron Annotator
+Mode of Vaa3D (Peng et al., 2010) and exported as TIFF format screen shots.
+Many of the critical results in this manuscript rely on neuronal silencing, so it is important to verify the effect of the silencing treatment. This study includes several experiments intended to demonstrate that the treatment had the intended effect. To confirm that
+the driver expressed the effector in only the intended cells, we provide anatomical data on each of our main driver lines (Figure S1).
+
+Neuron 94, 168–182.e1–e10, April 5, 2017 e3
+
+Also, to confirm that the silencing effector produced the intended effect, the effector was expressed in a two cell types (T4/T5) that
+have a well-established behavioral phenotype (Figures 3E, 4B–4E). Even with these controls it remains possible that a particular driver
+and effector line combination did not yield sufficient expression to produce silencing. Fortunately, since the responses to a wide
+range of stimuli were recorded, the collective dataset can function as its own control. Since we observed a statistically significant
+change (either increase or decrease) for multiple stimulus conditions for each genotype (in comparison to the appropriate genetic
+control, e.g., Figures 4B–4E) then we can conclude that the silencing treatment reduced synaptic transmission, and further interpret
+why the deficit was produced by one stimulus and not another.
+Calcium Imaging Experiments: Preparation and Microscopy
+Details of the preparation follow those of similar experiments (Seelig et al., 2010; Strother et al., 2014). Briefly, flies were cold anesthetized and tethered to a fine wire at the thorax using UV-curing adhesive. The two most anterior legs (T1) were severed to prevent
+the animals from grooming their eyes and obstructing the visual field. A small drop of UV adhesive on the ventral surface of the thorax
+was used to encapsulate the severed T1 legs and immobilize the head at the proboscis. Tethered flies were subsequently positioned
+such that their head just protruded through a small cutout in a thin metal sheet that served as the bottom of the perfusion bath, and the
+head and thorax were secured to the sheet using UV adhesive. The back surface of the head was bathed in saline (103mM NaCl, 3mM
+KCl, 1.5mM CaCl2, 4mM MgCl2, 26mM NaHCO3, 1mM NaH2PO4, 8mM trehalose, 10mM glucose, 5mM TES, bubbled with 95%
+O2 / 5% CO2) and the cuticle was dissected away to expose the brain. Muscles 1 and 16 (Demerec, 1965) were severed to reduce
+motion of the brain within the head capsule, and the post-ocular air sac on the imaged side was removed to expose the medulla.
+During experiments the perfusate was temperature controlled. The perfusate reservoir was pre-heated using a stainless steel
+heat-exchange coil connected to a chiller (Thermotek RC2AC). Before entering the perfusion bath the perfusate was passed through
+an inline heater (Warner SC-20 and CL-100). The temperature within the bath itself was monitored using a small thermocouple probe
+placed near to the fly head (< 2mm, Physitemp IT-21). Experiments to characterize the response of the T4 input neurons were
+performed at 20 C (Figure 3B, S2E-F). Experiments utilizing shiberets1 were performed at 30 C (Figures 2C-E, 3C, 4A, S2A-D,
+S4B-D).
+The medulla was imaged using a two-photon microscope (Prairie Ultima) with near-infrared excitation (930nm, Coherent Chameleon Ultra II) and a 60x objective (Nikon CFI APO 60XW). The excitation power was never greater than 25mW at the sample. Imaging
+parameters varied slightly between experiments but were typically acquired at 128x128 pixel resolution, approximately 10Hz frame
+rate, and with a 100mm field of view.
+For experiments aimed at identifying axonal tracts with directional selectivity (Figures 2E and S4B-D), additional steps were taken
+to minimize motion artifacts. For these experiments, all legs were severed and encapsulated in UV adhesive, UV adhesive was used
+to secure the thorax to the abdomen, and imaging was performed with a 50mm field of view.
+Calcium imaging Experiments: Visual stimuli
+All visual stimuli were produced using a custom rear-projection system (Strother et al., 2014). The projection screen was positioned to
+provide a unilateral stimulus to the right eye, and was centered around a point approximately 45 from the sagittal plane and 10
+above the equator of the eye. The corresponding region of the medulla was identified by displaying a small flickering disc near
+the center of the screen, and surveying the medulla for a localized calcium response. Local retinotopy was verified prior to recording,
+by confirming that small changes in stimulus position resulted in small shifts in the location of the most active medulla column.
+Stimuli were grouped into sets that included appropriate control stimuli, and could be presented in short protocols so that only
+negligible photobleaching occurred over the duration of the set. Results from four stimulus sets are presented: moving edges (Figure 2D, 3B-C, S2A-C), moving gratings (Figure 4A and S2D), flickering discs (Figures S2E-F) and windowed moving gratings (Figure 2E, S4B-D). The moving edge stimulus set consisted of a 30 window over a gray background (50% maximum intensity) through
+which light-on and light-off moving edges alternately passed in the posterior to anterior, ventral to dorsal, anterior to posterior, and
+dorsal to ventral directions at speeds of 30 /s or 90 /s (set included all combinations of direction and speed) with a 5 s interstimulus
+interval (disc has polarity of previous edge on full field gray background) and 6 replicates were collected of each stimulus. The moving
+edge stimulus set also included two motion-free stimuli: a rapid motion-free stimulus in which the 30 window instantly changed light
+intensity, and a gradual motion-free stimulus in which the 30 window uniformly changed light intensity so that time course of the
+mean light intensity over the window was identical to the time course of the mean light intensity that occurs when a moving edge
+passes through the window. All moving edges experiments utilized this stimulus, except for the responses of Mi1 (Figure 3B) which
+were calculated from image data collected in a previous study using a nearly identical stimulus (Strother et al., 2014).
+The moving gratings stimulus set consisted of a square-wave grating of dark (0% maximum intensity) and bright (100% maximum
+intensity) bars with a 30 period that spanned an area of 120 in the dorso-ventral direction and 90 in the anterior-posterior direction. The grating moved in either the anterior-to-posterior direction or posterior-to-anterior direction at speeds of 30 /s, 90 /s,
+180 /s, 270 /s, 810 /s, or 2430 /s (set includes all combinations of direction and speed). Square wave gratings were presented
+for an 8 s interval with a 5 s interstimulus interval (full-field gray background) and 6 replicates were collected for each stimulus.
+The flickering discs stimulus set consisted of a disc that flickered between maximal and minimal light intensity over a gray background (50% maximum intensity) for a period of 120 s with a diameter that was either 5 or 30 and a frequency that was either 0.05Hz
+
+e4 Neuron 94, 168–182.e1–e10, April 5, 2017
+
+or 0.33Hz (set includes all combinations of diameter and frequency) with an interstimulus interval of 5 s (full field gray background).
+Stimulus order was randomized for each trial of every stimulus set.
+The windowed moving gratings stimulus set consisted of a square wave grating of dark (0% maximum intensity) and bright (100%
+maximum intensity) bars with a 30 period that appeared in a 30 window centered over the receptive field of the imaged neurons
+while the remainder of the field was gray (50% maximum intensity). The direction of the grating was varied from 0 to 360 in 45 increments, where 0 represents motion in the anterior-to-posterior direction. The grating speed was either 30 /s or 90 /s (set includes
+all combinations of direction and speed), and gratings were presented for a 6 s interval with a 5 s interstimulus interval (full-field gray
+background) and 6 replicates were collected for each stimulus.
+Behavioral experiments: Preparation and Arena
+The wings were fixed with UV light-activated glue (KOA 300-1, KEMXERT) at least 12 hr before the experiments. Flies were cold-anesthetized and tethered to a 0.13mm diameter tungsten wire by using UV light-activated glue. After tethering each fly was placed in an
+incubator (Model PH09-DM, Thermoelectric Series, Darwin Chambers Company) at 32 C, 60% humidity for 40-50 min. Tethered flies
+were then positioned on a 9 mm diameter, 129 mg air-supported styrofoam ball, surrounded by a visual arena (Reiser and Dickinson,
+2008). The complete apparatus, including the arena and the treadmill system (Seelig et al., 2010) was housed within the incubator and
+experimental tests were conducted at 34 C, 60% humidity. The airflow supporting the ball was regulated to around 340 SCCM by a
+digital mass flow controller (Smart-Trak, Sierra Instruments), and adjusted to 60% humidity with a dew point controller (Sable
+Systems International).
+The Treadmill ball-tracking system has been described elsewhere (Seelig et al., 2010). Briefly, the movement of the ball is tracked
+by two optical flow cameras (Avago Technologies; ADNS-6090). The measured ball movements were streamed at 4 kHz from the
+optic flow chips and summed in 20 ms bins, which are then acquired by a custom MATLAB (MathWorks, Natick, MA) program which
+runs the experiment. The camera data are transformed into 50 Hz measurements of forward/sideslip/turning (ball pitch/roll/yaw), in
+arbitrary units. Flies were positioned above the ball using 3-axis micromanipulators using two cameras (Firefly MV FFMV-03M2M and
+Basler 602f) that imaged the fly and ball from above and behind.
+The cylindrical visual arena was constructed from 36, 8x8 pixel LED modules, consisting of a 32x72 array of 525 nm LEDs
+(UltraPure Green LED, IO Rodeo), and spanning 270 in azimuth and 120 in elevation. The pixel size of each LED subtends no
+more than a diameter of 3.75 on the fly’s retina, which is below the inter-ommatidial distance of the Drosophila eye. Double layers
+of neutral density filters (Lee 299 ND1.2 Neutral Density Gel Filter) were applied to the LEDs for rescaling the luminance in the arena.
+The adjusted intensity scale of the arena is 0 to 30 mW/m2. We made use of an updated version of the display controller (manufactured by IO Rodeo, http://www.iorodeo.com/; further details at https://bitbucket.org/mreiser/panels).
+To test the visual responses of tethered walking flies, a series of stimulus-response experiments were performed. Each trial consisted of a 0.7-2 s moving visual stimulus, after which the final frame of each stimulus is presented (statically) for a period of 0.8 s. All
+trials were followed by a 1 s interstimulus interval during which a homogeneous, full-field stimulus with intermediate intensity (33%
+max intensity) was presented. Within an experimental series, all visual stimuli were presented as symmetric pairs, consisting of clockwise (CW) and counterclockwise (CCW) versions of each stimulus condition, with all conditions presented using a random block trial
+structure (all trials repeated either 4 or 6 times, within blocks consisting of all trial types in random order). The presented results were
+generated using two different protocols, each consisted of 500-600 trials for each fly, and lasted 35-50 min.
+Behavioral experiments: Visual stimuli
+Space-time diagrams for the visual stimuli are schematized in Figure 4 and Figure 5. Visual stimuli used for the experiments in Figure 4
+are animated in Movie S2. Visual stimuli used for all behavioral experiments are described below.
+(A) ON+OFF grating: This stimulus consists of a rotating square-wave grating that is parameterized in terms of contrast (Michelson
+contrast was calculated as (Imax-Imin)/(Imax+Imin), where Imax and Imin are the highest and lowest luminance intensities in the stimulus),
+temporal frequency (the ratio of the angular velocity and the spatial wavelength), and spatial wavelength (width of a dark bar plus
+width of a bright bar). Each specific protocol is detailed below:
+(A1) Contrast test (Figures S3A and S3B): A 30 spatial wavelength ON+OFF grating pattern is presented with five different contrast
+values (3, 9, 20, 40, and 100%) and two speeds (1Hz and 9Hz). In order to provide similar whole-field luminance for each stimulus in
+the protocol, the luminance of the black stripes or the bright stripes varied for different stimuli (93% max intensity over 100% max
+intensity for 3% contrast; 33%/40% max intensity for 9% contrast; 27%/40% max intensity for 20% contrast; 20%/47% max intensity for 40% contrast; 0%/67% max intensity for 100% contrast).
+(A2) Temporal frequency test (Figure 4B, S3C): A 30 spatial wavelength ON+OFF grating pattern is presented with two different
+contrast values (9% and 100%) and five speeds (1, 3, 6, 9, and 27Hz; the corresponding angular velocities are 30, 90, 180, 270, and
+810 /s).
+(A3) Spatial wavelength test (Figures S3D and S3E): A 40% contrast ON+OFF grating pattern is presented with four different spatial
+wavelength (15, 22.5, 30, and 60 ) and two speeds (1Hz and 9Hz).
+(B) Repeating ON/OFF edges: This stimulus begins with the presentation of an array of adjacent ‘‘windows’’ that each contain
+a 3.75 wide bar at one edge. These narrow bars expand in either the clockwise or counter-clockwise direction until they fill the
+entire window. Once the bars fill the window, the display is reset to the initial condition and the stimulus repeats. This stimulus is
+
+Neuron 94, 168–182.e1–e10, April 5, 2017 e5
+
+parameterized by the edge speed, contrast, window number, window size, and reset duration. The details for each specific protocol
+are provided below:
+(B1) Speed and contrast test (Figure 3E and Figure S3H): The stimulus was presented in 4 windows that were each 67.5 wide, and
+the stimulus was repeated for 2.25 s. Both light and dark edges were examined: three contrast values were used for light edges (60%
+max intensity over 33% max intensity for 29% ON contrast, 73%/33% max intensity for 38% ON contrast, and 87%/33% max intensity for 44% ON contrast) and one contrast value was used for dark edges (13%/33% max intensity for 43% OFF contrast).
+Each of the contrast values was tested using three different speeds (30, 90, and 270 /s, which are converted to the equivalent temporal frequency in Figure S3H). Figure 3E shows the responses for the 44% ON contrast and the 43% OFF contrast stimuli.
+(B2) Speed and spatial test (Figures 4C–4D, S3F-G, Figure 5A-B): The stimulus was presented either in 4.5 windows that were each
+60 wide (Figures 4C–4D and Figure 5A-B) and repeated for 1 s (1 to 18 cycles); or in 9 windows that were each 30 wide (Figures S3F
+and S3G) and repeated for 1 s (1 to 36 cycles). Both ON and OFF edges were examined; 44% contrast was used for ON edges, 43%
+contrast was used for OFF edges. Each window size and polarity (light/dark) was tested for a broad range of speeds (30, 60, 90, 180,
+270, 540, 810, and 1080 /s), representing a wide range of equivalent temporal frequencies for both 30 windows (1, 2, 3, 6, 9, 18, 27,
+and 36 Hz) and 60 windows (0.5, 1, 1.5, 3, 4.5, 9, 13.5, and 18 Hz).
+(B3) Repeating ON edges with distinct OFF duration (Figure S4A): The stimulus was presented with ON bars (44% contrast) in 4.5
+windows that were each 60 wide, and was repeated for a 2 s duration. Two speeds (90 and 540 /s) and three OFF reset durations
+(7, 21, and 42ms) were examined. This stimulus was developed because we had found that when Mi9 was silenced, we observed an
+enhanced turning response to repeating ON edges but not to increasing ON edges (Figures 4C and 4E). Since Mi9 shows increased
+activity in response to OFF stimuli, we had reasoned that this could be attributed to the collateral OFF stimulus that is presented when
+the repeating ON edges stimulus cycles. To ensure that this result was not an artifact of our specific stimulus conditions, we repeated
+these experiments with a repeating ON edges stimulus in which we varied the duration of the OFF stimulus that is interspersed within
+the ON motion (Figure S4A).
+(C) Increasing ON edges (Figures 4E and 5C): The repeating ON edges stimulus described above (stimulus ‘‘B’’) includes an OFF
+presentation when the stimulus resets, and the uniform light stimulus transitions to a single light bar on a dark background. To avoid
+this OFF presentation, we developed a novel stimulus in which edges of increasing luminance were used to provide multiple edge
+stimuli that only contain luminance increments. In this stimulus, a 3.75 wide light bar (14% max intensity) appeared at the edge
+of a 60 window and then expanded in the clockwise or counterclockwise direction until it filled the window. The stimulus was cycled
+by presenting a slightly brighter 3.75 wide light bar at the edge of the same window and having it expand in the same direction. Due to
+limited discretization of intensity levels, this pattern was repeated for light bars with 7 luminance values (14, 29, 43, 57, 71, 86, 100%
+max intensity) for fast speeds (9, 13.5, 18 Hz), and for light bars with 5 luminance values (14, 29, 43, 57, 71% max intensity) for moderate speeds (4.5 Hz), and for light bars with 3 luminance values (14, 29, 43% max intensity) for slow speeds (1.5 and 3Hz).
+All trials were repeated multiple times. For the protocol implementing stimuli described in A1, A2, A3, and B1, the stimuli were
+repeated 4 times, and the protocol implementing B2, B3, and C repeated each trial 6 times (in random block trial structure).
+Functional Connectivity Experiments
+Brains from adult flies were isolated by dissecting the head in a saline bath (103mM NaCl, 3mM KCl, 2mM CaCl2, 4mM MgCl2, 26mM
+NaHCO3, 1mM NaH2PO4, 8mM trehalose, 10mM glucose, 5mM TES, bubbled with 95% O2 / 5% CO2). The brain was then placed on
+a poly-lysine coated coverslip (neuVitro, Vancouver, WA, GG-12-PDL) posterior side up and perfused with saline (same composition
+as above, 21 C). Images of the brain were acquired using a two-photon microscope (Prairie Ultima, Olympus LUMPlanFL N 40X,
+2.5 fps, 145 mm x 145 mm field of view, 0.57 x 0.57 mm/pixel resolution). The samples were imaged using a near-infrared laser
+(920nm, 10mW, Coherent Chameleon Ultra II) that produced minimal collateral activation of Chrimson.
+The light-gated ion channel Chrimson was activated by narrow-band illumination centered around 590 nm (Thorlabs M590L2-C2
+followed by an excitation filter, Chroma D605/55). A dichroic mirror (Chroma zt488-568tpc V2) was placed in between the tube lens
+and the objective to combine the activation path and the imaging path. 920nm excitation light from the 2-P imaging path and 590nm
+1-P activation light illuminate the sample, while the GCaMP emission signal (510-530 nm) passes back through the dichroic to the
+PMT. The dichroic does not pass 590 nm illumination, which minimizes contamination between the activation illumination and the
+GCaMP imaging. Photoactivation light was delivered in a pulse train that consisted of six 1 s pulses (square-wave modulation,
+50 Hz, 10% duty cycle, 30 s inter-pulse interval). The light intensity increased for each of the six pulses (58, 116, 232, 464, 928,
+and 1246 mW/mm2; measured using Thorlabs S170C). This protocol was repeated twice per sample, and only brains with stable
+baseline fluorescence levels were analyzed.
+Transcriptional Profiling to Quantify RNAi Knockdown
+Fly brains were dissected from 3-5 day old adult females into fly AHS (108 mM NaCl, 5 nM KCl, 2 mM CaCl2, 8.2 mM MgCl2, 4 mM
+NaHCO3, 1 mM NaH2PO4, 5 mM HEPES, 5.3 mM trehalose, 9.93 mM sucrose). nls-eGFP-labeled cell bodies were isolated using
+established protocols (Hempel et al., 2007) with minor modifications: AHS was used in place of ACSF, and Liberase DH (Roche)
+was used as the digestion enzyme. Approximately 400 cell bodies were manually collected per sample and were immediately lysed
+in Extraction Buffer (PicoPure RNA Isolation kit, Thermo). RNA was extracted, concentrated in a speed-vac to approximately 4 uL,
+and 1 uL ERCCs (Ambion) at 1:1e-5 dilution was added as external RNA controls. cDNA was prepared using Ovation v2 RNA-seq
+
+e6 Neuron 94, 168–182.e1–e10, April 5, 2017
+
+(NuGEN), final libraries were prepared using Rapid library kit (NuGEN), and quantified by qPCR (Kapa Biosystems). Libraries were
+sequenced on a HiSeq 2500 (Illumina) on Rapid flowcells with 100 base single reads. Sequencing adapters were trimmed from
+the reads using cutadapt v1.9.1 (Martin, 2011). Trimmed reads were aligned to Flybase release 6.03 and gene expression levels
+were determined using RSEM v1.2.31 (Li and Dewey, 2011) with bowtie v1.1.2 (Langmead et al., 2009). For the data presented,
+3 independently isolated cDNA library samples were sequenced for each of the two genotypes (Stock numbers 49-50).
+Computational Model
+A numerical model was used to determine if the proposed scheme for motion computation was consistent with our experimental data
+(Figure 7). This model was implemented using Simulink (MATLAB R2016a), and represented 13 photoreceptors arranged in a linear
+array, essentially implementing a single row of ommatidia on the fly eye. Each photoreceptor was assumed to have a Gaussian recep€chner, 1974). Each photoreceptor
+tive field (Snyder, 1979), with an acceptance angle of 5 and an interommatidial angle of 4.6 (Bu
+was modeled as responding linearly to light intensity via a first-order low-pass filter (1=ðtP s + 1Þ in Laplace notation).
+The outputs from these photoreceptors served as the inputs for a medulla column model. As a more detailed model is not justified
+for the questions we have posed, we have collected the lamina transformations into those implemented in the medulla column unit
+(Figure 7A). Each medulla column received inputs from three adjacent photoreceptors, such that we modeled 11 medulla columns
+receiving inputs from the 13 photoreceptors. Each medulla column contained one Mi1, Tm3, Mi4, and Mi9 model. The Mi1 model
+consisted of a rectifier, followed by a first-order low-pass filter (time constant t Mi1 ). The Tm3 model consisted of a rectifier, followed
+by a first-order low-pass filter (time constant t Tm3 ). The Mi4 model consisted of an inhibitory surround function that summed the inputs from the three photoreceptors (weighted by -0.5, +1, -0.5), followed by a rectifier, followed by a first-order low-pass filter (time
+constant t Mi4 ). The Mi9 model consisted of an inhibitory surround function that summed the inputs from the three photoreceptors
+(weighted by -0.5, +1, -0.5), followed by an inverter, followed by a rectifier, followed by a first-order low-pass filter (time constant
+tMi9 ). All columnar neurons are ON rectified (responding primarily to luminance increments), except for Mi9, which is OFF rectified
+and responds primarily to luminance decrements.
+The outputs from each medulla column were used as the inputs for a T4 cell model. Each T4 cell model received inputs from four
+adjacent medulla columns, such that we modeled 8 T4 cells receiving inputs from 11 medulla columns. The T4 cell model consisted
+principally of a modified Hassenstein-Reichardt Correlator (HRC). The first arm of the correlator averaged the Mi1 and Tm3 signals
+from the first leading-edge medulla column, and passed the result through a first-order low-pass filter (time constant tT4;LPF ). The
+second arm of the correlator averaged the Mi1 and Tm3 signals from the first trailing-edge medulla column, and passed the result
+through a first-order high-pass filter (tT4;HPF s=ðtT4;HPF s + 1Þ in Laplace notation). The leading, low-pass filtered and trailing, highpass filtered signals were then multiplied to produce an internal HRC signal. This HRC signal was then passed through an attenuator,
+with a gain that was dependent on the Mi9 signal from a medulla column offset from the T4 cell by two columns in the leading direction, and the Mi4 signal from a medulla column offset from the T4 cell by two columns in the trailing direction (Figure 7A). The attenuated signal was taken equal to
+Satten = SHRC 3 fatten ðwMi9 SMi9 + wMi4 SMi4 Þ;
+where Satten is the attenuated signal, SHRC is the HRC signal, SMi9 is the Mi9 signal, SMi4 is the Mi4 signal, wMi9 and wMi4 are weighting
+factors. The attenuation function fatten ðxÞ was taken as
+8
+1 if x < 0;
+<
+0 if x > 1;
+fatten ðxÞ =
+:
+1  x otherwise:
+Finally, the attenuated signal was offset by a constant and then passed through a rectifier, such that the T4 output signal was taken
+equal to
+ST4 = rampðSatten + bÞ ;
+where ST4 is the output signal from the T4 cell, ramp() is the ramp function, and b is the constant offset.
+This computational model depends on a number of parameter values, and wherever possible experimental data were used to
+select these parameter values. However, in some cases we were forced to estimate parameter values as little experimental data
+were available. In these cases, a sensitivity analysis was performed to examine the effects of varying the parameter value, and
+the value that was most consistent with available experimental evidence was selected. The value of each parameter used in the
+model and the estimation strategy used to arrive at this value are both reported in Table S2.
+The model was solved using a Runge-Kutta solver (RK4) with a fixed step size (1ms). We focused on the predicted response of a T4
+cell to a moving grating (30 period, 100% contrast varying between a value of zero and one, 200ms static grating lead-in followed by
+4 s moving grating trial). The grating pattern was discretized to replicate the rendering of this pattern on the visual display used for the
+behavioral experiments (3.75 wide pixels). In order to compare our model to the experimental data, we also examined the effect of
+silencing the input neuron types on the predicted T4 response. Input neurons were silenced by setting their outputs from the medulla
+column model to zero. Since in our model the Mi4 and Mi9 attenuate the outputs of the T4 cell, silencing either of these neurons while
+holding all other factors equal produces a baseline shift in output of the T4 cell. This baseline shift is inconsistent with our calcium
+
+Neuron 94, 168–182.e1–e10, April 5, 2017 e7
+
+imaging experiments, presumably as a consequence of slow adaptation in T4 cells. In order to replicate this slow adaptation, whenever an input neuron was silenced in our model the T4 baseline was shifted by varying b such that the response of a T4 cell to a constant, full-field stimulus was identical to that of a T4 cell absent silencing. For practical reasons, this constant, full-field stimulus was
+mimicked using a very fast moving grating (20 Hz).
+For each examined conditions, we calculated the mean response of the T4 cell (mean of 2 s window starting 2 s after grating movement begins, average across all 8 cells in simulation). We have reported the response to grating movement in the preferred direction
+(PD) and the null direction (ND), as well as sum (PD+ND) and difference (PD-ND) of these signals.
+QUANTIFICATION AND STATISTICAL ANALYSIS
+Calcium imaging
+Data were analyzed using custom-written software (neuron_image_analysis) implemented in MATLAB (MathWorks, Natick, MA) that
+performed the following steps. For all experiments, images were pre-processed to reduce lateral motion by shifting the images to
+maximize the correlation with a reference image. The motion compensation algorithm utilized a moving window approach to calculate an undistorted reference image, even for long recordings with moderate amounts of drift. First, the reference image was calculated as the mean fluorescence for the frames in the window. Second, the cross-correlation was calculated between the frame at the
+center of the window and the reference image, and parabolic interpolation was used to calculate the sub-pixel displacement that
+maximizes the correlation. Third, the image at the center of the window was displaced by the calculated amount. Fourth, the window
+was moved across the entire image sequence to displace every frame. Lastly, the window length was exponentially increased until it
+encompassed the entire image sequence.
+For the moving edge stimulus (Figures 3B and 3C), the mean fluorescence was calculated for a manually-selected region of interest
+that encompassed approximately 3-4 columns with receptive fields at the center of the disc. The baseline fluorescence was calculated as the 10% quantile of the fluorescence over the entire stimulus set. The DF/F was calculated by subtracting the baseline fluorescence from the instantaneous fluorescence, and then normalizing the result by the baseline fluorescence. The effects of silencing
+T4 input neurons on T4 responses were examined by calculating the mean DF/F for the 2 s period following the stimulus, and
+comparing this against the wild-type T4 response using a two-tailed t test (control n = 6, Mi1 n = 5, Tm3 n = 8, Mi4 n = 7,
+Mi9 n = 7, T4/T5 n = 6; n represents individual flies, Figures 3C and S2B). The wild-type T4 response was measured using two
+genotypes, one with an empty-GAL4 driver and the other with a Canton-S wild-type background (see the STAR Methods). Since
+the genotypes yielded similar results, the responses were pooled. Results were corrected for multiple comparisons by controlling
+the false discovery rate using the Benjamini–Hochberg procedure (q = 0.05), which was applied independently to each input neuron
+type to the set of tests that includes all combinations of edge speed, and ON and OFF.
+For the moving grating stimulus (Figure 4A), the mean fluorescence was calculated for a manually-selected region of interest that
+encompassed approximately 5-8 columns with receptive fields at the center of the display. The baseline fluorescence was calculated
+as the 10% quantile over the entire stimulus set. The DF/F was calculated by subtracting the mean fluorescence for the 2 s period
+prior to the start of the stimulus from the instantaneous fluorescence, and then normalizing the result by the baseline fluorescence.
+The effects of silencing T4 input neurons on T4 responses were examined by comparing the mean DF/F for the period 1-3 s after the
+start of the stimulus against the wild-type T4 response using a two-tailed t test (control n = 6, Mi1 n = 5, Tm3 n = 8, Mi4 n = 7, Mi9 n = 7,
+T4/T5 n = 6; n represents individual flies; Figure 4A). Results were corrected for multiple comparisons by controlling the false discovery rate using the Benjamini–Hochberg procedure (q = 0.05), which was applied independently to each input neuron type to the set of
+tests that includes all combinations of grating direction and frequency.
+For the flickering disc stimulus (Figures S2E-F), the mean fluorescence was calculated for a manually-selected region of interest
+that encompassed a single column with a receptive field at the center of the disc. The instantaneous fluorescence was averaged over
+multiple stimulus cycles to produce a smoothed waveform. The baseline fluorescence was calculated as the minimum of the
+smoothed waveform. The DF/F was calculated by subtracting the baseline fluorescence from the smoothed waveform, and then
+normalizing the result by the baseline fluorescence.
+For the windowed moving grating experiments (Figures 2E and S4B-D), the analysis focused on identifying axonal tracts with
+directional selectivity. Since the anatomical details vary between individuals, results from each individual animal were analyzed independently. Since responses to 1Hz and 3Hz (temporal frequency) grating stimuli were similar, only the responses to the 1Hz grating
+stimulus are shown. A region of interest was manually selected that included the arborizations of T4 in the medulla (layer 10) and the
+T4 axons that extend from the medulla to the lobula plate, but excluded the arborizations of T5 in the lobula and axon terminals in the
+lobula plate. The response to each stimulus was calculated by taking the mean of each pixel in the region of interest for the period
+1-3 s after the start of the edge movement, and subtracting the mean of the same pixel for the period 2 s prior to the start of the stimulus. Since flies vary slightly in their orientation when they are mounted to the perfusion bath, these responses were used to identify a
+canonical coordinate system. A polar plot of the directional response of each pixel of each trial was constructed, and the principal
+components of these points were taken as the axes of a canonical stimulus coordinate system that was used for subsequent calculations. The directional selectivity Ldir was then calculated for each pixel (Mazurek et al., 2014), and histograms of these directional
+selectivity values are presented (Figures S4B-D). These directional selectivity values were compared against a dataset that was
+prepared by randomly shuffling the response and stimulus direction (thereby removing directionally selective responses). Significant
+
+e8 Neuron 94, 168–182.e1–e10, April 5, 2017
+
+differences between the observed and shuffled dataset were identified using a one-sample Kolomogorov-Smirnov test, using the
+cumulative distribution function of the shuffled data as a null hypothesis. In order to display the spatial structure of the pixels with
+directional selectivity map, we also constructed a directional selectivity image. Directional selectivity images were produced by
+creating a colormap that was a function of stimulus direction and response magnitude (Figure 2E and S4B-D). This colormap has
+the property that colors for opposing stimulus directions sum to a grayscale value, and image intensity (norm of RGB values) increases linearly with response magnitude. The directional selectivity image was then calculated by assigning each pixel of the
+response image (including pixels outside of the region of interest described above) a color based on this colormap, and summing
+these color values over all trials and stimuli. For display purposes, images were normalized by the 99% percentile of pixel intensities.
+As a consequence of the properties of the underlying colormap, pixels with directional selectivity appear in color, pixels without directional selectivity appear grayscale, pixels with weak responses appear dark, and pixels with strong responses appear bright.
+Behavioral experiments
+In all protocols, flies were presented with paired visual stimuli that moved either in the clockwise (CW) or counterclockwise (CCW)
+direction. The mean yaw velocity of the behavioral response was then calculated as
+Dyaw =
+
+yawCW  yawCCW
+2
+
+where Dyaw is the differential yaw velocity, and yawCW and yawCCW are the yaw velocities in response to a CW and CCW stimuli,
+respectively. Rotational velocities in the pitch and roll directions were calculated using an equivalent approach, and then these rotational velocities were used to calculated a turning index (TI) for each trial
+!
+2
+Dyaw
+TI = arctan pﬃﬃﬃﬃﬃﬃﬃﬃﬃﬃﬃﬃﬃﬃﬃﬃﬃﬃﬃﬃﬃﬃﬃﬃﬃﬃﬃﬃﬃﬃﬃﬃﬃﬃﬃﬃ :
+p
+D pitch2 + D roll2
+This turning index represents the unitless ratio of pure yaw movement and other movements (pitch plus roll) of the ball. Numerically,
+the turning index is proportional to the angle between the rotational velocity vector of the animal and the pitch-roll plane, when the
+rotational velocity vector is represented in a yaw-pitch-roll coordinate system. All behavioral data were averaged on a per-fly basis to
+produce a mean yaw, pitch, and roll movement value for each pair of symmetric visual stimuli (CW/CCW rotation). For data presented
+here we plot the data averaged across flies as if all of the responses were for clockwise motion. In all behavioral experiments where
+time series TI are plotted (Figures 3E and S4A), we show the median ± SEM across flies, smoothed using a moving average across 5
+neighboring (20 ms) data points. Many behavioral responses feature a very large turning reaction that builds up over about 500 ms
+(clearly seen in Figure 3E). Computing an average across the entire stimulus interval minimizes the large differences that appear after
+this initial transient response between several of our experimental genotypes. To implement a uniform, simple analysis procedure that
+we could apply to all of our behavioral experiments (with variable stimulus durations) we used the mean response during the second
+half of the stimulus period as the method for reporting summary data. The summary TI data are plotted as means ± SEM across flies.
+All data analysis was performed offline using software written in MATLAB.
+In all behavioral results, n represents individual flies. Statistically significant differences between the behavioral responses of the
+experimental genotype and the control genotype were identified using a t test followed by a correction for multiple comparisons. In
+the statistical results presented in the Figures 5A–5C, we employed a t test with Bonferroni correction (a = 0.05, m = 8 for the Figures
+5A–5B, m = 6 for the Figure 5C, where m is the number of hypotheses). For the multiple cell type comparisons (Figure 3E, 4B-E, S3,
+and S4A), we used a false discovery rate controlling procedure (Benjamini and Hochberg, 1995) with q = 0.05. For the different behavioral assay protocols (see the descriptions in ‘‘Behavioral experiments: Visual stimuli’’ section), distinct adjusted p values are given
+by FDR procedure for each protocol. Thus, we tested 25 p values for the A1 and A2; 20 p values for the A3; 27 p values for the B1;
+48 p values for the B2; 6 p values for the B3; and 36 p values for the C categories (p < 0.05, unpaired t tests corrected for FDR).
+Functional Connectivity Experiments
+The calcium responses of T4 neurons to photoactivation were examined by calculating the DF/F for a manually drawn region of
+interest (ROI) in layer M10 of the medulla. The region of interest encompassed 20-25 columns of the medulla. The DF/F was taken
+as (F-F0)/F0 where F is the instantaneous mean fluorescence of the ROI and F0 is the baseline fluorescence of the ROI. The baseline
+fluorescence was taken as the mean fluorescence of the ROI for a 5 s period prior to the start of the photoactivation period.
+Responses were further analyzed by taking the mean DF/F of a time period after the start of photoactivation (1-5 s after the start).
+Values from the two trials from the same animal were averaged for statistical analysis, and the responses were evaluated for significant differences using a stepwise generalized linear model (described in the Results section). n represents individual flies.
+Transcriptional Profiling to Quantify RNAi Knockdown
+Trimmed reads were aligned to Flybase release 6.03 and gene expression levels were determined using RSEM v1.2.31 (Li and
+Dewey, 2011) with bowtie v1.1.2 (Langmead et al., 2009). For the data presented, 3 independently isolated cDNA library samples
+were sequenced for each of the two genotypes (Stock numbers 49-50). The data presented (Figure S5) are the median TPM
+
+Neuron 94, 168–182.e1–e10, April 5, 2017 e9
+
+(transcripts per million) levels produced after normalizing the counts for transcript length using simple custom analysis on the counts
+tables performed in MATLAB.
+DATA AND SOFTWARE AVAILABILITY
+Raw data and stimulus generation/detailed analysis code will be provided upon request by Lead Contact Michael Reiser (reiserm@
+janelia.hhmi.org).
+The main software tools, developed by authors of this study and used in this study are available at neuron_image_analysis, https://
+bitbucket.org/jastrother/neuron_image_analysis, and LED display controller, https://bitbucket.org/mreiser/panels.
+ADDITIONAL RESOURCES
+Additional resources can be found at the following: Janelia Research Campus, HHMI, FlyLight Database: http://flweb.janelia.org/
+cgi-bin/flew.cgi, and http://splitgal4.janelia.org/.
+Detailed protocols can also be found online at https://www.janelia.org/project-team/flylight/protocols under ‘‘IHC - MCFO’’.
+
+e10 Neuron 94, 168–182.e1–e10, April 5, 2017
+
+Neuron, Volume 94
+
+Supplemental Information
+
+The Emergence of Directional Selectivity
+in the Visual Motion Pathway of Drosophila
+James A. Strother, Shiuan-Tze Wu, Allan M. Wong, Aljoscha Nern, Edward M.
+Rogers, Jasmine Q. Le, Gerald M. Rubin, and Michael B. Reiser
+
+A
+
+25 μm
+
+Mi1-2
+SS00809
+
+Tm3-2
+SS00313
+
+Mi4-2
+SS01019
+
+B
+
+Mi9-2
+SS02430
+
+C
+
+M1
+
+M5
+
+25 μm
+
+Mi1-1
+SS00955
+
+Mi1-2
+SS00809
+
+Tm3-1
+SS00300
+
+10 μm
+M10
+
+Tm3
+
+Mi1
+
+T4
+
+M1
+
+Tm3-2
+SS00313
+
+Mi4-1
+SS00316
+
+Mi4-2
+SS01019
+M5
+
+M10
+
+Mi4
+Mi9-1
+SS02432
+
+Mi9-2
+SS02430
+
+T4/T5
+SS00324
+
+Figure S1
+
+Mi1
+
+Mi9
+
+Figure S1. Expression patterns of Split-GAL4 lines targeting T4 input neurons, Related to
+Figure 2.
+(A) Single confocal section showing split-GAL4-driven expression of a membrane-targeted GFP
+marker (visualized as in Figure 2A). Anti-GFP antibody staining is shown in green, and a neuropil
+marker (anti-Brp) is shown in red. These lines are the second Split-GAL4 line developed for each
+cell type. Cell types and driver names are indicated. The SSxxxxx names are sequentially assigned to
+Split-GAL4 lines produced at the Janelia Research Campus and used internally to reference these
+lines and are included for completeness. Behavioral results using these additional driver lines for
+silencing the T4 input neurons are shown in Figure S3. (B) To verify the expression pattern of each
+Split-GAL4 line we used sparse labeling of neurons using the Multicolor FlpOut (MCFO) method
+(Nern et al., 2015). MCFO labeled single cells are shown together with a neuropil reference marker
+(anti-Brp) in grey. Images are reoriented substack projections generated using Vaa3D (Peng et al.,
+2010). Similar results were obtained for at least 3 optic lobes per split-GAL4 driver line. (C) Details
+of arbor shapes and layer patterns of Mi1, Tm3, Mi4, Mi9 and T4 cells in the medulla. Example cells
+are extracted from MCFO images but were contrast enhanced and edited to remove background.
+Mi1 and Tm3 cells have similar layer patterns in the medulla but Tm3 cells also project to the
+lobula. T4 cell arbors in the medulla are restricted to layer M10. While the expression pattern of the
+Mi4 and Mi9 drivers are quite similar (as seen in A), the distinct morphology of each cell type is
+revealed by single-cell analysis. Arrowheads point to anatomical features that distinguish Mi4 and
+Mi9. For example, the proximal processes of Mi4 in the outer medulla extend to the M5/M6
+boundary (Mi4, upper arrowhead) while Mi9 arbors are largely confined to M2-M4, with few
+processes entering M5 (Mi9, upper arrowhead). In the inner medulla, Mi4 cells have two separate
+arborizations near the boundaries of M8/M9 and M9/M10 (Mi4, lower arrowheads). Mi9 axons
+(Mi9, lower arrowhead) project slightly deeper in the inner medulla and turn in M10 to extend
+distally to M8/M9. The layer-specific arborizations are schematized in the circuit diagram of Figure
+1A. Genotypes, detailed in Table S1, used in this figure: (panel/stock number): A/3,5,7,9; B/51-59.
+
+Mi1/T4
+Ca2+ Response
+
+A
+
+C
+
+Silence Mi1,
+Tm3 Ca2+ Response
+
+Mi1
+
+T4
+
+Moving Edge
+(90°/s)
+
+Moving Edge
+(90°/s)
+
+ON
+
+2.0
+
+Flash
+
+Moving Edge
+(30°/s)
+
+1.0
+
+ΔF/F
+
+0.5
+
+ΔF/F
+
+OFF
+
+Flash
+
+Moving Edge
+(90°/s)
+
+2s
+B Silence Neuron,
+
+1.0
+
+ΔF/F
+
+T4 Ca2+ Response
+
+Neuron
+
+Flash
+
+Moving Edge
+(30°/s)
+
+1.0
+
+ΔF/F
+
+2s
+
+Mi1
+
+D
+
+Silence Mi1,
+Tm3 Ca2+ Response
+1.0
+
+ΔF/F
+
+1.0
+
+Tm3
+1
+6
+36 108
+Grating Frequency (Hz)
+
+1.0
+Neuron
+
+E
+
+Mi4
+
+Neuron
+Ca2+ Response
+0.05Hz Flicker
+
+Mi1
+1.0
+
+F
+
+Neuron
+Ca2+ Response
+0.33Hz Flicker
+
+2.0
+
+5°
+30°
+
+2.0
+
+5°
+30°
+
+2.0
+
+1.0
+
+5°
+30°
+
+1.0
+
+2.0
+
+ΔF/F
+
+Tm3
+
+Mi9
+
+Mi4
+1.0
+
+1.0
+
+T4/T5
+
+5°
+30°
+
+Mi9
+
+2s
+
+10s
+
+Figure S2
+
+10s
+
+1.5s
+
+1.0
+
+1.5s
+
+Figure S2. Calcium responses of T4 input neurons to visual stimuli, Related to Figure 3.
+(A) Time history of Mi1 (left column) and T4 (right column) calcium responses to a moving edge
+stimulus, which moves at 90°/s in the anterior-to-posterior direction through a 30° disc centered
+over the receptive field of the imaged neurons. For each neuron, the responses to ON stimuli
+(increasing luminance) are shown in the top row, while the responses to OFF stimuli (decreasing
+luminance) are shown in the bottom row. The Mi1 responses were collected at 20°C, and T4
+responses were collected at either 20°C (brown) or 30°C (dark grey). Two dashed vertical lines
+represent the times at which the edge begins moving and reaches the end of the disc, respectively.
+Results shown are the median values (± SEM) from multiple individuals (Mi1 n=6, T4 (20°C) n=6,
+T4 (30°C) n=7).
+(B) Time history of T4 calcium responses to a moving edge stimulus, after input neurons have been
+silenced using shiberets1. The first column shows the response to an instantaneous change in
+luminance across a 30° disc centered over the receptive field of the imaged neurons, with a
+background that is held constant at intermediate luminance. The second column shows the
+response to an edge moving across the disc at 30°/s in the anterior-to-posterior direction.
+Responses are shown for ON (top) and OFF (bottom) stimuli. Two dashed vertical lines represent
+the times at which the edge begins moving and reaches the end of the disc, respectively, and are
+also shown for responses to luminance changes to aid comparisons. The dark gray line represents
+the response of T4 in flies with a control genotype, and the colored lines represent the response
+after the respective neuron has been silenced. Results shown are the median values (± SEM) from
+multiple individuals (Ctrl n=6, Mi1 n=5, Tm3 n=8, Mi4 n=7, Mi9 n=7, T4/T5 n=6), collected at 30°C.
+Asterisks indicate responses where the mean during the first 2s after the stimulus is significantly
+different from wild-type (t-test controlled for false discovery rate, q = 0.05).
+(C) Time history of Tm3 calcium responses to a moving edge stimulus, after Mi1 neurons have been
+silenced using shiberets1. Data are presented as in (B). The top panel shows the response to 30°/s
+edges and the bottom panel shows the response to a 90°/s edges. The dark gray line represents the
+response of Tm3 in animals with a control genotype, and the colored line represents the response
+after Mi1 neurons have been silenced. Results shown are the median values (± SEM), and were
+collected at 30°C. Asterisks indicate responses where the mean during the first 2s after the stimulus
+is significantly different from wild-type (t-test controlled for false discovery rate, q = 0.05).
+(D) Tuning curves for Tm3 calcium response to a moving grating, after Mi1 neurons have been
+silenced using shiberets1. The black line represents the response of Tm3 cells in the absence of
+silencing, and the colored line represents the response after Mi1 neurons have been silenced.
+
+Results shown are the median values (± SEM) from multiple individuals (Ctrl n=5, Mi1 n=4), and
+were collected at 30°C. Filled and empty circles indicate responses that are significantly and nonsignificantly different from wild-type, respectively (t-test controlled for false discovery rate, q =
+0.05). The wild-type responses are shown with filled circles, although this does not represent any
+statistical test.
+(E-F) Time history of Mi1, Tm3, Mi4, and Mi9 calcium responses to a flickering disc stimulus.
+Responses are shown for both a 5° disc (colored) and a 30° disc (gray), both centered over the
+receptive field of the imaged neuron. Data are presented for a 0.05Hz (E) and a 0.33Hz (F) flicker
+frequency. Results shown are the median values (± SEM; Mi1 n=6, Tm3 n=5, Mi4 n=5, Mi9 n=5, T4
+n=7), and were collected at 20°C. Data for Mi1 are from Strother et al. (2014), but were reanalyzed
+to match the analysis performed in this study. Genotypes, detailed in Table S1, used in this figure
+(panel/stock number): A/10,24,25; B/14,16,18,20,22,24,25; C-D/26,27; E-F/10-13.
+
+Walking Fly Turning Responses, After Silencing Neuron
+
+Neuron
+
+A
+
+B
+
+C
+
+D
+
+E
+
+F
+
+G
+
+Contrast tuning
+1Hz grating freq.
+
+Contrast tuning
+Speed tuning
+Spatial freq. tuning Spatial Freq. tuning Repeating ON
+9Hz grating freq. 9% contrast grating 1Hz grating freq. 9Hz grating freq.
+30o edge period
+40% contrast
+40% contrast
+44% contrast
+
+TI
+0.5
+
+TI
+0.5
+
+Repeating OFF
+30o edge period
+43% contrast
+
+Mi1
+0
+
+Tm3
+
+Mi4
+
+Mi9
+
+T4/T5
+
+20 100 3
+20 100
+Contrast (%)
+Contrast (%)
+
+Driver
+Line
+
+3
+
+1
+6
+27
+Grating Freq. (Hz)
+
+15
+
+30
+60 15
+30
+Grating Period (o/cycle)
+
+60
+
+1
+
+6
+36 1
+6
+Grating Frequency (Hz)
+
+Walking Fly Turning Responses, Comparing Driver Lines for Same Neuron
+
+H
+
+Repeating OFF
+43% contrast
+
+Repeating ON
+29% contrast
+
+Repeating ON
+38% contrast
+
+Repeating ON
+44% contrast
+
+Empty−split
+Empty−GAL4
+
+Mi1-1 (SS00955)
+Mi1-2 (SS00809)
+
+Tm3-1 (SS00300)
+Tm3-2 (SS00313)
+
+Mi4-1 (SS00316)
+Mi4-2 (SS01019)
+Mi9-1 (SS02432)
+Mi9-2 (SS02430)
+
+0.4
+
+1.3
+
+4.0
+
+0.4
+
+1.3 4.0 0.4
+1.3
+Grating Frequency (Hz)
+
+Figure S3
+
+4.0
+
+0.4
+
+1.3
+
+4.0
+
+TI
+0.5
+
+36
+
+Figure S3. Detailed behavioral results for silencing T4 inputs neurons, Related to Figure 4.
+Tuning curves for the turning responses of walking flies with the T4 input neuron, indicated in grey,
+silenced. All stimulus details are described in the Supplemental Experimental Procedures section
+titled ‘Behavioral experiments: visual stimuli’.
+(A-C) Behavioral responses to 30° period ON+OFF gratings (n=10 for all experiments). Behavioral
+responses to 1 Hz grating (A) and 9 Hz grating (B) as a function of stimulus contrast. (C) Behavioral
+responses to a low (9%) contrast grating as a function of the grating temporal frequency. (D-E)
+Behavioral responses to 1 Hz grating (D) and 9 Hz grating (E), at 40% contrast, as a function of the
+grating spatial period.
+(F-G) Behavioral responses to 30° period repeating ON (F) and OFF (G) edges as a function of
+grating temporal frequency (n=12 for all experiments). These stimuli are identical to those used in
+Figure 4CD, except for the spatial period of the grating.
+(H) A comparison of the turning responses between two different driver lines generated for each of
+the T4 input neuron types. Behavioral responses to 67.5° period repeating ON/ OFF edges as a
+function of temporal frequency (n=10 for all experiments). Results shown are the median values (±
+SEM) from multiple individuals, and were collected at 34°C. Filled and empty circles indicate
+responses that are significantly and non-significantly different from wild-type, respectively (t-test
+controlled for false discovery rate, q = 0.05). Two different control genotypes are also shown where
+the empty-split control flies’ responses are shown with filled circles, although this does not
+represent any statistical test. Genotypes, detailed in Table S1, used in this figure (panel/stock
+number): A-G/14,16,18,20,22,23; H/14-21,23,24.
+
+42ms OFF
+
+21ms OFF
+
+7ms OFF
+
+0.25
+
+90°/s ON
+Turning Index
+
+A
+
+0.5s
+
+0.25
+
+540°/s ON
+Turning Index
+
+0.5s
+
+Control
+Silence Mi4
+Silence Mi9
+
+Time
+
+B T4 Ca2+ Response
+
+C Silence Mi4, T4 Ca2+ Response
+
+600
+
+D Silence Mi9, T4 Ca2+ Response
+
+600
+
+600
+
+300
+
+300
+
+Count
+
+10μm
+300
+0
+
+Count
+
+0
+
+0
+0.0
+
+0.5
+
+0.0
+
+1.0
+
+0.5
+
+0.0
+
+1.0
+
+600
+
+600
+
+600
+
+300
+
+300
+
+300
+
+0
+
+0
+
+0
+
+0.0
+0.5
+1.0
+Directional Selectivity (Ldir)
+
+0.0
+0.5
+1.0
+Directional Selectivity (Ldir)
+
+0.5
+
+1.0
+
+0.0
+0.5
+1.0
+Directional Selectivity (Ldir)
+
+D
+P
+
+A
+V
+
+Figure S4
+
+Figure S4. Additional imaging and behavioral experiments examining Mi4 and Mi9 neurons,
+Related to Figure 4.
+(A) As a stimulus control for the behavioral responses in Figure 4C-E, we performed additional
+experiments presenting repeating ON edges, while varying the duty cycle of the intermittent OFF
+period. The time series of the turning index are shown here, with a dark gray line representing the
+behavioral responses of tethered flies with the control genotype, and the colored lines representing
+the responses of animals with indicated subset of neurons silenced. Results shown are the median
+values (± SEM) from multiple individuals (n= 12 for all experiments), and were collected at 34°C.
+Asterisks indicate responses where the mean during the second half of the stimulus period is
+significantly different from the control line (t-test controlled for false discovery rate, q = 0.05).
+(B-D) Directional selectivity of the response of T4 cells to a moving grating (30° period, 1Hz)
+displayed in a window (30° diameter) centered over the receptive field of the imaged neurons, after
+input neurons have been silenced using shiberets1. Since the fluorescent calcium indicator was
+expressed in T4 cells with a mixture of directional selectivities, we examined the directional
+selectivity of individual pixels and present the results obtained from individual flies (n=2 for each
+condition). The histograms shows the distribution of directional selectivity values measured for
+individual pixels recorded from the T4 dendrites of an individual fly (grey bars). Control histograms
+were produced for each fly by randomly shuffling the responses relative to the stimuli, and are
+shown superimposed as a solid black line. Since directional selectivity is always positive, true
+directional selectivity manifests as an increase in the number of pixels with greater directional
+selectivity relative to the shuffled dataset. All measured histograms were significantly different
+from the shuffled histogram (one-sample Kolmogorov-Smirnov, p < 0.05). The directional tuning of
+individual pixels is shown in the image to the right of the histogram, where the pixel hue represents
+direction of grating motion and the pixel intensity represents the strength of the response. The
+pixel hues associated with each direction are shown in a compass in the lower right. For example,
+red pixels are tuned to motion in the posterior direction, black pixels show only weak responses to
+the visual stimulus, and white pixels respond strongly to the motion in all directions. The image is
+recorded from the right side of the animal, and oriented such that anterior direction is toward the
+left of the image and the right direction is toward the top of the image. (B) Directional selectivity of
+T4 (and T5) cells in control animals. Image at top is the same as in Figure 2C. (C) Directional
+selectivity of T4 (and T5) cells in animals in which Mi4 cells were silenced. (D) Directional
+selectivity of T4 (and T5) cells in animals in which Mi9 cells were silenced.
+
+Genotypes, detailed in Table S1, used in this figure (panel/stock number): A/18,20,23; B/24,25;
+C/18; D/20;.
+
+Transcipt abundance in T4/T5 > GluClα RNAi (TPM)
+
+10
+
+0.05X
+
+5
+
+0.2X
+
+1X
+
+104
+nSyb
+nAChRα5
+VAChT
+nAChRβ1
+
+10
+
+0.1X
+
+3
+
+10X
+
+nAChRα3
+
+mAChR-A
+mAChR-B
+
+5X
+
+Syt1
+Ace
+
+Rdl
+
+20X
+
+brp
+
+102
+
+nAChRα1
+nAChRα7
+GluClα
+
+nAChRβ2
+nAChRα4
+
+10
+
+1
+
+102
+
+103
+
+Transcript abundance in T4/T5 > Control (TPM)
+
+Figure S5
+
+104
+
+Figure S5. Changes in transcript abundance produced by GluClα RNAi expression, Related to
+Figure 5.
+Scatter plot of transcript abundance, in units of Transcripts Per Million (TPMs), comparing RNA
+expression levels in T4/T5 cells driving GluClα RNAi versus those in a control genotype. Each point
+is the median relative transcript abundance from RNA sequencing of 3 independently isolated
+libraries, each prepared from ~400 manually sorted, labeled cell bodies, for each of the two
+genotypes. The transcript levels for 1127 individual genes (those expressed above 100 TPM in the
+control genotype sequence) are plotted, with a select few genes of interest labeled (e.g.
+acetylcholine receptor subunits in magenta). The diagonal lines are plotted as a reference to
+facilitate comparisons of the relative expression levels between the two genotypes. We note that
+GluClα transcripts are reduced by ~51X, but caution that this number may be an overestimate since
+these data feature a consistent expression level reduction in the RNAi genotype for all genes (this
+reduction is almost certainly an artifact of noise in these sequences obtained from a relatively small
+number of cell bodies). Nevertheless, the RNAi treatment is shown to be effective and selective—no
+highly expressed transcripts exhibit an expression level change of this magnitude, and the vast
+majority are within a factor of 5 of the control genotype expression level. Genotypes, detailed in
+Table S1, used in this figure (panel/stock number): 49-50;
+
+A
+
+B
+
+C
+
+D
+
+Input>Chrimson
+Input>GCaMP6f
+
+Input>Chrimson
+T4/T5>GCaMP6s
+
+Mi1-Gal4>Chrimson
+Input>Chrimson
+T4/T5>GCaMP6s
+
+Tm3-Gal4 Chrimson
+Input>Chrimson
+T4/T5>GCaMP6s
+
+Mi1-Gal4>Chrimson
+empty-splitGal4>Chrimson
+T4/T5>GCaMP6s
+
+Tm3-Gal4>Chrimson
+empty-splitGal4>Chrimson
+T4/T5>GCaMP6s
+
+empty-splitGal4>Chrimson
+T4/T5>GCaMP6s
+
+Not Imaged
+
+1.0
+∆F/F
+
+1.0
+∆F/F
+
+1.0
+∆F/F
+
+Mi1-1>Chrimson
+T4/T5>GCaMP6s
+
+Mi1-Gal4>Chrimson
+Mi1-1>Chrimson
+T4/T5>GCaMP6s
+
+Tm3-Gal4>Chrimson
+Mi1-1>Chrimson
+T4/T5>GCaMP6s
+
+Tm3-1>Chrimson
+Tm3-1>GCaMP6f
+
+Tm3-1>Chrimson
+T4/T5>GCaMP6s
+
+Mi1-Gal4>Chrimson
+Tm3-1>Chrimson
+T4/T5>GCaMP6s
+
+Tm3-Gal4>Chrimson
+Tm3-1>Chrimson
+T4/T5>GCaMP6s
+
+Mi4-1>Chrimson
+Mi4-1>GCaMP6f
+
+Mi4-1>Chrimson
+T4/T5>GCaMP6s
+
+Mi1-Gal4 Chrimson
+Mi4-1>Chrimson
+T4/T5>GCaMP6s
+
+Tm3-Gal4>Chrimson
+Mi4-1>Chrimson
+T4/T5>GCaMP6s
+
+Mi9-1>Chrimson
+Mi9-1>GCaMP6f
+
+Mi9-1>Chrimson
+T4/T5>GCaMP6s
+
+Mi1-Gal4>Chrimson
+Mi9-1>Chrimson
+T4/T5>GCaMP6s
+
+Tm3-Gal4>Chrimson
+Mi9-1>Chrimson
+T4/T5>GCaMP6s
+
+Mi1-1>Chrimson
+Mi1-1>GCaMP6f
+5.0
+∆F/F
+
+58
+116
+232
+464
+928
+1246
+
+58
+116
+232
+464
+928
+1246
+
+Instantaneous
+Photoactivation
+Power (μW/mm2)
+
+Instantaneous
+Photoactivation
+Power (μW/mm2)
+
+Instantaneous
+Photoactivation
+Power (μW/mm2)
+
+Figure S6
+
+5.8
+11.6
+23.2
+46.4
+92.8
+124.6
+
+58
+116
+232
+464
+928
+1246
+
+Δ
+
+20μm
+
+Photoactivation
+Power (μW/mm2)
+
+Figure S6. Images of two-component expression and tuning curves for the functional
+connectivity experiments, Related to Figure 6.
+(A) Chimson-tdTomato (magenta) and GCaMP6f (green) were co-expressed in each of the T4 input
+neuron types (shown in rows). A typical image of the expression pattern (left) and the
+photoactivation tuning curve (right) are shown for each input neuron type. All images were
+collected with the same imaging settings and processed similarly. All expression patterns were
+consistent with the previously described anatomy of these neurons, although the expression levels
+for the Mi9-1 driver were somewhat lower than that of the other drivers. The photoactivation
+tuning curves show the ΔF/F of the GCaMP6f response (average of 1-5s period after start of
+photoactivation) to different photoactivation light intensities (at 590nm). All tuning curves show
+saturation at the highest photoactivation light intensities.
+(B) Chrimson-tdTomato (magenta) was expressed in each of the T4 input neuron types (shown in
+rows) and GCaMP6s (green) was expressed in T4 (and T5) neurons. All data were analyzed and
+presented as in (A), but note the difference in scale of the calcium responses.
+(C) Chrimson-tdTomato (magenta) was simultaneously expressed in Mi1 neurons and one of the
+other T4 input neuron types (shown in rows), while GCaMP6s (green) was simultaneously
+expressed in T4 (and T5) neurons. All data were analyzed and presented as in (A).
+(D) Similar to (C) except that Chrimson-tdTomato was simultaneously expressed in Tm3 and one of
+the other T4 input neuron types. Genotypes, detailed in Table S1, used in this figure (panel/stock
+number): A/28-31; B/32-35,46; C/36-40; D/41-45.
+
+A Control
+
+B Silence Mi1
+
+C Silence Tm3
+
+D Silence Mi4
+
+E Silence Mi9
+
+Mi9
+
+LPF
+
+HPF
+
+Mi4
+T4
+Output
+Preferred
+Null
+
+100ms
+
+Figure S7
+
+Figure S7. Computational modeling suggests the architecture of the ON motion pathway,
+Related to Figure 7.
+Intermediate signals calculated using our computational model for the response of a T4 cell to a
+moving grating (6Hz, 30° period, 100% contrast). The rows depict: the signal entering the T4 cell
+from an upstream Mi9 cell (“Mi9”), the signal immediately after the low-pass filter of the HR
+detector (“LPF”), the signal immediately after the high-pass filter of the HR detector (“HPF”), the
+signal entering the T4 cell from an upstream Mi4 cell (“Mi4”), and the output signal from the T4 cell
+(“T4 output”). Since the computational model is an abstract model rather than a detailed
+biophysical model, these signals are displayed with arbitrary units. Both the response to motion in
+the preferred (blue solid line) and null (red solid line) directions are shown. Signals were calculated
+for the intact model (A), as well as models with silenced Mi1 cells (B), silenced Tm3 cells (C),
+silenced Mi4 cells (D), or silenced Mi9 cells (E).
+
+Table S1. The complete genotype for the animals used in each experiment. Related to Figures
+2, 3, 4, 5, 6, S1, S2, S3, S4, S5, and S6.
+The table is provided as a separate Excel spreadsheet.
+
+Table S2. Parameters used in the computational model of Figure 7.
+Parameter
+
+Value
+
+Estimation Strategy
+
+𝜏"
+
+6 ms
+
+This time constant corresponds to a cutoff frequency of~27 Hz,
+which is a reasonable proxy for the filtering properties of
+phototransduction and then signaling by lamina monopolar
+cells.
+
+𝜏#$%
+
+50 ms
+
+This parameter was approximated based on published
+electrophysiological recordings (Behnia et al., 2014).
+
+𝜏 &'(
+
+30 ms
+
+This parameter was approximated based on published
+electrophysiological recordings (Behnia et al., 2014).
+
+𝜏#$)
+
+50 ms
+
+The sensitivity analysis indicated that this parameter had
+relatively little effect on the predicted T4 responses. As such,
+this parameter was set equal to 𝜏#$% arbitrarily.
+
+𝜏#$*
+
+100 ms
+
+The sensitivity analysis indicated that the qualitative
+predictions of the model were largely unaffected by the value of
+this parameter. However, when 𝜏#$* was much less than 𝜏 &),,"- ,
+silencing Mi9 had very little effect on the predicted T4
+responses, which is inconsistent with the experimental data
+(Figure 4). As such, 𝜏#$* was set equal to 𝜏 &),,"- .
+
+𝜏 &),,"-
+
+100 ms
+
+The sensitivity analysis indicated that this parameter most
+strongly affected the shape of the T4 frequency response. This
+parameter was varied until the predicted T4 frequency
+response approximately matched the measured T4 frequency
+response (Figure 4).
+
+𝜏 &),."-
+
+50 ms
+
+The sensitivity analysis indicated that the qualitative
+predictions of the model were largely unaffected by the value of
+this parameter. However, if this parameter was set to a value
+
+greater than 𝜏 &),,"- , the directional selectivity of the predicted
+T4 response was severely compromised. Consequently, this
+parameter was estimated as ½ of 𝜏 &),,"- .
+𝑤#$)
+
+4
+
+The sensitivity analysis indicated that the qualitative
+predictions of the model were largely unaffected by the value of
+this parameter. The model predicted that silencing Mi4 would
+produce an increase in the T4 PD, ND, PD-ND, and PD+ND
+responses at higher stimulus frequencies for a wide range of
+parameter values. As such, this parameter was varied until the
+magnitude of this effect approximately matched the
+experimental data (Figure 4).
+
+𝑤#$*
+
+8
+
+The sensitivity analysis indicated that the model predictions
+could be notably altered by varying this parameter. For all
+examined parameter values, the model predicted that silencing
+Mi9 increased the T4 PD, ND, and PD+ND responses at higher
+frequencies, and had the greatest effect on the T4 PD-ND
+response at higher stimulus frequencies. However, whether Mi9
+silencing increased or decreased the T4 PD-ND response was
+variable. As such, this parameter was varied until the predicted
+effect approximately matched the measured effect.
+
+Movie S1. Response of dendrites of T4 cells to moving edges, Related to Figure 2.
+Example response of T4 cells to moving edges was recorded by imaging the dendrites of T4 cells
+expressing a fluorescent calcium indicator. The moving edges passed through a 30° disc centered
+over the receptive field of the imaged medulla columns, while the remainder of the visual field was
+held at an intermediate intensity. The raw fluorescence values are displayed in pseudocolor at the
+captured frame rate, where each frame represents the median value across several stimulussynchronized replicates (n=6 repetitions from one fly). Since stimuli were randomly ordered within
+our experimental protocol, this movie was constructed by combining several independently
+presented sequences (2.5s of static ON, 12s of ventral to dorsal OFF / dorsal to ventral ON, 12s of
+dorsal to ventral OFF / ventral to dorsal ON). The images were recorded from the right side of the
+animal, the anterior direction is toward the left of the movie, the right side of the animal is toward
+the top of the movie, and the white scale bar is 20 μm in length.
+
+Movie S2. Visual stimuli used for behavioral experiments probing ON and OFF responses,
+Related to Figure 4.
+A sample of the stimuli presented to flies (from left to right: ON+OFF grating, repeating ON edges,
+repeating OFF edges, and increasing ON edges). All stimuli in the movie are moving at 30°/s. For the
+animations and the related space-time diagrams of Figure 4, all stimuli are shown as a square field
+(120° height, 120° width), but for the behavioral experiments, all stimuli were presented on a
+cylindrical LED arena (120° height, 270° width).
+
+
