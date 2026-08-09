@@ -23,6 +23,9 @@ from figure.readout import (
     spot_gt_cubes,
 )
 from figure.util import (
+    NCOLS_ALL,
+    NCOLS_GT,
+    PANEL_W,
     GT_COLOR,
     V_READOUT_COLOR,
     TRACE_LW,
@@ -1137,8 +1140,8 @@ def plot_network_spot_gt(path, *, bundles, title, gt_cubes=None, cost_parts=None
         bundles=views,
         title=title,
         gt_cubes=gt_cubes,
-        ncols=5,
-        figsize_fn=lambda c, r: (3.0 * c, 2.5 * r),
+        ncols=NCOLS_GT,
+        figsize_fn=lambda c, r: (PANEL_W * c, 2.5 * r),
         gridspec_kw=dict(hspace=0.55, wspace=0.55, top=0.95, bottom=0.06, left=0.07, right=0.98),
         cost_parts=cost_parts,
     )
@@ -1152,8 +1155,8 @@ def plot_network_spot_all(path, *, bundles, title, gt_cubes=None, cost_parts=Non
         bundles=bundles,
         title=title,
         gt_cubes=gt_cubes,
-        ncols=8,
-        figsize_fn=lambda c, r: (2.2 * c, 2.5 * r),
+        ncols=NCOLS_ALL,
+        figsize_fn=lambda c, r: (PANEL_W * c, 2.5 * r),
         gridspec_kw=dict(hspace=0.55, wspace=0.55, top=0.95, bottom=0.06, left=0.07, right=0.98),
         cost_parts=cost_parts,
     )

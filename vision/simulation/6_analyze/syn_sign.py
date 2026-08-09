@@ -34,7 +34,7 @@ import training
 import training.implement as train_mod
 import figure.plot_run as plot_trained
 import figure.spot as spot_plot
-from figure.util import save_figure
+from figure.util import NCOLS_ALL, NCOLS_GT, PANEL_H, PANEL_W, save_figure
 from network.connectivity import build_cell_pair_index
 from network.construction import (
     cell_order_rows,
@@ -47,8 +47,6 @@ from task.spot.gt import GT_CELLS
 from task.spot.input import euclid_hex_dist
 
 DEFAULT_BINS = 20
-NCOLS_GT = 5
-NCOLS_ALL = 8
 
 
 def _pair_strength_lookup(edges, cell_names, syn_strength_cell, pair_names):
@@ -284,32 +282,8 @@ def plot_syn_sign(
     print(f"wrote {path}")
 
 
-def main(argv: list[str] | None = None) -> int:
-    ap = argparse.ArgumentParser(
-        description=(
-            "Write syn_gt.png / syn_all.png: %% n_syn+ hist + "
-            "Δv vs ×α %% scatters at spot cost radii."
-        ),
-    )
-    ap.add_argument(
-        "--run",
-        default=DEFAULT_RUN_PATH,
-        help="run under PARAMETER_DIR or absolute path (default: %(default)s)",
-    )
-    ap.add_argument(
-        "--post",
-        action="store_true",
-        help="outgoing from CELL; default is incoming onto CELL",
-    )
-    ap.add_argument(
-        "--bins",
-        type=int,
-        default=DEFAULT_BINS,
-        help=f"histogram bins over [0, 100] (default: {DEFAULT_BINS})",
-    )
-    args = ap.parse_args(argv)
-
-    outdir = plot_trained.resolve_run_dir(args.run)
+def write_syn_sign_plots(outdir, *, post=False, bins=DEFAULT_BINS) -> None:
+    """Write ``pre_syn/syn_{gt,all}.png`` (or ``post_syn/`` when *post*)."""
     opts = plot_trained.load_train_opts(outdir)
     if not opts:
         raise SystemExit(f"missing train_opts.json under {outdir}")
@@ -342,15 +316,15 @@ def main(argv: list[str] | None = None) -> int:
     session, z = _spot_bright_session_z(outdir)
     delta_tables, radii = load_delta_v_tables(session, z)
 
-    direction = "post" if args.post else "pre"
-    syn_dir = os.path.join(outdir, "post_syn" if args.post else "pre_syn")
+    direction = "post" if post else "pre"
+    syn_dir = os.path.join(outdir, "post_syn" if post else "pre_syn")
     os.makedirs(syn_dir, exist_ok=True)
     plot_kw = dict(
         edges=edges,
         direction=direction,
         name_to_i=name_to_i,
         strength_by_pair=strength_by_pair,
-        edges_bins=np.linspace(0.0, 100.0, args.bins + 1),
+        edges_bins=np.linspace(0.0, 100.0, bins + 1),
         outdir_name=os.path.basename(outdir),
         delta_tables=delta_tables,
         radii=radii,
@@ -358,14 +332,45 @@ def main(argv: list[str] | None = None) -> int:
     plot_syn_sign(
         os.path.join(syn_dir, "syn_gt.png"),
         present=_spot_gt_cells(opts, cell_names),
-        ncols=NCOLS_GT, panel_w=3.0, panel_h=2.2,
+        ncols=NCOLS_GT, panel_w=PANEL_W, panel_h=PANEL_H,
         **plot_kw,
     )
     plot_syn_sign(
         os.path.join(syn_dir, "syn_all.png"),
         present=list(cell_names),
-        ncols=NCOLS_ALL, panel_w=2.2, panel_h=2.0,
+        ncols=NCOLS_ALL, panel_w=PANEL_W, panel_h=PANEL_H,
         **plot_kw,
+    )
+
+
+def main(argv: list[str] | None = None) -> int:
+    ap = argparse.ArgumentParser(
+        description=(
+            "Write syn_gt.png / syn_all.png: %% n_syn+ hist + "
+            "Δv vs ×α %% scatters at spot cost radii."
+        ),
+    )
+    ap.add_argument(
+        "--run",
+        default=DEFAULT_RUN_PATH,
+        help="run under PARAMETER_DIR or absolute path (default: %(default)s)",
+    )
+    ap.add_argument(
+        "--post",
+        action="store_true",
+        help="outgoing from CELL; default is incoming onto CELL",
+    )
+    ap.add_argument(
+        "--bins",
+        type=int,
+        default=DEFAULT_BINS,
+        help=f"histogram bins over [0, 100] (default: {DEFAULT_BINS})",
+    )
+    args = ap.parse_args(argv)
+    write_syn_sign_plots(
+        plot_trained.resolve_run_dir(args.run),
+        post=bool(args.post),
+        bins=args.bins,
     )
     return 0
 

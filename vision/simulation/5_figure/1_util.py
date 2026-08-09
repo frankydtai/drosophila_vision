@@ -16,6 +16,10 @@ GT_COLOR = 'gray'
 V_READOUT_COLOR = 'red'
 STD_COLOR = 'pink'
 TRACE_LW = 1.5
+NCOLS_GT = 5
+NCOLS_ALL = 8
+PANEL_W = 3.0
+PANEL_H = 2.2
 
 
 def as_numpy(arr):
@@ -915,7 +919,7 @@ def plot_cost(costs, path, *, costs_by_part=None, part_order=None):
     role_id_to_color = {rid: palette[i % len(palette)] for i, rid in enumerate(role_id_order)}
 
     # Layout: [total log + parts log] then [total linear + parts linear].
-    ncols = 5
+    ncols = NCOLS_GT
     present_cells = set(curve_specs_by_cell.keys())
     order_rows = cell_order_rows(sorted(present_cells))
     n_cell_rows = len(order_rows)
@@ -926,7 +930,7 @@ def plot_cost(costs, path, *, costs_by_part=None, part_order=None):
     n_block_rows = 1 + n_part_rows
     nrows = 2 * n_block_rows
 
-    fig = plt.figure(figsize=(3.0 * ncols, 2.2 * nrows))
+    fig = plt.figure(figsize=(PANEL_W * ncols, PANEL_H * nrows))
     gs = fig.add_gridspec(
         nrows, ncols,
         hspace=0.55, wspace=0.45,

@@ -1,11 +1,12 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""Train-then-plot orchestrator (above ``training`` and ``figure``).
+"""Train-then-plot orchestrator (above ``training``, ``figure``, ``analyze``).
 
 Dependency direction:
 
     run.py  →  training  (pure train + artifacts)
     run.py  →  figure    (PNG / checkpoint figures)
+    run.py  →  analyze   (optional post-plot, e.g. syn_sign)
     training  ✗→  figure
 
 Usage (from ``simulation/``, project ``.venv``):
@@ -31,6 +32,7 @@ if HERE not in sys.path:
     sys.path.insert(0, HERE)
 
 import import_bootstrap  # noqa: F401
+from import_bootstrap import parse_bool
 import training.implement as train
 from figure.plot_run import (
     add_plot_arguments,
@@ -183,6 +185,7 @@ def run_training_and_plot(
     html=False,
     ms_shown=None,
     center_only=False,
+    syn_sign=True,
     **train_kw,
 ):
     """Train (``training.implement.run_training``) then plot. Returns ``(fname, outdir, session)``."""
@@ -211,6 +214,9 @@ def run_training_and_plot(
         result=result,
         **plot_kw,
     )
+    if syn_sign:
+        from analyze.syn_sign import write_syn_sign_plots
+        write_syn_sign_plots(outdir)
     return fname, outdir, session
 
 
@@ -220,6 +226,16 @@ def make_run_argparser(description=None):
     common = argparse.ArgumentParser(add_help=False)
     train.add_training_arguments(common)
     add_plot_arguments(common)
+    common.add_argument(
+        '--syn-sign',
+        nargs='?',
+        const=True,
+        default=True,
+        type=parse_bool,
+        metavar='BOOL',
+        help='after plots, write pre_syn/syn_gt.png and syn_all.png '
+             '(default true); pass false to skip',
+    )
     return argparse.ArgumentParser(
         description=description,
         parents=[common],
@@ -231,6 +247,7 @@ def run_kwargs_from_args(args, *, script_stem="run"):
     """Merge training kwargs with plot kwargs for :func:`run_training_and_plot`."""
     train_kw = train.training_kwargs_from_args(args, script_stem=script_stem)
     train_kw.update(plot_kwargs_from_args(args))
+    train_kw['syn_sign'] = bool(args.syn_sign)
     return train_kw
 
 
