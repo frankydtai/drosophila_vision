@@ -5,8 +5,8 @@ Extracts 16 population traces (PD=red, ND=blue) by reading the published
 figure. Values are approximate — digitized from raster, not raw data.
 
 Usage:
-  ../../MatlabFunctions/.venv/bin/python 1ci.py
-  ../../MatlabFunctions/.venv/bin/python 1ci.py --image 1ci.png --debug
+  ../.venv/bin/python 1ci.py
+  ../.venv/bin/python 1ci.py --image 1ci.png --debug
 """
 
 from __future__ import annotations

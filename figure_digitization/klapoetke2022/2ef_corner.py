@@ -25,7 +25,7 @@ point in x.  Only the vertical position cy is searched.
 Bright (green circle) detection is reused unchanged from 2ef.py; only the dark
 detection is replaced.  Output overwrites the same 2ef_digitized.* files.
 
-Run:  ../../LC18_model/.venv/bin/python 2ef_corner.py
+Run:  ../.venv/bin/python 2ef_corner.py
 """
 
 from __future__ import annotations

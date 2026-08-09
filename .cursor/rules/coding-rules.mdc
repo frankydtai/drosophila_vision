@@ -21,9 +21,7 @@ Scope: `vision/`.
 | Script location | Interpreter |
 |---|---|
 | `vision/**` | `vision/.venv/bin/python` |
-| `LC18_model/**` | `LC18_model/.venv/bin/python` |
-| `Groschner2022_multiplication/**` | `Groschner2022_multiplication/.venv/bin/python` |
-| `MatlabFunctions/**` | `MatlabFunctions/.venv/bin/python` |
+| `figure_digitization/**` | `figure_digitization/.venv/bin/python` |
 
 ## A all script rules
 

@@ -26,7 +26,7 @@ Method
 5. Write one CSV per (cell type, stimulus) with columns time_s, dff_percent,
    plus a combined long CSV and a verification PNG.
 
-Run with the LC18 venv:  ../../LC18_model/.venv/bin/python 2b.py
+Run:  ../.venv/bin/python 2b.py
 """
 
 from __future__ import annotations

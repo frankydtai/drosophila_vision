@@ -29,7 +29,7 @@ The speeds (x positions) are FIXED, so we do NOT search for x. Instead:
    missing speed tuning, and rows with fewer points produce fewer points).
 3. Map (x, y) -> (speed, dF/F %) and write CSVs + a verification overlay.
 
-Run with the LC18 venv:  ../../LC18_model/.venv/bin/python 2ef.py
+Run:  ../.venv/bin/python 2ef.py
 """
 
 from __future__ import annotations

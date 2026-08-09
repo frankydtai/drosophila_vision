@@ -27,7 +27,7 @@ Method
 5. Write one CSV per cell type (rows = height 90..2, cols = width 2..90) plus a
    long-format combined CSV and a verification PNG.
 
-Run with the LC18 venv:  ../../LC18_model/.venv/bin/python 2ij.py
+Run:  ../.venv/bin/python 2ij.py
 """
 
 from __future__ import annotations
