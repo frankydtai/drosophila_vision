@@ -1190,42 +1190,38 @@ elements Tm1, Tm2, Tm4 and Tm9. (Aii) Frequency spectra after deconvolution with
 the dynamics of the calcium indicator. Dashed lines represent the fitted frequency responses of 1st
 order band-pass or low-pass filters.
 (Bi, Bii) Same as (Ai, Aii), after application of CDM.
-Araw
-tHP, raw
-tLP, raw
-R2t, raw
-Adeconv
-tHP, deconv
-tLP, deconv
-R2t, deconv
-
-
-Asur / Acen
-FWHMcen
-FWHMsur                                      -            -
-R2s
-
-
+Parameter        |  Mi1 control |    Mi1 + CDM |  Tm3 control |    Tm3 + CDM |  Mi4 control |    Mi4 + CDM |  Mi9 control |    Mi9 + CDM
+----------------------------------------------------------------------------------------------------------------------------------------
+A_raw            |        1.271 |        1.314 |        0.996 |        1.204 |        1.007 |        1.000 |        0.982 |        1.060
+t_HP,raw         |      1.078 s |      0.445 s |      1.769 s |      0.340 s |              |              |              |             
+t_LP,raw         |      0.266 s |      0.143 s |      0.158 s |      0.086 s |      0.519 s |      0.370 s |      0.546 s |      0.373 s
+R2_t,raw         |        0.975 |        0.942 |        0.971 |        0.925 |        0.984 |        0.990 |        0.982 |        0.987
+A_deconv         |        1.146 |        1.643 |        1.035 |        2.034 |        0.831 |        0.906 |        0.789 |        0.940
+t_HP,deconv      |      0.318 s |      0.075 s |      0.260 s |      0.044 s |              |              |              |             
+t_LP,deconv      |      0.054 s |      0.075 s |      0.027 s |      0.044 s |      0.038 s |      0.028 s |      0.077 s |      0.043 s
+R2_t,deconv      |        0.872 |        0.851 |        0.768 |        0.955 |        0.666 |        0.643 |        0.832 |        0.906
+A_sur / A_cen    |        0.022 |        0.028 |        0.000 |        0.000 |        0.132 |        0.093 |        0.063 |        0.043
+FWHM_cen         |        6.81° |        7.09° |       11.91° |       12.40° |        6.47° |        6.49° |        6.37° |        6.37°
+FWHM_sur         |       28.81° |       19.86° |            - |            - |       16.14° |       20.02° |       23.98° |       28.08°
+R2_s             |        0.995 |        0.990 |        0.985 |        0.984 |        0.987 |        0.989 |        0.980 |        0.992
 
 Table S1. Related to Figure 2 and 4. Spatio-temporal response properties of T4 input cells.
 Numerical parameters derived from the model fits to the temporal and the spatial components of the spatio-temporal
 receptive fields obtained from reverse correlation for the ON-pathway neurons.
-Araw
-tHP, raw
-tLP, raw
-R2t, raw
-Adeconv
-tHP, deconv
-tLP, deconv
-R2t, deconv
-
-
-Asur / Acen
-FWHMcen
-FWHMsur
-R2s
-
-
+Parameter        |  Tm1 control |    Tm1 + CDM |  Tm2 control |    Tm2 + CDM |  Tm4 control |    Tm4 + CDM |  Tm9 control |    Tm9 + CDM
+----------------------------------------------------------------------------------------------------------------------------------------
+A_raw            |        1.419 |        1.072 |        1.068 |        0.933 |        1.218 |        0.990 |        0.961 |        0.890
+t_HP,raw         |      0.632 s |      0.754 s |      0.962 s |      0.558 s |      0.788 s |      2.210 s |              |             
+t_LP,raw         |      0.271 s |      0.051 s |      0.113 s |      0.020 s |      0.186 s |      0.070 s |      0.462 s |      0.220 s
+R2_t,raw         |        0.978 |        0.901 |        0.979 |        0.564 |        0.972 |        0.930 |        0.985 |        0.981
+A_deconv         |        1.117 |        2.217 |        1.038 |        2.657 |        1.018 |        1.002 |        0.827 |        0.836
+t_HP,deconv      |      0.296 s |      0.032 s |      0.153 s |      0.018 s |      0.249 s |      0.086 s |              |             
+t_LP,deconv      |      0.044 s |      0.032 s |      0.014 s |      0.018 s |      0.024 s |      0.015 s |      0.017 s |      0.008 s
+R2_t,deconv      |        0.895 |        0.974 |        0.893 |        0.990 |        0.807 |        0.880 |        0.273 |        0.226
+A_sur / A_cen    |        0.040 |        0.029 |        0.035 |        0.026 |        0.054 |        0.005 |        0.046 |        0.071
+FWHM_cen         |        8.12° |        7.34° |        7.93° |        7.23° |       11.45° |       10.10° |        6.92° |        6.53°
+FWHM_sur         |       27.14° |       20.46° |       30.52° |       23.01° |       34.62° |       72.03° |       23.78° |       21.74°
+R2_s             |        0.997 |        0.995 |        0.994 |        0.991 |        0.992 |        0.988 |        0.995 |        0.995
 
 Table S2. Related to Figure 2 and 4. Spatio-temporal response properties of T5 input cells.
 Numerical parameters derived from the model fits to the temporal and the spatial components of the spatio-temporal

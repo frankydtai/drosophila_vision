@@ -47,12 +47,12 @@ from task.moving_bar.input import (
     _as_int64_np,
 )
 
-# Gruntman Fig. 1 Ci/Cii digitized population Vm (figure_digitization/gruntman2021/1ci.py).
+# Gruntman Fig. 1 Ci/Cii digitized population Vm (figure_digitization/gruntman/1ci.py).
 # gt.py → moving_bar → task → simulation → vision → repo root.
 FIG1_CI_NPZ = (
     Path(__file__).resolve().parents[4]
     / "figure_digitization"
-    / "gruntman2021"
+    / "gruntman"
     / "1ci_digitized.npz"
 )
 

@@ -1,0 +1,2019 @@
+                                                                                          Resource
+
+Subcellular Imaging of Voltage and Calcium Signals
+Reveals Neural Processing In Vivo
+Graphical Abstract                                                Authors
+                                                                  Helen H. Yang, François St-Pierre,
+                                                                  Xulu Sun, Xiaozhe Ding, Michael Z. Lin,
+                                                                  Thomas R. Clandinin
+
+                                                                  Correspondence
+                                                                  trc@stanford.edu
+
+                                                                  In Brief
+                                                                  Observation of subcellular changes in
+                                                                  membrane potential and calcium
+                                                                  concentration using two-photon imaging
+                                                                  of genetically encoded indicators
+                                                                  illuminates neuronal computations
+                                                                  in vivo, including the origin of ON and OFF
+                                                                  selectivity.
+
+
+
+
+Highlights
+d   In vivo, two-photon imaging of novel genetically encoded
+    voltage indicators
+
+d   Observing sensory stimulus-evoked voltage signals with
+    subcellular resolution
+
+d   Calcium signals, unlike voltage signals, are
+    compartmentalized within a neuron
+
+d   ON and OFF selectivity arises in the transformation between
+    voltage and calcium
+
+
+
+
+            Yang et al., 2016, Cell 166, 245–257
+            June 30, 2016 ª 2016 Elsevier Inc.
+            http://dx.doi.org/10.1016/j.cell.2016.05.031
+Resource
+
+Subcellular Imaging of Voltage and Calcium
+Signals Reveals Neural Processing In Vivo
+Helen H. Yang,1,3 François St-Pierre,2,3,4,5 Xulu Sun,1 Xiaozhe Ding,2 Michael Z. Lin,1,2 and Thomas R. Clandinin1,*
+1Department    of Neurobiology, Stanford University, Stanford, CA 94305, USA
+2Department    of Bioengineering, Stanford University, Stanford, CA 94305, USA
+3Co-first author
+4Present address: Department of Neuroscience, Baylor College of Medicine, Houston, TX 77030, USA
+5Present address: Department of Electrical and Computer Engineering, Rice University, Houston, TX 77005, USA
+
+*Correspondence: trc@stanford.edu
+ http://dx.doi.org/10.1016/j.cell.2016.05.031
+
+
+
+
+SUMMARY                                                              has been characterized in detail. For example, in many sensory
+                                                                     systems, including vision, chemosensation, audition, and ther-
+A mechanistic understanding of neural computation                    mosensation, a single input is initially transformed into two rep-
+requires determining how information is processed                    resentations, an ON pathway for increases in signal intensity
+as it passes through neurons and across synapses.                    and an OFF pathway for decreases (Chalasani et al., 2007; Kuf-
+However, it has been challenging to measure mem-                     fler, 1953; Liu et al., 2015; Scholl et al., 2010; Wässle, 2004). This
+brane potential changes in axons and dendrites                       fundamental organizational principle has been associated with a
+                                                                     variety of different strategies for efficiently extracting information
+in vivo. We use in vivo, two-photon imaging of novel
+                                                                     about the natural world (Clark et al., 2014; Gjorgjieva et al., 2014;
+genetically encoded voltage indicators, as well as                   Westheimer, 2007). Thus, understanding where and how circuits
+calcium imaging, to measure sensory stimulus-                        implement ON and OFF selectivity provides fundamental in-
+evoked signals in the Drosophila visual system with                  sights into neuronal computation.
+subcellular resolution. Across synapses, we find ma-                    The Drosophila visual system represents a powerful in vivo
+jor transformations in the kinetics, amplitude, and                  model for exploring the mechanistic basis of neuronal computa-
+sign of voltage responses to light. We also describe                 tion. Experimentally, cell-type-specific expression of genetically
+distinct relationships between voltage and calcium                   encoded indicators of neural activity is straightforward, the optic
+signals in different neuronal compartments, a sub-                   lobes are accessible for live imaging, well-controlled stimuli can
+strate for local computation. Finally, we demonstrate                be presented, the cell types are well-defined, and their synaptic
+that ON and OFF selectivity, a key feature of visual                 connections have been reconstructed at the ultrastructural level
+                                                                     (Borst, 2014; Silies et al., 2014). Biologically, the fly visual system
+processing across species, emerges through the
+                                                                     performs computations essential for behavior using algorithms
+transformation of membrane potential into intracel-
+                                                                     that are broadly conserved across visual systems. For example,
+lular calcium concentration. By imaging voltage and                  like the vertebrate visual system (Wässle, 2004), the Drosophila
+calcium signals to map information flow with subcel-                 visual system is split into ON and OFF pathways (Clark et al.,
+lular resolution, we illuminate where and how critical               2011; Joesch et al., 2010; Maisak et al., 2013). The lamina mo-
+computations arise.                                                  nopolar cells L1 and L2 are the strongest synaptic targets of
+                                                                     R1–R6 photoreceptors in the lamina and provide input into ON
+INTRODUCTION                                                         circuitry for light increments and OFF circuitry for light decre-
+                                                                     ments, respectively, in the medulla (Figure 1A). L1 makes synap-
+Neuronal circuits perform a diverse array of computations to ul-     ses onto Mi1 and Tm3; L2 makes synapses onto Tm1 and Tm2
+timately guide animal behavior. These circuits encode informa-       (Takemura et al., 2013). Synapsing in the medulla and the lobula,
+tion in dynamic changes in neuronal membrane potential and           these medulla interneurons then provide input onto deeper cir-
+intracellular calcium concentration; stepwise transformations        cuitry, including the direction selective cells T4 and T5 (Shino-
+of these signals then provide the mechanistic basis for extracting   miya et al., 2014; Takemura et al., 2013), and represent central
+behaviorally relevant features. Thus, mapping these signals as       feedforward visual pathways.
+they flow along dendrites and axons and across synapses is crit-        Mapping transformations of visual information onto changes in
+ical to understanding neural processing. Here, we describe a         membrane potential in dendrites and axons critically depends on
+broadly applicable approach for measuring voltage and calcium        a genetically encoded voltage indicator that can capture signals
+changes with subcellular resolution in vivo.                         in vivo. Here, we describe fast, bright, two-photon compatible
+   Sensory systems link critical information from the environment    voltage indicators that capture responses predicted from bio-
+to behavior. Given their experimental tractability, these systems    physical neuronal models and previously reported electrophysi-
+have long been studied to understand neural computation, and         ological measurements. Using these indicators as well as genet-
+the information extracted by many peripheral sensory circuits        ically encoded calcium indicators, we reveal the local changes in
+
+
+                                                                             Cell 166, 245–257, June 30, 2016 ª 2016 Elsevier Inc. 245
+A                                      B                                                   Figure 1. Voltage Imaging in the Drosophila
+                                                                                           Visual System
+                                                                                           (A) The Drosophila visual system. L1 and L2
+                                                                                           receive input from photoreceptors R1–R6 in the
+                                                                                           lamina neuropil. L1 synapses onto Mi1 and Tm3 in
+                                                                                           layers M1 and M5 of the medulla neuropil. L2
+                                                                                           synapses onto Tm1 and Tm2 in medulla layer M2.
+                                                                                           L1 and its postsynaptic partners are in green; L2
+                                                                                           and its postsynaptic partners are in blue. Tm1,
+                                                                                           Tm2, and Tm3 project axons into the lobula neu-
+                                       C                           D                       ropil. In all figures, cell diagrams modified from
+                                                                                           Fischbach and Dittrich (1989).
+                                                                                           (B) In ASAP sensors, changes in membrane po-
+                                                                                           tential induce movement of a positively charged
+                                                                                           transmembrane helix of a voltage-sensitive domain
+                                       E                                                   (VSD), altering the fluorescence of a circularly
+                                                                                           permuted GFP (cpGFP).
+                                                                                           (C) Schematic diagram of ASAP2f, showing the
+                                                                                           VSD transmembrane domains (S1–S4, blue),
+                                                                                           cpGFP (green), and the location of the residues
+                                                                                           changed from ASAP1 (A147S DA148).
+                                                                                           (D) Schematic illustration of the setup for in vivo,
+                                                                                           two-photon imaging of visually evoked responses
+                                                                                           in Drosophila.
+                                                                                           (E) Illustration of L2 with the imaged region, the
+                                                                                           axon terminal in medulla layer M2, highlighted.
+F                               G                             H                            Inset: in vivo, two-photon image of L2 axon ter-
+                                                                                           minals expressing ASAP2f, averaged across one
+                                                                                           time series. One axon terminal is highlighted. Scale
+                                                                                           bar, 5 mm.
+                                                                                           (F and G) Responses of L2 neurons to alternating
+                                                                                           300 ms-long dark and light flashes, as measured
+                                                                                           with (F) ASAP1 (n = 52 cells, 3 flies) and (G) ASAP2f
+                                                                                           (n = 170 cells, 8 flies). Top: mean response across
+                                                                                           all cells. Each cell contributes its average response
+                                                                                           across 100 trials (1 trial = 1 dark flash and 1 light
+                                                                                           flash). Bottom: five exemplar single-trial responses
+                                                              I                            from a representative L2 cell (gray) and the same
+                                                                                           cell’s mean response averaged over all trials (black
+                                                                                           or blue). The solid line is the mean response; the
+                                                                                           shading is ±1 SEM.
+                                                                                           (H–J) Parameters quantifying the response: (H)
+                                                                                           peak DF/F; (I) tpeak; (J) tdecay. The mean ± 1 SEM is
+                                                                                           plotted. ***p < 0.001 (two-sample t test, Bonferroni
+                                                                                           correction for multiple comparisons).
+                                                                                           See also Figures S1 and S2 and Table S1.
+                                                              J
+
+
+                                                                                           higher sensitivity and rapid kinetics that
+                                                                                           is compatible with two-photon imaging
+                                                                                           in the fly. We chose the voltage sensor
+                                                                                           ASAP1 as our starting point for further
+                                                                                           engineering (St-Pierre et al., 2014). In
+                                                                                           this indicator, a circularly permuted GFP
+                                                                                           (cpGFP) is inserted into a voltage-sensing
+voltage and calcium signaling that transform sensory information   domain (VSD) from a voltage-sensitive phosphatase (Figure 1B).
+in the Drosophila visual system.                                   Voltage-induced conformational changes in the VSD perturb
+                                                                   GFP fluorescence, such that depolarizations decrease GFP fluo-
+RESULTS                                                            rescence and hyperpolarizations increase it. These responses
+                                                                   have fast on and off time constants of 2.5 ms (Table S1) (St-
+Benchmarking In Vivo Voltage Imaging of ASAP2f                     Pierre et al., 2014). Based on in vitro characterization of variants
+We began our study of information processing in the visual sys-    with mutations in the linker between the third transmembrane
+tem by developing a genetically encoded voltage sensor with        segment of the VSD (S3) and GFP (Figures S1 and S2A–S2C;
+
+
+246 Cell 166, 245–257, June 30, 2016
+A                                                           C                                  Figure 2. Voltage Imaging Captures L2 Im-
+    Light                  Dark                                                                pulse Responses
+                                                                                               (A) Response of L2 axon terminals to a 25 ms light
+                                                                                               flash (left) or a 25 ms dark flash (right), with a
+                                                                                               500 ms gray interleave. Contrast = 0.5. n = 125
+                                                                                               cells, 11 flies.
+                                                                                               (B) Response of L2 axon terminals to an 8 ms light
+                                                   -5%                                         flash (left) or an 8 ms dark flash (right), with a 500 ms
+                                                   ΔF/F                                        gray interleave. Contrast = 0.5. n = 66 cells, 6 flies.
+                                                                                               (C) Response trace in (B) rescaled and plotted with
+                                           0.2 s                                               an electrophysiological recording from a lamina
+                                                          20 mV                                monopolar cell responding to similarly brief light
+B                                                          -1.5%                               flashes of two different intensities (data from Ni-
+    Light                  Dark                             ΔF/F                               kolaev et al., 2009). All responses are aligned to
+                                                                                               the onset of the light flash (red line).
+
+                                                                   0.02 s
+                                                                        Electrophysiology
+                                                   -5%                      Dim pulse
+                                                                                                 alent to the linear filter that can be ex-
+                                                   ΔF/F                     Bright pulse
+                                                                                                 tracted using white noise analysis (Chi-
+                                                                                                 chilnisky, 2001). We therefore presented
+                                           0.2 s                                                 both 8 ms and 25 ms light and dark
+                                                                                                 flashes off of a uniform gray background
+                                                                                                 to flies in which ASAP2f was expressed
+Table S1), we examined the in vivo performance of ASAP1 and            in L2. Such short flashes approximately matched the flicker
+one variant, ASAP1 A147S DA148 (renamed ASAP2f; Figure 1C).            fusion rate of Drosophila photoreceptors (Miall, 1978) and there-
+To do this, we expressed ASAP1 and ASAP2f specifically in the          fore should have been seen by the animal as a single impulse
+lamina neuron L2 and measured visually evoked responses us-            signal instead of a distinct light to dark and dark to light tran-
+ing two-photon microscopy. We positioned an awake fly in front         sition for each flash. For both 25 ms and 8 ms flashes, L2
+of a screen displaying visual stimuli and imaged L2 axon termi-        initially hyperpolarized to the light flash and depolarized to the
+nals through a window cut in the cuticle at the back of the            dark flash (Figures 2A and 2B). The response to the light flash
+head (Figures 1D and 1E). We acquired frames at 39 Hz and by           was strongly biphasic, with a slower depolarizing phase that
+taking advantage of differences in timing between frame acqui-         followed the initial hyperpolarization. Conversely, the response
+sition and visual stimulus presentation, were able to measure          to the dark flash was only weakly biphasic. Thus, impulse re-
+responses at an effective sampling rate of 120 Hz (see the Sup-        sponses to light and dark were not sign-inverted or rescaled ver-
+plemental Experimental Procedures).                                    sions of the same waveform, suggesting that even at this early
+   To robustly stimulate L2, we first presented alternating 300 ms     stage of visual processing, nonlinearities in voltage responses
+full contrast dark and light flashes covering the entire screen.       are significant.
+ASAP1 and ASAP2f both reported that L2 transiently depolarized            As a critical control, we examined whether the kinetics of these
+to light offset and transiently hyperpolarized to light onset,         impulse responses were consistent with previous electrophysio-
+consistent with previous electrophysiological recordings (Fig-         logical studies. The onset of the impulse response was delayed
+ures 1F and 1G) (Zettler and Järvilehto, 1971). The signal ampli-     relative to the onset of light by 17 ms (Figure 2C). This delay
+tudes and signal-to-noise ratios of these indicators were suffi-       was intermediate between the response latencies measured
+cient to record robust single-cell responses; we could also            under bright and dim illumination conditions using electrophysi-
+measure responses from single stimulus presentations (Figures          ological recordings from lamina monopolar cells (Figure 2C) (Ni-
+1F and 1G, bottom). ASAP2f produced larger fluorescence                kolaev et al., 2009). Thus, ASAP2f can report rapid changes in
+changes than ASAP1 (14.0% ± 0.7% increase for depolarization           neural activity.
+and 20.3% ± 1.4% increase for hyperpolarization), with similar
+response kinetics (Figures 1H–1J). ASAP2f responses were sta-          ASAP2f Reports Voltage Signals across Different
+ble for at least 10 min of continuous imaging, facilitating many       Cellular Compartments
+stimulus presentations (Figures S2D and S2E). We therefore             Unlike electrophysiological approaches, monitoring neural activ-
+used ASAP2f in subsequent experiments.                                 ity using voltage imaging allows responses to be easily measured
+                                                                       from multiple regions of the same neuron. We therefore ex-
+ASAP2f Allows Impulse Response Measurements                            pressed ASAP2f in the Mi1 cell type, a small monopolar neuron
+One commonly used approach to characterizing a dynamic sys-            that is representative of interneurons in the fruit fly brain. Mi1 is
+tem is to measure the impulse response, the response evoked by         50 mm long, with its main neurite being 200–300 nm in diameter
+an extremely brief stimulus. In visual neuroscience, impulses          and its arbors being comprised of many processes of 200 nm or
+correspond to brief flashes of light and reveal critical aspects       less (Figure 3A) (Takemura et al., 2013). We measured robust
+of a cellular response, including the kinetics and waveform            voltage responses in the cell body and the three dendritic and
+(Smith, 1997). For linear systems, the impulse response is equiv-      axonal arbors in medulla layers M1, M5, and M10 (Figure 3B).
+
+
+                                                                                                    Cell 166, 245–257, June 30, 2016 247
+            A                        B                                     C                           D
+
+
+
+
+            E                        F                                      G                                                 H
+
+
+
+
+Figure 3. Voltage Imaging Captures Mi1 Response Kinetics and the Decay in Response Amplitude along the Length of the Cell
+(A) Illustration of Mi1 with the imaged regions highlighted.
+(B) Voltage responses of the Mi1 arbors in layer M1 (blue, n = 79 cells, 4 flies), layer M5 (red, n = 92 cells, 4 flies), layer M10 (green, n = 67 cells, 4 flies), and the cell
+body (black, n = 37 cells, 2 flies) to a 25 ms light flash with a 500 ms gray interleave, contrast = 0.5.
+(C) Quantification of the decay in peak response amplitude (peak DF/F) as a fraction of the response in layer M1.
+(D) Impulse responses measured from the cell body of Mi1. Black: voltage response to a 25 ms light flash measured with ASAP2f (data from B). Pink: linear filter
+extracted from white noise analysis measured using electrophysiological recordings (data from Behnia et al., 2014).
+(E) Morphology of a NEURON model of Mi1. The arrow indicates the site of current injection. The model neuron was given passive membrane properties: specific
+membrane capacitance (Cm) = 1 mF/cm2, axial resistance (Ri) = 40 to 420 U 3 cm, and specific membrane resistance (Rm) = 1 to 21 kU 3 cm2.
+(F and G) Peak membrane potential during current injection presented as the fraction decayed from the peak response in layer M1. (F) Layer M5 and (G) layer M10
+of the NEURON model. The shaded areas indicate the set of Ri and Rm values that result in decay values within 1 SEM of the decay measured with ASAP2f.
+(H) The set of Ri and Rm values that result in decay values within 1 SEM of the decay measured with ASAP2f for both layers M5 and M10.
+
+
+
+The amplitude of the responses generally decayed away from the                            2006). We used the morphology from the electron microscopic
+site of primary synaptic input in layer M1, but the time courses of                       reconstruction of Mi1 to describe the structure of the arbors in
+the response waveforms were largely preserved throughout the                              the medulla (Takemura et al., 2013), and as this reconstruction
+length of the neuron (Figures 3B and 3C). Moreover, our impulse                           lacked a cell body, we added a simple connecting process and
+response, the ASAP2f-measured voltage change to a 25 ms light                             cell body to the model (Figure 3E). We gave the model cell only
+flash and the linear filter extracted from white noise analysis using                     passive membrane properties and simulated synaptic input by
+electrophysiological approaches, both measured in the cell body                           injecting current into the arbor in layer M1, where the neuron re-
+of Mi1, had indistinguishable times to initial response and times to                      ceives most of its synapses. From this, we asked whether the
+peak (Figure 3D) (Behnia et al., 2014). However, we note that the                         decay in amplitude from layer M1 to layers M5 and M10 was
+impulse response we measured was more biphasic than the linear                            consistent with a biologically plausible set of passive membrane
+filter, likely because fast white noise stimuli do not drive temporal                     properties. Critically, the same parameters should be able to
+and spatial surrounds as well as isolated flashes (Simoncelli et al.,                     explain the decay amplitude in both layers M5 and M10. To do
+2004).                                                                                    this, we incorporated previous estimates of the specific mem-
+    We next asked whether the decay in the amplitude of the re-                           brane capacitance and resting membrane potential and then
+sponses along the length of Mi1 was to be expected from the                               swept the axial resistance and specific membrane resistance
+electrical properties of the cell or whether ASAP2f was behaving                          across biologically plausible values (Behnia et al., 2014; Cuntz
+differently in distinct arbors. Electrode recordings are impossible                       et al., 2013; Gouwens and Wilson, 2009; Borst and Haag,
+from these small processes, so we instead implemented a bio-                              1996). These simulations revealed a range of parameter values
+physical model of the cell using NEURON (Carnevale and Hines,                             that predicted the amplitude decay we measured with ASAP2f
+
+
+248 Cell 166, 245–257, June 30, 2016
+in both M5 and M10 (Figures 3F–3H). Thus, ASAP2f appears to            Calcium Responses, Unlike Voltage Responses, Are
+accurately report changes in membrane voltage in different             Compartmentalized within a Neuron
+neuronal compartments. These simulations also suggest that             Chemical synaptic transmission requires changes in membrane
+membrane potential changes spread passively through Mi1,               potential to be converted into changes in intracellular calcium
+although we do not exclude a role for active conductances.             concentration, which then trigger neurotransmitter release (Fatt
+                                                                       and Katz, 1952). We therefore compared voltage and calcium
+Voltage Responses Are Transformed in Amplitude, Sign,                  signals in corresponding regions of the same neuron. Specif-
+and Kinetics across Synapses                                           ically, we measured voltage signals with ASAP2f and calcium
+We next sought to monitor how changes in light intensity are pro-      signals with GCaMP6f, a fast variant of the GCaMP family
+gressively transformed across synapses. We therefore imaged            (Chen et al., 2013), across multiple compartments of Tm3, Mi1,
+presynaptic axon terminals and their corresponding postsyn-            and Tm1. In all three cell types, the temporal waveforms of the
+aptic dendrites while presenting 25 ms light and dark flashes.         voltage responses were similar throughout the length of each
+We first examined responses in the OFF pathway, comparing              neuron while the amplitude of the responses decayed away
+Tm1 and Tm2 voltage dynamics to those of L2, their presynaptic         from the site of primary synaptic input (layer M1 for Tm3 and
+partner (Figure 4A). Like the axon terminals of L2, the dendrites of   Mi1 and layer M2 for Tm1; Figures 5A, 5B, 5D, 5F, 5G, 5I, S4A,
+Tm1 and Tm2 hyperpolarized to light flashes and depolarized to         S4B, and S4D), a result consistent with passive spread of mem-
+dark flashes (Figures 4B, S3A, and S3B), consistent with previous      brane potential changes in Tm3, Mi1, and Tm1.
+electrophysiological recordings from the cell body (Behnia et al.,        To our surprise, however, unlike voltage signals, calcium sig-
+2014). Additionally, we found that the amplitude of the voltage re-    nals were highly compartmentalized. That is, calcium responses
+sponses was significantly larger in the postsynaptic dendrite than     were different among distinct regions of the same cell and the
+in the presynaptic axon terminal (Figures 4B, 4C, S3B, and S3C).       way in which they were compartmentalized differed among cell
+As these are thought to be non-spiking neurons, this increase in       types. The calcium signal in any compartment could not be pre-
+amplitude may boost the voltage signal to ensure reliable propa-       dicted from either the voltage response in that compartment or
+gation to the neurons’ distal arbors. Furthermore, the kinetics of     the calcium responses in other regions of the same cell. For
+the voltage signal were significantly slower in the postsynaptic       example, in response to a 25 ms light flash, as expected for a de-
+dendrites: Tm1 and Tm2 responses peaked later and persisted            polarization, the calcium concentration increased across all of
+longer than L2 responses (Figures 4B, 4D, 4E, S3B, S3D, and            Tm3 (Figures 5C and 5E). However, inconsistent with the relative
+S3E). Mathematically, these responses suggest that Tm1 and             amplitudes of the voltage signals in each region, calcium re-
+Tm2 integrate the L2 voltage signal. As the responses to a             sponses in the cell body and layer M5 were much smaller than
+25 ms flash approximate the cells’ impulse responses, the slower       those in layers M1 and M10, the neighboring regions (Figures
+kinetics of Tm1 and Tm2 demonstrate that at the synapse be-            5A–5E). Despite the large differences in the magnitude of intra-
+tween L2 and its postsynaptic partners, the circuit becomes            cellular calcium responses, the waveform and kinetics were
+tuned for slower changes in light intensity. Finally, we note that     the same across layers M1, M5, and M10 (Figures 5C and 5E).
+Tm2 responses peaked slightly earlier than Tm1 responses,              However, the calcium signals were slower in the cell body. In
+consistent with previous measurements (Behnia et al., 2014).           Mi1, in contrast to Tm3, the relative amplitude of the calcium
+   We next asked whether visual information is transformed             changes in the different layers of the medulla was consistent
+differently across synapses in the ON pathway compared to              with the voltage responses (Figures 5F–5J). However, in this
+the OFF pathway. In the ON pathway, L1 makes synaptic con-             cell, the calcium response waveform in layer M10 was biphasic
+nections with Mi1 and Tm3 via two axon terminals located in me-        and relatively fast, while the responses in layers M1 and M5
+dulla layers M1 and M5 (Takemura et al., 2013). In layer M1, L1        were monophasic and slower to peak (Figures 5H and 5J).
+responded very similarly to L2, hyperpolarizing to light incre-        Thus, because Mi1 has synaptic outputs from each of these ar-
+ments and depolarizing to light decrements (Figures 4F, 4G,            bors (Takemura et al., 2013), it could transmit qualitatively
+S3F, and S3G). However, unlike the OFF pathway, we observed            different visual information from layer M10 than from layers M1
+a sign inversion between L1 and its postsynaptic cells (Figures        and M5. Additionally, like Tm3, the calcium responses were
+4G, 4H, S3G, and S3H), as has been previously reported (Behnia         the slowest in the Mi1 cell body (Figures 5H and 5J). Finally, in
+et al., 2014). Interestingly, similar to the transformation between    Tm1, unlike Tm3 or Mi1, calcium responses in all arbors were
+L2 and its postsynaptic targets, Mi1 and Tm3 responses were            similar in amplitude and kinetics, much like the voltage re-
+larger in amplitude and slower in kinetics than those of their pre-    sponses, although the cell body responses were slow and
+synaptic partner L1 (Figures 4G–4J and S3G–S3J). In layer M5,          small (Figure S4). Taken together, these results demonstrate
+we observed similar changes in response sign, amplitude, and           that both the amplitude and kinetics of changes in intracellular
+kinetics to those we saw in layer M1 (Figures 4K–4O and S3K–           calcium concentration have distinct relationships with voltage
+S3O). Thus, the L1 and L2 pathways perform similar transforma-         in different compartments of the same cell and are cell type spe-
+tions in signal amplitude and kinetics even as they employ syn-        cifically regulated.
+apses of opposite sign, consistent with the view that they are
+parallel ON and OFF channels. Taken together, these results            ON and OFF Selectivity Arises in the Transformation
+demonstrate that voltage signals undergo profound transforma-          between Voltage and Calcium
+tions in amplitude, sign, and kinetics as they are passed across       Postsynaptic to Mi1 and Tm3, T4 is strongly selective for light
+synapses.                                                              stimuli and hence rectified for ON; postsynaptic to Tm1 and
+
+
+                                                                                                  Cell 166, 245–257, June 30, 2016 249
+A                            B                                     C                                 D                   ***                   E
+     Layer M2                    Light
+                                                                                                                                                                                         ***
+                                                                                                                               **                                                 0.05         **
+
+
+
+
+                                                                                                                                               Full width at half maximum (s)
+      L2
+                                                                                  0                               0.06
+                                                                                                                                                                                  0.04
+
+
+
+
+                                                                    peak %ΔF/F
+           Tm2                                                                    4                                                                                               0.03
+                   Tm1                                                                                            0.04
+
+
+
+
+                                                                                                      tpeak (s)
+                                                                                                                                                                                  0.02
+                                                                                  8
+                                                    L2                                                            0.02
+                                                    Tm1                                                                                                                           0.01
+                       -5%                                                                   ***
+                                                    Tm2                          12
+                       ΔF/F                                                            ***
+                                                                                                                    0                                                               0
+
+                                 0.2 s
+
+F                          G                                       H                                  I                                    J
+      Layer M1                   Light
+              L1                                                                 −12   ***                                                                                        0.05   ***
+                                                                                                                         ***
+
+
+
+
+                                                                                                                                           Full width at half maximum (s)
+                                                     L1                                                           0.06                                                                         ***
+                                                                                                                                                                                  0.04
+                                                     Mi1                         −8
+                                                                    peak %ΔF/F
+
+
+
+
+Mi1                Tm3                               Tm3
+                                                                                                                  0.04                                                            0.03
+                                                                                                      tpeak (s)
+
+                                                                                 −4
+                                                                                                                                                                                  0.02
+                                                                                                                  0.02
+                                                                                  0
+                                                                                                                                                                                  0.01
+
+                                                                                  4                                 0                                                               0
+
+
+K                          L                                       M                                  N                                     O
+      Layer M5                   Light
+                                                                             −12                                                                                                  0.05
+             L1
+                                                                                                                                                 Full width at half maximum (s)
+
+
+                                                                                                                         ***                                                             *
+                                                                                                                  0.06
+                                                      L1                                                                                                                          0.04
+                                                                                 −8
+                                                                                       ***
+                                                      Mi1
+                                                                    peak %ΔF/F
+
+
+
+
+Mi1                Tm3                                Tm3                                                                                                                         0.03
+                                                                                                                  0.04
+                                                                                                      tpeak (s)
+
+
+
+
+                                                                                 −4
+                                                                                                                                                                                  0.02
+                                                                                                                  0.02
+                                                                                  0
+                                                                                                                                                                                  0.01
+
+
+                                                                                  4                                  0                                                               0
+
+Figure 4. Voltage Responses Are Transformed between Presynaptic Axons and Postsynaptic Dendrites
+(A) Illustration of L2 and its postsynaptic targets Tm1 and Tm2. The imaged arbors in medulla layer M2 are highlighted.
+(B) Responses of L2 (black, n = 125 cells, 11 flies), Tm1 (blue, n = 79 cells, 4 flies), and Tm2 (red, n = 89 cells, 4 flies) to a 25 ms light flash with a 500 ms gray
+interleave, contrast = 0.5. The solid line is the mean response; the shading is ±1 SEM.
+(C–E) Quantification of the response: (C) peak DF/F; (D) tpeak; (E) full width at half maximum of the initial response. The mean ± 1 SEM is plotted.
+(F–J) In medulla layer M1, presynaptic cell L1 (black, n = 23 cells, 6 flies) and postsynaptic cells Mi1 (blue, n = 79 cells, 4 flies) and Tm3 (red, n = 153 cells, 8 flies).
+(K–O) In medulla layer M5, L1 (black, n = 14 cells, 5 flies), Mi1 (blue, n = 92 cells, 4 flies), and Tm3 (red, n = 35 cells, 4 flies).
+In (H) and (M), the light gray bar is the inverted L1 peak DF/F for comparison. *p < 0.05, **p < 0.01, ***p < 0.001 (two-sample t test for peak DF/F and full width at half
+maximum, Mann-Whitney U test for tpeak, Bonferroni correction for multiple comparisons).
+See also Figure S3.
+
+
+
+
+250 Cell 166, 245–257, June 30, 2016
+A                                                B      Voltage                                               C    Calcium
+                              Tm3                     Light                                                       Light
+                  Cell body
+
+      Layer M1                                                                                                                                                                                                      Layer M1
+                                                                                                                                                                                                                    Layer M5
+        Layer M5                                                                                                                                                                                                    Layer M10
+                                                                                                                                                                                                                    Cell Body
+
+        Layer M10
+                                    -5%                                                                    40%
+                                    ΔF/F                                                                   ΔF/F
+
+                                                     0.2 s                                                        0.2 s
+                                                                   Full width at half maximum (s)
+
+
+
+
+D                                                                                                                  E
+
+
+
+
+                                                                                                                                                                                 Full width at half maximum (s)
+                                                                                                                                     ***                               ***
+           −12                                0.08                                                  0.05                                                      0.2                                                  0.6    ***
+                       ***                                                                                                             ***
+                                                                                                                            120
+                                                                                                    0.04                                                     0.16
+                                              0.06
+peak %ΔF/F
+
+
+
+
+                 −8                                                                                                                                                                                                0.4
+                                                                                                                   peak %ΔF/F
+
+                                                                                                    0.03                                   ***               0.12
+                                  tpeak (s)
+
+
+
+
+                                                                                                                                80
+
+
+
+
+                                                                                                                                                 tpeak (s)
+                                              0.04
+                                                                                                    0.02                                                     0.08
+                 −4                                                                                                                                                                                               0.2
+                                                                                                                                40
+                                              0.02
+                                                                                                    0.01                                                     0.04
+
+                  0                             0                                                     0                          0                              0                                                   0
+
+F                                              G        Voltage                                               H       Calcium
+                                                      Light                                                       Light
+                         Mi1
+Cell body
+                                                                                                                                                                                                                     Layer M1
+                                                                                                                                                                                                                     Layer M5
+Layer M1                                                                                                                                                                                                             Layer M10
+                                                                                                                                                                                                                     Cell Body
+Layer M5
+
+                                   -5%                                                                     40%
+Layer M10                          ΔF/F                                                                    ΔF/F
+
+                                                    0.2 s                                                         0.2 s
+                                                                   Full width at half maximum (s)
+
+
+
+
+                                                                                                                                                                                  Full width at half maximum (s)
+
+
+
+
+I                                                                                                                  J
+                 −12                          0.08                                                  0.05                                                     0.2                                                   0.6
+                       ***                                                                                                                                            ***
+                                                             ***                                                           120
+                                                                                                    0.04                                                     0.16                                                        ***
+                                              0.06                                                                                   ***                                 ***
+    peak %ΔF/F
+
+
+
+
+                 −8                                                                                                                                                                                                0.4
+                                                                                                                   peak %ΔF/F
+
+
+
+
+                                                                                                    0.03                        80                           0.12
+                                  tpeak (s)
+
+
+
+
+                                                                                                                                                 tpeak (s)
+
+
+
+
+                             **               0.04                                                                                                                                                                           ***
+                                                                                                    0.02                                                     0.08
+                 −4                                                                                                                                                                                                0.2
+                                              0.02                                                                              40
+                                                                                                    0.01                                                     0.04
+
+                  0                              0                                                    0                          0                             0                                                    0
+
+
+                                                                                                                                                                                                                    (legend on next page)
+
+                                                                                                                                                                   Cell 166, 245–257, June 30, 2016 251
+Tm2, T5 is strongly selective for dark and hence rectified for OFF                         to hyperpolarizations compared with ASAP2f (Figure S6). Using
+(Fisher et al., 2015; Leonhardt et al., 2016; Maisak et al., 2013).                        this indicator, we found that the degree of rectification in L2,
+However, electrophysiological studies demonstrated that Mi1,                               Tm1, and Tm3 was consistent with that measured with ASAP2f
+Tm3, Tm1, and Tm2 are moderately selective (Behnia et al.,                                 (Figures S7A–S7F). For calcium, we used GCaMP6m, which
+2014), a degree of rectification that cannot account for the                               has a Kd that is approximately half that of GCaMP6f (Chen
+nonlinearity of the postsynaptic responses. To map the emer-                               et al., 2013). If the observed half-wave rectification reflected
+gence of rectification across visual circuitry, we presented                               the fact that GCaMP6f is less sensitive to low calcium concentra-
+contrast-matched light and dark flashes spanning six different                             tions, then the responses measured with GCaMP6m should not
+contrast values to L1 and Tm3, members of the ON pathway,                                  be rectified. However, this was not the case, as the degree of
+as well as L2 and Tm1, members of the OFF pathway, and                                     rectification was similar for GCaMP6f and GCaMP6m (Figures
+measured voltage and calcium responses in their axon terminals.                            S7A–S7F). As an independent approach to exploring the effect
+   Voltage signals in L1 and L2 responded strongly to both light                           of indicator nonlinearities on rectification, we also examined
+and dark, with slightly larger responses to increments of light                            whether measurement of GCaMP6f responses to visually
+relative to decrements of equivalent magnitude. Intracellular cal-                         evoked hyperpolarization was limited by the ability of the indica-
+cium signals in both cell types responded robustly to both light                           tor to report calcium decreases. Replacing the perfusion saline
+and dark, but slightly favored decrements, consistent with previ-                          with one that contained a calcium chelator, we observed that
+ous reports (Clark et al., 2011; Juusola et al., 1995) (Figures 6A,                        GCaMP6f fluorescence in L2, Tm1, and Tm3 decreased dramat-
+6B, 6D, 6E, 7A, and 7C). Voltage signals in Tm3, like in L1, re-                           ically, much more than observed when presenting visual stimuli
+sponded strongly to both light and dark, with a modestly larger                            (Figures S7G–S7I). Thus, our measurements are well within
+response to increments (Figures 6C and 7B). Strikingly, this cell’s                        GCaMP6f’s dynamic range in these cells, a conclusion that is
+calcium signals displayed strong, half-wave rectification, with                            also consistent with our ability to measure the robust calcium in-
+depolarizing changes in membrane potential producing large in-                             creases and decreases evoked by dark and light flashes using
+creases in calcium concentration but hyperpolarizations produc-                            this indicator in L1 and L2.
+ing minimal decreases in calcium concentration (Figure 6C).                                   Taken together, these data demonstrate that the degree of
+Calcium signals in Tm3 were therefore selective for light: large                           linearity of the voltage to calcium transform differs across neu-
+calcium increases were evoked by light flashes but much smaller                            rons to implement contrast selectivity (Figure 7E). In L1 and L2,
+calcium decreases were evoked by dark flashes (Figures 6C and                              the amplitude of calcium and voltage responses vary largely lin-
+7B). We obtained similar results from the other ON pathway cell,                           early with respect to contrast. However, in two postsynaptic tar-
+Mi1 (Figures S5A–S5C). Voltage signals in the OFF pathway                                  gets of each cell, calcium responses, but not voltage responses,
+neuron Tm1 also responded strongly to both light and dark (Fig-                            were strongly half-wave rectified to favor the depolarizing visual
+ures 6F and 7D). Remarkably, in this cell, calcium signals evoked                          stimulus. The upstream synaptic sign inversion between L1 and
+by decrements were much stronger than those evoked by                                      its postsynaptic partners combined with rectification at the level
+increments (Figures 6F and 7D). Again, we observed similar re-                             of intracellular calcium in Mi1 and Tm3 makes the L1 pathway
+sults from the other OFF pathway neuron Tm2 (Figures S5D–                                  ON selective. The sign preserving synapse between L2 and its
+S5F). Taken together, these data demonstrate that contrast                                 postsynaptic partners combined with rectification at the level
+selectivity emerges at the level of the voltage to calcium transfor-                       of calcium in Tm1 and Tm2 makes the L2 pathway OFF selective.
+mation in the third order neurons of both the ON and OFF
+pathways.                                                                                  DISCUSSION
+   We were concerned that indicator nonlinearities and not un-
+derlying biological processes might account for the rectification                          The transformation of information by individual neurons and cir-
+we observed. To examine this, we measured contrast responses                               cuits underlies nervous system function. By performing both
+across these cell types using different voltage and calcium indi-                          voltage and calcium imaging of visually evoked responses not
+cators. For voltage, we developed a new member of the ASAP                                 only in cell bodies but also in dendrites and axons, we take a
+family, ASAP1 I67T Q397R, that had larger fluorescence                                     novel approach toward understanding information processing.
+changes to depolarizations and smaller fluorescence changes                                While neurons transmit voltage signals across their processes
+
+
+Figure 5. Mapping Voltage and Calcium Responses in Different Subcellular Compartments of the Same Neuron
+(A) Illustration of Tm3 with the imaged regions highlighted.
+(B) Voltage responses of Tm3 arbors in layer M1 (blue, n = 158 cells, 8 flies), layer M5 (red, n = 35 cells, 4 flies), layer M10 (green, n = 100 cells, 9 flies), and the cell
+body (black, n = 13 cells, 2 flies) to a 25 ms light flash with a 500 ms gray interleave, contrast = 0.5.
+(C) Calcium responses of Tm3 arbors in layer M1 (blue, n = 126 cells, 8 flies), layer M5 (red, n = 69 cells, 8 flies), layer M10 (green, n = 99 cells, 4 flies), and the cell
+body (black, n = 71 cells, 4 flies) to a 25 ms light flash with a 1500 ms gray interleave, contrast = 0.5. The solid line is the mean response; the shading is ±1 SEM.
+(D) Quantification of the voltage signals. Left: peak DF/F. Middle: tpeak. Right: full width at half maximum. The mean ± 1 SEM is plotted.
+(E) Quantification of the calcium signals with the metrics arranged as in (D).
+(F–J) Responses of Mi1. (G and I) Voltage responses of the Mi1 arbors in layer M1 (blue, n = 79 cells, 4 flies), layer M5 (red, n = 92 cells, 4 flies), layer M10 (green,
+n = 67 cells, 4 flies), and the cell body (black, n = 37 cells, 2 flies). (G) is repeated from Figure 3B. (H and J) Calcium responses of the Mi1 arbors in layer M1 (blue,
+n = 94 cells, 5 flies), layer M5 (red, n = 67 cells, 5 flies), layer M10 (green, n = 89 cells, 5 flies), and the cell body (black, n = 51 cells, 5 flies). **p < 0.01, ***p < 0.001
+(two-sample t test for peak DF/F and full width at half maximum, Mann-Whitney U test for tpeak, Bonferroni correction for multiple comparisons).
+See also Figure S4.
+
+
+
+252 Cell 166, 245–257, June 30, 2016
+A                   B   L1 Layer M1
+    ON                  Voltage                 Calcium
+                        Light     Dark          Light     Dark
+         L1
+
+
+
+
+              Tm3
+
+
+                -1%                      5%                         contrast +/- 0.5
+                ΔF/F                     ΔF/F                       contrast +/- 0.25
+                        0.2 s                   0.2 s               contrast +/- 0.125
+                    C   Tm3 Layer M10
+                        Voltage                 Calcium
+                        Light     Dark          Light     Dark
+
+
+
+
+                -2%                      20%
+                ΔF/F                     ΔF/F
+                        0.2 s                   0.2 s
+D   OFF             E   L2 Layer M2
+                        Voltage                 Calcium
+                        Light     Dark          Light     Dark
+    L2
+
+
+
+
+              Tm1
+
+
+                -2%                      5%
+                ΔF/F                     ΔF/F
+                        0.2 s                   0.2 s
+                    F   Tm1 Layer Lo1
+                        Voltage                 Calcium
+                        Light     Dark          Light     Dark
+
+
+
+
+                -2%                      10%
+                ΔF/F                     ΔF/F
+                        0.2 s                   0.2 s
+
+
+                                                                              (legend on next page)
+
+
+
+
+                                                           Cell 166, 245–257, June 30, 2016 253
+with high fidelity, we observe large transformations in the sign,                         recently, Gong et al. (2015) used Ace2N-mNeon to record similar
+kinetics, and amplitude of visually driven changes in voltage                             voltage responses with greatly improved temporal resolution.
+across synapses. Thus, critical neuronal computations are per-                            Both of these studies used epifluorescence illumination; in vivo,
+formed between synaptically connected neurites. We also find                              two-photon imaging has not been reported for either indicator.
+that calcium responses, unlike voltage responses, are compart-                            ASAP2f performs well under two-photon excitation, and this
+mentalized within a neuron. This functional specialization allows                         afforded us two critical advantages. First, we could image in
+an individual neuron to transmit distinct information across                              the visual system where one-photon illumination would stimulate
+different synapses, thereby creating a neural substrate for local                         the photoreceptors (Salcedo et al., 1999). Second, more gener-
+computation. Finally, we demonstrate that ON and OFF selec-                               ally, the minimal out-of-plane fluorescence of this imaging
+tivity, a critical split in sensory processing pathways in many sys-                      modality increases the effective spatial resolution in deep
+tems, emerges at the voltage to calcium transformation in third-                          tissue, an advantage for mapping neuronal responses with sub-
+order neurons in this circuit.                                                            cellular resolution (Svoboda and Yasuda, 2006). However, we
+                                                                                          note that while Ace2N-mNeon signals were captured at 1 kHz
+Validation of In Vivo Voltage Imaging with Genetically                                    (Gong et al., 2015), our signals were sampled at 120 Hz, a differ-
+Encoded Indicators                                                                        ence that reflects the distinct imaging modalities used. Nonethe-
+There has been considerable interest in applying genetically en-                          less, two-photon imaging of ASAP2f will be broadly applicable to
+coded voltage indicators to in vivo studies of neuronal computa-                          experimental systems where the advantages of two-photon
+tion. These tools hold the promise of allowing measurements of                            excitation are required.
+membrane potential changes in subcellular compartments;                                      More generally, from the perspective of reporters of neu-
+compared to genetically encoded calcium indicators, they                                  ronal activity, we provide definitive evidence that voltage and
+have faster temporal resolution and are a direct readout of                               calcium changes are distinct signals (Figures 5, 6, and 7). This
+voltage changes. However, limitations in the dynamic range,                               demonstrates the need for careful interpretation of responses
+brightness, and critically, the ability to be excited by two-photon                       measured with different indicators but also the need for sensors
+stimulation have restricted their use in vivo. Using an improved                          of different aspects of neuronal activity to provide a richer picture
+voltage indicator, we demonstrate that in vivo voltage imaging                            of nervous system function.
+can provide novel biological insights that could not have been
+obtained through other techniques.                                                        Neuronal Computations Occur between Synaptically
+   To validate this new indicator, ASAP2f, we compared ASAP2f                             Connected Neurites
+responses to previous electrophysiological recordings from the                            Taking advantage of cell-type-specific indicator expression and
+same cells (Figures 1, 2, and 3) (Behnia et al., 2014; Nikolaev                           sufficient spatial resolution and indicator sensitivity to measure
+et al., 2009). The temporal features revealed by the indicator                            signals from subcellular compartments, we observed informa-
+matched the electrophysiological response profiles well, thereby                          tion flow between synaptically connected axons and dendrites.
+providing confidence that voltage imaging is an accurate                                  Across four different synapses, we found transformations in
+readout of the underlying biological responses. However, a key                            the amplitude and kinetics of voltage signals evoked by sensory
+advantage of imaging is that signals from subcellular regions                             stimuli in vivo (Figure 4). Voltage responses to identical visual
+inaccessible to electrodes can also be measured. To validate                              stimuli were larger in the postsynaptic dendrite than they were
+these measurements, we took an in silico approach, implement-                             in the axon. This amplification may enable reliable passive prop-
+ing a simple biophysical model of the cell. These studies re-                             agation of weak input signals to the axon terminal of the postsyn-
+vealed that the changes in membrane potential revealed by the                             aptic cell. Given the relatively poor quantum efficiency of the fly
+indicator are consistent with those predicted by the model cell                           compound eye, this amplification may be critical to the transmis-
+across physiologically reasonable membrane properties (Fig-                               sion of low contrast visual inputs. In addition, across all four syn-
+ure 3). Thus, ASAP2f appears to accurately report voltage                                 aptic connections, initial postsynaptic voltage signals emerged
+changes across dendrites and axons.                                                       with a short latency relative to the presynaptic signal but evolved
+   ASAP2f complements other genetically encoded voltage indi-                             more slowly and appeared to integrate it. As these cells repre-
+cators that have been used for in vivo imaging in Drosophila,                             sent critical inputs to neurons that compute the direction of
+ArcLight and Ace2N-mNeon (Cao et al., 2013; Gong et al.,                                  motion (Shinomiya et al., 2014; Takemura et al., 2013), these
+2015). Using ArcLight, Cao et al. (2013) were the first to measure                        temporal transformations tune the speed sensitivity of motion
+sensory stimulus-evoked voltage signals in living flies. More                             detectors. More broadly, our results emphasize the central role
+
+
+
+Figure 6. Measuring ON and OFF Selectivity
+(A) Illustration of the ON pathway with the imaged regions highlighted.
+(B and C) Voltage (left) and calcium (right) responses of (B) L1 (voltage: n = 43 cells, 9 flies and calcium: n = 68 cells, 9 flies) and (C) Tm3 (voltage: n = 97 cells, 8 flies
+and calcium: n = 85 cells, 7 flies) to 25 ms light and dark flashes of varying contrasts off of gray (contrast = 0.125, 0.25, or 0.5). The solid line is the mean response;
+the shading is ±1 SEM.
+(D) Illustration of the OFF pathway.
+(E and F) Voltage (left) and calcium (right) responses of (E) L2 (voltage: n = 116 cells, 7 flies and calcium: n = 88 cells, 8 flies) and (F) Tm1 (voltage: n = 84 cells, 7 flies
+and calcium: n = 136 cells, 8 flies).
+See also Figures S5, S6, and S7.
+
+
+
+254 Cell 166, 245–257, June 30, 2016
+       A                              L1 Layer M1                   B Tm3 Layer M10              that synaptic connections play in precisely shaping processing
+                                      50                                                         of behaviorally relevant information in the brain.
+                                                       contrast +/- 0.125
+        |peak light| / |peak dark|
+
+
+
+
+                                                       contrast +/- 0.25
+                                      40                                                         Compartmentalization of Calcium Responses Can
+                                                       contrast +/- 0.5
+                                                                                                 Support Local Computation
+ON
+
+
+
+
+                                      30                                                         Individual neurons are powerful computational elements, imple-
+                                                                                                 menting combinations of arithmetic and logical operations to
+                                      20                                                         nonlinearly combine inputs to support behaviorally relevant
+                                                                                                 computations in vivo (London and Häusser, 2005; Stuart and
+                                      10
+                                                                                                 Spruston, 2015). However, most studies have focused on how
+                                      1                                                          inputs are transformed, making the implicit assumption that a
+                                      0
+                                           Voltage      Calcium             Voltage   Calcium    neuron has one output signal that is captured by its pattern of ac-
+                                                                                                 tion potential firing. Theoretical studies have instead proposed
+       C                              L2 Layer M2                   D Tm1 Layer Lo1              that further computation can occur after the action potential is
+                                      20                                                         generated, perhaps in the transformation between voltage and
+                                                                                                 calcium or between calcium and neurotransmitter release (Ab-
+         |peak dark| / |peak light|
+
+
+
+
+                                                                                                 bott and Regehr, 2004). Significantly, this would allow different
+                                      15
+                                                                                                 axon terminals of the same neuron to send different output sig-
+OFF
+
+
+
+
+                                                                                                 nals; a neuron would therefore communicate distinct information
+                                      10                                                         to its various postsynaptic partners, increasing the opportunity
+                                                                                                 for local circuit computation.
+                                      5                                                             In this study, we found that the medulla neurons Tm3 and Mi1
+                                                                                                 have the necessary properties to allow this. While they are not
+                                      1                                                          spiking neurons, the voltage responses throughout these cells
+                                      0
+                                           Voltage      Calcium             Voltage   Calcium    were fundamentally similar in waveform and kinetics (Figure 5).
+                                                                                                 In contrast, the calcium responses differed in amplitude or
+                                                                                                 kinetics among subcellular compartments in a manner that could
+  E                                       ON   Light     Dark
+                                                                            OFF   Light   Dark   not be predicted from the voltage responses. As calcium is
+                                                                                                 required for neurotransmitter release and as these regions all
+           L1                                                      L2
+                                                                                                 contain presynaptic active zones, Tm3 and Mi1 could be
+ Voltage                                                                                         conveying multiple distinct streams of information. We speculate
+                                                                                                 that differential regulation of voltage-gated calcium channel
+                                                                                                 density, threshold, or kinetics across the cell could account for
+ Calcium
+                                                                                                 the compartmentalization of calcium responses. For example,
+                                                                                                 CaV2- and CaV3-type voltage-gated calcium channels in
+          Tm3                                                      Tm1                           Drosophila antennal lobe projection neurons (PNs) mediate sus-
+          Mi1                                                      Tm2                           tained and transient calcium currents, respectively (Gu et al.,
+ Voltage                                                                                         2009; Iniguez et al., 2013). Differential distribution of these two
+                                                                                                 types of channels within a neuron could produce compartments
+                                                                                                 with distinct calcium response kinetics.
+ Calcium
+                                                                                                 The Emergence of ON and OFF Selectivity
+                                                                                                 Vertebrate and invertebrate visual systems have parallel ON and
+Figure 7. ON and OFF Selectivity Arises in the Transformation be-                                OFF selective pathways that process light and dark, respec-
+tween Voltage and Calcium                                                                        tively. This fundamental organization parallels the dichotomy be-
+(A and B) Quantification of selectivity to light (ON). The line, box, and whiskers
+                                                                                                 tween light and dark in natural scenes, and exploitation of this
+are the median, interquartile range, and maximum and minimum values within
+one interquartile range, respectively. (A) L1 layer M1 axon terminals (voltage:
+                                                                                                 feature of the visual world has been proposed to be computa-
+n = 43 cells, 9 flies and calcium: n = 68 cells, 9 flies). (B) Tm3 layer M10 axon                tionally advantageous in a variety of ways (Clark et al., 2014;
+terminals (voltage: n = 97 cells, 8 flies and calcium: n = 85 cells, 7 flies).                   Gjorgjieva et al., 2014; Westheimer, 2007). In this study, we
+(C and D) Quantification of selectivity to dark (OFF). (C) L2 layer M2 axon                      found that the selectivity in neuronal responses for ON and
+terminals (voltage: n = 116 cells, 7 flies and calcium: n = 88 cells, 8 flies). (D)              OFF arises specifically at the transformation between voltage
+Tm1 layer Lo1 axon terminals (voltage: n = 84 cells, 7 flies and calcium: n = 136
+                                                                                                 and calcium in third-order neurons (Figures 6 and 7). Previous
+cells, 8 flies).
+                                                                                                 electrophysiological recordings from Tm3, Mi1, Tm1, and Tm2
+(E) Schematic summarizing the emergence of ON and OFF selectivity, dis-
+playing idealized impulse responses, at the level of membrane potential and                      observed modest half-wave rectification (Behnia et al., 2014).
+intracellular calcium.                                                                           Our voltage imaging experiments revealed a similar degree of
+See also Figures S5, S6, and S7.                                                                 rectification in Tm3 and slightly less rectification in the other neu-
+                                                                                                 rons. Given the demands of two-photon imaging, our stimuli are
+                                                                                                 notably dimmer and have distinct spectral content from those
+
+
+                                                                                                                              Cell 166, 245–257, June 30, 2016 255
+used previously. Light intensity affects response linearity in the               with a 447/60 nm bandpass filter and projected onto a screen in front of the fly.
+fly visual system (Laughlin et al., 1987); as a result, these minor              The screen spanned 80 of the fly’s visual field horizontally and 50 vertically.
+                                                                                 The stimuli presented were: 300 ms alternating full contrast light and dark
+technical differences are likely to account for the observed differ-
+                                                                                 flashes; 8.33 ms light and dark flashes interleaved with 500 ms of gray, Mi-
+ences in rectification between the studies. Nonetheless, the                     chaelson contrast = 0.5; and 25 ms light and dark flashes interleaved with
+rectification in calcium signals that we observed was stronger                   500 ms or 1500 ms of gray, Michaelson contrast = 0.5, 0.25, or 0.125. All stimuli
+than the rectification seen in the voltage measurements and                      were presented to cover the entire screen. The quantification metrics for the
+was sufficient to account for the strong selectivity reported in                 responses to 300 ms flashes were peak DF/F, the largest value of the ampli-
+these neurons’ postsynaptic partners T4 and T5 (Fisher et al.,                   tude of the fluorescence change; tpeak, the time at which the peak DF/F occurs;
+                                                                                 and tdecay, the time constant of the decay from the peak DF/F. The quantifica-
+2015; Leonhardt et al., 2016; Maisak et al., 2013). The voltage
+                                                                                 tion metrics for the responses to 25 ms flashes were peak DF/F; tpeak; and the
+to calcium transformation implements half-wave rectification
+                                                                                 full width at half maximum of the initial response phase. Selectivity for ON and
+by producing an increase in calcium concentration upon depo-                     OFF was computed as: jpeak light response/peak dark responsej for the ON
+larization but little decrease in calcium concentration upon hy-                 pathway and jpeak dark response/peak light responsej for the OFF pathway.
+perpolarization. Therefore, to create selectivity for both ON and                The peak response was quantified as the maximal DF/F of the initial response
+OFF, there must be an additional sign inversion in one pathway                   phase minus the average DF/F value before the response. See the Supple-
+so that both an increase in light and a decrease in light cause de-              mental Experimental Procedures for detailed methods.
+
+polarization. We observe this sign inversion in the ON pathway
+(Figure 4). The synaptic sign inversion between L1 and its post-                 SUPPLEMENTAL INFORMATION
+
+synaptic partners combined with rectification at the level of intra-
+                                                                                 Supplemental Information includes Supplemental Experimental Procedures,
+cellular calcium signals in Mi1 and Tm3 makes the L1 pathway                     seven figures and one table and can be found with this article online at
+ON selective. The sign preserving synapse between L2 and its                     http://dx.doi.org/10.1016/j.cell.2016.05.031.
+postsynaptic partners combined with rectification at the level
+of calcium signals in Tm1 and Tm2 makes the L2 pathway OFF                       AUTHOR CONTRIBUTIONS
+selective.
+   We speculate that thresholding by voltage-gated calcium                       H.H.Y. and F.S.-P. designed and performed experiments, analyzed data, and
+                                                                                 wrote the manuscript. X.S. and X.D. performed experiments. M.Z.L. provided
+channels underpins this half-wave rectification. Indeed, distinct
+                                                                                 advice and supervision. T.R.C. wrote the manuscript and provided advice and
+low-voltage-activated and high-voltage-activated calcium cur-                    supervision.
+rents mediated by the CaV2-type voltage-gated calcium channel
+have been reported in a Drosophila motor neuron (Ryglewski                       ACKNOWLEDGMENTS
+et al., 2012). Intriguingly, in the vertebrate retina, voltage re-
+sponses in many bipolar cells are linear with respect to contrast                We thank L. Luo, S. Baccus, and members of the T.R.C. lab for comments on
+(Baccus and Meister, 2002; Rieke, 2001), but at the synapse be-                  the manuscript. We thank Y. Geng, M. Hintze, and S. Ganesan for providing
+                                                                                 dissociated neurons. We thank C. Desplan for the otd-Gal4 driver line and
+tween bipolar cells and retinal ganglion cells, the output is half-
+                                                                                 M. Wernet for building the GMR-Gal80; otd-Gal4 driver line. Cytometry data
+wave rectified (Demb et al., 2001; Enroth-Cugell and Freeman,                    were collected on an instrument in the Stanford Shared FACS Facility sup-
+1987). These results, combined with our data, suggest that recti-                ported by NIH shared instrument grant S10RR027431-01. Two-photon photo-
+fication through a transformation between voltage and calcium                    bleaching data were collected using equipment from the Stanford Neurosci-
+could be a mechanism conserved across phyla for producing                        ence Microscopy Service, supported by NIH NS069375; training and use of
+the computationally critical response property of ON and OFF                     this equipment was supported by a two-photon pilot grant from the Stanford
+                                                                                 Neurosciences Institute. This work was supported by National Science Foun-
+selectivity.
+                                                                                 dation grant 1134416 (to F.S.-P. and M.Z.L.), Defense Advanced Research
+   Considering our study more broadly, we directly observe the
+                                                                                 Projects Agency (DARPA) grant W911NF-14-1-0013 (to M.Z.L.), NIH Brain
+transformations in signal gain, kinetics, and linearity that repre-              Initiative grant 1U01NS090600-01 (to M.Z.L.), and NIH grants R01 EY022638
+sent neural computation within cells and across synapses. This                   (to T.R.C.) and R21 NS081507 (to T.R.C.). H.H.Y. is supported by a Stanford
+approach of in vivo voltage and calcium imaging in subcellular                   Graduate Fellowship and a Stanford Interdisciplinary Graduate Fellowship.
+compartments can be applied to other systems. By identifying                     M.Z.L. receives funding from the Rita Allen Foundation and the Burroughs
+where and how elementary transformations occur within a cir-                     Wellcome Fund. F.S.-P. and M.Z.L. have filed a patent application for a voltage
+                                                                                 sensor design that includes the sensors reported in this paper.
+cuit, our results pave the way for future studies determining the
+molecular implementations of neural computation.                                 Received: March 3, 2016
+                                                                                 Revised: April 19, 2016
+                                                                                 Accepted: May 6, 2016
+EXPERIMENTAL PROCEDURES
+                                                                                 Published: June 2, 2016
+
+In vivo imaging experiments were performed on adult female Drosophila. UAS-
+                                                                                 REFERENCES
+ASAP2f, UAS-GCaMP6f, UAS-ASAP1 I67T Q397R, and UAS-GCaMP6m were
+expressed cell-type specifically using the R48A08AD; R66A01DBD split Gal4
+                                                                                 Abbott, L.F., and Regehr, W.G. (2004). Synaptic computation. Nature 431,
+(L1), 21D-Gal4 (L2), R19F01-Gal4 (Mi1), R13E12-Gal4 (Tm3), R74G01-Gal4
+                                                                                 796–803.
+(Tm1), and otd-Gal4; GMR-Gal80 (Tm2) driver lines. Unless otherwise speci-
+fied, all voltage responses were measured with ASAP2f, and all calcium re-       Baccus, S.A., and Meister, M. (2002). Fast and slow contrast adaptation in
+sponses were measured with GCaMP6f. Neurons were imaged with two-                retinal circuitry. Neuron 36, 909–919.
+photon microscopy (excitation wavelength: 920 nm). Emitted photons were          Behnia, R., Clark, D.A., Carter, A.G., Clandinin, T.R., and Desplan, C. (2014).
+collected with a 525/50 nm bandpass filter. Data were acquired at 38.9 Hz        Processing properties of ON and OFF pathways for Drosophila motion detec-
+and resampled to 120 Hz during post hoc analysis. Visual stimuli were filtered   tion. Nature 512, 427–430.
+
+
+
+256 Cell 166, 245–257, June 30, 2016
+Borst, A. (2014). Fly visual course control: behaviour, algorithms and circuits.     Kuffler, S.W. (1953). Discharge patterns and functional organization of
+Nat. Rev. Neurosci. 15, 590–599.                                                     mammalian retina. J. Neurophysiol. 16, 37–68.
+Borst, A., and Haag, J. (1996). The intrinsic electrophysiological characteristics   Laughlin, S.B., Howard, J., and Blakeslee, B. (1987). Synaptic limitations to
+of fly lobula plate tangential cells: I. Passive membrane properties. J. Comput.     contrast coding in the retina of the blowfly Calliphora. Proc. R. Soc. Lond. B
+Neurosci. 3, 313–336.                                                                Biol. Sci. 231, 437–467.
+Cao, G., Platisa, J., Pieribone, V.A., Raccuglia, D., Kunst, M., and Nitabach,       Leonhardt, A., Ammer, G., Meier, M., Serbe, E., Bahl, A., and Borst, A. (2016).
+M.N. (2013). Genetically targeted optical electrophysiology in intact neural cir-    Asymmetry of Drosophila ON and OFF motion detectors enhances real-world
+cuits. Cell 154, 904–913.                                                            velocity estimation. Nat. Neurosci. 19, 706–715.
+Carnevale, N.T., and Hines, M.L. (2006). The NEURON Book (Cambridge Uni-             Liu, W.W., Mazor, O., and Wilson, R.I. (2015). Thermosensory processing in the
+versity Press).                                                                      Drosophila brain. Nature 519, 353–357.
+Chalasani, S.H., Chronis, N., Tsunozaki, M., Gray, J.M., Ramot, D., Goodman,         London, M., and Häusser, M. (2005). Dendritic computation. Annu. Rev. Neu-
+M.B., and Bargmann, C.I. (2007). Dissecting a circuit for olfactory behaviour in     rosci. 28, 503–532.
+Caenorhabditis elegans. Nature 450, 63–70.                                           Maisak, M.S., Haag, J., Ammer, G., Serbe, E., Meier, M., Leonhardt, A., Schil-
+Chen, T.-W., Wardill, T.J., Sun, Y., Pulver, S.R., Renninger, S.L., Baohan, A.,      ling, T., Bahl, A., Rubin, G.M., Nern, A., et al. (2013). A directional tuning map of
+Schreiter, E.R., Kerr, R.A., Orger, M.B., Jayaraman, V., et al. (2013). Ultrasen-    Drosophila elementary motion detectors. Nature 500, 212–216.
+sitive fluorescent proteins for imaging neuronal activity. Nature 499, 295–300.      Miall, R. (1978). The flicker fusion frequencies of six laboratory insects, and the
+Chichilnisky, E.J. (2001). A simple white noise analysis of neuronal light re-       response of the compound eye to mains fluorescent ‘‘ripple.’’. Physiol. Ento-
+sponses. Network 12, 199–213.                                                        mol. 3, 99–106.
+                                                                                     Nikolaev, A., Zheng, L., Wardill, T.J., O’Kane, C.J., de Polavieja, G.G., and Juu-
+Clark, D.A., Bursztyn, L., Horowitz, M.A., Schnitzer, M.J., and Clandinin, T.R.
+                                                                                     sola, M. (2009). Network adaptation improves temporal representation of natu-
+(2011). Defining the computational structure of the motion detector in
+                                                                                     ralistic stimuli in Drosophila eye: II mechanisms. PLoS ONE 4, e4306.
+Drosophila. Neuron 70, 1165–1177.
+                                                                                     Rieke, F. (2001). Temporal contrast adaptation in salamander bipolar cells.
+Clark, D.A., Fitzgerald, J.E., Ales, J.M., Gohl, D.M., Silies, M.A., Norcia, A.M.,
+                                                                                     J. Neurosci. 21, 9445–9454.
+and Clandinin, T.R. (2014). Flies and humans share a motion estimation strat-
+egy that exploits natural scene statistics. Nat. Neurosci. 17, 296–303.              Ryglewski, S., Lance, K., Levine, R.B., and Duch, C. (2012). Ca(v)2 channels
+                                                                                     mediate low and high voltage-activated calcium currents in Drosophila moto-
+Cuntz, H., Forstner, F., Schnell, B., Ammer, G., Raghu, S.V., and Borst, A.
+                                                                                     neurons. J. Physiol. 590, 809–825.
+(2013). Preserving neural function under extreme scaling. PLoS ONE 8,
+e71540.                                                                              Salcedo, E., Huber, A., Henrich, S., Chadwell, L.V., Chou, W.H., Paulsen, R., and
+                                                                                     Britt, S.G. (1999). Blue- and green-absorbing visual pigments of Drosophila:
+Demb, J.B., Zaghloul, K., Haarsma, L., and Sterling, P. (2001). Bipolar cells
+                                                                                     ectopic expression and physiological characterization of the R8 photoreceptor
+contribute to nonlinear spatial summation in the brisk-transient (Y) ganglion
+                                                                                     cell-specific Rh5 and Rh6 rhodopsins. J. Neurosci. 19, 10716–10726.
+cell in mammalian retina. J. Neurosci. 21, 7447–7454.
+                                                                                     Scholl, B., Gao, X., and Wehr, M. (2010). Nonoverlapping sets of synapses
+Enroth-Cugell, C., and Freeman, A.W. (1987). The receptive-field spatial struc-      drive on responses and off responses in auditory cortex. Neuron 65, 412–421.
+ture of cat retinal Y cells. J. Physiol. 384, 49–79.
+                                                                                     Shinomiya, K., Karuppudurai, T., Lin, T.-Y., Lu, Z., Lee, C.-H., and Meinertzha-
+Fatt, P., and Katz, B. (1952). Spontaneous subthreshold activity at motor nerve      gen, I.A. (2014). Candidate neural substrates for off-edge motion detection in
+endings. J. Physiol. 117, 109–128.                                                   Drosophila. Curr. Biol. 24, 1062–1070.
+Fischbach, K.-F., and Dittrich, A.P. (1989). The optic lobe of Drosophila mela-      Silies, M., Gohl, D.M., and Clandinin, T.R. (2014). Motion-detecting circuits in
+nogaster. I: A. Golgi analysis of wild-type structure. Cell Tissue Res. 258,         flies: coming into view. Annu. Rev. Neurosci. 37, 307–327.
+441–475.
+                                                                                     Simoncelli, E.P., Paninski, L., Pillow, J., and Schwartz, O. (2004). Characteriza-
+Fisher, Y.E., Silies, M., and Clandinin, T.R. (2015). Orientation Selectivity        tion of neural responses with stochastic stimuli. In The Cognitive Neurosci-
+Sharpens Motion Detection in Drosophila. Neuron 88, 390–402.                         ence, III, M. Gazzaniga, ed. (MIT Press), pp. 327–338.
+Gjorgjieva, J., Sompolinsky, H., and Meister, M. (2014). Benefits of pathway         Smith, S.W. (1997). The Scientist and Engineer’s Guide to Digital Signal Pro-
+splitting in sensory coding. J. Neurosci. 34, 12127–12144.                           cessing (California Technical Publishing).
+Gong, Y., Huang, C., Li, J.Z., Grewe, B.F., Zhang, Y., Eismann, S., and Schnit-      St-Pierre, F., Marshall, J.D., Yang, Y., Gong, Y., Schnitzer, M.J., and Lin, M.Z.
+zer, M.J. (2015). High-speed recording of neural spikes in awake mice and flies      (2014). High-fidelity optical reporting of neuronal electrical activity with an ul-
+with a fluorescent voltage sensor. Science 350, 1361–1366.                           trafast fluorescent voltage sensor. Nat. Neurosci. 17, 884–889.
+Gouwens, N.W., and Wilson, R.I. (2009). Signal propagation in Drosophila cen-        Stuart, G.J., and Spruston, N. (2015). Dendritic integration: 60 years of prog-
+tral neurons. J. Neurosci. 29, 6239–6249.                                            ress. Nat. Neurosci. 18, 1713–1721.
+Gu, H., Jiang, S.A., Campusano, J.M., Iniguez, J., Su, H., Hoang, A.A., Lavian,      Svoboda, K., and Yasuda, R. (2006). Principles of two-photon excitation mi-
+M., Sun, X., and O’Dowd, D.K. (2009). Cav2-type calcium channels encoded             croscopy and its applications to neuroscience. Neuron 50, 823–839.
+by cac regulate AP-independent neurotransmitter release at cholinergic syn-          Takemura, S.Y., Bharioke, A., Lu, Z., Nern, A., Vitaladevuni, S., Rivlin, P.K.,
+apses in adult Drosophila brain. J. Neurophysiol. 101, 42–53.                        Katz, W.T., Olbris, D.J., Plaza, S.M., Winston, P., et al. (2013). A visual motion
+Iniguez, J., Schutte, S.S., and O’Dowd, D.K. (2013). Cav3-type a1T calcium           detection circuit suggested by Drosophila connectomics. Nature 500,
+channels mediate transient calcium currents that regulate repetitive firing in       175–181.
+Drosophila antennal lobe PNs. J. Neurophysiol. 110, 1490–1496.                       Wässle, H. (2004). Parallel processing in the mammalian retina. Nat. Rev. Neu-
+Joesch, M., Schnell, B., Raghu, S.V., Reiff, D.F., and Borst, A. (2010). ON and      rosci. 5, 747–757.
+OFF pathways in Drosophila motion vision. Nature 468, 300–304.                       Westheimer, G. (2007). The ON-OFF dichotomy in visual processing: from re-
+Juusola, M., Uusitalo, R.O., and Weckström, M. (1995). Transfer of graded po-       ceptors to perception. Prog. Retin. Eye Res. 26, 636–648.
+tentials at the photoreceptor-interneuron synapse. J. Gen. Physiol. 105,             Zettler, F., and Järvilehto, M. (1971). Decrement-free conduction of graded po-
+117–148.                                                                             tentials along the axon of a monopolar neuron. Z. Vgl. Physiol. 75, 402–421.
+
+
+
+
+                                                                                                                        Cell 166, 245–257, June 30, 2016 257
+Supplemental Figures
+
+           A                                                                                                                                         B                                                                                                                 C
+                                30 mV hyperpolarization                                                                                                               100 mV depolarization                                                                                             Action potential waveforms
+                                                                                                                                                                                                                                                                                               (7)
+                       30                                                                                                                                        30          (7) (3)                                                                                               16
+                                                           (7)                                                                                                                                                                                                                                       (3)
+                                                                                                                                                                                                                                                                                   14   (11)
+                       25                                        (3)
+                                                                                                                                                                 25   (11)                                                                                                                                 (2)
+                                                                                                                                                                                                                                                                                   12
+
+
+
+
+                                                                                                                                                     –ΔF/F (%)
+            ΔF/F (%)
+
+
+
+
+                                                                                                                                                                                       (1) (2) (1)
+
+
+
+
+                                                                                                                                                                                                                                                                       –ΔF/F (%)
+                       20         (11)                                                                                                                           20                                                                                                                10                            (2)
+                                                                                                                                                                                                     (2)                                                                                                               (1) (1) (1) (2)
+                       15                                              (2)                                                                                       15                                        (2)                                                                      8                                                    (2)
+                                                                             (1)                                                                                                                                 (2)                                                                                                                           (1) (1)
+                                                                                   (1)                                                                                                                                 (1) (1)                                                                                                                           (1)
+                       10                                                                (2) (2) (2)                                                             10                                                              (1)                                                6
+                                                                                                       (1) (1)                                                                                                                          (2)
+                                                                                                                 (1) (2)                                                                                                                                                            4
+                       5                                                                                                                                         5                                                                                                                  2
+                       0                                                                                                                                         0                                                                                                                  0
+
+
+                                                                              A147X ΔA148                                                                                                   A147X ΔA148                                                                                                          A147X ΔA148
+
+            D                                                                                                                                                                                                               E
+                                                                                                                                                                      ASAP1               ASAP2f
+
+
+
+
+                                                                                                                                                                                                                                       Steady-state response (%ΔF/F)
+                                                                                                                                                                                                                                                                         60
+                                                                                                                                                     60                                                                                                                                                                                  ASAP1
+                                                                                                                    Fluorescence response (% F/F )
+
+
+
+                                                                                                                                                                                                                                                                         40                                                              ASAP2f
+                                    Command voltage (mV)
+
+
+
+
+                                                                 40
+                                                                                                                                                     40
+                                                                   0                                                                                                                                                                                                     20
+
+                                                                 -40                                                                                 20
+                                                                                                                                                                                                                                                                                   0
+                                                                 -80                                                                                        0
+                                                                                                                                                                                                                                                                       -20
+                                                            -120
+                                                                                                                                                     -20                                                                                                               -40
+                                                           160                     1s                                                                                                                                                                                     -120 -90                           -60          -30       0           30
+                                                                                                                                                     -40                                                                                                                                         Command voltage (mV)
+
+
+            F                                                                                                    G
+                                                      20
+                            Voltage (mV)
+
+
+
+
+                                                       0
+                                                     -20
+                                                     -40
+                                                     -60
+                                                     -80
+
+
+                                                           10
+                        (– % F/F)
+                         Response
+
+
+
+
+                                                            5
+
+                                                            0
+
+                                                           -5
+                                                                  0            0.1           0.2
+
+                                                                             Time (s)
+
+
+Figure S1. Development of the ASAP2f Voltage Sensor, Related to Figure 1
+(A–C) Mean maximal response of ASAP1 variants to (A) a 1 s 30 mV hyperpolarization, (B) a 1 s 100 mV depolarization, or (C) an artificial action potential waveform
+in HEK293A cells. The label represents the amino acid substituted in the place of A147 in ASAP1 A147X DA148 variants. The asterisks denote the original amino
+acid at position 147 (alanine). Errors bars are ± 1 SEM. The number of cells tested is shown in parentheses above the bars.
+(D) Representative fluorescence responses of ASAP1 and ASAP2f to voltage steps from 120 to 50 mV in HEK293A cells. Responses were measured at 5 ms
+intervals and were normalized to the fluorescence at the 70-mV holding potential.
+(E) Mean fluorescence response to transmembrane voltage of ASAP1 (n = 6) and ASAP2f (n = 6).
+(F) Responses of ASAP2f to action potentials in a representative cultured hippocampal neuron. The thick trace is the mean response over all action potentials
+(n = 17). Single-trial traces are shown in gray.
+(G) ASAP2f fluorescence is well-localized at the plasma membrane in a rat cortical neuron, imaged by confocal microscopy. Right: magnified image of the boxed
+region. Scale bar, 10 mm.
+
+
+
+
+                                                                                                                                                                                                                                                                                                 Cell 166, 245–257, June 30, 2016 S1
+           A                                                                                  B                                                                                    C
+                                                1.0                        ASAP1                                                    1.2
+               Normalized fluorescence (a.u.)
+
+
+
+
+                                                                                                  Normalized fluorescence (a.u.)
+                                                                           ASAP2f
+                                                0.8                                                                                 1.0
+                                                                           ASAP1ncp
+                                                                                                                                    0.8                                                                1.0
+                                                0.6
+
+
+
+
+                                                                                                                                                                                   Brightness (a.u.)
+                                                                                                                                    0.6
+                                                0.4
+                                                                                                                                    0.4                                                                0.5
+                                                0.2
+                                                                                                                                    0.2
+
+                                                0.0                                                                                 0.0                                                                0.0
+                                                      0      1      2        3        4   5                                               0           1                2     3
+
+
+
+
+                                                                                                                                                                                                                   cp
+                                                                                                                                                                                                                 1n
+                                                                   Time (min)                                                                             Time (min)
+
+
+
+
+                                                                                                                                                                                                               AP
+                                                                                                                                                                                                             AS
+                                                              t = 0.5 min                                                                 t = 5 min                                t = 9.5 min
+           D
+
+           E
+
+                                                          t = 0 to 1 min                                                           t = 4.5 to 5.5 min                            t = 9 to 10 min
+
+
+
+
+             -5%
+             ΔF/F
+
+
+
+                                                  0.0           0.3           0.6             0.0                                            0.3           0.6             0.0        0.3                      0.6
+                                                             time (s)                                                                     time (s)                                 time (s)
+
+Figure S2. Photostability of ASAP Indicators In Vitro and In Vivo, Related to Figure 1
+(A–C) Photostability and brightness of ASAP1, ASAP2f, and ASAP1ncp (a voltage insensitive variant of ASAP1 where cpGFP is replaced with non-circularly
+permuted EGFP) in HEK293-Kir2.1 cells. (A) One-photon photobleaching kinetics. Cells transiently expressing a voltage sensor were illuminated with 470- to
+490-nm light at 10.7 mW/mm2 at the sample plane. Fluorescence was normalized to 1.0 at t = 0 and averaged over all cells. Error bars are ± 1 SEM (B) Two-photon
+photobleaching kinetics. Cells transiently expressing each voltage sensor were illuminated with a Ti:sapphire laser tuned to 920 nm and set to a power level of
+4.7 mW at the stage. Each pixel was sampled at 2.23 Hz with a dwell time of 0.4 ms. Fluorescence was normalized to 1.0 at t = 0 and averaged over all cells.
+Shading is ± 1 SEM (C) Fluorescence emission of cells transiently expressing ASAP1, ASAP2f, or ASAP1ncp was measured by flow cytometry. To normalize for
+sample-to-sample differences in gene expression or transfection efficiency, each sensor variant was genetically fused to the RFP FusionRed. Brightness was
+quantified as GFP fluorescence divided by RFP fluorescence. Untransfected cells were excluded. n > 1000 cells per construct.
+(D and E) Continuous in vivo, two-photon imaging of ASAP2f in L2 over 10 min. (D) Example individual imaging frames taken at the indicated times relative to the
+start of imaging. Scale bar, 5 mm. (E) Mean response of the highlighted example axon terminal during the indicated 1 min segments to alternating 300 ms-long dark
+and light flashes. The solid line is the mean response; the shading is ± 1 SEM.
+
+
+
+
+S2 Cell 166, 245–257, June 30, 2016
+             A     Layer M2             B                                 C                              D                                E
+                                            Dark                                            −8   ***                         ***
+                     L2
+
+
+
+
+                                                                                                                                                  Full width at half maximum (s)
+                                                                                                                      0.06                                                         0.06
+                                                           L2                               −6                                                                                            ***
+
+
+
+
+                                                                              peak %ΔF/F
+                                                           Tm1
+                          Tm2                              Tm2                                                        0.04                                                         0.04
+                                Tm1
+
+
+
+
+                                                                                                         tpeak (s)
+                                                                                            −4
+
+
+
+                                                                                                                      0.02                                                         0.02
+                                                                                            −2
+
+                                 -5%
+                                 ΔF/F
+                                                                                             0                          0                                                            0
+
+                                          0.2 s
+
+             F       Layer M1         G                                  H                       ***    I                                J
+                                            Dark
+                           L1                                                                                                 ***
+
+
+
+
+                                                                                                                                         Full width at half maximum (s)
+                                                                                            −2                        0.06                                                         0.06
+                                                                              peak %ΔF/F
+
+
+
+               Mi1              Tm3                                                          0
+                                                                                                                      0.04                                                         0.04
+
+
+
+
+                                                                                                          tpeak (s)
+                                                                                             2
+                                                           L1                                                         0.02                                                         0.02
+                                                           Mi1
+                                                                                             4
+                                                           Tm3
+                                                                                                                         0                                                            0
+
+            K      Layer M5           L     Dark
+                                                                         M                              N                                O
+                                                                                            −2
+                           L1
+
+
+
+                                                                                                                                                  Full width at half maximum (s)
+                                                                                                                      0.06                                                         0.06
+
+                                                                                             0
+                                                                               peak %ΔF/F
+
+
+
+
+               Mi1              Tm3                                                                                   0.04                                                         0.04
+                                                                                                         tpeak (s)
+
+
+
+
+                                                                                             2
+
+
+                                                           L1                                                         0.02                                                         0.02
+                                                                                             4
+                                                           Mi1
+                                                           Tm3
+                                                                                             6                           0                                                            0
+                                                                                                 ***
+
+
+Figure S3. Voltage Responses in Presynaptic Axons and Postsynaptic Dendrites to a 25 ms Dark Flash, Related to Figure 4
+(A) Illustration of L2 and postsynaptic cells Tm1 and Tm2. The imaged terminals in medulla layer M2 are highlighted.
+(B) Responses of L2 (black, n = 125 cells, 11 flies), Tm1 (blue, n = 79 cells, 4 flies), and Tm2 (red, n = 89 cells, 4 flies) to a 25 ms dark flash with a 500 ms gray
+interleave, contrast = 0.5. The solid line is the mean response; the shading is ± 1 SEM.
+(C–E) Parameters quantifying the response: (C) peak DF/F, (D) tpeak, (E) full width at half maximum. The mean ± 1 SEM is plotted.
+(F–J) In medulla layer M1, L1 (black, n = 23 cells, 6 flies), Mi1 (blue, n = 79 cells, 4 flies), and Tm3 (red, n = 153 cells, 8 flies).
+(K–O) In medulla layer M5, L1 (black, n = 14 cells, 5 flies), Mi1 (blue, n = 92 cells, 4 flies), and Tm3 (red, n = 35 cells, 4 flies). In (H) and (M), the light gray bar denotes
+the inverted L1 peak DF/F. ***p < 0.001 (two-sample t test for peak DF/F and full width at half maximum, Mann-Whitney U test for tpeak, Bonferroni correction for
+multiple comparisons).
+
+
+
+
+                                                                                                                                    Cell 166, 245–257, June 30, 2016 S3
+             A                             B                Voltage                                              C     Calcium
+                                  Tm1                   Dark                                                         Dark
+                          Cell body
+
+                                                                                                                                                                                Layer M2
+            Layer M2                                                                                                                                                            Layer M9
+                                                                                                                                                                                Layer Lo1
+                                                                                                                                                                                Cell Body
+
+              Layer M9
+                                       -5%                                                                    20%
+                          Layer Lo1    ΔF/F                                                                   ΔF/F
+
+                                                     0.2 s                                                           0.2 s
+
+             D −12                                                                                     0.05
+                                                                                                                         E                 ***
+                                                                                                                                                                                                                 0.6
+
+
+
+
+                                                                                                                                                                                Full width at half maximum (s)
+                                                     0.08      *                                                                                             0.2
+                                                                      Full width at half maximum (s)
+
+
+
+
+                                                                                                                                                                    ***
+                                                                                                                                      30                                                                               ***
+                                                                                                       0.04                                *                 0.16
+                                                     0.06
+             peak %ΔF/F
+
+
+
+
+                                                                                                                                                                          ***
+                                                                                                                         peak %ΔF/F
+                          −8                                                                                                                                                                                     0.4
+                                                                                                       0.03                                                  0.12
+
+
+
+
+                                                                                                                                                 tpeak (s)
+                                  **                                                                                                  20
+                                         tpeak (s)
+
+
+
+
+                                                     0.04
+                                                                                                       0.02                                                  0.08
+                          −4                                                                                                                                                                                     0.2
+                                                                                                                                      10
+                                                     0.02
+                                                                                                       0.01                                                  0.04
+
+
+                           0                           0                                                 0                             0                       0                                                   0
+
+
+Figure S4. Voltage and Calcium Responses in Different Compartments of Tm1, Related to Figure 5
+(A) Illustration of Tm1 with the imaged regions highlighted.
+(B) Voltage responses of Tm1 arbors in layer M2 (blue, n = 79 cells, 4 flies), layer M9 (red, n = 99 cells, 3 flies), layer Lo1 (green, n = 30 cells, 3 flies), and the cell body
+(black, n = 23 cells, 2 flies) to a 25 ms dark flash with a 500 ms gray interleave, contrast = 0.5.
+(C) Calcium responses of Tm1 arbors in layer M2 (blue, n = 30 cells, 8 flies), layer M9 (red, n = 101 cells, 10 flies), layer Lo1 (green, n = 127 cells, 9 flies), and the cell
+body (black, n = 27 cells, 6 flies) to a 25 ms dark flash with a 1500 ms gray interleave, contrast = 0.5. The solid line is the mean response; the shading is ± 1 SEM.
+(D) Quantification of the voltage signals. Left: peak DF/F. Middle: tpeak. Right: full width at half maximum. The mean ± 1 SEM is plotted.
+(E) Quantification of the calcium signals. *p < 0.05, **p < 0.01, ***p < 0.001 (two-sample t test for peak DF/F and full width at half maximum, Mann-Whitney U test
+for tpeak, Bonferroni correction for multiple comparisons).
+
+
+
+
+S4 Cell 166, 245–257, June 30, 2016
+             A                B       Voltage                   Calcium                                                              C
+                                      Light     Dark            Light                             Dark
+             ON                                        L1
+                                                       Tm3
+                         L1                                                                                                                                            40
+                                                       Mi1
+                                                                                                                                                                                            ***
+                                                                                                                                                                                     L1
+
+
+
+
+                                                                                                                                      |peak light| / |peak dark|
+                                                                                                                                                                                     Tm3
+                                                                                                                                                                       30            Mi1
+                              -2%                       5%
+                              ΔF/F                      ΔF/F
+
+                                                                                                                                                                       20
+
+
+
+                                                                                                                                                                       10                           ***
+                                                        20%                                                                                                                         ***
+            Mi1                                         ΔF/F
+                        Tm3                                                                                                                                                1
+                                                                                                                                                                           0
+                                                                                                                                                                                V Ca2+      V Ca2+ V Ca2+
+
+
+
+
+                              -5%                        10%
+                              ΔF/F                       ΔF/F
+                                     0.2 s                      0.2 s
+
+
+             D                E       Voltage                   Calcium                                                              F
+                                      Light     Dark            Light                             Dark
+              OFF
+                                                        L2
+                                                        Tm1
+                                                        Tm2                                                                                                                15
+                   L2                                                                                                                                                                 L2
+                                                                                                                                                                                             ***
+
+
+
+
+                                                                                                                                              |peak dark| / |peak light|
+                                                                                                                                                                                      Tm1
+                              -2%                       5%                                                                                                                            Tm2
+                              ΔF/F                      ΔF/F                                                                                                               10
+
+                                                                                                                                                                                                    ***
+
+                          Tm2
+                                                                                                                                                                           5
+
+
+
+             Tm1                                                                                                                                                           1
+                                                                                                                                                                           0
+                                                                                                                                                                                V     Ca2+ V Ca2+ V Ca2+
+
+
+
+
+                              -5%
+                              ΔF/F                      10%
+                                                        ΔF/F
+                                     0.2 s                      0.2 s
+
+
+
+Figure S5. Contrast Selectivity of All ON and OFF Pathway Neurons, Related to Figures 6 and 7
+(A) Illustration of the ON pathway with the imaged regions highlighted.
+(B) Voltage responses (left) and calcium responses (right) of L1 layer M1 (blue; voltage: n = 23 cells, 6 flies and calcium: 42 cells, 4 flies), Tm3 layer M10 (red;
+voltage: n = 100 cells, 9 flies and calcium: n = 99 cells, 4 flies), and Mi1 layer M10 (green; voltage: n = 67 cells, 4 flies and calcium: n = 89 cells, 5 flies) to 25 ms light
+and dark flashes off of gray, contrast = 0.5. The solid line is the mean response; the shading is ± 1 SEM.
+(C) Quantification of selectivity to light (ON). The line, box, and whiskers are the median, interquartile range, and maximum and minimum values within one
+interquartile range, respectively.
+(D) Illustration of the OFF pathway with the imaged regions in L2, Tm1, and Tm2 highlighted.
+(E) Voltage responses (left) and calcium responses (right) of L2 layer M2 (blue; voltage: n = 125 cells, 11 flies and calcium: 78 cells, 6 flies), Tm1 layer Lo1 (red;
+voltage: n = 30 cells, 3 flies and calcium: n = 127 cells, 9 flies), and Tm2 layer M2 (green; voltage: n = 89 cells, 6 flies and calcium: n = 30 cells, 6 flies).
+(F) Quantification of selectivity to dark (OFF). ***p < 0.001 (Mann-Whitney U test, Bonferroni correction for multiple comparisons).
+
+
+
+
+                                                                                                                               Cell 166, 245–257, June 30, 2016 S5
+Figure S6. ASAP1 I67T Q397R Design and Characterization, Related to Figures 6 and 7
+(A) Schematic diagram of ASAP1 I67T Q397R, showing the VSD transmembrane domains (S1-S4, blue), cpGFP, and the location of the new mutations I67T and
+Q397R.
+(B) Representative fluorescence responses of ASAP2f and ASAP1 I67T Q397R to voltage steps from 120 to 50 mV in HEK293A cells. Responses were measured
+at 5-ms intervals and were normalized to the fluorescence at the 70 mV holding potential.
+(C) Mean fluorescence response to transmembrane voltage of ASAP2f (n = 6) and ASAP1 I67T Q397R (n = 3).
+(D) Responses of L2 neurons to alternating 300-ms dark and light flashes, as measured with ASAP2f (blue, n = 170 cells, 8 flies) and ASAP1 I67T Q397R (black,
+n = 94 cells, 5 flies).
+(E–G) Parameters quantifying the response to alternating 300-ms dark and light flashes: (E) peak DF/F, (F) tpeak, and (G) tdecay. The mean ± 1 SEM is plotted. **p <
+0.01, ***p < 0.001 (two-sample t test, Bonferroni correction for multiple comparisons).
+
+
+
+
+S6 Cell 166, 245–257, June 30, 2016
+A    L2 Layer M2                                                                                                                  B
+                Voltage                              Calcium                                                                                                                          ASAP2f       GCaMP6f
+                                                                                                                                                                                      ASAP1 I67T   GCaMP6m
+                Light          Dark                  Light                                       Dark                                                                                 Q397R
+
+                                                                                                                                                                              3
+
+
+
+
+                                                                                                                                      |peak dark| / |peak light|
+                                                                                                                                                                              2
+                                   ASAP2f
+                                                                                                               GCaMP6f
+                                   ASAP1 I67T
+                                                                                                               GCaMP6m
+                                   Q397R
+
+                                                                                                                                                                              1
+
+
+
+
+                                                                                                                                                                              0
+    -2%                                     5%                                                                                                                                          Voltage          Calcium
+    ΔF/F                                    ΔF/F
+               0.2 s                               0.2 s
+
+
+C    Tm1 Layer Lo1                                                                                                                D
+               Voltage                               Calcium
+                Light          Dark                  Light                                       Dark
+                                                                                                                                                                              15
+                                                                                                                                                                                                   ***
+
+
+
+
+                                                                                                                                                 |peak dark| / |peak light|
+                                                                                                                                                                              10
+
+
+
+                                      ASAP2f
+                                                                                                               GCaMP6f
+                                      ASAP1 I67T                                                                                                                                  5
+                                                                                                               GCaMP6m
+                                      Q397R
+
+
+                                                                                                                                                                                  1
+                                                                                                                                                                                  0
+    -5%                                                                                                                                                                                  Voltage         Calcium
+                                             10%
+    ΔF/F                                     ΔF/F
+               0.2 s                                0.2 s
+
+
+E    Tm3 Layer M10                                                                                                                F
+                Voltage                              Calcium
+                Light                                Light                                       Dark                                                                                              ***
+                               Dark
+                                                                                                                                                                              40
+                                   ASAP2f                                                                                                                                                                  ***
+                                                                                                                GCaMP6f
+                                   ASAP1 I67T
+                                                                                                                GCaMP6m
+                                                                                                                                      |peak light| / |peak dark|
+
+
+
+
+                                   Q397R
+                                                                                                                                                                              30
+
+
+                                            20%
+    -5%                                     ΔF/F                                                                                                                              20
+    ΔF/F
+                                                                                                                                                                                            *
+                                                                                                                                                                              10
+
+
+
+                                                                                                                                                                              1
+                                                                                                                                                                              0
+                                                                                                                                                                                        Voltage          Calcium
+    -5%                                     10%
+    ΔF/F                                    ΔF/F
+               0.2 s                                0.2 s
+
+
+G                       L2                                   H                  Tm1                            I                 Tm3
+               120                                                        120                                              120
+                                                                                                Cell Body
+                80                                                        80                                               80                                                 Cell Body
+                                                                                                M2
+                                                                                                                                                                              M1
+                                                                                                M9                                                                            M5
+                40                                                        40                    Lo1                        40
+                                                                                                                                                                              M10
+                                                                 % ΔF/F
+      % ΔF/F
+
+
+
+
+                                                                                                                   %ΔF/F
+
+
+
+
+                  0                                                        0                                                0
+
+               -40                                                        -40                                              -40
+
+               -80                                                        -80                                              -80
+
+           -120          fly    0 mM Ca2+    fly                      -120                                             -120
+                                                                                fly      0 mM Ca2+ fly                           fly                                              0 mM Ca2+ fly
+                         saline fly saline + saline                             saline   fly saline + saline                                                                      fly saline + saline
+                                                                                                                                 saline
+                                10 mM EGTA                                               10 mM EGTA                                                                               10 mM EGTA
+
+
+
+                                                                                                                                                                                                            (legend on next page)
+
+                                                                                                                                            Cell 166, 245–257, June 30, 2016 S7
+Figure S7. Indicator Nonlinearities Do Not Underlie ON and OFF Selectivity, Related to Figures 6 and 7
+(A–F) Voltage responses measured with ASAP1 I67T Q397R and calcium measured with GCaMP6m to 25 ms light and dark flashes off of gray, contrast 0.5. (A, B)
+L2 layer M2. n = 125 cells, 11 flies (ASAP2f); n = 22 cells, 2 flies (ASAP1 I67T Q397R); n = 78 cells, 6 flies (GCaMP6f); n = 20 cells, 3 flies (GCaMP6m). (C, D) Tm1
+layer Lo1. n = 30 cells, 3 flies (ASAP2f); n = 52 cells, 5 flies (ASAP1 I67T Q397R); n = 127 cells, 9 flies (GCaMP6f); n = 49 cells, 3 flies (GCaMP6m). (E, F) Tm3 layer
+M10. n = 100 cells, 9 flies (ASAP2f); n = 90 cells, 5 flies (ASAP1 I67T Q397R); n = 99 cells, 4 flies (GCaMP6f); n = 99 cells, 5 flies (GCaMP6m). (A, C, E). Voltage (left)
+and calcium (right) response traces. The solid line is the mean response; the shading is ± 1 SEM (B, D). Quantification of selectivity to dark (OFF). (F) Quantification
+of selectivity to light (ON). The line, box, and whiskers are the median, interquartile range, and maximum and minimum values within one interquartile range,
+respectively. *p < 0.05, ***p < 0.001 (Mann-Whitney U test, Bonferroni correction for multiple comparisons).
+(G–I) The change in GCaMP6f fluorescence when 0 mM Ca2+ and 10 mM EGTA fly saline was perfused to remove Ca2+. The baseline fluorescence is the initial
+fluorescence in standard fly saline. (G) L2 layer M2. (H) Various compartments of Tm1. (I) Various compartments of Tm3. The dotted line indicates the minimum
+DF/F value evoked by visual stimulation of that cell.
+
+
+
+S8 Cell 166, 245–257, June 30, 2016
+Cell, Volume 166
+
+
+
+Supplemental Information
+
+
+
+Subcellular Imaging of Voltage and Calcium
+Signals Reveals Neural Processing In Vivo
+Helen H. Yang, François St-Pierre, Xulu Sun, Xiaozhe Ding, Michael Z. Lin, and Thomas R.
+Clandinin
+SUPPLEMENTAL INFORMATION
+
+
+SUPPLEMENTAL EXPERIMENTAL PROCEDURES
+
+Plasmid construction for in vitro experiments. Plasmids were constructed by standard molecular biology methods
+and verified by sequencing of all cloned fragments. All ASAP variants were cloned between the NheI and HindIII
+sites of pcDNA3.1/Puro-CAG (Lam et al., 2012) and contain identical Kozak sequences. Expression plasmids and
+complete sequences for ASAP1, ASAP2f, and ASAP1 I67T Q397R can be obtained via Addgene.
+
+HEK293A cell culture, patch clamping, and voltage imaging. HEK293A cells were maintained in high-glucose
+Dulbecco’s Modified Eagle Medium (DMEM, HyClone) supplemented with 5% fetal bovine serum (FBS, Life
+Technologies) and 2 mM glutamine (Sigma) at 37 °C in air with 5% CO2. Cells were plated onto glass-bottom 24-
+well plates (In vitro Scientific) for standard imaging or onto uncoated no. 0 12-mm coverslips (Glaswarenfabrik Karl
+Hecht GmbH) for patch clamping experiments. Transfections were carried out using FuGene HD (Promega)
+according to manufacturer instructions, except that cells were transfected at ~50% confluence with lower amounts of
+DNA (200 ng) and transfection reagent (0.6 µl) to reduce cell toxicity.
+          At 2 days post-transfection, cells were patch-clamped at 22 °C using borosilicate glass electrodes with
+resistances of 3.5 to 5.0 MΩ attached to an Axopatch 700B amplifier (Axon Instruments). Cells were superfused in a
+chamber mounted on the stage of an Axiovert 100M inverted microscope with a 40X/1.3-numerical aperture (NA)
+oil-immersion objective (Zeiss). The extracellular solution contained 110 mM NaCl, 26 mM sucrose, 23 mM
+glucose, 5 mM HEPES-Na, 5 mM KCl, 2.5 mM CaCl2, and 1.3 mM MgSO4, adjusted to pH 7.4. The intracellular
+(pipette) solution contained 115 mM potassium gluconate, 10 mM HEPES-Na, 10 mM EGTA, 10 mM glucose, 8
+mM KCl, 5 mM MgCl2, and 1 mM CaCl2, adjusted to pH 7.4. Cells were illuminated with a high-power light-
+emitting diode (LED, UHP-MIC-LED-460, Pryzmatix) through a 470/30-nm filter at a power density of 3.7 to 23.7
+mW/mm2 at the sample plane. Fluorescence traces were acquired while cells were voltage clamped in whole-cell
+mode, using an iXon 860 electron multiplying charge coupled device camera (Andor) cooled to −80 °C and set to
+Frame Transfer mode. Fluorescence traces were corrected for photobleaching. Voltage and fluorescence traces were
+analyzed using custom software written in MATLAB (Mathworks). Voltage traces were corrected for the junction
+potential post hoc.
+          Unless otherwise indicated, step voltage depolarizations were applied to change the membrane potential
+from a holding voltage of −70 mV to voltages ranging from −120 mV to 50 mV for 1.0 s. For these voltage step
+experiments, we captured images at 200 Hz without binning, and the fluorescence response was measured from
+pixels at the perimeter of the cell (plasma membrane). For experiments with artificial action potential waveforms,
+we captured images at 1 kHz with 4 × 4 binning. The action potential waveform, derived from a recording of a
+hippocampal neuron action potential, had a full width at half maximum of 4.0 ms and peak amplitude of 100 mV.
+The fluorescence response was measured from the perimeter of the cell (plasma membrane). For experiments to
+determine sensor response kinetics, we increased sampling frame rate to 2.5 kHz by cropping the imaged area down
+to 64 × 64 pixels and increasing binning to 8 × 8 pixels. The resulting image thus contained 64 pixels (8 × 8);
+fluorescence was calculated by summing all 64 pixels. Command voltage steps were applied for 1 second; three
+identical voltage steps were measured for every cell. Models of the form a•e–bt + c•e–dt were applied to the rising and
+falling portions of the mean fluorescence trace using MATLAB.
+
+Quantifying voltage sensor brightness and photostability in HEK293 cells. For quantifying the brightness of
+ASAP variants, we used a HEK293 cell line expressing the inwardly rectifying Kir2.1 channel (Zhang et al., 2009)
+(HEK293-Kir2.1). This cell line, a generous gift of Gui-Rong Li, has a resting membrane potential of approximately
+–75mV, similar to that of primary hippocampal neurons. Cells were plated onto 60 mm tissue culture dishes at a
+density of 400,000 cells/dish. Cells were transfected using 3.6 µL of FuGENE HD reagent (Promega) and 1.2 µg of
+DNA per dish. At 2 days post-transfection, cells were collected by trypsinization using a 0.25% trypsin/EDTA
+solution (Gibco, Life Technologies), washed with phosphate buffered saline (PBS; HyClone, Life Technologies),
+and resuspended using a solution of Hank's Buffered Saline Solution (HyClone, Life Technologies) supplemented
+with 1% w/v bovine serum albumin and 5 mM ethylenediaminetetraacetic acid (EDTA). Cells were analyzed by
+flow cytometry using an LSRII.UV analyzer (BD Biosciences), using the 488-nm and 561-nm lasers to excite our
+GFP-based sensor and our FusionRed reference RFP, respectively. Gating conditions were set using Flowjo to
+analyze cells expressing ASAP-FusionRed constructs. We quantified the brightness of each cell as the ratio of green
+fluorescence (from ASAP) and red fluorescence (from our FusionRed standard). The overall brightness of each
+construct was defined as the median brightness over all sensor-expressing cells.
+          For quantifying the photostability of ASAP variants, we transfected HEK293A or HEK293-Kir2.1 cells as
+previously described (St-Pierre et al., 2014). At 2 days post-transfection, cells were superfused with the same
+extracellular solution we used for electrophysiological recordings in HEK293A cells. To evaluate photostability
+under one-photon excitation, cells were imaged using an Axiovert 100M microscope (Zeiss) fitted with a 40X 1.3-
+NA oil-immersion objective (Zeiss). To collect images, we used the software HCImage (Hamamatsu) to drive an
+ORCA Flash4.0 V2 C11440-22CU (Hamamatsu) scientific CMOS camera set to 4 × 4 pixel binning and cooled to
+−10 °C. Cells were continuously illuminated with a high-power light-emitting diode (LED, UHP-MIC-LED-460,
+Pryzmatix) through a 470/30-nm filter. To evaluate photostability under two-photon excitation, we used an Ultima
+Multiphoton Microscopy System (Prairie Technologies) equipped with a 40X LUM Plan FI W/IR-2 0.8-NA
+objective (Olympus). Cells were illuminated using a Mai Tai HP Deep See Ti:sapphire laser (Spectra-Physics) tuned
+to 920 nm and set to a power level of 4.7 mW. Laser scanning was performed using using galvanometric mirrors.
+Each image pixel was sampled at 2.23 Hz with a dwell time of 0.4 µs. Emitted photons were filtered using a 525/50-
+nm filter (Chroma) and collected using a non-descanned multi-alkali photomultiplier tube (Hamamatsu). For both
+one-photon and two-photon photobleaching time series, fluorescence from the entire cell was used to compute
+optical traces.
+
+Neuronal cell culture and transfection. Animal experiments were performed in accordance with the rules of the
+Stanford University Administrative Panel on Laboratory Animal Care. Primary hippocampal or cortical neurons
+were dissected from Sprague-Dawley rats on embryonic day 22 and digested with 0.03% trypsin (Sigma) in
+Dulbecco’s Modified Eagle Media (DMEM, HyClone) for 20 min at 37 °C in air with 5% CO2. Neurons were then
+dissociated by gentle trituration in Hanks’ Balanced Salt Solution (HBSS, Life Technologies) and washed twice in
+HBSS. Neurons were plated at 3.5×104 cells cm−2 on 12-mm no. 0 coverslips (Glaswarenfabrik Karl Hecht GmbH)
+within wells of 24-well plates. Prior to plating, each coverslip was pre-coated for 24 hours with > 300-kDa poly-D-
+lysine (Sigma) in PBS and washed three times with distilled water. Neurons were cultured overnight at 37 °C in air
+with 5% CO2 in Neurobasal with 1× B27 supplement (Life Technologies), 2 mM GlutaMAX (Life Technologies),
+and 10% FBS. The following day, 90% of the medium was replaced with identical medium without FBS. Cytosine
+β-d-arabinofuranoside (Sigma) was added to a final concentration of 2 µM when glia reached > 70% confluence,
+typically around 5 days in vitro (DIV). At 7 DIV, 50% of the media was replaced with fresh media without
+serum. Neurons were transfected at 7 to 9 DIV using 0.5 to 0.75 µL of Lipofectamine 2000 (Life Technologies) and
+800 ng of total DNA per well of a 24-well plate. Given the strong promoter (CAG) driving indicator expression, the
+800 ng of total DNA per well consisted of 400 ng of indicator expression plasmid and 400 ng of pNCS, an empty
+bacterial expression plasmid (Lam et al., 2012).
+
+Confocal Imaging of Rat Cortical Neurons. Rat cortical neurons were transfected at 8 DIV and imaged 3-4 days
+post-transfection in HBSS supplemented with 10 mM HEPES pH 7.4, 1 × B27, 2 mM GlutaMAX, and 1 mM
+sodium pyruvate on an IX81 microscope with a FluoView FV1000 laser-scanning confocal unit operated using the
+FV10-ASW v3.01 software (Olympus). Fluorescence excitation was delivered using a 488-nm argon laser model
+#GLG3135 (Showa Optronics) through a 40X/1.3-NA oil-immersion objective (Olympus). Emission was passed
+through a 530/40-nm emission filter. Z-sections were imaged using a 1-Airy pinhole setting. A maximum-intensity
+projection was generated from 2-3 sections spaced 2 µm apart.
+
+Patch clamping and voltage imaging of dissociated neurons. At 11 to 13 DIV (2 to 4 days post-transfection),
+cultured neurons were patch-clamped at 22 °C using borosilicate glass electrodes with resistances of 3.5 to 5.0 MΩ
+attached to an Axopatch 700B amplifier (Axon Instruments). Cells were superfused in a chamber mounted on the
+stage of an Axiovert 100M inverted microscope with a 40×/1.3-NA oil-immersion objective (Zeiss). The
+extracellular solution contained 110 mM NaCl, 11 mM glucose, 5 mM HEPES-Na, 5 mM KCl, 2.5 mM CaCl2, and
+1.3 mM MgSO4, adjusted to pH 7.4. The intracellular (pipette) solution contained 92 mM potassium gluconate, 8
+mM HEPES-Na, 8 mM EGTA, 8 mM glucose, 6.4 mM KCl, 4 mM MgCl2, and 0.8 mM CaCl2, adjusted to pH 7.4.
+Cells were illuminated with a high-power light-emitting diode (UHP-MIC-LED-460, Pryzmatix) through a 470/30-
+nm filter at a power density of 23.7 mW/mm2 at the sample plane. Images were captured at 1000 Hz with 4×4
+binning using an iXon 860 electron multiplying charge coupled device camera (Andor) cooled to −80 °C in frame
+transfer mode. Fluorescence response was measured in all pixels from the cell body. Fluorescence traces were
+acquired while cells were current-clamped in whole-cell mode. For all experiments, fluorescence traces were
+corrected for photobleaching. To generate action potentials, 700 to 1100 pA of current was injected for 1 ms.
+Analyzed neurons had the following characteristics: an access resistance less than 15 MΩ, a membrane resistance
+greater than 10 times the access resistance, and action potentials with peak height > 0 mV and width < 5 ms at −20
+mV. Electrode voltages were recorded using pClamp (Axon Instruments). Voltage and fluorescence traces were
+analyzed using custom software written in MATLAB. Voltage traces were corrected for the junction potential post
+hoc.
+
+Statistical methods for in vitro experiments. Results presented in the form x ± y represent the mean ± SEM
+(standard error of the mean), unless indicated otherwise. Statistical comparisons of pre-identified measures of
+interest between two data sets were performed with the Student’s t-test unless otherwise indicated. Prior to
+performing such statistical comparisons, the Shapiro-Wilk method was used to test the null hypothesis that the data
+followed a Gaussian (normal) distribution. When this normality hypothesis could not be rejected, Student’s t-tests
+were performed; otherwise, the Mann-Whitney U nonparametric test was used. Prior to performing t-tests, we also
+tested the null hypothesis of equal variance between the two data sets, and employed Welch’s correction when the
+null hypothesis was rejected. Statistical tests of normality and equal variance were performed with a significance
+level (α) of 0.05. When analyzing the results of a specific performance test, we applied the Bonferroni correction to
+the significance levels if more than one pairwise comparison was calculated. Statistical tests were performed in
+Excel (Microsoft) and MATLAB.
+
+Transgenic Flies. The ASAP variants were cloned into the pJFRC7-20XUAS vector (Pfeiffer et al., 2010) using
+standard molecular biology methods to generate the UAS-ASAP1, UAS-ASAP2f, and UAS-ASAP1 I67T Q397R
+transgenes and inserted into the attP40 phiC31 landing site by injection of fertilized embryos (Rainbow Transgenic
+Flies, Inc.). UAS-ASAP2f was additionally inserted into the VK00005 phiC31 landing site though all experiments
+presented here used the attP40 insertion. GCaMP6f and GCaMP6m were expressed using UAS-GCaMP6f and UAS-
+GCaMP6m also inserted into attP40 (Chen et al., 2013). The L1 Gal4 driver (R48A08AD; R66A01DBD) was from
+Tuthill et al., 2013. The L2 Gal4 driver (21D-Gal4) was from Rister et al., 2007. The Mi1, Tm3, and Tm1 Gal4
+drivers (R19F01-Gal4, R13E12-Gal4, and R74G01-Gal4, respectively) were from the Janelia FlyLight Project
+(https://www.janelia.org/project-team/flylight). The Tm2 Gal4 driver (otd-Gal4) was a generous gift from C.
+Desplan. The genotypes of the imaged flies were:
+L1>>ASAP2f: w or +/+; UAS-ASAP2f/R48A08AD; R66A01DBD/+
+L1>>GCaMP6f: w or +/+; UAS-GCaMP6f/R48A08AD; R66A01DBD/+
+L2>>ASAP1: w/+; UAS-ASAP1/+; 21D-Gal4/+
+L2>>ASAP2f: w or +/+; UAS-ASAP2f/+; 21D-Gal4/+
+L2>>ASAP1 I67T Q397R: w or +/+; UAS-ASAP1 I67T Q397R/+; 21D-Gal4/+
+L2>>GCaMP6f: +/+; UAS-GCaMP6f/+; 21D-Gal4/+
+L2>>GCaMP6m: w/+; UAS-GCaMP6m/+; 21D-Gal4/+
+Mi1>>ASAP2f: w/+; UAS-ASAP2f/+; R19F01-Gal4/+
+Mi1>>GCaMP6f: +/+; UAS-GCaMP6f/+; R19F01-Gal4/+
+Tm3>>ASAP2f: w or +/+; UAS-ASAP2f/+; R13E12-Gal4/+
+Tm3>>ASAP1 I67T Q397R: +/+; UAS-ASAP1 I67T Q397R/+; R13E12-Gal4/+
+Tm3>>GCaMP6f: +/+; UAS-GCaMP6f/+; R13E12-Gal4/+
+Tm3>>GCaMP6m: w/+; UAS-GCaMP6m/+; R13E12-Gal4/+
+Tm1>>ASAP2f: w or +/+; UAS-ASAP2f/+; R74G01-Gal4/+
+Tm1>>ASAP1 I67T Q397R: +/+; UAS-ASAP1 I67T Q397R/+; R74G01-Gal4/+
+Tm1>>GCaMP6f: +/+; UAS-GCaMP6f/+; R74G01-Gal4/+
+Tm1>>GCaMP6m: w/+; UAS-GCaMP6m/+; R74G01-Gal4/+
+Tm2>>ASAP2f: w/+; UAS-ASAP2f/GMR-Gal80; otd-Gal4/+
+Tm2>>GCaMP6f: +/+; UAS-GCaMP6f/GMR-Gal80; otd-Gal4/+
+
+Fly Husbandry. All flies used for imaging were raised on standard molasses food at 25 °C on a 12/12-h light-dark
+cycle. Female flies of the appropriate genotypes were collected on CO2 within 1 day of eclosion and imaged at room
+temperature (20°C) 5-6 days after eclosion. Tm2>>ASAP2f and Tm2>>GCaMP6f female flies were collected on ice
+within 1 day of eclosion and imaged the same day.
+
+In Vivo, Two-Photon Imaging. Flies were cold anaesthetized, positioned in a fly-shaped hole cut in steel foil such
+that their heads were tilted forward approximately 60° to expose the back of the head capsule above the foil while
+leaving most of the retina below the foil, and then affixed in place with UV-cured glue (NOA 68T from Norland
+Products Inc.). The brain was exposed by removing the overlying cuticle and fat bodies with fine forceps, and an
+oxygenated saline-sugar solution (Wilson et al., 2004) was perfused over the fly. The saline composition was as
+follows: 103 mM NaCl, 3 mM KCl, 5 mM TES, 1 mM NaH2PO4, 4 mM MgCl2, 1.5 mM CaCl2, 10 mM trehalose,
+10 mM glucose, 7 mM sucrose, and 26 mM NaHCO3. The pH of the saline equilibrated near 7.3 when bubbled with
+95% O2/5% CO2. Neurons were imaged with a Leica TCS SP5 II two-photon microscope with a Leica HCX APO
+20X/1.0-NA water immersion objective (Leica) and a pre-compensated Chameleon Vision II femtosecond laser
+(Coherent, Inc.). The excitation wavelength was 920 nm and 5-15 mW of power was applied at the sample. Emitted
+photons were collected with a 525/50-nm filter. All data were acquired at a constant frame rate of 38.9 Hz using a
+frame size of 200×20 pixels, 15X digital zoom, a line scan rate of 1400 Hz, and bidirectional scanning. Imaging
+time per fly never exceeded 1.5 h.
+
+Visual stimulation. Visual stimuli were generated with custom-written software using C++ and OpenGL and
+presented using a digital light projector as described previously (Clark et al., 2011). The visual stimulus was
+projected onto a coherent fiber optic bundle that then re-projected onto a rear-projection screen positioned
+approximately 4 cm anterior to the fly that spanned 80° of the fly’s visual field horizontally and 50° vertically.
+Immediately prior to being projected onto the screen, the stimulus was filtered with a 447/60-nm bandpass filter so
+that it could not be detected by the microscope PMTs. The stimulus was refreshed at 240 Hz and had a radiance of
+approximately 30 mW·sr-1·m-2. The imaging and the visual stimulus presentation were synchronized as described in
+Freifeld et al., 2013. Following this procedure, the time of stimulus onset relative to the start of imaging varied
+within one stimulus frame (8.33 ms). To compensate for this, the average delay was measured (6.25 ms), and all
+imaging data was shifted in time by this delay.
+The visual stimuli used were:
+300 ms full field flash (Figures 1, S2, and S6): alternating full contrast light and dark flashes, each 300 ms in
+duration, were presented over the entire screen. This stimulus was presented for 2400 imaging frames (62 s) per
+field of view except in Figure S2 where 24000 imaging frames were presented (617 s).
+8 ms light and dark flashes (Figure 2): single 8.33 ms light and dark flashes, with 500 ms of gray between the
+flashes, were presented over the entire screen. The light and dark flashes were alternated with each presentation. The
+Michelson contrast of the flashes relative to the gray was 0.5. This stimulus was presented for 4400 imaging frames
+(113 s) per field of view.
+25 ms light and dark flashes (Figures 2-7, S3-S5, and S7): for voltage imaging, this stimulus was identical to the 8
+ms flashes, except the light and dark flashes were 25 ms in duration. For calcium imaging, the gray interleave was
+extended to 1500 ms to account for the slower kinetics, and the stimulus was instead presented for 6600 imaging
+frames (170 s). In Figures 6 and 7, flashes with Michelson contrasts of 0.5, 0.25, and 0.125 were presented.
+
+In vivo imaging data analysis. Raw images in each time series were aligned in x and y coordinates in ImageJ (NIH)
+using a macro based on the plugin Turboreg (http://bigwww.epfl.ch/thevenaz/turboreg/) and then further processed
+in MATLAB. Regions of interest (ROIs) around individual arbors or cell bodies were manually selected in the time
+series-averaged image. An example of such an image is shown in Figure 1E. For each imaging frame within the time
+series, intensity values for the pixels within each ROI were averaged and the mean background value (the average
+intensity in a region of the image without cells) was subtracted. To correct for bleaching, the time series for each
+ROI was fit with the sum of two exponentials, and in the calculation of ΔF/F = (F(t) – F0)/F0, the fitted value at each
+time t was used as F0. For the 300 ms full field flash stimulus, all imaging frames were used to compute the fit,
+thereby placing ΔF/F = 0 at the mean response after correction for bleaching. For the 8 or 25 ms light and dark
+flashes off of gray stimulus, only imaging frames that fell in the last 25% of the gray period were used to fit the
+bleaching curve; this places ΔF/F = 0 at the mean baseline the cell returns to after responding to the flash instead of
+at the mean of the entire trace, which is inaccurate when the responses to the light and dark flashes are not equal and
+opposite. The stimulus-locked average was computed for each ROI by reassigning the timing of each imaging frame
+to be relative to the stimulus transitions (dark to light or light to dark for the 300 ms full field flash, gray to light or
+gray to dark for the flashes off of gray) and then computing a simple moving average with a 25 ms averaging
+window and a shift of 8.33 ms. This effectively resampled our data from 38.9 Hz to 120 Hz with 3-point boxcar
+smoothing but did not otherwise distort the fluorescence signal. As the screen on which the stimulus was presented
+did not span the fly’s entire visual field, only a subset of imaged ROIs were actually observing the stimulus
+(empirically, approximately 70%). For Figures 1-5, S2-S5, and S7, responding ROIs were identified as those whose
+responses at time-matched points during the 2 stimulus epochs (dark and light flashes for the 300 ms full field flash
+and light to gray and dark to gray for the flashes off of gray) were significantly different (t-test, p < 0.01) for at least
+3 consecutive time points. All calls were examined manually and adjusted if necessary. For Figures 6 and 7, ROIs
+were presented with the 300 ms full field flash stimulus in addition to 25 ms flashes off of gray of different
+contrasts; responding ROIs were identified solely through their 300 ms full field flash response. All traces, except
+the single ROI and single trial examples in Figures 1F and 1G, are presented as the mean ± 1 SEM across all of the
+responding ROIs of the moving average response to all trials of each ROI. In Figures 1F and 1G, bottom, the
+moving-average response across all trials of single example ROIs (that are approximately in the 75th percentile for
+response amplitude for all ROIs of that indicator) was plotted as mean ± 1 SEM, and 5 0.6-s single trial excerpts of
+the ΔF/F trace for the same ROIs was presented in the single cell examples (plotted at the imaging frame rate of 38.9
+Hz).
+The quantification metrics for each ROI were computed as follows:
+For the responses to the 300 ms full field flash stimulus in Figures 1 and S6, the peak response (peak ΔF/F) during
+each phase (depolarization and hyperpolarization) was the absolute value of the ΔF/F value farthest from zero in the
+expected direction of the response. The time to peak (tpeak) was the time at which this peak response occurred,
+relative to the start of the stimulus. The decay of the response from the peak was fit with a single exponential and the
+time constant of this fit was τdecay. The mean across all responding ROIs ± 1 SEM was plotted, except for τdecay, for
+which the ROIs were further filtered by those whose exponential decay fits had r values greater than 0.5. Pairwise
+Student’s t-tests were performed, and multiple comparisons were corrected for using the Bonferroni method.
+For the responses to the 25 ms light and dark flashes off of gray stimuli in Figures 3-5, S3, and S4, the peak
+response to each flash (peak ΔF/F) was the ΔF/F value farthest from zero in the expected direction of the initial
+response (depolarization or hyperpolarization). The time to peak (tpeak) was the time at which this peak response
+occurred, relative to the start of the light or dark flash. The full width at half maximum was computed by
+identifying, for the rising phase of the response prior to tpeak and for the falling phase after tpeak, the two adjacent time
+points with ΔF/F values bracketing one-half of the peak ΔF/F value; fitting a line between two points to derive the
+time at which the value would be one-half of the peak ΔF/F value; and subtracting this time for the rising phase from
+that of the falling phase. Some traces were too noisy to identify the two adjacent time points with ΔF/F values
+bracketing one-half of the peak ΔF/F value; such traces were excluded. In Figures 4 and S3, pairwise Student’s t-
+tests were performed for the peak ΔF/F and full width at half maximum metrics, and the Mann-Whitney U test was
+performed for the tpeak metric. Multiple comparisons were corrected for using the Bonferroni method. In Figures 5
+and S4, one-way ANOVAs were performed for the peak ΔF/F and full width at half maximum metrics and followed
+by post-hoc pairwise t-tests with the Bonferroni correction for multiple comparisons; the Kruskal-Wallis test
+followed by post-hoc pairwise Mann-Whitney U tests with the Bonferroni correction for multiple comparisons were
+performed for the tpeak metric.
+For Figure 3C, the fraction decay from M1 was computed as the mean peak ΔF/F of the indicated region divided by
+the mean peak ΔF/F of layer M1. The error bars were computed as meanfraction decay × (SEMregion/meanregion +
+SEMM1/meanM1).
+For Figures 6, 7, S5, and S7, the stimulus was 25 ms light and dark flashes off of gray, and selectivity for ON and
+OFF was computed as: |peak light response/peak dark response| for the ON pathway and |peak dark response/peak
+light response| for the OFF pathway. The peak response was quantified as the maximal ΔF/F of the initial response
+phase minus the average ΔF/F value before the response. For Figure 7, the index was computed separately for each
+of the 3 pairs of contrast values. When the response is perfectly linear, this index equals 1. Selectivity was computed
+for each individual ROI, and a box and whisker plot across ROIs was plotted for each condition. The line indicates
+the median, the box indicates the interquartile range, the whiskers extend to the maximum or minimum values less
+than one interquartile range past the box, and outliers are omitted. Mann-Whitney U tests with the Bonferroni
+correction for multiple comparisons were performed.
+
+NEURON modeling (Figures 3E-3H). The morphology of Mi1 from the Janelia Fly EM: Medulla TEM
+Reconstruction project (Takemura et al., 2013) was downloaded from the Chklovskii Archive in the Neuromorpho
+public repository. The neuron used was the central column neuron Mi1 215. The .swc morphology was loaded into
+NEURON 7.4 (www.neuron.yale.edu; Carnevale and Hines, 2006) using the Import 3D tool and exported to the
+CellBuilder tool, which converted the morphology to a multi-compartment cell geometry for the model. To complete
+the cell, a single-segment cell body of diameter 5 µm and length 5 µm was attached to the end of the most distal
+process by a process of diameter 250 nm and length 10 µm. The model neuron was given uniform passive
+membrane properties, estimated from the parameters in (Behnia et al., 2014; Cuntz et al., 2013; Gouwens and
+Wilson, 2009; Haag et al., 1996): resting membrane potential = -70 mV, axial resistance = 40 to 420 Ω•cm, specific
+membrane capacitance = 1 µF/cm2, and specific membrane resistance = 1 to 21 kΩ•cm2. 50 pA of current was
+injected into layer M1 for 20 ms. The duration of the simulation was 100 ms. The membrane potential responses
+over time were recorded in the arbors of layers M1, M5, and M10. The peak membrane potential measured during
+current injection was determined and heat maps were generated displaying the fraction of this peak membrane
+potential relative to that achieved in layer M1. This was compared to the decays ± 1 SEM measured with ASAP2f
+imaging.
+
+GCaMP6f dynamic range analysis (Figures S7G-S7I). To determine the maximal decrease in fluorescence
+GCaMP6f is capable of achieving in vivo, we imaged while first flowing in the standard oxygenated fly saline (for 2
+min), then flowing in a modified oxygenated fly saline with 0 mM CaCl2 and 10 mM EGTA (for 10 min), and then
+flowing in standard oxygenated fly saline (for 10 min). The entire extent of the medulla and lobula was imaged
+simultaneously. Data was acquired at 1 Hz, using an imaging window of 512×300 px, 3X digital zoom, a line scan
+rate of 400 Hz, and bidirectional scanning. These time series were processed identically to those measuring visually
+evoked responses, except as subsequently described. ROIs were manually drawn around the terminals and cell
+bodies, with one ROI for each layer. ΔF/F was computed using the mean fluorescence during the initial standard
+saline epoch as the baseline F0. The mean ΔF/F during each solution epoch was computed by averaging ΔF/F over
+the frames during which the fluorescence had stabilized, chosen manually for each time series but consistent among
+ROIs from the same time series. The minimum ΔF/F achievable was therefore -100%.
+                                                                 ASAP1           ASAP2f  
+Depol.  (–70  to  30  mV)                                                                
+                                  τ            (ms)              2.9  ±  0.3     2.8  ±  0.1  
+                                      fast
+                                τ             (ms)               161  ±  33      135  ±  16  
+                                    slow
+                                        %  fast                   74  ±  5        81  ±  2  
+Repol.  (30  to  –70  mV)                                                                
+                                 τ            (ms)               2.3  ±  0.4     2.4  ±  0.2  
+                                     fast
+                                τ             (ms)               177  ±  38      155  ±  16  
+                                    slow
+                                        %  fast                   63  ±  6        71  ±  3  
+Hyperpol.  (–70  to  –100  mV)                                                           
+                              τ   (ms)                            11  ±  3       8.8  ±  1.0  
+                                      fast
+                                τ             (ms)               131  ±  16      142  ±  15  
+                                    slow
+                                        %  fast                   59  ±  3        54  ±  4  
+Repol.  (–100  to  –70  mV)                                                             
+                             τ                (ms)                15  ±  3        13  ±  1  
+                                     fast
+                                τ             (ms)               131  ±  14      154  ±  9  
+                                    slow
+                                        %  fast                   52  ±  2        50  ±  4  
+n  =  4–5  cells  per  sensor.  Data  are  presented  as  mean  ±  SEM.    
+  
+Table S1. Related to Figure 1. Response kinetics of ASAP indicators in HEK293A cells.
+SUPPLEMENTAL REFERENCES
+
+Freifeld, L., Clark, D.A., Schnitzer, M.J., Horowitz, M.A., and Clandinin, T.R. (2013). GABAergic Lateral
+Interactions Tune the Early Stages of Visual Processing in Drosophila. Neuron 78, 1075–1089.
+
+Lam, A.J., St-Pierre, F., Gong, Y., Marshall, J.D., Cranfill, P.J., Baird, M.A., McKeown, M.R., Wiedenmann, J.,
+Davidson, M.W., Schnitzer, M.J., et al. (2012). Improving FRET dynamic range with bright green and red
+fluorescent proteins. Nat. Methods 9, 1005–1012.
+
+Pfeiffer, B.D., Ngo, T.-T.B., Hibbard, K.L., Murphy, C., Jenett, A., Truman, J.W., and Rubin, G.M. (2010).
+Refinement of Tools for Targeted Gene Expression in Drosophila. Genetics 186, 735–755.
+
+Rister, J., Pauls, D., Schnell, B., Ting, C.-Y., Lee, C.-H., Sinakevitch, I., Morante, J., Strausfeld, N.J., Ito, K., and
+Heisenberg, M. (2007). Dissection of the Peripheral Motion Channel in the Visual System of Drosophila
+melanogaster. Neuron 56, 155–170.
+
+Tuthill, J.C., Nern, A., Holtz, S.L., Rubin, G.M., and Reiser, M.B. (2013). Contributions of the 12 Neuron Classes in
+the Fly Lamina to Motion Vision. Neuron 79, 128–140.
+
+Wilson, R.I., Turner, G.C., and Laurent, G. (2004). Transformation of olfactory representations in the Drosophila
+antennal lobe. Science 303, 366–370.
+
+Zhang, D.-Y., Lau, C.-P., and Li, G.-R. (2009). Human Kir2.1 channel carries a transient outward potassium current
+with inward rectification. Pflugers Arch. 457, 1275–1285.
+
