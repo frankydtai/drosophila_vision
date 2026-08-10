@@ -205,3 +205,19 @@ SEQUENTIAL = False
 
 T_REL_START = -10
 T_REL_STOP = 10
+
+# ---------------------------------------------------------------------------
+# 6 analyze.trace
+# ---------------------------------------------------------------------------
+
+TRACE_OSC_MIN_FREQ_HZ = 0.5
+TRACE_OSC_MAX_FREQ_HZ = 20.0
+TRACE_OSC_PEAK_THRESHOLD = 0.5
+TRACE_OSC_Z_THRESHOLD = 2.0
+TRACE_OSC_SNR_MIN = 2.0
+TRACE_DRIFT_MIN_SLOPE_MV_PER_S = 1.0
+TRACE_DRIFT_MIN_R = 0.5
+TRACE_BASELINE_MS = 200.0
+TRACE_FLAT_MAX_ABS = 0.5
+TRACE_FLAT_PEAK_TO_PEAK = 1.0
+TRACE_FLAT_ABS_MEAN = 0.2

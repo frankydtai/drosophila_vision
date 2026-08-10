@@ -1,34 +1,34 @@
-"""Classify spot R0-average ``v_post`` on an arbitrary absolute-ms window.
+"""Classify spot radius-0 average ``v_post`` / ``f_ca`` on an absolute-ms window.
 
 Uses ``analyze.cell_dynamics.analyze_spot_average`` only — one forward, no
-rewrite of core dynamics. Spot time axis: ``0`` = trial start; onset ≈
-``ms_pre``. Analyze / baseline windows are absolute ms (same as
-``--ms-shown``), not locked to pre vs pulse.
+rewrite of core dynamics. Series: ``filter=ca`` → report ``f_ca``, else
+``v_post``. Spot time axis: ``0`` = trial start; onset ≈ ``ms_pre``. Analyze /
+baseline windows are absolute ms (same as ``--ms-shown``), not locked to pre
+vs pulse.
 
 Checks
 ------
-* ``oscillation``: FFT / pkpk on ``--ms-shown``
+* ``oscillation``: FFT / peak-to-peak on ``--ms-shown``
 * ``flat``: ``--ms-shown`` near ``--baseline-ms-shown`` mean
 * ``drift``: linear trend on ``--ms-shown`` (rising / falling / none)
 * ``stability``: osc → drift → flat priority on ``--ms-shown``
 
-``--param`` reuses ``analyze.cell_dynamics`` overrides (``NAME=VALUE`` /
-``NAME.NODE=VALUE``) before the forward.
+``--param`` / ``--filter`` reuse ``figure.plot_run`` (same as cell_dynamics).
 Usage (from ``vision/simulation/``)::
 
-    ../.venv/bin/python test/detect_trace.py \\
-      hp_lp/28693664-... --check oscillation --ms-shown 0,1000
+    ../.venv/bin/python 6_analyze/trace.py \\
+      --run hp_lp/28693664-... --check oscillation --ms-shown 0,1000
 
-    ../.venv/bin/python test/detect_trace.py \\
-      hp_lp/28702853-... --check flat --ms-shown 1000,1100 \\
+    ../.venv/bin/python 6_analyze/trace.py \\
+      --check flat --filter ca --ms-shown 1000,1100 \\
       --baseline-ms-shown 800,1000
 
-    ../.venv/bin/python test/detect_trace.py \\
-      hp_lp/28704173-... --check stability --ms-shown 0,1000 \\
+    ../.venv/bin/python 6_analyze/trace.py \\
+      --run hp_lp/28704173-... --check stability --ms-shown 0,1000 \\
       --baseline-ms-shown 0,200
 
-    ../.venv/bin/python test/detect_trace.py \\
-      hp_lp/28704173-... --check drift --ms-shown 0,1000 \\
+    ../.venv/bin/python 6_analyze/trace.py \\
+      --run hp_lp/28704173-... --check drift --ms-shown 0,1000 \\
       --cells TmY11,Mi1,Tm3 --param a_slow.TmY11=1 a_slow.Mi1=1 a_slow.Tm3=1
 """
 from __future__ import annotations
@@ -40,7 +40,8 @@ import sys
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(HERE)
-sys.path.insert(0, ROOT)
+if ROOT not in sys.path:
+    sys.path.insert(0, ROOT)
 os.chdir(ROOT)
 
 import import_bootstrap  # noqa: F401
@@ -49,13 +50,23 @@ import torch
 
 import figure.plot_run as plot_trained
 import training
-from analyze.cell_dynamics import (
-    TimeWindow,
-    _apply_param_overrides,
-    _parse_param_tokens,
-    analyze_spot_average,
-)
+from analyze.cell_dynamics import TimeWindow, analyze_spot_average
 from import_bootstrap import parse_comma_list
+from param_defaults import (
+    DEFAULT_RUN_PATH,
+    TRACE_BASELINE_MS,
+    TRACE_DRIFT_MIN_R,
+    TRACE_DRIFT_MIN_SLOPE_MV_PER_S,
+    TRACE_FLAT_ABS_MEAN,
+    TRACE_FLAT_MAX_ABS,
+    TRACE_FLAT_PEAK_TO_PEAK,
+    TRACE_OSC_MAX_FREQ_HZ,
+    TRACE_OSC_MIN_FREQ_HZ,
+    TRACE_OSC_PEAK_THRESHOLD,
+    TRACE_OSC_SNR_MIN,
+    TRACE_OSC_Z_THRESHOLD,
+)
+from training.implement import stimulus_timing_kwargs_from_args
 
 CHECK_OSCILLATION = "oscillation"
 CHECK_FLAT = "flat"
@@ -67,12 +78,13 @@ def detect_oscillation(
     v_trace: np.ndarray,
     *,
     delta_ms: float,
-    min_osc_freq_hz: float = 0.5,
-    max_osc_freq_hz: float = 20.0,
-    peak_threshold: float = 0.5,
-    z_threshold: float = 2.0,
+    min_osc_freq_hz: float = TRACE_OSC_MIN_FREQ_HZ,
+    max_osc_freq_hz: float = TRACE_OSC_MAX_FREQ_HZ,
+    peak_threshold: float = TRACE_OSC_PEAK_THRESHOLD,
+    z_threshold: float = TRACE_OSC_Z_THRESHOLD,
+    snr_min: float = TRACE_OSC_SNR_MIN,
 ) -> dict:
-    """FFT / pkpk metrics on one already-sliced mean v_post segment."""
+    """FFT / peak-to-peak metrics on one already-sliced mean v_post segment."""
     n = len(v_trace)
     if n < 10:
         return {"flag": False, "reason": "too_short", "n_samples": n}
@@ -100,18 +112,22 @@ def detect_oscillation(
     peak_freq = float(freqs[mask][peak_i])
     peak_power = float(fft_mag[mask][peak_i])
     total_power = float(np.sum(fft_mag[mask] ** 2))
-    pkpk = float(np.ptp(v_trace))
-    pkpk_z = pkpk / std if std > 0 else 0.0
+    peak_to_peak = float(np.ptp(v_trace))
+    peak_to_peak_z = peak_to_peak / std if std > 0 else 0.0
     mean_band_power = total_power / float(np.sum(mask))
     snr = peak_power / np.sqrt(mean_band_power) if mean_band_power > 0 else 0.0
-    flag = pkpk_z > z_threshold and peak_power > peak_threshold and snr > 2.0
+    flag = (
+        peak_to_peak_z > z_threshold
+        and peak_power > peak_threshold
+        and snr > snr_min
+    )
     return {
         "flag": flag,
         "reason": "oscillation" if flag else "stable",
         "mean": mean,
         "std": std,
-        "pkpk": pkpk,
-        "pkpk_z": pkpk_z,
+        "peak_to_peak": peak_to_peak,
+        "peak_to_peak_z": peak_to_peak_z,
         "peak_freq_hz": peak_freq,
         "peak_power": peak_power,
         "snr": snr,
@@ -124,7 +140,7 @@ def detect_flat(
     *,
     baseline: float,
     max_abs: float,
-    pkpk: float,
+    peak_to_peak: float,
     abs_mean: float,
 ) -> dict:
     """Flatness of an already-sliced segment vs a scalar baseline (mV)."""
@@ -134,12 +150,12 @@ def detect_flat(
 
     d = v_trace - float(baseline)
     abs_mean_d = float(np.mean(np.abs(d)))
-    pkpk_seg = float(np.ptp(v_trace))
-    pkpk_from_base = float(np.ptp(d))
+    peak_to_peak_seg = float(np.ptp(v_trace))
+    peak_to_peak_from_base = float(np.ptp(d))
     max_abs_d = float(np.max(np.abs(d)))
     flag = (
         max_abs_d < max_abs
-        and pkpk_from_base < pkpk
+        and peak_to_peak_from_base < peak_to_peak
         and abs_mean_d < abs_mean
     )
     return {
@@ -148,8 +164,8 @@ def detect_flat(
         "baseline": float(baseline),
         "delta_mean": float(np.mean(v_trace) - baseline),
         "abs_mean": abs_mean_d,
-        "pkpk_seg": pkpk_seg,
-        "pkpk_from_base": pkpk_from_base,
+        "peak_to_peak_seg": peak_to_peak_seg,
+        "peak_to_peak_from_base": peak_to_peak_from_base,
         "max_abs": max_abs_d,
         "n_samples": n,
     }
@@ -159,8 +175,8 @@ def detect_drift(
     v_trace: np.ndarray,
     *,
     delta_ms: float,
-    min_slope_mv_per_s: float = 1.0,
-    min_r: float = 0.5,
+    min_slope_mv_per_s: float = TRACE_DRIFT_MIN_SLOPE_MV_PER_S,
+    min_r: float = TRACE_DRIFT_MIN_R,
 ) -> dict:
     """Linear trend on an already-sliced segment: rising / falling / none."""
     n = len(v_trace)
@@ -221,7 +237,7 @@ def detect_stability(
     min_slope_mv_per_s: float,
     min_r: float,
     max_abs: float,
-    pkpk: float,
+    peak_to_peak: float,
     abs_mean: float,
 ) -> dict:
     """Priority: oscillation → drift → flat-to-baseline → unstable."""
@@ -242,7 +258,7 @@ def detect_stability(
         v_trace,
         baseline=baseline,
         max_abs=max_abs,
-        pkpk=pkpk,
+        peak_to_peak=peak_to_peak,
         abs_mean=abs_mean,
     )
     if osc["flag"]:
@@ -265,22 +281,22 @@ def detect_stability(
 
 def _stimulus_ms(args, opts: dict) -> tuple[float, float, float]:
     ms_pre = float(args.ms_pre) if args.ms_pre is not None else float(opts["ms_pre"])
-    ms_pulse = (
-        float(args.ms_pulse) if args.ms_pulse is not None else float(opts["ms_pulse"])
+    ms_spot = (
+        float(args.ms_spot) if args.ms_spot is not None else float(opts["ms_spot"])
     )
     ms_response = (
         float(args.ms_response)
         if args.ms_response is not None
         else float(opts["ms_response"])
     )
-    return ms_pre, ms_pulse, ms_response
+    return ms_pre, ms_spot, ms_response
 
 
 def _default_ms_shown(
-    check: str, ms_pre: float, ms_pulse: float, ms_response: float,
+    check: str, ms_pre: float, ms_spot: float, ms_response: float,
 ) -> tuple[float, float]:
     if check == CHECK_FLAT:
-        return ms_pre, ms_pre + ms_pulse + ms_response
+        return ms_pre, ms_pre + ms_spot + ms_response
     return 0.0, ms_pre
 
 
@@ -294,11 +310,11 @@ def _default_baseline_ms_shown(
     return 0.0, min(baseline_ms, _stop)
 
 
-def _resolve_windows(args, ms_pre, ms_pulse, ms_response):
+def _resolve_windows(args, ms_pre, ms_spot, ms_response):
     if args.ms_shown is not None:
         analyze = plot_trained.parse_ms_shown_range(args.ms_shown, flag="--ms-shown")
     else:
-        analyze = _default_ms_shown(args.check, ms_pre, ms_pulse, ms_response)
+        analyze = _default_ms_shown(args.check, ms_pre, ms_spot, ms_response)
 
     need_baseline = args.check in (CHECK_FLAT, CHECK_STABILITY)
     if args.baseline_ms_shown is not None:
@@ -354,17 +370,36 @@ def _format_param_edits(edits: list[tuple[str, str | None, float]]) -> str:
     return " ".join(parts)
 
 
+def _trace_series(rep: dict) -> np.ndarray:
+    """Full-length series from ``analyze_spot_average`` report: ``f_ca`` or ``v_post``."""
+    if rep.get("filter") == "ca":
+        if "f_ca" not in rep:
+            raise SystemExit(
+                f"report for {rep.get('cell')!r} has filter=ca but no f_ca series"
+            )
+        return np.asarray(rep["f_ca"], dtype=float)
+    return np.asarray(rep["v_post"], dtype=float)
+
+
 def _load_reports(args):
     """Shared run load + one ``analyze_spot_average`` forward."""
     run_dir = plot_trained.resolve_run_dir(args.run)
     print(f"Loading run: {run_dir}", flush=True)
     session, z, _best_cost = plot_trained.load_best(run_dir)
+    timing_kw = stimulus_timing_kwargs_from_args(args)
+    session, z, _timing_changed = plot_trained.maybe_override_stimulus_timing(
+        run_dir=run_dir,
+        session=session,
+        z=z,
+        **timing_kw,
+        filter=args.filter,
+    )
     z_t = torch.tensor(
         np.asarray(z, dtype=np.float64), dtype=torch.float64, device=session.device,
     )
     schema = list(session.schema)
-    param_edits = _parse_param_tokens(args.param)
-    z_t, schema = _apply_param_overrides(z_t, schema, session, param_edits)
+    param_edits = plot_trained.parse_param_tokens(args.param)
+    z_t, schema = plot_trained.apply_param_overrides(z_t, schema, session, param_edits)
     session = session.with_schema(schema)
     p = training.assign_params(z_t, schema, session.backend)
 
@@ -381,8 +416,8 @@ def _load_reports(args):
         (sess_one.train_opts or {}).get(f"{sess_one.primary_readout.name}_stimulus_opts")
         or {},
     )
-    ms_pre, ms_pulse, ms_response = _stimulus_ms(args, opts)
-    analyze, baseline = _resolve_windows(args, ms_pre, ms_pulse, ms_response)
+    ms_pre, ms_spot, ms_response = _stimulus_ms(args, opts)
+    analyze, baseline = _resolve_windows(args, ms_pre, ms_spot, ms_response)
     forward_stop = analyze[1]
     if baseline is not None:
         forward_stop = max(forward_stop, baseline[1])
@@ -393,10 +428,11 @@ def _load_reports(args):
     )
     print(
         f"check={args.check}  {args.task} radius={args.radius}  "
+        f"filter={args.filter or 'run'}  "
         f"ms-shown={analyze[0]:g},{analyze[1]:g}  "
         f"baseline-ms-shown={base_s}  "
         f"forward TimeWindow(ms, 0, {forward_stop:g})  "
-        f"ms_pre={ms_pre:g} ms_pulse={ms_pulse:g} ms_response={ms_response:g}  "
+        f"ms_pre={ms_pre:g} ms_spot={ms_spot:g} ms_response={ms_response:g}  "
         f"param={_format_param_edits(param_edits)}  "
         f"n_cells={len(cells)}",
         flush=True,
@@ -415,7 +451,7 @@ def _load_reports(args):
 def _print_oscillation(cells, reports, delta_ms, analyze, args) -> None:
     hdr = (
         f"{'Cell':<12} {'Osc?':<6} {'Reason':<12} "
-        f"{'pkpk_z':>8} {'peak_f':>8} {'SNR':>8} {'pkpk':>8} {'std':>8} {'n':>6}"
+        f"{'ptp_z':>8} {'peak_f':>8} {'SNR':>8} {'ptp':>8} {'std':>8} {'n':>6}"
     )
     print(f"\n{hdr}\n{'-' * len(hdr)}", flush=True)
     hit: list[tuple[str, dict]] = []
@@ -425,8 +461,7 @@ def _print_oscillation(cells, reports, delta_ms, analyze, args) -> None:
             print(f"{cell:<12} {'?':<6} {'no_report':<12}", flush=True)
             continue
         v = _slice_ms(
-            np.asarray(rep["v_post"], dtype=float),
-            analyze[0], analyze[1], delta_ms=delta_ms,
+            _trace_series(rep), analyze[0], analyze[1], delta_ms=delta_ms,
         )
         result = detect_oscillation(
             v,
@@ -438,10 +473,10 @@ def _print_oscillation(cells, reports, delta_ms, analyze, args) -> None:
         yes = "YES" if result["flag"] else "NO"
         print(
             f"{cell:<12} {yes:<6} {result['reason']:<12} "
-            f"{result.get('pkpk_z', 0):>8.2f} "
+            f"{result.get('peak_to_peak_z', 0):>8.2f} "
             f"{result.get('peak_freq_hz', 0):>8.2f} "
             f"{result.get('snr', 0):>8.2f} "
-            f"{result.get('pkpk', 0):>8.2f} "
+            f"{result.get('peak_to_peak', 0):>8.2f} "
             f"{result.get('std', 0):>8.2f} "
             f"{result.get('n_samples', 0):>6}",
             flush=True,
@@ -452,8 +487,9 @@ def _print_oscillation(cells, reports, delta_ms, analyze, args) -> None:
     print(f"\nOscillating ({len(hit)}/{len(cells)}):", flush=True)
     for cell, r in hit:
         print(
-            f"  {cell}: freq={r['peak_freq_hz']:.2f}Hz  pkpk_z={r['pkpk_z']:.2f}  "
-            f"SNR={r['snr']:.2f}  pkpk={r['pkpk']:.2f}mV",
+            f"  {cell}: freq={r['peak_freq_hz']:.2f}Hz  "
+            f"peak_to_peak_z={r['peak_to_peak_z']:.2f}  "
+            f"SNR={r['snr']:.2f}  peak_to_peak={r['peak_to_peak']:.2f}mV",
             flush=True,
         )
 
@@ -461,7 +497,7 @@ def _print_oscillation(cells, reports, delta_ms, analyze, args) -> None:
 def _print_flat(cells, reports, delta_ms, analyze, baseline, args) -> None:
     hdr = (
         f"{'Cell':<12} {'Flat?':<6} {'Reason':<12} "
-        f"{'base':>8} {'Δmean':>8} {'|μ|':>8} {'pkpk':>9} "
+        f"{'base':>8} {'Δmean':>8} {'|μ|':>8} {'ptp':>9} "
         f"{'max|Δ|':>8} {'n':>6}"
     )
     print(f"\n{hdr}\n{'-' * len(hdr)}", flush=True)
@@ -471,14 +507,14 @@ def _print_flat(cells, reports, delta_ms, analyze, baseline, args) -> None:
         if rep is None:
             print(f"{cell:<12} {'?':<6} {'no_report':<12}", flush=True)
             continue
-        v_full = np.asarray(rep["v_post"], dtype=float)
+        v_full = _trace_series(rep)
         base = _baseline_mean(v_full, baseline, delta_ms=delta_ms)
         v = _slice_ms(v_full, analyze[0], analyze[1], delta_ms=delta_ms)
         result = detect_flat(
             v,
             baseline=base,
             max_abs=args.max_abs,
-            pkpk=args.pkpk,
+            peak_to_peak=args.pkpk,
             abs_mean=args.abs_mean,
         )
         yes = "YES" if result["flag"] else "NO"
@@ -487,7 +523,7 @@ def _print_flat(cells, reports, delta_ms, analyze, baseline, args) -> None:
             f"{result.get('baseline', 0):>8.2f} "
             f"{result.get('delta_mean', 0):>8.2f} "
             f"{result.get('abs_mean', 0):>8.3f} "
-            f"{result.get('pkpk_seg', 0):>9.3f} "
+            f"{result.get('peak_to_peak_seg', 0):>9.3f} "
             f"{result.get('max_abs', 0):>8.2f} "
             f"{result.get('n_samples', 0):>6}",
             flush=True,
@@ -498,7 +534,8 @@ def _print_flat(cells, reports, delta_ms, analyze, baseline, args) -> None:
     print(f"\nFlat ({len(hit)}/{len(cells)}):", flush=True)
     for cell, r in hit:
         print(
-            f"  {cell}: max|Δ|={r['max_abs']:.3f}  pkpk={r['pkpk_seg']:.3f}  "
+            f"  {cell}: max|Δ|={r['max_abs']:.3f}  "
+            f"peak_to_peak={r['peak_to_peak_seg']:.3f}  "
             f"Δmean={r['delta_mean']:.3f}  base={r['baseline']:.2f}",
             flush=True,
         )
@@ -517,8 +554,7 @@ def _print_drift(cells, reports, delta_ms, analyze, args) -> None:
             print(f"{cell:<12} {'?':<6} {'no_report':<12}", flush=True)
             continue
         v = _slice_ms(
-            np.asarray(rep["v_post"], dtype=float),
-            analyze[0], analyze[1], delta_ms=delta_ms,
+            _trace_series(rep), analyze[0], analyze[1], delta_ms=delta_ms,
         )
         result = detect_drift(
             v,
@@ -550,7 +586,7 @@ def _print_drift(cells, reports, delta_ms, analyze, args) -> None:
 def _print_stability(cells, reports, delta_ms, analyze, baseline, args) -> None:
     hdr = (
         f"{'Cell':<12} {'Label':<16} {'Osc?':<5} {'Drift':<8} {'Flat?':<5} "
-        f"{'pkpk_z':>8} {'slope':>9} {'max|Δ|':>8} {'n':>6}"
+        f"{'ptp_z':>8} {'slope':>9} {'max|Δ|':>8} {'n':>6}"
     )
     print(f"\n{hdr}\n{'-' * len(hdr)}", flush=True)
     counts: dict[str, int] = {}
@@ -559,7 +595,7 @@ def _print_stability(cells, reports, delta_ms, analyze, baseline, args) -> None:
         if rep is None:
             print(f"{cell:<12} {'?':<16} {'?':<5} {'?':<8} {'?':<5}", flush=True)
             continue
-        v_full = np.asarray(rep["v_post"], dtype=float)
+        v_full = _trace_series(rep)
         base = _baseline_mean(v_full, baseline, delta_ms=delta_ms)
         v = _slice_ms(v_full, analyze[0], analyze[1], delta_ms=delta_ms)
         result = detect_stability(
@@ -572,7 +608,7 @@ def _print_stability(cells, reports, delta_ms, analyze, baseline, args) -> None:
             min_slope_mv_per_s=args.min_slope,
             min_r=args.min_r,
             max_abs=args.max_abs,
-            pkpk=args.pkpk,
+            peak_to_peak=args.pkpk,
             abs_mean=args.abs_mean,
         )
         osc = result["oscillation"]
@@ -585,7 +621,7 @@ def _print_stability(cells, reports, delta_ms, analyze, baseline, args) -> None:
             f"{'YES' if osc['flag'] else 'NO':<5} "
             f"{drift['direction']:<8} "
             f"{'YES' if flat['flag'] else 'NO':<5} "
-            f"{osc.get('pkpk_z', 0):>8.2f} "
+            f"{osc.get('peak_to_peak_z', 0):>8.2f} "
             f"{drift.get('slope_mv_per_s', 0):>9.3f} "
             f"{flat.get('max_abs', 0):>8.2f} "
             f"{result.get('n_samples', 0):>6}",
@@ -603,8 +639,9 @@ def _print_stability(cells, reports, delta_ms, analyze, baseline, args) -> None:
 def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument(
-        "run",
-        help="run dir relative to PARAMETER_DIR (e.g. hp_lp/28693664-...) or absolute",
+        "--run",
+        default=DEFAULT_RUN_PATH,
+        help="run dir relative to PARAMETER_DIR or absolute (default: %(default)s)",
     )
     ap.add_argument(
         "--check",
@@ -620,16 +657,7 @@ def main() -> None:
         default="all",
         help="comma-separated cells or all (default: param.csv)",
     )
-    ap.add_argument(
-        "--ms-shown",
-        default=None,
-        metavar="START,STOP",
-        help=(
-            "absolute aligned ms analyze window (spot: 0=trial start). "
-            "default: oscillation/drift/stability=0,ms_pre; "
-            "flat=ms_pre,ms_pre+ms_pulse+ms_response"
-        ),
-    )
+    plot_trained.add_ms_shown_argument(ap)
     ap.add_argument(
         "--baseline-ms-shown",
         default=None,
@@ -639,67 +667,50 @@ def main() -> None:
             "default: [start-baseline_ms, start] if start>0 else [0, baseline_ms]"
         ),
     )
-    ap.add_argument(
-        "--ms-pre",
-        type=float,
-        default=None,
-        help="stimulus pre length ms (defaults / overrides); default: run opts",
-    )
-    ap.add_argument(
-        "--ms-pulse",
-        type=float,
-        default=None,
-        help="stimulus pulse length ms; default: run opts",
-    )
-    ap.add_argument(
-        "--ms-response",
-        type=float,
-        default=None,
-        help="stimulus response length ms; default: run opts",
-    )
+    plot_trained.add_plot_timing_arguments(ap)
+    plot_trained.add_plot_filter_argument(ap)
+    plot_trained.add_param_argument(ap)
     ap.add_argument("--task", default="spot_bright")
     ap.add_argument("--radius", type=int, default=0, choices=(0, 1))
     ap.add_argument(
-        "--param",
-        nargs="+",
-        default=None,
-        metavar="NAME=VALUE|NAME.NODE=VALUE",
-        help=(
-            "overwrite schema params before forward (same as analyze.cell_dynamics); "
-            "NAME=VALUE or NAME.all=VALUE sets every node; "
-            "NAME.NODE=VALUE for one cell / SRC:TAR pair / eN"
-        ),
+        "--z-threshold", type=float, default=TRACE_OSC_Z_THRESHOLD,
     )
-    # oscillation thresholds
-    ap.add_argument("--z-threshold", type=float, default=2.0)
-    ap.add_argument("--min-freq", type=float, default=0.5)
-    ap.add_argument("--max-freq", type=float, default=20.0)
-    # drift thresholds
+    ap.add_argument("--min-freq", type=float, default=TRACE_OSC_MIN_FREQ_HZ)
+    ap.add_argument("--max-freq", type=float, default=TRACE_OSC_MAX_FREQ_HZ)
     ap.add_argument(
         "--min-slope",
         type=float,
-        default=1.0,
+        default=TRACE_DRIFT_MIN_SLOPE_MV_PER_S,
         help="drift: min |slope| in mV/s",
     )
     ap.add_argument(
         "--min-r",
         type=float,
-        default=0.5,
+        default=TRACE_DRIFT_MIN_R,
         help="drift: min |Pearson r| of linear fit",
     )
-    # flat / stability thresholds
     ap.add_argument(
         "--baseline-ms",
         type=float,
-        default=200.0,
+        default=TRACE_BASELINE_MS,
         help="default baseline length when --baseline-ms-shown omitted",
     )
-    ap.add_argument("--max-abs", type=float, default=0.5, help="flat: max |Δ| vs baseline")
-    ap.add_argument("--pkpk", type=float, default=1.0, help="flat: max pkpk from baseline")
+    ap.add_argument(
+        "--max-abs",
+        type=float,
+        default=TRACE_FLAT_MAX_ABS,
+        help="flat: max |Δ| vs baseline",
+    )
+    ap.add_argument(
+        "--pkpk",
+        type=float,
+        default=TRACE_FLAT_PEAK_TO_PEAK,
+        help="flat: max peak-to-peak from baseline",
+    )
     ap.add_argument(
         "--abs-mean",
         type=float,
-        default=0.2,
+        default=TRACE_FLAT_ABS_MEAN,
         help="flat: max mean |Δ| vs baseline",
     )
     args = ap.parse_args()
