@@ -27,6 +27,7 @@ from task.spot.gt import (
     GT_CELLS,
     _spot_readout_amp,
     read_RecF_ImpR,
+    read_arenz_digitized_impr,
 )
 from task.spot.input import (
     SpotBatch,
@@ -355,6 +356,7 @@ def build_spot_gt(
     ms_spot: Optional[float] = None,
     ms_response: Optional[float] = None,
     gt_cells: Optional[Sequence[str]] = None,
+    filter: str = "none",
 ) -> SpotGt:
     if polarity not in SPOT_POLARITIES:
         raise ValueError(f"polarity must be 'bright' or 'dark', got {polarity!r}")
@@ -372,6 +374,10 @@ def build_spot_gt(
     recf_gt, impr_gt = read_RecF_ImpR(
         t_onset=t_onset, n_t=n_t_gt, ms_spot=ms_spot, delta_ms=delta_ms,
     )
+    if str(filter) == "ca":
+        impr_gt = read_arenz_digitized_impr(
+            t_onset=t_onset, n_t=n_t_gt, delta_ms=delta_ms,
+        )
     type_row = {str(rt): i for i, rt in enumerate(GT_CELLS)}
     if gt_cells is not None:
         bad = [str(t) for t in gt_cells if str(t) not in type_row]
@@ -490,6 +496,7 @@ def build_spot_gt(
         "t_onset": int(t_onset),
         "n_t": int(n_t),
         "n_t_gt": int(n_t_gt),
+        "filter": str(filter),
     }
     return SpotGt(
         i_sti=i_sti,

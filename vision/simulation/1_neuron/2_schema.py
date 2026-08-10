@@ -20,7 +20,7 @@ TRAIN_MODE_KEYS = ("indi", "shared", "fixed", "frozen")
 ALL_PARAM_NAMES = (
     "a_gt", "bias_gt",
     "syn_strength_cell", "syn_strength_edge",
-    "a_in", "a_out", "e_leak", "v_th",
+    "a_in", "a_out", "e_leak", "v_th", "v_th_ca", "a_ca", "tau_ca",
     "tau_lp", "tau_hp",
     "a_h", "v_mid_h_g", "v_mid_h_tau", "h_slope",
     "a_h_rev", "v_mid_h_g_rev", "v_mid_h_tau_rev", "h_slope_rev",

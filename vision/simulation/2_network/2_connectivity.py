@@ -3,12 +3,12 @@
 
 Interface (:class:`ScatterConn`):
 
-    conn.exc_inh_drive(x, syn_strength) -> (g_exc, g_inh)
-    conn.signed_drive(x, syn_strength)  -> g_signed
+    conn.exc_inh_drive(v_out, syn_strength) -> (g_exc, g_inh)
+    conn.signed_drive(v_out, syn_strength)  -> g_signed
     conn.n_nodes
     conn.node_cell
 
-``x`` is the presynaptic output already scaled by the per-source a_out, i.e.
+``v_out`` is the presynaptic output already scaled by the per-source a_out, i.e.
 ``max(v − v_th, 0) * a_out`` (borst / hp_lp). The post-synaptic input
 gain (``a_in``) is applied by the caller AFTER these calls.
 
@@ -111,18 +111,18 @@ class ScatterConn:
             f"or n_pairs {self.n_pairs}"
         )
 
-    def _pre_edges(self, x: torch.Tensor, syn_strength: torch.Tensor):
-        return self._gather(x), self._edge_syn_strength(syn_strength)
+    def _pre_edges(self, v_out: torch.Tensor, syn_strength: torch.Tensor):
+        return self._gather(v_out), self._edge_syn_strength(syn_strength)
 
     def exc_inh_drive(
-        self, x: torch.Tensor, syn_strength: torch.Tensor
+        self, v_out: torch.Tensor, syn_strength: torch.Tensor
     ) -> tuple[torch.Tensor, torch.Tensor]:
-        xs, syn_strength = self._pre_edges(x, syn_strength)
+        xs, syn_strength = self._pre_edges(v_out, syn_strength)
         return (
             self._scatter(xs * self.w_exc * syn_strength),
             self._scatter(xs * self.w_inh * syn_strength),
         )
 
-    def signed_drive(self, x: torch.Tensor, syn_strength: torch.Tensor) -> torch.Tensor:
-        xs, syn_strength = self._pre_edges(x, syn_strength)
+    def signed_drive(self, v_out: torch.Tensor, syn_strength: torch.Tensor) -> torch.Tensor:
+        xs, syn_strength = self._pre_edges(v_out, syn_strength)
         return self._scatter(xs * self.w_signed * syn_strength)

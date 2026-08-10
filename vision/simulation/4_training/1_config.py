@@ -55,6 +55,7 @@ COST_NORMS = ("gt_power", "a_gt2")
 # t=0 membrane pre steady (``--pre-steady MODE``); not param init.
 # Shared by borst / hp_lp (default: param_defaults.PRE_STEADY).
 PRE_STEADY_MODES = ("probe", "solve")
+FILTER_MODES = ("none", "ca")
 
 
 def _expand_choice(name, allowed: Tuple[str, ...], *, flag: str) -> str:
@@ -73,6 +74,10 @@ def expand_pre_steady_mode(mode) -> str:
     """Validate shared pre-steady mode token (``probe`` | ``solve``)."""
     return _expand_choice(mode, PRE_STEADY_MODES, flag="pre_steady")
 
+
+def expand_filter(mode) -> str:
+    """Validate ``--filter`` token (``none`` | ``ca``)."""
+    return _expand_choice(mode, FILTER_MODES, flag="filter")
 
 TASK_ALIASES = {
     "spot": SPOT_TASKS,

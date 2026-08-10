@@ -40,15 +40,11 @@ from figure.plot_run import (
     plot_param_set,
 )
 
-_CHECKPOINT_PNG_STEMS = (
-    "spot_gt_ca",
-    "spot_gt_v",
-    "spot_all_ca",
-    "spot_all_v",
-    "bar_gt_ca",
-    "bar_gt_v",
-    "bar_all_ca",
-    "bar_all_v",
+_CHECKPOINT_PNG_STEM_PREFIXES = (
+    "spot_gt",
+    "spot_all",
+    "bar_gt",
+    "bar_all",
 )
 
 _PLOT_KEYS = (
@@ -102,11 +98,14 @@ def make_plots(outdir, session, result=None, **plot_kw):
     )
 
 
-def _rename_checkpoint_pngs(png_dir, tag):
-    for stem in _CHECKPOINT_PNG_STEMS:
-        src = os.path.join(png_dir, f"{stem}.png")
+
+
+def _rename_checkpoint_pngs(png_dir, tag, *, filter_token="v", file_suffix=""):
+    for prefix in _CHECKPOINT_PNG_STEM_PREFIXES:
+        stem = f"{prefix}_{filter_token}"
+        src = os.path.join(png_dir, f"{stem}{file_suffix}.png")
         if os.path.isfile(src):
-            dst = os.path.join(png_dir, f"{stem}_{tag}.png")
+            dst = os.path.join(png_dir, f"{stem}{file_suffix}_{tag}.png")
             os.replace(src, dst)
 
 
@@ -124,7 +123,12 @@ def write_checkpoint_png(outdir, step, z_best, cost_best, session, plot_kw):
         cost_curve=None,
         **plot_kw,
     )
-    _rename_checkpoint_pngs(png_dir, tag)
+    from figure.util import filter_plot_token
+    _rename_checkpoint_pngs(
+        png_dir, tag,
+        filter_token=filter_plot_token((session.train_opts or {}).get("filter")),
+        file_suffix=plot_kw.get("file_suffix") or "",
+    )
     print(f"wrote checkpoint png: {png_dir}/*_{tag}.png")
 
 

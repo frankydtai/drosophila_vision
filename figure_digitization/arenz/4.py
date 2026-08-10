@@ -7,7 +7,7 @@ Method
 ------
 1. Time on the figure runs −1.5 … 0 (tick centers; ~0.25 s past the 0 tick).
    Output flips that axis: rightmost sample → t = 0, leftward → positive time
-   (~1.7 s), CSV sorted ascending.
+   (~1.7 s), then resampled to Δt = 1 ms (CSV ascending).
 2. Amplitude: dashed horizontal = 0; no y-axis numbers in the figure → scale
    each trace so max(|amp|) = 1 (sign preserved).
 3. Black mask = dark + low-saturation pixels; per-x continuity tracking;
@@ -55,6 +55,7 @@ PEAK_TOP_PATCH = {
 
 MAX_DY_PX = 25
 T_PAD_S = 0.25  # past t=0
+DT_S = 0.001  # output time step
 
 
 def black_mask(rgb: np.ndarray) -> np.ndarray:
@@ -137,6 +138,10 @@ def digitize() -> pd.DataFrame:
         t = t_fig[-1] - t_fig
         t = t[::-1]
         amp = amp[::-1]
+        t_grid = np.arange(0.0, t[-1] + 1e-12, DT_S)
+        amp = np.interp(t_grid, t, amp)
+        amp /= np.max(np.abs(amp))
+        t = t_grid
         panel = "4B" if image.startswith("4b") else "4E"
         for ti, ai in zip(t, amp):
             rows.append(dict(panel=panel, cell=cell, time_s=float(ti), amplitude=float(ai)))

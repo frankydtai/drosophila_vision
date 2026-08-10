@@ -2,9 +2,10 @@
 """Shared full-T absolute ``v`` forward for all neuron models.
 
 Per-model modules supply only ``prepare_i_sti`` / ``pre_steady`` / ``step``.
-This module owns the time loop. Training / plots read absolute membrane ``v``;
-cost compares ``v`` to ``a_gt * gt + bias_gt``. The unused Ca filter stays
-in ``neuron.filter_ca``.
+This module owns the time loop. Training / plots read absolute ``v``
+when ``train_opts['filter']=='none'``; with ``'ca'``, readout is ``f_ca`` from
+``neuron.filter_ca`` on ``v_ca = relu(v − v_th_ca)·a_ca``. Cost compares the
+readout to ``a_gt * gt + bias_gt``.
 """
 from __future__ import annotations
 
@@ -12,6 +13,7 @@ import torch
 
 from neuron import model_borst as _model_borst
 from neuron import model_hp_lp as _model_hp_lp
+from neuron.filter_ca import filter_ca
 
 # Per-model dynamics for ``forward_full`` (prepare_i_sti / pre_steady / step only).
 MODEL_DRIVERS = {
@@ -84,20 +86,43 @@ def step_delta_ms(session, t: int, t_onset: int) -> float:
     )
 
 
-def forward_full(session, p, i_sti, *, pack=None):
-    """Shared full-T forward for every ``session.model``.
+def _session_filter(session) -> str:
+    """``train_opts['filter']``; default ``none`` (same pattern as ``_session_*`` in cost)."""
+    opts = session.train_opts or {}
+    return str(opts.get("filter", "none"))
 
-    Time index ``t`` is post-update at step ``t``. Membrane drive comes from
-    ``MODEL_DRIVERS[model].prepare_i_sti`` / ``pre_steady`` / ``step``.
 
-    ``session.train_opts['pre_grad']`` (default ``True``): when ``False``, steps
-    with ``t < t_onset`` run under ``torch.no_grad()``, then ``v`` / ``state``
-    are detached before post steps so BPTT does not enter pre.
+def v_th_ca_effective(p, session):
+    """Ca rectifier threshold: ``v_th`` when ``v_th_ca_from_v_th``, else ``v_th_ca``."""
+    opts = session.train_opts or {}
+    if bool(opts.get("v_th_ca_from_v_th", True)):
+        return p["v_th"]
+    return p["v_th_ca"]
 
-    Returns
-    -------
-    Absolute ``v`` ``(B, T, N)``.
-    """
+
+def v_ca_from_v(v, p, session):
+    """``v_ca = relu(v − v_th_ca)·a_ca`` (per-node tensors in ``p``)."""
+    return torch.relu(v - v_th_ca_effective(p, session)) * p["a_ca"]
+
+
+def f_ca_from_v(v, p, session, *, t_onset: int):
+    """Apply ``filter_ca`` over time; ``f_ca[0] = v_ca[0]``."""
+    v_ca = v_ca_from_v(v, p, session)
+    tau_ca = torch.clamp(p["tau_ca"], min=float(session.delta_ms))
+    f_ca = v_ca[:, 0]
+    rows = [f_ca]
+    for t in range(1, int(v_ca.shape[1])):
+        f_ca = filter_ca(
+            f_ca, v_ca[:, t],
+            delta_ms=step_delta_ms(session, t, t_onset),
+            tau_ca=tau_ca,
+        )
+        rows.append(f_ca)
+    return torch.stack(rows, dim=1)
+
+
+def forward_v(session, p, i_sti, *, pack=None):
+    """Full-T ``v`` ``(B, T, N)`` (no Ca filter)."""
     if session.model not in MODEL_DRIVERS:
         raise ValueError(
             f"no MODEL_DRIVERS entry for model={session.model!r}; "
@@ -134,6 +159,35 @@ def forward_full(session, p, i_sti, *, pack=None):
     for t in range(max(t_onset, 1), t_end):
         take(t)
     return torch.stack(v_rows, dim=1)
+
+
+def forward_ca(session, p, i_sti, *, pack=None):
+    """Full-T ``f_ca`` ``(B, T, N)``: ``forward_v`` then ``filter_ca``."""
+    pack = pack or session.primary_readout
+    v = forward_v(session, p, i_sti, pack=pack)
+    return f_ca_from_v(v, p, session, t_onset=pack_t_onset(pack))
+
+
+def forward_full(session, p, i_sti, *, pack=None):
+    """Shared full-T forward for every ``session.model``.
+
+    Time index ``t`` is post-update at sample ``t``. Drive comes from
+    ``MODEL_DRIVERS[model].prepare_i_sti`` / ``pre_steady`` / ``step``.
+
+    ``session.train_opts['pre_grad']`` (default ``True``): when ``False``, steps
+    with ``t < t_onset`` run under ``torch.no_grad()``, then ``v`` / ``state``
+    are detached before post steps so BPTT does not enter pre.
+
+    ``session.train_opts['filter']``: ``none`` → :func:`forward_v`; ``ca`` →
+    :func:`forward_ca`.
+
+    Returns
+    -------
+    Readout trace ``(B, T, N)`` (``v`` or ``f_ca``).
+    """
+    if _session_filter(session) == "ca":
+        return forward_ca(session, p, i_sti, pack=pack)
+    return forward_v(session, p, i_sti, pack=pack)
 
 
 def forward_nodes(session, p, node_index=None, i_sti=None, pack=None):

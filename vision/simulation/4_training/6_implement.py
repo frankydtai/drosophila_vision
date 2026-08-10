@@ -58,9 +58,12 @@ from param_defaults import (
     PRE_GRAD,
     BIAS_GT_FROM_V_ONSET,
     BIAS_GT_FROM_V_ONSET_GRAD,
+    V_TH_CA_FROM_V_TH,
+    FILTER,
     MS_PRE,
     MS_POST,
     MS_SPOT,
+    MS_SPOT_CA,
     MS_RESPONSE,
     SEQUENTIAL,
     SHIFT_EXTENT,
@@ -686,6 +689,8 @@ def build_session(
     pre_grad=PRE_GRAD,
     bias_gt_from_v_onset=BIAS_GT_FROM_V_ONSET,
     bias_gt_from_v_onset_grad=BIAS_GT_FROM_V_ONSET_GRAD,
+    v_th_ca_from_v_th=V_TH_CA_FROM_V_TH,
+    filter=FILTER,
     pack_overrides=None,
     model_backend=None,
     schema=None,
@@ -731,6 +736,8 @@ def build_session(
         pre_grad=pre_grad,
         bias_gt_from_v_onset=bias_gt_from_v_onset,
         bias_gt_from_v_onset_grad=bias_gt_from_v_onset_grad,
+        v_th_ca_from_v_th=v_th_ca_from_v_th,
+        filter=filter,
         **mkw,
     )
     return training.open_session(opts, model, schema=schema, model_backend=model_backend)
@@ -762,6 +769,8 @@ def run_training(model, nofruns, nofsteps, lrs, fname=None, outdir=None,
                  pre_grad=PRE_GRAD,
                  bias_gt_from_v_onset=BIAS_GT_FROM_V_ONSET,
                  bias_gt_from_v_onset_grad=BIAS_GT_FROM_V_ONSET_GRAD,
+                 v_th_ca_from_v_th=V_TH_CA_FROM_V_TH,
+                 filter=FILTER,
                  init_from=None,
                  checkpoint_interval=None,
                  make_checkpoint_callback=make_checkpoint_callback,
@@ -803,6 +812,8 @@ def run_training(model, nofruns, nofsteps, lrs, fname=None, outdir=None,
         pre_grad=pre_grad,
         bias_gt_from_v_onset=bias_gt_from_v_onset,
         bias_gt_from_v_onset_grad=bias_gt_from_v_onset_grad,
+        v_th_ca_from_v_th=v_th_ca_from_v_th,
+        filter=filter,
     )
     suffix = "" if model == "borst" else f"_{model}"
     fname = fname or f"training{suffix or '_with_i_h'}.npy"
@@ -944,6 +955,12 @@ def add_training_arguments(parser):
     parser.add_argument("--v-th", **_train_mode_kwargs,
                         help=f"v_th train_modes ({_train_mode_help}; "
                              f"default {_box_train_mode_default('v_th')})")
+    parser.add_argument("--v-th-ca", **_train_mode_kwargs,
+                        help=f"v_th_ca train_modes ({_train_mode_help}; "
+                             f"default {_box_train_mode_default('v_th_ca')})")
+    parser.add_argument("--a-ca", **_train_mode_kwargs,
+                        help=f"a_ca train_modes ({_train_mode_help}; "
+                             f"default {_box_train_mode_default('a_ca')})")
     parser.add_argument("--a-h", **_train_mode_kwargs,
                         help=f"a_h train_modes (borst i_h gain / hp_lp HP mix; {_train_mode_help}; "
                              f"default {_box_train_mode_default('a_h')})")
@@ -968,6 +985,9 @@ def add_training_arguments(parser):
     parser.add_argument("--tau-lp", **_train_mode_kwargs,
                         help=f"hp_lp tau_lp train_modes ({_train_mode_help}; "
                              f"default {_box_train_mode_default('tau_lp')})")
+    parser.add_argument("--tau-ca", **_train_mode_kwargs,
+                        help=f"tau_ca train_modes ({_train_mode_help}; "
+                             f"default {_box_train_mode_default('tau_ca')})")
     parser.add_argument("--e-leak", **_train_mode_kwargs,
                         help=f"e_leak train_modes ({_train_mode_help}; "
                              f"default {_box_train_mode_default('e_leak')})")
@@ -1038,6 +1058,22 @@ def add_training_arguments(parser):
         help="with --bias-gt-from-v-onset: keep onset in the graph "
              f"(default: {str(BIAS_GT_FROM_V_ONSET_GRAD).lower()}); "
              "ignored when --bias-gt-from-v-onset false",
+    )
+    parser.add_argument(
+        "--v-th-ca-from-v-th",
+        type=parse_bool,
+        default=V_TH_CA_FROM_V_TH,
+        metavar="BOOL",
+        help="use v_th as Ca threshold instead of schema v_th_ca "
+             f"(default: {str(V_TH_CA_FROM_V_TH).lower()}); "
+             "forces v_th_ca frozen=all",
+    )
+    parser.add_argument(
+        "--filter",
+        default=FILTER,
+        choices=list(training.FILTER_MODES),
+        help="readout filter: none=v, ca=f_ca + Arenz digitized spot gt "
+             f"(default: {FILTER}); ca forces --ms-spot {MS_SPOT_CA:g}",
     )
     parser.add_argument(
         "--sequential",
@@ -1507,6 +1543,9 @@ def _train_mode_cli_map(args):
         "a_out": _train_mode_cli_text(getattr(args, "a_out", None)),
         "e_leak": _train_mode_cli_text(getattr(args, "e_leak", None)),
         "v_th": _train_mode_cli_text(getattr(args, "v_th", None)),
+        "v_th_ca": _train_mode_cli_text(getattr(args, "v_th_ca", None)),
+        "a_ca": _train_mode_cli_text(getattr(args, "a_ca", None)),
+        "tau_ca": _train_mode_cli_text(getattr(args, "tau_ca", None)),
         "tau_lp": _train_mode_cli_text(getattr(args, "tau_lp", None)),
         "tau_hp": _train_mode_cli_text(getattr(args, "tau_hp", None)),
         "a_h": _train_mode_cli_text(getattr(args, "a_h", None)),
@@ -1566,6 +1605,15 @@ def training_kwargs_from_args(
             )
         train_modes = dict(train_modes or {})
         train_modes["bias_gt"] = training.parse_train_mode_text("frozen=all")
+    v_th_ca_from_v_th = bool(args.v_th_ca_from_v_th)
+    if v_th_ca_from_v_th:
+        if _train_mode_cli_text(getattr(args, "v_th_ca", None)) is not None:
+            raise ValueError(
+                "--v-th-ca conflicts with --v-th-ca-from-v-th "
+                "(v_th_ca is forced frozen=all)"
+            )
+        train_modes = dict(train_modes or {})
+        train_modes["v_th_ca"] = training.parse_train_mode_text("frozen=all")
     tasks = parse_tasks(args.task)
     cost_weights = parse_cost_weight(args.cost_weight, tasks)
     default_extent, extent_kv = parse_cost_extent(args.cost_extent)
@@ -1599,6 +1647,9 @@ def training_kwargs_from_args(
     ms_response = float(args.ms_response)
     ms_post = float(args.ms_post)
     ms_spot = float(args.ms_spot)
+    filter = training.expand_filter(args.filter)
+    if filter == "ca":
+        ms_spot = float(MS_SPOT_CA)
     delta_ms = float(args.delta_ms)
     delta_ms_pre = float(args.delta_ms_pre)
     if delta_ms <= 0:
@@ -1702,6 +1753,8 @@ def training_kwargs_from_args(
         pre_grad=bool(args.pre_grad),
         bias_gt_from_v_onset=bias_gt_from_v_onset,
         bias_gt_from_v_onset_grad=bias_gt_from_v_onset_grad,
+        v_th_ca_from_v_th=v_th_ca_from_v_th,
+        filter=filter,
         sequential=bool(args.sequential),
         init_from=init_from,
         checkpoint_interval=args.checkpoint_interval,

@@ -122,7 +122,8 @@ def update_v(
             g_h[:, idx] = g_a.to(dtype=g_h.dtype)
             g_h_rev[:, idx] = g_rev_a.to(dtype=g_h_rev.dtype)
 
-    g_exc, g_inh = conn.exc_inh_drive(rectsyn(v, v_th) * a_out, syn_strength)
+    v_out = rectsyn(v, v_th) * a_out
+    g_exc, g_inh = conn.exc_inh_drive(v_out, syn_strength)
     g_exc = g_exc * a_in
     g_inh = g_inh * a_in
 
@@ -218,9 +219,8 @@ def _ohmic_v(i0, g_exc, g_inh, g_h, g_h_rev, e_leak, session):
 
 
 def _syn_g(v, p, backend):
-    g_exc, g_inh = backend.conn.exc_inh_drive(
-        rectsyn(v, p["v_th"]) * p["a_out"], syn_strength(p),
-    )
+    v_out = rectsyn(v, p["v_th"]) * p["a_out"]
+    g_exc, g_inh = backend.conn.exc_inh_drive(v_out, syn_strength(p))
     return g_exc * p["a_in"], g_inh * p["a_in"]
 
 

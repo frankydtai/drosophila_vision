@@ -35,13 +35,17 @@ from neuron.schema import (
 )
 from neuron import model_borst as _model_borst
 from neuron import model_hp_lp as _model_hp_lp
-from neuron.filter_ca import ca_alpha, ca_filter
+from neuron.filter_ca import filter_ca
 from neuron.forward import (
     MODEL_DRIVERS,
+    f_ca_from_v,
+    forward_ca,
     forward_full,
     forward_nodes,
+    forward_v,
     pack_t_onset,
     step_delta_ms,
+    v_ca_from_v,
 )
 from neuron.readout import (
     CA_PACK_READOUTS,
@@ -81,10 +85,13 @@ __all__ = [
     "update_v",
     "v_component_from_g",
     "update_state_hp_lp",
-    "ca_filter",
-    "ca_alpha",
+    "filter_ca",
     "forward_full",
     "forward_nodes",
+    "forward_v",
+    "forward_ca",
+    "f_ca_from_v",
+    "v_ca_from_v",
     "pack_t_onset",
     "step_delta_ms",
     "pack_readout",

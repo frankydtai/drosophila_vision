@@ -6,12 +6,12 @@ Consumes a :class:`~training.readout_pack.TrainSession` and the model forward
 local-% costs, the mean weighted total (``Σ W·cost / Σ W``), and the Adam
 training loop.
 
-Readout traces are absolute ``v``; cost compares ``v`` to
-``gt_aff = a_gt * gt + bias_gt`` (``+ v_th`` when present).
-When ``train_opts['bias_gt_from_v_onset']``, ``bias_gt`` is replaced by
-``v`` at ``t_onset`` (per readout node), clamped to schema ``bias_gt``
-``lo``/``hi``; ``bias_gt_from_v_onset_grad`` controls whether that onset
-stays in the graph (default detach).
+Readout traces are absolute ``v`` (``filter=none``) or ``f_ca`` (``filter=ca``);
+cost compares the readout to ``gt_aff = a_gt * gt + bias_gt`` (``+ v_th`` when
+present). When ``train_opts['bias_gt_from_v_onset']``, ``bias_gt`` is replaced by
+``v`` at ``t_onset`` (or ``v_ca`` at onset when ``filter=ca``), clamped to schema
+``bias_gt`` ``lo``/``hi``; ``bias_gt_from_v_onset_grad`` controls whether that
+onset stays in the graph (default detach).
 Waveform MSE normalization is ``session`` / ``train_opts`` ``cost_norm``:
 
 * ``gt_power``: ``100 * Σ w (v_readout−gt_aff)² / Σ w (a_gt·gt)²``
@@ -42,8 +42,12 @@ from torch import nn
 from tqdm import tqdm
 
 from training.readout_pack import SIM_DTYPE
-from neuron import forward_full
-from neuron.forward import pack_t_onset
+from neuron.forward import (
+    f_ca_from_v,
+    forward_v,
+    pack_t_onset,
+    v_ca_from_v,
+)
 from neuron.readout import (
     pack_needs_waveform_mse,
     window_time_traces,
@@ -67,6 +71,7 @@ from param_defaults import (
     COST_NORM as DEFAULT_COST_NORM,
     BIAS_GT_FROM_V_ONSET as DEFAULT_BIAS_GT_FROM_V_ONSET,
     BIAS_GT_FROM_V_ONSET_GRAD as DEFAULT_BIAS_GT_FROM_V_ONSET_GRAD,
+    FILTER as DEFAULT_FILTER,
     PARAM_BOXES,
 )
 
@@ -127,17 +132,32 @@ def _session_bias_gt_from_v_onset_grad(session: TrainSession) -> bool:
     return bool(opts.get("bias_gt_from_v_onset_grad", DEFAULT_BIAS_GT_FROM_V_ONSET_GRAD))
 
 
+def _session_filter(session: TrainSession) -> str:
+    opts = session.train_opts or {}
+    return str(opts.get("filter", DEFAULT_FILTER))
+
+
+def _forward_readout_and_onset_trace(session, p, i_sti, pack):
+    """``(readout_trace, onset_bias_trace)``; onset uses ``v_ca`` when ``filter=ca``."""
+    v = forward_v(session, p, i_sti, pack=pack)
+    if _session_filter(session) != "ca":
+        return v, v
+    t_onset = pack_t_onset(pack)
+    return f_ca_from_v(v, p, session, t_onset=t_onset), v_ca_from_v(v, p, session)
+
+
 def _v_onset_bias_for_pack(
-    trace_full: torch.Tensor,
+    onset_trace: torch.Tensor,
     pack: ReadoutPack,
     session: TrainSession,
     *,
     batch_offset: int = 0,
     batch_idx=None,
 ) -> torch.Tensor:
-    """Per-cost-entry ``v`` at ``t_onset``; clamp to schema ``bias_gt`` lo/hi.
+    """Per-cost-entry onset bias from ``onset_trace``; clamp to schema ``bias_gt`` lo/hi.
 
-    Detach unless ``bias_gt_from_v_onset_grad``.
+    Detach unless ``bias_gt_from_v_onset_grad``. When ``filter=ca``, caller passes
+    ``v_ca`` as ``onset_trace``.
     """
     t0 = pack_t_onset(pack)
     if batch_idx is None:
@@ -146,10 +166,10 @@ def _v_onset_bias_for_pack(
             if batch_offset == 0
             else pack.readout_batch + int(batch_offset)
         )
-        bias = trace_full[rb, t0, pack.readout_node]
+        bias = onset_trace[rb, t0, pack.readout_node]
     else:
         mask = pack.readout_batch == int(batch_idx)
-        bias = trace_full[0, t0, pack.readout_node[mask]]
+        bias = onset_trace[0, t0, pack.readout_node[mask]]
     if not _session_bias_gt_from_v_onset_grad(session):
         bias = bias.detach()
     return torch.clamp(bias, min=_BIAS_GT_LO, max=_BIAS_GT_HI)
@@ -159,23 +179,23 @@ def _pack_gt_affine_for_cost(
     p,
     pack: ReadoutPack,
     session: TrainSession,
-    trace_full: Optional[torch.Tensor] = None,
+    onset_trace: Optional[torch.Tensor] = None,
     *,
     batch_offset: int = 0,
     batch_idx=None,
 ):
-    """Schema ``a_gt``; bias from schema or ``v`` at onset when flag set."""
+    """Schema ``a_gt``; bias from schema or onset trace when flag set."""
     a_gt, bias_gt = gt_affine_for_nodes(
         p, pack.readout_node, session.backend, sim_dtype=session.sim_dtype,
     )
     if not _session_bias_gt_from_v_onset(session):
         return a_gt, bias_gt
-    if trace_full is None:
-        raise ValueError("bias_gt_from_v_onset requires trace_full")
+    if onset_trace is None:
+        raise ValueError("bias_gt_from_v_onset requires onset_trace")
     if batch_idx is not None:
         a_gt = a_gt[pack.readout_batch == int(batch_idx)]
     return a_gt, _v_onset_bias_for_pack(
-        trace_full, pack, session, batch_offset=batch_offset, batch_idx=batch_idx,
+        onset_trace, pack, session, batch_offset=batch_offset, batch_idx=batch_idx,
     )
 
 
@@ -491,7 +511,7 @@ def _build_cost_subpacks(session: TrainSession) -> Dict[str, ReadoutPack]:
 
 
 def _i_sti_fuse_key(pack: ReadoutPack) -> Tuple:
-    """Key for packs that can share one ``forward_full`` (shape, onset, polarity)."""
+    """Key for packs that can share one readout forward (shape, onset, polarity)."""
     i_sti = pack.i_sti
     return (
         int(i_sti.shape[1]),
@@ -613,10 +633,12 @@ def _calc_cost_parts_fused(
         else:
             i_sti = torch.cat([pack.i_sti for pack in fused.subpacks], dim=0)
         # Same fuse key ⇒ shared t_onset; pass one subpack for prepare.
-        trace_full = forward_full(session, p, i_sti, pack=fused.subpacks[0])
+        trace_full, onset_trace = _forward_readout_and_onset_trace(
+            session, p, i_sti, fused.subpacks[0],
+        )
         for pack, off in zip(fused.subpacks, fused.batch_offsets):
             a_gt, bias_gt = _pack_gt_affine_for_cost(
-                p, pack, session, trace_full, batch_offset=off,
+                p, pack, session, onset_trace, batch_offset=off,
             )
             v_readout, v_readout_dsi = _readout_from_trace_full(
                 trace_full, pack, batch_offset=off,
@@ -635,9 +657,11 @@ def _pack_cost_forward(p, pack: ReadoutPack, session: TrainSession, batch_idx=No
         if not bool(mask.any()):
             return None
     i_sti = pack.i_sti if batch_idx is None else pack.i_sti[batch_idx:batch_idx + 1]
-    trace_full = forward_full(session, p, i_sti, pack=pack)
+    trace_full, onset_trace = _forward_readout_and_onset_trace(
+        session, p, i_sti, pack,
+    )
     a_gt, bias_gt = _pack_gt_affine_for_cost(
-        p, pack, session, trace_full, batch_idx=batch_idx,
+        p, pack, session, onset_trace, batch_idx=batch_idx,
     )
     pd_nd = pack.cost_pd_nd
     if batch_idx is not None:

@@ -1,20 +1,17 @@
 # -*- coding: utf-8 -*-
-"""The one Ca filter (kept; unused by forward / training / plotting).
+"""The one Ca filter.
 
-``ca_filter`` is a first-order low-pass on ``v - v_onset`` with
-``alpha = delta_ms / Ca_tau``. Training and plots use absolute ``v``;
-cost compares ``v`` to ``a_gt * gt + bias_gt``.
+``filter_ca`` is a first-order low-pass on ``v_ca`` with
+``dt_over_tau_ca = delta_ms / tau_ca`` (same pattern as ``hp_dt_over_tau`` /
+``lp_dt_over_tau`` / ``membrane_dt_over_c``). Output state is ``f_ca``.
 
-``delta_ms`` / ``Ca_tau`` are injected scalars.
+``delta_ms`` is an injected scalar; ``tau_ca`` may be a schema tensor
+(``p["tau_ca"]``) so the ratio stays in the graph.
 """
 from __future__ import annotations
 
 
-def ca_alpha(*, delta_ms: float, Ca_tau: float) -> float:
-    """One-step low-pass coefficient ``delta_ms / Ca_tau``."""
-    return float(delta_ms) / float(Ca_tau)
-
-
-def ca_filter(ca, v, v_onset, *, delta_ms: float, Ca_tau: float):
-    """One Ca low-pass step on ``v - v_onset`` (unused by current forward)."""
-    return ca_alpha(delta_ms=delta_ms, Ca_tau=Ca_tau) * (v - v_onset - ca) + ca
+def filter_ca(f_ca, v_ca, *, delta_ms: float, tau_ca):
+    """One Ca low-pass step: ``f_ca ← f_ca + (delta_ms/tau_ca) (v_ca − f_ca)``."""
+    dt_over_tau_ca = float(delta_ms) / tau_ca
+    return dt_over_tau_ca * (v_ca - f_ca) + f_ca

@@ -1,10 +1,11 @@
 # -*- coding: utf-8 -*-
 """Numeric source for membrane constants, schema boxes, stimulus, and CLI values.
 
-Literals / constant bags only — no functions. Only ``4_training`` / figures /
-analyze / run scripts may import this module. Layers ``1_neuron`` /
-``2_network`` / ``3_task`` take numbers by injection only (Gruntman paradigm
-ms/geometry constants may live in ``task.moving_bar``).
+Literals / constant bags only — except ``ms_spot_for_filter`` (``filter=ca`` →
+``MS_SPOT_CA``). Only ``4_training`` / figures / analyze / run scripts may
+import this module. Layers ``1_neuron`` / ``2_network`` / ``3_task`` take
+numbers by injection only (Gruntman paradigm ms/geometry constants may live
+in ``task.moving_bar``).
 
 Constants follow original definition order across numbered cores
 ``1.1`` … ``4.7`` (empty cores omitted).
@@ -31,7 +32,6 @@ E_EXC = 10.0
 E_INH = -70.0
 E_H = 50.0
 H_G_MAX = 100.0
-CA_TAU = 50.0
 DATA_AMP = 20.0
 STATE_CLAMP = 1.0e6
 SYN_SCALE_EXC = 0.001
@@ -56,6 +56,11 @@ PARAM_BOXES: Dict[str, dict] = {
     "a_out": dict(lo=GAIN_LO, hi=GAIN_HI, init=1.0, jit=0.1, train_mode="indi"),
     "e_leak": dict(lo=-50.0, hi=50.0, init=0.0, jit=1.0, train_mode="indi"),
     "v_th": dict(lo=-100.0, hi=-100.0, init=-50.0, jit=0.0, train_mode="indi"),
+    # Ca rectifier: v_ca = relu(v − v_th_ca)·a_ca.
+    # --v-th-ca-from-v-th → effective threshold is v_th; v_th_ca forced frozen=all.
+    "v_th_ca": dict(lo=-100.0, hi=-100.0, init=-50.0, jit=0.0, train_mode="indi"),
+    "a_ca": dict(lo=GAIN_LO, hi=GAIN_HI, init=1.0, jit=0.1, train_mode="indi"),
+    "tau_ca": dict(lo=10.0, hi=500.0, init=50.0, jit=5.0, train_mode="shared"),
     "tau_lp": dict(lo=10.0, hi=100.0, init=10.0, jit=2.0, train_mode="fixed"),
     "tau_hp": dict(lo=100.0, hi=500.0, init=200.0, jit=20.0, train_mode="shared"),
     "a_h": dict(lo=0.0, hi=1.0, init=0, jit=0.1, train_mode="indi_named"),
@@ -103,7 +108,8 @@ I_DARK = 0.0
 
 MS_PRE = 10.0
 MS_SPOT = 50.0
-MS_RESPONSE = 100.0
+MS_SPOT_CA = 25.0  # forced when ``--filter ca``
+MS_RESPONSE = 200.0
 MS_POST = 0.0
 SPOT_EXTENT = 1.0
 SPOT_EXTENTS: Tuple[float, ...] = (0.5, 1.0, 1.5, 2.0)
@@ -115,6 +121,15 @@ SHIFT_EXTENT = 1.0
 # 3.2 task.spot.gt (RecF/ImpR literals live in task.spot.gt)
 # 3.3 task.spot.readout
 # ---------------------------------------------------------------------------
+
+# Readout filter: none = v; ca = f_ca (``neuron.filter_ca``).
+FILTER = "none"
+
+
+def ms_spot_for_filter(filter: str = FILTER) -> float:
+    """Spot duration ms: ``ca`` → ``MS_SPOT_CA``, else ``MS_SPOT``."""
+    return float(MS_SPOT_CA) if str(filter) == "ca" else float(MS_SPOT)
+
 
 SPOT_COST_RADII: Tuple[float, ...] = (0.0, 1.0, math.sqrt(3), 2.0)
 # a_sti_radius: center r=0 baked @1; all SPOT_STI_RADII are slots.
@@ -155,13 +170,15 @@ COST_NORM = "a_gt2"  # gt_power | a_gt2; see training.config.COST_NORMS
 COST_INTERVAL_MS = 10.0
 # Spot: per-radius explicit post-onset ms (overwrites COST_INTERVAL_MS for that r).
 COST_MS: Dict[float, Tuple[float, ...]] = {
-    1.0: (0.0, MS_SPOT),
+    1.0: (0.0, MS_SPOT_CA),
 }
-# Cost/plot affine bias = v at t_onset (not schema bias_gt), clamped to
+# Cost/plot affine bias = v (or v_ca when ``--filter ca``) at t_onset, clamped to
 # PARAM_BOXES["bias_gt"] lo/hi.
 BIAS_GT_FROM_V_ONSET = True
 # With bias_gt_from_v_onset: True keeps onset in graph; False detaches.
 BIAS_GT_FROM_V_ONSET_GRAD = True
+# Ca threshold: True → use v_th instead of schema v_th_ca (v_th_ca frozen=all).
+V_TH_CA_FROM_V_TH = True
 
 # Membrane t=0 pre steady (``--pre-steady MODE``). Not param init.
 # Shared by borst / hp_lp: probe (ohmic one-shot) | solve (fixed-iter DC).

@@ -38,6 +38,7 @@ from figure.util import (
     bias_gt_from_v_onset_enabled,
     e_leak_by_type_name,
     mean_v_onset_by_cell_name,
+    session_filter_plot_token,
     hex_at_scope_tag,
     mark_spot,
     overlay_v_readout_reds,
@@ -711,7 +712,14 @@ def _spot_forward_rows(
             }
             break
     i_sti = pack.i_sti if pack.i_sti.dim() == 3 else pack.i_sti.unsqueeze(0)
-    trace_full = training.forward_full(session, p, i_sti, pack=pack)
+    v = training.forward_v(session, p, i_sti, pack=pack)
+    if str((session.train_opts or {}).get("filter", "none")) == "ca":
+        t0 = training.pack_t_onset(pack)
+        plot_full = training.f_ca_from_v(v, p, session, t_onset=t0)
+        onset_full = training.v_ca_from_v(v, p, session)
+    else:
+        plot_full = v
+        onset_full = v
     C = session.backend.network
     cell_names = list(C.cell_names)
     mt = int(i_sti.shape[1])
@@ -729,7 +737,8 @@ def _spot_forward_rows(
         C, batches, pack_spot_cost_radii(pack), pack.cost_extent,
     )
 
-    plot_traces = trace_full[batch_idx, :, node_idx].cpu().numpy()
+    plot_traces = plot_full[batch_idx, :, node_idx].cpu().numpy()
+    onset_traces = onset_full[batch_idx, :, node_idx].cpu().numpy()
 
     stim_ms_pre = opts.get("ms_pre")
     dt = float(opts["delta_ms"])
@@ -778,7 +787,7 @@ def _spot_forward_rows(
     onset_bias = None
     if bias_gt_from_v_onset_enabled(session):
         onset_bias = mean_v_onset_by_cell_name(
-            plot_traces, type_idx, cell_names, names, rows.get('t_onset'),
+            onset_traces, type_idx, cell_names, names, rows.get('t_onset'),
         )
     rows['gt_affine_by_name'] = {
         name: gt_affine_scalars_for_cell(
@@ -970,7 +979,7 @@ def _plot_spot_figure(
                 "v_th": cell.get("v_th"),
                 "linestyle": contrast_linestyle(c),
                 "label_gt": f"{c} gt",
-                "label_v_readout": f"{c} v",
+                "label_v_readout": f"{c} {session_filter_plot_token(primary.session)}",
                 "label_total": f"{c} total",
             }
             if with_slices:

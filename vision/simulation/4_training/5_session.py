@@ -12,10 +12,11 @@ builders wrap the neutral gt dataclasses from ``task`` (which sit below
 * moving bar: ``waveform_mse`` from cost weights (True when a cost window is
   built).
 
-Model traces are absolute ``v``; cost compares ``v`` to
-``a_gt * gt + bias_gt``. When ``bias_gt_from_v_onset``, bias is ``v`` at
-``t_onset`` instead of schema ``bias_gt``. ImpR / RecF spot gt are used
-as-is before affine.
+Model traces are absolute ``v`` (``filter=none``) or ``f_ca`` (``filter=ca``);
+cost compares the readout to ``a_gt * gt + bias_gt``. When
+``bias_gt_from_v_onset``, bias is ``v`` at ``t_onset`` (or ``v_ca`` when
+``filter=ca``) instead of schema ``bias_gt``. Spot ImpR uses Arenz digitized
+when ``filter=ca``; RecF amp scaling is unchanged.
 """
 from __future__ import annotations
 
@@ -34,7 +35,6 @@ from neuron import (
     normalize_syn_mode,
 )
 from param_defaults import (
-    CA_TAU,
     CAP,
     DATA_AMP,
     DELTA_MS,
@@ -54,6 +54,8 @@ from param_defaults import (
     PRE_GRAD,
     BIAS_GT_FROM_V_ONSET,
     BIAS_GT_FROM_V_ONSET_GRAD,
+    V_TH_CA_FROM_V_TH,
+    FILTER,
     SHIFT_EXTENT,
     SPOT_COST_RADII,
     SPOT_COST_RADIUS_WEIGHT,
@@ -71,6 +73,7 @@ from param_defaults import (
     MS_PRE,
     MS_POST,
     MS_SPOT,
+    MS_SPOT_CA,
     MS_RESPONSE,
     SYN_MODE,
     COST_NORM,
@@ -96,6 +99,7 @@ from training.config import (
     _SPOT_I_KEY,
     expand_cost_norm,
     expand_cost_weight_dict,
+    expand_filter,
     expand_gt_dict,
     expand_pre_steady_mode,
     moving_bar_cost_part_key,
@@ -346,6 +350,7 @@ class _TrainBindCtx:
     spot_dark_stimulus_opts: Optional[dict] = None
     moving_bar_bright_stimulus_opts: Optional[dict] = None
     moving_bar_dark_stimulus_opts: Optional[dict] = None
+    filter: str = "none"
 
 
 def _moving_bar_waveform_mse_enabled(cost_weights: Optional[dict], pack_name: str) -> bool:
@@ -551,6 +556,7 @@ def _build_network_spot_task(
         default_cost_weights=default_w,
         spot_cost_radii=SPOT_COST_RADII,
         gt_cells=gt_cells_from_opts(opts),
+        filter=str(ctx.filter),
     )
     cost_time_ix, cost_time_mask = _spot_cost_time_ix_and_mask(
         opts, T.cost_radius, device=dev, sim_dtype=ctx.sim_dtype,
@@ -831,6 +837,8 @@ def make_train_opts(
     pre_grad=PRE_GRAD,
     bias_gt_from_v_onset=BIAS_GT_FROM_V_ONSET,
     bias_gt_from_v_onset_grad=BIAS_GT_FROM_V_ONSET_GRAD,
+    v_th_ca_from_v_th=V_TH_CA_FROM_V_TH,
+    filter=FILTER,
 ):
     """Canonical training opts for :func:`open_session` (network backend)."""
     if backend != "network":
@@ -841,6 +849,7 @@ def make_train_opts(
     if fp not in (16, 32, 64):
         raise ValueError(f"fp must be 16, 32, or 64; got {fp!r}")
     cost_norm = expand_cost_norm(cost_norm)
+    filter = expand_filter(filter)
     pre_steady = expand_pre_steady_mode(
         PRE_STEADY if pre_steady is None else pre_steady
     )
@@ -859,6 +868,12 @@ def make_train_opts(
     if bias_gt_from_v_onset:
         train_modes = dict(train_modes or {})
         train_modes["bias_gt"] = {
+            "indi": [], "shared": [], "fixed": [], "frozen": ["all"],
+        }
+    v_th_ca_from_v_th = bool(v_th_ca_from_v_th)
+    if v_th_ca_from_v_th:
+        train_modes = dict(train_modes or {})
+        train_modes["v_th_ca"] = {
             "indi": [], "shared": [], "fixed": [], "frozen": ["all"],
         }
     tl = normalize_tasks(tasks)
@@ -915,6 +930,13 @@ def make_train_opts(
     opts["pre_grad"] = bool(pre_grad)
     opts["bias_gt_from_v_onset"] = bias_gt_from_v_onset
     opts["bias_gt_from_v_onset_grad"] = bias_gt_from_v_onset_grad
+    opts["v_th_ca_from_v_th"] = v_th_ca_from_v_th
+    opts["filter"] = filter
+    if filter == "ca":
+        for key in ("spot_bright_stimulus_opts", "spot_dark_stimulus_opts"):
+            so = opts.get(key)
+            if so is not None:
+                so["ms_spot"] = float(MS_SPOT_CA)
     opts["fp"] = fp
     opts.update({
         "network": network,
@@ -965,6 +987,10 @@ def _train_opts_for_sidecar(opts, tasks, resolved_stim, sequential_bool) -> dict
     record["bias_gt_from_v_onset_grad"] = bool(
         opts.get("bias_gt_from_v_onset_grad", BIAS_GT_FROM_V_ONSET_GRAD)
     )
+    record["v_th_ca_from_v_th"] = bool(
+        opts.get("v_th_ca_from_v_th", V_TH_CA_FROM_V_TH)
+    )
+    record["filter"] = expand_filter(opts.get("filter", FILTER))
     record["fp"] = int(opts.get("fp", FP))
     return record
 
@@ -1057,7 +1083,6 @@ def _make_session(
         e_inh=E_INH,
         e_h=E_H,
         h_g_max=H_G_MAX,
-        Ca_tau=CA_TAU,
         DATA_AMP=DATA_AMP,
         STATE_CLAMP=STATE_CLAMP,
         syn_scale_exc=SYN_SCALE_EXC,
@@ -1120,6 +1145,7 @@ def open_session(
         spot_dark_stimulus_opts=opts.get("spot_dark_stimulus_opts"),
         moving_bar_bright_stimulus_opts=opts.get("moving_bar_bright_stimulus_opts"),
         moving_bar_dark_stimulus_opts=opts.get("moving_bar_dark_stimulus_opts"),
+        filter=expand_filter(opts.get("filter", FILTER)),
     )
     packs = {}
     pack_overrides = opts.get("pack_overrides") or {}

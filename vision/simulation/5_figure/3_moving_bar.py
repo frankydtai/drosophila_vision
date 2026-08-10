@@ -401,8 +401,16 @@ def moving_bar_trace_bundle(session, z, task, *, at_x=None, at_y=None,
     pack = session.pack_for(task)
     schema = list(session.schema)
     p = training.assign_params(z, schema, session.backend)
-    trace_t = training.forward_full(session, p, pack.i_sti, pack=pack)
-    trace_full = trace_t.detach().cpu().numpy()
+    v = training.forward_v(session, p, pack.i_sti, pack=pack)
+    if str((session.train_opts or {}).get("filter", "none")) == "ca":
+        t0 = training.pack_t_onset(pack)
+        plot_t = training.f_ca_from_v(v, p, session, t_onset=t0)
+        onset_t = training.v_ca_from_v(v, p, session)
+    else:
+        plot_t = v
+        onset_t = v
+    trace_full = plot_t.detach().cpu().numpy()
+    onset_full = onset_t.detach().cpu().numpy()
     specs = bar_specs_for_session(session, task)
     spec_names = [s.name for s in specs]
     n_t = int(session.n_t)
@@ -442,7 +450,7 @@ def moving_bar_trace_bundle(session, z, task, *, at_x=None, at_y=None,
                 onset_bias[str(name)] = float("nan")
             else:
                 onset_bias[str(name)] = float(
-                    np.nanmean(trace_full[:, t0, nodes])
+                    np.nanmean(onset_full[:, t0, nodes])
                 )
     gt_affine_by_name = {
         str(name): gt_affine_scalars_for_cell(

@@ -60,6 +60,18 @@ def bias_gt_from_v_onset_enabled(session) -> bool:
     return bool(opts.get("bias_gt_from_v_onset", BIAS_GT_FROM_V_ONSET))
 
 
+def filter_plot_token(filter=None) -> str:
+    """Readout token for plot stems / labels: ``none`` → ``v``, ``ca`` → ``ca``."""
+    if filter is None or str(filter) == "none":
+        return "v"
+    return str(filter)
+
+
+def session_filter_plot_token(session) -> str:
+    opts = (session.train_opts if session is not None else None) or {}
+    return filter_plot_token(opts.get("filter"))
+
+
 def mean_v_onset_by_cell_name(traces, type_idx, cell_names, names, t_onset):
     """Per-type mean of ``traces[row, t_onset]`` for names in ``names``."""
     if t_onset is None:

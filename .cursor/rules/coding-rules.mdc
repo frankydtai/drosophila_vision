@@ -15,6 +15,7 @@ Scope: `vision/`.
 4. Must not automatically add new `*.py` / `*.sh` / `*.ipynb` / `*.m`: must explain + propose path/duties + wait for user approval.
 5. Rename completeness: when the user renames a parameter / CLI flag / train_opts key / concept (e.g. `init_state` → `pre_steady`), you MUST in the same change also rename every corresponding **function**, **method**, **attribute**, **constant**, **CLI**, and **docstring / comment** that still uses the old name for that concept. Partial renames (opts only, or CLI only, leaving `def old_name` / call sites / docs) = do not ship.
 6. Minimal new code: every new function / method must use the fewest lines that correctly implement the behavior. Forbidden: dead branches, unused locals, re-computing values already in hand, defensive try/except that cannot fire, copy-paste “symmetry” APIs unused by callers, bytes/None guards for types that never appear, splitting one trivial helper into many without a second call site. Prefer extend/replace an existing function over adding a parallel one. Verbose first draft = do not ship; slim before done.
+7. Naming must match existing names exactly: new params / CLI / `train_opts` keys / functions / methods / locals / file stems must follow the **same vocabulary and pattern already in the codebase** for that concept. Same concept = one name everywhere (no `filter` in opts but `readout_filter` in API). Prefer extend an existing pattern (`dt_over_tau_*`, `expand_<cli>`, `forward_*`, `_session_*`, `*_effective`, `*_filename_suffix`) over inventing a parallel coinage (`ca_alpha`, `membrane_forward`, …). Invented names that do not align = do not ship.
 
 
 - **Python** (script location → interpreter):
@@ -64,3 +65,4 @@ Core numbering rules:
 1. Use singular for single entities and concepts; use plural for collections/sequences (e.g. `param` vs `params`, `key` vs `keys`).
 2. Script files must contain exactly one verb across the full path; the verb may appear in a parent directory name or in the basename, but it must not be duplicated.
 3. Output directories use plural nouns.
+4. Align with existing names (HARD STOP 7): do not invent a new token when a sibling pattern already names the same idea.

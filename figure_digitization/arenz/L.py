@@ -8,7 +8,7 @@ Method
 ------
 1. Time on the figure: major ticks −2, −1, 0 s. Trace extends ~0.4 s left of
    −2 and ~0.25 s past 0. Output flips: rightmost → t = 0, left → positive
-   (~2.6 s), CSV ascending.
+   (~2.6 s), then resampled to Δt = 1 ms (CSV ascending).
 2. Amplitude: dashed horizontal = 0; scale each trace so max(|amp|) = 1.
 3. Black mask + per-x continuity; blank L1–L5 title ink at panel top-left.
 4. Write L_digitized.csv / L_digitized.png.
@@ -53,6 +53,7 @@ TITLE_BLANK = {
 MAX_DY_PX = 25
 T_LEFT_PAD_S = 0.40  # left of −2 tick (~−2.5 on figure)
 T_RIGHT_PAD_S = 0.25  # past 0 tick
+DT_S = 0.001  # output time step
 
 
 def black_mask(rgb: np.ndarray) -> np.ndarray:
@@ -128,6 +129,10 @@ def digitize(img_path: Path = DEFAULT_IMAGE) -> pd.DataFrame:
         t = t_fig[-1] - t_fig
         t = t[::-1]
         amp = amp[::-1]
+        t_grid = np.arange(0.0, t[-1] + 1e-12, DT_S)
+        amp = np.interp(t_grid, t, amp)
+        amp /= np.max(np.abs(amp))
+        t = t_grid
         for ti, ai in zip(t, amp):
             rows.append(dict(cell=cell, time_s=float(ti), amplitude=float(ai)))
         peak_i = int(np.argmax(np.abs(amp)))

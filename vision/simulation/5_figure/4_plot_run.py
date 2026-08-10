@@ -13,6 +13,8 @@ from figure import spot as spot_plot
 from figure.util import (
     plot_cost,
     network_hex_count,
+    filter_plot_token,
+    session_filter_plot_token,
 )
 from param_defaults import DEFAULT_RUN_PATH
 from training.config import run_data_dir
@@ -310,6 +312,11 @@ def _plot_path(outdir, stem, file_suffix="", *, html=False):
     return os.path.join(outdir, f"{stem}{file_suffix}{plot_file_ext(html=html)}")
 
 
+def _readout_plot_stem(prefix, session):
+    """``spot_gt_v`` / ``spot_gt_ca`` (filter chooses ``v`` or ``ca``, not both)."""
+    return f"{prefix}_{session_filter_plot_token(session)}"
+
+
 def _plot_spot_tasks(session, z, outdir, spot_tasks, suffix, model_all,
                        gt_cubes=None,
                        at_x=None, at_y=None, show_pre=True,
@@ -322,6 +329,7 @@ def _plot_spot_tasks(session, z, outdir, spot_tasks, suffix, model_all,
     net_tag = _network_spot_tag(session, ref_t)
     cost_parts = _cost_parts_for_plot(session, z)
     plot_kw = dict(gt_cubes=gt_cubes, cost_parts=cost_parts)
+    token = session_filter_plot_token(session)
     bundle_kw = dict(
         at_xs=at_x, at_ys=at_y,
         show_pre=show_pre,
@@ -337,18 +345,18 @@ def _plot_spot_tasks(session, z, outdir, spot_tasks, suffix, model_all,
                 session_for_task(session, 'spot_dark'), z, **bundle_kw,
             ),
         }
-        mvd = _plot_path(outdir, 'spot_gt_v', file_suffix, html=html)
+        mvd = _plot_path(outdir, _readout_plot_stem('spot_gt', session), file_suffix, html=html)
         plot_gt(
             mvd, bundles=bundles,
-            title=f'Spot v-gt ({suffix}){net_tag}',
+            title=f'Spot {token}-gt ({suffix}){net_tag}',
             **plot_kw,
         )
         allc = None
         if model_all:
-            allc = _plot_path(outdir, 'spot_all_v', file_suffix, html=html)
+            allc = _plot_path(outdir, _readout_plot_stem('spot_all', session), file_suffix, html=html)
             plot_all(
                 allc, bundles=bundles,
-                title=f'Spot v-all ({suffix}){net_tag}',
+                title=f'Spot {token}-all ({suffix}){net_tag}',
                 **plot_kw,
             )
         return mvd, allc
@@ -372,6 +380,7 @@ def _plot_bar_readouts(session, z, outdir, bar_readouts, suffix, model_all, *,
                       show_pre=True, file_suffix="", html=False, ms_shown=None):
     """Plot moving-bar task(s); bright left | dark right when both are trained."""
     cost_parts = _cost_parts_for_plot(session, z)
+    token = session_filter_plot_token(session)
     bundle_kw = dict(
         at_xs=at_x, at_ys=at_y,
         align_at_x=align_at_x, align_at_y=align_at_y,
@@ -388,18 +397,18 @@ def _plot_bar_readouts(session, z, outdir, bar_readouts, suffix, model_all, *,
         b_dark = moving_bar_plot.moving_bar_trace_bundle(
             s_dark, z, 'moving_bar_dark', **bundle_kw,
         )
-        mvd = _plot_path(outdir, 'bar_gt_v', file_suffix, html=html)
+        mvd = _plot_path(outdir, _readout_plot_stem('bar_gt', session), file_suffix, html=html)
         moving_bar_plot.plot_moving_bar_data(
             mvd, bundle=b_bright, bundle_2=b_dark,
-            title=f'Moving-bar v-gt ({suffix})',
+            title=f'Moving-bar {token}-gt ({suffix})',
             cost_parts=cost_parts,
         )
         allc = None
         if model_all:
-            allc = _plot_path(outdir, 'bar_all_v', file_suffix, html=html)
+            allc = _plot_path(outdir, _readout_plot_stem('bar_all', session), file_suffix, html=html)
             moving_bar_plot.plot_moving_bar_all(
                 allc, bundle=b_bright, bundle_2=b_dark,
-                title=f'Moving-bar v-all ({suffix})',
+                title=f'Moving-bar {token}-all ({suffix})',
                 right_only=plot_right_only,
                 cost_parts=cost_parts,
             )
@@ -407,16 +416,16 @@ def _plot_bar_readouts(session, z, outdir, bar_readouts, suffix, model_all, *,
     for tname in bar_readouts:
         one = session_for_task(session, tname)
         b = moving_bar_plot.moving_bar_trace_bundle(one, z, tname, **bundle_kw)
-        mvd = _plot_path(outdir, 'bar_gt_v', file_suffix, html=html)
+        mvd = _plot_path(outdir, _readout_plot_stem('bar_gt', session), file_suffix, html=html)
         moving_bar_plot.plot_moving_bar_data(
-            mvd, bundle=b, title=f'{tname} v-gt ({suffix})',
+            mvd, bundle=b, title=f'{tname} {token}-gt ({suffix})',
             cost_parts=cost_parts,
         )
         allc = None
         if model_all:
-            allc = _plot_path(outdir, 'bar_all_v', file_suffix, html=html)
+            allc = _plot_path(outdir, _readout_plot_stem('bar_all', session), file_suffix, html=html)
             moving_bar_plot.plot_moving_bar_all(
-                allc, bundle=b, title=f'{tname} v-all ({suffix})',
+                allc, bundle=b, title=f'{tname} {token}-all ({suffix})',
                 right_only=plot_right_only,
                 cost_parts=cost_parts,
             )
@@ -430,8 +439,9 @@ def _plot_one_task(session, z, outdir, tname, suffix, model_all,
                      center_only=False):
     if tname not in training.SPOT_TASKS:
         raise ValueError(f'unknown plot task {tname!r}')
-    mvd = _plot_path(outdir, 'spot_gt_v', file_suffix, html=html)
-    allc = _plot_path(outdir, 'spot_all_v', file_suffix, html=html)
+    token = session_filter_plot_token(session)
+    mvd = _plot_path(outdir, _readout_plot_stem('spot_gt', session), file_suffix, html=html)
+    allc = _plot_path(outdir, _readout_plot_stem('spot_all', session), file_suffix, html=html)
     make_bundle, plot_gt, plot_all = spot_bundle_fns(session)
     net_tag = _network_spot_tag(session, tname)
     if cost_parts is None:
@@ -447,10 +457,10 @@ def _plot_one_task(session, z, outdir, tname, suffix, model_all,
     from figure.readout import contrast_for_task
     bundles = {contrast_for_task(tname): b}
     plot_gt(
-        mvd, bundles=bundles, title=f'{tname} v-gt ({suffix}){net_tag}', **plot_kw,
+        mvd, bundles=bundles, title=f'{tname} {token}-gt ({suffix}){net_tag}', **plot_kw,
     )
     if model_all:
-        plot_all(allc, bundles=bundles, title=f'{tname} v-all ({suffix}){net_tag}', **plot_kw)
+        plot_all(allc, bundles=bundles, title=f'{tname} {token}-all ({suffix}){net_tag}', **plot_kw)
     return mvd, allc
 
 

@@ -2,15 +2,19 @@
 """Spot paradigm GT numbers: RecF x ImpR traces (no network binding).
 
 Synthesizes the Medulla_Library RecF/ImpR library (bandpass/lowpass ImpR
-shaping -- gt-only, not ``neuron.filter_ca``). PR drive is
-:func:`task.spot.input.spot_input_waveform`, shared with network ``i_sti``.
+shaping -- gt-only, not ``neuron.filter_ca``). With ``filter==\"ca\"``, ImpR
+is replaced by Arenz digitized CSV traces (``t=0`` at stimulus onset).
+PR drive is :func:`task.spot.input.spot_input_waveform`, shared with network
+``i_sti``.
 
 Network mapping, cost hexes, and :class:`task.spot.readout.SpotGt` packing
 live in :mod:`task.spot.readout`.
 """
 from __future__ import annotations
 
-from typing import Sequence, Tuple
+import csv
+from pathlib import Path
+from typing import Dict, Sequence, Tuple
 
 import numpy as np
 
@@ -23,6 +27,11 @@ from task.spot.input import (
 GT_CELLS: Tuple[str, ...] = (
     "L1", "L2", "L3", "L4", "L5", "Mi1", "Tm3", "Mi4", "Mi9", "Tm1", "Tm2", "Tm4", "Tm9",
 )
+
+# Repo root: vision/simulation/3_task/spot/2_gt.py → parents[4].
+_ARENZ_DIR = Path(__file__).resolve().parents[4] / "figure_digitization" / "arenz"
+ARENZ_L_DIGITIZED_CSV = _ARENZ_DIR / "L_digitized.csv"
+ARENZ_4_DIGITIZED_CSV = _ARENZ_DIR / "4_digitized.csv"
 
 
 def expand_gt_cells(names: Sequence[str]) -> Tuple[str, ...]:
@@ -110,6 +119,50 @@ def _shift_right(y, k: int):
 
 # ImpR onset delay (samples / t-index); same for all gt cells.
 _IMPR_SHIFT = 5
+
+
+def _load_arenz_csv_traces(path: Path) -> Dict[str, Tuple[np.ndarray, np.ndarray]]:
+    """``cell → (time_s, amplitude)`` from Arenz digitized CSV (``t=0`` = onset)."""
+    by_cell: Dict[str, list] = {}
+    with path.open(newline="") as f:
+        for row in csv.DictReader(f):
+            cell = str(row["cell"]).strip()
+            by_cell.setdefault(cell, []).append(
+                (float(row["time_s"]), float(row["amplitude"]))
+            )
+    out: Dict[str, Tuple[np.ndarray, np.ndarray]] = {}
+    for cell, pairs in by_cell.items():
+        pairs.sort(key=lambda p: p[0])
+        t = np.asarray([p[0] for p in pairs], dtype=np.float64)
+        a = np.asarray([p[1] for p in pairs], dtype=np.float64)
+        out[cell] = (t, a)
+    return out
+
+
+def read_arenz_digitized_impr(*, t_onset, n_t, delta_ms: float) -> np.ndarray:
+    """Arenz digitized temporal gt ``(13, n_t)``; CSV ``t=0`` at ``t_onset``.
+
+    Pre-onset samples are 0. Post-onset times use ``(t - t_onset) * delta_ms``.
+    """
+    t_onset = int(t_onset)
+    n_t = int(n_t)
+    delta_ms = float(delta_ms)
+    if delta_ms <= 0:
+        raise ValueError(f"delta_ms must be > 0, got {delta_ms}")
+    traces = {}
+    traces.update(_load_arenz_csv_traces(ARENZ_L_DIGITIZED_CSV))
+    traces.update(_load_arenz_csv_traces(ARENZ_4_DIGITIZED_CSV))
+    missing = [c for c in GT_CELLS if c not in traces]
+    if missing:
+        raise ValueError(f"Arenz digitized CSV missing cells {missing}")
+    out = np.zeros((len(GT_CELLS), n_t), dtype=np.float64)
+    if t_onset >= n_t:
+        return out
+    t_rel_s = np.arange(n_t - t_onset, dtype=np.float64) * (delta_ms / 1000.0)
+    for i, cell in enumerate(GT_CELLS):
+        t_csv, amp = traces[cell]
+        out[i, t_onset:] = np.interp(t_rel_s, t_csv, amp, left=amp[0], right=amp[-1])
+    return out
 
 
 def read_RecF_ImpR(*, t_onset=None, n_t=None, ms_spot=None, delta_ms: float):
