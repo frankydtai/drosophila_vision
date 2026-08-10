@@ -55,7 +55,6 @@ from neuron.readout import (
 )
 
 # --- borst ---
-rectsyn = _model_borst.rectsyn
 update_v = _model_borst.update_v
 v_component_from_g = _model_borst.v_component_from_g
 
@@ -81,7 +80,6 @@ __all__ = [
     "borst_i_h_rev_kwargs",
     "normalize_syn_mode",
     "syn_strength",
-    "rectsyn",
     "update_v",
     "v_component_from_g",
     "update_state_hp_lp",

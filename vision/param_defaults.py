@@ -16,7 +16,7 @@ import math
 from typing import Dict, Tuple
 
 DEFAULT_RUN_NAME = """
-29008568-run-nofsteps-500-a-h-init.L1,L2,L4,L5-0.5-e-leak-init.L1,L2,L3-0-task-spot
+29048310-run-nofsteps-200-a-h-init.L1,L2,L4,L5-0.5
 """.strip()
 DEFAULT_RUN_PATH = "hp_lp/" + DEFAULT_RUN_NAME
 
@@ -60,7 +60,7 @@ PARAM_BOXES: Dict[str, dict] = {
     # --v-th-ca-from-v-th → effective threshold is v_th; v_th_ca forced frozen=all.
     "v_th_ca": dict(lo=-100.0, hi=-100.0, init=-50.0, jit=0.0, train_mode="indi"),
     "a_ca": dict(lo=GAIN_LO, hi=GAIN_HI, init=1.0, jit=0.1, train_mode="indi"),
-    "tau_ca": dict(lo=10.0, hi=500.0, init=50.0, jit=5.0, train_mode="shared"),
+    "tau_ca": dict(lo=100.0, hi=1000.0, init=350.0, jit=5.0, train_mode="indi"),
     "tau_lp": dict(lo=10.0, hi=100.0, init=10.0, jit=2.0, train_mode="fixed"),
     "tau_hp": dict(lo=100.0, hi=500.0, init=200.0, jit=20.0, train_mode="shared"),
     "a_h": dict(lo=0.0, hi=1.0, init=0, jit=0.1, train_mode="indi_named"),
@@ -109,7 +109,7 @@ I_DARK = 0.0
 MS_PRE = 10.0
 MS_SPOT = 50.0
 MS_SPOT_CA = 25.0  # forced when ``--filter ca``
-MS_RESPONSE = 200.0
+MS_RESPONSE = 400.0
 MS_POST = 0.0
 SPOT_EXTENT = 1.0
 SPOT_EXTENTS: Tuple[float, ...] = (0.5, 1.0, 1.5, 2.0)
@@ -195,7 +195,7 @@ CHECKPOINT_INTERVAL = 1000
 # 4.5 training.session
 # ---------------------------------------------------------------------------
 
-FP = 64
+FP = 32
 SEQUENTIAL = False
 
 

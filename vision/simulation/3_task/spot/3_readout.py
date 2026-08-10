@@ -27,7 +27,6 @@ from task.spot.gt import (
     GT_CELLS,
     _spot_readout_amp,
     read_RecF_ImpR,
-    read_arenz_digitized_impr,
 )
 from task.spot.input import (
     SpotBatch,
@@ -373,11 +372,8 @@ def build_spot_gt(
         )
     recf_gt, impr_gt = read_RecF_ImpR(
         t_onset=t_onset, n_t=n_t_gt, ms_spot=ms_spot, delta_ms=delta_ms,
+        filter=filter,
     )
-    if str(filter) == "ca":
-        impr_gt = read_arenz_digitized_impr(
-            t_onset=t_onset, n_t=n_t_gt, delta_ms=delta_ms,
-        )
     type_row = {str(rt): i for i, rt in enumerate(GT_CELLS)}
     if gt_cells is not None:
         bad = [str(t) for t in gt_cells if str(t) not in type_row]

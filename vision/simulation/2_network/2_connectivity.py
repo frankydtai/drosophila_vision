@@ -9,7 +9,7 @@ Interface (:class:`ScatterConn`):
     conn.node_cell
 
 ``v_out`` is the presynaptic output already scaled by the per-source a_out, i.e.
-``max(v − v_th, 0) * a_out`` (borst / hp_lp). The post-synaptic input
+``relu(v − v_th)·a_out`` (borst / hp_lp). The post-synaptic input
 gain (``a_in``) is applied by the caller AFTER these calls.
 
 Synaptic scaling multiplies each edge: length ``n_pairs`` type→type

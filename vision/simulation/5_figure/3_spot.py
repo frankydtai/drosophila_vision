@@ -936,6 +936,10 @@ def _plot_spot_figure(
     delta_ms_pre = float(primary.session.delta_ms_pre)
     show_pre = primary.show_pre
     ms_shown = primary.ms_shown
+    t_lag = (
+        0 if session_filter_plot_token(primary.session) == "ca"
+        else int(_IMPR_SHIFT)
+    )
     timer.end_prep()
 
     sessions = {c: bundles[c].session for c in order}
@@ -997,7 +1001,6 @@ def _plot_spot_figure(
 
     def _plot_cell(name, cell_primary, ax_rf, ax_time, show_ylabel, show_xlabels):
         nonlocal legend_done
-        t_lag = int(_IMPR_SHIFT)
         time_title = format_spot_radius_time_title(
             center_radius,
             (cell_primary.get("n_by_radius") or {}).get(center_radius),
@@ -1089,7 +1092,7 @@ def _plot_spot_figure(
                 show_ylabel=(j == 0),
                 t_onset=t_onset,
                 t_spot_end=t_spot_end,
-                t_lag=int(_IMPR_SHIFT),
+                t_lag=t_lag,
             )
             legend_done = True
             ylim0 = None
@@ -1115,7 +1118,7 @@ def _plot_spot_figure(
                     t_onset=t_onset,
                     show_pre=show_pre,
                     t_spot_end=t_spot_end,
-                    t_lag=int(_IMPR_SHIFT),
+                    t_lag=t_lag,
                     delta_ms=delta_ms,
                     delta_ms_pre=delta_ms_pre,
                     ms_shown=ms_shown,

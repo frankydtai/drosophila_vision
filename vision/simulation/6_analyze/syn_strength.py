@@ -32,11 +32,7 @@ import training.implement as train_mod
 from import_bootstrap import parse_comma_list
 from network.connectivity import build_cell_pair_index
 from network.construction import read_network_json
-
-DEFAULT_RUN_NAME = (
-    "27252028-train-nofsteps-1000-lrs-0.1-shift-extent-1-cost-extent-9"
-)
-DEFAULT_RUN_PATH = "borst/" + DEFAULT_RUN_NAME
+from param_defaults import DEFAULT_RUN_PATH
 
 
 def main(argv: list[str] | None = None) -> int:

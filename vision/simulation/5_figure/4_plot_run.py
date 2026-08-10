@@ -11,12 +11,11 @@ from task.spot.input import spot_from_opts
 from figure import moving_bar as moving_bar_plot
 from figure import spot as spot_plot
 from figure.util import (
-    plot_cost,
     network_hex_count,
     filter_plot_token,
     session_filter_plot_token,
 )
-from param_defaults import DEFAULT_RUN_PATH
+from param_defaults import DEFAULT_RUN_PATH, MS_SPOT_CA
 from training.config import run_data_dir
 from training.implement import resolve_run_dir
 
@@ -183,13 +182,16 @@ def maybe_override_stimulus_timing(
     delta_ms=None,
     delta_ms_pre=None,
     euler=None,
+    filter=None,
 ):
-    """Re-open session when any timing / euler override is set; remap best ``z``.
+    """Re-open session when any timing / euler / filter override is set; remap best ``z``.
 
     Unset flags keep values from the run's train opts. ``ms_pre`` /
     ``delta_ms`` / ``delta_ms_pre`` also update moving_bar stimulus opts;
     ``ms_response`` / ``ms_post`` / ``ms_spot`` are spot-only. ``euler`` is
     CLI ``im``/``ex`` (or already expanded ``implicit``/``explicit``).
+    ``filter`` is ``none``/``ca``; ``ca`` forces spot ``ms_spot`` to
+    ``MS_SPOT_CA``.
 
     Returns ``(session, z, timing_changed)`` where ``timing_changed`` maps
     timing keys that differ from the run (for filename suffixes).
@@ -202,6 +204,7 @@ def maybe_override_stimulus_timing(
         and delta_ms is None
         and delta_ms_pre is None
         and euler is None
+        and filter is None
     ):
         return session, z, {}
 
@@ -239,6 +242,15 @@ def maybe_override_stimulus_timing(
 
     if euler is not None:
         opts["euler"] = training.expand_euler(euler)
+
+    if filter is not None:
+        filter = training.expand_filter(filter)
+        opts["filter"] = filter
+        if filter == "ca":
+            for key in ("spot_bright_stimulus_opts", "spot_dark_stimulus_opts"):
+                so = opts.get(key)
+                if so is not None:
+                    so["ms_spot"] = float(MS_SPOT_CA)
 
     session = training.open_session_from_opts(opts, model=opts.get("model"))
     session, z = _session_z_from_best_named(session, run_dir)
@@ -467,14 +479,14 @@ def _plot_one_task(session, z, outdir, tname, suffix, model_all,
 def plot_param_set(params, outdir, model=None, model_all=True,
                    context_dir=None,
                    plot_tasks=None, session=None, *,
-                   final_costs=None, cost_curve=None, costs_by_part=None,
+                   final_costs=None,
                    save_artifacts=True,
                    gt_cubes=None,
                    plot_right_only=True, at_x=None, at_y=None,
                    align_at_x=None, align_at_y=None,
                    show_pre=True, file_suffix="", html=False, ms_shown=None,
                    center_only=False):
-    from figure.util import plot_file_ext
+    import training.implement as train_mod
 
     os.makedirs(outdir, exist_ok=True)
     ctx = context_dir or outdir
@@ -486,14 +498,8 @@ def plot_param_set(params, outdir, model=None, model_all=True,
         session = load_session(ctx, model)
 
     params = np.atleast_2d(params)
-    if final_costs is None or cost_curve is None or costs_by_part is None:
-        loaded_final, loaded_curve, loaded_by_part, _ = _load_plot_costs(outdir)
-        if final_costs is None:
-            final_costs = loaded_final
-        if cost_curve is None:
-            cost_curve = loaded_curve
-        if costs_by_part is None:
-            costs_by_part = loaded_by_part
+    if final_costs is None:
+        final_costs, _, _, _ = train_mod.load_stored_costs(outdir)
 
     print(f'plot device={_plot_device_label()}')
     best, best_cost = select_best(
@@ -523,13 +529,6 @@ def plot_param_set(params, outdir, model=None, model_all=True,
         if not bar_readouts:
             raise SystemExit('--align-xy applies to moving_bar slice plots only')
 
-    if cost_curve is not None and len(cost_curve) > 0:
-        plot_cost(
-            cost_curve,
-            os.path.join(outdir, f'cost_curve{plot_file_ext(html=html)}'),
-            costs_by_part=costs_by_part,
-            part_order=list(training.session_cost_part_keys(session.tasks, session=session)),
-        )
     if spot_tasks:
         _plot_spot_tasks(
             session, z, outdir, spot_tasks, suffix, model_all,
@@ -554,18 +553,11 @@ def plot_param_set(params, outdir, model=None, model_all=True,
         )
 
     if save_artifacts:
-        import training.implement as train_mod
         os.makedirs(train_mod.data_dir(outdir), exist_ok=True)
         z_best = torch.tensor(best, dtype=session.sim_dtype, device=session.device)
         train_mod.save_best_param_named(outdir, z_best, session)
     print(f'plots saved to {outdir}')
     return best, best_cost
-
-
-def _load_plot_costs(outdir):
-    """Load per-run and step costs saved by ``training.implement.save_training_outputs``."""
-    import training.implement as train_mod
-    return train_mod.load_stored_costs(outdir)
 
 
 def add_plot_arguments(parser):
@@ -702,6 +694,24 @@ def add_plot_euler_argument(parser):
         help="membrane Euler override: im=implicit, ex=explicit "
              "(default: keep run train_opts.euler); i_h gates always explicit",
     )
+
+
+def add_plot_filter_argument(parser):
+    """``--filter none|ca`` for plot / analyze (default: keep run train opts)."""
+    parser.add_argument(
+        "--filter",
+        default=None,
+        choices=list(training.FILTER_MODES),
+        help="readout filter override: none=v, ca=f_ca + Arenz digitized spot gt "
+             f"(default: keep run train_opts.filter); ca forces --ms-spot {MS_SPOT_CA:g}",
+    )
+
+
+def filter_filename_suffix(filter=None):
+    """PNG stem suffix for a non-``None`` ``--filter`` override (``_v`` / ``_ca``)."""
+    if filter is None:
+        return ""
+    return f"_{filter_plot_token(training.expand_filter(filter))}"
 
 
 def add_param_argument(parser):
@@ -858,6 +868,7 @@ def main():
     add_plot_arguments(ap)
     add_plot_timing_arguments(ap)
     add_plot_euler_argument(ap)
+    add_plot_filter_argument(ap)
     add_param_argument(ap)
     args = ap.parse_args()
     try:
@@ -873,6 +884,7 @@ def main():
     session, z, timing_changed = maybe_override_stimulus_timing(
         run_dir=outdir, session=session, z=z, **timing_kw,
         euler=args.euler,
+        filter=args.filter,
     )
     z_t = (
         z if torch.is_tensor(z)
@@ -883,6 +895,7 @@ def main():
         z_t, list(session.schema), session, param_edits,
     )
     session = session.with_schema(schema)
+    # Filter is already in readout stems (``_v`` / ``_ca``); do not append again.
     file_suffix = (
         stimulus_timing_filename_suffix(**timing_changed)
         + euler_filename_suffix(args.euler)

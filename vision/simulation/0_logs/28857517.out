@@ -1,5 +1,0 @@
-Job ID: 28857517
-Node:   spartan-gpgpu172
-GPU:    0
-GPU 0: NVIDIA H100 80GB HBM3 (UUID: GPU-924b13cd-cb9b-7a22-b3a8-597d3c1f6b1a)
-[2026-08-07T04:31:02.082] error: *** JOB 28857517 ON spartan-gpgpu172 CANCELLED AT 2026-08-07T04:31:02 DUE to SIGNAL Terminated ***

@@ -32,11 +32,6 @@ from neuron.params import e_h_rev as calc_e_h_rev, expand_euler, membrane_dt_ove
 from neuron.schema import borst_i_h_rev_kwargs, syn_strength
 
 
-def rectsyn(x, thrld):
-    result = x - thrld
-    return result * (result > 0)
-
-
 def _gate_ss(v, v_mid, slope):
     return 1.0 / (1.0 + torch.exp((v_mid - v) * slope))
 
@@ -122,7 +117,7 @@ def update_v(
             g_h[:, idx] = g_a.to(dtype=g_h.dtype)
             g_h_rev[:, idx] = g_rev_a.to(dtype=g_h_rev.dtype)
 
-    v_out = rectsyn(v, v_th) * a_out
+    v_out = torch.relu(v - v_th) * a_out
     g_exc, g_inh = conn.exc_inh_drive(v_out, syn_strength)
     g_exc = g_exc * a_in
     g_inh = g_inh * a_in
@@ -219,7 +214,7 @@ def _ohmic_v(i0, g_exc, g_inh, g_h, g_h_rev, e_leak, session):
 
 
 def _syn_g(v, p, backend):
-    v_out = rectsyn(v, p["v_th"]) * p["a_out"]
+    v_out = torch.relu(v - p["v_th"]) * p["a_out"]
     g_exc, g_inh = backend.conn.exc_inh_drive(v_out, syn_strength(p))
     return g_exc * p["a_in"], g_inh * p["a_in"]
 

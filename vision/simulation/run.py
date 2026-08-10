@@ -33,12 +33,14 @@ if HERE not in sys.path:
 
 import import_bootstrap  # noqa: F401
 from import_bootstrap import parse_bool
+import training
 import training.implement as train
 from figure.plot_run import (
     add_plot_arguments,
     plot_kwargs_from_args,
     plot_param_set,
 )
+from figure.util import plot_cost, plot_file_ext
 
 _CHECKPOINT_PNG_STEM_PREFIXES = (
     "spot_gt",
@@ -68,21 +70,26 @@ def _take_plot_kw(kw, *, gt_cubes=None):
 
 
 def make_plots(outdir, session, result=None, **plot_kw):
-    """Cost curve + model-vs-gt + all-cells."""
+    """Cost curve (train path only) + model-vs-gt + all-cells."""
     if result is not None:
+        if result.cost_curve is not None and len(result.cost_curve) > 0:
+            plot_cost(
+                result.cost_curve,
+                os.path.join(outdir, f'cost_curve{plot_file_ext(html=plot_kw.get("html"))}'),
+                costs_by_part=result.cost_curves_by_part,
+                part_order=list(training.session_cost_part_keys(session.tasks, session=session)),
+            )
         plot_param_set(
             result.all_params,
             outdir,
             session=session,
             final_costs=result.final_costs,
-            cost_curve=result.cost_curve,
-            costs_by_part=result.cost_curves_by_part,
             save_artifacts=False,
             **plot_kw,
         )
         return
     z = train.load_best_param(outdir, session)
-    final_costs, cost_curve, costs_by_part, _ = train.load_stored_costs(outdir)
+    final_costs, _, _, _ = train.load_stored_costs(outdir)
     best_cost = None
     if final_costs is not None and len(final_costs) > 0:
         best_cost = float(final_costs[int(np.argmin(final_costs))])
@@ -91,8 +98,6 @@ def make_plots(outdir, session, result=None, **plot_kw):
         outdir,
         session=session,
         final_costs=np.array([best_cost]) if best_cost is not None else None,
-        cost_curve=cost_curve,
-        costs_by_part=costs_by_part,
         save_artifacts=False,
         **plot_kw,
     )
@@ -120,7 +125,6 @@ def write_checkpoint_png(outdir, step, z_best, cost_best, session, plot_kw):
         session=session,
         final_costs=np.array([cost_best]),
         save_artifacts=False,
-        cost_curve=None,
         **plot_kw,
     )
     from figure.util import filter_plot_token
@@ -212,6 +216,7 @@ def run_mirror_spot_experiment(
         specs = _normalize_mirror_fits(fits, sign)
         t_onset = ms_to_t(MS_PRE, delta_ms=DELTA_MS_PRE)
         n_t = t_onset + ms_to_t(MS_RESPONSE, delta_ms=DELTA_MS) + 1
+        filter = str(run_kw.get("filter", "none"))
 
         def mirror_gt_cubes(contrasts):
             base = fit_gt_cubes(
@@ -219,6 +224,7 @@ def run_mirror_spot_experiment(
                 t_onset=t_onset,
                 n_t=n_t,
                 delta_ms=DELTA_MS,
+                filter=filter,
             )
             out = {}
             for contrast, cells in base.items():

@@ -2410,6 +2410,7 @@ def main() -> None:
     add_shared_cli(ap, default_run=DEFAULT_RUN_PATH)
     plot_trained.add_plot_timing_arguments(ap)
     plot_trained.add_plot_euler_argument(ap)
+    plot_trained.add_plot_filter_argument(ap)
     plot_trained.add_param_argument(ap)
     ap.add_argument("--node", type=int, default=None, help="hex-mode node index")
     ap.add_argument(
@@ -2505,12 +2506,14 @@ def main() -> None:
             z=z,
             **timing_kw,
             euler=args.euler,
+            filter=args.filter,
         )
         file_suffix = (
             plot_trained.stimulus_timing_filename_suffix(
                 **timing_changed,
             )
             + plot_trained.euler_filename_suffix(args.euler)
+            + plot_trained.filter_filename_suffix(args.filter)
             + plot_trained.param_filename_suffix(param_edits)
         )
         if use_ms:

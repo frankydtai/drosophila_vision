@@ -7,7 +7,7 @@
 
 with v_in = v_syn + v_sti (no e_leak; leak alone sets rest), v_sti = i_sti/g_leak
 (g_leak in nS converts pA → mV; same scalar as borst),
-v_out = max(v−v_th, 0)·a_out, v_syn = a_in · signed_drive(v_out, syn_strength)
+v_out = relu(v − v_th)·a_out, v_syn = a_in · signed_drive(v_out, syn_strength)
 (syn_strength_cell per_cell or syn_strength_edge per_edge). a_h = 1
 recovers classical HP (v_hp = v_in − v_slow); DC then has v_hp → 0 when
 v_slow → v_in, so v → e_leak.

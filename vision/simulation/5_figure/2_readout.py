@@ -84,9 +84,13 @@ def _apply_mirror(cells, override):
 
 
 def fit_gt_cubes(
-    *, contrasts=("bright",), t_onset=None, n_t=None, ms_spot=None, delta_ms: float = DELTA_MS,
+    *, contrasts=("bright",), t_onset=None, n_t=None, ms_spot=None,
+    delta_ms: float = DELTA_MS, filter="none",
 ):
-    """RecF gt cubes ``{contrast: {cell: (RF_N_RADII, T)}}`` (raw gt before affine)."""
+    """RecF gt cubes ``{contrast: {cell: (RF_N_RADII, T)}}`` (raw gt before affine).
+
+    ``filter==\"ca\"`` → Arenz digitized ImpR (same as training ``build_spot_gt``).
+    """
     out = {}
     for contrast in contrasts:
         contrast = str(contrast)
@@ -94,7 +98,10 @@ def fit_gt_cubes(
             raise ValueError(
                 f"unknown contrast {contrast!r}; expected one of {_VALID_CONTRASTS}"
             )
-        kw = dict(t_onset=t_onset, n_t=n_t, ms_spot=ms_spot, delta_ms=float(delta_ms))
+        kw = dict(
+            t_onset=t_onset, n_t=n_t, ms_spot=ms_spot, delta_ms=float(delta_ms),
+            filter=filter,
+        )
         gt = read_RecF_gt_dark(**kw) if contrast == "dark" else read_RecF_gt(**kw)
         cubes = gt * DATA_AMP
         out[contrast] = {str(name): cubes[i] for i, name in enumerate(GT_CELLS)}
@@ -116,9 +123,10 @@ def spot_gt_cubes(
     if contrasts is None:
         contrasts = (contrast_for_task(task),)
     overrides = (session.train_opts or {}).get('pack_overrides') or {}
+    filter = str((session.train_opts or {}).get("filter", "none"))
     base = fit_gt_cubes(
         contrasts=contrasts, t_onset=t_onset, n_t=n_t, ms_spot=ms_spot,
-        delta_ms=delta_ms,
+        delta_ms=delta_ms, filter=filter,
     )
     out = {}
     for contrast, cells in base.items():

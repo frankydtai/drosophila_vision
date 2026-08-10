@@ -1,0 +1,131 @@
+Job ID: 29048240
+Node:   spartan-gpgpu173
+GPU:    0
+GPU 0: NVIDIA H100 80GB HBM3 (UUID: GPU-cd898ae7-cf99-44f8-5930-70076cf50785)
+cuda: True NVIDIA H100 80GB HBM3
+Start:  Tue 11 Aug 2026 01:19:39 AEST
+==== param_defaults ====
+{'DEFAULT_RUN_NAME': '29047226-run-nofsteps-500-a-h-init.L1,L2,L4,L5-0.5',
+ 'DEFAULT_RUN_PATH': 'hp_lp/29047226-run-nofsteps-500-a-h-init.L1,L2,L4,L5-0.5',
+ 'DELTA_MS': 1.0,
+ 'DELTA_MS_PRE': 1.0,
+ 'CAP': 40.0,
+ 'G_LEAK': 1.0,
+ 'E_EXC': 10.0,
+ 'E_INH': -70.0,
+ 'E_H': 50.0,
+ 'H_G_MAX': 100.0,
+ 'DATA_AMP': 20.0,
+ 'STATE_CLAMP': 1000000.0,
+ 'SYN_SCALE_EXC': 0.001,
+ 'SYN_SCALE_INH': 0.001,
+ 'I_H_REV': 'off',
+ 'EULER': 'im',
+ 'GAIN_LO': 0.1,
+ 'GAIN_HI': 10.0,
+ 'H_CELLS': ('L1', 'L2', 'L4', 'L5'),
+ 'PARAM_BOXES': {'a_gt': {'lo': 0.5, 'hi': 2.0, 'init': 1.0, 'jit': 0.1, 'train_mode': 'indi'},
+                 'bias_gt': {'lo': -50.0, 'hi': 50.0, 'init': 0.0, 'jit': 1.0, 'train_mode': 'indi'},
+                 'syn_strength_cell': {'lo': 0.1, 'hi': 10.0, 'init': 1.0, 'jit': 0.1, 'train_mode': 'indi'},
+                 'syn_strength_edge': {'lo': 0.1, 'hi': 10.0, 'init': 1.0, 'jit': 0.1, 'train_mode': 'indi'},
+                 'a_in': {'lo': 0.01, 'hi': 100, 'init': 1.0, 'jit': 0.1, 'train_mode': 'shared'},
+                 'a_out': {'lo': 0.1, 'hi': 10.0, 'init': 1.0, 'jit': 0.1, 'train_mode': 'indi'},
+                 'e_leak': {'lo': -50.0, 'hi': 50.0, 'init': 0.0, 'jit': 1.0, 'train_mode': 'indi'},
+                 'v_th': {'lo': -100.0, 'hi': -100.0, 'init': -50.0, 'jit': 0.0, 'train_mode': 'indi'},
+                 'v_th_ca': {'lo': -100.0, 'hi': -100.0, 'init': -50.0, 'jit': 0.0, 'train_mode': 'indi'},
+                 'a_ca': {'lo': 0.1, 'hi': 10.0, 'init': 1.0, 'jit': 0.1, 'train_mode': 'indi'},
+                 'tau_ca': {'lo': 100.0, 'hi': 1000.0, 'init': 350.0, 'jit': 5.0, 'train_mode': 'indi'},
+                 'tau_lp': {'lo': 10.0, 'hi': 100.0, 'init': 10.0, 'jit': 2.0, 'train_mode': 'fixed'},
+                 'tau_hp': {'lo': 100.0, 'hi': 500.0, 'init': 200.0, 'jit': 20.0, 'train_mode': 'shared'},
+                 'a_h': {'lo': 0.0, 'hi': 1.0, 'init': 0, 'jit': 0.1, 'train_mode': 'indi_named'},
+                 'v_mid_h_g': {'lo': -70.0, 'hi': -30.0, 'init': -50.0, 'jit': 5.0, 'train_mode': 'shared'},
+                 'v_mid_h_tau': {'lo': -70.0, 'hi': -40.0, 'init': -50.0, 'jit': 5.0, 'train_mode': 'shared'},
+                 'h_slope': {'lo': -0.4, 'hi': -0.2, 'init': -0.25, 'jit': 0.02, 'train_mode': 'shared'},
+                 'a_h_rev': {'lo': 0.0, 'hi': 1.0, 'init': 0.5, 'jit': 0.1, 'train_mode': 'indi_named'},
+                 'v_mid_h_g_rev': {'lo': -70.0, 'hi': -30.0, 'init': -50.0, 'jit': 5.0, 'train_mode': 'shared'},
+                 'v_mid_h_tau_rev': {'lo': -70.0, 'hi': -40.0, 'init': -50.0, 'jit': 5.0, 'train_mode': 'shared'},
+                 'h_slope_rev': {'lo': -0.4, 'hi': -0.2, 'init': -0.25, 'jit': 0.02, 'train_mode': 'shared'},
+                 'a_sti_radius': {'lo': 0.0, 'hi': 1.0, 'init': 0.0, 'jit': 0.05, 'train_mode': 'indi'}},
+ 'MODEL': 'hp_lp',
+ 'SYN_MODE': 'per_cell',
+ 'PRE_GRAD': True,
+ 'NETWORK': 'right_min_neuron1_extent10',
+ 'I_BASELINE': 20.0,
+ 'I_BRIGHT': 40.0,
+ 'I_DARK': 0.0,
+ 'MS_PRE': 10.0,
+ 'MS_SPOT': 50.0,
+ 'MS_SPOT_CA': 25.0,
+ 'MS_RESPONSE': 400.0,
+ 'MS_POST': 0.0,
+ 'SPOT_EXTENT': 1.0,
+ 'SPOT_EXTENTS': (0.5, 1.0, 1.5, 2.0),
+ 'FULLY_INSIDE': True,
+ 'MULTI_SPOT': True,
+ 'SHIFT_EXTENT': 1.0,
+ 'FILTER': 'none',
+ 'SPOT_COST_RADII': (0.0, 1.0, 1.7320508075688772, 2.0),
+ 'SPOT_STI_RADII': (1.0, 1.7320508075688772, 2.0),
+ 'SPOT_COST_RADIUS_WEIGHT': {0.0: 1.0, 1.0: 0.3333333333333333, 2.0: 0.3333333333333333},
+ 'SPOT_COST_RADIUS_WEIGHT_EXTENT1': {0.0: 1.0, 1.0: 2},
+ 'SPOT_COST_RADIUS_KEY_ALIASES': {'sqrt3': 1.7320508075688772},
+ 'MULTI_BAR': True,
+ 'TASK': 'spot_bright',
+ 'COST_NORM': 'a_gt2',
+ 'COST_INTERVAL_MS': 10.0,
+ 'COST_MS': {1.0: (0.0, 25.0)},
+ 'BIAS_GT_FROM_V_ONSET': True,
+ 'BIAS_GT_FROM_V_ONSET_GRAD': True,
+ 'V_TH_CA_FROM_V_TH': True,
+ 'PRE_STEADY': 'solve',
+ 'PRE_STEADY_ITERS': 50,
+ 'PRE_STEADY_DAMP': 0.1,
+ 'NOFRUNS': 1,
+ 'NOFSTEPS_CPU': 0,
+ 'NOFSTEPS_GPU': 200,
+ 'LRS': '0.1',
+ 'CHECKPOINT_INTERVAL': 1000,
+ 'FP': 32,
+ 'SEQUENTIAL': False,
+ 'T_REL_START': -10,
+ 'T_REL_STOP': 10}
+==== end param_defaults ====
+train_modes:
+  a_gt               indi=56/shared=0/fixed=0/frozen=0 (56)
+  bias_gt            indi=0/shared=0/fixed=0/frozen=56 (0)
+  syn_strength_cell  indi=1035/shared=0/fixed=0/frozen=0 (1035)
+  a_in               indi=0/shared=56/fixed=0/frozen=0 (1)
+  a_out              indi=56/shared=0/fixed=0/frozen=0 (56)
+  e_leak             indi=56/shared=0/fixed=0/frozen=0 (56)
+  v_th               indi=56/shared=0/fixed=0/frozen=0 (56)
+  v_th_ca            indi=0/shared=0/fixed=0/frozen=56 (0)
+  a_ca               indi=56/shared=0/fixed=0/frozen=0 (56)
+  tau_ca             indi=56/shared=0/fixed=0/frozen=0 (56)
+  tau_lp             indi=0/shared=0/fixed=56/frozen=0 (0)
+  tau_hp             indi=0/shared=56/fixed=0/frozen=0 (1)
+  a_h                indi=4/shared=0/fixed=52/frozen=0 (4)
+  a_sti_radius       indi=3/shared=0/fixed=0/frozen=0 (3)
+device=cuda, model=hp_lp, syn_mode=per_cell, euler=implicit, pre_steady=solve, nofruns=1, nofsteps=100, lrs=[0.1], nparams=1380, fname=training_hp_lp.npy, outdir=/home/yitai/drosophila_vision/vision/simulation/0_runs/hp_lp/29048240-run-nofsteps-100-a-h-init.L1,L2,L4,L5-0.5-filter-ca
+checkpoint_interval=1000
+
+round 0
+
+  0%|          | 0/100 [00:00<?, ?it/s] Cost: 968027.6250  [spot_bright_L1_r0=1506563.8750  spot_bright_L2_r0=1467792.0000  spot_bright_L4_r0=2061383.2500  spot_bright_L5_r0=1419590.3750  spot_bright_Mi1_r0=1633080.8750  spot_bright_Tm3_r0=823320.0000  spot_bright_Mi4_r0=1320220.1250  spot_bright_Mi9_r0=2129062.5000  spot_bright_Tm1_r0=3280203.2500  spot_bright_Tm2_r0=3562178.2500  spot_bright_Tm4_r0=1934732.5000  spot_bright_Tm9_r0=1696710.3750  spot_bright_L1_r1=23.4031  spot_bright_L2_r1=32.8186  spot_bright_L3_r1=21.0828  spot_bright_L4_r1=34790.1914  spot_bright_L5_r1=28.3922  spot_bright_Mi1_r1=89.5904  spot_bright_Tm3_r1=150197.5312  spot_bright_Mi4_r1=40350.6211  spot_bright_Mi9_r1=39184.2656  spot_bright_Tm1_r1=257335.7188  spot_bright_Tm2_r1=438290.1875  spot_bright_Tm4_r1=39805.2695  spot_bright_Tm9_r1=8.4460  spot_bright_L3_r0=1333724.3750] 10%|█         | 10/100 [00:06<00:57,  1.56it/s] Cost: 745955.0000  [spot_bright_L1_r0=1507259.7500  spot_bright_L2_r0=1481508.6250  spot_bright_L4_r0=1545990.7500  spot_bright_L5_r0=1383824.3750  spot_bright_Mi1_r0=1630975.2500  spot_bright_Tm3_r0=1088723.6250  spot_bright_Mi4_r0=1695721.3750  spot_bright_Mi9_r0=1639369.1250  spot_bright_Tm1_r0=1589407.2500  spot_bright_Tm2_r0=1307481.5000  spot_bright_Tm4_r0=1430189.8750  spot_bright_Tm9_r0=1696590.0000  spot_bright_L1_r1=70.8167  spot_bright_L2_r1=16.1540  spot_bright_L3_r1=51.9171  spot_bright_L4_r1=2.8400  spot_bright_L5_r1=3608.1660  spot_bright_Mi1_r1=113.7670  spot_bright_Tm3_r1=59292.2773  spot_bright_Mi4_r1=821.5439  spot_bright_Mi9_r1=2.0146  spot_bright_Tm1_r1=22.0635  spot_bright_Tm2_r1=8.0083  spot_bright_Tm4_r1=4.8340  spot_bright_Tm9_r1=1.7632  spot_bright_L3_r0=1333774.6250]:           20%|██        | 20/100 [00:12<00:51,  1.56it/s] Cost: 762825.8750  [spot_bright_L1_r0=1515959.0000  spot_bright_L2_r0=1483012.7500  spot_bright_L4_r0=1546006.6250  spot_bright_L5_r0=1418841.6250  spot_bright_Mi1_r0=1633834.6250  spot_bright_Tm3_r0=1514768.1250  spot_bright_Mi4_r0=1714391.6250  spot_bright_Mi9_r0=1639919.1250  spot_bright_Tm1_r0=1589318.0000  spot_bright_Tm2_r0=1307342.1250  spot_bright_Tm4_r0=1430189.7500  spot_bright_Tm9_r0=1696653.5000  spot_bright_L1_r1=8.7517  spot_bright_L2_r1=1.5976  spot_bright_L3_r1=13.2058  spot_bright_L4_r1=2.8361  spot_bright_L5_r1=59.2130  spot_bright_Mi1_r1=32.7247  spot_bright_Tm3_r1=21.4056  spot_bright_Mi4_r1=6.0734  spot_bright_Mi9_r1=6.2920  spot_bright_Tm1_r1=11.4789  spot_bright_Tm2_r1=6.6167  spot_bright_Tm4_r1=1.3287  spot_bright_Tm9_r1=1.0239  spot_bright_L3_r0=1343059.5000]:            30%|███       | 30/100 [00:19<00:44,  1.57it/s] Cost: 762990.8125  [spot_bright_L1_r0=1517248.2500  spot_bright_L2_r0=1483256.1250  spot_bright_L4_r0=1546009.2500  spot_bright_L5_r0=1419669.6250  spot_bright_Mi1_r0=1634150.2500  spot_bright_Tm3_r0=1515090.5000  spot_bright_Mi4_r0=1713448.6250  spot_bright_Mi9_r0=1640138.5000  spot_bright_Tm1_r0=1589311.8750  spot_bright_Tm2_r0=1307316.7500  spot_bright_Tm4_r0=1430217.0000  spot_bright_Tm9_r0=1696739.6250  spot_bright_L1_r1=3.9882  spot_bright_L2_r1=0.5247  spot_bright_L3_r1=14.3636  spot_bright_L4_r1=2.8364  spot_bright_L5_r1=25.4033  spot_bright_Mi1_r1=12.2458  spot_bright_Tm3_r1=8.1428  spot_bright_Mi4_r1=5.4918  spot_bright_Mi9_r1=6.9938  spot_bright_Tm1_r1=11.5545  spot_bright_Tm2_r1=6.6086  spot_bright_Tm4_r1=1.3846  spot_bright_Tm9_r1=0.9960  spot_bright_L3_r0=1345064.2500]:   40%|████      | 40/100 [00:25<00:38,  1.57it/s] Cost: 763024.5625  [spot_bright_L1_r0=1517577.8750  spot_bright_L2_r0=1483271.1250  spot_bright_L4_r0=1546010.5000  spot_bright_L5_r0=1419896.2500  spot_bright_Mi1_r0=1634213.1250  spot_bright_Tm3_r0=1515095.2500  spot_bright_Mi4_r0=1713301.7500  spot_bright_Mi9_r0=1640242.5000  spot_bright_Tm1_r0=1589307.3750  spot_bright_Tm2_r0=1307302.3750  spot_bright_Tm4_r0=1430226.7500  spot_bright_Tm9_r0=1696780.6250  spot_bright_L1_r1=2.9238  spot_bright_L2_r1=0.5000  spot_bright_L3_r1=14.7468  spot_bright_L4_r1=2.8365  spot_bright_L5_r1=18.3974  spot_bright_Mi1_r1=9.1058  spot_bright_Tm3_r1=7.9185  spot_bright_Mi4_r1=5.3950  spot_bright_Mi9_r1=7.3508  spot_bright_Tm1_r1=11.5522  spot_bright_Tm2_r1=6.6102  spot_bright_Tm4_r1=1.4036  spot_bright_Tm9_r1=1.0000  spot_bright_L3_r0=1345324.3750]:   50%|█████     | 50/100 [00:31<00:31,  1.56it/s] Cost: 763037.5000  [spot_bright_L1_r0=1517714.3750  spot_bright_L2_r0=1483302.3750  spot_bright_L4_r0=1546011.1250  spot_bright_L5_r0=1419905.3750  spot_bright_Mi1_r0=1634243.0000  spot_bright_Tm3_r0=1515097.6250  spot_bright_Mi4_r0=1713341.5000  spot_bright_Mi9_r0=1640281.1250  spot_bright_Tm1_r0=1589304.8750  spot_bright_Tm2_r0=1307297.1250  spot_bright_Tm4_r0=1430229.8750  spot_bright_Tm9_r0=1696797.1250  spot_bright_L1_r1=2.7760  spot_bright_L2_r1=0.5174  spot_bright_L3_r1=14.7518  spot_bright_L4_r1=2.8366  spot_bright_L5_r1=18.5697  spot_bright_Mi1_r1=9.2961  spot_bright_Tm3_r1=7.9335  spot_bright_Mi4_r1=5.4111  spot_bright_Mi9_r1=7.4882  spot_bright_Tm1_r1=11.5548  spot_bright_Tm2_r1=6.6082  spot_bright_Tm4_r1=1.4102  spot_bright_Tm9_r1=1.0071  spot_bright_L3_r0=1345358.6250]:  60%|██████    | 60/100 [00:38<00:25,  1.57it/s] Cost: 763042.7500  [spot_bright_L1_r0=1517754.2500  spot_bright_L2_r0=1483319.3750  spot_bright_L4_r0=1546011.0000  spot_bright_L5_r0=1419918.8750  spot_bright_Mi1_r0=1634264.6250  spot_bright_Tm3_r0=1515105.3750  spot_bright_Mi4_r0=1713349.7500  spot_bright_Mi9_r0=1640289.3750  spot_bright_Tm1_r0=1589305.1250  spot_bright_Tm2_r0=1307295.0000  spot_bright_Tm4_r0=1430231.5000  spot_bright_Tm9_r0=1696800.5000  spot_bright_L1_r1=2.6114  spot_bright_L2_r1=0.5292  spot_bright_L3_r1=14.7536  spot_bright_L4_r1=2.8366  spot_bright_L5_r1=18.6208  spot_bright_Mi1_r1=9.3574  spot_bright_Tm3_r1=7.9373  spot_bright_Mi4_r1=5.3929  spot_bright_Mi9_r1=7.5118  spot_bright_Tm1_r1=11.5503  spot_bright_Tm2_r1=6.6036  spot_bright_Tm4_r1=1.4126  spot_bright_Tm9_r1=1.0133  spot_bright_L3_r0=1345376.5000]:  70%|███████   | 70/100 [00:44<00:19,  1.57it/s] Cost: 763042.1875  [spot_bright_L1_r0=1517762.5000  spot_bright_L2_r0=1483324.0000  spot_bright_L4_r0=1546011.1250  spot_bright_L5_r0=1419916.0000  spot_bright_Mi1_r0=1634261.6250  spot_bright_Tm3_r0=1515100.8750  spot_bright_Mi4_r0=1713344.0000  spot_bright_Mi9_r0=1640280.1250  spot_bright_Tm1_r0=1589307.0000  spot_bright_Tm2_r0=1307295.2500  spot_bright_Tm4_r0=1430231.1250  spot_bright_Tm9_r0=1696798.8750  spot_bright_L1_r1=2.5723  spot_bright_L2_r1=0.5241  spot_bright_L3_r1=14.7485  spot_bright_L4_r1=2.8366  spot_bright_L5_r1=18.6283  spot_bright_Mi1_r1=9.3789  spot_bright_Tm3_r1=7.9415  spot_bright_Mi4_r1=5.3528  spot_bright_Mi9_r1=7.4750  spot_bright_Tm1_r1=11.5469  spot_bright_Tm2_r1=6.5959  spot_bright_Tm4_r1=1.4170  spot_bright_Tm9_r1=1.0197  spot_bright_L3_r0=1345374.5000]:  80%|████████  | 80/100 [00:51<00:12,  1.57it/s] Cost: 763040.1250  [spot_bright_L1_r0=1517767.7500  spot_bright_L2_r0=1483310.1250  spot_bright_L4_r0=1546011.0000  spot_bright_L5_r0=1419911.2500  spot_bright_Mi1_r0=1634254.0000  spot_bright_Tm3_r0=1515095.3750  spot_bright_Mi4_r0=1713331.2500  spot_bright_Mi9_r0=1640266.2500  spot_bright_Tm1_r0=1589309.8750  spot_bright_Tm2_r0=1307296.7500  spot_bright_Tm4_r0=1430230.0000  spot_bright_Tm9_r0=1696794.6250  spot_bright_L1_r1=2.5860  spot_bright_L2_r1=0.5108  spot_bright_L3_r1=14.7353  spot_bright_L4_r1=2.8366  spot_bright_L5_r1=18.6363  spot_bright_Mi1_r1=9.4074  spot_bright_Tm3_r1=7.9523  spot_bright_Mi4_r1=5.3022  spot_bright_Mi9_r1=7.4099  spot_bright_Tm1_r1=11.5482  spot_bright_Tm2_r1=6.5865  spot_bright_Tm4_r1=1.4248  spot_bright_Tm9_r1=1.0266  spot_bright_L3_r0=1345373.3750]:  90%|█████████ | 90/100 [00:57<00:06,  1.57it/s] Cost: 763036.8125  [spot_bright_L1_r0=1517761.0000  spot_bright_L2_r0=1483302.7500  spot_bright_L4_r0=1546011.1250  spot_bright_L5_r0=1419900.2500  spot_bright_Mi1_r0=1634238.7500  spot_bright_Tm3_r0=1515085.5000  spot_bright_Mi4_r0=1713315.6250  spot_bright_Mi9_r0=1640248.3750  spot_bright_Tm1_r0=1589312.0000  spot_bright_Tm2_r0=1307299.7500  spot_bright_Tm4_r0=1430228.8750  spot_bright_Tm9_r0=1696789.6250  spot_bright_L1_r1=2.6080  spot_bright_L2_r1=0.4996  spot_bright_L3_r1=14.7192  spot_bright_L4_r1=2.8366  spot_bright_L5_r1=18.6378  spot_bright_Mi1_r1=9.4277  spot_bright_Tm3_r1=7.9630  spot_bright_Mi4_r1=5.2465  spot_bright_Mi9_r1=7.3350  spot_bright_Tm1_r1=11.5459  spot_bright_Tm2_r1=6.5763  spot_bright_Tm4_r1=1.4311  spot_bright_Tm9_r1=1.0339  spot_bright_L3_r0=1345371.0000]: 100%|██████████| 100/100 [01:03<00:00,  1.56it/s] Cost: 763031.9375  [spot_bright_L1_r0=1517741.7500  spot_bright_L2_r0=1483296.5000  spot_bright_L4_r0=1546011.2500  spot_bright_L5_r0=1419883.1250  spot_bright_Mi1_r0=1634216.2500  spot_bright_Tm3_r0=1515071.6250  spot_bright_Mi4_r0=1713299.7500  spot_bright_Mi9_r0=1640228.3750  spot_bright_Tm1_r0=1589315.0000  spot_bright_Tm2_r0=1307301.5000  spot_bright_Tm4_r0=1430227.7500  spot_bright_Tm9_r0=1696782.3750  spot_bright_L1_r1=2.6183  spot_bright_L2_r1=0.4897  spot_bright_L3_r1=14.6983  spot_bright_L4_r1=2.8366  spot_bright_L5_r1=18.6255  spot_bright_Mi1_r1=9.4213  spot_bright_Tm3_r1=7.9722  spot_bright_Mi4_r1=5.1866  spot_bright_Mi9_r1=7.2531  spot_bright_Tm1_r1=11.5418  spot_bright_Tm2_r1=6.5653  spot_bright_Tm4_r1=1.4370  spot_bright_Tm9_r1=1.0415  spot_bright_L3_r0=1345364.7500]: 100%|██████████| 100/100 [01:03<00:00,  1.57it/s] Cost: 763031.9375  [spot_bright_L1_r0=1517741.7500  spot_bright_L2_r0=1483296.5000  spot_bright_L4_r0=1546011.2500  spot_bright_L5_r0=1419883.1250  spot_bright_Mi1_r0=1634216.2500  spot_bright_Tm3_r0=1515071.6250  spot_bright_Mi4_r0=1713299.7500  spot_bright_Mi9_r0=1640228.3750  spot_bright_Tm1_r0=1589315.0000  spot_bright_Tm2_r0=1307301.5000  spot_bright_Tm4_r0=1430227.7500  spot_bright_Tm9_r0=1696782.3750  spot_bright_L1_r1=2.6183  spot_bright_L2_r1=0.4897  spot_bright_L3_r1=14.6983  spot_bright_L4_r1=2.8366  spot_bright_L5_r1=18.6255  spot_bright_Mi1_r1=9.4213  spot_bright_Tm3_r1=7.9722  spot_bright_Mi4_r1=5.1866  spot_bright_Mi9_r1=7.2531  spot_bright_Tm1_r1=11.5418  spot_bright_Tm2_r1=6.5653  spot_bright_Tm4_r1=1.4370  spot_bright_Tm9_r1=1.0415  spot_bright_L3_r0=1345364.7500]: 
+
+Initl cost = 968027.6250  [spot_bright_L1_r0=1506563.8750  spot_bright_L2_r0=1467792.0000  spot_bright_L4_r0=2061383.2500  spot_bright_L5_r0=1419590.3750  spot_bright_Mi1_r0=1633080.8750  spot_bright_Tm3_r0=823320.0000  spot_bright_Mi4_r0=1320220.1250  spot_bright_Mi9_r0=2129062.5000  spot_bright_Tm1_r0=3280203.2500  spot_bright_Tm2_r0=3562178.2500  spot_bright_Tm4_r0=1934732.5000  spot_bright_Tm9_r0=1696710.3750  spot_bright_L1_r1=23.4031  spot_bright_L2_r1=32.8186  spot_bright_L3_r1=21.0828  spot_bright_L4_r1=34790.1914  spot_bright_L5_r1=28.3922  spot_bright_Mi1_r1=89.5904  spot_bright_Tm3_r1=150197.5312  spot_bright_Mi4_r1=40350.6211  spot_bright_Mi9_r1=39184.2656  spot_bright_Tm1_r1=257335.7188  spot_bright_Tm2_r1=438290.1875  spot_bright_Tm4_r1=39805.2695  spot_bright_Tm9_r1=8.4460  spot_bright_L3_r0=1333724.3750]
+Final cost = 763031.4375  [spot_bright_L1_r0=1517738.6250  spot_bright_L2_r0=1483295.8750  spot_bright_L4_r0=1546011.0000  spot_bright_L5_r0=1419881.5000  spot_bright_Mi1_r0=1634213.7500  spot_bright_Tm3_r0=1515070.2500  spot_bright_Mi4_r0=1713297.7500  spot_bright_Mi9_r0=1640226.3750  spot_bright_Tm1_r0=1589315.5000  spot_bright_Tm2_r0=1307301.7500  spot_bright_Tm4_r0=1430227.7500  spot_bright_Tm9_r0=1696781.8750  spot_bright_L1_r1=2.6155  spot_bright_L2_r1=0.4888  spot_bright_L3_r1=14.6961  spot_bright_L4_r1=2.8366  spot_bright_L5_r1=18.6247  spot_bright_Mi1_r1=9.4197  spot_bright_Tm3_r1=7.9734  spot_bright_Mi4_r1=5.1805  spot_bright_Mi9_r1=7.2446  spot_bright_Tm1_r1=11.5414  spot_bright_Tm2_r1=6.5643  spot_bright_Tm4_r1=1.4375  spot_bright_Tm9_r1=1.0423  spot_bright_L3_r0=1345364.2500]
+Best  cost = 732431.8125  [spot_bright_L1_r0=1511462.6250  spot_bright_L2_r0=1479857.1250  spot_bright_L4_r0=1545980.2500  spot_bright_L5_r0=1339379.0000  spot_bright_Mi1_r0=1629262.2500  spot_bright_Tm3_r0=710765.7500  spot_bright_Mi4_r0=1448418.1250  spot_bright_Mi9_r0=1639115.6250  spot_bright_Tm1_r0=1589303.1250  spot_bright_Tm2_r0=1307500.6250  spot_bright_Tm4_r0=1430111.5000  spot_bright_Tm9_r0=1696532.2500  spot_bright_L1_r1=908.2501  spot_bright_L2_r1=29.1972  spot_bright_L3_r1=1038.0934  spot_bright_L4_r1=2.8405  spot_bright_L5_r1=14990.1270  spot_bright_Mi1_r1=148.2467  spot_bright_Tm3_r1=323858.2188  spot_bright_Mi4_r1=29674.3262  spot_bright_Mi9_r1=1.5462  spot_bright_Tm1_r1=25.5246  spot_bright_Tm2_r1=9.0274  spot_bright_Tm4_r1=6.0793  spot_bright_Tm9_r1=2.0477  spot_bright_L3_r0=1344843.2500]
+time needed  = 67.49  sec
+
+done in 0.02 hours
+wrote /home/yitai/drosophila_vision/vision/simulation/0_runs/hp_lp/29048240-run-nofsteps-100-a-h-init.L1,L2,L4,L5-0.5-filter-ca/data/best_adam.npz (best run #0)
+wrote table: /home/yitai/drosophila_vision/vision/simulation/0_runs/hp_lp/29048240-run-nofsteps-100-a-h-init.L1,L2,L4,L5-0.5-filter-ca/param.csv (best run #0, cost=732431.8125)
+wrote table: /home/yitai/drosophila_vision/vision/simulation/0_runs/hp_lp/29048240-run-nofsteps-100-a-h-init.L1,L2,L4,L5-0.5-filter-ca/syn_strength_cell.csv
+/home/yitai/drosophila_vision/vision/simulation/5_figure/1_util.py:1040: UserWarning: This figure includes Axes that are not compatible with tight_layout, so results might be incorrect.
+  fig.tight_layout()
+plot /home/yitai/drosophila_vision/vision/simulation/0_runs/hp_lp/29048240-run-nofsteps-100-a-h-init.L1,L2,L4,L5-0.5-filter-ca/cost_curve.png: prep=0.0s  draw=0.3s  save=1.2s  total=1.5s
+plot device=cuda (NVIDIA H100 80GB HBM3)
+1 trained set(s); costs min=732431.8125 max=732431.8125; selected #0 (from saved final costs)
+plot /home/yitai/drosophila_vision/vision/simulation/0_runs/hp_lp/29048240-run-nofsteps-100-a-h-init.L1,L2,L4,L5-0.5-filter-ca/spot_gt_ca.png: prep=0.4s  draw=0.3s  save=1.4s  total=2.2s
+plot /home/yitai/drosophila_vision/vision/simulation/0_runs/hp_lp/29048240-run-nofsteps-100-a-h-init.L1,L2,L4,L5-0.5-filter-ca/spot_all_ca.png: prep=0.0s  draw=1.6s  save=5.7s  total=7.2s
+plots saved to /home/yitai/drosophila_vision/vision/simulation/0_runs/hp_lp/29048240-run-nofsteps-100-a-h-init.L1,L2,L4,L5-0.5-filter-ca

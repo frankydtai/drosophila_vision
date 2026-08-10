@@ -165,12 +165,14 @@ def read_arenz_digitized_impr(*, t_onset, n_t, delta_ms: float) -> np.ndarray:
     return out
 
 
-def read_RecF_ImpR(*, t_onset=None, n_t=None, ms_spot=None, delta_ms: float):
+def read_RecF_ImpR(*, t_onset=None, n_t=None, ms_spot=None, delta_ms: float, filter="none"):
     """Return ``(RecF_gt, ImpR_gt)`` for the 13 gt cells.
 
     Shapes: ``RecF_gt`` ``(13, 45)``; ``ImpR_gt`` ``(13, n_t)``. The
     drive is :func:`task.spot.input.spot_input_waveform` (step or finite spot).
     ImpR filter taus are in ms (scaled by ``delta_ms``); delay is in samples.
+    With ``filter==\"ca\"``, ImpR is Arenz digitized (``t=0`` at onset);
+    RecF keeps DoG radius signs but omits cell ``RF_sign`` (Arenz has polarity).
     """
     if t_onset is None or n_t is None:
         raise ValueError("read_RecF_ImpR requires t_onset and n_t")
@@ -180,6 +182,7 @@ def read_RecF_ImpR(*, t_onset=None, n_t=None, ms_spot=None, delta_ms: float):
     if delta_ms <= 0:
         raise ValueError(f"delta_ms must be > 0, got {delta_ms}")
     n_cells = len(GT_CELLS)
+    use_ca = str(filter) == "ca"
 
     RF_center_width = np.array([6, 7, 6, 8, 7, 6, 12, 6, 6, 8, 8, 11, 7])
     RF_surrnd_width = np.array([41, 29, 15, 33, 31, 29, 7, 16, 24, 27, 31, 35, 24])
@@ -192,8 +195,13 @@ def read_RecF_ImpR(*, t_onset=None, n_t=None, ms_spot=None, delta_ms: float):
     for i in range(n_cells):
         center = _gauss1d(RF_center_width[i], 44)
         surrnd = _gauss1d(RF_surrnd_width[i], 44)
-        RecF_gt[i] = normalize_gt(
-            (center - RF_surrnd_weight[i] * surrnd) * RF_sign[i]
+        dog = center - RF_surrnd_weight[i] * surrnd
+        # ca: polarity from Arenz ImpR; keep DoG signed across radii (no RF_sign).
+        RecF_gt[i] = normalize_gt(dog if use_ca else dog * RF_sign[i])
+
+    if use_ca:
+        return RecF_gt, read_arenz_digitized_impr(
+            t_onset=t_onset, n_t=n_t, delta_ms=delta_ms,
         )
 
     # ImpR HP / LP time constants (ms).
@@ -217,10 +225,10 @@ def read_RecF_ImpR(*, t_onset=None, n_t=None, ms_spot=None, delta_ms: float):
     return RecF_gt, ImpR_gt
 
 
-def read_RecF_gt(*, t_onset=None, n_t=None, ms_spot=None, delta_ms: float):
+def read_RecF_gt(*, t_onset=None, n_t=None, ms_spot=None, delta_ms: float, filter="none"):
     """Spatial x temporal spot cube ``(n_cells, RF_N_RADII, n_t)``; axis = radius."""
     RecF_gt, ImpR_gt = read_RecF_ImpR(
-        t_onset=t_onset, n_t=n_t, ms_spot=ms_spot, delta_ms=delta_ms,
+        t_onset=t_onset, n_t=n_t, ms_spot=ms_spot, delta_ms=delta_ms, filter=filter,
     )
     mt = ImpR_gt.shape[1]
     n_cells = len(GT_CELLS)
@@ -232,10 +240,10 @@ def read_RecF_gt(*, t_onset=None, n_t=None, ms_spot=None, delta_ms: float):
     return gt
 
 
-def read_RecF_gt_dark(*, t_onset=None, n_t=None, ms_spot=None, delta_ms: float):
+def read_RecF_gt_dark(*, t_onset=None, n_t=None, ms_spot=None, delta_ms: float, filter="none"):
     """Dark spot spatial x temporal cube: negated bright ``read_RecF_gt()``."""
     return -read_RecF_gt(
-        t_onset=t_onset, n_t=n_t, ms_spot=ms_spot, delta_ms=delta_ms,
+        t_onset=t_onset, n_t=n_t, ms_spot=ms_spot, delta_ms=delta_ms, filter=filter,
     )
 
 
