@@ -3,7 +3,7 @@
 
 Per-model modules supply only ``prepare_i_sti`` / ``pre_steady`` / ``step``.
 This module owns the time loop. Training / plots read absolute ``v``
-when ``train_opts['filter']=='none'``; with ``'ca'``, readout is ``f_ca`` from
+when ``train_opts['filter']=='none'``; with ``'ca'``, readout is ``ca`` from
 ``neuron.filter_ca`` on ``v_ca = relu(v − v_th_ca)·a_ca``. Cost compares the
 readout to ``a_gt * gt + bias_gt``.
 """
@@ -33,7 +33,7 @@ def a_sti_radius_effective(p, pack):
     return alpha * gate.to(device=alpha.device, dtype=alpha.dtype)
 
 
-def apply_a_sti_radius(i_sti, p, pack):
+def inject_a_sti_radius(i_sti, p, pack):
     """``i += a_sti_radius[r] * sti_wave`` on spot radius PR contribs; else pass-through.
 
     Uses :func:`a_sti_radius_effective` so gated slots are 0 whether indi or fixed.
@@ -92,32 +92,28 @@ def _session_filter(session) -> str:
     return str(opts.get("filter", "none"))
 
 
-def v_th_ca_effective(p, session):
-    """Ca rectifier threshold: ``v_th`` when ``v_th_ca_from_v_th``, else ``v_th_ca``."""
-    opts = session.train_opts or {}
-    if bool(opts.get("v_th_ca_from_v_th", True)):
-        return p["v_th"]
-    return p["v_th_ca"]
-
-
 def v_ca_from_v(v, p, session):
-    """``v_ca = relu(v − v_th_ca)·a_ca`` (per-node tensors in ``p``)."""
-    return torch.relu(v - v_th_ca_effective(p, session)) * p["a_ca"]
+    """``v_ca = relu(v − v_th_ca)·a_ca`` (per-node tensors in ``p``).
+
+    Callers must run ``training.materialize_from_opts`` (via ``params_from_z``)
+    so ``v_th_ca`` / ``a_ca`` already hold ``v_th`` / ``a_out`` when those
+    ``*_from_*`` flags are on.
+    """
+    return torch.relu(v - p["v_th_ca"]) * p["a_ca"]
 
 
-def f_ca_from_v(v, p, session, *, t_onset: int):
-    """Apply ``filter_ca`` over time; ``f_ca[0] = v_ca[0]``."""
-    v_ca = v_ca_from_v(v, p, session)
+def v_ca_to_ca(v_ca, p, session, *, t_onset: int):
+    """Apply ``filter_ca`` over time on pre-computed ``v_ca``; ``ca[0] = v_ca[0]``."""
     tau_ca = torch.clamp(p["tau_ca"], min=float(session.delta_ms))
-    f_ca = v_ca[:, 0]
-    rows = [f_ca]
+    ca = v_ca[:, 0]
+    rows = [ca]
     for t in range(1, int(v_ca.shape[1])):
-        f_ca = filter_ca(
-            f_ca, v_ca[:, t],
+        ca = filter_ca(
+            ca, v_ca[:, t],
             delta_ms=step_delta_ms(session, t, t_onset),
             tau_ca=tau_ca,
         )
-        rows.append(f_ca)
+        rows.append(ca)
     return torch.stack(rows, dim=1)
 
 
@@ -130,7 +126,7 @@ def forward_v(session, p, i_sti, *, pack=None):
         )
     drv = MODEL_DRIVERS[session.model]
     pack = pack or session.primary_readout
-    i_sti = apply_a_sti_radius(
+    i_sti = inject_a_sti_radius(
         drv.prepare_i_sti(session, p, i_sti, pack), p, pack,
     )
     B, t_end = int(i_sti.shape[0]), int(i_sti.shape[1])
@@ -162,10 +158,10 @@ def forward_v(session, p, i_sti, *, pack=None):
 
 
 def forward_ca(session, p, i_sti, *, pack=None):
-    """Full-T ``f_ca`` ``(B, T, N)``: ``forward_v`` then ``filter_ca``."""
+    """Full-T ``ca`` ``(B, T, N)``: ``forward_v`` then ``filter_ca``."""
     pack = pack or session.primary_readout
     v = forward_v(session, p, i_sti, pack=pack)
-    return f_ca_from_v(v, p, session, t_onset=pack_t_onset(pack))
+    return v_ca_to_ca(v_ca_from_v(v, p, session), p, session, t_onset=pack_t_onset(pack))
 
 
 def forward_full(session, p, i_sti, *, pack=None):
@@ -183,7 +179,7 @@ def forward_full(session, p, i_sti, *, pack=None):
 
     Returns
     -------
-    Readout trace ``(B, T, N)`` (``v`` or ``f_ca``).
+    Readout trace ``(B, T, N)`` (``v`` or ``ca``).
     """
     if _session_filter(session) == "ca":
         return forward_ca(session, p, i_sti, pack=pack)

@@ -2,7 +2,7 @@
 
 This is the one place that knows where the raw FAFB files live and how to read
 them. ``4_build_network.py``, ``2_build_hex.py``, ``3_assign_column.py`` and
-``5_add_extent.py`` all import from here (they never import each other for I/O),
+``5_apply_radius.py`` all import from here (they never import each other for I/O),
 so the path constants and the three CSV loaders are defined exactly once.
 """
 
@@ -58,12 +58,12 @@ def resolve_network_json(spec: str) -> Path:
 
 
 def network_run_tag(network_path: str, meta: dict) -> str:
-    """``right`` / ``left``; append ``_extentN`` when the run folder name has it."""
+    """``right`` / ``left``; append ``_rN`` when the run folder name has it."""
     run_name = Path(network_path).resolve().parent.name
     side = str(meta.get("side") or run_name.split("_")[0])
-    m = re.search(r"_extent(\d+)$", run_name)
+    m = re.search(r"_r(\d+)$", run_name)
     if m:
-        return f"{side}_extent{m.group(1)}"
+        return f"{side}_r{m.group(1)}"
     return side
 
 
@@ -73,9 +73,9 @@ def cell_counts_abc_path(network_json: Path) -> Path:
 
 
 def resolve_cell_counts_abc_path(network_json: Path) -> Path:
-    """``cell_counts_abc.csv`` for family lookup (extent runs share the base table)."""
+    """``cell_counts_abc.csv`` for family lookup (radius-cropped runs share the base table)."""
     net = Path(network_json).resolve()
-    if re.search(r"_extent\d+$", net.parent.name):
+    if re.search(r"_r\d+$", net.parent.name):
         return BUILT_NETWORKS_DIR / CELL_COUNTS_ABC_BASE_RUN / CELL_COUNTS_ABC_FILE
     return cell_counts_abc_path(network_json)
 

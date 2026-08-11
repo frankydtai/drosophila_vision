@@ -39,7 +39,7 @@ import training
 from training.config import COST_NORMS, expand_cost_norm, spot_cost_part_key
 from training.cost import (
     _gather_cost_time,
-    _mse_parts_scatter,
+    _group_cost_parts,
     _pack_cost_forward,
     _session_cost_norm,
     _spot_entry_groups,
@@ -121,7 +121,7 @@ def cost_part(session, z, part_key: str) -> dict:
     sse_sum = float(sse.sum().item())
     power_sum = float(power_t.sum().item())
 
-    official = _mse_parts_scatter(
+    official = _group_cost_parts(
         a_gt, bias_gt, gt, weight, v_readout, group_id, keys, session,
         time_mask=time_mask,
     )
@@ -129,7 +129,7 @@ def cost_part(session, z, part_key: str) -> dict:
         raise SystemExit(f"part {part_key!r} has zero cost weight")
     cost = float(official[part_key].item())
 
-    # Per-t display (/ w_sum); scalar ``cost`` is from ``_mse_parts_scatter``.
+    # Per-t display (/ w_sum); scalar ``cost`` is from ``_group_cost_parts``.
     if cost_norm == "gt_power":
         cost_mean = torch.where(
             power_t > 0,
@@ -167,7 +167,7 @@ def cost_part(session, z, part_key: str) -> dict:
     ms_cost = t_cost.astype(float) * delta_ms
     ms = np.array(
         [
-            training.t_to_ms(
+            training.ms_from_t(
                 int(ti),
                 t_onset=t_onset,
                 delta_ms_pre=delta_ms_pre,
@@ -252,7 +252,7 @@ def _print_table(info: dict, *, stride: int, per_node: bool) -> None:
         )
 
 
-def _write_csv(path: str, info: dict, *, per_node: bool) -> None:
+def _save_csv(path: str, info: dict, *, per_node: bool) -> None:
     w_sum = info["w_sum"]
     t = info["t"]
     ms = info["ms"]
@@ -372,7 +372,7 @@ def main(argv=None) -> None:
     print(flush=True)
     _print_table(info, stride=max(1, args.stride), per_node=bool(args.per_node))
     if args.csv:
-        _write_csv(args.csv, info, per_node=bool(args.per_node))
+        _save_csv(args.csv, info, per_node=bool(args.per_node))
 
 
 if __name__ == "__main__":

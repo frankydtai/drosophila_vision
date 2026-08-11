@@ -3,7 +3,7 @@
 Test drive levels (ratio like network 20/40 pA): baseline 0.5, peak 1.0.
 
     s = LP(u, τ=350 ms) / max   (or s = u / max without LP)
-    ImpR_i = IR_filter(s)  (+ 0.4 s for L1/L2) → normalize → × DATA_AMP × RecF
+    ImpR_i = IR_filter(s)  (+ 0.4 s for L1/L2) → normalize → × GT_AMP × RecF
 
 Usage (from ``SimulationCode/``):
 
@@ -29,7 +29,8 @@ import numpy as np
 from network.construction import cell_order_rows, cell_names_in_order
 from figure.spot import CENTER_BIN
 from figure.util import TRACE_LW, TRACE_YLIM, save_figure
-from neuron.params import DATA_AMP, DELTA_MS, ms_to_t
+from neuron.params import DELTA_MS, t_from_ms
+from param_defaults import GT_AMP
 from task.spot.gt import (
     _bandpass,
     _lowpass,
@@ -53,7 +54,7 @@ def _drive_u_s(
     """PR drive ``u`` and peak-normalized LP(u, prefilter_ms) ``s``."""
     gate = np.asarray(spot_input_waveform(t_on, n_t, ms_pulse), dtype=np.float64)
     u = U_BASELINE + (U_PEAK - U_BASELINE) * gate
-    tau = float(ms_to_t(prefilter_ms, delta_ms=dt_ms))
+    tau = float(t_from_ms(prefilter_ms, delta_ms=dt_ms))
     s = _lowpass(u, tau)
     s = s / np.max(s)
     return u, s
@@ -62,7 +63,7 @@ def _drive_u_s(
 def _impr_cube(
     *, t_on: int, n_t: int, ms_pulse: float, dt_ms: float, prefilter_ms: float | None,
 ) -> np.ndarray:
-    """Center-bin Ca gt ``(13, n_t)`` = DATA_AMP × RecF_center × ImpR."""
+    """Center-bin Ca gt ``(13, n_t)`` = GT_AMP × RecF_center × ImpR."""
     RecF, _ = read_RecF_ImpR(t_on=t_on, n_t=n_t, ms_pulse=ms_pulse)
     u, s_lp = _drive_u_s(
         t_on=t_on, n_t=n_t, ms_pulse=ms_pulse, dt_ms=dt_ms, prefilter_ms=prefilter_ms or PREFILTER_MS,
@@ -82,7 +83,7 @@ def _impr_cube(
         if i < 2:
             impr = impr + 0.4 * s
         impr = normalize_gt(impr)
-        out[i] = DATA_AMP * rf_c[i] * impr
+        out[i] = GT_AMP * rf_c[i] * impr
     return out
 
 
@@ -119,7 +120,7 @@ def _plot(
 
     t_s = np.arange(with_lp.shape[1]) * dt_ms / 1000.0
     name_to_i = {str(n): i for i, n in enumerate(cell_list)}
-    tau_t = ms_to_t(prefilter_ms, delta_ms=dt_ms)
+    tau_t = t_from_ms(prefilter_ms, delta_ms=dt_ms)
 
     ax_pr.plot(t_s, u, color="0.25", lw=TRACE_LW, label=f"PR drive u ({U_BASELINE:g}/{U_PEAK:g})")
     ax_pr.plot(

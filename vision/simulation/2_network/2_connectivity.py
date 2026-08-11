@@ -34,7 +34,7 @@ def build_cell_pair_index(src_cell, tar_cell, n_cells: int):
 
     Returns
     -------
-    pair_idx : (E,) int64
+    pair_index : (E,) int64
     n_pairs : int
     pair_keys : list[(src_cell, tar_cell)] in index order
     """
@@ -53,13 +53,13 @@ class ScatterConn:
     target`` with a signed weight ``edge_weight`` (``syn_sign * n_syn`` for per_cell,
     ``syn_sign`` for per_edge). Excitatory and inhibitory drives are accumulated with
     ``scatter_add`` over the target index. Scaling is either type-pair
-    ``syn_strength_cell[pair_idx[e]]`` or per-edge ``syn_strength_edge[e]``.
+    ``syn_strength_cell[pair_index[e]]`` or per-edge ``syn_strength_edge[e]``.
     """
 
     def __init__(
         self,
-        src_idx,
-        tar_idx,
+        source_index,
+        target_index,
         edge_weight,
         n_nodes: int,
         node_cell,
@@ -72,10 +72,10 @@ class ScatterConn:
         device = device or ("cuda" if torch.cuda.is_available() else "cpu")
         self.device = device
         self.n_nodes = int(n_nodes)
-        self.src_idx = _as_long(src_idx, device)
-        self.tar_idx = _as_long(tar_idx, device)
+        self.source_index = _as_long(source_index, device)
+        self.target_index = _as_long(target_index, device)
         self.node_cell = _as_long(node_cell, device)
-        self.n_edges = int(self.src_idx.numel())
+        self.n_edges = int(self.source_index.numel())
 
         edge_weight = torch.as_tensor(edge_weight, dtype=dtype, device=device)
         self.w_exc = edge_weight.clamp(min=0) * syn_scale_exc
@@ -83,29 +83,29 @@ class ScatterConn:
         self.w_signed = self.w_exc - self.w_inh
 
         n_cells = int(self.node_cell.max().item()) + 1 if self.n_nodes else 0
-        src_t = self.node_cell[self.src_idx].detach().cpu().numpy()
-        tar_t = self.node_cell[self.tar_idx].detach().cpu().numpy()
-        pair_idx_np, n_pairs, pair_keys = build_cell_pair_index(src_t, tar_t, n_cells)
-        self.pair_idx = torch.as_tensor(pair_idx_np, dtype=torch.long, device=device)
+        src_t = self.node_cell[self.source_index].detach().cpu().numpy()
+        tar_t = self.node_cell[self.target_index].detach().cpu().numpy()
+        pair_index_np, n_pairs, pair_keys = build_cell_pair_index(src_t, tar_t, n_cells)
+        self.pair_index = torch.as_tensor(pair_index_np, dtype=torch.long, device=device)
         self.n_pairs = int(n_pairs)
         self.pair_keys = pair_keys
 
     def _scatter(self, vals: torch.Tensor) -> torch.Tensor:
         out_shape = vals.shape[:-1] + (self.n_nodes,)
         out = torch.zeros(out_shape, dtype=vals.dtype, device=vals.device)
-        idx = self.tar_idx.expand(vals.shape)
-        out.scatter_add_(-1, idx, vals)
+        target_index_expanded = self.target_index.expand(vals.shape)
+        out.scatter_add_(-1, target_index_expanded, vals)
         return out
 
     def _gather(self, x: torch.Tensor) -> torch.Tensor:
-        return x.index_select(-1, self.src_idx)
+        return x.index_select(-1, self.source_index)
 
     def _edge_syn_strength(self, syn_strength: torch.Tensor) -> torch.Tensor:
         n = int(syn_strength.shape[-1])
         if n == self.n_edges:
             return syn_strength
         if n == self.n_pairs:
-            return syn_strength.index_select(-1, self.pair_idx)
+            return syn_strength.index_select(-1, self.pair_index)
         raise ValueError(
             f"synaptic scale length {n} != n_edges {self.n_edges} "
             f"or n_pairs {self.n_pairs}"

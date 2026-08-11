@@ -1,7 +1,7 @@
-"""Classify spot radius-0 average ``v_post`` / ``f_ca`` on an absolute-ms window.
+"""Classify spot radius-0 average ``v_post`` / ``ca`` on an absolute-ms window.
 
 Uses ``analyze.cell_dynamics.analyze_spot_average`` only — one forward, no
-rewrite of core dynamics. Series: ``filter=ca`` → report ``f_ca``, else
+rewrite of core dynamics. Series: ``filter=ca`` → report ``ca``, else
 ``v_post``. Spot time axis: ``0`` = trial start; onset ≈ ``ms_pre``. Analyze /
 baseline windows are absolute ms (same as ``--ms-shown``), not locked to pre
 vs pulse.
@@ -339,8 +339,8 @@ def _resolve_windows(args, ms_pre, ms_spot, ms_response):
 def _slice_ms(
     v_full: np.ndarray, start_ms: float, stop_ms: float, *, delta_ms: float,
 ) -> np.ndarray:
-    i0 = training.ms_to_t(start_ms, delta_ms=delta_ms)
-    i1 = training.ms_to_t(stop_ms, delta_ms=delta_ms)
+    i0 = training.t_from_ms(start_ms, delta_ms=delta_ms)
+    i1 = training.t_from_ms(stop_ms, delta_ms=delta_ms)
     n = len(v_full)
     if i0 < 0 or i1 >= n or i0 > i1:
         raise SystemExit(
@@ -371,13 +371,13 @@ def _format_param_edits(edits: list[tuple[str, str | None, float]]) -> str:
 
 
 def _trace_series(rep: dict) -> np.ndarray:
-    """Full-length series from ``analyze_spot_average`` report: ``f_ca`` or ``v_post``."""
+    """Full-length series from ``analyze_spot_average`` report: ``ca`` or ``v_post``."""
     if rep.get("filter") == "ca":
-        if "f_ca" not in rep:
+        if "ca" not in rep:
             raise SystemExit(
-                f"report for {rep.get('cell')!r} has filter=ca but no f_ca series"
+                f"report for {rep.get('cell')!r} has filter=ca but no ca series"
             )
-        return np.asarray(rep["f_ca"], dtype=float)
+        return np.asarray(rep["ca"], dtype=float)
     return np.asarray(rep["v_post"], dtype=float)
 
 
@@ -386,6 +386,8 @@ def _load_reports(args):
     run_dir = plot_trained.resolve_run_dir(args.run)
     print(f"Loading run: {run_dir}", flush=True)
     session, z, _best_cost = plot_trained.load_best(run_dir)
+    train_opts = plot_trained.load_train_opts(run_dir) or {}
+    train_filter = training.expand_filter(train_opts.get("filter", "none"))
     timing_kw = stimulus_timing_kwargs_from_args(args)
     session, z, _timing_changed = plot_trained.maybe_override_stimulus_timing(
         run_dir=run_dir,
@@ -401,7 +403,9 @@ def _load_reports(args):
     param_edits = plot_trained.parse_param_tokens(args.param)
     z_t, schema = plot_trained.apply_param_overrides(z_t, schema, session, param_edits)
     session = session.with_schema(schema)
-    p = training.assign_params(z_t, schema, session.backend)
+    p = training.materialize_from_opts(
+        training.assign_params(z_t, schema, session.backend), session,
+    )
 
     param_csv = os.path.join(run_dir, "param.csv")
     if args.cells == "all":
@@ -444,6 +448,7 @@ def _load_reports(args):
         task=args.task,
         time_window=time_window,
         radius=args.radius,
+        train_filter=train_filter,
     )
     return cells, reports, delta_ms, analyze, baseline
 

@@ -3,11 +3,11 @@
 This module owns all hex-lattice math so the rest of the pipeline never restates
 coordinate formulas:
 
-  - ``members_in_extent`` / ``get_hex_coords`` enumerate axial (u, v) on a hex
+  - ``members_in_radius`` / ``get_hex_coords`` enumerate axial (u, v) on a hex
     disc.
   - ``pq_to_uv(p, q, side)`` converts FAFB ``column_assignment`` (p, q) indices to
     axial (u, v), which differs per hemisphere.
-  - ``inside_mask(u, v, extent)`` is the shared inside/outside-the-disc predicate.
+  - ``inside_mask(u, v, radius)`` is the shared inside/outside-the-disc predicate.
   - ``uv_to_xy`` / ``xy_to_uv`` convert axial ``(u, v)`` to hex-step ``(x, y)``;
     ``xy_to_xy_deg`` scales hex-step by :data:`DEG`; ``uv_to_xy_deg`` composes both.
   - ``hex_vertices`` / ``draw_hex_patches`` draw degree-space hex patches
@@ -38,14 +38,14 @@ logger = logging.getLogger(__name__)
 
 # -- Single source of truth: grid size ----------------------------------------
 
-# DEFAULT_EXTENT is the radius of the IDEAL reference hex disc (the left figure
-# panel and the default for HexGrid). extent=10 -> 3*10*11+1 = 331 cells.
-DEFAULT_EXTENT = 10
+# DEFAULT_RADIUS is the radius of the IDEAL reference hex disc (the left figure
+# panel and the default for HexGrid). radius=10 -> 3*10*11+1 = 331 cells.
+DEFAULT_RADIUS = 10
 
-# EXTENT is the shared spatial knob (inside/outside colouring in the figure;
-# 5_add_extent.py uses the same radius semantics). < 0 (default) = no cap /
+# RADIUS is the shared spatial knob (inside/outside colouring in the figure;
+# 5_apply_radius.py uses the same radius semantics). < 0 (default) = no cap /
 # no outside; >= 0 = that disc radius.
-EXTENT = -1
+RADIUS = -1
 
 # FAFB inter-ommatidial angle: hex-step (x, y) -> degree via ``xy_to_xy_deg``.
 DEG = 4.5
@@ -63,9 +63,9 @@ Y_AXIS_LABEL = f"Y ({AXIS_UNIT})"
 HEX_PATCH_ORIENTATION = np.radians(30)
 
 
-# Rendered column map: base filename (no --extent) and the --extent variant.
+# Rendered column map: base filename (no --radius) and the --radius variant.
 COLUMN_MAP_FILE = "column_map.png"
-COLUMN_MAP_EXTENT_FILE = "column_map_extent{extent}.png"
+COLUMN_MAP_RADIUS_FILE = "column_map_radius{radius}.png"
 
 # Single source of truth for FAFB column colors (fill, edge), reused by every
 # plot so column_map.png and lc_columns_right.png stay consistent.
@@ -101,18 +101,18 @@ def hex_radius(u: int, v: int) -> int:
     return int(_hex_radius_arr(u, v))
 
 
-def inside_mask(u, v, extent: int) -> np.ndarray:
-    """Boolean mask: is each axial (u, v) inside the radius-``extent`` hex disc?
+def inside_mask(u, v, radius: int) -> np.ndarray:
+    """Boolean mask: is each axial (u, v) inside the radius-``radius`` hex disc?
 
-    extent < 0 -> no cap, everything is inside (the shared default, EXTENT). This
+    radius < 0 -> no cap, everything is inside (the shared default, RADIUS). This
     is the single source of truth for the inside/outside split used by
-    draw_fafb_columns, 5_add_extent.py and the LC-column plot.
+    draw_fafb_columns, 5_apply_radius.py and the LC-column plot.
     """
     u = np.asarray(u, dtype=np.int64)
     v = np.asarray(v, dtype=np.int64)
-    if extent < 0:
+    if radius < 0:
         return np.ones(u.shape, dtype=bool)
-    return _hex_radius_arr(u, v) <= int(extent)
+    return _hex_radius_arr(u, v) <= int(radius)
 
 
 # -- Hex disc members -----------------------------------------------------------
@@ -136,35 +136,35 @@ def members_at_shell(shell: int) -> list:
     return out
 
 
-def members_in_extent(extent) -> list:
-    """All axial (u, v) members with :func:`hex_radius` <= ``extent``."""
-    shell_max = int(math.floor(float(extent)))
+def members_in_radius(radius) -> list:
+    """All axial (u, v) members with :func:`hex_radius` <= ``radius``."""
+    shell_max = int(math.floor(float(radius)))
     members: list = []
     for shell in range(shell_max + 1):
         members.extend(members_at_shell(shell))
     return members
 
 
-def get_hex_coords(extent: int) -> Tuple[np.ndarray, np.ndarray]:
-    """Axial (u, v) coordinates of a hex disc (shell order via :func:`members_in_extent`)."""
-    members = members_in_extent(int(extent))
+def get_hex_coords(radius: int) -> Tuple[np.ndarray, np.ndarray]:
+    """Axial (u, v) coordinates of a hex disc (shell order via :func:`members_in_radius`)."""
+    members = members_in_radius(int(radius))
     u = np.array([m[0] for m in members], dtype=np.int64)
     v = np.array([m[1] for m in members], dtype=np.int64)
     return u, v
 
 
 class HexGrid:
-    """The (u, v) axial coordinates of an ideal hex disc of a given extent.
+    """The (u, v) axial coordinates of an ideal hex disc of a given radius.
 
     A pure coordinate container (used as the reference disc for plotting and as
     panel); FAFB column (u, v) come from :func:`columns_with_uv`.
     """
 
-    def __init__(self, extent: int = DEFAULT_EXTENT) -> None:
-        self.extent = extent
-        self.u, self.v = get_hex_coords(extent)
+    def __init__(self, radius: int = DEFAULT_RADIUS) -> None:
+        self.radius = radius
+        self.u, self.v = get_hex_coords(radius)
         self.n_hexes = len(self.u)
-        logger.info("HexGrid extent=%d -> %d hexes", extent, self.n_hexes)
+        logger.info("HexGrid radius=%d -> %d hexes", radius, self.n_hexes)
 
 
 def uv_to_xy(u, v) -> Tuple[Union[np.ndarray, float], Union[np.ndarray, float]]:
@@ -333,7 +333,7 @@ def _draw_hexes(ax, u, v, labels, facecolor, edgecolor, hex_radius, fontsize=3):
 def draw_fafb_columns(
     ax,
     df: pd.DataFrame,
-    extent: Optional[int] = None,
+    radius: Optional[int] = None,
     hex_radius_px: Optional[float] = None,
     label: bool = True,
     fontsize: int = 3,
@@ -344,12 +344,12 @@ def draw_fafb_columns(
 
     Reusable drawing primitive: ``df`` carries ``u``, ``v`` and ``column_id``. The
     inside/outside split is computed here from the shared ``inside_mask(u, v,
-    extent)`` -- ``extent`` None or < 0 means every column is "inside" (one colour).
+    radius)`` -- ``radius`` None or < 0 means every column is "inside" (one colour).
     """
     if hex_radius_px is None:
         hex_radius_px = HEX_PATCH_RADIUS
     mask = inside_mask(df["u"].values, df["v"].values,
-                       -1 if extent is None else extent)
+                       -1 if radius is None else radius)
     inside = df[mask]
     outside = df[~mask]
     in_labels = (
@@ -372,7 +372,7 @@ def plot_column_map(
     ideal_grid: "HexGrid",
     df_left: pd.DataFrame,
     df_right: pd.DataFrame,
-    extent: Optional[int] = None,
+    radius: Optional[int] = None,
     save_path: Optional[Path] = None,
     dpi: int = 400,
 ):
@@ -383,10 +383,10 @@ def plot_column_map(
         middle: FAFB left columns
         right:  FAFB right columns
 
-    ``extent`` only controls the FAFB panels: ``< 0`` (or ``None``) draws every
+    ``radius`` only controls the FAFB panels: ``< 0`` (or ``None``) draws every
     column green (no inside/outside split); ``>= 0`` colours columns inside/outside
     that disc (computed from ``df``'s ``u``/``v`` via ``inside_mask``). The left
-    reference panel always uses ``ideal_grid`` (fixed extent).
+    reference panel always uses ``ideal_grid`` (fixed radius).
     """
     import matplotlib
 
@@ -394,7 +394,7 @@ def plot_column_map(
     import matplotlib.pyplot as plt
     from matplotlib.patches import Patch
 
-    classify = extent is not None and extent >= 0
+    classify = radius is not None and radius >= 0
     hex_radius_px = HEX_PATCH_RADIUS
     iu, iv = ideal_grid.u, ideal_grid.v
 
@@ -416,14 +416,14 @@ def plot_column_map(
     )
     axes[0].set_title(
         f"Axial (u, v) coordinates\n{ideal_grid.n_hexes} hexes, "
-        f"extent={ideal_grid.extent}",
+        f"radius={ideal_grid.radius}",
         fontsize=12, fontweight="bold",
     )
 
     def _draw_fafb(ax, df, side_label):
-        draw_fafb_columns(ax, df, extent=extent, hex_radius_px=hex_radius_px)
+        draw_fafb_columns(ax, df, radius=radius, hex_radius_px=hex_radius_px)
         if classify:
-            mask = inside_mask(df["u"].values, df["v"].values, extent)
+            mask = inside_mask(df["u"].values, df["v"].values, radius)
             n_in, n_out = int(mask.sum()), int((~mask).sum())
             count_line = f"{n_in} inside + {n_out} outside = {len(df)} total"
         else:
@@ -477,7 +477,7 @@ def unique_columns(side: str) -> pd.DataFrame:
 def columns_with_uv(side: str) -> pd.DataFrame:
     """FAFB columns for a hemisphere as ``[column_id, p, q, u, v]``.
 
-    (u, v) is pure ``pq_to_uv`` -- no grid/extent involved. This is the single
+    (u, v) is pure ``pq_to_uv`` -- no grid/radius involved. This is the single
     source for the column<->(u, v) table (the column_map CSV and any FAFB panel).
     """
     df = unique_columns(side).copy()
@@ -490,12 +490,12 @@ def _parse_args() -> argparse.Namespace:
         description="Build the column<->hex tables and render the column map."
     )
     parser.add_argument(
-        "--extent", type=int, default=EXTENT,
-        help=f"Hex-disc radius for colouring the FAFB panels. <0 (default {EXTENT}) "
+        "--radius", type=int, default=RADIUS,
+        help=f"Hex-disc radius for colouring the FAFB panels. <0 (default {RADIUS}) "
              "means no outside: every column is green and the figure is "
              "column_map.png. >=0 colours columns inside/outside that radius and "
-             "saves column_map_extent<N>.png. (The left reference panel always uses "
-             f"the ideal extent={DEFAULT_EXTENT}.)",
+             "saves column_map_radius<N>.png. (The left reference panel always uses "
+             f"the ideal radius={DEFAULT_RADIUS}.)",
     )
     return parser.parse_args()
 
@@ -504,7 +504,7 @@ def main() -> None:
     logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
     args = _parse_args()
 
-    # The CSV needs no grid: (u, v) comes purely from pq_to_uv. --extent only
+    # The CSV needs no grid: (u, v) comes purely from pq_to_uv. --radius only
     # affects the figure colouring, never the tables.
     assigned = {}
     BUILT_HEXES_DIR.mkdir(parents=True, exist_ok=True)
@@ -516,14 +516,14 @@ def main() -> None:
         print(f"{side:>5}: columns={len(cols)} -> {out_csv.name}")
 
     fname = (
-        COLUMN_MAP_FILE if args.extent < 0
-        else COLUMN_MAP_EXTENT_FILE.format(extent=args.extent)
+        COLUMN_MAP_FILE if args.radius < 0
+        else COLUMN_MAP_RADIUS_FILE.format(radius=args.radius)
     )
     plot_column_map(
-        HexGrid(DEFAULT_EXTENT),
+        HexGrid(DEFAULT_RADIUS),
         df_left=assigned["left"],
         df_right=assigned["right"],
-        extent=args.extent,
+        radius=args.radius,
         save_path=BUILT_HEXES_DIR / fname,
     )
     print(f"Column map written to: {BUILT_HEXES_DIR / fname}")

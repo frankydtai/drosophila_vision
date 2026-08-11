@@ -17,22 +17,22 @@ from network import path  # noqa: F401 -- FAFBv783 on sys.path
 from import_bootstrap import parse_comma_list
 from network.construction import (
     hex2gt,
-    hex_in_cost_extent,
+    hex_in_cost_radius,
     present_gt_cells,
     normalize_gt_cells,
     node_cell_names,
 )
-from neuron.params import ms_to_t
+from neuron.params import t_from_ms
 from task.spot.gt import (
     GT_CELLS,
-    _spot_readout_amp,
-    read_RecF_ImpR,
+    _spot_readout_a_radius,
+    load_RecF_ImpR,
 )
 from task.spot.input import (
     SpotBatch,
     members_by_euclid_radius,
     normalize_spot_timing,
-    spot_extent_folds_r2_into_r1,
+    spot_radius_folds_r2_into_r1,
     spot_input_waveform,
     spot_stimulus_batches,
     spot_from_opts,
@@ -124,14 +124,14 @@ def parse_cost_ms_tokens(
 
 
 def default_spot_cost_radius_weight(
-    spot_extent: float,
+    spot_radius: float,
     *,
     weights: Dict[float, float],
-    weights_extent1: Dict[float, float],
+    weights_radius1: Dict[float, float],
 ) -> Dict[float, float]:
-    """Cost-radius weights for ``spot_extent`` (extent-1 folds r=2 into r=1)."""
-    if spot_extent_folds_r2_into_r1(spot_extent):
-        return dict(weights_extent1)
+    """Cost-radius weights for ``spot_radius`` (radius-1 folds r=2 into r=1)."""
+    if spot_radius_folds_r2_into_r1(spot_radius):
+        return dict(weights_radius1)
     return dict(weights)
 
 
@@ -231,7 +231,7 @@ def spot_cost_node_weight(
 def spot_cost_hexes(
     batches: Sequence[SpotBatch],
     cost_radii,
-    cost_extent,
+    cost_radius,
 ) -> List[Tuple[int, int, int, float, int, int]]:
     """Cost readouts: ``(batch, mu, mv, radius_key, su, sv)`` per stim radius."""
     by_radius = members_by_euclid_radius(cost_radii)
@@ -241,7 +241,7 @@ def spot_cost_hexes(
             for radius_key, members in by_radius.items():
                 for du, dv in members:
                     mu, mv = su + du, sv + dv
-                    if not hex_in_cost_extent(mu, mv, cost_extent):
+                    if not hex_in_cost_radius(mu, mv, cost_radius):
                         continue
                     cols.append((
                         b, int(mu), int(mv), float(radius_key), int(su), int(sv),
@@ -265,20 +265,20 @@ def _as_np(arr) -> np.ndarray:
     return arr.detach().cpu().numpy() if hasattr(arr, "detach") else np.asarray(arr)
 
 
-def build_spot_cost_readout(C, batches, cost_radii, cost_extent):
-    u = _as_np(C.u)
-    v = _as_np(C.v)
+def build_spot_cost_readout(C, batches, cost_radii, cost_radius):
+    network_node_u = _as_np(C.u)
+    network_node_v = _as_np(C.v)
     type_all = _as_np(C.node_cell)
     batch_idx, node_idx, radius, type_idx, stim_u, stim_v = [], [], [], [], [], []
     for b, mu, mv, cell_radius, su, sv in spot_cost_hexes(
-        batches, cost_radii, cost_extent,
+        batches, cost_radii, cost_radius,
     ):
-        on_col = (u == mu) & (v == mv)
-        for uid in np.where(on_col)[0]:
+        on_col = (network_node_u == mu) & (network_node_v == mv)
+        for node_index in np.where(on_col)[0]:
             batch_idx.append(b)
-            node_idx.append(int(uid))
+            node_idx.append(int(node_index))
             radius.append(cell_radius)
-            type_idx.append(int(type_all[uid]))
+            type_idx.append(int(type_all[node_index]))
             stim_u.append(int(su))
             stim_v.append(int(sv))
     return (
@@ -291,17 +291,17 @@ def build_spot_cost_readout(C, batches, cost_radii, cost_extent):
     )
 
 
-def build_spot_center_readout(C, batches, cost_radii, cost_extent):
+def build_spot_center_readout(C, batches, cost_radii, cost_radius):
     """Cost-node readout plus ``center_row`` mask for stim-on hex (radius 0)."""
     batch_idx, node_idx, radius, type_idx, stim_u, stim_v = build_spot_cost_readout(
-        C, batches, cost_radii, cost_extent,
+        C, batches, cost_radii, cost_radius,
     )
     stim_u = np.asarray(stim_u, dtype=np.int64)
     stim_v = np.asarray(stim_v, dtype=np.int64)
-    u_all = _as_np(C.u)
-    v_all = _as_np(C.v)
-    du = np.asarray(u_all[node_idx] - stim_u, dtype=np.int64)
-    dv = np.asarray(v_all[node_idx] - stim_v, dtype=np.int64)
+    network_node_u = _as_np(C.u)
+    network_node_v = _as_np(C.v)
+    du = np.asarray(network_node_u[node_idx] - stim_u, dtype=np.int64)
+    dv = np.asarray(network_node_v[node_idx] - stim_v, dtype=np.int64)
     center_row = (du == 0) & (dv == 0)
     return (
         np.asarray(batch_idx, dtype=np.int64),
@@ -334,22 +334,22 @@ class SpotGt:
 def build_spot_gt(
     C,
     *,
-    spot_extent: float,
+    spot_radius: float,
     multi_spot: bool,
     fully_inside: bool,
-    shift_extent: int,
+    shift_radius: int,
     n_t: int,
     t_onset: int,
     i_baseline_spot: float,
     i_bright_spot: float,
     i_dark_spot: float,
     polarity: str,
-    data_amp: float,
+    gt_amp: float,
     delta_ms: float,
     default_cost_weights: Dict[float, float],
     spot_cost_radii: Tuple[float, ...],
     device: Optional[str] = None,
-    cost_extent: Optional[int] = None,
+    cost_radius: Optional[int] = None,
     spot_cost_radius_weight: Optional[Dict[float, float]] = None,
     sim_dtype: torch.dtype,
     ms_spot: Optional[float] = None,
@@ -364,13 +364,13 @@ def build_spot_gt(
     device = device or C.device
     if ms_response is None:
         raise ValueError("build_spot_gt requires ms_response")
-    n_t_gt = int(t_onset) + ms_to_t(float(ms_response), delta_ms=float(delta_ms)) + 1
+    n_t_gt = int(t_onset) + t_from_ms(float(ms_response), delta_ms=float(delta_ms)) + 1
     if n_t_gt > int(n_t):
         raise ValueError(
             f"spot gt n_t={n_t_gt} exceeds forward n_t={n_t} "
             f"(ms_response={ms_response:g}, t_onset={t_onset})"
         )
-    recf_gt, impr_gt = read_RecF_ImpR(
+    recf_gt, impr_gt = load_RecF_ImpR(
         t_onset=t_onset, n_t=n_t_gt, ms_spot=ms_spot, delta_ms=delta_ms,
         filter=filter,
     )
@@ -385,8 +385,8 @@ def build_spot_gt(
 
     spot = spot_from_opts(
         C,
-        spot_extent=spot_extent,
-        shift_extent=shift_extent,
+        spot_radius=spot_radius,
+        shift_radius=shift_radius,
         multi_spot=multi_spot,
         fully_inside=fully_inside,
     )
@@ -422,7 +422,7 @@ def build_spot_gt(
         default_weights=default_cost_weights,
         spot_cost_radii=spot_cost_radii,
     )
-    cost_hexes = spot_cost_hexes(batches, cost_radii, cost_extent)
+    cost_hexes = spot_cost_hexes(batches, cost_radii, cost_radius)
 
     cost_batch, cost_node, cost_radius_rows, cost_readout, cost_weight_rows = [], [], [], [], []
     cost_stim_u, cost_stim_v = [], []
@@ -440,15 +440,15 @@ def build_spot_gt(
             row = type_row[rt]
             cache_key = (round(float(radius), 6), row)
             if cache_key not in trace_cache:
-                amp = _spot_readout_amp(recf_gt[row], radius, spot_extent)
-                trace = amp * impr_gt[row][resp] * data_amp
+                a_radius = _spot_readout_a_radius(recf_gt[row], radius, spot_radius)
+                trace = a_radius * impr_gt[row][resp] * gt_amp
                 if polarity == "dark":
                     trace = -trace
                 trace_cache[cache_key] = trace
             trace = trace_cache[cache_key]
-            for uidx in nodes:
+            for node_index in nodes:
                 cost_batch.append(b)
-                cost_node.append(int(uidx))
+                cost_node.append(int(node_index))
                 cost_radius_rows.append(radius)
                 cost_readout.append(trace)
                 cost_weight_rows.append(w)
@@ -456,7 +456,7 @@ def build_spot_gt(
                 cost_stim_v.append(int(sv))
 
     if not cost_batch:
-        raise ValueError("no spot cost nodes (check cost_extent and gt cells)")
+        raise ValueError("no spot cost nodes (check cost_radius and gt cells)")
 
     gt = torch.tensor(np.asarray(cost_readout), dtype=sim_dtype, device=device)  # (n_cost,T')
     cost_weight = torch.tensor(np.asarray(cost_weight_rows), dtype=sim_dtype, device=device)
@@ -476,8 +476,8 @@ def build_spot_gt(
         "n_cost_hexes": spot_n_cost_hexes(cost_hexes),
         "n_centers": len(spot.centers),
         "n_shifts": len(spot.shifts),
-        "cost_extent": cost_extent,
-        "spot_extent": float(spot_extent),
+        "cost_radius": cost_radius,
+        "spot_radius": float(spot_radius),
         "multi_spot": bool(multi_spot),
         "fully_inside": bool(fully_inside),
         "spot_cost_radius_weight": spot_cost_radius_weight,
@@ -509,7 +509,7 @@ def build_spot_gt(
     )
 
 
-def make_spot_stimulus_opts(
+def build_spot_stimulus_opts(
     polarity: str,
     *,
     i_baseline_spot: float,
@@ -518,8 +518,8 @@ def make_spot_stimulus_opts(
     ms_response: float,
     delta_ms: float,
     delta_ms_pre: float,
-    shift_extent: int,
-    spot_extent: float,
+    shift_radius: int,
+    spot_radius: float,
     multi_spot: bool,
     fully_inside: bool,
     ms_spot=None,
@@ -540,8 +540,8 @@ def make_spot_stimulus_opts(
         "ms_post": float(ms_post),
         "delta_ms": float(delta_ms),
         "delta_ms_pre": float(delta_ms_pre),
-        "shift_extent": int(shift_extent),
-        "spot_extent": float(spot_extent),
+        "shift_radius": int(shift_radius),
+        "spot_radius": float(spot_radius),
         "multi_spot": bool(multi_spot),
         "fully_inside": bool(fully_inside),
     }

@@ -17,7 +17,7 @@ from typing import Callable, Dict, List, Mapping, Optional, Sequence, Tuple, Uni
 import numpy as np
 import torch
 
-from neuron.params import ms_to_t
+from neuron.params import t_from_ms
 from network.construction import (
     hex2gt,
     present_gt_cells,
@@ -29,10 +29,10 @@ from task.moving_bar.input import (
     COST_WINDOW_AFTER_MS,
     COST_WINDOW_BEFORE_MS,
     COST_WINDOW_MS,
-    DEFAULT_BAR_EXTENT,
+    DEFAULT_BAR_RADIUS,
     GRUNTMAN_WIDTHS_DEG,
-    ND_IDX,
-    PD_IDX,
+    ND_INDEX,
+    PD_INDEX,
     MovingBarSpec,
     build_moving_bar_signals,
     build_moving_bar_t0_grids,
@@ -446,19 +446,19 @@ def remap_dsi_entries(pack, kept_old_entries) -> dict:
     }
 
 
-def _csr_group_mean(values: torch.Tensor, ptr: torch.Tensor) -> torch.Tensor:
-    """Mean of ``values`` over CSR groups defined by ``ptr``."""
+def _csr_group_mean(vals: torch.Tensor, ptr: torch.Tensor) -> torch.Tensor:
+    """Mean of ``vals`` over CSR groups defined by ``ptr``."""
     n_g = int(ptr.numel()) - 1
     if n_g == 0:
-        return values.new_zeros((0,))
+        return vals.new_zeros((0,))
     counts = ptr[1:] - ptr[:-1]
     gid = torch.repeat_interleave(
-        torch.arange(n_g, device=values.device, dtype=torch.long),
+        torch.arange(n_g, device=vals.device, dtype=torch.long),
         counts,
     )
-    sums = values.new_zeros((n_g,))
-    sums.scatter_add_(0, gid, values)
-    return sums / counts.to(dtype=values.dtype).clamp(min=1)
+    sums = vals.new_zeros((n_g,))
+    sums.scatter_add_(0, gid, vals)
+    return sums / counts.to(dtype=vals.dtype).clamp(min=1)
 
 
 def cost_dsi_from_v_readout_dsi(
@@ -470,16 +470,16 @@ def cost_dsi_from_v_readout_dsi(
     """
     if pack.dsi_pos_ptr is None or int(pack.dsi_pos_ptr.numel()) <= 1:
         return None
-    peak_pos_u = (
+    peak_pos_per_entry = (
         v_readout_dsi[pack.dsi_pos_entries] - bias_gt[pack.dsi_pos_entries, None]
     ).amax(dim=-1)
-    peak_neg_u = (
+    peak_neg_per_entry = (
         v_readout_dsi[pack.dsi_neg_entries] - bias_gt[pack.dsi_neg_entries, None]
     ).amax(dim=-1)
-    if not (torch.isfinite(peak_pos_u).all() and torch.isfinite(peak_neg_u).all()):
+    if not (torch.isfinite(peak_pos_per_entry).all() and torch.isfinite(peak_neg_per_entry).all()):
         raise RuntimeError("non-finite DSI peaks (NaN/Inf in readout)")
-    peak_pos = _csr_group_mean(peak_pos_u, pack.dsi_pos_ptr)
-    peak_neg = _csr_group_mean(peak_neg_u, pack.dsi_neg_ptr)
+    peak_pos = _csr_group_mean(peak_pos_per_entry, pack.dsi_pos_ptr)
+    peak_neg = _csr_group_mean(peak_neg_per_entry, pack.dsi_neg_ptr)
     v_dsi = axis_dsi_torch(peak_pos, peak_neg)
     diff = v_dsi - pack.dsi_gt
     return torch.sum(pack.dsi_weight * diff ** 2) / pack.dsi_power * 100.0
@@ -575,7 +575,7 @@ def load_fig1_trace(
     *,
     delta_ms: float) -> np.ndarray:
     """Resample one fig1 trace onto the moving-bar cost window."""
-    n_t = ms_to_t(COST_WINDOW_MS, delta_ms=delta_ms) + 1
+    n_t = t_from_ms(COST_WINDOW_MS, delta_ms=delta_ms) + 1
     key = f"{trace_id}|{n_t}|{delta_ms}|{COST_WINDOW_MS}|{COST_ALIGNED_FIRST_STI_MS}"
     if key in _TRACE_CACHE:
         return _TRACE_CACHE[key]
@@ -611,10 +611,10 @@ def moving_bar_nodes_on_hexes(C, cell: str, hexes: Sequence) -> np.ndarray:
     if cell not in C.cell_names:
         raise ValueError(f"unknown cell {cell!r}; known: {list(C.cell_names)}")
     ti = int(C.cell_names.index(cell))
-    u_np, v_np = network_uv_np(C)
+    node_u_np, node_v_np = network_uv_np(C)
     cell_ids = _as_int64_np(C.node_cell)
-    uv_span = int(max(np.max(np.abs(u_np)), np.max(np.abs(v_np)), 1)) + 1
-    pack = (u_np + uv_span) * (2 * uv_span + 1) + (v_np + uv_span)
+    uv_span = int(max(np.max(np.abs(node_u_np)), np.max(np.abs(node_v_np)), 1)) + 1
+    pack = (node_u_np + uv_span) * (2 * uv_span + 1) + (node_v_np + uv_span)
     hex_pack = np.array(
         [
             (int(c.u) + uv_span) * (2 * uv_span + 1) + (int(c.v) + uv_span)
@@ -642,7 +642,7 @@ def filter_requested_specs(
 def _assemble_moving_bar_readouts(
     *,
     specs: Sequence[MovingBarSpec],
-    hex_current: np.ndarray,
+    i_sti_hex: np.ndarray,
     cost_hex_idxs: Sequence[int],
     i_baseline: float,
     before_t: int,
@@ -666,7 +666,7 @@ def _assemble_moving_bar_readouts(
         if waveform_mse:
             for hex_idx in cost_hex_idxs:
                 t_first_sti = hex_first_stim_t(
-                    hex_current[b, :, hex_idx], i_baseline=i_baseline,
+                    i_sti_hex[b, :, hex_idx], i_baseline=i_baseline,
                 )
                 t0 = t_first_sti - before_t
                 if t0 < 0 or t_first_sti + after_t > n_t:
@@ -692,18 +692,18 @@ def _assemble_moving_bar_readouts(
                     if trace_id not in fig1:
                         raise KeyError(f"fig1 trace missing: {trace_id}")
                     gt_trace = fig1[trace_id]
-                pd_nd_idx = PD_IDX if pref.pd_nd == "PD" else ND_IDX
+                pd_nd_index = PD_INDEX if pref.pd_nd == "PD" else ND_INDEX
                 t0 = t0_by_hex.get(hex_idx, 0)
-                for uidx in nodes:
+                for node_index in nodes:
                     r_batch.append(b)
-                    r_node.append(int(uidx))
+                    r_node.append(int(node_index))
                     r_subtype.append(str(subtype))
                     if gt_trace is not None:
                         r_readout.append(gt_trace)
                     r_weight.append(1.0)
                     if waveform_mse:
                         r_t0.append(t0)
-                        r_pd_nd.append(pd_nd_idx)
+                        r_pd_nd.append(pd_nd_index)
     return (
         r_batch, r_node, r_subtype, r_readout, r_weight, r_t0, r_pd_nd,
         skipped_orthogonal,
@@ -739,9 +739,9 @@ def build_moving_bar_gt(
     delta_ms: float,
     fig1_path: Path = FIG1_CI_NPZ,
     use_cache: bool = True,
-    bar_extent: int = DEFAULT_BAR_EXTENT,
+    bar_radius: int = DEFAULT_BAR_RADIUS,
     multi_bar: bool = True,
-    cost_extent: Optional[int] = None,
+    cost_radius: Optional[int] = None,
     i_baseline_moving_bar: Optional[float] = None,
     i_bright_moving_bar: Optional[float] = None,
     i_dark_moving_bar: Optional[float] = None,
@@ -764,7 +764,7 @@ def build_moving_bar_gt(
         peak_kw["i_dark_moving_bar"] = float(i_dark_moving_bar)
     stim = build_moving_bar_signals(
         C, specs=specs, t_onset=t_onset, delta_ms=delta_ms,
-        bar_extent=bar_extent, multi_bar=bool(multi_bar),
+        bar_radius=bar_radius, multi_bar=bool(multi_bar),
         device=device, use_cache=use_cache,
         network_json=getattr(C, "source_json", None),
         i_baseline=i_baseline_val,
@@ -773,9 +773,9 @@ def build_moving_bar_gt(
     )
     n_t = int(stim.info["n_t"])
     fig1 = load_fig1_traces(fig1_path, delta_ms=delta_ms) if waveform_mse else None
-    before_t = ms_to_t(COST_ALIGNED_FIRST_STI_MS, delta_ms=delta_ms)
-    after_t = ms_to_t(COST_WINDOW_AFTER_MS, delta_ms=delta_ms)
-    win_t = ms_to_t(COST_WINDOW_MS, delta_ms=delta_ms) + 1
+    before_t = t_from_ms(COST_ALIGNED_FIRST_STI_MS, delta_ms=delta_ms)
+    after_t = t_from_ms(COST_WINDOW_AFTER_MS, delta_ms=delta_ms)
+    win_t = t_from_ms(COST_WINDOW_MS, delta_ms=delta_ms) + 1
 
     present = present_gt_cells(
         gt_cells, GT_CELLS, C.cell_names, context="moving_bar",
@@ -783,10 +783,10 @@ def build_moving_bar_gt(
 
     cell_names = node_cell_names(C)
     all_sti = sti_hexes(C)
-    uv_to_hex_idx = {(int(c.u), int(c.v)): j for j, c in enumerate(all_sti)}
-    hexes = moving_bar_cost_hexes(C, cost_extent=cost_extent)
-    center_hex = hexes[0] if cost_extent == 0 and len(hexes) == 1 else None
-    cost_hex_idxs = [uv_to_hex_idx[(int(c.u), int(c.v))] for c in hexes]
+    hex_from_uv_idx = {(int(c.u), int(c.v)): j for j, c in enumerate(all_sti)}
+    hexes = moving_bar_cost_hexes(C, cost_radius=cost_radius)
+    center_hex = hexes[0] if cost_radius == 0 and len(hexes) == 1 else None
+    cost_hex_idxs = [hex_from_uv_idx[(int(c.u), int(c.v))] for c in hexes]
     hex_by_idx = {idx: c for c, idx in zip(hexes, cost_hex_idxs)}
 
     def _nodes_for_hex_type(_b, hex_idx, subtype):
@@ -795,7 +795,7 @@ def build_moving_bar_gt(
 
     rows = _assemble_moving_bar_readouts(
         specs=stim.specs,
-        hex_current=stim.hex_current,
+        i_sti_hex=stim.i_sti_hex,
         cost_hex_idxs=cost_hex_idxs,
         i_baseline=i_baseline_val,
         before_t=before_t,
@@ -835,12 +835,12 @@ def build_moving_bar_gt(
     info = {
         **stim.info,
         "n_cost": int(readout_batch.shape[0]),
-        "n_cost_pd": int((cost_pd_nd == PD_IDX).sum().item()) if cost_pd_nd is not None else 0,
-        "n_cost_nd": int((cost_pd_nd == ND_IDX).sum().item()) if cost_pd_nd is not None else 0,
+        "n_cost_pd": int((cost_pd_nd == PD_INDEX).sum().item()) if cost_pd_nd is not None else 0,
+        "n_cost_nd": int((cost_pd_nd == ND_INDEX).sum().item()) if cost_pd_nd is not None else 0,
         "n_cost_dsi": int(dsi_tgt.shape[0]),
         "n_batch": stim.info["n_batch"],
         "n_cost_hexes": len(hexes),
-        "cost_extent": cost_extent,
+        "cost_radius": cost_radius,
         "cost_hex_uv": (int(center_hex.u), int(center_hex.v)) if center_hex else None,
         "side": side,
         "present_gts": present,
@@ -902,7 +902,7 @@ def bar_specs_for_session(session, task) -> List[MovingBarSpec]:
 def moving_bar_session_t0_grids(
     session,
     specs: Sequence[MovingBarSpec],
-    cost_extent,
+    cost_radius,
     n_t: int,
     *,
     at_x=None,
@@ -917,12 +917,12 @@ def moving_bar_session_t0_grids(
     i_baseline = moving_bar_i_baseline_from_opts(session.train_opts)
 
     side = normalize_side(C.meta.get('side', 'right'))
-    all_hexes = moving_bar_cost_hexes(C, cost_extent=cost_extent)
+    all_hexes = moving_bar_cost_hexes(C, cost_radius=cost_radius)
     if at_x is not None or at_y is not None:
         filt_hexes = filter_sti_hexes(all_hexes, at_x=at_x, at_y=at_y)
         if not filt_hexes:
             raise SystemExit(
-                f'no sti hexes match x={at_x!r} y={at_y!r} within cost_extent',
+                f'no sti hexes match x={at_x!r} y={at_y!r} within cost_radius',
             )
     else:
         filt_hexes = all_hexes
@@ -934,7 +934,7 @@ def moving_bar_session_t0_grids(
     all_hex_idxs = [uv_to_idx[(int(c.u), int(c.v))] for c in all_hexes]
     filt_hex_idxs = [uv_to_idx[(int(c.u), int(c.v))] for c in filt_hexes]
     grids = build_moving_bar_t0_grids(
-        stim.hex_current, specs, n_t, i_baseline,
+        stim.i_sti_hex, specs, n_t, i_baseline,
         all_hex_idxs=all_hex_idxs,
         filt_hex_idxs=filt_hex_idxs,
         network_C=C,
@@ -989,7 +989,7 @@ def moving_bar_row_specs(session, task: str, side: str) -> Dict[str, List[str]]:
 # -- Moving-bar stimulus_opts builders (was FiveCol) --------------------------
 
 
-def make_moving_bar_stimulus_opts(
+def build_moving_bar_stimulus_opts(
     polarity: str,
     *,
     i_baseline_moving_bar: float,
@@ -1023,7 +1023,7 @@ def session_moving_bar_i_baseline(train_opts) -> float:
     return moving_bar_i_baseline_from_opts(train_opts)
 
 
-def _enrich_moving_bar_stimulus_opts(opts, info, *, cost_extent):
+def _enrich_moving_bar_stimulus_opts(opts, info, *, cost_radius):
     """Attach runtime fields from a built moving-bar task; keep canonical ``i_*``."""
     out = dict(opts)
     out["n_t"] = int(info["n_t"])
@@ -1035,8 +1035,8 @@ def _enrich_moving_bar_stimulus_opts(opts, info, *, cost_extent):
     dt_pre = float(out["delta_ms_pre"])
     out["ms_pre"] = float(info["t_onset"]) * dt_pre
     out["spec_names"] = list(info["spec_names"])
-    if cost_extent is not None:
-        out["cost_extent"] = int(cost_extent)
+    if cost_radius is not None:
+        out["cost_radius"] = int(cost_radius)
     out["delta_ms"] = dt
     out["delta_ms_pre"] = dt_pre
     if "present_gts" in info:

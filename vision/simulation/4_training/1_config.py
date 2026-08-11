@@ -17,7 +17,7 @@ from import_bootstrap import parse_comma_list
 # Trained-parameter output root (``hp_lp/`` and ``borst/`` run_* subdirs).
 PARAMETER_DIR = Path(__file__).resolve().parent.parent / "0_runs"
 
-# Per-run artifact subfolder (``.npy`` / ``.npz``, ``train_opts.json``, ``param_schema.json``).
+# Per-run data subfolder (``.npy`` / ``.npz``, ``train_opts.json``, ``param_schema.json``).
 RUN_DATA_SUBDIR = "data"
 
 # Per-run CSV summaries written next to PNGs under ``<run_name>/`` (not under data/).
@@ -42,7 +42,7 @@ _SPOT_I_KEY = {"bright": "i_bright_spot", "dark": "i_dark_spot"}
 _MOVING_BAR_I_KEY = {"bright": "i_bright_moving_bar", "dark": "i_dark_moving_bar"}
 
 PD_ND_LABELS = ("PD", "ND")
-PD_IDX, ND_IDX = 0, 1
+PD_INDEX, ND_INDEX = 0, 1
 MOVING_BAR_COST_PARTS = tuple(
     f"{t}_{lab}" for t in MOVING_BAR_TASKS for lab in (*PD_ND_LABELS, "DSI")
 )
@@ -253,8 +253,8 @@ def _expand_alias_dict(kv: Optional[dict], aliases: dict, map_value) -> dict:
     return out
 
 
-def expand_cost_extent_dict(kv: Optional[dict]) -> Dict[str, int]:
-    """Expand ``--cost-extent`` ``TASK_ALIASES`` keys."""
+def expand_cost_radius_dict(kv: Optional[dict]) -> Dict[str, int]:
+    """Expand ``--cost-radius`` ``TASK_ALIASES`` keys."""
     return _expand_alias_dict(kv, TASK_ALIASES, int)
 
 
@@ -263,13 +263,13 @@ def expand_gt_dict(kv: Optional[dict]) -> Dict[str, List[str]]:
     return _expand_alias_dict(kv, TASK_ALIASES, lambda cells: [str(c) for c in cells])
 
 
-def resolve_cost_extent_by_task(tasks, default, by_task_kv) -> Dict[str, int]:
-    """Map each concrete task to its explicitly requested cost extent."""
-    expanded = expand_cost_extent_dict(by_task_kv or {})
+def resolve_cost_radius_by_task(tasks, default, by_task_kv) -> Dict[str, int]:
+    """Map each concrete task to its explicitly requested cost radius."""
+    expanded = expand_cost_radius_dict(by_task_kv or {})
     bad = [k for k in expanded if k not in VALID_TASKS]
     if bad:
         raise ValueError(
-            f"unknown task(s) in --cost-extent: {bad} "
+            f"unknown task(s) in --cost-radius: {bad} "
             f"(expected {'|'.join(CLI_TASK_NAMES)})",
         )
     out: Dict[str, int] = {}

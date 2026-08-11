@@ -18,9 +18,9 @@ from neuron.params import (
     e_h_rev,
     expand_euler,
     membrane_dt_over_c,
-    ms_to_t,
+    t_from_ms,
     ms_to_t_abs,
-    t_to_ms,
+    ms_from_t,
 )
 from neuron.schema import (
     ALL_PARAM_NAMES,
@@ -38,7 +38,7 @@ from neuron import model_hp_lp as _model_hp_lp
 from neuron.filter_ca import filter_ca
 from neuron.forward import (
     MODEL_DRIVERS,
-    f_ca_from_v,
+    v_ca_to_ca,
     forward_ca,
     forward_full,
     forward_nodes,
@@ -71,9 +71,9 @@ __all__ = [
     "CA_PACK_READOUTS",
     "e_h_rev",
     "membrane_dt_over_c",
-    "ms_to_t",
+    "t_from_ms",
     "ms_to_t_abs",
-    "t_to_ms",
+    "ms_from_t",
     "default_schema",
     "build_borst_schema",
     "build_hp_lp_schema",
@@ -88,7 +88,7 @@ __all__ = [
     "forward_nodes",
     "forward_v",
     "forward_ca",
-    "f_ca_from_v",
+    "v_ca_to_ca",
     "v_ca_from_v",
     "pack_t_onset",
     "step_delta_ms",

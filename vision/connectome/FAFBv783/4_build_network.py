@@ -12,7 +12,7 @@ This single, self-contained module merges the data layer and the network build:
      running 3_assign_column.py). Column position is OPTIONAL: neurons without a
      column become nodes with null u/v.
 
-Spatial cropping to a central hex disc is ``5_add_extent.py``, not this script.
+Spatial cropping to a central hex disc is ``5_apply_radius.py``, not this script.
 
 Run with the project venv:
 
@@ -243,7 +243,7 @@ def _column_to_pos(side: str) -> Dict[int, Tuple[int, int]]:
     """Map column_id -> (u, v) for every positioned FAFB column.
 
     The base build is always the full graph (no spatial cap). Spatial cropping is
-    ``5_add_extent.py``.
+    ``5_apply_radius.py``.
     """
     _require(path.column_map_path(side))
     df = path.load_column_map(side)
@@ -285,7 +285,7 @@ def build(side: str, min_neuron_count: int) -> Path:
     """Assemble the full network.json for one (side, min_neuron_count) run folder.
 
     Always keeps every positioned FAFB column (no spatial cap); cropping to a
-    central disc is ``5_add_extent.py``.
+    central disc is ``5_apply_radius.py``.
     """
     run_dir = BUILT_NETWORKS_DIR / f"{side}_min_neuron{min_neuron_count}"
     neurons = pd.read_csv(_require(run_dir / "neurons.csv.gz"))

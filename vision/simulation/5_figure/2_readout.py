@@ -5,7 +5,7 @@ from __future__ import annotations
 import numpy as np
 import torch
 
-from param_defaults import DATA_AMP, DELTA_MS
+from param_defaults import GT_CA_AMP, GT_V_AMP, DELTA_MS
 from task.spot.gt import GT_CELLS, read_RecF_gt, read_RecF_gt_dark
 from network.construction import cell_names_in_order
 
@@ -18,14 +18,14 @@ def plot_cells_in_order(present):
 
 
 def _cell_names_for_nodes(session, node_indices):
-    u = node_indices
-    if torch.is_tensor(u):
-        u = u.detach().cpu().numpy()
-    u = np.asarray(u, dtype=np.int64)
+    node_index = node_indices
+    if torch.is_tensor(node_index):
+        node_index = node_index.detach().cpu().numpy()
+    node_index = np.asarray(node_index, dtype=np.int64)
     C = session.backend.network
     if C is None:
         raise ValueError("_cell_names_for_nodes requires session.backend.network")
-    node_cell = C.node_cell[u]
+    node_cell = C.node_cell[node_index]
     if torch.is_tensor(node_cell):
         node_cell = node_cell.detach().cpu().numpy()
     names = list(C.cell_names)
@@ -103,7 +103,8 @@ def fit_gt_cubes(
             filter=filter,
         )
         gt = read_RecF_gt_dark(**kw) if contrast == "dark" else read_RecF_gt(**kw)
-        cubes = gt * DATA_AMP
+        gt_amp = GT_CA_AMP if filter == "ca" else GT_V_AMP
+        cubes = gt * gt_amp
         out[contrast] = {str(name): cubes[i] for i, name in enumerate(GT_CELLS)}
     return out
 
@@ -117,13 +118,20 @@ def spot_gt_cubes(
     n_t=None,
     ms_spot=None,
     delta_ms: float = DELTA_MS,
+    filter=None,
 ):
-    """Spot gt cubes ``{contrast: {cell: (RF_N_RADII, T)}}`` with pack mirror overrides."""
+    """Spot gt cubes ``{contrast: {cell: (RF_N_RADII, T)}}`` with pack mirror overrides.
+
+    ``filter`` defaults to ``session.train_opts['filter']`` (training GT kind).
+    """
     task = task or session.primary_readout.name
     if contrasts is None:
         contrasts = (contrast_for_task(task),)
     overrides = (session.train_opts or {}).get('pack_overrides') or {}
-    filter = str((session.train_opts or {}).get("filter", "none"))
+    if filter is None:
+        filter = str((session.train_opts or {}).get("filter", "none"))
+    else:
+        filter = str(filter)
     base = fit_gt_cubes(
         contrasts=contrasts, t_onset=t_onset, n_t=n_t, ms_spot=ms_spot,
         delta_ms=delta_ms, filter=filter,

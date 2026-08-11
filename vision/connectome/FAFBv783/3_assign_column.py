@@ -14,7 +14,7 @@ Direction matters and depends on the neuron's role:
                 neurons that read out of the lattice (e.g. LC/VS <- its pre columns).
 
 ``ASSIGNED_COLUMN_CELLS`` is the sole list of (cell, direction) pairs merged into
-``network.json`` by ``4_build_network.py`` (and thus eligible for extent crops).
+``network.json`` by ``4_build_network.py`` (and thus eligible for radius crops).
 It includes R1-6, Lawf1/Lawf2, and SimulationCode-mapped FAFB types that lack
 native column_assignment.
 
@@ -106,7 +106,7 @@ def locate_neurons(
         direction: 'post' (by downstream targets) or 'pre' (by upstream sources).
         weight_by_syn: vote by summed syn_count instead of distinct-partner count.
         col_to_uv: optional {column_id: (u, v)} map; when given, adds max_u/min_u/
-            max_v/min_v (the hex extent spanned by each neuron's column partners).
+            max_v/min_v (the hex range spanned by each neuron's column partners).
 
     Returns:
         One row per target neuron: root_id, type, n_<dir>, n_<dir>_with_column
@@ -115,7 +115,7 @@ def locate_neurons(
         e.g. "5, 5, 5, 3"; sums to n_<dir>_with_column), majority_column_id
         (Int64, NA if unresolved). When ``col_to_uv`` is given, also per-coordinate
         mean/max/min for u, v (hex) and x, y (hex-step via build_hex.uv_to_xy): mean_* is the
-        vote-weighted average over the column partners, max_*/min_* the extent
+        vote-weighted average over the column partners, max_*/min_* the range
         (all NA if unresolved). In this case ``majority_column_id`` keeps the
         top-voted column only when it has >50% of the votes; otherwise it is the
         column nearest (Euclidean in u,v) to the vote-weighted mean.
@@ -291,7 +291,7 @@ def _locate_and_write(
     # Pull all edges touching the targets on the relevant side (no syn cut).
     connections = path.load_connections(keep_neuron_ids=target_ids)
 
-    # column_id -> (u, v) for the per-neuron hex extent (max/min u/v).
+    # column_id -> (u, v) for the per-neuron hex range (max/min u/v).
     col_to_uv = None
     if path.column_map_path(side).exists():
         hex_df = path.load_column_map(side)

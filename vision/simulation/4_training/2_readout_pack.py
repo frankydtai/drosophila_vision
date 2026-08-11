@@ -161,7 +161,8 @@ class TrainSession:
     e_inh: float
     e_h: float
     h_g_max: float
-    DATA_AMP: float
+    GT_V_AMP: float
+    GT_CA_AMP: float
     STATE_CLAMP: float
     syn_scale_exc: float
     syn_scale_inh: float

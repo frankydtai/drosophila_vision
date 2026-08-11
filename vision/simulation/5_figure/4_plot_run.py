@@ -144,7 +144,7 @@ def _session_z_from_best_named(session, run_dir):
     )
     schema = training.attach_param_carry(list(session.schema), remapped)
     session = session.with_schema(schema)
-    z = training.node_values_to_z(
+    z = training.z_from_node_values(
         remapped, schema, dtype=session.sim_dtype, device=session.device,
     )
     return session, z
@@ -410,7 +410,7 @@ def _plot_bar_readouts(session, z, outdir, bar_readouts, suffix, model_all, *,
             s_dark, z, 'moving_bar_dark', **bundle_kw,
         )
         mvd = _plot_path(outdir, _readout_plot_stem('bar_gt', session), file_suffix, html=html)
-        moving_bar_plot.plot_moving_bar_data(
+        moving_bar_plot.plot_moving_bar_gt(
             mvd, bundle=b_bright, bundle_2=b_dark,
             title=f'Moving-bar {token}-gt ({suffix})',
             cost_parts=cost_parts,
@@ -429,7 +429,7 @@ def _plot_bar_readouts(session, z, outdir, bar_readouts, suffix, model_all, *,
         one = session_for_task(session, tname)
         b = moving_bar_plot.moving_bar_trace_bundle(one, z, tname, **bundle_kw)
         mvd = _plot_path(outdir, _readout_plot_stem('bar_gt', session), file_suffix, html=html)
-        moving_bar_plot.plot_moving_bar_data(
+        moving_bar_plot.plot_moving_bar_gt(
             mvd, bundle=b, title=f'{tname} {token}-gt ({suffix})',
             cost_parts=cost_parts,
         )
@@ -480,7 +480,7 @@ def plot_param_set(params, outdir, model=None, model_all=True,
                    context_dir=None,
                    plot_tasks=None, session=None, *,
                    final_costs=None,
-                   save_artifacts=True,
+                   save_data=True,
                    gt_cubes=None,
                    plot_right_only=True, at_x=None, at_y=None,
                    align_at_x=None, align_at_y=None,
@@ -552,8 +552,8 @@ def plot_param_set(params, outdir, model=None, model_all=True,
             ms_shown=ms_shown,
         )
 
-    if save_artifacts:
-        os.makedirs(train_mod.data_dir(outdir), exist_ok=True)
+    if save_data:
+        os.makedirs(run_data_dir(os.path.abspath(outdir)), exist_ok=True)
         z_best = torch.tensor(best, dtype=session.sim_dtype, device=session.device)
         train_mod.save_best_param_named(outdir, z_best, session)
     print(f'plots saved to {outdir}')
@@ -702,7 +702,7 @@ def add_plot_filter_argument(parser):
         "--filter",
         default=None,
         choices=list(training.FILTER_MODES),
-        help="readout filter override: none=v, ca=f_ca + Arenz digitized spot gt "
+        help="readout filter override: none=v, ca=ca + Arenz digitized spot gt "
              f"(default: keep run train_opts.filter); ca forces --ms-spot {MS_SPOT_CA:g}",
     )
 
@@ -787,7 +787,7 @@ def apply_param_overrides(z, schema, session, edits):
     if session.backend.network is None:
         raise SystemExit("--param requires a network backend")
 
-    named = training.z_to_node_values(z, schema)
+    named = training.node_values_from_z(z, schema)
     seg_by_name = {s["name"]: s for s in schema}
     edited_idxs = {}
 
@@ -829,7 +829,7 @@ def apply_param_overrides(z, schema, session, edits):
         new_schema.append(s)
 
     new_schema = training.attach_param_carry(new_schema, named)
-    z_new = training.node_values_to_z(
+    z_new = training.z_from_node_values(
         named, new_schema, dtype=z.dtype, device=z.device,
     )
     return z_new, new_schema
@@ -913,7 +913,7 @@ def main():
         session=session,
         final_costs=np.array([best_cost]),
         file_suffix=file_suffix,
-        save_artifacts=not param_edits,
+        save_data=not param_edits,
         **plot_kw,
     )
 

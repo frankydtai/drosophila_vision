@@ -28,36 +28,33 @@ def as_numpy(arr):
     return np.asarray(arr)
 
 
-def gt_affine_scalars_for_cell(p, cell_name, backend, *, bias_gt=None) -> tuple[float, float]:
+def gt_affine_scalars_for_cell(p, cell_name, backend, session=None) -> tuple[float, float]:
     """``(a_gt, effective_bias)`` for one cell type name (matches cost).
 
-    Pass ``bias_gt`` to override schema bias (e.g. mean ``v`` at onset when
-    ``bias_gt_from_v_onset``). Onset overrides are clipped to schema
-    ``bias_gt`` lo/hi (same as cost).
+    ``p`` must already have ``materialize_from_opts`` applied so
+    ``bias_gt`` / ``v_th_ca`` / ``a_ca`` hold sources when ``*_from_*`` flags
+    are on. When ``bias_gt_from_v_onset``, do not add ``v_th``.
     """
+    from param_defaults import BIAS_GT_FROM_V_ONSET
     names = [str(n) for n in backend.network.cell_names]
     ci = names.index(str(cell_name))
     gs = p["a_gt"]
     scale = float(gs[ci] if torch.is_tensor(gs) and gs.dim() > 0 else gs)
-    if bias_gt is not None:
-        from param_defaults import PARAM_BOXES
-        box = PARAM_BOXES["bias_gt"]
-        bias = float(bias_gt)
-        if np.isfinite(bias):
-            bias = float(np.clip(bias, float(box["lo"]), float(box["hi"])))
-    else:
-        gb = p["bias_gt"]
-        bias = float(gb[ci] if torch.is_tensor(gb) and gb.dim() > 0 else gb)
-        if "v_th" in p:
-            vt = p["v_th"]
-            bias = bias + float(vt[ci] if torch.is_tensor(vt) and vt.dim() > 0 else vt)
+    gb = p["bias_gt"]
+    bias = float(gb[ci] if torch.is_tensor(gb) and gb.dim() > 0 else gb)
+    opts = (session.train_opts if session is not None else None) or {}
+    from_onset = bool(opts.get("bias_gt_from_v_onset", BIAS_GT_FROM_V_ONSET))
+    if (not from_onset) and "v_th" in p:
+        vt = p["v_th"]
+        if torch.is_tensor(vt) and vt.dim() > 0:
+            if int(vt.shape[0]) == int(backend.n_cells):
+                bias = bias + float(vt[ci])
+            else:
+                m = backend.conn.node_cell == ci
+                bias = bias + float(vt[m].mean())
+        else:
+            bias = bias + float(vt if not torch.is_tensor(vt) else vt.item())
     return scale, bias
-
-
-def bias_gt_from_v_onset_enabled(session) -> bool:
-    from param_defaults import BIAS_GT_FROM_V_ONSET
-    opts = session.train_opts or {}
-    return bool(opts.get("bias_gt_from_v_onset", BIAS_GT_FROM_V_ONSET))
 
 
 def filter_plot_token(filter=None) -> str:
@@ -70,25 +67,6 @@ def filter_plot_token(filter=None) -> str:
 def session_filter_plot_token(session) -> str:
     opts = (session.train_opts if session is not None else None) or {}
     return filter_plot_token(opts.get("filter"))
-
-
-def mean_v_onset_by_cell_name(traces, type_idx, cell_names, names, t_onset):
-    """Per-type mean of ``traces[row, t_onset]`` for names in ``names``."""
-    if t_onset is None:
-        raise ValueError("t_onset required for bias_gt_from_v_onset plot affine")
-    t0 = int(t_onset)
-    out = {}
-    for name in names:
-        ci = cell_names.index(name) if name in cell_names else None
-        if ci is None:
-            out[str(name)] = float("nan")
-            continue
-        m = np.asarray(type_idx) == int(ci)
-        if not np.any(m):
-            out[str(name)] = float("nan")
-            continue
-        out[str(name)] = float(np.nanmean(np.asarray(traces)[m, t0]))
-    return out
 
 
 def cost_ylim(*curves, pct=99.0, pad=1.1, floor=1.0, log=False):
@@ -170,19 +148,21 @@ def mark_spot(ax, t_onset, t_spot_end):
 def suppress_cost_std(session, task=None):
     """True when cost uses a single hex (no hex-mean STD band)."""
     pack = session.primary_readout if task is None else session.pack_for(task)
-    return pack.cost_extent == 0
+    return pack.cost_radius == 0
 
 
 def readout_center_mask(pack, backend):
-    """Boolean mask over pack cost entries included in the cost extent."""
+    """Boolean mask over pack cost entries included in the cost radius."""
     readout = pack.readout_node.cpu().numpy()
     if backend.network is not None:
-        if pack.cost_extent is not None:
+        if pack.cost_radius is not None:
             import build_hex
             C = backend.network
-            u_all = C.u.detach().cpu().numpy() if hasattr(C.u, "detach") else np.asarray(C.u)
-            v_all = C.v.detach().cpu().numpy() if hasattr(C.v, "detach") else np.asarray(C.v)
-            return build_hex.inside_mask(u_all[readout], v_all[readout], int(pack.cost_extent))
+            network_node_u = C.u.detach().cpu().numpy() if hasattr(C.u, "detach") else np.asarray(C.u)
+            network_node_v = C.v.detach().cpu().numpy() if hasattr(C.v, "detach") else np.asarray(C.v)
+            return build_hex.inside_mask(
+                network_node_u[readout], network_node_v[readout], int(pack.cost_radius),
+            )
         if pack.cost_radius is not None:
             return np.round(pack.cost_radius.cpu().numpy(), 6) == 0.0
         return np.ones(readout.shape[0], dtype=bool)
@@ -210,7 +190,7 @@ def _param_by_type_name(z, session, name):
     schema = list(session.schema)
     if name not in {s.get('name') for s in schema}:
         return {}
-    arr = np.asarray(training.z_to_node_values(z, schema)[name], dtype=np.float64).reshape(-1)
+    arr = np.asarray(training.node_values_from_z(z, schema)[name], dtype=np.float64).reshape(-1)
     cell_names = training.cell_node_names(session.backend)
     if arr.shape[0] != len(cell_names):
         raise ValueError(f"{name} length {arr.shape[0]} != n_cells {len(cell_names)}")
@@ -276,7 +256,7 @@ def bundle_panel_title(bundle, label, *, type_name=None):
 
 def network_hex_count(C):
     """Unique axial hexes on connectome ``C``."""
-    return len({(int(u), int(v)) for u, v in zip(C.u, C.v)})
+    return len({(int(hex_u), int(hex_v)) for hex_u, hex_v in zip(C.u, C.v)})
 
 
 def log_plot_elapsed(path, t0, **parts):
@@ -338,8 +318,8 @@ def ms_shown_axis_xlim(ms_shown, *, delta_ms, origin_t=0):
     if ms_shown is None:
         return None
     start, stop = ms_shown
-    lo = int(origin_t) + int(training.ms_to_t(float(start), delta_ms=float(delta_ms)))
-    hi = int(origin_t) + int(training.ms_to_t(float(stop), delta_ms=float(delta_ms)))
+    lo = int(origin_t) + int(training.t_from_ms(float(start), delta_ms=float(delta_ms)))
+    hi = int(origin_t) + int(training.t_from_ms(float(stop), delta_ms=float(delta_ms)))
     if lo > hi:
         raise ValueError(f'ms-shown xlim START t={lo} > STOP t={hi}')
     return lo, hi
@@ -600,7 +580,7 @@ def _mpl_color_rgba(color):
     return f'rgba({int(round(r * 255))},{int(round(g * 255))},{int(round(b * 255))},{a:g})'
 
 
-def _write_interactive_html(fig, path):
+def _save_interactive_html(fig, path):
     """Write standalone HTML: hover traces for x/y (plotly), matching PNG style."""
     import plotly.graph_objects as go
     from matplotlib.collections import PolyCollection
@@ -776,7 +756,7 @@ def save_figure(fig, path, dpi=150, rasterize=False, *, timer=None):
         timer.end_prep()
         timer.end_draw()
     if path.lower().endswith('.html'):
-        _write_interactive_html(fig, path)
+        _save_interactive_html(fig, path)
     else:
         if rasterize:
             for ax in fig.axes:

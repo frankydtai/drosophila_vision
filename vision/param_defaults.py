@@ -32,7 +32,8 @@ E_EXC = 10.0
 E_INH = -70.0
 E_H = 50.0
 H_G_MAX = 100.0
-DATA_AMP = 20.0
+GT_V_AMP = 20.0
+GT_CA_AMP = 2.0
 STATE_CLAMP = 1.0e6
 SYN_SCALE_EXC = 0.001
 SYN_SCALE_INH = 0.001
@@ -57,7 +58,8 @@ PARAM_BOXES: Dict[str, dict] = {
     "e_leak": dict(lo=-50.0, hi=50.0, init=0.0, jit=1.0, train_mode="indi"),
     "v_th": dict(lo=-100.0, hi=-100.0, init=-50.0, jit=0.0, train_mode="indi"),
     # Ca rectifier: v_ca = relu(v − v_th_ca)·a_ca.
-    # --v-th-ca-from-v-th → effective threshold is v_th; v_th_ca forced frozen=all.
+    # --v-th-ca-from-v-th → write v_th into v_th_ca (frozen=all); CSV shows it.
+    # --a-ca-from-a-out → write a_out into a_ca (frozen=all); CSV shows it.
     "v_th_ca": dict(lo=-100.0, hi=-100.0, init=-50.0, jit=0.0, train_mode="indi"),
     "a_ca": dict(lo=GAIN_LO, hi=GAIN_HI, init=1.0, jit=0.1, train_mode="indi"),
     "tau_ca": dict(lo=100.0, hi=1000.0, init=350.0, jit=5.0, train_mode="indi"),
@@ -111,18 +113,18 @@ MS_SPOT = 50.0
 MS_SPOT_CA = 25.0  # forced when ``--filter ca``
 MS_RESPONSE = 400.0
 MS_POST = 0.0
-SPOT_EXTENT = 1.0
-SPOT_EXTENTS: Tuple[float, ...] = (0.5, 1.0, 1.5, 2.0)
+SPOT_RADIUS = 1.0
+SPOT_RADII: Tuple[float, ...] = (0.5, 1.0, 1.5, 2.0)
 FULLY_INSIDE = True
 MULTI_SPOT = True
-SHIFT_EXTENT = 1.0
+SHIFT_RADIUS = 1.0
 
 # ---------------------------------------------------------------------------
 # 3.2 task.spot.gt (RecF/ImpR literals live in task.spot.gt)
 # 3.3 task.spot.readout
 # ---------------------------------------------------------------------------
 
-# Readout filter: none = v; ca = f_ca (``neuron.filter_ca``).
+# Readout filter: none = v; ca = ca (``neuron.filter_ca``).
 FILTER = "none"
 
 
@@ -140,7 +142,7 @@ SPOT_COST_RADIUS_WEIGHT: Dict[float, float] = {
     1.0: 1.0 / 3.0,
     2.0: 1.0 / 3.0,
 }
-SPOT_COST_RADIUS_WEIGHT_EXTENT1: Dict[float, float] = {
+SPOT_COST_RADIUS_WEIGHT_RADIUS1: Dict[float, float] = {
     0.0: 1.0,
     1.0: 2,
 }
@@ -172,13 +174,15 @@ COST_INTERVAL_MS = 10.0
 COST_MS: Dict[float, Tuple[float, ...]] = {
     1.0: (0.0, MS_SPOT_CA),
 }
-# Cost/plot affine bias = v (or v_ca when ``--filter ca``) at t_onset, clamped to
-# PARAM_BOXES["bias_gt"] lo/hi.
+# Cost/plot affine: write v (or ca when ``--filter ca``) at t_onset into
+# ``bias_gt`` (clamped to PARAM_BOXES["bias_gt"] lo/hi); also written to param.csv.
 BIAS_GT_FROM_V_ONSET = True
 # With bias_gt_from_v_onset: True keeps onset in graph; False detaches.
 BIAS_GT_FROM_V_ONSET_GRAD = True
-# Ca threshold: True → use v_th instead of schema v_th_ca (v_th_ca frozen=all).
-V_TH_CA_FROM_V_TH = True
+# Ca threshold: write v_th into v_th_ca (v_th_ca frozen=all); visible in param.csv.
+V_TH_CA_FROM_V_TH = False
+# Ca gain: write a_out into a_ca (a_ca frozen=all); visible in param.csv.
+A_CA_FROM_A_OUT = False
 
 # Membrane t=0 pre steady (``--pre-steady MODE``). Not param init.
 # Shared by borst / hp_lp: probe (ohmic one-shot) | solve (fixed-iter DC).
@@ -186,8 +190,8 @@ PRE_STEADY = "solve"
 PRE_STEADY_ITERS = 50  # solve only
 PRE_STEADY_DAMP = 0.1  # solve under-relaxation
 NOFRUNS = 1
-NOFSTEPS_CPU = 0
-NOFSTEPS_GPU = 200
+NOFITERS_CPU = 0
+NOFITERS_GPU = 200
 LRS = "0.1"
 CHECKPOINT_INTERVAL = 1000
 

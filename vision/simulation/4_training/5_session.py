@@ -12,11 +12,11 @@ builders wrap the neutral gt dataclasses from ``task`` (which sit below
 * moving bar: ``waveform_mse`` from cost weights (True when a cost window is
   built).
 
-Model traces are absolute ``v`` (``filter=none``) or ``f_ca`` (``filter=ca``);
+Model traces are absolute ``v`` (``filter=none``) or ``ca`` (``filter=ca``);
 cost compares the readout to ``a_gt * gt + bias_gt``. When
-``bias_gt_from_v_onset``, bias is ``v`` at ``t_onset`` (or ``v_ca`` when
-``filter=ca``) instead of schema ``bias_gt``. Spot ImpR uses Arenz digitized
-when ``filter=ca``; RecF amp scaling is unchanged.
+``bias_gt_from_v_onset``, ``bias_gt`` is written from ``v`` at ``t_onset`` (or ``ca`` when
+``filter=ca``) — same value appears in ``param.csv``. Spot ImpR uses Arenz digitized
+when ``filter=ca``; RecF ``a_radius`` scaling is unchanged.
 """
 from __future__ import annotations
 
@@ -28,7 +28,7 @@ from typing import Dict, List, Optional, Tuple
 import numpy as np
 import torch
 
-from neuron.params import ms_to_t
+from neuron.params import t_from_ms
 from neuron import (
     default_schema,
     expand_euler,
@@ -36,7 +36,8 @@ from neuron import (
 )
 from param_defaults import (
     CAP,
-    DATA_AMP,
+    GT_CA_AMP,
+    GT_V_AMP,
     DELTA_MS,
     DELTA_MS_PRE,
     E_EXC,
@@ -55,14 +56,15 @@ from param_defaults import (
     BIAS_GT_FROM_V_ONSET,
     BIAS_GT_FROM_V_ONSET_GRAD,
     V_TH_CA_FROM_V_TH,
+    A_CA_FROM_A_OUT,
     FILTER,
-    SHIFT_EXTENT,
+    SHIFT_RADIUS,
     SPOT_COST_RADII,
     SPOT_COST_RADIUS_WEIGHT,
-    SPOT_COST_RADIUS_WEIGHT_EXTENT1,
+    SPOT_COST_RADIUS_WEIGHT_RADIUS1,
     SPOT_COST_RADIUS_KEY_ALIASES,
     SPOT_STI_RADII,
-    SPOT_EXTENT,
+    SPOT_RADIUS,
     STATE_CLAMP,
     H_CELLS,
     I_H_REV,
@@ -131,13 +133,13 @@ from task.spot.readout import (
     default_spot_cost_radius_weight,
     expand_cost_ms_dict,
     expand_spot_cost_r_w_dict,
-    make_spot_stimulus_opts,
+    build_spot_stimulus_opts,
     spot_sti_radius_gate,
 )
 from task.spot.input import (
     build_spot_a_sti_radius_drive,
     normalize_spot_timing,
-    spot_extent_half_steps,
+    spot_radius_half_steps,
     spot_from_opts,
     spot_gt_n_t_from_opts,
     spot_stimulus_batches,
@@ -147,10 +149,10 @@ from task.moving_bar.gt import (
     _enrich_moving_bar_stimulus_opts,
     build_moving_bar_gt,
     expand_gt_cells as expand_moving_bar_gt_cells,
-    make_moving_bar_stimulus_opts,
+    build_moving_bar_stimulus_opts,
 )
 from network.construction import (
-    load_network, gt_cells_from_opts, node_cell_names, normalize_cost_extent,
+    load_network, gt_cells_from_opts, node_cell_names, normalize_cost_radius,
 )
 
 
@@ -169,34 +171,34 @@ def extend_readout_pack_mirror_fit(pack, mirror_types, mirror_fit, mirror_sign=-
         raise ValueError("extend_readout_pack_mirror_fit requires backend.network")
     C = backend.network
     names = node_cell_names(C)
-    u_arr = pack.readout_node.cpu().numpy()
+    entry_node_index = pack.readout_node.cpu().numpy()
     b_arr = pack.readout_batch.cpu().numpy()
     w_arr = pack.cost_weight.cpu().numpy()
     r_arr = (
         pack.cost_radius.cpu().numpy()
         if pack.cost_radius is not None else None
     )
-    col_u_all = C.u.detach().cpu().numpy() if hasattr(C.u, "detach") else np.asarray(C.u)
-    col_v_all = C.v.detach().cpu().numpy() if hasattr(C.v, "detach") else np.asarray(C.v)
-    extra_b, extra_u, extra_entries, extra_w, extra_r, extra_pd_nd = [], [], [], [], [], []
-    for entry_i in range(len(u_arr)):
-        u = int(u_arr[entry_i])
-        if str(names[u]) != mirror_fit:
+    network_node_u = C.u.detach().cpu().numpy() if hasattr(C.u, "detach") else np.asarray(C.u)
+    network_node_v = C.v.detach().cpu().numpy() if hasattr(C.v, "detach") else np.asarray(C.v)
+    extra_b, extra_node_index, extra_entries, extra_w, extra_r, extra_pd_nd = [], [], [], [], [], []
+    for entry_i in range(len(entry_node_index)):
+        node_index = int(entry_node_index[entry_i])
+        if str(names[node_index]) != mirror_fit:
             continue
         b = int(b_arr[entry_i])
-        col_u, col_v = int(col_u_all[u]), int(col_v_all[u])
+        mirror_fit_node_u, mirror_fit_node_v = int(network_node_u[node_index]), int(network_node_v[node_index])
         mirror_readout = float(mirror_sign) * pack.gt[entry_i:entry_i + 1]
         w = float(w_arr[entry_i])
         r = float(r_arr[entry_i]) if r_arr is not None else None
         for mtype in mirror_types:
             candidates = np.where(
-                (col_u_all == col_u)
-                & (col_v_all == col_v)
+                (network_node_u == mirror_fit_node_u)
+                & (network_node_v == mirror_fit_node_v)
                 & (names == str(mtype))
             )[0]
-            for uidx in candidates:
+            for candidate_node_index in candidates:
                 extra_b.append(b)
-                extra_u.append(int(uidx))
+                extra_node_index.append(int(candidate_node_index))
                 extra_entries.append(mirror_readout)
                 extra_w.append(w)
                 if r is not None:
@@ -204,7 +206,7 @@ def extend_readout_pack_mirror_fit(pack, mirror_types, mirror_fit, mirror_sign=-
                 if pack.cost_pd_nd is not None:
                     extra_pd_nd.append(int(pack.cost_pd_nd[entry_i].item()))
     return _append_mirror_pack_entries(
-        pack, extra_u, extra_entries,
+        pack, extra_node_index, extra_entries,
         readout_batch=extra_b, cost_weight=extra_w,
         cost_radius=extra_r if extra_r else None,
         cost_pd_nd=extra_pd_nd if extra_pd_nd else None,
@@ -260,7 +262,7 @@ def _append_mirror_pack_entries(
         readout_node=torch.cat([pack.readout_node, extra_nodes_t]),
         cost_t0=pack.cost_t0,
         cost_radius=cost_radius_out,
-        cost_extent=pack.cost_extent,
+        cost_radius=pack.cost_radius,
         cost_pd_nd=cost_pd_nd_out,
         dsi_pos_entries=pack.dsi_pos_entries,
         dsi_neg_entries=pack.dsi_neg_entries,
@@ -371,7 +373,7 @@ def _moving_bar_polarity_opts(ctx: _TrainBindCtx, polarity: str) -> dict:
         raise ValueError(f"unknown moving-bar polarity {polarity!r}")
     if raw:
         return dict(raw)
-    return make_moving_bar_stimulus_opts(
+    return build_moving_bar_stimulus_opts(
         polarity,
         i_baseline_moving_bar=I_BASELINE,
         i_moving_bar=I_BRIGHT if polarity == "bright" else I_DARK,
@@ -383,8 +385,8 @@ def _moving_bar_polarity_opts(ctx: _TrainBindCtx, polarity: str) -> dict:
 
 
 
-def _cost_extent_hex_coltag(cost_extent, n_cost_hexes) -> str:
-    extent_tag = "all hexes" if cost_extent is None else f"extent={int(cost_extent)}"
+def _cost_radius_hex_coltag(cost_radius, n_cost_hexes) -> str:
+    extent_tag = "all hexes" if cost_radius is None else f"radius={int(cost_radius)}"
     if isinstance(n_cost_hexes, dict):
         cols = ", ".join(
             f"b{int(batch)}={int(count)}"
@@ -397,22 +399,22 @@ def _cost_extent_hex_coltag(cost_extent, n_cost_hexes) -> str:
 def _build_network_moving_bar_readout(ctx: _TrainBindCtx, C, *, pack_name: str, polarity: str):
     dev = ctx.dev or active_device()
     opts = _moving_bar_polarity_opts(ctx, polarity)
-    if "cost_extent" in opts:
-        cost_extent = normalize_cost_extent(opts["cost_extent"])
+    if "cost_radius" in opts:
+        cost_radius = normalize_cost_radius(opts["cost_radius"])
     else:
-        network_extent = int(C.meta.get("extent", -1))
-        default_extent = -1 if network_extent <= 0 else network_extent - 1
-        cost_extent = normalize_cost_extent(default_extent)
+        network_radius = int(C.meta.get("extent", -1))
+        default_radius = -1 if network_radius <= 0 else network_radius - 1
+        cost_radius = normalize_cost_radius(default_radius)
     build_kw = dict(
         C=C,
         device=dev,
         sim_dtype=ctx.sim_dtype,
-        t_onset=ms_to_t(
+        t_onset=t_from_ms(
             float(opts["ms_pre"]),
             delta_ms=float(opts["delta_ms_pre"]),
         ),
         delta_ms=float(opts["delta_ms"]),
-        cost_extent=cost_extent,
+        cost_radius=cost_radius,
         i_baseline_moving_bar=opts[_MOVING_BAR_BASELINE_KEY],
         contrasts=(polarity,),
         gt_cells=gt_cells_from_opts(opts),
@@ -422,7 +424,7 @@ def _build_network_moving_bar_readout(ctx: _TrainBindCtx, C, *, pack_name: str, 
     peak_key = _MOVING_BAR_I_KEY[polarity]
     build_kw[peak_key] = opts[peak_key]
     T = build_moving_bar_gt(**build_kw)
-    stim = _enrich_moving_bar_stimulus_opts(opts, T.info, cost_extent=cost_extent)
+    stim = _enrich_moving_bar_stimulus_opts(opts, T.info, cost_radius=cost_radius)
     pack = ReadoutPack(
         name=pack_name,
         i_sti=T.i_sti,
@@ -432,7 +434,7 @@ def _build_network_moving_bar_readout(ctx: _TrainBindCtx, C, *, pack_name: str, 
         readout_batch=T.readout_batch,
         readout_node=T.readout_node,
         cost_t0=T.cost_t0,
-        cost_extent=cost_extent,
+        cost_radius=cost_radius,
         cost_pd_nd=T.cost_pd_nd,
         dsi_pos_entries=T.dsi_pos_entries,
         dsi_neg_entries=T.dsi_neg_entries,
@@ -443,7 +445,7 @@ def _build_network_moving_bar_readout(ctx: _TrainBindCtx, C, *, pack_name: str, 
         dsi_power=T.dsi_power,
         waveform_mse=bool(T.info["waveform_mse"]),
     )
-    coltag = _cost_extent_hex_coltag(cost_extent, T.info["n_cost_hexes"])
+    coltag = _cost_radius_hex_coltag(cost_radius, T.info["n_cost_hexes"])
     tag = (
         f"moving-bar {polarity} (B={T.n_batch} stimuli, "
         f"{T.info['n_cost']} cost nodes, {coltag})"
@@ -515,11 +517,11 @@ def _build_network_spot_task(
         ctx.spot_bright_stimulus_opts if polarity == "bright" else ctx.spot_dark_stimulus_opts
     )
     if not ctx_opts:
-        raise ValueError(f"{pack_name} requires stimulus opts (from make_train_opts / CLI)")
+        raise ValueError(f"{pack_name} requires stimulus opts (from build_train_opts / CLI)")
     opts = normalize_spot_timing(dict(ctx_opts))
-    cost_extent = normalize_cost_extent(opts.get("cost_extent"))
-    shift_extent = int(opts["shift_extent"])
-    spot_extent = float(opts["spot_extent"])
+    cost_radius = normalize_cost_radius(opts.get("cost_radius"))
+    shift_radius = int(opts["shift_radius"])
+    spot_radius = float(opts["spot_radius"])
     multi_spot = bool(opts["multi_spot"])
     fully_inside = bool(opts["fully_inside"])
     delta_ms = float(opts["delta_ms"])
@@ -527,21 +529,22 @@ def _build_network_spot_task(
     t_onset, n_t = spot_timing_t_from_opts(opts)
     i_spot = float(opts[peak_key])
     default_w = default_spot_cost_radius_weight(
-        spot_extent,
+        spot_radius,
         weights=SPOT_COST_RADIUS_WEIGHT,
-        weights_extent1=SPOT_COST_RADIUS_WEIGHT_EXTENT1,
+        weights_radius1=SPOT_COST_RADIUS_WEIGHT_RADIUS1,
     )
+    gt_amp = GT_CA_AMP if ctx.filter == "ca" else GT_V_AMP
     T = build_spot_gt(
         C,
-        spot_extent=spot_extent,
+        spot_radius=spot_radius,
         multi_spot=multi_spot,
         fully_inside=fully_inside,
-        shift_extent=shift_extent,
+        shift_radius=shift_radius,
         device=dev,
         sim_dtype=ctx.sim_dtype,
         n_t=n_t,
         t_onset=t_onset,
-        cost_extent=cost_extent,
+        cost_radius=cost_radius,
         spot_cost_radius_weight=expand_spot_cost_r_w_dict(
             stimulus_opts=opts, aliases=SPOT_COST_RADIUS_KEY_ALIASES,
         ),
@@ -551,7 +554,7 @@ def _build_network_spot_task(
         polarity=polarity,
         ms_spot=float(opts.get("ms_spot", MS_SPOT)),
         ms_response=float(opts["ms_response"]),
-        data_amp=DATA_AMP,
+        gt_amp=gt_amp,
         delta_ms=delta_ms,
         default_cost_weights=default_w,
         spot_cost_radii=SPOT_COST_RADII,
@@ -601,7 +604,7 @@ def _build_network_spot_task(
         cost_radius=T.cost_radius,
         cost_stim_u=T.readout_stim_u,
         cost_stim_v=T.readout_stim_v,
-        cost_extent=cost_extent,
+        cost_radius=cost_radius,
         cost_time_ix=cost_time_ix,
         cost_time_mask=cost_time_mask,
         waveform_mse=True,
@@ -612,7 +615,7 @@ def _build_network_spot_task(
         sti_radius=sti_radius,
         sti_radius_gate=torch.as_tensor(gate, dtype=ctx.sim_dtype, device=dev),
     )
-    coltag = _cost_extent_hex_coltag(cost_extent, T.info["n_cost_hexes"])
+    coltag = _cost_radius_hex_coltag(cost_radius, T.info["n_cost_hexes"])
     shifttag = f"{T.info['n_shifts']} shifts"
     tag = (
         f"{pack_name} (B={T.n_batch} stimuli [{T.info['n_centers']} centers simultaneous "
@@ -718,9 +721,9 @@ def _finalize_stimulus_opts(
     opts,
     task_name,
     *,
-    cost_extent_by_task,
-    shift_extent,
-    spot_extent,
+    cost_radius_by_task,
+    shift_radius,
+    spot_radius,
     multi_spot,
     fully_inside,
     spot_cost_radius_weight,
@@ -730,7 +733,7 @@ def _finalize_stimulus_opts(
     if task_name in SPOT_TASKS:
         polarity = "bright" if task_name == "spot_bright" else "dark"
         peak_key = _SPOT_I_KEY[polarity]
-        out = make_spot_stimulus_opts(
+        out = build_spot_stimulus_opts(
             polarity,
             i_baseline_spot=float(raw.get(_SPOT_BASELINE_KEY, I_BASELINE)),
             i_spot=float(raw.get(
@@ -741,13 +744,13 @@ def _finalize_stimulus_opts(
             ms_post=float(raw.get("ms_post", MS_POST)),
             delta_ms=float(raw.get("delta_ms", DELTA_MS)),
             delta_ms_pre=float(raw.get("delta_ms_pre", DELTA_MS_PRE)),
-            shift_extent=int(raw.get(
-                "shift_extent",
-                shift_extent if shift_extent is not None else SHIFT_EXTENT,
+            shift_radius=int(raw.get(
+                "shift_radius",
+                shift_radius if shift_radius is not None else SHIFT_RADIUS,
             )),
-            spot_extent=float(raw.get(
-                "spot_extent",
-                spot_extent if spot_extent is not None else SPOT_EXTENT,
+            spot_radius=float(raw.get(
+                "spot_radius",
+                spot_radius if spot_radius is not None else SPOT_RADIUS,
             )),
             multi_spot=bool(raw.get(
                 "multi_spot",
@@ -770,7 +773,7 @@ def _finalize_stimulus_opts(
     elif task_name in ("moving_bar_bright", "moving_bar_dark"):
         polarity = "bright" if task_name == "moving_bar_bright" else "dark"
         peak_key = _MOVING_BAR_I_KEY[polarity]
-        out = make_moving_bar_stimulus_opts(
+        out = build_moving_bar_stimulus_opts(
             polarity,
             i_baseline_moving_bar=float(raw.get(_MOVING_BAR_BASELINE_KEY, I_BASELINE)),
             i_moving_bar=float(raw.get(
@@ -784,17 +787,17 @@ def _finalize_stimulus_opts(
         )
     else:
         out = raw
-    if cost_extent_by_task and task_name in cost_extent_by_task:
-        out["cost_extent"] = int(cost_extent_by_task[task_name])
-    elif "cost_extent" in out:
-        if out["cost_extent"] is None:
-            out.pop("cost_extent", None)
+    if cost_radius_by_task and task_name in cost_radius_by_task:
+        out["cost_radius"] = int(cost_radius_by_task[task_name])
+    elif "cost_radius" in out:
+        if out["cost_radius"] is None:
+            out.pop("cost_radius", None)
         else:
-            out["cost_extent"] = int(out["cost_extent"])
+            out["cost_radius"] = int(out["cost_radius"])
     if task_name in SPOT_TASKS:
-        spot_extent_half_steps(spot_extent)
-        out["shift_extent"] = int(shift_extent)
-        out["spot_extent"] = float(spot_extent)
+        spot_radius_half_steps(spot_radius)
+        out["shift_radius"] = int(shift_radius)
+        out["spot_radius"] = float(spot_radius)
         out["multi_spot"] = bool(multi_spot)
         out["fully_inside"] = bool(fully_inside)
         if spot_cost_radius_weight is not None:
@@ -804,15 +807,15 @@ def _finalize_stimulus_opts(
     return apply_i_cli_to_stimulus_opts(out, task_name, i_cli)
 
 
-def make_train_opts(
+def build_train_opts(
     backend="network",
     tasks=None,
     cost_weights=None,
     pack_overrides=None,
     sequential=None,
-    cost_extent_by_task=None,
-    shift_extent=None,
-    spot_extent=None,
+    cost_radius_by_task=None,
+    shift_radius=None,
+    spot_radius=None,
     multi_spot=MULTI_SPOT,
     fully_inside=FULLY_INSIDE,
     spot_cost_radius_weight=None,
@@ -838,13 +841,14 @@ def make_train_opts(
     bias_gt_from_v_onset=BIAS_GT_FROM_V_ONSET,
     bias_gt_from_v_onset_grad=BIAS_GT_FROM_V_ONSET_GRAD,
     v_th_ca_from_v_th=V_TH_CA_FROM_V_TH,
+    a_ca_from_a_out=A_CA_FROM_A_OUT,
     filter=FILTER,
 ):
     """Canonical training opts for :func:`open_session` (network backend)."""
     if backend != "network":
         raise ValueError(f"backend must be 'network', got {backend!r}")
     if network is None and network_json is None:
-        raise ValueError("make_train_opts requires network or network_json")
+        raise ValueError("build_train_opts requires network or network_json")
     fp = int(fp)
     if fp not in (16, 32, 64):
         raise ValueError(f"fp must be 16, 32, or 64; got {fp!r}")
@@ -876,11 +880,17 @@ def make_train_opts(
         train_modes["v_th_ca"] = {
             "indi": [], "shared": [], "fixed": [], "frozen": ["all"],
         }
+    a_ca_from_a_out = bool(a_ca_from_a_out)
+    if a_ca_from_a_out:
+        train_modes = dict(train_modes or {})
+        train_modes["a_ca"] = {
+            "indi": [], "shared": [], "fixed": [], "frozen": ["all"],
+        }
     tl = normalize_tasks(tasks)
-    if spot_extent is None:
-        spot_extent = SPOT_EXTENT
-    if shift_extent is None:
-        shift_extent = SHIFT_EXTENT
+    if spot_radius is None:
+        spot_radius = SPOT_RADIUS
+    if shift_radius is None:
+        shift_radius = SHIFT_RADIUS
     raw_by_name = {
         "spot_bright": spot_bright_stimulus_opts,
         "spot_dark": spot_dark_stimulus_opts,
@@ -888,9 +898,9 @@ def make_train_opts(
         "moving_bar_dark": moving_bar_dark_stimulus_opts,
     }
     finalize_kw = dict(
-        cost_extent_by_task=cost_extent_by_task,
-        shift_extent=shift_extent,
-        spot_extent=spot_extent,
+        cost_radius_by_task=cost_radius_by_task,
+        shift_radius=shift_radius,
+        spot_radius=spot_radius,
         multi_spot=multi_spot,
         fully_inside=fully_inside,
         spot_cost_radius_weight=spot_cost_radius_weight,
@@ -931,6 +941,7 @@ def make_train_opts(
     opts["bias_gt_from_v_onset"] = bias_gt_from_v_onset
     opts["bias_gt_from_v_onset_grad"] = bias_gt_from_v_onset_grad
     opts["v_th_ca_from_v_th"] = v_th_ca_from_v_th
+    opts["a_ca_from_a_out"] = a_ca_from_a_out
     opts["filter"] = filter
     if filter == "ca":
         for key in ("spot_bright_stimulus_opts", "spot_dark_stimulus_opts"):
@@ -990,6 +1001,9 @@ def _train_opts_for_sidecar(opts, tasks, resolved_stim, sequential_bool) -> dict
     record["v_th_ca_from_v_th"] = bool(
         opts.get("v_th_ca_from_v_th", V_TH_CA_FROM_V_TH)
     )
+    record["a_ca_from_a_out"] = bool(
+        opts.get("a_ca_from_a_out", A_CA_FROM_A_OUT)
+    )
     record["filter"] = expand_filter(opts.get("filter", FILTER))
     record["fp"] = int(opts.get("fp", FP))
     return record
@@ -1021,7 +1035,7 @@ def _schema_from_opts(model, model_backend, schema, train_opts_record, *, i_h_re
     return base
 
 
-def _make_session(
+def _build_session(
     model_backend: ModelBackend,
     model: str,
     tasks: List[str],
@@ -1083,7 +1097,8 @@ def _make_session(
         e_inh=E_INH,
         e_h=E_H,
         h_g_max=H_G_MAX,
-        DATA_AMP=DATA_AMP,
+        GT_V_AMP=GT_V_AMP,
+        GT_CA_AMP=GT_CA_AMP,
         STATE_CLAMP=STATE_CLAMP,
         syn_scale_exc=SYN_SCALE_EXC,
         syn_scale_inh=SYN_SCALE_INH,
@@ -1159,7 +1174,7 @@ def open_session(
     record = _train_opts_for_sidecar(
         opts, tasks, resolved_stim, bool(opts.get("sequential")),
     )
-    return _make_session(
+    return _build_session(
         model_backend, model, tasks, packs,
         delta_ms=delta_ms,
         delta_ms_pre=delta_ms_pre,

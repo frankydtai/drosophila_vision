@@ -5,9 +5,8 @@ Only the solid black control mean (±SEM wash ignored; magenta CDM ignored).
 
 Method
 ------
-1. Time on the figure runs −1.5 … 0 (tick centers; ~0.25 s past the 0 tick).
-   Output flips that axis: rightmost sample → t = 0, leftward → positive time
-   (~1.7 s), then resampled to Δt = 1 ms (CSV ascending).
+1. Time on the figure runs −1.5 … ~+0.2 (tick 0 = figure origin). Output is
+   sign-flipped then offset: t = −t_fig + T_OFFSET → ~−0.1 … +1.6 s, Δt = 1 ms.
 2. Amplitude: dashed horizontal = 0; no y-axis numbers in the figure → scale
    each trace so max(|amp|) = 1 (sign preserved).
 3. Black mask = dark + low-saturation pixels; per-x continuity tracking;
@@ -56,6 +55,7 @@ PEAK_TOP_PATCH = {
 MAX_DY_PX = 25
 T_PAD_S = 0.25  # past t=0
 DT_S = 0.001  # output time step
+T_OFFSET_S = 0.1  # added after sign-flip (−t_fig)
 
 
 def black_mask(rgb: np.ndarray) -> np.ndarray:
@@ -134,11 +134,12 @@ def digitize() -> pd.DataFrame:
         t_fig = -1.5 + (xs - x_m15) / px_per_s
         amp = (y_base - ys).astype(float)
         amp /= np.max(np.abs(amp))
-        # Figure is time-reversed; flip so rightmost sample is t=0, left is +time.
-        t = t_fig[-1] - t_fig
-        t = t[::-1]
+        # Sign-flip then offset: t_fig −1.5…+0.2 → t −0.1…+1.6.
+        t = (-t_fig)[::-1] + T_OFFSET_S
         amp = amp[::-1]
-        t_grid = np.arange(0.0, t[-1] + 1e-12, DT_S)
+        t_lo = np.floor(t[0] / DT_S + 1e-12) * DT_S
+        t_hi = np.ceil(t[-1] / DT_S - 1e-12) * DT_S
+        t_grid = np.arange(t_lo, t_hi + 1e-12, DT_S)
         amp = np.interp(t_grid, t, amp)
         amp /= np.max(np.abs(amp))
         t = t_grid
@@ -169,7 +170,7 @@ def plot_check(df: pd.DataFrame, path: Path) -> None:
         if i % 4 == 0:
             ax.set_ylabel("amplitude (norm.)")
     fig.suptitle(
-        "Arenz 2017 Fig. 4B/E control kernels (digitized, t=0 at right, max|amp|=1)",
+        "Arenz 2017 Fig. 4B/E control kernels (digitized, t=−t_fig+0.1, max|amp|=1)",
         y=0.98,
     )
     fig.tight_layout()

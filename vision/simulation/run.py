@@ -4,16 +4,16 @@
 
 Dependency direction:
 
-    run.py  →  training  (pure train + artifacts)
+    run.py  →  training  (pure train + data)
     run.py  →  figure    (PNG / checkpoint figures)
     run.py  →  analyze   (optional post-plot, e.g. syn_sign)
     training  ✗→  figure
 
 Usage (from ``simulation/``, project ``.venv``):
 
-    ../.venv/bin/python run.py --model hp_lp --nofsteps 30 --lrs 0.1
+    ../.venv/bin/python run.py --model hp_lp --nofiters 30 --lrs 0.1
     ../.venv/bin/python run.py --task spot_bright --network right_min_neuron1_extent2 \\
-        --nofsteps 5 --lrs 0.1
+        --nofiters 5 --lrs 0.1
 
 Re-plot an existing run without training:
 
@@ -84,7 +84,7 @@ def make_plots(outdir, session, result=None, **plot_kw):
             outdir,
             session=session,
             final_costs=result.final_costs,
-            save_artifacts=False,
+            save_data=False,
             **plot_kw,
         )
         return
@@ -98,7 +98,7 @@ def make_plots(outdir, session, result=None, **plot_kw):
         outdir,
         session=session,
         final_costs=np.array([best_cost]) if best_cost is not None else None,
-        save_artifacts=False,
+        save_data=False,
         **plot_kw,
     )
 
@@ -114,8 +114,8 @@ def _rename_checkpoint_pngs(png_dir, tag, *, filter_token="v", file_suffix=""):
             os.replace(src, dst)
 
 
-def write_checkpoint_png(outdir, step, z_best, cost_best, session, plot_kw):
-    tag = train.checkpoint_step_tag(step)
+def write_checkpoint_png(outdir, iter, z_best, cost_best, session, plot_kw):
+    tag = train.checkpoint_iter_tag(iter)
     png_dir = os.path.join(outdir, "png")
     os.makedirs(png_dir, exist_ok=True)
     z_np = z_best.detach().cpu().numpy()
@@ -124,7 +124,7 @@ def write_checkpoint_png(outdir, step, z_best, cost_best, session, plot_kw):
         png_dir,
         session=session,
         final_costs=np.array([cost_best]),
-        save_artifacts=False,
+        save_data=False,
         **plot_kw,
     )
     from figure.util import filter_plot_token
@@ -140,8 +140,8 @@ def make_checkpoint_on_png(plot_kw):
     """Bound *plot_kw* into a ``checkpoint_on_png`` callback for ``run_training``."""
     plot_kw = plot_kw or {}
 
-    def on_png(outdir, step, z_best, cost_best, session):
-        write_checkpoint_png(outdir, step, z_best, cost_best, session, plot_kw)
+    def on_png(outdir, iter, z_best, cost_best, session):
+        write_checkpoint_png(outdir, iter, z_best, cost_best, session, plot_kw)
 
     return on_png
 
@@ -159,8 +159,8 @@ def run_training_and_plot(*, plot_gt_cubes=None, **kw):
     )
     make_plots(outdir, session, result=result, **plot_kw)
     if syn_sign:
-        from analyze.syn_sign import write_syn_sign_plots
-        write_syn_sign_plots(outdir)
+        from analyze.syn_sign import save_syn_sign_plots
+        save_syn_sign_plots(outdir)
     return fname, outdir, session
 
 def make_run_argparser(description=None):
@@ -204,7 +204,7 @@ def run_mirror_spot_experiment(
     """CLI entry for spot mirror-fit experiments (train + plot)."""
     from param_defaults import DELTA_MS, DELTA_MS_PRE, MS_PRE, MS_RESPONSE
     from figure.readout import fit_gt_cubes
-    from neuron.params import ms_to_t
+    from neuron.params import t_from_ms
     from training.experiment import (
         merge_i_h_train_modes,
         spot_pack_overrides,
@@ -214,8 +214,8 @@ def run_mirror_spot_experiment(
 
     def make_mirror_gt_cubes(fits, sign):
         specs = _normalize_mirror_fits(fits, sign)
-        t_onset = ms_to_t(MS_PRE, delta_ms=DELTA_MS_PRE)
-        n_t = t_onset + ms_to_t(MS_RESPONSE, delta_ms=DELTA_MS) + 1
+        t_onset = t_from_ms(MS_PRE, delta_ms=DELTA_MS_PRE)
+        n_t = t_onset + t_from_ms(MS_RESPONSE, delta_ms=DELTA_MS) + 1
         filter = str(run_kw.get("filter", "none"))
 
         def mirror_gt_cubes(contrasts):

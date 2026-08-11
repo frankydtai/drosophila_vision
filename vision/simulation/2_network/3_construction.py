@@ -3,7 +3,7 @@
 
 The JSON contract (see ``connectome/FAFBv783/.../network.json``):
 
-    metadata: {side, extent, nt_to_sign, forced_negative_pre_cells, ...}
+    metadata: {side, radius, nt_to_sign, forced_negative_pre_cells, ...}
     nodes:    [{id, name, u, v, column_id, input, output}, ...]
     edges:    [{src, tar, syn_sign, n_syn, source_cell, target_cell, du, dv}, ...]
 
@@ -118,23 +118,23 @@ def hex2gt(
     )[0]
 
 
-def normalize_cost_extent(cost_extent=None):
+def normalize_cost_radius(cost_radius=None):
     """``None`` or ``-1`` → unrestricted (all hexes); else non-negative int."""
-    if cost_extent is None:
+    if cost_radius is None:
         return None
-    v = int(cost_extent)
+    v = int(cost_radius)
     if v == -1:
         return None
     return v
 
 
-def hex_in_cost_extent(u, v, cost_extent=None) -> bool:
+def hex_in_cost_radius(u, v, cost_radius=None) -> bool:
     """True when axial ``(u, v)`` lies in the cost hex disc (``None`` = all hexes)."""
-    cost_extent = normalize_cost_extent(cost_extent)
-    if cost_extent is None:
+    cost_radius = normalize_cost_radius(cost_radius)
+    if cost_radius is None:
         return True
     import build_hex
-    return bool(build_hex.inside_mask(int(u), int(v), int(cost_extent)))
+    return bool(build_hex.inside_mask(int(u), int(v), int(cost_radius)))
 
 
 def present_gt_cells(
@@ -170,7 +170,7 @@ def normalize_gt_cells(gt_cells: Sequence[str] | None) -> list[str] | None:
     return [str(s) for s in gt_cells]
 
 
-def read_network_json(path) -> tuple[list[dict], list[dict], list[str], dict]:
+def load_network_json(path) -> tuple[list[dict], list[dict], list[str], dict]:
     """Load ``network.json`` → ``(nodes, edges, order-ordered cell_names, metadata)``."""
     path = Path(path)
     with open(path) as f:
@@ -201,7 +201,7 @@ def load_network(
     """Read ``network.json`` and return a :class:`Network``."""
     device = device or ("cuda" if torch.cuda.is_available() else "cpu")
     path = Path(path)
-    nodes, edges, cell_names, meta = read_network_json(path)
+    nodes, edges, cell_names, meta = load_network_json(path)
     mode = normalize_syn_mode(syn_mode)
 
     n_nodes = len(nodes)
@@ -224,20 +224,20 @@ def load_network(
     is_input = np.array([bool(n.get("input", False)) for n in nodes], dtype=bool)
 
     # edge list -> node indices + signed edge weight.
-    src_idx = np.empty(len(edges), dtype=np.int64)
-    tar_idx = np.empty(len(edges), dtype=np.int64)
+    source_index = np.empty(len(edges), dtype=np.int64)
+    target_index = np.empty(len(edges), dtype=np.int64)
     edge_weight = np.empty(len(edges), dtype=np.float64)
     for k, e in enumerate(edges):
-        src_idx[k] = id_to_node[int(e["src"])]
-        tar_idx[k] = id_to_node[int(e["tar"])]
+        source_index[k] = id_to_node[int(e["src"])]
+        target_index[k] = id_to_node[int(e["tar"])]
         syn_sign = float(e["syn_sign"])
         edge_weight[k] = (
             syn_sign if mode == "per_edge" else syn_sign * float(e["n_syn"])
         )
 
     conn = ScatterConn(
-        src_idx=src_idx,
-        tar_idx=tar_idx,
+        source_index=source_index,
+        target_index=target_index,
         edge_weight=edge_weight,
         n_nodes=n_nodes,
         node_cell=node_cell,

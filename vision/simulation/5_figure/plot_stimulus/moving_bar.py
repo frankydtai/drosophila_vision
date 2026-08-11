@@ -7,7 +7,7 @@ Usage (from simulation/, project .venv):
     ../.venv/bin/python 5_figure/plot_stimulus/moving_bar.py
     ../.venv/bin/python 5_figure/plot_stimulus/moving_bar.py --gif
     ../.venv/bin/python 5_figure/plot_stimulus/moving_bar.py --network right_min_neuron1_extent2 --direction down --gif
-    ../.venv/bin/python 5_figure/plot_stimulus/moving_bar.py --network right_min_neuron1_extent2 --bar-extent 2
+    ../.venv/bin/python 5_figure/plot_stimulus/moving_bar.py --network right_min_neuron1_extent2 --bar-radius 2
 """
 from __future__ import annotations
 
@@ -47,7 +47,7 @@ from build_hex import (
     uv_to_xy_deg,
 )
 from task.moving_bar.input import (
-    DEFAULT_BAR_EXTENT,
+    DEFAULT_BAR_RADIUS,
     GRUNTMAN_CONTRASTS,
     GRUNTMAN_DIRECTIONS,
     bar_lane_rects_at_t,
@@ -76,8 +76,8 @@ def _field_limits(hexes, *, hexes_are_xy_deg: bool = False):
     return (x0 - pad, x1 + pad), (y0 - pad, y1 + pad)
 
 
-def _draw_bar_outline(ax, spec, field_deg, t: int, t_onset: int, *, bar_extent: int, multi_bar: bool = True):
-    rects = bar_lane_rects_at_t(spec, field_deg, bar_extent, t, multi_bar=bool(multi_bar), t_onset=t_onset)
+def _draw_bar_outline(ax, spec, field_deg, t: int, t_onset: int, *, bar_radius: int, multi_bar: bool = True):
+    rects = bar_lane_rects_at_t(spec, field_deg, bar_radius, t, multi_bar=bool(multi_bar), t_onset=t_onset)
     for xmin, ymin, xmax, ymax in rects:
         ax.add_patch(
             Rectangle(
@@ -123,23 +123,23 @@ def _draw_hex_field(ax, hexes, vals, i_max, i_baseline, xlim, ylim, *, hexes_are
 
 
 def plot_snapshot(
-    ax, hexes, hex_current, t, spec, spec_name, i_max, i_baseline, xlim, ylim, t_onset, field_deg, *,
+    ax, hexes, i_sti_hex, t, spec, spec_name, i_max, i_baseline, xlim, ylim, t_onset, field_deg, *,
     hexes_are_xy_deg: bool = False,
-    bar_extent=None,
+    bar_radius=None,
     multi_bar: bool = True,
 ):
     _draw_hex_field(
-        ax, hexes, hex_current[t], i_max, i_baseline, xlim, ylim,
+        ax, hexes, i_sti_hex[t], i_max, i_baseline, xlim, ylim,
         hexes_are_xy_deg=hexes_are_xy_deg,
     )
-    _draw_bar_outline(ax, spec, field_deg, t, t_onset, bar_extent=bar_extent, multi_bar=bool(multi_bar))
+    _draw_bar_outline(ax, spec, field_deg, t, t_onset, bar_radius=bar_radius, multi_bar=bool(multi_bar))
     ax.set_title(f"{spec_name}  t={t} ({t * DELTA_MS / 1000.0:.2f} s)", fontsize=9)
 
 
-def write_snapshots(
+def save_snapshots(
     plot_hexes,
     showcase,
-    hex_current,
+    i_sti_hex,
     i_max,
     i_baseline,
     output,
@@ -149,7 +149,7 @@ def write_snapshots(
     field_deg,
     snapshot_t=None,
     hexes_are_xy_deg: bool = False,
-    bar_extent=None,
+    bar_radius=None,
     multi_bar: bool = True,
 ):
     snapshot_t = list(snapshot_t or [])
@@ -178,26 +178,26 @@ def write_snapshots(
             labels = [f"t={t}" for t in times]
         else:
             start_t, center_t, exit_t = moving_bar_transit_times(
-                spec, field_deg, bar_extent, multi_bar=bool(multi_bar), t_onset=t_onset, n_t=n_t,
+                spec, field_deg, bar_radius, multi_bar=bool(multi_bar), t_onset=t_onset, n_t=n_t,
             )
             times = [start_t, center_t, exit_t]
             labels = ("start", "center", "exit")
         for j, (t, label) in enumerate(zip(times, labels)):
             plot_snapshot(
-                axes[i, j], plot_hexes, hex_current[i], t, spec,
+                axes[i, j], plot_hexes, i_sti_hex[i], t, spec,
                 f"{spec.name} ({label})", i_max, i_baseline, xlim, ylim, t_onset, field_deg,
                 hexes_are_xy_deg=hexes_are_xy_deg,
-                bar_extent=bar_extent,
+                bar_radius=bar_radius,
                 multi_bar=bool(multi_bar),
             )
         if len(times) >= 3 and not snapshot_t:
-            spread = float(np.ptp(hex_current[i, times[1]]))
+            spread = float(np.ptp(i_sti_hex[i, times[1]]))
             print(f"  {spec.name}: start/center/exit t={times}  center ptp={spread:.1f} pA")
         else:
             print(f"  {spec.name}: snapshot t={times}")
 
     fig.suptitle(
-        f"Moving-bar hex current (pA)  side={side}  "
+        f"Moving-bar i_sti_hex (pA)  side={side}  "
         f"{len(plot_hexes)} sti hexes  I_baseline={i_baseline}  I_max={i_max}",
         fontsize=11,
     )
@@ -208,17 +208,17 @@ def write_snapshots(
     print(f"wrote {output}")
 
 
-def write_animation(
-    plot_hexes, showcase, hex_current, i_max, i_baseline, output, side, t_onset, n_t, field_deg, t_stride,
+def save_animation(
+    plot_hexes, showcase, i_sti_hex, i_max, i_baseline, output, side, t_onset, n_t, field_deg, t_stride,
     *, hexes_are_xy_deg: bool = False,
-    bar_extent=None,
+    bar_radius=None,
     multi_bar: bool = True,
 ):
     stride = max(1, t_stride)
     times = set()
     for spec in showcase:
         t0, _, t1 = moving_bar_transit_times(
-            spec, field_deg, bar_extent, multi_bar=bool(multi_bar), t_onset=t_onset, n_t=n_t,
+            spec, field_deg, bar_radius, multi_bar=bool(multi_bar), t_onset=t_onset, n_t=n_t,
         )
         times.update(range(t0, t1 + 1, stride))
     times = sorted(times)
@@ -233,16 +233,16 @@ def write_animation(
     def update(frame_idx):
         t = times[frame_idx]
         title.set_text(
-            f"Moving-bar hex current (pA)  side={side}  "
+            f"Moving-bar i_sti_hex (pA)  side={side}  "
             f"{len(plot_hexes)} sti hexes  I_baseline={i_baseline}  I_max={i_max}  t={t} ({t * DELTA_MS / 1000.0:.2f} s)"
         )
         for i, spec in enumerate(showcase):
             axes[i, 0].clear()
             plot_snapshot(
-                axes[i, 0], plot_hexes, hex_current[i], t, spec,
+                axes[i, 0], plot_hexes, i_sti_hex[i], t, spec,
                 spec.name, i_max, i_baseline, xlim, ylim, t_onset, field_deg,
                 hexes_are_xy_deg=hexes_are_xy_deg,
-                bar_extent=bar_extent,
+                bar_radius=bar_radius,
                 multi_bar=bool(multi_bar),
             )
         return [title]
@@ -279,7 +279,7 @@ def main():
         help="tile simultaneous lane-clipped bars (default true); "
              "false → whole-field single bar over the full network field",
     )
-    ap.add_argument("--bar-extent", type=int, default=DEFAULT_BAR_EXTENT,
+    ap.add_argument("--bar-radius", type=int, default=DEFAULT_BAR_RADIUS,
                     help="per-lane spacing width in hex nodes (default 2)")
     ap.add_argument("--i-bright", type=float, default=I_BRIGHT)
     args = ap.parse_args()
@@ -311,7 +311,7 @@ def main():
     T = build_moving_bar_signals(
         C,
         specs=showcase,
-        bar_extent=args.bar_extent,
+        bar_radius=args.bar_radius,
         multi_bar=bool(args.multi_bar),
         delta_ms=DELTA_MS,
         i_baseline=I_BASELINE,
@@ -319,33 +319,33 @@ def main():
         sim_dtype=SIM_DTYPE,
     )
     plot_hexes = [(c.u, c.v) for c in sti_hexes(C)]
-    hex_current = T.hex_current
+    i_sti_hex = T.i_sti_hex
     t_onset = int(T.info["t_onset"])
     n_t = int(T.info["n_t"])
     field_deg = tuple(T.info["field_deg"])
     i_baseline = float(T.info["i_baseline_moving_bar"])
     side = C.meta.get("side", "?")
-    bar_extent = int(args.bar_extent)
+    bar_radius = int(args.bar_radius)
     print(
-        f"bar_extent={bar_extent}  "
+        f"bar_radius={bar_radius}  "
         f"n_t={n_t} ({n_t * DELTA_MS / 1000.0:.2f} s)  "
         f"sweep_t={T.info['sweep_t']} ({T.info['sweep_time_s']:.2f} s after t_onset)"
     )
 
-    write_snapshots(
-        plot_hexes, showcase, hex_current, i_bright, i_baseline,
+    save_snapshots(
+        plot_hexes, showcase, i_sti_hex, i_bright, i_baseline,
         output, side, t_onset, n_t, field_deg, snapshot_t=snapshot_t,
         hexes_are_xy_deg=False,
-        bar_extent=bar_extent,
+        bar_radius=bar_radius,
         multi_bar=bool(args.multi_bar),
     )
     if args.gif is not None:
         gif = default_gif if args.gif == "" else args.gif
-        write_animation(
-            plot_hexes, showcase, hex_current, i_bright, i_baseline, gif,
+        save_animation(
+            plot_hexes, showcase, i_sti_hex, i_bright, i_baseline, gif,
             side, t_onset, n_t, field_deg, args.t_stride,
             hexes_are_xy_deg=False,
-            bar_extent=bar_extent,
+            bar_radius=bar_radius,
             multi_bar=bool(args.multi_bar),
         )
     print(f"i_sti shape {tuple(T.i_sti.shape)}  specs={T.info['spec_names']}")

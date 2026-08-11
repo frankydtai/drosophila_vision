@@ -88,7 +88,7 @@ def main():
     )
     schema = training.attach_param_carry(list(session.schema), remapped)
     session = session.with_schema(schema)
-    z = training.node_values_to_z(
+    z = training.z_from_node_values(
         remapped, schema, dtype=session.sim_dtype, device=session.device,
     )
 
@@ -100,7 +100,7 @@ def main():
     make_bundle, plot_gt, _plot_all = spot_bundle_fns(one)
     bundle = make_bundle(one, z)
 
-    out_png = os.path.join(run_path, f"model_data_spot_pre{int(ms_pre)}.png")
+    out_png = os.path.join(run_path, f"model_spot_pre{int(ms_pre)}.png")
     plot_gt(
         out_png,
         bundle=bundle,

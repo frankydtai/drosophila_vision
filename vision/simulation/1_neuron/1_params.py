@@ -8,12 +8,12 @@ caller (session fields / kwargs). Schema box numbers live in
 from __future__ import annotations
 
 
-def ms_to_t(ms: float, *, delta_ms: float) -> int:
+def t_from_ms(ms: float, *, delta_ms: float) -> int:
     """Convert milliseconds to time index count ``t`` (rounded)."""
     return int(round(float(ms) / float(delta_ms)))
 
 
-def t_to_ms(
+def ms_from_t(
     t: float,
     *,
     t_onset: int,
@@ -41,8 +41,8 @@ def ms_to_t_abs(
     dt_pre = float(delta_ms_pre)
     ms_pre = t0 * dt_pre
     if ms <= ms_pre:
-        return ms_to_t(ms, delta_ms=dt_pre)
-    return t0 + ms_to_t(ms - ms_pre, delta_ms=delta_ms)
+        return t_from_ms(ms, delta_ms=dt_pre)
+    return t0 + t_from_ms(ms - ms_pre, delta_ms=delta_ms)
 
 
 def membrane_dt_over_c(cap: float, delta_ms: float) -> float:

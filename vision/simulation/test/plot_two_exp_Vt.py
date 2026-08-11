@@ -100,12 +100,12 @@ def main(argv=None):
     S = np.zeros_like(t)
     S[i_on:i_off] = args.S0
 
-    Ks_values = [float(x) for x in parse_comma_list(args.Ks_list)]
-    Kf_values = [float(x) for x in parse_comma_list(args.Kf_list)]
-    tau_s_values = [float(x) for x in parse_comma_list(args.tau_s_list)]
-    tau_f_values = [float(x) for x in parse_comma_list(args.tau_f_list)]
+    Ks_vals = [float(x) for x in parse_comma_list(args.Ks_list)]
+    Kf_vals = [float(x) for x in parse_comma_list(args.Kf_list)]
+    tau_s_vals = [float(x) for x in parse_comma_list(args.tau_s_list)]
+    tau_f_vals = [float(x) for x in parse_comma_list(args.tau_f_list)]
 
-    n_cols = max(len(Kf_values), len(tau_f_values))
+    n_cols = max(len(Kf_vals), len(tau_f_vals))
     fig, axes = plt.subplots(
         2,
         n_cols,
@@ -123,10 +123,10 @@ def main(argv=None):
         ax.axvspan(args.t_pulse_on, args.t_pulse_off, color="0.85", zorder=0)
 
     # top row: each column is one Kf, traces sweep Ks (tau_f fixed)
-    for col, Kf_val in enumerate(Kf_values):
+    for col, Kf_val in enumerate(Kf_vals):
         ax = axes[0, col]
-        for i, Ks_val in enumerate(Ks_values):
-            color = cmap(0.15 + 0.75 * (i / max(1, len(Ks_values) - 1)))
+        for i, Ks_val in enumerate(Ks_vals):
+            color = cmap(0.15 + 0.75 * (i / max(1, len(Ks_vals) - 1)))
             Vc = V_two_exp_step_window(
                 t,
                 Vrest=args.Vrest,
@@ -150,10 +150,10 @@ def main(argv=None):
             ax.set_ylabel("V(t)")
 
     # bottom row: each column is one tau_f, traces sweep tau_s (Kf fixed)
-    for col, tau_f_val in enumerate(tau_f_values):
+    for col, tau_f_val in enumerate(tau_f_vals):
         ax = axes[1, col]
-        for i, tau_s_val in enumerate(tau_s_values):
-            color = cmap(0.15 + 0.75 * (i / max(1, len(tau_s_values) - 1)))
+        for i, tau_s_val in enumerate(tau_s_vals):
+            color = cmap(0.15 + 0.75 * (i / max(1, len(tau_s_vals) - 1)))
             Vc = V_two_exp_step_window(
                 t,
                 Vrest=args.Vrest,
@@ -178,9 +178,9 @@ def main(argv=None):
         ax.set_xlabel("t")
 
     # hide unused cells if the two column counts differ
-    for col in range(len(Kf_values), n_cols):
+    for col in range(len(Kf_vals), n_cols):
         axes[0, col].set_visible(False)
-    for col in range(len(tau_f_values), n_cols):
+    for col in range(len(tau_f_vals), n_cols):
         axes[1, col].set_visible(False)
 
     fig.suptitle(

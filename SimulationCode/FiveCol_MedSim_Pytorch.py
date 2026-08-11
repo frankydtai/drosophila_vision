@@ -64,7 +64,7 @@ Ih_gmax       = +50.0
 Ih_gain       = 1.0   # if set to 0, it will block Ih
 
 signal_amp    = 40.0 # amplitude of current injection in photoreceptors, in pA.
-data_amp      = 20.0  # amplitude of impulse response of all cells
+gt_amp      = 20.0  # amplitude of impulse response of all cells
 
 # parameter and cost function definition
 
@@ -97,7 +97,7 @@ def init_network():
     signal = torch.zeros((200,325), dtype=torch.float64).to(device)
     signal[50:200,130:138,] = signal_amp
 
-    mydata = ml.read_RecF_data()*data_amp
+    mydata = ml.read_RecF_data()*gt_amp
     mydata = torch.tensor(mydata, dtype=torch.float64)
     data   = torch.zeros((65,maxtime), dtype=torch.float64).to(device)
     

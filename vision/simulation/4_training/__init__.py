@@ -21,17 +21,17 @@ from neuron import (
     e_h_rev,
     expand_euler,
     membrane_dt_over_c,
-    ms_to_t,
+    t_from_ms,
     ms_to_t_abs,
     normalize_syn_mode,
-    f_ca_from_v,
+    v_ca_to_ca,
     forward_ca,
     forward_full,
     forward_nodes,
     forward_v,
     pack_t_onset,
     step_delta_ms,
-    t_to_ms,
+    ms_from_t,
     update_state_hp_lp,
     update_v,
     v_ca_from_v,
@@ -39,7 +39,8 @@ from neuron import (
 )
 from param_defaults import (
     CAP,
-    DATA_AMP,
+    GT_CA_AMP,
+    GT_V_AMP,
     DELTA_MS,
     DELTA_MS_PRE,
     E_EXC,
@@ -105,12 +106,14 @@ from training.params import (
     calc_multi_col_params,
     edge_node_names,
     guess_initial_params,
-    named_moments_to_z,
+    z_moments_from_named,
     pair_node_names,
     params_from_z,
     parse_train_mode_text,
     remap_named_moments,
     remap_named_node_values,
+    materialize_from_opts,
+    bias_gt_from_onset_trace,
     schema_bounds,
     schema_guess,
     schema_nparams,
@@ -118,10 +121,10 @@ from training.params import (
     seg_ntrain,
     cell_node_names,
     node_names_for_segment,
-    node_values_to_z,
+    z_from_node_values,
     validate_syn_strength_edge_train_mode,
-    z_moments_to_named,
-    z_to_node_values,
+    named_moments_from_z,
+    node_values_from_z,
 )
 from training.cost import (
     adam_moments_from_state_dict,
@@ -139,7 +142,7 @@ from training.session import (
     build_i_cli_by_task,
     extend_readout_pack_mirror_fit,
     load_network_backend,
-    make_train_opts,
+    build_train_opts,
     open_session,
     open_session_from_opts,
     open_session_from_outdir,
@@ -147,8 +150,8 @@ from training.session import (
     resolve_cell_indices,
 )
 
-from task.spot.readout import make_spot_stimulus_opts
+from task.spot.readout import build_spot_stimulus_opts
 from task.moving_bar.gt import (
-    make_moving_bar_stimulus_opts,
+    build_moving_bar_stimulus_opts,
     session_moving_bar_i_baseline,
 )

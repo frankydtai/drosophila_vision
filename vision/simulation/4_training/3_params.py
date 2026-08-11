@@ -16,6 +16,13 @@ import torch
 
 from training.readout_pack import ModelBackend, active_device, SIM_DTYPE
 from neuron import I_H_DIR_REVERSE_CELLS
+from param_defaults import (
+    A_CA_FROM_A_OUT,
+    BIAS_GT_FROM_V_ONSET,
+    BIAS_GT_FROM_V_ONSET_GRAD,
+    PARAM_BOXES,
+    V_TH_CA_FROM_V_TH,
+)
 
 
 def calc_multi_col_params(param, conn):
@@ -39,7 +46,7 @@ def build_i_h_dir(conn, i_h_reverse_cells=I_H_DIR_REVERSE_CELLS, *, dtype=SIM_DT
 #   name, kind, count, lo/hi/init/jit[, scale]
 #   scale: ``linear`` (default), ``log`` (z = log(physical)), or ``inv`` (z = 1/physical); lo/hi/init physical
 #   indi / shared / fixed / frozen : disjoint exhaustive lists of node indices
-#       fixed: not in z; value = effective_init(seg, u)  (init_override or init);
+#       fixed: not in z; value = effective_init(seg, node_index)  (init_override or init);
 #              --init-from seeds fixed via seed_fixed_from_named → init_override
 #       frozen: not in z; values from seg['carry'] (resume) or effective_init (cold)
 # z packing per segment: len(indi) slots + (1 if shared else 0).
@@ -58,13 +65,13 @@ def _physical_bounds(seg):
     return float(seg['lo']), float(seg['hi'])
 
 
-def _decode_z(seg, z_val):
+def _decode_z(seg, z_slot):
     """Map trainable z slot -> physical parameter value."""
     scale = _seg_scale(seg)
     if scale == 'linear':
-        return z_val
+        return z_slot
     lo, hi = _physical_bounds(seg)
-    phys = torch.exp(z_val) if scale == 'log' else 1.0 / z_val
+    phys = torch.exp(z_slot) if scale == 'log' else 1.0 / z_slot
     return torch.clamp(phys, min=lo, max=hi)
 
 
@@ -115,15 +122,15 @@ def schema_nparams(schema):
     return sum(seg_ntrain(seg) for seg in schema)
 
 
-def effective_init(seg, u):
-    """Per-node init: ``init_override[u]`` if present, else ``seg['init']``.
+def effective_init(seg, node_index):
+    """Per-node init: ``init_override[node_index]`` if present, else ``seg['init']``.
 
-    Fixed-mode nodes always use this (no separate ``fixed_val``).
+    Fixed-mode nodes always use this (no separate fixed init path).
     """
     io = seg.get('init_override')
-    iu = int(u)
-    if io is not None and iu in io:
-        return float(io[iu])
+    node_i = int(node_index)
+    if io is not None and node_i in io:
+        return float(io[node_i])
     return float(seg['init'])
 
 
@@ -162,7 +169,7 @@ def parse_train_mode_text(text):
 
 def resolve_train_mode_tokens(mode_tokens, node_names, *, param_name='param'):
     """Resolve token lists (with at most one ``all``) to index lists covering node_names."""
-    node_names = [str(u) for u in node_names]
+    node_names = [str(node_name) for node_name in node_names]
     name_to_i = {n: i for i, n in enumerate(node_names)}
     all_idx = set(range(len(node_names)))
     explicit = {b: [] for b in TRAIN_MODES}
@@ -199,7 +206,7 @@ def resolve_train_mode_tokens(mode_tokens, node_names, *, param_name='param'):
     return {b: list(explicit[b]) for b in TRAIN_MODES}
 
 
-def train_mode_to_names(mode, node_names):
+def names_from_train_mode(mode, node_names):
     """Index train_mode -> name lists for train_opts sidecar."""
     return {b: [str(node_names[i]) for i in mode[b]] for b in TRAIN_MODES}
 
@@ -250,19 +257,19 @@ def apply_train_modes(schema, train_modes_by_name, node_names_for_seg):
             s[b] = mode[b]
         raw_io = raw.get('init_override')
         if raw_io:
-            name_to_idx = {str(u): i for i, u in enumerate(nodes)}
+            name_to_idx = {str(node_name): i for i, node_name in enumerate(nodes)}
             io = {}
-            all_val = raw_io.get('all')
+            all_init = raw_io.get('all')
             for cell_name, val in raw_io.items():
                 if cell_name == 'all':
                     continue
                 if cell_name not in name_to_idx:
                     raise ValueError(f"{name}: init override unknown node {cell_name!r}")
                 io[name_to_idx[cell_name]] = val
-            if all_val is not None:
+            if all_init is not None:
                 for i in range(len(nodes)):
                     if i not in io:
-                        io[i] = all_val
+                        io[i] = all_init
             s['init_override'] = io
         out.append(s)
     return out
@@ -293,7 +300,7 @@ def schema_train_modes_record(schema, node_names_for_seg):
                     )
             entry = compact
         else:
-            entry = train_mode_to_names(mode, nodes)
+            entry = names_from_train_mode(mode, nodes)
         io = seg.get('init_override')
         if io:
             entry = dict(entry)
@@ -368,10 +375,10 @@ def seed_fixed_from_named(schema, named):
             continue
         arr = np.asarray(named[seg['name']], dtype=np.float64).reshape(-1)
         io = dict(seg.get('init_override') or {})
-        for u in fixed:
-            iu = int(u)
-            if 0 <= iu < arr.shape[0]:
-                io[iu] = float(arr[iu])
+        for node_index in fixed:
+            node_i = int(node_index)
+            if 0 <= node_i < arr.shape[0]:
+                io[node_i] = float(arr[node_i])
         s['init_override'] = io
         out.append(s)
     return out
@@ -403,7 +410,7 @@ def attach_param_carry(schema, named=None):
     return out
 
 
-def z_to_node_values(z, schema):
+def node_values_from_z(z, schema):
     """Full-width per-node arrays (before column expand) for each segment."""
     out = {}
     for seg, start, stop in schema_segments(schema):
@@ -412,7 +419,7 @@ def z_to_node_values(z, schema):
     return out
 
 
-def node_values_to_z(named, schema, *, dtype=None, device=None):
+def z_from_node_values(named, schema, *, dtype=None, device=None):
     """Pack full-width named node values into trainable z for *schema* train_modes."""
     n = schema_nparams(schema)
     z = torch.zeros(n, dtype=dtype or SIM_DTYPE, device=device or active_device())
@@ -423,18 +430,18 @@ def node_values_to_z(named, schema, *, dtype=None, device=None):
                 f"{seg['name']}: named length {raw.shape[0]} != count {seg_count(seg)}"
             )
         slots = []
-        for u in seg.get('indi', ()):
-            slots.append(_encode_physical(seg, raw[u]))
+        for node_index in seg.get('indi', ()):
+            slots.append(_encode_physical(seg, raw[node_index]))
         if seg.get('shared'):
-            vals = [float(raw[u]) for u in seg['shared']]
-            mean_val = float(np.mean(vals)) if vals else float(seg['init'])
-            slots.append(_encode_physical(seg, mean_val))
+            vals = [float(raw[node_index]) for node_index in seg['shared']]
+            shared_mean = float(np.mean(vals)) if vals else float(seg['init'])
+            slots.append(_encode_physical(seg, shared_mean))
         if slots:
             z[start:stop] = torch.tensor(slots, dtype=z.dtype, device=z.device)
     return z
 
 
-def z_moments_to_named(exp_avg, exp_avg_sq, schema):
+def named_moments_from_z(exp_avg, exp_avg_sq, schema):
     """Expand Adam z-space moments to full-width named arrays (no encode/decode).
 
     ``indi`` slots map 1:1 onto nodes; a ``shared`` slot is broadcast to every
@@ -454,22 +461,22 @@ def z_moments_to_named(exp_avg, exp_avg_sq, schema):
         m_arr = np.zeros(count, dtype=np.float64)
         v_arr = np.zeros(count, dtype=np.float64)
         i = 0
-        for u in seg.get('indi', ()):
-            m_arr[int(u)] = float(exp_avg[start + i])
-            v_arr[int(u)] = float(exp_avg_sq[start + i])
+        for node_index in seg.get('indi', ()):
+            m_arr[int(node_index)] = float(exp_avg[start + i])
+            v_arr[int(node_index)] = float(exp_avg_sq[start + i])
             i += 1
         if seg.get('shared'):
             m_s = float(exp_avg[start + i])
             v_s = float(exp_avg_sq[start + i])
-            for u in seg['shared']:
-                m_arr[int(u)] = m_s
-                v_arr[int(u)] = v_s
+            for node_index in seg['shared']:
+                m_arr[int(node_index)] = m_s
+                v_arr[int(node_index)] = v_s
         named_m[seg['name']] = m_arr
         named_v[seg['name']] = v_arr
     return named_m, named_v
 
 
-def named_moments_to_z(named_m, named_v, schema, *, dtype=None, device=None):
+def z_moments_from_named(named_m, named_v, schema, *, dtype=None, device=None):
     """Pack named Adam moments into z-space tensors (no encode; shared = mean)."""
     n = schema_nparams(schema)
     dt = dtype or SIM_DTYPE
@@ -486,13 +493,13 @@ def named_moments_to_z(named_m, named_v, schema, *, dtype=None, device=None):
             )
         slots_m = []
         slots_v = []
-        for u in seg.get('indi', ()):
-            slots_m.append(float(m_raw[u]))
-            slots_v.append(float(v_raw[u]))
+        for node_index in seg.get('indi', ()):
+            slots_m.append(float(m_raw[node_index]))
+            slots_v.append(float(v_raw[node_index]))
         if seg.get('shared'):
             idxs = list(seg['shared'])
-            slots_m.append(float(np.mean([m_raw[u] for u in idxs])) if idxs else 0.0)
-            slots_v.append(float(np.mean([v_raw[u] for u in idxs])) if idxs else 0.0)
+            slots_m.append(float(np.mean([m_raw[node_index] for node_index in idxs])) if idxs else 0.0)
+            slots_v.append(float(np.mean([v_raw[node_index] for node_index in idxs])) if idxs else 0.0)
         if slots_m:
             exp_avg[start:stop] = torch.tensor(slots_m, dtype=dt, device=dev)
             exp_avg_sq[start:stop] = torch.tensor(slots_v, dtype=dt, device=dev)
@@ -557,21 +564,21 @@ def _reconstruct_raw(seg, z_slice, z):
     count = seg_count(seg)
     raw = torch.empty((count,), dtype=z.dtype, device=z.device)
     carry = seg.get('carry')
-    for u in seg.get('fixed', ()):
-        raw[int(u)] = effective_init(seg, u)
+    for node_index in seg.get('fixed', ()):
+        raw[int(node_index)] = effective_init(seg, node_index)
     i = 0
-    for u in seg.get('indi', ()):
-        raw[int(u)] = _decode_z(seg, z_slice[i])
+    for node_index in seg.get('indi', ()):
+        raw[int(node_index)] = _decode_z(seg, z_slice[i])
         i += 1
     if seg.get('shared'):
-        shared_val = _decode_z(seg, z_slice[i])
-        for u in seg['shared']:
-            raw[int(u)] = shared_val
-    for u in seg.get('frozen', ()):
+        shared_decoded = _decode_z(seg, z_slice[i])
+        for node_index in seg['shared']:
+            raw[int(node_index)] = shared_decoded
+    for node_index in seg.get('frozen', ()):
         if carry is not None:
-            raw[int(u)] = float(carry[int(u)])
+            raw[int(node_index)] = float(carry[int(node_index)])
         else:
-            raw[int(u)] = effective_init(seg, u)
+            raw[int(node_index)] = effective_init(seg, node_index)
     return raw
 
 
@@ -594,18 +601,62 @@ def assign_params(z, schema, backend: ModelBackend):
     return p
 
 
+def bias_gt_from_onset_trace(onset_trace, t_onset, session):
+    """Per-cell-type mean of ``onset_trace[:, t_onset, :]``, clamped to ``bias_gt`` box."""
+    opts = session.train_opts or {}
+    lo = float(PARAM_BOXES["bias_gt"]["lo"])
+    hi = float(PARAM_BOXES["bias_gt"]["hi"])
+    t0 = int(t_onset)
+    if not torch.is_tensor(onset_trace):
+        onset_trace = torch.as_tensor(
+            onset_trace, dtype=session.sim_dtype, device=session.device,
+        )
+    x = onset_trace[:, t0, :]
+    if not bool(opts.get("bias_gt_from_v_onset_grad", BIAS_GT_FROM_V_ONSET_GRAD)):
+        x = x.detach()
+    node_cell = session.backend.conn.node_cell
+    n_cells = int(session.backend.n_cells)
+    m = x.mean(dim=0)
+    out = m.new_empty(n_cells)
+    for c in range(n_cells):
+        mask = node_cell == c
+        out[c] = m[mask].mean() if bool(mask.any()) else m.new_tensor(float("nan"))
+    return torch.clamp(out, min=lo, max=hi)
+
+
+def materialize_from_opts(p, session, *, onset_trace=None, t_onset=None):
+    """Write ``*_from_*`` sources into target params on ``p`` (mutates, returns ``p``).
+
+    * ``v_th_ca_from_v_th`` → ``p['v_th_ca'] = p['v_th']``
+    * ``a_ca_from_a_out`` → ``p['a_ca'] = p['a_out']``
+    * ``bias_gt_from_v_onset`` → ``p['bias_gt']`` from onset (needs ``onset_trace``)
+    """
+    opts = session.train_opts or {}
+    if bool(opts.get("v_th_ca_from_v_th", V_TH_CA_FROM_V_TH)):
+        p["v_th_ca"] = p["v_th"]
+    if bool(opts.get("a_ca_from_a_out", A_CA_FROM_A_OUT)):
+        p["a_ca"] = p["a_out"]
+    if bool(opts.get("bias_gt_from_v_onset", BIAS_GT_FROM_V_ONSET)):
+        if onset_trace is None or t_onset is None:
+            return p
+        p["bias_gt"] = bias_gt_from_onset_trace(onset_trace, t_onset, session)
+    return p
+
+
 def params_from_z(z, session):
-    """Bind :func:`assign_params` to a session's schema + backend."""
-    return assign_params(z, list(session.schema), session.backend)
+    """Bind :func:`assign_params` to a session's schema + backend; apply ``*_from_*``."""
+    return materialize_from_opts(
+        assign_params(z, list(session.schema), session.backend), session,
+    )
 
 
 def schema_bounds(schema, sim_dtype=SIM_DTYPE):
-    zb = torch.zeros((schema_nparams(schema), 2), dtype=sim_dtype)
+    z_bounds = torch.zeros((schema_nparams(schema), 2), dtype=sim_dtype)
     for seg, start, stop in schema_segments(schema):
         if stop > start:
-            zlo, zhi = _z_bounds(seg)
-            zb[start:stop] = torch.tensor([zlo, zhi], dtype=sim_dtype)
-    return zb
+            z_lo, z_hi = _z_bounds(seg)
+            z_bounds[start:stop] = torch.tensor([z_lo, z_hi], dtype=sim_dtype)
+    return z_bounds
 
 
 def schema_guess(schema, sim_dtype=SIM_DTYPE):
@@ -615,8 +666,8 @@ def schema_guess(schema, sim_dtype=SIM_DTYPE):
         if n == 0:
             continue
         i = 0
-        for u in seg.get('indi', ()):
-            phys = effective_init(seg, u)
+        for node_index in seg.get('indi', ()):
+            phys = effective_init(seg, node_index)
             z[start + i] = (
                 _encode_physical(seg, phys) + (np.random.random() - 0.5) * seg['jit']
             )

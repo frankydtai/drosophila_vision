@@ -21,7 +21,7 @@ from network import path  # noqa: F401 -- FAFBv783 on sys.path
 
 from build_hex import DEG, HEX_PATCH_RADIUS, hex_vertices, uv_to_xy, uv_to_xy_deg
 from path import moving_bar_cache_dir
-from neuron.params import ms_to_t
+from neuron.params import t_from_ms
 from network.construction import hex_in_cost_extent
 
 logger = logging.getLogger(__name__)
@@ -32,8 +32,8 @@ GRUNTMAN_WIDTHS_DEG = (2.25, 9.0)
 GRUNTMAN_DIRECTIONS = ("right", "left", "up", "down")
 GRUNTMAN_CONTRASTS = ("bright", "dark")
 
-# Per-lane spacing width in hex nodes (``spacing_deg = bar_extent * DEG``).
-DEFAULT_BAR_EXTENT = 2
+# Per-lane spacing width in hex nodes (``spacing_deg = bar_radius * DEG``).
+DEFAULT_BAR_RADIUS = 2
 
 # Moving-bar per-hex cost window relative to first-stimulus alignment.
 COST_WINDOW_MS = 900.0
@@ -47,13 +47,13 @@ MOVING_BAR_TAIL_MS = COST_WINDOW_AFTER_MS + T_TAIL_PAD_MS
 
 
 def cost_window_before_t(delta_ms: float) -> int:
-    """``ms_to_t(COST_WINDOW_BEFORE_MS)``."""
-    return ms_to_t(COST_WINDOW_BEFORE_MS, delta_ms=delta_ms)
+    """``t_from_ms(COST_WINDOW_BEFORE_MS)``."""
+    return t_from_ms(COST_WINDOW_BEFORE_MS, delta_ms=delta_ms)
 
 
 def cost_window_after_t(delta_ms: float) -> int:
-    """``ms_to_t(COST_WINDOW_AFTER_MS)``."""
-    return ms_to_t(COST_WINDOW_AFTER_MS, delta_ms=delta_ms)
+    """``t_from_ms(COST_WINDOW_AFTER_MS)``."""
+    return t_from_ms(COST_WINDOW_AFTER_MS, delta_ms=delta_ms)
 
 
 _HEX_AREA = 1.5 * math.sqrt(3.0) * float(HEX_PATCH_RADIUS) ** 2
@@ -230,7 +230,7 @@ def _coverage_batch(
 
 def bar_lane_pitch_deg(
     spec: MovingBarSpec,
-    bar_extent: int,
+    bar_radius: int,
     *,
     field_deg: Optional[Tuple[float, float, float, float]] = None,
     multi_bar: bool = True,
@@ -238,10 +238,10 @@ def bar_lane_pitch_deg(
     """Lane pitch in degrees.
 
     Default (``multi_bar=True``): integer width+spacing hex counts.
-    ``multi_bar=False`` + ``field_deg``: one lane spans the full sti-field extent on the motion axis.
+    ``multi_bar=False`` + ``field_deg``: one lane spans the full sti-field degree on the motion axis.
     """
-    if int(bar_extent) < 0:
-        raise ValueError(f"bar_extent must be >= 0, got {bar_extent!r}")
+    if int(bar_radius) < 0:
+        raise ValueError(f"bar_radius must be >= 0, got {bar_radius!r}")
     if not bool(multi_bar):
         if field_deg is None:
             raise ValueError("field_deg required when multi_bar=False")
@@ -252,7 +252,7 @@ def bar_lane_pitch_deg(
             return float(y1) - float(y0)
         raise ValueError(f"unknown direction {spec.direction!r}")
     width_cols = int(math.ceil(float(spec.width_deg) / float(DEG)))
-    return float(width_cols + int(bar_extent)) * float(DEG)
+    return float(width_cols + int(bar_radius)) * float(DEG)
 
 
 def _motion_field_lo_hi(
@@ -284,7 +284,7 @@ def _motion_entry_exit(
 def _motion_lanes(
     spec: MovingBarSpec,
     field_deg: Tuple[float, float, float, float],
-    bar_extent: int,
+    bar_radius: int,
     *,
     multi_bar: bool = True,
 ) -> List[Tuple[float, float]]:
@@ -292,7 +292,7 @@ def _motion_lanes(
     field_lo, field_hi = _motion_field_lo_hi(spec, field_deg)
     if not bool(multi_bar):
         return [(field_lo, field_hi - field_lo)]
-    pitch = bar_lane_pitch_deg(spec, bar_extent, field_deg=field_deg, multi_bar=True)
+    pitch = bar_lane_pitch_deg(spec, bar_radius, field_deg=field_deg, multi_bar=True)
     entry_s, exit_s = _motion_entry_exit(spec, field_lo, field_hi)
     eps = 1e-9
     lanes: List[Tuple[float, float]] = []
@@ -370,14 +370,14 @@ def _coverage_time_series(
     n_t: int,
     t_onset: int,
     delta_ms: float,
-    bar_extent: int,
+    bar_radius: int,
     *,
     multi_bar: bool = True,
 ) -> np.ndarray:
     """Coverage from simultaneous per-lane bars (network connectome field)."""
     dt_s = delta_ms / 1000.0
     trail_shift_deg = _trail_shift_deg(spec, dt_s)
-    lane_origins = _motion_lanes(spec, field_deg, bar_extent, multi_bar=multi_bar)
+    lane_origins = _motion_lanes(spec, field_deg, bar_radius, multi_bar=multi_bar)
     n_hexes = hex_stack.shape[0]
     n_post = n_t - t_onset
     out = np.zeros((n_post, n_hexes), dtype=np.float64)
@@ -396,7 +396,7 @@ def _coverage_time_series(
 
 
 def field_bounds(hexes: Sequence[Hex]) -> Tuple[float, float, float, float]:
-    """Sti-field extent in degrees from hex vertices (not centers)."""
+    """Sti-field degree bounds from hex vertices (not centers)."""
     if not hexes:
         return 0.0, 0.0, 0.0, 0.0
     xmins = [float(c.hex_xy[:, 0].min()) for c in hexes]
@@ -437,7 +437,7 @@ def _trail_to_t(
 def moving_bar_sweep_end_t(
     specs: Sequence[MovingBarSpec],
     field_deg: Tuple[float, float, float, float],
-    bar_extent: int,
+    bar_radius: int,
     *,
     multi_bar: bool = True,
     t_onset: int = None,
@@ -448,7 +448,7 @@ def moving_bar_sweep_end_t(
         return t_onset + 1
     t_exit = t_onset
     for spec in specs:
-        for lane_origin, lane_pitch in _motion_lanes(spec, field_deg, bar_extent, multi_bar=multi_bar):
+        for lane_origin, lane_pitch in _motion_lanes(spec, field_deg, bar_radius, multi_bar=multi_bar):
             trail_start, trail_exit = _lane_sweep_trail_range(spec, lane_origin, lane_pitch)
             t_exit = max(
                 t_exit,
@@ -461,7 +461,7 @@ def moving_bar_sweep_end_t(
 def moving_bar_n_t(
     specs: Sequence[MovingBarSpec],
     field_deg: Tuple[float, float, float, float],
-    bar_extent: int,
+    bar_radius: int,
     *,
     multi_bar: bool = True,
     t_onset: int = None,
@@ -469,9 +469,9 @@ def moving_bar_n_t(
     t_tail_ms: float = MOVING_BAR_TAIL_MS,
 ) -> int:
     """Simulation length: baseline + multi-bar sweep + post-sweep tail."""
-    t_tail = ms_to_t(t_tail_ms, delta_ms=delta_ms)
+    t_tail = t_from_ms(t_tail_ms, delta_ms=delta_ms)
     return moving_bar_sweep_end_t(
-        specs, field_deg, bar_extent, multi_bar=multi_bar, t_onset=t_onset, delta_ms=delta_ms,
+        specs, field_deg, bar_radius, multi_bar=multi_bar, t_onset=t_onset, delta_ms=delta_ms,
     ) + t_tail
 
 
@@ -479,7 +479,7 @@ def moving_bar_n_t(
 def moving_bar_transit_times(
     spec: MovingBarSpec,
     field_deg: Tuple[float, float, float, float],
-    bar_extent: int,
+    bar_radius: int,
     *,
     multi_bar: bool = True,
     t_onset: int = None,
@@ -487,7 +487,7 @@ def moving_bar_transit_times(
     delta_ms: float,
 ) -> Tuple[int, int, int]:
     """Return ``(entry, center, exit)`` t indices for the first multi-bar lane."""
-    lane_origin, lane_pitch = _motion_lanes(spec, field_deg, bar_extent, multi_bar=multi_bar)[0]
+    lane_origin, lane_pitch = _motion_lanes(spec, field_deg, bar_radius, multi_bar=multi_bar)[0]
     trail_start, trail_exit = _lane_sweep_trail_range(spec, lane_origin, lane_pitch)
     w = float(spec.width_deg)
     trail_shift_deg = _trail_shift_deg(spec, delta_ms / 1000.0)
@@ -507,13 +507,13 @@ def moving_bar_transit_times(
 
 
 def hex_first_stim_t(
-    hex_current: np.ndarray,
+    i_sti_hex: np.ndarray,
     i_baseline: float,
     *,
     atol: float = 1e-12,
 ) -> int:
-    """First t where a hex current differs from baseline (``t_first_sti``)."""
-    curr = np.asarray(hex_current, dtype=np.float64).reshape(-1)
+    """First t where a hex i_sti differs from baseline (``t_first_sti``)."""
+    curr = np.asarray(i_sti_hex, dtype=np.float64).reshape(-1)
     active = ~np.isclose(curr, float(i_baseline), atol=atol, rtol=0.0)
     idx = np.flatnonzero(active)
     if idx.size == 0:
@@ -524,7 +524,7 @@ def hex_first_stim_t(
 def bar_lane_rects_at_t(
     spec: MovingBarSpec,
     field_deg: Tuple[float, float, float, float],
-    bar_extent: int,
+    bar_radius: int,
     t: int,
     *,
     multi_bar: bool = True,
@@ -534,7 +534,7 @@ def bar_lane_rects_at_t(
     """All lane bar rectangles at simulation time ``t`` (empty outside local sweep)."""
     trail_shift_deg = _trail_shift_deg(spec, delta_ms / 1000.0)
     rects: List[Tuple[float, float, float, float]] = []
-    for lane_origin, lane_pitch in _motion_lanes(spec, field_deg, bar_extent, multi_bar=multi_bar):
+    for lane_origin, lane_pitch in _motion_lanes(spec, field_deg, bar_radius, multi_bar=multi_bar):
         trail_start, _ = _lane_sweep_trail_range(spec, lane_origin, lane_pitch)
         trail = float(trail_start) + (t - t_onset) * trail_shift_deg
         rect = _bar_rect_lane_clipped(
@@ -562,11 +562,11 @@ def _current_from_coverage(
     return i_baseline + coverage * (peak - i_baseline)
 
 
-def build_batched_hex_current(
+def build_batched_i_sti_hex(
     hexes: Sequence[Hex],
     specs: Sequence[MovingBarSpec],
     n_t: int,
-    bar_extent: int,
+    bar_radius: int,
     *,
     multi_bar: bool = True,
     t_onset: int = None,
@@ -602,7 +602,7 @@ def build_batched_hex_current(
         cov_ts = _coverage_time_series(
             hex_stack, specs[batch_idxs[0]], field_deg,
             n_t=n_t, t_onset=t_onset, delta_ms=delta_ms,
-            bar_extent=bar_extent,
+            bar_radius=bar_radius,
             multi_bar=multi_bar,
         )
         for b in batch_idxs:
@@ -615,7 +615,7 @@ def build_batched_hex_current(
 
 # -- Connectome mapping: hex currents -> node ``i_sti`` (was moving_bar_readout) --
 
-PD_IDX, ND_IDX = 0, 1
+PD_INDEX, ND_INDEX = 0, 1
 
 
 @dataclass
@@ -628,7 +628,7 @@ class StiHex(Hex):
 @dataclass
 class MovingBarStimulus:
     i_sti: torch.Tensor
-    hex_current: np.ndarray
+    i_sti_hex: np.ndarray
     specs: List[MovingBarSpec]
     info: dict = field(default_factory=dict)
 
@@ -730,21 +730,21 @@ def moving_bar_spec_horizon(t_first_stis: Sequence[int], n_t: int) -> Tuple[int,
 
 def moving_bar_network_t0_bn(C, filt_hexes: Sequence[StiHex], n_batch: int, t0_map: dict) -> np.ndarray:
     """Expand per-hex ``t0`` values to a full node grid ``(B, N_nodes)``."""
-    u_np = np.asarray(C.u, dtype=np.int64)
-    v_np = np.asarray(C.v, dtype=np.int64)
+    node_u_np = np.asarray(C.u, dtype=np.int64)
+    node_v_np = np.asarray(C.v, dtype=np.int64)
     t0_bn = np.full((n_batch, C.n_nodes), -1, dtype=np.int64)
     for bi in range(n_batch):
         for c in filt_hexes:
             t0 = t0_map.get((bi, int(c.u), int(c.v)))
             if t0 is None:
                 continue
-            on_hex = (u_np == int(c.u)) & (v_np == int(c.v))
+            on_hex = (node_u_np == int(c.u)) & (node_v_np == int(c.v))
             t0_bn[bi, on_hex] = t0
     return t0_bn
 
 
 def build_moving_bar_t0_grids(
-    hex_current: np.ndarray,
+    i_sti_hex: np.ndarray,
     specs: Sequence[MovingBarSpec],
     n_t: int,
     i_baseline: float,
@@ -763,14 +763,14 @@ def build_moving_bar_t0_grids(
     t0_map: dict = {}
     for bi, spec in enumerate(specs):
         t_first_all = [
-            hex_first_stim_t(hex_current[bi, :, hex_idx], i_baseline=i_baseline)
+            hex_first_stim_t(i_sti_hex[bi, :, hex_idx], i_baseline=i_baseline)
             for hex_idx in all_hex_idxs
         ]
         fb, before, after = moving_bar_spec_horizon(t_first_all, n_t)
         before_t[spec.name] = before
         after_t[spec.name] = after
         t_first_filt = [
-            hex_first_stim_t(hex_current[bi, :, hex_idx], i_baseline=i_baseline)
+            hex_first_stim_t(i_sti_hex[bi, :, hex_idx], i_baseline=i_baseline)
             for hex_idx in filt_hex_idxs
         ]
         for c, tc in zip(filt_network_hexes, t_first_filt):
@@ -792,13 +792,13 @@ def _hex_node_map(hexes: Sequence[StiHex]) -> Tuple[np.ndarray, np.ndarray]:
     )
 
 
-def scatter_hex_current_batched(hex_current, hexes, n_nodes):
-    """Broadcast ``(B, T, n_hexes)`` hex current to ``(B, T, n_nodes)``."""
-    n_batch, n_t, _ = hex_current.shape
+def i_sti_nodes_from_hex(i_sti_hex, hexes, n_nodes):
+    """Map ``(B, T, n_hexes)`` i_sti_hex to ``(B, T, n_nodes)`` by hex→node index."""
+    n_batch, n_t, _ = i_sti_hex.shape
     out = np.zeros((n_batch, n_t, n_nodes), dtype=np.float64)
     hex_idx, node_idx = _hex_node_map(hexes)
     if len(hex_idx):
-        out[:, :, node_idx] = hex_current[:, :, hex_idx]
+        out[:, :, node_idx] = i_sti_hex[:, :, hex_idx]
     return out
 
 
@@ -810,7 +810,7 @@ def _moving_bar_cache_key(
     t_onset: int,
     delta_ms: float,
     i_baseline: float,
-    bar_extent: int,
+    bar_radius: int,
     multi_bar: bool = True,
     i_bright_moving_bar: Optional[float] = None,
     i_dark_moving_bar: Optional[float] = None,
@@ -821,7 +821,7 @@ def _moving_bar_cache_key(
         "network_mtime_ns": stat.st_mtime_ns,
         "network_size": stat.st_size,
         "hex_uv": list(hex_uv),
-        "bar_extent": int(bar_extent),
+        "bar_radius": int(bar_radius),
         "multi_bar": bool(multi_bar),
         "specs": [
             {
@@ -853,14 +853,14 @@ def _moving_bar_cache_path(
     t_onset: int,
     delta_ms: float,
     i_baseline: float,
-    bar_extent: int,
+    bar_radius: int,
     multi_bar: bool = True,
     i_bright_moving_bar: Optional[float] = None,
     i_dark_moving_bar: Optional[float] = None,
 ) -> Path:
     key = _moving_bar_cache_key(
         network_json, specs, hex_uv, n_t, t_onset, delta_ms,
-        i_baseline, bar_extent, multi_bar, i_bright_moving_bar, i_dark_moving_bar,
+        i_baseline, bar_radius, multi_bar, i_bright_moving_bar, i_dark_moving_bar,
     )
     return moving_bar_cache_dir(network_json) / f"{key}.npz"
 
@@ -870,16 +870,16 @@ def _load_moving_bar_hex_cache(path: Path) -> Optional[np.ndarray]:
         return None
     try:
         with np.load(path, allow_pickle=False) as data:
-            return np.asarray(data["hex_current"], dtype=np.float64)
+            return np.asarray(data["i_sti_hex"], dtype=np.float64)
     except (OSError, KeyError, ValueError) as exc:
         logger.warning("Ignoring corrupt moving-bar cache %s: %s", path, exc)
         return None
 
 
-def _save_moving_bar_hex_cache(path: Path, hex_current: np.ndarray) -> None:
+def _save_moving_bar_hex_cache(path: Path, i_sti_hex: np.ndarray) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
-    np.savez_compressed(path, hex_current=hex_current)
-    logger.info("Cached moving-bar hex current to %s", path)
+    np.savez_compressed(path, i_sti_hex=i_sti_hex)
+    logger.info("Cached moving-bar i_sti_hex to %s", path)
 
 
 def build_moving_bar_signals(
@@ -889,7 +889,7 @@ def build_moving_bar_signals(
     t_onset: int = None,
     *,
     delta_ms: float,
-    bar_extent: int = DEFAULT_BAR_EXTENT,
+    bar_radius: int = DEFAULT_BAR_RADIUS,
     multi_bar: bool = True,
     i_baseline: float,
     i_bright_moving_bar: Optional[float] = None,
@@ -905,7 +905,7 @@ def build_moving_bar_signals(
     Returns ``i_sti`` with shape ``(B, T, N_nodes)`` where ``B = len(specs)``.
     """
     device = device or C.device
-    bar_extent = int(bar_extent)
+    bar_radius = int(bar_radius)
     multi_bar = bool(multi_bar)
     specs = list(specs if specs is not None else gruntman_moving_bar_specs())
     contrasts = {s.contrast for s in specs}
@@ -923,12 +923,12 @@ def build_moving_bar_signals(
     field_deg = field_bounds(sti)
     if n_t is None:
         n_t = moving_bar_n_t(
-            specs, field_deg, bar_extent, multi_bar=multi_bar, t_onset=t_onset, delta_ms=delta_ms,
+            specs, field_deg, bar_radius, multi_bar=multi_bar, t_onset=t_onset, delta_ms=delta_ms,
         )
     n_batch = len(specs)
     n_nodes = C.n_nodes
     sweep_end = moving_bar_sweep_end_t(
-        specs, field_deg, bar_extent, multi_bar=multi_bar, t_onset=t_onset, delta_ms=delta_ms,
+        specs, field_deg, bar_radius, multi_bar=multi_bar, t_onset=t_onset, delta_ms=delta_ms,
     )
     sweep_t = sweep_end - t_onset
     tail_t = n_t - sweep_end
@@ -939,30 +939,30 @@ def build_moving_bar_signals(
     if source_json is not None:
         cache_path = _moving_bar_cache_path(
             source_json, specs, hex_uv, n_t, t_onset, delta_ms,
-            i_baseline, bar_extent, multi_bar, i_bright, i_dark,
+            i_baseline, bar_radius, multi_bar, i_bright, i_dark,
         )
 
-    hex_curr: Optional[np.ndarray] = None
+    i_sti_hex: Optional[np.ndarray] = None
     if cache_path is not None and use_cache and not refresh_cache:
-        hex_curr = _load_moving_bar_hex_cache(cache_path)
-        if hex_curr is not None:
-            logger.info("Loaded moving-bar hex current from cache %s", cache_path)
+        i_sti_hex = _load_moving_bar_hex_cache(cache_path)
+        if i_sti_hex is not None:
+            logger.info("Loaded moving-bar i_sti_hex from cache %s", cache_path)
 
-    if hex_curr is None:
-        hex_curr = build_batched_hex_current(
-            sti, specs, n_t=n_t, bar_extent=bar_extent, multi_bar=multi_bar,
+    if i_sti_hex is None:
+        i_sti_hex = build_batched_i_sti_hex(
+            sti, specs, n_t=n_t, bar_radius=bar_radius, multi_bar=multi_bar,
             t_onset=t_onset, delta_ms=delta_ms,
             i_baseline=i_baseline, i_bright_moving_bar=i_bright, i_dark_moving_bar=i_dark,
         )
         if cache_path is not None and use_cache:
-            _save_moving_bar_hex_cache(cache_path, hex_curr)
+            _save_moving_bar_hex_cache(cache_path, i_sti_hex)
 
-    i_sti_np = scatter_hex_current_batched(hex_curr, sti, n_nodes)
+    i_sti_np = i_sti_nodes_from_hex(i_sti_hex, sti, n_nodes)
 
     info = {
         "n_batch": n_batch,
         "n_sti_hexes": len(sti),
-        "bar_extent": bar_extent,
+        "bar_radius": bar_radius,
         "multi_bar": multi_bar,
         "field_deg": field_deg,
         "n_t": n_t,
@@ -982,7 +982,7 @@ def build_moving_bar_signals(
         info["i_dark_moving_bar"] = i_dark
     return MovingBarStimulus(
         i_sti=torch.as_tensor(i_sti_np, dtype=sim_dtype, device=device),
-        hex_current=hex_curr,
+        i_sti_hex=i_sti_hex,
         specs=specs,
         info=info,
     )

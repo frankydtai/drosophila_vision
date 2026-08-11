@@ -34,7 +34,7 @@ from param_defaults import DELTA_MS
 MS_PRE = 100.0
 MS_PULSE = 50.0
 MS_RESPONSE = 400.0
-DEFAULT_SAVE = os.path.join(HERE, "spot_data_time.png")
+DEFAULT_SAVE = os.path.join(HERE, "spot_time.png")
 ABS_TOL = 1e-12
 
 

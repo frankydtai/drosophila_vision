@@ -23,6 +23,7 @@ import figure.plot_run as plot_trained
 from figure.readout import contrast_for_task
 from figure.spot import pack_spot_cost_radii, resolve_spot_gt_cubes
 from figure.util import (
+    filter_plot_token,
     gt_affine_scalars_for_cell,
     plot_std_band,
     session_filter_plot_token,
@@ -70,7 +71,7 @@ Two *different* knobs — do not mix them:
 ``--ms-shown`` is **absolute aligned ms**, never "ms before onset":
 
 * **spot**: aligned ``t = 0`` is trial start. Stimulus onset is at
-  ``t_onset = ms_to_t(ms_pre, delta_ms=delta_ms_pre)`` (e.g. ``ms_pre=1000``,
+  ``t_onset = t_from_ms(ms_pre, delta_ms=delta_ms_pre)`` (e.g. ``ms_pre=1000``,
   ``delta_ms_pre=5`` → ``t_onset=200`` ↔ **1000 ms**). Pre-stimulus is therefore
   ``--ms-shown 0,1000`` (or ``0,ms_pre``), **not** ``-1000,0``.
   Negative START is wrong for spot (aligned index goes negative; accum window
@@ -100,14 +101,18 @@ one process (do not re-invoke once per cell/spec).
 
 Per ``--run``: one ``load_best``; one batched v component forward per distinct task.
 
-* Omit ``--x`` / ``--y``: cost-extent **average** (optional ``--radius 0|1``).
+* Omit ``--x`` / ``--y``: cost-radius **average** (optional ``--radius 0|1``).
 * Exactly one ``--x`` and one ``--y``: **hex** (spot or moving_bar; one cell).
   Incompatible with ``--radius`` (hex is stim-on only).
 * Multiple x/y: rejected.
 
-``--plot true|false``: PNGs under ``{run}/cell_dynamics/`` (default true);
-  per-t step table prints only when ``--plot false``. With ``filter=ca``, the
-  first three columns are ``f_ca`` / ``f_ca_pre`` / ``f_ca_post_minus_pre``
+``--plot true|false``: PNGs under ``{run}/cell_dynamics/`` (default true).
+  With ``filter=ca``, first plot row is ``v_post`` / ``v_ca`` / ``ca``; with
+  ``filter=none``, first row is ``v_post`` only (no Ca). Training GT is named
+  ``gt_v`` or ``gt_ca`` from the run's train ``filter`` and overlays only on
+  ``v_post`` or ``ca`` respectively (not the analyze ``--filter``). Per-t step
+  table prints only when ``--plot false``. With analyze ``filter=ca``, the first
+  three table columns are ``ca`` / ``ca_pre`` / ``ca_post_minus_pre``
   (else ``v_post`` / ``v_pre`` / ``v_post_minus_pre``); membrane component
   columns stay ``v_*``.
 ``--radius 0|1``: spot average Euclidean readout radius (default 0 = stim-on hex; 1 = neighbors).
@@ -190,22 +195,22 @@ class TimeWindow:
     def forward_t_start(self, *, delta_ms: float) -> int | None:
         if self.kind != "ms":
             return None
-        return training.ms_to_t(self.start, delta_ms=delta_ms)
+        return training.t_from_ms(self.start, delta_ms=delta_ms)
 
     def forward_t_stop(self, *, delta_ms: float) -> int | None:
         if self.kind != "ms":
             return None
-        return training.ms_to_t(self.stop, delta_ms=delta_ms)
+        return training.t_from_ms(self.stop, delta_ms=delta_ms)
 
     def aligned_win_len(self, T: int, *, delta_ms: float) -> int:
         """Buffer length for spot (``t0=0``): indices ``0 .. stop`` inclusive.
 
-        For ``kind="ms"``, length is ``ms_to_t(stop) + 1``. ``stop`` must be
+        For ``kind="ms"``, length is ``t_from_ms(stop) + 1``. ``stop`` must be
         non-negative for a useful buffer (spot pre → ``stop=ms_pre``).
         """
         if self.kind != "ms":
             return T
-        return training.ms_to_t(self.stop, delta_ms=delta_ms) + 1
+        return training.t_from_ms(self.stop, delta_ms=delta_ms) + 1
 
 
 @dataclass(frozen=True)
@@ -367,6 +372,16 @@ _HP_LP_PLOT_PANELS: list[tuple[str, list[tuple[str, str]]]] = [
     ),
 ]
 
+# First plot row when ``filter=ca`` (replaces the single ``v_post`` series).
+_CA_PLOT_ROW0: tuple[str, list[tuple[str, str]]] = (
+    "v / Ca",
+    [
+        ("v_post", "v_post"),
+        ("v_ca", "v_ca"),
+        ("ca", "ca"),
+    ],
+)
+
 _BORST_COMPONENT_KEYS = (
     "v_pre_d", "v_abs", "i_sti", "g_exc", "g_inh", "g_h", "g_h_rev",
     "num_exc", "num_inh", "num_leak", "num_i_h", "num_i_h_rev", "num_v",
@@ -379,6 +394,8 @@ _HP_LP_COMPONENT_KEYS = (
 
 _BORST_PLOT_KEY_COMPONENT: dict[str, str | None] = {
     "v_post": "v_abs",
+    "v_ca": None,
+    "ca": None,
     "g_exc_nS": "g_exc",
     "g_inh_nS": "g_inh",
     "g_leak_nS": None,
@@ -397,6 +414,8 @@ _BORST_PLOT_KEY_COMPONENT: dict[str, str | None] = {
 }
 _HP_LP_PLOT_KEY_COMPONENT: dict[str, str | None] = {
     "v_post": "v_abs",
+    "v_ca": None,
+    "ca": None,
     "v_syn": "v_syn",
     "v_syn_exc": "v_syn_exc",
     "v_syn_inh": "v_syn_inh",
@@ -508,6 +527,13 @@ _BLACK_TRACE_LABELS = frozenset({"num", "den", "v_in", "v_slow", "v_hp", "dv_hp"
 # Label → reuse another label's plot color (same row cycle).
 _TRACE_COLOR_MATCH: dict[str, str] = {
     "dv_leak+dv_hp": "dv_leak",
+    "v_ca": "v_post",
+    "ca": "v_post",
+}
+# Report GT key → plot panel key (training GT kind; never mix).
+_GT_PLOT_PANEL: dict[str, str] = {
+    "gt_v": "v_post",
+    "gt_ca": "ca",
 }
 # Shared ylim across columns: borst current row; hp_lp HP-state + dv rows.
 _BORST_ROW_SHARED_YLIM = frozenset({2})
@@ -541,17 +567,22 @@ class _ComponentSpec:
         return max(len(series) for _, series in self.plot_panels)
 
 
-def _component_spec(model: str, euler: str) -> _ComponentSpec:
+def _component_spec(model: str, euler: str, *, filter: str = "v") -> _ComponentSpec:
+    """Build plot/component spec. ``filter`` is plot token ``v``|``ca`` (row-0 Ca cols)."""
     euler = training.expand_euler(euler)
+    use_ca = str(filter) == "ca"
     if model == "borst":
         if euler == "implicit":
             formula_g, formula_i = _BORST_FORMULA_G_IMPLICIT, _BORST_FORMULA_I_IMPLICIT
         else:
             formula_g, formula_i = _BORST_FORMULA_G_EXPLICIT, _BORST_FORMULA_I_EXPLICIT
+        panels = list(_BORST_PLOT_PANELS)
+        if use_ca:
+            panels[0] = _CA_PLOT_ROW0
         return _ComponentSpec(
             model="borst",
             keys=_BORST_COMPONENT_KEYS,
-            plot_panels=_BORST_PLOT_PANELS,
+            plot_panels=panels,
             plot_key_component=_BORST_PLOT_KEY_COMPONENT,
             formula_g=formula_g,
             formula_i=formula_i,
@@ -562,10 +593,13 @@ def _component_spec(model: str, euler: str) -> _ComponentSpec:
             formula_g, formula_i = _HP_LP_FORMULA_G_IMPLICIT, _HP_LP_FORMULA_I_IMPLICIT
         else:
             formula_g, formula_i = _HP_LP_FORMULA_G_EXPLICIT, _HP_LP_FORMULA_I_EXPLICIT
+        panels = list(_HP_LP_PLOT_PANELS)
+        if use_ca:
+            panels[0] = _CA_PLOT_ROW0
         return _ComponentSpec(
             model="hp_lp",
             keys=_HP_LP_COMPONENT_KEYS,
-            plot_panels=_HP_LP_PLOT_PANELS,
+            plot_panels=panels,
             plot_key_component=_HP_LP_PLOT_KEY_COMPONENT,
             formula_g=formula_g,
             formula_i=formula_i,
@@ -671,11 +705,11 @@ def _model_driver(session):
 
 def _prepare_drive(session, p, i_sti: torch.Tensor) -> torch.Tensor:
     """Model ``prepare_i_sti`` + spot ``a_sti_radius`` on a ``(B, T, N)`` pack ``i_sti``."""
-    from neuron.forward import apply_a_sti_radius
+    from neuron.forward import inject_a_sti_radius
 
     pack = session.primary_readout
     drive = _model_driver(session).prepare_i_sti(session, p, i_sti, pack)
-    return apply_a_sti_radius(drive, p, pack)
+    return inject_a_sti_radius(drive, p, pack)
 
 
 def _equilibrate(session, p, i_sti_batch: torch.Tensor, t_onset: int):
@@ -716,19 +750,19 @@ def _component_at_nodes_borst(
     """Slice node component from a completed ``update_v(..., return_component=True)`` step."""
     nodes = np.asarray(nodes, dtype=np.int64)
     with torch.no_grad():
-        u = torch.as_tensor(nodes, device=v_pre.device, dtype=torch.long)
+        node_index = torch.as_tensor(nodes, device=v_pre.device, dtype=torch.long)
         b = int(batch)
-        sig_u = sig_t[b, u] if sig_t.dim() > 1 else sig_t[u]
+        sig_active = sig_t[b, node_index] if sig_t.dim() > 1 else sig_t[node_index]
         packed = torch.stack(
             (
-                v_pre[b, u],
-                g_exc[b, u],
-                g_inh[b, u],
-                g_h[b, u],
-                g_h_rev[b, u],
-                sig_u,
-                e_leak[u],
-                v_post[b, u],
+                v_pre[b, node_index],
+                g_exc[b, node_index],
+                g_inh[b, node_index],
+                g_h[b, node_index],
+                g_h_rev[b, node_index],
+                sig_active,
+                e_leak[node_index],
+                v_post[b, node_index],
             ),
             dim=0,
         ).detach().cpu().numpy()
@@ -751,8 +785,8 @@ def _component_at_nodes_borst(
             **terms,
             "num": terms["num"],
         }
-        v_post_minus_pre_u = v_abs - v_pre_np
-    return component, v_post_minus_pre_u
+        v_post_minus_pre_active = v_abs - v_pre_np
+    return component, v_post_minus_pre_active
 
 
 def _component_at_nodes_hp_lp(
@@ -767,10 +801,10 @@ def _component_at_nodes_hp_lp(
     """Slice hp_lp ODE component tensors at ``nodes``."""
     nodes = np.asarray(nodes, dtype=np.int64)
     with torch.no_grad():
-        u = torch.as_tensor(nodes, device=v_pre.device, dtype=torch.long)
+        node_index = torch.as_tensor(nodes, device=v_pre.device, dtype=torch.long)
         b = int(batch)
-        v_pre_np = v_pre[b, u].detach().cpu().numpy()
-        v_abs = v_post[b, u].detach().cpu().numpy()
+        v_pre_np = v_pre[b, node_index].detach().cpu().numpy()
+        v_abs = v_post[b, node_index].detach().cpu().numpy()
         ref = v_onset[b, nodes] if np.ndim(v_onset) == 2 else v_onset[nodes]
         component = {
             "v_pre_d": v_pre_np - ref,
@@ -781,9 +815,11 @@ def _component_at_nodes_hp_lp(
             "dv_leak", "dv_hp",
         ):
             t = component_t[k]
-            component[k] = (t[b, u] if t.dim() > 1 else t[u]).detach().cpu().numpy()
-        v_post_minus_pre_u = v_abs - v_pre_np
-    return component, v_post_minus_pre_u
+            component[k] = (
+                t[b, node_index] if t.dim() > 1 else t[node_index]
+            ).detach().cpu().numpy()
+        v_post_minus_pre_active = v_abs - v_pre_np
+    return component, v_post_minus_pre_active
 
 
 def _log(msg: str) -> None:
@@ -891,7 +927,7 @@ class _ComponentForwardBatch:
     """One i_sti batch row for the shared full-T component forward."""
 
     all_nodes: np.ndarray
-    t0_u: np.ndarray
+    node_t0: np.ndarray
     win_len: int
     node_to_cell: dict[int, str]
     nodes_by_cell: dict[str, np.ndarray]
@@ -904,8 +940,9 @@ class _ComponentForwardAccum:
     counts: list[dict[str, np.ndarray]]
     v_post_minus_pre_sums: list[dict[str, np.ndarray]]
     spec: _ComponentSpec
-    f_ca_sums: list[dict[str, np.ndarray]] | None = None
-    f_ca_pre_sums: list[dict[str, np.ndarray]] | None = None
+    v_ca_sums: list[dict[str, np.ndarray]] | None = None
+    ca_sums: list[dict[str, np.ndarray]] | None = None
+    ca_pre_sums: list[dict[str, np.ndarray]] | None = None
 
 
 def _forward_component(
@@ -922,12 +959,11 @@ def _forward_component(
 
     Shared by bar/spot average and bar/spot hex.
     ``v_onset`` matches ``forward_full`` (``v`` at ``t_onset - 1``). Aligned index
-    ``t = t_global - t0_u``. v_post is mean absolute ``v_abs``; STD uses sum /
-    sumsq like ``std_from_traces``. When ``filter=ca``, also track ``f_ca`` from
-    ``v_ca_from_v`` + ``filter_ca`` (same as ``forward_ca``) and accumulate mean
-    ``f_ca`` / ``f_ca_pre`` per aligned t.
+    ``t = t_global - node_t0``. v_post is mean absolute ``v_abs``; STD uses sum /
+    sumsq like ``std_from_traces``. When ``filter=ca``, also track ``v_ca`` /
+    ``ca`` via ``v_ca_from_v`` + ``filter_ca`` (same as ``forward_ca``).
 
-    If ``t_start``/``t_stop`` are set (from ``--ms-shown`` via ``ms_to_t``), only
+    If ``t_start``/``t_stop`` are set (from ``--ms-shown`` via ``t_from_ms``), only
     accumulate inside that inclusive aligned window; cheap steps outside it;
     break after every node has passed ``t_stop``.
     """
@@ -947,7 +983,7 @@ def _forward_component(
 
     t_last: int | None = None
     if t_stop is not None:
-        t_last = max(int(plan.t0_u.max()) + int(t_stop) for plan in batches)
+        t_last = max(int(plan.node_t0.max()) + int(t_stop) for plan in batches)
 
     # Same ref as forward_full: v at t_onset-1, then restart so pre is stepped+accum'd.
     v_at_onset, _ = _equilibrate(session, p, drive, t_onset)
@@ -957,7 +993,7 @@ def _forward_component(
     state, v = drv.pre_steady(session, p, B, i_sti=drive)
 
     use_ca = session_filter_plot_token(session) == "ca"
-    f_ca = training.v_ca_from_v(v, p, session) if use_ca else None
+    ca = training.v_ca_from_v(v, p, session) if use_ca else None
     tau_ca = (
         torch.clamp(p["tau_ca"], min=float(session.delta_ms)) if use_ca else None
     )
@@ -966,8 +1002,9 @@ def _forward_component(
     sumsq_b: list[dict[str, np.ndarray]] = []
     counts_b: list[dict[str, np.ndarray]] = []
     v_post_minus_pre_sums_b: list[dict[str, np.ndarray]] = []
-    f_ca_sums_b: list[dict[str, np.ndarray]] | None = [] if use_ca else None
-    f_ca_pre_sums_b: list[dict[str, np.ndarray]] | None = [] if use_ca else None
+    v_ca_sums_b: list[dict[str, np.ndarray]] | None = [] if use_ca else None
+    ca_sums_b: list[dict[str, np.ndarray]] | None = [] if use_ca else None
+    ca_pre_sums_b: list[dict[str, np.ndarray]] | None = [] if use_ca else None
     for plan in batches:
         wl = plan.win_len
         sums_b.append({c: np.zeros((wl, n_keys), dtype=float) for c in cells})
@@ -975,8 +1012,9 @@ def _forward_component(
         counts_b.append({c: np.zeros(wl, dtype=np.int64) for c in cells})
         v_post_minus_pre_sums_b.append({c: np.zeros(wl, dtype=float) for c in cells})
         if use_ca:
-            f_ca_sums_b.append({c: np.zeros(wl, dtype=float) for c in cells})
-            f_ca_pre_sums_b.append({c: np.zeros(wl, dtype=float) for c in cells})
+            v_ca_sums_b.append({c: np.zeros(wl, dtype=float) for c in cells})
+            ca_sums_b.append({c: np.zeros(wl, dtype=float) for c in cells})
+            ca_pre_sums_b.append({c: np.zeros(wl, dtype=float) for c in cells})
 
     node_lookups = [_node_cell_lookup(plan, cells) for plan in batches]
 
@@ -987,14 +1025,14 @@ def _forward_component(
         actives: list[tuple[np.ndarray, np.ndarray] | None] = []
         need_component = False
         for plan in batches:
-            au = plan.all_nodes
-            t_u = t_global - plan.t0_u
-            in_win = (t_u >= 0) & (t_u < plan.win_len)
+            all_nodes = plan.all_nodes
+            node_aligned_t = t_global - plan.node_t0
+            in_win = (node_aligned_t >= 0) & (node_aligned_t < plan.win_len)
             if t_start is not None:
-                in_win = in_win & (t_u >= t_start) & (t_u <= t_stop)
+                in_win = in_win & (node_aligned_t >= t_start) & (node_aligned_t <= t_stop)
             if np.any(in_win):
                 need_component = True
-                actives.append((au[in_win], t_u[in_win].astype(np.int64)))
+                actives.append((all_nodes[in_win], node_aligned_t[in_win].astype(np.int64)))
             else:
                 actives.append(None)
 
@@ -1004,16 +1042,16 @@ def _forward_component(
                 state, v, p, sig_t, session,
                 delta_ms=step_dt,
             )
-            if f_ca is not None:
-                f_ca = filter_ca(
-                    f_ca, training.v_ca_from_v(v, p, session),
+            if ca is not None:
+                ca = filter_ca(
+                    ca, training.v_ca_from_v(v, p, session),
                     delta_ms=step_dt, tau_ca=tau_ca,
                 )
             continue
 
         with torch.no_grad():
             v_pre = v
-            f_ca_pre = f_ca
+            ca_pre = ca
             if spec.model == "borst":
                 state, v, (g_exc, g_inh, g_h, g_h_rev) = drv.step(
                     state, v, p, sig_t, session,
@@ -1024,37 +1062,41 @@ def _forward_component(
                     state, v, p, sig_t, session,
                     delta_ms=step_dt, return_component=True,
                 )
-            if f_ca is not None:
-                f_ca = filter_ca(
-                    f_ca_pre, training.v_ca_from_v(v, p, session),
-                    delta_ms=step_dt, tau_ca=tau_ca,
+            v_ca = None
+            if ca is not None:
+                v_ca = training.v_ca_from_v(v, p, session)
+                ca = filter_ca(
+                    ca_pre, v_ca, delta_ms=step_dt, tau_ca=tau_ca,
                 )
 
         for b, plan in enumerate(batches):
             active_pack = actives[b]
             if active_pack is None:
                 continue
-            active, active_t = active_pack
+            active_node_index, active_t = active_pack
             if spec.model == "borst":
-                component, v_post_minus_pre_u = _component_at_nodes_borst(
+                component, v_post_minus_pre_active = _component_at_nodes_borst(
                     v_pre, v, g_exc, g_inh, g_h, g_h_rev, sig_t,
-                    p["e_leak"], active, v_onset, batch=b,
+                    p["e_leak"], active_node_index, v_onset, batch=b,
                     delta_ms=step_dt, cap=session.cap, g_leak=session.g_leak,
                     e_exc=session.e_exc, e_inh=session.e_inh, e_h=session.e_h,
                     euler=session.euler,
                 )
             else:
-                component, v_post_minus_pre_u = _component_at_nodes_hp_lp(
-                    v_pre, v, component_t, active, v_onset, batch=b,
+                component, v_post_minus_pre_active = _component_at_nodes_hp_lp(
+                    v_pre, v, component_t, active_node_index, v_onset, batch=b,
                 )
             component_mat = _component_matrix(component, spec.keys)
             lookup = node_lookups[b]
-            tags = lookup[active]
-            f_post_u = f_pre_u = None
-            if f_ca is not None:
-                u = torch.as_tensor(active, device=f_ca.device, dtype=torch.long)
-                f_post_u = f_ca[b, u].detach().cpu().numpy()
-                f_pre_u = f_ca_pre[b, u].detach().cpu().numpy()
+            tags = lookup[active_node_index]
+            v_ca_active = ca_post_active = ca_pre_active = None
+            if ca is not None:
+                active_node_index_t = torch.as_tensor(
+                    active_node_index, device=ca.device, dtype=torch.long,
+                )
+                v_ca_active = v_ca[b, active_node_index_t].detach().cpu().numpy()
+                ca_post_active = ca[b, active_node_index_t].detach().cpu().numpy()
+                ca_pre_active = ca_pre[b, active_node_index_t].detach().cpu().numpy()
             for ci, cell in enumerate(cells):
                 mask = tags == ci
                 if not np.any(mask):
@@ -1063,11 +1105,14 @@ def _forward_component(
                 chunk = component_mat[mask]
                 np.add.at(sums_b[b][cell], ts, chunk)
                 np.add.at(sumsq_b[b][cell], ts, chunk * chunk)
-                np.add.at(v_post_minus_pre_sums_b[b][cell], ts, v_post_minus_pre_u[mask])
+                np.add.at(
+                    v_post_minus_pre_sums_b[b][cell], ts, v_post_minus_pre_active[mask],
+                )
                 np.add.at(counts_b[b][cell], ts, 1)
-                if f_post_u is not None:
-                    np.add.at(f_ca_sums_b[b][cell], ts, f_post_u[mask])
-                    np.add.at(f_ca_pre_sums_b[b][cell], ts, f_pre_u[mask])
+                if v_ca_active is not None:
+                    np.add.at(v_ca_sums_b[b][cell], ts, v_ca_active[mask])
+                    np.add.at(ca_sums_b[b][cell], ts, ca_post_active[mask])
+                    np.add.at(ca_pre_sums_b[b][cell], ts, ca_pre_active[mask])
 
     return _ComponentForwardAccum(
         sums=sums_b,
@@ -1075,8 +1120,9 @@ def _forward_component(
         counts=counts_b,
         v_post_minus_pre_sums=v_post_minus_pre_sums_b,
         spec=spec,
-        f_ca_sums=f_ca_sums_b,
-        f_ca_pre_sums=f_ca_pre_sums_b,
+        v_ca_sums=v_ca_sums_b,
+        ca_sums=ca_sums_b,
+        ca_pre_sums=ca_pre_sums_b,
     )
 
 
@@ -1134,8 +1180,9 @@ def _finalize_component_report(
     ti_mode: str,
     component_spec: _ComponentSpec,
     extra: dict[str, Any] | None = None,
-    f_ca_sums: np.ndarray | None = None,
-    f_ca_pre_sums: np.ndarray | None = None,
+    v_ca_sums: np.ndarray | None = None,
+    ca_sums: np.ndarray | None = None,
+    ca_pre_sums: np.ndarray | None = None,
 ) -> dict[str, Any]:
     """Build one report dict from a single batch×cell accum row."""
     # Peak on |v_post_d| (= |v_post − v_onset| = |v_pre_d + v_post_minus_pre|).
@@ -1143,8 +1190,8 @@ def _finalize_component_report(
     n = int(v_post_d.size)
     if time_window.kind == "ms":
         dt = float(session.delta_ms)
-        t_lo = training.ms_to_t(time_window.start, delta_ms=dt)
-        t_hi = training.ms_to_t(time_window.stop, delta_ms=dt)
+        t_lo = training.t_from_ms(time_window.start, delta_ms=dt)
+        t_hi = training.t_from_ms(time_window.stop, delta_ms=dt)
         if t_lo < 0 or t_hi >= n or t_lo > t_hi:
             raise SystemExit(
                 f"--ms-shown {time_window.start:g},{time_window.stop:g} "
@@ -1178,12 +1225,14 @@ def _finalize_component_report(
             g_leak=float(session.g_leak),
             dt_over_c=float(training.membrane_dt_over_c(session.cap, session.delta_ms)),
         )
-        if f_ca_sums is not None and f_ca_pre_sums is not None:
-            f_ca = float(f_ca_sums[t] / n_nodes)
-            f_ca_pre = float(f_ca_pre_sums[t] / n_nodes)
-            step["f_ca"] = f_ca
-            step["f_ca_pre"] = f_ca_pre
-            step["f_ca_post_minus_pre"] = f_ca - f_ca_pre
+        if v_ca_sums is not None:
+            step["v_ca"] = float(v_ca_sums[t] / n_nodes)
+        if ca_sums is not None and ca_pre_sums is not None:
+            ca = float(ca_sums[t] / n_nodes)
+            ca_pre = float(ca_pre_sums[t] / n_nodes)
+            step["ca"] = ca
+            step["ca_pre"] = ca_pre
+            step["ca_post_minus_pre"] = ca - ca_pre
         steps.append(step)
         if t == peak_t:
             peak_step = step
@@ -1218,11 +1267,16 @@ def _finalize_component_report(
         ),
         "v_post": v_post.tolist(),
     }
-    if f_ca_sums is not None:
+    if v_ca_sums is not None:
         n_t = np.maximum(counts, 1)
-        f_ca_trace = f_ca_sums / n_t
-        f_ca_trace[counts == 0] = 0.0
-        report["f_ca"] = f_ca_trace.tolist()
+        v_ca_trace = v_ca_sums / n_t
+        v_ca_trace[counts == 0] = 0.0
+        report["v_ca"] = v_ca_trace.tolist()
+    if ca_sums is not None:
+        n_t = np.maximum(counts, 1)
+        ca_trace = ca_sums / n_t
+        ca_trace[counts == 0] = 0.0
+        report["ca"] = ca_trace.tolist()
     if extra:
         report.update(extra)
     return report
@@ -1337,11 +1391,11 @@ def _globals(session):
 
 
 def _node_to_cell_map(nodes_by_cell: dict[str, np.ndarray]) -> dict[int, str]:
-    u2c: dict[int, str] = {}
-    for cell, us in nodes_by_cell.items():
-        for u in np.asarray(us, dtype=np.int64).ravel():
-            u2c[int(u)] = cell
-    return u2c
+    node_id_to_cell: dict[int, str] = {}
+    for cell, node_ids in nodes_by_cell.items():
+        for node_id in np.asarray(node_ids, dtype=np.int64).ravel():
+            node_id_to_cell[int(node_id)] = cell
+    return node_id_to_cell
 
 
 def _node_cell_lookup(plan: _ComponentForwardBatch, cells: list[str]) -> np.ndarray:
@@ -1350,10 +1404,10 @@ def _node_cell_lookup(plan: _ComponentForwardBatch, cells: list[str]) -> np.ndar
     if plan.all_nodes.size == 0:
         return np.empty(0, dtype=np.int32)
     out = np.full(int(plan.all_nodes.max()) + 1, -1, dtype=np.int32)
-    for u, cname in plan.node_to_cell.items():
+    for node_id, cname in plan.node_to_cell.items():
         ci = cell_i.get(cname)
         if ci is not None:
-            out[int(u)] = ci
+            out[int(node_id)] = ci
     return out
 
 
@@ -1370,6 +1424,7 @@ def _merge_forward_accum(
     dict[str, np.ndarray],
     dict[str, np.ndarray] | None,
     dict[str, np.ndarray] | None,
+    dict[str, np.ndarray] | None,
 ]:
     """Sum per-cell accum rows across run batches (spot multi-stimulus mean)."""
     n_keys = accum.spec.n_keys
@@ -1378,13 +1433,17 @@ def _merge_forward_accum(
     counts = {c: np.zeros(win_len, dtype=np.int64) for c in cells}
     v_post_minus_pre_sums = {c: np.zeros(win_len, dtype=float) for c in cells}
     nodes_ref = {c: np.zeros(0, dtype=np.int64) for c in cells}
-    f_ca_sums = (
+    v_ca_sums = (
         {c: np.zeros(win_len, dtype=float) for c in cells}
-        if accum.f_ca_sums is not None else None
+        if accum.v_ca_sums is not None else None
     )
-    f_ca_pre_sums = (
+    ca_sums = (
         {c: np.zeros(win_len, dtype=float) for c in cells}
-        if accum.f_ca_pre_sums is not None else None
+        if accum.ca_sums is not None else None
+    )
+    ca_pre_sums = (
+        {c: np.zeros(win_len, dtype=float) for c in cells}
+        if accum.ca_pre_sums is not None else None
     )
     for b, plan in enumerate(forward_batches):
         for cell in cells:
@@ -1399,26 +1458,27 @@ def _merge_forward_accum(
             sumsq[cell] += accum.sumsq[b][cell]
             counts[cell] += accum.counts[b][cell]
             v_post_minus_pre_sums[cell] += accum.v_post_minus_pre_sums[b][cell]
-            if f_ca_sums is not None:
-                f_ca_sums[cell] += accum.f_ca_sums[b][cell]
-                f_ca_pre_sums[cell] += accum.f_ca_pre_sums[b][cell]
+            if v_ca_sums is not None:
+                v_ca_sums[cell] += accum.v_ca_sums[b][cell]
+                ca_sums[cell] += accum.ca_sums[b][cell]
+                ca_pre_sums[cell] += accum.ca_pre_sums[b][cell]
     return (
         sums, sumsq, counts, v_post_minus_pre_sums, nodes_ref,
-        f_ca_sums, f_ca_pre_sums,
+        v_ca_sums, ca_sums, ca_pre_sums,
     )
 
 
-def _make_forward_batch(
+def _build_forward_batch(
     nodes_by_cell: dict[str, np.ndarray],
     *,
     t0_bn_row: np.ndarray,
     win_len: int,
 ) -> _ComponentForwardBatch:
-    """Build one run batch; ``t0_u[i] = t0_bn_row[all_nodes[i]]``."""
-    all_nodes = np.unique(np.concatenate([us for us in nodes_by_cell.values()]))
+    """Build one run batch; ``node_t0[i] = t0_bn_row[all_nodes[i]]``."""
+    all_nodes = np.unique(np.concatenate([ids for ids in nodes_by_cell.values()]))
     return _ComponentForwardBatch(
         all_nodes=all_nodes,
-        t0_u=np.asarray(t0_bn_row[all_nodes], dtype=np.int64),
+        node_t0=np.asarray(t0_bn_row[all_nodes], dtype=np.int64),
         win_len=int(win_len),
         node_to_cell=_node_to_cell_map(nodes_by_cell),
         nodes_by_cell=nodes_by_cell,
@@ -1426,7 +1486,7 @@ def _make_forward_batch(
 
 
 # ---------------------------------------------------------------------------
-# Average bar components (cost-extent)
+# Average bar components (cost-radius)
 # ---------------------------------------------------------------------------
 
 
@@ -1435,7 +1495,7 @@ def _bar_meta(session, task: str):
     specs = bar_specs_for_session(session, task)
     pack = session.pack_for(task)
     grids = moving_bar_session_t0_grids(
-        session, specs, pack.cost_extent, int(session.n_t),
+        session, specs, pack.cost_radius, int(session.n_t),
         t_onset=training.pack_t_onset(pack),
         delta_ms=float(session.delta_ms),
     )
@@ -1477,7 +1537,7 @@ def _resolve_bar_spec_i_sti(
     specs=None,
     grids=None,
 ):
-    """Validate specs; return ``(pack, specs, grids, bis, i_sti, t0_bn)``."""
+    """Validate specs; return ``(pack, specs, grids, spec_batch_indices, i_sti, t0_bn)``."""
     if task not in training.MOVING_BAR_TASKS:
         raise SystemExit(f"unsupported task {task!r}")
     if not spec_names:
@@ -1485,12 +1545,12 @@ def _resolve_bar_spec_i_sti(
     pack = session.pack_for(task)
     if specs is None or grids is None:
         specs, grids = _bar_meta(session, task)
-    name_to_bi = {s.name: i for i, s in enumerate(specs)}
-    missing = [s for s in spec_names if s not in name_to_bi]
+    spec_name_to_batch_index = {s.name: i for i, s in enumerate(specs)}
+    missing = [s for s in spec_names if s not in spec_name_to_batch_index]
     if missing:
         raise SystemExit(f"spec(s) {missing} not in {[s.name for s in specs]}")
-    bis = [name_to_bi[s] for s in spec_names]
-    return pack, specs, grids, bis, pack.i_sti[bis], np.asarray(grids.t0_bn)
+    spec_batch_indices = [spec_name_to_batch_index[s] for s in spec_names]
+    return pack, specs, grids, spec_batch_indices, pack.i_sti[spec_batch_indices], np.asarray(grids.t0_bn)
 
 
 def _analyze_component_forward(
@@ -1539,8 +1599,9 @@ def _analyze_component_forward(
         sumsq: np.ndarray,
         counts: np.ndarray,
         v_post_minus_pre_sums: np.ndarray,
-        f_ca_sums: np.ndarray | None = None,
-        f_ca_pre_sums: np.ndarray | None = None,
+        v_ca_sums: np.ndarray | None = None,
+        ca_sums: np.ndarray | None = None,
+        ca_pre_sums: np.ndarray | None = None,
     ) -> dict[str, Any]:
         if nodes.size == 0:
             raise SystemExit(f"no nodes for cell {cell!r}")
@@ -1569,8 +1630,9 @@ def _analyze_component_forward(
             ti_mode=ti_mode,
             component_spec=component_spec,
             extra=cell_extra or None,
-            f_ca_sums=f_ca_sums,
-            f_ca_pre_sums=f_ca_pre_sums,
+            v_ca_sums=v_ca_sums,
+            ca_sums=ca_sums,
+            ca_pre_sums=ca_pre_sums,
         )
         if n_nodes_for_cell is not None:
             report["n_nodes"] = int(n_nodes_for_cell(cell))
@@ -1580,7 +1642,7 @@ def _analyze_component_forward(
         win_len = forward_batches[0].win_len
         (
             sums, sumsq, counts, v_post_minus_pre_sums, nodes_ref,
-            f_ca_sums, f_ca_pre_sums,
+            v_ca_sums, ca_sums, ca_pre_sums,
         ) = _merge_forward_accum(
             accum, forward_batches, cells, win_len,
         )
@@ -1595,8 +1657,9 @@ def _analyze_component_forward(
                 sumsq=sumsq[cell],
                 counts=counts[cell],
                 v_post_minus_pre_sums=v_post_minus_pre_sums[cell],
-                f_ca_sums=None if f_ca_sums is None else f_ca_sums[cell],
-                f_ca_pre_sums=None if f_ca_pre_sums is None else f_ca_pre_sums[cell],
+                v_ca_sums=None if v_ca_sums is None else v_ca_sums[cell],
+                ca_sums=None if ca_sums is None else ca_sums[cell],
+                ca_pre_sums=None if ca_pre_sums is None else ca_pre_sums[cell],
             )
             for cell in cells
         }
@@ -1616,12 +1679,15 @@ def _analyze_component_forward(
                 sumsq=accum.sumsq[b][cell],
                 counts=accum.counts[b][cell],
                 v_post_minus_pre_sums=accum.v_post_minus_pre_sums[b][cell],
-                f_ca_sums=(
-                    None if accum.f_ca_sums is None else accum.f_ca_sums[b][cell]
+                v_ca_sums=(
+                    None if accum.v_ca_sums is None else accum.v_ca_sums[b][cell]
                 ),
-                f_ca_pre_sums=(
-                    None if accum.f_ca_pre_sums is None
-                    else accum.f_ca_pre_sums[b][cell]
+                ca_sums=(
+                    None if accum.ca_sums is None else accum.ca_sums[b][cell]
+                ),
+                ca_pre_sums=(
+                    None if accum.ca_pre_sums is None
+                    else accum.ca_pre_sums[b][cell]
                 ),
             )
     return out
@@ -1642,18 +1708,22 @@ def _analyze_bar_forward(
     extra: dict[str, Any] | None = None,
 ) -> dict[str, dict[str, dict[str, Any]]]:
     """Bar prep: resolve i_sti/specs → ``_analyze_component_forward`` (no merge)."""
-    pack, specs, grids, bis, i_sti, t0_bn = _resolve_bar_spec_i_sti(
+    pack, specs, grids, spec_batch_indices, i_sti, t0_bn = _resolve_bar_spec_i_sti(
         session, task, spec_names, specs=specs, grids=grids,
     )
     before_b: list[int] = []
     forward_batches: list[_ComponentForwardBatch] = []
-    for bi, spec in zip(bis, spec_names):
-        usets = nodes_for_bi(bi, spec, pack=pack, t0_bn=t0_bn)
+    for spec_batch_index, spec in zip(spec_batch_indices, spec_names):
+        spec_nodes_by_cell = nodes_for_bi(spec_batch_index, spec, pack=pack, t0_bn=t0_bn)
         before = int(grids.before_t[spec])
         after = int(grids.after_t[spec])
         before_b.append(before)
         forward_batches.append(
-            _make_forward_batch(usets, t0_bn_row=t0_bn[bi], win_len=before + after + 1),
+            _build_forward_batch(
+                spec_nodes_by_cell,
+                t0_bn_row=t0_bn[spec_batch_index],
+                win_len=before + after + 1,
+            ),
         )
     return _analyze_component_forward(
         session,
@@ -1692,7 +1762,7 @@ def analyze_bar_average(
     def nodes_for_bi(bi, spec, *, pack, t0_bn):
         C = session.backend.network
         if not cols_holder:
-            cols_holder.append(moving_bar_cost_hexes(C, cost_extent=pack.cost_extent))
+            cols_holder.append(moving_bar_cost_hexes(C, cost_radius=pack.cost_radius))
         hexes = cols_holder[0]
         out: dict[str, np.ndarray] = {}
         for cell in cells:
@@ -1702,7 +1772,7 @@ def analyze_bar_average(
                 raise SystemExit(str(exc)) from exc
             nodes = nodes[t0_bn[bi, nodes] >= 0]
             if nodes.size == 0:
-                raise SystemExit(f"no valid {cell} nodes in cost_extent for bar aggregation")
+                raise SystemExit(f"no valid {cell} nodes in cost_radius for bar aggregation")
             out[cell] = nodes
         return out
 
@@ -1739,14 +1809,14 @@ def _spot_session_readout(session_one, cells: list[str]):
         C,
         spot_stimulus_batches(spot),
         pack_spot_cost_radii(pack),
-        pack.cost_extent,
+        pack.cost_radius,
     )
-    type_i: dict[str, int] = {}
+    cell_name_to_type_index: dict[str, int] = {}
     for cell in cells:
         if cell not in C.cell_names:
             raise SystemExit(f"unknown cell {cell!r}")
-        type_i[cell] = C.cell_names.index(cell)
-    return pack, batch_idx, node_idx, radii, type_idx, type_i
+        cell_name_to_type_index[cell] = C.cell_names.index(cell)
+    return pack, batch_idx, node_idx, radii, type_idx, cell_name_to_type_index
 
 
 def _spot_radius_row(radii: np.ndarray, radius: int) -> np.ndarray:
@@ -1754,7 +1824,7 @@ def _spot_radius_row(radii: np.ndarray, radius: int) -> np.ndarray:
     return np.isclose(np.asarray(radii, dtype=np.float64), float(radius))
 
 
-def _spot_gt_v_post_extra(
+def _spot_gt_extra(
     *,
     cell: str,
     gt_on: dict,
@@ -1764,9 +1834,12 @@ def _spot_gt_v_post_extra(
     t_onset: int,
     a_gt: float,
     bias_gt: float,
+    gt_key: str,
 ) -> dict[str, Any]:
-    """GT on absolute ``v`` axis: ``a_gt * gt + effective_bias`` (matches cost)."""
-    extra: dict[str, Any] = {"gt_peak": None, "gt_v_post": None, "radius": radius}
+    """Affine GT on readout axis: ``a_gt * gt + bias``; key is ``gt_v`` or ``gt_ca``."""
+    if gt_key not in _GT_PLOT_PANEL:
+        raise SystemExit(f"unknown gt_key {gt_key!r}; expected gt_v|gt_ca")
+    extra: dict[str, Any] = {"gt_peak": None, gt_key: None, "radius": radius}
     if cell not in gt_on:
         return extra
     gt_cube = np.asarray(gt_on[cell], dtype=float)
@@ -1780,20 +1853,46 @@ def _spot_gt_v_post_extra(
     mask = np.isfinite(v_post) & np.isfinite(v_post_d)
     if not np.any(mask):
         return extra
-    extra["gt_v_post"] = gt_aff.tolist()
+    extra[gt_key] = gt_aff.tolist()
     return extra
 
 
-def _spot_extra_for_cell_fn(session_one, p, pack, *, radius: int, t_onset: int):
-    """Build ``extra_for_cell`` closure with affine GT for one spot pack."""
+def _spot_extra_for_cell_fn(
+    session_one, p, pack, *, radius: int, t_onset: int, train_filter,
+):
+    """Build ``extra_for_cell`` with training GT named ``gt_v`` / ``gt_ca``."""
+    from param_defaults import BIAS_GT_FROM_V_ONSET, PARAM_BOXES
     contrast = contrast_for_task(pack.name)
-    gt_on = resolve_spot_gt_cubes({contrast: session_one}).get(contrast) or {}
+    train_filter = training.expand_filter(train_filter)
+    gt_key = f"gt_{filter_plot_token(train_filter)}"
+    gt_on = resolve_spot_gt_cubes(
+        {contrast: session_one}, filter=train_filter,
+    ).get(contrast) or {}
+    opts = session_one.train_opts or {}
+    from_onset = bool(opts.get("bias_gt_from_v_onset", BIAS_GT_FROM_V_ONSET))
+    lo = float(PARAM_BOXES["bias_gt"]["lo"])
+    hi = float(PARAM_BOXES["bias_gt"]["hi"])
+    names = [str(n) for n in session_one.backend.network.cell_names]
 
     def extra_for_cell(
         cell: str, v_post: np.ndarray, v_post_d: np.ndarray,
     ) -> dict[str, Any]:
-        a_gt, bias_gt = gt_affine_scalars_for_cell(p, cell, session_one.backend)
-        return _spot_gt_v_post_extra(
+        if from_onset and 0 <= int(t_onset) < len(v_post):
+            ci = names.index(str(cell))
+            val = float(np.clip(float(v_post[int(t_onset)]), lo, hi))
+            bg = p["bias_gt"]
+            if torch.is_tensor(bg):
+                if bg.dim() == 0:
+                    p["bias_gt"] = bg.new_tensor(val)
+                else:
+                    p["bias_gt"] = bg.clone()
+                    p["bias_gt"][ci] = val
+            else:
+                p["bias_gt"] = val
+        a_gt, bias_gt = gt_affine_scalars_for_cell(
+            p, cell, session_one.backend, session=session_one,
+        )
+        return _spot_gt_extra(
             cell=cell,
             gt_on=gt_on,
             radius=radius,
@@ -1802,6 +1901,7 @@ def _spot_extra_for_cell_fn(session_one, p, pack, *, radius: int, t_onset: int):
             t_onset=t_onset,
             a_gt=a_gt,
             bias_gt=bias_gt,
+            gt_key=gt_key,
         )
 
     return extra_for_cell
@@ -1815,17 +1915,19 @@ def analyze_spot_average(
     task: str,
     time_window: TimeWindow,
     radius: int = 0,
+    train_filter="none",
 ) -> dict[str, dict[str, Any]]:
     """One batched v forward over spot stimulus rows; mean at Euclidean ``radius``.
 
     ``time_window`` is absolute aligned ms for spot (``0`` = trial start). Pre
     only: ``TimeWindow("ms", 0, ms_pre)``. Do not pass negative ``start`` for
     "before onset" — that confuses stimulus length with the analyze window.
+    ``train_filter`` is the run's training ``filter`` (names GT ``gt_v``/``gt_ca``).
     """
     if task not in training.SPOT_TASKS:
         raise SystemExit(f"unsupported task {task!r}")
     radius = int(radius)
-    pack, batch_idx, node_idx, radii, type_idx, type_i = _spot_session_readout(
+    pack, batch_idx, node_idx, radii, type_idx, cell_name_to_type_index = _spot_session_readout(
         session_one, cells,
     )
     radius_row = _spot_radius_row(radii, radius)
@@ -1842,15 +1944,15 @@ def analyze_spot_average(
         row_mask = radius_row & (batch_idx == b)
         if not np.any(row_mask):
             continue
-        usets: dict[str, np.ndarray] = {}
+        nodes_by_cell: dict[str, np.ndarray] = {}
         for cell in cells:
-            m = row_mask & (type_idx == type_i[cell])
+            m = row_mask & (type_idx == cell_name_to_type_index[cell])
             if np.any(m):
-                usets[cell] = np.unique(node_idx[m])
-        if not usets:
+                nodes_by_cell[cell] = np.unique(node_idx[m])
+        if not nodes_by_cell:
             continue
         forward_batches.append(
-            _make_forward_batch(usets, t0_bn_row=t0_abs, win_len=win_len),
+            _build_forward_batch(nodes_by_cell, t0_bn_row=t0_abs, win_len=win_len),
         )
         i_sti_rows.append(b)
 
@@ -1876,9 +1978,10 @@ def analyze_spot_average(
         extra={"radius": radius},
         extra_for_cell=_spot_extra_for_cell_fn(
             session_one, p, pack, radius=radius, t_onset=t_onset,
+            train_filter=train_filter,
         ),
         n_nodes_for_cell=lambda cell: int(
-            np.sum(radius_row & (type_idx == type_i[cell]))
+            np.sum(radius_row & (type_idx == cell_name_to_type_index[cell]))
         ),
     )
 
@@ -1888,17 +1991,17 @@ def analyze_spot_average(
 # ---------------------------------------------------------------------------
 
 
-def _nodes_at_hex(session, cell: str, *, at_x: float, at_y: float, cost_extent: int):
+def _nodes_at_hex(session, cell: str, *, at_x: float, at_y: float, cost_radius: int):
     C = session.backend.network
     if C is None:
         raise SystemExit("hex mode requires a network backend")
     hexes = filter_sti_hexes(
-        moving_bar_cost_hexes(C, cost_extent=cost_extent),
+        moving_bar_cost_hexes(C, cost_radius=cost_radius),
         at_x=at_x,
         at_y=at_y,
     )
     if not hexes:
-        raise SystemExit(f"no hex at x={at_x!r} y={at_y!r} within cost_extent={cost_extent}")
+        raise SystemExit(f"no hex at x={at_x!r} y={at_y!r} within cost_radius={cost_radius}")
     if len(hexes) > 1:
         raise SystemExit(f"multiple hexes at x={at_x!r} y={at_y!r}; pick a unique hex")
     hex = hexes[0]
@@ -1916,12 +2019,12 @@ def _resolve_hex_node(
     *,
     at_x: float,
     at_y: float,
-    cost_extent: int,
+    cost_radius: int,
     node: int | None,
 ):
     """Resolve ``(hex, node_id)`` for hex mode; ``--node`` if multiple at hex."""
     hex, nodes = _nodes_at_hex(
-        session, cell, at_x=at_x, at_y=at_y, cost_extent=cost_extent,
+        session, cell, at_x=at_x, at_y=at_y, cost_radius=cost_radius,
     )
     if node is None:
         if len(nodes) > 1:
@@ -1942,17 +2045,18 @@ def analyze_spot_hex(
     at_y: float,
     node: int | None,
     time_window: TimeWindow,
+    train_filter="none",
 ) -> dict[str, dict[str, Any]]:
     """One batched v forward at one hex; stim-on (radius 0) rows for that node only."""
     if task not in training.SPOT_TASKS:
         raise SystemExit(f"unsupported task {task!r}")
-    pack, batch_idx, node_idx, radii, type_idx, type_i = _spot_session_readout(
+    pack, batch_idx, node_idx, radii, type_idx, cell_name_to_type_index = _spot_session_readout(
         session_one, [cell],
     )
     radius_row = _spot_radius_row(radii, 0)
     hex, node = _resolve_hex_node(
         session_one, cell, at_x=at_x, at_y=at_y,
-        cost_extent=pack.cost_extent, node=node,
+        cost_radius=pack.cost_radius, node=node,
     )
     t_onset = training.pack_t_onset(pack)
 
@@ -1961,7 +2065,7 @@ def analyze_spot_hex(
     t0_abs = np.zeros(_N, dtype=np.int64)
     win_len = time_window.aligned_win_len(T, delta_ms=float(session_one.delta_ms))
     node_arr = np.asarray([node], dtype=np.int64)
-    type_cell = type_i[cell]
+    type_cell = cell_name_to_type_index[cell]
 
     forward_batches: list[_ComponentForwardBatch] = []
     i_sti_rows: list[int] = []
@@ -1975,7 +2079,7 @@ def analyze_spot_hex(
         if not np.any(row_mask):
             continue
         forward_batches.append(
-            _make_forward_batch({cell: node_arr}, t0_bn_row=t0_abs, win_len=win_len),
+            _build_forward_batch({cell: node_arr}, t0_bn_row=t0_abs, win_len=win_len),
         )
         i_sti_rows.append(b)
 
@@ -2005,6 +2109,7 @@ def analyze_spot_hex(
         },
         extra_for_cell=_spot_extra_for_cell_fn(
             session_one, p, pack, radius=0, t_onset=t_onset,
+            train_filter=train_filter,
         ),
         n_nodes_for_cell=lambda _c: 1,
     )
@@ -2028,15 +2133,15 @@ def analyze_bar_hex(
     pack = session.pack_for(task)
     hex, node = _resolve_hex_node(
         session, cell, at_x=at_x, at_y=at_y,
-        cost_extent=pack.cost_extent, node=node,
+        cost_radius=pack.cost_radius, node=node,
     )
     node_arr = np.asarray([node], dtype=np.int64)
-    usets = {cell: node_arr}
+    nodes_by_cell = {cell: node_arr}
 
     def nodes_for_bi(bi, spec, *, pack, t0_bn):
         if int(t0_bn[bi, node]) < 0:
             raise SystemExit(f"no t0 for node {node} on spec {spec!r}")
-        return usets
+        return nodes_by_cell
 
     return _analyze_bar_forward(
         session,
@@ -2066,7 +2171,8 @@ def analyze_bar_hex(
 def _plot_filename(report: dict[str, Any], *, file_suffix: str = "", html: bool = False) -> str:
     from figure.util import plot_file_ext
 
-    parts = [report["cell"], report["task"], "v", report.get("mode", "average")]
+    filter_token = str(report.get("filter") or "v")
+    parts = [report["cell"], report["task"], filter_token, report.get("mode", "average")]
     if report.get("spec"):
         parts.append(str(report["spec"]))
     if report.get("mode") == "hex":
@@ -2084,9 +2190,10 @@ def _overlay_plot_filename(
     from figure.util import plot_file_ext
 
     first_report = reports[0]
+    filter_token = str(first_report.get("filter") or "v")
     specs = "_".join(str(r["spec"]) for r in reports)
     return (
-        f"{first_report['cell']}_{first_report['task']}_v_overlay_{specs}"
+        f"{first_report['cell']}_{first_report['task']}_{filter_token}_overlay_{specs}"
         f"{file_suffix}{plot_file_ext(html=html)}"
     )
 
@@ -2211,7 +2318,10 @@ def _plot_component_reports(
     }
     if len(eulers) != 1:
         raise SystemExit(f"overlay requires one euler; got {sorted(eulers)}")
-    spec = _component_spec(models.pop(), eulers.pop())
+    filters = {str(r.get("filter", "v")) for r in reports}
+    if len(filters) != 1:
+        raise SystemExit(f"overlay requires one filter; got {sorted(filters)}")
+    spec = _component_spec(models.pop(), eulers.pop(), filter=filters.pop())
 
     fig, axes, save_figure = _component_figure(title, spec)
     import matplotlib.pyplot as plt
@@ -2247,9 +2357,13 @@ def _plot_component_reports(
                         row_curves[ri].append(y + std)
                         row_curves[ri].append(y - std)
                 plot_std_band(ax, xs, y, std, color=color, alpha=0.3)
+                gt_key = next(
+                    (gk for gk, pk in _GT_PLOT_PANEL.items() if pk == key and rep.get(gk) is not None),
+                    None,
+                )
                 model_label = (
                     str(rep["spec"]) if show_legend
-                    else ("v_post" if key == "v_post" and rep.get("gt_v_post") else "_nolegend_")
+                    else (key if gt_key is not None else "_nolegend_")
                 )
                 ax.plot(
                     xs, y,
@@ -2258,11 +2372,13 @@ def _plot_component_reports(
                     linestyle=ls,
                     linewidth=1.4,
                 )
-                if key == "v_post" and rep.get("gt_v_post") is not None:
-                    gt_full = np.asarray(rep["gt_v_post"], dtype=float)
-                    valid = (ts >= 0) & (ts < gt_full.shape[0])
+                if gt_key is not None:
+                    gt_full = np.asarray(rep[gt_key], dtype=float)
+                    t_onset = int(rep.get("before_t") or 0)
+                    ix = ts - t_onset
+                    valid = (ix >= 0) & (ix < gt_full.shape[0])
                     if np.any(valid):
-                        y_gt = gt_full[ts[valid]]
+                        y_gt = gt_full[ix[valid]]
                         xs_gt = xs[valid]
                         if ri in spec.row_shared_ylim:
                             row_curves[ri].append(y_gt)
@@ -2348,10 +2464,10 @@ def _print_report(report: dict[str, Any], *, print_steps: bool = True) -> None:
     model = report.get("model", "borst")
     kind = report.get("time_window_kind", "t_rel")
     x_key = "t_rel" if kind == "t_rel" else "t"
-    use_f_ca = report.get("filter") == "ca"
+    use_ca = report.get("filter") == "ca"
     state_hdr = (
-        "f_ca  f_ca_pre  f_ca_post_minus_pre"
-        if use_f_ca else "v_post  v_pre  v_post_minus_pre"
+        "ca  ca_pre  ca_post_minus_pre"
+        if use_ca else "v_post  v_pre  v_post_minus_pre"
     )
     hdr = (
         f"cell={report['cell']} model={model} mode={mode} "
@@ -2376,10 +2492,10 @@ def _print_report(report: dict[str, Any], *, print_steps: bool = True) -> None:
     print("trained:", "  ".join(f"{k}={v:.6g}" for k, v in report["params"].items()))
 
     def _state_cols(s: dict[str, Any]) -> str:
-        if use_f_ca:
+        if use_ca:
             return (
-                f"{s['f_ca']:+8.4f} {s['f_ca_pre']:+8.4f} "
-                f"{s['f_ca_post_minus_pre']:+8.4f}"
+                f"{s['ca']:+8.4f} {s['ca_pre']:+8.4f} "
+                f"{s['ca_post_minus_pre']:+8.4f}"
             )
         v_pre = float(s["v_post"]) - float(s["v_post_minus_pre"])
         return (
@@ -2450,7 +2566,7 @@ def _print_polarity_compare(
     cells = sorted(set(spot_reports) & set(bar_reports))
     if not cells:
         return
-    print("\n======== SPOT vs BAR polarity (cost-extent averages) ========")
+    print("\n======== SPOT vs BAR polarity (cost-radius averages) ========")
     print(
         f"{'cell':6s} {'spot_post_d':>11s} {'spot_pol':>8s} {'spot_drv':>8s} "
         f"{'bar_post_d':>10s} {'bar_pol':>8s} {'bar_drv':>8s}  note"
@@ -2544,9 +2660,8 @@ def main() -> None:
         metavar="true|false",
         help=(
             "save component figures under {run}/cell_dynamics/ (default: true); "
-            "save component figures under {run}/cell_dynamics/ (default: true); "
             "per-t step table prints only when false "
-            "(filter=ca → f_ca/f_ca_pre/f_ca_post_minus_pre)"
+            "(filter=ca → ca/ca_pre/ca_post_minus_pre)"
         ),
     )
     ap.add_argument(
@@ -2568,7 +2683,7 @@ def main() -> None:
         if len(cli.xs) != 1 or len(cli.ys) != 1:
             raise SystemExit(
                 "hex mode needs exactly one --x and one --y; "
-                "omit both for cost-extent averages"
+                "omit both for cost-radius averages"
             )
         hex_mode = True
         if len(cli.cells) != 1:
@@ -2603,6 +2718,8 @@ def main() -> None:
         run_dir = plot_trained.resolve_run_dir(run_arg)
         _log(f"load_best {run_dir} ...")
         session, z, best_cost = plot_trained.load_best(run_dir)
+        train_opts = plot_trained.load_train_opts(run_dir) or {}
+        train_filter = training.expand_filter(train_opts.get("filter", "none"))
         session, z, timing_changed = plot_trained.maybe_override_stimulus_timing(
             run_dir=run_dir,
             session=session,
@@ -2616,7 +2733,6 @@ def main() -> None:
                 **timing_changed,
             )
             + plot_trained.euler_filename_suffix(args.euler)
-            + plot_trained.filter_filename_suffix(args.filter)
             + plot_trained.param_filename_suffix(param_edits)
         )
         if use_ms:
@@ -2635,7 +2751,9 @@ def main() -> None:
             z_t, schema, session, param_edits,
         )
         session = session.with_schema(schema)
-        p = training.assign_params(z_t, schema, session.backend)
+        p = training.materialize_from_opts(
+            training.assign_params(z_t, schema, session.backend), session,
+        )
         cost = float(training.calc_cost(z_t, session).item())
 
         spot_session_cache: dict[str, object] = {}
@@ -2676,6 +2794,7 @@ def main() -> None:
                         at_y=float(at_y),
                         node=args.node,
                         time_window=time_window,
+                        train_filter=train_filter,
                     )
                 else:
                     _log(
@@ -2689,6 +2808,7 @@ def main() -> None:
                         task=task,
                         time_window=time_window,
                         radius=args.radius,
+                        train_filter=train_filter,
                     )
                 for cell, rep in reports.items():
                     rep["best_cost"] = best_cost

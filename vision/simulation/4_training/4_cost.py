@@ -6,12 +6,14 @@ Consumes a :class:`~training.readout_pack.TrainSession` and the model forward
 local-% costs, the mean weighted total (``Σ W·cost / Σ W``), and the Adam
 training loop.
 
-Readout traces are absolute ``v`` (``filter=none``) or ``f_ca`` (``filter=ca``);
+Readout traces are absolute ``v`` (``filter=none``) or ``ca`` (``filter=ca``);
 cost compares the readout to ``gt_aff = a_gt * gt + bias_gt`` (``+ v_th`` when
-present). When ``train_opts['bias_gt_from_v_onset']``, ``bias_gt`` is replaced by
-``v`` at ``t_onset`` (or ``v_ca`` at onset when ``filter=ca``), clamped to schema
-``bias_gt`` ``lo``/``hi``; ``bias_gt_from_v_onset_grad`` controls whether that
-onset stays in the graph (default detach).
+present and not ``bias_gt_from_v_onset``). When ``train_opts['bias_gt_from_v_onset']``,
+``p['bias_gt']`` is written from ``v`` at ``t_onset`` (or ``v_ca`` when ``filter=ca``),
+clamped to schema ``bias_gt`` ``lo``/``hi``; ``bias_gt_from_v_onset_grad`` controls
+whether that onset stays in the graph. Same for ``v_th_ca_from_v_th`` /
+``a_ca_from_a_out``: sources are written into ``p['v_th_ca']`` / ``p['a_ca']``
+(and ``param.csv``).
 Waveform MSE normalization is ``session`` / ``train_opts`` ``cost_norm``:
 
 * ``gt_power``: ``100 * Σ w (v_readout−gt_aff)² / Σ w (a_gt·gt)²``
@@ -43,7 +45,7 @@ from tqdm import tqdm
 
 from training.readout_pack import SIM_DTYPE
 from neuron.forward import (
-    f_ca_from_v,
+    v_ca_to_ca,
     forward_v,
     pack_t_onset,
     v_ca_from_v,
@@ -56,8 +58,8 @@ from neuron.readout import (
 from training.config import (
     COST_NORMS,
     MOVING_BAR_TASKS,
-    ND_IDX,
-    PD_IDX,
+    ND_INDEX,
+    PD_INDEX,
     PD_ND_LABELS,
     coarse_weight_keys_for_part,
     cost_part_keys_for_readout,
@@ -70,14 +72,15 @@ from training.config import (
 from param_defaults import (
     COST_NORM as DEFAULT_COST_NORM,
     BIAS_GT_FROM_V_ONSET as DEFAULT_BIAS_GT_FROM_V_ONSET,
-    BIAS_GT_FROM_V_ONSET_GRAD as DEFAULT_BIAS_GT_FROM_V_ONSET_GRAD,
     FILTER as DEFAULT_FILTER,
-    PARAM_BOXES,
 )
-
-_BIAS_GT_LO = float(PARAM_BOXES["bias_gt"]["lo"])
-_BIAS_GT_HI = float(PARAM_BOXES["bias_gt"]["hi"])
-from training.params import params_from_z, schema_bounds, schema_guess, schema_nparams
+from training.params import (
+    materialize_from_opts,
+    params_from_z,
+    schema_bounds,
+    schema_guess,
+    schema_nparams,
+)
 from training.readout_pack import (
     FusedForward,
     ModelBackend,
@@ -110,14 +113,20 @@ def _param_for_nodes(p, key: str, node_index, backend: ModelBackend, *, sim_dtyp
     return raw[ci]
 
 
-def gt_affine_for_nodes(p, node_index, backend: ModelBackend, *, sim_dtype=SIM_DTYPE):
+def gt_affine_for_nodes(
+    p, node_index, backend: ModelBackend, *, sim_dtype=SIM_DTYPE, session=None,
+):
     """Per-node ``(a_gt, effective_bias)`` for cost / plot affine on gt.
 
-    ``effective_bias = bias_gt``; if ``v_th`` is in ``p``, add it.
+    ``effective_bias = bias_gt``; if ``v_th`` is in ``p`` and not
+    ``bias_gt_from_v_onset``, add ``v_th``. Callers must
+    :func:`materialize_from_opts` so onset / alias flags are already in ``p``.
     """
     scale = _param_for_nodes(p, "a_gt", node_index, backend, sim_dtype=sim_dtype)
     bias = _param_for_nodes(p, "bias_gt", node_index, backend, sim_dtype=sim_dtype)
-    if "v_th" in p:
+    opts = (session.train_opts if session is not None else None) or {}
+    from_onset = bool(opts.get("bias_gt_from_v_onset", DEFAULT_BIAS_GT_FROM_V_ONSET))
+    if (not from_onset) and "v_th" in p:
         bias = bias + _param_for_nodes(p, "v_th", node_index, backend, sim_dtype=sim_dtype)
     return scale, bias
 
@@ -127,52 +136,19 @@ def _session_bias_gt_from_v_onset(session: TrainSession) -> bool:
     return bool(opts.get("bias_gt_from_v_onset", DEFAULT_BIAS_GT_FROM_V_ONSET))
 
 
-def _session_bias_gt_from_v_onset_grad(session: TrainSession) -> bool:
-    opts = session.train_opts or {}
-    return bool(opts.get("bias_gt_from_v_onset_grad", DEFAULT_BIAS_GT_FROM_V_ONSET_GRAD))
-
-
 def _session_filter(session: TrainSession) -> str:
     opts = session.train_opts or {}
     return str(opts.get("filter", DEFAULT_FILTER))
 
 
 def _forward_readout_and_onset_trace(session, p, i_sti, pack):
-    """``(readout_trace, onset_bias_trace)``; onset uses ``v_ca`` when ``filter=ca``."""
+    """``(readout_trace, onset_bias_trace)``; onset uses readout trace."""
     v = forward_v(session, p, i_sti, pack=pack)
     if _session_filter(session) != "ca":
         return v, v
     t_onset = pack_t_onset(pack)
-    return f_ca_from_v(v, p, session, t_onset=t_onset), v_ca_from_v(v, p, session)
-
-
-def _v_onset_bias_for_pack(
-    onset_trace: torch.Tensor,
-    pack: ReadoutPack,
-    session: TrainSession,
-    *,
-    batch_offset: int = 0,
-    batch_idx=None,
-) -> torch.Tensor:
-    """Per-cost-entry onset bias from ``onset_trace``; clamp to schema ``bias_gt`` lo/hi.
-
-    Detach unless ``bias_gt_from_v_onset_grad``. When ``filter=ca``, caller passes
-    ``v_ca`` as ``onset_trace``.
-    """
-    t0 = pack_t_onset(pack)
-    if batch_idx is None:
-        rb = (
-            pack.readout_batch
-            if batch_offset == 0
-            else pack.readout_batch + int(batch_offset)
-        )
-        bias = onset_trace[rb, t0, pack.readout_node]
-    else:
-        mask = pack.readout_batch == int(batch_idx)
-        bias = onset_trace[0, t0, pack.readout_node[mask]]
-    if not _session_bias_gt_from_v_onset_grad(session):
-        bias = bias.detach()
-    return torch.clamp(bias, min=_BIAS_GT_LO, max=_BIAS_GT_HI)
+    ca = v_ca_to_ca(v_ca_from_v(v, p, session), p, session, t_onset=t_onset)
+    return ca, ca
 
 
 def _pack_gt_affine_for_cost(
@@ -184,19 +160,23 @@ def _pack_gt_affine_for_cost(
     batch_offset: int = 0,
     batch_idx=None,
 ):
-    """Schema ``a_gt``; bias from schema or onset trace when flag set."""
+    """Schema ``a_gt`` / ``bias_gt`` after :func:`materialize_from_opts`."""
+    if _session_bias_gt_from_v_onset(session):
+        if onset_trace is None:
+            raise ValueError("bias_gt_from_v_onset requires onset_trace")
+        materialize_from_opts(
+            p, session, onset_trace=onset_trace, t_onset=pack_t_onset(pack),
+        )
+    _ = batch_offset
     a_gt, bias_gt = gt_affine_for_nodes(
-        p, pack.readout_node, session.backend, sim_dtype=session.sim_dtype,
+        p, pack.readout_node, session.backend,
+        sim_dtype=session.sim_dtype, session=session,
     )
-    if not _session_bias_gt_from_v_onset(session):
-        return a_gt, bias_gt
-    if onset_trace is None:
-        raise ValueError("bias_gt_from_v_onset requires onset_trace")
     if batch_idx is not None:
-        a_gt = a_gt[pack.readout_batch == int(batch_idx)]
-    return a_gt, _v_onset_bias_for_pack(
-        onset_trace, pack, session, batch_offset=batch_offset, batch_idx=batch_idx,
-    )
+        mask = pack.readout_batch == int(batch_idx)
+        a_gt = a_gt[mask]
+        bias_gt = bias_gt[mask]
+    return a_gt, bias_gt
 
 
 def _session_cost_norm(session: TrainSession) -> str:
@@ -236,7 +216,7 @@ def _weighted_mse_terms(
     return gt_scaled, w, sse, power
 
 
-def _mse_parts_scatter(
+def _group_cost_parts(
     a_gt: torch.Tensor,
     bias_gt: torch.Tensor,
     gt: torch.Tensor,
@@ -380,9 +360,9 @@ def _mse_active_entry_mask(pack: ReadoutPack, session: TrainSession) -> torch.Te
         if not _pack_has_active_mse(pack, session) or pack.cost_pd_nd is None:
             return torch.zeros(n, dtype=torch.bool, device=dev)
         mask = torch.zeros(n, dtype=torch.bool, device=dev)
-        for idx, label in ((PD_IDX, "PD"), (ND_IDX, "ND")):
+        for pd_nd_index, label in ((PD_INDEX, "PD"), (ND_INDEX, "ND")):
             if _part_weight(session, moving_bar_cost_part_key(pack.name, label)) != 0.0:
-                mask |= pack.cost_pd_nd == int(idx)
+                mask |= pack.cost_pd_nd == int(pd_nd_index)
         return mask
     on = _part_weight(session, pack.name) != 0.0
     return torch.full((n,), on, dtype=torch.bool, device=dev)
@@ -598,7 +578,7 @@ def _pack_cost_parts_from_v_readout(
                     )
             else:
                 out.update(
-                    _mse_parts_scatter(
+                    _group_cost_parts(
                         a_gt, bias_gt, pack.gt, pack.cost_weight, v_readout,
                         group_id, keys, session,
                     )
@@ -616,7 +596,7 @@ def _pack_cost_parts_from_v_readout(
     if pack.cost_radius is None:
         raise ValueError(f"spot pack {pack.name!r} missing cost_radius")
     group_id, keys = _spot_entry_groups(pack, backend)
-    return _mse_parts_scatter(
+    return _group_cost_parts(
         a_gt, bias_gt, gt, pack.cost_weight, v_readout, group_id, keys, session,
         time_mask=time_mask,
     )
@@ -666,9 +646,6 @@ def _pack_cost_forward(p, pack: ReadoutPack, session: TrainSession, batch_idx=No
     pd_nd = pack.cost_pd_nd
     if batch_idx is not None:
         mask = pack.readout_batch == int(batch_idx)
-        if not _session_bias_gt_from_v_onset(session):
-            a_gt = a_gt[mask]
-            bias_gt = bias_gt[mask]
         gt = pack.gt[mask]
         weight = pack.cost_weight[mask]
         if pd_nd is not None:
@@ -909,10 +886,10 @@ def _fmt_cost_parts(parts):
 _TQDM_REFRESH_INTERVAL = 10
 
 
-def gradient_network(z, lr=0.0001, cost_fn=None, n_steps=100, device="cpu", z_bounds=None,
-                     cost_log=None, step_log=None, float_last_parts=None, task_order=None,
-                     backward_step=None, eval_cost=None,
-                     checkpoint_interval=None, on_interval_best=None, global_step_start=0,
+def gradient_network(z, lr=0.0001, cost_fn=None, n_iters=100, device="cpu", z_bounds=None,
+                     cost_log=None, iter_log=None, float_last_parts=None, task_order=None,
+                     backward_iter=None, eval_cost=None,
+                     checkpoint_interval=None, on_interval_best=None, global_iter_start=0,
                      opt_init=None):
 
     a = time.time()
@@ -955,10 +932,10 @@ def gradient_network(z, lr=0.0001, cost_fn=None, n_steps=100, device="cpu", z_bo
     def _reset_interval_from_z():
         _snapshot_interval_best(_measure_cost(z))
 
-    def _commit_interval_checkpoint(global_step):
+    def _commit_interval_checkpoint(global_iter):
         if on_interval_best is not None:
             on_interval_best(
-                global_step, interval_best_z, interval_best_cost,
+                global_iter, interval_best_z, interval_best_cost,
                 opt_state=interval_best_opt,
             )
         with torch.no_grad():
@@ -967,7 +944,7 @@ def gradient_network(z, lr=0.0001, cost_fn=None, n_steps=100, device="cpu", z_bo
         _reset_interval_from_z()
 
     progress_bar = tqdm(
-        range(n_steps),
+        range(n_iters),
         desc=f'Cost: {cost:.4f}' + _fmt_cost_parts(initial_parts),
         bar_format=(
             '{percentage:3.0f}%|{bar}| {n_fmt}/{total_fmt} '
@@ -984,24 +961,24 @@ def gradient_network(z, lr=0.0001, cost_fn=None, n_steps=100, device="cpu", z_bo
         optimizer.zero_grad()
 
         try:
-            if backward_step is not None:
-                cost = backward_step(z)
+            if backward_iter is not None:
+                cost = backward_iter(z)
             else:
                 cost_t = cost_fn(z)
                 cost = cost_t.item()
                 cost_t.backward()
         except RuntimeError as e:
-            aborted = f'step {i}: {e}'
+            aborted = f'iter {i}: {e}'
             break
 
         if not np.isfinite(cost):
-            aborted = f'step {i}: non-finite cost={cost}'
+            aborted = f'iter {i}: non-finite cost={cost}'
             break
         if not torch.isfinite(z).all():
-            aborted = f'step {i}: non-finite z'
+            aborted = f'iter {i}: non-finite z'
             break
         if z.grad is not None and not torch.isfinite(z.grad).all():
-            aborted = f'step {i}: non-finite grad'
+            aborted = f'iter {i}: non-finite grad'
             break
 
         if cost < best_cost:
@@ -1017,8 +994,8 @@ def gradient_network(z, lr=0.0001, cost_fn=None, n_steps=100, device="cpu", z_bo
 
         if cost_log is not None:
             cost_log.append(cost)
-        if step_log is not None:
-            step_log(z)
+        if iter_log is not None:
+            iter_log(z)
 
         optimizer.step()
 
@@ -1026,14 +1003,14 @@ def gradient_network(z, lr=0.0001, cost_fn=None, n_steps=100, device="cpu", z_bo
 
             z.clamp_(z_bounds[:, 0].to(device), z_bounds[:, 1].to(device))
 
-        global_step = global_step_start + i + 1
-        if checkpoint_interval and global_step % checkpoint_interval == 0:
-            _commit_interval_checkpoint(global_step)
+        global_iter = global_iter_start + i + 1
+        if checkpoint_interval and global_iter % checkpoint_interval == 0:
+            _commit_interval_checkpoint(global_iter)
 
-        step_parts = float_last_parts(task_order) if float_last_parts else None
-        if (i + 1) % _TQDM_REFRESH_INTERVAL == 0 or i == n_steps - 1:
+        iter_parts = float_last_parts(task_order) if float_last_parts else None
+        if (i + 1) % _TQDM_REFRESH_INTERVAL == 0 or i == n_iters - 1:
             progress_bar.set_description(
-                f'Cost: {cost:.4f}' + _fmt_cost_parts(step_parts),
+                f'Cost: {cost:.4f}' + _fmt_cost_parts(iter_parts),
                 refresh=False,
             )
 
@@ -1109,33 +1086,31 @@ def _load_adam_moments(optimizer, z, opt_init):
     }
 
 
-def train_staged(z, cost_fn, z_bounds, lrs, nsteps, cost_log=None, step_log=None,
+def train_staged(z, cost_fn, z_bounds, lrs, niters, cost_log=None, iter_log=None,
                  float_last_parts=None, task_order=None,
-                 backward_step=None, eval_cost=None,
-                 checkpoint_interval=None, on_interval_best=None, global_step_start=0,
+                 backward_iter=None, eval_cost=None,
+                 checkpoint_interval=None, on_interval_best=None, global_iter_start=0,
                  opt_init=None):
-    # run gradient_network once per learning-rate stage, chaining the best params.
-    # Adam moments restore only into the first stage; later stages start cold.
-    global_step = global_step_start
+    global_iter = global_iter_start
     opt_state = None
     for stage_i, lr in enumerate(lrs):
         z, opt_state = gradient_network(
-            z, lr=lr, n_steps=nsteps, device=active_device(),
+            z, lr=lr, n_iters=niters, device=active_device(),
             cost_fn=cost_fn, z_bounds=z_bounds, cost_log=cost_log,
-            step_log=step_log, float_last_parts=float_last_parts,
+            iter_log=iter_log, float_last_parts=float_last_parts,
             task_order=task_order,
-            backward_step=backward_step, eval_cost=eval_cost,
+            backward_iter=backward_iter, eval_cost=eval_cost,
             checkpoint_interval=checkpoint_interval,
             on_interval_best=on_interval_best,
-            global_step_start=global_step,
+            global_iter_start=global_iter,
             opt_init=opt_init if stage_i == 0 else None,
         )
-        global_step += nsteps
+        global_iter += niters
     return z, opt_state
 
 
-def _make_step_logger(session: TrainSession):
-    """Build training step hooks for :func:`gradient_network`."""
+def _build_iter_logger(session: TrainSession):
+    """Build training iter hooks for :func:`gradient_network`."""
     part_keys = session_cost_part_keys(session.tasks, session=session)
     target_history = {name: [] for name in part_keys}
     _last_parts: Optional[Dict[str, float]] = None
@@ -1160,14 +1135,14 @@ def _make_step_logger(session: TrainSession):
     def eval_cost(z):
         return float(_eval_parts(z, no_grad=True).item())
 
-    def backward_step(z):
+    def backward_iter(z):
         total, parts_sum = backward_accum_weighted_cost(z, session)
         _set_last(parts_sum, total)
         return total
 
-    def log_step(z=None):
+    def log_iter(z=None):
         if _last_parts is None or _last_total is None:
-            raise RuntimeError("log_step called before cost_fn in the same training step")
+            raise RuntimeError("log_iter called before cost_fn in the same training iter")
         for name in part_keys:
             if name in _last_parts:
                 target_history[name].append(float(_last_parts[name]))
@@ -1181,13 +1156,13 @@ def _make_step_logger(session: TrainSession):
         return _float_parts(_last_parts, task_order)
 
     if session.sequential:
-        return cost_fn, target_history, log_step, float_last_parts, backward_step, eval_cost
-    return cost_fn, target_history, log_step, float_last_parts, None, None
+        return cost_fn, target_history, log_iter, float_last_parts, backward_iter, eval_cost
+    return cost_fn, target_history, log_iter, float_last_parts, None, None
 
 
-def do_many_runs(session: TrainSession, nofruns, nofsteps, lrs=(0.1, 0.01, 0.001),
+def do_many_runs(session: TrainSession, nofruns, nofiters, lrs=(0.1, 0.01, 0.001),
                  z_init=None, opt_init=None, checkpoint_interval=None, checkpoint_outdir=None,
-                 make_checkpoint_callback=None, checkpoint_on_png=None) -> TrainingResult:
+                 build_checkpoint_callback=None, checkpoint_on_png=None) -> TrainingResult:
     """Run ``nofruns`` independent fits; return arrays (no file I/O)."""
     schema = list(session.schema)
     n_params = schema_nparams(schema)
@@ -1208,29 +1183,29 @@ def do_many_runs(session: TrainSession, nofruns, nofsteps, lrs=(0.1, 0.01, 0.001
 
         z = z_init.clone() if z_init is not None else schema_guess(schema, session.sim_dtype)
         cost_history = []
-        (cost_fn, target_history, log_step, float_last_parts,
-         backward_step, eval_cost) = _make_step_logger(session)
+        (cost_fn, target_history, log_iter, float_last_parts,
+         backward_iter, eval_cost) = _build_iter_logger(session)
 
-        def step_log(z):
-            cost_history.append(log_step(z))
+        def iter_log(z):
+            cost_history.append(log_iter(z))
 
         on_interval_best = None
         if checkpoint_interval is not None:
-            if checkpoint_outdir is None or make_checkpoint_callback is None:
+            if checkpoint_outdir is None or build_checkpoint_callback is None:
                 raise ValueError(
-                    "checkpoint_interval requires checkpoint_outdir and make_checkpoint_callback"
+                    "checkpoint_interval requires checkpoint_outdir and build_checkpoint_callback"
                 )
-            on_interval_best = make_checkpoint_callback(
+            on_interval_best = build_checkpoint_callback(
                 checkpoint_outdir, session, run_i=i, nofruns=nofruns,
                 on_png=checkpoint_on_png,
             )
 
         z_fit, opt_state = train_staged(
-            z, cost_fn, bounds, lrs, nofsteps,
-            step_log=step_log,
+            z, cost_fn, bounds, lrs, nofiters,
+            iter_log=iter_log,
             float_last_parts=float_last_parts,
             task_order=list(part_keys),
-            backward_step=backward_step,
+            backward_iter=backward_iter,
             eval_cost=eval_cost,
             checkpoint_interval=checkpoint_interval,
             on_interval_best=on_interval_best,

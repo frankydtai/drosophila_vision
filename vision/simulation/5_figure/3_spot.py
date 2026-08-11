@@ -14,7 +14,7 @@ import torch
 
 from param_defaults import DELTA_MS
 import training
-from neuron.params import ms_to_t, ms_to_t_abs, t_to_ms
+from neuron.params import t_from_ms, ms_to_t_abs, ms_from_t
 from figure.readout import (
     contrast_linestyle,
     contrast_order,
@@ -35,9 +35,7 @@ from figure.util import (
     bundle_prep_s,
     format_spot_radius_time_title,
     gt_affine_scalars_for_cell,
-    bias_gt_from_v_onset_enabled,
     e_leak_by_type_name,
-    mean_v_onset_by_cell_name,
     session_filter_plot_token,
     hex_at_scope_tag,
     mark_spot,
@@ -100,10 +98,12 @@ def _session_spot_timing(session):
     )
 
 
-def resolve_spot_gt_cubes(sessions, gt_cubes=None):
+def resolve_spot_gt_cubes(sessions, gt_cubes=None, *, filter=None):
     """``{contrast: {cell: (RF_N_RADII, T)}}`` for each entry in ``sessions``.
 
     Gt time length is response-only (no ``ms_post``).
+    ``filter`` selects training GT kind (``none``→v ImpR, ``ca``→Arenz); default
+    per session ``train_opts.filter``.
     """
     if gt_cubes is not None:
         return gt_cubes
@@ -115,6 +115,7 @@ def resolve_spot_gt_cubes(sessions, gt_cubes=None):
         part = spot_gt_cubes(
             session, session.primary_readout.name, contrasts=(str(contrast),),
             t_onset=t_onset, n_t=n_t_gt, ms_spot=ms_spot, delta_ms=delta_ms,
+            filter=filter,
         )
         out.update(part)
     return out
@@ -216,8 +217,8 @@ def _style_time_axis(
         lo, hi = max(0, lo), min(t_last, hi)
         if lo > hi:
             lo, hi = 0, t_last
-    t_lo_s = t_to_ms(lo, t_onset=t0, delta_ms_pre=dt_pre, delta_ms=dt) / 1000.0
-    t_hi_s = t_to_ms(hi, t_onset=t0, delta_ms_pre=dt_pre, delta_ms=dt) / 1000.0
+    t_lo_s = ms_from_t(lo, t_onset=t0, delta_ms_pre=dt_pre, delta_ms=dt) / 1000.0
+    t_hi_s = ms_from_t(hi, t_onset=t0, delta_ms_pre=dt_pre, delta_ms=dt) / 1000.0
     t_mid_s = (t_lo_s + t_hi_s) / 2.0
     mid = (lo + hi) // 2
     ax.set_xlim(lo, hi)
@@ -549,7 +550,7 @@ def _fill_member_cube(cube, std, ti, ft_global, type_idx, du, dv, plot_traces):
 
 @dataclass
 class SpotTraceBundle:
-    """One forward pass; full cost-extent readout over all types."""
+    """One forward pass; full cost-radius readout over all types."""
 
     cells: list
     order_row_ixs: list | None = None
@@ -625,19 +626,19 @@ def _spot_cubes_from_row_mask(rows, mask):
     return out
 
 
-def _spot_readout_hex_mask(C, node_idx, cost_extent, *, at_x=None, at_y=None):
-    """True for cost entries whose node sits on matching cost-extent hexes."""
-    filt = filter_sti_hexes(
-        moving_bar_cost_hexes(C, cost_extent=cost_extent),
+def _spot_readout_hex_mask(C, node_idx, cost_radius, *, at_x=None, at_y=None):
+    """True for cost entries whose node sits on matching cost-radius hexes."""
+    filtered_hexes = filter_sti_hexes(
+        moving_bar_cost_hexes(C, cost_radius=cost_radius),
         at_x=at_x,
         at_y=at_y,
     )
-    if not filt:
+    if not filtered_hexes:
         return np.zeros(len(node_idx), dtype=bool)
-    u_np, v_np = network_uv_np(C)
-    hex_uv = {(int(c.u), int(c.v)) for c in filt}
+    node_u_np, node_v_np = network_uv_np(C)
+    hex_uv = {(int(c.u), int(c.v)) for c in filtered_hexes}
     return np.array(
-        [(int(u_np[n]), int(v_np[n])) in hex_uv for n in node_idx],
+        [(int(node_u_np[n]), int(node_v_np[n])) in hex_uv for n in node_idx],
         dtype=bool,
     )
 
@@ -650,10 +651,10 @@ def _spot_slice_overlay(rows, C, at_xs, at_ys):
     node_idx = rows['node_idx']
     for label, at_x, at_y in slice_coord_specs(at_xs, at_ys):
         mask = _spot_readout_hex_mask(
-            C, node_idx, pack.cost_extent, at_x=at_x, at_y=at_y,
+            C, node_idx, pack.cost_radius, at_x=at_x, at_y=at_y,
         )
         if not np.any(mask):
-            print(f'skip slice overlay {label}: no hex within cost_extent')
+            print(f'skip slice overlay {label}: no hex within cost_radius')
             continue
         cubes = _spot_cubes_from_row_mask(rows, mask)
         if not any(np.isfinite(c).any() for c in cubes.values()):
@@ -696,10 +697,12 @@ def _spot_forward_rows(
     session, z, *,
     at_x=None, at_y=None,
 ):
-    """One forward; cost-extent node readout over all network types."""
+    """One forward; cost-radius node readout over all network types."""
     pack = session.primary_readout
     schema = list(session.schema)
-    p = training.assign_params(z, schema, session.backend)
+    p = training.materialize_from_opts(
+        training.assign_params(z, schema, session.backend), session,
+    )
     a_sti_radius_by_name = {}
     if "a_sti_radius" in p:
         for seg in schema:
@@ -713,13 +716,13 @@ def _spot_forward_rows(
             break
     i_sti = pack.i_sti if pack.i_sti.dim() == 3 else pack.i_sti.unsqueeze(0)
     v = training.forward_v(session, p, i_sti, pack=pack)
+    t0 = training.pack_t_onset(pack)
     if str((session.train_opts or {}).get("filter", "none")) == "ca":
-        t0 = training.pack_t_onset(pack)
-        plot_full = training.f_ca_from_v(v, p, session, t_onset=t0)
-        onset_full = training.v_ca_from_v(v, p, session)
+        v_ca = training.v_ca_from_v(v, p, session)
+        plot_full = training.v_ca_to_ca(v_ca, p, session, t_onset=t0)
     else:
         plot_full = v
-        onset_full = v
+    training.materialize_from_opts(p, session, onset_trace=plot_full, t_onset=t0)
     C = session.backend.network
     cell_names = list(C.cell_names)
     mt = int(i_sti.shape[1])
@@ -734,17 +737,16 @@ def _spot_forward_rows(
     (
         batch_idx, node_idx, _radius, type_idx, _stim_u, _stim_v, du, dv, center_row,
     ) = build_spot_center_readout(
-        C, batches, pack_spot_cost_radii(pack), pack.cost_extent,
+        C, batches, pack_spot_cost_radii(pack), pack.cost_radius,
     )
 
     plot_traces = plot_full[batch_idx, :, node_idx].cpu().numpy()
-    onset_traces = onset_full[batch_idx, :, node_idx].cpu().numpy()
 
     stim_ms_pre = opts.get("ms_pre")
     dt = float(opts["delta_ms"])
     dt_pre = float(opts["delta_ms_pre"])
     stim_t_onset = (
-        ms_to_t(float(stim_ms_pre), delta_ms=dt_pre)
+        t_from_ms(float(stim_ms_pre), delta_ms=dt_pre)
         if stim_ms_pre is not None else None
     )
     rows = dict(
@@ -772,7 +774,7 @@ def _spot_forward_rows(
     mask = np.asarray(center_row, dtype=bool)
     if at_x is not None or at_y is not None:
         mask = mask & _spot_readout_hex_mask(
-            C, node_idx, pack.cost_extent, at_x=at_x, at_y=at_y,
+            C, node_idx, pack.cost_radius, at_x=at_x, at_y=at_y,
         )
     nodes_by_name = {
         name: np.unique(node_idx[mask & (type_idx == cell_names.index(name))])
@@ -784,15 +786,9 @@ def _spot_forward_rows(
     rows['e_leaks'] = params_for_types(
         nodes_by_name, e_leak_by_type_name(z, session),
     )
-    onset_bias = None
-    if bias_gt_from_v_onset_enabled(session):
-        onset_bias = mean_v_onset_by_cell_name(
-            onset_traces, type_idx, cell_names, names, rows.get('t_onset'),
-        )
     rows['gt_affine_by_name'] = {
         name: gt_affine_scalars_for_cell(
-            p, name, session.backend,
-            bias_gt=None if onset_bias is None else onset_bias.get(name),
+            p, name, session.backend, session=session,
         )
         for name in names
     }
@@ -831,7 +827,7 @@ def network_spot_trace_bundle(
     ms_shown=None,
     center_only=False,
 ):
-    """Run one forward; full cost-extent spot traces over all types."""
+    """Run one forward; full cost-radius spot traces over all types."""
     t_prep0 = time.perf_counter()
     at_x = at_xs[0] if at_xs else None
     at_y = at_ys[0] if at_ys else None

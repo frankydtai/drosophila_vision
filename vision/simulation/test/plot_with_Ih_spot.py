@@ -29,7 +29,7 @@ from plot import spot as spot_plot
 import plot_trained
 
 DEFAULT_RUN_PATH = "borst/27849055-add_spot_r"
-DEFAULT_SAVE = os.path.join(HERE, "model_data_spot.png")
+DEFAULT_SAVE = os.path.join(HERE, "model_spot.png")
 SECOND_BRIGHT_MS = 50.0
 
 
@@ -121,9 +121,9 @@ def _session_with_bright_ms_pulse(session, ms_pulse):
     """Return a copy of *session* whose bright stimulus drops to baseline after *ms_pulse*."""
     pack = session.primary_pack
     opts = dict((session.train_opts or {}).get("spot_bright_stimulus_opts") or {})
-    from neuron.params import ms_to_t
+    from neuron.params import t_from_ms
     delta_ms = float(opts["delta_ms"])
-    t_on = ms_to_t(float(opts["ms_pre"]), delta_ms=delta_ms)
+    t_on = t_from_ms(float(opts["ms_pre"]), delta_ms=delta_ms)
     pulse_t = max(1, int(round(float(ms_pulse) / delta_ms)))
     signal = pack.signal.clone()
     baseline = signal[:, :1, :].clone()

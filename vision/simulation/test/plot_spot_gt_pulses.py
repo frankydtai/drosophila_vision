@@ -36,7 +36,8 @@ import blindschleiche_py3 as bs
 from network.build import cell_family_rows, cell_names_in_family_order
 from plot.spot import CENTER_BIN, _style_time_axis
 from figure.util import GT_COLOR, TRACE_LW, TRACE_YLIM, save_figure
-from training_config import DELTA_MS, IMPULSE_MAXTIME, T_ON, ms_to_t
+from param_defaults import GT_AMP
+from training_config import DELTA_MS, IMPULSE_MAXTIME, T_ON, t_from_ms
 
 DEFAULT_SAVE = os.path.join(HERE, "spot_gt_pulses_LTI.png")
 DEFAULT_SAVE_FILTER = os.path.join(HERE, "spot_gt_pulses_filter.png")
@@ -100,19 +101,19 @@ def fit_gt_cubes() -> dict[str, np.ndarray]:
     raw = ml.read_RecF_data()
     out = {}
     for i, name in enumerate(ml.cell_list):
-        out[str(name)] = raw[i] * ml.DATA_AMP
+        out[str(name)] = raw[i] * GT_AMP
     return out
 
 
 def fit_filter_traces() -> dict[str, dict[str, np.ndarray]]:
     """Center-bin responses from driving IR filters with different-width ``u[t]``.
 
-    Returns ``{cell: {"step", "p500", "p50"}}`` scaled like ``DATA_AMP * RecF * ImpR``.
+    Returns ``{cell: {"step", "p500", "p50"}}`` scaled like ``GT_AMP * RecF * ImpR``.
     """
     recf, _ = ml.read_RecF_ImpR()
     n_t = IMPULSE_MAXTIME
-    pulse_50 = ms_to_t(PULSE_50_MS)
-    pulse_500 = ms_to_t(PULSE_500_MS)
+    pulse_50 = t_from_ms(PULSE_50_MS)
+    pulse_500 = t_from_ms(PULSE_500_MS)
     u_step = make_u(n_t, T_ON, None)
     u_500 = make_u(n_t, T_ON, pulse_500)
     u_50 = make_u(n_t, T_ON, pulse_50)
@@ -125,7 +126,7 @@ def fit_filter_traces() -> dict[str, dict[str, np.ndarray]]:
         r_step = filter_impr_raw(u_step, hp, lp, s_max=s_max, add_l12=add_l12)
         scale = absmax_from_zero(r_step)
         spatial = float(recf[i, CENTER_BIN * 5 + 2])
-        gain = (ml.DATA_AMP * spatial / scale) if scale > 0 else 0.0
+        gain = (GT_AMP * spatial / scale) if scale > 0 else 0.0
 
         def _scaled(u: np.ndarray) -> np.ndarray:
             r = filter_impr_raw(u, hp, lp, s_max=s_max, add_l12=add_l12)
@@ -214,8 +215,8 @@ def _plot_pulse_grid(
 def plot_gt_pulses(path: str, *, show: bool = False) -> None:
     """PNG 1: LTI pulse-from-step on Medulla_Library RecF gt center traces."""
     cubes = fit_gt_cubes()
-    pulse_50 = ms_to_t(PULSE_50_MS)
-    pulse_500 = ms_to_t(PULSE_500_MS)
+    pulse_50 = t_from_ms(PULSE_50_MS)
+    pulse_500 = t_from_ms(PULSE_500_MS)
     series = {}
     for name, cube in cubes.items():
         step = np.asarray(cube[CENTER_BIN], dtype=np.float64)

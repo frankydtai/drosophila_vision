@@ -1,14 +1,12 @@
 """Digitize L1–L5 black impulse-response traces from L.png.
 
-Same method as 4.py (black mean line, max|amp|=1, time flipped so rightmost
-sample is t=0). L.png is not from Arenz 2017; layout matches (time-reversed
-kernels with SEM wash). Does not touch 4.py / 4b / 4e outputs.
+Same method as 4.py (black mean line, max|amp|=1, t = −t_fig + T_OFFSET).
+L.png is not from Arenz 2017; layout matches. Does not touch 4.py / 4b / 4e.
 
 Method
 ------
-1. Time on the figure: major ticks −2, −1, 0 s. Trace extends ~0.4 s left of
-   −2 and ~0.25 s past 0. Output flips: rightmost → t = 0, left → positive
-   (~2.6 s), then resampled to Δt = 1 ms (CSV ascending).
+1. Time on the figure: ticks −2, −1, 0 (~−2.5 … +0.2). Output:
+   t = −t_fig + T_OFFSET → ~−0.15 … +2.5 s, Δt = 1 ms.
 2. Amplitude: dashed horizontal = 0; scale each trace so max(|amp|) = 1.
 3. Black mask + per-x continuity; blank L1–L5 title ink at panel top-left.
 4. Write L_digitized.csv / L_digitized.png.
@@ -54,6 +52,7 @@ MAX_DY_PX = 25
 T_LEFT_PAD_S = 0.40  # left of −2 tick (~−2.5 on figure)
 T_RIGHT_PAD_S = 0.25  # past 0 tick
 DT_S = 0.001  # output time step
+T_OFFSET_S = 0.1  # added after sign-flip (−t_fig)
 
 
 def black_mask(rgb: np.ndarray) -> np.ndarray:
@@ -126,10 +125,11 @@ def digitize(img_path: Path = DEFAULT_IMAGE) -> pd.DataFrame:
         t_fig = -2.0 + (xs - x_m2) / px_per_s
         amp = (y_base - ys).astype(float)
         amp /= np.max(np.abs(amp))
-        t = t_fig[-1] - t_fig
-        t = t[::-1]
+        t = (-t_fig)[::-1] + T_OFFSET_S
         amp = amp[::-1]
-        t_grid = np.arange(0.0, t[-1] + 1e-12, DT_S)
+        t_lo = np.floor(t[0] / DT_S + 1e-12) * DT_S
+        t_hi = np.ceil(t[-1] / DT_S - 1e-12) * DT_S
+        t_grid = np.arange(t_lo, t_hi + 1e-12, DT_S)
         amp = np.interp(t_grid, t, amp)
         amp /= np.max(np.abs(amp))
         t = t_grid
@@ -155,7 +155,7 @@ def plot_check(df: pd.DataFrame, path: Path) -> None:
         ax.set_title(cell, fontsize=10)
         ax.set_xlabel("time (s)")
     axes[0].set_ylabel("amplitude (norm.)")
-    fig.suptitle("L1–L5 impulse responses (digitized, t=0 at right, max|amp|=1)", y=0.98)
+    fig.suptitle("L1–L5 impulse responses (digitized, t=−t_fig+0.1, max|amp|=1)", y=0.98)
     fig.tight_layout()
     fig.savefig(path, dpi=140)
     plt.close(fig)

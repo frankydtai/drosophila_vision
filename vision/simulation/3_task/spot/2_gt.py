@@ -19,7 +19,7 @@ from typing import Dict, Sequence, Tuple
 import numpy as np
 
 from task.spot.input import (
-    spot_extent_folds_r2_into_r1,
+    spot_radius_folds_r2_into_r1,
     spot_input_waveform,
 )
 
@@ -122,7 +122,7 @@ _IMPR_SHIFT = 5
 
 
 def _load_arenz_csv_traces(path: Path) -> Dict[str, Tuple[np.ndarray, np.ndarray]]:
-    """``cell → (time_s, amplitude)`` from Arenz digitized CSV (``t=0`` = onset)."""
+    """``cell → (time_s, gt)`` from Arenz digitized CSV (``t=0`` = onset)."""
     by_cell: Dict[str, list] = {}
     with path.open(newline="") as f:
         for row in csv.DictReader(f):
@@ -134,12 +134,12 @@ def _load_arenz_csv_traces(path: Path) -> Dict[str, Tuple[np.ndarray, np.ndarray
     for cell, pairs in by_cell.items():
         pairs.sort(key=lambda p: p[0])
         t = np.asarray([p[0] for p in pairs], dtype=np.float64)
-        a = np.asarray([p[1] for p in pairs], dtype=np.float64)
-        out[cell] = (t, a)
+        gt = np.asarray([p[1] for p in pairs], dtype=np.float64)
+        out[cell] = (t, gt)
     return out
 
 
-def read_arenz_digitized_impr(*, t_onset, n_t, delta_ms: float) -> np.ndarray:
+def load_arenz_digitized_impr(*, t_onset, n_t, delta_ms: float) -> np.ndarray:
     """Arenz digitized temporal gt ``(13, n_t)``; CSV ``t=0`` at ``t_onset``.
 
     Pre-onset samples are 0. Post-onset times use ``(t - t_onset) * delta_ms``.
@@ -160,12 +160,12 @@ def read_arenz_digitized_impr(*, t_onset, n_t, delta_ms: float) -> np.ndarray:
         return out
     t_rel_s = np.arange(n_t - t_onset, dtype=np.float64) * (delta_ms / 1000.0)
     for i, cell in enumerate(GT_CELLS):
-        t_csv, amp = traces[cell]
-        out[i, t_onset:] = np.interp(t_rel_s, t_csv, amp, left=amp[0], right=amp[-1])
+        t_csv, gt = traces[cell]
+        out[i, t_onset:] = np.interp(t_rel_s, t_csv, gt, left=gt[0], right=gt[-1])
     return out
 
 
-def read_RecF_ImpR(*, t_onset=None, n_t=None, ms_spot=None, delta_ms: float, filter="none"):
+def load_RecF_ImpR(*, t_onset=None, n_t=None, ms_spot=None, delta_ms: float, filter="none"):
     """Return ``(RecF_gt, ImpR_gt)`` for the 13 gt cells.
 
     Shapes: ``RecF_gt`` ``(13, 45)``; ``ImpR_gt`` ``(13, n_t)``. The
@@ -175,7 +175,7 @@ def read_RecF_ImpR(*, t_onset=None, n_t=None, ms_spot=None, delta_ms: float, fil
     RecF keeps DoG radius signs but omits cell ``RF_sign`` (Arenz has polarity).
     """
     if t_onset is None or n_t is None:
-        raise ValueError("read_RecF_ImpR requires t_onset and n_t")
+        raise ValueError("load_RecF_ImpR requires t_onset and n_t")
     t_onset = int(t_onset)
     n_t = int(n_t)
     delta_ms = float(delta_ms)
@@ -200,7 +200,7 @@ def read_RecF_ImpR(*, t_onset=None, n_t=None, ms_spot=None, delta_ms: float, fil
         RecF_gt[i] = normalize_gt(dog if use_ca else dog * RF_sign[i])
 
     if use_ca:
-        return RecF_gt, read_arenz_digitized_impr(
+        return RecF_gt, load_arenz_digitized_impr(
             t_onset=t_onset, n_t=n_t, delta_ms=delta_ms,
         )
 
@@ -225,9 +225,9 @@ def read_RecF_ImpR(*, t_onset=None, n_t=None, ms_spot=None, delta_ms: float, fil
     return RecF_gt, ImpR_gt
 
 
-def read_RecF_gt(*, t_onset=None, n_t=None, ms_spot=None, delta_ms: float, filter="none"):
+def load_RecF_gt(*, t_onset=None, n_t=None, ms_spot=None, delta_ms: float, filter="none"):
     """Spatial x temporal spot cube ``(n_cells, RF_N_RADII, n_t)``; axis = radius."""
-    RecF_gt, ImpR_gt = read_RecF_ImpR(
+    RecF_gt, ImpR_gt = load_RecF_ImpR(
         t_onset=t_onset, n_t=n_t, ms_spot=ms_spot, delta_ms=delta_ms, filter=filter,
     )
     mt = ImpR_gt.shape[1]
@@ -240,9 +240,9 @@ def read_RecF_gt(*, t_onset=None, n_t=None, ms_spot=None, delta_ms: float, filte
     return gt
 
 
-def read_RecF_gt_dark(*, t_onset=None, n_t=None, ms_spot=None, delta_ms: float, filter="none"):
-    """Dark spot spatial x temporal cube: negated bright ``read_RecF_gt()``."""
-    return -read_RecF_gt(
+def load_RecF_gt_dark(*, t_onset=None, n_t=None, ms_spot=None, delta_ms: float, filter="none"):
+    """Dark spot spatial x temporal cube: negated bright ``load_RecF_gt()``."""
+    return -load_RecF_gt(
         t_onset=t_onset, n_t=n_t, ms_spot=ms_spot, delta_ms=delta_ms, filter=filter,
     )
 
@@ -253,10 +253,10 @@ def _recf_at(recf_row: np.ndarray, radius: float) -> float:
     return float(np.interp(idx, np.arange(_RF_NSAMPLES), recf_row))
 
 
-def _spot_readout_amp(recf_row: np.ndarray, radius: float, spot_extent: float) -> float:
-    """RecF amplitude at Euclidean ``radius`` (extent-1 folds r=2 into r=1)."""
+def _spot_readout_a_radius(recf_row: np.ndarray, radius: float, spot_radius: float) -> float:
+    """RecF ``a_radius`` at Euclidean ``radius`` (radius-1 folds r=2 into r=1)."""
     r = round(float(radius), 6)
-    if spot_extent_folds_r2_into_r1(spot_extent):
+    if spot_radius_folds_r2_into_r1(spot_radius):
         if r == 1.0:
             return _recf_at(recf_row, 1.0) + _recf_at(recf_row, 2.0)
         if r == 2.0:

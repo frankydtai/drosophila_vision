@@ -2,7 +2,7 @@
 
 Orchestration that trains then plots lives in ``simulation/run.py``:
 
-    ../.venv/bin/python run.py --model hp_lp --nofsteps 30 --lrs 0.1
+    ../.venv/bin/python run.py --model hp_lp --nofiters 30 --lrs 0.1
 
 All results of a run land under ``training.config.PARAMETER_DIR``
 (``simulation/0_runs/<model>/<run_name>/``). Artifacts (``.npy`` /
@@ -52,13 +52,14 @@ from param_defaults import (
     MULTI_SPOT,
     NETWORK,
     NOFRUNS,
-    NOFSTEPS_CPU,
-    NOFSTEPS_GPU,
+    NOFITERS_CPU,
+    NOFITERS_GPU,
     PARAM_BOXES,
     PRE_GRAD,
     BIAS_GT_FROM_V_ONSET,
     BIAS_GT_FROM_V_ONSET_GRAD,
     V_TH_CA_FROM_V_TH,
+    A_CA_FROM_A_OUT,
     FILTER,
     MS_PRE,
     MS_POST,
@@ -66,12 +67,12 @@ from param_defaults import (
     MS_SPOT_CA,
     MS_RESPONSE,
     SEQUENTIAL,
-    SHIFT_EXTENT,
+    SHIFT_RADIUS,
     SPOT_COST_RADII,
     SPOT_COST_RADIUS_KEY_ALIASES,
     SPOT_COST_RADIUS_WEIGHT,
-    SPOT_COST_RADIUS_WEIGHT_EXTENT1,
-    SPOT_EXTENT,
+    SPOT_COST_RADIUS_WEIGHT_RADIUS1,
+    SPOT_RADIUS,
     SPOT_STI_RADII,
     PRE_STEADY,
     PRE_STEADY_DAMP,
@@ -172,8 +173,8 @@ def resolve_run_dir(path):
     return str(outdir)
 
 
-def checkpoint_step_tag(step):
-    return f'{int(step):05d}'
+def checkpoint_iter_tag(iter):
+    return f'{int(iter):05d}'
 
 
 def cell_labels(session):
@@ -191,7 +192,7 @@ def decompose_params(z_t, session):
     """
     n = session.backend.n_cells
     schema = list(session.schema)
-    node_vals = training.z_to_node_values(z_t, schema)
+    node_vals = training.node_values_from_z(z_t, schema)
     cols = {}
     for seg in schema:
         name = seg["name"]
@@ -207,7 +208,7 @@ def decompose_params(z_t, session):
 
 
 def v_spot_markers_by_cell(z_t, session):
-    """Per-cell-type mean membrane ``v`` at pre, onset, and spot end.
+    """Per-cell-type mean membrane ``v`` markers; add ``v_ca``/``ca`` for ``filter=ca``.
 
     * ``v_pre``: ``t=0`` after ``pre_steady`` (``v_rows[0]``).
     * ``v_onset``: ``t=t_onset`` (``v_rows[t_onset]``), spot onset / end of pre.
@@ -217,16 +218,26 @@ def v_spot_markers_by_cell(z_t, session):
 
     Uses ``session.primary_readout`` stimulus (``i_sti`` + ``pack_t_onset``).
     """
+    from param_defaults import (
+        BIAS_GT_FROM_V_ONSET,
+        PARAM_BOXES,
+    )
     schema = list(session.schema)
     z = torch.as_tensor(z_t, dtype=session.sim_dtype, device=session.device)
-    p = training.assign_params(z, schema, session.backend)
+    p = training.materialize_from_opts(
+        training.assign_params(z, schema, session.backend), session,
+    )
     pack = session.primary_readout
     i_sti = session.pack_i_sti(pack)
     t_onset = training.pack_t_onset(pack)
+    train_opts = session.train_opts or {}
+    use_ca = str(train_opts.get("filter", "none")) == "ca"
     with torch.no_grad():
-        v = training.forward_full(
+        v = training.forward_v(
             session, p, i_sti.unsqueeze(0) if i_sti.dim() == 2 else i_sti, pack=pack,
         )
+        v_ca = training.v_ca_from_v(v, p, session) if use_ca else None
+        ca = training.v_ca_to_ca(v_ca, p, session, t_onset=t_onset) if use_ca else None
     # v: (B, T, N)
     n_t = int(v.shape[1])
     if t_onset < 0 or t_onset >= n_t:
@@ -261,29 +272,101 @@ def v_spot_markers_by_cell(z_t, session):
             v_onset[i] = float(v_onset_n[m].mean())
             v_spot_end[i] = float(v_spot_end_n[m].mean())
             delta_v[i] = v_spot_end[i] - v_onset[i]
-    return {
+    out = {
         "v_pre": v_pre,
         "v_onset": v_onset,
         "v_spot_end": v_spot_end,
         "delta_v": delta_v,
     }
+    if use_ca:
+        v_ca_pre_n = v_ca[0, 0].detach().cpu().numpy()
+        v_ca_onset_n = v_ca[0, t_onset].detach().cpu().numpy()
+        v_ca_spot_end_n = v_ca[0, t_end].detach().cpu().numpy()
+        v_ca_pre = np.empty(n_cells, dtype=np.float64)
+        v_ca_onset = np.empty(n_cells, dtype=np.float64)
+        v_ca_spot_end = np.empty(n_cells, dtype=np.float64)
+        delta_v_ca = np.empty(n_cells, dtype=np.float64)
+        for i in range(n_cells):
+            m = node_cell == i
+            if not np.any(m):
+                v_ca_pre[i] = np.nan
+                v_ca_onset[i] = np.nan
+                v_ca_spot_end[i] = np.nan
+                delta_v_ca[i] = np.nan
+            else:
+                v_ca_pre[i] = float(v_ca_pre_n[m].mean())
+                v_ca_onset[i] = float(v_ca_onset_n[m].mean())
+                v_ca_spot_end[i] = float(v_ca_spot_end_n[m].mean())
+                delta_v_ca[i] = v_ca_spot_end[i] - v_ca_onset[i]
+        out.update(
+            v_ca_pre=v_ca_pre,
+            v_ca_onset=v_ca_onset,
+            v_ca_spot_end=v_ca_spot_end,
+            delta_v_ca=delta_v_ca,
+        )
+        ca_pre_n = ca[0, 0].detach().cpu().numpy()
+        ca_onset_n = ca[0, t_onset].detach().cpu().numpy()
+        ca_spot_end_n = ca[0, t_end].detach().cpu().numpy()
+        ca_pre = np.empty(n_cells, dtype=np.float64)
+        ca_onset = np.empty(n_cells, dtype=np.float64)
+        ca_spot_end = np.empty(n_cells, dtype=np.float64)
+        delta_ca = np.empty(n_cells, dtype=np.float64)
+        for i in range(n_cells):
+            m = node_cell == i
+            if not np.any(m):
+                ca_pre[i] = np.nan
+                ca_onset[i] = np.nan
+                ca_spot_end[i] = np.nan
+                delta_ca[i] = np.nan
+            else:
+                ca_pre[i] = float(ca_pre_n[m].mean())
+                ca_onset[i] = float(ca_onset_n[m].mean())
+                ca_spot_end[i] = float(ca_spot_end_n[m].mean())
+                delta_ca[i] = ca_spot_end[i] - ca_onset[i]
+        out.update(
+            ca_pre=ca_pre,
+            ca_onset=ca_onset,
+            ca_spot_end=ca_spot_end,
+            delta_ca=delta_ca,
+        )
+    if bool(train_opts.get("bias_gt_from_v_onset", BIAS_GT_FROM_V_ONSET)):
+        if use_ca:
+            bias = training.bias_gt_from_onset_trace(
+                ca, t_onset, session,
+            ).detach().cpu().numpy()
+        else:
+            lo = float(PARAM_BOXES["bias_gt"]["lo"])
+            hi = float(PARAM_BOXES["bias_gt"]["hi"])
+            bias = np.clip(v_onset, lo, hi)
+        out["bias_gt"] = np.asarray(bias, dtype=np.float64)
+    return out
 
 
-def write_param_table(z_t, session, table_path):
+def save_param_table(z_t, session, table_path):
+    from param_defaults import A_CA_FROM_A_OUT, V_TH_CA_FROM_V_TH
     cols = decompose_params(z_t, session)
-    cols.update(v_spot_markers_by_cell(z_t, session))
+    markers = v_spot_markers_by_cell(z_t, session)
+    bias_gt = markers.pop("bias_gt", None)
+    cols.update(markers)
+    opts = session.train_opts or {}
+    if bool(opts.get("v_th_ca_from_v_th", V_TH_CA_FROM_V_TH)) and "v_th" in cols:
+        cols["v_th_ca"] = np.asarray(cols["v_th"], dtype=np.float64).copy()
+    if bool(opts.get("a_ca_from_a_out", A_CA_FROM_A_OUT)) and "a_out" in cols:
+        cols["a_ca"] = np.asarray(cols["a_out"], dtype=np.float64).copy()
+    if bias_gt is not None:
+        cols["bias_gt"] = bias_gt
     cell_col = cell_labels(session)
     cell_names = list(cols.keys())
     n = session.backend.n_cells
     with open(table_path, "w") as f:
-        f.write("idx,cell," + ",".join(cell_names) + "\n")
+        f.write("cell_index,cell," + ",".join(cell_names) + "\n")
         for i in range(n):
             row = ["%.6f" % cols[nm][i] for nm in cell_names]
             f.write("%d,%s," % (i, cell_col[i]) + ",".join(row) + "\n")
     return table_path
 
 
-def write_syn_strength_cell_table(z_t, session, table_path):
+def save_syn_strength_cell_table(z_t, session, table_path):
     """Write edge-pair ``syn_strength_cell`` as source×target matrix CSV.
 
     Rows = source types, columns = target types. Absent connectome pairs are blank.
@@ -292,7 +375,7 @@ def write_syn_strength_cell_table(z_t, session, table_path):
     seg = next((s for s in schema if s["name"] == "syn_strength_cell"), None)
     if seg is None or seg["kind"] != "edge_pair":
         return None
-    node_vals = training.z_to_node_values(z_t, schema)
+    node_vals = training.node_values_from_z(z_t, schema)
     arr = np.asarray(node_vals["syn_strength_cell"], dtype=np.float64).reshape(-1)
     names = [str(n) for n in cell_labels(session)]
     keys = list(session.backend.conn.pair_keys)
@@ -313,13 +396,13 @@ def write_syn_strength_cell_table(z_t, session, table_path):
     return table_path
 
 
-def write_syn_strength_edge_table(z_t, session, table_path):
+def save_syn_strength_edge_table(z_t, session, table_path):
     """Write per-edge ``syn_strength_edge`` CSV (network edge order)."""
     schema = list(session.schema)
     seg = next((s for s in schema if s["name"] == "syn_strength_edge"), None)
     if seg is None or seg["kind"] != "edge":
         return None
-    node_vals = training.z_to_node_values(z_t, schema)
+    node_vals = training.node_values_from_z(z_t, schema)
     arr = np.asarray(node_vals["syn_strength_edge"], dtype=np.float64).reshape(-1)
     conn = session.backend.conn
     if arr.shape[0] != conn.n_edges:
@@ -327,12 +410,14 @@ def write_syn_strength_edge_table(z_t, session, table_path):
             f"syn_strength_edge length {arr.shape[0]} != n_edges {conn.n_edges}"
         )
     names = [str(n) for n in cell_labels(session)]
-    src = conn.src_idx.detach().cpu().numpy()
-    tar = conn.tar_idx.detach().cpu().numpy()
+    src = conn.source_index.detach().cpu().numpy()
+    tar = conn.target_index.detach().cpu().numpy()
     node_cell = conn.node_cell.detach().cpu().numpy()
     syn_sign = torch.sign(conn.w_signed).detach().cpu().numpy()
     with open(table_path, "w") as f:
-        f.write("edge_idx,src_node,tar_node,source_cell,target_cell,syn_sign,syn_strength_edge\n")
+        f.write(
+            "edge_index,src_node,tar_node,source_cell,target_cell,syn_sign,syn_strength_edge\n",
+        )
         for i in range(conn.n_edges):
             si, ti = int(src[i]), int(tar[i])
             f.write(
@@ -346,57 +431,53 @@ def write_syn_strength_edge_table(z_t, session, table_path):
     return table_path
 
 
-def write_syn_table(z_t, session, outdir_or_path, *, tag=None):
+def save_syn_table(z_t, session, outdir_or_path, *, tag=None):
     """Write ``syn_strength_cell.csv`` or ``syn_strength_edge.csv`` for the active syn mode."""
     if tag is None:
         cell_name, edge_name = SYN_STRENGTH_CELL_CSV, SYN_STRENGTH_EDGE_CSV
     else:
         cell_name = f"syn_strength_cell_{tag}.csv"
         edge_name = f"syn_strength_edge_{tag}.csv"
-    cell_path = write_syn_strength_cell_table(
+    cell_path = save_syn_strength_cell_table(
         z_t, session, os.path.join(outdir_or_path, cell_name),
     )
-    edge_path = write_syn_strength_edge_table(
+    edge_path = save_syn_strength_edge_table(
         z_t, session, os.path.join(outdir_or_path, edge_name),
     )
     return cell_path or edge_path
 
 
-def data_dir(outdir):
-    return run_data_dir(outdir)
-
-
 def best_param_path(outdir):
-    return os.path.join(data_dir(outdir), 'best_param.npz')
+    return os.path.join(run_data_dir(outdir), 'best_param.npz')
 
 
 def best_adam_path(outdir):
-    return os.path.join(data_dir(outdir), 'best_adam.npz')
+    return os.path.join(run_data_dir(outdir), 'best_adam.npz')
 
 
 def _data_file(outdir, name):
-    return os.path.join(data_dir(outdir), name)
+    return os.path.join(run_data_dir(outdir), name)
 
 
 def save_param_named(outdir, z, session, filename):
     """Write named full-width node values to ``data/<filename>``."""
     schema = list(session.schema)
-    named = training.z_to_node_values(z, schema)
+    named = training.node_values_from_z(z, schema)
     cell_names = np.asarray(training.cell_node_names(session.backend), dtype=object)
     payload = {k: np.asarray(v, dtype=np.float64) for k, v in named.items()}
     payload['cell_names'] = cell_names
     if any(s['kind'] == 'edge_pair' for s in schema):
         payload['pair_names'] = np.asarray(training.pair_node_names(session.backend), dtype=object)
-    os.makedirs(data_dir(outdir), exist_ok=True)
-    np.savez(os.path.join(data_dir(outdir), filename), **payload)
+    os.makedirs(run_data_dir(outdir), exist_ok=True)
+    np.savez(os.path.join(run_data_dir(outdir), filename), **payload)
 
 
-def save_adam_named(outdir, exp_avg, exp_avg_sq, step, session, filename):
+def save_adam_named(outdir, exp_avg, exp_avg_sq, iter, session, filename):
     """Write named Adam m/v (z-space) to ``data/<filename>``."""
     schema = list(session.schema)
-    named_m, named_v = training.z_moments_to_named(exp_avg, exp_avg_sq, schema)
+    named_m, named_v = training.named_moments_from_z(exp_avg, exp_avg_sq, schema)
     cell_names = np.asarray(training.cell_node_names(session.backend), dtype=object)
-    payload = {'step': np.asarray(int(step), dtype=np.int64)}
+    payload = {'iter': np.asarray(int(iter), dtype=np.int64)}
     payload['cell_names'] = cell_names
     if any(s['kind'] == 'edge_pair' for s in schema):
         payload['pair_names'] = np.asarray(training.pair_node_names(session.backend), dtype=object)
@@ -404,8 +485,8 @@ def save_adam_named(outdir, exp_avg, exp_avg_sq, step, session, filename):
         payload[f'm_{name}'] = np.asarray(arr, dtype=np.float64)
     for name, arr in named_v.items():
         payload[f'v_{name}'] = np.asarray(arr, dtype=np.float64)
-    os.makedirs(data_dir(outdir), exist_ok=True)
-    np.savez(os.path.join(data_dir(outdir), filename), **payload)
+    os.makedirs(run_data_dir(outdir), exist_ok=True)
+    np.savez(os.path.join(run_data_dir(outdir), filename), **payload)
 
 
 def save_best_param_named(outdir, z, session):
@@ -413,49 +494,49 @@ def save_best_param_named(outdir, z, session):
     save_param_named(outdir, z, session, 'best_param.npz')
 
 
-def _checkpoint_artifact_filename(kind, step, run_i=0, nofruns=1):
+def _checkpoint_data_filename(kind, iter, run_i=0, nofruns=1):
     suffix = '' if nofruns == 1 else f'_run{run_i}'
-    return f'best_{kind}_step_{checkpoint_step_tag(step)}{suffix}.npz'
+    return f'best_{kind}_iter_{checkpoint_iter_tag(iter)}{suffix}.npz'
 
 
-def write_checkpoint_csv(outdir, step, z_best, session):
-    tag = checkpoint_step_tag(step)
+def save_checkpoint_csv(outdir, iter, z_best, session):
+    tag = checkpoint_iter_tag(iter)
     csv_dir = os.path.join(outdir, 'csv')
     os.makedirs(csv_dir, exist_ok=True)
     param_path = os.path.join(csv_dir, f'param_{tag}.csv')
-    write_param_table(z_best, session, param_path)
-    syn_path = write_syn_table(z_best, session, csv_dir, tag=tag)
+    save_param_table(z_best, session, param_path)
+    syn_path = save_syn_table(z_best, session, csv_dir, tag=tag)
     print(f'wrote checkpoint csv: {param_path}')
     if syn_path is not None:
         print(f'wrote checkpoint csv: {syn_path}')
 
 
-def make_checkpoint_callback(outdir, session, *, run_i=0, nofruns=1, on_png=None):
+def build_checkpoint_callback(outdir, session, *, run_i=0, nofruns=1, on_png=None):
     """Write interval-best npz/csv; optional *on_png* for plot layer (from ``run.py``)."""
 
-    def on_interval_best(step, z_best, cost_best, opt_state=None):
-        name = _checkpoint_artifact_filename('param', step, run_i=run_i, nofruns=nofruns)
+    def on_interval_best(iter, z_best, cost_best, opt_state=None):
+        name = _checkpoint_data_filename('param', iter, run_i=run_i, nofruns=nofruns)
         save_param_named(outdir, z_best, session, name)
         if opt_state is not None:
             n = int(np.asarray(z_best.detach().cpu()).reshape(-1).shape[0])
-            exp_avg, exp_avg_sq, adam_step = training.adam_moments_from_state_dict(
+            exp_avg, exp_avg_sq, adam_iter = training.adam_moments_from_state_dict(
                 opt_state, n, dtype=torch.float64, device='cpu',
             )
-            adam_name = _checkpoint_artifact_filename(
-                'adam', step, run_i=run_i, nofruns=nofruns,
+            adam_name = _checkpoint_data_filename(
+                'adam', iter, run_i=run_i, nofruns=nofruns,
             )
             save_adam_named(
                 outdir,
                 exp_avg.numpy(),
                 exp_avg_sq.numpy(),
-                adam_step,
+                adam_iter,
                 session,
                 adam_name,
             )
             print(f'wrote checkpoint {adam_name}')
-        write_checkpoint_csv(outdir, step, z_best, session)
+        save_checkpoint_csv(outdir, iter, z_best, session)
         if on_png is not None:
-            on_png(outdir, step, z_best, cost_best, session)
+            on_png(outdir, iter, z_best, cost_best, session)
         print(f'wrote checkpoint {name} (cost={cost_best:.4f})')
     return on_interval_best
 
@@ -513,13 +594,13 @@ def load_best_param(outdir, session):
     remapped = training.remap_named_node_values(
         named, cell_names, pair_names, schema, session.backend,
     )
-    z = training.node_values_to_z(
+    z = training.z_from_node_values(
         remapped, schema, dtype=session.sim_dtype, device=session.device,
     )
     return z.detach().cpu().numpy().astype(np.float64)
 
 
-def write_best_artifacts(outdir, session, all_params, final_costs, adam=None):
+def save_best_data(outdir, session, all_params, final_costs, adam=None):
     """Write ``best_param.npz``, ``param.csv``, and syn/edge CSV for ``argmin(final_costs)``.
 
     *adam* is the best-run moment dict ``{exp_avg, exp_avg_sq, step}`` (required for a
@@ -529,7 +610,7 @@ def write_best_artifacts(outdir, session, all_params, final_costs, adam=None):
     final_costs = np.asarray(final_costs, dtype=np.float64)
     run_i = int(np.argmin(final_costs))
     best = all_params[run_i]
-    os.makedirs(data_dir(outdir), exist_ok=True)
+    os.makedirs(run_data_dir(outdir), exist_ok=True)
     z_best = torch.tensor(best, dtype=session.sim_dtype, device=session.device)
     save_best_param_named(outdir, z_best, session)
     if adam is not None:
@@ -539,10 +620,10 @@ def write_best_artifacts(outdir, session, all_params, final_costs, adam=None):
         )
         print(f"wrote {best_adam_path(outdir)} (best run #{run_i})")
     table_path = os.path.join(outdir, PARAM_CSV)
-    write_param_table(z_best, session, table_path)
+    save_param_table(z_best, session, table_path)
     print("wrote table: %s (best run #%d, cost=%.4f)" % (
         table_path, run_i, final_costs[run_i]))
-    syn_path = write_syn_table(z_best, session, outdir)
+    syn_path = save_syn_table(z_best, session, outdir)
     if syn_path is not None:
         print("wrote table: %s" % syn_path)
     return best
@@ -594,7 +675,7 @@ def load_init_z(init_from, session):
         schema, lambda seg: training.node_names_for_segment(seg, session.backend),
     )
     session = replace(session, schema=tuple(schema), train_opts=opts)
-    z = training.node_values_to_z(
+    z = training.z_from_node_values(
         remapped, schema, dtype=session.sim_dtype, device=session.device,
     )
     remapped_m = training.remap_named_moments(
@@ -603,7 +684,7 @@ def load_init_z(init_from, session):
     remapped_v = training.remap_named_moments(
         named_v, adam_cells, adam_pairs, schema, session.backend,
     )
-    exp_avg, exp_avg_sq = training.named_moments_to_z(
+    exp_avg, exp_avg_sq = training.z_moments_from_named(
         remapped_m, remapped_v, schema,
         dtype=session.sim_dtype, device=session.device,
     )
@@ -620,11 +701,11 @@ def load_init_z(init_from, session):
 
 
 def save_training_outputs(fname, outdir, session, result):
-    """Write the full run artifact set (convention §5)."""
+    """Write the full run data set (convention §5)."""
     os.makedirs(outdir, exist_ok=True)
-    os.makedirs(data_dir(outdir), exist_ok=True)
+    os.makedirs(run_data_dir(outdir), exist_ok=True)
     if session.train_opts is not None:
-        with open(os.path.join(data_dir(outdir), training.TRAIN_OPTS_FILE), 'w') as f:
+        with open(os.path.join(run_data_dir(outdir), training.TRAIN_OPTS_FILE), 'w') as f:
             json.dump(session.train_opts, f, indent=2)
             f.write('\n')
     np.save(_data_file(outdir, fname), result.all_params)
@@ -636,7 +717,7 @@ def save_training_outputs(fname, outdir, session, result):
         np.savez(_data_file(outdir, 'costs_by_part.npz'), **result.final_costs_by_part)
     run_i = int(np.argmin(result.final_costs)) if len(result.final_costs) else 0
     adam = result.all_adam[run_i] if result.all_adam else None
-    write_best_artifacts(
+    save_best_data(
         outdir, session, result.all_params, result.final_costs, adam=adam,
     )
 
@@ -667,9 +748,9 @@ def build_session(
     tasks=None,
     cost_weights=None,
     cost_norm=COST_NORM,
-    cost_extent_by_task=None,
-    shift_extent=SHIFT_EXTENT,
-    spot_extent=SPOT_EXTENT,
+    cost_radius_by_task=None,
+    shift_radius=SHIFT_RADIUS,
+    spot_radius=SPOT_RADIUS,
     multi_spot=MULTI_SPOT,
     fully_inside=FULLY_INSIDE,
     spot_cost_radius_weight=None,
@@ -690,6 +771,7 @@ def build_session(
     bias_gt_from_v_onset=BIAS_GT_FROM_V_ONSET,
     bias_gt_from_v_onset_grad=BIAS_GT_FROM_V_ONSET_GRAD,
     v_th_ca_from_v_th=V_TH_CA_FROM_V_TH,
+    a_ca_from_a_out=A_CA_FROM_A_OUT,
     filter=FILTER,
     pack_overrides=None,
     model_backend=None,
@@ -706,9 +788,9 @@ def build_session(
         cost_norm=expand_cost_norm(cost_norm),
         pack_overrides=pack_overrides,
         sequential=sequential,
-        cost_extent_by_task=cost_extent_by_task,
-        shift_extent=shift_extent,
-        spot_extent=spot_extent,
+        cost_radius_by_task=cost_radius_by_task,
+        shift_radius=shift_radius,
+        spot_radius=spot_radius,
         multi_spot=multi_spot,
         fully_inside=fully_inside,
         spot_cost_radius_weight=spot_cost_radius_weight,
@@ -721,7 +803,7 @@ def build_session(
     if not network:
         raise ValueError("build_session requires network")
     network = str(resolve_network_json(network))
-    opts = training.make_train_opts(
+    opts = training.build_train_opts(
         backend="network",
         network_json=network,
         dev=dev,
@@ -737,13 +819,14 @@ def build_session(
         bias_gt_from_v_onset=bias_gt_from_v_onset,
         bias_gt_from_v_onset_grad=bias_gt_from_v_onset_grad,
         v_th_ca_from_v_th=v_th_ca_from_v_th,
+        a_ca_from_a_out=a_ca_from_a_out,
         filter=filter,
         **mkw,
     )
     return training.open_session(opts, model, schema=schema, model_backend=model_backend)
 
 
-def run_training(model, nofruns, nofsteps, lrs, fname=None, outdir=None,
+def run_training(model, nofruns, nofiters, lrs, fname=None, outdir=None,
                  train_modes=None,
                  syn_mode=SYN_MODE,
                  i_h_rev=I_H_REV,
@@ -754,8 +837,8 @@ def run_training(model, nofruns, nofsteps, lrs, fname=None, outdir=None,
                  network=NETWORK, sequential=SEQUENTIAL,
                  tasks=None, cost_weights=None,
                  cost_norm=COST_NORM,
-                 cost_extent_by_task=None, shift_extent=SHIFT_EXTENT,
-                 spot_extent=SPOT_EXTENT,
+                 cost_radius_by_task=None, shift_radius=SHIFT_RADIUS,
+                 spot_radius=SPOT_RADIUS,
                  multi_spot=MULTI_SPOT,
                  fully_inside=FULLY_INSIDE,
                  spot_cost_radius_weight=None,
@@ -770,12 +853,13 @@ def run_training(model, nofruns, nofsteps, lrs, fname=None, outdir=None,
                  bias_gt_from_v_onset=BIAS_GT_FROM_V_ONSET,
                  bias_gt_from_v_onset_grad=BIAS_GT_FROM_V_ONSET_GRAD,
                  v_th_ca_from_v_th=V_TH_CA_FROM_V_TH,
+                 a_ca_from_a_out=A_CA_FROM_A_OUT,
                  filter=FILTER,
                  init_from=None,
                  checkpoint_interval=None,
-                 make_checkpoint_callback=make_checkpoint_callback,
+                 build_checkpoint_callback=build_checkpoint_callback,
                  checkpoint_on_png=None):
-    """Train + save artifacts (no plotting). Returns ``(fname, outdir, session, result)``.
+    """Train + save data (no plotting). Returns ``(fname, outdir, session, result)``.
 
     Plotting belongs in ``run.py``. Pass *checkpoint_on_png* from the run layer
     when ``--checkpoint-interval`` should also write PNGs.
@@ -787,9 +871,9 @@ def run_training(model, nofruns, nofsteps, lrs, fname=None, outdir=None,
         tasks=tasks,
         cost_weights=cost_weights,
         cost_norm=cost_norm,
-        cost_extent_by_task=cost_extent_by_task,
-        shift_extent=shift_extent,
-        spot_extent=spot_extent,
+        cost_radius_by_task=cost_radius_by_task,
+        shift_radius=shift_radius,
+        spot_radius=spot_radius,
         multi_spot=multi_spot,
         fully_inside=fully_inside,
         spot_cost_radius_weight=spot_cost_radius_weight,
@@ -813,6 +897,7 @@ def run_training(model, nofruns, nofsteps, lrs, fname=None, outdir=None,
         bias_gt_from_v_onset=bias_gt_from_v_onset,
         bias_gt_from_v_onset_grad=bias_gt_from_v_onset_grad,
         v_th_ca_from_v_th=v_th_ca_from_v_th,
+        a_ca_from_a_out=a_ca_from_a_out,
         filter=filter,
     )
     suffix = "" if model == "borst" else f"_{model}"
@@ -823,7 +908,7 @@ def run_training(model, nofruns, nofsteps, lrs, fname=None, outdir=None,
     syn_mode = (session.train_opts or {}).get("syn_mode", SYN_MODE)
     print(f"device={session.device}, model={model}, syn_mode={syn_mode}, euler={session.euler}, "
           f"pre_steady={session.pre_steady}, "
-          f"nofruns={nofruns}, nofsteps={nofsteps}, "
+          f"nofruns={nofruns}, nofiters={nofiters}, "
           f"lrs={lrs}, nparams={training.schema_nparams(list(session.schema))}, fname={fname}, outdir={outdir}")
     if checkpoint_interval is not None:
         if checkpoint_interval <= 0:
@@ -835,10 +920,10 @@ def run_training(model, nofruns, nofsteps, lrs, fname=None, outdir=None,
         session, z_init, opt_init = load_init_z(init_from, session)
     t0 = time.time()
     result = do_many_runs(
-        session, nofruns, nofsteps, lrs=lrs, z_init=z_init, opt_init=opt_init,
+        session, nofruns, nofiters, lrs=lrs, z_init=z_init, opt_init=opt_init,
         checkpoint_interval=checkpoint_interval,
         checkpoint_outdir=outdir if checkpoint_interval is not None else None,
-        make_checkpoint_callback=make_checkpoint_callback,
+        build_checkpoint_callback=build_checkpoint_callback,
         checkpoint_on_png=checkpoint_on_png if checkpoint_interval is not None else None,
     )
     print(f"done in {(time.time() - t0) / 3600:.2f} hours")
@@ -863,7 +948,7 @@ def add_multi_spot_arguments(parser):
         default=FULLY_INSIDE,
         metavar="BOOL",
         help="with --multi-spot: keep only centers whose spot footprint lies inside "
-             f"connectome extent (default: {str(FULLY_INSIDE).lower()})",
+             f"connectome radius (default: {str(FULLY_INSIDE).lower()})",
     )
 
 
@@ -883,21 +968,21 @@ def add_training_arguments(parser):
     )
     parser.add_argument("--nofruns", type=int, default=NOFRUNS)
     parser.add_argument(
-        "--nofsteps",
+        "--nofiters",
         type=int,
         default=None,
-        help=f"steps per learning-rate stage (default: {NOFSTEPS_GPU} on GPU, "
-             f"{NOFSTEPS_CPU} on CPU)",
+        help=f"iters per learning-rate stage (default: {NOFITERS_GPU} on GPU, "
+             f"{NOFITERS_CPU} on CPU)",
     )
     parser.add_argument("--lrs", default=LRS,
-                        help="comma-separated learning-rate stages; each runs for --nofsteps steps")
+                        help="comma-separated learning-rate stages; each runs for --nofiters iters")
     parser.add_argument(
         "--checkpoint-interval",
         type=int,
         default=CHECKPOINT_INTERVAL,
         metavar="N",
-        help="every N global training steps, snap to the interval-best params and write "
-             "data/best_param_step_XXXXX.npz, csv/param_XXXXX.csv, "
+        help="every N global training iters, snap to the interval-best params and write "
+             "data/best_param_iter_XXXXX.npz, csv/param_XXXXX.csv, "
              "csv/syn_strength_cell_XXXXX.csv or csv/syn_strength_edge_XXXXX.csv, and png/*_XXXXX.png "
              f"(default: {CHECKPOINT_INTERVAL})",
     )
@@ -1046,7 +1131,7 @@ def add_training_arguments(parser):
         type=parse_bool,
         default=BIAS_GT_FROM_V_ONSET,
         metavar="BOOL",
-        help="use v at t_onset as cost/plot bias instead of schema bias_gt "
+        help="write v at t_onset into bias_gt (cost/plot/CSV) "
              f"(default: {str(BIAS_GT_FROM_V_ONSET).lower()}); "
              "forces bias_gt frozen=all",
     )
@@ -1064,15 +1149,24 @@ def add_training_arguments(parser):
         type=parse_bool,
         default=V_TH_CA_FROM_V_TH,
         metavar="BOOL",
-        help="use v_th as Ca threshold instead of schema v_th_ca "
+        help="write v_th into v_th_ca (forward/CSV) "
              f"(default: {str(V_TH_CA_FROM_V_TH).lower()}); "
              "forces v_th_ca frozen=all",
+    )
+    parser.add_argument(
+        "--a-ca-from-a-out",
+        type=parse_bool,
+        default=A_CA_FROM_A_OUT,
+        metavar="BOOL",
+        help="write a_out into a_ca (forward/CSV) "
+             f"(default: {str(A_CA_FROM_A_OUT).lower()}); "
+             "forces a_ca frozen=all",
     )
     parser.add_argument(
         "--filter",
         default=FILTER,
         choices=list(training.FILTER_MODES),
-        help="readout filter: none=v, ca=f_ca + Arenz digitized spot gt "
+        help="readout filter: none=v, ca=ca + Arenz digitized spot gt "
              f"(default: {FILTER}); ca forces --ms-spot {MS_SPOT_CA:g}",
     )
     parser.add_argument(
@@ -1112,20 +1206,20 @@ def add_training_arguments(parser):
              "DSI PD=0.2",
     )
     parser.add_argument(
-        "--shift-extent",
+        "--shift-radius",
         type=int,
-        default=SHIFT_EXTENT,
+        default=SHIFT_RADIUS,
         help="spot sub-shift hex-disc radius for spot tasks in --task "
              "(n_shifts=1+3k(k+1); 0->1, 1->7, 2->19, 3->37, ...)",
     )
     parser.add_argument(
-        "--spot-extent",
+        "--spot-radius",
         type=float,
-        default=SPOT_EXTENT,
+        default=SPOT_RADIUS,
         metavar="R",
-        help=f"spot footprint / center-tiling radius (0.5 multiples; default {SPOT_EXTENT}); "
-             "extent=1 folds RecF(2) into r=1 gt amp and defaults cost weights "
-             "to 0=1 1=1/6; extent 1.5/2 keep RecF(r) and 0=1 1=1/6 2=1/6",
+        help=f"spot footprint / center-tiling radius (0.5 multiples; default {SPOT_RADIUS}); "
+             "radius=1 folds RecF(2) into r=1 gt a_radius and defaults cost weights "
+             "to 0=1 1=1/6; radius 1.5/2 keep RecF(r) and 0=1 1=1/6 2=1/6",
     )
     add_multi_spot_arguments(parser)
     parser.add_argument(
@@ -1134,18 +1228,18 @@ def add_training_arguments(parser):
         nargs="+",
         metavar="R|R=W",
         help="spot cost weights by Euclidean r from stim hex (space-separated). "
-             "Same rules as --cost-weight: R=W merges onto extent defaults; bare R "
-             "zeros all known radii then sets R=1. Omit → extent default "
+             "Same rules as --cost-weight: R=W merges onto radius defaults; bare R "
+             "zeros all known radii then sets R=1. Omit → radius default "
              "(1→0=1 1=1/6; else 0=1 1=1/6 2=1/6). Keys: 0,1,2,sqrt3. "
              "Weights only (does not change RecF gt)",
     )
     parser.add_argument(
-        "--cost-extent",
+        "--cost-radius",
         default=None,
         nargs="+",
         metavar="N|TASK=N",
-        help="network cost hex-disc radius (moving-bar default: network extent - 1; "
-             "network extent 0/-1 and spot default to all hexes): bare N for all "
+        help="network cost hex-disc radius (moving-bar default: network radius - 1; "
+             "network radius 0/-1 and spot default to all hexes): bare N for all "
              "--task, or per-task space-separated e.g. moving_bar_bright=0 "
              "(aliases: spot, moving_bar); -1 = all hexes; requires --network",
     )
@@ -1239,8 +1333,8 @@ def add_stimulus_timing_arguments(
     else:
         pre_help = (
             f"pre-stimulus baseline duration in ms (default: {default_ms_pre}; "
-            "t_onset = ms_to_t(ms_pre, delta_ms=delta_ms_pre); "
-            "n_t = t_onset+ms_to_t(ms_response)+ms_to_t(ms_post)+1)"
+            "t_onset = t_from_ms(ms_pre, delta_ms=delta_ms_pre); "
+            "n_t = t_onset+t_from_ms(ms_response)+t_from_ms(ms_post)+1)"
         )
     if default_ms_response is None:
         response_help = (
@@ -1290,7 +1384,7 @@ def add_stimulus_timing_arguments(
         delta_pre_help = (
             f"pre-onset simulation time step in ms "
             f"(default: {default_delta_ms_pre}; writes delta_ms_pre into all "
-            "stimulus opts; t_onset = ms_to_t(ms_pre, delta_ms=delta_ms_pre))"
+            "stimulus opts; t_onset = t_from_ms(ms_pre, delta_ms=delta_ms_pre))"
         )
     parser.add_argument(
         "--ms-pre",
@@ -1436,8 +1530,8 @@ def parse_tasks(text):
     return training.normalize_tasks(parse_comma_list(text))
 
 
-def parse_cost_extent(tokens):
-    """Parse ``--cost-extent``: optional bare ``N`` plus ``TASK=N`` tokens."""
+def parse_cost_radius(tokens):
+    """Parse ``--cost-radius``: optional bare ``N`` plus ``TASK=N`` tokens."""
     if not tokens:
         return None, {}
     default = None
@@ -1448,7 +1542,7 @@ def parse_cost_extent(tokens):
             by_task[name.strip()] = int(val.strip())
         else:
             if default is not None:
-                raise ValueError("only one bare extent allowed in --cost-extent")
+                raise ValueError("only one bare radius allowed in --cost-radius")
             default = int(tok)
     return default, by_task
 
@@ -1614,29 +1708,38 @@ def training_kwargs_from_args(
             )
         train_modes = dict(train_modes or {})
         train_modes["v_th_ca"] = training.parse_train_mode_text("frozen=all")
+    a_ca_from_a_out = bool(args.a_ca_from_a_out)
+    if a_ca_from_a_out:
+        if _train_mode_cli_text(getattr(args, "a_ca", None)) is not None:
+            raise ValueError(
+                "--a-ca conflicts with --a-ca-from-a-out "
+                "(a_ca is forced frozen=all)"
+            )
+        train_modes = dict(train_modes or {})
+        train_modes["a_ca"] = training.parse_train_mode_text("frozen=all")
     tasks = parse_tasks(args.task)
     cost_weights = parse_cost_weight(args.cost_weight, tasks)
-    default_extent, extent_kv = parse_cost_extent(args.cost_extent)
-    cost_extent_by_task = training.resolve_cost_extent_by_task(
-        tasks, default_extent, extent_kv,
+    default_radius, radius_kv = parse_cost_radius(args.cost_radius)
+    cost_radius_by_task = training.resolve_cost_radius_by_task(
+        tasks, default_radius, radius_kv,
     )
-    if default_extent is not None and default_extent != -1 and default_extent < 0:
-        raise ValueError("--cost-extent must be -1 or >= 0")
-    if any(v != -1 and v < 0 for v in extent_kv.values()):
-        raise ValueError("--cost-extent must be -1 or >= 0")
-    from task.spot.input import spot_extent_half_steps
+    if default_radius is not None and default_radius != -1 and default_radius < 0:
+        raise ValueError("--cost-radius must be -1 or >= 0")
+    if any(v != -1 and v < 0 for v in radius_kv.values()):
+        raise ValueError("--cost-radius must be -1 or >= 0")
+    from task.spot.input import spot_radius_half_steps
 
-    shift_extent = int(args.shift_extent)
-    if shift_extent < 0:
-        raise ValueError("--shift-extent must be >= 0")
-    spot_extent = float(args.spot_extent)
-    spot_extent_half_steps(spot_extent)
+    shift_radius = int(args.shift_radius)
+    if shift_radius < 0:
+        raise ValueError("--shift-radius must be >= 0")
+    spot_radius = float(args.spot_radius)
+    spot_radius_half_steps(spot_radius)
     spot_cost_radius_weight = parse_spot_cost_r_w_tokens(
         args.spot_cost_r_w,
         default_weights=default_spot_cost_radius_weight(
-            spot_extent,
+            spot_radius,
             weights=SPOT_COST_RADIUS_WEIGHT,
-            weights_extent1=SPOT_COST_RADIUS_WEIGHT_EXTENT1,
+            weights_radius1=SPOT_COST_RADIUS_WEIGHT_RADIUS1,
         ),
         spot_cost_radii=SPOT_COST_RADII,
         aliases=SPOT_COST_RADIUS_KEY_ALIASES,
@@ -1715,15 +1818,15 @@ def training_kwargs_from_args(
     fp = int(args.fp)
     if not cuda_available and fp == 64:
         fp = 32
-    nofsteps = args.nofsteps
-    if nofsteps is None:
-        nofsteps = NOFSTEPS_GPU if cuda_available else NOFSTEPS_CPU
+    nofiters = args.nofiters
+    if nofiters is None:
+        nofiters = NOFITERS_GPU if cuda_available else NOFITERS_CPU
     run_name = command_run_name(script_stem)
     outdir = run_dir(model, parent=args.outdir, name=run_name)
     return dict(
         model=model,
         nofruns=int(args.nofruns),
-        nofsteps=nofsteps,
+        nofiters=nofiters,
         lrs=lrs,
         fname=args.fname,
         outdir=outdir,
@@ -1733,9 +1836,9 @@ def training_kwargs_from_args(
         tasks=tasks,
         cost_weights=cost_weights,
         cost_norm=expand_cost_norm(args.cost_norm),
-        cost_extent_by_task=cost_extent_by_task,
-        shift_extent=shift_extent,
-        spot_extent=spot_extent,
+        cost_radius_by_task=cost_radius_by_task,
+        shift_radius=shift_radius,
+        spot_radius=spot_radius,
         multi_spot=multi_spot,
         fully_inside=fully_inside,
         spot_cost_radius_weight=spot_cost_radius_weight,
@@ -1754,6 +1857,7 @@ def training_kwargs_from_args(
         bias_gt_from_v_onset=bias_gt_from_v_onset,
         bias_gt_from_v_onset_grad=bias_gt_from_v_onset_grad,
         v_th_ca_from_v_th=v_th_ca_from_v_th,
+        a_ca_from_a_out=a_ca_from_a_out,
         filter=filter,
         sequential=bool(args.sequential),
         init_from=init_from,

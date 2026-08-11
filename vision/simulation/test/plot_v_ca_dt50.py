@@ -118,7 +118,7 @@ def _session_z_at_delta_ms(base_opts, model, named, cell_names, pair_names, dt_m
     )
     schema = training.attach_param_carry(list(session.schema), remapped)
     session = session.with_schema(schema)
-    z = training.node_values_to_z(
+    z = training.z_from_node_values(
         remapped, schema, dtype=session.sim_dtype, device=session.device,
     )
     return session_for_target(session, "spot_bright"), z

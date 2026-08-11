@@ -16,7 +16,7 @@ from FiveCol_MedSim_Pytorch import (
     E_leak,
     calc_cost,
     data,
-    data_amp,
+    gt_amp,
     deltat,
     device,
     guess_initial_params,
@@ -205,7 +205,7 @@ def plot_cost(costs, path):
 
 
 def plot_model_vs_data(z, path, n_steps, title=None):
-    ref_data = ml.read_RecF_data() * data_amp
+    ref_data = ml.read_RecF_data() * gt_amp
     model_full = calc_model_full_all(z)
 
     fig = plt.figure(figsize=(16, 10))
@@ -241,7 +241,7 @@ def plot_model_vs_data(z, path, n_steps, title=None):
 
 def plot_all_celltypes(z, path, n_steps, title=None):
     """All 65 cell types: azimuth RF top, time bottom (Borst_Fig4-6 layout)."""
-    ref_data = ml.read_RecF_data() * data_amp
+    ref_data = ml.read_RecF_data() * gt_amp
     model_full = calc_model_full_all(z)
 
     ncols = 13

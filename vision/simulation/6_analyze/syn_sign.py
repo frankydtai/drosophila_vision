@@ -291,7 +291,7 @@ def plot_syn_sign(
     save_figure(fig, path, timer=timer)
 
 
-def write_syn_sign_plots(outdir, *, post=False, bins=DEFAULT_BINS) -> None:
+def save_syn_sign_plots(outdir, *, post=False, bins=DEFAULT_BINS) -> None:
     """Write ``pre_syn/syn_{gt,all}.png`` (or ``post_syn/`` when *post*)."""
     opts = plot_trained.load_train_opts(outdir)
     if not opts:
@@ -376,7 +376,7 @@ def main(argv: list[str] | None = None) -> int:
         help=f"histogram bins over [0, 100] (default: {DEFAULT_BINS})",
     )
     args = ap.parse_args(argv)
-    write_syn_sign_plots(
+    save_syn_sign_plots(
         plot_trained.resolve_run_dir(args.run),
         post=bool(args.post),
         bins=args.bins,

@@ -17,7 +17,7 @@ unless ``--family`` is given.
 Optionally restrict to CELL *instances* by location: axial ``(u, v)`` with
 ``--u`` and/or ``--v`` (one axis for every column on that line, or both for a single
 column); hex-step ``(x, y)`` with ``--x`` and/or ``--y``; or the central hex disc
-``--extent N`` (0 = centre column, 1 = 7 columns, 2 = 19, …; uses
+``--radius N`` (0 = centre column, 1 = 7 columns, 2 = 19, …; uses
 ``build_hex.inside_mask``); or a single hex shell ``--shell N`` (0 = centre
 column, 1 = 6 columns, 2 = 12, …; uses ``build_hex.hex_radius``). Both are
 FAFB-only and show mean ``pre_d_xy``/``post_d_xy`` only.
@@ -46,8 +46,8 @@ Example::
     python3 "analyze_cell_syn.py" Mi1 --post --u 0
     python3 "analyze_cell_syn.py" Mi1 --post --x 0 --y 1
     python3 "analyze_cell_syn.py" Mi1 --x 0
-    python3 "analyze_cell_syn.py" Mi1 --extent 0
-    python3 "analyze_cell_syn.py" Mi1 --extent 2
+    python3 "analyze_cell_syn.py" Mi1 --radius 0
+    python3 "analyze_cell_syn.py" Mi1 --radius 2
     python3 "analyze_cell_syn.py" Mi1 --shell 0
     python3 "analyze_cell_syn.py" Mi1 --shell 2
     python3 "analyze_cell_syn.py" Mi1 --u 0 --v 0 --p-xy
@@ -84,9 +84,9 @@ logger = logging.getLogger(__name__)
 _MAX_PARTNER_LIST = 5
 
 
-def _hex_disc_count(extent: int) -> int:
-    """Hex cells in a disc of axial radius ``extent`` (0 -> 1, 1 -> 7, 2 -> 19, …)."""
-    return 3 * extent * (extent + 1) + 1
+def _hex_disc_count(radius: int) -> int:
+    """Hex cells in a disc of axial radius ``radius`` (0 -> 1, 1 -> 7, 2 -> 19, …)."""
+    return 3 * radius * (radius + 1) + 1
 
 
 def _shell_hex_count(shell: int) -> int:
@@ -397,15 +397,15 @@ def instance_ids_at_hex(
     return _instance_ids_on_uv_line(nodes, at_u=u, at_v=v)
 
 
-def _instance_ids_in_disc(nodes: List[dict], extent: int) -> Dict[str, Set[int]]:
-    """Map cell -> root ids inside the central hex disc of radius ``extent``."""
+def _instance_ids_in_disc(nodes: List[dict], radius: int) -> Dict[str, Set[int]]:
+    """Map cell -> root ids inside the central hex disc of radius ``radius``."""
     out: Dict[str, Set[int]] = {}
     for n in nodes:
         try:
             u, v = int(n["u"]), int(n["v"])
         except (KeyError, TypeError, ValueError):
             continue
-        if not bool(inside_mask(u, v, extent)):
+        if not bool(inside_mask(u, v, radius)):
             continue
         name = n.get("name")
         if not isinstance(name, str):
@@ -921,7 +921,7 @@ def main(argv: List[str] | None = None) -> int:
         ),
     )
     parser.add_argument(
-        "--extent",
+        "--radius",
         type=int,
         metavar="N",
         default=None,
@@ -941,7 +941,7 @@ def main(argv: List[str] | None = None) -> int:
             "FAFB only: restrict to CELL instances on hex shell N "
             "(0 = centre column, 1 = 6 columns, 2 = 12, …; "
             "build_hex.hex_radius). Shows mean pre_d_xy/post_d_xy only. "
-            "Incompatible with --extent, --u/--v, and --x/--y."
+            "Incompatible with --radius, --u/--v, and --x/--y."
         ),
     )
     parser.add_argument(
@@ -964,12 +964,12 @@ def main(argv: List[str] | None = None) -> int:
         logger.error("--u/--v cannot be used with --x/--y")
         return 1
 
-    if args.extent is not None and has_uv_filter:
-        logger.error("--extent cannot be used with --u/--v")
+    if args.radius is not None and has_uv_filter:
+        logger.error("--radius cannot be used with --u/--v")
         return 1
 
-    if args.extent is not None and has_xy_filter:
-        logger.error("--extent cannot be used with --x/--y")
+    if args.radius is not None and has_xy_filter:
+        logger.error("--radius cannot be used with --x/--y")
         return 1
 
     if args.shell is not None and has_uv_filter:
@@ -980,12 +980,12 @@ def main(argv: List[str] | None = None) -> int:
         logger.error("--shell cannot be used with --x/--y")
         return 1
 
-    if args.extent is not None and args.shell is not None:
-        logger.error("--extent cannot be used with --shell")
+    if args.radius is not None and args.shell is not None:
+        logger.error("--radius cannot be used with --shell")
         return 1
 
-    if args.extent is not None and args.extent < 0:
-        logger.error("--extent must be >= 0")
+    if args.radius is not None and args.radius < 0:
+        logger.error("--radius must be >= 0")
         return 1
 
     if args.shell is not None and args.shell < 0:
@@ -1020,14 +1020,14 @@ def main(argv: List[str] | None = None) -> int:
     at_ref_uv: Optional[Tuple[float, float]] = None
     at_ref_xy: Optional[Tuple[float, float]] = None
 
-    if args.extent is not None:
-        ids_at_hex = _instance_ids_in_disc(nodes, args.extent)
-        n_hex = _hex_disc_count(args.extent)
-        hex_note += f" extent={args.extent} ({n_hex} hex cols)"
+    if args.radius is not None:
+        ids_at_hex = _instance_ids_in_disc(nodes, args.radius)
+        n_hex = _hex_disc_count(args.radius)
+        hex_note += f" radius={args.radius} ({n_hex} hex cols)"
         logger.info(
-            "Restricting to central hex disc extent=%d (%d hexes); "
+            "Restricting to central hex disc radius=%d (%d hexes); "
             "%d cells have ≥1 node there",
-            args.extent,
+            args.radius,
             n_hex,
             sum(1 for s in ids_at_hex.values() if s),
         )
