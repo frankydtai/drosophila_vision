@@ -74,12 +74,12 @@ def _fit_center_traces(session, z, *, return_v_delta: bool) -> dict[str, np.ndar
         trace_full = training.forward_full(session, p, sig, pack=pack)
 
     opts = dict((session.train_opts or {}).get(f"{pack.name}_stimulus_opts") or {})
-    C = session.backend.network
-    spot = spot_from_opts(C, stimulus_opts=opts)
+    connectome = session.backend.network
+    spot = spot_from_opts(connectome, stimulus_opts=opts)
     batches = spot_stimulus_batches(spot)
     cost_radii = resolve_spot_cost_radii(stimulus_opts=opts)
     batch_idx, node_idx, _r, type_idx, _su, _sv, _du, _dv, center_row = (
-        build_spot_center_readout(C, batches, cost_radii, pack.cost_extent)
+        build_spot_center_readout(connectome, batches, cost_radii, pack.cost_extent)
     )
     raw = trace_full[batch_idx, :, node_idx]
     scale = training.out_scale_for_nodes(
@@ -87,7 +87,7 @@ def _fit_center_traces(session, z, *, return_v_delta: bool) -> dict[str, np.ndar
     )
     scaled = scale[:, None] * raw
 
-    cell_names = list(C.cell_names)
+    cell_names = list(connectome.cell_names)
     out: dict[str, np.ndarray] = {}
     for name in cell_list:
         name = str(name)
@@ -189,7 +189,7 @@ def main():
     )
     ap.add_argument(
         "--ms-response", type=float, default=MS_RESPONSE,
-        help="post-onset response window in ms (default %(default)s)",
+        help="post-onset ms_response in ms (default %(default)s)",
     )
     args = ap.parse_args()
 

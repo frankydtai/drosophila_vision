@@ -374,7 +374,7 @@ def _coverage_time_series(
     *,
     multi_bar: bool = True,
 ) -> np.ndarray:
-    """Coverage from simultaneous per-lane bars (network connectome field)."""
+    """Coverage from simultaneous per-lane bars (connectome field)."""
     dt_s = delta_ms / 1000.0
     trail_shift_deg = _trail_shift_deg(spec, dt_s)
     lane_origins = _motion_lanes(spec, field_deg, bar_radius, multi_bar=multi_bar)
@@ -633,16 +633,15 @@ class MovingBarStimulus:
     info: dict = field(default_factory=dict)
 
 
-def sti_hexes(C) -> List[StiHex]:
-    """Sti hexes with photoreceptor nodes (one per axial ``(u, v)``)."""
+def sti_hexes(connectome) -> List[StiHex]:
+    """Sti hexes with sti nodes (one per axial ``(u, v)``)."""
     by_uv: Dict[Tuple[int, int], StiHex] = {}
-    u_in = C.u[C.is_input]
-    v_in = C.v[C.is_input]
-    for u, v in zip(u_in.tolist(), v_in.tolist()):
-        key = (int(u), int(v))
+    for node_idx in connectome.sti_node_idx:
+        u, v = int(connectome.u[node_idx]), int(connectome.v[node_idx])
+        key = (u, v)
         if key in by_uv:
             continue
-        nodes = C.input_nodes_at(key[0], key[1])
+        nodes = connectome.sti_nodes_at(u, v)
         if len(nodes) == 0:
             continue
         base = hex_from_uv(key[0], key[1])
@@ -654,9 +653,9 @@ def sti_hexes(C) -> List[StiHex]:
     return [by_uv[k] for k in sorted(by_uv)]
 
 
-def moving_bar_cost_hexes(C, cost_radius=None) -> List[StiHex]:
+def moving_bar_cost_hexes(connectome, cost_radius=None) -> List[StiHex]:
     """Sti hexes used for moving-bar cost (optional central hex disc)."""
-    hexes = sti_hexes(C)
+    hexes = sti_hexes(connectome)
     if cost_radius is None:
         return hexes
     return [c for c in hexes if hex_in_cost_radius(c.u, c.v, cost_radius)]
@@ -668,9 +667,9 @@ def _as_int64_np(x) -> np.ndarray:
     return np.asarray(x, dtype=np.int64)
 
 
-def network_uv_np(C) -> Tuple[np.ndarray, np.ndarray]:
+def network_uv_np(connectome) -> Tuple[np.ndarray, np.ndarray]:
     """connectome axial ``(u, v)`` per node as int64 numpy arrays."""
-    return _as_int64_np(C.u), _as_int64_np(C.v)
+    return _as_int64_np(connectome.u), _as_int64_np(connectome.v)
 
 
 def _coord_matches(val, axis_filter, tol=1e-6) -> bool:
@@ -681,22 +680,22 @@ def _coord_matches(val, axis_filter, tol=1e-6) -> bool:
     return np.isclose(val, float(axis_filter), atol=tol)
 
 
-def filter_sti_hexes(cols, *, at_x=None, at_y=None, tol=1e-6):
+def filter_sti_hexes(hexes, *, at_x=None, at_y=None, tol=1e-6):
     """Keep network sti hexes whose hex-step ``(x, y)`` matches ``at_x`` / ``at_y``."""
     if at_x is None and at_y is None:
-        return list(cols)
+        return list(hexes)
     out = []
-    for col in cols:
-        if not _coord_matches(col.x, at_x, tol=tol):
+    for hex in hexes:
+        if not _coord_matches(hex.x, at_x, tol=tol):
             continue
-        if not _coord_matches(col.y, at_y, tol=tol):
+        if not _coord_matches(hex.y, at_y, tol=tol):
             continue
-        out.append(col)
+        out.append(hex)
     return out
 
 
 def resolve_i_baseline(value: float) -> float:
-    """Cast photoreceptor baseline current (pA)."""
+    """Cast sti baseline current (pA)."""
     return float(value)
 
 
@@ -728,11 +727,11 @@ def moving_bar_spec_horizon(t_first_stis: Sequence[int], n_t: int) -> Tuple[int,
     return fb, before, after
 
 
-def moving_bar_network_t0_bn(C, filt_hexes: Sequence[StiHex], n_batch: int, t0_map: dict) -> np.ndarray:
+def moving_bar_network_t0_bn(connectome, filt_hexes: Sequence[StiHex], n_batch: int, t0_map: dict) -> np.ndarray:
     """Expand per-hex ``t0`` values to a full node grid ``(B, N_nodes)``."""
-    node_u_np = np.asarray(C.u, dtype=np.int64)
-    node_v_np = np.asarray(C.v, dtype=np.int64)
-    t0_bn = np.full((n_batch, C.n_nodes), -1, dtype=np.int64)
+    node_u_np = np.asarray(connectome.u, dtype=np.int64)
+    node_v_np = np.asarray(connectome.v, dtype=np.int64)
+    t0_bn = np.full((n_batch, connectome.n_nodes), -1, dtype=np.int64)
     for bi in range(n_batch):
         for c in filt_hexes:
             t0 = t0_map.get((bi, int(c.u), int(c.v)))
@@ -751,7 +750,7 @@ def build_moving_bar_t0_grids(
     *,
     all_hex_idxs: Sequence[int],
     filt_hex_idxs: Sequence[int],
-    network_C,
+    connectome,
     filt_network_hexes: Sequence[StiHex],
 ) -> MovingBarT0Grids:
     """Plot/training-aligned ``t0`` grid and per-spec full horizons."""
@@ -775,7 +774,7 @@ def build_moving_bar_t0_grids(
         ]
         for c, tc in zip(filt_network_hexes, t_first_filt):
             t0_map[(bi, int(c.u), int(c.v))] = tc - fb
-    t0_bn = moving_bar_network_t0_bn(network_C, filt_network_hexes, n_batch, t0_map)
+    t0_bn = moving_bar_network_t0_bn(connectome, filt_network_hexes, n_batch, t0_map)
     return MovingBarT0Grids(t0_bn=t0_bn, before_t=before_t, after_t=after_t)
 
 
@@ -883,7 +882,7 @@ def _save_moving_bar_hex_cache(path: Path, i_sti_hex: np.ndarray) -> None:
 
 
 def build_moving_bar_signals(
-    C,
+    connectome,
     specs: Optional[Sequence[MovingBarSpec]] = None,
     n_t: Optional[int] = None,
     t_onset: int = None,
@@ -900,11 +899,11 @@ def build_moving_bar_signals(
     network_json: Optional[Path] = None,
     sim_dtype: torch.dtype,
 ) -> MovingBarStimulus:
-    """Build batched photoreceptor current for moving-bar stimuli (network connectome).
+    """Build batched sti current for moving-bar stimuli.
 
     Returns ``i_sti`` with shape ``(B, T, N_nodes)`` where ``B = len(specs)``.
     """
-    device = device or C.device
+    device = device or connectome.device
     bar_radius = int(bar_radius)
     multi_bar = bool(multi_bar)
     specs = list(specs if specs is not None else gruntman_moving_bar_specs())
@@ -919,14 +918,14 @@ def build_moving_bar_signals(
         if i_dark_moving_bar is None:
             raise ValueError("i_dark_moving_bar required for dark contrast")
         i_dark = float(i_dark_moving_bar)
-    sti = sti_hexes(C)
+    sti = sti_hexes(connectome)
     field_deg = field_bounds(sti)
     if n_t is None:
         n_t = moving_bar_n_t(
             specs, field_deg, bar_radius, multi_bar=multi_bar, t_onset=t_onset, delta_ms=delta_ms,
         )
     n_batch = len(specs)
-    n_nodes = C.n_nodes
+    n_nodes = connectome.n_nodes
     sweep_end = moving_bar_sweep_end_t(
         specs, field_deg, bar_radius, multi_bar=multi_bar, t_onset=t_onset, delta_ms=delta_ms,
     )
@@ -934,7 +933,7 @@ def build_moving_bar_signals(
     tail_t = n_t - sweep_end
 
     cache_path: Optional[Path] = None
-    source_json = Path(network_json) if network_json is not None else getattr(C, "source_json", None)
+    source_json = Path(network_json) if network_json is not None else getattr(connectome, "source_json", None)
     hex_uv = [(c.u, c.v) for c in sti]
     if source_json is not None:
         cache_path = _moving_bar_cache_path(

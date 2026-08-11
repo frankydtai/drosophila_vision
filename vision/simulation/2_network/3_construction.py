@@ -4,7 +4,7 @@
 The JSON contract (see ``connectome/FAFBv783/.../network.json``):
 
     metadata: {side, radius, sign_from_nt, forced_negative_pre_cells, ...}
-    nodes:    [{id, name, u, v, column_id, input, output}, ...]
+    nodes:    [{id, name, u, v, column_id, sti, output}, ...]
     edges:    [{src, tar, syn_sign, n_syn, source_cell, target_cell, du, dv}, ...]
 
 ``syn_sign`` already encodes ``sign_from_nt`` and the ``forced_negative_pre_cells``
@@ -13,7 +13,7 @@ override. ``--syn-mode per_cell`` uses ``edge_weight = syn_sign * n_syn``;
 
 Nodes follow ``network.json`` file order; ``node_cell[i]`` is the index of
 ``nodes[i]['name']`` in the order-ordered cell vocabulary
-(:data:`CELL_ORDER_ROWS`). This broadcasts per-cell params to nodes via
+(:data:`CELL_PLOT_ROWS`). This broadcasts per-cell params to nodes via
 ``param[node_cell]`` (shape ``(n_cells,)`` → ``(n_nodes,)``).
 """
 from __future__ import annotations
@@ -33,9 +33,9 @@ from neuron.schema import normalize_syn_mode
 # Photoreceptor drive currents (pA) are injected by the caller
 # (``param_defaults.I_*``); this module has no numeric bindings.
 
-# Canonical cell order for plot / param broadcast (order rows).
-# Leftovers (not listed) are appended alphabetically, five per row.
-CELL_ORDER_ROWS: list[list[str]] = [
+# Canonical cell order for plot / param broadcast (plot rows).
+# Leftovers (not listed) are appended alphabetically, five per plot row.
+CELL_PLOT_ROWS: list[list[str]] = [
     ['R1-6', 'R7', 'R8'],
     ['L1', 'L2', 'L3', 'L4', 'L5'],
     ['Mi1', 'Tm3', 'Mi4', 'Mi9'],
@@ -46,29 +46,29 @@ CELL_ORDER_ROWS: list[list[str]] = [
     ['C2', 'C3', 'Lawf1', 'Lawf2'],
 ]
 
-_LEFTOVER_ROW_LEN = 5
+_LEFTOVER_PLOT_ROW_LEN = 5
 
 
-def cell_order_rows(present: Sequence[str]) -> list[list[str]]:
-    """Present cells into order rows; leftovers alphabetical, ``_LEFTOVER_ROW_LEN`` per row."""
+def cell_plot_rows(present: Sequence[str]) -> list[list[str]]:
+    """Present cells into plot rows; leftovers alphabetical, ``_LEFTOVER_PLOT_ROW_LEN`` per row."""
     present_names = [str(t) for t in present]
     present_set = set(present_names)
-    rows: list[list[str]] = []
+    plot_rows: list[list[str]] = []
     used: set[str] = set()
-    for row in CELL_ORDER_ROWS:
-        filtered = [t for t in row if t in present_set]
+    for plot_row in CELL_PLOT_ROWS:
+        filtered = [t for t in plot_row if t in present_set]
         if filtered:
-            rows.append(filtered)
+            plot_rows.append(filtered)
             used.update(filtered)
     leftover = sorted(name for name in present_names if name not in used)
-    for i in range(0, len(leftover), _LEFTOVER_ROW_LEN):
-        rows.append(leftover[i : i + _LEFTOVER_ROW_LEN])
-    return rows
+    for i in range(0, len(leftover), _LEFTOVER_PLOT_ROW_LEN):
+        plot_rows.append(leftover[i : i + _LEFTOVER_PLOT_ROW_LEN])
+    return plot_rows
 
 
-def cell_names_in_order(present: Sequence[str]) -> list[str]:
-    """Flat cell order from :func:`cell_order_rows`."""
-    return [n for row in cell_order_rows(present) for n in row]
+def cells_in_order(present: Sequence[str]) -> list[str]:
+    """Flat cell order from :func:`cell_plot_rows`."""
+    return [n for plot_row in cell_plot_rows(present) for n in plot_row]
 
 
 @dataclass
@@ -77,12 +77,12 @@ class Network:
 
     conn: ScatterConn
     n_nodes: int
-    node_cell: torch.Tensor          # (N,) long, index into cell_names
-    cell_names: list[str]            # cell vocabulary (len = n_cells)
+    node_cell: torch.Tensor          # (N,) long, index into cells
+    cells: list[str]            # cell vocabulary (len = n_cells)
     u: np.ndarray                    # (N,) axial u
     v: np.ndarray                    # (N,) axial v
     column_id: np.ndarray            # (N,) FAFB column_id (or -1)
-    is_input: np.ndarray             # (N,) bool photoreceptor / stimulus node
+    is_sti: np.ndarray             # (N,) bool sti (photoreceptor) node
     node_ids: list[int]              # (N,) original node ids in node order
     node_from_id: dict[int, int]       # node id -> node index
     device: str = "cpu"
@@ -91,20 +91,25 @@ class Network:
 
     @property
     def n_cells(self) -> int:
-        return len(self.cell_names)
+        return len(self.cells)
 
-    def input_nodes_at(self, u: int, v: int) -> np.ndarray:
-        """Stimulus (photoreceptor) node indices on hex (u, v)."""
-        return np.where((self.u == u) & (self.v == v) & self.is_input)[0]
+    @property
+    def sti_node_idx(self) -> np.ndarray:
+        """Node indices with ``is_sti``."""
+        return np.where(self.is_sti)[0]
+
+    def sti_nodes_at(self, u: int, v: int) -> np.ndarray:
+        """Sti node indices on hex (u, v)."""
+        return np.where((self.u == u) & (self.v == v) & self.is_sti)[0]
 
 
-def node_cell_names(C: Network) -> np.ndarray:
+def node_cell_names(connectome: Network) -> np.ndarray:
     """(n_nodes,) array of each node's cell NAME."""
-    return np.asarray(C.cell_names)[C.node_cell.detach().cpu().numpy()]
+    return np.asarray(connectome.cells)[connectome.node_cell.detach().cpu().numpy()]
 
 
 def hex2gt(
-    C: Network,
+    connectome: Network,
     u: int,
     v: int,
     gt_type: str,
@@ -112,9 +117,9 @@ def hex2gt(
 ) -> np.ndarray:
     """Node indices of cell ``gt_type`` on hex (u, v)."""
     if names is None:
-        names = node_cell_names(C)
+        names = node_cell_names(connectome)
     return np.where(
-        (C.u == int(u)) & (C.v == int(v)) & (names == gt_type),
+        (connectome.u == int(u)) & (connectome.v == int(v)) & (names == gt_type),
     )[0]
 
 
@@ -171,7 +176,7 @@ def normalize_gt_cells(gt_cells: Sequence[str] | None) -> list[str] | None:
 
 
 def load_network_json(path) -> tuple[list[dict], list[dict], list[str], dict]:
-    """Load ``network.json`` → ``(nodes, edges, order-ordered cell_names, metadata)``."""
+    """Load ``network.json`` → ``(nodes, edges, order-ordered cells, metadata)``."""
     path = Path(path)
     with open(path) as f:
         doc = json.load(f)
@@ -182,11 +187,11 @@ def load_network_json(path) -> tuple[list[dict], list[dict], list[str], dict]:
     present = sorted(
         {n["name"] for n in nodes if isinstance(n.get("name"), str)}
     )
-    cell_names = cell_names_in_order(present)
+    cells = cells_in_order(present)
     meta = doc.get("metadata", {})
     if not isinstance(meta, dict):
         meta = {}
-    return nodes, edges, cell_names, meta
+    return nodes, edges, cells, meta
 
 
 def load_network(
@@ -201,14 +206,14 @@ def load_network(
     """Read ``network.json`` and return a :class:`Network``."""
     device = device or ("cuda" if torch.cuda.is_available() else "cpu")
     path = Path(path)
-    nodes, edges, cell_names, meta = load_network_json(path)
+    nodes, edges, cells, meta = load_network_json(path)
     mode = normalize_syn_mode(syn_mode)
 
     n_nodes = len(nodes)
     node_ids = [int(n["id"]) for n in nodes]
     node_from_id = {nid: i for i, nid in enumerate(node_ids)}
 
-    idx_from_cell = {t: i for i, t in enumerate(cell_names)}
+    idx_from_cell = {t: i for i, t in enumerate(cells)}
     node_cell = np.array([idx_from_cell[n["name"]] for n in nodes], dtype=np.int64)
 
     u = np.array(
@@ -221,7 +226,7 @@ def load_network(
         [-1 if n.get("column_id") is None else int(n["column_id"]) for n in nodes],
         dtype=np.int64,
     )
-    is_input = np.array([bool(n.get("input", False)) for n in nodes], dtype=bool)
+    is_sti = np.array([bool(n.get("sti", False)) for n in nodes], dtype=bool)
 
     # edge list -> node indices + signed edge weight.
     source_idx = np.empty(len(edges), dtype=np.int64)
@@ -251,11 +256,11 @@ def load_network(
         conn=conn,
         n_nodes=n_nodes,
         node_cell=torch.as_tensor(node_cell, dtype=torch.long, device=device),
-        cell_names=cell_names,
+        cells=cells,
         u=u,
         v=v,
         column_id=column_id,
-        is_input=is_input,
+        is_sti=is_sti,
         node_ids=node_ids,
         node_from_id=node_from_id,
         device=device,

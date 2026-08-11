@@ -16,7 +16,7 @@ import math
 from typing import Dict, Tuple
 
 DEFAULT_RUN_NAME = """
-29048310-run-nofsteps-200-a-h-init.L1,L2,L4,L5-0.5
+29080544-run-n-iter-300-a-h-init.L1,L2,L4,L5-0.5
 """.strip()
 DEFAULT_RUN_PATH = "hp_lp/" + DEFAULT_RUN_NAME
 
@@ -63,8 +63,8 @@ PARAM_BOXES: Dict[str, dict] = {
     "v_th_ca": dict(lo=-100.0, hi=-100.0, init=-50.0, jit=0.0, train_mode="indi"),
     "a_ca": dict(lo=GAIN_LO, hi=GAIN_HI, init=1.0, jit=0.1, train_mode="indi"),
     "tau_ca": dict(lo=100.0, hi=1000.0, init=350.0, jit=5.0, train_mode="indi"),
-    "tau_lp": dict(lo=10.0, hi=100.0, init=10.0, jit=2.0, train_mode="fixed"),
-    "tau_hp": dict(lo=100.0, hi=500.0, init=200.0, jit=20.0, train_mode="shared"),
+    "tau_lp": dict(lo=10.0, hi=100.0, init=10.0, jit=2.0, train_mode="indi"),
+    "tau_hp": dict(lo=100.0, hi=500.0, init=200.0, jit=20.0, train_mode="indi"),
     "a_h": dict(lo=0.0, hi=1.0, init=0, jit=0.1, train_mode="indi_named"),
     "v_mid_h_g": dict(lo=-70.0, hi=-30.0, init=-50.0, jit=5.0, train_mode="shared"),
     "v_mid_h_tau": dict(lo=-70.0, hi=-40.0, init=-50.0, jit=5.0, train_mode="shared"),
@@ -94,7 +94,7 @@ PRE_GRAD = True
 # 2.1 network.path
 # ---------------------------------------------------------------------------
 
-NETWORK = "right_min_neuron1_extent10"
+NETWORK = "right_min_neuron1_r10"
 
 # ---------------------------------------------------------------------------
 # 2.3 network.construction
@@ -184,14 +184,14 @@ V_TH_CA_FROM_V_TH = False
 # Ca gain: write a_out into a_ca (a_ca frozen=all); visible in param.csv.
 A_CA_FROM_A_OUT = False
 
-# Membrane t=0 pre steady (``--pre-steady MODE``). Not param init.
+# Membrane t=0 pre steady (``--pre-steady``). Not param init.
 # Shared by borst / hp_lp: probe (ohmic one-shot) | solve (fixed-iter DC).
 PRE_STEADY = "solve"
 PRE_STEADY_ITERS = 50  # solve only
 PRE_STEADY_DAMP = 0.1  # solve under-relaxation
-NOFRUNS = 1
-NOFITERS_CPU = 0
-NOFITERS_GPU = 200
+N_RUN = 1
+N_ITER_CPU = 0
+N_ITER_GPU = 200
 LRS = "0.1"
 CHECKPOINT_INTERVAL = 1000
 

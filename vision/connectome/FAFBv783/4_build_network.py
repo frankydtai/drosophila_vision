@@ -57,8 +57,8 @@ SIGN_FROM_NT = {"ACH": 1.0, "GLUT": -1.0, "GABA": -1.0, "SER": 1.0, "DA": 1.0, "
 # Photoreceptors are histaminergic (inhibitory) but FAFB lacks a histamine class,
 # so their sign is forced negative regardless of the predicted nt.
 FORCED_NEGATIVE_PRE_CELLS = {"R1-6", "R7", "R8"}
-# Cells treated as network inputs (photoreceptors).
-INPUT_CELLS = {"R1-6", "R7", "R8"}
+# Cells that receive light stimulus (R1-6, R7, R8).
+STI_CELLS = {"R1-6", "R7", "R8"}
 # Per-edge sign rule: "per_edge" (dominant nt per pre/post pair) or
 # "per_pre" (one sign per presynaptic neuron, Dale's principle).
 SIGN_MODE = "per_edge"
@@ -326,7 +326,7 @@ def build(side: str, min_neuron_count: int) -> Path:
         u, v, cid = pos.get(rid, (None, None, None))
         nodes.append({
             "id": rid, "name": cell, "u": u, "v": v, "column_id": cid,
-            "input": cell in INPUT_CELLS, "output": False,
+            "sti": cell in STI_CELLS, "output": False,
         })
     logger.info(
         "Nodes: %d (%d with column position, %d without)",
@@ -379,7 +379,7 @@ def build(side: str, min_neuron_count: int) -> Path:
             "n_nodes": len(nodes),
             "n_nodes_with_column": len(pos),
             "n_edges": len(edges),
-            "n_input_nodes": int(sum(n["input"] for n in nodes)),
+            "n_sti_nodes": int(sum(n["sti"] for n in nodes)),
             "n_cells": int(len({n["name"] for n in nodes})),
         },
         "nodes": nodes,
@@ -403,7 +403,7 @@ def _write_summary(run_dir: Path, meta: Dict[str, object]) -> Path:
         filt = json.load(open(meta_json))
 
     n_nodes = int(meta["n_nodes"])
-    n_with_col = int(meta["n_nodes_with_column"])
+    n_with_column = int(meta["n_nodes_with_column"])
     lines = [
         f"network summary: {run_dir.name}",
         "=" * 40,
@@ -413,9 +413,9 @@ def _write_summary(run_dir: Path, meta: Dict[str, object]) -> Path:
         f"sign_mode            : {meta['sign_mode']}",
         "",
         f"n_nodes              : {n_nodes}",
-        f"n_nodes_with_column  : {n_with_col}",
-        f"n_nodes_without_col  : {n_nodes - n_with_col}",
-        f"n_input_nodes        : {meta['n_input_nodes']}",
+        f"n_nodes_with_column  : {n_with_column}",
+        f"n_nodes_without_column  : {n_nodes - n_with_column}",
+        f"n_sti_nodes        : {meta['n_sti_nodes']}",
         f"n_edges              : {meta['n_edges']}",
         f"n_cells         : {meta['n_cells']}",
         "",

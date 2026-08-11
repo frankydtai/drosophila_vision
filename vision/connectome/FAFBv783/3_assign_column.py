@@ -130,40 +130,40 @@ def locate_neurons(
         len(target_ids), list(target_cells), side, direction,
     )
 
-    partner_col = (
+    partner_column_id = (
         columns.drop_duplicates("root_id").set_index("root_id")["column_id"]
     )
 
-    # self_id is the target column; partner_id provides the column vote.
-    # partner_kind names the output count columns after the partner side.
+    # self_id is the target neuron; partner_id provides the column vote.
+    # partner_kind names the output count fields after the partner side.
     if direction == "post":
         self_id, partner_id = "pre_root_id", "post_root_id"
         partner_kind = "post"
     else:
         self_id, partner_id = "post_root_id", "pre_root_id"
         partner_kind = "pre"
-    n_col = f"n_{partner_kind}"
-    n_with_col = f"n_{partner_kind}_with_column"
+    n_partner_field = f"n_{partner_kind}"
+    n_with_column_field = f"n_{partner_kind}_with_column"
 
     e = connections[connections[self_id].isin(target_ids)][
         [self_id, partner_id, "syn_count"]
     ].copy()
-    e["col"] = e[partner_id].map(partner_col)
+    e["column_id"] = e[partner_id].map(partner_column_id)
 
     n_partners = e.groupby(self_id)[partner_id].nunique()
 
-    e_col = e.dropna(subset=["col"]).copy()
-    e_col["col"] = e_col["col"].astype("int64")
-    n_partners_with_column = e_col.groupby(self_id)[partner_id].nunique()
+    with_column = e.dropna(subset=["column_id"]).copy()
+    with_column["column_id"] = with_column["column_id"].astype("int64")
+    n_partners_with_column = with_column.groupby(self_id)[partner_id].nunique()
 
     if weight_by_syn:
-        votes = e_col.groupby([self_id, "col"])["syn_count"].sum()
+        votes = with_column.groupby([self_id, "column_id"])["syn_count"].sum()
     else:
-        votes = e_col.groupby([self_id, "col"])[partner_id].nunique()
+        votes = with_column.groupby([self_id, "column_id"])[partner_id].nunique()
     votes = votes.reset_index(name="votes")
     # Majority: most votes; ties broken by the larger column_id (matches NIPS).
     votes = votes.sort_values(
-        [self_id, "votes", "col"], ascending=[True, False, False]
+        [self_id, "votes", "column_id"], ascending=[True, False, False]
     )
     best = votes.groupby(self_id).first()
     # All per-column vote counts (descending), e.g. "5, 5, 5, 3"; sums to n_with_column.
@@ -174,23 +174,23 @@ def locate_neurons(
     out = targets.rename(columns={"root_id": "_rid"}).copy()
     out["root_id"] = out["_rid"].astype("int64")
     out = out.drop(columns="_rid")
-    out[n_col] = (
+    out[n_partner_field] = (
         out["root_id"].map(n_partners).fillna(0).astype("int64")
     )
-    out[n_with_col] = (
+    out[n_with_column_field] = (
         out["root_id"].map(n_partners_with_column).fillna(0).astype("int64")
     )
     out["votes"] = out["root_id"].map(votes_list).fillna("").astype("string")
-    out["majority_column_id"] = out["root_id"].map(best["col"]).astype("Int64")
+    out["majority_column_id"] = out["root_id"].map(best["column_id"]).astype("Int64")
 
     if uv_from_column is not None:
         from build_hex import xy_from_uv
 
-        u_by_col = {int(c): uv[0] for c, uv in uv_from_column.items()}
-        v_by_col = {int(c): uv[1] for c, uv in uv_from_column.items()}
-        vu = votes[[self_id, "col", "votes"]].copy()
-        vu["u"] = vu["col"].map(u_by_col)
-        vu["v"] = vu["col"].map(v_by_col)
+        u_by_column_id = {int(c): uv[0] for c, uv in uv_from_column.items()}
+        v_by_column_id = {int(c): uv[1] for c, uv in uv_from_column.items()}
+        vu = votes[[self_id, "column_id", "votes"]].copy()
+        vu["u"] = vu["column_id"].map(u_by_column_id)
+        vu["v"] = vu["column_id"].map(v_by_column_id)
         vu["x"], vu["y"] = xy_from_uv(
             vu["u"].astype("float"), vu["v"].astype("float"),
         )
@@ -219,12 +219,12 @@ def locate_neurons(
         ) ** 2
         nearest = (
             vu.sort_values(
-                [self_id, "d2", "votes", "col"], ascending=[True, True, False, False]
+                [self_id, "d2", "votes", "column_id"], ascending=[True, True, False, False]
             )
             .groupby(self_id)
-            .first()["col"]
+            .first()["column_id"]
         )
-        chosen = best["col"].astype("float").copy()
+        chosen = best["column_id"].astype("float").copy()
         use_nearest = best_frac <= 0.5
         chosen.loc[use_nearest] = nearest.reindex(chosen.index).loc[use_nearest]
         out["majority_column_id"] = out["root_id"].map(chosen).astype("Int64")

@@ -183,7 +183,7 @@ def v_component_from_g(
 
 
 def prepare_i_sti(session, params, i_sti, pack):
-    """PR current ``(B, T, N)`` as membrane drive (no rescale)."""
+    """Sti current ``(B, T, N)`` as membrane drive (no rescale)."""
     del params, pack
     return i_sti.unsqueeze(0) if i_sti.dim() == 2 else i_sti
 
@@ -242,13 +242,13 @@ def pre_steady(session, params, B, i_sti=None):
     """``(u, u_rev)``, ``v`` at t=0 from ``session.pre_steady``."""
     if i_sti is None:
         raise TypeError("borst pre_steady requires i_sti")
-    mode = str(session.pre_steady)
-    if mode not in ("probe", "solve"):
-        raise ValueError(f"borst pre_steady must be probe|solve; got {mode!r}")
+    pre_steady = str(session.pre_steady)
+    if pre_steady not in ("probe", "solve"):
+        raise ValueError(f"borst pre_steady must be probe|solve; got {pre_steady!r}")
     e_leak = params["e_leak"]
     v = e_leak.expand(B, session.backend.n_nodes).clone()
     i0 = i_sti[:, 0, :]
-    if mode == "probe":
+    if pre_steady == "probe":
         v_star, u, u_rev = _dc_v_star(v, params, i0, e_leak, session, with_i_h_ss=False)
         return (u, u_rev), v_star
     damp = float(session.pre_steady_damp)

@@ -27,7 +27,7 @@ then express each as a percentage of **all** ``n_syn`` for that cell. An
 ``n_neuron`` column is always shown. The SUM row omits the coord columns.
 
 The ``network.json`` schema is ``{"metadata", "nodes", "edges"}`` where each node is
-``{"id", "name", "u", "v", "column_id", "input", "output"}`` and each edge is
+``{"id", "name", "u", "v", "column_id", "sti", "output"}`` and each edge is
 ``{"src", "tar", "syn_sign", "n_syn", "source_cell", "target_cell", "du", "dv"}``.
 
 Example::
@@ -714,12 +714,12 @@ def print_table(
     sum_row += [""] * (int(show_uv) + int(show_d_xy) + int(show_xy))
 
     all_rows = [header] + rows + [sum_row]
-    n_hexes = len(header)
-    widths = [max(len(r[c]) for r in all_rows) for c in range(n_hexes)]
+    n_field = len(header)
+    widths = [max(len(r[c]) for r in all_rows) for c in range(n_field)]
 
     def _fmt(row: List[str]) -> str:
         cells = [row[0].ljust(widths[0])]
-        cells += [row[c].rjust(widths[c]) for c in range(1, n_hexes)]
+        cells += [row[c].rjust(widths[c]) for c in range(1, n_field)]
         return "  ".join(cells).rstrip()
 
     n_count_label = "n_source" if direction == "post" else "n_target"
@@ -914,9 +914,9 @@ def main(argv: List[str] | None = None) -> int:
     )
     parser.add_argument(
         "--network",
-        default="right_min_neuron1_extent10",
+        default="right_min_neuron1_r10",
         help=(
-            "Network folder (e.g. right_min_neuron1_extent10, resolved next to this script) or a "
+            "Network folder (e.g. right_min_neuron1_r10, resolved next to this script) or a "
             "direct path to a folder / network.json."
         ),
     )
@@ -1023,7 +1023,7 @@ def main(argv: List[str] | None = None) -> int:
     if args.radius is not None:
         ids_at_hex = _instance_ids_in_disc(nodes, args.radius)
         n_hex = _hex_disc_count(args.radius)
-        hex_note += f" radius={args.radius} ({n_hex} hex cols)"
+        hex_note += f" radius={args.radius} ({n_hex} hexes)"
         logger.info(
             "Restricting to central hex disc radius=%d (%d hexes); "
             "%d cells have ≥1 node there",
@@ -1034,7 +1034,7 @@ def main(argv: List[str] | None = None) -> int:
     elif args.shell is not None:
         ids_at_hex = _instance_ids_on_shell(nodes, args.shell)
         n_hex = _shell_hex_count(args.shell)
-        hex_note += f" shell={args.shell} ({n_hex} hex cols)"
+        hex_note += f" shell={args.shell} ({n_hex} hexes)"
         logger.info(
             "Restricting to hex shell=%d (%d hexes); "
             "%d cells have ≥1 node there",

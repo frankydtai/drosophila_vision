@@ -314,7 +314,7 @@ def schema_train_modes_record(schema, node_names_for_seg):
 def cell_node_names(backend: "ModelBackend"):
     if backend.network is None:
         raise ValueError("cell_node_names requires backend.network")
-    return [str(n) for n in backend.network.cell_names]
+    return [str(n) for n in backend.network.cells]
 
 
 def pair_node_names(backend: "ModelBackend"):
@@ -506,15 +506,15 @@ def z_moments_from_named(named_m, named_v, schema, *, dtype=None, device=None):
     return exp_avg, exp_avg_sq
 
 
-def _remap_named(named, src_cell_names, src_pair_names, schema, backend, *, fill):
+def _remap_named(named, src_cells, src_pair_names, schema, backend, *, fill):
     """Remap named arrays onto *backend* node order; ``fill(seg, j)`` for gaps."""
-    src_cell_names = [str(n) for n in src_cell_names]
+    src_cells = [str(n) for n in src_cells]
     src_pair_names = [str(n) for n in (src_pair_names or [])]
     dst_cells = cell_node_names(backend)
     dst_pairs = (
         pair_node_names(backend) if any(s['kind'] == 'edge_pair' for s in schema) else []
     )
-    src_t = {n: i for i, n in enumerate(src_cell_names)}
+    src_t = {n: i for i, n in enumerate(src_cells)}
     src_p = {n: i for i, n in enumerate(src_pair_names)}
     out = {}
     for seg in schema:
@@ -544,18 +544,18 @@ def _remap_named(named, src_cell_names, src_pair_names, schema, backend, *, fill
     return out
 
 
-def remap_named_moments(named, src_cell_names, src_pair_names, schema, backend):
+def remap_named_moments(named, src_cells, src_pair_names, schema, backend):
     """Remap named moment arrays; missing nodes/params fill 0."""
     return _remap_named(
-        named, src_cell_names, src_pair_names, schema, backend,
+        named, src_cells, src_pair_names, schema, backend,
         fill=lambda _seg, _j: 0.0,
     )
 
 
-def remap_named_node_values(named, src_cell_names, src_pair_names, schema, backend):
+def remap_named_node_values(named, src_cells, src_pair_names, schema, backend):
     """Remap named arrays from a prior run onto *backend* node order for *schema*."""
     return _remap_named(
-        named, src_cell_names, src_pair_names, schema, backend, fill=effective_init,
+        named, src_cells, src_pair_names, schema, backend, fill=effective_init,
     )
 
 

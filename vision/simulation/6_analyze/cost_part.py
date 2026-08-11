@@ -354,7 +354,6 @@ def main(argv=None) -> None:
     args = ap.parse_args(argv)
 
     run_dir = plot_run.resolve_run_dir(args.run)
-    print(f"run={run_dir}", flush=True)
     session, z, best_cost = plot_run.load_best(run_dir, verbose=True)
     session, cost_norm = _apply_cost_norm_override(session, args.cost_norm)
     print(f"cost_norm={cost_norm}  saved_total={best_cost:.6f}", flush=True)

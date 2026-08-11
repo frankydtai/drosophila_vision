@@ -31,7 +31,7 @@ import figure.plot_run as plot_trained
 import training.implement as train_mod
 from import_bootstrap import parse_comma_list
 from network.connectivity import build_cell_pair_idx
-from network.construction import read_network_json
+from network.construction import load_network_json
 from param_defaults import DEFAULT_RUN_PATH
 
 
@@ -100,33 +100,33 @@ def main(argv: list[str] | None = None) -> int:
         raise SystemExit("train_opts.json missing network_json")
 
     try:
-        named, cell_names_npz, pair_names = train_mod.load_best_param_named(outdir)
+        named, cells_npz, pair_names = train_mod.load_best_param_named(outdir)
     except FileNotFoundError as exc:
         raise SystemExit(str(exc)) from exc
 
     try:
-        nodes, edges, cell_names, _meta = read_network_json(network_json)
+        nodes, edges, cells, _meta = load_network_json(network_json)
     except (OSError, ValueError) as exc:
         raise SystemExit(str(exc)) from exc
 
-    if list(cell_names) != list(cell_names_npz):
+    if list(cells) != list(cells_npz):
         raise SystemExit(
-            f"cell_names mismatch: network.json vs best_param.npz "
-            f"({len(cell_names)} vs {len(cell_names_npz)})"
+            f"cells mismatch: network.json vs best_param.npz "
+            f"({len(cells)} vs {len(cells_npz)})"
         )
 
-    i_from_name = {n: i for i, n in enumerate(cell_names)}
-    n_cells = len(cell_names)
+    i_from_name = {n: i for i, n in enumerate(cells)}
+    n_cells = len(cells)
     for tok in tokens:
         if tok not in i_from_name:
-            raise SystemExit(f"unknown cell {tok!r}; known e.g. {cell_names[:8]}...")
+            raise SystemExit(f"unknown cell {tok!r}; known e.g. {cells[:8]}...")
 
     src_t = np.array([i_from_name[e["source_cell"]] for e in edges], dtype=np.int64)
     tar_t = np.array([i_from_name[e["target_cell"]] for e in edges], dtype=np.int64)
     _, n_pairs, pair_keys = build_cell_pair_idx(src_t, tar_t, n_cells)
     i_from_key = {k: i for i, k in enumerate(pair_keys)}
     if pair_names is not None:
-        expected = [f"{cell_names[s]}{training.PAIR_SEP}{cell_names[t]}" for s, t in pair_keys]
+        expected = [f"{cells[s]}{training.PAIR_SEP}{cells[t]}" for s, t in pair_keys]
         if list(pair_names) != expected:
             raise SystemExit("pair_names in best_param.npz do not match network.json edges")
 
@@ -155,7 +155,6 @@ def main(argv: list[str] | None = None) -> int:
         nodes, edges, tokens, direction=direction, ids_at_hex=ids_at_hex,
     )
 
-    print(f"outdir={outdir}")
     print(f"n_pairs={n_pairs}  best_param.npz syn_strength_cell={syn_strength_cell.shape[0]}")
     for cell in tokens:
         if cell not in partner_syn_by_cell:

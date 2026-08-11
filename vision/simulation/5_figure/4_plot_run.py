@@ -27,11 +27,11 @@ def _plot_device_label():
     return dev
 
 
-def spot_bundle_fns(session):
+def spot_readout_fns(session):
     if session.backend.network is None:
-        raise ValueError("spot_bundle_fns requires session.backend.network")
+        raise ValueError("spot_readout_fns requires session.backend.network")
     return (
-        spot_plot.network_spot_trace_bundle,
+        spot_plot.network_spot_trace_readout,
         spot_plot.plot_network_spot_gt,
         spot_plot.plot_network_spot_all,
     )
@@ -138,9 +138,9 @@ def _session_z_from_best_named(session, run_dir):
     """Remap ``best_param.npz`` named values onto ``session``; return ``(session, z)``."""
     import training.implement as train_mod
 
-    named, cell_names, pair_names = train_mod.load_best_param_named(run_dir)
+    named, cells, pair_names = train_mod.load_best_param_named(run_dir)
     remapped = training.remap_named_node_values(
-        named, cell_names, pair_names, list(session.schema), session.backend,
+        named, cells, pair_names, list(session.schema), session.backend,
     )
     schema = training.attach_param_carry(list(session.schema), remapped)
     session = session.with_schema(schema)
@@ -336,30 +336,30 @@ def _plot_spot_tasks(session, z, outdir, spot_tasks, suffix, model_all,
                        center_only=False):
     """Plot spot task(s); contrasts combined in one figure when both are trained."""
     spot_set = set(spot_tasks)
-    make_bundle, plot_gt, plot_all = spot_bundle_fns(session)
+    make_readout, plot_gt, plot_all = spot_readout_fns(session)
     ref_t = 'spot_bright' if 'spot_bright' in spot_set else spot_tasks[0]
     net_tag = _network_spot_tag(session, ref_t)
     cost_parts = _cost_parts_for_plot(session, z)
     plot_kw = dict(gt_cubes=gt_cubes, cost_parts=cost_parts)
     token = session_filter_plot_token(session)
-    bundle_kw = dict(
+    readout_kw = dict(
         at_xs=at_x, at_ys=at_y,
         show_pre=show_pre,
         ms_shown=ms_shown,
         center_only=center_only,
     )
     if spot_set == set(training.SPOT_TASKS):
-        bundles = {
-            'bright': make_bundle(
-                session_for_task(session, 'spot_bright'), z, **bundle_kw,
+        readouts = {
+            'bright': make_readout(
+                session_for_task(session, 'spot_bright'), z, **readout_kw,
             ),
-            'dark': make_bundle(
-                session_for_task(session, 'spot_dark'), z, **bundle_kw,
+            'dark': make_readout(
+                session_for_task(session, 'spot_dark'), z, **readout_kw,
             ),
         }
         mvd = _plot_path(outdir, _readout_plot_stem('spot_gt', session), file_suffix, html=html)
         plot_gt(
-            mvd, bundles=bundles,
+            mvd, readouts=readouts,
             title=f'Spot {token}-gt ({suffix}){net_tag}',
             **plot_kw,
         )
@@ -367,7 +367,7 @@ def _plot_spot_tasks(session, z, outdir, spot_tasks, suffix, model_all,
         if model_all:
             allc = _plot_path(outdir, _readout_plot_stem('spot_all', session), file_suffix, html=html)
             plot_all(
-                allc, bundles=bundles,
+                allc, readouts=readouts,
                 title=f'Spot {token}-all ({suffix}){net_tag}',
                 **plot_kw,
             )
@@ -393,7 +393,7 @@ def _plot_bar_readouts(session, z, outdir, bar_readouts, suffix, model_all, *,
     """Plot moving-bar task(s); bright left | dark right when both are trained."""
     cost_parts = _cost_parts_for_plot(session, z)
     token = session_filter_plot_token(session)
-    bundle_kw = dict(
+    readout_kw = dict(
         at_xs=at_x, at_ys=at_y,
         align_at_x=align_at_x, align_at_y=align_at_y,
         show_pre=show_pre,
@@ -403,15 +403,15 @@ def _plot_bar_readouts(session, z, outdir, bar_readouts, suffix, model_all, *,
     if bar_set == set(training.MOVING_BAR_TASKS):
         s_bright = session_for_task(session, 'moving_bar_bright')
         s_dark = session_for_task(session, 'moving_bar_dark')
-        b_bright = moving_bar_plot.moving_bar_trace_bundle(
-            s_bright, z, 'moving_bar_bright', **bundle_kw,
+        readout_bright = moving_bar_plot.moving_bar_trace_readout(
+            s_bright, z, 'moving_bar_bright', **readout_kw,
         )
-        b_dark = moving_bar_plot.moving_bar_trace_bundle(
-            s_dark, z, 'moving_bar_dark', **bundle_kw,
+        readout_dark = moving_bar_plot.moving_bar_trace_readout(
+            s_dark, z, 'moving_bar_dark', **readout_kw,
         )
         mvd = _plot_path(outdir, _readout_plot_stem('bar_gt', session), file_suffix, html=html)
         moving_bar_plot.plot_moving_bar_gt(
-            mvd, bundle=b_bright, bundle_2=b_dark,
+            mvd, readout=readout_bright, readout_2=readout_dark,
             title=f'Moving-bar {token}-gt ({suffix})',
             cost_parts=cost_parts,
         )
@@ -419,7 +419,7 @@ def _plot_bar_readouts(session, z, outdir, bar_readouts, suffix, model_all, *,
         if model_all:
             allc = _plot_path(outdir, _readout_plot_stem('bar_all', session), file_suffix, html=html)
             moving_bar_plot.plot_moving_bar_all(
-                allc, bundle=b_bright, bundle_2=b_dark,
+                allc, readout=readout_bright, readout_2=readout_dark,
                 title=f'Moving-bar {token}-all ({suffix})',
                 right_only=plot_right_only,
                 cost_parts=cost_parts,
@@ -427,17 +427,17 @@ def _plot_bar_readouts(session, z, outdir, bar_readouts, suffix, model_all, *,
         return mvd, allc
     for tname in bar_readouts:
         one = session_for_task(session, tname)
-        b = moving_bar_plot.moving_bar_trace_bundle(one, z, tname, **bundle_kw)
+        readout = moving_bar_plot.moving_bar_trace_readout(one, z, tname, **readout_kw)
         mvd = _plot_path(outdir, _readout_plot_stem('bar_gt', session), file_suffix, html=html)
         moving_bar_plot.plot_moving_bar_gt(
-            mvd, bundle=b, title=f'{tname} {token}-gt ({suffix})',
+            mvd, readout=readout, title=f'{tname} {token}-gt ({suffix})',
             cost_parts=cost_parts,
         )
         allc = None
         if model_all:
             allc = _plot_path(outdir, _readout_plot_stem('bar_all', session), file_suffix, html=html)
             moving_bar_plot.plot_moving_bar_all(
-                allc, bundle=b, title=f'{tname} {token}-all ({suffix})',
+                allc, readout=readout, title=f'{tname} {token}-all ({suffix})',
                 right_only=plot_right_only,
                 cost_parts=cost_parts,
             )
@@ -454,12 +454,12 @@ def _plot_one_task(session, z, outdir, tname, suffix, model_all,
     token = session_filter_plot_token(session)
     mvd = _plot_path(outdir, _readout_plot_stem('spot_gt', session), file_suffix, html=html)
     allc = _plot_path(outdir, _readout_plot_stem('spot_all', session), file_suffix, html=html)
-    make_bundle, plot_gt, plot_all = spot_bundle_fns(session)
+    make_readout, plot_gt, plot_all = spot_readout_fns(session)
     net_tag = _network_spot_tag(session, tname)
     if cost_parts is None:
         cost_parts = _cost_parts_for_plot(session, z)
     plot_kw = dict(gt_cubes=gt_cubes, cost_parts=cost_parts)
-    b = make_bundle(
+    readout = make_readout(
         session, z,
         at_xs=at_x, at_ys=at_y,
         show_pre=show_pre,
@@ -467,12 +467,12 @@ def _plot_one_task(session, z, outdir, tname, suffix, model_all,
         center_only=center_only,
     )
     from figure.readout import contrast_for_task
-    bundles = {contrast_for_task(tname): b}
+    readouts = {contrast_for_task(tname): readout}
     plot_gt(
-        mvd, bundles=bundles, title=f'{tname} {token}-gt ({suffix}){net_tag}', **plot_kw,
+        mvd, readouts=readouts, title=f'{tname} {token}-gt ({suffix}){net_tag}', **plot_kw,
     )
     if model_all:
-        plot_all(allc, bundles=bundles, title=f'{tname} {token}-all ({suffix}){net_tag}', **plot_kw)
+        plot_all(allc, readouts=readouts, title=f'{tname} {token}-all ({suffix}){net_tag}', **plot_kw)
     return mvd, allc
 
 
@@ -556,7 +556,6 @@ def plot_param_set(params, outdir, model=None, model_all=True,
         os.makedirs(run_data_dir(os.path.abspath(outdir)), exist_ok=True)
         z_best = torch.tensor(best, dtype=session.sim_dtype, device=session.device)
         train_mod.save_best_param_named(outdir, z_best, session)
-    print(f'plots saved to {outdir}')
     return best, best_cost
 
 
@@ -701,7 +700,7 @@ def add_plot_filter_argument(parser):
     parser.add_argument(
         "--filter",
         default=None,
-        choices=list(training.FILTER_MODES),
+        choices=("none", "ca"),
         help="readout filter override: none=v, ca=ca + Arenz digitized spot gt "
              f"(default: keep run train_opts.filter); ca forces --ms-spot {MS_SPOT_CA:g}",
     )
@@ -903,7 +902,6 @@ def main():
     )
     model = resolve_model(outdir)
     z_np = z_t.detach().cpu().numpy()
-    print(f'outdir={outdir}')
     print(f'params={train_mod.best_param_path(outdir)}')
     print(f'model={model} ({z_np.shape[-1]} params)')
     plot_param_set(

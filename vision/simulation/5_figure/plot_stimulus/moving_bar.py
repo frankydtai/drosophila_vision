@@ -6,8 +6,8 @@ Usage (from simulation/, project .venv):
 
     ../.venv/bin/python 5_figure/plot_stimulus/moving_bar.py
     ../.venv/bin/python 5_figure/plot_stimulus/moving_bar.py --gif
-    ../.venv/bin/python 5_figure/plot_stimulus/moving_bar.py --network right_min_neuron1_extent2 --direction down --gif
-    ../.venv/bin/python 5_figure/plot_stimulus/moving_bar.py --network right_min_neuron1_extent2 --bar-radius 2
+    ../.venv/bin/python 5_figure/plot_stimulus/moving_bar.py --network right_min_neuron1_r2 --direction down --gif
+    ../.venv/bin/python 5_figure/plot_stimulus/moving_bar.py --network right_min_neuron1_r2 --bar-radius 2
 """
 from __future__ import annotations
 
@@ -299,17 +299,17 @@ def main():
     i_bright = args.i_bright
 
     network_json = str(resolve_network_json(args.network))
-    C = load_network(
+    connectome = load_network(
         network_json, device="cpu",
         syn_scale_exc=SYN_SCALE_EXC, syn_scale_inh=SYN_SCALE_INH,
         syn_mode=SYN_MODE, dtype=SIM_DTYPE,
     )
-    tag = f"2{args.direction}_{network_run_tag(network_json, C.meta)}"
+    tag = f"2{args.direction}_{network_run_tag(network_json, connectome.meta)}"
     default_png = os.path.join(PLOT_DIR, f"moving_bar_{tag}.png")
     default_gif = os.path.join(PLOT_DIR, f"moving_bar_{tag}.gif")
     output = args.output or default_png
     T = build_moving_bar_signals(
-        C,
+        connectome,
         specs=showcase,
         bar_radius=args.bar_radius,
         multi_bar=bool(args.multi_bar),
@@ -318,13 +318,13 @@ def main():
         i_bright_moving_bar=i_bright,
         sim_dtype=SIM_DTYPE,
     )
-    plot_hexes = [(c.u, c.v) for c in sti_hexes(C)]
+    plot_hexes = [(c.u, c.v) for c in sti_hexes(connectome)]
     i_sti_hex = T.i_sti_hex
     t_onset = int(T.info["t_onset"])
     n_t = int(T.info["n_t"])
     field_deg = tuple(T.info["field_deg"])
     i_baseline = float(T.info["i_baseline_moving_bar"])
-    side = C.meta.get("side", "?")
+    side = connectome.meta.get("side", "?")
     bar_radius = int(args.bar_radius)
     print(
         f"bar_radius={bar_radius}  "

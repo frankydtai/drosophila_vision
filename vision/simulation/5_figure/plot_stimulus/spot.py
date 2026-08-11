@@ -10,7 +10,7 @@ Usage (from simulation/, project .venv):
 
     ../.venv/bin/python 5_figure/plot_stimulus/spot.py
     ../.venv/bin/python 5_figure/plot_stimulus/spot.py --spot-radii 0.5,1,1.5,2
-    ../.venv/bin/python 5_figure/plot_stimulus/spot.py --network right_min_neuron1_extent2
+    ../.venv/bin/python 5_figure/plot_stimulus/spot.py --network right_min_neuron1_r2
     ../.venv/bin/python 5_figure/plot_stimulus/spot.py --fully-inside false
     ../.venv/bin/python 5_figure/plot_stimulus/spot.py --multi-spot false
 """
@@ -68,9 +68,9 @@ _SPOT_RADII_CLI_DEFAULT = ",".join(
 )
 
 
-def _network_hexes_df(C: Network) -> pd.DataFrame:
-    """One row per unique ``(u, v)`` on connectome ``C``."""
-    uv = sorted({(int(u), int(v)) for u, v in zip(C.u, C.v)})
+def _network_hexes_df(connectome: Network) -> pd.DataFrame:
+    """One unique ``(u, v)`` hex per connectome position."""
+    uv = sorted({(int(u), int(v)) for u, v in zip(connectome.u, connectome.v)})
     return pd.DataFrame({"column_id": -1, "u": [u for u, _ in uv], "v": [v for _, v in uv]})
 
 
@@ -114,7 +114,7 @@ def main() -> None:
     parser.add_argument(
         "--output",
         default=None,
-        help="output PNG (default: plotted_multi_spot/plotted_multi_spot_<side>_extentN.png)",
+        help="output PNG (default: plotted_multi_spot/plotted_multi_spot_<side>_rN.png)",
     )
     add_multi_spot_arguments(parser)
     args = parser.parse_args()
@@ -128,18 +128,18 @@ def main() -> None:
             raise SystemExit(str(exc)) from exc
 
     network_json = str(resolve_network_json(args.network))
-    C = load_network(
+    connectome = load_network(
         network_json, device="cpu",
         syn_scale_exc=SYN_SCALE_EXC, syn_scale_inh=SYN_SCALE_INH,
         syn_mode=SYN_MODE, dtype=SIM_DTYPE,
     )
-    run_tag = network_run_tag(network_json, C.meta)
+    run_tag = network_run_tag(network_json, connectome.meta)
     output = args.output or os.path.join(
         PLOT_DIR, f"plotted_multi_spot_{run_tag}.png",
     )
 
     os.makedirs(os.path.dirname(os.path.abspath(output)), exist_ok=True)
-    df_hexes = _network_hexes_df(C)
+    df_hexes = _network_hexes_df(connectome)
     x_deg, y_deg = xy_deg_from_uv(df_hexes["u"].values, df_hexes["v"].values)
     x0, y0, x1, y1 = field_bounds_centers(x_deg, y_deg)
     pad = FIELD_VIEW_PAD_DEG
@@ -155,7 +155,7 @@ def main() -> None:
     for ax, spot_radius in zip(axes_flat, spot_radii):
         draw_fafb_columns(ax, df_hexes, hex_radius_px=HEX_PATCH_RADIUS, label=False)
         centers = build_spot(
-            C,
+            connectome,
             spot_radius=spot_radius,
             multi_spot=args.multi_spot,
             fully_inside=args.fully_inside,

@@ -512,11 +512,11 @@ def moving_bar_dsi_for_spec(
 
 def moving_bar_dsi_lookup(
     trace_map: Mapping[tuple, np.ndarray],
-    cell_names: Sequence[str],
+    cells: Sequence[str],
     spec_names: Sequence[str],
 ) -> dict[tuple[str, str], Optional[float]]:
     out: dict[tuple[str, str], Optional[float]] = {}
-    for cell in cell_names:
+    for cell in cells:
         for spec in spec_names:
             key = (cell, spec)
             if key not in out:
@@ -604,15 +604,15 @@ def load_fig1_traces(
     }
 
 
-def moving_bar_nodes_on_hexes(C, cell: str, hexes: Sequence) -> np.ndarray:
+def moving_bar_nodes_on_hexes(connectome, cell: str, hexes: Sequence) -> np.ndarray:
     """Node indices of ``cell`` on any of ``hexes`` (vectorized axial uv pack)."""
     if not hexes:
         return np.zeros(0, dtype=np.int64)
-    if cell not in C.cell_names:
-        raise ValueError(f"unknown cell {cell!r}; known: {list(C.cell_names)}")
-    ti = int(C.cell_names.index(cell))
-    node_u_np, node_v_np = network_uv_np(C)
-    cell_ids = _as_int64_np(C.node_cell)
+    if cell not in connectome.cells:
+        raise ValueError(f"unknown cell {cell!r}; known: {list(connectome.cells)}")
+    ti = int(connectome.cells.index(cell))
+    node_u_np, node_v_np = network_uv_np(connectome)
+    cell_ids = _as_int64_np(connectome.node_cell)
     uv_span = int(max(np.max(np.abs(node_u_np)), np.max(np.abs(node_v_np)), 1)) + 1
     pack = (node_u_np + uv_span) * (2 * uv_span + 1) + (node_v_np + uv_span)
     hex_pack = np.array(
@@ -732,7 +732,7 @@ def _pack_moving_bar_readout_tensors(
 
 
 def build_moving_bar_gt(
-    C,
+    connectome,
     device: Optional[str] = None,
     t_onset: int = None,
     *,
@@ -751,8 +751,8 @@ def build_moving_bar_gt(
     waveform_mse: bool = True,
 ) -> MovingBarGt:
     """Build multi-bar stimulus + T4/T5 cost readouts."""
-    device = device or C.device
-    side = normalize_side(C.meta.get("side", "right"))
+    device = device or connectome.device
+    side = normalize_side(connectome.meta.get("side", "right"))
 
     specs = gruntman_moving_bar_specs(contrasts=tuple(contrasts))
     contrast_set = frozenset(contrasts)
@@ -763,10 +763,10 @@ def build_moving_bar_gt(
     if "dark" in contrast_set and i_dark_moving_bar is not None:
         peak_kw["i_dark_moving_bar"] = float(i_dark_moving_bar)
     stim = build_moving_bar_signals(
-        C, specs=specs, t_onset=t_onset, delta_ms=delta_ms,
+        connectome, specs=specs, t_onset=t_onset, delta_ms=delta_ms,
         bar_radius=bar_radius, multi_bar=bool(multi_bar),
         device=device, use_cache=use_cache,
-        network_json=getattr(C, "source_json", None),
+        network_json=getattr(connectome, "source_json", None),
         i_baseline=i_baseline_val,
         sim_dtype=sim_dtype,
         **peak_kw,
@@ -775,23 +775,23 @@ def build_moving_bar_gt(
     fig1 = load_fig1_traces(fig1_path, delta_ms=delta_ms) if waveform_mse else None
     before_t = t_from_ms(COST_ALIGNED_FIRST_STI_MS, delta_ms=delta_ms)
     after_t = t_from_ms(COST_WINDOW_AFTER_MS, delta_ms=delta_ms)
-    win_t = t_from_ms(COST_WINDOW_MS, delta_ms=delta_ms) + 1
+    n_t_cost_window = t_from_ms(COST_WINDOW_MS, delta_ms=delta_ms) + 1
 
     present = present_gt_cells(
-        gt_cells, GT_CELLS, C.cell_names, context="moving_bar",
+        gt_cells, GT_CELLS, connectome.cells, context="moving_bar",
     )
 
-    cell_names = node_cell_names(C)
-    all_sti = sti_hexes(C)
+    cells = node_cell_names(connectome)
+    all_sti = sti_hexes(connectome)
     idx_from_uv = {(int(c.u), int(c.v)): j for j, c in enumerate(all_sti)}
-    hexes = moving_bar_cost_hexes(C, cost_radius=cost_radius)
+    hexes = moving_bar_cost_hexes(connectome, cost_radius=cost_radius)
     center_hex = hexes[0] if cost_radius == 0 and len(hexes) == 1 else None
     cost_hex_idxs = [idx_from_uv[(int(c.u), int(c.v))] for c in hexes]
     hex_by_idx = {idx: c for c, idx in zip(hexes, cost_hex_idxs)}
 
     def _nodes_for_hex_type(_b, hex_idx, subtype):
         hex = hex_by_idx[hex_idx]
-        return hex2gt(C, hex.u, hex.v, subtype, cell_names)
+        return hex2gt(connectome, hex.u, hex.v, subtype, cells)
 
     rows = _assemble_moving_bar_readouts(
         specs=stim.specs,
@@ -855,7 +855,7 @@ def build_moving_bar_gt(
             "cost_window_after_ms": COST_WINDOW_AFTER_MS,
             "cost_window_ms": COST_WINDOW_MS,
             "cost_aligned_first_sti_ms": COST_ALIGNED_FIRST_STI_MS,
-            "cost_window_t": win_t,
+            "cost_window_t": n_t_cost_window,
         })
     return MovingBarGt(
         i_sti=stim.i_sti,
@@ -911,13 +911,13 @@ def moving_bar_session_t0_grids(
     delta_ms: float,
 ) -> MovingBarSessionT0:
     """Session-level ``t0`` / horizon grids for moving-bar cost or analyze."""
-    C = session.backend.network
-    if C is None:
+    connectome = session.backend.network
+    if connectome is None:
         raise ValueError("moving_bar_session_t0_grids requires session.backend.network")
     i_baseline = moving_bar_i_baseline_from_opts(session.train_opts)
 
-    side = normalize_side(C.meta.get('side', 'right'))
-    all_hexes = moving_bar_cost_hexes(C, cost_radius=cost_radius)
+    side = normalize_side(connectome.meta.get('side', 'right'))
+    all_hexes = moving_bar_cost_hexes(connectome, cost_radius=cost_radius)
     if at_x is not None or at_y is not None:
         filt_hexes = filter_sti_hexes(all_hexes, at_x=at_x, at_y=at_y)
         if not filt_hexes:
@@ -927,17 +927,17 @@ def moving_bar_session_t0_grids(
     else:
         filt_hexes = all_hexes
     stim = build_moving_bar_signals(
-        C, specs=specs, n_t=n_t, t_onset=t_onset, delta_ms=delta_ms,
-        device=C.node_cell.device, i_baseline=i_baseline,
+        connectome, specs=specs, n_t=n_t, t_onset=t_onset, delta_ms=delta_ms,
+        device=connectome.node_cell.device, i_baseline=i_baseline,
     )
-    idx_from_uv = {(int(hex.u), int(hex.v)): j for j, hex in enumerate(sti_hexes(C))}
+    idx_from_uv = {(int(hex.u), int(hex.v)): j for j, hex in enumerate(sti_hexes(connectome))}
     all_hex_idxs = [idx_from_uv[(int(c.u), int(c.v))] for c in all_hexes]
     filt_hex_idxs = [idx_from_uv[(int(c.u), int(c.v))] for c in filt_hexes]
     grids = build_moving_bar_t0_grids(
         stim.i_sti_hex, specs, n_t, i_baseline,
         all_hex_idxs=all_hex_idxs,
         filt_hex_idxs=filt_hex_idxs,
-        network_C=C,
+        connectome=connectome,
         filt_network_hexes=filt_hexes,
     )
     return MovingBarSessionT0(
@@ -949,20 +949,20 @@ def moving_bar_session_t0_grids(
     )
 
 
-def _pack_readout_cell_names(session, task: str) -> List[str]:
+def _pack_readout_cells(session, task: str) -> List[str]:
     """Unique cell names on ``pack.readout_node`` (pack order)."""
     pack = session.pack_for(task)
     readout_node = pack.readout_node
     if torch.is_tensor(readout_node):
         readout_node = readout_node.detach().cpu().numpy()
     readout_node = np.asarray(readout_node, dtype=np.int64)
-    C = session.backend.network
-    if C is None:
-        raise ValueError("_pack_readout_cell_names requires session.backend.network")
-    node_cell = C.node_cell[readout_node]
+    connectome = session.backend.network
+    if connectome is None:
+        raise ValueError("_pack_readout_cells requires session.backend.network")
+    node_cell = connectome.node_cell[readout_node]
     if torch.is_tensor(node_cell):
         node_cell = node_cell.detach().cpu().numpy()
-    names = list(C.cell_names)
+    names = list(connectome.cells)
     seq = [str(names[int(ti)]) for ti in node_cell]
     seen: set = set()
     out: List[str] = []
@@ -973,7 +973,7 @@ def _pack_readout_cell_names(session, task: str) -> List[str]:
     return out
 
 
-def moving_bar_row_specs(session, task: str, side: str) -> Dict[str, List[str]]:
+def moving_bar_specs_by_cell(session, task: str, side: str) -> Dict[str, List[str]]:
     """Per-readout-cell active bar spec names for ``side`` and task contrast."""
     contrast = "bright" if "bright" in task else "dark"
     return {
@@ -982,7 +982,7 @@ def moving_bar_row_specs(session, task: str, side: str) -> Dict[str, List[str]]:
             for d, c, w in active_stimuli_for_subtype(side, st)
             if c == contrast
         ]
-        for st in _pack_readout_cell_names(session, task)
+        for st in _pack_readout_cells(session, task)
     }
 
 
@@ -1000,7 +1000,7 @@ def build_moving_bar_stimulus_opts(
     multi_bar: bool,
     gt_cells=None,
 ):
-    """PR moving-bar stimulus opts for ``moving_bar_{polarity}``."""
+    """Sti moving-bar stimulus opts for ``moving_bar_{polarity}``."""
     if polarity not in MOVING_BAR_POLARITIES:
         raise ValueError(f"moving-bar polarity must be 'bright' or 'dark', got {polarity!r}")
     bar_key = "i_bright_moving_bar" if polarity == "bright" else "i_dark_moving_bar"

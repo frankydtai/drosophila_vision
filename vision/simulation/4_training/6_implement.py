@@ -2,7 +2,7 @@
 
 Orchestration that trains then plots lives in ``simulation/run.py``:
 
-    ../.venv/bin/python run.py --model hp_lp --nofiters 30 --lrs 0.1
+    ../.venv/bin/python run.py --model hp_lp --n-iter 30 --lrs 0.1
 
 All results of a run land under ``training.config.PARAMETER_DIR``
 (``simulation/0_runs/<model>/<run_name>/``). Artifacts (``.npy`` /
@@ -51,9 +51,9 @@ from param_defaults import (
     MULTI_BAR,
     MULTI_SPOT,
     NETWORK,
-    NOFRUNS,
-    NOFITERS_CPU,
-    NOFITERS_GPU,
+    N_RUN,
+    N_ITER_CPU,
+    N_ITER_GPU,
     PARAM_BOXES,
     PRE_GRAD,
     BIAS_GT_FROM_V_ONSET,
@@ -92,11 +92,10 @@ import training
 from training.config import (
     COST_NORMS,
     PARAM_CSV,
-    PRE_STEADY_MODES,
     SYN_STRENGTH_CELL_CSV,
     SYN_STRENGTH_EDGE_CSV,
     expand_cost_norm,
-    expand_pre_steady_mode,
+    expand_pre_steady,
     run_data_dir,
 )
 
@@ -180,20 +179,20 @@ def checkpoint_iter_tag(iter):
 def cell_labels(session):
     if session.backend.network is None:
         raise ValueError("cell_labels requires session.backend.network")
-    return np.asarray(session.backend.network.cell_names)
+    return np.asarray(session.backend.network.cells)
 
 
 def decompose_params(z_t, session):
-    """Return per-cell columns for one parameter vector.
+    """Return per-cell param arrays for one parameter vector.
 
     This powers the ``param.csv`` table. For CSV output we intentionally do
-    *not* emit separate "global" scalar columns (shared-only means), because
-    they can collide with per-cell column names and become redundant.
+    *not* emit separate "global" scalar fields (shared-only means), because
+    they can collide with per-cell field names and become redundant.
     """
     n = session.backend.n_cells
     schema = list(session.schema)
     node_vals = training.node_values_from_z(z_t, schema)
-    cols = {}
+    param_by_name = {}
     for seg in schema:
         name = seg["name"]
         if seg["kind"] in ("edge_pair", "edge"):
@@ -203,8 +202,8 @@ def decompose_params(z_t, session):
         arr = np.asarray(node_vals[name], dtype=np.float64).reshape(-1)
         if arr.shape[0] != n:
             raise ValueError(f"{name}: node width {arr.shape[0]} != n_cells {n}")
-        cols[name] = arr
-    return cols
+        param_by_name[name] = arr
+    return param_by_name
 
 
 def v_spot_markers_by_cell(z_t, session):
@@ -344,32 +343,32 @@ def v_spot_markers_by_cell(z_t, session):
 
 def save_param_table(z_t, session, table_path):
     from param_defaults import A_CA_FROM_A_OUT, V_TH_CA_FROM_V_TH
-    cols = decompose_params(z_t, session)
+    param_by_name = decompose_params(z_t, session)
     markers = v_spot_markers_by_cell(z_t, session)
     bias_gt = markers.pop("bias_gt", None)
-    cols.update(markers)
+    param_by_name.update(markers)
     opts = session.train_opts or {}
-    if bool(opts.get("v_th_ca_from_v_th", V_TH_CA_FROM_V_TH)) and "v_th" in cols:
-        cols["v_th_ca"] = np.asarray(cols["v_th"], dtype=np.float64).copy()
-    if bool(opts.get("a_ca_from_a_out", A_CA_FROM_A_OUT)) and "a_out" in cols:
-        cols["a_ca"] = np.asarray(cols["a_out"], dtype=np.float64).copy()
+    if bool(opts.get("v_th_ca_from_v_th", V_TH_CA_FROM_V_TH)) and "v_th" in param_by_name:
+        param_by_name["v_th_ca"] = np.asarray(param_by_name["v_th"], dtype=np.float64).copy()
+    if bool(opts.get("a_ca_from_a_out", A_CA_FROM_A_OUT)) and "a_out" in param_by_name:
+        param_by_name["a_ca"] = np.asarray(param_by_name["a_out"], dtype=np.float64).copy()
     if bias_gt is not None:
-        cols["bias_gt"] = bias_gt
-    cell_col = cell_labels(session)
-    cell_names = list(cols.keys())
+        param_by_name["bias_gt"] = bias_gt
+    cell_names = cell_labels(session)
+    cells = list(param_by_name.keys())
     n = session.backend.n_cells
     with open(table_path, "w") as f:
-        f.write("cell_idx,cell," + ",".join(cell_names) + "\n")
+        f.write("cell_idx,cell," + ",".join(cells) + "\n")
         for i in range(n):
-            row = ["%.6f" % cols[nm][i] for nm in cell_names]
-            f.write("%d,%s," % (i, cell_col[i]) + ",".join(row) + "\n")
+            field_vals = ["%.6f" % param_by_name[nm][i] for nm in cells]
+            f.write("%d,%s," % (i, cell_names[i]) + ",".join(field_vals) + "\n")
     return table_path
 
 
 def save_syn_strength_cell_table(z_t, session, table_path):
     """Write edge-pair ``syn_strength_cell`` as source×target matrix CSV.
 
-    Rows = source types, columns = target types. Absent connectome pairs are blank.
+    Rows = source types, fields = target types. Absent connectome pairs are blank.
     """
     schema = list(session.schema)
     seg = next((s for s in schema if s["name"] == "syn_strength_cell"), None)
@@ -463,9 +462,9 @@ def save_param_named(outdir, z, session, filename):
     """Write named full-width node values to ``data/<filename>``."""
     schema = list(session.schema)
     named = training.node_values_from_z(z, schema)
-    cell_names = np.asarray(training.cell_node_names(session.backend), dtype=object)
+    cells = np.asarray(training.cell_node_names(session.backend), dtype=object)
     payload = {k: np.asarray(v, dtype=np.float64) for k, v in named.items()}
-    payload['cell_names'] = cell_names
+    payload['cells'] = cells
     if any(s['kind'] == 'edge_pair' for s in schema):
         payload['pair_names'] = np.asarray(training.pair_node_names(session.backend), dtype=object)
     os.makedirs(run_data_dir(outdir), exist_ok=True)
@@ -476,9 +475,9 @@ def save_adam_named(outdir, exp_avg, exp_avg_sq, iter, session, filename):
     """Write named Adam m/v (z-space) to ``data/<filename>``."""
     schema = list(session.schema)
     named_m, named_v = training.named_moments_from_z(exp_avg, exp_avg_sq, schema)
-    cell_names = np.asarray(training.cell_node_names(session.backend), dtype=object)
+    cells = np.asarray(training.cell_node_names(session.backend), dtype=object)
     payload = {'iter': np.asarray(int(iter), dtype=np.int64)}
-    payload['cell_names'] = cell_names
+    payload['cells'] = cells
     if any(s['kind'] == 'edge_pair' for s in schema):
         payload['pair_names'] = np.asarray(training.pair_node_names(session.backend), dtype=object)
     for name, arr in named_m.items():
@@ -494,8 +493,8 @@ def save_best_param_named(outdir, z, session):
     save_param_named(outdir, z, session, 'best_param.npz')
 
 
-def _checkpoint_data_filename(kind, iter, run_i=0, nofruns=1):
-    suffix = '' if nofruns == 1 else f'_run{run_i}'
+def _checkpoint_data_filename(kind, iter, run_i=0, n_run=1):
+    suffix = '' if n_run == 1 else f'_run{run_i}'
     return f'best_{kind}_iter_{checkpoint_iter_tag(iter)}{suffix}.npz'
 
 
@@ -511,11 +510,11 @@ def save_checkpoint_csv(outdir, iter, z_best, session):
         print(f'wrote checkpoint csv: {syn_path}')
 
 
-def build_checkpoint_callback(outdir, session, *, run_i=0, nofruns=1, on_png=None):
+def build_checkpoint_callback(outdir, session, *, run_i=0, n_run=1, on_png=None):
     """Write interval-best npz/csv; optional *on_png* for plot layer (from ``run.py``)."""
 
     def on_interval_best(iter, z_best, cost_best, opt_state=None):
-        name = _checkpoint_data_filename('param', iter, run_i=run_i, nofruns=nofruns)
+        name = _checkpoint_data_filename('param', iter, run_i=run_i, n_run=n_run)
         save_param_named(outdir, z_best, session, name)
         if opt_state is not None:
             n = int(np.asarray(z_best.detach().cpu()).reshape(-1).shape[0])
@@ -523,7 +522,7 @@ def build_checkpoint_callback(outdir, session, *, run_i=0, nofruns=1, on_png=Non
                 opt_state, n, dtype=torch.float64, device='cpu',
             )
             adam_name = _checkpoint_data_filename(
-                'adam', iter, run_i=run_i, nofruns=nofruns,
+                'adam', iter, run_i=run_i, n_run=n_run,
             )
             save_adam_named(
                 outdir,
@@ -542,36 +541,36 @@ def build_checkpoint_callback(outdir, session, *, run_i=0, nofruns=1, on_png=Non
 
 
 def load_best_param_named(outdir):
-    """Load ``data/best_param.npz`` → (named dict, cell_names, pair_names|None)."""
+    """Load ``data/best_param.npz`` → (named dict, cells, pair_names|None)."""
     fp = best_param_path(outdir)
     if not os.path.isfile(fp):
         raise FileNotFoundError(fp)
     with np.load(fp, allow_pickle=True) as d:
-        cell_names = [str(x) for x in d['cell_names'].tolist()]
+        cells = [str(x) for x in d['cells'].tolist()]
         pair_names = None
         if 'pair_names' in d.files:
             pair_names = [str(x) for x in d['pair_names'].tolist()]
         named = {
             k: np.asarray(d[k], dtype=np.float64)
             for k in d.files
-            if k not in ('cell_names', 'pair_names')
+            if k not in ('cells', 'pair_names')
         }
-    return named, cell_names, pair_names
+    return named, cells, pair_names
 
 
 def load_best_adam_named(outdir):
-    """Load ``data/best_adam.npz`` → (named_m, named_v, step, cell_names, pair_names)."""
+    """Load ``data/best_adam.npz`` → (named_m, named_v, iter, cells, pair_names)."""
     fp = best_adam_path(outdir)
     if not os.path.isfile(fp):
         raise FileNotFoundError(fp)
     with np.load(fp, allow_pickle=True) as d:
-        cell_names = [str(x) for x in d['cell_names'].tolist()]
+        cells = [str(x) for x in d['cells'].tolist()]
         pair_names = None
         if 'pair_names' in d.files:
             pair_names = [str(x) for x in d['pair_names'].tolist()]
-        if 'step' not in d.files:
-            raise ValueError(f'{fp}: missing step')
-        step = int(np.asarray(d['step']).reshape(-1)[0])
+        if 'iter' not in d.files:
+            raise ValueError(f'{fp}: missing iter')
+        adam_iter = int(np.asarray(d['iter']).reshape(-1)[0])
         named_m = {}
         named_v = {}
         for k in d.files:
@@ -579,20 +578,20 @@ def load_best_adam_named(outdir):
                 named_m[k[2:]] = np.asarray(d[k], dtype=np.float64)
             elif k.startswith('v_'):
                 named_v[k[2:]] = np.asarray(d[k], dtype=np.float64)
-    return named_m, named_v, step, cell_names, pair_names
+    return named_m, named_v, adam_iter, cells, pair_names
 
 
 def load_best_param(outdir, session):
     """Load best params as 1-D z for *session* (remap from named npz)."""
-    named, cell_names, pair_names = load_best_param_named(outdir)
+    named, cells, pair_names = load_best_param_named(outdir)
     schema = training.attach_param_carry(
         list(session.schema),
         training.remap_named_node_values(
-            named, cell_names, pair_names, list(session.schema), session.backend,
+            named, cells, pair_names, list(session.schema), session.backend,
         ),
     )
     remapped = training.remap_named_node_values(
-        named, cell_names, pair_names, schema, session.backend,
+        named, cells, pair_names, schema, session.backend,
     )
     z = training.z_from_node_values(
         remapped, schema, dtype=session.sim_dtype, device=session.device,
@@ -603,7 +602,7 @@ def load_best_param(outdir, session):
 def save_best_data(outdir, session, all_params, final_costs, adam=None):
     """Write ``best_param.npz``, ``param.csv``, and syn/edge CSV for ``argmin(final_costs)``.
 
-    *adam* is the best-run moment dict ``{exp_avg, exp_avg_sq, step}`` (required for a
+    *adam* is the best-run moment dict ``{exp_avg, exp_avg_sq, iter}`` (required for a
     fresh write from training; omit when regenerating tables from saved params only).
     """
     all_params = np.atleast_2d(all_params)
@@ -615,7 +614,7 @@ def save_best_data(outdir, session, all_params, final_costs, adam=None):
     save_best_param_named(outdir, z_best, session)
     if adam is not None:
         save_adam_named(
-            outdir, adam['exp_avg'], adam['exp_avg_sq'], adam['step'], session,
+            outdir, adam['exp_avg'], adam['exp_avg_sq'], adam['iter'], session,
             'best_adam.npz',
         )
         print(f"wrote {best_adam_path(outdir)} (best run #{run_i})")
@@ -662,11 +661,11 @@ def load_init_z(init_from, session):
         outdir = resolve_run_dir(init_from)
     except SystemExit as exc:
         raise ValueError(str(exc)) from exc
-    named, cell_names, pair_names = load_best_param_named(outdir)
-    named_m, named_v, adam_step, adam_cells, adam_pairs = load_best_adam_named(outdir)
+    named, cells, pair_names = load_best_param_named(outdir)
+    named_m, named_v, adam_iter, adam_cells, adam_pairs = load_best_adam_named(outdir)
     schema = list(session.schema)
     remapped = training.remap_named_node_values(
-        named, cell_names, pair_names, schema, session.backend,
+        named, cells, pair_names, schema, session.backend,
     )
     schema = training.seed_fixed_from_named(schema, remapped)
     schema = training.attach_param_carry(schema, remapped)
@@ -691,11 +690,11 @@ def load_init_z(init_from, session):
     opt_init = {
         'exp_avg': exp_avg,
         'exp_avg_sq': exp_avg_sq,
-        'step': int(adam_step),
+        'iter': int(adam_iter),
     }
     print(
         f'from {outdir!r} -> {best_param_path(outdir)!r} + {best_adam_path(outdir)!r} '
-        f'({training.schema_nparams(schema)} trainable slots, adam_step={adam_step})'
+        f'({training.schema_nparams(schema)} trainable slots, adam_iter={adam_iter})'
     )
     return session, z, opt_init
 
@@ -826,7 +825,7 @@ def build_session(
     return training.open_session(opts, model, schema=schema, model_backend=model_backend)
 
 
-def run_training(model, nofruns, nofiters, lrs, fname=None, outdir=None,
+def run_training(model, n_run, n_iter, lrs, fname=None, outdir=None,
                  train_modes=None,
                  syn_mode=SYN_MODE,
                  i_h_rev=I_H_REV,
@@ -908,8 +907,8 @@ def run_training(model, nofruns, nofiters, lrs, fname=None, outdir=None,
     syn_mode = (session.train_opts or {}).get("syn_mode", SYN_MODE)
     print(f"device={session.device}, model={model}, syn_mode={syn_mode}, euler={session.euler}, "
           f"pre_steady={session.pre_steady}, "
-          f"nofruns={nofruns}, nofiters={nofiters}, "
-          f"lrs={lrs}, nparams={training.schema_nparams(list(session.schema))}, fname={fname}, outdir={outdir}")
+          f"n_run={n_run}, n_iter={n_iter}, "
+          f"lrs={lrs}, nparams={training.schema_nparams(list(session.schema))}, fname={fname}")
     if checkpoint_interval is not None:
         if checkpoint_interval <= 0:
             raise ValueError("checkpoint_interval must be a positive integer")
@@ -920,7 +919,7 @@ def run_training(model, nofruns, nofiters, lrs, fname=None, outdir=None,
         session, z_init, opt_init = load_init_z(init_from, session)
     t0 = time.time()
     result = do_many_runs(
-        session, nofruns, nofiters, lrs=lrs, z_init=z_init, opt_init=opt_init,
+        session, n_run, n_iter, lrs=lrs, z_init=z_init, opt_init=opt_init,
         checkpoint_interval=checkpoint_interval,
         checkpoint_outdir=outdir if checkpoint_interval is not None else None,
         build_checkpoint_callback=build_checkpoint_callback,
@@ -966,16 +965,16 @@ def add_training_arguments(parser):
         help="synaptic scale: per_cell (syn_sign*n_syn + type→type syn_strength_cell; default) "
              "or per_edge (syn_sign only + per-edge syn_strength_edge magnitude)",
     )
-    parser.add_argument("--nofruns", type=int, default=NOFRUNS)
+    parser.add_argument("--n-run", type=int, default=N_RUN)
     parser.add_argument(
-        "--nofiters",
+        "--n-iter",
         type=int,
         default=None,
-        help=f"iters per learning-rate stage (default: {NOFITERS_GPU} on GPU, "
-             f"{NOFITERS_CPU} on CPU)",
+        help=f"iters per learning-rate stage (default: {N_ITER_GPU} on GPU, "
+             f"{N_ITER_CPU} on CPU)",
     )
     parser.add_argument("--lrs", default=LRS,
-                        help="comma-separated learning-rate stages; each runs for --nofiters iters")
+                        help="comma-separated learning-rate stages; each runs for --n-iter iters")
     parser.add_argument(
         "--checkpoint-interval",
         type=int,
@@ -1101,10 +1100,10 @@ def add_training_arguments(parser):
     parser.add_argument(
         "--pre-steady",
         default=PRE_STEADY,
-        choices=list(PRE_STEADY_MODES),
+        choices=("probe", "solve"),
         help=(
             "t=0 membrane pre steady shared by borst/hp_lp "
-            f"({'|'.join(PRE_STEADY_MODES)}; default: {PRE_STEADY}); "
+            f"(probe|solve; default: {PRE_STEADY}); "
             "solve uses fixed iters/damp from param_defaults"
         ),
     )
@@ -1165,7 +1164,7 @@ def add_training_arguments(parser):
     parser.add_argument(
         "--filter",
         default=FILTER,
-        choices=list(training.FILTER_MODES),
+        choices=("none", "ca"),
         help="readout filter: none=v, ca=ca + Arenz digitized spot gt "
              f"(default: {FILTER}); ca forces --ms-spot {MS_SPOT_CA:g}",
     )
@@ -1257,7 +1256,7 @@ def add_training_arguments(parser):
         default=None,
         nargs="+",
         metavar="TASK=VALUE",
-        help="per-task PR baseline (pA; space-separated TASK=VALUE); "
+        help="per-task sti baseline (pA; space-separated TASK=VALUE); "
              "aliases: spot, moving_bar",
     )
     parser.add_argument(
@@ -1283,7 +1282,7 @@ def add_training_arguments(parser):
         default=COST_INTERVAL_MS,
         metavar="MS",
         help="spot: default post-onset times 0, interval, 2*interval, ... "
-             f"through response window (default: {COST_INTERVAL_MS}); "
+             f"through ms_response (default: {COST_INTERVAL_MS}); "
              "overwritten per radius by --cost-ms",
     )
     _cost_ms_default = " ".join(
@@ -1338,11 +1337,11 @@ def add_stimulus_timing_arguments(
         )
     if default_ms_response is None:
         response_help = (
-            "override spot post-onset cost/gt window in ms (keep train if omitted)"
+            "override spot post-onset ms_response cost/gt in ms (keep train if omitted)"
         )
     else:
         response_help = (
-            f"spot: post-onset cost/gt window in ms (default: {default_ms_response}; "
+            f"spot: post-onset ms_response cost/gt in ms (default: {default_ms_response}; "
             "excludes ms_post)"
         )
     if default_ms_post is None:
@@ -1362,7 +1361,7 @@ def add_stimulus_timing_arguments(
         )
     else:
         spot_help = (
-            "spot: bright/dark PR on-duration in ms from onset "
+            "spot: bright/dark sti on-duration in ms from onset "
             f"(default: {default_ms_spot}; raises ms_response if shorter)"
         )
     if default_delta_ms is None:
@@ -1818,15 +1817,15 @@ def training_kwargs_from_args(
     fp = int(args.fp)
     if not cuda_available and fp == 64:
         fp = 32
-    nofiters = args.nofiters
-    if nofiters is None:
-        nofiters = NOFITERS_GPU if cuda_available else NOFITERS_CPU
+    n_iter = args.n_iter
+    if n_iter is None:
+        n_iter = N_ITER_GPU if cuda_available else N_ITER_CPU
     run_name = command_run_name(script_stem)
     outdir = run_dir(model, parent=args.outdir, name=run_name)
     return dict(
         model=model,
-        nofruns=int(args.nofruns),
-        nofiters=nofiters,
+        n_run=int(args.n_run),
+        n_iter=n_iter,
         lrs=lrs,
         fname=args.fname,
         outdir=outdir,
@@ -1849,7 +1848,7 @@ def training_kwargs_from_args(
         i_cli=i_cli,
         i_h_rev=args.i_h_rev,
         euler=args.euler,
-        pre_steady=expand_pre_steady_mode(args.pre_steady),
+        pre_steady=expand_pre_steady(args.pre_steady),
         pre_steady_iters=PRE_STEADY_ITERS,
         pre_steady_damp=PRE_STEADY_DAMP,
         fp=fp,

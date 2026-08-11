@@ -9,7 +9,7 @@ sign_mode            : per_edge
 n_nodes              : 668
 n_nodes_with_column  : 668
 n_nodes_without_col  : 0
-n_input_nodes        : 123
+n_sti_nodes        : 123
 n_edges              : 3999
 n_cells         : 32
 

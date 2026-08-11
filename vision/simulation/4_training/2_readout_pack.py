@@ -62,10 +62,10 @@ class ReadoutPack:
     readout_batch: torch.Tensor  # (n_cost,)
     readout_node: torch.Tensor  # (n_cost,)
     cost_t0: Optional[torch.Tensor] = None  # (n_cost,) absolute step for windowed readouts
-    cost_radius: Optional[torch.Tensor] = None  # (n_cost,) Euclidean radius for network spot
+    cost_radius: Optional[int] = None  # hex-disc ring count for cost readouts
+    spot_cost_radius: Optional[torch.Tensor] = None  # (n_cost,) Euclidean radius per spot entry
     cost_stim_u: Optional[torch.Tensor] = None  # (n_cost,) stim anchor u per spot cost entry
     cost_stim_v: Optional[torch.Tensor] = None  # (n_cost,) stim anchor v per spot cost entry
-    cost_extent: Optional[int] = None  # network hex-disc radius for cost readouts
     cost_pd_nd: Optional[torch.Tensor] = None  # (n_cost,) long; 0=PD, 1=ND (moving_bar)
     dsi_pos_entries: Optional[torch.Tensor] = None  # flat cost-entry idx (right|up)
     dsi_neg_entries: Optional[torch.Tensor] = None  # flat cost-entry idx (left|down)
@@ -87,30 +87,30 @@ class ReadoutPack:
     sti_radius_gate: Optional[torch.Tensor] = None
 
 
-def pack_cost_abs_time_idx(pack: ReadoutPack, t_onset, *, cost_radius=None):
+def pack_cost_abs_time_idx(pack: ReadoutPack, t_onset, *, spot_cost_radius=None):
     """Absolute time indices for sparse spot cost samples (or ``None``).
 
-    Sole reader of ``cost_time_idx`` / ``cost_time_mask`` / ``cost_radius``.
-    ``cost_radius`` is Euclidean; when set and a mask exists, keep that
-    radius's columns only. Omit ``cost_radius`` → union of all radii.
+    Sole reader of ``cost_time_idx`` / ``cost_time_mask`` / ``spot_cost_radius``.
+    ``spot_cost_radius`` is Euclidean; when set and a mask exists, keep that
+    radius's columns only. Omit ``spot_cost_radius`` → union of all radii.
     """
     idx = pack.cost_time_idx
     if idx is None:
         return None
     base = int(t_onset or 0)
     idx_np = idx.detach().cpu().numpy().astype(np.int64, copy=False)
-    if cost_radius is None:
+    if spot_cost_radius is None:
         return base + idx_np
     mask = pack.cost_time_mask
-    rad_t = pack.cost_radius
+    rad_t = pack.spot_cost_radius
     if mask is None or rad_t is None:
         return base + idx_np
     rad = np.round(rad_t.detach().cpu().numpy().astype(float), 6)
-    hit = np.where(rad == round(float(cost_radius), 6))[0]
+    hit = np.where(rad == round(float(spot_cost_radius), 6))[0]
     if not hit.size:
         return base + np.zeros(0, dtype=np.int64)
-    col = mask[int(hit[0])].detach().cpu().numpy() > 0
-    return base + idx_np[col]
+    entry_mask = mask[int(hit[0])].detach().cpu().numpy() > 0
+    return base + idx_np[entry_mask]
 
 
 @dataclass(frozen=True)
@@ -208,8 +208,8 @@ class TrainSession:
 class TrainingResult:
     """Output of :func:`training.cost.do_many_runs` (in memory; persistence is ``train``)."""
 
-    all_params: np.ndarray   # (nofruns, n_params)
-    final_costs: np.ndarray  # (nofruns,) weighted total
+    all_params: np.ndarray   # (n_run, n_params)
+    final_costs: np.ndarray  # (n_run,) weighted total
     cost_curve: np.ndarray   # per-step weighted total for ``argmin(final_costs)``
     cost_curves_by_part: Dict[str, np.ndarray] = field(default_factory=dict)
     final_costs_by_part: Dict[str, np.ndarray] = field(default_factory=dict)

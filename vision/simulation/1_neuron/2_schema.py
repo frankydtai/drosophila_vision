@@ -148,7 +148,7 @@ def _segments_from_boxes(
     *,
     skip,
     n_cells,
-    cell_names,
+    cells,
     syn_mode,
     n_pairs,
     n_edges,
@@ -157,7 +157,7 @@ def _segments_from_boxes(
     radius_key_aliases,
 ):
     """Build segments in ``param_boxes`` insertion order; ``skip`` omits unused names."""
-    i_from_name = {str(n): i for i, n in enumerate(cell_names)}
+    i_from_name = {str(n): i for i, n in enumerate(cells)}
     named_kw = dict(i_from_name=i_from_name, indi_names=h_cells)
     mode = normalize_syn_mode(syn_mode)
     active_syn = (
@@ -191,7 +191,7 @@ def _segments_from_boxes(
 
 def build_borst_schema(
     n_cells,
-    cell_names=None,
+    cells=None,
     n_pairs=None,
     *,
     syn_mode: str,
@@ -205,8 +205,8 @@ def build_borst_schema(
     """Borst schema in PARAM_BOXES order; rev i_h only when ``i_h_rev == 'on'``."""
     if i_h_rev not in I_H_REV_MODES:
         raise ValueError(f"i_h_rev {i_h_rev!r} not in {I_H_REV_MODES}")
-    if cell_names is None:
-        raise TypeError("borst schema requires cell_names from network")
+    if cells is None:
+        raise TypeError("borst schema requires cells from network")
     skip = set(_HP_LP_ONLY)
     if i_h_rev != "on":
         skip |= _I_H_REV_ONLY
@@ -214,7 +214,7 @@ def build_borst_schema(
         param_boxes,
         skip=skip,
         n_cells=n_cells,
-        cell_names=list(cell_names),
+        cells=list(cells),
         syn_mode=syn_mode,
         n_pairs=n_pairs,
         n_edges=n_edges,
@@ -226,7 +226,7 @@ def build_borst_schema(
 
 def build_hp_lp_schema(
     n_cells,
-    cell_names=None,
+    cells=None,
     n_pairs=None,
     *,
     syn_mode: str,
@@ -237,13 +237,13 @@ def build_hp_lp_schema(
     radius_key_aliases=None,
 ):
     """HP-then-membrane-LP schema in PARAM_BOXES order (borst-only keys skipped)."""
-    if cell_names is None:
-        raise TypeError("hp_lp schema requires cell_names from network")
+    if cells is None:
+        raise TypeError("hp_lp schema requires cells from network")
     return _segments_from_boxes(
         param_boxes,
         skip=_BORST_ONLY,
         n_cells=n_cells,
-        cell_names=list(cell_names),
+        cells=list(cells),
         syn_mode=syn_mode,
         n_pairs=n_pairs,
         n_edges=n_edges,
@@ -275,7 +275,7 @@ def default_schema(
     n = backend.n_cells
     if backend.network is None:
         raise ValueError("default_schema requires backend.network")
-    cell_names = [str(t) for t in backend.network.cell_names]
+    cells = [str(t) for t in backend.network.cells]
     mode = normalize_syn_mode(syn_mode)
     n_pairs = getattr(backend.conn, "n_pairs", None)
     n_edges = getattr(backend.conn, "n_edges", None)
@@ -294,5 +294,5 @@ def default_schema(
         radius_key_aliases=radius_key_aliases,
     )
     if model == "hp_lp":
-        return build_hp_lp_schema(n, cell_names=cell_names, **kw)
-    return build_borst_schema(n, cell_names=cell_names, i_h_rev=i_h_rev, **kw)
+        return build_hp_lp_schema(n, cells=cells, **kw)
+    return build_borst_schema(n, cells=cells, i_h_rev=i_h_rev, **kw)

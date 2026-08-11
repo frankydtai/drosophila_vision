@@ -68,7 +68,7 @@ def add_radius(run_dir: Path, crop_radius: int) -> Path:
         e for e in edges if e["src"] in kept_ids and e["tar"] in kept_ids
     ]
 
-    n_with_col = sum(1 for n in kept_nodes if n.get("u") is not None)
+    n_with_column = sum(1 for n in kept_nodes if n.get("u") is not None)
     src_meta = payload.get("metadata", {})
     metadata: Dict[str, object] = {
         "side": src_meta.get("side"),
@@ -79,9 +79,9 @@ def add_radius(run_dir: Path, crop_radius: int) -> Path:
         "sign_from_nt": src_meta.get("sign_from_nt"),
         "forced_negative_pre_cells": src_meta.get("forced_negative_pre_cells"),
         "n_nodes": len(kept_nodes),
-        "n_nodes_with_column": n_with_col,
+        "n_nodes_with_column": n_with_column,
         "n_edges": len(kept_edges),
-        "n_input_nodes": int(sum(bool(n.get("input")) for n in kept_nodes)),
+        "n_sti_nodes": int(sum(bool(n.get("sti")) for n in kept_nodes)),
         "n_cells": int(len({n["name"] for n in kept_nodes})),
     }
 

@@ -384,7 +384,6 @@ def _trace_series(rep: dict) -> np.ndarray:
 def _load_reports(args):
     """Shared run load + one ``analyze_spot_average`` forward."""
     run_dir = plot_trained.resolve_run_dir(args.run)
-    print(f"Loading run: {run_dir}", flush=True)
     session, z, _best_cost = plot_trained.load_best(run_dir)
     train_opts = plot_trained.load_train_opts(run_dir) or {}
     train_filter = training.expand_filter(train_opts.get("filter", "none"))

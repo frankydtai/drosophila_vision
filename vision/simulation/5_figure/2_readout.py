@@ -7,28 +7,28 @@ import torch
 
 from param_defaults import GT_CA_AMP, GT_V_AMP, DELTA_MS
 from task.spot.gt import GT_CELLS, load_RecF_gt, load_RecF_gt_dark
-from network.construction import cell_names_in_order
+from network.construction import cells_in_order
 
 _VALID_CONTRASTS = ("bright", "dark")
 
 
 def plot_cells_in_order(present):
-    """Flat cell order from :func:`network.construction.cell_names_in_order`."""
-    return cell_names_in_order(present)
+    """Flat cell order from :func:`network.construction.cells_in_order`."""
+    return cells_in_order(present)
 
 
-def _cell_names_for_nodes(session, node_indices):
+def _cells_for_nodes(session, node_indices):
     node_idx = node_indices
     if torch.is_tensor(node_idx):
         node_idx = node_idx.detach().cpu().numpy()
     node_idx = np.asarray(node_idx, dtype=np.int64)
-    C = session.backend.network
-    if C is None:
-        raise ValueError("_cell_names_for_nodes requires session.backend.network")
-    node_cell = C.node_cell[node_idx]
+    connectome = session.backend.network
+    if connectome is None:
+        raise ValueError("_cells_for_nodes requires session.backend.network")
+    node_cell = connectome.node_cell[node_idx]
     if torch.is_tensor(node_cell):
         node_cell = node_cell.detach().cpu().numpy()
-    names = list(C.cell_names)
+    names = list(connectome.cells)
     return [str(names[int(ti)]) for ti in node_cell]
 
 
@@ -37,7 +37,7 @@ def pack_readout_cells(session, task=None):
     pack = session.primary_readout if task is None else session.pack_for(task)
     seen = set()
     out = []
-    for name in _cell_names_for_nodes(session, pack.readout_node):
+    for name in _cells_for_nodes(session, pack.readout_node):
         if name not in seen:
             seen.add(name)
             out.append(name)

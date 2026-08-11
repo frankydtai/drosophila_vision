@@ -23,7 +23,7 @@ Waveform MSE normalization is ``session`` / ``train_opts`` ``cost_norm``:
 **within each part**. The training total averages those part costs (equal
 weight per cell×radius unless ``cost_weights`` says otherwise).
 
-Sparse cost time points (#4): ``pack.gt`` stays the response-window length
+Sparse cost time points (#4): ``pack.gt`` stays the ``ms_response`` segment length
 (spot excludes ``ms_post``) and the subsample is gathered from both v_readout
 trace and gt at cost time via ``pack.cost_time_idx``; when radii use different
 ``cost_ms`` lists, ``pack.cost_time_mask`` zeros non-participating (entry, t)
@@ -273,7 +273,7 @@ def _entries_by_part(
         raise ValueError("per-cell cost parts require backend.network")
     ci = net.node_cell[pack.readout_node].detach().cpu().numpy()
     entry_cost_weight = pack.cost_weight.detach().cpu().numpy()
-    names = net.cell_names
+    names = net.cells
     idx_from_part_key: Dict[str, int] = {}
     keys: List[str] = []
     part_idx_np = np.full(n, -1, dtype=np.int64)
@@ -297,7 +297,7 @@ def _spot_entries_by_part(
     pack: ReadoutPack, backend: ModelBackend,
 ) -> Tuple[torch.Tensor, List[str]]:
     """``(part_idx, part_keys)`` for spot cell×radius; one CPU sync of entry meta."""
-    rad = pack.cost_radius.detach().cpu().numpy()
+    rad = pack.spot_cost_radius.detach().cpu().numpy()
 
     def entry_key(i, names, ci):
         return spot_cost_part_key(pack.name, str(names[int(ci[i])]), float(rad[i]))
@@ -423,7 +423,7 @@ def _pack_entry_fields(
         ),
         "readout_node": pack.readout_node[sel],
     }
-    for name in ("cost_t0", "cost_radius", "cost_stim_u", "cost_stim_v", "cost_pd_nd"):
+    for name in ("cost_t0", "spot_cost_radius", "cost_stim_u", "cost_stim_v", "cost_pd_nd"):
         t = getattr(pack, name)
         if t is not None:
             fields[name] = t[sel]
@@ -531,15 +531,15 @@ def _readout_from_trace_full(
 ) -> Tuple[Optional[torch.Tensor], torch.Tensor]:
     rb = pack.readout_batch if batch_offset == 0 else pack.readout_batch + batch_offset
     t0 = pack_t_onset(pack)
-    win = int(pack.gt.shape[1])
-    v_readout_dsi = trace_full[rb, t0:t0 + win, pack.readout_node]
+    n_t = int(pack.gt.shape[1])
+    v_readout_dsi = trace_full[rb, t0:t0 + n_t, pack.readout_node]
     if not pack_needs_waveform_mse(pack):
         return None, v_readout_dsi
     if pack.cost_t0 is None:
         return v_readout_dsi, v_readout_dsi
     v_readout = window_time_traces(
         trace_full, rb, pack.readout_node, pack.cost_t0,
-        win=win, t_onset=t0,
+        n_t, t_onset=t0,
     )
     return v_readout, v_readout_dsi
 
@@ -574,7 +574,7 @@ def _pack_cost_parts_from_v_readout(
                 if any(_part_weight(session, key) != 0.0 for key in keys):
                     raise ValueError(
                         f"waveform readout required for {pack.name} "
-                        "PD/ND but pack has no cost window",
+                        "PD/ND but pack has no cost_window readout",
                     )
             else:
                 out.update(
@@ -593,8 +593,8 @@ def _pack_cost_parts_from_v_readout(
         raise ValueError(f"waveform readout required for pack {pack.name!r}")
     # #4 sparse time: gather on ``cost_time_idx``; gt_power uses a_gt·gt (no bias).
     v_readout, gt, time_mask = _gather_cost_time(pack, v_readout, pack.gt)
-    if pack.cost_radius is None:
-        raise ValueError(f"spot pack {pack.name!r} missing cost_radius")
+    if pack.spot_cost_radius is None:
+        raise ValueError(f"spot pack {pack.name!r} missing spot_cost_radius")
     part_idx, keys = _spot_entries_by_part(pack, backend)
     return _parts_from_entries(
         a_gt, bias_gt, gt, pack.cost_weight, v_readout, part_idx, keys, session,
@@ -654,9 +654,9 @@ def _pack_cost_forward(params, pack: ReadoutPack, session: TrainSession, batch_i
             int(mask.sum()), dtype=torch.long, device=pack.readout_node.device,
         )
         t0 = pack_t_onset(pack)
-        win = int(pack.gt.shape[1])
+        n_t = int(pack.gt.shape[1])
         u_m = pack.readout_node[mask]
-        v_readout_dsi = trace_full[0, t0:t0 + win, u_m].transpose(0, 1)
+        v_readout_dsi = trace_full[0, t0:t0 + n_t, u_m].transpose(0, 1)
         if not pack_needs_waveform_mse(pack):
             v_readout = None
         elif pack.cost_t0 is None:
@@ -664,7 +664,7 @@ def _pack_cost_forward(params, pack: ReadoutPack, session: TrainSession, batch_i
         else:
             v_readout = window_time_traces(
                 trace_full, rb, u_m, pack.cost_t0[mask],
-                win=win, t_onset=t0,
+                n_t, t_onset=t0,
             )
     else:
         gt = pack.gt
@@ -1048,7 +1048,7 @@ def gradient_network(z, lr=0.0001, cost_fn=None, n_iters=100, device="cpu", z_bo
 
 
 def adam_moments_from_state_dict(state_dict, n_params, *, dtype, device):
-    """Pull ``(exp_avg, exp_avg_sq, step)`` from a single-param Adam ``state_dict``."""
+    """Pull ``(exp_avg, exp_avg_sq, iter)`` from a single-param Adam ``state_dict``."""
     state = state_dict.get('state') or {}
     if not state:
         zeros = torch.zeros(n_params, dtype=dtype, device=device)
@@ -1059,12 +1059,13 @@ def adam_moments_from_state_dict(state_dict, n_params, *, dtype, device):
     if exp_avg is None or exp_avg_sq is None:
         zeros = torch.zeros(n_params, dtype=dtype, device=device)
         return zeros, zeros.clone(), 0
-    step = pstate.get('step', 0)
-    step_i = int(step.item()) if torch.is_tensor(step) else int(step)
+    # torch.optim.Adam state key is ``step`` (library); our name is ``iter``.
+    torch_step = pstate.get('step', 0)
+    adam_iter = int(torch_step.item()) if torch.is_tensor(torch_step) else int(torch_step)
     return (
         exp_avg.detach().to(device=device, dtype=dtype).clone(),
         exp_avg_sq.detach().to(device=device, dtype=dtype).clone(),
-        step_i,
+        adam_iter,
     )
 
 
@@ -1077,10 +1078,10 @@ def _load_adam_moments(optimizer, z, opt_init):
             f"adam moment shape {tuple(exp_avg.shape)}/{tuple(exp_avg_sq.shape)} "
             f"!= z shape {tuple(z.shape)}"
         )
-    step = float(opt_init.get('step', 0))
-    # Match torch.optim.Adam: step is a CPU float scalar; moments match *z*.
+    adam_iter = float(opt_init.get('iter', 0))
+    # Match torch.optim.Adam: library key ``step`` is a CPU float scalar; moments match *z*.
     optimizer.state[z] = {
-        'step': torch.tensor(step, dtype=torch.float32),
+        'step': torch.tensor(adam_iter, dtype=torch.float32),
         'exp_avg': exp_avg.clone(),
         'exp_avg_sq': exp_avg_sq.clone(),
     }
@@ -1160,23 +1161,23 @@ def _build_iter_logger(session: TrainSession):
     return cost_fn, target_history, log_iter, float_last_parts, None, None
 
 
-def do_many_runs(session: TrainSession, nofruns, nofiters, lrs=(0.1, 0.01, 0.001),
+def do_many_runs(session: TrainSession, n_run, n_iter, lrs=(0.1, 0.01, 0.001),
                  z_init=None, opt_init=None, checkpoint_interval=None, checkpoint_outdir=None,
                  build_checkpoint_callback=None, checkpoint_on_png=None) -> TrainingResult:
-    """Run ``nofruns`` independent fits; return arrays (no file I/O)."""
+    """Run ``n_run`` independent fits; return arrays (no file I/O)."""
     schema = list(session.schema)
     n_params = schema_nparams(schema)
     bounds = schema_bounds(schema, session.sim_dtype)
 
-    all_params = np.zeros((nofruns, n_params))
+    all_params = np.zeros((n_run, n_params))
     all_adam = []
-    final_costs = np.zeros(nofruns)
+    final_costs = np.zeros(n_run)
     part_keys = session_cost_part_keys(session.tasks, session=session)
-    final_costs_by_part = {name: np.zeros(nofruns) for name in part_keys}
-    cost_histories = [None] * nofruns
-    part_histories = [None] * nofruns
+    final_costs_by_part = {name: np.zeros(n_run) for name in part_keys}
+    cost_histories = [None] * n_run
+    part_histories = [None] * n_run
 
-    for i in range(nofruns):
+    for i in range(n_run):
         print()
         print('round', i)
         print()
@@ -1196,12 +1197,12 @@ def do_many_runs(session: TrainSession, nofruns, nofiters, lrs=(0.1, 0.01, 0.001
                     "checkpoint_interval requires checkpoint_outdir and build_checkpoint_callback"
                 )
             on_interval_best = build_checkpoint_callback(
-                checkpoint_outdir, session, run_i=i, nofruns=nofruns,
+                checkpoint_outdir, session, run_i=i, n_run=n_run,
                 on_png=checkpoint_on_png,
             )
 
         z_fit, opt_state = train_staged(
-            z, cost_fn, bounds, lrs, nofiters,
+            z, cost_fn, bounds, lrs, n_iter,
             iter_log=iter_log,
             float_last_parts=float_last_parts,
             task_order=list(part_keys),
@@ -1213,13 +1214,13 @@ def do_many_runs(session: TrainSession, nofruns, nofiters, lrs=(0.1, 0.01, 0.001
         )
 
         all_params[i] = z_fit.detach().cpu().numpy()
-        exp_avg, exp_avg_sq, step = adam_moments_from_state_dict(
+        exp_avg, exp_avg_sq, adam_iter = adam_moments_from_state_dict(
             opt_state, n_params, dtype=z_fit.dtype, device='cpu',
         )
         all_adam.append({
             'exp_avg': exp_avg.numpy().astype(np.float64),
             'exp_avg_sq': exp_avg_sq.numpy().astype(np.float64),
-            'step': int(step),
+            'iter': int(adam_iter),
         })
         fit_parts = calc_cost_parts(z_fit, session)
         final_costs[i] = float(_weighted_cost_from_parts(fit_parts, session).item())
@@ -1231,7 +1232,7 @@ def do_many_runs(session: TrainSession, nofruns, nofiters, lrs=(0.1, 0.01, 0.001
             for name, curve in target_history.items()
         }
 
-    run_i = int(np.argmin(final_costs)) if nofruns else 0
+    run_i = int(np.argmin(final_costs)) if n_run else 0
     cost_curve = (
         cost_histories[run_i]
         if cost_histories[run_i] is not None

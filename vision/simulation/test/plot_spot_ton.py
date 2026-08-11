@@ -24,7 +24,7 @@ os.environ.setdefault("CUDA_VISIBLE_DEVICES", "")
 
 import import_bootstrap  # noqa: F401
 import training
-from figure.plot_run import session_for_target, spot_bundle_fns
+from figure.plot_run import session_for_target, spot_readout_fns
 from training.config import PARAMETER_DIR, run_data_dir
 
 DEFAULT_RUN = (
@@ -47,7 +47,7 @@ def main():
     )
     ap.add_argument(
         "--ms-response", type=float, default=DEFAULT_MS_RESPONSE,
-        help="post-onset response window in ms (default %(default)s)",
+        help="post-onset ms_response in ms (default %(default)s)",
     )
     args = ap.parse_args()
 
@@ -97,13 +97,13 @@ def main():
     cost = training.calc_cost(z, one).item()
     print(f"cost (ms_pre={ms_pre:.0f}) = {cost:.4f}% of gt power")
 
-    make_bundle, plot_gt, _plot_all = spot_bundle_fns(one)
-    bundle = make_bundle(one, z)
+    make_readout, plot_gt, _plot_all = spot_readout_fns(one)
+    readout = make_readout(one, z)
 
     out_png = os.path.join(run_path, f"model_spot_pre{int(ms_pre)}.png")
     plot_gt(
         out_png,
-        bundle=bundle,
+        readouts={'bright': readout},
         title=f"spot_bright model (ms_pre={ms_pre:.0f})",
     )
     print(f"saved {out_png}")

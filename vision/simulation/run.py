@@ -11,9 +11,9 @@ Dependency direction:
 
 Usage (from ``simulation/``, project ``.venv``):
 
-    ../.venv/bin/python run.py --model hp_lp --nofiters 30 --lrs 0.1
-    ../.venv/bin/python run.py --task spot_bright --network right_min_neuron1_extent2 \\
-        --nofiters 5 --lrs 0.1
+    ../.venv/bin/python run.py --model hp_lp --n-iter 30 --lrs 0.1
+    ../.venv/bin/python run.py --task spot_bright --network right_min_neuron1_r2 \\
+        --n-iter 5 --lrs 0.1
 
 Re-plot an existing run without training:
 
@@ -276,7 +276,6 @@ def run_mirror_spot_experiment(
     )
     for tname in spot_tasks:
         print(f"{tname} cost nodes:", int(session.pack_for(tname).readout_node.shape[0]))
-    print("done ->", outdir)
     return fname, outdir, session
 
 

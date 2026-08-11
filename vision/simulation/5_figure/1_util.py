@@ -16,8 +16,8 @@ GT_COLOR = 'gray'
 V_READOUT_COLOR = 'red'
 STD_COLOR = 'pink'
 TRACE_LW = 1.5
-NCOLS_GT = 5
-NCOLS_ALL = 8
+N_COL_GT = 5
+N_COL_ALL = 8
 PANEL_W = 3.0
 PANEL_H = 2.2
 
@@ -36,7 +36,7 @@ def gt_affine_scalars_for_cell(params, cell_name, backend, session=None) -> tupl
     are on. When ``bias_gt_from_v_onset``, do not add ``v_th``.
     """
     from param_defaults import BIAS_GT_FROM_V_ONSET
-    names = [str(n) for n in backend.network.cell_names]
+    names = [str(n) for n in backend.network.cells]
     ci = names.index(str(cell_name))
     gs = params["a_gt"]
     scale = float(gs[ci] if torch.is_tensor(gs) and gs.dim() > 0 else gs)
@@ -154,18 +154,24 @@ def suppress_cost_std(session, task=None):
 def readout_center_mask(pack, backend):
     """Boolean mask over pack cost entries included in the cost radius."""
     readout = pack.readout_node.cpu().numpy()
-    if backend.network is not None:
-        if pack.cost_radius is not None:
-            import build_hex
-            C = backend.network
-            network_node_u = C.u.detach().cpu().numpy() if hasattr(C.u, "detach") else np.asarray(C.u)
-            network_node_v = C.v.detach().cpu().numpy() if hasattr(C.v, "detach") else np.asarray(C.v)
-            return build_hex.inside_mask(
-                network_node_u[readout], network_node_v[readout], int(pack.cost_radius),
-            )
-        if pack.cost_radius is not None:
-            return np.round(pack.cost_radius.cpu().numpy(), 6) == 0.0
-        return np.ones(readout.shape[0], dtype=bool)
+    if pack.spot_cost_radius is not None:
+        return np.round(pack.spot_cost_radius.cpu().numpy(), 6) == 0.0
+    if backend.network is not None and pack.cost_radius is not None:
+        import build_hex
+        connectome = backend.network
+        network_node_u = (
+            connectome.u.detach().cpu().numpy()
+            if hasattr(connectome.u, "detach")
+            else np.asarray(connectome.u)
+        )
+        network_node_v = (
+            connectome.v.detach().cpu().numpy()
+            if hasattr(connectome.v, "detach")
+            else np.asarray(connectome.v)
+        )
+        return build_hex.inside_mask(
+            network_node_u[readout], network_node_v[readout], int(pack.cost_radius),
+        )
     return np.ones(readout.shape[0], dtype=bool)
 
 
@@ -191,10 +197,10 @@ def _param_by_type_name(z, session, name):
     if name not in {s.get('name') for s in schema}:
         return {}
     arr = np.asarray(training.node_values_from_z(z, schema)[name], dtype=np.float64).reshape(-1)
-    cell_names = training.cell_node_names(session.backend)
-    if arr.shape[0] != len(cell_names):
-        raise ValueError(f"{name} length {arr.shape[0]} != n_cells {len(cell_names)}")
-    return {str(n): float(arr[i]) for i, n in enumerate(cell_names)}
+    cells = training.cell_node_names(session.backend)
+    if arr.shape[0] != len(cells):
+        raise ValueError(f"{name} length {arr.shape[0]} != n_cells {len(cells)}")
+    return {str(n): float(arr[i]) for i, n in enumerate(cells)}
 
 
 def cell_ylabel(label, ca_n=None, n=None):
@@ -248,15 +254,9 @@ def format_moving_bar_cell_cost_lines(cell, cost_parts, task_names):
     return lines
 
 
-def bundle_panel_title(bundle, label, *, type_name=None):
-    """Moving-bar panel base title (cell / stimulus label; no ``e_leak``)."""
-    _ = (bundle, type_name)
-    return label
-
-
-def network_hex_count(C):
-    """Unique axial hexes on connectome ``C``."""
-    return len({(int(hex_u), int(hex_v)) for hex_u, hex_v in zip(C.u, C.v)})
+def network_hex_count(connectome):
+    """Unique axial hexes on the connectome."""
+    return len({(int(hex_u), int(hex_v)) for hex_u, hex_v in zip(connectome.u, connectome.v)})
 
 
 def log_plot_elapsed(path, t0, **parts):
@@ -267,25 +267,25 @@ def log_plot_elapsed(path, t0, **parts):
     print(f'plot {path}: {"  ".join(bits)}')
 
 
-def bundle_prep_s(*bundles):
-    """Sum and clear ``prep_s`` on trace bundles (``None`` skipped).
+def readout_prep_s(*readouts):
+    """Sum and clear ``prep_s`` on trace readouts (``None`` skipped).
 
     First figure that calls this receives the forward cost; later shared
     figures see ``0``.
     """
     prep_sum_s = 0.0
-    for b in bundles:
-        if b is None:
+    for readout in readouts:
+        if readout is None:
             continue
-        prep_sum_s += float(getattr(b, 'prep_s', 0.0) or 0.0)
-        b.prep_s = 0.0
+        prep_sum_s += float(getattr(readout, 'prep_s', 0.0) or 0.0)
+        readout.prep_s = 0.0
     return prep_sum_s
 
 
 class PlotTimer:
     """Shared prep / draw / save timing for bar and spot figures.
 
-    ``prior_prep`` is forward time already stored on ``TraceBundle.prep_s``.
+    ``prior_prep`` is forward time already stored on ``TraceReadout.prep_s``.
     """
 
     __slots__ = ('t0', '_t_prep', '_t_draw')
@@ -775,7 +775,7 @@ def plot_cost(costs, path, *, costs_by_part=None, part_order=None):
     - Cell layout follows canonical order rows: first block log + shared ylim, then
       linear total + linear per-panel ylim (original).
     """
-    from network.construction import CELL_ORDER_ROWS, cell_order_rows
+    from network.construction import CELL_PLOT_ROWS, cell_plot_rows
 
     timer = PlotTimer()
     timer.end_prep()
@@ -893,7 +893,7 @@ def plot_cost(costs, path, *, costs_by_part=None, part_order=None):
         if role_id not in other_role_ids_seen:
             other_role_ids_seen.add(role_id)
             other_role_ids_order.append(role_id)
-        known_cells = {n for row in CELL_ORDER_ROWS for n in row}
+        known_cells = {n for plot_row in CELL_PLOT_ROWS for n in plot_row}
         matches = [c for c in known_cells if c and c in key]
         if matches:
             cell = max(matches, key=len)
@@ -921,20 +921,20 @@ def plot_cost(costs, path, *, costs_by_part=None, part_order=None):
     color_from_role_id = {rid: palette[i % len(palette)] for i, rid in enumerate(role_id_order)}
 
     # Layout: [total log + parts log] then [total linear + parts linear].
-    ncols = NCOLS_GT
+    n_col = N_COL_GT
     present_cells = set(curve_specs_by_cell.keys())
-    order_rows = cell_order_rows(sorted(present_cells))
-    n_cell_rows = len(order_rows)
+    cell_plot_rows_list = cell_plot_rows(sorted(present_cells))
+    n_plot_row = len(cell_plot_rows_list)
 
     n_global_axes = len(curve_specs_global)
-    n_global_rows = (n_global_axes + ncols - 1) // ncols if n_global_axes else 0
-    n_part_rows = n_cell_rows + n_global_rows
-    n_block_rows = 1 + n_part_rows
-    nrows = 2 * n_block_rows
+    n_global_plot_row = (n_global_axes + n_col - 1) // n_col if n_global_axes else 0
+    n_part_plot_row = n_plot_row + n_global_plot_row
+    n_block_plot_row = 1 + n_part_plot_row
+    n_row = 2 * n_block_plot_row
 
-    fig = plt.figure(figsize=(PANEL_W * ncols, PANEL_H * nrows))
+    fig = plt.figure(figsize=(PANEL_W * n_col, PANEL_H * n_row))
     gs = fig.add_gridspec(
-        nrows, ncols,
+        n_row, n_col,
         hspace=0.55, wspace=0.45,
         top=0.95, bottom=0.06, left=0.07, right=0.98,
     )
@@ -965,10 +965,10 @@ def plot_cost(costs, path, *, costs_by_part=None, part_order=None):
 
     def _draw_part_block(row0, *, log, shared_cell_ylim, with_legend):
         legend_done = False
-        for gi, row_cells in enumerate(order_rows):
+        for gi, plot_row_cells in enumerate(cell_plot_rows_list):
             row_idx = row0 + gi
-            start = (ncols - len(row_cells)) // 2
-            for j, cell in enumerate(row_cells):
+            start = (n_col - len(plot_row_cells)) // 2
+            for j, cell in enumerate(plot_row_cells):
                 ax = fig.add_subplot(gs[row_idx, start + j])
                 specs = _sorted_specs(cell)
                 curves = []
@@ -992,12 +992,12 @@ def plot_cost(costs, path, *, costs_by_part=None, part_order=None):
                 if with_legend and (not legend_done) and len(specs) > 1:
                     ax.legend(fontsize=7)
                     legend_done = True
-                if gi == n_cell_rows - 1:
+                if gi == n_plot_row - 1:
                     ax.set_xlabel("step")
 
         for gi, (role_id, label, curve) in enumerate(curve_specs_global):
-            row_idx = row0 + n_cell_rows + gi // ncols
-            col = gi % ncols
+            row_idx = row0 + n_plot_row + gi // n_col
+            col = gi % n_col
             ax = fig.add_subplot(gs[row_idx, col])
             ax.plot(curve, color=color_from_role_id.get(role_id), linewidth=2, linestyle='-')
             if log:
@@ -1008,13 +1008,13 @@ def plot_cost(costs, path, *, costs_by_part=None, part_order=None):
             ax.grid(True, alpha=0.3, which='both' if log else 'major')
             if col == 0:
                 ax.set_ylabel("cost [% gt power]", fontsize=8)
-            if gi // ncols == n_global_rows - 1:
+            if gi // n_col == n_global_plot_row - 1:
                 ax.set_xlabel("step")
 
     _draw_total(0, log=True)
     _draw_part_block(1, log=True, shared_cell_ylim=True, with_legend=True)
-    _draw_total(n_block_rows, log=False)
-    _draw_part_block(n_block_rows + 1, log=False, shared_cell_ylim=False, with_legend=False)
+    _draw_total(n_block_plot_row, log=False)
+    _draw_part_block(n_block_plot_row + 1, log=False, shared_cell_ylim=False, with_legend=False)
 
     fig.suptitle(f'Training cost ({len(costs)} steps)', fontsize=12, y=1.01)
     fig.tight_layout()

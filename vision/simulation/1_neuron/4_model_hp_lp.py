@@ -105,7 +105,7 @@ def update_state_hp_lp(
 
 
 def prepare_i_sti(session, params, i_sti, pack):
-    """PR current ``(B, T, N)`` as membrane drive (no rescale)."""
+    """Sti current ``(B, T, N)`` as membrane drive (no rescale)."""
     del params, pack
     return i_sti.unsqueeze(0) if i_sti.dim() == 2 else i_sti
 
@@ -121,9 +121,9 @@ def pre_steady(session, params, B, i_sti=None):
     """``(v_slow,)``, ``v`` at t=0 from ``session.pre_steady``."""
     if i_sti is None:
         raise TypeError("hp_lp pre_steady requires i_sti")
-    mode = str(session.pre_steady)
-    if mode not in ("probe", "solve"):
-        raise ValueError(f"hp_lp pre_steady must be probe|solve; got {mode!r}")
+    pre_steady = str(session.pre_steady)
+    if pre_steady not in ("probe", "solve"):
+        raise ValueError(f"hp_lp pre_steady must be probe|solve; got {pre_steady!r}")
     backend = session.backend
     g_leak = float(session.g_leak)
     if g_leak == 0.0:
@@ -131,7 +131,7 @@ def pre_steady(session, params, B, i_sti=None):
     v_sti = i_sti[:, 0, :] / g_leak
     e_leak = params["e_leak"]
     v = e_leak.expand(B, backend.n_nodes).clone()
-    if mode == "probe":
+    if pre_steady == "probe":
         v_star, v_in = _dc_v_star(v, params, v_sti, backend)
         return (v_in,), v_star
     damp = float(session.pre_steady_damp)

@@ -45,7 +45,7 @@ def _cost_extent_hex_tag(cost_extent, n_cost_hexes) -> str:
     return f"{int(n_cost_hexes)} cost hexes, {extent_tag}"
 
 
-def _network_spot_trace_bundle(
+def _network_spot_trace_readout(
     session,
     z,
     *,
@@ -77,7 +77,7 @@ def _network_spot_trace_bundle(
             at_x_list,
             at_y_list,
         )
-    return spot_plot.SpotTraceBundle(
+    return spot_plot.SpotTraceReadout(
         cells=cells,
         group_rows=group_rows,
         session=session,
@@ -154,7 +154,7 @@ def parse_args(argv=None):
 def main(argv=None):
     args = parse_args(argv)
     fc._cost_extent_hex_tag = _cost_extent_hex_tag
-    spot_plot.network_spot_trace_bundle = _network_spot_trace_bundle
+    spot_plot.network_spot_trace_readout = _network_spot_trace_readout
     spot_plot.annotate_baseline = _annotate_baseline_zero_no_dashed
     spot_plot.plot_cell_pair = _plot_cell_pair_second_bright_dashed
     spot_plot.plot_cell_pair_slices = _plot_cell_pair_slices_second_bright_dashed
@@ -168,16 +168,15 @@ def main(argv=None):
     session, z_best, _best_i, best_cost = plot_trained.load_best(run_dir, verbose=True)
     bright_session = plot_trained.session_for_target(session, "spot_bright")
     bright_50ms_session = _session_with_bright_ms_pulse(bright_session, SECOND_BRIGHT_MS)
-    bundle = spot_plot.network_spot_trace_bundle(bright_session, z_best)
-    bundle_50ms = spot_plot.network_spot_trace_bundle(bright_50ms_session, z_best)
+    readout = spot_plot.network_spot_trace_readout(bright_session, z_best)
+    readout_50ms = spot_plot.network_spot_trace_readout(bright_50ms_session, z_best)
     title = (
         f"spot_bright model-gt (trained, cost {best_cost:.2f}% of gt power)"
         f"{plot_trained._network_spot_tag(bright_session, 'spot_bright')}"
     )
     spot_plot.plot_network_spot_gt(
         save_path,
-        bundle=bundle,
-        bundle_2=bundle_50ms,
+        readouts={'bright': readout, 'bright_50ms': readout_50ms},
         title=title,
         ref_cubes=spot_plot.spot_ref_cubes(bright_session, "spot_bright", dark=False),
         ref_cubes_2={},

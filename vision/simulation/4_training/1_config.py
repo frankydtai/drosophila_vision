@@ -52,10 +52,7 @@ MOVING_BAR_COST_PARTS = tuple(
 # a_gt2:         Σ w (v_readout−gt_aff)² / a_gt²   (per-entry a_i²; bias not in denom)
 COST_NORMS = ("gt_power", "a_gt2")
 
-# t=0 membrane pre steady (``--pre-steady MODE``); not param init.
-# Shared by borst / hp_lp (default: param_defaults.PRE_STEADY).
-PRE_STEADY_MODES = ("probe", "solve")
-FILTER_MODES = ("none", "ca")
+# t=0 membrane pre steady (``--pre-steady``); not param init.
 
 
 def _expand_choice(name, allowed: Tuple[str, ...], *, flag: str) -> str:
@@ -70,14 +67,14 @@ def expand_cost_norm(name) -> str:
     return _expand_choice(name, COST_NORMS, flag="cost_norm")
 
 
-def expand_pre_steady_mode(mode) -> str:
-    """Validate shared pre-steady mode token (``probe`` | ``solve``)."""
-    return _expand_choice(mode, PRE_STEADY_MODES, flag="pre_steady")
+def expand_pre_steady(pre_steady) -> str:
+    """Validate ``--pre-steady`` token (``probe`` | ``solve``)."""
+    return _expand_choice(pre_steady, ("probe", "solve"), flag="pre_steady")
 
 
-def expand_filter(mode) -> str:
+def expand_filter(filter) -> str:
     """Validate ``--filter`` token (``none`` | ``ca``)."""
-    return _expand_choice(mode, FILTER_MODES, flag="filter")
+    return _expand_choice(filter, ("none", "ca"), flag="filter")
 
 TASK_ALIASES = {
     "spot": SPOT_TASKS,
@@ -161,7 +158,7 @@ def cost_part_keys_for_pack(pack, backend) -> Tuple[str, ...]:
     w = pack.cost_weight
     active = w > 0
     cell_ids = net.node_cell[pack.readout_node]
-    names = net.cell_names
+    names = net.cells
     keys: List[str] = []
     seen = set()
 
@@ -186,9 +183,9 @@ def cost_part_keys_for_pack(pack, backend) -> Tuple[str, ...]:
             _add(moving_bar_cost_part_key(pack.name, "DSI"))
         return tuple(keys)
 
-    if pack.cost_radius is None or not bool(active.any()):
+    if pack.spot_cost_radius is None or not bool(active.any()):
         return tuple(keys)
-    radii = pack.cost_radius
+    radii = pack.spot_cost_radius
     for i in range(int(pack.readout_node.shape[0])):
         if not bool(active[i]):
             continue

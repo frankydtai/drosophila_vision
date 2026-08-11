@@ -4,7 +4,7 @@
 Synthesizes the Medulla_Library RecF/ImpR library (bandpass/lowpass ImpR
 shaping -- gt-only, not ``neuron.filter_ca``). With ``filter==\"ca\"``, ImpR
 is replaced by Arenz digitized CSV traces (``t=0`` at stimulus onset).
-PR drive is :func:`task.spot.input.spot_input_waveform`, shared with network
+Sti drive is :func:`task.spot.input.spot_input_waveform`, shared with network
 ``i_sti``.
 
 Network mapping, cost hexes, and :class:`task.spot.readout.SpotGt` packing

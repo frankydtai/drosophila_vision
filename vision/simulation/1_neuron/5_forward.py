@@ -34,7 +34,7 @@ def a_sti_radius_effective(params, pack):
 
 
 def inject_a_sti_radius(i_sti, params, pack):
-    """``i += a_sti_radius[r] * sti_wave`` on spot radius PR contribs; else pass-through.
+    """``i += a_sti_radius[r] * sti_wave`` on spot radius sti contribs; else pass-through.
 
     Uses :func:`a_sti_radius_effective` so gated slots are 0 whether indi or fixed.
     """

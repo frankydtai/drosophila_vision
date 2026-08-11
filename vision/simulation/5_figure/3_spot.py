@@ -23,8 +23,8 @@ from figure.readout import (
     spot_gt_cubes,
 )
 from figure.util import (
-    NCOLS_ALL,
-    NCOLS_GT,
+    N_COL_ALL,
+    N_COL_GT,
     PANEL_W,
     GT_COLOR,
     V_READOUT_COLOR,
@@ -32,7 +32,7 @@ from figure.util import (
     PlotTimer,
     annotate_v_th,
     params_for_types,
-    bundle_prep_s,
+    readout_prep_s,
     format_spot_radius_time_title,
     gt_affine_scalars_for_cell,
     e_leak_by_type_name,
@@ -48,7 +48,7 @@ from figure.util import (
     suppress_cost_std,
     v_th_by_type_name,
 )
-from network.construction import cell_order_rows, cell_names_in_order
+from network.construction import cell_plot_rows, cells_in_order
 from task.moving_bar.input import (
     filter_sti_hexes,
     moving_bar_cost_hexes,
@@ -72,11 +72,11 @@ RF_RADIUS_X = np.arange(RF_N_RADII) * RF_RADIUS_DEG
 
 
 def pack_spot_cost_radii(pack) -> tuple[float, ...]:
-    """Active cost radii from ``pack.cost_radius`` (already resolved at pack build)."""
-    if pack.cost_radius is None:
-        raise ValueError(f"{pack.name} pack missing cost_radius")
+    """Active Euclidean cost radii from ``pack.spot_cost_radius``."""
+    if pack.spot_cost_radius is None:
+        raise ValueError(f"{pack.name} pack missing spot_cost_radius")
     return tuple(
-        sorted({round(float(radius), 6) for radius in pack.cost_radius.tolist()})
+        sorted({round(float(radius), 6) for radius in pack.spot_cost_radius.tolist()})
     )
 
 
@@ -121,23 +121,23 @@ def resolve_spot_gt_cubes(sessions, gt_cubes=None, *, filter=None):
     return out
 
 
-def _session_cost_time_idx(session, t_onset, *, cost_radius=None):
+def _session_cost_time_idx(session, t_onset, *, spot_cost_radius=None):
     """Absolute time indices for sparse spot cost (pack contract; or ``None``)."""
     if session is None:
         return None
     return training.pack_cost_abs_time_idx(
-        session.primary_readout, t_onset, cost_radius=cost_radius,
+        session.primary_readout, t_onset, spot_cost_radius=spot_cost_radius,
     )
 
 
-def _series_with_cost_points(series, bundles, cost_radius):
-    """Copy ``series`` with ``point_idx`` for Euclidean ``cost_radius``."""
+def _series_with_cost_points(series, readouts, spot_cost_radius):
+    """Copy ``series`` with ``point_idx`` for Euclidean ``spot_cost_radius``."""
     out = []
     for entry in series:
         item = dict(entry)
         c = entry["contrast"]
         item["point_idx"] = _session_cost_time_idx(
-            bundles[c].session, bundles[c].t_onset, cost_radius=cost_radius,
+            readouts[c].session, readouts[c].t_onset, spot_cost_radius=spot_cost_radius,
         )
         out.append(item)
     return out
@@ -527,33 +527,33 @@ def plot_cell_rf_time_slices(
 
 
 def _fill_member_cube(cube, std, ti, ft_global, type_idx, du, dv, plot_traces):
-    """Fill profile radii from Euclidean radius means; return ``{r: n_rows}``."""
+    """Fill profile radii from Euclidean radius means; return ``{r: n_entry}``."""
     mask = type_idx == ft_global
     if not mask.any():
         return {}
-    rows = np.where(mask)[0]
+    entry_idxs = np.where(mask)[0]
     by_radius: dict[float, list] = {}
-    for row in rows:
-        radius = round(float(euclid_hex_dist(int(du[row]), int(dv[row]))), 6)
-        by_radius.setdefault(radius, []).append(int(row))
+    for entry_idx in entry_idxs:
+        radius = round(float(euclid_hex_dist(int(du[entry_idx]), int(dv[entry_idx]))), 6)
+        by_radius.setdefault(radius, []).append(int(entry_idx))
     n_by_radius = {}
-    for radius, row_idx in by_radius.items():
+    for radius, grouped_entry_idxs in by_radius.items():
         k = int(round(float(radius)))
         if abs(float(radius) - k) > 1e-6 or k < 0 or k >= RF_N_RADII:
             continue
-        traces = plot_traces[row_idx]
+        traces = plot_traces[grouped_entry_idxs]
         cube[ti, k] = traces.mean(axis=0)
         std[ti, k] = std_from_traces(traces, single_hex=False)
-        n_by_radius[k] = len(row_idx)
+        n_by_radius[k] = len(grouped_entry_idxs)
     return n_by_radius
 
 
 @dataclass
-class SpotTraceBundle:
+class SpotTraceReadout:
     """One forward pass; full cost-radius readout over all types."""
 
     cells: list
-    order_row_idxs: list | None = None
+    plot_row_idxs: list | None = None
     session: object = None
     slice_overlay: dict[str, dict[str, np.ndarray]] | None = None
     slice_labels: list[str] | None = None
@@ -574,68 +574,69 @@ class SpotTraceBundle:
         return bool(self.slice_overlay)
 
 
-def _order_row_idxs_from_rows(order_rows, names):
+def _plot_row_idxs_from_cell_plot_rows(cell_plot_rows_list, names):
     i_from_name = {str(n): i for i, n in enumerate(names)}
-    order_row_idxs = []
-    for names_row in order_rows:
-        row_idx = [i_from_name[str(n)] for n in names_row if str(n) in i_from_name]
-        if row_idx:
-            order_row_idxs.append(row_idx)
-    return order_row_idxs
+    plot_row_idxs = []
+    for names_in_row in cell_plot_rows_list:
+        cell_idxs = [i_from_name[str(n)] for n in names_in_row if str(n) in i_from_name]
+        if cell_idxs:
+            plot_row_idxs.append(cell_idxs)
+    return plot_row_idxs
 
 
-def _spot_readout_bundle_view(bundle):
+def _spot_readout_gt_view(readout):
     """ca-gt view: same traces, rows restricted to ``pack_readout_cells``."""
-    session = bundle.session
+    session = readout.session
     present = pack_readout_cells(session, session.primary_readout.name)
-    order_rows = [np.array(row) for row in cell_order_rows(present)]
-    names = cell_names_in_order(present)
-    by_name = {c['name']: c for c in bundle.cells}
+    cell_plot_rows_list = [np.array(plot_row) for plot_row in cell_plot_rows(present)]
+    names = cells_in_order(present)
+    by_name = {c['name']: c for c in readout.cells}
     cells = [by_name[n] for n in names if n in by_name]
-    cell_names = [c['name'] for c in cells]
-    return SpotTraceBundle(
+    return SpotTraceReadout(
         cells=cells,
-        order_row_idxs=_order_row_idxs_from_rows(order_rows, cell_names),
+        plot_row_idxs=_plot_row_idxs_from_cell_plot_rows(
+            cell_plot_rows_list, [c['name'] for c in cells],
+        ),
         session=session,
-        n_t=bundle.n_t,
-        v_th_by_name=bundle.v_th_by_name,
-        t_onset=bundle.t_onset,
-        show_pre=bundle.show_pre,
-        t_spot_end=bundle.t_spot_end,
-        ms_shown=bundle.ms_shown,
-        center_only=bool(bundle.center_only),
-        a_sti_radius=dict(bundle.a_sti_radius),
+        n_t=readout.n_t,
+        v_th_by_name=readout.v_th_by_name,
+        t_onset=readout.t_onset,
+        show_pre=readout.show_pre,
+        t_spot_end=readout.t_spot_end,
+        ms_shown=readout.ms_shown,
+        center_only=bool(readout.center_only),
+        a_sti_radius=dict(readout.a_sti_radius),
     )
 
 
-def _spot_cubes_from_row_mask(rows, mask):
-    names = rows['names']
-    cell_names = rows['cell_names']
-    mt = rows['mt']
-    type_idx = rows['type_idx'][mask]
-    du = rows['du'][mask]
-    dv = rows['dv'][mask]
-    plot_traces = rows['plot_traces'][mask]
+def _spot_cubes_from_readout_mask(readout, mask):
+    names = readout['names']
+    cells = readout['cells']
+    mt = readout['mt']
+    type_idx = readout['type_idx'][mask]
+    du = readout['du'][mask]
+    dv = readout['dv'][mask]
+    plot_traces = readout['plot_traces'][mask]
     out = {}
     std_dummy = np.full((1, RF_N_RADII, mt), np.nan)
     for ft in names:
         cube = np.full((1, RF_N_RADII, mt), np.nan)
-        ft_global = cell_names.index(ft)
+        ft_global = cells.index(ft)
         _fill_member_cube(cube, std_dummy, 0, ft_global, type_idx, du, dv, plot_traces)
         out[ft] = cube[0]
     return out
 
 
-def _spot_readout_hex_mask(C, node_idx, cost_radius, *, at_x=None, at_y=None):
+def _spot_readout_hex_mask(connectome, node_idx, cost_radius, *, at_x=None, at_y=None):
     """True for cost entries whose node sits on matching cost-radius hexes."""
     filtered_hexes = filter_sti_hexes(
-        moving_bar_cost_hexes(C, cost_radius=cost_radius),
+        moving_bar_cost_hexes(connectome, cost_radius=cost_radius),
         at_x=at_x,
         at_y=at_y,
     )
     if not filtered_hexes:
         return np.zeros(len(node_idx), dtype=bool)
-    node_u_np, node_v_np = network_uv_np(C)
+    node_u_np, node_v_np = network_uv_np(connectome)
     hex_uv = {(int(c.u), int(c.v)) for c in filtered_hexes}
     return np.array(
         [(int(node_u_np[n]), int(node_v_np[n])) in hex_uv for n in node_idx],
@@ -643,20 +644,20 @@ def _spot_readout_hex_mask(C, node_idx, cost_radius, *, at_x=None, at_y=None):
     )
 
 
-def _spot_slice_overlay(rows, C, at_xs, at_ys):
+def _spot_slice_overlay(readout, connectome, at_xs, at_ys):
     """Per-hex readout overlays (same ``filter_sti_hexes`` scope as moving_bar)."""
     overlay = {}
     labels = []
-    pack = rows['pack']
-    node_idx = rows['node_idx']
+    pack = readout['pack']
+    node_idx = readout['node_idx']
     for label, at_x, at_y in slice_coord_specs(at_xs, at_ys):
         mask = _spot_readout_hex_mask(
-            C, node_idx, pack.cost_radius, at_x=at_x, at_y=at_y,
+            connectome, node_idx, pack.cost_radius, at_x=at_x, at_y=at_y,
         )
         if not np.any(mask):
             print(f'skip slice overlay {label}: no hex within cost_radius')
             continue
-        cubes = _spot_cubes_from_row_mask(rows, mask)
+        cubes = _spot_cubes_from_readout_mask(readout, mask)
         if not any(np.isfinite(c).any() for c in cubes.values()):
             print(f'skip slice overlay {label}: no readouts')
             continue
@@ -693,7 +694,7 @@ def _cells_from_cube(
 
 
 @torch.no_grad()
-def _spot_forward_rows(
+def _forward_spot_readout(
     session, z, *,
     at_x=None, at_y=None,
 ):
@@ -723,21 +724,21 @@ def _spot_forward_rows(
     else:
         plot_full = v
     training.materialize_from_opts(params, session, onset_trace=plot_full, t_onset=t0)
-    C = session.backend.network
-    cell_names = list(C.cell_names)
+    connectome = session.backend.network
+    cells = list(connectome.cells)
     mt = int(i_sti.shape[1])
 
     opts = dict((session.train_opts or {}).get(f"{pack.name}_stimulus_opts") or {})
-    spot = spot_from_opts(C, stimulus_opts=opts)
+    spot = spot_from_opts(connectome, stimulus_opts=opts)
     batches = spot_stimulus_batches(spot)
-    present = plot_cells_in_order(C.cell_names)
-    order_rows = [np.array(row) for row in cell_order_rows(present)]
-    names = cell_names_in_order(present)
+    present = plot_cells_in_order(connectome.cells)
+    cell_plot_rows_list = [np.array(plot_row) for plot_row in cell_plot_rows(present)]
+    names = cells_in_order(present)
 
     (
-        batch_idx, node_idx, _radius, type_idx, _stim_u, _stim_v, du, dv, center_row,
+        batch_idx, node_idx, _radius, type_idx, _stim_u, _stim_v, du, dv, center_entry_mask,
     ) = build_spot_center_readout(
-        C, batches, pack_spot_cost_radii(pack), pack.cost_radius,
+        connectome, batches, pack_spot_cost_radii(pack), pack.cost_radius,
     )
 
     plot_traces = plot_full[batch_idx, :, node_idx].cpu().numpy()
@@ -749,14 +750,14 @@ def _spot_forward_rows(
         t_from_ms(float(stim_ms_pre), delta_ms=dt_pre)
         if stim_ms_pre is not None else None
     )
-    rows = dict(
+    readout = dict(
         names=names,
-        cell_names=cell_names,
+        cells=cells,
         type_idx=type_idx,
         node_idx=node_idx,
         du=du,
         dv=dv,
-        center_row=center_row,
+        center_entry_mask=center_entry_mask,
         plot_traces=plot_traces,
         t_onset=int(stim_t_onset) if stim_t_onset is not None else None,
         t_spot_end=(
@@ -771,56 +772,56 @@ def _spot_forward_rows(
         pack=pack,
         a_sti_radius=a_sti_radius_by_name,
     )
-    mask = np.asarray(center_row, dtype=bool)
+    mask = np.asarray(center_entry_mask, dtype=bool)
     if at_x is not None or at_y is not None:
         mask = mask & _spot_readout_hex_mask(
-            C, node_idx, pack.cost_radius, at_x=at_x, at_y=at_y,
+            connectome, node_idx, pack.cost_radius, at_x=at_x, at_y=at_y,
         )
     nodes_by_name = {
-        name: np.unique(node_idx[mask & (type_idx == cell_names.index(name))])
+        name: np.unique(node_idx[mask & (type_idx == cells.index(name))])
         for name in names
     }
-    rows['v_th_by_name'] = params_for_types(
+    readout['v_th_by_name'] = params_for_types(
         nodes_by_name, v_th_by_type_name(z, session),
     )
-    rows['e_leaks'] = params_for_types(
+    readout['e_leaks'] = params_for_types(
         nodes_by_name, e_leak_by_type_name(z, session),
     )
-    rows['gt_affine_by_name'] = {
+    readout['gt_affine_by_name'] = {
         name: gt_affine_scalars_for_cell(
             params, name, session.backend, session=session,
         )
         for name in names
     }
-    rows['order_rows'] = order_rows
-    return rows
+    readout['cell_plot_rows'] = cell_plot_rows_list
+    return readout
 
 
-def _spot_cube_from_rows(rows, session):
-    names = rows['names']
-    mt = rows['mt']
+def _spot_cube_from_readout(readout, session):
+    names = readout['names']
+    mt = readout['mt']
     cube = np.full((len(names), RF_N_RADII, mt), np.nan)
     std = np.full((len(names), RF_N_RADII, mt), np.nan)
     n_by_radius_by_name = {}
     for ti, ft in enumerate(names):
-        ft_global = rows['cell_names'].index(ft)
+        ft_global = readout['cells'].index(ft)
         n_by_radius_by_name[ft] = _fill_member_cube(
             cube, std, ti, ft_global,
-            rows['type_idx'], rows['du'], rows['dv'], rows['plot_traces'],
+            readout['type_idx'], readout['du'], readout['dv'], readout['plot_traces'],
         )
-    single_hex = suppress_cost_std(session, task=rows['pack'].name)
+    single_hex = suppress_cost_std(session, task=readout['pack'].name)
     cells = _cells_from_cube(
-        names, cube, std, rows['v_th_by_name'],
-        e_leaks=rows.get('e_leaks'),
+        names, cube, std, readout['v_th_by_name'],
+        e_leaks=readout.get('e_leaks'),
         single_hex=single_hex, n_by_radius_by_name=n_by_radius_by_name,
-        gt_affine_by_name=rows.get('gt_affine_by_name'),
+        gt_affine_by_name=readout.get('gt_affine_by_name'),
     )
-    order_row_idxs = _order_row_idxs_from_rows(rows['order_rows'], names)
-    return cells, order_row_idxs, mt
+    plot_row_idxs = _plot_row_idxs_from_cell_plot_rows(readout['cell_plot_rows'], names)
+    return cells, plot_row_idxs, mt
 
 
 @torch.no_grad()
-def network_spot_trace_bundle(
+def network_spot_trace_readout(
     session, z, *,
     at_xs=None, at_ys=None,
     show_pre=True,
@@ -831,22 +832,22 @@ def network_spot_trace_bundle(
     t_prep0 = time.perf_counter()
     at_x = at_xs[0] if at_xs else None
     at_y = at_ys[0] if at_ys else None
-    rows = _spot_forward_rows(
+    readout = _forward_spot_readout(
         session, z,
         at_x=at_x, at_y=at_y,
     )
-    cells, order_row_idxs, n_t = _spot_cube_from_rows(rows, session)
+    cells, plot_row_idxs, n_t = _spot_cube_from_readout(readout, session)
     slice_overlay, slice_labels = (None, None)
     if at_xs is not None or at_ys is not None:
-        C = session.backend.network
-        if C is None:
+        connectome = session.backend.network
+        if connectome is None:
             raise ValueError("spot slice overlay requires a network backend")
         slice_overlay, slice_labels = _spot_slice_overlay(
-            rows, C, at_xs, at_ys,
+            readout, connectome, at_xs, at_ys,
         )
-    return SpotTraceBundle(
+    return SpotTraceReadout(
         cells=cells,
-        order_row_idxs=order_row_idxs,
+        plot_row_idxs=plot_row_idxs,
         session=session,
         slice_overlay=slice_overlay,
         slice_labels=slice_labels,
@@ -855,23 +856,23 @@ def network_spot_trace_bundle(
         n_t=n_t,
         prep_s=time.perf_counter() - t_prep0,
         v_th_by_name=v_th_by_type_name(z, session),
-        t_onset=rows.get('t_onset'),
+        t_onset=readout.get('t_onset'),
         show_pre=bool(show_pre),
-        t_spot_end=rows.get('t_spot_end'),
+        t_spot_end=readout.get('t_spot_end'),
         ms_shown=ms_shown,
         center_only=bool(center_only),
-        a_sti_radius=dict(rows.get('a_sti_radius') or {}),
+        a_sti_radius=dict(readout.get('a_sti_radius') or {}),
     )
 
 
-def _spot_suptitle(title, bundle):
+def _spot_suptitle(title, readout):
     head = title
-    if bundle is not None:
-        a_sti_radius = bundle.a_sti_radius
+    if readout is not None:
+        a_sti_radius = readout.a_sti_radius
         if a_sti_radius and "1" in a_sti_radius:
             head = f"a_sti_radius 1 = {float(a_sti_radius['1']):.4g}"
-        if bundle.has_slices:
-            scope = hex_at_scope_tag(bundle.slice_xs, bundle.slice_ys)
+        if readout.has_slices:
+            scope = hex_at_scope_tag(readout.slice_xs, readout.slice_ys)
             return f'{head}  [{scope}, overlay + scope]'
     return head
 
@@ -907,22 +908,22 @@ def _trained_radii(cost_parts, contrasts, *, center_only=False):
 def _plot_spot_figure(
     path, *,
     timer,
-    bundles,
+    readouts,
     title,
     gt_cubes=None,
-    ncols,
+    n_col,
     figsize_fn,
     gridspec_kw,
     suptitle_fs=12,
     cost_parts=None,
 ):
-    """Draw spot figure from ``bundles`` (contrast → SpotTraceBundle)."""
-    order = contrast_order(bundles)
+    """Draw spot figure from ``readouts`` (contrast → SpotTraceReadout)."""
+    order = contrast_order(readouts)
     if not order:
-        raise ValueError("_plot_spot_figure requires at least one bundle")
-    primary = bundles[order[0]]
+        raise ValueError("_plot_spot_figure requires at least one readout")
+    primary = readouts[order[0]]
     cells = primary.cells
-    order_row_idxs = primary.order_row_idxs
+    plot_row_idxs = primary.plot_row_idxs
     has_slices = primary.has_slices
     slice_labels = primary.slice_labels or []
     n_t = primary.n_t
@@ -938,22 +939,22 @@ def _plot_spot_figure(
     )
     timer.end_prep()
 
-    sessions = {c: bundles[c].session for c in order}
+    sessions = {c: readouts[c].session for c in order}
     gt_by_contrast = resolve_spot_gt_cubes(sessions, gt_cubes)
 
     cells_by_contrast = {}
     for c in order:
-        cells_by_contrast[c] = {cell["name"]: cell for cell in bundles[c].cells}
+        cells_by_contrast[c] = {cell["name"]: cell for cell in readouts[c].cells}
 
     center_only = bool(primary.center_only)
     radii = _trained_radii(cost_parts, order, center_only=center_only)
     center_radius = int(RF_CENTER_RADIUS)
     order_heights = [
-        1 + len(radii) for _ in order_row_idxs
+        1 + len(radii) for _ in plot_row_idxs
     ]
-    nrows = int(sum(order_heights))
-    fig = plt.figure(figsize=figsize_fn(ncols, nrows))
-    gs = fig.add_gridspec(nrows, ncols, **gridspec_kw)
+    n_row = int(sum(order_heights))
+    fig = plt.figure(figsize=figsize_fn(n_col, n_row))
+    gs = fig.add_gridspec(n_row, n_col, **gridspec_kw)
     legend_done = False
 
     def _series_for_cell(name, *, with_slices):
@@ -983,7 +984,7 @@ def _plot_spot_figure(
                 "label_scope": f"{c} scope",
             }
             if with_slices:
-                overlay = bundles[c].slice_overlay
+                overlay = readouts[c].slice_overlay
                 if overlay is not None:
                     entry["slice_overlay"] = {
                         label: cubes[name]
@@ -1007,7 +1008,7 @@ def _plot_spot_figure(
         if has_slices and primary.slice_overlay is not None:
             series = _series_with_cost_points(
                 _series_for_cell(name, with_slices=True),
-                bundles,
+                readouts,
                 float(center_radius),
             )
             slice_xt = (series[0].get("slice_overlay") or {}) if series else {}
@@ -1035,7 +1036,7 @@ def _plot_spot_figure(
         else:
             series = _series_with_cost_points(
                 _series_for_cell(name, with_slices=False),
-                bundles,
+                readouts,
                 float(center_radius),
             )
             plot_cell_rf_time(
@@ -1058,12 +1059,12 @@ def _plot_spot_figure(
         legend_done = True
 
     row_cursor = 0
-    for gi, row_idx in enumerate(order_row_idxs):
+    for gi, cell_idxs in enumerate(plot_row_idxs):
         group_h = int(order_heights[gi])
         rf_row = row_cursor
         time_row0 = row_cursor + 1
-        start = (ncols - len(row_idx)) // 2
-        for j, ci in enumerate(row_idx):
+        start = (n_col - len(cell_idxs)) // 2
+        for j, ci in enumerate(cell_idxs):
             col = start + j
             cell_on = cells[ci]
             ax_rf = fig.add_subplot(gs[rf_row, col])
@@ -1104,7 +1105,7 @@ def _plot_spot_figure(
                 )
                 plot_cell_time(
                     ax_t,
-                    _series_with_cost_points(series, bundles, float(radius)),
+                    _series_with_cost_points(series, readouts, float(radius)),
                     title=time_title,
                     show_xlabels=(local_i == len(radii) - 1),
                     show_ylabel=(j == 0),
@@ -1130,31 +1131,31 @@ def _plot_spot_figure(
     save_figure(fig, path, dpi=150, timer=timer)
 
 
-def plot_network_spot_gt(path, *, bundles, title, gt_cubes=None, cost_parts=None):
-    """Draw ca-gt figure (pack readout types) from contrast → bundle."""
-    views = {c: _spot_readout_bundle_view(b) for c, b in bundles.items()}
+def plot_network_spot_gt(path, *, readouts, title, gt_cubes=None, cost_parts=None):
+    """Draw ca-gt figure (pack readout types) from contrast → readout."""
+    views = {c: _spot_readout_gt_view(b) for c, b in readouts.items()}
     _plot_spot_figure(
         path,
-        timer=PlotTimer(prior_prep=bundle_prep_s(*bundles.values())),
-        bundles=views,
+        timer=PlotTimer(prior_prep=readout_prep_s(*readouts.values())),
+        readouts=views,
         title=title,
         gt_cubes=gt_cubes,
-        ncols=NCOLS_GT,
+        n_col=N_COL_GT,
         figsize_fn=lambda c, r: (PANEL_W * c, 2.5 * r),
         gridspec_kw=dict(hspace=0.55, wspace=0.55, top=0.95, bottom=0.06, left=0.07, right=0.98),
         cost_parts=cost_parts,
     )
 
 
-def plot_network_spot_all(path, *, bundles, title, gt_cubes=None, cost_parts=None):
-    """Draw ca-all figure (all types) from contrast → bundle."""
+def plot_network_spot_all(path, *, readouts, title, gt_cubes=None, cost_parts=None):
+    """Draw ca-all figure (all types) from contrast → readout."""
     _plot_spot_figure(
         path,
-        timer=PlotTimer(prior_prep=bundle_prep_s(*bundles.values())),
-        bundles=bundles,
+        timer=PlotTimer(prior_prep=readout_prep_s(*readouts.values())),
+        readouts=readouts,
         title=title,
         gt_cubes=gt_cubes,
-        ncols=NCOLS_ALL,
+        n_col=N_COL_ALL,
         figsize_fn=lambda c, r: (PANEL_W * c, 2.5 * r),
         gridspec_kw=dict(hspace=0.55, wspace=0.55, top=0.95, bottom=0.06, left=0.07, right=0.98),
         cost_parts=cost_parts,

@@ -1,8 +1,8 @@
 # -*- coding: utf-8 -*-
-"""Spot paradigm INPUT: connectome spot geometry + PR drive waveform.
+"""Spot paradigm input: connectome spot geometry + sti drive waveform.
 
 Geometry (centers, sub-spot shifts, Euclidean radii) is split out of the old
-``network.spot_target`` Section A. The PR drive waveform ``u[t]`` is defined
+``network.spot_target`` Section A. The sti drive waveform ``u[t]`` is defined
 here once (``spot_input_waveform``) and consumed by both the network ``i_sti`` and
 the ImpR gt in :mod:`task.spot.gt` (and ``i_sti`` via :mod:`task.spot.readout`),
 so spot-on duration has a single source.
@@ -171,7 +171,7 @@ def spot_t_spot_end(t_onset, n_t, ms_spot=None, *, delta_ms: float) -> int:
 
 
 def spot_input_waveform(t_onset, n_t, ms_spot=None, *, delta_ms: float) -> np.ndarray:
-    """Normalized 0/1 photoreceptor drive ``u[t]`` over ``n_t`` samples.
+    """Normalized 0/1 sti drive ``u[t]`` over ``n_t`` samples.
 
     ``ms_spot`` omitted -> continue-on step (``u[t_onset:] = 1``). With a value the
     stimulus is on for inclusive ``[t_onset, spot_t_spot_end(...)]`` (slice
@@ -311,29 +311,29 @@ def spot_stimulus_batches(spot: Spot) -> list[SpotBatch]:
     ]
 
 
-def _connectome_radius(C, spot_radius: float) -> int:
-    """Hex-disc radius of connectome ``C``."""
-    meta_radius = int(C.meta.get("extent", -1))
+def _connectome_radius(connectome, spot_radius: float) -> int:
+    """Hex-disc radius of the connectome."""
+    meta_radius = int(connectome.meta.get("radius", -1))
     if meta_radius >= 0:
         return meta_radius
-    positioned = C.column_id >= 0
+    positioned = connectome.column_id >= 0
     radii = [
         build_hex.hex_radius(int(hex_u), int(hex_v))
-        for hex_u, hex_v in zip(C.u[positioned], C.v[positioned])
+        for hex_u, hex_v in zip(connectome.u[positioned], connectome.v[positioned])
     ]
     return max(radii) if radii else int(spot_radius)
 
 
 def build_spot(
-    C,
+    connectome,
     *,
     spot_radius: float,
     multi_spot: bool,
     fully_inside: bool,
 ) -> Spot:
-    """Build a :class:`Spot` for connectome ``C``."""
+    """Build a :class:`Spot` for the connectome."""
     spot_radius_half_steps(spot_radius)
-    connectome_radius = _connectome_radius(C, spot_radius)
+    connectome_radius = _connectome_radius(connectome, spot_radius)
     shifts = build_hex.members_in_radius(1)
     if not multi_spot:
         centers = [(0, 0)]
@@ -350,7 +350,7 @@ def build_spot(
 
 
 def spot_from_opts(
-    C,
+    connectome,
     *,
     spot_radius: float | None = None,
     shift_radius: int | None = None,
@@ -375,7 +375,7 @@ def spot_from_opts(
             "fully_inside (or stimulus_opts containing them)"
         )
     spot = build_spot(
-        C, spot_radius=spot_radius, multi_spot=multi_spot, fully_inside=fully_inside,
+        connectome, spot_radius=spot_radius, multi_spot=multi_spot, fully_inside=fully_inside,
     )
     spot.shifts = [
         (int(du), int(dv))
@@ -385,7 +385,7 @@ def spot_from_opts(
 
 
 def build_spot_a_sti_radius_drive(
-    C,
+    connectome,
     batches: Sequence[SpotBatch],
     *,
     sti_radii,
@@ -417,21 +417,21 @@ def build_spot_a_sti_radius_drive(
     center_nodes: list[tuple[int, int]] = []
     for b, batch in enumerate(batches):
         for stim_hex_u, stim_hex_v in batch.stim_uv:
-            for nid in C.input_nodes_at(int(stim_hex_u), int(stim_hex_v)):
+            for nid in connectome.sti_nodes_at(int(stim_hex_u), int(stim_hex_v)):
                 center_nodes.append((int(b), int(nid)))
             for radius_key, members in by_radius.items():
                 ri = i_from_radius[radius_key]
                 for du, dv in members:
-                    for nid in C.input_nodes_at(int(stim_hex_u) + int(du), int(stim_hex_v) + int(dv)):
+                    for nid in connectome.sti_nodes_at(int(stim_hex_u) + int(du), int(stim_hex_v) + int(dv)):
                         batch_l.append(int(b))
                         node_l.append(int(nid))
                         r_l.append(int(ri))
     u = spot_input_waveform(t_onset, n_t, ms_spot, delta_ms=delta_ms)
     n_batch = len(batches)
-    pr_idx = torch.as_tensor(np.where(C.is_input)[0], dtype=torch.long, device=device)
-    i_sti = torch.zeros((n_batch, n_t, C.n_nodes), dtype=sim_dtype, device=device)
-    if len(pr_idx):
-        i_sti[:, :, pr_idx] = float(i_baseline)
+    sti_idx = torch.as_tensor(connectome.sti_node_idx, dtype=torch.long, device=device)
+    i_sti = torch.zeros((n_batch, n_t, connectome.n_nodes), dtype=sim_dtype, device=device)
+    if len(sti_idx):
+        i_sti[:, :, sti_idx] = float(i_baseline)
     sti_wave = torch.as_tensor(
         (float(i_peak) - float(i_baseline)) * u, dtype=sim_dtype, device=device,
     )
