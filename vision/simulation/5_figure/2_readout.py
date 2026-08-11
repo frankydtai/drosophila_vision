@@ -6,7 +6,7 @@ import numpy as np
 import torch
 
 from param_defaults import GT_CA_AMP, GT_V_AMP, DELTA_MS
-from task.spot.gt import GT_CELLS, read_RecF_gt, read_RecF_gt_dark
+from task.spot.gt import GT_CELLS, load_RecF_gt, load_RecF_gt_dark
 from network.construction import cell_names_in_order
 
 _VALID_CONTRASTS = ("bright", "dark")
@@ -18,14 +18,14 @@ def plot_cells_in_order(present):
 
 
 def _cell_names_for_nodes(session, node_indices):
-    node_index = node_indices
-    if torch.is_tensor(node_index):
-        node_index = node_index.detach().cpu().numpy()
-    node_index = np.asarray(node_index, dtype=np.int64)
+    node_idx = node_indices
+    if torch.is_tensor(node_idx):
+        node_idx = node_idx.detach().cpu().numpy()
+    node_idx = np.asarray(node_idx, dtype=np.int64)
     C = session.backend.network
     if C is None:
         raise ValueError("_cell_names_for_nodes requires session.backend.network")
-    node_cell = C.node_cell[node_index]
+    node_cell = C.node_cell[node_idx]
     if torch.is_tensor(node_cell):
         node_cell = node_cell.detach().cpu().numpy()
     names = list(C.cell_names)
@@ -102,7 +102,7 @@ def fit_gt_cubes(
             t_onset=t_onset, n_t=n_t, ms_spot=ms_spot, delta_ms=float(delta_ms),
             filter=filter,
         )
-        gt = read_RecF_gt_dark(**kw) if contrast == "dark" else read_RecF_gt(**kw)
+        gt = load_RecF_gt_dark(**kw) if contrast == "dark" else load_RecF_gt(**kw)
         gt_amp = GT_CA_AMP if filter == "ca" else GT_V_AMP
         cubes = gt * gt_amp
         out[contrast] = {str(name): cubes[i] for i, name in enumerate(GT_CELLS)}

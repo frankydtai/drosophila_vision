@@ -29,12 +29,12 @@ def _as_long(t, device) -> torch.Tensor:
     return torch.as_tensor(t, dtype=torch.long, device=device)
 
 
-def build_cell_pair_index(src_cell, tar_cell, n_cells: int):
+def build_cell_pair_idx(src_cell, tar_cell, n_cells: int):
     """Unique directed ``(source_cell, target_cell)`` codes → per-edge pair index.
 
     Returns
     -------
-    pair_index : (E,) int64
+    pair_idx : (E,) int64
     n_pairs : int
     pair_keys : list[(src_cell, tar_cell)] in index order
     """
@@ -52,14 +52,14 @@ class ScatterConn:
     Built from parallel arrays describing directed synaptic edges ``source ->
     target`` with a signed weight ``edge_weight`` (``syn_sign * n_syn`` for per_cell,
     ``syn_sign`` for per_edge). Excitatory and inhibitory drives are accumulated with
-    ``scatter_add`` over the target index. Scaling is either type-pair
-    ``syn_strength_cell[pair_index[e]]`` or per-edge ``syn_strength_edge[e]``.
+    ``scatter_add_`` onto target nodes. Scaling is either type-pair
+    ``syn_strength_cell[pair_idx[e]]`` or per-edge ``syn_strength_edge[e]``.
     """
 
     def __init__(
         self,
-        source_index,
-        target_index,
+        source_idx,
+        target_idx,
         edge_weight,
         n_nodes: int,
         node_cell,
@@ -72,10 +72,10 @@ class ScatterConn:
         device = device or ("cuda" if torch.cuda.is_available() else "cpu")
         self.device = device
         self.n_nodes = int(n_nodes)
-        self.source_index = _as_long(source_index, device)
-        self.target_index = _as_long(target_index, device)
+        self.source_idx = _as_long(source_idx, device)
+        self.target_idx = _as_long(target_idx, device)
         self.node_cell = _as_long(node_cell, device)
-        self.n_edges = int(self.source_index.numel())
+        self.n_edges = int(self.source_idx.numel())
 
         edge_weight = torch.as_tensor(edge_weight, dtype=dtype, device=device)
         self.w_exc = edge_weight.clamp(min=0) * syn_scale_exc
@@ -83,29 +83,29 @@ class ScatterConn:
         self.w_signed = self.w_exc - self.w_inh
 
         n_cells = int(self.node_cell.max().item()) + 1 if self.n_nodes else 0
-        src_t = self.node_cell[self.source_index].detach().cpu().numpy()
-        tar_t = self.node_cell[self.target_index].detach().cpu().numpy()
-        pair_index_np, n_pairs, pair_keys = build_cell_pair_index(src_t, tar_t, n_cells)
-        self.pair_index = torch.as_tensor(pair_index_np, dtype=torch.long, device=device)
+        src_t = self.node_cell[self.source_idx].detach().cpu().numpy()
+        tar_t = self.node_cell[self.target_idx].detach().cpu().numpy()
+        pair_idx_np, n_pairs, pair_keys = build_cell_pair_idx(src_t, tar_t, n_cells)
+        self.pair_idx = torch.as_tensor(pair_idx_np, dtype=torch.long, device=device)
         self.n_pairs = int(n_pairs)
         self.pair_keys = pair_keys
 
-    def _scatter(self, vals: torch.Tensor) -> torch.Tensor:
+    def _accumulate_on_target(self, vals: torch.Tensor) -> torch.Tensor:
         out_shape = vals.shape[:-1] + (self.n_nodes,)
         out = torch.zeros(out_shape, dtype=vals.dtype, device=vals.device)
-        target_index_expanded = self.target_index.expand(vals.shape)
-        out.scatter_add_(-1, target_index_expanded, vals)
+        target_idx_expanded = self.target_idx.expand(vals.shape)
+        out.scatter_add_(-1, target_idx_expanded, vals)
         return out
 
     def _gather(self, x: torch.Tensor) -> torch.Tensor:
-        return x.index_select(-1, self.source_index)
+        return x.index_select(-1, self.source_idx)
 
     def _edge_syn_strength(self, syn_strength: torch.Tensor) -> torch.Tensor:
         n = int(syn_strength.shape[-1])
         if n == self.n_edges:
             return syn_strength
         if n == self.n_pairs:
-            return syn_strength.index_select(-1, self.pair_index)
+            return syn_strength.index_select(-1, self.pair_idx)
         raise ValueError(
             f"synaptic scale length {n} != n_edges {self.n_edges} "
             f"or n_pairs {self.n_pairs}"
@@ -119,10 +119,10 @@ class ScatterConn:
     ) -> tuple[torch.Tensor, torch.Tensor]:
         xs, syn_strength = self._pre_edges(v_out, syn_strength)
         return (
-            self._scatter(xs * self.w_exc * syn_strength),
-            self._scatter(xs * self.w_inh * syn_strength),
+            self._accumulate_on_target(xs * self.w_exc * syn_strength),
+            self._accumulate_on_target(xs * self.w_inh * syn_strength),
         )
 
     def signed_drive(self, v_out: torch.Tensor, syn_strength: torch.Tensor) -> torch.Tensor:
         xs, syn_strength = self._pre_edges(v_out, syn_strength)
-        return self._scatter(xs * self.w_signed * syn_strength)
+        return self._accumulate_on_target(xs * self.w_signed * syn_strength)

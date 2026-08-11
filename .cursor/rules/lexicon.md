@@ -1,3 +1,7 @@
+---
+description: Canonical vocabulary for vision/ — consult before naming anything
+alwaysApply: true
+---
 # Vision Code Lexicon (English)
 
 This document defines a strict, non-overlapping meaning for selected terms used across `vision/`.
@@ -7,8 +11,9 @@ Only words with an unambiguous single definition are included here.
 
 ### `batch` / `batches`
 
-Definition: A batch dimension/index used to represent parallel stimulus samples (e.g., which stimulus instance a cost entry belongs to).
-Example: `active_batches = pack.readout_batch.unique(sorted=True)`
+Definition: A batch dimension used to represent parallel stimulus samples (e.g., which stimulus instance a cost entry belongs to).
+Example: `active_batches = pack.readout_batch.unique(sorted=True)`, `batch_idx`, `batch_sums`
+Forbidden: single-letter batch shorthands (`b`, `_b`, `n_b`) — use `batch_idx` for a batch index, `batch_<noun>` for per-batch collections (e.g. `batch_sums`, `batch_n_nodes`), `n_batch` for how many batches, `stimulus_batch_idx` when indexing `i_sti` rows separately from readout `batch_idx`.
 
 ### `cell` / `cells`
 
@@ -42,19 +47,19 @@ Forbidden: `artifact`, `output` — use `data` instead.
 ### `edge` / `edges`
 
 Definition: A directed connection between two nodes in the network, carrying a signed weight derived from connectome synapse counts (`syn_sign * n_syn` or `syn_sign`).
-Example: `source_index = np.empty(len(edges), dtype=np.int64)`
-Forbidden: do not use `syn` to refer to a network edge or its index. `edge` is a network connection instance; `syn` is a connectome biological synapse.
+Example: `source_idx = np.empty(len(edges), dtype=np.int64)`
+Forbidden: do not use `syn` to refer to a network edge or its idx. `edge` is a network connection instance; `syn` is a connectome biological synapse.
 
 ### `entry` / `entries`
 
 Definition: One cost comparison unit in a `ReadoutPack`: a (cell × radius) or (cell × PD/ND) record carrying its own `readout_node`, `gt`, `cost_weight`, and `batch`. The cost MSE is a weighted sum over all active entries.
 Example: `entries = _active_entry_indices(work, session, batch_idx=batch_idx)`
-Forbidden: do not use `node` to refer to a cost entry. `entry` is a cost-layer record; `node` is a network neuron index.
+Forbidden: do not use `node` to refer to a cost entry. `entry` is a cost-layer record; `node` is a network neuron idx.
 
 ### `degree` / `degrees`
 
 Definition: An angular or visual-field quantity measured in degrees (°) — used for bar width, lane pitch, hex vertex positions, and motion-axis field bounds.
-Example: `x_deg, y_deg = build_hex.uv_to_xy_deg(u, v)`
+Example: `x_deg, y_deg = build_hex.xy_deg_from_uv(u, v)`
 Forbidden: do not use `extent` to refer to a degree quantity. `degree` is angular; `radius` is a hex ring count.
 
 ### `gt` / `gts`
@@ -68,10 +73,34 @@ Definition: A single hexagonal spatial position in the connectome, identified by
 Example: `for hex in moving_bar_cost_hexes(C, cost_radius=cost_radius): ...`
 Forbidden: do not use `column` to refer to a hex position. `hex` is a spatial location; `column` is a CSV table field.
 
+### `id` / `ids`
+
+Definition: An external identifier from persisted or connectome source data (e.g. FAFB node `id` in `network.json`, `column_id`, `root_id`) — not an in-memory array position.
+Example: `node_ids`, `node_from_id`, `column_id`
+Forbidden: do not use `idx` to refer to an external/source identifier. `id` is a key stored in connectome or sidecar data; `idx` is a position in an in-memory ordered axis.
+
+### `idx` / `indices`
+
+Definition: A position in an ordered in-memory axis used for `[...]` indexing (simulation node 0..N-1, batch slot, time step, cost-entry row, part slot, etc.).
+Example: `node_idx`, `source_idx`, `readout_batch`, `part_idx`
+Forbidden: do not use `id` to refer to an in-memory array position — external node keys must be mapped through `node_from_id` first. Do not use `index` or `ix` as naming tokens; they denote the same role as `idx` / `indices`.
+
+### `group` / `groups`
+
+Definition: A biological grouping in cell or DSI semantics — e.g. a cell-type family row in plot layout, or a PD/ND entry list pair in one DSI comparison unit. Not a cost-layer accumulate term.
+Example: `pos_groups`, `neg_groups` in `assemble_moving_bar_dsi_groups`
+Forbidden: do not use `group` for cost entries accumulated into sub-costs — use `part`. Do not use `group` for stimulus batch tuples forwarded together — use `batch_set`.
+
+### `iter` / `iters`
+
+Definition: One optimizer iteration (a single Adam gradient update), used to count training progress (`nofiters`, `global_iter`, `checkpoint_interval`).
+Example: `nofiters = NOFITERS_GPU if cuda_available else NOFITERS_CPU`
+
 ### `map` / `maps`
 
-Definition: A lookup table from one key space to another — a dict or index-array pair (e.g. node index → cell name, hex index → node index, cell name → integer index).
-Example: `_node_to_cell_map(nodes_by_cell)` → `dict[int, str]`
+Definition: A lookup table from one key space to another — a dict or idx-array pair (e.g. node idx → cell name, hex idx → node idx, cell name → integer idx). Named `value_from_key` (never `key_to_value`).
+Example: `cell_from_node(nodes_by_cell)` → `dict[int, str]`; `node_from_id`, `i_from_name`
+Forbidden: `_to_` in map function / attribute / local names (`node_to_cell`, `id_to_node`, `name_to_i`).
 
 ### `mode` / `modes`
 
@@ -83,17 +112,23 @@ Example: `mode = normalize_syn_mode(syn_mode)`
 Definition: The moving-bar stimulus paradigm (and its related task variants) used to generate inputs and corresponding targets.
 Example: `if pack.name in MOVING_BAR_TASKS: ...`
 
+### `n` / `n_<noun>`
+
+Definition: Integer cardinality — how many of an object exist or contribute at one scope. Use the compound `n_<noun>` when the counted object is not obvious (`n_nodes`, `n_edges`, `n_keys`, `n_syn`, `n_partner`, `n_self`, `n_hexes`). Bare `n` is allowed only as a short-lived local when the noun is already fixed (`mean = sum_ / n`).
+Example: `n_nodes = len(nodes)`, `ca_n[(cell, spec)]`, `n_syn` on an edge
+Forbidden: `count`, `counts` — never as naming tokens for cardinality. Do not use `total` for a cardinality — `total` is cost-only. Do not use `sum` / `sums` for a cardinality — those are accumulated values.
+
 ### `network` / `networks`
 
 Definition: The simulation graph used during training — the set of nodes and directed edges instantiated from the connectome into `ScatterConn` tensors for forward computation.
 Example: `net = backend.network`
-Forbidden: do not use `connectome` to refer to the simulation graph or its tensor representation (`node`, `edge`). `connectome` names the biological source dataset, not the in-memory training structure.
+Forbidden: do not use `connectome` to refer to the simulation graph or its tensor representation (`node`, `edge`). `connectome` names the biological source dataset, not the in-memory training structure. Do not coin project names with `scatter` (e.g. `_scatter`, `_scatter_cost_parts`); keep class `ScatterConn` and library APIs (`tensor.scatter_add_`, `ax.scatter`) only.
 
 ### `node` / `nodes`
 
 Definition: A specific neuron instance in the network (indexed 0..N-1), used in tensors shaped `(N,)` or `(B,T,N)`.
 Example: `pack.readout_node.shape[0]`
-Forbidden: do not use `cell` to refer to a node index or node tensor. `node` is a numbered network instance; `cell` is a connectome type label.
+Forbidden: do not use `cell` to refer to a node idx or node tensor. `node` is a numbered network instance; `cell` is a connectome type label.
 
 ### `opt` / `opts`
 
@@ -107,7 +142,7 @@ Example: `p["a_gt"]` (a parameter entry used during cost computation)
 
 ### `part` / `parts`
 
-Definition: One named sub-cost of the total training cost, identified by a `part_key` string (e.g. `"spot_bright_R8_r0"`, `"moving_bar_bright_PD"`) and holding its own scalar MSE tensor. The total cost is `Σ W·part / Σ W` over all active parts.
+Definition: One named sub-cost of the total training cost, identified by a `part_key` string (e.g. `"spot_bright_R8_r0"`, `"moving_bar_bright_PD"`) and holding its own scalar MSE tensor. Multiple cost `entry` rows sharing the same `part_key` are accumulated via `part_idx` into one `part`. The total cost is `Σ W·part / Σ W` over all active parts.
 Example: `parts[part_key] = part` in `calc_cost_parts`
 
 ### `radius` / `radii`
@@ -115,11 +150,6 @@ Example: `parts[part_key] = part` in `calc_cost_parts`
 Definition: An integer hex ring count labelling a position or area size — used for connectome geometry (`C.meta["radius"]`), spot footprint (`spot_radius`), sub-spot shift neighbourhood (`shift_radius`), bar width+spacing (`bar_radius`), and cost hex-disc (`cost_radius`). Does not refer to Euclidean or angular distances.
 Example: `connectome_radius = int(C.meta.get("radius", -1))` (JSON key `"radius"` in `network.json`)
 Forbidden: do not use `extent` to refer to any hex ring count. `radius` is the sole term for hex ring counts.
-
-### `iter` / `iters`
-
-Definition: One optimizer iteration (a single Adam gradient update), used to count training progress (`nofiters`, `global_iter`, `checkpoint_interval`).
-Example: `nofiters = NOFITERS_GPU if cuda_available else NOFITERS_CPU`
 
 ### `run` / `runs`
 
@@ -141,6 +171,18 @@ Example: `session = open_session_from_outdir(...)`
 Definition: The spot stimulus paradigm (and its related task variants) used to generate inputs and corresponding targets.
 Example: `if task_name in SPOT_TASKS: ...`
 
+### `sum` / `sums`
+
+Definition: A running total of values (or a bag of such totals keyed by component/cell), produced by accumulate — not the accumulate action itself.
+Example: `forward_sums.sums`, `sums[cell] += ...`, `n_syn_sum`, `part_sums`
+Forbidden: do not name the bag with a verb (`*_from_accumulate`, `accum`, `acc`). The bag is `sums`; the action is `accumulate`. Do not use `total` for a sum bag — `total` is the weighted cost scalar only. Do not use `count` / `counts` for a sum or cardinality.
+
+### `sum_sq` / `sum_sqs`
+
+Definition: A running total of squared values (or a bag of such totals), kept alongside `sum` / `sums` so std can be recovered.
+Example: `sum_sqs[component_key]`, `_std_from_sum_and_sum_sq`
+Forbidden: `sumsq`, `accsq`, `accum_sq` — use `sum_sq` / `sum_sqs`.
+
 ### `syn` / `syns`
 
 Definition: A synapse in the connectome: the biological connection between two cells, characterized by its sign (`syn_sign`) and count (`n_syn`), from which edge weights are derived.
@@ -152,9 +194,15 @@ Forbidden: do not use `edge` to refer to a synapse or its biological properties.
 Definition: A training/evaluation task type (e.g., `spot_bright`, `spot_dark`, `moving_bar_bright`, `moving_bar_dark`).
 Example: `for name in session.tasks: ...`
 
+### `total`
+
+Definition: The single weighted overall training cost scalar — ``Σ W·part / Σ W`` over all active parts — and plot titles/curves that refer to that scalar only.
+Example: `total = _weighted_cost_from_parts(parts, session)`, `_last_total`, `"total (weighted)"` on the cost curve
+Forbidden: do not use for cardinalities (`n_*`), accumulated value bags (`sums`), plot scope/all traces, durations, or sidecar row labels.
+
 ### `trace` / `traces`
 
-Definition: A time sequence of a signal (e.g., membrane voltage readout waveform) represented as a tensor over time indices.
+Definition: A time sequence of a signal (e.g., voltage readout waveform) represented as a tensor over time indices.
 Example: `trace_full, onset_trace = _forward_readout_and_onset_trace(...)`
 
 ### `val` / `vals`
@@ -163,6 +211,12 @@ Definition: A short-lived scalar value in a loop or inline expression (not a nam
 Example: `for key, val in overrides.items(): out[key] = float(val)`
 
 ## Verbs (A-Z)
+
+### `accumulate`
+
+Definition: Fold many contributions into running sums (sums / sum_sqs / n_nodes bags) or into a target tensor / cost / gradient — the action of adding into an accumulator bag or destination.
+Example: `_accumulate_on_target`, `_accumulate_moving_bar_traces`, `backward_accumulate_weighted_cost`, `accumulate_all`
+Forbidden: `aggregate` — do not use as a naming token or prose substitute for this action. Do not abbreviate the verb as `acc` / `accum` in names. Noun bags holding accumulated values are `sums` / `sum_sqs` / `n_*`, not verb-derived names.
 
 ### `add`
 
@@ -220,7 +274,7 @@ Example: `parse_moving_bar_spec(sname)` → `(color, direction, variant)`
 
 Definition: Produce a visualization output (figures/curves/images) from run results or computed traces.
 Example: `plot_cost(result.cost_curve, out_path, costs_by_part=...)`
-Forbidden: `draw`, `render`, `visualize` — use `plot` instead.
+Forbidden: `draw`, `render`, `visualize`, and project names built on `scatter` (e.g. “Δv scatters”) — use `plot` instead. Library `ax.scatter` / `go.Scatter` may remain.
 
 ### `resolve`
 
@@ -255,6 +309,7 @@ Forbidden: `fit`, `optimize` — use `train` instead.
 ## Prepositions (A-Z)
 
 ### `_from_`
-Definition: The sole directional preposition in function names that derive a result from a source — whether the source is a container/config (opts dict, outdir, args, state_dict) or a quantity (signal, tensor, index space).
-Example: `open_session_from_outdir(outdir)`, `t_from_ms(ms, delta_ms)`, `v_ca_from_v(v, p, session)`, `node_values_from_z(z, schema)`, `hex_from_uv(u, v)`
-Forbidden: `_to_` — never use `_to_` as a directional preposition in function names.
+
+Definition: The sole directional preposition in function names and map attribute/local names that derive a result from a source — whether the source is a container/config (opts dict, outdir, args, state_dict), a quantity (signal, tensor, idx space), or a map key. Pattern: `result_from_source` with **nouns only**.
+Example: `t_from_ms(ms, delta_ms)`, `v_ca_from_v(v, p, session)`, `ca_from_v_ca(...)`, `t_abs_from_ms(...)`, `node_values_from_z(z, schema)`, `hex_from_uv(u, v)`, `xy_deg_from_uv(u, v)`, `cell_from_node(...)`, `node_from_id`, `family_from_cell_csv(...)`
+Forbidden: `_to_` — never use `_to_` as a directional preposition in function names or map attribute/local names. If the name contains `_from_`, it must not also contain a verb (`load`, `apply`, `open`, …). Verbs `load` / `apply` remain valid in names that do **not** contain `_from_` (e.g. `load_network`, `apply_i_cli`, `5_apply_radius.py`).

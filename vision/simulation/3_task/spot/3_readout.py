@@ -252,13 +252,13 @@ def spot_cost_hexes(
 def spot_n_cost_hexes(cost_hexes):
     if not cost_hexes:
         return 0
-    counts: Dict[int, int] = {}
+    n_by_batch: Dict[int, int] = {}
     for b, _mu, _mv, _radius, _su, _sv in cost_hexes:
-        counts[b] = counts.get(b, 0) + 1
-    vals = set(counts.values())
+        n_by_batch[b] = n_by_batch.get(b, 0) + 1
+    vals = set(n_by_batch.values())
     if len(vals) == 1:
         return next(iter(vals))
-    return {b: counts[b] for b in sorted(counts)}
+    return {b: n_by_batch[b] for b in sorted(n_by_batch)}
 
 
 def _as_np(arr) -> np.ndarray:
@@ -274,11 +274,11 @@ def build_spot_cost_readout(C, batches, cost_radii, cost_radius):
         batches, cost_radii, cost_radius,
     ):
         on_col = (network_node_u == mu) & (network_node_v == mv)
-        for node_index in np.where(on_col)[0]:
+        for node_idx in np.where(on_col)[0]:
             batch_idx.append(b)
-            node_idx.append(int(node_index))
+            node_idx.append(int(node_idx))
             radius.append(cell_radius)
-            type_idx.append(int(type_all[node_index]))
+            type_idx.append(int(type_all[node_idx]))
             stim_u.append(int(su))
             stim_v.append(int(sv))
     return (
@@ -446,9 +446,9 @@ def build_spot_gt(
                     trace = -trace
                 trace_cache[cache_key] = trace
             trace = trace_cache[cache_key]
-            for node_index in nodes:
+            for node_idx in nodes:
                 cost_batch.append(b)
-                cost_node.append(int(node_index))
+                cost_node.append(int(node_idx))
                 cost_radius_rows.append(radius)
                 cost_readout.append(trace)
                 cost_weight_rows.append(w)

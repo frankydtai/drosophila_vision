@@ -182,9 +182,9 @@ def v_component_from_g(
     }
 
 
-def prepare_i_sti(session, p, i_sti, pack):
+def prepare_i_sti(session, params, i_sti, pack):
     """PR current ``(B, T, N)`` as membrane drive (no rescale)."""
-    del p, pack
+    del params, pack
     return i_sti.unsqueeze(0) if i_sti.dim() == 2 else i_sti
 
 
@@ -213,21 +213,21 @@ def _ohmic_v(i0, g_exc, g_inh, g_h, g_h_rev, e_leak, session):
     return (i0 + sum_gE) / sum_g
 
 
-def _syn_g(v, p, backend):
-    v_out = torch.relu(v - p["v_th"]) * p["a_out"]
-    g_exc, g_inh = backend.conn.exc_inh_drive(v_out, syn_strength(p))
-    return g_exc * p["a_in"], g_inh * p["a_in"]
+def _syn_g(v, params, backend):
+    v_out = torch.relu(v - params["v_th"]) * params["a_out"]
+    g_exc, g_inh = backend.conn.exc_inh_drive(v_out, syn_strength(params))
+    return g_exc * params["a_in"], g_inh * params["a_in"]
 
 
-def _dc_v_star(v, p, i0, e_leak, session, *, with_i_h_ss: bool):
+def _dc_v_star(v, params, i0, e_leak, session, *, with_i_h_ss: bool):
     """One DC map step: ohmic ``v★`` from ``g_syn(v)`` (+ i_h ``ss(v)`` if asked)."""
-    g_exc, g_inh = _syn_g(v, p, session.backend)
+    g_exc, g_inh = _syn_g(v, params, session.backend)
     if with_i_h_ss:
         i_h_rev = (session.train_opts or {})["i_h_rev"]
-        a_h_rev, v_mid_h_g_rev, h_slope_rev, _v_mid_h_tau = borst_i_h_rev_kwargs(p, i_h_rev)
+        a_h_rev, v_mid_h_g_rev, h_slope_rev, _v_mid_h_tau = borst_i_h_rev_kwargs(params, i_h_rev)
         u, u_rev, g_h, g_h_rev = _i_h_ss(
-            v, p["a_h"], a_h_rev,
-            p["v_mid_h_g"], p["h_slope"], v_mid_h_g_rev, h_slope_rev,
+            v, params["a_h"], a_h_rev,
+            params["v_mid_h_g"], params["h_slope"], v_mid_h_g_rev, h_slope_rev,
             h_g_max=session.h_g_max,
         )
     else:
@@ -238,41 +238,41 @@ def _dc_v_star(v, p, i0, e_leak, session, *, with_i_h_ss: bool):
     return _ohmic_v(i0, g_exc, g_inh, g_h, g_h_rev, e_leak, session), u, u_rev
 
 
-def pre_steady(session, p, B, i_sti=None):
+def pre_steady(session, params, B, i_sti=None):
     """``(u, u_rev)``, ``v`` at t=0 from ``session.pre_steady``."""
     if i_sti is None:
         raise TypeError("borst pre_steady requires i_sti")
     mode = str(session.pre_steady)
     if mode not in ("probe", "solve"):
         raise ValueError(f"borst pre_steady must be probe|solve; got {mode!r}")
-    e_leak = p["e_leak"]
+    e_leak = params["e_leak"]
     v = e_leak.expand(B, session.backend.n_nodes).clone()
     i0 = i_sti[:, 0, :]
     if mode == "probe":
-        v_star, u, u_rev = _dc_v_star(v, p, i0, e_leak, session, with_i_h_ss=False)
+        v_star, u, u_rev = _dc_v_star(v, params, i0, e_leak, session, with_i_h_ss=False)
         return (u, u_rev), v_star
     damp = float(session.pre_steady_damp)
     for _ in range(int(session.pre_steady_iters)):
-        v_star, _, _ = _dc_v_star(v, p, i0, e_leak, session, with_i_h_ss=True)
+        v_star, _, _ = _dc_v_star(v, params, i0, e_leak, session, with_i_h_ss=True)
         v = v + damp * (v_star - v)
-    _, u, u_rev = _dc_v_star(v, p, i0, e_leak, session, with_i_h_ss=True)
+    _, u, u_rev = _dc_v_star(v, params, i0, e_leak, session, with_i_h_ss=True)
     return (u, u_rev), v
 
 
-def step(state, v, p, i_sti, session, *, delta_ms: float, return_component: bool = False):
+def step(state, v, params, i_sti, session, *, delta_ms: float, return_component: bool = False):
     """One borst update; returns ``((u, u_rev), v)`` or + g component tuple."""
     u, u_rev = state
     i_h_rev = (session.train_opts or {})["i_h_rev"]
     a_h_rev, v_mid_h_g_rev, h_slope_rev, v_mid_h_tau_rev = borst_i_h_rev_kwargs(
-        p, i_h_rev,
+        params, i_h_rev,
     )
     out = update_v(
         v, u, u_rev,
-        p["a_in"], p["a_out"], syn_strength(p), p["v_th"],
-        p["a_h"], a_h_rev,
-        p["v_mid_h_g"], p["h_slope"], p["v_mid_h_tau"],
+        params["a_in"], params["a_out"], syn_strength(params), params["v_th"],
+        params["a_h"], a_h_rev,
+        params["v_mid_h_g"], params["h_slope"], params["v_mid_h_tau"],
         v_mid_h_g_rev, h_slope_rev, v_mid_h_tau_rev,
-        i_sti, session.backend, p["e_leak"],
+        i_sti, session.backend, params["e_leak"],
         delta_ms=float(delta_ms),
         cap=session.cap,
         g_leak=session.g_leak,

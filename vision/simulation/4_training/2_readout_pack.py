@@ -74,7 +74,7 @@ class ReadoutPack:
     dsi_gt: Optional[torch.Tensor] = None  # (n_dsi,)
     dsi_weight: Optional[torch.Tensor] = None  # (n_dsi,)
     dsi_power: Optional[torch.Tensor] = None  # scalar
-    cost_time_ix: Optional[torch.Tensor] = None  # (n_sample,) sparse post-onset t idx
+    cost_time_idx: Optional[torch.Tensor] = None  # (n_sample,) sparse post-onset t idx
     cost_time_mask: Optional[torch.Tensor] = None  # (n_cost, n_sample) 0/1 per-radius
     waveform_mse: bool = True  # spot: True; moving bar: set at build
     t_onset: Optional[int] = None  # explicit onset; spot when ms_post extends i_sti past gt
@@ -87,30 +87,30 @@ class ReadoutPack:
     sti_radius_gate: Optional[torch.Tensor] = None
 
 
-def pack_cost_abs_time_ix(pack: ReadoutPack, t_onset, *, cost_radius=None):
+def pack_cost_abs_time_idx(pack: ReadoutPack, t_onset, *, cost_radius=None):
     """Absolute time indices for sparse spot cost samples (or ``None``).
 
-    Sole reader of ``cost_time_ix`` / ``cost_time_mask`` / ``cost_radius``.
+    Sole reader of ``cost_time_idx`` / ``cost_time_mask`` / ``cost_radius``.
     ``cost_radius`` is Euclidean; when set and a mask exists, keep that
     radius's columns only. Omit ``cost_radius`` → union of all radii.
     """
-    ix = pack.cost_time_ix
-    if ix is None:
+    idx = pack.cost_time_idx
+    if idx is None:
         return None
     base = int(t_onset or 0)
-    ix_np = ix.detach().cpu().numpy().astype(np.int64, copy=False)
+    idx_np = idx.detach().cpu().numpy().astype(np.int64, copy=False)
     if cost_radius is None:
-        return base + ix_np
+        return base + idx_np
     mask = pack.cost_time_mask
     rad_t = pack.cost_radius
     if mask is None or rad_t is None:
-        return base + ix_np
+        return base + idx_np
     rad = np.round(rad_t.detach().cpu().numpy().astype(float), 6)
     hit = np.where(rad == round(float(cost_radius), 6))[0]
     if not hit.size:
         return base + np.zeros(0, dtype=np.int64)
     col = mask[int(hit[0])].detach().cpu().numpy() > 0
-    return base + ix_np[col]
+    return base + idx_np[col]
 
 
 @dataclass(frozen=True)

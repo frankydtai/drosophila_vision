@@ -109,7 +109,7 @@ def _plot_cell_pair_second_bright_dashed(*args, **kwargs):
 def _plot_cell_pair_slices_second_bright_dashed(*args, **kwargs):
     """Render the second bright slice overlays as dashed."""
     kwargs["linestyle_2"] = "--"
-    kwargs["label_2_total"] = f"{int(SECOND_BRIGHT_MS)} ms bright total"
+    kwargs["label_2_scope"] = f"{int(SECOND_BRIGHT_MS)} ms bright scope"
     return _ORIG_PLOT_CELL_PAIR_SLICES(*args, **kwargs)
 
 

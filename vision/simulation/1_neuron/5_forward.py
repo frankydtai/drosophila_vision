@@ -22,9 +22,9 @@ MODEL_DRIVERS = {
 }
 
 
-def a_sti_radius_effective(p, pack):
+def a_sti_radius_effective(params, pack):
     """``a_sti_radius`` after ``pack.sti_radius_gate`` (cost weight==0 → 0)."""
-    alpha = p["a_sti_radius"]
+    alpha = params["a_sti_radius"]
     if pack is None:
         return alpha
     gate = getattr(pack, "sti_radius_gate", None)
@@ -33,13 +33,13 @@ def a_sti_radius_effective(p, pack):
     return alpha * gate.to(device=alpha.device, dtype=alpha.dtype)
 
 
-def inject_a_sti_radius(i_sti, p, pack):
+def inject_a_sti_radius(i_sti, params, pack):
     """``i += a_sti_radius[r] * sti_wave`` on spot radius PR contribs; else pass-through.
 
     Uses :func:`a_sti_radius_effective` so gated slots are 0 whether indi or fixed.
     """
     sti_radius = getattr(pack, "sti_radius", None) if pack is not None else None
-    if sti_radius is None or "a_sti_radius" not in p:
+    if sti_radius is None or "a_sti_radius" not in params:
         return i_sti
     wave = pack.sti_wave
     batch = pack.sti_batch
@@ -50,7 +50,7 @@ def inject_a_sti_radius(i_sti, p, pack):
         )
     if i_sti.dim() == 2:
         i_sti = i_sti.unsqueeze(0)
-    alpha = a_sti_radius_effective(p, pack)
+    alpha = a_sti_radius_effective(params, pack)
     out = i_sti.clone()
     if batch.numel() == 0:
         return out
@@ -92,19 +92,19 @@ def _session_filter(session) -> str:
     return str(opts.get("filter", "none"))
 
 
-def v_ca_from_v(v, p, session):
-    """``v_ca = relu(v − v_th_ca)·a_ca`` (per-node tensors in ``p``).
+def v_ca_from_v(v, params, session):
+    """``v_ca = relu(v − v_th_ca)·a_ca`` (per-node tensors in ``params``).
 
     Callers must run ``training.materialize_from_opts`` (via ``params_from_z``)
     so ``v_th_ca`` / ``a_ca`` already hold ``v_th`` / ``a_out`` when those
     ``*_from_*`` flags are on.
     """
-    return torch.relu(v - p["v_th_ca"]) * p["a_ca"]
+    return torch.relu(v - params["v_th_ca"]) * params["a_ca"]
 
 
-def v_ca_to_ca(v_ca, p, session, *, t_onset: int):
+def ca_from_v_ca(v_ca, params, session, *, t_onset: int):
     """Apply ``filter_ca`` over time on pre-computed ``v_ca``; ``ca[0] = v_ca[0]``."""
-    tau_ca = torch.clamp(p["tau_ca"], min=float(session.delta_ms))
+    tau_ca = torch.clamp(params["tau_ca"], min=float(session.delta_ms))
     ca = v_ca[:, 0]
     rows = [ca]
     for t in range(1, int(v_ca.shape[1])):
@@ -117,7 +117,7 @@ def v_ca_to_ca(v_ca, p, session, *, t_onset: int):
     return torch.stack(rows, dim=1)
 
 
-def forward_v(session, p, i_sti, *, pack=None):
+def forward_v(session, params, i_sti, *, pack=None):
     """Full-T ``v`` ``(B, T, N)`` (no Ca filter)."""
     if session.model not in MODEL_DRIVERS:
         raise ValueError(
@@ -127,18 +127,18 @@ def forward_v(session, p, i_sti, *, pack=None):
     drv = MODEL_DRIVERS[session.model]
     pack = pack or session.primary_readout
     i_sti = inject_a_sti_radius(
-        drv.prepare_i_sti(session, p, i_sti, pack), p, pack,
+        drv.prepare_i_sti(session, params, i_sti, pack), params, pack,
     )
     B, t_end = int(i_sti.shape[0]), int(i_sti.shape[1])
     t_onset = pack_t_onset(pack)
     pre_grad = bool((session.train_opts or {})["pre_grad"])
-    state, v = drv.pre_steady(session, p, B, i_sti=i_sti)
+    state, v = drv.pre_steady(session, params, B, i_sti=i_sti)
     v_rows = [v]
 
     def take(t):
         nonlocal state, v
         state, v = drv.step(
-            state, v, p, i_sti[:, t - 1], session,
+            state, v, params, i_sti[:, t - 1], session,
             delta_ms=step_delta_ms(session, t, t_onset),
         )
         v_rows.append(v)
@@ -157,14 +157,14 @@ def forward_v(session, p, i_sti, *, pack=None):
     return torch.stack(v_rows, dim=1)
 
 
-def forward_ca(session, p, i_sti, *, pack=None):
+def forward_ca(session, params, i_sti, *, pack=None):
     """Full-T ``ca`` ``(B, T, N)``: ``forward_v`` then ``filter_ca``."""
     pack = pack or session.primary_readout
-    v = forward_v(session, p, i_sti, pack=pack)
-    return v_ca_to_ca(v_ca_from_v(v, p, session), p, session, t_onset=pack_t_onset(pack))
+    v = forward_v(session, params, i_sti, pack=pack)
+    return ca_from_v_ca(v_ca_from_v(v, params, session), params, session, t_onset=pack_t_onset(pack))
 
 
-def forward_full(session, p, i_sti, *, pack=None):
+def forward_full(session, params, i_sti, *, pack=None):
     """Shared full-T forward for every ``session.model``.
 
     Time index ``t`` is post-update at sample ``t``. Drive comes from
@@ -182,21 +182,21 @@ def forward_full(session, p, i_sti, *, pack=None):
     Readout trace ``(B, T, N)`` (``v`` or ``ca``).
     """
     if _session_filter(session) == "ca":
-        return forward_ca(session, p, i_sti, pack=pack)
-    return forward_v(session, p, i_sti, pack=pack)
+        return forward_ca(session, params, i_sti, pack=pack)
+    return forward_v(session, params, i_sti, pack=pack)
 
 
-def forward_nodes(session, p, node_index=None, i_sti=None, pack=None):
+def forward_nodes(session, params, node_idx=None, i_sti=None, pack=None):
     """``forward_full`` then index nodes; squeeze when ``i_sti`` is ``(T, N)``."""
     pack = pack or session.primary_readout
-    if node_index is None:
-        node_index = pack.readout_node
+    if node_idx is None:
+        node_idx = pack.readout_node
     if i_sti is None:
         i_sti = session.pack_i_sti(pack)
     squeeze = i_sti.dim() == 2
     i_sti_b = i_sti.unsqueeze(0) if squeeze else i_sti
-    out = forward_full(session, p, i_sti_b, pack=pack)
-    out = out[:, :, node_index]
+    out = forward_full(session, params, i_sti_b, pack=pack)
+    out = out[:, :, node_idx]
     if squeeze:
         out = out.squeeze(0)
     return out

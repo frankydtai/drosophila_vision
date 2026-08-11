@@ -42,7 +42,7 @@ _SPOT_I_KEY = {"bright": "i_bright_spot", "dark": "i_dark_spot"}
 _MOVING_BAR_I_KEY = {"bright": "i_bright_moving_bar", "dark": "i_dark_moving_bar"}
 
 PD_ND_LABELS = ("PD", "ND")
-PD_INDEX, ND_INDEX = 0, 1
+PD_IDX, ND_IDX = 0, 1
 MOVING_BAR_COST_PARTS = tuple(
     f"{t}_{lab}" for t in MOVING_BAR_TASKS for lab in (*PD_ND_LABELS, "DSI")
 )

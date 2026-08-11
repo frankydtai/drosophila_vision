@@ -46,26 +46,26 @@ def normalize_syn_mode(syn_mode: str) -> str:
     return mode
 
 
-def syn_strength(p):
+def syn_strength(params):
     """Active syn_strength tensor (exactly one of syn_strength_cell / syn_strength_edge)."""
-    if "syn_strength_edge" in p:
-        return p["syn_strength_edge"]
-    return p["syn_strength_cell"]
+    if "syn_strength_edge" in params:
+        return params["syn_strength_edge"]
+    return params["syn_strength_cell"]
 
 
 def _mode_all(n, key):
     return {k: (list(range(n)) if k == key else []) for k in TRAIN_MODE_KEYS}
 
 
-def _mode_from_box(box, n, *, name_to_i=None, indi_names=()):
+def _mode_from_box(box, n, *, i_from_name=None, indi_names=()):
     """Resolve ``box['train_mode']`` to indi/shared/fixed/frozen index lists."""
     tm = box["train_mode"]
     if tm in ("fixed", "indi", "shared"):
         return _mode_all(n, tm)
     if tm == "indi_named":
-        if name_to_i is None:
-            raise TypeError("indi_named train_mode requires cell name_to_i")
-        indi = sorted({int(name_to_i[str(name)]) for name in indi_names})
+        if i_from_name is None:
+            raise TypeError("indi_named train_mode requires cell i_from_name")
+        indi = sorted({int(i_from_name[str(name)]) for name in indi_names})
         fixed = [i for i in range(n) if i not in set(indi)]
         return {"indi": indi, "shared": [], "fixed": fixed, "frozen": []}
     raise ValueError(
@@ -73,8 +73,8 @@ def _mode_from_box(box, n, *, name_to_i=None, indi_names=()):
     )
 
 
-def _seg(name, count, kind, box, n, *, name_to_i=None, indi_names=()):
-    mode = _mode_from_box(box, n, name_to_i=name_to_i, indi_names=indi_names)
+def _seg(name, count, kind, box, n, *, i_from_name=None, indi_names=()):
+    mode = _mode_from_box(box, n, i_from_name=i_from_name, indi_names=indi_names)
     s = {
         "name": name,
         "count": count,
@@ -89,17 +89,17 @@ def _seg(name, count, kind, box, n, *, name_to_i=None, indi_names=()):
     return s
 
 
-def borst_i_h_rev_kwargs(p, i_h_rev: str):
+def borst_i_h_rev_kwargs(params, i_h_rev: str):
     """Resolve rev-channel i_h kwargs for ``update_v`` from assigned params."""
     if i_h_rev == "on":
-        return p["a_h_rev"], p["v_mid_h_g_rev"], p["h_slope_rev"], p["v_mid_h_tau_rev"]
+        return params["a_h_rev"], params["v_mid_h_g_rev"], params["h_slope_rev"], params["v_mid_h_tau_rev"]
     if i_h_rev == "mirrored":
-        a_h_rev = p["a_h"]
+        a_h_rev = params["a_h"]
     elif i_h_rev == "off":
-        a_h_rev = p["a_h"] * 0.0
+        a_h_rev = params["a_h"] * 0.0
     else:
         raise ValueError(f"i_h_rev {i_h_rev!r} not in {I_H_REV_MODES}")
-    return a_h_rev, p["v_mid_h_g"], p["h_slope"], p["v_mid_h_tau"]
+    return a_h_rev, params["v_mid_h_g"], params["h_slope"], params["v_mid_h_tau"]
 
 
 def _syn_segment(syn_mode, n_pairs, n_edges, param_boxes):
@@ -157,8 +157,8 @@ def _segments_from_boxes(
     radius_key_aliases,
 ):
     """Build segments in ``param_boxes`` insertion order; ``skip`` omits unused names."""
-    name_to_i = {str(n): i for i, n in enumerate(cell_names)}
-    named_kw = dict(name_to_i=name_to_i, indi_names=h_cells)
+    i_from_name = {str(n): i for i, n in enumerate(cell_names)}
+    named_kw = dict(i_from_name=i_from_name, indi_names=h_cells)
     mode = normalize_syn_mode(syn_mode)
     active_syn = (
         "syn_strength_edge" if mode == "per_edge" else "syn_strength_cell"

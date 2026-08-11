@@ -6,7 +6,7 @@ network backend construction, and the per-task ``ReadoutPack`` builders. The
 builders wrap the neutral gt dataclasses from ``task`` (which sit below
 ``training`` in the import graph) and stamp the cross-cutting readout controls:
 
-* spot: sparse ``cost_time_ix`` / optional ``cost_time_mask`` (#4; ``cost_ms``
+* spot: sparse ``cost_time_idx`` / optional ``cost_time_mask`` (#4; ``cost_ms``
   overwrites interval per radius), ``ms_spot`` (#1) already baked into
   the stimulus, ``waveform_mse=True``;
 * moving bar: ``waveform_mse`` from cost weights (True when a cost window is
@@ -171,7 +171,7 @@ def extend_readout_pack_mirror_fit(pack, mirror_types, mirror_fit, mirror_sign=-
         raise ValueError("extend_readout_pack_mirror_fit requires backend.network")
     C = backend.network
     names = node_cell_names(C)
-    entry_node_index = pack.readout_node.cpu().numpy()
+    entry_node_idx = pack.readout_node.cpu().numpy()
     b_arr = pack.readout_batch.cpu().numpy()
     w_arr = pack.cost_weight.cpu().numpy()
     r_arr = (
@@ -180,35 +180,35 @@ def extend_readout_pack_mirror_fit(pack, mirror_types, mirror_fit, mirror_sign=-
     )
     network_node_u = C.u.detach().cpu().numpy() if hasattr(C.u, "detach") else np.asarray(C.u)
     network_node_v = C.v.detach().cpu().numpy() if hasattr(C.v, "detach") else np.asarray(C.v)
-    extra_b, extra_node_index, extra_entries, extra_w, extra_r, extra_pd_nd = [], [], [], [], [], []
-    for entry_i in range(len(entry_node_index)):
-        node_index = int(entry_node_index[entry_i])
-        if str(names[node_index]) != mirror_fit:
+    extra_batch, extra_node_idx, extra_entries, extra_cost_weight, extra_radius, extra_pd_nd = [], [], [], [], [], []
+    for entry_i in range(len(entry_node_idx)):
+        node_idx = int(entry_node_idx[entry_i])
+        if str(names[node_idx]) != mirror_fit:
             continue
-        b = int(b_arr[entry_i])
-        mirror_fit_node_u, mirror_fit_node_v = int(network_node_u[node_index]), int(network_node_v[node_index])
+        batch = int(b_arr[entry_i])
+        mirror_fit_node_u, mirror_fit_node_v = int(network_node_u[node_idx]), int(network_node_v[node_idx])
         mirror_readout = float(mirror_sign) * pack.gt[entry_i:entry_i + 1]
-        w = float(w_arr[entry_i])
-        r = float(r_arr[entry_i]) if r_arr is not None else None
+        cost_weight = float(w_arr[entry_i])
+        radius = float(r_arr[entry_i]) if r_arr is not None else None
         for mtype in mirror_types:
             candidates = np.where(
                 (network_node_u == mirror_fit_node_u)
                 & (network_node_v == mirror_fit_node_v)
                 & (names == str(mtype))
             )[0]
-            for candidate_node_index in candidates:
-                extra_b.append(b)
-                extra_node_index.append(int(candidate_node_index))
+            for candidate_node_idx in candidates:
+                extra_batch.append(batch)
+                extra_node_idx.append(int(candidate_node_idx))
                 extra_entries.append(mirror_readout)
-                extra_w.append(w)
-                if r is not None:
-                    extra_r.append(r)
+                extra_cost_weight.append(cost_weight)
+                if radius is not None:
+                    extra_radius.append(radius)
                 if pack.cost_pd_nd is not None:
                     extra_pd_nd.append(int(pack.cost_pd_nd[entry_i].item()))
     return _append_mirror_pack_entries(
-        pack, extra_node_index, extra_entries,
-        readout_batch=extra_b, cost_weight=extra_w,
-        cost_radius=extra_r if extra_r else None,
+        pack, extra_node_idx, extra_entries,
+        readout_batch=extra_batch, cost_weight=extra_cost_weight,
+        cost_radius=extra_radius if extra_radius else None,
         cost_pd_nd=extra_pd_nd if extra_pd_nd else None,
     )
 
@@ -262,7 +262,6 @@ def _append_mirror_pack_entries(
         readout_node=torch.cat([pack.readout_node, extra_nodes_t]),
         cost_t0=pack.cost_t0,
         cost_radius=cost_radius_out,
-        cost_radius=pack.cost_radius,
         cost_pd_nd=cost_pd_nd_out,
         dsi_pos_entries=pack.dsi_pos_entries,
         dsi_neg_entries=pack.dsi_neg_entries,
@@ -271,7 +270,7 @@ def _append_mirror_pack_entries(
         dsi_gt=pack.dsi_gt,
         dsi_weight=pack.dsi_weight,
         dsi_power=pack.dsi_power,
-        cost_time_ix=pack.cost_time_ix,
+        cost_time_idx=pack.cost_time_idx,
         cost_time_mask=pack.cost_time_mask,
         waveform_mse=pack.waveform_mse,
         t_onset=pack.t_onset,
@@ -389,8 +388,8 @@ def _cost_radius_hex_coltag(cost_radius, n_cost_hexes) -> str:
     extent_tag = "all hexes" if cost_radius is None else f"radius={int(cost_radius)}"
     if isinstance(n_cost_hexes, dict):
         cols = ", ".join(
-            f"b{int(batch)}={int(count)}"
-            for batch, count in sorted(n_cost_hexes.items())
+            f"b{int(batch)}={int(n_hex)}"
+            for batch, n_hex in sorted(n_cost_hexes.items())
         )
         return f"cost hexes per batch [{cols}], {extent_tag}"
     return f"{int(n_cost_hexes)} cost hexes, {extent_tag}"
@@ -453,8 +452,8 @@ def _build_network_moving_bar_readout(ctx: _TrainBindCtx, C, *, pack_name: str, 
     return pack, stim, tag
 
 
-def _spot_cost_time_ix_and_mask(opts, cost_radius, *, device, sim_dtype):
-    """Union ``cost_time_ix``; ``cost_time_mask`` when radii differ.
+def _spot_cost_time_idx_and_mask(opts, cost_radius, *, device, sim_dtype):
+    """Union ``cost_time_idx``; ``cost_time_mask`` when radii differ.
 
     ``cost_ms[r]`` overwrites ``cost_interval_ms`` grid for that radius.
     """
@@ -494,16 +493,16 @@ def _spot_cost_time_ix_and_mask(opts, cost_radius, *, device, sim_dtype):
             ts.add(t)
         radius_ts[r] = ts
     union = sorted({t for ts in radius_ts.values() for t in ts})
-    cost_time_ix = torch.tensor(union, dtype=torch.long, device=device)
+    cost_time_idx = torch.tensor(union, dtype=torch.long, device=device)
     union_set = set(union)
     if all(ts == union_set for ts in radius_ts.values()):
-        return cost_time_ix, None
-    t_to_col = {t: j for j, t in enumerate(union)}
+        return cost_time_idx, None
+    col_from_t = {t: j for j, t in enumerate(union)}
     mask = torch.zeros(n, len(union), dtype=sim_dtype, device=device)
     for i, r in enumerate(rad.tolist()):
         for t in radius_ts[float(r)]:
-            mask[i, t_to_col[t]] = 1.0
-    return cost_time_ix, mask
+            mask[i, col_from_t[t]] = 1.0
+    return cost_time_idx, mask
 
 
 def _build_network_spot_task(
@@ -561,7 +560,7 @@ def _build_network_spot_task(
         gt_cells=gt_cells_from_opts(opts),
         filter=str(ctx.filter),
     )
-    cost_time_ix, cost_time_mask = _spot_cost_time_ix_and_mask(
+    cost_time_idx, cost_time_mask = _spot_cost_time_idx_and_mask(
         opts, T.cost_radius, device=dev, sim_dtype=ctx.sim_dtype,
     )
     stim = dict(opts)
@@ -601,11 +600,10 @@ def _build_network_spot_task(
         readout_batch=T.readout_batch,
         readout_node=T.readout_node,
         cost_t0=None,
-        cost_radius=T.cost_radius,
         cost_stim_u=T.readout_stim_u,
         cost_stim_v=T.readout_stim_v,
         cost_radius=cost_radius,
-        cost_time_ix=cost_time_ix,
+        cost_time_idx=cost_time_idx,
         cost_time_mask=cost_time_mask,
         waveform_mse=True,
         t_onset=int(t_onset),
@@ -693,7 +691,7 @@ def resolve_gt_cells_by_task(by_task_kv) -> Dict[str, List[str]]:
     return out
 
 
-def apply_i_cli_to_stimulus_opts(opts, task_name, i_cli):
+def apply_i_cli(opts, task_name, i_cli):
     """Merge per-task CLI ``--i_*`` overrides into stimulus opts."""
     if not i_cli:
         return opts
@@ -804,7 +802,7 @@ def _finalize_stimulus_opts(
             out["spot_cost_radius_weight"] = {
                 str(k): float(v) for k, v in spot_cost_radius_weight.items()
             }
-    return apply_i_cli_to_stimulus_opts(out, task_name, i_cli)
+    return apply_i_cli(out, task_name, i_cli)
 
 
 def build_train_opts(

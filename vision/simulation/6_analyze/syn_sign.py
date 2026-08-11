@@ -2,7 +2,7 @@
 
 Per cell column (``spot_gt_v`` order):
   1. hist: red=init %% n_syn+, blue=×trained ``syn_strength_cell``
-  2. scatter per cost radius r=0,1,… (same radii as spot time panels):
+  2. plot per cost radius r=0,1,… (same radii as spot time panels):
      x = blue %% n_syn+, y = model ``v[t_spot_end-1] - v[t_onset]``
 
 Writes ``<run>/pre_syn/syn_{gt,all}.png`` (incoming), or ``post_syn/`` with ``--post``.
@@ -42,7 +42,7 @@ from figure.util import (
     PlotTimer,
     save_figure,
 )
-from network.connectivity import build_cell_pair_index
+from network.connectivity import build_cell_pair_idx
 from network.construction import (
     cell_order_rows,
     gt_cells_from_opts,
@@ -58,11 +58,11 @@ DEFAULT_BINS = 20
 
 def _pair_strength_lookup(edges, cell_names, syn_strength_cell, pair_names):
     """Map (src_type_i, tar_type_i) -> trained syn_strength_cell."""
-    name_to_i = {n: i for i, n in enumerate(cell_names)}
+    i_from_name = {n: i for i, n in enumerate(cell_names)}
     n_cells = len(cell_names)
-    src_t = np.array([name_to_i[e["source_cell"]] for e in edges], dtype=np.int64)
-    tar_t = np.array([name_to_i[e["target_cell"]] for e in edges], dtype=np.int64)
-    _, n_pairs, pair_keys = build_cell_pair_index(src_t, tar_t, n_cells)
+    src_t = np.array([i_from_name[e["source_cell"]] for e in edges], dtype=np.int64)
+    tar_t = np.array([i_from_name[e["target_cell"]] for e in edges], dtype=np.int64)
+    _, n_pairs, pair_keys = build_cell_pair_idx(src_t, tar_t, n_cells)
     syn = np.asarray(syn_strength_cell, dtype=np.float64).reshape(-1)
     if syn.shape[0] != n_pairs:
         raise SystemExit(
@@ -74,7 +74,7 @@ def _pair_strength_lookup(edges, cell_names, syn_strength_cell, pair_names):
         ]
         if list(pair_names) != expected:
             raise SystemExit("pair_names in best_param.npz do not match network.json")
-    return {k: float(syn[i]) for i, k in enumerate(pair_keys)}, name_to_i
+    return {k: float(syn[i]) for i, k in enumerate(pair_keys)}, i_from_name
 
 
 def instance_syn_plus_by_id(
@@ -82,7 +82,7 @@ def instance_syn_plus_by_id(
     cell_name: str,
     *,
     direction: str,
-    name_to_i: dict[str, int],
+    i_from_name: dict[str, int],
     strength_by_pair: dict[tuple[int, int], float] | None,
 ) -> dict[int, float]:
     """root_id -> %% n_syn+ (optional per-pair strength weighting)."""
@@ -101,11 +101,11 @@ def instance_syn_plus_by_id(
             continue
         src = e.get("source_cell")
         tar = e.get("target_cell")
-        if src not in name_to_i or tar not in name_to_i:
+        if src not in i_from_name or tar not in i_from_name:
             continue
         ns = float(e.get("n_syn", 0))
         if strength_by_pair is not None:
-            ns *= strength_by_pair[(name_to_i[src], name_to_i[tar])]
+            ns *= strength_by_pair[(i_from_name[src], i_from_name[tar])]
         syn_t[sid] += ns
         try:
             sign = float(e.get("syn_sign", 0))
@@ -204,14 +204,14 @@ def plot_syn_sign(
     panel_h,
     edges,
     direction,
-    name_to_i,
+    i_from_name,
     strength_by_pair,
     edges_bins,
     outdir_name,
     delta_tables,
     radii,
 ):
-    """Draw hist + per-radius Δv scatters for ``present`` cells."""
+    """Draw hist + per-radius Δv plots for ``present`` cells."""
     timer = PlotTimer()
     timer.end_prep()
     order_rows = cell_order_rows(present)
@@ -225,7 +225,7 @@ def plot_syn_sign(
     )
     fig.suptitle(
         f"%% n_syn+ {flow} cell  |  hist: red=init blue=×α  |  "
-        f"scatter: x=×α %%  y=Δv  |  {outdir_name}",
+        f"plot: x=×α %%  y=Δv  |  {outdir_name}",
         fontsize=11,
     )
     legend_done = False
@@ -239,11 +239,11 @@ def plot_syn_sign(
             cell = row[ci]
             pct_init_map = instance_syn_plus_by_id(
                 edges, cell, direction=direction,
-                name_to_i=name_to_i, strength_by_pair=None,
+                i_from_name=i_from_name, strength_by_pair=None,
             )
             pct_tr_map = instance_syn_plus_by_id(
                 edges, cell, direction=direction,
-                name_to_i=name_to_i, strength_by_pair=strength_by_pair,
+                i_from_name=i_from_name, strength_by_pair=strength_by_pair,
             )
             pct_init = np.asarray(list(pct_init_map.values()), dtype=np.float64)
             pct_tr = np.asarray(list(pct_tr_map.values()), dtype=np.float64)
@@ -272,10 +272,10 @@ def plot_syn_sign(
                 ax = fig.add_subplot(gs[base + 1 + si, ci])
                 xs, ys = [], []
                 for root_id, d_v in by_r.get(rk) or []:
-                    p = pct_tr_map.get(root_id)
-                    if p is None:
+                    percent = pct_tr_map.get(root_id)
+                    if percent is None:
                         continue
-                    xs.append(p)
+                    xs.append(percent)
                     ys.append(d_v)
                 if xs:
                     ax.scatter(
@@ -319,7 +319,7 @@ def save_syn_sign_plots(outdir, *, post=False, bins=DEFAULT_BINS) -> None:
     if list(cell_names) != list(cell_names_npz):
         raise SystemExit("cell_names mismatch: network.json vs best_param.npz")
 
-    strength_by_pair, name_to_i = _pair_strength_lookup(
+    strength_by_pair, i_from_name = _pair_strength_lookup(
         edges, cell_names, named["syn_strength_cell"], pair_names,
     )
     session, z = _spot_bright_session_z(outdir)
@@ -331,7 +331,7 @@ def save_syn_sign_plots(outdir, *, post=False, bins=DEFAULT_BINS) -> None:
     plot_kw = dict(
         edges=edges,
         direction=direction,
-        name_to_i=name_to_i,
+        i_from_name=i_from_name,
         strength_by_pair=strength_by_pair,
         edges_bins=np.linspace(0.0, 100.0, bins + 1),
         outdir_name=os.path.basename(outdir),
@@ -356,7 +356,7 @@ def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(
         description=(
             "Write syn_gt.png / syn_all.png: %% n_syn+ hist + "
-            "Δv vs ×α %% scatters at spot cost radii."
+            "Δv vs ×α %% plots at spot cost radii."
         ),
     )
     ap.add_argument(

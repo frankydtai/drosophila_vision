@@ -5,11 +5,11 @@ coordinate formulas:
 
   - ``members_in_radius`` / ``get_hex_coords`` enumerate axial (u, v) on a hex
     disc.
-  - ``pq_to_uv(p, q, side)`` converts FAFB ``column_assignment`` (p, q) indices to
+  - ``uv_from_pq(p, q, side)`` converts FAFB ``column_assignment`` (p, q) indices to
     axial (u, v), which differs per hemisphere.
   - ``inside_mask(u, v, radius)`` is the shared inside/outside-the-disc predicate.
-  - ``uv_to_xy`` / ``xy_to_uv`` convert axial ``(u, v)`` to hex-step ``(x, y)``;
-    ``xy_to_xy_deg`` scales hex-step by :data:`DEG`; ``uv_to_xy_deg`` composes both.
+  - ``xy_from_uv`` / ``uv_from_xy`` convert axial ``(u, v)`` to hex-step ``(x, y)``;
+    ``xy_deg_from_xy`` scales hex-step by :data:`DEG`; ``xy_deg_from_uv`` composes both.
   - ``hex_vertices`` / ``draw_hex_patches`` draw degree-space hex patches
     (shared by column maps, moving-bar stimulus, and plots).
   - :class:`HexGrid` holds an ideal disc's (u, v) coordinates (the plot reference
@@ -47,7 +47,7 @@ DEFAULT_RADIUS = 10
 # no outside; >= 0 = that disc radius.
 RADIUS = -1
 
-# FAFB inter-ommatidial angle: hex-step (x, y) -> degree via ``xy_to_xy_deg``.
+# FAFB inter-ommatidial angle: hex-step (x, y) -> degree via ``xy_deg_from_xy``.
 DEG = 4.5
 # Drawn hex patch radius in degrees (half the FAFB cell spacing).
 HEX_PATCH_RADIUS = 0.5 * DEG
@@ -58,7 +58,7 @@ AXIS_UNIT = "degree"
 X_AXIS_LABEL = f"X ({AXIS_UNIT})"
 Y_AXIS_LABEL = f"Y ({AXIS_UNIT})"
 # Hex patch orientation (radians). Must match degree-space centres from
-# ``uv_to_xy_deg(u,v)``: spaced ``DEG`` apart vertically (step (1,0)),
+# ``xy_deg_from_uv(u,v)``: spaced ``DEG`` apart vertically (step (1,0)),
 # r = DEG/2, so patches are pointy-top.
 HEX_PATCH_ORIENTATION = np.radians(30)
 
@@ -74,7 +74,7 @@ OUTSIDE_COLOR: Tuple[str, str] = ("lightcoral", "darkred")
 EMPTY_COLOR: Tuple[str, str] = ("whitesmoke", "lightgrey")
 
 
-def pq_to_uv(p, q, side: str) -> Tuple[np.ndarray, np.ndarray]:
+def uv_from_pq(p, q, side: str) -> Tuple[np.ndarray, np.ndarray]:
     """Convert FAFB column (p, q) indices to axial (u, v) for one hemisphere.
 
     - left:  u = -q, v = q - p
@@ -167,15 +167,15 @@ class HexGrid:
         logger.info("HexGrid radius=%d -> %d hexes", radius, self.n_hexes)
 
 
-def uv_to_xy(u, v) -> Tuple[Union[np.ndarray, float], Union[np.ndarray, float]]:
+def xy_from_uv(u, v) -> Tuple[Union[np.ndarray, float], Union[np.ndarray, float]]:
     """Axial ``(u, v)`` -> hex-step ``(x, y)`` with ``x = v``, ``y = u + v/2``."""
     u = np.asarray(u, dtype=float)
     v = np.asarray(v, dtype=float)
     return v, u + v / 2.0
 
 
-def xy_to_uv(x, y) -> Tuple[int, int]:
-    """Inverse of :func:`uv_to_xy` for hex centres (integer axial coords).
+def uv_from_xy(x, y) -> Tuple[int, int]:
+    """Inverse of :func:`xy_from_uv` for hex centres (integer axial coords).
 
     Raises:
         ValueError: if ``(x, y)`` is not (within tolerance) a hex centre.
@@ -192,7 +192,7 @@ def xy_to_uv(x, y) -> Tuple[int, int]:
     return int(iu), int(iv)
 
 
-def xy_to_xy_deg(
+def xy_deg_from_xy(
     x,
     y,
     deg: float = DEG,
@@ -203,13 +203,13 @@ def xy_to_xy_deg(
     return deg * x, deg * y
 
 
-def uv_to_xy_deg(
+def xy_deg_from_uv(
     u,
     v,
     deg: float = DEG,
 ) -> Tuple[Union[np.ndarray, float], Union[np.ndarray, float]]:
-    """Axial ``(u, v)`` -> degree ``(x_deg, y_deg)`` via :func:`uv_to_xy` + :func:`xy_to_xy_deg`."""
-    return xy_to_xy_deg(*uv_to_xy(u, v), deg=deg)
+    """Axial ``(u, v)`` -> degree ``(x_deg, y_deg)`` via :func:`xy_from_uv` + :func:`xy_deg_from_xy`."""
+    return xy_deg_from_xy(*xy_from_uv(u, v), deg=deg)
 
 
 def hex_vertices(
@@ -298,8 +298,8 @@ def draw_hex_patches_uv(
     facecolor,
     **kwargs,
 ) -> None:
-    """Draw hex patches for axial ``(u, v)`` via :func:`uv_to_xy_deg`."""
-    x_deg, y_deg = uv_to_xy_deg(u, v)
+    """Draw hex patches for axial ``(u, v)`` via :func:`xy_deg_from_uv`."""
+    x_deg, y_deg = xy_deg_from_uv(u, v)
     draw_hex_patches(ax, x_deg, y_deg, facecolor, **kwargs)
 
 
@@ -312,7 +312,7 @@ def set_axis_labels(ax, fontsize: Optional[int] = None) -> None:
 
 def _draw_hexes(ax, u, v, labels, facecolor, edgecolor, hex_radius, fontsize=3):
     """Draw labeled hexagons at the given axial coordinates."""
-    xs, ys = uv_to_xy_deg(np.asarray(u), np.asarray(v))
+    xs, ys = xy_deg_from_uv(np.asarray(u), np.asarray(v))
     draw_hex_patches(
         ax, xs, ys, facecolor,
         edgecolor=edgecolor,
@@ -398,9 +398,9 @@ def plot_column_map(
     hex_radius_px = HEX_PATCH_RADIUS
     iu, iv = ideal_grid.u, ideal_grid.v
 
-    ix, iy = uv_to_xy_deg(iu, iv)
-    rx, ry = uv_to_xy_deg(df_right["u"].values, df_right["v"].values)
-    lx, ly = uv_to_xy_deg(df_left["u"].values, df_left["v"].values)
+    ix, iy = xy_deg_from_uv(iu, iv)
+    rx, ry = xy_deg_from_uv(df_right["u"].values, df_right["v"].values)
+    lx, ly = xy_deg_from_uv(df_left["u"].values, df_left["v"].values)
     all_x = np.concatenate([ix, rx, lx])
     all_y = np.concatenate([iy, ry, ly])
     margin = 2
@@ -477,11 +477,11 @@ def unique_columns(side: str) -> pd.DataFrame:
 def columns_with_uv(side: str) -> pd.DataFrame:
     """FAFB columns for a hemisphere as ``[column_id, p, q, u, v]``.
 
-    (u, v) is pure ``pq_to_uv`` -- no grid/radius involved. This is the single
+    (u, v) is pure ``uv_from_pq`` -- no grid/radius involved. This is the single
     source for the column<->(u, v) table (the column_map CSV and any FAFB panel).
     """
     df = unique_columns(side).copy()
-    df["u"], df["v"] = pq_to_uv(df["p"].values, df["q"].values, side)
+    df["u"], df["v"] = uv_from_pq(df["p"].values, df["q"].values, side)
     return df[["column_id", "p", "q", "u", "v"]]
 
 
@@ -504,7 +504,7 @@ def main() -> None:
     logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
     args = _parse_args()
 
-    # The CSV needs no grid: (u, v) comes purely from pq_to_uv. --radius only
+    # The CSV needs no grid: (u, v) comes purely from uv_from_pq. --radius only
     # affects the figure colouring, never the tables.
     assigned = {}
     BUILT_HEXES_DIR.mkdir(parents=True, exist_ok=True)

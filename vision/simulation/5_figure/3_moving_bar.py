@@ -154,14 +154,14 @@ def _moving_bar_cell_title(
 def _cell_ids_for_plot_order(connectome_cell_names, node_cell, plot_cells):
     """Map node ``node_cell`` (index into connectome names) to ``plot_cells`` index.
 
-    ``plot_cells_in_order`` reorders names; aggregating with raw ``node_cell`` against
+    ``plot_cells_in_order`` reorders names; accumulating with raw ``node_cell`` against
     ``enumerate(plot_cells)`` mislabels every cell whose plot index ≠ connectome index.
     """
     c_ids = np.asarray(as_numpy(node_cell), dtype=np.int64)
-    name_to_plot = {str(n): i for i, n in enumerate(plot_cells)}
+    plot_idx_from_name = {str(n): i for i, n in enumerate(plot_cells)}
     out = np.full(c_ids.shape, -1, dtype=np.int64)
     for ci, name in enumerate(connectome_cell_names):
-        pi = name_to_plot.get(str(name))
+        pi = plot_idx_from_name.get(str(name))
         if pi is None:
             continue
         out[c_ids == int(ci)] = int(pi)
@@ -169,7 +169,7 @@ def _cell_ids_for_plot_order(connectome_cell_names, node_cell, plot_cells):
 
 
 def _plot_cells_and_ids(session):
-    """Plot-order cell order + remapped ``cell_ids`` for bar aggregation."""
+    """Plot-order cell order + remapped ``cell_ids`` for bar."""
     C = session.backend.network
     if C is None:
         raise ValueError("_plot_cells_and_ids requires session.backend.network")
@@ -196,18 +196,18 @@ def _windows_by_batch(ca_full, t0_bn, win_lens):
         t0 = t0_bn[bi:bi + 1]
         t_len = sl.shape[1]
         n_nodes = sl.shape[2]
-        win_ix = np.arange(wl, dtype=np.int64)
-        t_idx = t0[..., None] + win_ix[None, None, :]
+        win_idx = np.arange(wl, dtype=np.int64)
+        t_idx = t0[..., None] + win_idx[None, None, :]
         t_safe = np.clip(t_idx, 0, t_len - 1)
-        b_ix = np.zeros(1, dtype=np.int64)[:, None, None]
-        u_ix = np.arange(n_nodes, dtype=np.int64)[None, :, None]
-        batch = sl[b_ix, t_safe, u_ix].astype(np.float64, copy=False)
+        b_idx = np.zeros(1, dtype=np.int64)[:, None, None]
+        u_idx = np.arange(n_nodes, dtype=np.int64)[None, :, None]
+        batch = sl[b_idx, t_safe, u_idx].astype(np.float64, copy=False)
         batch[t_idx < 0] = 0.0
         out.append(batch[0])
     return out
 
 
-def _aggregate_moving_bar_traces(
+def _accumulate_moving_bar_traces(
     windows_by_batch, t0_bn, cell_ids, cells, spec_names, single_hex, *,
     hex_mask=None,
 ):
@@ -255,14 +255,14 @@ def _t0_ref_for_align_hex(t0_bn, bi, ref_hex, *, C):
     return t0_ref
 
 
-def _t0_bn_slice_aligned_to_ref(
+def t0_bn_slice_from_ref(
     t0_bn, n_batch, filt_hexes, align_at_x, align_at_y, *,
     session, cost_radius,
 ):
     """Copy ``t0_bn`` with slice nodes forced to the ref hex ``t0`` (plot only)."""
     C = session.backend.network
     if C is None:
-        raise ValueError("_t0_bn_slice_aligned_to_ref requires session.backend.network")
+        raise ValueError("t0_bn_slice_from_ref requires session.backend.network")
     all_hexes = moving_bar_cost_hexes(C, cost_radius=cost_radius)
     ref_hexes = filter_sti_hexes(all_hexes, at_x=align_at_x, at_y=align_at_y)
     if len(ref_hexes) != 1:
@@ -307,12 +307,12 @@ def _moving_bar_slice_overlay_traces(
     ]
     t0_bn_aligned = t0_full_bn
     if align_at_x is not None and align_at_y is not None:
-        t0_bn_aligned = _t0_bn_slice_aligned_to_ref(
+        t0_bn_aligned = t0_bn_slice_from_ref(
             t0_full_bn, n_batch, filt_hexes, align_at_x, align_at_y,
             session=session, cost_radius=pack.cost_radius,
         )
     windows_full = _windows_by_batch(trace_full, t0_bn_aligned, win_lens)
-    ca_mean, ca_std, ca_n = _aggregate_moving_bar_traces(
+    ca_mean, ca_std, ca_n = _accumulate_moving_bar_traces(
         windows_full, t0_bn_aligned, cell_ids, cells, spec_names, True, hex_mask=hex_mask,
     )
     return MovingBarWindowTraces(
@@ -375,7 +375,7 @@ def _moving_bar_traces_from_forward(
         for sname in spec_names
     ]
     windows_full = _windows_by_batch(trace_full, t0_full_bn, win_lens)
-    trace_mean, trace_std, trace_n = _aggregate_moving_bar_traces(
+    trace_mean, trace_std, trace_n = _accumulate_moving_bar_traces(
         windows_full, t0_full_bn, cell_ids, cells, spec_names, single_hex,
     )
     return MovingBarWindowTraces(
@@ -399,18 +399,18 @@ def moving_bar_trace_bundle(session, z, task, *, at_x=None, at_y=None,
     t_prep0 = time.perf_counter()
     pack = session.pack_for(task)
     schema = list(session.schema)
-    p = training.materialize_from_opts(
+    params = training.materialize_from_opts(
         training.assign_params(z, schema, session.backend), session,
     )
-    v = training.forward_v(session, p, pack.i_sti, pack=pack)
+    v = training.forward_v(session, params, pack.i_sti, pack=pack)
     t0 = training.pack_t_onset(pack)
     if str((session.train_opts or {}).get("filter", "none")) == "ca":
-        v_ca = training.v_ca_from_v(v, p, session)
-        plot_t = training.v_ca_to_ca(v_ca, p, session, t_onset=t0)
+        v_ca = training.v_ca_from_v(v, params, session)
+        plot_t = training.ca_from_v_ca(v_ca, params, session, t_onset=t0)
     else:
         v_ca = None
         plot_t = v
-    training.materialize_from_opts(p, session, onset_trace=plot_t, t_onset=t0)
+    training.materialize_from_opts(params, session, onset_trace=plot_t, t_onset=t0)
     trace_full = plot_t.detach().cpu().numpy()
     specs = bar_specs_for_session(session, task)
     spec_names = [s.name for s in specs]
@@ -443,7 +443,7 @@ def moving_bar_trace_bundle(session, z, task, *, at_x=None, at_y=None,
     )
     gt_affine_by_name = {
         str(name): gt_affine_scalars_for_cell(
-            p, name, session.backend, session=session,
+            params, name, session.backend, session=session,
         )
         for name in cells
     }
@@ -663,7 +663,7 @@ def _plot_moving_bar_cell(
 
 def _plot_moving_bar_cell_slices(
     ax,
-    total_trace,
+    scope_trace,
     std_trace,
     slice_traces,
     slice_labels,
@@ -684,7 +684,7 @@ def _plot_moving_bar_cell_slices(
     delta_ms=None,
     ms_shown=None,
 ):
-    win_len = len(total_trace)
+    win_len = len(scope_trace)
     gt_x, gt_y = None, None
     if gt_trace is not None:
         gt_x, gt_y = _cost_window_overlay(gt_trace, before_t, delta_ms)
@@ -710,11 +710,11 @@ def _plot_moving_bar_cell_slices(
         )
     if show_std and std_trace is not None and np.any(std_trace):
         split = max(0, min(int(pre_end or 0), win_len))
-        plot_std_band(ax, t[split:], total_trace[split:], std_trace[split:])
+        plot_std_band(ax, t[split:], scope_trace[split:], std_trace[split:])
     plot_pre_post_line(
-        ax, t, total_trace, pre_end=pre_end,
+        ax, t, scope_trace, pre_end=pre_end,
         show_pre=show_pre, draw_pre=True,
-        color=colors[-1], linestyle='-', linewidth=TRACE_LW, label='total',
+        color=colors[-1], linestyle='-', linewidth=TRACE_LW, label='scope',
     )
     if title is not None:
         ax.set_title(title, fontsize=7, pad=2)
@@ -733,7 +733,7 @@ def _moving_bar_all_scope_label(bundle_on):
         cost_radius = pack.cost_radius
         at_x = bundle_on.slice_xs if bundle_on.slice_axis in ('x', 'xy') else None
         at_y = bundle_on.slice_ys if bundle_on.slice_axis in ('y', 'xy') else None
-        parts = [hex_at_scope_tag(at_x, at_y), 'overlay + total']
+        parts = [hex_at_scope_tag(at_x, at_y), 'overlay + scope']
         if bundle_on.align_at_x is not None and bundle_on.align_at_y is not None:
             parts.append(
                 'aligned to '

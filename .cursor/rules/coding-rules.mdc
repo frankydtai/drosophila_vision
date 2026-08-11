@@ -9,7 +9,7 @@ Scope: `vision/`.
 
 ## HARD STOPS — violate = do not ship
 
-1. Naming: before naming any new function, variable, or parameter, consult `vision/lexicon.md` and use only the verbs, nouns, and prepositions already defined there. Same concept = one name everywhere. Never coin new vocabulary for actions or concepts that already have a canonical term in the lexicon. Each lexicon entry lists **Forbidden** alternatives — words that are banned as substitutes for that specific concept. Invented names or forbidden substitutes for a defined concept = do not ship.
+1. Naming: before naming any new function, variable, or parameter, consult `.cursor/rules/lexicon.md`. If the concept already has a canonical term in the lexicon, use that exact verb/noun/preposition everywhere for the same concept (never coin alternatives for a lexicon-covered concept). If the concept is not present in the lexicon, you may coin a new name, but you still must keep the same concept = one name everywhere. Abbreviations are forbidden in names. Each lexicon entry lists **Forbidden** alternatives — words that are banned as substitutes for that specific concept. Forbidden substitutes for any lexicon-covered concept = do not ship.
 2. No backward compatibility: 「改成 X」→ only X; old must not remain compatible. No old+new paths, shims, dual parsers, deprecated params, loaders for old runs/sidecars.
 3. When you change core (§B), you must leave `6_test/**` (logical `test`) broken — do not update tests to match. Edit `6_test/**` only when the user names that test or file in the task or when you must need to run the script.
 4. Python/pip: Must use `.venv` in the **same top-level subproject** as the script (see §1 table). No bare `python` / `python3` / `pip` / `pip3`; no wrong subproject `.venv`.
@@ -31,7 +31,8 @@ Scope: `vision/`.
 4. No duplicate functions or wrappers (see HARD STOP 3).
 5. CLI list values: comma-separated in one token (`a,b,c`); not space-separated (`a b c`). Exception: (a) fixed-length pairs (e.g. `cell_syn.py` `--at-uv U V`, `nargs=2`); (b) top-level `KEY=VALUE` / bare-token bags (`nargs='+'`, space between tokens — e.g. `--gt moving_bar=T4 spot=L1,L2`, `--cost-weight DSI PD=0.2`, partition buckets). Commas stay only inside a single token's value list. Use `parse_comma_list` in `import_bootstrap` only; do not add a second splitter.
 6. CLI alias expanders: `expand_<cli_name>_list` or `expand_<cli_name>_dict` (`--kebab-case` → `snake_case`; e.g. `--ih-group` → `expand_ih_group_list`, `--mode` → `expand_mode_dict`). 
-7. Full names inside code: abbreviations only on CLI flags / argparse dest (e.g. `--r0only`). Internals (params, attributes, locals, functions) use complete words (`center_only`, `center_radius` — never `r0` / `r0_only`).
+7. Full names everywhere: abbreviations are forbidden for params, attributes, locals, functions, files, and directories. Only user-facing CLI spellings may stay abbreviated when the user explicitly wants that surface form (e.g. existing short flags or established arg names). Otherwise use complete words (`center_only`, `center_radius` — never `r0` / `r0_only`).
+8. Compound names: two or more English words in an identifier must be joined with `_`; never glue words with no separator.
 
 ## B core script rules: `simulation/**`
 
@@ -65,4 +66,6 @@ Core numbering rules:
 2. Script files must contain exactly one verb across the full path; the verb may appear in a parent directory name or in the basename, but it must not be duplicated.
 3. Output directories use plural nouns.
 4. Align with existing names (HARD STOP 1): do not invent a new token when a sibling pattern already names the same idea.
-5. Index / mask / lookup / gathered-value locals must name both the object and the role; never use opaque names like `u` / `_u`.
+5. Idx / mask / lookup / gathered-value locals must name both the object and the role; never use opaque names like `u` / `_u`.
+6. Never concatenate two English words in an identifier without `_` between them (Forbidden: `sumsq`; Required: `sum_sq`). Singular scalar `sum_sq`; collection/array/dict of them `sum_sqs`.
+7. Single-letter tokens are forbidden in identifiers (`b`, `_b`, `_i`, loop `for b in …`). Use full words (`batch_idx`, `batch_sums`, `step_idx`). Exception: bare `n` only as a short-lived local divisor when the counted noun is already fixed (see lexicon `n`).

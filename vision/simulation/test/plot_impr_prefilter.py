@@ -109,7 +109,7 @@ def _plot(
     groups = [np.array(row) for row in cell_order_rows(present)]
     names = cell_names_in_order(present)
     nrows = len(groups)
-    ncols = max(len(g) for g in groups)
+    ncols = max(len(cell_group) for cell_group in groups)
     fig = plt.figure(figsize=(2.2 * ncols, 1.6 + 2.0 * nrows))
     gs = fig.add_gridspec(nrows + 1, ncols, height_ratios=[1.1] + [1.0] * nrows)
     ax_pr = fig.add_subplot(gs[0, :])
@@ -119,7 +119,7 @@ def _plot(
             axes[r][c] = fig.add_subplot(gs[r + 1, c])
 
     t_s = np.arange(with_lp.shape[1]) * dt_ms / 1000.0
-    name_to_i = {str(n): i for i, n in enumerate(cell_list)}
+    i_from_name = {str(n): i for i, n in enumerate(cell_list)}
     tau_t = t_from_ms(prefilter_ms, delta_ms=dt_ms)
 
     ax_pr.plot(t_s, u, color="0.25", lw=TRACE_LW, label=f"PR drive u ({U_BASELINE:g}/{U_PEAK:g})")
@@ -145,7 +145,7 @@ def _plot(
                 ax.axis("off")
                 continue
             name = str(group[c])
-            i = name_to_i[name]
+            i = i_from_name[name]
             w = with_lp[i]
             wo = without_lp[i]
             ax.plot(
@@ -180,7 +180,7 @@ def _plot(
     print(f"saved {save}")
     print(f"  PR u onset={_first_change(u)}  s onset={_first_change(s_lp)}")
     for name in names:
-        i = name_to_i[name]
+        i = i_from_name[name]
         print(
             f"  {name}: first_nz with={_first_nz(with_lp[i])} "
             f"without={_first_nz(without_lp[i])}"

@@ -40,7 +40,7 @@ Same for T4 and T5 within one eye (Maisak et al. 2013):
 ## Plot / stimulus axis convention
 
 `moving_bar_stimulus` directions (`right`, `left`, `up`, `down`) are in column **degree** coordinates
-(`uv_to_xy` then ``× DEG``: ``x_deg = DEG×v``, ``y_deg = DEG×(u+v/2)``; ``DEG = 4.5``).
+(`xy_from_uv` then ``× DEG``: ``x_deg = DEG×v``, ``y_deg = DEG×(u+v/2)``; ``DEG = 4.5``).
 
 | Eye             | anterior → posterior on retina                        | posterior → anterior             |
 | --------------- | ------------------------------------------------------ | --------------------------------- |

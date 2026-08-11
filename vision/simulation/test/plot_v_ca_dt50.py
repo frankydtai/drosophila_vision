@@ -129,7 +129,7 @@ def _plot(traces_v, traces_ca, traces_v50, dt10, dt50, save, show):
     groups = [np.array(row) for row in cell_family_rows(present)]
     names = cell_names_in_family_order(present)
     nrows = len(groups)
-    ncols = max(len(g) for g in groups)
+    ncols = max(len(cell_group) for cell_group in groups)
     fig, axes = plt.subplots(
         nrows, ncols, figsize=(2.2 * ncols, 2.0 * nrows), squeeze=False,
     )

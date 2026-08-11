@@ -2,7 +2,7 @@
 
 Marks spot centers (crimson) and draws each spot's axial-radius hex
 (straight edges through ``(spot_radius + 0.5) * _HEX_DIRECTIONS``, via
-``uv_to_xy_deg`` — not a Euclidean RegularPolygon) on
+``xy_deg_from_uv`` — not a Euclidean RegularPolygon) on
 :func:`build_hex.draw_fafb_columns` for network hexes only.
 Spot centers from :func:`task.spot.input.build_spot`.
 
@@ -45,7 +45,7 @@ from build_hex import (
     draw_fafb_columns,
     field_bounds_centers,
     set_axis_labels,
-    uv_to_xy_deg,
+    xy_deg_from_uv,
 )
 from path import DEFAULT_NETWORK_RUN, network_run_tag, resolve_network_json
 from network.construction import Network, load_network
@@ -84,7 +84,7 @@ def _draw_spot_radius_hexes(ax, centers_u, centers_v, spot_radius: float) -> Non
     du = np.array([d[0] for d in _HEX_DIRECTIONS], dtype=float)
     dv = np.array([d[1] for d in _HEX_DIRECTIONS], dtype=float)
     for cu, cv in zip(np.atleast_1d(centers_u), np.atleast_1d(centers_v)):
-        xs, ys = uv_to_xy_deg(float(cu) + e * du, float(cv) + e * dv)
+        xs, ys = xy_deg_from_uv(float(cu) + e * du, float(cv) + e * dv)
         ax.add_patch(
             Polygon(
                 np.column_stack([xs, ys]),
@@ -140,7 +140,7 @@ def main() -> None:
 
     os.makedirs(os.path.dirname(os.path.abspath(output)), exist_ok=True)
     df_hexes = _network_hexes_df(C)
-    x_deg, y_deg = uv_to_xy_deg(df_hexes["u"].values, df_hexes["v"].values)
+    x_deg, y_deg = xy_deg_from_uv(df_hexes["u"].values, df_hexes["v"].values)
     x0, y0, x1, y1 = field_bounds_centers(x_deg, y_deg)
     pad = FIELD_VIEW_PAD_DEG
     xlim = (x0 - pad, x1 + pad)
@@ -151,7 +151,7 @@ def main() -> None:
     nrow = int(math.ceil(n / ncol))
     fig, axes = plt.subplots(nrow, ncol, figsize=(7 * ncol, 6.5 * nrow), sharex=True, sharey=True)
     axes_flat = np.atleast_1d(axes).ravel()
-    counts = {}
+    n_by_spot_radius = {}
     for ax, spot_radius in zip(axes_flat, spot_radii):
         draw_fafb_columns(ax, df_hexes, hex_radius_px=HEX_PATCH_RADIUS, label=False)
         centers = build_spot(
@@ -161,7 +161,7 @@ def main() -> None:
             fully_inside=args.fully_inside,
         ).centers
         n_spots = len(centers)
-        counts[spot_radius] = n_spots
+        n_by_spot_radius[spot_radius] = n_spots
         dist = spot_radius_dist(spot_radius)
         print(
             f"network={run_tag}  spot_radius={spot_radius}  "
@@ -170,7 +170,7 @@ def main() -> None:
         if centers:
             cu = np.array([c[0] for c in centers], dtype=np.int64)
             cv = np.array([c[1] for c in centers], dtype=np.int64)
-            sx, sy = uv_to_xy_deg(cu, cv)
+            sx, sy = xy_deg_from_uv(cu, cv)
             _draw_spot_radius_hexes(ax, cu, cv, spot_radius)
             ax.plot(
                 sx, sy, "o", color="crimson", markersize=5,
@@ -194,7 +194,7 @@ def main() -> None:
     plt.savefig(output, dpi=200, bbox_inches="tight")
     plt.close(fig)
     print(f"Wrote {output}")
-    print("counts:", counts)
+    print("n_by_spot_radius:", n_by_spot_radius)
 
 
 if __name__ == "__main__":

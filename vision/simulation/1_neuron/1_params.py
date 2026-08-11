@@ -28,7 +28,7 @@ def ms_from_t(
     return t0 * float(delta_ms_pre) + (t - t0) * float(delta_ms)
 
 
-def ms_to_t_abs(
+def t_abs_from_ms(
     ms: float,
     *,
     t_onset: int,

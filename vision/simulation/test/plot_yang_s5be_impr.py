@@ -62,7 +62,7 @@ def main() -> None:
         t_onset=t_onset, n_t=n_t, ms_spot=MS_SPOT, delta_ms=delta_ms,
     )
     t_impr_s = (np.arange(n_t) - t_onset) * delta_ms / 1000.0
-    gt_index = {name: i for i, name in enumerate(GT_CELLS)}
+    gt_idx = {name: i for i, name in enumerate(GT_CELLS)}
 
     fig, axes = plt.subplots(2, 3, figsize=(10, 6), sharex=True)
     for ax, cell in zip(axes.ravel(), CELLS):
@@ -76,7 +76,7 @@ def main() -> None:
         ax.axvspan(0.0, MS_SPOT / 1000.0, color="0.85", zorder=0)
         _sym_ylim(ax, y_yang)
 
-        i = gt_index[cell]
+        i = gt_idx[cell]
         y_impr = _RF_SIGN[i] * impr[i]
         ax2 = ax.twinx()
         ax2.plot(

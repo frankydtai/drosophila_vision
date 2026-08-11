@@ -8,7 +8,7 @@ vs pulse.
 
 Checks
 ------
-* ``oscillation``: FFT / peak-to-peak on ``--ms-shown``
+* ``oscillation``: FFT / v_peak_to_peak on ``--ms-shown``
 * ``flat``: ``--ms-shown`` near ``--baseline-ms-shown`` mean
 * ``drift``: linear trend on ``--ms-shown`` (rising / falling / none)
 * ``stability``: osc → drift → flat priority on ``--ms-shown``
@@ -59,7 +59,7 @@ from param_defaults import (
     TRACE_DRIFT_MIN_SLOPE_MV_PER_S,
     TRACE_FLAT_ABS_MEAN,
     TRACE_FLAT_MAX_ABS,
-    TRACE_FLAT_PEAK_TO_PEAK,
+    TRACE_FLAT_V_PEAK_TO_PEAK_MAX,
     TRACE_OSC_MAX_FREQ_HZ,
     TRACE_OSC_MIN_FREQ_HZ,
     TRACE_OSC_PEAK_THRESHOLD,
@@ -84,7 +84,7 @@ def detect_oscillation(
     z_threshold: float = TRACE_OSC_Z_THRESHOLD,
     snr_min: float = TRACE_OSC_SNR_MIN,
 ) -> dict:
-    """FFT / peak-to-peak metrics on one already-sliced mean v_post segment."""
+    """FFT / v_peak_to_peak metrics on one already-sliced mean v_post segment."""
     n = len(v_trace)
     if n < 10:
         return {"flag": False, "reason": "too_short", "n_samples": n}
@@ -111,13 +111,13 @@ def detect_oscillation(
     peak_i = int(np.argmax(fft_mag[mask]))
     peak_freq = float(freqs[mask][peak_i])
     peak_power = float(fft_mag[mask][peak_i])
-    total_power = float(np.sum(fft_mag[mask] ** 2))
-    peak_to_peak = float(np.ptp(v_trace))
-    peak_to_peak_z = peak_to_peak / std if std > 0 else 0.0
-    mean_band_power = total_power / float(np.sum(mask))
+    power_sum = float(np.sum(fft_mag[mask] ** 2))
+    v_peak_to_peak = float(np.ptp(v_trace))
+    v_peak_to_peak_over_std = v_peak_to_peak / std if std > 0 else 0.0
+    mean_band_power = power_sum / float(np.sum(mask))
     snr = peak_power / np.sqrt(mean_band_power) if mean_band_power > 0 else 0.0
     flag = (
-        peak_to_peak_z > z_threshold
+        v_peak_to_peak_over_std > z_threshold
         and peak_power > peak_threshold
         and snr > snr_min
     )
@@ -126,8 +126,8 @@ def detect_oscillation(
         "reason": "oscillation" if flag else "stable",
         "mean": mean,
         "std": std,
-        "peak_to_peak": peak_to_peak,
-        "peak_to_peak_z": peak_to_peak_z,
+        "v_peak_to_peak": v_peak_to_peak,
+        "v_peak_to_peak_over_std": v_peak_to_peak_over_std,
         "peak_freq_hz": peak_freq,
         "peak_power": peak_power,
         "snr": snr,
@@ -140,7 +140,7 @@ def detect_flat(
     *,
     baseline: float,
     max_abs: float,
-    peak_to_peak: float,
+    v_peak_to_peak_max: float,
     abs_mean: float,
 ) -> dict:
     """Flatness of an already-sliced segment vs a scalar baseline (mV)."""
@@ -150,12 +150,12 @@ def detect_flat(
 
     d = v_trace - float(baseline)
     abs_mean_d = float(np.mean(np.abs(d)))
-    peak_to_peak_seg = float(np.ptp(v_trace))
-    peak_to_peak_from_base = float(np.ptp(d))
+    v_peak_to_peak = float(np.ptp(v_trace))
+    v_peak_to_peak_from_baseline = float(np.ptp(d))
     max_abs_d = float(np.max(np.abs(d)))
     flag = (
         max_abs_d < max_abs
-        and peak_to_peak_from_base < peak_to_peak
+        and v_peak_to_peak_from_baseline < v_peak_to_peak_max
         and abs_mean_d < abs_mean
     )
     return {
@@ -164,8 +164,8 @@ def detect_flat(
         "baseline": float(baseline),
         "delta_mean": float(np.mean(v_trace) - baseline),
         "abs_mean": abs_mean_d,
-        "peak_to_peak_seg": peak_to_peak_seg,
-        "peak_to_peak_from_base": peak_to_peak_from_base,
+        "v_peak_to_peak": v_peak_to_peak,
+        "v_peak_to_peak_from_baseline": v_peak_to_peak_from_baseline,
         "max_abs": max_abs_d,
         "n_samples": n,
     }
@@ -237,7 +237,7 @@ def detect_stability(
     min_slope_mv_per_s: float,
     min_r: float,
     max_abs: float,
-    peak_to_peak: float,
+    v_peak_to_peak_max: float,
     abs_mean: float,
 ) -> dict:
     """Priority: oscillation → drift → flat-to-baseline → unstable."""
@@ -258,7 +258,7 @@ def detect_stability(
         v_trace,
         baseline=baseline,
         max_abs=max_abs,
-        peak_to_peak=peak_to_peak,
+        v_peak_to_peak_max=v_peak_to_peak_max,
         abs_mean=abs_mean,
     )
     if osc["flag"]:
@@ -403,7 +403,7 @@ def _load_reports(args):
     param_edits = plot_trained.parse_param_tokens(args.param)
     z_t, schema = plot_trained.apply_param_overrides(z_t, schema, session, param_edits)
     session = session.with_schema(schema)
-    p = training.materialize_from_opts(
+    params = training.materialize_from_opts(
         training.assign_params(z_t, schema, session.backend), session,
     )
 
@@ -443,7 +443,7 @@ def _load_reports(args):
     )
     reports = analyze_spot_average(
         sess_one,
-        p=p,
+        params =params,
         cells=cells,
         task=args.task,
         time_window=time_window,
@@ -456,7 +456,8 @@ def _load_reports(args):
 def _print_oscillation(cells, reports, delta_ms, analyze, args) -> None:
     hdr = (
         f"{'Cell':<12} {'Osc?':<6} {'Reason':<12} "
-        f"{'ptp_z':>8} {'peak_f':>8} {'SNR':>8} {'ptp':>8} {'std':>8} {'n':>6}"
+        f"{'v_peak_to_peak_over_std':>8} {'peak_f':>8} {'SNR':>8} "
+        f"{'v_peak_to_peak':>8} {'std':>8} {'n':>6}"
     )
     print(f"\n{hdr}\n{'-' * len(hdr)}", flush=True)
     hit: list[tuple[str, dict]] = []
@@ -478,10 +479,10 @@ def _print_oscillation(cells, reports, delta_ms, analyze, args) -> None:
         yes = "YES" if result["flag"] else "NO"
         print(
             f"{cell:<12} {yes:<6} {result['reason']:<12} "
-            f"{result.get('peak_to_peak_z', 0):>8.2f} "
+            f"{result.get('v_peak_to_peak_over_std', 0):>8.2f} "
             f"{result.get('peak_freq_hz', 0):>8.2f} "
             f"{result.get('snr', 0):>8.2f} "
-            f"{result.get('peak_to_peak', 0):>8.2f} "
+            f"{result.get('v_peak_to_peak', 0):>8.2f} "
             f"{result.get('std', 0):>8.2f} "
             f"{result.get('n_samples', 0):>6}",
             flush=True,
@@ -493,8 +494,8 @@ def _print_oscillation(cells, reports, delta_ms, analyze, args) -> None:
     for cell, r in hit:
         print(
             f"  {cell}: freq={r['peak_freq_hz']:.2f}Hz  "
-            f"peak_to_peak_z={r['peak_to_peak_z']:.2f}  "
-            f"SNR={r['snr']:.2f}  peak_to_peak={r['peak_to_peak']:.2f}mV",
+            f"v_peak_to_peak_over_std={r['v_peak_to_peak_over_std']:.2f}  "
+            f"SNR={r['snr']:.2f}  v_peak_to_peak={r['v_peak_to_peak']:.2f}mV",
             flush=True,
         )
 
@@ -502,7 +503,7 @@ def _print_oscillation(cells, reports, delta_ms, analyze, args) -> None:
 def _print_flat(cells, reports, delta_ms, analyze, baseline, args) -> None:
     hdr = (
         f"{'Cell':<12} {'Flat?':<6} {'Reason':<12} "
-        f"{'base':>8} {'Δmean':>8} {'|μ|':>8} {'ptp':>9} "
+        f"{'base':>8} {'Δmean':>8} {'|μ|':>8} {'v_peak_to_peak':>9} "
         f"{'max|Δ|':>8} {'n':>6}"
     )
     print(f"\n{hdr}\n{'-' * len(hdr)}", flush=True)
@@ -519,7 +520,7 @@ def _print_flat(cells, reports, delta_ms, analyze, baseline, args) -> None:
             v,
             baseline=base,
             max_abs=args.max_abs,
-            peak_to_peak=args.pkpk,
+            v_peak_to_peak_max=args.v_peak_to_peak_max,
             abs_mean=args.abs_mean,
         )
         yes = "YES" if result["flag"] else "NO"
@@ -528,7 +529,7 @@ def _print_flat(cells, reports, delta_ms, analyze, baseline, args) -> None:
             f"{result.get('baseline', 0):>8.2f} "
             f"{result.get('delta_mean', 0):>8.2f} "
             f"{result.get('abs_mean', 0):>8.3f} "
-            f"{result.get('peak_to_peak_seg', 0):>9.3f} "
+            f"{result.get('v_peak_to_peak', 0):>9.3f} "
             f"{result.get('max_abs', 0):>8.2f} "
             f"{result.get('n_samples', 0):>6}",
             flush=True,
@@ -540,7 +541,7 @@ def _print_flat(cells, reports, delta_ms, analyze, baseline, args) -> None:
     for cell, r in hit:
         print(
             f"  {cell}: max|Δ|={r['max_abs']:.3f}  "
-            f"peak_to_peak={r['peak_to_peak_seg']:.3f}  "
+            f"v_peak_to_peak={r['v_peak_to_peak']:.3f}  "
             f"Δmean={r['delta_mean']:.3f}  base={r['baseline']:.2f}",
             flush=True,
         )
@@ -591,10 +592,10 @@ def _print_drift(cells, reports, delta_ms, analyze, args) -> None:
 def _print_stability(cells, reports, delta_ms, analyze, baseline, args) -> None:
     hdr = (
         f"{'Cell':<12} {'Label':<16} {'Osc?':<5} {'Drift':<8} {'Flat?':<5} "
-        f"{'ptp_z':>8} {'slope':>9} {'max|Δ|':>8} {'n':>6}"
+        f"{'v_peak_to_peak_over_std':>8} {'slope':>9} {'max|Δ|':>8} {'n':>6}"
     )
     print(f"\n{hdr}\n{'-' * len(hdr)}", flush=True)
-    counts: dict[str, int] = {}
+    n_by_label: dict[str, int] = {}
     for cell in cells:
         rep = reports.get(cell)
         if rep is None:
@@ -613,32 +614,32 @@ def _print_stability(cells, reports, delta_ms, analyze, baseline, args) -> None:
             min_slope_mv_per_s=args.min_slope,
             min_r=args.min_r,
             max_abs=args.max_abs,
-            peak_to_peak=args.pkpk,
+            v_peak_to_peak_max=args.v_peak_to_peak_max,
             abs_mean=args.abs_mean,
         )
         osc = result["oscillation"]
         drift = result["drift"]
         flat = result["flat"]
         label = result["reason"]
-        counts[label] = counts.get(label, 0) + 1
+        n_by_label[label] = n_by_label.get(label, 0) + 1
         print(
             f"{cell:<12} {label:<16} "
             f"{'YES' if osc['flag'] else 'NO':<5} "
             f"{drift['direction']:<8} "
             f"{'YES' if flat['flag'] else 'NO':<5} "
-            f"{osc.get('peak_to_peak_z', 0):>8.2f} "
+            f"{osc.get('v_peak_to_peak_over_std', 0):>8.2f} "
             f"{drift.get('slope_mv_per_s', 0):>9.3f} "
             f"{flat.get('max_abs', 0):>8.2f} "
             f"{result.get('n_samples', 0):>6}",
             flush=True,
         )
 
-    print(f"\nStability summary ({sum(counts.values())}/{len(cells)}):", flush=True)
+    print(f"\nStability summary ({sum(n_by_label.values())}/{len(cells)}):", flush=True)
     for label in (
         "stable_baseline", "oscillation", "rising", "falling", "unstable",
     ):
-        if label in counts:
-            print(f"  {label}: {counts[label]}", flush=True)
+        if label in n_by_label:
+            print(f"  {label}: {n_by_label[label]}", flush=True)
 
 
 def main() -> None:
@@ -707,10 +708,10 @@ def main() -> None:
         help="flat: max |Δ| vs baseline",
     )
     ap.add_argument(
-        "--pkpk",
+        "--v-peak-to-peak-max",
         type=float,
-        default=TRACE_FLAT_PEAK_TO_PEAK,
-        help="flat: max peak-to-peak from baseline",
+        default=TRACE_FLAT_V_PEAK_TO_PEAK_MAX,
+        help="flat: max v_peak_to_peak from baseline",
     )
     ap.add_argument(
         "--abs-mean",

@@ -93,7 +93,7 @@ def locate_neurons(
     side: str,
     direction: str = DEFAULT_DIRECTION,
     weight_by_syn: bool = False,
-    col_to_uv: Optional[dict] = None,
+    uv_from_column: Optional[dict] = None,
 ) -> pd.DataFrame:
     """Infer a column (and slot) for each neuron of the requested types.
 
@@ -105,7 +105,7 @@ def locate_neurons(
         side: 'left' or 'right' (for logging only; inputs must already match).
         direction: 'post' (by downstream targets) or 'pre' (by upstream sources).
         weight_by_syn: vote by summed syn_count instead of distinct-partner count.
-        col_to_uv: optional {column_id: (u, v)} map; when given, adds max_u/min_u/
+        uv_from_column: optional {column_id: (u, v)} map; when given, adds max_u/min_u/
             max_v/min_v (the hex range spanned by each neuron's column partners).
 
     Returns:
@@ -113,8 +113,8 @@ def locate_neurons(
         (where <dir> is 'post' for direction='post' and 'pre' for
         direction='pre'), votes (descending per-column vote counts as a string,
         e.g. "5, 5, 5, 3"; sums to n_<dir>_with_column), majority_column_id
-        (Int64, NA if unresolved). When ``col_to_uv`` is given, also per-coordinate
-        mean/max/min for u, v (hex) and x, y (hex-step via build_hex.uv_to_xy): mean_* is the
+        (Int64, NA if unresolved). When ``uv_from_column`` is given, also per-coordinate
+        mean/max/min for u, v (hex) and x, y (hex-step via build_hex.xy_from_uv): mean_* is the
         vote-weighted average over the column partners, max_*/min_* the range
         (all NA if unresolved). In this case ``majority_column_id`` keeps the
         top-voted column only when it has >50% of the votes; otherwise it is the
@@ -183,15 +183,15 @@ def locate_neurons(
     out["votes"] = out["root_id"].map(votes_list).fillna("").astype("string")
     out["majority_column_id"] = out["root_id"].map(best["col"]).astype("Int64")
 
-    if col_to_uv is not None:
-        from build_hex import uv_to_xy
+    if uv_from_column is not None:
+        from build_hex import xy_from_uv
 
-        u_by_col = {int(c): uv[0] for c, uv in col_to_uv.items()}
-        v_by_col = {int(c): uv[1] for c, uv in col_to_uv.items()}
+        u_by_col = {int(c): uv[0] for c, uv in uv_from_column.items()}
+        v_by_col = {int(c): uv[1] for c, uv in uv_from_column.items()}
         vu = votes[[self_id, "col", "votes"]].copy()
         vu["u"] = vu["col"].map(u_by_col)
         vu["v"] = vu["col"].map(v_by_col)
-        vu["x"], vu["y"] = uv_to_xy(
+        vu["x"], vu["y"] = xy_from_uv(
             vu["u"].astype("float"), vu["v"].astype("float"),
         )
         # Vote-weighted mean position (weight = per-column vote count).
@@ -199,8 +199,8 @@ def locate_neurons(
         for coord in ("u", "v", "x", "y"):
             vu[f"_w{coord}"] = vu[coord].astype("float") * vu["w"]
         g = vu.groupby(self_id)
-        wsum = g["w"].sum()
-        raw_mean = {c: g[f"_w{c}"].sum() / wsum for c in ("u", "v", "x", "y")}
+        w_sum = g["w"].sum()
+        raw_mean = {c: g[f"_w{c}"].sum() / w_sum for c in ("u", "v", "x", "y")}
         # Per coordinate, arrange as mean (weighted), max, min.
         for coord, dtype in (("u", "Int64"), ("v", "Int64"), ("x", "Float64"), ("y", "Float64")):
             out[f"mean_{coord}"] = (
@@ -212,8 +212,8 @@ def locate_neurons(
         # Majority column: keep the top-voted column when it holds >50% of the
         # votes; otherwise use the column nearest (Euclidean in u,v) to the
         # vote-weighted mean.
-        total = g["votes"].sum()
-        best_frac = best["votes"] / total
+        votes_sum = g["votes"].sum()
+        best_frac = best["votes"] / votes_sum
         vu["d2"] = (vu["u"] - vu[self_id].map(raw_mean["u"])) ** 2 + (
             vu["v"] - vu[self_id].map(raw_mean["v"])
         ) ** 2
@@ -292,10 +292,10 @@ def _locate_and_write(
     connections = path.load_connections(keep_neuron_ids=target_ids)
 
     # column_id -> (u, v) for the per-neuron hex range (max/min u/v).
-    col_to_uv = None
+    uv_from_column = None
     if path.column_map_path(side).exists():
         hex_df = path.load_column_map(side)
-        col_to_uv = {
+        uv_from_column = {
             int(r.column_id): (int(r.u), int(r.v))
             for r in hex_df.itertuples(index=False)
         }
@@ -313,7 +313,7 @@ def _locate_and_write(
         side=side,
         direction=direction,
         weight_by_syn=weight_by_syn,
-        col_to_uv=col_to_uv,
+        uv_from_column=uv_from_column,
     )
     out_path = out_dir / _output_name(side, cells, direction)
     located.to_csv(out_path, index=False)

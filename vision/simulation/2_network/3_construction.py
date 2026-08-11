@@ -3,11 +3,11 @@
 
 The JSON contract (see ``connectome/FAFBv783/.../network.json``):
 
-    metadata: {side, radius, nt_to_sign, forced_negative_pre_cells, ...}
+    metadata: {side, radius, sign_from_nt, forced_negative_pre_cells, ...}
     nodes:    [{id, name, u, v, column_id, input, output}, ...]
     edges:    [{src, tar, syn_sign, n_syn, source_cell, target_cell, du, dv}, ...]
 
-``syn_sign`` already encodes ``nt_to_sign`` and the ``forced_negative_pre_cells``
+``syn_sign`` already encodes ``sign_from_nt`` and the ``forced_negative_pre_cells``
 override. ``--syn-mode per_cell`` uses ``edge_weight = syn_sign * n_syn``;
 ``--syn-mode per_edge`` uses ``edge_weight = syn_sign`` (ignore ``n_syn``).
 
@@ -84,7 +84,7 @@ class Network:
     column_id: np.ndarray            # (N,) FAFB column_id (or -1)
     is_input: np.ndarray             # (N,) bool photoreceptor / stimulus node
     node_ids: list[int]              # (N,) original node ids in node order
-    id_to_node: dict[int, int]       # node id -> node index
+    node_from_id: dict[int, int]       # node id -> node index
     device: str = "cpu"
     meta: dict = field(default_factory=dict)
     source_json: Path | None = None
@@ -206,10 +206,10 @@ def load_network(
 
     n_nodes = len(nodes)
     node_ids = [int(n["id"]) for n in nodes]
-    id_to_node = {nid: i for i, nid in enumerate(node_ids)}
+    node_from_id = {nid: i for i, nid in enumerate(node_ids)}
 
-    cell_to_idx = {t: i for i, t in enumerate(cell_names)}
-    node_cell = np.array([cell_to_idx[n["name"]] for n in nodes], dtype=np.int64)
+    idx_from_cell = {t: i for i, t in enumerate(cell_names)}
+    node_cell = np.array([idx_from_cell[n["name"]] for n in nodes], dtype=np.int64)
 
     u = np.array(
         [0 if n.get("u") is None else int(n["u"]) for n in nodes], dtype=np.int64,
@@ -224,20 +224,20 @@ def load_network(
     is_input = np.array([bool(n.get("input", False)) for n in nodes], dtype=bool)
 
     # edge list -> node indices + signed edge weight.
-    source_index = np.empty(len(edges), dtype=np.int64)
-    target_index = np.empty(len(edges), dtype=np.int64)
+    source_idx = np.empty(len(edges), dtype=np.int64)
+    target_idx = np.empty(len(edges), dtype=np.int64)
     edge_weight = np.empty(len(edges), dtype=np.float64)
     for k, e in enumerate(edges):
-        source_index[k] = id_to_node[int(e["src"])]
-        target_index[k] = id_to_node[int(e["tar"])]
+        source_idx[k] = node_from_id[int(e["src"])]
+        target_idx[k] = node_from_id[int(e["tar"])]
         syn_sign = float(e["syn_sign"])
         edge_weight[k] = (
             syn_sign if mode == "per_edge" else syn_sign * float(e["n_syn"])
         )
 
     conn = ScatterConn(
-        source_index=source_index,
-        target_index=target_index,
+        source_idx=source_idx,
+        target_idx=target_idx,
         edge_weight=edge_weight,
         n_nodes=n_nodes,
         node_cell=node_cell,
@@ -257,7 +257,7 @@ def load_network(
         column_id=column_id,
         is_input=is_input,
         node_ids=node_ids,
-        id_to_node=id_to_node,
+        node_from_id=node_from_id,
         device=device,
         meta=meta,
         source_json=path.resolve(),

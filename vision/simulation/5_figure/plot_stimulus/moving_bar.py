@@ -44,7 +44,7 @@ from build_hex import (
     draw_hex_patches_uv,
     field_bounds_centers,
     set_axis_labels,
-    uv_to_xy_deg,
+    xy_deg_from_uv,
 )
 from task.moving_bar.input import (
     DEFAULT_BAR_RADIUS,
@@ -67,7 +67,7 @@ def _field_limits(hexes, *, hexes_are_xy_deg: bool = False):
         x_deg = [x for x, _ in hexes]
         y_deg = [y for _, y in hexes]
     else:
-        x_deg, y_deg = uv_to_xy_deg(
+        x_deg, y_deg = xy_deg_from_uv(
             [u for u, _ in hexes],
             [v for _, v in hexes],
         )

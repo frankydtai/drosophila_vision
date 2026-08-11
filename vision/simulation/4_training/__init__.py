@@ -22,9 +22,9 @@ from neuron import (
     expand_euler,
     membrane_dt_over_c,
     t_from_ms,
-    ms_to_t_abs,
+    t_abs_from_ms,
     normalize_syn_mode,
-    v_ca_to_ca,
+    ca_from_v_ca,
     forward_ca,
     forward_full,
     forward_nodes,
@@ -83,7 +83,7 @@ from training.config import (
     expand_tasks,
     moving_bar_cost_part_key,
     normalize_tasks,
-    resolve_cost_extent_by_task,
+    resolve_cost_radius_by_task,
     session_cost_part_keys,
 )
 from training.readout_pack import (
@@ -93,7 +93,7 @@ from training.readout_pack import (
     TrainingResult,
     TrainSession,
     active_device,
-    pack_cost_abs_time_ix,
+    pack_cost_abs_time_idx,
 )
 from training.params import (
     PAIR_SEP,
@@ -137,7 +137,7 @@ from training.cost import (
 )
 from training.session import (
     NETWORK_TASK_BUILDERS,
-    _cost_extent_hex_coltag,
+    _cost_radius_hex_coltag,
     apply_pack_override,
     build_i_cli_by_task,
     extend_readout_pack_mirror_fit,

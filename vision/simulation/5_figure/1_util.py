@@ -28,24 +28,24 @@ def as_numpy(arr):
     return np.asarray(arr)
 
 
-def gt_affine_scalars_for_cell(p, cell_name, backend, session=None) -> tuple[float, float]:
+def gt_affine_scalars_for_cell(params, cell_name, backend, session=None) -> tuple[float, float]:
     """``(a_gt, effective_bias)`` for one cell type name (matches cost).
 
-    ``p`` must already have ``materialize_from_opts`` applied so
+    ``params`` must already have ``materialize_from_opts`` applied so
     ``bias_gt`` / ``v_th_ca`` / ``a_ca`` hold sources when ``*_from_*`` flags
     are on. When ``bias_gt_from_v_onset``, do not add ``v_th``.
     """
     from param_defaults import BIAS_GT_FROM_V_ONSET
     names = [str(n) for n in backend.network.cell_names]
     ci = names.index(str(cell_name))
-    gs = p["a_gt"]
+    gs = params["a_gt"]
     scale = float(gs[ci] if torch.is_tensor(gs) and gs.dim() > 0 else gs)
-    gb = p["bias_gt"]
+    gb = params["bias_gt"]
     bias = float(gb[ci] if torch.is_tensor(gb) and gb.dim() > 0 else gb)
     opts = (session.train_opts if session is not None else None) or {}
     from_onset = bool(opts.get("bias_gt_from_v_onset", BIAS_GT_FROM_V_ONSET))
-    if (not from_onset) and "v_th" in p:
-        vt = p["v_th"]
+    if (not from_onset) and "v_th" in params:
+        vt = params["v_th"]
         if torch.is_tensor(vt) and vt.dim() > 0:
             if int(vt.shape[0]) == int(backend.n_cells):
                 bias = bias + float(vt[ci])
@@ -200,9 +200,9 @@ def _param_by_type_name(z, session, name):
 def cell_ylabel(label, ca_n=None, n=None):
     """Row / cell axis label with ``n`` from *ca_n* or explicit *n*."""
     if n is None and ca_n is not None:
-        for (t, _s), count in ca_n.items():
+        for (t, _s), n_val in ca_n.items():
             if t == label:
-                n = count
+                n = n_val
                 break
     if n is None:
         return label
@@ -261,9 +261,9 @@ def network_hex_count(C):
 
 def log_plot_elapsed(path, t0, **parts):
     """Print per-figure timing (seconds) after saving a plot."""
-    total = time.perf_counter() - t0
+    elapsed_s = time.perf_counter() - t0
     bits = [f'{name}={float(val):.1f}s' for name, val in parts.items()]
-    bits.append(f'total={total:.1f}s')
+    bits.append(f'elapsed_s={elapsed_s:.1f}s')
     print(f'plot {path}: {"  ".join(bits)}')
 
 
@@ -273,13 +273,13 @@ def bundle_prep_s(*bundles):
     First figure that calls this receives the forward cost; later shared
     figures see ``0``.
     """
-    total = 0.0
+    prep_sum_s = 0.0
     for b in bundles:
         if b is None:
             continue
-        total += float(getattr(b, 'prep_s', 0.0) or 0.0)
+        prep_sum_s += float(getattr(b, 'prep_s', 0.0) or 0.0)
         b.prep_s = 0.0
-    return total
+    return prep_sum_s
 
 
 class PlotTimer:
@@ -332,7 +332,7 @@ def hex_at_scope_tag(at_x, at_y):
         v = float(val)
         if np.isclose(v, round(v)):
             return str(int(round(v)))
-        return str(v).replace('.', 'p').replace('-', 'm')
+        return str(v).replace('.', 'params').replace('-', 'm')
 
     parts = []
     if at_x is not None:
@@ -377,7 +377,7 @@ def slice_axis_name(at_xs, at_ys):
 
 
 def overlay_v_readout_reds(n_slices):
-    """Red shades for per-slice traces plus a darker ``total`` trace."""
+    """Red shades for per-slice traces plus a darker scope trace."""
     n = n_slices + 1
     return [plt.cm.Reds(v) for v in np.linspace(0.35, 0.95, n)]
 
@@ -404,17 +404,17 @@ def plot_std_band(ax, t, v_readout, std, *, color=None, alpha=None, label=r'$\pm
     )
 
 
-def _series_points(t, y, point_ix=None):
+def _series_points(t, y, point_idx=None):
     """Return finite ``(x, y)`` points, optionally subsampled by integer indices."""
     if y is None:
         return None, None
     t_arr = np.asarray(t)
     y_arr = np.asarray(y, dtype=np.float64)
-    if point_ix is not None:
-        ix = np.asarray(point_ix, dtype=np.int64)
-        ix = ix[(ix >= 0) & (ix < y_arr.shape[0])]
-        t_arr = t_arr[ix]
-        y_arr = y_arr[ix]
+    if point_idx is not None:
+        subsample_idx = np.asarray(point_idx, dtype=np.int64)
+        subsample_idx = subsample_idx[(subsample_idx >= 0) & (subsample_idx < y_arr.shape[0])]
+        t_arr = t_arr[subsample_idx]
+        y_arr = y_arr[subsample_idx]
     mask = np.isfinite(y_arr)
     if not np.any(mask):
         return None, None
@@ -495,8 +495,8 @@ def plot_timecourse(
     """v_readout (red) vs gt (gray) time courses for one or more contrast traces.
 
     ``traces``: sequence of dicts with keys ``v_readout``, ``gt``, optional
-    ``std``, ``linestyle`` (default ``'-'``), ``point_ix``.
-    When ``point_ix`` is set, gray gt is drawn as open dots at those indices
+    ``std``, ``linestyle`` (default ``'-'``), ``point_idx``.
+    When ``point_idx`` is set, gray gt is drawn as open dots at those indices
     (still never draws ``[0, pre_end)`` via line); otherwise gt is a solid
     post-onset line. Red v_readout always uses continuous pre/post lines: dashed
     pre when ``show_pre`` is true, solid after.
@@ -511,9 +511,9 @@ def plot_timecourse(
         gt = tr.get("gt")
         std = tr.get("std")
         linestyle = tr.get("linestyle", "-")
-        point_ix = tr.get("point_ix")
-        if point_ix is not None:
-            x_gt, y_gt = _series_points(t, gt, point_ix=point_ix)
+        point_idx = tr.get("point_idx")
+        if point_idx is not None:
+            x_gt, y_gt = _series_points(t, gt, point_idx=point_idx)
             if x_gt is not None:
                 ax.plot(
                     x_gt, y_gt, linestyle='none', marker='o', markersize=4,
@@ -918,7 +918,7 @@ def plot_cost(costs, path, *, costs_by_part=None, part_order=None):
 
     role_id_order.extend(other_role_ids_order)
 
-    role_id_to_color = {rid: palette[i % len(palette)] for i, rid in enumerate(role_id_order)}
+    color_from_role_id = {rid: palette[i % len(palette)] for i, rid in enumerate(role_id_order)}
 
     # Layout: [total log + parts log] then [total linear + parts linear].
     ncols = NCOLS_GT
@@ -975,7 +975,7 @@ def plot_cost(costs, path, *, costs_by_part=None, part_order=None):
                 for role_id, label, curve in specs:
                     curves.append(curve)
                     ax.plot(
-                        curve, color=role_id_to_color.get(role_id),
+                        curve, color=color_from_role_id.get(role_id),
                         linewidth=2, linestyle='-', label=label,
                     )
                 if log and shared_cell_ylim and cell_curves:
@@ -999,7 +999,7 @@ def plot_cost(costs, path, *, costs_by_part=None, part_order=None):
             row_idx = row0 + n_cell_rows + gi // ncols
             col = gi % ncols
             ax = fig.add_subplot(gs[row_idx, col])
-            ax.plot(curve, color=role_id_to_color.get(role_id), linewidth=2, linestyle='-')
+            ax.plot(curve, color=color_from_role_id.get(role_id), linewidth=2, linestyle='-')
             if log:
                 _apply_cost_yscale(ax, curve)
             else:

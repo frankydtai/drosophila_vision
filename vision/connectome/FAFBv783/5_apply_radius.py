@@ -76,7 +76,7 @@ def add_radius(run_dir: Path, crop_radius: int) -> Path:
         "radius": crop_radius,
         "cropped_from": run_dir.name,
         "sign_mode": src_meta.get("sign_mode"),
-        "nt_to_sign": src_meta.get("nt_to_sign"),
+        "sign_from_nt": src_meta.get("sign_from_nt"),
         "forced_negative_pre_cells": src_meta.get("forced_negative_pre_cells"),
         "n_nodes": len(kept_nodes),
         "n_nodes_with_column": n_with_col,

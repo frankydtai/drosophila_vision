@@ -53,7 +53,7 @@ VISUAL_NEUROPIL_STEMS = ("ME", "LO", "LOP", "LA")
 _ASSIGN_COLUMN_SCRIPT = Path(__file__).resolve().parent / "3_assign_column.py"
 
 # Neurotransmitter -> synapse sign. Glutamate is inhibitory (Drosophila GluClalpha).
-NT_TO_SIGN = {"ACH": 1.0, "GLUT": -1.0, "GABA": -1.0, "SER": 1.0, "DA": 1.0, "OCT": 1.0}
+SIGN_FROM_NT = {"ACH": 1.0, "GLUT": -1.0, "GABA": -1.0, "SER": 1.0, "DA": 1.0, "OCT": 1.0}
 # Photoreceptors are histaminergic (inhibitory) but FAFB lacks a histamine class,
 # so their sign is forced negative regardless of the predicted nt.
 FORCED_NEGATIVE_PRE_CELLS = {"R1-6", "R7", "R8"}
@@ -239,7 +239,7 @@ def _ensure_assigned_column_csv(side: str, cell: str, direction: str) -> Path:
     return _require(out)
 
 
-def _column_to_pos(side: str) -> Dict[int, Tuple[int, int]]:
+def pos_from_column(side: str) -> Dict[int, Tuple[int, int]]:
     """Map column_id -> (u, v) for every positioned FAFB column.
 
     The base build is always the full graph (no spatial cap). Spatial cropping is
@@ -258,7 +258,7 @@ def _sign_per_pre(connections: pd.DataFrame) -> Dict[int, float]:
     w = connections.groupby(["pre_root_id", "nt_type"])["syn_count"].sum().reset_index()
     w = w.sort_values(["pre_root_id", "syn_count"], ascending=[True, False])
     dom = w.groupby("pre_root_id").first()
-    return {int(rid): NT_TO_SIGN.get(str(nt), 1.0) for rid, nt in dom["nt_type"].items()}
+    return {int(rid): SIGN_FROM_NT.get(str(nt), 1.0) for rid, nt in dom["nt_type"].items()}
 
 
 def _dominant_nt_per_edge(connections: pd.DataFrame) -> Dict[Tuple[int, int], str]:
@@ -278,7 +278,7 @@ def _dominant_nt_per_edge(connections: pd.DataFrame) -> Dict[Tuple[int, int], st
 
 
 def _sign_per_edge(pre_id: int, post_id: int, dom_nt: Dict[Tuple[int, int], str]) -> float:
-    return NT_TO_SIGN.get(str(dom_nt.get((pre_id, post_id), "ACH")), 1.0)
+    return SIGN_FROM_NT.get(str(dom_nt.get((pre_id, post_id), "ACH")), 1.0)
 
 
 def build(side: str, min_neuron_count: int) -> Path:
@@ -291,10 +291,10 @@ def build(side: str, min_neuron_count: int) -> Path:
     neurons = pd.read_csv(_require(run_dir / "neurons.csv.gz"))
     columns = pd.read_csv(_require(run_dir / "columns.csv.gz"))
     connections = pd.read_csv(_require(run_dir / "connections.csv.gz"))
-    col_pos = _column_to_pos(side)
+    col_pos = pos_from_column(side)
 
     kept_ids: Set[int] = set(neurons["root_id"].astype("int64"))
-    id_to_cell = dict(zip(neurons["root_id"].astype("int64"), neurons["cell"].astype(str)))
+    cell_from_id = dict(zip(neurons["root_id"].astype("int64"), neurons["cell"].astype(str)))
 
     # Column position is OPTIONAL: column-assigned neurons + located types.
     # pos maps root_id -> (u, v, column_id). Native assignment wins over located.
@@ -322,7 +322,7 @@ def build(side: str, min_neuron_count: int) -> Path:
 
     nodes = []
     for rid in kept_ids:
-        cell = id_to_cell[rid]
+        cell = cell_from_id[rid]
         u, v, cid = pos.get(rid, (None, None, None))
         nodes.append({
             "id": rid, "name": cell, "u": u, "v": v, "column_id": cid,
@@ -337,7 +337,7 @@ def build(side: str, min_neuron_count: int) -> Path:
         connections["pre_root_id"].isin(kept_ids)
         & connections["post_root_id"].isin(kept_ids)
     ].copy()
-    agg_syn = conn.groupby(["pre_root_id", "post_root_id"], sort=False)["syn_count"].sum()
+    n_syn_by_pair = conn.groupby(["pre_root_id", "post_root_id"], sort=False)["syn_count"].sum()
 
     if SIGN_MODE == "per_pre":
         pre_sign = _sign_per_pre(conn)
@@ -347,9 +347,9 @@ def build(side: str, min_neuron_count: int) -> Path:
         dom_nt = _dominant_nt_per_edge(conn)
 
     edges = []
-    for (pre_id, post_id), n_syn in agg_syn.items():
+    for (pre_id, post_id), n_syn in n_syn_by_pair.items():
         pre_id, post_id = int(pre_id), int(post_id)
-        st = id_to_cell[pre_id]
+        st = cell_from_id[pre_id]
         if st in FORCED_NEGATIVE_PRE_CELLS:
             syn_sign = -1.0
         elif SIGN_MODE == "per_pre":
@@ -364,7 +364,7 @@ def build(side: str, min_neuron_count: int) -> Path:
             du, dv = None, None
         edges.append({
             "src": pre_id, "tar": post_id, "syn_sign": syn_sign, "n_syn": float(n_syn),
-            "source_cell": st, "target_cell": id_to_cell[post_id],
+            "source_cell": st, "target_cell": cell_from_id[post_id],
             "du": du, "dv": dv,
         })
     logger.info("Built %d edges", len(edges))
@@ -374,7 +374,7 @@ def build(side: str, min_neuron_count: int) -> Path:
             "side": side,
             "min_neuron_count": min_neuron_count,
             "sign_mode": SIGN_MODE,
-            "nt_to_sign": NT_TO_SIGN,
+            "sign_from_nt": SIGN_FROM_NT,
             "forced_negative_pre_cells": sorted(FORCED_NEGATIVE_PRE_CELLS),
             "n_nodes": len(nodes),
             "n_nodes_with_column": len(pos),
@@ -422,7 +422,7 @@ def _write_summary(run_dir: Path, meta: Dict[str, object]) -> Path:
         f"n_columns (assigned) : {filt.get('n_columns')}",
         f"n_connections (raw)  : {filt.get('n_connections')}",
         f"forced_negative      : {', '.join(meta['forced_negative_pre_cells'])}",
-        f"nt_to_sign           : {meta['nt_to_sign']}",
+        f"sign_from_nt           : {meta['sign_from_nt']}",
         "",
     ]
     out = run_dir / "summary.txt"

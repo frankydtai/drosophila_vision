@@ -39,10 +39,10 @@ import training
 from training.config import COST_NORMS, expand_cost_norm, spot_cost_part_key
 from training.cost import (
     _gather_cost_time,
-    _group_cost_parts,
+    _parts_from_entries,
     _pack_cost_forward,
     _session_cost_norm,
-    _spot_entry_groups,
+    _spot_entries_by_part,
     _weighted_mse_terms,
     calc_cost_parts,
 )
@@ -69,7 +69,7 @@ def _apply_cost_norm_override(session, cost_norm: str | None):
 
 def cost_part(session, z, part_key: str) -> dict:
     """Build per-part tensors using the same forward + grouping as training cost."""
-    p = params_from_z(z, session)
+    params = params_from_z(z, session)
     cost_norm = _session_cost_norm(session)
     task = None
     for tname in training.SPOT_TASKS:
@@ -82,7 +82,7 @@ def cost_part(session, z, part_key: str) -> dict:
             f"(expected prefix in {training.SPOT_TASKS})",
         )
     pack = session.pack_for(task)
-    fwd = _pack_cost_forward(p, pack, session)
+    fwd = _pack_cost_forward(params, pack, session)
     if fwd is None:
         raise SystemExit(f"no cost forward for pack {task!r}")
     a_gt, bias_gt, gt, weight, v_readout, _v_readout_dsi, _pd_nd = fwd
@@ -90,46 +90,47 @@ def cost_part(session, z, part_key: str) -> dict:
         raise SystemExit(f"waveform v_readout required for {task!r}")
     v_readout, gt, time_mask = _gather_cost_time(pack, v_readout, gt)
 
-    group_id, keys = _spot_entry_groups(pack, session.backend)
+    part_idx, keys = _spot_entries_by_part(pack, session.backend)
     if part_key not in keys:
         raise SystemExit(
-            f"part {part_key!r} not in pack groups; available:\n  "
+            f"part {part_key!r} not in pack parts; available:\n  "
             + "\n  ".join(keys),
         )
-    g = keys.index(part_key)
-    idx = (group_id == g).nonzero(as_tuple=False).reshape(-1)
-    if idx.numel() == 0:
+    part_slot_idx = keys.index(part_key)
+    entry_indices = (part_idx == part_slot_idx).nonzero(as_tuple=False).reshape(-1)
+    if entry_indices.numel() == 0:
         raise SystemExit(f"part {part_key!r} has zero active entries")
 
-    a = a_gt[idx]
-    b = bias_gt[idx]
-    w = weight[idx]
-    mask_r = None if time_mask is None else time_mask[idx]
-    gt_scaled, w2d, sse_wt, power_wt = _weighted_mse_terms(
-        a, b, gt[idx], w, v_readout[idx], time_mask=mask_r,
+    a_gt_part = a_gt[entry_indices]
+    bias_gt_part = bias_gt[entry_indices]
+    cost_weight_part = weight[entry_indices]
+    mask_r = None if time_mask is None else time_mask[entry_indices]
+    gt_scaled, cost_weight_2d, sse_wt, power_wt = _weighted_mse_terms(
+        a_gt_part, bias_gt_part, gt[entry_indices], cost_weight_part,
+        v_readout[entry_indices], time_mask=mask_r,
     )
     sse = sse_wt.sum(dim=0)
     power_t = power_wt.sum(dim=0)
-    n = int(idx.numel())
+    n = int(entry_indices.numel())
     n_t = int(sse.numel())
-    w_sum = float(w.sum().item())
+    w_sum = float(cost_weight_part.sum().item())
     if w_sum <= 0:
-        raise SystemExit(f"part {part_key!r} has zero total weight")
-    a0 = float(a[0].item())
-    b0 = float(b[0].item())
-    a2 = max(a0 * a0, float(torch.finfo(a.dtype).tiny))
+        raise SystemExit(f"part {part_key!r} has zero weight sum")
+    a0 = float(a_gt_part[0].item())
+    b0 = float(bias_gt_part[0].item())
+    a2 = max(a0 * a0, float(torch.finfo(a_gt_part.dtype).tiny))
     sse_sum = float(sse.sum().item())
     power_sum = float(power_t.sum().item())
 
-    official = _group_cost_parts(
-        a_gt, bias_gt, gt, weight, v_readout, group_id, keys, session,
+    official = _parts_from_entries(
+        a_gt, bias_gt, gt, weight, v_readout, part_idx, keys, session,
         time_mask=time_mask,
     )
     if part_key not in official:
         raise SystemExit(f"part {part_key!r} has zero cost weight")
     cost = float(official[part_key].item())
 
-    # Per-t display (/ w_sum); scalar ``cost`` is from ``_group_cost_parts``.
+    # Per-t display (/ w_sum); scalar ``cost`` is from ``_parts_from_entries``.
     if cost_norm == "gt_power":
         cost_mean = torch.where(
             power_t > 0,
@@ -145,25 +146,25 @@ def cost_part(session, z, part_key: str) -> dict:
     else:
         raise SystemExit(f"unsupported cost_norm {cost_norm!r}")
 
-    gt_aff = gt_scaled + b[:, None]
-    gt_aff_mean = (w2d * gt_aff).sum(dim=0) / w_sum
-    v_readout_mean = (w2d * v_readout[idx]).sum(dim=0) / w_sum
+    gt_aff = gt_scaled + bias_gt_part[:, None]
+    gt_aff_mean = (cost_weight_2d * gt_aff).sum(dim=0) / w_sum
+    v_readout_mean = (cost_weight_2d * v_readout[entry_indices]).sum(dim=0) / w_sum
     sse_mean = sse / w_sum
 
     # ``t_cost`` / ``ms_cost``: post-onset cost samples. Bare ``t`` / ``ms``: absolute.
     delta_ms = float(session.delta_ms)
     delta_ms_pre = float(session.delta_ms_pre)
     t_onset = training.pack_t_onset(pack)
-    if pack.cost_time_ix is None:
+    if pack.cost_time_idx is None:
         t_cost = np.arange(n_t, dtype=np.int64)
         t = t_onset + t_cost
     else:
-        t_cost = pack.cost_time_ix.detach().cpu().numpy().astype(np.int64, copy=False)
+        t_cost = pack.cost_time_idx.detach().cpu().numpy().astype(np.int64, copy=False)
         if t_cost.shape[0] != n_t:
             raise SystemExit(
-                f"cost_time_ix length {t_cost.shape[0]} != n_t {n_t}",
+                f"cost_time_idx length {t_cost.shape[0]} != n_t {n_t}",
             )
-        t = training.pack_cost_abs_time_ix(pack, t_onset)
+        t = training.pack_cost_abs_time_idx(pack, t_onset)
     ms_cost = t_cost.astype(float) * delta_ms
     ms = np.array(
         [

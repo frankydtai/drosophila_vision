@@ -620,7 +620,7 @@ def add_plot_arguments(parser):
         '--align-xy',
         default=None,
         metavar='X,Y',
-        help='moving_bar slice plots: align --x/--y traces to ref hex hex (x,y); total unchanged',
+        help='moving_bar slice plots: align --x/--y traces to ref hex hex (x,y); scope unchanged',
     )
     add_ms_shown_argument(parser)
 
@@ -801,17 +801,17 @@ def apply_param_overrides(z, schema, session, edits):
         if name not in named:
             raise SystemExit(f"--param schema missing values for {name!r}")
         labels = training.node_names_for_segment(seg, session.backend)
-        label_to_i = {lab: i for i, lab in enumerate(labels)}
+        i_from_label = {lab: i for i, lab in enumerate(labels)}
         arr = np.array(named[name], dtype=np.float64, copy=True)
         if node is None:
             idxs = list(range(len(labels)))
         else:
-            if node not in label_to_i:
+            if node not in i_from_label:
                 raise SystemExit(
                     f"--param unknown node {node!r} for {name}; "
                     f"available: {labels}"
                 )
-            idxs = [label_to_i[node]]
+            idxs = [i_from_label[node]]
         for i in idxs:
             arr[i] = val
             print(f"param {name}.{labels[i]} = {val:g}", flush=True)

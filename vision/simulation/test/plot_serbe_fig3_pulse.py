@@ -40,7 +40,7 @@ SERBE_TM = {
 }
 
 
-def tau_s_to_samples(tau_s: float | None, dt_ms: float) -> float:
+def samples_from_tau_s(tau_s: float | None, dt_ms: float) -> float:
     if tau_s is None:
         return 0.0
     return tau_s * 1000.0 / dt_ms
@@ -60,8 +60,8 @@ def serbe_filter_chain(
     dt_ms: float,
 ) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
     x = np.asarray(stimulus, dtype=np.float64)
-    tau_hp = tau_s_to_samples(t_hp_s, dt_ms)
-    tau_lp = tau_s_to_samples(t_lp_s, dt_ms)
+    tau_hp = samples_from_tau_s(t_hp_s, dt_ms)
+    tau_lp = samples_from_tau_s(t_lp_s, dt_ms)
 
     if tau_hp > 0.0:
         after_hp = bs.highpass(x, tau_hp)
@@ -75,7 +75,7 @@ def serbe_filter_chain(
 
 def lp_only(stimulus: np.ndarray, *, t_lp_s: float, dt_ms: float) -> np.ndarray:
     """Low-pass the raw input, skipping HP and rectification."""
-    tau_lp = tau_s_to_samples(t_lp_s, dt_ms)
+    tau_lp = samples_from_tau_s(t_lp_s, dt_ms)
     return bs.lowpass(np.asarray(stimulus, dtype=np.float64), tau_lp)
 
 
@@ -93,7 +93,7 @@ def hp_lp_skip_rec(
         t_lp_s=t_lp_s,
         dt_ms=dt_ms,
     )
-    tau_lp = tau_s_to_samples(t_lp_s, dt_ms)
+    tau_lp = samples_from_tau_s(t_lp_s, dt_ms)
     return bs.lowpass(after_hp, tau_lp)
 
 

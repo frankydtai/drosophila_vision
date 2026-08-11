@@ -9,7 +9,7 @@ By default (incoming / ``pre``) each CELL is treated as the postsynaptic
 down by postsynaptic ``target_cell``.
 
 A CELL token may be a cell (e.g. ``Mi1``); a *family* when prefixed with
-``:`` (e.g. ``:Centrifugal``) which aggregates over all its member cells; or a single
+``:`` (e.g. ``:Centrifugal``) which accumulates over all its member cells; or a single
 neuron when prefixed with ``@`` (e.g. ``@720575940622041087``) selected by FlyWire
 root id. The breakdown column still shows individual ``source_cell``/``target_cell``
 unless ``--family`` is given.
@@ -24,7 +24,7 @@ FAFB-only and show mean ``pre_d_xy``/``post_d_xy`` only.
 
 Per (cell, partner_cell): sum ``n_syn`` where ``sign > 0`` vs ``sign < 0``,
 then express each as a percentage of **all** ``n_syn`` for that cell. An
-``n_neuron`` column is always shown. The TOTAL row omits the coord columns.
+``n_neuron`` column is always shown. The SUM row omits the coord columns.
 
 The ``network.json`` schema is ``{"metadata", "nodes", "edges"}`` where each node is
 ``{"id", "name", "u", "v", "column_id", "input", "output"}`` and each edge is
@@ -68,8 +68,8 @@ _UvCoord = Tuple[Union[int, float], Union[int, float]]
 from build_hex import (
     hex_radius,
     inside_mask,
-    uv_to_xy,
-    xy_to_uv,
+    xy_from_uv,
+    uv_from_xy,
 )
 from import_bootstrap import parse_comma_list
 from path import (
@@ -94,7 +94,7 @@ def _shell_hex_count(shell: int) -> int:
     return 1 if shell == 0 else 6 * shell
 
 
-def _load_cell_to_family(json_path: Path) -> Dict[str, str]:
+def family_from_cell_csv(json_path: Path) -> Dict[str, str]:
     """Map cell -> ``family`` from ``cell_counts_abc.csv`` for this network."""
     csv_path = resolve_cell_counts_abc_path(json_path)
     out: Dict[str, str] = {}
@@ -113,39 +113,39 @@ def _load_cell_to_family(json_path: Path) -> Dict[str, str]:
 
 
 def resolve_query_labels(
-    tokens: List[str], cell_to_family: Dict[str, str]
+    tokens: List[str], family_from_cell: Dict[str, str]
 ) -> Tuple[List[str], Dict[str, Set[str]], Dict[int, Set[str]]]:
     """Resolve queried tokens to (ordered labels, self_cell -> labels, self_id -> labels).
 
     Token prefixes:
-      - ``:Family`` aggregates over every member cell of that family.
+      - ``:Family`` accumulates over every member cell of that family.
       - ``@<root_id>`` selects a single neuron by FlyWire root id.
       - anything else is a literal cell.
     The label shown in the output is the token as typed (e.g. ``:Centrifugal``,
     ``@720575940622041087``).
     """
-    family_to_cells: DefaultDict[str, List[str]] = defaultdict(list)
-    for t, fam in cell_to_family.items():
-        family_to_cells[fam].append(t)
+    cells_from_family: DefaultDict[str, List[str]] = defaultdict(list)
+    for t, fam in family_from_cell.items():
+        cells_from_family[fam].append(t)
     labels: List[str] = list(dict.fromkeys(tokens))
-    self_cell_to_labels: DefaultDict[str, Set[str]] = defaultdict(set)
-    self_id_to_labels: DefaultDict[int, Set[str]] = defaultdict(set)
+    labels_from_self_cell: DefaultDict[str, Set[str]] = defaultdict(set)
+    labels_from_self_id: DefaultDict[int, Set[str]] = defaultdict(set)
     for tok in labels:
         if tok.startswith(":"):
             fam = tok[1:]
-            members = family_to_cells.get(fam, [])
+            members = cells_from_family.get(fam, [])
             if not members:
                 logger.warning("Family %r not found in cell_counts_abc.csv", fam)
             for t in members:
-                self_cell_to_labels[t].add(tok)
+                labels_from_self_cell[t].add(tok)
         elif tok.startswith("@"):
             try:
-                self_id_to_labels[int(tok[1:])].add(tok)
+                labels_from_self_id[int(tok[1:])].add(tok)
             except ValueError:
                 logger.warning("Invalid root id token %r (expected @<int>)", tok)
         else:
-            self_cell_to_labels[tok].add(tok)
-    return labels, dict(self_cell_to_labels), dict(self_id_to_labels)
+            labels_from_self_cell[tok].add(tok)
+    return labels, dict(labels_from_self_cell), dict(labels_from_self_id)
 
 
 def _format_scalar_for_table(z: float) -> str:
@@ -167,7 +167,7 @@ def _node_centers(
     try:
         u = float(n["u"]) if float_coords else float(int(n["u"]))
         v = float(n["v"]) if float_coords else float(int(n["v"]))
-        x, y = uv_to_xy(u, v)
+        x, y = xy_from_uv(u, v)
         xy = (float(x), float(y))
         return (u, v), xy
     except (KeyError, TypeError, ValueError):
@@ -226,14 +226,14 @@ def _format_partner_xy(
             pairs = ((x - ox, y - oy) for x, y in coords)
     elif origin is None:
         pairs = (
-            (float(uv_to_xy(u, v)[0]), float(uv_to_xy(u, v)[1])) for u, v in uvs
+            (float(xy_from_uv(u, v)[0]), float(xy_from_uv(u, v)[1])) for u, v in uvs
         )
     else:
         ox, oy = origin
         pairs = (
             (
-                float(uv_to_xy(u, v)[0]) - ox,
-                float(uv_to_xy(u, v)[1]) - oy,
+                float(xy_from_uv(u, v)[0]) - ox,
+                float(xy_from_uv(u, v)[1]) - oy,
             )
             for u, v in uvs
         )
@@ -269,13 +269,13 @@ def _self_node_origin(
 def _mean_self_origin(
     label: str,
     nodes: List[dict],
-    self_cell_to_labels: Dict[str, Set[str]],
+    labels_from_self_cell: Dict[str, Set[str]],
     ids_at_hex: Optional[Dict[str, Set[int]]],
     *,
     float_coords: bool
 ) -> Tuple[Optional[Tuple[float, float]], Optional[Tuple[float, float]]]:
     """Mean self centre: FAFB ``(u,v)``/``(x,y)``."""
-    self_cells = {t for t, labs in self_cell_to_labels.items() if label in labs}
+    self_cells = {t for t, labs in labels_from_self_cell.items() if label in labs}
     if not self_cells:
         return None, None
     uvs: List[Tuple[float, float]] = []
@@ -309,7 +309,7 @@ def _mean_self_origin(
 def _label_origins(
     label: str,
     nodes: List[dict],
-    self_cell_to_labels: Dict[str, Set[str]],
+    labels_from_self_cell: Dict[str, Set[str]],
     ids_at_hex: Optional[Dict[str, Set[int]]],
     at_ref_uv: Optional[Tuple[float, float]],
     at_ref_xy: Optional[Tuple[float, float]],
@@ -333,7 +333,7 @@ def _label_origins(
         mean_uv, mean_xy = _mean_self_origin(
             label,
             nodes,
-            self_cell_to_labels,
+            labels_from_self_cell,
             ids_at_hex,
             float_coords=float_coords,
            
@@ -347,7 +347,7 @@ def _label_origins(
 
 
 
-def node_id_to_uv(nodes: List[dict], *, float_coords: bool = False) -> Dict[int, _UvCoord]:
+def uv_from_node_id(nodes: List[dict], *, float_coords: bool = False) -> Dict[int, _UvCoord]:
     """Unit id -> hex (u, v) from network nodes."""
     m: Dict[int, _UvCoord] = {}
     for n in nodes:
@@ -451,14 +451,14 @@ def _syn_sign(e: dict) -> float:
 def accumulate_all(
     edges: List[dict],
     labels: List[str],
-    self_cell_to_labels: Dict[str, Set[str]],
-    id_to_uv: Dict[int, _UvCoord],
+    labels_from_self_cell: Dict[str, Set[str]],
+    uv_from_id: Dict[int, _UvCoord],
     *,
-    id_to_xy: Optional[Dict[int, Tuple[float, float]]] = None,
+    xy_from_id: Optional[Dict[int, Tuple[float, float]]] = None,
     ids_at_hex: Optional[Dict[str, Set[int]]] = None,
     direction: str = "pre",
-    cell_to_family: Optional[Dict[str, str]] = None,
-    self_id_to_labels: Optional[Dict[int, Set[str]]] = None,
+    family_from_cell: Optional[Dict[str, str]] = None,
+    labels_from_self_id: Optional[Dict[int, Set[str]]] = None,
 ) -> Dict[
     str,
     Tuple[
@@ -470,12 +470,12 @@ def accumulate_all(
         int,
     ],
 ]:
-    """One pass over edges: per queried label, (per partner type syn+/syn-, total n_syn).
+    """One pass over edges: per queried label, (per partner type syn+/syn-, n_syn sum).
 
     ``labels`` is the ordered list of queried tokens (a cell, a family entered as
-    ``:Family``, or a single neuron entered as ``@<root_id>``). ``self_cell_to_labels``
-    maps each *self* cell to its label(s); ``self_id_to_labels`` maps a *self* root
-    id to its label(s). A family label aggregates over all its member cells.
+    ``:Family``, or a single neuron entered as ``@<root_id>``). ``labels_from_self_cell``
+    maps each *self* cell to its label(s); ``labels_from_self_id`` maps a *self* root
+    id to its label(s). A family label accumulates over all its member cells.
 
     ``direction="pre"`` (default): query each label as the **postsynaptic** side
     (``target_cell``) and break down by presynaptic ``source_cell`` (incoming).
@@ -497,7 +497,7 @@ def accumulate_all(
     by_cell: Dict[str, DefaultDict[str, Dict[str, float]]] = {
         p: defaultdict(lambda: {"syn+": 0.0, "syn-": 0.0}) for p in labels
     }
-    totals: Dict[str, float] = {p: 0.0 for p in labels}
+    sums: Dict[str, float] = {p: 0.0 for p in labels}
     # Always count distinct partner neurons per partner type (-> n_neuron column).
     partner_ids: Dict[str, DefaultDict[str, Set[int]]] = {
         p: defaultdict(set) for p in labels
@@ -518,11 +518,11 @@ def accumulate_all(
             self_id_int = None
 
         cell_labels: Set[str] = set()
-        type_labels = self_cell_to_labels.get(stype)
+        type_labels = labels_from_self_cell.get(stype)
         if type_labels:
             cell_labels |= type_labels
-        if self_id_to_labels and self_id_int is not None:
-            id_labels = self_id_to_labels.get(self_id_int)
+        if labels_from_self_id and self_id_int is not None:
+            id_labels = labels_from_self_id.get(self_id_int)
             if id_labels:
                 cell_labels |= id_labels
         if not cell_labels:
@@ -532,13 +532,13 @@ def accumulate_all(
             if not allowed or self_id_int is None or self_id_int not in allowed:
                 continue
         pt = e.get(partner_cell_field) or "?"
-        if cell_to_family is not None:
-            pt = cell_to_family.get(pt, pt)
+        if family_from_cell is not None:
+            pt = family_from_cell.get(pt, pt)
         a = _syn_sign(e)
         ns = float(e.get("n_syn", 0))
         partner = e.get(partner_id_field)
         for cell in cell_labels:
-            totals[cell] += ns
+            sums[cell] += ns
             if self_id_int is not None:
                 self_ids[cell].add(self_id_int)
             if a > 0:
@@ -549,11 +549,11 @@ def accumulate_all(
                 try:
                     pid = int(partner)
                     partner_ids[cell][pt].add(pid)
-                    uv = id_to_uv.get(pid)
+                    uv = uv_from_id.get(pid)
                     if uv is not None:
                         partner_uv[cell][pt].add(uv)
-                    if id_to_xy is not None:
-                        xy = id_to_xy.get(pid)
+                    if xy_from_id is not None:
+                        xy = xy_from_id.get(pid)
                         if xy is not None:
                             partner_xy[cell][pt].add(xy)
                 except (TypeError, ValueError):
@@ -574,7 +574,7 @@ def accumulate_all(
         row_sets = {pt: set(uvs) for pt, uvs in partner_uv[p].items()}
         row_xy_sets = {pt: set(coords) for pt, coords in partner_xy[p].items()}
         n_self = len(self_ids[p])
-        out[p] = (by_cell[p], totals[p], npartner_map, row_sets, row_xy_sets, n_self)
+        out[p] = (by_cell[p], sums[p], npartner_map, row_sets, row_xy_sets, n_self)
     return out
 
 
@@ -585,7 +585,7 @@ def query_partner_syn(
     *,
     direction: str = "pre",
     ids_at_hex: Optional[Dict[str, Set[int]]] = None,
-    cell_to_family: Optional[Dict[str, str]] = None,
+    family_from_cell: Optional[Dict[str, str]] = None,
 ) -> Dict[
     str,
     Tuple[
@@ -598,32 +598,32 @@ def query_partner_syn(
     ],
 ]:
     """Resolve ``cells`` and return ``accumulate_all`` partner syn stats (no print)."""
-    fam = cell_to_family if cell_to_family is not None else {}
-    labels, self_cell_to_labels, self_id_to_labels = resolve_query_labels(
+    fam = family_from_cell if family_from_cell is not None else {}
+    labels, labels_from_self_cell, labels_from_self_id = resolve_query_labels(
         list(cells), fam
     )
     return accumulate_all(
         edges,
         labels,
-        self_cell_to_labels,
-        node_id_to_uv(nodes, float_coords=False),
+        labels_from_self_cell,
+        uv_from_node_id(nodes, float_coords=False),
         ids_at_hex=ids_at_hex,
         direction=direction,
-        self_id_to_labels=self_id_to_labels,
+        labels_from_self_id=labels_from_self_id,
     )
 
 
 def print_table(
     cell: str,
     by_partner: DefaultDict[str, Dict[str, float]],
-    total_syn: float,
+    n_syn_sum: float,
     n_partner_by_type: Dict[str, int],
     partner_uv_by_type: Dict[str, Set[_UvCoord]],
     partner_xy_by_type: Optional[Dict[str, Set[Tuple[float, float]]]] = None,
     hex_note: str = "",
     direction: str = "pre",
     use_family: bool = False,
-    min_pct: float = 0.0,
+    min_percent: float = 0.0,
     show_uv: bool = True,
     show_d_xy: bool = True,
     show_xy: bool = False,
@@ -662,22 +662,22 @@ def print_table(
         header.append(xy_label)
 
     rows: List[List[str]] = []
-    sum_p = sum_m = 0.0
-    if total_syn <= 0:
+    percent_positive_sum = percent_negative_sum = 0.0
+    if n_syn_sum <= 0:
         logger.warning("No n_syn for %s=%s", self_field, cell)
     else:
         for pt in sorted(by_partner):
             d = by_partner[pt]
-            pp = 100.0 * d["syn+"] / total_syn
-            pm = 100.0 * d["syn-"] / total_syn
-            sum_p += pp
-            sum_m += pm
-            if pp + pm <= min_pct:
+            percent_positive = 100.0 * d["syn+"] / n_syn_sum
+            percent_negative = 100.0 * d["syn-"] / n_syn_sum
+            percent_positive_sum += percent_positive
+            percent_negative_sum += percent_negative
+            if percent_positive + percent_negative <= min_percent:
                 continue
             row = [pt]
             if show_alpha:
                 row.append(alpha_by_partner.get(pt, "-"))
-            row += [f"{pp:.4f}", f"{pm:.4f}"]
+            row += [f"{percent_positive:.4f}", f"{percent_negative:.4f}"]
             npv = int(n_partner_by_type.get(pt, 0))
             row.append(str(npv))
             uvs = partner_uv_by_type.get(pt, set())
@@ -705,15 +705,15 @@ def print_table(
                 )
             rows.append(row)
 
-    total_row = ["TOTAL"]
+    sum_row = ["SUM"]
     if show_alpha:
-        total_row.append("")
-    total_row += [f"{sum_p:.4f}", f"{sum_m:.4f}"]
-    total_n = sum(int(n_partner_by_type.get(pt, 0)) for pt in by_partner)
-    total_row.append(str(total_n))
-    total_row += [""] * (int(show_uv) + int(show_d_xy) + int(show_xy))
+        sum_row.append("")
+    sum_row += [f"{percent_positive_sum:.4f}", f"{percent_negative_sum:.4f}"]
+    n_partner_sum = sum(int(n_partner_by_type.get(pt, 0)) for pt in by_partner)
+    sum_row.append(str(n_partner_sum))
+    sum_row += [""] * (int(show_uv) + int(show_d_xy) + int(show_xy))
 
-    all_rows = [header] + rows + [total_row]
+    all_rows = [header] + rows + [sum_row]
     n_hexes = len(header)
     widths = [max(len(r[c]) for r in all_rows) for c in range(n_hexes)]
 
@@ -725,7 +725,7 @@ def print_table(
     n_count_label = "n_source" if direction == "post" else "n_target"
     title = (
         f"{self_field} = {cell}  |  {n_count_label} = {n_self}  |  "
-        f"all n_syn {flow_word} {cell}{hex_note} = {total_syn:.1f}"
+        f"all n_syn {flow_word} {cell}{hex_note} = {n_syn_sum:.1f}"
     )
     sep = "=" * max(60, len(title))
     print(sep)
@@ -798,7 +798,7 @@ def resolve_xy_instance_ids(
 ]:
     """FAFB ``--x``/``--y`` → ``(ids_at_hex, hex_note, at_ref_xy, single_xy_column)``.
 
-    Raises ``ValueError`` when the filter matches no instances or ``xy_to_uv`` fails.
+    Raises ``ValueError`` when the filter matches no instances or ``uv_from_xy`` fails.
     With neither coordinate set, returns ``(None, "", None, False)``.
     """
     has_xy = at_x is not None or at_y is not None
@@ -806,7 +806,7 @@ def resolve_xy_instance_ids(
         return None, "", None, False
     single_xy = at_x is not None and at_y is not None
     if single_xy:
-        hu, hv = xy_to_uv(at_x, at_y)
+        hu, hv = uv_from_xy(at_x, at_y)
         ids_at_hex = instance_ids_at_hex(nodes, hu, hv)
         at_ref_xy = (float(at_x), float(at_y))
         hex_note = (
@@ -853,7 +853,7 @@ def main(argv: List[str] | None = None) -> int:
         help=(
             "Comma-separated cells to query (e.g. T4a,T4b,T4c or Mi1). "
             "Prefix with : for a family "
-            "(e.g. :Centrifugal) to aggregate its member cells, or @ for a single "
+            "(e.g. :Centrifugal) to accumulate its member cells, or @ for a single "
             "neuron by root id (e.g. @720575940622041087). Default: L1 if omitted"
         ),
     )
@@ -1013,7 +1013,7 @@ def main(argv: List[str] | None = None) -> int:
         logger.error("Invalid JSON: missing nodes list")
         return 1
 
-    cell_to_family_all = _load_cell_to_family(json_path)
+    family_from_cell_all = family_from_cell_csv(json_path)
 
     ids_at_hex: Optional[Dict[str, Set[int]]] = None
     hex_note = ""
@@ -1047,7 +1047,7 @@ def main(argv: List[str] | None = None) -> int:
             hu, hv = at_u, at_v
             ids_at_hex = instance_ids_at_hex(nodes, hu, hv)
             at_ref_uv = (float(hu), float(hv))
-            hx, hy = (float(v) for v in uv_to_xy(hu, hv))
+            hx, hy = (float(v) for v in xy_from_uv(hu, hv))
             at_ref_xy = (hx, hy)
             hex_note += (
                 f" at hex (u,v)=({hu},{hv}) "
@@ -1095,33 +1095,33 @@ def main(argv: List[str] | None = None) -> int:
         show_partner_uv, show_partner_d_xy = False, True
     mean_partner_delta = not single_uv_hex and not single_xy_column
 
-    partner_cell_to_family = cell_to_family_all if args.family else None
+    family_from_partner_cell = family_from_cell_all if args.family else None
 
     cells = parse_comma_list(args.cells)
-    labels, self_cell_to_labels, self_id_to_labels = resolve_query_labels(
-        cells, cell_to_family_all
+    labels, labels_from_self_cell, labels_from_self_id = resolve_query_labels(
+        cells, family_from_cell_all
     )
 
     # Partner delta coords: always collected; reference is --at center or mean self location.
-    id_to_uv = node_id_to_uv(nodes, float_coords=False)
-    id_to_xy = None
-    acc = accumulate_all(
+    uv_from_id = uv_from_node_id(nodes, float_coords=False)
+    xy_from_id = None
+    partner_syn_by_label = accumulate_all(
         edges,
         labels,
-        self_cell_to_labels,
-        id_to_uv,
-        id_to_xy=id_to_xy,
+        labels_from_self_cell,
+        uv_from_id,
+        xy_from_id=xy_from_id,
         ids_at_hex=ids_at_hex,
         direction=direction,
-        cell_to_family=partner_cell_to_family,
-        self_id_to_labels=self_id_to_labels,
+        family_from_cell=family_from_partner_cell,
+        labels_from_self_id=labels_from_self_id,
     )
     for label in labels:
-        by_partner, total_syn, n_partner_by_type, partner_uv_by_type, partner_xy_by_type, n_self = acc[label]
+        by_partner, n_syn_sum, n_partner_by_type, partner_uv_by_type, partner_xy_by_type, n_self = partner_syn_by_label[label]
         label_origin_uv, label_origin_xy = _label_origins(
             label,
             nodes,
-            self_cell_to_labels,
+            labels_from_self_cell,
             ids_at_hex,
             at_ref_uv,
             at_ref_xy,
@@ -1132,14 +1132,14 @@ def main(argv: List[str] | None = None) -> int:
         print_table(
             label,
             by_partner,
-            total_syn,
+            n_syn_sum,
             n_partner_by_type,
             partner_uv_by_type,
             partner_xy_by_type=None,
             hex_note=hex_note,
             direction=direction,
             use_family=args.family,
-            min_pct=args.min,
+            min_percent=args.min,
             show_uv=show_partner_uv,
             show_d_xy=show_partner_d_xy,
             show_xy=args.p_xy,

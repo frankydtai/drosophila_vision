@@ -241,7 +241,7 @@ def spot_radius_folds_r2_into_r1(spot_radius) -> bool:
 
 def _spot_center_angle(u: int, v: int) -> float:
     """Degree-space angle of (u, v), for a stable angular tie-break ordering."""
-    x_deg, y_deg = build_hex.uv_to_xy_deg(u, v)
+    x_deg, y_deg = build_hex.xy_deg_from_uv(u, v)
     return float(np.arctan2(float(y_deg), float(x_deg)))
 
 
@@ -410,7 +410,7 @@ def build_spot_a_sti_radius_drive(
     if any(r == 0.0 for r in radii):
         raise ValueError("sti_radii must omit center r=0 (baked into i_sti @1)")
     by_radius = members_by_euclid_radius(radii) if radii else {}
-    radius_to_i = {r: i for i, r in enumerate(radii)}
+    i_from_radius = {r: i for i, r in enumerate(radii)}
     batch_l: list[int] = []
     node_l: list[int] = []
     r_l: list[int] = []
@@ -420,7 +420,7 @@ def build_spot_a_sti_radius_drive(
             for nid in C.input_nodes_at(int(stim_hex_u), int(stim_hex_v)):
                 center_nodes.append((int(b), int(nid)))
             for radius_key, members in by_radius.items():
-                ri = radius_to_i[radius_key]
+                ri = i_from_radius[radius_key]
                 for du, dv in members:
                     for nid in C.input_nodes_at(int(stim_hex_u) + int(du), int(stim_hex_v) + int(dv)):
                         batch_l.append(int(b))

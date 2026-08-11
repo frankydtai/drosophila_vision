@@ -224,7 +224,7 @@ def v_spot_markers_by_cell(z_t, session):
     )
     schema = list(session.schema)
     z = torch.as_tensor(z_t, dtype=session.sim_dtype, device=session.device)
-    p = training.materialize_from_opts(
+    params = training.materialize_from_opts(
         training.assign_params(z, schema, session.backend), session,
     )
     pack = session.primary_readout
@@ -234,10 +234,10 @@ def v_spot_markers_by_cell(z_t, session):
     use_ca = str(train_opts.get("filter", "none")) == "ca"
     with torch.no_grad():
         v = training.forward_v(
-            session, p, i_sti.unsqueeze(0) if i_sti.dim() == 2 else i_sti, pack=pack,
+            session, params, i_sti.unsqueeze(0) if i_sti.dim() == 2 else i_sti, pack=pack,
         )
-        v_ca = training.v_ca_from_v(v, p, session) if use_ca else None
-        ca = training.v_ca_to_ca(v_ca, p, session, t_onset=t_onset) if use_ca else None
+        v_ca = training.v_ca_from_v(v, params, session) if use_ca else None
+        ca = training.ca_from_v_ca(v_ca, params, session, t_onset=t_onset) if use_ca else None
     # v: (B, T, N)
     n_t = int(v.shape[1])
     if t_onset < 0 or t_onset >= n_t:
@@ -260,18 +260,18 @@ def v_spot_markers_by_cell(z_t, session):
     v_onset = np.empty(n_cells, dtype=np.float64)
     v_spot_end = np.empty(n_cells, dtype=np.float64)
     delta_v = np.empty(n_cells, dtype=np.float64)
-    for i in range(n_cells):
-        m = node_cell == i
-        if not np.any(m):
-            v_pre[i] = np.nan
-            v_onset[i] = np.nan
-            v_spot_end[i] = np.nan
-            delta_v[i] = np.nan
+    for cell_idx in range(n_cells):
+        cell_node_mask = node_cell == cell_idx
+        if not np.any(cell_node_mask):
+            v_pre[cell_idx] = np.nan
+            v_onset[cell_idx] = np.nan
+            v_spot_end[cell_idx] = np.nan
+            delta_v[cell_idx] = np.nan
         else:
-            v_pre[i] = float(v_pre_n[m].mean())
-            v_onset[i] = float(v_onset_n[m].mean())
-            v_spot_end[i] = float(v_spot_end_n[m].mean())
-            delta_v[i] = v_spot_end[i] - v_onset[i]
+            v_pre[cell_idx] = float(v_pre_n[cell_node_mask].mean())
+            v_onset[cell_idx] = float(v_onset_n[cell_node_mask].mean())
+            v_spot_end[cell_idx] = float(v_spot_end_n[cell_node_mask].mean())
+            delta_v[cell_idx] = v_spot_end[cell_idx] - v_onset[cell_idx]
     out = {
         "v_pre": v_pre,
         "v_onset": v_onset,
@@ -286,18 +286,18 @@ def v_spot_markers_by_cell(z_t, session):
         v_ca_onset = np.empty(n_cells, dtype=np.float64)
         v_ca_spot_end = np.empty(n_cells, dtype=np.float64)
         delta_v_ca = np.empty(n_cells, dtype=np.float64)
-        for i in range(n_cells):
-            m = node_cell == i
-            if not np.any(m):
-                v_ca_pre[i] = np.nan
-                v_ca_onset[i] = np.nan
-                v_ca_spot_end[i] = np.nan
-                delta_v_ca[i] = np.nan
+        for cell_idx in range(n_cells):
+            cell_node_mask = node_cell == cell_idx
+            if not np.any(cell_node_mask):
+                v_ca_pre[cell_idx] = np.nan
+                v_ca_onset[cell_idx] = np.nan
+                v_ca_spot_end[cell_idx] = np.nan
+                delta_v_ca[cell_idx] = np.nan
             else:
-                v_ca_pre[i] = float(v_ca_pre_n[m].mean())
-                v_ca_onset[i] = float(v_ca_onset_n[m].mean())
-                v_ca_spot_end[i] = float(v_ca_spot_end_n[m].mean())
-                delta_v_ca[i] = v_ca_spot_end[i] - v_ca_onset[i]
+                v_ca_pre[cell_idx] = float(v_ca_pre_n[cell_node_mask].mean())
+                v_ca_onset[cell_idx] = float(v_ca_onset_n[cell_node_mask].mean())
+                v_ca_spot_end[cell_idx] = float(v_ca_spot_end_n[cell_node_mask].mean())
+                delta_v_ca[cell_idx] = v_ca_spot_end[cell_idx] - v_ca_onset[cell_idx]
         out.update(
             v_ca_pre=v_ca_pre,
             v_ca_onset=v_ca_onset,
@@ -311,18 +311,18 @@ def v_spot_markers_by_cell(z_t, session):
         ca_onset = np.empty(n_cells, dtype=np.float64)
         ca_spot_end = np.empty(n_cells, dtype=np.float64)
         delta_ca = np.empty(n_cells, dtype=np.float64)
-        for i in range(n_cells):
-            m = node_cell == i
-            if not np.any(m):
-                ca_pre[i] = np.nan
-                ca_onset[i] = np.nan
-                ca_spot_end[i] = np.nan
-                delta_ca[i] = np.nan
+        for cell_idx in range(n_cells):
+            cell_node_mask = node_cell == cell_idx
+            if not np.any(cell_node_mask):
+                ca_pre[cell_idx] = np.nan
+                ca_onset[cell_idx] = np.nan
+                ca_spot_end[cell_idx] = np.nan
+                delta_ca[cell_idx] = np.nan
             else:
-                ca_pre[i] = float(ca_pre_n[m].mean())
-                ca_onset[i] = float(ca_onset_n[m].mean())
-                ca_spot_end[i] = float(ca_spot_end_n[m].mean())
-                delta_ca[i] = ca_spot_end[i] - ca_onset[i]
+                ca_pre[cell_idx] = float(ca_pre_n[cell_node_mask].mean())
+                ca_onset[cell_idx] = float(ca_onset_n[cell_node_mask].mean())
+                ca_spot_end[cell_idx] = float(ca_spot_end_n[cell_node_mask].mean())
+                delta_ca[cell_idx] = ca_spot_end[cell_idx] - ca_onset[cell_idx]
         out.update(
             ca_pre=ca_pre,
             ca_onset=ca_onset,
@@ -359,7 +359,7 @@ def save_param_table(z_t, session, table_path):
     cell_names = list(cols.keys())
     n = session.backend.n_cells
     with open(table_path, "w") as f:
-        f.write("cell_index,cell," + ",".join(cell_names) + "\n")
+        f.write("cell_idx,cell," + ",".join(cell_names) + "\n")
         for i in range(n):
             row = ["%.6f" % cols[nm][i] for nm in cell_names]
             f.write("%d,%s," % (i, cell_col[i]) + ",".join(row) + "\n")
@@ -410,13 +410,13 @@ def save_syn_strength_edge_table(z_t, session, table_path):
             f"syn_strength_edge length {arr.shape[0]} != n_edges {conn.n_edges}"
         )
     names = [str(n) for n in cell_labels(session)]
-    src = conn.source_index.detach().cpu().numpy()
-    tar = conn.target_index.detach().cpu().numpy()
+    src = conn.source_idx.detach().cpu().numpy()
+    tar = conn.target_idx.detach().cpu().numpy()
     node_cell = conn.node_cell.detach().cpu().numpy()
     syn_sign = torch.sign(conn.w_signed).detach().cpu().numpy()
     with open(table_path, "w") as f:
         f.write(
-            "edge_index,src_node,tar_node,source_cell,target_cell,syn_sign,syn_strength_edge\n",
+            "edge_idx,src_node,tar_node,source_cell,target_cell,syn_sign,syn_strength_edge\n",
         )
         for i in range(conn.n_edges):
             si, ti = int(src[i]), int(tar[i])
@@ -1670,8 +1670,8 @@ def training_kwargs_from_args(
     model = args.model
     init_from = args.init_from
     if init_from:
-        p = Path(str(init_from)).expanduser()
-        if not p.is_absolute():
+        init_from_path = Path(str(init_from)).expanduser()
+        if not init_from_path.is_absolute():
             text = str(init_from).replace("\\", "/")
             parts = text.split("/")
             if len(parts) != 2 or not parts[0] or not parts[1]:

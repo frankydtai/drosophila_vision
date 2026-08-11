@@ -19,10 +19,10 @@ import torch
 
 from network import path  # noqa: F401 -- FAFBv783 on sys.path
 
-from build_hex import DEG, HEX_PATCH_RADIUS, hex_vertices, uv_to_xy, uv_to_xy_deg
+from build_hex import DEG, HEX_PATCH_RADIUS, hex_vertices, xy_from_uv, xy_deg_from_uv
 from path import moving_bar_cache_dir
 from neuron.params import t_from_ms
-from network.construction import hex_in_cost_extent
+from network.construction import hex_in_cost_radius
 
 logger = logging.getLogger(__name__)
 
@@ -87,9 +87,9 @@ class Hex:
 
 def hex_from_uv(u: int, v: int) -> Hex:
     """Build one FAFB sti hex from axial ``(u, v)``."""
-    x, y = uv_to_xy(u, v)
+    x, y = xy_from_uv(u, v)
     x, y = float(x), float(y)
-    x_deg, y_deg = uv_to_xy_deg(u, v)
+    x_deg, y_deg = xy_deg_from_uv(u, v)
     x_deg, y_deg = float(x_deg), float(y_deg)
     return Hex(
         u=int(u),
@@ -416,7 +416,7 @@ def _trail_shift_deg(spec: MovingBarSpec, dt_s: float) -> float:
     raise ValueError(f"unknown direction {spec.direction!r}")
 
 
-def _trail_to_t(
+def t_from_trail(
     spec: MovingBarSpec,
     trail_start: float,
     trail_end: float,
@@ -452,7 +452,7 @@ def moving_bar_sweep_end_t(
             trail_start, trail_exit = _lane_sweep_trail_range(spec, lane_origin, lane_pitch)
             t_exit = max(
                 t_exit,
-                _trail_to_t(spec, trail_start, trail_exit, t_onset, delta_ms),
+                t_from_trail(spec, trail_start, trail_exit, t_onset, delta_ms),
             )
     return t_exit + 1
 
@@ -499,9 +499,9 @@ def moving_bar_transit_times(
     )
     trail_exit_vis = float(trail_exit) - trail_shift_deg
     return (
-        _trail_to_t(spec, trail_start, trail_entry, t_onset, delta_ms, n_t),
-        _trail_to_t(spec, trail_start, trail_center, t_onset, delta_ms, n_t),
-        _trail_to_t(spec, trail_start, trail_exit_vis, t_onset, delta_ms, n_t),
+        t_from_trail(spec, trail_start, trail_entry, t_onset, delta_ms, n_t),
+        t_from_trail(spec, trail_start, trail_center, t_onset, delta_ms, n_t),
+        t_from_trail(spec, trail_start, trail_exit_vis, t_onset, delta_ms, n_t),
     )
 
 
@@ -615,12 +615,12 @@ def build_batched_i_sti_hex(
 
 # -- Connectome mapping: hex currents -> node ``i_sti`` (was moving_bar_readout) --
 
-PD_INDEX, ND_INDEX = 0, 1
+PD_IDX, ND_IDX = 0, 1
 
 
 @dataclass
 class StiHex(Hex):
-    """One sti hex on a connectome, with node indices for scattering."""
+    """One sti hex on a connectome, with node indices for writing onto ``i_sti``."""
 
     node_idx: np.ndarray
 
@@ -654,12 +654,12 @@ def sti_hexes(C) -> List[StiHex]:
     return [by_uv[k] for k in sorted(by_uv)]
 
 
-def moving_bar_cost_hexes(C, cost_extent=None) -> List[StiHex]:
+def moving_bar_cost_hexes(C, cost_radius=None) -> List[StiHex]:
     """Sti hexes used for moving-bar cost (optional central hex disc)."""
     hexes = sti_hexes(C)
-    if cost_extent is None:
+    if cost_radius is None:
         return hexes
-    return [c for c in hexes if hex_in_cost_extent(c.u, c.v, cost_extent)]
+    return [c for c in hexes if hex_in_cost_radius(c.u, c.v, cost_radius)]
 
 
 def _as_int64_np(x) -> np.ndarray:

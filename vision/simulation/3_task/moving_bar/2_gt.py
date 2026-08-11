@@ -31,8 +31,8 @@ from task.moving_bar.input import (
     COST_WINDOW_MS,
     DEFAULT_BAR_RADIUS,
     GRUNTMAN_WIDTHS_DEG,
-    ND_INDEX,
-    PD_INDEX,
+    ND_IDX,
+    PD_IDX,
     MovingBarSpec,
     build_moving_bar_signals,
     build_moving_bar_t0_grids,
@@ -110,13 +110,13 @@ class MotionPreference:
     pc_nc: str
 
 
-def dsi_sequential_batch_groups(spec_names: Sequence[str]) -> Tuple[Tuple[int, ...], ...]:
-    """Minimal stimulus-batch groups for sequential DSI: one group per axis x width."""
+def dsi_sequential_batch_sets(spec_names: Sequence[str]) -> Tuple[Tuple[int, ...], ...]:
+    """Minimal stimulus-batch sets for sequential DSI: one batch_set per axis x width."""
     batches_by_dir_w: dict[tuple[str, str], list[int]] = {}
     for bi, sname in enumerate(spec_names):
         direction, _contrast, wtag = parse_moving_bar_spec(sname)
         batches_by_dir_w.setdefault((direction, wtag), []).append(int(bi))
-    groups: list[tuple[int, ...]] = []
+    batch_sets: list[tuple[int, ...]] = []
     for pos_dir, neg_dir in AXIS_DIRECTION_PAIRS:
         wtags = {
             wtag for (direction, wtag) in batches_by_dir_w
@@ -127,8 +127,8 @@ def dsi_sequential_batch_groups(spec_names: Sequence[str]) -> Tuple[Tuple[int, .
             neg = batches_by_dir_w.get((neg_dir, wtag), [])
             if not pos or not neg:
                 continue
-            groups.append(tuple(sorted({*pos, *neg})))
-    return tuple(groups)
+            batch_sets.append(tuple(sorted({*pos, *neg})))
+    return tuple(batch_sets)
 
 
 def expand_gt_cells(names: Sequence[str]) -> Tuple[str, ...]:
@@ -343,8 +343,8 @@ def _csr_from_groups(
     """Return ``(flat_entries, ptr)`` with ``ptr`` length ``n_groups + 1``."""
     ptr = [0]
     flat: list[int] = []
-    for g in groups:
-        flat.extend(int(i) for i in g)
+    for dsi_group in groups:
+        flat.extend(int(entry_i) for entry_i in dsi_group)
         ptr.append(len(flat))
     entries_t = torch.tensor(np.asarray(flat, dtype=np.int64), dtype=torch.long, device=device)
     ptr_t = torch.tensor(np.asarray(ptr, dtype=np.int64), dtype=torch.long, device=device)
@@ -408,14 +408,14 @@ def remap_dsi_entries(pack, kept_old_entries) -> dict:
     n_dsi = int(pack.dsi_pos_ptr.numel()) - 1
     new_pos_groups: list[list[int]] = []
     new_neg_groups: list[list[int]] = []
-    keep_g: list[int] = []
+    kept_dsi_group_indices: list[int] = []
     pos_entries = pack.dsi_pos_entries
     neg_entries = pack.dsi_neg_entries
     pos_ptr = pack.dsi_pos_ptr
     neg_ptr = pack.dsi_neg_ptr
-    for g in range(n_dsi):
-        p0, p1 = int(pos_ptr[g]), int(pos_ptr[g + 1])
-        n0, n1 = int(neg_ptr[g]), int(neg_ptr[g + 1])
+    for dsi_group_idx in range(n_dsi):
+        p0, p1 = int(pos_ptr[dsi_group_idx]), int(pos_ptr[dsi_group_idx + 1])
+        n0, n1 = int(neg_ptr[dsi_group_idx]), int(neg_ptr[dsi_group_idx + 1])
         new_pos = lut[pos_entries[p0:p1]]
         new_neg = lut[neg_entries[n0:n1]]
         new_pos = new_pos[new_pos >= 0]
@@ -424,14 +424,14 @@ def remap_dsi_entries(pack, kept_old_entries) -> dict:
             continue
         new_pos_groups.append(new_pos.tolist())
         new_neg_groups.append(new_neg.tolist())
-        keep_g.append(g)
-    if not keep_g:
+        kept_dsi_group_indices.append(dsi_group_idx)
+    if not kept_dsi_group_indices:
         return _empty_dsi_fields(pack, device)
     dsi_pos_entries, dsi_pos_ptr = _csr_from_groups(new_pos_groups, device=device)
     dsi_neg_entries, dsi_neg_ptr = _csr_from_groups(new_neg_groups, device=device)
-    ix = torch.tensor(keep_g, dtype=torch.long, device=device)
-    dsi_gt = pack.dsi_gt[ix]
-    dsi_weight = pack.dsi_weight[ix]
+    kept_dsi_group_idx = torch.tensor(kept_dsi_group_indices, dtype=torch.long, device=device)
+    dsi_gt = pack.dsi_gt[kept_dsi_group_idx]
+    dsi_weight = pack.dsi_weight[kept_dsi_group_idx]
     power = torch.sum(dsi_weight * dsi_gt ** 2)
     if float(power) == 0.0:
         power = torch.tensor(1.0, dtype=dsi_gt.dtype, device=device)
@@ -446,19 +446,19 @@ def remap_dsi_entries(pack, kept_old_entries) -> dict:
     }
 
 
-def _csr_group_mean(vals: torch.Tensor, ptr: torch.Tensor) -> torch.Tensor:
-    """Mean of ``vals`` over CSR groups defined by ``ptr``."""
+def _csr_segment_mean(vals: torch.Tensor, ptr: torch.Tensor) -> torch.Tensor:
+    """Mean of ``vals`` over CSR segments defined by ``ptr``."""
     n_g = int(ptr.numel()) - 1
     if n_g == 0:
         return vals.new_zeros((0,))
-    counts = ptr[1:] - ptr[:-1]
-    gid = torch.repeat_interleave(
+    n_segment = ptr[1:] - ptr[:-1]
+    csr_segment_idx = torch.repeat_interleave(
         torch.arange(n_g, device=vals.device, dtype=torch.long),
-        counts,
+        n_segment,
     )
     sums = vals.new_zeros((n_g,))
-    sums.scatter_add_(0, gid, vals)
-    return sums / counts.to(dtype=vals.dtype).clamp(min=1)
+    sums.scatter_add_(0, csr_segment_idx, vals)
+    return sums / n_segment.to(dtype=vals.dtype).clamp(min=1)
 
 
 def cost_dsi_from_v_readout_dsi(
@@ -478,8 +478,8 @@ def cost_dsi_from_v_readout_dsi(
     ).amax(dim=-1)
     if not (torch.isfinite(peak_pos_per_entry).all() and torch.isfinite(peak_neg_per_entry).all()):
         raise RuntimeError("non-finite DSI peaks (NaN/Inf in readout)")
-    peak_pos = _csr_group_mean(peak_pos_per_entry, pack.dsi_pos_ptr)
-    peak_neg = _csr_group_mean(peak_neg_per_entry, pack.dsi_neg_ptr)
+    peak_pos = _csr_segment_mean(peak_pos_per_entry, pack.dsi_pos_ptr)
+    peak_neg = _csr_segment_mean(peak_neg_per_entry, pack.dsi_neg_ptr)
     v_dsi = axis_dsi_torch(peak_pos, peak_neg)
     diff = v_dsi - pack.dsi_gt
     return torch.sum(pack.dsi_weight * diff ** 2) / pack.dsi_power * 100.0
@@ -692,18 +692,18 @@ def _assemble_moving_bar_readouts(
                     if trace_id not in fig1:
                         raise KeyError(f"fig1 trace missing: {trace_id}")
                     gt_trace = fig1[trace_id]
-                pd_nd_index = PD_INDEX if pref.pd_nd == "PD" else ND_INDEX
+                pd_nd_idx = PD_IDX if pref.pd_nd == "PD" else ND_IDX
                 t0 = t0_by_hex.get(hex_idx, 0)
-                for node_index in nodes:
+                for node_idx in nodes:
                     r_batch.append(b)
-                    r_node.append(int(node_index))
+                    r_node.append(int(node_idx))
                     r_subtype.append(str(subtype))
                     if gt_trace is not None:
                         r_readout.append(gt_trace)
                     r_weight.append(1.0)
                     if waveform_mse:
                         r_t0.append(t0)
-                        r_pd_nd.append(pd_nd_index)
+                        r_pd_nd.append(pd_nd_idx)
     return (
         r_batch, r_node, r_subtype, r_readout, r_weight, r_t0, r_pd_nd,
         skipped_orthogonal,
@@ -783,10 +783,10 @@ def build_moving_bar_gt(
 
     cell_names = node_cell_names(C)
     all_sti = sti_hexes(C)
-    hex_from_uv_idx = {(int(c.u), int(c.v)): j for j, c in enumerate(all_sti)}
+    idx_from_uv = {(int(c.u), int(c.v)): j for j, c in enumerate(all_sti)}
     hexes = moving_bar_cost_hexes(C, cost_radius=cost_radius)
     center_hex = hexes[0] if cost_radius == 0 and len(hexes) == 1 else None
-    cost_hex_idxs = [hex_from_uv_idx[(int(c.u), int(c.v))] for c in hexes]
+    cost_hex_idxs = [idx_from_uv[(int(c.u), int(c.v))] for c in hexes]
     hex_by_idx = {idx: c for c, idx in zip(hexes, cost_hex_idxs)}
 
     def _nodes_for_hex_type(_b, hex_idx, subtype):
@@ -835,8 +835,8 @@ def build_moving_bar_gt(
     info = {
         **stim.info,
         "n_cost": int(readout_batch.shape[0]),
-        "n_cost_pd": int((cost_pd_nd == PD_INDEX).sum().item()) if cost_pd_nd is not None else 0,
-        "n_cost_nd": int((cost_pd_nd == ND_INDEX).sum().item()) if cost_pd_nd is not None else 0,
+        "n_cost_pd": int((cost_pd_nd == PD_IDX).sum().item()) if cost_pd_nd is not None else 0,
+        "n_cost_nd": int((cost_pd_nd == ND_IDX).sum().item()) if cost_pd_nd is not None else 0,
         "n_cost_dsi": int(dsi_tgt.shape[0]),
         "n_batch": stim.info["n_batch"],
         "n_cost_hexes": len(hexes),
@@ -930,9 +930,9 @@ def moving_bar_session_t0_grids(
         C, specs=specs, n_t=n_t, t_onset=t_onset, delta_ms=delta_ms,
         device=C.node_cell.device, i_baseline=i_baseline,
     )
-    uv_to_idx = {(int(hex.u), int(hex.v)): j for j, hex in enumerate(sti_hexes(C))}
-    all_hex_idxs = [uv_to_idx[(int(c.u), int(c.v))] for c in all_hexes]
-    filt_hex_idxs = [uv_to_idx[(int(c.u), int(c.v))] for c in filt_hexes]
+    idx_from_uv = {(int(hex.u), int(hex.v)): j for j, hex in enumerate(sti_hexes(C))}
+    all_hex_idxs = [idx_from_uv[(int(c.u), int(c.v))] for c in all_hexes]
+    filt_hex_idxs = [idx_from_uv[(int(c.u), int(c.v))] for c in filt_hexes]
     grids = build_moving_bar_t0_grids(
         stim.i_sti_hex, specs, n_t, i_baseline,
         all_hex_idxs=all_hex_idxs,
@@ -952,14 +952,14 @@ def moving_bar_session_t0_grids(
 def _pack_readout_cell_names(session, task: str) -> List[str]:
     """Unique cell names on ``pack.readout_node`` (pack order)."""
     pack = session.pack_for(task)
-    u = pack.readout_node
-    if torch.is_tensor(u):
-        u = u.detach().cpu().numpy()
-    u = np.asarray(u, dtype=np.int64)
+    readout_node = pack.readout_node
+    if torch.is_tensor(readout_node):
+        readout_node = readout_node.detach().cpu().numpy()
+    readout_node = np.asarray(readout_node, dtype=np.int64)
     C = session.backend.network
     if C is None:
         raise ValueError("_pack_readout_cell_names requires session.backend.network")
-    node_cell = C.node_cell[u]
+    node_cell = C.node_cell[readout_node]
     if torch.is_tensor(node_cell):
         node_cell = node_cell.detach().cpu().numpy()
     names = list(C.cell_names)

@@ -30,7 +30,7 @@ import training
 import figure.plot_run as plot_trained
 import training.implement as train_mod
 from import_bootstrap import parse_comma_list
-from network.connectivity import build_cell_pair_index
+from network.connectivity import build_cell_pair_idx
 from network.construction import read_network_json
 from param_defaults import DEFAULT_RUN_PATH
 
@@ -115,16 +115,16 @@ def main(argv: list[str] | None = None) -> int:
             f"({len(cell_names)} vs {len(cell_names_npz)})"
         )
 
-    name_to_i = {n: i for i, n in enumerate(cell_names)}
+    i_from_name = {n: i for i, n in enumerate(cell_names)}
     n_cells = len(cell_names)
     for tok in tokens:
-        if tok not in name_to_i:
+        if tok not in i_from_name:
             raise SystemExit(f"unknown cell {tok!r}; known e.g. {cell_names[:8]}...")
 
-    src_t = np.array([name_to_i[e["source_cell"]] for e in edges], dtype=np.int64)
-    tar_t = np.array([name_to_i[e["target_cell"]] for e in edges], dtype=np.int64)
-    _, n_pairs, pair_keys = build_cell_pair_index(src_t, tar_t, n_cells)
-    key_to_i = {k: i for i, k in enumerate(pair_keys)}
+    src_t = np.array([i_from_name[e["source_cell"]] for e in edges], dtype=np.int64)
+    tar_t = np.array([i_from_name[e["target_cell"]] for e in edges], dtype=np.int64)
+    _, n_pairs, pair_keys = build_cell_pair_idx(src_t, tar_t, n_cells)
+    i_from_key = {k: i for i, k in enumerate(pair_keys)}
     if pair_names is not None:
         expected = [f"{cell_names[s]}{training.PAIR_SEP}{cell_names[t]}" for s, t in pair_keys]
         if list(pair_names) != expected:
@@ -151,35 +151,35 @@ def main(argv: list[str] | None = None) -> int:
             raise SystemExit(str(exc)) from exc
 
     direction = "post" if args.post else "pre"
-    acc = analyze_cell_syn.query_partner_syn(
+    partner_syn_by_cell = analyze_cell_syn.query_partner_syn(
         nodes, edges, tokens, direction=direction, ids_at_hex=ids_at_hex,
     )
 
     print(f"outdir={outdir}")
     print(f"n_pairs={n_pairs}  best_param.npz syn_strength_cell={syn_strength_cell.shape[0]}")
     for cell in tokens:
-        if cell not in acc:
-            print(f"warning: no accumulate result for {cell}", flush=True)
+        if cell not in partner_syn_by_cell:
+            print(f"warning: no partner_syn for {cell}", flush=True)
             continue
-        ti = name_to_i[cell]
-        by_partner, total_syn, n_partner, partner_uv, partner_xy, n_self = acc[cell]
+        ti = i_from_name[cell]
+        by_partner, n_syn_sum, n_partner, partner_uv, partner_xy, n_self = partner_syn_by_cell[cell]
         alpha_map = {}
         for partner in by_partner:
-            if partner not in name_to_i:
+            if partner not in i_from_name:
                 alpha_map[partner] = "-"
                 continue
             pair = (
-                (name_to_i[cell], name_to_i[partner]) if direction == "post"
-                else (name_to_i[partner], name_to_i[cell])
+                (i_from_name[cell], i_from_name[partner]) if direction == "post"
+                else (i_from_name[partner], i_from_name[cell])
             )
-            pi = key_to_i.get(pair)
+            pi = i_from_key.get(pair)
             alpha_map[partner] = (
                 "-" if pi is None else f"{float(syn_strength_cell[pi]):.6g}"
             )
         analyze_cell_syn.print_table(
             cell,
             by_partner,
-            total_syn,
+            n_syn_sum,
             n_partner,
             partner_uv,
             partner_xy_by_type=partner_xy,

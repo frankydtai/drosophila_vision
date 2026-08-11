@@ -74,7 +74,7 @@ Two *different* knobs — do not mix them:
   ``t_onset = t_from_ms(ms_pre, delta_ms=delta_ms_pre)`` (e.g. ``ms_pre=1000``,
   ``delta_ms_pre=5`` → ``t_onset=200`` ↔ **1000 ms**). Pre-stimulus is therefore
   ``--ms-shown 0,1000`` (or ``0,ms_pre``), **not** ``-1000,0``.
-  Negative START is wrong for spot (aligned index goes negative; accum window
+  Negative START is wrong for spot (aligned index goes negative; accumulate window
   collapses).
 * **moving_bar**: aligned ``t = 0`` is bar ``t0`` at the node (crossing), so
   ``--ms-shown`` is ms relative to that ``t0`` (negative START is valid).
@@ -703,24 +703,24 @@ def _model_driver(session):
         ) from exc
 
 
-def _prepare_drive(session, p, i_sti: torch.Tensor) -> torch.Tensor:
+def _prepare_drive(session, params, i_sti: torch.Tensor) -> torch.Tensor:
     """Model ``prepare_i_sti`` + spot ``a_sti_radius`` on a ``(B, T, N)`` pack ``i_sti``."""
     from neuron.forward import inject_a_sti_radius
 
     pack = session.primary_readout
-    drive = _model_driver(session).prepare_i_sti(session, p, i_sti, pack)
-    return inject_a_sti_radius(drive, p, pack)
+    drive = _model_driver(session).prepare_i_sti(session, params, i_sti, pack)
+    return inject_a_sti_radius(drive, params, pack)
 
 
-def _equilibrate(session, p, i_sti_batch: torch.Tensor, t_onset: int):
+def _equilibrate(session, params, i_sti_batch: torch.Tensor, t_onset: int):
     """Equilibrate to ``t_onset``; returns ``(v, state)`` where state is model-specific."""
     _component_spec(session.model, session.euler)  # validate early
     B, T, _N = i_sti_batch.shape
     drv = _model_driver(session)
-    state, v = drv.pre_steady(session, p, B, i_sti=i_sti_batch)
+    state, v = drv.pre_steady(session, params, B, i_sti=i_sti_batch)
     for t in range(1, min(t_onset, T)):
         state, v = drv.step(
-            state, v, p, i_sti_batch[:, t - 1], session,
+            state, v, params, i_sti_batch[:, t - 1], session,
             delta_ms=training.step_delta_ms(session, t, t_onset),
         )
     return v, state
@@ -738,7 +738,7 @@ def _component_at_nodes_borst(
     nodes: np.ndarray,
     v_onset: np.ndarray,
     *,
-    batch: int = 0,
+    batch_idx: int = 0,
     delta_ms: float,
     cap: float,
     g_leak: float,
@@ -750,24 +750,27 @@ def _component_at_nodes_borst(
     """Slice node component from a completed ``update_v(..., return_component=True)`` step."""
     nodes = np.asarray(nodes, dtype=np.int64)
     with torch.no_grad():
-        node_index = torch.as_tensor(nodes, device=v_pre.device, dtype=torch.long)
-        b = int(batch)
-        sig_active = sig_t[b, node_index] if sig_t.dim() > 1 else sig_t[node_index]
+        node_idx = torch.as_tensor(nodes, device=v_pre.device, dtype=torch.long)
+        sig_active = (
+            sig_t[batch_idx, node_idx] if sig_t.dim() > 1 else sig_t[node_idx]
+        )
         packed = torch.stack(
             (
-                v_pre[b, node_index],
-                g_exc[b, node_index],
-                g_inh[b, node_index],
-                g_h[b, node_index],
-                g_h_rev[b, node_index],
+                v_pre[batch_idx, node_idx],
+                g_exc[batch_idx, node_idx],
+                g_inh[batch_idx, node_idx],
+                g_h[batch_idx, node_idx],
+                g_h_rev[batch_idx, node_idx],
                 sig_active,
-                e_leak[node_index],
-                v_post[b, node_index],
+                e_leak[node_idx],
+                v_post[batch_idx, node_idx],
             ),
             dim=0,
         ).detach().cpu().numpy()
         v_pre_np = packed[0]
-        ref = v_onset[b, nodes] if np.ndim(v_onset) == 2 else v_onset[nodes]
+        ref = (
+            v_onset[batch_idx, nodes] if np.ndim(v_onset) == 2 else v_onset[nodes]
+        )
         terms = training.v_component_from_g(
             v_pre_np, packed[1], packed[2], packed[3], packed[4], packed[5], packed[6],
             delta_ms=delta_ms, cap=cap, g_leak=g_leak,
@@ -796,16 +799,17 @@ def _component_at_nodes_hp_lp(
     nodes: np.ndarray,
     v_onset: np.ndarray,
     *,
-    batch: int = 0,
+    batch_idx: int = 0,
 ) -> tuple[dict[str, np.ndarray], np.ndarray]:
     """Slice hp_lp ODE component tensors at ``nodes``."""
     nodes = np.asarray(nodes, dtype=np.int64)
     with torch.no_grad():
-        node_index = torch.as_tensor(nodes, device=v_pre.device, dtype=torch.long)
-        b = int(batch)
-        v_pre_np = v_pre[b, node_index].detach().cpu().numpy()
-        v_abs = v_post[b, node_index].detach().cpu().numpy()
-        ref = v_onset[b, nodes] if np.ndim(v_onset) == 2 else v_onset[nodes]
+        node_idx = torch.as_tensor(nodes, device=v_pre.device, dtype=torch.long)
+        v_pre_np = v_pre[batch_idx, node_idx].detach().cpu().numpy()
+        v_abs = v_post[batch_idx, node_idx].detach().cpu().numpy()
+        ref = (
+            v_onset[batch_idx, nodes] if np.ndim(v_onset) == 2 else v_onset[nodes]
+        )
         component = {
             "v_pre_d": v_pre_np - ref,
             "v_abs": v_abs,
@@ -816,7 +820,7 @@ def _component_at_nodes_hp_lp(
         ):
             t = component_t[k]
             component[k] = (
-                t[b, node_index] if t.dim() > 1 else t[node_index]
+                t[batch_idx, node_idx] if t.dim() > 1 else t[node_idx]
             ).detach().cpu().numpy()
         v_post_minus_pre_active = v_abs - v_pre_np
     return component, v_post_minus_pre_active
@@ -831,41 +835,41 @@ def _component_matrix(component: dict[str, np.ndarray], keys: tuple[str, ...]) -
     return np.column_stack([component[k] for k in keys])
 
 
-def _acc_dict_from_row(row: np.ndarray, keys: tuple[str, ...]) -> dict[str, float]:
+def _sums_dict_from_row(row: np.ndarray, keys: tuple[str, ...]) -> dict[str, float]:
     return {k: float(row[i]) for i, k in enumerate(keys)}
 
 
-def _std_from_sum_sumsq(sum_: float, sumsq: float, n: int) -> float:
+def _std_from_sum_and_sum_sq(sum_: float, sum_sq: float, n: int) -> float:
     """Match ``figure.util.std_from_traces`` (population std)."""
     if n <= 1:
         return 0.0
     mean = sum_ / n
-    var = sumsq / n - mean * mean
+    var = sum_sq / n - mean * mean
     if var <= 0.0:
         return 0.0
     return float(np.sqrt(var))
 
 
 def _step_std(
-    acc: dict[str, float], accsq: dict[str, float], n: int, spec: _ComponentSpec,
+    sums: dict[str, float], sum_sqs: dict[str, float], n: int, spec: _ComponentSpec,
 ) -> dict[str, float]:
     out: dict[str, float] = {}
     for plot_key, component_key in spec.plot_key_component.items():
         if component_key is None:
             out[plot_key] = 0.0
         else:
-            out[plot_key] = _std_from_sum_sumsq(acc[component_key], accsq[component_key], n)
+            out[plot_key] = _std_from_sum_and_sum_sq(sums[component_key], sum_sqs[component_key], n)
     return out
 
 
-def _step_from_acc(
+def _step_from_sums(
     *,
     t: int,
     t_rel: int,
     ti: int,
     v_post_val: float,
-    acc: dict[str, float],
-    accsq: dict[str, float],
+    sums: dict[str, float],
+    sum_sqs: dict[str, float],
     v_post_minus_pre_sum: float,
     n: int,
     spec: _ComponentSpec,
@@ -880,44 +884,44 @@ def _step_from_acc(
         "t_rel": t_rel,
         "ti": ti,
         "v_post": float(v_post_val),
-        "v_pre_d": acc["v_pre_d"] / n,
+        "v_pre_d": sums["v_pre_d"] / n,
         "v_post_minus_pre": v_post_minus_pre_sum / n,
-        "i_sti": acc["i_sti"] / n,
-        "std": _step_std(acc, accsq, n, spec),
+        "i_sti": sums["i_sti"] / n,
+        "std": _step_std(sums, sum_sqs, n, spec),
         "n_nodes": n,
     }
     if spec.model == "borst":
-        num = acc["num"] / n
-        den = acc["den"] / n
+        num = sums["num"] / n
+        den = sums["den"] / n
         base.update({
-            "g_exc_nS": acc["g_exc"] / n,
-            "g_inh_nS": acc["g_inh"] / n,
+            "g_exc_nS": sums["g_exc"] / n,
+            "g_inh_nS": sums["g_inh"] / n,
             "g_leak_nS": float(g_leak),
             "dt_over_c": float(dt_over_c),
-            "g_h_nS": acc["g_h"] / n,
-            "g_h_rev_nS": acc["g_h_rev"] / n,
-            "num_exc": acc["num_exc"] / n,
-            "num_inh": acc["num_inh"] / n,
-            "num_leak": acc["num_leak"] / n,
-            "num_i_h": acc["num_i_h"] / n,
-            "num_i_h_rev": acc["num_i_h_rev"] / n,
-            "num_v": acc["num_v"] / n,
+            "g_h_nS": sums["g_h"] / n,
+            "g_h_rev_nS": sums["g_h_rev"] / n,
+            "num_exc": sums["num_exc"] / n,
+            "num_inh": sums["num_inh"] / n,
+            "num_leak": sums["num_leak"] / n,
+            "num_i_h": sums["num_i_h"] / n,
+            "num_i_h_rev": sums["num_i_h_rev"] / n,
+            "num_v": sums["num_v"] / n,
             "num": num,
             "den": den,
-            "num_over_den": acc["v_abs"] / n,
+            "num_over_den": sums["v_abs"] / n,
         })
         return base
     base.update({
-        "v_syn": acc["v_syn"] / n,
-        "v_syn_exc": acc["v_syn_exc"] / n,
-        "v_syn_inh": -acc["v_syn_inh"] / n,
-        "v_sti": acc["v_sti"] / n,
-        "v_slow": acc["v_slow"] / n,
-        "v_in": acc["v_in"] / n,
-        "v_hp": acc["v_hp"] / n,
-        "dv_leak": acc["dv_leak"] / n,
-        "dv_hp": acc["dv_hp"] / n,
-        "dv_leak_plus_hp": (acc["dv_leak"] + acc["dv_hp"]) / n,
+        "v_syn": sums["v_syn"] / n,
+        "v_syn_exc": sums["v_syn_exc"] / n,
+        "v_syn_inh": -sums["v_syn_inh"] / n,
+        "v_sti": sums["v_sti"] / n,
+        "v_slow": sums["v_slow"] / n,
+        "v_in": sums["v_in"] / n,
+        "v_hp": sums["v_hp"] / n,
+        "dv_leak": sums["dv_leak"] / n,
+        "dv_hp": sums["dv_hp"] / n,
+        "dv_leak_plus_hp": (sums["dv_leak"] + sums["dv_hp"]) / n,
     })
     return base
 
@@ -929,15 +933,15 @@ class _ComponentForwardBatch:
     all_nodes: np.ndarray
     node_t0: np.ndarray
     win_len: int
-    node_to_cell: dict[int, str]
+    cell_from_node: dict[int, str]
     nodes_by_cell: dict[str, np.ndarray]
 
 
 @dataclass
-class _ComponentForwardAccum:
+class _ComponentForwardSums:
     sums: list[dict[str, np.ndarray]]
-    sumsq: list[dict[str, np.ndarray]]
-    counts: list[dict[str, np.ndarray]]
+    sum_sqs: list[dict[str, np.ndarray]]
+    n_nodes: list[dict[str, np.ndarray]]
     v_post_minus_pre_sums: list[dict[str, np.ndarray]]
     spec: _ComponentSpec
     v_ca_sums: list[dict[str, np.ndarray]] | None = None
@@ -947,20 +951,20 @@ class _ComponentForwardAccum:
 
 def _forward_component(
     session,
-    p,
+    params,
     i_sti: torch.Tensor,
     batches: list[_ComponentForwardBatch],
     cells: list[str],
     *,
     t_start: int | None = None,
     t_stop: int | None = None,
-) -> _ComponentForwardAccum:
+) -> _ComponentForwardSums:
     """Full-T step from t=0 (same loop as ``forward_full``); accumulate component.
 
     Shared by bar/spot average and bar/spot hex.
     ``v_onset`` matches ``forward_full`` (``v`` at ``t_onset - 1``). Aligned index
     ``t = t_global - node_t0``. v_post is mean absolute ``v_abs``; STD uses sum /
-    sumsq like ``std_from_traces``. When ``filter=ca``, also track ``v_ca`` /
+    sum_sqs like ``std_from_traces``. When ``filter=ca``, also track ``v_ca`` /
     ``ca`` via ``v_ca_from_v`` + ``filter_ca`` (same as ``forward_ca``).
 
     If ``t_start``/``t_stop`` are set (from ``--ms-shown`` via ``t_from_ms``), only
@@ -978,43 +982,43 @@ def _forward_component(
         raise SystemExit(f"i_sti B={B} != len(batches)={len(batches)}")
 
     spec = _component_spec(session.model, session.euler)
-    drive = _prepare_drive(session, p, i_sti)
+    drive = _prepare_drive(session, params, i_sti)
     t_onset = training.pack_t_onset(session.primary_readout)
 
     t_last: int | None = None
     if t_stop is not None:
         t_last = max(int(plan.node_t0.max()) + int(t_stop) for plan in batches)
 
-    # Same ref as forward_full: v at t_onset-1, then restart so pre is stepped+accum'd.
-    v_at_onset, _ = _equilibrate(session, p, drive, t_onset)
+    # Same ref as forward_full: v at t_onset-1, then restart so pre is stepped+accumulated.
+    v_at_onset, _ = _equilibrate(session, params, drive, t_onset)
     v_onset = v_at_onset.detach().cpu().numpy().copy()
     n_keys = spec.n_keys
     drv = _model_driver(session)
-    state, v = drv.pre_steady(session, p, B, i_sti=drive)
+    state, v = drv.pre_steady(session, params, B, i_sti=drive)
 
     use_ca = session_filter_plot_token(session) == "ca"
-    ca = training.v_ca_from_v(v, p, session) if use_ca else None
+    ca = training.v_ca_from_v(v, params, session) if use_ca else None
     tau_ca = (
-        torch.clamp(p["tau_ca"], min=float(session.delta_ms)) if use_ca else None
+        torch.clamp(params["tau_ca"], min=float(session.delta_ms)) if use_ca else None
     )
 
-    sums_b: list[dict[str, np.ndarray]] = []
-    sumsq_b: list[dict[str, np.ndarray]] = []
-    counts_b: list[dict[str, np.ndarray]] = []
-    v_post_minus_pre_sums_b: list[dict[str, np.ndarray]] = []
-    v_ca_sums_b: list[dict[str, np.ndarray]] | None = [] if use_ca else None
-    ca_sums_b: list[dict[str, np.ndarray]] | None = [] if use_ca else None
-    ca_pre_sums_b: list[dict[str, np.ndarray]] | None = [] if use_ca else None
+    batch_sums: list[dict[str, np.ndarray]] = []
+    batch_sum_sqs: list[dict[str, np.ndarray]] = []
+    batch_n_nodes: list[dict[str, np.ndarray]] = []
+    batch_v_post_minus_pre_sums: list[dict[str, np.ndarray]] = []
+    batch_v_ca_sums: list[dict[str, np.ndarray]] | None = [] if use_ca else None
+    batch_ca_sums: list[dict[str, np.ndarray]] | None = [] if use_ca else None
+    batch_ca_pre_sums: list[dict[str, np.ndarray]] | None = [] if use_ca else None
     for plan in batches:
         wl = plan.win_len
-        sums_b.append({c: np.zeros((wl, n_keys), dtype=float) for c in cells})
-        sumsq_b.append({c: np.zeros((wl, n_keys), dtype=float) for c in cells})
-        counts_b.append({c: np.zeros(wl, dtype=np.int64) for c in cells})
-        v_post_minus_pre_sums_b.append({c: np.zeros(wl, dtype=float) for c in cells})
+        batch_sums.append({c: np.zeros((wl, n_keys), dtype=float) for c in cells})
+        batch_sum_sqs.append({c: np.zeros((wl, n_keys), dtype=float) for c in cells})
+        batch_n_nodes.append({c: np.zeros(wl, dtype=np.int64) for c in cells})
+        batch_v_post_minus_pre_sums.append({c: np.zeros(wl, dtype=float) for c in cells})
         if use_ca:
-            v_ca_sums_b.append({c: np.zeros(wl, dtype=float) for c in cells})
-            ca_sums_b.append({c: np.zeros(wl, dtype=float) for c in cells})
-            ca_pre_sums_b.append({c: np.zeros(wl, dtype=float) for c in cells})
+            batch_v_ca_sums.append({c: np.zeros(wl, dtype=float) for c in cells})
+            batch_ca_sums.append({c: np.zeros(wl, dtype=float) for c in cells})
+            batch_ca_pre_sums.append({c: np.zeros(wl, dtype=float) for c in cells})
 
     node_lookups = [_node_cell_lookup(plan, cells) for plan in batches]
 
@@ -1039,12 +1043,12 @@ def _forward_component(
         step_dt = training.step_delta_ms(session, t_global, t_onset)
         if not need_component:
             state, v = drv.step(
-                state, v, p, sig_t, session,
+                state, v, params, sig_t, session,
                 delta_ms=step_dt,
             )
             if ca is not None:
                 ca = filter_ca(
-                    ca, training.v_ca_from_v(v, p, session),
+                    ca, training.v_ca_from_v(v, params, session),
                     delta_ms=step_dt, tau_ca=tau_ca,
                 )
             continue
@@ -1054,96 +1058,96 @@ def _forward_component(
             ca_pre = ca
             if spec.model == "borst":
                 state, v, (g_exc, g_inh, g_h, g_h_rev) = drv.step(
-                    state, v, p, sig_t, session,
+                    state, v, params, sig_t, session,
                     delta_ms=step_dt, return_component=True,
                 )
             else:
                 state, v, component_t = drv.step(
-                    state, v, p, sig_t, session,
+                    state, v, params, sig_t, session,
                     delta_ms=step_dt, return_component=True,
                 )
             v_ca = None
             if ca is not None:
-                v_ca = training.v_ca_from_v(v, p, session)
+                v_ca = training.v_ca_from_v(v, params, session)
                 ca = filter_ca(
                     ca_pre, v_ca, delta_ms=step_dt, tau_ca=tau_ca,
                 )
 
-        for b, plan in enumerate(batches):
-            active_pack = actives[b]
+        for batch_idx, plan in enumerate(batches):
+            active_pack = actives[batch_idx]
             if active_pack is None:
                 continue
-            active_node_index, active_t = active_pack
+            active_node_idx, active_t = active_pack
             if spec.model == "borst":
                 component, v_post_minus_pre_active = _component_at_nodes_borst(
                     v_pre, v, g_exc, g_inh, g_h, g_h_rev, sig_t,
-                    p["e_leak"], active_node_index, v_onset, batch=b,
+                    params["e_leak"], active_node_idx, v_onset, batch_idx=batch_idx,
                     delta_ms=step_dt, cap=session.cap, g_leak=session.g_leak,
                     e_exc=session.e_exc, e_inh=session.e_inh, e_h=session.e_h,
                     euler=session.euler,
                 )
             else:
                 component, v_post_minus_pre_active = _component_at_nodes_hp_lp(
-                    v_pre, v, component_t, active_node_index, v_onset, batch=b,
+                    v_pre, v, component_t, active_node_idx, v_onset, batch_idx=batch_idx,
                 )
             component_mat = _component_matrix(component, spec.keys)
-            lookup = node_lookups[b]
-            tags = lookup[active_node_index]
+            lookup = node_lookups[batch_idx]
+            tags = lookup[active_node_idx]
             v_ca_active = ca_post_active = ca_pre_active = None
             if ca is not None:
-                active_node_index_t = torch.as_tensor(
-                    active_node_index, device=ca.device, dtype=torch.long,
+                active_node_idx_t = torch.as_tensor(
+                    active_node_idx, device=ca.device, dtype=torch.long,
                 )
-                v_ca_active = v_ca[b, active_node_index_t].detach().cpu().numpy()
-                ca_post_active = ca[b, active_node_index_t].detach().cpu().numpy()
-                ca_pre_active = ca_pre[b, active_node_index_t].detach().cpu().numpy()
+                v_ca_active = v_ca[b, active_node_idx_t].detach().cpu().numpy()
+                ca_post_active = ca[b, active_node_idx_t].detach().cpu().numpy()
+                ca_pre_active = ca_pre[b, active_node_idx_t].detach().cpu().numpy()
             for ci, cell in enumerate(cells):
                 mask = tags == ci
                 if not np.any(mask):
                     continue
                 ts = active_t[mask]
                 chunk = component_mat[mask]
-                np.add.at(sums_b[b][cell], ts, chunk)
-                np.add.at(sumsq_b[b][cell], ts, chunk * chunk)
+                np.add.at(batch_sums[batch_idx][cell], ts, chunk)
+                np.add.at(batch_sum_sqs[batch_idx][cell], ts, chunk * chunk)
                 np.add.at(
-                    v_post_minus_pre_sums_b[b][cell], ts, v_post_minus_pre_active[mask],
+                    batch_v_post_minus_pre_sums[batch_idx][cell], ts, v_post_minus_pre_active[mask],
                 )
-                np.add.at(counts_b[b][cell], ts, 1)
+                np.add.at(batch_n_nodes[batch_idx][cell], ts, 1)
                 if v_ca_active is not None:
-                    np.add.at(v_ca_sums_b[b][cell], ts, v_ca_active[mask])
-                    np.add.at(ca_sums_b[b][cell], ts, ca_post_active[mask])
-                    np.add.at(ca_pre_sums_b[b][cell], ts, ca_pre_active[mask])
+                    np.add.at(batch_v_ca_sums[batch_idx][cell], ts, v_ca_active[mask])
+                    np.add.at(batch_ca_sums[batch_idx][cell], ts, ca_post_active[mask])
+                    np.add.at(batch_ca_pre_sums[batch_idx][cell], ts, ca_pre_active[mask])
 
-    return _ComponentForwardAccum(
-        sums=sums_b,
-        sumsq=sumsq_b,
-        counts=counts_b,
-        v_post_minus_pre_sums=v_post_minus_pre_sums_b,
+    return _ComponentForwardSums(
+        sums=batch_sums,
+        sum_sqs=batch_sum_sqs,
+        n_nodes=batch_n_nodes,
+        v_post_minus_pre_sums=batch_v_post_minus_pre_sums,
         spec=spec,
-        v_ca_sums=v_ca_sums_b,
-        ca_sums=ca_sums_b,
-        ca_pre_sums=ca_pre_sums_b,
+        v_ca_sums=batch_v_ca_sums,
+        ca_sums=batch_ca_sums,
+        ca_pre_sums=batch_ca_pre_sums,
     )
 
 
-def _v_post_from_accum(
-    sums: np.ndarray, counts: np.ndarray, spec: _ComponentSpec,
+def _v_post_from_sums(
+    sums: np.ndarray, n_nodes: np.ndarray, spec: _ComponentSpec,
 ) -> np.ndarray:
     """Mean absolute v_post from accumulated ``v_abs``."""
-    n = np.maximum(counts, 1)
+    n = np.maximum(n_nodes, 1)
     v_post = sums[:, spec.i_v_abs] / n
-    v_post[counts == 0] = 0.0
+    v_post[n_nodes == 0] = 0.0
     return v_post
 
 
-def _v_post_d_from_accum(
-    sums: np.ndarray, v_post_minus_pre_sums: np.ndarray, counts: np.ndarray,
+def _v_post_d_from_sums(
+    sums: np.ndarray, v_post_minus_pre_sums: np.ndarray, n_nodes: np.ndarray,
     spec: _ComponentSpec,
 ) -> np.ndarray:
     """Mean ``v_post_d`` = v_post − v_onset = v_pre_d + v_post_minus_pre."""
-    n = np.maximum(counts, 1)
+    n = np.maximum(n_nodes, 1)
     v_post_d = sums[:, spec.i_v_pre_d] / n + v_post_minus_pre_sums / n
-    v_post_d[counts == 0] = 0.0
+    v_post_d[n_nodes == 0] = 0.0
     return v_post_d
 
 
@@ -1169,11 +1173,11 @@ def _finalize_component_report(
     mode: str,
     before_t: int,
     nodes: np.ndarray,
-    p,
+    params,
     session,
     sums: np.ndarray,
-    sumsq: np.ndarray,
-    counts: np.ndarray,
+    sum_sqs: np.ndarray,
+    n_nodes: np.ndarray,
     v_post_minus_pre_sums: np.ndarray,
     v_post: np.ndarray,
     time_window: TimeWindow,
@@ -1184,9 +1188,9 @@ def _finalize_component_report(
     ca_sums: np.ndarray | None = None,
     ca_pre_sums: np.ndarray | None = None,
 ) -> dict[str, Any]:
-    """Build one report dict from a single batch×cell accum row."""
+    """Build one report dict from a single batch×cell sums row."""
     # Peak on |v_post_d| (= |v_post − v_onset| = |v_pre_d + v_post_minus_pre|).
-    v_post_d = _v_post_d_from_accum(sums, v_post_minus_pre_sums, counts, component_spec)
+    v_post_d = _v_post_d_from_sums(sums, v_post_minus_pre_sums, n_nodes, component_spec)
     n = int(v_post_d.size)
     if time_window.kind == "ms":
         dt = float(session.delta_ms)
@@ -1195,7 +1199,7 @@ def _finalize_component_report(
         if t_lo < 0 or t_hi >= n or t_lo > t_hi:
             raise SystemExit(
                 f"--ms-shown {time_window.start:g},{time_window.stop:g} "
-                f"(t={t_lo}:{t_hi}) out of range for accum length {n}"
+                f"(t={t_lo}:{t_hi}) out of range for sums length {n}"
             )
         seg = v_post_d[t_lo:t_hi + 1]
         peak_t = t_lo + int(np.argmax(np.abs(seg))) if seg.size else t_lo
@@ -1206,8 +1210,8 @@ def _finalize_component_report(
     steps: list[dict[str, Any]] = []
     peak_step: dict[str, Any] | None = None
     for t in range(t_lo, t_hi + 1):
-        n_nodes = int(counts[t])
-        if n_nodes == 0:
+        n = int(n_nodes[t])
+        if n == 0:
             continue
         if ti_mode == "t_rel":
             ti = t
@@ -1216,11 +1220,11 @@ def _finalize_component_report(
         else:
             raise ValueError(f"unknown ti_mode {ti_mode!r}")
         t_rel = t - peak_t
-        step = _step_from_acc(
+        step = _step_from_sums(
             t=t, t_rel=t_rel, ti=ti, v_post_val=float(v_post[t]),
-            acc=_acc_dict_from_row(sums[t], component_spec.keys),
-            accsq=_acc_dict_from_row(sumsq[t], component_spec.keys),
-            v_post_minus_pre_sum=float(v_post_minus_pre_sums[t]), n=n_nodes,
+            sums=_sums_dict_from_row(sums[t], component_spec.keys),
+            sum_sqs=_sums_dict_from_row(sum_sqs[t], component_spec.keys),
+            v_post_minus_pre_sum=float(v_post_minus_pre_sums[t]), n=n,
             spec=component_spec,
             g_leak=float(session.g_leak),
             dt_over_c=float(training.membrane_dt_over_c(session.cap, session.delta_ms)),
@@ -1258,7 +1262,7 @@ def _finalize_component_report(
         "v_post_d_peak": float(v_post_d[peak_t]),
         "v_post_d_polarity": _polarity(float(v_post_d[peak_t])),
         "v_post_d_onset_t": onset,
-        "params": _node_params(p, session, int(nodes[0])),
+        "params": _node_params(params, session, int(nodes[0])),
         "globals": _globals(session),
         "steps": steps,
         "peak_step": peak_step,
@@ -1268,14 +1272,14 @@ def _finalize_component_report(
         "v_post": v_post.tolist(),
     }
     if v_ca_sums is not None:
-        n_t = np.maximum(counts, 1)
+        n_t = np.maximum(n_nodes, 1)
         v_ca_trace = v_ca_sums / n_t
-        v_ca_trace[counts == 0] = 0.0
+        v_ca_trace[n_nodes == 0] = 0.0
         report["v_ca"] = v_ca_trace.tolist()
     if ca_sums is not None:
-        n_t = np.maximum(counts, 1)
+        n_t = np.maximum(n_nodes, 1)
         ca_trace = ca_sums / n_t
-        ca_trace[counts == 0] = 0.0
+        ca_trace[n_nodes == 0] = 0.0
         report["ca"] = ca_trace.tolist()
     if extra:
         report.update(extra)
@@ -1315,8 +1319,8 @@ def _polarity(v: float, *, eps: float = 1e-3) -> str:
     return "0"
 
 
-def _scalar_param_at_node(p, key: str, session, node: int) -> float:
-    raw = p[key]
+def _scalar_param_at_node(params, key: str, session, node: int) -> float:
+    raw = params[key]
     backend = session.backend
     if torch.is_tensor(raw):
         if raw.dim() == 0:
@@ -1329,38 +1333,38 @@ def _scalar_param_at_node(p, key: str, session, node: int) -> float:
     return float(raw)
 
 
-def _node_params(p, session, node: int) -> dict[str, float]:
+def _node_params(params, session, node: int) -> dict[str, float]:
     backend = session.backend
     for key in ("a_gt", "bias_gt"):
-        if key not in p:
+        if key not in params:
             raise SystemExit(f"params missing {key}")
-    a_gt = _scalar_param_at_node(p, "a_gt", session, node)
-    bias_gt = _scalar_param_at_node(p, "bias_gt", session, node)
+    a_gt = _scalar_param_at_node(params, "a_gt", session, node)
+    bias_gt = _scalar_param_at_node(params, "bias_gt", session, node)
     if session.model == "hp_lp":
         return {
-            "a_in": float(p["a_in"][node]),
-            "a_out": float(p["a_out"][node]),
-            "v_th": float(p["v_th"][node]),
+            "a_in": float(params["a_in"][node]),
+            "a_out": float(params["a_out"][node]),
+            "v_th": float(params["v_th"][node]),
             "a_gt": a_gt,
             "bias_gt": bias_gt,
-            "e_leak_mV": float(p["e_leak"][node]),
-            "tau_lp_ms": float(p["tau_lp"][node]),
-            "tau_hp_ms": float(p["tau_hp"][node]),
-            "a_h": float(p["a_h"][node]),
+            "e_leak_mV": float(params["e_leak"][node]),
+            "tau_lp_ms": float(params["tau_lp"][node]),
+            "tau_hp_ms": float(params["tau_hp"][node]),
+            "a_h": float(params["a_h"][node]),
         }
     from neuron.schema import borst_i_h_rev_kwargs
 
     i_h_rev = (session.train_opts or {})["i_h_rev"]
-    a_h_rev, *_rest = borst_i_h_rev_kwargs(p, i_h_rev)
-    e_leak = float(p["e_leak"][node])
+    a_h_rev, *_rest = borst_i_h_rev_kwargs(params, i_h_rev)
+    e_leak = float(params["e_leak"][node])
     return {
-        "a_in": float(p["a_in"][node]),
-        "a_out": float(p["a_out"][node]),
+        "a_in": float(params["a_in"][node]),
+        "a_out": float(params["a_out"][node]),
         "a_gt": a_gt,
         "bias_gt": bias_gt,
-        "v_th": float(p["v_th"][node]),
+        "v_th": float(params["v_th"][node]),
         "h_g_max": float(session.h_g_max),
-        "a_h": float(p["a_h"][node]),
+        "a_h": float(params["a_h"][node]),
         "a_h_rev": float(a_h_rev[node]),
         "e_leak_mV": e_leak,
         "e_h_rev": float(training.e_h_rev(e_leak, session.e_h)),
@@ -1390,12 +1394,12 @@ def _globals(session):
     }
 
 
-def _node_to_cell_map(nodes_by_cell: dict[str, np.ndarray]) -> dict[int, str]:
-    node_id_to_cell: dict[int, str] = {}
-    for cell, node_ids in nodes_by_cell.items():
-        for node_id in np.asarray(node_ids, dtype=np.int64).ravel():
-            node_id_to_cell[int(node_id)] = cell
-    return node_id_to_cell
+def cell_from_node(nodes_by_cell: dict[str, np.ndarray]) -> dict[int, str]:
+    out: dict[int, str] = {}
+    for cell, node_indices in nodes_by_cell.items():
+        for node_idx in np.asarray(node_indices, dtype=np.int64).ravel():
+            out[int(node_idx)] = cell
+    return out
 
 
 def _node_cell_lookup(plan: _ComponentForwardBatch, cells: list[str]) -> np.ndarray:
@@ -1404,15 +1408,15 @@ def _node_cell_lookup(plan: _ComponentForwardBatch, cells: list[str]) -> np.ndar
     if plan.all_nodes.size == 0:
         return np.empty(0, dtype=np.int32)
     out = np.full(int(plan.all_nodes.max()) + 1, -1, dtype=np.int32)
-    for node_id, cname in plan.node_to_cell.items():
+    for node_id, cname in plan.cell_from_node.items():
         ci = cell_i.get(cname)
         if ci is not None:
             out[int(node_id)] = ci
     return out
 
 
-def _merge_forward_accum(
-    accum: _ComponentForwardAccum,
+def _merge_forward_sums(
+    forward_sums: _ComponentForwardSums,
     forward_batches: list[_ComponentForwardBatch],
     cells: list[str],
     win_len: int,
@@ -1426,26 +1430,26 @@ def _merge_forward_accum(
     dict[str, np.ndarray] | None,
     dict[str, np.ndarray] | None,
 ]:
-    """Sum per-cell accum rows across run batches (spot multi-stimulus mean)."""
-    n_keys = accum.spec.n_keys
+    """Sum per-cell sums rows across run batches (spot multi-stimulus mean)."""
+    n_keys = forward_sums.spec.n_keys
     sums = {c: np.zeros((win_len, n_keys), dtype=float) for c in cells}
-    sumsq = {c: np.zeros((win_len, n_keys), dtype=float) for c in cells}
-    counts = {c: np.zeros(win_len, dtype=np.int64) for c in cells}
+    sum_sqs = {c: np.zeros((win_len, n_keys), dtype=float) for c in cells}
+    n_nodes = {c: np.zeros(win_len, dtype=np.int64) for c in cells}
     v_post_minus_pre_sums = {c: np.zeros(win_len, dtype=float) for c in cells}
     nodes_ref = {c: np.zeros(0, dtype=np.int64) for c in cells}
     v_ca_sums = (
         {c: np.zeros(win_len, dtype=float) for c in cells}
-        if accum.v_ca_sums is not None else None
+        if forward_sums.v_ca_sums is not None else None
     )
     ca_sums = (
         {c: np.zeros(win_len, dtype=float) for c in cells}
-        if accum.ca_sums is not None else None
+        if forward_sums.ca_sums is not None else None
     )
     ca_pre_sums = (
         {c: np.zeros(win_len, dtype=float) for c in cells}
-        if accum.ca_pre_sums is not None else None
+        if forward_sums.ca_pre_sums is not None else None
     )
-    for b, plan in enumerate(forward_batches):
+    for batch_idx, plan in enumerate(forward_batches):
         for cell in cells:
             if cell not in plan.nodes_by_cell:
                 continue
@@ -1454,16 +1458,16 @@ def _merge_forward_accum(
                 continue
             if nodes_ref[cell].size == 0:
                 nodes_ref[cell] = us
-            sums[cell] += accum.sums[b][cell]
-            sumsq[cell] += accum.sumsq[b][cell]
-            counts[cell] += accum.counts[b][cell]
-            v_post_minus_pre_sums[cell] += accum.v_post_minus_pre_sums[b][cell]
+            sums[cell] += forward_sums.sums[batch_idx][cell]
+            sum_sqs[cell] += forward_sums.sum_sqs[batch_idx][cell]
+            n_nodes[cell] += forward_sums.n_nodes[batch_idx][cell]
+            v_post_minus_pre_sums[cell] += forward_sums.v_post_minus_pre_sums[batch_idx][cell]
             if v_ca_sums is not None:
-                v_ca_sums[cell] += accum.v_ca_sums[b][cell]
-                ca_sums[cell] += accum.ca_sums[b][cell]
-                ca_pre_sums[cell] += accum.ca_pre_sums[b][cell]
+                v_ca_sums[cell] += forward_sums.v_ca_sums[batch_idx][cell]
+                ca_sums[cell] += forward_sums.ca_sums[batch_idx][cell]
+                ca_pre_sums[cell] += forward_sums.ca_pre_sums[batch_idx][cell]
     return (
-        sums, sumsq, counts, v_post_minus_pre_sums, nodes_ref,
+        sums, sum_sqs, n_nodes, v_post_minus_pre_sums, nodes_ref,
         v_ca_sums, ca_sums, ca_pre_sums,
     )
 
@@ -1480,7 +1484,7 @@ def _build_forward_batch(
         all_nodes=all_nodes,
         node_t0=np.asarray(t0_bn_row[all_nodes], dtype=np.int64),
         win_len=int(win_len),
-        node_to_cell=_node_to_cell_map(nodes_by_cell),
+        cell_from_node=cell_from_node(nodes_by_cell),
         nodes_by_cell=nodes_by_cell,
     )
 
@@ -1545,18 +1549,18 @@ def _resolve_bar_spec_i_sti(
     pack = session.pack_for(task)
     if specs is None or grids is None:
         specs, grids = _bar_meta(session, task)
-    spec_name_to_batch_index = {s.name: i for i, s in enumerate(specs)}
-    missing = [s for s in spec_names if s not in spec_name_to_batch_index]
+    batch_idx_from_spec_name = {s.name: i for i, s in enumerate(specs)}
+    missing = [s for s in spec_names if s not in batch_idx_from_spec_name]
     if missing:
         raise SystemExit(f"spec(s) {missing} not in {[s.name for s in specs]}")
-    spec_batch_indices = [spec_name_to_batch_index[s] for s in spec_names]
+    spec_batch_indices = [batch_idx_from_spec_name[s] for s in spec_names]
     return pack, specs, grids, spec_batch_indices, pack.i_sti[spec_batch_indices], np.asarray(grids.t0_bn)
 
 
 def _analyze_component_forward(
     session,
     *,
-    p,
+    params,
     cells: list[str],
     task: str,
     i_sti: torch.Tensor,
@@ -1582,12 +1586,12 @@ def _analyze_component_forward(
         raise SystemExit("before_t/batch_specs length must match forward_batches")
 
     dt = float(session.delta_ms)
-    accum = _forward_component(
-        session, p, i_sti, forward_batches, cells,
+    forward_sums = _forward_component(
+        session, params, i_sti, forward_batches, cells,
         t_start=time_window.forward_t_start(delta_ms=dt),
         t_stop=time_window.forward_t_stop(delta_ms=dt),
     )
-    component_spec = accum.spec
+    component_spec = forward_sums.spec
 
     def _one_report(
         *,
@@ -1596,8 +1600,8 @@ def _analyze_component_forward(
         before: int,
         nodes: np.ndarray,
         sums: np.ndarray,
-        sumsq: np.ndarray,
-        counts: np.ndarray,
+        sum_sqs: np.ndarray,
+        n_nodes: np.ndarray,
         v_post_minus_pre_sums: np.ndarray,
         v_ca_sums: np.ndarray | None = None,
         ca_sums: np.ndarray | None = None,
@@ -1605,9 +1609,9 @@ def _analyze_component_forward(
     ) -> dict[str, Any]:
         if nodes.size == 0:
             raise SystemExit(f"no nodes for cell {cell!r}")
-        v_post = _v_post_from_accum(sums, counts, component_spec)
-        v_post_d = _v_post_d_from_accum(
-            sums, v_post_minus_pre_sums, counts, component_spec,
+        v_post = _v_post_from_sums(sums, n_nodes, component_spec)
+        v_post_d = _v_post_d_from_sums(
+            sums, v_post_minus_pre_sums, n_nodes, component_spec,
         )
         cell_extra = dict(extra) if extra else {}
         if extra_for_cell is not None:
@@ -1619,11 +1623,11 @@ def _analyze_component_forward(
             mode=mode,
             before_t=before,
             nodes=nodes,
-            p=p,
+            params =params,
             session=session,
             sums=sums,
-            sumsq=sumsq,
-            counts=counts,
+            sum_sqs=sum_sqs,
+            n_nodes=n_nodes,
             v_post_minus_pre_sums=v_post_minus_pre_sums,
             v_post=v_post,
             time_window=time_window,
@@ -1641,10 +1645,10 @@ def _analyze_component_forward(
     if merge_batches:
         win_len = forward_batches[0].win_len
         (
-            sums, sumsq, counts, v_post_minus_pre_sums, nodes_ref,
+            sums, sum_sqs, n_nodes, v_post_minus_pre_sums, nodes_ref,
             v_ca_sums, ca_sums, ca_pre_sums,
-        ) = _merge_forward_accum(
-            accum, forward_batches, cells, win_len,
+        ) = _merge_forward_sums(
+            forward_sums, forward_batches, cells, win_len,
         )
         before = int(before_t[0])
         return {
@@ -1654,8 +1658,8 @@ def _analyze_component_forward(
                 before=before,
                 nodes=nodes_ref[cell],
                 sums=sums[cell],
-                sumsq=sumsq[cell],
-                counts=counts[cell],
+                sum_sqs=sum_sqs[cell],
+                n_nodes=n_nodes[cell],
                 v_post_minus_pre_sums=v_post_minus_pre_sums[cell],
                 v_ca_sums=None if v_ca_sums is None else v_ca_sums[cell],
                 ca_sums=None if ca_sums is None else ca_sums[cell],
@@ -1665,7 +1669,7 @@ def _analyze_component_forward(
         }
 
     out: dict[str, dict[str, dict[str, Any]]] = {}
-    for b, spec in enumerate(batch_specs):
+    for batch_idx, spec in enumerate(batch_specs):
         if spec is None:
             raise SystemExit("non-merge component forward requires batch_specs as str")
         out[spec] = {}
@@ -1673,21 +1677,21 @@ def _analyze_component_forward(
             out[spec][cell] = _one_report(
                 cell=cell,
                 spec=spec,
-                before=int(before_t[b]),
-                nodes=forward_batches[b].nodes_by_cell[cell],
-                sums=accum.sums[b][cell],
-                sumsq=accum.sumsq[b][cell],
-                counts=accum.counts[b][cell],
-                v_post_minus_pre_sums=accum.v_post_minus_pre_sums[b][cell],
+                before=int(before_t[batch_idx]),
+                nodes=forward_batches[batch_idx].nodes_by_cell[cell],
+                sums=forward_sums.sums[batch_idx][cell],
+                sum_sqs=forward_sums.sum_sqs[batch_idx][cell],
+                n_nodes=forward_sums.n_nodes[batch_idx][cell],
+                v_post_minus_pre_sums=forward_sums.v_post_minus_pre_sums[batch_idx][cell],
                 v_ca_sums=(
-                    None if accum.v_ca_sums is None else accum.v_ca_sums[b][cell]
+                    None if forward_sums.v_ca_sums is None else forward_sums.v_ca_sums[batch_idx][cell]
                 ),
                 ca_sums=(
-                    None if accum.ca_sums is None else accum.ca_sums[b][cell]
+                    None if forward_sums.ca_sums is None else forward_sums.ca_sums[batch_idx][cell]
                 ),
                 ca_pre_sums=(
-                    None if accum.ca_pre_sums is None
-                    else accum.ca_pre_sums[b][cell]
+                    None if forward_sums.ca_pre_sums is None
+                    else forward_sums.ca_pre_sums[batch_idx][cell]
                 ),
             )
     return out
@@ -1696,7 +1700,7 @@ def _analyze_component_forward(
 def _analyze_bar_forward(
     session,
     *,
-    p,
+    params,
     cells: list[str],
     task: str,
     spec_names: list[str],
@@ -1711,28 +1715,28 @@ def _analyze_bar_forward(
     pack, specs, grids, spec_batch_indices, i_sti, t0_bn = _resolve_bar_spec_i_sti(
         session, task, spec_names, specs=specs, grids=grids,
     )
-    before_b: list[int] = []
+    before_by_batch: list[int] = []
     forward_batches: list[_ComponentForwardBatch] = []
-    for spec_batch_index, spec in zip(spec_batch_indices, spec_names):
-        spec_nodes_by_cell = nodes_for_bi(spec_batch_index, spec, pack=pack, t0_bn=t0_bn)
+    for spec_batch_idx, spec in zip(spec_batch_indices, spec_names):
+        spec_nodes_by_cell = nodes_for_bi(spec_batch_idx, spec, pack=pack, t0_bn=t0_bn)
         before = int(grids.before_t[spec])
         after = int(grids.after_t[spec])
-        before_b.append(before)
+        before_by_batch.append(before)
         forward_batches.append(
             _build_forward_batch(
                 spec_nodes_by_cell,
-                t0_bn_row=t0_bn[spec_batch_index],
+                t0_bn_row=t0_bn[spec_batch_idx],
                 win_len=before + after + 1,
             ),
         )
     return _analyze_component_forward(
         session,
-        p=p,
+        params =params,
         cells=cells,
         task=task,
         i_sti=i_sti,
         forward_batches=forward_batches,
-        before_t=before_b,
+        before_t=before_by_batch,
         batch_specs=list(spec_names),
         time_window=time_window,
         mode=mode,
@@ -1745,7 +1749,7 @@ def _analyze_bar_forward(
 def analyze_bar_average(
     session,
     *,
-    p,
+    params,
     cells: list[str],
     task: str,
     spec_names: list[str],
@@ -1772,13 +1776,13 @@ def analyze_bar_average(
                 raise SystemExit(str(exc)) from exc
             nodes = nodes[t0_bn[bi, nodes] >= 0]
             if nodes.size == 0:
-                raise SystemExit(f"no valid {cell} nodes in cost_radius for bar aggregation")
+                raise SystemExit(f"no valid {cell} nodes in cost_radius for bar")
             out[cell] = nodes
         return out
 
     return _analyze_bar_forward(
         session,
-        p=p,
+        params =params,
         cells=cells,
         task=task,
         spec_names=spec_names,
@@ -1811,12 +1815,12 @@ def _spot_session_readout(session_one, cells: list[str]):
         pack_spot_cost_radii(pack),
         pack.cost_radius,
     )
-    cell_name_to_type_index: dict[str, int] = {}
+    type_idx_from_cell_name: dict[str, int] = {}
     for cell in cells:
         if cell not in C.cell_names:
             raise SystemExit(f"unknown cell {cell!r}")
-        cell_name_to_type_index[cell] = C.cell_names.index(cell)
-    return pack, batch_idx, node_idx, radii, type_idx, cell_name_to_type_index
+        type_idx_from_cell_name[cell] = C.cell_names.index(cell)
+    return pack, batch_idx, node_idx, radii, type_idx, type_idx_from_cell_name
 
 
 def _spot_radius_row(radii: np.ndarray, radius: int) -> np.ndarray:
@@ -1858,7 +1862,7 @@ def _spot_gt_extra(
 
 
 def _spot_extra_for_cell_fn(
-    session_one, p, pack, *, radius: int, t_onset: int, train_filter,
+    session_one, params, pack, *, radius: int, t_onset: int, train_filter,
 ):
     """Build ``extra_for_cell`` with training GT named ``gt_v`` / ``gt_ca``."""
     from param_defaults import BIAS_GT_FROM_V_ONSET, PARAM_BOXES
@@ -1880,17 +1884,17 @@ def _spot_extra_for_cell_fn(
         if from_onset and 0 <= int(t_onset) < len(v_post):
             ci = names.index(str(cell))
             val = float(np.clip(float(v_post[int(t_onset)]), lo, hi))
-            bg = p["bias_gt"]
+            bg = params["bias_gt"]
             if torch.is_tensor(bg):
                 if bg.dim() == 0:
-                    p["bias_gt"] = bg.new_tensor(val)
+                    params["bias_gt"] = bg.new_tensor(val)
                 else:
-                    p["bias_gt"] = bg.clone()
-                    p["bias_gt"][ci] = val
+                    params["bias_gt"] = bg.clone()
+                    params["bias_gt"][ci] = val
             else:
-                p["bias_gt"] = val
+                params["bias_gt"] = val
         a_gt, bias_gt = gt_affine_scalars_for_cell(
-            p, cell, session_one.backend, session=session_one,
+            params, cell, session_one.backend, session=session_one,
         )
         return _spot_gt_extra(
             cell=cell,
@@ -1910,7 +1914,7 @@ def _spot_extra_for_cell_fn(
 def analyze_spot_average(
     session_one,
     *,
-    p,
+    params,
     cells: list[str],
     task: str,
     time_window: TimeWindow,
@@ -1927,7 +1931,7 @@ def analyze_spot_average(
     if task not in training.SPOT_TASKS:
         raise SystemExit(f"unsupported task {task!r}")
     radius = int(radius)
-    pack, batch_idx, node_idx, radii, type_idx, cell_name_to_type_index = _spot_session_readout(
+    pack, batch_idx, node_idx, radii, type_idx, type_idx_from_cell_name = _spot_session_readout(
         session_one, cells,
     )
     radius_row = _spot_radius_row(radii, radius)
@@ -1940,48 +1944,48 @@ def analyze_spot_average(
 
     forward_batches: list[_ComponentForwardBatch] = []
     i_sti_rows: list[int] = []
-    for b in range(B_all):
-        row_mask = radius_row & (batch_idx == b)
+    for stimulus_batch_idx in range(B_all):
+        row_mask = radius_row & (batch_idx == stimulus_batch_idx)
         if not np.any(row_mask):
             continue
         nodes_by_cell: dict[str, np.ndarray] = {}
         for cell in cells:
-            m = row_mask & (type_idx == cell_name_to_type_index[cell])
-            if np.any(m):
-                nodes_by_cell[cell] = np.unique(node_idx[m])
+            cell_row_mask = row_mask & (type_idx == type_idx_from_cell_name[cell])
+            if np.any(cell_row_mask):
+                nodes_by_cell[cell] = np.unique(node_idx[cell_row_mask])
         if not nodes_by_cell:
             continue
         forward_batches.append(
             _build_forward_batch(nodes_by_cell, t0_bn_row=t0_abs, win_len=win_len),
         )
-        i_sti_rows.append(b)
+        i_sti_rows.append(stimulus_batch_idx)
 
     if not forward_batches:
         raise SystemExit(
             f"no spot nodes at radius={radius} for requested cells in spot readout"
         )
 
-    n_b = len(forward_batches)
+    n_batch = len(forward_batches)
     return _analyze_component_forward(
         session_one,
-        p=p,
+        params =params,
         cells=cells,
         task=task,
         i_sti=i_sti[i_sti_rows],
         forward_batches=forward_batches,
-        before_t=[t_onset] * n_b,
-        batch_specs=[None] * n_b,
+        before_t=[t_onset] * n_batch,
+        batch_specs=[None] * n_batch,
         time_window=time_window,
         mode="average",
         ti_mode="abs_minus_before",
         merge_batches=True,
         extra={"radius": radius},
         extra_for_cell=_spot_extra_for_cell_fn(
-            session_one, p, pack, radius=radius, t_onset=t_onset,
+            session_one, params, pack, radius=radius, t_onset=t_onset,
             train_filter=train_filter,
         ),
         n_nodes_for_cell=lambda cell: int(
-            np.sum(radius_row & (type_idx == cell_name_to_type_index[cell]))
+            np.sum(radius_row & (type_idx == type_idx_from_cell_name[cell]))
         ),
     )
 
@@ -2038,7 +2042,7 @@ def _resolve_hex_node(
 def analyze_spot_hex(
     session_one,
     *,
-    p,
+    params,
     cell: str,
     task: str,
     at_x: float,
@@ -2050,7 +2054,7 @@ def analyze_spot_hex(
     """One batched v forward at one hex; stim-on (radius 0) rows for that node only."""
     if task not in training.SPOT_TASKS:
         raise SystemExit(f"unsupported task {task!r}")
-    pack, batch_idx, node_idx, radii, type_idx, cell_name_to_type_index = _spot_session_readout(
+    pack, batch_idx, node_idx, radii, type_idx, type_idx_from_cell_name = _spot_session_readout(
         session_one, [cell],
     )
     radius_row = _spot_radius_row(radii, 0)
@@ -2065,14 +2069,14 @@ def analyze_spot_hex(
     t0_abs = np.zeros(_N, dtype=np.int64)
     win_len = time_window.aligned_win_len(T, delta_ms=float(session_one.delta_ms))
     node_arr = np.asarray([node], dtype=np.int64)
-    type_cell = cell_name_to_type_index[cell]
+    type_cell = type_idx_from_cell_name[cell]
 
     forward_batches: list[_ComponentForwardBatch] = []
     i_sti_rows: list[int] = []
-    for b in range(B_all):
+    for stimulus_batch_idx in range(B_all):
         row_mask = (
             radius_row
-            & (batch_idx == b)
+            & (batch_idx == stimulus_batch_idx)
             & (type_idx == type_cell)
             & (node_idx == node)
         )
@@ -2081,23 +2085,23 @@ def analyze_spot_hex(
         forward_batches.append(
             _build_forward_batch({cell: node_arr}, t0_bn_row=t0_abs, win_len=win_len),
         )
-        i_sti_rows.append(b)
+        i_sti_rows.append(stimulus_batch_idx)
 
     if not forward_batches:
         raise SystemExit(
             f"no stim-on spot rows for {cell} node {node} at hex ({at_x},{at_y})"
         )
 
-    n_b = len(forward_batches)
+    n_batch = len(forward_batches)
     return _analyze_component_forward(
         session_one,
-        p=p,
+        params =params,
         cells=[cell],
         task=task,
         i_sti=i_sti[i_sti_rows],
         forward_batches=forward_batches,
-        before_t=[t_onset] * n_b,
-        batch_specs=[None] * n_b,
+        before_t=[t_onset] * n_batch,
+        batch_specs=[None] * n_batch,
         time_window=time_window,
         mode="hex",
         ti_mode="abs_minus_before",
@@ -2108,7 +2112,7 @@ def analyze_spot_hex(
             "uv": {"u": int(hex.u), "v": int(hex.v)},
         },
         extra_for_cell=_spot_extra_for_cell_fn(
-            session_one, p, pack, radius=0, t_onset=t_onset,
+            session_one, params, pack, radius=0, t_onset=t_onset,
             train_filter=train_filter,
         ),
         n_nodes_for_cell=lambda _c: 1,
@@ -2118,7 +2122,7 @@ def analyze_spot_hex(
 def analyze_bar_hex(
     session,
     *,
-    p,
+    params,
     cell: str,
     task: str,
     spec_names: list[str],
@@ -2145,7 +2149,7 @@ def analyze_bar_hex(
 
     return _analyze_bar_forward(
         session,
-        p=p,
+        params =params,
         cells=[cell],
         task=task,
         spec_names=spec_names,
@@ -2375,10 +2379,10 @@ def _plot_component_reports(
                 if gt_key is not None:
                     gt_full = np.asarray(rep[gt_key], dtype=float)
                     t_onset = int(rep.get("before_t") or 0)
-                    ix = ts - t_onset
-                    valid = (ix >= 0) & (ix < gt_full.shape[0])
+                    time_idx = ts - t_onset
+                    valid = (time_idx >= 0) & (time_idx < gt_full.shape[0])
                     if np.any(valid):
-                        y_gt = gt_full[ix[valid]]
+                        y_gt = gt_full[time_idx[valid]]
                         xs_gt = xs[valid]
                         if ri in spec.row_shared_ylim:
                             row_curves[ri].append(y_gt)
@@ -2751,7 +2755,7 @@ def main() -> None:
             z_t, schema, session, param_edits,
         )
         session = session.with_schema(schema)
-        p = training.materialize_from_opts(
+        params = training.materialize_from_opts(
             training.assign_params(z_t, schema, session.backend), session,
         )
         cost = float(training.calc_cost(z_t, session).item())
@@ -2787,7 +2791,7 @@ def main() -> None:
                     )
                     reports = analyze_spot_hex(
                         session_one,
-                        p=p,
+                        params =params,
                         cell=cli.cells[0],
                         task=task,
                         at_x=float(at_x),
@@ -2803,7 +2807,7 @@ def main() -> None:
                     )
                     reports = analyze_spot_average(
                         session_one,
-                        p=p,
+                        params =params,
                         cells=cli.cells,
                         task=task,
                         time_window=time_window,
@@ -2842,7 +2846,7 @@ def main() -> None:
                     )
                     reports_by_spec = analyze_bar_hex(
                         session,
-                        p=p,
+                        params =params,
                         cell=cells_bar[0],
                         task=task,
                         spec_names=specs_ordered,
@@ -2860,7 +2864,7 @@ def main() -> None:
                     )
                     reports_by_spec = analyze_bar_average(
                         session,
-                        p=p,
+                        params =params,
                         cells=cells_bar,
                         task=task,
                         spec_names=specs_ordered,

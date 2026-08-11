@@ -87,12 +87,12 @@ def _plot(
     present = [str(n) for n in GT_CELLS]
     groups = [np.array(row) for row in cell_order_rows(present)]
     nrows = len(groups)
-    ncols = max(len(g) for g in groups)
+    ncols = max(len(cell_group) for cell_group in groups)
     fig, axes = plt.subplots(
         nrows, ncols, figsize=(2.2 * ncols, 2.0 * nrows), squeeze=False,
     )
     t_s = (np.arange(v_cube.shape[1]) - t_onset) * delta_ms / 1000.0
-    name_to_i = {str(n): i for i, n in enumerate(GT_CELLS)}
+    i_from_name = {str(n): i for i, n in enumerate(GT_CELLS)}
 
     for r, group in enumerate(groups):
         for c in range(ncols):
@@ -101,7 +101,7 @@ def _plot(
                 ax.axis("off")
                 continue
             name = str(group[c])
-            i = name_to_i[name]
+            i = i_from_name[name]
             ax.plot(
                 t_s, v_cube[i], color="C0", lw=TRACE_LW,
                 label=f"v (GT_AMP·(RF_sign·ImpR−{impr_offset:g}))",
@@ -151,13 +151,13 @@ def _plot_tau_sweep(
     present = [str(n) for n in GT_CELLS]
     groups = [np.array(row) for row in cell_order_rows(present)]
     nrows = len(groups)
-    ncols = max(len(g) for g in groups)
+    ncols = max(len(cell_group) for cell_group in groups)
     fig, axes = plt.subplots(
         nrows, ncols, figsize=(2.2 * ncols, 2.0 * nrows), squeeze=False,
     )
     n_t = gt_ca_cube.shape[1]
     t_s = (np.arange(n_t) - t_onset) * delta_ms / 1000.0
-    name_to_i = {str(n): i for i, n in enumerate(GT_CELLS)}
+    i_from_name = {str(n): i for i, n in enumerate(GT_CELLS)}
     tau_colors = [f"C{k}" for k in range(len(tau_list))]
 
     for r, group in enumerate(groups):
@@ -167,7 +167,7 @@ def _plot_tau_sweep(
                 ax.axis("off")
                 continue
             name = str(group[c])
-            i = name_to_i[name]
+            i = i_from_name[name]
             ys = [gt_ca_cube[i]]
             for tau, color in zip(tau_list, tau_colors):
                 tr = ca_by_tau[tau][i]
