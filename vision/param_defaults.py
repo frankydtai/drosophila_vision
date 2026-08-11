@@ -16,7 +16,7 @@ import math
 from typing import Dict, Tuple
 
 DEFAULT_RUN_NAME = """
-29080544-run-n-iter-300-a-h-init.L1,L2,L4,L5-0.5
+29083129-run-n-iter-300-a-h-init.L1,L2,L4,L5-0.5
 """.strip()
 DEFAULT_RUN_PATH = "hp_lp/" + DEFAULT_RUN_NAME
 
@@ -71,7 +71,7 @@ PARAM_BOXES: Dict[str, dict] = {
     # ca only
     "v_th_ca": dict(lo=-100.0, hi=100.0, init=-50.0, jit=0.0, train_mode="indi"),
     "a_ca": dict(lo=GAIN_LO, hi=GAIN_HI, init=1.0, jit=0.1, train_mode="indi"),
-    "tau_ca": dict(lo=100.0, hi=1000.0, init=350.0, jit=5.0, train_mode="indi"),
+    "tau_ca": dict(lo=100.0, hi=1000.0, init=350.0, jit=10.0, train_mode="indi"),
     # Slots from SPOT_STI_RADII; cost-radius weight==0 gates slot to 0 in forward.
     "a_sti_radius": dict(lo=0.0, hi=1.0, init=0.0, jit=0.05, train_mode="indi"),
 }
