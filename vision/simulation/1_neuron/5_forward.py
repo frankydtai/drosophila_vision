@@ -2,7 +2,7 @@
 """Shared full-T absolute ``v`` forward for all neuron models.
 
 Per-model modules supply only ``prepare_i_sti`` / ``pre_steady`` / ``step``.
-This module owns the time loop. Training / plots read absolute ``v``
+This module owns the time loop. Train / plots read absolute ``v``
 when ``train_opts['filter']=='none'``; with ``'ca'``, readout is ``ca`` from
 ``neuron.filter_ca`` on ``v_ca = relu(v − v_th_ca)·a_ca``. Cost compares the
 readout to ``a_gt * gt + bias_gt``.
@@ -95,7 +95,7 @@ def _session_filter(session) -> str:
 def v_ca_from_v(v, params, session):
     """``v_ca = relu(v − v_th_ca)·a_ca`` (per-node tensors in ``params``).
 
-    Callers must run ``training.materialize_from_opts`` (via ``params_from_z``)
+    Callers must run ``train.materialize_from_opts`` (via ``params_from_z``)
     so ``v_th_ca`` / ``a_ca`` already hold ``v_th`` / ``a_out`` when those
     ``*_from_*`` flags are on.
     """

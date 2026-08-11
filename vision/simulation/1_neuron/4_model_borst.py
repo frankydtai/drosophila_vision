@@ -22,13 +22,13 @@ Membrane Euler (``session.euler`` = ``implicit`` | ``explicit``):
 i_h gate kinetics are always explicit Euler, independent of ``euler``.
 
 Conductances: ``g_h = u · h_g_max · a_h``, ``g_h_rev = u_rev · h_g_max · a_h_rev``
-with fixed ``h_g_max`` (session) and trainable ``a_h`` / ``a_h_rev``.
+with fixed ``h_g_max`` (session) and ``a_h`` in z / ``a_h_rev``.
 """
 from __future__ import annotations
 
 import torch
 
-from neuron.params import e_h_rev as calc_e_h_rev, expand_euler, membrane_dt_over_c
+from neuron.param import e_h_rev as calc_e_h_rev, expand_euler, membrane_dt_over_c
 from neuron.schema import borst_i_h_rev_kwargs, syn_strength
 
 

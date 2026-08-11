@@ -17,10 +17,10 @@ if ROOT not in sys.path:
 os.chdir(ROOT)
 
 import import_bootstrap  # noqa: F401
-import training
+import train
 from param_defaults import DEFAULT_RUN_PATH
-import figure.plot_run as plot_trained
-from figure.readout import contrast_for_task
+import figure.plot as plot_trained
+from figure.gt import contrast_for_task
 from figure.spot import pack_spot_cost_radii, resolve_spot_gt_cubes
 from figure.util import (
     filter_plot_token,
@@ -47,7 +47,7 @@ from task.spot.input import (
     spot_from_opts,
     spot_stimulus_batches,
 )
-from training.implement import parse_tasks, stimulus_timing_kwargs_from_args
+from train.cli import parse_tasks, stimulus_timing_kwargs_from_args
 
 __doc__ = """Borst / hp_lp v component analysis.
 
@@ -60,7 +60,7 @@ Two *different* knobs — do not mix them:
 
 1. **Stimulus length** (``--ms-pre`` / ``--ms-spot`` / ``--ms-response`` /
    ``--ms-post`` / ``--delta-ms``): rebuilds the session stimulus (via
-   ``figure.plot_run.maybe_override_stimulus_timing``). Unset = keep the run's
+   ``figure.plot.maybe_override_stimulus_timing``). Unset = keep the run's
    train opts. These change *how long* pre/spot/response *are*, not which
    slice of an existing trace you plot.
 
@@ -91,7 +91,7 @@ Programmatic reuse
 * Spot R0 / R1 average: ``analyze_spot_average`` (omit hex; ``radius=0|1``).
 * Spot one hex: ``analyze_spot_hex``.
 * Bar average / hex: ``analyze_bar_average`` / ``analyze_bar_hex``.
-* Load run: ``figure.plot_run.load_best`` + ``assign_params``; do not invent a
+* Load run: ``figure.plot.load_best`` + ``assign_params``; do not invent a
   second forward path.
 
 CLI
@@ -108,7 +108,7 @@ Per ``--run``: one ``load_best``; one batched v component forward per distinct t
 
 ``--plot true|false``: PNGs under ``{run}/cell_dynamics/`` (default true).
   With ``filter=ca``, first plot row is ``v_post`` / ``v_ca`` / ``ca``; with
-  ``filter=none``, first row is ``v_post`` only (no Ca). Training GT is named
+  ``filter=none``, first row is ``v_post`` only (no Ca). Train GT is named
   ``gt_v`` or ``gt_ca`` from the run's train ``filter`` and overlays only on
   ``v_post`` or ``ca`` respectively (not the analyze ``--filter``). Per-t step
   table prints only when ``--plot false``. With analyze ``filter=ca``, the first
@@ -117,7 +117,7 @@ Per ``--run``: one ``load_best``; one batched v component forward per distinct t
   columns stay ``v_*``.
 ``--radius 0|1``: spot average Euclidean readout radius (default 0 = stim-on hex; 1 = neighbors).
   Average only; PNGs for ``--radius 1`` get ``_radius1`` in the filename.
-``--param NAME=VALUE`` / ``NAME.NODE=VALUE``: via ``figure.plot_run`` — overwrite
+``--param NAME=VALUE`` / ``NAME.NODE=VALUE``: via ``figure.plot`` — overwrite
   any schema param before forward (``NODE`` = cell, ``SRC:TAR`` pair, or ``eN``;
   omit / ``all`` = every node). Each edit appends ``_NAME_NODE_VALUE`` (``:`` in
   NODE → ``_``; no NODE when omitted / ``all``) to PNG stems, in CLI order,
@@ -195,12 +195,12 @@ class TimeWindow:
     def forward_t_start(self, *, delta_ms: float) -> int | None:
         if self.kind != "ms":
             return None
-        return training.t_from_ms(self.start, delta_ms=delta_ms)
+        return train.t_from_ms(self.start, delta_ms=delta_ms)
 
     def forward_t_stop(self, *, delta_ms: float) -> int | None:
         if self.kind != "ms":
             return None
-        return training.t_from_ms(self.stop, delta_ms=delta_ms)
+        return train.t_from_ms(self.stop, delta_ms=delta_ms)
 
     def aligned_n_t(self, n_t: int, *, delta_ms: float) -> int:
         """Buffer length for spot (``t0=0``): indices ``0 .. stop`` inclusive.
@@ -210,7 +210,7 @@ class TimeWindow:
         """
         if self.kind != "ms":
             return n_t
-        return training.t_from_ms(self.stop, delta_ms=delta_ms) + 1
+        return train.t_from_ms(self.stop, delta_ms=delta_ms) + 1
 
 
 @dataclass(frozen=True)
@@ -282,7 +282,7 @@ def parse_shared_cli(args: argparse.Namespace) -> SharedCli:
         raise SystemExit("--task is required")
     specs_req = parse_comma_list(args.spec) if args.spec is not None else None
     for task in tasks:
-        if task not in training.SPOT_TASKS and task not in training.MOVING_BAR_TASKS:
+        if task not in train.SPOT_TASKS and task not in train.MOVING_BAR_TASKS:
             raise SystemExit(
                 f"unsupported task {task!r}; expected spot_* or moving_bar_* "
                 f"(after TASK_ALIASES expansion)"
@@ -530,7 +530,7 @@ _TRACE_COLOR_MATCH: dict[str, str] = {
     "v_ca": "v_post",
     "ca": "v_post",
 }
-# Report GT key → plot panel key (training GT kind; never mix).
+# Report GT key → plot panel key (train GT kind; never mix).
 _GT_PLOT_PANEL: dict[str, str] = {
     "gt_v": "v_post",
     "gt_ca": "ca",
@@ -569,7 +569,7 @@ class _ComponentSpec:
 
 def _component_spec(model: str, euler: str, *, filter: str = "v") -> _ComponentSpec:
     """Build plot/component spec. ``filter`` is plot token ``v``|``ca`` (row-0 Ca cols)."""
-    euler = training.expand_euler(euler)
+    euler = train.expand_euler(euler)
     use_ca = str(filter) == "ca"
     if model == "borst":
         if euler == "implicit":
@@ -721,7 +721,7 @@ def _equilibrate(session, params, i_sti_batch: torch.Tensor, t_onset: int):
     for t in range(1, min(t_onset, n_t)):
         state, v = drv.step(
             state, v, params, i_sti_batch[:, t - 1], session,
-            delta_ms=training.step_delta_ms(session, t, t_onset),
+            delta_ms=train.step_delta_ms(session, t, t_onset),
         )
     return v, state
 
@@ -771,7 +771,7 @@ def _component_at_nodes_borst(
         ref = (
             v_onset[batch_idx, nodes] if np.ndim(v_onset) == 2 else v_onset[nodes]
         )
-        terms = training.v_component_from_g(
+        terms = train.v_component_from_g(
             v_pre_np, packed[1], packed[2], packed[3], packed[4], packed[5], packed[6],
             delta_ms=delta_ms, cap=cap, g_leak=g_leak,
             e_exc=e_exc, e_inh=e_inh, e_h=e_h,
@@ -989,7 +989,7 @@ def _forward_component(
 
     spec = _component_spec(session.model, session.euler)
     drive = _prepare_drive(session, params, i_sti)
-    t_onset = training.pack_t_onset(session.primary_readout)
+    t_onset = train.pack_t_onset(session.primary_readout)
 
     t_last: int | None = None
     if t_stop is not None:
@@ -1003,7 +1003,7 @@ def _forward_component(
     state, v = drv.pre_steady(session, params, n_batch, i_sti=drive)
 
     use_ca = session_filter_plot_token(session) == "ca"
-    ca = training.v_ca_from_v(v, params, session) if use_ca else None
+    ca = train.v_ca_from_v(v, params, session) if use_ca else None
     tau_ca = (
         torch.clamp(params["tau_ca"], min=float(session.delta_ms)) if use_ca else None
     )
@@ -1052,7 +1052,7 @@ def _forward_component(
             else:
                 actives.append(None)
 
-        step_dt = training.step_delta_ms(session, t_global, t_onset)
+        step_dt = train.step_delta_ms(session, t_global, t_onset)
         if not need_component:
             state, v = drv.step(
                 state, v, params, sig_t, session,
@@ -1060,7 +1060,7 @@ def _forward_component(
             )
             if ca is not None:
                 ca = filter_ca(
-                    ca, training.v_ca_from_v(v, params, session),
+                    ca, train.v_ca_from_v(v, params, session),
                     delta_ms=step_dt, tau_ca=tau_ca,
                 )
             continue
@@ -1080,7 +1080,7 @@ def _forward_component(
                 )
             v_ca = None
             if ca is not None:
-                v_ca = training.v_ca_from_v(v, params, session)
+                v_ca = train.v_ca_from_v(v, params, session)
                 ca = filter_ca(
                     ca_pre, v_ca, delta_ms=step_dt, tau_ca=tau_ca,
                 )
@@ -1206,8 +1206,8 @@ def _finalize_component_report(
     n_t = int(v_post_d.size)
     if time_window.kind == "ms":
         dt = float(session.delta_ms)
-        t_lo = training.t_from_ms(time_window.start, delta_ms=dt)
-        t_hi = training.t_from_ms(time_window.stop, delta_ms=dt)
+        t_lo = train.t_from_ms(time_window.start, delta_ms=dt)
+        t_hi = train.t_from_ms(time_window.stop, delta_ms=dt)
         if t_lo < 0 or t_hi >= n_t or t_lo > t_hi:
             raise SystemExit(
                 f"--ms-shown {time_window.start:g},{time_window.stop:g} "
@@ -1240,7 +1240,7 @@ def _finalize_component_report(
             n_nodes=n_nodes_at_t,
             spec=component_spec,
             g_leak=float(session.g_leak),
-            dt_over_c=float(training.membrane_dt_over_c(session.cap, session.delta_ms)),
+            dt_over_c=float(train.membrane_dt_over_c(session.cap, session.delta_ms)),
         )
         if v_ca_sums is not None:
             step["v_ca"] = float(v_ca_sums[t] / n_nodes_at_t)
@@ -1380,13 +1380,13 @@ def _node_params(params, session, node: int) -> dict[str, float]:
         "a_h": float(params["a_h"][node]),
         "a_h_rev": float(a_h_rev[node]),
         "e_leak_mV": e_leak,
-        "e_h_rev": float(training.e_h_rev(e_leak, session.e_h)),
+        "e_h_rev": float(train.e_h_rev(e_leak, session.e_h)),
     }
 
 
 def _globals(session):
     pack = session.primary_readout
-    t_onset = training.pack_t_onset(pack)
+    t_onset = train.pack_t_onset(pack)
     if session.model == "hp_lp":
         return {
             "delta_ms": float(session.delta_ms),
@@ -1400,7 +1400,7 @@ def _globals(session):
         "e_inh": float(session.e_inh),
         "e_h": float(session.e_h),
         "g_leak_nS": float(session.g_leak),
-        "dt_over_c": float(training.membrane_dt_over_c(session.cap, session.delta_ms)),
+        "dt_over_c": float(train.membrane_dt_over_c(session.cap, session.delta_ms)),
         "delta_ms": float(session.delta_ms),
         "euler": str(session.euler),
         "t_onset": t_onset,
@@ -1513,7 +1513,7 @@ def _bar_meta(session, task: str):
     pack = session.pack_for(task)
     grids = moving_bar_session_t0_grids(
         session, specs, pack.cost_radius, int(session.n_t),
-        t_onset=training.pack_t_onset(pack),
+        t_onset=train.pack_t_onset(pack),
         delta_ms=float(session.delta_ms),
     )
     return specs, grids
@@ -1555,7 +1555,7 @@ def _resolve_bar_spec_i_sti(
     grids=None,
 ):
     """Validate specs; return ``(pack, specs, grids, spec_batch_indices, i_sti, t0_bn)``."""
-    if task not in training.MOVING_BAR_TASKS:
+    if task not in train.MOVING_BAR_TASKS:
         raise SystemExit(f"unsupported task {task!r}")
     if not spec_names:
         raise SystemExit("bar component forward requires at least one spec")
@@ -1881,10 +1881,10 @@ def _spot_gt_extra(
 def _spot_extra_for_cell_fn(
     session_one, params, pack, *, radius: int, t_onset: int, train_filter,
 ):
-    """Build ``extra_for_cell`` with training GT named ``gt_v`` / ``gt_ca``."""
+    """Build ``extra_for_cell`` with train GT named ``gt_v`` / ``gt_ca``."""
     from param_defaults import BIAS_GT_FROM_V_ONSET, PARAM_BOXES
     contrast = contrast_for_task(pack.name)
-    train_filter = training.expand_filter(train_filter)
+    train_filter = train.expand_filter(train_filter)
     gt_key = f"gt_{filter_plot_token(train_filter)}"
     gt_on = resolve_spot_gt_cubes(
         {contrast: session_one}, filter=train_filter,
@@ -1943,16 +1943,16 @@ def analyze_spot_average(
     ``time_window`` is absolute aligned ms for spot (``0`` = trial start). Pre
     only: ``TimeWindow("ms", 0, ms_pre)``. Do not pass negative ``start`` for
     "before onset" — that confuses stimulus length with the analyze window.
-    ``train_filter`` is the run's training ``filter`` (names GT ``gt_v``/``gt_ca``).
+    ``train_filter`` is the run's train ``filter`` (names GT ``gt_v``/``gt_ca``).
     """
-    if task not in training.SPOT_TASKS:
+    if task not in train.SPOT_TASKS:
         raise SystemExit(f"unsupported task {task!r}")
     radius = int(radius)
     pack, batch_idx, node_idx, radii, type_idx, type_idx_from_cell_name = _spot_session_readout(
         session_one, cells,
     )
     radius_entry_mask = _spot_radius_entry_mask(radii, radius)
-    t_onset = training.pack_t_onset(pack)
+    t_onset = train.pack_t_onset(pack)
 
     i_sti = pack.i_sti if pack.i_sti.dim() == 3 else pack.i_sti.unsqueeze(0)
     n_stimulus_batch, n_t, n_nodes = i_sti.shape
@@ -2069,7 +2069,7 @@ def analyze_spot_hex(
     train_filter="none",
 ) -> dict[str, dict[str, Any]]:
     """One batched v forward at one hex; stim-on (radius 0) rows for that node only."""
-    if task not in training.SPOT_TASKS:
+    if task not in train.SPOT_TASKS:
         raise SystemExit(f"unsupported task {task!r}")
     pack, batch_idx, node_idx, radii, type_idx, type_idx_from_cell_name = _spot_session_readout(
         session_one, [cell],
@@ -2079,7 +2079,7 @@ def analyze_spot_hex(
         session_one, cell, at_x=at_x, at_y=at_y,
         cost_radius=pack.cost_radius, node=node,
     )
-    t_onset = training.pack_t_onset(pack)
+    t_onset = train.pack_t_onset(pack)
 
     i_sti = pack.i_sti if pack.i_sti.dim() == 3 else pack.i_sti.unsqueeze(0)
     n_stimulus_batch, n_t, n_nodes = i_sti.shape
@@ -2334,7 +2334,7 @@ def _plot_component_reports(
     if len(kinds) != 1:
         raise SystemExit(f"overlay requires one time_window_kind; got {sorted(kinds)}")
     eulers = {
-        training.expand_euler((one_report.get("globals") or {}).get("euler", "implicit"))
+        train.expand_euler((one_report.get("globals") or {}).get("euler", "implicit"))
         for one_report in reports
     }
     if len(eulers) != 1:
@@ -2353,7 +2353,7 @@ def _plot_component_reports(
     e_leak_mV = float(reports[0].get("params", {}).get("e_leak_mV", 0.0))
     globs = reports[0].get("globals") or {}
     params0 = reports[0].get("params") or {}
-    delta_ms = float(globs.get("delta_ms", training.DELTA_MS))
+    delta_ms = float(globs.get("delta_ms", train.DELTA_MS))
     row_curves: dict[int, list[np.ndarray]] = {
         row_idx: [] for row_idx in spec.row_shared_ylim
     }
@@ -2717,7 +2717,7 @@ def main() -> None:
         args.run = [DEFAULT_RUN_PATH]
     cli = parse_shared_cli(args)
 
-    if args.radius != 0 and not any(task in training.SPOT_TASKS for task in cli.tasks):
+    if args.radius != 0 and not any(task in train.SPOT_TASKS for task in cli.tasks):
         raise SystemExit("--radius requires a spot task")
 
     hex_mode = False
@@ -2761,7 +2761,7 @@ def main() -> None:
         _log(f"load_best {run_dir} ...")
         session, z, best_cost = plot_trained.load_best(run_dir)
         train_opts = plot_trained.load_train_opts(run_dir) or {}
-        train_filter = training.expand_filter(train_opts.get("filter", "none"))
+        train_filter = train.expand_filter(train_opts.get("filter", "none"))
         session, z, timing_changed = plot_trained.maybe_override_stimulus_timing(
             run_dir=run_dir,
             session=session,
@@ -2793,10 +2793,10 @@ def main() -> None:
             z_t, schema, session, param_edits,
         )
         session = session.with_schema(schema)
-        params = training.materialize_from_opts(
-            training.assign_params(z_t, schema, session.backend), session,
+        params = train.materialize_from_opts(
+            train.assign_params(z_t, schema, session.backend), session,
         )
-        cost = float(training.calc_cost(z_t, session).item())
+        cost = float(train.calc_cost(z_t, session).item())
 
         spot_session_cache: dict[str, object] = {}
         bar_meta_cache: dict[str, tuple] = {}
@@ -2814,7 +2814,7 @@ def main() -> None:
             )
 
         for task in cli.tasks:
-            if task in training.SPOT_TASKS:
+            if task in train.SPOT_TASKS:
                 if task not in spot_session_cache:
                     spot_session_cache[task] = plot_trained.session_for_task(
                         session, task,

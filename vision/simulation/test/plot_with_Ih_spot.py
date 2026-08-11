@@ -121,7 +121,7 @@ def _session_with_bright_ms_pulse(session, ms_pulse):
     """Return a copy of *session* whose bright stimulus drops to baseline after *ms_pulse*."""
     pack = session.primary_pack
     opts = dict((session.train_opts or {}).get("spot_bright_stimulus_opts") or {})
-    from neuron.params import t_from_ms
+    from neuron.param import t_from_ms
     delta_ms = float(opts["delta_ms"])
     t_on = t_from_ms(float(opts["ms_pre"]), delta_ms=delta_ms)
     pulse_t = max(1, int(round(float(ms_pulse) / delta_ms)))

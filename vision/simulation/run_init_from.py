@@ -36,7 +36,7 @@ def main(argv=None):
     except ValueError as exc:
         raise SystemExit(str(exc)) from exc
     kw["init_from"] = args.init_from or DEFAULT_RUN_PATH
-    _run.run_training_and_plot(**kw)
+    _run.run_train_and_plot(**kw)
 
 
 if __name__ == "__main__":

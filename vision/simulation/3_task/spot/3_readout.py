@@ -3,7 +3,7 @@
 
 Cost-radius weights, cost hexes, sti ``i_sti``, and :class:`SpotGt` packing.
 GT traces come from :mod:`task.spot.gt`. Sparse cost time points and
-``ReadoutPack`` wrapping live in the ``training`` layer.
+``ReadoutPack`` wrapping live in the ``train`` layer.
 """
 from __future__ import annotations
 
@@ -22,7 +22,7 @@ from network.construction import (
     normalize_gt_cells,
     node_cell_names,
 )
-from neuron.params import t_from_ms
+from neuron.param import t_from_ms
 from task.spot.gt import (
     GT_CELLS,
     _spot_readout_a_radius,
@@ -38,7 +38,7 @@ from task.spot.input import (
     spot_from_opts,
 )
 
-# Spot paradigm polarities (distinct from the task NAMES in training.config).
+# Spot paradigm polarities (distinct from the task NAMES in train.config).
 SPOT_POLARITIES = frozenset({"bright", "dark"})
 _SPOT_BASELINE_KEY = "i_baseline_spot"
 _SPOT_I_KEY = {"bright": "i_bright_spot", "dark": "i_dark_spot"}

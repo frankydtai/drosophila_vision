@@ -8,7 +8,7 @@ Fixed nodes always use ``effective_init`` (init / init_override); no ``fixed_val
 """
 from __future__ import annotations
 
-from neuron.params import (
+from neuron.param import (
     I_H_REV_MODES,
     KNOWN_MODELS,
 )
@@ -35,6 +35,7 @@ _I_H_REV_ONLY = frozenset({
     "a_h_rev", "v_mid_h_g_rev", "v_mid_h_tau_rev", "h_slope_rev",
 })
 _BORST_ONLY = frozenset({"v_mid_h_g", "v_mid_h_tau", "h_slope"}) | _I_H_REV_ONLY
+_CA_ONLY = frozenset({"v_th_ca", "a_ca", "tau_ca"})
 _OUTPUT_KIND = frozenset({"a_gt", "bias_gt"})
 _NAMED_H = frozenset({"a_h", "a_h_rev"})
 
@@ -198,6 +199,7 @@ def build_borst_schema(
     param_boxes: dict,
     h_cells,
     i_h_rev: str,
+    filter: str = "none",
     n_edges=None,
     sti_radii=(),
     radius_key_aliases=None,
@@ -208,6 +210,8 @@ def build_borst_schema(
     if cells is None:
         raise TypeError("borst schema requires cells from network")
     skip = set(_HP_LP_ONLY)
+    if str(filter) != "ca":
+        skip |= _CA_ONLY
     if i_h_rev != "on":
         skip |= _I_H_REV_ONLY
     return _segments_from_boxes(
@@ -232,6 +236,7 @@ def build_hp_lp_schema(
     syn_mode: str,
     param_boxes: dict,
     h_cells,
+    filter: str = "none",
     n_edges=None,
     sti_radii=(),
     radius_key_aliases=None,
@@ -239,9 +244,12 @@ def build_hp_lp_schema(
     """HP-then-membrane-LP schema in PARAM_BOXES order (borst-only keys skipped)."""
     if cells is None:
         raise TypeError("hp_lp schema requires cells from network")
+    skip = set(_BORST_ONLY)
+    if str(filter) != "ca":
+        skip |= _CA_ONLY
     return _segments_from_boxes(
         param_boxes,
-        skip=_BORST_ONLY,
+        skip=skip,
         n_cells=n_cells,
         cells=list(cells),
         syn_mode=syn_mode,
@@ -261,14 +269,16 @@ def default_schema(
     param_boxes: dict,
     h_cells,
     i_h_rev: str = "on",
+    filter: str = "none",
     sti_radii=(),
     radius_key_aliases=None,
 ) -> list:
     """Fresh parameter schema for ``model`` on the given backend.
 
     ``i_h_rev`` is used only for borst (rev i_h segments when ``\"on\"``).
+    ``filter``: ``none`` skips ``v_th_ca``/``a_ca``/``tau_ca``; ``ca`` keeps them.
     ``sti_radii`` + ``radius_key_aliases`` label ``a_sti_radius`` slots
-    (injected from training).
+    (injected from train).
     """
     if model not in KNOWN_MODELS:
         raise ValueError(f"unknown model {model!r}; expected one of {KNOWN_MODELS}")
@@ -290,6 +300,7 @@ def default_schema(
         n_edges=n_edges,
         param_boxes=param_boxes,
         h_cells=h_cells,
+        filter=filter,
         sti_radii=sti_radii,
         radius_key_aliases=radius_key_aliases,
     )

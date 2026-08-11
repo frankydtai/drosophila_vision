@@ -2,7 +2,7 @@
 
 Roots (tried in order):
 
-  - ``simulation/`` — packages (``neuron.params``, ``network.construction``, …)
+  - ``simulation/`` — packages (``neuron.param``, ``network.construction``, …)
   - ``connectome/FAFBv783/`` — flat modules (``build_hex``, ``build_network``, ``add_extent``, …)
 
 Disk names are ``{n}_{logical}`` (dirs and ``.py`` modules). Imports stay

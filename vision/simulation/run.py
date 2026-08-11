@@ -1,13 +1,13 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""Train-then-plot orchestrator (above ``training``, ``figure``, ``analyze``).
+"""Train-then-plot orchestrator (above ``train``, ``figure``, ``analyze``).
 
 Dependency direction:
 
-    run.py  →  training  (pure train + data)
+    run.py  →  train  (pure train + data)
     run.py  →  figure    (PNG / checkpoint figures)
     run.py  →  analyze   (optional post-plot, e.g. syn_sign)
-    training  ✗→  figure
+    train  ✗→  figure
 
 Usage (from ``simulation/``, project ``.venv``):
 
@@ -15,9 +15,9 @@ Usage (from ``simulation/``, project ``.venv``):
     ../.venv/bin/python run.py --task spot_bright --network right_min_neuron1_r2 \\
         --n-iter 5 --lrs 0.1
 
-Re-plot an existing run without training:
+Re-plot an existing run without train:
 
-    ../.venv/bin/python -m figure.plot_run <model>/<run_name>
+    ../.venv/bin/python -m figure.plot <model>/<run_name>
 """
 from __future__ import annotations
 
@@ -33,9 +33,10 @@ if HERE not in sys.path:
 
 import import_bootstrap  # noqa: F401
 from import_bootstrap import parse_bool
-import training
-import training.implement as train
-from figure.plot_run import (
+import train
+import train.implementation as implementation
+import train.cli as cli
+from figure.plot import (
     add_plot_arguments,
     plot_kwargs_from_args,
     plot_param_set,
@@ -77,7 +78,7 @@ def make_plots(outdir, session, result=None, **plot_kw):
                 result.cost_curve,
                 os.path.join(outdir, f'cost_curve{plot_file_ext(html=plot_kw.get("html"))}'),
                 costs_by_part=result.cost_curves_by_part,
-                part_order=list(training.session_cost_part_keys(session.tasks, session=session)),
+                part_order=list(train.session_cost_part_keys(session.tasks, session=session)),
             )
         plot_param_set(
             result.all_params,
@@ -88,8 +89,8 @@ def make_plots(outdir, session, result=None, **plot_kw):
             **plot_kw,
         )
         return
-    z = train.load_best_param(outdir, session)
-    final_costs, _, _, _ = train.load_stored_costs(outdir)
+    z = implementation.load_best_param(outdir, session)
+    final_costs, _, _, _ = implementation.load_stored_costs(outdir)
     best_cost = None
     if final_costs is not None and len(final_costs) > 0:
         best_cost = float(final_costs[int(np.argmin(final_costs))])
@@ -115,7 +116,7 @@ def _rename_checkpoint_pngs(png_dir, tag, *, filter_token="v", file_suffix=""):
 
 
 def write_checkpoint_png(outdir, iter, z_best, cost_best, session, plot_kw):
-    tag = train.checkpoint_iter_tag(iter)
+    tag = implementation.checkpoint_iter_tag(iter)
     png_dir = os.path.join(outdir, "png")
     os.makedirs(png_dir, exist_ok=True)
     z_np = z_best.detach().cpu().numpy()
@@ -137,7 +138,7 @@ def write_checkpoint_png(outdir, iter, z_best, cost_best, session, plot_kw):
 
 
 def make_checkpoint_on_png(plot_kw):
-    """Bound *plot_kw* into a ``checkpoint_on_png`` callback for ``run_training``."""
+    """Bound *plot_kw* into a ``checkpoint_on_png`` callback for ``run_train``."""
     plot_kw = plot_kw or {}
 
     def on_png(outdir, iter, z_best, cost_best, session):
@@ -146,14 +147,14 @@ def make_checkpoint_on_png(plot_kw):
     return on_png
 
 
-def run_training_and_plot(*, plot_gt_cubes=None, **kw):
-    """Train (``training.implement.run_training``) then plot. Returns ``(fname, outdir, session)``."""
+def run_train_and_plot(*, plot_gt_cubes=None, **kw):
+    """Run train (``train.implementation.run_train``) then plot. Returns ``(fname, outdir, session)``."""
     syn_sign = kw.pop("syn_sign")
     plot_kw = _take_plot_kw(kw, gt_cubes=plot_gt_cubes)
     checkpoint_on_png = None
     if kw.get("checkpoint_interval") is not None:
         checkpoint_on_png = make_checkpoint_on_png(plot_kw)
-    fname, outdir, session, result = train.run_training(
+    fname, outdir, session, result = implementation.run_train(
         **kw,
         checkpoint_on_png=checkpoint_on_png,
     )
@@ -164,10 +165,10 @@ def run_training_and_plot(*, plot_gt_cubes=None, **kw):
     return fname, outdir, session
 
 def make_run_argparser(description=None):
-    """Training CLI + plot flags."""
+    """Train CLI + plot flags."""
     description = description or __doc__
     common = argparse.ArgumentParser(add_help=False)
-    train.add_training_arguments(common)
+    cli.add_train_arguments(common)
     add_plot_arguments(common)
     common.add_argument(
         '--syn-sign',
@@ -186,8 +187,8 @@ def make_run_argparser(description=None):
 
 
 def run_kwargs_from_args(args, *, script_stem="run"):
-    """Merge training kwargs with plot kwargs for :func:`run_training_and_plot`."""
-    train_kw = train.training_kwargs_from_args(args, script_stem=script_stem)
+    """Merge train kwargs with plot kwargs for :func:`run_train_and_plot`."""
+    train_kw = cli.train_kwargs_from_args(args, script_stem=script_stem)
     train_kw.update(plot_kwargs_from_args(args))
     train_kw['syn_sign'] = args.syn_sign
     return train_kw
@@ -203,9 +204,9 @@ def run_mirror_spot_experiment(
 ):
     """CLI entry for spot mirror-fit experiments (train + plot)."""
     from param_defaults import DELTA_MS, DELTA_MS_PRE, MS_PRE, MS_RESPONSE
-    from figure.readout import fit_gt_cubes
-    from neuron.params import t_from_ms
-    from training.experiment import (
+    from figure.gt import fit_gt_cubes
+    from neuron.param import t_from_ms
+    from train.experiment import (
         merge_i_h_train_modes,
         spot_pack_overrides,
         spot_tasks_from,
@@ -268,7 +269,7 @@ def run_mirror_spot_experiment(
         spot_tasks, make_mirror_gt_cubes(fits, mirror_sign),
     )
 
-    fname, outdir, session = run_training_and_plot(
+    fname, outdir, session = run_train_and_plot(
         **run_kw,
         pack_overrides=pack_overrides,
         train_modes=train_modes,
@@ -286,7 +287,7 @@ def main(argv=None):
         kw = run_kwargs_from_args(args)
     except ValueError as exc:
         raise SystemExit(str(exc)) from exc
-    run_training_and_plot(**kw)
+    run_train_and_plot(**kw)
 
 
 if __name__ == "__main__":

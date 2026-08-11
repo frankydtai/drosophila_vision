@@ -36,7 +36,7 @@ Forbidden: do not use `column` for a CSV output-table field — use `field`. Do 
 ### `connectome` / `connectomes`
 
 Definition: The loaded biological neural-circuit dataset (FAFB), instantiated as a `Network` object; the source of `cell`, `syn`, `hex` vocabulary and connectivity structure.
-Example: `connectome = backend.network` (the connectome object used throughout training)
+Example: `connectome = backend.network` (the connectome object used throughout train)
 Forbidden: do not use `network` to refer to the connectome object or its biological contents (`cell`, `syn`, `hex`). `network` names the simulation graph, not the biological dataset. Do not abbreviate the connectome object as `C`.
 
 ### `cost` / `costs`
@@ -46,7 +46,7 @@ Example: `best_cost = float(final_costs[int(np.argmin(final_costs))])`
 
 ### `data`
 
-Definition: The set of trained-parameter output files (`.npy`, `.npz`, `train_opts.json`, etc.) saved under the `data/` subfolder of a run directory.
+Definition: The set of parameter output files (`.npy`, `.npz`, `train_opts.json`, etc.) saved under the `data/` subfolder of a run directory.
 Example: `os.makedirs(run_data_dir(outdir), exist_ok=True)`
 Forbidden: `artifact`, `output` — use `data` instead. Do not use `data` for in-memory forward or plot worksets — use `readout`.
 
@@ -62,6 +62,18 @@ Definition: One cost comparison unit in a `ReadoutPack`: a (cell × radius) or (
 Example: `entries = _active_entry_indices(work, session, batch_idx=batch_idx)`
 Forbidden: do not use `node` to refer to a cost entry. `entry` is a cost-layer record; `node` is a network neuron idx.
 
+### `f` / `fs`
+
+Definition: Frequency in hertz (Hz) — oscillation / spectral peak / band limits (e.g. trace FFT analysis). Compound as `<role>_f` (`peak_f`, `min_osc_f`); collection / FFT axis `fs`.
+Example: `peak_f`, `min_osc_f`, `TRACE_OSC_MIN_F`, `mask = (fs >= min_osc_f) & (fs <= max_osc_f)`, CLI `--min-f`
+Forbidden: `freq`, `freqs`, `freq_hz`, `frequency`, `hz` as naming tokens for this concept.
+
+### `fit` / `fits`
+
+Definition: A cell type that participates in the train cost via ground-truth targets (the model is optimized against these cells). Compounds: `fit_cell`, `mirror_fit` (source cell whose gt is mirrored onto other types), `fit_gt_cubes`.
+Example: `mirror_fit='L1'`, `fit_gt_cubes(...)`, “fit cells” for the GT/cost cell set
+Forbidden: do not use `fit` as a verb for the Adam update loop — use `optimize`. Do not use `fit` for the overall process / package — use `train`. Do not name optimize results with `fit` (`z_fit`, `fit_parts`, “fitted parameters”) — use `z_best`, `final_parts`, `parameters`.
+
 ### `degree` / `degrees`
 
 Definition: An angular or visual-field quantity measured in degrees (°) — used for bar width, lane pitch, hex vertex positions, and motion-axis field bounds.
@@ -70,8 +82,14 @@ Forbidden: do not use `extent` to refer to a degree quantity. `degree` is angula
 
 ### `gt` / `gts`
 
-Definition: Ground truth target signals/labels used as the training/evaluation reference (e.g., spot/moving-bar response waveforms).
+Definition: Ground truth target signals/labels used as the train/evaluation reference (e.g., spot/moving-bar response waveforms).
 Example: `gt_affine_for_nodes(p, pack.readout_node, backend, session=session)`
+
+### `group` / `groups`
+
+Definition: A biological grouping in cell or DSI semantics — e.g. a cell-type family band in plot layout (`cell_plot_rows`), or a PD/ND entry list pair in one DSI comparison unit. Not a cost-layer accumulate term.
+Example: `pos_groups`, `neg_groups` in `assemble_moving_bar_dsi_groups`; `cell_plot_rows`, `CELL_PLOT_ROWS`
+Forbidden: do not use `group` for cost entries accumulated into sub-costs — use `part`. Do not use `group` for stimulus batch tuples forwarded together — use `batch_set`.
 
 ### `hex` / `hexes`
 
@@ -91,21 +109,21 @@ Definition: A position in an ordered in-memory axis used for `[...]` indexing (s
 Example: `node_idx`, `source_idx`, `readout_batch`, `part_idx`
 Forbidden: do not use `id` to refer to an in-memory array position — external node keys must be mapped through `node_from_id` first. Do not use `index` or `ix` as naming tokens; they denote the same role as `idx` / `indices`. Do not use `row` for a cost-entry mask or CSV record — use `entry` / `entry_mask` or `field`. Do not use `t_idx`, `step_idx`, or `time_idx` for a time sample index — use bare `t` (see `t` / `n_t`).
 
+### `implementation`
+
+Definition: Integration layer that wires the pieces of one large action (session, cost, optimization, persistence, …) into a path that runs through successfully before the top-level ``run`` driver. Module ``train.implementation`` (e.g. ``run_train``).
+Example: `fname, outdir, session, result = run_train(...)`
+Forbidden: `implement` — use `implementation`. Do not use for the top-level plot/CLI driver (`simulation/run.py`) or for argparse-only parsing (`train.cli`).
+
 ### `in`
 
 Definition: Total input to a neuron — light stimulus (`sti`) plus presynaptic/synaptic contributions. At current level (borst): `i_sti + Σ gE`; at voltage level (hp_lp): `v_in = v_syn + v_sti`. Synaptic input gain param: `a_in`.
 Example: `v_in = v_syn + v_sti`, `params["a_in"]`, `C dv/dt = i_sti + Σ g_i (E_i − v)`
 Forbidden: `input`, `is_input`, `_in` on sti-only quantities (`u_in`, `v_in` for sti hex coords, `pr_idx`, `n_input_nodes`). Do not use `in` for light stimulus alone — use `sti`.
 
-### `group` / `groups`
-
-Definition: A biological grouping in cell or DSI semantics — e.g. a cell-type family band in plot layout (`cell_plot_rows`), or a PD/ND entry list pair in one DSI comparison unit. Not a cost-layer accumulate term.
-Example: `pos_groups`, `neg_groups` in `assemble_moving_bar_dsi_groups`; `cell_plot_rows`, `CELL_PLOT_ROWS`
-Forbidden: do not use `group` for cost entries accumulated into sub-costs — use `part`. Do not use `group` for stimulus batch tuples forwarded together — use `batch_set`.
-
 ### `iter` / `iters`
 
-Definition: One optimizer iteration (a single Adam gradient update), used to count training progress (`n_iter`, `global_iter`, `checkpoint_interval`).
+Definition: One optimizer iteration (a single Adam gradient update), used to count train progress (`n_iter`, `global_iter`, `checkpoint_interval`).
 Example: `n_iter = N_ITER_GPU if cuda_available else N_ITER_CPU`
 
 ### `map` / `maps`
@@ -132,9 +150,9 @@ Forbidden: `count`, `counts` — never as naming tokens for cardinality. Do not 
 
 ### `network` / `networks`
 
-Definition: The simulation graph used during training — the set of nodes and directed edges instantiated from the connectome into `ScatterConn` tensors for forward computation.
+Definition: The simulation graph used during train — the set of nodes and directed edges instantiated from the connectome into `ScatterConn` tensors for forward computation.
 Example: `net = backend.network`
-Forbidden: do not use `connectome` to refer to the simulation graph or its tensor representation (`node`, `edge`). `connectome` names the biological source dataset, not the in-memory training structure. Do not coin project names with `scatter` (e.g. `_scatter`, `_scatter_cost_parts`); keep class `ScatterConn` and library APIs (`tensor.scatter_add_`, `ax.scatter`) only.
+Forbidden: do not use `connectome` to refer to the simulation graph or its tensor representation (`node`, `edge`). `connectome` names the biological source dataset, not the in-memory train structure. Do not coin project names with `scatter` (e.g. `_scatter`, `_scatter_cost_parts`); keep class `ScatterConn` and library APIs (`tensor.scatter_add_`, `ax.scatter`) only.
 
 ### `node` / `nodes`
 
@@ -146,6 +164,12 @@ Forbidden: do not use `cell` to refer to a node idx or node tensor. `node` is a 
 
 Definition: A set of input options (often parsed from CLI or sidecar JSON) used to configure sessions, stimuli, or costs.
 Example: `opt = session.train_opts or {}`
+
+### `optimization`
+
+Definition: The Adam / staged-lr update loop that minimizes `cost` (module ``train.optimization``: `optimize_staged`, `do_many_runs`). One middle step of a `train`; not the whole process and not the cost scalar itself.
+Example: `z_best, opt_state = optimize_staged(...)`, `result = do_many_runs(session, ...)`
+Forbidden: do not use `opt` for this concept (`opt` / `opts` are input options only). Do not use `train` as a verb for this loop — use `optimize`. Do not name the returned ``z`` with `fit` — use `z_best`.
 
 ### `out`
 
@@ -160,7 +184,7 @@ Example: `p["a_gt"]` (a parameter entry used during cost computation)
 
 ### `part` / `parts`
 
-Definition: One named sub-cost of the total training cost, identified by a `part_key` string (e.g. `"spot_bright_R8_r0"`, `"moving_bar_bright_PD"`) and holding its own scalar MSE tensor. Multiple cost `entry` records sharing the same `part_key` are accumulated via `part_idx` into one `part`. The total cost is `Σ W·part / Σ W` over all active parts.
+Definition: One named sub-cost of the total train cost, identified by a `part_key` string (e.g. `"spot_bright_R8_r0"`, `"moving_bar_bright_PD"`) and holding its own scalar MSE tensor. Multiple cost `entry` records sharing the same `part_key` are accumulated via `part_idx` into one `part`. The total cost is `Σ W·part / Σ W` over all active parts.
 Example: `parts[part_key] = part` in `calc_cost_parts`
 
 ### `radius` / `radii`
@@ -183,7 +207,7 @@ Forbidden: CSV record row; cost `entry` / `entry_mask`; `i_sti` batch slot; GT l
 
 ### `run` / `runs`
 
-Definition: One independent training execution from initialization to convergence, producing one set of fitted parameters.
+Definition: One independent train execution from initialization to convergence, producing one set of parameters.
 Example: `for i in range(n_run): ...`
 
 ### `schema` / `schemas`
@@ -193,7 +217,7 @@ Example: `for seg, start, stop in schema_segments(schema): ...`
 
 ### `session` / `sessions`
 
-Definition: A run-time context object that holds assembled configuration/state for one training/evaluation run (schema/backend/tasks/readouts/opts).
+Definition: A run-time context object that holds assembled configuration/state for one train/evaluation run (schema/backend/tasks/readouts/opts).
 Example: `session = open_session_from_outdir(...)`
 
 ### `spot` / `spots`
@@ -233,12 +257,12 @@ Forbidden: `win`, `win_len`, `win_lens`, `wl`, `win_idx`, `win_t`, `n_steps` —
 
 ### `task` / `tasks`
 
-Definition: A training/evaluation task type (e.g., `spot_bright`, `spot_dark`, `moving_bar_bright`, `moving_bar_dark`).
+Definition: A train/evaluation task type (e.g., `spot_bright`, `spot_dark`, `moving_bar_bright`, `moving_bar_dark`).
 Example: `for name in session.tasks: ...`
 
 ### `total`
 
-Definition: The single weighted overall training cost scalar — ``Σ W·part / Σ W`` over all active parts — and plot titles/curves that refer to that scalar only.
+Definition: The single weighted overall train cost scalar — ``Σ W·part / Σ W`` over all active parts — and plot titles/curves that refer to that scalar only.
 Example: `total = _weighted_cost_from_parts(parts, session)`, `_last_total`, `"total (weighted)"` on the cost curve
 Forbidden: do not use for cardinalities (`n_*`), accumulated value bags (`sums`), plot scope/all traces, durations, or sidecar field labels.
 
@@ -246,6 +270,12 @@ Forbidden: do not use for cardinalities (`n_*`), accumulated value bags (`sums`)
 
 Definition: A time sequence of a signal (e.g., voltage readout waveform) represented as a tensor over time indices.
 Example: `trace_full, onset_trace = _forward_readout_and_onset_trace(...)`
+
+### `train`
+
+Definition: Noun only — the overall parameter-optimization process and its package (`import train`: session assembly, cost, optimization, persistence). Compounds use the noun (`train_opts`, `train_mode`, `TrainSession`).
+Example: `session = train.open_session_from_outdir(...)`, `import train`
+Forbidden: do not use `train` as a verb (e.g. `train_staged`, “to train”, imperative “Train …”) — the update loop verb is `optimize`. Do not use `training` as a naming token — use `train`. Do not use `fit` for this process / package (see `fit` for the GT/cost cell sense only).
 
 ### `val` / `vals`
 
@@ -263,7 +293,7 @@ Forbidden: `aggregate` — do not use as a naming token or prose substitute for 
 ### `add`
 
 Definition: Register a new argument or option onto a CLI parser object.
-Example: `add_training_arguments(parser)`, `add_plot_filter_argument(parser)`
+Example: `add_train_arguments(parser)`, `add_plot_filter_argument(parser)`
 Forbidden: do not use `add` for tensor arithmetic or dict insertion — `add` is exclusively for parser argument registration.
 
 ### `apply`
@@ -307,6 +337,12 @@ Definition: Convert an input value into a canonical/valid form (e.g., clamp rule
 Example: `mode = normalize_syn_mode(syn_mode)`
 Forbidden: `canonicalize`, `standardize` — use `normalize` instead.
 
+### `optimize`
+
+Definition: Run an Adam / staged-lr procedure that updates ``z`` to minimize `cost`.
+Example: `z_best, opt_state = optimize_staged(z, cost_fn, bounds, lrs, n_iter, ...)`
+Forbidden: `fit`, `train` (as a verb) — use `optimize` for the update loop. Do not name the returned ``z`` or post-optimize cost parts with `fit` (`z_fit`, `fit_parts`) — use `z_best`, `final_parts`.
+
 ### `parse`
 
 Definition: Decode a raw string or token sequence into a structured in-memory value.
@@ -326,8 +362,8 @@ Forbidden: `lookup`, `fetch` — use `resolve` instead.
 
 ### `run`
 
-Definition: Execute a procedure end-to-end (training, evaluation, or full pipeline) and return or persist its result.
-Example: `fname, outdir, session = run_training_and_plot(plot_gt_cubes=..., **kw)`
+Definition: Execute a procedure end-to-end (train, evaluation, or full pipeline) and return or persist its result.
+Example: `fname, outdir, session = run_train_and_plot(plot_gt_cubes=..., **kw)`
 Forbidden: `execute`, `invoke` — use `run` instead.
 
 ### `save`
@@ -341,12 +377,6 @@ Forbidden: `write`, `dump`, `export` — use `save` instead.
 Definition: Advance the neuron state by one time sample (`t-1 → t`) using the model dynamics.
 Example: `state, v = drv.step(state, v, p, i_sti[:, t-1], session, delta_ms=...)`
 Forbidden: do not use `step` to mean an optimizer iteration — use `iter` instead.
-
-### `train`
-
-Definition: Run an optimization procedure that updates trainable parameters to minimize `cost`.
-Example: `z_fit, opt_state = train_staged(z, cost_fn, bounds, lrs, n_iter, ...)`
-Forbidden: `fit`, `optimize` — use `train` instead.
 
 ## Prepositions (A-Z)
 

@@ -35,7 +35,7 @@ from param_defaults import (
     DELTA_MS, SYN_SCALE_EXC, SYN_SCALE_INH,
     SYN_MODE,
 )
-from training.readout_pack import SIM_DTYPE
+from train.param import SIM_DTYPE
 from network.construction import load_network
 from import_bootstrap import parse_bool, parse_comma_list
 from build_hex import (

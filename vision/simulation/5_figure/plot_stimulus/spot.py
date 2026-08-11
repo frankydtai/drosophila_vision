@@ -51,21 +51,16 @@ from path import DEFAULT_NETWORK_RUN, network_run_tag, resolve_network_json
 from network.construction import Network, load_network
 from param_defaults import (
     SYN_SCALE_EXC, SYN_SCALE_INH,
-    SPOT_RADII,
     SYN_MODE,
 )
-from training.readout_pack import SIM_DTYPE
+from train.param import SIM_DTYPE
 from task.spot.input import (
     build_spot,
     spot_radius_dist,
     spot_radius_half_steps,
 )
 from import_bootstrap import parse_comma_list
-from training.implement import add_multi_spot_arguments
-
-_SPOT_RADII_CLI_DEFAULT = ",".join(
-    str(int(x)) if float(x) == int(x) else str(x) for x in SPOT_RADII
-)
+from train.cli import add_multi_spot_arguments
 
 
 def _network_hexes_df(connectome: Network) -> pd.DataFrame:
@@ -106,10 +101,10 @@ def main() -> None:
     )
     parser.add_argument(
         "--spot-radii",
-        default=_SPOT_RADII_CLI_DEFAULT,
+        default="0.5,1,1.5,2",
         metavar="E,...",
-        help=f"comma-separated spot_radius values per panel, 0.5 multiples "
-             f"(default: {_SPOT_RADII_CLI_DEFAULT})",
+        help="comma-separated spot_radius values per panel, 0.5 multiples "
+             "(default: 0.5,1,1.5,2)",
     )
     parser.add_argument(
         "--output",

@@ -13,9 +13,9 @@ import numpy as np
 import torch
 
 from param_defaults import DELTA_MS
-import training
-from neuron.params import t_from_ms, t_abs_from_ms, ms_from_t
-from figure.readout import (
+import train
+from neuron.param import t_from_ms, t_abs_from_ms, ms_from_t
+from figure.gt import (
     contrast_linestyle,
     contrast_order,
     pack_readout_cells,
@@ -102,7 +102,7 @@ def resolve_spot_gt_cubes(sessions, gt_cubes=None, *, filter=None):
     """``{contrast: {cell: (RF_N_RADII, T)}}`` for each entry in ``sessions``.
 
     Gt time length is response-only (no ``ms_post``).
-    ``filter`` selects training GT kind (``none``→v ImpR, ``ca``→Arenz); default
+    ``filter`` selects train GT kind (``none``→v ImpR, ``ca``→Arenz); default
     per session ``train_opts.filter``.
     """
     if gt_cubes is not None:
@@ -125,7 +125,7 @@ def _session_cost_time_idx(session, t_onset, *, spot_cost_radius=None):
     """Absolute time indices for sparse spot cost (pack contract; or ``None``)."""
     if session is None:
         return None
-    return training.pack_cost_abs_time_idx(
+    return train.pack_cost_abs_time_idx(
         session.primary_readout, t_onset, spot_cost_radius=spot_cost_radius,
     )
 
@@ -701,8 +701,8 @@ def _forward_spot_readout(
     """One forward; cost-radius node readout over all network types."""
     pack = session.primary_readout
     schema = list(session.schema)
-    params = training.materialize_from_opts(
-        training.assign_params(z, schema, session.backend), session,
+    params = train.materialize_from_opts(
+        train.assign_params(z, schema, session.backend), session,
     )
     a_sti_radius_by_name = {}
     if "a_sti_radius" in params:
@@ -716,14 +716,14 @@ def _forward_spot_readout(
             }
             break
     i_sti = pack.i_sti if pack.i_sti.dim() == 3 else pack.i_sti.unsqueeze(0)
-    v = training.forward_v(session, params, i_sti, pack=pack)
-    t0 = training.pack_t_onset(pack)
+    v = train.forward_v(session, params, i_sti, pack=pack)
+    t0 = train.pack_t_onset(pack)
     if str((session.train_opts or {}).get("filter", "none")) == "ca":
-        v_ca = training.v_ca_from_v(v, params, session)
-        plot_full = training.ca_from_v_ca(v_ca, params, session, t_onset=t0)
+        v_ca = train.v_ca_from_v(v, params, session)
+        plot_full = train.ca_from_v_ca(v_ca, params, session, t_onset=t0)
     else:
         plot_full = v
-    training.materialize_from_opts(params, session, onset_trace=plot_full, t_onset=t0)
+    train.materialize_from_opts(params, session, onset_trace=plot_full, t_onset=t0)
     connectome = session.backend.network
     cells = list(connectome.cells)
     mt = int(i_sti.shape[1])

@@ -1,4 +1,4 @@
-"""Moving-bar plotting utilities extracted from ``figure.plot_run``."""
+"""Moving-bar plotting utilities extracted from ``figure.plot``."""
 
 from __future__ import annotations
 
@@ -9,7 +9,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import torch
 
-import training
+import train
 from task.moving_bar.gt import (
     GT_CELLS,
     bar_specs_for_session,
@@ -22,7 +22,7 @@ from task.moving_bar.gt import (
     moving_bar_specs_by_cell,
     moving_bar_session_t0_grids,
 )
-from figure.readout import pack_readout_cells, plot_cells_in_order
+from figure.gt import pack_readout_cells, plot_cells_in_order
 from figure.util import (
     GT_COLOR,
     TRACE_LW,
@@ -358,7 +358,7 @@ def _moving_bar_traces_from_forward(
     pack = session.pack_for(task)
     cost_radius = pack.cost_radius
     n_t = int(session.n_t)
-    _t_onset = training.pack_t_onset(pack)
+    _t_onset = train.pack_t_onset(pack)
     grids = moving_bar_session_t0_grids(
         session, specs, cost_radius, n_t, at_x=at_x, at_y=at_y,
         t_onset=_t_onset, delta_ms=session.delta_ms,
@@ -399,18 +399,18 @@ def moving_bar_trace_readout(session, z, task, *, at_x=None, at_y=None,
     t_prep0 = time.perf_counter()
     pack = session.pack_for(task)
     schema = list(session.schema)
-    params = training.materialize_from_opts(
-        training.assign_params(z, schema, session.backend), session,
+    params = train.materialize_from_opts(
+        train.assign_params(z, schema, session.backend), session,
     )
-    v = training.forward_v(session, params, pack.i_sti, pack=pack)
-    t0 = training.pack_t_onset(pack)
+    v = train.forward_v(session, params, pack.i_sti, pack=pack)
+    t0 = train.pack_t_onset(pack)
     if str((session.train_opts or {}).get("filter", "none")) == "ca":
-        v_ca = training.v_ca_from_v(v, params, session)
-        plot_t = training.ca_from_v_ca(v_ca, params, session, t_onset=t0)
+        v_ca = train.v_ca_from_v(v, params, session)
+        plot_t = train.ca_from_v_ca(v_ca, params, session, t_onset=t0)
     else:
         v_ca = None
         plot_t = v
-    training.materialize_from_opts(params, session, onset_trace=plot_t, t_onset=t0)
+    train.materialize_from_opts(params, session, onset_trace=plot_t, t_onset=t0)
     trace_full = plot_t.detach().cpu().numpy()
     specs = bar_specs_for_session(session, task)
     spec_names = [s.name for s in specs]

@@ -17,7 +17,7 @@ from typing import Callable, Dict, List, Mapping, Optional, Sequence, Tuple, Uni
 import numpy as np
 import torch
 
-from neuron.params import t_from_ms
+from neuron.param import t_from_ms
 from network.construction import (
     hex2gt,
     present_gt_cells,
@@ -595,7 +595,7 @@ def load_fig1_traces(
     npz_path: Path = FIG1_CI_NPZ,
     *,
     delta_ms: float) -> Dict[str, np.ndarray]:
-    """All fig1 traces resampled to the per-hex training window."""
+    """All fig1 traces resampled to the per-hex train window."""
     with np.load(npz_path) as d:
         tids = sorted({k.replace("__time_ms", "") for k in d.files if k.endswith("__time_ms")})
     return {

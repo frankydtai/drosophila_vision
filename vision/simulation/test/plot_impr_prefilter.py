@@ -29,7 +29,7 @@ import numpy as np
 from network.construction import cell_order_rows, cell_names_in_order
 from figure.spot import CENTER_BIN
 from figure.util import TRACE_LW, TRACE_YLIM, save_figure
-from neuron.params import DELTA_MS, t_from_ms
+from neuron.param import DELTA_MS, t_from_ms
 from param_defaults import GT_AMP
 from task.spot.gt import (
     _bandpass,

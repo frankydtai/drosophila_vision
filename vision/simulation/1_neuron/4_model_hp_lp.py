@@ -35,7 +35,7 @@ from __future__ import annotations
 
 import torch
 
-from neuron.params import expand_euler
+from neuron.param import expand_euler
 from neuron.schema import syn_strength
 
 

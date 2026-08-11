@@ -21,7 +21,7 @@ from network import path  # noqa: F401 -- FAFBv783 on sys.path
 
 from build_hex import DEG, HEX_PATCH_RADIUS, hex_vertices, xy_from_uv, xy_deg_from_uv
 from path import moving_bar_cache_dir
-from neuron.params import t_from_ms
+from neuron.param import t_from_ms
 from network.construction import hex_in_cost_radius
 
 logger = logging.getLogger(__name__)
@@ -753,7 +753,7 @@ def build_moving_bar_t0_grids(
     connectome,
     filt_network_hexes: Sequence[StiHex],
 ) -> MovingBarT0Grids:
-    """Plot/training-aligned ``t0`` grid and per-spec full horizons."""
+    """Plot/train-aligned ``t0`` grid and per-spec full horizons."""
     before_t: Dict[str, int] = {}
     after_t: Dict[str, int] = {}
     n_batch = len(specs)

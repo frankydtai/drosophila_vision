@@ -13,7 +13,7 @@ Checks
 * ``drift``: linear trend on ``--ms-shown`` (rising / falling / none)
 * ``stability``: osc → drift → flat priority on ``--ms-shown``
 
-``--param`` / ``--filter`` reuse ``figure.plot_run`` (same as cell_dynamics).
+``--param`` / ``--filter`` reuse ``figure.plot`` (same as cell_dynamics).
 Usage (from ``vision/simulation/``)::
 
     ../.venv/bin/python 6_analyze/trace.py \\
@@ -48,8 +48,8 @@ import import_bootstrap  # noqa: F401
 import numpy as np
 import torch
 
-import figure.plot_run as plot_trained
-import training
+import figure.plot as plot_trained
+import train
 from analyze.cell_dynamics import TimeWindow, analyze_spot_average
 from import_bootstrap import parse_comma_list
 from param_defaults import (
@@ -60,13 +60,13 @@ from param_defaults import (
     TRACE_FLAT_ABS_MEAN,
     TRACE_FLAT_MAX_ABS,
     TRACE_FLAT_V_PEAK_TO_PEAK_MAX,
-    TRACE_OSC_MAX_FREQ_HZ,
-    TRACE_OSC_MIN_FREQ_HZ,
+    TRACE_OSC_MAX_F,
+    TRACE_OSC_MIN_F,
     TRACE_OSC_PEAK_THRESHOLD,
     TRACE_OSC_SNR_MIN,
     TRACE_OSC_Z_THRESHOLD,
 )
-from training.implement import stimulus_timing_kwargs_from_args
+from train.cli import stimulus_timing_kwargs_from_args
 
 CHECK_OSCILLATION = "oscillation"
 CHECK_FLAT = "flat"
@@ -78,8 +78,8 @@ def detect_oscillation(
     v_trace: np.ndarray,
     *,
     delta_ms: float,
-    min_osc_freq_hz: float = TRACE_OSC_MIN_FREQ_HZ,
-    max_osc_freq_hz: float = TRACE_OSC_MAX_FREQ_HZ,
+    min_osc_f: float = TRACE_OSC_MIN_F,
+    max_osc_f: float = TRACE_OSC_MAX_F,
     peak_threshold: float = TRACE_OSC_PEAK_THRESHOLD,
     z_threshold: float = TRACE_OSC_Z_THRESHOLD,
     snr_min: float = TRACE_OSC_SNR_MIN,
@@ -96,20 +96,20 @@ def detect_oscillation(
 
     v_detrend = v_trace - mean
     dt = delta_ms / 1000.0
-    freqs = np.fft.rfftfreq(n, dt)
+    fs = np.fft.rfftfreq(n, dt)
     fft_mag = np.abs(np.fft.rfft(v_detrend))
-    mask = (freqs >= min_osc_freq_hz) & (freqs <= max_osc_freq_hz)
+    mask = (fs >= min_osc_f) & (fs <= max_osc_f)
     if not np.any(mask):
         return {
             "flag": False,
             "reason": "no_power_in_band",
-            "peak_freq_hz": 0.0,
+            "peak_f": 0.0,
             "peak_power": 0.0,
             "n_samples": n,
         }
 
     peak_i = int(np.argmax(fft_mag[mask]))
-    peak_freq = float(freqs[mask][peak_i])
+    peak_f = float(fs[mask][peak_i])
     peak_power = float(fft_mag[mask][peak_i])
     power_sum = float(np.sum(fft_mag[mask] ** 2))
     v_peak_to_peak = float(np.ptp(v_trace))
@@ -128,7 +128,7 @@ def detect_oscillation(
         "std": std,
         "v_peak_to_peak": v_peak_to_peak,
         "v_peak_to_peak_over_std": v_peak_to_peak_over_std,
-        "peak_freq_hz": peak_freq,
+        "peak_f": peak_f,
         "peak_power": peak_power,
         "snr": snr,
         "n_samples": n,
@@ -231,8 +231,8 @@ def detect_stability(
     *,
     baseline: float,
     delta_ms: float,
-    min_osc_freq_hz: float,
-    max_osc_freq_hz: float,
+    min_osc_f: float,
+    max_osc_f: float,
     z_threshold: float,
     min_slope_mv_per_s: float,
     min_r: float,
@@ -244,8 +244,8 @@ def detect_stability(
     osc = detect_oscillation(
         v_trace,
         delta_ms=delta_ms,
-        min_osc_freq_hz=min_osc_freq_hz,
-        max_osc_freq_hz=max_osc_freq_hz,
+        min_osc_f=min_osc_f,
+        max_osc_f=max_osc_f,
         z_threshold=z_threshold,
     )
     drift = detect_drift(
@@ -339,8 +339,8 @@ def _resolve_windows(args, ms_pre, ms_spot, ms_response):
 def _slice_ms(
     v_full: np.ndarray, start_ms: float, stop_ms: float, *, delta_ms: float,
 ) -> np.ndarray:
-    i0 = training.t_from_ms(start_ms, delta_ms=delta_ms)
-    i1 = training.t_from_ms(stop_ms, delta_ms=delta_ms)
+    i0 = train.t_from_ms(start_ms, delta_ms=delta_ms)
+    i1 = train.t_from_ms(stop_ms, delta_ms=delta_ms)
     n = len(v_full)
     if i0 < 0 or i1 >= n or i0 > i1:
         raise SystemExit(
@@ -386,7 +386,7 @@ def _load_reports(args):
     run_dir = plot_trained.resolve_run_dir(args.run)
     session, z, _best_cost = plot_trained.load_best(run_dir)
     train_opts = plot_trained.load_train_opts(run_dir) or {}
-    train_filter = training.expand_filter(train_opts.get("filter", "none"))
+    train_filter = train.expand_filter(train_opts.get("filter", "none"))
     timing_kw = stimulus_timing_kwargs_from_args(args)
     session, z, _timing_changed = plot_trained.maybe_override_stimulus_timing(
         run_dir=run_dir,
@@ -402,14 +402,14 @@ def _load_reports(args):
     param_edits = plot_trained.parse_param_tokens(args.param)
     z_t, schema = plot_trained.apply_param_overrides(z_t, schema, session, param_edits)
     session = session.with_schema(schema)
-    params = training.materialize_from_opts(
-        training.assign_params(z_t, schema, session.backend), session,
+    params = train.materialize_from_opts(
+        train.assign_params(z_t, schema, session.backend), session,
     )
 
     param_csv = os.path.join(run_dir, "param.csv")
     if args.cells == "all":
-        with open(param_csv) as f:
-            cells = [row["cell"] for row in csv.DictReader(f)]
+        with open(param_csv) as param_csv_file:
+            cells = [row["cell"] for row in csv.DictReader(param_csv_file)]
     else:
         cells = parse_comma_list(args.cells)
 
@@ -471,15 +471,15 @@ def _print_oscillation(cells, reports, delta_ms, analyze, args) -> None:
         result = detect_oscillation(
             v,
             delta_ms=delta_ms,
-            min_osc_freq_hz=args.min_freq,
-            max_osc_freq_hz=args.max_freq,
+            min_osc_f=args.min_f,
+            max_osc_f=args.max_f,
             z_threshold=args.z_threshold,
         )
         yes = "YES" if result["flag"] else "NO"
         print(
             f"{cell:<12} {yes:<6} {result['reason']:<12} "
             f"{result.get('v_peak_to_peak_over_std', 0):>8.2f} "
-            f"{result.get('peak_freq_hz', 0):>8.2f} "
+            f"{result.get('peak_f', 0):>8.2f} "
             f"{result.get('snr', 0):>8.2f} "
             f"{result.get('v_peak_to_peak', 0):>8.2f} "
             f"{result.get('std', 0):>8.2f} "
@@ -492,7 +492,7 @@ def _print_oscillation(cells, reports, delta_ms, analyze, args) -> None:
     print(f"\nOscillating ({len(hit)}/{len(cells)}):", flush=True)
     for cell, r in hit:
         print(
-            f"  {cell}: freq={r['peak_freq_hz']:.2f}Hz  "
+            f"  {cell}: f={r['peak_f']:.2f}Hz  "
             f"v_peak_to_peak_over_std={r['v_peak_to_peak_over_std']:.2f}  "
             f"SNR={r['snr']:.2f}  v_peak_to_peak={r['v_peak_to_peak']:.2f}mV",
             flush=True,
@@ -607,8 +607,8 @@ def _print_stability(cells, reports, delta_ms, analyze, baseline, args) -> None:
             v,
             baseline=base,
             delta_ms=delta_ms,
-            min_osc_freq_hz=args.min_freq,
-            max_osc_freq_hz=args.max_freq,
+            min_osc_f=args.min_f,
+            max_osc_f=args.max_f,
             z_threshold=args.z_threshold,
             min_slope_mv_per_s=args.min_slope,
             min_r=args.min_r,
@@ -680,8 +680,8 @@ def main() -> None:
     ap.add_argument(
         "--z-threshold", type=float, default=TRACE_OSC_Z_THRESHOLD,
     )
-    ap.add_argument("--min-freq", type=float, default=TRACE_OSC_MIN_FREQ_HZ)
-    ap.add_argument("--max-freq", type=float, default=TRACE_OSC_MAX_FREQ_HZ)
+    ap.add_argument("--min-f", type=float, default=TRACE_OSC_MIN_F)
+    ap.add_argument("--max-f", type=float, default=TRACE_OSC_MAX_F)
     ap.add_argument(
         "--min-slope",
         type=float,

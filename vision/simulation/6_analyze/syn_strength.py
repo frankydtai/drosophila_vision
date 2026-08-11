@@ -1,6 +1,6 @@
 """Query trained syn_strength_cell joined to connectome partner % n_syn.
 
-Reads ``best_param.npz`` + ``train_opts.json`` only (no training session rebuild).
+Reads ``best_param.npz`` + ``train_opts.json`` only (no train session rebuild).
 Partner % comes from ``analyze_cell_syn``; syn_strength_cell / gains from the named npz.
 
 Examples
@@ -26,9 +26,9 @@ os.chdir(ROOT)
 import import_bootstrap  # noqa: F401
 import network.path  # noqa: F401  # FAFB on sys.path
 import analyze_cell_syn
-import training
-import figure.plot_run as plot_trained
-import training.implement as train_mod
+import train
+import figure.plot as plot_trained
+import train.implementation as train_mod
 from import_bootstrap import parse_comma_list
 from network.connectivity import build_cell_pair_idx
 from network.construction import load_network_json
@@ -126,7 +126,7 @@ def main(argv: list[str] | None = None) -> int:
     _, n_pairs, pair_keys = build_cell_pair_idx(src_t, tar_t, n_cells)
     i_from_key = {k: i for i, k in enumerate(pair_keys)}
     if pair_names is not None:
-        expected = [f"{cells[s]}{training.PAIR_SEP}{cells[t]}" for s, t in pair_keys]
+        expected = [f"{cells[s]}{train.PAIR_SEP}{cells[t]}" for s, t in pair_keys]
         if list(pair_names) != expected:
             raise SystemExit("pair_names in best_param.npz do not match network.json edges")
 

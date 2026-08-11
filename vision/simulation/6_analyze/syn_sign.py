@@ -30,9 +30,9 @@ import import_bootstrap  # noqa: F401
 import matplotlib.pyplot as plt
 import network.path  # noqa: F401
 import numpy as np
-import training
-import training.implement as train_mod
-import figure.plot_run as plot_trained
+import train
+import train.implementation as train_mod
+import figure.plot as plot_trained
 import figure.spot as spot_plot
 from figure.util import (
     N_COL_ALL,
@@ -70,7 +70,7 @@ def _pair_strength_lookup(edges, cells, syn_strength_cell, pair_names):
         )
     if pair_names is not None:
         expected = [
-            f"{cells[s]}{training.PAIR_SEP}{cells[t]}" for s, t in pair_keys
+            f"{cells[s]}{train.PAIR_SEP}{cells[t]}" for s, t in pair_keys
         ]
         if list(pair_names) != expected:
             raise SystemExit("pair_names in best_param.npz do not match network.json")

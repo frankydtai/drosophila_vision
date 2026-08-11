@@ -4,11 +4,11 @@
 Owns the time-axis gather shared by the continuous moving-bar cost_window
 (``cost_t0``) and the plain post-onset spot readout. Takes duck-typed
 ``pack`` objects and primitive tensors only -- it never imports
-``ReadoutPack`` or the session/training layer, so ``neuron`` stays below
-``training`` in the import graph.
+``ReadoutPack`` or the session/train layer, so ``neuron`` stays below
+``train`` in the import graph.
 
 Sparse time-point subsampling (``cost_time_idx``) is applied at cost time in
-``training.cost`` on the post-onset ``ms_response`` segment returned here
+``train.cost`` on the post-onset ``ms_response`` segment returned here
 (``gt.shape[1]`` samples from ``pack_t_onset``; excludes spot ``ms_post``).
 """
 from __future__ import annotations
@@ -80,5 +80,5 @@ def pack_readout(params, pack, session, batch_idx=None):
     ), v_dsi
 
 
-# Model → pack readout (both share ``pack_readout``; batching in training.cost).
+# Model → pack readout (both share ``pack_readout``; batching in train.cost).
 CA_PACK_READOUTS = {"borst": pack_readout, "hp_lp": pack_readout}

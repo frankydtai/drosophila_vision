@@ -25,7 +25,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 from network.build import cell_family_rows, cell_names_in_family_order
-from figure.readout import fit_gt_cubes
+from figure.gt import fit_gt_cubes
 from figure.spot import CENTER_BIN, _pulse_end_from_opts, plot_cell_time
 from figure.util import save_figure
 from task.spot.input import spot_timing_t

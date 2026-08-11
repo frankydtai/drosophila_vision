@@ -4,12 +4,12 @@
 Dynamics live in ``neuron.model_borst`` / ``neuron.model_hp_lp``.
 Shared full-T ``v`` forward is ``neuron.forward``; the unused Ca filter
 lives in ``neuron.filter_ca``; pack readout selection in
-``neuron.readout``. The ``training`` package owns session, cost, and the
+``neuron.readout``. The ``train`` package owns session, cost, and the
 CLI driver. Numeric defaults live in ``param_defaults``.
 """
 from __future__ import annotations
 
-from neuron.params import (
+from neuron.param import (
     EULER_CLI,
     EULER_MODES,
     I_H_DIR_REVERSE_CELLS,

@@ -1,6 +1,6 @@
 """One fine cost part at best ``z`` (SSE / denom / per-t breakdown).
 
-Reuses training cost internals — does not reimplement MSE or entry grouping.
+Reuses train cost internals — does not reimplement MSE or entry grouping.
 
 * ``gt_power``: ``cost = 100 * SSE / Σ w (a_gt·gt)²``
 * ``a_gt2``: ``cost = Σ_i sse_entry_i / a_i²`` (no ×100)
@@ -34,10 +34,10 @@ import import_bootstrap  # noqa: F401
 import numpy as np
 import torch
 
-import figure.plot_run as plot_run
-import training
-from training.config import COST_NORMS, expand_cost_norm, spot_cost_part_key
-from training.cost import (
+import figure.plot as plot
+import train
+from train.config import COST_NORMS, expand_cost_norm, spot_cost_part_key
+from train.cost import (
     _gather_cost_time,
     _parts_from_entries,
     _pack_cost_forward,
@@ -46,7 +46,7 @@ from training.cost import (
     _weighted_mse_terms,
     calc_cost_parts,
 )
-from training.params import params_from_z
+from train.param import params_from_z
 
 
 def _resolve_part_key(args) -> str:
@@ -68,18 +68,18 @@ def _apply_cost_norm_override(session, cost_norm: str | None):
 
 
 def cost_part(session, z, part_key: str) -> dict:
-    """Build per-part tensors using the same forward + grouping as training cost."""
+    """Build per-part tensors using the same forward + grouping as train cost."""
     params = params_from_z(z, session)
     cost_norm = _session_cost_norm(session)
     task = None
-    for tname in training.SPOT_TASKS:
+    for tname in train.SPOT_TASKS:
         if part_key.startswith(f"{tname}_"):
             task = tname
             break
     if task is None:
         raise SystemExit(
             f"part {part_key!r} is not a spot fine key "
-            f"(expected prefix in {training.SPOT_TASKS})",
+            f"(expected prefix in {train.SPOT_TASKS})",
         )
     pack = session.pack_for(task)
     fwd = _pack_cost_forward(params, pack, session)
@@ -154,7 +154,7 @@ def cost_part(session, z, part_key: str) -> dict:
     # ``t_cost`` / ``ms_cost``: post-onset cost samples. Bare ``t`` / ``ms``: absolute.
     delta_ms = float(session.delta_ms)
     delta_ms_pre = float(session.delta_ms_pre)
-    t_onset = training.pack_t_onset(pack)
+    t_onset = train.pack_t_onset(pack)
     if pack.cost_time_idx is None:
         t_cost = np.arange(n_t, dtype=np.int64)
         t = t_onset + t_cost
@@ -164,11 +164,11 @@ def cost_part(session, z, part_key: str) -> dict:
             raise SystemExit(
                 f"cost_time_idx length {t_cost.shape[0]} != n_t {n_t}",
             )
-        t = training.pack_cost_abs_time_idx(pack, t_onset)
+        t = train.pack_cost_abs_time_idx(pack, t_onset)
     ms_cost = t_cost.astype(float) * delta_ms
     ms = np.array(
         [
-            training.ms_from_t(
+            train.ms_from_t(
                 int(ti),
                 t_onset=t_onset,
                 delta_ms_pre=delta_ms_pre,
@@ -313,7 +313,7 @@ def main(argv=None) -> None:
     ap.add_argument(
         "--task",
         default="spot_bright",
-        choices=list(training.SPOT_TASKS),
+        choices=list(train.SPOT_TASKS),
         help="spot task for --cell/--radius (default: spot_bright)",
     )
     ap.add_argument("--cell", default=None, help="cell type, e.g. L4")
@@ -353,8 +353,8 @@ def main(argv=None) -> None:
     )
     args = ap.parse_args(argv)
 
-    run_dir = plot_run.resolve_run_dir(args.run)
-    session, z, best_cost = plot_run.load_best(run_dir, verbose=True)
+    run_dir = plot.resolve_run_dir(args.run)
+    session, z, best_cost = plot.load_best(run_dir, verbose=True)
     session, cost_norm = _apply_cost_norm_override(session, args.cost_norm)
     print(f"cost_norm={cost_norm}  saved_total={best_cost:.6f}", flush=True)
 

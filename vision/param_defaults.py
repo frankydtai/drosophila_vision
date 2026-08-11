@@ -2,7 +2,7 @@
 """Numeric source for membrane constants, schema boxes, stimulus, and CLI values.
 
 Literals / constant bags only — except ``ms_spot_for_filter`` (``filter=ca`` →
-``MS_SPOT_CA``). Only ``4_training`` / figures / analyze / run scripts may
+``MS_SPOT_CA``). Only ``4_train`` / figures / analyze / run scripts may
 import this module. Layers ``1_neuron`` / ``2_network`` / ``3_task`` take
 numbers by injection only (Gruntman paradigm ms/geometry constants may live
 in ``task.moving_bar``).
@@ -21,7 +21,7 @@ DEFAULT_RUN_NAME = """
 DEFAULT_RUN_PATH = "hp_lp/" + DEFAULT_RUN_NAME
 
 # ---------------------------------------------------------------------------
-# 1.1 neuron.params (flat; no Physics bag)
+# 1.1 neuron.param (flat; no Physics bag)
 # ---------------------------------------------------------------------------
 
 DELTA_MS = 1.0
@@ -39,7 +39,7 @@ SYN_SCALE_EXC = 0.001
 SYN_SCALE_INH = 0.001
 
 I_H_REV = "off"
-EULER = "im"  # CLI token; expand to implicit|explicit via neuron.params.expand_euler
+EULER = "im"  # CLI token; expand to implicit|explicit via neuron.param.expand_euler
 
 GAIN_LO = 0.1
 GAIN_HI = 10.0
@@ -50,22 +50,17 @@ H_CELLS = ("L1", "L2", "L4", "L5")
 # Fixed nodes always use init / init_override.
 PARAM_BOXES: Dict[str, dict] = {
     "a_gt": dict(lo=0.5, hi=2.0, init=1.0, jit=0.1, train_mode="indi"),
-    "bias_gt": dict(lo=-50.0, hi=50.0, init=0.0, jit=1.0, train_mode="indi"),
+    "bias_gt": dict(lo=-200.0, hi=200.0, init=0.0, jit=1.0, train_mode="indi"),
     "syn_strength_cell": dict(lo=GAIN_LO, hi=GAIN_HI, init=1.0, jit=0.1, train_mode="indi"),
     "syn_strength_edge": dict(lo=GAIN_LO, hi=GAIN_HI, init=1.0, jit=0.1, train_mode="indi"),
     "a_in": dict(lo=0.01, hi=100, init=1.0, jit=0.1, train_mode="shared"),
     "a_out": dict(lo=GAIN_LO, hi=GAIN_HI, init=1.0, jit=0.1, train_mode="indi"),
     "e_leak": dict(lo=-50.0, hi=50.0, init=0.0, jit=1.0, train_mode="indi"),
-    "v_th": dict(lo=-100.0, hi=-100.0, init=-50.0, jit=0.0, train_mode="indi"),
-    # Ca rectifier: v_ca = relu(v − v_th_ca)·a_ca.
-    # --v-th-ca-from-v-th → write v_th into v_th_ca (frozen=all); CSV shows it.
-    # --a-ca-from-a-out → write a_out into a_ca (frozen=all); CSV shows it.
-    "v_th_ca": dict(lo=-100.0, hi=-100.0, init=-50.0, jit=0.0, train_mode="indi"),
-    "a_ca": dict(lo=GAIN_LO, hi=GAIN_HI, init=1.0, jit=0.1, train_mode="indi"),
-    "tau_ca": dict(lo=100.0, hi=1000.0, init=350.0, jit=5.0, train_mode="indi"),
+    "v_th": dict(lo=-100.0, hi=100.0, init=-50.0, jit=0.0, train_mode="indi"),
     "tau_lp": dict(lo=10.0, hi=100.0, init=10.0, jit=2.0, train_mode="indi"),
     "tau_hp": dict(lo=100.0, hi=500.0, init=200.0, jit=20.0, train_mode="indi"),
     "a_h": dict(lo=0.0, hi=1.0, init=0, jit=0.1, train_mode="indi_named"),
+    # borst only
     "v_mid_h_g": dict(lo=-70.0, hi=-30.0, init=-50.0, jit=5.0, train_mode="shared"),
     "v_mid_h_tau": dict(lo=-70.0, hi=-40.0, init=-50.0, jit=5.0, train_mode="shared"),
     "h_slope": dict(lo=-0.40, hi=-0.20, init=-0.25, jit=0.02, train_mode="shared"),
@@ -73,6 +68,10 @@ PARAM_BOXES: Dict[str, dict] = {
     "v_mid_h_g_rev": dict(lo=-70.0, hi=-30.0, init=-50.0, jit=5.0, train_mode="shared"),
     "v_mid_h_tau_rev": dict(lo=-70.0, hi=-40.0, init=-50.0, jit=5.0, train_mode="shared"),
     "h_slope_rev": dict(lo=-0.40, hi=-0.20, init=-0.25, jit=0.02, train_mode="shared"),
+    # ca only
+    "v_th_ca": dict(lo=-100.0, hi=100.0, init=-50.0, jit=0.0, train_mode="indi"),
+    "a_ca": dict(lo=GAIN_LO, hi=GAIN_HI, init=1.0, jit=0.1, train_mode="indi"),
+    "tau_ca": dict(lo=100.0, hi=1000.0, init=350.0, jit=5.0, train_mode="indi"),
     # Slots from SPOT_STI_RADII; cost-radius weight==0 gates slot to 0 in forward.
     "a_sti_radius": dict(lo=0.0, hi=1.0, init=0.0, jit=0.05, train_mode="indi"),
 }
@@ -114,7 +113,6 @@ MS_SPOT_CA = 25.0  # forced when ``--filter ca``
 MS_RESPONSE = 400.0
 MS_POST = 0.0
 SPOT_RADIUS = 1.0
-SPOT_RADII: Tuple[float, ...] = (0.5, 1.0, 1.5, 2.0)
 FULLY_INSIDE = True
 MULTI_SPOT = True
 SHIFT_RADIUS = 1.0
@@ -124,7 +122,7 @@ SHIFT_RADIUS = 1.0
 # 3.3 task.spot.readout
 # ---------------------------------------------------------------------------
 
-# Readout filter: none = v; ca = ca (``neuron.filter_ca``).
+# Readout filter: none = v (schema skips v_th_ca/a_ca/tau_ca); ca = ca.
 FILTER = "none"
 
 
@@ -158,21 +156,22 @@ SPOT_COST_RADIUS_KEY_ALIASES: Dict[str, float] = {
 MULTI_BAR = True
 
 # ---------------------------------------------------------------------------
-# 4.1 training.config
+# 4.1 train.config
 # ---------------------------------------------------------------------------
 
 TASK = "spot_bright"
 
 # ---------------------------------------------------------------------------
-# 4.4 training.cost
+# 4.4 train.cost
+# 4.5 train.optimization
 # ---------------------------------------------------------------------------
 
-COST_NORM = "a_gt2"  # gt_power | a_gt2; see training.config.COST_NORMS
+COST_NORM = "a_gt2"  # gt_power | a_gt2; see train.config.COST_NORMS
 # Spot: post-onset cost sample spacing (ms); 0, interval, 2*interval, ...
 COST_INTERVAL_MS = 10.0
-# Spot: per-radius explicit post-onset ms (overwrites COST_INTERVAL_MS for that r).
+# Spot: per-radius explicit post-onset ms (overwrites COST_INTERVAL_MS for that radius).
 COST_MS: Dict[float, Tuple[float, ...]] = {
-    1.0: (0.0, MS_SPOT_CA),
+    1.0: (0.0, 100),
 }
 # Cost/plot affine: write v (or ca when ``--filter ca``) at t_onset into
 # ``bias_gt`` (clamped to PARAM_BOXES["bias_gt"] lo/hi); also written to param.csv.
@@ -196,7 +195,7 @@ LRS = "0.1"
 CHECKPOINT_INTERVAL = 1000
 
 # ---------------------------------------------------------------------------
-# 4.5 training.session
+# 4.5 train.session
 # ---------------------------------------------------------------------------
 
 FP = 32
@@ -214,8 +213,8 @@ T_REL_STOP = 10
 # 6 analyze.trace
 # ---------------------------------------------------------------------------
 
-TRACE_OSC_MIN_FREQ_HZ = 0.5
-TRACE_OSC_MAX_FREQ_HZ = 20.0
+TRACE_OSC_MIN_F = 0.5
+TRACE_OSC_MAX_F = 20.0
 TRACE_OSC_PEAK_THRESHOLD = 0.5
 TRACE_OSC_Z_THRESHOLD = 2.0
 TRACE_OSC_SNR_MIN = 2.0

@@ -10,7 +10,7 @@ import numpy as np
 import torch
 
 import network.path  # noqa: F401 — FAFB path on sys.path
-import training
+import train
 
 GT_COLOR = 'gray'
 V_READOUT_COLOR = 'red'
@@ -196,8 +196,8 @@ def _param_by_type_name(z, session, name):
     schema = list(session.schema)
     if name not in {s.get('name') for s in schema}:
         return {}
-    arr = np.asarray(training.node_values_from_z(z, schema)[name], dtype=np.float64).reshape(-1)
-    cells = training.cell_node_names(session.backend)
+    arr = np.asarray(train.node_values_from_z(z, schema)[name], dtype=np.float64).reshape(-1)
+    cells = train.cell_node_names(session.backend)
     if arr.shape[0] != len(cells):
         raise ValueError(f"{name} length {arr.shape[0]} != n_cells {len(cells)}")
     return {str(n): float(arr[i]) for i, n in enumerate(cells)}
@@ -217,7 +217,7 @@ def cell_ylabel(label, ca_n=None, n=None):
 
 def format_spot_radius_time_title(radius, n, cell, cost_parts, contrasts):
     """Time-panel title: ``r=0 (n=252)`` + ``bright: 63.3`` / ``dark: …``."""
-    from training.config import spot_cost_part_key
+    from train.config import spot_cost_part_key
 
     r = float(radius)
     r_s = str(int(r)) if r == int(r) else str(r)
@@ -318,8 +318,8 @@ def ms_shown_axis_xlim(ms_shown, *, delta_ms, origin_t=0):
     if ms_shown is None:
         return None
     start, stop = ms_shown
-    lo = int(origin_t) + int(training.t_from_ms(float(start), delta_ms=float(delta_ms)))
-    hi = int(origin_t) + int(training.t_from_ms(float(stop), delta_ms=float(delta_ms)))
+    lo = int(origin_t) + int(train.t_from_ms(float(start), delta_ms=float(delta_ms)))
+    hi = int(origin_t) + int(train.t_from_ms(float(stop), delta_ms=float(delta_ms)))
     if lo > hi:
         raise ValueError(f'ms-shown xlim START t={lo} > STOP t={hi}')
     return lo, hi
@@ -767,7 +767,7 @@ def save_figure(fig, path, dpi=150, rasterize=False, *, timer=None):
 
 
 def plot_cost(costs, path, *, costs_by_part=None, part_order=None):
-    """Plot training cost; total + grouped subplots with role colors.
+    """Plot train cost; total + grouped subplots with role colors.
 
     Rules (applies to spot / moving_bar / future tasks):
     - All curves are solid (``linestyle='-'``).
@@ -788,7 +788,7 @@ def plot_cost(costs, path, *, costs_by_part=None, part_order=None):
         _apply_cost_yscale(ax, costs)
         ax.set_xlabel('step')
         ax.set_ylabel('cost [% gt power]')
-        ax.set_title(f'Training cost ({len(costs)} steps)')
+        ax.set_title(f'Train cost ({len(costs)} steps)')
         ax.grid(True, alpha=0.3, which='both')
         fig.tight_layout()
         timer.end_draw()
@@ -1016,7 +1016,7 @@ def plot_cost(costs, path, *, costs_by_part=None, part_order=None):
     _draw_total(n_block_plot_row, log=False)
     _draw_part_block(n_block_plot_row + 1, log=False, shared_cell_ylim=False, with_legend=False)
 
-    fig.suptitle(f'Training cost ({len(costs)} steps)', fontsize=12, y=1.01)
+    fig.suptitle(f'Train cost ({len(costs)} steps)', fontsize=12, y=1.01)
     fig.tight_layout()
     timer.end_draw()
     save_figure(fig, path, dpi=150, timer=timer)

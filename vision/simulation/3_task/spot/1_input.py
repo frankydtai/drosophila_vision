@@ -19,7 +19,7 @@ import torch
 from network import path  # noqa: F401 -- FAFBv783 on sys.path
 import build_hex
 
-from neuron.params import t_from_ms
+from neuron.param import t_from_ms
 
 _SPOT_RADIUS_HALF_STEP_TOL = 1e-9
 
