@@ -1,22 +1,18 @@
 """Digitize Gruntman et al. 2018 Fig. 2B Vm traces from 2b.png.
 
-Fig. 2B shows mean T4 responses at five RF positions (leading −2 … trailing +2)
+Fig. 2B shows mean T4 responses at five RF positions (−2 … +2)
 for four flash durations (160, 80, 40, 20 ms), aligned to stimulus onset
 (gray/red bars). Values are approximate raster digitization, not raw data.
 
 Method
 ------
 1. Skip left single-trial noise (mean traces begin near x ≈ 500).
-2. Seed each colour near stimulus onset and track mask rows with a tiered
-   continuity search.  The two pinks use their exact Fig. 2B core colours so
-   their anti-aliased edges cannot be confused at crossings.
-3. Time: 160-ms gray bar = 289 px, onset x = 518. Each row has its own drawn
-   5-mV scale bar, so voltage uses the measured scale for that row.
+2. Track the core raster colour of each trace. Short crossings and occlusions
+   are repaired below with Fig. 2B-specific manual patches.
+3. Time: 160-ms gray bar = 289 px, onset x = 518. Voltage uses the separately
+   measured 5-mV scale bar in each row.
 4. Per trace, rest_y = median y before onset; subtract median pre-stimulus Vm
    (t < −2 ms) so baseline is flat at 0.
-5. A few short occlusions/crossings are repaired with hand-measured, Fig. 2B-
-   specific interpolation patches. This is intentionally a one-figure
-   digitization script, not a general-purpose line tracker.
 
 Run:  ../.venv/bin/python 2b.py
 """
@@ -42,8 +38,6 @@ OUT_STEM = HERE / f"{FIGURE}_digitized"
 TRACE_X0, TRACE_X1 = 500, 1230
 STIM_ONSET_X = 518
 PX_PER_MS = 289.0 / 160.0
-# The four black scale bars span y=233..308, 629..704, 924..1073 and
-# 1323..1475 in the source image. Each represents 5 mV.
 PX_PER_MV = {
     160: 75.0 / 5.0,
     80: 75.0 / 5.0,
@@ -54,25 +48,17 @@ MAX_DY_PX = 28
 MAX_DY_TIERS = (MAX_DY_PX, 56, 96, 160)
 PRE_STIM_MS = -2.0
 
-# Core colours printed repeatedly in this raster. Broad HSV masks merge the
-# pale-pink trace with anti-aliased edges of the dark-pink trace.
-PINK_CORE_RGB = {
-    True: np.array((191, 53, 136), dtype=float),
-    False: np.array((232, 185, 216), dtype=float),
+CORE_RGB = {
+    "dark_green": np.array((103, 169, 63), dtype=float),
+    "light_green": np.array((193, 223, 144), dtype=float),
+    "dark_pink": np.array((191, 53, 136), dtype=float),
+    "light_pink": np.array((232, 185, 216), dtype=float),
 }
-PINK_CORE_MAX_DISTANCE = 22.0
-GREEN_CORE_RGB = {
-    True: np.array((103, 169, 63), dtype=float),
-    False: np.array((193, 223, 144), dtype=float),
-}
-GREEN_CORE_MAX_DISTANCE = 22.0
+CORE_MAX_DISTANCE = 22.0
 
-# Small, manual repairs for places where the light-green center trace is
-# hidden by another line and the continuity walker briefly changes traces.
-# Coordinates are source-image x pixels. Values between each pair are replaced
-# by a straight interpolation between the trustworthy boundary samples.
+# Hand patches are deliberately specific to this one published raster. They
+# bridge short occlusions without trying to make a general-purpose digitizer.
 MANUAL_LINEAR_PATCH_X = {
-    # Early dark-green gaps are occlusions by the black curve, not steps.
     (160, "dark_green"): ((575, 680),),
     (160, "light_green"): ((834, 848), (1084, 1110)),
     (80, "dark_green"): ((558, 650), (992, 1075)),
@@ -83,9 +69,6 @@ MANUAL_LINEAR_PATCH_X = {
     (20, "dark_green"): ((558, 615),),
 }
 
-# The late 20-ms center bump is real, but the line immediately before it is
-# occluded. These hand-read panel-local y anchors preserve the small bump
-# without connecting through the lower dark-green trace.
 MANUAL_PIXEL_ANCHORS = {
     (20, "light_green"): (
         (1088, 249.0),
@@ -97,8 +80,6 @@ MANUAL_PIXEL_ANCHORS = {
     ),
 }
 
-# Stop where the source trace itself becomes fully hidden. Continuing past
-# these points only follows anti-aliased pixels belonging to another colour.
 MANUAL_TRACE_END_X = {
     (160, "light_pink"): 1094,
     (20, "light_green"): 1168,
@@ -111,13 +92,22 @@ PANELS = [
     (20, 1285, 1660),
 ]
 
-POSITIONS = [
-    ("leading", -2, "black"),
-    ("minus1", -1, "dark_green"),
-    ("center", 0, "light_green"),
-    ("plus1", 1, "dark_pink"),
-    ("trailing", 2, "light_pink"),
+TRACES = [
+    "black",
+    "dark_green",
+    "light_green",
+    "dark_pink",
+    "light_pink",
 ]
+
+# Output position index keyed by extracted trace colour.
+POSITION_IDX = {
+    "black": 0,
+    "dark_green": -1,
+    "light_green": -2,
+    "dark_pink": 1,
+    "light_pink": 2,
+}
 
 def black_mask(rgb: np.ndarray) -> np.ndarray:
     mx = rgb.max(2)
@@ -126,13 +116,15 @@ def black_mask(rgb: np.ndarray) -> np.ndarray:
 
 
 def green_mask(rgb: np.ndarray, *, dark: bool) -> np.ndarray:
-    delta = rgb.astype(float) - GREEN_CORE_RGB[dark]
-    return np.sqrt(np.sum(delta * delta, axis=2)) <= GREEN_CORE_MAX_DISTANCE
+    color = "dark_green" if dark else "light_green"
+    delta = rgb.astype(float) - CORE_RGB[color]
+    return np.sqrt(np.sum(delta * delta, axis=2)) <= CORE_MAX_DISTANCE
 
 
 def pink_mask(rgb: np.ndarray, *, dark: bool) -> np.ndarray:
-    delta = rgb.astype(float) - PINK_CORE_RGB[dark]
-    return np.sqrt(np.sum(delta * delta, axis=2)) <= PINK_CORE_MAX_DISTANCE
+    color = "dark_pink" if dark else "light_pink"
+    delta = rgb.astype(float) - CORE_RGB[color]
+    return np.sqrt(np.sum(delta * delta, axis=2)) <= CORE_MAX_DISTANCE
 
 
 def line_mask(rgb: np.ndarray, color: str) -> np.ndarray:
@@ -151,11 +143,8 @@ def _pick_y(rows: np.ndarray, prev: float | None, color: str) -> float | None:
     del color
     if len(rows) == 0:
         return None
-
-    # A printed trace is several pixels thick. Picking the single pixel nearest
-    # to ``prev`` sticks to one edge on the rise and the opposite edge on the
-    # decay, artificially flattening rounded peaks. Split the column into ink
-    # runs and track the centre of the nearest run instead.
+    # Track the centre of the printed ink run. Tracking its nearest edge clamps
+    # rounded peaks because the rising and falling thick strokes overlap in y.
     runs = np.split(rows, np.where(np.diff(rows) > 1)[0] + 1)
     centers = np.asarray([np.median(run) for run in runs], dtype=float)
     if prev is None:
@@ -210,7 +199,6 @@ def _repair_trace_pixels(
     flash_ms: int,
     color: str,
 ) -> tuple[np.ndarray, np.ndarray]:
-    """Apply the small hand patches documented in the constants above."""
     for x0, x1 in MANUAL_LINEAR_PATCH_X.get((flash_ms, color), ()):
         left = int(np.searchsorted(full_x, x0, side="left")) - 1
         right = int(np.searchsorted(full_x, x1, side="right"))
@@ -288,10 +276,11 @@ def digitize(img: np.ndarray) -> pd.DataFrame:
     rows: list[dict] = []
     for flash_ms, y0, y1 in PANELS:
         panel = img[y0:y1]
-        for position, position_idx, color in POSITIONS:
+        for color in TRACES:
+            position_idx = POSITION_IDX[color]
             time_ms, vm_mv = extract_trace(panel, color, flash_ms)
             if time_ms is None:
-                print(f"  !! no trace for {flash_ms} ms / {position}")
+                print(f"  !! no trace for {flash_ms} ms / {color}")
                 continue
             trace_id = f"{flash_ms}ms_pos{position_idx:+d}"
             pre = vm_mv[time_ms < PRE_STIM_MS]
@@ -301,7 +290,6 @@ def digitize(img: np.ndarray) -> pd.DataFrame:
                     dict(
                         trace_id=trace_id,
                         flash_duration_ms=int(flash_ms),
-                        position=position,
                         position_idx=int(position_idx),
                         color=color,
                         time_ms=float(ti),
@@ -309,7 +297,7 @@ def digitize(img: np.ndarray) -> pd.DataFrame:
                     )
                 )
             print(
-                f"  {flash_ms:3d} ms {position:8s} n={len(time_ms):4d} "
+                f"  {flash_ms:3d} ms pos{position_idx:+d} n={len(time_ms):4d} "
                 f"t=[{time_ms[0]:.0f},{time_ms[-1]:.0f}] ms "
                 f"pre_std={pre_std:4.2f} mV peak={vm_mv.max():5.1f} mV "
                 f"end={vm_mv[-1]:5.1f} mV"
@@ -337,10 +325,34 @@ def plot_check(df: pd.DataFrame, path: Path) -> None:
                 sub.vm_mv,
                 color=colors[sub.color.iloc[0]],
                 lw=1.2,
-                label=sub.position.iloc[0],
+                label=f"{position_idx:+d}",
             )
-        ax.axvline(0, color="0.75", lw=0.6)
-        ax.axvline(flash_ms, color="0.85", lw=0.6, ls="--")
+        ax.axvspan(0, flash_ms, color="0.75", alpha=0.12, zorder=0)
+        ax.axvline(0, color="0.55", lw=0.8)
+        ax.axvline(flash_ms, color="0.55", lw=0.8, ls="--")
+        ax.annotate(
+            "flash start\n0 ms",
+            xy=(0, 0.02),
+            xycoords=("data", "axes fraction"),
+            xytext=(3, 2),
+            textcoords="offset points",
+            ha="left",
+            va="bottom",
+            fontsize=7,
+            color="0.30",
+        )
+        ax.annotate(
+            f"flash end\n{flash_ms} ms",
+            xy=(flash_ms, 0.14),
+            xycoords=("data", "axes fraction"),
+            xytext=(3, 2),
+            textcoords="offset points",
+            ha="left",
+            va="bottom",
+            fontsize=7,
+            color="0.30",
+            bbox=dict(facecolor="white", edgecolor="none", alpha=0.70, pad=0.5),
+        )
         ax.axhline(0, color="0.75", lw=0.5)
         ax.set_ylabel(f"{flash_ms} ms")
     axes[-1].set_xlabel("time (ms)")

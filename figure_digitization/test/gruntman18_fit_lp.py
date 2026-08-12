@@ -12,8 +12,10 @@ unit input, not the observed peak response.
 Outputs:
   gruntman18_fit_lp.csv  one row per fitted trace
   gruntman18_fit_lp.png  20 raw-data/fit panels
-  gruntman18_fit_lp_shared.csv  four durations share parameters per location
-  gruntman18_fit_lp_shared.png  20 panels using the location-shared fits
+  gruntman18_fit_lp_shared_location.csv  all parameters shared per location
+  gruntman18_fit_lp_shared_location.png  location-shared fit panels
+  gruntman18_fit_lp_shared_all.csv  location gains; one global tau and delay
+  gruntman18_fit_lp_shared_all.png  global-tau/global-delay fit panels
 
 Run:  ../.venv/bin/python gruntman18_fit_lp.py
 """
@@ -35,24 +37,19 @@ ROOT = HERE.parent
 INPUT_CSV = ROOT / "gruntman18" / "2b_digitized.csv"
 OUT_CSV = HERE / "gruntman18_fit_lp.csv"
 OUT_PNG = HERE / "gruntman18_fit_lp.png"
-OUT_SHARED_CSV = HERE / "gruntman18_fit_lp_shared.csv"
-OUT_SHARED_PNG = HERE / "gruntman18_fit_lp_shared.png"
+OUT_SHARED_LOCATION_CSV = HERE / "gruntman18_fit_lp_shared_location.csv"
+OUT_SHARED_LOCATION_PNG = HERE / "gruntman18_fit_lp_shared_location.png"
+OUT_SHARED_ALL_CSV = HERE / "gruntman18_fit_lp_shared_all.csv"
+OUT_SHARED_ALL_PNG = HERE / "gruntman18_fit_lp_shared_all.png"
 
 DURATIONS_MS = [160, 80, 40, 20]
-POSITIONS = ["leading", "minus1", "center", "plus1", "trailing"]
-POSITION_LABELS = {
-    "leading": "leading (-2)",
-    "minus1": "-1",
-    "center": "center (0)",
-    "plus1": "+1",
-    "trailing": "trailing (+2)",
-}
+POSITION_IDXS = [-2, -1, 0, 1, 2]
 COLORS = {
-    "leading": "black",
-    "minus1": "#2f7d32",
-    "center": "#9bd746",
-    "plus1": "#c72c7d",
-    "trailing": "#e8aacd",
+    -2: "#b8e06a",
+    -1: "#2d6b1f",
+    0: "#111111",
+    1: "#b03078",
+    2: "#e8b0d0",
 }
 
 TAU_STARTS_MS = (5.0, 15.0, 30.0, 60.0, 120.0, 250.0)
@@ -208,7 +205,6 @@ def fit_location_shared(
 
     rows = []
     fits = {}
-    position = str(location_data["position"].iloc[0])
     position_idx = int(location_data["position_idx"].iloc[0])
     for trace in traces:
         prediction = delayed_lp_pulse(
@@ -229,7 +225,6 @@ def fit_location_shared(
             {
                 "trace_id": trace_id,
                 "flash_duration_ms": int(trace["duration_ms"]),
-                "position": position,
                 "position_idx": position_idx,
                 "gain_mv": gain_mv,
                 "delay_ms": delay_ms,
@@ -250,24 +245,150 @@ def fit_location_shared(
     return rows, fits
 
 
+def fit_all_shared(
+    data: pd.DataFrame,
+) -> tuple[list[dict[str, float | str]], dict[str, dict]]:
+    """Fit five location gains while sharing one tau and delay globally."""
+    traces = []
+    for position_idx in POSITION_IDXS:
+        for duration_ms in DURATIONS_MS:
+            trace = data[
+                (data["position_idx"] == position_idx)
+                & (data["flash_duration_ms"] == duration_ms)
+            ].sort_values("time_ms")
+            if trace.empty:
+                raise ValueError(f"missing position {position_idx:+d}, {duration_ms} ms trace")
+            time_ms = trace["time_ms"].to_numpy(dtype=float)
+            vm_mv = trace["vm_mv"].to_numpy(dtype=float)
+            finite = np.isfinite(time_ms) & np.isfinite(vm_mv)
+            traces.append(
+                {
+                    "trace_id": str(trace["trace_id"].iloc[0]),
+                    "position_idx": position_idx,
+                    "duration_ms": float(duration_ms),
+                    "time_ms": time_ms[finite],
+                    "vm_mv": vm_mv[finite],
+                }
+            )
+
+    gain_starts = [
+        max(
+            float(
+                max(
+                    np.max(trace["vm_mv"])
+                    for trace in traces
+                    if trace["position_idx"] == position_idx
+                )
+            ),
+            0.1,
+        )
+        for position_idx in POSITION_IDXS
+    ]
+    lower_bounds = np.concatenate((LOWER_BOUNDS[:2], np.zeros(len(POSITION_IDXS))))
+    upper_bounds = np.concatenate(
+        (UPPER_BOUNDS[:2], np.full(len(POSITION_IDXS), 500.0))
+    )
+
+    def residual(parameters: np.ndarray) -> np.ndarray:
+        tau_ms, delay_ms = parameters[:2]
+        gains = dict(zip(POSITION_IDXS, parameters[2:]))
+        return np.concatenate(
+            [
+                delayed_lp_pulse(
+                    trace["time_ms"],
+                    trace["duration_ms"],
+                    tau_ms,
+                    delay_ms,
+                    gains[trace["position_idx"]],
+                )
+                - trace["vm_mv"]
+                for trace in traces
+            ]
+        )
+
+    best = None
+    for tau0 in TAU_STARTS_MS:
+        for delay0 in DELAY_STARTS_MS:
+            result = least_squares(
+                residual,
+                x0=np.array([tau0, delay0, *gain_starts]),
+                bounds=(lower_bounds, upper_bounds),
+                loss="linear",
+                max_nfev=20_000,
+            )
+            sse = float(np.dot(result.fun, result.fun))
+            if best is None or sse < best[0]:
+                best = (sse, result)
+
+    assert best is not None
+    global_sse, result = best
+    tau_ms, delay_ms = map(float, result.x[:2])
+    gains = dict(zip(POSITION_IDXS, map(float, result.x[2:])))
+    pooled_vm = np.concatenate([trace["vm_mv"] for trace in traces])
+    pooled_ss_total = float(np.sum((pooled_vm - np.mean(pooled_vm)) ** 2))
+    global_r_squared = (
+        1.0 - global_sse / pooled_ss_total if pooled_ss_total > 0.0 else np.nan
+    )
+
+    rows = []
+    fits = {}
+    for trace in traces:
+        prediction = delayed_lp_pulse(
+            trace["time_ms"],
+            trace["duration_ms"],
+            tau_ms,
+            delay_ms,
+            gains[trace["position_idx"]],
+        )
+        residual_trace = prediction - trace["vm_mv"]
+        sse = float(np.dot(residual_trace, residual_trace))
+        ss_total = float(
+            np.sum((trace["vm_mv"] - np.mean(trace["vm_mv"])) ** 2)
+        )
+        r_squared = 1.0 - sse / ss_total if ss_total > 0.0 else np.nan
+        trace_id = trace["trace_id"]
+        rows.append(
+            {
+                "trace_id": trace_id,
+                "flash_duration_ms": int(trace["duration_ms"]),
+                "position_idx": trace["position_idx"],
+                "gain_mv": gains[trace["position_idx"]],
+                "delay_ms": delay_ms,
+                "tau_ms": tau_ms,
+                "effective_offset_ms": delay_ms + trace["duration_ms"],
+                "r_squared": r_squared,
+                "global_r_squared": global_r_squared,
+                "sse": sse,
+                "global_sse": global_sse,
+                "n_points": len(trace["time_ms"]),
+            }
+        )
+        fits[trace_id] = {
+            "time_ms": trace["time_ms"],
+            "vm_mv": trace["vm_mv"],
+            "prediction_mv": prediction,
+        }
+    return rows, fits
+
+
 def plot_fits(results: pd.DataFrame, fits: dict[str, dict]) -> None:
     fig, axes = plt.subplots(
         len(DURATIONS_MS),
-        len(POSITIONS),
+        len(POSITION_IDXS),
         figsize=(17, 12),
         sharex=True,
         squeeze=False,
     )
 
     for row_index, duration_ms in enumerate(DURATIONS_MS):
-        for column_index, position in enumerate(POSITIONS):
+        for column_index, position_idx in enumerate(POSITION_IDXS):
             ax = axes[row_index, column_index]
             row = results[
                 (results.flash_duration_ms == duration_ms)
-                & (results.position == position)
+                & (results.position_idx == position_idx)
             ].iloc[0]
             fit = fits[row.trace_id]
-            color = COLORS[position]
+            color = COLORS[position_idx]
 
             ax.plot(
                 fit["time_ms"],
@@ -308,12 +429,12 @@ def plot_fits(results: pd.DataFrame, fits: dict[str, dict]) -> None:
                 bbox={"facecolor": "white", "alpha": 0.72, "edgecolor": "none"},
             )
             if row_index == 0:
-                ax.set_title(POSITION_LABELS[position], fontsize=11)
+                ax.set_title(f"{position_idx:+d}", fontsize=11)
             if column_index == 0:
                 ax.set_ylabel(f"{duration_ms} ms\nVm (mV)")
             if row_index == len(DURATIONS_MS) - 1:
                 ax.set_xlabel("time (ms)")
-            if row_index == 0 and column_index == len(POSITIONS) - 1:
+            if row_index == 0 and column_index == len(POSITION_IDXS) - 1:
                 ax.legend(fontsize=7, loc="lower right")
 
     fig.suptitle(
@@ -326,27 +447,33 @@ def plot_fits(results: pd.DataFrame, fits: dict[str, dict]) -> None:
     plt.close(fig)
 
 
-def plot_shared_fits(results: pd.DataFrame, fits: dict[str, dict]) -> None:
+def plot_shared_fits(
+    results: pd.DataFrame,
+    fits: dict[str, dict],
+    output_path: Path,
+    title: str,
+    fit_label: str,
+) -> None:
     """Plot four-duration fits whose parameters are shared by location."""
     fig, axes = plt.subplots(
         len(DURATIONS_MS),
-        len(POSITIONS),
+        len(POSITION_IDXS),
         figsize=(17, 12),
         sharex=True,
         squeeze=False,
     )
     for row_index, duration_ms in enumerate(DURATIONS_MS):
-        for column_index, position in enumerate(POSITIONS):
+        for column_index, position_idx in enumerate(POSITION_IDXS):
             ax = axes[row_index, column_index]
             row = results[
                 (results.flash_duration_ms == duration_ms)
-                & (results.position == position)
+                & (results.position_idx == position_idx)
             ].iloc[0]
             fit = fits[row.trace_id]
             ax.plot(
                 fit["time_ms"],
                 fit["vm_mv"],
-                color=COLORS[position],
+                color=COLORS[position_idx],
                 lw=1.2,
                 alpha=0.75,
                 label="digitized data",
@@ -357,7 +484,7 @@ def plot_shared_fits(results: pd.DataFrame, fits: dict[str, dict]) -> None:
                 color="#2474b5",
                 lw=2.0,
                 ls="--",
-                label="location-shared LP fit",
+                label=fit_label,
             )
             ax.axhline(0.0, color="0.75", lw=0.6)
             ax.axvline(0.0, color="0.6", lw=0.7, ls=":")
@@ -382,21 +509,17 @@ def plot_shared_fits(results: pd.DataFrame, fits: dict[str, dict]) -> None:
                 bbox={"facecolor": "white", "alpha": 0.72, "edgecolor": "none"},
             )
             if row_index == 0:
-                ax.set_title(POSITION_LABELS[position], fontsize=11)
+                ax.set_title(f"{position_idx:+d}", fontsize=11)
             if column_index == 0:
                 ax.set_ylabel(f"{duration_ms} ms\nVm (mV)")
             if row_index == len(DURATIONS_MS) - 1:
                 ax.set_xlabel("time (ms)")
-            if row_index == 0 and column_index == len(POSITIONS) - 1:
+            if row_index == 0 and column_index == len(POSITION_IDXS) - 1:
                 ax.legend(fontsize=7, loc="lower right")
 
-    fig.suptitle(
-        "Gruntman 2018 Fig. 2B — gain, delay, and τ shared across durations per location",
-        fontsize=15,
-        y=0.995,
-    )
+    fig.suptitle(title, fontsize=15, y=0.995)
     fig.tight_layout()
-    fig.savefig(OUT_SHARED_PNG, dpi=160)
+    fig.savefig(output_path, dpi=160)
     plt.close(fig)
 
 
@@ -405,21 +528,19 @@ def main() -> int:
     group_columns = [
         "trace_id",
         "flash_duration_ms",
-        "position",
         "position_idx",
     ]
     rows = []
     fits: dict[str, dict] = {}
 
     for keys, trace in data.groupby(group_columns, sort=False):
-        trace_id, duration_ms, position, position_idx = keys
+        trace_id, duration_ms, position_idx = keys
         fit = fit_trace(trace)
         fits[str(trace_id)] = fit
         rows.append(
             {
                 "trace_id": trace_id,
                 "flash_duration_ms": duration_ms,
-                "position": position,
                 "position_idx": position_idx,
                 "gain_mv": fit["gain_mv"],
                 "delay_ms": fit["delay_ms"],
@@ -439,17 +560,36 @@ def main() -> int:
 
     shared_rows = []
     shared_fits: dict[str, dict] = {}
-    for position in POSITIONS:
+    for position_idx in POSITION_IDXS:
         location_rows, location_fits = fit_location_shared(
-            data[data["position"] == position]
+            data[data["position_idx"] == position_idx]
         )
         shared_rows.extend(location_rows)
         shared_fits.update(location_fits)
     shared_results = pd.DataFrame(shared_rows).sort_values(
         ["flash_duration_ms", "position_idx"], ascending=[False, True]
     )
-    shared_results.to_csv(OUT_SHARED_CSV, index=False)
-    plot_shared_fits(shared_results, shared_fits)
+    shared_results.to_csv(OUT_SHARED_LOCATION_CSV, index=False)
+    plot_shared_fits(
+        shared_results,
+        shared_fits,
+        OUT_SHARED_LOCATION_PNG,
+        "Gruntman 2018 Fig. 2B — gain, delay, and τ shared across durations per location",
+        "location-shared LP fit",
+    )
+
+    all_rows, all_fits = fit_all_shared(data)
+    all_results = pd.DataFrame(all_rows).sort_values(
+        ["flash_duration_ms", "position_idx"], ascending=[False, True]
+    )
+    all_results.to_csv(OUT_SHARED_ALL_CSV, index=False)
+    plot_shared_fits(
+        all_results,
+        all_fits,
+        OUT_SHARED_ALL_PNG,
+        "Gruntman 2018 Fig. 2B — location gains; one τ and delay shared by all traces",
+        "global-τ/global-delay LP fit",
+    )
 
     columns = [
         "trace_id",
@@ -475,8 +615,24 @@ def main() -> int:
             index=False, float_format=lambda x: f"{x:.4g}"
         )
     )
-    print(f"wrote {OUT_SHARED_CSV}")
-    print(f"wrote {OUT_SHARED_PNG}")
+    print(f"wrote {OUT_SHARED_LOCATION_CSV}")
+    print(f"wrote {OUT_SHARED_LOCATION_PNG}")
+    all_columns = [
+        "trace_id",
+        "gain_mv",
+        "delay_ms",
+        "tau_ms",
+        "r_squared",
+        "global_r_squared",
+    ]
+    print("\n=== five location gains; tau and delay shared across all traces ===")
+    print(
+        all_results[all_columns].to_string(
+            index=False, float_format=lambda x: f"{x:.4g}"
+        )
+    )
+    print(f"wrote {OUT_SHARED_ALL_CSV}")
+    print(f"wrote {OUT_SHARED_ALL_PNG}")
     return 0
 
 
