@@ -42,7 +42,7 @@ from build_hex import (
     FIELD_VIEW_PAD_DEG,
     draw_hex_patches,
     draw_hex_patches_uv,
-    field_bounds_centers,
+    field_bounds_from_vertices,
     set_axis_labels,
     xy_deg_from_uv,
 )
@@ -71,7 +71,7 @@ def _field_limits(hexes, *, hexes_are_xy_deg: bool = False):
             [u for u, _ in hexes],
             [v for _, v in hexes],
         )
-    x0, y0, x1, y1 = field_bounds_centers(x_deg, y_deg)
+    x0, y0, x1, y1 = field_bounds_from_vertices(x_deg, y_deg)
     pad = FIELD_VIEW_PAD_DEG
     return (x0 - pad, x1 + pad), (y0 - pad, y1 + pad)
 
@@ -177,11 +177,11 @@ def save_snapshots(
             times = snapshot_t
             labels = [f"t={t}" for t in times]
         else:
-            start_t, center_t, exit_t = moving_bar_transit_times(
+            start_t, mid_t, exit_t = moving_bar_transit_times(
                 spec, field_deg, bar_radius, multi_bar=bool(multi_bar), t_onset=t_onset, n_t=n_t,
             )
-            times = [start_t, center_t, exit_t]
-            labels = ("start", "center", "exit")
+            times = [start_t, mid_t, exit_t]
+            labels = ("start", "mid", "exit")
         for j, (t, label) in enumerate(zip(times, labels)):
             plot_snapshot(
                 axes[i, j], plot_hexes, i_sti_hex[i], t, spec,
@@ -192,7 +192,7 @@ def save_snapshots(
             )
         if len(times) >= 3 and not snapshot_t:
             spread = float(np.ptp(i_sti_hex[i, times[1]]))
-            print(f"  {spec.name}: start/center/exit t={times}  center ptp={spread:.1f} pA")
+            print(f"  {spec.name}: start/mid/exit t={times}  mid ptp={spread:.1f} pA")
         else:
             print(f"  {spec.name}: snapshot t={times}")
 

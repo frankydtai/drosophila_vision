@@ -27,7 +27,7 @@ from task.spot.gt import (
     GT_CELLS,
     RF_SIGN,
     _spot_readout_a_radius,
-    load_RecF_ImpR,
+    load_rf_ir,
     contrast_sign,
     spot_gt_active,
 )
@@ -374,11 +374,11 @@ def build_spot_gt(
             f"spot gt n_t={n_t_gt} exceeds forward n_t={n_t} "
             f"(ms_response={ms_response:g}, t_onset={t_onset})"
         )
-    recf_gt, recf_peak_scale, impr_gt = load_RecF_ImpR(
+    rf, ir = load_rf_ir(
         t_onset=t_onset, n_t=n_t_gt, ms_spot=ms_spot, delta_ms=delta_ms,
         filter=filter,
     )
-    gt_type_idx = {str(rt): i for i, rt in enumerate(GT_CELLS)}
+    gt_type_idx = {str(gt_cell): i for i, gt_cell in enumerate(GT_CELLS)}
     if gt_cells is not None:
         bad = [str(t) for t in gt_cells if str(t) not in gt_type_idx]
         if bad:
@@ -400,7 +400,7 @@ def build_spot_gt(
     batches = spot_sti_batches(spot)
     n_batch = len(batches)
 
-    # Single sti waveform source (step or finite spot) shared with the ImpR gt.
+    # Single sti waveform source (step or finite spot) shared with the ir gt.
     u = spot_input_waveform(t_onset, n_t, ms_spot, delta_ms=delta_ms)
     drive = torch.as_tensor(
         i_baseline + (i_spot - i_baseline) * u, dtype=sim_dtype, device=device,
@@ -435,22 +435,20 @@ def build_spot_gt(
         )
         if w == 0.0:
             continue
-        for rt in active:
-            gt_idx = gt_type_idx[rt]
-            if str(filter) == "ca" and float(recf_peak_scale[gt_idx]) == 0.0:
-                continue
-            nodes = hex2gt(connectome, mu, mv, rt, names)
+        for gt_cell in active:
+            gt_idx = gt_type_idx[gt_cell]
+            nodes = hex2gt(connectome, mu, mv, gt_cell, names)
             if len(nodes) == 0:
                 continue
-            rf_sign = int(RF_SIGN[gt_idx])
+            rf_sign = int(RF_SIGN[gt_cell])
             if not spot_gt_active(spot_gt_mode, contrast, rf_sign):
                 continue
             cache_key = (round(float(radius), 6), gt_idx)
             if cache_key not in trace_cache:
-                a_radius = _spot_readout_a_radius(recf_gt[gt_idx], radius, spot_radius)
+                a_radius = _spot_readout_a_radius(rf[gt_idx], radius, spot_radius)
                 trace = (
                     a_radius
-                    * impr_gt[gt_idx][resp]
+                    * ir[gt_idx][resp]
                     * gt_amp
                     * float(contrast_sign(contrast))
                 )

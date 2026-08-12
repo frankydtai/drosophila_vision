@@ -158,12 +158,12 @@ def _format_mean_scalar_for_table(z: float) -> str:
     return f"{z:.2f}"
 
 
-def _node_centers(
+def _node_uv_xy(
     n: dict,
     *,
     float_coords: bool,
 ) -> Optional[Tuple[Tuple[float, float], Tuple[float, float]]]:
-    """Parse one FAFB node's ``(u,v)`` and hex-step ``(x,y)`` centres."""
+    """Parse one FAFB node's ``(u,v)`` and hex-step ``(x,y)``."""
     try:
         u = float(n["u"]) if float_coords else float(int(n["u"]))
         v = float(n["v"]) if float_coords else float(int(n["v"]))
@@ -257,10 +257,10 @@ def _self_node_origin(
         try:
             if int(n["id"]) != nid:
                 continue
-            centers = _node_centers(n, float_coords=float_coords)
-            if centers is None:
+            node_uv_xy = _node_uv_xy(n, float_coords=float_coords)
+            if node_uv_xy is None:
                 continue
-            return centers
+            return node_uv_xy
         except (KeyError, TypeError, ValueError):
             continue
     return None, None
@@ -274,7 +274,7 @@ def _mean_self_origin(
     *,
     float_coords: bool
 ) -> Tuple[Optional[Tuple[float, float]], Optional[Tuple[float, float]]]:
-    """Mean self centre: FAFB ``(u,v)``/``(x,y)``."""
+    """Mean self location: FAFB ``(u,v)``/``(x,y)``."""
     self_cells = {t for t, labs in labels_from_self_cell.items() if label in labs}
     if not self_cells:
         return None, None
@@ -292,10 +292,10 @@ def _mean_self_origin(
             allowed = ids_at_hex.get(name, set())
             if nid not in allowed:
                 continue
-        centers = _node_centers(n, float_coords=float_coords)
-        if centers is None:
+        node_uv_xy = _node_uv_xy(n, float_coords=float_coords)
+        if node_uv_xy is None:
             continue
-        uv, xy = centers
+        uv, xy = node_uv_xy
         uvs.append(uv)
         xys.append(xy)
     if not xys:
@@ -352,10 +352,10 @@ def uv_from_node_id(nodes: List[dict], *, float_coords: bool = False) -> Dict[in
     m: Dict[int, _UvCoord] = {}
     for n in nodes:
         try:
-            centers = _node_centers(n, float_coords=float_coords)
-            if centers is None:
+            node_uv_xy = _node_uv_xy(n, float_coords=float_coords)
+            if node_uv_xy is None:
                 continue
-            uv, _ = centers
+            uv, _ = node_uv_xy
             m[int(n["id"])] = uv
         except (KeyError, TypeError, ValueError):
             continue
@@ -754,10 +754,10 @@ def instance_ids_on_xy_line(
     """Map cell -> root ids on a hex-step ``x`` and/or ``y`` line (FAFB)."""
     out: Dict[str, Set[int]] = {}
     for n in nodes:
-        centers = _node_centers(n, float_coords=False)
-        if centers is None:
+        node_uv_xy = _node_uv_xy(n, float_coords=False)
+        if node_uv_xy is None:
             continue
-        _uv, (x, y) = centers
+        _uv, (x, y) = node_uv_xy
         if at_x is not None and not _coord_close(x, at_x, tol=tol):
             continue
         if at_y is not None and not _coord_close(y, at_y, tol=tol):
@@ -1102,7 +1102,7 @@ def main(argv: List[str] | None = None) -> int:
         cells, family_from_cell_all
     )
 
-    # Partner delta coords: always collected; reference is --at center or mean self location.
+    # Partner delta coords: always collected; reference is --at uv or mean self location.
     uv_from_id = uv_from_node_id(nodes, float_coords=False)
     xy_from_id = None
     partner_syn_by_label = accumulate_all(

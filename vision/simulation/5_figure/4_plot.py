@@ -345,7 +345,7 @@ def _readout_plot_stem(prefix, session):
 
 
 def _plot_spot_tasks(session, z, outdir, spot_tasks, suffix, model_all,
-                       gt_rts=None,
+                       gts=None,
                        at_x=None, at_y=None, show_pre=True,
                        file_suffix="", html=False, ms_shown=None,
                        center_only=False):
@@ -355,7 +355,7 @@ def _plot_spot_tasks(session, z, outdir, spot_tasks, suffix, model_all,
     ref_t = 'spot_bright' if 'spot_bright' in spot_set else spot_tasks[0]
     net_tag = _network_spot_tag(session, ref_t)
     cost_parts = _cost_parts_for_plot(session, z)
-    plot_kw = dict(gt_rts=gt_rts, cost_parts=cost_parts)
+    plot_kw = dict(gts=gts, cost_parts=cost_parts)
     token = session_filter_plot_token(session)
     readout_kw = dict(
         at_xs=at_x, at_ys=at_y,
@@ -390,7 +390,7 @@ def _plot_spot_tasks(session, z, outdir, spot_tasks, suffix, model_all,
     for tname in spot_tasks:
         _plot_one_task(
             session_for_task(session, tname), z, outdir, tname, suffix, model_all,
-            gt_rts=gt_rts,
+            gts=gts,
             at_x=at_x, at_y=at_y,
             show_pre=show_pre,
             cost_parts=cost_parts,
@@ -460,7 +460,7 @@ def _plot_bar_readouts(session, z, outdir, bar_readouts, suffix, model_all, *,
 
 
 def _plot_one_task(session, z, outdir, tname, suffix, model_all,
-                     gt_rts=None,
+                     gts=None,
                      at_x=None, at_y=None, show_pre=True,
                      cost_parts=None, file_suffix="", html=False, ms_shown=None,
                      center_only=False):
@@ -473,7 +473,7 @@ def _plot_one_task(session, z, outdir, tname, suffix, model_all,
     net_tag = _network_spot_tag(session, tname)
     if cost_parts is None:
         cost_parts = _cost_parts_for_plot(session, z)
-    plot_kw = dict(gt_rts=gt_rts, cost_parts=cost_parts)
+    plot_kw = dict(gts=gts, cost_parts=cost_parts)
     readout = build_readout(
         session, z,
         at_xs=at_x, at_ys=at_y,
@@ -496,7 +496,7 @@ def plot_param_set(params, outdir, model=None, model_all=True,
                    plot_tasks=None, session=None, *,
                    final_costs=None,
                    save_data=True,
-                   gt_rts=None,
+                   gts=None,
                    plot_right_only=True, at_x=None, at_y=None,
                    align_at_x=None, align_at_y=None,
                    show_pre=True, file_suffix="", html=False, ms_shown=None,
@@ -547,7 +547,7 @@ def plot_param_set(params, outdir, model=None, model_all=True,
     if spot_tasks:
         _plot_spot_tasks(
             session, z, outdir, spot_tasks, suffix, model_all,
-            gt_rts=gt_rts,
+            gts=gts,
             at_x=at_x, at_y=at_y,
             show_pre=show_pre,
             file_suffix=file_suffix,

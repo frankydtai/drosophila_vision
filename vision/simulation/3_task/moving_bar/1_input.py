@@ -400,7 +400,7 @@ def _coverage_time_series(
 
 
 def field_bounds(hexes: Sequence[Hex]) -> Tuple[float, float, float, float]:
-    """Sti-field degree bounds from hex vertices (not centers)."""
+    """Sti-field degree bounds from hex vertices."""
     if not hexes:
         return 0.0, 0.0, 0.0, 0.0
     xmins = [float(c.hex_xy[:, 0].min()) for c in hexes]
@@ -490,7 +490,7 @@ def moving_bar_transit_times(
     n_t: Optional[int] = None,
     delta_ms: float,
 ) -> Tuple[int, int, int]:
-    """Return ``(entry, center, exit)`` t indices for the first multi-bar lane."""
+    """Return ``(entry, mid, exit)`` t indices for the first multi-bar lane."""
     lane_origin, lane_pitch = _motion_lanes(spec, field_deg, bar_radius, multi_bar=multi_bar)[0]
     trail_start, trail_exit = _lane_sweep_trail_range(spec, lane_origin, lane_pitch)
     w = float(spec.width_deg)
@@ -498,13 +498,13 @@ def moving_bar_transit_times(
     origin = float(lane_origin)
     # Signed ``trail_shift_deg`` encodes sweep direction; same trail ends for all directions.
     trail_entry = float(trail_start) + trail_shift_deg
-    trail_center = origin + 0.5 * (
+    trail_mid = origin + 0.5 * (
         float(lane_pitch) - math.copysign(1.0, trail_shift_deg) * w
     )
     trail_exit_vis = float(trail_exit) - trail_shift_deg
     return (
         t_from_trail(spec, trail_start, trail_entry, t_onset, delta_ms, n_t),
-        t_from_trail(spec, trail_start, trail_center, t_onset, delta_ms, n_t),
+        t_from_trail(spec, trail_start, trail_mid, t_onset, delta_ms, n_t),
         t_from_trail(spec, trail_start, trail_exit_vis, t_onset, delta_ms, n_t),
     )
 

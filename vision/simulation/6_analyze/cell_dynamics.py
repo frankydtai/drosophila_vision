@@ -29,7 +29,7 @@ import train
 from default_params import DEFAULT_RUN_PATH
 import figure.plot as plot_trained
 from figure.gt import contrast_for_task
-from figure.spot import pack_spot_cost_radii, resolve_spot_gt_rts
+from figure.spot import pack_spot_cost_radii, resolve_spot_gts
 from figure.util import (
     filter_plot_token,
     gt_affine_scalars_for_cell,
@@ -711,12 +711,12 @@ def _model_driver(session):
         ) from exc
 
 
-def _prepare_drive(session, params, i_sti: torch.Tensor) -> torch.Tensor:
-    """Model ``prepare_i_sti`` + spot ``a_sti_radius`` on a ``(B, T, N)`` pack ``i_sti``."""
+def _drive_from_i_sti(session, params, i_sti: torch.Tensor) -> torch.Tensor:
+    """Model ``normalize_i_sti`` + spot ``a_sti_radius`` on a ``(B, T, N)`` pack ``i_sti``."""
     from neuron.forward import inject_a_sti_radius
 
     pack = session.primary_pack
-    drive = _model_driver(session).prepare_i_sti(session, params, i_sti, pack)
+    drive = _model_driver(session).normalize_i_sti(session, params, i_sti, pack)
     return inject_a_sti_radius(drive, params, pack)
 
 
@@ -996,7 +996,7 @@ def _forward_component(
         raise SystemExit(f"i_sti n_batch={n_batch} != len(batches)={len(batches)}")
 
     spec = _component_spec(session.model, session.euler)
-    drive = _prepare_drive(session, params, i_sti)
+    drive = _drive_from_i_sti(session, params, i_sti)
     t_onset = train.pack_t_onset(session.primary_pack)
 
     t_last: int | None = None
@@ -1736,7 +1736,7 @@ def _analyze_bar_forward(
     grids=None,
     extra: dict[str, Any] | None = None,
 ) -> dict[str, dict[str, dict[str, Any]]]:
-    """Bar prep: resolve i_sti/specs → ``_analyze_component_forward`` (no merge)."""
+    """Bar: resolve i_sti/specs → ``_analyze_component_forward`` (no merge)."""
     pack, specs, grids, spec_batch_indices, i_sti, t0_bn = _resolve_bar_spec_i_sti(
         session, task, spec_names, specs=specs, grids=grids,
     )
@@ -1871,10 +1871,10 @@ def _spot_gt_extra(
     extra: dict[str, Any] = {"gt_peak": None, gt_key: None, "radius": radius}
     if cell not in gt_on:
         return extra
-    gt_rt = np.asarray(gt_on[cell], dtype=float)
-    if radius < 0 or radius >= gt_rt.shape[0]:
+    gt = np.asarray(gt_on[cell], dtype=float)
+    if radius < 0 or radius >= gt.shape[0]:
         return extra
-    gt_row = gt_rt[radius]
+    gt_row = gt[radius]
     gt_aff = float(a_gt) * gt_row + float(bias_gt)
     peak_probe = _v_post_d_peak_t_rel(v_post_d, t_onset)
     if 0 <= peak_probe < gt_aff.shape[0]:
@@ -1893,7 +1893,7 @@ def _spot_extra_for_cell_fn(
     contrast = contrast_for_task(pack.name)
     train_filter = train.expand_filter(train_filter)
     gt_key = f"gt_{filter_plot_token(train_filter)}"
-    gt_on = resolve_spot_gt_rts(
+    gt_on = resolve_spot_gts(
         {contrast: session_one}, filter=train_filter,
     ).get(contrast) or {}
     opts = session_one.train_opts or {}

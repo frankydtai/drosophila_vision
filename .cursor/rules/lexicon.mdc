@@ -46,6 +46,12 @@ Definition: A neuron type label from the connectome (e.g. `"L1"`, `"T4a"`), grou
 Example: `connectome.cells` (connectome vocabulary mapping node indices to cell types)
 Forbidden: do not use `node` to refer to a cell type. `cell` is a connectome type label; `node` is a specific numbered instance in the network.
 
+### `center` / `centers`
+
+Definition: Spot / RF / cost readout locus at Euclidean radius 0 — the sti anchor hex (`du=dv=0`), the `entry_radii==0` slot, the RF axis index 0, or the plot row / time trace for that radius. Compounds: `spot_centers` (simultaneous sti anchor hexes), `center_entry_mask`, `center_only`, `center_hex` (sole cost hex when `cost_radius==0`), `pack_center_mask`, `build_spot_center_readout`, `RF_CENTER_RADIUS`, `gt_center`, `v_readout_center`.
+Example: `center_entry_mask = (du == 0) & (dv == 0)`, `spot.centers`, `center_only=True`, `RF_CENTER_RADIUS = 0`
+Forbidden: do not use `center` for bar-trail midpoint, histogram bin midpoint, node `(u,v)` lookup, or hex-patch vertex bounds — use `mid` or non-`center` hex coords. Do not use `r0` / `R0` as naming tokens (see coding-rules). Library matplotlib layout kwargs (`xanchor='center'`, `ha='center'`) may remain.
+
 ### `col` / `cols`
 
 Definition: A horizontal subplot-grid index in figure code only — which panel slot within one plot `row` (matplotlib `GridSpec` column, trace column within a component figure).
@@ -104,8 +110,8 @@ Forbidden: `freq`, `freqs`, `freq_hz`, `frequency`, `hz` as naming tokens for th
 
 ### `fit` / `fits`
 
-Definition: A cell type that participates in the train cost via ground-truth targets (the model is optimized against these cells). Compounds: `fit_cell`, `mirror_fit` (source cell whose gt is mirrored onto other types), `fit_gt_rts`.
-Example: `mirror_fit='L1'`, `fit_gt_rts(...)`, “fit cells” for the GT/cost cell set
+Definition: A cell type that participates in the train cost via ground-truth targets (the model is optimized against these cells). Compounds: `fit_cell`, `mirror_fit` (source cell whose gt is mirrored onto other types), `fit_gts`.
+Example: `mirror_fit='L1'`, `fit_gts(...)`, “fit cells” for the GT/cost cell set
 Forbidden: do not use `fit` as a verb for the Adam update loop — use `optimize`. Do not use `fit` for the overall process / package — use `train`. Do not name optimize results with `fit` (`z_fit`, `fit_parts`, “fitted parameters”) — use `z_best`, `final_parts`, `parameters`.
 
 ### `degree` / `degrees`
@@ -117,10 +123,10 @@ Forbidden: do not use `extent` to refer to a degree quantity. `degree` is angula
 ### `gt` / `gts`
 
 Definition: Ground truth target signal(s) used as the train/evaluation reference (e.g. spot/moving-bar response waveforms).
-- ``gt`` (singular): one target waveform — one entry’s `(T,)` trace, one cell’s one-radius curve, or a plot series that draws a single GT line.
+- ``gt`` (singular): one target waveform — one entry’s `(T,)` trace, one cell’s one-radius curve, a spot cell’s `(RF_N_RADII, n_t)` array, or a plot series that draws a single GT line.
 - ``gts`` (plural): a stack/bag of those waveforms — Pack/SpotGt/MovingBarGt field ``gts`` shaped `(n_cost, T')`, or any `(n, T)` / `(n_cells, …)` tensor that holds multiple gt rows.
-Example: `mirror_gt = pack.gts[entry_i:entry_i+1]`, `gts = torch.cat([pack.gts, extra_gts], dim=0)`, `pack.gts`, `_gather_cost_time(..., gts)`
-Forbidden: naming a multi-row gt tensor ``gt`` (use ``gts``). Naming a single waveform ``gts``. Do not use ``all_gt``. Module paths (`task.spot.gt`), CLI ``--gt``, and params ``a_gt`` / ``bias_gt`` are compounds — not this singular/plural rule.
+Example: `mirror_gt = pack.gts[entry_i:entry_i+1]`, `gts = torch.cat([pack.gts, extra_gts], dim=0)`, `pack.gts`, `_gather_cost_time(..., gts)`, `load_gt(...)`, `fit_gts(...)`
+Forbidden: naming a multi-row gt tensor ``gt`` (use ``gts``). Naming a single waveform ``gts``. Do not use ``all_gt``. Do not suffix spot GT with ``_rt`` (`gt_rt`, `fit_gt_rts`, `spot_gt_rts`) — radius×time shape is implied; use ``gt`` / ``gts``. Do not name pre-GT components ``rf_gt`` / ``ir_gt``. Module paths (`task.spot.gt`), CLI ``--gt``, and params ``a_gt`` / ``bias_gt`` are compounds — not this singular/plural rule.
 
 ### `group` / `groups`
 
@@ -174,6 +180,12 @@ Forbidden: `_to_` in map function / attribute / local names (`node_to_cell`, `id
 Definition: A boolean or 0/1 selector along an axis marking which positions participate (cost `entry`, time sample, sti radius slot, node, hex, …). Compound as `<axis>_mask` (`entry_mask`, `cost_time_mask`, `a_sti_radius_mask`, `hex_mask`).
 Example: `a_sti_radius_mask`, `build_a_sti_radius_mask(...)`, `pack.cost_time_mask`, `entry_mask = …`, `mask = (fs >= min_osc_f) & (fs <= max_osc_f)`
 Forbidden: `gate` — do not use `gate` for this participation selector (`a_sti_radius_gate`, “gated slots”). Biophysical channel gating kinetics (e.g. i_h open-state ODEs `_gate_ss`, `_i_h_gate_step`) are a different concept and may keep `gate`. Do not use `active` or `present` for a dense per-element boolean array — use `mask`. Do not combine `active` and `mask` in one identifier.
+
+### `mid` / `mids`
+
+Definition: Geometric or temporal midpoint along a path, lane, or bin axis — not Euclidean radius 0. Moving-bar transit: trail midpoint in degrees (`trail_mid`), time sample between entry and exit (`mid_t`, return slot ``mid`` of ``moving_bar_transit_times``, snapshot labels ``"mid"``). Histogram: bin midpoint (`bin_midpoints`).
+Example: `trail_mid = origin + 0.5 * (...)`, `start_t, mid_t, exit_t = moving_bar_transit_times(...)`, `labels = ("start", "mid", "exit")`, `bin_midpoints = 0.5 * (edges_bins[:-1] + edges_bins[1:])`
+Forbidden: do not use `mid` for sti-on hex / Euclidean radius 0 — use `center`. Do not use `center` for these midpoints.
 
 ### `mode` / `modes`
 
@@ -236,6 +248,12 @@ Example: `p["a_gt"]` (a parameter entry used during cost computation)
 Definition: One named sub-cost of the total train cost, identified by a `part_key` string (e.g. `"spot_bright_R8_r0"`, `"moving_bar_bright_PD"`) and holding its own scalar MSE tensor. Multiple cost `entry` records sharing the same `part_key` are accumulated via `part_indices` into one `part`. The total cost is `Σ W·part / Σ W` over parts with non-zero scale.
 Example: `parts[part_key] = part` in `calc_cost_parts`
 
+### `prep`
+
+Definition: Plot-pipeline wall-clock phase before draw — forwarding / assembling readouts that feed a figure (timed as ``prep_s`` / ``PlotTimer`` prep; log field ``prep=…s``). Noun for that timing slot only — not a verb for model hooks.
+Example: `readout_prep_s(...)`, `TraceReadout.prep_s`, `PlotTimer(prior_prep=...)`, `timer.end_prep()`, `log_plot_elapsed(..., prep=...)`
+Forbidden: `prepare` as a naming token for this timing phase. Do not use `prep` for model ``normalize_i_sti`` / sti shaping, ``pre_steady``, or pre-onset time windows (`ms_pre`, `pre_end`, `show_pre`). Do not use `draw` / `save` for this phase.
+
 ### `radius` / `radii`
 
 Definition: An integer hex ring count labelling a position or area size — used for connectome geometry (`connectome.meta["radius"]`), spot footprint (`spot_radius`), sub-spot shift neighbourhood (`shift_radius`), bar width+spacing (`bar_radius`), and cost hex-disc (`cost_radius`). Does not refer to Euclidean or angular distances.
@@ -245,20 +263,26 @@ Forbidden: do not use `extent` to refer to any hex ring count. `radius` is the s
 ### `readout` / `readouts`
 
 Definition: An in-memory assembled forward result for one task scope — cost `trace`s plus entry indices, timing, and plot metadata between `forward` and `plot`. Distinct from persisted run `data` and from the cost-spec `pack`.
-Example: `_forward_spot_readout`, `readout["plot_traces"]`, `_spot_rt_from_readout`, `build_spot_center_readout`, `SpotTraceReadout`
+Example: `_forward_spot_readout`, `readout["plot_traces"]`, `_spot_v_readout_from_readout`, `build_spot_center_readout`, `SpotTraceReadout`
 Forbidden: `data` — use `data` only for files under a run's `data/` folder. Do not name the container `rows`, `forward_data`, or `bundle_data`. Do not use `readout` for the connectome biological column — use `column` / `column_ids`. Do not use `readout` / `ReadoutPack` / `primary_readout` / `session.readouts` for the cost-spec container — that is `pack` / `Pack` / `primary_pack` / `session.packs`.
+
+### `ir` / `irs`
+
+Definition: Spot impulse-response time component — pre-GT temporal kernel ``ir(t)`` per cell, shape ``(n_t,)`` or stacked ``(n_cell, n_t)``. Assembled spot GT is ``gt[r,t] = rf(r) × ir(t)``; ``ir`` is not GT. Source builders use ``build_ir_<source>`` / ``load_ir_<source>``: ``build_ir_lti`` (sti → bandpass/LP), ``load_ir_arenz`` (Arenz CSV).
+Example: `load_rf_ir(...) → (rf, rf_peak_scale, ir)`, `build_ir_lti(cell, u, delta_ms=...)`, `load_ir_arenz(...)`, `normalize_ir(...)`, `IR_delay_ms[cell]`, `t_delay_from_ir(...)`, `_gt_from_rf_ir(rf, ir)`
+Forbidden: ``ImpR``, ``impr``, ``im_arenz``, ``ir_gt``, ``ImpR_gt``, ``IR_SHIFT``, ``t_lag`` — ``ir`` is a generation component, not a gt alias. Do not use ``ir`` for total membrane input — use ``in``. Use ``IR_delay_ms`` (ms dict keyed by cell) and sample ``t_delay``, not sample-count ``IR_SHIFT`` / ``t_lag``.
+
+### `rf` / `rfs`
+
+Definition: Spot receptive-field spatial component — pre-GT radial kernel ``rf(r)`` per cell, shape ``(RF_N_RADII,)`` or stacked ``(n_cell, RF_N_RADII)``. Assembled spot GT is ``gt[r,t] = rf(r) × ir(t)``; ``rf`` is not GT. Literal bag ``RF_SCALE`` (unsigned peak-normalized samples keyed by cell); builder ``build_rf``.
+Example: `load_rf_ir(...) → (rf, ir)`, `build_rf(cell)`, `RF_SCALE[cell]`, `RF_SIGN[cell]` (membership only), `_spot_readout_a_radius(rf, radius)`
+Forbidden: ``RecF``, ``recf``, ``rf_gt``, ``RecF_gt``, ``RF_GRUNTMAN_ROW``, ``build_rf_row``, ``rf_row``, ``rf_peak_scale``, ``gain`` — ``rf`` is a generation component, not a gt alias. Do not multiply ``RF_SIGN`` into ``RF_SCALE`` / ``build_rf``. Do not special-case cell names (e.g. ``startswith("T4")``) in rf/ir loaders.
 
 ### `row` / `rows`
 
 Definition: A vertical subplot-grid index in figure code only — one plot panel band (component figure row, cell layout band, RF+time stack band).
 Example: `n_row`, `row_idx`, `CELL_PLOT_ROWS`, `plot_row_idxs`, `row_shared_ylim`, `fig.add_gridspec(n_row, n_col)`
 Forbidden: CSV record row; cost `entry` / `entry_mask`; `i_sti` batch slot; GT lookup-table row index; in-memory forward container — do not use `row` outside plot code. Library pandas / CSV `row` locals in one-off parsers may remain if the noun is not exported.
-
-### `rt` / `rts`
-
-Definition: A spot radius×time array — Euclidean RF radius axis × time sample axis. Per cell: `(RF_N_RADII, n_t)`; stacked over cells: `(n_cells, RF_N_RADII, n_t)`. Compounds: `gt_rt`, `v_readout_rt`, `fit_gt_rts`, `spot_gt_rts`.
-Example: `rt[..., radius] = mean trace at that radius`, `fit_gt_rts(...)`, `_spot_rt_from_readout`
-Forbidden: `cube`, `cubes`, `xt` as naming tokens for this concept (including `v_readout_xt`, `gt_xt`, `std_xt`).
 
 ### `run` / `runs`
 
@@ -416,8 +440,8 @@ Forbidden: `read` — use `load` instead.
 ### `normalize`
 
 Definition: Convert an input value into a canonical/valid form (e.g., clamp rules, ordering, or standard representation).
-Example: `mode = normalize_syn_mode(syn_mode)`
-Forbidden: `canonicalize`, `standardize` — use `normalize` instead.
+Example: `mode = normalize_syn_mode(syn_mode)`, `normalize_i_sti(session, params, i_sti, pack)` → `(B, T, N)`
+Forbidden: `canonicalize`, `standardize`, `prepare` — use `normalize` instead. Do not name this hook `prep` (see `prep` for plot timing only).
 
 ### `optimize`
 
@@ -445,7 +469,7 @@ Forbidden: `lookup`, `fetch` — use `resolve` instead.
 ### `run`
 
 Definition: Execute a procedure end-to-end (train, evaluation, or full pipeline) and return or persist its result.
-Example: `fname, outdir, session = run_train_and_plot(plot_gt_rts=..., **kw)`
+Example: `fname, outdir, session = run_train_and_plot(plot_gts=..., **kw)`
 Forbidden: `execute`, `invoke` — use `run` instead.
 
 ### `save`

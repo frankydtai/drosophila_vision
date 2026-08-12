@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """Shared full-T absolute ``v`` forward for all neuron models.
 
-Per-model modules supply only ``prepare_i_sti`` / ``pre_steady`` / ``step``.
+Per-model modules supply only ``normalize_i_sti`` / ``pre_steady`` / ``step``.
 This module owns the time loop. Train / plots read absolute ``v``
 when ``train_opts['filter']=='none'``; with ``'ca'``, readout is ``ca`` from
 ``neuron.filter_ca`` on ``v_ca = relu(v − v_th_ca)·a_ca``. Cost compares the
@@ -15,7 +15,7 @@ from neuron import model_borst as _model_borst
 from neuron import model_hp_lp as _model_hp_lp
 from neuron.filter_ca import filter_ca
 
-# Per-model dynamics for ``forward_full`` (prepare_i_sti / pre_steady / step only).
+# Per-model dynamics for ``forward_full`` (normalize_i_sti / pre_steady / step only).
 MODEL_DRIVERS = {
     "borst": _model_borst,
     "hp_lp": _model_hp_lp,
@@ -127,7 +127,7 @@ def forward_v(session, params, i_sti, *, pack=None):
     drv = MODEL_DRIVERS[session.model]
     pack = pack or session.primary_pack
     i_sti = inject_a_sti_radius(
-        drv.prepare_i_sti(session, params, i_sti, pack), params, pack,
+        drv.normalize_i_sti(session, params, i_sti, pack), params, pack,
     )
     B, t_end = int(i_sti.shape[0]), int(i_sti.shape[1])
     t_onset = pack_t_onset(pack)
@@ -168,7 +168,7 @@ def forward_full(session, params, i_sti, *, pack=None):
     """Shared full-T forward for every ``session.model``.
 
     Time index ``t`` is post-update at sample ``t``. Drive comes from
-    ``MODEL_DRIVERS[model].prepare_i_sti`` / ``pre_steady`` / ``step``.
+    ``MODEL_DRIVERS[model].normalize_i_sti`` / ``pre_steady`` / ``step``.
 
     ``session.train_opts['pre_grad']`` (default ``True``): when ``False``, steps
     with ``t < t_onset`` run under ``torch.no_grad()``, then ``v`` / ``state``

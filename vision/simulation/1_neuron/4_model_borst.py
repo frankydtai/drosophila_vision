@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """Borst neuron + i_h (``--model borst``).
 
-Dynamics only: ``prepare_i_sti`` / ``pre_steady`` / ``step``. Full-T Ca
+Dynamics only: ``normalize_i_sti`` / ``pre_steady`` / ``step``. Full-T Ca
 forward lives in ``neuron.forward``. Membrane scalars are injected kwargs
 (from ``session`` flat fields), never a Physics bag.
 
@@ -182,7 +182,7 @@ def v_component_from_g(
     }
 
 
-def prepare_i_sti(session, params, i_sti, pack):
+def normalize_i_sti(session, params, i_sti, pack):
     """Sti current ``(B, T, N)`` as membrane drive (no rescale)."""
     del params, pack
     return i_sti.unsqueeze(0) if i_sti.dim() == 2 else i_sti

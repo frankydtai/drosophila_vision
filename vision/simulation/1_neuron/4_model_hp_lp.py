@@ -22,7 +22,7 @@ Membrane / HP Euler (``session.euler`` = ``implicit`` | ``explicit``):
     implicit LP:  v ← (v + α_lp (e_leak + v_hp)) / (1 + α_lp)
     explicit LP:  v ← v + α_lp (−(v − e_leak) + v_hp)
 
-Dynamics only: ``prepare_i_sti`` / ``pre_steady`` / ``step``. Full-T ``v``
+Dynamics only: ``normalize_i_sti`` / ``pre_steady`` / ``step``. Full-T ``v``
 forward lives in ``neuron.forward``. Scalars from ``session`` flat fields.
 
 t=0 membrane state uses ``session.pre_steady`` (``--pre-steady …``):
@@ -104,7 +104,7 @@ def update_state_hp_lp(
     }
 
 
-def prepare_i_sti(session, params, i_sti, pack):
+def normalize_i_sti(session, params, i_sti, pack):
     """Sti current ``(B, T, N)`` as membrane drive (no rescale)."""
     del params, pack
     return i_sti.unsqueeze(0) if i_sti.dim() == 2 else i_sti

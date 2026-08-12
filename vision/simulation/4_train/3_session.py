@@ -16,7 +16,7 @@ Model traces are absolute ``v`` (``filter=none``) or ``ca`` (``filter=ca``);
 cost compares the pack to ``a_gt * gts + bias_gt``. Schema includes
 ``v_th_ca``/``a_ca``/``tau_ca`` only when ``filter=ca``. When
 ``bias_gt_from_v_onset``, ``bias_gt`` is written from ``v`` at ``t_onset`` (or ``ca`` when
-``filter=ca``) — same value appears in ``param.csv``. Spot ImpR uses Arenz digitized
+``filter=ca``) — same value appears in ``param.csv``. Spot ir uses Arenz digitized
 when ``filter=ca``. ``spot_gt_mode`` (``all`` | ``pos``) gates cost GT via
 :func:`task.spot.gt.spot_gt_active`; dark multiplies by :func:`task.spot.gt.contrast_sign`.
 Gt cells are :func:`network.construction.active_gt_cells`; cost pack applies

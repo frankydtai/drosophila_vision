@@ -4,7 +4,7 @@
 Geometry (centers, sub-spot shifts, Euclidean radii) is split out of the old
 ``network.spot_target`` Section A. The sti drive waveform ``u[t]`` is defined
 here once (``spot_input_waveform``) and consumed by both the network ``i_sti`` and
-the ImpR gt in :mod:`task.spot.gt` (and ``i_sti`` via :mod:`task.spot.pack`),
+the ir component in :mod:`task.spot.gt` (and ``i_sti`` via :mod:`task.spot.pack`),
 so spot-on duration has a single source.
 """
 from __future__ import annotations
@@ -136,7 +136,7 @@ def spot_timing_t(
     """Return ``(t_onset, n_t)`` from ms timing params.
 
     Pre uses ``delta_ms_pre``; response / post use ``delta_ms``. ``n_t`` is the
-    forward length: pre + response + post. Cost / ImpR gt use only through
+    forward length: pre + response + post. Cost / gt use only through
     response (``ms_post=0``); ``ms_post`` does not enter gt.
     """
     dt = float(delta_ms)
@@ -207,7 +207,7 @@ def spot_timing_t_from_opts(opts) -> tuple[int, int]:
 
 
 def spot_gt_n_t_from_opts(opts) -> int:
-    """ImpR / cost ``n_t`` from opts (ignores ``ms_post``)."""
+    """Cost ``n_t`` from opts (ignores ``ms_post``)."""
     return spot_timing_from_opts(opts).n_t_gt
 
 
@@ -290,7 +290,7 @@ def spot_radius_folds_r2_into_r1(spot_radius) -> bool:
     """True when ``spot_radius == 1`` (``spot_radius_half_steps == 2``).
 
     Fold semantics live in :func:`task.spot.gt._spot_readout_a_radius`: r=1 gt
-    ``a_radius`` is ``RecF(1)+RecF(2)`` and r=2 ``a_radius`` is 0. Non-center drive
+    ``a_radius`` is ``rf(1)+rf(2)`` and r=2 ``a_radius`` is 0. Non-center drive
     scales use ``a_sti_radius`` masked by cost-radius scale (scale==0 → force
     0). Center r=0 remains baked at scale 1.
     """

@@ -128,14 +128,14 @@ def _side_by_side_hist(ax, pct_init, pct_trained, edges_bins, *, legend: bool):
     """Red = init, blue = syn_strength_cell-weighted; paired bars per bin."""
     c_init, _ = np.histogram(pct_init, bins=edges_bins)
     c_tr, _ = np.histogram(pct_trained, bins=edges_bins)
-    centers = 0.5 * (edges_bins[:-1] + edges_bins[1:])
+    bin_midpoints = 0.5 * (edges_bins[:-1] + edges_bins[1:])
     width = (edges_bins[1] - edges_bins[0]) * 0.4
     ax.bar(
-        centers - width / 2, c_init, width=width, color="red",
+        bin_midpoints - width / 2, c_init, width=width, color="red",
         edgecolor="white", linewidth=0.3, label="init",
     )
     ax.bar(
-        centers + width / 2, c_tr, width=width, color="C0",
+        bin_midpoints + width / 2, c_tr, width=width, color="C0",
         edgecolor="white", linewidth=0.3, label="× syn_strength_cell",
     )
     ax.set_xlim(0, 100)

@@ -1,4 +1,4 @@
-"""Model-gt cell selection and gt rts from session + task."""
+"""Model-gt cell selection and gts from session + task."""
 
 from __future__ import annotations
 
@@ -13,8 +13,8 @@ from default_params import SPOT_PACK
 from task.spot.gt import (
     GT_CELLS,
     RF_SIGN,
-    load_RecF_gt,
-    load_RecF_gt_dark,
+    load_gt,
+    load_gt_dark,
     spot_gt_active,
 )
 from network.construction import active_gt_cells, cells_in_order, gt_cells_from_opts
@@ -113,11 +113,11 @@ def _apply_mirror(cells, override):
     return cells
 
 
-def fit_gt_rts(
+def fit_gts(
     *, contrasts=("bright",), t_onset=None, n_t=None, ms_spot=None,
     delta_ms, gt_amp, filter="none", spot_gt_mode="all",
 ):
-    """RecF gt rts ``{contrast: {cell: (RF_N_RADII, T)}}`` (raw gt before affine).
+    """``{contrast: {cell: gt}}`` with gt ``(RF_N_RADII, n_t)`` (raw gt before affine).
 
     Cells included only when :func:`task.spot.gt.spot_gt_active` (same as cost pack).
     """
@@ -134,17 +134,17 @@ def fit_gt_rts(
             t_onset=t_onset, n_t=n_t, ms_spot=ms_spot, delta_ms=float(delta_ms),
             filter=filter, spot_gt_mode=spot_gt_mode,
         )
-        gt = load_RecF_gt_dark(**kw) if contrast == "dark" else load_RecF_gt(**kw)
-        rts = gt * gt_amp
+        gt_stack = load_gt_dark(**kw) if contrast == "dark" else load_gt(**kw)
+        scaled = gt_stack * gt_amp
         out[contrast] = {
-            str(name): rts[i]
+            str(name): scaled[i]
             for i, name in enumerate(GT_CELLS)
-            if spot_gt_active(spot_gt_mode, contrast, int(RF_SIGN[i]))
+            if spot_gt_active(spot_gt_mode, contrast, int(RF_SIGN[name]))
         }
     return out
 
 
-def spot_gt_rts(
+def spot_gts(
     session,
     task=None,
     *,
@@ -156,7 +156,7 @@ def spot_gt_rts(
     filter="none",
     spot_gt_mode=None,
 ):
-    """Spot gt rts ``{contrast: {cell: (RF_N_RADII, T)}}`` with pack mirror overrides.
+    """Spot gts ``{contrast: {cell: gt}}`` with pack mirror overrides.
 
     ``filter`` / ``spot_gt_mode`` default from ``session.train_opts``.
     """
@@ -172,7 +172,7 @@ def spot_gt_rts(
         spot_gt_mode = str((session.train_opts or {}).get("spot_gt_mode", SPOT_PACK['spot_gt_mode']))
     else:
         spot_gt_mode = str(spot_gt_mode)
-    base = fit_gt_rts(
+    base = fit_gts(
         contrasts=contrasts, t_onset=t_onset, n_t=n_t, ms_spot=ms_spot,
         delta_ms=session.delta_ms if delta_ms is None else delta_ms,
         gt_amp=session.gt_amp,

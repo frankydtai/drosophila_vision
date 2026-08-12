@@ -28,8 +28,8 @@ DEFAULT_RUN_PATH = "hp_lp/" + DEFAULT_RUN_NAME
 # ---------------------------------------------------------------------------
 
 NEURON_PARAM: Dict[str, object] = {
-    "delta_ms": {"v": 1.0, "ca": 2.0},
-    "delta_ms_pre": {"v": 1.0, "ca": 2.0},  # pre-onset (t < t_onset); post-onset uses delta_ms
+    "delta_ms": {"v": 2.0, "ca": 2.0},
+    "delta_ms_pre": {"v": 2.0, "ca": 2.0},  # pre-onset (t < t_onset); post-onset uses delta_ms
     "cap": 40.0,
     "g_leak": 1.0,  # nS; borst leak conductance; hp_lp converts i_sti (pA) → mV via i_sti / g_leak
     "e_exc": 10.0,
@@ -120,9 +120,9 @@ NETWORK_CONSTRUCTION: Dict[str, object] = {
 # ---------------------------------------------------------------------------
 
 SPOT_INPUT: Dict[str, object] = {
-    "ms_pre": {"v": 10.0, "ca": 20.0},
-    "ms_spot": {"v": 50.0, "ca": 25.0},
-    "ms_response": {"v": 200.0, "ca": 400.0},
+    "ms_pre": {"v": 20.0, "ca": 20.0},
+    "ms_spot": {"v": 160.0, "ca": 25.0},
+    "ms_response": {"v": 300.0, "ca": 400.0},
     "ms_post": 0.0,
     "spot_radius": 1.0,
     "fully_inside": True,
@@ -131,7 +131,7 @@ SPOT_INPUT: Dict[str, object] = {
 }
 
 # ---------------------------------------------------------------------------
-# 3.2 task.spot.gt (RecF/ImpR literals live in task.spot.gt)
+# 3.2 task.spot.gt (rf/ir literals live in task.spot.gt)
 # 3.3 task.spot.pack
 # ---------------------------------------------------------------------------
 

@@ -412,8 +412,8 @@ def add_train_arguments(parser):
         default=SPOT_INPUT['spot_radius'],
         metavar="R",
         help=f"spot footprint / center-tiling radius (0.5 multiples; default {_format_branch_value(SPOT_INPUT['spot_radius'])}); "
-             "radius=1 folds RecF(2) into r=1 gt a_radius and defaults cost scales "
-             "to 0=1 1=1/6; radius 1.5/2 keep RecF(r) and 0=1 1=1/6 2=1/6",
+             "radius=1 folds rf(2) into r=1 gt a_radius and defaults cost scales "
+             "to 0=1 1=1/6; radius 1.5/2 keep rf(r) and 0=1 1=1/6 2=1/6",
     )
     add_multi_spot_arguments(parser)
     parser.add_argument(
@@ -425,7 +425,7 @@ def add_train_arguments(parser):
              "Same rules as --part-cost-scale: R=S merges onto radius defaults; bare R "
              "zeros all known radii then sets R=1. Omit → radius default "
              "(1→0=1 1=1/6; else 0=1 1=1/6 2=1/6). Keys: 0,1,2,sqrt3. "
-             "Scales only (does not change RecF gt)",
+             "Scales only (does not change rf gt)",
     )
     parser.add_argument(
         "--cost-radius",

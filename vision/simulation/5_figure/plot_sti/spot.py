@@ -48,7 +48,7 @@ from build_hex import (
     HEX_PATCH_RADIUS,
     _HEX_DIRECTIONS,
     draw_fafb_columns,
-    field_bounds_centers,
+    field_bounds_from_vertices,
     set_axis_labels,
     xy_deg_from_uv,
 )
@@ -137,7 +137,7 @@ def main() -> None:
     os.makedirs(os.path.dirname(os.path.abspath(output)), exist_ok=True)
     df_hexes = _network_hexes_df(connectome)
     x_deg, y_deg = xy_deg_from_uv(df_hexes["u"].values, df_hexes["v"].values)
-    x0, y0, x1, y1 = field_bounds_centers(x_deg, y_deg)
+    x0, y0, x1, y1 = field_bounds_from_vertices(x_deg, y_deg)
     pad = FIELD_VIEW_PAD_DEG
     xlim = (x0 - pad, x1 + pad)
     ylim = (y0 - pad, y1 + pad)
