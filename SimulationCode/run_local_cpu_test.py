@@ -94,7 +94,7 @@ def calc_center_column_trace(z):
 
 
 def calc_model_full_all(z):
-    """All cell types across 5 columns -> (65, 9, 200) spatio-temporal cube."""
+    """All cell types across 5 columns -> (65, 9, 200) spatio-temporal rt."""
     model_full = np.zeros((nofcells, 9, 200))
     for col in range(5):
         col_index = torch.arange(col * nofcells, (col + 1) * nofcells, dtype=torch.long, device=z.device)

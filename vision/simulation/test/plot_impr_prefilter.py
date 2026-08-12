@@ -30,7 +30,7 @@ from network.construction import cell_order_rows, cell_names_in_order
 from figure.spot import CENTER_BIN
 from figure.util import TRACE_LW, TRACE_YLIM, save_figure
 from neuron.param import DELTA_MS, t_from_ms
-from param_defaults import GT_AMP
+from default_params import GT_AMP
 from task.spot.gt import (
     _bandpass,
     _lowpass,
@@ -60,7 +60,7 @@ def _drive_u_s(
     return u, s
 
 
-def _impr_cube(
+def _impr_rt(
     *, t_on: int, n_t: int, ms_pulse: float, dt_ms: float, prefilter_ms: float | None,
 ) -> np.ndarray:
     """Center-bin Ca gt ``(13, n_t)`` = GT_AMP × RecF_center × ImpR."""
@@ -207,11 +207,11 @@ def main():
         t_on=args.t_on, n_t=args.n_t, ms_pulse=args.ms_pulse,
         dt_ms=dt_ms, prefilter_ms=prefilter_ms,
     )
-    with_lp = _impr_cube(
+    with_lp = _impr_rt(
         t_on=args.t_on, n_t=args.n_t, ms_pulse=args.ms_pulse,
         dt_ms=dt_ms, prefilter_ms=prefilter_ms,
     )
-    without_lp = _impr_cube(
+    without_lp = _impr_rt(
         t_on=args.t_on, n_t=args.n_t, ms_pulse=args.ms_pulse,
         dt_ms=dt_ms, prefilter_ms=None,
     )

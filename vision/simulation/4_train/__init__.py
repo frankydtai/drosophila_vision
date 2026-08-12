@@ -4,13 +4,30 @@
 Public facade re-exporting train API names (``import train``). Engine internals are split across
 :mod:`train.param`, :mod:`train.session`, :mod:`train.cost`, :mod:`train.optimization`,
 :mod:`train.implementation`, :mod:`train.cli`; the shared vocabulary lives in
-:mod:`train.config`. Numeric defaults live in :mod:`param_defaults`. Lower layers
+:mod:`train.config`. Numeric defaults live in :mod:`default_params`. Lower layers
 (``neuron``, ``task``, ``network``) never import this package at load time.
 """
 from __future__ import annotations
 
+from default_params import (
+    ANALYZE_CELL_DYNAMICS,
+    MODEL,
+    MOVING_BAR_INPUT,
+    NEURON_FORWARD,
+    NEURON_PARAM,
+    NEURON_SCHEMA,
+    NETWORK_CONSTRUCTION,
+    NETWORK_PATH,
+    SPOT_INPUT,
+    SPOT_PACK,
+    TRAIN_CONFIG,
+    TRAIN_OPTIMIZATION,
+    TRAIN_OPTS,
+    TRAIN_SESSION,
+)
+
 from neuron import (
-    ALL_PARAM_NAMES,
+    PARAM_NAMES,
     EULER_CLI,
     EULER_MODES,
     I_H_REV_MODES,
@@ -37,45 +54,22 @@ from neuron import (
     v_ca_from_v,
     v_component_from_g,
 )
-from param_defaults import (
-    CAP,
-    GT_CA_AMP,
-    GT_V_AMP,
-    DELTA_MS,
-    DELTA_MS_PRE,
-    E_EXC,
-    E_H,
-    E_INH,
-    SYN_SCALE_EXC,
-    G_LEAK,
-    H_G_MAX,
-    H_CELLS,
-    I_H_REV,
-    SYN_SCALE_INH,
-    PARAM_BOXES,
-    MS_PRE,
-    MS_POST,
-    MS_SPOT,
-    MS_RESPONSE,
-    STATE_CLAMP,
-    SYN_MODE,
-    T_REL_START,
-    T_REL_STOP,
-)
 
 from train.config import (
     CLI_TASK_NAMES,
     COST_NORMS,
+    SPOT_GT_MODES,
     MOVING_BAR_TASKS,
     PD_ND_LABELS,
     SPOT_TASKS,
     TASK_ALIASES,
     TRAIN_OPTS_FILE,
     VALID_TASKS,
-    cost_part_keys_for_readout,
+    cost_part_keys_for_task,
     expand_cost_norm,
-    expand_cost_weight_dict,
+    expand_part_cost_scale_dict,
     expand_filter,
+    expand_spot_gt_mode,
     expand_gt_dict,
     expand_pre_steady,
     expand_tasks,
@@ -94,7 +88,7 @@ from train.param import (
     assign_params,
     attach_param_carry,
     seed_fixed_from_named,
-    build_i_h_dir,
+    build_i_h_dirs,
     calc_multi_col_params,
     edge_node_names,
     guess_initial_params,
@@ -121,12 +115,12 @@ from train.param import (
 )
 from train.session import (
     NETWORK_TASK_BUILDERS,
-    ReadoutPack,
+    Pack,
     TrainSession,
     _cost_radius_hex_coltag,
     apply_pack_override,
     build_i_cli_by_task,
-    extend_readout_pack_mirror_fit,
+    extend_pack_mirror_fit,
     load_network_backend,
     build_train_opts,
     open_session,
@@ -150,8 +144,8 @@ from train.optimization import (
     optimize_staged,
 )
 
-from task.spot.readout import build_spot_stimulus_opts
+from task.spot.pack import build_spot_sti_opts
 from task.moving_bar.gt import (
-    build_moving_bar_stimulus_opts,
+    build_moving_bar_sti_opts,
     session_moving_bar_i_baseline,
 )

@@ -8,6 +8,10 @@ Usage (from ``simulation/``, project ``.venv``):
 """
 from __future__ import annotations
 
+from default_params import (
+    DEFAULT_RUN_PATH,
+)
+
 import importlib.util
 import os
 import sys
@@ -17,7 +21,7 @@ if HERE not in sys.path:
     sys.path.insert(0, HERE)
 
 import import_bootstrap  # noqa: F401
-from param_defaults import DEFAULT_RUN_PATH
+from default_params import DEFAULT_RUN_PATH
 
 # ``from run import`` is ambiguous: run.py and run.slurm share stem ``run``.
 _spec = importlib.util.spec_from_file_location(

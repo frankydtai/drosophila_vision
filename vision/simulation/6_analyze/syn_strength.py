@@ -1,7 +1,7 @@
 """Query trained syn_strength_cell joined to connectome partner % n_syn.
 
 Reads ``best_param.npz`` + ``train_opts.json`` only (no train session rebuild).
-Partner % comes from ``analyze_cell_syn``; syn_strength_cell / gains from the named npz.
+Partner % comes from ``analyze_cell_syn``; syn_strength_cell / a_* from the named npz.
 
 Examples
 --------
@@ -10,6 +10,10 @@ Examples
 """
 
 from __future__ import annotations
+
+from default_params import (
+    DEFAULT_RUN_PATH,
+)
 
 import argparse
 import os
@@ -30,9 +34,9 @@ import train
 import figure.plot as plot_trained
 import train.implementation as train_mod
 from import_bootstrap import parse_comma_list
-from network.connectivity import build_cell_pair_idx
+from network.connectivity import build_cell_pair_indices
 from network.construction import load_network_json
-from param_defaults import DEFAULT_RUN_PATH
+from default_params import DEFAULT_RUN_PATH
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -123,7 +127,7 @@ def main(argv: list[str] | None = None) -> int:
 
     src_t = np.array([i_from_name[e["source_cell"]] for e in edges], dtype=np.int64)
     tar_t = np.array([i_from_name[e["target_cell"]] for e in edges], dtype=np.int64)
-    _, n_pairs, pair_keys = build_cell_pair_idx(src_t, tar_t, n_cells)
+    _, n_pairs, pair_keys = build_cell_pair_indices(src_t, tar_t, n_cells)
     i_from_key = {k: i for i, k in enumerate(pair_keys)}
     if pair_names is not None:
         expected = [f"{cells[s]}{train.PAIR_SEP}{cells[t]}" for s, t in pair_keys]

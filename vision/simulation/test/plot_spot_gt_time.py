@@ -1,7 +1,7 @@
 """Plot spot RecF gt time courses for all fit cells; report first nonzero.
 
 Timing: ``ms_pre=100``, ``ms_pulse=50``, ``ms_response=400``; ``--delta-ms``
-(default ``DELTA_MS`` from ``param_defaults``). Uses ``figure.spot.plot_cell_time``
+(default ``DELTA_MS`` from ``default_params``). Uses ``figure.spot.plot_cell_time``
 only (no RF panel).
 
 Usage (from ``SimulationCode/``):
@@ -25,11 +25,11 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 from network.build import cell_family_rows, cell_names_in_family_order
-from figure.gt import fit_gt_cubes
+from figure.gt import fit_gt_rts
 from figure.spot import CENTER_BIN, _pulse_end_from_opts, plot_cell_time
 from figure.util import save_figure
 from task.spot.input import spot_timing_t
-from param_defaults import DELTA_MS
+from default_params import DELTA_MS
 
 MS_PRE = 100.0
 MS_PULSE = 50.0
@@ -56,8 +56,8 @@ def report_first_nonzero(cells: dict[str, np.ndarray], *, t_onset: int, delta_ms
     )
     print(f"{'cell':<6} {'t':>5} {'ms':>8} {'t-t_onset':>10} {'ms-onset':>10}")
     for name in cells:
-        cube = np.asarray(cells[name], dtype=np.float64)
-        t = first_nonzero_t(cube[CENTER_BIN])
+        rt = np.asarray(cells[name], dtype=np.float64)
+        t = first_nonzero_t(rt[CENTER_BIN])
         if t is None:
             print(f"{name:<6} {'(all ~0)':>5}")
             continue
@@ -144,14 +144,14 @@ def main(argv=None):
     pulse_end = _pulse_end_from_opts(
         {"ms_pulse": MS_PULSE, "delta_ms": delta_ms}, t_onset, n_t,
     )
-    cubes = fit_gt_cubes(
+    rts = fit_gt_rts(
         contrasts=("bright",),
         t_onset=t_onset,
         n_t=n_t,
         ms_pulse=MS_PULSE,
         delta_ms=delta_ms,
     )
-    cells = cubes["bright"]
+    cells = rts["bright"]
     report_first_nonzero(cells, t_onset=t_onset, delta_ms=delta_ms)
     plot_all_cells(
         args.save, cells=cells, t_onset=t_onset, n_t=n_t, pulse_end=pulse_end,

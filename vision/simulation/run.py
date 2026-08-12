@@ -22,6 +22,7 @@ Re-plot an existing run without train:
 from __future__ import annotations
 
 import argparse
+import inspect
 import os
 import sys
 
@@ -63,10 +64,10 @@ _PLOT_KEYS = (
 )
 
 
-def _take_plot_kw(kw, *, gt_cubes=None):
+def _take_plot_kw(kw, *, gt_rts=None):
     """Pop plot keys from *kw* (values come from CLI via ``plot_kwargs_from_args``)."""
     plot_kw = {k: kw.pop(k) for k in _PLOT_KEYS}
-    plot_kw["gt_cubes"] = gt_cubes
+    plot_kw["gt_rts"] = gt_rts
     return plot_kw
 
 
@@ -81,7 +82,7 @@ def make_plots(outdir, session, result=None, **plot_kw):
                 part_order=list(train.session_cost_part_keys(session.tasks, session=session)),
             )
         plot_param_set(
-            result.all_params,
+            result.run_params,
             outdir,
             session=session,
             final_costs=result.final_costs,
@@ -147,10 +148,10 @@ def make_checkpoint_on_png(plot_kw):
     return on_png
 
 
-def run_train_and_plot(*, plot_gt_cubes=None, **kw):
+def run_train_and_plot(*, plot_gt_rts=None, **kw):
     """Run train (``train.implementation.run_train``) then plot. Returns ``(fname, outdir, session)``."""
     syn_sign = kw.pop("syn_sign")
-    plot_kw = _take_plot_kw(kw, gt_cubes=plot_gt_cubes)
+    plot_kw = _take_plot_kw(kw, gt_rts=plot_gt_rts)
     checkpoint_on_png = None
     if kw.get("checkpoint_interval") is not None:
         checkpoint_on_png = make_checkpoint_on_png(plot_kw)
@@ -203,9 +204,8 @@ def run_mirror_spot_experiment(
     configure_parser=None,
 ):
     """CLI entry for spot mirror-fit experiments (train + plot)."""
-    from param_defaults import DELTA_MS, DELTA_MS_PRE, MS_PRE, MS_RESPONSE
-    from figure.gt import fit_gt_cubes
-    from neuron.param import t_from_ms
+    from task.spot.input import spot_timing_from_opts
+    from figure.gt import fit_gt_rts
     from train.experiment import (
         merge_i_h_train_modes,
         spot_pack_overrides,
@@ -213,19 +213,21 @@ def run_mirror_spot_experiment(
         _normalize_mirror_fits,
     )
 
-    def make_mirror_gt_cubes(fits, sign):
+    def make_mirror_gt_rts(fits, sign, session):
         specs = _normalize_mirror_fits(fits, sign)
-        t_onset = t_from_ms(MS_PRE, delta_ms=DELTA_MS_PRE)
-        n_t = t_onset + t_from_ms(MS_RESPONSE, delta_ms=DELTA_MS) + 1
-        filter = str(run_kw.get("filter", "none"))
-
-        def mirror_gt_cubes(contrasts):
-            base = fit_gt_cubes(
+        def mirror_gt_rts(contrasts):
+            pack_name = f"spot_{str(contrasts[0])}"
+            timing = spot_timing_from_opts(
+                (session.train_opts or {}).get(f"{pack_name}_sti_opts") or {}
+            )
+            base = fit_gt_rts(
                 contrasts=contrasts,
-                t_onset=t_onset,
-                n_t=n_t,
-                delta_ms=DELTA_MS,
-                filter=filter,
+                t_onset=timing.t_onset,
+                n_t=timing.n_t_gt,
+                delta_ms=session.delta_ms,
+                gt_amp=session.gt_amp,
+                filter=str((session.train_opts or {}).get("filter", "none")),
+                spot_gt_mode=str((session.train_opts or {}).get("spot_gt_mode", "all")),
             )
             out = {}
             for contrast, cells in base.items():
@@ -238,9 +240,9 @@ def run_mirror_spot_experiment(
                 out[contrast] = cells
             return out
 
-        return mirror_gt_cubes
+        return mirror_gt_rts
 
-    def resolve_spot_plot_gt_cubes(spot_tasks, mirror_gt_cubes):
+    def resolve_spot_plot_gt_rts(spot_tasks, mirror_gt_rts):
         contrasts = []
         if "spot_bright" in spot_tasks:
             contrasts.append("bright")
@@ -248,7 +250,7 @@ def run_mirror_spot_experiment(
             contrasts.append("dark")
         if not contrasts:
             return None
-        return mirror_gt_cubes(tuple(contrasts))
+        return mirror_gt_rts(tuple(contrasts))
 
     ap = make_run_argparser(description)
     if configure_parser is not None:
@@ -265,18 +267,29 @@ def run_mirror_spot_experiment(
     pack_overrides = spot_pack_overrides(tasks, fits, mirror_sign)
     train_modes = merge_i_h_train_modes(run_kw)
     spot_tasks = spot_tasks_from(tasks)
-    plot_gt_cubes = resolve_spot_plot_gt_cubes(
-        spot_tasks, make_mirror_gt_cubes(fits, mirror_sign),
+    build_session_params = inspect.signature(implementation.build_session).parameters
+    preview_session = implementation.build_session(
+        run_kw["model"],
+        **{
+            key: val
+            for key, val in run_kw.items()
+            if key != "model" and key in build_session_params
+        },
+        pack_overrides=pack_overrides,
+        train_modes=train_modes,
+    )
+    plot_gt_rts = resolve_spot_plot_gt_rts(
+        spot_tasks, make_mirror_gt_rts(fits, mirror_sign, preview_session),
     )
 
     fname, outdir, session = run_train_and_plot(
         **run_kw,
         pack_overrides=pack_overrides,
         train_modes=train_modes,
-        plot_gt_cubes=plot_gt_cubes,
+        plot_gt_rts=plot_gt_rts,
     )
     for tname in spot_tasks:
-        print(f"{tname} cost nodes:", int(session.pack_for(tname).readout_node.shape[0]))
+        print(f"{tname} cost nodes:", int(session.pack_for(tname).entry_nodes.shape[0]))
     return fname, outdir, session
 
 

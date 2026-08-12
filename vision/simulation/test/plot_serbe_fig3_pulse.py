@@ -47,19 +47,19 @@ def samples_from_tau_s(tau_s: float | None, dt_ms: float) -> float:
 
 
 def dark_bar_pulse(t_ms: np.ndarray, *, t_on_ms: float, ms_pulse: float) -> np.ndarray:
-    """1 while the dark bar is on, else 0 (Serbe supplemental stimulus encoding)."""
+    """1 while the dark bar is on, else 0 (Serbe supplemental sti encoding)."""
     t_off_ms = t_on_ms + ms_pulse
     return ((t_ms >= t_on_ms) & (t_ms < t_off_ms)).astype(np.float64)
 
 
 def serbe_filter_chain(
-    stimulus: np.ndarray,
+    sti: np.ndarray,
     *,
     t_hp_s: float | None,
     t_lp_s: float,
     dt_ms: float,
 ) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
-    x = np.asarray(stimulus, dtype=np.float64)
+    x = np.asarray(sti, dtype=np.float64)
     tau_hp = samples_from_tau_s(t_hp_s, dt_ms)
     tau_lp = samples_from_tau_s(t_lp_s, dt_ms)
 
@@ -73,14 +73,14 @@ def serbe_filter_chain(
     return after_hp, after_rec, after_lp
 
 
-def lp_only(stimulus: np.ndarray, *, t_lp_s: float, dt_ms: float) -> np.ndarray:
+def lp_only(sti: np.ndarray, *, t_lp_s: float, dt_ms: float) -> np.ndarray:
     """Low-pass the raw input, skipping HP and rectification."""
     tau_lp = samples_from_tau_s(t_lp_s, dt_ms)
-    return bs.lowpass(np.asarray(stimulus, dtype=np.float64), tau_lp)
+    return bs.lowpass(np.asarray(sti, dtype=np.float64), tau_lp)
 
 
 def hp_lp_skip_rec(
-    stimulus: np.ndarray,
+    sti: np.ndarray,
     *,
     t_hp_s: float | None,
     t_lp_s: float,
@@ -88,7 +88,7 @@ def hp_lp_skip_rec(
 ) -> np.ndarray:
     """High-pass then low-pass, skipping rectification."""
     after_hp, _, _ = serbe_filter_chain(
-        stimulus,
+        sti,
         t_hp_s=t_hp_s,
         t_lp_s=t_lp_s,
         dt_ms=dt_ms,
@@ -109,7 +109,7 @@ def plot_serbe_pulse(
 ) -> None:
     n = int(round(t_total_ms / dt_ms)) + 1
     t_ms = np.arange(n, dtype=np.float64) * dt_ms
-    stimulus = dark_bar_pulse(t_ms, t_on_ms=t_on_ms, ms_pulse=ms_pulse)
+    sti = dark_bar_pulse(t_ms, t_on_ms=t_on_ms, ms_pulse=ms_pulse)
 
     stage_labels = ("input", "after HP", "after rec", "after LP")
     stage_colors = ("0.15", "C0", "C1", "C2")
@@ -129,19 +129,19 @@ def plot_serbe_pulse(
     for col, cell in enumerate(cells):
         params = SERBE_TM[cell]
         after_hp, after_rec, after_lp = serbe_filter_chain(
-            stimulus,
+            sti,
             t_hp_s=params["t_hp_s"],
             t_lp_s=params["t_lp_s"],
             dt_ms=dt_ms,
         )
-        direct_lp = lp_only(stimulus, t_lp_s=params["t_lp_s"], dt_ms=dt_ms)
+        direct_lp = lp_only(sti, t_lp_s=params["t_lp_s"], dt_ms=dt_ms)
         hp_lp = hp_lp_skip_rec(
-            stimulus,
+            sti,
             t_hp_s=params["t_hp_s"],
             t_lp_s=params["t_lp_s"],
             dt_ms=dt_ms,
         )
-        traces = (stimulus, after_hp, after_rec, after_lp)
+        traces = (sti, after_hp, after_rec, after_lp)
         hp_label = "off" if params["t_hp_s"] is None else f"{params['t_hp_s']:.2f} s"
         col_title = f"{cell.upper()}  (tHP={hp_label}, tLP={params['t_lp_s']:.2f} s)"
 

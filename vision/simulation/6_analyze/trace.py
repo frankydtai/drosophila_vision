@@ -33,6 +33,11 @@ Usage (from ``vision/simulation/``)::
 """
 from __future__ import annotations
 
+from default_params import (
+    ANALYZE_TRACE_DEFAULT,
+    DEFAULT_RUN_PATH,
+)
+
 import argparse
 import csv
 import os
@@ -52,21 +57,7 @@ import figure.plot as plot_trained
 import train
 from analyze.cell_dynamics import TimeWindow, analyze_spot_average
 from import_bootstrap import parse_comma_list
-from param_defaults import (
-    DEFAULT_RUN_PATH,
-    TRACE_BASELINE_MS,
-    TRACE_DRIFT_MIN_R,
-    TRACE_DRIFT_MIN_SLOPE_MV_PER_S,
-    TRACE_FLAT_ABS_MEAN,
-    TRACE_FLAT_MAX_ABS,
-    TRACE_FLAT_V_PEAK_TO_PEAK_MAX,
-    TRACE_OSC_MAX_F,
-    TRACE_OSC_MIN_F,
-    TRACE_OSC_PEAK_THRESHOLD,
-    TRACE_OSC_SNR_MIN,
-    TRACE_OSC_Z_THRESHOLD,
-)
-from train.cli import stimulus_timing_kwargs_from_args
+from train.cli import sti_timing_kwargs_from_args
 
 CHECK_OSCILLATION = "oscillation"
 CHECK_FLAT = "flat"
@@ -78,11 +69,11 @@ def detect_oscillation(
     v_trace: np.ndarray,
     *,
     delta_ms: float,
-    min_osc_f: float = TRACE_OSC_MIN_F,
-    max_osc_f: float = TRACE_OSC_MAX_F,
-    peak_threshold: float = TRACE_OSC_PEAK_THRESHOLD,
-    z_threshold: float = TRACE_OSC_Z_THRESHOLD,
-    snr_min: float = TRACE_OSC_SNR_MIN,
+    min_osc_f: float = ANALYZE_TRACE_DEFAULT['trace_osc_min_f'],
+    max_osc_f: float = ANALYZE_TRACE_DEFAULT['trace_osc_max_f'],
+    peak_threshold: float = ANALYZE_TRACE_DEFAULT['trace_osc_peak_threshold'],
+    z_threshold: float = ANALYZE_TRACE_DEFAULT['trace_osc_z_threshold'],
+    snr_min: float = ANALYZE_TRACE_DEFAULT['trace_osc_snr_min'],
 ) -> dict:
     """FFT / v_peak_to_peak metrics on one already-sliced mean v_post segment."""
     n = len(v_trace)
@@ -175,8 +166,8 @@ def detect_drift(
     v_trace: np.ndarray,
     *,
     delta_ms: float,
-    min_slope_mv_per_s: float = TRACE_DRIFT_MIN_SLOPE_MV_PER_S,
-    min_r: float = TRACE_DRIFT_MIN_R,
+    min_slope_mv_per_s: float = ANALYZE_TRACE_DEFAULT['trace_drift_min_slope_mv_per_s'],
+    min_r: float = ANALYZE_TRACE_DEFAULT['trace_drift_min_r'],
 ) -> dict:
     """Linear trend on an already-sliced segment: rising / falling / none."""
     n = len(v_trace)
@@ -279,16 +270,18 @@ def detect_stability(
     }
 
 
-def _stimulus_ms(args, opts: dict) -> tuple[float, float, float]:
+def _sti_ms(args, opts: dict) -> tuple[float, float, float]:
+    from task.spot.input import spot_timing_from_opts
+
     ms_pre = float(args.ms_pre) if args.ms_pre is not None else float(opts["ms_pre"])
-    ms_spot = (
-        float(args.ms_spot) if args.ms_spot is not None else float(opts["ms_spot"])
-    )
-    ms_response = (
-        float(args.ms_response)
-        if args.ms_response is not None
-        else float(opts["ms_response"])
-    )
+    override_opts = dict(opts)
+    if args.ms_spot is not None:
+        override_opts["ms_spot"] = float(args.ms_spot)
+    if args.ms_response is not None:
+        override_opts["ms_response"] = float(args.ms_response)
+    timing = spot_timing_from_opts(override_opts)
+    ms_spot = timing.ms_spot
+    ms_response = timing.ms_response
     return ms_pre, ms_spot, ms_response
 
 
@@ -387,8 +380,8 @@ def _load_reports(args):
     session, z, _best_cost = plot_trained.load_best(run_dir)
     train_opts = plot_trained.load_train_opts(run_dir) or {}
     train_filter = train.expand_filter(train_opts.get("filter", "none"))
-    timing_kw = stimulus_timing_kwargs_from_args(args)
-    session, z, _timing_changed = plot_trained.maybe_override_stimulus_timing(
+    timing_kw = sti_timing_kwargs_from_args(args)
+    session, z, _timing_changed = plot_trained.maybe_override_sti_timing(
         run_dir=run_dir,
         session=session,
         z=z,
@@ -416,10 +409,10 @@ def _load_reports(args):
     sess_one = plot_trained.session_for_task(session, args.task)
     delta_ms = float(sess_one.delta_ms)
     opts = dict(
-        (sess_one.train_opts or {}).get(f"{sess_one.primary_readout.name}_stimulus_opts")
+        (sess_one.train_opts or {}).get(f"{sess_one.primary_pack.name}_sti_opts")
         or {},
     )
-    ms_pre, ms_spot, ms_response = _stimulus_ms(args, opts)
+    ms_pre, ms_spot, ms_response = _sti_ms(args, opts)
     analyze, baseline = _resolve_windows(args, ms_pre, ms_spot, ms_response)
     forward_stop = analyze[1]
     if baseline is not None:
@@ -678,44 +671,44 @@ def main() -> None:
     ap.add_argument("--task", default="spot_bright")
     ap.add_argument("--radius", type=int, default=0, choices=(0, 1))
     ap.add_argument(
-        "--z-threshold", type=float, default=TRACE_OSC_Z_THRESHOLD,
+        "--z-threshold", type=float, default=ANALYZE_TRACE_DEFAULT['trace_osc_z_threshold'],
     )
-    ap.add_argument("--min-f", type=float, default=TRACE_OSC_MIN_F)
-    ap.add_argument("--max-f", type=float, default=TRACE_OSC_MAX_F)
+    ap.add_argument("--min-f", type=float, default=ANALYZE_TRACE_DEFAULT['trace_osc_min_f'])
+    ap.add_argument("--max-f", type=float, default=ANALYZE_TRACE_DEFAULT['trace_osc_max_f'])
     ap.add_argument(
         "--min-slope",
         type=float,
-        default=TRACE_DRIFT_MIN_SLOPE_MV_PER_S,
+        default=ANALYZE_TRACE_DEFAULT['trace_drift_min_slope_mv_per_s'],
         help="drift: min |slope| in mV/s",
     )
     ap.add_argument(
         "--min-r",
         type=float,
-        default=TRACE_DRIFT_MIN_R,
+        default=ANALYZE_TRACE_DEFAULT['trace_drift_min_r'],
         help="drift: min |Pearson r| of linear fit",
     )
     ap.add_argument(
         "--baseline-ms",
         type=float,
-        default=TRACE_BASELINE_MS,
+        default=ANALYZE_TRACE_DEFAULT['trace_baseline_ms'],
         help="default baseline length when --baseline-ms-shown omitted",
     )
     ap.add_argument(
         "--max-abs",
         type=float,
-        default=TRACE_FLAT_MAX_ABS,
+        default=ANALYZE_TRACE_DEFAULT['trace_flat_max_abs'],
         help="flat: max |Δ| vs baseline",
     )
     ap.add_argument(
         "--v-peak-to-peak-max",
         type=float,
-        default=TRACE_FLAT_V_PEAK_TO_PEAK_MAX,
+        default=ANALYZE_TRACE_DEFAULT['trace_flat_v_peak_to_peak_max'],
         help="flat: max v_peak_to_peak from baseline",
     )
     ap.add_argument(
         "--abs-mean",
         type=float,
-        default=TRACE_FLAT_ABS_MEAN,
+        default=ANALYZE_TRACE_DEFAULT['trace_flat_abs_mean'],
         help="flat: max mean |Δ| vs baseline",
     )
     args = ap.parse_args()

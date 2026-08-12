@@ -14,6 +14,10 @@ Usage (from ``simulation/``)::
 """
 from __future__ import annotations
 
+from default_params import (
+    DEFAULT_RUN_PATH,
+)
+
 import argparse
 import os
 import sys
@@ -42,14 +46,14 @@ from figure.util import (
     PlotTimer,
     save_figure,
 )
-from network.connectivity import build_cell_pair_idx
+from network.connectivity import build_cell_pair_indices
 from network.construction import (
     cell_plot_rows,
     gt_cells_from_opts,
     present_gt_cells,
     load_network_json,
 )
-from param_defaults import DEFAULT_RUN_PATH
+from default_params import DEFAULT_RUN_PATH
 from task.spot.gt import GT_CELLS
 from task.spot.input import euclid_hex_dist
 
@@ -62,7 +66,7 @@ def _pair_strength_lookup(edges, cells, syn_strength_cell, pair_names):
     n_cells = len(cells)
     src_t = np.array([i_from_name[e["source_cell"]] for e in edges], dtype=np.int64)
     tar_t = np.array([i_from_name[e["target_cell"]] for e in edges], dtype=np.int64)
-    _, n_pairs, pair_keys = build_cell_pair_idx(src_t, tar_t, n_cells)
+    _, n_pairs, pair_keys = build_cell_pair_indices(src_t, tar_t, n_cells)
     syn = np.asarray(syn_strength_cell, dtype=np.float64).reshape(-1)
     if syn.shape[0] != n_pairs:
         raise SystemExit(
@@ -141,8 +145,8 @@ def _side_by_side_hist(ax, pct_init, pct_trained, edges_bins, *, legend: bool):
 
 def _spot_gt_cells(opts, available):
     """Same cell set as ``spot_gt_v``."""
-    stim = opts.get("spot_bright_stimulus_opts") or {}
-    requested = gt_cells_from_opts(stim)
+    sti_opts = opts.get("spot_bright_sti_opts") or {}
+    requested = gt_cells_from_opts(sti_opts)
     if requested is None:
         requested = gt_cells_from_opts(opts)
     return present_gt_cells(

@@ -36,7 +36,7 @@ import numpy as np
 
 import FiveCol_MedSim_Pytorch as fc
 from import_bootstrap import parse_comma_list
-from param_defaults import P
+from default_params import P
 from training_config import DELTA_MS
 
 DEFAULT_SAVE = os.path.join(HERE, "adaptive_curves.png")

@@ -36,7 +36,7 @@ import blindschleiche_py3 as bs
 from network.build import cell_family_rows, cell_names_in_family_order
 from plot.spot import CENTER_BIN, _style_time_axis
 from figure.util import GT_COLOR, TRACE_LW, TRACE_YLIM, save_figure
-from param_defaults import GT_AMP
+from default_params import GT_AMP
 from training_config import DELTA_MS, IMPULSE_MAXTIME, T_ON, t_from_ms
 
 DEFAULT_SAVE = os.path.join(HERE, "spot_gt_pulses_LTI.png")
@@ -96,8 +96,8 @@ def absmax_from_zero(x: np.ndarray) -> float:
     return float(max(abs(np.nanmax(x)), abs(np.nanmin(x))))
 
 
-def fit_gt_cubes() -> dict[str, np.ndarray]:
-    """Bright spot gt cubes ``(9, T)`` keyed by fit cell name."""
+def fit_gt_rts() -> dict[str, np.ndarray]:
+    """Bright spot gt rts ``(9, T)`` keyed by fit cell name."""
     raw = ml.read_RecF_data()
     out = {}
     for i, name in enumerate(ml.cell_list):
@@ -214,12 +214,12 @@ def _plot_pulse_grid(
 
 def plot_gt_pulses(path: str, *, show: bool = False) -> None:
     """PNG 1: LTI pulse-from-step on Medulla_Library RecF gt center traces."""
-    cubes = fit_gt_cubes()
+    rts = fit_gt_rts()
     pulse_50 = t_from_ms(PULSE_50_MS)
     pulse_500 = t_from_ms(PULSE_500_MS)
     series = {}
-    for name, cube in cubes.items():
-        step = np.asarray(cube[CENTER_BIN], dtype=np.float64)
+    for name, rt in rts.items():
+        step = np.asarray(rt[CENTER_BIN], dtype=np.float64)
         series[name] = {
             "step": step,
             "p500": pulse_from_step(step, pulse_500),

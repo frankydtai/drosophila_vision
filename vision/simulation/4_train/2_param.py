@@ -2,7 +2,7 @@
 """Parameter schema train_modes: pack/unpack ``z`` <-> physical params.
 
 Segment packing, train_modes (indi/shared/fixed/frozen), non-linear
-``scale`` decoding, and the ``z``-space bounds / initial guess. ``assign_params``
+``z_map`` decoding, and the ``z``-space bounds / initial guess. ``assign_params``
 turns a ``z`` vector into the per-parameter tensors consumed by
 ``neuron`` dynamics; ``params_from_z`` binds it to a session.
 
@@ -14,6 +14,12 @@ live in ``neuron.param.P``.
 """
 from __future__ import annotations
 
+from default_params import (
+    NEURON_SCHEMA_DEFAULT,
+    TRAIN_OPTIMIZATION_DEFAULT,
+    TRAIN_SESSION_DEFAULT,
+)
+
 from dataclasses import dataclass
 from typing import Optional
 
@@ -21,14 +27,6 @@ import numpy as np
 import torch
 
 from neuron import I_H_DIR_REVERSE_CELLS
-from param_defaults import (
-    A_CA_FROM_A_OUT,
-    BIAS_GT_FROM_V_ONSET,
-    BIAS_GT_FROM_V_ONSET_GRAD,
-    FP,
-    PARAM_BOXES,
-    V_TH_CA_FROM_V_TH,
-)
 
 
 def active_device():
@@ -51,7 +49,7 @@ def sim_dtype_from_fp(fp: int) -> torch.dtype:
         raise ValueError(f"fp must be 16, 32, or 64; got {fp!r}") from e
 
 
-SIM_DTYPE = sim_dtype_from_fp(FP)
+SIM_DTYPE = sim_dtype_from_fp(TRAIN_SESSION_DEFAULT['fp'])
 
 
 @dataclass(frozen=True)
@@ -59,7 +57,7 @@ class ModelBackend:
     """Connectivity + i_h tensors for one simulation graph."""
 
     conn: object
-    i_h_dir: torch.Tensor
+    i_h_dirs: torch.Tensor
     n_cells: int
     n_hexes: int
     network: Optional[object] = None
@@ -71,24 +69,24 @@ class ModelBackend:
 
 def calc_multi_col_params(param, conn):
     # Broadcast a per-cell-TYPE parameter (n_cells,) to the full state (n_nodes,)
-    # via the backend's node_cell.
-    return param.index_select(0, conn.node_cell)
+    # via the backend's node_cells.
+    return param.index_select(0, conn.node_cells)
 
 
-def build_i_h_dir(conn, i_h_reverse_cells=I_H_DIR_REVERSE_CELLS, *, dtype=SIM_DTYPE):
+def build_i_h_dirs(conn, i_h_reverse_cells=I_H_DIR_REVERSE_CELLS, *, dtype=SIM_DTYPE):
     """(conn.n_nodes,) i_h direction (+1 normal, -1 mirrored per cell)."""
-    i_h_dir = torch.ones(conn.n_nodes, dtype=dtype, device=conn.node_cell.device)
+    i_h_dirs = torch.ones(conn.n_nodes, dtype=dtype, device=conn.node_cells.device)
     for c in i_h_reverse_cells:
-        i_h_dir[conn.node_cell == int(c)] = -1.0
-    return i_h_dir
+        i_h_dirs[conn.node_cells == int(c)] = -1.0
+    return i_h_dirs
 
 
 # --- parameter schema train_modes --------------------------------------------
-# Numeric lo/hi/init/jit + train_mode: ``param_defaults.PARAM_BOXES``.
+# Numeric lo/hi/init/jit + train_mode: ``default_params.NEURON_SCHEMA_DEFAULT['param_boxes']``.
 # Model segment lists: ``neuron.schema``.
 # Each segment:
-#   name, kind, count, lo/hi/init/jit[, scale]
-#   scale: ``linear`` (default), ``log`` (z = log(physical)), or ``inv`` (z = 1/physical); lo/hi/init physical
+#   name, kind, count, lo/hi/init/jit[, z_map]
+#   z_map: ``linear`` (default), ``log`` (z = log(physical)), or ``inv`` (z = 1/physical); lo/hi/init physical
 #   indi / shared / fixed / frozen : disjoint exhaustive lists of node indices
 #       fixed: not in z; value = effective_init(seg, node_idx)  (init_override or init);
 #              --init-from seeds fixed via seed_fixed_from_named → init_override
@@ -98,11 +96,11 @@ TRAIN_MODES = ('indi', 'shared', 'fixed', 'frozen')
 PAIR_SEP = ':'
 
 
-def _seg_scale(seg):
-    scale = seg.get('scale', 'linear')
-    if scale not in ('linear', 'log', 'inv'):
-        raise ValueError(f"{seg.get('name', 'param')}: unknown scale {scale!r}")
-    return scale
+def _seg_z_map(seg):
+    z_map = seg.get('z_map', 'linear')
+    if z_map not in ('linear', 'log', 'inv'):
+        raise ValueError(f"{seg.get('name', 'param')}: unknown z_map {z_map!r}")
+    return z_map
 
 
 def _physical_bounds(seg):
@@ -111,31 +109,31 @@ def _physical_bounds(seg):
 
 def _decode_z(seg, z_slot):
     """Map z slot -> physical parameter value."""
-    scale = _seg_scale(seg)
-    if scale == 'linear':
+    z_map = _seg_z_map(seg)
+    if z_map == 'linear':
         return z_slot
     lo, hi = _physical_bounds(seg)
-    phys = torch.exp(z_slot) if scale == 'log' else 1.0 / z_slot
+    phys = torch.exp(z_slot) if z_map == 'log' else 1.0 / z_slot
     return torch.clamp(phys, min=lo, max=hi)
 
 
 def _encode_physical(seg, physical):
     """Map physical parameter value -> z slot."""
-    scale = _seg_scale(seg)
-    if scale == 'linear':
+    z_map = _seg_z_map(seg)
+    if z_map == 'linear':
         return float(physical)
     lo, hi = _physical_bounds(seg)
     clipped = float(np.clip(float(physical), lo, hi))
-    return float(np.log(clipped)) if scale == 'log' else 1.0 / clipped
+    return float(np.log(clipped)) if z_map == 'log' else 1.0 / clipped
 
 
 def _z_bounds(seg):
     """Per-slot (lo, hi) in z space."""
     lo, hi = _physical_bounds(seg)
-    scale = _seg_scale(seg)
-    if scale == 'log':
+    z_map = _seg_z_map(seg)
+    if z_map == 'log':
         return float(np.log(lo)), float(np.log(hi))
-    if scale == 'inv':
+    if z_map == 'inv':
         return 1.0 / hi, 1.0 / lo
     return lo, hi
 
@@ -629,7 +627,7 @@ def _reconstruct_raw(seg, z_slice, z):
 def _expand_segment(seg, raw, backend: ModelBackend):
     """Map a length-`count` per-node vector to a usable parameter, per its 'kind'."""
     kind = seg['kind']
-    dev = backend.conn.node_cell.device
+    dev = backend.conn.node_cells.device
     if kind == 'full':
         return calc_multi_col_params(raw, backend.conn).to(dev)
     if kind in ('output', 'edge_pair', 'edge'):
@@ -648,22 +646,22 @@ def assign_params(z, schema, backend: ModelBackend):
 def bias_gt_from_onset_trace(onset_trace, t_onset, session):
     """Per-cell-type mean of ``onset_trace[:, t_onset, :]``, clamped to ``bias_gt`` box."""
     opts = session.train_opts or {}
-    lo = float(PARAM_BOXES["bias_gt"]["lo"])
-    hi = float(PARAM_BOXES["bias_gt"]["hi"])
+    lo = float(NEURON_SCHEMA_DEFAULT['param_boxes']["bias_gt"]["lo"])
+    hi = float(NEURON_SCHEMA_DEFAULT['param_boxes']["bias_gt"]["hi"])
     t0 = int(t_onset)
     if not torch.is_tensor(onset_trace):
         onset_trace = torch.as_tensor(
             onset_trace, dtype=session.sim_dtype, device=session.device,
         )
     x = onset_trace[:, t0, :]
-    if not bool(opts.get("bias_gt_from_v_onset_grad", BIAS_GT_FROM_V_ONSET_GRAD)):
+    if not bool(opts.get("bias_gt_from_v_onset_grad", TRAIN_OPTIMIZATION_DEFAULT['bias_gt_from_v_onset_grad'])):
         x = x.detach()
-    node_cell = session.backend.conn.node_cell
+    node_cells = session.backend.conn.node_cells
     n_cells = int(session.backend.n_cells)
     onset_mean = x.mean(dim=0)
     out = onset_mean.new_empty(n_cells)
     for c in range(n_cells):
-        mask = node_cell == c
+        mask = node_cells == c
         out[c] = onset_mean[mask].mean() if bool(mask.any()) else onset_mean.new_tensor(float("nan"))
     return torch.clamp(out, min=lo, max=hi)
 
@@ -676,11 +674,11 @@ def materialize_from_opts(params, session, *, onset_trace=None, t_onset=None):
     * ``bias_gt_from_v_onset`` → ``params['bias_gt']`` from onset (needs ``onset_trace``)
     """
     opts = session.train_opts or {}
-    if bool(opts.get("v_th_ca_from_v_th", V_TH_CA_FROM_V_TH)) and "v_th_ca" in params:
+    if bool(opts.get("v_th_ca_from_v_th", TRAIN_OPTIMIZATION_DEFAULT['v_th_ca_from_v_th'])) and "v_th_ca" in params:
         params["v_th_ca"] = params["v_th"]
-    if bool(opts.get("a_ca_from_a_out", A_CA_FROM_A_OUT)) and "a_ca" in params:
+    if bool(opts.get("a_ca_from_a_out", TRAIN_OPTIMIZATION_DEFAULT['a_ca_from_a_out'])) and "a_ca" in params:
         params["a_ca"] = params["a_out"]
-    if bool(opts.get("bias_gt_from_v_onset", BIAS_GT_FROM_V_ONSET)):
+    if bool(opts.get("bias_gt_from_v_onset", TRAIN_OPTIMIZATION_DEFAULT['bias_gt_from_v_onset'])):
         if onset_trace is None or t_onset is None:
             return params
         params["bias_gt"] = bias_gt_from_onset_trace(onset_trace, t_onset, session)

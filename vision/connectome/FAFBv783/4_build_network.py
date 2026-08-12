@@ -57,7 +57,7 @@ SIGN_FROM_NT = {"ACH": 1.0, "GLUT": -1.0, "GABA": -1.0, "SER": 1.0, "DA": 1.0, "
 # Photoreceptors are histaminergic (inhibitory) but FAFB lacks a histamine class,
 # so their sign is forced negative regardless of the predicted nt.
 FORCED_NEGATIVE_PRE_CELLS = {"R1-6", "R7", "R8"}
-# Cells that receive light stimulus (R1-6, R7, R8).
+# Cells that receive light sti (R1-6, R7, R8).
 STI_CELLS = {"R1-6", "R7", "R8"}
 # Per-edge sign rule: "per_edge" (dominant nt per pre/post pair) or
 # "per_pre" (one sign per presynaptic neuron, Dale's principle).

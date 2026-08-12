@@ -272,13 +272,13 @@ def plot_model(data, model, label1 = 'data', label2 = 'model'):
     
     for i in range(13):
                 
-        # Extract Impulse Responses from xt
+        # Extract Impulse Responses from rt
 
         ImpR_model = 1.0*model[i,4]
         
         ImpR_data  = 1.0*data[i,4]
         
-        # Extract Receptive field from xt
+        # Extract Receptive field from rt
         
         maxamp_model = np.max(abs(ImpR_model))
         maxamp_data  = np.max(abs(ImpR_data))
@@ -414,11 +414,11 @@ def plot_many_models(data,model):
         
         for k in range(nofmodels):
                 
-            # Extract Impulse Responses from xt
+            # Extract Impulse Responses from rt
     
             ImpR_model = 1.0*model[k,i,4]
             
-            # Extract Receptive field from xt
+            # Extract Receptive field from rt
             
             maxt_model = np.where(abs(ImpR_model) == np.max(abs(ImpR_model)))[0][0]      
             RecF_model = bs.rebin(model[k,i,:,maxt_model],45)
@@ -457,7 +457,7 @@ def plot_many_models(data,model):
     
             ImpR_model = 1.0*model[k,i,4]
             
-            # Extract Receptive field from xt
+            # Extract Receptive field from rt
             
             maxt_model = np.where(abs(ImpR_model) == np.max(abs(ImpR_model)))[0][0] 
             RecF_model = bs.rebin(model[k,i,:,maxt_model],45)

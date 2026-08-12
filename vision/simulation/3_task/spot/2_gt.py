@@ -3,12 +3,18 @@
 
 Synthesizes the Medulla_Library RecF/ImpR library (bandpass/lowpass ImpR
 shaping -- gt-only, not ``neuron.filter_ca``). With ``filter==\"ca\"``, ImpR
-is replaced by Arenz digitized CSV traces (``t=0`` at stimulus onset).
+is Arenz digitized (``t=0`` at sti onset); RecF omits ``RF_SIGN``.
+``filter==\"none\"`` multiplies RecF by ``RF_SIGN``.
+
+Cost GT membership is gated by ``spot_gt_mode`` (``all`` | ``positive``) via
+:func:`spot_gt_active`; waveform × :func:`contrast_sign` only (dark = −1).
+Cost pack holds only active cells; plot model traces use the present gt-cell
+set (see figure).
 Sti drive is :func:`task.spot.input.spot_input_waveform`, shared with network
 ``i_sti``.
 
-Network mapping, cost hexes, and :class:`task.spot.readout.SpotGt` packing
-live in :mod:`task.spot.readout`.
+Network mapping, cost hexes, and :class:`task.spot.pack.SpotGt` packing
+live in :mod:`task.spot.pack`.
 """
 from __future__ import annotations
 
@@ -27,6 +33,9 @@ from task.spot.input import (
 GT_CELLS: Tuple[str, ...] = (
     "L1", "L2", "L3", "L4", "L5", "Mi1", "Tm3", "Mi4", "Mi9", "Tm1", "Tm2", "Tm4", "Tm9",
 )
+
+# Per-cell ON (+1) / OFF (−1); same order as ``GT_CELLS``.
+RF_SIGN = np.array([-1, -1, -1, -1, 1, 1, 1, 1, -1, -1, -1, -1, -1], dtype=np.int8)
 
 # Repo root: vision/simulation/3_task/spot/2_gt.py → parents[4].
 _ARENZ_DIR = Path(__file__).resolve().parents[4] / "figure_digitization" / "arenz"
@@ -52,7 +61,7 @@ def expand_gt_cells(names: Sequence[str]) -> Tuple[str, ...]:
 
 
 # RecF sample grid: center at sample 22; one integer radius step = 5 samples.
-# Profile cube axis is Euclidean radius (0 .. RF_N_RADII-1), not a mirrored bin.
+# Profile rt axis is Euclidean radius (0 .. RF_N_RADII-1), not a mirrored bin.
 _RF_CENTER_SAMPLE = 22
 _RF_SAMPLES_PER_COL = 5
 _RF_NSAMPLES = 45
@@ -165,6 +174,25 @@ def load_arenz_digitized_impr(*, t_onset, n_t, delta_ms: float) -> np.ndarray:
     return out
 
 
+def contrast_sign(contrast: str) -> int:
+    """``+1`` bright / ``−1`` dark (sole GT waveform ±1 for contrast)."""
+    if contrast == "bright":
+        return 1
+    if contrast == "dark":
+        return -1
+    raise ValueError(f"contrast must be 'bright' or 'dark', got {contrast!r}")
+
+
+def spot_gt_active(spot_gt_mode: str, contrast: str, rf_sign: int) -> bool:
+    """Cost GT membership for ``spot_gt_mode`` × ``contrast`` × ``rf_sign``.
+
+    ``all``: always active. ``positive``: ``rf_sign * contrast_sign(contrast) > 0``.
+    """
+    return (str(spot_gt_mode) == "all") or (
+        int(rf_sign) * contrast_sign(contrast) > 0
+    )
+
+
 def load_RecF_ImpR(*, t_onset=None, n_t=None, ms_spot=None, delta_ms: float, filter="none"):
     """Return ``(RecF_gt, ImpR_gt)`` for the 13 gt cells.
 
@@ -172,7 +200,8 @@ def load_RecF_ImpR(*, t_onset=None, n_t=None, ms_spot=None, delta_ms: float, fil
     drive is :func:`task.spot.input.spot_input_waveform` (step or finite spot).
     ImpR filter taus are in ms (scaled by ``delta_ms``); delay is in samples.
     With ``filter==\"ca\"``, ImpR is Arenz digitized (``t=0`` at onset);
-    RecF keeps DoG radius signs but omits cell ``RF_sign`` (Arenz has polarity).
+    RecF keeps DoG radius signs but omits cell ``RF_SIGN`` (cost membership via
+    :func:`spot_gt_active`; waveform via :func:`contrast_sign`).
     """
     if t_onset is None or n_t is None:
         raise ValueError("load_RecF_ImpR requires t_onset and n_t")
@@ -186,18 +215,16 @@ def load_RecF_ImpR(*, t_onset=None, n_t=None, ms_spot=None, delta_ms: float, fil
 
     RF_center_width = np.array([6, 7, 6, 8, 7, 6, 12, 6, 6, 8, 8, 11, 7])
     RF_surrnd_width = np.array([41, 29, 15, 33, 31, 29, 7, 16, 24, 27, 31, 35, 24])
-    RF_surrnd_weight = np.array(
+    RF_surrnd_scale = np.array(
         [0.012, 0.013, 0.19, 0.046, 0.035, 0.022, 0.000, 0.132, 0.063, 0.040, 0.035, 0.054, 0.046]
     ) * 5.0
-    RF_sign = np.array([-1, -1, -1, -1, 1, 1, 1, 1, -1, -1, -1, -1, -1])
 
     RecF_gt = np.zeros((n_cells, 45))
     for i in range(n_cells):
         center = _gauss1d(RF_center_width[i], 44)
         surrnd = _gauss1d(RF_surrnd_width[i], 44)
-        dog = center - RF_surrnd_weight[i] * surrnd
-        # ca: polarity from Arenz ImpR; keep DoG signed across radii (no RF_sign).
-        RecF_gt[i] = normalize_gt(dog if use_ca else dog * RF_sign[i])
+        dog = center - RF_surrnd_scale[i] * surrnd
+        RecF_gt[i] = normalize_gt(dog if use_ca else dog * float(RF_SIGN[i]))
 
     if use_ca:
         return RecF_gt, load_arenz_digitized_impr(
@@ -225,13 +252,10 @@ def load_RecF_ImpR(*, t_onset=None, n_t=None, ms_spot=None, delta_ms: float, fil
     return RecF_gt, ImpR_gt
 
 
-def load_RecF_gt(*, t_onset=None, n_t=None, ms_spot=None, delta_ms: float, filter="none"):
-    """Spatial x temporal spot cube ``(n_cells, RF_N_RADII, n_t)``; axis = radius."""
-    RecF_gt, ImpR_gt = load_RecF_ImpR(
-        t_onset=t_onset, n_t=n_t, ms_spot=ms_spot, delta_ms=delta_ms, filter=filter,
-    )
+def _recf_impr_rt(RecF_gt: np.ndarray, ImpR_gt: np.ndarray) -> np.ndarray:
+    """``(n_cells, RF_N_RADII, n_t)`` = RecF sample × ImpR (no membership gate)."""
     mt = ImpR_gt.shape[1]
-    n_cells = len(GT_CELLS)
+    n_cells = RecF_gt.shape[0]
     gt = np.zeros((n_cells, RF_N_RADII, mt))
     for i in range(n_cells):
         for radius in range(RF_N_RADII):
@@ -240,10 +264,61 @@ def load_RecF_gt(*, t_onset=None, n_t=None, ms_spot=None, delta_ms: float, filte
     return gt
 
 
-def load_RecF_gt_dark(*, t_onset=None, n_t=None, ms_spot=None, delta_ms: float, filter="none"):
-    """Dark spot spatial x temporal cube: negated bright ``load_RecF_gt()``."""
-    return -load_RecF_gt(
+def _recf_gt_rt(
+    contrast: str,
+    *,
+    t_onset=None,
+    n_t=None,
+    ms_spot=None,
+    delta_ms: float,
+    filter="none",
+    spot_gt_mode: str = "all",
+) -> np.ndarray:
+    """Spatial×temporal rt; inactive rows (see :func:`spot_gt_active`) are zero."""
+    RecF_gt, ImpR_gt = load_RecF_ImpR(
         t_onset=t_onset, n_t=n_t, ms_spot=ms_spot, delta_ms=delta_ms, filter=filter,
+    )
+    gts = _recf_impr_rt(RecF_gt, ImpR_gt)
+    for i in range(gts.shape[0]):
+        rf_sign = int(RF_SIGN[i])
+        if not spot_gt_active(spot_gt_mode, contrast, rf_sign):
+            gts[i] = 0.0
+        else:
+            gts[i] *= float(contrast_sign(contrast))
+    return gts
+
+
+def load_RecF_gt(
+    *,
+    t_onset=None,
+    n_t=None,
+    ms_spot=None,
+    delta_ms: float,
+    filter="none",
+    spot_gt_mode: str = "all",
+):
+    """Bright spatial x temporal rt ``(n_cells, RF_N_RADII, n_t)``."""
+    return _recf_gt_rt(
+        "bright",
+        t_onset=t_onset, n_t=n_t, ms_spot=ms_spot, delta_ms=delta_ms,
+        filter=filter, spot_gt_mode=spot_gt_mode,
+    )
+
+
+def load_RecF_gt_dark(
+    *,
+    t_onset=None,
+    n_t=None,
+    ms_spot=None,
+    delta_ms: float,
+    filter="none",
+    spot_gt_mode: str = "all",
+):
+    """Dark spatial x temporal rt ``(n_cells, RF_N_RADII, n_t)``."""
+    return _recf_gt_rt(
+        "dark",
+        t_onset=t_onset, n_t=n_t, ms_spot=ms_spot, delta_ms=delta_ms,
+        filter=filter, spot_gt_mode=spot_gt_mode,
     )
 
 

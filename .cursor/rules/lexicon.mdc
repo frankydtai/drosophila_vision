@@ -7,13 +7,38 @@ alwaysApply: true
 This document defines a strict, non-overlapping meaning for selected terms used across `vision/`.
 Only words with an unambiguous single definition are included here.
 
+## How to judge a word (mandatory)
+
+When asked whether a word fits this lexicon or “has a definition,” judge **meaning in `vision/` code**, not whether the token appears in lexicon.
+
+**Evidence:** List every function, method, class, attribute, constant, CLI/opts key, and variable/parameter whose name contains the word (compounds included: `foo_word`, `word_bar`, `WordBaz`). If meanings differ, partition the list into one class per distinct definition; put unrelated homographs (library APIs, other biophysics, …) in an “other” class — still list them.
+
+Then answer only:
+
+1. **Standalone definition?** Can this concept (per class under review) be written as a `### \`word\`` entry (Definition / Example / Forbidden)? Yes = one coherent meaning; no = generic pattern / fragment / prose glue. Multiple classes → say how many standalones.
+2. **Collision?** Does any class duplicate another lexicon concept (or another in-code concept that needs its own entry)? Same role under two names → collision (name both). R
+
+**Answer shape:** (1) name inventory by meaning class; (2) standalone yes/no + one-line meaning per class; (3) collision yes/no + other term(s). Do not answer with only “it appears / doesn’t appear in the lexicon.”
+
 ## Nouns (A-Z)
+
+### `a` / `a_*`
+
+Definition: Multiplicative network / schema parameter — a tunable (or fixed) factor applied inside the model, always named with prefix ``a_``. Covers forward gains (`a_in`, `a_out`, `a_h`, `a_ca`, `a_sti_radius`, `a_syn_exc`, `a_syn_inh`) and cost affine `a_gt`. Bounds bag `A_LO` / `A_HI`.
+Example: `params["a_out"]`, `v_out = relu(v − v_th) · a_out`, `ScatterConn(..., a_syn_exc=A_SYN_EXC, a_syn_inh=A_SYN_INH)`, `gt_aff = a_gt * gt + bias_gt`
+Forbidden: `gain` (including `GAIN_*`, prose “gain param”); do not name these with `scale` or `weight`. Do not use bare `a` as a local for other quantities.
+
+### `all`
+
+Definition: Universal-quantifier / leftover-bucket token — not a collection prefix. Allowed only as: (1) train-mode leftover key ``'all'`` (nodes not claimed by an explicit mode bucket); (2) CLI universal apply such as ``all_param`` (one mode text applied to every param name); (3) boolean predicates whose head is not a collection noun (``all_present``, ``all_columned``).
+Example: `train_modes["bias_gt"] = parse_train_mode_text("frozen=all")`, `all_param`, `all_mode`, `all_init`, `all_idx`
+Forbidden: as a prefix on collection / bag names — never `all_hexes`, `all_nodes`, `all_params`, `all_gt`, `all_v`, `all_traces`, …. Use the plural noun alone (`hexes`, `nodes`, `gts`, `vals`, `traces`), or `run_params` / `run_adams` for per-run bags. Do not write `all_` + plural (`all_stis`) or `all_` + singular collection (`all_sti`).
 
 ### `batch` / `batches`
 
-Definition: A batch dimension used to represent parallel stimulus samples (e.g., which stimulus instance a cost entry belongs to).
-Example: `active_batches = pack.readout_batch.unique(sorted=True)`, `batch_idx`, `batch_sums`
-Forbidden: single-letter batch shorthands (`b`, `_b`, `n_b`) — use `batch_idx` for a batch index, `batch_<noun>` for per-batch collections (e.g. `batch_sums`, `batch_n_nodes`), `n_batch` for how many batches, `stimulus_batch_idx` when indexing `i_sti` batch slots separately from readout `batch_idx`.
+Definition: A batch dimension used to represent parallel sti samples (e.g., which sti instance a cost entry belongs to).
+Example: `active_batches = pack.entry_batches.unique(sorted=True)`, `batch_idx`, `batch_sums`
+Forbidden: single-letter batch shorthands (`b`, `_b`, `n_b`) — use `batch_idx` for a batch index, `batch_<noun>` for per-batch collections (e.g. `batch_sums`, `batch_n_nodes`), `n_batch` for how many batches, `sti_batch_idx` when indexing `i_sti` batch slots separately from readout `batch_idx`.
 
 ### `cell` / `cells`
 
@@ -29,15 +54,24 @@ Forbidden: connectome `column` / `column_id`; CSV table field; hex position; cos
 
 ### `column` / `columns`
 
-Definition: A connectome optic-lobe position identifier — the biological column a neuron is assigned to (`column_id`, `majority_column_id`), mapped to hex `(u, v)` via column-assignment tables.
-Example: `connectome.column_id`, `majority_column_id`, `columns.csv.gz`, `partner_column_id`, `u_by_column_id`
-Forbidden: do not use `column` for a CSV output-table field — use `field`. Do not use `column` for a hex `(u, v)` position — use `hex`. Do not use `col` as a naming token for connectome columns — spell `column` / `column_id`.
+Definition: A connectome optic-lobe position identifier — the biological column a neuron is assigned to (`column_id` on disk / per record; in-memory bag `connectome.column_ids`), mapped to hex `(u, v)` via column-assignment tables.
+Example: `connectome.column_ids`, `majority_column_id`, `columns.csv.gz`, `partner_column_id`, `u_by_column_id`, JSON/CSV field `"column_id"`
+Forbidden: do not use `column` for a CSV output-table field — use `field`. Do not use `column` for a hex `(u, v)` position — use `hex`. Do not use `col` as a naming token for connectome columns — spell `column` / `column_id` (disk) / `column_ids` (in-memory bag).
 
 ### `connectome` / `connectomes`
 
 Definition: The loaded biological neural-circuit dataset (FAFB), instantiated as a `Network` object; the source of `cell`, `syn`, `hex` vocabulary and connectivity structure.
 Example: `connectome = backend.network` (the connectome object used throughout train)
 Forbidden: do not use `network` to refer to the connectome object or its biological contents (`cell`, `syn`, `hex`). `network` names the simulation graph, not the biological dataset. Do not abbreviate the connectome object as `C`.
+
+### `contrast` / `contrasts`
+
+Definition: Bright vs dark sti variant (``"bright"`` | ``"dark"``) for spot / moving-bar tasks — which light polarity the sti uses, not a ±1 multiplier.
+- ``contrast`` (singular): one token ``"bright"`` or ``"dark"`` (param, pack info field, MovingBarSpec field, dict key).
+- ``contrasts`` (plural): a list/set/tuple of those tokens.
+The ±1 for a contrast is ``contrast_sign`` (see ``sign``), not ``contrast`` itself.
+Example: `contrast_sign(contrast)`, `SPOT_CONTRASTS`, `MOVING_BAR_CONTRASTS`, `GRUNTMAN_CONTRASTS`, `MovingBarSpec.contrast`, `contrast_for_task`, `contrasts=(contrast,)`, pack info ``"contrast"``, figure keys `{contrast: readout}`
+Forbidden: `polarity` (including `polarity_sign` and prose “polarity”). Do not use `contrast` for a ±1 — that is `sign` / `contrast_sign`. Do not use `contrast` for intensity / adapt gates or other non-bright/dark senses.
 
 ### `cost` / `costs`
 
@@ -52,13 +86,13 @@ Forbidden: `artifact`, `output` — use `data` instead. Do not use `data` for in
 
 ### `edge` / `edges`
 
-Definition: A directed connection between two nodes in the network, carrying a signed weight derived from connectome synapse counts (`syn_sign * n_syn` or `syn_sign`).
-Example: `source_idx = np.empty(len(edges), dtype=np.int64)`
+Definition: A directed connection between two nodes in the network, carrying a signed `weight` (`edge_weights`) derived from connectome synapse counts (`syn_sign * n_syn` or `syn_sign`).
+Example: `source_indices = np.empty(len(edges), dtype=np.int64)`, `edge_weights`
 Forbidden: do not use `syn` to refer to a network edge or its idx. `edge` is a network connection instance; `syn` is a connectome biological synapse.
 
 ### `entry` / `entries`
 
-Definition: One cost comparison unit in a `ReadoutPack`: a (cell × radius) or (cell × PD/ND) record carrying its own `readout_node`, `gt`, `cost_weight`, and `batch`. The cost MSE is a weighted sum over all active entries.
+Definition: One cost comparison unit in a `Pack`: a (cell × radius) or (cell × PD/ND) record. Pack aligns bags `entry_nodes`, `gts`, `cost_scales`, `entry_batches`, `entry_radii` (one slot per entry; `entry_radii` is spot Euclidean). The cost MSE is a scaled sum over all active entries.
 Example: `entries = _active_entry_indices(work, session, batch_idx=batch_idx)`
 Forbidden: do not use `node` to refer to a cost entry. `entry` is a cost-layer record; `node` is a network neuron idx.
 
@@ -70,8 +104,8 @@ Forbidden: `freq`, `freqs`, `freq_hz`, `frequency`, `hz` as naming tokens for th
 
 ### `fit` / `fits`
 
-Definition: A cell type that participates in the train cost via ground-truth targets (the model is optimized against these cells). Compounds: `fit_cell`, `mirror_fit` (source cell whose gt is mirrored onto other types), `fit_gt_cubes`.
-Example: `mirror_fit='L1'`, `fit_gt_cubes(...)`, “fit cells” for the GT/cost cell set
+Definition: A cell type that participates in the train cost via ground-truth targets (the model is optimized against these cells). Compounds: `fit_cell`, `mirror_fit` (source cell whose gt is mirrored onto other types), `fit_gt_rts`.
+Example: `mirror_fit='L1'`, `fit_gt_rts(...)`, “fit cells” for the GT/cost cell set
 Forbidden: do not use `fit` as a verb for the Adam update loop — use `optimize`. Do not use `fit` for the overall process / package — use `train`. Do not name optimize results with `fit` (`z_fit`, `fit_parts`, “fitted parameters”) — use `z_best`, `final_parts`, `parameters`.
 
 ### `degree` / `degrees`
@@ -82,31 +116,34 @@ Forbidden: do not use `extent` to refer to a degree quantity. `degree` is angula
 
 ### `gt` / `gts`
 
-Definition: Ground truth target signals/labels used as the train/evaluation reference (e.g., spot/moving-bar response waveforms).
-Example: `gt_affine_for_nodes(p, pack.readout_node, backend, session=session)`
+Definition: Ground truth target signal(s) used as the train/evaluation reference (e.g. spot/moving-bar response waveforms).
+- ``gt`` (singular): one target waveform — one entry’s `(T,)` trace, one cell’s one-radius curve, or a plot series that draws a single GT line.
+- ``gts`` (plural): a stack/bag of those waveforms — Pack/SpotGt/MovingBarGt field ``gts`` shaped `(n_cost, T')`, or any `(n, T)` / `(n_cells, …)` tensor that holds multiple gt rows.
+Example: `mirror_gt = pack.gts[entry_i:entry_i+1]`, `gts = torch.cat([pack.gts, extra_gts], dim=0)`, `pack.gts`, `_gather_cost_time(..., gts)`
+Forbidden: naming a multi-row gt tensor ``gt`` (use ``gts``). Naming a single waveform ``gts``. Do not use ``all_gt``. Module paths (`task.spot.gt`), CLI ``--gt``, and params ``a_gt`` / ``bias_gt`` are compounds — not this singular/plural rule.
 
 ### `group` / `groups`
 
 Definition: A biological grouping in cell or DSI semantics — e.g. a cell-type family band in plot layout (`cell_plot_rows`), or a PD/ND entry list pair in one DSI comparison unit. Not a cost-layer accumulate term.
 Example: `pos_groups`, `neg_groups` in `assemble_moving_bar_dsi_groups`; `cell_plot_rows`, `CELL_PLOT_ROWS`
-Forbidden: do not use `group` for cost entries accumulated into sub-costs — use `part`. Do not use `group` for stimulus batch tuples forwarded together — use `batch_set`.
+Forbidden: do not use `group` for cost entries accumulated into sub-costs — use `part`. Do not use `group` for sti batch tuples forwarded together — use `batch_set`.
 
 ### `hex` / `hexes`
 
 Definition: A single hexagonal spatial position in the connectome, identified by its axial coordinates `(u, v)`.
 Example: `for hex in moving_bar_cost_hexes(connectome, cost_radius=cost_radius): ...`
-Forbidden: do not use `column` to refer to a hex position. `hex` is a spatial `(u, v)` location; `column` is a connectome position id (`column_id`).
+Forbidden: do not use `column` to refer to a hex position. `hex` is a spatial `(u, v)` location; `column` is a connectome position id (`column_id` / bag `column_ids`).
 
 ### `id` / `ids`
 
 Definition: An external identifier from persisted or connectome source data (e.g. FAFB node `id` in `network.json`, `column_id`, `root_id`) — not an in-memory array position.
-Example: `node_ids`, `node_from_id`, `column_id`
+Example: `node_ids`, `node_from_id`, `column_id` (disk/JSON), `connectome.column_ids` (in-memory bag)
 Forbidden: do not use `idx` to refer to an external/source identifier. `id` is a key stored in connectome or sidecar data; `idx` is a position in an in-memory ordered axis.
 
 ### `idx` / `indices`
 
 Definition: A position in an ordered in-memory axis used for `[...]` indexing (simulation node 0..N-1, batch slot, time step, cost entry slot, part slot, etc.).
-Example: `node_idx`, `source_idx`, `readout_batch`, `part_idx`
+Example: `node_idx`, `source_indices`, `entry_batches`, `part_indices`
 Forbidden: do not use `id` to refer to an in-memory array position — external node keys must be mapped through `node_from_id` first. Do not use `index` or `ix` as naming tokens; they denote the same role as `idx` / `indices`. Do not use `row` for a cost-entry mask or CSV record — use `entry` / `entry_mask` or `field`. Do not use `t_idx`, `step_idx`, or `time_idx` for a time sample index — use bare `t` (see `t` / `n_t`).
 
 ### `implementation`
@@ -117,9 +154,9 @@ Forbidden: `implement` — use `implementation`. Do not use for the top-level pl
 
 ### `in`
 
-Definition: Total input to a neuron — light stimulus (`sti`) plus presynaptic/synaptic contributions. At current level (borst): `i_sti + Σ gE`; at voltage level (hp_lp): `v_in = v_syn + v_sti`. Synaptic input gain param: `a_in`.
+Definition: Total input to a neuron — light sti (`sti`) plus presynaptic/synaptic contributions. At current level (borst): `i_sti + Σ gE`; at voltage level (hp_lp): `v_in = v_syn + v_sti`. Synaptic input `a_*` param: `a_in`.
 Example: `v_in = v_syn + v_sti`, `params["a_in"]`, `C dv/dt = i_sti + Σ g_i (E_i − v)`
-Forbidden: `input`, `is_input`, `_in` on sti-only quantities (`u_in`, `v_in` for sti hex coords, `pr_idx`, `n_input_nodes`). Do not use `in` for light stimulus alone — use `sti`.
+Forbidden: `input`, `is_input`, `_in` on sti-only quantities (`u_in`, `v_in` for sti hex coords, `pr_idx`, `n_input_nodes`). Do not use `in` for light sti alone — use `sti`.
 
 ### `iter` / `iters`
 
@@ -132,6 +169,12 @@ Definition: A lookup table from one key space to another — a dict or idx-array
 Example: `cell_from_node(nodes_by_cell)` → `dict[int, str]`; `node_from_id`, `i_from_name`
 Forbidden: `_to_` in map function / attribute / local names (`node_to_cell`, `id_to_node`, `name_to_i`).
 
+### `mask` / `masks`
+
+Definition: A boolean or 0/1 selector along an axis marking which positions participate (cost `entry`, time sample, sti radius slot, node, hex, …). Compound as `<axis>_mask` (`entry_mask`, `cost_time_mask`, `a_sti_radius_mask`, `hex_mask`).
+Example: `a_sti_radius_mask`, `build_a_sti_radius_mask(...)`, `pack.cost_time_mask`, `entry_mask = …`, `mask = (fs >= min_osc_f) & (fs <= max_osc_f)`
+Forbidden: `gate` — do not use `gate` for this participation selector (`a_sti_radius_gate`, “gated slots”). Biophysical channel gating kinetics (e.g. i_h open-state ODEs `_gate_ss`, `_i_h_gate_step`) are a different concept and may keep `gate`.
+
 ### `mode` / `modes`
 
 Definition: A string token selected from a fixed enumeration, identifying which variant of a configurable behaviour is active (e.g. `syn_mode ∈ {"per_cell","per_edge"}`, `train_mode ∈ {"indi","shared","fixed","frozen"}`).
@@ -139,7 +182,7 @@ Example: `mode = normalize_syn_mode(syn_mode)`
 
 ### `moving_bar` / `moving_bars`
 
-Definition: The moving-bar stimulus paradigm (and its related task variants) used to generate inputs and corresponding targets.
+Definition: The moving-bar sti paradigm (and its related task variants) used to generate inputs and corresponding targets.
 Example: `if pack.name in MOVING_BAR_TASKS: ...`
 
 ### `n` / `n_<noun>`
@@ -157,12 +200,12 @@ Forbidden: do not use `connectome` to refer to the simulation graph or its tenso
 ### `node` / `nodes`
 
 Definition: A specific neuron instance in the network (indexed 0..N-1), used in tensors shaped `(N,)` or `(B,T,N)`.
-Example: `pack.readout_node.shape[0]`
+Example: `pack.entry_nodes.shape[0]`
 Forbidden: do not use `cell` to refer to a node idx or node tensor. `node` is a numbered network instance; `cell` is a connectome type label.
 
 ### `opt` / `opts`
 
-Definition: A set of input options (often parsed from CLI or sidecar JSON) used to configure sessions, stimuli, or costs.
+Definition: A set of input options (often parsed from CLI or sidecar JSON) used to configure sessions, stis, or costs.
 Example: `opt = session.train_opts or {}`
 
 ### `optimization`
@@ -173,9 +216,15 @@ Forbidden: do not use `opt` for this concept (`opt` / `opts` are input options o
 
 ### `out`
 
-Definition: Presynaptic output from a neuron — thresholded membrane signal and its synaptic drive scaling: `v_out = relu(v − v_th) · a_out`, gain param `a_out`. Connectome node JSON key `"output"` marks readout/output nodes when set.
+Definition: Presynaptic output from a neuron — thresholded membrane signal multiplied by `a_out`: `v_out = relu(v − v_th) · a_out`. Connectome node JSON key `"output"` marks readout/output nodes when set.
 Example: `v_out`, `params["a_out"]`, `"output": False` in `network.json` nodes
-Forbidden: `output` for persisted run files or sidecar tables — use `data`. Do not use `out` for total membrane input — use `in`. Do not use `out` for light stimulus — use `sti`.
+Forbidden: `output` for persisted run files or sidecar tables — use `data`. Do not use `out` for total membrane input — use `in`. Do not use `out` for light sti — use `sti`.
+
+### `pack` / `packs`
+
+Definition: One task's train cost-spec container — that task's `i_sti`, cost `entry` indices, `gt` traces, cost `scale`s, and related timing/DSI fields — used by `forward` / `cost` / `plot`. Type name `Pack`; locals/params `pack`; `session.packs` holds one per task; `session.primary_pack` is the first task's pack.
+Example: `pack = session.primary_pack`, `session.pack_for("spot_bright")`, `pack.gts`, `pack_t_onset(pack)`, `apply_pack_override`
+Forbidden: `readout`, `ReadoutPack`, `primary_readout`, `session.readouts` — those names must not refer to this object. Do not use `pack` for the in-memory forward→plot assembly (that is `readout`). Do not use `pack` for the verb of stuffing parameters into `z` (schema packing).
 
 ### `param` / `params`
 
@@ -184,7 +233,7 @@ Example: `p["a_gt"]` (a parameter entry used during cost computation)
 
 ### `part` / `parts`
 
-Definition: One named sub-cost of the total train cost, identified by a `part_key` string (e.g. `"spot_bright_R8_r0"`, `"moving_bar_bright_PD"`) and holding its own scalar MSE tensor. Multiple cost `entry` records sharing the same `part_key` are accumulated via `part_idx` into one `part`. The total cost is `Σ W·part / Σ W` over all active parts.
+Definition: One named sub-cost of the total train cost, identified by a `part_key` string (e.g. `"spot_bright_R8_r0"`, `"moving_bar_bright_PD"`) and holding its own scalar MSE tensor. Multiple cost `entry` records sharing the same `part_key` are accumulated via `part_indices` into one `part`. The total cost is `Σ W·part / Σ W` over all active parts.
 Example: `parts[part_key] = part` in `calc_cost_parts`
 
 ### `radius` / `radii`
@@ -195,15 +244,21 @@ Forbidden: do not use `extent` to refer to any hex ring count. `radius` is the s
 
 ### `readout` / `readouts`
 
-Definition: An in-memory assembled forward result for one task scope — cost-readout `trace`s plus entry indices, timing, and plot metadata between `forward` and `plot`. Distinct from persisted run `data` and from individual cost-layer fields `readout_node` / `readout_batch` on a `ReadoutPack`.
-Example: `_forward_spot_readout`, `readout["plot_traces"]`, `_spot_cube_from_readout`, `build_spot_center_readout`
-Forbidden: `data` — use `data` only for files under a run's `data/` folder. Do not name the container `rows`, `forward_data`, or `bundle_data`. Do not use `readout` for the connectome biological column — use `column` / `column_id`.
+Definition: An in-memory assembled forward result for one task scope — cost `trace`s plus entry indices, timing, and plot metadata between `forward` and `plot`. Distinct from persisted run `data` and from the cost-spec `pack`.
+Example: `_forward_spot_readout`, `readout["plot_traces"]`, `_spot_rt_from_readout`, `build_spot_center_readout`, `SpotTraceReadout`
+Forbidden: `data` — use `data` only for files under a run's `data/` folder. Do not name the container `rows`, `forward_data`, or `bundle_data`. Do not use `readout` for the connectome biological column — use `column` / `column_ids`. Do not use `readout` / `ReadoutPack` / `primary_readout` / `session.readouts` for the cost-spec container — that is `pack` / `Pack` / `primary_pack` / `session.packs`.
 
 ### `row` / `rows`
 
 Definition: A vertical subplot-grid index in figure code only — one plot panel band (component figure row, cell layout band, RF+time stack band).
 Example: `n_row`, `row_idx`, `CELL_PLOT_ROWS`, `plot_row_idxs`, `row_shared_ylim`, `fig.add_gridspec(n_row, n_col)`
 Forbidden: CSV record row; cost `entry` / `entry_mask`; `i_sti` batch slot; GT lookup-table row index; in-memory forward container — do not use `row` outside plot code. Library pandas / CSV `row` locals in one-off parsers may remain if the noun is not exported.
+
+### `rt` / `rts`
+
+Definition: A spot radius×time array — Euclidean RF radius axis × time sample axis. Per cell: `(RF_N_RADII, n_t)`; stacked over cells: `(n_cells, RF_N_RADII, n_t)`. Compounds: `gt_rt`, `v_readout_rt`, `fit_gt_rts`, `spot_gt_rts`.
+Example: `rt[..., radius] = mean trace at that radius`, `fit_gt_rts(...)`, `_spot_rt_from_readout`
+Forbidden: `cube`, `cubes`, `xt` as naming tokens for this concept (including `v_readout_xt`, `gt_xt`, `std_xt`).
 
 ### `run` / `runs`
 
@@ -212,30 +267,43 @@ Example: `for i in range(n_run): ...`
 
 ### `schema` / `schemas`
 
-Definition: The parameter schema (segment list) describing how physical parameters are packed into the trainable space `z` and mapped back.
-Example: `for seg, start, stop in schema_segments(schema): ...`
+Definition: The parameter schema (segment list) describing how physical parameters are packed into the trainable space `z` and mapped back. Segment key ``z_map`` ∈ ``{linear, log, inv}`` selects the z↔physical map (not a numeric multiplier).
+Example: `for seg, start, stop in schema_segments(schema): ...`, `seg.get("z_map", "linear")`
+Forbidden: do not use ``scale`` for the z↔physical map key — that is ``z_map``.
+
+### `scale` / `scales`
+
+Definition: A non-``a_*`` multiplicative coefficient — how much a quantity counts or is stretched outside network ``a_*`` params. Primary uses: cost contribution (`cost_scales`, `part_cost_scales`, `dsi_scales`, `spot_cost_radius_scale`, `_part_scale`), RF / dynamics coefficients (`RF_surrnd_scale`, `hp_scale`, `lp_scale`), and other non-edge multipliers. Compounds: `<role>_scale` / plural bag `scales` / `part_cost_scales`.
+Example: `pack.cost_scales`, `session.part_cost_scales`, `--part-cost-scale`, `SPOT_COST_RADIUS_SCALE`, `_scaled_cost_from_parts`, `backward_accumulate_scaled_cost`
+Forbidden: `weight` for this role (`cost_weight`, …); `factor`; `gain`. Do not use `scale` for network params — use `a_*`. Do not use `scale` for edge synaptic strength — use `weight` / `edge_weights`. Do not use `scale` for schema z↔physical encoding — use `z_map`. Library matplotlib `yscale` / `set_yscale` may remain.
 
 ### `session` / `sessions`
 
 Definition: A run-time context object that holds assembled configuration/state for one train/evaluation run (schema/backend/tasks/readouts/opts).
 Example: `session = open_session_from_outdir(...)`
 
+### `sign` / `signs`
+
+Definition: Multiplicative ±1 (or label ``+`` / ``−`` / ``0``) encoding the direction of a quantity — synapse E/I (`syn_sign`), cell ON/OFF (`RF_SIGN` / `rf_sign`), bright/dark sti (`contrast_sign`), mirror GT (`mirror_sign`), peak deflection (`v_post_d_sign`). Compounds: `<role>_sign`.
+Example: `contrast_sign("dark") == -1`, `rf_sign * contrast_sign(contrast) > 0`, `syn_sign`, `mirror_sign=-1.0`
+Forbidden: `polarity` (including `polarity_sign` and prose “polarity”). Do not use `sign` for non-±1 mode enums — that is `mode` (`spot_gt_mode`, not `spot_gt_sign`).
+
 ### `spot` / `spots`
 
-Definition: The spot stimulus paradigm (and its related task variants) used to generate inputs and corresponding targets.
+Definition: The spot sti paradigm (and its related task variants) used to generate inputs and corresponding targets.
 Example: `if task_name in SPOT_TASKS: ...`
 
-### `sti`
+### `sti` / `stis`
 
-Definition: Light stimulus drive — photoreceptor current injected at R1–6/R7/R8 (`i_sti`), and the connectome node flag/mask for those nodes (`is_sti`, JSON `"sti"`, `sti_nodes_at`, `sti_node_idx`, `STI_CELLS`).
-Example: `i_sti = pack.i_sti`, `connectome.is_sti`, `connectome.sti_node_idx`, `STI_CELLS`
-Forbidden: `input`, `is_input`, `PR`, `photoreceptor` (as naming tokens for this concept), `u_in`, `v_in`, `pr_idx`, `n_input_nodes`, `INPUT_CELLS`, `input_nodes_at`. Do not use `sti` for total membrane input (sti + synaptic) — use `in`.
+Definition: Light sti drive — photoreceptor current injected at R1–6/R7/R8 (`i_sti`), and the connectome node flag/mask for those nodes (`is_sti`, JSON `"sti"`, `sti_nodes_at`, `sti_node_indices`, `STI_CELLS`). Compounds cover sti hex anchors and opts (`sti_uv`, `sti_opts`, `entry_sti_us`, `cost_sti_us`, `sti_batch_idx`).
+Example: `i_sti = pack.i_sti`, `connectome.is_sti`, `connectome.sti_node_indices`, `STI_CELLS`, `spot_sti_batches`, `build_spot_sti_opts`
+Forbidden: `stimulus`, `stim`, `stimuli`, `input`, `is_input`, `PR`, `photoreceptor` (as naming tokens for this concept), `u_in`, `v_in`, `pr_idx`, `n_input_nodes`, `INPUT_CELLS`, `input_nodes_at`. Do not use `sti` for total membrane input (sti + synaptic) — use `in`.
 
 ### `sum` / `sums`
 
 Definition: A running total of values (or a bag of such totals keyed by component/cell), produced by accumulate — not the accumulate action itself.
 Example: `forward_sums.sums`, `sums[cell] += ...`, `n_syn_sum`, `part_sums`
-Forbidden: do not name the bag with a verb (`*_from_accumulate`, `accum`, `acc`). The bag is `sums`; the action is `accumulate`. Do not use `total` for a sum bag — `total` is the weighted cost scalar only. Do not use `count` / `counts` for a sum or cardinality.
+Forbidden: do not name the bag with a verb (`*_from_accumulate`, `accum`, `acc`). The bag is `sums`; the action is `accumulate`. Do not use `total` for a sum bag — `total` is the scaled cost scalar only. Do not use `count` / `counts` for a sum or cardinality.
 
 ### `sum_sq` / `sum_sqs`
 
@@ -251,8 +319,8 @@ Forbidden: do not use `edge` to refer to a synapse or its biological properties.
 
 ### `t` / `n_t`
 
-Definition: Time sample index along the simulation trace axis — a position 0..`n_t`-1 into `(B, n_t, N)` tensors such as `trace_full`, or an absolute step such as `t_onset` / `cost_t0`. The cardinality of that axis is `n_t` (how many time samples at one scope). Use compound `n_t_<noun>` when the scope is not obvious (`n_t_aligned`, `n_t_by_batch`, `n_t_cost_window`, `n_t_plot`).
-Example: `for t in range(n_t): ...`, `trace_full[:, t, node_idx]`, `t0 + t`, `n_t = int(pack.gt.shape[1])`, `t_from_ms(ms_pre, delta_ms=delta_ms_pre)`
+Definition: Time sample index along the simulation trace axis — a position 0..`n_t`-1 into `(B, n_t, N)` tensors such as `trace_full`, or an absolute step such as `t_onset` / `cost_t0s`. The cardinality of that axis is `n_t` (how many time samples at one scope). Use compound `n_t_<noun>` when the scope is not obvious (`n_t_aligned`, `n_t_by_batch`, `n_t_cost_window`, `n_t_plot`).
+Example: `for t in range(n_t): ...`, `trace_full[:, t, node_idx]`, `t0 + t`, `n_t = int(pack.gts.shape[1])`, `t_from_ms(ms_pre, delta_ms=delta_ms_pre)`
 Forbidden: `win`, `win_len`, `win_lens`, `wl`, `win_idx`, `win_t`, `n_steps` — never abbreviate a time span or trace length with `win`; use `n_t` or `n_t_<noun>`. Do not suffix the time index with `_idx` — use bare `t` in loops and indexing (`for t in ...`, `trace[..., t, ...]`), not `t_idx`, `step_idx`, or `time_idx`. Full-word `window` remains only in established compound names (`cost_window_*`, `TimeWindow`, `time_window`, `window_time_traces`).
 
 ### `task` / `tasks`
@@ -262,8 +330,8 @@ Example: `for name in session.tasks: ...`
 
 ### `total`
 
-Definition: The single weighted overall train cost scalar — ``Σ W·part / Σ W`` over all active parts — and plot titles/curves that refer to that scalar only.
-Example: `total = _weighted_cost_from_parts(parts, session)`, `_last_total`, `"total (weighted)"` on the cost curve
+Definition: The single scaled overall train cost scalar — ``Σ W·part / Σ W`` over all active parts (``W`` from `part_cost_scales` / `_part_scale`) — and plot titles/curves that refer to that scalar only.
+Example: `total = _scaled_cost_from_parts(parts, session)`, `_last_total`, `"total (scaled)"` on the cost curve
 Forbidden: do not use for cardinalities (`n_*`), accumulated value bags (`sums`), plot scope/all traces, durations, or sidecar field labels.
 
 ### `trace` / `traces`
@@ -282,12 +350,18 @@ Forbidden: do not use `train` as a verb (e.g. `train_staged`, “to train”, im
 Definition: A short-lived scalar value in a loop or inline expression (not a named physical parameter).
 Example: `for key, val in overrides.items(): out[key] = float(val)`
 
+### `weight` / `weights`
+
+Definition: Signed synaptic strength on a network `edge` — `edge_weights` from `syn_sign * n_syn` (`per_cell`) or `syn_sign` (`per_edge`), then split into excitatory/inhibitory drives (further multiplied by `a_syn_exc` / `a_syn_inh`).
+Example: `edge_weights`, `ScatterConn(..., edge_weights=edge_weights, a_syn_exc=..., a_syn_inh=...)`
+Forbidden: do not use `weight` for cost / DSI / RF multipliers — use `scale`. Do not use `weight` for network schema gains — use `a_*`. Do not use `factor` or `gain` as substitutes. Column-assignment vote mode is `vote_by_syn` (not `weight_by_syn`). Library `fontweight` may remain.
+
 ## Verbs (A-Z)
 
 ### `accumulate`
 
 Definition: Fold many contributions into running sums (sums / sum_sqs / n_nodes bags) or into a target tensor / cost / gradient — the action of adding into an accumulator bag or destination.
-Example: `_accumulate_on_target`, `_accumulate_moving_bar_traces`, `backward_accumulate_weighted_cost`, `accumulate_all`
+Example: `_accumulate_on_target`, `_accumulate_moving_bar_traces`, `backward_accumulate_scaled_cost`, `accumulate_all`
 Forbidden: `aggregate` — do not use as a naming token or prose substitute for this action. Do not abbreviate the verb as `acc` / `accum` in names. Noun bags holding accumulated values are `sums` / `sum_sqs` / `n_*`, not verb-derived names.
 
 ### `add`
@@ -363,7 +437,7 @@ Forbidden: `lookup`, `fetch` — use `resolve` instead.
 ### `run`
 
 Definition: Execute a procedure end-to-end (train, evaluation, or full pipeline) and return or persist its result.
-Example: `fname, outdir, session = run_train_and_plot(plot_gt_cubes=..., **kw)`
+Example: `fname, outdir, session = run_train_and_plot(plot_gt_rts=..., **kw)`
 Forbidden: `execute`, `invoke` — use `run` instead.
 
 ### `save`

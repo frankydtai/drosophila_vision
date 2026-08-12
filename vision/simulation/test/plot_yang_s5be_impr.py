@@ -28,7 +28,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 
-from param_defaults import DELTA_MS
+from default_params import DELTA_MS
 from task.spot.gt import GT_CELLS, read_RecF_ImpR
 
 REPO = ROOT.parent.parent
@@ -53,7 +53,7 @@ def _sym_ylim(ax, y: np.ndarray) -> None:
 
 def main() -> None:
     df = pd.read_csv(YANG_CSV)
-    yang = df[(df["modality"] == "voltage") & (df["stimulus"] == "light")]
+    yang = df[(df["modality"] == "voltage") & (df["sti"] == "light")]
 
     delta_ms = float(DELTA_MS)
     t_onset = int(round(MS_PRE / delta_ms))

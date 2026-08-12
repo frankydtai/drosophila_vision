@@ -1,11 +1,15 @@
 # -*- coding: utf-8 -*-
 """Neuron parameter formulas — no numeric bindings.
 
-Numeric literals live in ``param_defaults`` and are injected by the
+Numeric literals live in ``default_params`` and are injected by the
 caller (session fields / kwargs). Schema box numbers live in
-``param_defaults.PARAM_BOXES``.
+``default_params.NEURON_SCHEMA_DEFAULT['param_boxes']``.
 """
 from __future__ import annotations
+
+from default_params import (
+    NEURON_SCHEMA_DEFAULT,
+)
 
 
 def t_from_ms(ms: float, *, delta_ms: float) -> int:

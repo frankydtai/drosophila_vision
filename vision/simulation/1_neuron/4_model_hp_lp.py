@@ -148,7 +148,7 @@ def step(state, v, params, i_sti, session, *, delta_ms: float, return_component:
     out = update_state_hp_lp(
         v, v_slow, params, i_sti, session.backend,
         delta_ms=float(delta_ms),
-        state_clamp=session.STATE_CLAMP,
+        state_clamp=session.state_clamp,
         g_leak=session.g_leak,
         euler=session.euler,
         return_component=return_component,

@@ -43,7 +43,7 @@ from train.cost import (
     _pack_cost_forward,
     _session_cost_norm,
     _spot_entries_by_part,
-    _weighted_mse_terms,
+    _scaled_mse_terms,
     calc_cost_parts,
 )
 from train.param import params_from_z
@@ -85,37 +85,37 @@ def cost_part(session, z, part_key: str) -> dict:
     fwd = _pack_cost_forward(params, pack, session)
     if fwd is None:
         raise SystemExit(f"no cost forward for pack {task!r}")
-    a_gt, bias_gt, gt, weight, v_readout, _v_readout_dsi, _pd_nd = fwd
+    a_gt, bias_gt, gts, scale, v_readout, _v_readout_dsi, _pd_nd = fwd
     if v_readout is None:
         raise SystemExit(f"waveform v_readout required for {task!r}")
-    v_readout, gt, time_mask = _gather_cost_time(pack, v_readout, gt)
+    v_readout, gts, time_mask = _gather_cost_time(pack, v_readout, gts)
 
-    part_idx, keys = _spot_entries_by_part(pack, session.backend)
+    part_indices, keys = _spot_entries_by_part(pack, session.backend)
     if part_key not in keys:
         raise SystemExit(
             f"part {part_key!r} not in pack parts; available:\n  "
             + "\n  ".join(keys),
         )
     part_slot_idx = keys.index(part_key)
-    entry_indices = (part_idx == part_slot_idx).nonzero(as_tuple=False).reshape(-1)
+    entry_indices = (part_indices == part_slot_idx).nonzero(as_tuple=False).reshape(-1)
     if entry_indices.numel() == 0:
         raise SystemExit(f"part {part_key!r} has zero active entries")
 
     a_gt_part = a_gt[entry_indices]
     bias_gt_part = bias_gt[entry_indices]
-    cost_weight_part = weight[entry_indices]
+    cost_scales_part = scale[entry_indices]
     mask_r = None if time_mask is None else time_mask[entry_indices]
-    gt_scaled, cost_weight_2d, sse_wt, power_wt = _weighted_mse_terms(
-        a_gt_part, bias_gt_part, gt[entry_indices], cost_weight_part,
+    gt_scaled, cost_scales_2d, sse_wt, power_wt = _scaled_mse_terms(
+        a_gt_part, bias_gt_part, gts[entry_indices], cost_scales_part,
         v_readout[entry_indices], time_mask=mask_r,
     )
     sse = sse_wt.sum(dim=0)
     power_t = power_wt.sum(dim=0)
     n = int(entry_indices.numel())
     n_t = int(sse.numel())
-    w_sum = float(cost_weight_part.sum().item())
+    w_sum = float(cost_scales_part.sum().item())
     if w_sum <= 0:
-        raise SystemExit(f"part {part_key!r} has zero weight sum")
+        raise SystemExit(f"part {part_key!r} has zero scale sum")
     a0 = float(a_gt_part[0].item())
     b0 = float(bias_gt_part[0].item())
     a2 = max(a0 * a0, float(torch.finfo(a_gt_part.dtype).tiny))
@@ -123,11 +123,11 @@ def cost_part(session, z, part_key: str) -> dict:
     power_sum = float(power_t.sum().item())
 
     official = _parts_from_entries(
-        a_gt, bias_gt, gt, weight, v_readout, part_idx, keys, session,
+        a_gt, bias_gt, gts, scale, v_readout, part_indices, keys, session,
         time_mask=time_mask,
     )
     if part_key not in official:
-        raise SystemExit(f"part {part_key!r} has zero cost weight")
+        raise SystemExit(f"part {part_key!r} has zero cost scale")
     cost = float(official[part_key].item())
 
     # Per-t display (/ w_sum); scalar ``cost`` is from ``_parts_from_entries``.
@@ -147,22 +147,22 @@ def cost_part(session, z, part_key: str) -> dict:
         raise SystemExit(f"unsupported cost_norm {cost_norm!r}")
 
     gt_aff = gt_scaled + bias_gt_part[:, None]
-    gt_aff_mean = (cost_weight_2d * gt_aff).sum(dim=0) / w_sum
-    v_readout_mean = (cost_weight_2d * v_readout[entry_indices]).sum(dim=0) / w_sum
+    gt_aff_mean = (cost_scales_2d * gt_aff).sum(dim=0) / w_sum
+    v_readout_mean = (cost_scales_2d * v_readout[entry_indices]).sum(dim=0) / w_sum
     sse_mean = sse / w_sum
 
     # ``t_cost`` / ``ms_cost``: post-onset cost samples. Bare ``t`` / ``ms``: absolute.
     delta_ms = float(session.delta_ms)
     delta_ms_pre = float(session.delta_ms_pre)
     t_onset = train.pack_t_onset(pack)
-    if pack.cost_time_idx is None:
+    if pack.cost_time_indices is None:
         t_cost = np.arange(n_t, dtype=np.int64)
         t = t_onset + t_cost
     else:
-        t_cost = pack.cost_time_idx.detach().cpu().numpy().astype(np.int64, copy=False)
+        t_cost = pack.cost_time_indices.detach().cpu().numpy().astype(np.int64, copy=False)
         if t_cost.shape[0] != n_t:
             raise SystemExit(
-                f"cost_time_idx length {t_cost.shape[0]} != n_t {n_t}",
+                f"cost_time_indices length {t_cost.shape[0]} != n_t {n_t}",
             )
         t = train.pack_cost_abs_time_idx(pack, t_onset)
     ms_cost = t_cost.astype(float) * delta_ms

@@ -40,7 +40,7 @@ from figure.util import TRACE_LW, save_figure
 from import_bootstrap import parse_comma_list
 from network.construction import cell_order_rows
 from neuron.filter_ca import filter_ca
-from param_defaults import (
+from default_params import (
     GT_AMP,
     DELTA_MS,
     DELTA_MS_PRE,
@@ -81,7 +81,7 @@ def ca_from_v_ca(v_ca: np.ndarray, *, delta_ms: float, tau_ca: float) -> np.ndar
 
 
 def _plot(
-    v_cube, v_ca_cube, ca_cube, gt_ca_cube, *,
+    v_rt, v_ca_rt, ca_rt, gt_ca_rt, *,
     t_onset, delta_ms, ms_spot, tau_ca, a_ca, v_th_ca, impr_offset, save, show,
 ):
     present = [str(n) for n in GT_CELLS]
@@ -91,7 +91,7 @@ def _plot(
     fig, axes = plt.subplots(
         nrows, ncols, figsize=(2.2 * ncols, 2.0 * nrows), squeeze=False,
     )
-    t_s = (np.arange(v_cube.shape[1]) - t_onset) * delta_ms / 1000.0
+    t_s = (np.arange(v_rt.shape[1]) - t_onset) * delta_ms / 1000.0
     i_from_name = {str(n): i for i, n in enumerate(GT_CELLS)}
 
     for r, group in enumerate(groups):
@@ -103,16 +103,16 @@ def _plot(
             name = str(group[c])
             i = i_from_name[name]
             ax.plot(
-                t_s, v_cube[i], color="C0", lw=TRACE_LW,
+                t_s, v_rt[i], color="C0", lw=TRACE_LW,
                 label=f"v (GT_AMP·(RF_sign·ImpR−{impr_offset:g}))",
             )
-            ax.plot(t_s, v_ca_cube[i], color="C3", lw=TRACE_LW, label="v_ca")
-            ax.plot(t_s, ca_cube[i], color="C1", lw=TRACE_LW, label="ca")
+            ax.plot(t_s, v_ca_rt[i], color="C3", lw=TRACE_LW, label="v_ca")
+            ax.plot(t_s, ca_rt[i], color="C1", lw=TRACE_LW, label="ca")
             ax.plot(
-                t_s, gt_ca_cube[i], color="C2", lw=TRACE_LW,
+                t_s, gt_ca_rt[i], color="C2", lw=TRACE_LW,
                 label=f"gt_ca (GT_AMP·(ImpR−{impr_offset:g}))",
             )
-            ys = np.concatenate([v_cube[i], ca_cube[i], gt_ca_cube[i]])
+            ys = np.concatenate([v_rt[i], ca_rt[i], gt_ca_rt[i]])
             lo = float(np.nanmin(ys))
             hi = float(np.nanmax(ys))
             pad = 0.05 * (hi - lo) if hi > lo else 1.0
@@ -144,7 +144,7 @@ def _plot(
 
 
 def _plot_tau_sweep(
-    ca_by_tau, gt_ca_cube, tau_list, *,
+    ca_by_tau, gt_ca_rt, tau_list, *,
     t_onset, delta_ms, ms_spot, a_ca, v_th_ca, impr_offset, save, show,
 ):
     """``ca`` for each ``tau_ca`` in ``tau_list``, plus ``gt_ca``."""
@@ -155,7 +155,7 @@ def _plot_tau_sweep(
     fig, axes = plt.subplots(
         nrows, ncols, figsize=(2.2 * ncols, 2.0 * nrows), squeeze=False,
     )
-    n_t = gt_ca_cube.shape[1]
+    n_t = gt_ca_rt.shape[1]
     t_s = (np.arange(n_t) - t_onset) * delta_ms / 1000.0
     i_from_name = {str(n): i for i, n in enumerate(GT_CELLS)}
     tau_colors = [f"C{k}" for k in range(len(tau_list))]
@@ -168,7 +168,7 @@ def _plot_tau_sweep(
                 continue
             name = str(group[c])
             i = i_from_name[name]
-            ys = [gt_ca_cube[i]]
+            ys = [gt_ca_rt[i]]
             for tau, color in zip(tau_list, tau_colors):
                 tr = ca_by_tau[tau][i]
                 ax.plot(
@@ -177,7 +177,7 @@ def _plot_tau_sweep(
                 )
                 ys.append(tr)
             ax.plot(
-                t_s, gt_ca_cube[i], color="0.2", lw=TRACE_LW, ls="--",
+                t_s, gt_ca_rt[i], color="0.2", lw=TRACE_LW, ls="--",
                 label=f"gt_ca (GT_AMP·(ImpR−{impr_offset:g}))",
             )
             stack = np.concatenate(ys)
@@ -262,21 +262,21 @@ def main():
         delta_ms=delta_ms,
         filter="ca",
     )
-    v_cube = float(GT_AMP) * (RF_SIGN[:, None] * impr_v - impr_offset)
-    gt_ca_cube = float(GT_AMP) * (impr_ca - impr_offset)
-    v_ca_cube = np.stack(
-        [v_ca_from_v(v_cube[i], v_th_ca=v_th_ca, a_ca=a_ca) for i in range(v_cube.shape[0])],
+    v_rt = float(GT_AMP) * (RF_SIGN[:, None] * impr_v - impr_offset)
+    gt_ca_rt = float(GT_AMP) * (impr_ca - impr_offset)
+    v_ca_rt = np.stack(
+        [v_ca_from_v(v_rt[i], v_th_ca=v_th_ca, a_ca=a_ca) for i in range(v_rt.shape[0])],
         axis=0,
     )
-    ca_cube = np.stack(
+    ca_rt = np.stack(
         [
-            ca_from_v_ca(v_ca_cube[i], delta_ms=delta_ms, tau_ca=tau_ca)
-            for i in range(v_ca_cube.shape[0])
+            ca_from_v_ca(v_ca_rt[i], delta_ms=delta_ms, tau_ca=tau_ca)
+            for i in range(v_ca_rt.shape[0])
         ],
         axis=0,
     )
     _plot(
-        v_cube, v_ca_cube, ca_cube, gt_ca_cube,
+        v_rt, v_ca_rt, ca_rt, gt_ca_rt,
         t_onset=t_onset, delta_ms=delta_ms, ms_spot=ms_spot, tau_ca=tau_ca,
         a_ca=a_ca, v_th_ca=v_th_ca, impr_offset=impr_offset,
         save=args.save, show=args.show,
@@ -284,15 +284,15 @@ def main():
     ca_by_tau = {
         tau: np.stack(
             [
-                ca_from_v_ca(v_ca_cube[i], delta_ms=delta_ms, tau_ca=tau)
-                for i in range(v_ca_cube.shape[0])
+                ca_from_v_ca(v_ca_rt[i], delta_ms=delta_ms, tau_ca=tau)
+                for i in range(v_ca_rt.shape[0])
             ],
             axis=0,
         )
         for tau in tau_sweep
     }
     _plot_tau_sweep(
-        ca_by_tau, gt_ca_cube, tau_sweep,
+        ca_by_tau, gt_ca_rt, tau_sweep,
         t_onset=t_onset, delta_ms=delta_ms, ms_spot=ms_spot,
         a_ca=a_ca, v_th_ca=v_th_ca, impr_offset=impr_offset,
         save=args.save_tau_sweep, show=args.show,

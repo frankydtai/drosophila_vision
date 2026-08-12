@@ -1,1 +1,1 @@
-"""Spot paradigm: ``input``, ``gt`` (RecF x ImpR numbers), ``readout`` (GT↔network)."""
+"""Spot paradigm: ``input``, ``gt`` (RecF x ImpR numbers), ``pack`` (GT↔network)."""

@@ -2,11 +2,15 @@
 """Parameter schemas for borst / hp_lp neuron models.
 
 Numeric lo/hi/init/jit and default ``train_mode`` live in
-``param_defaults.PARAM_BOXES`` and are passed in as ``param_boxes``.
+``default_params.NEURON_SCHEMA_DEFAULT['param_boxes']`` and are passed in as ``param_boxes``.
 This module builds segment structure and resolves train_modes.
 Fixed nodes always use ``effective_init`` (init / init_override); no ``fixed_val``.
 """
 from __future__ import annotations
+
+from default_params import (
+    NEURON_SCHEMA_DEFAULT,
+)
 
 from neuron.param import (
     I_H_REV_MODES,
@@ -16,8 +20,8 @@ from neuron.param import (
 SYN_MODES = ("per_cell", "per_edge")
 TRAIN_MODE_KEYS = ("indi", "shared", "fixed", "frozen")
 
-# Mirror ``param_defaults.PARAM_BOXES`` insertion order (injected; no import).
-ALL_PARAM_NAMES = (
+# Mirror ``default_params.NEURON_SCHEMA_DEFAULT['param_boxes']`` insertion order (injected; no import).
+PARAM_NAMES = (
     "a_gt", "bias_gt",
     "syn_strength_cell", "syn_strength_edge",
     "a_in", "a_out", "e_leak", "v_th", "v_th_ca", "a_ca", "tau_ca",
@@ -127,17 +131,17 @@ def spot_radius_key(radius, *, aliases) -> str:
     return str(r)
 
 
-def _a_sti_radius_segment(param_boxes: dict, sti_radii, radius_key_aliases):
-    """Per-radius spot drive scale for non-center radii (``sti_radii`` order).
+def _a_sti_radius_segment(param_boxes: dict, a_sti_radii, radius_key_aliases):
+    """Per-radius spot drive ``a_sti_radius`` for non-center radii (``a_sti_radii`` order).
 
-    Center r=0 is baked into ``i_sti`` at scale 1 (not a param). Slot
+    Center r=0 is baked into ``i_sti`` at 1 (not a param). Slot
     names come from ``radius_key_aliases`` via :func:`spot_radius_key`.
     Box ``train_mode`` applies; CLI ``--a-sti-radius`` may still override.
     """
-    radii = list(sti_radii)
+    radii = list(a_sti_radii)
     n = len(radii)
     if n == 0:
-        raise ValueError("a_sti_radius requires non-empty sti_radii")
+        raise ValueError("a_sti_radius requires non-empty a_sti_radii")
     names = [spot_radius_key(r, aliases=radius_key_aliases) for r in radii]
     seg = _seg("a_sti_radius", n, "output", param_boxes["a_sti_radius"], n)
     seg["node_names"] = names
@@ -154,7 +158,7 @@ def _segments_from_boxes(
     n_pairs,
     n_edges,
     h_cells,
-    sti_radii,
+    a_sti_radii,
     radius_key_aliases,
 ):
     """Build segments in ``param_boxes`` insertion order; ``skip`` omits unused names."""
@@ -174,11 +178,11 @@ def _segments_from_boxes(
             segs.append(_syn_segment(mode, n_pairs, n_edges, param_boxes))
             continue
         if name == "a_sti_radius":
-            if not sti_radii:
+            if not a_sti_radii:
                 continue
             segs.append(
                 _a_sti_radius_segment(
-                    param_boxes, sti_radii, radius_key_aliases or {},
+                    param_boxes, a_sti_radii, radius_key_aliases or {},
                 )
             )
             continue
@@ -201,10 +205,10 @@ def build_borst_schema(
     i_h_rev: str,
     filter: str = "none",
     n_edges=None,
-    sti_radii=(),
+    a_sti_radii=(),
     radius_key_aliases=None,
 ):
-    """Borst schema in PARAM_BOXES order; rev i_h only when ``i_h_rev == 'on'``."""
+    """Borst schema in NEURON_SCHEMA_DEFAULT['param_boxes'] order; rev i_h only when ``i_h_rev == 'on'``."""
     if i_h_rev not in I_H_REV_MODES:
         raise ValueError(f"i_h_rev {i_h_rev!r} not in {I_H_REV_MODES}")
     if cells is None:
@@ -223,7 +227,7 @@ def build_borst_schema(
         n_pairs=n_pairs,
         n_edges=n_edges,
         h_cells=h_cells,
-        sti_radii=sti_radii,
+        a_sti_radii=a_sti_radii,
         radius_key_aliases=radius_key_aliases,
     )
 
@@ -238,10 +242,10 @@ def build_hp_lp_schema(
     h_cells,
     filter: str = "none",
     n_edges=None,
-    sti_radii=(),
+    a_sti_radii=(),
     radius_key_aliases=None,
 ):
-    """HP-then-membrane-LP schema in PARAM_BOXES order (borst-only keys skipped)."""
+    """HP-then-membrane-LP schema in NEURON_SCHEMA_DEFAULT['param_boxes'] order (borst-only keys skipped)."""
     if cells is None:
         raise TypeError("hp_lp schema requires cells from network")
     skip = set(_BORST_ONLY)
@@ -256,7 +260,7 @@ def build_hp_lp_schema(
         n_pairs=n_pairs,
         n_edges=n_edges,
         h_cells=h_cells,
-        sti_radii=sti_radii,
+        a_sti_radii=a_sti_radii,
         radius_key_aliases=radius_key_aliases,
     )
 
@@ -270,14 +274,14 @@ def default_schema(
     h_cells,
     i_h_rev: str = "on",
     filter: str = "none",
-    sti_radii=(),
+    a_sti_radii=(),
     radius_key_aliases=None,
 ) -> list:
     """Fresh parameter schema for ``model`` on the given backend.
 
     ``i_h_rev`` is used only for borst (rev i_h segments when ``\"on\"``).
     ``filter``: ``none`` skips ``v_th_ca``/``a_ca``/``tau_ca``; ``ca`` keeps them.
-    ``sti_radii`` + ``radius_key_aliases`` label ``a_sti_radius`` slots
+    ``a_sti_radii`` + ``radius_key_aliases`` label ``a_sti_radius`` slots
     (injected from train).
     """
     if model not in KNOWN_MODELS:
@@ -301,7 +305,7 @@ def default_schema(
         param_boxes=param_boxes,
         h_cells=h_cells,
         filter=filter,
-        sti_radii=sti_radii,
+        a_sti_radii=a_sti_radii,
         radius_key_aliases=radius_key_aliases,
     )
     if model == "hp_lp":

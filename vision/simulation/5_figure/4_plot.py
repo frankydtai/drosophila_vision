@@ -1,3 +1,7 @@
+from default_params import (
+    DEFAULT_RUN_PATH,
+    SPOT_INPUT_DEFAULT,
+)
 """Simulation + plotting for the FiveCol medulla model."""
 import argparse
 import json
@@ -15,7 +19,7 @@ from figure.util import (
     filter_plot_token,
     session_filter_plot_token,
 )
-from param_defaults import DEFAULT_RUN_PATH, MS_SPOT_CA
+from default_params import DEFAULT_RUN_PATH, SPOT_INPUT_DEFAULT['ms_response'], SPOT_INPUT_DEFAULT['ms_spot']
 from train.config import run_data_dir
 from train.implementation import resolve_run_dir
 
@@ -41,8 +45,8 @@ def _network_spot_tag(session, tname):
     """Subtitle suffix for network spot plots (exact spot/shift counts)."""
     if session.backend.network is None:
         return ''
-    opts = (session.train_opts or {}).get(f'{tname}_stimulus_opts') or {}
-    spot = spot_from_opts(session.backend.network, stimulus_opts=opts)
+    opts = (session.train_opts or {}).get(f'{tname}_sti_opts') or {}
+    spot = spot_from_opts(session.backend.network, sti_opts=opts)
     n_spots = len(spot.centers)
     n_shifts = len(spot.shifts)
     n_hexes = network_hex_count(session.backend.network)
@@ -170,7 +174,7 @@ def load_best(outdir, *, model=None, verbose=False):
     return session, z, float(best_cost)
 
 
-def maybe_override_stimulus_timing(
+def maybe_override_sti_timing(
     *,
     run_dir,
     session,
@@ -187,11 +191,11 @@ def maybe_override_stimulus_timing(
     """Re-open session when any timing / euler / filter override is set; remap best ``z``.
 
     Unset flags keep values from the run's train opts. ``ms_pre`` /
-    ``delta_ms`` / ``delta_ms_pre`` also update moving_bar stimulus opts;
+    ``delta_ms`` / ``delta_ms_pre`` also update moving_bar sti opts;
     ``ms_response`` / ``ms_post`` / ``ms_spot`` are spot-only. ``euler`` is
     CLI ``im``/``ex`` (or already expanded ``implicit``/``explicit``).
-    ``filter`` is ``none``/``ca``; ``ca`` forces spot ``ms_spot`` to
-    ``MS_SPOT_CA``.
+    ``filter`` is ``none``/``ca``; active branch of ``{v, ca}`` ms_spot/ms_response
+    is selected in :func:`train.open_session`.
 
     Returns ``(session, z, timing_changed)`` where ``timing_changed`` maps
     timing keys that differ from the run (for filename suffixes).
@@ -208,10 +212,20 @@ def maybe_override_stimulus_timing(
     ):
         return session, z, {}
 
-    if delta_ms is not None and float(delta_ms) <= 0:
-        raise SystemExit("--delta-ms must be > 0")
-    if delta_ms_pre is not None and float(delta_ms_pre) <= 0:
-        raise SystemExit("--delta-ms-pre must be > 0")
+    if delta_ms is not None:
+        if isinstance(delta_ms, dict):
+            for branch, val in delta_ms.items():
+                if float(val) <= 0:
+                    raise SystemExit(f"--delta-ms {branch} must be > 0")
+        elif float(delta_ms) <= 0:
+            raise SystemExit("--delta-ms must be > 0")
+    if delta_ms_pre is not None:
+        if isinstance(delta_ms_pre, dict):
+            for branch, val in delta_ms_pre.items():
+                if float(val) <= 0:
+                    raise SystemExit(f"--delta-ms-pre {branch} must be > 0")
+        elif float(delta_ms_pre) <= 0:
+            raise SystemExit("--delta-ms-pre must be > 0")
     if ms_post is not None and float(ms_post) < 0:
         raise SystemExit("--ms-post must be >= 0")
 
@@ -245,13 +259,7 @@ def maybe_override_stimulus_timing(
         opts["euler"] = train.expand_euler(euler)
 
     if filter is not None:
-        filter = train.expand_filter(filter)
-        opts["filter"] = filter
-        if filter == "ca":
-            for key in ("spot_bright_stimulus_opts", "spot_dark_stimulus_opts"):
-                so = opts.get(key)
-                if so is not None:
-                    so["ms_spot"] = float(MS_SPOT_CA)
+        opts["filter"] = train.expand_filter(filter)
 
     session = train.open_session_from_opts(opts, model=opts.get("model"))
     session, z = _session_z_from_best_named(session, run_dir)
@@ -259,13 +267,19 @@ def maybe_override_stimulus_timing(
 
 
 def _format_filename_token(value):
+    if isinstance(value, dict) and set(value) <= {"v", "ca"}:
+        v = float(value["v"])
+        ca = float(value["ca"])
+        if v == ca:
+            return _format_filename_token(v)
+        return f"v{v:g}-ca{ca:g}"
     v = float(value)
     if v == int(v):
         return str(int(v))
     return "%g" % v
 
 
-def stimulus_timing_filename_suffix(
+def sti_timing_filename_suffix(
     *,
     ms_pre=None,
     ms_spot=None,
@@ -313,7 +327,7 @@ def euler_filename_suffix(euler=None):
 
 
 def _cost_parts_for_plot(session, z):
-    """Unweighted per-part costs at ``z`` for panel titles."""
+    """Unscaled per-part costs at ``z`` for panel titles."""
     with torch.no_grad():
         parts = train.calc_cost_parts(z, session)
     return {k: float(v.item()) for k, v in parts.items()}
@@ -331,7 +345,7 @@ def _readout_plot_stem(prefix, session):
 
 
 def _plot_spot_tasks(session, z, outdir, spot_tasks, suffix, model_all,
-                       gt_cubes=None,
+                       gt_rts=None,
                        at_x=None, at_y=None, show_pre=True,
                        file_suffix="", html=False, ms_shown=None,
                        center_only=False):
@@ -341,7 +355,7 @@ def _plot_spot_tasks(session, z, outdir, spot_tasks, suffix, model_all,
     ref_t = 'spot_bright' if 'spot_bright' in spot_set else spot_tasks[0]
     net_tag = _network_spot_tag(session, ref_t)
     cost_parts = _cost_parts_for_plot(session, z)
-    plot_kw = dict(gt_cubes=gt_cubes, cost_parts=cost_parts)
+    plot_kw = dict(gt_rts=gt_rts, cost_parts=cost_parts)
     token = session_filter_plot_token(session)
     readout_kw = dict(
         at_xs=at_x, at_ys=at_y,
@@ -376,7 +390,7 @@ def _plot_spot_tasks(session, z, outdir, spot_tasks, suffix, model_all,
     for tname in spot_tasks:
         _plot_one_task(
             session_for_task(session, tname), z, outdir, tname, suffix, model_all,
-            gt_cubes=gt_cubes,
+            gt_rts=gt_rts,
             at_x=at_x, at_y=at_y,
             show_pre=show_pre,
             cost_parts=cost_parts,
@@ -446,7 +460,7 @@ def _plot_bar_readouts(session, z, outdir, bar_readouts, suffix, model_all, *,
 
 
 def _plot_one_task(session, z, outdir, tname, suffix, model_all,
-                     gt_cubes=None,
+                     gt_rts=None,
                      at_x=None, at_y=None, show_pre=True,
                      cost_parts=None, file_suffix="", html=False, ms_shown=None,
                      center_only=False):
@@ -459,7 +473,7 @@ def _plot_one_task(session, z, outdir, tname, suffix, model_all,
     net_tag = _network_spot_tag(session, tname)
     if cost_parts is None:
         cost_parts = _cost_parts_for_plot(session, z)
-    plot_kw = dict(gt_cubes=gt_cubes, cost_parts=cost_parts)
+    plot_kw = dict(gt_rts=gt_rts, cost_parts=cost_parts)
     readout = make_readout(
         session, z,
         at_xs=at_x, at_ys=at_y,
@@ -482,7 +496,7 @@ def plot_param_set(params, outdir, model=None, model_all=True,
                    plot_tasks=None, session=None, *,
                    final_costs=None,
                    save_data=True,
-                   gt_cubes=None,
+                   gt_rts=None,
                    plot_right_only=True, at_x=None, at_y=None,
                    align_at_x=None, align_at_y=None,
                    show_pre=True, file_suffix="", html=False, ms_shown=None,
@@ -533,7 +547,7 @@ def plot_param_set(params, outdir, model=None, model_all=True,
     if spot_tasks:
         _plot_spot_tasks(
             session, z, outdir, spot_tasks, suffix, model_all,
-            gt_cubes=gt_cubes,
+            gt_rts=gt_rts,
             at_x=at_x, at_y=at_y,
             show_pre=show_pre,
             file_suffix=file_suffix,
@@ -671,10 +685,10 @@ def parse_ms_shown_range(token, *, flag="--ms-shown"):
 
 
 def add_plot_timing_arguments(parser):
-    """Hang train stimulus-timing CLI onto plot / analyze (defaults: keep run)."""
-    from train.cli import add_stimulus_timing_arguments
+    """Hang train sti-timing CLI onto plot / analyze (defaults: keep run)."""
+    from train.cli import add_sti_timing_arguments
 
-    add_stimulus_timing_arguments(
+    add_sti_timing_arguments(
         parser,
         default_ms_pre=None,
         default_ms_response=None,
@@ -703,7 +717,9 @@ def add_plot_filter_argument(parser):
         default=None,
         choices=("none", "ca"),
         help="readout filter override: none=v (no Ca schema), ca=ca + Arenz digitized spot gt "
-             f"(default: keep run train_opts.filter); ca forces --ms-spot {MS_SPOT_CA:g}",
+             f"(default: keep run train_opts.filter; "
+             f"ms_spot v={SPOT_INPUT_DEFAULT['ms_spot']['v']:g}, ca={SPOT_INPUT_DEFAULT['ms_spot']['ca']:g}, "
+             f"ms_response v={SPOT_INPUT_DEFAULT['ms_response']['v']:g}, ca={SPOT_INPUT_DEFAULT['ms_response']['ca']:g})",
     )
 
 
@@ -876,13 +892,13 @@ def main():
     except ValueError as exc:
         raise SystemExit(str(exc)) from exc
 
-    from train.cli import stimulus_timing_kwargs_from_args
-    timing_kw = stimulus_timing_kwargs_from_args(args)
+    from train.cli import sti_timing_kwargs_from_args
+    timing_kw = sti_timing_kwargs_from_args(args)
     param_edits = parse_param_tokens(args.param)
 
     outdir = resolve_run_dir(args.run_path)
     session, z, best_cost = load_best(outdir, verbose=True)
-    session, z, timing_changed = maybe_override_stimulus_timing(
+    session, z, timing_changed = maybe_override_sti_timing(
         run_dir=outdir, session=session, z=z, **timing_kw,
         euler=args.euler,
         filter=args.filter,
@@ -898,7 +914,7 @@ def main():
     session = session.with_schema(schema)
     # Filter is already in readout stems (``_v`` / ``_ca``); do not append again.
     file_suffix = (
-        stimulus_timing_filename_suffix(**timing_changed)
+        sti_timing_filename_suffix(**timing_changed)
         + euler_filename_suffix(args.euler)
         + param_filename_suffix(param_edits)
     )

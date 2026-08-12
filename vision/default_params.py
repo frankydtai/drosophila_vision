@@ -1,0 +1,329 @@
+# -*- coding: utf-8 -*-
+"""Numeric source for membrane constants, schema boxes, sti, and CLI values.
+
+Literals / constant bags only. Only ``4_train`` / figures / analyze / run scripts may
+import this module. Layers ``1_neuron`` / ``2_network`` / ``3_task`` take
+numbers by injection only (Gruntman paradigm ms/geometry constants may live
+in ``task.moving_bar``).
+
+Enum **allowed-token sets** (``("a", "b", …)``) do **not** live here — only the
+default scalar string, with allowed tokens named in a comment pointing at
+``train.config`` (same pattern as ``cost_norm`` → ``COST_NORMS``).
+
+Constants follow original definition order across numbered cores
+``1.1`` … ``4.7`` (empty cores omitted).
+"""
+from __future__ import annotations
+
+import math
+from typing import Dict, Tuple
+
+DEFAULT_RUN_NAME = """
+29104256-run-n-iter-300-a-h-init.L1,L2,L4,L5-0.5
+""".strip()
+DEFAULT_RUN_PATH = "hp_lp/" + DEFAULT_RUN_NAME
+
+# ---------------------------------------------------------------------------
+# 1.1 neuron.param (flat; no Physics bag)
+# ---------------------------------------------------------------------------
+
+NEURON_PARAM: Dict[str, object] = {
+    "delta_ms": {"v": 1.0, "ca": 2.0},
+    "delta_ms_pre": {"v": 1.0, "ca": 2.0},  # pre-onset (t < t_onset); post-onset uses delta_ms
+    "cap": 40.0,
+    "g_leak": 1.0,  # nS; borst leak conductance; hp_lp converts i_sti (pA) → mV via i_sti / g_leak
+    "e_exc": 10.0,
+    "e_inh": -70.0,
+    "e_h": 50.0,
+    "h_g_max": 100.0,
+    "gt_amp": {"v": 20.0, "ca": 2.0},
+    "state_clamp": 1.0e6,
+    "a_syn_exc": 0.001,
+    "a_syn_inh": 0.001,
+    "i_h_rev": "off",
+    "euler": "im",  # CLI token; expand to implicit|explicit via neuron.param.expand_euler
+}
+
+# ---------------------------------------------------------------------------
+# 1.2 neuron.schema
+# ---------------------------------------------------------------------------
+
+NEURON_SCHEMA: Dict[str, object] = {
+    "a_lo": 0.1,
+    "a_hi": 10.0,
+    "h_cells": ("L1", "L2", "L4", "L5"),
+    # train_mode: indi | shared | fixed | indi_named
+    #   indi_named → indi=h_cells, fixed=remainder with init_override=0
+    # Fixed nodes always use init / init_override.
+    "param_boxes": {
+        "a_gt": dict(lo=0.5, hi=2.0, init=1.0, jit=0.1, train_mode="indi"),
+        "bias_gt": dict(lo=-200.0, hi=200.0, init=0.0, jit=1.0, train_mode="indi"),
+        "syn_strength_cell": dict(lo=0.1, hi=10.0, init=1.0, jit=0.1, train_mode="indi"),
+        "syn_strength_edge": dict(lo=0.1, hi=10.0, init=1.0, jit=0.1, train_mode="indi"),
+        "a_in": dict(lo=0.01, hi=100, init=1.0, jit=0.1, train_mode="shared"),
+        "a_out": dict(lo=0.1, hi=10.0, init=1.0, jit=0.1, train_mode="indi"),
+        "e_leak": dict(lo=-50.0, hi=50.0, init=0.0, jit=1.0, train_mode="indi"),
+        "v_th": dict(lo=-100.0, hi=100.0, init=-50.0, jit=0.0, train_mode="indi"),
+        "tau_lp": dict(lo=10.0, hi=100.0, init=10.0, jit=2.0, train_mode="indi"),
+        "tau_hp": dict(lo=100.0, hi=500.0, init=200.0, jit=20.0, train_mode="indi"),
+        "a_h": dict(lo=0.0, hi=1.0, init=0, jit=0.1, train_mode="indi_named"),
+        # borst only
+        "v_mid_h_g": dict(lo=-70.0, hi=-30.0, init=-50.0, jit=5.0, train_mode="shared"),
+        "v_mid_h_tau": dict(lo=-70.0, hi=-40.0, init=-50.0, jit=5.0, train_mode="shared"),
+        "h_slope": dict(lo=-0.40, hi=-0.20, init=-0.25, jit=0.02, train_mode="shared"),
+        "a_h_rev": dict(lo=0.0, hi=1.0, init=0.5, jit=0.1, train_mode="indi_named"),
+        "v_mid_h_g_rev": dict(lo=-70.0, hi=-30.0, init=-50.0, jit=5.0, train_mode="shared"),
+        "v_mid_h_tau_rev": dict(lo=-70.0, hi=-40.0, init=-50.0, jit=5.0, train_mode="shared"),
+        "h_slope_rev": dict(lo=-0.40, hi=-0.20, init=-0.25, jit=0.02, train_mode="shared"),
+        # ca only
+        "v_th_ca": dict(lo=-100.0, hi=100.0, init=-50.0, jit=0.0, train_mode="indi"),
+        "a_ca": dict(lo=0.1, hi=10.0, init=1.0, jit=0.1, train_mode="indi"),
+        "tau_ca": dict(lo=100.0, hi=1000.0, init=350.0, jit=10.0, train_mode="indi"),
+        # Slots from a_sti_radii; cost-radius scale==0 gates slot to 0 in forward.
+        "a_sti_radius": dict(lo=0.0, hi=1.0, init=0.0, jit=0.05, train_mode="indi"),
+    },
+    "syn_mode": "per_cell",
+}
+
+MODEL: Dict[str, object] = {
+    "model": "hp_lp",
+}
+
+# ---------------------------------------------------------------------------
+# 1.2 neuron.forward
+# ---------------------------------------------------------------------------
+
+NEURON_FORWARD: Dict[str, object] = {
+    "pre_grad": True,
+}
+
+# ---------------------------------------------------------------------------
+# 2.1 network.path
+# ---------------------------------------------------------------------------
+
+NETWORK_PATH: Dict[str, object] = {
+    "network": "right_min_neuron1_r10",
+}
+
+# ---------------------------------------------------------------------------
+# 2.3 network.construction
+# ---------------------------------------------------------------------------
+
+NETWORK_CONSTRUCTION: Dict[str, object] = {
+    "i_baseline": 20.0,
+    "i_bright": 40.0,
+    "i_dark": 0.0,
+}
+
+# ---------------------------------------------------------------------------
+# 3.1 task.spot.input
+# ---------------------------------------------------------------------------
+
+SPOT_INPUT: Dict[str, object] = {
+    "ms_pre": {"v": 10.0, "ca": 20.0},
+    "ms_spot": {"v": 50.0, "ca": 25.0},
+    "ms_response": {"v": 200.0, "ca": 400.0},
+    "ms_post": 0.0,
+    "spot_radius": 1.0,
+    "fully_inside": True,
+    "multi_spot": True,
+    "shift_radius": 1.0,
+}
+
+# ---------------------------------------------------------------------------
+# 3.2 task.spot.gt (RecF/ImpR literals live in task.spot.gt)
+# 3.3 task.spot.pack
+# ---------------------------------------------------------------------------
+
+SPOT_PACK: Dict[str, object] = {
+    # Readout filter: none = v (schema skips v_th_ca/a_ca/tau_ca); ca = ca.
+    "filter": "none",
+    # Spot cost GT mode default (``--spot-gt-mode``). Allowed tokens in comment only:
+    # all | positive — see train.config.SPOT_GT_MODES (never define SPOT_GT_MODES here).
+    "spot_gt_mode": "pos",
+    "spot_cost_radii": (0.0, 1.0, math.sqrt(3), 2.0),
+    # a_sti_radius: center r=0 baked @1; all a_sti_radii are slots.
+    # Cost-radius scale==0 → a_sti_radius_mask forces that slot to 0 in forward.
+    "a_sti_radii": (1.0, math.sqrt(3), 2.0),
+    "spot_cost_radius_scale": {
+        0.0: 1.0,
+        1.0: 1.0 / 3.0,
+        2.0: 1.0 / 3.0,
+    },
+    "spot_cost_radius_scale_radius1": {
+        0.0: 1.0,
+        1.0: 2,
+    },
+    # name → float for cost CLI and a_sti_radius node_names (reverse of spot_cost_radii / a_sti_radii).
+    "spot_cost_radius_key_aliases": {
+        "sqrt3": math.sqrt(3),
+    },
+}
+
+# ---------------------------------------------------------------------------
+# task.moving_bar.input
+# ---------------------------------------------------------------------------
+
+MOVING_BAR_INPUT: Dict[str, object] = {
+    "multi_bar": True,
+}
+
+# ---------------------------------------------------------------------------
+# 4.1 train.config
+# ---------------------------------------------------------------------------
+
+TRAIN_CONFIG: Dict[str, object] = {
+    "task": "spot",
+}
+
+# ---------------------------------------------------------------------------
+# 4.4 train.cost
+# 4.5 train.optimization
+# ---------------------------------------------------------------------------
+
+TRAIN_OPTIMIZATION: Dict[str, object] = {
+    "cost_norm": "a_gt2",  # gt_power | a_gt2; see train.config.COST_NORMS
+    # Spot: post-onset cost sample spacing (ms); 0, interval, 2*interval, ...
+    "cost_interval_ms": 10.0,
+    # Spot: per-radius explicit post-onset ms (overwrites cost_interval_ms for that radius).
+    "cost_ms": {
+        1.0: (0.0, 100),
+    },
+    # Cost/plot affine: write v (or ca when ``--filter ca``) at t_onset into
+    # ``bias_gt`` (clamped to param_boxes["bias_gt"] lo/hi); also written to param.csv.
+    "bias_gt_from_v_onset": True,
+    # With bias_gt_from_v_onset: True keeps onset in graph; False detaches.
+    "bias_gt_from_v_onset_grad": True,
+    # Ca threshold: write v_th into v_th_ca (v_th_ca frozen=all); visible in param.csv.
+    "v_th_ca_from_v_th": False,
+    # Ca: write a_out into a_ca (a_ca frozen=all); visible in param.csv.
+    "a_ca_from_a_out": False,
+    # Membrane t=0 pre steady (``--pre-steady``). Not param init.
+    # Shared by borst / hp_lp: probe (ohmic one-shot) | solve (fixed-iter DC).
+    "pre_steady": "solve",
+    "pre_steady_iters": 50,  # solve only
+    "pre_steady_damp": 0.1,  # solve under-relaxation
+    "n_run": 1,
+    "n_iter_cpu": 0,
+    "n_iter_gpu": 200,
+    "lrs": "0.1",
+    "checkpoint_interval": 1000,
+}
+
+# ---------------------------------------------------------------------------
+# 4.5 train.session
+# ---------------------------------------------------------------------------
+
+TRAIN_SESSION: Dict[str, object] = {
+    "fp": 32,
+    "sequential": False,
+}
+
+SPOT_STI_TIMING_OPTS: Dict[str, object] = {
+    "ms_pre": SPOT_INPUT["ms_pre"],
+    "ms_response": SPOT_INPUT["ms_response"],
+    "ms_post": SPOT_INPUT["ms_post"],
+    "delta_ms": NEURON_PARAM["delta_ms"],
+    "delta_ms_pre": NEURON_PARAM["delta_ms_pre"],
+    "ms_spot": SPOT_INPUT["ms_spot"],
+}
+
+MOVING_BAR_STI_TIMING_OPTS: Dict[str, object] = {
+    "ms_pre": SPOT_INPUT["ms_pre"],
+    "delta_ms": NEURON_PARAM["delta_ms"],
+    "delta_ms_pre": NEURON_PARAM["delta_ms_pre"],
+}
+
+SPOT_STI_SHARED_OPTS: Dict[str, object] = {
+    **SPOT_STI_TIMING_OPTS,
+    "shift_radius": SPOT_INPUT["shift_radius"],
+    "spot_radius": SPOT_INPUT["spot_radius"],
+    "multi_spot": SPOT_INPUT["multi_spot"],
+    "fully_inside": SPOT_INPUT["fully_inside"],
+}
+
+SPOT_BRIGHT_STI_OPTS: Dict[str, object] = {
+    **SPOT_STI_SHARED_OPTS,
+    "i_baseline_spot": NETWORK_CONSTRUCTION["i_baseline"],
+    "i_bright_spot": NETWORK_CONSTRUCTION["i_bright"],
+}
+
+SPOT_DARK_STI_OPTS: Dict[str, object] = {
+    **SPOT_STI_SHARED_OPTS,
+    "i_baseline_spot": NETWORK_CONSTRUCTION["i_baseline"],
+    "i_dark_spot": NETWORK_CONSTRUCTION["i_dark"],
+}
+
+MOVING_BAR_BRIGHT_STI_OPTS: Dict[str, object] = {
+    **MOVING_BAR_STI_TIMING_OPTS,
+    "i_baseline_moving_bar": NETWORK_CONSTRUCTION["i_baseline"],
+    "i_bright_moving_bar": NETWORK_CONSTRUCTION["i_bright"],
+    "multi_bar": MOVING_BAR_INPUT["multi_bar"],
+}
+
+MOVING_BAR_DARK_STI_OPTS: Dict[str, object] = {
+    **MOVING_BAR_STI_TIMING_OPTS,
+    "i_baseline_moving_bar": NETWORK_CONSTRUCTION["i_baseline"],
+    "i_dark_moving_bar": NETWORK_CONSTRUCTION["i_dark"],
+    "multi_bar": MOVING_BAR_INPUT["multi_bar"],
+}
+
+TRAIN_OPTS: Dict[str, object] = {
+    "backend": "network",
+    "tasks": (TRAIN_CONFIG["task"],),
+    "part_cost_scales": {},
+    "cost_norm": TRAIN_OPTIMIZATION["cost_norm"],
+    "pre_steady": TRAIN_OPTIMIZATION["pre_steady"],
+    "pre_steady_iters": TRAIN_OPTIMIZATION["pre_steady_iters"],
+    "pre_steady_damp": TRAIN_OPTIMIZATION["pre_steady_damp"],
+    "sequential": TRAIN_SESSION["sequential"],
+    "spot_bright_sti_opts": SPOT_BRIGHT_STI_OPTS,
+    "spot_dark_sti_opts": SPOT_DARK_STI_OPTS,
+    "moving_bar_bright_sti_opts": MOVING_BAR_BRIGHT_STI_OPTS,
+    "moving_bar_dark_sti_opts": MOVING_BAR_DARK_STI_OPTS,
+    "pack_overrides": None,
+    "packs": None,
+    "train_modes": None,
+    "i_h_rev": NEURON_PARAM["i_h_rev"],
+    "euler": NEURON_PARAM["euler"],
+    "syn_mode": NEURON_SCHEMA["syn_mode"],
+    "pre_grad": NEURON_FORWARD["pre_grad"],
+    "bias_gt_from_v_onset": TRAIN_OPTIMIZATION["bias_gt_from_v_onset"],
+    "bias_gt_from_v_onset_grad": TRAIN_OPTIMIZATION["bias_gt_from_v_onset_grad"],
+    "v_th_ca_from_v_th": TRAIN_OPTIMIZATION["v_th_ca_from_v_th"],
+    "a_ca_from_a_out": TRAIN_OPTIMIZATION["a_ca_from_a_out"],
+    "filter": SPOT_PACK["filter"],
+    "spot_gt_mode": SPOT_PACK["spot_gt_mode"],
+    "fp": TRAIN_SESSION["fp"],
+    "network": None,
+    "network_json": None,
+    "dev": None,
+}
+
+
+# ---------------------------------------------------------------------------
+# 6 analyze.cell_dynamics
+# ---------------------------------------------------------------------------
+
+ANALYZE_CELL_DYNAMICS: Dict[str, object] = {
+    "t_rel_start": -10,
+    "t_rel_stop": 10,
+}
+
+# ---------------------------------------------------------------------------
+# 6 analyze.trace
+# ---------------------------------------------------------------------------
+
+ANALYZE_TRACE: Dict[str, object] = {
+    "trace_osc_min_f": 0.5,
+    "trace_osc_max_f": 20.0,
+    "trace_osc_peak_threshold": 0.5,
+    "trace_osc_z_threshold": 2.0,
+    "trace_osc_snr_min": 2.0,
+    "trace_drift_min_slope_mv_per_s": 1.0,
+    "trace_drift_min_r": 0.5,
+    "trace_baseline_ms": 200.0,
+    "trace_flat_max_abs": 0.5,
+    "trace_flat_v_peak_to_peak_max": 1.0,
+    "trace_flat_abs_mean": 0.2,
+}

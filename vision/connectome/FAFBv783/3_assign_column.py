@@ -92,7 +92,7 @@ def locate_neurons(
     target_cells: Sequence[str],
     side: str,
     direction: str = DEFAULT_DIRECTION,
-    weight_by_syn: bool = False,
+    vote_by_syn: bool = False,
     uv_from_column: Optional[dict] = None,
 ) -> pd.DataFrame:
     """Infer a column (and slot) for each neuron of the requested types.
@@ -104,7 +104,7 @@ def locate_neurons(
         target_cells: cells to locate.
         side: 'left' or 'right' (for logging only; inputs must already match).
         direction: 'post' (by downstream targets) or 'pre' (by upstream sources).
-        weight_by_syn: vote by summed syn_count instead of distinct-partner count.
+        vote_by_syn: vote by summed syn_count instead of distinct-partner count.
         uv_from_column: optional {column_id: (u, v)} map; when given, adds max_u/min_u/
             max_v/min_v (the hex range spanned by each neuron's column partners).
 
@@ -115,10 +115,10 @@ def locate_neurons(
         e.g. "5, 5, 5, 3"; sums to n_<dir>_with_column), majority_column_id
         (Int64, NA if unresolved). When ``uv_from_column`` is given, also per-coordinate
         mean/max/min for u, v (hex) and x, y (hex-step via build_hex.xy_from_uv): mean_* is the
-        vote-weighted average over the column partners, max_*/min_* the range
+        vote-scaled average over the column partners, max_*/min_* the range
         (all NA if unresolved). In this case ``majority_column_id`` keeps the
         top-voted column only when it has >50% of the votes; otherwise it is the
-        column nearest (Euclidean in u,v) to the vote-weighted mean.
+        column nearest (Euclidean in u,v) to the vote-scaled mean.
     """
     if direction not in ("post", "pre"):
         raise ValueError(f"direction must be 'post' or 'pre', got {direction!r}")
@@ -156,7 +156,7 @@ def locate_neurons(
     with_column["column_id"] = with_column["column_id"].astype("int64")
     n_partners_with_column = with_column.groupby(self_id)[partner_id].nunique()
 
-    if weight_by_syn:
+    if vote_by_syn:
         votes = with_column.groupby([self_id, "column_id"])["syn_count"].sum()
     else:
         votes = with_column.groupby([self_id, "column_id"])[partner_id].nunique()
@@ -194,7 +194,7 @@ def locate_neurons(
         vu["x"], vu["y"] = xy_from_uv(
             vu["u"].astype("float"), vu["v"].astype("float"),
         )
-        # Vote-weighted mean position (weight = per-column vote count).
+        # Vote-scaled mean position (scale = per-column vote count).
         vu["w"] = vu["votes"].astype("float")
         for coord in ("u", "v", "x", "y"):
             vu[f"_w{coord}"] = vu[coord].astype("float") * vu["w"]
@@ -211,7 +211,7 @@ def locate_neurons(
 
         # Majority column: keep the top-voted column when it holds >50% of the
         # votes; otherwise use the column nearest (Euclidean in u,v) to the
-        # vote-weighted mean.
+        # vote-scaled mean.
         votes_sum = g["votes"].sum()
         best_frac = best["votes"] / votes_sum
         vu["d2"] = (vu["u"] - vu[self_id].map(raw_mean["u"])) ** 2 + (
@@ -256,7 +256,7 @@ def _parse_args() -> argparse.Namespace:
              "sources). Ignored when running the full ASSIGNED_COLUMN_CELLS list.",
     )
     parser.add_argument(
-        "--weight-by-syn", action="store_true",
+        "--vote-by-syn", action="store_true",
         help="Vote by summed syn_count instead of distinct-partner count.",
     )
     return parser.parse_args()
@@ -278,13 +278,13 @@ def _locate_and_write(
     cells: Sequence[str],
     direction: str,
     side: str,
-    all_neurons: pd.DataFrame,
-    all_columns: pd.DataFrame,
+    neurons: pd.DataFrame,
+    columns: pd.DataFrame,
     out_dir,
-    weight_by_syn: bool,
+    vote_by_syn: bool,
 ) -> None:
-    neurons = all_neurons[all_neurons["side"] == side]
-    columns = all_columns[all_columns["hemisphere"] == side]
+    neurons = neurons[neurons["side"] == side]
+    columns = columns[columns["hemisphere"] == side]
     target_ids = set(
         neurons[neurons["cell"].isin(list(cells))]["root_id"].astype("int64")
     )
@@ -312,7 +312,7 @@ def _locate_and_write(
         target_cells=cells,
         side=side,
         direction=direction,
-        weight_by_syn=weight_by_syn,
+        vote_by_syn=vote_by_syn,
         uv_from_column=uv_from_column,
     )
     out_path = out_dir / _output_name(side, cells, direction)
@@ -331,8 +331,8 @@ def main() -> None:
     jobs = _jobs_from_args(args)
     sides = ["left", "right"] if args.side == "both" else [args.side]
 
-    all_neurons = path.load_visual_neurons()
-    all_columns = path.load_column_assignments()
+    neurons = path.load_visual_neurons()
+    columns = path.load_column_assignments()
 
     out_dir = path.ASSIGNED_COLUMNS_DIR
     out_dir.mkdir(parents=True, exist_ok=True)
@@ -343,10 +343,10 @@ def main() -> None:
                 cells=cells,
                 direction=direction,
                 side=side,
-                all_neurons=all_neurons,
-                all_columns=all_columns,
+                neurons=neurons,
+                columns=columns,
                 out_dir=out_dir,
-                weight_by_syn=args.weight_by_syn,
+                vote_by_syn=args.vote_by_syn,
             )
 
 

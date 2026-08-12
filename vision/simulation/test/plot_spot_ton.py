@@ -1,6 +1,6 @@
 """Re-plot spot model-gt with custom ``ms_pre`` / ``ms_response``.
 
-Loads a trained run, overrides spot stimulus timing, re-runs the forward
+Loads a trained run, overrides spot sti timing, re-runs the forward
 pass, and saves ``model_data_spot_pre<ms>.png`` in the run dir.
 
 Usage (from ``SimulationCode/``):
@@ -43,7 +43,7 @@ def main():
     )
     ap.add_argument(
         "--ms-pre", type=float, default=DEFAULT_MS_PRE,
-        help="pre-stimulus baseline in ms (default %(default)s)",
+        help="pre-sti baseline in ms (default %(default)s)",
     )
     ap.add_argument(
         "--ms-response", type=float, default=DEFAULT_MS_RESPONSE,
@@ -63,15 +63,15 @@ def main():
     with open(opts_path) as f:
         opts = json.load(f)
 
-    orig_stim = opts.get("spot_bright_stimulus_opts") or {}
+    orig_sti_opts = opts.get("spot_bright_sti_opts") or {}
     print(
-        f"original ms_pre={orig_stim.get('ms_pre')} "
-        f"ms_response={orig_stim.get('ms_response')}  "
-        f"dt={orig_stim.get('delta_ms', 10.0)} ms"
+        f"original ms_pre={orig_sti_opts.get('ms_pre')} "
+        f"ms_response={orig_sti_opts.get('ms_response')}  "
+        f"dt={orig_sti_opts.get('delta_ms', 10.0)} ms"
     )
     print(f"override ms_pre={ms_pre:g}  ms_response={ms_response:g}")
 
-    for key in ("spot_bright_stimulus_opts", "spot_dark_stimulus_opts"):
+    for key in ("spot_bright_sti_opts", "spot_dark_sti_opts"):
         so = opts.get(key)
         if so is not None:
             so["ms_pre"] = ms_pre

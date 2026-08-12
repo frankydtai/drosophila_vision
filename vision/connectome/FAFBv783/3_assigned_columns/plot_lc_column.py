@@ -135,10 +135,10 @@ def unresolved_neurons(lc_cell: str) -> pd.DataFrame:
     return df[df["majority_column_id"].isna()]
 
 
-def build_column_table(all_column_ids: List[int], lc_cells: List[str]) -> pd.DataFrame:
+def build_column_table(column_ids: List[int], lc_cells: List[str]) -> pd.DataFrame:
     """Table: rows = every FAFB right column, cols = each LC type's neuron count,
     plus a ``sum`` column; sorted by ``sum`` descending."""
-    table = pd.DataFrame(index=sorted(all_column_ids))
+    table = pd.DataFrame(index=sorted(column_ids))
     table.index.name = "column_id"
     for lc in lc_cells:
         table[lc] = n_by_column(lc).reindex(table.index).fillna(0).astype(int)

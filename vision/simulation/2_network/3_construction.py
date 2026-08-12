@@ -8,13 +8,13 @@ The JSON contract (see ``connectome/FAFBv783/.../network.json``):
     edges:    [{src, tar, syn_sign, n_syn, source_cell, target_cell, du, dv}, ...]
 
 ``syn_sign`` already encodes ``sign_from_nt`` and the ``forced_negative_pre_cells``
-override. ``--syn-mode per_cell`` uses ``edge_weight = syn_sign * n_syn``;
-``--syn-mode per_edge`` uses ``edge_weight = syn_sign`` (ignore ``n_syn``).
+override. ``--syn-mode per_cell`` uses ``edge_weights = syn_sign * n_syn``;
+``--syn-mode per_edge`` uses ``edge_weights = syn_sign`` (ignore ``n_syn``).
 
-Nodes follow ``network.json`` file order; ``node_cell[i]`` is the index of
+Nodes follow ``network.json`` file order; ``node_cells[i]`` is the index of
 ``nodes[i]['name']`` in the order-ordered cell vocabulary
 (:data:`CELL_PLOT_ROWS`). This broadcasts per-cell params to nodes via
-``param[node_cell]`` (shape ``(n_cells,)`` → ``(n_nodes,)``).
+``param[node_cells]`` (shape ``(n_cells,)`` → ``(n_nodes,)``).
 """
 from __future__ import annotations
 
@@ -31,7 +31,7 @@ from .connectivity import ScatterConn
 from neuron.schema import normalize_syn_mode
 
 # Photoreceptor drive currents (pA) are injected by the caller
-# (``param_defaults.I_*``); this module has no numeric bindings.
+# (``default_params.I_*``); this module has no numeric bindings.
 
 # Canonical cell order for plot / param broadcast (plot rows).
 # Leftovers (not listed) are appended alphabetically, five per plot row.
@@ -77,11 +77,11 @@ class Network:
 
     conn: ScatterConn
     n_nodes: int
-    node_cell: torch.Tensor          # (N,) long, index into cells
+    node_cells: torch.Tensor          # (N,) long, index into cells
     cells: list[str]            # cell vocabulary (len = n_cells)
-    u: np.ndarray                    # (N,) axial u
-    v: np.ndarray                    # (N,) axial v
-    column_id: np.ndarray            # (N,) FAFB column_id (or -1)
+    us: np.ndarray                    # (N,) axial u
+    vs: np.ndarray                    # (N,) axial v
+    column_ids: np.ndarray            # (N,) FAFB column_ids (or -1)
     is_sti: np.ndarray             # (N,) bool sti (photoreceptor) node
     node_ids: list[int]              # (N,) original node ids in node order
     node_from_id: dict[int, int]       # node id -> node index
@@ -94,18 +94,18 @@ class Network:
         return len(self.cells)
 
     @property
-    def sti_node_idx(self) -> np.ndarray:
+    def sti_node_indices(self) -> np.ndarray:
         """Node indices with ``is_sti``."""
         return np.where(self.is_sti)[0]
 
     def sti_nodes_at(self, u: int, v: int) -> np.ndarray:
         """Sti node indices on hex (u, v)."""
-        return np.where((self.u == u) & (self.v == v) & self.is_sti)[0]
+        return np.where((self.us == u) & (self.vs == v) & self.is_sti)[0]
 
 
 def node_cell_names(connectome: Network) -> np.ndarray:
     """(n_nodes,) array of each node's cell NAME."""
-    return np.asarray(connectome.cells)[connectome.node_cell.detach().cpu().numpy()]
+    return np.asarray(connectome.cells)[connectome.node_cells.detach().cpu().numpy()]
 
 
 def hex2gt(
@@ -119,7 +119,7 @@ def hex2gt(
     if names is None:
         names = node_cell_names(connectome)
     return np.where(
-        (connectome.u == int(u)) & (connectome.v == int(v)) & (names == gt_type),
+        (connectome.us == int(u)) & (connectome.vs == int(v)) & (names == gt_type),
     )[0]
 
 
@@ -169,7 +169,7 @@ def gt_cells_from_opts(opts) -> tuple[str, ...] | None:
 
 
 def normalize_gt_cells(gt_cells: Sequence[str] | None) -> list[str] | None:
-    """Serialize ``gt_cells`` for stimulus opts, or ``None`` if unset."""
+    """Serialize ``gt_cells`` for sti opts, or ``None`` if unset."""
     if gt_cells is None:
         return None
     return [str(s) for s in gt_cells]
@@ -198,8 +198,8 @@ def load_network(
     path,
     device: str | None = None,
     *,
-    syn_scale_exc: float,
-    syn_scale_inh: float,
+    a_syn_exc: float,
+    a_syn_inh: float,
     syn_mode: str,
     dtype: torch.dtype,
 ) -> Network:
@@ -214,40 +214,40 @@ def load_network(
     node_from_id = {nid: i for i, nid in enumerate(node_ids)}
 
     idx_from_cell = {t: i for i, t in enumerate(cells)}
-    node_cell = np.array([idx_from_cell[n["name"]] for n in nodes], dtype=np.int64)
+    node_cells = np.array([idx_from_cell[n["name"]] for n in nodes], dtype=np.int64)
 
-    u = np.array(
+    us = np.array(
         [0 if n.get("u") is None else int(n["u"]) for n in nodes], dtype=np.int64,
     )
-    v = np.array(
+    vs = np.array(
         [0 if n.get("v") is None else int(n["v"]) for n in nodes], dtype=np.int64,
     )
-    column_id = np.array(
+    column_ids = np.array(
         [-1 if n.get("column_id") is None else int(n["column_id"]) for n in nodes],
         dtype=np.int64,
     )
     is_sti = np.array([bool(n.get("sti", False)) for n in nodes], dtype=bool)
 
     # edge list -> node indices + signed edge weight.
-    source_idx = np.empty(len(edges), dtype=np.int64)
-    target_idx = np.empty(len(edges), dtype=np.int64)
-    edge_weight = np.empty(len(edges), dtype=np.float64)
+    source_indices = np.empty(len(edges), dtype=np.int64)
+    target_indices = np.empty(len(edges), dtype=np.int64)
+    edge_weights = np.empty(len(edges), dtype=np.float64)
     for k, e in enumerate(edges):
-        source_idx[k] = node_from_id[int(e["src"])]
-        target_idx[k] = node_from_id[int(e["tar"])]
+        source_indices[k] = node_from_id[int(e["src"])]
+        target_indices[k] = node_from_id[int(e["tar"])]
         syn_sign = float(e["syn_sign"])
-        edge_weight[k] = (
+        edge_weights[k] = (
             syn_sign if mode == "per_edge" else syn_sign * float(e["n_syn"])
         )
 
     conn = ScatterConn(
-        source_idx=source_idx,
-        target_idx=target_idx,
-        edge_weight=edge_weight,
+        source_indices=source_indices,
+        target_indices=target_indices,
+        edge_weights=edge_weights,
         n_nodes=n_nodes,
-        node_cell=node_cell,
-        syn_scale_exc=syn_scale_exc,
-        syn_scale_inh=syn_scale_inh,
+        node_cells=node_cells,
+        a_syn_exc=a_syn_exc,
+        a_syn_inh=a_syn_inh,
         device=device,
         dtype=dtype,
     )
@@ -255,11 +255,11 @@ def load_network(
     return Network(
         conn=conn,
         n_nodes=n_nodes,
-        node_cell=torch.as_tensor(node_cell, dtype=torch.long, device=device),
+        node_cells=torch.as_tensor(node_cells, dtype=torch.long, device=device),
         cells=cells,
-        u=u,
-        v=v,
-        column_id=column_id,
+        us=us,
+        vs=vs,
+        column_ids=column_ids,
         is_sti=is_sti,
         node_ids=node_ids,
         node_from_id=node_from_id,

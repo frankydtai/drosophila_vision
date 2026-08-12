@@ -1,10 +1,14 @@
 # -*- coding: utf-8 -*-
-"""Gruntman-style moving-bar stimulus: geometry, timing, and hex currents.
+"""Gruntman-style moving-bar sti: geometry, timing, and hex currents.
 
 Pure visual-field math on hexes (degrees, coverage, pA). No connectome
 or node indexing — :mod:`network.moving_bar_readout` maps these currents onto a network.
 """
 from __future__ import annotations
+
+from default_params import (
+    NETWORK_CONSTRUCTION_DEFAULT,
+)
 
 import hashlib
 import json
@@ -35,7 +39,7 @@ GRUNTMAN_CONTRASTS = ("bright", "dark")
 # Per-lane spacing width in hex nodes (``spacing_deg = bar_radius * DEG``).
 DEFAULT_BAR_RADIUS = 2
 
-# Moving-bar per-hex cost window relative to first-stimulus alignment.
+# Moving-bar per-hex cost window relative to first-sti alignment.
 COST_WINDOW_MS = 900.0
 COST_ALIGNED_FIRST_STI_MS = 300.0
 COST_WINDOW_BEFORE_MS = COST_ALIGNED_FIRST_STI_MS
@@ -506,7 +510,7 @@ def moving_bar_transit_times(
 
 
 
-def hex_first_stim_t(
+def hex_first_sti_t(
     i_sti_hex: np.ndarray,
     i_baseline: float,
     *,
@@ -517,7 +521,7 @@ def hex_first_stim_t(
     active = ~np.isclose(curr, float(i_baseline), atol=atol, rtol=0.0)
     idx = np.flatnonzero(active)
     if idx.size == 0:
-        raise ValueError("hex has no non-baseline stimulus sample")
+        raise ValueError("hex has no non-baseline sti sample")
     return int(idx[0])
 
 
@@ -626,7 +630,7 @@ class StiHex(Hex):
 
 
 @dataclass
-class MovingBarStimulus:
+class MovingBarSti:
     i_sti: torch.Tensor
     i_sti_hex: np.ndarray
     specs: List[MovingBarSpec]
@@ -636,8 +640,8 @@ class MovingBarStimulus:
 def sti_hexes(connectome) -> List[StiHex]:
     """Sti hexes with sti nodes (one per axial ``(u, v)``)."""
     by_uv: Dict[Tuple[int, int], StiHex] = {}
-    for node_idx in connectome.sti_node_idx:
-        u, v = int(connectome.u[node_idx]), int(connectome.v[node_idx])
+    for node_idx in connectome.sti_node_indices:
+        u, v = int(connectome.us[node_idx]), int(connectome.vs[node_idx])
         key = (u, v)
         if key in by_uv:
             continue
@@ -669,7 +673,7 @@ def _as_int64_np(x) -> np.ndarray:
 
 def network_uv_np(connectome) -> Tuple[np.ndarray, np.ndarray]:
     """connectome axial ``(u, v)`` per node as int64 numpy arrays."""
-    return _as_int64_np(connectome.u), _as_int64_np(connectome.v)
+    return _as_int64_np(connectome.us), _as_int64_np(connectome.vs)
 
 
 def _coord_matches(val, axis_filter, tol=1e-6) -> bool:
@@ -700,15 +704,15 @@ def resolve_i_baseline(value: float) -> float:
 
 
 def moving_bar_i_baseline_from_opts(train_opts) -> float:
-    """``i_baseline_moving_bar`` from moving-bar stimulus opts on a train session."""
+    """``i_baseline_moving_bar`` from moving-bar sti opts on a train session."""
     opts = train_opts or {}
-    for key in ("moving_bar_bright_stimulus_opts", "moving_bar_dark_stimulus_opts"):
+    for key in ("moving_bar_bright_sti_opts", "moving_bar_dark_sti_opts"):
         sub = opts.get(key) or {}
         if "i_baseline_moving_bar" in sub:
             return resolve_i_baseline(float(sub["i_baseline_moving_bar"]))
     raise ValueError(
-        "moving-bar stimulus opts require i_baseline_moving_bar "
-        "(inject via param_defaults.I_BASELINE / CLI)"
+        "moving-bar sti opts require i_baseline_moving_bar "
+        "(inject via default_params.NETWORK_CONSTRUCTION_DEFAULT['i_baseline'] / CLI)"
     )
 
 
@@ -729,8 +733,8 @@ def moving_bar_spec_horizon(t_first_stis: Sequence[int], n_t: int) -> Tuple[int,
 
 def moving_bar_network_t0_bn(connectome, filt_hexes: Sequence[StiHex], n_batch: int, t0_map: dict) -> np.ndarray:
     """Expand per-hex ``t0`` values to a full node grid ``(B, N_nodes)``."""
-    node_u_np = np.asarray(connectome.u, dtype=np.int64)
-    node_v_np = np.asarray(connectome.v, dtype=np.int64)
+    node_u_np = np.asarray(connectome.us, dtype=np.int64)
+    node_v_np = np.asarray(connectome.vs, dtype=np.int64)
     t0_bn = np.full((n_batch, connectome.n_nodes), -1, dtype=np.int64)
     for bi in range(n_batch):
         for c in filt_hexes:
@@ -748,7 +752,7 @@ def build_moving_bar_t0_grids(
     n_t: int,
     i_baseline: float,
     *,
-    all_hex_idxs: Sequence[int],
+    hex_idxs: Sequence[int],
     filt_hex_idxs: Sequence[int],
     connectome,
     filt_network_hexes: Sequence[StiHex],
@@ -762,14 +766,14 @@ def build_moving_bar_t0_grids(
     t0_map: dict = {}
     for bi, spec in enumerate(specs):
         t_first_all = [
-            hex_first_stim_t(i_sti_hex[bi, :, hex_idx], i_baseline=i_baseline)
-            for hex_idx in all_hex_idxs
+            hex_first_sti_t(i_sti_hex[bi, :, hex_idx], i_baseline=i_baseline)
+            for hex_idx in hex_idxs
         ]
         fb, before, after = moving_bar_spec_horizon(t_first_all, n_t)
         before_t[spec.name] = before
         after_t[spec.name] = after
         t_first_filt = [
-            hex_first_stim_t(i_sti_hex[bi, :, hex_idx], i_baseline=i_baseline)
+            hex_first_sti_t(i_sti_hex[bi, :, hex_idx], i_baseline=i_baseline)
             for hex_idx in filt_hex_idxs
         ]
         for c, tc in zip(filt_network_hexes, t_first_filt):
@@ -898,8 +902,8 @@ def build_moving_bar_signals(
     refresh_cache: bool = False,
     network_json: Optional[Path] = None,
     sim_dtype: torch.dtype,
-) -> MovingBarStimulus:
-    """Build batched sti current for moving-bar stimuli.
+) -> MovingBarSti:
+    """Build batched sti current for moving-bar stis.
 
     Returns ``i_sti`` with shape ``(B, T, N_nodes)`` where ``B = len(specs)``.
     """
@@ -979,7 +983,7 @@ def build_moving_bar_signals(
         info["i_bright_moving_bar"] = i_bright
     if i_dark is not None:
         info["i_dark_moving_bar"] = i_dark
-    return MovingBarStimulus(
+    return MovingBarSti(
         i_sti=torch.as_tensor(i_sti_np, dtype=sim_dtype, device=device),
         i_sti_hex=i_sti_hex,
         specs=specs,

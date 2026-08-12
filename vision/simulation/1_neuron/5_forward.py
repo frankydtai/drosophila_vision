@@ -5,7 +5,7 @@ Per-model modules supply only ``prepare_i_sti`` / ``pre_steady`` / ``step``.
 This module owns the time loop. Train / plots read absolute ``v``
 when ``train_opts['filter']=='none'``; with ``'ca'``, readout is ``ca`` from
 ``neuron.filter_ca`` on ``v_ca = relu(v − v_th_ca)·a_ca``. Cost compares the
-readout to ``a_gt * gt + bias_gt``.
+readout to ``a_gt * gts + bias_gt``.
 """
 from __future__ import annotations
 
@@ -23,30 +23,30 @@ MODEL_DRIVERS = {
 
 
 def a_sti_radius_effective(params, pack):
-    """``a_sti_radius`` after ``pack.sti_radius_gate`` (cost weight==0 → 0)."""
+    """``a_sti_radius`` after ``pack.a_sti_radius_mask`` (cost scale==0 → 0)."""
     alpha = params["a_sti_radius"]
     if pack is None:
         return alpha
-    gate = getattr(pack, "sti_radius_gate", None)
-    if gate is None:
+    mask = getattr(pack, "a_sti_radius_mask", None)
+    if mask is None:
         return alpha
-    return alpha * gate.to(device=alpha.device, dtype=alpha.dtype)
+    return alpha * mask.to(device=alpha.device, dtype=alpha.dtype)
 
 
 def inject_a_sti_radius(i_sti, params, pack):
     """``i += a_sti_radius[r] * sti_wave`` on spot radius sti contribs; else pass-through.
 
-    Uses :func:`a_sti_radius_effective` so gated slots are 0 whether indi or fixed.
+    Uses :func:`a_sti_radius_effective` so masked slots are 0 whether indi or fixed.
     """
-    sti_radius = getattr(pack, "sti_radius", None) if pack is not None else None
-    if sti_radius is None or "a_sti_radius" not in params:
+    a_sti_radius_indices = getattr(pack, "a_sti_radius_indices", None) if pack is not None else None
+    if a_sti_radius_indices is None or "a_sti_radius" not in params:
         return i_sti
     wave = pack.sti_wave
-    batch = pack.sti_batch
-    node = pack.sti_node
+    batch = pack.sti_batches
+    node = pack.sti_nodes
     if wave is None or batch is None or node is None:
         raise ValueError(
-            "spot pack sti_radius set but sti_wave/sti_batch/sti_node missing"
+            "spot pack a_sti_radius_indices set but sti_wave/sti_batches/sti_nodes missing"
         )
     if i_sti.dim() == 2:
         i_sti = i_sti.unsqueeze(0)
@@ -55,7 +55,7 @@ def inject_a_sti_radius(i_sti, params, pack):
     if batch.numel() == 0:
         return out
     B, T, N = out.shape
-    add = alpha[sti_radius][:, None] * wave[None, :]
+    add = alpha[a_sti_radius_indices][:, None] * wave[None, :]
     flat = out.permute(0, 2, 1).reshape(B * N, T)
     flat.index_add_(0, batch * N + node, add)
     return flat.reshape(B, N, T).permute(0, 2, 1).contiguous()
@@ -65,14 +65,14 @@ def pack_t_onset(pack) -> int:
     """Stimulus onset index for ``pack``.
 
     Prefer explicit ``pack.t_onset`` (spot when ``ms_post`` extends ``i_sti`` past
-    ``gt``). Else ``n_t - gt.shape[1]`` (moving_bar / ``ms_post=0``).
+    ``gts``). Else ``n_t - gts.shape[1]`` (moving_bar / ``ms_post=0``).
     """
     t = getattr(pack, "t_onset", None)
     if t is not None:
         return int(t)
     i_sti = pack.i_sti
     n_t = int(i_sti.shape[1] if i_sti.dim() == 3 else i_sti.shape[0])
-    return n_t - int(pack.gt.shape[1])
+    return n_t - int(pack.gts.shape[1])
 
 
 def step_delta_ms(session, t: int, t_onset: int) -> float:
@@ -125,7 +125,7 @@ def forward_v(session, params, i_sti, *, pack=None):
             f"expected one of {tuple(MODEL_DRIVERS)}"
         )
     drv = MODEL_DRIVERS[session.model]
-    pack = pack or session.primary_readout
+    pack = pack or session.primary_pack
     i_sti = inject_a_sti_radius(
         drv.prepare_i_sti(session, params, i_sti, pack), params, pack,
     )
@@ -159,7 +159,7 @@ def forward_v(session, params, i_sti, *, pack=None):
 
 def forward_ca(session, params, i_sti, *, pack=None):
     """Full-T ``ca`` ``(B, T, N)``: ``forward_v`` then ``filter_ca``."""
-    pack = pack or session.primary_readout
+    pack = pack or session.primary_pack
     v = forward_v(session, params, i_sti, pack=pack)
     return ca_from_v_ca(v_ca_from_v(v, params, session), params, session, t_onset=pack_t_onset(pack))
 
@@ -188,9 +188,9 @@ def forward_full(session, params, i_sti, *, pack=None):
 
 def forward_nodes(session, params, node_idx=None, i_sti=None, pack=None):
     """``forward_full`` then index nodes; squeeze when ``i_sti`` is ``(T, N)``."""
-    pack = pack or session.primary_readout
+    pack = pack or session.primary_pack
     if node_idx is None:
-        node_idx = pack.readout_node
+        node_idx = pack.entry_nodes
     if i_sti is None:
         i_sti = session.pack_i_sti(pack)
     squeeze = i_sti.dim() == 2

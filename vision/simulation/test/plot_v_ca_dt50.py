@@ -31,7 +31,7 @@ from network.build import cell_family_rows, cell_names_in_family_order
 from figure.util import TRACE_LW, TRACE_YLIM, save_figure
 from neuron.param import DELTA_MS, set_delta_ms
 from task.spot.gt import cell_list, resolve_spot_cost_radii, build_spot_center_readout
-from task.spot.input import MS_PRE, MS_RESPONSE, spot_from_opts, spot_stimulus_batches
+from task.spot.input import MS_PRE, MS_RESPONSE, spot_from_opts, spot_sti_batches
 from training.config import PARAMETER_DIR
 
 DEFAULT_RUN = (
@@ -45,7 +45,7 @@ DT50_MS = 50.0
 def _apply_spot_timing(opts: dict, *, ms_pre: float, ms_response: float) -> dict:
     """Set spot ``ms_pre`` / ``ms_response``; drop legacy ``t_on`` / ``n_t``."""
     out = copy.deepcopy(opts)
-    for key in ("spot_bright_stimulus_opts", "spot_dark_stimulus_opts"):
+    for key in ("spot_bright_sti_opts", "spot_dark_sti_opts"):
         so = out.get(key)
         if so is None:
             continue
@@ -73,11 +73,11 @@ def _fit_center_traces(session, z, *, return_v_delta: bool) -> dict[str, np.ndar
     else:
         trace_full = training.forward_full(session, p, sig, pack=pack)
 
-    opts = dict((session.train_opts or {}).get(f"{pack.name}_stimulus_opts") or {})
+    opts = dict((session.train_opts or {}).get(f"{pack.name}_sti_opts") or {})
     connectome = session.backend.network
-    spot = spot_from_opts(connectome, stimulus_opts=opts)
-    batches = spot_stimulus_batches(spot)
-    cost_radii = resolve_spot_cost_radii(stimulus_opts=opts)
+    spot = spot_from_opts(connectome, sti_opts=opts)
+    batches = spot_sti_batches(spot)
+    cost_radii = resolve_spot_cost_radii(sti_opts=opts)
     batch_idx, node_idx, _r, type_idx, _su, _sv, _du, _dv, center_row = (
         build_spot_center_readout(connectome, batches, cost_radii, pack.cost_extent)
     )
@@ -106,7 +106,7 @@ def _session_z_at_delta_ms(base_opts, model, named, cell_names, pair_names, dt_m
     opts = copy.deepcopy(base_opts)
 
     set_delta_ms(dt_ms)
-    for key in ("spot_bright_stimulus_opts", "spot_dark_stimulus_opts"):
+    for key in ("spot_bright_sti_opts", "spot_dark_sti_opts"):
         so = opts.get(key)
         if so is None:
             continue
@@ -185,7 +185,7 @@ def main():
     ap.add_argument("--dt50", type=float, default=DT50_MS)
     ap.add_argument(
         "--ms-pre", type=float, default=MS_PRE,
-        help="pre-stimulus baseline in ms (default %(default)s)",
+        help="pre-sti baseline in ms (default %(default)s)",
     )
     ap.add_argument(
         "--ms-response", type=float, default=MS_RESPONSE,

@@ -13,7 +13,7 @@ import train
 from task.moving_bar.gt import (
     GT_CELLS,
     bar_specs_for_session,
-    fig1_key_for_stimulus,
+    fig1_key_for_sti,
     load_fig1_trace,
     motion_preference,
     moving_bar_cell_title,
@@ -22,7 +22,7 @@ from task.moving_bar.gt import (
     moving_bar_specs_by_cell,
     moving_bar_session_t0_grids,
 )
-from figure.gt import pack_readout_cells, plot_cells_in_order
+from figure.gt import pack_cells, plot_cells_in_order
 from figure.util import (
     GT_COLOR,
     TRACE_LW,
@@ -41,7 +41,7 @@ from figure.util import (
     plot_pre_post_line,
     plot_std_band,
     plot_timecourse,
-    readout_center_mask,
+    pack_center_mask,
     save_figure,
     std_from_traces,
     slice_axis_name,
@@ -111,8 +111,8 @@ def _gt_trace_affine(readout, cell_name, gt_trace):
     """Plot gt as ``a_gt * gt + effective_bias`` (matches cost)."""
     if gt_trace is None:
         return None
-    scale, bias = readout.gt_affine_by_name.get(str(cell_name), (1.0, 0.0))
-    return float(scale) * np.asarray(gt_trace, dtype=float) + float(bias)
+    a_gt, bias = readout.gt_affine_by_name.get(str(cell_name), (1.0, 0.0))
+    return float(a_gt) * np.asarray(gt_trace, dtype=float) + float(bias)
 
 
 def _moving_bar_figure(nrows, ncols, *, sharex='col'):
@@ -151,13 +151,13 @@ def _moving_bar_cell_title(
     )
 
 
-def _cell_ids_for_plot_order(connectome_cells, node_cell, plot_cells):
-    """Map node ``node_cell`` (index into connectome names) to ``plot_cells`` index.
+def _cell_ids_for_plot_order(connectome_cells, node_cells, plot_cells):
+    """Map node ``node_cells`` (index into connectome names) to ``plot_cells`` index.
 
-    ``plot_cells_in_order`` reorders names; accumulating with raw ``node_cell`` against
+    ``plot_cells_in_order`` reorders names; accumulating with raw ``node_cells`` against
     ``enumerate(plot_cells)`` mislabels every cell whose plot index ≠ connectome index.
     """
-    c_ids = np.asarray(as_numpy(node_cell), dtype=np.int64)
+    c_ids = np.asarray(as_numpy(node_cells), dtype=np.int64)
     plot_idx_from_name = {str(n): i for i, n in enumerate(plot_cells)}
     out = np.full(c_ids.shape, -1, dtype=np.int64)
     for ci, name in enumerate(connectome_cells):
@@ -174,7 +174,7 @@ def _plot_cells_and_ids(session):
     if connectome is None:
         raise ValueError("_plot_cells_and_ids requires session.backend.network")
     cells = plot_cells_in_order(connectome.cells)
-    cell_ids = _cell_ids_for_plot_order(connectome.cells, connectome.node_cell, cells)
+    cell_ids = _cell_ids_for_plot_order(connectome.cells, connectome.node_cells, cells)
     return cells, cell_ids
 
 
@@ -263,8 +263,8 @@ def t0_bn_slice_from_ref(
     connectome = session.backend.network
     if connectome is None:
         raise ValueError("t0_bn_slice_from_ref requires session.backend.network")
-    all_hexes = moving_bar_cost_hexes(connectome, cost_radius=cost_radius)
-    ref_hexes = filter_sti_hexes(all_hexes, at_x=align_at_x, at_y=align_at_y)
+    hexes = moving_bar_cost_hexes(connectome, cost_radius=cost_radius)
+    ref_hexes = filter_sti_hexes(hexes, at_x=align_at_x, at_y=align_at_y)
     if len(ref_hexes) != 1:
         raise SystemExit(
             f'--align-xy must match exactly one sti hex within cost_radius, '
@@ -296,8 +296,8 @@ def _moving_bar_slice_overlay_traces(
     connectome = session.backend.network
     if connectome is None:
         raise ValueError("_moving_bar_slice_overlay_traces requires session.backend.network")
-    all_hexes = moving_bar_cost_hexes(connectome, cost_radius=pack.cost_radius)
-    filt_hexes = filter_sti_hexes(all_hexes, at_x=at_x, at_y=at_y)
+    hexes = moving_bar_cost_hexes(connectome, cost_radius=pack.cost_radius)
+    filt_hexes = filter_sti_hexes(hexes, at_x=at_x, at_y=at_y)
     if not filt_hexes:
         return None
     hex_mask = _network_hex_node_mask(connectome, filt_hexes, n_batch)
@@ -328,7 +328,7 @@ def _moving_bar_slice_overlay_traces(
 
 
 def _fig1_trace_delta(trace: np.ndarray, delta_ms: float) -> np.ndarray:
-    """ΔVm for fig1 cost-window traces (subtract pre-stimulus mean)."""
+    """ΔVm for fig1 cost-window traces (subtract pre-sti mean)."""
     trace = np.asarray(trace, dtype=np.float64)
     i_on = cost_window_before_t(delta_ms)
     if i_on > 0 and i_on < len(trace):
@@ -338,12 +338,12 @@ def _fig1_trace_delta(trace: np.ndarray, delta_ms: float) -> np.ndarray:
 
 def _load_moving_bar_gt_mean(session, task, cells, specs, side):
     gt_mean = {}
-    row_cells = plot_cells_in_order(pack_readout_cells(session, task))
+    row_cells = plot_cells_in_order(pack_cells(session, task))
     for subtype in row_cells:
         if subtype not in cells:
             continue
         for spec in specs:
-            trace_id = fig1_key_for_stimulus(side, subtype, spec)
+            trace_id = fig1_key_for_sti(side, subtype, spec)
             if trace_id is None:
                 continue
             trace = _fig1_trace_delta(load_fig1_trace(trace_id), session.delta_ms)
@@ -428,12 +428,12 @@ def moving_bar_trace_readout(session, z, task, *, at_x=None, at_y=None,
             tname: moving_bar_nodes_on_hexes(connectome, tname, hexes) for tname in cells
         }
     else:
-        cell_ids = np.asarray(as_numpy(session.backend.conn.node_cell), dtype=np.int64)
-        readout = pack.readout_node.cpu().numpy()
-        center = readout_center_mask(pack, session.backend)
-        node_cells = cell_ids[readout]
+        cell_ids = np.asarray(as_numpy(session.backend.conn.node_cells), dtype=np.int64)
+        entry_nodes = pack.entry_nodes.cpu().numpy()
+        center = pack_center_mask(pack, session.backend)
+        node_cells = cell_ids[entry_nodes]
         nodes_by_name = {
-            name: readout[center & (node_cells == cells.index(name))]
+            name: entry_nodes[center & (node_cells == cells.index(name))]
             for name in cells
         }
     v_th_by_name = params_for_types(nodes_by_name, v_th)
@@ -536,7 +536,7 @@ def _cost_window_overlay(cost_trace, before_t, delta_ms):
 
 
 def _moving_bar_scope_label(session, *, at_x=None, at_y=None, n_filter_hexes=None):
-    pack = session.primary_readout
+    pack = session.primary_pack
     cost_radius = pack.cost_radius
     connectome = session.backend.network
     if connectome is None:
@@ -590,7 +590,7 @@ def _style_moving_bar_relative_axis(
 
 
 def _moving_bar_spec_linestyle(side, subtype, sname):
-    """Solid for PD stimuli, dashed for ND (Gruntman fig1 convention)."""
+    """Solid for PD stis, dashed for ND (Gruntman fig1 convention)."""
     if subtype not in GT_CELLS:
         return '-'
     parts = str(sname).split('_')
@@ -729,7 +729,7 @@ def _plot_moving_bar_cell_slices(
 
 def _moving_bar_all_scope_label(readout_on):
     if readout_on.has_slices:
-        pack = readout_on.session.primary_readout
+        pack = readout_on.session.primary_pack
         cost_radius = pack.cost_radius
         at_x = readout_on.slice_xs if readout_on.slice_axis in ('x', 'xy') else None
         at_y = readout_on.slice_ys if readout_on.slice_axis in ('y', 'xy') else None

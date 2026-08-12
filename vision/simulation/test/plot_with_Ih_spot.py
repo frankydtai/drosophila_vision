@@ -68,7 +68,7 @@ def _network_spot_trace_readout(
         at_y=at_y,
         show_pre=show_pre,
     )
-    cells, group_rows, mt = spot_plot._spot_cube_from_rows(rows, session)
+    cells, group_rows, mt = spot_plot._spot_rt_from_rows(rows, session)
     slice_overlay = slice_labels = None
     if at_x_list is not None or at_y_list is not None:
         slice_overlay, slice_labels = spot_plot._spot_slice_overlay(
@@ -118,9 +118,9 @@ _ORIG_PLOT_CELL_PAIR_SLICES = spot_plot.plot_cell_pair_slices
 
 
 def _session_with_bright_ms_pulse(session, ms_pulse):
-    """Return a copy of *session* whose bright stimulus drops to baseline after *ms_pulse*."""
+    """Return a copy of *session* whose bright sti drops to baseline after *ms_pulse*."""
     pack = session.primary_pack
-    opts = dict((session.train_opts or {}).get("spot_bright_stimulus_opts") or {})
+    opts = dict((session.train_opts or {}).get("spot_bright_sti_opts") or {})
     from neuron.param import t_from_ms
     delta_ms = float(opts["delta_ms"])
     t_on = t_from_ms(float(opts["ms_pre"]), delta_ms=delta_ms)
@@ -178,8 +178,8 @@ def main(argv=None):
         save_path,
         readouts={'bright': readout, 'bright_50ms': readout_50ms},
         title=title,
-        ref_cubes=spot_plot.spot_ref_cubes(bright_session, "spot_bright", dark=False),
-        ref_cubes_2={},
+        ref_rts=spot_plot.spot_ref_rts(bright_session, "spot_bright", dark=False),
+        ref_rts_2={},
     )
     print(f"saved {save_path}")
     if args.show:

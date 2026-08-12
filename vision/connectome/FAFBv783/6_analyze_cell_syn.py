@@ -713,9 +713,9 @@ def print_table(
     sum_row.append(str(n_partner_sum))
     sum_row += [""] * (int(show_uv) + int(show_d_xy) + int(show_xy))
 
-    all_rows = [header] + rows + [sum_row]
+    table_rows = [header] + rows + [sum_row]
     n_field = len(header)
-    widths = [max(len(r[c]) for r in all_rows) for c in range(n_field)]
+    widths = [max(len(r[c]) for r in table_rows) for c in range(n_field)]
 
     def _fmt(row: List[str]) -> str:
         cells = [row[0].ljust(widths[0])]

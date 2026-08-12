@@ -117,7 +117,7 @@ def main(argv=None):
     axes = np.atleast_2d(axes).reshape(2, n_cols)
 
     cmap = plt.cm.viridis
-    all_traces = []
+    traces = []
 
     def _shade_pulse(ax):
         ax.axvspan(args.t_pulse_on, args.t_pulse_off, color="0.85", zorder=0)
@@ -138,7 +138,7 @@ def main(argv=None):
                 t_on=args.t_pulse_on,
                 t_off=args.t_pulse_off,
             )
-            all_traces.append(Vc)
+            traces.append(Vc)
             ax.plot(t, Vc, color=color, lw=2.0, label=rf"$K_s$={Ks_val:g}")
 
         _shade_pulse(ax)
@@ -165,7 +165,7 @@ def main(argv=None):
                 t_on=args.t_pulse_on,
                 t_off=args.t_pulse_off,
             )
-            all_traces.append(Vc)
+            traces.append(Vc)
             ax.plot(t, Vc, color=color, lw=2.0, label=rf"$\tau_s$={tau_s_val:g}")
 
         _shade_pulse(ax)
@@ -190,8 +190,8 @@ def main(argv=None):
         fontsize=11,
     )
 
-    ymin = min(float(np.min(v)) for v in all_traces)
-    ymax = max(float(np.max(v)) for v in all_traces)
+    ymin = min(float(np.min(v)) for v in traces)
+    ymax = max(float(np.max(v)) for v in traces)
     pad = max(0.05 * (ymax - ymin), 1.0e-3)
     for ax in axes.ravel():
         ax.set_ylim(ymin - pad, ymax + pad)

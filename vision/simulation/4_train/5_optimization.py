@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """Adam / staged-lr optimization loop (minimizes ``cost``).
 
-Consumes :func:`train.cost.calc_cost_parts` / :func:`train.cost.backward_accumulate_weighted_cost`
+Consumes :func:`train.cost.calc_cost_parts` / :func:`train.cost.backward_accumulate_scaled_cost`
 and returns in-memory :class:`TrainResult`. Persistence lives in
 ``train.implementation``.
 """
@@ -21,9 +21,9 @@ from tqdm import tqdm
 
 from train.config import session_cost_part_keys
 from train.cost import (
-    backward_accumulate_weighted_cost,
+    backward_accumulate_scaled_cost,
     calc_cost_parts,
-    _weighted_cost_from_parts,
+    _scaled_cost_from_parts,
 )
 from train.param import (
     active_device,
@@ -38,13 +38,13 @@ from train.session import TrainSession
 class TrainResult:
     """Output of :func:`do_many_runs` (in memory; persistence is ``train``)."""
 
-    all_params: np.ndarray   # (n_run, n_params)
-    final_costs: np.ndarray  # (n_run,) weighted total
-    cost_curve: np.ndarray   # per-step weighted total for ``argmin(final_costs)``
+    run_params: np.ndarray   # (n_run, n_params)
+    final_costs: np.ndarray  # (n_run,) scaled total
+    cost_curve: np.ndarray   # per-step scaled total for ``argmin(final_costs)``
     cost_curves_by_part: Dict[str, np.ndarray] = field(default_factory=dict)
     final_costs_by_part: Dict[str, np.ndarray] = field(default_factory=dict)
     # Per-run Adam moments at best_z: exp_avg, exp_avg_sq (n_params,), step (int).
-    all_adam: tuple = ()
+    run_adams: tuple = ()
 
 
 def _float_parts(parts: Optional[Dict[str, torch.Tensor]], task_order=None):
@@ -306,7 +306,7 @@ def _build_iter_logger(session: TrainSession):
         ctx = torch.no_grad() if no_grad else nullcontext()
         with ctx:
             parts = calc_cost_parts(z, session)
-            total = _weighted_cost_from_parts(parts, session)
+            total = _scaled_cost_from_parts(parts, session)
         _set_last({k: float(v.item()) for k, v in parts.items()}, float(total.item()))
         return total
 
@@ -317,7 +317,7 @@ def _build_iter_logger(session: TrainSession):
         return float(_eval_parts(z, no_grad=True).item())
 
     def backward_iter(z):
-        total, part_sums = backward_accumulate_weighted_cost(z, session)
+        total, part_sums = backward_accumulate_scaled_cost(z, session)
         _set_last(part_sums, total)
         return total
 
@@ -349,8 +349,8 @@ def do_many_runs(session: TrainSession, n_run, n_iter, lrs=(0.1, 0.01, 0.001),
     n_params = schema_nparams(schema)
     bounds = schema_bounds(schema, session.sim_dtype)
 
-    all_params = np.zeros((n_run, n_params))
-    all_adam = []
+    run_params = np.zeros((n_run, n_params))
+    run_adams = []
     final_costs = np.zeros(n_run)
     part_keys = session_cost_part_keys(session.tasks, session=session)
     final_costs_by_part = {name: np.zeros(n_run) for name in part_keys}
@@ -393,17 +393,17 @@ def do_many_runs(session: TrainSession, n_run, n_iter, lrs=(0.1, 0.01, 0.001),
             opt_init=opt_init,
         )
 
-        all_params[i] = z_best.detach().cpu().numpy()
+        run_params[i] = z_best.detach().cpu().numpy()
         exp_avg, exp_avg_sq, adam_iter = adam_moments_from_state_dict(
             opt_state, n_params, dtype=z_best.dtype, device='cpu',
         )
-        all_adam.append({
+        run_adams.append({
             'exp_avg': exp_avg.numpy().astype(np.float64),
             'exp_avg_sq': exp_avg_sq.numpy().astype(np.float64),
             'iter': int(adam_iter),
         })
         final_parts = calc_cost_parts(z_best, session)
-        final_costs[i] = float(_weighted_cost_from_parts(final_parts, session).item())
+        final_costs[i] = float(_scaled_cost_from_parts(final_parts, session).item())
         for name, part in final_parts.items():
             final_costs_by_part[name][i] = float(part.item())
         cost_histories[i] = np.array(cost_history, dtype=np.float64)
@@ -421,10 +421,10 @@ def do_many_runs(session: TrainSession, n_run, n_iter, lrs=(0.1, 0.01, 0.001),
     cost_curves_by_part = part_histories[run_i] or {}
 
     return TrainResult(
-        all_params=all_params,
+        run_params=run_params,
         final_costs=final_costs,
         cost_curve=cost_curve,
         cost_curves_by_part=cost_curves_by_part,
         final_costs_by_part=final_costs_by_part,
-        all_adam=tuple(all_adam),
+        run_adams=tuple(run_adams),
     )

@@ -3,10 +3,19 @@
 
 Pure data + parsing (no torch engine, no session objects), so
 :mod:`train.param`, :mod:`train.session`, and :mod:`train.cost` can import it
-without a cycle. Session assembly and stimulus-opts finalisation live in
+without a cycle. Session assembly and sti-opts finalisation live in
 :mod:`train.session`.
+
+**Enum allowed-token sets** (e.g. ``COST_NORMS``, ``SPOT_GT_MODES``) live here.
+Matching **default scalars** live only in ``default_params`` (e.g. ``TRAIN_OPTIMIZATION_DEFAULT['cost_norm']``,
+``SPOT_PACK_DEFAULT['spot_gt_mode']``) — never put the ``(…)`` allowed tuple in ``default_params``.
 """
 from __future__ import annotations
+
+from default_params import (
+    SPOT_PACK_DEFAULT,
+    TRAIN_OPTIMIZATION_DEFAULT,
+)
 
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
@@ -52,6 +61,12 @@ MOVING_BAR_COST_PARTS = tuple(
 # a_gt2:         Σ w (v_readout−gt_aff)² / a_gt²   (per-entry a_i²; bias not in denom)
 COST_NORMS = ("gt_power", "a_gt2")
 
+# Spot cost GT mode allowed tokens (``--spot-gt-mode``). Default scalar:
+# ``default_params.SPOT_PACK_DEFAULT['spot_gt_mode']`` (all | positive — comment only there).
+# all: every present gt cell under both bright and dark (dark × contrast_sign −1).
+# positive: only cells with rf_sign × contrast_sign > 0 (bright: ON; dark: OFF).
+SPOT_GT_MODES = ("all", "pos")
+
 # t=0 membrane pre steady (``--pre-steady``); not param init.
 
 
@@ -75,6 +90,12 @@ def expand_pre_steady(pre_steady) -> str:
 def expand_filter(filter) -> str:
     """Validate ``--filter`` token (``none`` | ``ca``)."""
     return _expand_choice(filter, ("none", "ca"), flag="filter")
+
+
+def expand_spot_gt_mode(spot_gt_mode) -> str:
+    """Validate ``--spot-gt-mode`` against :data:`SPOT_GT_MODES` (no aliases)."""
+    return _expand_choice(spot_gt_mode, SPOT_GT_MODES, flag="spot_gt_mode")
+
 
 TASK_ALIASES = {
     "spot": SPOT_TASKS,
@@ -109,7 +130,7 @@ I_CLI_SIDECAR_FIELD = {
     ("i_dark", "spot_dark"): "i_dark_spot",
     ("i_dark", "moving_bar_dark"): "i_dark_moving_bar",
 }
-COST_WEIGHT_ALIASES = {
+PART_COST_SCALE_ALIASES = {
     "spot": SPOT_TASKS,
     "moving_bar": MOVING_BAR_COST_PARTS,
     "moving_bar_bright": (
@@ -140,8 +161,8 @@ def moving_bar_cell_cost_part_key(task_name: str, cell: str, part: str) -> str:
     return f"{task_name}_{cell}_{part}"
 
 
-def cost_part_keys_for_readout(task_name: str) -> Tuple[str, ...]:
-    """Coarse keys for CLI ``--cost-weight`` (before packs exist)."""
+def cost_part_keys_for_task(task_name: str) -> Tuple[str, ...]:
+    """Coarse keys for CLI ``--part-cost-scale`` (before packs exist)."""
     if task_name in MOVING_BAR_TASKS:
         return tuple(
             moving_bar_cost_part_key(task_name, lab)
@@ -151,13 +172,13 @@ def cost_part_keys_for_readout(task_name: str) -> Tuple[str, ...]:
 
 
 def cost_part_keys_for_pack(pack, backend) -> Tuple[str, ...]:
-    """Fine keys from pack entries with ``cost_weight > 0`` (+ pack-level DSI)."""
+    """Fine keys from pack entries with ``cost_scales > 0`` (+ pack-level DSI)."""
     net = backend.network
     if net is None:
         raise ValueError("cost_part_keys_for_pack requires backend.network")
-    w = pack.cost_weight
+    w = pack.cost_scales
     active = w > 0
-    cell_ids = net.node_cell[pack.readout_node]
+    cell_ids = net.node_cells[pack.entry_nodes]
     names = net.cells
     keys: List[str] = []
     seen = set()
@@ -168,9 +189,9 @@ def cost_part_keys_for_pack(pack, backend) -> Tuple[str, ...]:
             keys.append(key)
 
     if pack.name in MOVING_BAR_TASKS:
-        pd_nd = pack.cost_pd_nd
+        pd_nd = pack.cost_pd_nds
         if pd_nd is not None and bool(active.any()):
-            for i in range(int(pack.readout_node.shape[0])):
+            for i in range(int(pack.entry_nodes.shape[0])):
                 if not bool(active[i]):
                     continue
                 cell = str(names[int(cell_ids[i].item())])
@@ -183,10 +204,10 @@ def cost_part_keys_for_pack(pack, backend) -> Tuple[str, ...]:
             _add(moving_bar_cost_part_key(pack.name, "DSI"))
         return tuple(keys)
 
-    if pack.spot_cost_radius is None or not bool(active.any()):
+    if pack.entry_radii is None or not bool(active.any()):
         return tuple(keys)
-    radii = pack.spot_cost_radius
-    for i in range(int(pack.readout_node.shape[0])):
+    radii = pack.entry_radii
+    for i in range(int(pack.entry_nodes.shape[0])):
         if not bool(active[i]):
             continue
         cell = str(names[int(cell_ids[i].item())])
@@ -207,12 +228,12 @@ def session_cost_part_keys(tasks, session=None) -> Tuple[str, ...]:
         return tuple(keys)
     keys = []
     for name in tasks:
-        keys.extend(cost_part_keys_for_readout(name))
+        keys.extend(cost_part_keys_for_task(name))
     return tuple(keys)
 
 
-def coarse_weight_keys_for_part(part_key: str) -> Tuple[str, ...]:
-    """Parent coarse keys a fine part inherits ``cost_weights`` from."""
+def coarse_scale_keys_for_part(part_key: str) -> Tuple[str, ...]:
+    """Parent coarse keys a fine part inherits ``part_cost_scales`` from."""
     for lab in (*PD_ND_LABELS, "DSI"):
         suf = f"_{lab}"
         if not part_key.endswith(suf):
@@ -278,9 +299,9 @@ def resolve_cost_radius_by_task(tasks, default, by_task_kv) -> Dict[str, int]:
     return out
 
 
-def expand_cost_weight_dict(weights: Optional[dict]) -> Dict[str, float]:
-    """Expand ``--cost-weight`` ``COST_WEIGHT_ALIASES`` keys."""
-    return _expand_alias_dict(weights, COST_WEIGHT_ALIASES, float)
+def expand_part_cost_scale_dict(scales: Optional[dict]) -> Dict[str, float]:
+    """Expand ``--part-cost-scale`` ``PART_COST_SCALE_ALIASES`` keys."""
+    return _expand_alias_dict(scales, PART_COST_SCALE_ALIASES, float)
 
 
 def normalize_tasks(tasks) -> List[str]:

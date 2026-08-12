@@ -43,7 +43,7 @@ from figure.util import save_figure
 from import_bootstrap import parse_comma_list
 from neuron.model_hp_lp import update_state_hp_lp
 from neuron.param import expand_euler
-from param_defaults import EULER, G_LEAK, STATE_CLAMP
+from default_params import EULER, G_LEAK, STATE_CLAMP
 
 DEFAULT_SAVE = os.path.join(HERE, "lp_hp_curves.png")
 DEFAULT_A_SLOW = 1.0

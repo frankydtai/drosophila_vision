@@ -11,7 +11,7 @@ coordinate formulas:
   - ``xy_from_uv`` / ``uv_from_xy`` convert axial ``(u, v)`` to hex-step ``(x, y)``;
     ``xy_deg_from_xy`` scales hex-step by :data:`DEG`; ``xy_deg_from_uv`` composes both.
   - ``hex_vertices`` / ``draw_hex_patches`` draw degree-space hex patches
-    (shared by column maps, moving-bar stimulus, and plots).
+    (shared by column maps, moving-bar sti, and plots).
   - :class:`HexGrid` holds an ideal disc's (u, v) coordinates (the plot reference
     panel); ``columns_with_uv(side)`` gives FAFB columns' (u, v).
 
@@ -162,8 +162,8 @@ class HexGrid:
 
     def __init__(self, radius: int = DEFAULT_RADIUS) -> None:
         self.radius = radius
-        self.u, self.v = get_hex_coords(radius)
-        self.n_hexes = len(self.u)
+        self.us, self.vs = get_hex_coords(radius)
+        self.n_hexes = len(self.us)
         logger.info("HexGrid radius=%d -> %d hexes", radius, self.n_hexes)
 
 
@@ -396,16 +396,16 @@ def plot_column_map(
 
     classify = radius is not None and radius >= 0
     hex_radius_px = HEX_PATCH_RADIUS
-    iu, iv = ideal_grid.u, ideal_grid.v
+    iu, iv = ideal_grid.us, ideal_grid.vs
 
     ix, iy = xy_deg_from_uv(iu, iv)
     rx, ry = xy_deg_from_uv(df_right["u"].values, df_right["v"].values)
     lx, ly = xy_deg_from_uv(df_left["u"].values, df_left["v"].values)
-    all_x = np.concatenate([ix, rx, lx])
-    all_y = np.concatenate([iy, ry, ly])
+    xs = np.concatenate([ix, rx, lx])
+    ys = np.concatenate([iy, ry, ly])
     margin = 2
-    xlim = (all_x.min() - margin, all_x.max() + margin)
-    ylim = (all_y.min() - margin, all_y.max() + margin)
+    xlim = (xs.min() - margin, xs.max() + margin)
+    ylim = (ys.min() - margin, ys.max() + margin)
 
     fig, axes = plt.subplots(1, 3, figsize=(24, 9), sharex=True, sharey=True)
 

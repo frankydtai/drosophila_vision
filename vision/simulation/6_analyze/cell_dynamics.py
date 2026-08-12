@@ -1,5 +1,13 @@
 from __future__ import annotations
 
+from default_params import (
+    DEFAULT_RUN_PATH,
+    NEURON_PARAM_DEFAULT,
+    NEURON_SCHEMA_DEFAULT,
+    TRAIN_CONFIG_DEFAULT,
+    TRAIN_OPTIMIZATION_DEFAULT,
+)
+
 import argparse
 import json
 import os
@@ -18,10 +26,10 @@ os.chdir(ROOT)
 
 import import_bootstrap  # noqa: F401
 import train
-from param_defaults import DEFAULT_RUN_PATH
+from default_params import DEFAULT_RUN_PATH
 import figure.plot as plot_trained
 from figure.gt import contrast_for_task
-from figure.spot import pack_spot_cost_radii, resolve_spot_gt_cubes
+from figure.spot import pack_spot_cost_radii, resolve_spot_gt_rts
 from figure.util import (
     filter_plot_token,
     gt_affine_scalars_for_cell,
@@ -42,12 +50,12 @@ from task.moving_bar.input import (
     filter_sti_hexes,
     moving_bar_cost_hexes,
 )
-from task.spot.readout import build_spot_center_readout
+from task.spot.pack import build_spot_center_readout
 from task.spot.input import (
     spot_from_opts,
-    spot_stimulus_batches,
+    spot_sti_batches,
 )
-from train.cli import parse_tasks, stimulus_timing_kwargs_from_args
+from train.cli import parse_tasks, sti_timing_kwargs_from_args
 
 __doc__ = """Borst / hp_lp v component analysis.
 
@@ -59,8 +67,8 @@ Time axis (read this before ``--ms-shown`` / ``TimeWindow``)
 Two *different* knobs — do not mix them:
 
 1. **Stimulus length** (``--ms-pre`` / ``--ms-spot`` / ``--ms-response`` /
-   ``--ms-post`` / ``--delta-ms``): rebuilds the session stimulus (via
-   ``figure.plot.maybe_override_stimulus_timing``). Unset = keep the run's
+   ``--ms-post`` / ``--delta-ms``): rebuilds the session sti (via
+   ``figure.plot.maybe_override_sti_timing``). Unset = keep the run's
    train opts. These change *how long* pre/spot/response *are*, not which
    slice of an existing trace you plot.
 
@@ -72,7 +80,7 @@ Two *different* knobs — do not mix them:
 
 * **spot**: aligned ``t = 0`` is trial start. Stimulus onset is at
   ``t_onset = t_from_ms(ms_pre, delta_ms=delta_ms_pre)`` (e.g. ``ms_pre=1000``,
-  ``delta_ms_pre=5`` → ``t_onset=200`` ↔ **1000 ms**). Pre-stimulus is therefore
+  ``delta_ms_pre=5`` → ``t_onset=200`` ↔ **1000 ms**). Pre-sti is therefore
   ``--ms-shown 0,1000`` (or ``0,ms_pre``), **not** ``-1000,0``.
   Negative START is wrong for spot (aligned index goes negative; accumulate window
   collapses).
@@ -103,7 +111,7 @@ Per ``--run``: one ``load_best``; one batched v component forward per distinct t
 
 * Omit ``--x`` / ``--y``: cost-radius **average** (optional ``--radius 0|1``).
 * Exactly one ``--x`` and one ``--y``: **hex** (spot or moving_bar; one cell).
-  Incompatible with ``--radius`` (hex is stim-on only).
+  Incompatible with ``--radius`` (hex is sti-on only).
 * Multiple x/y: rejected.
 
 ``--plot true|false``: PNGs under ``{run}/cell_dynamics/`` (default true).
@@ -115,7 +123,7 @@ Per ``--run``: one ``load_best``; one batched v component forward per distinct t
   three table columns are ``ca`` / ``ca_pre`` / ``ca_post_minus_pre``
   (else ``v_post`` / ``v_pre`` / ``v_post_minus_pre``); membrane component
   columns stay ``v_*``.
-``--radius 0|1``: spot average Euclidean readout radius (default 0 = stim-on hex; 1 = neighbors).
+``--radius 0|1``: spot average Euclidean readout radius (default 0 = sti-on hex; 1 = neighbors).
   Average only; PNGs for ``--radius 1`` get ``_radius1`` in the filename.
 ``--param NAME=VALUE`` / ``NAME.NODE=VALUE``: via ``figure.plot`` — overwrite
   any schema param before forward (``NODE`` = cell, ``SRC:TAR`` pair, or ``eN``;
@@ -181,7 +189,7 @@ class TimeWindow:
     ``kind="t_rel"``
         Integer t offsets from the |v_post_d| peak (same as ``--t-rel``).
 
-    Not stimulus-length overrides (``--ms-pre`` / …); those rebuild the session.
+    Not sti-length overrides (``--ms-pre`` / …); those rebuild the session.
     """
 
     kind: str  # "t_rel" | "ms"
@@ -250,14 +258,14 @@ def add_shared_cli(
     ap.add_argument(
         "--task",
         default="spot_bright",
-        metavar="TASK,...",
+        metavar="TRAIN_CONFIG_DEFAULT['task'],...",
         help="comma-separated tasks (spot_* / moving_bar_* or TASK_ALIASES)",
     )
     ap.add_argument(
         "--spec",
         default=None,
         metavar="SPEC,...",
-        help="comma-separated moving_bar stimulus specs; omit = all available",
+        help="comma-separated moving_bar sti specs; omit = all available",
     )
     ap.add_argument(
         "--x",
@@ -707,7 +715,7 @@ def _prepare_drive(session, params, i_sti: torch.Tensor) -> torch.Tensor:
     """Model ``prepare_i_sti`` + spot ``a_sti_radius`` on a ``(B, T, N)`` pack ``i_sti``."""
     from neuron.forward import inject_a_sti_radius
 
-    pack = session.primary_readout
+    pack = session.primary_pack
     drive = _model_driver(session).prepare_i_sti(session, params, i_sti, pack)
     return inject_a_sti_radius(drive, params, pack)
 
@@ -936,8 +944,8 @@ def _step_from_sums(
 class _ComponentForwardBatch:
     """One i_sti batch row for the shared full-T component forward."""
 
-    all_nodes: np.ndarray
-    node_t0: np.ndarray
+    nodes: np.ndarray
+    node_t0s: np.ndarray
     n_t_aligned: int
     cell_from_node: dict[int, str]
     nodes_by_cell: dict[str, np.ndarray]
@@ -969,7 +977,7 @@ def _forward_component(
 
     Shared by bar/spot average and bar/spot hex.
     ``v_onset`` matches ``forward_full`` (``v`` at ``t_onset - 1``). Aligned index
-    ``t = t_global - node_t0``. v_post is mean absolute ``v_abs``; STD uses sum /
+    ``t = t_global - node_t0s``. v_post is mean absolute ``v_abs``; STD uses sum /
     sum_sqs like ``std_from_traces``. When ``filter=ca``, also track ``v_ca`` /
     ``ca`` via ``v_ca_from_v`` + ``filter_ca`` (same as ``forward_ca``).
 
@@ -989,11 +997,11 @@ def _forward_component(
 
     spec = _component_spec(session.model, session.euler)
     drive = _prepare_drive(session, params, i_sti)
-    t_onset = train.pack_t_onset(session.primary_readout)
+    t_onset = train.pack_t_onset(session.primary_pack)
 
     t_last: int | None = None
     if t_stop is not None:
-        t_last = max(int(plan.node_t0.max()) + int(t_stop) for plan in batches)
+        t_last = max(int(plan.node_t0s.max()) + int(t_stop) for plan in batches)
 
     # Same ref as forward_full: v at t_onset-1, then restart so pre is stepped+accumulated.
     v_at_onset, _ = _equilibrate(session, params, drive, t_onset)
@@ -1035,8 +1043,8 @@ def _forward_component(
         actives: list[tuple[np.ndarray, np.ndarray] | None] = []
         need_component = False
         for plan in batches:
-            all_nodes = plan.all_nodes
-            node_aligned_t = t_global - plan.node_t0
+            nodes = plan.nodes
+            node_aligned_t = t_global - plan.node_t0s
             in_aligned_t = (node_aligned_t >= 0) & (node_aligned_t < plan.n_t_aligned)
             if t_start is not None:
                 in_aligned_t = (
@@ -1047,7 +1055,7 @@ def _forward_component(
             if np.any(in_aligned_t):
                 need_component = True
                 actives.append((
-                    all_nodes[in_aligned_t], node_aligned_t[in_aligned_t].astype(np.int64),
+                    nodes[in_aligned_t], node_aligned_t[in_aligned_t].astype(np.int64),
                 ))
             else:
                 actives.append(None)
@@ -1273,7 +1281,7 @@ def _finalize_component_report(
         "t_window": [t_lo, t_hi],
         "v_post_d_peak_t": peak_t,
         "v_post_d_peak": float(v_post_d[peak_t]),
-        "v_post_d_polarity": _polarity(float(v_post_d[peak_t])),
+        "v_post_d_sign": _sign(float(v_post_d[peak_t])),
         "v_post_d_onset_t": onset,
         "params": _node_params(params, session, int(nodes[0])),
         "globals": _globals(session),
@@ -1324,7 +1332,7 @@ def _v_post_d_peak_t_rel(
     return int(np.argmax(np.abs(arr[:stop])))
 
 
-def _polarity(v: float, *, eps: float = 1e-3) -> str:
+def _sign(v: float, *, eps: float = 1e-3) -> str:
     if v > eps:
         return "+"
     if v < -eps:
@@ -1339,7 +1347,7 @@ def _scalar_param_at_node(params, key: str, session, node: int) -> float:
         if raw.dim() == 0:
             return float(raw.item())
         if backend.network is not None:
-            cell_idx = int(backend.network.node_cell[node])
+            cell_idx = int(backend.network.node_cells[node])
         else:
             cell_idx = int(node) % int(backend.n_cells)
         return float(raw[cell_idx])
@@ -1385,12 +1393,12 @@ def _node_params(params, session, node: int) -> dict[str, float]:
 
 
 def _globals(session):
-    pack = session.primary_readout
+    pack = session.primary_pack
     t_onset = train.pack_t_onset(pack)
     if session.model == "hp_lp":
         return {
             "delta_ms": float(session.delta_ms),
-            "state_clamp": float(session.STATE_CLAMP),
+            "state_clamp": float(session.state_clamp),
             "g_leak_nS": float(session.g_leak),
             "euler": str(session.euler),
             "t_onset": t_onset,
@@ -1418,9 +1426,9 @@ def cell_from_node(nodes_by_cell: dict[str, np.ndarray]) -> dict[int, str]:
 def _node_cell_lookup(plan: _ComponentForwardBatch, cells: list[str]) -> np.ndarray:
     """Map node id → index in ``cells`` (-1 if absent). Length ``max(node_id)+1``."""
     cell_idx_from_cell = {cell: cell_idx for cell_idx, cell in enumerate(cells)}
-    if plan.all_nodes.size == 0:
+    if plan.nodes.size == 0:
         return np.empty(0, dtype=np.int32)
-    out = np.full(int(plan.all_nodes.max()) + 1, -1, dtype=np.int32)
+    out = np.full(int(plan.nodes.max()) + 1, -1, dtype=np.int32)
     for node_id, cname in plan.cell_from_node.items():
         cell_idx = cell_idx_from_cell.get(cname)
         if cell_idx is not None:
@@ -1443,7 +1451,7 @@ def _merge_forward_sums(
     dict[str, np.ndarray] | None,
     dict[str, np.ndarray] | None,
 ]:
-    """Sum per-cell sums rows across run batches (spot multi-stimulus mean)."""
+    """Sum per-cell sums rows across run batches (spot multi-sti mean)."""
     n_keys = forward_sums.spec.n_keys
     sums = {cell: np.zeros((n_t_aligned, n_keys), dtype=float) for cell in cells}
     sum_sqs = {cell: np.zeros((n_t_aligned, n_keys), dtype=float) for cell in cells}
@@ -1491,11 +1499,11 @@ def _build_forward_batch(
     t0_bn_row: np.ndarray,
     n_t_aligned: int,
 ) -> _ComponentForwardBatch:
-    """Build one run batch; ``node_t0[i] = t0_bn_row[all_nodes[i]]``."""
-    all_nodes = np.unique(np.concatenate([ids for ids in nodes_by_cell.values()]))
+    """Build one run batch; ``node_t0s[i] = t0_bn_row[nodes[i]]``."""
+    nodes = np.unique(np.concatenate([ids for ids in nodes_by_cell.values()]))
     return _ComponentForwardBatch(
-        all_nodes=all_nodes,
-        node_t0=np.asarray(t0_bn_row[all_nodes], dtype=np.int64),
+        nodes=nodes,
+        node_t0s=np.asarray(t0_bn_row[nodes], dtype=np.int64),
         n_t_aligned=int(n_t_aligned),
         cell_from_node=cell_from_node(nodes_by_cell),
         nodes_by_cell=nodes_by_cell,
@@ -1531,19 +1539,19 @@ def _bar_specs_requested(
     """Spec list for average-mode bar without a full forward readout."""
     if specs is None or grids is None:
         specs, grids = _bar_meta(session, task)
-    all_specs = [spec.name for spec in specs]
+    specs = [spec.name for spec in specs]
     try:
         if requested is not None:
-            return filter_requested_specs(all_specs, requested)
+            return filter_requested_specs(specs, requested)
     except ValueError as exc:
         raise SystemExit(str(exc)) from exc
     specs_by_cell = moving_bar_specs_by_cell(session, task, grids.side)
     out: list[str] = []
     for cell in cells:
-        for spec_name in specs_by_cell.get(cell, all_specs):
-            if spec_name in all_specs and spec_name not in out:
+        for spec_name in specs_by_cell.get(cell, specs):
+            if spec_name in specs and spec_name not in out:
                 out.append(spec_name)
-    return out or list(all_specs)
+    return out or list(specs)
 
 
 def _resolve_bar_spec_i_sti(
@@ -1818,17 +1826,17 @@ def analyze_bar_average(
 
 def _spot_session_readout(session_one, cells: list[str]):
     """Session-scoped spot cost readout (all radii) for component forward."""
-    pack = session_one.primary_readout
+    pack = session_one.primary_pack
     connectome = session_one.backend.network
     if connectome is None:
         raise SystemExit("spot average requires a network backend")
-    opts = dict((session_one.train_opts or {}).get(f"{pack.name}_stimulus_opts") or {})
-    spot = spot_from_opts(connectome, stimulus_opts=opts)
+    opts = dict((session_one.train_opts or {}).get(f"{pack.name}_sti_opts") or {})
+    spot = spot_from_opts(connectome, sti_opts=opts)
     (
-        batch_idx, node_idx, radii, type_idx, _stim_u, _stim_v, _du, _dv, _center_entry_mask,
+        batch_idx, node_idx, radii, type_idx, _sti_u, _sti_v, _du, _dv, _center_entry_mask,
     ) = build_spot_center_readout(
         connectome,
-        spot_stimulus_batches(spot),
+        spot_sti_batches(spot),
         pack_spot_cost_radii(pack),
         pack.cost_radius,
     )
@@ -1863,10 +1871,10 @@ def _spot_gt_extra(
     extra: dict[str, Any] = {"gt_peak": None, gt_key: None, "radius": radius}
     if cell not in gt_on:
         return extra
-    gt_cube = np.asarray(gt_on[cell], dtype=float)
-    if radius < 0 or radius >= gt_cube.shape[0]:
+    gt_rt = np.asarray(gt_on[cell], dtype=float)
+    if radius < 0 or radius >= gt_rt.shape[0]:
         return extra
-    gt_row = gt_cube[radius]
+    gt_row = gt_rt[radius]
     gt_aff = float(a_gt) * gt_row + float(bias_gt)
     peak_probe = _v_post_d_peak_t_rel(v_post_d, t_onset)
     if 0 <= peak_probe < gt_aff.shape[0]:
@@ -1882,17 +1890,17 @@ def _spot_extra_for_cell_fn(
     session_one, params, pack, *, radius: int, t_onset: int, train_filter,
 ):
     """Build ``extra_for_cell`` with train GT named ``gt_v`` / ``gt_ca``."""
-    from param_defaults import BIAS_GT_FROM_V_ONSET, PARAM_BOXES
+    from default_params import TRAIN_OPTIMIZATION_DEFAULT['bias_gt_from_v_onset'], NEURON_SCHEMA_DEFAULT['param_boxes']
     contrast = contrast_for_task(pack.name)
     train_filter = train.expand_filter(train_filter)
     gt_key = f"gt_{filter_plot_token(train_filter)}"
-    gt_on = resolve_spot_gt_cubes(
+    gt_on = resolve_spot_gt_rts(
         {contrast: session_one}, filter=train_filter,
     ).get(contrast) or {}
     opts = session_one.train_opts or {}
-    from_onset = bool(opts.get("bias_gt_from_v_onset", BIAS_GT_FROM_V_ONSET))
-    lo = float(PARAM_BOXES["bias_gt"]["lo"])
-    hi = float(PARAM_BOXES["bias_gt"]["hi"])
+    from_onset = bool(opts.get("bias_gt_from_v_onset", TRAIN_OPTIMIZATION_DEFAULT['bias_gt_from_v_onset']))
+    lo = float(NEURON_SCHEMA_DEFAULT['param_boxes']["bias_gt"]["lo"])
+    hi = float(NEURON_SCHEMA_DEFAULT['param_boxes']["bias_gt"]["hi"])
     cell_names = [str(cell_name) for cell_name in session_one.backend.network.cells]
 
     def extra_for_cell(
@@ -1938,11 +1946,11 @@ def analyze_spot_average(
     radius: int = 0,
     train_filter="none",
 ) -> dict[str, dict[str, Any]]:
-    """One batched v forward over spot stimulus rows; mean at Euclidean ``radius``.
+    """One batched v forward over spot sti rows; mean at Euclidean ``radius``.
 
     ``time_window`` is absolute aligned ms for spot (``0`` = trial start). Pre
     only: ``TimeWindow("ms", 0, ms_pre)``. Do not pass negative ``start`` for
-    "before onset" — that confuses stimulus length with the analyze window.
+    "before onset" — that confuses sti length with the analyze window.
     ``train_filter`` is the run's train ``filter`` (names GT ``gt_v``/``gt_ca``).
     """
     if task not in train.SPOT_TASKS:
@@ -1955,14 +1963,14 @@ def analyze_spot_average(
     t_onset = train.pack_t_onset(pack)
 
     i_sti = pack.i_sti if pack.i_sti.dim() == 3 else pack.i_sti.unsqueeze(0)
-    n_stimulus_batch, n_t, n_nodes = i_sti.shape
+    n_sti_batch, n_t, n_nodes = i_sti.shape
     t0_abs = np.zeros(n_nodes, dtype=np.int64)
     n_t_aligned = time_window.aligned_n_t(n_t, delta_ms=float(session_one.delta_ms))
 
     forward_batches: list[_ComponentForwardBatch] = []
     i_sti_rows: list[int] = []
-    for stimulus_batch_idx in range(n_stimulus_batch):
-        entry_mask = radius_entry_mask & (batch_idx == stimulus_batch_idx)
+    for sti_batch_idx in range(n_sti_batch):
+        entry_mask = radius_entry_mask & (batch_idx == sti_batch_idx)
         if not np.any(entry_mask):
             continue
         nodes_by_cell: dict[str, np.ndarray] = {}
@@ -1975,7 +1983,7 @@ def analyze_spot_average(
         forward_batches.append(
             _build_forward_batch(nodes_by_cell, t0_bn_row=t0_abs, n_t_aligned=n_t_aligned),
         )
-        i_sti_rows.append(stimulus_batch_idx)
+        i_sti_rows.append(sti_batch_idx)
 
     if not forward_batches:
         raise SystemExit(
@@ -2068,7 +2076,7 @@ def analyze_spot_hex(
     time_window: TimeWindow,
     train_filter="none",
 ) -> dict[str, dict[str, Any]]:
-    """One batched v forward at one hex; stim-on (radius 0) rows for that node only."""
+    """One batched v forward at one hex; sti-on (radius 0) rows for that node only."""
     if task not in train.SPOT_TASKS:
         raise SystemExit(f"unsupported task {task!r}")
     pack, batch_idx, node_idx, radii, type_idx, type_idx_from_cell_name = _spot_session_readout(
@@ -2082,7 +2090,7 @@ def analyze_spot_hex(
     t_onset = train.pack_t_onset(pack)
 
     i_sti = pack.i_sti if pack.i_sti.dim() == 3 else pack.i_sti.unsqueeze(0)
-    n_stimulus_batch, n_t, n_nodes = i_sti.shape
+    n_sti_batch, n_t, n_nodes = i_sti.shape
     t0_abs = np.zeros(n_nodes, dtype=np.int64)
     n_t_aligned = time_window.aligned_n_t(n_t, delta_ms=float(session_one.delta_ms))
     node_arr = np.asarray([node], dtype=np.int64)
@@ -2090,10 +2098,10 @@ def analyze_spot_hex(
 
     forward_batches: list[_ComponentForwardBatch] = []
     i_sti_rows: list[int] = []
-    for stimulus_batch_idx in range(n_stimulus_batch):
+    for sti_batch_idx in range(n_sti_batch):
         entry_mask = (
             radius_entry_mask
-            & (batch_idx == stimulus_batch_idx)
+            & (batch_idx == sti_batch_idx)
             & (type_idx == type_cell)
             & (node_idx == node)
         )
@@ -2102,11 +2110,11 @@ def analyze_spot_hex(
         forward_batches.append(
             _build_forward_batch({cell: node_arr}, t0_bn_row=t0_abs, n_t_aligned=n_t_aligned),
         )
-        i_sti_rows.append(stimulus_batch_idx)
+        i_sti_rows.append(sti_batch_idx)
 
     if not forward_batches:
         raise SystemExit(
-            f"no stim-on spot rows for {cell} node {node} at hex ({at_x},{at_y})"
+            f"no sti-on spot rows for {cell} node {node} at hex ({at_x},{at_y})"
         )
 
     n_batch = len(forward_batches)
@@ -2275,9 +2283,9 @@ def _shared_row_ylim(
             chunks.append(val)
     if not chunks:
         return -1.0, 1.0
-    all_v = np.concatenate(chunks)
-    ylo = float(np.min(all_v))
-    yhi = float(np.max(all_v))
+    vals = np.concatenate(chunks)
+    ylo = float(np.min(vals))
+    yhi = float(np.max(vals))
     if floor_zero and ylo >= 0.0:
         ylo = 0.0
     span = yhi - ylo
@@ -2353,7 +2361,7 @@ def _plot_component_reports(
     e_leak_mV = float(reports[0].get("params", {}).get("e_leak_mV", 0.0))
     globs = reports[0].get("globals") or {}
     params0 = reports[0].get("params") or {}
-    delta_ms = float(globs.get("delta_ms", train.DELTA_MS))
+    delta_ms = float(globs.get("delta_ms", train.NEURON_PARAM_DEFAULT['delta_ms']))
     row_curves: dict[int, list[np.ndarray]] = {
         row_idx: [] for row_idx in spec.row_shared_ylim
     }
@@ -2509,7 +2517,7 @@ def _print_report(report: dict[str, Any], *, print_steps: bool = True) -> None:
     tw = report.get("time_window")
     print(
         f"v_post_d_peak={report['v_post_d_peak']:+.4f} mV "
-        f"v_post_d_polarity={report['v_post_d_polarity']}  "
+        f"v_post_d_sign={report['v_post_d_sign']}  "
         f"v_post_d_peak_t={report['v_post_d_peak_t']}  "
         f"before_t={report.get('before_t')}  "
         f"peak_drive={report.get('peak_drive')}  "
@@ -2587,25 +2595,25 @@ def _print_report(report: dict[str, Any], *, print_steps: bool = True) -> None:
         print(f"best_cost={report['best_cost']:.4f}  cost={report['cost']:.4f}")
 
 
-def _print_polarity_compare(
+def _print_sign_compare(
     spot_reports: dict[str, dict[str, Any]],
     bar_reports: dict[str, dict[str, Any]],
 ) -> None:
     cells = sorted(set(spot_reports) & set(bar_reports))
     if not cells:
         return
-    print("\n======== SPOT vs BAR polarity (cost-radius averages) ========")
+    print("\n======== SPOT vs BAR sign (cost-radius averages) ========")
     print(
-        f"{'cell':6s} {'spot_post_d':>11s} {'spot_pol':>8s} {'spot_drv':>8s} "
-        f"{'bar_post_d':>10s} {'bar_pol':>8s} {'bar_drv':>8s}  note"
+        f"{'cell':6s} {'spot_post_d':>11s} {'spot_sign':>8s} {'spot_drv':>8s} "
+        f"{'bar_post_d':>10s} {'bar_sign':>8s} {'bar_drv':>8s}  note"
     )
     for cell in cells:
         spot_report = spot_reports[cell]
         bar_report = bar_reports[cell]
         flip = (
-            spot_report["v_post_d_polarity"] != bar_report["v_post_d_polarity"]
+            spot_report["v_post_d_sign"] != bar_report["v_post_d_sign"]
             and "0" not in (
-                spot_report["v_post_d_polarity"], bar_report["v_post_d_polarity"],
+                spot_report["v_post_d_sign"], bar_report["v_post_d_sign"],
             )
         )
         note = "FLIP" if flip else "same"
@@ -2616,9 +2624,9 @@ def _print_polarity_compare(
                 note += f" (same drive={spot_report['peak_drive']}; see num terms)"
         print(
             f"{cell:6s} {spot_report['v_post_d_peak']:+11.4f} "
-            f"{spot_report['v_post_d_polarity']:>8s} "
+            f"{spot_report['v_post_d_sign']:>8s} "
             f"{str(spot_report.get('peak_drive')):>8s} "
-            f"{bar_report['v_post_d_peak']:+10.4f} {bar_report['v_post_d_polarity']:>8s} "
+            f"{bar_report['v_post_d_peak']:+10.4f} {bar_report['v_post_d_sign']:>8s} "
             f"{str(bar_report.get('peak_drive')):>8s}  {note}"
         )
         spot_peak_step, bar_peak_step = (
@@ -2678,7 +2686,7 @@ def main() -> None:
         choices=(0, 1),
         default=0,
         help=(
-            "spot average Euclidean readout radius (0=stim-on, 1=neighbors); "
+            "spot average Euclidean readout radius (0=sti-on, 1=neighbors); "
             "average mode only (not with --x/--y); PNG gets _radius1 when 1"
         ),
     )
@@ -2694,7 +2702,7 @@ def main() -> None:
     )
     plot_trained.add_ms_shown_argument(t_group)
     # --ms-shown: absolute aligned ms (spot 0=trial start; pre = 0,ms_pre).
-    # --ms-pre/…: stimulus length overrides (rebuild session). Do not confuse.
+    # --ms-pre/…: sti length overrides (rebuild session). Do not confuse.
     ap.add_argument(
         "--plot",
         type=parse_bool,
@@ -2753,7 +2761,7 @@ def main() -> None:
         ms_range = None  # default: 0 .. last sample
         use_ms = True
 
-    timing_kw = stimulus_timing_kwargs_from_args(args)
+    timing_kw = sti_timing_kwargs_from_args(args)
     param_edits = plot_trained.parse_param_tokens(args.param)
 
     for run_idx, run_arg in enumerate(args.run):
@@ -2762,7 +2770,7 @@ def main() -> None:
         session, z, best_cost = plot_trained.load_best(run_dir)
         train_opts = plot_trained.load_train_opts(run_dir) or {}
         train_filter = train.expand_filter(train_opts.get("filter", "none"))
-        session, z, timing_changed = plot_trained.maybe_override_stimulus_timing(
+        session, z, timing_changed = plot_trained.maybe_override_sti_timing(
             run_dir=run_dir,
             session=session,
             z=z,
@@ -2771,7 +2779,7 @@ def main() -> None:
             filter=args.filter,
         )
         file_suffix = (
-            plot_trained.stimulus_timing_filename_suffix(
+            plot_trained.sti_timing_filename_suffix(
                 **timing_changed,
             )
             + plot_trained.euler_filename_suffix(args.euler)
@@ -2802,7 +2810,7 @@ def main() -> None:
         bar_meta_cache: dict[str, tuple] = {}
         spot_by_cell: dict[str, dict[str, Any]] = {}
         bar_by_cell: dict[str, dict[str, Any]] = {}
-        all_reports: list[dict[str, Any]] = []
+        reports: list[dict[str, Any]] = []
 
         if not args.json:
             _log(f"== RUN {run_idx}: {run_dir} ==")
@@ -2856,7 +2864,7 @@ def main() -> None:
                     rep["best_cost"] = best_cost
                     rep["cost"] = cost
                     spot_by_cell[cell] = rep
-                    all_reports.append(rep)
+                    reports.append(rep)
                     _emit_report(
                         rep,
                         run_dir=run_dir,
@@ -2918,7 +2926,7 @@ def main() -> None:
                         rep["best_cost"] = best_cost
                         rep["cost"] = cost
                         bar_by_cell[cell] = rep
-                        all_reports.append(rep)
+                        reports.append(rep)
                         if multi_spec_plot:
                             overlay_by_cell[cell].append(rep)
                         _emit_report(
@@ -2942,7 +2950,7 @@ def main() -> None:
                         plot_reports_overlay(reps, out)
 
         if not args.json and spot_by_cell and bar_by_cell:
-            _print_polarity_compare(spot_by_cell, bar_by_cell)
+            _print_sign_compare(spot_by_cell, bar_by_cell)
 
         if args.json:
             print(json.dumps(
@@ -2950,7 +2958,7 @@ def main() -> None:
                     "run": run_dir,
                     "best_cost": best_cost,
                     "cost": cost,
-                    "reports": all_reports,
+                    "reports": reports,
                 },
                 indent=2,
             ))

@@ -2,6 +2,10 @@
 
 from __future__ import annotations
 
+from default_params import (
+    TRAIN_OPTIMIZATION_DEFAULT,
+)
+
 import os
 import time
 
@@ -35,26 +39,26 @@ def gt_affine_scalars_for_cell(params, cell_name, backend, session=None) -> tupl
     ``bias_gt`` / ``v_th_ca`` / ``a_ca`` hold sources when ``*_from_*`` flags
     are on. When ``bias_gt_from_v_onset``, do not add ``v_th``.
     """
-    from param_defaults import BIAS_GT_FROM_V_ONSET
+    from default_params import TRAIN_OPTIMIZATION_DEFAULT['bias_gt_from_v_onset']
     names = [str(n) for n in backend.network.cells]
     ci = names.index(str(cell_name))
     gs = params["a_gt"]
-    scale = float(gs[ci] if torch.is_tensor(gs) and gs.dim() > 0 else gs)
+    a_gt = float(gs[ci] if torch.is_tensor(gs) and gs.dim() > 0 else gs)
     gb = params["bias_gt"]
     bias = float(gb[ci] if torch.is_tensor(gb) and gb.dim() > 0 else gb)
     opts = (session.train_opts if session is not None else None) or {}
-    from_onset = bool(opts.get("bias_gt_from_v_onset", BIAS_GT_FROM_V_ONSET))
+    from_onset = bool(opts.get("bias_gt_from_v_onset", TRAIN_OPTIMIZATION_DEFAULT['bias_gt_from_v_onset']))
     if (not from_onset) and "v_th" in params:
         vt = params["v_th"]
         if torch.is_tensor(vt) and vt.dim() > 0:
             if int(vt.shape[0]) == int(backend.n_cells):
                 bias = bias + float(vt[ci])
             else:
-                m = backend.conn.node_cell == ci
+                m = backend.conn.node_cells == ci
                 bias = bias + float(vt[m].mean())
         else:
             bias = bias + float(vt if not torch.is_tensor(vt) else vt.item())
-    return scale, bias
+    return a_gt, bias
 
 
 def filter_plot_token(filter=None) -> str:
@@ -84,12 +88,12 @@ def cost_ylim(*curves, pct=99.0, pad=1.1, floor=1.0, log=False):
             chunks.append(v)
     if not chunks:
         return (floor, floor * 10.0) if log else (0.0, floor)
-    all_v = np.concatenate(chunks)
-    hi = float(np.percentile(all_v, pct))
+    vals = np.concatenate(chunks)
+    hi = float(np.percentile(vals, pct))
     yhi = max(hi * pad, floor)
     if not log:
         return 0.0, yhi
-    pos = all_v[all_v > 0]
+    pos = vals[vals > 0]
     if not pos.size:
         return floor, max(yhi, floor * 10.0)
     ylo = max(float(pos.min()) / pad, floor)
@@ -134,7 +138,7 @@ def params_for_types(nodes_by_name, param_by_name=None):
 
 
 def mark_spot(ax, t_onset, t_spot_end):
-    """White band for stimulus-on samples ``[t_onset, t_spot_end]`` (axes face is gray)."""
+    """White band for sti-on samples ``[t_onset, t_spot_end]`` (axes face is gray)."""
     if t_onset is None or t_spot_end is None:
         return
     t0 = int(t_onset)
@@ -147,32 +151,32 @@ def mark_spot(ax, t_onset, t_spot_end):
 
 def suppress_cost_std(session, task=None):
     """True when cost uses a single hex (no hex-mean STD band)."""
-    pack = session.primary_readout if task is None else session.pack_for(task)
+    pack = session.primary_pack if task is None else session.pack_for(task)
     return pack.cost_radius == 0
 
 
-def readout_center_mask(pack, backend):
+def pack_center_mask(pack, backend):
     """Boolean mask over pack cost entries included in the cost radius."""
-    readout = pack.readout_node.cpu().numpy()
-    if pack.spot_cost_radius is not None:
-        return np.round(pack.spot_cost_radius.cpu().numpy(), 6) == 0.0
+    entry_nodes = pack.entry_nodes.cpu().numpy()
+    if pack.entry_radii is not None:
+        return np.round(pack.entry_radii.cpu().numpy(), 6) == 0.0
     if backend.network is not None and pack.cost_radius is not None:
         import build_hex
         connectome = backend.network
         network_node_u = (
-            connectome.u.detach().cpu().numpy()
-            if hasattr(connectome.u, "detach")
-            else np.asarray(connectome.u)
+            connectome.us.detach().cpu().numpy()
+            if hasattr(connectome.us, "detach")
+            else np.asarray(connectome.us)
         )
         network_node_v = (
-            connectome.v.detach().cpu().numpy()
-            if hasattr(connectome.v, "detach")
-            else np.asarray(connectome.v)
+            connectome.vs.detach().cpu().numpy()
+            if hasattr(connectome.vs, "detach")
+            else np.asarray(connectome.vs)
         )
         return build_hex.inside_mask(
-            network_node_u[readout], network_node_v[readout], int(pack.cost_radius),
+            network_node_u[entry_nodes], network_node_v[entry_nodes], int(pack.cost_radius),
         )
-    return np.ones(readout.shape[0], dtype=bool)
+    return np.ones(entry_nodes.shape[0], dtype=bool)
 
 
 def std_from_traces(traces, single_hex=False):
@@ -256,7 +260,7 @@ def format_moving_bar_cell_cost_lines(cell, cost_parts, task_names):
 
 def network_hex_count(connectome):
     """Unique axial hexes on the connectome."""
-    return len({(int(hex_u), int(hex_v)) for hex_u, hex_v in zip(connectome.u, connectome.v)})
+    return len({(int(hex_u), int(hex_v)) for hex_u, hex_v in zip(connectome.us, connectome.vs)})
 
 
 def log_plot_elapsed(path, t0, **parts):
@@ -500,7 +504,7 @@ def plot_timecourse(
     (still never draws ``[0, pre_end)`` via line); otherwise gt is a solid
     post-onset line. Red v_readout always uses continuous pre/post lines: dashed
     pre when ``show_pre`` is true, solid after.
-    ``t_onset`` / ``t_spot_end``: white stimulus-on band ``[t_onset, t_spot_end]``.
+    ``t_onset`` / ``t_spot_end``: white sti-on band ``[t_onset, t_spot_end]``.
     Y-limits / ticks: matplotlib autoscale.
     """
     traces = list(traces or ())
@@ -959,7 +963,7 @@ def plot_cost(costs, path, *, costs_by_part=None, part_order=None):
             _apply_cost_yscale(ax, costs)
         else:
             ax.set_ylim(*cost_ylim(costs))
-        ax.set_title("total (weighted)")
+        ax.set_title("total (scaled)")
         ax.set_ylabel("cost [% gt power]")
         ax.grid(True, alpha=0.3, which='both' if log else 'major')
 
