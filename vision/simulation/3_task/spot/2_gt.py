@@ -1,15 +1,27 @@
 # -*- coding: utf-8 -*-
 """Spot paradigm GT numbers: RecF x ImpR traces (no network binding).
 
-Synthesizes the Medulla_Library RecF/ImpR library (bandpass/lowpass ImpR
-shaping -- gt-only, not ``neuron.filter_ca``). With ``filter==\"ca\"``, ImpR
-is Arenz digitized (``t=0`` at sti onset); RecF omits ``RF_SIGN``.
-``filter==\"none\"`` multiplies RecF by ``RF_SIGN``.
+All GT literals and helpers in this module are **owned here** — nothing is
+imported at runtime from legacy SimulationCode (Medulla_Library,
+blindschleiche_py3). Per-cell DoG RecF widths and ImpR HP/LP taus are
+hardcoded arrays indexed by :data:`GT_CELLS`; the ``filter=\"ca\"`` path also
+reads external CSVs under ``figure_digitization/arenz/``.
+
+``filter=\"none\"``: peak-normalized RecF ``(n_cell, RF_N_RADII)`` × bandpass/LP
+ImpR from :func:`spot_input_waveform`. DoG RecF rows are multiplied by
+``RF_SIGN``; Gruntman 2018 Fig. 2B direct RecF rows (T4a–T4d) use gain ratios
+at ``r=0..2`` and shared center ``tau_ms`` as LP (``IR_hp_ms=0``).
+
+``filter=\"ca\"``: DoG RecF without ``RF_SIGN``; ImpR from Arenz digitized CSV
+(``t=0`` at sti onset) when a row exists. Rows without Arenz ImpR stay zero.
+
+RecF holds peak-normalized samples at Euclidean radii ``0 .. RF_N_RADII-1``
+(``RecF(r) = raw(r) / max(|raw(0..RF_N_RADII-1)|)``; no ``x -= x[0]``).
+Fractional cost radii (e.g. ``sqrt(3)``) evaluate the same DoG at ``x = radius *
+RF_RADIUS_DEG`` with the integer-radius peak scale.
 
 Cost GT membership is gated by ``spot_gt_mode`` (``all`` | ``positive``) via
 :func:`spot_gt_active`; waveform × :func:`contrast_sign` only (dark = −1).
-Cost pack holds only active cells; plot model traces use the present gt-cell
-set (see figure).
 Sti drive is :func:`task.spot.input.spot_input_waveform`, shared with network
 ``i_sti``.
 
@@ -29,13 +41,29 @@ from task.spot.input import (
     spot_input_waveform,
 )
 
-# ImpR / RecF gt row order (13 gt cells).
 GT_CELLS: Tuple[str, ...] = (
     "L1", "L2", "L3", "L4", "L5", "Mi1", "Tm3", "Mi4", "Mi9", "Tm1", "Tm2", "Tm4", "Tm9",
+    "T4a", "T4b", "T4c", "T4d",
 )
 
 # Per-cell ON (+1) / OFF (−1); same order as ``GT_CELLS``.
-RF_SIGN = np.array([-1, -1, -1, -1, 1, 1, 1, 1, -1, -1, -1, -1, -1], dtype=np.int8)
+RF_SIGN = np.array(
+    [-1, -1, -1, -1, 1, 1, 1, 1, -1, -1, -1, -1, -1, 1, 1, 1, 1],
+    dtype=np.int8,
+)
+
+# Gruntman 2018 Fig. 2B location-shared LP fit (gruntman18_fit_lp_shared_location.csv).
+_GRUNTMAN_CENTER_GAIN_MV = 25.731779521277698
+_GRUNTMAN_RECF_R1 = (
+    (22.237813729937685 + 14.5102594676567) / 2.0 / _GRUNTMAN_CENTER_GAIN_MV
+)
+_GRUNTMAN_RECF_R2 = (
+    (17.38170393943792 + 6.269266224825205) / 2.0 / _GRUNTMAN_CENTER_GAIN_MV
+)
+_GRUNTMAN_RECF_ROW = np.array(
+    [1.0, _GRUNTMAN_RECF_R1, _GRUNTMAN_RECF_R2, 0.0, 0.0], dtype=np.float64,
+)
+_N_RECF_DOG = 13
 
 # Repo root: vision/simulation/3_task/spot/2_gt.py → parents[4].
 _ARENZ_DIR = Path(__file__).resolve().parents[4] / "figure_digitization" / "arenz"
@@ -60,24 +88,62 @@ def expand_gt_cells(names: Sequence[str]) -> Tuple[str, ...]:
     return tuple(out)
 
 
-# RecF sample grid: center at sample 22; one integer radius step = 5 samples.
-# Profile rt axis is Euclidean radius (0 .. RF_N_RADII-1), not a mirrored bin.
-_RF_CENTER_SAMPLE = 22
-_RF_SAMPLES_PER_COL = 5
-_RF_NSAMPLES = 45
+# RecF axis: Euclidean hex radius r → visual-field deg = r * RF_RADIUS_DEG.
 RF_CENTER_RADIUS = 0
 RF_N_RADII = 5
-RF_RADIUS_DEG = _RF_SAMPLES_PER_COL  # degrees per integer radius on RF plots
-# Gt-only ImpR shaping helpers (not the unused Ca filter). Inlined from the
-# old blindschleiche_py3 module so spot/gt owns this path alone.
+RF_RADIUS_DEG = 5.0
+
+RF_CENTER_WIDTH = np.array([6, 7, 6, 8, 7, 6, 12, 6, 6, 8, 8, 11, 7])
+RF_SURRND_WIDTH = np.array([41, 29, 15, 33, 31, 29, 7, 16, 24, 27, 31, 35, 24])
+RF_SURRND_SCALE = np.array(
+    [0.012, 0.013, 0.19, 0.046, 0.035, 0.022, 0.000, 0.132, 0.063, 0.040, 0.035, 0.054, 0.046]
+) * 5.0
+
+IR_hp_ms = np.array(
+    [391.0, 288.0, 0.0, 381.0, 127.0, 318.0, 260.0, 0.0, 0.0, 296.0, 153.0, 249.0, 0.0]
+    + [0.0, 0.0, 0.0, 0.0],
+    dtype=np.float64,
+)
+IR_lp_ms = np.array(
+    [38.0, 58.0, 54.0, 23.0, 42.0, 54.0, 27.0, 38.0, 77.0, 44.0, 14.0, 24.0, 107.0]
+    + [82.40496136373703, 82.40496136373703, 82.40496136373703, 82.40496136373703],
+    dtype=np.float64,
+)
 
 
-def _gauss1d(fwhm, rfsize):
-    myrange = rfsize / 2
-    sigma = fwhm / (2.0 * np.sqrt(2 * np.log(2)))
-    x = np.arange(-myrange, (myrange + 1), 1) * 1.0
-    z = np.exp(-x ** 2 / (2 * (sigma ** 2)))
-    return z / np.sum(z)
+def _gauss1d_at(fwhm: float, x_deg: float) -> float:
+    """Sum-normalized 1D Gaussian at offset ``x_deg`` from center (legacy grid)."""
+    sigma = fwhm / (2.0 * np.sqrt(2.0 * np.log(2)))
+    xs = np.arange(-22.0, 23.0, 1.0)
+    total = float(np.sum(np.exp(-xs ** 2 / (2.0 * sigma ** 2))))
+    if total == 0.0:
+        return 0.0
+    return float(np.exp(-float(x_deg) ** 2 / (2.0 * sigma ** 2)) / total)
+
+
+def _raw_signed_dog_at(cell_idx: int, radius: float, *, use_ca: bool) -> float:
+    x_deg = float(radius) * RF_RADIUS_DEG
+    center = _gauss1d_at(float(RF_CENTER_WIDTH[cell_idx]), x_deg)
+    surrnd = _gauss1d_at(float(RF_SURRND_WIDTH[cell_idx]), x_deg)
+    raw = center - float(RF_SURRND_SCALE[cell_idx]) * surrnd
+    if not use_ca:
+        raw *= float(RF_SIGN[cell_idx])
+    return raw
+
+
+def _build_recf_row(cell_idx: int, *, use_ca: bool) -> tuple[np.ndarray, float]:
+    if cell_idx >= _N_RECF_DOG:
+        if use_ca:
+            return np.zeros(RF_N_RADII, dtype=np.float64), 0.0
+        return _GRUNTMAN_RECF_ROW.copy(), 1.0
+    raw_r = np.array(
+        [_raw_signed_dog_at(cell_idx, r, use_ca=use_ca) for r in range(RF_N_RADII)],
+        dtype=np.float64,
+    )
+    peak = max(abs(float(np.max(raw_r))), abs(float(np.min(raw_r))))
+    if peak == 0.0:
+        return raw_r * 0.0, 0.0
+    return raw_r / peak, peak
 
 
 def _lowpass(x, tau_ms, *, delta_ms: float):
@@ -149,9 +215,11 @@ def _load_arenz_csv_traces(path: Path) -> Dict[str, Tuple[np.ndarray, np.ndarray
 
 
 def load_arenz_digitized_impr(*, t_onset, n_t, delta_ms: float) -> np.ndarray:
-    """Arenz digitized temporal gt ``(13, n_t)``; CSV ``t=0`` at ``t_onset``.
+    """Arenz digitized temporal gt ``(len(GT_CELLS), n_t)``; CSV ``t=0`` at ``t_onset``.
 
-    Pre-onset samples are 0. Post-onset times use ``(t - t_onset) * delta_ms``.
+    Rows are filled only for :data:`GT_CELLS` names present in the Arenz CSVs;
+    other rows stay zero. Pre-onset samples are 0. Post-onset times use
+    ``(t - t_onset) * delta_ms``.
     """
     t_onset = int(t_onset)
     n_t = int(n_t)
@@ -161,7 +229,7 @@ def load_arenz_digitized_impr(*, t_onset, n_t, delta_ms: float) -> np.ndarray:
     traces = {}
     traces.update(_load_arenz_csv_traces(ARENZ_L_DIGITIZED_CSV))
     traces.update(_load_arenz_csv_traces(ARENZ_4_DIGITIZED_CSV))
-    missing = [c for c in GT_CELLS if c not in traces]
+    missing = [GT_CELLS[i] for i in range(_N_RECF_DOG) if GT_CELLS[i] not in traces]
     if missing:
         raise ValueError(f"Arenz digitized CSV missing cells {missing}")
     out = np.zeros((len(GT_CELLS), n_t), dtype=np.float64)
@@ -169,6 +237,8 @@ def load_arenz_digitized_impr(*, t_onset, n_t, delta_ms: float) -> np.ndarray:
         return out
     t_rel_s = np.arange(n_t - t_onset, dtype=np.float64) * (delta_ms / 1000.0)
     for i, cell in enumerate(GT_CELLS):
+        if cell not in traces:
+            continue
         t_csv, gt = traces[cell]
         out[i, t_onset:] = np.interp(t_rel_s, t_csv, gt, left=gt[0], right=gt[-1])
     return out
@@ -194,14 +264,15 @@ def spot_gt_active(spot_gt_mode: str, contrast: str, rf_sign: int) -> bool:
 
 
 def load_RecF_ImpR(*, t_onset=None, n_t=None, ms_spot=None, delta_ms: float, filter="none"):
-    """Return ``(RecF_gt, ImpR_gt)`` for the 13 gt cells.
+    """Return ``(RecF_gt, RecF_peak_scale, ImpR_gt)`` for ``GT_CELLS``.
 
-    Shapes: ``RecF_gt`` ``(13, 45)``; ``ImpR_gt`` ``(13, n_t)``. The
-    drive is :func:`task.spot.input.spot_input_waveform` (step or finite spot).
-    ImpR filter taus are in ms (scaled by ``delta_ms``); delay is in samples.
-    With ``filter==\"ca\"``, ImpR is Arenz digitized (``t=0`` at onset);
-    RecF keeps DoG radius signs but omits cell ``RF_SIGN`` (cost membership via
-    :func:`spot_gt_active`; waveform via :func:`contrast_sign`).
+    Shapes: ``RecF_gt`` ``(n_cell, RF_N_RADII)``; ``RecF_peak_scale`` ``(n_cell,)``;
+    ``ImpR_gt`` ``(n_cell, n_t)``.
+
+    ``filter=\"none\"``: peak-normalized RecF; ImpR =
+    ``normalize_gt(bandpass(u, IR_hp_ms, IR_lp_ms))`` with ``_IMPR_SHIFT``.
+
+    ``filter=\"ca\"``: DoG RecF without ``RF_SIGN``; Arenz digitized ImpR when present.
     """
     if t_onset is None or n_t is None:
         raise ValueError("load_RecF_ImpR requires t_onset and n_t")
@@ -213,31 +284,15 @@ def load_RecF_ImpR(*, t_onset=None, n_t=None, ms_spot=None, delta_ms: float, fil
     n_cells = len(GT_CELLS)
     use_ca = str(filter) == "ca"
 
-    RF_center_width = np.array([6, 7, 6, 8, 7, 6, 12, 6, 6, 8, 8, 11, 7])
-    RF_surrnd_width = np.array([41, 29, 15, 33, 31, 29, 7, 16, 24, 27, 31, 35, 24])
-    RF_surrnd_scale = np.array(
-        [0.012, 0.013, 0.19, 0.046, 0.035, 0.022, 0.000, 0.132, 0.063, 0.040, 0.035, 0.054, 0.046]
-    ) * 5.0
-
-    RecF_gt = np.zeros((n_cells, 45))
+    RecF_gt = np.zeros((n_cells, RF_N_RADII))
+    RecF_peak_scale = np.zeros(n_cells)
     for i in range(n_cells):
-        center = _gauss1d(RF_center_width[i], 44)
-        surrnd = _gauss1d(RF_surrnd_width[i], 44)
-        dog = center - RF_surrnd_scale[i] * surrnd
-        RecF_gt[i] = normalize_gt(dog if use_ca else dog * float(RF_SIGN[i]))
+        RecF_gt[i], RecF_peak_scale[i] = _build_recf_row(i, use_ca=use_ca)
 
     if use_ca:
-        return RecF_gt, load_arenz_digitized_impr(
+        return RecF_gt, RecF_peak_scale, load_arenz_digitized_impr(
             t_onset=t_onset, n_t=n_t, delta_ms=delta_ms,
         )
-
-    # ImpR HP / LP time constants (ms).
-    IR_hp_ms = np.array(
-        [391.0, 288.0, 0.0, 381.0, 127.0, 318.0, 260.0, 0.0, 0.0, 296.0, 153.0, 249.0, 0.0]
-    )
-    IR_lp_ms = np.array(
-        [38.0, 58.0, 54.0, 23.0, 42.0, 54.0, 27.0, 38.0, 77.0, 44.0, 14.0, 24.0, 107.0]
-    )
 
     u = spot_input_waveform(t_onset, n_t, ms_spot, delta_ms=delta_ms)
     u = u / np.max(u)
@@ -249,18 +304,17 @@ def load_RecF_ImpR(*, t_onset=None, n_t=None, ms_spot=None, delta_ms: float, fil
             _IMPR_SHIFT,
         )
 
-    return RecF_gt, ImpR_gt
+    return RecF_gt, RecF_peak_scale, ImpR_gt
 
 
 def _recf_impr_rt(RecF_gt: np.ndarray, ImpR_gt: np.ndarray) -> np.ndarray:
-    """``(n_cells, RF_N_RADII, n_t)`` = RecF sample × ImpR (no membership gate)."""
+    """``(n_cells, RF_N_RADII, n_t)`` = RecF(r) × ImpR (no membership gate)."""
     mt = ImpR_gt.shape[1]
     n_cells = RecF_gt.shape[0]
     gt = np.zeros((n_cells, RF_N_RADII, mt))
     for i in range(n_cells):
         for radius in range(RF_N_RADII):
-            sample = _RF_CENTER_SAMPLE + _RF_SAMPLES_PER_COL * radius
-            gt[i, radius] = RecF_gt[i, sample] * ImpR_gt[i]
+            gt[i, radius] = RecF_gt[i, radius] * ImpR_gt[i]
     return gt
 
 
@@ -275,7 +329,7 @@ def _recf_gt_rt(
     spot_gt_mode: str = "all",
 ) -> np.ndarray:
     """Spatial×temporal rt; inactive rows (see :func:`spot_gt_active`) are zero."""
-    RecF_gt, ImpR_gt = load_RecF_ImpR(
+    RecF_gt, _RecF_peak_scale, ImpR_gt = load_RecF_ImpR(
         t_onset=t_onset, n_t=n_t, ms_spot=ms_spot, delta_ms=delta_ms, filter=filter,
     )
     gts = _recf_impr_rt(RecF_gt, ImpR_gt)
@@ -322,18 +376,28 @@ def load_RecF_gt_dark(
     )
 
 
-def _recf_at(recf_row: np.ndarray, radius: float) -> float:
-    idx = _RF_CENTER_SAMPLE + _RF_SAMPLES_PER_COL * radius
-    idx = min(max(idx, 0.0), _RF_NSAMPLES - 1)
-    return float(np.interp(idx, np.arange(_RF_NSAMPLES), recf_row))
+def _recf_at_from_row(recf_row: np.ndarray, radius: float) -> float:
+    x = float(radius)
+    if x <= 0.0:
+        return float(recf_row[0])
+    if x >= RF_N_RADII - 1:
+        return float(recf_row[RF_N_RADII - 1])
+    i0 = int(np.floor(x))
+    i1 = min(i0 + 1, RF_N_RADII - 1)
+    frac = x - i0
+    return float((1.0 - frac) * recf_row[i0] + frac * recf_row[i1])
 
 
-def _spot_readout_a_radius(recf_row: np.ndarray, radius: float, spot_radius: float) -> float:
+def _spot_readout_a_radius(
+    recf_row: np.ndarray,
+    radius: float,
+    spot_radius: float,
+) -> float:
     """RecF ``a_radius`` at Euclidean ``radius`` (radius-1 folds r=2 into r=1)."""
     r = round(float(radius), 6)
     if spot_radius_folds_r2_into_r1(spot_radius):
         if r == 1.0:
-            return _recf_at(recf_row, 1.0) + _recf_at(recf_row, 2.0)
+            return _recf_at_from_row(recf_row, 1.0) + _recf_at_from_row(recf_row, 2.0)
         if r == 2.0:
             return 0.0
-    return _recf_at(recf_row, r)
+    return _recf_at_from_row(recf_row, radius)

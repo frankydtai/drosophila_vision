@@ -518,8 +518,8 @@ def hex_first_sti_t(
 ) -> int:
     """First t where a hex i_sti differs from baseline (``t_first_sti``)."""
     curr = np.asarray(i_sti_hex, dtype=np.float64).reshape(-1)
-    active = ~np.isclose(curr, float(i_baseline), atol=atol, rtol=0.0)
-    idx = np.flatnonzero(active)
+    mask = ~np.isclose(curr, float(i_baseline), atol=atol, rtol=0.0)
+    idx = np.flatnonzero(mask)
     if idx.size == 0:
         raise ValueError("hex has no non-baseline sti sample")
     return int(idx[0])

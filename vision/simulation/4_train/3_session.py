@@ -19,7 +19,8 @@ cost compares the pack to ``a_gt * gts + bias_gt``. Schema includes
 ``filter=ca``) — same value appears in ``param.csv``. Spot ImpR uses Arenz digitized
 when ``filter=ca``. ``spot_gt_mode`` (``all`` | ``pos``) gates cost GT via
 :func:`task.spot.gt.spot_gt_active`; dark multiplies by :func:`task.spot.gt.contrast_sign`.
-Cost pack holds only active cells; plot model ca uses the present gt-cell set.
+Gt cells are :func:`network.construction.active_gt_cells`; cost pack applies
+:func:`task.spot.gt.spot_gt_active` per cell.
 
 Branch-resolution contract (must keep):
 
@@ -665,8 +666,6 @@ def _build_network_spot_task(
         opts, T.entry_radii, device=dev, sim_dtype=ctx.sim_dtype,
     )
     sti_opts = dict(opts)
-    if "present_gts" in T.info:
-        sti_opts["gt_cells"] = list(T.info["present_gts"])
     # Replace center-only bake from build_spot_gt: center @1 in i_sti + a_sti_radius radii.
     i_baseline = float(opts[_SPOT_BASELINE_KEY])
     spot = spot_from_opts(connectome, sti_opts=opts)

@@ -125,9 +125,9 @@ def _session_z_at_delta_ms(base_opts, model, named, cell_names, pair_names, dt_m
 
 
 def _plot(traces_v, traces_ca, traces_v50, dt10, dt50, save, show):
-    present = [str(n) for n in cell_list if str(n) in traces_v]
-    groups = [np.array(row) for row in cell_family_rows(present)]
-    names = cell_names_in_family_order(present)
+    active = [str(n) for n in cell_list if str(n) in traces_v]
+    groups = [np.array(row) for row in cell_family_rows(active)]
+    names = cell_names_in_family_order(active)
     nrows = len(groups)
     ncols = max(len(cell_group) for cell_group in groups)
     fig, axes = plt.subplots(

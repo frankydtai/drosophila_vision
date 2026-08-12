@@ -84,8 +84,8 @@ def _plot(
     v_rt, v_ca_rt, ca_rt, gt_ca_rt, *,
     t_onset, delta_ms, ms_spot, tau_ca, a_ca, v_th_ca, impr_offset, save, show,
 ):
-    present = [str(n) for n in GT_CELLS]
-    groups = [np.array(row) for row in cell_order_rows(present)]
+    active = [str(n) for n in GT_CELLS]
+    groups = [np.array(row) for row in cell_order_rows(active)]
     nrows = len(groups)
     ncols = max(len(cell_group) for cell_group in groups)
     fig, axes = plt.subplots(
@@ -148,8 +148,8 @@ def _plot_tau_sweep(
     t_onset, delta_ms, ms_spot, a_ca, v_th_ca, impr_offset, save, show,
 ):
     """``ca`` for each ``tau_ca`` in ``tau_list``, plus ``gt_ca``."""
-    present = [str(n) for n in GT_CELLS]
-    groups = [np.array(row) for row in cell_order_rows(present)]
+    active = [str(n) for n in GT_CELLS]
+    groups = [np.array(row) for row in cell_order_rows(active)]
     nrows = len(groups)
     ncols = max(len(cell_group) for cell_group in groups)
     fig, axes = plt.subplots(

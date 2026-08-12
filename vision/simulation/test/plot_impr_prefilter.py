@@ -105,9 +105,9 @@ def _first_change(tr: np.ndarray) -> int | None:
 def _plot(
     with_lp, without_lp, u, s_lp, *, t_on, dt_ms, ms_pulse, prefilter_ms, save, show,
 ):
-    present = [str(n) for n in cell_list]
-    groups = [np.array(row) for row in cell_order_rows(present)]
-    names = cell_names_in_order(present)
+    active = [str(n) for n in cell_list]
+    groups = [np.array(row) for row in cell_order_rows(active)]
+    names = cell_names_in_order(active)
     nrows = len(groups)
     ncols = max(len(cell_group) for cell_group in groups)
     fig = plt.figure(figsize=(2.2 * ncols, 1.6 + 2.0 * nrows))

@@ -147,9 +147,9 @@ def _plot_pulse_grid(
     title: str,
     show: bool = False,
 ) -> None:
-    present = [str(n) for n in ml.cell_list if str(n) not in EXCLUDE_CELLS]
-    groups = [np.array(row) for row in cell_family_rows(present)]
-    names = cell_names_in_family_order(present)
+    active = [str(n) for n in ml.cell_list if str(n) not in EXCLUDE_CELLS]
+    groups = [np.array(row) for row in cell_family_rows(active)]
+    names = cell_names_in_family_order(active)
     n_t = IMPULSE_MAXTIME
     t = np.arange(n_t)
     ylo, yhi = TRACE_YLIM

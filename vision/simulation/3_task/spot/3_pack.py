@@ -18,7 +18,7 @@ from import_bootstrap import parse_comma_list
 from network.construction import (
     hex2gt,
     hex_in_cost_radius,
-    present_gt_cells,
+    active_gt_cells,
     normalize_gt_cells,
     node_cell_names,
 )
@@ -374,7 +374,7 @@ def build_spot_gt(
             f"spot gt n_t={n_t_gt} exceeds forward n_t={n_t} "
             f"(ms_response={ms_response:g}, t_onset={t_onset})"
         )
-    recf_gt, impr_gt = load_RecF_ImpR(
+    recf_gt, recf_peak_scale, impr_gt = load_RecF_ImpR(
         t_onset=t_onset, n_t=n_t_gt, ms_spot=ms_spot, delta_ms=delta_ms,
         filter=filter,
     )
@@ -395,9 +395,7 @@ def build_spot_gt(
         fully_inside=fully_inside,
     )
     names = node_cell_names(connectome)
-    present = present_gt_cells(
-        gt_cells, GT_CELLS, connectome.cells, context="spot",
-    )
+    active = active_gt_cells(gt_cells, GT_CELLS, connectome.cells, context="spot")
 
     batches = spot_sti_batches(spot)
     n_batch = len(batches)
@@ -437,11 +435,13 @@ def build_spot_gt(
         )
         if w == 0.0:
             continue
-        for rt in present:
+        for rt in active:
+            gt_idx = gt_type_idx[rt]
+            if str(filter) == "ca" and float(recf_peak_scale[gt_idx]) == 0.0:
+                continue
             nodes = hex2gt(connectome, mu, mv, rt, names)
             if len(nodes) == 0:
                 continue
-            gt_idx = gt_type_idx[rt]
             rf_sign = int(RF_SIGN[gt_idx])
             if not spot_gt_active(spot_gt_mode, contrast, rf_sign):
                 continue
@@ -494,7 +494,7 @@ def build_spot_gt(
         "fully_inside": bool(fully_inside),
         "spot_cost_radius_scale": spot_cost_radius_scale,
         "spot_cost_radii": list(cost_radii),
-        "present_gts": present,
+        "active_gts": active,
         "i_baseline_spot": float(i_baseline),
         "i_bright_spot": float(i_bright_spot),
         "i_dark_spot": float(i_dark_spot),

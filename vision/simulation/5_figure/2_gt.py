@@ -17,14 +17,14 @@ from task.spot.gt import (
     load_RecF_gt_dark,
     spot_gt_active,
 )
-from network.construction import cells_in_order
+from network.construction import active_gt_cells, cells_in_order, gt_cells_from_opts
 
 _VALID_CONTRASTS = ("bright", "dark")
 
 
-def plot_cells_in_order(present):
+def plot_cells_in_order(active):
     """Flat cell order from :func:`network.construction.cells_in_order`."""
-    return cells_in_order(present)
+    return cells_in_order(active)
 
 
 def _cells_for_nodes(session, node_indices):
@@ -54,17 +54,24 @@ def pack_cells(session, task=None):
     return tuple(out)
 
 
-def present_spot_gt_cells(session, task=None):
+def active_spot_gt_cells(session, task=None):
     """Configured spot gt cells (sti opts), not cost-pack-only.
 
-    Falls back to :func:`pack_cells` when opts omit ``gt_cells``.
+    Falls back to :data:`GT_CELLS` when opts omit ``gt_cells``.
     """
     pack = session.primary_pack if task is None else session.pack_for(task)
     opts = dict((session.train_opts or {}).get(f"{pack.name}_sti_opts") or {})
-    raw = opts.get("gt_cells")
-    if raw:
-        return tuple(str(name) for name in raw)
-    return pack_cells(session, pack.name)
+    connectome = session.backend.network
+    if connectome is None:
+        raise ValueError("active_spot_gt_cells requires session.backend.network")
+    return tuple(
+        active_gt_cells(
+            gt_cells_from_opts(opts),
+            GT_CELLS,
+            connectome.cells,
+            context="spot plot",
+        )
+    )
 
 
 def contrast_for_task(task) -> str:

@@ -26,7 +26,7 @@ Forbidden: `gain` (including `GAIN_*`, prose “gain param”); do not name thes
 
 ### `all`
 
-Definition: Universal-quantifier / leftover-bucket token — not a collection prefix. Allowed only as: (1) train-mode leftover key ``'all'`` (nodes not claimed by an explicit mode bucket); (2) CLI universal apply such as ``all_param`` (one mode text applied to every param name); (3) boolean predicates whose head is not a collection noun (``all_present``, ``all_columned``).
+Definition: Universal-quantifier / leftover-bucket token — not a collection prefix. Allowed only as: (1) train-mode leftover key ``'all'`` (nodes not claimed by an explicit mode bucket); (2) CLI universal apply such as ``all_param`` (one mode text applied to every param name); (3) boolean predicates whose head is not a collection noun (``all_active``, ``all_columned``).
 Example: `train_modes["bias_gt"] = parse_train_mode_text("frozen=all")`, `all_param`, `all_mode`, `all_init`, `all_idx`
 Forbidden: as a prefix on collection / bag names — never `all_hexes`, `all_nodes`, `all_params`, `all_gt`, `all_v`, `all_traces`, …. Use the plural noun alone (`hexes`, `nodes`, `gts`, `vals`, `traces`), or `run_params` / `run_adams` for per-run bags. Do not write `all_` + plural (`all_stis`) or `all_` + singular collection (`all_sti`).
 
@@ -351,6 +351,14 @@ Example: `for key, val in overrides.items(): out[key] = float(val)`
 Definition: Signed synaptic strength on a network `edge` — `edge_weights` from `syn_sign * n_syn` (`per_cell`) or `syn_sign` (`per_edge`), then split into excitatory/inhibitory drives (further multiplied by `a_syn_exc` / `a_syn_inh`).
 Example: `edge_weights`, `ScatterConn(..., edge_weights=edge_weights, a_syn_exc=..., a_syn_inh=...)`
 Forbidden: do not use `weight` for cost / DSI / RF multipliers — use `scale`. Do not use `weight` for network schema gains — use `a_*`. Do not use `factor` or `gain` as substitutes. Column-assignment vote mode is `vote_by_syn` (not `weight_by_syn`). Library `fontweight` may remain.
+
+## Adjectives (A-Z)
+
+### `active`
+
+Definition: Modifier marking membership in the subset picked from a candidate pool — the item participates in the current scope. Realized as a list/set/tuple, predicate, or index list, not as a dense per-element 0/1 boolean array. Compound as `<noun>_active`, `active_<noun>`, or `_active_<noun>_…` in function names.
+Example: `active_gt_cells(...)`, `spot_gt_active(...)`, `_pack_active_batch_indices(...)`, `active_stis_for_subtype(...)`, `all_active`
+Forbidden: `present` for this role. Do not use `active` where the value is a dense boolean 0/1 array along an axis — use `mask` in `<axis>_mask` compounds instead. Do not combine `active` and `mask` in one identifier (`*_active_*_mask`).
 
 ## Verbs (A-Z)
 

@@ -30,7 +30,7 @@ Forbidden: `gain` (including `GAIN_*`, prose “gain param”); do not name thes
 
 ### `all`
 
-Definition: Universal-quantifier / leftover-bucket token — not a collection prefix. Allowed only as: (1) train-mode leftover key ``'all'`` (nodes not claimed by an explicit mode bucket); (2) CLI universal apply such as ``all_param`` (one mode text applied to every param name); (3) boolean predicates whose head is not a collection noun (``all_present``, ``all_columned``).
+Definition: Universal-quantifier / leftover-bucket token — not a collection prefix. Allowed only as: (1) train-mode leftover key ``'all'`` (nodes not claimed by an explicit mode bucket); (2) CLI universal apply such as ``all_param`` (one mode text applied to every param name); (3) boolean predicates whose head is not a collection noun (``all_active``, ``all_columned``).
 Example: `train_modes["bias_gt"] = parse_train_mode_text("frozen=all")`, `all_param`, `all_mode`, `all_init`, `all_idx`
 Forbidden: as a prefix on collection / bag names — never `all_hexes`, `all_nodes`, `all_params`, `all_gt`, `all_v`, `all_traces`, …. Use the plural noun alone (`hexes`, `nodes`, `gts`, `vals`, `traces`), or `run_params` / `run_adams` for per-run bags. Do not write `all_` + plural (`all_stis`) or `all_` + singular collection (`all_sti`).
 
@@ -92,7 +92,7 @@ Forbidden: do not use `syn` to refer to a network edge or its idx. `edge` is a n
 
 ### `entry` / `entries`
 
-Definition: One cost comparison unit in a `Pack`: a (cell × radius) or (cell × PD/ND) record. Pack aligns bags `entry_nodes`, `gts`, `cost_scales`, `entry_batches`, `entry_radii` (one slot per entry; `entry_radii` is spot Euclidean). The cost MSE is a scaled sum over all active entries.
+Definition: One cost comparison unit in a `Pack`: a (cell × radius) or (cell × PD/ND) record. Pack aligns bags `entry_nodes`, `gts`, `cost_scales`, `entry_batches`, `entry_radii` (one slot per entry; `entry_radii` is spot Euclidean). The cost MSE is a scaled sum over entries with ``entry_mask`` True.
 Example: `entries = _active_entry_indices(work, session, batch_idx=batch_idx)`
 Forbidden: do not use `node` to refer to a cost entry. `entry` is a cost-layer record; `node` is a network neuron idx.
 
@@ -173,7 +173,7 @@ Forbidden: `_to_` in map function / attribute / local names (`node_to_cell`, `id
 
 Definition: A boolean or 0/1 selector along an axis marking which positions participate (cost `entry`, time sample, sti radius slot, node, hex, …). Compound as `<axis>_mask` (`entry_mask`, `cost_time_mask`, `a_sti_radius_mask`, `hex_mask`).
 Example: `a_sti_radius_mask`, `build_a_sti_radius_mask(...)`, `pack.cost_time_mask`, `entry_mask = …`, `mask = (fs >= min_osc_f) & (fs <= max_osc_f)`
-Forbidden: `gate` — do not use `gate` for this participation selector (`a_sti_radius_gate`, “gated slots”). Biophysical channel gating kinetics (e.g. i_h open-state ODEs `_gate_ss`, `_i_h_gate_step`) are a different concept and may keep `gate`.
+Forbidden: `gate` — do not use `gate` for this participation selector (`a_sti_radius_gate`, “gated slots”). Biophysical channel gating kinetics (e.g. i_h open-state ODEs `_gate_ss`, `_i_h_gate_step`) are a different concept and may keep `gate`. Do not use `active` or `present` for a dense per-element boolean array — use `mask`. Do not combine `active` and `mask` in one identifier.
 
 ### `mode` / `modes`
 
@@ -233,7 +233,7 @@ Example: `p["a_gt"]` (a parameter entry used during cost computation)
 
 ### `part` / `parts`
 
-Definition: One named sub-cost of the total train cost, identified by a `part_key` string (e.g. `"spot_bright_R8_r0"`, `"moving_bar_bright_PD"`) and holding its own scalar MSE tensor. Multiple cost `entry` records sharing the same `part_key` are accumulated via `part_indices` into one `part`. The total cost is `Σ W·part / Σ W` over all active parts.
+Definition: One named sub-cost of the total train cost, identified by a `part_key` string (e.g. `"spot_bright_R8_r0"`, `"moving_bar_bright_PD"`) and holding its own scalar MSE tensor. Multiple cost `entry` records sharing the same `part_key` are accumulated via `part_indices` into one `part`. The total cost is `Σ W·part / Σ W` over parts with non-zero scale.
 Example: `parts[part_key] = part` in `calc_cost_parts`
 
 ### `radius` / `radii`
@@ -330,7 +330,7 @@ Example: `for name in session.tasks: ...`
 
 ### `total`
 
-Definition: The single scaled overall train cost scalar — ``Σ W·part / Σ W`` over all active parts (``W`` from `part_cost_scales` / `_part_scale`) — and plot titles/curves that refer to that scalar only.
+Definition: The single scaled overall train cost scalar — ``Σ W·part / Σ W`` over parts with non-zero scale (``W`` from `part_cost_scales` / `_part_scale`) — and plot titles/curves that refer to that scalar only.
 Example: `total = _scaled_cost_from_parts(parts, session)`, `_last_total`, `"total (scaled)"` on the cost curve
 Forbidden: do not use for cardinalities (`n_*`), accumulated value bags (`sums`), plot scope/all traces, durations, or sidecar field labels.
 
@@ -355,6 +355,14 @@ Example: `for key, val in overrides.items(): out[key] = float(val)`
 Definition: Signed synaptic strength on a network `edge` — `edge_weights` from `syn_sign * n_syn` (`per_cell`) or `syn_sign` (`per_edge`), then split into excitatory/inhibitory drives (further multiplied by `a_syn_exc` / `a_syn_inh`).
 Example: `edge_weights`, `ScatterConn(..., edge_weights=edge_weights, a_syn_exc=..., a_syn_inh=...)`
 Forbidden: do not use `weight` for cost / DSI / RF multipliers — use `scale`. Do not use `weight` for network schema gains — use `a_*`. Do not use `factor` or `gain` as substitutes. Column-assignment vote mode is `vote_by_syn` (not `weight_by_syn`). Library `fontweight` may remain.
+
+## Adjectives (A-Z)
+
+### `active`
+
+Definition: Modifier marking membership in the subset picked from a candidate pool — the item participates in the current scope. Realized as a list/set/tuple, predicate, or index list, not as a dense per-element 0/1 boolean array. Compound as `<noun>_active`, `active_<noun>`, or `_active_<noun>_…` in function names.
+Example: `active_gt_cells(...)`, `spot_gt_active(...)`, `_pack_active_batch_indices(...)`, `active_stis_for_subtype(...)`, `all_active`
+Forbidden: `present` for this role. Do not use `active` where the value is a dense boolean 0/1 array along an axis — use `mask` in `<axis>_mask` compounds instead. Do not combine `active` and `mask` in one identifier (`*_active_*_mask`).
 
 ## Verbs (A-Z)
 

@@ -1,7 +1,7 @@
 #!/bin/bash
 #SBATCH --job-name=run
 #SBATCH --account=punim0477
-#SBATCH --partition=gpu-a100
+#SBATCH --partition=gpu-l40s
 #SBATCH --qos=publicgpu
 #SBATCH --gres=gpu:1
 #SBATCH --nodes=1
@@ -39,5 +39,5 @@ pprint(params, sort_dicts=False, width=120)
 PY
 echo "==== end default_params ===="
 # Sorted N_name layout: import_bootstrap via venv .pth; train via run.py (not -m training.driver).
-"${PYTHON}" -u run_init_from.py --n-iter 100 --filter ca
+"${PYTHON}" -u run.py --n-iter 300 --a-h init.L1,L2,L4,L5=0.5
 

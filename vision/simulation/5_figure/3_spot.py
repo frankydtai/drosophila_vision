@@ -22,7 +22,7 @@ from neuron.param import t_from_ms, t_abs_from_ms, ms_from_t
 from figure.gt import (
     contrast_linestyle,
     contrast_order,
-    present_spot_gt_cells,
+    active_spot_gt_cells,
     plot_cells_in_order,
     spot_gt_rts,
 )
@@ -588,11 +588,11 @@ def _plot_row_idxs_from_cell_plot_rows(cell_plot_rows_list, names):
 
 
 def _spot_readout_gt_view(readout):
-    """Gt figure rows: configured present gt cells (not cost-pack-only)."""
+    """Gt figure rows: configured active gt cells (not cost-pack-only)."""
     session = readout.session
-    present = present_spot_gt_cells(session, session.primary_pack.name)
-    cell_plot_rows_list = [np.array(plot_row) for plot_row in cell_plot_rows(present)]
-    names = cells_in_order(present)
+    active = active_spot_gt_cells(session, session.primary_pack.name)
+    cell_plot_rows_list = [np.array(plot_row) for plot_row in cell_plot_rows(active)]
+    names = cells_in_order(active)
     by_name = {c['name']: c for c in readout.cells}
     cells = [by_name[n] for n in names if n in by_name]
     return SpotTraceReadout(
@@ -751,9 +751,9 @@ def _forward_spot_readout(
     opts = dict((session.train_opts or {}).get(f"{pack.name}_sti_opts") or {})
     spot = spot_from_opts(connectome, sti_opts=opts)
     batches = spot_sti_batches(spot)
-    present = plot_cells_in_order(connectome.cells)
-    cell_plot_rows_list = [np.array(plot_row) for plot_row in cell_plot_rows(present)]
-    names = cells_in_order(present)
+    active = plot_cells_in_order(connectome.cells)
+    cell_plot_rows_list = [np.array(plot_row) for plot_row in cell_plot_rows(active)]
+    names = cells_in_order(active)
 
     (
         batch_idx, node_idx, _radius, type_idx, _sti_u, _sti_v, du, dv, center_entry_mask,
@@ -1153,7 +1153,7 @@ def _plot_spot_figure(
 
 
 def plot_network_spot_gt(path, *, readouts, title, gt_rts=None, cost_parts=None):
-    """Draw gt figure (present gt cells; model ca for all present)."""
+    """Draw gt figure (active gt cells; model ca for all active)."""
     views = {c: _spot_readout_gt_view(b) for c, b in readouts.items()}
     _plot_spot_figure(
         path,

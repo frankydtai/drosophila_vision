@@ -372,7 +372,7 @@ def _pack_has_active_mse(pack: Pack, session: TrainSession) -> bool:
     return _part_scale(session, pack.name) != 0.0
 
 
-def _mse_active_entry_mask(pack: Pack, session: TrainSession) -> torch.Tensor:
+def _mse_entry_mask(pack: Pack, session: TrainSession) -> torch.Tensor:
     """Boolean mask over cost entries with non-zero PD/ND (or pack) scale."""
     n = int(pack.entry_batches.shape[0])
     dev = pack.entry_batches.device
@@ -388,7 +388,7 @@ def _mse_active_entry_mask(pack: Pack, session: TrainSession) -> torch.Tensor:
     return torch.full((n,), on, dtype=torch.bool, device=dev)
 
 
-def _dsi_active_entry_mask(pack: Pack, session: TrainSession) -> torch.Tensor:
+def _dsi_entry_mask(pack: Pack, session: TrainSession) -> torch.Tensor:
     """Boolean mask over cost entries needed by a non-zero DSI scale."""
     n = int(pack.entry_batches.shape[0])
     dev = pack.entry_batches.device
@@ -407,7 +407,7 @@ def _dsi_active_entry_mask(pack: Pack, session: TrainSession) -> torch.Tensor:
 
 def _pack_active_batch_indices(pack: Pack, session: TrainSession) -> Tuple[int, ...]:
     """Stimulus batch indices with at least one non-zero-scale cost node."""
-    entry_mask = _mse_active_entry_mask(pack, session) | _dsi_active_entry_mask(pack, session)
+    entry_mask = _mse_entry_mask(pack, session) | _dsi_entry_mask(pack, session)
     if not bool(entry_mask.any()):
         return ()
     batches = pack.entry_batches[entry_mask].unique(sorted=True)
@@ -419,12 +419,12 @@ def _active_entry_indices(
     session: TrainSession,
     batch_idx: Optional[int] = None,
 ) -> Optional[torch.Tensor]:
-    keep = _mse_active_entry_mask(pack, session) | _dsi_active_entry_mask(pack, session)
+    entry_mask = _mse_entry_mask(pack, session) | _dsi_entry_mask(pack, session)
     if batch_idx is not None:
-        keep = keep & (pack.entry_batches == int(batch_idx))
-    if not bool(keep.any()):
+        entry_mask = entry_mask & (pack.entry_batches == int(batch_idx))
+    if not bool(entry_mask.any()):
         return None
-    return torch.nonzero(keep, as_tuple=False).reshape(-1)
+    return torch.nonzero(entry_mask, as_tuple=False).reshape(-1)
 
 
 def _pack_entry_fields(

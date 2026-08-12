@@ -50,7 +50,7 @@ def _i_h_gate_step(
     delta_ms: float,
     h_g_max: float,
 ):
-    """Advance i_h gate states and channel conductances for active hexes only.
+    """Advance i_h gate states and channel conductances for masked hexes only.
 
     Gate ODE uses explicit Euler regardless of membrane ``euler``.
     """
@@ -90,20 +90,20 @@ def update_v(
     """One borst step; membrane / reversal scalars are required kwargs."""
     euler = expand_euler(euler)
     conn = backend.conn
-    i_h_active = (a_h + a_h_rev) != 0
+    i_h_mask = (a_h + a_h_rev) != 0
     g_h = u.new_zeros(u.shape)
     g_h_rev = u_rev.new_zeros(u_rev.shape)
     i_h_kw_common = dict(delta_ms=delta_ms, h_g_max=h_g_max)
-    if i_h_active.any():
+    if i_h_mask.any():
         i_h_kw = dict(
             v_mid_h_g=v_mid_h_g, h_slope=h_slope, v_mid_h_tau=v_mid_h_tau,
             v_mid_h_g_rev=v_mid_h_g_rev, h_slope_rev=h_slope_rev, v_mid_h_tau_rev=v_mid_h_tau_rev,
         )
-        if i_h_active.all():
+        if i_h_mask.all():
             u, u_rev, g_h, g_h_rev = _i_h_gate_step(
                 v, u, u_rev, a_h, a_h_rev, **i_h_kw_common, **i_h_kw)
         else:
-            idx = i_h_active
+            idx = i_h_mask
             u_a, u_rev_a, g_a, g_rev_a = _i_h_gate_step(
                 v[:, idx], u[:, idx], u_rev[:, idx],
                 a_h[idx], a_h_rev[idx],

@@ -49,26 +49,26 @@ CELL_PLOT_ROWS: list[list[str]] = [
 _LEFTOVER_PLOT_ROW_LEN = 5
 
 
-def cell_plot_rows(present: Sequence[str]) -> list[list[str]]:
-    """Present cells into plot rows; leftovers alphabetical, ``_LEFTOVER_PLOT_ROW_LEN`` per row."""
-    present_names = [str(t) for t in present]
-    present_set = set(present_names)
+def cell_plot_rows(active: Sequence[str]) -> list[list[str]]:
+    """Active cells into plot rows; leftovers alphabetical, ``_LEFTOVER_PLOT_ROW_LEN`` per row."""
+    active_names = [str(t) for t in active]
+    active_set = set(active_names)
     plot_rows: list[list[str]] = []
     used: set[str] = set()
     for plot_row in CELL_PLOT_ROWS:
-        filtered = [t for t in plot_row if t in present_set]
+        filtered = [t for t in plot_row if t in active_set]
         if filtered:
             plot_rows.append(filtered)
             used.update(filtered)
-    leftover = sorted(name for name in present_names if name not in used)
+    leftover = sorted(name for name in active_names if name not in used)
     for i in range(0, len(leftover), _LEFTOVER_PLOT_ROW_LEN):
         plot_rows.append(leftover[i : i + _LEFTOVER_PLOT_ROW_LEN])
     return plot_rows
 
 
-def cells_in_order(present: Sequence[str]) -> list[str]:
+def cells_in_order(active: Sequence[str]) -> list[str]:
     """Flat cell order from :func:`cell_plot_rows`."""
-    return [n for plot_row in cell_plot_rows(present) for n in plot_row]
+    return [n for plot_row in cell_plot_rows(active) for n in plot_row]
 
 
 @dataclass
@@ -142,22 +142,22 @@ def hex_in_cost_radius(u, v, cost_radius=None) -> bool:
     return bool(build_hex.inside_mask(int(u), int(v), int(cost_radius)))
 
 
-def present_gt_cells(
+def active_gt_cells(
     gt_cells: Sequence[str] | None,
-    default_pool: Sequence[str],
+    default_gt_cells: Sequence[str],
     available: Sequence[str],
     *,
     context: str,
 ) -> list[str]:
-    """Intersect requested (or default) gt cells with those present in the network."""
-    pool = tuple(gt_cells) if gt_cells is not None else tuple(default_pool)
+    """Intersect requested (or default) gt cells with those active in the network."""
+    keep = tuple(gt_cells) if gt_cells is not None else tuple(default_gt_cells)
     avail = set(available)
-    present = [st for st in pool if st in avail]
-    if not present:
+    active = [st for st in keep if st in avail]
+    if not active:
         raise ValueError(
-            f"{context} has no gt cells (requested {list(pool)!r})",
+            f"{context} has no gt cells (requested {list(keep)!r})",
         )
-    return present
+    return active
 
 
 def gt_cells_from_opts(opts) -> tuple[str, ...] | None:
@@ -184,10 +184,10 @@ def load_network_json(path) -> tuple[list[dict], list[dict], list[str], dict]:
     edges = doc.get("edges")
     if not isinstance(nodes, list) or not isinstance(edges, list):
         raise ValueError(f"invalid network.json (need nodes/edges lists): {path}")
-    present = sorted(
+    active = sorted(
         {n["name"] for n in nodes if isinstance(n.get("name"), str)}
     )
-    cells = cells_in_order(present)
+    cells = cells_in_order(active)
     meta = doc.get("metadata", {})
     if not isinstance(meta, dict):
         meta = {}

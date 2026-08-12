@@ -20,7 +20,7 @@ import torch
 from neuron.param import t_from_ms
 from network.construction import (
     hex2gt,
-    present_gt_cells,
+    active_gt_cells,
     normalize_gt_cells,
     node_cell_names,
 )
@@ -650,7 +650,7 @@ def _assemble_moving_bar_readouts(
     n_t: int,
     side: str,
     fig1: Optional[Dict[str, np.ndarray]],
-    present: Sequence[str],
+    active: Sequence[str],
     nodes_for_hex_type: Callable[[int, int, str], Sequence[int]],
     waveform_mse: bool = True,
 ) -> Tuple[
@@ -676,7 +676,7 @@ def _assemble_moving_bar_readouts(
                     )
                 t0_by_hex[hex_idx] = t0
         for hex_idx in cost_hex_idxs:
-            for subtype in present:
+            for subtype in active:
                 pref = motion_preference(side, subtype, spec.direction, spec.contrast)
                 if pref is None:
                     skipped_orthogonal += 1
@@ -777,7 +777,7 @@ def build_moving_bar_gt(
     after_t = t_from_ms(COST_WINDOW_AFTER_MS, delta_ms=delta_ms)
     n_t_cost_window = t_from_ms(COST_WINDOW_MS, delta_ms=delta_ms) + 1
 
-    present = present_gt_cells(
+    active = active_gt_cells(
         gt_cells, GT_CELLS, connectome.cells, context="moving_bar",
     )
 
@@ -803,7 +803,7 @@ def build_moving_bar_gt(
         n_t=n_t,
         side=side,
         fig1=fig1,
-        present=present,
+        active=active,
         nodes_for_hex_type=_nodes_for_hex_type,
         waveform_mse=waveform_mse,
     )
@@ -843,7 +843,7 @@ def build_moving_bar_gt(
         "cost_radius": cost_radius,
         "cost_hex_uv": (int(center_hex.u), int(center_hex.v)) if center_hex else None,
         "side": side,
-        "present_gts": present,
+        "active_gts": active,
         "skipped_orthogonal": skipped_orthogonal,
         "waveform_mse": bool(waveform_mse),
         "delta_ms": float(delta_ms),
@@ -1038,6 +1038,6 @@ def _enrich_moving_bar_sti_opts(opts, info, *, cost_radius):
     if cost_radius is not None:
         out["cost_radius"] = int(cost_radius)
     out["delta_ms_pre"] = dt_pre
-    if "present_gts" in info:
-        out["gt_cells"] = list(info["present_gts"])
+    if "active_gts" in info:
+        out["gt_cells"] = list(info["active_gts"])
     return out

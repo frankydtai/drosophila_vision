@@ -50,7 +50,7 @@ from network.connectivity import build_cell_pair_indices
 from network.construction import (
     cell_plot_rows,
     gt_cells_from_opts,
-    present_gt_cells,
+    active_gt_cells,
     load_network_json,
 )
 from default_params import DEFAULT_RUN_PATH
@@ -143,13 +143,13 @@ def _side_by_side_hist(ax, pct_init, pct_trained, edges_bins, *, legend: bool):
         ax.legend(fontsize=7, loc="upper right")
 
 
-def _spot_gt_cells(opts, available):
+def _active_spot_gt_cells(opts, available):
     """Same cell set as ``spot_gt_v``."""
     sti_opts = opts.get("spot_bright_sti_opts") or {}
     requested = gt_cells_from_opts(sti_opts)
     if requested is None:
         requested = gt_cells_from_opts(opts)
-    return present_gt_cells(
+    return active_gt_cells(
         requested, GT_CELLS, available, context="syn_sign spot-gt cells",
     )
 
@@ -202,7 +202,7 @@ def load_delta_v_tables(session, z):
 
 def plot_syn_sign(
     path, *,
-    present,
+    active,
     n_col,
     panel_w,
     panel_h,
@@ -215,10 +215,10 @@ def plot_syn_sign(
     delta_tables,
     radii,
 ):
-    """Draw hist + per-radius Δv plots for ``present`` cells."""
+    """Draw hist + per-radius Δv plots for ``active`` cells."""
     timer = PlotTimer()
     timer.end_prep()
-    cell_plot_rows_list = cell_plot_rows(present)
+    cell_plot_rows_list = cell_plot_rows(active)
     flow = "out of" if direction == "post" else "onto"
     n_sub = 1 + len(radii)
     n_row = len(cell_plot_rows_list) * n_sub
@@ -344,13 +344,13 @@ def save_syn_sign_plots(outdir, *, post=False, bins=DEFAULT_BINS) -> None:
     )
     plot_syn_sign(
         os.path.join(syn_dir, "syn_gt.png"),
-        present=_spot_gt_cells(opts, cells),
+        active=_active_spot_gt_cells(opts, cells),
         n_col=N_COL_GT, panel_w=PANEL_W, panel_h=PANEL_H,
         **plot_kw,
     )
     plot_syn_sign(
         os.path.join(syn_dir, "syn_all.png"),
-        present=list(cells),
+        active=list(cells),
         n_col=N_COL_ALL, panel_w=PANEL_W, panel_h=PANEL_H,
         **plot_kw,
     )

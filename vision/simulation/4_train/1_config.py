@@ -63,7 +63,7 @@ COST_NORMS = ("gt_power", "a_gt2")
 
 # Spot cost GT mode allowed tokens (``--spot-gt-mode``). Default scalar:
 # ``default_params.SPOT_PACK['spot_gt_mode']`` (all | positive — comment only there).
-# all: every present gt cell under both bright and dark (dark × contrast_sign −1).
+# all: every active gt cell under both bright and dark (dark × contrast_sign −1).
 # positive: only cells with rf_sign × contrast_sign > 0 (bright: ON; dark: OFF).
 SPOT_GT_MODES = ("all", "pos")
 
@@ -177,7 +177,7 @@ def cost_part_keys_for_pack(pack, backend) -> Tuple[str, ...]:
     if net is None:
         raise ValueError("cost_part_keys_for_pack requires backend.network")
     w = pack.cost_scales
-    active = w > 0
+    entry_mask = w > 0
     cell_ids = net.node_cells[pack.entry_nodes]
     names = net.cells
     keys: List[str] = []
@@ -190,9 +190,9 @@ def cost_part_keys_for_pack(pack, backend) -> Tuple[str, ...]:
 
     if pack.name in MOVING_BAR_TASKS:
         pd_nd = pack.cost_pd_nds
-        if pd_nd is not None and bool(active.any()):
+        if pd_nd is not None and bool(entry_mask.any()):
             for i in range(int(pack.entry_nodes.shape[0])):
-                if not bool(active[i]):
+                if not bool(entry_mask[i]):
                     continue
                 cell = str(names[int(cell_ids[i].item())])
                 lab = PD_ND_LABELS[int(pd_nd[i].item())]
@@ -204,11 +204,11 @@ def cost_part_keys_for_pack(pack, backend) -> Tuple[str, ...]:
             _add(moving_bar_cost_part_key(pack.name, "DSI"))
         return tuple(keys)
 
-    if pack.entry_radii is None or not bool(active.any()):
+    if pack.entry_radii is None or not bool(entry_mask.any()):
         return tuple(keys)
     radii = pack.entry_radii
     for i in range(int(pack.entry_nodes.shape[0])):
-        if not bool(active[i]):
+        if not bool(entry_mask[i]):
             continue
         cell = str(names[int(cell_ids[i].item())])
         _add(spot_cost_part_key(pack.name, cell, float(radii[i].item())))

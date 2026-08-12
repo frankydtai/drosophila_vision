@@ -62,10 +62,10 @@ def main() -> None:
 
         missing = table[~table["in_fafb"]]["cell"].tolist()
         not_full = table[(table["in_fafb"]) & (table["pct_with_column"] < 100)]
-        all_present = len(missing) == 0
-        all_columned = all_present and (table["n_with_column"] == table["n_neurons"]).all()
+        all_active = len(missing) == 0
+        all_columned = all_active and (table["n_with_column"] == table["n_neurons"]).all()
 
-        print(f"\n  all 13 present in FAFB        : {all_present}"
+        print(f"\n  all 13 active in FAFB         : {all_active}"
               + (f"  (missing: {missing})" if missing else ""))
         print(f"  all neurons column-assigned  : {all_columned}")
         if len(not_full):
