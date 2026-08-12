@@ -561,11 +561,12 @@ def build_spot_sti_opts(
     if ms_spot is not None:
         opts["ms_spot"] = ms_spot
     if cost_interval_ms is not None:
-        opts["cost_interval_ms"] = float(cost_interval_ms)
+        # Keep raw (may be a ``{v,ca}`` branch dict). Branch selection and
+        # numeric casting must happen after ``open_session``'s resolve step.
+        opts["cost_interval_ms"] = cost_interval_ms
     if cost_ms is not None:
-        opts["cost_ms"] = {
-            str(float(k)): [float(x) for x in v] for k, v in cost_ms.items()
-        }
+        # Keep raw to support per-branch ms values inside cost_ms.
+        opts["cost_ms"] = cost_ms
     rs = normalize_gt_cells(gt_cells)
     if rs is not None:
         opts["gt_cells"] = rs

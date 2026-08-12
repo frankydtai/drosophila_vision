@@ -19,7 +19,6 @@ REPO=/home/yitai/drosophila_vision/vision
 set -euo pipefail
 
 PYTHON="${REPO}/.venv/bin/python"
-
 echo "Job ID: ${SLURM_JOB_ID}"
 echo "Node:   ${SLURM_NODELIST}"
 echo "GPU:    ${CUDA_VISIBLE_DEVICES:-unset}"

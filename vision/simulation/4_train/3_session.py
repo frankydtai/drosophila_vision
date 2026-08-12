@@ -17,9 +17,18 @@ cost compares the pack to ``a_gt * gts + bias_gt``. Schema includes
 ``v_th_ca``/``a_ca``/``tau_ca`` only when ``filter=ca``. When
 ``bias_gt_from_v_onset``, ``bias_gt`` is written from ``v`` at ``t_onset`` (or ``ca`` when
 ``filter=ca``) — same value appears in ``param.csv``. Spot ImpR uses Arenz digitized
-when ``filter=ca``. ``spot_gt_mode`` (``all`` | ``positive``) gates cost GT via
+when ``filter=ca``. ``spot_gt_mode`` (``all`` | ``pos``) gates cost GT via
 :func:`task.spot.gt.spot_gt_active`; dark multiplies by :func:`task.spot.gt.contrast_sign`.
 Cost pack holds only active cells; plot model ca uses the present gt-cell set.
+
+Branch-resolution contract (must keep):
+
+* Do not add parameter-specific helper parsers/casters in pre-session stages.
+* All ``{v,ca}`` branch selection must be unified through
+  :func:`resolve_filter_branches`.
+* Before :func:`open_session`, keep branch-capable values raw; only perform
+  ``float``/``int``/``bool`` casting after branch resolution for those
+  branch-capable values.
 """
 from __future__ import annotations
 
@@ -768,7 +777,9 @@ def build_i_cli_by_task(kv_by_field):
         for name, val in kv.items():
             for t in _i_cli_task_names(cli_field, name):
                 sidecar_field = I_CLI_SIDECAR_FIELD[(cli_field, t)]
-                by_task.setdefault(t, {})[sidecar_field] = float(val)
+                # Keep raw value (may be a ``{v,ca}`` branch dict). Selection/casting
+                # must happen after ``open_session``'s ``resolve_filter_branches``.
+                by_task.setdefault(t, {})[sidecar_field] = val
     return {"by_task": by_task} if by_task else None
 
 
@@ -862,9 +873,7 @@ def _finalize_sti_opts(
             ms_spot=raw["ms_spot"],
             cost_interval_ms=raw.get("cost_interval_ms"),
             cost_ms=(
-                expand_cost_ms_dict(
-                    sti_opts=raw, aliases=SPOT_PACK['spot_cost_radius_key_aliases'],
-                )
+                raw.get("cost_ms")
                 if "cost_ms" in raw else None
             ),
             gt_cells=raw.get("gt_cells"),

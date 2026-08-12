@@ -4,7 +4,7 @@ Gruntman-style cardinal bars: 4 directions × 2 contrasts × 2 widths → 16 con
 
 ## Data source
 
-Experimental reference traces come from **[`figure_digitization/gruntman/1ci_digitized.csv`](../../figure_digitization/gruntman/1ci_digitized.csv)** — digitized population Vm from Gruntman et al. (2021) Figure 1 panels **Ci** (T4) and **Cii** (T5). Produced by [`figure_digitization/gruntman/1ci.py`](../../figure_digitization/gruntman/1ci.py) from a rendered figure PNG (approximate raster values, not raw lab data).
+Experimental reference traces come from **[`figure_digitization/gruntman21/1ci_digitized.csv`](../../figure_digitization/gruntman21/1ci_digitized.csv)** — digitized population Vm from Gruntman et al. (2021) Figure 1 panels **Ci** (T4) and **Cii** (T5). Produced by [`figure_digitization/gruntman21/1ci.py`](../../figure_digitization/gruntman21/1ci.py) from a rendered figure PNG (approximate raster values, not raw lab data).
 
 | CSV column   | Meaning |
 | ------------ | ------- |
@@ -17,7 +17,7 @@ Experimental reference traces come from **[`figure_digitization/gruntman/1ci_dig
 | `time_ms`    | Time relative to bar onset (ms) |
 | `vm_mv`      | Population membrane potential (mV) |
 
-The CSV holds **16 traces** per pathway panel: 2 contrasts × 2 widths × 2 directions. Subtype-specific tables below map each `(eye, sti)` to one of those keys via `t4_t5_dsi.py` (`fig1_key_for_sti` → `T4_PC_w1_PD` style ids). Training loads the same data as [`1ci_digitized.npz`](../../figure_digitization/gruntman/1ci_digitized.npz) (`FIG1_CI_NPZ` in `task.moving_bar.gt`).
+The CSV holds **16 traces** per pathway panel: 2 contrasts × 2 widths × 2 directions. Subtype-specific tables below map each `(eye, sti)` to one of those keys via `t4_t5_dsi.py` (`fig1_key_for_sti` → `T4_PC_w1_PD` style ids). Training loads the same data as [`1ci_digitized.npz`](../../figure_digitization/gruntman21/1ci_digitized.npz) (`FIG1_CI_NPZ` in `task.moving_bar.gt`).
 
 ## Contrast (pathway)
 
@@ -193,7 +193,7 @@ Peaks: for T4a, right↔PD = 18.25, left↔ND = 7.60; for T4b those are swapped.
 
 ## Direction selectivity index (DSI) — source peaks
 
-Population traces in [`1ci_digitized.csv`](../../figure_digitization/gruntman/1ci_digitized.csv)
+Population traces in [`1ci_digitized.csv`](../../figure_digitization/gruntman21/1ci_digitized.csv)
 are already split by pathway, contrast (PC/NC), bar width, and motion direction (PD/ND).
 For each condition, take the **peak** `vm_mv` over time. These peaks feed
 [DSI rules](#dsi-rules-read-before-editing-eye-tables) Steps 2–3.
@@ -219,7 +219,7 @@ T4 dark at w1 is nearly non-selective (PD ≈ ND). w4 traces are more direction-
 
 ## References
 
-- **Data:** [`figure_digitization/gruntman/1ci_digitized.csv`](../../figure_digitization/gruntman/1ci_digitized.csv) — Figure 1 Ci/Cii traces (Gruntman et al. 2021), digitized by `gruntman/1ci.py`.
+- **Data:** [`figure_digitization/gruntman21/1ci_digitized.csv`](../../figure_digitization/gruntman21/1ci_digitized.csv) — Figure 1 Ci/Cii traces (Gruntman et al. 2021), digitized by `gruntman21/1ci.py`.
 - Maisak et al. (2013): T4a–d PD = front-to-back, back-to-front, up, down.
 - Gruntman et al. (2021): T4 PC = bright, NC = dark; T5 PC = dark, NC = bright.
 - Shinomiya et al. (2019) eLife; Takemura et al. (2017) eLife.

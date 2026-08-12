@@ -1,0 +1,1164 @@
+  Articles
+  https://doi.org/10.1038/s41593-017-0046-4
+
+
+
+
+Simple integration of fast excitation and offset,
+delayed inhibition computes directional selectivity
+in Drosophila
+Eyal Gruntman , Sandro Romani                            and Michael B. Reiser *
+
+A neuron that extracts directionally selective motion information from upstream signals lacking this selectivity must compare
+visual responses from spatially offset inputs. Distinguishing among prevailing algorithmic models for this computation requires
+measuring fast neuronal activity and inhibition. In the Drosophila melanogaster visual system, a fourth-order neuron—T4—is
+the first cell type in the ON pathway to exhibit directionally selective signals. Here we use in vivo whole-cell recordings of T4 to
+show that directional selectivity originates from simple integration of spatially offset fast excitatory and slow inhibitory inputs,
+resulting in a suppression of responses to the nonpreferred motion direction. We constructed a passive, conductance-based
+model of a T4 cell that accurately predicts the neuron’s response to moving stimuli. These results connect the known circuit
+anatomy of the motion pathway to the algorithmic mechanism by which the direction of motion is computed.
+
+
+
+
+T
+      he computation of directional selectivity has been studied for                 preventing the direct measurements of inhibition, a defining feature
+      decades in both vertebrate and invertebrate visual systems                     of the BL model.
+      and has given rise to competing algorithmic models1. The
+Hassenstein–Reichardt (HR) detector uses a synergistic combina-                      Results
+tion of offset excitatory inputs2 to enhance responses to motion in                  To directly measure the physiological properties of T4 neurons,
+the preferred direction, whereas the Barlow–Levick (BL) detector                     we used targeted in vivo whole-cell electrophysiology. We con-
+uses inhibitory input to ‘veto’ an offset excitatory input3, suppress-               firmed the identity of GFP-labeled T4 neurons by measuring reli-
+ing motion in the nonpreferred, or null, direction.                                  able depolarizations in response to small ON flashes (Fig. 1a and
+   The HR detector, which was originally formulated to account for                   Supplementary Fig. 1). We used online stimulus generation and
+motion detection in insects, has become a canonical example of a                     analysis to localize the center (within ~2°) of the receptive field
+neuronal computation1,4. This model has endured because its ele-                     (RF) of each recorded neuron (Supplementary Fig. 1b,c). To mea-
+gant mechanism accounted for a wide array of behavioral results2,5,6                 sure directional selectivity in single T4 cells, we presented a narrow
+and for the detailed response properties of large motion-sensitive                   (~2° wide) ON bar moving in eight different directions through the
+output neurons of the fly visual system1,7,8. Recent progress on                     mapped RF center (Fig. 1b,c). The T4 membrane potential showed
+the visual circuits upstream of these motion sensitive neurons in                    small depolarizations in response to several directions of motion
+Drosophila has revealed that stimuli are processed through ON and                    (Fig. 1b) but large responses to movement in a ~90° range, centered
+OFF pathways9–14. In the ON pathway, the columnar T4 neurons                         around the preferred direction (PD; opposite to the null direction,
+are the first cell type to exhibit directionally selective signals10,11,14,15;       ND), in agreement with the tuning width measured with calcium
+four T4 subtypes are each directionally selective in one of four car-                imaging11. Our moving-bar stimulus generates apparent motion: the
+dinal directions9,11,16.                                                             bar appears to move in a series of discrete (~2°) steps, where the
+   A prevalent hypothesis for how T4 cells could implement the HR                    speed of movement is determined by the duration the bar remains
+detector was proposed based on different input cell types provid-                    at each position. To examine the computation of directional selec-
+ing the temporally14 and spatially9 offset inputs, but further analysis              tivity across a behaviorally relevant range, we presented four move-
+of the circuit15,17 has ruled out this circuit mechanism. The other                  ment speeds. The responses to the moving stimuli were averaged
+recent approach to identifying the mechanism responsible for direc-                  across individual recordings once aligned to the PD (Fig. 1c). We
+tional selectivity in the T4 circuit has been to use calcium imaging                 quantified the strength of directional selectivity using a directional
+to measure T4 responses to structured visual stimuli. Several stud-                  selectivity index (DSI, defined in Methods) and saw significant tun-
+ies found evidence for enhanced responses to preferred-direction                     ing at all stimulus speeds (P <​ 0.05, one sided unpaired t test), with
+motion18,19, while several others found both preferred-direction                     stronger directional selectivity at the two slower speeds (P <​  0.05,
+enhancement and null-direction suppression20–22. A number of                         one sided paired t test; Fig. 1d). At slow speeds, the membrane
+groups have recently proposed that motion detection in flies may                     potential exhibited prominent hyperpolarizing responses, both
+be implemented as a hybrid mechanism featuring elements of both                      following the response to PD motion and preceding the depolar-
+the HR and BL algorithms15,21–23. However, direct evidence for either                izing response to ND motion (Fig. 1c; detailed in Supplementary
+mechanism has been elusive, in large part because these studies rely                 Fig. 2). The sequence of depolarizing and hyperpolarizing signals
+on calcium imaging. Calcium indicator responses are insensitive to                   depended on the direction of motion, suggesting that inhibitory and
+fast events, obscuring the small timing differences required by the                  excitatory inputs to T4 may be spatially offset, in agreement with
+HR detector, and are also insensitive to hyperpolarization, thereby                  recent anatomical findings17.
+
+
+Janelia Research Campus, Howard Hughes Medical Institute, Ashburn, VA, USA. *e-mail: reiserm@janelia.hhmi.org
+
+250                                                                    Nature Neuroscience | VOL 21 | FEBRUARY 2018 | 250–257 | www.nature.com/natureneuroscience
+
+                                               © 2018 Nature America Inc., part of Springer Nature. All rights reserved.
+NATure NeurOscIence                                                                                                                              Articles
+a                                       b Single T4 recording (cell 14)                        These responses were larger and lasted longer for longer flash stimuli
+                                                28°/s                                          (corresponding to slower speeds). Additionally, longer flashes pre-
+                                                                                               sented on the leading side of the RF revealed depolarizing responses
+                 Medulla
+                                                                                               that were not observed for short flashes. (ii) The inputs along this axis
+                                                                                               were spatially asymmetrical; hyperpolarizing inputs only appeared
+                          Lobula                                                               on the trailing side of the RF (most clearly seen for the longer dura-
+                        plate      V                                                           tion flashes). Overlaying voltage traces from leading and trailing RF
+           Lobula                                                                              positions exposed a temporal asymmetry in the inputs (Fig. 2b,d).
+                                                                     20 mV
+                                                                                               Responses on the trailing side decayed faster than responses at
+                    T4 neuron                                                                  equivalent positions on the leading side. This temporal sharpen-
+                                                                                               ing can be seen across speeds, including the shortest duration flash
+                                                                                               where hyperpolarization was not directly recorded (Fig. 2b).
+                                   –65 mV                                                         For the longer-duration flash stimuli, our RF mapping (Fig. 2c
+    28°/s moving-bar stimulus                                                                  and Supplementary Fig. 3) shows a spatially offset distribution of
+                                                                                               depolarizing and hyperpolarizing inputs to T4, with the hyperpolar-
+                                                                                               izing input on the trailing side of the RF. Notably, the offset between
+                                                                                               the peaks of excitatory and inhibitory inputs (~6° of visual angle;
+                                                                                               Supplementary Fig. 3b) corresponds to the approximate angular
+                                        10 mV
+
+
+
+
+    0 ms       80 ms        640 ms
+                                                                                               separation between adjacent ommatidia on the fly eye, matching the
+                                                                                               predicted structure for the inputs of the Drosophila motion detec-
+                                        500 ms                                                 tor5. Because we did not measure excitatory and inhibitory currents
+c Averaged aligned                                                         d                   directly, the underlying overlap between excitation and inhibition is
+        T4 recordings              PD                              ND                          expected to extend beyond positions where we can reliably measure
+                                                                                               hyperpolarizing input.
+                                                                 160-ms step                      If T4 implements an HR-like mechanism, we expect that SPFRs
+                                                                       14°/s
+                                                                                               on the leading side of the RF would be time-delayed relative to
+                                                                                               trailing-side SPFRs2,14. A simple expectation for relative time delays
+                                                                                               between offset visual stimulation generated through differential fil-
+                                                                  80-ms step
+                                                                       28°/s                   tering by either upstream cells and/or synaptic transmission is that
+                                                                                               the responses would occur with a relative temporal offset. However,
+                                                                                               the onset time of the flash response was constant across the RF
+                                                                  40-ms step                   (Fig. 2d,e). Nevertheless, a significant position effect was seen in
+                                                                       56°/s                   the decay time (Fig. 2d,e), which we attribute to temporal sharpen-
+                                                                                               ing (Fig. 2b) due to overlapping inhibitory inputs on the trailing
+                                                                                               side of the RF (Fig. 2c). Rather than a relative time delay between
+                                                                  20-ms step                   offset inputs, we find that the temporal differences in the SPFRs can
+                                                                      112°/s
+                                                                                               be explained by fast excitatory inputs on the leading side combined
+10 mV
+
+
+
+
+                                                                                               with slower inhibitory inputs on the trailing side of the RF.
+500 ms                      Stimulus duration                                0           1
+                                                                                 DSI           Directional selectivity results from ND suppression. The classical
+                                                                                               models for motion detection use a nonlinear combination of offset
+Fig. 1 | Whole-cell recordings of T4 cells show directionally selective                        inputs, resulting in either an enhancement of PD responses (HR) or
+responses. a, Top: schematic of Drosophila visual system with example T4                       a suppression of ND responses (BL). A simple test for directional
+cell; whole-cell recordings are targeted to cell body. Bottom: a moving bar                    selectivity is to deliver flash stimuli at two positions in the T4 RF
+(1 ×​9 LEDs) is presented as a sequence of discrete steps. b, Responses                        and examine whether the response to sequential stimulation in
+to a bright bar moving in eight directions (indicated by arrows) at 28°/s.                     one direction is larger than the response to the opposite sequence
+Individual trial responses in gray (n =​3 trials); mean in maroon. Center:                     of stimulation. We implemented this two-step apparent-motion
+response to each direction at the time of maximal directional selectivity.                     stimulus using single-position flashes (160 ms in duration) for pairs
+c, Baseline-subtracted responses (n =​17 cells) to bar motion, aligned to the                  of positions around the RF center (Fig. 3a). To assess the effect of
+PD of each cell (mean ±​s.e.m.). Arrows represent the direction of stimulus                    direction, we compared each two-step response to the superposi-
+motion. Arrowheads indicate hyperpolarization following (or preceding)                         tion of the corresponding two single-position responses (offset in
+response to PD (or ND) motion. Colored horizontal bars indicate stimulus                       time and summed; Fig. 3b). This comparison revealed no enhanced
+presentation. d, DSI for bar motion responses (n =​17 cells). Crosses                          response to the second bar appearing toward the PD but a reduc-
+represent outliers, and triangles denote data points outside of the plot (see                  tion in the second bar response when it appears toward the ND.
+Methods for boxplot conventions).                                                              Flashes separated by ~10° (bottom row) did not appear to interact,
+                                                                                               showing neither enhancement nor suppression. Furthermore, the
+                                                                                               suppression was most prominent for bar pairs ‘moving’ in the ND
+Mapping the T4 receptive field reveals a spatiotemporal asymme-                                that begin on the trailing side, consistent with our finding that the
+try. In order to characterize the fine structure of the T4 RF, we first                        distribution of inhibitory inputs is skewed towards this side of the
+localized the RF center and identified the PD–ND axis. We decom-                               RF. By comparing the apparent-motion responses to the same bar
+posed the moving-bar stimulus into its elementary components—sin-                              pairs but in opposite directions (Fig. 3c), we found that the leading
+gle-position bar flashes with a fixed duration—and presented them at                           side of the RF—corresponding to the primarily excitatory domain
+all positions, randomly interleaved, along the PD–ND axis. Aligning                            of the SPFRs (Fig. 2)—was motion blind (see also Supplementary
+the single-position flash responses (SPFRs) based on the position of                           Fig. 4). Strong directional selectivity was only seen for the bar pairs
+peak depolarization (Fig. 2a) revealed two key properties. (i) The                             that included the trailing side of the RF and was only produced by
+center and leading side of the T4 RF exhibited excitatory responses.                           ND suppression.
+
+Nature Neuroscience | VOL 21 | FEBRUARY 2018 | 250–257 | www.nature.com/natureneuroscience                                                                          251
+                                                         © 2018 Nature America Inc., part of Springer Nature. All rights reserved.
+Articles                                                                                                                                                                                           NATure NeurOscIence
+
+                                                                                                                                                                                                              RF center
+a                                                                                                                                                                                                                                                 Receptive
+                                                                                                                                                                                                           Leading         Trailing                 field
+                                                                                                                                                                                                           side               side
+                                    Single-position flash stimuli
+
+                                                                                                                                                                                                                 PD
+                                                                                                                                                                                                    b
+                                                                                                                                                            10°
+
+
+                                                                                                                                                                        160-ms flash
+
+
+
+
+                                                                                                                                                                        80-ms flash
+
+
+
+
+                                                                                                                                                                        40-ms flash
+
+
+
+
+                                                                                                                                                                                                    5 mV
+                                                                                                                                                                        20-ms flash
+20 mV
+
+
+
+
+ 500 ms
+                                             Leading                      –2                     –1     0       1      2                             Trailing                                       Flash duration
+                                                                          Stimulus position relative to RF center
+
+    c                                   Visual angle (deg)                  d                                                                                        e
+                              –20      –10        0       10        20                      70        Flash duration                     300                                                 25                                                 25
+                          1
+                              Depolarization                                                     160 ms 80 ms 40 ms 20 ms                                                                                                                             *   *   *   *
+
+
+
+
+                                                                                                                                                                                                                     Decay slope (ms per deg)
+                                                                                                                                                                  Onset slope (ms per deg)
+                              Hyperpolarization
+    Normalized response
+
+
+
+
+                                                                                                                       Decay time (ms)
+                                                                          Onset time (ms)
+
+
+
+
+                                                                                                                                         150
+
+
+
+
+                          0                                                                 0                                             0                                                  –75                                                –75
+                          –10         –5          0          5       10
+                                                                                             –3
+                                                                                              0
+                                                                                              3
+
+
+
+
+                                         Stimulus position                           Stimulus position
+
+
+Fig. 2 | T4 cells receive spatially but not temporally offset excitatory and inhibitory inputs. a, Averaged baseline-subtracted responses (mean ±​s.e.m.) to
+single-position bar flash stimuli (top) along the PD–ND axis of each cell (n =​ 17 cells). b, Mean responses from indicated positions in a, aligned to stimulus
+presentation (gray rectangles). Arrowheads emphasize differences in decay times. c, Maximum depolarizing and hyperpolarizing responses (mean ±​
+s.e.m.) by stimulus position for 80-ms flashes (n =​ 17 cells). d, Response-onset time and decay time to flashes near the RF center (medians and quartiles).
+Cell numbers vary for each position and duration combination (see Methods). e, Slope of the linear regression of onset time against position and the slope
+of the decay time against position, calculated separately for each cell and each duration (n =​17, 17, 14, 9 cells; * indicates slope <​ 0 with P <​ 0.01, one-sided
+unpaired t test; gray crosses represent outliers; see Methods for boxplot conventions).
+
+
+
+The superposition of stationary responses generates directional                                                                              The summed responses approximated the measured responses
+selectivity. The two-step apparent-motion responses (Fig. 3)                                                                             without any nonlinear integration, an unexpected result as both the
+suggest that it is the integration of offset excitatory and inhibi-                                                                      HR and BL models of motion detection require a nonlinear interac-
+tory inputs that generates directionally selectivity. However, is                                                                        tion to compute directional selectivity. To be clear, we are not claim-
+this mechanism sufficient to explain the directionally selective                                                                         ing that directional selectivity emerges from linear operations (for
+responses to moving bars? To address this question, we compared                                                                          example, the DSI computation is nonlinear); rather we emphasize
+the responses to moving-bar stimuli, comprised of an ordered                                                                             that these directionally asymmetric responses expose a significant
+sequence of single-position bar flashes (Fig. 4a,b), with the super-                                                                     discrepancy between the T4 mechanism and the classical models.
+position of SPFRs (summed after appropriate temporal alignment;                                                                          To gain further insight, we examined features of the SPFRs for con-
+Fig. 4c). Notably, the only difference between the summed PD and                                                                         tributions to directional selectivity in the summed responses and
+the summed ND responses was the order in which the SPFRs were                                                                            found that it is the position-dependent differences (such as the
+aligned. This comparison is conceptually similar to our treatment of                                                                     response shape, sign and magnitude) that account for the DSI of the
+the two-step apparent-motion responses but probes more interac-                                                                          summed responses (Supplementary Fig. 5). However, the summa-
+tions across the entire receptive field. We find that the simple sum of                                                                  tion of aligned SPFRs only accounted for approximately half of the
+SPFRs (Fig. 4c) captures the essential dynamics of the moving-bar                                                                        measured T4 DSI (Fig. 4e). Summing negative and positive poten-
+response (Fig. 4c,d) and shows significant directional selectivity at                                                                    tials undercounts the effect of inhibition. For example, in shunting
+all four speeds (Fig. 4e).                                                                                                               inhibition, a small inhibitory current can eliminate a much larger
+
+252                                                                                                            Nature Neuroscience | VOL 21 | FEBRUARY 2018 | 250–257 | www.nature.com/natureneuroscience
+
+                                                                                © 2018 Nature America Inc., part of Springer Nature. All rights reserved.
+NATure NeurOscIence                                                                                                                                                      Articles
+                a                                                     First bar position                           b                                             c
+                                                                                                                           PD                         ND             Measured
+                                                 Leading (–2)             Center (0)           Trailing (2)            Measured Sum               Measured Sum        PD ND
+
+
+
+
+                                                    Position
+                                                               Time                                                                                                       DSI = 0.03
+                                  Leading (–2)
+
+
+
+
+                                                                                                                                                                          DSI = 0.46
+            Second bar position
+                                  Center (0)
+                                  Trailing (2)
+
+
+
+
+                                                                                                10 mV
+
+
+
+
+                                                                                                  250 ms
+
+
+
+
+Fig. 3 | T4 responses to two-step apparent motion show ND suppression but not PD enhancement. a, Averaged baseline-subtracted responses (mean
+±​s.e.m.) to 160-ms flash stimuli presented along the PD–ND axis (n =​3 cells). Single-position responses are shown along the diagonal; PD motion (red)
+and ND motion (blue) are shown in the lower and upper triangles, respectively. Stimulus positions indicated correspond to those in Fig. 2. Apparent
+motion is presented as two flash stimuli timed to appear as instances of a bar moving at 14°/s. Space–time plots of the stimuli are depicted in each inset.
+b, Comparison of mean measured responses to two-step stimulation to the superposition (time-aligned sum) of the single-position responses. Each row
+shows responses to stimuli presented at the same positions but in the reversed temporal order. Arrow shows magnitude of ND supression. c, Mean PD and
+ND responses from the corresponding rows in b are compared, with DSI indicated. DSI values are averaged from 3 cells (individual values for top panel:
+0.02, 0.06, 0.1; for middle panel: 0.47, 0.5, 0.16).
+
+
+
+excitatory current. The effect of this undercounting is most promi-                                                 tested speeds, suggesting that the same mechanism can account for
+nently seen in the overestimated ND responses (Fig. 4f). Does this                                                  directional selectivity, even at the fastest speeds tested where hyper-
+mismatch suggest that T4 implements a nonlinear step like the clas-                                                 polarization was not directly measured (Fig. 2).
+sical models, or could biophysically realistic integration of inhibi-                                                   One classical neuronal computation of directional selectivity,
+tory inputs explain the additional measured DSI?                                                                    based on passive cable properties24, is that sequential depolarization
+                                                                                                                    directed toward the (thicker) axon generates stronger responses
+A conductance-based simulation quantitatively predicts the T4                                                       than activation in the opposite direction. To test whether this mech-
+motion response. To answer this question, we built a conductance-                                                   anism could contribute to directional selectivity in T4, we zeroed
+based model of a T4 neuron reconstructed from electron microscopy                                                   all inhibitory conductance changes in our model. When the simu-
+data (Fig. 5a). In our model, we randomly distributed excitatory and                                                lation was repeated, only the excitatory synapses were activated as
+inhibitory synapses along the dendritic arbor of the cell but fit the                                               the ‘stimulus’ swept in the PD or ND. We found that in the absence
+synaptic strengths, the time course of the excitatory and inhibi-                                                   of inhibition, the DSI of the simulated T4 is abolished at all speeds
+tory conductance changes, and the membrane and axial resistivity                                                    (Fig. 5d), indicating that depolarizing inputs alone cannot produce
+using an optimization procedure that minimizes the error between                                                    directional selectivity. This suggests that inhibitory inputs to T4, in
+simulated responses to bar flashes and our measured SPFRs (from                                                     addition to providing the slow hyperpolarization that character-
+all positions and all speeds; Fig. 5a and Supplementary Fig. 6a–c).                                                 izes responses to slow motion (Fig. 1c), also establish the temporal
+We then used the resulting model to simulate the T4 response to a                                                   sharpening of trailing side responses, critical for directional selec-
+moving bar (Fig. 5b). Notably, we fit our model’s parameters using                                                  tivity at faster speeds (Supplementary Fig. 5b).
+responses to stationary stimuli (the SPFRs) but used the model to                                                       The striking retinotopic alignment of T4 dendrites with the
+predict the responses to an independent motion stimulus (the mov-                                                   PD–ND axis was an important anatomical clue in their identifica-
+ing-bar responses), thus testing the generalization of this model.                                                  tion as directionally selective cells9,25. We used our simulation to
+    In comparison to the summed responses (Fig. 4d), the simulated                                                  test whether the neuron’s morphology substantially contributes to
+responses more accurately reproduced the measured responses to                                                      directional selectivity. By positioning all 154 synaptic inputs (inhibi-
+both PD and ND motion (Fig. 5b,c). Furthermore, the same simula-                                                    tory and excitatory) at the base of the dendrite (all other parameters
+tion qualitatively reproduced the dynamics of T4 responses (Fig. 5b)                                                held constant), we found that these simulation results are almost
+and quantitatively reproduced the magnitude of the directionally                                                    indistinguishable from the unmodified simulation (Fig. 5d). As a
+selective responses (Fig. 5c,d and Supplementary Fig. 6d–f) at all                                                  consequence of this result, we expected that a single-compartment
+
+Nature Neuroscience | VOL 21 | FEBRUARY 2018 | 250–257 | www.nature.com/natureneuroscience                                                                                              253
+                                                                              © 2018 Nature America Inc., part of Springer Nature. All rights reserved.
+Articles                                                                                                                                                            NATure NeurOscIence
+
+neuron simulation should also be able to capture the response                                                                 In the present study, we show that directional selectivity in T4
+dynamics of T4. Indeed, this simpler model reproduces the mov-                                                             neurons arises solely from ND suppression. Recent studies that used
+ing-bar responses of T4 with only negligible differences from the                                                          calcium imaging of T4 neuron responses to a two-step apparent-
+multicompartment simulation results (Fig. 5d). These results sug-                                                          motion stimulus found evidence for PD enhancement18,19 or for
+gest that the critical role of the elaborate and directional T4 dendrite                                                   both PD enhancement and ND suppression20,22. These discrepan-
+is limited to collecting different input signals across a small region                                                     cies may arise from differences in the stimulus design, differences
+of the fly’s eye. Taken together, these modeling results corroborate                                                       between single-neuron and population recordings, differences
+our central finding that inhibitory inputs sculpt the essential asym-                                                      between measurements of membrane potential versus calcium
+metry for directionally selective responses in T4 cells; no additional                                                     indicator fluorescence, or from combinations of these factors.
+mechanisms are required.                                                                                                   Since the transformation between membrane potential and cal-
+                                                                                                                           cium indicator fluorescence is likely to be superlinear21, measured
+Discussion                                                                                                                 calcium responses may appear enhanced when compared to their
+We used intracellular recordings to probe the mechanism of direc-                                                          summed components, even when the underlying voltage response
+tionally selectivity for ON motion in T4 neurons. Using online                                                             does not show this enhancement (Supplementary Fig. 7). However,
+stimulus generation, we finely mapped the receptive field of T4                                                            as Fisher et al.18 controlled for this possibility, we believe that the
+neurons (Fig. 2). Notably, this RF structure, comprised of responses                                                       difference is most likely explained by differences in stimulus design
+to stationary ON bars, can be used to predict the response of T4                                                           (centered bars versus edges18; centered narrow bars versus centered
+to moving bars (Fig. 4). We then improved these predictions with                                                           wider spots20). Haag et al.20 found PD enhancement in T4 cells, but
+a parsimonious biophysical model integrating offset excitatory and                                                         only for stationary stimuli wider than those used here. These larger
+inhibitory conductances (Fig. 5).                                                                                          stimuli, in addition to strongly depolarizing the measured T4 cells,
+
+
+                     a                        ND sequence                                               c
+
+                               t9   t8   t7    t6   t5     t4   t3   t2     t1
+                                                                                                                    t1
+
+                                                                   T4                                                t2
+                                                                 dendrite
+                                                                                                                          t3
+
+                                                                                                                           t4
+
+                                                                                                                               t5
+
+                                                                                                                                t6
+
+                                                                                                                                     t7
+
+                               t1   t2   t3    t4   t5     t6   t7   t8     t9
+                                                                                                        10 mV
+
+
+
+
+                                                                                                                                      t8
+
+                                                                                                            250 ms                        t9
+                                              PD sequence
+                     b        Measured moving bar (28°/s) response (cell 15)                                                                         Summed SPFRs
+                                                                                                            9
+                                                                                                         ∑ SPFR(ti)
+                     10 mV
+
+
+
+
+                                                                                                        i=1
+
+                         250 ms
+
+
+
+
+                     d           Averaged T4 recordings                                e Directional selectivity                               f
+                             Measured             Summed                                                        index                              PD              ND
+                              PD ND                PD ND                                                                                       Measured Sum    Measured Sum
+                                                                                            1       *           *          *          *
+                                                                                                                                                                       160-ms flash
+                                                                                 Measured
+
+
+
+
+                                                                                                                                                                             14°/s
+
+                                                                                                                                                                        80-ms flash
+                                                                                            0                                                                                28°/s
+
+                                                                                            1
+                                                                                                    *           *          *          *                                 40-ms flash
+                                                                                 Summed
+
+
+
+
+                                                                                                                                                                             56°/s
+                     10 mV
+
+
+
+
+                                                                                                                                                                        20-ms flash
+                                                                                            0                                                                               112°/s
+                     250 ms
+                                                                                                s
+
+                                                                                                            s
+
+                                                                                                                         s
+
+                                                                                                                                    s
+                                                                                                m
+
+                                                                                                        m
+
+                                                                                                                     m
+
+                                                                                                                                m
+                                                                                            0
+
+                                                                                                    80
+
+                                                                                                                40
+
+                                                                                                                               20
+                                                                                        16
+
+
+
+
+Fig. 4 | Ordered summation of SPFR qualitatively reproduces moving bar responses. a, Schematized T4 dendrites overlaid on nine bar-stimulus positions
+(colors as in Fig. 2). b, Mean PD and ND motion responses from an example cell to the 28°/s bar motion. c, Top: SPFRs from the example cell in b colored
+by position, temporally aligned to account for moving-bar position. Bottom: summed SPFRs for PD and ND motion. d, Comparison of mean measured
+moving bar responses and mean summed SPFRs (n =​31 trajectories, 16 cells). e, Boxplots of DSI values for measured and summed responses across
+speeds (mean ±​ s.e.m.; n =​31 trials, 16 cells; see Methods for boxplot conventions). Crosses represent outliers; triangle denotes a point outside the scope
+of the plot (* indicates DSI >​ 0 with P <​0.01, one-sided unpaired t test). f, As in d but juxtaposing measured responses and summed SPFRs for PD and ND
+motion separately (mean ±​ s.e.m.).
+
+254                                                                                         Nature Neuroscience | VOL 21 | FEBRUARY 2018 | 250–257 | www.nature.com/natureneuroscience
+
+                                                         © 2018 Nature America Inc., part of Springer Nature. All rights reserved.
+NATure NeurOscIence                                                                                                                                                          Articles
+also effectively stimulate neighboring T4 cells. But since T4 neurons                a Temporal filters                                                                                      Dendrite
+synapse onto other T4 cells with exquisite precision—only cells with                                                      Excitation
+the same directional tuning are connected and only along the direc-                                                       Inhibition
+tion of preferred motion17—this circuit mechanism should produce
+a superlinear response in one direction (along the PD), but not in                                                                                     Spatial
+                                                                                                       1s                                               filters
+the opposite direction. This enhancement of PD motion over a
+slightly larger spatial scale appears to be evidence for directed facili-                                                                                                                                      Axon
+tation from neighboring T4 cells but not for an HR-like mechanism
+responsible for directional selectivity (since blocking synaptic trans-
+mission in T4 neurons does not substantially reduce directionally                                                                                                                                  5 µm
+selective responses in T4 cells15,22). This factor may partially explain
+the measurement of PD enhancement in Fisher et al.18, but future                                                                                        First
+experiments will be required to clarify these discrepancies.                                                  Single position
+                                                                                                                                                     dendritic
+                                                                                                                                                      section
+    Anatomical studies have shown that dendrites of T4 cells are                                                 stimulus
+                                                                                                                                                                               Soma
+aligned with the PD9,25 and receive spatially offset synaptic inputs                 b                 Measured                                 Simulated
+from distinct columnar neuron types17. The arbors span several                                          PD ND               14°/s                PD ND                   c
+(3–4) retinotopic columns in the medulla16, which, given the ~5°                                                                                                                              30
+
+
+
+
+                                                                                                                                                                         Max response (mV)
+                                                                                                                                                                                                                    PD
+visual angle per column, corresponds well to our measured RF
+                                                                                                                                                                                              20
+width of ~20° (Fig. 2). The cholinergic columnar neurons Mi1 and
+Tm3 preferentially synapse onto T4 in the central to distal part of                                                         28°/s                                                             10 Measured
+the arbor, while the GABAergic neurons Mi4, C3 and CT1 syn-                                                                                                                                      Summed
+                                                                                                                                                                                                 Simulated
+apse mainly onto the base of the dendrite15,17,26,27. This anatomical
+arrangement agrees remarkably well with the functional organiza-
+tion of our measured T4 receptive field, with leading-side excitation                                                       56°/s                                                             30
+                                                                                                                                                                                                    Measured
+
+
+
+
+                                                                                                                                                                         Max response (mV)
+                                                                                                                                                                                                    Summed          ND
+and trailing-side inhibition.                                                                                                                                                                       Simulated
+    A recent study from our lab used circuit perturbations to also                                                                                                                            20
+propose a hybrid mechanism for T4 motion responses15. Although
+                                                                                                                           112°/s                                                             10
+we showed nonlinear integration of excitatory inputs by T4, we did
+                                                                                     10 mV
+
+
+
+
+not show that this nonlinearity contributes to the computation of
+                                                                                                 250 ms                                                                                            14     28   56 112
+directional selectivity, so these results do not conflict with the cur-
+rent findings. In fact, electron microscopy–based circuit analysis9,17,                                                                                                                         Stimulus speed (°/s)
+
+as well as a number of functional studies14,15,23,26,28,29, suggests that            d            Measured                           Measured                                          Measured
+                                                                                                  Summed                             Simulated: without inhibition                     Simulated: all inputs
+multiple cell types (at least Mi1 and Tm3) contribute to the excit-                          1    Simulated                     1                                    1                            single position
+atory ON component of our measured RF, without evidence for a                                                                                                                          Simulated: single
+                                                                                                                                                                                                  compartment
+spatial offset required for an HR-like mechanism17. In our previ-
+                                                                                     DSI
+
+
+
+
+ous study, we also showed that silencing one of the main inhibitory
+inputs to T4 (Mi4) does not reduce directional selectivity15. Since                                                                                                  0
+                                                                                             0                                  0
+our current results strongly suggest that inhibition is necessary for
+                                                                                                  14    28    56 112                 14    28    56 112                              14         28      56 112
+computing directional selectivity, it is entirely possible that the criti-
+                                                                                                 Stimulus speed (°/s)               Stimulus speed (°/s)                    Stimulus speed (°/s)
+cal inhibitory inputs to T4 are not simply contributed by a single cell
+type (other candidates include CT1, C3 and TmY1517).                                 Fig. 5 | Asymmetric inputs in a conductance-based model predict
+                                                                                     directionally selective responses. a, Anatomical reconstruction of a T4
+Synthesis of experimental results with classical computational                       cell used in the simulation, with expanded dendrite showing positions of
+models for motion detection. Historically, the computation of                        modeled excitatory (dark green) and inhibitory (light green) synapses.
+directional selectivity has been conceptualized with algorithmic                     Enlarged markers indicate active synapses for an example stimulus position.
+models outlining the general properties that transform nonselec-                     Spatial filters, which determine synaptic weight, are shown normalized and
+tive inputs into a directionally selective output. Here we compare                   aligned to the dendrite, and temporal filters are shown in inset. b, Mean
+our results with the implications of the classical models and present                measured motion responses (from Fig. 4) compared to the simulated
+an algorithmic summary of our findings. Motion-detector models                       predictions. c, Peak PD and ND responses measured in T4s, compared to
+typically describe a ‘fully opponent’ computation, whereby local                     the summed SPFRs (from Fig. 4) and simulation results. d, DSI for the mean
+motion estimates in opposing directions are subtracted to minimize                   measured responses compared to: (left) model simulation results and
+nonmotion signals1. Since T4 is now understood to reside one step                    summed responses; (center) simulation results without inhibition; (right)
+before this opponent subtraction30, we only consider the subunits of                 simulation results with all synaptic inputs placed in same location, and a
+each model type before this subtractions stage. The classical model                  separate single-compartment simulation (detailed in Methods).
+for insect motion detection is the HR detector2. This detector gen-
+erates directional selectivity by delaying leading-side excitatory
+input and combining it with trailing-side excitatory input with a                    Furthermore, the excitatory region of the receptive field is motion
+nonlinear amplification, thus enhancing the PD response (Fig. 6a).                   blind (Supplementary Fig. 4).
+If T4 directional selectivity was based on an HR-like mechanism,                         An alternative classical model is the BL detector3, which integrates
+we would expect to find (i) excitatory inputs spanning the receptive                 fast leading-side excitation and slower trailing-side inhibition through
+field, (ii) differing temporal filtering of inputs resulting in a delayed            the nonlinear ‘AND–NOT’ operation (Fig. 6b). Directional selectivity
+leading side and (iii) enhanced responses to PD motion (Fig. 6a).                    is computed when excitatory input precedes the inhibitory input; in
+We did not find evidence for any of these properties: (i) T4 receives                the reverse order, ND motion is suppressed. We find several prop-
+offset excitatory and inhibitory inputs (Fig. 2c), (ii) leading side                 erties in our T4 recordings that agree with this framework: (i) lead-
+responses are not temporally delayed (Fig. 2d, e and Supplementary                   ing-side excitatory responses and trailing-side inhibitory responses
+Fig. 8), and (iii) PD motion is not enhanced (Figs. 3, 4 and 5).                     (Fig. 2), (ii) longer temporal filtering on the trailing side, such that
+
+Nature Neuroscience | VOL 21 | FEBRUARY 2018 | 250–257 | www.nature.com/natureneuroscience                                                                                                                          255
+                                               © 2018 Nature America Inc., part of Springer Nature. All rights reserved.
+Articles                                                                                                                                                           NATure NeurOscIence
+
+              a                                                      c                                                             d
+              Hassenstein–Reichardt detector                             Adelson–Bergen detector                                   T4 summary (after Torre–Poggio model)
+                     Preferred direction                                                                                           Preferred direction
+                          Null direction                                                                Spatial filters
+                                                                                                                                        Null direction                              Spatial filters
+                                                                                                                                             Excitatory                        Inhibitory
+
+                     τE-Lead > τE-Trail τEL            τET
+                                                                     τE < τI                                    Temporal filters
+                                                                                      τE                   τI                                                                       Temporal filters
+
+
+
+
+                                                                     Time
+                                            +        +                                                                                              τE                         τI
+                                                ×                                                                                         τE < τI
+                                                    Multiplicative                         +           –
+                                                    nonlinearity                               ∑
+                                                                            Space                                                                                  +       –
+
+
+
+
+                                                                                                                                                                                       Conductance
+                          PD enhanced                                                                                                                                  ∑
+
+                                                                                               ( )2
+              b                                                                                       Amplifying
+               Barlow–Levick detector                                                                 nonlinearity                                                                      Time
+                                                                       PD enhanced                                                     Biophysical                  E - αI
+                                                                      ND suppressed                                                    nonlinearity                1+E+I
+
+                       τE < τI         τE                τI
+
+
+
+
+                                                                                                                                                      Membrane V
+                                                NOT
+
+                                        AND            Veto
+                                                    nonlinearity
+                                                                                                                                                       Time
+
+
+
+                        ND suppressed                                                                                                  ND suppressed
+
+
+Fig. 6 | Comparison of the T4 mechanism with classical computational models for directional selectivity. a, The HR detector2 uses slower filtering on the
+leading side arm and a multiplicative nonlinearity to produce coincidence detection of excitatory signals. The time constants are labeled as 𝝉​E-Lead and
+𝝉​E-Trail, where E indicates filtering of an excitatory leading (lead, L) or trailing (trail, T) signal. The semicircles represent two neighboring inputs to the motion
+detectors. b, The BL detector3 combines a slow trailing-side inhibitory (I) arm with a faster leading-side excitatory (E) arm through an AND–NOT operation
+that vetoes motion in the null direction. c, The AB detector31 uses oriented spatiotemporal filters, created from offset spatial and fast and slow temporal
+filters, to produce directional selectivity. d, A summary of the T4 mechanism formatted for comparison to the algorithmic models, based on the Torre–
+Poggio model35. The simple RF structure of T4 (Supplementary Fig. 8) does not require the more complex spatial and temporal filters used in the AB model.
+Instead we use filters fit to T4 measurements (Fig. 5), which produce a fast, excitatory leading signal and a delayed, inhibitory trailing signal. As in the AB
+model, directionally selective responses can be obtained through a linear combination of these signals (gray lines). The dynamic nonlinearity operates on
+the magnitude of excitatory (E) and inhibitory (I) conductances (detailed in Methods) to produce a directionally selective membrane potential response.
+
+
+
+inhibition outlasts excitation (Figs. 2 and 5 and Supplementary Fig. 8)                                    In light of the commonalities and discrepancies between classical
+and (iii) clear evidence for ND suppression with both two-step and                                      algorithmic models and our results, we next provide a summary of
+moving-bar apparent motion (Figs. 3c and 4f).                                                           our understanding of T4 in a format that is directly comparable to
+    While the organization of the T4 RF agrees with the algorith-                                       these models (Fig. 6d), with an excitatory and an inhibitory arm. The
+mic principle of the BL model, we find an important difference in                                       more complex spatial and temporal filters of the AB model, selected
+the integration mechanism. The BL model uses a strong nonlinear-                                        to match cortical recordings, are replaced with the filters describ-
+ity and so does not produce directionally selective responses from                                      ing T4 responses (Fig. 5 and Methods). The spatial filters create the
+the superposition of the responses to stationary inputs (which our                                      leading-versus-trailing offset and the temporal filters create the fast-
+T4 recordings show; Figs. 3 and 4). This seemingly technical dis-                                       versus-slow difference between the excitatory and inhibitory arms.
+tinction is in fact quite consequential, because in both the HR and                                     In contrast to the ‘point-sampling’ inputs of the classical HR and
+BL models, the nonlinearity is a defining characteristic: without it,                                   BL models, T4 shows spatially extended responses to visual input
+there are no directionally selective responses. In contrast, our T4                                     (Fig. 2b), which has previously been shown to improve the accu-
+results show that directional selectivity is already present in the                                     racy of motion detection34. While the sum of the linear filter outputs
+superposition of the stationary stimulus responses.                                                     produces asymmetric responses to PD and ND motion (Fig. 6d), T4
+    A third class of motion detectors—the Adelson–Bergen (AB)                                           neurons further enhance this selectivity through nonlinear integra-
+motion–energy model31—generates directional selectivity using                                           tion. While the AB model employs a static, amplifying nonlinearity,
+filters that are oriented in space and time. These linear filters                                       we measure a suppressing nonlinearity that is well approximated
+are combined spatial and temporal filters that feature a promi-                                         with a simplified passive, biophysical model (similar to a previous
+nent space–time tilt indicating the preferred direction. In Fig. 6c                                     formulation35; Figs. 5d and 6d, and see Methods).
+we present only the relevant subunit of the full AB model for
+comparison with our data. This subunit has (i) different spatial                                        Spatiotemporal receptive fields of T4 cells. Representing the
+filters on each of its arms, (ii) excitatory and inhibitory inputs,                                     response properties of neurons using spatiotemporal receptive fields,
+(iii) a linear integration step that produces a directionally selec-                                    equivalent to the responses of the spatiotemporal filters in the AB
+tive response from the superposition of stationary responses (as                                        model, has provided significant insight into transformation along the
+seen in simple cells of the cat visual cortex32) and (iv) a static,                                     visual pathway of mammals36 and has recently also been applied to the
+amplifying nonlinearity. This flexible model, whose commonali-                                          responses of directionally selective neurons in flies19,21. We replotted
+ties with variants of the classical motion-detection models have                                        the averaged SPFRs to approximate the spatiotemporal receptive field
+been broadly discussed1,31,33, provides a useful framework for rep-                                     of a T4 neuron (Supplementary Fig. 8). As expected for a direction-
+resenting the T4 computation.                                                                           ally selective neuron, we found a distinctive tilt in this receptive field,
+
+256                                                                                 Nature Neuroscience | VOL 21 | FEBRUARY 2018 | 250–257 | www.nature.com/natureneuroscience
+
+                                                         © 2018 Nature America Inc., part of Springer Nature. All rights reserved.
+NATure NeurOscIence                                                                                                                                     Articles
+indicating the PD. This RF has both excitatory and inhibitory                             19. Salazar-Gatzimas, E. et al. Direct measurement of correlation responses in
+lobes, which both appear tilted, an organization that may suggest a                           Drosophila elementary motion detectors reveals fast timescale tuning. Neuron
+                                                                                              92, 227–239 (2016).
+PD-enhancing and ND-suppressing mechanism19,21. To explore the                            20. Haag, J., Mishra, A. & Borst, A. A common directional tuning mechanism of
+basis of the RF tilt, we used our multicompartment T4 model and                               Drosophila motion-sensing neurons in the ON and in the OFF pathway. eLife
+replotted the simulated SPFRs (Supplementary Fig. 6c) as a spatio-                            6, e29044 (2017).
+temporal RF (Supplementary Fig. 8). Since the model was fit to the                        21. Leong, J. C., Esch, J. J., Poole, B., Ganguli, S. & Clandinin, T. R. Direction
+                                                                                              selectivity in Drosophila emerges from preferred-direction enhancement and
+SPFR data, the qualitative agreement between these RFs is not sur-                            null-direction suppression. J. Neurosci. 36, 8078–8092 (2016).
+prising. The simulated RF also features a tilted excitatory lobe. When                    22. Haag, J., Arenz, A., Serbe, E., Gabbiani, F. & Borst, A. Complementary
+we removed inhibition in our model (Fig. 5d) and reproduced the RF                            mechanisms create direction selectivity in the fly. eLife 5, e17421 (2016).
+(Supplementary Fig. 8), we found that the excitatory lobe was no longer                   23. Arenz, A., Drews, M. S., Richter, F. G., Ammer, G. & Borst, A. The temporal
+tilted, consistent with our inference that inhibition sharpens trailing-                      tuning of the Drosophila motion detectors is determined by the dynamics of
+                                                                                              their input elements. Curr. Biol. 27, 929–944 (2017).
+side responses (Fig. 2b). This simulation shows that a tilted, two-lobed                  24. Rall, W. Theoretical significance of dendritic trees for neuronal input-output
+spatiotemporal RF does not necessarily support a hybrid mechanism                             relations. in Neural Theory and Modeling 7397 (ed. Reiss, R. F.) (Stanford
+and reiterates the lack of evidence in our data for PD enhancement.                           University Press, Palo Alto, 1964).
+    It is worth noting that the receptive fields of T5 cells, the OFF                     25. Strausfeld, N. J. & Lee, J. K. Neuronal basis for parallel visual processing in
+                                                                                              the fly. Vis. Neurosci. 7, 13–33 (1991).
+directionally selective neurons, look qualitatively similar to those                      26. Pankova, K. & Borst, A. Transgenic line for the identification of cholinergic
+estimated for T4 neurons19–21. Therefore, it is possible that T5 neu-                         release sites in Drosophila melanogaster. J. Exp. Biol. 220, 1405–1410 (2017).
+rons compute directional selectivity using the same simple mech-                          27. Long, X., Colonell, J., Wong, A. M., Singer, R. H. & Lionnet, T. Quantitative
+anism that we have established here for T4 neurons. Notably, no                               mRNA imaging throughout the entire Drosophila brain. Nat. Methods 14,
+small-field inhibitory inputs37,38 to T5 have thus far been identified,                       703–706 10 (2017).
+                                                                                          28. Yang, H. H. et al. Subcellular imaging of voltage and calcium signals reveals
+raising the possibility of different implementations of the same                              neural processing in vivo. Cell 166, 245–257 (2016).
+motion computation in ON and OFF pathways39,40.                                           29. Ammer, G., Leonhardt, A., Bahl, A., Dickson, B. J. & Borst, A. Functional
+                                                                                              specialization of neural input elements to the Drosophila ON motion detector.
+Methods                                                                                       Curr. Biol. 25, 2247–2253 (2015).
+                                                                                          30. Mauss, A. S. et al. Neural circuit to integrate opposing motions in the visual
+Methods, including statements of data availability and any asso-                              field. Cell 162, 351–362 (2015).
+ciated accession codes and references, are available at https://doi.                      31. Adelson, E. H. & Bergen, J. R. Spatiotemporal energy models for the
+org/10.1038/s41593-017-0046-4.                                                                perception of motion. J. Opt. Soc. Am. A 2, 284–299 (1985).
+                                                                                          32. Jagadeesh, B., Wheat, H. S. & Ferster, D. Linearity of summation of synaptic
+Received: 11 April 2017; Accepted: 6 November 2017;                                           potentials underlying direction selectivity in simple cells of the cat visual
+Published online: 8 January 2018                                                              cortex. Science 262, 1901–1904 (1993).
+                                                                                          33. van Santen, J. P. & Sperling, G. Elaborated Reichardt detectors. J. Opt. Soc.
+                                                                                              Am. A 2, 300–321 (1985).
+References                                                                                34. Dror, R. O., O’Carroll, D. C. & Laughlin, S. B. Accuracy of velocity estimation by
+1. Borst, A. & Egelhaaf, M. Principles of visual motion detection. Trends                     Reichardt correlators. J. Opt. Soc. Am. A Opt. Image Sci. Vis 18, 241–252 (2001).
+    Neurosci. 12, 297–306 (1989).                                                         35. Torre, V. & Poggio, T. Synaptic mechanism possibly underlying directional
+2. Hassenstein, V. B. & Reichardt, W. Systemtheoretische Analyse der Zeit-,                   selectivity to motion. Proc. R. Soc. Ser. B Biol. Sci. https://doi.org/10.1098/
+    Reihenfolgen- und Vorzeichenauswertung bei der Bewegungsperzeption des                    rspb.1978.0075 (1978).
+    Rüsselkäfers Chlorophanus. Z. Naturforsch. B 11, 513–524 (1956).                      36. DeAngelis, G. C., Ohzawa, I. & Freeman, R. D. Receptive-field dynamics in
+3. Barlow, H. B. & Levick, W. R. The mechanism of directionally selective units               the central visual pathways. Trends Neurosci. 18, 451–458 (1995).
+    in rabbit’s retina. J. Physiol. (Lond.) 178, 477–504 (1965).                          37. Serbe, E., Meier, M., Leonhardt, A. & Borst, A. Comprehensive
+4. Poggio, T. & Reichardt, W. Considerations on models of movement detection.                 characterization of the major presynaptic elements to the Drosophila OFF
+    Kybernetik 13, 223–227 (1973).                                                            motion detector. Neuron 89, 829–841 (2016).
+5. Buchner, E. Elementary movement detectors in an insect visual system. Biol.            38. Shinomiya, K. et al. Candidate neural substrates for off-edge motion detection
+    Cybern. 24, 85–101 (1976).                                                                in Drosophila. Curr. Biol 24, 1062–1070 (2014).
+6. Tuthill, J. C., Chiappe, M. E. & Reiser, M. B. Neural correlates of illusory motion    39. Fitzgerald, J. E. & Clark, D. A. Nonlinear circuits for naturalistic visual
+    perception in Drosophila. Proc. Natl. Acad. Sci. USA 108, 9685–9690 (2011).               motion estimation. eLife 4, e09123 (2015).
+7. Haag, J., Denk, W. & Borst, A. Fly motion vision is based on Reichardt                 40. Leonhardt, A. et al. Asymmetry of Drosophila ON and OFF motion detectors
+    detectors regardless of the signal-to-noise ratio. Proc. Natl. Acad. Sci. USA             enhances real-world velocity estimation. Nat. Neurosci. 19, 706–715 (2016).
+    101, 16333–16338 (2004).
+8. Borst, A., Flanagin, V. L. & Sompolinsky, H. Adaptation without parameter
+    change: dynamic gain control in motion detection. Proc. Natl. Acad. Sci. USA          Acknowledgements
+    102, 6172–6176 (2005).                                                                We thank A. Nern for providing the driver line and image, K. Shinomiya and Janelia’s
+9. Takemura, S. Y. et al. A visual motion detection circuit suggested by                  FlyEM project team for providing the reconstructed T4 cell morphology, M. Cembrowski
+    Drosophila connectomics. Nature 500, 175–181 (2013).                                  for assistance with the NEURON simulations and E. Rogers for help with fly husbandry.
+10. Strother, J. A., Nern, A. & Reiser, M. B. Direct observation of ON and OFF            We are also grateful to A. Hermundstad, J. Dudman, N. Spruston, B. Mensh and
+    pathways in the Drosophila visual system. Curr. Biol. 24, 976–983 (2014).             members of the Reiser lab for comments on the manuscript. This project was supported
+11. Maisak, M. S. et al. A directional tuning map of Drosophila elementary                by the Howard Hughes Medical Institute.
+    motion detectors. Nature 500, 212–216 (2013).
+12. Joesch, M., Schnell, B., Raghu, S. V., Reiff, D. F. & Borst, A. ON and OFF
+    pathways in Drosophila motion vision. Nature 468, 300–304 (2010).
+                                                                                          Author contributions
+                                                                                          E.G. and M.B.R. designed experiments; E.G. performed experiments and analysis. E.G.
+13. Clark, D. A., Bursztyn, L., Horowitz, M. A., Schnitzer, M. J. & Clandinin, T.
+                                                                                          and S.R. conducted the simulation study. E.G. and M.B.R. wrote the manuscript.
+    R. Defining the computational structure of the motion detector in Drosophila.
+    Neuron 70, 1165–1177 (2011).
+14. Behnia, R., Clark, D. A., Carter, A. G., Clandinin, T. R. & Desplan, C.               Competing interests
+    Processing properties of ON and OFF pathways for Drosophila motion                    The authors declare no competing financial interests.
+    detection. Nature 512, 427–430 (2014).
+15. Strother, J. A. et al. The emergence of directional selectivity in the visual
+    motion pathway of Drosophila. Neuron 94, 168–182.e10 (2017).                          Additional information
+16. Fischbach, K.-F. & Dittrich, A. The optic lobe of Drosophila melanogaster. I. A       Supplementary information is available for this paper at https://doi.org/10.1038/
+    Golgi analysis of wild-type structure. Cell Tissue Res. 258, 441–475 (1989).          s41593-017-0046-4.
+17. Takemura, S. Y. et al. The comprehensive connectome of a neural substrate             Reprints and permissions information is available at www.nature.com/reprints.
+    for ‘ON’ motion detection in Drosophila. eLife https://doi.org/10.7554/
+                                                                                          Correspondence and requests for materials should be addressed to M.B.R.
+    eLife.24394 (2017).
+18. Fisher, Y. E., Silies, M. & Clandinin, T. R. Orientation selectivity sharpens         Publisher’s note: Springer Nature remains neutral with regard to jurisdictional claims in
+    motion detection in Drosophila. Neuron 88, 390–402 (2015).                            published maps and institutional affiliations.
+
+Nature Neuroscience | VOL 21 | FEBRUARY 2018 | 250–257 | www.nature.com/natureneuroscience                                                                                     257
+                                                    © 2018 Nature America Inc., part of Springer Nature. All rights reserved.
+Articles                                                                                                                             NATure NeurOscIence
+
+Methods                                                                                     Fig. 1). If a recorded cell was consistently responsive to the first two mapping
+Histology. To visualize the expression pattern of the T4 driver line (SS02344),             stimuli, a third one was presented to identify the RF center. A 5 ×​ 5 grid of 3 ×​  3
+brains of female flies were immunolabeled and imaged as described41. Anti-Brp               LED bright squares separated by single-pixel shifts was presented at the estimated
+was used as a stain for the neuropil marker (anti-nc82, 1:30, Developmental                 center of the second grid stimulus. The location of the peak response to this
+Studies Hybridoma Bank) and pJFRC225-5XUAS-IVS-myr::smFLAG (rat anti-                       stimulus was used as the RF center in subsequent experiments. Once the RF center
+FLAG, 1:100, Novus Biologicals) in VK0000542 was used as the reporter for GAL4              was identified, the moving bar stimulus was presented in eight directions and four
+expression. The image shown in Supplementary Fig. 1a was generated from a                   step-durations. The bar was 1 ×​ 9 pixels. When moving in the cardinal directions,
+confocal stack imaged on a Zeiss LSM 710 microscope with a 63×​objective, and               the motion spanned 9 pixels. In the diagonal directions, bar motion included more
+resampled using Vaa3D43.                                                                    steps to cover the same distance (9 steps vs. 13 steps). Once the preferred direction
+                                                                                            had been estimated, bright bar (also 1 ×​ 9 pixels) flashes were presented on the
+Electrophysiology. Experiments were performed on 1- to 2-d old female                       relevant axis. To verify full coverage of RF, this stimulus was presented over an
+Drosophila melanogaster (flies were reared under constant light conditions at 24 °C;        area larger than the original motion window (at least 13 positions). In addition to
+some flies experienced periods of darkness, including overnight, before dissection).        these stimuli, most cells were also presented with additional stimuli following this
+To target T4 cells, a single genotype was used: pJFRC28-10XUAS-IVS-GFP-p1044                procedure. All stimuli were presented in a pseudorandom order within stimulus
+in attP2 crossed to stable split-GAL4 SS02344 (VT015785-p65ADZp (attP40);                   blocks. All stimuli were presented three times, except for single-bar flashes, which
+R42F06-ZpGdbd (attP2), generously provided by A. Nern in G. Rubin’s laboratory,             were repeated five times. The interstimulus interval was 500 ms for moving stimuli
+Janelia; line details with expression data available from http://splitgal4.janelia.org/).   and 800 ms for single-bar flashes (to minimize the effect of ongoing inhibition on
+Flies were briefly anesthetized on ice and transferred to a special chilled vacuum          the responses to subsequent stimuli).
+holder where they were mounted, with the head tilted down, to a customized
+platform machined from PEEK using UV-cured glue (Loctite 3972). CAD files                   Analysis. All data analysis was performed in Matlab using custom written code.
+for the platform and vacuum holder are available upon request. To reduce brain              Since the T4 baseline was typically stable, we included only trials in which the
+motion, the proboscis was fixed to the head with a small amount of the same                 mean prestimulus baseline did not differ from the overall prestimulus mean for
+glue. The posterior part of the cuticle was removed using syringe needles and fine          that group of stimuli by more than 10 mV. We also verified that the prestimulus
+forceps. The perineural sheath was peeled using fine forceps and, if needed, further        mean and overall mean for that trial did not differ by more than 15 mV (or 25 mV
+removed with a suction pipette under the microscope. To further reduce brain                for slow-moving bars, due to their strong responses). This was designed to identify
+motion, muscle 1645 was removed from between the antenna.                                   those rare trials in which the trace became unstable only after the stimulus was
+     The brain was continuously perfused with an extracellular saline containing            presented. Responses were later aligned to the appearance of the bar stimulus and
+(in mM): 103 NaCl, 3 KCl, 1.5 CaCl2, 4 MgCl2, 1 NaH2PO4, 26 NaHCO3, 5                       averaged (or the appearance of the bar in the central position in case of the eight-
+N-Tris (hydroxymethyl) methyl-2-aminoethane-sulfonic acid, 10 glucose and 10                orientation moving bar). T4 cells are expected to signal using graded synapses.
+trehalose46. Osmolarity was adjusted to 275 mOsm, and saline was bubbled with               Consistent with this expectation, we find that T4 recordings only occasionally
+95% O2 / 5% CO2 during the experiment to reach a final pH of 7.3. Pressure-                 feature very weak, fast transients (~1–2 mV in size) that could not be verified
+polished patch-clamp electrodes were pulled for a resistance of 9.5–10.5 MΩ​ and            as spikes. Therefore, we have focused our analysis on the graded (subthreshold)
+filled with an intracellular saline containing (in mM): 140 KAsp, 10 HEPES, 1.1             components of T4’s responses.
+EGTA, 0.1 CaCl2, 4 MgATP, 0.5 NaGTP and 5 glutathione46. We added 250 μ​M
+Alexa Fluor 594 hydrazide to the intracellular saline before each experiment, to            Determining PD. First, eight-direction responses were aligned to the center
+reach a final osmolarity of 265 mOsm, with a pH of 7.3.                                     position for each cell. Second, for the duration of bar presentation, the mean vector
+     The mounted, dissected flies were positioned on a rigid platform mounted on                                                                ̄      8
+                                                                                            response was calculated for each time point as R (t ) = ∑k=1 R(θk, t )e iθk,
+                                                                                            with θk being the direction of motion (in 45° intervals) and R(θk,t) the response at
+an air table. Recordings were obtained from labeled T4 cell bodies under visual
+control using a Sutter SOM microscope with a 60×​water-immersion objective.                 that direction at time t. Supplementary Fig. 2 shows the result of this procedure
+To visualize the GFP-labeled cells, a monochrome, IR-sensitive CCD camera                                                                 ̄
+                                                                                            for the normalized vector magnitude and θ .This procedure can be thought of
+(ThorLabs 1500M-GE) was mounted to the microscope, an IR LED provided                       as mimicking a downstream neuron, receiving input from T4s with the same RF
+oblique illumination (ThorLabs M850F2), and a 460-nm LED provided GFP                                                         ̄
+                                                                                            center but different PDs. The θ value for the cell was selected at the timepoint
+excitation (Sutter TLED source). Images were acquired using Micro-Manager47 to              when the mean vector magnitude was maximal (repeated for four step-durations
+allow for automatic contrast adjustment.                                                    and averaged). In the polar plot of Fig. 1b, this timepoint is used for the response
+     All recordings were obtained from the left side of the brain. Current-clamp            to each bar direction. The PD was determined as the θk value with the minimal
+recordings were low-pass filtered at 10 kHz using an Axon MultiClamp 700B                                   ̄
+                                                                                            difference to θ . For Fig. 1c, responses were then circularly shifted to align the PD
+amplifier, and were sampled at 20 kHz (National Instrument PCIe-7842R LX50                  with rightward motions for plotting and averaging purposes.
+Multifunction RIO board) using custom LabView (2013 v.13.0.1f2; National
+Instruments) and Matlab (2015a; MathWorks) software. The membrane potential                 DSI calculation. The direction selectivity index was defined as
+of recorded cells was set around –65 mV (uncorrected for liquid junction                    R(PD)−R(ND)∕R(PD), with each response defined as the 0.995 quantile (a robust
+potential), which required injecting a small, hyperpolarizing current (0–3 pA),             estimate of the max) within the stimulus presentation window. DSI values for the
+which after initial adjustment was maintained at a constant value throughout the            model and model variations were calculated in the same manner.
+recording. To verify recording quality, current-step injections were performed
+intermittently throughout the experiment. Recordings from cells in which either             Depolarization calculation for single-position flash response. Responses were defined
+visual or current-step responses diminished noticeably were terminated.                     as the 0.995 quantile (a robust estimate of the max) of the response during the time
+                                                                                            between bar appearance and flash duration +​75 ms. If this number did not exceed
+Visual stimuli. The display was constructed from an updated version of the LED              3 s.d. of the prestimulus baseline (for all bar flashes for that cell), the response was
+panels previously described48. The arena covered slightly more than one half of             defined as zero.
+a cylinder (216° in azimuth and ~72° in elevation) of the fly’s visual field, with
+the maximum pixel diameter subtending an angle of ~2.25° on the fly eye. Green              Hyperpolarization calcultion for single-position flash response. These responses were
+LEDs (emission peak: 565 nm) were used; bright stimuli were ~72 cd/m2 and were              calculated as for depolarization except that the time window lasted until end of
+presented on an intermediate intensity background of ~31 cd/m2.                             trial (due to the slower time course for inhibition) and the threshold was 2 s.d. (due
+     Visual stimuli were generated using custom-written Matlab code that allowed            to the lower magnitude of hyperpolarization). These calculations were used for
+rapid generation of stimuli based on individual cell responses. In contrast to the          Fig. 2c and Supplementary Fig. 3.
+published stimulus control system48, we have now implemented an FPGA-based
+panel display controller, using the same PCIe card (National Instrument PCIe-               Depolarization (or hyperpolarization) normalization. All detected averaged
+7842R LX50 Multifunction RIO board) that also acquired the electrophysiology                SPFRs for a given duration were normalized to the maximal depolarizing
+data. This new control system (implemented in LabView) streams pattern data                 (hyperpolarizing) absolute response for that duration and that cell. Figure 2c shows
+directly from PC file storage, allowing for online stimulus generation. Furthermore,        the average of these normalized responses for a single duration. Supplementary
+this new control system featured high-precision (to 10 μ​s) timing and logging of all       Fig. 3a shows the sums for each cell, for four normalized depolarizing responses
+events, enabling reliable alignment of electrophysiology data with visual stimuli.          and the two slowest hyperpolarizing responses (since hyperpolarization was
+     To map the receptive field (RF) center of each recorded cell, three grids of           hard to detect for brief flashes). A position that showed the maximal response
+flashing bright squares (on an intermediate intensity background) were presented            for all durations will, therefore, have a value of 4 for depolarizations and 2 for
+at increasing resolution. Each flash stimulus was presented for 140 ms. First, a 6 ×​  7    hyperpolarizations.
+grid of non-overlapping bright squares (5 ×​ 5 LEDs; ~11° ×​ ~11°) was presented. If
+a response was detected, a denser 3 ×​ 3 grid with 50% overlapping bright and dark          Onset-time calculation. Data during a window of 200 ms before stimulus presentation
+squares (5 ×​ 5 LEDs; ~11° ×​ ~11°), to further verify that these were T4 cells, was        from all the single-bar flashes presented to a cell was used for a per-cell estimate of
+presented at the estimated position of the RF center. The dark squares were used to         the s.d. of the baseline. Only presentations in which the average SPFR was detected
+further verify that the recorded cells were T4, and not T5, cells (see Supplementary        as depolarizing were used for onset-time calculation.
+
+                                                                                                                   Nature Neuroscience | www.nature.com/natureneuroscience
+
+                                                      © 2018 Nature America Inc., part of Springer Nature. All rights reserved.
+NATure NeurOscIence                                                                                                                                                      Articles
+Onset time was defined as the time from stimulus presentation (after it was corrected         team. The FlyEM team collected a dataset containing approximately half of a
+for a small display latency) in which the response crossed 0.5×​ baseline s.d. This           Drosophila optic lobe, imaged with isotropic 8-nm voxels by focused ion-beam
+threshold value did not exceed 0.5 mV. This calculation is used in Fig. 2d,e. Because         milling scanning electron microscopy (FIB-SEM). The sample was prepared
+positions in the center of the RF feature a mixture of excitation and inhibition, the         from the head of a female fly as previously reported, using high-pressure freezing
+peak time is ‘contaminated’ by the inhibitory contribution and could not be used as           followed by freeze-substituted embedding9,52. A 153 ×​  85 ×​  180-μ​m volume
+an independent, reliable measure of the properties of the excitatory input.                   containing connected regions of the lamina, medulla, lobula and lobula plate was
+                                                                                              imaged. The imaged volume was segmented automatically based on an algorithm
+Decay time calculation. The decay time (from 80% to 20% of maximal response)                  similar to one previously described53. NeuTu-EM (https://github.com/janelia-
+was calculated for all cells and all positions in which a depolarizing response was           flyem/NeuTu/tree/flyem_release), in which segmented fragments of neurons are
+detected. If 20% of max response was not attained by the time recording ended,                merged and split to form the complete morphology of individual neurons, was
+that data point was excluded. This calculation is used in Fig. 2d,e. The numbers of           then used to proofread the segmented volume. A reconstructed T4 neuron was
+cells that passed the above threshold and were included in Fig. 2d is, for 160 ms: 17,        identified based on its distinctive morphology, with dendritic compartments
+17, 17, 17, 17, 15, 9; for 80 ms: 15, 16, 17, 17, 16, 15, 6; for 40 ms: 11, 13, 16, 16, 16,   spanning ~20 μ​m in the medulla and an axon projecting to a distinct layer of the
+10, 8; and for 20 ms: 1, 8, 11, 17, 12, 8, 4.                                                 Lobula Plate. The reconstructed neuron morphology contained 344 sections.
+                                                                                                   To correct for a small number of inconsistencies in the reconstructed
+Slope calculation (onset and decay times). To calculate the slope in Fig. 2e, onset           morphology, the diameter of each dendritic section was smoothed by performing
+(decay) time values from all the positions of an individual cell were fit with a              a moving average of the diameter of five adjacent sections (using the TREES
+linear regression. Fits were performed only when more than four positions showed              toolbox54). The simulation was implemented and run using NEURON v.7.4
+responses, to account for cases in which not all positions showed detectable                  (http://www.neuron.yale.edu/neuron/). Analog synapses were placed randomly
+depolarizing responses (especially due to fast flashes).                                      throughout the dendritic arbor (this compartment, containing 235 sections, was
+                                                                                              defined manually), and a recording electrode was attached to the soma. After
+Summed SPFRs (superposition). SPRFs were aligned to the time of the                           identifying the primary dendritic axis (used to simulate stimulation along the
+corresponding position appearance in the moving-bar stimulus. Responses were                  PD–ND axis), we assigned each dendritic section a value corresponding to its
+padded with zeros (since all were baseline-subtracted) to extend brief single-bar             projection on this axis (x*, between 0 and 1). We subdivided the axis into M =​  11
+responses to the timescale of a moving bar. This procedure was used both for the              intervals, where each interval contains an equal number of dendritic sections
+two-step apparent-motion stimuli and for the moving-bar stimuli (Figs. 3 and 4                (21 sections), to map onto the 11 stimulated positions required to enclose the T4
+and Supplementary Figs. 4, 5 and 7). For moving-bar analysis, responses in which              receptive field. We used 11 intervals because the average traces in Fig. 4d, which
+hyperpolarization did not return to zero by the end of the recording were padded              were the reference for the simulation, spanned positions –5 to 5 (see “Analysis”
+with a linear fit to the last 250 ms that was extended to zero (to avoid abrupt               subsection). Within an interval, we randomly selected a fixed number N of
+changes). For the analysis in Fig. 4, one cell was not included because the dataset           dendritic sections NE =​  9 (or NI =​ 5) where excitatory (E; or inhibitory, I) graded
+for this recording was incomplete.                                                            synapses were placed. The reversal potential for excitatory synapses was set to 0 mV
+                                                                                              and to –70 mV for inhibitory synapses. The resting membrane potential was set
+Rectified SPFR sums. These were calculated as for standard sums but with all                  to –65 mV. To simulate a visual input, mimicking the appearance of the bar at one
+negative values in individual SPFRs set to zeros (Supplementary Fig. 5b).                     position, all the synapses in the region were activated with conductance dynamics
+                                                                                              that were uniform for all E and different, but uniform, for all I synapses. Our model
+Scaled center response SPFR sums. Individual SPFRs were replaced with a central               simplifies the transformation from visual input to a synaptic conductance change,
+response trace after rectification, scaled to the amplitude of the original positional        so while we are not explicitly modeling the optical and neuronal prefiltering that
+response. This was done to eliminate the positional change in response width                  is upstream of T4, these details are implicitly incorporated into the model, as
+(Supplementary Fig. 5b).                                                                      these elements contribute to the SPFRs, which the model was fit to reproduce. To
+                                                                                              simulate an analog synapse, we used the single-electrode voltage-clamp (SEVC)
+Average traces in Fig. 4d,f and Supplementary Fig. 5a. Positions from all cells were          point process and injected the inverse of our calculated conductance (see below)
+aligned to the center zero position before averaging. All trajectories that were              into the SEVC Rs (zero conductance corresponds to 1 ×​  109 Ω​ resistance).
+longer than eight positions were included in this analysis. Some were extracted                    We computed the E and I conductance time course at each synapse (gE(t,x*),
+from the original eight-direction stimuli (Fig. 1), which was used to determine PD,           gI(t,x*)) according to the following:
+and some from additional trajectories that were presented just along the PD axis.
+                                                                                                                                dhC(t , x *)
+                                                                                                                      τC,rise                = −hC(t , x *) + IC(t , x *)
+Squared sum in Supplementary Fig. 7. The averaged measured data (presented                                                         dt
+in Supplementary Fig. 7a) was squared (after baseline-subtraction) for both the
+individual presentations and the two-step positions. To generate the expected sum,
+individual squared responses were temporally aligned and summed.                                                                 dfC (t , x *)
+                                                                                                                      τC,decay                   = −fC (t , x *) + hC(t , x *)
+                                                                                                                                     dt
+Spatiotemporal maps in Supplementary Fig. 8. Averaged SPFRs were aligned
+temporally to stimulus appearance. A two-dimensional Gaussian was used to
+smooth the data both temporally (σ​  =​ 250 ms) and spatially (σ​  =​  one position)                                             g C(t , x *) = fC (t , x *)a C(x *)
+using Matlab function imgaussfilt. Contour plots were generated using Matlab
+function contourf, with a fixed ‘level list’ that was manually generated to include           where C =​ {E, I}, and (τC,rise, τC,decay) denote the rise (or decay) time constants of the
+smaller steps for the hyperpolarized range. An identical procedure was performed              synapse, IC(t,x*) is the synaptic input, and aC(x*) scales the conductance based on
+on the simulated SPFRs and simulated SPFRs without inhibition (see the                        the location of the synapse on the PD–ND axis. We modeled the amplitude as a
+“Conductance model” section for details).                                                     Gaussian profile
+                                                                                                                                                                2
+Statistics. To determine statistically significant differences, one-sided unpaired                                                                     −(
+                                                                                                                                                         x*− μC)
+Student’s t tests were used for comparing groups (Figs. 2e and 4e and Supplementary                                                 a C(x *) = AC e        2 σC2
+Fig. 5b). Data distribution was assumed to be normal, but this was not formally
+tested. No statistical methods were used to predetermine sample sizes, but our sample         with an overall amplitude parameter AC, a peak location along the dendrite μC, and
+sizes are similar to those reported in previous publications49–51. Data collection and        a width σC. We chose a Gaussian profile because it reasonably approximates the
+analysis were not performed blind to the conditions of the experiments.                       spatial profile of E and I inputs measured for the SPFRs (Fig. 2c and Supplementary
+                                                                                              Fig. 3a) and to reduce the number of parameters needed to describe the inputs to
+Data-plotting conventions. All boxplots presented (except Fig. 2d) were plotted               the simulated T4 neuron. The synaptic input, IC(t,x*), was modeled as a pulse of
+with Matlab conventions. Boxes represent the first and third quartiles, center lines          unit amplitude with duration T, where T =​ 20, 40, 80, 160 ms, and was identical for
+represent medians, and whiskers represent the farthest point within the q3 +​  IQR            all the synapses located within one of the M intervals.
+(or q1 – IQR) range. Boxplots for Fig. 2d depict only medians and quartiles due to                 Three additional parameters of the neuronal model are the membrane
+spatial constraints. In Fig. 1, triangles denote data points outside of the plot (for 20      resistivity (Rm), membrane capacitance (Cm) and axial resistivity (Ra). For all
+ms: –0.19 and –1.14; for 40 ms: –0.09 and –0.7). In Fig. 4e, triangle denotes a data          simulations, Cm was fixed at Cm =​  1 μ​F/cm2. We optimized the remaining model
+point outside the plot for measured 40 ms: –0.7. Most plots used the cbrewer color            parameters, by performing nonlinear least squares minimization between
+library from the MathWorks file exchange.                                                     the numerical simulation results combining all stimulus positions (M =​  11
+                                                                                              intervals) and durations (T), resulting in 44 simulated SPFR responses, and the
+Conductance model. A model T4 neuron was implemented using the morphology                     corresponding measured SPFRs (Supplementary Fig. 6c). The minimization
+of a single T4 cell, reconstructed from electron microscopy data. The neuron                  used the lsqcurvefit() function from Matlab’s Optimization Toolbox. Having
+morphology was generously shared by K. Shinomiya and Janelia’s FlyEM project                  fit the model parameters using the single-position flash stimuli, we used the
+
+Nature Neuroscience | www.nature.com/natureneuroscience
+
+                                                       © 2018 Nature America Inc., part of Springer Nature. All rights reserved.
+Articles                                                                                                                                                  NATure NeurOscIence
+same optimized parameters to simulate the dynamics of the model in response                                      under some conditions it is possible to obtain a supralinear response to the
+to moving bars (apparent-motion stimulus). The moving-bar stimulus was                                        superposition of the two sets of conductances
+implemented by sequentially activating the synaptic inputs along the dendritic axis,
+with each interval being active for a duration T.                                                                                                (E1 + E 2)−α(I1 + I2)
+                                                                                                                                   ΔV1and2 =                              > ΔV1 + ΔV2.
+                                                                                                                                               1 + (E1 + E 2) + (I1 + I2)
+Model manipulations. We moved all synaptic inputs (99 excitatory and 55
+inhibitory synapses) to the first dendritic section (Fig. 5d). We then removed all                            For instance, when E1 =​ 0, I2 =​0, supralinearity is obtained if E 2 > 1 + I1 − α .
+                                                                                                                                                                                            α
+conductance changes mediated by the inhibitory synapses, while keeping all other
+settings of the model fixed. This was accomplished by setting the duration of all                             Life Sciences Reporting Summary. Further information on experimental design is
+inhibitory synaptic inputs to zero (Fig. 5d).                                                                 available in the Life Sciences Reporting Summary.
+
+Single-compartment conductance model. We modeled the time course of the                                       Code availability. The essential code used to generate the primary results and
+membrane potential of a T4 neuron, V(t), according to the single-compartment                                  conduct the simulations for this study are available at https://doi.org/10.25378/
+dynamics                                                                                                      janelia.c.3955843 and https://www.janelia.org/publication/simple-integration-fast-
+                                                                                                              excitation-and-offset-delayed-inhibition-computes-directional.
+                  dV (t )
+             CM           = −gL (V (t )−VL )−gE(t )(V (t )−VE)−gI (t )(V (t )−VI )
+                   dt                                                                                         Data availability. The data used to generate the primary results of this study are
+                                                                                                              available at https://doi.org/10.25378/janelia.c.3955843 and https://www.janelia.
+where CM is the membrane capacitance, gL is the leak conductance (resulting                                   org/publication/simple-integration-fast-excitation-and-offset-delayed-inhibition-
+in the integration time constant of the neuron τV =​  CM/gL), and VL, VE and                                  computes-directional.
+VI are the resting, excitatory and inhibitory reversal potentials respectively                                    The split-GAL4 driver used to target T4 cells (SS02344: VT015785-p65ADZp
+(values in Supplementary Table 1). The excitatory and inhibitory conductances,                                (attP40); R42F06-ZpGdbd (attP2)) was generously provided by A. Nern (line
+g C(t ), C = {E, I}, were modeled as a Gaussian weighted linear combination of                                details with expression data available from http://splitgal4.janelia.org/).
+stimulus location-specific conductances, g C(t ) = ∑iM=1 a C(xi)fC (t , xi) where, as for
+the model described in the previous section,                                                                  References
+                                                               (xi− μC)2
+                                                                                                              41. Aso, Y. et al. The neuronal architecture of the mushroom body provides a
+                                                           −                                                      logic for associative learning. eLife 3, e04577 (2014).
+                                        a C(xi) = AC e           2σC2
+                                                                                                              42. Nern, A., Pfeiffer, B. D. & Rubin, G. M. Optimized tools for multicolor
+                                                                                                                  stochastic labeling reveal diverse stereotyped cell arrangements in the fly
+gC(t,xi), the conductance change elicited by the presentation of a stimulus IC(t,xi) in                           visual system. Proc. Natl. Acad. Sci. USA 112, E2967–E2976 (2015).
+one of M =​15 locations xi, follows the dynamics                                                              43. Peng, H., Ruan, Z., Long, F., Simpson, J. H. & Myers, E. W. V3D enables
+                                                                                                                  real-time 3D visualization and quantitative analysis of large-scale biological
+                                     dhC(t , xi)
+                           τC,rise               = −hC(t , xi) + IC(t , xi)                                       image data sets. Nat. Biotechnol. 28, 348–353 (2010).
+                                        dt                                                                    44. Pfeiffer, B. D., Truman, J. W. & Rubin, G. M. Using translational enhancers to
+                                                                                                                  increase transgene expression in Drosophila. Proc. Natl. Acad. Sci. USA 109,
+                                      dfC (t , xi)                                                                6626–6631 (2012).
+                          τC,decay                   = −fC (t , xi) + hC(t , xi)                              45. Demerec, M. Biology of Drosophila (Hafner Press, New York, 1965).
+                                          dt                                                                  46. Wilson, R. I. & Laurent, G. Role of GABAergic inhibition in shaping
+                                                                                                                  odor-evoked spatiotemporal patterns in the Drosophila antennal lobe. J.
+Stimuli had characteristics identical to those described in the previous section. All                             Neurosci. 25, 9069–9079 (2005).
+the parameters (with the exception of the reversal potentials) were optimized to                              47. Edelstein, A. D. et al. Advanced methods of microscope control using μ​
+minimize the mean squared error between model responses to single-bar inputs                                      Manager software. J. Biol. Methods https://doi.org/10.14440/jbm.2014.36
+and average T4 SPFRs.                                                                                             (2014).
+    As with our original model, solutions to the single compartment model                                     48. Reiser, M. B. & Dickinson, M. H. A modular display system for insect
+conformed to one of the two solution clusters. The solutions either had fast                                      behavioral neuroscience. J. Neurosci. Methods 167, 127–139 (2008).
+(<​10 ms) time constants for E and slow membrane time constants (solution                                     49. Bahl, A., Serbe, E., Meier, M., Ammer, G. & Borst, A. Neural mechanisms for
+cluster 1), or slower E time constants and negligible membrane time constants                                     Drosophila contrast vision. Neuron 88, 1240–1252 (2015).
+(solution cluster 2).                                                                                         50. Turner-Evans, D. et al. Angular velocity integration in a fly heading circuit.
+    When the time constant of the neuron is negligible compared to the time                                       eLife 6, e23496 (2017).
+scale of the stimuli and conductances (τV → 0), the relative change of membrane                               51. Tuthill, J. C., Nern, A., Rubin, G. M. & Reiser, M. B. Wide-field feedback
+potential with respect to the resting potential can be written as                                                 neurons dynamically tune early visual processing. Neuron 82,
+                                                                                                                  887–895 (2014).
+                                          V (t )−VL     E(t )−αI (t )
+                            ΔV (t ) ≡               ≅                                                         52. Takemura, S. Y. et al. Synaptic circuits and their variations within different
+                                           VE−VL      1 + E(t ) + I (t )                                          columns in the visual system of Drosophila. Proc. Natl. Acad. Sci. USA 112,
+                                                                                                                  13711–13716 (2015).
+            V −V
+where α = VE − VL , E(t ) = gE(t ) ∕ gL , and I (t ) = gI (t ) ∕ gL . This is the expression used
+            L    I
+                                                                                                              53. Parag, T., Chakraborty, A., Plaza, S. & Scheffer, L. A context-aware delayed
+in the model schematics depicted in Fig. 6.                                                                       agglomeration framework for electron microscopy segmentation. PLoS One
+    Note that if one combination of excitatory and inhibitory conductances elicits a                              10, e0125825 (2015).
+                                       E − αI                                                                 54. Cuntz, H., Forstner, F., Borst, A. & Häusser, M. One rule to grow them all: a
+hyperpolarizing response, ΔV1 = 1 +1E +1I < 0
+                                           1 1
+    while a second one produces a depolarizing response, ΔV2 = E 2 − αI2 > 0,                                     general theory of neuronal branching and its practical application. PLOS
+                                                                                      1 + E 2 + I2                Comput. Biol. 6, e1000877 (2010).
+
+
+
+
+                                                                                                                                      Nature Neuroscience | www.nature.com/natureneuroscience
+
+                                                                        © 2018 Nature America Inc., part of Springer Nature. All rights reserved.
+                                                                                                                                                            nature research | life sciences reporting summary
+                                                                                      Corresponding author(s): Reiser Michael
+                                                                                          Initial submission       Revised version       Final submission
+
+Life Sciences Reporting Summary
+Nature Research wishes to improve the reproducibility of the work that we publish. This form is intended for publication with all accepted life
+science papers and provides structure for consistency and transparency in reporting. Every life science submission will use this form; some list
+items might not apply to an individual manuscript, but all fields must be completed for clarity.
+For further information on the points included in this form, see Reporting Life Sciences Research. For further information on Nature Research
+policies, including our data availability policy, see Authors & Referees and the Editorial Policy Checklist.
+
+
+`   Experimental design
+1. Sample size
+    Describe how sample size was determined.                         We did not perform a formal sample size calculation. However, our sample
+                                                                     size (17 recordings) exceed the standards in our field. Most reports of
+                                                                     single-cell recordings are in the <10 range.
+2. Data exclusions
+    Describe any data exclusions.                                    Recordings were terminated (and excluded from analysis) if response reliability
+                                                                     diminished noticeably (as determined by intermittent current step injections or
+                                                                     reduction in visual responses). Since the baseline potential in our recordings was
+                                                                     typically stable, we excluded trials in which the mean pre-stimulus baseline
+                                                                     differed from the overall pre-stimulus mean for that group of stimuli by more than
+                                                                     10 mV. These criteria were established after data collection, but applied uniformly
+                                                                     on all cells.
+3. Replication
+    Describe whether the experimental findings were                  The experimental findings were reliably reproduced, with n=17 recordings for most
+    reliably reproduced.                                             results. Individual examples as well as population means are presented.
+4. Randomization
+    Describe how samples/organisms/participants were                 Within each stimulus set, the stimuli were presented in a pseudo-random
+    allocated into experimental groups.                              manner (e.g. single position bar flashes were presented with positions and
+                                                                     durations randomly interleaved).
+5. Blinding
+    Describe whether the investigators were blinded to               Blinding was not possible for this study since there is just one experimental
+    group allocation during data collection and/or analysis.         group.
+    Note: all studies involving animals and/or human research participants must disclose whether blinding and randomization were used.
+
+
+
+
+                                                                                                                                                            June 2017
+
+
+
+
+                                                                                                                                                                     1
+6. Statistical parameters
+
+
+
+
+                                                                                                                                                                     nature research | life sciences reporting summary
+    For all figures and tables that use statistical methods, confirm that the following items are present in relevant figure legends (or in the
+    Methods section if additional space is needed).
+
+n/a Confirmed
+
+          The exact sample size (n) for each experimental group/condition, given as a discrete number and unit of measurement (animals, litters, cultures, etc.)
+          A description of how samples were collected, noting whether measurements were taken from distinct samples or whether the same
+          sample was measured repeatedly
+          A statement indicating how many times each experiment was replicated
+          The statistical test(s) used and whether they are one- or two-sided (note: only common tests should be described solely by name; more
+          complex techniques should be described in the Methods section)
+          A description of any assumptions or corrections, such as an adjustment for multiple comparisons
+          The test results (e.g. P values) given as exact values whenever possible and with confidence intervals noted
+          A clear description of statistics including central tendency (e.g. median, mean) and variation (e.g. standard deviation, interquartile range)
+          Clearly defined error bars
+
+                                   See the web collection on statistics for biologists for further resources and guidance.
+
+`   Software
+Policy information about availability of computer code
+7. Software
+    Describe the software used to analyze the data in this            Data were analyzed using custom code written in Matlab 2015a.
+    study.                                                            Multicompartment conductance model was implemented in NEURON v7.4. Data
+                                                                      acquisition and control of LED arena was implemented using LabVIEW 2013
+                                                                      (v.13.0.1f2).
+    For manuscripts utilizing custom algorithms or software that are central to the paper but not yet described in the published literature, software must be made
+    available to editors and reviewers upon request. We strongly encourage code deposition in a community repository (e.g. GitHub). Nature Methods guidance for
+    providing algorithms and software for publication provides further information on this topic.
+
+`   Materials and reagents
+Policy information about availability of materials
+8. Materials availability
+    Indicate whether there are restrictions on availability of        No restrictions on availability
+    unique materials or if these materials are only available
+    for distribution by a for-profit company.
+9. Antibodies
+    Describe the antibodies used and how they were validated Antibodies used to verify expression in T4 neurons have been widely validated in
+    for use in the system under study (i.e. assay and species). Drosophila neuroscience studies, for example Aso, Y. et al. eLife (2014).
+                                                                Rat α-FLAG Tag (DYKDDDDK Epitope Tag). Novus Biologicals. # NBP1-06712
+                                                                nc82 – Mouse α-bruchpilot. Developmental Studies Hybridoma Bank. #nc82-s
+
+10. Eukaryotic cell lines
+    a. State the source of each eukaryotic cell line used.            N/A
+
+    b. Describe the method of cell line authentication used.          N/A
+
+    c. Report whether the cell lines were tested for                  N/A
+       mycoplasma contamination.
+
+    d. If any of the cell lines used are listed in the database       N/A
+                                                                                                                                                                     June 2017
+
+
+
+
+       of commonly misidentified cell lines maintained by
+       ICLAC, provide a scientific rationale for their use.
+
+
+
+
+                                                                                                                                                                              2
+`   Animals and human research participants
+
+
+
+
+                                                                                                                                            nature research | life sciences reporting summary
+Policy information about studies involving animals; when reporting animal research, follow the ARRIVE guidelines
+11. Description of research animals
+    Provide details on animals and/or animal-derived          female Drosophila melanogaster pJFRC28-10XUAS-IVS-GFP-p104 in attP2 crossed
+    materials used in the study.                              to stable split-GAL4 SS02344 ( VT015785-p65ADZp (attP40); R42F06-ZpGdbd
+                                                              (attP2) )
+
+Policy information about studies involving human research participants
+12. Description of human research participants
+    Describe the covariate-relevant population                N/A
+    characteristics of the human research participants.
+
+
+
+
+                                                                                                                                            June 2017
+
+
+
+
+                                                                                                                                                     3
+

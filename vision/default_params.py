@@ -152,7 +152,7 @@ SPOT_PACK: Dict[str, object] = {
     },
     "spot_cost_radius_scale_radius1": {
         0.0: 1.0,
-        1.0: 2,
+        1.0: 2.0,
     },
     # name → float for cost CLI and a_sti_radius node_names (reverse of spot_cost_radii / a_sti_radii).
     "spot_cost_radius_key_aliases": {
@@ -187,7 +187,9 @@ TRAIN_OPTIMIZATION: Dict[str, object] = {
     "cost_interval_ms": 10.0,
     # Spot: per-radius explicit post-onset ms (overwrites cost_interval_ms for that radius).
     "cost_ms": {
-        1.0: (0.0, 100),
+        # Allow per-branch override: second ms value follows ``SPOT_INPUT["ms_spot"]``
+        # and will be resolved by ``open_session``'s ``resolve_filter_branches``.
+        1.0: (0.0, SPOT_INPUT["ms_spot"]),
     },
     # Cost/plot affine: write v (or ca when ``--filter ca``) at t_onset into
     # ``bias_gt`` (clamped to param_boxes["bias_gt"] lo/hi); also written to param.csv.

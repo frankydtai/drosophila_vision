@@ -3,6 +3,14 @@
 
 Does not run optimization or touch CUDA. Callers: ``simulation/run.py``,
 ``figure``, ``analyze``.
+
+Branch-resolution contract (must keep):
+
+* Do not add parameter-specific helper parsers/casters.
+* CLI should pass branch-capable values through in a generic form.
+* ``{v,ca}`` selection and branch-value casting belong to the unified
+  post-parse path in ``open_session`` (via ``resolve_filter_branches``);
+  non-branch CLI controls keep their normal scalar parsing.
 """
 from __future__ import annotations
 
@@ -1057,7 +1065,13 @@ def train_kwargs_from_args(
     for _o in (spot_bright_sti_opts, spot_dark_sti_opts):
         _o["cost_interval_ms"] = float(args.cost_interval_ms)
         _o["cost_ms"] = {
-            str(float(k)): [float(x) for x in v] for k, v in cost_ms.items()
+            str(float(k)): [
+                x
+                if isinstance(x, dict) and set(x) and set(x) <= {"v", "ca"}
+                else float(x)
+                for x in v
+            ]
+            for k, v in cost_ms.items()
         }
     gt_by_task = parse_gt(args.gt)
     if gt_by_task:

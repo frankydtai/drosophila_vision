@@ -33,6 +33,8 @@ _spec.loader.exec_module(_run)
 
 
 def main(argv=None):
+    argv_list = list(sys.argv[1:] if argv is None else argv)
+    print(f"cli: {' '.join(argv_list)}")
     parser = _run.build_run_argparser()
     args = parser.parse_args(argv)
     try:
