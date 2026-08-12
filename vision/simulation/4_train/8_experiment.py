@@ -3,11 +3,11 @@
 from __future__ import annotations
 
 from default_params import (
-    NEURON_SCHEMA_DEFAULT,
+    NEURON_SCHEMA,
 )
 
 import train
-from default_params import NEURON_SCHEMA_DEFAULT['h_cells']
+from default_params import NEURON_SCHEMA
 
 
 def merge_i_h_train_modes(train_kw):
@@ -15,13 +15,13 @@ def merge_i_h_train_modes(train_kw):
 
     Borst: ``a_h`` / ``a_h_rev``.
     hp_lp: ``a_h`` / ``tau_hp``.
-    Indi cells: :data:`NEURON_SCHEMA_DEFAULT['h_cells']`; ``fixed=['all']``.
+    Indi cells: :data:`NEURON_SCHEMA['h_cells']`; ``fixed=['all']``.
     """
     names = ('a_h', 'a_h_rev') if train_kw['model'] == 'borst' else ('a_h', 'tau_hp')
     existing = train_kw.pop('train_modes', None) or {}
     return {
         **existing,
-        **{name: {'indi': list(NEURON_SCHEMA_DEFAULT['h_cells']), 'fixed': ['all']} for name in names},
+        **{name: {'indi': list(NEURON_SCHEMA['h_cells']), 'fixed': ['all']} for name in names},
     }
 
 

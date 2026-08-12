@@ -2,10 +2,10 @@ from __future__ import annotations
 
 from default_params import (
     DEFAULT_RUN_PATH,
-    NEURON_PARAM_DEFAULT,
-    NEURON_SCHEMA_DEFAULT,
-    TRAIN_CONFIG_DEFAULT,
-    TRAIN_OPTIMIZATION_DEFAULT,
+    NEURON_PARAM,
+    NEURON_SCHEMA,
+    TRAIN_CONFIG,
+    TRAIN_OPTIMIZATION,
 )
 
 import argparse
@@ -258,7 +258,7 @@ def add_shared_cli(
     ap.add_argument(
         "--task",
         default="spot_bright",
-        metavar="TRAIN_CONFIG_DEFAULT['task'],...",
+        metavar="TRAIN_CONFIG['task'],...",
         help="comma-separated tasks (spot_* / moving_bar_* or TASK_ALIASES)",
     )
     ap.add_argument(
@@ -1890,7 +1890,6 @@ def _spot_extra_for_cell_fn(
     session_one, params, pack, *, radius: int, t_onset: int, train_filter,
 ):
     """Build ``extra_for_cell`` with train GT named ``gt_v`` / ``gt_ca``."""
-    from default_params import TRAIN_OPTIMIZATION_DEFAULT['bias_gt_from_v_onset'], NEURON_SCHEMA_DEFAULT['param_boxes']
     contrast = contrast_for_task(pack.name)
     train_filter = train.expand_filter(train_filter)
     gt_key = f"gt_{filter_plot_token(train_filter)}"
@@ -1898,9 +1897,9 @@ def _spot_extra_for_cell_fn(
         {contrast: session_one}, filter=train_filter,
     ).get(contrast) or {}
     opts = session_one.train_opts or {}
-    from_onset = bool(opts.get("bias_gt_from_v_onset", TRAIN_OPTIMIZATION_DEFAULT['bias_gt_from_v_onset']))
-    lo = float(NEURON_SCHEMA_DEFAULT['param_boxes']["bias_gt"]["lo"])
-    hi = float(NEURON_SCHEMA_DEFAULT['param_boxes']["bias_gt"]["hi"])
+    from_onset = bool(opts.get("bias_gt_from_v_onset", TRAIN_OPTIMIZATION['bias_gt_from_v_onset']))
+    lo = float(NEURON_SCHEMA['param_boxes']["bias_gt"]["lo"])
+    hi = float(NEURON_SCHEMA['param_boxes']["bias_gt"]["hi"])
     cell_names = [str(cell_name) for cell_name in session_one.backend.network.cells]
 
     def extra_for_cell(
@@ -2361,7 +2360,7 @@ def _plot_component_reports(
     e_leak_mV = float(reports[0].get("params", {}).get("e_leak_mV", 0.0))
     globs = reports[0].get("globals") or {}
     params0 = reports[0].get("params") or {}
-    delta_ms = float(globs.get("delta_ms", train.NEURON_PARAM_DEFAULT['delta_ms']))
+    delta_ms = float(globs.get("delta_ms", train.NEURON_PARAM['delta_ms']))
     row_curves: dict[int, list[np.ndarray]] = {
         row_idx: [] for row_idx in spec.row_shared_ylim
     }

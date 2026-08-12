@@ -15,9 +15,9 @@ live in ``neuron.param.P``.
 from __future__ import annotations
 
 from default_params import (
-    NEURON_SCHEMA_DEFAULT,
-    TRAIN_OPTIMIZATION_DEFAULT,
-    TRAIN_SESSION_DEFAULT,
+    NEURON_SCHEMA,
+    TRAIN_OPTIMIZATION,
+    TRAIN_SESSION,
 )
 
 from dataclasses import dataclass
@@ -49,7 +49,7 @@ def sim_dtype_from_fp(fp: int) -> torch.dtype:
         raise ValueError(f"fp must be 16, 32, or 64; got {fp!r}") from e
 
 
-SIM_DTYPE = sim_dtype_from_fp(TRAIN_SESSION_DEFAULT['fp'])
+SIM_DTYPE = sim_dtype_from_fp(TRAIN_SESSION['fp'])
 
 
 @dataclass(frozen=True)
@@ -82,7 +82,7 @@ def build_i_h_dirs(conn, i_h_reverse_cells=I_H_DIR_REVERSE_CELLS, *, dtype=SIM_D
 
 
 # --- parameter schema train_modes --------------------------------------------
-# Numeric lo/hi/init/jit + train_mode: ``default_params.NEURON_SCHEMA_DEFAULT['param_boxes']``.
+# Numeric lo/hi/init/jit + train_mode: ``default_params.NEURON_SCHEMA['param_boxes']``.
 # Model segment lists: ``neuron.schema``.
 # Each segment:
 #   name, kind, count, lo/hi/init/jit[, z_map]
@@ -646,15 +646,15 @@ def assign_params(z, schema, backend: ModelBackend):
 def bias_gt_from_onset_trace(onset_trace, t_onset, session):
     """Per-cell-type mean of ``onset_trace[:, t_onset, :]``, clamped to ``bias_gt`` box."""
     opts = session.train_opts or {}
-    lo = float(NEURON_SCHEMA_DEFAULT['param_boxes']["bias_gt"]["lo"])
-    hi = float(NEURON_SCHEMA_DEFAULT['param_boxes']["bias_gt"]["hi"])
+    lo = float(NEURON_SCHEMA['param_boxes']["bias_gt"]["lo"])
+    hi = float(NEURON_SCHEMA['param_boxes']["bias_gt"]["hi"])
     t0 = int(t_onset)
     if not torch.is_tensor(onset_trace):
         onset_trace = torch.as_tensor(
             onset_trace, dtype=session.sim_dtype, device=session.device,
         )
     x = onset_trace[:, t0, :]
-    if not bool(opts.get("bias_gt_from_v_onset_grad", TRAIN_OPTIMIZATION_DEFAULT['bias_gt_from_v_onset_grad'])):
+    if not bool(opts.get("bias_gt_from_v_onset_grad", TRAIN_OPTIMIZATION['bias_gt_from_v_onset_grad'])):
         x = x.detach()
     node_cells = session.backend.conn.node_cells
     n_cells = int(session.backend.n_cells)
@@ -674,11 +674,11 @@ def materialize_from_opts(params, session, *, onset_trace=None, t_onset=None):
     * ``bias_gt_from_v_onset`` → ``params['bias_gt']`` from onset (needs ``onset_trace``)
     """
     opts = session.train_opts or {}
-    if bool(opts.get("v_th_ca_from_v_th", TRAIN_OPTIMIZATION_DEFAULT['v_th_ca_from_v_th'])) and "v_th_ca" in params:
+    if bool(opts.get("v_th_ca_from_v_th", TRAIN_OPTIMIZATION['v_th_ca_from_v_th'])) and "v_th_ca" in params:
         params["v_th_ca"] = params["v_th"]
-    if bool(opts.get("a_ca_from_a_out", TRAIN_OPTIMIZATION_DEFAULT['a_ca_from_a_out'])) and "a_ca" in params:
+    if bool(opts.get("a_ca_from_a_out", TRAIN_OPTIMIZATION['a_ca_from_a_out'])) and "a_ca" in params:
         params["a_ca"] = params["a_out"]
-    if bool(opts.get("bias_gt_from_v_onset", TRAIN_OPTIMIZATION_DEFAULT['bias_gt_from_v_onset'])):
+    if bool(opts.get("bias_gt_from_v_onset", TRAIN_OPTIMIZATION['bias_gt_from_v_onset'])):
         if onset_trace is None or t_onset is None:
             return params
         params["bias_gt"] = bias_gt_from_onset_trace(onset_trace, t_onset, session)

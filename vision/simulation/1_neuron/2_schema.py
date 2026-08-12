@@ -2,14 +2,14 @@
 """Parameter schemas for borst / hp_lp neuron models.
 
 Numeric lo/hi/init/jit and default ``train_mode`` live in
-``default_params.NEURON_SCHEMA_DEFAULT['param_boxes']`` and are passed in as ``param_boxes``.
+``default_params.NEURON_SCHEMA['param_boxes']`` and are passed in as ``param_boxes``.
 This module builds segment structure and resolves train_modes.
 Fixed nodes always use ``effective_init`` (init / init_override); no ``fixed_val``.
 """
 from __future__ import annotations
 
 from default_params import (
-    NEURON_SCHEMA_DEFAULT,
+    NEURON_SCHEMA,
 )
 
 from neuron.param import (
@@ -20,7 +20,7 @@ from neuron.param import (
 SYN_MODES = ("per_cell", "per_edge")
 TRAIN_MODE_KEYS = ("indi", "shared", "fixed", "frozen")
 
-# Mirror ``default_params.NEURON_SCHEMA_DEFAULT['param_boxes']`` insertion order (injected; no import).
+# Mirror ``default_params.NEURON_SCHEMA['param_boxes']`` insertion order (injected; no import).
 PARAM_NAMES = (
     "a_gt", "bias_gt",
     "syn_strength_cell", "syn_strength_edge",
@@ -208,7 +208,7 @@ def build_borst_schema(
     a_sti_radii=(),
     radius_key_aliases=None,
 ):
-    """Borst schema in NEURON_SCHEMA_DEFAULT['param_boxes'] order; rev i_h only when ``i_h_rev == 'on'``."""
+    """Borst schema in NEURON_SCHEMA['param_boxes'] order; rev i_h only when ``i_h_rev == 'on'``."""
     if i_h_rev not in I_H_REV_MODES:
         raise ValueError(f"i_h_rev {i_h_rev!r} not in {I_H_REV_MODES}")
     if cells is None:
@@ -245,7 +245,7 @@ def build_hp_lp_schema(
     a_sti_radii=(),
     radius_key_aliases=None,
 ):
-    """HP-then-membrane-LP schema in NEURON_SCHEMA_DEFAULT['param_boxes'] order (borst-only keys skipped)."""
+    """HP-then-membrane-LP schema in NEURON_SCHEMA['param_boxes'] order (borst-only keys skipped)."""
     if cells is None:
         raise TypeError("hp_lp schema requires cells from network")
     skip = set(_BORST_ONLY)

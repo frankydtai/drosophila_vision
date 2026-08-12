@@ -27,6 +27,13 @@ import sys
 import time
 from pathlib import Path
 
+
+def _cli_default(val):
+    """Return scalar CLI default from a value that may be a ``{v, ca}`` branch dict."""
+    if isinstance(val, dict) and set(val) <= {"v", "ca"}:
+        return val.get("v", next(iter(val.values())))
+    return val
+
 import torch
 
 _SIMULATION_CODE = Path(__file__).resolve().parent.parent
@@ -105,19 +112,19 @@ def add_multi_spot_arguments(parser):
     """Spot center tiling flags (``--multi-spot``, ``--fully-inside``)."""
     parser.add_argument(
         "--multi-spot",
-        type=parse_bool,
+        type=_branch_cli_type(SPOT_INPUT['multi_spot']),
         default=SPOT_INPUT['multi_spot'],
         metavar="BOOL",
         help="tile simultaneous spot centers on network connectome "
-             f"(default: {str(SPOT_INPUT['multi_spot']).lower()}; false → center (0,0) only)",
+             f"(default: {_format_branch_value(SPOT_INPUT['multi_spot'])}; false → center (0,0) only)",
     )
     parser.add_argument(
         "--fully-inside",
-        type=parse_bool,
+        type=_branch_cli_type(SPOT_INPUT['fully_inside']),
         default=SPOT_INPUT['fully_inside'],
         metavar="BOOL",
         help="with --multi-spot: keep only centers whose spot footprint lies inside "
-             f"connectome radius (default: {str(SPOT_INPUT['fully_inside']).lower()})",
+             f"connectome radius (default: {_format_branch_value(SPOT_INPUT['fully_inside'])})",
     )
 
 
@@ -130,7 +137,7 @@ def add_train_arguments(parser):
     parser.add_argument("--model", default=MODEL['model'], choices=list(train.KNOWN_MODELS))
     parser.add_argument(
         "--syn-mode",
-        default=NEURON_SCHEMA['syn_mode'],
+        default=_cli_default(NEURON_SCHEMA['syn_mode']),
         choices=list(train.SYN_MODES),
         help="synaptic edge weight: per_cell (syn_sign*n_syn + type→type syn_strength_cell; default) "
              "or per_edge (syn_sign only + per-edge syn_strength_edge magnitude)",
@@ -256,20 +263,20 @@ def add_train_arguments(parser):
                             f"default {_box_train_mode_default('a_sti_radius')}; "
                             f"{_train_mode_help})"
                         ))
-    parser.add_argument("--i-h-rev", default=NEURON_PARAM['i_h_rev'],
+    parser.add_argument("--i-h-rev", default=_cli_default(NEURON_PARAM['i_h_rev']),
                         choices=list(train.I_H_REV_MODES),
                         help="rev-channel i_h: on (train a_h_rev+rev shape), "
                              "mirrored (rev copies forward), off (disable rev; default)")
     parser.add_argument(
         "--euler",
-        default=NEURON_PARAM['euler'],
+        default=_cli_default(NEURON_PARAM['euler']),
         choices=list(train.EULER_CLI),
         help="membrane Euler: im=implicit (default), ex=explicit; "
              "i_h gates always explicit",
     )
     parser.add_argument(
         "--pre-steady",
-        default=TRAIN_OPTIMIZATION['pre_steady'],
+        default=_cli_default(TRAIN_OPTIMIZATION['pre_steady']),
         choices=("probe", "solve"),
         help=(
             "t=0 membrane pre steady shared by borst/hp_lp "
@@ -289,7 +296,7 @@ def add_train_arguments(parser):
     parser.add_argument(
         "--pre-grad",
         type=parse_bool,
-        default=NEURON_FORWARD['pre_grad'],
+        default=_cli_default(NEURON_FORWARD['pre_grad']),
         metavar="BOOL",
         help="include t < t_onset in BPTT "
              f"(default: {str(NEURON_FORWARD['pre_grad']).lower()}); "
@@ -298,7 +305,7 @@ def add_train_arguments(parser):
     parser.add_argument(
         "--bias-gt-from-v-onset",
         type=parse_bool,
-        default=TRAIN_OPTIMIZATION['bias_gt_from_v_onset'],
+        default=_cli_default(TRAIN_OPTIMIZATION['bias_gt_from_v_onset']),
         metavar="BOOL",
         help="write v at t_onset into bias_gt (cost/plot/CSV) "
              f"(default: {str(TRAIN_OPTIMIZATION['bias_gt_from_v_onset']).lower()}); "
@@ -307,7 +314,7 @@ def add_train_arguments(parser):
     parser.add_argument(
         "--bias-gt-from-v-onset-grad",
         type=parse_bool,
-        default=TRAIN_OPTIMIZATION['bias_gt_from_v_onset_grad'],
+        default=_cli_default(TRAIN_OPTIMIZATION['bias_gt_from_v_onset_grad']),
         metavar="BOOL",
         help="with --bias-gt-from-v-onset: keep onset in the graph "
              f"(default: {str(TRAIN_OPTIMIZATION['bias_gt_from_v_onset_grad']).lower()}); "
@@ -316,7 +323,7 @@ def add_train_arguments(parser):
     parser.add_argument(
         "--v-th-ca-from-v-th",
         type=parse_bool,
-        default=TRAIN_OPTIMIZATION['v_th_ca_from_v_th'],
+        default=_cli_default(TRAIN_OPTIMIZATION['v_th_ca_from_v_th']),
         metavar="BOOL",
         help="write v_th into v_th_ca (forward/CSV) "
              f"(default: {str(TRAIN_OPTIMIZATION['v_th_ca_from_v_th']).lower()}); "
@@ -325,7 +332,7 @@ def add_train_arguments(parser):
     parser.add_argument(
         "--a-ca-from-a-out",
         type=parse_bool,
-        default=TRAIN_OPTIMIZATION['a_ca_from_a_out'],
+        default=_cli_default(TRAIN_OPTIMIZATION['a_ca_from_a_out']),
         metavar="BOOL",
         help="write a_out into a_ca (forward/CSV) "
              f"(default: {str(TRAIN_OPTIMIZATION['a_ca_from_a_out']).lower()}); "
@@ -341,7 +348,7 @@ def add_train_arguments(parser):
     )
     parser.add_argument(
         "--spot-gt-mode",
-        default=SPOT_PACK['spot_gt_mode'],
+        default=_cli_default(SPOT_PACK['spot_gt_mode']),
         choices=list(SPOT_GT_MODES),
         help="spot cost GT mode: all=every cell both contrasts, "
              "positive=only rf_sign×contrast_sign>0 "
@@ -350,7 +357,7 @@ def add_train_arguments(parser):
     parser.add_argument(
         "--sequential",
         type=parse_bool,
-        default=TRAIN_SESSION['sequential'],
+        default=_cli_default(TRAIN_SESSION['sequential']),
         metavar="BOOL",
         help=f"one sti batch per forward (default: {str(TRAIN_SESSION['sequential']).lower()})",
     )
@@ -359,11 +366,11 @@ def add_train_arguments(parser):
                              f"(default: {NETWORK_PATH['network']})")
     parser.add_argument(
         "--multi-bar",
-        type=parse_bool,
+        type=_branch_cli_type(MOVING_BAR_INPUT['multi_bar']),
         default=MOVING_BAR_INPUT['multi_bar'],
         metavar="BOOL",
         help="network moving-bar: tile simultaneous lane-clipped bars "
-             f"(default: {str(MOVING_BAR_INPUT['multi_bar']).lower()}); "
+             f"(default: {_format_branch_value(MOVING_BAR_INPUT['multi_bar'])}); "
              "false → whole-field single bar over the full network field",
     )
     parser.add_argument(
@@ -385,17 +392,18 @@ def add_train_arguments(parser):
     )
     parser.add_argument(
         "--shift-radius",
-        type=int,
+        type=_branch_cli_type(SPOT_INPUT['shift_radius']),
         default=SPOT_INPUT['shift_radius'],
         help="spot sub-shift hex-disc radius for spot tasks in --task "
-             "(n_shifts=1+3k(k+1); 0->1, 1->7, 2->19, 3->37, ...)",
+             f"(default: {_format_branch_value(SPOT_INPUT['shift_radius'])}; "
+             "n_shifts=1+3k(k+1); 0->1, 1->7, 2->19, 3->37, ...)",
     )
     parser.add_argument(
         "--spot-radius",
-        type=float,
+        type=_branch_cli_type(SPOT_INPUT['spot_radius']),
         default=SPOT_INPUT['spot_radius'],
         metavar="R",
-        help=f"spot footprint / center-tiling radius (0.5 multiples; default {SPOT_INPUT['spot_radius']}); "
+        help=f"spot footprint / center-tiling radius (0.5 multiples; default {_format_branch_value(SPOT_INPUT['spot_radius'])}); "
              "radius=1 folds RecF(2) into r=1 gt a_radius and defaults cost scales "
              "to 0=1 1=1/6; radius 1.5/2 keep RecF(r) and 0=1 1=1/6 2=1/6",
     )
@@ -480,78 +488,52 @@ def add_train_arguments(parser):
     )
     parser.add_argument(
         "--cost-norm",
-        default=TRAIN_OPTIMIZATION['cost_norm'],
+        default=_cli_default(TRAIN_OPTIMIZATION['cost_norm']),
         choices=list(COST_NORMS),
         help="waveform MSE normalization: gt_power = 100*SSE/Σw(a_gt·gt)²; "
              f"a_gt2 = SSE/a_gt² (default: {TRAIN_OPTIMIZATION['cost_norm']})",
     )
 
 
-_FILTER_MS_BRANCHES = ("v", "ca")
-
-
-def _normalize_ms_branch(key: str) -> str:
+def _parse_branch_key(key: str) -> str:
     branch = str(key).strip().lower()
     if branch in ("v", "none"):
         return "v"
     if branch == "ca":
         return "ca"
-    raise ValueError(f"ms branch must be v or ca, got {key!r}")
+    raise ValueError(f"branch must be v or ca, got {key!r}")
 
 
-def _format_filter_branch_ms(ms: dict) -> str:
-    return f"v={float(ms['v']):g}, ca={float(ms['ca']):g}"
+def _format_branch_value(val) -> str:
+    if isinstance(val, dict):
+        return f"v={val['v']}, ca={val['ca']}"
+    return str(val)
 
 
-def parse_filter_branch_ms(text: str, default: dict) -> dict:
-    """Parse ``200`` or ``v=200,ca=25`` into ``{v, ca}`` ms dict."""
-    out = {b: float(default[b]) for b in _FILTER_MS_BRANCHES}
+def parse_branch_value(text: str, default=None) -> dict:
+    """Parse ``X`` or ``v=X,ca=Y`` into ``{v, ca}`` dict for any value type."""
+    if isinstance(default, dict):
+        out = dict(default)
+    elif default is None:
+        out = {"v": None, "ca": None}
+    else:
+        out = {"v": default, "ca": default}
     raw = str(text).strip()
     if not raw:
         return out
     if "=" not in raw:
-        val = float(raw)
-        return {b: val for b in _FILTER_MS_BRANCHES}
+        return {"v": raw, "ca": raw}
     for part in parse_comma_list(raw):
         if "=" not in part:
-            raise ValueError(f"expected v=MS or ca=MS, got {part!r}")
+            raise ValueError(f"expected v=X or ca=X, got {part!r}")
         key, val = part.split("=", 1)
-        out[_normalize_ms_branch(key)] = float(val.strip())
+        out[_parse_branch_key(key)] = val.strip()
     return out
 
 
-def parse_filter_branch_float(text: str, default=None) -> dict:
-    """Parse ``200`` / ``v=200,ca=25`` into ``{v, ca}`` float dict.
-
-    Works for scalars, ``{v, ca}`` dicts, or ``None`` defaults.
-    """
-    raw = str(text).strip()
-    if not raw:
-        if default is None:
-            return {"v": 0.0, "ca": 0.0}
-        if isinstance(default, dict):
-            return {b: float(default.get(b, 0.0)) for b in _FILTER_MS_BRANCHES}
-        base = float(default)
-        return {"v": base, "ca": base}
-    if "=" not in raw:
-        val = float(raw)
-        return {"v": val, "ca": val}
-    if default is None or not isinstance(default, dict):
-        base = 0.0 if default is None else float(default)
-        out = {"v": base, "ca": base}
-    else:
-        out = {b: float(default.get(b, 0.0)) for b in _FILTER_MS_BRANCHES}
-    for part in parse_comma_list(raw):
-        if "=" not in part:
-            raise ValueError(f"expected v=MS or ca=MS, got {part!r}")
-        key, val = part.split("=", 1)
-        out[_normalize_ms_branch(key)] = float(val.strip())
-    return out
-
-
-def _filter_branch_ms_cli_type(default: dict):
+def _branch_cli_type(default=None):
     def _parse(text: str) -> dict:
-        return parse_filter_branch_ms(text, default)
+        return parse_branch_value(text, default)
     return _parse
 
 
@@ -590,7 +572,7 @@ def add_sti_timing_arguments(
     else:
         response_help = (
             "spot: post-onset ms_response cost/gt "
-            f"(default: {_format_filter_branch_ms(default_ms_response)}; "
+            f"(default: {_format_branch_value(default_ms_response)}; "
             "v=MS,ca=MS or bare MS sets both; excludes ms_post)"
         )
     if default_ms_post is None:
@@ -600,7 +582,7 @@ def add_sti_timing_arguments(
         )
     else:
         post_help = (
-            f"spot: forward-only tail after response in ms (default: {default_ms_post}; "
+            f"spot: forward-only tail after response in ms (default: {_format_branch_value(default_ms_post)}; "
             "not in gt/cost)"
         )
     if default_ms_spot is None:
@@ -612,7 +594,7 @@ def add_sti_timing_arguments(
     else:
         spot_help = (
             "spot: bright/dark sti on-duration from onset "
-            f"(default: {_format_filter_branch_ms(default_ms_spot)}; "
+            f"(default: {_format_branch_value(default_ms_spot)}; "
             "v=MS,ca=MS or bare MS sets both; raises ms_response if shorter)"
         )
     if default_delta_ms is None:
@@ -624,7 +606,7 @@ def add_sti_timing_arguments(
     else:
         delta_help = (
             f"post-onset simulation / sti time step "
-            f"(default: {_format_filter_branch_ms(default_delta_ms)}; "
+            f"(default: {_format_branch_value(default_delta_ms)}; "
             "v=MS,ca=MS or bare MS sets both; writes delta_ms into all sti opts)"
         )
     if default_delta_ms_pre is None:
@@ -635,20 +617,20 @@ def add_sti_timing_arguments(
     else:
         delta_pre_help = (
             f"pre-onset simulation time step in ms "
-            f"(default: {_format_filter_branch_ms(default_delta_ms_pre)}; "
+            f"(default: {_format_branch_value(default_delta_ms_pre)}; "
             "v=MS,ca=MS or bare MS sets both; writes delta_ms_pre into all "
             "sti opts; t_onset = t_from_ms(ms_pre, delta_ms=delta_ms_pre))"
         )
     parser.add_argument(
         "--ms-pre",
-        type=lambda text: parse_filter_branch_float(text, default_ms_pre),
+        type=_branch_cli_type(default_ms_pre),
         default=default_ms_pre,
         metavar="MS",
         help=pre_help,
     )
     parser.add_argument(
         "--ms-response",
-        type=_filter_branch_ms_cli_type(
+        type=_branch_cli_type(
             SPOT_INPUT['ms_response'] if default_ms_response is None else default_ms_response
         ),
         default=default_ms_response,
@@ -657,14 +639,14 @@ def add_sti_timing_arguments(
     )
     parser.add_argument(
         "--ms-post",
-        type=lambda text: parse_filter_branch_float(text, default_ms_post),
+        type=_branch_cli_type(default_ms_post),
         default=default_ms_post,
         metavar="MS",
         help=post_help,
     )
     parser.add_argument(
         "--ms-spot",
-        type=_filter_branch_ms_cli_type(
+        type=_branch_cli_type(
             SPOT_INPUT['ms_spot'] if default_ms_spot is None else default_ms_spot
         ),
         default=default_ms_spot,
@@ -673,7 +655,7 @@ def add_sti_timing_arguments(
     )
     parser.add_argument(
         "--delta-ms",
-        type=_filter_branch_ms_cli_type(
+        type=_branch_cli_type(
             NEURON_PARAM['delta_ms'] if default_delta_ms is None else default_delta_ms
         ),
         default=default_delta_ms,
@@ -682,7 +664,7 @@ def add_sti_timing_arguments(
     )
     parser.add_argument(
         "--delta-ms-pre",
-        type=_filter_branch_ms_cli_type(
+        type=_branch_cli_type(
             NEURON_PARAM['delta_ms_pre']
             if default_delta_ms_pre is None else default_delta_ms_pre
         ),
@@ -710,7 +692,7 @@ def apply_train_opts_timing(
     ``delta_ms`` / ``delta_ms_pre`` changes are included when no spot opts
     are present.
     """
-    from task.spot.input import apply_spot_timing_overrides, _merge_filter_branch_ms
+    from task.spot.input import apply_spot_timing_overrides
 
     def _timing_equal(a, b) -> bool:
         if a is None and b is None:
@@ -750,11 +732,11 @@ def apply_train_opts_timing(
             before_dt = so.get("delta_ms")
             before_dt_pre = so.get("delta_ms_pre")
             if ms_pre is not None:
-                _merge_filter_branch_ms(so, "ms_pre", ms_pre)
+                so["ms_pre"] = ms_pre
             if delta_ms is not None:
-                _merge_filter_branch_ms(so, "delta_ms", delta_ms)
+                so["delta_ms"] = delta_ms
             if delta_ms_pre is not None:
-                _merge_filter_branch_ms(so, "delta_ms_pre", delta_ms_pre)
+                so["delta_ms_pre"] = delta_ms_pre
             so.pop("t_onset", None)
             so.pop("n_t", None)
             if not changed:
@@ -1015,40 +997,34 @@ def train_kwargs_from_args(
         raise ValueError("--cost-radius must be -1 or >= 0")
     if any(v != -1 and v < 0 for v in radius_kv.values()):
         raise ValueError("--cost-radius must be -1 or >= 0")
-    from task.spot.input import spot_radius_half_steps
-
-    shift_radius = int(args.shift_radius)
-    if shift_radius < 0:
-        raise ValueError("--shift-radius must be >= 0")
-    spot_radius = float(args.spot_radius)
-    spot_radius_half_steps(spot_radius)
-    spot_cost_radius_scale = parse_spot_cost_r_s_tokens(
-        args.spot_cost_r_s,
-        default_scales=default_spot_cost_radius_scale(
-            spot_radius,
-            scales=SPOT_PACK['spot_cost_radius_scale'],
-            scales_radius1=SPOT_PACK['spot_cost_radius_scale_radius1'],
-        ),
-        spot_cost_radii=SPOT_PACK['spot_cost_radii'],
-        aliases=SPOT_PACK['spot_cost_radius_key_aliases'],
-    )
-    multi_spot = bool(args.multi_spot)
-    fully_inside = bool(args.fully_inside)
-    ms_pre = float(args.ms_pre)
-    ms_response = dict(args.ms_response)
-    ms_post = float(args.ms_post)
-    ms_spot = dict(args.ms_spot)
-    delta_ms = dict(args.delta_ms)
-    delta_ms_pre = dict(args.delta_ms_pre)
-    for branch, val in delta_ms.items():
-        if float(val) <= 0:
-            raise ValueError(f"--delta-ms {branch} must be > 0")
-    for branch, val in delta_ms_pre.items():
-        if float(val) <= 0:
-            raise ValueError(f"--delta-ms-pre {branch} must be > 0")
-    if ms_post < 0:
-        raise ValueError("--ms-post must be >= 0")
-    multi_bar = bool(args.multi_bar)
+    shift_radius = args.shift_radius
+    spot_radius = args.spot_radius
+    if args.spot_cost_r_s:
+        from task.spot.input import spot_radius_half_steps
+        from train.session import resolve_filter_branches
+        _sr_scalar = resolve_filter_branches(spot_radius, filter="none")
+        spot_radius_half_steps(_sr_scalar)
+        spot_cost_radius_scale = parse_spot_cost_r_s_tokens(
+            args.spot_cost_r_s,
+            default_scales=default_spot_cost_radius_scale(
+                _sr_scalar,
+                scales=SPOT_PACK['spot_cost_radius_scale'],
+                scales_radius1=SPOT_PACK['spot_cost_radius_scale_radius1'],
+            ),
+            spot_cost_radii=SPOT_PACK['spot_cost_radii'],
+            aliases=SPOT_PACK['spot_cost_radius_key_aliases'],
+        )
+    else:
+        spot_cost_radius_scale = None
+    multi_spot = args.multi_spot
+    fully_inside = args.fully_inside
+    ms_pre = args.ms_pre
+    ms_response = args.ms_response
+    ms_post = args.ms_post
+    ms_spot = args.ms_spot
+    delta_ms = args.delta_ms
+    delta_ms_pre = args.delta_ms_pre
+    multi_bar = args.multi_bar
     _timing = {
         "ms_pre": ms_pre,
         "ms_response": ms_response,

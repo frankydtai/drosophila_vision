@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from default_params import (
-    TRAIN_OPTIMIZATION_DEFAULT,
+    TRAIN_OPTIMIZATION,
 )
 
 import os
@@ -39,7 +39,6 @@ def gt_affine_scalars_for_cell(params, cell_name, backend, session=None) -> tupl
     ``bias_gt`` / ``v_th_ca`` / ``a_ca`` hold sources when ``*_from_*`` flags
     are on. When ``bias_gt_from_v_onset``, do not add ``v_th``.
     """
-    from default_params import TRAIN_OPTIMIZATION_DEFAULT['bias_gt_from_v_onset']
     names = [str(n) for n in backend.network.cells]
     ci = names.index(str(cell_name))
     gs = params["a_gt"]
@@ -47,7 +46,7 @@ def gt_affine_scalars_for_cell(params, cell_name, backend, session=None) -> tupl
     gb = params["bias_gt"]
     bias = float(gb[ci] if torch.is_tensor(gb) and gb.dim() > 0 else gb)
     opts = (session.train_opts if session is not None else None) or {}
-    from_onset = bool(opts.get("bias_gt_from_v_onset", TRAIN_OPTIMIZATION_DEFAULT['bias_gt_from_v_onset']))
+    from_onset = bool(opts.get("bias_gt_from_v_onset", TRAIN_OPTIMIZATION['bias_gt_from_v_onset']))
     if (not from_onset) and "v_th" in params:
         vt = params["v_th"]
         if torch.is_tensor(vt) and vt.dim() > 0:

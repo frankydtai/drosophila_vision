@@ -12,9 +12,9 @@ Usage (from simulation/, project .venv):
 from __future__ import annotations
 
 from default_params import (
-    NETWORK_CONSTRUCTION_DEFAULT,
-    NEURON_PARAM_DEFAULT,
-    NEURON_SCHEMA_DEFAULT,
+    NETWORK_CONSTRUCTION,
+    NEURON_PARAM,
+    NEURON_SCHEMA,
 )
 
 import argparse
@@ -59,7 +59,7 @@ from task.moving_bar.input import (
 from path import DEFAULT_NETWORK_RUN, network_run_tag, resolve_network_json
 
 PLOT_BG = "#F5F0DC"  # axes background (beige), not hex baseline color
-_STI_CLI_DEFAULT = ",".join(GRUNTMAN_CONTRASTS)
+_STI_CLI_CONTRASTS = ",".join(GRUNTMAN_CONTRASTS)
 
 
 def _field_limits(hexes, *, hexes_are_xy_deg: bool = False):
@@ -133,7 +133,7 @@ def plot_snapshot(
         hexes_are_xy_deg=hexes_are_xy_deg,
     )
     _draw_bar_outline(ax, spec, field_deg, t, t_onset, bar_radius=bar_radius, multi_bar=bool(multi_bar))
-    ax.set_title(f"{spec_name}  t={t} ({t * NEURON_PARAM_DEFAULT['delta_ms'] / 1000.0:.2f} s)", fontsize=9)
+    ax.set_title(f"{spec_name}  t={t} ({t * NEURON_PARAM['delta_ms'] / 1000.0:.2f} s)", fontsize=9)
 
 
 def save_snapshots(
@@ -234,7 +234,7 @@ def save_animation(
         t = times[frame_idx]
         title.set_text(
             f"Moving-bar i_sti_hex (pA)  side={side}  "
-            f"{len(plot_hexes)} sti hexes  I_baseline={i_baseline}  I_max={i_max}  t={t} ({t * NEURON_PARAM_DEFAULT['delta_ms'] / 1000.0:.2f} s)"
+            f"{len(plot_hexes)} sti hexes  I_baseline={i_baseline}  I_max={i_max}  t={t} ({t * NEURON_PARAM['delta_ms'] / 1000.0:.2f} s)"
         )
         for i, spec in enumerate(showcase):
             axes[i, 0].clear()
@@ -266,9 +266,9 @@ def main():
                     help="GIF frame stride in t (default 2)")
     ap.add_argument("--t", type=str, default="",
                     help="comma-separated t indices for snapshot hexes, e.g. 50,60,72,90")
-    ap.add_argument("--sti", type=str, default=_STI_CLI_DEFAULT,
+    ap.add_argument("--sti", type=str, default=_STI_CLI_CONTRASTS,
                     help=f"comma-separated moving-bar contrasts to plot: "
-                         f"{_STI_CLI_DEFAULT} (default: {_STI_CLI_DEFAULT})")
+                         f"{_STI_CLI_CONTRASTS} (default: {_STI_CLI_CONTRASTS})")
     ap.add_argument("--direction", type=str, default=GRUNTMAN_DIRECTIONS[0],
                     choices=GRUNTMAN_DIRECTIONS)
     ap.add_argument(
@@ -281,15 +281,15 @@ def main():
     )
     ap.add_argument("--bar-radius", type=int, default=DEFAULT_BAR_RADIUS,
                     help="per-lane spacing width in hex nodes (default 2)")
-    ap.add_argument("--i-bright", type=float, default=NETWORK_CONSTRUCTION_DEFAULT['i_bright'])
+    ap.add_argument("--i-bright", type=float, default=NETWORK_CONSTRUCTION['i_bright'])
     args = ap.parse_args()
     snapshot_t = [int(tok) for tok in parse_comma_list(args.t)]
     sti = parse_comma_list(args.sti)
     if not sti:
-        raise SystemExit(f"--sti must include at least one of {_STI_CLI_DEFAULT}")
+        raise SystemExit(f"--sti must include at least one of {_STI_CLI_CONTRASTS}")
     bad_sti = sorted(set(sti) - set(GRUNTMAN_CONTRASTS))
     if bad_sti:
-        raise SystemExit(f"--sti supports only {_STI_CLI_DEFAULT}; got {bad_sti}")
+        raise SystemExit(f"--sti supports only {_STI_CLI_CONTRASTS}; got {bad_sti}")
     sti_set = set(sti)
 
     showcase = [
@@ -301,8 +301,8 @@ def main():
     network_json = str(resolve_network_json(args.network))
     connectome = load_network(
         network_json, device="cpu",
-        a_syn_exc=NEURON_PARAM_DEFAULT['a_syn_exc'], a_syn_inh=NEURON_PARAM_DEFAULT['a_syn_inh'],
-        syn_mode=NEURON_SCHEMA_DEFAULT['syn_mode'], dtype=SIM_DTYPE,
+        a_syn_exc=NEURON_PARAM['a_syn_exc'], a_syn_inh=NEURON_PARAM['a_syn_inh'],
+        syn_mode=NEURON_SCHEMA['syn_mode'], dtype=SIM_DTYPE,
     )
     tag = f"2{args.direction}_{network_run_tag(network_json, connectome.meta)}"
     default_png = os.path.join(PLOT_DIR, f"moving_bar_{tag}.png")
@@ -313,8 +313,8 @@ def main():
         specs=showcase,
         bar_radius=args.bar_radius,
         multi_bar=bool(args.multi_bar),
-        delta_ms=NEURON_PARAM_DEFAULT['delta_ms'],
-        i_baseline=NETWORK_CONSTRUCTION_DEFAULT['i_baseline'],
+        delta_ms=NEURON_PARAM['delta_ms'],
+        i_baseline=NETWORK_CONSTRUCTION['i_baseline'],
         i_bright_moving_bar=i_bright,
         sim_dtype=SIM_DTYPE,
     )
@@ -328,7 +328,7 @@ def main():
     bar_radius = int(args.bar_radius)
     print(
         f"bar_radius={bar_radius}  "
-        f"n_t={n_t} ({n_t * NEURON_PARAM_DEFAULT['delta_ms'] / 1000.0:.2f} s)  "
+        f"n_t={n_t} ({n_t * NEURON_PARAM['delta_ms'] / 1000.0:.2f} s)  "
         f"sweep_t={T.info['sweep_t']} ({T.info['sweep_time_s']:.2f} s after t_onset)"
     )
 

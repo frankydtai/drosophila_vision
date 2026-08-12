@@ -34,7 +34,7 @@ Usage (from ``vision/simulation/``)::
 from __future__ import annotations
 
 from default_params import (
-    ANALYZE_TRACE_DEFAULT,
+    ANALYZE_TRACE,
     DEFAULT_RUN_PATH,
 )
 
@@ -69,11 +69,11 @@ def detect_oscillation(
     v_trace: np.ndarray,
     *,
     delta_ms: float,
-    min_osc_f: float = ANALYZE_TRACE_DEFAULT['trace_osc_min_f'],
-    max_osc_f: float = ANALYZE_TRACE_DEFAULT['trace_osc_max_f'],
-    peak_threshold: float = ANALYZE_TRACE_DEFAULT['trace_osc_peak_threshold'],
-    z_threshold: float = ANALYZE_TRACE_DEFAULT['trace_osc_z_threshold'],
-    snr_min: float = ANALYZE_TRACE_DEFAULT['trace_osc_snr_min'],
+    min_osc_f: float = ANALYZE_TRACE['trace_osc_min_f'],
+    max_osc_f: float = ANALYZE_TRACE['trace_osc_max_f'],
+    peak_threshold: float = ANALYZE_TRACE['trace_osc_peak_threshold'],
+    z_threshold: float = ANALYZE_TRACE['trace_osc_z_threshold'],
+    snr_min: float = ANALYZE_TRACE['trace_osc_snr_min'],
 ) -> dict:
     """FFT / v_peak_to_peak metrics on one already-sliced mean v_post segment."""
     n = len(v_trace)
@@ -166,8 +166,8 @@ def detect_drift(
     v_trace: np.ndarray,
     *,
     delta_ms: float,
-    min_slope_mv_per_s: float = ANALYZE_TRACE_DEFAULT['trace_drift_min_slope_mv_per_s'],
-    min_r: float = ANALYZE_TRACE_DEFAULT['trace_drift_min_r'],
+    min_slope_mv_per_s: float = ANALYZE_TRACE['trace_drift_min_slope_mv_per_s'],
+    min_r: float = ANALYZE_TRACE['trace_drift_min_r'],
 ) -> dict:
     """Linear trend on an already-sliced segment: rising / falling / none."""
     n = len(v_trace)
@@ -671,44 +671,44 @@ def main() -> None:
     ap.add_argument("--task", default="spot_bright")
     ap.add_argument("--radius", type=int, default=0, choices=(0, 1))
     ap.add_argument(
-        "--z-threshold", type=float, default=ANALYZE_TRACE_DEFAULT['trace_osc_z_threshold'],
+        "--z-threshold", type=float, default=ANALYZE_TRACE['trace_osc_z_threshold'],
     )
-    ap.add_argument("--min-f", type=float, default=ANALYZE_TRACE_DEFAULT['trace_osc_min_f'])
-    ap.add_argument("--max-f", type=float, default=ANALYZE_TRACE_DEFAULT['trace_osc_max_f'])
+    ap.add_argument("--min-f", type=float, default=ANALYZE_TRACE['trace_osc_min_f'])
+    ap.add_argument("--max-f", type=float, default=ANALYZE_TRACE['trace_osc_max_f'])
     ap.add_argument(
         "--min-slope",
         type=float,
-        default=ANALYZE_TRACE_DEFAULT['trace_drift_min_slope_mv_per_s'],
+        default=ANALYZE_TRACE['trace_drift_min_slope_mv_per_s'],
         help="drift: min |slope| in mV/s",
     )
     ap.add_argument(
         "--min-r",
         type=float,
-        default=ANALYZE_TRACE_DEFAULT['trace_drift_min_r'],
+        default=ANALYZE_TRACE['trace_drift_min_r'],
         help="drift: min |Pearson r| of linear fit",
     )
     ap.add_argument(
         "--baseline-ms",
         type=float,
-        default=ANALYZE_TRACE_DEFAULT['trace_baseline_ms'],
+        default=ANALYZE_TRACE['trace_baseline_ms'],
         help="default baseline length when --baseline-ms-shown omitted",
     )
     ap.add_argument(
         "--max-abs",
         type=float,
-        default=ANALYZE_TRACE_DEFAULT['trace_flat_max_abs'],
+        default=ANALYZE_TRACE['trace_flat_max_abs'],
         help="flat: max |Δ| vs baseline",
     )
     ap.add_argument(
         "--v-peak-to-peak-max",
         type=float,
-        default=ANALYZE_TRACE_DEFAULT['trace_flat_v_peak_to_peak_max'],
+        default=ANALYZE_TRACE['trace_flat_v_peak_to_peak_max'],
         help="flat: max v_peak_to_peak from baseline",
     )
     ap.add_argument(
         "--abs-mean",
         type=float,
-        default=ANALYZE_TRACE_DEFAULT['trace_flat_abs_mean'],
+        default=ANALYZE_TRACE['trace_flat_abs_mean'],
         help="flat: max mean |Δ| vs baseline",
     )
     args = ap.parse_args()

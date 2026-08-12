@@ -1,6 +1,6 @@
 from default_params import (
     DEFAULT_RUN_PATH,
-    SPOT_INPUT_DEFAULT,
+    SPOT_INPUT,
 )
 """Simulation + plotting for the FiveCol medulla model."""
 import argparse
@@ -19,7 +19,7 @@ from figure.util import (
     filter_plot_token,
     session_filter_plot_token,
 )
-from default_params import DEFAULT_RUN_PATH, SPOT_INPUT_DEFAULT['ms_response'], SPOT_INPUT_DEFAULT['ms_spot']
+from default_params import DEFAULT_RUN_PATH, SPOT_INPUT
 from train.config import run_data_dir
 from train.implementation import resolve_run_dir
 
@@ -351,7 +351,7 @@ def _plot_spot_tasks(session, z, outdir, spot_tasks, suffix, model_all,
                        center_only=False):
     """Plot spot task(s); contrasts combined in one figure when both are trained."""
     spot_set = set(spot_tasks)
-    make_readout, plot_gt, plot_all = spot_readout_fns(session)
+    build_readout, plot_gt, plot_all = spot_readout_fns(session)
     ref_t = 'spot_bright' if 'spot_bright' in spot_set else spot_tasks[0]
     net_tag = _network_spot_tag(session, ref_t)
     cost_parts = _cost_parts_for_plot(session, z)
@@ -365,10 +365,10 @@ def _plot_spot_tasks(session, z, outdir, spot_tasks, suffix, model_all,
     )
     if spot_set == set(train.SPOT_TASKS):
         readouts = {
-            'bright': make_readout(
+            'bright': build_readout(
                 session_for_task(session, 'spot_bright'), z, **readout_kw,
             ),
-            'dark': make_readout(
+            'dark': build_readout(
                 session_for_task(session, 'spot_dark'), z, **readout_kw,
             ),
         }
@@ -469,12 +469,12 @@ def _plot_one_task(session, z, outdir, tname, suffix, model_all,
     token = session_filter_plot_token(session)
     mvd = _plot_path(outdir, _readout_plot_stem('spot_gt', session), file_suffix, html=html)
     allc = _plot_path(outdir, _readout_plot_stem('spot_all', session), file_suffix, html=html)
-    make_readout, plot_gt, plot_all = spot_readout_fns(session)
+    build_readout, plot_gt, plot_all = spot_readout_fns(session)
     net_tag = _network_spot_tag(session, tname)
     if cost_parts is None:
         cost_parts = _cost_parts_for_plot(session, z)
     plot_kw = dict(gt_rts=gt_rts, cost_parts=cost_parts)
-    readout = make_readout(
+    readout = build_readout(
         session, z,
         at_xs=at_x, at_ys=at_y,
         show_pre=show_pre,
@@ -718,8 +718,8 @@ def add_plot_filter_argument(parser):
         choices=("none", "ca"),
         help="readout filter override: none=v (no Ca schema), ca=ca + Arenz digitized spot gt "
              f"(default: keep run train_opts.filter; "
-             f"ms_spot v={SPOT_INPUT_DEFAULT['ms_spot']['v']:g}, ca={SPOT_INPUT_DEFAULT['ms_spot']['ca']:g}, "
-             f"ms_response v={SPOT_INPUT_DEFAULT['ms_response']['v']:g}, ca={SPOT_INPUT_DEFAULT['ms_response']['ca']:g})",
+             f"ms_spot v={SPOT_INPUT['ms_spot']['v']:g}, ca={SPOT_INPUT['ms_spot']['ca']:g}, "
+             f"ms_response v={SPOT_INPUT['ms_response']['v']:g}, ca={SPOT_INPUT['ms_response']['ca']:g})",
     )
 
 

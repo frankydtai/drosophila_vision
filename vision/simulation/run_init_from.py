@@ -33,7 +33,7 @@ _spec.loader.exec_module(_run)
 
 
 def main(argv=None):
-    parser = _run.make_run_argparser()
+    parser = _run.build_run_argparser()
     args = parser.parse_args(argv)
     try:
         kw = _run.run_kwargs_from_args(args, script_stem="run_init_from")

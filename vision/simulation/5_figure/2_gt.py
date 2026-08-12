@@ -3,13 +3,13 @@
 from __future__ import annotations
 
 from default_params import (
-    SPOT_PACK_DEFAULT,
+    SPOT_PACK,
 )
 
 import numpy as np
 import torch
 
-from default_params import SPOT_PACK_DEFAULT['spot_gt_mode']
+from default_params import SPOT_PACK
 from task.spot.gt import (
     GT_CELLS,
     RF_SIGN,
@@ -162,7 +162,7 @@ def spot_gt_rts(
     else:
         filter = str(filter)
     if spot_gt_mode is None:
-        spot_gt_mode = str((session.train_opts or {}).get("spot_gt_mode", SPOT_PACK_DEFAULT['spot_gt_mode']))
+        spot_gt_mode = str((session.train_opts or {}).get("spot_gt_mode", SPOT_PACK['spot_gt_mode']))
     else:
         spot_gt_mode = str(spot_gt_mode)
     base = fit_gt_rts(

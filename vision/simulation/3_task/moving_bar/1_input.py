@@ -7,7 +7,7 @@ or node indexing — :mod:`network.moving_bar_readout` maps these currents onto 
 from __future__ import annotations
 
 from default_params import (
-    NETWORK_CONSTRUCTION_DEFAULT,
+    NETWORK_CONSTRUCTION,
 )
 
 import hashlib
@@ -712,7 +712,7 @@ def moving_bar_i_baseline_from_opts(train_opts) -> float:
             return resolve_i_baseline(float(sub["i_baseline_moving_bar"]))
     raise ValueError(
         "moving-bar sti opts require i_baseline_moving_bar "
-        "(inject via default_params.NETWORK_CONSTRUCTION_DEFAULT['i_baseline'] / CLI)"
+        "(inject via default_params.NETWORK_CONSTRUCTION['i_baseline'] / CLI)"
     )
 
 

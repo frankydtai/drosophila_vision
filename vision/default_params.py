@@ -240,6 +240,8 @@ SPOT_STI_SHARED_OPTS: Dict[str, object] = {
     "spot_radius": SPOT_INPUT["spot_radius"],
     "multi_spot": SPOT_INPUT["multi_spot"],
     "fully_inside": SPOT_INPUT["fully_inside"],
+    "cost_interval_ms": TRAIN_OPTIMIZATION["cost_interval_ms"],
+    "cost_ms": TRAIN_OPTIMIZATION["cost_ms"],
 }
 
 SPOT_BRIGHT_STI_OPTS: Dict[str, object] = {

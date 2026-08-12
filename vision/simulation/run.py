@@ -71,7 +71,7 @@ def _take_plot_kw(kw, *, gt_rts=None):
     return plot_kw
 
 
-def make_plots(outdir, session, result=None, **plot_kw):
+def plot_figures(outdir, session, result=None, **plot_kw):
     """Cost curve (train path only) + model-vs-gt + all-cells."""
     if result is not None:
         if result.cost_curve is not None and len(result.cost_curve) > 0:
@@ -138,7 +138,7 @@ def write_checkpoint_png(outdir, iter, z_best, cost_best, session, plot_kw):
     print(f"wrote checkpoint png: {png_dir}/*_{tag}.png")
 
 
-def make_checkpoint_on_png(plot_kw):
+def build_checkpoint_on_png(plot_kw):
     """Bound *plot_kw* into a ``checkpoint_on_png`` callback for ``run_train``."""
     plot_kw = plot_kw or {}
 
@@ -154,18 +154,18 @@ def run_train_and_plot(*, plot_gt_rts=None, **kw):
     plot_kw = _take_plot_kw(kw, gt_rts=plot_gt_rts)
     checkpoint_on_png = None
     if kw.get("checkpoint_interval") is not None:
-        checkpoint_on_png = make_checkpoint_on_png(plot_kw)
+        checkpoint_on_png = build_checkpoint_on_png(plot_kw)
     fname, outdir, session, result = implementation.run_train(
         **kw,
         checkpoint_on_png=checkpoint_on_png,
     )
-    make_plots(outdir, session, result=result, **plot_kw)
+    plot_figures(outdir, session, result=result, **plot_kw)
     if syn_sign:
         from analyze.syn_sign import save_syn_sign_plots
         save_syn_sign_plots(outdir)
     return fname, outdir, session
 
-def make_run_argparser(description=None):
+def build_run_argparser(description=None):
     """Train CLI + plot flags."""
     description = description or __doc__
     common = argparse.ArgumentParser(add_help=False)
@@ -213,7 +213,7 @@ def run_mirror_spot_experiment(
         _normalize_mirror_fits,
     )
 
-    def make_mirror_gt_rts(fits, sign, session):
+    def build_mirror_gt_rts(fits, sign, session):
         specs = _normalize_mirror_fits(fits, sign)
         def mirror_gt_rts(contrasts):
             pack_name = f"spot_{str(contrasts[0])}"
@@ -252,7 +252,7 @@ def run_mirror_spot_experiment(
             return None
         return mirror_gt_rts(tuple(contrasts))
 
-    ap = make_run_argparser(description)
+    ap = build_run_argparser(description)
     if configure_parser is not None:
         configure_parser(ap)
     args = ap.parse_args()
@@ -279,7 +279,7 @@ def run_mirror_spot_experiment(
         train_modes=train_modes,
     )
     plot_gt_rts = resolve_spot_plot_gt_rts(
-        spot_tasks, make_mirror_gt_rts(fits, mirror_sign, preview_session),
+        spot_tasks, build_mirror_gt_rts(fits, mirror_sign, preview_session),
     )
 
     fname, outdir, session = run_train_and_plot(
@@ -294,7 +294,7 @@ def run_mirror_spot_experiment(
 
 
 def main(argv=None):
-    parser = make_run_argparser()
+    parser = build_run_argparser()
     args = parser.parse_args(argv)
     try:
         kw = run_kwargs_from_args(args)

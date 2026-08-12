@@ -3,12 +3,12 @@
 
 Numeric literals live in ``default_params`` and are injected by the
 caller (session fields / kwargs). Schema box numbers live in
-``default_params.NEURON_SCHEMA_DEFAULT['param_boxes']``.
+``default_params.NEURON_SCHEMA['param_boxes']``.
 """
 from __future__ import annotations
 
 from default_params import (
-    NEURON_SCHEMA_DEFAULT,
+    NEURON_SCHEMA,
 )
 
 

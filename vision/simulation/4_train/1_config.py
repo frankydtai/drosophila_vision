@@ -7,14 +7,14 @@ without a cycle. Session assembly and sti-opts finalisation live in
 :mod:`train.session`.
 
 **Enum allowed-token sets** (e.g. ``COST_NORMS``, ``SPOT_GT_MODES``) live here.
-Matching **default scalars** live only in ``default_params`` (e.g. ``TRAIN_OPTIMIZATION_DEFAULT['cost_norm']``,
-``SPOT_PACK_DEFAULT['spot_gt_mode']``) — never put the ``(…)`` allowed tuple in ``default_params``.
+Matching **default scalars** live only in ``default_params`` (e.g. ``TRAIN_OPTIMIZATION['cost_norm']``,
+``SPOT_PACK['spot_gt_mode']``) — never put the ``(…)`` allowed tuple in ``default_params``.
 """
 from __future__ import annotations
 
 from default_params import (
-    SPOT_PACK_DEFAULT,
-    TRAIN_OPTIMIZATION_DEFAULT,
+    SPOT_PACK,
+    TRAIN_OPTIMIZATION,
 )
 
 from pathlib import Path
@@ -62,7 +62,7 @@ MOVING_BAR_COST_PARTS = tuple(
 COST_NORMS = ("gt_power", "a_gt2")
 
 # Spot cost GT mode allowed tokens (``--spot-gt-mode``). Default scalar:
-# ``default_params.SPOT_PACK_DEFAULT['spot_gt_mode']`` (all | positive — comment only there).
+# ``default_params.SPOT_PACK['spot_gt_mode']`` (all | positive — comment only there).
 # all: every present gt cell under both bright and dark (dark × contrast_sign −1).
 # positive: only cells with rf_sign × contrast_sign > 0 (bright: ON; dark: OFF).
 SPOT_GT_MODES = ("all", "pos")

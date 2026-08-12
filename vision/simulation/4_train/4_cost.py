@@ -34,8 +34,8 @@ pairs. ``gt_power`` is recomputed on the subsample.
 from __future__ import annotations
 
 from default_params import (
-    SPOT_PACK_DEFAULT,
-    TRAIN_OPTIMIZATION_DEFAULT,
+    SPOT_PACK,
+    TRAIN_OPTIMIZATION,
 )
 
 from dataclasses import dataclass, replace
@@ -145,7 +145,7 @@ def gt_affine_for_nodes(
     a_gt = _param_for_nodes(params, "a_gt", node_idx, backend, sim_dtype=sim_dtype)
     bias = _param_for_nodes(params, "bias_gt", node_idx, backend, sim_dtype=sim_dtype)
     opts = (session.train_opts if session is not None else None) or {}
-    from_onset = bool(opts.get("bias_gt_from_v_onset", DEFAULT_BIAS_GT_FROM_V_ONSET))
+    from_onset = bool(opts.get("bias_gt_from_v_onset", TRAIN_OPTIMIZATION['bias_gt_from_v_onset']))
     if (not from_onset) and "v_th" in params:
         bias = bias + _param_for_nodes(params, "v_th", node_idx, backend, sim_dtype=sim_dtype)
     return a_gt, bias
@@ -153,12 +153,12 @@ def gt_affine_for_nodes(
 
 def _session_bias_gt_from_v_onset(session: TrainSession) -> bool:
     opts = session.train_opts or {}
-    return bool(opts.get("bias_gt_from_v_onset", DEFAULT_BIAS_GT_FROM_V_ONSET))
+    return bool(opts.get("bias_gt_from_v_onset", TRAIN_OPTIMIZATION['bias_gt_from_v_onset']))
 
 
 def _session_filter(session: TrainSession) -> str:
     opts = session.train_opts or {}
-    return str(opts.get("filter", DEFAULT_FILTER))
+    return str(opts.get("filter", SPOT_PACK['filter']))
 
 
 def _forward_readout_and_onset_trace(session, params, i_sti, pack):
@@ -202,7 +202,7 @@ def _pack_gt_affine_for_cost(
 def _session_cost_norm(session: TrainSession) -> str:
     """``cost_norm`` from train_opts; default ``a_gt2``."""
     opts = session.train_opts or {}
-    raw = opts.get("cost_norm", DEFAULT_COST_NORM)
+    raw = opts.get("cost_norm", TRAIN_OPTIMIZATION['cost_norm'])
     return expand_cost_norm(raw)
 
 

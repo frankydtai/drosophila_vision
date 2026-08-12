@@ -122,10 +122,6 @@ def v_spot_markers_by_cell(z_t, session):
 
     Uses ``session.primary_pack`` sti (``i_sti`` + ``pack_t_onset``).
     """
-    from default_params import (
-        TRAIN_OPTIMIZATION['bias_gt_from_v_onset'],
-        NEURON_SCHEMA['param_boxes'],
-    )
     schema = list(session.schema)
     z = torch.as_tensor(z_t, dtype=session.sim_dtype, device=session.device)
     params = train.materialize_from_opts(
@@ -248,7 +244,6 @@ def v_spot_markers_by_cell(z_t, session):
 
 
 def save_param_table(z_t, session, table_path):
-    from default_params import TRAIN_OPTIMIZATION['a_ca_from_a_out'], TRAIN_OPTIMIZATION['v_th_ca_from_v_th']
     param_by_name = decompose_params(z_t, session)
     markers = v_spot_markers_by_cell(z_t, session)
     bias_gt = markers.pop("bias_gt", None)
@@ -648,16 +643,16 @@ def print_train_modes(session):
 def build_session(
     model,
     *,
-    network=NETWORK_PATH_DEFAULT['network'],
-    sequential=TRAIN_SESSION_DEFAULT['sequential'],
+    network=NETWORK_PATH['network'],
+    sequential=TRAIN_SESSION['sequential'],
     tasks=None,
     part_cost_scales=None,
-    cost_norm=TRAIN_OPTIMIZATION_DEFAULT['cost_norm'],
+    cost_norm=TRAIN_OPTIMIZATION['cost_norm'],
     cost_radius_by_task=None,
-    shift_radius=SPOT_INPUT_DEFAULT['shift_radius'],
-    spot_radius=SPOT_INPUT_DEFAULT['spot_radius'],
-    multi_spot=SPOT_INPUT_DEFAULT['multi_spot'],
-    fully_inside=SPOT_INPUT_DEFAULT['fully_inside'],
+    shift_radius=SPOT_INPUT['shift_radius'],
+    spot_radius=SPOT_INPUT['spot_radius'],
+    multi_spot=SPOT_INPUT['multi_spot'],
+    fully_inside=SPOT_INPUT['fully_inside'],
     spot_cost_radius_scale=None,
     i_cli=None,
     moving_bar_bright_sti_opts=None,
@@ -665,27 +660,27 @@ def build_session(
     spot_bright_sti_opts=None,
     spot_dark_sti_opts=None,
     train_modes=None,
-    syn_mode=NEURON_SCHEMA_DEFAULT['syn_mode'],
-    i_h_rev=NEURON_PARAM_DEFAULT['i_h_rev'],
-    euler=NEURON_PARAM_DEFAULT['euler'],
+    syn_mode=NEURON_SCHEMA['syn_mode'],
+    i_h_rev=NEURON_PARAM['i_h_rev'],
+    euler=NEURON_PARAM['euler'],
     pre_steady=None,
-    pre_steady_iters=TRAIN_OPTIMIZATION_DEFAULT['pre_steady_iters'],
-    pre_steady_damp=TRAIN_OPTIMIZATION_DEFAULT['pre_steady_damp'],
-    fp=TRAIN_SESSION_DEFAULT['fp'],
-    pre_grad=NEURON_FORWARD_DEFAULT['pre_grad'],
-    bias_gt_from_v_onset=TRAIN_OPTIMIZATION_DEFAULT['bias_gt_from_v_onset'],
-    bias_gt_from_v_onset_grad=TRAIN_OPTIMIZATION_DEFAULT['bias_gt_from_v_onset_grad'],
-    v_th_ca_from_v_th=TRAIN_OPTIMIZATION_DEFAULT['v_th_ca_from_v_th'],
-    a_ca_from_a_out=TRAIN_OPTIMIZATION_DEFAULT['a_ca_from_a_out'],
-    filter=SPOT_PACK_DEFAULT['filter'],
-    spot_gt_mode=SPOT_PACK_DEFAULT['spot_gt_mode'],
+    pre_steady_iters=TRAIN_OPTIMIZATION['pre_steady_iters'],
+    pre_steady_damp=TRAIN_OPTIMIZATION['pre_steady_damp'],
+    fp=TRAIN_SESSION['fp'],
+    pre_grad=NEURON_FORWARD['pre_grad'],
+    bias_gt_from_v_onset=TRAIN_OPTIMIZATION['bias_gt_from_v_onset'],
+    bias_gt_from_v_onset_grad=TRAIN_OPTIMIZATION['bias_gt_from_v_onset_grad'],
+    v_th_ca_from_v_th=TRAIN_OPTIMIZATION['v_th_ca_from_v_th'],
+    a_ca_from_a_out=TRAIN_OPTIMIZATION['a_ca_from_a_out'],
+    filter=SPOT_PACK['filter'],
+    spot_gt_mode=SPOT_PACK['spot_gt_mode'],
     pack_overrides=None,
     model_backend=None,
     schema=None,
 ):
     """Create a :class:`TrainSession` from run options."""
     tl = list(tasks) if tasks is not None else list(
-        train.normalize_tasks([TRAIN_CONFIG_DEFAULT['task']])
+        train.normalize_tasks([TRAIN_CONFIG['task']])
     )
     dev = train.active_device()
     mkw = dict(
@@ -735,19 +730,19 @@ def build_session(
 
 def run_train(model, n_run, n_iter, lrs, fname=None, outdir=None,
                  train_modes=None,
-                 syn_mode=NEURON_SCHEMA_DEFAULT['syn_mode'],
-                 i_h_rev=NEURON_PARAM_DEFAULT['i_h_rev'],
-                 euler=NEURON_PARAM_DEFAULT['euler'],
+                 syn_mode=NEURON_SCHEMA['syn_mode'],
+                 i_h_rev=NEURON_PARAM['i_h_rev'],
+                 euler=NEURON_PARAM['euler'],
                  pre_steady=None,
-                 pre_steady_iters=TRAIN_OPTIMIZATION_DEFAULT['pre_steady_iters'],
-                 pre_steady_damp=TRAIN_OPTIMIZATION_DEFAULT['pre_steady_damp'],
-                 network=NETWORK_PATH_DEFAULT['network'], sequential=TRAIN_SESSION_DEFAULT['sequential'],
+                 pre_steady_iters=TRAIN_OPTIMIZATION['pre_steady_iters'],
+                 pre_steady_damp=TRAIN_OPTIMIZATION['pre_steady_damp'],
+                 network=NETWORK_PATH['network'], sequential=TRAIN_SESSION['sequential'],
                  tasks=None, part_cost_scales=None,
-                 cost_norm=TRAIN_OPTIMIZATION_DEFAULT['cost_norm'],
-                 cost_radius_by_task=None, shift_radius=SPOT_INPUT_DEFAULT['shift_radius'],
-                 spot_radius=SPOT_INPUT_DEFAULT['spot_radius'],
-                 multi_spot=SPOT_INPUT_DEFAULT['multi_spot'],
-                 fully_inside=SPOT_INPUT_DEFAULT['fully_inside'],
+                 cost_norm=TRAIN_OPTIMIZATION['cost_norm'],
+                 cost_radius_by_task=None, shift_radius=SPOT_INPUT['shift_radius'],
+                 spot_radius=SPOT_INPUT['spot_radius'],
+                 multi_spot=SPOT_INPUT['multi_spot'],
+                 fully_inside=SPOT_INPUT['fully_inside'],
                  spot_cost_radius_scale=None,
                  i_cli=None,
                  moving_bar_bright_sti_opts=None,
@@ -755,14 +750,14 @@ def run_train(model, n_run, n_iter, lrs, fname=None, outdir=None,
                  spot_bright_sti_opts=None,
                  spot_dark_sti_opts=None,
                  pack_overrides=None, model_backend=None, schema=None,
-                 fp=TRAIN_SESSION_DEFAULT['fp'],
-                 pre_grad=NEURON_FORWARD_DEFAULT['pre_grad'],
-                 bias_gt_from_v_onset=TRAIN_OPTIMIZATION_DEFAULT['bias_gt_from_v_onset'],
-                 bias_gt_from_v_onset_grad=TRAIN_OPTIMIZATION_DEFAULT['bias_gt_from_v_onset_grad'],
-                 v_th_ca_from_v_th=TRAIN_OPTIMIZATION_DEFAULT['v_th_ca_from_v_th'],
-                 a_ca_from_a_out=TRAIN_OPTIMIZATION_DEFAULT['a_ca_from_a_out'],
-                 filter=SPOT_PACK_DEFAULT['filter'],
-                 spot_gt_mode=SPOT_PACK_DEFAULT['spot_gt_mode'],
+                 fp=TRAIN_SESSION['fp'],
+                 pre_grad=NEURON_FORWARD['pre_grad'],
+                 bias_gt_from_v_onset=TRAIN_OPTIMIZATION['bias_gt_from_v_onset'],
+                 bias_gt_from_v_onset_grad=TRAIN_OPTIMIZATION['bias_gt_from_v_onset_grad'],
+                 v_th_ca_from_v_th=TRAIN_OPTIMIZATION['v_th_ca_from_v_th'],
+                 a_ca_from_a_out=TRAIN_OPTIMIZATION['a_ca_from_a_out'],
+                 filter=SPOT_PACK['filter'],
+                 spot_gt_mode=SPOT_PACK['spot_gt_mode'],
                  init_from=None,
                  checkpoint_interval=None,
                  build_checkpoint_callback=build_checkpoint_callback,
@@ -814,7 +809,7 @@ def run_train(model, n_run, n_iter, lrs, fname=None, outdir=None,
     outdir = outdir or run_dir(model)
 
     print_train_modes(session)
-    syn_mode = (session.train_opts or {}).get("syn_mode", NEURON_SCHEMA_DEFAULT['syn_mode'])
+    syn_mode = (session.train_opts or {}).get("syn_mode", NEURON_SCHEMA['syn_mode'])
     print(f"device={session.device}, model={model}, syn_mode={syn_mode}, euler={session.euler}, "
           f"pre_steady={session.pre_steady}, "
           f"n_run={n_run}, n_iter={n_iter}, "

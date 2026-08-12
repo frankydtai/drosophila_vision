@@ -6,7 +6,7 @@ Network RF profile axis is Euclidean radius: rt[..., radius] = mean at that radi
 from __future__ import annotations
 
 from default_params import (
-    NEURON_PARAM_DEFAULT,
+    NEURON_PARAM,
 )
 
 import time
@@ -16,8 +16,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import torch
 
-from default_params import NEURON_PARAM_DEFAULT['delta_ms']
-from task.spot.input import resolve_spot_timing
+from default_params import NEURON_PARAM
 import train
 from neuron.param import t_from_ms, t_abs_from_ms, ms_from_t
 from figure.gt import (
@@ -765,7 +764,7 @@ def _forward_spot_readout(
     plot_traces = plot_full[batch_idx, :, node_idx].cpu().numpy()
 
     sti_ms_pre = opts.get("ms_pre")
-    dt = delta_ms
+    dt = float(opts["delta_ms"])
     dt_pre = float(opts["delta_ms_pre"])
     sti_t_onset = (
         t_from_ms(float(sti_ms_pre), delta_ms=dt_pre)
