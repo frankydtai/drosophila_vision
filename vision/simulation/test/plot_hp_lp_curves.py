@@ -17,9 +17,9 @@ Columns: left = +pulse, right = −pulse.
 
 Usage (from ``vision/simulation/``):
 
-    ../.venv/bin/python test/plot_lp_hp_curves.py
-    ../.venv/bin/python test/plot_lp_hp_curves.py --show
-    ../.venv/bin/python test/plot_lp_hp_curves.py --euler ex --hp-a-slow-list 0.1,0.5,1
+    ../.venv/bin/python test/plot_hp_lp_curves.py
+    ../.venv/bin/python test/plot_hp_lp_curves.py --show
+    ../.venv/bin/python test/plot_hp_lp_curves.py --euler ex --hp-a-slow-list 0.1,0.5,1
 """
 from __future__ import annotations
 
@@ -45,7 +45,7 @@ from neuron.model_hp_lp import update_state_hp_lp
 from neuron.param import expand_euler
 from default_params import EULER, G_LEAK, STATE_CLAMP
 
-DEFAULT_SAVE = os.path.join(HERE, "lp_hp_curves.png")
+DEFAULT_SAVE = os.path.join(HERE, "hp_lp_curves.png")
 DEFAULT_A_SLOW = 1.0
 DEFAULT_A_SLOW_LIST = "0,0.5,1,1.5"
 DEFAULT_HP_A_SLOW_LIST = "0.1,0.5,1"
@@ -287,7 +287,7 @@ def _fill_column(
         ax6.set_ylabel(r"$v$ (sweep pulse)")
 
 
-def plot_lp_hp(
+def plot_hp_lp(
     path: str,
     *,
     show: bool = False,
@@ -459,7 +459,7 @@ def main(argv=None):
         raise ValueError("--tau-lp-list values must be > 0")
     if any(t <= 0 for t in pulse_list):
         raise ValueError("--pulse-list values must be > 0")
-    plot_lp_hp(
+    plot_hp_lp(
         args.save,
         show=args.show,
         dt_ms=args.dt_ms,

@@ -1,0 +1,4 @@
+interface:
+  display_name: "Slim Core Script"
+  short_description: "Remove redundancy from one vision core file"
+  default_prompt: "Use $slim-core-script to slim the next queued vision core file."
