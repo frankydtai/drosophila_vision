@@ -29,7 +29,7 @@ from __future__ import annotations
 import torch
 
 from neuron.param import e_h_rev as calc_e_h_rev, expand_euler, membrane_dt_over_c
-from neuron.schema import borst_i_h_rev_kwargs, syn_strength
+from neuron.schema import syn_strength
 
 
 def _gate_ss(v, v_mid, slope):
@@ -223,11 +223,9 @@ def _dc_v_star(v, params, i0, e_leak, session, *, with_i_h_ss: bool):
     """One DC map step: ohmic ``v★`` from ``g_syn(v)`` (+ i_h ``ss(v)`` if asked)."""
     g_exc, g_inh = _syn_g(v, params, session.backend)
     if with_i_h_ss:
-        i_h_rev = (session.train_opts or {})["i_h_rev"]
-        a_h_rev, v_mid_h_g_rev, h_slope_rev, _v_mid_h_tau = borst_i_h_rev_kwargs(params, i_h_rev)
         u, u_rev, g_h, g_h_rev = _i_h_ss(
-            v, params["a_h"], a_h_rev,
-            params["v_mid_h_g"], params["h_slope"], v_mid_h_g_rev, h_slope_rev,
+            v, params["a_h"], params["a_h_rev"],
+            params["v_mid_h_g"], params["h_slope"], params["v_mid_h_g_rev"], params["h_slope_rev"],
             h_g_max=session.h_g_max,
         )
     else:
@@ -262,16 +260,12 @@ def pre_steady(session, params, B, i_sti=None):
 def step(state, v, params, i_sti, session, *, delta_ms: float, return_component: bool = False):
     """One borst update; returns ``((u, u_rev), v)`` or + g component tuple."""
     u, u_rev = state
-    i_h_rev = (session.train_opts or {})["i_h_rev"]
-    a_h_rev, v_mid_h_g_rev, h_slope_rev, v_mid_h_tau_rev = borst_i_h_rev_kwargs(
-        params, i_h_rev,
-    )
     out = update_v(
         v, u, u_rev,
         params["a_in"], params["a_out"], syn_strength(params), params["v_th"],
-        params["a_h"], a_h_rev,
+        params["a_h"], params["a_h_rev"],
         params["v_mid_h_g"], params["h_slope"], params["v_mid_h_tau"],
-        v_mid_h_g_rev, h_slope_rev, v_mid_h_tau_rev,
+        params["v_mid_h_g_rev"], params["h_slope_rev"], params["v_mid_h_tau_rev"],
         i_sti, session.backend, params["e_leak"],
         delta_ms=float(delta_ms),
         cap=session.cap,

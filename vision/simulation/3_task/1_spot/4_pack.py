@@ -31,14 +31,16 @@ from task.spot.gt import (
     contrast_sign,
     spot_gt_active,
 )
-from task.spot.input import (
+from task.spot.sti_geo import (
     SpotBatch,
     members_by_euclid_radius,
-    normalize_spot_timing,
-    spot_radius_folds_r2_into_r1,
-    spot_input_waveform,
-    spot_sti_batches,
     spot_from_opts,
+    spot_radius_folds_r2_into_r1,
+    spot_sti_batches,
+)
+from task.spot.sti_spec import (
+    normalize_sti_timing,
+    sti_input_waveform,
 )
 
 # Spot paradigm contrasts (distinct from the task NAMES in train.config).
@@ -85,11 +87,11 @@ def expand_spot_cost_r_s_dict(
 
 def expand_cost_ms_dict(
     *,
-    sti_opts: Optional[dict] = None,
+    cost_ms: Optional[dict] = None,
     aliases: Dict[str, float],
 ) -> Dict[float, Tuple[float, ...]]:
     """Radius → explicit post-onset ms; empty when unset."""
-    kv = (sti_opts or {}).get("cost_ms") if sti_opts is not None else None
+    kv = cost_ms
     if not kv:
         return {}
     out: Dict[float, Tuple[float, ...]] = {}
@@ -355,7 +357,7 @@ def build_spot_gt(
     cost_radius: Optional[int] = None,
     spot_cost_radius_scale: Optional[Dict[float, float]] = None,
     sim_dtype: torch.dtype,
-    ms_spot: Optional[float] = None,
+    ms_sti: Optional[float] = None,
     ms_response: Optional[float] = None,
     gt_cells: Optional[Sequence[str]] = None,
     filter: str = "none",
@@ -375,7 +377,7 @@ def build_spot_gt(
             f"(ms_response={ms_response:g}, t_onset={t_onset})"
         )
     rf, ir = load_rf_ir(
-        t_onset=t_onset, n_t=n_t_gt, ms_spot=ms_spot, delta_ms=delta_ms,
+        t_onset=t_onset, n_t=n_t_gt, ms_sti=ms_sti, delta_ms=delta_ms,
         filter=filter,
     )
     gt_type_idx = {str(gt_cell): i for i, gt_cell in enumerate(GT_CELLS)}
@@ -401,7 +403,7 @@ def build_spot_gt(
     n_batch = len(batches)
 
     # Single sti waveform source (step or finite spot) shared with the ir gt.
-    u = spot_input_waveform(t_onset, n_t, ms_spot, delta_ms=delta_ms)
+    u = sti_input_waveform(t_onset, n_t, ms_sti, delta_ms=delta_ms)
     drive = torch.as_tensor(
         i_baseline + (i_spot - i_baseline) * u, dtype=sim_dtype, device=device,
     )
@@ -497,7 +499,7 @@ def build_spot_gt(
         "i_bright_spot": float(i_bright_spot),
         "i_dark_spot": float(i_dark_spot),
         "contrast": str(contrast),
-        "ms_spot": None if ms_spot is None else float(ms_spot),
+        "ms_sti": None if ms_sti is None else float(ms_sti),
         "ms_response": float(ms_response),
         "t_onset": int(t_onset),
         "n_t": int(n_t),
@@ -533,10 +535,8 @@ def build_spot_sti_opts(
     spot_radius,
     multi_spot: bool,
     fully_inside: bool,
-    ms_spot=None,
+    ms_sti=None,
     ms_post=0.0,
-    cost_interval_ms=None,
-    cost_ms=None,
     gt_cells=None,
 ):
     """Sti step/spot sti opts for ``spot_{contrast}``."""
@@ -556,16 +556,9 @@ def build_spot_sti_opts(
         "multi_spot": multi_spot,
         "fully_inside": fully_inside,
     }
-    if ms_spot is not None:
-        opts["ms_spot"] = ms_spot
-    if cost_interval_ms is not None:
-        # Keep raw (may be a ``{v,ca}`` branch dict). Branch selection and
-        # numeric casting must happen after ``open_session``'s resolve step.
-        opts["cost_interval_ms"] = cost_interval_ms
-    if cost_ms is not None:
-        # Keep raw to support per-branch ms values inside cost_ms.
-        opts["cost_ms"] = cost_ms
+    if ms_sti is not None:
+        opts["ms_sti"] = ms_sti
     rs = normalize_gt_cells(gt_cells)
     if rs is not None:
         opts["gt_cells"] = rs
-    return normalize_spot_timing(opts)
+    return normalize_sti_timing(opts)

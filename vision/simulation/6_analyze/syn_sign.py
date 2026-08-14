@@ -3,7 +3,7 @@
 Per cell column (``spot_gt_v`` order):
   1. hist: red=init %% n_syn+, blue=×trained ``syn_strength_cell``
   2. plot per cost radius r=0,1,… (same radii as spot time panels):
-     x = blue %% n_syn+, y = model ``v[t_spot_end-1] - v[t_onset]``
+     x = blue %% n_syn+, y = model ``v[t_sti_end-1] - v[t_onset]``
 
 Writes ``<run>/pre_syn/syn_{gt,all}.png`` (incoming), or ``post_syn/`` with ``--post``.
 
@@ -15,7 +15,7 @@ Usage (from ``simulation/``)::
 from __future__ import annotations
 
 from default_params import (
-    DEFAULT_RUN_PATH,
+    RUN_PATH,
 )
 
 import argparse
@@ -53,9 +53,9 @@ from network.construction import (
     active_gt_cells,
     load_network_json,
 )
-from default_params import DEFAULT_RUN_PATH
+from default_params import RUN_PATH
 from task.spot.gt import GT_CELLS
-from task.spot.input import euclid_hex_dist
+from task.spot.sti_geo import euclid_hex_dist
 
 DEFAULT_BINS = 20
 
@@ -169,11 +169,11 @@ def load_delta_v_tables(session, z):
     """cell -> radius_k -> [(root_id, Δv)]; radii from pack cost radii."""
     readout = spot_plot._forward_spot_readout(session, z)
     t_onset = readout.get("t_onset")
-    t_spot_end = readout.get("t_spot_end")
-    if t_onset is None or t_spot_end is None or int(t_spot_end) <= int(t_onset):
-        raise SystemExit("spot timing missing t_onset / t_spot_end")
+    t_sti_end = readout.get("t_sti_end")
+    if t_onset is None or t_sti_end is None or int(t_sti_end) <= int(t_onset):
+        raise SystemExit("spot timing missing t_onset / t_sti_end")
     t0 = int(t_onset)
-    t1 = int(t_spot_end) - 1
+    t1 = int(t_sti_end) - 1
     traces = np.asarray(readout["plot_traces"], dtype=np.float64)
     type_idx = np.asarray(readout["type_idx"], dtype=np.int64)
     node_idx = np.asarray(readout["node_idx"], dtype=np.int64)
@@ -365,7 +365,7 @@ def main(argv: list[str] | None = None) -> int:
     )
     ap.add_argument(
         "--run",
-        default=DEFAULT_RUN_PATH,
+        default=RUN_PATH,
         help="run under PARAMETER_DIR or absolute path (default: %(default)s)",
     )
     ap.add_argument(

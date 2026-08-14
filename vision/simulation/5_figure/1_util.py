@@ -2,10 +2,6 @@
 
 from __future__ import annotations
 
-from default_params import (
-    TRAIN_OPTIMIZATION,
-)
-
 import os
 import time
 
@@ -36,8 +32,8 @@ def gt_affine_scalars_for_cell(params, cell_name, backend, session=None) -> tupl
     """``(a_gt, effective_bias)`` for one cell type name (matches cost).
 
     ``params`` must already have ``materialize_from_opts`` applied so
-    ``bias_gt`` / ``v_th_ca`` / ``a_ca`` hold sources when ``*_from_*`` flags
-    are on. When ``bias_gt_from_v_onset``, do not add ``v_th``.
+    ``bias_gt`` / ``v_th_ca`` / ``a_ca`` hold ``val_from`` sources when enabled.
+    When ``val_from`` bias_gt is on, do not add ``v_th``.
     """
     names = [str(n) for n in backend.network.cells]
     ci = names.index(str(cell_name))
@@ -46,7 +42,7 @@ def gt_affine_scalars_for_cell(params, cell_name, backend, session=None) -> tupl
     gb = params["bias_gt"]
     bias = float(gb[ci] if torch.is_tensor(gb) and gb.dim() > 0 else gb)
     opts = (session.train_opts if session is not None else None) or {}
-    from_onset = bool(opts.get("bias_gt_from_v_onset", TRAIN_OPTIMIZATION['bias_gt_from_v_onset']))
+    from_onset = train.val_from_enabled(opts, "bias_gt")
     if (not from_onset) and "v_th" in params:
         vt = params["v_th"]
         if torch.is_tensor(vt) and vt.dim() > 0:
@@ -136,12 +132,12 @@ def params_for_types(nodes_by_name, param_by_name=None):
     return out
 
 
-def mark_spot(ax, t_onset, t_spot_end):
-    """White band for sti-on samples ``[t_onset, t_spot_end]`` (axes face is gray)."""
-    if t_onset is None or t_spot_end is None:
+def mark_spot(ax, t_onset, t_sti_end):
+    """White band for sti-on samples ``[t_onset, t_sti_end]`` (axes face is gray)."""
+    if t_onset is None or t_sti_end is None:
         return
     t0 = int(t_onset)
-    t1 = int(t_spot_end)
+    t1 = int(t_sti_end)
     if t1 < t0:
         return
     # axvspan end is exclusive in continuous x; +1 covers inclusive last sample.
@@ -493,7 +489,7 @@ def plot_timecourse(
     pre_end=0,
     show_pre=False,
     t_onset=None,
-    t_spot_end=None,
+    t_sti_end=None,
 ):
     """v_readout (red) vs gt (gray) time courses for one or more contrast traces.
 
@@ -503,11 +499,11 @@ def plot_timecourse(
     (still never draws ``[0, pre_end)`` via line); otherwise gt is a solid
     post-onset line. Red v_readout always uses continuous pre/post lines: dashed
     pre when ``show_pre`` is true, solid after.
-    ``t_onset`` / ``t_spot_end``: white sti-on band ``[t_onset, t_spot_end]``.
+    ``t_onset`` / ``t_sti_end``: white sti-on band ``[t_onset, t_sti_end]``.
     Y-limits / ticks: matplotlib autoscale.
     """
     traces = list(traces or ())
-    mark_spot(ax, t_onset, t_spot_end)
+    mark_spot(ax, t_onset, t_sti_end)
     split = max(0, int(pre_end or 0))
     for tr in traces:
         v_readout = tr.get("v_readout")

@@ -49,10 +49,10 @@ rm -f .cursor/slim-core-auto.on
 
 ### 3_task
 
-- [x] vision/simulation/3_task/spot/1_input.py
-- [x] vision/simulation/3_task/spot/2_gt.py
-- [x] vision/simulation/3_task/moving_bar/1_input.py
-- [x] vision/simulation/3_task/moving_bar/2_gt.py
+- [x] vision/simulation/3_task/1_spot/1_sti_geo.py
+- [x] vision/simulation/3_task/1_spot/3_gt.py
+- [x] vision/simulation/3_task/2_moving_bar/1_sti_geo.py
+- [x] vision/simulation/3_task/2_moving_bar/3_gt.py
 
 ### 4_training
 

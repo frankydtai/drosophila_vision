@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from default_params import (
-    DEFAULT_RUN_PATH,
+    RUN_PATH,
     NEURON_PARAM,
     NEURON_SCHEMA,
     TRAIN_CONFIG,
@@ -26,7 +26,7 @@ os.chdir(ROOT)
 
 import import_bootstrap  # noqa: F401
 import train
-from default_params import DEFAULT_RUN_PATH
+from default_params import RUN_PATH
 import figure.plot as plot_trained
 from figure.gt import contrast_for_task
 from figure.spot import pack_spot_cost_radii, resolve_spot_gts
@@ -38,20 +38,21 @@ from figure.util import (
 )
 from import_bootstrap import parse_bool, parse_comma_list
 from neuron.filter_ca import filter_ca
+from neuron.schema import default_scalar
 from network.construction import hex2gt
-from task.moving_bar.gt import (
+from task.moving_bar.pack import (
     bar_specs_for_session,
     filter_requested_specs,
     moving_bar_nodes_on_hexes,
     moving_bar_specs_by_cell,
     moving_bar_session_t0_grids,
 )
-from task.moving_bar.input import (
+from task.moving_bar.sti_geo import (
     filter_sti_hexes,
     moving_bar_cost_hexes,
 )
 from task.spot.pack import build_spot_center_readout
-from task.spot.input import (
+from task.spot.sti_geo import (
     spot_from_opts,
     spot_sti_batches,
 )
@@ -66,8 +67,9 @@ Time axis (read this before ``--ms-shown`` / ``TimeWindow``)
 ------------------------------------------------------------
 Two *different* knobs — do not mix them:
 
-1. **Stimulus length** (``--ms-pre`` / ``--ms-spot`` / ``--ms-response`` /
-   ``--ms-post`` / ``--delta-ms``): rebuilds the session sti (via
+1. **Stimulus length** (``--sti-timing KEY=MS`` — e.g. ``ms_pre=50`` /
+   ``ms_sti=160`` / ``ms_response=300`` / ``ms_post=0`` / ``delta_ms=2``):
+   rebuilds the session sti (via
    ``figure.plot.maybe_override_sti_timing``). Unset = keep the run's
    train opts. These change *how long* pre/spot/response *are*, not which
    slice of an existing trace you plot.
@@ -189,7 +191,7 @@ class TimeWindow:
     ``kind="t_rel"``
         Integer t offsets from the |v_post_d| peak (same as ``--t-rel``).
 
-    Not sti-length overrides (``--ms-pre`` / …); those rebuild the session.
+    Not sti-length overrides (``--sti-timing``); those rebuild the session.
     """
 
     kind: str  # "t_rel" | "ms"
@@ -1221,8 +1223,8 @@ def _finalize_component_report(
                 f"--ms-shown {time_window.start:g},{time_window.stop:g} "
                 f"(t={t_lo}:{t_hi}) out of range for sums length {n_t}"
             )
-        seg = v_post_d[t_lo:t_hi + 1]
-        peak_t = t_lo + int(np.argmax(np.abs(seg))) if seg.size else t_lo
+        trace_slice = v_post_d[t_lo:t_hi + 1]
+        peak_t = t_lo + int(np.argmax(np.abs(trace_slice))) if trace_slice.size else t_lo
     else:
         peak_t = _v_post_d_peak_t_rel(v_post_d, before_t)
         t_lo = max(0, peak_t + int(time_window.start))
@@ -1373,10 +1375,6 @@ def _node_params(params, session, node: int) -> dict[str, float]:
             "tau_hp_ms": float(params["tau_hp"][node]),
             "a_h": float(params["a_h"][node]),
         }
-    from neuron.schema import borst_i_h_rev_kwargs
-
-    i_h_rev = (session.train_opts or {})["i_h_rev"]
-    a_h_rev, *_rest = borst_i_h_rev_kwargs(params, i_h_rev)
     e_leak = float(params["e_leak"][node])
     return {
         "a_in": float(params["a_in"][node]),
@@ -1386,7 +1384,7 @@ def _node_params(params, session, node: int) -> dict[str, float]:
         "v_th": float(params["v_th"][node]),
         "h_g_max": float(session.h_g_max),
         "a_h": float(params["a_h"][node]),
-        "a_h_rev": float(a_h_rev[node]),
+        "a_h_rev": float(params["a_h_rev"][node]),
         "e_leak_mV": e_leak,
         "e_h_rev": float(train.e_h_rev(e_leak, session.e_h)),
     }
@@ -1897,9 +1895,9 @@ def _spot_extra_for_cell_fn(
         {contrast: session_one}, filter=train_filter,
     ).get(contrast) or {}
     opts = session_one.train_opts or {}
-    from_onset = bool(opts.get("bias_gt_from_v_onset", TRAIN_OPTIMIZATION['bias_gt_from_v_onset']))
-    lo = float(NEURON_SCHEMA['param_boxes']["bias_gt"]["lo"])
-    hi = float(NEURON_SCHEMA['param_boxes']["bias_gt"]["hi"])
+    from_onset = train.val_from_enabled(opts, "bias_gt")
+    lo = default_scalar("bias_gt", "lo", NEURON_SCHEMA['defaults'])
+    hi = default_scalar("bias_gt", "hi", NEURON_SCHEMA['defaults'])
     cell_names = [str(cell_name) for cell_name in session_one.backend.network.cells]
 
     def extra_for_cell(
@@ -2673,7 +2671,7 @@ def main() -> None:
         description=__doc__,
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
-    add_shared_cli(ap, default_run=DEFAULT_RUN_PATH)
+    add_shared_cli(ap, default_run=RUN_PATH)
     plot_trained.add_plot_timing_arguments(ap)
     plot_trained.add_plot_euler_argument(ap)
     plot_trained.add_plot_filter_argument(ap)
@@ -2701,7 +2699,7 @@ def main() -> None:
     )
     plot_trained.add_ms_shown_argument(t_group)
     # --ms-shown: absolute aligned ms (spot 0=trial start; pre = 0,ms_pre).
-    # --ms-pre/…: sti length overrides (rebuild session). Do not confuse.
+    # --sti-timing: sti length overrides (rebuild session). Do not confuse.
     ap.add_argument(
         "--plot",
         type=parse_bool,
@@ -2721,7 +2719,7 @@ def main() -> None:
     ap.add_argument("--json", action="store_true", help="print JSON to stdout")
     args = ap.parse_args()
     if not args.run:
-        args.run = [DEFAULT_RUN_PATH]
+        args.run = [RUN_PATH]
     cli = parse_shared_cli(args)
 
     if args.radius != 0 and not any(task in train.SPOT_TASKS for task in cli.tasks):
@@ -2760,8 +2758,7 @@ def main() -> None:
         ms_range = None  # default: 0 .. last sample
         use_ms = True
 
-    timing_kw = sti_timing_kwargs_from_args(args)
-    param_edits = plot_trained.parse_param_tokens(args.param)
+    param_edits = plot_trained.parse_default_param_tokens(args.param)
 
     for run_idx, run_arg in enumerate(args.run):
         run_dir = plot_trained.resolve_run_dir(run_arg)
@@ -2769,6 +2766,10 @@ def main() -> None:
         session, z, best_cost = plot_trained.load_best(run_dir)
         train_opts = plot_trained.load_train_opts(run_dir) or {}
         train_filter = train.expand_filter(train_opts.get("filter", "none"))
+        timing_kw = sti_timing_kwargs_from_args(
+            args,
+            filter=args.filter if args.filter is not None else train_filter,
+        )
         session, z, timing_changed = plot_trained.maybe_override_sti_timing(
             run_dir=run_dir,
             session=session,

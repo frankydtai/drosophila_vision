@@ -233,7 +233,7 @@ def hex_vertices(
     return np.column_stack([vx, vy])
 
 
-def field_bounds_from_vertices(
+def view_bounds_from_vertices(
     x,
     y,
     radius: float = HEX_PATCH_RADIUS,

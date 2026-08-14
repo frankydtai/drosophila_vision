@@ -8,7 +8,7 @@ dicts keyed by cell name (:data:`GT_CELLS`); the ``filter=\"ca\"`` path also
 reads external CSVs under ``figure_digitization/arenz/``.
 
 ``filter=\"none\"``: :func:`build_rf` × :func:`build_ir_lti` (bandpass/LP on
-:func:`spot_input_waveform`). T4a–T4d share Gruntman 2018 Fig. 2B spatial
+:func:`sti_input_waveform`). T4a–T4d share Gruntman 2018 Fig. 2B spatial
 samples in :data:`RF_SCALE` and LP ``IR_lp_ms`` (``IR_hp_ms=0``).
 
 ``filter=\"ca\"``: same :data:`RF_SCALE` (unsigned; no ``RF_SIGN`` on rf);
@@ -22,7 +22,7 @@ cell, shape ``(RF_N_RADII, n_t)``. Fractional cost radii interpolate
 Cost GT membership is gated by ``spot_gt_mode`` (``all`` | ``positive``) via
 :func:`spot_gt_active` (still uses :data:`RF_SIGN`); waveform ×
 :func:`contrast_sign` only (dark = −1). Sti drive is
-:func:`task.spot.input.spot_input_waveform`, shared with network ``i_sti``.
+:func:`task.spot.sti_spec.sti_input_waveform`, shared with network ``i_sti``.
 
 Network mapping, cost hexes, and :class:`task.spot.pack.SpotGt` packing
 live in :mod:`task.spot.pack`.
@@ -35,10 +35,8 @@ from typing import Dict, Sequence, Tuple
 
 import numpy as np
 
-from task.spot.input import (
-    spot_radius_folds_r2_into_r1,
-    spot_input_waveform,
-)
+from task.spot.sti_geo import spot_radius_folds_r2_into_r1
+from task.spot.sti_spec import sti_input_waveform
 
 GT_CELLS: Tuple[str, ...] = (
     "L1", "L2", "L3", "L4", "L5",
@@ -67,7 +65,7 @@ RF_SIGN = {
 #     [1.0, _GRUNTMAN_RF_R1, _GRUNTMAN_RF_R2, 0.0, 0.0], dtype=np.float64,
 # )
 
-# Repo root: vision/simulation/3_task/spot/2_gt.py → parents[4].
+# Repo root: vision/simulation/3_task/1_spot/3_gt.py → parents[4].
 _ARENZ_DIR = Path(__file__).resolve().parents[4] / "figure_digitization" / "arenz"
 ARENZ_L_DIGITIZED_CSV = _ARENZ_DIR / "L_digitized.csv"
 ARENZ_4_DIGITIZED_CSV = _ARENZ_DIR / "4_digitized.csv"
@@ -354,7 +352,7 @@ def spot_gt_active(spot_gt_mode: str, contrast: str, rf_sign: int) -> bool:
     )
 
 
-def load_rf_ir(*, t_onset=None, n_t=None, ms_spot=None, delta_ms: float, filter="none"):
+def load_rf_ir(*, t_onset=None, n_t=None, ms_sti=None, delta_ms: float, filter="none"):
     """Return ``(rf, ir)`` for ``GT_CELLS``.
 
     Shapes: ``rf`` ``(n_cell, RF_N_RADII)``; ``ir`` ``(n_cell, n_t)``.
@@ -381,7 +379,7 @@ def load_rf_ir(*, t_onset=None, n_t=None, ms_spot=None, delta_ms: float, filter=
             t_onset=t_onset, n_t=n_t, delta_ms=delta_ms,
         )
 
-    u = spot_input_waveform(t_onset, n_t, ms_spot, delta_ms=delta_ms)
+    u = sti_input_waveform(t_onset, n_t, ms_sti, delta_ms=delta_ms)
     u = u / np.max(u)
     ir = np.zeros((n_cells, n_t))
     for i, cell in enumerate(GT_CELLS):
@@ -405,14 +403,14 @@ def _spot_gt(
     *,
     t_onset=None,
     n_t=None,
-    ms_spot=None,
+    ms_sti=None,
     delta_ms: float,
     filter="none",
     spot_gt_mode: str = "all",
 ) -> np.ndarray:
     """Assembled gt ``(n_cells, RF_N_RADII, n_t)``; inactive rows are zero."""
     rf, ir = load_rf_ir(
-        t_onset=t_onset, n_t=n_t, ms_spot=ms_spot, delta_ms=delta_ms, filter=filter,
+        t_onset=t_onset, n_t=n_t, ms_sti=ms_sti, delta_ms=delta_ms, filter=filter,
     )
     gts = _gt_from_rf_ir(rf, ir)
     for i, cell in enumerate(GT_CELLS):
@@ -428,7 +426,7 @@ def load_gt(
     *,
     t_onset=None,
     n_t=None,
-    ms_spot=None,
+    ms_sti=None,
     delta_ms: float,
     filter="none",
     spot_gt_mode: str = "all",
@@ -436,7 +434,7 @@ def load_gt(
     """Bright gt ``(n_cells, RF_N_RADII, n_t)``."""
     return _spot_gt(
         "bright",
-        t_onset=t_onset, n_t=n_t, ms_spot=ms_spot, delta_ms=delta_ms,
+        t_onset=t_onset, n_t=n_t, ms_sti=ms_sti, delta_ms=delta_ms,
         filter=filter, spot_gt_mode=spot_gt_mode,
     )
 
@@ -445,7 +443,7 @@ def load_gt_dark(
     *,
     t_onset=None,
     n_t=None,
-    ms_spot=None,
+    ms_sti=None,
     delta_ms: float,
     filter="none",
     spot_gt_mode: str = "all",
@@ -453,7 +451,7 @@ def load_gt_dark(
     """Dark gt ``(n_cells, RF_N_RADII, n_t)``."""
     return _spot_gt(
         "dark",
-        t_onset=t_onset, n_t=n_t, ms_spot=ms_spot, delta_ms=delta_ms,
+        t_onset=t_onset, n_t=n_t, ms_sti=ms_sti, delta_ms=delta_ms,
         filter=filter, spot_gt_mode=spot_gt_mode,
     )
 

@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""Same as ``run.py``, but always init from ``DEFAULT_RUN_PATH`` (or ``--init-from``).
+"""Same as ``run.py``, but always init from ``RUN_PATH`` (or ``--init-from``).
 
 Usage (from ``simulation/``, project ``.venv``):
 
@@ -9,7 +9,7 @@ Usage (from ``simulation/``, project ``.venv``):
 from __future__ import annotations
 
 from default_params import (
-    DEFAULT_RUN_PATH,
+    RUN_PATH,
 )
 
 import importlib.util
@@ -21,7 +21,7 @@ if HERE not in sys.path:
     sys.path.insert(0, HERE)
 
 import import_bootstrap  # noqa: F401
-from default_params import DEFAULT_RUN_PATH
+from default_params import RUN_PATH
 
 # ``from run import`` is ambiguous: run.py and run.slurm share stem ``run``.
 _spec = importlib.util.spec_from_file_location(
@@ -41,7 +41,7 @@ def main(argv=None):
         kw = _run.run_kwargs_from_args(args, script_stem="run_init_from")
     except ValueError as exc:
         raise SystemExit(str(exc)) from exc
-    kw["init_from"] = args.init_from or DEFAULT_RUN_PATH
+    kw["init_from"] = args.init_from or RUN_PATH
     _run.run_train_and_plot(**kw)
 
 

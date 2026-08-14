@@ -20,6 +20,7 @@ from default_params import (
     NETWORK_PATH,
     SPOT_INPUT,
     SPOT_PACK,
+    STI_TIMING,
     TRAIN_CONFIG,
     TRAIN_OPTIMIZATION,
     TRAIN_OPTS,
@@ -27,11 +28,10 @@ from default_params import (
 )
 
 from neuron import (
-    PARAM_NAMES,
+    SEGMENT_NAMES,
     EULER_CLI,
     EULER_MODES,
-    I_H_REV_MODES,
-    I_H_SHAPE_PARAM_NAMES,
+    I_H_SHAPE_SEGMENT_NAMES,
     KNOWN_MODELS,
     SYN_MODES,
     default_schema,
@@ -80,11 +80,11 @@ from train.config import (
 )
 from train.param import (
     PAIR_SEP,
-    TRAIN_MODES,
+    PARAM_MODES,
     ModelBackend,
     SIM_DTYPE,
     active_device,
-    apply_train_modes,
+    apply_param_modes,
     assign_params,
     attach_param_carry,
     seed_fixed_from_named,
@@ -95,20 +95,28 @@ from train.param import (
     z_moments_from_named,
     pair_node_names,
     params_from_z,
-    parse_train_mode_text,
+    parse_param_mode_text,
+    parse_param_cli,
+    parse_default_param_tokens,
+    apply_param_init_to_schema,
+    apply_param_overrides,
     remap_named_moments,
     remap_named_node_values,
     materialize_from_opts,
     bias_gt_from_onset_trace,
+    parse_val_from_tokens,
+    resolve_val_from,
+    val_from_enabled,
+    resolve_param_modes,
     schema_bounds,
     schema_guess,
     schema_nparams,
-    schema_train_modes_record,
-    seg_n_z,
+    schema_param_modes_record,
+    segment_n_z,
     cell_node_names,
     node_names_for_segment,
     z_from_node_values,
-    validate_syn_strength_edge_train_mode,
+    validate_syn_strength_edge_param_mode,
     named_moments_from_z,
     node_values_from_z,
     sim_dtype_from_fp,
@@ -119,7 +127,8 @@ from train.session import (
     TrainSession,
     _cost_radius_hex_coltag,
     apply_pack_override,
-    build_i_cli_by_task,
+    apply_i_sti,
+    resolve_i_sti_paradigm,
     extend_pack_mirror_fit,
     load_network_backend,
     build_train_opts,
@@ -145,7 +154,4 @@ from train.optimization import (
 )
 
 from task.spot.pack import build_spot_sti_opts
-from task.moving_bar.gt import (
-    build_moving_bar_sti_opts,
-    session_moving_bar_i_baseline,
-)
+from task.moving_bar.pack import build_moving_bar_sti_opts, session_moving_bar_i_baseline

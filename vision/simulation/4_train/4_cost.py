@@ -10,11 +10,11 @@ calc time — not at session open.
 
 Readout traces are absolute ``v`` (``filter=none``) or ``ca`` (``filter=ca``);
 cost compares the readout to ``gt_aff = a_gt * gt + bias_gt`` (``+ v_th`` when
-present and not ``bias_gt_from_v_onset``). When ``train_opts['bias_gt_from_v_onset']``,
-``params['bias_gt']`` is written from ``v`` at ``t_onset`` (or ``v_ca`` when ``filter=ca``),
-clamped to schema ``bias_gt`` ``lo``/``hi``; ``bias_gt_from_v_onset_grad`` controls
-whether that onset stays in the graph. Same for ``v_th_ca_from_v_th`` /
-``a_ca_from_a_out``: sources are written into ``params['v_th_ca']`` / ``params['a_ca']``
+present and ``val_from`` bias_gt is off). When ``train_opts['val_from']['bias_gt']`` is
+enabled with source ``v_onset``, ``params['bias_gt']`` is written from ``v`` at ``t_onset``
+(or ``v_ca`` when ``filter=ca``), clamped to schema ``bias_gt`` ``lo``/``hi`` (always in graph).
+Same for ``v_th_ca`` / ``a_ca`` ``val_from`` entries:
+sources are written into ``params['v_th_ca']`` / ``params['a_ca']``
 (and ``param.csv``).
 Waveform MSE normalization is ``session`` / ``train_opts`` ``cost_norm``:
 
@@ -27,15 +27,15 @@ scale per cell×radius unless ``part_cost_scales`` says otherwise).
 
 Sparse cost time points (#4): ``pack.gts`` stays the ``ms_response`` segment length
 (spot excludes ``ms_post``) and the subsample is gathered from both v_readout
-trace and gt at cost time via ``pack.cost_time_indices``; when radii use different
+trace and gt at cost time via ``pack.cost_time_indices`` (from train_opts
+``cost_interval_ms`` / ``cost_ms``); when radii use different
 ``cost_ms`` lists, ``pack.cost_time_mask`` zeros non-participating (entry, t)
 pairs. ``gt_power`` is recomputed on the subsample.
 """
 from __future__ import annotations
 
 from default_params import (
-    SPOT_PACK,
-    TRAIN_OPTIMIZATION,
+    NEURON_FILTER,
 )
 
 from dataclasses import dataclass, replace
@@ -74,12 +74,13 @@ from train.param import (
     SIM_DTYPE,
     materialize_from_opts,
     params_from_z,
+    val_from_enabled,
 )
 from train.session import Pack, TrainSession
-from task.moving_bar.gt import (
+from task.moving_bar.gt import dsi_sequential_batch_sets
+from task.moving_bar.pack import (
     bar_specs_for_session,
     cost_dsi_from_v_readout_dsi,
-    dsi_sequential_batch_sets,
     remap_dsi_entries,
 )
 
@@ -139,26 +140,26 @@ def gt_affine_for_nodes(
     """Per-node ``(a_gt, effective_bias)`` for cost / plot affine on gt.
 
     ``effective_bias = bias_gt``; if ``v_th`` is in ``params`` and not
-    ``bias_gt_from_v_onset``, add ``v_th``. Callers must
-    :func:`materialize_from_opts` so onset / alias flags are already in ``params``.
+    ``val_from`` bias_gt is off, add ``v_th``. Callers must
+    :func:`materialize_from_opts` so ``val_from`` sources are already in ``params``.
     """
     a_gt = _param_for_nodes(params, "a_gt", node_idx, backend, sim_dtype=sim_dtype)
     bias = _param_for_nodes(params, "bias_gt", node_idx, backend, sim_dtype=sim_dtype)
     opts = (session.train_opts if session is not None else None) or {}
-    from_onset = bool(opts.get("bias_gt_from_v_onset", TRAIN_OPTIMIZATION['bias_gt_from_v_onset']))
+    from_onset = val_from_enabled(opts, "bias_gt")
     if (not from_onset) and "v_th" in params:
         bias = bias + _param_for_nodes(params, "v_th", node_idx, backend, sim_dtype=sim_dtype)
     return a_gt, bias
 
 
-def _session_bias_gt_from_v_onset(session: TrainSession) -> bool:
+def _session_bias_gt_val_from(session: TrainSession) -> bool:
     opts = session.train_opts or {}
-    return bool(opts.get("bias_gt_from_v_onset", TRAIN_OPTIMIZATION['bias_gt_from_v_onset']))
+    return val_from_enabled(opts, "bias_gt")
 
 
 def _session_filter(session: TrainSession) -> str:
     opts = session.train_opts or {}
-    return str(opts.get("filter", SPOT_PACK['filter']))
+    return str(opts.get("filter", NEURON_FILTER['filter']))
 
 
 def _forward_readout_and_onset_trace(session, params, i_sti, pack):
@@ -181,9 +182,9 @@ def _pack_gt_affine_for_cost(
     batch_idx=None,
 ):
     """Schema ``a_gt`` / ``bias_gt`` after :func:`materialize_from_opts`."""
-    if _session_bias_gt_from_v_onset(session):
+    if _session_bias_gt_val_from(session):
         if onset_trace is None:
-            raise ValueError("bias_gt_from_v_onset requires onset_trace")
+            raise ValueError("val_from bias_gt=v_onset requires onset_trace")
         materialize_from_opts(
             params, session, onset_trace=onset_trace, t_onset=pack_t_onset(pack),
         )

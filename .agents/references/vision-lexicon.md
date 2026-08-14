@@ -7,6 +7,8 @@ Only words with an unambiguous single definition are included here.
 
 When asked whether a word fits this lexicon or “has a definition,” judge **meaning in `vision/` code**, not whether the token appears in lexicon.
 
+**Lexicon headwords name one concept as a single word** (or an established pattern token such as `` `_from_` `` or `` `a_*` ``). A headword must not glue two independent words into a pseudo-entry — ``val_from`` is forbidden (compose ``val`` and ``_from_`` at use sites; CLI ``--val-from`` / opts ``val_from`` are surfaces, not lexicon headwords). Named paradigms that are one concept in prose (`moving_bar`, `spot`) may appear as compounds. Forbidden: glue-compound headwords; hyphen spellings inside lexicon text (`val-from`).
+
 **Evidence:** List every function, method, class, attribute, constant, CLI/opts key, and variable/parameter whose name contains the word (compounds included: `foo_word`, `word_bar`, `WordBaz`). If meanings differ, partition the list into one class per distinct definition; put unrelated homographs (library APIs, other biophysics, …) in an “other” class — still list them.
 
 Then answer only:
@@ -27,7 +29,7 @@ Forbidden: `gain` (including `GAIN_*`, prose “gain param”); do not name thes
 ### `all`
 
 Definition: Universal-quantifier / leftover-bucket token — not a collection prefix. Allowed only as: (1) train-mode leftover key ``'all'`` (nodes not claimed by an explicit mode bucket); (2) CLI universal apply such as ``all_param`` (one mode text applied to every param name); (3) boolean predicates whose head is not a collection noun (``all_active``, ``all_columned``).
-Example: `train_modes["bias_gt"] = parse_train_mode_text("frozen=all")`, `all_param`, `all_mode`, `all_init`, `all_idx`
+Example: `param_modes["bias_gt"] = parse_param_mode_text("fixed=all")`, `all_param`, `all_mode`, `all_init`, `all_idx`
 Forbidden: as a prefix on collection / bag names — never `all_hexes`, `all_nodes`, `all_params`, `all_gt`, `all_v`, `all_traces`, …. Use the plural noun alone (`hexes`, `nodes`, `gts`, `vals`, `traces`), or `run_params` / `run_adams` for per-run bags. Do not write `all_` + plural (`all_stis`) or `all_` + singular collection (`all_sti`).
 
 ### `batch` / `batches`
@@ -63,11 +65,12 @@ Forbidden: do not use `network` to refer to the connectome object or its biologi
 ### `contrast` / `contrasts`
 
 Definition: Bright vs dark sti variant (``"bright"`` | ``"dark"``) for spot / moving-bar tasks — which light polarity the sti uses, not a ±1 multiplier.
+
 - ``contrast`` (singular): one token ``"bright"`` or ``"dark"`` (param, pack info field, MovingBarSpec field, dict key).
 - ``contrasts`` (plural): a list/set/tuple of those tokens.
-The ±1 for a contrast is ``contrast_sign`` (see ``sign``), not ``contrast`` itself.
-Example: `contrast_sign(contrast)`, `SPOT_CONTRASTS`, `MOVING_BAR_CONTRASTS`, `GRUNTMAN_CONTRASTS`, `MovingBarSpec.contrast`, `contrast_for_task`, `contrasts=(contrast,)`, pack info ``"contrast"``, figure keys `{contrast: readout}`
-Forbidden: `polarity` (including `polarity_sign` and prose “polarity”). Do not use `contrast` for a ±1 — that is `sign` / `contrast_sign`. Do not use `contrast` for intensity / adapt gates or other non-bright/dark senses.
+  The ±1 for a contrast is ``contrast_sign`` (see ``sign``), not ``contrast`` itself.
+  Example: `contrast_sign(contrast)`, `SPOT_CONTRASTS`, `MOVING_BAR_CONTRASTS`, `GRUNTMAN_CONTRASTS`, `MovingBarSpec.contrast`, `contrast_for_task`, `contrasts=(contrast,)`, pack info ``"contrast"``, figure keys `{contrast: readout}`
+  Forbidden: `polarity` (including `polarity_sign` and prose “polarity”). Do not use `contrast` for a ±1 — that is `sign` / `contrast_sign`. Do not use `contrast` for intensity / adapt gates or other non-bright/dark senses.
 
 ### `cost` / `costs`
 
@@ -106,17 +109,18 @@ Forbidden: do not use `fit` as a verb for the Adam update loop — use `optimize
 
 ### `degree` / `degrees`
 
-Definition: An angular or visual-field quantity measured in degrees (°) — used for bar width, lane pitch, hex vertex positions, and motion-axis field bounds.
+Definition: An angular or visual-field quantity measured in degrees (°) — used for bar width, lane pitch, hex vertex positions, and motion-axis view bounds.
 Example: `x_deg, y_deg = build_hex.xy_deg_from_uv(u, v)`
 Forbidden: do not use `extent` to refer to a degree quantity. `degree` is angular; `radius` is a hex ring count.
 
 ### `gt` / `gts`
 
 Definition: Ground truth target signal(s) used as the train/evaluation reference (e.g. spot/moving-bar response waveforms).
+
 - ``gt`` (singular): one target waveform — one entry’s `(T,)` trace, one cell’s one-radius curve, or a plot series that draws a single GT line.
 - ``gts`` (plural): a stack/bag of those waveforms — Pack/SpotGt/MovingBarGt field ``gts`` shaped `(n_cost, T')`, or any `(n, T)` / `(n_cells, …)` tensor that holds multiple gt rows.
-Example: `mirror_gt = pack.gts[entry_i:entry_i+1]`, `gts = torch.cat([pack.gts, extra_gts], dim=0)`, `pack.gts`, `_gather_cost_time(..., gts)`
-Forbidden: naming a multi-row gt tensor ``gt`` (use ``gts``). Naming a single waveform ``gts``. Do not use ``all_gt``. Module paths (`task.spot.gt`), CLI ``--gt``, and params ``a_gt`` / ``bias_gt`` are compounds — not this singular/plural rule.
+  Example: `mirror_gt = pack.gts[entry_i:entry_i+1]`, `gts = torch.cat([pack.gts, extra_gts], dim=0)`, `pack.gts`, `_gather_cost_time(..., gts)`
+  Forbidden: naming a multi-row gt tensor ``gt`` (use ``gts``). Naming a single waveform ``gts``. Do not use ``all_gt``. Module paths (`task.spot.gt`), CLI ``--gt``, and params ``a_gt`` / ``bias_gt`` are compounds — not this singular/plural rule.
 
 ### `group` / `groups`
 
@@ -173,7 +177,7 @@ Forbidden: `gate` — do not use `gate` for this participation selector (`a_sti_
 
 ### `mode` / `modes`
 
-Definition: A string token selected from a fixed enumeration, identifying which variant of a configurable behaviour is active (e.g. `syn_mode ∈ {"per_cell","per_edge"}`, `train_mode ∈ {"indi","shared","fixed","frozen"}`).
+Definition: A string token selected from a fixed enumeration, identifying which variant of a configurable behaviour is active (e.g. `syn_mode ∈ {"per_cell","per_edge"}`, segment default ``mode`` ∈ {"indi","shared","fixed","frozen"}``).
 Example: `mode = normalize_syn_mode(syn_mode)`
 
 ### `moving_bar` / `moving_bars`
@@ -264,8 +268,44 @@ Example: `for i in range(n_run): ...`
 ### `schema` / `schemas`
 
 Definition: The parameter schema (segment list) describing how physical parameters are packed into the trainable space `z` and mapped back. Segment key ``z_map`` ∈ ``{linear, log, inv}`` selects the z↔physical map (not a numeric multiplier).
-Example: `for seg, start, stop in schema_segments(schema): ...`, `seg.get("z_map", "linear")`
+Example: `for segment, start, stop in schema_segments(schema): ...`, `segment.get("z_map", "linear")`
 Forbidden: do not use ``scale`` for the z↔physical map key — that is ``z_map``.
+
+### `segment` / `segments`
+
+Definition: One element of ``schema`` — a dict with ``name``, ``kind``, ``count``, ``lo``/``hi``/``init``/``jit``, and param_mode index lists.
+Example: `for segment in schema: ...`, `segment_count(segment)`, `node_names_for_segment(segment, backend)`
+Forbidden: ``seg`` (abbrev); trace ``slice``; CSR ``span``; plot span; bare ``segment`` for non-schema items.
+
+### `default` / `defaults`
+
+Definition: Pre-schema config for one segment — ``lo``/``hi``/``val``/``jit``/``mode``/``overrides`` before ``schema`` build; bag ``NEURON_SCHEMA['defaults']``.
+Example: `NEURON_SCHEMA['defaults']['a_h']`, `default_scalar("bias_gt", "lo", defaults)`
+Forbidden: ``box``; ``param_box``; ``param_boxes``; Python generic default-argument sense.
+
+### `field` / `fields`
+
+Definition: One column in a rectangular CSV output table.
+Example: CSV rectangular output; ``field`` in sidecar/CSV prose for table columns.
+Forbidden: ``column`` (for CSV); ``key`` (for ``--param`` token); ``view`` (sti coverage).
+
+### `key` / `keys`
+
+Definition: Which ``default`` attribute a ``--param`` token edits: ``lo`` | ``hi`` | ``jit`` | ``val`` | ``mode``.
+Example: `a_h.val.L1=0.5`, `parse_default_tokens`, CLI ``NAME.KEY[.NODES]=VALUE``
+Forbidden: ``field`` (for ``--param``); CSV ``field``; dict key in generic prose.
+
+### `slice` / `slices`
+
+Definition: Contiguous subarray along the trace time axis.
+Example: `trace_slice = v_post_d[t_lo:t_hi + 1]`
+Forbidden: ``segment``; ``seg`` (for trace subarrays).
+
+### `view` / `views`
+
+Definition: Sti coverage extent on the hex lattice, measured in degrees ``(x0, y0, x1, y1)``.
+Example: `view_bounds(hexes)`, `view_deg`, pack info ``"view_deg"``
+Forbidden: ``field`` (for sti geometry); ``extent``; bare ``field_deg`` / ``field_bounds``.
 
 ### `scale` / `scales`
 
@@ -337,7 +377,7 @@ Example: `trace_full, onset_trace = _forward_readout_and_onset_trace(...)`
 
 ### `train`
 
-Definition: Noun only — the overall parameter-optimization process and its package (`import train`: session assembly, cost, optimization, persistence). Compounds use the noun (`train_opts`, `train_mode`, `TrainSession`).
+Definition: Noun only — the overall parameter-optimization process and its package (`import train`: session assembly, cost, optimization, persistence). Compounds use the noun (`train_opts`, `param_modes`, `TrainSession`).
 Example: `session = train.open_session_from_outdir(...)`, `import train`
 Forbidden: do not use `train` as a verb (e.g. `train_staged`, “to train”, imperative “Train …”) — the update loop verb is `optimize`. Do not use `training` as a naming token — use `train`. Do not use `fit` for this process / package (see `fit` for the GT/cost cell sense only).
 
@@ -345,6 +385,7 @@ Forbidden: do not use `train` as a verb (e.g. `train_staged`, “to train”, im
 
 Definition: A short-lived scalar value in a loop or inline expression (not a named physical parameter).
 Example: `for key, val in overrides.items(): out[key] = float(val)`
+Forbidden: ``vf``, ``VF``, ``vf_opts``, or any other abbreviation of opts/CLI ``val_from`` surfaces.
 
 ### `weight` / `weights`
 
@@ -377,7 +418,7 @@ Forbidden: do not use `add` for tensor arithmetic or dict insertion — `add` is
 ### `apply`
 
 Definition: Merge a set of override values into an existing object, mutating or replacing fields to produce the updated version.
-Example: `apply_pack_override(pack, override, backend)`, `apply_train_modes(schema, train_modes_by_name, node_names_for_seg)`
+Example: `apply_pack_override(pack, override, backend)`, `apply_param_modes(schema, param_modes_by_name, node_names_for_segment)`
 Forbidden: `inject` — use `apply` only for override/merge operations; use `inject` for arithmetic injection into a tensor.
 
 ### `build`
@@ -413,7 +454,7 @@ Forbidden: `read` — use `load` instead.
 
 Definition: Convert an input value into a canonical/valid form (e.g., clamp rules, ordering, or standard representation).
 Example: `mode = normalize_syn_mode(syn_mode)`
-Forbidden: `canonicalize`, `standardize` — use `normalize` instead.
+Forbidden: `canonicalize`, `standardize` — use `normalize` instead. Do not use `normalize_<noun>` to merge `default_params` bags with CLI token overrides — that assembly is `resolve` (`resolve_param_modes`, `resolve_train_sti_timing`).
 
 ### `optimize`
 
@@ -435,8 +476,8 @@ Forbidden: `draw`, `render`, `visualize`, and project names built on `scatter` (
 ### `resolve`
 
 Definition: Resolve abstract references/aliases/defaults into final concrete values used by execution.
-Example: `out[tname] = int(expanded[tname])`
-Forbidden: `lookup`, `fetch` — use `resolve` instead.
+Example: `out[tname] = int(expanded[tname])`, `resolve_param_modes(param_modes, opts)`, `resolve_train_sti_timing(filter, args.sti_timing)`
+Forbidden: `lookup`, `fetch` — use `resolve` instead. Do not name default+CLI-override assembly with `copy_<noun>` or project `copy_*` helpers — use `resolve_<noun>`. Library `copy.deepcopy` at persistence boundaries may remain.
 
 ### `run`
 
@@ -460,6 +501,6 @@ Forbidden: do not use `step` to mean an optimizer iteration — use `iter` inste
 
 ### `_from_`
 
-Definition: The sole directional preposition in function names and map attribute/local names that derive a result from a source — whether the source is a container/config (opts dict, outdir, args, state_dict), a quantity (signal, tensor, idx space), or a map key. Pattern: `result_from_source` with **nouns only**.
+Definition: The sole directional preposition in function names and map attribute/local names — a result noun linked to a source noun (opts dict, outdir, signal/tensor, idx space, map key, …). Pattern: `<result>_from_<source>`; both sides nouns only; the full identifier has no verb token. This entry's Definition and Example lines use nouns only — no verb tokens.
 Example: `t_from_ms(ms, delta_ms)`, `v_ca_from_v(v, p, session)`, `ca_from_v_ca(...)`, `t_abs_from_ms(...)`, `node_values_from_z(z, schema)`, `hex_from_uv(u, v)`, `xy_deg_from_uv(u, v)`, `cell_from_node(...)`, `node_from_id`, `family_from_cell_csv(...)`
-Forbidden: `_to_` — never use `_to_` as a directional preposition in function names or map attribute/local names. If the name contains `_from_`, it must not also contain a verb (`load`, `apply`, `open`, …).
+Forbidden: `_to_` — never use `_to_` as a directional preposition in function names or map attribute/local names. Any verb token anywhere in the identifier (`load`, `apply`, `open`, `resolve`, `parse`, `build`, `assert`, …). Verbs in this lexicon entry's Definition or Example lines.

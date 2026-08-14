@@ -114,7 +114,7 @@ def _apply_mirror(cells, override):
 
 
 def fit_gts(
-    *, contrasts=("bright",), t_onset=None, n_t=None, ms_spot=None,
+    *, contrasts=("bright",), t_onset=None, n_t=None, ms_sti=None,
     delta_ms, gt_amp, filter="none", spot_gt_mode="all",
 ):
     """``{contrast: {cell: gt}}`` with gt ``(RF_N_RADII, n_t)`` (raw gt before affine).
@@ -131,7 +131,7 @@ def fit_gts(
                 f"unknown contrast {contrast!r}; expected one of {_VALID_CONTRASTS}"
             )
         kw = dict(
-            t_onset=t_onset, n_t=n_t, ms_spot=ms_spot, delta_ms=float(delta_ms),
+            t_onset=t_onset, n_t=n_t, ms_sti=ms_sti, delta_ms=float(delta_ms),
             filter=filter, spot_gt_mode=spot_gt_mode,
         )
         gt_stack = load_gt_dark(**kw) if contrast == "dark" else load_gt(**kw)
@@ -151,7 +151,7 @@ def spot_gts(
     contrasts=None,
     t_onset=None,
     n_t=None,
-    ms_spot=None,
+    ms_sti=None,
     delta_ms=None,
     filter="none",
     spot_gt_mode=None,
@@ -173,7 +173,7 @@ def spot_gts(
     else:
         spot_gt_mode = str(spot_gt_mode)
     base = fit_gts(
-        contrasts=contrasts, t_onset=t_onset, n_t=n_t, ms_spot=ms_spot,
+        contrasts=contrasts, t_onset=t_onset, n_t=n_t, ms_sti=ms_sti,
         delta_ms=session.delta_ms if delta_ms is None else delta_ms,
         gt_amp=session.gt_amp,
         filter=filter,

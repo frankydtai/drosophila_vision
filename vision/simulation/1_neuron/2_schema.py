@@ -1,10 +1,10 @@
 # -*- coding: utf-8 -*-
 """Parameter schemas for borst / hp_lp neuron models.
 
-Numeric lo/hi/init/jit and default ``train_mode`` live in
-``default_params.NEURON_SCHEMA['param_boxes']`` and are passed in as ``param_boxes``.
-This module builds segment structure and resolves train_modes.
-Fixed nodes always use ``effective_init`` (init / init_override); no ``fixed_val``.
+Numeric lo/hi/val/jit and default ``mode`` live in
+``default_params.NEURON_SCHEMA['defaults']`` dict entries. Optional
+``overrides`` holds space-separated ``KEY[.NODES]=VALUE`` tokens (same
+grammar as CLI ``--param NAME.KEY...``); base dict first, overrides last.
 """
 from __future__ import annotations
 
@@ -13,15 +13,14 @@ from default_params import (
 )
 
 from neuron.param import (
-    I_H_REV_MODES,
     KNOWN_MODELS,
 )
 
 SYN_MODES = ("per_cell", "per_edge")
-TRAIN_MODE_KEYS = ("indi", "shared", "fixed", "frozen")
+PARAM_MODE_KEYS = ("indi", "shared", "fixed", "frozen")
 
-# Mirror ``default_params.NEURON_SCHEMA['param_boxes']`` insertion order (injected; no import).
-PARAM_NAMES = (
+# Mirror ``default_params.NEURON_SCHEMA['defaults']`` insertion order (injected; no import).
+SEGMENT_NAMES = (
     "a_gt", "bias_gt",
     "syn_strength_cell", "syn_strength_edge",
     "a_in", "a_out", "e_leak", "v_th", "v_th_ca", "a_ca", "tau_ca",
@@ -30,7 +29,7 @@ PARAM_NAMES = (
     "a_h_rev", "v_mid_h_g_rev", "v_mid_h_tau_rev", "h_slope_rev",
     "a_sti_radius",
 )
-I_H_SHAPE_PARAM_NAMES = (
+I_H_SHAPE_SEGMENT_NAMES = (
     "v_mid_h_g", "v_mid_h_tau", "h_slope",
     "v_mid_h_g_rev", "v_mid_h_tau_rev", "h_slope_rev",
 )
@@ -41,7 +40,103 @@ _I_H_REV_ONLY = frozenset({
 _BORST_ONLY = frozenset({"v_mid_h_g", "v_mid_h_tau", "h_slope"}) | _I_H_REV_ONLY
 _CA_ONLY = frozenset({"v_th_ca", "a_ca", "tau_ca"})
 _OUTPUT_KIND = frozenset({"a_gt", "bias_gt"})
-_NAMED_H = frozenset({"a_h", "a_h_rev"})
+_DEFAULT_SCALAR_KEYS = frozenset({"lo", "hi", "jit"})
+
+
+def parse_default_tokens(tokens, *, segment_name=None):
+    for tok in tokens:
+        left, _, right = tok.partition("=")
+        if segment_name is None:
+            name, _, rest = left.partition(".")
+            key, _, nodes = rest.partition(".")
+        else:
+            key, _, nodes = left.partition(".")
+            name = segment_name
+        yield name, key, nodes, right
+
+
+def _comma_nodes(text):
+    return [x.strip() for x in text.split(",") if x.strip()]
+
+
+def expand_param_nodes(nodes):
+    if nodes == "h_cells":
+        return list(NEURON_SCHEMA["h_cells"])
+    return _comma_nodes(nodes)
+
+
+def split_default_tokens(tokens, *, segment_name=None):
+    meta = {}
+    init_edits = []
+    mode_edits = []
+    for name, key, nodes, right in parse_default_tokens(tokens, segment_name=segment_name):
+        if key in _DEFAULT_SCALAR_KEYS:
+            meta[key] = float(right)
+        elif key == "val":
+            init_edits.append((None if not nodes else expand_param_nodes(nodes), float(right)))
+        elif key == "mode":
+            if right not in PARAM_MODE_KEYS:
+                raise KeyError(right)
+            mode_edits.append((None if not nodes else expand_param_nodes(nodes), right))
+        else:
+            raise KeyError(key)
+    return meta, init_edits, mode_edits
+
+
+def resolve_init_edits(init_edits, i_from_name):
+    node_init = {}
+    names = [str(name) for name in i_from_name]
+    for nodes, init in init_edits:
+        if nodes is None:
+            node_init = {name: init for name in names}
+        else:
+            for node in nodes:
+                node_init[str(node)] = init
+    if not node_init:
+        return 0.0, {}
+    if len(node_init) == len(names) and len(set(node_init.values())) == 1:
+        return next(iter(node_init.values())), {}
+    return 0.0, {int(i_from_name[name]): node_init[name] for name in node_init}
+
+
+def resolve_mode_edits(mode_edits, i_from_name):
+    node_mode = {}
+    names = [str(name) for name in i_from_name]
+    for nodes, bucket in mode_edits:
+        if nodes is None:
+            for name in names:
+                node_mode[name] = bucket
+        else:
+            for node in nodes:
+                node_mode[str(node)] = bucket
+    out = {b: [] for b in PARAM_MODE_KEYS}
+    for name, bucket in node_mode.items():
+        out[bucket].append(int(i_from_name[name]))
+    for b in PARAM_MODE_KEYS:
+        out[b].sort()
+    return out
+
+
+def default_scalar(segment_name, key, defaults):
+    default = defaults[segment_name]
+    return float(default[key])
+
+
+def edits_from_default(default, name):
+    tm = default["mode"]
+    if tm not in PARAM_MODE_KEYS:
+        raise ValueError(
+            f"{name}: unknown mode {tm!r}; "
+            f"expected one of {PARAM_MODE_KEYS}"
+        )
+    init_edits = [(None, float(default["val"]))]
+    mode_edits = [(None, tm)]
+    overrides = default.get("overrides")
+    if overrides:
+        _, o_init, o_mode = split_default_tokens(str(overrides).split(), segment_name=name)
+        init_edits.extend(o_init)
+        mode_edits.extend(o_mode)
+    return init_edits, mode_edits
 
 
 def normalize_syn_mode(syn_mode: str) -> str:
@@ -58,66 +153,39 @@ def syn_strength(params):
     return params["syn_strength_cell"]
 
 
-def _mode_all(n, key):
-    return {k: (list(range(n)) if k == key else []) for k in TRAIN_MODE_KEYS}
-
-
-def _mode_from_box(box, n, *, i_from_name=None, indi_names=()):
-    """Resolve ``box['train_mode']`` to indi/shared/fixed/frozen index lists."""
-    tm = box["train_mode"]
-    if tm in ("fixed", "indi", "shared"):
-        return _mode_all(n, tm)
-    if tm == "indi_named":
-        if i_from_name is None:
-            raise TypeError("indi_named train_mode requires cell i_from_name")
-        indi = sorted({int(i_from_name[str(name)]) for name in indi_names})
-        fixed = [i for i in range(n) if i not in set(indi)]
-        return {"indi": indi, "shared": [], "fixed": fixed, "frozen": []}
-    raise ValueError(
-        f"unknown train_mode {tm!r}; expected indi|shared|fixed|indi_named"
-    )
-
-
-def _seg(name, count, kind, box, n, *, i_from_name=None, indi_names=()):
-    mode = _mode_from_box(box, n, i_from_name=i_from_name, indi_names=indi_names)
+def build_segment(name, count, kind, default, n, *, i_from_name=None):
+    init_edits, mode_edits = edits_from_default(default, name)
+    i_from = i_from_name if i_from_name else {str(i): i for i in range(n)}
+    mode = resolve_mode_edits(mode_edits, i_from)
+    init, init_override = resolve_init_edits(init_edits, i_from)
     s = {
         "name": name,
         "count": count,
         "kind": kind,
-        **{k: v for k, v in box.items() if k != "train_mode"},
+        "lo": float(default["lo"]),
+        "hi": float(default["hi"]),
+        "jit": float(default["jit"]),
+        "init": init,
     }
-    for b in TRAIN_MODE_KEYS:
+    for b in PARAM_MODE_KEYS:
         s[b] = list(mode[b])
-    # indi_named: fixed remainder off (0); indi keep box init via effective_init.
-    if box.get("train_mode") == "indi_named" and mode["fixed"]:
-        s["init_override"] = {int(i): 0.0 for i in mode["fixed"]}
+    if init_override:
+        s["init_override"] = init_override
     return s
 
 
-def borst_i_h_rev_kwargs(params, i_h_rev: str):
-    """Resolve rev-channel i_h kwargs for ``update_v`` from assigned params."""
-    if i_h_rev == "on":
-        return params["a_h_rev"], params["v_mid_h_g_rev"], params["h_slope_rev"], params["v_mid_h_tau_rev"]
-    if i_h_rev == "mirrored":
-        a_h_rev = params["a_h"]
-    elif i_h_rev == "off":
-        a_h_rev = params["a_h"] * 0.0
-    else:
-        raise ValueError(f"i_h_rev {i_h_rev!r} not in {I_H_REV_MODES}")
-    return a_h_rev, params["v_mid_h_g"], params["h_slope"], params["v_mid_h_tau"]
 
-
-def _syn_segment(syn_mode, n_pairs, n_edges, param_boxes):
+def _syn_segment(syn_mode, n_pairs, n_edges, defaults):
     """One synaptic segment: type-pair or per-edge syn_strength."""
     if syn_mode == "per_edge":
         if n_edges is None:
             raise TypeError("per_edge syn_strength_edge requires n_edges from network ScatterConn")
         n_edges = int(n_edges)
-        return _seg("syn_strength_edge", n_edges, "edge", param_boxes["syn_strength_edge"], n_edges)
+        return build_segment("syn_strength_edge", n_edges, "edge", defaults["syn_strength_edge"], n_edges)
     if n_pairs is None:
         raise TypeError("per_cell syn_strength_cell requires n_pairs from network ScatterConn")
     n_pairs = int(n_pairs)
-    return _seg("syn_strength_cell", n_pairs, "edge_pair", param_boxes["syn_strength_cell"], n_pairs)
+    return build_segment("syn_strength_cell", n_pairs, "edge_pair", defaults["syn_strength_cell"], n_pairs)
 
 
 def spot_radius_key(radius, *, aliases) -> str:
@@ -131,25 +199,25 @@ def spot_radius_key(radius, *, aliases) -> str:
     return str(r)
 
 
-def _a_sti_radius_segment(param_boxes: dict, a_sti_radii, radius_key_aliases):
+def _a_sti_radius_segment(defaults: dict, a_sti_radii, radius_key_aliases):
     """Per-radius spot drive ``a_sti_radius`` for non-center radii (``a_sti_radii`` order).
 
     Center r=0 is baked into ``i_sti`` at 1 (not a param). Slot
     names come from ``radius_key_aliases`` via :func:`spot_radius_key`.
-    Box ``train_mode`` applies; CLI ``--a-sti-radius`` may still override.
+    Default ``mode`` applies; CLI ``--a-sti-radius`` may still override.
     """
     radii = list(a_sti_radii)
     n = len(radii)
     if n == 0:
         raise ValueError("a_sti_radius requires non-empty a_sti_radii")
     names = [spot_radius_key(r, aliases=radius_key_aliases) for r in radii]
-    seg = _seg("a_sti_radius", n, "output", param_boxes["a_sti_radius"], n)
-    seg["node_names"] = names
-    return seg
+    segment = build_segment("a_sti_radius", n, "output", defaults["a_sti_radius"], n)
+    segment["node_names"] = names
+    return segment
 
 
-def _segments_from_boxes(
-    param_boxes,
+def segments_from_defaults(
+    defaults,
     *,
     skip,
     n_cells,
@@ -161,37 +229,35 @@ def _segments_from_boxes(
     a_sti_radii,
     radius_key_aliases,
 ):
-    """Build segments in ``param_boxes`` insertion order; ``skip`` omits unused names."""
+    """Build segments in ``defaults`` insertion order; ``skip`` omits unused names."""
     i_from_name = {str(n): i for i, n in enumerate(cells)}
-    named_kw = dict(i_from_name=i_from_name, indi_names=h_cells)
     mode = normalize_syn_mode(syn_mode)
     active_syn = (
         "syn_strength_edge" if mode == "per_edge" else "syn_strength_cell"
     )
-    segs = []
-    for name in param_boxes:
+    segments = []
+    for name in defaults:
         if name in skip:
             continue
         if name in ("syn_strength_cell", "syn_strength_edge"):
             if name != active_syn:
                 continue
-            segs.append(_syn_segment(mode, n_pairs, n_edges, param_boxes))
+            segments.append(_syn_segment(mode, n_pairs, n_edges, defaults))
             continue
         if name == "a_sti_radius":
             if not a_sti_radii:
                 continue
-            segs.append(
+            segments.append(
                 _a_sti_radius_segment(
-                    param_boxes, a_sti_radii, radius_key_aliases or {},
+                    defaults, a_sti_radii, radius_key_aliases or {},
                 )
             )
             continue
         kind = "output" if name in _OUTPUT_KIND else "full"
-        kw = named_kw if name in _NAMED_H else {}
-        segs.append(
-            _seg(name, n_cells, kind, param_boxes[name], n_cells, **kw)
+        segments.append(
+            build_segment(name, n_cells, kind, defaults[name], n_cells, i_from_name=i_from_name)
         )
-    return segs
+    return segments
 
 
 def build_borst_schema(
@@ -200,26 +266,21 @@ def build_borst_schema(
     n_pairs=None,
     *,
     syn_mode: str,
-    param_boxes: dict,
+    defaults: dict,
     h_cells,
-    i_h_rev: str,
     filter: str = "none",
     n_edges=None,
     a_sti_radii=(),
     radius_key_aliases=None,
 ):
-    """Borst schema in NEURON_SCHEMA['param_boxes'] order; rev i_h only when ``i_h_rev == 'on'``."""
-    if i_h_rev not in I_H_REV_MODES:
-        raise ValueError(f"i_h_rev {i_h_rev!r} not in {I_H_REV_MODES}")
+    """Borst schema in NEURON_SCHEMA['defaults'] order (rev i_h segments always included)."""
     if cells is None:
         raise TypeError("borst schema requires cells from network")
     skip = set(_HP_LP_ONLY)
     if str(filter) != "ca":
         skip |= _CA_ONLY
-    if i_h_rev != "on":
-        skip |= _I_H_REV_ONLY
-    return _segments_from_boxes(
-        param_boxes,
+    return segments_from_defaults(
+        defaults,
         skip=skip,
         n_cells=n_cells,
         cells=list(cells),
@@ -238,21 +299,21 @@ def build_hp_lp_schema(
     n_pairs=None,
     *,
     syn_mode: str,
-    param_boxes: dict,
+    defaults: dict,
     h_cells,
     filter: str = "none",
     n_edges=None,
     a_sti_radii=(),
     radius_key_aliases=None,
 ):
-    """HP-then-membrane-LP schema in NEURON_SCHEMA['param_boxes'] order (borst-only keys skipped)."""
+    """HP-then-membrane-LP schema in NEURON_SCHEMA['defaults'] order (borst-only keys skipped)."""
     if cells is None:
         raise TypeError("hp_lp schema requires cells from network")
     skip = set(_BORST_ONLY)
     if str(filter) != "ca":
         skip |= _CA_ONLY
-    return _segments_from_boxes(
-        param_boxes,
+    return segments_from_defaults(
+        defaults,
         skip=skip,
         n_cells=n_cells,
         cells=list(cells),
@@ -270,17 +331,16 @@ def default_schema(
     backend,
     *,
     syn_mode: str,
-    param_boxes: dict,
+    defaults: dict,
     h_cells,
-    i_h_rev: str = "on",
     filter: str = "none",
     a_sti_radii=(),
     radius_key_aliases=None,
 ) -> list:
     """Fresh parameter schema for ``model`` on the given backend.
 
-    ``i_h_rev`` is used only for borst (rev i_h segments when ``\"on\"``).
     ``filter``: ``none`` skips ``v_th_ca``/``a_ca``/``tau_ca``; ``ca`` keeps them.
+    Rev i_h (borst): train/--param mode/init and ``--val-from`` (not a separate enum).
     ``a_sti_radii`` + ``radius_key_aliases`` label ``a_sti_radius`` slots
     (injected from train).
     """
@@ -302,7 +362,7 @@ def default_schema(
         syn_mode=mode,
         n_pairs=n_pairs,
         n_edges=n_edges,
-        param_boxes=param_boxes,
+        defaults=defaults,
         h_cells=h_cells,
         filter=filter,
         a_sti_radii=a_sti_radii,
@@ -310,4 +370,4 @@ def default_schema(
     )
     if model == "hp_lp":
         return build_hp_lp_schema(n, cells=cells, **kw)
-    return build_borst_schema(n, cells=cells, i_h_rev=i_h_rev, **kw)
+    return build_borst_schema(n, cells=cells, **kw)

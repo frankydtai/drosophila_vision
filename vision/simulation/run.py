@@ -204,10 +204,10 @@ def run_mirror_spot_experiment(
     configure_parser=None,
 ):
     """CLI entry for spot mirror-fit experiments (train + plot)."""
-    from task.spot.input import spot_timing_from_opts
+    from task.spot.sti_spec import sti_timing_from_opts
     from figure.gt import fit_gts
     from train.experiment import (
-        merge_i_h_train_modes,
+        merge_i_h_param_modes,
         spot_pack_overrides,
         spot_tasks_from,
         _normalize_mirror_fits,
@@ -217,7 +217,7 @@ def run_mirror_spot_experiment(
         specs = _normalize_mirror_fits(fits, sign)
         def mirror_gts(contrasts):
             pack_name = f"spot_{str(contrasts[0])}"
-            timing = spot_timing_from_opts(
+            timing = sti_timing_from_opts(
                 (session.train_opts or {}).get(f"{pack_name}_sti_opts") or {}
             )
             base = fit_gts(
@@ -265,7 +265,7 @@ def run_mirror_spot_experiment(
     fits = mirror_fits(args) if callable(mirror_fits) else mirror_fits
     tasks = run_kw["tasks"]
     pack_overrides = spot_pack_overrides(tasks, fits, mirror_sign)
-    train_modes = merge_i_h_train_modes(run_kw)
+    param_modes = merge_i_h_param_modes(run_kw)
     spot_tasks = spot_tasks_from(tasks)
     build_session_params = inspect.signature(implementation.build_session).parameters
     preview_session = implementation.build_session(
@@ -276,7 +276,7 @@ def run_mirror_spot_experiment(
             if key != "model" and key in build_session_params
         },
         pack_overrides=pack_overrides,
-        train_modes=train_modes,
+        param_modes=param_modes,
     )
     plot_gts = resolve_spot_plot_gts(
         spot_tasks, build_mirror_gts(fits, mirror_sign, preview_session),
@@ -285,7 +285,7 @@ def run_mirror_spot_experiment(
     fname, outdir, session = run_train_and_plot(
         **run_kw,
         pack_overrides=pack_overrides,
-        train_modes=train_modes,
+        param_modes=param_modes,
         plot_gts=plot_gts,
     )
     for tname in spot_tasks:

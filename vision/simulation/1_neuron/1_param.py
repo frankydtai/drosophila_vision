@@ -2,8 +2,8 @@
 """Neuron parameter formulas — no numeric bindings.
 
 Numeric literals live in ``default_params`` and are injected by the
-caller (session fields / kwargs). Schema box numbers live in
-``default_params.NEURON_SCHEMA['param_boxes']``.
+caller (session fields / kwargs). Schema default numbers live in
+``default_params.NEURON_SCHEMA['defaults']``.
 """
 from __future__ import annotations
 
@@ -60,7 +60,6 @@ def e_h_rev(e_leak, e_h: float):
 
 
 # Non-numeric vocabularies (names / modes), not run defaults.
-I_H_REV_MODES = ("on", "off", "mirrored")
 I_H_DIR_REVERSE_CELLS: tuple[int, ...] = ()
 KNOWN_MODELS = ("borst", "hp_lp")
 EULER_CLI = {"im": "implicit", "ex": "explicit"}

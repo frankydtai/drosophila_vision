@@ -1,10 +1,10 @@
-"""Visualise multi-spot center tiling on a connectome hex field.
+"""Visualise multi-spot center tiling on a connectome hex view.
 
 Marks spot centers (crimson) and draws each spot's axial-radius hex
 (straight edges through ``(spot_radius + 0.5) * _HEX_DIRECTIONS``, via
 ``xy_deg_from_uv`` — not a Euclidean RegularPolygon) on
 :func:`build_hex.draw_fafb_columns` for network hexes only.
-Spot centers from :func:`task.spot.input.build_spot`.
+Spot centers from :func:`task.spot.sti_geo.build_spot`.
 
 Usage (from simulation/, project .venv):
 
@@ -48,14 +48,14 @@ from build_hex import (
     HEX_PATCH_RADIUS,
     _HEX_DIRECTIONS,
     draw_fafb_columns,
-    field_bounds_from_vertices,
+    view_bounds_from_vertices,
     set_axis_labels,
     xy_deg_from_uv,
 )
 from path import DEFAULT_NETWORK_RUN, network_run_tag, resolve_network_json
 from network.construction import Network, load_network
 from train.param import SIM_DTYPE
-from task.spot.input import (
+from task.spot.sti_geo import (
     build_spot,
     spot_radius_dist,
     spot_radius_half_steps,
@@ -137,7 +137,7 @@ def main() -> None:
     os.makedirs(os.path.dirname(os.path.abspath(output)), exist_ok=True)
     df_hexes = _network_hexes_df(connectome)
     x_deg, y_deg = xy_deg_from_uv(df_hexes["u"].values, df_hexes["v"].values)
-    x0, y0, x1, y1 = field_bounds_from_vertices(x_deg, y_deg)
+    x0, y0, x1, y1 = view_bounds_from_vertices(x_deg, y_deg)
     pad = FIELD_VIEW_PAD_DEG
     xlim = (x0 - pad, x1 + pad)
     ylim = (y0 - pad, y1 + pad)

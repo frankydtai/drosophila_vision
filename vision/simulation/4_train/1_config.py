@@ -8,7 +8,7 @@ without a cycle. Session assembly and sti-opts finalisation live in
 
 **Enum allowed-token sets** (e.g. ``COST_NORMS``, ``SPOT_GT_MODES``) live here.
 Matching **default scalars** live only in ``default_params`` (e.g. ``TRAIN_OPTIMIZATION['cost_norm']``,
-``SPOT_PACK['spot_gt_mode']``) — never put the ``(…)`` allowed tuple in ``default_params``.
+``NEURON_FILTER['filter']``, ``SPOT_PACK['spot_gt_mode']``) — never put the ``(…)`` allowed tuple in ``default_params``.
 """
 from __future__ import annotations
 
@@ -102,33 +102,13 @@ TASK_ALIASES = {
     "moving_bar": MOVING_BAR_TASKS,
 }
 CLI_TASK_NAMES = VALID_TASKS + tuple(TASK_ALIASES.keys())
+I_STI_KEYS = ("bright", "baseline", "dark")
+I_STI_PARADIGMS = ("spot", "moving_bar")
 TASK_I_FIELDS = {
     "spot_bright": frozenset({_SPOT_BASELINE_KEY, "i_bright_spot"}),
     "spot_dark": frozenset({_SPOT_BASELINE_KEY, "i_dark_spot"}),
     "moving_bar_bright": frozenset({_MOVING_BAR_BASELINE_KEY, "i_bright_moving_bar"}),
     "moving_bar_dark": frozenset({_MOVING_BAR_BASELINE_KEY, "i_dark_moving_bar"}),
-}
-I_CLI_BRIGHT_TASKS = {
-    "spot": ("spot_bright",),
-    "spot_bright": ("spot_bright",),
-    "moving_bar": ("moving_bar_bright",),
-    "moving_bar_bright": ("moving_bar_bright",),
-}
-I_CLI_DARK_TASKS = {
-    "spot": ("spot_dark",),
-    "spot_dark": ("spot_dark",),
-    "moving_bar": ("moving_bar_dark",),
-    "moving_bar_dark": ("moving_bar_dark",),
-}
-I_CLI_SIDECAR_FIELD = {
-    ("i_baseline", "spot_bright"): _SPOT_BASELINE_KEY,
-    ("i_baseline", "spot_dark"): _SPOT_BASELINE_KEY,
-    ("i_baseline", "moving_bar_bright"): _MOVING_BAR_BASELINE_KEY,
-    ("i_baseline", "moving_bar_dark"): _MOVING_BAR_BASELINE_KEY,
-    ("i_bright", "spot_bright"): "i_bright_spot",
-    ("i_bright", "moving_bar_bright"): "i_bright_moving_bar",
-    ("i_dark", "spot_dark"): "i_dark_spot",
-    ("i_dark", "moving_bar_dark"): "i_dark_moving_bar",
 }
 PART_COST_SCALE_ALIASES = {
     "spot": SPOT_TASKS,

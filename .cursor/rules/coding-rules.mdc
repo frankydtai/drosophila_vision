@@ -50,7 +50,7 @@ Core numbering rules:
 3. Path constants in `path.py` / `train/config.py` (logical); disk file is under `4_train/`. 
 4. CSVs: rectangular; global scalars as constant columns.
 5. Core codes must stay flexible for `experiment/` or `test/` to easily import, modify, and overwrite without touching core codes.
-6. No reverse plot dependency (HARD STOP 5). Scope: `simulation/2_network/**`, `connectome/**`, `1_neuron_model/**`, `3_task/**`, `4_train/**` (non-plot), `path.py`. Shared logic needed by both plot and core → move into core (e.g. `3_task/2_spot/`, `3_task/3_moving_bar/`); never import plot layers from core.
+6. No reverse plot dependency (HARD STOP 5). Scope: `simulation/2_network/**`, `connectome/**`, `1_neuron_model/**`, `3_task/**`, `4_train/**` (non-plot), `path.py`. Shared logic needed by both plot and core → move into core (e.g. `3_task/1_spot/`, `3_task/2_moving_bar/`); never import plot layers from core.
 7. Numeric defaults: sole source is `vision/default_params.py` (`default_params`) — literals / constant bags only (physics, schema boxes, sti, CLI); no functions, no formulas. Only `4_train` / 5_figures / 6_analyze / run scripts may import it. `1_neuron` / `2_network` / `3_task` take numbers by injection only and must not import `default_params` (Gruntman paradigm ms/geometry constants may live in `task.moving_bar`). Constants follow original definition order across numbered cores `1.1` … `4.9` (empty cores omitted).
 10. No reverse plot dependency: core must not import or call plotting. Forbidden: `import plot`, `from plot import …`, `import plot_trained`, `from plot_trained import …`
 

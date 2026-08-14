@@ -47,7 +47,7 @@ DEFAULT_FIXED_TAU_ADAPT = 100.0
 
 
 def _init(name: str) -> float:
-    return float(P[name]["init"])
+    return float(P[name]["val"])
 
 
 def contrast_gate(X_gate, adapt_gain, gate_pivot):

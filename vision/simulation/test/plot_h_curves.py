@@ -40,7 +40,7 @@ TAU_VDEP_MAX_MS = 850.0  # at V = tau_mid
 
 
 def _init(name: str) -> float:
-    return float(P[name]["init"])
+    return float(P[name]["val"])
 
 
 def ih_ss(Vm, midv, slope):

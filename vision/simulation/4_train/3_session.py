@@ -7,7 +7,7 @@ builders wrap the neutral gt dataclasses from ``task`` (which sit below
 ``train`` in the import graph) and stamp the cross-cutting pack cost controls:
 
 * spot: sparse ``cost_time_indices`` / optional ``cost_time_mask`` (#4; ``cost_ms``
-  overwrites interval per radius), ``ms_spot`` (#1) already baked into
+  overwrites interval per radius), ``ms_sti`` (#1) already baked into
   the sti, ``waveform_mse=True``;
 * moving bar: ``waveform_mse`` from cost scales (True when a cost window is
   built).
@@ -15,7 +15,7 @@ builders wrap the neutral gt dataclasses from ``task`` (which sit below
 Model traces are absolute ``v`` (``filter=none``) or ``ca`` (``filter=ca``);
 cost compares the pack to ``a_gt * gts + bias_gt``. Schema includes
 ``v_th_ca``/``a_ca``/``tau_ca`` only when ``filter=ca``. When
-``bias_gt_from_v_onset``, ``bias_gt`` is written from ``v`` at ``t_onset`` (or ``ca`` when
+``val_from`` (``--val-from``), ``bias_gt`` is written from ``v`` at ``t_onset`` (or ``ca`` when
 ``filter=ca``) — same value appears in ``param.csv``. Spot ir uses Arenz digitized
 when ``filter=ca``. ``spot_gt_mode`` (``all`` | ``pos``) gates cost GT via
 :func:`task.spot.gt.spot_gt_active`; dark multiplies by :func:`task.spot.gt.contrast_sign`.
@@ -38,6 +38,7 @@ from default_params import (
     MOVING_BAR_DARK_STI_OPTS,
     MOVING_BAR_INPUT,
     NETWORK_CONSTRUCTION,
+    NEURON_FILTER,
     NEURON_FORWARD,
     NEURON_PARAM,
     NEURON_SCHEMA,
@@ -45,9 +46,11 @@ from default_params import (
     SPOT_DARK_STI_OPTS,
     SPOT_INPUT,
     SPOT_PACK,
+    STI_TIMING,
     TRAIN_OPTIMIZATION,
     TRAIN_OPTS,
     TRAIN_SESSION,
+    VAL_FROM,
 )
 
 import copy
@@ -68,9 +71,7 @@ from neuron import (
 
 from train.config import (
     CLI_TASK_NAMES,
-    I_CLI_BRIGHT_TASKS,
-    I_CLI_DARK_TASKS,
-    I_CLI_SIDECAR_FIELD,
+    I_STI_KEYS,
     PD_ND_LABELS,
     SPOT_TASKS,
     TASK_ALIASES,
@@ -95,13 +96,17 @@ from train.param import (
     ModelBackend,
     SIM_DTYPE,
     active_device,
-    apply_train_modes,
+    apply_param_init_to_schema,
+    apply_param_modes,
     attach_param_carry,
+    resolve_param_modes,
     build_i_h_dirs,
+    resolve_val_from,
     node_names_for_segment,
     schema_nparams,
-    schema_train_modes_record,
+    schema_param_modes_record,
     sim_dtype_from_fp,
+    val_from_enabled,
 )
 
 from task.spot.gt import expand_gt_cells as expand_spot_gt_cells
@@ -114,20 +119,22 @@ from task.spot.pack import (
     build_spot_sti_opts,
     build_a_sti_radius_mask,
 )
-from task.spot.input import (
-    build_spot_a_sti_radius_drive,
-    normalize_spot_timing,
-    spot_gt_n_t_from_opts,
-    spot_radius_half_steps,
+from task.spot.sti_geo import (
     spot_from_opts,
-    spot_timing_from_opts,
+    spot_radius_half_steps,
     spot_sti_batches,
 )
-from task.moving_bar.gt import (
-    _enrich_moving_bar_sti_opts,
+from task.spot.sti_spec import (
+    build_spot_a_sti_radius_drive,
+    normalize_sti_timing,
+    sti_gt_n_t_from_opts,
+    sti_timing_from_opts,
+)
+from task.moving_bar.gt import expand_gt_cells as expand_moving_bar_gt_cells
+from task.moving_bar.pack import (
     build_moving_bar_gt,
-    expand_gt_cells as expand_moving_bar_gt_cells,
     build_moving_bar_sti_opts,
+    enrich_moving_bar_sti_opts,
 )
 from network.construction import (
     load_network, gt_cells_from_opts, node_cell_names, normalize_cost_radius,
@@ -404,7 +411,7 @@ def load_network_backend(
     a_syn_inh: float,
     sim_dtype=SIM_DTYPE,
     syn_mode=NEURON_SCHEMA['syn_mode'],
-    param_boxes=NEURON_SCHEMA['param_boxes'],
+    defaults=NEURON_SCHEMA['defaults'],
     h_cells=NEURON_SCHEMA['h_cells'],
 ) -> ModelBackend:
     """Load connectome network into a :class:`ModelBackend`."""
@@ -420,7 +427,7 @@ def load_network_backend(
     print(f"  n_nodes={backend.n_nodes}, n_cells={backend.n_cells}, "
           f"n_pairs={backend.conn.n_pairs}, n_edges={backend.conn.n_edges}, "
           f"syn_mode={mode}, "
-          f"nparams={schema_nparams(default_schema('borst', backend, syn_mode=mode, param_boxes=param_boxes, h_cells=h_cells, a_sti_radii=SPOT_PACK['a_sti_radii'], radius_key_aliases=SPOT_PACK['spot_cost_radius_key_aliases']))}")
+          f"nparams={schema_nparams(default_schema('borst', backend, syn_mode=mode, defaults=defaults, h_cells=h_cells, a_sti_radii=SPOT_PACK['a_sti_radii'], radius_key_aliases=SPOT_PACK['spot_cost_radius_key_aliases']))}")
     return backend
 
 
@@ -441,6 +448,8 @@ class _TrainBindCtx:
     moving_bar_dark_sti_opts: Optional[dict] = None
     filter: str = "none"
     spot_gt_mode: str = "all"
+    cost_interval_ms: float = TRAIN_OPTIMIZATION['cost_interval_ms']
+    cost_ms: Optional[dict] = None
 
 
 def _moving_bar_waveform_mse_enabled(part_cost_scales: Optional[dict], pack_name: str) -> bool:
@@ -462,7 +471,7 @@ def _moving_bar_contrast_opts(ctx: _TrainBindCtx, contrast: str) -> dict:
     if raw:
         return dict(raw)
     _nc = resolve_filter_branches(NETWORK_CONSTRUCTION, filter=ctx.filter)
-    _si = resolve_filter_branches(SPOT_INPUT, filter=ctx.filter)
+    _si = resolve_filter_branches(STI_TIMING, filter=ctx.filter)
     return build_moving_bar_sti_opts(
         contrast,
         i_baseline_moving_bar=_nc['i_baseline'],
@@ -520,7 +529,7 @@ def _build_network_moving_bar_pack(
     peak_key = _MOVING_BAR_I_KEY[contrast]
     build_kw[peak_key] = opts[peak_key]
     T = build_moving_bar_gt(**build_kw)
-    sti_opts = _enrich_moving_bar_sti_opts(opts, T.info, cost_radius=cost_radius)
+    sti_opts = enrich_moving_bar_sti_opts(opts, T.info, cost_radius=cost_radius)
     pack = Pack(
         name=pack_name,
         i_sti=T.i_sti,
@@ -549,28 +558,25 @@ def _build_network_moving_bar_pack(
     return pack, sti_opts, tag
 
 
-def _spot_cost_time_idx_and_mask(opts, entry_radii, *, device, sim_dtype):
+def _spot_cost_time_idx_and_mask(opts, entry_radii, *, ctx: _TrainBindCtx, device, sim_dtype):
     """Union ``cost_time_indices``; ``cost_time_mask`` when radii differ.
 
-    ``cost_ms[r]`` overwrites ``cost_interval_ms`` grid for that radius.
+    ``ctx.cost_ms[r]`` overwrites ``ctx.cost_interval_ms`` grid for that radius.
     """
     n = int(entry_radii.shape[0])
     if n == 0:
         return None, None
-    timing = spot_timing_from_opts(opts)
+    timing = sti_timing_from_opts(opts)
     delta_ms = timing.delta_ms
     post = timing.n_t_gt - timing.t_onset
     overrides = expand_cost_ms_dict(
-        sti_opts=opts, aliases=SPOT_PACK['spot_cost_radius_key_aliases'],
+        cost_ms=ctx.cost_ms, aliases=SPOT_PACK['spot_cost_radius_key_aliases'],
     )
     rad = np.round(entry_radii.detach().cpu().numpy().astype(float), 6)
     radii = {float(r) for r in rad.tolist()}
     grid = None
     if any(r not in overrides for r in radii):
-        interval_ms = opts.get("cost_interval_ms")
-        if interval_ms is None:
-            raise ValueError("spot cost needs cost_ms or cost_interval_ms")
-        interval_ms = float(interval_ms)
+        interval_ms = float(ctx.cost_interval_ms)
         if interval_ms <= 0:
             raise ValueError("cost_interval_ms must be > 0")
         if post <= 0:
@@ -618,8 +624,8 @@ def _build_network_spot_task(
     )
     if not ctx_opts:
         raise ValueError(f"{pack_name} requires sti opts (from build_train_opts / CLI)")
-    opts = normalize_spot_timing(dict(ctx_opts))
-    timing = spot_timing_from_opts(opts)
+    opts = normalize_sti_timing(dict(ctx_opts))
+    timing = sti_timing_from_opts(opts)
     cost_radius = normalize_cost_radius(opts.get("cost_radius"))
     shift_radius = int(opts["shift_radius"])
     spot_radius = float(opts["spot_radius"])
@@ -652,7 +658,7 @@ def _build_network_spot_task(
         i_bright_spot=i_spot if contrast == "bright" else float(opts.get("i_bright_spot", resolve_filter_branches(NETWORK_CONSTRUCTION['i_bright'], filter=ctx.filter))),
         i_dark_spot=i_spot if contrast == "dark" else float(opts.get("i_dark_spot", resolve_filter_branches(NETWORK_CONSTRUCTION['i_dark'], filter=ctx.filter))),
         contrast=contrast,
-        ms_spot=timing.ms_spot,
+        ms_sti=timing.ms_sti,
         ms_response=timing.ms_response,
         gt_amp=gt_amp,
         delta_ms=timing.delta_ms,
@@ -663,7 +669,7 @@ def _build_network_spot_task(
         spot_gt_mode=str(ctx.spot_gt_mode),
     )
     cost_time_indices, cost_time_mask = _spot_cost_time_idx_and_mask(
-        opts, T.entry_radii, device=dev, sim_dtype=ctx.sim_dtype,
+        opts, T.entry_radii, ctx=ctx, device=dev, sim_dtype=ctx.sim_dtype,
     )
     sti_opts = dict(opts)
     # Replace center-only bake from build_spot_gt: center @1 in i_sti + a_sti_radius radii.
@@ -684,7 +690,7 @@ def _build_network_spot_task(
         a_sti_radii=SPOT_PACK['a_sti_radii'],
         t_onset=int(t_onset),
         n_t=int(n_t),
-        ms_spot=timing.ms_spot,
+        ms_sti=timing.ms_sti,
         delta_ms=timing.delta_ms,
         i_baseline=i_baseline,
         i_peak=i_spot,
@@ -741,45 +747,52 @@ NETWORK_TASK_BUILDERS = {
 }
 
 
-def _i_cli_task_names(cli_field, name):
-    """Resolve CLI task token for one ``--i_*`` flag."""
+def resolve_i_sti_paradigm(name):
+    """Map one ``--i-sti`` task token to ``spot`` or ``moving_bar``."""
     if name not in CLI_TASK_NAMES:
         raise ValueError(
-            f"unknown task {name!r} in --{cli_field} "
+            f"unknown task {name!r} in --i-sti "
             f"(expected {'|'.join(CLI_TASK_NAMES)})",
         )
-    if cli_field == "i_baseline":
-        if name in TASK_ALIASES:
-            return TASK_ALIASES[name]
-        return [name]
-    if cli_field == "i_bright":
-        if name not in I_CLI_BRIGHT_TASKS:
-            raise ValueError(
-                f"--i-bright does not accept task {name!r} "
-                f"(expected spot|spot_bright|moving_bar|moving_bar_bright)",
-            )
-        return list(I_CLI_BRIGHT_TASKS[name])
-    if name not in I_CLI_DARK_TASKS:
-        raise ValueError(
-            f"--i-dark does not accept task {name!r} "
-            f"(expected spot|spot_dark|moving_bar|moving_bar_dark)",
-        )
-    return list(I_CLI_DARK_TASKS[name])
+    if name in TASK_ALIASES:
+        return name
+    if name in SPOT_TASKS:
+        return "spot"
+    return "moving_bar"
 
 
-def build_i_cli_by_task(kv_by_field):
-    """Merge per-flag comma KV dicts into ``{'by_task': {task: {field: val}}}``."""
-    by_task = {}
-    for cli_field, kv in kv_by_field.items():
-        if not kv:
-            continue
-        for name, val in kv.items():
-            for t in _i_cli_task_names(cli_field, name):
-                sidecar_field = I_CLI_SIDECAR_FIELD[(cli_field, t)]
-                # Keep raw value (may be a ``{v,ca}`` branch dict). Selection/casting
-                # must happen after ``open_session``'s ``resolve_filter_branches``.
-                by_task.setdefault(t, {})[sidecar_field] = val
-    return {"by_task": by_task} if by_task else None
+def _i_sti_sidecar_keys(task_name):
+    if task_name in SPOT_TASKS:
+        baseline_key = _SPOT_BASELINE_KEY
+        peak_keys = _SPOT_I_KEY
+    else:
+        baseline_key = _MOVING_BAR_BASELINE_KEY
+        peak_keys = _MOVING_BAR_I_KEY
+    contrast = "bright" if task_name.endswith("_bright") else "dark"
+    return baseline_key, peak_keys[contrast], contrast
+
+
+def apply_i_sti(opts, task_name, i_sti):
+    """Merge per-paradigm CLI ``--i-sti`` overrides into sti opts."""
+    if not i_sti:
+        return opts
+    paradigm = resolve_i_sti_paradigm(task_name)
+    overrides = i_sti.get(paradigm)
+    if not overrides:
+        return opts
+    out = dict(opts or {})
+    baseline_key, peak_key, contrast = _i_sti_sidecar_keys(task_name)
+    allowed = TASK_I_FIELDS[task_name]
+    merged = {}
+    if "baseline" in overrides:
+        merged[baseline_key] = overrides["baseline"]
+    if contrast in overrides:
+        merged[peak_key] = overrides[contrast]
+    for key, val in merged.items():
+        if key not in allowed:
+            raise ValueError(f"{key!r} not valid for task {task_name!r}")
+        out[key] = val
+    return out
 
 
 def resolve_gt_cells_by_task(by_task_kv) -> Dict[str, List[str]]:
@@ -797,22 +810,6 @@ def resolve_gt_cells_by_task(by_task_kv) -> Dict[str, List[str]]:
             out[tname] = list(expand_spot_gt_cells(cells))
         else:
             out[tname] = list(expand_moving_bar_gt_cells(cells))
-    return out
-
-
-def apply_i_cli(opts, task_name, i_cli):
-    """Merge per-task CLI ``--i_*`` overrides into sti opts."""
-    if not i_cli:
-        return opts
-    overrides = (i_cli.get("by_task") or {}).get(task_name)
-    if not overrides:
-        return opts
-    out = dict(opts or {})
-    allowed = TASK_I_FIELDS[task_name]
-    for key, val in overrides.items():
-        if key not in allowed:
-            raise ValueError(f"{key!r} not valid for task {task_name!r}")
-        out[key] = val
     return out
 
 
@@ -841,7 +838,7 @@ def _finalize_sti_opts(
     multi_spot,
     fully_inside,
     spot_cost_radius_scale,
-    i_cli,
+    i_sti,
 ):
     raw = dict(_STI_OPTS_BY_TASK.get(task_name, {}))
     raw.update(opts or {})
@@ -869,12 +866,7 @@ def _finalize_sti_opts(
             fully_inside=(
                 fully_inside if fully_inside is not None else raw["fully_inside"]
             ),
-            ms_spot=raw["ms_spot"],
-            cost_interval_ms=raw.get("cost_interval_ms"),
-            cost_ms=(
-                raw.get("cost_ms")
-                if "cost_ms" in raw else None
-            ),
+            ms_sti=raw["ms_sti"],
             gt_cells=raw.get("gt_cells"),
         )
     elif task_name in ("moving_bar_bright", "moving_bar_dark"):
@@ -908,7 +900,7 @@ def _finalize_sti_opts(
             out["spot_cost_radius_scale"] = {
                 str(k): float(v) for k, v in spot_cost_radius_scale.items()
             }
-    return apply_i_cli(out, task_name, i_cli)
+    return apply_i_sti(out, task_name, i_sti)
 
 
 def build_train_opts(
@@ -923,30 +915,29 @@ def build_train_opts(
     multi_spot=SPOT_INPUT['multi_spot'],
     fully_inside=SPOT_INPUT['fully_inside'],
     spot_cost_radius_scale=None,
-    i_cli=None,
+    i_sti=None,
+    cost_norm=TRAIN_OPTIMIZATION['cost_norm'],
+    cost_interval_ms=TRAIN_OPTIMIZATION['cost_interval_ms'],
+    cost_ms=None,
     moving_bar_bright_sti_opts=None,
     moving_bar_dark_sti_opts=None,
     spot_bright_sti_opts=None,
     spot_dark_sti_opts=None,
     network_json=None,
     network=None,
-    train_modes=None,
+    param_modes=None,
+    param_init=None,
     syn_mode=NEURON_SCHEMA['syn_mode'],
-    cost_norm=TRAIN_OPTIMIZATION['cost_norm'],
     dev=None,
     packs=None,
-    i_h_rev=NEURON_PARAM['i_h_rev'],
     euler=NEURON_PARAM['euler'],
     pre_steady=None,
     pre_steady_iters=TRAIN_OPTIMIZATION['pre_steady_iters'],
     pre_steady_damp=TRAIN_OPTIMIZATION['pre_steady_damp'],
     fp=TRAIN_SESSION['fp'],
     pre_grad=NEURON_FORWARD['pre_grad'],
-    bias_gt_from_v_onset=TRAIN_OPTIMIZATION['bias_gt_from_v_onset'],
-    bias_gt_from_v_onset_grad=TRAIN_OPTIMIZATION['bias_gt_from_v_onset_grad'],
-    v_th_ca_from_v_th=TRAIN_OPTIMIZATION['v_th_ca_from_v_th'],
-    a_ca_from_a_out=TRAIN_OPTIMIZATION['a_ca_from_a_out'],
-    filter=SPOT_PACK['filter'],
+    val_from=None,
+    filter=NEURON_FILTER['filter'],
     spot_gt_mode=SPOT_PACK['spot_gt_mode'],
 ):
     """Canonical train opts for :func:`open_session` (network backend)."""
@@ -968,38 +959,20 @@ def build_train_opts(
         raise ValueError(
             f"pre_steady_damp must be in (0, 1]; got {pre_steady_damp}"
         )
-    bias_gt_from_v_onset = bool(resolve_filter_branches(bias_gt_from_v_onset, filter=filter))
-    bias_gt_from_v_onset_grad = bool(resolve_filter_branches(bias_gt_from_v_onset_grad, filter=filter))
-    if not bias_gt_from_v_onset:
-        bias_gt_from_v_onset_grad = False
-    if bias_gt_from_v_onset:
-        train_modes = dict(train_modes or {})
-        train_modes["bias_gt"] = {
-            "indi": [], "shared": [], "fixed": [], "frozen": ["all"],
-        }
-    v_th_ca_from_v_th = bool(resolve_filter_branches(v_th_ca_from_v_th, filter=filter))
-    a_ca_from_a_out = bool(resolve_filter_branches(a_ca_from_a_out, filter=filter))
+    val_from = resolve_val_from(val_from=val_from)
+    val_from_opts = {"val_from": val_from}
     if filter != "ca":
-        if v_th_ca_from_v_th or a_ca_from_a_out:
+        if val_from_enabled(val_from_opts, "v_th_ca") or val_from_enabled(val_from_opts, "a_ca"):
             raise ValueError(
-                "--v-th-ca-from-v-th / --a-ca-from-a-out require --filter ca "
+                "--val-from v_th_ca / a_ca require --filter ca "
                 f"(got filter={filter!r})"
             )
-        if train_modes:
-            train_modes = {
-                k: v for k, v in train_modes.items()
+        if param_modes:
+            param_modes = {
+                k: v for k, v in param_modes.items()
                 if k not in ("v_th_ca", "a_ca", "tau_ca")
             } or None
-    if v_th_ca_from_v_th:
-        train_modes = dict(train_modes or {})
-        train_modes["v_th_ca"] = {
-            "indi": [], "shared": [], "fixed": [], "frozen": ["all"],
-        }
-    if a_ca_from_a_out:
-        train_modes = dict(train_modes or {})
-        train_modes["a_ca"] = {
-            "indi": [], "shared": [], "fixed": [], "frozen": ["all"],
-        }
+    param_modes = resolve_param_modes(param_modes, val_from_opts)
     tl = normalize_tasks(tasks)
     if spot_radius is None:
         spot_radius = SPOT_INPUT['spot_radius']
@@ -1018,7 +991,7 @@ def build_train_opts(
         multi_spot=multi_spot,
         fully_inside=fully_inside,
         spot_cost_radius_scale=spot_cost_radius_scale,
-        i_cli=i_cli,
+        i_sti=i_sti,
     )
     sti_opts = {}
     for tname, opts_key in _STIMULUS_TRAIN_OPT_SPECS:
@@ -1037,19 +1010,19 @@ def build_train_opts(
         "tasks": tl,
         "part_cost_scales": expand_part_cost_scale_dict(part_cost_scales or {}),
         "cost_norm": cost_norm,
+        "cost_interval_ms": cost_interval_ms,
+        "cost_ms": copy.deepcopy(
+            cost_ms if cost_ms is not None else TRAIN_OPTIMIZATION['cost_ms']
+        ),
         "pre_steady": pre_steady,
         "pre_steady_iters": pre_steady_iters,
         "pre_steady_damp": pre_steady_damp,
         "sequential": sequential,
         **sti_opts,
-        "i_h_rev": i_h_rev,
         "euler": euler,
         "syn_mode": syn_mode,
         "pre_grad": pre_grad,
-        "bias_gt_from_v_onset": bias_gt_from_v_onset,
-        "bias_gt_from_v_onset_grad": bias_gt_from_v_onset_grad,
-        "v_th_ca_from_v_th": v_th_ca_from_v_th,
-        "a_ca_from_a_out": a_ca_from_a_out,
+        "val_from": copy.deepcopy(val_from),
         "filter": filter,
         "spot_gt_mode": spot_gt_mode,
         "fp": fp,
@@ -1061,9 +1034,22 @@ def build_train_opts(
         opts["pack_overrides"] = pack_overrides
     if packs is not None:
         opts["packs"] = packs
-    if train_modes is not None:
-        opts["train_modes"] = train_modes
+    if param_modes is not None:
+        opts["param_modes"] = param_modes
+    if param_init:
+        opts["param_init"] = [
+            [name, node, float(val)] for name, node, val in param_init
+        ]
     return opts
+
+
+def _cost_ms_sidecar(cost_ms) -> dict:
+    """JSON sidecar: radius keys as strings, ms lists as floats."""
+    out: dict = {}
+    for key, vals in (cost_ms or {}).items():
+        ms_list = list(vals) if isinstance(vals, (list, tuple)) else [vals]
+        out[str(float(key))] = [float(x) for x in ms_list]
+    return out
 
 
 def _train_opts_for_sidecar(opts, tasks, resolved_sti, sequential_bool) -> dict:
@@ -1079,6 +1065,12 @@ def _train_opts_for_sidecar(opts, tasks, resolved_sti, sequential_bool) -> dict:
             str(k): float(v) for k, v in (opts.get("part_cost_scales") or {}).items()
         },
         "cost_norm": opts.get("cost_norm", TRAIN_OPTIMIZATION['cost_norm']),
+        "cost_interval_ms": float(
+            opts.get("cost_interval_ms", TRAIN_OPTIMIZATION['cost_interval_ms'])
+        ),
+        "cost_ms": _cost_ms_sidecar(
+            opts.get("cost_ms", TRAIN_OPTIMIZATION['cost_ms'])
+        ),
         "pre_steady": opts.get("pre_steady", TRAIN_OPTIMIZATION['pre_steady']),
         "pre_steady_iters": int(opts.get("pre_steady_iters", TRAIN_OPTIMIZATION['pre_steady_iters'])),
         "pre_steady_damp": float(opts.get("pre_steady_damp", TRAIN_OPTIMIZATION['pre_steady_damp'])),
@@ -1092,52 +1084,47 @@ def _train_opts_for_sidecar(opts, tasks, resolved_sti, sequential_bool) -> dict:
     overrides = opts.get("pack_overrides")
     if overrides:
         record["pack_overrides"] = overrides
-    if opts.get("train_modes"):
-        record["train_modes"] = opts["train_modes"]
-    if "i_h_rev" in opts:
-        record["i_h_rev"] = opts["i_h_rev"]
+    if opts.get("param_modes"):
+        record["param_modes"] = opts["param_modes"]
+    if opts.get("param_init"):
+        record["param_init"] = opts["param_init"]
     if "euler" not in opts:
         raise ValueError("train opts require euler (implicit|explicit)")
     record["euler"] = opts["euler"]
     record["syn_mode"] = opts.get("syn_mode", NEURON_SCHEMA['syn_mode'])
     record["pre_grad"] = opts.get("pre_grad", NEURON_FORWARD['pre_grad'])
-    record["bias_gt_from_v_onset"] = opts.get("bias_gt_from_v_onset", TRAIN_OPTIMIZATION['bias_gt_from_v_onset'])
-    record["bias_gt_from_v_onset_grad"] = opts.get("bias_gt_from_v_onset_grad", TRAIN_OPTIMIZATION['bias_gt_from_v_onset_grad'])
-    record["v_th_ca_from_v_th"] = opts.get("v_th_ca_from_v_th", TRAIN_OPTIMIZATION['v_th_ca_from_v_th'])
-    record["a_ca_from_a_out"] = opts.get("a_ca_from_a_out", TRAIN_OPTIMIZATION['a_ca_from_a_out'])
-    record["filter"] = expand_filter(opts.get("filter", SPOT_PACK['filter']))
+    record["val_from"] = copy.deepcopy(opts.get("val_from", VAL_FROM))
+    record["filter"] = expand_filter(opts.get("filter", NEURON_FILTER['filter']))
     record["spot_gt_mode"] = opts.get("spot_gt_mode", SPOT_PACK['spot_gt_mode'])
     record["fp"] = int(opts.get("fp", TRAIN_SESSION['fp']))
     return record
 
 
-def _schema_from_opts(model, model_backend, schema, train_opts_record, *, i_h_rev=None):
+def _schema_from_opts(model, model_backend, schema, train_opts_record):
     if schema is not None:
         return list(schema)
-    filter = SPOT_PACK['filter']
+    filter = NEURON_FILTER['filter']
     if train_opts_record:
-        filter = expand_filter(train_opts_record.get("filter", SPOT_PACK['filter']))
+        filter = expand_filter(train_opts_record.get("filter", NEURON_FILTER['filter']))
     syn_mode = normalize_syn_mode(resolve_filter_branches(
         (train_opts_record or {}).get("syn_mode", NEURON_SCHEMA['syn_mode']),
         filter=filter,
     ))
     kw = dict(
         syn_mode=syn_mode,
-        param_boxes=NEURON_SCHEMA['param_boxes'],
+        defaults=NEURON_SCHEMA['defaults'],
         h_cells=NEURON_SCHEMA['h_cells'],
         filter=filter,
         a_sti_radii=SPOT_PACK['a_sti_radii'],
         radius_key_aliases=SPOT_PACK['spot_cost_radius_key_aliases'],
     )
-    if model == "borst":
-        kw["i_h_rev"] = str(i_h_rev if i_h_rev is not None else NEURON_PARAM['i_h_rev'])
     base = default_schema(model, model_backend, **kw)
     if not train_opts_record:
         return base
-    modes = train_opts_record.get("train_modes")
+    modes = train_opts_record.get("param_modes")
     if modes:
-        base = apply_train_modes(
-            base, modes, lambda seg: node_names_for_segment(seg, model_backend),
+        base = apply_param_modes(
+            base, modes, lambda segment: node_names_for_segment(segment, model_backend),
         )
     return base
 
@@ -1161,15 +1148,12 @@ def _build_session(
     dev_ref = dev or active_device()
     seq = False if sequential is None else bool(sequential)
     filter = expand_filter(
-        (train_opts_record or {}).get("filter", SPOT_PACK['filter'])
+        (train_opts_record or {}).get("filter", NEURON_FILTER['filter'])
     )
     _np = resolve_filter_branches(NEURON_PARAM, filter=filter)
     if train_opts_record is not None:
         train_opts_record["model"] = model
         train_opts_record["sequential"] = bool(seq)
-    i_h_rev = _np['i_h_rev']
-    if train_opts_record is not None and "i_h_rev" in train_opts_record:
-        i_h_rev = str(resolve_filter_branches(train_opts_record["i_h_rev"], filter=filter))
     if train_opts_record is None or "euler" not in train_opts_record:
         raise ValueError("train opts require euler (implicit|explicit)")
     euler = expand_euler(resolve_filter_branches(train_opts_record["euler"], filter=filter))
@@ -1187,10 +1171,14 @@ def _build_session(
     train_opts_record["pre_steady_iters"] = pre_steady_iters
     train_opts_record["pre_steady_damp"] = pre_steady_damp
     sch = _schema_from_opts(
-        model, model_backend, schema, train_opts_record, i_h_rev=i_h_rev,
+        model, model_backend, schema, train_opts_record,
     )
-    train_opts_record["train_modes"] = schema_train_modes_record(
-        sch, lambda seg: node_names_for_segment(seg, model_backend),
+    param_init = (train_opts_record or {}).get("param_init")
+    if param_init:
+        edits = [(row[0], row[1], float(row[2])) for row in param_init]
+        sch = apply_param_init_to_schema(sch, model_backend, edits)
+    train_opts_record["param_modes"] = schema_param_modes_record(
+        sch, lambda segment: node_names_for_segment(segment, model_backend),
     )
     sch = attach_param_carry(sch)
     session = TrainSession(
@@ -1233,7 +1221,7 @@ def open_session(
 ) -> TrainSession:
     """Build a :class:`TrainSession` from canonical train opts."""
     opts = dict(opts)
-    filter = expand_filter(opts.get("filter", SPOT_PACK['filter']))
+    filter = expand_filter(opts.get("filter", NEURON_FILTER['filter']))
     resolved = resolve_filter_branches(
         {"opts": opts, "gt_amp": NEURON_PARAM['gt_amp'], "_np": NEURON_PARAM},
         filter=filter,
@@ -1285,6 +1273,10 @@ def open_session(
         gt_amp=gt_amp,
         filter=filter,
         spot_gt_mode=expand_spot_gt_mode(opts.get("spot_gt_mode", SPOT_PACK['spot_gt_mode'])),
+        cost_interval_ms=float(
+            opts.get("cost_interval_ms", TRAIN_OPTIMIZATION['cost_interval_ms'])
+        ),
+        cost_ms=dict(opts.get("cost_ms") or {}),
     )
     packs = {}
     pack_overrides = opts.get("pack_overrides") or {}
@@ -1367,7 +1359,7 @@ def open_session_from_opts(opts: dict, model: str | None = None, **kwargs) -> Tr
     if not opts.get("tasks"):
         raise ValueError("train_opts requires tasks")
     sim_dtype = sim_dtype_from_fp(int(opts.get("fp", TRAIN_SESSION['fp'])))
-    _filter = expand_filter(opts.get("filter", SPOT_PACK['filter']))
+    _filter = expand_filter(opts.get("filter", NEURON_FILTER['filter']))
     _np = resolve_filter_branches(NEURON_PARAM, filter=_filter)
     syn_mode = normalize_syn_mode(resolve_filter_branches(
         opts.get("syn_mode", NEURON_SCHEMA['syn_mode']), filter=_filter,

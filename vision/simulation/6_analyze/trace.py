@@ -35,7 +35,7 @@ from __future__ import annotations
 
 from default_params import (
     ANALYZE_TRACE,
-    DEFAULT_RUN_PATH,
+    RUN_PATH,
 )
 
 import argparse
@@ -270,26 +270,19 @@ def detect_stability(
     }
 
 
-def _sti_ms(args, opts: dict) -> tuple[float, float, float]:
-    from task.spot.input import spot_timing_from_opts
+def _sti_ms(opts: dict) -> tuple[float, float, float]:
+    from task.spot.sti_spec import sti_timing_from_opts
 
-    ms_pre = float(args.ms_pre) if args.ms_pre is not None else float(opts["ms_pre"])
-    override_opts = dict(opts)
-    if args.ms_spot is not None:
-        override_opts["ms_spot"] = float(args.ms_spot)
-    if args.ms_response is not None:
-        override_opts["ms_response"] = float(args.ms_response)
-    timing = spot_timing_from_opts(override_opts)
-    ms_spot = timing.ms_spot
-    ms_response = timing.ms_response
-    return ms_pre, ms_spot, ms_response
+    timing = sti_timing_from_opts(opts)
+    ms_sti = timing.ms_sti if timing.ms_sti is not None else 0.0
+    return timing.ms_pre, ms_sti, timing.ms_response
 
 
 def _default_ms_shown(
-    check: str, ms_pre: float, ms_spot: float, ms_response: float,
+    check: str, ms_pre: float, ms_sti: float, ms_response: float,
 ) -> tuple[float, float]:
     if check == CHECK_FLAT:
-        return ms_pre, ms_pre + ms_spot + ms_response
+        return ms_pre, ms_pre + ms_sti + ms_response
     return 0.0, ms_pre
 
 
@@ -303,11 +296,11 @@ def _default_baseline_ms_shown(
     return 0.0, min(baseline_ms, _stop)
 
 
-def _resolve_windows(args, ms_pre, ms_spot, ms_response):
+def _resolve_windows(args, ms_pre, ms_sti, ms_response):
     if args.ms_shown is not None:
         analyze = plot_trained.parse_ms_shown_range(args.ms_shown, flag="--ms-shown")
     else:
-        analyze = _default_ms_shown(args.check, ms_pre, ms_spot, ms_response)
+        analyze = _default_ms_shown(args.check, ms_pre, ms_sti, ms_response)
 
     need_baseline = args.check in (CHECK_FLAT, CHECK_STABILITY)
     if args.baseline_ms_shown is not None:
@@ -349,8 +342,8 @@ def _baseline_mean(
     *,
     delta_ms: float,
 ) -> float:
-    seg = _slice_ms(v_full, baseline[0], baseline[1], delta_ms=delta_ms)
-    return float(np.mean(seg))
+    trace_slice = _slice_ms(v_full, baseline[0], baseline[1], delta_ms=delta_ms)
+    return float(np.mean(trace_slice))
 
 
 def _format_param_edits(edits: list[tuple[str, str | None, float]]) -> str:
@@ -380,7 +373,8 @@ def _load_reports(args):
     session, z, _best_cost = plot_trained.load_best(run_dir)
     train_opts = plot_trained.load_train_opts(run_dir) or {}
     train_filter = train.expand_filter(train_opts.get("filter", "none"))
-    timing_kw = sti_timing_kwargs_from_args(args)
+    eff_filter = args.filter if args.filter is not None else train_filter
+    timing_kw = sti_timing_kwargs_from_args(args, filter=eff_filter)
     session, z, _timing_changed = plot_trained.maybe_override_sti_timing(
         run_dir=run_dir,
         session=session,
@@ -392,7 +386,7 @@ def _load_reports(args):
         np.asarray(z, dtype=np.float64), dtype=torch.float64, device=session.device,
     )
     schema = list(session.schema)
-    param_edits = plot_trained.parse_param_tokens(args.param)
+    param_edits = plot_trained.parse_default_param_tokens(args.param)
     z_t, schema = plot_trained.apply_param_overrides(z_t, schema, session, param_edits)
     session = session.with_schema(schema)
     params = train.materialize_from_opts(
@@ -412,8 +406,8 @@ def _load_reports(args):
         (sess_one.train_opts or {}).get(f"{sess_one.primary_pack.name}_sti_opts")
         or {},
     )
-    ms_pre, ms_spot, ms_response = _sti_ms(args, opts)
-    analyze, baseline = _resolve_windows(args, ms_pre, ms_spot, ms_response)
+    ms_pre, ms_sti, ms_response = _sti_ms(opts)
+    analyze, baseline = _resolve_windows(args, ms_pre, ms_sti, ms_response)
     forward_stop = analyze[1]
     if baseline is not None:
         forward_stop = max(forward_stop, baseline[1])
@@ -428,7 +422,7 @@ def _load_reports(args):
         f"ms-shown={analyze[0]:g},{analyze[1]:g}  "
         f"baseline-ms-shown={base_s}  "
         f"forward TimeWindow(ms, 0, {forward_stop:g})  "
-        f"ms_pre={ms_pre:g} ms_spot={ms_spot:g} ms_response={ms_response:g}  "
+        f"ms_pre={ms_pre:g} ms_sti={ms_sti:g} ms_response={ms_response:g}  "
         f"param={_format_param_edits(param_edits)}  "
         f"n_cells={len(cells)}",
         flush=True,
@@ -638,7 +632,7 @@ def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument(
         "--run",
-        default=DEFAULT_RUN_PATH,
+        default=RUN_PATH,
         help="run dir relative to PARAMETER_DIR or absolute (default: %(default)s)",
     )
     ap.add_argument(

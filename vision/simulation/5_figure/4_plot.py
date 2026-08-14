@@ -1,6 +1,6 @@
 from default_params import (
-    DEFAULT_RUN_PATH,
-    SPOT_INPUT,
+    RUN_PATH,
+    STI_TIMING,
 )
 """Simulation + plotting for the FiveCol medulla model."""
 import argparse
@@ -11,7 +11,7 @@ import torch
 
 import import_bootstrap  # noqa: F401
 import train
-from task.spot.input import spot_from_opts
+from task.spot.sti_geo import spot_from_opts
 from figure import moving_bar as moving_bar_plot
 from figure import spot as spot_plot
 from figure.util import (
@@ -19,7 +19,7 @@ from figure.util import (
     filter_plot_token,
     session_filter_plot_token,
 )
-from default_params import DEFAULT_RUN_PATH, SPOT_INPUT
+from default_params import RUN_PATH, STI_TIMING
 from train.config import run_data_dir
 from train.implementation import resolve_run_dir
 
@@ -182,7 +182,7 @@ def maybe_override_sti_timing(
     ms_pre=None,
     ms_response=None,
     ms_post=None,
-    ms_spot=None,
+    ms_sti=None,
     delta_ms=None,
     delta_ms_pre=None,
     euler=None,
@@ -192,9 +192,9 @@ def maybe_override_sti_timing(
 
     Unset flags keep values from the run's train opts. ``ms_pre`` /
     ``delta_ms`` / ``delta_ms_pre`` also update moving_bar sti opts;
-    ``ms_response`` / ``ms_post`` / ``ms_spot`` are spot-only. ``euler`` is
+    ``ms_response`` / ``ms_post`` / ``ms_sti`` are spot-only. ``euler`` is
     CLI ``im``/``ex`` (or already expanded ``implicit``/``explicit``).
-    ``filter`` is ``none``/``ca``; active branch of ``{v, ca}`` ms_spot/ms_response
+    ``filter`` is ``none``/``ca``; active branch of ``{v, ca}`` ms_sti/ms_response
     is selected in :func:`train.open_session`.
 
     Returns ``(session, z, timing_changed)`` where ``timing_changed`` maps
@@ -204,7 +204,7 @@ def maybe_override_sti_timing(
         ms_pre is None
         and ms_response is None
         and ms_post is None
-        and ms_spot is None
+        and ms_sti is None
         and delta_ms is None
         and delta_ms_pre is None
         and euler is None
@@ -213,21 +213,22 @@ def maybe_override_sti_timing(
         return session, z, {}
 
     if delta_ms is not None:
-        if isinstance(delta_ms, dict):
-            for branch, val in delta_ms.items():
-                if float(val) <= 0:
-                    raise SystemExit(f"--delta-ms {branch} must be > 0")
-        elif float(delta_ms) <= 0:
-            raise SystemExit("--delta-ms must be > 0")
+        for branch, val in (
+            delta_ms.items() if isinstance(delta_ms, dict) else (("v", delta_ms), ("ca", delta_ms))
+        ):
+            if float(val) <= 0:
+                raise SystemExit(f"--sti-timing delta_ms={val} must be > 0")
     if delta_ms_pre is not None:
-        if isinstance(delta_ms_pre, dict):
-            for branch, val in delta_ms_pre.items():
-                if float(val) <= 0:
-                    raise SystemExit(f"--delta-ms-pre {branch} must be > 0")
-        elif float(delta_ms_pre) <= 0:
-            raise SystemExit("--delta-ms-pre must be > 0")
-    if ms_post is not None and float(ms_post) < 0:
-        raise SystemExit("--ms-post must be >= 0")
+        for branch, val in (
+            delta_ms_pre.items()
+            if isinstance(delta_ms_pre, dict) else (("v", delta_ms_pre), ("ca", delta_ms_pre))
+        ):
+            if float(val) <= 0:
+                raise SystemExit(f"--sti-timing delta_ms_pre={val} must be > 0")
+    if ms_post is not None:
+        post_vals = ms_post.values() if isinstance(ms_post, dict) else (ms_post,)
+        if any(float(val) < 0 for val in post_vals):
+            raise SystemExit("--sti-timing ms_post must be >= 0")
 
     import train.implementation as train_mod
 
@@ -240,7 +241,7 @@ def maybe_override_sti_timing(
         ms_pre is not None
         or ms_response is not None
         or ms_post is not None
-        or ms_spot is not None
+        or ms_sti is not None
         or delta_ms is not None
         or delta_ms_pre is not None
     ):
@@ -250,7 +251,7 @@ def maybe_override_sti_timing(
             ms_pre=ms_pre,
             ms_response=ms_response,
             ms_post=ms_post,
-            ms_spot=ms_spot,
+            ms_sti=ms_sti,
             delta_ms=delta_ms,
             delta_ms_pre=delta_ms_pre,
         )
@@ -282,7 +283,7 @@ def _format_filename_token(value):
 def sti_timing_filename_suffix(
     *,
     ms_pre=None,
-    ms_spot=None,
+    ms_sti=None,
     ms_response=None,
     ms_post=None,
     delta_ms=None,
@@ -299,7 +300,7 @@ def sti_timing_filename_suffix(
     parts = []
     for name, val in (
         ("ms_pre", ms_pre),
-        ("ms_spot", ms_spot),
+        ("ms_sti", ms_sti),
         ("ms_response", ms_response),
         ("ms_post", ms_post),
         ("delta", delta_ms),
@@ -313,17 +314,8 @@ def sti_timing_filename_suffix(
 
 
 def euler_filename_suffix(euler=None):
-    """PNG stem suffix for a non-``None`` ``--euler`` override (``_im`` / ``_ex``)."""
-    if euler is None:
-        return ""
-    token = str(euler)
-    # Prefer CLI short form in filenames.
-    if token in ("implicit", "explicit"):
-        token = "im" if token == "implicit" else "ex"
-    elif token not in ("im", "ex"):
-        token = train.expand_euler(token)
-        token = "im" if token == "implicit" else "ex"
-    return f"_{token}"
+    from train.cli import euler_filename_suffix as _suffix
+    return _suffix(euler)
 
 
 def _cost_parts_for_plot(session, z):
@@ -577,7 +569,7 @@ def plot_param_set(params, outdir, model=None, model_all=True,
 def add_plot_arguments(parser):
     """Register plot-only CLI flags shared by ``run.py`` and ``figure.plot``.
 
-    Timing overrides (``--ms-pre`` / …) are registered separately via
+    Timing overrides (``--sti-timing``) are registered separately via
     :func:`add_plot_timing_arguments` so ``run.py`` does not double-register
     flags already on the train CLI.
     """
@@ -666,7 +658,7 @@ def add_ms_shown_argument(parser):
         default=None,
         metavar="START,STOP",
         help=(
-            "absolute aligned ms START,STOP (not --ms-pre; not onset-relative). "
+            "absolute aligned ms START,STOP (not --sti-timing; not onset-relative). "
             "spot: 0=trial start, pre=0,ms_pre (e.g. 0,1000); "
             "bar: 0=t0 at node (neg START ok); omit = full trace"
         ),
@@ -685,170 +677,49 @@ def parse_ms_shown_range(token, *, flag="--ms-shown"):
 
 
 def add_plot_timing_arguments(parser):
-    """Hang train sti-timing CLI onto plot / analyze (defaults: keep run)."""
+    """Hang train sti-timing CLI onto plot / analyze."""
     from train.cli import add_sti_timing_arguments
 
-    add_sti_timing_arguments(
-        parser,
-        default_ms_pre=None,
-        default_ms_response=None,
-        default_ms_post=None,
-        default_ms_spot=None,
-        default_delta_ms=None,
-        default_delta_ms_pre=None,
-    )
+    add_sti_timing_arguments(parser)
 
 
 def add_plot_euler_argument(parser):
-    """``--euler im|ex`` for plot / analyze (default: keep run train opts)."""
-    parser.add_argument(
-        "--euler",
-        default=None,
-        choices=list(train.EULER_CLI),
-        help="membrane Euler override: im=implicit, ex=explicit "
-             "(default: keep run train_opts.euler); i_h gates always explicit",
-    )
+    from train.cli import add_euler_argument
+    add_euler_argument(parser, default=None)
 
 
 def add_plot_filter_argument(parser):
-    """``--filter none|ca`` for plot / analyze (default: keep run train opts)."""
-    parser.add_argument(
-        "--filter",
-        default=None,
-        choices=("none", "ca"),
-        help="readout filter override: none=v (no Ca schema), ca=ca + Arenz digitized spot gt "
-             f"(default: keep run train_opts.filter; "
-             f"ms_spot v={SPOT_INPUT['ms_spot']['v']:g}, ca={SPOT_INPUT['ms_spot']['ca']:g}, "
-             f"ms_response v={SPOT_INPUT['ms_response']['v']:g}, ca={SPOT_INPUT['ms_response']['ca']:g})",
-    )
+    from train.cli import add_filter_argument
+    add_filter_argument(parser, default=None)
 
 
 def filter_filename_suffix(filter=None):
-    """PNG stem suffix for a non-``None`` ``--filter`` override (``_v`` / ``_ca``)."""
-    if filter is None:
-        return ""
-    return f"_{filter_plot_token(train.expand_filter(filter))}"
+    from train.cli import filter_filename_suffix as _suffix
+    return _suffix(filter)
 
 
 def add_param_argument(parser):
-    """``--param NAME=VALUE`` / ``NAME.NODE=VALUE`` for plot / analyze."""
-    parser.add_argument(
-        "--param",
-        nargs="+",
-        default=None,
-        metavar="NAME=VALUE|NAME.NODE=VALUE",
-        help=(
-            "overwrite schema params before forward; "
-            "NAME=VALUE or NAME.all=VALUE sets every node; "
-            "NAME.NODE=VALUE for one cell / SRC:TAR pair / eN; "
-            "PNG stem gets _NAME_NODE_VALUE per edit (after timing suffixes)"
-        ),
-    )
+    from train.cli import add_param_argument as _add
+    _add(parser, for_plot=True)
 
 
-def parse_param_tokens(tokens):
-    """Parse ``--param NAME=VALUE`` / ``NAME.NODE=VALUE`` / ``NAME.all=VALUE``."""
-    if not tokens:
-        return []
-    out = []
-    for tok in tokens:
-        if "=" not in tok:
-            raise SystemExit(
-                f"--param expected NAME=VALUE or NAME.NODE=VALUE, got {tok!r}"
-            )
-        left, val_s = tok.split("=", 1)
-        if not left:
-            raise SystemExit(
-                f"--param expected NAME=VALUE or NAME.NODE=VALUE, got {tok!r}"
-            )
-        if "." in left:
-            name, node = left.split(".", 1)
-            if not name or not node:
-                raise SystemExit(
-                    f"--param expected NAME=VALUE or NAME.NODE=VALUE, got {tok!r}"
-                )
-            if node == "all":
-                node = None
-        else:
-            name, node = left, None
-        try:
-            val = float(val_s)
-        except ValueError as exc:
-            raise SystemExit(f"--param bad VALUE {val_s!r}") from exc
-        out.append((name, node, val))
-    return out
+def parse_default_param_tokens(tokens):
+    try:
+        return train.parse_default_param_tokens(tokens)
+    except ValueError as exc:
+        raise SystemExit(str(exc)) from exc
 
 
 def param_filename_suffix(edits):
-    """PNG stem suffix for ``--param`` edits; empty when none.
-
-    Example: ``hp_lp.L1=1000`` → ``_hp_lp_L1_1000``.
-    """
-    if not edits:
-        return ""
-    parts = []
-    for name, node, val in edits:
-        bits = [name]
-        if node is not None:
-            bits.append(str(node).replace(":", "_"))
-        bits.append(_format_filename_token(val))
-        parts.append("_".join(bits))
-    return "_" + "_".join(parts)
+    from train.cli import param_filename_suffix as _suffix
+    return _suffix(edits)
 
 
 def apply_param_overrides(z, schema, session, edits):
-    """Apply ``--param`` edits; return ``(z, schema)`` (schema may gain frozen carry)."""
-    if not edits:
-        return z, schema
-    if session.backend.network is None:
-        raise SystemExit("--param requires a network backend")
-
-    named = train.node_values_from_z(z, schema)
-    seg_by_name = {s["name"]: s for s in schema}
-    edited_idxs = {}
-
-    for name, node, val in edits:
-        seg = seg_by_name.get(name)
-        if seg is None:
-            avail = sorted(seg_by_name)
-            raise SystemExit(
-                f"--param unknown param {name!r}; schema has: {avail}"
-            )
-        if name not in named:
-            raise SystemExit(f"--param schema missing values for {name!r}")
-        labels = train.node_names_for_segment(seg, session.backend)
-        i_from_label = {lab: i for i, lab in enumerate(labels)}
-        arr = np.array(named[name], dtype=np.float64, copy=True)
-        if node is None:
-            idxs = list(range(len(labels)))
-        else:
-            if node not in i_from_label:
-                raise SystemExit(
-                    f"--param unknown node {node!r} for {name}; "
-                    f"available: {labels}"
-                )
-            idxs = [i_from_label[node]]
-        for i in idxs:
-            arr[i] = val
-            print(f"param {name}.{labels[i]} = {val:g}", flush=True)
-        named[name] = arr
-        edited_idxs.setdefault(name, set()).update(idxs)
-
-    new_schema = []
-    for seg in schema:
-        s = dict(seg)
-        hit = edited_idxs.get(s["name"])
-        if hit:
-            for mode in ("indi", "shared", "fixed", "frozen"):
-                s[mode] = [i for i in (s.get(mode) or []) if i not in hit]
-            s["frozen"] = sorted(set(s.get("frozen") or []) | hit)
-        new_schema.append(s)
-
-    new_schema = train.attach_param_carry(new_schema, named)
-    z_new = train.z_from_node_values(
-        named, new_schema, dtype=z.dtype, device=z.device,
-    )
-    return z_new, new_schema
+    try:
+        return train.apply_param_overrides(z, schema, session, edits)
+    except ValueError as exc:
+        raise SystemExit(str(exc)) from exc
 
 
 def plot_kwargs_from_args(args):
@@ -878,7 +749,7 @@ def main():
     ap.add_argument(
         'run_path',
         nargs='?',
-        default=DEFAULT_RUN_PATH,
+        default=RUN_PATH,
         help='run folder under PARAMETER_DIR or absolute path (default: %(default)s)',
     )
     add_plot_arguments(ap)
@@ -893,10 +764,12 @@ def main():
         raise SystemExit(str(exc)) from exc
 
     from train.cli import sti_timing_kwargs_from_args
-    timing_kw = sti_timing_kwargs_from_args(args)
-    param_edits = parse_param_tokens(args.param)
+    param_edits = parse_default_param_tokens(args.param)
 
     outdir = resolve_run_dir(args.run_path)
+    train_opts = load_train_opts(outdir) or {}
+    eff_filter = args.filter if args.filter is not None else train_opts.get("filter")
+    timing_kw = sti_timing_kwargs_from_args(args, filter=eff_filter)
     session, z, best_cost = load_best(outdir, verbose=True)
     session, z, timing_changed = maybe_override_sti_timing(
         run_dir=outdir, session=session, z=z, **timing_kw,

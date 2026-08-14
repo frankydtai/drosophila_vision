@@ -12,7 +12,7 @@ Examples
 from __future__ import annotations
 
 from default_params import (
-    DEFAULT_RUN_PATH,
+    RUN_PATH,
 )
 
 import argparse
@@ -36,7 +36,7 @@ import train.implementation as train_mod
 from import_bootstrap import parse_comma_list
 from network.connectivity import build_cell_pair_indices
 from network.construction import load_network_json
-from default_params import DEFAULT_RUN_PATH
+from default_params import RUN_PATH
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -56,7 +56,7 @@ def main(argv: list[str] | None = None) -> int:
     )
     ap.add_argument(
         "--run",
-        default=DEFAULT_RUN_PATH,
+        default=RUN_PATH,
         help="run folder under PARAMETER_DIR or absolute path (default: %(default)s)",
     )
     ap.add_argument(

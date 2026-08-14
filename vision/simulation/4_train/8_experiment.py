@@ -7,21 +7,25 @@ from default_params import (
 )
 
 import train
-from default_params import NEURON_SCHEMA
 
 
-def merge_i_h_train_modes(train_kw):
-    """Pop CLI ``train_modes`` from *train_kw* and merge default i_h/hp splits.
+def merge_i_h_param_modes(train_kw):
+    """Pop CLI ``param_modes`` from *train_kw* and merge default i_h/hp splits.
 
     Borst: ``a_h`` / ``a_h_rev``.
     hp_lp: ``a_h`` / ``tau_hp``.
-    Indi cells: :data:`NEURON_SCHEMA['h_cells']`; ``fixed=['all']``.
+    Later tokens win: ``fixed`` then ``h_cells`` → ``indi``.
     """
     names = ('a_h', 'a_h_rev') if train_kw['model'] == 'borst' else ('a_h', 'tau_hp')
-    existing = train_kw.pop('train_modes', None) or {}
+    existing = train_kw.pop('param_modes', None) or {}
+    h_cells = list(NEURON_SCHEMA['h_cells'])
     return {
         **existing,
-        **{name: {'indi': list(NEURON_SCHEMA['h_cells']), 'fixed': ['all']} for name in names},
+        **{
+            name: [(None, "fixed"), (h_cells, "indi")]
+            for name in names
+            if name not in existing
+        },
     }
 
 

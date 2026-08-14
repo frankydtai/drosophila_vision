@@ -12,12 +12,14 @@ import torch
 import train
 from task.moving_bar.gt import (
     GT_CELLS,
-    bar_specs_for_session,
     fig1_key_for_sti,
     load_fig1_trace,
     motion_preference,
     moving_bar_cell_title,
     moving_bar_dsi_lookup,
+)
+from task.moving_bar.pack import (
+    bar_specs_for_session,
     moving_bar_nodes_on_hexes,
     moving_bar_specs_by_cell,
     moving_bar_session_t0_grids,
@@ -50,13 +52,15 @@ from figure.util import (
     v_th_by_type_name,
 )
 import network.path  # noqa: F401  # ensure FAFBv783 modules are importable
-from task.moving_bar.input import (
-    cost_window_after_t,
-    cost_window_before_t,
+from task.moving_bar.sti_geo import (
     filter_sti_hexes,
     moving_bar_cost_hexes,
     network_uv_np,
     sti_hexes,
+)
+from task.moving_bar.sti_spec import (
+    cost_window_after_t,
+    cost_window_before_t,
 )
 
 MOVING_BAR_DPI = 100

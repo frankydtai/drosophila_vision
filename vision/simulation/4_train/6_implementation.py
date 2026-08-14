@@ -31,6 +31,7 @@ from default_params import (
     MODEL,
     MOVING_BAR_INPUT,
     NETWORK_PATH,
+    NEURON_FILTER,
     NEURON_FORWARD,
     NEURON_PARAM,
     NEURON_SCHEMA,
@@ -40,8 +41,8 @@ from default_params import (
     TRAIN_OPTIMIZATION,
     TRAIN_SESSION,
 )
-from task.spot.input import spot_t_spot_end, spot_timing_from_opts
-from neuron.schema import spot_radius_key
+from task.spot.sti_spec import t_sti_end, sti_timing_from_opts
+from neuron.schema import default_scalar, spot_radius_key
 from train import do_many_runs
 import train
 from train.config import (
@@ -92,17 +93,17 @@ def decompose_params(z_t, session):
 
     This powers the ``param.csv`` table. For CSV output we intentionally do
     *not* emit separate "global" scalar fields (shared-only means), because
-    they can collide with per-cell field names and become redundant.
+    they can collide with per-cell csv fields and become redundant.
     """
     n = session.backend.n_cells
     schema = list(session.schema)
     node_vals = train.node_values_from_z(z_t, schema)
     param_by_name = {}
-    for seg in schema:
-        name = seg["name"]
-        if seg["kind"] in ("edge_pair", "edge"):
+    for segment in schema:
+        name = segment["name"]
+        if segment["kind"] in ("edge_pair", "edge"):
             continue
-        if seg.get("node_names") is not None:
+        if segment.get("node_names") is not None:
             continue  # e.g. a_sti_radius (per-radius, not per-cell)
         arr = np.asarray(node_vals[name], dtype=np.float64).reshape(-1)
         if arr.shape[0] != n:
@@ -116,9 +117,9 @@ def v_spot_markers_by_cell(z_t, session):
 
     * ``v_pre``: ``t=0`` after ``pre_steady`` (``v_rows[0]``).
     * ``v_onset``: ``t=t_onset`` (``v_rows[t_onset]``), spot onset / end of pre.
-    * ``v_spot_end``: ``t=t_spot_end`` inclusive last on sample
-      (``spot_t_spot_end``).
-    * ``delta_v``: ``v_spot_end - v_onset``.
+    * ``v_sti_end``: ``t=t_sti_end`` inclusive last on sample
+      (``t_sti_end``).
+    * ``delta_v``: ``v_sti_end - v_onset``.
 
     Uses ``session.primary_pack`` sti (``i_sti`` + ``pack_t_onset``).
     """
@@ -143,101 +144,101 @@ def v_spot_markers_by_cell(z_t, session):
     if t_onset < 0 or t_onset >= n_t:
         raise ValueError(f"t_onset={t_onset} out of range for forward T={n_t}")
     opts = (session.train_opts or {}).get(f"{pack.name}_sti_opts") or {}
-    timing = spot_timing_from_opts(opts)
-    t_end = spot_t_spot_end(
-        t_onset, n_t, timing.ms_spot,
+    timing = sti_timing_from_opts(opts)
+    t_end = t_sti_end(
+        t_onset, n_t, timing.ms_sti,
         delta_ms=timing.delta_ms,
     )
     if t_end < t_onset or t_end >= n_t:
         raise ValueError(
-            f"t_spot_end={t_end} out of range for t_onset={t_onset}, T={n_t}"
+            f"t_sti_end={t_end} out of range for t_onset={t_onset}, T={n_t}"
         )
     v_pre_n = v[0, 0].detach().cpu().numpy()
     v_onset_n = v[0, t_onset].detach().cpu().numpy()
-    v_spot_end_n = v[0, t_end].detach().cpu().numpy()
+    v_sti_end_n = v[0, t_end].detach().cpu().numpy()
     node_cells = session.backend.conn.node_cells.detach().cpu().numpy()
     n_cells = int(session.backend.n_cells)
     v_pre = np.empty(n_cells, dtype=np.float64)
     v_onset = np.empty(n_cells, dtype=np.float64)
-    v_spot_end = np.empty(n_cells, dtype=np.float64)
+    v_sti_end = np.empty(n_cells, dtype=np.float64)
     delta_v = np.empty(n_cells, dtype=np.float64)
     for cell_idx in range(n_cells):
         cell_node_mask = node_cells == cell_idx
         if not np.any(cell_node_mask):
             v_pre[cell_idx] = np.nan
             v_onset[cell_idx] = np.nan
-            v_spot_end[cell_idx] = np.nan
+            v_sti_end[cell_idx] = np.nan
             delta_v[cell_idx] = np.nan
         else:
             v_pre[cell_idx] = float(v_pre_n[cell_node_mask].mean())
             v_onset[cell_idx] = float(v_onset_n[cell_node_mask].mean())
-            v_spot_end[cell_idx] = float(v_spot_end_n[cell_node_mask].mean())
-            delta_v[cell_idx] = v_spot_end[cell_idx] - v_onset[cell_idx]
+            v_sti_end[cell_idx] = float(v_sti_end_n[cell_node_mask].mean())
+            delta_v[cell_idx] = v_sti_end[cell_idx] - v_onset[cell_idx]
     out = {
         "v_pre": v_pre,
         "v_onset": v_onset,
-        "v_spot_end": v_spot_end,
+        "v_sti_end": v_sti_end,
         "delta_v": delta_v,
     }
     if use_ca:
         v_ca_pre_n = v_ca[0, 0].detach().cpu().numpy()
         v_ca_onset_n = v_ca[0, t_onset].detach().cpu().numpy()
-        v_ca_spot_end_n = v_ca[0, t_end].detach().cpu().numpy()
+        v_ca_sti_end_n = v_ca[0, t_end].detach().cpu().numpy()
         v_ca_pre = np.empty(n_cells, dtype=np.float64)
         v_ca_onset = np.empty(n_cells, dtype=np.float64)
-        v_ca_spot_end = np.empty(n_cells, dtype=np.float64)
+        v_ca_sti_end = np.empty(n_cells, dtype=np.float64)
         delta_v_ca = np.empty(n_cells, dtype=np.float64)
         for cell_idx in range(n_cells):
             cell_node_mask = node_cells == cell_idx
             if not np.any(cell_node_mask):
                 v_ca_pre[cell_idx] = np.nan
                 v_ca_onset[cell_idx] = np.nan
-                v_ca_spot_end[cell_idx] = np.nan
+                v_ca_sti_end[cell_idx] = np.nan
                 delta_v_ca[cell_idx] = np.nan
             else:
                 v_ca_pre[cell_idx] = float(v_ca_pre_n[cell_node_mask].mean())
                 v_ca_onset[cell_idx] = float(v_ca_onset_n[cell_node_mask].mean())
-                v_ca_spot_end[cell_idx] = float(v_ca_spot_end_n[cell_node_mask].mean())
-                delta_v_ca[cell_idx] = v_ca_spot_end[cell_idx] - v_ca_onset[cell_idx]
+                v_ca_sti_end[cell_idx] = float(v_ca_sti_end_n[cell_node_mask].mean())
+                delta_v_ca[cell_idx] = v_ca_sti_end[cell_idx] - v_ca_onset[cell_idx]
         out.update(
             v_ca_pre=v_ca_pre,
             v_ca_onset=v_ca_onset,
-            v_ca_spot_end=v_ca_spot_end,
+            v_ca_sti_end=v_ca_sti_end,
             delta_v_ca=delta_v_ca,
         )
         ca_pre_n = ca[0, 0].detach().cpu().numpy()
         ca_onset_n = ca[0, t_onset].detach().cpu().numpy()
-        ca_spot_end_n = ca[0, t_end].detach().cpu().numpy()
+        ca_sti_end_n = ca[0, t_end].detach().cpu().numpy()
         ca_pre = np.empty(n_cells, dtype=np.float64)
         ca_onset = np.empty(n_cells, dtype=np.float64)
-        ca_spot_end = np.empty(n_cells, dtype=np.float64)
+        ca_sti_end = np.empty(n_cells, dtype=np.float64)
         delta_ca = np.empty(n_cells, dtype=np.float64)
         for cell_idx in range(n_cells):
             cell_node_mask = node_cells == cell_idx
             if not np.any(cell_node_mask):
                 ca_pre[cell_idx] = np.nan
                 ca_onset[cell_idx] = np.nan
-                ca_spot_end[cell_idx] = np.nan
+                ca_sti_end[cell_idx] = np.nan
                 delta_ca[cell_idx] = np.nan
             else:
                 ca_pre[cell_idx] = float(ca_pre_n[cell_node_mask].mean())
                 ca_onset[cell_idx] = float(ca_onset_n[cell_node_mask].mean())
-                ca_spot_end[cell_idx] = float(ca_spot_end_n[cell_node_mask].mean())
-                delta_ca[cell_idx] = ca_spot_end[cell_idx] - ca_onset[cell_idx]
+                ca_sti_end[cell_idx] = float(ca_sti_end_n[cell_node_mask].mean())
+                delta_ca[cell_idx] = ca_sti_end[cell_idx] - ca_onset[cell_idx]
         out.update(
             ca_pre=ca_pre,
             ca_onset=ca_onset,
-            ca_spot_end=ca_spot_end,
+            ca_sti_end=ca_sti_end,
             delta_ca=delta_ca,
         )
-    if bool(train_opts.get("bias_gt_from_v_onset", TRAIN_OPTIMIZATION['bias_gt_from_v_onset'])):
+    if train.val_from_enabled(train_opts, "bias_gt"):
         if use_ca:
             bias = train.bias_gt_from_onset_trace(
                 ca, t_onset, session,
             ).detach().cpu().numpy()
         else:
-            lo = float(NEURON_SCHEMA['param_boxes']["bias_gt"]["lo"])
-            hi = float(NEURON_SCHEMA['param_boxes']["bias_gt"]["hi"])
+            lo = default_scalar("bias_gt", "lo", NEURON_SCHEMA['defaults'])
+            hi = default_scalar("bias_gt", "hi", NEURON_SCHEMA['defaults'])
             bias = np.clip(v_onset, lo, hi)
         out["bias_gt"] = np.asarray(bias, dtype=np.float64)
     return out
@@ -249,9 +250,9 @@ def save_param_table(z_t, session, table_path):
     bias_gt = markers.pop("bias_gt", None)
     param_by_name.update(markers)
     opts = session.train_opts or {}
-    if bool(opts.get("v_th_ca_from_v_th", TRAIN_OPTIMIZATION['v_th_ca_from_v_th'])) and "v_th" in param_by_name and "v_th_ca" in param_by_name:
+    if train.val_from_enabled(opts, "v_th_ca") and "v_th" in param_by_name and "v_th_ca" in param_by_name:
         param_by_name["v_th_ca"] = np.asarray(param_by_name["v_th"], dtype=np.float64).copy()
-    if bool(opts.get("a_ca_from_a_out", TRAIN_OPTIMIZATION['a_ca_from_a_out'])) and "a_out" in param_by_name and "a_ca" in param_by_name:
+    if train.val_from_enabled(opts, "a_ca") and "a_out" in param_by_name and "a_ca" in param_by_name:
         param_by_name["a_ca"] = np.asarray(param_by_name["a_out"], dtype=np.float64).copy()
     if bias_gt is not None:
         param_by_name["bias_gt"] = bias_gt
@@ -272,8 +273,8 @@ def save_syn_strength_cell_table(z_t, session, table_path):
     Rows = source types, fields = target types. Absent connectome pairs are blank.
     """
     schema = list(session.schema)
-    seg = next((s for s in schema if s["name"] == "syn_strength_cell"), None)
-    if seg is None or seg["kind"] != "edge_pair":
+    segment = next((s for s in schema if s["name"] == "syn_strength_cell"), None)
+    if segment is None or segment["kind"] != "edge_pair":
         return None
     node_vals = train.node_values_from_z(z_t, schema)
     arr = np.asarray(node_vals["syn_strength_cell"], dtype=np.float64).reshape(-1)
@@ -299,8 +300,8 @@ def save_syn_strength_cell_table(z_t, session, table_path):
 def save_syn_strength_edge_table(z_t, session, table_path):
     """Write per-edge ``syn_strength_edge`` CSV (network edge order)."""
     schema = list(session.schema)
-    seg = next((s for s in schema if s["name"] == "syn_strength_edge"), None)
-    if seg is None or seg["kind"] != "edge":
+    segment = next((s for s in schema if s["name"] == "syn_strength_edge"), None)
+    if segment is None or segment["kind"] != "edge":
         return None
     node_vals = train.node_values_from_z(z_t, schema)
     arr = np.asarray(node_vals["syn_strength_edge"], dtype=np.float64).reshape(-1)
@@ -571,8 +572,8 @@ def load_init_z(init_from, session):
     schema = train.seed_fixed_from_named(schema, remapped)
     schema = train.attach_param_carry(schema, remapped)
     opts = dict(session.train_opts or {})
-    opts['train_modes'] = train.schema_train_modes_record(
-        schema, lambda seg: train.node_names_for_segment(seg, session.backend),
+    opts['param_modes'] = train.schema_param_modes_record(
+        schema, lambda segment: train.node_names_for_segment(segment, session.backend),
     )
     session = replace(session, schema=tuple(schema), train_opts=opts)
     z = train.z_from_node_values(
@@ -622,12 +623,12 @@ def save_train_outputs(fname, outdir, session, result):
     )
 
 
-def print_train_modes(session):
+def print_param_modes(session):
     """Print one schema segment per line: indi/shared/fixed/frozen counts and ntrain."""
     schema = list(session.schema)
     if not schema:
         return
-    print("train_modes:")
+    print("param_modes:")
     w = max(len(s["name"]) for s in schema)
     for s in schema:
         print(
@@ -636,7 +637,7 @@ def print_train_modes(session):
             f"shared={len(s.get('shared') or [])}/"
             f"fixed={len(s.get('fixed') or [])}/"
             f"frozen={len(s.get('frozen') or [])} "
-            f"({train.seg_n_z(s)})"
+            f"({train.segment_n_z(s)})"
         )
 
 
@@ -648,31 +649,30 @@ def build_session(
     tasks=None,
     part_cost_scales=None,
     cost_norm=TRAIN_OPTIMIZATION['cost_norm'],
+    cost_interval_ms=TRAIN_OPTIMIZATION['cost_interval_ms'],
+    cost_ms=None,
     cost_radius_by_task=None,
     shift_radius=SPOT_INPUT['shift_radius'],
     spot_radius=SPOT_INPUT['spot_radius'],
     multi_spot=SPOT_INPUT['multi_spot'],
     fully_inside=SPOT_INPUT['fully_inside'],
     spot_cost_radius_scale=None,
-    i_cli=None,
+    i_sti=None,
     moving_bar_bright_sti_opts=None,
     moving_bar_dark_sti_opts=None,
     spot_bright_sti_opts=None,
     spot_dark_sti_opts=None,
-    train_modes=None,
+    param_modes=None,
+    param_init=None,
     syn_mode=NEURON_SCHEMA['syn_mode'],
-    i_h_rev=NEURON_PARAM['i_h_rev'],
     euler=NEURON_PARAM['euler'],
     pre_steady=None,
     pre_steady_iters=TRAIN_OPTIMIZATION['pre_steady_iters'],
     pre_steady_damp=TRAIN_OPTIMIZATION['pre_steady_damp'],
     fp=TRAIN_SESSION['fp'],
     pre_grad=NEURON_FORWARD['pre_grad'],
-    bias_gt_from_v_onset=TRAIN_OPTIMIZATION['bias_gt_from_v_onset'],
-    bias_gt_from_v_onset_grad=TRAIN_OPTIMIZATION['bias_gt_from_v_onset_grad'],
-    v_th_ca_from_v_th=TRAIN_OPTIMIZATION['v_th_ca_from_v_th'],
-    a_ca_from_a_out=TRAIN_OPTIMIZATION['a_ca_from_a_out'],
-    filter=SPOT_PACK['filter'],
+    val_from=None,
+    filter=NEURON_FILTER['filter'],
     spot_gt_mode=SPOT_PACK['spot_gt_mode'],
     pack_overrides=None,
     model_backend=None,
@@ -687,6 +687,8 @@ def build_session(
         tasks=tl,
         part_cost_scales=part_cost_scales,
         cost_norm=expand_cost_norm(cost_norm),
+        cost_interval_ms=cost_interval_ms,
+        cost_ms=cost_ms,
         pack_overrides=pack_overrides,
         sequential=sequential,
         cost_radius_by_task=cost_radius_by_task,
@@ -695,7 +697,7 @@ def build_session(
         multi_spot=multi_spot,
         fully_inside=fully_inside,
         spot_cost_radius_scale=spot_cost_radius_scale,
-        i_cli=i_cli,
+        i_sti=i_sti,
         spot_bright_sti_opts=spot_bright_sti_opts,
         spot_dark_sti_opts=spot_dark_sti_opts,
         moving_bar_bright_sti_opts=moving_bar_bright_sti_opts,
@@ -708,19 +710,16 @@ def build_session(
         backend="network",
         network_json=network,
         dev=dev,
-        i_h_rev=i_h_rev,
         euler=euler,
         pre_steady=pre_steady,
         pre_steady_iters=pre_steady_iters,
         pre_steady_damp=pre_steady_damp,
-        train_modes=train_modes,
+        param_modes=param_modes,
+        param_init=param_init,
         syn_mode=syn_mode,
         fp=fp,
         pre_grad=pre_grad,
-        bias_gt_from_v_onset=bias_gt_from_v_onset,
-        bias_gt_from_v_onset_grad=bias_gt_from_v_onset_grad,
-        v_th_ca_from_v_th=v_th_ca_from_v_th,
-        a_ca_from_a_out=a_ca_from_a_out,
+        val_from=val_from,
         filter=filter,
         spot_gt_mode=spot_gt_mode,
         **mkw,
@@ -729,9 +728,9 @@ def build_session(
 
 
 def run_train(model, n_run, n_iter, lrs, fname=None, outdir=None,
-                 train_modes=None,
+                 param_modes=None,
+                 param_init=None,
                  syn_mode=NEURON_SCHEMA['syn_mode'],
-                 i_h_rev=NEURON_PARAM['i_h_rev'],
                  euler=NEURON_PARAM['euler'],
                  pre_steady=None,
                  pre_steady_iters=TRAIN_OPTIMIZATION['pre_steady_iters'],
@@ -739,12 +738,14 @@ def run_train(model, n_run, n_iter, lrs, fname=None, outdir=None,
                  network=NETWORK_PATH['network'], sequential=TRAIN_SESSION['sequential'],
                  tasks=None, part_cost_scales=None,
                  cost_norm=TRAIN_OPTIMIZATION['cost_norm'],
+                 cost_interval_ms=TRAIN_OPTIMIZATION['cost_interval_ms'],
+                 cost_ms=None,
                  cost_radius_by_task=None, shift_radius=SPOT_INPUT['shift_radius'],
                  spot_radius=SPOT_INPUT['spot_radius'],
                  multi_spot=SPOT_INPUT['multi_spot'],
                  fully_inside=SPOT_INPUT['fully_inside'],
                  spot_cost_radius_scale=None,
-                 i_cli=None,
+                 i_sti=None,
                  moving_bar_bright_sti_opts=None,
                  moving_bar_dark_sti_opts=None,
                  spot_bright_sti_opts=None,
@@ -752,11 +753,8 @@ def run_train(model, n_run, n_iter, lrs, fname=None, outdir=None,
                  pack_overrides=None, model_backend=None, schema=None,
                  fp=TRAIN_SESSION['fp'],
                  pre_grad=NEURON_FORWARD['pre_grad'],
-                 bias_gt_from_v_onset=TRAIN_OPTIMIZATION['bias_gt_from_v_onset'],
-                 bias_gt_from_v_onset_grad=TRAIN_OPTIMIZATION['bias_gt_from_v_onset_grad'],
-                 v_th_ca_from_v_th=TRAIN_OPTIMIZATION['v_th_ca_from_v_th'],
-                 a_ca_from_a_out=TRAIN_OPTIMIZATION['a_ca_from_a_out'],
-                 filter=SPOT_PACK['filter'],
+                 val_from=None,
+                 filter=NEURON_FILTER['filter'],
                  spot_gt_mode=SPOT_PACK['spot_gt_mode'],
                  init_from=None,
                  checkpoint_interval=None,
@@ -774,20 +772,22 @@ def run_train(model, n_run, n_iter, lrs, fname=None, outdir=None,
         tasks=tasks,
         part_cost_scales=part_cost_scales,
         cost_norm=cost_norm,
+        cost_interval_ms=cost_interval_ms,
+        cost_ms=cost_ms,
         cost_radius_by_task=cost_radius_by_task,
         shift_radius=shift_radius,
         spot_radius=spot_radius,
         multi_spot=multi_spot,
         fully_inside=fully_inside,
         spot_cost_radius_scale=spot_cost_radius_scale,
-        i_cli=i_cli,
+        i_sti=i_sti,
         moving_bar_bright_sti_opts=moving_bar_bright_sti_opts,
         moving_bar_dark_sti_opts=moving_bar_dark_sti_opts,
         spot_bright_sti_opts=spot_bright_sti_opts,
         spot_dark_sti_opts=spot_dark_sti_opts,
-        train_modes=train_modes,
+        param_modes=param_modes,
+        param_init=param_init,
         syn_mode=syn_mode,
-        i_h_rev=i_h_rev,
         euler=euler,
         pre_steady=pre_steady,
         pre_steady_iters=pre_steady_iters,
@@ -797,10 +797,7 @@ def run_train(model, n_run, n_iter, lrs, fname=None, outdir=None,
         schema=schema,
         fp=fp,
         pre_grad=pre_grad,
-        bias_gt_from_v_onset=bias_gt_from_v_onset,
-        bias_gt_from_v_onset_grad=bias_gt_from_v_onset_grad,
-        v_th_ca_from_v_th=v_th_ca_from_v_th,
-        a_ca_from_a_out=a_ca_from_a_out,
+        val_from=val_from,
         filter=filter,
         spot_gt_mode=spot_gt_mode,
     )
@@ -808,7 +805,7 @@ def run_train(model, n_run, n_iter, lrs, fname=None, outdir=None,
     fname = fname or f"train{suffix or '_with_i_h'}.npy"
     outdir = outdir or run_dir(model)
 
-    print_train_modes(session)
+    print_param_modes(session)
     syn_mode = (session.train_opts or {}).get("syn_mode", NEURON_SCHEMA['syn_mode'])
     print(f"device={session.device}, model={model}, syn_mode={syn_mode}, euler={session.euler}, "
           f"pre_steady={session.pre_steady}, "

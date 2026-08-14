@@ -11,7 +11,7 @@ For each of the 13 gt cells:
 
 - ``gt_ca`` = ``GT_AMP * (ImpR_ca − impr_offset)`` with ``filter=ca`` (Arenz digitized)
 
-Default ``v_th_ca`` / ``a_ca`` / ``tau_ca`` from ``PARAM_BOXES`` init;
+Default ``v_th_ca`` / ``a_ca`` / ``tau_ca`` from ``NEURON_SCHEMA['defaults']`` val;
 ``impr_offset`` default ``0``. Writes two PNGs: full overlay, and ``ca``
 τ_ca sweep (100, 350, 500, 1000 ms) vs ``gt_ca``.
 
@@ -47,16 +47,17 @@ from default_params import (
     MS_PRE,
     MS_RESPONSE,
     MS_SPOT_CA,
-    PARAM_BOXES,
+    NEURON_SCHEMA,
 )
 from task.spot.gt import GT_CELLS, read_RecF_ImpR
 from task.spot.input import spot_timing_t
 
 DEFAULT_SAVE = os.path.join(HERE, "filter_ca.png")
 DEFAULT_SAVE_TAU_SWEEP = os.path.join(HERE, "filter_ca_tau_sweep.png")
-TAU_CA = float(PARAM_BOXES["tau_ca"]["init"])
-A_CA = float(PARAM_BOXES["a_ca"]["init"])
-V_TH_CA = float(PARAM_BOXES["v_th_ca"]["init"])
+_DEFAULTS = NEURON_SCHEMA['defaults']
+TAU_CA = float(_DEFAULTS["tau_ca"]["val"])
+A_CA = float(_DEFAULTS["a_ca"]["val"])
+V_TH_CA = float(_DEFAULTS["v_th_ca"]["val"])
 IMPR_OFFSET = 0
 TAU_CA_SWEEP = (100.0, 350.0, 500.0, 1000.0)
 # Same order as GT_CELLS / read_RecF_ImpR RF_sign.

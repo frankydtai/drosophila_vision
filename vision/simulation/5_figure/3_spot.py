@@ -53,17 +53,19 @@ from figure.util import (
     v_th_by_type_name,
 )
 from network.construction import cell_plot_rows, cells_in_order
-from task.moving_bar.input import (
+from task.moving_bar.sti_geo import (
     filter_sti_hexes,
     moving_bar_cost_hexes,
     network_uv_np,
 )
-from task.spot.input import (
+from task.spot.sti_geo import (
     euclid_hex_dist,
     spot_from_opts,
     spot_sti_batches,
-    spot_t_spot_end,
-    spot_timing_from_opts,
+)
+from task.spot.sti_spec import (
+    sti_timing_from_opts,
+    t_sti_end,
 )
 from task.spot.gt import (
     GT_CELLS,
@@ -87,17 +89,17 @@ def pack_spot_cost_radii(pack) -> tuple[float, ...]:
 
 
 def _session_spot_timing(session):
-    """Extract onset ``t_onset`` / forward ``n_t``, ms_spot, and delta_ms from session."""
+    """Extract onset ``t_onset`` / forward ``n_t``, ms_sti, and delta_ms from session."""
     opts = (session.train_opts or {}).get(
         f"{session.primary_pack.name}_sti_opts",
     ) or {}
     filter = str((session.train_opts or {}).get("filter", "none"))
-    timing = spot_timing_from_opts(opts)
+    timing = sti_timing_from_opts(opts)
     return (
         int(timing.t_onset),
         int(timing.n_t),
         int(timing.n_t_gt),
-        None if timing.ms_spot is None else float(timing.ms_spot),
+        None if timing.ms_sti is None else float(timing.ms_sti),
         float(timing.delta_ms),
     )
 
@@ -115,10 +117,10 @@ def resolve_spot_gts(sessions, gts=None, *, filter=None):
         return {}
     out = {}
     for contrast, session in sessions.items():
-        t_onset, _n_t, n_t_gt, ms_spot, delta_ms = _session_spot_timing(session)
+        t_onset, _n_t, n_t_gt, ms_sti, delta_ms = _session_spot_timing(session)
         part = spot_gts(
             session, session.primary_pack.name, contrasts=(str(contrast),),
-            t_onset=t_onset, n_t=n_t_gt, ms_spot=ms_spot, delta_ms=delta_ms,
+            t_onset=t_onset, n_t=n_t_gt, ms_sti=ms_sti, delta_ms=delta_ms,
             filter=filter,
         )
         out.update(part)
@@ -147,25 +149,25 @@ def _series_with_cost_points(series, readouts, entry_radius):
     return out
 
 
-def scale_curve(radius_time, center_radius, std=None, *, t_onset=None, t_spot_end=None, t_delay=0):
+def scale_curve(radius_time, center_radius, std=None, *, t_onset=None, t_sti_end=None, t_delay=0):
     """Center-radius time course + spatial profile from gt or v_readout.
 
     RF peak time ``t_v_max`` is ``argmax |v - v_onset|`` inside the
-    delay-shifted spot-on window ``[t_onset + t_delay, t_spot_end + t_delay]``
+    delay-shifted spot-on window ``[t_onset + t_delay, t_sti_end + t_delay]``
     (onset = first sample of that shifted window).
     Absolute ``|v|`` would pick onset when a large bias moves toward zero.
     """
     if t_onset is None:
         raise ValueError("scale_curve requires t_onset")
-    if t_spot_end is None:
-        raise ValueError("scale_curve requires t_spot_end")
+    if t_sti_end is None:
+        raise ValueError("scale_curve requires t_sti_end")
     center_t = radius_time[center_radius]
     t_delay = int(t_delay)
     t0 = max(0, int(t_onset) + t_delay)
-    t1 = min(int(center_t.shape[0]) - 1, int(t_spot_end) + t_delay)
+    t1 = min(int(center_t.shape[0]) - 1, int(t_sti_end) + t_delay)
     if t1 < t0:
         raise ValueError(
-            "scale_curve requires shifted t_spot_end >= shifted t_onset, "
+            "scale_curve requires shifted t_sti_end >= shifted t_onset, "
             f"got [{t0}, {t1}] with t_delay={t_delay}"
         )
     resp = center_t[t0:t1 + 1]
@@ -243,7 +245,7 @@ def _style_rf_profile_axis(ax, show_xlabel):
 
 
 def _scale_contrast_series(
-    series, *, t_onset, t_spot_end, center_radius=RF_CENTER_RADIUS, t_delay=0,
+    series, *, t_onset, t_sti_end, center_radius=RF_CENTER_RADIUS, t_delay=0,
 ):
     """Scale each contrast series entry to gt / v_readout plot slices.
 
@@ -251,7 +253,7 @@ def _scale_contrast_series(
     Returns a list of dicts with ``v_readout_center``, ``v_readout_spatial``,
     ``v_readout_std``, ``gt_center``, ``gt_spatial`` plus passthrough keys.
     """
-    sc_kw = dict(t_onset=t_onset, t_spot_end=t_spot_end, t_delay=t_delay)
+    sc_kw = dict(t_onset=t_onset, t_sti_end=t_sti_end, t_delay=t_delay)
     out = []
     for entry in series:
         item = dict(entry)
@@ -287,12 +289,12 @@ def plot_cell_rf(
     show_xlabels=False,
     show_ylabel=False,
     t_onset=None,
-    t_spot_end=None,
+    t_sti_end=None,
     t_delay=0,
 ):
     """RF-profile panel for one cell across contrast ``series``."""
     scaled = _scale_contrast_series(
-        series, t_onset=t_onset, t_spot_end=t_spot_end, t_delay=t_delay,
+        series, t_onset=t_onset, t_sti_end=t_sti_end, t_delay=t_delay,
     )
     for item in scaled:
         ls = item.get("linestyle", "-")
@@ -326,7 +328,7 @@ def plot_cell_time(
     t_onset=None,
     pre_end=None,
     show_pre=False,
-    t_spot_end=None,
+    t_sti_end=None,
     t_delay=0,
     delta_ms,
     delta_ms_pre,
@@ -337,12 +339,12 @@ def plot_cell_time(
 
     ``pre_end`` defaults to ``t_onset`` (gray gt omits ``[0, pre_end)``).
     Pass ``pre_end=0`` to draw the full gt trace including pre-onset.
-    ``t_spot_end``: white sti-on band ``[t_onset, t_spot_end]``.
+    ``t_sti_end``: white sti-on band ``[t_onset, t_sti_end]``.
     """
     scaled = _scale_contrast_series(
         series,
         t_onset=t_onset,
-        t_spot_end=t_spot_end,
+        t_sti_end=t_sti_end,
         t_delay=t_delay,
         center_radius=int(center_radius),
     )
@@ -374,7 +376,7 @@ def plot_cell_time(
         pre_end=split,
         show_pre=show_pre,
         t_onset=t_onset,
-        t_spot_end=t_spot_end,
+        t_sti_end=t_sti_end,
     )
 
 
@@ -393,7 +395,7 @@ def plot_cell_rf_time(
     n_t=None,
     t_onset=None,
     show_pre=False,
-    t_spot_end=None,
+    t_sti_end=None,
     t_delay=0,
     delta_ms,
     delta_ms_pre,
@@ -406,7 +408,7 @@ def plot_cell_rf_time(
         show_xlabels=show_xlabels,
         show_ylabel=show_ylabel,
         t_onset=t_onset,
-        t_spot_end=t_spot_end,
+        t_sti_end=t_sti_end,
         t_delay=t_delay,
     )
     plot_cell_time(
@@ -419,7 +421,7 @@ def plot_cell_rf_time(
         n_t=n_t,
         t_onset=t_onset,
         show_pre=show_pre,
-        t_spot_end=t_spot_end,
+        t_sti_end=t_sti_end,
         t_delay=t_delay,
         delta_ms=delta_ms,
         delta_ms_pre=delta_ms_pre,
@@ -443,7 +445,7 @@ def plot_cell_rf_time_slices(
     n_t=None,
     t_onset=None,
     show_pre=False,
-    t_spot_end=None,
+    t_sti_end=None,
     t_delay=0,
     delta_ms,
     delta_ms_pre,
@@ -451,11 +453,11 @@ def plot_cell_rf_time_slices(
 ):
     """RF + time panels with per-slice overlays across contrast ``series``."""
     center_radius = RF_CENTER_RADIUS
-    sc_kw = dict(t_onset=t_onset, t_spot_end=t_spot_end, t_delay=t_delay)
+    sc_kw = dict(t_onset=t_onset, t_sti_end=t_sti_end, t_delay=t_delay)
     colors = overlay_v_readout_reds(len(slice_labels))
     t = np.arange(n_t)
     pre_end = int(t_onset or 0)
-    mark_spot(ax_time, t_onset, t_spot_end)
+    mark_spot(ax_time, t_onset, t_sti_end)
 
     for si, item in enumerate(series):
         ls = item.get("linestyle", "-")
@@ -568,7 +570,7 @@ class SpotTraceReadout:
     v_th_by_name: dict = field(default_factory=dict)
     t_onset: int | None = None
     show_pre: bool = True
-    t_spot_end: int | None = None
+    t_sti_end: int | None = None
     ms_shown: tuple[float, float] | None = None
     center_only: bool = False
     a_sti_radius: dict[str, float] = field(default_factory=dict)
@@ -606,7 +608,7 @@ def _spot_readout_gt_view(readout):
         v_th_by_name=readout.v_th_by_name,
         t_onset=readout.t_onset,
         show_pre=readout.show_pre,
-        t_spot_end=readout.t_spot_end,
+        t_sti_end=readout.t_sti_end,
         ms_shown=readout.ms_shown,
         center_only=bool(readout.center_only),
         a_sti_radius=dict(readout.a_sti_radius),
@@ -727,10 +729,10 @@ def _forward_spot_readout(
     )
     a_sti_radius_by_name = {}
     if "a_sti_radius" in params:
-        for seg in schema:
-            if seg.get("name") != "a_sti_radius":
+        for segment in schema:
+            if segment.get("name") != "a_sti_radius":
                 continue
-            names = [str(n) for n in (seg.get("node_names") or ())]
+            names = [str(n) for n in (segment.get("node_names") or ())]
             raw = params["a_sti_radius"].detach().cpu().numpy().reshape(-1)
             a_sti_radius_by_name = {
                 names[i]: float(raw[i]) for i in range(min(len(names), raw.size))
@@ -772,7 +774,7 @@ def _forward_spot_readout(
         if sti_ms_pre is not None else None
     )
     filter = str((session.train_opts or {}).get("filter", "none"))
-    timing = spot_timing_from_opts(opts)
+    timing = sti_timing_from_opts(opts)
     readout = dict(
         names=names,
         cells=cells,
@@ -783,9 +785,9 @@ def _forward_spot_readout(
         center_entry_mask=center_entry_mask,
         plot_traces=plot_traces,
         t_onset=int(sti_t_onset) if sti_t_onset is not None else None,
-        t_spot_end=(
-            None if sti_t_onset is None else spot_t_spot_end(
-                sti_t_onset, mt, timing.ms_spot,
+        t_sti_end=(
+            None if sti_t_onset is None else t_sti_end(
+                sti_t_onset, mt, timing.ms_sti,
                 delta_ms=timing.delta_ms,
             )
         ),
@@ -881,7 +883,7 @@ def network_spot_trace_readout(
         v_th_by_name=v_th_by_type_name(z, session),
         t_onset=readout.get('t_onset'),
         show_pre=bool(show_pre),
-        t_spot_end=readout.get('t_spot_end'),
+        t_sti_end=readout.get('t_sti_end'),
         ms_shown=ms_shown,
         center_only=bool(center_only),
         a_sti_radius=dict(readout.get('a_sti_radius') or {}),
@@ -950,7 +952,7 @@ def _plot_spot_figure(
     slice_labels = primary.slice_labels or []
     n_t = primary.n_t
     t_onset = primary.t_onset
-    t_spot_end = primary.t_spot_end
+    t_sti_end = primary.t_sti_end
     delta_ms = float(primary.session.delta_ms)
     delta_ms_pre = float(primary.session.delta_ms_pre)
     show_pre = primary.show_pre
@@ -1055,7 +1057,7 @@ def _plot_spot_figure(
                 e_leak=cell_primary.get("e_leak"),
                 t_onset=t_onset,
                 show_pre=show_pre,
-                t_spot_end=t_spot_end,
+                t_sti_end=t_sti_end,
                 t_delay=_t_delay_for_cell(name),
                 delta_ms=delta_ms,
                 delta_ms_pre=delta_ms_pre,
@@ -1078,7 +1080,7 @@ def _plot_spot_figure(
                 e_leak=cell_primary.get("e_leak"),
                 t_onset=t_onset,
                 show_pre=show_pre,
-                t_spot_end=t_spot_end,
+                t_sti_end=t_sti_end,
                 t_delay=_t_delay_for_cell(name),
                 delta_ms=delta_ms,
                 delta_ms_pre=delta_ms_pre,
@@ -1116,7 +1118,7 @@ def _plot_spot_figure(
                 show_xlabels=False,
                 show_ylabel=(j == 0),
                 t_onset=t_onset,
-                t_spot_end=t_spot_end,
+                t_sti_end=t_sti_end,
                 t_delay=_t_delay_for_cell(name),
             )
             legend_done = True
@@ -1142,7 +1144,7 @@ def _plot_spot_figure(
                     n_t=n_t,
                     t_onset=t_onset,
                     show_pre=show_pre,
-                    t_spot_end=t_spot_end,
+                    t_sti_end=t_sti_end,
                     t_delay=_t_delay_for_cell(name),
                     delta_ms=delta_ms,
                     delta_ms_pre=delta_ms_pre,

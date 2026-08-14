@@ -43,7 +43,7 @@ DEFAULT_FIXED_G = 50.0
 
 
 def _init(name: str) -> float:
-    return float(P[name]["init"])
+    return float(P[name]["val"])
 
 
 def u_inf(Vm, midv, slope):
