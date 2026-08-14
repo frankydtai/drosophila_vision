@@ -109,7 +109,7 @@ def gradient_network(z, lr=0.0001, cost_fn=None, n_iters=100, device="cpu", z_bo
         interval_best_z = z.clone().detach()
         interval_best_opt = copy.deepcopy(optimizer.state_dict())
 
-    def _reset_interval_from_z():
+    def _interval_from_z():
         _snapshot_interval_best(_measure_cost(z))
 
     def _commit_interval_checkpoint(global_iter):
@@ -121,7 +121,7 @@ def gradient_network(z, lr=0.0001, cost_fn=None, n_iters=100, device="cpu", z_bo
         with torch.no_grad():
             z.copy_(interval_best_z)
         optimizer.load_state_dict(interval_best_opt)
-        _reset_interval_from_z()
+        _interval_from_z()
 
     progress_bar = tqdm(
         range(n_iters),

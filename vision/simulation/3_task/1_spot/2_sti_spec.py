@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """Spot paradigm sti spec: timing, drive waveform, and ``i_sti`` assembly.
 
-The sti drive waveform ``u[t]`` is defined once (``sti_input_waveform``) and
+The sti drive waveform ``u[t]`` is defined once (``sti_waveform``) and
 consumed by both the network ``i_sti`` and the ir component in
 :mod:`task.spot.gt` (and ``i_sti`` via :mod:`task.spot.pack`), so sti-on
 duration has a single source.
@@ -145,7 +145,7 @@ def sti_timing_t(
     return t_onset, n_t
 
 
-def sti_timing_from_opts(opts) -> StiTiming:
+def resolve_sti_timing(opts) -> StiTiming:
     if opts.get("ms_pre") is None or opts.get("ms_response") is None:
         raise ValueError(
             "spot sti opts require ms_pre and ms_response "
@@ -191,22 +191,22 @@ def sti_timing_from_opts(opts) -> StiTiming:
     )
 
 
-def sti_timing_t_from_opts(opts) -> tuple[int, int]:
+def resolve_sti_timing_t(opts) -> tuple[int, int]:
     """``(t_onset, n_t)`` from sti opts timing + piecewise ``delta_ms*``.
 
     Optional ``ms_post`` (default 0) extends forward only.
     """
-    timing = sti_timing_from_opts(opts)
+    timing = resolve_sti_timing(opts)
     return timing.t_onset, timing.n_t
 
 
-def sti_gt_n_t_from_opts(opts) -> int:
+def resolve_sti_gt_n_t(opts) -> int:
     """Cost ``n_t`` from opts (ignores ``ms_post``)."""
-    return sti_timing_from_opts(opts).n_t_gt
+    return resolve_sti_timing(opts).n_t_gt
 
 
 def t_sti_end(t_onset, n_t, ms_sti=None, *, delta_ms: float) -> int:
-    """Inclusive last sti-on sample index (matches ``sti_input_waveform``).
+    """Inclusive last sti-on sample index (matches ``sti_waveform``).
 
     On samples are ``[t_onset, t_sti_end]``. With ``ms_sti``, that is
     ``t_onset + max(1, round(ms_sti/delta_ms)) - 1`` (clamped to ``n_t - 1``).
@@ -222,7 +222,7 @@ def t_sti_end(t_onset, n_t, ms_sti=None, *, delta_ms: float) -> int:
     return min(mt - 1, t0 + width - 1)
 
 
-def sti_input_waveform(t_onset, n_t, ms_sti=None, *, delta_ms: float) -> np.ndarray:
+def sti_waveform(t_onset, n_t, ms_sti=None, *, delta_ms: float) -> np.ndarray:
     """Normalized 0/1 sti drive ``u[t]`` over ``n_t`` samples.
 
     ``ms_sti`` omitted -> continue-on step (``u[t_onset:] = 1``). With a value the
@@ -283,7 +283,7 @@ def build_spot_a_sti_radius_drive(
                         batch_l.append(int(b))
                         node_l.append(int(nid))
                         r_l.append(int(ri))
-    u = sti_input_waveform(t_onset, n_t, ms_sti, delta_ms=delta_ms)
+    u = sti_waveform(t_onset, n_t, ms_sti, delta_ms=delta_ms)
     n_batch = len(batches)
     sti_idx = torch.as_tensor(connectome.sti_node_indices, dtype=torch.long, device=device)
     i_sti = torch.zeros((n_batch, n_t, connectome.n_nodes), dtype=sim_dtype, device=device)

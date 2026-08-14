@@ -174,7 +174,7 @@ def build_spot(
     return Spot(centers, shifts, spot_radius)
 
 
-def spot_from_opts(
+def resolve_spot(
     connectome,
     *,
     spot_radius: float | None = None,
@@ -196,7 +196,7 @@ def spot_from_opts(
         or fully_inside is None
     ):
         raise TypeError(
-            "spot_from_opts requires spot_radius, shift_radius, multi_spot, and "
+            "resolve_spot requires spot_radius, shift_radius, multi_spot, and "
             "fully_inside (or sti_opts containing them)"
         )
     spot = build_spot(

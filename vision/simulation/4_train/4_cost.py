@@ -36,6 +36,7 @@ from __future__ import annotations
 
 from default_params import (
     NEURON_FILTER,
+    TRAIN_OPTIMIZATION,
 )
 
 from dataclasses import dataclass, replace
@@ -72,7 +73,7 @@ from train.config import (
 from train.param import (
     ModelBackend,
     SIM_DTYPE,
-    materialize_from_opts,
+    params_from_opts,
     params_from_z,
     val_from_enabled,
 )
@@ -141,7 +142,7 @@ def gt_affine_for_nodes(
 
     ``effective_bias = bias_gt``; if ``v_th`` is in ``params`` and not
     ``val_from`` bias_gt is off, add ``v_th``. Callers must
-    :func:`materialize_from_opts` so ``val_from`` sources are already in ``params``.
+    :func:`params_from_opts` so ``val_from`` sources are already in ``params``.
     """
     a_gt = _param_for_nodes(params, "a_gt", node_idx, backend, sim_dtype=sim_dtype)
     bias = _param_for_nodes(params, "bias_gt", node_idx, backend, sim_dtype=sim_dtype)
@@ -181,11 +182,11 @@ def _pack_gt_affine_for_cost(
     batch_offset: int = 0,
     batch_idx=None,
 ):
-    """Schema ``a_gt`` / ``bias_gt`` after :func:`materialize_from_opts`."""
+    """Schema ``a_gt`` / ``bias_gt`` after :func:`params_from_opts`."""
     if _session_bias_gt_val_from(session):
         if onset_trace is None:
             raise ValueError("val_from bias_gt=v_onset requires onset_trace")
-        materialize_from_opts(
+        params_from_opts(
             params, session, onset_trace=onset_trace, t_onset=pack_t_onset(pack),
         )
     _ = batch_offset

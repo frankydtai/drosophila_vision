@@ -8,7 +8,7 @@ dicts keyed by cell name (:data:`GT_CELLS`); the ``filter=\"ca\"`` path also
 reads external CSVs under ``figure_digitization/arenz/``.
 
 ``filter=\"none\"``: :func:`build_rf` × :func:`build_ir_lti` (bandpass/LP on
-:func:`sti_input_waveform`). T4a–T4d share Gruntman 2018 Fig. 2B spatial
+:func:`sti_waveform`). T4a–T4d share Gruntman 2018 Fig. 2B spatial
 samples in :data:`RF_SCALE` and LP ``IR_lp_ms`` (``IR_hp_ms=0``).
 
 ``filter=\"ca\"``: same :data:`RF_SCALE` (unsigned; no ``RF_SIGN`` on rf);
@@ -22,7 +22,7 @@ cell, shape ``(RF_N_RADII, n_t)``. Fractional cost radii interpolate
 Cost GT membership is gated by ``spot_gt_mode`` (``all`` | ``positive``) via
 :func:`spot_gt_active` (still uses :data:`RF_SIGN`); waveform ×
 :func:`contrast_sign` only (dark = −1). Sti drive is
-:func:`task.spot.sti_spec.sti_input_waveform`, shared with network ``i_sti``.
+:func:`task.spot.sti_spec.sti_waveform`, shared with network ``i_sti``.
 
 Network mapping, cost hexes, and :class:`task.spot.pack.SpotGt` packing
 live in :mod:`task.spot.pack`.
@@ -36,7 +36,7 @@ from typing import Dict, Sequence, Tuple
 import numpy as np
 
 from task.spot.sti_geo import spot_radius_folds_r2_into_r1
-from task.spot.sti_spec import sti_input_waveform
+from task.spot.sti_spec import sti_waveform
 
 GT_CELLS: Tuple[str, ...] = (
     "L1", "L2", "L3", "L4", "L5",
@@ -379,7 +379,7 @@ def load_rf_ir(*, t_onset=None, n_t=None, ms_sti=None, delta_ms: float, filter="
             t_onset=t_onset, n_t=n_t, delta_ms=delta_ms,
         )
 
-    u = sti_input_waveform(t_onset, n_t, ms_sti, delta_ms=delta_ms)
+    u = sti_waveform(t_onset, n_t, ms_sti, delta_ms=delta_ms)
     u = u / np.max(u)
     ir = np.zeros((n_cells, n_t))
     for i, cell in enumerate(GT_CELLS):

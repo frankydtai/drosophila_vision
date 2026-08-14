@@ -60,7 +60,7 @@ from task.spot.sti_geo import euclid_hex_dist
 DEFAULT_BINS = 20
 
 
-def _pair_strength_lookup(edges, cells, syn_strength_cell, pair_names):
+def _syn_strength_from_edges(edges, cells, syn_strength_cell, pair_names):
     """Map (src_type_i, tar_type_i) -> trained syn_strength_cell."""
     i_from_name = {n: i for i, n in enumerate(cells)}
     n_cells = len(cells)
@@ -323,7 +323,7 @@ def save_syn_sign_plots(outdir, *, post=False, bins=DEFAULT_BINS) -> None:
     if list(cells) != list(cells_npz):
         raise SystemExit("cells mismatch: network.json vs best_param.npz")
 
-    strength_by_pair, i_from_name = _pair_strength_lookup(
+    strength_by_pair, i_from_name = _syn_strength_from_edges(
         edges, cells, named["syn_strength_cell"], pair_names,
     )
     session, z = _spot_bright_session_z(outdir)

@@ -26,18 +26,18 @@ def pack_needs_waveform_mse(pack) -> bool:
 def window_time_traces(trace_full, b_idx, u_idx, t0, n_t, *, t_onset=0):
     """Extract per-entry time slices from ``trace_full`` ``(B, n_t, N)``.
 
-    ``t0`` is the absolute simulation time of slice start (slot ``step_idx`` uses
-    ``t0 + step_idx``). ``n_t`` is how many time samples to gather. Slots with
-    ``t0 + step_idx < t_onset`` are zeroed (cost alignment).
+    ``t0`` is the absolute simulation time of slice start (slot ``t`` uses
+    ``t0 + t``). ``n_t`` is how many time samples to gather. Slots with
+    ``t0 + t < t_onset`` are zeroed (cost alignment).
     """
     n_t = int(n_t)
     dev = trace_full.device
-    step_idx = torch.arange(n_t, dtype=torch.long, device=dev)
-    t_idx = t0[:, None].to(device=dev, dtype=torch.long) + step_idx[None, :]
-    t_safe = t_idx.clamp(0, trace_full.shape[1] - 1)
+    t = torch.arange(n_t, dtype=torch.long, device=dev)
+    t_abs = t0[:, None].to(device=dev, dtype=torch.long) + t[None, :]
+    t_safe = t_abs.clamp(0, trace_full.shape[1] - 1)
     v_readout = trace_full[b_idx[:, None], t_safe, u_idx[:, None]]
     return torch.where(
-        t_idx < int(t_onset), torch.zeros_like(v_readout), v_readout,
+        t_abs < int(t_onset), torch.zeros_like(v_readout), v_readout,
     )
 
 

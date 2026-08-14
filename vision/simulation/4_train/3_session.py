@@ -64,7 +64,7 @@ import torch
 
 from neuron.param import membrane_dt_over_c, t_from_ms
 from neuron import (
-    default_schema,
+    build_schema,
     expand_euler,
     normalize_syn_mode,
 )
@@ -89,14 +89,14 @@ from train.config import (
     expand_gt_dict,
     expand_pre_steady,
     moving_bar_cost_part_key,
-    normalize_tasks,
+    resolve_tasks,
     run_data_dir,
 )
 from train.param import (
     ModelBackend,
     SIM_DTYPE,
     active_device,
-    apply_param_init_to_schema,
+    apply_param_init,
     apply_param_modes,
     attach_param_carry,
     resolve_param_modes,
@@ -113,22 +113,21 @@ from task.spot.gt import expand_gt_cells as expand_spot_gt_cells
 from task.spot.pack import (
     SPOT_CONTRASTS,
     build_spot_gt,
-    default_spot_cost_radius_scale,
+    resolve_spot_cost_radius_scale_defaults,
     expand_cost_ms_dict,
     expand_spot_cost_r_s_dict,
     build_spot_sti_opts,
     build_a_sti_radius_mask,
 )
 from task.spot.sti_geo import (
-    spot_from_opts,
+    resolve_spot,
     spot_radius_half_steps,
     spot_sti_batches,
 )
 from task.spot.sti_spec import (
     build_spot_a_sti_radius_drive,
     normalize_sti_timing,
-    sti_gt_n_t_from_opts,
-    sti_timing_from_opts,
+    resolve_sti_timing,
 )
 from task.moving_bar.gt import expand_gt_cells as expand_moving_bar_gt_cells
 from task.moving_bar.pack import (
@@ -411,7 +410,7 @@ def load_network_backend(
     a_syn_inh: float,
     sim_dtype=SIM_DTYPE,
     syn_mode=NEURON_SCHEMA['syn_mode'],
-    defaults=NEURON_SCHEMA['defaults'],
+    optimizable=NEURON_SCHEMA['optimizable'],
     h_cells=NEURON_SCHEMA['h_cells'],
 ) -> ModelBackend:
     """Load connectome network into a :class:`ModelBackend`."""
@@ -427,7 +426,7 @@ def load_network_backend(
     print(f"  n_nodes={backend.n_nodes}, n_cells={backend.n_cells}, "
           f"n_pairs={backend.conn.n_pairs}, n_edges={backend.conn.n_edges}, "
           f"syn_mode={mode}, "
-          f"nparams={schema_nparams(default_schema('borst', backend, syn_mode=mode, defaults=defaults, h_cells=h_cells, a_sti_radii=SPOT_PACK['a_sti_radii'], radius_key_aliases=SPOT_PACK['spot_cost_radius_key_aliases']))}")
+          f"nparams={schema_nparams(build_schema('borst', backend, syn_mode=mode, optimizable=optimizable, h_cells=h_cells, a_sti_radii=SPOT_PACK['a_sti_radii'], radius_key_aliases=SPOT_PACK['spot_cost_radius_key_aliases']))}")
     return backend
 
 
@@ -508,8 +507,8 @@ def _build_network_moving_bar_pack(
         cost_radius = normalize_cost_radius(opts["cost_radius"])
     else:
         network_radius = int(connectome.meta.get("radius", -1))
-        default_radius = -1 if network_radius <= 0 else network_radius - 1
-        cost_radius = normalize_cost_radius(default_radius)
+        network_cost_radius = -1 if network_radius <= 0 else network_radius - 1
+        cost_radius = normalize_cost_radius(network_cost_radius)
     build_kw = dict(
         connectome=connectome,
         device=dev,
@@ -566,7 +565,7 @@ def _spot_cost_time_idx_and_mask(opts, entry_radii, *, ctx: _TrainBindCtx, devic
     n = int(entry_radii.shape[0])
     if n == 0:
         return None, None
-    timing = sti_timing_from_opts(opts)
+    timing = resolve_sti_timing(opts)
     delta_ms = timing.delta_ms
     post = timing.n_t_gt - timing.t_onset
     overrides = expand_cost_ms_dict(
@@ -600,11 +599,11 @@ def _spot_cost_time_idx_and_mask(opts, entry_radii, *, ctx: _TrainBindCtx, devic
     union_set = set(union)
     if all(ts == union_set for ts in radius_ts.values()):
         return cost_time_indices, None
-    col_from_t = {t: j for j, t in enumerate(union)}
+    slot_from_t = {t: j for j, t in enumerate(union)}
     mask = torch.zeros(n, len(union), dtype=sim_dtype, device=device)
     for i, r in enumerate(rad.tolist()):
         for t in radius_ts[float(r)]:
-            mask[i, col_from_t[t]] = 1.0
+            mask[i, slot_from_t[t]] = 1.0
     return cost_time_indices, mask
 
 
@@ -623,9 +622,9 @@ def _build_network_spot_task(
         ctx.spot_bright_sti_opts if contrast == "bright" else ctx.spot_dark_sti_opts
     )
     if not ctx_opts:
-        raise ValueError(f"{pack_name} requires sti opts (from build_train_opts / CLI)")
+        raise ValueError(f"{pack_name} requires sti opts (from resolve_train_opts / CLI)")
     opts = normalize_sti_timing(dict(ctx_opts))
-    timing = sti_timing_from_opts(opts)
+    timing = resolve_sti_timing(opts)
     cost_radius = normalize_cost_radius(opts.get("cost_radius"))
     shift_radius = int(opts["shift_radius"])
     spot_radius = float(opts["spot_radius"])
@@ -635,7 +634,7 @@ def _build_network_spot_task(
     t_onset = timing.t_onset
     n_t = timing.n_t
     i_spot = float(opts[peak_key])
-    default_w = default_spot_cost_radius_scale(
+    cost_radius_scales = resolve_spot_cost_radius_scale_defaults(
         spot_radius,
         scales=SPOT_PACK['spot_cost_radius_scale'],
         scales_radius1=SPOT_PACK['spot_cost_radius_scale_radius1'],
@@ -662,7 +661,7 @@ def _build_network_spot_task(
         ms_response=timing.ms_response,
         gt_amp=gt_amp,
         delta_ms=timing.delta_ms,
-        default_cost_scales=default_w,
+        cost_radius_scales=cost_radius_scales,
         spot_cost_radii=SPOT_PACK['spot_cost_radii'],
         gt_cells=gt_cells_from_opts(opts),
         filter=str(ctx.filter),
@@ -674,14 +673,14 @@ def _build_network_spot_task(
     sti_opts = dict(opts)
     # Replace center-only bake from build_spot_gt: center @1 in i_sti + a_sti_radius radii.
     i_baseline = float(opts[_SPOT_BASELINE_KEY])
-    spot = spot_from_opts(connectome, sti_opts=opts)
+    spot = resolve_spot(connectome, sti_opts=opts)
     batches = spot_sti_batches(spot)
     cost_r_s = expand_spot_cost_r_s_dict(
         sti_opts=opts, aliases=SPOT_PACK['spot_cost_radius_key_aliases'],
     )
     a_sti_radius_mask = build_a_sti_radius_mask(
         cost_r_s,
-        default_scales=default_w,
+        cost_radius_scales=cost_radius_scales,
         a_sti_radii=SPOT_PACK['a_sti_radii'],
     )
     i_sti, sti_wave, sti_batches, sti_nodes, a_sti_radius_indices = build_spot_a_sti_radius_drive(
@@ -828,7 +827,7 @@ _STI_OPTS_BY_TASK = {
 }
 
 
-def _finalize_sti_opts(
+def _resolve_sti_opts(
     opts,
     task_name,
     *,
@@ -903,7 +902,7 @@ def _finalize_sti_opts(
     return apply_i_sti(out, task_name, i_sti)
 
 
-def build_train_opts(
+def resolve_train_opts(
     backend="network",
     tasks=None,
     part_cost_scales=None,
@@ -944,7 +943,7 @@ def build_train_opts(
     if backend != "network":
         raise ValueError(f"backend must be 'network', got {backend!r}")
     if network is None and network_json is None:
-        raise ValueError("build_train_opts requires network or network_json")
+        raise ValueError("resolve_train_opts requires network or network_json")
     fp = int(fp)
     if fp not in (16, 32, 64):
         raise ValueError(f"fp must be 16, 32, or 64; got {fp!r}")
@@ -973,7 +972,7 @@ def build_train_opts(
                 if k not in ("v_th_ca", "a_ca", "tau_ca")
             } or None
     param_modes = resolve_param_modes(param_modes, val_from_opts)
-    tl = normalize_tasks(tasks)
+    tl = resolve_tasks(tasks)
     if spot_radius is None:
         spot_radius = SPOT_INPUT['spot_radius']
     if shift_radius is None:
@@ -999,7 +998,7 @@ def build_train_opts(
         if tname not in tl and raw is None:
             sti_opts[opts_key] = None
             continue
-        sti_opts[opts_key] = _finalize_sti_opts(
+        sti_opts[opts_key] = _resolve_sti_opts(
             raw,
             tname,
             **finalize_kw,
@@ -1100,7 +1099,7 @@ def _train_opts_for_sidecar(opts, tasks, resolved_sti, sequential_bool) -> dict:
     return record
 
 
-def _schema_from_opts(model, model_backend, schema, train_opts_record):
+def resolve_schema(model, model_backend, schema, train_opts_record):
     if schema is not None:
         return list(schema)
     filter = NEURON_FILTER['filter']
@@ -1112,13 +1111,13 @@ def _schema_from_opts(model, model_backend, schema, train_opts_record):
     ))
     kw = dict(
         syn_mode=syn_mode,
-        defaults=NEURON_SCHEMA['defaults'],
+        optimizable=NEURON_SCHEMA['optimizable'],
         h_cells=NEURON_SCHEMA['h_cells'],
         filter=filter,
         a_sti_radii=SPOT_PACK['a_sti_radii'],
         radius_key_aliases=SPOT_PACK['spot_cost_radius_key_aliases'],
     )
-    base = default_schema(model, model_backend, **kw)
+    base = build_schema(model, model_backend, **kw)
     if not train_opts_record:
         return base
     modes = train_opts_record.get("param_modes")
@@ -1170,13 +1169,13 @@ def _build_session(
     )
     train_opts_record["pre_steady_iters"] = pre_steady_iters
     train_opts_record["pre_steady_damp"] = pre_steady_damp
-    sch = _schema_from_opts(
+    sch = resolve_schema(
         model, model_backend, schema, train_opts_record,
     )
     param_init = (train_opts_record or {}).get("param_init")
     if param_init:
         edits = [(row[0], row[1], float(row[2])) for row in param_init]
-        sch = apply_param_init_to_schema(sch, model_backend, edits)
+        sch = apply_param_init(sch, model_backend, edits)
     train_opts_record["param_modes"] = schema_param_modes_record(
         sch, lambda segment: node_names_for_segment(segment, model_backend),
     )
@@ -1232,7 +1231,7 @@ def open_session(
     backend_name = str(opts.get("backend", "network"))
     if backend_name != "network":
         raise ValueError(f"backend must be 'network', got {backend_name!r}")
-    tasks = normalize_tasks(opts.get("tasks"))
+    tasks = resolve_tasks(opts.get("tasks"))
     bad = [t for t in tasks if t not in VALID_TASKS]
     if bad:
         raise ValueError(f"unknown task(s) {bad!r} (expected {'|'.join(CLI_TASK_NAMES)})")
@@ -1342,7 +1341,7 @@ def _sti_delta_ms(opts: dict, key: str) -> float:
     )
 
 
-def open_session_from_opts(opts: dict, model: str | None = None, **kwargs) -> TrainSession:
+def session_from_opts(opts: dict, model: str | None = None, **kwargs) -> TrainSession:
     """Restore a session from a saved ``train_opts.json`` dict."""
     opts = dict(opts)
     if model is None:
@@ -1376,7 +1375,7 @@ def open_session_from_opts(opts: dict, model: str | None = None, **kwargs) -> Tr
     return open_session({**opts, "backend": "network"}, model, **kwargs)
 
 
-def open_session_from_outdir(
+def session_from_outdir(
     outdir: str,
     model: str | None = None,
 ) -> TrainSession:
@@ -1386,4 +1385,4 @@ def open_session_from_outdir(
         raise FileNotFoundError(f"missing {opts_path}")
     with open(opts_path) as f:
         opts = json.load(f)
-    return open_session_from_opts(opts, model)
+    return session_from_opts(opts, model)

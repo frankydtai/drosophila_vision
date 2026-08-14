@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""Numeric source for membrane constants, schema defaults, sti, and CLI values.
+"""Numeric source for membrane constants, schema optimizable, sti, and CLI values.
 
 Literals / constant bags only. Only ``4_train`` / figures / analyze / run scripts may
 import this module. Layers ``1_neuron`` / ``2_network`` / ``3_task`` take
@@ -53,7 +53,7 @@ NEURON_SCHEMA: Dict[str, object] = {
     "h_cells": ("L1", "L2", "L4", "L5"),
     # mode: indi | shared | fixed | frozen
     # overrides: optional per-node val/mode tokens (later wins); see neuron.schema
-    "defaults": {
+    "optimizable": {
         "a_gt": dict(lo=0.5, hi=2.0, val=1.0, jit=0.1, mode="indi"),
         "bias_gt": dict(lo=-200.0, hi=200.0, val=0.0, jit=1.0, mode="indi"),
         "syn_strength_cell": dict(lo=0.1, hi=10.0, val=1.0, jit=0.1, mode="indi"),

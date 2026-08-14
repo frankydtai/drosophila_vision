@@ -39,7 +39,7 @@ import train.implementation as implementation
 import train.cli as cli
 from figure.plot import (
     add_plot_arguments,
-    plot_kwargs_from_args,
+    resolve_plot_kwargs,
     plot_param_set,
 )
 from figure.util import plot_cost, plot_file_ext
@@ -65,7 +65,7 @@ _PLOT_KEYS = (
 
 
 def _take_plot_kw(kw, *, gts=None):
-    """Pop plot keys from *kw* (values come from CLI via ``plot_kwargs_from_args``)."""
+    """Pop plot keys from *kw* (values come from CLI via ``resolve_plot_kwargs``)."""
     plot_kw = {k: kw.pop(k) for k in _PLOT_KEYS}
     plot_kw["gts"] = gts
     return plot_kw
@@ -116,7 +116,7 @@ def _rename_checkpoint_pngs(png_dir, tag, *, filter_token="v", file_suffix=""):
             os.replace(src, dst)
 
 
-def write_checkpoint_png(outdir, iter, z_best, cost_best, session, plot_kw):
+def save_checkpoint_png(outdir, iter, z_best, cost_best, session, plot_kw):
     tag = implementation.checkpoint_iter_tag(iter)
     png_dir = os.path.join(outdir, "png")
     os.makedirs(png_dir, exist_ok=True)
@@ -143,7 +143,7 @@ def build_checkpoint_on_png(plot_kw):
     plot_kw = plot_kw or {}
 
     def on_png(outdir, iter, z_best, cost_best, session):
-        write_checkpoint_png(outdir, iter, z_best, cost_best, session, plot_kw)
+        save_checkpoint_png(outdir, iter, z_best, cost_best, session, plot_kw)
 
     return on_png
 
@@ -187,10 +187,10 @@ def build_run_argparser(description=None):
     )
 
 
-def run_kwargs_from_args(args, *, script_stem="run"):
+def resolve_run_kwargs(args, *, script_stem="run"):
     """Merge train kwargs with plot kwargs for :func:`run_train_and_plot`."""
-    train_kw = cli.train_kwargs_from_args(args, script_stem=script_stem)
-    train_kw.update(plot_kwargs_from_args(args))
+    train_kw = cli.resolve_train_kwargs(args, script_stem=script_stem)
+    train_kw.update(resolve_plot_kwargs(args))
     train_kw['syn_sign'] = args.syn_sign
     return train_kw
 
@@ -204,10 +204,10 @@ def run_mirror_spot_experiment(
     configure_parser=None,
 ):
     """CLI entry for spot mirror-fit experiments (train + plot)."""
-    from task.spot.sti_spec import sti_timing_from_opts
+    from task.spot.sti_spec import resolve_sti_timing
     from figure.gt import fit_gts
     from train.experiment import (
-        merge_i_h_param_modes,
+        resolve_i_h_param_modes,
         spot_pack_overrides,
         spot_tasks_from,
         _normalize_mirror_fits,
@@ -217,7 +217,7 @@ def run_mirror_spot_experiment(
         specs = _normalize_mirror_fits(fits, sign)
         def mirror_gts(contrasts):
             pack_name = f"spot_{str(contrasts[0])}"
-            timing = sti_timing_from_opts(
+            timing = resolve_sti_timing(
                 (session.train_opts or {}).get(f"{pack_name}_sti_opts") or {}
             )
             base = fit_gts(
@@ -258,14 +258,14 @@ def run_mirror_spot_experiment(
     args = ap.parse_args()
     stem = script_stem(args) if callable(script_stem) else script_stem
     try:
-        run_kw = run_kwargs_from_args(args, script_stem=stem)
+        run_kw = resolve_run_kwargs(args, script_stem=stem)
     except ValueError as exc:
         ap.error(str(exc))
 
     fits = mirror_fits(args) if callable(mirror_fits) else mirror_fits
     tasks = run_kw["tasks"]
     pack_overrides = spot_pack_overrides(tasks, fits, mirror_sign)
-    param_modes = merge_i_h_param_modes(run_kw)
+    param_modes = resolve_i_h_param_modes(run_kw)
     spot_tasks = spot_tasks_from(tasks)
     build_session_params = inspect.signature(implementation.build_session).parameters
     preview_session = implementation.build_session(
@@ -299,7 +299,7 @@ def main(argv=None):
     parser = build_run_argparser()
     args = parser.parse_args(argv)
     try:
-        kw = run_kwargs_from_args(args)
+        kw = resolve_run_kwargs(args)
     except ValueError as exc:
         raise SystemExit(str(exc)) from exc
     run_train_and_plot(**kw)

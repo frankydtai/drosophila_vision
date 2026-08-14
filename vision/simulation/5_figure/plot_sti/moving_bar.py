@@ -40,8 +40,8 @@ from network.construction import load_network
 from import_bootstrap import parse_bool, parse_comma_list
 from build_hex import (
     FIELD_VIEW_PAD_DEG,
-    draw_hex_patches,
-    draw_hex_patches_uv,
+    plot_hex_patches,
+    plot_hex_patches_uv,
     view_bounds_from_vertices,
     set_axis_labels,
     xy_deg_from_uv,
@@ -103,7 +103,7 @@ def _current_cmap(i_max: float, i_baseline: float):
     )
 
 
-def _draw_hex_field(ax, hexes, vals, i_max, i_baseline, xlim, ylim, *, hexes_are_xy_deg: bool = False):
+def _plot_hex_field(ax, hexes, vals, i_max, i_baseline, xlim, ylim, *, hexes_are_xy_deg: bool = False):
     cmap = _current_cmap(i_max, i_baseline)
     colors = [
         cmap(float(np.clip(val / i_max if i_max > 0 else 0.0, 0.0, 1.0)))
@@ -112,11 +112,11 @@ def _draw_hex_field(ax, hexes, vals, i_max, i_baseline, xlim, ylim, *, hexes_are
     if hexes_are_xy_deg:
         x_deg = [x for x, _ in hexes]
         y_deg = [y for _, y in hexes]
-        draw_hex_patches(ax, x_deg, y_deg, colors, linewidth=0.15, alpha=0.95)
+        plot_hex_patches(ax, x_deg, y_deg, colors, linewidth=0.15, alpha=0.95)
     else:
         u = [uv[0] for uv in hexes]
         v = [uv[1] for uv in hexes]
-        draw_hex_patches_uv(ax, u, v, colors, linewidth=0.15, alpha=0.95)
+        plot_hex_patches_uv(ax, u, v, colors, linewidth=0.15, alpha=0.95)
     ax.set_xlim(*xlim)
     ax.set_ylim(*ylim)
     ax.set_aspect("equal")
@@ -130,7 +130,7 @@ def plot_snapshot(
     bar_radius=None,
     multi_bar: bool = True,
 ):
-    _draw_hex_field(
+    _plot_hex_field(
         ax, hexes, i_sti_hex[t], i_max, i_baseline, xlim, ylim,
         hexes_are_xy_deg=hexes_are_xy_deg,
     )
@@ -307,9 +307,9 @@ def main():
         syn_mode=NEURON_SCHEMA['syn_mode'], dtype=SIM_DTYPE,
     )
     tag = f"2{args.direction}_{network_run_tag(network_json, connectome.meta)}"
-    default_png = os.path.join(PLOT_DIR, f"moving_bar_{tag}.png")
-    default_gif = os.path.join(PLOT_DIR, f"moving_bar_{tag}.gif")
-    output = args.output or default_png
+    fallback_png = os.path.join(PLOT_DIR, f"moving_bar_{tag}.png")
+    fallback_gif = os.path.join(PLOT_DIR, f"moving_bar_{tag}.gif")
+    output = args.output or fallback_png
     T = build_moving_bar_signals(
         connectome,
         specs=showcase,
@@ -342,7 +342,7 @@ def main():
         multi_bar=bool(args.multi_bar),
     )
     if args.gif is not None:
-        gif = default_gif if args.gif == "" else args.gif
+        gif = fallback_gif if args.gif == "" else args.gif
         save_animation(
             plot_hexes, showcase, i_sti_hex, i_bright, i_baseline, gif,
             side, t_onset, n_t, view_deg, args.t_stride,

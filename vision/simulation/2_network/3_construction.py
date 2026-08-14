@@ -144,13 +144,13 @@ def hex_in_cost_radius(u, v, cost_radius=None) -> bool:
 
 def active_gt_cells(
     gt_cells: Sequence[str] | None,
-    default_gt_cells: Sequence[str],
+    fallback_gt_cells: Sequence[str],
     available: Sequence[str],
     *,
     context: str,
 ) -> list[str]:
-    """Intersect requested (or default) gt cells with those active in the network."""
-    keep = tuple(gt_cells) if gt_cells is not None else tuple(default_gt_cells)
+    """Intersect requested (or fallback) gt cells with those active in the network."""
+    keep = tuple(gt_cells) if gt_cells is not None else tuple(fallback_gt_cells)
     avail = set(available)
     active = [st for st in keep if st in avail]
     if not active:

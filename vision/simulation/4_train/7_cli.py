@@ -41,7 +41,7 @@ import time
 from pathlib import Path
 
 
-def _cli_default(val):
+def _cli_scalar_from_branch(val):
     """Return scalar CLI default from a value that may be a ``{v, ca}`` branch dict."""
     if isinstance(val, dict) and set(val) <= {"v", "ca"}:
         return val.get("v", next(iter(val.values())))
@@ -58,9 +58,9 @@ from import_bootstrap import normalize_option_dashes, parse_bool, parse_comma_li
 import network.path  # noqa: F401 — FAFB path on sys.path
 from path import BUILT_NETWORKS_DIR
 from task.spot.pack import (
-    default_spot_cost_radius_scale,
+    resolve_spot_cost_radius_scale_defaults,
     parse_cost_ms_tokens,
-    parse_spot_cost_r_s_tokens,
+    resolve_spot_cost_radius_scale,
 )
 from neuron.schema import spot_radius_key
 import train
@@ -271,7 +271,7 @@ def add_train_arguments(parser):
     parser.add_argument("--model", default=MODEL['model'], choices=list(train.KNOWN_MODELS))
     parser.add_argument(
         "--syn-mode",
-        default=_cli_default(NEURON_SCHEMA['syn_mode']),
+        default=_cli_scalar_from_branch(NEURON_SCHEMA['syn_mode']),
         choices=list(train.SYN_MODES),
         help="synaptic edge weight: per_cell (syn_sign*n_syn + type→type syn_strength_cell; default) "
              "or per_edge (syn_sign only + per-edge syn_strength_edge magnitude)",
@@ -307,10 +307,10 @@ def add_train_arguments(parser):
                              "(settings come from this CLI, not train_opts.json)")
     add_param_argument(parser)
     add_val_from_argument(parser)
-    add_euler_argument(parser, default=_cli_default(NEURON_PARAM['euler']))
+    add_euler_argument(parser, default=_cli_scalar_from_branch(NEURON_PARAM['euler']))
     parser.add_argument(
         "--pre-steady",
-        default=_cli_default(TRAIN_OPTIMIZATION['pre_steady']),
+        default=_cli_scalar_from_branch(TRAIN_OPTIMIZATION['pre_steady']),
         choices=("probe", "solve"),
         help=(
             "t=0 membrane pre steady shared by borst/hp_lp "
@@ -330,7 +330,7 @@ def add_train_arguments(parser):
     parser.add_argument(
         "--pre-grad",
         type=parse_bool,
-        default=_cli_default(NEURON_FORWARD['pre_grad']),
+        default=_cli_scalar_from_branch(NEURON_FORWARD['pre_grad']),
         metavar="BOOL",
         help="include t < t_onset in BPTT "
              f"(default: {str(NEURON_FORWARD['pre_grad']).lower()}); "
@@ -339,7 +339,7 @@ def add_train_arguments(parser):
     add_filter_argument(parser, default=NEURON_FILTER['filter'])
     parser.add_argument(
         "--spot-gt-mode",
-        default=_cli_default(SPOT_PACK['spot_gt_mode']),
+        default=_cli_scalar_from_branch(SPOT_PACK['spot_gt_mode']),
         choices=list(SPOT_GT_MODES),
         help="spot cost GT mode: all=every cell both contrasts, "
              "positive=only rf_sign×contrast_sign>0 "
@@ -348,7 +348,7 @@ def add_train_arguments(parser):
     parser.add_argument(
         "--sequential",
         type=parse_bool,
-        default=_cli_default(TRAIN_SESSION['sequential']),
+        default=_cli_scalar_from_branch(TRAIN_SESSION['sequential']),
         metavar="BOOL",
         help=f"one sti batch per forward (default: {str(TRAIN_SESSION['sequential']).lower()})",
     )
@@ -462,14 +462,14 @@ def add_train_arguments(parser):
     )
     parser.add_argument(
         "--cost-norm",
-        default=_cli_default(TRAIN_OPTIMIZATION['cost_norm']),
+        default=_cli_scalar_from_branch(TRAIN_OPTIMIZATION['cost_norm']),
         choices=list(COST_NORMS),
         help="waveform MSE normalization: gt_power = 100*SSE/Σw(a_gt·gt)²; "
              f"a_gt2 = SSE/a_gt² (default: {TRAIN_OPTIMIZATION['cost_norm']})",
     )
 
 
-def parse_i_sti_tokens(tokens, tasks=()):
+def resolve_i_sti(tokens, tasks=()):
     if not tokens:
         return None
     out = {}
@@ -504,7 +504,7 @@ def _format_branch_value(val) -> str:
     return str(val)
 
 
-def parse_branch_value(text: str, default=None) -> dict:
+def resolve_branch_value(text: str, default=None) -> dict:
     """Parse ``X`` or ``v=X,ca=Y`` into ``{v, ca}`` dict for any value type."""
     if isinstance(default, dict):
         out = dict(default)
@@ -527,7 +527,7 @@ def parse_branch_value(text: str, default=None) -> dict:
 
 def _branch_cli_type(default=None):
     def _parse(text: str) -> dict:
-        return parse_branch_value(text, default)
+        return resolve_branch_value(text, default)
     return _parse
 
 
@@ -570,7 +570,7 @@ def parse_sti_timing_tokens(tokens, *, filter: str) -> dict[str, dict[str, float
     return out
 
 
-def _default_sti_timing_so() -> dict:
+def _sti_timing_from_params() -> dict:
     from task.spot.sti_spec import _merge_filter_branch_ms
 
     so: dict = {}
@@ -588,7 +588,7 @@ def resolve_train_sti_timing(filter: str, tokens) -> dict:
     """Build full sti timing dict for train (defaults + optional ``--sti-timing``)."""
     from task.spot.sti_spec import _merge_filter_branch_ms
 
-    so = _default_sti_timing_so()
+    so = _sti_timing_from_params()
     if tokens:
         for key, val in parse_sti_timing_tokens(tokens, filter=filter).items():
             _merge_filter_branch_ms(so, key, val)
@@ -670,7 +670,7 @@ def apply_train_opts_timing(
     return changed
 
 
-def sti_timing_kwargs_from_args(args, *, filter=None):
+def resolve_sti_timing_kwargs(args, *, filter=None):
     """Map ``--sti-timing`` to kwargs for :func:`figure.plot.maybe_override_sti_timing`."""
     tokens = getattr(args, "sti_timing", None)
     empty = {key: None for key in STI_TIMING_KEYS}
@@ -697,29 +697,24 @@ def parse_kv_tokens(tokens, cast=str):
     return out
 
 
-def parse_tasks(text):
-    """Parse comma-separated train tasks (with alias expansion)."""
-    return train.normalize_tasks(parse_comma_list(text))
-
-
 def parse_cost_radius(tokens):
     """Parse ``--cost-radius``: optional bare ``N`` plus ``TRAIN_CONFIG['task']=N`` tokens."""
     if not tokens:
         return None, {}
-    default = None
+    bare_cost_radius = None
     by_task = {}
     for tok in tokens:
         if "=" in tok:
             name, val = tok.split("=", 1)
             by_task[name.strip()] = int(val.strip())
         else:
-            if default is not None:
+            if bare_cost_radius is not None:
                 raise ValueError("only one bare radius allowed in --cost-radius")
-            default = int(tok)
-    return default, by_task
+            bare_cost_radius = int(tok)
+    return bare_cost_radius, by_task
 
 
-def parse_gt(tokens):
+def resolve_gt(tokens):
     """Parse ``--gt`` space-separated ``TRAIN_CONFIG['task']=CELLS`` tokens (CELLS comma-separated).
 
     Values are the final keep-set (not a remove list). Returns ``None`` when
@@ -740,7 +735,7 @@ def parse_gt(tokens):
     return train.resolve_gt_cells_by_task(raw)
 
 
-def parse_part_cost_scale(tokens, tasks):
+def resolve_part_cost_scales(tokens, tasks):
     """Parse ``--part-cost-scale``: bare alias exclusive, ``NAME=VALUE`` merge.
 
     Bare tokens (aliases or concrete part keys) zero every cost part for
@@ -770,7 +765,7 @@ def segment_name_in_param_modes(param_modes, segment_name):
     return bool(param_modes and segment_name in param_modes)
 
 
-def train_kwargs_from_args(
+def resolve_train_kwargs(
     args,
     *,
     script_stem="train",
@@ -821,14 +816,13 @@ def train_kwargs_from_args(
                 k: v for k, v in param_modes.items()
                 if k not in ("v_th_ca", "a_ca", "tau_ca")
             } or None
-    param_modes = train.resolve_param_modes(param_modes, val_from_opts)
-    tasks = parse_tasks(args.task)
-    part_cost_scales = parse_part_cost_scale(args.part_cost_scale, tasks)
-    default_radius, radius_kv = parse_cost_radius(args.cost_radius)
+    tasks = train.resolve_tasks(args.task)
+    part_cost_scales = resolve_part_cost_scales(args.part_cost_scale, tasks)
+    bare_cost_radius, radius_kv = parse_cost_radius(args.cost_radius)
     cost_radius_by_task = train.resolve_cost_radius_by_task(
-        tasks, default_radius, radius_kv,
+        tasks, bare_cost_radius, radius_kv,
     )
-    if default_radius is not None and default_radius != -1 and default_radius < 0:
+    if bare_cost_radius is not None and bare_cost_radius != -1 and bare_cost_radius < 0:
         raise ValueError("--cost-radius must be -1 or >= 0")
     if any(v != -1 and v < 0 for v in radius_kv.values()):
         raise ValueError("--cost-radius must be -1 or >= 0")
@@ -839,9 +833,9 @@ def train_kwargs_from_args(
         from train.session import resolve_filter_branches
         _sr_scalar = resolve_filter_branches(spot_radius, filter="none")
         spot_radius_half_steps(_sr_scalar)
-        spot_cost_radius_scale = parse_spot_cost_r_s_tokens(
+        spot_cost_radius_scale = resolve_spot_cost_radius_scale(
             args.spot_cost_r_s,
-            default_scales=default_spot_cost_radius_scale(
+            cost_radius_scales=resolve_spot_cost_radius_scale_defaults(
                 _sr_scalar,
                 scales=SPOT_PACK['spot_cost_radius_scale'],
                 scales_radius1=SPOT_PACK['spot_cost_radius_scale_radius1'],
@@ -887,7 +881,7 @@ def train_kwargs_from_args(
         ]
         for k, v in cost_ms_raw.items()
     }
-    gt_by_task = parse_gt(args.gt)
+    gt_by_task = resolve_gt(args.gt)
     if gt_by_task:
         _gt_opts = {
             "moving_bar_bright": moving_bar_bright_sti_opts,
@@ -897,7 +891,7 @@ def train_kwargs_from_args(
         }
         for _tname, _types in gt_by_task.items():
             _gt_opts[_tname]["gt_cells"] = list(_types)
-    i_sti = parse_i_sti_tokens(args.i_sti, tasks=tasks)
+    i_sti = resolve_i_sti(args.i_sti, tasks=tasks)
     lrs = [float(x) for x in parse_comma_list(args.lrs)]
     if not lrs:
         raise ValueError("--lrs must list at least one learning rate")

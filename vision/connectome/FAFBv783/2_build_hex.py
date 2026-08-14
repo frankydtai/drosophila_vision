@@ -10,7 +10,7 @@ coordinate formulas:
   - ``inside_mask(u, v, radius)`` is the shared inside/outside-the-disc predicate.
   - ``xy_from_uv`` / ``uv_from_xy`` convert axial ``(u, v)`` to hex-step ``(x, y)``;
     ``xy_deg_from_xy`` scales hex-step by :data:`DEG`; ``xy_deg_from_uv`` composes both.
-  - ``hex_vertices`` / ``draw_hex_patches`` draw degree-space hex patches
+  - ``hex_vertices`` / ``plot_hex_patches`` plot degree-space hex patches
     (shared by column maps, moving-bar sti, and plots).
   - :class:`HexGrid` holds an ideal disc's (u, v) coordinates (the plot reference
     panel); ``columns_with_uv(side)`` gives FAFB columns' (u, v).
@@ -106,7 +106,7 @@ def inside_mask(u, v, radius: int) -> np.ndarray:
 
     radius < 0 -> no cap, everything is inside (the shared default, RADIUS). This
     is the single source of truth for the inside/outside split used by
-    draw_fafb_columns, 5_apply_radius.py and the LC-column plot.
+    plot_fafb_columns, 5_apply_radius.py and the LC-column plot.
     """
     u = np.asarray(u, dtype=np.int64)
     v = np.asarray(v, dtype=np.int64)
@@ -253,7 +253,7 @@ def view_bounds_from_vertices(
     return min(xmins), min(ymins), max(xmaxs), max(ymaxs)
 
 
-def draw_hex_patches(
+def plot_hex_patches(
     ax,
     x,
     y,
@@ -291,7 +291,7 @@ def draw_hex_patches(
         )
 
 
-def draw_hex_patches_uv(
+def plot_hex_patches_uv(
     ax,
     u,
     v,
@@ -300,7 +300,7 @@ def draw_hex_patches_uv(
 ) -> None:
     """Draw hex patches for axial ``(u, v)`` via :func:`xy_deg_from_uv`."""
     x_deg, y_deg = xy_deg_from_uv(u, v)
-    draw_hex_patches(ax, x_deg, y_deg, facecolor, **kwargs)
+    plot_hex_patches(ax, x_deg, y_deg, facecolor, **kwargs)
 
 
 def set_axis_labels(ax, fontsize: Optional[int] = None) -> None:
@@ -310,10 +310,10 @@ def set_axis_labels(ax, fontsize: Optional[int] = None) -> None:
     ax.set_ylabel(Y_AXIS_LABEL, **kw)
 
 
-def _draw_hexes(ax, u, v, labels, facecolor, edgecolor, hex_radius, fontsize=3):
+def _plot_hexes(ax, u, v, labels, facecolor, edgecolor, hex_radius, fontsize=3):
     """Draw labeled hexagons at the given axial coordinates."""
     xs, ys = xy_deg_from_uv(np.asarray(u), np.asarray(v))
-    draw_hex_patches(
+    plot_hex_patches(
         ax, xs, ys, facecolor,
         edgecolor=edgecolor,
         hex_radius_px=hex_radius,
@@ -330,7 +330,7 @@ def _draw_hexes(ax, u, v, labels, facecolor, edgecolor, hex_radius, fontsize=3):
             )
 
 
-def draw_fafb_columns(
+def plot_fafb_columns(
     ax,
     df: pd.DataFrame,
     radius: Optional[int] = None,
@@ -358,11 +358,11 @@ def draw_fafb_columns(
     out_labels = (
         outside["column_id"].astype(int).tolist() if label else [None] * len(outside)
     )
-    _draw_hexes(
+    _plot_hexes(
         ax, inside["u"].values, inside["v"].values, in_labels,
         inside_color[0], inside_color[1], hex_radius_px, fontsize,
     )
-    _draw_hexes(
+    _plot_hexes(
         ax, outside["u"].values, outside["v"].values, out_labels,
         outside_color[0], outside_color[1], hex_radius_px, fontsize,
     )
@@ -409,7 +409,7 @@ def plot_column_map(
 
     fig, axes = plt.subplots(1, 3, figsize=(24, 9), sharex=True, sharey=True)
 
-    _draw_hexes(
+    _plot_hexes(
         axes[0], iu, iv,
         [f"({int(a)},{int(b)})" for a, b in zip(iu, iv)],
         "lightblue", "darkblue", hex_radius_px, fontsize=3.5,
@@ -420,8 +420,8 @@ def plot_column_map(
         fontsize=12, fontweight="bold",
     )
 
-    def _draw_fafb(ax, df, side_label):
-        draw_fafb_columns(ax, df, radius=radius, hex_radius_px=hex_radius_px)
+    def _plot_fafb(ax, df, side_label):
+        plot_fafb_columns(ax, df, radius=radius, hex_radius_px=hex_radius_px)
         if classify:
             mask = inside_mask(df["u"].values, df["v"].values, radius)
             n_in, n_out = int(mask.sum()), int((~mask).sum())
@@ -433,8 +433,8 @@ def plot_column_map(
             fontsize=12, fontweight="bold",
         )
 
-    _draw_fafb(axes[1], df_left, "left")
-    _draw_fafb(axes[2], df_right, "right")
+    _plot_fafb(axes[1], df_left, "left")
+    _plot_fafb(axes[2], df_right, "right")
 
     for ax in axes:
         ax.set_aspect("equal")

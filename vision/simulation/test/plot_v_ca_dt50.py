@@ -31,7 +31,7 @@ from network.build import cell_family_rows, cell_names_in_family_order
 from figure.util import TRACE_LW, TRACE_YLIM, save_figure
 from neuron.param import DELTA_MS, set_delta_ms
 from task.spot.gt import cell_list, resolve_spot_cost_radii, build_spot_center_readout
-from task.spot.input import MS_PRE, MS_RESPONSE, spot_from_opts, spot_sti_batches
+from task.spot.sti_geo import resolve_spot, spot_sti_batches
 from training.config import PARAMETER_DIR
 
 DEFAULT_RUN = (
@@ -75,7 +75,7 @@ def _fit_center_traces(session, z, *, return_v_delta: bool) -> dict[str, np.ndar
 
     opts = dict((session.train_opts or {}).get(f"{pack.name}_sti_opts") or {})
     connectome = session.backend.network
-    spot = spot_from_opts(connectome, sti_opts=opts)
+    spot = resolve_spot(connectome, sti_opts=opts)
     batches = spot_sti_batches(spot)
     cost_radii = resolve_spot_cost_radii(sti_opts=opts)
     batch_idx, node_idx, _r, type_idx, _su, _sv, _du, _dv, center_row = (
@@ -112,7 +112,7 @@ def _session_z_at_delta_ms(base_opts, model, named, cell_names, pair_names, dt_m
             continue
         so["delta_ms"] = float(dt_ms)
 
-    session = training.open_session_from_opts(opts, model=model)
+    session = training.session_from_opts(opts, model=model)
     remapped = training.remap_named_node_values(
         named, cell_names, pair_names, list(session.schema), session.backend,
     )
@@ -207,7 +207,7 @@ def main():
         raise SystemExit(f"missing train_opts.json under {run_path}")
     base_opts = _apply_spot_timing(raw_opts, ms_pre=ms_pre, ms_response=ms_response)
     model = base_opts.get("model")
-    session0 = training.open_session_from_opts(base_opts, model=model)
+    session0 = training.session_from_opts(base_opts, model=model)
 
     import training.implement as train_mod
     named, cell_names, pair_names = train_mod.load_best_param_named(run_path)

@@ -38,7 +38,7 @@ from figure.util import (
 )
 from import_bootstrap import parse_bool, parse_comma_list
 from neuron.filter_ca import filter_ca
-from neuron.schema import default_scalar
+from neuron.schema import optimizable_scalar
 from network.construction import hex2gt
 from task.moving_bar.pack import (
     bar_specs_for_session,
@@ -53,10 +53,10 @@ from task.moving_bar.sti_geo import (
 )
 from task.spot.pack import build_spot_center_readout
 from task.spot.sti_geo import (
-    spot_from_opts,
+    resolve_spot,
     spot_sti_batches,
 )
-from train.cli import parse_tasks, sti_timing_kwargs_from_args
+from train.cli import resolve_tasks, resolve_sti_timing_kwargs
 
 __doc__ = """Borst / hp_lp v component analysis.
 
@@ -237,7 +237,7 @@ class SharedCli:
 def add_shared_cli(
     ap: argparse.ArgumentParser,
     *,
-    default_run: str | None = None,
+    run_path: str | None = None,
 ) -> None:
     """Register positional cell + ``--run/--task/--spec/--x/--y``."""
     ap.add_argument(
@@ -251,10 +251,10 @@ def add_shared_cli(
         "help": (
             "run directory (absolute, or relative to PARAMETER_DIR via "
             "plot_trained.resolve_run_dir)"
-            + (f"; default: {default_run}" if default_run else "")
+            + (f"; omit → {run_path}" if run_path else "")
         ),
     }
-    if default_run is None:
+    if run_path is None:
         run_kw["required"] = True
     ap.add_argument("--run", **run_kw)
     ap.add_argument(
@@ -283,11 +283,11 @@ def add_shared_cli(
     )
 
 
-def parse_shared_cli(args: argparse.Namespace) -> SharedCli:
+def resolve_shared_cli(args: argparse.Namespace) -> SharedCli:
     cells = parse_comma_list(args.cell)
     if not cells:
         raise SystemExit("cell is required")
-    tasks = parse_tasks(args.task)
+    tasks = resolve_tasks(args.task)
     if not tasks:
         raise SystemExit("--task is required")
     specs_req = parse_comma_list(args.spec) if args.spec is not None else None
@@ -1036,7 +1036,7 @@ def _forward_component(
             batch_ca_sums.append({cell: np.zeros(n_t_aligned, dtype=float) for cell in cells})
             batch_ca_pre_sums.append({cell: np.zeros(n_t_aligned, dtype=float) for cell in cells})
 
-    node_lookups = [_node_cell_lookup(plan, cells) for plan in batches]
+    cell_idx_from_node_ids = [_cell_idx_from_node_id(plan, cells) for plan in batches]
 
     for t_global in range(1, n_t):
         if t_last is not None and t_global > t_last:
@@ -1113,8 +1113,8 @@ def _forward_component(
                     v_pre, v, component_t, active_node_idx, v_onset, batch_idx=batch_idx,
                 )
             component_mat = _component_matrix(component, spec.keys)
-            lookup = node_lookups[batch_idx]
-            tags = lookup[active_node_idx]
+            cell_idx_from_node_id = cell_idx_from_node_ids[batch_idx]
+            tags = cell_idx_from_node_id[active_node_idx]
             v_ca_active = ca_post_active = ca_pre_active = None
             if ca is not None:
                 active_node_idx_t = torch.as_tensor(
@@ -1421,7 +1421,7 @@ def cell_from_node(nodes_by_cell: dict[str, np.ndarray]) -> dict[int, str]:
     return out
 
 
-def _node_cell_lookup(plan: _ComponentForwardBatch, cells: list[str]) -> np.ndarray:
+def _cell_idx_from_node_id(plan: _ComponentForwardBatch, cells: list[str]) -> np.ndarray:
     """Map node id → index in ``cells`` (-1 if absent). Length ``max(node_id)+1``."""
     cell_idx_from_cell = {cell: cell_idx for cell_idx, cell in enumerate(cells)}
     if plan.nodes.size == 0:
@@ -1829,7 +1829,7 @@ def _spot_session_readout(session_one, cells: list[str]):
     if connectome is None:
         raise SystemExit("spot average requires a network backend")
     opts = dict((session_one.train_opts or {}).get(f"{pack.name}_sti_opts") or {})
-    spot = spot_from_opts(connectome, sti_opts=opts)
+    spot = resolve_spot(connectome, sti_opts=opts)
     (
         batch_idx, node_idx, radii, type_idx, _sti_u, _sti_v, _du, _dv, _center_entry_mask,
     ) = build_spot_center_readout(
@@ -1896,8 +1896,8 @@ def _spot_extra_for_cell_fn(
     ).get(contrast) or {}
     opts = session_one.train_opts or {}
     from_onset = train.val_from_enabled(opts, "bias_gt")
-    lo = default_scalar("bias_gt", "lo", NEURON_SCHEMA['defaults'])
-    hi = default_scalar("bias_gt", "hi", NEURON_SCHEMA['defaults'])
+    lo = optimizable_scalar("bias_gt", "lo", NEURON_SCHEMA['optimizable'])
+    hi = optimizable_scalar("bias_gt", "hi", NEURON_SCHEMA['optimizable'])
     cell_names = [str(cell_name) for cell_name in session_one.backend.network.cells]
 
     def extra_for_cell(
@@ -2406,10 +2406,10 @@ def _plot_component_reports(
                 if gt_key is not None:
                     gt_full = np.asarray(rep[gt_key], dtype=float)
                     t_onset = int(rep.get("before_t") or 0)
-                    time_idx = ts - t_onset
-                    valid = (time_idx >= 0) & (time_idx < gt_full.shape[0])
+                    t = ts - t_onset
+                    valid = (t >= 0) & (t < gt_full.shape[0])
                     if np.any(valid):
-                        y_gt = gt_full[time_idx[valid]]
+                        y_gt = gt_full[t[valid]]
                         xs_gt = xs[valid]
                         if row_idx in spec.row_shared_ylim:
                             row_curves[row_idx].append(y_gt)
@@ -2671,7 +2671,7 @@ def main() -> None:
         description=__doc__,
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
-    add_shared_cli(ap, default_run=RUN_PATH)
+    add_shared_cli(ap, run_path=RUN_PATH)
     plot_trained.add_plot_timing_arguments(ap)
     plot_trained.add_plot_euler_argument(ap)
     plot_trained.add_plot_filter_argument(ap)
@@ -2720,7 +2720,7 @@ def main() -> None:
     args = ap.parse_args()
     if not args.run:
         args.run = [RUN_PATH]
-    cli = parse_shared_cli(args)
+    cli = resolve_shared_cli(args)
 
     if args.radius != 0 and not any(task in train.SPOT_TASKS for task in cli.tasks):
         raise SystemExit("--radius requires a spot task")
@@ -2758,7 +2758,7 @@ def main() -> None:
         ms_range = None  # default: 0 .. last sample
         use_ms = True
 
-    param_edits = plot_trained.parse_default_param_tokens(args.param)
+    param_edits = plot_trained.parse_optimizable_param_tokens(args.param)
 
     for run_idx, run_arg in enumerate(args.run):
         run_dir = plot_trained.resolve_run_dir(run_arg)
@@ -2766,7 +2766,7 @@ def main() -> None:
         session, z, best_cost = plot_trained.load_best(run_dir)
         train_opts = plot_trained.load_train_opts(run_dir) or {}
         train_filter = train.expand_filter(train_opts.get("filter", "none"))
-        timing_kw = sti_timing_kwargs_from_args(
+        timing_kw = resolve_sti_timing_kwargs(
             args,
             filter=args.filter if args.filter is not None else train_filter,
         )
@@ -2801,7 +2801,7 @@ def main() -> None:
             z_t, schema, session, param_edits,
         )
         session = session.with_schema(schema)
-        params = train.materialize_from_opts(
+        params = train.params_from_opts(
             train.assign_params(z_t, schema, session.backend), session,
         )
         cost = float(train.calc_cost(z_t, session).item())

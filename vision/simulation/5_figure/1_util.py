@@ -31,7 +31,7 @@ def as_numpy(arr):
 def gt_affine_scalars_for_cell(params, cell_name, backend, session=None) -> tuple[float, float]:
     """``(a_gt, effective_bias)`` for one cell type name (matches cost).
 
-    ``params`` must already have ``materialize_from_opts`` applied so
+    ``params`` must already have ``params_from_opts`` applied so
     ``bias_gt`` / ``v_th_ca`` / ``a_ca`` hold ``val_from`` sources when enabled.
     When ``val_from`` bias_gt is on, do not add ``v_th``.
     """
@@ -431,13 +431,13 @@ def plot_pre_post_line(
     linestyle='-',
     linewidth=TRACE_LW,
     label=None,
-    draw_pre=False,
+    plot_pre=False,
 ):
     """Plot a 1-D series with optional dashed pre-``pre_end`` segment.
 
     ``pre_end`` is the first post-onset index (samples ``[0, pre_end)`` are pre).
-    Gray gt uses ``draw_pre=False`` (never draws pre). v_readout uses
-    ``draw_pre=show_pre`` (dashed pre when true; omit pre when false).
+    Gray gt uses ``plot_pre=False`` (never plots pre). v_readout uses
+    ``plot_pre=show_pre`` (dashed pre when true; omit pre when false).
     """
     if y is None:
         return
@@ -457,7 +457,7 @@ def plot_pre_post_line(
         )
     n = int(y_arr.shape[0])
     split = max(0, min(int(pre_end or 0), n))
-    if draw_pre and show_pre and split > 0:
+    if plot_pre and show_pre and split > 0:
         # Include the onset sample so dashed and solid segments meet.
         end_pre = min(split + 1, n)
         ax.plot(
@@ -520,7 +520,7 @@ def plot_timecourse(
                 )
         elif gt is not None:
             plot_pre_post_line(
-                ax, t, gt, pre_end=split, show_pre=False, draw_pre=False,
+                ax, t, gt, pre_end=split, show_pre=False, plot_pre=False,
                 color=GT_COLOR, linestyle=linestyle, linewidth=TRACE_LW,
             )
         if v_readout is not None:
@@ -531,7 +531,7 @@ def plot_timecourse(
                 if split < m_arr.shape[0]:
                     plot_std_band(ax, t_arr[split:], m_arr[split:], s_arr[split:])
             plot_pre_post_line(
-                ax, t, v_readout, pre_end=split, show_pre=show_pre, draw_pre=True,
+                ax, t, v_readout, pre_end=split, show_pre=show_pre, plot_pre=True,
                 color=V_READOUT_COLOR, linestyle=linestyle, linewidth=TRACE_LW,
             )
     if title is not None:

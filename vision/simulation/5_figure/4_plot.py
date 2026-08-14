@@ -11,7 +11,7 @@ import torch
 
 import import_bootstrap  # noqa: F401
 import train
-from task.spot.sti_geo import spot_from_opts
+from task.spot.sti_geo import resolve_spot
 from figure import moving_bar as moving_bar_plot
 from figure import spot as spot_plot
 from figure.util import (
@@ -46,7 +46,7 @@ def _network_spot_tag(session, tname):
     if session.backend.network is None:
         return ''
     opts = (session.train_opts or {}).get(f'{tname}_sti_opts') or {}
-    spot = spot_from_opts(session.backend.network, sti_opts=opts)
+    spot = resolve_spot(session.backend.network, sti_opts=opts)
     n_spots = len(spot.centers)
     n_shifts = len(spot.shifts)
     n_hexes = network_hex_count(session.backend.network)
@@ -67,7 +67,7 @@ def load_train_opts(outdir):
 
 
 def load_session(outdir, model=None):
-    return train.open_session_from_outdir(outdir, model)
+    return train.session_from_outdir(outdir, model)
 
 
 def session_for_task(base_session, tname):
@@ -262,7 +262,7 @@ def maybe_override_sti_timing(
     if filter is not None:
         opts["filter"] = train.expand_filter(filter)
 
-    session = train.open_session_from_opts(opts, model=opts.get("model"))
+    session = train.session_from_opts(opts, model=opts.get("model"))
     session, z = _session_z_from_best_named(session, run_dir)
     return session, z, timing_changed
 
@@ -703,9 +703,9 @@ def add_param_argument(parser):
     _add(parser, for_plot=True)
 
 
-def parse_default_param_tokens(tokens):
+def parse_optimizable_param_tokens(tokens):
     try:
-        return train.parse_default_param_tokens(tokens)
+        return train.parse_optimizable_param_tokens(tokens)
     except ValueError as exc:
         raise SystemExit(str(exc)) from exc
 
@@ -722,7 +722,7 @@ def apply_param_overrides(z, schema, session, edits):
         raise SystemExit(str(exc)) from exc
 
 
-def plot_kwargs_from_args(args):
+def resolve_plot_kwargs(args):
     """Map a parsed CLI namespace to :func:`plot_param_set` plot kwargs."""
     align_xy = parse_align_xy(args.align_xy)
     align_at_x, align_at_y = align_xy if align_xy is not None else (None, None)
@@ -759,17 +759,17 @@ def main():
     add_param_argument(ap)
     args = ap.parse_args()
     try:
-        plot_kw = plot_kwargs_from_args(args)
+        plot_kw = resolve_plot_kwargs(args)
     except ValueError as exc:
         raise SystemExit(str(exc)) from exc
 
-    from train.cli import sti_timing_kwargs_from_args
-    param_edits = parse_default_param_tokens(args.param)
+    from train.cli import resolve_sti_timing_kwargs
+    param_edits = parse_optimizable_param_tokens(args.param)
 
     outdir = resolve_run_dir(args.run_path)
     train_opts = load_train_opts(outdir) or {}
     eff_filter = args.filter if args.filter is not None else train_opts.get("filter")
-    timing_kw = sti_timing_kwargs_from_args(args, filter=eff_filter)
+    timing_kw = resolve_sti_timing_kwargs(args, filter=eff_filter)
     session, z, best_cost = load_best(outdir, verbose=True)
     session, z, timing_changed = maybe_override_sti_timing(
         run_dir=outdir, session=session, z=z, **timing_kw,

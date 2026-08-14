@@ -3,7 +3,7 @@
 
 Numeric literals live in ``default_params`` and are injected by the
 caller (session fields / kwargs). Schema default numbers live in
-``default_params.NEURON_SCHEMA['defaults']``.
+``default_params.NEURON_SCHEMA['optimizable']``.
 """
 from __future__ import annotations
 

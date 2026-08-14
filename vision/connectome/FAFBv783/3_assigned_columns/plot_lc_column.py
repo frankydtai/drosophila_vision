@@ -39,7 +39,7 @@ from build_hex import (  # noqa: E402
     HEX_PATCH_RADIUS,
     INSIDE_COLOR,
     OUTSIDE_COLOR,
-    _draw_hexes,
+    _plot_hexes,
     xy_deg_from_uv,
     inside_mask,
     set_axis_labels,
@@ -222,7 +222,7 @@ def make_figure(cols: pd.DataFrame, lc_cells: List[str] = LC_CELLS) -> Path:
                 continue
             u, v = zip(*[(col_u[c], col_v[c]) for c in ids])
             face, edge = _shade(shade, cnt)
-            _draw_hexes(
+            _plot_hexes(
                 ax, np.array(u), np.array(v), [None] * len(ids),
                 face, edge, HEX_PATCH_RADIUS,
             )
@@ -230,8 +230,8 @@ def make_figure(cols: pd.DataFrame, lc_cells: List[str] = LC_CELLS) -> Path:
         return n
 
     def _panel(ax, n_by_column, title):
-        # Background: every right column in light grey (reuse _draw_hexes).
-        _draw_hexes(ax, bg_u, bg_v, bg_labels, EMPTY_COLOR[0], EMPTY_COLOR[1], HEX_PATCH_RADIUS)
+        # Background: every right column in light grey (reuse _plot_hexes).
+        _plot_hexes(ax, bg_u, bg_v, bg_labels, EMPTY_COLOR[0], EMPTY_COLOR[1], HEX_PATCH_RADIUS)
         # Discrete per-n colors (INSIDE_SHADE / OUTSIDE_SHADE).
         n_in = _fill(ax, n_by_column, lambda c: c in inside_ids, INSIDE_SHADE)
         n_out = _fill(ax, n_by_column, lambda c: c not in inside_ids, OUTSIDE_SHADE)

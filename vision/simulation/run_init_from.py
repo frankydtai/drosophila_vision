@@ -38,7 +38,7 @@ def main(argv=None):
     parser = _run.build_run_argparser()
     args = parser.parse_args(argv)
     try:
-        kw = _run.run_kwargs_from_args(args, script_stem="run_init_from")
+        kw = _run.resolve_run_kwargs(args, script_stem="run_init_from")
     except ValueError as exc:
         raise SystemExit(str(exc)) from exc
     kw["init_from"] = args.init_from or RUN_PATH

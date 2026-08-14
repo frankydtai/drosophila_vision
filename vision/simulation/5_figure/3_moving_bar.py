@@ -16,7 +16,7 @@ from task.moving_bar.gt import (
     load_fig1_trace,
     motion_preference,
     moving_bar_cell_title,
-    moving_bar_dsi_lookup,
+    dsi_from_trace_map,
 )
 from task.moving_bar.pack import (
     bar_specs_for_session,
@@ -134,8 +134,8 @@ def _moving_bar_cell_title(
     sname,
     ca_mean,
     gt_mean,
-    ca_dsi_lookup,
-    gt_dsi_lookup,
+    ca_dsi_from_trace,
+    gt_dsi_from_trace,
     key,
     *,
     type_name,
@@ -149,8 +149,8 @@ def _moving_bar_cell_title(
             head = '\n'.join([f'{type_name} Cost', *cost_lines, head])
     return moving_bar_cell_title(
         head,
-        ca_dsi=ca_dsi_lookup.get(key),
-        gt_dsi=gt_dsi_lookup.get(key),
+        ca_dsi=ca_dsi_from_trace.get(key),
+        gt_dsi=gt_dsi_from_trace.get(key),
         has_gt=gt_mean.get(key) is not None,
     )
 
@@ -201,12 +201,12 @@ def _windows_by_batch(ca_full, t0_bn, n_t_by_batch):
         t_len = sl.shape[1]
         n_nodes = sl.shape[2]
         t_in_window_idx = np.arange(n_t_batch, dtype=np.int64)
-        t_idx = t0[..., None] + t_in_window_idx[None, None, :]
-        t_safe = np.clip(t_idx, 0, t_len - 1)
+        t_abs = t0[..., None] + t_in_window_idx[None, None, :]
+        t_safe = np.clip(t_abs, 0, t_len - 1)
         b_idx = np.zeros(1, dtype=np.int64)[:, None, None]
         u_idx = np.arange(n_nodes, dtype=np.int64)[None, :, None]
         batch = sl[b_idx, t_safe, u_idx].astype(np.float64, copy=False)
-        batch[t_idx < 0] = 0.0
+        batch[t_abs < 0] = 0.0
         out.append(batch[0])
     return out
 
@@ -355,7 +355,7 @@ def _load_moving_bar_gt_mean(session, task, cells, specs, side):
     return gt_mean
 
 
-def _moving_bar_traces_from_forward(
+def _traces_from_forward(
     session, task, trace_full, specs, spec_names, *,
     at_x=None, at_y=None,
 ):
@@ -403,7 +403,7 @@ def moving_bar_trace_readout(session, z, task, *, at_x=None, at_y=None,
     t_prep0 = time.perf_counter()
     pack = session.pack_for(task)
     schema = list(session.schema)
-    params = train.materialize_from_opts(
+    params = train.params_from_opts(
         train.assign_params(z, schema, session.backend), session,
     )
     v = train.forward_v(session, params, pack.i_sti, pack=pack)
@@ -414,13 +414,13 @@ def moving_bar_trace_readout(session, z, task, *, at_x=None, at_y=None,
     else:
         v_ca = None
         plot_t = v
-    train.materialize_from_opts(params, session, onset_trace=plot_t, t_onset=t0)
+    train.params_from_opts(params, session, onset_trace=plot_t, t_onset=t0)
     trace_full = plot_t.detach().cpu().numpy()
     specs = bar_specs_for_session(session, task)
     spec_names = [s.name for s in specs]
     n_t = int(session.n_t)
     connectome = session.backend.network
-    traces, cells, side, n_filter_hexes, t_onset, single_hex = _moving_bar_traces_from_forward(
+    traces, cells, side, n_filter_hexes, t_onset, single_hex = _traces_from_forward(
         session, task, trace_full, specs, spec_names,
     )
     v_th = v_th_by_type_name(z, session)
@@ -709,7 +709,7 @@ def _plot_moving_bar_cell_slices(
     for i, label in enumerate(slice_labels):
         plot_pre_post_line(
             ax, t, slice_traces[label], pre_end=pre_end,
-            show_pre=show_pre, draw_pre=True,
+            show_pre=show_pre, plot_pre=True,
             color=colors[i], linestyle='-', linewidth=TRACE_LW, label=label,
         )
     if show_std and std_trace is not None and np.any(std_trace):
@@ -717,7 +717,7 @@ def _plot_moving_bar_cell_slices(
         plot_std_band(ax, t[split:], scope_trace[split:], std_trace[split:])
     plot_pre_post_line(
         ax, t, scope_trace, pre_end=pre_end,
-        show_pre=show_pre, draw_pre=True,
+        show_pre=show_pre, plot_pre=True,
         color=colors[-1], linestyle='-', linewidth=TRACE_LW, label='scope',
     )
     if title is not None:
@@ -787,12 +787,12 @@ def _moving_bar_all_figure(readout_on, readout_2, title, *, right_only=True, cos
     show_std = not single_hex and not has_slices
     nrows = len(cells)
     ncols = len(spec_names)
-    ca_dsi_on = moving_bar_dsi_lookup(wt_on.ca_mean, cells, readout_on.spec_names)
-    gt_dsi_on = moving_bar_dsi_lookup(readout_on.gt_mean, cells, readout_on.spec_names)
+    ca_dsi_on = dsi_from_trace_map(wt_on.ca_mean, cells, readout_on.spec_names)
+    gt_dsi_on = dsi_from_trace_map(wt_on.gt_mean, cells, readout_on.spec_names)
     ca_dsi_2 = gt_dsi_2 = None
     if readout_2 is not None:
-        ca_dsi_2 = moving_bar_dsi_lookup(wt_2.ca_mean, cells, readout_2.spec_names)
-        gt_dsi_2 = moving_bar_dsi_lookup(readout_2.gt_mean, cells, readout_2.spec_names)
+        ca_dsi_2 = dsi_from_trace_map(wt_2.ca_mean, cells, readout_2.spec_names)
+        gt_dsi_2 = dsi_from_trace_map(readout_2.gt_mean, cells, readout_2.spec_names)
     fig, axes = _moving_bar_figure(nrows, ncols)
     for ri, tname in enumerate(cells):
         for ci, sname in enumerate(spec_names):
@@ -894,12 +894,12 @@ def plot_moving_bar_gt(path, *, readout, readout_2=None, title=None, cost_parts=
     nrows = len(gt_cells)
     fig, axes = _moving_bar_figure(nrows, ncols)
 
-    ca_dsi_on = moving_bar_dsi_lookup(readout.traces.ca_mean, gt_cells, readout.spec_names)
-    gt_dsi_on = moving_bar_dsi_lookup(readout.gt_mean, gt_cells, readout.spec_names)
+    ca_dsi_on = dsi_from_trace_map(readout.traces.ca_mean, gt_cells, readout.spec_names)
+    gt_dsi_on = dsi_from_trace_map(readout.gt_mean, gt_cells, readout.spec_names)
     ca_dsi_2 = gt_dsi_2 = None
     if readout_2 is not None:
-        ca_dsi_2 = moving_bar_dsi_lookup(readout_2.traces.ca_mean, gt_cells, readout_2.spec_names)
-        gt_dsi_2 = moving_bar_dsi_lookup(readout_2.gt_mean, gt_cells, readout_2.spec_names)
+        ca_dsi_2 = dsi_from_trace_map(readout_2.traces.ca_mean, gt_cells, readout_2.spec_names)
+        gt_dsi_2 = dsi_from_trace_map(readout_2.gt_mean, gt_cells, readout_2.spec_names)
 
     def _plot_row(ri, subtype, specs, col_offset, row_readout, plot_side, ca_dsi, gt_dsi):
         wt = row_readout.traces

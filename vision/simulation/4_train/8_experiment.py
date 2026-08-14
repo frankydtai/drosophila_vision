@@ -9,7 +9,7 @@ from default_params import (
 import train
 
 
-def merge_i_h_param_modes(train_kw):
+def resolve_i_h_param_modes(train_kw):
     """Pop CLI ``param_modes`` from *train_kw* and merge default i_h/hp splits.
 
     Borst: ``a_h`` / ``a_h_rev``.

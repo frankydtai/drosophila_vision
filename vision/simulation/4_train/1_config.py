@@ -261,7 +261,7 @@ def expand_gt_dict(kv: Optional[dict]) -> Dict[str, List[str]]:
     return _expand_alias_dict(kv, TASK_ALIASES, lambda cells: [str(c) for c in cells])
 
 
-def resolve_cost_radius_by_task(tasks, default, by_task_kv) -> Dict[str, int]:
+def resolve_cost_radius_by_task(tasks, bare_cost_radius, by_task_kv) -> Dict[str, int]:
     """Map each concrete task to its explicitly requested cost radius."""
     expanded = expand_cost_radius_dict(by_task_kv or {})
     bad = [k for k in expanded if k not in VALID_TASKS]
@@ -274,8 +274,8 @@ def resolve_cost_radius_by_task(tasks, default, by_task_kv) -> Dict[str, int]:
     for tname in tasks:
         if tname in expanded:
             out[tname] = int(expanded[tname])
-        elif default is not None:
-            out[tname] = int(default)
+        elif bare_cost_radius is not None:
+            out[tname] = int(bare_cost_radius)
     return out
 
 
@@ -284,7 +284,8 @@ def expand_part_cost_scale_dict(scales: Optional[dict]) -> Dict[str, float]:
     return _expand_alias_dict(scales, PART_COST_SCALE_ALIASES, float)
 
 
-def normalize_tasks(tasks) -> List[str]:
+def resolve_tasks(tasks) -> List[str]:
+    """Expand task aliases and validate concrete task names."""
     if tasks is None:
         raise ValueError("tasks required")
     if isinstance(tasks, str):

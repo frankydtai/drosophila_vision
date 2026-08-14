@@ -41,8 +41,8 @@ from default_params import (
     TRAIN_OPTIMIZATION,
     TRAIN_SESSION,
 )
-from task.spot.sti_spec import t_sti_end, sti_timing_from_opts
-from neuron.schema import default_scalar, spot_radius_key
+from task.spot.sti_spec import t_sti_end, resolve_sti_timing
+from neuron.schema import optimizable_scalar, spot_radius_key
 from train import do_many_runs
 import train
 from train.config import (
@@ -125,7 +125,7 @@ def v_spot_markers_by_cell(z_t, session):
     """
     schema = list(session.schema)
     z = torch.as_tensor(z_t, dtype=session.sim_dtype, device=session.device)
-    params = train.materialize_from_opts(
+    params = train.params_from_opts(
         train.assign_params(z, schema, session.backend), session,
     )
     pack = session.primary_pack
@@ -144,7 +144,7 @@ def v_spot_markers_by_cell(z_t, session):
     if t_onset < 0 or t_onset >= n_t:
         raise ValueError(f"t_onset={t_onset} out of range for forward T={n_t}")
     opts = (session.train_opts or {}).get(f"{pack.name}_sti_opts") or {}
-    timing = sti_timing_from_opts(opts)
+    timing = resolve_sti_timing(opts)
     t_end = t_sti_end(
         t_onset, n_t, timing.ms_sti,
         delta_ms=timing.delta_ms,
@@ -237,8 +237,8 @@ def v_spot_markers_by_cell(z_t, session):
                 ca, t_onset, session,
             ).detach().cpu().numpy()
         else:
-            lo = default_scalar("bias_gt", "lo", NEURON_SCHEMA['defaults'])
-            hi = default_scalar("bias_gt", "hi", NEURON_SCHEMA['defaults'])
+            lo = optimizable_scalar("bias_gt", "lo", NEURON_SCHEMA['optimizable'])
+            hi = optimizable_scalar("bias_gt", "hi", NEURON_SCHEMA['optimizable'])
             bias = np.clip(v_onset, lo, hi)
         out["bias_gt"] = np.asarray(bias, dtype=np.float64)
     return out
@@ -569,7 +569,7 @@ def load_init_z(init_from, session):
     remapped = train.remap_named_node_values(
         named, cells, pair_names, schema, session.backend,
     )
-    schema = train.seed_fixed_from_named(schema, remapped)
+    schema = train.init_override_from_named(schema, remapped)
     schema = train.attach_param_carry(schema, remapped)
     opts = dict(session.train_opts or {})
     opts['param_modes'] = train.schema_param_modes_record(
@@ -680,7 +680,7 @@ def build_session(
 ):
     """Create a :class:`TrainSession` from run options."""
     tl = list(tasks) if tasks is not None else list(
-        train.normalize_tasks([TRAIN_CONFIG['task']])
+        train.resolve_tasks([TRAIN_CONFIG['task']])
     )
     dev = train.active_device()
     mkw = dict(
@@ -706,7 +706,7 @@ def build_session(
     if not network:
         raise ValueError("build_session requires network")
     network = str(resolve_network_json(network))
-    opts = train.build_train_opts(
+    opts = train.resolve_train_opts(
         backend="network",
         network_json=network,
         dev=dev,

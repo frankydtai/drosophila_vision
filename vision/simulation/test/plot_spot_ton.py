@@ -79,7 +79,7 @@ def main():
             so.pop("t_on", None)
             so.pop("n_t", None)
 
-    session = training.open_session_from_opts(opts, model=opts.get("model"))
+    session = training.session_from_opts(opts, model=opts.get("model"))
 
     import training.implement as train_mod
     named, cell_names, pair_names = train_mod.load_best_param_named(run_path)

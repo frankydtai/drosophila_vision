@@ -30,8 +30,8 @@ import torch
 from neuron import I_H_DIR_REVERSE_CELLS
 from neuron.schema import (
     expand_param_nodes,
-    parse_default_tokens,
-    default_scalar,
+    parse_optimizable_tokens,
+    optimizable_scalar,
     resolve_mode_edits,
 )
 
@@ -89,14 +89,14 @@ def build_i_h_dirs(conn, i_h_reverse_cells=I_H_DIR_REVERSE_CELLS, *, dtype=SIM_D
 
 
 # --- parameter schema param_modes --------------------------------------------
-# Numeric lo/hi/init/jit + mode: ``default_params.NEURON_SCHEMA['defaults']``.
+# Numeric lo/hi/init/jit + mode: ``default_params.NEURON_SCHEMA['optimizable']``.
 # Model segment lists: ``neuron.schema``.
 # Each segment:
 #   name, kind, count, lo/hi/init/jit[, z_map]
 #   z_map: ``linear`` (default), ``log`` (z = log(physical)), or ``inv`` (z = 1/physical); lo/hi/init physical
 #   indi / shared / fixed / frozen : disjoint exhaustive lists of node indices
 #       fixed: not in z; value = effective_init(segment, node_idx)  (init_override or init);
-#              --init-from seeds fixed via seed_fixed_from_named → init_override
+#              --init-from seeds fixed via init_override_from_named → init_override
 #       frozen: not in z; values from segment['carry'] (resume) or effective_init (cold)
 # z packing per segment: len(indi) slots + (1 if shared else 0).
 PARAM_MODES = ('indi', 'shared', 'fixed', 'frozen')
@@ -416,7 +416,7 @@ def validate_syn_strength_edge_param_mode(raw, *, param_name='syn_strength_edge'
     return raw
 
 
-def seed_fixed_from_named(schema, named):
+def init_override_from_named(schema, named):
     """Stamp *named* values into ``init_override`` for fixed nodes (not in z)."""
     out = []
     for segment in schema:
@@ -446,16 +446,16 @@ def attach_param_carry(schema, named=None):
             s.pop('carry', None)
             out.append(s)
             continue
-        count = segment_count(segment)
+        n_nodes = segment_count(segment)
         if named is not None and segment['name'] in named:
             carry = np.asarray(named[segment['name']], dtype=np.float64).reshape(-1).copy()
         else:
             carry = np.asarray(
-                [effective_init(segment, i) for i in range(count)], dtype=np.float64,
+                [effective_init(segment, i) for i in range(n_nodes)], dtype=np.float64,
             )
-        if carry.shape[0] != count:
+        if carry.shape[0] != n_nodes:
             raise ValueError(
-                f"{segment['name']}: carry length {carry.shape[0]} != count {count}"
+                f"{segment['name']}: carry length {carry.shape[0]} != n_nodes {n_nodes}"
             )
         s['carry'] = carry
         out.append(s)
@@ -509,9 +509,9 @@ def named_moments_from_z(exp_avg, exp_avg_sq, schema):
     named_m = {}
     named_v = {}
     for segment, start, stop in schema_segments(schema):
-        count = segment_count(segment)
-        m_arr = np.zeros(count, dtype=np.float64)
-        v_arr = np.zeros(count, dtype=np.float64)
+        n_nodes = segment_count(segment)
+        m_arr = np.zeros(n_nodes, dtype=np.float64)
+        v_arr = np.zeros(n_nodes, dtype=np.float64)
         z_slot_idx = 0
         for node_idx in segment.get('indi', ()):
             m_arr[int(node_idx)] = float(exp_avg[start + z_slot_idx])
@@ -571,8 +571,8 @@ def _remap_named(named, src_cells, src_pair_names, schema, backend, *, fill):
     out = {}
     for segment in schema:
         name = segment['name']
-        count = segment_count(segment)
-        arr = np.asarray([fill(segment, j) for j in range(count)], dtype=np.float64)
+        n_nodes = segment_count(segment)
+        arr = np.asarray([fill(segment, j) for j in range(n_nodes)], dtype=np.float64)
         src = named.get(name)
         if src is None:
             out[name] = arr
@@ -583,10 +583,10 @@ def _remap_named(named, src_cells, src_pair_names, schema, backend, *, fill):
                 if pn in src_p and src_p[pn] < src.shape[0]:
                     arr[j] = float(src[src_p[pn]])
         elif segment['kind'] == 'edge':
-            if src.shape[0] == count:
+            if src.shape[0] == n_nodes:
                 arr[:] = src
         elif segment.get('node_names') is not None:
-            n_copy = min(count, int(src.shape[0]))
+            n_copy = min(n_nodes, int(src.shape[0]))
             arr[:n_copy] = src[:n_copy]
         else:
             for j, tn in enumerate(dst_cells):
@@ -600,7 +600,7 @@ def remap_named_moments(named, src_cells, src_pair_names, schema, backend):
     """Remap named moment arrays; missing nodes/params fill 0."""
     return _remap_named(
         named, src_cells, src_pair_names, schema, backend,
-        fill=lambda _seg, _j: 0.0,
+        fill=lambda segment, _j: 0.0,
     )
 
 
@@ -612,9 +612,9 @@ def remap_named_node_values(named, src_cells, src_pair_names, schema, backend):
 
 
 def _reconstruct_raw(segment, z_slice, z):
-    """Build length-`count` per-node vector from z slice + param_mode lists."""
-    count = segment_count(segment)
-    raw = torch.empty((count,), dtype=z.dtype, device=z.device)
+    """Build length-``n_nodes`` per-node vector from z slice + param_mode lists."""
+    n_nodes = segment_count(segment)
+    raw = torch.empty((n_nodes,), dtype=z.dtype, device=z.device)
     carry = segment.get('carry')
     for node_idx in segment.get('fixed', ()):
         raw[int(node_idx)] = effective_init(segment, node_idx)
@@ -635,7 +635,7 @@ def _reconstruct_raw(segment, z_slice, z):
 
 
 def _expand_segment(segment, raw, backend: ModelBackend):
-    """Map a length-`count` per-node vector to a usable parameter, per its 'kind'."""
+    """Map a length-``n_nodes`` per-node vector to a usable parameter, per its 'kind'."""
     kind = segment['kind']
     dev = backend.conn.node_cells.device
     if kind == 'full':
@@ -655,17 +655,14 @@ def assign_params(z, schema, backend: ModelBackend):
 
 def bias_gt_from_onset_trace(onset_trace, t_onset, session):
     """Per-cell-type mean of ``onset_trace[:, t_onset, :]``, clamped to ``bias_gt`` default."""
-    opts = session.train_opts or {}
-    lo = default_scalar("bias_gt", "lo", NEURON_SCHEMA['defaults'])
-    hi = default_scalar("bias_gt", "hi", NEURON_SCHEMA['defaults'])
+    lo = optimizable_scalar("bias_gt", "lo", NEURON_SCHEMA['optimizable'])
+    hi = optimizable_scalar("bias_gt", "hi", NEURON_SCHEMA['optimizable'])
     t0 = int(t_onset)
     if not torch.is_tensor(onset_trace):
         onset_trace = torch.as_tensor(
             onset_trace, dtype=session.sim_dtype, device=session.device,
         )
     x = onset_trace[:, t0, :]
-    if not bool(opts.get("bias_gt_from_v_onset_grad", TRAIN_OPTIMIZATION['bias_gt_from_v_onset_grad'])):
-        x = x.detach()
     node_cells = session.backend.conn.node_cells
     n_cells = int(session.backend.n_cells)
     onset_mean = x.mean(dim=0)
@@ -676,28 +673,25 @@ def bias_gt_from_onset_trace(onset_trace, t_onset, session):
     return torch.clamp(out, min=lo, max=hi)
 
 
-def materialize_from_opts(params, session, *, onset_trace=None, t_onset=None):
-    """Write ``*_from_*`` sources into target params on ``params`` (mutates, returns ``params``).
-
-    * ``v_th_ca_from_v_th`` → ``params['v_th_ca'] = params['v_th']``
-    * ``a_ca_from_a_out`` → ``params['a_ca'] = params['a_out']``
-    * ``bias_gt_from_v_onset`` → ``params['bias_gt']`` from onset (needs ``onset_trace``)
-    """
-    opts = session.train_opts or {}
-    if bool(opts.get("v_th_ca_from_v_th", TRAIN_OPTIMIZATION['v_th_ca_from_v_th'])) and "v_th_ca" in params:
-        params["v_th_ca"] = params["v_th"]
-    if bool(opts.get("a_ca_from_a_out", TRAIN_OPTIMIZATION['a_ca_from_a_out'])) and "a_ca" in params:
-        params["a_ca"] = params["a_out"]
-    if bool(opts.get("bias_gt_from_v_onset", TRAIN_OPTIMIZATION['bias_gt_from_v_onset'])):
-        if onset_trace is None or t_onset is None:
-            return params
-        params["bias_gt"] = bias_gt_from_onset_trace(onset_trace, t_onset, session)
+def params_from_opts(params, session, *, onset_trace=None, t_onset=None):
+    """Write enabled ``val_from`` sources into target params (mutates, returns ``params``)."""
+    val_from = (session.train_opts or {}).get("val_from") or {}
+    for target, entry in val_from.items():
+        if not entry.get("enabled") or target not in params:
+            continue
+        source = entry.get("source")
+        if source == "v_onset":
+            if onset_trace is None or t_onset is None:
+                continue
+            params[target] = bias_gt_from_onset_trace(onset_trace, t_onset, session)
+        elif source in params:
+            params[target] = params[source]
     return params
 
 
 def params_from_z(z, session):
-    """Bind :func:`assign_params` to a session's schema + backend; apply ``*_from_*``."""
-    return materialize_from_opts(
+    """Bind :func:`assign_params` to a session's schema + backend; apply ``val_from``."""
+    return params_from_opts(
         assign_params(z, list(session.schema), session.backend), session,
     )
 
@@ -739,7 +733,7 @@ def guess_initial_params(session):
 def parse_param_cli(tokens):
     init_edits = []
     mode_edits_by_segment_name = {}
-    for segment_name, key, nodes, right in parse_default_tokens(tokens or []):
+    for segment_name, key, nodes, right in parse_optimizable_tokens(tokens or []):
         if key == "val":
             val = float(right)
             if not nodes:
@@ -756,7 +750,7 @@ def parse_param_cli(tokens):
     return init_edits, mode_edits_by_segment_name
 
 
-def parse_default_param_tokens(tokens):
+def parse_optimizable_param_tokens(tokens):
     init_edits, _ = parse_param_cli(tokens)
     return init_edits
 
@@ -772,7 +766,7 @@ def _param_edit_idxs(name, node, val, segment, backend):
     return [node], [idx_from_label[node]]
 
 
-def apply_param_init_to_schema(schema, backend, init_edits):
+def apply_param_init(schema, backend, init_edits):
     segment_by_name = {s["name"]: dict(s) for s in schema}
     for name, node, val in init_edits:
         segment = segment_by_name.get(name)
@@ -788,7 +782,7 @@ def apply_param_init_to_schema(schema, backend, init_edits):
 
 
 def apply_param_overrides(z, schema, session, edits):
-    schema = apply_param_init_to_schema(list(schema), session.backend, edits)
+    schema = apply_param_init(list(schema), session.backend, edits)
     z = z_from_node_values(
         {s["name"]: np.asarray(
             [effective_init(s, i) for i in range(segment_count(s))], dtype=np.float64,
@@ -815,9 +809,14 @@ def parse_val_from_tokens(tokens):
 
 def resolve_val_from(val_from=None):
     resolved = {k: dict(v) for k, v in VAL_FROM.items()}
-    if val_from:
-        for target, entry in parse_val_from_tokens(val_from).items():
-            resolved[target] = entry
+    if not val_from:
+        return resolved
+    if isinstance(val_from, dict):
+        for target, entry in val_from.items():
+            resolved[target] = dict(entry)
+        return resolved
+    for target, entry in parse_val_from_tokens(val_from).items():
+        resolved[target] = entry
     return resolved
 
 

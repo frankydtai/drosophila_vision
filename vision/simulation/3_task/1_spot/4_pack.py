@@ -34,13 +34,13 @@ from task.spot.gt import (
 from task.spot.sti_geo import (
     SpotBatch,
     members_by_euclid_radius,
-    spot_from_opts,
+    resolve_spot,
     spot_radius_folds_r2_into_r1,
     spot_sti_batches,
 )
 from task.spot.sti_spec import (
     normalize_sti_timing,
-    sti_input_waveform,
+    sti_waveform,
 )
 
 # Spot paradigm contrasts (distinct from the task NAMES in train.config).
@@ -128,7 +128,7 @@ def parse_cost_ms_tokens(
     return out
 
 
-def default_spot_cost_radius_scale(
+def resolve_spot_cost_radius_scale_defaults(
     spot_radius: float,
     *,
     scales: Dict[float, float],
@@ -140,10 +140,10 @@ def default_spot_cost_radius_scale(
     return dict(scales)
 
 
-def parse_spot_cost_r_s_tokens(
+def resolve_spot_cost_radius_scale(
     tokens: Optional[Sequence[str]],
     *,
-    default_scales: Dict[float, float],
+    cost_radius_scales: Dict[float, float],
     spot_cost_radii: Tuple[float, ...],
     aliases: Dict[str, float],
 ) -> Optional[Dict[float, float]]:
@@ -165,7 +165,7 @@ def parse_spot_cost_r_s_tokens(
         for r in bare:
             scales[r] = 1.0
     else:
-        scales = dict(default_scales)
+        scales = dict(cost_radius_scales)
     scales.update(explicit)
     return scales
 
@@ -173,7 +173,7 @@ def parse_spot_cost_r_s_tokens(
 def resolve_spot_cost_radii(
     spot_cost_radius_scale: Optional[Dict[float, float]] = None,
     *,
-    default_scales: Dict[float, float],
+    cost_radius_scales: Dict[float, float],
     spot_cost_radii: Tuple[float, ...],
     sti_opts: Optional[dict] = None,
     aliases: Optional[Dict[str, float]] = None,
@@ -185,7 +185,7 @@ def resolve_spot_cost_radii(
             sti_opts=sti_opts, aliases=aliases,
         )
     scales = (
-        dict(default_scales)
+        dict(cost_radius_scales)
         if spot_cost_radius_scale is None
         else spot_cost_radius_scale
     )
@@ -198,7 +198,7 @@ def resolve_spot_cost_radii(
 def build_a_sti_radius_mask(
     spot_cost_radius_scale: Optional[Dict[float, float]] = None,
     *,
-    default_scales: Dict[float, float],
+    cost_radius_scales: Dict[float, float],
     a_sti_radii: Tuple[float, ...],
 ) -> Tuple[float, ...]:
     """Per ``a_sti_radii`` slot: ``1`` if cost-radius scale ≠ 0 else ``0``.
@@ -206,7 +206,7 @@ def build_a_sti_radius_mask(
     Forward multiplies ``a_sti_radius`` by this mask (indi or fixed).
     """
     scales = (
-        dict(default_scales)
+        dict(cost_radius_scales)
         if spot_cost_radius_scale is None
         else spot_cost_radius_scale
     )
@@ -220,10 +220,10 @@ def spot_cost_node_scale(
     radius: float,
     spot_cost_radius_scale: Optional[Dict[float, float]],
     *,
-    default_scales: Dict[float, float],
+    cost_radius_scales: Dict[float, float],
 ) -> float:
     scales = (
-        dict(default_scales)
+        dict(cost_radius_scales)
         if spot_cost_radius_scale is None
         else spot_cost_radius_scale
     )
@@ -351,7 +351,7 @@ def build_spot_gt(
     contrast: str,
     gt_amp: float,
     delta_ms: float,
-    default_cost_scales: Dict[float, float],
+    cost_radius_scales: Dict[float, float],
     spot_cost_radii: Tuple[float, ...],
     device: Optional[str] = None,
     cost_radius: Optional[int] = None,
@@ -389,7 +389,7 @@ def build_spot_gt(
                 f"(expected subset of {list(GT_CELLS)})",
             )
 
-    spot = spot_from_opts(
+    spot = resolve_spot(
         connectome,
         spot_radius=spot_radius,
         shift_radius=shift_radius,
@@ -403,7 +403,7 @@ def build_spot_gt(
     n_batch = len(batches)
 
     # Single sti waveform source (step or finite spot) shared with the ir gt.
-    u = sti_input_waveform(t_onset, n_t, ms_sti, delta_ms=delta_ms)
+    u = sti_waveform(t_onset, n_t, ms_sti, delta_ms=delta_ms)
     drive = torch.as_tensor(
         i_baseline + (i_spot - i_baseline) * u, dtype=sim_dtype, device=device,
     )
@@ -423,7 +423,7 @@ def build_spot_gt(
 
     cost_radii = resolve_spot_cost_radii(
         spot_cost_radius_scale,
-        default_scales=default_cost_scales,
+        cost_radius_scales=cost_radius_scales,
         spot_cost_radii=spot_cost_radii,
     )
     cost_hexes = spot_cost_hexes(batches, cost_radii, cost_radius)
@@ -433,7 +433,7 @@ def build_spot_gt(
     trace_cache: Dict[Tuple[float, int], np.ndarray] = {}
     for b, mu, mv, radius, su, sv in cost_hexes:
         w = spot_cost_node_scale(
-            radius, spot_cost_radius_scale, default_scales=default_cost_scales,
+            radius, spot_cost_radius_scale, cost_radius_scales=cost_radius_scales,
         )
         if w == 0.0:
             continue

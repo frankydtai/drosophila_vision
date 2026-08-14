@@ -60,11 +60,11 @@ from task.moving_bar.sti_geo import (
 )
 from task.spot.sti_geo import (
     euclid_hex_dist,
-    spot_from_opts,
+    resolve_spot,
     spot_sti_batches,
 )
 from task.spot.sti_spec import (
-    sti_timing_from_opts,
+    resolve_sti_timing,
     t_sti_end,
 )
 from task.spot.gt import (
@@ -94,7 +94,7 @@ def _session_spot_timing(session):
         f"{session.primary_pack.name}_sti_opts",
     ) or {}
     filter = str((session.train_opts or {}).get("filter", "none"))
-    timing = sti_timing_from_opts(opts)
+    timing = resolve_sti_timing(opts)
     return (
         int(timing.t_onset),
         int(timing.n_t),
@@ -495,18 +495,18 @@ def plot_cell_rf_time_slices(
         )
 
         plot_pre_post_line(
-            ax_time, t, gt_center, pre_end=pre_end, show_pre=False, draw_pre=False,
+            ax_time, t, gt_center, pre_end=pre_end, show_pre=False, plot_pre=False,
             color=GT_COLOR, linestyle=ls, linewidth=TRACE_LW,
         )
         for i, label in enumerate(slice_labels):
             plot_pre_post_line(
                 ax_time, t, slice_centers.get(label), pre_end=pre_end,
-                show_pre=show_pre, draw_pre=True,
+                show_pre=show_pre, plot_pre=True,
                 color=colors[i], linestyle=ls, linewidth=TRACE_LW,
                 label=label if si == 0 else None,
             )
         plot_pre_post_line(
-            ax_time, t, v_readout_center, pre_end=pre_end, show_pre=show_pre, draw_pre=True,
+            ax_time, t, v_readout_center, pre_end=pre_end, show_pre=show_pre, plot_pre=True,
             color=colors[-1], linestyle=ls, linewidth=TRACE_LW,
             label=item.get("label_scope"),
         )
@@ -724,7 +724,7 @@ def _forward_spot_readout(
     """One forward; cost-radius node readout over all network types."""
     pack = session.primary_pack
     schema = list(session.schema)
-    params = train.materialize_from_opts(
+    params = train.params_from_opts(
         train.assign_params(z, schema, session.backend), session,
     )
     a_sti_radius_by_name = {}
@@ -746,13 +746,13 @@ def _forward_spot_readout(
         plot_full = train.ca_from_v_ca(v_ca, params, session, t_onset=t0)
     else:
         plot_full = v
-    train.materialize_from_opts(params, session, onset_trace=plot_full, t_onset=t0)
+    train.params_from_opts(params, session, onset_trace=plot_full, t_onset=t0)
     connectome = session.backend.network
     cells = list(connectome.cells)
     mt = int(i_sti.shape[1])
 
     opts = dict((session.train_opts or {}).get(f"{pack.name}_sti_opts") or {})
-    spot = spot_from_opts(connectome, sti_opts=opts)
+    spot = resolve_spot(connectome, sti_opts=opts)
     batches = spot_sti_batches(spot)
     active = plot_cells_in_order(connectome.cells)
     cell_plot_rows_list = [np.array(plot_row) for plot_row in cell_plot_rows(active)]
@@ -774,7 +774,7 @@ def _forward_spot_readout(
         if sti_ms_pre is not None else None
     )
     filter = str((session.train_opts or {}).get("filter", "none"))
-    timing = sti_timing_from_opts(opts)
+    timing = resolve_sti_timing(opts)
     readout = dict(
         names=names,
         cells=cells,

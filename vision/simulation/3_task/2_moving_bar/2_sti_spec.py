@@ -335,7 +335,7 @@ def resolve_i_baseline(value: float) -> float:
     return float(value)
 
 
-def moving_bar_i_baseline_from_opts(train_opts) -> float:
+def resolve_moving_bar_i_baseline(train_opts) -> float:
     """``i_baseline_moving_bar`` from moving-bar sti opts on a train session."""
     opts = train_opts or {}
     for key in ("moving_bar_bright_sti_opts", "moving_bar_dark_sti_opts"):

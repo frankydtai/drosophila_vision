@@ -27,7 +27,7 @@ from neuron.schema import (
     SYN_MODES,
     build_borst_schema,
     build_hp_lp_schema,
-    default_schema,
+    build_schema,
     normalize_syn_mode,
     syn_strength,
 )
@@ -72,7 +72,7 @@ __all__ = [
     "t_from_ms",
     "t_abs_from_ms",
     "ms_from_t",
-    "default_schema",
+    "build_schema",
     "build_borst_schema",
     "build_hp_lp_schema",
     "normalize_syn_mode",

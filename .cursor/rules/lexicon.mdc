@@ -11,7 +11,7 @@ Only words with an unambiguous single definition are included here.
 
 When asked whether a word fits this lexicon or “has a definition,” judge **meaning in `vision/` code**, not whether the token appears in lexicon.
 
-**Lexicon headwords name one concept as a single word** (or an established pattern token such as `` `_from_` `` or `` `a_*` ``). A headword must not glue two independent words into a pseudo-entry — ``val_from`` is forbidden (compose ``val`` and ``_from_`` at use sites; CLI ``--val-from`` / opts ``val_from`` are surfaces, not lexicon headwords). Named paradigms that are one concept in prose (`moving_bar`, `spot`) may appear as compounds. Forbidden: glue-compound headwords; hyphen spellings inside lexicon text (`val-from`).
+**Lexicon headwords name one concept as a single word** (or an established pattern token such as `` `_from_` `` or `` `a_*` ``). Named paradigms that are one concept in prose (`moving_bar`, `spot`) may appear as compounds. Glue-compound headwords that join two independent words without forming one concept are forbidden. Exception: ``val_from`` (see ``### val_from``). Forbidden: hyphen spellings inside lexicon text (`val-from`).
 
 **Evidence:** List every function, method, class, attribute, constant, CLI/opts key, and variable/parameter whose name contains the word (compounds included: `foo_word`, `word_bar`, `WordBaz`). If meanings differ, partition the list into one class per distinct definition; put unrelated homographs (library APIs, other biophysics, …) in an “other” class — still list them.
 
@@ -91,6 +91,12 @@ Example: `best_cost = float(final_costs[int(np.argmin(final_costs))])`
 Definition: The set of parameter output files (`.npy`, `.npz`, `train_opts.json`, etc.) saved under the `data/` subfolder of a run directory.
 Example: `os.makedirs(run_data_dir(outdir), exist_ok=True)`
 Forbidden: `artifact`, `output` — use `data` instead. Do not use `data` for in-memory forward or plot worksets — use `readout`.
+
+### `default`
+
+Definition: Allowed only as the module/file name ``default_params`` — the sole numeric literal source for train, figure, analyze, and run layers.
+Example: `from default_params import RUN_PATH`, `default_params.NEURON_SCHEMA['optimizable']`
+Forbidden: ``default`` / ``defaults`` and any project identifier containing ``default`` (``default_*``, ``*_default``, ``DEFAULT_*``, ``_default_*``) except the module name ``default_params``. Use concrete terms instead (``optimizable``, ``cost_radius_scales``, ``bare_cost_radius``, ``build_schema``, ``fallback_*``, ``resolve_*``). Library/API spellings may remain unchanged (``argparse`` keyword ``default=``, dataclass ``default_factory``, ``dict.setdefault``, help ``%(default)s``).
 
 ### `edge` / `edges`
 
@@ -191,7 +197,7 @@ Forbidden: do not use `mid` for sti-on hex / Euclidean radius 0 — use `center`
 
 ### `mode` / `modes`
 
-Definition: A string token selected from a fixed enumeration, identifying which variant of a configurable behaviour is active (e.g. `syn_mode ∈ {"per_cell","per_edge"}`, segment default ``mode`` ∈ {"indi","shared","fixed","frozen"}``).
+Definition: A string token selected from a fixed enumeration, identifying which variant of a configurable behaviour is active (e.g. `syn_mode ∈ {"per_cell","per_edge"}`, segment ``mode`` ∈ {"indi","shared","fixed","frozen"}``).
 Example: `mode = normalize_syn_mode(syn_mode)`
 
 ### `moving_bar` / `moving_bars`
@@ -303,12 +309,6 @@ Definition: One element of ``schema`` — a dict with ``name``, ``kind``, ``coun
 Example: `for segment in schema: ...`, `segment_count(segment)`, `node_names_for_segment(segment, backend)`
 Forbidden: ``seg`` (abbrev); trace ``slice``; CSR ``span``; plot span; bare ``segment`` for non-schema items.
 
-### `default` / `defaults`
-
-Definition: Pre-schema config for one segment — ``lo``/``hi``/``val``/``jit``/``mode``/``overrides`` before ``schema`` build; bag ``NEURON_SCHEMA['defaults']``.
-Example: `NEURON_SCHEMA['defaults']['a_h']`, `default_scalar("bias_gt", "lo", defaults)`
-Forbidden: ``box``; ``param_box``; ``param_boxes``; Python generic default-argument sense.
-
 ### `field` / `fields`
 
 Definition: One column in a rectangular CSV output table.
@@ -317,8 +317,8 @@ Forbidden: ``column`` (for CSV); ``key`` (for ``--param`` token); ``view`` (sti 
 
 ### `key` / `keys`
 
-Definition: Which ``default`` attribute a ``--param`` token edits: ``lo`` | ``hi`` | ``jit`` | ``val`` | ``mode``.
-Example: `a_h.val.L1=0.5`, `parse_default_tokens`, CLI ``NAME.KEY[.NODES]=VALUE``
+Definition: Which ``optimizable`` attribute a ``--param`` token edits: ``lo`` | ``hi`` | ``jit`` | ``val`` | ``mode``.
+Example: `a_h.val.L1=0.5`, `parse_optimizable_tokens`, CLI ``NAME.KEY[.NODES]=VALUE``
 Forbidden: ``field`` (for ``--param``); CSV ``field``; dict key in generic prose.
 
 ### `slice` / `slices`
@@ -342,7 +342,7 @@ Forbidden: `weight` for this role (`cost_weight`, …); `factor`; `gain`. Do not
 ### `session` / `sessions`
 
 Definition: A run-time context object that holds assembled configuration/state for one train/evaluation run (schema/backend/tasks/readouts/opts).
-Example: `session = open_session_from_outdir(...)`
+Example: `session = train.session_from_outdir(...)`
 
 ### `sign` / `signs`
 
@@ -404,7 +404,7 @@ Example: `trace_full, onset_trace = _forward_readout_and_onset_trace(...)`
 ### `train`
 
 Definition: Noun only — the overall parameter-optimization process and its package (`import train`: session assembly, cost, optimization, persistence). Compounds use the noun (`train_opts`, `param_modes`, `TrainSession`).
-Example: `session = train.open_session_from_outdir(...)`, `import train`
+Example: `session = train.session_from_outdir(...)`, `import train`
 Forbidden: do not use `train` as a verb (e.g. `train_staged`, “to train”, imperative “Train …”) — the update loop verb is `optimize`. Do not use `training` as a naming token — use `train`. Do not use `fit` for this process / package (see `fit` for the GT/cost cell sense only).
 
 ### `val` / `vals`
@@ -412,6 +412,12 @@ Forbidden: do not use `train` as a verb (e.g. `train_staged`, “to train”, im
 Definition: A short-lived scalar value in a loop or inline expression (not a named physical parameter).
 Example: `for key, val in overrides.items(): out[key] = float(val)`
 Forbidden: ``vf``, ``VF``, ``vf_opts``, or any other abbreviation of opts/CLI ``val_from`` surfaces.
+
+### `val_from`
+
+Definition: Train-opts map (CLI ``--val-from``) from target schema segment name to ``{source, enabled}`` — when enabled, the target parameter value is taken from another segment at assignment time and the target is frozen. Bag ``VAL_FROM``; opts key ``val_from``.
+Example: `resolve_val_from(args.val_from)`, `parse_val_from_tokens(...)`, `val_from_enabled(opts, "bias_gt")`, `resolve_param_modes(param_modes, opts)`, `{"val_from": val_from}`
+Forbidden: ``vf``, ``VF``, ``vf_opts``, or any other abbreviation. **Verb exception:** only ``val_from`` compounds may use a lexicon verb prefix (``resolve_val_from``, ``parse_val_from_tokens``, ``add_val_from_argument``, …); this exception does not extend to other ``_from_`` identifiers.
 
 ### `weight` / `weights`
 
@@ -501,9 +507,9 @@ Forbidden: `draw`, `render`, `visualize`, and project names built on `scatter` (
 
 ### `resolve`
 
-Definition: Resolve abstract references/aliases/defaults into final concrete values used by execution.
-Example: `out[tname] = int(expanded[tname])`, `resolve_param_modes(param_modes, opts)`, `resolve_train_sti_timing(filter, args.sti_timing)`
-Forbidden: `lookup`, `fetch` — use `resolve` instead. Do not name default+CLI-override assembly with `copy_<noun>` or project `copy_*` helpers — use `resolve_<noun>`. Library `copy.deepcopy` at persistence boundaries may remain.
+Definition: Resolve abstract references/aliases/defaults into final concrete values used by execution. Use when the answer is which value or config to run with — inputs may be incomplete (CLI tokens, alias names, branch dicts, omitted keys) and the function consults ``default_params``, alias tables, and/or overrides before returning.
+Example: `out[tname] = int(expanded[tname])`, `resolve_val_from(args.val_from)`, `resolve_param_modes(param_modes, opts)`, `resolve_run_kwargs(args)`, `resolve_train_sti_timing(filter, args.sti_timing)`, `resolve_train_kwargs(args)`, `resolve_sti_timing(opts)`, `resolve_tasks(tasks)`
+Forbidden: `lookup`, `fetch` — use `resolve` instead. Do not name default+CLI-override assembly with `copy_<noun>` or project `copy_*` helpers — use `resolve_<noun>`. Library `copy.deepcopy` at persistence boundaries may remain. Do not name resolve work ``parse_*``, ``build_*``, ``merge_*``, ``default_*``, or ``*_from_*`` (``train_kwargs_from_args``, ``sti_timing_from_opts``, ``parse_part_cost_scale``, ``build_train_opts``) — use ``resolve_<noun>``. ``parse_*`` may decode raw strings to structured tokens only; ``expand_*`` may expand aliases only — when defaults and overrides are merged into the final execution value, that step is ``resolve`` (see ``### normalize``). Do not use ``normalize_*`` for this assembly.
 
 ### `run`
 
@@ -527,6 +533,6 @@ Forbidden: do not use `step` to mean an optimizer iteration — use `iter` inste
 
 ### `_from_`
 
-Definition: The sole directional preposition in function names and map attribute/local names — a result noun linked to a source noun (opts dict, outdir, signal/tensor, idx space, map key, …). Pattern: `<result>_from_<source>`; both sides nouns only; the full identifier has no verb token. This entry's Definition and Example lines use nouns only — no verb tokens.
+Definition: The sole directional preposition in function names and map attribute/local names — a deterministic map from one already-concrete source to one result (unit/coordinate conversion, schema pack/unpack, idx lookup, fixed formula on present inputs). Pattern: `<result>_from_<source>`; both sides nouns only; the full identifier has no verb token. This entry's Definition and Example lines use nouns only — no verb tokens.
 Example: `t_from_ms(ms, delta_ms)`, `v_ca_from_v(v, p, session)`, `ca_from_v_ca(...)`, `t_abs_from_ms(...)`, `node_values_from_z(z, schema)`, `hex_from_uv(u, v)`, `xy_deg_from_uv(u, v)`, `cell_from_node(...)`, `node_from_id`, `family_from_cell_csv(...)`
-Forbidden: `_to_` — never use `_to_` as a directional preposition in function names or map attribute/local names. Any verb token anywhere in the identifier (`load`, `apply`, `open`, `resolve`, `parse`, `build`, `assert`, …). Verbs in this lexicon entry's Definition or Example lines.
+Forbidden: `_to_` — never use `_to_` as a directional preposition in function names or map attribute/local names. Any verb token anywhere in the identifier (`load`, `apply`, `open`, `resolve`, `parse`, `build`, `assert`, …). Verbs in this lexicon entry's Definition or Example lines. Exception: ``val_from`` compounds only (see ``### val_from``). Do not use ``_from_`` when the function merges ``default_params``, alias expansion, and/or CLI overrides into the final execution value — that is ``resolve`` (``resolve_train_kwargs``, ``resolve_sti_timing``, ``resolve_spot``), not ``kwargs_from_args``, ``timing_from_opts``, or ``spot_from_opts``. Do not use ``_from_`` for multi-source assembly (defaults + overrides + validation); one complete source → one result only. Simple field extraction from an already-final opts dict (``gt_cells_from_opts``) may remain ``_from_``; if missing keys fall back to defaults, rename to ``resolve_*``.

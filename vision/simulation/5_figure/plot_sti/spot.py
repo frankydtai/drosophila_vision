@@ -3,7 +3,7 @@
 Marks spot centers (crimson) and draws each spot's axial-radius hex
 (straight edges through ``(spot_radius + 0.5) * _HEX_DIRECTIONS``, via
 ``xy_deg_from_uv`` — not a Euclidean RegularPolygon) on
-:func:`build_hex.draw_fafb_columns` for network hexes only.
+:func:`build_hex.plot_fafb_columns` for network hexes only.
 Spot centers from :func:`task.spot.sti_geo.build_spot`.
 
 Usage (from simulation/, project .venv):
@@ -47,7 +47,7 @@ from build_hex import (
     FIELD_VIEW_PAD_DEG,
     HEX_PATCH_RADIUS,
     _HEX_DIRECTIONS,
-    draw_fafb_columns,
+    plot_fafb_columns,
     view_bounds_from_vertices,
     set_axis_labels,
     xy_deg_from_uv,
@@ -149,7 +149,7 @@ def main() -> None:
     axes_flat = np.atleast_1d(axes).ravel()
     n_by_spot_radius = {}
     for ax, spot_radius in zip(axes_flat, spot_radii):
-        draw_fafb_columns(ax, df_hexes, hex_radius_px=HEX_PATCH_RADIUS, label=False)
+        plot_fafb_columns(ax, df_hexes, hex_radius_px=HEX_PATCH_RADIUS, label=False)
         centers = build_spot(
             connectome,
             spot_radius=spot_radius,

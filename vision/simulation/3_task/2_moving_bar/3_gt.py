@@ -277,7 +277,7 @@ def moving_bar_dsi_for_spec(
     return -dsi
 
 
-def moving_bar_dsi_lookup(
+def dsi_from_trace_map(
     trace_map: Mapping[tuple, np.ndarray],
     cells: Sequence[str],
     spec_names: Sequence[str],

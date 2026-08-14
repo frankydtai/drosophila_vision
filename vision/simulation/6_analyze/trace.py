@@ -57,7 +57,7 @@ import figure.plot as plot_trained
 import train
 from analyze.cell_dynamics import TimeWindow, analyze_spot_average
 from import_bootstrap import parse_comma_list
-from train.cli import sti_timing_kwargs_from_args
+from train.cli import resolve_sti_timing_kwargs
 
 CHECK_OSCILLATION = "oscillation"
 CHECK_FLAT = "flat"
@@ -271,14 +271,14 @@ def detect_stability(
 
 
 def _sti_ms(opts: dict) -> tuple[float, float, float]:
-    from task.spot.sti_spec import sti_timing_from_opts
+    from task.spot.sti_spec import resolve_sti_timing
 
-    timing = sti_timing_from_opts(opts)
+    timing = resolve_sti_timing(opts)
     ms_sti = timing.ms_sti if timing.ms_sti is not None else 0.0
     return timing.ms_pre, ms_sti, timing.ms_response
 
 
-def _default_ms_shown(
+def _resolve_ms_shown(
     check: str, ms_pre: float, ms_sti: float, ms_response: float,
 ) -> tuple[float, float]:
     if check == CHECK_FLAT:
@@ -286,7 +286,7 @@ def _default_ms_shown(
     return 0.0, ms_pre
 
 
-def _default_baseline_ms_shown(
+def _resolve_baseline_ms_shown(
     analyze: tuple[float, float],
     baseline_ms: float,
 ) -> tuple[float, float]:
@@ -300,7 +300,7 @@ def _resolve_windows(args, ms_pre, ms_sti, ms_response):
     if args.ms_shown is not None:
         analyze = plot_trained.parse_ms_shown_range(args.ms_shown, flag="--ms-shown")
     else:
-        analyze = _default_ms_shown(args.check, ms_pre, ms_sti, ms_response)
+        analyze = _resolve_ms_shown(args.check, ms_pre, ms_sti, ms_response)
 
     need_baseline = args.check in (CHECK_FLAT, CHECK_STABILITY)
     if args.baseline_ms_shown is not None:
@@ -308,7 +308,7 @@ def _resolve_windows(args, ms_pre, ms_sti, ms_response):
             args.baseline_ms_shown, flag="--baseline-ms-shown",
         )
     elif need_baseline:
-        baseline = _default_baseline_ms_shown(analyze, float(args.baseline_ms))
+        baseline = _resolve_baseline_ms_shown(analyze, float(args.baseline_ms))
     else:
         baseline = None
 
@@ -374,7 +374,7 @@ def _load_reports(args):
     train_opts = plot_trained.load_train_opts(run_dir) or {}
     train_filter = train.expand_filter(train_opts.get("filter", "none"))
     eff_filter = args.filter if args.filter is not None else train_filter
-    timing_kw = sti_timing_kwargs_from_args(args, filter=eff_filter)
+    timing_kw = resolve_sti_timing_kwargs(args, filter=eff_filter)
     session, z, _timing_changed = plot_trained.maybe_override_sti_timing(
         run_dir=run_dir,
         session=session,
@@ -386,10 +386,10 @@ def _load_reports(args):
         np.asarray(z, dtype=np.float64), dtype=torch.float64, device=session.device,
     )
     schema = list(session.schema)
-    param_edits = plot_trained.parse_default_param_tokens(args.param)
+    param_edits = plot_trained.parse_optimizable_param_tokens(args.param)
     z_t, schema = plot_trained.apply_param_overrides(z_t, schema, session, param_edits)
     session = session.with_schema(schema)
-    params = train.materialize_from_opts(
+    params = train.params_from_opts(
         train.assign_params(z_t, schema, session.backend), session,
     )
 

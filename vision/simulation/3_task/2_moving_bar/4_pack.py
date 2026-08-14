@@ -53,7 +53,7 @@ from task.moving_bar.sti_spec import (
     build_moving_bar_t0_grids,
     gruntman_moving_bar_specs,
     hex_first_sti_t,
-    moving_bar_i_baseline_from_opts,
+    resolve_moving_bar_i_baseline,
     resolve_i_baseline,
 )
 
@@ -592,7 +592,7 @@ def moving_bar_session_t0_grids(
     connectome = session.backend.network
     if connectome is None:
         raise ValueError("moving_bar_session_t0_grids requires session.backend.network")
-    i_baseline = moving_bar_i_baseline_from_opts(session.train_opts)
+    i_baseline = resolve_moving_bar_i_baseline(session.train_opts)
 
     side = normalize_side(connectome.meta.get('side', 'right'))
     hexes = moving_bar_cost_hexes(connectome, cost_radius=cost_radius)
@@ -695,7 +695,7 @@ def build_moving_bar_sti_opts(
 
 def session_moving_bar_i_baseline(train_opts) -> float:
     """``i_baseline_moving_bar`` from moving-bar sti opts on a train session."""
-    return moving_bar_i_baseline_from_opts(train_opts)
+    return resolve_moving_bar_i_baseline(train_opts)
 
 
 def enrich_moving_bar_sti_opts(opts, info, *, cost_radius):
