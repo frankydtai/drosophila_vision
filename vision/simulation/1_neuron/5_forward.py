@@ -95,7 +95,7 @@ def _session_filter(session) -> str:
 def v_ca_from_v(v, params, session):
     """``v_ca = relu(v − v_th_ca)·a_ca`` (per-node tensors in ``params``).
 
-    Callers must run ``train.params_from_opts`` (via ``params_from_z``)
+    Callers must run ``train.apply_val_from`` (via ``params_from_z``)
     so ``v_th_ca`` / ``a_ca`` already hold ``v_th`` / ``a_out`` when the
     matching ``val_from`` entries are enabled.
     """

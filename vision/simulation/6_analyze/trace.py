@@ -389,7 +389,7 @@ def _load_reports(args):
     param_edits = plot_trained.parse_optimizable_param_tokens(args.param)
     z_t, schema = plot_trained.apply_param_overrides(z_t, schema, session, param_edits)
     session = session.with_schema(schema)
-    params = train.params_from_opts(
+    params = train.apply_val_from(
         train.assign_params(z_t, schema, session.backend), session,
     )
 

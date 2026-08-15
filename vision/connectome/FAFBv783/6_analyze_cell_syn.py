@@ -73,7 +73,6 @@ from build_hex import (
 )
 from import_bootstrap import parse_comma_list
 from path import (
-    DEFAULT_NETWORK_RUN,
     resolve_network_json,
     resolve_cell_counts_abc_path,
 )
@@ -736,7 +735,7 @@ def print_table(
     print(_fmt(header))
     for row in rows:
         print(_fmt(row))
-    print(_fmt(total_row))
+    print(_fmt(sum_row))
     print()
 
 

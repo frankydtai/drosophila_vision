@@ -125,7 +125,7 @@ def v_spot_markers_by_cell(z_t, session):
     """
     schema = list(session.schema)
     z = torch.as_tensor(z_t, dtype=session.sim_dtype, device=session.device)
-    params = train.params_from_opts(
+    params = train.apply_val_from(
         train.assign_params(z, schema, session.backend), session,
     )
     pack = session.primary_pack

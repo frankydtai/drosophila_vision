@@ -34,7 +34,7 @@ from task.moving_bar.gt import (
     width_tag,
 )
 from task.moving_bar.sti_geo import (
-    DEFAULT_BAR_RADIUS,
+    BAR_RADIUS,
     _as_int64_np,
     filter_sti_hexes,
     moving_bar_cost_hexes,
@@ -420,7 +420,7 @@ def build_moving_bar_gt(
     delta_ms: float,
     fig1_path: Path = FIG1_CI_NPZ,
     use_cache: bool = True,
-    bar_radius: int = DEFAULT_BAR_RADIUS,
+    bar_radius: int = BAR_RADIUS,
     multi_bar: bool = True,
     cost_radius: Optional[int] = None,
     i_baseline_moving_bar: Optional[float] = None,

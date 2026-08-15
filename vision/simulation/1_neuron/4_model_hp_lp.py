@@ -1,7 +1,9 @@
 # -*- coding: utf-8 -*-
 """HP-then-membrane-LP neuron (``--model hp_lp``).
 
-    τ_HP d v_slow / dt = v_in − v_slow
+    τ_HP(e_HP) d v_slow / dt = v_in − v_slow
+    e_HP = v_in − v_slow
+    τ_HP(e_HP) = τ_HP,rise if e_HP ≥ 0 else τ_HP,fall
     v_hp = v_in − a_h v_slow
     τ_lp dv/dt = −(v − e_leak) + v_hp
 
@@ -14,7 +16,7 @@ v_slow → v_in, so v → e_leak.
 
 Membrane / HP Euler (``session.euler`` = ``implicit`` | ``explicit``):
 
-    α_hp = Δt/τ_hp,  α_lp = Δt/τ_lp
+    α_hp = Δt/τ_hp(e_HP),  α_lp = Δt/τ_lp
 
     implicit HP:  v_slow ← (v_slow + α_hp v_in) / (1 + α_hp)
     explicit HP:  v_slow ← v_slow + α_hp (v_in − v_slow)
@@ -55,7 +57,8 @@ def update_state_hp_lp(
     e_leak = params["e_leak"]
     dt = float(delta_ms)
     tau_lp = torch.clamp(params["tau_lp"], min=dt)
-    tau_hp = torch.clamp(params["tau_hp"], min=dt)
+    tau_hp_rise = torch.clamp(params["tau_hp_rise"], min=dt)
+    tau_hp_fall = torch.clamp(params["tau_hp_fall"], min=dt)
     a_h = params["a_h"]
     clamp = float(state_clamp)
     g_leak = float(g_leak)
@@ -65,11 +68,13 @@ def update_state_hp_lp(
     v_out, w, v_syn = _syn_drive(v, params, backend)
     v_sti = i_sti / g_leak
     v_in = v_syn + v_sti
+    v_slow_error = v_in - v_slow
+    tau_hp = torch.where(v_slow_error >= 0.0, tau_hp_rise, tau_hp_fall)
     hp_dt_over_tau = dt / tau_hp
     hp_scale = (
         hp_dt_over_tau / (1.0 + hp_dt_over_tau) if euler == "implicit" else hp_dt_over_tau
     )
-    v_slow = v_slow + hp_scale * (v_in - v_slow)
+    v_slow = v_slow + hp_scale * v_slow_error
     # LP uses post-HP ``v_slow`` (same as prior identity).
     v_hp = v_in - a_h * v_slow
     lp_dt_over_tau = dt / tau_lp

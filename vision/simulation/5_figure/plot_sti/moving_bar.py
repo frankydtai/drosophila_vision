@@ -47,7 +47,7 @@ from build_hex import (
     xy_deg_from_uv,
 )
 from task.moving_bar.sti_geo import (
-    DEFAULT_BAR_RADIUS,
+    BAR_RADIUS,
     sti_hexes,
 )
 from task.moving_bar.sti_spec import (
@@ -281,7 +281,7 @@ def main():
         help="tile simultaneous lane-clipped bars (default true); "
              "false → whole-view single bar over the full network view",
     )
-    ap.add_argument("--bar-radius", type=int, default=DEFAULT_BAR_RADIUS,
+    ap.add_argument("--bar-radius", type=int, default=BAR_RADIUS,
                     help="per-lane spacing width in hex nodes (default 2)")
     ap.add_argument("--i-bright", type=float, default=NETWORK_CONSTRUCTION['i_bright'])
     args = ap.parse_args()

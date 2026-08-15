@@ -218,7 +218,7 @@ def filter_filename_suffix(filter=None):
 _PARAM_HELP = "example: a_h.val.L1=0.5 a_h.mode.L1,L2=indi a_h.mode=fixed"
 
 
-def _val_from_default_tokens():
+def _val_from_literal_tokens():
     return " ".join(
         f"{target}={entry['source']}:{str(entry['enabled']).lower()}"
         for target, entry in VAL_FROM.items()
@@ -235,7 +235,7 @@ def add_val_from_argument(parser):
         metavar="TARGET=SOURCE:BOOL",
         help=(
             "param copied from source at materialize (space-separated TARGET=SOURCE:BOOL). "
-            f"Default: {_val_from_default_tokens()}"
+            f"Default: {_val_from_literal_tokens()}"
         ),
     )
 
@@ -570,7 +570,7 @@ def parse_sti_timing_tokens(tokens, *, filter: str) -> dict[str, dict[str, float
     return out
 
 
-def _sti_timing_from_params() -> dict:
+def _resolve_sti_timing_literals() -> dict:
     from task.spot.sti_spec import _merge_filter_branch_ms
 
     so: dict = {}
@@ -588,7 +588,7 @@ def resolve_train_sti_timing(filter: str, tokens) -> dict:
     """Build full sti timing dict for train (defaults + optional ``--sti-timing``)."""
     from task.spot.sti_spec import _merge_filter_branch_ms
 
-    so = _sti_timing_from_params()
+    so = _resolve_sti_timing_literals()
     if tokens:
         for key, val in parse_sti_timing_tokens(tokens, filter=filter).items():
             _merge_filter_branch_ms(so, key, val)

@@ -39,7 +39,7 @@ def configure_parser(ap):
     )
 
 
-def mirror_fits(args):
+def mirror_fit(args):
     fits = []
     if 'r' in args.kind:
         fits.append({'mirror_types': ['R1-6', 'R7', 'R8'], 'mirror_fit': 'L1'})
@@ -54,6 +54,6 @@ def mirror_fits(args):
 run_mirror_spot_experiment(
     __doc__,
     lambda args: 'add_spot_' + '_'.join(args.kind),
-    mirror_fits,
+    mirror_fit,
     configure_parser=configure_parser,
 )

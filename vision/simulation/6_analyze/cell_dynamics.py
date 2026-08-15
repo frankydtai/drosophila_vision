@@ -163,7 +163,7 @@ Examples
     --t-rel -5:15
 
   ../.venv/bin/python analyze/cell_dynamics.py \\
-    L3 --run /abs/path/to/run --task spot_bright --param tau_hp.L3=500
+    L3 --run /abs/path/to/run --task spot_bright --param tau_hp_rise.L3=500 tau_hp_fall.L3=300
 """
 
 
@@ -1372,7 +1372,8 @@ def _node_params(params, session, node: int) -> dict[str, float]:
             "bias_gt": bias_gt,
             "e_leak_mV": float(params["e_leak"][node]),
             "tau_lp_ms": float(params["tau_lp"][node]),
-            "tau_hp_ms": float(params["tau_hp"][node]),
+            "tau_hp_rise_ms": float(params["tau_hp_rise"][node]),
+            "tau_hp_fall_ms": float(params["tau_hp_fall"][node]),
             "a_h": float(params["a_h"][node]),
         }
     e_leak = float(params["e_leak"][node])
@@ -2801,7 +2802,7 @@ def main() -> None:
             z_t, schema, session, param_edits,
         )
         session = session.with_schema(schema)
-        params = train.params_from_opts(
+        params = train.apply_val_from(
             train.assign_params(z_t, schema, session.backend), session,
         )
         cost = float(train.calc_cost(z_t, session).item())

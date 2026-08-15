@@ -198,7 +198,7 @@ def resolve_run_kwargs(args, *, script_stem="run"):
 def run_mirror_spot_experiment(
     description,
     script_stem,
-    mirror_fits,
+    mirror_fit,
     *,
     mirror_sign=-1.0,
     configure_parser=None,
@@ -210,11 +210,11 @@ def run_mirror_spot_experiment(
         resolve_i_h_param_modes,
         spot_pack_overrides,
         spot_tasks_from,
-        _normalize_mirror_fits,
+        normalize_mirror_fit,
     )
 
     def build_mirror_gts(fits, sign, session):
-        specs = _normalize_mirror_fits(fits, sign)
+        specs = normalize_mirror_fit(fits, sign)
         def mirror_gts(contrasts):
             pack_name = f"spot_{str(contrasts[0])}"
             timing = resolve_sti_timing(
@@ -262,7 +262,7 @@ def run_mirror_spot_experiment(
     except ValueError as exc:
         ap.error(str(exc))
 
-    fits = mirror_fits(args) if callable(mirror_fits) else mirror_fits
+    fits = mirror_fit(args) if callable(mirror_fit) else mirror_fit
     tasks = run_kw["tasks"]
     pack_overrides = spot_pack_overrides(tasks, fits, mirror_sign)
     param_modes = resolve_i_h_param_modes(run_kw)

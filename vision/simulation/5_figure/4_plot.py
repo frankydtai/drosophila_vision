@@ -262,7 +262,7 @@ def maybe_override_sti_timing(
     if filter is not None:
         opts["filter"] = train.expand_filter(filter)
 
-    session = train.session_from_opts(opts, model=opts.get("model"))
+    session = train.resolve_session(opts, model=opts.get("model"))
     session, z = _session_z_from_best_named(session, run_dir)
     return session, z, timing_changed
 

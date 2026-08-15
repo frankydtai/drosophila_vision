@@ -57,7 +57,9 @@ from default_params import RUN_PATH
 from task.spot.gt import GT_CELLS
 from task.spot.sti_geo import euclid_hex_dist
 
-DEFAULT_BINS = 20
+from default_params import ANALYZE_SYN_SIGN
+
+SYN_SIGN_BINS = int(ANALYZE_SYN_SIGN["bins"])
 
 
 def _syn_strength_from_edges(edges, cells, syn_strength_cell, pair_names):
@@ -295,7 +297,7 @@ def plot_syn_sign(
     save_figure(fig, path, timer=timer)
 
 
-def save_syn_sign_plots(outdir, *, post=False, bins=DEFAULT_BINS) -> None:
+def save_syn_sign_plots(outdir, *, post=False, bins=SYN_SIGN_BINS) -> None:
     """Write ``pre_syn/syn_{gt,all}.png`` (or ``post_syn/`` when *post*)."""
     opts = plot_trained.load_train_opts(outdir)
     if not opts:
@@ -376,8 +378,8 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument(
         "--bins",
         type=int,
-        default=DEFAULT_BINS,
-        help=f"histogram bins over [0, 100] (default: {DEFAULT_BINS})",
+        default=SYN_SIGN_BINS,
+        help=f"histogram bins over [0, 100] (default: {SYN_SIGN_BINS})",
     )
     args = ap.parse_args(argv)
     save_syn_sign_plots(

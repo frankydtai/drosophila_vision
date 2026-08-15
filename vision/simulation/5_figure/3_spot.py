@@ -724,7 +724,7 @@ def _forward_spot_readout(
     """One forward; cost-radius node readout over all network types."""
     pack = session.primary_pack
     schema = list(session.schema)
-    params = train.params_from_opts(
+    params = train.apply_val_from(
         train.assign_params(z, schema, session.backend), session,
     )
     a_sti_radius_by_name = {}
@@ -746,7 +746,7 @@ def _forward_spot_readout(
         plot_full = train.ca_from_v_ca(v_ca, params, session, t_onset=t0)
     else:
         plot_full = v
-    train.params_from_opts(params, session, onset_trace=plot_full, t_onset=t0)
+    train.apply_val_from(params, session, onset_trace=plot_full, t_onset=t0)
     connectome = session.backend.network
     cells = list(connectome.cells)
     mt = int(i_sti.shape[1])
@@ -1091,13 +1091,13 @@ def _plot_spot_figure(
     row_cursor = 0
     for gi, cell_idxs in enumerate(plot_row_idxs):
         group_h = int(order_heights[gi])
-        rf_row = row_cursor
+        rf_plot_row = row_cursor
         time_row0 = row_cursor + 1
         start = (n_col - len(cell_idxs)) // 2
         for j, ci in enumerate(cell_idxs):
             col = start + j
             cell_on = cells[ci]
-            ax_rf = fig.add_subplot(gs[rf_row, col])
+            ax_rf = fig.add_subplot(gs[rf_plot_row, col])
             if has_slices:
                 ax_time = fig.add_subplot(gs[time_row0, col])
                 _plot_cell(

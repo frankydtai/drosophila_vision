@@ -96,13 +96,11 @@ def _apply_mirror(cells, override):
     cells = dict(cells)
     if not override:
         return cells
-    if "mirror_fits" in override:
-        specs = override["mirror_fits"]
-    elif "mirror_fit" in override:
-        spec = override["mirror_fit"]
-        specs = [spec] if isinstance(spec, dict) and "mirror_types" in spec else []
-    else:
+    specs = override.get("mirror_fit")
+    if specs is None:
         specs = []
+    elif isinstance(specs, dict):
+        specs = [specs] if "mirror_types" in specs else []
     for spec in specs:
         mirror_fit = str(spec["mirror_fit"])
         if mirror_fit not in cells:

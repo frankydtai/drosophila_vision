@@ -16,7 +16,7 @@ import torch
 from path import moving_bar_cache_dir
 from neuron.param import t_from_ms
 from task.moving_bar.sti_geo import (
-    DEFAULT_BAR_RADIUS,
+    BAR_RADIUS,
     GRUNTMAN_DIRECTIONS,
     GRUNTMAN_WIDTHS_DEG,
     Hex,
@@ -501,7 +501,7 @@ def build_moving_bar_signals(
     t_onset: int = None,
     *,
     delta_ms: float,
-    bar_radius: int = DEFAULT_BAR_RADIUS,
+    bar_radius: int = BAR_RADIUS,
     multi_bar: bool = True,
     i_baseline: float,
     i_bright_moving_bar: Optional[float] = None,

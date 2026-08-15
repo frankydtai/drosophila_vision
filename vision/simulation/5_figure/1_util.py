@@ -31,7 +31,7 @@ def as_numpy(arr):
 def gt_affine_scalars_for_cell(params, cell_name, backend, session=None) -> tuple[float, float]:
     """``(a_gt, effective_bias)`` for one cell type name (matches cost).
 
-    ``params`` must already have ``params_from_opts`` applied so
+    ``params`` must already have ``apply_val_from`` applied so
     ``bias_gt`` / ``v_th_ca`` / ``a_ca`` hold ``val_from`` sources when enabled.
     When ``val_from`` bias_gt is on, do not add ``v_th``.
     """
@@ -921,8 +921,8 @@ def plot_cost(costs, path, *, costs_by_part=None, part_order=None):
 
     # Layout: [total log + parts log] then [total linear + parts linear].
     n_col = N_COL_GT
-    present_cells = set(curve_specs_by_cell.keys())
-    cell_plot_rows_list = cell_plot_rows(sorted(present_cells))
+    active_cells = set(curve_specs_by_cell.keys())
+    cell_plot_rows_list = cell_plot_rows(sorted(active_cells))
     n_plot_row = len(cell_plot_rows_list)
 
     n_global_axes = len(curve_specs_global)

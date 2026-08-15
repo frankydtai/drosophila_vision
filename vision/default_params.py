@@ -63,7 +63,8 @@ NEURON_SCHEMA: Dict[str, object] = {
         "e_leak": dict(lo=-50.0, hi=50.0, val=0.0, jit=1.0, mode="indi"),
         "v_th": dict(lo=-100.0, hi=100.0, val=-50.0, jit=0.0, mode="indi"),
         "tau_lp": dict(lo=10.0, hi=100.0, val=10.0, jit=2.0, mode="indi"),
-        "tau_hp": dict(lo=100.0, hi=500.0, val=200.0, jit=20.0, mode="indi"),
+        "tau_hp_rise": dict(lo=100.0, hi=500.0, val=200.0, jit=20.0, mode="indi"),
+        "tau_hp_fall": dict(lo=100.0, hi=500.0, val=200.0, jit=20.0, mode="indi"),
         "a_h": dict(lo=0.0, hi=1.0, val=0, jit=0.1, mode="indi",
             overrides="val.L1,L2,L4,L5=0.5",
         ),
@@ -182,6 +183,7 @@ SPOT_PACK: Dict[str, object] = {
 
 MOVING_BAR_INPUT: Dict[str, object] = {
     "multi_bar": True,
+    "bar_radius": 2,
 }
 
 # ---------------------------------------------------------------------------
@@ -335,6 +337,10 @@ ANALYZE_CELL_DYNAMICS: Dict[str, object] = {
 # ---------------------------------------------------------------------------
 # 6 analyze.trace
 # ---------------------------------------------------------------------------
+
+ANALYZE_SYN_SIGN: Dict[str, object] = {
+    "bins": 20,
+}
 
 ANALYZE_TRACE: Dict[str, object] = {
     "trace_osc_min_f": 0.5,

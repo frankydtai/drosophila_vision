@@ -94,9 +94,11 @@ Forbidden: `artifact`, `output` — use `data` instead. Do not use `data` for in
 
 ### `default`
 
-Definition: Allowed only as the module/file name ``default_params`` — the sole numeric literal source for train, figure, analyze, and run layers.
-Example: `from default_params import RUN_PATH`, `default_params.NEURON_SCHEMA['optimizable']`
-Forbidden: ``default`` / ``defaults`` and any project identifier containing ``default`` (``default_*``, ``*_default``, ``DEFAULT_*``, ``_default_*``) except the module name ``default_params``. Use concrete terms instead (``optimizable``, ``cost_radius_scales``, ``bare_cost_radius``, ``build_schema``, ``fallback_*``, ``resolve_*``). Library/API spellings may remain unchanged (``argparse`` keyword ``default=``, dataclass ``default_factory``, ``dict.setdefault``, help ``%(default)s``).
+Definition: Numeric/config literal source — scope split by tree.
+- **`vision/simulation/**`** (numbered core, figure, analyze, run, experiment): allowed only as the module/file name ``default_params`` — the sole numeric literal bag for train, figure, analyze, and run layers. Simulation code defines no ``default_*`` / ``DEFAULT_*`` constants; literals live in ``default_params`` and are imported by role name (``BAR_RADIUS``, ``SYN_SIGN_BINS``, …) or via ``resolve_*`` at CLI/session assembly.
+- **`vision/connectome/**`**: connectome-build literals may use noun ``DEFAULT_*`` constants (``DEFAULT_NETWORK_RUN``, ``DEFAULT_RADIUS``, ``DEFAULT_SIDE``, …) for CLI defaults and reference geometry. Not the simulation ``default_params`` module.
+Example: `from default_params import RUN_PATH`, `default_params.NEURON_SCHEMA['optimizable']`; connectome `path.DEFAULT_NETWORK_RUN`, `build_hex.DEFAULT_RADIUS`; figure CLI `default=DEFAULT_NETWORK_RUN` importing from connectome ``path``.
+Forbidden: In **vision/simulation/** only — ``default`` / ``defaults`` and any project identifier containing ``default`` (``default_*``, ``*_default``, ``DEFAULT_*``, ``_default_*``) except the module name ``default_params``. Do not coin verb/compound substitutes for connectome ``DEFAULT_*`` in simulation (``FALLBACK_*``, ``BUILD_*``, ``BASE_*``, ``ASSIGN_*``, …). Library/API spellings may remain unchanged (``argparse`` keyword ``default=``, dataclass ``default_factory``, ``dict.setdefault``, help ``%(default)s``).
 
 ### `edge` / `edges`
 

@@ -44,9 +44,9 @@ logger = logging.getLogger(__name__)
 # Hemisphere to build by default.
 DEFAULT_SIDE = "right"
 # A cell is kept only if it has at least this many neurons (the cell cut).
-DEFAULT_MIN_NEURON_COUNT = 1
+DEFAULT_DEFAULT_MIN_NEURON_COUNT = 1
 # Connection rows with fewer synapses than this are discarded.
-DEFAULT_MIN_SYN_COUNT = 5
+DEFAULT_DEFAULT_MIN_SYN_COUNT = 5
 # Optic-lobe neuropil stems; the side suffix (_L / _R) is appended at load time.
 VISUAL_NEUROPIL_STEMS = ("ME", "LO", "LOP", "LA")
 # ASSIGNED_COLUMN_CELLS: sole list lives in assign_column (3_assign_column.py).

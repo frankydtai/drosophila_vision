@@ -17,7 +17,7 @@ GRUNTMAN_WIDTHS_DEG = (2.25, 9.0)
 GRUNTMAN_DIRECTIONS = ("right", "left", "up", "down")
 
 # Per-lane spacing width in hex nodes (``spacing_deg = bar_radius * DEG``).
-DEFAULT_BAR_RADIUS = 2
+BAR_RADIUS = 2
 
 _HEX_AREA = 1.5 * math.sqrt(3.0) * float(HEX_PATCH_RADIUS) ** 2
 

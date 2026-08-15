@@ -370,11 +370,11 @@ def _append_mirror_pack_entries(
 
 def apply_pack_override(pack, override, backend: ModelBackend):
     """Apply one serializable pack override dict (saved in ``train_opts.json``)."""
-    specs = override.get("mirror_fits")
-    if specs is None and "mirror_fit" in override:
-        specs = [override["mirror_fit"]]
-    if not specs:
+    specs = override.get("mirror_fit")
+    if specs is None:
         raise ValueError(f"unknown pack override {override!r}")
+    if isinstance(specs, dict):
+        specs = [specs]
     for spec in specs:
         if "mirror_types" not in spec:
             raise ValueError(f"mirror_fit spec needs mirror_types: {spec!r}")
@@ -812,7 +812,7 @@ def resolve_gt_cells_by_task(by_task_kv) -> Dict[str, List[str]]:
     return out
 
 
-_STIMULUS_TRAIN_OPT_SPECS = (
+_STI_TRAIN_OPT_SPECS = (
     ("spot_bright", "spot_bright_sti_opts"),
     ("spot_dark", "spot_dark_sti_opts"),
     ("moving_bar_bright", "moving_bar_bright_sti_opts"),
@@ -993,7 +993,7 @@ def resolve_train_opts(
         i_sti=i_sti,
     )
     sti_opts = {}
-    for tname, opts_key in _STIMULUS_TRAIN_OPT_SPECS:
+    for tname, opts_key in _STI_TRAIN_OPT_SPECS:
         raw = raw_by_name[tname]
         if tname not in tl and raw is None:
             sti_opts[opts_key] = None
@@ -1328,7 +1328,7 @@ def resolve_filter_branches(val, *, filter: str):
 
 def _sti_delta_ms(opts: dict, key: str) -> float:
     """``delta_ms`` / ``delta_ms_pre`` from sti opts (required)."""
-    for _tname, opts_key in _STIMULUS_TRAIN_OPT_SPECS:
+    for _tname, opts_key in _STI_TRAIN_OPT_SPECS:
         so = opts.get(opts_key)
         if isinstance(so, dict) and so.get(key) is not None:
             dt = float(so[key])
@@ -1337,11 +1337,11 @@ def _sti_delta_ms(opts: dict, key: str) -> float:
             return dt
     raise ValueError(
         f"train opts require {key} in a sti opts dict "
-        f"(one of {[k for _, k in _STIMULUS_TRAIN_OPT_SPECS]})"
+        f"(one of {[k for _, k in _STI_TRAIN_OPT_SPECS]})"
     )
 
 
-def session_from_opts(opts: dict, model: str | None = None, **kwargs) -> TrainSession:
+def resolve_session(opts: dict, model: str | None = None, **kwargs) -> TrainSession:
     """Restore a session from a saved ``train_opts.json`` dict."""
     opts = dict(opts)
     if model is None:
@@ -1385,4 +1385,4 @@ def session_from_outdir(
         raise FileNotFoundError(f"missing {opts_path}")
     with open(opts_path) as f:
         opts = json.load(f)
-    return session_from_opts(opts, model)
+    return resolve_session(opts, model)

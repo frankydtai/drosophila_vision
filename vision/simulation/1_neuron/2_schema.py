@@ -24,7 +24,7 @@ SEGMENT_NAMES = (
     "a_gt", "bias_gt",
     "syn_strength_cell", "syn_strength_edge",
     "a_in", "a_out", "e_leak", "v_th", "v_th_ca", "a_ca", "tau_ca",
-    "tau_lp", "tau_hp",
+    "tau_lp", "tau_hp_rise", "tau_hp_fall",
     "a_h", "v_mid_h_g", "v_mid_h_tau", "h_slope",
     "a_h_rev", "v_mid_h_g_rev", "v_mid_h_tau_rev", "h_slope_rev",
     "a_sti_radius",
@@ -33,7 +33,7 @@ I_H_SHAPE_SEGMENT_NAMES = (
     "v_mid_h_g", "v_mid_h_tau", "h_slope",
     "v_mid_h_g_rev", "v_mid_h_tau_rev", "h_slope_rev",
 )
-_HP_LP_ONLY = frozenset({"tau_lp", "tau_hp"})
+_HP_LP_ONLY = frozenset({"tau_lp", "tau_hp_rise", "tau_hp_fall"})
 _I_H_REV_ONLY = frozenset({
     "a_h_rev", "v_mid_h_g_rev", "v_mid_h_tau_rev", "h_slope_rev",
 })
@@ -109,11 +109,11 @@ def resolve_mode_edits(mode_edits, i_from_name):
         else:
             for node in nodes:
                 node_mode[str(node)] = bucket
-    out = {b: [] for b in PARAM_MODE_KEYS}
+    out = {mode_bucket: [] for mode_bucket in PARAM_MODE_KEYS}
     for name, bucket in node_mode.items():
         out[bucket].append(int(i_from_name[name]))
-    for b in PARAM_MODE_KEYS:
-        out[b].sort()
+    for mode_bucket in PARAM_MODE_KEYS:
+        out[mode_bucket].sort()
     return out
 
 
@@ -153,22 +153,22 @@ def syn_strength(params):
     return params["syn_strength_cell"]
 
 
-def build_segment(name, count, kind, segment_optimizable, n, *, i_from_name=None):
+def build_segment(name, n_nodes, kind, segment_optimizable, n, *, i_from_name=None):
     init_edits, mode_edits = edits_from_optimizable(segment_optimizable, name)
-    i_from = i_from_name if i_from_name else {str(i): i for i in range(n)}
+    i_from = i_from_name if i_from_name else {str(node_idx): node_idx for node_idx in range(n)}
     mode = resolve_mode_edits(mode_edits, i_from)
     init, init_override = resolve_init_edits(init_edits, i_from)
     s = {
         "name": name,
-        "count": count,
+        "n_nodes": n_nodes,
         "kind": kind,
         "lo": float(segment_optimizable["lo"]),
         "hi": float(segment_optimizable["hi"]),
         "jit": float(segment_optimizable["jit"]),
         "init": init,
     }
-    for b in PARAM_MODE_KEYS:
-        s[b] = list(mode[b])
+    for mode_bucket in PARAM_MODE_KEYS:
+        s[mode_bucket] = list(mode[mode_bucket])
     if init_override:
         s["init_override"] = init_override
     return s

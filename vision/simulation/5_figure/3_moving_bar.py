@@ -403,7 +403,7 @@ def moving_bar_trace_readout(session, z, task, *, at_x=None, at_y=None,
     t_prep0 = time.perf_counter()
     pack = session.pack_for(task)
     schema = list(session.schema)
-    params = train.params_from_opts(
+    params = train.apply_val_from(
         train.assign_params(z, schema, session.backend), session,
     )
     v = train.forward_v(session, params, pack.i_sti, pack=pack)
@@ -414,7 +414,7 @@ def moving_bar_trace_readout(session, z, task, *, at_x=None, at_y=None,
     else:
         v_ca = None
         plot_t = v
-    train.params_from_opts(params, session, onset_trace=plot_t, t_onset=t0)
+    train.apply_val_from(params, session, onset_trace=plot_t, t_onset=t0)
     trace_full = plot_t.detach().cpu().numpy()
     specs = bar_specs_for_session(session, task)
     spec_names = [s.name for s in specs]

@@ -39,5 +39,5 @@ pprint(params, sort_dicts=False, width=120)
 PY
 echo "==== end default_params ===="
 # Sorted N_name layout: import_bootstrap via venv .pth; train via run.py (not -m training.driver).
-"${PYTHON}" -u run.py --n-iter 300 --a-h init.L1,L2,L4,L5=0.5
+"${PYTHON}" -u run.py --n-iter 300 
 
