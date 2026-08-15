@@ -12,8 +12,7 @@ from __future__ import annotations
 from neuron.param import (
     EULER_CLI,
     EULER_MODES,
-    I_H_DIR_REVERSE_CELLS,
-    KNOWN_MODELS,
+    MODELS,
     e_h_rev,
     expand_euler,
     t_from_ms,
@@ -54,7 +53,7 @@ v_component_from_g = _model_borst.v_component_from_g
 
 
 __all__ = [
-    "KNOWN_MODELS",
+    "MODELS",
     "I_H_SHAPE_PARAMS",
     "SYN_MODES",
     "MODEL_DRIVERS",
@@ -81,7 +80,6 @@ __all__ = [
     "pack_cost_traces",
     "pack_traces",
     "window_time_traces",
-    "I_H_DIR_REVERSE_CELLS",
     "EULER_MODES",
     "EULER_CLI",
     "expand_euler",

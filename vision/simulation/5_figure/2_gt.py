@@ -18,17 +18,14 @@ from task.spot.gt import (
     spot_gt_active,
 )
 from network.construction import active_gt_cells, gt_cells_from_opts
-
-_VALID_CONTRASTS = ("bright", "dark")
+from train.config import CONTRASTS
 
 
 def cells_from_nodes(session, nodes):
     if torch.is_tensor(nodes):
         nodes = nodes.detach().cpu().numpy()
     nodes = np.asarray(nodes, dtype=np.int64)
-    connectome = session.backend.network
-    if connectome is None:
-        raise ValueError("cells_from_nodes requires session.backend.network")
+    connectome = session.connectome
     node_cells = connectome.node_cells[nodes]
     if torch.is_tensor(node_cells):
         node_cells = node_cells.detach().cpu().numpy()
@@ -36,9 +33,14 @@ def cells_from_nodes(session, nodes):
     return [str(cells[int(ti)]) for ti in node_cells]
 
 
-def pack_cells(session, task=None):
+def pack_cells(session, task=None, contrast=None):
     """Unique cells on pack.entry_nodes, pack order."""
-    pack = session.primary_pack if task is None else session.pack_from_task(task)
+    if task is None and contrast is None:
+        pack = session.primary_pack
+    elif task is None or contrast is None:
+        raise ValueError("task and contrast must be passed together")
+    else:
+        pack = session.packs[task][contrast]
     seen = set()
     out = []
     for name in cells_from_nodes(session, pack.entry_nodes):
@@ -48,16 +50,19 @@ def pack_cells(session, task=None):
     return tuple(out)
 
 
-def active_spot_gt_cells(session, task=None):
+def active_spot_gt_cells(session, task=None, contrast=None):
     """Configured spot gt cells (sti opts), not cost-pack-only.
 
     Falls back to :data:`GT_CELLS` when opts omit ``gt_cells``.
     """
-    pack = session.primary_pack if task is None else session.pack_from_task(task)
+    if task is None and contrast is None:
+        pack = session.primary_pack
+    elif task is None or contrast is None:
+        raise ValueError("task and contrast must be passed together")
+    else:
+        pack = session.packs[task][contrast]
     opts = dict((session.train_opts or {}).get(f"{pack.task}_sti_opts") or {})
-    connectome = session.backend.network
-    if connectome is None:
-        raise ValueError("active_spot_gt_cells requires session.backend.network")
+    connectome = session.connectome
     return tuple(
         active_gt_cells(
             gt_cells_from_opts(opts),
@@ -68,9 +73,9 @@ def active_spot_gt_cells(session, task=None):
     )
 
 
-def contrast_from_task(task) -> str:
-    """``bright`` / ``dark`` from a spot pack name."""
-    return "dark" if str(task) == "spot_dark" else "bright"
+def contrast_from_pack(pack) -> str:
+    """``bright`` / ``dark`` from a pack."""
+    return str(pack.contrast)
 
 
 def contrast_order(contrasts) -> tuple[str, ...]:
@@ -104,7 +109,7 @@ def spot_gts(
     """
     task = task or session.primary_pack.task
     if contrasts is None:
-        contrasts = (contrast_from_task(task),)
+        contrasts = tuple(session.contrasts)
     if filter is None:
         filter = str((session.train_opts or {}).get("filter", "none"))
     else:
@@ -122,15 +127,16 @@ def spot_gts(
             raise ValueError(
                 f"unknown contrast {contrast!r}; expected one of {_VALID_CONTRASTS}"
             )
-        kw = dict(
+        load = load_gt_dark if contrast == "dark" else load_gt
+        gt_stack = load(
             t_onset=t_onset, n_t=n_t, ms_sti=ms_sti, delta_ms=delta_ms,
             filter=filter, spot_gt_mode=spot_gt_mode,
         )
-        gt_stack = load_gt_dark(**kw) if contrast == "dark" else load_gt(**kw)
         scaled = gt_stack * gt_amp
+        gt_cell_idx = dict(zip(GT_CELLS, range(len(GT_CELLS))))
         out[contrast] = {
-            str(name): scaled[i]
-            for i, name in enumerate(GT_CELLS)
-            if spot_gt_active(spot_gt_mode, contrast, int(RF_SIGN[name]))
+            str(cell): scaled[gt_cell_idx[cell]]
+            for cell in GT_CELLS
+            if spot_gt_active(spot_gt_mode, contrast, int(RF_SIGN[cell]))
         }
     return out

@@ -90,8 +90,8 @@ def _clip_halfplane(
         qx0, qy0, qx1, qy1 = bound, -1e6, bound, 1e6
     else:
         qx0, qy0, qx1, qy1 = -1e6, bound, 1e6, bound
-    for i in range(n):
-        cur_x, cur_y = float(px[i]), float(py[i])
+    for vertex in range(n):
+        cur_x, cur_y = float(px[vertex]), float(py[vertex])
         cur_c = cur_x if axis == 0 else cur_y
         cur_in = cur_c >= bound if keep_ge else cur_c <= bound
         if cur_in:

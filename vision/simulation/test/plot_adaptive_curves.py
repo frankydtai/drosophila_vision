@@ -216,7 +216,7 @@ def main(argv=None):
     ax_gate.legend(fontsize=8, loc="best")
     ax_gate.grid(True, alpha=0.3)
 
-    common_kw = dict(
+    common_kwargs = dict(
         bias=bias,
         tau_m=tau_m,
         gate_pivot=gate_pivot,
@@ -230,7 +230,7 @@ def main(argv=None):
 
     for g_ad, color in zip(gadapt_list, cmap_g):
         t, a, _vs, vt, _r, _g = simulate_pulse(
-            g_ad, tau_adapt=tau_fix, **common_kw,
+            g_ad, tau_adapt=tau_fix, **common_kwargs,
         )
         lab = rf"$g_{{\mathrm{{adapt}}}}$={g_ad:g}"
         ax_a_g.plot(t, a, color=color, lw=1.5, label=lab)
@@ -239,7 +239,7 @@ def main(argv=None):
     cmap_tau = plt.cm.plasma(np.linspace(0.15, 0.85, len(tau_adapt_list)))
     for tau_ad, color in zip(tau_adapt_list, cmap_tau):
         t, a, _vs, vt, _r, _g = simulate_pulse(
-            g_fix, tau_adapt=tau_ad, **common_kw,
+            g_fix, tau_adapt=tau_ad, **common_kwargs,
         )
         lab = rf"$\tau_{{\mathrm{{adapt}}}}$={tau_ad:g}"
         ax_a_tau.plot(t, a, color=color, lw=1.5, label=lab)

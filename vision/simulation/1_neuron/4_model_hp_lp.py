@@ -27,7 +27,7 @@ forward lives in ``neuron.forward``. Scalars from ``session`` flat fields.
 
 t=0 uses ``session.pre_steady`` (``--pre-steady …``):
 
-* ``solve`` (default): fixed-iter DC map with ``session.pre_steady_iters`` /
+* ``solve`` (default): fixed-iter DC map with ``session.pre_steady_n_iter`` /
   ``session.pre_steady_damp`` (under-relaxation; not part of dynamics)
 * ``probe``: one ``v_syn`` from ``e_leak`` (legacy)
 """
@@ -40,7 +40,7 @@ from neuron.schema import syn_strength
 
 
 def update_v(
-    v, v_slow, params, i_sti, backend, *, delta_ms, v_clamp, g_leak, euler,
+    v, v_slow, params, i_sti, connectome, *, delta_ms, v_clamp, g_leak, euler,
     return_component: bool = False,
 ):
     """One HP→LP step; returns ``(v, v_slow)`` or component extras."""
@@ -57,7 +57,7 @@ def update_v(
         raise ValueError("g_leak must be non-zero")
 
     v_out = torch.relu(v - params["v_th"]) * params["a_out"]
-    v_syn = params["a_in"] * backend.conn.signed_g(v_out, syn_strength(params))
+    v_syn = params["a_in"] * connectome.conn.signed_g(v_out, syn_strength(params))
     v_sti = i_sti / g_leak
     v_in = v_syn + v_sti
     tau_hp = torch.where(v_in >= v_slow, tau_hp_rise, tau_hp_fall)
@@ -88,7 +88,7 @@ def update_v(
     if not return_component:
         return v, v_slow
 
-    g_exc, g_inh = backend.conn.exc_inh_g(v_out, syn_strength(params))
+    g_exc, g_inh = connectome.conn.exc_inh_g(v_out, syn_strength(params))
     return v, v_slow, {
         "v_syn": v_syn,
         "v_syn_exc": params["a_in"] * g_exc,
@@ -109,10 +109,10 @@ def standardize_i_sti(session, params, i_sti, pack):
     return i_sti.unsqueeze(0) if i_sti.dim() == 2 else i_sti
 
 
-def v_dc_from_v(v, params, v_sti, backend):
+def v_dc_from_v(v, params, v_sti, connectome):
     """Algebraic DC target: ``v_dc = e_leak + (1−a_h)·v_in(v)``."""
     v_out = torch.relu(v - params["v_th"]) * params["a_out"]
-    v_syn = params["a_in"] * backend.conn.signed_g(v_out, syn_strength(params))
+    v_syn = params["a_in"] * connectome.conn.signed_g(v_out, syn_strength(params))
     v_in = v_syn + v_sti
     return params["e_leak"] + (1.0 - params["a_h"]) * v_in, v_in
 
@@ -124,28 +124,28 @@ def pre_steady(session, params, n_b, i_sti=None):
     pre_steady = str(session.pre_steady)
     if pre_steady not in ("probe", "solve"):
         raise ValueError(f"hp_lp pre_steady must be probe|solve; got {pre_steady!r}")
-    backend = session.backend
+    connectome = session.connectome
     g_leak = float(session.g_leak)
     if g_leak == 0.0:
         raise ValueError("g_leak must be non-zero")
     v_sti = i_sti[:, 0, :] / g_leak
     e_leak = params["e_leak"]
-    v = e_leak.expand(n_b, backend.n_nodes).clone()
+    v = e_leak.expand(n_b, connectome.n_nodes).clone()
     if pre_steady == "probe":
-        v_dc, v_in = v_dc_from_v(v, params, v_sti, backend)
+        v_dc, v_in = v_dc_from_v(v, params, v_sti, connectome)
         return v_in, v_dc
     damp = float(session.pre_steady_damp)
-    for _ in range(int(session.pre_steady_iters)):
-        v_dc, _ = v_dc_from_v(v, params, v_sti, backend)
+    for _ in range(int(session.pre_steady_n_iter)):
+        v_dc, _ = v_dc_from_v(v, params, v_sti, connectome)
         v = v + damp * (v_dc - v)
-    _, v_in = v_dc_from_v(v, params, v_sti, backend)
+    _, v_in = v_dc_from_v(v, params, v_sti, connectome)
     return v_in, v
 
 
 def step(v_slow, v, params, i_sti, session, *, delta_ms: float, return_component: bool = False):
     """One hp_lp update; returns ``(v_slow, v)`` or + component dict."""
     out = update_v(
-        v, v_slow, params, i_sti, session.backend,
+        v, v_slow, params, i_sti, session.connectome,
         delta_ms=float(delta_ms),
         v_clamp=session.v_clamp,
         g_leak=session.g_leak,

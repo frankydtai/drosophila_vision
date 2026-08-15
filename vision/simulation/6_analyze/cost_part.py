@@ -14,7 +14,7 @@ Usage (from ``vision/simulation/``)::
       hp_lp/28703323-... --part spot_bright_L4_r0 --print-parts
 
     ../.venv/bin/python analyze/cost_part.py \\
-      hp_lp/28703323-... --cell L4 --radius 0 --cost-norm a_gt2 --stride 5
+      hp_lp/28703323-... --task spot --contrast bright --cell L4 --radius 0 --cost-norm a_gt2 --stride 5
 """
 from __future__ import annotations
 
@@ -36,7 +36,7 @@ import torch
 
 import figure.plot as plot
 import train
-from train.config import COST_NORMS, expand_cost_norm, spot_cost_part_key
+from train.config import COST_NORMS, CONTRASTS, expand_cost_norm, spot_cost_part_key
 from train.cost import (
     _gather_cost_time,
     _parts_from_entries,
@@ -49,12 +49,31 @@ from train.cost import (
 from train.param import params_from_z
 
 
+_SPOT_PART_PREFIXES = tuple(
+    (task, contrast, f"{task}_{contrast}_")
+    for task in ("spot",)
+    for contrast in CONTRASTS
+)
+
+
 def _resolve_part_key(args) -> str:
     if args.part:
         return str(args.part).strip()
     if args.cell is None or args.radius is None:
         raise SystemExit("need --part KEY, or both --cell and --radius")
-    return spot_cost_part_key(args.task, str(args.cell), float(args.radius))
+    return spot_cost_part_key(
+        args.task, args.contrast, str(args.cell), float(args.radius),
+    )
+
+
+def _task_contrast_from_part_key(part_key: str) -> tuple[str, str]:
+    for task, contrast, prefix in _SPOT_PART_PREFIXES:
+        if part_key.startswith(prefix):
+            return task, contrast
+    raise SystemExit(
+        f"part {part_key!r} is not a spot fine part_key "
+        f"(expected prefix spot_<contrast>_…)",
+    )
 
 
 def override_cost_norm(session, cost_norm: str | None):
@@ -71,26 +90,17 @@ def cost_part(session, z, part_key: str) -> dict:
     """Build per-part tensors using the same forward + grouping as train cost."""
     params = params_from_z(z, session)
     cost_norm = _session_cost_norm(session)
-    task = None
-    for task in train.SPOT_TASKS:
-        if part_key.startswith(f"{task}_"):
-            task = task
-            break
-    if task is None:
-        raise SystemExit(
-            f"part {part_key!r} is not a spot fine part_key "
-            f"(expected prefix in {train.SPOT_TASKS})",
-        )
-    pack = session.pack_from_task(task)
+    task, contrast = _task_contrast_from_part_key(part_key)
+    pack = session.packs[task][contrast]
     fwd = _pack_cost_forward(params, pack, session)
     if fwd is None:
-        raise SystemExit(f"no cost forward for pack {task!r}")
+        raise SystemExit(f"no cost forward for pack {task!r}/{contrast!r}")
     a_gt, bias_gt, gts, scale, v_readout, _v_readout_dsi, _pd_nd = fwd
     if v_readout is None:
-        raise SystemExit(f"waveform v_readout required for {task!r}")
+        raise SystemExit(f"waveform v_readout required for {task!r}/{contrast!r}")
     v_readout, gts, time_mask = _gather_cost_time(pack, v_readout, gts)
 
-    part_idxs, part_keys = _spot_entries_by_part(pack, session.backend)
+    part_idxs, part_keys = _spot_entries_by_part(pack, session.connectome)
     if part_key not in part_keys:
         raise SystemExit(
             f"part {part_key!r} not in pack parts; available:\n  "
@@ -311,9 +321,15 @@ def main(argv=None) -> None:
     )
     ap.add_argument(
         "--task",
-        default="spot_bright",
-        choices=list(train.SPOT_TASKS),
-        help="spot task for --cell/--radius (default: spot_bright)",
+        default="spot",
+        choices=list(train.TASKS),
+        help="task for --cell/--radius (default: spot)",
+    )
+    ap.add_argument(
+        "--contrast",
+        default="bright",
+        choices=list(CONTRASTS),
+        help="contrast for --cell/--radius (default: bright)",
     )
     ap.add_argument("--cell", default=None, help="cell type, e.g. L4")
     ap.add_argument(

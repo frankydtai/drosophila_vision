@@ -305,9 +305,12 @@ def plot_hex_patches_uv(
 
 def set_axis_labels(ax, fontsize: Optional[int] = None) -> None:
     """Apply the shared X/Y axis labels (single source of truth) to ``ax``."""
-    kw = {} if fontsize is None else {"fontsize": fontsize}
-    ax.set_xlabel(X_AXIS_LABEL, **kw)
-    ax.set_ylabel(Y_AXIS_LABEL, **kw)
+    if fontsize is None:
+        ax.set_xlabel(X_AXIS_LABEL)
+        ax.set_ylabel(Y_AXIS_LABEL)
+    else:
+        ax.set_xlabel(X_AXIS_LABEL, fontsize=fontsize)
+        ax.set_ylabel(Y_AXIS_LABEL, fontsize=fontsize)
 
 
 def _plot_hexes(ax, u, v, labels, facecolor, edgecolor, hex_radius, fontsize=3):

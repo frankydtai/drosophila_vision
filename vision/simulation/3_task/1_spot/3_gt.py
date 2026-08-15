@@ -8,7 +8,7 @@ dicts keyed by cell name (:data:`GT_CELLS`); the ``filter=\"ca\"`` path also
 reads external CSVs under ``figure_digitization/arenz/``.
 
 ``filter=\"none\"``: :func:`build_rf` × :func:`build_ir_lti` (bandpass/LP on
-:func:`sti_waveform`). T4a–T4d share Gruntman 2018 Fig. 2B spatial
+:func:`sti_pulse`). T4a–T4d share Gruntman 2018 Fig. 2B spatial
 samples in :data:`RF_SCALE` and LP ``IR_lp_ms`` (``IR_hp_ms=0``).
 
 ``filter=\"ca\"``: same :data:`RF_SCALE` (unsigned; no ``RF_SIGN`` on rf);
@@ -20,7 +20,7 @@ cell, shape ``(RF_N_RADII, n_t)``.
 Cost GT membership is gated by ``spot_gt_mode`` (``all`` | ``positive``) via
 :func:`spot_gt_active` (still uses :data:`RF_SIGN`); waveform ×
 :func:`contrast_sign` only (dark = −1). Sti drive is
-:func:`task.spot.sti_spec.sti_waveform`, shared with network ``i_sti``.
+:func:`task.spot.sti_spec.sti_pulse`, shared with network ``i_sti``.
 
 Network mapping, cost hexes, and :class:`task.spot.pack.SpotGt` packing
 live in :mod:`task.spot.pack`.
@@ -33,8 +33,7 @@ from typing import Dict, Sequence, Tuple
 
 import numpy as np
 
-from task.spot.sti_geo import spot_radius_half_steps
-from task.spot.sti_spec import sti_waveform
+from task.spot.sti_spec import sti_pulse
 
 GT_CELLS: Tuple[str, ...] = (
     "L1", "L2", "L3", "L4", "L5",
@@ -218,8 +217,8 @@ def _lowpass(x, tau_ms, *, delta_ms: float):
         result = x
     else:
         result[0] = x[0]
-        for i in range(0, n - 1):
-            result[i + 1] = result[i] + (dt / tau_ms) * (x[i] - result[i])
+        for t in range(0, n - 1):
+            result[t + 1] = result[t] + (dt / tau_ms) * (x[t] - result[t])
     return result.transpose(np.roll(np.arange(result.ndim), -1))
 
 
@@ -251,8 +250,8 @@ def _shift_right(y, k: int):
     return out
 
 
-def build_ir_lti(cell: str, u: np.ndarray, *, delta_ms: float) -> np.ndarray:
-    """LTI ir: bandpass/LP on sti drive ``u``, normalize, then ``IR_delay_ms``.
+def build_ir_lti(cell: str, pulse: np.ndarray, *, delta_ms: float) -> np.ndarray:
+    """LTI ir: bandpass/LP on ``sti_pulse``, normalize, then ``IR_delay_ms``.
 
     ``IR_hp_ms[cell] == 0`` → LP-only; else HP+LP bandpass.
     Delay is ``round(IR_delay_ms[cell] / delta_ms)`` samples.
@@ -260,7 +259,7 @@ def build_ir_lti(cell: str, u: np.ndarray, *, delta_ms: float) -> np.ndarray:
     t_delay = int(round(float(IR_delay_ms[cell]) / float(delta_ms)))
     return _shift_right(
         normalize_ir(
-            _bandpass(u, IR_hp_ms[cell], IR_lp_ms[cell], delta_ms=delta_ms)
+            _bandpass(pulse, IR_hp_ms[cell], IR_lp_ms[cell], delta_ms=delta_ms)
         ),
         t_delay,
     )
@@ -322,11 +321,14 @@ def load_ir_arenz(*, t_onset, n_t, delta_ms: float) -> np.ndarray:
     if t_onset >= n_t:
         return out
     t_rel_s = np.arange(n_t - t_onset, dtype=np.float64) * (delta_ms / 1000.0)
-    for i, cell in enumerate(GT_CELLS):
+    gt_cell_idx = dict(zip(GT_CELLS, range(len(GT_CELLS))))
+    for cell in GT_CELLS:
         if cell not in traces:
             continue
         t_csv, amp = traces[cell]
-        out[i, t_onset:] = np.interp(t_rel_s, t_csv, amp, left=amp[0], right=amp[-1])
+        out[gt_cell_idx[cell], t_onset:] = np.interp(
+            t_rel_s, t_csv, amp, left=amp[0], right=amp[-1],
+        )
     return out
 
 
@@ -368,19 +370,20 @@ def load_rf_ir(*, t_onset=None, n_t=None, ms_sti=None, delta_ms: float, filter="
     filter = str(filter)
 
     rf = np.zeros((n_cells, RF_N_RADII))
-    for i, cell in enumerate(GT_CELLS):
-        rf[i] = build_rf(cell)
+    gt_cell_idx = dict(zip(GT_CELLS, range(len(GT_CELLS))))
+    for cell in GT_CELLS:
+        rf[gt_cell_idx[cell]] = build_rf(cell)
 
     if filter == "ca":
         return rf, load_ir_arenz(
             t_onset=t_onset, n_t=n_t, delta_ms=delta_ms,
         )
 
-    u = sti_waveform(t_onset, n_t, ms_sti, delta_ms=delta_ms)
-    u = u / np.max(u)
+    pulse = sti_pulse(t_onset, n_t, ms_sti, delta_ms=delta_ms)
+    pulse = pulse / np.max(pulse)
     ir = np.zeros((n_cells, n_t))
-    for i, cell in enumerate(GT_CELLS):
-        ir[i] = build_ir_lti(cell, u, delta_ms=delta_ms)
+    for cell in GT_CELLS:
+        ir[gt_cell_idx[cell]] = build_ir_lti(cell, pulse, delta_ms=delta_ms)
     return rf, ir
 
 
@@ -389,9 +392,12 @@ def _gt_from_rf_ir(rf: np.ndarray, ir: np.ndarray) -> np.ndarray:
     n_t = ir.shape[1]
     n_cells = rf.shape[0]
     gt = np.zeros((n_cells, RF_N_RADII, n_t))
-    for i in range(n_cells):
+    gt_cell_idx = dict(zip(GT_CELLS, range(len(GT_CELLS))))
+    for cell in GT_CELLS:
         for radius in range(RF_N_RADII):
-            gt[i, radius] = rf[i, radius] * ir[i]
+            gt[gt_cell_idx[cell], radius] = (
+                rf[gt_cell_idx[cell], radius] * ir[gt_cell_idx[cell]]
+            )
     return gt
 
 
@@ -410,12 +416,13 @@ def _spot_gt(
         t_onset=t_onset, n_t=n_t, ms_sti=ms_sti, delta_ms=delta_ms, filter=filter,
     )
     gts = _gt_from_rf_ir(rf, ir)
-    for i, cell in enumerate(GT_CELLS):
+    gt_cell_idx = dict(zip(GT_CELLS, range(len(GT_CELLS))))
+    for cell in GT_CELLS:
         rf_sign = int(RF_SIGN[cell])
         if not spot_gt_active(spot_gt_mode, contrast, rf_sign):
-            gts[i] = 0.0
+            gts[gt_cell_idx[cell]] = 0.0
         else:
-            gts[i] *= float(contrast_sign(contrast))
+            gts[gt_cell_idx[cell]] *= float(contrast_sign(contrast))
     return gts
 
 
@@ -462,8 +469,8 @@ def _spot_readout_a_radius(
     radius = int(radius)
     if radius < 0 or radius >= RF_N_RADII:
         raise ValueError(f"spot rf radius out of range: {radius!r}")
-    # spot_radius == 1 → half_steps == 2: a_radius(1)=rf(1)+rf(2), a_radius(2)=0
-    if spot_radius_half_steps(spot_radius) == 2:
+    # spot_radius == 1: a_radius(1)=rf(1)+rf(2), a_radius(2)=0
+    if float(spot_radius) == 1:
         if radius == 1:
             return float(rf[1]) + float(rf[2])
         if radius == 2:

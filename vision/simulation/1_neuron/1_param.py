@@ -54,9 +54,7 @@ def e_h_rev(e_leak, e_h: float):
     return 2.0 * e_leak - float(e_h)
 
 
-# Non-numeric vocabularies (names / modes), not run defaults.
-I_H_DIR_REVERSE_CELLS: tuple[int, ...] = ()
-KNOWN_MODELS = ("borst", "hp_lp")
+MODELS = ("borst", "hp_lp")
 EULER_CLI = {"im": "implicit", "ex": "explicit"}
 EULER_MODES = tuple(EULER_CLI.values())
 

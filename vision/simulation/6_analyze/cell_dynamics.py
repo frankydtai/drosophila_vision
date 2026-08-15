@@ -6,6 +6,7 @@ from const_default import (
     NEURON_SCHEMA,
     TRAIN_CONFIG,
     TRAIN_OPTIMIZATION,
+    TRAIN_OPTS,
 )
 
 import argparse
@@ -28,7 +29,7 @@ import import_bootstrap  # noqa: F401
 import train
 from const_default import RUN_PATH
 import figure.plot as plot
-from figure.gt import contrast_from_task
+from figure.gt import contrast_from_pack
 from figure.spot import pack_spot_cost_radii, resolve_spot_gts
 from figure.panel import (
     filter_figure_token,
@@ -57,7 +58,6 @@ from task.spot.sti_geo import (
     spot_sti_bs,
 )
 from train.cli import resolve_sti_timing_kwargs
-from train.config import resolve_tasks
 from train.cost import node_vals_from_param
 
 __doc__ = """Borst / hp_lp v component analysis.
@@ -72,7 +72,7 @@ Two *different* knobs — do not mix them:
 1. **Stimulus length** (``--sti-timing KEY=MS`` — e.g. ``ms_pre=50`` /
    ``ms_sti=160`` / ``ms_response=300`` / ``ms_post=0`` / ``delta_ms=2``):
    rebuilds the session sti (via
-   ``figure.plot.maybe_override_sti_timing``). Unset = keep the run's
+   ``figure.plot.override_session_sti_timing``). Unset = keep the run's
    train opts. These change *how long* pre/spot/response *are*, not which
    slice of an existing trace you plot.
 
@@ -145,27 +145,28 @@ Examples
   # Spot R0 average, pre window only (ms_pre=1000 on the run → 0..1000 ms):
   ../.venv/bin/python analyze/cell_dynamics.py \\
     L1,L2,Mi1 --run hp_lp/28693664-... \\
-    --task spot_bright --radius 0 --ms-shown 0,1000 --plot false
+    --task spot --contrast bright --radius 0 --ms-shown 0,1000 --plot false
 
   ../.venv/bin/python analyze/cell_dynamics.py \\
     Mi4,Mi9 --run /abs/path/to/run \\
-    --task spot_bright,moving_bar_bright --spec right_bright_w1
+    --task spot,moving_bar --contrast bright --spec right_bright_w1
 
   ../.venv/bin/python analyze/cell_dynamics.py \\
-    L3 --run /abs/path/to/run --task spot_bright --x 1 --y 0
+    L3 --run /abs/path/to/run --task spot --contrast bright --x 1 --y 0
 
   ../.venv/bin/python analyze/cell_dynamics.py \\
-    L3 --run /abs/path/to/run --task moving_bar_bright \\
+    L3 --run /abs/path/to/run --task moving_bar --contrast bright \\
     --spec right_bright_w1 --x -2 --y -1
 
   ../.venv/bin/python analyze/cell_dynamics.py \\
-    T4a --run borst/27252028-... --task moving_bar_bright \\
+    T4a --run borst/27252028-... --task moving_bar --contrast bright \\
     --spec left_bright_w4,right_bright_w4 \\
     --param syn_strength_cell.Mi4:T4a=2.0 syn_strength_cell.Mi9:T4a=1.0 \\
     --t-rel -5:15
 
   ../.venv/bin/python analyze/cell_dynamics.py \\
-    L3 --run /abs/path/to/run --task spot_bright --param tau_hp_rise.L3=500 tau_hp_fall.L3=300
+    L3 --run /abs/path/to/run --task spot --contrast bright \\
+    --param tau_hp_rise.L3=500 tau_hp_fall.L3=300
 """
 
 
@@ -231,6 +232,7 @@ class SharedCli:
 
     cells: list[str]
     tasks: list[str]
+    contrasts: list[str]
     specs_req: list[str] | None
     xs: list | None
     ys: list | None
@@ -241,29 +243,37 @@ def add_shared_cli(
     *,
     run_path: str | None = None,
 ) -> None:
-    """Register positional cell + ``--run/--task/--spec/--x/--y``."""
+    """Register positional cell + ``--run/--task/--contrast/--spec/--x/--y``."""
     ap.add_argument(
         "cell",
         metavar="CELL,...",
         help="comma-separated cells, e.g. Mi4,Mi9",
     )
-    run_kw: dict = {
-        "action": "append",
-        "default": None,
-        "help": (
+    ap.add_argument(
+        "--run",
+        action="append",
+        default=None,
+        required=run_path is None,
+        help=(
             "run directory (absolute, or relative to PARAMETER_DIR via "
             "plot.resolve_run_dir)"
             + (f"; omit → {run_path}" if run_path else "")
         ),
-    }
-    if run_path is None:
-        run_kw["required"] = True
-    ap.add_argument("--run", **run_kw)
+    )
     ap.add_argument(
         "--task",
-        default="spot_bright",
-        metavar="TRAIN_CONFIG['task'],...",
-        help="comma-separated tasks (spot_* / moving_bar_* or TASK_ALIASES)",
+        default="spot",
+        metavar="spot|moving_bar,...",
+        help="comma-separated tasks: spot|moving_bar",
+    )
+    ap.add_argument(
+        "--contrast",
+        default=",".join(TRAIN_OPTS["contrasts"]),
+        metavar="bright|dark,...",
+        help=(
+            "comma-separated contrasts: bright|dark "
+            f"(default: {','.join(TRAIN_OPTS['contrasts'])})"
+        ),
     )
     ap.add_argument(
         "--spec",
@@ -289,21 +299,18 @@ def resolve_shared_cli(args: argparse.Namespace) -> SharedCli:
     cells = parse_comma_list(args.cell)
     if not cells:
         raise SystemExit("cell is required")
-    tasks = resolve_tasks(args.task)
-    if not tasks:
-        raise SystemExit("--task is required")
+    try:
+        tasks = train.parse_tasks(args.task)
+        contrasts = train.parse_contrasts(args.contrast)
+    except ValueError as exc:
+        raise SystemExit(str(exc)) from exc
     specs_req = parse_comma_list(args.spec) if args.spec is not None else None
-    for task in tasks:
-        if task not in train.SPOT_TASKS and task not in train.MOVING_BAR_TASKS:
-            raise SystemExit(
-                f"unsupported task {task!r}; expected spot_* or moving_bar_* "
-                f"(after TASK_ALIASES expansion)"
-            )
     xs = plot.parse_axis_coords(args.x)
     ys = plot.parse_axis_coords(args.y)
     return SharedCli(
         cells=cells,
         tasks=tasks,
+        contrasts=contrasts,
         specs_req=specs_req,
         xs=xs,
         ys=ys,
@@ -1213,6 +1220,7 @@ def _finalize_component_report(
     *,
     cell: str,
     task: str,
+    contrast: str,
     spec: str | None,
     mode: str,
     before_t: int,
@@ -1298,6 +1306,7 @@ def _finalize_component_report(
         "cell": cell,
         "n_nodes": int(nodes.size),
         "task": task,
+        "contrast": contrast,
         "spec": spec,
         "filter": session_filter_figure_token(session),
         "before_t": before_t,
@@ -1366,13 +1375,13 @@ def _sign(v: float, *, eps: float = 1e-3) -> str:
 
 
 def _node_params(params, session, node: int) -> dict[str, float]:
-    backend = session.backend
+    connectome = session.connectome
     for param in ("a_gt", "bias_gt"):
         if param not in params:
             raise SystemExit(f"params missing {param}")
     nodes = torch.tensor([node], dtype=torch.long)
-    a_gt = float(node_vals_from_param(params, "a_gt", nodes, backend)[0])
-    bias_gt = float(node_vals_from_param(params, "bias_gt", nodes, backend)[0])
+    a_gt = float(node_vals_from_param(params, "a_gt", nodes, connectome)[0])
+    bias_gt = float(node_vals_from_param(params, "bias_gt", nodes, connectome)[0])
     if session.model == "hp_lp":
         return {
             "a_in": float(params["a_in"][node]),
@@ -1435,7 +1444,7 @@ def cell_from_node(nodes_by_cell: dict[str, np.ndarray]) -> dict[int, str]:
 
 def _cell_idx_from_node_id(plan: _ComponentForwardB, cells: list[str]) -> np.ndarray:
     """Dense ``out[node_id] = cell_idx`` in ``cells`` (-1 if absent)."""
-    cell_idx = {cell: i for i, cell in enumerate(cells)}
+    cell_idx = dict(zip(cells, range(len(cells))))
     if plan.nodes.size == 0:
         return np.empty(0, dtype=np.int32)
     out = np.full(int(plan.nodes.max()) + 1, -1, dtype=np.int32)
@@ -1525,10 +1534,10 @@ def _build_forward_b(
 # ---------------------------------------------------------------------------
 
 
-def _bar_meta(session, task: str):
-    """One-shot ``(specs, grids)`` for a moving-bar task."""
+def _bar_meta(session, task: str, contrast: str):
+    """One-shot ``(specs, grids)`` for a moving-bar task×contrast."""
     specs = bar_specs_from_task(session, task)
-    pack = session.pack_from_task(task)
+    pack = session.packs[task][contrast]
     grids = moving_bar_session_t0_grids(
         session, specs, pack.cost_radius, int(session.n_t),
         t_onset=train.pack_t_onset(pack),
@@ -1540,6 +1549,7 @@ def _bar_meta(session, task: str):
 def _bar_specs_requested(
     session,
     task: str,
+    contrast: str,
     cells: list[str],
     requested: list[str] | None,
     *,
@@ -1548,7 +1558,7 @@ def _bar_specs_requested(
 ) -> list[str]:
     """Spec list for average-mode bar without a full forward readout."""
     if specs is None or grids is None:
-        specs, grids = _bar_meta(session, task)
+        specs, grids = _bar_meta(session, task, contrast)
     specs = [spec.token for spec in specs]
     try:
         if requested is not None:
@@ -1567,19 +1577,20 @@ def _bar_specs_requested(
 def _resolve_bar_spec_i_sti(
     session,
     task: str,
+    contrast: str,
     spec_tokens: list[str],
     *,
     specs=None,
     grids=None,
 ):
     """Validate specs; return ``(pack, specs, grids, spec_bs, i_sti, t0_bn)``."""
-    if task not in train.MOVING_BAR_TASKS:
+    if task != "moving_bar":
         raise SystemExit(f"unsupported task {task!r}")
     if not spec_tokens:
         raise SystemExit("bar component forward requires at least one spec")
-    pack = session.pack_from_task(task)
+    pack = session.packs[task][contrast]
     if specs is None or grids is None:
-        specs, grids = _bar_meta(session, task)
+        specs, grids = _bar_meta(session, task, contrast)
     spec_b = {
         spec.token: spec_idx for spec_idx, spec in enumerate(specs)
     }
@@ -1598,6 +1609,7 @@ def _analyze_component_forward(
     params,
     cells: list[str],
     task: str,
+    contrast: str,
     i_sti: torch.Tensor,
     forward_bs: list[_ComponentForwardB],
     before_t: list[int],
@@ -1654,6 +1666,7 @@ def _analyze_component_forward(
         report = _finalize_component_report(
             cell=cell,
             task=task,
+            contrast=contrast,
             spec=spec,
             mode=mode,
             before_t=before,
@@ -1738,6 +1751,7 @@ def _analyze_bar_forward(
     params,
     cells: list[str],
     task: str,
+    contrast: str,
     spec_tokens: list[str],
     time_window: TimeWindow,
     nodes_from_b,
@@ -1748,7 +1762,7 @@ def _analyze_bar_forward(
 ) -> dict[str, dict[str, dict[str, Any]]]:
     """Bar: resolve i_sti/specs → ``_analyze_component_forward`` (no merge)."""
     pack, specs, grids, spec_bs, i_sti, t0_bn = _resolve_bar_spec_i_sti(
-        session, task, spec_tokens, specs=specs, grids=grids,
+        session, task, contrast, spec_tokens, specs=specs, grids=grids,
     )
     before_by_b: list[int] = []
     forward_bs: list[_ComponentForwardB] = []
@@ -1769,6 +1783,7 @@ def _analyze_bar_forward(
         params=params,
         cells=cells,
         task=task,
+        contrast=contrast,
         i_sti=i_sti,
         forward_bs=forward_bs,
         before_t=before_by_b,
@@ -1787,6 +1802,7 @@ def analyze_bar_average(
     params,
     cells: list[str],
     task: str,
+    contrast: str,
     spec_tokens: list[str],
     time_window: TimeWindow,
     specs=None,
@@ -1799,7 +1815,7 @@ def analyze_bar_average(
     cols_holder: list = []
 
     def nodes_from_b(b, spec, *, pack, t0_bn):
-        connectome = session.backend.network
+        connectome = session.connectome
         if not cols_holder:
             cols_holder.append(moving_bar_cost_hexes(connectome, cost_radius=pack.cost_radius))
         hexes = cols_holder[0]
@@ -1820,6 +1836,7 @@ def analyze_bar_average(
         params=params,
         cells=cells,
         task=task,
+        contrast=contrast,
         spec_tokens=spec_tokens,
         time_window=time_window,
         nodes_from_b=nodes_from_b,
@@ -1837,9 +1854,7 @@ def analyze_bar_average(
 def _spot_session_readout(session_one, cells: list[str]):
     """Session-scoped spot cost readout (all radii) for component forward."""
     pack = session_one.primary_pack
-    connectome = session_one.backend.network
-    if connectome is None:
-        raise SystemExit("spot average requires a network backend")
+    connectome = session_one.connectome
     opts = dict((session_one.train_opts or {}).get(f"{pack.task}_sti_opts") or {})
     spot = resolve_spot(connectome, sti_opts=opts)
     (
@@ -1895,7 +1910,7 @@ def _spot_extra_from_cell(
     session_one, params, pack, *, radius: int, t_onset: int, train_filter,
 ):
     """Build ``extra_from_cell`` with train GT named ``gt_v`` / ``gt_ca``."""
-    contrast = contrast_from_task(pack.task)
+    contrast = contrast_from_pack(pack)
     train_filter = train.expand_filter(train_filter)
     gt_series = f"gt_{filter_figure_token(train_filter)}"
     gt_on = resolve_spot_gts(
@@ -1905,7 +1920,7 @@ def _spot_extra_from_cell(
     from_onset = train.val_from_enabled(opts, "bias_gt")
     lo = param_scalar("bias_gt", "lo", NEURON_SCHEMA['params'])
     hi = param_scalar("bias_gt", "hi", NEURON_SCHEMA['params'])
-    cells = [str(cell) for cell in session_one.backend.network.cells]
+    cells = [str(cell) for cell in session_one.connectome.cells]
 
     def extra_from_cell(
         cell: str, v_post: np.ndarray, v_post_d: np.ndarray,
@@ -1923,7 +1938,7 @@ def _spot_extra_from_cell(
             else:
                 params["bias_gt"] = val
         a_gt, bias_gt = gt_affine_from_cell(
-            params, cell, session_one.backend, session=session_one,
+            params, cell, session_one.connectome, session=session_one,
         )
         return _spot_gt_extra(
             cell=cell,
@@ -1946,6 +1961,7 @@ def analyze_spot_average(
     params,
     cells: list[str],
     task: str,
+    contrast: str,
     time_window: TimeWindow,
     radius: int = 0,
     train_filter="none",
@@ -1957,7 +1973,7 @@ def analyze_spot_average(
     "before onset" — that confuses sti length with the analyze window.
     ``train_filter`` is the run's train ``filter`` (names GT ``gt_v``/``gt_ca``).
     """
-    if task not in train.SPOT_TASKS:
+    if task != "spot":
         raise SystemExit(f"unsupported task {task!r}")
     radius = int(radius)
     pack, bs, nodes, radii, type_idx, cell_idx = _spot_session_readout(
@@ -2000,6 +2016,7 @@ def analyze_spot_average(
         params=params,
         cells=cells,
         task=task,
+        contrast=contrast,
         i_sti=i_sti[i_sti_rows],
         forward_bs=forward_bs,
         before_t=[t_onset] * n_b,
@@ -2025,9 +2042,7 @@ def analyze_spot_average(
 
 
 def _hex_nodes(session, cell: str, *, at_x: float, at_y: float, cost_radius: int):
-    connectome = session.backend.network
-    if connectome is None:
-        raise SystemExit("hex mode requires a network backend")
+    connectome = session.connectome
     hexes = filter_sti_hexes(
         moving_bar_cost_hexes(connectome, cost_radius=cost_radius),
         at_x=at_x,
@@ -2074,6 +2089,7 @@ def analyze_spot_hex(
     params,
     cell: str,
     task: str,
+    contrast: str,
     at_x: float,
     at_y: float,
     node: int | None,
@@ -2081,7 +2097,7 @@ def analyze_spot_hex(
     train_filter="none",
 ) -> dict[str, dict[str, Any]]:
     """One v forward over bs at one hex; sti-on (radius 0) rows for that node only."""
-    if task not in train.SPOT_TASKS:
+    if task != "spot":
         raise SystemExit(f"unsupported task {task!r}")
     pack, bs, nodes, radii, type_idx, cell_idx = _spot_session_readout(
         session_one, [cell],
@@ -2127,6 +2143,7 @@ def analyze_spot_hex(
         params=params,
         cells=[cell],
         task=task,
+        contrast=contrast,
         i_sti=i_sti[i_sti_rows],
         forward_bs=forward_bs,
         before_t=[t_onset] * n_b,
@@ -2154,6 +2171,7 @@ def analyze_bar_hex(
     params,
     cell: str,
     task: str,
+    contrast: str,
     spec_tokens: list[str],
     at_x: float,
     at_y: float,
@@ -2163,7 +2181,7 @@ def analyze_bar_hex(
     grids=None,
 ) -> dict[str, dict[str, dict[str, Any]]]:
     """One v forward over bs over specs at one hex; returns ``reports[spec][cell]``."""
-    pack = session.pack_from_task(task)
+    pack = session.packs[task][contrast]
     hex, node = _resolve_hex_node(
         session, cell, at_x=at_x, at_y=at_y,
         cost_radius=pack.cost_radius, node=node,
@@ -2181,6 +2199,7 @@ def analyze_bar_hex(
         params=params,
         cells=[cell],
         task=task,
+        contrast=contrast,
         spec_tokens=spec_tokens,
         time_window=time_window,
         nodes_from_b=nodes_from_b,
@@ -2205,7 +2224,7 @@ def _figure_filename(report: dict[str, Any], *, file_suffix: str = "", html: boo
     from figure.panel import figure_file_ext
 
     filter_token = str(report.get("filter") or "v")
-    parts = [report["cell"], report["task"], filter_token, report.get("mode", "average")]
+    parts = [report["cell"], report["task"], report["contrast"], filter_token, report.get("mode", "average")]
     if report.get("spec"):
         parts.append(str(report["spec"]))
     if report.get("mode") == "hex":
@@ -2226,7 +2245,7 @@ def _compare_figure_filename(
     filter_token = str(first_report.get("filter") or "v")
     specs = "_".join(str(one_report["spec"]) for one_report in reports)
     return (
-        f"{first_report['cell']}_{first_report['task']}_{filter_token}_compare_{specs}"
+        f"{first_report['cell']}_{first_report['task']}_{first_report['contrast']}_{filter_token}_compare_{specs}"
         f"{file_suffix}{figure_file_ext(html=html)}"
     )
 
@@ -2448,7 +2467,7 @@ def _plot_component_reports(
 def plot_report(report: dict[str, Any], out_path: str) -> None:
     """Write one multi-panel PNG: component series vs ``t`` in ms."""
     title = (
-        f"{report['cell']}  {report['task']}"
+        f"{report['cell']}  {report['task']}  {report['contrast']}"
         + (f"  {report['spec']}" if report.get("spec") else "")
         + f"  mode={report.get('mode')}  n={report.get('n_nodes')}"
     )
@@ -2464,7 +2483,7 @@ def plot_reports_compare(reports: list[dict[str, Any]], out_path: str) -> None:
     first_report = reports[0]
     specs_csv = ",".join(str(one_report["spec"]) for one_report in reports)
     title = (
-        f"{first_report['cell']}  {first_report['task']}  reports=[{specs_csv}]"
+        f"{first_report['cell']}  {first_report['task']}  {first_report['contrast']}  reports=[{specs_csv}]"
         f"  mode={first_report.get('mode')}  n={first_report.get('n_nodes')}"
     )
     _plot_component_reports(reports, out_path, title=title)
@@ -2517,7 +2536,7 @@ def _print_report(report: dict[str, Any], *, print_steps: bool = True) -> None:
             f"uv=({report['uv']['u']},{report['uv']['v']})"
         )
     print(hdr)
-    print(f"task={report['task']} spec={report.get('spec')}")
+    print(f"task={report['task']} contrast={report['contrast']} spec={report.get('spec')}")
     tw = report.get("time_window")
     print(
         f"v_post_d_peak={report['v_post_d_peak']:+.4f} mV "
@@ -2600,20 +2619,20 @@ def _print_report(report: dict[str, Any], *, print_steps: bool = True) -> None:
 
 
 def _print_sign_compare(
-    spot_reports: dict[str, dict[str, Any]],
-    bar_reports: dict[str, dict[str, Any]],
+    spot_reports: dict[tuple[str, str], dict[str, Any]],
+    bar_reports: dict[tuple[str, str], dict[str, Any]],
 ) -> None:
-    cells = sorted(set(spot_reports) & set(bar_reports))
-    if not cells:
+    keys = sorted(set(spot_reports) & set(bar_reports))
+    if not keys:
         return
     print("\n======== SPOT vs BAR sign (cost-radius averages) ========")
     print(
-        f"{'cell':6s} {'spot_post_d':>11s} {'spot_sign':>8s} {'spot_drv':>8s} "
+        f"{'cell':6s} {'contrast':8s} {'spot_post_d':>11s} {'spot_sign':>8s} {'spot_drv':>8s} "
         f"{'bar_post_d':>10s} {'bar_sign':>8s} {'bar_drv':>8s}  note"
     )
-    for cell in cells:
-        spot_report = spot_reports[cell]
-        bar_report = bar_reports[cell]
+    for cell, contrast in keys:
+        spot_report = spot_reports[(cell, contrast)]
+        bar_report = bar_reports[(cell, contrast)]
         flip = (
             spot_report["v_post_d_sign"] != bar_report["v_post_d_sign"]
             and "0" not in (
@@ -2627,7 +2646,7 @@ def _print_sign_compare(
             else:
                 note += f" (same drive={spot_report['peak_drive']}; see num terms)"
         print(
-            f"{cell:6s} {spot_report['v_post_d_peak']:+11.4f} "
+            f"{cell:6s} {contrast:8s} {spot_report['v_post_d_peak']:+11.4f} "
             f"{spot_report['v_post_d_sign']:>8s} "
             f"{str(spot_report.get('peak_drive')):>8s} "
             f"{bar_report['v_post_d_peak']:+10.4f} {bar_report['v_post_d_sign']:>8s} "
@@ -2729,7 +2748,7 @@ def main() -> None:
         args.run = [RUN_PATH]
     cli = resolve_shared_cli(args)
 
-    if args.radius != 0 and not any(task in train.SPOT_TASKS for task in cli.tasks):
+    if args.radius != 0 and "spot" not in cli.tasks:
         raise SystemExit("--radius requires a spot task")
 
     hex_mode = False
@@ -2765,7 +2784,7 @@ def main() -> None:
         ms_range = None  # default: 0 .. last sample
         use_ms = True
 
-    param_inits, param_vals, param_bounds = plot.parse_param_init_val_tokens(args.param)
+    param_inits, param_vals, param_clamps, param_jits = plot.parse_param_init_val_tokens(args.param)
 
     for run_idx, run_arg in enumerate(args.run):
         run_dir = plot.resolve_run_dir(run_arg)
@@ -2773,15 +2792,15 @@ def main() -> None:
         session, z, best_cost = plot.load_best(run_dir)
         train_opts = plot.load_train_opts(run_dir) or {}
         train_filter = train.expand_filter(train_opts.get("filter", "none"))
-        timing_kw = resolve_sti_timing_kwargs(
+        timing_kwargs = resolve_sti_timing_kwargs(
             args,
             filter=args.filter if args.filter is not None else train_filter,
         )
-        session, z, timing_changed = plot.maybe_override_sti_timing(
+        session, z, timing_changed = plot.override_session_sti_timing(
             run_dir=run_dir,
             session=session,
             z=z,
-            **timing_kw,
+            **timing_kwargs,
             euler=args.euler,
             filter=args.filter,
         )
@@ -2806,18 +2825,19 @@ def main() -> None:
         )
         z, schema = plot.override_params(
             z, schema, session,
-            param_vals=param_vals, param_inits=param_inits, param_bounds=param_bounds,
+            param_vals=param_vals, param_inits=param_inits,
+            param_clamps=param_clamps, param_jits=param_jits,
         )
         session = session.with_schema(schema)
         params = train.override_val_from(
-            train.assign_params(z, schema, session.backend), session,
+            train.assign_params(z, schema, session.connectome), session,
         )
         cost = float(train.calc_cost(z, session).item())
 
-        spot_session_cache: dict[str, object] = {}
-        bar_meta_cache: dict[str, tuple] = {}
-        spot_by_cell: dict[str, dict[str, Any]] = {}
-        bar_by_cell: dict[str, dict[str, Any]] = {}
+        spot_session_cache: dict[tuple[str, str], object] = {}
+        bar_meta_cache: dict[tuple[str, str], tuple] = {}
+        spot_by_cell: dict[tuple[str, str], dict[str, Any]] = {}
+        bar_by_cell: dict[tuple[str, str], dict[str, Any]] = {}
         reports: list[dict[str, Any]] = []
 
         if not args.json:
@@ -2830,132 +2850,143 @@ def main() -> None:
             )
 
         for task in cli.tasks:
-            if task in train.SPOT_TASKS:
-                if task not in spot_session_cache:
-                    spot_session_cache[task] = plot.session_from_task(
-                        session, task,
-                    )
-                session_one = spot_session_cache[task]
-                if hex_mode:
-                    at_x = cli.xs[0]
-                    at_y = cli.ys[0]
-                    _log(
-                        f"component forward {task} "
-                        f"(spot hex=({at_x},{at_y})) ..."
-                    )
-                    reports = analyze_spot_hex(
-                        session_one,
-                        params=params,
-                        cell=cli.cells[0],
-                        task=task,
-                        at_x=float(at_x),
-                        at_y=float(at_y),
-                        node=args.node,
-                        time_window=time_window,
-                        train_filter=train_filter,
-                    )
-                else:
-                    _log(
-                        f"component forward {task} "
-                        f"(spot radius={args.radius}) ..."
-                    )
-                    reports = analyze_spot_average(
-                        session_one,
-                        params=params,
-                        cells=cli.cells,
-                        task=task,
-                        time_window=time_window,
-                        radius=args.radius,
-                        train_filter=train_filter,
-                    )
-                for cell, rep in reports.items():
-                    rep["best_cost"] = best_cost
-                    rep["cost"] = cost
-                    spot_by_cell[cell] = rep
-                    reports.append(rep)
-                    _emit_report(
-                        rep,
-                        run_dir=run_dir,
-                        do_print=not args.json,
-                        do_figure=args.plot,
-                        file_suffix=file_suffix,
-                        html=args.html,
-                    )
-            else:
-                at_x = cli.xs[0] if hex_mode else None
-                at_y = cli.ys[0] if hex_mode else None
-                if task not in bar_meta_cache:
-                    bar_meta_cache[task] = _bar_meta(session, task)
-                specs, grids = bar_meta_cache[task]
-                cells_bar = [cli.cells[0]] if hex_mode else cli.cells
-                specs_ordered = _bar_specs_requested(
-                    session, task, cells_bar, cli.specs_req,
-                    specs=specs, grids=grids,
-                )
-                multi_report = args.plot and len(specs_ordered) > 1
-                if hex_mode:
-                    _log(
-                        f"component forward {task} specs={specs_ordered} "
-                        f"hex=({at_x},{at_y}) (no full forward) ..."
-                    )
-                    reports_by_spec = analyze_bar_hex(
-                        session,
-                        params=params,
-                        cell=cells_bar[0],
-                        task=task,
-                        spec_tokens=specs_ordered,
-                        at_x=float(at_x),
-                        at_y=float(at_y),
-                        node=args.node,
-                        time_window=time_window,
-                        specs=specs,
-                        grids=grids,
-                    )
-                else:
-                    _log(
-                        f"component forward {task} specs={specs_ordered} "
-                        f"(no full forward) ..."
-                    )
-                    reports_by_spec = analyze_bar_average(
-                        session,
-                        params=params,
-                        cells=cells_bar,
-                        task=task,
-                        spec_tokens=specs_ordered,
-                        time_window=time_window,
-                        specs=specs,
-                        grids=grids,
-                    )
-                reports_by_cell: dict[str, list[dict[str, Any]]] = {
-                    cell: [] for cell in cells_bar
-                }
-                for spec in specs_ordered:
-                    for cell, rep in reports_by_spec[spec].items():
+            for contrast in cli.contrasts:
+                if task == "spot":
+                    cache_key = (task, contrast)
+                    if cache_key not in spot_session_cache:
+                        spot_session_cache[cache_key] = plot.session_from_task(
+                            session, task, contrast,
+                        )
+                    session_one = spot_session_cache[cache_key]
+                    if hex_mode:
+                        at_x = cli.xs[0]
+                        at_y = cli.ys[0]
+                        _log(
+                            f"component forward {task} {contrast} "
+                            f"(spot hex=({at_x},{at_y})) ..."
+                        )
+                        spot_reports = analyze_spot_hex(
+                            session_one,
+                            params=params,
+                            cell=cli.cells[0],
+                            task=task,
+                            contrast=contrast,
+                            at_x=float(at_x),
+                            at_y=float(at_y),
+                            node=args.node,
+                            time_window=time_window,
+                            train_filter=train_filter,
+                        )
+                    else:
+                        _log(
+                            f"component forward {task} {contrast} "
+                            f"(spot radius={args.radius}) ..."
+                        )
+                        spot_reports = analyze_spot_average(
+                            session_one,
+                            params=params,
+                            cells=cli.cells,
+                            task=task,
+                            contrast=contrast,
+                            time_window=time_window,
+                            radius=args.radius,
+                            train_filter=train_filter,
+                        )
+                    for cell, rep in spot_reports.items():
                         rep["best_cost"] = best_cost
                         rep["cost"] = cost
-                        bar_by_cell[cell] = rep
+                        spot_by_cell[(cell, contrast)] = rep
                         reports.append(rep)
-                        if multi_report:
-                            reports_by_cell[cell].append(rep)
                         _emit_report(
                             rep,
                             run_dir=run_dir,
                             do_print=not args.json,
-                            do_figure=args.plot and not multi_report,
+                            do_figure=args.plot,
                             file_suffix=file_suffix,
                             html=args.html,
                         )
-                if multi_report:
-                    for cell in cells_bar:
-                        reps = reports_by_cell[cell]
-                        out = os.path.join(
-                            run_dir,
-                            "cell_dynamics",
-                            _compare_figure_filename(
-                                reps, file_suffix=file_suffix, html=args.html,
-                            ),
+                elif task == "moving_bar":
+                    at_x = cli.xs[0] if hex_mode else None
+                    at_y = cli.ys[0] if hex_mode else None
+                    cache_key = (task, contrast)
+                    if cache_key not in bar_meta_cache:
+                        bar_meta_cache[cache_key] = _bar_meta(session, task, contrast)
+                    specs, grids = bar_meta_cache[cache_key]
+                    cells_bar = [cli.cells[0]] if hex_mode else cli.cells
+                    specs_ordered = _bar_specs_requested(
+                        session, task, contrast, cells_bar, cli.specs_req,
+                        specs=specs, grids=grids,
+                    )
+                    multi_report = args.plot and len(specs_ordered) > 1
+                    if hex_mode:
+                        _log(
+                            f"component forward {task} {contrast} "
+                            f"specs={specs_ordered} "
+                            f"hex=({at_x},{at_y}) (no full forward) ..."
                         )
-                        plot_reports_compare(reps, out)
+                        reports_by_spec = analyze_bar_hex(
+                            session,
+                            params=params,
+                            cell=cells_bar[0],
+                            task=task,
+                            contrast=contrast,
+                            spec_tokens=specs_ordered,
+                            at_x=float(at_x),
+                            at_y=float(at_y),
+                            node=args.node,
+                            time_window=time_window,
+                            specs=specs,
+                            grids=grids,
+                        )
+                    else:
+                        _log(
+                            f"component forward {task} {contrast} "
+                            f"specs={specs_ordered} "
+                            f"(no full forward) ..."
+                        )
+                        reports_by_spec = analyze_bar_average(
+                            session,
+                            params=params,
+                            cells=cells_bar,
+                            task=task,
+                            contrast=contrast,
+                            spec_tokens=specs_ordered,
+                            time_window=time_window,
+                            specs=specs,
+                            grids=grids,
+                        )
+                    reports_by_cell: dict[str, list[dict[str, Any]]] = {
+                        cell: [] for cell in cells_bar
+                    }
+                    for spec in specs_ordered:
+                        for cell, rep in reports_by_spec[spec].items():
+                            rep["best_cost"] = best_cost
+                            rep["cost"] = cost
+                            bar_by_cell[(cell, contrast)] = rep
+                            reports.append(rep)
+                            if multi_report:
+                                reports_by_cell[cell].append(rep)
+                            _emit_report(
+                                rep,
+                                run_dir=run_dir,
+                                do_print=not args.json,
+                                do_figure=args.plot and not multi_report,
+                                file_suffix=file_suffix,
+                                html=args.html,
+                            )
+                    if multi_report:
+                        for cell in cells_bar:
+                            reps = reports_by_cell[cell]
+                            out = os.path.join(
+                                run_dir,
+                                "cell_dynamics",
+                                _compare_figure_filename(
+                                    reps, file_suffix=file_suffix, html=args.html,
+                                ),
+                            )
+                            plot_reports_compare(reps, out)
+                else:
+                    raise SystemExit(f"unsupported task {task!r}")
 
         if not args.json and spot_by_cell and bar_by_cell:
             _print_sign_compare(spot_by_cell, bar_by_cell)

@@ -174,7 +174,7 @@ def save_snapshots(
     if len(showcase) == 1:
         axes = np.expand_dims(axes, 0)
 
-    for i, spec in enumerate(showcase):
+    for row, spec in enumerate(showcase):
         if snapshot_t:
             times = snapshot_t
             labels = [f"t={t}" for t in times]
@@ -184,16 +184,16 @@ def save_snapshots(
             )
             times = [start_t, mid_t, exit_t]
             labels = ("start", "mid", "exit")
-        for j, (t, label) in enumerate(zip(times, labels)):
+        for col, (t, label) in enumerate(zip(times, labels)):
             plot_snapshot(
-                axes[i, j], figure_hexes, i_sti_hex[i], t, spec,
+                axes[row, col], figure_hexes, i_sti_hex[row], t, spec,
                 f"{spec.token} ({label})", i_max, i_baseline, xlim, ylim, t_onset, view_deg,
                 hexes_are_xy_deg=hexes_are_xy_deg,
                 bar_radius=bar_radius,
                 multi_bar=bool(multi_bar),
             )
         if len(times) >= 3 and not snapshot_t:
-            spread = float(np.ptp(i_sti_hex[i, times[1]]))
+            spread = float(np.ptp(i_sti_hex[row, times[1]]))
             print(f"  {spec.token}: start/mid/exit t={times}  mid ptp={spread:.1f} pA")
         else:
             print(f"  {spec.token}: snapshot t={times}")
@@ -238,10 +238,10 @@ def save_animation(
             f"Moving-bar i_sti_hex (pA)  side={side}  "
             f"{len(figure_hexes)} sti hexes  I_baseline={i_baseline}  I_max={i_max}  t={t} ({t * NEURON_CONST['delta_ms'] / 1000.0:.2f} s)"
         )
-        for i, spec in enumerate(showcase):
-            axes[i, 0].clear()
+        for row, spec in enumerate(showcase):
+            axes[row, 0].clear()
             plot_snapshot(
-                axes[i, 0], figure_hexes, i_sti_hex[i], t, spec,
+                axes[row, 0], figure_hexes, i_sti_hex[row], t, spec,
                 spec.token, i_max, i_baseline, xlim, ylim, t_onset, view_deg,
                 hexes_are_xy_deg=hexes_are_xy_deg,
                 bar_radius=bar_radius,

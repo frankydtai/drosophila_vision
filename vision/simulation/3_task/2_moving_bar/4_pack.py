@@ -129,8 +129,8 @@ def assemble_moving_bar_dsi_groups(
         bs_by_condition.setdefault(key, []).append(b)
 
     entries_by_subtype_b: dict[tuple[str, int], list[int]] = {}
-    for i, (b, st) in enumerate(zip(r_bs, r_subtype)):
-        entries_by_subtype_b.setdefault((str(st), int(b)), []).append(i)
+    for entry, (b, subtype) in enumerate(zip(r_bs, r_subtype)):
+        entries_by_subtype_b.setdefault((str(subtype), int(b)), []).append(entry)
 
     pos_groups: List[List[int]] = []
     neg_groups: List[List[int]] = []
@@ -160,8 +160,8 @@ def assemble_moving_bar_dsi_groups(
                 dsi = hardcoded_axis_dsi(side, subtype, specs[pos_bs[0]])
                 if dsi is None:
                     continue
-                w_pos = float(np.mean([float(r_scale[i]) for i in pos_entries]))
-                w_neg = float(np.mean([float(r_scale[i]) for i in neg_entries]))
+                w_pos = float(np.mean([float(r_scale[entry]) for entry in pos_entries]))
+                w_neg = float(np.mean([float(r_scale[entry]) for entry in neg_entries]))
                 pos_groups.append(pos_entries)
                 neg_groups.append(neg_entries)
                 dsi_vals.append(float(dsi))
@@ -420,9 +420,8 @@ def build_moving_bar_gt(
     bar_radius: int = BAR_RADIUS,
     multi_bar: bool = True,
     cost_radius: Optional[int] = None,
-    i_baseline_moving_bar: Optional[float] = None,
-    i_bright_moving_bar: Optional[float] = None,
-    i_dark_moving_bar: Optional[float] = None,
+    i_baseline: float,
+    i: float,
     contrasts: Sequence[str] = ("bright", "dark"),
     gt_cells: Optional[Sequence[str]] = None,
     sim_dtype: torch.dtype,
@@ -433,21 +432,15 @@ def build_moving_bar_gt(
     side = connectome.meta.get("side", "right")
 
     specs = gruntman_moving_bar_specs(contrasts=tuple(contrasts))
-    contrast_set = frozenset(contrasts)
-    i_baseline_val = float(i_baseline_moving_bar)
-    peak_kw = {}
-    if "bright" in contrast_set and i_bright_moving_bar is not None:
-        peak_kw["i_bright_moving_bar"] = float(i_bright_moving_bar)
-    if "dark" in contrast_set and i_dark_moving_bar is not None:
-        peak_kw["i_dark_moving_bar"] = float(i_dark_moving_bar)
+    i_baseline_val = float(i_baseline)
     sti = build_moving_bar_signals(
         connectome, specs=specs, t_onset=t_onset, delta_ms=delta_ms,
         bar_radius=bar_radius, multi_bar=bool(multi_bar),
         device=device, use_cache=use_cache,
         network_json=getattr(connectome, "source_json", None),
         i_baseline=i_baseline_val,
+        i=float(i),
         sim_dtype=sim_dtype,
-        **peak_kw,
     )
     n_t = int(sti.info["n_t"])
     fig1 = load_fig1_traces(fig1_path, delta_ms=delta_ms) if waveform_mse else None
@@ -568,11 +561,10 @@ class MovingBarSessionT0:
     n_filter_hexes: int
 
 
-def bar_specs_from_task(session, task) -> List[MovingBarSpec]:
-    """Gruntman bar specs for ``task`` (bright/dark)."""
-    if session.backend.network is None:
-        raise ValueError("bar_specs_from_task requires session.backend.network")
-    contrast = "bright" if "bright" in task else "dark"
+def bar_specs_from_task(session, task, contrast) -> List[MovingBarSpec]:
+    """Gruntman bar specs for ``task``×``contrast``."""
+    if contrast not in MOVING_BAR_CONTRASTS:
+        raise ValueError(f"moving-bar contrast must be 'bright' or 'dark', got {contrast!r}")
     return list(gruntman_moving_bar_specs(contrasts=(contrast,)))
 
 
@@ -588,9 +580,7 @@ def moving_bar_session_t0_grids(
     delta_ms: float,
 ) -> MovingBarSessionT0:
     """Session-level ``t0`` / horizon grids for moving-bar cost or analyze."""
-    connectome = session.backend.network
-    if connectome is None:
-        raise ValueError("moving_bar_session_t0_grids requires session.backend.network")
+    connectome = session.connectome
     i_baseline = resolve_moving_bar_i_baseline(session.train_opts)
 
     side = connectome.meta.get('side', 'right')
@@ -603,9 +593,17 @@ def moving_bar_session_t0_grids(
             )
     else:
         filt_hexes = hexes
+    i_sti_task = ((session.train_opts or {}).get("i_sti") or {}).get("moving_bar") or {}
+    contrast = specs[0].contrast if specs else "bright"
+    if contrast not in i_sti_task:
+        raise ValueError(
+            f"train opts i_sti['moving_bar'] missing contrast {contrast!r}"
+        )
     sti = build_moving_bar_signals(
         connectome, specs=specs, n_t=n_t, t_onset=t_onset, delta_ms=delta_ms,
         device=connectome.node_cells.device, i_baseline=i_baseline,
+        i=float(i_sti_task[contrast]),
+        sim_dtype=session.sim_dtype,
     )
     hex_idx = {
         (int(hex.u), int(hex.v)): hex_idx
@@ -629,16 +627,14 @@ def moving_bar_session_t0_grids(
     )
 
 
-def _pack_cells(session, task: str) -> List[str]:
+def _pack_cells(session, task: str, contrast: str) -> List[str]:
     """Unique cells on ``pack.entry_nodes`` (pack order)."""
-    pack = session.pack_from_task(task)
+    pack = session.packs[task][contrast]
     entry_nodes = pack.entry_nodes
     if torch.is_tensor(entry_nodes):
         entry_nodes = entry_nodes.detach().cpu().numpy()
     entry_nodes = np.asarray(entry_nodes, dtype=np.int64)
-    connectome = session.backend.network
-    if connectome is None:
-        raise ValueError("_pack_cells requires session.backend.network")
+    connectome = session.connectome
     node_cells = connectome.node_cells[entry_nodes]
     if torch.is_tensor(node_cells):
         node_cells = node_cells.detach().cpu().numpy()
@@ -653,37 +649,30 @@ def _pack_cells(session, task: str) -> List[str]:
     return out
 
 
-def moving_bar_specs_by_cell(session, task: str, side: str) -> Dict[str, List[str]]:
+def moving_bar_specs_by_cell(session, task: str, contrast: str, side: str) -> Dict[str, List[str]]:
     """Per-readout-cell active bar spec tokens for ``side`` and task contrast."""
-    contrast = "bright" if "bright" in task else "dark"
+    if contrast not in MOVING_BAR_CONTRASTS:
+        raise ValueError(f"moving-bar contrast must be 'bright' or 'dark', got {contrast!r}")
     return {
         st: [
             f'{d}_{c}_{w}'
             for d, c, w in active_stis_from_subtype(side, st)
             if c == contrast
         ]
-        for st in _pack_cells(session, task)
+        for st in _pack_cells(session, task, contrast)
     }
 
 
 def build_moving_bar_sti_opts(
-    contrast: str,
     *,
-    i_baseline_moving_bar,
-    i_moving_bar,
     ms_pre,
     delta_ms,
     delta_ms_pre,
     multi_bar: bool,
     gt_cells=None,
 ):
-    """Sti moving-bar sti opts for ``moving_bar_{contrast}``."""
-    if contrast not in MOVING_BAR_CONTRASTS:
-        raise ValueError(f"moving-bar contrast must be 'bright' or 'dark', got {contrast!r}")
-    i_peak = "i_bright_moving_bar" if contrast == "bright" else "i_dark_moving_bar"
+    """Moving-bar sti opts: timing / geometry only (currents live on session ``i_sti``)."""
     out = {
-        "i_baseline_moving_bar": i_baseline_moving_bar,
-        i_peak: i_moving_bar,
         "ms_pre": ms_pre,
         "delta_ms": delta_ms,
         "delta_ms_pre": delta_ms_pre,
@@ -691,24 +680,4 @@ def build_moving_bar_sti_opts(
     }
     if gt_cells is not None:
         out["gt_cells"] = list(gt_cells)
-    return out
-
-
-def enrich_moving_bar_sti_opts(opts, info, *, cost_radius):
-    """Attach runtime fields from a built moving-bar task; keep canonical ``i_*``."""
-    out = dict(opts)
-    out["n_t"] = int(info["n_t"])
-    if out.get("delta_ms") is None:
-        raise ValueError("moving-bar sti opts require delta_ms")
-    if out.get("delta_ms_pre") is None:
-        raise ValueError("moving-bar sti opts require delta_ms_pre")
-    dt = float(out["delta_ms"])
-    dt_pre = float(out["delta_ms_pre"])
-    out["ms_pre"] = float(info["t_onset"]) * dt_pre
-    out["spec_tokens"] = list(info["spec_tokens"])
-    if cost_radius is not None:
-        out["cost_radius"] = int(cost_radius)
-    out["delta_ms_pre"] = dt_pre
-    if "active_gts" in info:
-        out["gt_cells"] = list(info["active_gts"])
     return out

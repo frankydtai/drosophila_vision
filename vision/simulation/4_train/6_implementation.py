@@ -83,9 +83,7 @@ def checkpoint_iter_tag(iter):
 
 
 def cell_labels(session):
-    if session.backend.network is None:
-        raise ValueError("cell_labels requires session.backend.network")
-    return np.asarray(session.backend.network.cells)
+    return np.asarray(session.connectome.cells)
 
 
 def decompose_params(z, session):
@@ -95,7 +93,7 @@ def decompose_params(z, session):
     *not* emit separate "global" scalar fields (shared-only means), because
     they can collide with per-cell csv fields and become redundant.
     """
-    n = session.backend.n_cells
+    n = session.connectome.n_cells
     schema = train.schema_copy(session.schema)
     decoded = train.node_vals_from_z(z, schema)
     out = {}
@@ -125,7 +123,7 @@ def v_spot_markers_by_cell(z, session):
     schema = train.schema_copy(session.schema)
     z = torch.as_tensor(z, dtype=session.sim_dtype, device=session.device)
     params = train.override_val_from(
-        train.assign_params(z, schema, session.backend), session,
+        train.assign_params(z, schema, session.connectome), session,
     )
     pack = session.primary_pack
     i_sti = session.pack_i_sti(pack)
@@ -155,8 +153,8 @@ def v_spot_markers_by_cell(z, session):
     v_pre_n = v[0, 0].detach().cpu().numpy()
     v_onset_n = v[0, t_onset].detach().cpu().numpy()
     v_sti_end_n = v[0, t_end].detach().cpu().numpy()
-    node_cells = session.backend.conn.node_cells.detach().cpu().numpy()
-    n_cells = int(session.backend.n_cells)
+    node_cells = session.connectome.conn.node_cells.detach().cpu().numpy()
+    n_cells = int(session.connectome.n_cells)
     v_pre = np.empty(n_cells, dtype=np.float64)
     v_onset = np.empty(n_cells, dtype=np.float64)
     v_sti_end = np.empty(n_cells, dtype=np.float64)
@@ -257,12 +255,17 @@ def save_param_table(z, session, table_path):
         node_vals["bias_gt"] = bias_gt
     cells_labels = cell_labels(session)
     params = list(node_vals.keys())
-    n = session.backend.n_cells
+    n = session.connectome.n_cells
+    cell_idx = dict(zip(cells_labels, range(n)))
     with open(table_path, "w") as f:
         f.write("cell_idx,cell," + ",".join(params) + "\n")
-        for i in range(n):
-            field_vals = ["%.6f" % node_vals[param][i] for param in params]
-            f.write("%d,%s," % (i, cells_labels[i]) + ",".join(field_vals) + "\n")
+        for cell in cells_labels:
+            field_vals = [
+                "%.6f" % node_vals[param][cell_idx[cell]] for param in params
+            ]
+            f.write(
+                "%d,%s," % (cell_idx[cell], cell) + ",".join(field_vals) + "\n"
+            )
     return table_path
 
 
@@ -277,8 +280,8 @@ def save_syn_strength_cell_table(z, session, table_path):
         return None
     node_vals = train.node_vals_from_z(z, schema)
     arr = np.asarray(node_vals["syn_strength_cell"], dtype=np.float64).reshape(-1)
-    cells = [str(n) for n in cell_labels(session)]
-    pairs = list(session.backend.conn.pairs)
+    cells = [str(cell) for cell in cell_labels(session)]
+    pairs = list(session.connectome.conn.pairs)
     if arr.shape[0] != len(pairs):
         raise ValueError(
             f"syn_strength_cell length {arr.shape[0]} != n_pairs {len(pairs)}"
@@ -287,10 +290,10 @@ def save_syn_strength_cell_table(z, session, table_path):
     n = len(cells)
     with open(table_path, "w") as f:
         f.write("," + ",".join(cells) + "\n")
-        for i, src in enumerate(cells):
+        for source, src in enumerate(cells):
             fields = [
-                ("%.6f" % mat[(i, j)]) if (i, j) in mat else ""
-                for j in range(n)
+                ("%.6f" % mat[(source, target)]) if (source, target) in mat else ""
+                for target in range(n)
             ]
             f.write(src + "," + ",".join(fields) + "\n")
     return table_path
@@ -304,12 +307,12 @@ def save_syn_strength_edge_table(z, session, table_path):
         return None
     node_vals = train.node_vals_from_z(z, schema)
     arr = np.asarray(node_vals["syn_strength_edge"], dtype=np.float64).reshape(-1)
-    conn = session.backend.conn
+    conn = session.connectome.conn
     if arr.shape[0] != conn.n_edges:
         raise ValueError(
             f"syn_strength_edge length {arr.shape[0]} != n_edges {conn.n_edges}"
         )
-    cells = [str(n) for n in cell_labels(session)]
+    cells = [str(cell) for cell in cell_labels(session)]
     src = conn.source_idxs.detach().cpu().numpy()
     tar = conn.target_idxs.detach().cpu().numpy()
     node_cells = conn.node_cells.detach().cpu().numpy()
@@ -318,14 +321,14 @@ def save_syn_strength_edge_table(z, session, table_path):
         f.write(
             "edge_idx,src_node,tar_node,source_cell,target_cell,syn_sign,syn_strength_edge\n",
         )
-        for i in range(conn.n_edges):
-            si, ti = int(src[i]), int(tar[i])
+        for edge in range(conn.n_edges):
+            si, ti = int(src[edge]), int(tar[edge])
             f.write(
                 "%d,%d,%d,%s,%s,%.0f,%.6f\n"
                 % (
-                    i, si, ti,
+                    edge, si, ti,
                     cells[int(node_cells[si])], cells[int(node_cells[ti])],
-                    float(syn_sign[i]), float(arr[i]),
+                    float(syn_sign[edge]), float(arr[edge]),
                 )
             )
     return table_path
@@ -363,11 +366,11 @@ def save_node_vals(outdir, z, session, filename):
     """Write per-param full-w node vals to ``data/<filename>``."""
     schema = train.schema_copy(session.schema)
     node_vals = train.node_vals_from_z(z, schema)
-    cells = np.asarray(train.cells_from_backend(session.backend), dtype=object)
+    cells = np.asarray(train.cells_from_connectome(session.connectome), dtype=object)
     payload = {k: np.asarray(v, dtype=np.float64) for k, v in node_vals.items()}
     payload['cells'] = cells
     if any(spec['kind'] == 'edge_pair' for spec in schema.values()):
-        payload['pairs'] = np.asarray(train.pairs_from_backend(session.backend), dtype=object)
+        payload['pairs'] = np.asarray(train.pairs_from_connectome(session.connectome), dtype=object)
     os.makedirs(run_data_dir(outdir), exist_ok=True)
     np.savez(os.path.join(run_data_dir(outdir), filename), **payload)
 
@@ -376,11 +379,11 @@ def save_adam(outdir, exp_avg, exp_avg_sq, iter, session, filename):
     """Write per-param adam m/v (z-space) to ``data/<filename>``."""
     schema = train.schema_copy(session.schema)
     adams_m, adams_v = train.adams_from_z(exp_avg, exp_avg_sq, schema)
-    cells = np.asarray(train.cells_from_backend(session.backend), dtype=object)
+    cells = np.asarray(train.cells_from_connectome(session.connectome), dtype=object)
     payload = {'iter': np.asarray(int(iter), dtype=np.int64)}
     payload['cells'] = cells
     if any(spec['kind'] == 'edge_pair' for spec in schema.values()):
-        payload['pairs'] = np.asarray(train.pairs_from_backend(session.backend), dtype=object)
+        payload['pairs'] = np.asarray(train.pairs_from_connectome(session.connectome), dtype=object)
     for param, arr in adams_m.items():
         payload[f'm_{param}'] = np.asarray(arr, dtype=np.float64)
     for param, arr in adams_v.items():
@@ -481,14 +484,14 @@ def load_best_adam(outdir):
 def load_best_param(outdir, session):
     """Load best params as 1-D z for *session* (remap from per-param npz)."""
     node_vals, cells, pairs = load_best_node_vals(outdir)
-    schema = train.attach_param_carry(
+    schema = train.schema_with_param_carry(
         train.schema_copy(session.schema),
         train.remap_node_vals(
-            node_vals, cells, pairs, train.schema_copy(session.schema), session.backend,
+            node_vals, cells, pairs, train.schema_copy(session.schema), session.connectome,
         ),
     )
     remapped = train.remap_node_vals(
-        node_vals, cells, pairs, schema, session.backend,
+        node_vals, cells, pairs, schema, session.connectome,
     )
     z = train.z_from_node_vals(
         remapped, schema, dtype=session.sim_dtype, device=session.device,
@@ -562,23 +565,23 @@ def load_init_z(init_from, session):
     adams_m, adams_v, adam_iter, _, _ = load_best_adam(outdir)
     schema = train.schema_copy(session.schema)
     remapped = train.remap_node_vals(
-        node_vals, cells, pairs, schema, session.backend,
+        node_vals, cells, pairs, schema, session.connectome,
     )
     schema = train.inits_from_node_vals(schema, remapped)
-    schema = train.attach_param_carry(schema, remapped)
+    schema = train.schema_with_param_carry(schema, remapped)
     opts = dict(session.train_opts or {})
-    opts['param_modes'] = train.schema_param_modes_record(
-        schema, session.backend,
+    opts['param_modes'] = train.param_modes_from_schema(
+        schema, session.connectome,
     )
     session = replace(session, schema=schema, train_opts=opts)
     z = train.z_from_node_vals(
         remapped, schema, dtype=session.sim_dtype, device=session.device,
     )
     remapped_m = train.remap_node_vals_adams(
-        adams_m, cells, pairs, schema, session.backend,
+        adams_m, cells, pairs, schema, session.connectome,
     )
     remapped_v = train.remap_node_vals_adams(
-        adams_v, cells, pairs, schema, session.backend,
+        adams_v, cells, pairs, schema, session.connectome,
     )
     exp_avg, exp_avg_sq = train.z_adams_from_node_vals(
         remapped_m, remapped_v, schema,
@@ -591,7 +594,7 @@ def load_init_z(init_from, session):
     }
     print(
         f'from {outdir!r} -> {best_param_path(outdir)!r} + {best_adam_path(outdir)!r} '
-        f'({train.schema_nparams(schema)} z, adam_iter={adam_iter})'
+        f'({train.schema_n_z(schema)} z, adam_iter={adam_iter})'
     )
     return session, z, adam_init
 
@@ -601,7 +604,7 @@ def save_train_outputs(fname, outdir, session, result):
     os.makedirs(outdir, exist_ok=True)
     os.makedirs(run_data_dir(outdir), exist_ok=True)
     if session.train_opts is not None:
-        with open(os.path.join(run_data_dir(outdir), train.TRAIN_OPTS_FILE), 'w') as f:
+        with open(os.path.join(run_data_dir(outdir), "train_opts.json"), 'w') as f:
             json.dump(session.train_opts, f, indent=2)
             f.write('\n')
     np.save(_data_file(outdir, fname), result.run_params)
@@ -642,6 +645,7 @@ def build_session(
     network=NETWORK_PATH['network'],
     sequential=TRAIN_SESSION['sequential'],
     tasks=None,
+    contrasts=None,
     part_cost_scales=None,
     cost_norm=TRAIN_OPTIMIZATION['cost_norm'],
     cost_interval_ms=TRAIN_OPTIMIZATION['cost_interval_ms'],
@@ -653,32 +657,33 @@ def build_session(
     fully_inside=SPOT_INPUT['fully_inside'],
     spot_cost_radius_scale=None,
     i_sti=None,
-    moving_bar_bright_sti_opts=None,
-    moving_bar_dark_sti_opts=None,
-    spot_bright_sti_opts=None,
-    spot_dark_sti_opts=None,
+    moving_bar_sti_opts=None,
+    spot_sti_opts=None,
     param_modes=None,
     param_init=None,
+    param_clamps=None,
+    param_jits=None,
     syn_mode=NEURON_SCHEMA['syn_mode'],
     euler=NEURON_CONST['euler'],
     pre_steady=None,
-    pre_steady_iters=TRAIN_OPTIMIZATION['pre_steady_iters'],
+    pre_steady_n_iter=TRAIN_OPTIMIZATION['pre_steady_n_iter'],
     pre_steady_damp=TRAIN_OPTIMIZATION['pre_steady_damp'],
     fp=TRAIN_SESSION['fp'],
     pre_grad=NEURON_FORWARD['pre_grad'],
     val_from=None,
     filter=NEURON_FILTER['filter'],
     spot_gt_mode=SPOT_PACK['spot_gt_mode'],
-    model_backend=None,
+    connectome=None,
     schema=None,
 ):
     """Create a :class:`TrainSession` from run options."""
-    tl = list(tasks) if tasks is not None else list(
-        train.resolve_tasks([TRAIN_CONFIG['task']])
+    tasks = list(tasks) if tasks is not None else list(
+        train.parse_tasks([TRAIN_CONFIG['task']])
     )
     dev = train.active_device()
-    mkw = dict(
-        tasks=tl,
+    session_kwargs = dict(
+        tasks=tasks,
+        contrasts=contrasts,
         part_cost_scales=part_cost_scales,
         cost_norm=expand_cost_norm(cost_norm),
         cost_interval_ms=cost_interval_ms,
@@ -691,10 +696,8 @@ def build_session(
         fully_inside=fully_inside,
         spot_cost_radius_scale=spot_cost_radius_scale,
         i_sti=i_sti,
-        spot_bright_sti_opts=spot_bright_sti_opts,
-        spot_dark_sti_opts=spot_dark_sti_opts,
-        moving_bar_bright_sti_opts=moving_bar_bright_sti_opts,
-        moving_bar_dark_sti_opts=moving_bar_dark_sti_opts,
+        spot_sti_opts=spot_sti_opts,
+        moving_bar_sti_opts=moving_bar_sti_opts,
     )
     if not network:
         raise ValueError("build_session requires network")
@@ -705,31 +708,35 @@ def build_session(
         dev=dev,
         euler=euler,
         pre_steady=pre_steady,
-        pre_steady_iters=pre_steady_iters,
+        pre_steady_n_iter=pre_steady_n_iter,
         pre_steady_damp=pre_steady_damp,
         param_modes=param_modes,
         param_init=param_init,
+        param_clamps=param_clamps,
+        param_jits=param_jits,
         syn_mode=syn_mode,
         fp=fp,
         pre_grad=pre_grad,
         val_from=val_from,
         filter=filter,
         spot_gt_mode=spot_gt_mode,
-        **mkw,
+        **session_kwargs,
     )
-    return train.open_session(opts, model, schema=schema, model_backend=model_backend)
+    return train.open_session(opts, model, schema=schema, connectome=connectome)
 
 
 def run_train(model, n_run, n_iter, lrs, fname=None, outdir=None,
                  param_modes=None,
                  param_init=None,
+                 param_clamps=None,
+                 param_jits=None,
                  syn_mode=NEURON_SCHEMA['syn_mode'],
                  euler=NEURON_CONST['euler'],
                  pre_steady=None,
-                 pre_steady_iters=TRAIN_OPTIMIZATION['pre_steady_iters'],
+                 pre_steady_n_iter=TRAIN_OPTIMIZATION['pre_steady_n_iter'],
                  pre_steady_damp=TRAIN_OPTIMIZATION['pre_steady_damp'],
                  network=NETWORK_PATH['network'], sequential=TRAIN_SESSION['sequential'],
-                 tasks=None, part_cost_scales=None,
+                 tasks=None, contrasts=None, part_cost_scales=None,
                  cost_norm=TRAIN_OPTIMIZATION['cost_norm'],
                  cost_interval_ms=TRAIN_OPTIMIZATION['cost_interval_ms'],
                  cost_ms=None,
@@ -739,11 +746,9 @@ def run_train(model, n_run, n_iter, lrs, fname=None, outdir=None,
                  fully_inside=SPOT_INPUT['fully_inside'],
                  spot_cost_radius_scale=None,
                  i_sti=None,
-                 moving_bar_bright_sti_opts=None,
-                 moving_bar_dark_sti_opts=None,
-                 spot_bright_sti_opts=None,
-                 spot_dark_sti_opts=None,
-                 model_backend=None, schema=None,
+                 moving_bar_sti_opts=None,
+                 spot_sti_opts=None,
+                 connectome=None, schema=None,
                  fp=TRAIN_SESSION['fp'],
                  pre_grad=NEURON_FORWARD['pre_grad'],
                  val_from=None,
@@ -763,6 +768,7 @@ def run_train(model, n_run, n_iter, lrs, fname=None, outdir=None,
         network=network,
         sequential=sequential,
         tasks=tasks,
+        contrasts=contrasts,
         part_cost_scales=part_cost_scales,
         cost_norm=cost_norm,
         cost_interval_ms=cost_interval_ms,
@@ -774,18 +780,18 @@ def run_train(model, n_run, n_iter, lrs, fname=None, outdir=None,
         fully_inside=fully_inside,
         spot_cost_radius_scale=spot_cost_radius_scale,
         i_sti=i_sti,
-        moving_bar_bright_sti_opts=moving_bar_bright_sti_opts,
-        moving_bar_dark_sti_opts=moving_bar_dark_sti_opts,
-        spot_bright_sti_opts=spot_bright_sti_opts,
-        spot_dark_sti_opts=spot_dark_sti_opts,
+        moving_bar_sti_opts=moving_bar_sti_opts,
+        spot_sti_opts=spot_sti_opts,
         param_modes=param_modes,
         param_init=param_init,
+        param_clamps=param_clamps,
+        param_jits=param_jits,
         syn_mode=syn_mode,
         euler=euler,
         pre_steady=pre_steady,
-        pre_steady_iters=pre_steady_iters,
+        pre_steady_n_iter=pre_steady_n_iter,
         pre_steady_damp=pre_steady_damp,
-        model_backend=model_backend,
+        connectome=connectome,
         schema=schema,
         fp=fp,
         pre_grad=pre_grad,
@@ -802,7 +808,7 @@ def run_train(model, n_run, n_iter, lrs, fname=None, outdir=None,
     print(f"device={session.device}, model={model}, syn_mode={syn_mode}, euler={session.euler}, "
           f"pre_steady={session.pre_steady}, "
           f"n_run={n_run}, n_iter={n_iter}, "
-          f"lrs={lrs}, nparams={train.schema_nparams(train.schema_copy(session.schema))}, fname={fname}")
+          f"lrs={lrs}, n_z={train.schema_n_z(train.schema_copy(session.schema))}, fname={fname}")
     if checkpoint_interval is not None:
         if checkpoint_interval <= 0:
             raise ValueError("checkpoint_interval must be a positive integer")

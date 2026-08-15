@@ -12,7 +12,7 @@ Dependency direction:
 Usage (from ``simulation/``, project ``.venv``):
 
     ../.venv/bin/python run.py --model hp_lp --n-iter 30 --lrs 0.1
-    ../.venv/bin/python run.py --task spot_bright --network right_min_neuron1_r2 \\
+    ../.venv/bin/python run.py --task spot --contrast bright --network right_min_neuron1_r2 \\
         --n-iter 5 --lrs 0.1
 
 Re-plot an existing run without train:
@@ -64,20 +64,20 @@ _FIGURE_KEYS = (
 )
 
 
-def _take_figure_kw(kw, *, gts=None):
-    """Pop figure keys from *kw* (values come from CLI via ``resolve_figure_kwargs``)."""
-    figure_kw = {k: kw.pop(k) for k in _FIGURE_KEYS}
-    figure_kw["gts"] = gts
-    return figure_kw
+def _take_figure_kwargs(kwargs, *, gts=None):
+    """Pop figure keys from *kwargs* (values come from CLI via ``resolve_figure_kwargs``)."""
+    figure_kwargs = {k: kwargs.pop(k) for k in _FIGURE_KEYS}
+    figure_kwargs["gts"] = gts
+    return figure_kwargs
 
 
-def plot_figures(outdir, session, result=None, **figure_kw):
+def plot_figures(outdir, session, result=None, **figure_kwargs):
     """Cost curve (train path only) + model-vs-gt + all-cells."""
     if result is not None:
         if result.cost_curve is not None and len(result.cost_curve) > 0:
             plot_cost(
                 result.cost_curve,
-                os.path.join(outdir, f'cost_curve{figure_file_ext(html=figure_kw.get("html"))}'),
+                os.path.join(outdir, f'cost_curve{figure_file_ext(html=figure_kwargs.get("html"))}'),
                 costs_by_part=result.cost_curves_by_part,
                 part_order=list(train.session_cost_part_keys(session.tasks, session=session)),
             )
@@ -87,7 +87,7 @@ def plot_figures(outdir, session, result=None, **figure_kw):
             session=session,
             final_costs=result.final_costs,
             save_data=False,
-            **figure_kw,
+            **figure_kwargs,
         )
         return
     z = implementation.load_best_param(outdir, session)
@@ -101,7 +101,7 @@ def plot_figures(outdir, session, result=None, **figure_kw):
         session=session,
         final_costs=np.array([best_cost]) if best_cost is not None else None,
         save_data=False,
-        **figure_kw,
+        **figure_kwargs,
     )
 
 
@@ -116,7 +116,7 @@ def _rename_checkpoint_pngs(png_dir, tag, *, filter_figure="v", file_suffix=""):
             os.replace(src, dst)
 
 
-def save_checkpoint_png(outdir, iter, z_best, cost_best, session, figure_kw):
+def save_checkpoint_png(outdir, iter, z_best, cost_best, session, figure_kwargs):
     tag = implementation.checkpoint_iter_tag(iter)
     png_dir = os.path.join(outdir, "png")
     os.makedirs(png_dir, exist_ok=True)
@@ -127,39 +127,39 @@ def save_checkpoint_png(outdir, iter, z_best, cost_best, session, figure_kw):
         session=session,
         final_costs=np.array([cost_best]),
         save_data=False,
-        **figure_kw,
+        **figure_kwargs,
     )
     from figure.panel import filter_figure
     _rename_checkpoint_pngs(
         png_dir, tag,
         filter_figure=filter_figure((session.train_opts or {}).get("filter")),
-        file_suffix=figure_kw.get("file_suffix") or "",
+        file_suffix=figure_kwargs.get("file_suffix") or "",
     )
     print(f"wrote checkpoint png: {png_dir}/*_{tag}.png")
 
 
-def build_checkpoint_on_png(figure_kw):
-    """Bound *figure_kw* into a ``checkpoint_on_png`` callback for ``run_train``."""
-    figure_kw = figure_kw or {}
+def build_checkpoint_on_png(figure_kwargs):
+    """Bind *figure_kwargs* into a ``checkpoint_on_png`` callback for ``run_train``."""
+    figure_kwargs = figure_kwargs or {}
 
     def on_png(outdir, iter, z_best, cost_best, session):
-        save_checkpoint_png(outdir, iter, z_best, cost_best, session, figure_kw)
+        save_checkpoint_png(outdir, iter, z_best, cost_best, session, figure_kwargs)
 
     return on_png
 
 
-def run_train_and_plot(*, figure_gts=None, **kw):
+def run_train_and_plot(*, figure_gts=None, **kwargs):
     """Run train (``train.implementation.run_train``) then plot. Returns ``(fname, outdir, session)``."""
-    syn_sign = kw.pop("syn_sign")
-    figure_kw = _take_figure_kw(kw, gts=figure_gts)
+    syn_sign = kwargs.pop("syn_sign")
+    figure_kwargs = _take_figure_kwargs(kwargs, gts=figure_gts)
     checkpoint_on_png = None
-    if kw.get("checkpoint_interval") is not None:
-        checkpoint_on_png = build_checkpoint_on_png(figure_kw)
+    if kwargs.get("checkpoint_interval") is not None:
+        checkpoint_on_png = build_checkpoint_on_png(figure_kwargs)
     fname, outdir, session, result = implementation.run_train(
-        **kw,
+        **kwargs,
         checkpoint_on_png=checkpoint_on_png,
     )
-    plot_figures(outdir, session, result=result, **figure_kw)
+    plot_figures(outdir, session, result=result, **figure_kwargs)
     if syn_sign:
         from analyze.syn_sign import save_syn_sign_figures
         save_syn_sign_figures(outdir)
@@ -189,10 +189,10 @@ def build_run_argparser(description=None):
 
 def resolve_run_kwargs(args, *, script_stem="run"):
     """Merge train kwargs with figure kwargs for :func:`run_train_and_plot`."""
-    train_kw = cli.resolve_train_kwargs(args, script_stem=script_stem)
-    train_kw.update(resolve_figure_kwargs(args))
-    train_kw['syn_sign'] = args.syn_sign
-    return train_kw
+    train_kwargs = cli.resolve_train_kwargs(args, script_stem=script_stem)
+    train_kwargs.update(resolve_figure_kwargs(args))
+    train_kwargs['syn_sign'] = args.syn_sign
+    return train_kwargs
 
 
 def main(argv=None):
@@ -201,10 +201,10 @@ def main(argv=None):
     parser = build_run_argparser()
     args = parser.parse_args(argv)
     try:
-        kw = resolve_run_kwargs(args)
+        kwargs = resolve_run_kwargs(args)
     except ValueError as exc:
         raise SystemExit(str(exc)) from exc
-    run_train_and_plot(**kw)
+    run_train_and_plot(**kwargs)
 
 
 if __name__ == "__main__":

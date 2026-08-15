@@ -65,7 +65,7 @@ SYN_SIGN_BINS = int(ANALYZE_SYN_SIGN["bins"])
 
 def _syn_strength_from_edges(edges, cells, syn_strength_cell, pairs):
     """Map (src_type_i, tar_type_i) -> trained syn_strength_cell."""
-    cell_idx = {n: i for i, n in enumerate(cells)}
+    cell_idx = dict(zip(cells, range(len(cells))))
     n_cells = len(cells)
     src_t = np.array([cell_idx[e["source_cell"]] for e in edges], dtype=np.int64)
     tar_t = np.array([cell_idx[e["target_cell"]] for e in edges], dtype=np.int64)
@@ -81,7 +81,7 @@ def _syn_strength_from_edges(edges, cells, syn_strength_cell, pairs):
         ]
         if list(pairs) != expected:
             raise SystemExit("pairs in best_param.npz do not match network.json")
-    return {k: float(syn[i]) for i, k in enumerate(pairs)}, cell_idx
+    return dict(zip(pairs, map(float, syn))), cell_idx
 
 
 def syn_plus_by_id(
@@ -148,7 +148,7 @@ def _side_by_side_hist(ax, pct_init, pct_trained, edges_bins, *, legend: bool):
 
 def _active_spot_gt_cells(opts, available):
     """Same cell set as ``spot_gt_v``."""
-    sti_opts = opts.get("spot_bright_sti_opts") or {}
+    sti_opts = opts.get("spot_sti_opts") or {}
     requested = gt_cells_from_opts(sti_opts)
     if requested is None:
         requested = gt_cells_from_opts(opts)
@@ -157,15 +157,13 @@ def _active_spot_gt_cells(opts, available):
     )
 
 
-def _spot_bright_session_z(outdir):
-    """Best ``z`` on ``spot_bright`` (or primary spot task)."""
+def _spot_session_z(outdir, contrast: str = "bright"):
+    """Best ``z`` on ``spot`` × ``contrast`` (or raise if no spot task)."""
     session, z, _cost = plot.load_best(outdir)
     tasks = list((session.train_opts or {}).get("tasks") or [])
-    if "spot_bright" in tasks:
-        return plot.session_from_task(session, "spot_bright"), z
-    if not any(t.startswith("spot_") for t in tasks):
+    if "spot" not in tasks:
         raise SystemExit(f"run has no spot task (tasks={tasks})")
-    return session, z
+    return plot.session_from_task(session, "spot", contrast), z
 
 
 def load_delta_v_tables(session, z):
@@ -183,7 +181,7 @@ def load_delta_v_tables(session, z):
     du = np.asarray(readout["du"], dtype=np.int64)
     dv = np.asarray(readout["dv"], dtype=np.int64)
     cells = list(readout["cells"])
-    ids = np.asarray(session.backend.network.node_ids, dtype=np.int64)[nodes]
+    ids = np.asarray(session.connectome.node_ids, dtype=np.int64)[nodes]
     radii = sorted({
         int(radius)
         for radius in spot.pack_spot_cost_radii(readout["pack"])
@@ -194,12 +192,11 @@ def load_delta_v_tables(session, z):
     )
     delta = traces[:, t1] - traces[:, t0]
     out = {name: {radius: [] for radius in radii} for name in cells}
-    for i in range(len(type_idx)):
-        rk = int(r_k[i])
-        name = cells[int(type_idx[i])]
-        if rk not in out[name] or not np.isfinite(delta[i]):
+    for type_at, radius_k, delta_v, id_val in zip(type_idx, r_k, delta, ids):
+        cell = cells[int(type_at)]
+        if int(radius_k) not in out[cell] or not np.isfinite(delta_v):
             continue
-        out[name][rk].append((int(ids[i]), float(delta[i])))
+        out[cell][int(radius_k)].append((int(id_val), float(delta_v)))
     return out, radii
 
 
@@ -329,13 +326,13 @@ def save_syn_sign_figures(outdir, *, post=False, bins=SYN_SIGN_BINS) -> None:
     strength_by_pair, cell_idx = _syn_strength_from_edges(
         edges, cells, node_vals["syn_strength_cell"], pairs,
     )
-    session, z = _spot_bright_session_z(outdir)
+    session, z = _spot_session_z(outdir)
     delta_tables, radii = load_delta_v_tables(session, z)
 
     direction = "post" if post else "pre"
     syn_dir = os.path.join(outdir, "post_syn" if post else "pre_syn")
     os.makedirs(syn_dir, exist_ok=True)
-    figure_kw = dict(
+    figure_kwargs = dict(
         edges=edges,
         direction=direction,
         cell_idx=cell_idx,
@@ -349,13 +346,13 @@ def save_syn_sign_figures(outdir, *, post=False, bins=SYN_SIGN_BINS) -> None:
         os.path.join(syn_dir, "syn_gt.png"),
         active=_active_spot_gt_cells(opts, cells),
         n_col=N_COL_GT, panel_w=PANEL_W, panel_h=PANEL_H,
-        **figure_kw,
+        **figure_kwargs,
     )
     plot_syn_sign(
         os.path.join(syn_dir, "syn_all.png"),
         active=list(cells),
         n_col=N_COL_ALL, panel_w=PANEL_W, panel_h=PANEL_H,
-        **figure_kw,
+        **figure_kwargs,
     )
 
 

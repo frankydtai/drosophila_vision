@@ -373,26 +373,27 @@ def _load_reports(args):
     train_opts = plot.load_train_opts(run_dir) or {}
     train_filter = train.expand_filter(train_opts.get("filter", "none"))
     eff_filter = args.filter if args.filter is not None else train_filter
-    timing_kw = resolve_sti_timing_kwargs(args, filter=eff_filter)
-    session, z, _timing_changed = plot.maybe_override_sti_timing(
+    timing_kwargs = resolve_sti_timing_kwargs(args, filter=eff_filter)
+    session, z, _timing_changed = plot.override_session_sti_timing(
         run_dir=run_dir,
         session=session,
         z=z,
-        **timing_kw,
+        **timing_kwargs,
         filter=args.filter,
     )
     z = torch.tensor(
         np.asarray(z, dtype=np.float64), dtype=torch.float64, device=session.device,
     )
     schema = train.schema_copy(session.schema)
-    param_inits, param_vals, param_bounds = plot.parse_param_init_val_tokens(args.param)
+    param_inits, param_vals, param_clamps, param_jits = plot.parse_param_init_val_tokens(args.param)
     z, schema = plot.override_params(
         z, schema, session,
-        param_vals=param_vals, param_inits=param_inits, param_bounds=param_bounds,
+        param_vals=param_vals, param_inits=param_inits,
+        param_clamps=param_clamps, param_jits=param_jits,
     )
     session = session.with_schema(schema)
     params = train.override_val_from(
-        train.assign_params(z, schema, session.backend), session,
+        train.assign_params(z, schema, session.connectome), session,
     )
 
     param_csv = os.path.join(run_dir, "param.csv")
@@ -402,7 +403,7 @@ def _load_reports(args):
     else:
         cells = parse_comma_list(args.cells)
 
-    sess_one = plot.session_from_task(session, args.task)
+    sess_one = plot.session_from_task(session, args.task, args.contrast)
     delta_ms = float(sess_one.delta_ms)
     opts = dict(
         (sess_one.train_opts or {}).get(f"{sess_one.primary_pack.task}_sti_opts")
@@ -419,7 +420,7 @@ def _load_reports(args):
         f"{baseline[0]:g},{baseline[1]:g}" if baseline is not None else "none"
     )
     print(
-        f"check={args.check}  {args.task} radius={args.radius}  "
+        f"check={args.check}  {args.task} {args.contrast} radius={args.radius}  "
         f"filter={args.filter or 'run'}  "
         f"ms-shown={analyze[0]:g},{analyze[1]:g}  "
         f"baseline-ms-shown={baseline_label}  "
@@ -431,9 +432,10 @@ def _load_reports(args):
     )
     reports = analyze_spot_average(
         sess_one,
-        params =params,
+        params=params,
         cells=cells,
         task=args.task,
+        contrast=args.contrast,
         time_window=time_window,
         radius=args.radius,
         train_filter=train_filter,
@@ -664,7 +666,8 @@ def main() -> None:
     plot.add_figure_timing_arguments(ap)
     plot.add_figure_filter_argument(ap)
     plot.add_param_argument(ap)
-    ap.add_argument("--task", default="spot_bright")
+    ap.add_argument("--task", default="spot", choices=list(train.TASKS))
+    ap.add_argument("--contrast", default="bright", choices=list(train.CONTRASTS))
     ap.add_argument("--radius", type=int, default=0, choices=(0, 1))
     ap.add_argument(
         "--z-threshold", type=float, default=ANALYZE_TRACE['trace_osc_z_threshold'],

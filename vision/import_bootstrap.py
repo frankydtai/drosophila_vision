@@ -132,11 +132,13 @@ def resolve_parts_under(root: Path, parts: Sequence[str]) -> Optional[Path]:
     if not parts:
         return None
     cur = root
-    for i, part in enumerate(parts):
+    remaining = len(parts)
+    for part in parts:
+        remaining -= 1
         hit = child_by_logical(cur, part)
         if hit is None:
             return None
-        last = i == len(parts) - 1
+        last = remaining == 0
         if last:
             return hit
         if not hit.is_dir():

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import os
 import time
+from itertools import cycle, islice
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -28,14 +29,14 @@ def as_numpy(arr):
     return np.asarray(arr)
 
 
-def gt_affine_from_cell(params, cell, backend, session=None) -> tuple[float, float]:
+def gt_affine_from_cell(params, cell, connectome, session=None) -> tuple[float, float]:
     """``(a_gt, effective_bias)`` for one cell (matches cost).
 
     ``params`` must already have ``override_val_from`` applied so
     ``bias_gt`` / ``v_th_ca`` / ``a_ca`` hold ``val_from`` sources when enabled.
     When ``val_from`` bias_gt is on, do not add ``v_th``.
     """
-    cells = [str(n) for n in backend.network.cells]
+    cells = [str(n) for n in connectome.cells]
     ci = cells.index(str(cell))
     gs = params["a_gt"]
     a_gt = float(gs[ci] if torch.is_tensor(gs) and gs.dim() > 0 else gs)
@@ -46,10 +47,10 @@ def gt_affine_from_cell(params, cell, backend, session=None) -> tuple[float, flo
     if (not from_onset) and "v_th" in params:
         vt = params["v_th"]
         if torch.is_tensor(vt) and vt.dim() > 0:
-            if int(vt.shape[0]) == int(backend.n_cells):
+            if int(vt.shape[0]) == int(connectome.n_cells):
                 bias = bias + float(vt[ci])
             else:
-                m = backend.conn.node_cells == ci
+                m = connectome.conn.node_cells == ci
                 bias = bias + float(vt[m].mean())
         else:
             bias = bias + float(vt if not torch.is_tensor(vt) else vt.item())
@@ -79,7 +80,7 @@ def session_filter_figure_token(session) -> str:
 def cost_ylim(*curves, pct=99.0, pad=1.1, floor=1.0, log=False):
     """Ylim from high percentile so cost spikes do not dominate.
 
-    ``log=True`` returns a positive lower bound (for ``yscale('log')``).
+    ``log=True`` returns a positive ``lo`` (for ``yscale('log')``).
     """
     chunks = []
     for curve in curves:
@@ -142,20 +143,22 @@ def mark_spot(ax, t_onset, t_sti_end):
     ax.axvspan(t0, t1 + 1, facecolor='white', edgecolor='none', zorder=0)
 
 
-def suppress_cost_std(session, task=None):
+def suppress_cost_std(session, task=None, contrast=None):
     """True when cost uses a single hex (no hex-mean STD band)."""
-    pack = session.primary_pack if task is None else session.pack_from_task(task)
+    if task is None and contrast is None:
+        pack = session.primary_pack
+    else:
+        pack = session.packs[task][contrast]
     return pack.cost_radius == 0
 
 
-def pack_center_mask(pack, backend):
+def pack_center_mask(pack, connectome):
     """Boolean mask over pack cost entries included in the cost radius."""
     entry_nodes = pack.entry_nodes.cpu().numpy()
     if pack.entry_radii is not None:
         return pack.entry_radii.cpu().numpy().astype(np.int64, copy=False) == 0
-    if backend.network is not None and pack.cost_radius is not None:
+    if pack.cost_radius is not None:
         import build_hex
-        connectome = backend.network
         network_node_u = (
             connectome.us.detach().cpu().numpy()
             if hasattr(connectome.us, "detach")
@@ -194,10 +197,10 @@ def _param_from_z(z, session, param):
     if param not in schema:
         return {}
     arr = np.asarray(train.node_vals_from_z(z, schema)[param], dtype=np.float64).reshape(-1)
-    cells = train.cells_from_backend(session.backend)
+    cells = train.cells_from_connectome(session.connectome)
     if arr.shape[0] != len(cells):
         raise ValueError(f"{param} length {arr.shape[0]} != n_cells {len(cells)}")
-    return {str(n): float(arr[i]) for i, n in enumerate(cells)}
+    return {str(cell): float(arr_val) for cell, arr_val in zip(cells, arr)}
 
 
 def cell_ylabel(label, ca_n=None, n=None):
@@ -225,29 +228,30 @@ def format_spot_radius_time_title(radius, n, cell, cost_parts, contrasts):
         return head
     lines = [head]
     for contrast in contrasts:
-        part_key = spot_cost_part_key(f'spot_{contrast}', cell, radius)
+        part_key = spot_cost_part_key("spot", contrast, cell, radius)
         if part_key in cost_parts:
             lines.append(f'{contrast}: {float(cost_parts[part_key]):.1f}')
     return '\n'.join(lines)
 
 
-def format_moving_bar_cell_cost_lines(cell, cost_parts, tasks):
+def format_moving_bar_cell_cost_lines(cell, cost_parts, contrasts):
     """Lines ``ON: xx @PD yy @ND`` / ``OFF: …`` for moving-bar titles."""
+    from train.config import moving_bar_cell_cost_part_key
     tag = {
-        'moving_bar_bright': 'ON',
-        'moving_bar_dark': 'OFF',
+        'bright': 'ON',
+        'dark': 'OFF',
     }
     lines = []
     if not cost_parts:
         return lines
-    for task in tasks:
+    for contrast in contrasts:
         bits = []
         for lab in ('PD', 'ND'):
-            part_key = f'{task}_{cell}_{lab}'
+            part_key = moving_bar_cell_cost_part_key("moving_bar", contrast, cell, lab)
             if part_key in cost_parts:
                 bits.append(f'{float(cost_parts[part_key]):.1f} @{lab}')
         if bits:
-            lines.append(f'{tag.get(task, task)}: {" ".join(bits)}')
+            lines.append(f'{tag.get(contrast, contrast)}: {" ".join(bits)}')
     return lines
 
 
@@ -803,44 +807,41 @@ def plot_cost(costs, path, *, costs_by_part=None, part_order=None):
         return
 
     def _spot_parse(part_key: str):
-        if part_key.startswith("spot_bright_"):
-            contrast = "bright"
-            task = "spot_bright"
-        elif part_key.startswith("spot_dark_"):
-            contrast = "dark"
-            task = "spot_dark"
-        else:
-            return None
-        pos = part_key.rfind("_r")
-        if pos < 0:
-            return None
-        radius_token = part_key[pos + 2:]
-        try:
-            r_f = float(radius_token)
-        except ValueError:
-            return None
-        r_i = int(round(r_f))
-        radius = r_i if abs(r_f - r_i) < 1e-6 else float(r_f)
-        # prefix is "{task}_{cell}"
-        cell = part_key[len(task) + 1:pos]
-        return cell, contrast, radius
+        from train.config import CONTRASTS
+        for contrast in CONTRASTS:
+            head = f"spot_{contrast}_"
+            if part_key[:len(head)] != head:
+                continue
+            pos = part_key.rfind("_r")
+            if pos < 0:
+                return None
+            radius_token = part_key[pos + 2:]
+            try:
+                r_f = float(radius_token)
+            except ValueError:
+                return None
+            r_i = int(round(r_f))
+            radius = r_i if abs(r_f - r_i) < 1e-6 else float(r_f)
+            cell = part_key[len(head):pos]
+            return cell, contrast, radius
+        return None
 
     def _moving_bar_parse(part_key: str):
-        if part_key.startswith("moving_bar_bright_"):
-            contrast = "bright"
-            task = "moving_bar_bright"
-        elif part_key.startswith("moving_bar_dark_"):
-            contrast = "dark"
-            task = "moving_bar_dark"
-        else:
-            return None
-        if part_key == f"{task}_DSI":
-            return None, contrast, "DSI"
-        for role in ("PD", "ND"):
-            suf = f"_{role}"
-            if part_key.endswith(suf) and part_key != f"{task}_{role}":
-                cell = part_key[len(task) + 1: -len(suf)]
-                return cell, contrast, role
+        from train.config import CONTRASTS, PD_ND_LABELS
+        for contrast in CONTRASTS:
+            head = f"moving_bar_{contrast}_"
+            if part_key[:len(head)] != head:
+                continue
+            rest = part_key[len(head):]
+            if rest == "DSI":
+                return None, contrast, "DSI"
+            for role in PD_ND_LABELS:
+                suf = f"_{role}"
+                if rest == role:
+                    return None, contrast, role
+                if len(rest) > len(suf) and rest[-len(suf):] == suf:
+                    cell = rest[:-len(suf)]
+                    return cell, contrast, role
         return None
 
     # series universe (for color indexing)
@@ -910,9 +911,9 @@ def plot_cost(costs, path, *, costs_by_part=None, part_order=None):
 
     series_order.extend(other_series_order)
 
-    color_from_series = {
-        series: palette[i % len(palette)] for i, series in enumerate(series_order)
-    }
+    color_from_series = dict(zip(
+        series_order, islice(cycle(palette), len(series_order)),
+    ))
 
     # Layout: [total log + parts log] then [total linear + parts linear].
     n_col = N_COL_GT

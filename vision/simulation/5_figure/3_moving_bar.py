@@ -83,6 +83,7 @@ class MovingBarWindowTraces:
 @dataclass
 class MovingBarTraceReadout:
     task: str
+    contrast: str
     cells: list
     spec_tokens: list
     side: str
@@ -156,7 +157,9 @@ def figure_cell_idx_from_node_cells(connectome_cells, node_cells, figure_cells):
     ``enumerate(figure_cells)`` mislabels every cell whose plot idx ≠ connectome idx.
     """
     cell_idxs = np.asarray(as_numpy(node_cells), dtype=np.int64)
-    cell_idx = {str(n): i for i, n in enumerate(figure_cells)}
+    cell_idx = dict(zip(
+        [str(cell) for cell in figure_cells], range(len(figure_cells)),
+    ))
     out = np.full(cell_idxs.shape, -1, dtype=np.int64)
     for ci, name in enumerate(connectome_cells):
         pi = cell_idx.get(str(name))
@@ -168,9 +171,7 @@ def figure_cell_idx_from_node_cells(connectome_cells, node_cells, figure_cells):
 
 def _cells_and_cell_idxs(session):
     """Plot-order cell order + remapped ``cell_idxs`` for bar."""
-    connectome = session.backend.network
-    if connectome is None:
-        raise ValueError("_cells_and_cell_idxs requires session.backend.network")
+    connectome = session.connectome
     cells = cells_in_order(connectome.cells)
     cell_idxs = figure_cell_idx_from_node_cells(
         connectome.cells, connectome.node_cells, cells,
@@ -244,8 +245,6 @@ def _network_hex_node_mask(connectome, filt_hexes, n_b):
 
 
 def _t0_from_align_hex(t0_bn, b, ref_hex, *, connectome):
-    if connectome is None:
-        raise ValueError("_t0_from_align_hex requires connectome")
     node_u_np, node_v_np = network_uv_np(connectome)
     ref_hex_mask = (node_u_np == int(ref_hex.u)) & (node_v_np == int(ref_hex.v))
     t0_ref = int(t0_bn[b, ref_hex_mask][0])
@@ -260,9 +259,7 @@ def t0_bn_overlay_from_ref(
     session, cost_radius,
 ):
     """Copy ``t0_bn`` with overlay nodes forced to the ref hex ``t0`` (plot only)."""
-    connectome = session.backend.network
-    if connectome is None:
-        raise ValueError("t0_bn_overlay_from_ref requires session.backend.network")
+    connectome = session.connectome
     hexes = moving_bar_cost_hexes(connectome, cost_radius=cost_radius)
     ref_hexes = filter_sti_hexes(hexes, at_x=align_at_x, at_y=align_at_y)
     if len(ref_hexes) != 1:
@@ -282,20 +279,18 @@ def t0_bn_overlay_from_ref(
 
 
 def _moving_bar_overlay_traces(
-    session, task, trace_full, base_wt, spec_tokens, *, at_x=None, at_y=None,
+    session, task, contrast, trace_full, base_wt, spec_tokens, *, at_x=None, at_y=None,
     align_at_x=None, align_at_y=None,
 ):
     """Per-hex overlay traces aligned to ``base_wt`` trace geometry."""
     if base_wt.t0_bn is None or base_wt.cell_idxs is None or base_wt.cells is None:
         raise ValueError("base_wt missing cached t0_bn/cells for overlay")
-    pack = session.pack_from_task(task)
+    pack = session.packs[task][contrast]
     cells = base_wt.cells
     cell_idxs = base_wt.cell_idxs
     t0_full_bn = base_wt.t0_bn
     n_b = len(spec_tokens)
-    connectome = session.backend.network
-    if connectome is None:
-        raise ValueError("_moving_bar_overlay_traces requires session.backend.network")
+    connectome = session.connectome
     hexes = moving_bar_cost_hexes(connectome, cost_radius=pack.cost_radius)
     filt_hexes = filter_sti_hexes(hexes, at_x=at_x, at_y=at_y)
     if not filt_hexes:
@@ -336,9 +331,9 @@ def _fig1_trace_delta(trace: np.ndarray, delta_ms: float) -> np.ndarray:
     return trace - float(trace[0])
 
 
-def _load_moving_bar_gt_mean(session, task, cells, specs, side):
+def _load_moving_bar_gt_mean(session, task, contrast, cells, specs, side):
     gt_mean = {}
-    row_cells = cells_in_order(pack_cells(session, task))
+    row_cells = cells_in_order(pack_cells(session, task, contrast))
     for subtype in row_cells:
         if subtype not in cells:
             continue
@@ -352,10 +347,10 @@ def _load_moving_bar_gt_mean(session, task, cells, specs, side):
 
 
 def _traces_from_forward(
-    session, task, trace_full, specs, spec_tokens, *,
+    session, task, contrast, trace_full, specs, spec_tokens, *,
     at_x=None, at_y=None,
 ):
-    pack = session.pack_from_task(task)
+    pack = session.packs[task][contrast]
     cost_radius = pack.cost_radius
     n_t = int(session.n_t)
     _t_onset = train.pack_t_onset(pack)
@@ -369,7 +364,9 @@ def _traces_from_forward(
     full_after_t = grids.after_t
     side = grids.side
     n_filter_hexes = grids.n_filter_hexes
-    single_hex = suppress_cost_std(session, task) or n_filter_hexes == 1
+    single_hex = (
+        suppress_cost_std(session, task, contrast) or n_filter_hexes == 1
+    )
     n_t_by_b = [
         full_before_t[token] + full_after_t[token] + 1
         for token in spec_tokens
@@ -391,16 +388,16 @@ def _traces_from_forward(
 
 
 @torch.no_grad()
-def moving_bar_trace_readout(session, z, task, *, at_x=None, at_y=None,
+def moving_bar_trace_readout(session, z, task, contrast, *, at_x=None, at_y=None,
                             at_xs=None, at_ys=None,
                             align_at_x=None, align_at_y=None,
                             show_pre=True, ms_shown=None):
     """Run one forward; t_first_sti-aligned full-trace v_readout traces."""
     t_prep0 = time.perf_counter()
-    pack = session.pack_from_task(task)
+    pack = session.packs[task][contrast]
     schema = train.schema_copy(session.schema)
     params = train.override_val_from(
-        train.assign_params(z, schema, session.backend), session,
+        train.assign_params(z, schema, session.connectome), session,
     )
     v = train.forward_v(session, params, pack.i_sti, pack=pack)
     t0 = train.pack_t_onset(pack)
@@ -415,9 +412,9 @@ def moving_bar_trace_readout(session, z, task, *, at_x=None, at_y=None,
     specs = bar_specs_from_task(session, task)
     spec_tokens = [spec.token for spec in specs]
     n_t = int(session.n_t)
-    connectome = session.backend.network
+    connectome = session.connectome
     traces, cells, side, n_filter_hexes, t_onset, single_hex = _traces_from_forward(
-        session, task, trace_full, specs, spec_tokens,
+        session, task, contrast, trace_full, specs, spec_tokens,
     )
     v_th = v_th_from_z(z, session)
     if connectome is not None:
@@ -428,9 +425,9 @@ def moving_bar_trace_readout(session, z, task, *, at_x=None, at_y=None,
             cell: nodes_from_hexes(connectome, cell, hexes) for cell in cells
         }
     else:
-        cell_idxs = np.asarray(as_numpy(session.backend.conn.node_cells), dtype=np.int64)
+        cell_idxs = np.asarray(as_numpy(session.connectome.conn.node_cells), dtype=np.int64)
         entry_nodes = pack.entry_nodes.cpu().numpy()
-        center = pack_center_mask(pack, session.backend)
+        center = pack_center_mask(pack, session.connectome)
         node_cells = cell_idxs[entry_nodes]
         nodes_by_cell = {
             name: entry_nodes[center & (node_cells == cells.index(name))]
@@ -440,11 +437,11 @@ def moving_bar_trace_readout(session, z, task, *, at_x=None, at_y=None,
     v_th_by_cell = {cell: v_th.get(cell, np.nan) for cell in nodes_by_cell}
     e_leak_by_cell = {cell: e_leak.get(cell, np.nan) for cell in nodes_by_cell}
     gt_mean = _load_moving_bar_gt_mean(
-        session, task, cells, specs, side,
+        session, task, contrast, cells, specs, side,
     )
     gt_affine_by_cell = {
         str(name): gt_affine_from_cell(
-            params, name, session.backend, session=session,
+            params, name, session.connectome, session=session,
         )
         for name in cells
     }
@@ -460,7 +457,7 @@ def moving_bar_trace_readout(session, z, task, *, at_x=None, at_y=None,
         overlay = {}
         for label, xv, yv in overlays:
             wt = _moving_bar_overlay_traces(
-                session, task, trace_full, traces, spec_tokens,
+                session, task, contrast, trace_full, traces, spec_tokens,
                 at_x=xv, at_y=yv,
                 align_at_x=align_at_x, align_at_y=align_at_y,
             )
@@ -475,6 +472,7 @@ def moving_bar_trace_readout(session, z, task, *, at_x=None, at_y=None,
             overlay_ys = None
     return MovingBarTraceReadout(
         task=task,
+        contrast=contrast,
         cells=cells,
         spec_tokens=spec_tokens,
         side=side,
@@ -539,9 +537,7 @@ def _cost_window_xy(cost_trace, before_t, delta_ms):
 def _moving_bar_scope_label(session, *, at_x=None, at_y=None, n_filter_hexes=None):
     pack = session.primary_pack
     cost_radius = pack.cost_radius
-    connectome = session.backend.network
-    if connectome is None:
-        raise ValueError("_moving_bar_scope_label requires session.backend.network")
+    connectome = session.connectome
     if at_x is not None or at_y is not None:
         ncol_part = f'{n_filter_hexes} sti hex'
         if n_filter_hexes != 1:
@@ -703,11 +699,11 @@ def _plot_moving_bar_cell_overlays(
     if gt_x is not None:
         ax.plot(gt_x, gt_y, color=GT_COLOR, linewidth=TRACE_LW)
     colors = overlay_reds(len(overlay_labels))
-    for i, label in enumerate(overlay_labels):
+    for label, color in zip(overlay_labels, colors):
         plot_pre_post_line(
             ax, t, overlay_traces[label], pre_end=pre_end,
             show_pre=show_pre, plot_pre=True,
-            color=colors[i], linestyle='-', linewidth=TRACE_LW, label=label,
+            color=color, linestyle='-', linewidth=TRACE_LW, label=label,
         )
     if show_std and std_trace is not None and np.any(std_trace):
         split = max(0, min(int(pre_end or 0), n_t_figure))
@@ -746,11 +742,11 @@ def _moving_bar_all_scope_label(readout_on):
     return _moving_bar_scope_label(readout_on.session)
 
 
-def _moving_bar_cost_tasks(readout_on, readout_2=None):
-    tasks = [readout_on.task]
-    if readout_2 is not None and readout_2.task not in tasks:
-        tasks.append(readout_2.task)
-    return tasks
+def _moving_bar_cost_contrasts(readout_on, readout_2=None):
+    contrasts = [readout_on.contrast]
+    if readout_2 is not None and readout_2.contrast not in contrasts:
+        contrasts.append(readout_2.contrast)
+    return contrasts
 
 
 def _moving_bar_all_figure(readout_on, readout_2, title, *, right_only=True, cost_parts=None):
@@ -770,7 +766,7 @@ def _moving_bar_all_figure(readout_on, readout_2, title, *, right_only=True, cos
         list(readout_on.overlay.keys()) if readout_on.overlay else []
     )
     has_overlays = readout_on.has_overlays
-    cost_tasks = _moving_bar_cost_tasks(readout_on, readout_2)
+    cost_contrasts = _moving_bar_cost_contrasts(readout_on, readout_2)
     if readout_2 is not None:
         wt_2 = readout_2.traces
         spec_2 = _filter_right_specs(readout_2.spec_tokens, right_only)

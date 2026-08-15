@@ -32,8 +32,6 @@ def _plot_device_label():
 
 
 def spot_readout_fns(session):
-    if session.backend.network is None:
-        raise ValueError("spot_readout_fns requires session.backend.network")
     return (
         spot.network_spot_trace_readout,
         spot.plot_network_spot_gt,
@@ -41,15 +39,13 @@ def spot_readout_fns(session):
     )
 
 
-def _network_spot_tag(session, task):
+def _network_spot_tag(session, task="spot"):
     """Subtitle suffix for network spot plots (exact spot/shift counts)."""
-    if session.backend.network is None:
-        return ''
     opts = (session.train_opts or {}).get(f'{task}_sti_opts') or {}
-    spot = resolve_spot(session.backend.network, sti_opts=opts)
+    spot = resolve_spot(session.connectome, sti_opts=opts)
     n_spots = len(spot.centers)
     n_shifts = len(spot.shifts)
-    n_hexes = network_hex_count(session.backend.network)
+    n_hexes = network_hex_count(session.connectome)
     return (
         f'  [avg over {n_spots} spots x {n_shifts} shifts = {n_spots * n_shifts}]\n'
         f'({n_hexes} hexes in network)'
@@ -58,7 +54,7 @@ def _network_spot_tag(session, task):
 
 def load_train_opts(outdir):
     opts_path = os.path.join(
-        run_data_dir(os.path.abspath(outdir)), train.TRAIN_OPTS_FILE,
+        run_data_dir(os.path.abspath(outdir)), "train_opts.json",
     )
     if not os.path.isfile(opts_path):
         return None
@@ -66,14 +62,13 @@ def load_train_opts(outdir):
         return json.load(f)
 
 
-def session_from_task(base_session, task):
-    """Single-task session sharing backend/schema with a multi-task run."""
-    if base_session.backend.network is None:
-        raise ValueError("session_from_task requires base_session.backend.network")
+def session_from_task(base_session, task, contrast):
+    """Session with one ``task`` × one ``contrast``; shared connectome/schema."""
     opts = dict(base_session.train_opts or {})
     opts['tasks'] = [task]
+    opts['contrasts'] = [contrast]
     opts['packs'] = None
-    opts['network'] = base_session.backend.network
+    opts['network'] = base_session.connectome
     return train.open_session({**opts, 'backend': 'network'}, base_session.model,
                            schema=train.schema_copy(base_session.schema))
 
@@ -84,14 +79,14 @@ def resolve_model(outdir, model=None):
         if not opts or 'model' not in opts:
             raise SystemExit(
                 f'cannot determine model for {outdir!r}; '
-                f'expected {train.TRAIN_OPTS_FILE} with "model" in '
-                f'{train.KNOWN_MODELS}'
+                f'expected train_opts.json with "model" in '
+                f'{train.MODELS}'
             )
         model = opts['model']
-    if model not in train.KNOWN_MODELS:
+    if model not in train.MODELS:
         raise SystemExit(
             f'invalid model {model!r} in {outdir!r}; '
-            f'expected one of {train.KNOWN_MODELS}'
+            f'expected one of {train.MODELS}'
         )
     return model
 
@@ -138,9 +133,9 @@ def _session_z_from_best_param(session, run_dir):
 
     node_vals, cells, pairs = train_mod.load_best_node_vals(run_dir)
     remapped = train.remap_node_vals(
-        node_vals, cells, pairs, train.schema_copy(session.schema), session.backend,
+        node_vals, cells, pairs, train.schema_copy(session.schema), session.connectome,
     )
-    schema = train.attach_param_carry(train.schema_copy(session.schema), remapped)
+    schema = train.schema_with_param_carry(train.schema_copy(session.schema), remapped)
     session = session.with_schema(schema)
     z = train.z_from_node_vals(
         remapped, schema, dtype=session.sim_dtype, device=session.device,
@@ -168,7 +163,7 @@ def load_best(outdir, *, model=None, verbose=False):
     return session, z, float(best_cost)
 
 
-def maybe_override_sti_timing(
+def override_session_sti_timing(
     *,
     run_dir,
     session,
@@ -330,39 +325,36 @@ def _readout_figure_stem(prefix, session):
     return f"{prefix}_{session_filter_figure_token(session)}"
 
 
-def _plot_spot_tasks(session, z, outdir, spot_tasks, suffix, model_all,
+def _plot_spot_tasks(session, z, outdir, suffix, model_all,
                        gts=None,
                        at_x=None, at_y=None, show_pre=True,
                        file_suffix="", html=False, ms_shown=None,
                        center_only=False):
-    """Plot spot task(s); contrasts combined in one figure when both are trained."""
-    spot_set = set(spot_tasks)
+    """Plot spot; both contrasts in one figure when session has bright and dark."""
     build_readout, plot_gt, plot_all = spot_readout_fns(session)
-    ref_t = 'spot_bright' if 'spot_bright' in spot_set else spot_tasks[0]
-    net_tag = _network_spot_tag(session, ref_t)
+    net_tag = _network_spot_tag(session, "spot")
     cost_parts = _figure_cost_parts(session, z)
-    figure_kw = dict(gts=gts, cost_parts=cost_parts)
+    figure_kwargs = dict(gts=gts, cost_parts=cost_parts)
     token = session_filter_figure_token(session)
-    readout_kw = dict(
+    readout_kwargs = dict(
         at_xs=at_x, at_ys=at_y,
         show_pre=show_pre,
         ms_shown=ms_shown,
         center_only=center_only,
     )
-    if spot_set == set(train.SPOT_TASKS):
+    contrasts = tuple(session.contrasts)
+    if set(contrasts) >= {"bright", "dark"}:
         readouts = {
-            'bright': build_readout(
-                session_from_task(session, 'spot_bright'), z, **readout_kw,
-            ),
-            'dark': build_readout(
-                session_from_task(session, 'spot_dark'), z, **readout_kw,
-            ),
+            contrast: build_readout(
+                session_from_task(session, "spot", contrast), z, **readout_kwargs,
+            )
+            for contrast in ("bright", "dark")
         }
         mvd = _plot_path(outdir, _readout_figure_stem('spot_gt', session), file_suffix, html=html)
         plot_gt(
             mvd, readouts=readouts,
             title=f'Spot {token}-gt ({suffix}){net_tag}',
-            **figure_kw,
+            **figure_kwargs,
         )
         allc = None
         if model_all:
@@ -370,12 +362,12 @@ def _plot_spot_tasks(session, z, outdir, spot_tasks, suffix, model_all,
             plot_all(
                 allc, readouts=readouts,
                 title=f'Spot {token}-all ({suffix}){net_tag}',
-                **figure_kw,
+                **figure_kwargs,
             )
         return mvd, allc
-    for task in spot_tasks:
-        _plot_one_task(
-            session_from_task(session, task), z, outdir, task, suffix, model_all,
+    for contrast in contrasts:
+        _plot_one_spot(
+            session_from_task(session, "spot", contrast), z, outdir, contrast, suffix, model_all,
             gts=gts,
             at_x=at_x, at_y=at_y,
             show_pre=show_pre,
@@ -387,28 +379,28 @@ def _plot_spot_tasks(session, z, outdir, spot_tasks, suffix, model_all,
         )
 
 
-def _plot_bar_readouts(session, z, outdir, bar_readouts, suffix, model_all, *,
+def _plot_bar_readouts(session, z, outdir, suffix, model_all, *,
                       plot_right_only=True, at_x=None, at_y=None,
                       align_at_x=None, align_at_y=None,
                       show_pre=True, file_suffix="", html=False, ms_shown=None):
-    """Plot moving-bar task(s); bright left | dark right when both are trained."""
+    """Plot moving-bar; bright left | dark right when session has both contrasts."""
     cost_parts = _figure_cost_parts(session, z)
     token = session_filter_figure_token(session)
-    readout_kw = dict(
+    readout_kwargs = dict(
         at_xs=at_x, at_ys=at_y,
         align_at_x=align_at_x, align_at_y=align_at_y,
         show_pre=show_pre,
         ms_shown=ms_shown,
     )
-    bar_set = set(bar_readouts)
-    if bar_set == set(train.MOVING_BAR_TASKS):
-        s_bright = session_from_task(session, 'moving_bar_bright')
-        s_dark = session_from_task(session, 'moving_bar_dark')
+    contrasts = tuple(session.contrasts)
+    if set(contrasts) >= {"bright", "dark"}:
+        s_bright = session_from_task(session, "moving_bar", "bright")
+        s_dark = session_from_task(session, "moving_bar", "dark")
         readout_bright = moving_bar.moving_bar_trace_readout(
-            s_bright, z, 'moving_bar_bright', **readout_kw,
+            s_bright, z, "moving_bar", "bright", **readout_kwargs,
         )
         readout_dark = moving_bar.moving_bar_trace_readout(
-            s_dark, z, 'moving_bar_dark', **readout_kw,
+            s_dark, z, "moving_bar", "dark", **readout_kwargs,
         )
         mvd = _plot_path(outdir, _readout_figure_stem('bar_gt', session), file_suffix, html=html)
         moving_bar.plot_moving_bar_gt(
@@ -426,40 +418,40 @@ def _plot_bar_readouts(session, z, outdir, bar_readouts, suffix, model_all, *,
                 cost_parts=cost_parts,
             )
         return mvd, allc
-    for task in bar_readouts:
-        one = session_from_task(session, task)
-        readout = moving_bar.moving_bar_trace_readout(one, z, task, **readout_kw)
+    for contrast in contrasts:
+        one = session_from_task(session, "moving_bar", contrast)
+        readout = moving_bar.moving_bar_trace_readout(
+            one, z, "moving_bar", contrast, **readout_kwargs,
+        )
         mvd = _plot_path(outdir, _readout_figure_stem('bar_gt', session), file_suffix, html=html)
         moving_bar.plot_moving_bar_gt(
-            mvd, readout=readout, title=f'{task} {token}-gt ({suffix})',
+            mvd, readout=readout, title=f'moving_bar {contrast} {token}-gt ({suffix})',
             cost_parts=cost_parts,
         )
         allc = None
         if model_all:
             allc = _plot_path(outdir, _readout_figure_stem('bar_all', session), file_suffix, html=html)
             moving_bar.plot_moving_bar_all(
-                allc, readout=readout, title=f'{task} {token}-all ({suffix})',
+                allc, readout=readout, title=f'moving_bar {contrast} {token}-all ({suffix})',
                 right_only=plot_right_only,
                 cost_parts=cost_parts,
             )
         return mvd, allc
 
 
-def _plot_one_task(session, z, outdir, task, suffix, model_all,
+def _plot_one_spot(session, z, outdir, contrast, suffix, model_all,
                      gts=None,
                      at_x=None, at_y=None, show_pre=True,
                      cost_parts=None, file_suffix="", html=False, ms_shown=None,
                      center_only=False):
-    if task not in train.SPOT_TASKS:
-        raise ValueError(f'unknown plot task {task!r}')
     token = session_filter_figure_token(session)
     mvd = _plot_path(outdir, _readout_figure_stem('spot_gt', session), file_suffix, html=html)
     allc = _plot_path(outdir, _readout_figure_stem('spot_all', session), file_suffix, html=html)
     build_readout, plot_gt, plot_all = spot_readout_fns(session)
-    net_tag = _network_spot_tag(session, task)
+    net_tag = _network_spot_tag(session, "spot")
     if cost_parts is None:
         cost_parts = _figure_cost_parts(session, z)
-    figure_kw = dict(gts=gts, cost_parts=cost_parts)
+    figure_kwargs = dict(gts=gts, cost_parts=cost_parts)
     readout = build_readout(
         session, z,
         at_xs=at_x, at_ys=at_y,
@@ -467,13 +459,16 @@ def _plot_one_task(session, z, outdir, task, suffix, model_all,
         ms_shown=ms_shown,
         center_only=center_only,
     )
-    from figure.gt import contrast_from_task
-    readouts = {contrast_from_task(task): readout}
+    readouts = {contrast: readout}
     plot_gt(
-        mvd, readouts=readouts, title=f'{task} {token}-gt ({suffix}){net_tag}', **figure_kw,
+        mvd, readouts=readouts,
+        title=f'spot {contrast} {token}-gt ({suffix}){net_tag}', **figure_kwargs,
     )
     if model_all:
-        plot_all(allc, readouts=readouts, title=f'{task} {token}-all ({suffix}){net_tag}', **figure_kw)
+        plot_all(
+            allc, readouts=readouts,
+            title=f'spot {contrast} {token}-all ({suffix}){net_tag}', **figure_kwargs,
+        )
     return mvd, allc
 
 
@@ -518,21 +513,21 @@ def plot_rf_t(params, outdir, model=None, model_all=True,
     if plot_tasks is not None:
         tasks = [t for t in tasks if t in plot_tasks]
 
-    spot_tasks = [t for t in tasks if t in train.SPOT_TASKS]
-    bar_readouts = [t for t in tasks if t in train.MOVING_BAR_TASKS]
-    if (at_x is not None or at_y is not None) and not bar_readouts and not spot_tasks:
+    has_spot = "spot" in tasks
+    has_moving_bar = "moving_bar" in tasks
+    if (at_x is not None or at_y is not None) and not has_moving_bar and not has_spot:
         raise SystemExit('--x/--y require a moving_bar or spot task in this run')
     if (align_at_x is not None or align_at_y is not None):
         if align_at_x is None or align_at_y is None:
             raise SystemExit('--align-xy requires X,Y')
         if at_x is None and at_y is None:
             raise SystemExit('--align-xy requires --x and/or --y')
-        if not bar_readouts:
+        if not has_moving_bar:
             raise SystemExit('--align-xy applies to moving_bar overlay plots only')
 
-    if spot_tasks:
+    if has_spot:
         _plot_spot_tasks(
-            session, z, outdir, spot_tasks, suffix, model_all,
+            session, z, outdir, suffix, model_all,
             gts=gts,
             at_x=at_x, at_y=at_y,
             show_pre=show_pre,
@@ -541,9 +536,9 @@ def plot_rf_t(params, outdir, model=None, model_all=True,
             ms_shown=ms_shown,
             center_only=center_only,
         )
-    if bar_readouts:
+    if has_moving_bar:
         _plot_bar_readouts(
-            session, z, outdir, bar_readouts, suffix, model_all,
+            session, z, outdir, suffix, model_all,
             plot_right_only=plot_right_only,
             at_x=at_x, at_y=at_y,
             align_at_x=align_at_x, align_at_y=align_at_y,
@@ -709,11 +704,13 @@ def param_filename_suffix(param_inits=None, param_vals=None):
     return _suffix(param_inits=param_inits, param_vals=param_vals)
 
 
-def override_params(z, schema, session, param_vals=None, param_inits=None, param_bounds=None):
+def override_params(z, schema, session, param_vals=None, param_inits=None,
+                    param_clamps=None, param_jits=None):
     try:
         return train.override_params(
             z, schema, session,
-            param_vals=param_vals, param_inits=param_inits, param_bounds=param_bounds,
+            param_vals=param_vals, param_inits=param_inits,
+            param_clamps=param_clamps, param_jits=param_jits,
         )
     except ValueError as exc:
         raise SystemExit(str(exc)) from exc
@@ -756,20 +753,20 @@ def main():
     add_param_argument(ap)
     args = ap.parse_args()
     try:
-        figure_kw = resolve_figure_kwargs(args)
+        figure_kwargs = resolve_figure_kwargs(args)
     except ValueError as exc:
         raise SystemExit(str(exc)) from exc
 
     from train.cli import resolve_sti_timing_kwargs
-    param_inits, param_vals, param_bounds = parse_param_init_val_tokens(args.param)
+    param_inits, param_vals, param_clamps, param_jits = parse_param_init_val_tokens(args.param)
 
     outdir = resolve_run_dir(args.run_path)
     train_opts = load_train_opts(outdir) or {}
     eff_filter = args.filter if args.filter is not None else train_opts.get("filter")
-    timing_kw = resolve_sti_timing_kwargs(args, filter=eff_filter)
+    timing_kwargs = resolve_sti_timing_kwargs(args, filter=eff_filter)
     session, z, best_cost = load_best(outdir, verbose=True)
-    session, z, timing_changed = maybe_override_sti_timing(
-        run_dir=outdir, session=session, z=z, **timing_kw,
+    session, z, timing_changed = override_session_sti_timing(
+        run_dir=outdir, session=session, z=z, **timing_kwargs,
         euler=args.euler,
         filter=args.filter,
     )
@@ -780,7 +777,8 @@ def main():
     )
     z, schema = override_params(
         z, train.schema_copy(session.schema), session,
-        param_vals=param_vals, param_inits=param_inits, param_bounds=param_bounds,
+        param_vals=param_vals, param_inits=param_inits,
+        param_clamps=param_clamps, param_jits=param_jits,
     )
     session = session.with_schema(schema)
     # Filter is already in readout stems (``_v`` / ``_ca``); do not append again.
@@ -801,7 +799,7 @@ def main():
         final_costs=np.array([best_cost]),
         file_suffix=file_suffix,
         save_data=not (param_inits or param_vals),
-        **figure_kw,
+        **figure_kwargs,
     )
 
 

@@ -2,12 +2,12 @@
 """Parameter schema param_modes: pack/unpack ``z`` <-> param.
 
 Param packing, param_modes (indi/shared/fixed/frozen), non-linear
-``z_mode`` decoding, and the ``z``-space bounds / initial guess. ``assign_params``
+``z_mode`` decoding, and the ``z``-space clamps / ``z_init``. ``assign_params``
 turns a ``z`` vector into the per-parameter tensors consumed by
 ``neuron`` dynamics; ``params_from_z`` binds it to a session.
 
-Also owns simulation-graph ``ModelBackend`` and device/dtype helpers used when
-materializing ``z`` and connectivity tensors.
+Also owns device/dtype helpers used when materializing ``z`` and connectivity
+tensors.
 
 Model param lists come from ``neuron.schema``; numeric lo/hi/init/jit
 live in ``neuron.param.P``.
@@ -21,16 +21,11 @@ from const_default import (
     VAL_FROM,
 )
 
-from dataclasses import dataclass
-from typing import Optional
-
 import numpy as np
 import torch
 
-from neuron import I_H_DIR_REVERSE_CELLS
 from neuron.schema import (
     PARAM_MODES,
-    _cli_idx,
     expand_param_nodes,
     parse_param_tokens,
     param_scalar,
@@ -61,33 +56,10 @@ def sim_dtype_from_fp(fp: int) -> torch.dtype:
 SIM_DTYPE = sim_dtype_from_fp(TRAIN_SESSION['fp'])
 
 
-@dataclass(frozen=True)
-class ModelBackend:
-    """Connectivity + i_h tensors for one simulation graph."""
-
-    conn: object
-    i_h_dirs: torch.Tensor
-    n_cells: int
-    n_hexes: int
-    network: Optional[object] = None
-
-    @property
-    def n_nodes(self) -> int:
-        return self.conn.n_nodes
-
-
 def calc_multi_col_params(param, conn):
     # Broadcast a per-cell-TYPE parameter (n_cells,) to full-w (n_nodes,)
-    # via the backend's node_cells.
+    # via connectome conn node_cells.
     return param.index_select(0, conn.node_cells)
-
-
-def build_i_h_dirs(conn, i_h_reverse_cells=I_H_DIR_REVERSE_CELLS, *, dtype=SIM_DTYPE):
-    """(conn.n_nodes,) i_h direction (+1 normal, -1 mirrored per cell)."""
-    i_h_dirs = torch.ones(conn.n_nodes, dtype=dtype, device=conn.node_cells.device)
-    for cell_idx in i_h_reverse_cells:
-        i_h_dirs[conn.node_cells == int(cell_idx)] = -1.0
-    return i_h_dirs
 
 
 # --- parameter schema param_modes --------------------------------------------
@@ -150,7 +122,7 @@ def z_from_param(spec, val, *, param="param", node=None):
     return float(np.log(clipped)) if z_mode == 'log' else 1.0 / clipped
 
 
-def _z_bounds(spec, node, *, param="param"):
+def _z_clamps(spec, node, *, param="param"):
     """Per-node (lo, hi) in z space."""
     lo = _node_param_key(spec, node, "lo")
     hi = _node_param_key(spec, node, "hi")
@@ -188,7 +160,7 @@ def schema_params(schema):
         start = stop
 
 
-def schema_nparams(schema):
+def schema_n_z(schema):
     return sum(param_n_z(spec) for spec in schema.values())
 
 
@@ -197,15 +169,9 @@ def effective_init(spec, node):
     return _node_param_key(spec, node, "init")
 
 
-def resolve_param_mode_tokens(
-    mode_tokens, *, cell_idx=None, radius_idx=None, pair_idx=None, edge_idx=None,
-    param='param',
-):
+def resolve_param_mode_tokens(mode_tokens, *, cli_idx, param='param'):
     """Resolve token lists (with at most one ``all``) to node lists."""
-    cli_idx = _cli_idx(
-        cell_idx=cell_idx, radius_idx=radius_idx, pair_idx=pair_idx, edge_idx=edge_idx,
-    )
-    cli_ids = [str(c) for c in cli_idx]
+    cli_ids = [str(cli_id) for cli_id in cli_idx]
     node_set = set(range(len(cli_ids)))
     explicit = {mode: [] for mode in PARAM_MODES}
     all_mode = None
@@ -233,7 +199,9 @@ def resolve_param_mode_tokens(
         explicit[all_mode] = leftover
         claimed_set |= set(leftover)
     elif claimed_set != node_set:
-        missing = [cli_ids[i] for i in sorted(node_set - claimed_set)]
+        missing = [
+            cli_id for cli_id in cli_ids if cli_idx[cli_id] not in claimed_set
+        ]
         raise ValueError(
             f"{param}: nodes not assigned (use all= in one param_mode): {missing[:8]}"
             + ("..." if len(missing) > 8 else "")
@@ -244,42 +212,41 @@ def resolve_param_mode_tokens(
 def cli_from_param_mode(modes, cli_ids):
     """Param_mode node lists → CLI id lists for train_opts sidecar."""
     return {
-        mode: [str(cli_ids[node]) for node in modes[mode]]
+        mode: [str(cli_ids[cli_idx_val]) for cli_idx_val in modes[mode]]
         for mode in PARAM_MODES
     }
 
 
-def _param_cli(spec, backend: "ModelBackend"):
-    """``(cli_ids, idx_kw)`` for this param — cell / radius / pair / edge, not a fake bag."""
+def _param_cli(spec, connectome):
+    """``(cli_ids, cli_idx)`` for this param — cell / radius / pair / edge."""
     if spec.get("radii") is not None:
         radii = [str(radius) for radius in spec["radii"]]
-        return radii, {"radius_idx": {radius: i for i, radius in enumerate(radii)}}
+        return radii, dict(zip(radii, range(len(radii))))
     kind = spec["kind"]
     if kind == "edge_pair":
-        pairs = pairs_from_backend(backend)
-        return pairs, {"pair_idx": {p: i for i, p in enumerate(pairs)}}
+        pairs = pairs_from_connectome(connectome)
+        return pairs, dict(zip(pairs, range(len(pairs))))
     if kind == "edge":
-        edges = edges_from_backend(backend)
-        return edges, {"edge_idx": {e: i for i, e in enumerate(edges)}}
-    cells = cells_from_backend(backend)
-    return cells, {"cell_idx": {c: i for i, c in enumerate(cells)}}
+        edges = edges_from_connectome(connectome)
+        return edges, dict(zip(edges, range(len(edges))))
+    cells = cells_from_connectome(connectome)
+    return cells, dict(zip(cells, range(len(cells))))
 
 
-def schema_with_param_modes(schema, param_modes, backend):
-    """Return schema copy with CLI / sidecar ``param_modes`` folded in."""
+def _stamp_param_modes(schema, param_modes, connectome):
+    """Stamp CLI / sidecar ``param_modes`` into a schema copy."""
     out = {}
     for param, spec in schema.items():
         out_spec = dict(spec)
         if param not in param_modes:
             out[param] = out_spec
             continue
-        cli_ids, idx_kw = _param_cli(out_spec, backend)
-        cli_idx = next(iter(idx_kw.values()))
+        cli_ids, cli_idx = _param_cli(out_spec, connectome)
         raw = param_modes[param]
         if isinstance(raw, list):
             if out_spec.get('kind') == 'edge':
                 validate_syn_strength_edge_param_mode(raw, param=param)
-            modes = resolve_modes(raw, **idx_kw)
+            modes = resolve_modes(raw, cli_idx=cli_idx)
             for mode in PARAM_MODES:
                 out_spec[mode] = list(modes[mode])
             out[param] = out_spec
@@ -315,7 +282,9 @@ def schema_with_param_modes(schema, param_modes, backend):
             mode_tokens = {
                 mode: [str(x) for x in (raw.get(mode) or [])] for mode in PARAM_MODES
             }
-            modes = resolve_param_mode_tokens(mode_tokens, param=param, **idx_kw)
+            modes = resolve_param_mode_tokens(
+                mode_tokens, cli_idx=cli_idx, param=param,
+            )
         for mode in PARAM_MODES:
             out_spec[mode] = modes[mode]
         raw_io = raw.get('inits')
@@ -353,11 +322,11 @@ def schema_with_param_modes(schema, param_modes, backend):
     return out
 
 
-def schema_param_modes_record(schema, backend):
+def param_modes_from_schema(schema, connectome):
     """Serialize param_modes (+ inits) as CLI id lists for train_opts.json."""
-    rec = {}
+    param_modes = {}
     for param, spec in schema.items():
-        cli_ids, _idx_kw = _param_cli(spec, backend)
+        cli_ids, _ = _param_cli(spec, connectome)
         modes = {mode: list(spec.get(mode) or []) for mode in PARAM_MODES}
         if spec.get('kind') == 'edge':
             n = param_n_nodes(spec)
@@ -380,27 +349,26 @@ def schema_param_modes_record(schema, backend):
         if io:
             entry = dict(entry)
             entry['inits'] = {
-                str(cli_ids[int(i)]): float(v) for i, v in io.items()
+                str(cli_ids[cli_idx_val]): float(val)
+                for cli_idx_val, val in io.items()
             }
-        rec[param] = entry
-    return rec
+        param_modes[param] = entry
+    return param_modes
 
 
-def cells_from_backend(backend: "ModelBackend"):
-    if backend.network is None:
-        raise ValueError("cells_from_backend requires backend.network")
-    return [str(n) for n in backend.network.cells]
+def cells_from_connectome(connectome):
+    return [str(cell) for cell in connectome.cells]
 
 
-def pairs_from_backend(backend: "ModelBackend"):
-    pairs = backend.conn.pairs
-    cells = cells_from_backend(backend)
+def pairs_from_connectome(connectome):
+    pairs = connectome.conn.pairs
+    cells = cells_from_connectome(connectome)
     return [f"{cells[source]}{PAIR_SEP}{cells[target]}" for source, target in pairs]
 
 
-def edges_from_backend(backend: "ModelBackend"):
+def edges_from_connectome(connectome):
     """Opaque per-edge CLI ids for param_mode resolve (``e0`` ... ``e{n-1}``)."""
-    n = int(backend.conn.n_edges)
+    n = int(connectome.conn.n_edges)
     return [f"e{edge_idx}" for edge_idx in range(n)]
 
 
@@ -456,7 +424,7 @@ def inits_from_node_vals(schema, node_vals):
     return out
 
 
-def attach_param_carry(schema, node_vals=None):
+def schema_with_param_carry(schema, node_vals=None):
     """Return schema copy with per-param ``carry`` arrays (full-w) for frozen nodes."""
     out = {}
     for param, spec in schema.items():
@@ -493,7 +461,7 @@ def node_vals_from_z(z, schema):
 
 def z_from_node_vals(node_vals, schema, *, dtype=None, device=None):
     """Pack full-w per-param node vals into z for *schema* param_modes."""
-    n = schema_nparams(schema)
+    n = schema_n_z(schema)
     z = torch.zeros(n, dtype=dtype or SIM_DTYPE, device=device or active_device())
     for param, spec, start, stop in schema_params(schema):
         raw = np.asarray(node_vals[param], dtype=np.float64).reshape(-1)
@@ -523,10 +491,10 @@ def adams_from_z(exp_avg, exp_avg_sq, schema):
     """
     exp_avg = np.asarray(exp_avg, dtype=np.float64).reshape(-1)
     exp_avg_sq = np.asarray(exp_avg_sq, dtype=np.float64).reshape(-1)
-    if exp_avg.shape[0] != schema_nparams(schema) or exp_avg_sq.shape[0] != exp_avg.shape[0]:
+    if exp_avg.shape[0] != schema_n_z(schema) or exp_avg_sq.shape[0] != exp_avg.shape[0]:
         raise ValueError(
             f"adam length {exp_avg.shape[0]}/{exp_avg_sq.shape[0]} "
-            f"!= schema nparams {schema_nparams(schema)}"
+            f"!= schema n_z {schema_n_z(schema)}"
         )
     adams_m = {}
     adams_v = {}
@@ -552,7 +520,7 @@ def adams_from_z(exp_avg, exp_avg_sq, schema):
 
 def z_adams_from_node_vals(adams_m, adams_v, schema, *, dtype=None, device=None):
     """Pack per-param adams into z-space tensors (no encode; shared = mean)."""
-    n = schema_nparams(schema)
+    n = schema_n_z(schema)
     dt = dtype or SIM_DTYPE
     dev = device or active_device()
     exp_avg = torch.zeros(n, dtype=dt, device=dev)
@@ -586,18 +554,20 @@ def z_adams_from_node_vals(adams_m, adams_v, schema, *, dtype=None, device=None)
     return exp_avg, exp_avg_sq
 
 
-def _remap_node_vals(node_vals, cells, pairs, schema, backend, *, fill):
-    """Remap per-param arrays onto *backend* node order; ``fill(spec, j)`` for gaps."""
-    cells = [str(n) for n in cells]
-    pairs = [str(n) for n in (pairs or [])]
-    backend_cells = cells_from_backend(backend)
-    backend_pairs = (
-        pairs_from_backend(backend)
+def _remap_node_vals(node_vals, cells, pairs, schema, connectome, *, fill):
+    """Remap per-param arrays onto connectome node order; ``fill(spec, j)`` for gaps."""
+    cells = [str(cell) for cell in cells]
+    pairs = [str(pair) for pair in (pairs or [])]
+    connectome_cells = cells_from_connectome(connectome)
+    connectome_pairs = (
+        pairs_from_connectome(connectome)
         if any(spec['kind'] == 'edge_pair' for spec in schema.values())
         else []
     )
-    cell_idx = {cell: i for i, cell in enumerate(cells)}
-    pair_idx = {pair: i for i, pair in enumerate(pairs)}
+    cell_idx = dict(zip(cells, range(len(cells))))
+    pair_idx = dict(zip(pairs, range(len(pairs))))
+    connectome_cell_idx = dict(zip(connectome_cells, range(len(connectome_cells))))
+    connectome_pair_idx = dict(zip(connectome_pairs, range(len(connectome_pairs))))
     out = {}
     for param, spec in schema.items():
         n_nodes = param_n_nodes(spec)
@@ -608,9 +578,9 @@ def _remap_node_vals(node_vals, cells, pairs, schema, backend, *, fill):
             continue
         vals = np.asarray(vals, dtype=np.float64).reshape(-1)
         if spec['kind'] == 'edge_pair':
-            for node, pair in enumerate(backend_pairs):
+            for pair in connectome_pairs:
                 if pair in pair_idx and pair_idx[pair] < vals.shape[0]:
-                    arr[node] = float(vals[pair_idx[pair]])
+                    arr[connectome_pair_idx[pair]] = float(vals[pair_idx[pair]])
         elif spec['kind'] == 'edge':
             if vals.shape[0] == n_nodes:
                 arr[:] = vals
@@ -618,25 +588,25 @@ def _remap_node_vals(node_vals, cells, pairs, schema, backend, *, fill):
             n_copy = min(n_nodes, int(vals.shape[0]))
             arr[:n_copy] = vals[:n_copy]
         else:
-            for node, cell in enumerate(backend_cells):
+            for cell in connectome_cells:
                 if cell in cell_idx and cell_idx[cell] < vals.shape[0]:
-                    arr[node] = float(vals[cell_idx[cell]])
+                    arr[connectome_cell_idx[cell]] = float(vals[cell_idx[cell]])
         out[param] = arr
     return out
 
 
-def remap_node_vals_adams(node_vals, cells, pairs, schema, backend):
+def remap_node_vals_adams(node_vals, cells, pairs, schema, connectome):
     """Remap per-param adam arrays; missing nodes/params fill 0."""
     return _remap_node_vals(
-        node_vals, cells, pairs, schema, backend,
+        node_vals, cells, pairs, schema, connectome,
         fill=lambda _spec, _node: 0.0,
     )
 
 
-def remap_node_vals(node_vals, cells, pairs, schema, backend):
-    """Remap per-param arrays from a prior run onto *backend* node order for *schema*."""
+def remap_node_vals(node_vals, cells, pairs, schema, connectome):
+    """Remap per-param arrays from a prior run onto connectome node order for *schema*."""
     return _remap_node_vals(
-        node_vals, cells, pairs, schema, backend, fill=effective_init,
+        node_vals, cells, pairs, schema, connectome, fill=effective_init,
     )
 
 
@@ -668,22 +638,24 @@ def _reconstruct_raw(spec, z_slice, z):
     return raw
 
 
-def _expand_param(spec, raw, backend: ModelBackend):
+def _expand_param(spec, raw, connectome):
     """Map a length-``n_nodes`` per-node vector to a usable parameter, per its 'kind'."""
     kind = spec['kind']
-    dev = backend.conn.node_cells.device
+    dev = connectome.conn.node_cells.device
     if kind == 'full':
-        return calc_multi_col_params(raw, backend.conn).to(dev)
+        return calc_multi_col_params(raw, connectome.conn).to(dev)
     if kind in ('output', 'edge_pair', 'edge'):
         return raw.to(dev)
     raise ValueError(f"unknown param kind: {kind}")
 
 
-def assign_params(z, schema, backend: ModelBackend):
+def assign_params(z, schema, connectome):
     """Unpack z into a dict of parameter tensors, driven by the given schema param_modes."""
     params = {}
     for param, spec, start, stop in schema_params(schema):
-        params[param] = _expand_param(spec, _reconstruct_raw(spec, z[start:stop], z), backend)
+        params[param] = _expand_param(
+            spec, _reconstruct_raw(spec, z[start:stop], z), connectome,
+        )
     return params
 
 
@@ -697,8 +669,8 @@ def bias_gt_from_onset_trace(onset_trace, t_onset, session):
             onset_trace, dtype=session.sim_dtype, device=session.device,
         )
     x = onset_trace[:, t0, :]
-    node_cells = session.backend.conn.node_cells
-    n_cells = int(session.backend.n_cells)
+    node_cells = session.connectome.conn.node_cells
+    n_cells = int(session.connectome.n_cells)
     onset_mean = x.mean(dim=0)
     out = onset_mean.new_empty(n_cells)
     for cell_idx in range(n_cells):
@@ -724,28 +696,28 @@ def override_val_from(params, session, *, onset_trace=None, t_onset=None):
 
 
 def params_from_z(z, session):
-    """Bind :func:`assign_params` to a session's schema + backend; apply ``val_from``."""
+    """Bind :func:`assign_params` to a session's schema + connectome; apply ``val_from``."""
     return override_val_from(
-        assign_params(z, schema_copy(session.schema), session.backend), session,
+        assign_params(z, schema_copy(session.schema), session.connectome), session,
     )
 
 
-def schema_bounds(schema, sim_dtype=SIM_DTYPE):
-    z_bounds = torch.zeros((schema_nparams(schema), 2), dtype=sim_dtype)
+def schema_clamps(schema, sim_dtype=SIM_DTYPE):
+    z_clamps = torch.zeros((schema_n_z(schema), 2), dtype=sim_dtype)
     for param, spec, start, stop in schema_params(schema):
         z_idx = 0
         for node in spec.get('indi', ()):
-            z_lo, z_hi = _z_bounds(spec, node, param=param)
-            z_bounds[start + z_idx] = torch.tensor([z_lo, z_hi], dtype=sim_dtype)
+            z_lo, z_hi = _z_clamps(spec, node, param=param)
+            z_clamps[start + z_idx] = torch.tensor([z_lo, z_hi], dtype=sim_dtype)
             z_idx += 1
         if spec.get('shared'):
-            z_lo, z_hi = _z_bounds(spec, spec['shared'][0], param=param)
-            z_bounds[start + z_idx] = torch.tensor([z_lo, z_hi], dtype=sim_dtype)
-    return z_bounds
+            z_lo, z_hi = _z_clamps(spec, spec['shared'][0], param=param)
+            z_clamps[start + z_idx] = torch.tensor([z_lo, z_hi], dtype=sim_dtype)
+    return z_clamps
 
 
-def schema_guess(schema, sim_dtype=SIM_DTYPE):
-    z = np.zeros(schema_nparams(schema))
+def z_init_from_schema(schema, sim_dtype=SIM_DTYPE):
+    z = np.zeros(schema_n_z(schema))
     for param, spec, start, stop in schema_params(schema):
         n = stop - start
         if n == 0:
@@ -769,16 +741,18 @@ def schema_guess(schema, sim_dtype=SIM_DTYPE):
 
 
 def parse_param_cli(tokens):
-    """Parse ``--param`` → ``(param_inits, param_vals, mode_pairs, param_bounds)``.
+    """Parse ``--param`` → ``(param_inits, param_vals, mode_pairs, param_clamps, param_jits)``.
 
     ``init`` / ``lo`` / ``hi`` / ``jit`` stamp schema numbers; ``val`` is
     plot/analyze only; ``mode`` sets param_modes.
-    ``param_bounds`` rows are ``(param, key, node|None, number)`` for lo/hi/jit.
+    ``param_clamps`` rows are ``(param, key, node|None, number)`` for lo/hi;
+    ``param_jits`` rows are ``(param, node|None, number)``.
     """
     param_inits = []
     param_vals = []
     mode_pairs = {}
-    param_bounds = []
+    param_clamps = []
+    param_jits = []
     for param, param_key, nodes, right in parse_param_tokens(tokens or []):
         if param_key == "init":
             init = float(right)
@@ -787,13 +761,20 @@ def parse_param_cli(tokens):
             else:
                 for node in expand_param_nodes(nodes):
                     param_inits.append((param, node, init))
-        elif param_key in ("lo", "hi", "jit"):
+        elif param_key in ("lo", "hi"):
             number = float(right)
             if not nodes:
-                param_bounds.append((param, param_key, None, number))
+                param_clamps.append((param, param_key, None, number))
             else:
                 for node in expand_param_nodes(nodes):
-                    param_bounds.append((param, param_key, node, number))
+                    param_clamps.append((param, param_key, node, number))
+        elif param_key == "jit":
+            number = float(right)
+            if not nodes:
+                param_jits.append((param, None, number))
+            else:
+                for node in expand_param_nodes(nodes):
+                    param_jits.append((param, node, number))
         elif param_key == "val":
             val = float(right)
             if not nodes:
@@ -812,18 +793,17 @@ def parse_param_cli(tokens):
                 f"--param unknown param_key {param_key!r}; "
                 f"expected init, lo, hi, jit, val, or mode"
             )
-    return param_inits, param_vals, mode_pairs, param_bounds
+    return param_inits, param_vals, mode_pairs, param_clamps, param_jits
 
 
 def parse_param_init_val_tokens(tokens):
-    """Return ``(param_inits, param_vals, param_bounds)`` (modes ignored)."""
-    param_inits, param_vals, _, param_bounds = parse_param_cli(tokens)
-    return param_inits, param_vals, param_bounds
+    """Return ``(param_inits, param_vals, param_clamps, param_jits)`` (modes ignored)."""
+    param_inits, param_vals, _, param_clamps, param_jits = parse_param_cli(tokens)
+    return param_inits, param_vals, param_clamps, param_jits
 
 
-def _param_nodes(param, node, number, spec, backend):
-    cli_ids, idx_kw = _param_cli(spec, backend)
-    cli_idx = next(iter(idx_kw.values()))
+def _param_nodes(param, node, number, spec, connectome):
+    cli_ids, cli_idx = _param_cli(spec, connectome)
     if node is None:
         return cli_ids, list(range(len(cli_ids)))
     node = str(node)
@@ -832,19 +812,18 @@ def _param_nodes(param, node, number, spec, backend):
     return [node], [cli_idx[node]]
 
 
-def schema_with_param_inits(schema, backend, rows, *, key):
-    """Stamp ``key`` / ``key+'s'`` from rows ``(param, node|None, number)``."""
+def _stamp_param_key(schema, connectome, rows, *, key):
+    """Mutate ``schema``: stamp ``key`` / ``key+'s'`` from ``(param, node|None, number)``."""
     plural = key + "s"
-    out = schema_copy(schema)
     for param, node, number in rows:
-        spec = out.get(param)
+        spec = schema.get(param)
         if spec is None:
-            raise ValueError(f"--param {param}: unknown param (have {sorted(out)})")
+            raise ValueError(f"--param {param}: unknown param (have {sorted(schema)})")
         if node is None:
             spec[key] = float(number)
             spec.pop(plural, None)
         else:
-            _, nodes = _param_nodes(param, node, number, spec, backend)
+            _, nodes = _param_nodes(param, node, number, spec, connectome)
             io = dict(spec.get(plural) or {})
             for node in nodes:
                 io[int(node)] = float(number)
@@ -857,30 +836,53 @@ def schema_with_param_inits(schema, backend, rows, *, key):
                     f"{param}: shared nodes must share the same {key}, "
                     f"got {vals} for nodes {shared}"
                 )
+
+
+def schema_with_params(
+    schema, connectome, *,
+    param_modes=None, param_inits=None, param_clamps=None, param_jits=None,
+):
+    """Stamp CLI / sidecar ``param_key`` bags onto a schema copy.
+
+    ``param_modes`` rewrites indi/shared/fixed/frozen partitions.
+    ``param_inits`` / ``param_clamps`` / ``param_jits`` stamp number keys
+    (``init`` / ``lo``|``hi`` / ``jit``).
+    """
+    if not (param_modes or param_inits or param_clamps or param_jits):
+        return schema
+    out = (
+        _stamp_param_modes(schema, param_modes, connectome)
+        if param_modes else schema_copy(schema)
+    )
+    if param_inits:
+        _stamp_param_key(out, connectome, param_inits, key="init")
+    if param_clamps:
+        by_key = {}
+        for param, key, node, number in param_clamps:
+            by_key.setdefault(key, []).append((param, node, number))
+        for key, rows in by_key.items():
+            _stamp_param_key(out, connectome, rows, key=key)
+    if param_jits:
+        _stamp_param_key(out, connectome, param_jits, key="jit")
     return out
 
 
 def override_params(
-    z, schema, session, param_vals=None, param_inits=None, param_bounds=None,
+    z, schema, session, param_vals=None, param_inits=None,
+    param_clamps=None, param_jits=None,
 ):
     """Apply ``--param`` overrides for plot/analyze without retraining.
 
-    ``param_inits`` / ``param_bounds`` stamp schema numbers. ``param_vals``
-    patches decoded vals then re-packs ``z``.
+    Number ``param_key`` bags stamp the schema; ``param_vals`` patches
+    decoded vals then re-packs ``z``.
     """
-    schema = schema_copy(schema)
-    if param_inits:
-        schema = schema_with_param_inits(
-            schema, session.backend, param_inits, key="init",
+    if param_inits or param_clamps or param_jits:
+        schema = schema_with_params(
+            schema, session.connectome,
+            param_inits=param_inits, param_clamps=param_clamps, param_jits=param_jits,
         )
-    if param_bounds:
-        by_key = {}
-        for param, key, node, number in param_bounds:
-            by_key.setdefault(key, []).append((param, node, number))
-        for key, rows in by_key.items():
-            schema = schema_with_param_inits(
-                schema, session.backend, rows, key=key,
-            )
+    else:
+        schema = schema_copy(schema)
     if not param_vals:
         return z, schema
     node_vals = node_vals_from_z(z, schema)
@@ -888,19 +890,19 @@ def override_params(
         spec = schema.get(param)
         if spec is None:
             raise ValueError(f"--param {param}: unknown param (have {sorted(schema)})")
-        _, nodes = _param_nodes(param, node, val, spec, session.backend)
+        _, nodes = _param_nodes(param, node, val, spec, session.connectome)
         arr = np.asarray(node_vals[param], dtype=np.float64).reshape(-1).copy()
         for node in nodes:
             arr[int(node)] = float(val)
         node_vals[param] = arr
-        fixed = {int(i) for i in (spec.get("fixed") or ())}
+        fixed = set(map(int, spec.get("fixed") or ()))
         if fixed:
             io = dict(spec.get("inits") or {})
             for node in nodes:
                 if int(node) in fixed:
                     io[int(node)] = float(val)
             spec["inits"] = io
-    schema = attach_param_carry(schema, node_vals)
+    schema = schema_with_param_carry(schema, node_vals)
     z = z_from_node_vals(
         node_vals, schema,
         dtype=session.sim_dtype, device=session.device,

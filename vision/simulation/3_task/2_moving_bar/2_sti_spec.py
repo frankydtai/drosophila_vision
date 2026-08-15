@@ -107,13 +107,13 @@ def _coverage_time_series(
     for lane_origin, lane_pitch in lane_origins:
         trail_start, trail_exit = lane_sweep_trail_range(spec, lane_origin, lane_pitch)
         trail = float(trail_start)
-        for i in range(n_post):
+        for t in range(n_post):
             rect = bar_rect_lane_clipped(
                 spec, trail, lane_origin, lane_pitch, view_deg,
             )
             if rect is not None:
                 bx0, by0, bx1, by1 = rect
-                out[i] += coverages(hex_stack, bx0, by0, bx1, by1)
+                out[t] += coverages(hex_stack, bx0, by0, bx1, by1)
             trail += trail_shift_deg
     return np.clip(out, 0.0, 1.0)
 
@@ -245,19 +245,11 @@ def bar_lane_rects(
 
 def _current_from_coverage(
     coverage: np.ndarray,
-    contrast: str,
     i_baseline: float,
     *,
-    i_bright_moving_bar: float,
-    i_dark_moving_bar: float,
+    i: float,
 ) -> np.ndarray:
-    if contrast == "bright":
-        peak = float(i_bright_moving_bar)
-    elif contrast == "dark":
-        peak = float(i_dark_moving_bar)
-    else:
-        raise ValueError(f"unknown contrast {contrast!r}")
-    return i_baseline + coverage * (peak - i_baseline)
+    return i_baseline + coverage * (float(i) - i_baseline)
 
 
 def build_i_sti_hex(
@@ -270,14 +262,13 @@ def build_i_sti_hex(
     t_onset: int = None,
     delta_ms: float,
     i_baseline: float,
-    i_bright_moving_bar: Optional[float] = None,
-    i_dark_moving_bar: Optional[float] = None,
+    i: float,
 ) -> np.ndarray:
     """Multi-b hex currents ``(B, T, n_hexes)``.
 
     Each b row superposes simultaneous lane bars for one ``MovingBarSpec``.
     Specs that share direction / w / speed reuse one coverage time series;
-    only the bright/dark contrast scaling differs.
+    only the contrast peak current ``i`` differs when callers rebuild per contrast.
     """
     n_b = len(specs)
     n_hexes = len(hexes)
@@ -305,8 +296,7 @@ def build_i_sti_hex(
         )
         for b in bs:
             out[b, t_onset:] = _current_from_coverage(
-                cov_ts, specs[b].contrast, i_baseline=i_baseline,
-                i_bright_moving_bar=i_bright_moving_bar, i_dark_moving_bar=i_dark_moving_bar,
+                cov_ts, i_baseline=i_baseline, i=i,
             )
     return out
 
@@ -320,15 +310,15 @@ class MovingBarSti:
 
 
 def resolve_moving_bar_i_baseline(train_opts) -> float:
-    """``i_baseline_moving_bar`` from moving-bar sti opts on a train session."""
+    """Midpoint baseline from session ``i_sti['moving_bar']``."""
     opts = train_opts or {}
-    for sti_opts_tok in ("moving_bar_bright_sti_opts", "moving_bar_dark_sti_opts"):
-        sub = opts.get(sti_opts_tok) or {}
-        if "i_baseline_moving_bar" in sub:
-            return float(sub["i_baseline_moving_bar"])
+    i_sti = opts.get("i_sti") or {}
+    by_contrast = i_sti.get("moving_bar")
+    if isinstance(by_contrast, dict) and "bright" in by_contrast and "dark" in by_contrast:
+        return 0.5 * (float(by_contrast["bright"]) + float(by_contrast["dark"]))
     raise ValueError(
-        "moving-bar sti opts require i_baseline_moving_bar "
-        "(inject via const_default.NETWORK_CONSTRUCTION['i_baseline'] / CLI)"
+        "train opts require i_sti['moving_bar'] with bright/dark "
+        "(see const_default.I_STI)"
     )
 
 
@@ -408,8 +398,7 @@ def _moving_bar_cache_digest(
     i_baseline: float,
     bar_radius: int,
     multi_bar: bool = True,
-    i_bright_moving_bar: Optional[float] = None,
-    i_dark_moving_bar: Optional[float] = None,
+    i: Optional[float] = None,
 ) -> str:
     stat = network_json.stat()
     payload = {
@@ -431,12 +420,9 @@ def _moving_bar_cache_digest(
         "n_t": n_t,
         "t_onset": t_onset,
         "delta_ms": delta_ms,
-        "i_baseline_moving_bar": i_baseline,
+        "i_baseline": i_baseline,
+        "i": None if i is None else float(i),
     }
-    if i_bright_moving_bar is not None:
-        payload["i_bright_moving_bar"] = i_bright_moving_bar
-    if i_dark_moving_bar is not None:
-        payload["i_dark_moving_bar"] = i_dark_moving_bar
     digest = hashlib.sha256(json.dumps(payload, sort_keys=True).encode()).hexdigest()
     return digest[:16]
 
@@ -451,12 +437,11 @@ def _moving_bar_cache_path(
     i_baseline: float,
     bar_radius: int,
     multi_bar: bool = True,
-    i_bright_moving_bar: Optional[float] = None,
-    i_dark_moving_bar: Optional[float] = None,
+    i: Optional[float] = None,
 ) -> Path:
     digest = _moving_bar_cache_digest(
         network_json, specs, hex_uv, n_t, t_onset, delta_ms,
-        i_baseline, bar_radius, multi_bar, i_bright_moving_bar, i_dark_moving_bar,
+        i_baseline, bar_radius, multi_bar, i,
     )
     return Path(network_json).resolve().parent / MOVING_BAR_CACHE_DIRNAME / f"{digest}.npz"
 
@@ -488,8 +473,7 @@ def build_moving_bar_signals(
     bar_radius: int = BAR_RADIUS,
     multi_bar: bool = True,
     i_baseline: float,
-    i_bright_moving_bar: Optional[float] = None,
-    i_dark_moving_bar: Optional[float] = None,
+    i: float,
     device: Optional[str] = None,
     use_cache: bool = True,
     refresh_cache: bool = False,
@@ -499,22 +483,14 @@ def build_moving_bar_signals(
     """Build sti current for moving-bar stis.
 
     Returns ``i_sti`` with shape ``(B, T, N_nodes)`` where ``B = len(specs)``.
+    ``i`` is the peak current for this build (one contrast at a time).
     """
     device = device or connectome.device
     bar_radius = int(bar_radius)
     multi_bar = bool(multi_bar)
     specs = list(specs if specs is not None else gruntman_moving_bar_specs())
-    contrasts = {spec.contrast for spec in specs}
-    i_bright = None
-    i_dark = None
-    if "bright" in contrasts:
-        if i_bright_moving_bar is None:
-            raise ValueError("i_bright_moving_bar required for bright contrast")
-        i_bright = float(i_bright_moving_bar)
-    if "dark" in contrasts:
-        if i_dark_moving_bar is None:
-            raise ValueError("i_dark_moving_bar required for dark contrast")
-        i_dark = float(i_dark_moving_bar)
+    i = float(i)
+    i_baseline = float(i_baseline)
     sti = sti_hexes(connectome)
     view_deg = view_bounds(sti)
     if n_t is None:
@@ -535,7 +511,7 @@ def build_moving_bar_signals(
     if source_json is not None:
         cache_path = _moving_bar_cache_path(
             source_json, specs, hex_uv, n_t, t_onset, delta_ms,
-            i_baseline, bar_radius, multi_bar, i_bright, i_dark,
+            i_baseline, bar_radius, multi_bar, i,
         )
 
     i_sti_hex: Optional[np.ndarray] = None
@@ -548,7 +524,7 @@ def build_moving_bar_signals(
         i_sti_hex = build_i_sti_hex(
             sti, specs, n_t=n_t, bar_radius=bar_radius, multi_bar=multi_bar,
             t_onset=t_onset, delta_ms=delta_ms,
-            i_baseline=i_baseline, i_bright_moving_bar=i_bright, i_dark_moving_bar=i_dark,
+            i_baseline=i_baseline, i=i,
         )
         if cache_path is not None and use_cache:
             _save_moving_bar_hex_cache(cache_path, i_sti_hex)
@@ -568,14 +544,11 @@ def build_moving_bar_signals(
         "sweep_s": sweep_t * delta_ms / 1000.0,
         "tail_t": tail_t,
         "tail_s": tail_t * delta_ms / 1000.0,
-        "i_baseline_moving_bar": i_baseline,
+        "i_baseline": i_baseline,
+        "i": i,
         "speed_deg_over_s": specs[0].speed_deg_over_s if specs else GRUNTMAN_SPEED_DEG_OVER_S,
         "spec_tokens": [spec.token for spec in specs],
     }
-    if i_bright is not None:
-        info["i_bright_moving_bar"] = i_bright
-    if i_dark is not None:
-        info["i_dark_moving_bar"] = i_dark
     return MovingBarSti(
         i_sti=torch.as_tensor(i_sti_np, dtype=sim_dtype, device=device),
         i_sti_hex=i_sti_hex,

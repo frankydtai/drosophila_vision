@@ -10,7 +10,7 @@ t=0 uses ``session.pre_steady`` (``--pre-steady …``):
 * ``probe``: ``g_syn`` from ``v=e_leak``, ``u/u_rev=0``, then ohmic
   ``v = (i_sti + Σ g·e) / Σ g``
 * ``solve``: fixed-iter under-relaxed DC map with i_h at ``ss(v)``;
-  uses ``session.pre_steady_iters`` / ``session.pre_steady_damp``
+  uses ``session.pre_steady_n_iter`` / ``session.pre_steady_damp``
 
 Euler (``session.euler`` = ``implicit`` | ``explicit``):
 
@@ -68,7 +68,7 @@ def _i_h_gate_step(
 def update_v(
     v, u, u_rev, a_in, a_out, syn_strength, v_th, a_h, a_h_rev,
     v_mid_h_g, h_slope, v_mid_h_tau, v_mid_h_g_rev, h_slope_rev, v_mid_h_tau_rev,
-    i_sti, backend, e_leak, *,
+    i_sti, connectome, e_leak, *,
     delta_ms: float,
     cap: float,
     g_leak: float,
@@ -81,26 +81,26 @@ def update_v(
 ):
     """One borst step; reversal / cap scalars are required kwargs."""
     euler = expand_euler(euler)
-    conn = backend.conn
+    conn = connectome.conn
     i_h_mask = (a_h + a_h_rev) != 0
     g_h = u.new_zeros(u.shape)
     g_h_rev = u_rev.new_zeros(u_rev.shape)
-    i_h_kw_common = dict(delta_ms=delta_ms, h_g_max=h_g_max)
+    i_h_kwargs_common = dict(delta_ms=delta_ms, h_g_max=h_g_max)
     if i_h_mask.any():
-        i_h_kw = dict(
+        i_h_kwargs = dict(
             v_mid_h_g=v_mid_h_g, h_slope=h_slope, v_mid_h_tau=v_mid_h_tau,
             v_mid_h_g_rev=v_mid_h_g_rev, h_slope_rev=h_slope_rev, v_mid_h_tau_rev=v_mid_h_tau_rev,
         )
         if i_h_mask.all():
             u, u_rev, g_h, g_h_rev = _i_h_gate_step(
-                v, u, u_rev, a_h, a_h_rev, **i_h_kw_common, **i_h_kw)
+                v, u, u_rev, a_h, a_h_rev, **i_h_kwargs_common, **i_h_kwargs)
         else:
             idx = i_h_mask
             u_a, u_rev_a, g_a, g_rev_a = _i_h_gate_step(
                 v[:, idx], u[:, idx], u_rev[:, idx],
                 a_h[idx], a_h_rev[idx],
-                **i_h_kw_common,
-                **{k: val[idx] for k, val in i_h_kw.items()},
+                **i_h_kwargs_common,
+                **{k: val[idx] for k, val in i_h_kwargs.items()},
             )
             u = u.clone()
             u_rev = u_rev.clone()
@@ -215,7 +215,7 @@ def _ohmic_v(i0, g_exc, g_inh, g_h, g_h_rev, e_leak, session):
 def v_dc_from_v(v, params, i0, e_leak, session, *, with_i_h_ss: bool):
     """One DC map step: ohmic ``v_dc`` from ``g`` at ``v`` (+ i_h ``ss(v)`` if asked)."""
     v_out = torch.relu(v - params["v_th"]) * params["a_out"]
-    g_exc, g_inh = session.backend.conn.exc_inh_g(v_out, syn_strength(params))
+    g_exc, g_inh = session.connectome.conn.exc_inh_g(v_out, syn_strength(params))
     g_exc = g_exc * params["a_in"]
     g_inh = g_inh * params["a_in"]
     if with_i_h_ss:
@@ -240,13 +240,13 @@ def pre_steady(session, params, n_b, i_sti=None):
     if pre_steady not in ("probe", "solve"):
         raise ValueError(f"borst pre_steady must be probe|solve; got {pre_steady!r}")
     e_leak = params["e_leak"]
-    v = e_leak.expand(n_b, session.backend.n_nodes).clone()
+    v = e_leak.expand(n_b, session.connectome.n_nodes).clone()
     i0 = i_sti[:, 0, :]
     if pre_steady == "probe":
         v_dc, u, u_rev = v_dc_from_v(v, params, i0, e_leak, session, with_i_h_ss=False)
         return u, u_rev, v_dc
     damp = float(session.pre_steady_damp)
-    for _ in range(int(session.pre_steady_iters)):
+    for _ in range(int(session.pre_steady_n_iter)):
         v_dc, _, _ = v_dc_from_v(v, params, i0, e_leak, session, with_i_h_ss=True)
         v = v + damp * (v_dc - v)
     _, u, u_rev = v_dc_from_v(v, params, i0, e_leak, session, with_i_h_ss=True)
@@ -261,7 +261,7 @@ def step(u, u_rev, v, params, i_sti, session, *, delta_ms: float, return_compone
         params["a_h"], params["a_h_rev"],
         params["v_mid_h_g"], params["h_slope"], params["v_mid_h_tau"],
         params["v_mid_h_g_rev"], params["h_slope_rev"], params["v_mid_h_tau_rev"],
-        i_sti, session.backend, params["e_leak"],
+        i_sti, session.connectome, params["e_leak"],
         delta_ms=float(delta_ms),
         cap=session.cap,
         g_leak=session.g_leak,

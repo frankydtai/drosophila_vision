@@ -38,11 +38,11 @@ def main(argv=None):
     parser = _run.build_run_argparser()
     args = parser.parse_args(argv)
     try:
-        kw = _run.resolve_run_kwargs(args, script_stem="run_init_from")
+        kwargs = _run.resolve_run_kwargs(args, script_stem="run_init_from")
     except ValueError as exc:
         raise SystemExit(str(exc)) from exc
-    kw["init_from"] = args.init_from or RUN_PATH
-    _run.run_train_and_plot(**kw)
+    kwargs["init_from"] = args.init_from or RUN_PATH
+    _run.run_train_and_plot(**kwargs)
 
 
 if __name__ == "__main__":

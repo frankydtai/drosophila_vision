@@ -10,21 +10,17 @@ import numpy as np
 from network import path  # noqa: F401 -- FAFBv783 on sys.path
 import build_hex
 
-_SPOT_RADIUS_HALF_STEP_TOL = 1e-9
-
-
-def spot_radius_half_steps(spot_radius) -> int:
-    """``spot_radius = 0.5 * m`` for non-negative integer ``m``; return ``m``."""
+def standardize_spot_radius(spot_radius) -> float:
+    """Require non-negative 0.5 multiple; return the canonical float."""
     value = float(spot_radius)
     if value < 0:
         raise ValueError(f"spot_radius must be >= 0, got {spot_radius!r}")
-    half_steps = value * 2.0
-    m = round(half_steps)
-    if abs(half_steps - m) > _SPOT_RADIUS_HALF_STEP_TOL:
+    out = round(value * 2.0) / 2.0
+    if out != value:
         raise ValueError(
             f"spot_radius must be a non-negative 0.5 multiple, got {spot_radius!r}",
         )
-    return int(m)
+    return out
 
 
 def _spot_center_angle(u: int, v: int) -> float:
@@ -40,7 +36,7 @@ def spot_centers(
     fully_inside: bool,
 ) -> list:
     """Axial centers of densest packing of radius-``floor(spot_radius)`` hexes."""
-    m = spot_radius_half_steps(spot_radius)
+    m = int(round(2.0 * standardize_spot_radius(spot_radius)))
     k = m // 2
     if m % 2 == 1:
         e = (m + 1) // 2
@@ -120,7 +116,7 @@ def build_spot(
     fully_inside: bool,
 ) -> Spot:
     """Build a :class:`Spot` for the connectome."""
-    spot_radius_half_steps(spot_radius)
+    spot_radius = standardize_spot_radius(spot_radius)
     connectome_radius = _connectome_radius(connectome, spot_radius)
     shifts = build_hex.radius_hexes(1)
     if not multi_spot:

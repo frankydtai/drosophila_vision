@@ -59,8 +59,8 @@ def cell_rows(active: Sequence[str]) -> list[list[str]]:
             rows.append(filtered)
             used.update(filtered)
     leftover = sorted(cell for cell in active_cells if cell not in used)
-    for i in range(0, len(leftover), _LEFTOVER_ROW_LEN):
-        rows.append(leftover[i : i + _LEFTOVER_ROW_LEN])
+    for start in range(0, len(leftover), _LEFTOVER_ROW_LEN):
+        rows.append(leftover[start:start + _LEFTOVER_ROW_LEN])
     return rows
 
 
@@ -204,7 +204,7 @@ def load_network(
     node_ids = [int(n["id"]) for n in nodes]
     node_from_id = {node_id: node for node, node_id in enumerate(node_ids)}
 
-    cell_idx = {t: i for i, t in enumerate(cells)}
+    cell_idx = dict(zip(cells, range(len(cells))))
     node_cells = np.array([cell_idx[n["name"]] for n in nodes], dtype=np.int64)
 
     us = np.array(

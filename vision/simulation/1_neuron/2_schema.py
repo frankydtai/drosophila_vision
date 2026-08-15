@@ -17,7 +17,7 @@ from const_default import (
 )
 
 from neuron.param import (
-    KNOWN_MODELS,
+    MODELS,
 )
 
 SYN_MODES = ("per_cell", "per_edge")
@@ -82,38 +82,16 @@ def split_param_tokens(tokens, *, param=None):
     return number_pairs, mode_pairs
 
 
-def _cli_idx(*, cell_idx=None, radius_idx=None, pair_idx=None, edge_idx=None):
-    """Exactly one of cell_idx / radius_idx / pair_idx / edge_idx."""
-    opts = (
-        ("cell_idx", cell_idx),
-        ("radius_idx", radius_idx),
-        ("pair_idx", pair_idx),
-        ("edge_idx", edge_idx),
-    )
-    present = [(name, val) for name, val in opts if val is not None]
-    if len(present) != 1:
-        raise ValueError(
-            "need exactly one of cell_idx, radius_idx, pair_idx, edge_idx; "
-            f"got {[name for name, _ in present]}"
-        )
-    return present[0][1]
-
-
-def resolve_inits(
-    init_pairs, *, cell_idx=None, radius_idx=None, pair_idx=None, edge_idx=None,
-):
+def resolve_inits(init_pairs, *, cli_idx):
     """Fold ``(cli_ids|None, number)`` pairs into scalar + per-node bag.
 
-    Pass exactly one lookup: ``cell_idx`` / ``radius_idx`` / ``pair_idx`` / ``edge_idx``.
+    ``cli_idx`` is the label→node lookup for this param axis.
     """
-    cli_idx = _cli_idx(
-        cell_idx=cell_idx, radius_idx=radius_idx, pair_idx=pair_idx, edge_idx=edge_idx,
-    )
-    cli_ids = [str(c) for c in cli_idx]
+    cli_ids = [str(cli_id) for cli_id in cli_idx]
     node_init = {}
     for cli_group, init in init_pairs:
         if cli_group is None:
-            node_init = {c: init for c in cli_ids}
+            node_init = {cli_id: init for cli_id in cli_ids}
         else:
             for cli_id in cli_group:
                 node_init[str(cli_id)] = init
@@ -121,28 +99,23 @@ def resolve_inits(
         return 0.0, {}
     if len(node_init) == len(cli_ids) and len(set(node_init.values())) == 1:
         return next(iter(node_init.values())), {}
-    return 0.0, {int(cli_idx[c]): node_init[c] for c in node_init}
+    return 0.0, {int(cli_idx[cli_id]): node_init[cli_id] for cli_id in node_init}
 
 
-def resolve_modes(
-    mode_pairs, *, cell_idx=None, radius_idx=None, pair_idx=None, edge_idx=None,
-):
+def resolve_modes(mode_pairs, *, cli_idx):
     """Fold ``(cli_ids|None, mode)`` pairs into ``modes`` (lists of node)."""
-    cli_idx = _cli_idx(
-        cell_idx=cell_idx, radius_idx=radius_idx, pair_idx=pair_idx, edge_idx=edge_idx,
-    )
-    cli_ids = [str(c) for c in cli_idx]
+    cli_ids = [str(cli_id) for cli_id in cli_idx]
     node_mode = {}
     for cli_group, mode in mode_pairs:
         if cli_group is None:
-            for c in cli_ids:
-                node_mode[c] = mode
+            for cli_id in cli_ids:
+                node_mode[cli_id] = mode
         else:
             for cli_id in cli_group:
                 node_mode[str(cli_id)] = mode
     out = {mode: [] for mode in PARAM_MODES}
-    for c, mode in node_mode.items():
-        out[mode].append(int(cli_idx[c]))
+    for cli_id, mode in node_mode.items():
+        out[mode].append(int(cli_idx[cli_id]))
     for mode in PARAM_MODES:
         out[mode].sort()
     return out
@@ -197,32 +170,27 @@ def build_param_spec(
             f"{param}: pass at most one of cells, radii, pairs, edges"
         )
     if cells is not None:
-        cells = [str(c) for c in cells]
-        idx_kw = {"cell_idx": {c: i for i, c in enumerate(cells)}}
+        cells = [str(cell) for cell in cells]
+        cli_idx = dict(zip(cells, range(len(cells))))
     elif radii is not None:
         radii = [str(radius) for radius in radii]
-        idx_kw = {"radius_idx": {radius: i for i, radius in enumerate(radii)}}
+        cli_idx = dict(zip(radii, range(len(radii))))
     elif pairs is not None:
-        pairs = [str(p) for p in pairs]
-        idx_kw = {"pair_idx": {p: i for i, p in enumerate(pairs)}}
+        pairs = [str(pair) for pair in pairs]
+        cli_idx = dict(zip(pairs, range(len(pairs))))
     elif edges is not None:
-        edges = [str(e) for e in edges]
-        idx_kw = {"edge_idx": {e: i for i, e in enumerate(edges)}}
+        edges = [str(edge) for edge in edges]
+        cli_idx = dict(zip(edges, range(len(edges))))
     else:
-        tokens = [str(i) for i in range(n)]
-        if kind == "edge":
-            idx_kw = {"edge_idx": {t: i for i, t in enumerate(tokens)}}
-        elif kind == "edge_pair":
-            idx_kw = {"pair_idx": {t: i for i, t in enumerate(tokens)}}
-        else:
-            idx_kw = {"cell_idx": {t: i for i, t in enumerate(tokens)}}
-    modes = resolve_modes(mode_pairs, **idx_kw)
+        tokens = list(map(str, range(n)))
+        cli_idx = dict(zip(tokens, range(len(tokens))))
+    modes = resolve_modes(mode_pairs, cli_idx=cli_idx)
     spec = {
         "n_nodes": n_nodes,
         "kind": kind,
     }
     for param_key in _NUMBER_PARAM_KEYS:
-        scalar, bag = resolve_inits(number_pairs[param_key], **idx_kw)
+        scalar, bag = resolve_inits(number_pairs[param_key], cli_idx=cli_idx)
         spec[param_key] = float(scalar)
         if bag:
             spec[param_key + "s"] = bag
@@ -384,7 +352,7 @@ def build_hp_lp_schema(
 
 def build_schema(
     model: str,
-    backend,
+    connectome,
     *,
     syn_mode: str,
     params: dict,
@@ -392,26 +360,24 @@ def build_schema(
     filter: str = "none",
     a_sti_radii=(),
 ) -> dict:
-    """Fresh parameter schema for ``model`` on the given backend.
+    """Fresh parameter schema for ``model`` on the given connectome.
 
     Returns ordered ``dict[param, spec]``. ``filter``: ``none`` skips
     ``v_th_ca``/``a_ca``/``tau_ca``; ``ca`` keeps them.
     """
-    if model not in KNOWN_MODELS:
-        raise ValueError(f"unknown model {model!r}; expected one of {KNOWN_MODELS}")
-    n = backend.n_cells
-    if backend.network is None:
-        raise ValueError("build_schema requires backend.network")
-    cells = [str(t) for t in backend.network.cells]
+    if model not in MODELS:
+        raise ValueError(f"unknown model {model!r}; expected one of {MODELS}")
+    n = connectome.n_cells
+    cells = [str(t) for t in connectome.cells]
     mode = syn_mode
-    n_pairs = getattr(backend.conn, "n_pairs", None)
-    n_edges = getattr(backend.conn, "n_edges", None)
+    n_pairs = getattr(connectome.conn, "n_pairs", None)
+    n_edges = getattr(connectome.conn, "n_edges", None)
     if mode == "per_edge":
         if n_edges is None:
-            raise TypeError(f"{model} syn_strength_edge requires network ScatterConn backend")
+            raise TypeError(f"{model} syn_strength_edge requires network ScatterConn")
     elif n_pairs is None:
-        raise TypeError(f"{model} syn_strength_cell requires network ScatterConn backend")
-    kw = dict(
+        raise TypeError(f"{model} syn_strength_cell requires network ScatterConn")
+    kwargs = dict(
         syn_mode=mode,
         n_pairs=n_pairs,
         n_edges=n_edges,
@@ -421,5 +387,5 @@ def build_schema(
         a_sti_radii=a_sti_radii,
     )
     if model == "hp_lp":
-        return build_hp_lp_schema(n, cells=cells, **kw)
-    return build_borst_schema(n, cells=cells, **kw)
+        return build_hp_lp_schema(n, cells=cells, **kwargs)
+    return build_borst_schema(n, cells=cells, **kwargs)

@@ -29,6 +29,7 @@ from const_default import (
     STI_TIMING,
     TRAIN_CONFIG,
     TRAIN_OPTIMIZATION,
+    TRAIN_OPTS,
     TRAIN_SESSION,
     VAL_FROM,
 )
@@ -58,7 +59,6 @@ from import_bootstrap import standardize_option_dashes, parse_bool, parse_comma_
 import network.path  # noqa: F401 — FAFB path on sys.path
 from path import BUILT_NETWORKS_DIR
 from task.spot.pack import (
-    resolve_spot_cost_radius_scale_defaults,
     parse_cost_ms_tokens,
     resolve_spot_cost_radius_scale,
 )
@@ -67,6 +67,7 @@ from train.config import (
     COST_NORMS,
     I_STI_KEYS,
     SPOT_GT_MODES,
+    TASKS,
     expand_cost_norm,
     expand_pre_steady,
 )
@@ -271,7 +272,7 @@ def param_filename_suffix(param_inits=None, param_vals=None):
 
 def add_train_arguments(parser):
     """Register train CLI flags on *parser*."""
-    parser.add_argument("--model", default=MODEL['model'], choices=list(train.KNOWN_MODELS))
+    parser.add_argument("--model", default=MODEL['model'], choices=list(train.MODELS))
     parser.add_argument(
         "--syn-mode",
         default=_cli_scalar_from_branch(NEURON_SCHEMA['syn_mode']),
@@ -370,8 +371,13 @@ def add_train_arguments(parser):
     parser.add_argument(
         "--task",
         default=TRAIN_CONFIG['task'],
-        help="task name(s): spot (=spot_bright+spot_dark), moving_bar (=bright+dark), "
-             "or explicit names / comma-separated list, e.g. spot,moving_bar",
+        help="task name(s): spot|moving_bar (comma-separated), e.g. spot,moving_bar",
+    )
+    parser.add_argument(
+        "--contrast",
+        default=",".join(TRAIN_OPTS["contrasts"]),
+        help="contrast(s): bright|dark (comma-separated; "
+             f"default: {','.join(TRAIN_OPTS['contrasts'])})",
     )
     parser.add_argument(
         "--part-cost-scale",
@@ -380,7 +386,7 @@ def add_train_arguments(parser):
         metavar="NAME|NAME=VALUE",
         help="per-part cost scales (space-separated tokens). NAME=VALUE merges "
              "onto default 1; bare NAME (aliases: spot, moving_bar, "
-             "moving_bar_bright/dark, PD/ND/DSI) zeros all parts for --task then "
+             "PD/ND/DSI) zeros all parts for --task×--contrast then "
              "sets those to 1. e.g. DSI (=DSI-only), DSI=1 (PD/ND stay 1), "
              "DSI PD=0.2",
     )
@@ -420,8 +426,8 @@ def add_train_arguments(parser):
         metavar="N|TRAIN_CONFIG['task']=N",
         help="network cost hex-disc radius (moving-bar default: network radius - 1; "
              "network radius 0/-1 and spot default to all hexes): bare N for all "
-             "--task, or per-task space-separated e.g. moving_bar_bright=0 "
-             "(aliases: spot, moving_bar); -1 = all hexes; requires --network",
+             "--task, or per-task space-separated e.g. moving_bar=0 "
+             "(tasks: spot, moving_bar); -1 = all hexes; requires --network",
     )
     parser.add_argument(
         "--gt",
@@ -436,8 +442,9 @@ def add_train_arguments(parser):
         "--i-sti",
         default=None,
         nargs="+",
-        metavar="[TASK=]bright,baseline,dark",
-        help="sti currents in pA: bright,baseline,dark; optional TASK= alias (spot|moving_bar) or concrete task (default: aliases of --task)",
+        metavar="[TASK=]bright,dark",
+        help="sti currents in pA: bright,dark (baseline = midpoint); "
+             "optional TASK=spot|moving_bar (default: apply to every --task)",
     )
     add_sti_timing_arguments(parser)
     parser.add_argument(
@@ -471,24 +478,39 @@ def add_train_arguments(parser):
     )
 
 
-def resolve_i_sti(tokens, tasks=()):
+def parse_i_sti(tokens, tasks=()):
+    """Decode ``--i-sti`` tokens into ``{task: {bright, dark}}`` (no defaults merge)."""
     if not tokens:
         return None
     out = {}
-    for tok in tokens:
-        if "=" in tok:
-            name, val = tok.split("=", 1)
-            out[train.resolve_i_sti_alias(name.strip())] = _parse_i_sti_value(val.strip())
+    for token in tokens:
+        if "=" in token:
+            name, val = token.split("=", 1)
+            task = name.strip()
+            if task not in TASKS:
+                raise ValueError(
+                    f"unknown task {task!r} in --i-sti "
+                    f"(expected {'|'.join(TASKS)})",
+                )
+            out[task] = _parse_i_sti_value(val.strip())
         else:
-            val = _parse_i_sti_value(tok.strip())
+            val = _parse_i_sti_value(token.strip())
             for task in tasks:
-                out[train.resolve_i_sti_alias(task)] = val
+                out[str(task)] = val
     return out or None
 
 
 def _parse_i_sti_value(val):
-    parts = val.split(",")
-    return {i_sti_key: float(part.strip()) for i_sti_key, part in zip(I_STI_KEYS, parts)}
+    parts = [part.strip() for part in val.split(",")]
+    if len(parts) != len(I_STI_KEYS):
+        raise ValueError(
+            f"--i-sti expects {','.join(I_STI_KEYS)} "
+            f"({len(I_STI_KEYS)} values), got {val!r}",
+        )
+    return {
+        i_sti_key: float(part)
+        for i_sti_key, part in zip(I_STI_KEYS, parts)
+    }
 
 
 def _parse_filter_branch(branch: str) -> str:
@@ -635,10 +657,8 @@ def override_train_opts_timing(
     from task.spot.sti_spec import override_sti_timing
 
     changed = {}
-    for sti_opts_tok in ("spot_bright_sti_opts", "spot_dark_sti_opts"):
-        so = opts.get(sti_opts_tok)
-        if so is None:
-            continue
+    so = opts.get("spot_sti_opts")
+    if so is not None:
         changed = override_sti_timing(
             so,
             ms_pre=ms_pre,
@@ -649,13 +669,8 @@ def override_train_opts_timing(
             delta_ms_pre=delta_ms_pre,
         )
     if ms_pre is not None or delta_ms is not None or delta_ms_pre is not None:
-        for sti_opts_tok in (
-            "moving_bar_bright_sti_opts",
-            "moving_bar_dark_sti_opts",
-        ):
-            so = opts.get(sti_opts_tok)
-            if so is None:
-                continue
+        so = opts.get("moving_bar_sti_opts")
+        if so is not None:
             changed_bar = override_sti_timing(
                 so,
                 ms_pre=ms_pre,
@@ -673,7 +688,7 @@ def override_train_opts_timing(
 
 
 def resolve_sti_timing_kwargs(args, *, filter=None):
-    """Map ``--sti-timing`` to kwargs for :func:`figure.plot.maybe_override_sti_timing`."""
+    """Map ``--sti-timing`` to kwargs for :func:`figure.plot.override_session_sti_timing`."""
     tokens = getattr(args, "sti_timing", None)
     empty = {sti_timing_key: None for sti_timing_key in STI_TIMING_KEYS}
     if not tokens:
@@ -758,8 +773,8 @@ def resolve_part_cost_scales(tokens, tasks):
     scales: dict[str, float] = {}
     if bare:
         scales = {part_key: 0.0 for part_key in train.session_cost_part_keys(tasks)}
-        scales.update(train.expand_part_cost_scale_dict({name: 1.0 for name in bare}))
-    scales.update(train.expand_part_cost_scale_dict(explicit))
+        scales.update(train.expand_part_cost_scale({name: 1.0 for name in bare}))
+    scales.update(train.expand_part_cost_scale(explicit))
     return scales
 
 
@@ -783,17 +798,17 @@ def resolve_train_kwargs(
             if len(parts) != 2 or not parts[0] or not parts[1]:
                 raise ValueError(
                     "--init-from must be MODEL['model']/RUN under 0_runs "
-                    f"(models: {train.KNOWN_MODELS}) or an absolute path; "
+                    f"(models: {train.MODELS}) or an absolute path; "
                     f"got {init_from!r}"
                 )
             src_model, run = parts
-            if src_model not in train.KNOWN_MODELS:
+            if src_model not in train.MODELS:
                 raise ValueError(
-                    f"--init-from model {src_model!r} not in {train.KNOWN_MODELS}"
+                    f"--init-from model {src_model!r} not in {train.MODELS}"
                 )
             init_from = f"{src_model}/{run}"
-    param_init, param_vals, param_modes, param_bound = (
-        train.parse_param_cli(args.param) if args.param else ([], [], {}, [])
+    param_init, param_vals, param_modes, param_clamps, param_jits = (
+        train.parse_param_cli(args.param) if args.param else ([], [], {}, [], [])
     )
     if param_vals:
         raise ValueError(
@@ -801,7 +816,8 @@ def resolve_train_kwargs(
         )
     param_init = param_init or None
     param_modes = param_modes or None
-    param_bound = param_bound or None
+    param_clamps = param_clamps or None
+    param_jits = param_jits or None
     syn_mode = getattr(args, "syn_mode", NEURON_SCHEMA['syn_mode'])
     if param_modes:
         if syn_mode == "per_edge" and "syn_strength_cell" in param_modes:
@@ -825,30 +841,30 @@ def resolve_train_kwargs(
                 k: v for k, v in param_modes.items()
                 if k not in ("v_th_ca", "a_ca", "tau_ca")
             } or None
-    tasks = train.resolve_tasks(args.task)
+    tasks = train.parse_tasks(args.task)
     part_cost_scales = resolve_part_cost_scales(args.part_cost_scale, tasks)
-    bare_cost_radius, radius_kv = parse_cost_radius(args.cost_radius)
-    cost_radius_by_task = train.resolve_cost_radius_by_task(
-        tasks, bare_cost_radius, radius_kv,
+    bare_cost_radius, radius_by_task = parse_cost_radius(args.cost_radius)
+    cost_radius_by_task = train.cost_radius_by_task(
+        tasks, bare_cost_radius, radius_by_task,
     )
     if bare_cost_radius is not None and bare_cost_radius != -1 and bare_cost_radius < 0:
         raise ValueError("--cost-radius must be -1 or >= 0")
-    if any(v != -1 and v < 0 for v in radius_kv.values()):
+    if any(radius != -1 and radius < 0 for radius in radius_by_task.values()):
         raise ValueError("--cost-radius must be -1 or >= 0")
     shift_radius = args.shift_radius
     spot_radius = args.spot_radius
     if args.spot_cost_radius_scale:
-        from task.spot.sti_geo import spot_radius_half_steps
         from train.session import resolve_filter_branches
-        _sr_scalar = resolve_filter_branches(spot_radius, filter="none")
-        spot_radius_half_steps(_sr_scalar)
+        spot_radius_scalar = resolve_filter_branches(spot_radius, filter="none")
+        # spot_radius == 1: fold radius=2 into radius=1 scales
+        cost_radius_scales = dict(
+            SPOT_PACK['spot_cost_radius_scale_radius1']
+            if float(spot_radius_scalar) == 1
+            else SPOT_PACK['spot_cost_radius_scale']
+        )
         spot_cost_radius_scale = resolve_spot_cost_radius_scale(
             args.spot_cost_radius_scale,
-            cost_radius_scales=resolve_spot_cost_radius_scale_defaults(
-                _sr_scalar,
-                scales=SPOT_PACK['spot_cost_radius_scale'],
-                scales_radius1=SPOT_PACK['spot_cost_radius_scale_radius1'],
-            ),
+            cost_radius_scales=cost_radius_scales,
             spot_cost_radii=SPOT_PACK['spot_cost_radii'],
         )
     else:
@@ -857,20 +873,13 @@ def resolve_train_kwargs(
     fully_inside = args.fully_inside
     _timing = resolve_train_sti_timing(filter, args.sti_timing)
     multi_bar = args.multi_bar
-    moving_bar_bright_sti_opts = {
+    moving_bar_sti_opts = {
         "multi_bar": multi_bar,
         "ms_pre": _timing["ms_pre"],
         "delta_ms": _timing["delta_ms"],
         "delta_ms_pre": _timing["delta_ms_pre"],
     }
-    moving_bar_dark_sti_opts = {
-        "multi_bar": multi_bar,
-        "ms_pre": _timing["ms_pre"],
-        "delta_ms": _timing["delta_ms"],
-        "delta_ms_pre": _timing["delta_ms_pre"],
-    }
-    spot_bright_sti_opts = dict(_timing)
-    spot_dark_sti_opts = dict(_timing)
+    spot_sti_opts = dict(_timing)
     if float(args.cost_interval_ms) <= 0:
         raise ValueError("--cost-interval-ms must be > 0")
     cost_ms_parsed = parse_cost_ms_tokens(args.cost_ms)
@@ -890,14 +899,13 @@ def resolve_train_kwargs(
     gt_by_task = resolve_gt(args.gt)
     if gt_by_task:
         _gt_opts = {
-            "moving_bar_bright": moving_bar_bright_sti_opts,
-            "moving_bar_dark": moving_bar_dark_sti_opts,
-            "spot_bright": spot_bright_sti_opts,
-            "spot_dark": spot_dark_sti_opts,
+            "moving_bar": moving_bar_sti_opts,
+            "spot": spot_sti_opts,
         }
-        for _tname, _types in gt_by_task.items():
-            _gt_opts[_tname]["gt_cells"] = list(_types)
-    i_sti = resolve_i_sti(args.i_sti, tasks=tasks)
+        for task, cells in gt_by_task.items():
+            _gt_opts[task]["gt_cells"] = list(cells)
+    contrasts = train.parse_contrasts(args.contrast)
+    i_sti = parse_i_sti(args.i_sti, tasks=tasks)
     lrs = [float(x) for x in parse_comma_list(args.lrs)]
     if not lrs:
         raise ValueError("--lrs must list at least one learning rate")
@@ -920,10 +928,12 @@ def resolve_train_kwargs(
         outdir=outdir,
         param_modes=param_modes,
         param_init=param_init,
-        param_bound=param_bound,
+        param_clamps=param_clamps,
+        param_jits=param_jits,
         syn_mode=args.syn_mode,
         network=args.network,
         tasks=tasks,
+        contrasts=contrasts,
         part_cost_scales=part_cost_scales,
         cost_norm=expand_cost_norm(args.cost_norm),
         cost_interval_ms=float(args.cost_interval_ms),
@@ -934,14 +944,12 @@ def resolve_train_kwargs(
         multi_spot=multi_spot,
         fully_inside=fully_inside,
         spot_cost_radius_scale=spot_cost_radius_scale,
-        moving_bar_bright_sti_opts=moving_bar_bright_sti_opts,
-        moving_bar_dark_sti_opts=moving_bar_dark_sti_opts,
-        spot_bright_sti_opts=spot_bright_sti_opts,
-        spot_dark_sti_opts=spot_dark_sti_opts,
+        moving_bar_sti_opts=moving_bar_sti_opts,
+        spot_sti_opts=spot_sti_opts,
         i_sti=i_sti,
         euler=args.euler,
         pre_steady=expand_pre_steady(args.pre_steady),
-        pre_steady_iters=TRAIN_OPTIMIZATION['pre_steady_iters'],
+        pre_steady_n_iter=TRAIN_OPTIMIZATION['pre_steady_n_iter'],
         pre_steady_damp=TRAIN_OPTIMIZATION['pre_steady_damp'],
         fp=fp,
         pre_grad=bool(args.pre_grad),

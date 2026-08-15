@@ -34,18 +34,15 @@ from task.spot.gt import (
 from task.spot.sti_geo import (
     SpotB,
     resolve_spot,
-    spot_radius_half_steps,
     spot_sti_bs,
 )
 from task.spot.sti_spec import (
     standardize_sti_timing,
-    sti_waveform,
+    sti_pulse,
 )
 
-# Spot contrasts (distinct from the task tokens in train.config).
+# Spot contrasts (independent of task; bright | dark).
 SPOT_CONTRASTS = frozenset({"bright", "dark"})
-_SPOT_I_BASELINE = "i_baseline_spot"
-_SPOT_I_PEAK = {"bright": "i_bright_spot", "dark": "i_dark_spot"}
 
 
 # -- Cost-radius scales ------------------------------------------------------
@@ -76,7 +73,7 @@ def parse_spot_cost_radius_scale_value(token: str) -> float:
     return float(tok)
 
 
-def expand_spot_cost_radius_scale_dict(
+def expand_spot_cost_radius_scale(
     kv: Optional[dict] = None,
     *,
     sti_opts: Optional[dict] = None,
@@ -91,7 +88,7 @@ def expand_spot_cost_radius_scale_dict(
     }
 
 
-def expand_cost_ms_dict(
+def expand_cost_ms(
     *,
     cost_ms: Optional[dict] = None,
 ) -> Dict[int, Tuple[float, ...]]:
@@ -127,19 +124,6 @@ def parse_cost_ms_tokens(
             raise ValueError(f"--cost-ms {radius}=... must list at least one ms")
         out[standardize_spot_cost_radius(radius)] = tuple(float(x) for x in vals)
     return out
-
-
-def resolve_spot_cost_radius_scale_defaults(
-    spot_radius: float,
-    *,
-    scales: Dict[int, float],
-    scales_radius1: Dict[int, float],
-) -> Dict[int, float]:
-    """Cost-radius scales for ``spot_radius`` (radius-1 folds radius=2 into radius=1)."""
-    # spot_radius == 1 → half_steps == 2
-    if spot_radius_half_steps(spot_radius) == 2:
-        return dict(scales_radius1)
-    return dict(scales)
 
 
 def resolve_spot_cost_radius_scale(
@@ -179,7 +163,7 @@ def resolve_spot_cost_radii(
     sti_opts: Optional[dict] = None,
 ) -> Tuple[int, ...]:
     if sti_opts is not None:
-        spot_cost_radius_scale = expand_spot_cost_radius_scale_dict(sti_opts=sti_opts)
+        spot_cost_radius_scale = expand_spot_cost_radius_scale(sti_opts=sti_opts)
     scales = (
         dict(cost_radius_scales)
         if spot_cost_radius_scale is None
@@ -344,9 +328,8 @@ def build_spot_gt(
     shift_radius: int,
     n_t: int,
     t_onset: int,
-    i_baseline_spot: float,
-    i_bright_spot: float,
-    i_dark_spot: float,
+    i_baseline: float,
+    i: float,
     contrast: str,
     gt_amp: float,
     delta_ms: float,
@@ -364,8 +347,8 @@ def build_spot_gt(
 ) -> SpotGt:
     if contrast not in SPOT_CONTRASTS:
         raise ValueError(f"contrast must be 'bright' or 'dark', got {contrast!r}")
-    i_baseline = float(i_baseline_spot)
-    i_spot = float(i_bright_spot if contrast == "bright" else i_dark_spot)
+    i_baseline = float(i_baseline)
+    i_spot = float(i)
     device = device or connectome.device
     if ms_response is None:
         raise ValueError("build_spot_gt requires ms_response")
@@ -379,7 +362,9 @@ def build_spot_gt(
         t_onset=t_onset, n_t=n_t_gt, ms_sti=ms_sti, delta_ms=delta_ms,
         filter=filter,
     )
-    gt_type_idx = {str(gt_cell): i for i, gt_cell in enumerate(GT_CELLS)}
+    gt_type_idx = dict(zip(
+        [str(cell) for cell in GT_CELLS], range(len(GT_CELLS)),
+    ))
     if gt_cells is not None:
         bad = [str(t) for t in gt_cells if str(t) not in gt_type_idx]
         if bad:
@@ -401,10 +386,10 @@ def build_spot_gt(
     spot_bs = spot_sti_bs(spot)
     n_b = len(spot_bs)
 
-    # Single sti waveform source (step or finite spot) shared with the ir gt.
-    u = sti_waveform(t_onset, n_t, ms_sti, delta_ms=delta_ms)
+    # Single sti pulse source (step or finite spot) shared with the ir gt.
+    pulse = sti_pulse(t_onset, n_t, ms_sti, delta_ms=delta_ms)
     drive = torch.as_tensor(
-        i_baseline + (i_spot - i_baseline) * u, dtype=sim_dtype, device=device,
+        i_baseline + (i_spot - i_baseline) * pulse, dtype=sim_dtype, device=device,
     )
     # All sti hexes hold i_baseline; sti_uv hexes then get the step/spot drive.
     sti_nodes = torch.as_tensor(connectome.sti_nodes, dtype=torch.long, device=device)
@@ -494,9 +479,8 @@ def build_spot_gt(
         "spot_cost_radius_scale": spot_cost_radius_scale,
         "spot_cost_radii": list(cost_radii),
         "active_gts": active,
-        "i_baseline_spot": float(i_baseline),
-        "i_bright_spot": float(i_bright_spot),
-        "i_dark_spot": float(i_dark_spot),
+        "i_baseline": float(i_baseline),
+        "i": float(i_spot),
         "contrast": str(contrast),
         "ms_sti": None if ms_sti is None else float(ms_sti),
         "ms_response": float(ms_response),
@@ -522,10 +506,7 @@ def build_spot_gt(
 
 
 def build_spot_sti_opts(
-    contrast: str,
     *,
-    i_baseline_spot,
-    i_spot,
     ms_pre,
     ms_response,
     delta_ms,
@@ -538,13 +519,8 @@ def build_spot_sti_opts(
     ms_post=0.0,
     gt_cells=None,
 ):
-    """Sti step/spot sti opts for ``spot_{contrast}``."""
-    if contrast not in SPOT_CONTRASTS:
-        raise ValueError(f"spot contrast must be 'bright' or 'dark', got {contrast!r}")
-    i_peak = _SPOT_I_PEAK[contrast]
+    """Spot sti opts: timing / geometry only (currents live on session ``i_sti``)."""
     opts = {
-        _SPOT_I_BASELINE: i_baseline_spot,
-        i_peak: i_spot,
         "ms_pre": ms_pre,
         "ms_response": ms_response,
         "ms_post": ms_post,

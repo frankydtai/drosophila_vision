@@ -57,7 +57,7 @@ from network.construction import Network, load_network
 from train.param import SIM_DTYPE
 from task.spot.sti_geo import (
     build_spot,
-    spot_radius_half_steps,
+    standardize_spot_radius,
 )
 from import_bootstrap import parse_comma_list
 from train.cli import add_multi_spot_arguments
@@ -72,8 +72,7 @@ def _network_hexes_df(connectome: Network) -> pd.DataFrame:
 def _draw_spot_radius_hexes(ax, centers_u, centers_v, spot_radius: float) -> None:
     """Straight axial-radius hex about each center (vertices along ``_HEX_DIRECTIONS``).
 
-    Vertex axial distance is ``spot_radius + 0.5``
-    (= ``(spot_radius_half_steps + 1) / 2``): outer
+    Vertex axial distance is ``spot_radius + 0.5``: outer
     boundary of the footprint / halfway to neighboring spot centers.
     """
     e = float(spot_radius) + 0.5
@@ -119,7 +118,7 @@ def main() -> None:
         raise SystemExit("--spot-radii must list at least one value")
     for spot_radius in spot_radii:
         try:
-            spot_radius_half_steps(spot_radius)
+            standardize_spot_radius(spot_radius)
         except ValueError as exc:
             raise SystemExit(str(exc)) from exc
 
@@ -158,7 +157,7 @@ def main() -> None:
         ).centers
         n_spots = len(centers)
         n_by_spot_radius[spot_radius] = n_spots
-        dist = spot_radius_half_steps(spot_radius) + 1
+        dist = int(round(2.0 * spot_radius)) + 1
         print(
             f"network={run_tag}  spot_radius={spot_radius}  "
             f"spot_radius_dist={dist}  n_spots={n_spots}",

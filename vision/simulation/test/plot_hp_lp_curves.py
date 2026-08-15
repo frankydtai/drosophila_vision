@@ -188,18 +188,18 @@ def _fill_column(
     t_on_s = t_on_ms / 1000.0
     t_off_s = (t_on_ms + ms_pulse) / 1000.0
     v_sti = make_pulse(t_ms, t_on_ms=t_on_ms, ms_pulse=ms_pulse, s0=s0)
-    sim_kw = dict(
+    sim_kwargs = dict(
         e_leak=e_leak, a_h=a_h, delta_ms=dt_ms,
         g_leak=g_leak, v_clamp=v_clamp, euler=euler,
     )
-    tau_kw = dict(tau_hp_rise_ms=tau_hp_rise_ms, tau_hp_fall_ms=tau_hp_fall_ms)
+    tau_kwargs = dict(tau_hp_rise_ms=tau_hp_rise_ms, tau_hp_fall_ms=tau_hp_fall_ms)
 
     v_lp, _, _ = simulate_hp_lp(
         v_sti, tau_lp_ms=tau_lp_ms,
-        tau_hp_rise_ms=TAU_HP_OFF_MS, tau_hp_fall_ms=TAU_HP_OFF_MS, **sim_kw,
+        tau_hp_rise_ms=TAU_HP_OFF_MS, tau_hp_fall_ms=TAU_HP_OFF_MS, **sim_kwargs,
     )
     v_hp_lp, v_slow, _ = simulate_hp_lp(
-        v_sti, tau_lp_ms=tau_lp_ms, **tau_kw, **sim_kw,
+        v_sti, tau_lp_ms=tau_lp_ms, **tau_kwargs, **sim_kwargs,
     )
 
     for ax in (ax0, ax1, ax2, ax3, ax4, ax5, ax6):
@@ -216,7 +216,7 @@ def _fill_column(
     ax1.plot(t_s, v_slow, color="0.35", lw=1.2, ls="--", label=r"$v_{\mathrm{slow}}$")
     for a, color in zip(hp_a_h_list, _cmap_colors(len(hp_a_h_list))):
         _, _, v_hp = simulate_hp_lp(
-            v_sti, tau_lp_ms=tau_lp_ms, **tau_kw,
+            v_sti, tau_lp_ms=tau_lp_ms, **tau_kwargs,
             e_leak=e_leak, a_h=a, delta_ms=dt_ms,
             g_leak=g_leak, v_clamp=v_clamp, euler=euler,
         )
@@ -243,7 +243,7 @@ def _fill_column(
 
     for a, color in zip(a_h_list, _cmap_colors(len(a_h_list))):
         v, _, _ = simulate_hp_lp(
-            v_sti, tau_lp_ms=tau_lp_ms, **tau_kw,
+            v_sti, tau_lp_ms=tau_lp_ms, **tau_kwargs,
             e_leak=e_leak, a_h=a, delta_ms=dt_ms,
             g_leak=g_leak, v_clamp=v_clamp, euler=euler,
         )
@@ -260,7 +260,7 @@ def _fill_column(
     for thr, color in zip(tau_hp_rise_list, _cmap_colors(len(tau_hp_rise_list))):
         v, _, _ = simulate_hp_lp(
             v_sti, tau_lp_ms=tau_lp_ms,
-            tau_hp_rise_ms=thr, tau_hp_fall_ms=tau_hp_fall_ms, **sim_kw,
+            tau_hp_rise_ms=thr, tau_hp_fall_ms=tau_hp_fall_ms, **sim_kwargs,
         )
         ax4.plot(t_s, v, color=color, lw=1.6, label=rf"$\tau_{{\mathrm{{HP,rise}}}}$={thr:g}")
     ax4.set_title(
@@ -275,7 +275,7 @@ def _fill_column(
     for thf, color in zip(tau_hp_fall_list, _cmap_colors(len(tau_hp_fall_list))):
         v, _, _ = simulate_hp_lp(
             v_sti, tau_lp_ms=tau_lp_ms,
-            tau_hp_rise_ms=tau_hp_rise_ms, tau_hp_fall_ms=thf, **sim_kw,
+            tau_hp_rise_ms=tau_hp_rise_ms, tau_hp_fall_ms=thf, **sim_kwargs,
         )
         ax5.plot(t_s, v, color=color, lw=1.6, label=rf"$\tau_{{\mathrm{{HP,fall}}}}$={thf:g}")
     ax5.set_title(
@@ -289,7 +289,7 @@ def _fill_column(
 
     for tlp, color in zip(tau_lp_list, _cmap_colors(len(tau_lp_list))):
         v, _, _ = simulate_hp_lp(
-            v_sti, tau_lp_ms=tlp, **tau_kw, **sim_kw,
+            v_sti, tau_lp_ms=tlp, **tau_kwargs, **sim_kwargs,
         )
         ax6.plot(t_s, v, color=color, lw=1.6, label=rf"$\tau_{{\mathrm{{lp}}}}$={tlp:g}")
     ax6.set_title(
@@ -304,7 +304,7 @@ def _fill_column(
     for pw, color in zip(pulse_list, _cmap_colors(len(pulse_list))):
         v_pw = make_pulse(t_ms, t_on_ms=t_on_ms, ms_pulse=pw, s0=s0)
         v, _, _ = simulate_hp_lp(
-            v_pw, tau_lp_ms=tau_lp_ms, **tau_kw, **sim_kw,
+            v_pw, tau_lp_ms=tau_lp_ms, **tau_kwargs, **sim_kwargs,
         )
         ax7.axvspan(t_on_s, (t_on_ms + pw) / 1000.0, color=color, alpha=0.08, zorder=0)
         ax7.plot(t_s, v, color=color, lw=1.6, label=rf"$T$={pw:g} ms")

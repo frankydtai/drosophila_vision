@@ -119,7 +119,7 @@ def main(argv: list[str] | None = None) -> int:
             f"({len(cells)} vs {len(cells_npz)})"
         )
 
-    cell_idx = {n: i for i, n in enumerate(cells)}
+    cell_idx = dict(zip(cells, range(len(cells))))
     n_cells = len(cells)
     for tok in tokens:
         if tok not in cell_idx:
@@ -128,7 +128,7 @@ def main(argv: list[str] | None = None) -> int:
     src_t = np.array([cell_idx[e["source_cell"]] for e in edges], dtype=np.int64)
     tar_t = np.array([cell_idx[e["target_cell"]] for e in edges], dtype=np.int64)
     _, n_pairs, pairs = build_cell_pair_idxs(src_t, tar_t, n_cells)
-    pair_idx = {k: i for i, k in enumerate(pairs)}
+    pair_idx = dict(zip(pairs, range(len(pairs))))
     if pairs is not None:
         expected = [
             f"{cells[source]}{train.PAIR_SEP}{cells[target]}" for source, target in pairs

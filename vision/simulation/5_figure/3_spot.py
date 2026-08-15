@@ -190,19 +190,19 @@ def _plot_rf_profile(ax, rf, *, color, label=None, linestyle='-', filled=False):
     mask = np.isfinite(rf)
     if not mask.any():
         return
-    kw = dict(
+    kwargs = dict(
         color=color,
         label=label,
         linestyle='none',
         marker='o',
     )
     if filled:
-        kw.update(markersize=4, fillstyle='full', markeredgewidth=0.8)
+        kwargs.update(markersize=4, fillstyle='full', markeredgewidth=0.8)
     else:
-        kw.update(markersize=6, fillstyle='none', markeredgewidth=1.2)
+        kwargs.update(markersize=6, fillstyle='none', markeredgewidth=1.2)
         if linestyle == '--':
-            kw['markeredgewidth'] = 1.0
-    ax.plot(RF_RADIUS_X[mask], rf[mask], **kw)
+            kwargs['markeredgewidth'] = 1.0
+    ax.plot(RF_RADIUS_X[mask], rf[mask], **kwargs)
 
 
 def _style_time_axis(
@@ -255,7 +255,7 @@ def _scale_contrast_series(
     Returns a list of dicts with ``v_readout_center``, ``v_readout_spatial``,
     ``v_readout_std``, ``gt_center``, ``gt_spatial`` plus passthrough keys.
     """
-    sc_kw = dict(t_onset=t_onset, t_sti_end=t_sti_end, t_delay=t_delay)
+    scale_curve_kwargs = dict(t_onset=t_onset, t_sti_end=t_sti_end, t_delay=t_delay)
     out = []
     for entry in series:
         item = dict(entry)
@@ -263,12 +263,12 @@ def _scale_contrast_series(
         gt = entry.get("gt")
         if v_readout is not None:
             v_readout_center, v_readout_spatial, v_readout_std = scale_curve(
-                v_readout, center_radius, entry.get("std"), **sc_kw,
+                v_readout, center_radius, entry.get("std"), **scale_curve_kwargs,
             )
         else:
             v_readout_center, v_readout_spatial, v_readout_std = None, None, None
         if gt is not None:
-            gt_center, gt_spatial, _ = scale_curve(gt, center_radius, **sc_kw)
+            gt_center, gt_spatial, _ = scale_curve(gt, center_radius, **scale_curve_kwargs)
         else:
             gt_center, gt_spatial = None, None
         item.update(
@@ -455,7 +455,7 @@ def plot_cell_rf_time_overlays(
 ):
     """RF + time panels with per-overlay curves across contrast ``series``."""
     center_radius = RF_CENTER_RADIUS
-    sc_kw = dict(t_onset=t_onset, t_sti_end=t_sti_end, t_delay=t_delay)
+    scale_curve_kwargs = dict(t_onset=t_onset, t_sti_end=t_sti_end, t_delay=t_delay)
     colors = overlay_reds(len(overlay_labels))
     t = np.arange(n_t)
     pre_end = int(t_onset or 0)
@@ -469,16 +469,16 @@ def plot_cell_rf_time_overlays(
         v_readout_center = v_readout_spatial = None
         if v_readout is not None:
             v_readout_center, v_readout_spatial, _ = scale_curve(
-                v_readout, center_radius, **sc_kw,
+                v_readout, center_radius, **scale_curve_kwargs,
             )
         gt_center = gt_spatial = None
         if gt is not None:
-            gt_center, gt_spatial, _ = scale_curve(gt, center_radius, **sc_kw)
+            gt_center, gt_spatial, _ = scale_curve(gt, center_radius, **scale_curve_kwargs)
         overlay_centers = {}
         overlay_spatials = {}
         for label in overlay_labels:
             if label in overlay:
-                overlay_center, overlay_spatial, _ = scale_curve(overlay[label], center_radius, **sc_kw)
+                overlay_center, overlay_spatial, _ = scale_curve(overlay[label], center_radius, **scale_curve_kwargs)
                 overlay_centers[label] = overlay_center
                 overlay_spatials[label] = overlay_spatial
 
@@ -486,9 +486,9 @@ def plot_cell_rf_time_overlays(
             ax_rf, gt_spatial, color=GT_COLOR,
             label=item.get("label_gt"), linestyle=ls,
         )
-        for i, label in enumerate(overlay_labels):
+        for label, color in zip(overlay_labels, colors):
             _plot_rf_profile(
-                ax_rf, overlay_spatials.get(label), color=colors[i],
+                ax_rf, overlay_spatials.get(label), color=color,
                 label=label if si == 0 else None, linestyle=ls,
             )
         _plot_rf_profile(
@@ -500,11 +500,11 @@ def plot_cell_rf_time_overlays(
             ax_time, t, gt_center, pre_end=pre_end, show_pre=False, plot_pre=False,
             color=GT_COLOR, linestyle=ls, linewidth=TRACE_LW,
         )
-        for i, label in enumerate(overlay_labels):
+        for label, color in zip(overlay_labels, colors):
             plot_pre_post_line(
                 ax_time, t, overlay_centers.get(label), pre_end=pre_end,
                 show_pre=show_pre, plot_pre=True,
-                color=colors[i], linestyle=ls, linewidth=TRACE_LW,
+                color=color, linestyle=ls, linewidth=TRACE_LW,
                 label=label if si == 0 else None,
             )
         plot_pre_post_line(
@@ -587,7 +587,9 @@ class SpotTraceReadout:
 
 
 def _rows_from_cell_rows(cell_rows, figure_cells):
-    cell_idx = {str(n): i for i, n in enumerate(figure_cells)}
+    cell_idx = dict(zip(
+        [str(cell) for cell in figure_cells], range(len(figure_cells)),
+    ))
     rows = []
     for cells_in_row in cell_rows:
         cell_idxs = [cell_idx[str(n)] for n in cells_in_row if str(n) in cell_idx]
@@ -599,7 +601,11 @@ def _rows_from_cell_rows(cell_rows, figure_cells):
 def _spot_readout_gt_view(readout):
     """Gt figure rows: configured active gt cells (not cost-pack-only)."""
     session = readout.session
-    active = active_spot_gt_cells(session, session.primary_pack.task)
+    active = active_spot_gt_cells(
+        session,
+        session.primary_pack.task,
+        session.primary_pack.contrast,
+    )
     rows = [np.array(row) for row in cell_rows(active)]
     present = set(readout.cells)
     cells = [cell for cell in cells_in_order(active) if cell in present]
@@ -720,7 +726,7 @@ def _forward_spot_readout(
     pack = session.primary_pack
     schema = train.schema_copy(session.schema)
     params = train.override_val_from(
-        train.assign_params(z, schema, session.backend), session,
+        train.assign_params(z, schema, session.connectome), session,
     )
     a_sti_radius = {}
     if "a_sti_radius" in params:
@@ -728,9 +734,10 @@ def _forward_spot_readout(
         if spec is not None:
             radii = [str(n) for n in (spec.get("radii") or ())]
             raw = params["a_sti_radius"].detach().cpu().numpy().reshape(-1)
-            a_sti_radius = {
-                radii[i]: float(raw[i]) for i in range(min(len(radii), raw.size))
-            }
+            n_radius = min(len(radii), raw.size)
+            a_sti_radius = dict(zip(
+                radii[:n_radius], map(float, raw[:n_radius]),
+            ))
     i_sti = pack.i_sti if pack.i_sti.dim() == 3 else pack.i_sti.unsqueeze(0)
     v = train.forward_v(session, params, i_sti, pack=pack)
     t0 = train.pack_t_onset(pack)
@@ -740,7 +747,7 @@ def _forward_spot_readout(
     else:
         trace_full = v
     train.override_val_from(params, session, onset_trace=trace_full, t_onset=t0)
-    connectome = session.backend.network
+    connectome = session.connectome
     cells = list(connectome.cells)
     mt = int(i_sti.shape[1])
 
@@ -809,7 +816,7 @@ def _forward_spot_readout(
     }
     readout['gt_affine_by_cell'] = {
         cell: gt_affine_from_cell(
-            params, cell, session.backend, session=session,
+            params, cell, session.connectome, session=session,
         )
         for cell in figure_cells
     }
@@ -829,7 +836,9 @@ def _spot_v_readout_from_readout(readout, session):
             v_stack, std_stack, ti, ft_global,
             readout['type_idx'], readout['du'], readout['dv'], readout['figure_traces'],
         )
-    single_hex = suppress_cost_std(session, task=readout['pack'].task)
+    single_hex = suppress_cost_std(
+        session, task=readout['pack'].task, contrast=readout['pack'].contrast,
+    )
     v_readout_by_cell = {
         ft: v_stack[ti] for ti, ft in enumerate(figure_cells)
     }
@@ -867,9 +876,7 @@ def network_spot_trace_readout(
     ) = _spot_v_readout_from_readout(readout, session)
     overlay, overlay_labels = (None, None)
     if at_xs is not None or at_ys is not None:
-        connectome = session.backend.network
-        if connectome is None:
-            raise ValueError("spot overlay requires a network backend")
+        connectome = session.connectome
         overlay, overlay_labels = _spot_overlay(
             readout, connectome, at_xs, at_ys,
         )
@@ -946,7 +953,7 @@ def _plot_spot_figure(
     gts=None,
     n_col,
     figsize_fn,
-    gridspec_kw,
+    gridspec_kwargs,
     suptitle_fs=12,
     cost_parts=None,
 ):
@@ -969,7 +976,7 @@ def _plot_spot_figure(
         delta_ms=delta_ms,
         filter=session_filter_figure_token(primary.session),
     )
-    gt_cell_idx = {name: i for i, name in enumerate(GT_CELLS)}
+    gt_cell_idx = dict(zip(GT_CELLS, range(len(GT_CELLS))))
 
     def _t_delay_from_cell(name):
         idx = gt_cell_idx.get(name)
@@ -988,7 +995,7 @@ def _plot_spot_figure(
     ]
     n_row = int(sum(order_hs))
     fig = plt.figure(figsize=figsize_fn(n_col, n_row))
-    gs = fig.add_gridspec(n_row, n_col, **gridspec_kw)
+    gs = fig.add_gridspec(n_row, n_col, **gridspec_kwargs)
     legend_done = False
 
     def _series_from_cell(cell, *, with_overlays):
@@ -1177,7 +1184,7 @@ def plot_network_spot_gt(path, *, readouts, title, gts=None, cost_parts=None):
         gts=gts,
         n_col=N_COL_GT,
         figsize_fn=lambda n_col, n_row: (PANEL_W * n_col, 2.5 * n_row),
-        gridspec_kw=dict(hspace=0.55, wspace=0.55, top=0.95, bottom=0.06, left=0.07, right=0.98),
+        gridspec_kwargs=dict(hspace=0.55, wspace=0.55, top=0.95, bottom=0.06, left=0.07, right=0.98),
         cost_parts=cost_parts,
     )
 
@@ -1192,6 +1199,6 @@ def plot_network_spot_all(path, *, readouts, title, gts=None, cost_parts=None):
         gts=gts,
         n_col=N_COL_ALL,
         figsize_fn=lambda n_col, n_row: (PANEL_W * n_col, 2.5 * n_row),
-        gridspec_kw=dict(hspace=0.55, wspace=0.55, top=0.95, bottom=0.06, left=0.07, right=0.98),
+        gridspec_kwargs=dict(hspace=0.55, wspace=0.55, top=0.95, bottom=0.06, left=0.07, right=0.98),
         cost_parts=cost_parts,
     )

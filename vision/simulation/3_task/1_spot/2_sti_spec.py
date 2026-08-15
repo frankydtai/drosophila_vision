@@ -1,10 +1,10 @@
 # -*- coding: utf-8 -*-
-"""Spot sti spec: timing, drive waveform, and ``i_sti`` assembly.
+"""Spot sti spec: timing, sti pulse, and ``i_sti`` assembly.
 
-The sti drive waveform ``u[t]`` is defined once (``sti_waveform``) and
-consumed by both the network ``i_sti`` and the ir component in
-:mod:`task.spot.gt` (and ``i_sti`` via :mod:`task.spot.pack`), so sti-on
-duration has a single source.
+The sti pulse ``pulse[t]`` is defined once (``sti_pulse``) and consumed by
+both the network ``i_sti`` and the ir component in :mod:`task.spot.gt`
+(and ``i_sti`` via :mod:`task.spot.pack`), so sti-on duration has a single
+source.
 """
 from __future__ import annotations
 
@@ -203,7 +203,7 @@ def resolve_sti_timing_t(opts) -> tuple[int, int]:
 
 
 def t_sti_end(t_onset, n_t, ms_sti=None, *, delta_ms: float) -> int:
-    """Inclusive last sti-on sample index (matches ``sti_waveform``).
+    """Inclusive last sti-on sample index (matches ``sti_pulse``).
 
     On samples are ``[t_onset, t_sti_end]``. With ``ms_sti``, that is
     ``t_onset + max(1, round(ms_sti/delta_ms)) - 1`` (clamped to ``n_t - 1``).
@@ -219,23 +219,23 @@ def t_sti_end(t_onset, n_t, ms_sti=None, *, delta_ms: float) -> int:
     return min(mt - 1, t0 + w - 1)
 
 
-def sti_waveform(t_onset, n_t, ms_sti=None, *, delta_ms: float) -> np.ndarray:
-    """Normalized 0/1 sti drive ``u[t]`` over ``n_t`` samples.
+def sti_pulse(t_onset, n_t, ms_sti=None, *, delta_ms: float) -> np.ndarray:
+    """Normalized 0/1 sti pulse over ``n_t`` samples.
 
-    ``ms_sti`` omitted -> continue-on step (``u[t_onset:] = 1``). With a value the
-    sti is on for inclusive ``[t_onset, t_sti_end(...)]`` (slice
+    ``ms_sti`` omitted -> continue-on step (``pulse[t_onset:] = 1``). With a
+    value the sti is on for inclusive ``[t_onset, t_sti_end(...)]`` (slice
     ``[t_onset, t_onset + round(ms_sti/delta_ms))``) and returns to baseline
     afterward; ``n_t`` is unchanged.
     """
     t_onset = int(t_onset)
     n_t = int(n_t)
-    u = np.zeros(n_t)
+    pulse = np.zeros(n_t)
     if ms_sti is None:
-        u[t_onset:] = 1.0
+        pulse[t_onset:] = 1.0
     else:
         w = max(1, t_from_ms(ms_sti, delta_ms=delta_ms))
-        u[t_onset:min(n_t, t_onset + w)] = 1.0
-    return u
+        pulse[t_onset:min(n_t, t_onset + w)] = 1.0
+    return pulse
 
 
 def build_spot_a_sti_radius_drive(
@@ -248,22 +248,24 @@ def build_spot_a_sti_radius_drive(
     ms_sti,
     delta_ms: float,
     i_baseline: float,
-    i_peak: float,
+    i_spot: float,
     sim_dtype,
     device,
 ):
     """Baseline ``i_sti`` + center bake + radius contribs for ``a_sti_radius``.
 
-    Returns ``(i_sti, sti_wave, sti_bs, sti_nodes, a_sti_radius_idxs)`` where center
-    radius=0 is baked into ``i_sti`` at scale 1, and radius contribs compose as
-    ``i += a_sti_radius[radius] * sti_wave`` on ``(sti_bs, sti_nodes)``. ``a_sti_radius_idxs``
-    indexes ``a_sti_radii`` / ``a_sti_radius`` (center radius=0 not in that axis). Empty
+    Returns ``(i_sti, sti_pulse, sti_bs, sti_nodes, a_sti_radius_idxs)`` where
+    center radius=0 is baked into ``i_sti`` at scale 1, and radius contribs
+    compose as ``i += a_sti_radius[radius] * sti_pulse`` on
+    ``(sti_bs, sti_nodes)``. ``sti_pulse`` is
+    ``(i_spot - i_baseline) * sti_pulse(...)``. ``a_sti_radius_idxs`` indexes
+    ``a_sti_radii`` / ``a_sti_radius`` (center radius=0 not in that axis). Empty
     ``a_sti_radii`` → center-only drive. Does not modify gt construction.
     """
     radii = tuple(int(radius) for radius in a_sti_radii)
     if any(radius == 0 for radius in radii):
         raise ValueError("a_sti_radii must omit center radius=0 (baked into i_sti @1)")
-    radius_idx = {radius: i for i, radius in enumerate(radii)}
+    radius_idx = dict(zip(radii, range(len(radii))))
     sti_b_vals: list[int] = []
     node_l: list[int] = []
     r_l: list[int] = []
@@ -279,18 +281,19 @@ def build_spot_a_sti_radius_drive(
                         sti_b_vals.append(int(b))
                         node_l.append(int(node))
                         r_l.append(int(ri))
-    u = sti_waveform(t_onset, n_t, ms_sti, delta_ms=delta_ms)
+    pulse = sti_pulse(t_onset, n_t, ms_sti, delta_ms=delta_ms)
     n_b = len(spot_bs)
     sti_nodes = torch.as_tensor(connectome.sti_nodes, dtype=torch.long, device=device)
     i_sti = torch.zeros((n_b, n_t, connectome.n_nodes), dtype=sim_dtype, device=device)
     if len(sti_nodes):
         i_sti[:, :, sti_nodes] = float(i_baseline)
-    sti_wave = torch.as_tensor(
-        (float(i_peak) - float(i_baseline)) * u, dtype=sim_dtype, device=device,
+    # Amplitude-scaled pulse for center bake and a_sti_radius inject (Pack.sti_pulse).
+    scaled = torch.as_tensor(
+        (float(i_spot) - float(i_baseline)) * pulse, dtype=sim_dtype, device=device,
     )
     for b, node in center_nodes:
-        i_sti[b, :, node] = i_sti[b, :, node] + sti_wave
+        i_sti[b, :, node] = i_sti[b, :, node] + scaled
     sti_bs = torch.tensor(sti_b_vals, dtype=torch.long, device=device)
     sti_nodes = torch.tensor(node_l, dtype=torch.long, device=device)
     a_sti_radius_idxs = torch.tensor(r_l, dtype=torch.long, device=device)
-    return i_sti, sti_wave, sti_bs, sti_nodes, a_sti_radius_idxs
+    return i_sti, scaled, sti_bs, sti_nodes, a_sti_radius_idxs

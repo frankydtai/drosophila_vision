@@ -163,7 +163,7 @@ def main(argv=None):
     ax_u.legend(fontsize=8, loc="best")
     ax_u.grid(True, alpha=0.3)
 
-    common_kw = dict(
+    common_kwargs = dict(
         midv=midv,
         e_leak=args.e_leak,
         E_h=E_h,
@@ -177,7 +177,7 @@ def main(argv=None):
     cmap_g = plt.cm.viridis(np.linspace(0.15, 0.9, len(g_list)))
     for gmax, color in zip(g_list, cmap_g):
         t, Vm, g, u = simulate_pulse(
-            gmax, slope=slope, tau_ms=args.tau, **common_kw,
+            gmax, slope=slope, tau_ms=args.tau, **common_kwargs,
         )
         lab = rf"$g$={gmax:g}"
         ax_v.plot(t, Vm, color=color, ls="-", lw=1.5, label=lab)
@@ -186,7 +186,7 @@ def main(argv=None):
     cmap_tau = plt.cm.plasma(np.linspace(0.15, 0.85, len(tau_list)))
     for tau_ms, color in zip(tau_list, cmap_tau):
         t, Vm, g, u = simulate_pulse(
-            g_fix, slope=slope, tau_ms=tau_ms, **common_kw,
+            g_fix, slope=slope, tau_ms=tau_ms, **common_kwargs,
         )
         lab = rf"$\tau$={tau_ms:g}"
         ax_v_tau.plot(t, Vm, color=color, ls="-", lw=1.5, label=lab)
@@ -194,7 +194,7 @@ def main(argv=None):
 
     for sl, color in zip(slope_list, cmap_sl):
         t, Vm, g, u = simulate_pulse(
-            g_fix, slope=sl, tau_ms=args.tau, **common_kw,
+            g_fix, slope=sl, tau_ms=args.tau, **common_kwargs,
         )
         lab = rf"$s$={sl:g}"
         ax_v_sl.plot(t, Vm, color=color, ls="-", lw=1.5, label=lab)

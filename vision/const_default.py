@@ -119,9 +119,20 @@ NETWORK_PATH: Dict[str, object] = {
 # ---------------------------------------------------------------------------
 
 NETWORK_CONSTRUCTION: Dict[str, object] = {
-    "i_baseline": 20.0,
     "i_bright": 40.0,
     "i_dark": 0.0,
+}
+
+# Sti currents by task × contrast only; baseline = midpoint (see train.config.i_baseline_from).
+I_STI: Dict[str, object] = {
+    "spot": {
+        "bright": NETWORK_CONSTRUCTION["i_bright"],
+        "dark": NETWORK_CONSTRUCTION["i_dark"],
+    },
+    "moving_bar": {
+        "bright": NETWORK_CONSTRUCTION["i_bright"],
+        "dark": NETWORK_CONSTRUCTION["i_dark"],
+    },
 }
 
 # ---------------------------------------------------------------------------
@@ -223,7 +234,7 @@ TRAIN_OPTIMIZATION: Dict[str, object] = {
     # t=0 pre steady (``--pre-steady``). Not param init.
     # Shared by borst / hp_lp: probe (ohmic one-shot) | solve (fixed-iter DC).
     "pre_steady": "solve",
-    "pre_steady_iters": 50,  # solve only
+    "pre_steady_n_iter": 50,  # solve only
     "pre_steady_damp": 0.1,  # solve under-relaxation
     "n_run": 1,
     "n_iter_cpu": 0,
@@ -264,47 +275,30 @@ SPOT_STI_SHARED_OPTS: Dict[str, object] = {
     "fully_inside": SPOT_INPUT["fully_inside"],
 }
 
-SPOT_BRIGHT_STI_OPTS: Dict[str, object] = {
+SPOT_STI_OPTS: Dict[str, object] = {
     **SPOT_STI_SHARED_OPTS,
-    "i_baseline_spot": NETWORK_CONSTRUCTION["i_baseline"],
-    "i_bright_spot": NETWORK_CONSTRUCTION["i_bright"],
 }
 
-SPOT_DARK_STI_OPTS: Dict[str, object] = {
-    **SPOT_STI_SHARED_OPTS,
-    "i_baseline_spot": NETWORK_CONSTRUCTION["i_baseline"],
-    "i_dark_spot": NETWORK_CONSTRUCTION["i_dark"],
-}
-
-MOVING_BAR_BRIGHT_STI_OPTS: Dict[str, object] = {
+MOVING_BAR_STI_OPTS: Dict[str, object] = {
     **MOVING_BAR_STI_TIMING_OPTS,
-    "i_baseline_moving_bar": NETWORK_CONSTRUCTION["i_baseline"],
-    "i_bright_moving_bar": NETWORK_CONSTRUCTION["i_bright"],
-    "multi_bar": MOVING_BAR_INPUT["multi_bar"],
-}
-
-MOVING_BAR_DARK_STI_OPTS: Dict[str, object] = {
-    **MOVING_BAR_STI_TIMING_OPTS,
-    "i_baseline_moving_bar": NETWORK_CONSTRUCTION["i_baseline"],
-    "i_dark_moving_bar": NETWORK_CONSTRUCTION["i_dark"],
     "multi_bar": MOVING_BAR_INPUT["multi_bar"],
 }
 
 TRAIN_OPTS: Dict[str, object] = {
     "backend": "network",
     "tasks": (TRAIN_CONFIG["task"],),
+    "contrasts": ("bright", "dark"),
+    "i_sti": {task: dict(vals) for task, vals in I_STI.items()},
     "part_cost_scales": {},
     "cost_norm": TRAIN_OPTIMIZATION["cost_norm"],
     "cost_interval_ms": TRAIN_OPTIMIZATION["cost_interval_ms"],
     "cost_ms": TRAIN_OPTIMIZATION["cost_ms"],
     "pre_steady": TRAIN_OPTIMIZATION["pre_steady"],
-    "pre_steady_iters": TRAIN_OPTIMIZATION["pre_steady_iters"],
+    "pre_steady_n_iter": TRAIN_OPTIMIZATION["pre_steady_n_iter"],
     "pre_steady_damp": TRAIN_OPTIMIZATION["pre_steady_damp"],
     "sequential": TRAIN_SESSION["sequential"],
-    "spot_bright_sti_opts": SPOT_BRIGHT_STI_OPTS,
-    "spot_dark_sti_opts": SPOT_DARK_STI_OPTS,
-    "moving_bar_bright_sti_opts": MOVING_BAR_BRIGHT_STI_OPTS,
-    "moving_bar_dark_sti_opts": MOVING_BAR_DARK_STI_OPTS,
+    "spot_sti_opts": SPOT_STI_OPTS,
+    "moving_bar_sti_opts": MOVING_BAR_STI_OPTS,
     "packs": None,
     "param_modes": None,
     "euler": NEURON_CONST["euler"],
