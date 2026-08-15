@@ -92,7 +92,7 @@ def locate_neurons(
     target_cells: Sequence[str],
     side: str,
     direction: str = DEFAULT_DIRECTION,
-    vote_by_syn: bool = False,
+    vote_mode: str = "partner",
     uv_from_column: Optional[dict] = None,
 ) -> pd.DataFrame:
     """Infer a column (and slot) for each neuron of the requested types.
@@ -104,7 +104,7 @@ def locate_neurons(
         target_cells: cells to locate.
         side: 'left' or 'right' (for logging only; inputs must already match).
         direction: 'post' (by downstream targets) or 'pre' (by upstream sources).
-        vote_by_syn: vote by summed syn_count instead of distinct-partner count.
+        vote_mode: ``"partner"`` (distinct-partner count) or ``"syn"`` (summed syn_count).
         uv_from_column: optional {column_id: (u, v)} map; when given, adds max_u/min_u/
             max_v/min_v (the hex range spanned by each neuron's column partners).
 
@@ -122,6 +122,8 @@ def locate_neurons(
     """
     if direction not in ("post", "pre"):
         raise ValueError(f"direction must be 'post' or 'pre', got {direction!r}")
+    if vote_mode not in ("partner", "syn"):
+        raise ValueError(f"vote_mode must be 'partner' or 'syn', got {vote_mode!r}")
 
     targets = neurons[neurons["cell"].isin(list(target_cells))][["root_id", "cell"]]
     target_ids = set(targets["root_id"].astype("int64"))
@@ -156,7 +158,7 @@ def locate_neurons(
     with_column["column_id"] = with_column["column_id"].astype("int64")
     n_partners_with_column = with_column.groupby(self_id)[partner_id].nunique()
 
-    if vote_by_syn:
+    if vote_mode == "syn":
         votes = with_column.groupby([self_id, "column_id"])["syn_count"].sum()
     else:
         votes = with_column.groupby([self_id, "column_id"])[partner_id].nunique()
@@ -268,8 +270,8 @@ def _parse_args() -> argparse.Namespace:
              "sources). Ignored when running the full ASSIGNED_COLUMN_CELLS list.",
     )
     parser.add_argument(
-        "--vote-by-syn", action="store_true",
-        help="Vote by summed syn_count instead of distinct-partner count.",
+        "--vote-mode", default="partner", choices=["partner", "syn"],
+        help="Column vote tally: partner count (default) or summed syn_count.",
     )
     return parser.parse_args()
 
@@ -293,7 +295,7 @@ def _locate_and_write(
     neurons: pd.DataFrame,
     columns: pd.DataFrame,
     out_dir,
-    vote_by_syn: bool,
+    vote_mode: str,
 ) -> None:
     neurons = neurons[neurons["side"] == side]
     columns = columns[columns["hemisphere"] == side]
@@ -324,7 +326,7 @@ def _locate_and_write(
         target_cells=cells,
         side=side,
         direction=direction,
-        vote_by_syn=vote_by_syn,
+        vote_mode=vote_mode,
         uv_from_column=uv_from_column,
     )
     out_path = out_dir / _output_name(side, cells, direction)
@@ -358,7 +360,7 @@ def main() -> None:
                 neurons=neurons,
                 columns=columns,
                 out_dir=out_dir,
-                vote_by_syn=args.vote_by_syn,
+                vote_mode=args.vote_mode,
             )
 
 

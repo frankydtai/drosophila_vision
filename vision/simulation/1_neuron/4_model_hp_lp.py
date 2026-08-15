@@ -22,7 +22,7 @@ Membrane / HP Euler (``session.euler`` = ``implicit`` | ``explicit``):
     implicit LP:  v ← (v + (Δt/τ_lp) (e_leak + v_hp)) / (1 + Δt/τ_lp)
     explicit LP:  v ← v + (Δt/τ_lp) (−(v − e_leak) + v_hp)
 
-Dynamics only: ``normalize_i_sti`` / ``pre_steady`` / ``step``. Full-T ``v``
+Dynamics only: ``standardize_i_sti`` / ``pre_steady`` / ``step``. Full-T ``v``
 forward lives in ``neuron.forward``. Scalars from ``session`` flat fields.
 
 t=0 membrane state uses ``session.pre_steady`` (``--pre-steady …``):
@@ -108,7 +108,7 @@ def update_state_hp_lp(
     }
 
 
-def normalize_i_sti(session, params, i_sti, pack):
+def standardize_i_sti(session, params, i_sti, pack):
     """Sti current ``(B, T, N)`` as membrane drive (no rescale)."""
     del params, pack
     return i_sti.unsqueeze(0) if i_sti.dim() == 2 else i_sti
@@ -121,7 +121,7 @@ def _dc_v_star(v, params, v_sti, backend):
     return params["e_leak"] + (1.0 - params["a_h"]) * v_in, v_in
 
 
-def pre_steady(session, params, B, i_sti=None):
+def pre_steady(session, params, n_b, i_sti=None):
     """``(v_slow,)``, ``v`` at t=0 from ``session.pre_steady``."""
     if i_sti is None:
         raise TypeError("hp_lp pre_steady requires i_sti")
@@ -134,7 +134,7 @@ def pre_steady(session, params, B, i_sti=None):
         raise ValueError("g_leak must be non-zero")
     v_sti = i_sti[:, 0, :] / g_leak
     e_leak = params["e_leak"]
-    v = e_leak.expand(B, backend.n_nodes).clone()
+    v = e_leak.expand(n_b, backend.n_nodes).clone()
     if pre_steady == "probe":
         v_star, v_in = _dc_v_star(v, params, v_sti, backend)
         return (v_in,), v_star

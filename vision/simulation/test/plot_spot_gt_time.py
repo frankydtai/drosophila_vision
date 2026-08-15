@@ -1,4 +1,4 @@
-"""Plot spot RecF gt time courses for all fit cells; report first nonzero.
+"""Plot spot RecF gt time courses for all gt cells; report first nonzero.
 
 Timing: ``ms_pre=100``, ``ms_pulse=50``, ``ms_response=400``; ``--delta-ms``
 (default ``DELTA_MS`` from ``default_params``). Uses ``figure.spot.plot_cell_time``
@@ -25,11 +25,11 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 from network.build import cell_family_rows, cell_names_in_family_order
-from figure.gt import fit_gt_rts
 from figure.spot import CENTER_BIN, _pulse_end_from_opts, plot_cell_time
 from figure.util import save_figure
+from task.spot.gt import GT_CELLS, RF_SIGN, load_gt, spot_gt_active
 from task.spot.input import spot_timing_t
-from default_params import DELTA_MS
+from default_params import DELTA_MS, GT_AMP
 
 MS_PRE = 100.0
 MS_PULSE = 50.0
@@ -77,7 +77,7 @@ def plot_all_cells(
     pulse_end: int,
     delta_ms: float,
 ) -> None:
-    """Time-only grid for every fit cell via ``plot_cell_time``."""
+    """Time-only grid for every gt cell via ``plot_cell_time``."""
     groups = [np.array(row) for row in cell_family_rows(list(cells))]
     names = cell_names_in_family_order(list(cells))
     nrows = len(groups)
@@ -144,14 +144,14 @@ def main(argv=None):
     pulse_end = _pulse_end_from_opts(
         {"ms_pulse": MS_PULSE, "delta_ms": delta_ms}, t_onset, n_t,
     )
-    rts = fit_gt_rts(
-        contrasts=("bright",),
-        t_onset=t_onset,
-        n_t=n_t,
-        ms_pulse=MS_PULSE,
-        delta_ms=delta_ms,
-    )
-    cells = rts["bright"]
+    scaled = load_gt(
+        t_onset=t_onset, n_t=n_t, ms_sti=MS_PULSE, delta_ms=delta_ms,
+    ) * GT_AMP
+    cells = {
+        str(name): scaled[i]
+        for i, name in enumerate(GT_CELLS)
+        if spot_gt_active("all", "bright", int(RF_SIGN[name]))
+    }
     report_first_nonzero(cells, t_onset=t_onset, delta_ms=delta_ms)
     plot_all_cells(
         args.save, cells=cells, t_onset=t_onset, n_t=n_t, pulse_end=pulse_end,

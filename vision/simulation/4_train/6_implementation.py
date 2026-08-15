@@ -284,7 +284,7 @@ def save_syn_strength_cell_table(z_t, session, table_path):
         raise ValueError(
             f"syn_strength_cell length {arr.shape[0]} != n_pairs {len(pairs)}"
         )
-    mat = {(int(s), int(t)): float(v) for (s, t), v in zip(pairs, arr)}
+    mat = {(int(source), int(target)): float(v) for (source, target), v in zip(pairs, arr)}
     n = len(cells)
     with open(table_path, "w") as f:
         f.write("," + ",".join(cells) + "\n")
@@ -364,11 +364,11 @@ def save_param_by_segment(outdir, z, session, filename):
     """Write per-segment full-width node values to ``data/<filename>``."""
     schema = list(session.schema)
     param_by_segment = train.node_values_from_z(z, schema)
-    cells = np.asarray(train.cells_for_backend(session.backend), dtype=object)
+    cells = np.asarray(train.cells_from_backend(session.backend), dtype=object)
     payload = {k: np.asarray(v, dtype=np.float64) for k, v in param_by_segment.items()}
     payload['cells'] = cells
     if any(s['kind'] == 'edge_pair' for s in schema):
-        payload['pairs'] = np.asarray(train.pairs_for_backend(session.backend), dtype=object)
+        payload['pairs'] = np.asarray(train.pairs_from_backend(session.backend), dtype=object)
     os.makedirs(run_data_dir(outdir), exist_ok=True)
     np.savez(os.path.join(run_data_dir(outdir), filename), **payload)
 
@@ -376,12 +376,12 @@ def save_param_by_segment(outdir, z, session, filename):
 def save_adam_by_segment(outdir, exp_avg, exp_avg_sq, iter, session, filename):
     """Write per-segment Adam m/v (z-space) to ``data/<filename>``."""
     schema = list(session.schema)
-    moments_m, moments_v = train.moments_by_segment_from_z(exp_avg, exp_avg_sq, schema)
-    cells = np.asarray(train.cells_for_backend(session.backend), dtype=object)
+    moments_m, moments_v = train.moments_from_z(exp_avg, exp_avg_sq, schema)
+    cells = np.asarray(train.cells_from_backend(session.backend), dtype=object)
     payload = {'iter': np.asarray(int(iter), dtype=np.int64)}
     payload['cells'] = cells
     if any(s['kind'] == 'edge_pair' for s in schema):
-        payload['pairs'] = np.asarray(train.pairs_for_backend(session.backend), dtype=object)
+        payload['pairs'] = np.asarray(train.pairs_from_backend(session.backend), dtype=object)
     for segment, arr in moments_m.items():
         payload[f'm_{segment}'] = np.asarray(arr, dtype=np.float64)
     for segment, arr in moments_v.items():
@@ -420,7 +420,7 @@ def build_checkpoint_callback(outdir, session, *, run_i=0, n_run=1, on_png=None)
         save_param_by_segment(outdir, z_best, session, filename)
         if opt_state is not None:
             n = int(np.asarray(z_best.detach().cpu()).reshape(-1).shape[0])
-            exp_avg, exp_avg_sq, adam_iter = train.adam_moments_from_state_dict(
+            exp_avg, exp_avg_sq, adam_iter = train.moments_from_state_dict(
                 opt_state, n, dtype=torch.float64, device='cpu',
             )
             adam_filename = _checkpoint_data_filename(
@@ -554,7 +554,7 @@ def load_stored_costs(outdir):
 
 
 def load_init_z(init_from, session):
-    """Load per-segment best params + Adam moments; return ``(session, z, opt_init)``.
+    """Load per-segment best params + moments; return ``(session, z, opt_init)``.
 
     Trainable slots come from *z*; fixed nodes are seeded via ``inits``
     (still not in z); frozen nodes use ``carry``.
@@ -573,7 +573,7 @@ def load_init_z(init_from, session):
     schema = train.attach_param_carry(schema, remapped)
     opts = dict(session.train_opts or {})
     opts['param_modes'] = train.schema_param_modes_record(
-        schema, lambda segment: train.slots_for_segment(segment, session.backend),
+        schema, lambda segment: train.slots_from_segment(segment, session.backend),
     )
     session = replace(session, schema=tuple(schema), train_opts=opts)
     z = train.z_from_node_values(
@@ -674,7 +674,6 @@ def build_session(
     val_from=None,
     filter=NEURON_FILTER['filter'],
     spot_gt_mode=SPOT_PACK['spot_gt_mode'],
-    pack_mirror_fits=None,
     model_backend=None,
     schema=None,
 ):
@@ -689,7 +688,6 @@ def build_session(
         cost_norm=expand_cost_norm(cost_norm),
         cost_interval_ms=cost_interval_ms,
         cost_ms=cost_ms,
-        pack_mirror_fits=pack_mirror_fits,
         sequential=sequential,
         cost_radius_by_task=cost_radius_by_task,
         shift_radius=shift_radius,
@@ -750,7 +748,7 @@ def run_train(model, n_run, n_iter, lrs, fname=None, outdir=None,
                  moving_bar_dark_sti_opts=None,
                  spot_bright_sti_opts=None,
                  spot_dark_sti_opts=None,
-                 pack_mirror_fits=None, model_backend=None, schema=None,
+                 model_backend=None, schema=None,
                  fp=TRAIN_SESSION['fp'],
                  pre_grad=NEURON_FORWARD['pre_grad'],
                  val_from=None,
@@ -792,7 +790,6 @@ def run_train(model, n_run, n_iter, lrs, fname=None, outdir=None,
         pre_steady=pre_steady,
         pre_steady_iters=pre_steady_iters,
         pre_steady_damp=pre_steady_damp,
-        pack_mirror_fits=pack_mirror_fits,
         model_backend=model_backend,
         schema=schema,
         fp=fp,

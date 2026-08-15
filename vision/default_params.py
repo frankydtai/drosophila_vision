@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """Numeric source for membrane constants, schema optimizable, sti, and CLI values.
 
-Literals / constant bags only. Only ``4_train`` / figures / analyze / run scripts may
+Literals and constants only. Only ``4_train`` / figures / analyze / run scripts may
 import this module. Layers ``1_neuron`` / ``2_network`` / ``3_task`` take
 numbers by injection only (Gruntman paradigm ms/geometry constants may live
 in ``task.moving_bar``).
@@ -23,7 +23,7 @@ RUN_NAME = """
 RUN_PATH = "hp_lp/" + RUN_NAME
 
 # ---------------------------------------------------------------------------
-# 1.1 neuron.param (flat; no Physics bag)
+# 1.1 neuron.param (flat; not nested under Physics)
 # ---------------------------------------------------------------------------
 
 NEURON_PARAM: Dict[str, object] = {
@@ -305,7 +305,6 @@ TRAIN_OPTS: Dict[str, object] = {
     "spot_dark_sti_opts": SPOT_DARK_STI_OPTS,
     "moving_bar_bright_sti_opts": MOVING_BAR_BRIGHT_STI_OPTS,
     "moving_bar_dark_sti_opts": MOVING_BAR_DARK_STI_OPTS,
-    "pack_mirror_fits": None,
     "packs": None,
     "param_modes": None,
     "euler": NEURON_PARAM["euler"],

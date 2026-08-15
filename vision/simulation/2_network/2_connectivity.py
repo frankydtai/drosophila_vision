@@ -17,7 +17,7 @@ Interface (:class:`ScatterConn`):
 (``syn_strength_edge``, ``--syn-mode per_edge``).
 
 Operates on the LAST axis (the nodes), so a plain 1-D ``(N,)`` state
-and a batched ``(B, N)`` state work without change in the caller.
+and a ``(n_b, N)`` state work without change in the caller.
 """
 from __future__ import annotations
 

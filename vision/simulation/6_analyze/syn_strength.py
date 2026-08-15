@@ -130,7 +130,9 @@ def main(argv: list[str] | None = None) -> int:
     _, n_pairs, pairs = build_cell_pair_indices(src_t, tar_t, n_cells)
     idx_from_pair = {k: i for i, k in enumerate(pairs)}
     if pairs is not None:
-        expected = [f"{cells[s]}{train.PAIR_SEP}{cells[t]}" for s, t in pairs]
+        expected = [
+            f"{cells[source]}{train.PAIR_SEP}{cells[target]}" for source, target in pairs
+        ]
         if list(pairs) != expected:
             raise SystemExit("pairs in best_param.npz do not match network.json edges")
 

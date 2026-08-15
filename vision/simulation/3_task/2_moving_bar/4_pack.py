@@ -18,19 +18,17 @@ from neuron.param import t_from_ms
 from network.construction import (
     hex2gt,
     active_gt_cells,
-    normalize_gt_cells,
     node_cells,
 )
 from task.moving_bar.gt import (
     FIG1_CI_NPZ,
     GT_CELLS,
-    active_stis_for_subtype,
+    active_stis_from_subtype,
     axis_dsi_torch,
-    fig1_trace_for_sti,
+    fig1_trace_from_sti,
     hardcoded_axis_dsi,
     load_fig1_traces,
     motion_preference,
-    normalize_side,
     width_tag,
 )
 from task.moving_bar.sti_geo import (
@@ -66,9 +64,9 @@ class MovingBarGt:
     gts: torch.Tensor
     power: torch.Tensor
     cost_scales: torch.Tensor
-    entry_batches: torch.Tensor
+    entry_bs: torch.Tensor
     entry_nodes: torch.Tensor
-    n_batch: int
+    n_b: int
     n_t: int
     info: dict
     cost_t0s: Optional[torch.Tensor] = None
@@ -119,21 +117,21 @@ def filter_requested_specs(
 
 def assemble_moving_bar_dsi_groups(
     specs: Sequence[MovingBarSpec],
-    r_batch: Sequence[int],
+    r_bs: Sequence[int],
     r_subtype: Sequence[str],
     r_scale: Sequence[float],
     *,
     side: str,
 ) -> Tuple[List[List[int]], List[List[int]], List[float], List[float]]:
     """One DSI group per ``(subtype, contrast, wtag, axis)``."""
-    batches_by_condition: dict[tuple[str, str, str], list[int]] = {}
-    for bi, spec in enumerate(specs):
+    bs_by_condition: dict[tuple[str, str, str], list[int]] = {}
+    for b, spec in enumerate(specs):
         key = (spec.direction, spec.contrast, width_tag(spec.width_deg))
-        batches_by_condition.setdefault(key, []).append(bi)
+        bs_by_condition.setdefault(key, []).append(b)
 
-    entries_by_subtype_batch: dict[tuple[str, int], list[int]] = {}
-    for i, (b, st) in enumerate(zip(r_batch, r_subtype)):
-        entries_by_subtype_batch.setdefault((str(st), int(b)), []).append(i)
+    entries_by_subtype_b: dict[tuple[str, int], list[int]] = {}
+    for i, (b, st) in enumerate(zip(r_bs, r_subtype)):
+        entries_by_subtype_b.setdefault((str(st), int(b)), []).append(i)
 
     pos_groups: List[List[int]] = []
     neg_groups: List[List[int]] = []
@@ -144,23 +142,23 @@ def assemble_moving_bar_dsi_groups(
         for pos_dir, neg_dir in (("right", "left"), ("up", "down")):
             contrast_widths = {
                 (contrast, wtag)
-                for (direction, contrast, wtag) in batches_by_condition
+                for (direction, contrast, wtag) in bs_by_condition
                 if direction in (pos_dir, neg_dir)
             }
             for contrast, wtag in sorted(contrast_widths):
-                pos_batches = batches_by_condition.get((pos_dir, contrast, wtag), [])
-                neg_batches = batches_by_condition.get((neg_dir, contrast, wtag), [])
-                if not pos_batches or not neg_batches:
+                pos_bs = bs_by_condition.get((pos_dir, contrast, wtag), [])
+                neg_bs = bs_by_condition.get((neg_dir, contrast, wtag), [])
+                if not pos_bs or not neg_bs:
                     continue
                 pos_entries: list[int] = []
-                for pb in pos_batches:
-                    pos_entries.extend(entries_by_subtype_batch.get((subtype, pb), []))
+                for pb in pos_bs:
+                    pos_entries.extend(entries_by_subtype_b.get((subtype, pb), []))
                 neg_entries: list[int] = []
-                for nb in neg_batches:
-                    neg_entries.extend(entries_by_subtype_batch.get((subtype, nb), []))
+                for nb in neg_bs:
+                    neg_entries.extend(entries_by_subtype_b.get((subtype, nb), []))
                 if not pos_entries or not neg_entries:
                     continue
-                dsi = hardcoded_axis_dsi(side, subtype, specs[pos_batches[0]])
+                dsi = hardcoded_axis_dsi(side, subtype, specs[pos_bs[0]])
                 if dsi is None:
                     continue
                 w_pos = float(np.mean([float(r_scale[i]) for i in pos_entries]))
@@ -235,7 +233,7 @@ def remap_dsi_entries(pack, kept_old_entries) -> dict:
             "dsi_power": pack.dsi_power,
         }
     device = pack.dsi_pos_entries.device
-    n = int(pack.entry_batches.shape[0])
+    n = int(pack.entry_bs.shape[0])
     kept = torch.as_tensor(kept_old_entries, dtype=torch.long, device=device)
     lut = torch.full((n,), -1, dtype=torch.long, device=device)
     lut[kept] = torch.arange(kept.numel(), dtype=torch.long, device=device)
@@ -332,12 +330,12 @@ def _assemble_moving_bar_readouts(
     side: str,
     fig1: Optional[Dict[str, np.ndarray]],
     active: Sequence[str],
-    nodes_for_hex_type: Callable[[int, int, str], Sequence[int]],
+    nodes_from_hex_type: Callable[[int, int, str], Sequence[int]],
     waveform_mse: bool = True,
 ) -> Tuple[
     List[int], List[int], List[str], List[np.ndarray], List[float], List[int], List[int], int,
 ]:
-    r_batch, r_node, r_subtype, r_readout, r_scale, r_t0, r_pd_nd = (
+    r_bs, r_node, r_subtype, r_readout, r_scale, r_t0, r_pd_nd = (
         [], [], [], [], [], [], [],
     )
     skipped_orthogonal = 0
@@ -362,21 +360,21 @@ def _assemble_moving_bar_readouts(
                 if pref is None:
                     skipped_orthogonal += 1
                     continue
-                nodes = nodes_for_hex_type(b, hex_idx, subtype)
+                nodes = nodes_from_hex_type(b, hex_idx, subtype)
                 if len(nodes) == 0:
                     continue
                 gt_trace = None
                 if waveform_mse:
                     if fig1 is None:
                         raise ValueError("fig1 traces required when waveform_mse=True")
-                    trace_id = fig1_trace_for_sti(side, subtype, spec)
+                    trace_id = fig1_trace_from_sti(side, subtype, spec)
                     if trace_id not in fig1:
                         raise KeyError(f"fig1 trace missing: {trace_id}")
                     gt_trace = fig1[trace_id]
                 pd_nd_idx = PD_IDX if pref.pd_nd == "PD" else ND_IDX
                 t0 = t0_by_hex.get(hex_idx, 0)
                 for node_idx in nodes:
-                    r_batch.append(b)
+                    r_bs.append(b)
                     r_node.append(int(node_idx))
                     r_subtype.append(str(subtype))
                     if gt_trace is not None:
@@ -386,30 +384,30 @@ def _assemble_moving_bar_readouts(
                         r_t0.append(t0)
                         r_pd_nd.append(pd_nd_idx)
     return (
-        r_batch, r_node, r_subtype, r_readout, r_scale, r_t0, r_pd_nd,
+        r_bs, r_node, r_subtype, r_readout, r_scale, r_t0, r_pd_nd,
         skipped_orthogonal,
     )
 
 
 def _pack_moving_bar_readout_tensors(
-    r_batch, r_node, r_readout, r_scale, r_t0, r_pd_nd, *, device, sim_dtype,
+    r_bs, r_node, r_readout, r_scale, r_t0, r_pd_nd, *, device, sim_dtype,
     waveform_mse: bool = True,
 ):
-    n = len(r_batch)
+    n = len(r_bs)
     cost_scales = torch.tensor(np.asarray(r_scale), dtype=sim_dtype, device=device)
-    entry_batches = torch.tensor(np.asarray(r_batch), dtype=torch.long, device=device)
+    entry_bs = torch.tensor(np.asarray(r_bs), dtype=torch.long, device=device)
     entry_nodes = torch.tensor(np.asarray(r_node), dtype=torch.long, device=device)
     if not waveform_mse:
         gts = torch.zeros((n, 0), dtype=sim_dtype, device=device)
         power = torch.tensor(1.0, dtype=sim_dtype, device=device)
-        return gts, cost_scales, entry_batches, entry_nodes, None, None, power
+        return gts, cost_scales, entry_bs, entry_nodes, None, None, power
     cost_pd_nds = torch.tensor(np.asarray(r_pd_nd), dtype=torch.long, device=device)
     gts = torch.tensor(np.asarray(r_readout), dtype=sim_dtype, device=device)
     cost_t0s = torch.tensor(np.asarray(r_t0), dtype=torch.long, device=device)
     power = torch.sum(cost_scales[:, None] * gts ** 2)
     if float(power) == 0.0:
         power = torch.tensor(1.0, dtype=sim_dtype, device=device)
-    return gts, cost_scales, entry_batches, entry_nodes, cost_t0s, cost_pd_nds, power
+    return gts, cost_scales, entry_bs, entry_nodes, cost_t0s, cost_pd_nds, power
 
 
 def build_moving_bar_gt(
@@ -433,7 +431,7 @@ def build_moving_bar_gt(
 ) -> MovingBarGt:
     """Build multi-bar sti + T4/T5 cost readouts."""
     device = device or connectome.device
-    side = normalize_side(connectome.meta.get("side", "right"))
+    side = connectome.meta.get("side", "right")
 
     specs = gruntman_moving_bar_specs(contrasts=tuple(contrasts))
     contrast_set = frozenset(contrasts)
@@ -472,7 +470,7 @@ def build_moving_bar_gt(
     cost_hex_indices = [idx_from_uv[(int(hex.u), int(hex.v))] for hex in hexes]
     hex_by_idx = {hex_idx: hex for hex, hex_idx in zip(hexes, cost_hex_indices)}
 
-    def _nodes_for_hex_type(_b, hex_idx, subtype):
+    def _nodes_from_hex_type(b, hex_idx, subtype):
         hex = hex_by_idx[hex_idx]
         return hex2gt(connectome, hex.u, hex.v, subtype, node_cell)
 
@@ -487,20 +485,20 @@ def build_moving_bar_gt(
         side=side,
         fig1=fig1,
         active=active,
-        nodes_for_hex_type=_nodes_for_hex_type,
+        nodes_from_hex_type=_nodes_from_hex_type,
         waveform_mse=waveform_mse,
     )
     (
-        r_batch, r_node, r_subtype, r_readout, r_scale, r_t0, r_pd_nd,
+        r_bs, r_node, r_subtype, r_readout, r_scale, r_t0, r_pd_nd,
         skipped_orthogonal,
     ) = rows
 
-    if not r_batch:
+    if not r_bs:
         raise ValueError("no moving-bar cost nodes (check subtypes and sti hexes)")
 
-    gts, cost_scales, entry_batches, entry_nodes, cost_t0s, cost_pd_nds, power = (
+    gts, cost_scales, entry_bs, entry_nodes, cost_t0s, cost_pd_nds, power = (
         _pack_moving_bar_readout_tensors(
-            r_batch, r_node, r_readout, r_scale, r_t0, r_pd_nd,
+            r_bs, r_node, r_readout, r_scale, r_t0, r_pd_nd,
             device=device, sim_dtype=sim_dtype, waveform_mse=waveform_mse,
         )
     )
@@ -509,7 +507,7 @@ def build_moving_bar_gt(
         dsi_tgt, dsi_w, dsi_pow,
     ) = pack_moving_bar_dsi_tensors(
         *assemble_moving_bar_dsi_groups(
-            sti.specs, r_batch, r_subtype, r_scale, side=side,
+            sti.specs, r_bs, r_subtype, r_scale, side=side,
         ),
         device=device,
         sim_dtype=sim_dtype,
@@ -517,11 +515,11 @@ def build_moving_bar_gt(
 
     info = {
         **sti.info,
-        "n_cost": int(entry_batches.shape[0]),
+        "n_cost": int(entry_bs.shape[0]),
         "n_cost_pd": int((cost_pd_nds == PD_IDX).sum().item()) if cost_pd_nds is not None else 0,
         "n_cost_nd": int((cost_pd_nds == ND_IDX).sum().item()) if cost_pd_nds is not None else 0,
         "n_cost_dsi": int(dsi_tgt.shape[0]),
-        "n_batch": sti.info["n_batch"],
+        "n_b": sti.info["n_b"],
         "n_cost_hexes": len(hexes),
         "cost_radius": cost_radius,
         "cost_hex_uv": (int(center_hex.u), int(center_hex.v)) if center_hex else None,
@@ -546,10 +544,10 @@ def build_moving_bar_gt(
         power=power,
         cost_scales=cost_scales,
         cost_t0s=cost_t0s,
-        entry_batches=entry_batches,
+        entry_bs=entry_bs,
         entry_nodes=entry_nodes,
         cost_pd_nds=cost_pd_nds,
-        n_batch=sti.info["n_batch"],
+        n_b=sti.info["n_b"],
         n_t=n_t,
         info=info,
         dsi_pos_entries=dsi_pos_entries,
@@ -571,10 +569,10 @@ class MovingBarSessionT0:
     n_filter_hexes: int
 
 
-def bar_specs_for_session(session, task) -> List[MovingBarSpec]:
+def bar_specs_from_task(session, task) -> List[MovingBarSpec]:
     """Gruntman bar specs for ``task`` (bright/dark)."""
     if session.backend.network is None:
-        raise ValueError("bar_specs_for_session requires session.backend.network")
+        raise ValueError("bar_specs_from_task requires session.backend.network")
     contrast = "bright" if "bright" in task else "dark"
     return list(gruntman_moving_bar_specs(contrasts=(contrast,)))
 
@@ -596,7 +594,7 @@ def moving_bar_session_t0_grids(
         raise ValueError("moving_bar_session_t0_grids requires session.backend.network")
     i_baseline = resolve_moving_bar_i_baseline(session.train_opts)
 
-    side = normalize_side(connectome.meta.get('side', 'right'))
+    side = connectome.meta.get('side', 'right')
     hexes = moving_bar_cost_hexes(connectome, cost_radius=cost_radius)
     if at_x is not None or at_y is not None:
         filt_hexes = filter_sti_hexes(hexes, at_x=at_x, at_y=at_y)
@@ -634,7 +632,7 @@ def moving_bar_session_t0_grids(
 
 def _pack_cells(session, task: str) -> List[str]:
     """Unique cells on ``pack.entry_nodes`` (pack order)."""
-    pack = session.pack_for(task)
+    pack = session.pack_from_task(task)
     entry_nodes = pack.entry_nodes
     if torch.is_tensor(entry_nodes):
         entry_nodes = entry_nodes.detach().cpu().numpy()
@@ -662,7 +660,7 @@ def moving_bar_specs_by_cell(session, task: str, side: str) -> Dict[str, List[st
     return {
         st: [
             f'{d}_{c}_{w}'
-            for d, c, w in active_stis_for_subtype(side, st)
+            for d, c, w in active_stis_from_subtype(side, st)
             if c == contrast
         ]
         for st in _pack_cells(session, task)
@@ -692,9 +690,8 @@ def build_moving_bar_sti_opts(
         "delta_ms_pre": delta_ms_pre,
         "multi_bar": bool(multi_bar),
     }
-    rs = normalize_gt_cells(gt_cells)
-    if rs is not None:
-        out["gt_cells"] = rs
+    if gt_cells is not None:
+        out["gt_cells"] = list(gt_cells)
     return out
 
 

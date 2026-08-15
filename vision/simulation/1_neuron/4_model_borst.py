@@ -1,9 +1,9 @@
 # -*- coding: utf-8 -*-
 """Borst neuron + i_h (``--model borst``).
 
-Dynamics only: ``normalize_i_sti`` / ``pre_steady`` / ``step``. Full-T Ca
+Dynamics only: ``standardize_i_sti`` / ``pre_steady`` / ``step``. Full-T Ca
 forward lives in ``neuron.forward``. Membrane scalars are injected kwargs
-(from ``session`` flat fields), never a Physics bag.
+(from ``session`` flat fields), never nested under Physics.
 
 t=0 membrane state uses ``session.pre_steady`` (``--pre-steady …``):
 
@@ -182,7 +182,7 @@ def v_component_from_g(
     }
 
 
-def normalize_i_sti(session, params, i_sti, pack):
+def standardize_i_sti(session, params, i_sti, pack):
     """Sti current ``(B, T, N)`` as membrane drive (no rescale)."""
     del params, pack
     return i_sti.unsqueeze(0) if i_sti.dim() == 2 else i_sti
@@ -236,7 +236,7 @@ def _dc_v_star(v, params, i0, e_leak, session, *, with_i_h_ss: bool):
     return _ohmic_v(i0, g_exc, g_inh, g_h, g_h_rev, e_leak, session), u, u_rev
 
 
-def pre_steady(session, params, B, i_sti=None):
+def pre_steady(session, params, n_b, i_sti=None):
     """``(u, u_rev)``, ``v`` at t=0 from ``session.pre_steady``."""
     if i_sti is None:
         raise TypeError("borst pre_steady requires i_sti")
@@ -244,7 +244,7 @@ def pre_steady(session, params, B, i_sti=None):
     if pre_steady not in ("probe", "solve"):
         raise ValueError(f"borst pre_steady must be probe|solve; got {pre_steady!r}")
     e_leak = params["e_leak"]
-    v = e_leak.expand(B, session.backend.n_nodes).clone()
+    v = e_leak.expand(n_b, session.backend.n_nodes).clone()
     i0 = i_sti[:, 0, :]
     if pre_steady == "probe":
         v_star, u, u_rev = _dc_v_star(v, params, i0, e_leak, session, with_i_h_ss=False)

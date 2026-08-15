@@ -77,7 +77,7 @@ def _syn_strength_from_edges(edges, cells, syn_strength_cell, pairs):
         )
     if pairs is not None:
         expected = [
-            f"{cells[s]}{train.PAIR_SEP}{cells[t]}" for s, t in pairs
+            f"{cells[source]}{train.PAIR_SEP}{cells[target]}" for source, target in pairs
         ]
         if list(pairs) != expected:
             raise SystemExit("pairs in best_param.npz do not match network.json")
@@ -162,7 +162,7 @@ def _spot_bright_session_z(outdir):
     session, z, _cost = plot.load_best(outdir)
     tasks = list((session.train_opts or {}).get("tasks") or [])
     if "spot_bright" in tasks:
-        return plot.session_for_task(session, "spot_bright"), z
+        return plot.session_from_task(session, "spot_bright"), z
     if not any(t.startswith("spot_") for t in tasks):
         raise SystemExit(f"run has no spot task (tasks={tasks})")
     return session, z

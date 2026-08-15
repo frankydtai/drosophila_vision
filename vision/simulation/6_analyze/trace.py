@@ -400,7 +400,7 @@ def _load_reports(args):
     else:
         cells = parse_comma_list(args.cells)
 
-    sess_one = plot.session_for_task(session, args.task)
+    sess_one = plot.session_from_task(session, args.task)
     delta_ms = float(sess_one.delta_ms)
     opts = dict(
         (sess_one.train_opts or {}).get(f"{sess_one.primary_pack.task}_sti_opts")

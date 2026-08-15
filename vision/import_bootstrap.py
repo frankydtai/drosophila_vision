@@ -9,7 +9,7 @@ Disk names are ``{n}_{logical}`` (dirs and ``.py`` modules). Imports stay
 logical. Renumbering is rename-only; this finder has no per-file registry.
 
 Also hosts :func:`parse_comma_list` (sole comma-token splitter for CLI lists),
-:func:`parse_bool` (CLI true/false tokens), and :func:`normalize_option_dashes`
+:func:`parse_bool` (CLI true/false tokens), and :func:`standardize_option_dashes`
 (single-dash long options → double-dash; applied to all ``argparse`` parses via
 :func:`install`).
 
@@ -55,7 +55,7 @@ def parse_bool(text) -> bool:
     raise ValueError(f"expected true|false, got {text!r}")
 
 
-def normalize_option_dashes(argv: Sequence[str]) -> List[str]:
+def standardize_option_dashes(argv: Sequence[str]) -> List[str]:
     """Rewrite single-dash options to double-dash (``-sti-timing`` → ``--sti-timing``).
 
     Also rewrites one-letter forms (``-x`` → ``--x``). Leaves ``-h`` (argparse
@@ -76,20 +76,20 @@ def normalize_option_dashes(argv: Sequence[str]) -> List[str]:
     return out
 
 
-def _parse_known_args_normalize(self, args=None, namespace=None):
+def _parse_known_args_standardize(self, args=None, namespace=None):
     if args is None:
         args = sys.argv[1:]
     else:
         args = list(args)
-    return _ORIG_PARSE_KNOWN_ARGS(self, normalize_option_dashes(args), namespace)
+    return _ORIG_PARSE_KNOWN_ARGS(self, standardize_option_dashes(args), namespace)
 
 
-def _install_argparse_dash_normalize() -> None:
+def _install_argparse_dash_standardize() -> None:
     """Make every ArgumentParser accept ``-long-opt`` as ``--long-opt``."""
     global _ARGPARSE_DASH_PATCHED
     if _ARGPARSE_DASH_PATCHED:
         return
-    argparse.ArgumentParser.parse_known_args = _parse_known_args_normalize
+    argparse.ArgumentParser.parse_known_args = _parse_known_args_standardize
     _ARGPARSE_DASH_PATCHED = True
 
 
@@ -190,9 +190,9 @@ _FINDER: Optional[LogicalImportFinder] = None
 
 
 def install() -> None:
-    """Insert the logical-import finder, dash-normalize argparse, and sys.path."""
+    """Insert the logical-import finder, dash-standardize argparse, and sys.path."""
     global _FINDER
-    _install_argparse_dash_normalize()
+    _install_argparse_dash_standardize()
     if _FINDER is not None and _FINDER in sys.meta_path:
         return
     if _FINDER is None:

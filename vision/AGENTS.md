@@ -32,7 +32,7 @@ Scope: `vision/**`.
 
 ## Simulation core architecture
 
-The numbered simulation core is `1_neuron/`, `2_network/`, `3_task/`, `4_train/`, `5_figure/`, and `6_analyze/`. Non-core directories such as `experiment/` and `test/` are unnumbered. Imports use logical names only. Enable logical imports with `import import_bootstrap` and the project `simulation_sorted.pth`; renumbering changes disk names, not logical import strings or `vision/import_bootstrap.py`.
+The numbered simulation core is `1_neuron/`, `2_network/`, `3_task/`, `4_train/`, `5_figure/`, and `6_analyze/`. Non-core directories such as `test/` are unnumbered. Imports use logical names only. Enable logical imports with `import import_bootstrap` and the project `simulation_sorted.pth`; renumbering changes disk names, not logical import strings or `vision/import_bootstrap.py`.
 
 Number core modules by import and completion order. If A must be imported or completed before B, require `N(A) <= N(B)`, normally `N(A) < N(B)`. Share a number only for independent same-layer modules.
 
@@ -40,7 +40,7 @@ Number core modules by import and completion order. If A must be imported or com
 2. Keep `run.py` a general driver. Importing train code must not parse arguments or touch CUDA.
 3. Put path constants in logical `path.py` or `train/config.py`.
 4. Keep CSV outputs rectangular; represent global scalars as constant columns.
-5. Keep core code flexible enough for `experiment/` and `test/` to import and override without editing core code.
+5. Keep core code flexible enough for `test/` to import and override without editing core code.
 6. Core code must not import plotting layers. Shared logic needed by plotting and core belongs in core.
 7. Numeric defaults have one source: `vision/default_params.py`. Keep it to literals and constant bags, without functions or formulas. Only train, figure, analyze, and run layers may import it; neuron, network, and task layers receive numbers by injection, except established moving-bar paradigm constants.
 8. Never import or call `figure.plot` (or the forbidden alias `plot_trained`) or other plot-layer modules from core modules.

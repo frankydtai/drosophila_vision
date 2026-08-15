@@ -15,7 +15,7 @@ import numpy as np
 import torch
 
 from neuron.param import t_from_ms
-from task.spot.sti_geo import SpotBatch, members_by_radius
+from task.spot.sti_geo import SpotB, members_by_radius
 
 _STI_TIMING_TOKENS = (
     "ms_pre", "ms_response", "ms_post", "ms_sti", "delta_ms", "delta_ms_pre",
@@ -65,7 +65,7 @@ def _merge_filter_branch_ms(so: dict, timing_tok: str, val) -> None:
         )
 
 
-def normalize_sti_timing(so: dict) -> dict:
+def standardize_sti_timing(so: dict) -> dict:
     """In-place: per branch ``ms_response = max(ms_response, ms_sti)``."""
     ms_sti = so.get("ms_sti")
     resp = so.get("ms_response")
@@ -93,7 +93,7 @@ def override_sti_timing(
     delta_ms=None,
     delta_ms_pre=None,
 ) -> dict:
-    """Merge non-None timing into ``so``, normalize, drop derived ``t_onset``/``n_t``.
+    """Merge non-None timing into ``so``, standardize, drop derived ``t_onset``/``n_t``.
 
     Returns timing tokens whose values differ from the pre-merge snapshot (for
     plot / analyze filename suffixes).
@@ -109,7 +109,7 @@ def override_sti_timing(
     _merge_filter_branch_ms(so, "delta_ms_pre", delta_ms_pre)
     _merge_filter_branch_ms(so, "ms_response", ms_response)
     _merge_filter_branch_ms(so, "ms_sti", ms_sti)
-    normalize_sti_timing(so)
+    standardize_sti_timing(so)
     so.pop("t_onset", None)
     so.pop("n_t", None)
     return {
@@ -243,7 +243,7 @@ def sti_waveform(t_onset, n_t, ms_sti=None, *, delta_ms: float) -> np.ndarray:
 
 def build_spot_a_sti_radius_drive(
     connectome,
-    batches: Sequence[SpotBatch],
+    spot_bs: Sequence[SpotB],
     *,
     a_sti_radii,
     t_onset: int,
@@ -257,9 +257,9 @@ def build_spot_a_sti_radius_drive(
 ):
     """Baseline ``i_sti`` + center bake + radius contribs for ``a_sti_radius``.
 
-    Returns ``(i_sti, sti_wave, sti_batches, sti_nodes, a_sti_radius_indices)`` where center
+    Returns ``(i_sti, sti_wave, sti_bs, sti_nodes, a_sti_radius_indices)`` where center
     r=0 is baked into ``i_sti`` at scale 1, and radius contribs compose as
-    ``i += a_sti_radius[r] * sti_wave`` on ``(sti_batches, sti_nodes)``. ``a_sti_radius_indices``
+    ``i += a_sti_radius[r] * sti_wave`` on ``(sti_bs, sti_nodes)``. ``a_sti_radius_indices``
     indexes ``a_sti_radii`` / ``a_sti_radius`` (no center slot). Empty
     ``a_sti_radii`` → center-only drive. Does not modify gt construction.
     """
@@ -268,25 +268,25 @@ def build_spot_a_sti_radius_drive(
         raise ValueError("a_sti_radii must omit center r=0 (baked into i_sti @1)")
     by_radius = members_by_radius(radii) if radii else {}
     idx_from_radius = {r: i for i, r in enumerate(radii)}
-    batch_l: list[int] = []
+    sti_b_vals: list[int] = []
     node_l: list[int] = []
     r_l: list[int] = []
     center_nodes: list[tuple[int, int]] = []
-    for b, batch in enumerate(batches):
-        for sti_hex_u, sti_hex_v in batch.sti_uv:
+    for b, spot_b in enumerate(spot_bs):
+        for sti_hex_u, sti_hex_v in spot_b.sti_uv:
             for nid in connectome.sti_nodes_at(int(sti_hex_u), int(sti_hex_v)):
                 center_nodes.append((int(b), int(nid)))
             for radius, members in by_radius.items():
                 ri = idx_from_radius[radius]
                 for du, dv in members:
                     for nid in connectome.sti_nodes_at(int(sti_hex_u) + int(du), int(sti_hex_v) + int(dv)):
-                        batch_l.append(int(b))
+                        sti_b_vals.append(int(b))
                         node_l.append(int(nid))
                         r_l.append(int(ri))
     u = sti_waveform(t_onset, n_t, ms_sti, delta_ms=delta_ms)
-    n_batch = len(batches)
+    n_b = len(spot_bs)
     sti_idx = torch.as_tensor(connectome.sti_node_indices, dtype=torch.long, device=device)
-    i_sti = torch.zeros((n_batch, n_t, connectome.n_nodes), dtype=sim_dtype, device=device)
+    i_sti = torch.zeros((n_b, n_t, connectome.n_nodes), dtype=sim_dtype, device=device)
     if len(sti_idx):
         i_sti[:, :, sti_idx] = float(i_baseline)
     sti_wave = torch.as_tensor(
@@ -294,7 +294,7 @@ def build_spot_a_sti_radius_drive(
     )
     for b, nid in center_nodes:
         i_sti[b, :, nid] = i_sti[b, :, nid] + sti_wave
-    sti_batches = torch.tensor(batch_l, dtype=torch.long, device=device)
+    sti_bs = torch.tensor(sti_b_vals, dtype=torch.long, device=device)
     sti_nodes = torch.tensor(node_l, dtype=torch.long, device=device)
     a_sti_radius_indices = torch.tensor(r_l, dtype=torch.long, device=device)
-    return i_sti, sti_wave, sti_batches, sti_nodes, a_sti_radius_indices
+    return i_sti, sti_wave, sti_bs, sti_nodes, a_sti_radius_indices

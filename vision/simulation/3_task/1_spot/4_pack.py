@@ -19,7 +19,6 @@ from network.construction import (
     hex2gt,
     hex_in_cost_radius,
     active_gt_cells,
-    normalize_gt_cells,
     node_cells,
 )
 from neuron.param import t_from_ms
@@ -32,14 +31,14 @@ from task.spot.gt import (
     spot_gt_active,
 )
 from task.spot.sti_geo import (
-    SpotBatch,
+    SpotB,
     members_by_radius,
     resolve_spot,
     spot_radius_folds_r2_into_r1,
-    spot_sti_batches,
+    spot_sti_bs,
 )
 from task.spot.sti_spec import (
-    normalize_sti_timing,
+    standardize_sti_timing,
     sti_waveform,
 )
 
@@ -52,7 +51,7 @@ _SPOT_I_PEAK = {"bright": "i_bright_spot", "dark": "i_dark_spot"}
 # -- Cost-radius scales ------------------------------------------------------
 
 
-def normalize_spot_cost_radius(radius) -> int:
+def standardize_spot_cost_radius(radius) -> int:
     """Parse a spot cost / drive radius to an int hex-lattice radius."""
     if isinstance(radius, bool):
         raise ValueError(f"invalid spot cost radius {radius!r}")
@@ -87,7 +86,7 @@ def expand_spot_cost_r_s_dict(
     if not kv:
         return None
     return {
-        normalize_spot_cost_radius(k): parse_spot_cost_radius_scale_value(v)
+        standardize_spot_cost_radius(k): parse_spot_cost_radius_scale_value(v)
         for k, v in kv.items()
     }
 
@@ -102,7 +101,7 @@ def expand_cost_ms_dict(
         return {}
     out: Dict[int, Tuple[float, ...]] = {}
     for k, v in kv.items():
-        r = normalize_spot_cost_radius(k)
+        r = standardize_spot_cost_radius(k)
         vals = parse_comma_list(v) if isinstance(v, str) else list(v)
         if not vals:
             raise ValueError(f"cost_ms[{k!r}] must list at least one ms")
@@ -126,7 +125,7 @@ def parse_cost_ms_tokens(
         vals = parse_comma_list(val)
         if not vals:
             raise ValueError(f"--cost-ms {radius}=... must list at least one ms")
-        out[normalize_spot_cost_radius(radius)] = tuple(float(x) for x in vals)
+        out[standardize_spot_cost_radius(radius)] = tuple(float(x) for x in vals)
     return out
 
 
@@ -156,11 +155,11 @@ def resolve_spot_cost_radius_scale(
     for tok in tokens:
         if "=" in tok:
             radius, val = tok.split("=", 1)
-            explicit[normalize_spot_cost_radius(radius)] = (
+            explicit[standardize_spot_cost_radius(radius)] = (
                 parse_spot_cost_radius_scale_value(val)
             )
         else:
-            bare.append(normalize_spot_cost_radius(tok))
+            bare.append(standardize_spot_cost_radius(tok))
     if bare:
         scales = {int(r): 0.0 for r in spot_cost_radii}
         for r in bare:
@@ -230,15 +229,15 @@ def spot_cost_node_scale(
 
 
 def spot_cost_hexes(
-    batches: Sequence[SpotBatch],
+    spot_bs: Sequence[SpotB],
     cost_radii,
     cost_radius,
 ) -> List[Tuple[int, int, int, int, int, int]]:
-    """Cost readouts: ``(batch, mu, mv, radius, su, sv)`` per sti radius."""
+    """Cost readouts: ``(b, mu, mv, radius, su, sv)`` per sti radius."""
     by_radius = members_by_radius(cost_radii)
     cost_hexes: List[Tuple[int, int, int, int, int, int]] = []
-    for b, batch in enumerate(batches):
-        for su, sv in batch.sti_uv:
+    for b, spot_b in enumerate(spot_bs):
+        for su, sv in spot_b.sti_uv:
             for radius, members in by_radius.items():
                 for du, dv in members:
                     mu, mv = su + du, sv + dv
@@ -253,37 +252,37 @@ def spot_cost_hexes(
 def spot_n_cost_hexes(cost_hexes):
     if not cost_hexes:
         return 0
-    n_by_batch: Dict[int, int] = {}
+    n_by_b: Dict[int, int] = {}
     for b, _mu, _mv, _radius, _su, _sv in cost_hexes:
-        n_by_batch[b] = n_by_batch.get(b, 0) + 1
-    vals = set(n_by_batch.values())
+        n_by_b[b] = n_by_b.get(b, 0) + 1
+    vals = set(n_by_b.values())
     if len(vals) == 1:
         return next(iter(vals))
-    return {b: n_by_batch[b] for b in sorted(n_by_batch)}
+    return {b: n_by_b[b] for b in sorted(n_by_b)}
 
 
 def _as_np(arr) -> np.ndarray:
     return arr.detach().cpu().numpy() if hasattr(arr, "detach") else np.asarray(arr)
 
 
-def build_spot_cost_readout(connectome, batches, cost_radii, cost_radius):
+def build_spot_cost_readout(connectome, spot_bs, cost_radii, cost_radius):
     network_node_u = _as_np(connectome.us)
     network_node_v = _as_np(connectome.vs)
     type_all = _as_np(connectome.node_cells)
-    batch_idx, node_indices, radius, type_idx, sti_u, sti_v = [], [], [], [], [], []
+    bs, node_indices, radius, type_idx, sti_u, sti_v = [], [], [], [], [], []
     for b, mu, mv, cell_radius, su, sv in spot_cost_hexes(
-        batches, cost_radii, cost_radius,
+        spot_bs, cost_radii, cost_radius,
     ):
         on_hex = (network_node_u == mu) & (network_node_v == mv)
         for candidate_node_idx in np.where(on_hex)[0]:
-            batch_idx.append(b)
+            bs.append(b)
             node_indices.append(int(candidate_node_idx))
             radius.append(cell_radius)
             type_idx.append(int(type_all[candidate_node_idx]))
             sti_u.append(int(su))
             sti_v.append(int(sv))
     return (
-        np.asarray(batch_idx, dtype=np.int64),
+        np.asarray(bs, dtype=np.int64),
         np.asarray(node_indices, dtype=np.int64),
         np.asarray(radius, dtype=np.int64),
         np.asarray(type_idx, dtype=np.int64),
@@ -292,10 +291,10 @@ def build_spot_cost_readout(connectome, batches, cost_radii, cost_radius):
     )
 
 
-def build_spot_center_readout(connectome, batches, cost_radii, cost_radius):
+def build_spot_center_readout(connectome, spot_bs, cost_radii, cost_radius):
     """Cost-node readout plus ``center_entry_mask`` for sti-on hex (radius 0)."""
-    batch_idx, node_idx, radius, type_idx, sti_u, sti_v = build_spot_cost_readout(
-        connectome, batches, cost_radii, cost_radius,
+    bs, node_idx, radius, type_idx, sti_u, sti_v = build_spot_cost_readout(
+        connectome, spot_bs, cost_radii, cost_radius,
     )
     sti_u = np.asarray(sti_u, dtype=np.int64)
     sti_v = np.asarray(sti_v, dtype=np.int64)
@@ -305,7 +304,7 @@ def build_spot_center_readout(connectome, batches, cost_radii, cost_radius):
     dv = np.asarray(network_node_v[node_idx] - sti_v, dtype=np.int64)
     center_entry_mask = (du == 0) & (dv == 0)
     return (
-        np.asarray(batch_idx, dtype=np.int64),
+        np.asarray(bs, dtype=np.int64),
         np.asarray(node_idx, dtype=np.int64),
         np.asarray(radius, dtype=np.int64),
         np.asarray(type_idx, dtype=np.int64),
@@ -324,11 +323,11 @@ class SpotGt:
     power: torch.Tensor           # scalar
     cost_scales: torch.Tensor     # (n_cost,)
     entry_radii: torch.Tensor  # (n_cost,) long hex-lattice radius per entry
-    entry_batches: torch.Tensor   # (n_cost,) long
+    entry_bs: torch.Tensor   # (n_cost,) long
     entry_nodes: torch.Tensor    # (n_cost,) long
     entry_sti_us: torch.Tensor  # (n_cost,) long
     entry_sti_vs: torch.Tensor  # (n_cost,) long
-    n_batch: int
+    n_b: int
     info: dict
 
 
@@ -395,8 +394,8 @@ def build_spot_gt(
     node_cell = node_cells(connectome)
     active = active_gt_cells(gt_cells, GT_CELLS, connectome.cells, context="spot")
 
-    batches = spot_sti_batches(spot)
-    n_batch = len(batches)
+    spot_bs = spot_sti_bs(spot)
+    n_b = len(spot_bs)
 
     # Single sti waveform source (step or finite spot) shared with the ir gt.
     u = sti_waveform(t_onset, n_t, ms_sti, delta_ms=delta_ms)
@@ -405,11 +404,11 @@ def build_spot_gt(
     )
     # All sti hexes hold i_baseline; sti_uv hexes then get the step/spot drive.
     sti_idx = torch.as_tensor(connectome.sti_node_indices, dtype=torch.long, device=device)
-    i_sti = torch.zeros((n_batch, n_t, connectome.n_nodes), dtype=sim_dtype, device=device)
+    i_sti = torch.zeros((n_b, n_t, connectome.n_nodes), dtype=sim_dtype, device=device)
     if len(sti_idx):
         i_sti[:, :, sti_idx] = float(i_baseline)
-    for b, batch in enumerate(batches):
-        for su, sv in batch.sti_uv:
+    for b, spot_b in enumerate(spot_bs):
+        for su, sv in spot_b.sti_uv:
             nodes = connectome.sti_nodes_at(su, sv)
             if len(nodes):
                 idx = torch.as_tensor(nodes, dtype=torch.long, device=device)
@@ -422,9 +421,9 @@ def build_spot_gt(
         cost_radius_scales=cost_radius_scales,
         spot_cost_radii=spot_cost_radii,
     )
-    cost_hexes = spot_cost_hexes(batches, cost_radii, cost_radius)
+    cost_hexes = spot_cost_hexes(spot_bs, cost_radii, cost_radius)
 
-    cost_batch, cost_node, entry_radii_vals, cost_readout, cost_scales_vals = [], [], [], [], []
+    cost_bs, cost_node, entry_radii_vals, cost_readout, cost_scales_vals = [], [], [], [], []
     cost_sti_us, cost_sti_vs = [], []
     trace_cache: Dict[Tuple[int, int], np.ndarray] = {}
     for b, mu, mv, radius, su, sv in cost_hexes:
@@ -453,7 +452,7 @@ def build_spot_gt(
                 trace_cache[cache_digest] = trace
             trace = trace_cache[cache_digest]
             for node_idx in nodes:
-                cost_batch.append(b)
+                cost_bs.append(b)
                 cost_node.append(int(node_idx))
                 entry_radii_vals.append(int(radius))
                 cost_readout.append(trace)
@@ -461,7 +460,7 @@ def build_spot_gt(
                 cost_sti_us.append(int(su))
                 cost_sti_vs.append(int(sv))
 
-    if not cost_batch:
+    if not cost_bs:
         raise ValueError("no spot cost nodes (check cost_radius and gt cells)")
 
     gts = torch.tensor(np.asarray(cost_readout), dtype=sim_dtype, device=device)  # (n_cost,T')
@@ -469,7 +468,7 @@ def build_spot_gt(
     entry_radii = torch.tensor(
         np.asarray(entry_radii_vals, dtype=np.int64), dtype=torch.long, device=device,
     )
-    entry_batches = torch.tensor(np.asarray(cost_batch), dtype=torch.long, device=device)
+    entry_bs = torch.tensor(np.asarray(cost_bs), dtype=torch.long, device=device)
     entry_nodes = torch.tensor(np.asarray(cost_node), dtype=torch.long, device=device)
     entry_sti_us = torch.tensor(np.asarray(cost_sti_us), dtype=torch.long, device=device)
     entry_sti_vs = torch.tensor(np.asarray(cost_sti_vs), dtype=torch.long, device=device)
@@ -479,7 +478,7 @@ def build_spot_gt(
         power = torch.tensor(1.0, dtype=sim_dtype, device=device)
 
     info = {
-        "n_batch": n_batch,
+        "n_b": n_b,
         "n_cost": gts.shape[0],
         "n_cost_hexes": spot_n_cost_hexes(cost_hexes),
         "n_centers": len(spot.centers),
@@ -509,11 +508,11 @@ def build_spot_gt(
         power=power,
         cost_scales=cost_scales,
         entry_radii=entry_radii,
-        entry_batches=entry_batches,
+        entry_bs=entry_bs,
         entry_nodes=entry_nodes,
         entry_sti_us=entry_sti_us,
         entry_sti_vs=entry_sti_vs,
-        n_batch=n_batch,
+        n_b=n_b,
         info=info,
     )
 
@@ -554,7 +553,6 @@ def build_spot_sti_opts(
     }
     if ms_sti is not None:
         opts["ms_sti"] = ms_sti
-    rs = normalize_gt_cells(gt_cells)
-    if rs is not None:
-        opts["gt_cells"] = rs
-    return normalize_sti_timing(opts)
+    if gt_cells is not None:
+        opts["gt_cells"] = list(gt_cells)
+    return standardize_sti_timing(opts)

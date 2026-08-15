@@ -70,10 +70,10 @@ def load_session(outdir, model=None):
     return train.session_from_outdir(outdir, model)
 
 
-def session_for_task(base_session, task):
+def session_from_task(base_session, task):
     """Single-task session sharing backend/schema with a multi-task run."""
     if base_session.backend.network is None:
-        raise ValueError("session_for_task requires base_session.backend.network")
+        raise ValueError("session_from_task requires base_session.backend.network")
     opts = dict(base_session.train_opts or {})
     opts['tasks'] = [task]
     opts['packs'] = None
@@ -316,7 +316,7 @@ def euler_filename_suffix(euler=None):
     return _suffix(euler)
 
 
-def _cost_parts_for_figure(session, z):
+def _figure_cost_parts(session, z):
     """Unscaled per-part costs at ``z`` for panel titles."""
     with torch.no_grad():
         parts = train.calc_cost_parts(z, session)
@@ -344,7 +344,7 @@ def _plot_spot_tasks(session, z, outdir, spot_tasks, suffix, model_all,
     build_readout, plot_gt, plot_all = spot_readout_fns(session)
     ref_t = 'spot_bright' if 'spot_bright' in spot_set else spot_tasks[0]
     net_tag = _network_spot_tag(session, ref_t)
-    cost_parts = _cost_parts_for_figure(session, z)
+    cost_parts = _figure_cost_parts(session, z)
     figure_kw = dict(gts=gts, cost_parts=cost_parts)
     token = session_filter_figure_token(session)
     readout_kw = dict(
@@ -356,10 +356,10 @@ def _plot_spot_tasks(session, z, outdir, spot_tasks, suffix, model_all,
     if spot_set == set(train.SPOT_TASKS):
         readouts = {
             'bright': build_readout(
-                session_for_task(session, 'spot_bright'), z, **readout_kw,
+                session_from_task(session, 'spot_bright'), z, **readout_kw,
             ),
             'dark': build_readout(
-                session_for_task(session, 'spot_dark'), z, **readout_kw,
+                session_from_task(session, 'spot_dark'), z, **readout_kw,
             ),
         }
         mvd = _plot_path(outdir, _readout_figure_stem('spot_gt', session), file_suffix, html=html)
@@ -379,7 +379,7 @@ def _plot_spot_tasks(session, z, outdir, spot_tasks, suffix, model_all,
         return mvd, allc
     for task in spot_tasks:
         _plot_one_task(
-            session_for_task(session, task), z, outdir, task, suffix, model_all,
+            session_from_task(session, task), z, outdir, task, suffix, model_all,
             gts=gts,
             at_x=at_x, at_y=at_y,
             show_pre=show_pre,
@@ -396,7 +396,7 @@ def _plot_bar_readouts(session, z, outdir, bar_readouts, suffix, model_all, *,
                       align_at_x=None, align_at_y=None,
                       show_pre=True, file_suffix="", html=False, ms_shown=None):
     """Plot moving-bar task(s); bright left | dark right when both are trained."""
-    cost_parts = _cost_parts_for_figure(session, z)
+    cost_parts = _figure_cost_parts(session, z)
     token = session_filter_figure_token(session)
     readout_kw = dict(
         at_xs=at_x, at_ys=at_y,
@@ -406,8 +406,8 @@ def _plot_bar_readouts(session, z, outdir, bar_readouts, suffix, model_all, *,
     )
     bar_set = set(bar_readouts)
     if bar_set == set(train.MOVING_BAR_TASKS):
-        s_bright = session_for_task(session, 'moving_bar_bright')
-        s_dark = session_for_task(session, 'moving_bar_dark')
+        s_bright = session_from_task(session, 'moving_bar_bright')
+        s_dark = session_from_task(session, 'moving_bar_dark')
         readout_bright = moving_bar.moving_bar_trace_readout(
             s_bright, z, 'moving_bar_bright', **readout_kw,
         )
@@ -431,7 +431,7 @@ def _plot_bar_readouts(session, z, outdir, bar_readouts, suffix, model_all, *,
             )
         return mvd, allc
     for task in bar_readouts:
-        one = session_for_task(session, task)
+        one = session_from_task(session, task)
         readout = moving_bar.moving_bar_trace_readout(one, z, task, **readout_kw)
         mvd = _plot_path(outdir, _readout_figure_stem('bar_gt', session), file_suffix, html=html)
         moving_bar.plot_moving_bar_gt(
@@ -462,7 +462,7 @@ def _plot_one_task(session, z, outdir, task, suffix, model_all,
     build_readout, plot_gt, plot_all = spot_readout_fns(session)
     net_tag = _network_spot_tag(session, task)
     if cost_parts is None:
-        cost_parts = _cost_parts_for_figure(session, z)
+        cost_parts = _figure_cost_parts(session, z)
     figure_kw = dict(gts=gts, cost_parts=cost_parts)
     readout = build_readout(
         session, z,
@@ -471,8 +471,8 @@ def _plot_one_task(session, z, outdir, task, suffix, model_all,
         ms_shown=ms_shown,
         center_only=center_only,
     )
-    from figure.gt import contrast_for_task
-    readouts = {contrast_for_task(task): readout}
+    from figure.gt import contrast_from_task
+    readouts = {contrast_from_task(task): readout}
     plot_gt(
         mvd, readouts=readouts, title=f'{task} {token}-gt ({suffix}){net_tag}', **figure_kw,
     )
@@ -532,7 +532,7 @@ def plot_rf_t(params, outdir, model=None, model_all=True,
         if at_x is None and at_y is None:
             raise SystemExit('--align-xy requires --x and/or --y')
         if not bar_readouts:
-            raise SystemExit('--align-xy applies to moving_bar slice plots only')
+            raise SystemExit('--align-xy applies to moving_bar overlay plots only')
 
     if spot_tasks:
         _plot_spot_tasks(
@@ -612,30 +612,30 @@ def add_figure_arguments(parser):
         '--x',
         default=None,
         metavar='X,...',
-        help='{bar,spot}_all_{ca|v}: comma-separated x slices; with --y, one trace per (x,y) pair',
+        help='{bar,spot}_all_{ca|v}: comma-separated x overlays; with --y, one trace per (x,y) pair',
     )
     parser.add_argument(
         '--y',
         default=None,
         metavar='Y,...',
-        help='{bar,spot}_all_{ca|v}: comma-separated y slices; with --x, one trace per (x,y) pair',
+        help='{bar,spot}_all_{ca|v}: comma-separated y overlays; with --x, one trace per (x,y) pair',
     )
     parser.add_argument(
         '--align-xy',
         default=None,
         metavar='X,Y',
-        help='moving_bar slice plots: align --x/--y traces to ref hex hex (x,y); scope unchanged',
+        help='moving_bar overlay plots: align --x/--y traces to ref hex hex (x,y); scope unchanged',
     )
     add_ms_shown_argument(parser)
 
 
-def parse_axis_slices(text):
+def parse_axis_coords(text):
     """Parse comma-separated ``--x`` / ``--y`` values (empty -> ``None``)."""
     if not text:
         return None
     vals = [float(x) for x in import_bootstrap.parse_comma_list(text)]
     if not vals:
-        raise ValueError("empty comma-separated axis slice")
+        raise ValueError("empty comma-separated axis coord")
     return vals
 
 
@@ -698,7 +698,7 @@ def filter_filename_suffix(filter=None):
 
 def add_param_argument(parser):
     from train.cli import add_param_argument as _add
-    _add(parser, for_figure=True)
+    _add(parser, figure=True)
 
 
 def parse_optimizable_param_tokens(tokens):
@@ -731,8 +731,8 @@ def resolve_figure_kwargs(args):
         plot_right_only=args.plot_right_only,
         show_pre=args.show_pre,
         center_only=bool(args.r0only),
-        at_x=parse_axis_slices(args.x),
-        at_y=parse_axis_slices(args.y),
+        at_x=parse_axis_coords(args.x),
+        at_y=parse_axis_coords(args.y),
         align_at_x=align_at_x,
         align_at_y=align_at_y,
         html=bool(args.html),

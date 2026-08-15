@@ -80,25 +80,25 @@ class MotionPreference:
     pc_nc: str
 
 
-def dsi_sequential_batch_sets(spec_tokens: Sequence[str]) -> Tuple[Tuple[int, ...], ...]:
-    """Minimal sti-batch sets for sequential DSI: one batch_set per axis x width."""
-    batches_by_dir_w: dict[tuple[str, str], list[int]] = {}
-    for bi, token in enumerate(spec_tokens):
+def dsi_sequential_b_sets(spec_tokens: Sequence[str]) -> Tuple[Tuple[int, ...], ...]:
+    """Minimal sti-b sets for sequential DSI: one b_set per axis x width."""
+    bs_by_dir_w: dict[tuple[str, str], list[int]] = {}
+    for b, token in enumerate(spec_tokens):
         direction, _contrast, wtag = parse_moving_bar_spec(token)
-        batches_by_dir_w.setdefault((direction, wtag), []).append(int(bi))
-    batch_sets: list[tuple[int, ...]] = []
+        bs_by_dir_w.setdefault((direction, wtag), []).append(int(b))
+    b_sets: list[tuple[int, ...]] = []
     for pos_dir, neg_dir in AXIS_DIRECTION_PAIRS:
         wtags = {
-            wtag for (direction, wtag) in batches_by_dir_w
+            wtag for (direction, wtag) in bs_by_dir_w
             if direction in (pos_dir, neg_dir)
         }
         for wtag in sorted(wtags):
-            pos = batches_by_dir_w.get((pos_dir, wtag), [])
-            neg = batches_by_dir_w.get((neg_dir, wtag), [])
+            pos = bs_by_dir_w.get((pos_dir, wtag), [])
+            neg = bs_by_dir_w.get((neg_dir, wtag), [])
             if not pos or not neg:
                 continue
-            batch_sets.append(tuple(sorted({*pos, *neg})))
-    return tuple(batch_sets)
+            b_sets.append(tuple(sorted({*pos, *neg})))
+    return tuple(b_sets)
 
 
 def expand_gt_cells(cells: Sequence[str]) -> Tuple[str, ...]:
@@ -123,22 +123,12 @@ def expand_gt_cells(cells: Sequence[str]) -> Tuple[str, ...]:
     return tuple(out)
 
 
-def normalize_side(side: str) -> str:
-    s = str(side).strip().lower()
-    if s in ("r", "right"):
-        return "right"
-    if s in ("l", "left"):
-        return "left"
-    raise ValueError(f"unknown eye side {side!r}")
-
-
 def width_tag(width_deg: float) -> str:
     return "w1" if float(width_deg) <= 3.0 else "w4"
 
 
 def pd_direction(side: str, subtype: str) -> str:
     """Preferred-direction motion for ``subtype`` on ``side`` (right or left eye)."""
-    side = normalize_side(side)
     letter = subtype[-1]
     if letter not in _SUBTYPE_PD_RIGHT:
         raise ValueError(f"unknown subtype {subtype!r}")
@@ -186,7 +176,7 @@ def motion_preference(
     return MotionPreference(pd_nd=pd_nd, pc_nc=pc_nc)
 
 
-def fig1_trace_for_sti(
+def fig1_trace_from_sti(
     side: str,
     subtype: str,
     spec: Union[MovingBarSpec, str],
@@ -206,7 +196,7 @@ def fig1_trace_for_sti(
     return f"{subtype[:2]}_{pref.pc_nc}_{width_tag(width_deg)}_{pref.pd_nd}"
 
 
-def active_stis_for_subtype(side: str, subtype: str) -> Sequence[Tuple[str, str, str]]:
+def active_stis_from_subtype(side: str, subtype: str) -> Sequence[Tuple[str, str, str]]:
     """Non-orthogonal (direction, contrast, width_tag) triples for one subtype."""
     out = []
     for direction in _axis_directions(subtype):
@@ -238,7 +228,7 @@ def axis_dsi_torch(peak_pos: torch.Tensor, peak_neg: torch.Tensor) -> torch.Tens
 
 def hardcoded_axis_dsi(side: str, subtype: str, spec: MovingBarSpec) -> Optional[float]:
     """Signed axis DSI from ``FIG1_ABS_DSI`` for the pos-side sti ``spec``."""
-    pos_trace = fig1_trace_for_sti(side, subtype, spec)
+    pos_trace = fig1_trace_from_sti(side, subtype, spec)
     if pos_trace is None:
         return None
     base, pd_nd = pos_trace.rsplit("_", 1)
@@ -252,7 +242,7 @@ def hardcoded_axis_dsi(side: str, subtype: str, spec: MovingBarSpec) -> Optional
     raise ValueError(f"expected PD/ND suffix in {pos_trace!r}")
 
 
-def moving_bar_dsi_for_spec(
+def moving_bar_dsi_from_spec(
     trace_map: Mapping[tuple, np.ndarray],
     cell: str,
     token: str,
@@ -287,7 +277,7 @@ def dsi_from_trace_map(
         for spec in spec_tokens:
             key = (cell, spec)
             if key not in out:
-                out[key] = moving_bar_dsi_for_spec(trace_map, cell, spec)
+                out[key] = moving_bar_dsi_from_spec(trace_map, cell, spec)
     return out
 
 

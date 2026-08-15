@@ -54,7 +54,7 @@ if str(_SIMULATION_CODE) not in sys.path:
     sys.path.insert(0, str(_SIMULATION_CODE))
 
 import import_bootstrap  # noqa: F401
-from import_bootstrap import normalize_option_dashes, parse_bool, parse_comma_list
+from import_bootstrap import standardize_option_dashes, parse_bool, parse_comma_list
 import network.path  # noqa: F401 — FAFB path on sys.path
 from path import BUILT_NETWORKS_DIR
 from task.spot.pack import (
@@ -83,7 +83,7 @@ def _argv_cli_tokens(argv):
     """Drop the script path; yield long-option tokens from *argv*."""
     if argv and argv[0].endswith('.py'):
         argv = argv[1:]
-    argv = normalize_option_dashes(argv)
+    argv = standardize_option_dashes(argv)
     i = 0
     while i < len(argv):
         tok = argv[i]
@@ -239,9 +239,9 @@ def add_val_from_argument(parser):
     )
 
 
-def add_param_argument(parser, *, for_figure=False):
+def add_param_argument(parser, *, figure=False):
     help = _PARAM_HELP
-    if for_figure:
+    if figure:
         help += "; PNG stem suffix per val"
     parser.add_argument(
         "--param",
@@ -349,7 +349,7 @@ def add_train_arguments(parser):
         type=parse_bool,
         default=_cli_scalar_from_branch(TRAIN_SESSION['sequential']),
         metavar="BOOL",
-        help=f"one sti batch per forward (default: {str(TRAIN_SESSION['sequential']).lower()})",
+        help=f"one sti b per forward (default: {str(TRAIN_SESSION['sequential']).lower()})",
     )
     parser.add_argument("--network", default=NETWORK_PATH['network'], metavar="RUN",
                         help=f"connectome backend: 4_built_networks run folder under {BUILT_NETWORKS_DIR} "
@@ -623,7 +623,7 @@ def override_train_opts_timing(
     """Merge timing into train-opts spot/bar sti dicts.
 
     Spot opts go through :func:`task.spot.sti_spec.override_sti_timing`
-    (normalize + drop derived ``t_onset``/``n_t``). Returns timing tokens that
+    (standardize + drop derived ``t_onset``/``n_t``). Returns timing tokens that
     changed on spot opts (for filename suffixes); bar-only ``ms_pre`` /
     ``delta_ms`` / ``delta_ms_pre`` changes are included when no spot opts
     are present.
@@ -791,7 +791,7 @@ def resolve_train_kwargs(
     param_init, param_modes = train.parse_param_cli(args.param) if args.param else ([], {})
     param_init = param_init or None
     param_modes = param_modes or None
-    syn_mode = train.normalize_syn_mode(getattr(args, "syn_mode", NEURON_SCHEMA['syn_mode']))
+    syn_mode = getattr(args, "syn_mode", NEURON_SCHEMA['syn_mode'])
     if param_modes:
         if syn_mode == "per_edge" and "syn_strength_cell" in param_modes:
             raise ValueError("--param syn_strength_cell requires --syn-mode per_cell")
@@ -909,7 +909,7 @@ def resolve_train_kwargs(
         outdir=outdir,
         param_modes=param_modes,
         param_init=param_init,
-        syn_mode=train.normalize_syn_mode(args.syn_mode),
+        syn_mode=args.syn_mode,
         network=args.network,
         tasks=tasks,
         part_cost_scales=part_cost_scales,

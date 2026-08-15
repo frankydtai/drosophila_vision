@@ -40,21 +40,21 @@ CELL_COUNTS_ABC_FILE = "cell_counts_abc.csv"
 CELL_COUNTS_ABC_BASE_RUN = "right_min_neuron1"
 
 
-def resolve_network_json(spec: str) -> Path:
+def resolve_network_json(network: str) -> Path:
     """Resolve ``4_built_networks/<run_name>/network.json`` or an explicit path.
 
     * Run name (e.g. ``right_min_neuron1``) → ``BUILT_NETWORKS_DIR/<run_name>/network.json``
     * Directory path → ``<dir>/network.json``
     * ``*.json`` path → that file
     """
-    p = Path(spec)
+    p = Path(network)
     if p.suffix == ".json":
         return p.resolve()
     if p.is_dir():
         return (p / "network.json").resolve()
     if p.is_absolute():
         raise FileNotFoundError(f"not a network run directory: {p}")
-    return (BUILT_NETWORKS_DIR / spec / "network.json").resolve()
+    return (BUILT_NETWORKS_DIR / network / "network.json").resolve()
 
 
 def network_run_tag(network_path: str, meta: dict) -> str:

@@ -245,7 +245,7 @@ def slots_from_param_mode(modes, slots):
     }
 
 
-def override_param_modes(schema, param_modes_by_segment, slots_for_segment):
+def override_param_modes(schema, param_modes_by_segment, slots_from_segment):
     """Copy schema with resolved param_modes."""
     out = []
     for segment in schema:
@@ -254,10 +254,10 @@ def override_param_modes(schema, param_modes_by_segment, slots_for_segment):
         if segment_id not in param_modes_by_segment:
             out.append(s)
             continue
-        if callable(slots_for_segment):
-            slots = slots_for_segment(s)
+        if callable(slots_from_segment):
+            slots = slots_from_segment(s)
         else:
-            slots = slots_for_segment[segment_id]
+            slots = slots_from_segment[segment_id]
         raw = param_modes_by_segment[segment_id]
         if isinstance(raw, list):
             if s.get('kind') == 'edge':
@@ -321,14 +321,14 @@ def override_param_modes(schema, param_modes_by_segment, slots_for_segment):
     return out
 
 
-def schema_param_modes_record(schema, slots_for_segment):
+def schema_param_modes_record(schema, slots_from_segment):
     """Serialize param_modes (+ inits) as slot lists for train_opts.json."""
     rec = {}
     for segment in schema:
-        if callable(slots_for_segment):
-            nodes = slots_for_segment(segment)
+        if callable(slots_from_segment):
+            nodes = slots_from_segment(segment)
         else:
-            nodes = slots_for_segment[segment['segment']]
+            nodes = slots_from_segment[segment['segment']]
         modes = {mode: list(segment.get(mode) or []) for mode in PARAM_MODES}
         if segment.get('kind') == 'edge':
             n = segment_n_nodes(segment)
@@ -357,33 +357,33 @@ def schema_param_modes_record(schema, slots_for_segment):
     return rec
 
 
-def cells_for_backend(backend: "ModelBackend"):
+def cells_from_backend(backend: "ModelBackend"):
     if backend.network is None:
-        raise ValueError("cells_for_backend requires backend.network")
+        raise ValueError("cells_from_backend requires backend.network")
     return [str(n) for n in backend.network.cells]
 
 
-def pairs_for_backend(backend: "ModelBackend"):
+def pairs_from_backend(backend: "ModelBackend"):
     pairs = backend.conn.pairs
-    cells = cells_for_backend(backend)
-    return [f"{cells[s]}{PAIR_SEP}{cells[t]}" for s, t in pairs]
+    cells = cells_from_backend(backend)
+    return [f"{cells[source]}{PAIR_SEP}{cells[target]}" for source, target in pairs]
 
 
-def edges_for_backend(backend: "ModelBackend"):
+def edges_from_backend(backend: "ModelBackend"):
     """Opaque per-edge labels for param_mode resolve (``e0`` ... ``e{n-1}``)."""
     n = int(backend.conn.n_edges)
     return [f"e{edge_idx}" for edge_idx in range(n)]
 
 
-def slots_for_segment(segment, backend: "ModelBackend"):
+def slots_from_segment(segment, backend: "ModelBackend"):
     if segment.get("radius_keys") is not None:
         return [str(radius) for radius in segment["radius_keys"]]
     kind = segment["kind"]
     if kind == "edge_pair":
-        return pairs_for_backend(backend)
+        return pairs_from_backend(backend)
     if kind == "edge":
-        return edges_for_backend(backend)
-    return cells_for_backend(backend)
+        return edges_from_backend(backend)
+    return cells_from_backend(backend)
 
 
 def validate_syn_strength_edge_param_mode(raw, *, segment='syn_strength_edge'):
@@ -495,8 +495,8 @@ def z_from_node_values(param_by_segment, schema, *, dtype=None, device=None):
     return z
 
 
-def moments_by_segment_from_z(exp_avg, exp_avg_sq, schema):
-    """Expand Adam z-space moments to full-width per-segment arrays (no encode/decode).
+def moments_from_z(exp_avg, exp_avg_sq, schema):
+    """Expand z-space moments to full-width per-segment arrays (no encode/decode).
 
     ``indi`` slots map 1:1 onto nodes; a ``shared`` slot is broadcast to every
     shared node. Fixed/frozen nodes are 0.
@@ -531,7 +531,7 @@ def moments_by_segment_from_z(exp_avg, exp_avg_sq, schema):
 
 
 def z_moments_from_param_by_segment(moments_m, moments_v, schema, *, dtype=None, device=None):
-    """Pack per-segment Adam moments into z-space tensors (no encode; shared = mean)."""
+    """Pack per-segment moments into z-space tensors (no encode; shared = mean)."""
     n = schema_nparams(schema)
     dt = dtype or SIM_DTYPE
     dev = device or active_device()
@@ -564,9 +564,9 @@ def _remap_param_by_segment(param_by_segment, src_cells, src_pairs, schema, back
     """Remap per-segment arrays onto *backend* node order; ``fill(segment, j)`` for gaps."""
     src_cells = [str(n) for n in src_cells]
     src_pairs = [str(n) for n in (src_pairs or [])]
-    dst_cells = cells_for_backend(backend)
+    dst_cells = cells_from_backend(backend)
     dst_pairs = (
-        pairs_for_backend(backend) if any(s['kind'] == 'edge_pair' for s in schema) else []
+        pairs_from_backend(backend) if any(s['kind'] == 'edge_pair' for s in schema) else []
     )
     src_t = {n: node_idx for node_idx, n in enumerate(src_cells)}
     src_p = {n: node_idx for node_idx, n in enumerate(src_pairs)}
@@ -758,7 +758,7 @@ def parse_optimizable_param_tokens(tokens):
 
 
 def _param_init_idxs(segment_id, node, val, segment, backend):
-    labels = slots_for_segment(segment, backend)
+    labels = slots_from_segment(segment, backend)
     idx_from_label = {str(label): i for i, label in enumerate(labels)}
     if node is None:
         return labels, list(range(len(labels)))

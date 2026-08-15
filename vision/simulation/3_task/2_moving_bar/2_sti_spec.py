@@ -22,7 +22,7 @@ from task.moving_bar.sti_geo import (
     Hex,
     StiHex,
     bar_rect_lane_clipped,
-    coverage_batch,
+    coverages,
     view_bounds,
     i_sti_nodes_from_hex,
     lane_sweep_trail_range,
@@ -124,7 +124,7 @@ def _coverage_time_series(
             )
             if rect is not None:
                 bx0, by0, bx1, by1 = rect
-                out[i] += coverage_batch(hex_stack, bx0, by0, bx1, by1)
+                out[i] += coverages(hex_stack, bx0, by0, bx1, by1)
             trail += trail_shift_deg
     return np.clip(out, 0.0, 1.0)
 
@@ -271,7 +271,7 @@ def _current_from_coverage(
     return i_baseline + coverage * (peak - i_baseline)
 
 
-def build_batched_i_sti_hex(
+def build_i_sti_hex(
     hexes: Sequence[Hex],
     specs: Sequence[MovingBarSpec],
     n_t: int,
@@ -284,19 +284,19 @@ def build_batched_i_sti_hex(
     i_bright_moving_bar: Optional[float] = None,
     i_dark_moving_bar: Optional[float] = None,
 ) -> np.ndarray:
-    """Batched multi-bar hex currents ``(B, T, n_hexes)``.
+    """Multi-b hex currents ``(B, T, n_hexes)``.
 
-    Each batch row superposes simultaneous lane bars for one ``MovingBarSpec``.
+    Each b row superposes simultaneous lane bars for one ``MovingBarSpec``.
     Specs that share direction / width / speed reuse one coverage time series;
     only the bright/dark contrast scaling differs.
     """
-    n_batch = len(specs)
+    n_b = len(specs)
     n_hexes = len(hexes)
-    if n_hexes == 0 or n_batch == 0:
-        return np.zeros((n_batch, n_t, n_hexes), dtype=np.float64)
+    if n_hexes == 0 or n_b == 0:
+        return np.zeros((n_b, n_t, n_hexes), dtype=np.float64)
 
-    out = np.zeros((n_batch, n_t, n_hexes), dtype=np.float64)
-    for b in range(n_batch):
+    out = np.zeros((n_b, n_t, n_hexes), dtype=np.float64)
+    for b in range(n_b):
         out[b, :t_onset] = i_baseline
 
     view_deg = view_bounds(hexes)
@@ -307,14 +307,14 @@ def build_batched_i_sti_hex(
         geometry = (spec.direction, float(spec.width_deg), float(spec.speed_deg_s))
         by_geometry.setdefault(geometry, []).append(b)
 
-    for batch_indices in by_geometry.values():
+    for bs in by_geometry.values():
         cov_ts = _coverage_time_series(
-            hex_stack, specs[batch_indices[0]], view_deg,
+            hex_stack, specs[bs[0]], view_deg,
             n_t=n_t, t_onset=t_onset, delta_ms=delta_ms,
             bar_radius=bar_radius,
             multi_bar=multi_bar,
         )
-        for b in batch_indices:
+        for b in bs:
             out[b, t_onset:] = _current_from_coverage(
                 cov_ts, specs[b].contrast, i_baseline=i_baseline,
                 i_bright_moving_bar=i_bright_moving_bar, i_dark_moving_bar=i_dark_moving_bar,
@@ -363,18 +363,18 @@ def moving_bar_spec_horizon(t_first_stis: Sequence[int], n_t: int) -> Tuple[int,
     return fb, before, after
 
 
-def moving_bar_network_t0_bn(connectome, filt_hexes: Sequence[StiHex], n_batch: int, t0_map: dict) -> np.ndarray:
+def moving_bar_network_t0_bn(connectome, filt_hexes: Sequence[StiHex], n_b: int, t0_map: dict) -> np.ndarray:
     """Expand per-hex ``t0`` values to a full node grid ``(B, N_nodes)``."""
     node_u_np = np.asarray(connectome.us, dtype=np.int64)
     node_v_np = np.asarray(connectome.vs, dtype=np.int64)
-    t0_bn = np.full((n_batch, connectome.n_nodes), -1, dtype=np.int64)
-    for bi in range(n_batch):
+    t0_bn = np.full((n_b, connectome.n_nodes), -1, dtype=np.int64)
+    for b in range(n_b):
         for hex in filt_hexes:
-            t0 = t0_map.get((bi, int(hex.u), int(hex.v)))
+            t0 = t0_map.get((b, int(hex.u), int(hex.v)))
             if t0 is None:
                 continue
             on_hex = (node_u_np == int(hex.u)) & (node_v_np == int(hex.v))
-            t0_bn[bi, on_hex] = t0
+            t0_bn[b, on_hex] = t0
     return t0_bn
 
 
@@ -392,25 +392,25 @@ def build_moving_bar_t0_grids(
     """Plot/train-aligned ``t0`` grid and per-spec full horizons."""
     before_t: Dict[str, int] = {}
     after_t: Dict[str, int] = {}
-    n_batch = len(specs)
+    n_b = len(specs)
     i_baseline = resolve_i_baseline(i_baseline)
 
     t0_map: dict = {}
-    for bi, spec in enumerate(specs):
+    for b, spec in enumerate(specs):
         t_first_all = [
-            hex_first_sti_t(i_sti_hex[bi, :, hex_idx], i_baseline=i_baseline)
+            hex_first_sti_t(i_sti_hex[b, :, hex_idx], i_baseline=i_baseline)
             for hex_idx in hex_indices
         ]
         fb, before, after = moving_bar_spec_horizon(t_first_all, n_t)
         before_t[spec.token] = before
         after_t[spec.token] = after
         t_first_filt = [
-            hex_first_sti_t(i_sti_hex[bi, :, hex_idx], i_baseline=i_baseline)
+            hex_first_sti_t(i_sti_hex[b, :, hex_idx], i_baseline=i_baseline)
             for hex_idx in filt_hex_indices
         ]
         for hex, t_first in zip(filt_network_hexes, t_first_filt):
-            t0_map[(bi, int(hex.u), int(hex.v))] = t_first - fb
-    t0_bn = moving_bar_network_t0_bn(connectome, filt_network_hexes, n_batch, t0_map)
+            t0_map[(b, int(hex.u), int(hex.v))] = t_first - fb
+    t0_bn = moving_bar_network_t0_bn(connectome, filt_network_hexes, n_b, t0_map)
     return MovingBarT0Grids(t0_bn=t0_bn, before_t=before_t, after_t=after_t)
 
 
@@ -512,7 +512,7 @@ def build_moving_bar_signals(
     network_json: Optional[Path] = None,
     sim_dtype: torch.dtype,
 ) -> MovingBarSti:
-    """Build batched sti current for moving-bar stis.
+    """Build sti current for moving-bar stis.
 
     Returns ``i_sti`` with shape ``(B, T, N_nodes)`` where ``B = len(specs)``.
     """
@@ -537,7 +537,7 @@ def build_moving_bar_signals(
         n_t = moving_bar_n_t(
             specs, view_deg, bar_radius, multi_bar=multi_bar, t_onset=t_onset, delta_ms=delta_ms,
         )
-    n_batch = len(specs)
+    n_b = len(specs)
     n_nodes = connectome.n_nodes
     sweep_end = moving_bar_sweep_end_t(
         specs, view_deg, bar_radius, multi_bar=multi_bar, t_onset=t_onset, delta_ms=delta_ms,
@@ -561,7 +561,7 @@ def build_moving_bar_signals(
             logger.info("Loaded moving-bar i_sti_hex from cache %s", cache_path)
 
     if i_sti_hex is None:
-        i_sti_hex = build_batched_i_sti_hex(
+        i_sti_hex = build_i_sti_hex(
             sti, specs, n_t=n_t, bar_radius=bar_radius, multi_bar=multi_bar,
             t_onset=t_onset, delta_ms=delta_ms,
             i_baseline=i_baseline, i_bright_moving_bar=i_bright, i_dark_moving_bar=i_dark,
@@ -572,7 +572,7 @@ def build_moving_bar_signals(
     i_sti_np = i_sti_nodes_from_hex(i_sti_hex, sti, n_nodes)
 
     info = {
-        "n_batch": n_batch,
+        "n_b": n_b,
         "n_sti_hexes": len(sti),
         "bar_radius": bar_radius,
         "multi_bar": multi_bar,

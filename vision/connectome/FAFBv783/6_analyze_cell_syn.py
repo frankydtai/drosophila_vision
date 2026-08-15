@@ -147,13 +147,13 @@ def resolve_query_labels(
     return labels, dict(labels_from_self_cell), dict(labels_from_self_id)
 
 
-def _format_scalar_for_table(z: float) -> str:
+def _format_table_scalar(z: float) -> str:
     if abs(z - round(z)) < 1e-9:
         return str(int(round(z)))
     return f"{z:g}"
 
 
-def _format_mean_scalar_for_table(z: float) -> str:
+def _format_table_mean_scalar(z: float) -> str:
     return f"{z:.2f}"
 
 
@@ -186,10 +186,10 @@ def _format_pairs(
         dx = sum(p[0] for p in items) / n
         dy = sum(p[1] for p in items) / n
         return (
-            f"({_format_mean_scalar_for_table(dx)},{_format_mean_scalar_for_table(dy)})"
+            f"({_format_table_mean_scalar(dx)},{_format_table_mean_scalar(dy)})"
         )
     return ";".join(
-        f"({_format_scalar_for_table(p[0])},{_format_scalar_for_table(p[1])})"
+        f"({_format_table_scalar(p[0])},{_format_table_scalar(p[1])})"
         for p in sorted(items)
     )
 
@@ -809,14 +809,14 @@ def resolve_xy_instance_ids(
         ids_at_hex = instance_ids_at_hex(nodes, hu, hv)
         at_ref_xy = (float(at_x), float(at_y))
         hex_note = (
-            f" at (x,y)=({_format_scalar_for_table(at_ref_xy[0])},"
-            f"{_format_scalar_for_table(at_ref_xy[1])})"
+            f" at (x,y)=({_format_table_scalar(at_ref_xy[0])},"
+            f"{_format_table_scalar(at_ref_xy[1])})"
         )
         logger.info(
             "Restricting to instances at (x,y)=(%s,%s) (u,v)=(%s,%s); "
             "%d cells have ≥1 node there",
-            _format_scalar_for_table(at_ref_xy[0]),
-            _format_scalar_for_table(at_ref_xy[1]),
+            _format_table_scalar(at_ref_xy[0]),
+            _format_table_scalar(at_ref_xy[1]),
             hu,
             hv,
             sum(1 for s in ids_at_hex.values() if s),
@@ -828,9 +828,9 @@ def resolve_xy_instance_ids(
         raise ValueError(f"no instances match --x={at_x!r} --y={at_y!r}")
     parts = []
     if at_x is not None:
-        parts.append(f"x={_format_scalar_for_table(at_x)}")
+        parts.append(f"x={_format_table_scalar(at_x)}")
     if at_y is not None:
-        parts.append(f"y={_format_scalar_for_table(at_y)}")
+        parts.append(f"y={_format_table_scalar(at_y)}")
     hex_note = " at " + ", ".join(parts)
     logger.info(
         "Restricting to instances on %s; %d cells have ≥1 node there",
@@ -1050,16 +1050,16 @@ def main(argv: List[str] | None = None) -> int:
             at_ref_xy = (hx, hy)
             hex_note += (
                 f" at hex (u,v)=({hu},{hv}) "
-                f"(x,y)=({_format_scalar_for_table(hx)},"
-                f"{_format_scalar_for_table(hy)})"
+                f"(x,y)=({_format_table_scalar(hx)},"
+                f"{_format_table_scalar(hy)})"
             )
             logger.info(
                 "Restricting to instances at (u,v)=(%s,%s) "
                 "(x,y)=(%s,%s); %d cells have ≥1 node there",
                 hu,
                 hv,
-                _format_scalar_for_table(hx),
-                _format_scalar_for_table(hy),
+                _format_table_scalar(hx),
+                _format_table_scalar(hy),
                 sum(1 for s in ids_at_hex.values() if s),
             )
         else:

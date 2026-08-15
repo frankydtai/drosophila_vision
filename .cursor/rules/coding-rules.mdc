@@ -37,7 +37,7 @@ Scope: `vision/`.
 
 ## B core script rules: `simulation/**`
 
-Disk tree under `simulation/` and `connectome/FAFBv783/` uses sorted `N_name` prefixes for **core only**. Core = numbered. Numbered = core. Non-core is unnumbered. Simulation core = `1_neuron_model/`, `2_network/`, `3_task/`, `4_train/`, `5_figure/`, `6_analyze/`. Non-core (`experiment/`, `test/`) is unnumbered. Imports use the **logical** name only (`neuron_model`, `network.construction`, `map_column`). Renumber = rename on disk only; do not change logical import strings or `vision/import_bootstrap.py`. Enable via `import import_bootstrap` (and project `.venv` `simulation_sorted.pth`) before logical imports.
+Disk tree under `simulation/` and `connectome/FAFBv783/` uses sorted `N_name` prefixes for **core only**. Core = numbered. Numbered = core. Non-core is unnumbered. Simulation core = `1_neuron_model/`, `2_network/`, `3_task/`, `4_train/`, `5_figure/`, `6_analyze/`. Non-core (`test/`) is unnumbered. Imports use the **logical** name only (`neuron_model`, `network.construction`, `map_column`). Renumber = rename on disk only; do not change logical import strings or `vision/import_bootstrap.py`. Enable via `import import_bootstrap` (and project `.venv` `simulation_sorted.pth`) before logical imports.
 
 Core numbering rules:
 1. Smaller `N` = imported earlier and completed / ready earlier.
@@ -49,7 +49,7 @@ Core numbering rules:
 2. `run.py`: general driver only; `import train` must not parse argv or touch CUDA.
 3. Path constants in `path.py` / `train/config.py` (logical); disk file is under `4_train/`. 
 4. CSVs: rectangular; global scalars as constant columns.
-5. Core codes must stay flexible for `experiment/` or `test/` to easily import, modify, and overwrite without touching core codes.
+5. Core codes must stay flexible for `test/` to easily import, modify, and overwrite without touching core codes.
 6. No reverse plot dependency (HARD STOP 5). Scope: `simulation/2_network/**`, `connectome/**`, `1_neuron_model/**`, `3_task/**`, `4_train/**` (non-plot), `path.py`. Shared logic needed by both plot and core → move into core (e.g. `3_task/1_spot/`, `3_task/2_moving_bar/`); never import plot layers from core.
 7. Numeric defaults: sole source is `vision/default_params.py` (`default_params`) — literals / constant bags only (physics, schema boxes, sti, CLI); no functions, no formulas. Only `4_train` / 5_figures / 6_analyze / run scripts may import it. `1_neuron` / `2_network` / `3_task` take numbers by injection only and must not import `default_params` (Gruntman paradigm ms/geometry constants may live in `task.moving_bar`). Constants follow original definition order across numbered cores `1.1` … `4.9` (empty cores omitted).
 10. No reverse plot dependency: core must not import or call plotting. Forbidden: `import figure.plot`, `from figure.plot import …`, and the alias `plot_trained`.
@@ -68,4 +68,4 @@ Core numbering rules:
 4. Align with existing names (HARD STOP 1): do not invent a new token when a sibling pattern already names the same idea.
 5. Idx / mask / lookup / gathered-value locals must name both the object and the role; never use opaque names like `u` / `_u`.
 6. Never concatenate two English words in an identifier without `_` between them (Forbidden: `sumsq`; Required: `sum_sq`). Singular scalar `sum_sq`; collection/array/dict of them `sum_sqs`.
-7. Single-letter tokens are forbidden in identifiers (`b`, `_b`, `_i`, loop `for b in …`). Use full words (`batch_idx`, `batch_sums`, `step_idx`). Exception: lexicon single-letter nouns only — see lexicon.
+7. Single-letter tokens are forbidden in identifiers except lexicon single-letter nouns (`a` / `a_*`, `b` / `bs`, `f` / `fs`, `n` / `n_<noun>`, `t` / `n_t`, `z`, …) — see lexicon. Forbidden examples outside those nouns: `_i`, opaque loop vars.

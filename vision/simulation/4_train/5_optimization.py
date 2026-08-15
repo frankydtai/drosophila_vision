@@ -43,7 +43,7 @@ class TrainResult:
     cost_curve: np.ndarray   # per-step scaled total for ``argmin(final_costs)``
     cost_curves_by_part: Dict[str, np.ndarray] = field(default_factory=dict)
     final_costs_by_part: Dict[str, np.ndarray] = field(default_factory=dict)
-    # Per-run Adam moments at best_z: exp_avg, exp_avg_sq (n_params,), step (int).
+    # Per-run moments at best_z: exp_avg, exp_avg_sq (n_params,), step (int).
     run_adams: tuple = ()
 
 
@@ -78,7 +78,7 @@ def gradient_network(z, lr=0.0001, cost_fn=None, n_iters=100, device="cpu", z_bo
 
     optimizer = torch.optim.Adam([z], lr=lr)
     if opt_init is not None:
-        _load_adam_moments(optimizer, z, opt_init)
+        _load_moments(optimizer, z, opt_init)
 
     def _measure_cost(param_z):
         if eval_cost is not None:
@@ -227,7 +227,7 @@ def gradient_network(z, lr=0.0001, cost_fn=None, n_iters=100, device="cpu", z_bo
     return best_z, best_opt
 
 
-def adam_moments_from_state_dict(state_dict, n_params, *, dtype, device):
+def moments_from_state_dict(state_dict, n_params, *, dtype, device):
     """Pull ``(exp_avg, exp_avg_sq, iter)`` from a single-param Adam ``state_dict``."""
     state = state_dict.get('state') or {}
     if not state:
@@ -249,13 +249,13 @@ def adam_moments_from_state_dict(state_dict, n_params, *, dtype, device):
     )
 
 
-def _load_adam_moments(optimizer, z, opt_init):
-    """Install named/z Adam moments into *optimizer* for parameter *z* (keep group lr)."""
+def _load_moments(optimizer, z, opt_init):
+    """Install named/z moments into *optimizer* for parameter *z* (keep group lr)."""
     exp_avg = opt_init['exp_avg'].detach().to(device=z.device, dtype=z.dtype)
     exp_avg_sq = opt_init['exp_avg_sq'].detach().to(device=z.device, dtype=z.dtype)
     if exp_avg.shape != z.shape or exp_avg_sq.shape != z.shape:
         raise ValueError(
-            f"adam moment shape {tuple(exp_avg.shape)}/{tuple(exp_avg_sq.shape)} "
+            f"moment shape {tuple(exp_avg.shape)}/{tuple(exp_avg_sq.shape)} "
             f"!= z shape {tuple(z.shape)}"
         )
     adam_iter = float(opt_init.get('iter', 0))
@@ -394,7 +394,7 @@ def do_many_runs(session: TrainSession, n_run, n_iter, lrs=(0.1, 0.01, 0.001),
         )
 
         run_params[i] = z_best.detach().cpu().numpy()
-        exp_avg, exp_avg_sq, adam_iter = adam_moments_from_state_dict(
+        exp_avg, exp_avg_sq, adam_iter = moments_from_state_dict(
             opt_state, n_params, dtype=z_best.dtype, device='cpu',
         )
         run_adams.append({

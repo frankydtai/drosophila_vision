@@ -111,17 +111,17 @@ class Spot:
 
 
 @dataclass(frozen=True)
-class SpotBatch:
-    """One simultaneous spot sti: all ``sti_uv`` hexes step in one batch."""
+class SpotB:
+    """One simultaneous spot sti: all ``sti_uv`` hexes step in one b."""
 
     shift: tuple[int, int]
     sti_uv: tuple[tuple[int, int], ...]
 
 
-def spot_sti_batches(spot: Spot) -> list[SpotBatch]:
-    """One batch per shift; each batch steps all spot centers (+ shift) together."""
+def spot_sti_bs(spot: Spot) -> list[SpotB]:
+    """One b per shift; each b steps all spot centers (+ shift) together."""
     return [
-        SpotBatch(
+        SpotB(
             shift=(int(du), int(dv)),
             sti_uv=tuple(
                 (int(cu + du), int(cv + dv)) for cu, cv in spot.centers

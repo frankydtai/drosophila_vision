@@ -81,7 +81,7 @@ def cost_part(session, z, part_key: str) -> dict:
             f"part {part_key!r} is not a spot fine part_key "
             f"(expected prefix in {train.SPOT_TASKS})",
         )
-    pack = session.pack_for(task)
+    pack = session.pack_from_task(task)
     fwd = _pack_cost_forward(params, pack, session)
     if fwd is None:
         raise SystemExit(f"no cost forward for pack {task!r}")

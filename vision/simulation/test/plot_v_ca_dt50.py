@@ -1,4 +1,4 @@
-"""Plot spot center traces: v, ca (Δt=10), and v re-run at Δt=50 for 13 fit cells.
+"""Plot spot center traces: v, ca (Δt=10), and v re-run at Δt=50 for 13 gt cells.
 
 Usage (from ``SimulationCode/``):
 
@@ -57,8 +57,8 @@ def _apply_spot_timing(opts: dict, *, ms_pre: float, ms_response: float) -> dict
 
 
 @torch.no_grad()
-def _fit_center_traces(session, z, *, return_v_delta: bool) -> dict[str, np.ndarray]:
-    """Mean center-hex (du=dv=0) trace per fit cell from one ``forward_full``.
+def _gt_center_traces(session, z, *, return_v_delta: bool) -> dict[str, np.ndarray]:
+    """Mean center-hex (du=dv=0) trace per gt cell from one ``forward_full``.
 
     Apply ``out_scale`` like ``model_data_spot`` ca traces (same for v / vΔt
     so the three overlays share amplitude).
@@ -221,13 +221,13 @@ def main():
     one10, z10 = _session_z_at_delta_ms(
         base_opts, model, named, cell_names, pairs, DELTA_MS,
     )
-    traces_v = _fit_center_traces(one10, z10, return_v_delta=True)
-    traces_ca = _fit_center_traces(one10, z10, return_v_delta=False)
+    traces_v = _gt_center_traces(one10, z10, return_v_delta=True)
+    traces_ca = _gt_center_traces(one10, z10, return_v_delta=False)
 
     one50, z50 = _session_z_at_delta_ms(
         base_opts, model, named, cell_names, pairs, float(args.dt50),
     )
-    traces_v50 = _fit_center_traces(one50, z50, return_v_delta=True)
+    traces_v50 = _gt_center_traces(one50, z50, return_v_delta=True)
 
     set_delta_ms(DELTA_MS)
     _plot(

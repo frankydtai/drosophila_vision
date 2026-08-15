@@ -153,7 +153,7 @@ def _clip_rect_area(
     return min(1.0, _poly_area_xy(px, py, n) / hex_area)
 
 
-def coverage_batch(
+def coverages(
     hex_stack: np.ndarray,
     xmin: float,
     ymin: float,
@@ -396,8 +396,8 @@ def _hex_node_map(hexes: Sequence[StiHex]) -> Tuple[np.ndarray, np.ndarray]:
 
 def i_sti_nodes_from_hex(i_sti_hex, hexes, n_nodes):
     """Map ``(B, T, n_hexes)`` i_sti_hex to ``(B, T, n_nodes)`` by hex→node index."""
-    n_batch, n_t, _ = i_sti_hex.shape
-    out = np.zeros((n_batch, n_t, n_nodes), dtype=np.float64)
+    n_b, n_t, _ = i_sti_hex.shape
+    out = np.zeros((n_b, n_t, n_nodes), dtype=np.float64)
     hex_indices, node_indices = _hex_node_map(hexes)
     if len(hex_indices):
         out[:, :, node_indices] = i_sti_hex[:, :, hex_indices]

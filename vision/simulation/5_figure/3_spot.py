@@ -34,23 +34,22 @@ from figure.util import (
     TRACE_LW,
     ElapsedTimer,
     annotate_v_th,
-    params_for_types,
     readout_prep_s,
     format_spot_radius_time_title,
-    gt_affine_scalars_for_cell,
+    gt_affine_from_cell,
     gt_trace_affine,
-    e_leak_by_cell_from_z,
+    e_leak_from_z,
     session_filter_figure_token,
     hex_at_scope_tag,
     mark_spot,
-    overlay_v_readout_reds,
+    overlay_reds,
     plot_pre_post_line,
     plot_timecourse,
     save_figure,
     std_from_traces,
-    slice_coord_specs,
+    overlay_coords,
     suppress_cost_std,
-    v_th_by_cell_from_z,
+    v_th_from_z,
 )
 from network.construction import cell_rows, cells_in_order
 from network import path  # noqa: F401 -- FAFBv783 on sys.path
@@ -62,7 +61,7 @@ from task.moving_bar.sti_geo import (
 )
 from task.spot.sti_geo import (
     resolve_spot,
-    spot_sti_batches,
+    spot_sti_bs,
 )
 from task.spot.sti_spec import (
     resolve_sti_timing,
@@ -250,7 +249,7 @@ def _style_rf_profile_axis(ax, show_xlabel):
 def _scale_contrast_series(
     series, *, t_onset, t_sti_end, center_radius=RF_CENTER_RADIUS, t_delay=0,
 ):
-    """Scale each contrast series entry to gt / v_readout plot slices.
+    """Scale each contrast series entry to gt / v_readout plot curves.
 
     ``series`` items may include ``v_readout``, ``gt``, ``std``.
     Returns a list of dicts with ``v_readout_center``, ``v_readout_spatial``,
@@ -432,12 +431,12 @@ def plot_cell_rf_time(
     )
 
 
-def plot_cell_rf_time_slices(
+def plot_cell_rf_time_overlays(
     ax_rf,
     ax_time,
     title,
     series,
-    slice_labels,
+    overlay_labels,
     *,
     time_title=None,
     show_legend=False,
@@ -454,10 +453,10 @@ def plot_cell_rf_time_slices(
     delta_ms_pre,
     ms_shown=None,
 ):
-    """RF + time panels with per-slice overlays across contrast ``series``."""
+    """RF + time panels with per-overlay curves across contrast ``series``."""
     center_radius = RF_CENTER_RADIUS
     sc_kw = dict(t_onset=t_onset, t_sti_end=t_sti_end, t_delay=t_delay)
-    colors = overlay_v_readout_reds(len(slice_labels))
+    colors = overlay_reds(len(overlay_labels))
     t = np.arange(n_t)
     pre_end = int(t_onset or 0)
     mark_spot(ax_time, t_onset, t_sti_end)
@@ -466,7 +465,7 @@ def plot_cell_rf_time_slices(
         ls = item.get("linestyle", "-")
         v_readout = item.get("v_readout")
         gt = item.get("gt")
-        slice_overlay = item.get("slice_overlay") or {}
+        overlay = item.get("overlay") or {}
         v_readout_center = v_readout_spatial = None
         if v_readout is not None:
             v_readout_center, v_readout_spatial, _ = scale_curve(
@@ -475,21 +474,21 @@ def plot_cell_rf_time_slices(
         gt_center = gt_spatial = None
         if gt is not None:
             gt_center, gt_spatial, _ = scale_curve(gt, center_radius, **sc_kw)
-        slice_centers = {}
-        slice_spatials = {}
-        for label in slice_labels:
-            if label in slice_overlay:
-                center_s, spatial_s, _ = scale_curve(slice_overlay[label], center_radius, **sc_kw)
-                slice_centers[label] = center_s
-                slice_spatials[label] = spatial_s
+        overlay_centers = {}
+        overlay_spatials = {}
+        for label in overlay_labels:
+            if label in overlay:
+                center_s, spatial_s, _ = scale_curve(overlay[label], center_radius, **sc_kw)
+                overlay_centers[label] = center_s
+                overlay_spatials[label] = spatial_s
 
         _plot_rf_profile(
             ax_rf, gt_spatial, color=GT_COLOR,
             label=item.get("label_gt"), linestyle=ls,
         )
-        for i, label in enumerate(slice_labels):
+        for i, label in enumerate(overlay_labels):
             _plot_rf_profile(
-                ax_rf, slice_spatials.get(label), color=colors[i],
+                ax_rf, overlay_spatials.get(label), color=colors[i],
                 label=label if si == 0 else None, linestyle=ls,
             )
         _plot_rf_profile(
@@ -501,9 +500,9 @@ def plot_cell_rf_time_slices(
             ax_time, t, gt_center, pre_end=pre_end, show_pre=False, plot_pre=False,
             color=GT_COLOR, linestyle=ls, linewidth=TRACE_LW,
         )
-        for i, label in enumerate(slice_labels):
+        for i, label in enumerate(overlay_labels):
             plot_pre_post_line(
-                ax_time, t, slice_centers.get(label), pre_end=pre_end,
+                ax_time, t, overlay_centers.get(label), pre_end=pre_end,
                 show_pre=show_pre, plot_pre=True,
                 color=colors[i], linestyle=ls, linewidth=TRACE_LW,
                 label=label if si == 0 else None,
@@ -563,17 +562,17 @@ class SpotTraceReadout:
     cells: list
     row_idxs: list | None = None
     session: object = None
-    slice_overlay: dict[str, dict[str, np.ndarray]] | None = None
-    slice_labels: list[str] | None = None
-    slice_xs: list | None = None
-    slice_ys: list | None = None
+    overlay: dict[str, dict[str, np.ndarray]] | None = None
+    overlay_labels: list[str] | None = None
+    overlay_xs: list | None = None
+    overlay_ys: list | None = None
     n_t: int = 0
     prep_s: float = 0.0
     v_readout_by_cell: dict = field(default_factory=dict)
     std_by_cell: dict = field(default_factory=dict)
-    n_by_radius_by_cell: dict = field(default_factory=dict)
+    n_by_cell: dict = field(default_factory=dict)
     v_th_by_cell: dict = field(default_factory=dict)
-    e_leaks: dict = field(default_factory=dict)
+    e_leak_by_cell: dict = field(default_factory=dict)
     gt_affine_by_cell: dict = field(default_factory=dict)
     t_onset: int | None = None
     show_pre: bool = True
@@ -583,12 +582,8 @@ class SpotTraceReadout:
     a_sti_radius: dict[str, float] = field(default_factory=dict)
 
     @property
-    def has_slices(self):
-        return bool(self.slice_overlay)
-
-
-def _by_cell_subset(bag, cells):
-    return {cell: bag[cell] for cell in cells if cell in bag}
+    def has_overlays(self):
+        return bool(self.overlay)
 
 
 def _row_idxs_from_cell_rows(cell_rows, figure_cells):
@@ -613,15 +608,30 @@ def _spot_readout_gt_view(readout):
         row_idxs=_row_idxs_from_cell_rows(rows, cells),
         session=session,
         n_t=readout.n_t,
-        v_readout_by_cell=_by_cell_subset(readout.v_readout_by_cell, cells),
-        std_by_cell=_by_cell_subset(readout.std_by_cell, cells),
-        n_by_radius_by_cell={
-            cell: dict(readout.n_by_radius_by_cell.get(cell) or {})
+        v_readout_by_cell={
+            cell: readout.v_readout_by_cell[cell] for cell in cells
+            if cell in readout.v_readout_by_cell
+        },
+        std_by_cell={
+            cell: readout.std_by_cell[cell] for cell in cells
+            if cell in readout.std_by_cell
+        },
+        n_by_cell={
+            cell: dict(readout.n_by_cell.get(cell) or {})
             for cell in cells
         },
-        v_th_by_cell=_by_cell_subset(readout.v_th_by_cell, cells),
-        e_leaks=_by_cell_subset(readout.e_leaks, cells),
-        gt_affine_by_cell=_by_cell_subset(readout.gt_affine_by_cell, cells),
+        v_th_by_cell={
+            cell: readout.v_th_by_cell[cell] for cell in cells
+            if cell in readout.v_th_by_cell
+        },
+        e_leak_by_cell={
+            cell: readout.e_leak_by_cell[cell] for cell in cells
+            if cell in readout.e_leak_by_cell
+        },
+        gt_affine_by_cell={
+            cell: readout.gt_affine_by_cell[cell] for cell in cells
+            if cell in readout.gt_affine_by_cell
+        },
         t_onset=readout.t_onset,
         show_pre=readout.show_pre,
         t_sti_end=readout.t_sti_end,
@@ -641,7 +651,7 @@ def _layout_cells_from_readouts(readouts, order):
     return cells, _row_idxs_from_cell_rows(rows, cells)
 
 
-def _spot_v_readouts_from_readout_mask(readout, mask):
+def _spot_v_readout_from_readout_mask(readout, mask):
     figure_cells = readout['figure_cells']
     cells = readout['cells']
     mt = readout['mt']
@@ -676,24 +686,24 @@ def _spot_readout_hex_mask(connectome, node_idx, cost_radius, *, at_x=None, at_y
     )
 
 
-def _spot_slice_overlay(readout, connectome, at_xs, at_ys):
+def _spot_overlay(readout, connectome, at_xs, at_ys):
     """Per-hex readout overlays (same ``filter_sti_hexes`` scope as moving_bar)."""
     overlay = {}
     labels = []
     pack = readout['pack']
     node_idx = readout['node_idx']
-    for label, at_x, at_y in slice_coord_specs(at_xs, at_ys):
+    for label, at_x, at_y in overlay_coords(at_xs, at_ys):
         mask = _spot_readout_hex_mask(
             connectome, node_idx, pack.cost_radius, at_x=at_x, at_y=at_y,
         )
         if not np.any(mask):
-            print(f'skip slice overlay {label}: no hex within cost_radius')
+            print(f'skip overlay {label}: no hex within cost_radius')
             continue
-        v_readouts = _spot_v_readouts_from_readout_mask(readout, mask)
-        if not any(np.isfinite(v_readout).any() for v_readout in v_readouts.values()):
-            print(f'skip slice overlay {label}: no readouts')
+        v_readout_by_cell = _spot_v_readout_from_readout_mask(readout, mask)
+        if not any(np.isfinite(v_readout).any() for v_readout in v_readout_by_cell.values()):
+            print(f'skip overlay {label}: no readouts')
             continue
-        overlay[label] = v_readouts
+        overlay[label] = v_readout_by_cell
         labels.append(label)
     if not overlay:
         return None, None
@@ -712,14 +722,14 @@ def _forward_spot_readout(
     params = train.override_val_from(
         train.assign_params(z, schema, session.backend), session,
     )
-    a_sti_radius_by_radius = {}
+    a_sti_radius = {}
     if "a_sti_radius" in params:
         for segment in schema:
             if segment.get("segment") != "a_sti_radius":
                 continue
             radius_keys = [str(n) for n in (segment.get("radius_keys") or ())]
             raw = params["a_sti_radius"].detach().cpu().numpy().reshape(-1)
-            a_sti_radius_by_radius = {
+            a_sti_radius = {
                 radius_keys[i]: float(raw[i]) for i in range(min(len(radius_keys), raw.size))
             }
             break
@@ -738,18 +748,18 @@ def _forward_spot_readout(
 
     opts = dict((session.train_opts or {}).get(f"{pack.task}_sti_opts") or {})
     spot = resolve_spot(connectome, sti_opts=opts)
-    batches = spot_sti_batches(spot)
+    spot_bs = spot_sti_bs(spot)
     active = cells_in_order(connectome.cells)
     rows = [np.array(row) for row in cell_rows(active)]
     figure_cells = cells_in_order(active)
 
     (
-        batch_idx, node_idx, _radius, type_idx, _sti_u, _sti_v, du, dv, center_entry_mask,
+        bs, node_idx, _radius, type_idx, _sti_u, _sti_v, du, dv, center_entry_mask,
     ) = build_spot_center_readout(
-        connectome, batches, pack_spot_cost_radii(pack), pack.cost_radius,
+        connectome, spot_bs, pack_spot_cost_radii(pack), pack.cost_radius,
     )
 
-    figure_traces = trace_full[batch_idx, :, node_idx].cpu().numpy()
+    figure_traces = trace_full[bs, :, node_idx].cpu().numpy()
 
     sti_ms_pre = opts.get("ms_pre")
     dt = float(opts["delta_ms"])
@@ -776,11 +786,11 @@ def _forward_spot_readout(
                 delta_ms=timing.delta_ms,
             )
         ),
-        batch_idx=batch_idx,
-        batches=batches,
+        bs=bs,
+        spot_bs=spot_bs,
         mt=mt,
         pack=pack,
-        a_sti_radius=a_sti_radius_by_radius,
+        a_sti_radius=a_sti_radius,
     )
     mask = np.asarray(center_entry_mask, dtype=bool)
     if at_x is not None or at_y is not None:
@@ -791,14 +801,16 @@ def _forward_spot_readout(
         cell: np.unique(node_idx[mask & (type_idx == cells.index(cell))])
         for cell in figure_cells
     }
-    readout['v_th_by_cell'] = params_for_types(
-        nodes_by_cell, v_th_by_cell_from_z(z, session),
-    )
-    readout['e_leaks'] = params_for_types(
-        nodes_by_cell, e_leak_by_cell_from_z(z, session),
-    )
+    v_th = v_th_from_z(z, session)
+    e_leak = e_leak_from_z(z, session)
+    readout['v_th_by_cell'] = {
+        cell: v_th.get(cell, np.nan) for cell in nodes_by_cell
+    }
+    readout['e_leak_by_cell'] = {
+        cell: e_leak.get(cell, np.nan) for cell in nodes_by_cell
+    }
     readout['gt_affine_by_cell'] = {
-        cell: gt_affine_scalars_for_cell(
+        cell: gt_affine_from_cell(
             params, cell, session.backend, session=session,
         )
         for cell in figure_cells
@@ -812,10 +824,10 @@ def _spot_v_readout_from_readout(readout, session):
     mt = readout['mt']
     v_stack = np.full((len(figure_cells), RF_N_RADII, mt), np.nan)
     std_stack = np.full((len(figure_cells), RF_N_RADII, mt), np.nan)
-    n_by_radius_by_cell = {}
+    n_by_cell = {}
     for ti, ft in enumerate(figure_cells):
         ft_global = readout['cells'].index(ft)
-        n_by_radius_by_cell[ft] = _fill_member_v_readout(
+        n_by_cell[ft] = _fill_member_v_readout(
             v_stack, std_stack, ti, ft_global,
             readout['type_idx'], readout['du'], readout['dv'], readout['figure_traces'],
         )
@@ -831,7 +843,7 @@ def _spot_v_readout_from_readout(readout, session):
     row_idxs = _row_idxs_from_cell_rows(readout['cell_rows'], figure_cells)
     return (
         figure_cells, row_idxs, mt,
-        v_readout_by_cell, std_by_cell, n_by_radius_by_cell,
+        v_readout_by_cell, std_by_cell, n_by_cell,
     )
 
 
@@ -853,31 +865,31 @@ def network_spot_trace_readout(
     )
     (
         cells, row_idxs, n_t,
-        v_readout_by_cell, std_by_cell, n_by_radius_by_cell,
+        v_readout_by_cell, std_by_cell, n_by_cell,
     ) = _spot_v_readout_from_readout(readout, session)
-    slice_overlay, slice_labels = (None, None)
+    overlay, overlay_labels = (None, None)
     if at_xs is not None or at_ys is not None:
         connectome = session.backend.network
         if connectome is None:
-            raise ValueError("spot slice overlay requires a network backend")
-        slice_overlay, slice_labels = _spot_slice_overlay(
+            raise ValueError("spot overlay requires a network backend")
+        overlay, overlay_labels = _spot_overlay(
             readout, connectome, at_xs, at_ys,
         )
     return SpotTraceReadout(
         cells=cells,
         row_idxs=row_idxs,
         session=session,
-        slice_overlay=slice_overlay,
-        slice_labels=slice_labels,
-        slice_xs=at_xs,
-        slice_ys=at_ys,
+        overlay=overlay,
+        overlay_labels=overlay_labels,
+        overlay_xs=at_xs,
+        overlay_ys=at_ys,
         n_t=n_t,
         prep_s=time.perf_counter() - t_prep0,
         v_readout_by_cell=v_readout_by_cell,
         std_by_cell=std_by_cell,
-        n_by_radius_by_cell=n_by_radius_by_cell,
+        n_by_cell=n_by_cell,
         v_th_by_cell=dict(readout.get('v_th_by_cell') or {}),
-        e_leaks=dict(readout.get('e_leaks') or {}),
+        e_leak_by_cell=dict(readout.get('e_leak_by_cell') or {}),
         gt_affine_by_cell=dict(readout.get('gt_affine_by_cell') or {}),
         t_onset=readout.get('t_onset'),
         show_pre=bool(show_pre),
@@ -894,8 +906,8 @@ def _spot_suptitle(title, readout):
         a_sti_radius = readout.a_sti_radius
         if a_sti_radius and "1" in a_sti_radius:
             head = f"a_sti_radius 1 = {float(a_sti_radius['1']):.4g}"
-        if readout.has_slices:
-            scope = hex_at_scope_tag(readout.slice_xs, readout.slice_ys)
+        if readout.has_overlays:
+            scope = hex_at_scope_tag(readout.overlay_xs, readout.overlay_ys)
             return f'{head}  [{scope}, overlay + scope]'
     return head
 
@@ -946,8 +958,8 @@ def _plot_spot_figure(
         raise ValueError("_plot_spot_figure requires at least one readout")
     primary = readouts[order[0]]
     cells, row_idxs = _layout_cells_from_readouts(readouts, order)
-    has_slices = primary.has_slices
-    slice_labels = primary.slice_labels or []
+    has_overlays = primary.has_overlays
+    overlay_labels = primary.overlay_labels or []
     n_t = primary.n_t
     t_onset = primary.t_onset
     t_sti_end = primary.t_sti_end
@@ -961,7 +973,7 @@ def _plot_spot_figure(
     )
     gt_cell_idx = {name: i for i, name in enumerate(GT_CELLS)}
 
-    def _t_delay_for_cell(name):
+    def _t_delay_from_cell(name):
         idx = gt_cell_idx.get(name)
         return 0 if idx is None else int(t_delay[idx])
 
@@ -981,7 +993,7 @@ def _plot_spot_figure(
     gs = fig.add_gridspec(n_row, n_col, **gridspec_kw)
     legend_done = False
 
-    def _series_for_cell(cell, *, with_slices):
+    def _series_from_cell(cell, *, with_overlays):
         series = []
         for contrast in order:
             ro = readouts[contrast]
@@ -1001,22 +1013,22 @@ def _plot_spot_figure(
                 ),
                 "label_scope": f"{contrast} scope",
             }
-            if with_slices:
-                overlay = ro.slice_overlay
+            if with_overlays:
+                overlay = ro.overlay
                 if overlay is not None:
-                    entry["slice_overlay"] = {
-                        label: v_readouts[cell]
-                        for label, v_readouts in overlay.items()
-                        if cell in v_readouts
+                    entry["overlay"] = {
+                        label: v_readout_by_cell[cell]
+                        for label, v_readout_by_cell in overlay.items()
+                        if cell in v_readout_by_cell
                     }
                 else:
-                    entry["slice_overlay"] = {}
+                    entry["overlay"] = {}
             series.append(entry)
         return series
 
     def _plot_cell(cell, ax_rf, ax_time, show_ylabel, show_xlabels):
         nonlocal legend_done
-        n_by_radius = primary.n_by_radius_by_cell.get(cell) or {}
+        n_by_radius = primary.n_by_cell.get(cell) or {}
         time_title = format_spot_radius_time_title(
             center_radius,
             n_by_radius.get(center_radius),
@@ -1025,20 +1037,20 @@ def _plot_spot_figure(
             order,
         )
         v_th = primary.v_th_by_cell.get(cell)
-        e_leak = primary.e_leaks.get(cell)
-        if has_slices and primary.slice_overlay is not None:
+        e_leak = primary.e_leak_by_cell.get(cell)
+        if has_overlays and primary.overlay is not None:
             series = _series_with_cost_points(
-                _series_for_cell(cell, with_slices=True),
+                _series_from_cell(cell, with_overlays=True),
                 readouts,
                 float(center_radius),
             )
-            slice_overlay = (series[0].get("slice_overlay") or {}) if series else {}
-            if not slice_overlay:
+            overlay = (series[0].get("overlay") or {}) if series else {}
+            if not overlay:
                 ax_rf.axis("off")
                 ax_time.axis("off")
                 return
-            plot_cell_rf_time_slices(
-                ax_rf, ax_time, cell, series, slice_labels,
+            plot_cell_rf_time_overlays(
+                ax_rf, ax_time, cell, series, overlay_labels,
                 time_title=time_title,
                 show_legend=not legend_done,
                 show_xlabels=show_xlabels,
@@ -1049,14 +1061,14 @@ def _plot_spot_figure(
                 t_onset=t_onset,
                 show_pre=show_pre,
                 t_sti_end=t_sti_end,
-                t_delay=_t_delay_for_cell(cell),
+                t_delay=_t_delay_from_cell(cell),
                 delta_ms=delta_ms,
                 delta_ms_pre=delta_ms_pre,
                 ms_shown=ms_shown,
             )
         else:
             series = _series_with_cost_points(
-                _series_for_cell(cell, with_slices=False),
+                _series_from_cell(cell, with_overlays=False),
                 readouts,
                 float(center_radius),
             )
@@ -1072,7 +1084,7 @@ def _plot_spot_figure(
                 t_onset=t_onset,
                 show_pre=show_pre,
                 t_sti_end=t_sti_end,
-                t_delay=_t_delay_for_cell(cell),
+                t_delay=_t_delay_from_cell(cell),
                 delta_ms=delta_ms,
                 delta_ms_pre=delta_ms_pre,
                 ms_shown=ms_shown,
@@ -1089,7 +1101,7 @@ def _plot_spot_figure(
             col = start + j
             cell = cells[ci]
             ax_rf = fig.add_subplot(gs[rf_row, col])
-            if has_slices:
+            if has_overlays:
                 ax_time = fig.add_subplot(gs[time_row0, col])
                 _plot_cell(
                     cell, ax_rf, ax_time,
@@ -1100,7 +1112,7 @@ def _plot_spot_figure(
                     ax_off.axis("off")
                 continue
 
-            series = _series_for_cell(cell, with_slices=False)
+            series = _series_from_cell(cell, with_overlays=False)
             show_legend = not legend_done
             plot_cell_rf(
                 ax_rf, cell, series,
@@ -1109,13 +1121,13 @@ def _plot_spot_figure(
                 show_ylabel=(j == 0),
                 t_onset=t_onset,
                 t_sti_end=t_sti_end,
-                t_delay=_t_delay_for_cell(cell),
+                t_delay=_t_delay_from_cell(cell),
             )
             legend_done = True
             ylim0 = None
-            n_by_radius = primary.n_by_radius_by_cell.get(cell) or {}
+            n_by_radius = primary.n_by_cell.get(cell) or {}
             v_th = primary.v_th_by_cell.get(cell)
-            e_leak = primary.e_leaks.get(cell)
+            e_leak = primary.e_leak_by_cell.get(cell)
             for local_i, rr in enumerate(range(time_row0, row_cursor + group_h)):
                 ax_t = fig.add_subplot(gs[rr, col])
                 if local_i >= len(radii):
@@ -1137,7 +1149,7 @@ def _plot_spot_figure(
                     t_onset=t_onset,
                     show_pre=show_pre,
                     t_sti_end=t_sti_end,
-                    t_delay=_t_delay_for_cell(cell),
+                    t_delay=_t_delay_from_cell(cell),
                     delta_ms=delta_ms,
                     delta_ms_pre=delta_ms_pre,
                     ms_shown=ms_shown,

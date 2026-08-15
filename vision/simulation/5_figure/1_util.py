@@ -28,7 +28,7 @@ def as_numpy(arr):
     return np.asarray(arr)
 
 
-def gt_affine_scalars_for_cell(params, cell, backend, session=None) -> tuple[float, float]:
+def gt_affine_from_cell(params, cell, backend, session=None) -> tuple[float, float]:
     """``(a_gt, effective_bias)`` for one cell (matches cost).
 
     ``params`` must already have ``override_val_from`` applied so
@@ -130,16 +130,6 @@ def annotate_v_th(ax, v_th, *, e_leak=None):
     )
 
 
-def params_for_types(nodes_by_cell, param_by_segment=None):
-    """``{cell: value}`` per type from *param_by_segment*."""
-    param_by_segment = param_by_segment or {}
-    out = {}
-    for name in nodes_by_cell:
-        val = param_by_segment.get(name, np.nan)
-        out[name] = float(val) if val is not None and np.isfinite(val) else np.nan
-    return out
-
-
 def mark_spot(ax, t_onset, t_sti_end):
     """White band for sti-on samples ``[t_onset, t_sti_end]`` (axes face is gray)."""
     if t_onset is None or t_sti_end is None:
@@ -154,7 +144,7 @@ def mark_spot(ax, t_onset, t_sti_end):
 
 def suppress_cost_std(session, task=None):
     """True when cost uses a single hex (no hex-mean STD band)."""
-    pack = session.primary_pack if task is None else session.pack_for(task)
+    pack = session.primary_pack if task is None else session.pack_from_task(task)
     return pack.cost_radius == 0
 
 
@@ -189,22 +179,22 @@ def std_from_traces(traces, single_hex=False):
     return traces.std(axis=0)
 
 
-def v_th_by_cell_from_z(z, session):
-    """Per-cell ``v_th`` (absolute mV)."""
-    return _param_by_cell(z, session, 'v_th')
+def v_th_from_z(z, session):
+    """``v_th`` (mV) keyed by cell, decoded from ``z``."""
+    return _param_from_z(z, session, 'v_th')
 
 
-def e_leak_by_cell_from_z(z, session):
-    """Per-cell leak reversal mV from ``e_leak``."""
-    return _param_by_cell(z, session, 'e_leak')
+def e_leak_from_z(z, session):
+    """``e_leak`` (mV) keyed by cell, decoded from ``z``."""
+    return _param_from_z(z, session, 'e_leak')
 
 
-def _param_by_cell(z, session, segment):
+def _param_from_z(z, session, segment):
     schema = list(session.schema)
     if segment not in {s.get('segment') for s in schema}:
         return {}
     arr = np.asarray(train.node_values_from_z(z, schema)[segment], dtype=np.float64).reshape(-1)
-    cells = train.cells_for_backend(session.backend)
+    cells = train.cells_from_backend(session.backend)
     if arr.shape[0] != len(cells):
         raise ValueError(f"{segment} length {arr.shape[0]} != n_cells {len(cells)}")
     return {str(n): float(arr[i]) for i, n in enumerate(cells)}
@@ -333,7 +323,7 @@ def ms_shown_axis_xlim(ms_shown, *, delta_ms, origin_t=0):
 
 
 def hex_at_scope_tag(at_x, at_y):
-    """Subtitle fragment for plot hex slice."""
+    """Subtitle fragment for plot hex overlay."""
 
     def token(val):
         v = float(val)
@@ -351,7 +341,7 @@ def hex_at_scope_tag(at_x, at_y):
     return ', '.join(parts)
 
 
-def slice_coord_specs(at_xs, at_ys):
+def overlay_coords(at_xs, at_ys):
     """Expand optional x/y lists to ``[(label, at_x, at_y), ...]`` (missing axis is None)."""
 
     def axis_label(val):
@@ -372,8 +362,8 @@ def slice_coord_specs(at_xs, at_ys):
     return []
 
 
-def slice_axis(at_xs, at_ys):
-    """``'xy'`` / ``'x'`` / ``'y'`` / ``None`` matching :func:`slice_coord_specs`."""
+def overlay_axis(at_xs, at_ys):
+    """``'xy'`` / ``'x'`` / ``'y'`` / ``None`` matching :func:`overlay_coords`."""
     if at_xs is not None and at_ys is not None:
         return 'xy'
     if at_xs is not None:
@@ -383,9 +373,9 @@ def slice_axis(at_xs, at_ys):
     return None
 
 
-def overlay_v_readout_reds(n_slices):
-    """Red shades for per-slice traces plus a darker scope trace."""
-    n = n_slices + 1
+def overlay_reds(n_overlays):
+    """Red shades for per-overlay traces plus a darker scope trace."""
+    n = n_overlays + 1
     return [plt.cm.Reds(v) for v in np.linspace(0.35, 0.95, n)]
 
 
@@ -812,12 +802,6 @@ def plot_cost(costs, path, *, costs_by_part=None, part_order=None):
         _save_total_only()
         return
 
-    def _normalize_radius(r_f: float):
-        r_i = int(round(r_f))
-        if abs(r_f - r_i) < 1e-6:
-            return r_i
-        return float(r_f)
-
     def _spot_parse(part_key: str):
         if part_key.startswith("spot_bright_"):
             contrast = "bright"
@@ -835,7 +819,8 @@ def plot_cost(costs, path, *, costs_by_part=None, part_order=None):
             r_f = float(r_s)
         except ValueError:
             return None
-        r = _normalize_radius(r_f)
+        r_i = int(round(r_f))
+        r = r_i if abs(r_f - r_i) < 1e-6 else float(r_f)
         # prefix is "{task}_{cell}"
         cell = part_key[len(task) + 1:pos]
         return cell, contrast, r
@@ -864,8 +849,8 @@ def plot_cost(costs, path, *, costs_by_part=None, part_order=None):
     other_role_ids_order: list = []
     other_role_ids_seen: set = set()
 
-    curve_specs_by_cell: dict[str, list] = {}
-    curve_specs_global: list = []
+    curves_by_cell: dict[str, list] = {}
+    curves_global: list = []
 
     for part_key in part_keys:
         curve = np.asarray(costs_by_part[part_key], dtype=np.float64)
@@ -878,7 +863,7 @@ def plot_cost(costs, path, *, costs_by_part=None, part_order=None):
             spot_radii.add(r)
             role_id = ("spot_r", r)
             label = f"R{r} ({contrast})" if contrast else f"R{r}"
-            curve_specs_by_cell.setdefault(cell, []).append((role_id, label, curve))
+            curves_by_cell.setdefault(cell, []).append((role_id, label, curve))
             continue
 
         parsed_moving = _moving_bar_parse(part_key)
@@ -888,9 +873,9 @@ def plot_cost(costs, path, *, costs_by_part=None, part_order=None):
             role_id = ("moving_role", role)
             label = f"{role} ({contrast})" if contrast else role
             if cell is None:
-                curve_specs_global.append((role_id, label, curve))
+                curves_global.append((role_id, label, curve))
             else:
-                curve_specs_by_cell.setdefault(cell, []).append((role_id, label, curve))
+                curves_by_cell.setdefault(cell, []).append((role_id, label, curve))
             continue
 
         # unknown / future task parts:
@@ -904,9 +889,9 @@ def plot_cost(costs, path, *, costs_by_part=None, part_order=None):
         matches = [cell for cell in known_cells if cell and cell in part_key]
         if matches:
             cell = max(matches, key=len)
-            curve_specs_by_cell.setdefault(cell, []).append((role_id, part_key, curve))
+            curves_by_cell.setdefault(cell, []).append((role_id, part_key, curve))
         else:
-            curve_specs_global.append((role_id, part_key, curve))
+            curves_global.append((role_id, part_key, curve))
 
     # Build deterministic color mapping:
     # - spot radii first: R0, R1, R2, ...
@@ -929,11 +914,11 @@ def plot_cost(costs, path, *, costs_by_part=None, part_order=None):
 
     # Layout: [total log + parts log] then [total linear + parts linear].
     n_col = N_COL_GT
-    active_cells = set(curve_specs_by_cell.keys())
+    active_cells = set(curves_by_cell.keys())
     rows = cell_rows(sorted(active_cells))
     n_cell_row = len(rows)
 
-    n_global_axes = len(curve_specs_global)
+    n_global_axes = len(curves_global)
     n_global_row = (n_global_axes + n_col - 1) // n_col if n_global_axes else 0
     n_part_row = n_cell_row + n_global_row
     n_block_row = 1 + n_part_row
@@ -948,14 +933,14 @@ def plot_cost(costs, path, *, costs_by_part=None, part_order=None):
 
     cell_curves = [
         curve
-        for specs in curve_specs_by_cell.values()
-        for _, _, curve in specs
+        for cell_curves_list in curves_by_cell.values()
+        for _, _, curve in cell_curves_list
     ]
 
-    def _sorted_specs(cell):
-        specs = curve_specs_by_cell.get(cell) or []
+    def _sorted_curves(cell):
+        cell_curves_list = curves_by_cell.get(cell) or []
         return sorted(
-            specs,
+            cell_curves_list,
             key=lambda x: role_id_order.index(x[0]) if x[0] in role_id_order else 10**9,
         )
 
@@ -977,9 +962,9 @@ def plot_cost(costs, path, *, costs_by_part=None, part_order=None):
             start = (n_col - len(row_cells)) // 2
             for j, cell in enumerate(row_cells):
                 ax = fig.add_subplot(gs[row_idx, start + j])
-                specs = _sorted_specs(cell)
+                cell_curves_list = _sorted_curves(cell)
                 curves = []
-                for role_id, label, curve in specs:
+                for role_id, label, curve in cell_curves_list:
                     curves.append(curve)
                     ax.plot(
                         curve, color=color_from_role_id.get(role_id),
@@ -996,13 +981,13 @@ def plot_cost(costs, path, *, costs_by_part=None, part_order=None):
                     ax.set_ylabel("cost [% gt power]", fontsize=8)
                 ax.set_title(str(cell), fontsize=8)
                 ax.grid(True, alpha=0.3, which='both' if log else 'major')
-                if with_legend and (not legend_done) and len(specs) > 1:
+                if with_legend and (not legend_done) and len(cell_curves_list) > 1:
                     ax.legend(fontsize=7)
                     legend_done = True
                 if gi == n_cell_row - 1:
                     ax.set_xlabel("step")
 
-        for gi, (role_id, label, curve) in enumerate(curve_specs_global):
+        for gi, (role_id, label, curve) in enumerate(curves_global):
             row_idx = row0 + n_cell_row + gi // n_col
             col = gi % n_col
             ax = fig.add_subplot(gs[row_idx, col])

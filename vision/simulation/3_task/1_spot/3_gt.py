@@ -231,7 +231,7 @@ def _bandpass(x, hp_tau_ms, lp_tau_ms, *, delta_ms: float):
 
 
 def normalize_ir(x):
-    """Baseline-subtract and peak-normalize an ir trace."""
+    """Baseline-subtract and normalize an ir trace (unit peak)."""
     x = x - x[0]
     mymax = np.nanmax(x)
     mymin = np.nanmin(x)

@@ -139,7 +139,7 @@ def moving_bar_cell_cost_part_key(task: str, cell: str, part: str) -> str:
     return f"{task}_{cell}_{part}"
 
 
-def cost_part_keys_for_task(task: str) -> Tuple[str, ...]:
+def cost_part_keys_from_task(task: str) -> Tuple[str, ...]:
     """Coarse part_keys for CLI ``--part-cost-scale`` (before packs exist)."""
     if task in MOVING_BAR_TASKS:
         return tuple(
@@ -149,11 +149,11 @@ def cost_part_keys_for_task(task: str) -> Tuple[str, ...]:
     return (task,)
 
 
-def cost_part_keys_for_pack(pack, backend) -> Tuple[str, ...]:
+def cost_part_keys_from_pack(pack, backend) -> Tuple[str, ...]:
     """Fine part_keys from pack entries with ``cost_scales > 0`` (+ pack-level DSI)."""
     net = backend.network
     if net is None:
-        raise ValueError("cost_part_keys_for_pack requires backend.network")
+        raise ValueError("cost_part_keys_from_pack requires backend.network")
     w = pack.cost_scales
     entry_mask = w > 0
     cell_ids = net.node_cells[pack.entry_nodes]
@@ -202,15 +202,15 @@ def session_cost_part_keys(tasks, session=None) -> Tuple[str, ...]:
     if session is not None:
         part_keys: List[str] = []
         for task in session.tasks:
-            part_keys.extend(cost_part_keys_for_pack(session.pack_for(task), session.backend))
+            part_keys.extend(cost_part_keys_from_pack(session.pack_from_task(task), session.backend))
         return tuple(part_keys)
     part_keys = []
     for task in tasks:
-        part_keys.extend(cost_part_keys_for_task(task))
+        part_keys.extend(cost_part_keys_from_task(task))
     return tuple(part_keys)
 
 
-def coarse_part_keys_for_part(part_key: str) -> Tuple[str, ...]:
+def coarse_part_keys_from_part(part_key: str) -> Tuple[str, ...]:
     """Parent coarse part_keys a fine part inherits ``part_cost_scales`` from."""
     for lab in (*PD_ND_LABELS, "DSI"):
         suf = f"_{lab}"

@@ -103,7 +103,7 @@ def resolve_inits(val_pairs, slots):
 
 
 def resolve_modes(mode_pairs, slots):
-    """Fold ``(nodes|None, mode)`` pairs into a ``modes`` bag."""
+    """Fold ``(nodes|None, mode)`` pairs into ``modes``."""
     slots = [str(slot) for slot in slots]
     idx_from = {slot: i for i, slot in enumerate(slots)}
     node_mode = {}
@@ -144,13 +144,6 @@ def val_mode_pairs_from_optimizable(segment_optimizable, segment):
         val_pairs.extend(more_vals)
         mode_pairs.extend(more_modes)
     return val_pairs, mode_pairs
-
-
-def normalize_syn_mode(syn_mode: str) -> str:
-    mode = str(syn_mode)
-    if mode not in SYN_MODES:
-        raise ValueError(f"syn_mode {mode!r} not in {SYN_MODES}")
-    return mode
 
 
 def syn_strength(params):
@@ -233,7 +226,7 @@ def segments_from_optimizable(
     a_sti_radii,
 ):
     """Build segments in ``optimizable`` insertion order; ``skip`` omits unused segments."""
-    mode = normalize_syn_mode(syn_mode)
+    mode = syn_mode
     active_syn = (
         "syn_strength_edge" if mode == "per_edge" else "syn_strength_cell"
     )
@@ -346,7 +339,7 @@ def build_schema(
     if backend.network is None:
         raise ValueError("build_schema requires backend.network")
     cells = [str(t) for t in backend.network.cells]
-    mode = normalize_syn_mode(syn_mode)
+    mode = syn_mode
     n_pairs = getattr(backend.conn, "n_pairs", None)
     n_edges = getattr(backend.conn, "n_edges", None)
     if mode == "per_edge":

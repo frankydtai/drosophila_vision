@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """Shared full-T absolute ``v`` forward for all neuron models.
 
-Per-model modules supply only ``normalize_i_sti`` / ``pre_steady`` / ``step``.
+Per-model modules supply only ``standardize_i_sti`` / ``pre_steady`` / ``step``.
 This module owns the time loop. Train / plots read absolute ``v``
 when ``train_opts['filter']=='none'``; with ``'ca'``, readout is ``ca`` from
 ``neuron.filter_ca`` on ``v_ca = relu(v − v_th_ca)·a_ca``. Cost compares the
@@ -15,7 +15,7 @@ from neuron import model_borst as _model_borst
 from neuron import model_hp_lp as _model_hp_lp
 from neuron.filter_ca import filter_ca
 
-# Per-model dynamics for ``forward_full`` (normalize_i_sti / pre_steady / step only).
+# Per-model dynamics for ``forward_full`` (standardize_i_sti / pre_steady / step only).
 MODEL_DRIVERS = {
     "borst": _model_borst,
     "hp_lp": _model_hp_lp,
@@ -42,23 +42,23 @@ def inject_a_sti_radius(i_sti, params, pack):
     if a_sti_radius_indices is None or "a_sti_radius" not in params:
         return i_sti
     wave = pack.sti_wave
-    batch = pack.sti_batches
+    sti_bs = pack.sti_bs
     node = pack.sti_nodes
-    if wave is None or batch is None or node is None:
+    if wave is None or sti_bs is None or node is None:
         raise ValueError(
-            "spot pack a_sti_radius_indices set but sti_wave/sti_batches/sti_nodes missing"
+            "spot pack a_sti_radius_indices set but sti_wave/sti_bs/sti_nodes missing"
         )
     if i_sti.dim() == 2:
         i_sti = i_sti.unsqueeze(0)
     a_sti_radius = a_sti_radius_effective(params, pack)
     out = i_sti.clone()
-    if batch.numel() == 0:
+    if sti_bs.numel() == 0:
         return out
-    B, T, N = out.shape
+    n_b, n_t, n_nodes = out.shape
     add = a_sti_radius[a_sti_radius_indices][:, None] * wave[None, :]
-    flat = out.permute(0, 2, 1).reshape(B * N, T)
-    flat.index_add_(0, batch * N + node, add)
-    return flat.reshape(B, N, T).permute(0, 2, 1).contiguous()
+    flat = out.permute(0, 2, 1).reshape(n_b * n_nodes, n_t)
+    flat.index_add_(0, sti_bs * n_nodes + node, add)
+    return flat.reshape(n_b, n_nodes, n_t).permute(0, 2, 1).contiguous()
 
 
 def pack_t_onset(pack) -> int:
@@ -127,12 +127,12 @@ def forward_v(session, params, i_sti, *, pack=None):
     drv = MODEL_DRIVERS[session.model]
     pack = pack or session.primary_pack
     i_sti = inject_a_sti_radius(
-        drv.normalize_i_sti(session, params, i_sti, pack), params, pack,
+        drv.standardize_i_sti(session, params, i_sti, pack), params, pack,
     )
-    B, t_end = int(i_sti.shape[0]), int(i_sti.shape[1])
+    n_b, t_end = int(i_sti.shape[0]), int(i_sti.shape[1])
     t_onset = pack_t_onset(pack)
     pre_grad = bool((session.train_opts or {})["pre_grad"])
-    state, v = drv.pre_steady(session, params, B, i_sti=i_sti)
+    state, v = drv.pre_steady(session, params, n_b, i_sti=i_sti)
     v_rows = [v]
 
     def take(t):
@@ -168,7 +168,7 @@ def forward_full(session, params, i_sti, *, pack=None):
     """Shared full-T forward for every ``session.model``.
 
     Time index ``t`` is post-update at sample ``t``. Drive comes from
-    ``MODEL_DRIVERS[model].normalize_i_sti`` / ``pre_steady`` / ``step``.
+    ``MODEL_DRIVERS[model].standardize_i_sti`` / ``pre_steady`` / ``step``.
 
     ``session.train_opts['pre_grad']`` (default ``True``): when ``False``, steps
     with ``t < t_onset`` run under ``torch.no_grad()``, then ``v`` / ``state``

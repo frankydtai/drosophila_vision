@@ -34,9 +34,9 @@ def _require(path: Path) -> Path:
     return path
 
 
-def resolve_run_dir(spec: str) -> Path:
+def resolve_run_dir(run: str) -> Path:
     """Resolve a ``4_built_networks`` run folder from a name or path."""
-    return path.resolve_network_json(spec).parent
+    return path.resolve_network_json(run).parent
 
 
 def add_radius(run_dir: Path, crop_radius: int) -> Path:

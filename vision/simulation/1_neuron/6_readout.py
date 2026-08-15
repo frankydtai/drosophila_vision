@@ -46,28 +46,28 @@ def pack_traces(trace_full, pack):
     t0 = pack_t_onset(pack)
     n_t = int(pack.gts.shape[1])
     if pack.cost_t0s is None:
-        return trace_full[pack.entry_batches, t0:t0 + n_t, pack.entry_nodes]
+        return trace_full[pack.entry_bs, t0:t0 + n_t, pack.entry_nodes]
     return window_time_traces(
-        trace_full, pack.entry_batches, pack.entry_nodes, pack.cost_t0s,
+        trace_full, pack.entry_bs, pack.entry_nodes, pack.cost_t0s,
         n_t, t_onset=t0,
     )
 
 
-def pack_cost_traces(params, pack, session, batch_idx=None):
+def pack_cost_traces(params, pack, session, b=None):
     """Shared pack cost traces via ``forward_full`` (waveform MSE only when needed)."""
-    i_sti = pack.i_sti if batch_idx is None else pack.i_sti[batch_idx:batch_idx + 1]
+    i_sti = pack.i_sti if b is None else pack.i_sti[b:b + 1]
     trace_full = forward_full(session, params, i_sti, pack=pack)
     t0 = pack_t_onset(pack)
     n_t = int(pack.gts.shape[1])
     need_mse = pack_needs_waveform_mse(pack)
-    if batch_idx is None:
-        v_dsi = trace_full[pack.entry_batches, t0:t0 + n_t, pack.entry_nodes]
+    if b is None:
+        v_dsi = trace_full[pack.entry_bs, t0:t0 + n_t, pack.entry_nodes]
         if not need_mse:
             return None, v_dsi
         if pack.cost_t0s is None:
             return v_dsi, v_dsi
         return pack_traces(trace_full, pack), v_dsi
-    mask = pack.entry_batches == int(batch_idx)
+    mask = pack.entry_bs == int(b)
     u_m = pack.entry_nodes[mask]
     v_dsi = trace_full[0, t0:t0 + n_t, u_m].transpose(0, 1)
     if not need_mse:
@@ -80,5 +80,5 @@ def pack_cost_traces(params, pack, session, batch_idx=None):
     ), v_dsi
 
 
-# Model → pack cost traces (both share ``pack_cost_traces``; batching in train.cost).
+# Model → pack cost traces (both share ``pack_cost_traces``; b_axis in train.cost).
 CA_PACK_COST_TRACES = {"borst": pack_cost_traces, "hp_lp": pack_cost_traces}

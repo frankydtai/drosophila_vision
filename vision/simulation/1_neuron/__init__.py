@@ -28,7 +28,6 @@ from neuron.schema import (
     build_borst_schema,
     build_hp_lp_schema,
     build_schema,
-    normalize_syn_mode,
     syn_strength,
 )
 from neuron import model_borst as _model_borst
@@ -75,7 +74,6 @@ __all__ = [
     "build_schema",
     "build_borst_schema",
     "build_hp_lp_schema",
-    "normalize_syn_mode",
     "syn_strength",
     "update_v",
     "v_component_from_g",

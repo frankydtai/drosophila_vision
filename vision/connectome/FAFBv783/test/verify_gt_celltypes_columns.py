@@ -24,7 +24,7 @@ import import_bootstrap  # noqa: F401
 
 from build_network import FafbDataLoader  # noqa: E402
 
-# vision/SimulationCode/Medulla_Library.py legacy cell bag (the 13 cells
+# vision/SimulationCode/Medulla_Library.py legacy cells (the 13 cells
 # with measured impulse-response gt).
 GT_CELLS = [
     "L1", "L2", "L3", "L4", "L5",

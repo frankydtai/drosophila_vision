@@ -28,8 +28,6 @@ import torch
 
 import import_bootstrap  # noqa: F401
 from .connectivity import ScatterConn
-from neuron.schema import normalize_syn_mode
-
 # Photoreceptor drive currents (pA) are injected by the caller
 # (``default_params.I_*``); this module has no numeric bindings.
 
@@ -123,7 +121,7 @@ def hex2gt(
     )[0]
 
 
-def normalize_cost_radius(cost_radius=None):
+def standardize_cost_radius(cost_radius=None):
     """``None`` or ``-1`` → unrestricted (all hexes); else non-negative int."""
     if cost_radius is None:
         return None
@@ -135,7 +133,7 @@ def normalize_cost_radius(cost_radius=None):
 
 def hex_in_cost_radius(u, v, cost_radius=None) -> bool:
     """True when axial ``(u, v)`` lies in the cost hex disc (``None`` = all hexes)."""
-    cost_radius = normalize_cost_radius(cost_radius)
+    cost_radius = standardize_cost_radius(cost_radius)
     if cost_radius is None:
         return True
     import build_hex
@@ -166,13 +164,6 @@ def gt_cells_from_opts(opts) -> tuple[str, ...] | None:
     if rs is None:
         return None
     return tuple(str(s) for s in rs)
-
-
-def normalize_gt_cells(gt_cells: Sequence[str] | None) -> list[str] | None:
-    """Serialize ``gt_cells`` for sti opts, or ``None`` if unset."""
-    if gt_cells is None:
-        return None
-    return [str(s) for s in gt_cells]
 
 
 def load_network_json(path) -> tuple[list[dict], list[dict], list[str], dict]:
@@ -207,7 +198,7 @@ def load_network(
     device = device or ("cuda" if torch.cuda.is_available() else "cpu")
     path = Path(path)
     nodes, edges, cells, meta = load_network_json(path)
-    mode = normalize_syn_mode(syn_mode)
+    mode = syn_mode
 
     n_nodes = len(nodes)
     node_ids = [int(n["id"]) for n in nodes]

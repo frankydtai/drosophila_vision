@@ -66,7 +66,6 @@ from neuron.param import membrane_dt_over_c, t_from_ms
 from neuron import (
     build_schema,
     expand_euler,
-    normalize_syn_mode,
 )
 
 from train.config import (
@@ -101,7 +100,7 @@ from train.param import (
     resolve_param_modes,
     build_i_h_dirs,
     resolve_val_from,
-    slots_for_segment,
+    slots_from_segment,
     schema_nparams,
     schema_param_modes_record,
     sim_dtype_from_fp,
@@ -121,11 +120,11 @@ from task.spot.pack import (
 from task.spot.sti_geo import (
     resolve_spot,
     spot_radius_half_steps,
-    spot_sti_batches,
+    spot_sti_bs,
 )
 from task.spot.sti_spec import (
     build_spot_a_sti_radius_drive,
-    normalize_sti_timing,
+    standardize_sti_timing,
     resolve_sti_timing,
 )
 from task.moving_bar.gt import expand_gt_cells as expand_moving_bar_gt_cells
@@ -135,7 +134,7 @@ from task.moving_bar.pack import (
     enrich_moving_bar_sti_opts,
 )
 from network.construction import (
-    load_network, gt_cells_from_opts, node_cells, normalize_cost_radius,
+    load_network, gt_cells_from_opts, standardize_cost_radius,
 )
 
 
@@ -152,7 +151,7 @@ class Pack:
     gts: torch.Tensor  # (n_cost, T')
     power: torch.Tensor  # scalar
     cost_scales: torch.Tensor  # (n_cost,)
-    entry_batches: torch.Tensor  # (n_cost,)
+    entry_bs: torch.Tensor  # (n_cost,)
     entry_nodes: torch.Tensor  # (n_cost,)
     cost_t0s: Optional[torch.Tensor] = None  # (n_cost,) absolute step for windowed readouts
     cost_radius: Optional[int] = None  # hex-disc radius for cost readouts
@@ -171,9 +170,9 @@ class Pack:
     cost_time_mask: Optional[torch.Tensor] = None  # (n_cost, n_sample) 0/1 per-radius
     waveform_mse: bool = True  # spot: True; moving bar: set at build
     t_onset: Optional[int] = None  # explicit onset; spot when ms_post extends i_sti past gt
-    # Spot a_sti_radius: i = i_sti + a_sti_radius[r] * sti_wave on (sti_batches, sti_nodes).
+    # Spot a_sti_radius: i = i_sti + a_sti_radius[r] * sti_wave on (sti_bs, sti_nodes).
     sti_wave: Optional[torch.Tensor] = None  # (T,) (i_peak - i_baseline) * u(t)
-    sti_batches: Optional[torch.Tensor] = None  # (n_contrib,) long
+    sti_bs: Optional[torch.Tensor] = None  # (n_contrib,) long
     sti_nodes: Optional[torch.Tensor] = None  # (n_contrib,) long
     a_sti_radius_indices: Optional[torch.Tensor] = None  # (n_contrib,) long → a_sti_radius index
     # (n_sti_slots,) 0/1: cost-radius scale==0 forces a_sti_radius slot to 0 in forward.
@@ -186,7 +185,7 @@ class TrainSession:
 
     Membrane / synapse scalars are flat fields (injected from
     ``default_params`` at session open). ``delta_ms`` / ``delta_ms_pre`` come
-    only from sti opts — never a separate Physics bag.
+    only from sti opts — never nested under Physics.
     """
 
     backend: ModelBackend
@@ -239,7 +238,7 @@ class TrainSession:
             i_sti = i_sti.squeeze(0)
         return i_sti
 
-    def pack_for(self, task: str) -> Pack:
+    def pack_from_task(self, task: str) -> Pack:
         if task not in self.packs:
             raise KeyError(f"pack {task!r} not in session")
         return self.packs[task]
@@ -252,140 +251,6 @@ def resolve_cell_indices(cells, backend: ModelBackend):
     wanted = [str(n) for n in cells]
     vocab = list(backend.network.cells)
     return [vocab.index(n) for n in wanted if n in vocab]
-
-
-def extend_pack_mirror_fit(pack, mirror_types, mirror_fit, mirror_sign=-1.0, backend=None):
-    """Extend a :class:`Pack`: mirror *mirror_fit* gts onto *mirror_types*."""
-    if backend is None or backend.network is None:
-        raise ValueError("extend_pack_mirror_fit requires backend.network")
-    connectome = backend.network
-    node_cell = node_cells(connectome)
-    entry_nodes_idx = pack.entry_nodes.cpu().numpy()
-    b_arr = pack.entry_batches.cpu().numpy()
-    w_arr = pack.cost_scales.cpu().numpy()
-    r_arr = (
-        pack.entry_radii.cpu().numpy()
-        if pack.entry_radii is not None else None
-    )
-    network_node_u = connectome.us.detach().cpu().numpy() if hasattr(connectome.us, "detach") else np.asarray(connectome.us)
-    network_node_v = connectome.vs.detach().cpu().numpy() if hasattr(connectome.vs, "detach") else np.asarray(connectome.vs)
-    extra_batch, extra_node_idx, extra_entries, extra_cost_scales, extra_radius, extra_pd_nd = [], [], [], [], [], []
-    for entry_i in range(len(entry_nodes_idx)):
-        node_idx = int(entry_nodes_idx[entry_i])
-        if str(node_cell[node_idx]) != mirror_fit:
-            continue
-        batch = int(b_arr[entry_i])
-        mirror_fit_node_u, mirror_fit_node_v = int(network_node_u[node_idx]), int(network_node_v[node_idx])
-        mirror_gt = float(mirror_sign) * pack.gts[entry_i:entry_i + 1]
-        cost_scale = float(w_arr[entry_i])
-        radius = int(r_arr[entry_i]) if r_arr is not None else None
-        for mtype in mirror_types:
-            candidates = np.where(
-                (network_node_u == mirror_fit_node_u)
-                & (network_node_v == mirror_fit_node_v)
-                & (node_cell == str(mtype))
-            )[0]
-            for candidate_node_idx in candidates:
-                extra_batch.append(batch)
-                extra_node_idx.append(int(candidate_node_idx))
-                extra_entries.append(mirror_gt)
-                extra_cost_scales.append(cost_scale)
-                if radius is not None:
-                    extra_radius.append(radius)
-                if pack.cost_pd_nds is not None:
-                    extra_pd_nd.append(int(pack.cost_pd_nds[entry_i].item()))
-    return _append_mirror_pack_entries(
-        pack, extra_node_idx, extra_entries,
-        entry_batches=extra_batch, cost_scales=extra_cost_scales,
-        entry_radii=extra_radius if extra_radius else None,
-        cost_pd_nds=extra_pd_nd if extra_pd_nd else None,
-    )
-
-
-def _append_mirror_pack_entries(
-    pack, extra_nodes, extra_entries, entry_batches=None, cost_scales=None,
-    entry_radii=None, cost_pd_nds=None,
-):
-    extra_nodes_t = torch.tensor(extra_nodes, dtype=torch.long, device=active_device())
-    extra_gts = torch.cat(extra_entries, dim=0)
-    n_all = int(pack.entry_nodes.shape[0]) + len(extra_nodes)
-    n_extra = len(extra_nodes)
-    if entry_batches is None:
-        entry_batches = torch.zeros(n_extra, dtype=torch.long, device=active_device())
-    else:
-        entry_batches = torch.tensor(entry_batches, dtype=torch.long, device=active_device())
-    if cost_scales is None:
-        w_dtype = pack.cost_scales.dtype
-        cost_scales = torch.ones(n_all, dtype=w_dtype, device=active_device())
-    else:
-        base_w = pack.cost_scales
-        w_dtype = base_w.dtype
-        cost_scales = torch.cat([
-            base_w,
-            torch.tensor(cost_scales, dtype=w_dtype, device=active_device()),
-        ])
-    entry_radii_out = pack.entry_radii
-    if entry_radii is not None:
-        base_r = pack.entry_radii
-        extra_r_t = torch.tensor(
-            entry_radii, dtype=torch.long, device=active_device(),
-        )
-        entry_radii_out = (
-            torch.cat([base_r, extra_r_t])
-            if base_r is not None else extra_r_t
-        )
-    gts = torch.cat([pack.gts, extra_gts], dim=0)
-    cost_pd_nd_out = pack.cost_pd_nds
-    if cost_pd_nds is not None:
-        extra_pd_t = torch.tensor(cost_pd_nds, dtype=torch.long, device=active_device())
-        cost_pd_nd_out = (
-            torch.cat([pack.cost_pd_nds, extra_pd_t])
-            if pack.cost_pd_nds is not None else extra_pd_t
-        )
-    return Pack(
-        task=pack.task,
-        i_sti=pack.i_sti,
-        gts=gts,
-        power=pack.power + torch.sum(extra_gts ** 2),
-        cost_scales=cost_scales,
-        entry_batches=torch.cat([pack.entry_batches, entry_batches]),
-        entry_nodes=torch.cat([pack.entry_nodes, extra_nodes_t]),
-        cost_t0s=pack.cost_t0s,
-        cost_radius=pack.cost_radius,
-        entry_radii=entry_radii_out,
-        cost_pd_nds=cost_pd_nd_out,
-        dsi_pos_entries=pack.dsi_pos_entries,
-        dsi_neg_entries=pack.dsi_neg_entries,
-        dsi_pos_ptr=pack.dsi_pos_ptr,
-        dsi_neg_ptr=pack.dsi_neg_ptr,
-        dsi_gts=pack.dsi_gts,
-        dsi_scales=pack.dsi_scales,
-        dsi_power=pack.dsi_power,
-        cost_time_indices=pack.cost_time_indices,
-        cost_time_mask=pack.cost_time_mask,
-        waveform_mse=pack.waveform_mse,
-        t_onset=pack.t_onset,
-    )
-
-
-def override_pack(pack, pack_mirror_fit, backend: ModelBackend):
-    """Merge one serializable pack mirror_fit dict (saved in ``train_opts.json``)."""
-    specs = pack_mirror_fit.get("mirror_fit")
-    if specs is None:
-        raise ValueError(f"unknown pack_mirror_fit {pack_mirror_fit!r}")
-    if isinstance(specs, dict):
-        specs = [specs]
-    for spec in specs:
-        if "mirror_types" not in spec:
-            raise ValueError(f"mirror_fit spec needs mirror_types: {spec!r}")
-        pack = extend_pack_mirror_fit(
-            pack,
-            mirror_types=[str(t) for t in spec["mirror_types"]],
-            mirror_fit=spec["mirror_fit"],
-            mirror_sign=float(spec.get("mirror_sign", -1.0)),
-            backend=backend,
-        )
-    return pack
 
 
 def _network_backend_from_connectome(
@@ -415,7 +280,7 @@ def load_network_backend(
 ) -> ModelBackend:
     """Load connectome network into a :class:`ModelBackend`."""
     dev = dev or active_device()
-    mode = normalize_syn_mode(syn_mode)
+    mode = syn_mode
     connectome = load_network(
         network_json, device=dev,
         a_syn_exc=a_syn_exc, a_syn_inh=a_syn_inh,
@@ -487,10 +352,10 @@ def _cost_radius_hex_coltag(cost_radius, n_cost_hexes) -> str:
     radius_tag = "all hexes" if cost_radius is None else f"radius={int(cost_radius)}"
     if isinstance(n_cost_hexes, dict):
         hex_labels = ", ".join(
-            f"b{int(batch)}={int(n_hex)}"
-            for batch, n_hex in sorted(n_cost_hexes.items())
+            f"b{int(b)}={int(n_hex)}"
+            for b, n_hex in sorted(n_cost_hexes.items())
         )
-        return f"cost hexes per batch [{hex_labels}], {radius_tag}"
+        return f"cost hexes per b [{hex_labels}], {radius_tag}"
     return f"{int(n_cost_hexes)} cost hexes, {radius_tag}"
 
 
@@ -504,11 +369,11 @@ def _build_network_moving_bar_pack(
     dev = ctx.dev or active_device()
     opts = _moving_bar_contrast_opts(ctx, contrast)
     if "cost_radius" in opts:
-        cost_radius = normalize_cost_radius(opts["cost_radius"])
+        cost_radius = standardize_cost_radius(opts["cost_radius"])
     else:
         network_radius = int(connectome.meta.get("radius", -1))
         network_cost_radius = -1 if network_radius <= 0 else network_radius - 1
-        cost_radius = normalize_cost_radius(network_cost_radius)
+        cost_radius = standardize_cost_radius(network_cost_radius)
     build_kw = dict(
         connectome=connectome,
         device=dev,
@@ -535,7 +400,7 @@ def _build_network_moving_bar_pack(
         gts=T.gts,
         power=T.power,
         cost_scales=T.cost_scales,
-        entry_batches=T.entry_batches,
+        entry_bs=T.entry_bs,
         entry_nodes=T.entry_nodes,
         cost_t0s=T.cost_t0s,
         cost_radius=cost_radius,
@@ -551,7 +416,7 @@ def _build_network_moving_bar_pack(
     )
     coltag = _cost_radius_hex_coltag(cost_radius, T.info["n_cost_hexes"])
     tag = (
-        f"moving-bar {contrast} (B={T.n_batch} stis, "
+        f"moving-bar {contrast} (B={T.n_b} stis, "
         f"{T.info['n_cost']} cost nodes, {coltag})"
     )
     return pack, sti_opts, tag
@@ -621,9 +486,9 @@ def _build_network_spot_task(
     )
     if not ctx_opts:
         raise ValueError(f"{task} requires sti opts (from resolve_train_opts / CLI)")
-    opts = normalize_sti_timing(dict(ctx_opts))
+    opts = standardize_sti_timing(dict(ctx_opts))
     timing = resolve_sti_timing(opts)
-    cost_radius = normalize_cost_radius(opts.get("cost_radius"))
+    cost_radius = standardize_cost_radius(opts.get("cost_radius"))
     shift_radius = int(opts["shift_radius"])
     spot_radius = float(opts["spot_radius"])
     multi_spot = bool(opts["multi_spot"])
@@ -670,16 +535,16 @@ def _build_network_spot_task(
     # Replace center-only bake from build_spot_gt: center @1 in i_sti + a_sti_radius radii.
     i_baseline = float(opts[_SPOT_I_BASELINE])
     spot = resolve_spot(connectome, sti_opts=opts)
-    batches = spot_sti_batches(spot)
+    spot_bs = spot_sti_bs(spot)
     cost_r_s = expand_spot_cost_r_s_dict(sti_opts=opts)
     a_sti_radius_mask = build_a_sti_radius_mask(
         cost_r_s,
         cost_radius_scales=cost_radius_scales,
         a_sti_radii=SPOT_PACK['a_sti_radii'],
     )
-    i_sti, sti_wave, sti_batches, sti_nodes, a_sti_radius_indices = build_spot_a_sti_radius_drive(
+    i_sti, sti_wave, sti_bs, sti_nodes, a_sti_radius_indices = build_spot_a_sti_radius_drive(
         connectome,
-        batches,
+        spot_bs,
         a_sti_radii=SPOT_PACK['a_sti_radii'],
         t_onset=int(t_onset),
         n_t=int(n_t),
@@ -696,7 +561,7 @@ def _build_network_spot_task(
         gts=T.gts,
         power=T.power,
         cost_scales=T.cost_scales,
-        entry_batches=T.entry_batches,
+        entry_bs=T.entry_bs,
         entry_nodes=T.entry_nodes,
         cost_t0s=None,
         cost_sti_us=T.entry_sti_us,
@@ -708,7 +573,7 @@ def _build_network_spot_task(
         waveform_mse=True,
         t_onset=int(t_onset),
         sti_wave=sti_wave,
-        sti_batches=sti_batches,
+        sti_bs=sti_bs,
         sti_nodes=sti_nodes,
         a_sti_radius_indices=a_sti_radius_indices,
         a_sti_radius_mask=torch.as_tensor(
@@ -718,7 +583,7 @@ def _build_network_spot_task(
     coltag = _cost_radius_hex_coltag(cost_radius, T.info["n_cost_hexes"])
     shifttag = f"{T.info['n_shifts']} shifts"
     tag = (
-        f"{task} (B={T.n_batch} stis [{T.info['n_centers']} centers simultaneous "
+        f"{task} (B={T.n_b} stis [{T.info['n_centers']} centers simultaneous "
         f"x {shifttag}], {T.info['n_cost']} cost nodes, {coltag})"
     )
     return pack, sti_opts, tag
@@ -806,7 +671,7 @@ def resolve_gt_cells_by_task(by_task_kv) -> Dict[str, List[str]]:
     return out
 
 
-_STI_TRAIN_OPT_SPECS = (
+_STI_TRAIN_OPT_KEYS = (
     ("spot_bright", "spot_bright_sti_opts"),
     ("spot_dark", "spot_dark_sti_opts"),
     ("moving_bar_bright", "moving_bar_bright_sti_opts"),
@@ -900,7 +765,6 @@ def resolve_train_opts(
     backend="network",
     tasks=None,
     part_cost_scales=None,
-    pack_mirror_fits=None,
     sequential=None,
     cost_radius_by_task=None,
     shift_radius=None,
@@ -987,7 +851,7 @@ def resolve_train_opts(
         i_sti=i_sti,
     )
     sti_opts = {}
-    for task, sti_opts_tok in _STI_TRAIN_OPT_SPECS:
+    for task, sti_opts_tok in _STI_TRAIN_OPT_KEYS:
         raw = raw_by_task[task]
         if task not in tl and raw is None:
             sti_opts[sti_opts_tok] = None
@@ -1023,8 +887,6 @@ def resolve_train_opts(
         "network_json": str(network_json) if network_json is not None else None,
         "dev": dev,
     })
-    if pack_mirror_fits is not None:
-        opts["pack_mirror_fits"] = pack_mirror_fits
     if packs is not None:
         opts["packs"] = packs
     if param_modes is not None:
@@ -1045,7 +907,7 @@ def _cost_ms_sidecar(cost_ms) -> dict:
     return out
 
 
-def _train_opts_for_sidecar(opts, tasks, resolved_sti, sequential_bool) -> dict:
+def _sidecar_train_opts(opts, tasks, resolved_sti, sequential_bool) -> dict:
     """Build JSON-serializable train_opts record (network backend only)."""
     def _sti(sti_opts_tok):
         got = resolved_sti.get(sti_opts_tok)
@@ -1074,9 +936,6 @@ def _train_opts_for_sidecar(opts, tasks, resolved_sti, sequential_bool) -> dict:
         "moving_bar_bright_sti_opts": _sti("moving_bar_bright_sti_opts"),
         "moving_bar_dark_sti_opts": _sti("moving_bar_dark_sti_opts"),
     }
-    pack_mirror_fits = opts.get("pack_mirror_fits")
-    if pack_mirror_fits:
-        record["pack_mirror_fits"] = pack_mirror_fits
     if opts.get("param_modes"):
         record["param_modes"] = opts["param_modes"]
     if opts.get("param_init"):
@@ -1099,10 +958,10 @@ def resolve_schema(model, model_backend, schema, train_opts_record):
     filter = NEURON_FILTER['filter']
     if train_opts_record:
         filter = expand_filter(train_opts_record.get("filter", NEURON_FILTER['filter']))
-    syn_mode = normalize_syn_mode(resolve_filter_branches(
+    syn_mode = resolve_filter_branches(
         (train_opts_record or {}).get("syn_mode", NEURON_SCHEMA['syn_mode']),
         filter=filter,
-    ))
+    )
     kw = dict(
         syn_mode=syn_mode,
         optimizable=NEURON_SCHEMA['optimizable'],
@@ -1116,7 +975,7 @@ def resolve_schema(model, model_backend, schema, train_opts_record):
     modes = train_opts_record.get("param_modes")
     if modes:
         base = override_param_modes(
-            base, modes, lambda segment: slots_for_segment(segment, model_backend),
+            base, modes, lambda segment: slots_from_segment(segment, model_backend),
         )
     return base
 
@@ -1170,7 +1029,7 @@ def _build_session(
         param_inits = [(row[0], row[1], float(row[2])) for row in param_init]
         sch = override_param_inits(sch, model_backend, param_inits)
     train_opts_record["param_modes"] = schema_param_modes_record(
-        sch, lambda segment: slots_for_segment(segment, model_backend),
+        sch, lambda segment: slots_from_segment(segment, model_backend),
     )
     sch = attach_param_carry(sch)
     session = TrainSession(
@@ -1234,7 +1093,7 @@ def open_session(
     delta_ms_pre = _sti_delta_ms(opts, "delta_ms_pre")
 
     connectome = opts.get("network")
-    syn_mode = normalize_syn_mode(opts.get("syn_mode", NEURON_SCHEMA['syn_mode']))
+    syn_mode = opts.get("syn_mode", NEURON_SCHEMA['syn_mode'])
     if connectome is None:
         nj = opts.get("network_json")
         if not nj:
@@ -1271,17 +1130,14 @@ def open_session(
         cost_ms=dict(opts.get("cost_ms") or {}),
     )
     packs = {}
-    pack_mirror_fits = opts.get("pack_mirror_fits") or {}
     resolved_sti = {}
     for task in tasks:
         pack, sti_opts, _tag = NETWORK_TASK_BUILDERS[task](
             ctx, connectome, gt_amp=gt_amp,
         )
-        if task in pack_mirror_fits:
-            pack = override_pack(pack, pack_mirror_fits[task], model_backend)
         packs[task] = pack
         resolved_sti[f"{task}_sti_opts"] = sti_opts
-    record = _train_opts_for_sidecar(
+    record = _sidecar_train_opts(
         opts, tasks, resolved_sti, bool(opts.get("sequential")),
     )
     return _build_session(
@@ -1321,7 +1177,7 @@ def resolve_filter_branches(val, *, filter: str):
 
 def _sti_delta_ms(opts: dict, timing_tok: str) -> float:
     """``delta_ms`` / ``delta_ms_pre`` from sti opts (required)."""
-    for _tname, sti_opts_tok in _STI_TRAIN_OPT_SPECS:
+    for _tname, sti_opts_tok in _STI_TRAIN_OPT_KEYS:
         so = opts.get(sti_opts_tok)
         if isinstance(so, dict) and so.get(timing_tok) is not None:
             dt = float(so[timing_tok])
@@ -1330,7 +1186,7 @@ def _sti_delta_ms(opts: dict, timing_tok: str) -> float:
             return dt
     raise ValueError(
         f"train opts require {timing_tok} in a sti opts dict "
-        f"(one of {[k for _, k in _STI_TRAIN_OPT_SPECS]})"
+        f"(one of {[k for _, k in _STI_TRAIN_OPT_KEYS]})"
     )
 
 
@@ -1353,9 +1209,9 @@ def resolve_session(opts: dict, model: str | None = None, **kwargs) -> TrainSess
     sim_dtype = sim_dtype_from_fp(int(opts.get("fp", TRAIN_SESSION['fp'])))
     _filter = expand_filter(opts.get("filter", NEURON_FILTER['filter']))
     _np = resolve_filter_branches(NEURON_PARAM, filter=_filter)
-    syn_mode = normalize_syn_mode(resolve_filter_branches(
+    syn_mode = resolve_filter_branches(
         opts.get("syn_mode", NEURON_SCHEMA['syn_mode']), filter=_filter,
-    ))
+    )
     mb = load_network_backend(
         nj, dev=opts.get("dev") or active_device(), sim_dtype=sim_dtype,
         syn_mode=syn_mode,

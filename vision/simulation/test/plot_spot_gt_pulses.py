@@ -1,7 +1,7 @@
 """Plot spot RecF gt time courses: 50 ms pulse, 500 ms pulse, step (continue on).
 
 All traces are aligned with ``t_on = 0.5 s`` like ``model_gt_spot.png``.
-No photoreceptor (R1-6, R7, R8) panels — fit-cell gt only.
+No photoreceptor (R1-6, R7, R8) panels — gt-cell gt only.
 
 Two PNGs:
 
@@ -96,8 +96,8 @@ def absmax_from_zero(x: np.ndarray) -> float:
     return float(max(abs(np.nanmax(x)), abs(np.nanmin(x))))
 
 
-def fit_gt_rts() -> dict[str, np.ndarray]:
-    """Bright spot gt rts ``(9, T)`` keyed by fit cell name."""
+def recf_gts() -> dict[str, np.ndarray]:
+    """Bright spot gts ``(9, T)`` keyed by gt cell name."""
     raw = ml.read_RecF_data()
     out = {}
     for i, name in enumerate(ml.cell_list):
@@ -105,7 +105,7 @@ def fit_gt_rts() -> dict[str, np.ndarray]:
     return out
 
 
-def fit_filter_traces() -> dict[str, dict[str, np.ndarray]]:
+def filter_traces() -> dict[str, dict[str, np.ndarray]]:
     """Center-bin responses from driving IR filters with different-width ``u[t]``.
 
     Returns ``{cell: {"step", "p500", "p50"}}`` scaled like ``GT_AMP * RecF * ImpR``.
@@ -214,7 +214,7 @@ def _plot_pulse_grid(
 
 def plot_gt_pulses(path: str, *, show: bool = False) -> None:
     """PNG 1: LTI pulse-from-step on Medulla_Library RecF gt center traces."""
-    rts = fit_gt_rts()
+    rts = recf_gts()
     pulse_50 = t_from_ms(PULSE_50_MS)
     pulse_500 = t_from_ms(PULSE_500_MS)
     series = {}
@@ -240,7 +240,7 @@ def plot_gt_pulses(path: str, *, show: bool = False) -> None:
 
 def plot_gt_pulses_filter(path: str, *, show: bool = False) -> None:
     """PNG 2: IR filter responses to different-width ``u[t]`` from ``T_ON``."""
-    series = fit_filter_traces()
+    series = filter_traces()
     t_on_s = fc.t_on * DELTA_MS / 1000.0
     _plot_pulse_grid(
         path,
