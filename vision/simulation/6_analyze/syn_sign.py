@@ -66,14 +66,14 @@ SYN_SIGN_BINS = int(ANALYZE_SYN_SIGN["bins"])
 def _syn_strength_from_edges(edges, cells, syn_strength_cell, pairs):
     """Map (src_type_i, tar_type_i) -> trained syn_strength_cell."""
     cell_idx = dict(zip(cells, range(len(cells))))
-    n_cells = len(cells)
-    src_t = np.array([cell_idx[e["source_cell"]] for e in edges], dtype=np.int64)
-    tar_t = np.array([cell_idx[e["target_cell"]] for e in edges], dtype=np.int64)
-    _, n_pairs, pairs = build_cell_pair_idxs(src_t, tar_t, n_cells)
+    n_cell = len(cells)
+    src_t = np.array([cell_idx[edge["source_cell"]] for edge in edges], dtype=np.int64)
+    tar_t = np.array([cell_idx[edge["target_cell"]] for edge in edges], dtype=np.int64)
+    _, n_pair, pairs = build_cell_pair_idxs(src_t, tar_t, n_cell)
     syn = np.asarray(syn_strength_cell, dtype=np.float64).reshape(-1)
-    if syn.shape[0] != n_pairs:
+    if syn.shape[0] != n_pair:
         raise SystemExit(
-            f"syn_strength_cell length {syn.shape[0]} != n_pairs {n_pairs}"
+            f"syn_strength_cell length {syn.shape[0]} != n_pair {n_pair}"
         )
     if pairs is not None:
         expected = [
@@ -99,23 +99,23 @@ def syn_plus_by_id(
         self_cell_field, self_id_field = "target_cell", "tar"
     syn_p = defaultdict(float)
     syn_t = defaultdict(float)
-    for e in edges:
-        if e.get(self_cell_field) != cell:
+    for edge in edges:
+        if edge.get(self_cell_field) != cell:
             continue
         try:
-            sid = int(e[self_id_field])
+            sid = int(edge[self_id_field])
         except (KeyError, TypeError, ValueError):
             continue
-        src = e.get("source_cell")
-        tar = e.get("target_cell")
+        src = edge.get("source_cell")
+        tar = edge.get("target_cell")
         if src not in cell_idx or tar not in cell_idx:
             continue
-        ns = float(e.get("n_syn", 0))
+        ns = float(edge.get("n_syn", 0))
         if strength_by_pair is not None:
             ns *= strength_by_pair[(cell_idx[src], cell_idx[tar])]
         syn_t[sid] += ns
         try:
-            sign = float(e.get("syn_sign", 0))
+            sign = float(edge.get("syn_sign", 0))
         except (TypeError, ValueError):
             sign = 0.0
         if sign > 0:
@@ -186,17 +186,17 @@ def load_delta_v_tables(session, z):
         int(radius)
         for radius in spot.pack_spot_cost_radii(readout["pack"])
     })
-    r_k = np.asarray(
+    entry_radii = np.asarray(
         [int(build_hex.hex_radius(int(a), int(b))) for a, b in zip(du, dv)],
         dtype=np.int64,
     )
     delta = traces[:, t1] - traces[:, t0]
     out = {name: {radius: [] for radius in radii} for name in cells}
-    for type_at, radius_k, delta_v, id_val in zip(type_idx, r_k, delta, ids):
+    for type_at, radius, delta_v, id_val in zip(type_idx, entry_radii, delta, ids):
         cell = cells[int(type_at)]
-        if int(radius_k) not in out[cell] or not np.isfinite(delta_v):
+        if int(radius) not in out[cell] or not np.isfinite(delta_v):
             continue
-        out[cell][int(radius_k)].append((int(id_val), float(delta_v)))
+        out[cell][int(radius)].append((int(id_val), float(delta_v)))
     return out, radii
 
 

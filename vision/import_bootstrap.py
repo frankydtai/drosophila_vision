@@ -62,17 +62,17 @@ def standardize_option_dashes(argv: Sequence[str]) -> List[str]:
     help), ``--foo``, ``--``, ``-``, and non-letter bodies (``-1``, ``-0.5``).
     """
     out: List[str] = []
-    for tok in argv:
+    for token in argv:
         if (
-            isinstance(tok, str)
-            and tok.startswith("-")
-            and not tok.startswith("--")
-            and len(tok) >= 2
+            isinstance(token, str)
+            and token.startswith("-")
+            and not token.startswith("--")
+            and len(token) >= 2
         ):
-            name = tok[1:].split("=", 1)[0]
+            name = token[1:].split("=", 1)[0]
             if name and name[0].isalpha() and name != "h":
-                tok = "-" + tok
-        out.append(tok)
+                token = "-" + token
+        out.append(token)
     return out
 
 

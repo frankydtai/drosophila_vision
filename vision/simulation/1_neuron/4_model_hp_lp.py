@@ -22,7 +22,7 @@ HP / LP Euler (``session.euler`` = ``implicit`` | ``explicit``):
     implicit LP:  v ← (v + (Δt/τ_lp) (e_leak + v_hp)) / (1 + Δt/τ_lp)
     explicit LP:  v ← v + (Δt/τ_lp) (−(v − e_leak) + v_hp)
 
-Dynamics only: ``standardize_i_sti`` / ``pre_steady`` / ``step``. Full-T ``v``
+Dynamics only: ``standardize_i_sti`` / ``pre_steady`` / ``step``. ``v``
 forward lives in ``neuron.forward``. Scalars from ``session`` flat fields.
 
 t=0 uses ``session.pre_steady`` (``--pre-steady …``):
@@ -130,7 +130,7 @@ def pre_steady(session, params, n_b, i_sti=None):
         raise ValueError("g_leak must be non-zero")
     v_sti = i_sti[:, 0, :] / g_leak
     e_leak = params["e_leak"]
-    v = e_leak.expand(n_b, connectome.n_nodes).clone()
+    v = e_leak.expand(n_b, connectome.n_node).clone()
     if pre_steady == "probe":
         v_dc, v_in = v_dc_from_v(v, params, v_sti, connectome)
         return v_in, v_dc

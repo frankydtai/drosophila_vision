@@ -6,7 +6,7 @@ import hashlib
 import json
 import logging
 import math
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Dict, List, Optional, Sequence, Tuple
 
@@ -34,7 +34,6 @@ logger = logging.getLogger(__name__)
 
 # Gruntman Fig. 1 Ci fast condition: 40 ms / 2.25 deg per LED step.
 GRUNTMAN_SPEED_DEG_OVER_S = 56.0
-GRUNTMAN_CONTRASTS = ("bright", "dark")
 
 # Moving-bar per-hex cost window relative to first-sti alignment.
 COST_WINDOW_MS = 900.0
@@ -58,22 +57,28 @@ class MovingBarSpec:
 
     @property
     def token(self) -> str:
-        w_tag = "w1" if self.w_deg <= 3.0 else "w4"
-        return f"{self.direction}_{self.contrast}_{w_tag}"
+        w_token = "w1" if self.w_deg <= 3.0 else "w4"
+        return f"{self.direction}_{self.contrast}_{w_token}"
 
 
 def gruntman_moving_bar_specs(
+    *,
+    contrasts: Sequence[str],
     directions: Sequence[str] = GRUNTMAN_DIRECTIONS,
-    contrasts: Sequence[str] = GRUNTMAN_CONTRASTS,
     ws_deg: Sequence[float] = GRUNTMAN_WS_DEG,
     speed_deg_over_s: float = GRUNTMAN_SPEED_DEG_OVER_S,
 ) -> List[MovingBarSpec]:
-    """The 16 Gruntman-style whole-view moving-bar conditions."""
+    """The Gruntman-style whole-view moving-bar conditions for ``contrasts``."""
     return [
-        MovingBarSpec(direction=d, contrast=contrast, w_deg=w, speed_deg_over_s=speed_deg_over_s)
-        for d in directions
+        MovingBarSpec(
+            direction=direction,
+            contrast=contrast,
+            w_deg=w_deg,
+            speed_deg_over_s=speed_deg_over_s,
+        )
+        for direction in directions
         for contrast in contrasts
-        for w in ws_deg
+        for w_deg in ws_deg
     ]
 
 
@@ -101,9 +106,9 @@ def _coverage_time_series(
     """Coverage from simultaneous per-lane bars (connectome field)."""
     trail_shift_deg = _trail_shift_deg(spec, delta_ms)
     lane_origins = motion_lanes(spec, view_deg, bar_radius, multi_bar=multi_bar)
-    n_hexes = hex_stack.shape[0]
+    n_hex = hex_stack.shape[0]
     n_post = n_t - t_onset
-    out = np.zeros((n_post, n_hexes), dtype=np.float64)
+    out = np.zeros((n_post, n_hex), dtype=np.float64)
     for lane_origin, lane_pitch in lane_origins:
         trail_start, trail_exit = lane_sweep_trail_range(spec, lane_origin, lane_pitch)
         trail = float(trail_start)
@@ -189,12 +194,12 @@ def moving_bar_transit_times(
     """Return ``(entry, mid, exit)`` t idxs for the first multi-bar lane."""
     lane_origin, lane_pitch = motion_lanes(spec, view_deg, bar_radius, multi_bar=multi_bar)[0]
     trail_start, trail_exit = lane_sweep_trail_range(spec, lane_origin, lane_pitch)
-    w = float(spec.w_deg)
+    w_deg = float(spec.w_deg)
     trail_shift_deg = _trail_shift_deg(spec, delta_ms)
     origin = float(lane_origin)
     trail_entry = float(trail_start) + trail_shift_deg
     trail_mid = origin + 0.5 * (
-        float(lane_pitch) - math.copysign(1.0, trail_shift_deg) * w
+        float(lane_pitch) - math.copysign(1.0, trail_shift_deg) * w_deg
     )
     trail_exit_vis = float(trail_exit) - trail_shift_deg
     return (
@@ -247,9 +252,9 @@ def _current_from_coverage(
     coverage: np.ndarray,
     i_baseline: float,
     *,
-    i: float,
+    i_sti: float,
 ) -> np.ndarray:
-    return i_baseline + coverage * (float(i) - i_baseline)
+    return i_baseline + coverage * (float(i_sti) - i_baseline)
 
 
 def build_i_sti_hex(
@@ -262,20 +267,20 @@ def build_i_sti_hex(
     t_onset: int = None,
     delta_ms: float,
     i_baseline: float,
-    i: float,
+    i_sti: float,
 ) -> np.ndarray:
-    """Multi-b hex currents ``(B, T, n_hexes)``.
+    """Multi-b hex currents ``(B, T, n_hex)``.
 
     Each b row superposes simultaneous lane bars for one ``MovingBarSpec``.
     Specs that share direction / w / speed reuse one coverage time series;
-    only the contrast peak current ``i`` differs when callers rebuild per contrast.
+    only the contrast peak current ``i_sti`` differs when callers rebuild per contrast.
     """
     n_b = len(specs)
-    n_hexes = len(hexes)
-    if n_hexes == 0 or n_b == 0:
-        return np.zeros((n_b, n_t, n_hexes), dtype=np.float64)
+    n_hex = len(hexes)
+    if n_hex == 0 or n_b == 0:
+        return np.zeros((n_b, n_t, n_hex), dtype=np.float64)
 
-    out = np.zeros((n_b, n_t, n_hexes), dtype=np.float64)
+    out = np.zeros((n_b, n_t, n_hex), dtype=np.float64)
     for b in range(n_b):
         out[b, :t_onset] = i_baseline
 
@@ -296,7 +301,7 @@ def build_i_sti_hex(
         )
         for b in bs:
             out[b, t_onset:] = _current_from_coverage(
-                cov_ts, i_baseline=i_baseline, i=i,
+                cov_ts, i_baseline=i_baseline, i_sti=i_sti,
             )
     return out
 
@@ -306,20 +311,20 @@ class MovingBarSti:
     i_sti: torch.Tensor
     i_sti_hex: np.ndarray
     specs: List[MovingBarSpec]
-    info: dict = field(default_factory=dict)
+    n_b: int
+    n_t: int
+    t_onset: int
+    view_deg: Tuple[float, float, float, float]
+    i_baseline: float
+    sweep_t: int
+    sweep_s: float
+    bar_radius: int
+    multi_bar: bool
 
 
-def resolve_moving_bar_i_baseline(train_opts) -> float:
-    """Midpoint baseline from session ``i_sti['moving_bar']``."""
-    opts = train_opts or {}
-    i_sti = opts.get("i_sti") or {}
-    by_contrast = i_sti.get("moving_bar")
-    if isinstance(by_contrast, dict) and "bright" in by_contrast and "dark" in by_contrast:
-        return 0.5 * (float(by_contrast["bright"]) + float(by_contrast["dark"]))
-    raise ValueError(
-        "train opts require i_sti['moving_bar'] with bright/dark "
-        "(see const_default.I_STI)"
-    )
+def i_baseline_from_i_sti(i_sti: dict, task: str) -> float:
+    """Midpoint of bright/dark sti currents for one task."""
+    return 0.5 * (float(i_sti[task]["bright"]) + float(i_sti[task]["dark"]))
 
 
 @dataclass
@@ -341,7 +346,7 @@ def moving_bar_network_t0_bn(connectome, filt_hexes: Sequence[StiHex], n_b: int,
     """Expand per-hex ``t0`` values to a full node grid ``(B, N_nodes)``."""
     node_u_np = np.asarray(connectome.us, dtype=np.int64)
     node_v_np = np.asarray(connectome.vs, dtype=np.int64)
-    t0_bn = np.full((n_b, connectome.n_nodes), -1, dtype=np.int64)
+    t0_bn = np.full((n_b, connectome.n_node), -1, dtype=np.int64)
     for b in range(n_b):
         for hex in filt_hexes:
             t0 = t0_map.get((b, int(hex.u), int(hex.v)))
@@ -398,7 +403,7 @@ def _moving_bar_cache_digest(
     i_baseline: float,
     bar_radius: int,
     multi_bar: bool = True,
-    i: Optional[float] = None,
+    i_sti: Optional[float] = None,
 ) -> str:
     stat = network_json.stat()
     payload = {
@@ -421,7 +426,7 @@ def _moving_bar_cache_digest(
         "t_onset": t_onset,
         "delta_ms": delta_ms,
         "i_baseline": i_baseline,
-        "i": None if i is None else float(i),
+        "i_sti": None if i_sti is None else float(i_sti),
     }
     digest = hashlib.sha256(json.dumps(payload, sort_keys=True).encode()).hexdigest()
     return digest[:16]
@@ -437,11 +442,11 @@ def _moving_bar_cache_path(
     i_baseline: float,
     bar_radius: int,
     multi_bar: bool = True,
-    i: Optional[float] = None,
+    i_sti: Optional[float] = None,
 ) -> Path:
     digest = _moving_bar_cache_digest(
         network_json, specs, hex_uv, n_t, t_onset, delta_ms,
-        i_baseline, bar_radius, multi_bar, i,
+        i_baseline, bar_radius, multi_bar, i_sti,
     )
     return Path(network_json).resolve().parent / MOVING_BAR_CACHE_DIRNAME / f"{digest}.npz"
 
@@ -465,7 +470,7 @@ def _save_moving_bar_hex_cache(path: Path, i_sti_hex: np.ndarray) -> None:
 
 def build_moving_bar_signals(
     connectome,
-    specs: Optional[Sequence[MovingBarSpec]] = None,
+    specs: Sequence[MovingBarSpec],
     n_t: Optional[int] = None,
     t_onset: int = None,
     *,
@@ -473,7 +478,7 @@ def build_moving_bar_signals(
     bar_radius: int = BAR_RADIUS,
     multi_bar: bool = True,
     i_baseline: float,
-    i: float,
+    i_sti: float,
     device: Optional[str] = None,
     use_cache: bool = True,
     refresh_cache: bool = False,
@@ -483,13 +488,13 @@ def build_moving_bar_signals(
     """Build sti current for moving-bar stis.
 
     Returns ``i_sti`` with shape ``(B, T, N_nodes)`` where ``B = len(specs)``.
-    ``i`` is the peak current for this build (one contrast at a time).
+    Peak current ``i_sti`` is for this build (one contrast at a time).
     """
     device = device or connectome.device
     bar_radius = int(bar_radius)
     multi_bar = bool(multi_bar)
-    specs = list(specs if specs is not None else gruntman_moving_bar_specs())
-    i = float(i)
+    specs = list(specs)
+    i_sti = float(i_sti)
     i_baseline = float(i_baseline)
     sti = sti_hexes(connectome)
     view_deg = view_bounds(sti)
@@ -498,12 +503,11 @@ def build_moving_bar_signals(
             specs, view_deg, bar_radius, multi_bar=multi_bar, t_onset=t_onset, delta_ms=delta_ms,
         )
     n_b = len(specs)
-    n_nodes = connectome.n_nodes
+    n_node = connectome.n_node
     sweep_end = moving_bar_sweep_end_t(
         specs, view_deg, bar_radius, multi_bar=multi_bar, t_onset=t_onset, delta_ms=delta_ms,
     )
     sweep_t = sweep_end - t_onset
-    tail_t = n_t - sweep_end
 
     cache_path: Optional[Path] = None
     source_json = Path(network_json) if network_json is not None else getattr(connectome, "source_json", None)
@@ -511,7 +515,7 @@ def build_moving_bar_signals(
     if source_json is not None:
         cache_path = _moving_bar_cache_path(
             source_json, specs, hex_uv, n_t, t_onset, delta_ms,
-            i_baseline, bar_radius, multi_bar, i,
+            i_baseline, bar_radius, multi_bar, i_sti,
         )
 
     i_sti_hex: Optional[np.ndarray] = None
@@ -524,34 +528,24 @@ def build_moving_bar_signals(
         i_sti_hex = build_i_sti_hex(
             sti, specs, n_t=n_t, bar_radius=bar_radius, multi_bar=multi_bar,
             t_onset=t_onset, delta_ms=delta_ms,
-            i_baseline=i_baseline, i=i,
+            i_baseline=i_baseline, i_sti=i_sti,
         )
         if cache_path is not None and use_cache:
             _save_moving_bar_hex_cache(cache_path, i_sti_hex)
 
-    i_sti_np = i_sti_nodes_from_hex(i_sti_hex, sti, n_nodes)
+    i_sti_np = i_sti_nodes_from_hex(i_sti_hex, sti, n_node)
 
-    info = {
-        "n_b": n_b,
-        "n_sti_hexes": len(sti),
-        "bar_radius": bar_radius,
-        "multi_bar": multi_bar,
-        "view_deg": view_deg,
-        "n_t": n_t,
-        "t_onset": t_onset,
-        "sweep_end": sweep_end,
-        "sweep_t": sweep_t,
-        "sweep_s": sweep_t * delta_ms / 1000.0,
-        "tail_t": tail_t,
-        "tail_s": tail_t * delta_ms / 1000.0,
-        "i_baseline": i_baseline,
-        "i": i,
-        "speed_deg_over_s": specs[0].speed_deg_over_s if specs else GRUNTMAN_SPEED_DEG_OVER_S,
-        "spec_tokens": [spec.token for spec in specs],
-    }
     return MovingBarSti(
         i_sti=torch.as_tensor(i_sti_np, dtype=sim_dtype, device=device),
         i_sti_hex=i_sti_hex,
         specs=specs,
-        info=info,
+        n_b=n_b,
+        n_t=n_t,
+        t_onset=t_onset,
+        view_deg=view_deg,
+        i_baseline=i_baseline,
+        sweep_t=sweep_t,
+        sweep_s=sweep_t * delta_ms / 1000.0,
+        bar_radius=bar_radius,
+        multi_bar=multi_bar,
     )

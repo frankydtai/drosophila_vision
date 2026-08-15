@@ -157,10 +157,10 @@ def coverages(
     ymax: float,
 ) -> np.ndarray:
     """Coverage fraction for every hex against one bar rectangle."""
-    n_hexes = hex_stack.shape[0]
-    out = np.empty(n_hexes, dtype=np.float64)
-    for j in range(n_hexes):
-        out[j] = _clip_rect_area(hex_stack[j], xmin, ymin, xmax, ymax)
+    n_hex = hex_stack.shape[0]
+    out = np.empty(n_hex, dtype=np.float64)
+    for hex_idx in range(n_hex):
+        out[hex_idx] = _clip_rect_area(hex_stack[hex_idx], xmin, ymin, xmax, ymax)
     return out
 
 
@@ -260,13 +260,13 @@ def lane_sweep_trail_range(
     lane_pitch: float,
 ) -> Tuple[float, float]:
     """``(trail_start, trail_exit)`` for one lane; bar clips to ``[origin, origin+pitch]``."""
-    w = float(bar.w_deg)
+    w_deg = float(bar.w_deg)
     pitch = float(lane_pitch)
     origin = float(lane_origin)
     if bar.direction in ("right", "up"):
-        return origin - w, origin + pitch
+        return origin - w_deg, origin + pitch
     if bar.direction in ("left", "down"):
-        return origin + pitch + w, origin
+        return origin + pitch + w_deg, origin
     raise ValueError(f"unknown direction {bar.direction!r}")
 
 
@@ -279,21 +279,21 @@ def bar_rect_lane_clipped(
 ) -> Optional[Tuple[float, float, float, float]]:
     """Bar rectangle clipped to one lane; ``None`` when zero visible w."""
     x0, y0, x1, y1 = view_deg
-    w = float(bar.w_deg)
+    w_deg = float(bar.w_deg)
     origin = float(lane_origin)
     lane_end = origin + float(lane_pitch)
-    d = bar.direction
-    if d in ("right", "up"):
+    direction = bar.direction
+    if direction in ("right", "up"):
         vis_lo = max(float(trail), origin)
-        vis_hi = min(float(trail) + w, lane_end)
-    elif d in ("left", "down"):
-        vis_lo = max(float(trail) - w, origin)
+        vis_hi = min(float(trail) + w_deg, lane_end)
+    elif direction in ("left", "down"):
+        vis_lo = max(float(trail) - w_deg, origin)
         vis_hi = min(float(trail), lane_end)
     else:
-        raise ValueError(f"unknown direction {d!r}")
+        raise ValueError(f"unknown direction {direction!r}")
     if vis_lo >= vis_hi - 1e-12:
         return None
-    if d in ("right", "left"):
+    if direction in ("right", "left"):
         return vis_lo, y0, vis_hi, y1
     return x0, vis_lo, x1, vis_hi
 
@@ -390,10 +390,10 @@ def _hex_node_map(hexes: Sequence[StiHex]) -> Tuple[np.ndarray, np.ndarray]:
     )
 
 
-def i_sti_nodes_from_hex(i_sti_hex, hexes, n_nodes):
-    """Map ``(B, T, n_hexes)`` i_sti_hex to ``(B, T, n_nodes)`` by hex→node index."""
+def i_sti_nodes_from_hex(i_sti_hex, hexes, n_node):
+    """Map ``(B, T, n_hex)`` i_sti_hex to ``(B, T, n_node)`` by hex→node index."""
     n_b, n_t, _ = i_sti_hex.shape
-    out = np.zeros((n_b, n_t, n_nodes), dtype=np.float64)
+    out = np.zeros((n_b, n_t, n_node), dtype=np.float64)
     hex_idxs, nodes = _hex_node_map(hexes)
     if len(hex_idxs):
         out[:, :, nodes] = i_sti_hex[:, :, hex_idxs]

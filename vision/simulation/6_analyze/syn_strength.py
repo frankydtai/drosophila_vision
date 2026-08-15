@@ -84,10 +84,10 @@ def main(argv: list[str] | None = None) -> int:
     args = ap.parse_args(argv)
 
     tokens = parse_comma_list(args.cells)
-    for tok in tokens:
-        if tok.startswith(":") or tok.startswith("@"):
+    for token in tokens:
+        if token.startswith(":") or token.startswith("@"):
             raise SystemExit(
-                f"plain cell names only (got {tok!r}); "
+                f"plain cell names only (got {token!r}); "
                 "use analyze_cell_syn.py for :family / @<id>"
             )
 
@@ -120,14 +120,14 @@ def main(argv: list[str] | None = None) -> int:
         )
 
     cell_idx = dict(zip(cells, range(len(cells))))
-    n_cells = len(cells)
-    for tok in tokens:
-        if tok not in cell_idx:
-            raise SystemExit(f"unknown cell {tok!r}; known e.g. {cells[:8]}...")
+    n_cell = len(cells)
+    for token in tokens:
+        if token not in cell_idx:
+            raise SystemExit(f"unknown cell {token!r}; known e.g. {cells[:8]}...")
 
-    src_t = np.array([cell_idx[e["source_cell"]] for e in edges], dtype=np.int64)
-    tar_t = np.array([cell_idx[e["target_cell"]] for e in edges], dtype=np.int64)
-    _, n_pairs, pairs = build_cell_pair_idxs(src_t, tar_t, n_cells)
+    src_t = np.array([cell_idx[edge["source_cell"]] for edge in edges], dtype=np.int64)
+    tar_t = np.array([cell_idx[edge["target_cell"]] for edge in edges], dtype=np.int64)
+    _, n_pair, pairs = build_cell_pair_idxs(src_t, tar_t, n_cell)
     pair_idx = dict(zip(pairs, range(len(pairs))))
     if pairs is not None:
         expected = [
@@ -140,9 +140,9 @@ def main(argv: list[str] | None = None) -> int:
         if param not in node_vals:
             raise SystemExit(f"best_param.npz missing {param}")
     syn_strength_cell = np.asarray(node_vals["syn_strength_cell"], dtype=np.float64).reshape(-1)
-    if syn_strength_cell.shape[0] != n_pairs:
+    if syn_strength_cell.shape[0] != n_pair:
         raise SystemExit(
-            f"syn_strength_cell length {syn_strength_cell.shape[0]} != n_pairs {n_pairs}"
+            f"syn_strength_cell length {syn_strength_cell.shape[0]} != n_pair {n_pair}"
         )
 
     at_x, at_y = analyze_cell_syn.cli_xy_filter(args.x, args.y)
@@ -161,7 +161,7 @@ def main(argv: list[str] | None = None) -> int:
         nodes, edges, tokens, direction=direction, ids_by_cell=ids_by_cell,
     )
 
-    print(f"n_pairs={n_pairs}  best_param.npz syn_strength_cell={syn_strength_cell.shape[0]}")
+    print(f"n_pair={n_pair}  best_param.npz syn_strength_cell={syn_strength_cell.shape[0]}")
     for cell in tokens:
         if cell not in partner_syn_by_cell:
             print(f"warning: no partner_syn for {cell}", flush=True)

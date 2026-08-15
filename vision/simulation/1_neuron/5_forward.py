@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""Shared full-T absolute ``v`` forward for all neuron models.
+"""Shared absolute ``v`` / ``ca`` forward for all neuron models.
 
 Per-model modules supply only ``standardize_i_sti`` / ``pre_steady`` / ``step``.
 This module owns the time loop. Train / plots read absolute ``v``
@@ -15,7 +15,7 @@ from neuron import model_borst as _model_borst
 from neuron import model_hp_lp as _model_hp_lp
 from neuron.filter_ca import filter_ca
 
-# Per-model dynamics for ``forward_full`` (standardize_i_sti / pre_steady / step only).
+# Per-model dynamics for ``forward_v`` / ``forward_ca`` (standardize_i_sti / pre_steady / step only).
 MODEL_DRIVERS = {
     "borst": _model_borst,
     "hp_lp": _model_hp_lp,
@@ -54,11 +54,11 @@ def inject_a_sti_radius(i_sti, params, pack):
     out = i_sti.clone()
     if sti_bs.numel() == 0:
         return out
-    n_b, n_t, n_nodes = out.shape
+    n_b, n_t, n_node = out.shape
     add = a_sti_radius[a_sti_radius_idxs][:, None] * pulse[None, :]
-    flat = out.permute(0, 2, 1).reshape(n_b * n_nodes, n_t)
-    flat.index_add_(0, sti_bs * n_nodes + node, add)
-    return flat.reshape(n_b, n_nodes, n_t).permute(0, 2, 1).contiguous()
+    flat = out.permute(0, 2, 1).reshape(n_b * n_node, n_t)
+    flat.index_add_(0, sti_bs * n_node + node, add)
+    return flat.reshape(n_b, n_node, n_t).permute(0, 2, 1).contiguous()
 
 
 def pack_t_onset(pack) -> int:
@@ -106,19 +106,29 @@ def ca_from_v_ca(v_ca, params, session, *, t_onset: int):
     """Apply ``filter_ca`` over time on pre-computed ``v_ca``; ``ca[0] = v_ca[0]``."""
     tau_ca = torch.clamp(params["tau_ca"], min=float(session.delta_ms))
     ca = v_ca[:, 0]
-    rows = [ca]
+    trace = ca.new_empty(v_ca.shape)
+    trace[:, 0] = ca
     for t in range(1, int(v_ca.shape[1])):
         ca = filter_ca(
             ca, v_ca[:, t],
             delta_ms=step_delta_ms(session, t, t_onset),
             tau_ca=tau_ca,
         )
-        rows.append(ca)
-    return torch.stack(rows, dim=1)
+        trace[:, t] = ca
+    return trace
 
 
 def forward_v(session, params, i_sti, *, pack=None):
-    """Full-T ``v`` ``(B, T, N)`` (no Ca filter)."""
+    """``v`` trace ``(B, T, N)`` (no Ca filter).
+
+    Time index ``t`` is post-update at sample ``t``. Drive comes from
+    ``MODEL_DRIVERS[model].standardize_i_sti`` / ``pre_steady`` / ``step``.
+
+    ``session.train_opts['pre_grad']`` (default ``True``): when ``False``, steps
+    with ``t < t_onset`` run under ``torch.no_grad()``, then ``v`` and model
+    internals (``v_slow`` or ``u``/``u_rev``) are detached before post steps so
+    BPTT does not enter pre.
+    """
     if session.model not in MODEL_DRIVERS:
         raise ValueError(
             f"no MODEL_DRIVERS entry for model={session.model!r}; "
@@ -139,7 +149,8 @@ def forward_v(session, params, i_sti, *, pack=None):
     else:
         u, u_rev, v = drv.pre_steady(session, params, n_b, i_sti=i_sti)
         v_slow = None
-    v_rows = [v]
+    trace = v.new_empty(n_b, t_end, v.shape[-1])
+    trace[:, 0] = v
 
     def take(t):
         nonlocal v_slow, u, u_rev, v
@@ -152,12 +163,12 @@ def forward_v(session, params, i_sti, *, pack=None):
             u, u_rev, v = drv.step(
                 u, u_rev, v, params, i_sti[:, t - 1], session, delta_ms=dt,
             )
-        v_rows.append(v)
+        trace[:, t] = v
 
     if pre_grad or t_onset <= 0:
         for t in range(1, t_end):
             take(t)
-        return torch.stack(v_rows, dim=1)
+        return trace
     with torch.no_grad():
         for t in range(1, t_onset):
             take(t)
@@ -169,41 +180,22 @@ def forward_v(session, params, i_sti, *, pack=None):
     v = v.detach()
     for t in range(max(t_onset, 1), t_end):
         take(t)
-    return torch.stack(v_rows, dim=1)
+    return trace
 
 
 def forward_ca(session, params, i_sti, *, pack=None):
-    """Full-T ``ca`` ``(B, T, N)``: ``forward_v`` then ``filter_ca``."""
+    """``ca`` trace ``(B, T, N)``: ``forward_v`` then ``filter_ca``."""
     pack = pack or session.primary_pack
     v = forward_v(session, params, i_sti, pack=pack)
     return ca_from_v_ca(v_ca_from_v(v, params, session), params, session, t_onset=pack_t_onset(pack))
 
 
-def forward_full(session, params, i_sti, *, pack=None):
-    """Shared full-T forward for every ``session.model``.
-
-    Time index ``t`` is post-update at sample ``t``. Drive comes from
-    ``MODEL_DRIVERS[model].standardize_i_sti`` / ``pre_steady`` / ``step``.
-
-    ``session.train_opts['pre_grad']`` (default ``True``): when ``False``, steps
-    with ``t < t_onset`` run under ``torch.no_grad()``, then ``v`` and model
-    internals (``v_slow`` or ``u``/``u_rev``) are detached before post steps so
-    BPTT does not enter pre.
+def forward_nodes(session, params, nodes=None, i_sti=None, pack=None):
+    """``forward_v`` / ``forward_ca`` then index nodes; squeeze when ``i_sti`` is ``(T, N)``.
 
     ``session.train_opts['filter']``: ``none`` → :func:`forward_v`; ``ca`` →
     :func:`forward_ca`.
-
-    Returns
-    -------
-    Readout trace ``(B, T, N)`` (``v`` or ``ca``).
     """
-    if _session_filter(session) == "ca":
-        return forward_ca(session, params, i_sti, pack=pack)
-    return forward_v(session, params, i_sti, pack=pack)
-
-
-def forward_nodes(session, params, nodes=None, i_sti=None, pack=None):
-    """``forward_full`` then index nodes; squeeze when ``i_sti`` is ``(T, N)``."""
     pack = pack or session.primary_pack
     if nodes is None:
         nodes = pack.entry_nodes
@@ -211,8 +203,11 @@ def forward_nodes(session, params, nodes=None, i_sti=None, pack=None):
         i_sti = session.pack_i_sti(pack)
     squeeze = i_sti.dim() == 2
     i_sti_b = i_sti.unsqueeze(0) if squeeze else i_sti
-    out = forward_full(session, params, i_sti_b, pack=pack)
-    out = out[:, :, nodes]
+    if _session_filter(session) == "ca":
+        trace = forward_ca(session, params, i_sti_b, pack=pack)
+    else:
+        trace = forward_v(session, params, i_sti_b, pack=pack)
+    trace = trace[:, :, nodes]
     if squeeze:
-        out = out.squeeze(0)
-    return out
+        trace = trace.squeeze(0)
+    return trace

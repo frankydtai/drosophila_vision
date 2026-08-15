@@ -47,7 +47,7 @@ def gt_affine_from_cell(params, cell, connectome, session=None) -> tuple[float, 
     if (not from_onset) and "v_th" in params:
         vt = params["v_th"]
         if torch.is_tensor(vt) and vt.dim() > 0:
-            if int(vt.shape[0]) == int(connectome.n_cells):
+            if int(vt.shape[0]) == int(connectome.n_cell):
                 bias = bias + float(vt[ci])
             else:
                 m = connectome.conn.node_cells == ci
@@ -199,7 +199,7 @@ def _param_from_z(z, session, param):
     arr = np.asarray(train.node_vals_from_z(z, schema)[param], dtype=np.float64).reshape(-1)
     cells = train.cells_from_connectome(session.connectome)
     if arr.shape[0] != len(cells):
-        raise ValueError(f"{param} length {arr.shape[0]} != n_cells {len(cells)}")
+        raise ValueError(f"{param} length {arr.shape[0]} != n_cell {len(cells)}")
     return {str(cell): float(arr_val) for cell, arr_val in zip(cells, arr)}
 
 
@@ -237,7 +237,7 @@ def format_spot_radius_time_title(radius, n, cell, cost_parts, contrasts):
 def format_moving_bar_cell_cost_lines(cell, cost_parts, contrasts):
     """Lines ``ON: xx @PD yy @ND`` / ``OFF: …`` for moving-bar titles."""
     from train.config import moving_bar_cell_cost_part_key
-    tag = {
+    label_map = {
         'bright': 'ON',
         'dark': 'OFF',
     }
@@ -251,7 +251,7 @@ def format_moving_bar_cell_cost_lines(cell, cost_parts, contrasts):
             if part_key in cost_parts:
                 bits.append(f'{float(cost_parts[part_key]):.1f} @{lab}')
         if bits:
-            lines.append(f'{tag.get(contrast, contrast)}: {" ".join(bits)}')
+            lines.append(f'{label_map.get(contrast, contrast)}: {" ".join(bits)}')
     return lines
 
 
@@ -326,7 +326,7 @@ def ms_shown_axis_xlim(ms_shown, *, delta_ms, origin_t=0):
     return lo, hi
 
 
-def hex_scope_tag(at_x, at_y):
+def hex_scope_label(at_x, at_y):
     """Subtitle fragment for plot hex overlay."""
 
     def coord_label(val):
@@ -377,9 +377,9 @@ def overlay_axis(at_xs, at_ys):
     return None
 
 
-def overlay_reds(n_overlays):
+def overlay_reds(n_overlay):
     """Red shades for per-overlay traces plus a darker scope trace."""
-    n = n_overlays + 1
+    n = n_overlay + 1
     return [plt.cm.Reds(v) for v in np.linspace(0.35, 0.95, n)]
 
 
@@ -817,11 +817,9 @@ def plot_cost(costs, path, *, costs_by_part=None, part_order=None):
                 return None
             radius_token = part_key[pos + 2:]
             try:
-                r_f = float(radius_token)
+                radius = int(radius_token)
             except ValueError:
                 return None
-            r_i = int(round(r_f))
-            radius = r_i if abs(r_f - r_i) < 1e-6 else float(r_f)
             cell = part_key[len(head):pos]
             return cell, contrast, radius
         return None
@@ -886,8 +884,8 @@ def plot_cost(costs, path, *, costs_by_part=None, part_order=None):
         if series not in other_series_seen:
             other_series_seen.add(series)
             other_series_order.append(series)
-        known_cells = {n for row in CELL_ROWS for n in row}
-        matches = [cell for cell in known_cells if cell and cell in part_key]
+        known_cell = {n for row in CELL_ROWS for n in row}
+        matches = [cell for cell in known_cell if cell and cell in part_key]
         if matches:
             cell = max(matches, key=len)
             curves_by_cell.setdefault(cell, []).append((series, part_key, curve))
@@ -921,8 +919,8 @@ def plot_cost(costs, path, *, costs_by_part=None, part_order=None):
     rows = cell_rows(sorted(active_cells))
     n_cell_row = len(rows)
 
-    n_global_axes = len(curves_global)
-    n_global_row = (n_global_axes + n_col - 1) // n_col if n_global_axes else 0
+    n_global_axis = len(curves_global)
+    n_global_row = (n_global_axis + n_col - 1) // n_col if n_global_axis else 0
     n_part_row = n_cell_row + n_global_row
     n_block_row = 1 + n_part_row
     n_row = 2 * n_block_row

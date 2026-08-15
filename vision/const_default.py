@@ -123,7 +123,8 @@ NETWORK_CONSTRUCTION: Dict[str, object] = {
     "i_dark": 0.0,
 }
 
-# Sti currents by task × contrast only; baseline = midpoint (see train.config.i_baseline_from).
+# Sti currents by task × contrast only; baseline = midpoint
+# (see task.moving_bar.sti_spec.i_baseline_from_i_sti).
 I_STI: Dict[str, object] = {
     "spot": {
         "bright": NETWORK_CONSTRUCTION["i_bright"],
@@ -310,7 +311,7 @@ TRAIN_OPTS: Dict[str, object] = {
     "fp": TRAIN_SESSION["fp"],
     "network": None,
     "network_json": None,
-    "dev": None,
+    "device": None,
 }
 
 

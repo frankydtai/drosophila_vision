@@ -2,7 +2,7 @@
 """Neuron models: ``--model borst``, hp_lp.
 
 Dynamics live in ``neuron.model_borst`` / ``neuron.model_hp_lp``.
-Shared full-T ``v`` forward is ``neuron.forward``; the unused Ca filter
+Shared ``v`` / ``ca`` forward is ``neuron.forward``; the unused Ca filter
 lives in ``neuron.filter_ca``; pack readout selection in
 ``neuron.readout``. The ``train`` package owns session, cost, and the
 CLI driver. Numeric defaults live in ``const_default``.
@@ -33,7 +33,6 @@ from neuron.forward import (
     MODEL_DRIVERS,
     ca_from_v_ca,
     forward_ca,
-    forward_full,
     forward_nodes,
     forward_v,
     pack_t_onset,
@@ -69,7 +68,6 @@ __all__ = [
     "update_v",
     "v_component_from_g",
     "filter_ca",
-    "forward_full",
     "forward_nodes",
     "forward_v",
     "forward_ca",

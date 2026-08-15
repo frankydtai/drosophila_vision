@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """Staged-lr optimization loop (minimizes ``cost``).
 
-Consumes :func:`train.cost.calc_cost_parts` / :func:`train.cost.backward_accumulate_scaled_cost`
+Consumes :func:`train.cost.calc_cost_parts` / :func:`train.cost.backward_part_sums`
 and returns in-memory :class:`TrainResult`. Persistence lives in
 ``train.implementation``.
 """
@@ -20,7 +20,7 @@ from tqdm import tqdm
 
 from train.config import session_cost_part_keys
 from train.cost import (
-    backward_accumulate_scaled_cost,
+    backward_part_sums,
     calc_cost_parts,
     _scaled_cost_from_parts,
 )
@@ -66,7 +66,7 @@ def _fmt_cost_parts(parts):
 _TQDM_REFRESH_INTERVAL = 10
 
 
-def gradient_network(z, lr=0.0001, cost_fn=None, n_iters=100, device="cpu", z_clamps=None,
+def gradient_network(z, lr=0.0001, cost_fn=None, n_iter=100, device="cpu", z_clamps=None,
                      cost_log=None, iter_log=None, float_last_parts=None, task_order=None,
                      backward_iter=None, eval_cost=None,
                      checkpoint_interval=None, on_interval_best=None, global_iter_start=0,
@@ -124,7 +124,7 @@ def gradient_network(z, lr=0.0001, cost_fn=None, n_iters=100, device="cpu", z_cl
         _interval_from_z()
 
     progress_bar = tqdm(
-        range(n_iters),
+        range(n_iter),
         desc=f'Cost: {cost:.4f}' + _fmt_cost_parts(initial_parts),
         bar_format=(
             '{percentage:3.0f}%|{bar}| {n_fmt}/{total_fmt} '
@@ -188,7 +188,7 @@ def gradient_network(z, lr=0.0001, cost_fn=None, n_iters=100, device="cpu", z_cl
             _commit_interval_checkpoint(global_iter)
 
         iter_parts = float_last_parts(task_order) if float_last_parts else None
-        if (iter + 1) % _TQDM_REFRESH_INTERVAL == 0 or iter == n_iters - 1:
+        if (iter + 1) % _TQDM_REFRESH_INTERVAL == 0 or iter == n_iter - 1:
             progress_bar.set_description(
                 f'Cost: {cost:.4f}' + _fmt_cost_parts(iter_parts),
                 refresh=False,
@@ -289,7 +289,7 @@ def optimize_staged(z, cost_fn, z_clamps, lrs, niters, cost_log=None, iter_log=N
     adam = None
     for stage_i, lr in enumerate(lrs):
         z, adam = gradient_network(
-            z, lr=lr, n_iters=niters, device=active_device(),
+            z, lr=lr, n_iter=niters, device=active_device(),
             cost_fn=cost_fn, z_clamps=z_clamps, cost_log=cost_log,
             iter_log=iter_log, float_last_parts=float_last_parts,
             task_order=task_order,
@@ -330,7 +330,7 @@ def _build_iter_logger(session: TrainSession):
         return float(_eval_parts(z, no_grad=True).item())
 
     def backward_iter(z):
-        total, part_sums = backward_accumulate_scaled_cost(z, session)
+        total, part_sums = backward_part_sums(z, session)
         _set_last(part_sums, total)
         return total
 

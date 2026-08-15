@@ -270,7 +270,7 @@ CANON_SPEEDS = {"E": [25, 50, 100, 200, 400, 800], "F": [25, 100]}
 # Everything is detected with the original hollow (square-ring) algorithm.
 # These six solid squares sit on top of a green circle where the ring detector
 # slides onto the green rim, so they alone are taken from the solid (filled)
-# detector.  Keys are (panel_tag, cell, snapped_speed).
+# detector.  Keys are (panel_label, cell, snapped_speed).
 OVERRIDE_SOLID = {
     ("E", "LPLC1", 25.0), ("E", "LPLC1", 100.0),
     ("E", "LC12", 25.0),  ("E", "LC12", 400.0),

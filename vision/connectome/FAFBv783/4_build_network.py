@@ -8,7 +8,7 @@ This single, self-contained module merges the data layer and the network build:
   2. Assemble nodes + edges into <side>_min_neuron<N>/network.json, using the
      column map (column_map_<side>.csv from 2_build_hex.py) and located placements
      from ``ASSIGNED_COLUMN_CELLS`` in assign_column
-     (3_assigned_columns/<tag>_<side>_<direction>.csv; missing CSVs are built by
+     (3_assigned_columns/<token>_<side>_<direction>.csv; missing CSVs are built by
      running 3_assign_column.py). Column position is OPTIONAL: neurons without a
      column become nodes with null u/v.
 
@@ -24,7 +24,6 @@ from __future__ import annotations
 import argparse
 import json
 import logging
-import re
 import subprocess
 import sys
 from dataclasses import dataclass, field
@@ -34,7 +33,7 @@ from typing import Dict, List, Optional, Sequence, Set, Tuple
 import pandas as pd
 
 import path
-from assign_column import ASSIGNED_COLUMN_CELLS
+from assign_column import ASSIGNED_COLUMN_CELLS, _cell_token
 from path import BUILT_NETWORKS_DIR
 
 logger = logging.getLogger(__name__)
@@ -145,7 +144,7 @@ class FafbDataLoader:
         cell_table = neurons.groupby("cell")[attr_cols].first()
         cell_table.insert(0, "count", cell_counts_unfiltered)
         cell_table = cell_table.rename_axis("cell").reset_index()
-        n_cells_before = neurons["cell"].nunique()
+        n_cell_before = neurons["cell"].nunique()
         if min_neuron_count > 0:
             keep_cells = cell_counts_unfiltered[
                 cell_counts_unfiltered >= min_neuron_count
@@ -153,7 +152,7 @@ class FafbDataLoader:
             neurons = neurons[neurons["cell"].isin(keep_cells)].copy()
         logger.info(
             "min_neuron_count=%d: cells %d -> %d, neurons -> %d",
-            min_neuron_count, n_cells_before, neurons["cell"].nunique(), len(neurons),
+            min_neuron_count, n_cell_before, neurons["cell"].nunique(), len(neurons),
         )
 
         neuron_ids = set(neurons["root_id"].astype("int64").values)
@@ -192,10 +191,10 @@ class FafbDataLoader:
             "subsystems": resolved_subsystems,
             "min_neuron_count": min_neuron_count,
             "min_syn_count": min_syn_count,
-            "n_neurons": len(neurons),
-            "n_cells": int(neurons["cell"].nunique()),
-            "n_columns": int(columns["column_id"].nunique()),
-            "n_connections": len(connections),
+            "n_neuron": len(neurons),
+            "n_cell": int(neurons["cell"].nunique()),
+            "n_column": int(columns["column_id"].nunique()),
+            "n_connection": len(connections),
         }
         return VisualSystem(
             neurons=neurons,
@@ -221,9 +220,9 @@ def _require(path: Path) -> Path:
 
 
 def _assigned_column_csv(side: str, cell: str, direction: str) -> Path:
-    """``3_assigned_columns/<tag>_<side>_<direction>.csv`` (tag matches assign_column)."""
-    tag = re.sub(r"[^0-9a-z]+", "_", cell.lower()).strip("_")
-    return path.ASSIGNED_COLUMNS_DIR / f"{tag}_{side}_{direction}.csv"
+    """``3_assigned_columns/<token>_<side>_<direction>.csv`` (token matches assign_column)."""
+    token = _cell_token(cell)
+    return path.ASSIGNED_COLUMNS_DIR / f"{token}_{side}_{direction}.csv"
 
 
 def _ensure_assigned_column_csv(side: str, cell: str, direction: str) -> Path:
@@ -376,11 +375,11 @@ def build(side: str, min_neuron_count: int) -> Path:
             "sign_mode": SIGN_MODE,
             "sign_from_nt": SIGN_FROM_NT,
             "forced_negative_pre_cells": sorted(FORCED_NEGATIVE_PRE_CELLS),
-            "n_nodes": len(nodes),
-            "n_nodes_with_column": len(pos),
-            "n_edges": len(edges),
-            "n_sti_nodes": int(sum(n["sti"] for n in nodes)),
-            "n_cells": int(len({n["name"] for n in nodes})),
+            "n_node": len(nodes),
+            "n_node_with_column": len(pos),
+            "n_edge": len(edges),
+            "n_sti_node": int(sum(n["sti"] for n in nodes)),
+            "n_cell": int(len({n["name"] for n in nodes})),
         },
         "nodes": nodes,
         "edges": edges,
@@ -402,8 +401,8 @@ def _write_summary(run_dir: Path, meta: Dict[str, object]) -> Path:
     if meta_json.exists():
         filt = json.load(open(meta_json))
 
-    n_nodes = int(meta["n_nodes"])
-    n_with_column = int(meta["n_nodes_with_column"])
+    n_node = int(meta["n_node"])
+    n_with_column = int(meta["n_node_with_column"])
     lines = [
         f"network summary: {run_dir.name}",
         "=" * 40,
@@ -412,15 +411,15 @@ def _write_summary(run_dir: Path, meta: Dict[str, object]) -> Path:
         f"min_syn_count        : {filt.get('min_syn_count')}",
         f"sign_mode            : {meta['sign_mode']}",
         "",
-        f"n_nodes              : {n_nodes}",
-        f"n_nodes_with_column  : {n_with_column}",
-        f"n_nodes_without_column  : {n_nodes - n_with_column}",
-        f"n_sti_nodes        : {meta['n_sti_nodes']}",
-        f"n_edges              : {meta['n_edges']}",
-        f"n_cells         : {meta['n_cells']}",
+        f"n_node              : {n_node}",
+        f"n_node_with_column  : {n_with_column}",
+        f"n_node_without_column  : {n_node - n_with_column}",
+        f"n_sti_node        : {meta['n_sti_node']}",
+        f"n_edge              : {meta['n_edge']}",
+        f"n_cell         : {meta['n_cell']}",
         "",
-        f"n_columns (assigned) : {filt.get('n_columns')}",
-        f"n_connections (raw)  : {filt.get('n_connections')}",
+        f"n_column (assigned) : {filt.get('n_column')}",
+        f"n_connection (raw)  : {filt.get('n_connection')}",
         f"forced_negative      : {', '.join(meta['forced_negative_pre_cells'])}",
         f"sign_from_nt           : {meta['sign_from_nt']}",
         "",

@@ -79,7 +79,6 @@ from train.config import (
     expand_spot_gt_mode,
     expand_gt,
     expand_pre_steady,
-    i_baseline_from,
     moving_bar_cost_part_key,
     parse_contrasts,
     parse_tasks,
@@ -122,6 +121,7 @@ from task.moving_bar.pack import (
     build_moving_bar_gt,
     build_moving_bar_sti_opts,
 )
+from task.moving_bar.sti_spec import i_baseline_from_i_sti
 from network.construction import (
     load_network, gt_cells_from_opts, standardize_cost_radius, Network,
 )
@@ -160,12 +160,12 @@ class Pack:
     cost_time_mask: Optional[torch.Tensor] = None  # (n_cost, n_sample) 0/1 per-radius
     waveform_mse: bool = True  # spot: True; moving bar: set at build
     t_onset: Optional[int] = None  # explicit onset; spot when ms_post extends i_sti past gt
-    # Spot a_sti_radius: i = i_sti + a_sti_radius[radius] * sti_pulse on (sti_bs, sti_nodes).
-    sti_pulse: Optional[torch.Tensor] = None  # (T,) (i - i_baseline) * pulse(t)
+    # Spot a_sti_radius: i_sti += a_sti_radius[radius] * sti_pulse on (sti_bs, sti_nodes).
+    sti_pulse: Optional[torch.Tensor] = None  # (T,) (i_sti - i_baseline) * pulse(t)
     sti_bs: Optional[torch.Tensor] = None  # (n_contrib,) long
     sti_nodes: Optional[torch.Tensor] = None  # (n_contrib,) long
     a_sti_radius_idxs: Optional[torch.Tensor] = None  # (n_contrib,) long → a_sti_radius index
-    # (n_a_sti_radii,) 0/1: cost-radius scale==0 forces that a_sti_radius to 0 in forward.
+    # (n_a_sti_radius,) 0/1: cost-radius scale==0 forces that a_sti_radius to 0 in forward.
     a_sti_radius_mask: Optional[torch.Tensor] = None
 
 
@@ -242,7 +242,7 @@ def resolve_cell_idxs(cells, connectome: Network):
 
 def load_train_connectome(
     network_json,
-    dev: Optional[str] = None,
+    device: Optional[str] = None,
     *,
     a_syn_exc: float,
     a_syn_inh: float,
@@ -252,39 +252,19 @@ def load_train_connectome(
     h_cells=NEURON_SCHEMA['h_cells'],
 ) -> Network:
     """Load connectome ``Network`` for train (print summary)."""
-    dev = dev or active_device()
+    device = device or active_device()
     mode = syn_mode
     connectome = load_network(
-        network_json, device=dev,
+        network_json, device=device,
         a_syn_exc=a_syn_exc, a_syn_inh=a_syn_inh,
         dtype=sim_dtype, syn_mode=mode,
     )
     print(f"network: {network_json}")
-    print(f"  n_nodes={connectome.n_nodes}, n_cells={connectome.n_cells}, "
-          f"n_pairs={connectome.conn.n_pairs}, n_edges={connectome.conn.n_edges}, "
+    print(f"  n_node={connectome.n_node}, n_cell={connectome.n_cell}, "
+          f"n_pair={connectome.conn.n_pair}, n_edge={connectome.conn.n_edge}, "
           f"syn_mode={mode}, "
           f"n_z={schema_n_z(build_schema('borst', connectome, syn_mode=mode, params=params, h_cells=h_cells, a_sti_radii=SPOT_PACK['a_sti_radii']))}")
     return connectome
-
-
-@dataclass
-class _TrainBindCtx:
-    """Per-task builder context during :func:`open_session`."""
-
-    connectome: Network
-    dev: str
-    delta_ms: float
-    delta_ms_pre: float
-    gt_amp: float
-    i_sti: Dict[str, Dict[str, float]]
-    sim_dtype: torch.dtype = SIM_DTYPE
-    part_cost_scales: Optional[Dict[str, float]] = None
-    spot_sti_opts: Optional[dict] = None
-    moving_bar_sti_opts: Optional[dict] = None
-    filter: str = "none"
-    spot_gt_mode: str = "all"
-    cost_interval_ms: float = TRAIN_OPTIMIZATION['cost_interval_ms']
-    cost_ms: Optional[dict] = None
 
 
 def _moving_bar_waveform_mse_enabled(
@@ -298,73 +278,89 @@ def _moving_bar_waveform_mse_enabled(
     )
 
 
-def _moving_bar_sti_opts(ctx: _TrainBindCtx) -> dict:
-    raw = ctx.moving_bar_sti_opts
-    if raw:
-        return dict(raw)
-    sti_timing = resolve_filter_branches(STI_TIMING, filter=ctx.filter)
+def _moving_bar_sti_opts(
+    moving_bar_sti_opts: Optional[dict],
+    *,
+    filter: str,
+    delta_ms: float,
+    delta_ms_pre: float,
+) -> dict:
+    """Build moving-bar sti opts; CLI override takes precedence over filter default."""
+    if moving_bar_sti_opts:
+        return dict(moving_bar_sti_opts)
+    sti_timing = resolve_filter_branches(STI_TIMING, filter=filter)
     return build_moving_bar_sti_opts(
         ms_pre=sti_timing['ms_pre'],
-        delta_ms=ctx.delta_ms,
-        delta_ms_pre=ctx.delta_ms_pre,
+        delta_ms=delta_ms,
+        delta_ms_pre=delta_ms_pre,
         multi_bar=MOVING_BAR_INPUT['multi_bar'],
     )
 
 
-def _cost_radius_hex_coltag(cost_radius, n_cost_hexes) -> str:
-    radius_tag = "all hexes" if cost_radius is None else f"radius={int(cost_radius)}"
-    if isinstance(n_cost_hexes, dict):
+def _cost_hex_label(cost_radius, n_cost_hex) -> str:
+    radius_label = "all hexes" if cost_radius is None else f"radius={int(cost_radius)}"
+    if isinstance(n_cost_hex, dict):
         hex_labels = ", ".join(
             f"b{int(b)}={int(n_hex)}"
-            for b, n_hex in sorted(n_cost_hexes.items())
+            for b, n_hex in sorted(n_cost_hex.items())
         )
-        return f"cost hexes per b [{hex_labels}], {radius_tag}"
-    return f"{int(n_cost_hexes)} cost hexes, {radius_tag}"
+        return f"cost hexes per b [{hex_labels}], {radius_label}"
+    return f"{int(n_cost_hex)} cost hexes, {radius_label}"
 
 
 def _build_moving_bar_pack(
-    ctx: _TrainBindCtx,
     connectome,
     *,
     contrast: str,
-    gt_amp: float = 0.0,
+    gt_amp: float,
+    device: str,
+    sim_dtype: torch.dtype,
+    i_sti: Dict[str, Dict[str, float]],
+    part_cost_scales: Optional[Dict[str, float]],
+    moving_bar_sti_opts: Optional[dict],
+    filter: str,
+    delta_ms: float,
+    delta_ms_pre: float,
 ):
     task = "moving_bar"
-    dev = ctx.dev or active_device()
-    opts = _moving_bar_sti_opts(ctx)
+    device = device or active_device()
+    opts = _moving_bar_sti_opts(
+        moving_bar_sti_opts,
+        filter=filter,
+        delta_ms=delta_ms,
+        delta_ms_pre=delta_ms_pre,
+    )
     if "cost_radius" in opts:
         cost_radius = standardize_cost_radius(opts["cost_radius"])
     else:
         network_radius = int(connectome.meta.get("radius", -1))
         network_cost_radius = -1 if network_radius <= 0 else network_radius - 1
         cost_radius = standardize_cost_radius(network_cost_radius)
-    i_sti_task = ctx.i_sti["moving_bar"]
     T = build_moving_bar_gt(
         connectome=connectome,
-        device=dev,
-        sim_dtype=ctx.sim_dtype,
+        device=device,
+        sim_dtype=sim_dtype,
         t_onset=t_from_ms(
             float(opts["ms_pre"]),
             delta_ms=float(opts["delta_ms_pre"]),
         ),
         delta_ms=float(opts["delta_ms"]),
         cost_radius=cost_radius,
-        i_baseline=i_baseline_from(i_sti_task),
-        i=float(i_sti_task[contrast]),
+        i_baseline=i_baseline_from_i_sti(i_sti, task),
+        i_sti=float(i_sti[task][contrast]),
         contrasts=(contrast,),
         gt_cells=gt_cells_from_opts(opts),
         multi_bar=bool(opts.get("multi_bar", MOVING_BAR_INPUT['multi_bar'])),
         waveform_mse=_moving_bar_waveform_mse_enabled(
-            ctx.part_cost_scales, task, contrast,
+            part_cost_scales, task, contrast,
         ),
     )
     sti_opts = dict(opts)
-    sti_opts["n_t"] = int(T.info["n_t"])
-    sti_opts["spec_tokens"] = list(T.info["spec_tokens"])
+    sti_opts["n_t"] = int(T.n_t)
+    sti_opts["spec_tokens"] = list(T.spec_tokens)
     if cost_radius is not None:
         sti_opts["cost_radius"] = int(cost_radius)
-    if "active_gts" in T.info:
-        sti_opts["gt_cells"] = list(T.info["active_gts"])
+    sti_opts["gt_cells"] = list(T.active_gts)
     pack = Pack(
         task=task,
         contrast=contrast,
@@ -384,20 +380,26 @@ def _build_moving_bar_pack(
         dsi_gts=T.dsi_gts,
         dsi_scales=T.dsi_scales,
         dsi_power=T.dsi_power,
-        waveform_mse=bool(T.info["waveform_mse"]),
+        waveform_mse=bool(T.waveform_mse),
     )
-    coltag = _cost_radius_hex_coltag(cost_radius, T.info["n_cost_hexes"])
-    tag = (
+    hex_label = _cost_hex_label(cost_radius, T.n_cost_hex)
+    label = (
         f"moving-bar {contrast} (B={T.n_b} stis, "
-        f"{T.info['n_cost']} cost nodes, {coltag})"
+        f"{int(T.entry_bs.shape[0])} cost nodes, {hex_label})"
     )
-    return pack, sti_opts, tag
+    return pack, sti_opts, label
 
 
-def _spot_cost_ts_and_mask(opts, entry_radii, *, ctx: _TrainBindCtx, device, sim_dtype):
+def _spot_cost_ts_and_mask(
+    opts, entry_radii, *,
+    cost_ms: Optional[dict],
+    cost_interval_ms: float,
+    device: str,
+    sim_dtype: torch.dtype,
+):
     """Union ``cost_ts``; ``cost_time_mask`` when radii differ.
 
-    ``ctx.cost_ms[radius]`` overwrites ``ctx.cost_interval_ms`` grid for that radius.
+    ``cost_ms[radius]`` overwrites ``cost_interval_ms`` grid for that radius.
     """
     n = int(entry_radii.shape[0])
     if n == 0:
@@ -405,17 +407,16 @@ def _spot_cost_ts_and_mask(opts, entry_radii, *, ctx: _TrainBindCtx, device, sim
     timing = resolve_sti_timing(opts)
     delta_ms = timing.delta_ms
     post = timing.n_t_gt - timing.t_onset
-    cost_ms_by_radius = expand_cost_ms(cost_ms=ctx.cost_ms)
-    rad = entry_radii.detach().cpu().numpy().astype(np.int64, copy=False)
-    radii = {int(radius) for radius in rad.tolist()}
+    cost_ms_by_radius = expand_cost_ms(cost_ms=cost_ms)
+    entry_radii = entry_radii.detach().cpu().numpy().astype(np.int64, copy=False)
+    radii = {int(radius) for radius in entry_radii.tolist()}
     grid = None
     if any(radius not in cost_ms_by_radius for radius in radii):
-        interval_ms = float(ctx.cost_interval_ms)
-        if interval_ms <= 0:
+        if cost_interval_ms <= 0:
             raise ValueError("cost_interval_ms must be > 0")
         if post <= 0:
             raise ValueError("spot post-onset window must be > 0 for cost_interval_ms")
-        step = max(1, int(round(interval_ms / delta_ms)))
+        step = max(1, int(round(cost_interval_ms / delta_ms)))
         grid = [t * delta_ms for t in range(0, post, step)]
     radius_ts = {}
     for radius in radii:
@@ -436,37 +437,42 @@ def _spot_cost_ts_and_mask(opts, entry_radii, *, ctx: _TrainBindCtx, device, sim
         return cost_ts, None
     union_t = {t: pos for pos, t in enumerate(union)}
     mask = torch.zeros(n, len(union), dtype=sim_dtype, device=device)
-    for entry, radius in enumerate(rad.tolist()):
+    for entry, radius in enumerate(entry_radii.tolist()):
         for t in radius_ts[int(radius)]:
             mask[entry, union_t[t]] = 1.0
     return cost_ts, mask
 
 
 def _build_spot_pack(
-    ctx: _TrainBindCtx,
     connectome,
     *,
     contrast: str,
     gt_amp: float,
+    device: str,
+    sim_dtype: torch.dtype,
+    i_sti: Dict[str, Dict[str, float]],
+    spot_sti_opts: Optional[dict],
+    filter: str,
+    spot_gt_mode: str,
+    cost_ms: Optional[dict],
+    cost_interval_ms: float,
 ) -> Tuple[Pack, dict, str]:
     if contrast not in SPOT_CONTRASTS:
         raise ValueError(f"spot contrast must be 'bright' or 'dark', got {contrast!r}")
     task = "spot"
-    if not ctx.spot_sti_opts:
+    if not spot_sti_opts:
         raise ValueError("spot requires sti opts (from resolve_train_opts / CLI)")
-    opts = standardize_sti_timing(dict(ctx.spot_sti_opts))
+    opts = standardize_sti_timing(dict(spot_sti_opts))
     timing = resolve_sti_timing(opts)
     cost_radius = standardize_cost_radius(opts.get("cost_radius"))
     shift_radius = int(opts["shift_radius"])
     spot_radius = float(opts["spot_radius"])
     multi_spot = bool(opts["multi_spot"])
     fully_inside = bool(opts["fully_inside"])
-    dev = ctx.dev or active_device()
+    device = device or active_device()
     t_onset = timing.t_onset
     n_t = timing.n_t
-    i_sti_task = ctx.i_sti["spot"]
-    i_baseline = i_baseline_from(i_sti_task)
-    i = float(i_sti_task[contrast])
+    i_baseline = i_baseline_from_i_sti(i_sti, task)
     # spot_radius == 1: fold radius=2 into radius=1 scales
     cost_radius_scales = dict(
         SPOT_PACK['spot_cost_radius_scale_radius1']
@@ -479,14 +485,14 @@ def _build_spot_pack(
         multi_spot=multi_spot,
         fully_inside=fully_inside,
         shift_radius=shift_radius,
-        device=dev,
-        sim_dtype=ctx.sim_dtype,
+        device=device,
+        sim_dtype=sim_dtype,
         n_t=n_t,
         t_onset=t_onset,
         cost_radius=cost_radius,
         spot_cost_radius_scale=expand_spot_cost_radius_scale(sti_opts=opts),
         i_baseline=i_baseline,
-        i=i,
+        i_sti=float(i_sti[task][contrast]),
         contrast=contrast,
         ms_sti=timing.ms_sti,
         ms_response=timing.ms_response,
@@ -495,11 +501,15 @@ def _build_spot_pack(
         cost_radius_scales=cost_radius_scales,
         spot_cost_radii=SPOT_PACK['spot_cost_radii'],
         gt_cells=gt_cells_from_opts(opts),
-        filter=str(ctx.filter),
-        spot_gt_mode=str(ctx.spot_gt_mode),
+        filter=str(filter),
+        spot_gt_mode=str(spot_gt_mode),
     )
     cost_ts, cost_time_mask = _spot_cost_ts_and_mask(
-        opts, T.entry_radii, ctx=ctx, device=dev, sim_dtype=ctx.sim_dtype,
+        opts, T.entry_radii,
+        cost_ms=cost_ms,
+        cost_interval_ms=cost_interval_ms,
+        device=device,
+        sim_dtype=sim_dtype,
     )
     sti_opts = dict(opts)
     # Replace center-only bake from build_spot_gt: center @1 in i_sti + a_sti_radius radii.
@@ -520,9 +530,9 @@ def _build_spot_pack(
         ms_sti=timing.ms_sti,
         delta_ms=timing.delta_ms,
         i_baseline=i_baseline,
-        i_spot=i,
-        sim_dtype=ctx.sim_dtype,
-        device=dev,
+        i_sti=float(i_sti[task][contrast]),
+        sim_dtype=sim_dtype,
+        device=device,
     )
     pack = Pack(
         task=task,
@@ -547,22 +557,16 @@ def _build_spot_pack(
         sti_nodes=sti_nodes,
         a_sti_radius_idxs=a_sti_radius_idxs,
         a_sti_radius_mask=torch.as_tensor(
-            a_sti_radius_mask, dtype=ctx.sim_dtype, device=dev,
+            a_sti_radius_mask, dtype=sim_dtype, device=device,
         ),
     )
-    coltag = _cost_radius_hex_coltag(cost_radius, T.info["n_cost_hexes"])
-    shifttag = f"{T.info['n_shifts']} shifts"
-    tag = (
-        f"spot {contrast} (B={T.n_b} stis [{T.info['n_centers']} centers simultaneous "
-        f"x {shifttag}], {T.info['n_cost']} cost nodes, {coltag})"
+    hex_label = _cost_hex_label(cost_radius, T.n_cost_hex)
+    shifts_label = f"{T.n_shift} shifts"
+    label = (
+        f"spot {contrast} (B={T.n_b} stis [{T.n_center} centers simultaneous "
+        f"x {shifts_label}], {int(T.gts.shape[0])} cost nodes, {hex_label})"
     )
-    return pack, sti_opts, tag
-
-
-_PACK_FROM_TASK = {
-    "spot": _build_spot_pack,
-    "moving_bar": _build_moving_bar_pack,
-}
+    return pack, sti_opts, label
 
 
 _GT_CELLS_EXPAND = {
@@ -725,7 +729,7 @@ def resolve_train_opts(
     param_clamps=None,
     param_jits=None,
     syn_mode=NEURON_SCHEMA['syn_mode'],
-    dev=None,
+    device=None,
     packs=None,
     euler=NEURON_CONST['euler'],
     pre_steady=None,
@@ -828,7 +832,7 @@ def resolve_train_opts(
         "fp": fp,
         "network": network,
         "network_json": str(network_json) if network_json is not None else None,
-        "dev": dev,
+        "device": device,
     })
     if packs is not None:
         opts["packs"] = packs
@@ -970,12 +974,12 @@ def _build_session(
     gt_amp: float,
     part_cost_scales=None,
     sequential=None,
-    dev=None,
+    device=None,
     train_opts=None,
     schema: Optional[dict] = None,
     sim_dtype=SIM_DTYPE,
 ) -> TrainSession:
-    dev_ref = dev or active_device()
+    device = device or active_device()
     seq = False if sequential is None else bool(sequential)
     filter = expand_filter(
         (train_opts or {}).get("filter", NEURON_FILTER['filter'])
@@ -1026,7 +1030,7 @@ def _build_session(
         contrasts=tuple(contrasts),
         part_cost_scales=part_cost_scales_filled,
         sequential=bool(seq),
-        device=dev_ref,
+        device=device,
         delta_ms=float(delta_ms),
         delta_ms_pre=float(delta_ms_pre),
         cap=float(neuron_const['cap']),
@@ -1076,7 +1080,7 @@ def open_session(
     bad = [task for task in tasks if task not in TASKS]
     if bad:
         raise ValueError(f"unknown task(s) {bad!r} (expected {'|'.join(TASKS)})")
-    dev = opts.get("dev") or active_device()
+    device = opts.get("device") or active_device()
     sim_dtype = sim_dtype_from_fp(int(opts.get("fp", TRAIN_SESSION['fp'])))
     delta_ms = _sti_delta_ms(opts, "delta_ms")
     delta_ms_pre = _sti_delta_ms(opts, "delta_ms_pre")
@@ -1088,7 +1092,7 @@ def open_session(
         if not nj:
             raise ValueError("open_session(network) requires opts['network'] or network_json")
         net = load_network(
-            nj, device=dev,
+            nj, device=device,
             a_syn_exc=float(neuron_const['a_syn_exc']),
             a_syn_inh=float(neuron_const['a_syn_inh']),
             dtype=sim_dtype, syn_mode=syn_mode,
@@ -1097,32 +1101,41 @@ def open_session(
         connectome = net
     elif connectome is not net:
         raise ValueError("connectome must be opts['network']")
-    ctx = _TrainBindCtx(
+    pack_kwargs = dict(
         connectome=connectome,
-        dev=dev,
+        device=device,
         sim_dtype=sim_dtype,
-        part_cost_scales=opts.get("part_cost_scales"),
-        spot_sti_opts=opts.get("spot_sti_opts"),
-        moving_bar_sti_opts=opts.get("moving_bar_sti_opts"),
         i_sti=i_sti,
-        delta_ms=delta_ms,
-        delta_ms_pre=delta_ms_pre,
         gt_amp=gt_amp,
         filter=filter,
-        spot_gt_mode=expand_spot_gt_mode(opts.get("spot_gt_mode", SPOT_PACK['spot_gt_mode'])),
-        cost_interval_ms=float(
-            opts.get("cost_interval_ms", TRAIN_OPTIMIZATION['cost_interval_ms'])
-        ),
-        cost_ms=dict(opts.get("cost_ms") or {}),
     )
     packs: Dict[str, Dict[str, Pack]] = {}
     resolved_sti = {}
     for task in tasks:
         packs[task] = {}
         for contrast in contrasts:
-            pack, sti_opts, _tag = _PACK_FROM_TASK[task](
-                ctx, connectome, contrast=contrast, gt_amp=gt_amp,
-            )
+            if task == "moving_bar":
+                pack, sti_opts, _label = _build_moving_bar_pack(
+                    part_cost_scales=opts.get("part_cost_scales"),
+                    moving_bar_sti_opts=opts.get("moving_bar_sti_opts"),
+                    delta_ms=delta_ms,
+                    delta_ms_pre=delta_ms_pre,
+                    contrast=contrast, **pack_kwargs,
+                )
+            elif task == "spot":
+                pack, sti_opts, _label = _build_spot_pack(
+                    spot_sti_opts=opts.get("spot_sti_opts"),
+                    spot_gt_mode=expand_spot_gt_mode(
+                        opts.get("spot_gt_mode", SPOT_PACK['spot_gt_mode']),
+                    ),
+                    cost_ms=dict(opts.get("cost_ms") or {}),
+                    cost_interval_ms=float(
+                        opts.get("cost_interval_ms", TRAIN_OPTIMIZATION['cost_interval_ms'])
+                    ),
+                    contrast=contrast, **pack_kwargs,
+                )
+            else:
+                raise ValueError(f"unknown task {task!r}")
             packs[task][contrast] = pack
             resolved_sti[f"{task}_sti_opts"] = sti_opts
     train_opts = _sidecar_train_opts(
@@ -1135,7 +1148,7 @@ def open_session(
         gt_amp=gt_amp,
         part_cost_scales=opts.get("part_cost_scales"),
         sequential=opts.get("sequential"),
-        dev=dev,
+        device=device,
         train_opts=train_opts,
         schema=schema,
         sim_dtype=sim_dtype,
@@ -1203,7 +1216,7 @@ def resolve_session(opts: dict, model: str | None = None, **kwargs) -> TrainSess
         opts.get("syn_mode", NEURON_SCHEMA['syn_mode']), filter=_filter,
     )
     mb = load_train_connectome(
-        nj, dev=opts.get("dev") or active_device(), sim_dtype=sim_dtype,
+        nj, device=opts.get("device") or active_device(), sim_dtype=sim_dtype,
         syn_mode=syn_mode,
         a_syn_exc=float(neuron_const['a_syn_exc']),
         a_syn_inh=float(neuron_const['a_syn_inh']),

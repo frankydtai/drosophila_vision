@@ -128,8 +128,7 @@ def shell_hexes(shell: int) -> list:
         return [(0, 0)]
     out = []
     u, v = _HEX_DIRECTIONS[4][0] * shell, _HEX_DIRECTIONS[4][1] * shell
-    for d in range(6):
-        du, dv = _HEX_DIRECTIONS[d]
+    for du, dv in _HEX_DIRECTIONS:
         for _ in range(shell):
             out.append((u, v))
             u, v = u + du, v + dv
@@ -148,8 +147,8 @@ def radius_hexes(radius) -> list:
 def get_hex_coords(radius: int) -> Tuple[np.ndarray, np.ndarray]:
     """Axial (u, v) coordinates of a hex disc (shell order via :func:`radius_hexes`)."""
     hexes = radius_hexes(int(radius))
-    u = np.array([m[0] for m in hexes], dtype=np.int64)
-    v = np.array([m[1] for m in hexes], dtype=np.int64)
+    u = np.array([u for u, _v in hexes], dtype=np.int64)
+    v = np.array([v for _u, v in hexes], dtype=np.int64)
     return u, v
 
 
@@ -163,8 +162,8 @@ class HexGrid:
     def __init__(self, radius: int = DEFAULT_RADIUS) -> None:
         self.radius = radius
         self.us, self.vs = get_hex_coords(radius)
-        self.n_hexes = len(self.us)
-        logger.info("HexGrid radius=%d -> %d hexes", radius, self.n_hexes)
+        self.n_hex = len(self.us)
+        logger.info("HexGrid radius=%d -> %d hexes", radius, self.n_hex)
 
 
 def xy_from_uv(u, v) -> Tuple[Union[np.ndarray, float], Union[np.ndarray, float]]:
@@ -418,7 +417,7 @@ def plot_column_map(
         "lightblue", "darkblue", hex_radius_px, fontsize=3.5,
     )
     axes[0].set_title(
-        f"Axial (u, v) coordinates\n{ideal_grid.n_hexes} hexes, "
+        f"Axial (u, v) coordinates\n{ideal_grid.n_hex} hexes, "
         f"radius={ideal_grid.radius}",
         fontsize=12, fontweight="bold",
     )

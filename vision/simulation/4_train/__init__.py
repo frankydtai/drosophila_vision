@@ -40,7 +40,6 @@ from neuron import (
     t_abs_from_ms,
     ca_from_v_ca,
     forward_ca,
-    forward_full,
     forward_nodes,
     forward_v,
     pack_t_onset,
@@ -65,7 +64,6 @@ from train.config import (
     expand_spot_gt_mode,
     expand_gt,
     expand_pre_steady,
-    i_baseline_from,
     moving_bar_cost_part_key,
     parse_contrasts,
     parse_tasks,
@@ -81,7 +79,6 @@ from train.param import (
     schema_with_param_carry,
     inits_from_node_vals,
     schema_copy,
-    calc_multi_col_params,
     edges_from_connectome,
     z_adams_from_node_vals,
     pairs_from_connectome,
@@ -112,7 +109,7 @@ from train.param import (
 from train.session import (
     Pack,
     TrainSession,
-    _cost_radius_hex_coltag,
+    _cost_hex_label,
     load_train_connectome,
     resolve_train_opts,
     open_session,
@@ -138,3 +135,4 @@ from train.optimization import (
 
 from task.spot.pack import build_spot_sti_opts
 from task.moving_bar.pack import build_moving_bar_sti_opts
+from task.moving_bar.sti_spec import i_baseline_from_i_sti

@@ -65,7 +65,7 @@ def add_radius(run_dir: Path, crop_radius: int) -> Path:
     ]
     kept_ids: Set[int] = {n["id"] for n in kept_nodes}
     kept_edges = [
-        e for e in edges if e["src"] in kept_ids and e["tar"] in kept_ids
+        edge for edge in edges if edge["src"] in kept_ids and edge["tar"] in kept_ids
     ]
 
     n_with_column = sum(1 for n in kept_nodes if n.get("u") is not None)
@@ -78,11 +78,11 @@ def add_radius(run_dir: Path, crop_radius: int) -> Path:
         "sign_mode": src_meta.get("sign_mode"),
         "sign_from_nt": src_meta.get("sign_from_nt"),
         "forced_negative_pre_cells": src_meta.get("forced_negative_pre_cells"),
-        "n_nodes": len(kept_nodes),
-        "n_nodes_with_column": n_with_column,
-        "n_edges": len(kept_edges),
-        "n_sti_nodes": int(sum(bool(n.get("sti")) for n in kept_nodes)),
-        "n_cells": int(len({n["name"] for n in kept_nodes})),
+        "n_node": len(kept_nodes),
+        "n_node_with_column": n_with_column,
+        "n_edge": len(kept_edges),
+        "n_sti_node": int(sum(bool(n.get("sti")) for n in kept_nodes)),
+        "n_cell": int(len({n["name"] for n in kept_nodes})),
     }
 
     out_dir = run_dir.parent / f"{run_dir.name}_r{crop_radius}"
@@ -93,7 +93,7 @@ def add_radius(run_dir: Path, crop_radius: int) -> Path:
     logger.info(
         "Cropped %s -> %s (radius=%d): %d nodes, %d edges, %d cells",
         run_dir.name, out_path, crop_radius,
-        len(kept_nodes), len(kept_edges), metadata["n_cells"],
+        len(kept_nodes), len(kept_edges), metadata["n_cell"],
     )
     _write_summary(out_dir, metadata)
     return out_path

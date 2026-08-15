@@ -29,7 +29,7 @@ from task.moving_bar.gt import (
     hardcoded_axis_dsi,
     load_fig1_traces,
     motion_preference,
-    w_tag,
+    w_token,
 )
 from task.moving_bar.sti_geo import (
     BAR_RADIUS,
@@ -42,8 +42,6 @@ from task.moving_bar.sti_geo import (
 from task.moving_bar.sti_spec import (
     COST_ALIGNED_FIRST_STI_MS,
     COST_WINDOW_AFTER_MS,
-    COST_WINDOW_BEFORE_MS,
-    COST_WINDOW_MS,
     MovingBarSpec,
     ND_IDX,
     PD_IDX,
@@ -51,7 +49,7 @@ from task.moving_bar.sti_spec import (
     build_moving_bar_t0_grids,
     gruntman_moving_bar_specs,
     hex_first_sti_t,
-    resolve_moving_bar_i_baseline,
+    i_baseline_from_i_sti,
 )
 
 MOVING_BAR_CONTRASTS = frozenset({"bright", "dark"})
@@ -67,7 +65,10 @@ class MovingBarGt:
     entry_nodes: torch.Tensor
     n_b: int
     n_t: int
-    info: dict
+    n_cost_hex: int
+    active_gts: List[str]
+    waveform_mse: bool
+    spec_tokens: List[str]
     cost_t0s: Optional[torch.Tensor] = None
     cost_pd_nds: Optional[torch.Tensor] = None
     dsi_pos_entries: Optional[torch.Tensor] = None
@@ -122,10 +123,10 @@ def assemble_moving_bar_dsi_groups(
     *,
     side: str,
 ) -> Tuple[List[List[int]], List[List[int]], List[float], List[float]]:
-    """One DSI group per ``(subtype, contrast, w_tag, axis)``."""
+    """One DSI group per ``(subtype, contrast, w_token, axis)``."""
     bs_by_condition: dict[tuple[str, str, str], list[int]] = {}
     for b, spec in enumerate(specs):
-        key = (spec.direction, spec.contrast, w_tag(spec.w_deg))
+        key = (spec.direction, spec.contrast, w_token(spec.w_deg))
         bs_by_condition.setdefault(key, []).append(b)
 
     entries_by_subtype_b: dict[tuple[str, int], list[int]] = {}
@@ -136,17 +137,17 @@ def assemble_moving_bar_dsi_groups(
     neg_groups: List[List[int]] = []
     dsi_vals: List[float] = []
     scales: List[float] = []
-    subtypes = sorted({str(st) for st in r_subtype})
+    subtypes = sorted({str(subtype) for subtype in r_subtype})
     for subtype in subtypes:
         for pos_dir, neg_dir in (("right", "left"), ("up", "down")):
             contrast_ws = {
-                (contrast, w_tag)
-                for (direction, contrast, w_tag) in bs_by_condition
+                (contrast, w_token)
+                for (direction, contrast, w_token) in bs_by_condition
                 if direction in (pos_dir, neg_dir)
             }
-            for contrast, w_tag in sorted(contrast_ws):
-                pos_bs = bs_by_condition.get((pos_dir, contrast, w_tag), [])
-                neg_bs = bs_by_condition.get((neg_dir, contrast, w_tag), [])
+            for contrast, w_token in sorted(contrast_ws):
+                pos_bs = bs_by_condition.get((pos_dir, contrast, w_token), [])
+                neg_bs = bs_by_condition.get((neg_dir, contrast, w_token), [])
                 if not pos_bs or not neg_bs:
                     continue
                 pos_entries: list[int] = []
@@ -172,7 +173,7 @@ def assemble_moving_bar_dsi_groups(
 def _csr_from_groups(
     groups: Sequence[Sequence[int]], *, device,
 ) -> Tuple[torch.Tensor, torch.Tensor]:
-    """Return ``(flat_entries, ptr)`` with ``ptr`` length ``n_groups + 1``."""
+    """Return ``(flat_entries, ptr)`` with ``ptr`` length ``n_group + 1``."""
     ptr = [0]
     flat: list[int] = []
     for dsi_group in groups:
@@ -421,8 +422,8 @@ def build_moving_bar_gt(
     multi_bar: bool = True,
     cost_radius: Optional[int] = None,
     i_baseline: float,
-    i: float,
-    contrasts: Sequence[str] = ("bright", "dark"),
+    i_sti: float,
+    contrasts: Sequence[str],
     gt_cells: Optional[Sequence[str]] = None,
     sim_dtype: torch.dtype,
     waveform_mse: bool = True,
@@ -439,14 +440,13 @@ def build_moving_bar_gt(
         device=device, use_cache=use_cache,
         network_json=getattr(connectome, "source_json", None),
         i_baseline=i_baseline_val,
-        i=float(i),
+        i_sti=float(i_sti),
         sim_dtype=sim_dtype,
     )
-    n_t = int(sti.info["n_t"])
+    n_t = int(sti.n_t)
     fig1 = load_fig1_traces(fig1_path, delta_ms=delta_ms) if waveform_mse else None
     before_t = t_from_ms(COST_ALIGNED_FIRST_STI_MS, delta_ms=delta_ms)
     after_t = t_from_ms(COST_WINDOW_AFTER_MS, delta_ms=delta_ms)
-    n_t_cost_window = t_from_ms(COST_WINDOW_MS, delta_ms=delta_ms) + 1
 
     active = active_gt_cells(
         gt_cells, GT_CELLS, connectome.cells, context="moving_bar",
@@ -458,7 +458,6 @@ def build_moving_bar_gt(
         for hex_idx, hex in enumerate(sti_hexes(connectome))
     }
     hexes = moving_bar_cost_hexes(connectome, cost_radius=cost_radius)
-    center_hex = hexes[0] if cost_radius == 0 and len(hexes) == 1 else None
     cost_hex_idxs = [hex_idx[(int(hex.u), int(hex.v))] for hex in hexes]
     hex_by_idx = {hex_idx: hex for hex, hex_idx in zip(hexes, cost_hex_idxs)}
 
@@ -482,7 +481,7 @@ def build_moving_bar_gt(
     )
     (
         r_bs, r_node, r_subtype, r_readout, r_scale, r_t0, r_pd_nd,
-        skipped_orthogonal,
+        _,
     ) = rows
 
     if not r_bs:
@@ -505,31 +504,6 @@ def build_moving_bar_gt(
         sim_dtype=sim_dtype,
     )
 
-    info = {
-        **sti.info,
-        "n_cost": int(entry_bs.shape[0]),
-        "n_cost_pd": int((cost_pd_nds == PD_IDX).sum().item()) if cost_pd_nds is not None else 0,
-        "n_cost_nd": int((cost_pd_nds == ND_IDX).sum().item()) if cost_pd_nds is not None else 0,
-        "n_cost_dsi": int(dsi_tgt.shape[0]),
-        "n_b": sti.info["n_b"],
-        "n_cost_hexes": len(hexes),
-        "cost_radius": cost_radius,
-        "cost_hex_uv": (int(center_hex.u), int(center_hex.v)) if center_hex else None,
-        "side": side,
-        "active_gts": active,
-        "skipped_orthogonal": skipped_orthogonal,
-        "waveform_mse": bool(waveform_mse),
-        "delta_ms": float(delta_ms),
-    }
-    if waveform_mse:
-        info.update({
-            "fig1_path": str(fig1_path),
-            "cost_window_before_ms": COST_WINDOW_BEFORE_MS,
-            "cost_window_after_ms": COST_WINDOW_AFTER_MS,
-            "cost_window_ms": COST_WINDOW_MS,
-            "cost_aligned_first_sti_ms": COST_ALIGNED_FIRST_STI_MS,
-            "cost_window_t": n_t_cost_window,
-        })
     return MovingBarGt(
         i_sti=sti.i_sti,
         gts=gts,
@@ -539,9 +513,12 @@ def build_moving_bar_gt(
         entry_bs=entry_bs,
         entry_nodes=entry_nodes,
         cost_pd_nds=cost_pd_nds,
-        n_b=sti.info["n_b"],
+        n_b=sti.n_b,
         n_t=n_t,
-        info=info,
+        n_cost_hex=len(hexes),
+        active_gts=list(active),
+        waveform_mse=bool(waveform_mse),
+        spec_tokens=[spec.token for spec in sti.specs],
         dsi_pos_entries=dsi_pos_entries,
         dsi_neg_entries=dsi_neg_entries,
         dsi_pos_ptr=dsi_pos_ptr,
@@ -558,7 +535,7 @@ class MovingBarSessionT0:
     before_t: Dict[str, int]
     after_t: Dict[str, int]
     side: str
-    n_filter_hexes: int
+    n_filter_hex: int
 
 
 def bar_specs_from_task(session, task, contrast) -> List[MovingBarSpec]:
@@ -581,7 +558,8 @@ def moving_bar_session_t0_grids(
 ) -> MovingBarSessionT0:
     """Session-level ``t0`` / horizon grids for moving-bar cost or analyze."""
     connectome = session.connectome
-    i_baseline = resolve_moving_bar_i_baseline(session.train_opts)
+    i_sti = (session.train_opts or {}).get("i_sti") or {}
+    i_baseline = i_baseline_from_i_sti(i_sti, "moving_bar")
 
     side = connectome.meta.get('side', 'right')
     hexes = moving_bar_cost_hexes(connectome, cost_radius=cost_radius)
@@ -593,16 +571,15 @@ def moving_bar_session_t0_grids(
             )
     else:
         filt_hexes = hexes
-    i_sti_task = ((session.train_opts or {}).get("i_sti") or {}).get("moving_bar") or {}
     contrast = specs[0].contrast if specs else "bright"
-    if contrast not in i_sti_task:
+    if contrast not in i_sti.get("moving_bar", {}):
         raise ValueError(
             f"train opts i_sti['moving_bar'] missing contrast {contrast!r}"
         )
     sti = build_moving_bar_signals(
         connectome, specs=specs, n_t=n_t, t_onset=t_onset, delta_ms=delta_ms,
         device=connectome.node_cells.device, i_baseline=i_baseline,
-        i=float(i_sti_task[contrast]),
+        i_sti=float(i_sti["moving_bar"][contrast]),
         sim_dtype=session.sim_dtype,
     )
     hex_idx = {
@@ -623,7 +600,7 @@ def moving_bar_session_t0_grids(
         before_t=grids.before_t,
         after_t=grids.after_t,
         side=side,
-        n_filter_hexes=len(filt_hexes),
+        n_filter_hex=len(filt_hexes),
     )
 
 
@@ -654,12 +631,12 @@ def moving_bar_specs_by_cell(session, task: str, contrast: str, side: str) -> Di
     if contrast not in MOVING_BAR_CONTRASTS:
         raise ValueError(f"moving-bar contrast must be 'bright' or 'dark', got {contrast!r}")
     return {
-        st: [
-            f'{d}_{c}_{w}'
-            for d, c, w in active_stis_from_subtype(side, st)
-            if c == contrast
+        cell: [
+            f'{direction}_{active_contrast}_{w_token}'
+            for direction, active_contrast, w_token in active_stis_from_subtype(side, cell)
+            if active_contrast == contrast
         ]
-        for st in _pack_cells(session, task, contrast)
+        for cell in _pack_cells(session, task, contrast)
     }
 
 

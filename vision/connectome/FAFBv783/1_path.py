@@ -57,7 +57,7 @@ def resolve_network_json(network: str) -> Path:
     return (BUILT_NETWORKS_DIR / network / "network.json").resolve()
 
 
-def network_run_tag(network_path: str, meta: dict) -> str:
+def network_run_token(network_path: str, meta: dict) -> str:
     """``right`` / ``left``; append ``_rN`` when the run folder name has it."""
     run_name = Path(network_path).resolve().parent.name
     side = str(meta.get("side") or run_name.split("_")[0])

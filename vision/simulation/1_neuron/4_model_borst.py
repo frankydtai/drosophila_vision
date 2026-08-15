@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """Borst neuron + i_h (``--model borst``).
 
-Dynamics only: ``standardize_i_sti`` / ``pre_steady`` / ``step``. Full-T Ca
+Dynamics only: ``standardize_i_sti`` / ``pre_steady`` / ``step``. Ca
 forward lives in ``neuron.forward``. Scalars are injected kwargs
 (from ``session`` flat fields), never nested under Physics.
 
@@ -240,7 +240,7 @@ def pre_steady(session, params, n_b, i_sti=None):
     if pre_steady not in ("probe", "solve"):
         raise ValueError(f"borst pre_steady must be probe|solve; got {pre_steady!r}")
     e_leak = params["e_leak"]
-    v = e_leak.expand(n_b, session.connectome.n_nodes).clone()
+    v = e_leak.expand(n_b, session.connectome.n_node).clone()
     i0 = i_sti[:, 0, :]
     if pre_steady == "probe":
         v_dc, u, u_rev = v_dc_from_v(v, params, i0, e_leak, session, with_i_h_ss=False)

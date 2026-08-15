@@ -42,7 +42,7 @@ from const_default import (
     TRAIN_SESSION,
 )
 from task.spot.sti_spec import t_sti_end, resolve_sti_timing
-from neuron.schema import param_scalar
+from neuron.schema import param_from_entry
 from train import do_many_runs
 import train
 from train.config import (
@@ -78,7 +78,7 @@ def resolve_run_dir(path):
     return str(outdir)
 
 
-def checkpoint_iter_tag(iter):
+def checkpoint_iter_token(iter):
     return f'{int(iter):05d}'
 
 
@@ -93,7 +93,7 @@ def decompose_params(z, session):
     *not* emit separate "global" scalar fields (shared-only means), because
     they can collide with per-cell csv fields and become redundant.
     """
-    n = session.connectome.n_cells
+    n = session.connectome.n_cell
     schema = train.schema_copy(session.schema)
     decoded = train.node_vals_from_z(z, schema)
     out = {}
@@ -104,7 +104,7 @@ def decompose_params(z, session):
             continue  # e.g. a_sti_radius (per-radius, not per-cell)
         arr = np.asarray(decoded[param], dtype=np.float64).reshape(-1)
         if arr.shape[0] != n:
-            raise ValueError(f"{param}: node w {arr.shape[0]} != n_cells {n}")
+            raise ValueError(f"{param}: node w {arr.shape[0]} != n_cell {n}")
         out[param] = arr
     return out
 
@@ -154,12 +154,12 @@ def v_spot_markers_by_cell(z, session):
     v_onset_n = v[0, t_onset].detach().cpu().numpy()
     v_sti_end_n = v[0, t_end].detach().cpu().numpy()
     node_cells = session.connectome.conn.node_cells.detach().cpu().numpy()
-    n_cells = int(session.connectome.n_cells)
-    v_pre = np.empty(n_cells, dtype=np.float64)
-    v_onset = np.empty(n_cells, dtype=np.float64)
-    v_sti_end = np.empty(n_cells, dtype=np.float64)
-    delta_v = np.empty(n_cells, dtype=np.float64)
-    for cell_idx in range(n_cells):
+    n_cell = int(session.connectome.n_cell)
+    v_pre = np.empty(n_cell, dtype=np.float64)
+    v_onset = np.empty(n_cell, dtype=np.float64)
+    v_sti_end = np.empty(n_cell, dtype=np.float64)
+    delta_v = np.empty(n_cell, dtype=np.float64)
+    for cell_idx in range(n_cell):
         cell_node_mask = node_cells == cell_idx
         if not np.any(cell_node_mask):
             v_pre[cell_idx] = np.nan
@@ -181,11 +181,11 @@ def v_spot_markers_by_cell(z, session):
         v_ca_pre_n = v_ca[0, 0].detach().cpu().numpy()
         v_ca_onset_n = v_ca[0, t_onset].detach().cpu().numpy()
         v_ca_sti_end_n = v_ca[0, t_end].detach().cpu().numpy()
-        v_ca_pre = np.empty(n_cells, dtype=np.float64)
-        v_ca_onset = np.empty(n_cells, dtype=np.float64)
-        v_ca_sti_end = np.empty(n_cells, dtype=np.float64)
-        delta_v_ca = np.empty(n_cells, dtype=np.float64)
-        for cell_idx in range(n_cells):
+        v_ca_pre = np.empty(n_cell, dtype=np.float64)
+        v_ca_onset = np.empty(n_cell, dtype=np.float64)
+        v_ca_sti_end = np.empty(n_cell, dtype=np.float64)
+        delta_v_ca = np.empty(n_cell, dtype=np.float64)
+        for cell_idx in range(n_cell):
             cell_node_mask = node_cells == cell_idx
             if not np.any(cell_node_mask):
                 v_ca_pre[cell_idx] = np.nan
@@ -206,11 +206,11 @@ def v_spot_markers_by_cell(z, session):
         ca_pre_n = ca[0, 0].detach().cpu().numpy()
         ca_onset_n = ca[0, t_onset].detach().cpu().numpy()
         ca_sti_end_n = ca[0, t_end].detach().cpu().numpy()
-        ca_pre = np.empty(n_cells, dtype=np.float64)
-        ca_onset = np.empty(n_cells, dtype=np.float64)
-        ca_sti_end = np.empty(n_cells, dtype=np.float64)
-        delta_ca = np.empty(n_cells, dtype=np.float64)
-        for cell_idx in range(n_cells):
+        ca_pre = np.empty(n_cell, dtype=np.float64)
+        ca_onset = np.empty(n_cell, dtype=np.float64)
+        ca_sti_end = np.empty(n_cell, dtype=np.float64)
+        delta_ca = np.empty(n_cell, dtype=np.float64)
+        for cell_idx in range(n_cell):
             cell_node_mask = node_cells == cell_idx
             if not np.any(cell_node_mask):
                 ca_pre[cell_idx] = np.nan
@@ -234,8 +234,8 @@ def v_spot_markers_by_cell(z, session):
                 ca, t_onset, session,
             ).detach().cpu().numpy()
         else:
-            lo = param_scalar("bias_gt", "lo", NEURON_SCHEMA['params'])
-            hi = param_scalar("bias_gt", "hi", NEURON_SCHEMA['params'])
+            lo = param_from_entry("bias_gt", "lo", NEURON_SCHEMA['params'])
+            hi = param_from_entry("bias_gt", "hi", NEURON_SCHEMA['params'])
             bias = np.clip(v_onset, lo, hi)
         out["bias_gt"] = np.asarray(bias, dtype=np.float64)
     return out
@@ -255,7 +255,7 @@ def save_param_table(z, session, table_path):
         node_vals["bias_gt"] = bias_gt
     cells_labels = cell_labels(session)
     params = list(node_vals.keys())
-    n = session.connectome.n_cells
+    n = session.connectome.n_cell
     cell_idx = dict(zip(cells_labels, range(n)))
     with open(table_path, "w") as f:
         f.write("cell_idx,cell," + ",".join(params) + "\n")
@@ -284,7 +284,7 @@ def save_syn_strength_cell_table(z, session, table_path):
     pairs = list(session.connectome.conn.pairs)
     if arr.shape[0] != len(pairs):
         raise ValueError(
-            f"syn_strength_cell length {arr.shape[0]} != n_pairs {len(pairs)}"
+            f"syn_strength_cell length {arr.shape[0]} != n_pair {len(pairs)}"
         )
     mat = {(int(source), int(target)): float(v) for (source, target), v in zip(pairs, arr)}
     n = len(cells)
@@ -308,9 +308,9 @@ def save_syn_strength_edge_table(z, session, table_path):
     node_vals = train.node_vals_from_z(z, schema)
     arr = np.asarray(node_vals["syn_strength_edge"], dtype=np.float64).reshape(-1)
     conn = session.connectome.conn
-    if arr.shape[0] != conn.n_edges:
+    if arr.shape[0] != conn.n_edge:
         raise ValueError(
-            f"syn_strength_edge length {arr.shape[0]} != n_edges {conn.n_edges}"
+            f"syn_strength_edge length {arr.shape[0]} != n_edge {conn.n_edge}"
         )
     cells = [str(cell) for cell in cell_labels(session)]
     src = conn.source_idxs.detach().cpu().numpy()
@@ -321,7 +321,7 @@ def save_syn_strength_edge_table(z, session, table_path):
         f.write(
             "edge_idx,src_node,tar_node,source_cell,target_cell,syn_sign,syn_strength_edge\n",
         )
-        for edge in range(conn.n_edges):
+        for edge in range(conn.n_edge):
             si, ti = int(src[edge]), int(tar[edge])
             f.write(
                 "%d,%d,%d,%s,%s,%.0f,%.6f\n"
@@ -334,13 +334,13 @@ def save_syn_strength_edge_table(z, session, table_path):
     return table_path
 
 
-def save_syn_table(z, session, outdir_or_path, *, tag=None):
+def save_syn_table(z, session, outdir_or_path, *, token=None):
     """Write ``syn_strength_cell.csv`` or ``syn_strength_edge.csv`` for the active syn mode."""
-    if tag is None:
+    if token is None:
         cell_filename, edge_filename = SYN_STRENGTH_CELL_CSV, SYN_STRENGTH_EDGE_CSV
     else:
-        cell_filename = f"syn_strength_cell_{tag}.csv"
-        edge_filename = f"syn_strength_edge_{tag}.csv"
+        cell_filename = f"syn_strength_cell_{token}.csv"
+        edge_filename = f"syn_strength_edge_{token}.csv"
     cell_path = save_syn_strength_cell_table(
         z, session, os.path.join(outdir_or_path, cell_filename),
     )
@@ -399,16 +399,16 @@ def save_best_param(outdir, z, session):
 
 def _checkpoint_data_filename(kind, iter, run_i=0, n_run=1):
     suffix = '' if n_run == 1 else f'_run{run_i}'
-    return f'best_{kind}_iter_{checkpoint_iter_tag(iter)}{suffix}.npz'
+    return f'best_{kind}_iter_{checkpoint_iter_token(iter)}{suffix}.npz'
 
 
 def save_checkpoint_csv(outdir, iter, z_best, session):
-    tag = checkpoint_iter_tag(iter)
+    token = checkpoint_iter_token(iter)
     csv_dir = os.path.join(outdir, 'csv')
     os.makedirs(csv_dir, exist_ok=True)
-    param_path = os.path.join(csv_dir, f'param_{tag}.csv')
+    param_path = os.path.join(csv_dir, f'param_{token}.csv')
     save_param_table(z_best, session, param_path)
-    syn_path = save_syn_table(z_best, session, csv_dir, tag=tag)
+    syn_path = save_syn_table(z_best, session, csv_dir, token=token)
     print(f'wrote checkpoint csv: {param_path}')
     if syn_path is not None:
         print(f'wrote checkpoint csv: {syn_path}')
@@ -680,7 +680,7 @@ def build_session(
     tasks = list(tasks) if tasks is not None else list(
         train.parse_tasks([TRAIN_CONFIG['task']])
     )
-    dev = train.active_device()
+    device = train.active_device()
     session_kwargs = dict(
         tasks=tasks,
         contrasts=contrasts,
@@ -705,7 +705,7 @@ def build_session(
     opts = train.resolve_train_opts(
         backend="network",
         network_json=network,
-        dev=dev,
+        device=device,
         euler=euler,
         pre_steady=pre_steady,
         pre_steady_n_iter=pre_steady_n_iter,

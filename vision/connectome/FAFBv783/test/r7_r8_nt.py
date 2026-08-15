@@ -39,7 +39,7 @@ def main() -> None:
             by_edges = conn["nt_type"].value_counts()
             by_syn = conn.groupby("nt_type")["syn_count"].sum()
             table = pd.DataFrame({
-                "n_edges": by_edges,
+                "n_edge": by_edges,
                 "pct_edges": (by_edges / by_edges.sum() * 100).round(1),
                 "n_syn": by_syn,
                 "pct_syn": (by_syn / by_syn.sum() * 100).round(1),

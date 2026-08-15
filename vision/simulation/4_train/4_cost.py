@@ -106,11 +106,11 @@ def pack_cost_abs_ts(pack: Pack, t_onset, *, entry_radius=None):
     if entry_radius is None:
         return base + ts
     mask = pack.cost_time_mask
-    rad_t = pack.entry_radii
-    if mask is None or rad_t is None:
+    entry_radii = pack.entry_radii
+    if mask is None or entry_radii is None:
         return base + ts
-    rad = rad_t.detach().cpu().numpy().astype(np.int64, copy=False)
-    hit = np.where(rad == int(entry_radius))[0]
+    entry_radii = entry_radii.detach().cpu().numpy().astype(np.int64, copy=False)
+    hit = np.where(entry_radii == int(entry_radius))[0]
     if not hit.size:
         return base + np.zeros(0, dtype=np.int64)
     entry_mask = mask[int(hit[0])].detach().cpu().numpy() > 0
@@ -121,10 +121,10 @@ def node_vals_from_param(params, param: str, nodes, connectome, *, sim_dtype=SIM
     """Per-node vals from a cell-indexed schema param (or scalar default)."""
     raw = params.get(param, 1.0 if param == "a_gt" else 0.0)
     n = int(nodes.shape[0])
-    dev = nodes.device
+    device = nodes.device
     if not torch.is_tensor(raw) or raw.dim() == 0:
         val = float(raw if not torch.is_tensor(raw) else raw.item())
-        return torch.full((n,), val, dtype=sim_dtype, device=dev)
+        return torch.full((n,), val, dtype=sim_dtype, device=device)
     ci = connectome.node_cells[nodes]
     return raw[ci]
 
@@ -251,13 +251,13 @@ def _parts_from_entries(
         a_gt, bias_gt, gts, scale, v_readout, time_mask=time_mask,
     )
     sse_entry = sse_wt.sum(dim=-1)
-    n_parts = len(part_keys)
+    n_part = len(part_keys)
     keep_f = (part_idxs >= 0).to(dtype=sse_entry.dtype)
     part_idxs_pos = part_idxs.clamp(min=0)
     if cost_norm == "gt_power":
         p_entry = power_wt.sum(dim=-1)
-        sse = sse_entry.new_zeros((n_parts,))
-        gt_power = p_entry.new_zeros((n_parts,))
+        sse = sse_entry.new_zeros((n_part,))
+        gt_power = p_entry.new_zeros((n_part,))
         sse.scatter_add_(0, part_idxs_pos, sse_entry * keep_f)
         gt_power.scatter_add_(0, part_idxs_pos, p_entry * keep_f)
         gt_power = torch.where(gt_power > 0, gt_power, torch.ones_like(gt_power))
@@ -265,7 +265,7 @@ def _parts_from_entries(
     elif cost_norm == "a_gt2":
         a2 = (a_gt * a_gt).clamp(min=torch.finfo(a_gt.dtype).tiny)
         contrib = sse_entry / a2
-        costs = contrib.new_zeros((n_parts,))
+        costs = contrib.new_zeros((n_part,))
         costs.scatter_add_(0, part_idxs_pos, contrib * keep_f)
     else:
         raise ValueError(f"cost_norm must be one of {COST_NORMS}; got {cost_norm!r}")
@@ -310,11 +310,11 @@ def _spot_entries_by_part(
     pack: Pack, connectome,
 ) -> Tuple[torch.Tensor, List[str]]:
     """``(part_idxs, part_keys)`` for spot cell×radius; one CPU sync of entry meta."""
-    rad = pack.entry_radii.detach().cpu().numpy()
+    entry_radii = pack.entry_radii.detach().cpu().numpy()
 
     def entry_part_key(entry, cells, ci):
         return spot_cost_part_key(
-            pack.task, pack.contrast, str(cells[int(ci[entry])]), int(rad[entry]),
+            pack.task, pack.contrast, str(cells[int(ci[entry])]), int(entry_radii[entry]),
         )
 
     return _entries_by_part(pack, connectome, entry_part_key)
@@ -369,11 +369,11 @@ def _pack_has_active_mse(pack: Pack, session: TrainSession) -> bool:
 def _mse_entry_mask(pack: Pack, session: TrainSession) -> torch.Tensor:
     """Boolean mask over cost entries with non-zero PD/ND (or pack) scale."""
     n = int(pack.entry_bs.shape[0])
-    dev = pack.entry_bs.device
+    device = pack.entry_bs.device
     if pack.cost_pd_nds is not None:
         if not _pack_has_active_mse(pack, session):
-            return torch.zeros(n, dtype=torch.bool, device=dev)
-        mask = torch.zeros(n, dtype=torch.bool, device=dev)
+            return torch.zeros(n, dtype=torch.bool, device=device)
+        mask = torch.zeros(n, dtype=torch.bool, device=device)
         for pd_nd_idx, part in ((PD_IDX, "PD"), (ND_IDX, "ND")):
             if _part_scale(
                 session,
@@ -382,14 +382,14 @@ def _mse_entry_mask(pack: Pack, session: TrainSession) -> torch.Tensor:
                 mask |= pack.cost_pd_nds == int(pd_nd_idx)
         return mask
     on = _part_scale(session, f"{pack.task}_{pack.contrast}") != 0.0
-    return torch.full((n,), on, dtype=torch.bool, device=dev)
+    return torch.full((n,), on, dtype=torch.bool, device=device)
 
 
 def _dsi_entry_mask(pack: Pack, session: TrainSession) -> torch.Tensor:
     """Boolean mask over cost entries needed by a non-zero DSI scale."""
     n = int(pack.entry_bs.shape[0])
-    dev = pack.entry_bs.device
-    mask = torch.zeros(n, dtype=torch.bool, device=dev)
+    device = pack.entry_bs.device
+    mask = torch.zeros(n, dtype=torch.bool, device=device)
     dsi_part_key = moving_bar_cost_part_key(pack.task, pack.contrast, "DSI")
     if (
         pack.dsi_pos_entries is None
@@ -456,15 +456,15 @@ def _slice_pack_entries(pack: Pack, entries: torch.Tensor) -> Pack:
 def _subset_pack_bs(pack: Pack, bs: Tuple[int, ...]) -> Optional[Pack]:
     if len(bs) == int(pack.i_sti.shape[0]):
         return pack
-    dev = pack.i_sti.device
-    idx_t = torch.tensor(bs, dtype=torch.long, device=dev)
+    device = pack.i_sti.device
+    idx_t = torch.tensor(bs, dtype=torch.long, device=device)
     rb = pack.entry_bs
     keep = torch.isin(rb, idx_t)
     if not bool(keep.any()):
         return None
     lut_size = int(max(max(bs), int(rb.max()))) + 1
-    lut = torch.full((lut_size,), -1, dtype=torch.long, device=dev)
-    lut[idx_t] = torch.arange(len(bs), dtype=torch.long, device=dev)
+    lut = torch.full((lut_size,), -1, dtype=torch.long, device=device)
+    lut[idx_t] = torch.arange(len(bs), dtype=torch.long, device=device)
     new_rb = lut[rb[keep]]
     kept_old = torch.nonzero(keep, as_tuple=False).reshape(-1)
     fields = _pack_entry_fields(pack, keep, entry_bs=new_rb, dsi_sel=kept_old)
@@ -540,8 +540,8 @@ def _build_fused_packs(
     return tuple(out)
 
 
-def _readout_from_trace_full(
-    trace_full: torch.Tensor,
+def _readout_from_trace(
+    trace: torch.Tensor,
     pack: Pack,
     *,
     b_offset: int = 0,
@@ -549,13 +549,13 @@ def _readout_from_trace_full(
     rb = pack.entry_bs if b_offset == 0 else pack.entry_bs + b_offset
     t0 = pack_t_onset(pack)
     n_t = int(pack.gts.shape[1])
-    v_readout_dsi = trace_full[rb, t0:t0 + n_t, pack.entry_nodes]
+    v_readout_dsi = trace[rb, t0:t0 + n_t, pack.entry_nodes]
     if not pack_needs_waveform_mse(pack):
         return None, v_readout_dsi
     if pack.cost_t0s is None:
         return v_readout_dsi, v_readout_dsi
     v_readout = window_time_traces(
-        trace_full, rb, pack.entry_nodes, pack.cost_t0s,
+        trace, rb, pack.entry_nodes, pack.cost_t0s,
         n_t, t_onset=t0,
     )
     return v_readout, v_readout_dsi
@@ -567,7 +567,7 @@ def _pack_cost_dsi_from_v_readout_dsi(
     bias_gt: torch.Tensor,
     v_readout_dsi: torch.Tensor,
 ) -> Optional[torch.Tensor]:
-    """DSI cost from full post-sti traces; independent of cost windows."""
+    """DSI cost from post-sti traces; independent of cost windows."""
     dsi_part_key = moving_bar_cost_part_key(pack.task, pack.contrast, "DSI")
     if _part_scale(session, dsi_part_key) == 0.0:
         return None
@@ -652,7 +652,7 @@ def _pack_cost_forward(params, pack: Pack, session: TrainSession, b=None):
         if not bool(mask.any()):
             return None
     i_sti = pack.i_sti if b is None else pack.i_sti[b:b + 1]
-    trace_full, onset_trace = _forward_readout_and_onset_trace(
+    trace, onset_trace = _forward_readout_and_onset_trace(
         session, params, i_sti, pack,
     )
     a_gt, bias_gt = gt_affine_from_pack(
@@ -671,20 +671,20 @@ def _pack_cost_forward(params, pack: Pack, session: TrainSession, b=None):
         t0 = pack_t_onset(pack)
         n_t = int(pack.gts.shape[1])
         u_m = pack.entry_nodes[mask]
-        v_readout_dsi = trace_full[0, t0:t0 + n_t, u_m].transpose(0, 1)
+        v_readout_dsi = trace[0, t0:t0 + n_t, u_m].transpose(0, 1)
         if not pack_needs_waveform_mse(pack):
             v_readout = None
         elif pack.cost_t0s is None:
             v_readout = v_readout_dsi
         else:
             v_readout = window_time_traces(
-                trace_full, rb, u_m, pack.cost_t0s[mask],
+                trace, rb, u_m, pack.cost_t0s[mask],
                 n_t, t_onset=t0,
             )
     else:
         gts = pack.gts
         scale = pack.cost_scales
-        v_readout, v_readout_dsi = _readout_from_trace_full(trace_full, pack)
+        v_readout, v_readout_dsi = _readout_from_trace(trace, pack)
     return a_gt, bias_gt, gts, scale, v_readout, v_readout_dsi, pd_nd
 
 
@@ -712,15 +712,15 @@ def calc_cost_parts(z, session: TrainSession) -> Dict[str, torch.Tensor]:
             else:
                 i_sti = torch.cat([pack.i_sti for pack in fused.packs], dim=0)
             # Compatible packs share t_onset; pass one pack for prepare.
-            trace_full, onset_trace = _forward_readout_and_onset_trace(
+            trace, onset_trace = _forward_readout_and_onset_trace(
                 session, params, i_sti, fused.packs[0],
             )
             for pack, off in zip(fused.packs, fused.b_offsets):
                 a_gt, bias_gt = gt_affine_from_pack(
                     params, pack, session, onset_trace, b_offset=off,
                 )
-                v_readout, v_readout_dsi = _readout_from_trace_full(
-                    trace_full, pack, b_offset=off,
+                v_readout, v_readout_dsi = _readout_from_trace(
+                    trace, pack, b_offset=off,
                 )
                 for part_key, part in _pack_cost_parts_from_v_readout(
                     pack, session, a_gt, bias_gt, v_readout, v_readout_dsi,
@@ -841,7 +841,7 @@ def _dsi_b_set_pack(
 
 
 def _iter_cost_bs(session: TrainSession):
-    """Yield ``(pack, b)`` to accumulate gradients."""
+    """Yield ``(pack, b)`` for gradient part sums."""
     for pack in session.iter_packs():
         if not _pack_has_active_cost(pack, session):
             continue
@@ -866,11 +866,11 @@ def _iter_cost_bs(session: TrainSession):
                 yield active_pack, None
 
 
-def backward_accumulate_scaled_cost(z, session: TrainSession):
+def backward_part_sums(z, session: TrainSession):
     """Backward mean local-% cost one ``b`` at a time.
 
     Each ``b`` contributes ``Σ (W·cost) / W_norm`` so gradients match
-    ``calc_cost`` (``Σ W·cost / Σ W``).
+    ``calc_cost`` (``Σ W·cost / Σ W``). Returns ``(total, part_sums)``.
     """
     part_sums: Dict[str, float] = {}
     zero = torch.zeros((), dtype=session.sim_dtype, device=session.device)

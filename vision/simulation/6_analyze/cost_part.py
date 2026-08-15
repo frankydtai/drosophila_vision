@@ -303,7 +303,7 @@ def _save_csv(path: str, info: dict, *, per_node: bool) -> None:
 
 def _print_parts(session, z) -> None:
     parts = calc_cost_parts(z, session)
-    print(f"cost_norm={_session_cost_norm(session)}  n_parts={len(parts)}", flush=True)
+    print(f"cost_norm={_session_cost_norm(session)}  n_part={len(parts)}", flush=True)
     for k in sorted(parts):
         print(f"  {k}={float(parts[k].item()):.6f}", flush=True)
 

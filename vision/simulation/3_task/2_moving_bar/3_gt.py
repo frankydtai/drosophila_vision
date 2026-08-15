@@ -41,8 +41,8 @@ GT_CELLS: Tuple[str, ...] = (
 )
 
 GT_CELL_ALIASES: dict = {
-    "T4": tuple(st for st in GT_CELLS if st.startswith("T4")),
-    "T5": tuple(st for st in GT_CELLS if st.startswith("T5")),
+    "T4": tuple(cell for cell in GT_CELLS if cell.startswith("T4")),
+    "T5": tuple(cell for cell in GT_CELLS if cell.startswith("T5")),
 }
 
 _HORIZONTAL = frozenset({"right", "left"})
@@ -84,17 +84,17 @@ def dsi_sequential_b_sets(spec_tokens: Sequence[str]) -> Tuple[Tuple[int, ...], 
     """Minimal sti-b sets for sequential DSI: one b_set per axis x w."""
     bs_by_dir_w: dict[tuple[str, str], list[int]] = {}
     for b, token in enumerate(spec_tokens):
-        direction, _contrast, w_tag = parse_moving_bar_spec(token)
-        bs_by_dir_w.setdefault((direction, w_tag), []).append(int(b))
+        direction, _contrast, w_token = parse_moving_bar_spec(token)
+        bs_by_dir_w.setdefault((direction, w_token), []).append(int(b))
     b_sets: list[tuple[int, ...]] = []
     for pos_dir, neg_dir in AXIS_DIRECTION_PAIRS:
-        w_tags = {
-            w_tag for (direction, w_tag) in bs_by_dir_w
+        w_tokens = {
+            w_token for (direction, w_token) in bs_by_dir_w
             if direction in (pos_dir, neg_dir)
         }
-        for w_tag in sorted(w_tags):
-            pos = bs_by_dir_w.get((pos_dir, w_tag), [])
-            neg = bs_by_dir_w.get((neg_dir, w_tag), [])
+        for w_token in sorted(w_tokens):
+            pos = bs_by_dir_w.get((pos_dir, w_token), [])
+            neg = bs_by_dir_w.get((neg_dir, w_token), [])
             if not pos or not neg:
                 continue
             b_sets.append(tuple(sorted({*pos, *neg})))
@@ -116,14 +116,14 @@ def expand_gt_cells(cells: Sequence[str]) -> Tuple[str, ...]:
         else:
             valid = ", ".join((*GT_CELL_ALIASES, *GT_CELLS))
             raise ValueError(f"unknown gt cell {key!r} (expected {valid})")
-        for st in pool:
-            if st not in seen:
-                seen.add(st)
-                out.append(st)
+        for cell in pool:
+            if cell not in seen:
+                seen.add(cell)
+                out.append(cell)
     return tuple(out)
 
 
-def w_tag(w_deg: float) -> str:
+def w_token(w_deg: float) -> str:
     return "w1" if float(w_deg) <= 3.0 else "w4"
 
 
@@ -132,10 +132,10 @@ def pd_direction(side: str, subtype: str) -> str:
     letter = subtype[-1]
     if letter not in _SUBTYPE_PD_RIGHT:
         raise ValueError(f"unknown subtype {subtype!r}")
-    d = _SUBTYPE_PD_RIGHT[letter]
-    if side == "left" and d in _HORIZONTAL:
-        return _OPPOSITE[d]
-    return d
+    direction = _SUBTYPE_PD_RIGHT[letter]
+    if side == "left" and direction in _HORIZONTAL:
+        return _OPPOSITE[direction]
+    return direction
 
 
 def _axis_directions(subtype: str) -> Tuple[str, ...]:
@@ -193,23 +193,23 @@ def fig1_trace_from_sti(
     pref = motion_preference(side, subtype, direction, contrast)
     if pref is None:
         return None
-    return f"{subtype[:2]}_{pref.pc_nc}_{w_tag(w_deg)}_{pref.pd_nd}"
+    return f"{subtype[:2]}_{pref.pc_nc}_{w_token(w_deg)}_{pref.pd_nd}"
 
 
 def active_stis_from_subtype(side: str, subtype: str) -> Sequence[Tuple[str, str, str]]:
-    """Non-orthogonal (direction, contrast, w_tag) triples for one subtype."""
+    """Non-orthogonal (direction, contrast, w_token) triples for one subtype."""
     out = []
     for direction in _axis_directions(subtype):
         for contrast in ("bright", "dark"):
-            for w in GRUNTMAN_WS_DEG:
+            for w_deg in GRUNTMAN_WS_DEG:
                 if motion_preference(side, subtype, direction, contrast) is not None:
-                    out.append((direction, contrast, w_tag(w)))
+                    out.append((direction, contrast, w_token(w_deg)))
     return out
 
 
 def parse_moving_bar_spec(token: str) -> Tuple[str, str, str]:
-    direction, contrast, w_tag = str(token).split("_", 2)
-    return direction, contrast, w_tag
+    direction, contrast, w_token = str(token).split("_", 2)
+    return direction, contrast, w_token
 
 
 def axis_dsi(peak_pos: float, peak_neg: float) -> Optional[float]:
@@ -248,12 +248,12 @@ def moving_bar_dsi_from_spec(
     token: str,
 ) -> Optional[float]:
     """DSI for one cell x spec: (this dir - opposite) / (this + opposite)."""
-    direction, contrast, w_tag = parse_moving_bar_spec(token)
+    direction, contrast, w_token = parse_moving_bar_spec(token)
     if direction not in _DIR_TO_AXIS:
         return None
     pos_dir, neg_dir = _DIR_TO_AXIS[direction]
-    pos_trace = (cell, f"{pos_dir}_{contrast}_{w_tag}")
-    neg_key = (cell, f"{neg_dir}_{contrast}_{w_tag}")
+    pos_trace = (cell, f"{pos_dir}_{contrast}_{w_token}")
+    neg_key = (cell, f"{neg_dir}_{contrast}_{w_token}")
     if pos_trace not in trace_map or neg_key not in trace_map:
         return None
     dsi = axis_dsi(
@@ -311,12 +311,12 @@ def load_fig1_trace(
     key = f"{trace_token}|{n_t}|{delta_ms}|{COST_WINDOW_MS}|{COST_ALIGNED_FIRST_STI_MS}"
     if key in _TRACE_CACHE:
         return _TRACE_CACHE[key]
-    with np.load(npz_path) as d:
+    with np.load(npz_path) as npz:
         t_key, v_key = f"{trace_token}__time_ms", f"{trace_token}__vm_mv"
-        if t_key not in d.files:
+        if t_key not in npz.files:
             raise KeyError(f"missing trace {trace_token!r} in {npz_path}")
-        time_ms = np.asarray(d[t_key], dtype=np.float64)
-        vm_mv = np.asarray(d[v_key], dtype=np.float64)
+        time_ms = np.asarray(npz[t_key], dtype=np.float64)
+        vm_mv = np.asarray(npz[v_key], dtype=np.float64)
     query_ms = np.arange(n_t, dtype=np.float64) * delta_ms
     trace = np.interp(query_ms, time_ms, vm_mv, left=vm_mv[0], right=vm_mv[-1])
     _TRACE_CACHE[key] = trace
@@ -329,9 +329,9 @@ def load_fig1_traces(
     delta_ms: float,
 ) -> Dict[str, np.ndarray]:
     """All fig1 traces resampled to the per-hex train window."""
-    with np.load(npz_path) as d:
+    with np.load(npz_path) as npz:
         trace_tokens = sorted(
-            {k.replace("__time_ms", "") for k in d.files if k.endswith("__time_ms")}
+            {k.replace("__time_ms", "") for k in npz.files if k.endswith("__time_ms")}
         )
     return {
         trace_token: load_fig1_trace(trace_token, npz_path, delta_ms=delta_ms)

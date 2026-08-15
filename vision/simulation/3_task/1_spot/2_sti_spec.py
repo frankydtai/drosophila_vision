@@ -248,7 +248,7 @@ def build_spot_a_sti_radius_drive(
     ms_sti,
     delta_ms: float,
     i_baseline: float,
-    i_spot: float,
+    i_sti: float,
     sim_dtype,
     device,
 ):
@@ -256,9 +256,9 @@ def build_spot_a_sti_radius_drive(
 
     Returns ``(i_sti, sti_pulse, sti_bs, sti_nodes, a_sti_radius_idxs)`` where
     center radius=0 is baked into ``i_sti`` at scale 1, and radius contribs
-    compose as ``i += a_sti_radius[radius] * sti_pulse`` on
+    compose as ``i_sti += a_sti_radius[radius] * sti_pulse`` on
     ``(sti_bs, sti_nodes)``. ``sti_pulse`` is
-    ``(i_spot - i_baseline) * sti_pulse(...)``. ``a_sti_radius_idxs`` indexes
+    ``(i_sti - i_baseline) * sti_pulse(...)``. ``a_sti_radius_idxs`` indexes
     ``a_sti_radii`` / ``a_sti_radius`` (center radius=0 not in that axis). Empty
     ``a_sti_radii`` → center-only drive. Does not modify gt construction.
     """
@@ -266,34 +266,33 @@ def build_spot_a_sti_radius_drive(
     if any(radius == 0 for radius in radii):
         raise ValueError("a_sti_radii must omit center radius=0 (baked into i_sti @1)")
     radius_idx = dict(zip(radii, range(len(radii))))
-    sti_b_vals: list[int] = []
-    node_l: list[int] = []
-    r_l: list[int] = []
+    sti_bs: list[int] = []
+    sti_nodes: list[int] = []
+    a_sti_radius_idxs: list[int] = []
     center_nodes: list[tuple[int, int]] = []
     for b, spot_b in enumerate(spot_bs):
         for sti_hex_u, sti_hex_v in spot_b.sti_uv:
             for node in connectome.sti_nodes_at_uv(int(sti_hex_u), int(sti_hex_v)):
                 center_nodes.append((int(b), int(node)))
             for radius in radii:
-                ri = radius_idx[radius]
+                a_sti_radius_idx = radius_idx[radius]
                 for du, dv in build_hex.shell_hexes(radius):
                     for node in connectome.sti_nodes_at_uv(int(sti_hex_u) + int(du), int(sti_hex_v) + int(dv)):
-                        sti_b_vals.append(int(b))
-                        node_l.append(int(node))
-                        r_l.append(int(ri))
+                        sti_bs.append(int(b))
+                        sti_nodes.append(int(node))
+                        a_sti_radius_idxs.append(int(a_sti_radius_idx))
     pulse = sti_pulse(t_onset, n_t, ms_sti, delta_ms=delta_ms)
     n_b = len(spot_bs)
-    sti_nodes = torch.as_tensor(connectome.sti_nodes, dtype=torch.long, device=device)
-    i_sti = torch.zeros((n_b, n_t, connectome.n_nodes), dtype=sim_dtype, device=device)
-    if len(sti_nodes):
-        i_sti[:, :, sti_nodes] = float(i_baseline)
-    # Amplitude-scaled pulse for center bake and a_sti_radius inject (Pack.sti_pulse).
+    network_sti_nodes = torch.as_tensor(connectome.sti_nodes, dtype=torch.long, device=device)
     scaled = torch.as_tensor(
-        (float(i_spot) - float(i_baseline)) * pulse, dtype=sim_dtype, device=device,
+        (float(i_sti) - float(i_baseline)) * pulse, dtype=sim_dtype, device=device,
     )
+    i_sti = torch.zeros((n_b, n_t, connectome.n_node), dtype=sim_dtype, device=device)
+    if len(network_sti_nodes):
+        i_sti[:, :, network_sti_nodes] = float(i_baseline)
     for b, node in center_nodes:
         i_sti[b, :, node] = i_sti[b, :, node] + scaled
-    sti_bs = torch.tensor(sti_b_vals, dtype=torch.long, device=device)
-    sti_nodes = torch.tensor(node_l, dtype=torch.long, device=device)
-    a_sti_radius_idxs = torch.tensor(r_l, dtype=torch.long, device=device)
+    sti_bs = torch.tensor(sti_bs, dtype=torch.long, device=device)
+    sti_nodes = torch.tensor(sti_nodes, dtype=torch.long, device=device)
+    a_sti_radius_idxs = torch.tensor(a_sti_radius_idxs, dtype=torch.long, device=device)
     return i_sti, scaled, sti_bs, sti_nodes, a_sti_radius_idxs

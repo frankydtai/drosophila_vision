@@ -73,10 +73,10 @@ def main() -> None:
         top = edges["post_type"].value_counts().head(8)
         cov = (edges.groupby("post_type")["post_has_col"].mean() * 100).round(1)
         summary = pd.DataFrame({
-            "n_edges": top,
+            "n_edge": top,
             "pct_with_column": cov.reindex(top.index),
         })
-        print("  top post-target types (n_edges, % with column):")
+        print("  top post-target types (n_edge, % with column):")
         print(summary.to_string())
 
     print(f"\n{'='*64}\nCONCLUSION\n{'='*64}")

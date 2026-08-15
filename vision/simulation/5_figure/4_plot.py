@@ -25,10 +25,10 @@ from train.implementation import resolve_run_dir
 
 
 def _plot_device_label():
-    dev = train.active_device()
-    if dev == 'cuda' and torch.cuda.is_available():
+    device = train.active_device()
+    if device == 'cuda' and torch.cuda.is_available():
         return f'cuda ({torch.cuda.get_device_name(0)})'
-    return dev
+    return device
 
 
 def spot_readout_fns(session):
@@ -39,16 +39,16 @@ def spot_readout_fns(session):
     )
 
 
-def _network_spot_tag(session, task="spot"):
+def _network_spot_label(session, task="spot"):
     """Subtitle suffix for network spot plots (exact spot/shift counts)."""
     opts = (session.train_opts or {}).get(f'{task}_sti_opts') or {}
     spot = resolve_spot(session.connectome, sti_opts=opts)
-    n_spots = len(spot.centers)
-    n_shifts = len(spot.shifts)
-    n_hexes = network_hex_count(session.connectome)
+    n_spot = len(spot.centers)
+    n_shift = len(spot.shifts)
+    n_hex = network_hex_count(session.connectome)
     return (
-        f'  [avg over {n_spots} spots x {n_shifts} shifts = {n_spots * n_shifts}]\n'
-        f'({n_hexes} hexes in network)'
+        f'  [avg over {n_spot} spots x {n_shift} shifts = {n_spot * n_shift}]\n'
+        f'({n_hex} hexes in network)'
     )
 
 
@@ -332,7 +332,7 @@ def _plot_spot_tasks(session, z, outdir, suffix, model_all,
                        center_only=False):
     """Plot spot; both contrasts in one figure when session has bright and dark."""
     build_readout, plot_gt, plot_all = spot_readout_fns(session)
-    net_tag = _network_spot_tag(session, "spot")
+    net_label = _network_spot_label(session, "spot")
     cost_parts = _figure_cost_parts(session, z)
     figure_kwargs = dict(gts=gts, cost_parts=cost_parts)
     token = session_filter_figure_token(session)
@@ -353,7 +353,7 @@ def _plot_spot_tasks(session, z, outdir, suffix, model_all,
         mvd = _plot_path(outdir, _readout_figure_stem('spot_gt', session), file_suffix, html=html)
         plot_gt(
             mvd, readouts=readouts,
-            title=f'Spot {token}-gt ({suffix}){net_tag}',
+            title=f'Spot {token}-gt ({suffix}){net_label}',
             **figure_kwargs,
         )
         allc = None
@@ -361,7 +361,7 @@ def _plot_spot_tasks(session, z, outdir, suffix, model_all,
             allc = _plot_path(outdir, _readout_figure_stem('spot_all', session), file_suffix, html=html)
             plot_all(
                 allc, readouts=readouts,
-                title=f'Spot {token}-all ({suffix}){net_tag}',
+                title=f'Spot {token}-all ({suffix}){net_label}',
                 **figure_kwargs,
             )
         return mvd, allc
@@ -448,7 +448,7 @@ def _plot_one_spot(session, z, outdir, contrast, suffix, model_all,
     mvd = _plot_path(outdir, _readout_figure_stem('spot_gt', session), file_suffix, html=html)
     allc = _plot_path(outdir, _readout_figure_stem('spot_all', session), file_suffix, html=html)
     build_readout, plot_gt, plot_all = spot_readout_fns(session)
-    net_tag = _network_spot_tag(session, "spot")
+    net_label = _network_spot_label(session, "spot")
     if cost_parts is None:
         cost_parts = _figure_cost_parts(session, z)
     figure_kwargs = dict(gts=gts, cost_parts=cost_parts)
@@ -462,12 +462,12 @@ def _plot_one_spot(session, z, outdir, contrast, suffix, model_all,
     readouts = {contrast: readout}
     plot_gt(
         mvd, readouts=readouts,
-        title=f'spot {contrast} {token}-gt ({suffix}){net_tag}', **figure_kwargs,
+        title=f'spot {contrast} {token}-gt ({suffix}){net_label}', **figure_kwargs,
     )
     if model_all:
         plot_all(
             allc, readouts=readouts,
-            title=f'spot {contrast} {token}-all ({suffix}){net_tag}', **figure_kwargs,
+            title=f'spot {contrast} {token}-all ({suffix}){net_label}', **figure_kwargs,
         )
     return mvd, allc
 
@@ -649,7 +649,7 @@ def add_ms_shown_argument(parser):
         help=(
             "absolute aligned ms START,STOP (not --sti-timing; not onset-relative). "
             "spot: 0=trial start, pre=0,ms_pre (e.g. 0,1000); "
-            "bar: 0=t0 at node (neg START ok); omit = full trace"
+            "bar: 0=t0 at node (neg START ok); omit = entire trace"
         ),
     )
 

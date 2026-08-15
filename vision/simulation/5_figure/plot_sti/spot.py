@@ -52,7 +52,7 @@ from build_hex import (
     set_axis_labels,
     xy_deg_from_uv,
 )
-from path import DEFAULT_NETWORK_RUN, network_run_tag, resolve_network_json
+from path import DEFAULT_NETWORK_RUN, network_run_token, resolve_network_json
 from network.construction import Network, load_network
 from train.param import SIM_DTYPE
 from task.spot.sti_geo import (
@@ -76,8 +76,7 @@ def _draw_spot_radius_hexes(ax, centers_u, centers_v, spot_radius: float) -> Non
     boundary of the footprint / halfway to neighboring spot centers.
     """
     e = float(spot_radius) + 0.5
-    du = np.array([d[0] for d in _HEX_DIRECTIONS], dtype=float)
-    dv = np.array([d[1] for d in _HEX_DIRECTIONS], dtype=float)
+    du, dv = np.asarray(_HEX_DIRECTIONS, dtype=float).T
     for cu, cv in zip(np.atleast_1d(centers_u), np.atleast_1d(centers_v)):
         xs, ys = xy_deg_from_uv(float(cu) + e * du, float(cv) + e * dv)
         ax.add_patch(
@@ -128,9 +127,9 @@ def main() -> None:
         a_syn_exc=NEURON_CONST['a_syn_exc'], a_syn_inh=NEURON_CONST['a_syn_inh'],
         syn_mode=NEURON_SCHEMA['syn_mode'], dtype=SIM_DTYPE,
     )
-    run_tag = network_run_tag(network_json, connectome.meta)
+    run_token = network_run_token(network_json, connectome.meta)
     output = args.output or os.path.join(
-        PLOT_DIR, f"plotted_multi_spot_{run_tag}.png",
+        PLOT_DIR, f"plotted_multi_spot_{run_token}.png",
     )
 
     os.makedirs(os.path.dirname(os.path.abspath(output)), exist_ok=True)
@@ -155,12 +154,12 @@ def main() -> None:
             multi_spot=args.multi_spot,
             fully_inside=args.fully_inside,
         ).centers
-        n_spots = len(centers)
-        n_by_spot_radius[spot_radius] = n_spots
+        n_spot = len(centers)
+        n_by_spot_radius[spot_radius] = n_spot
         dist = int(round(2.0 * spot_radius)) + 1
         print(
-            f"network={run_tag}  spot_radius={spot_radius}  "
-            f"spot_radius_dist={dist}  n_spots={n_spots}",
+            f"network={run_token}  spot_radius={spot_radius}  "
+            f"spot_radius_dist={dist}  n_spot={n_spot}",
         )
         if centers:
             cu = np.array([center[0] for center in centers], dtype=np.int64)
@@ -172,7 +171,7 @@ def main() -> None:
                 markeredgecolor="black", markeredgewidth=0.4,
             )
         ax.set_title(
-            f"spot_radius={spot_radius}  spot_radius_dist={dist}  n={n_spots}",
+            f"spot_radius={spot_radius}  spot_radius_dist={dist}  n={n_spot}",
             fontsize=11,
             fontweight="bold",
         )
@@ -184,7 +183,7 @@ def main() -> None:
     for ax in axes_flat[len(spot_radii):]:
         ax.set_visible(False)
 
-    fig.suptitle(f"Spot centers vs spot_radius ({run_tag})", fontsize=13, fontweight="bold")
+    fig.suptitle(f"Spot centers vs spot_radius ({run_token})", fontsize=13, fontweight="bold")
     plt.tight_layout()
     plt.savefig(output, dpi=200, bbox_inches="tight")
     plt.close(fig)

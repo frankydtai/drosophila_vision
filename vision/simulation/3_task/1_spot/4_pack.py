@@ -66,11 +66,11 @@ def standardize_spot_cost_radius(radius) -> int:
 
 
 def parse_spot_cost_radius_scale_value(token: str) -> float:
-    tok = str(token).strip()
-    if "/" in tok:
-        num, den = tok.split("/", 1)
+    token = str(token).strip()
+    if "/" in token:
+        num, den = token.split("/", 1)
         return float(num.strip()) / float(den.strip())
-    return float(tok)
+    return float(token)
 
 
 def expand_spot_cost_radius_scale(
@@ -115,10 +115,10 @@ def parse_cost_ms_tokens(
     if len(tokens) == 1 and str(tokens[0]).strip().lower() in ("none", "off"):
         return {}
     out: Dict[int, Tuple[float, ...]] = {}
-    for tok in tokens:
-        if "=" not in tok:
-            raise ValueError(f"expected R=MS,... or none|off, got {tok!r}")
-        radius, val = tok.split("=", 1)
+    for token in tokens:
+        if "=" not in token:
+            raise ValueError(f"expected R=MS,... or none|off, got {token!r}")
+        radius, val = token.split("=", 1)
         vals = parse_comma_list(val)
         if not vals:
             raise ValueError(f"--cost-ms {radius}=... must list at least one ms")
@@ -137,14 +137,14 @@ def resolve_spot_cost_radius_scale(
         return None
     bare: list[int] = []
     explicit: Dict[int, float] = {}
-    for tok in tokens:
-        if "=" in tok:
-            radius, val = tok.split("=", 1)
+    for token in tokens:
+        if "=" in token:
+            radius, val = token.split("=", 1)
             explicit[standardize_spot_cost_radius(radius)] = (
                 parse_spot_cost_radius_scale_value(val)
             )
         else:
-            bare.append(standardize_spot_cost_radius(tok))
+            bare.append(standardize_spot_cost_radius(token))
     if bare:
         scales = {int(radius): 0.0 for radius in spot_cost_radii}
         for radius in bare:
@@ -237,7 +237,7 @@ def spot_cost_hexes(
     return cost_hexes
 
 
-def spot_n_cost_hexes(cost_hexes):
+def spot_n_cost_hex(cost_hexes):
     if not cost_hexes:
         return 0
     n_by_b: Dict[int, int] = {}
@@ -316,7 +316,9 @@ class SpotGt:
     entry_sti_us: torch.Tensor  # (n_cost,) long
     entry_sti_vs: torch.Tensor  # (n_cost,) long
     n_b: int
-    info: dict
+    n_cost_hex: int
+    n_center: int
+    n_shift: int
 
 
 def build_spot_gt(
@@ -329,7 +331,7 @@ def build_spot_gt(
     n_t: int,
     t_onset: int,
     i_baseline: float,
-    i: float,
+    i_sti: float,
     contrast: str,
     gt_amp: float,
     delta_ms: float,
@@ -348,7 +350,7 @@ def build_spot_gt(
     if contrast not in SPOT_CONTRASTS:
         raise ValueError(f"contrast must be 'bright' or 'dark', got {contrast!r}")
     i_baseline = float(i_baseline)
-    i_spot = float(i)
+    i_sti = float(i_sti)
     device = device or connectome.device
     if ms_response is None:
         raise ValueError("build_spot_gt requires ms_response")
@@ -389,11 +391,11 @@ def build_spot_gt(
     # Single sti pulse source (step or finite spot) shared with the ir gt.
     pulse = sti_pulse(t_onset, n_t, ms_sti, delta_ms=delta_ms)
     drive = torch.as_tensor(
-        i_baseline + (i_spot - i_baseline) * pulse, dtype=sim_dtype, device=device,
+        i_baseline + (i_sti - i_baseline) * pulse, dtype=sim_dtype, device=device,
     )
     # All sti hexes hold i_baseline; sti_uv hexes then get the step/spot drive.
     sti_nodes = torch.as_tensor(connectome.sti_nodes, dtype=torch.long, device=device)
-    i_sti = torch.zeros((n_b, n_t, connectome.n_nodes), dtype=sim_dtype, device=device)
+    i_sti = torch.zeros((n_b, n_t, connectome.n_node), dtype=sim_dtype, device=device)
     if len(sti_nodes):
         i_sti[:, :, sti_nodes] = float(i_baseline)
     for b, spot_b in enumerate(spot_bs):
@@ -466,30 +468,6 @@ def build_spot_gt(
     if float(power) == 0.0:
         power = torch.tensor(1.0, dtype=sim_dtype, device=device)
 
-    info = {
-        "n_b": n_b,
-        "n_cost": gts.shape[0],
-        "n_cost_hexes": spot_n_cost_hexes(cost_hexes),
-        "n_centers": len(spot.centers),
-        "n_shifts": len(spot.shifts),
-        "cost_radius": cost_radius,
-        "spot_radius": float(spot_radius),
-        "multi_spot": bool(multi_spot),
-        "fully_inside": bool(fully_inside),
-        "spot_cost_radius_scale": spot_cost_radius_scale,
-        "spot_cost_radii": list(cost_radii),
-        "active_gts": active,
-        "i_baseline": float(i_baseline),
-        "i": float(i_spot),
-        "contrast": str(contrast),
-        "ms_sti": None if ms_sti is None else float(ms_sti),
-        "ms_response": float(ms_response),
-        "t_onset": int(t_onset),
-        "n_t": int(n_t),
-        "n_t_gt": int(n_t_gt),
-        "filter": str(filter),
-        "spot_gt_mode": str(spot_gt_mode),
-    }
     return SpotGt(
         i_sti=i_sti,
         gts=gts,
@@ -501,7 +479,9 @@ def build_spot_gt(
         entry_sti_us=entry_sti_us,
         entry_sti_vs=entry_sti_vs,
         n_b=n_b,
-        info=info,
+        n_cost_hex=spot_n_cost_hex(cost_hexes),
+        n_center=len(spot.centers),
+        n_shift=len(spot.shifts),
     )
 
 

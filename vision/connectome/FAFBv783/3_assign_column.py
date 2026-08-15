@@ -20,7 +20,7 @@ native column_assignment.
 
 Cell types are one positional comma-separated token (like analyze_cell_syn.py); direction
 is a ``--post`` flag (default ``pre``, by upstream sources). Outputs go to the
-``3_assigned_columns/`` subfolder as ``<tag>_<side>_<direction>.csv`` (e.g.
+``3_assigned_columns/`` subfolder as ``<token>_<side>_<direction>.csv`` (e.g.
 ``r1_6_left_post.csv``).
 
 Run with the project venv (default: all ``ASSIGNED_COLUMN_CELLS``):
@@ -45,7 +45,7 @@ from import_bootstrap import parse_comma_list
 logger = logging.getLogger(__name__)
 
 # Sole (cell, direction) list for partner-based column placement. Consumed by
-# 4_build_network.py; CSV path is <tag>_<side>_<direction>.csv under
+# 4_build_network.py; CSV path is <token>_<side>_<direction>.csv under
 # 3_assigned_columns/. FAFB Matsliah names only (not Borst aliases).
 ASSIGNED_COLUMN_CELLS: List[Tuple[str, str]] = [
     ("R1-6", "post"),
@@ -80,8 +80,8 @@ ASSIGNED_COLUMN_CELLS: List[Tuple[str, str]] = [
 DEFAULT_DIRECTION = "pre"
 
 
-def _cell_tag(cell: str) -> str:
-    """Turn a cell into a filename tag, e.g. 'R1-6' -> 'r1_6'."""
+def _cell_token(cell: str) -> str:
+    """Turn a cell into a filename token, e.g. 'R1-6' -> 'r1_6'."""
     return re.sub(r"[^0-9a-z]+", "_", cell.lower()).strip("_")
 
 
@@ -152,11 +152,11 @@ def locate_neurons(
     ].copy()
     e["column_id"] = e[partner_id].map(partner_column_id)
 
-    n_partners = e.groupby(self_id)[partner_id].nunique()
+    n_partner = e.groupby(self_id)[partner_id].nunique()
 
     with_column = e.dropna(subset=["column_id"]).copy()
     with_column["column_id"] = with_column["column_id"].astype("int64")
-    n_partners_with_column = with_column.groupby(self_id)[partner_id].nunique()
+    n_partner_with_column = with_column.groupby(self_id)[partner_id].nunique()
 
     if vote_mode == "syn":
         votes = with_column.groupby([self_id, "column_id"])["syn_count"].sum()
@@ -173,10 +173,10 @@ def locate_neurons(
     out = targets.copy()
     out["root_id"] = out["root_id"].astype("int64")
     out[n_partner_field] = (
-        out["root_id"].map(n_partners).fillna(0).astype("int64")
+        out["root_id"].map(n_partner).fillna(0).astype("int64")
     )
     out[n_with_column_field] = (
-        out["root_id"].map(n_partners_with_column).fillna(0).astype("int64")
+        out["root_id"].map(n_partner_with_column).fillna(0).astype("int64")
     )
     out["votes"] = (
         out["root_id"]
@@ -248,8 +248,8 @@ def locate_neurons(
 
 
 def _output_name(side: str, target_cells: Sequence[str], direction: str) -> str:
-    tag = "_".join(_cell_tag(t) for t in target_cells)
-    return f"{tag}_{side}_{direction}.csv"
+    token = "_".join(_cell_token(t) for t in target_cells)
+    return f"{token}_{side}_{direction}.csv"
 
 
 def _parse_args() -> argparse.Namespace:

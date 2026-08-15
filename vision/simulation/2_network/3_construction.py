@@ -14,7 +14,7 @@ rule. ``--syn-mode per_cell`` uses ``edge_weights = syn_sign * n_syn``;
 Nodes follow ``network.json`` file order; ``node_cells[i]`` is the index of
 ``nodes[i]['name']`` in the order-ordered cell vocabulary
 (:data:`CELL_ROWS`). This broadcasts per-cell params to nodes via
-``param[node_cells]`` (shape ``(n_cells,)`` → ``(n_nodes,)``).
+``param[node_cells]`` (shape ``(n_cell,)`` → ``(n_node,)``).
 """
 from __future__ import annotations
 
@@ -74,9 +74,9 @@ class Network:
     """A loaded network: edge-list backend plus per-node geometry / idxs."""
 
     conn: ScatterConn
-    n_nodes: int
+    n_node: int
     node_cells: torch.Tensor          # (N,) long, index into cells
-    cells: list[str]            # cell vocabulary (len = n_cells)
+    cells: list[str]            # cell vocabulary (len = n_cell)
     us: np.ndarray                    # (N,) axial u
     vs: np.ndarray                    # (N,) axial v
     column_ids: np.ndarray            # (N,) FAFB column_ids (or -1)
@@ -88,7 +88,7 @@ class Network:
     source_json: Path | None = None
 
     @property
-    def n_cells(self) -> int:
+    def n_cell(self) -> int:
         return len(self.cells)
 
     @property
@@ -102,7 +102,7 @@ class Network:
 
 
 def node_cells(connectome: Network) -> np.ndarray:
-    """(n_nodes,) array of each node's cell NAME."""
+    """(n_node,) array of each node's cell NAME."""
     return np.asarray(connectome.cells)[connectome.node_cells.detach().cpu().numpy()]
 
 
@@ -150,7 +150,7 @@ def active_gt_cells(
     """Intersect requested (or fallback) gt cells with those active in the network."""
     keep = tuple(gt_cells) if gt_cells is not None else tuple(fallback_gt_cells)
     avail = set(available)
-    active = [st for st in keep if st in avail]
+    active = [cell for cell in keep if cell in avail]
     if not active:
         raise ValueError(
             f"{context} has no gt cells (requested {list(keep)!r})",
@@ -200,7 +200,7 @@ def load_network(
     nodes, edges, cells, meta = load_network_json(path)
     mode = syn_mode
 
-    n_nodes = len(nodes)
+    n_node = len(nodes)
     node_ids = [int(n["id"]) for n in nodes]
     node_from_id = {node_id: node for node, node_id in enumerate(node_ids)}
 
@@ -223,19 +223,19 @@ def load_network(
     source_idxs = np.empty(len(edges), dtype=np.int64)
     target_idxs = np.empty(len(edges), dtype=np.int64)
     edge_weights = np.empty(len(edges), dtype=np.float64)
-    for k, e in enumerate(edges):
-        source_idxs[k] = node_from_id[int(e["src"])]
-        target_idxs[k] = node_from_id[int(e["tar"])]
-        syn_sign = float(e["syn_sign"])
-        edge_weights[k] = (
-            syn_sign if mode == "per_edge" else syn_sign * float(e["n_syn"])
+    for edge_idx, edge in enumerate(edges):
+        source_idxs[edge_idx] = node_from_id[int(edge["src"])]
+        target_idxs[edge_idx] = node_from_id[int(edge["tar"])]
+        syn_sign = float(edge["syn_sign"])
+        edge_weights[edge_idx] = (
+            syn_sign if mode == "per_edge" else syn_sign * float(edge["n_syn"])
         )
 
     conn = ScatterConn(
         source_idxs=source_idxs,
         target_idxs=target_idxs,
         edge_weights=edge_weights,
-        n_nodes=n_nodes,
+        n_node=n_node,
         node_cells=node_cells,
         a_syn_exc=a_syn_exc,
         a_syn_inh=a_syn_inh,
@@ -245,7 +245,7 @@ def load_network(
 
     return Network(
         conn=conn,
-        n_nodes=n_nodes,
+        n_node=n_node,
         node_cells=torch.as_tensor(node_cells, dtype=torch.long, device=device),
         cells=cells,
         us=us,

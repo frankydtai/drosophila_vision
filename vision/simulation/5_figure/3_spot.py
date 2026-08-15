@@ -40,7 +40,7 @@ from figure.panel import (
     gt_trace_affine,
     e_leak_from_z,
     session_filter_figure_token,
-    hex_scope_tag,
+    hex_scope_label,
     mark_spot,
     overlay_reds,
     plot_pre_post_line,
@@ -743,10 +743,10 @@ def _forward_spot_readout(
     t0 = train.pack_t_onset(pack)
     if str((session.train_opts or {}).get("filter", "none")) == "ca":
         v_ca = train.v_ca_from_v(v, params, session)
-        trace_full = train.ca_from_v_ca(v_ca, params, session, t_onset=t0)
+        trace = train.ca_from_v_ca(v_ca, params, session, t_onset=t0)
     else:
-        trace_full = v
-    train.override_val_from(params, session, onset_trace=trace_full, t_onset=t0)
+        trace = v
+    train.override_val_from(params, session, onset_trace=trace, t_onset=t0)
     connectome = session.connectome
     cells = list(connectome.cells)
     mt = int(i_sti.shape[1])
@@ -764,7 +764,7 @@ def _forward_spot_readout(
         connectome, spot_bs, pack_spot_cost_radii(pack), pack.cost_radius,
     )
 
-    figure_traces = trace_full[bs, :, nodes].cpu().numpy()
+    figure_traces = trace[bs, :, nodes].cpu().numpy()
 
     sti_ms_pre = opts.get("ms_pre")
     dt = float(opts["delta_ms"])
@@ -912,7 +912,7 @@ def _spot_suptitle(title, readout):
         if a_sti_radius and "1" in a_sti_radius:
             head = f"a_sti_radius 1 = {float(a_sti_radius['1']):.4g}"
         if readout.has_overlays:
-            scope = hex_scope_tag(readout.overlay_xs, readout.overlay_ys)
+            scope = hex_scope_label(readout.overlay_xs, readout.overlay_ys)
             return f'{head}  [{scope}, overlay + scope]'
     return head
 
@@ -932,14 +932,11 @@ def _trained_radii(cost_parts, contrasts, *, center_only=False):
                 continue
             radius_token = part_key[pos + 2:]
             try:
-                r_f = float(radius_token)
+                radius = int(radius_token)
             except ValueError:
                 continue
-            r_i = int(round(r_f))
-            if abs(r_f - r_i) > 1e-6:
-                continue
-            if 0 <= r_i < RF_N_RADII:
-                out.add(r_i)
+            if 0 <= radius < RF_N_RADII:
+                out.add(radius)
     if not out:
         return [int(RF_CENTER_RADIUS)]
     return sorted(out)

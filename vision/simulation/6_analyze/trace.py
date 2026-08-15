@@ -78,12 +78,12 @@ def detect_oscillation(
     """FFT / v_peak_to_peak metrics on one already-sliced mean v_post slice."""
     n = len(v_trace)
     if n < 10:
-        return {"flag": False, "reason": "too_short", "n_samples": n}
+        return {"flag": False, "reason": "too_short", "n_sample": n}
 
     mean = float(np.mean(v_trace))
     std = float(np.std(v_trace))
     if std < 1e-6:
-        return {"flag": False, "reason": "flat", "std": std, "n_samples": n}
+        return {"flag": False, "reason": "flat", "std": std, "n_sample": n}
 
     v_detrend = v_trace - mean
     dt = delta_ms / 1000.0
@@ -96,7 +96,7 @@ def detect_oscillation(
             "reason": "no_power_in_band",
             "peak_f": 0.0,
             "peak_power": 0.0,
-            "n_samples": n,
+            "n_sample": n,
         }
 
     peak_i = int(np.argmax(fft_mag[mask]))
@@ -122,7 +122,7 @@ def detect_oscillation(
         "peak_f": peak_f,
         "peak_power": peak_power,
         "snr": snr,
-        "n_samples": n,
+        "n_sample": n,
     }
 
 
@@ -137,7 +137,7 @@ def detect_flat(
     """Flatness of an already-sliced trace vs a scalar baseline (mV)."""
     n = len(v_trace)
     if n < 2:
-        return {"flag": False, "reason": "too_short", "n_samples": n}
+        return {"flag": False, "reason": "too_short", "n_sample": n}
 
     d = v_trace - float(baseline)
     abs_mean_d = float(np.mean(np.abs(d)))
@@ -158,7 +158,7 @@ def detect_flat(
         "v_peak_to_peak": v_peak_to_peak,
         "v_peak_to_peak_from_baseline": v_peak_to_peak_from_baseline,
         "max_abs": max_abs_d,
-        "n_samples": n,
+        "n_sample": n,
     }
 
 
@@ -176,7 +176,7 @@ def detect_drift(
             "flag": False,
             "reason": "too_short",
             "direction": "none",
-            "n_samples": n,
+            "n_sample": n,
         }
 
     t_s = np.arange(n, dtype=float) * (delta_ms / 1000.0)
@@ -191,7 +191,7 @@ def detect_drift(
             "direction": "none",
             "slope_mv_over_s": 0.0,
             "r": 0.0,
-            "n_samples": n,
+            "n_sample": n,
         }
     slope = float(np.dot(t_c, v_c) / denom)
     v_hat = slope * t_c
@@ -213,7 +213,7 @@ def detect_drift(
         "slope_mv_over_s": slope,
         "r": r,
         "delta_end_start": float(v[-1] - v[0]),
-        "n_samples": n,
+        "n_sample": n,
     }
 
 
@@ -266,7 +266,7 @@ def detect_stability(
         "oscillation": osc,
         "drift": drift,
         "flat": flat,
-        "n_samples": len(v_trace),
+        "n_sample": len(v_trace),
     }
 
 
@@ -323,26 +323,26 @@ def _resolve_windows(args, ms_pre, ms_sti, ms_response):
 
 
 def _slice_ms(
-    v_full: np.ndarray, start_ms: float, stop_ms: float, *, delta_ms: float,
+    trace: np.ndarray, start_ms: float, stop_ms: float, *, delta_ms: float,
 ) -> np.ndarray:
     i0 = train.t_from_ms(start_ms, delta_ms=delta_ms)
     i1 = train.t_from_ms(stop_ms, delta_ms=delta_ms)
-    n = len(v_full)
+    n = len(trace)
     if i0 < 0 or i1 >= n or i0 > i1:
         raise SystemExit(
             f"slice {start_ms:g},{stop_ms:g} (t={i0}:{i1}) out of range "
             f"for v_post length {n}"
         )
-    return np.asarray(v_full[i0 : i1 + 1], dtype=float)
+    return np.asarray(trace[i0 : i1 + 1], dtype=float)
 
 
 def _baseline_mean(
-    v_full: np.ndarray,
+    trace: np.ndarray,
     baseline: tuple[float, float],
     *,
     delta_ms: float,
 ) -> float:
-    trace_slice = _slice_ms(v_full, baseline[0], baseline[1], delta_ms=delta_ms)
+    trace_slice = _slice_ms(trace, baseline[0], baseline[1], delta_ms=delta_ms)
     return float(np.mean(trace_slice))
 
 
@@ -350,8 +350,8 @@ def _format_param(param_inits, param_vals) -> str:
     parts: list[str] = []
     for key, bag in (("init", param_inits or ()), ("val", param_vals or ())):
         for param, node, number in bag:
-            tok = f"{param}.{key}" if node is None else f"{param}.{key}.{node}"
-            parts.append(f"{tok}={number:g}")
+            token = f"{param}.{key}" if node is None else f"{param}.{key}.{node}"
+            parts.append(f"{token}={number:g}")
     return " ".join(parts) if parts else "none"
 
 
@@ -427,7 +427,7 @@ def _load_reports(args):
         f"forward TimeWindow(ms, 0, {forward_stop:g})  "
         f"ms_pre={ms_pre:g} ms_sti={ms_sti:g} ms_response={ms_response:g}  "
         f"param={_format_param(param_inits, param_vals)}  "
-        f"n_cells={len(cells)}",
+        f"n_cell={len(cells)}",
         flush=True,
     )
     reports = analyze_spot_average(
@@ -474,7 +474,7 @@ def _print_oscillation(cells, reports, delta_ms, analyze, args) -> None:
             f"{result.get('snr', 0):>8.2f} "
             f"{result.get('v_peak_to_peak', 0):>8.2f} "
             f"{result.get('std', 0):>8.2f} "
-            f"{result.get('n_samples', 0):>6}",
+            f"{result.get('n_sample', 0):>6}",
             flush=True,
         )
         if result["flag"]:
@@ -503,9 +503,9 @@ def _print_flat(cells, reports, delta_ms, analyze, baseline, args) -> None:
         if rep is None:
             print(f"{cell:<12} {'?':<6} {'no_report':<12}", flush=True)
             continue
-        v_full = _trace_series(rep)
-        base = _baseline_mean(v_full, baseline, delta_ms=delta_ms)
-        v = _slice_ms(v_full, analyze[0], analyze[1], delta_ms=delta_ms)
+        trace = _trace_series(rep)
+        base = _baseline_mean(trace, baseline, delta_ms=delta_ms)
+        v = _slice_ms(trace, analyze[0], analyze[1], delta_ms=delta_ms)
         result = detect_flat(
             v,
             baseline=base,
@@ -521,7 +521,7 @@ def _print_flat(cells, reports, delta_ms, analyze, baseline, args) -> None:
             f"{result.get('abs_mean', 0):>8.3f} "
             f"{result.get('v_peak_to_peak', 0):>9.3f} "
             f"{result.get('max_abs', 0):>8.2f} "
-            f"{result.get('n_samples', 0):>6}",
+            f"{result.get('n_sample', 0):>6}",
             flush=True,
         )
         if result["flag"]:
@@ -564,7 +564,7 @@ def _print_drift(cells, reports, delta_ms, analyze, args) -> None:
             f"{result.get('slope_mv_over_s', 0):>10.3f} "
             f"{result.get('r', 0):>8.3f} "
             f"{result.get('delta_end_start', 0):>8.2f} "
-            f"{result.get('n_samples', 0):>6}",
+            f"{result.get('n_sample', 0):>6}",
             flush=True,
         )
         if result["flag"]:
@@ -591,9 +591,9 @@ def _print_stability(cells, reports, delta_ms, analyze, baseline, args) -> None:
         if rep is None:
             print(f"{cell:<12} {'?':<16} {'?':<5} {'?':<8} {'?':<5}", flush=True)
             continue
-        v_full = _trace_series(rep)
-        base = _baseline_mean(v_full, baseline, delta_ms=delta_ms)
-        v = _slice_ms(v_full, analyze[0], analyze[1], delta_ms=delta_ms)
+        trace = _trace_series(rep)
+        base = _baseline_mean(trace, baseline, delta_ms=delta_ms)
+        v = _slice_ms(trace, analyze[0], analyze[1], delta_ms=delta_ms)
         result = detect_stability(
             v,
             baseline=base,
@@ -620,7 +620,7 @@ def _print_stability(cells, reports, delta_ms, analyze, baseline, args) -> None:
             f"{osc.get('v_peak_to_peak_over_std', 0):>8.2f} "
             f"{drift.get('slope_mv_over_s', 0):>9.3f} "
             f"{flat.get('max_abs', 0):>8.2f} "
-            f"{result.get('n_samples', 0):>6}",
+            f"{result.get('n_sample', 0):>6}",
             flush=True,
         )
 

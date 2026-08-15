@@ -9,7 +9,7 @@ By default (incoming / ``pre``) each CELL is treated as the postsynaptic
 down by postsynaptic ``target_cell``.
 
 A CELL token may be a cell (e.g. ``Mi1``); a *family* when prefixed with
-``:`` (e.g. ``:Centrifugal``) which accumulates over all its cells; or a single
+``:`` (e.g. ``:Centrifugal``) which sums over all its cells; or a single
 neuron when prefixed with ``@`` (e.g. ``@720575940622041087``) selected by FlyWire
 root id. The breakdown column still shows individual ``source_cell``/``target_cell``
 unless ``--family`` is given.
@@ -107,7 +107,7 @@ def resolve_query_labels(
     """Resolve queried tokens to (ordered labels, self_cell -> labels, self_id -> labels).
 
     Token prefixes:
-      - ``:Family`` accumulates over every cell of that family.
+      - ``:Family`` sums over every cell of that family.
       - ``@<id>`` selects a single neuron by FAFB id (CSV field ``root_id``).
       - anything else is a literal cell.
     The label shown in the output is the token as typed (e.g. ``:Centrifugal``,
@@ -119,21 +119,21 @@ def resolve_query_labels(
     labels: List[str] = list(dict.fromkeys(tokens))
     labels_from_self_cell: DefaultDict[str, Set[str]] = defaultdict(set)
     labels_from_self_id: DefaultDict[int, Set[str]] = defaultdict(set)
-    for tok in labels:
-        if tok.startswith(":"):
-            fam = tok[1:]
+    for label in labels:
+        if label.startswith(":"):
+            fam = label[1:]
             fam_cells = cells_from_family.get(fam, [])
             if not fam_cells:
                 logger.warning("Family %r not found in cell_counts_abc.csv", fam)
             for t in fam_cells:
-                labels_from_self_cell[t].add(tok)
-        elif tok.startswith("@"):
+                labels_from_self_cell[t].add(label)
+        elif label.startswith("@"):
             try:
-                labels_from_self_id[int(tok[1:])].add(tok)
+                labels_from_self_id[int(label[1:])].add(label)
             except ValueError:
-                logger.warning("Invalid root id token %r (expected @<int>)", tok)
+                logger.warning("Invalid root id token %r (expected @<int>)", label)
         else:
-            labels_from_self_cell[tok].add(tok)
+            labels_from_self_cell[label].add(label)
     return labels, dict(labels_from_self_cell), dict(labels_from_self_id)
 
 
@@ -408,15 +408,15 @@ def ids_by_cell(
 
 
 
-def _syn_sign(e: dict) -> float:
+def _syn_sign(edge: dict) -> float:
     """Signed weight for an edge from its ``syn_sign`` field (±1)."""
     try:
-        return float(e.get("syn_sign", 0))
+        return float(edge.get("syn_sign", 0))
     except (TypeError, ValueError):
         return 0.0
 
 
-def accumulate_all(
+def partner_syn_by_label(
     edges: List[dict],
     labels: List[str],
     labels_from_self_cell: Dict[str, Set[str]],
@@ -443,7 +443,7 @@ def accumulate_all(
     ``labels`` is the ordered list of queried tokens (a cell, a family entered as
     ``:Family``, or a single neuron entered as ``@<id>``). ``labels_from_self_cell``
     maps each *self* cell to its label(s); ``labels_from_self_id`` maps a *self* root
-    id to its label(s). A family label accumulates over all its cells.
+    id to its label(s). A family label sums over all its cells.
 
     ``direction="pre"`` (default): query each label as the **postsynaptic** side
     (``target_cell``) and break down by presynaptic ``source_cell`` (incoming).
@@ -477,9 +477,9 @@ def accumulate_all(
         p: defaultdict(set) for p in labels
     }
     self_ids: Dict[str, Set[int]] = {p: set() for p in labels}
-    for e in edges:
-        stype = e.get(self_cell_field)
-        self_id_raw = e.get(self_id_field)
+    for edge in edges:
+        stype = edge.get(self_cell_field)
+        self_id_raw = edge.get(self_id_field)
         try:
             self_id_int: Optional[int] = int(self_id_raw)
         except (TypeError, ValueError):
@@ -499,12 +499,12 @@ def accumulate_all(
             allowed = ids_by_cell.get(stype, set())
             if not allowed or self_id_int is None or self_id_int not in allowed:
                 continue
-        pt = e.get(partner_cell_field) or "?"
+        pt = edge.get(partner_cell_field) or "?"
         if family_from_cell is not None:
             pt = family_from_cell.get(pt, pt)
-        a = _syn_sign(e)
-        ns = float(e.get("n_syn", 0))
-        partner = e.get(partner_id_field)
+        a = _syn_sign(edge)
+        ns = float(edge.get("n_syn", 0))
+        partner = edge.get(partner_id_field)
         for cell in cell_labels:
             sums[cell] += ns
             if self_id_int is not None:
@@ -565,12 +565,12 @@ def query_partner_syn(
         int,
     ],
 ]:
-    """Resolve ``cells`` and return ``accumulate_all`` partner syn stats (no print)."""
+    """Resolve ``cells`` and return ``partner_syn_by_label`` stats (no print)."""
     fam = family_from_cell if family_from_cell is not None else {}
     labels, labels_from_self_cell, labels_from_self_id = resolve_query_labels(
         list(cells), fam
     )
-    return accumulate_all(
+    return partner_syn_by_label(
         edges,
         labels,
         labels_from_self_cell,
@@ -787,7 +787,7 @@ def main(argv: List[str] | None = None) -> int:
         help=(
             "Comma-separated cells to query (e.g. T4a,T4b,T4c or Mi1). "
             "Prefix with : for a family "
-            "(e.g. :Centrifugal) to accumulate its cells, or @ for a single "
+            "(e.g. :Centrifugal) to sum its cells, or @ for a single "
             "neuron by root id (e.g. @720575940622041087). Default: L1 if omitted"
         ),
     )
@@ -1040,7 +1040,7 @@ def main(argv: List[str] | None = None) -> int:
     # Partner delta coords: always collected; reference is --at uv or mean self location.
     uv_from_id = uv_from_node_id(nodes, float_coords=False)
     xy_from_id = None
-    partner_syn_by_label = accumulate_all(
+    syn_by_label = partner_syn_by_label(
         edges,
         labels,
         labels_from_self_cell,
@@ -1052,7 +1052,7 @@ def main(argv: List[str] | None = None) -> int:
         labels_from_self_id=labels_from_self_id,
     )
     for label in labels:
-        by_partner, n_syn_sum, n_partner_by_type, partner_uv_by_type, partner_xy_by_type, n_self = partner_syn_by_label[label]
+        by_partner, n_syn_sum, n_partner_by_type, partner_uv_by_type, partner_xy_by_type, n_self = syn_by_label[label]
         label_origin_uv, label_origin_xy = _label_origins(
             label,
             nodes,

@@ -107,17 +107,17 @@ def plot_figures(outdir, session, result=None, **figure_kwargs):
 
 
 
-def _rename_checkpoint_pngs(png_dir, tag, *, filter_figure="v", file_suffix=""):
+def _rename_checkpoint_pngs(png_dir, token, *, filter_figure="v", file_suffix=""):
     for prefix in _CHECKPOINT_PNG_STEM_PREFIXES:
         stem = f"{prefix}_{filter_figure}"
         src = os.path.join(png_dir, f"{stem}{file_suffix}.png")
         if os.path.isfile(src):
-            dst = os.path.join(png_dir, f"{stem}{file_suffix}_{tag}.png")
+            dst = os.path.join(png_dir, f"{stem}{file_suffix}_{token}.png")
             os.replace(src, dst)
 
 
 def save_checkpoint_png(outdir, iter, z_best, cost_best, session, figure_kwargs):
-    tag = implementation.checkpoint_iter_tag(iter)
+    token = implementation.checkpoint_iter_token(iter)
     png_dir = os.path.join(outdir, "png")
     os.makedirs(png_dir, exist_ok=True)
     z = z_best.detach().cpu().numpy()
@@ -131,11 +131,11 @@ def save_checkpoint_png(outdir, iter, z_best, cost_best, session, figure_kwargs)
     )
     from figure.panel import filter_figure
     _rename_checkpoint_pngs(
-        png_dir, tag,
+        png_dir, token,
         filter_figure=filter_figure((session.train_opts or {}).get("filter")),
         file_suffix=figure_kwargs.get("file_suffix") or "",
     )
-    print(f"wrote checkpoint png: {png_dir}/*_{tag}.png")
+    print(f"wrote checkpoint png: {png_dir}/*_{token}.png")
 
 
 def build_checkpoint_on_png(figure_kwargs):

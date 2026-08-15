@@ -5,14 +5,14 @@ min_neuron_count     : 1
 min_syn_count        : None
 sign_mode            : per_edge
 
-n_nodes              : 1314
-n_nodes_with_column  : 1314
-n_nodes_without_col  : 0
-n_sti_nodes        : 248
-n_edges              : 8288
-n_cells         : 34
+n_node              : 1314
+n_node_with_column  : 1314
+n_node_without_col  : 0
+n_sti_node        : 248
+n_edge              : 8288
+n_cell         : 34
 
-n_columns (assigned) : None
-n_connections (raw)  : None
+n_column (assigned) : None
+n_connection (raw)  : None
 forced_negative      : R1-6, R7, R8
 nt_to_sign           : {'ACH': 1.0, 'GLUT': -1.0, 'GABA': -1.0, 'SER': 1.0, 'DA': 1.0, 'OCT': 1.0}

@@ -222,7 +222,7 @@ def main():
     nonwhite = (rgb.sum(2) < WHITE_SUM)
     print(f"rendered page {PAGE_INDEX} at {DPI} dpi -> {rgb.shape[1]}x{rgb.shape[0]}")
 
-    long_rows = []   # (row_tag, cell, width, height, dff_pct)
+    long_rows = []   # (row_label, cell, width, height, dff_pct)
     matrices = {}    # cell -> (matrix, xticks, yticks)
 
     for row in ROWS:

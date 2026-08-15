@@ -34,13 +34,12 @@ _I_H_REV_ONLY = frozenset({
 _BORST_ONLY = frozenset({"v_mid_h_g", "v_mid_h_tau", "h_slope"}) | _I_H_REV_ONLY
 _CA_ONLY = frozenset({"v_th_ca", "a_ca", "tau_ca"})
 _OUTPUT_KIND = frozenset({"a_gt", "bias_gt"})
-_NUMBER_PARAM_KEYS = ("lo", "hi", "jit", "init")
 
 
 def parse_param_tokens(tokens, *, param=None):
     """Yield ``(param, param_key, nodes, right)`` e.g. ``a_h``, ``init``, ``L1``, ``0.5``."""
-    for tok in tokens:
-        left, _, right = tok.partition("=")
+    for token in tokens:
+        left, _, right = token.partition("=")
         if param is None:
             left_param, _, rest = left.partition(".")
             param_key, _, nodes = rest.partition(".")
@@ -61,52 +60,55 @@ def expand_param_nodes(nodes):
 
 
 def split_param_tokens(tokens, *, param=None):
-    """Parse tokens → ``(number_pairs, mode_pairs)``.
+    """Parse tokens → ``(param_inits, param_clamps, param_jits, param_modes)``.
 
-    ``number_pairs`` maps ``lo``/``hi``/``jit``/``init`` →
-    lists of ``(nodes|None, float)``.
+    Single-param shapes (``param=`` bound): ``(cli_ids|None, init)``,
+    ``(lo|hi, cli_ids|None, val)``, ``(cli_ids|None, jit)``,
+    ``(cli_ids|None, mode)``.
     """
-    number_pairs = {param_key: [] for param_key in _NUMBER_PARAM_KEYS}
-    mode_pairs = []
+    param_inits = []
+    param_clamps = []
+    param_jits = []
+    param_modes = []
     for _, param_key, nodes, right in parse_param_tokens(tokens, param=param):
-        if param_key in number_pairs:
-            number_pairs[param_key].append(
-                (None if not nodes else expand_param_nodes(nodes), float(right))
-            )
+        cli_ids = None if not nodes else expand_param_nodes(nodes)
+        if param_key == "init":
+            param_inits.append((cli_ids, float(right)))
+        elif param_key in ("lo", "hi"):
+            param_clamps.append((param_key, cli_ids, float(right)))
+        elif param_key == "jit":
+            param_jits.append((cli_ids, float(right)))
         elif param_key == "mode":
             if right not in PARAM_MODES:
                 raise KeyError(right)
-            mode_pairs.append((None if not nodes else expand_param_nodes(nodes), right))
+            param_modes.append((cli_ids, right))
         else:
             raise KeyError(param_key)
-    return number_pairs, mode_pairs
+    return param_inits, param_clamps, param_jits, param_modes
 
 
-def resolve_inits(init_pairs, *, cli_idx):
-    """Fold ``(cli_ids|None, number)`` pairs into scalar + per-node bag.
-
-    ``cli_idx`` is the label→node lookup for this param axis.
-    """
+def _param_key_from_cli(cli, *, cli_idx):
+    """Fold ``(cli_ids|None, val)`` → unpack as ``init, inits`` / ``lo, los`` / …"""
     cli_ids = [str(cli_id) for cli_id in cli_idx]
-    node_init = {}
-    for cli_group, init in init_pairs:
+    by_cli = {}
+    for cli_group, val in cli:
         if cli_group is None:
-            node_init = {cli_id: init for cli_id in cli_ids}
+            by_cli = {cli_id: val for cli_id in cli_ids}
         else:
             for cli_id in cli_group:
-                node_init[str(cli_id)] = init
-    if not node_init:
+                by_cli[str(cli_id)] = val
+    if not by_cli:
         return 0.0, {}
-    if len(node_init) == len(cli_ids) and len(set(node_init.values())) == 1:
-        return next(iter(node_init.values())), {}
-    return 0.0, {int(cli_idx[cli_id]): node_init[cli_id] for cli_id in node_init}
+    if len(by_cli) == len(cli_ids) and len(set(by_cli.values())) == 1:
+        return next(iter(by_cli.values())), {}
+    return 0.0, {int(cli_idx[cli_id]): by_cli[cli_id] for cli_id in by_cli}
 
 
-def resolve_modes(mode_pairs, *, cli_idx):
-    """Fold ``(cli_ids|None, mode)`` pairs into ``modes`` (lists of node)."""
+def resolve_modes(param_modes, *, cli_idx):
+    """Fold ``(cli_ids|None, mode)`` list into ``modes`` (lists of node)."""
     cli_ids = [str(cli_id) for cli_id in cli_idx]
     node_mode = {}
-    for cli_group, mode in mode_pairs:
+    for cli_group, mode in param_modes:
         if cli_group is None:
             for cli_id in cli_ids:
                 node_mode[cli_id] = mode
@@ -121,30 +123,36 @@ def resolve_modes(mode_pairs, *, cli_idx):
     return out
 
 
-def param_scalar(param, param_key, params):
-    entry = params[param]
-    return float(entry[param_key])
+def param_from_entry(param, param_key, params):
+    """``params[param][param_key]`` from a NEURON_SCHEMA entry."""
+    return float(params[param][param_key])
 
 
-def init_mode_pairs_from_entry(entry, param):
-    """Base entry + ``exception`` → ``(number_pairs, mode_pairs)``."""
+def _param_cli_from_entry(entry, param):
+    """Base entry + ``exception`` → param_inits / clamps / jits / modes lists."""
     mode = entry["mode"]
     if mode not in PARAM_MODES:
         raise ValueError(
             f"{param}: unknown mode {mode!r}; "
             f"expected one of {PARAM_MODES}"
         )
-    number_pairs = {param_key: [(None, float(entry[param_key]))] for param_key in _NUMBER_PARAM_KEYS}
-    mode_pairs = [(None, mode)]
+    param_inits = [(None, float(entry["init"]))]
+    param_clamps = [
+        ("lo", None, float(entry["lo"])),
+        ("hi", None, float(entry["hi"])),
+    ]
+    param_jits = [(None, float(entry["jit"]))]
+    param_modes = [(None, mode)]
     exception = entry.get("exception")
     if exception:
-        more_numbers, more_modes = split_param_tokens(
+        more_inits, more_clamps, more_jits, more_modes = split_param_tokens(
             str(exception).split(), param=param,
         )
-        for param_key in _NUMBER_PARAM_KEYS:
-            number_pairs[param_key].extend(more_numbers[param_key])
-        mode_pairs.extend(more_modes)
-    return number_pairs, mode_pairs
+        param_inits.extend(more_inits)
+        param_clamps.extend(more_clamps)
+        param_jits.extend(more_jits)
+        param_modes.extend(more_modes)
+    return param_inits, param_clamps, param_jits, param_modes
 
 
 def syn_strength(params):
@@ -155,7 +163,7 @@ def syn_strength(params):
 
 
 def build_param_spec(
-    param, n_nodes, kind, entry, n,
+    param, n_node, kind, entry, n,
     *, cells=None, radii=None, pairs=None, edges=None,
 ):
     """Build one schema ``spec`` dict (no self-id; caller keys the schema by ``param``).
@@ -163,7 +171,9 @@ def build_param_spec(
     Pass exactly one of ``cells`` / ``radii`` / ``pairs`` / ``edges`` (CLI vocabulary
     for node 0..n-1). Omit all only when tokens are ``str(node)``.
     """
-    number_pairs, mode_pairs = init_mode_pairs_from_entry(entry, param)
+    param_inits, param_clamps, param_jits, param_modes = _param_cli_from_entry(
+        entry, param,
+    )
     n_cli = sum(x is not None for x in (cells, radii, pairs, edges))
     if n_cli > 1:
         raise ValueError(
@@ -184,16 +194,33 @@ def build_param_spec(
     else:
         tokens = list(map(str, range(n)))
         cli_idx = dict(zip(tokens, range(len(tokens))))
-    modes = resolve_modes(mode_pairs, cli_idx=cli_idx)
+    modes = resolve_modes(param_modes, cli_idx=cli_idx)
+    init, inits = _param_key_from_cli(param_inits, cli_idx=cli_idx)
+    lo, los = _param_key_from_cli(
+        [(cli_ids, val) for key, cli_ids, val in param_clamps if key == "lo"],
+        cli_idx=cli_idx,
+    )
+    hi, his = _param_key_from_cli(
+        [(cli_ids, val) for key, cli_ids, val in param_clamps if key == "hi"],
+        cli_idx=cli_idx,
+    )
+    jit, jits = _param_key_from_cli(param_jits, cli_idx=cli_idx)
     spec = {
-        "n_nodes": n_nodes,
+        "n_node": n_node,
         "kind": kind,
+        "lo": float(lo),
+        "hi": float(hi),
+        "jit": float(jit),
+        "init": float(init),
     }
-    for param_key in _NUMBER_PARAM_KEYS:
-        scalar, bag = resolve_inits(number_pairs[param_key], cli_idx=cli_idx)
-        spec[param_key] = float(scalar)
-        if bag:
-            spec[param_key + "s"] = bag
+    if los:
+        spec["los"] = los
+    if his:
+        spec["his"] = his
+    if jits:
+        spec["jits"] = jits
+    if inits:
+        spec["inits"] = inits
     for mode in PARAM_MODES:
         spec[mode] = list(modes[mode])
     shared = list(spec.get("shared") or ())
@@ -202,9 +229,9 @@ def build_param_spec(
             plural = param_key + "s"
             vals = []
             for node in shared:
-                bag = spec.get(plural)
-                if bag is not None and int(node) in bag:
-                    vals.append(float(bag[int(node)]))
+                by_node = spec.get(plural)
+                if by_node is not None and int(node) in by_node:
+                    vals.append(float(by_node[int(node)]))
                 else:
                     vals.append(float(spec[param_key]))
             if len(set(vals)) > 1:
@@ -215,20 +242,20 @@ def build_param_spec(
     return spec
 
 
-def _syn_param(syn_mode, n_pairs, n_edges, params):
+def _syn_param(syn_mode, n_pair, n_edge, params):
     """One synaptic param: type-pair or per-edge syn_strength → ``(param, spec)``."""
     if syn_mode == "per_edge":
-        if n_edges is None:
-            raise TypeError("per_edge syn_strength_edge requires n_edges from network ScatterConn")
-        n_edges = int(n_edges)
+        if n_edge is None:
+            raise TypeError("per_edge syn_strength_edge requires n_edge from network ScatterConn")
+        n_edge = int(n_edge)
         return "syn_strength_edge", build_param_spec(
-            "syn_strength_edge", n_edges, "edge", params["syn_strength_edge"], n_edges,
+            "syn_strength_edge", n_edge, "edge", params["syn_strength_edge"], n_edge,
         )
-    if n_pairs is None:
-        raise TypeError("per_cell syn_strength_cell requires n_pairs from network ScatterConn")
-    n_pairs = int(n_pairs)
+    if n_pair is None:
+        raise TypeError("per_cell syn_strength_cell requires n_pair from network ScatterConn")
+    n_pair = int(n_pair)
     return "syn_strength_cell", build_param_spec(
-        "syn_strength_cell", n_pairs, "edge_pair", params["syn_strength_cell"], n_pairs,
+        "syn_strength_cell", n_pair, "edge_pair", params["syn_strength_cell"], n_pair,
     )
 
 
@@ -250,11 +277,11 @@ def params_from_defaults(
     params,
     *,
     skip,
-    n_cells,
+    n_cell,
     cells,
     syn_mode,
-    n_pairs,
-    n_edges,
+    n_pair,
+    n_edge,
     h_cells,
     a_sti_radii,
 ):
@@ -271,7 +298,7 @@ def params_from_defaults(
         if param in ("syn_strength_cell", "syn_strength_edge"):
             if param != active_syn:
                 continue
-            p, spec = _syn_param(mode, n_pairs, n_edges, params)
+            p, spec = _syn_param(mode, n_pair, n_edge, params)
             out[p] = spec
             continue
         if param == "a_sti_radius":
@@ -280,24 +307,24 @@ def params_from_defaults(
             p, spec = _a_sti_radius_param(params, a_sti_radii)
             out[p] = spec
             continue
-        kind = "output" if param in _OUTPUT_KIND else "full"
+        kind = "output" if param in _OUTPUT_KIND else "node"
         out[param] = build_param_spec(
-            param, n_cells, kind, params[param], n_cells,
+            param, n_cell, kind, params[param], n_cell,
             cells=cells,
         )
     return out
 
 
 def build_borst_schema(
-    n_cells,
+    n_cell,
     cells=None,
-    n_pairs=None,
+    n_pair=None,
     *,
     syn_mode: str,
     params: dict,
     h_cells,
     filter: str = "none",
-    n_edges=None,
+    n_edge=None,
     a_sti_radii=(),
 ):
     """Borst schema in NEURON_SCHEMA['params'] order (rev i_h params always included)."""
@@ -309,26 +336,26 @@ def build_borst_schema(
     return params_from_defaults(
         params,
         skip=skip,
-        n_cells=n_cells,
+        n_cell=n_cell,
         cells=list(cells),
         syn_mode=syn_mode,
-        n_pairs=n_pairs,
-        n_edges=n_edges,
+        n_pair=n_pair,
+        n_edge=n_edge,
         h_cells=h_cells,
         a_sti_radii=a_sti_radii,
     )
 
 
 def build_hp_lp_schema(
-    n_cells,
+    n_cell,
     cells=None,
-    n_pairs=None,
+    n_pair=None,
     *,
     syn_mode: str,
     params: dict,
     h_cells,
     filter: str = "none",
-    n_edges=None,
+    n_edge=None,
     a_sti_radii=(),
 ):
     """HP-then-LP schema in NEURON_SCHEMA['params'] order (borst-only keys skipped)."""
@@ -340,11 +367,11 @@ def build_hp_lp_schema(
     return params_from_defaults(
         params,
         skip=skip,
-        n_cells=n_cells,
+        n_cell=n_cell,
         cells=list(cells),
         syn_mode=syn_mode,
-        n_pairs=n_pairs,
-        n_edges=n_edges,
+        n_pair=n_pair,
+        n_edge=n_edge,
         h_cells=h_cells,
         a_sti_radii=a_sti_radii,
     )
@@ -367,20 +394,20 @@ def build_schema(
     """
     if model not in MODELS:
         raise ValueError(f"unknown model {model!r}; expected one of {MODELS}")
-    n = connectome.n_cells
+    n = connectome.n_cell
     cells = [str(t) for t in connectome.cells]
     mode = syn_mode
-    n_pairs = getattr(connectome.conn, "n_pairs", None)
-    n_edges = getattr(connectome.conn, "n_edges", None)
+    n_pair = getattr(connectome.conn, "n_pair", None)
+    n_edge = getattr(connectome.conn, "n_edge", None)
     if mode == "per_edge":
-        if n_edges is None:
+        if n_edge is None:
             raise TypeError(f"{model} syn_strength_edge requires network ScatterConn")
-    elif n_pairs is None:
+    elif n_pair is None:
         raise TypeError(f"{model} syn_strength_cell requires network ScatterConn")
     kwargs = dict(
         syn_mode=mode,
-        n_pairs=n_pairs,
-        n_edges=n_edges,
+        n_pair=n_pair,
+        n_edge=n_edge,
         params=params,
         h_cells=h_cells,
         filter=filter,

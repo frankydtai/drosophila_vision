@@ -87,14 +87,14 @@ def _argv_cli_tokens(argv):
     argv = standardize_option_dashes(argv)
     i = 0
     while i < len(argv):
-        tok = argv[i]
-        if tok in ('-h', '--help'):
+        token = argv[i]
+        if token in ('-h', '--help'):
             i += 1
             continue
-        if not tok.startswith('--'):
+        if not token.startswith('--'):
             i += 1
             continue
-        flag, sep, val = tok[2:].partition('=')
+        flag, sep, val = token[2:].partition('=')
         if sep:
             yield _slug(flag), _slug(val)
             i += 1
@@ -396,7 +396,7 @@ def add_train_arguments(parser):
         default=SPOT_INPUT['shift_radius'],
         help="spot sub-shift hex-disc radius for spot tasks in --task "
              f"(default: {_format_branch_value(SPOT_INPUT['shift_radius'])}; "
-             "n_shifts=1+3k(k+1); 0->1, 1->7, 2->19, 3->37, ...)",
+             "n_shift=1+3k(k+1); 0->1, 1->7, 2->19, 3->37, ...)",
     )
     parser.add_argument(
         "--spot-radius",
@@ -571,10 +571,10 @@ def parse_sti_timing_keys(tokens, *, filter: str) -> dict[str, dict[str, float]]
     """Parse ``--sti-timing KEY=MS`` tokens; each value updates one filter branch only."""
     branch = "ca" if train.expand_filter(filter) == "ca" else "v"
     out: dict[str, dict[str, float]] = {}
-    for tok in tokens:
-        if "=" not in tok:
-            raise ValueError(f"--sti-timing expected KEY=MS, got {tok!r}")
-        sti_timing_key, val = tok.split("=", 1)
+    for token in tokens:
+        if "=" not in token:
+            raise ValueError(f"--sti-timing expected KEY=MS, got {token!r}")
+        sti_timing_key, val = token.split("=", 1)
         sti_timing_key = sti_timing_key.strip()
         val = val.strip()
         if sti_timing_key not in STI_TIMING_KEYS:
@@ -706,10 +706,10 @@ def parse_kv_tokens(tokens, cast=str):
     if not tokens:
         return {}
     out = {}
-    for tok in tokens:
-        if "=" not in tok:
-            raise ValueError(f"expected NAME=VALUE, got {tok!r}")
-        name, val = tok.split("=", 1)
+    for token in tokens:
+        if "=" not in token:
+            raise ValueError(f"expected NAME=VALUE, got {token!r}")
+        name, val = token.split("=", 1)
         out[name.strip()] = cast(val.strip())
     return out
 
@@ -720,14 +720,14 @@ def parse_cost_radius(tokens):
         return None, {}
     bare_cost_radius = None
     by_task = {}
-    for tok in tokens:
-        if "=" in tok:
-            name, val = tok.split("=", 1)
+    for token in tokens:
+        if "=" in token:
+            name, val = token.split("=", 1)
             by_task[name.strip()] = int(val.strip())
         else:
             if bare_cost_radius is not None:
                 raise ValueError("only one bare radius allowed in --cost-radius")
-            bare_cost_radius = int(tok)
+            bare_cost_radius = int(token)
     return bare_cost_radius, by_task
 
 
@@ -740,10 +740,10 @@ def resolve_gt(tokens):
     if tokens is None:
         return None
     raw = {}
-    for tok in tokens:
-        if "=" not in tok:
-            raise ValueError(f"expected TRAIN_CONFIG['task']=CELLS, got {tok!r}")
-        name, val = tok.split("=", 1)
+    for token in tokens:
+        if "=" not in token:
+            raise ValueError(f"expected TRAIN_CONFIG['task']=CELLS, got {token!r}")
+        name, val = token.split("=", 1)
         name = name.strip()
         types = parse_comma_list(val)
         if not types:
@@ -764,12 +764,12 @@ def resolve_part_cost_scales(tokens, tasks):
         return {}
     bare: list[str] = []
     explicit: dict[str, float] = {}
-    for tok in tokens:
-        if "=" in tok:
-            name, val = tok.split("=", 1)
+    for token in tokens:
+        if "=" in token:
+            name, val = token.split("=", 1)
             explicit[name.strip()] = float(val.strip())
         else:
-            bare.append(tok.strip())
+            bare.append(token.strip())
     scales: dict[str, float] = {}
     if bare:
         scales = {part_key: 0.0 for part_key in train.session_cost_part_keys(tasks)}

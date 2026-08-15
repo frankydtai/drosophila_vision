@@ -12,7 +12,7 @@ Usage (from simulation/, project .venv):
 from __future__ import annotations
 
 from const_default import (
-    NETWORK_CONSTRUCTION,
+    I_STI,
     NEURON_CONST,
     NEURON_SCHEMA,
 )
@@ -51,17 +51,18 @@ from task.moving_bar.sti_geo import (
     sti_hexes,
 )
 from task.moving_bar.sti_spec import (
-    GRUNTMAN_CONTRASTS,
     GRUNTMAN_DIRECTIONS,
     bar_lane_rects,
     build_moving_bar_signals,
     gruntman_moving_bar_specs,
+    i_baseline_from_i_sti,
     moving_bar_transit_times,
 )
-from path import DEFAULT_NETWORK_RUN, network_run_tag, resolve_network_json
+from train.config import CONTRASTS
+from path import DEFAULT_NETWORK_RUN, network_run_token, resolve_network_json
 
 PLOT_BG = "#F5F0DC"  # axes background (beige), not hex baseline color
-_STI_CLI_CONTRASTS = ",".join(GRUNTMAN_CONTRASTS)
+_STI_CLI_CONTRASTS = ",".join(CONTRASTS)
 
 
 def _field_limits(hexes, *, hexes_are_xy_deg: bool = False):
@@ -283,22 +284,21 @@ def main():
     )
     ap.add_argument("--bar-radius", type=int, default=BAR_RADIUS,
                     help="per-lane spacing w in hex nodes (default 2)")
-    ap.add_argument("--i-bright", type=float, default=NETWORK_CONSTRUCTION['i_bright'])
     args = ap.parse_args()
-    snapshot_t = [int(tok) for tok in parse_comma_list(args.t)]
+    snapshot_t = [int(token) for token in parse_comma_list(args.t)]
     sti = parse_comma_list(args.sti)
     if not sti:
         raise SystemExit(f"--sti must include at least one of {_STI_CLI_CONTRASTS}")
-    bad_sti = sorted(set(sti) - set(GRUNTMAN_CONTRASTS))
+    bad_sti = sorted(set(sti) - set(CONTRASTS))
     if bad_sti:
         raise SystemExit(f"--sti supports only {_STI_CLI_CONTRASTS}; got {bad_sti}")
-    sti_set = set(sti)
 
     showcase = [
-        spec for spec in gruntman_moving_bar_specs()
-        if spec.direction == args.direction and spec.contrast in sti_set
+        spec for spec in gruntman_moving_bar_specs(contrasts=tuple(sti))
+        if spec.direction == args.direction
     ]
-    i_bright = args.i_bright
+    task = "moving_bar"
+    i_baseline = i_baseline_from_i_sti(I_STI, task)
 
     network_json = str(resolve_network_json(args.network))
     connectome = load_network(
@@ -306,36 +306,48 @@ def main():
         a_syn_exc=NEURON_CONST['a_syn_exc'], a_syn_inh=NEURON_CONST['a_syn_inh'],
         syn_mode=NEURON_SCHEMA['syn_mode'], dtype=SIM_DTYPE,
     )
-    tag = f"2{args.direction}_{network_run_tag(network_json, connectome.meta)}"
-    fallback_png = os.path.join(PLOT_DIR, f"moving_bar_{tag}.png")
-    fallback_gif = os.path.join(PLOT_DIR, f"moving_bar_{tag}.gif")
+    token = f"2{args.direction}_{network_run_token(network_json, connectome.meta)}"
+    fallback_png = os.path.join(PLOT_DIR, f"moving_bar_{token}.png")
+    fallback_gif = os.path.join(PLOT_DIR, f"moving_bar_{token}.gif")
     output = args.output or fallback_png
-    T = build_moving_bar_signals(
-        connectome,
-        specs=showcase,
-        bar_radius=args.bar_radius,
-        multi_bar=bool(args.multi_bar),
-        delta_ms=NEURON_CONST['delta_ms'],
-        i_baseline=NETWORK_CONSTRUCTION['i_baseline'],
-        i_bright_moving_bar=i_bright,
-        sim_dtype=SIM_DTYPE,
-    )
+    i_sti_hex_parts = []
+    specs = []
+    T = None
+    for contrast in sti:
+        contrast_specs = [spec for spec in showcase if spec.contrast == contrast]
+        if not contrast_specs:
+            continue
+        T = build_moving_bar_signals(
+            connectome,
+            specs=contrast_specs,
+            bar_radius=args.bar_radius,
+            multi_bar=bool(args.multi_bar),
+            delta_ms=NEURON_CONST['delta_ms'],
+            i_baseline=i_baseline,
+            i_sti=float(I_STI[task][contrast]),
+            sim_dtype=SIM_DTYPE,
+        )
+        i_sti_hex_parts.append(T.i_sti_hex)
+        specs.extend(contrast_specs)
+    if not i_sti_hex_parts:
+        raise SystemExit("no moving-bar specs to plot")
+    i_sti_hex = np.concatenate(i_sti_hex_parts, axis=0)
+    i_max = max(float(I_STI[task][contrast]) for contrast in sti)
     figure_hexes = [(hex.u, hex.v) for hex in sti_hexes(connectome)]
-    i_sti_hex = T.i_sti_hex
-    t_onset = int(T.info["t_onset"])
-    n_t = int(T.info["n_t"])
-    view_deg = tuple(T.info["view_deg"])
-    i_baseline = float(T.info["i_baseline_moving_bar"])
+    t_onset = int(T.t_onset)
+    n_t = int(T.n_t)
+    view_deg = tuple(T.view_deg)
+    i_baseline = float(T.i_baseline)
     side = connectome.meta.get("side", "?")
     bar_radius = int(args.bar_radius)
     print(
         f"bar_radius={bar_radius}  "
         f"n_t={n_t} ({n_t * NEURON_CONST['delta_ms'] / 1000.0:.2f} s)  "
-        f"sweep_t={T.info['sweep_t']} ({T.info['sweep_s']:.2f} s after t_onset)"
+        f"sweep_t={T.sweep_t} ({T.sweep_s:.2f} s after t_onset)"
     )
 
     save_snapshots(
-        figure_hexes, showcase, i_sti_hex, i_bright, i_baseline,
+        figure_hexes, specs, i_sti_hex, i_max, i_baseline,
         output, side, t_onset, n_t, view_deg, snapshot_t=snapshot_t,
         hexes_are_xy_deg=False,
         bar_radius=bar_radius,
@@ -344,13 +356,13 @@ def main():
     if args.gif is not None:
         gif = fallback_gif if args.gif == "" else args.gif
         save_animation(
-            figure_hexes, showcase, i_sti_hex, i_bright, i_baseline, gif,
+            figure_hexes, specs, i_sti_hex, i_max, i_baseline, gif,
             side, t_onset, n_t, view_deg, args.t_stride,
             hexes_are_xy_deg=False,
             bar_radius=bar_radius,
             multi_bar=bool(args.multi_bar),
         )
-    print(f"i_sti shape {tuple(T.i_sti.shape)}  specs={T.info['spec_tokens']}")
+    print(f"i_sti_hex shape {tuple(i_sti_hex.shape)}  specs={[spec.token for spec in specs]}")
 
 
 if __name__ == "__main__":

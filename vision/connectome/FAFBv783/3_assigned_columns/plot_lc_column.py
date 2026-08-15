@@ -2,7 +2,7 @@
 filled red when an LC neuron of that type is assigned to it.
 
 "Assigned" means the column appears as ``majority_column_id`` in that type's
-``3_assigned_columns/<tag>_right_pre.csv`` (produced by assign_column.py). Nothing
+``3_assigned_columns/<token>_right_pre.csv`` (produced by assign_column.py). Nothing
 is re-implemented here: the hex lattice + drawing primitive come from build_hex,
 the per-cell CSV path/name from assign_column, and raw I/O from path.
 
@@ -268,17 +268,17 @@ def make_figure(cols: pd.DataFrame, lc_cells: List[str] = LC_CELLS) -> Path:
         ax.grid(True, alpha=0.3, linestyle="--")
 
     legend = []
-    n_levels = min(global_max, max(INSIDE_SHADE))
+    n_level = min(global_max, max(INSIDE_SHADE))
 
     def _level_label(cnt):
-        plus = "+" if (cnt == n_levels and global_max > n_levels) else ""
+        plus = "+" if (cnt == n_level and global_max > n_level) else ""
         s = "" if cnt == 1 else "s"
         return f"{cnt}{plus} neuron{s}"
 
-    for cnt in range(1, n_levels + 1):
+    for cnt in range(1, n_level + 1):
         face, edge = _shade(INSIDE_SHADE, cnt)
         legend.append(Patch(facecolor=face, edgecolor=edge, label=f"inside, {_level_label(cnt)}"))
-    for cnt in range(1, n_levels + 1):
+    for cnt in range(1, n_level + 1):
         face, edge = _shade(OUTSIDE_SHADE, cnt)
         legend.append(Patch(facecolor=face, edgecolor=edge, label=f"outside, {_level_label(cnt)}"))
     legend.append(Patch(facecolor=EMPTY_COLOR[0], edgecolor=EMPTY_COLOR[1], label="empty column"))

@@ -366,10 +366,10 @@ def load_rf_ir(*, t_onset=None, n_t=None, ms_sti=None, delta_ms: float, filter="
     delta_ms = float(delta_ms)
     if delta_ms <= 0:
         raise ValueError(f"delta_ms must be > 0, got {delta_ms}")
-    n_cells = len(GT_CELLS)
+    n_cell = len(GT_CELLS)
     filter = str(filter)
 
-    rf = np.zeros((n_cells, RF_N_RADII))
+    rf = np.zeros((n_cell, RF_N_RADII))
     gt_cell_idx = dict(zip(GT_CELLS, range(len(GT_CELLS))))
     for cell in GT_CELLS:
         rf[gt_cell_idx[cell]] = build_rf(cell)
@@ -381,17 +381,17 @@ def load_rf_ir(*, t_onset=None, n_t=None, ms_sti=None, delta_ms: float, filter="
 
     pulse = sti_pulse(t_onset, n_t, ms_sti, delta_ms=delta_ms)
     pulse = pulse / np.max(pulse)
-    ir = np.zeros((n_cells, n_t))
+    ir = np.zeros((n_cell, n_t))
     for cell in GT_CELLS:
         ir[gt_cell_idx[cell]] = build_ir_lti(cell, pulse, delta_ms=delta_ms)
     return rf, ir
 
 
 def _gt_from_rf_ir(rf: np.ndarray, ir: np.ndarray) -> np.ndarray:
-    """``(n_cells, RF_N_RADII, n_t)`` = rf(radius) × ir(t) (no membership gate)."""
+    """``(n_cell, RF_N_RADII, n_t)`` = rf(radius) × ir(t) (no membership gate)."""
     n_t = ir.shape[1]
-    n_cells = rf.shape[0]
-    gt = np.zeros((n_cells, RF_N_RADII, n_t))
+    n_cell = rf.shape[0]
+    gt = np.zeros((n_cell, RF_N_RADII, n_t))
     gt_cell_idx = dict(zip(GT_CELLS, range(len(GT_CELLS))))
     for cell in GT_CELLS:
         for radius in range(RF_N_RADII):
@@ -411,7 +411,7 @@ def _spot_gt(
     filter="none",
     spot_gt_mode: str = "all",
 ) -> np.ndarray:
-    """Assembled gt ``(n_cells, RF_N_RADII, n_t)``; inactive rows are zero."""
+    """Assembled gt ``(n_cell, RF_N_RADII, n_t)``; inactive rows are zero."""
     rf, ir = load_rf_ir(
         t_onset=t_onset, n_t=n_t, ms_sti=ms_sti, delta_ms=delta_ms, filter=filter,
     )
@@ -435,7 +435,7 @@ def load_gt(
     filter="none",
     spot_gt_mode: str = "all",
 ):
-    """Bright gt ``(n_cells, RF_N_RADII, n_t)``."""
+    """Bright gt ``(n_cell, RF_N_RADII, n_t)``."""
     return _spot_gt(
         "bright",
         t_onset=t_onset, n_t=n_t, ms_sti=ms_sti, delta_ms=delta_ms,
@@ -452,7 +452,7 @@ def load_gt_dark(
     filter="none",
     spot_gt_mode: str = "all",
 ):
-    """Dark gt ``(n_cells, RF_N_RADII, n_t)``."""
+    """Dark gt ``(n_cell, RF_N_RADII, n_t)``."""
     return _spot_gt(
         "dark",
         t_onset=t_onset, n_t=n_t, ms_sti=ms_sti, delta_ms=delta_ms,

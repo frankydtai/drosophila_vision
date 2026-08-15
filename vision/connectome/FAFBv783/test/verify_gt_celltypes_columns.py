@@ -51,7 +51,7 @@ def main() -> None:
             rows.append({
                 "cell": cell,
                 "in_fafb": n > 0,
-                "n_neurons": n,
+                "n_neuron": n,
                 "n_with_column": with_col,
                 "pct_with_column": round(with_col / n * 100, 1) if n else 0.0,
             })
@@ -63,14 +63,14 @@ def main() -> None:
         missing = table[~table["in_fafb"]]["cell"].tolist()
         not_full = table[(table["in_fafb"]) & (table["pct_with_column"] < 100)]
         all_active = len(missing) == 0
-        all_columned = all_active and (table["n_with_column"] == table["n_neurons"]).all()
+        all_columned = all_active and (table["n_with_column"] == table["n_neuron"]).all()
 
         print(f"\n  all 13 active in FAFB         : {all_active}"
               + (f"  (missing: {missing})" if missing else ""))
         print(f"  all neurons column-assigned  : {all_columned}")
         if len(not_full):
             print("  types with <100% column coverage:")
-            print(not_full[["cell", "n_neurons", "n_with_column",
+            print(not_full[["cell", "n_neuron", "n_with_column",
                             "pct_with_column"]].to_string(index=False))
 
 

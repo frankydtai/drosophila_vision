@@ -39,7 +39,7 @@ from figure.panel import (
 )
 from import_bootstrap import parse_bool, parse_comma_list
 from neuron.filter_ca import filter_ca
-from neuron.schema import param_scalar
+from neuron.schema import param_from_entry
 from network.construction import hex2gt
 from task.moving_bar.pack import (
     bar_specs_from_task,
@@ -77,7 +77,7 @@ Two *different* knobs — do not mix them:
    slice of an existing trace you plot.
 
 2. **Analyze / plot window** (``--ms-shown START,STOP`` or ``--t-rel START:STOP``,
-   mutually exclusive): which inclusive slice of the forward to accumulate and
+   mutually exclusive): which inclusive slice of the forward to sum and
    report. Default if both omitted: absolute ms ``0`` .. last sample.
 
 ``--ms-shown`` is **absolute aligned ms**, never "ms before onset":
@@ -86,7 +86,7 @@ Two *different* knobs — do not mix them:
   ``t_onset = t_from_ms(ms_pre, delta_ms=delta_ms_pre)`` (e.g. ``ms_pre=1000``,
   ``delta_ms_pre=5`` → ``t_onset=200`` ↔ **1000 ms**). Pre-sti is therefore
   ``--ms-shown 0,1000`` (or ``0,ms_pre``), **not** ``-1000,0``.
-  Negative START is wrong for spot (aligned index goes negative; accumulate window
+  Negative START is wrong for spot (aligned index goes negative; sum window
   collapses).
 * **moving_bar**: aligned ``t = 0`` is bar ``t0`` at the node (crossing), so
   ``--ms-shown`` is ms relative to that ``t0`` (negative START is valid).
@@ -570,7 +570,7 @@ class _ComponentLayout:
     row_shared_ylim: frozenset[int]
 
     @property
-    def n_components(self) -> int:
+    def n_component(self) -> int:
         return len(self.components)
 
     @property
@@ -734,7 +734,7 @@ def _drive_from_i_sti(session, params, i_sti: torch.Tensor) -> torch.Tensor:
 def _equilibrate(session, params, i_sti_b: torch.Tensor, t_onset: int):
     """Equilibrate to ``t_onset``; returns ``v``."""
     _component_layout(session.model, session.euler)  # validate early
-    n_b, n_t, n_nodes = i_sti_b.shape
+    n_b, n_t, n_node = i_sti_b.shape
     drv = _model_driver(session)
     model = session.model
     if model == "hp_lp":
@@ -860,7 +860,7 @@ def _log(msg: str) -> None:
 
 
 def _component_matrix(component: dict[str, np.ndarray], components: tuple[str, ...]) -> np.ndarray:
-    """Stack components to ``(n_nodes, n_components)`` for vectorized accumulate."""
+    """Stack components to ``(n_node, n_component)`` for vectorized sums."""
     return np.column_stack([component[component_tok] for component_tok in components])
 
 
@@ -871,19 +871,19 @@ def _sums_dict_from_vec(vec: np.ndarray, components: tuple[str, ...]) -> dict[st
     }
 
 
-def _std_from_sum_and_sum_sq(sum_: float, sum_sq: float, n_nodes: int) -> float:
+def _std_from_sum_and_sum_sq(sum_: float, sum_sq: float, n_node: int) -> float:
     """Match ``figure.panel.std_from_traces`` (population std)."""
-    if n_nodes <= 1:
+    if n_node <= 1:
         return 0.0
-    mean = sum_ / n_nodes
-    var = sum_sq / n_nodes - mean * mean
+    mean = sum_ / n_node
+    var = sum_sq / n_node - mean * mean
     if var <= 0.0:
         return 0.0
     return float(np.sqrt(var))
 
 
 def _step_std(
-    sums: dict[str, float], sum_sqs: dict[str, float], n_nodes: int, layout: _ComponentLayout,
+    sums: dict[str, float], sum_sqs: dict[str, float], n_node: int, layout: _ComponentLayout,
 ) -> dict[str, float]:
     out: dict[str, float] = {}
     for series, component in layout.component_from_series.items():
@@ -891,7 +891,7 @@ def _step_std(
             out[series] = 0.0
         else:
             out[series] = _std_from_sum_and_sum_sq(
-                sums[component], sum_sqs[component], n_nodes,
+                sums[component], sum_sqs[component], n_node,
             )
     return out
 
@@ -905,64 +905,64 @@ def _step_from_sums(
     sums: dict[str, float],
     sum_sqs: dict[str, float],
     v_post_minus_pre_sum: float,
-    n_nodes: int,
+    n_node: int,
     layout: _ComponentLayout,
     g_leak: float = 0.0,
     dt_over_cap: float = 0.0,
 ) -> dict[str, Any]:
-    """One step dict from per-component sums over ``n_nodes`` nodes."""
-    if n_nodes <= 0:
+    """One step dict from per-component sums over ``n_node`` nodes."""
+    if n_node <= 0:
         raise ValueError("empty node set for mean component")
     base = {
         "t": t,
         "t_rel": t_rel,
         "ti": ti,
         "v_post": float(v_post_val),
-        "v_pre_d": sums["v_pre_d"] / n_nodes,
-        "v_post_minus_pre": v_post_minus_pre_sum / n_nodes,
-        "i_sti": sums["i_sti"] / n_nodes,
-        "std": _step_std(sums, sum_sqs, n_nodes, layout),
-        "n_nodes": n_nodes,
+        "v_pre_d": sums["v_pre_d"] / n_node,
+        "v_post_minus_pre": v_post_minus_pre_sum / n_node,
+        "i_sti": sums["i_sti"] / n_node,
+        "std": _step_std(sums, sum_sqs, n_node, layout),
+        "n_node": n_node,
     }
     if layout.model == "borst":
-        num = sums["num"] / n_nodes
-        den = sums["den"] / n_nodes
+        num = sums["num"] / n_node
+        den = sums["den"] / n_node
         base.update({
-            "g_exc_nS": sums["g_exc"] / n_nodes,
-            "g_inh_nS": sums["g_inh"] / n_nodes,
+            "g_exc_nS": sums["g_exc"] / n_node,
+            "g_inh_nS": sums["g_inh"] / n_node,
             "g_leak_nS": float(g_leak),
             "dt_over_cap": float(dt_over_cap),
-            "g_h_nS": sums["g_h"] / n_nodes,
-            "g_h_rev_nS": sums["g_h_rev"] / n_nodes,
-            "num_exc": sums["num_exc"] / n_nodes,
-            "num_inh": sums["num_inh"] / n_nodes,
-            "num_leak": sums["num_leak"] / n_nodes,
-            "num_i_h": sums["num_i_h"] / n_nodes,
-            "num_i_h_rev": sums["num_i_h_rev"] / n_nodes,
-            "num_v": sums["num_v"] / n_nodes,
+            "g_h_nS": sums["g_h"] / n_node,
+            "g_h_rev_nS": sums["g_h_rev"] / n_node,
+            "num_exc": sums["num_exc"] / n_node,
+            "num_inh": sums["num_inh"] / n_node,
+            "num_leak": sums["num_leak"] / n_node,
+            "num_i_h": sums["num_i_h"] / n_node,
+            "num_i_h_rev": sums["num_i_h_rev"] / n_node,
+            "num_v": sums["num_v"] / n_node,
             "num": num,
             "den": den,
-            "num_over_den": sums["v_abs"] / n_nodes,
+            "num_over_den": sums["v_abs"] / n_node,
         })
         return base
     base.update({
-        "v_syn": sums["v_syn"] / n_nodes,
-        "v_syn_exc": sums["v_syn_exc"] / n_nodes,
-        "v_syn_inh": -sums["v_syn_inh"] / n_nodes,
-        "v_sti": sums["v_sti"] / n_nodes,
-        "v_slow": sums["v_slow"] / n_nodes,
-        "v_in": sums["v_in"] / n_nodes,
-        "v_hp": sums["v_hp"] / n_nodes,
-        "dv_leak": sums["dv_leak"] / n_nodes,
-        "dv_hp": sums["dv_hp"] / n_nodes,
-        "dv_leak_plus_hp": (sums["dv_leak"] + sums["dv_hp"]) / n_nodes,
+        "v_syn": sums["v_syn"] / n_node,
+        "v_syn_exc": sums["v_syn_exc"] / n_node,
+        "v_syn_inh": -sums["v_syn_inh"] / n_node,
+        "v_sti": sums["v_sti"] / n_node,
+        "v_slow": sums["v_slow"] / n_node,
+        "v_in": sums["v_in"] / n_node,
+        "v_hp": sums["v_hp"] / n_node,
+        "dv_leak": sums["dv_leak"] / n_node,
+        "dv_hp": sums["dv_hp"] / n_node,
+        "dv_leak_plus_hp": (sums["dv_leak"] + sums["dv_hp"]) / n_node,
     })
     return base
 
 
 @dataclass
-class _ComponentForwardB:
-    """One i_sti b row for the shared full-T component forward."""
+class _ComponentB:
+    """One i_sti b row for the shared component forward."""
 
     nodes: np.ndarray
     node_t0s: np.ndarray
@@ -972,10 +972,10 @@ class _ComponentForwardB:
 
 
 @dataclass
-class _ComponentForwardSums:
+class _ComponentSums:
     sums: list[dict[str, np.ndarray]]
     sum_sqs: list[dict[str, np.ndarray]]
-    n_nodes: list[dict[str, np.ndarray]]
+    n_node: list[dict[str, np.ndarray]]
     v_post_minus_pre_sums: list[dict[str, np.ndarray]]
     layout: _ComponentLayout
     v_ca_sums: list[dict[str, np.ndarray]] | None = None
@@ -987,22 +987,22 @@ def _forward_component(
     session,
     params,
     i_sti: torch.Tensor,
-    bs: list[_ComponentForwardB],
+    bs: list[_ComponentB],
     cells: list[str],
     *,
     t_start: int | None = None,
     t_stop: int | None = None,
-) -> _ComponentForwardSums:
-    """Full-T step from t=0 (same loop as ``forward_full``); accumulate component.
+) -> _ComponentSums:
+    """Step from t=0 (same loop as ``forward_v``); sum component.
 
     Shared by bar/spot average and bar/spot hex.
-    ``v_onset`` matches ``forward_full`` (``v`` at ``t_onset - 1``). Aligned index
+    ``v_onset`` matches ``forward_v`` (``v`` at ``t_onset - 1``). Aligned index
     ``t = t_global - node_t0s``. v_post is mean absolute ``v_abs``; STD uses sum /
     sum_sqs like ``std_from_traces``. When ``filter=ca``, also track ``v_ca`` /
     ``ca`` via ``v_ca_from_v`` + ``filter_ca`` (same as ``forward_ca``).
 
     If ``t_start``/``t_stop`` are set (from ``--ms-shown`` via ``t_from_ms``), only
-    accumulate inside that inclusive aligned window; cheap steps outside it;
+    sum inside that inclusive aligned window; cheap steps outside it;
     break after every node has passed ``t_stop``.
     """
     if not bs:
@@ -1011,7 +1011,7 @@ def _forward_component(
         raise SystemExit("t_start and t_stop must both be set or both omitted")
     if t_start is not None and t_start > t_stop:
         raise SystemExit(f"t_start={t_start} > t_stop={t_stop}")
-    n_b, n_t, n_nodes = i_sti.shape
+    n_b, n_t, n_node = i_sti.shape
     if n_b != len(bs):
         raise SystemExit(f"i_sti n_b={n_b} != len(bs)={len(bs)}")
 
@@ -1023,9 +1023,9 @@ def _forward_component(
     if t_stop is not None:
         t_last = max(int(plan.node_t0s.max()) + int(t_stop) for plan in bs)
 
-    # Same ref as forward_full: v at t_onset-1, then restart so pre is stepped+accumulated.
+    # Same ref as forward_v: v at t_onset-1, then restart so pre is stepped and summed.
     v_onset = _equilibrate(session, params, drive, t_onset).detach().cpu().numpy().copy()
-    n_components = layout.n_components
+    n_component = layout.n_component
     drv = _model_driver(session)
     model = session.model
     if model == "hp_lp":
@@ -1043,16 +1043,16 @@ def _forward_component(
 
     b_sums: list[dict[str, np.ndarray]] = []
     b_sum_sqs: list[dict[str, np.ndarray]] = []
-    b_n_nodes: list[dict[str, np.ndarray]] = []
+    b_n_node: list[dict[str, np.ndarray]] = []
     b_v_post_minus_pre_sums: list[dict[str, np.ndarray]] = []
     b_v_ca_sums: list[dict[str, np.ndarray]] | None = [] if use_ca else None
     b_ca_sums: list[dict[str, np.ndarray]] | None = [] if use_ca else None
     b_ca_pre_sums: list[dict[str, np.ndarray]] | None = [] if use_ca else None
     for plan in bs:
         n_t_aligned = plan.n_t_aligned
-        b_sums.append({cell: np.zeros((n_t_aligned, n_components), dtype=float) for cell in cells})
-        b_sum_sqs.append({cell: np.zeros((n_t_aligned, n_components), dtype=float) for cell in cells})
-        b_n_nodes.append({cell: np.zeros(n_t_aligned, dtype=np.int64) for cell in cells})
+        b_sums.append({cell: np.zeros((n_t_aligned, n_component), dtype=float) for cell in cells})
+        b_sum_sqs.append({cell: np.zeros((n_t_aligned, n_component), dtype=float) for cell in cells})
+        b_n_node.append({cell: np.zeros(n_t_aligned, dtype=np.int64) for cell in cells})
         b_v_post_minus_pre_sums.append({cell: np.zeros(n_t_aligned, dtype=float) for cell in cells})
         if use_ca:
             b_v_ca_sums.append({cell: np.zeros(n_t_aligned, dtype=float) for cell in cells})
@@ -1163,16 +1163,16 @@ def _forward_component(
                 np.add.at(
                     b_v_post_minus_pre_sums[b][cell], ts, v_post_minus_pre_active[mask],
                 )
-                np.add.at(b_n_nodes[b][cell], ts, 1)
+                np.add.at(b_n_node[b][cell], ts, 1)
                 if v_ca_active is not None:
                     np.add.at(b_v_ca_sums[b][cell], ts, v_ca_active[mask])
                     np.add.at(b_ca_sums[b][cell], ts, ca_post_active[mask])
                     np.add.at(b_ca_pre_sums[b][cell], ts, ca_pre_active[mask])
 
-    return _ComponentForwardSums(
+    return _ComponentSums(
         sums=b_sums,
         sum_sqs=b_sum_sqs,
-        n_nodes=b_n_nodes,
+        n_node=b_n_node,
         v_post_minus_pre_sums=b_v_post_minus_pre_sums,
         layout=layout,
         v_ca_sums=b_v_ca_sums,
@@ -1182,23 +1182,23 @@ def _forward_component(
 
 
 def _v_post_from_sums(
-    sums: np.ndarray, n_nodes: np.ndarray, layout: _ComponentLayout,
+    sums: np.ndarray, n_node: np.ndarray, layout: _ComponentLayout,
 ) -> np.ndarray:
-    """Mean absolute v_post from accumulated ``v_abs``."""
-    n_nodes_div = np.maximum(n_nodes, 1)
-    v_post = sums[:, layout.i_v_abs] / n_nodes_div
-    v_post[n_nodes == 0] = 0.0
+    """Mean absolute v_post from summed ``v_abs``."""
+    n_node_div = np.maximum(n_node, 1)
+    v_post = sums[:, layout.i_v_abs] / n_node_div
+    v_post[n_node == 0] = 0.0
     return v_post
 
 
 def _v_post_d_from_sums(
-    sums: np.ndarray, v_post_minus_pre_sums: np.ndarray, n_nodes: np.ndarray,
+    sums: np.ndarray, v_post_minus_pre_sums: np.ndarray, n_node: np.ndarray,
     layout: _ComponentLayout,
 ) -> np.ndarray:
     """Mean ``v_post_d`` = v_post − v_onset = v_pre_d + v_post_minus_pre."""
-    n_nodes_div = np.maximum(n_nodes, 1)
-    v_post_d = sums[:, layout.i_v_pre_d] / n_nodes_div + v_post_minus_pre_sums / n_nodes_div
-    v_post_d[n_nodes == 0] = 0.0
+    n_node_div = np.maximum(n_node, 1)
+    v_post_d = sums[:, layout.i_v_pre_d] / n_node_div + v_post_minus_pre_sums / n_node_div
+    v_post_d[n_node == 0] = 0.0
     return v_post_d
 
 
@@ -1229,7 +1229,7 @@ def _finalize_component_report(
     session,
     sums: np.ndarray,
     sum_sqs: np.ndarray,
-    n_nodes: np.ndarray,
+    n_node: np.ndarray,
     v_post_minus_pre_sums: np.ndarray,
     v_post: np.ndarray,
     time_window: TimeWindow,
@@ -1242,7 +1242,7 @@ def _finalize_component_report(
 ) -> dict[str, Any]:
     """Build one report dict from a single b×cell sums row."""
     # Peak on |v_post_d| (= |v_post − v_onset| = |v_pre_d + v_post_minus_pre|).
-    v_post_d = _v_post_d_from_sums(sums, v_post_minus_pre_sums, n_nodes, component_layout)
+    v_post_d = _v_post_d_from_sums(sums, v_post_minus_pre_sums, n_node, component_layout)
     n_t = int(v_post_d.size)
     dt = float(session.delta_ms)
     dt_over_cap = dt / float(session.cap)
@@ -1263,8 +1263,8 @@ def _finalize_component_report(
     steps: list[dict[str, Any]] = []
     peak_step: dict[str, Any] | None = None
     for t in range(t_lo, t_hi + 1):
-        n_nodes_t = int(n_nodes[t])
-        if n_nodes_t == 0:
+        n_node_t = int(n_node[t])
+        if n_node_t == 0:
             continue
         if ti_mode == "t_rel":
             ti = t
@@ -1278,16 +1278,16 @@ def _finalize_component_report(
             sums=_sums_dict_from_vec(sums[t], component_layout.components),
             sum_sqs=_sums_dict_from_vec(sum_sqs[t], component_layout.components),
             v_post_minus_pre_sum=float(v_post_minus_pre_sums[t]),
-            n_nodes=n_nodes_t,
+            n_node=n_node_t,
             layout=component_layout,
             g_leak=float(session.g_leak),
             dt_over_cap=dt_over_cap,
         )
         if v_ca_sums is not None:
-            step["v_ca"] = float(v_ca_sums[t] / n_nodes_t)
+            step["v_ca"] = float(v_ca_sums[t] / n_node_t)
         if ca_sums is not None and ca_pre_sums is not None:
-            ca = float(ca_sums[t] / n_nodes_t)
-            ca_pre = float(ca_pre_sums[t] / n_nodes_t)
+            ca = float(ca_sums[t] / n_node_t)
+            ca_pre = float(ca_pre_sums[t] / n_node_t)
             step["ca"] = ca
             step["ca_pre"] = ca_pre
             step["ca_post_minus_pre"] = ca - ca_pre
@@ -1304,7 +1304,7 @@ def _finalize_component_report(
         "mode": mode,
         "model": component_layout.model,
         "cell": cell,
-        "n_nodes": int(nodes.size),
+        "n_node": int(nodes.size),
         "task": task,
         "contrast": contrast,
         "spec": spec,
@@ -1327,14 +1327,14 @@ def _finalize_component_report(
         "v_post": v_post.tolist(),
     }
     if v_ca_sums is not None:
-        n_nodes_div = np.maximum(n_nodes, 1)
-        v_ca_trace = v_ca_sums / n_nodes_div
-        v_ca_trace[n_nodes == 0] = 0.0
+        n_node_div = np.maximum(n_node, 1)
+        v_ca_trace = v_ca_sums / n_node_div
+        v_ca_trace[n_node == 0] = 0.0
         report["v_ca"] = v_ca_trace.tolist()
     if ca_sums is not None:
-        n_nodes_div = np.maximum(n_nodes, 1)
-        ca_trace = ca_sums / n_nodes_div
-        ca_trace[n_nodes == 0] = 0.0
+        n_node_div = np.maximum(n_node, 1)
+        ca_trace = ca_sums / n_node_div
+        ca_trace[n_node == 0] = 0.0
         report["ca"] = ca_trace.tolist()
     if extra:
         report.update(extra)
@@ -1442,7 +1442,7 @@ def cell_from_node(nodes_by_cell: dict[str, np.ndarray]) -> dict[int, str]:
     return out
 
 
-def _cell_idx_from_node_id(plan: _ComponentForwardB, cells: list[str]) -> np.ndarray:
+def _cell_idx_from_node_id(plan: _ComponentB, cells: list[str]) -> np.ndarray:
     """Dense ``out[node_id] = cell_idx`` in ``cells`` (-1 if absent)."""
     cell_idx = dict(zip(cells, range(len(cells))))
     if plan.nodes.size == 0:
@@ -1455,9 +1455,9 @@ def _cell_idx_from_node_id(plan: _ComponentForwardB, cells: list[str]) -> np.nda
     return out
 
 
-def _merge_forward_sums(
-    forward_sums: _ComponentForwardSums,
-    forward_bs: list[_ComponentForwardB],
+def _merge_component_sums(
+    component_sums: _ComponentSums,
+    component_bs: list[_ComponentB],
     cells: list[str],
     n_t_aligned: int,
 ) -> tuple[
@@ -1471,25 +1471,25 @@ def _merge_forward_sums(
     dict[str, np.ndarray] | None,
 ]:
     """Sum per-cell sums rows across run bs (spot multi-sti mean)."""
-    n_components = forward_sums.layout.n_components
-    sums = {cell: np.zeros((n_t_aligned, n_components), dtype=float) for cell in cells}
-    sum_sqs = {cell: np.zeros((n_t_aligned, n_components), dtype=float) for cell in cells}
-    n_nodes = {cell: np.zeros(n_t_aligned, dtype=np.int64) for cell in cells}
+    n_component = component_sums.layout.n_component
+    sums = {cell: np.zeros((n_t_aligned, n_component), dtype=float) for cell in cells}
+    sum_sqs = {cell: np.zeros((n_t_aligned, n_component), dtype=float) for cell in cells}
+    n_node = {cell: np.zeros(n_t_aligned, dtype=np.int64) for cell in cells}
     v_post_minus_pre_sums = {cell: np.zeros(n_t_aligned, dtype=float) for cell in cells}
     nodes_ref = {cell: np.zeros(0, dtype=np.int64) for cell in cells}
     v_ca_sums = (
         {cell: np.zeros(n_t_aligned, dtype=float) for cell in cells}
-        if forward_sums.v_ca_sums is not None else None
+        if component_sums.v_ca_sums is not None else None
     )
     ca_sums = (
         {cell: np.zeros(n_t_aligned, dtype=float) for cell in cells}
-        if forward_sums.ca_sums is not None else None
+        if component_sums.ca_sums is not None else None
     )
     ca_pre_sums = (
         {cell: np.zeros(n_t_aligned, dtype=float) for cell in cells}
-        if forward_sums.ca_pre_sums is not None else None
+        if component_sums.ca_pre_sums is not None else None
     )
-    for b, plan in enumerate(forward_bs):
+    for b, plan in enumerate(component_bs):
         for cell in cells:
             if cell not in plan.nodes_by_cell:
                 continue
@@ -1498,29 +1498,29 @@ def _merge_forward_sums(
                 continue
             if nodes_ref[cell].size == 0:
                 nodes_ref[cell] = us
-            sums[cell] += forward_sums.sums[b][cell]
-            sum_sqs[cell] += forward_sums.sum_sqs[b][cell]
-            n_nodes[cell] += forward_sums.n_nodes[b][cell]
-            v_post_minus_pre_sums[cell] += forward_sums.v_post_minus_pre_sums[b][cell]
+            sums[cell] += component_sums.sums[b][cell]
+            sum_sqs[cell] += component_sums.sum_sqs[b][cell]
+            n_node[cell] += component_sums.n_node[b][cell]
+            v_post_minus_pre_sums[cell] += component_sums.v_post_minus_pre_sums[b][cell]
             if v_ca_sums is not None:
-                v_ca_sums[cell] += forward_sums.v_ca_sums[b][cell]
-                ca_sums[cell] += forward_sums.ca_sums[b][cell]
-                ca_pre_sums[cell] += forward_sums.ca_pre_sums[b][cell]
+                v_ca_sums[cell] += component_sums.v_ca_sums[b][cell]
+                ca_sums[cell] += component_sums.ca_sums[b][cell]
+                ca_pre_sums[cell] += component_sums.ca_pre_sums[b][cell]
     return (
-        sums, sum_sqs, n_nodes, v_post_minus_pre_sums, nodes_ref,
+        sums, sum_sqs, n_node, v_post_minus_pre_sums, nodes_ref,
         v_ca_sums, ca_sums, ca_pre_sums,
     )
 
 
-def _build_forward_b(
+def _build_component_b(
     nodes_by_cell: dict[str, np.ndarray],
     *,
     t0_bn_row: np.ndarray,
     n_t_aligned: int,
-) -> _ComponentForwardB:
+) -> _ComponentB:
     """Build one run b; ``node_t0s[i] = t0_bn_row[nodes[i]]``."""
     nodes = np.unique(np.concatenate([ids for ids in nodes_by_cell.values()]))
-    return _ComponentForwardB(
+    return _ComponentB(
         nodes=nodes,
         node_t0s=np.asarray(t0_bn_row[nodes], dtype=np.int64),
         n_t_aligned=int(n_t_aligned),
@@ -1556,7 +1556,7 @@ def _bar_specs_requested(
     specs=None,
     grids=None,
 ) -> list[str]:
-    """Spec list for average-mode bar without a full forward readout."""
+    """Spec list for average-mode bar without a component forward readout."""
     if specs is None or grids is None:
         specs, grids = _bar_meta(session, task, contrast)
     specs = [spec.token for spec in specs]
@@ -1611,7 +1611,7 @@ def _analyze_component_forward(
     task: str,
     contrast: str,
     i_sti: torch.Tensor,
-    forward_bs: list[_ComponentForwardB],
+    component_bs: list[_ComponentB],
     before_t: list[int],
     b_specs: list[str | None],
     time_window: TimeWindow,
@@ -1620,25 +1620,25 @@ def _analyze_component_forward(
     merge_bs: bool = False,
     extra: dict[str, Any] | None = None,
     extra_from_cell=None,
-    n_nodes_from_cell=None,
+    n_node_from_cell=None,
 ):
     """Shared spot/bar: ``_forward_component`` → finalize reports.
 
     * ``merge_bs=False`` (bar): ``reports[spec][cell]``; ``b_specs`` are str.
     * ``merge_bs=True`` (spot): sum across bs → ``reports[cell]``.
     """
-    if not forward_bs:
+    if not component_bs:
         raise SystemExit("component forward requires at least one b")
-    if len(before_t) != len(forward_bs) or len(b_specs) != len(forward_bs):
-        raise SystemExit("before_t/b_specs length must match forward_bs")
+    if len(before_t) != len(component_bs) or len(b_specs) != len(component_bs):
+        raise SystemExit("before_t/b_specs length must match component_bs")
 
     dt = float(session.delta_ms)
-    forward_sums = _forward_component(
-        session, params, i_sti, forward_bs, cells,
+    component_sums = _forward_component(
+        session, params, i_sti, component_bs, cells,
         t_start=time_window.forward_t_start(delta_ms=dt),
         t_stop=time_window.forward_t_stop(delta_ms=dt),
     )
-    component_layout = forward_sums.layout
+    component_layout = component_sums.layout
 
     def _one_report(
         *,
@@ -1648,7 +1648,7 @@ def _analyze_component_forward(
         nodes: np.ndarray,
         sums: np.ndarray,
         sum_sqs: np.ndarray,
-        n_nodes: np.ndarray,
+        n_node: np.ndarray,
         v_post_minus_pre_sums: np.ndarray,
         v_ca_sums: np.ndarray | None = None,
         ca_sums: np.ndarray | None = None,
@@ -1656,9 +1656,9 @@ def _analyze_component_forward(
     ) -> dict[str, Any]:
         if nodes.size == 0:
             raise SystemExit(f"no nodes for cell {cell!r}")
-        v_post = _v_post_from_sums(sums, n_nodes, component_layout)
+        v_post = _v_post_from_sums(sums, n_node, component_layout)
         v_post_d = _v_post_d_from_sums(
-            sums, v_post_minus_pre_sums, n_nodes, component_layout,
+            sums, v_post_minus_pre_sums, n_node, component_layout,
         )
         cell_extra = dict(extra) if extra else {}
         if extra_from_cell is not None:
@@ -1675,7 +1675,7 @@ def _analyze_component_forward(
             session=session,
             sums=sums,
             sum_sqs=sum_sqs,
-            n_nodes=n_nodes,
+            n_node=n_node,
             v_post_minus_pre_sums=v_post_minus_pre_sums,
             v_post=v_post,
             time_window=time_window,
@@ -1686,17 +1686,17 @@ def _analyze_component_forward(
             ca_sums=ca_sums,
             ca_pre_sums=ca_pre_sums,
         )
-        if n_nodes_from_cell is not None:
-            report["n_nodes"] = int(n_nodes_from_cell(cell))
+        if n_node_from_cell is not None:
+            report["n_node"] = int(n_node_from_cell(cell))
         return report
 
     if merge_bs:
-        n_t_aligned = forward_bs[0].n_t_aligned
+        n_t_aligned = component_bs[0].n_t_aligned
         (
-            sums, sum_sqs, n_nodes, v_post_minus_pre_sums, nodes_ref,
+            sums, sum_sqs, n_node, v_post_minus_pre_sums, nodes_ref,
             v_ca_sums, ca_sums, ca_pre_sums,
-        ) = _merge_forward_sums(
-            forward_sums, forward_bs, cells, n_t_aligned,
+        ) = _merge_component_sums(
+            component_sums, component_bs, cells, n_t_aligned,
         )
         before = int(before_t[0])
         return {
@@ -1707,7 +1707,7 @@ def _analyze_component_forward(
                 nodes=nodes_ref[cell],
                 sums=sums[cell],
                 sum_sqs=sum_sqs[cell],
-                n_nodes=n_nodes[cell],
+                n_node=n_node[cell],
                 v_post_minus_pre_sums=v_post_minus_pre_sums[cell],
                 v_ca_sums=None if v_ca_sums is None else v_ca_sums[cell],
                 ca_sums=None if ca_sums is None else ca_sums[cell],
@@ -1726,20 +1726,20 @@ def _analyze_component_forward(
                 cell=cell,
                 spec=spec,
                 before=int(before_t[b]),
-                nodes=forward_bs[b].nodes_by_cell[cell],
-                sums=forward_sums.sums[b][cell],
-                sum_sqs=forward_sums.sum_sqs[b][cell],
-                n_nodes=forward_sums.n_nodes[b][cell],
-                v_post_minus_pre_sums=forward_sums.v_post_minus_pre_sums[b][cell],
+                nodes=component_bs[b].nodes_by_cell[cell],
+                sums=component_sums.sums[b][cell],
+                sum_sqs=component_sums.sum_sqs[b][cell],
+                n_node=component_sums.n_node[b][cell],
+                v_post_minus_pre_sums=component_sums.v_post_minus_pre_sums[b][cell],
                 v_ca_sums=(
-                    None if forward_sums.v_ca_sums is None else forward_sums.v_ca_sums[b][cell]
+                    None if component_sums.v_ca_sums is None else component_sums.v_ca_sums[b][cell]
                 ),
                 ca_sums=(
-                    None if forward_sums.ca_sums is None else forward_sums.ca_sums[b][cell]
+                    None if component_sums.ca_sums is None else component_sums.ca_sums[b][cell]
                 ),
                 ca_pre_sums=(
-                    None if forward_sums.ca_pre_sums is None
-                    else forward_sums.ca_pre_sums[b][cell]
+                    None if component_sums.ca_pre_sums is None
+                    else component_sums.ca_pre_sums[b][cell]
                 ),
             )
     return out
@@ -1765,14 +1765,14 @@ def _analyze_bar_forward(
         session, task, contrast, spec_tokens, specs=specs, grids=grids,
     )
     before_by_b: list[int] = []
-    forward_bs: list[_ComponentForwardB] = []
+    component_bs: list[_ComponentB] = []
     for spec_b, spec in zip(spec_bs, spec_tokens):
         spec_nodes_by_cell = nodes_from_b(spec_b, spec, pack=pack, t0_bn=t0_bn)
         before = int(grids.before_t[spec])
         after = int(grids.after_t[spec])
         before_by_b.append(before)
-        forward_bs.append(
-            _build_forward_b(
+        component_bs.append(
+            _build_component_b(
                 spec_nodes_by_cell,
                 t0_bn_row=t0_bn[spec_b],
                 n_t_aligned=before + after + 1,
@@ -1785,7 +1785,7 @@ def _analyze_bar_forward(
         task=task,
         contrast=contrast,
         i_sti=i_sti,
-        forward_bs=forward_bs,
+        component_bs=component_bs,
         before_t=before_by_b,
         b_specs=list(spec_tokens),
         time_window=time_window,
@@ -1918,8 +1918,8 @@ def _spot_extra_from_cell(
     ).get(contrast) or {}
     opts = session_one.train_opts or {}
     from_onset = train.val_from_enabled(opts, "bias_gt")
-    lo = param_scalar("bias_gt", "lo", NEURON_SCHEMA['params'])
-    hi = param_scalar("bias_gt", "hi", NEURON_SCHEMA['params'])
+    lo = param_from_entry("bias_gt", "lo", NEURON_SCHEMA['params'])
+    hi = param_from_entry("bias_gt", "hi", NEURON_SCHEMA['params'])
     cells = [str(cell) for cell in session_one.connectome.cells]
 
     def extra_from_cell(
@@ -1983,11 +1983,11 @@ def analyze_spot_average(
     t_onset = train.pack_t_onset(pack)
 
     i_sti = pack.i_sti if pack.i_sti.dim() == 3 else pack.i_sti.unsqueeze(0)
-    n_sti_b, n_t, n_nodes = i_sti.shape
-    t0_abs = np.zeros(n_nodes, dtype=np.int64)
+    n_sti_b, n_t, n_node = i_sti.shape
+    t0_abs = np.zeros(n_node, dtype=np.int64)
     n_t_aligned = time_window.aligned_n_t(n_t, delta_ms=float(session_one.delta_ms))
 
-    forward_bs: list[_ComponentForwardB] = []
+    component_bs: list[_ComponentB] = []
     i_sti_rows: list[int] = []
     for sti_b in range(n_sti_b):
         entry_mask = radius_entry_mask & (bs == sti_b)
@@ -2000,17 +2000,17 @@ def analyze_spot_average(
                 nodes_by_cell[cell] = np.unique(nodes[cell_entry_mask])
         if not nodes_by_cell:
             continue
-        forward_bs.append(
-            _build_forward_b(nodes_by_cell, t0_bn_row=t0_abs, n_t_aligned=n_t_aligned),
+        component_bs.append(
+            _build_component_b(nodes_by_cell, t0_bn_row=t0_abs, n_t_aligned=n_t_aligned),
         )
         i_sti_rows.append(sti_b)
 
-    if not forward_bs:
+    if not component_bs:
         raise SystemExit(
             f"no spot nodes at radius={radius} for requested cells in spot readout"
         )
 
-    n_b = len(forward_bs)
+    n_b = len(component_bs)
     return _analyze_component_forward(
         session_one,
         params=params,
@@ -2018,7 +2018,7 @@ def analyze_spot_average(
         task=task,
         contrast=contrast,
         i_sti=i_sti[i_sti_rows],
-        forward_bs=forward_bs,
+        component_bs=component_bs,
         before_t=[t_onset] * n_b,
         b_specs=[None] * n_b,
         time_window=time_window,
@@ -2030,7 +2030,7 @@ def analyze_spot_average(
             session_one, params, pack, radius=radius, t_onset=t_onset,
             train_filter=train_filter,
         ),
-        n_nodes_from_cell=lambda cell: int(
+        n_node_from_cell=lambda cell: int(
             np.sum(radius_entry_mask & (type_idx == cell_idx[cell]))
         ),
     )
@@ -2110,13 +2110,13 @@ def analyze_spot_hex(
     t_onset = train.pack_t_onset(pack)
 
     i_sti = pack.i_sti if pack.i_sti.dim() == 3 else pack.i_sti.unsqueeze(0)
-    n_sti_b, n_t, n_nodes = i_sti.shape
-    t0_abs = np.zeros(n_nodes, dtype=np.int64)
+    n_sti_b, n_t, n_node = i_sti.shape
+    t0_abs = np.zeros(n_node, dtype=np.int64)
     n_t_aligned = time_window.aligned_n_t(n_t, delta_ms=float(session_one.delta_ms))
     node_arr = np.asarray([node], dtype=np.int64)
     type_cell = cell_idx[cell]
 
-    forward_bs: list[_ComponentForwardB] = []
+    component_bs: list[_ComponentB] = []
     i_sti_rows: list[int] = []
     for sti_b in range(n_sti_b):
         entry_mask = (
@@ -2127,17 +2127,17 @@ def analyze_spot_hex(
         )
         if not np.any(entry_mask):
             continue
-        forward_bs.append(
-            _build_forward_b({cell: node_arr}, t0_bn_row=t0_abs, n_t_aligned=n_t_aligned),
+        component_bs.append(
+            _build_component_b({cell: node_arr}, t0_bn_row=t0_abs, n_t_aligned=n_t_aligned),
         )
         i_sti_rows.append(sti_b)
 
-    if not forward_bs:
+    if not component_bs:
         raise SystemExit(
             f"no sti-on spot rows for {cell} node {node} at hex ({at_x},{at_y})"
         )
 
-    n_b = len(forward_bs)
+    n_b = len(component_bs)
     return _analyze_component_forward(
         session_one,
         params=params,
@@ -2145,7 +2145,7 @@ def analyze_spot_hex(
         task=task,
         contrast=contrast,
         i_sti=i_sti[i_sti_rows],
-        forward_bs=forward_bs,
+        component_bs=component_bs,
         before_t=[t_onset] * n_b,
         b_specs=[None] * n_b,
         time_window=time_window,
@@ -2161,7 +2161,7 @@ def analyze_spot_hex(
             session_one, params, pack, radius=0, t_onset=t_onset,
             train_filter=train_filter,
         ),
-        n_nodes_from_cell=lambda _c: 1,
+        n_node_from_cell=lambda _c: 1,
     )
 
 
@@ -2430,12 +2430,12 @@ def _plot_component_reports(
                     linewidth=1.4,
                 )
                 if gt_series is not None:
-                    gt_full = np.asarray(rep[gt_series], dtype=float)
+                    gt = np.asarray(rep[gt_series], dtype=float)
                     t_onset = int(rep.get("before_t") or 0)
                     t = ts - t_onset
-                    valid = (t >= 0) & (t < gt_full.shape[0])
+                    valid = (t >= 0) & (t < gt.shape[0])
                     if np.any(valid):
-                        y_gt = gt_full[t[valid]]
+                        y_gt = gt[t[valid]]
                         xs_gt = xs[valid]
                         if row in layout.row_shared_ylim:
                             row_curves[row].append(y_gt)
@@ -2469,7 +2469,7 @@ def plot_report(report: dict[str, Any], out_path: str) -> None:
     title = (
         f"{report['cell']}  {report['task']}  {report['contrast']}"
         + (f"  {report['spec']}" if report.get("spec") else "")
-        + f"  mode={report.get('mode')}  n={report.get('n_nodes')}"
+        + f"  mode={report.get('mode')}  n={report.get('n_node')}"
     )
     if report.get("mode") == "hex":
         title += f"  hex=({report['hex']['x']},{report['hex']['y']})"
@@ -2484,7 +2484,7 @@ def plot_reports_compare(reports: list[dict[str, Any]], out_path: str) -> None:
     specs_csv = ",".join(str(one_report["spec"]) for one_report in reports)
     title = (
         f"{first_report['cell']}  {first_report['task']}  {first_report['contrast']}  reports=[{specs_csv}]"
-        f"  mode={first_report.get('mode')}  n={first_report.get('n_nodes')}"
+        f"  mode={first_report.get('mode')}  n={first_report.get('n_node')}"
     )
     _plot_component_reports(reports, out_path, title=title)
 
@@ -2528,7 +2528,7 @@ def _print_report(report: dict[str, Any], *, print_steps: bool = True) -> None:
     )
     hdr = (
         f"cell={report['cell']} model={model} mode={mode} "
-        f"n_nodes={report.get('n_nodes', '?')}"
+        f"n_node={report.get('n_node', '?')}"
     )
     if mode == "hex":
         hdr += (
@@ -2567,7 +2567,7 @@ def _print_report(report: dict[str, Any], *, print_steps: bool = True) -> None:
             )
             for step in report["steps"]:
                 print(
-                    f"{step[x_tok]:4d} {step.get('n_nodes', 1):3d} {_trace_cols(step)} "
+                    f"{step[x_tok]:4d} {step.get('n_node', 1):3d} {_trace_cols(step)} "
                     f"{step['i_sti']:+6.3f} {step['v_syn']:+6.3f} {step['v_syn_exc']:+7.3f} "
                     f"{step['v_syn_inh']:+7.3f} {step['dv_leak']:+8.4f} {step['dv_hp']:+7.4f}"
                 )
@@ -2593,7 +2593,7 @@ def _print_report(report: dict[str, Any], *, print_steps: bool = True) -> None:
         )
         for step in report["steps"]:
             print(
-                f"{step[x_tok]:4d} {step.get('n_nodes', 1):3d} {_trace_cols(step)} "
+                f"{step[x_tok]:4d} {step.get('n_node', 1):3d} {_trace_cols(step)} "
                 f"{step['i_sti']:5.1f} {step['g_inh_nS']:.4f} {step['g_h_rev_nS']:.4f} "
                 f"{step['g_exc_nS']:.4f} {step['num_inh']:+8.2f} {step['num_exc']:+8.2f}"
             )
@@ -2922,7 +2922,7 @@ def main() -> None:
                         _log(
                             f"component forward {task} {contrast} "
                             f"specs={specs_ordered} "
-                            f"hex=({at_x},{at_y}) (no full forward) ..."
+                            f"hex=({at_x},{at_y}) (no component forward) ..."
                         )
                         reports_by_spec = analyze_bar_hex(
                             session,
@@ -2942,7 +2942,7 @@ def main() -> None:
                         _log(
                             f"component forward {task} {contrast} "
                             f"specs={specs_ordered} "
-                            f"(no full forward) ..."
+                            f"(no component forward) ..."
                         )
                         reports_by_spec = analyze_bar_average(
                             session,

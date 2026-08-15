@@ -46,16 +46,12 @@ def run_data_dir(outdir: str | Path) -> str:
 TASKS = ("spot", "moving_bar")
 CONTRASTS = ("bright", "dark")
 
-# ``i_sti[task][contrast]`` keys only (baseline = midpoint, never stored).
+# ``i_sti[task][contrast]`` keys only (baseline = midpoint; see
+# ``task.moving_bar.sti_spec.i_baseline_from_i_sti``).
 I_STI_KEYS = ("bright", "dark")
 
 PD_ND_LABELS = ("PD", "ND")
 PD_IDX, ND_IDX = 0, 1
-
-
-def i_baseline_from(i_sti_task: dict) -> float:
-    """Midpoint of bright/dark sti currents for one task."""
-    return 0.5 * (float(i_sti_task["bright"]) + float(i_sti_task["dark"]))
 
 
 MOVING_BAR_COST_PARTS = tuple(
