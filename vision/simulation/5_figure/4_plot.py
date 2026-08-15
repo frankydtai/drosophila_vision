@@ -1,4 +1,4 @@
-from default_params import (
+from const_default import (
     RUN_PATH,
     STI_TIMING,
 )
@@ -14,12 +14,12 @@ import train
 from task.spot.sti_geo import resolve_spot
 from figure import moving_bar
 from figure import spot
-from figure.util import (
+from figure.panel import (
     network_hex_count,
     filter_figure_token,
     session_filter_figure_token,
 )
-from default_params import RUN_PATH, STI_TIMING
+from const_default import RUN_PATH, STI_TIMING
 from train.config import run_data_dir
 from train.implementation import resolve_run_dir
 
@@ -66,10 +66,6 @@ def load_train_opts(outdir):
         return json.load(f)
 
 
-def load_session(outdir, model=None):
-    return train.session_from_outdir(outdir, model)
-
-
 def session_from_task(base_session, task):
     """Single-task session sharing backend/schema with a multi-task run."""
     if base_session.backend.network is None:
@@ -79,7 +75,7 @@ def session_from_task(base_session, task):
     opts['packs'] = None
     opts['network'] = base_session.backend.network
     return train.open_session({**opts, 'backend': 'network'}, base_session.model,
-                           schema=list(base_session.schema))
+                           schema=train.schema_copy(base_session.schema))
 
 
 def resolve_model(outdir, model=None):
@@ -137,16 +133,16 @@ def select_best(params, session, *, final_costs=None, verbose=True):
 
 
 def _session_z_from_best_param(session, run_dir):
-    """Remap ``best_param.npz`` per-segment values onto ``session``; return ``(session, z)``."""
+    """Remap ``best_param.npz`` per-param vals onto ``session``; return ``(session, z)``."""
     import train.implementation as train_mod
 
-    param_by_segment, cells, pairs = train_mod.load_best_param_by_segment(run_dir)
-    remapped = train.remap_param_by_segment_node_values(
-        param_by_segment, cells, pairs, list(session.schema), session.backend,
+    node_vals, cells, pairs = train_mod.load_best_node_vals(run_dir)
+    remapped = train.remap_node_vals(
+        node_vals, cells, pairs, train.schema_copy(session.schema), session.backend,
     )
-    schema = train.attach_param_carry(list(session.schema), remapped)
+    schema = train.attach_param_carry(train.schema_copy(session.schema), remapped)
     session = session.with_schema(schema)
-    z = train.z_from_node_values(
+    z = train.z_from_node_vals(
         remapped, schema, dtype=session.sim_dtype, device=session.device,
     )
     return session, z
@@ -160,7 +156,7 @@ def load_best(outdir, *, model=None, verbose=False):
     if not os.path.isdir(outdir):
         raise SystemExit(f'run dir not found: {outdir}')
     model = resolve_model(outdir, model=model)
-    session, z = _session_z_from_best_param(load_session(outdir, model=model), outdir)
+    session, z = _session_z_from_best_param(train.session_from_outdir(outdir, model=model), outdir)
     best_cost = None
     final_costs, _, _, _ = train_mod.load_stored_costs(outdir)
     if final_costs is not None and len(final_costs) > 0:
@@ -324,7 +320,7 @@ def _figure_cost_parts(session, z):
 
 
 def _plot_path(outdir, stem, file_suffix="", *, html=False):
-    from figure.util import figure_file_ext
+    from figure.panel import figure_file_ext
 
     return os.path.join(outdir, f"{stem}{file_suffix}{figure_file_ext(html=html)}")
 
@@ -500,7 +496,7 @@ def plot_rf_t(params, outdir, model=None, model_all=True,
     if model is None:
         raise ValueError('model or session required')
     if session is None:
-        session = load_session(ctx, model)
+        session = train.session_from_outdir(ctx, model)
 
     params = np.atleast_2d(params)
     if final_costs is None:
@@ -701,21 +697,24 @@ def add_param_argument(parser):
     _add(parser, figure=True)
 
 
-def parse_optimizable_param_tokens(tokens):
+def parse_param_init_val_tokens(tokens):
     try:
-        return train.parse_optimizable_param_tokens(tokens)
+        return train.parse_param_init_val_tokens(tokens)
     except ValueError as exc:
         raise SystemExit(str(exc)) from exc
 
 
-def param_filename_suffix(param_inits):
+def param_filename_suffix(param_inits=None, param_vals=None):
     from train.cli import param_filename_suffix as _suffix
-    return _suffix(param_inits)
+    return _suffix(param_inits=param_inits, param_vals=param_vals)
 
 
-def override_params(z, schema, session, param_inits):
+def override_params(z, schema, session, param_vals=None, param_inits=None, param_bounds=None):
     try:
-        return train.override_params(z, schema, session, param_inits)
+        return train.override_params(
+            z, schema, session,
+            param_vals=param_vals, param_inits=param_inits, param_bounds=param_bounds,
+        )
     except ValueError as exc:
         raise SystemExit(str(exc)) from exc
 
@@ -762,7 +761,7 @@ def main():
         raise SystemExit(str(exc)) from exc
 
     from train.cli import resolve_sti_timing_kwargs
-    param_inits = parse_optimizable_param_tokens(args.param)
+    param_inits, param_vals, param_bounds = parse_param_init_val_tokens(args.param)
 
     outdir = resolve_run_dir(args.run_path)
     train_opts = load_train_opts(outdir) or {}
@@ -774,33 +773,34 @@ def main():
         euler=args.euler,
         filter=args.filter,
     )
-    z_t = (
+    z = (
         z if torch.is_tensor(z)
         else torch.tensor(np.asarray(z, dtype=np.float64), dtype=torch.float64,
                           device=session.device)
     )
-    z_t, schema = override_params(
-        z_t, list(session.schema), session, param_inits,
+    z, schema = override_params(
+        z, train.schema_copy(session.schema), session,
+        param_vals=param_vals, param_inits=param_inits, param_bounds=param_bounds,
     )
     session = session.with_schema(schema)
     # Filter is already in readout stems (``_v`` / ``_ca``); do not append again.
     file_suffix = (
         sti_timing_filename_suffix(**timing_changed)
         + euler_filename_suffix(args.euler)
-        + param_filename_suffix(param_inits)
+        + param_filename_suffix(param_inits=param_inits, param_vals=param_vals)
     )
     model = resolve_model(outdir)
-    z_np = z_t.detach().cpu().numpy()
+    z = z.detach().cpu().numpy()
     print(f'params={train_mod.best_param_path(outdir)}')
-    print(f'model={model} ({z_np.shape[-1]} params)')
+    print(f'model={model} ({z.shape[-1]} params)')
     plot_rf_t(
-        np.atleast_2d(z_np),
+        np.atleast_2d(z),
         outdir,
         model=model,
         session=session,
         final_costs=np.array([best_cost]),
         file_suffix=file_suffix,
-        save_data=not param_inits,
+        save_data=not (param_inits or param_vals),
         **figure_kw,
     )
 

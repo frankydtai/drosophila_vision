@@ -67,22 +67,13 @@ def network_run_tag(network_path: str, meta: dict) -> str:
     return side
 
 
-def cell_counts_abc_path(network_json: Path) -> Path:
-    """``cell_counts_abc.csv`` next to a built ``network.json``."""
-    return Path(network_json).resolve().parent / CELL_COUNTS_ABC_FILE
-
-
 def resolve_cell_counts_abc_path(network_json: Path) -> Path:
     """``cell_counts_abc.csv`` for family lookup (radius-cropped runs share the base table)."""
     net = Path(network_json).resolve()
     if re.search(r"_r\d+$", net.parent.name):
         return BUILT_NETWORKS_DIR / CELL_COUNTS_ABC_BASE_RUN / CELL_COUNTS_ABC_FILE
-    return cell_counts_abc_path(network_json)
+    return net.parent / CELL_COUNTS_ABC_FILE
 
-
-def moving_bar_cache_dir(network_json: Path) -> Path:
-    """Directory for cached moving-bar column currents for one network run."""
-    return Path(network_json).resolve().parent / MOVING_BAR_CACHE_DIRNAME
 
 VISUAL_NEURON_TYPES_FILE = "visual_neuron_types.csv.gz"
 COLUMN_ASSIGNMENT_FILE = "column_assignment.csv.gz"

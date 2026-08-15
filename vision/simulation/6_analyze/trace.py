@@ -33,7 +33,7 @@ Usage (from ``vision/simulation/``)::
 """
 from __future__ import annotations
 
-from default_params import (
+from const_default import (
     ANALYZE_TRACE,
     RUN_PATH,
 )
@@ -75,7 +75,7 @@ def detect_oscillation(
     z_threshold: float = ANALYZE_TRACE['trace_osc_z_threshold'],
     snr_min: float = ANALYZE_TRACE['trace_osc_snr_min'],
 ) -> dict:
-    """FFT / v_peak_to_peak metrics on one already-sliced mean v_post segment."""
+    """FFT / v_peak_to_peak metrics on one already-sliced mean v_post slice."""
     n = len(v_trace)
     if n < 10:
         return {"flag": False, "reason": "too_short", "n_samples": n}
@@ -134,7 +134,7 @@ def detect_flat(
     v_peak_to_peak_max: float,
     abs_mean: float,
 ) -> dict:
-    """Flatness of an already-sliced segment vs a scalar baseline (mV)."""
+    """Flatness of an already-sliced trace vs a scalar baseline (mV)."""
     n = len(v_trace)
     if n < 2:
         return {"flag": False, "reason": "too_short", "n_samples": n}
@@ -166,10 +166,10 @@ def detect_drift(
     v_trace: np.ndarray,
     *,
     delta_ms: float,
-    min_slope_mv_per_s: float = ANALYZE_TRACE['trace_drift_min_slope_mv_per_s'],
+    min_slope_mv_over_s: float = ANALYZE_TRACE['trace_drift_min_slope_mv_over_s'],
     min_r: float = ANALYZE_TRACE['trace_drift_min_r'],
 ) -> dict:
-    """Linear trend on an already-sliced segment: rising / falling / none."""
+    """Linear trend on an already-sliced trace: rising / falling / none."""
     n = len(v_trace)
     if n < 3:
         return {
@@ -189,7 +189,7 @@ def detect_drift(
             "flag": False,
             "reason": "no_span",
             "direction": "none",
-            "slope_mv_per_s": 0.0,
+            "slope_mv_over_s": 0.0,
             "r": 0.0,
             "n_samples": n,
         }
@@ -199,7 +199,7 @@ def detect_drift(
     ss_res = float(np.dot(v_c - v_hat, v_c - v_hat))
     r2 = 1.0 - ss_res / ss_tot if ss_tot > 0 else 0.0
     r = float(np.sqrt(max(r2, 0.0)) * np.sign(slope))
-    flag = abs(slope) >= min_slope_mv_per_s and abs(r) >= min_r
+    flag = abs(slope) >= min_slope_mv_over_s and abs(r) >= min_r
     if flag and slope > 0:
         direction = "rising"
     elif flag and slope < 0:
@@ -210,7 +210,7 @@ def detect_drift(
         "flag": flag,
         "reason": direction if flag else "no_drift",
         "direction": direction,
-        "slope_mv_per_s": slope,
+        "slope_mv_over_s": slope,
         "r": r,
         "delta_end_start": float(v[-1] - v[0]),
         "n_samples": n,
@@ -225,7 +225,7 @@ def detect_stability(
     min_osc_f: float,
     max_osc_f: float,
     z_threshold: float,
-    min_slope_mv_per_s: float,
+    min_slope_mv_over_s: float,
     min_r: float,
     max_abs: float,
     v_peak_to_peak_max: float,
@@ -242,7 +242,7 @@ def detect_stability(
     drift = detect_drift(
         v_trace,
         delta_ms=delta_ms,
-        min_slope_mv_per_s=min_slope_mv_per_s,
+        min_slope_mv_over_s=min_slope_mv_over_s,
         min_r=min_r,
     )
     flat = detect_flat(
@@ -346,14 +346,13 @@ def _baseline_mean(
     return float(np.mean(trace_slice))
 
 
-def _format_param_inits(param_inits: list[tuple[str, str | None, float]]) -> str:
-    if not param_inits:
-        return "none"
+def _format_param_tokens(param_inits, param_vals) -> str:
     parts: list[str] = []
-    for segment, node, val in param_inits:
-        key = name if node is None else f"{name}.{node}"
-        parts.append(f"{key}={val:g}")
-    return " ".join(parts)
+    for key, bag in (("init", param_inits or ()), ("val", param_vals or ())):
+        for param, node, number in bag:
+            tok = f"{param}.{key}" if node is None else f"{param}.{key}.{node}"
+            parts.append(f"{tok}={number:g}")
+    return " ".join(parts) if parts else "none"
 
 
 def _trace_series(rep: dict) -> np.ndarray:
@@ -382,15 +381,18 @@ def _load_reports(args):
         **timing_kw,
         filter=args.filter,
     )
-    z_t = torch.tensor(
+    z = torch.tensor(
         np.asarray(z, dtype=np.float64), dtype=torch.float64, device=session.device,
     )
-    schema = list(session.schema)
-    param_inits = plot.parse_optimizable_param_tokens(args.param)
-    z_t, schema = plot.override_params(z_t, schema, session, param_inits)
+    schema = train.schema_copy(session.schema)
+    param_inits, param_vals, param_bounds = plot.parse_param_init_val_tokens(args.param)
+    z, schema = plot.override_params(
+        z, schema, session,
+        param_vals=param_vals, param_inits=param_inits, param_bounds=param_bounds,
+    )
     session = session.with_schema(schema)
     params = train.override_val_from(
-        train.assign_params(z_t, schema, session.backend), session,
+        train.assign_params(z, schema, session.backend), session,
     )
 
     param_csv = os.path.join(run_dir, "param.csv")
@@ -413,17 +415,17 @@ def _load_reports(args):
         forward_stop = max(forward_stop, baseline[1])
     # Buffer is always from trial start; start=0 keeps indices absolute.
     time_window = TimeWindow(kind="ms", start=0.0, stop=forward_stop)
-    base_s = (
+    baseline_text = (
         f"{baseline[0]:g},{baseline[1]:g}" if baseline is not None else "none"
     )
     print(
         f"check={args.check}  {args.task} radius={args.radius}  "
         f"filter={args.filter or 'run'}  "
         f"ms-shown={analyze[0]:g},{analyze[1]:g}  "
-        f"baseline-ms-shown={base_s}  "
+        f"baseline-ms-shown={baseline_text}  "
         f"forward TimeWindow(ms, 0, {forward_stop:g})  "
         f"ms_pre={ms_pre:g} ms_sti={ms_sti:g} ms_response={ms_response:g}  "
-        f"param={_format_param_inits(param_inits)}  "
+        f"param={_format_param_tokens(param_inits, param_vals)}  "
         f"n_cells={len(cells)}",
         flush=True,
     )
@@ -551,13 +553,13 @@ def _print_drift(cells, reports, delta_ms, analyze, args) -> None:
         result = detect_drift(
             v,
             delta_ms=delta_ms,
-            min_slope_mv_per_s=args.min_slope,
+            min_slope_mv_over_s=args.min_slope,
             min_r=args.min_r,
         )
         yes = "YES" if result["flag"] else "NO"
         print(
             f"{cell:<12} {yes:<6} {result['reason']:<12} "
-            f"{result.get('slope_mv_per_s', 0):>10.3f} "
+            f"{result.get('slope_mv_over_s', 0):>10.3f} "
             f"{result.get('r', 0):>8.3f} "
             f"{result.get('delta_end_start', 0):>8.2f} "
             f"{result.get('n_samples', 0):>6}",
@@ -569,7 +571,7 @@ def _print_drift(cells, reports, delta_ms, analyze, args) -> None:
     print(f"\nDrifting ({len(hit)}/{len(cells)}):", flush=True)
     for cell, r in hit:
         print(
-            f"  {cell}: {r['direction']}  slope={r['slope_mv_per_s']:.3f}mV/s  "
+            f"  {cell}: {r['direction']}  slope={r['slope_mv_over_s']:.3f}mV/s  "
             f"r={r['r']:.3f}  Δend={r['delta_end_start']:.2f}mV",
             flush=True,
         )
@@ -597,7 +599,7 @@ def _print_stability(cells, reports, delta_ms, analyze, baseline, args) -> None:
             min_osc_f=args.min_f,
             max_osc_f=args.max_f,
             z_threshold=args.z_threshold,
-            min_slope_mv_per_s=args.min_slope,
+            min_slope_mv_over_s=args.min_slope,
             min_r=args.min_r,
             max_abs=args.max_abs,
             v_peak_to_peak_max=args.v_peak_to_peak_max,
@@ -614,7 +616,7 @@ def _print_stability(cells, reports, delta_ms, analyze, baseline, args) -> None:
             f"{drift['direction']:<8} "
             f"{'YES' if flat['flag'] else 'NO':<5} "
             f"{osc.get('v_peak_to_peak_over_std', 0):>8.2f} "
-            f"{drift.get('slope_mv_per_s', 0):>9.3f} "
+            f"{drift.get('slope_mv_over_s', 0):>9.3f} "
             f"{flat.get('max_abs', 0):>8.2f} "
             f"{result.get('n_samples', 0):>6}",
             flush=True,
@@ -672,7 +674,7 @@ def main() -> None:
     ap.add_argument(
         "--min-slope",
         type=float,
-        default=ANALYZE_TRACE['trace_drift_min_slope_mv_per_s'],
+        default=ANALYZE_TRACE['trace_drift_min_slope_mv_over_s'],
         help="drift: min |slope| in mV/s",
     )
     ap.add_argument(

@@ -1,7 +1,7 @@
 """Query trained syn_strength_cell joined to connectome partner % n_syn.
 
 Reads ``best_param.npz`` + ``train_opts.json`` only (no train session rebuild).
-Partner % comes from ``analyze_cell_syn``; syn_strength_cell / a_* from the per-segment npz.
+Partner % comes from ``analyze_cell_syn``; syn_strength_cell / a_* from the vals-by-param npz.
 
 Examples
 --------
@@ -11,7 +11,7 @@ Examples
 
 from __future__ import annotations
 
-from default_params import (
+from const_default import (
     RUN_PATH,
 )
 
@@ -36,7 +36,7 @@ import train.implementation as train_mod
 from import_bootstrap import parse_comma_list
 from network.connectivity import build_cell_pair_indices
 from network.construction import load_network_json
-from default_params import RUN_PATH
+from const_default import RUN_PATH
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -104,7 +104,7 @@ def main(argv: list[str] | None = None) -> int:
         raise SystemExit("train_opts.json missing network_json")
 
     try:
-        param_by_segment, cells_npz, pairs = train_mod.load_best_param_by_segment(outdir)
+        node_vals, cells_npz, pairs = train_mod.load_best_node_vals(outdir)
     except FileNotFoundError as exc:
         raise SystemExit(str(exc)) from exc
 
@@ -136,10 +136,10 @@ def main(argv: list[str] | None = None) -> int:
         if list(pairs) != expected:
             raise SystemExit("pairs in best_param.npz do not match network.json edges")
 
-    for key in ("syn_strength_cell", "a_in", "a_out", "a_gt", "bias_gt"):
-        if key not in param_by_segment:
-            raise SystemExit(f"best_param.npz missing {key}")
-    syn_strength_cell = np.asarray(param_by_segment["syn_strength_cell"], dtype=np.float64).reshape(-1)
+    for param in ("syn_strength_cell", "a_in", "a_out", "a_gt", "bias_gt"):
+        if param not in node_vals:
+            raise SystemExit(f"best_param.npz missing {param}")
+    syn_strength_cell = np.asarray(node_vals["syn_strength_cell"], dtype=np.float64).reshape(-1)
     if syn_strength_cell.shape[0] != n_pairs:
         raise SystemExit(
             f"syn_strength_cell length {syn_strength_cell.shape[0]} != n_pairs {n_pairs}"
@@ -195,10 +195,10 @@ def main(argv: list[str] | None = None) -> int:
             n_self=int(n_self),
             syn_strength_by_partner=syn_strength_by_partner,
             after_title=(
-                f"a_in={float(param_by_segment['a_in'][ti]):g}, "
-                f"a_out={float(param_by_segment['a_out'][ti]):g}, "
-                f"a_gt={float(param_by_segment['a_gt'][ti]):g}, "
-                f"bias_gt={float(param_by_segment['bias_gt'][ti]):g}"
+                f"a_in={float(node_vals['a_in'][ti]):g}, "
+                f"a_out={float(node_vals['a_out'][ti]):g}, "
+                f"a_gt={float(node_vals['a_gt'][ti]):g}, "
+                f"bias_gt={float(node_vals['bias_gt'][ti]):g}"
             ),
         )
     return 0

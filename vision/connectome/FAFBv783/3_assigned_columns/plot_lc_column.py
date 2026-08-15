@@ -205,8 +205,8 @@ def make_figure(cols: pd.DataFrame, lc_cells: List[str] = LC_CELLS) -> Path:
 
     row_sums = [_row_sum(r) for r in row_lists]
     global_max = max(
-        [int(s.max()) for s in n_by_lc.values() if len(s)]
-        + [int(s.max()) for s in row_sums if len(s)]
+        [int(vals.max()) for vals in n_by_lc.values() if len(vals)]
+        + [int(vals.max()) for vals in row_sums if len(vals)]
         + [1]
     )
     def _shade(shade, n_neuron):
@@ -255,7 +255,7 @@ def make_figure(cols: pd.DataFrame, lc_cells: List[str] = LC_CELLS) -> Path:
         drawn_axes.append(ax_sum)
         _panel(ax_sum, row_sums[r], "sum (" + "+".join(row) + ")")
 
-    # Hide every slot that has no selected type (empty columns / empty rows).
+    # Hide every panel that has no selected type (empty columns / empty rows).
     for ax in axes.flat:
         if ax not in drawn_axes:
             ax.set_visible(False)

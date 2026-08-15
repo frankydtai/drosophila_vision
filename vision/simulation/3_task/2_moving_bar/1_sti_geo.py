@@ -13,10 +13,10 @@ from network import path  # noqa: F401 -- FAFBv783 on sys.path
 from build_hex import DEG, HEX_PATCH_RADIUS, hex_vertices, xy_from_uv, xy_deg_from_uv
 from network.construction import hex_in_cost_radius
 
-GRUNTMAN_WIDTHS_DEG = (2.25, 9.0)
+GRUNTMAN_WS_DEG = (2.25, 9.0)
 GRUNTMAN_DIRECTIONS = ("right", "left", "up", "down")
 
-# Per-lane spacing width in hex nodes (``spacing_deg = bar_radius * DEG``).
+# Per-lane spacing w in hex nodes (``spacing_deg = bar_radius * DEG``).
 BAR_RADIUS = 2
 
 _HEX_AREA = 1.5 * math.sqrt(3.0) * float(HEX_PATCH_RADIUS) ** 2
@@ -24,7 +24,7 @@ _HEX_AREA = 1.5 * math.sqrt(3.0) * float(HEX_PATCH_RADIUS) ** 2
 
 class _BarGeo(Protocol):
     direction: str
-    width_deg: float
+    w_deg: float
 
 
 @dataclass
@@ -57,20 +57,16 @@ def hex_from_uv(u: int, v: int) -> Hex:
     )
 
 
-def _cross2(ax: float, ay: float, bx: float, by: float) -> float:
-    return ax * by - ay * bx
-
-
 def _line_intersect(
     px0: float, py0: float, px1: float, py1: float,
     qx0: float, qy0: float, qx1: float, qy1: float,
 ) -> Tuple[float, float]:
     rx, ry = px1 - px0, py1 - py0
     sx, sy = qx1 - qx0, qy1 - qy0
-    denom = _cross2(rx, ry, sx, sy)
+    denom = rx * sy - ry * sx
     if abs(denom) < 1e-12:
         return px1, py1
-    t = _cross2(qx0 - px0, qy0 - py0, sx, sy) / denom
+    t = ((qx0 - px0) * sy - (qy0 - py0) * sx) / denom
     return px0 + t * rx, py0 + t * ry
 
 
@@ -177,7 +173,7 @@ def bar_lane_pitch_deg(
 ) -> float:
     """Lane pitch in degrees.
 
-    Default (``multi_bar=True``): integer width+spacing hex counts.
+    Default (``multi_bar=True``): integer w+spacing hex counts.
     ``multi_bar=False`` + ``view_deg``: one lane spans the full sti-view degree on the motion axis.
     """
     if int(bar_radius) < 0:
@@ -191,8 +187,8 @@ def bar_lane_pitch_deg(
         if bar.direction in ("up", "down"):
             return float(y1) - float(y0)
         raise ValueError(f"unknown direction {bar.direction!r}")
-    width_cols = int(math.ceil(float(bar.width_deg) / float(DEG)))
-    return float(width_cols + int(bar_radius)) * float(DEG)
+    w_cols = int(math.ceil(float(bar.w_deg) / float(DEG)))
+    return float(w_cols + int(bar_radius)) * float(DEG)
 
 
 def _motion_view_lo_hi(
@@ -213,7 +209,7 @@ def _motion_entry_exit(
     view_lo: float,
     view_hi: float,
 ) -> Tuple[float, float]:
-    """``(entry_s, exit_s)`` on the motion axis (bar enters at ``entry_s``)."""
+    """``(entry_deg, exit_deg)`` on the motion axis (bar enters at ``entry_deg``)."""
     if bar.direction in ("right", "up"):
         return view_lo, view_hi
     if bar.direction in ("left", "down"):
@@ -233,19 +229,19 @@ def motion_lanes(
     if not bool(multi_bar):
         return [(view_lo, view_hi - view_lo)]
     pitch = bar_lane_pitch_deg(bar, bar_radius, view_deg=view_deg, multi_bar=True)
-    entry_s, exit_s = _motion_entry_exit(bar, view_lo, view_hi)
+    entry_deg, exit_deg = _motion_entry_exit(bar, view_lo, view_hi)
     eps = 1e-9
     lanes: List[Tuple[float, float]] = []
-    if float(entry_s) < float(exit_s):
-        p = float(entry_s)
-        exit_v = float(exit_s)
+    if float(entry_deg) < float(exit_deg):
+        p = float(entry_deg)
+        exit_v = float(exit_deg)
         while p < exit_v - eps:
             lane_pitch = min(pitch, exit_v - p)
             lanes.append((p, lane_pitch))
             p += pitch
     else:
-        p = float(entry_s) - pitch
-        exit_v = float(exit_s)
+        p = float(entry_deg) - pitch
+        exit_v = float(exit_deg)
         while p + pitch > exit_v + eps:
             if p < exit_v - eps:
                 lanes.append((exit_v, (p + pitch) - exit_v))
@@ -253,8 +249,8 @@ def motion_lanes(
             lanes.append((p, pitch))
             p -= pitch
     if not lanes:
-        origin = min(float(entry_s), float(exit_s))
-        lanes.append((origin, min(pitch, abs(float(exit_s) - float(entry_s)))))
+        origin = min(float(entry_deg), float(exit_deg))
+        lanes.append((origin, min(pitch, abs(float(exit_deg) - float(entry_deg)))))
     return lanes
 
 
@@ -264,7 +260,7 @@ def lane_sweep_trail_range(
     lane_pitch: float,
 ) -> Tuple[float, float]:
     """``(trail_start, trail_exit)`` for one lane; bar clips to ``[origin, origin+pitch]``."""
-    w = float(bar.width_deg)
+    w = float(bar.w_deg)
     pitch = float(lane_pitch)
     origin = float(lane_origin)
     if bar.direction in ("right", "up"):
@@ -281,9 +277,9 @@ def bar_rect_lane_clipped(
     lane_pitch: float,
     view_deg: Tuple[float, float, float, float],
 ) -> Optional[Tuple[float, float, float, float]]:
-    """Bar rectangle clipped to one lane; ``None`` when zero visible width."""
+    """Bar rectangle clipped to one lane; ``None`` when zero visible w."""
     x0, y0, x1, y1 = view_deg
-    w = float(bar.width_deg)
+    w = float(bar.w_deg)
     origin = float(lane_origin)
     lane_end = origin + float(lane_pitch)
     d = bar.direction

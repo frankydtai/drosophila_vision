@@ -1,13 +1,13 @@
 # -*- coding: utf-8 -*-
 """Neuron parameter formulas — no numeric bindings.
 
-Numeric literals live in ``default_params`` and are injected by the
+Numeric literals live in ``const_default`` and are injected by the
 caller (session fields / kwargs). Schema default numbers live in
-``default_params.NEURON_SCHEMA['optimizable']``.
+``const_default.NEURON_SCHEMA['params']``.
 """
 from __future__ import annotations
 
-from default_params import (
+from const_default import (
     NEURON_SCHEMA,
 )
 
@@ -47,11 +47,6 @@ def t_abs_from_ms(
     if ms <= ms_pre:
         return t_from_ms(ms, delta_ms=dt_pre)
     return t0 + t_from_ms(ms - ms_pre, delta_ms=delta_ms)
-
-
-def membrane_dt_over_c(cap: float, delta_ms: float) -> float:
-    """``delta_ms / cap``."""
-    return float(delta_ms) / float(cap)
 
 
 def e_h_rev(e_leak, e_h: float):

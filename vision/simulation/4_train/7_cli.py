@@ -16,13 +16,13 @@ from __future__ import annotations
 
 import re
 
-from default_params import (
+from const_default import (
     MODEL,
     MOVING_BAR_INPUT,
     NETWORK_PATH,
     NEURON_FILTER,
     NEURON_FORWARD,
-    NEURON_PARAM,
+    NEURON_CONST,
     NEURON_SCHEMA,
     SPOT_INPUT,
     SPOT_PACK,
@@ -65,7 +65,7 @@ from task.spot.pack import (
 import train
 from train.config import (
     COST_NORMS,
-    I_STI_TOKENS,
+    I_STI_KEYS,
     SPOT_GT_MODES,
     expand_cost_norm,
     expand_pre_steady,
@@ -157,12 +157,12 @@ def _format_filename_token(value):
 def add_euler_argument(parser, *, default=None):
     if default is None:
         help = (
-            "membrane Euler (plot/analyze): im=implicit, ex=explicit "
+            "Euler (plot/analyze): im=implicit, ex=explicit "
             "(default: keep run train_opts.euler); i_h gates always explicit"
         )
     else:
         help = (
-            "membrane Euler: im=implicit (default), ex=explicit; "
+            "Euler: im=implicit (default), ex=explicit; "
             "i_h gates always explicit"
         )
     parser.add_argument(
@@ -214,7 +214,10 @@ def filter_filename_suffix(filter=None):
     return f"_{'v' if expanded == 'none' else expanded}"
 
 
-_PARAM_HELP = "example: a_h.val.L1=0.5 a_h.mode.L1,L2=indi a_h.mode=fixed"
+_PARAM_HELP = (
+    "example: a_h.init.L1=0.5 a_h.lo.L1=0.1 a_h.val.L1=0.8 a_h.mode=fixed "
+    "(init/lo/hi/jit=schema numbers; val=current/trained for plot)"
+)
 
 
 def _val_from_literal_tokens():
@@ -242,26 +245,27 @@ def add_val_from_argument(parser):
 def add_param_argument(parser, *, figure=False):
     help = _PARAM_HELP
     if figure:
-        help += "; PNG stem suffix per val"
+        help += "; PNG stem suffix per init/val"
     parser.add_argument(
         "--param",
         nargs="+",
         default=None,
-        metavar="NAME.KEY[.NODES]=VALUE",
+        metavar="PARAM.KEY[.NODES]=VALUE",
         help=help,
     )
 
 
-def param_filename_suffix(param_inits):
-    if not param_inits:
-        return ""
+def param_filename_suffix(param_inits=None, param_vals=None):
     parts = []
-    for segment, node, val in param_inits:
-        bits = [segment]
-        if node is not None:
-            bits.append(str(node).replace(":", "_"))
-        bits.append(_format_filename_token(val))
-        parts.append("_".join(bits))
+    for key, bag in (("init", param_inits or ()), ("val", param_vals or ())):
+        for param, node, number in bag:
+            bits = [param, key]
+            if node is not None:
+                bits.append(str(node).replace(":", "_"))
+            bits.append(_format_filename_token(number))
+            parts.append("_".join(bits))
+    if not parts:
+        return ""
     return "_" + "_".join(parts)
 
 
@@ -306,15 +310,15 @@ def add_train_arguments(parser):
                              "(settings come from this CLI, not train_opts.json)")
     add_param_argument(parser)
     add_val_from_argument(parser)
-    add_euler_argument(parser, default=_cli_scalar_from_branch(NEURON_PARAM['euler']))
+    add_euler_argument(parser, default=_cli_scalar_from_branch(NEURON_CONST['euler']))
     parser.add_argument(
         "--pre-steady",
         default=_cli_scalar_from_branch(TRAIN_OPTIMIZATION['pre_steady']),
         choices=("probe", "solve"),
         help=(
-            "t=0 membrane pre steady shared by borst/hp_lp "
+            "t=0 pre steady shared by borst/hp_lp "
             f"(probe|solve; default: {TRAIN_OPTIMIZATION['pre_steady']}); "
-            "solve uses fixed iters/damp from default_params"
+            "solve uses fixed iters/damp from const_default"
         ),
     )
     parser.add_argument(
@@ -323,7 +327,7 @@ def add_train_arguments(parser):
         default=TRAIN_SESSION['fp'],
         choices=(16, 32, 64),
         metavar="N",
-        help=f"simulation float width (default: {TRAIN_SESSION['fp']}); "
+        help=f"simulation float w (default: {TRAIN_SESSION['fp']}); "
              "64 is forced to 32 when CUDA is unavailable",
     )
     parser.add_argument(
@@ -399,7 +403,7 @@ def add_train_arguments(parser):
     )
     add_multi_spot_arguments(parser)
     parser.add_argument(
-        "--spot-cost-r-s",
+        "--spot-cost-radius-scale",
         default=None,
         nargs="+",
         metavar="R|R=S",
@@ -433,7 +437,7 @@ def add_train_arguments(parser):
         default=None,
         nargs="+",
         metavar="[TASK=]bright,baseline,dark",
-        help="sti currents in pA: bright,baseline,dark; TASK= optional (default: --task paradigms)",
+        help="sti currents in pA: bright,baseline,dark; optional TASK= alias (spot|moving_bar) or concrete task (default: aliases of --task)",
     )
     add_sti_timing_arguments(parser)
     parser.add_argument(
@@ -474,17 +478,17 @@ def resolve_i_sti(tokens, tasks=()):
     for tok in tokens:
         if "=" in tok:
             name, val = tok.split("=", 1)
-            out[train.resolve_i_sti_paradigm(name.strip())] = _parse_i_sti_value(val.strip())
+            out[train.resolve_i_sti_alias(name.strip())] = _parse_i_sti_value(val.strip())
         else:
             val = _parse_i_sti_value(tok.strip())
             for task in tasks:
-                out[train.resolve_i_sti_paradigm(task)] = val
+                out[train.resolve_i_sti_alias(task)] = val
     return out or None
 
 
 def _parse_i_sti_value(val):
     parts = val.split(",")
-    return {tok: float(part.strip()) for tok, part in zip(I_STI_TOKENS, parts)}
+    return {i_sti_key: float(part.strip()) for i_sti_key, part in zip(I_STI_KEYS, parts)}
 
 
 def _parse_filter_branch(branch: str) -> str:
@@ -529,7 +533,7 @@ def _branch_cli_type(default=None):
     return _parse
 
 
-STI_TIMING_TOKENS = (
+STI_TIMING_KEYS = (
     "ms_pre",
     "ms_response",
     "ms_post",
@@ -541,30 +545,30 @@ STI_TIMING_TOKENS = (
 _BRANCH_SYNTAX = re.compile(r"(^|[,\s])(v|ca)=", re.IGNORECASE)
 
 
-def parse_sti_timing_tokens(tokens, *, filter: str) -> dict[str, dict[str, float]]:
+def parse_sti_timing_keys(tokens, *, filter: str) -> dict[str, dict[str, float]]:
     """Parse ``--sti-timing KEY=MS`` tokens; each value updates one filter branch only."""
     branch = "ca" if train.expand_filter(filter) == "ca" else "v"
     out: dict[str, dict[str, float]] = {}
     for tok in tokens:
         if "=" not in tok:
             raise ValueError(f"--sti-timing expected KEY=MS, got {tok!r}")
-        timing_tok, val = tok.split("=", 1)
-        timing_tok = timing_tok.strip()
+        sti_timing_key, val = tok.split("=", 1)
+        sti_timing_key = sti_timing_key.strip()
         val = val.strip()
-        if timing_tok not in STI_TIMING_TOKENS:
-            allowed = ", ".join(STI_TIMING_TOKENS)
-            raise ValueError(f"--sti-timing unknown token {timing_tok!r}; allowed: {allowed}")
+        if sti_timing_key not in STI_TIMING_KEYS:
+            allowed = ", ".join(STI_TIMING_KEYS)
+            raise ValueError(f"--sti-timing unknown sti_timing_key {sti_timing_key!r}; allowed: {allowed}")
         if _BRANCH_SYNTAX.search(val):
             raise ValueError(
-                f"--sti-timing {timing_tok}={val!r} must be a plain number, not v=/ca= syntax"
+                f"--sti-timing {sti_timing_key}={val!r} must be a plain number, not v=/ca= syntax"
             )
         try:
             num = float(val)
         except ValueError as exc:
             raise ValueError(
-                f"--sti-timing {timing_tok}={val!r} is not a number"
+                f"--sti-timing {sti_timing_key}={val!r} is not a number"
             ) from exc
-        out[timing_tok] = {branch: num}
+        out[sti_timing_key] = {branch: num}
     return out
 
 
@@ -572,13 +576,13 @@ def _resolve_sti_timing_literals() -> dict:
     from task.spot.sti_spec import _merge_filter_branch_ms
 
     so: dict = {}
-    for timing_tok in STI_TIMING_TOKENS:
-        if timing_tok in ("delta_ms", "delta_ms_pre"):
-            val = NEURON_PARAM[timing_tok]
+    for sti_timing_key in STI_TIMING_KEYS:
+        if sti_timing_key in ("delta_ms", "delta_ms_pre"):
+            val = NEURON_CONST[sti_timing_key]
         else:
-            val = STI_TIMING.get(timing_tok)
+            val = STI_TIMING.get(sti_timing_key)
         if val is not None:
-            _merge_filter_branch_ms(so, timing_tok, val)
+            _merge_filter_branch_ms(so, sti_timing_key, val)
     return so
 
 
@@ -588,8 +592,8 @@ def resolve_train_sti_timing(filter: str, tokens) -> dict:
 
     so = _resolve_sti_timing_literals()
     if tokens:
-        for timing_tok, val in parse_sti_timing_tokens(tokens, filter=filter).items():
-            _merge_filter_branch_ms(so, timing_tok, val)
+        for sti_timing_key, val in parse_sti_timing_keys(tokens, filter=filter).items():
+            _merge_filter_branch_ms(so, sti_timing_key, val)
     return so
 
 
@@ -603,9 +607,9 @@ def add_sti_timing_arguments(parser):
         metavar="KEY=MS",
         help=(
             "sti length KEY=MS tokens (space-separated). "
-            f"Tokens: {', '.join(STI_TIMING_TOKENS)}. "
+            f"Keys: {', '.join(STI_TIMING_KEYS)}. "
             "Plain numbers only; updates the current --filter branch (v or ca). "
-            "Train: omit → default_params; plot/analyze: omit → keep run"
+            "Train: omit → const_default; plot/analyze: omit → keep run"
         ),
     )
 
@@ -671,15 +675,15 @@ def override_train_opts_timing(
 def resolve_sti_timing_kwargs(args, *, filter=None):
     """Map ``--sti-timing`` to kwargs for :func:`figure.plot.maybe_override_sti_timing`."""
     tokens = getattr(args, "sti_timing", None)
-    empty = {timing_tok: None for timing_tok in STI_TIMING_TOKENS}
+    empty = {sti_timing_key: None for sti_timing_key in STI_TIMING_KEYS}
     if not tokens:
         return empty
     if filter is None:
         filter = getattr(args, "filter", None)
     if filter is None:
         filter = NEURON_FILTER['filter']
-    sti_timing = parse_sti_timing_tokens(tokens, filter=filter)
-    return {timing_tok: sti_timing.get(timing_tok) for timing_tok in STI_TIMING_TOKENS}
+    sti_timing = parse_sti_timing_keys(tokens, filter=filter)
+    return {sti_timing_key: sti_timing.get(sti_timing_key) for sti_timing_key in STI_TIMING_KEYS}
 
 
 def parse_kv_tokens(tokens, cast=str):
@@ -759,8 +763,8 @@ def resolve_part_cost_scales(tokens, tasks):
     return scales
 
 
-def segment_in_param_modes(param_modes, segment):
-    return bool(param_modes and segment in param_modes)
+def param_in_modes(param_modes, param):
+    return bool(param_modes and param in param_modes)
 
 
 def resolve_train_kwargs(
@@ -788,9 +792,16 @@ def resolve_train_kwargs(
                     f"--init-from model {src_model!r} not in {train.KNOWN_MODELS}"
                 )
             init_from = f"{src_model}/{run}"
-    param_init, param_modes = train.parse_param_cli(args.param) if args.param else ([], {})
+    param_init, param_vals, param_modes, param_bound = (
+        train.parse_param_cli(args.param) if args.param else ([], [], {}, [])
+    )
+    if param_vals:
+        raise ValueError(
+            "--param …val… is for plot/analyze only; use …init… for train cold start"
+        )
     param_init = param_init or None
     param_modes = param_modes or None
+    param_bound = param_bound or None
     syn_mode = getattr(args, "syn_mode", NEURON_SCHEMA['syn_mode'])
     if param_modes:
         if syn_mode == "per_edge" and "syn_strength_cell" in param_modes:
@@ -804,9 +815,9 @@ def resolve_train_kwargs(
     val_from = train.resolve_val_from(args.val_from)
     val_from_opts = {"val_from": val_from}
     if filter != "ca":
-        for segment in ("v_th_ca", "a_ca", "tau_ca"):
-            if segment_in_param_modes(param_modes, segment):
-                raise ValueError(f"--param {segment} requires --filter ca")
+        for param in ("v_th_ca", "a_ca", "tau_ca"):
+            if param_in_modes(param_modes, param):
+                raise ValueError(f"--param {param} requires --filter ca")
         if train.val_from_enabled(val_from_opts, "v_th_ca") or train.val_from_enabled(val_from_opts, "a_ca"):
             raise ValueError("--val-from v_th_ca / a_ca require --filter ca")
         if param_modes:
@@ -826,13 +837,13 @@ def resolve_train_kwargs(
         raise ValueError("--cost-radius must be -1 or >= 0")
     shift_radius = args.shift_radius
     spot_radius = args.spot_radius
-    if args.spot_cost_r_s:
+    if args.spot_cost_radius_scale:
         from task.spot.sti_geo import spot_radius_half_steps
         from train.session import resolve_filter_branches
         _sr_scalar = resolve_filter_branches(spot_radius, filter="none")
         spot_radius_half_steps(_sr_scalar)
         spot_cost_radius_scale = resolve_spot_cost_radius_scale(
-            args.spot_cost_r_s,
+            args.spot_cost_radius_scale,
             cost_radius_scales=resolve_spot_cost_radius_scale_defaults(
                 _sr_scalar,
                 scales=SPOT_PACK['spot_cost_radius_scale'],
@@ -909,6 +920,7 @@ def resolve_train_kwargs(
         outdir=outdir,
         param_modes=param_modes,
         param_init=param_init,
+        param_bound=param_bound,
         syn_mode=args.syn_mode,
         network=args.network,
         tasks=tasks,

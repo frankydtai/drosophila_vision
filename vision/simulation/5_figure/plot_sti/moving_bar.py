@@ -11,9 +11,9 @@ Usage (from simulation/, project .venv):
 """
 from __future__ import annotations
 
-from default_params import (
+from const_default import (
     NETWORK_CONSTRUCTION,
-    NEURON_PARAM,
+    NEURON_CONST,
     NEURON_SCHEMA,
 )
 
@@ -135,7 +135,7 @@ def plot_snapshot(
         hexes_are_xy_deg=hexes_are_xy_deg,
     )
     _draw_bar_outline(ax, spec, view_deg, t, t_onset, bar_radius=bar_radius, multi_bar=bool(multi_bar))
-    ax.set_title(f"{token}  t={t} ({t * NEURON_PARAM['delta_ms'] / 1000.0:.2f} s)", fontsize=9)
+    ax.set_title(f"{token}  t={t} ({t * NEURON_CONST['delta_ms'] / 1000.0:.2f} s)", fontsize=9)
 
 
 def save_snapshots(
@@ -236,7 +236,7 @@ def save_animation(
         t = times[frame_idx]
         title.set_text(
             f"Moving-bar i_sti_hex (pA)  side={side}  "
-            f"{len(figure_hexes)} sti hexes  I_baseline={i_baseline}  I_max={i_max}  t={t} ({t * NEURON_PARAM['delta_ms'] / 1000.0:.2f} s)"
+            f"{len(figure_hexes)} sti hexes  I_baseline={i_baseline}  I_max={i_max}  t={t} ({t * NEURON_CONST['delta_ms'] / 1000.0:.2f} s)"
         )
         for i, spec in enumerate(showcase):
             axes[i, 0].clear()
@@ -282,7 +282,7 @@ def main():
              "false → whole-view single bar over the full network view",
     )
     ap.add_argument("--bar-radius", type=int, default=BAR_RADIUS,
-                    help="per-lane spacing width in hex nodes (default 2)")
+                    help="per-lane spacing w in hex nodes (default 2)")
     ap.add_argument("--i-bright", type=float, default=NETWORK_CONSTRUCTION['i_bright'])
     args = ap.parse_args()
     snapshot_t = [int(tok) for tok in parse_comma_list(args.t)]
@@ -295,15 +295,15 @@ def main():
     sti_set = set(sti)
 
     showcase = [
-        s for s in gruntman_moving_bar_specs()
-        if s.direction == args.direction and s.contrast in sti_set
+        spec for spec in gruntman_moving_bar_specs()
+        if spec.direction == args.direction and spec.contrast in sti_set
     ]
     i_bright = args.i_bright
 
     network_json = str(resolve_network_json(args.network))
     connectome = load_network(
         network_json, device="cpu",
-        a_syn_exc=NEURON_PARAM['a_syn_exc'], a_syn_inh=NEURON_PARAM['a_syn_inh'],
+        a_syn_exc=NEURON_CONST['a_syn_exc'], a_syn_inh=NEURON_CONST['a_syn_inh'],
         syn_mode=NEURON_SCHEMA['syn_mode'], dtype=SIM_DTYPE,
     )
     tag = f"2{args.direction}_{network_run_tag(network_json, connectome.meta)}"
@@ -315,7 +315,7 @@ def main():
         specs=showcase,
         bar_radius=args.bar_radius,
         multi_bar=bool(args.multi_bar),
-        delta_ms=NEURON_PARAM['delta_ms'],
+        delta_ms=NEURON_CONST['delta_ms'],
         i_baseline=NETWORK_CONSTRUCTION['i_baseline'],
         i_bright_moving_bar=i_bright,
         sim_dtype=SIM_DTYPE,
@@ -330,8 +330,8 @@ def main():
     bar_radius = int(args.bar_radius)
     print(
         f"bar_radius={bar_radius}  "
-        f"n_t={n_t} ({n_t * NEURON_PARAM['delta_ms'] / 1000.0:.2f} s)  "
-        f"sweep_t={T.info['sweep_t']} ({T.info['sweep_time_s']:.2f} s after t_onset)"
+        f"n_t={n_t} ({n_t * NEURON_CONST['delta_ms'] / 1000.0:.2f} s)  "
+        f"sweep_t={T.info['sweep_t']} ({T.info['sweep_s']:.2f} s after t_onset)"
     )
 
     save_snapshots(

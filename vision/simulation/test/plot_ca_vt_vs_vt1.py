@@ -30,14 +30,14 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 from import_bootstrap import parse_comma_list
-from figure.util import TRACE_LW, save_figure
+from figure.panel import TRACE_LW, save_figure
 from neuron.filter_ca import filter_ca
-from default_params import NEURON_PARAM, NEURON_SCHEMA
+from const_default import NEURON_CONST, NEURON_SCHEMA
 
 DEFAULT_SAVE = os.path.join(HERE, "ca_vt_vs_vt1.png")
 DEFAULT_PULSE_LIST = "50,100,500"
-DEFAULT_DELTA_MS = float(NEURON_PARAM["delta_ms"]["ca"])
-DEFAULT_TAU_CA = float(NEURON_SCHEMA["optimizable"]["tau_ca"]["val"])
+DEFAULT_DELTA_MS = float(NEURON_CONST["delta_ms"]["ca"])
+DEFAULT_TAU_CA = float(NEURON_SCHEMA["params"]["tau_ca"]["init"])
 V_AMP = 20.0
 T_ON_MS = 500.0
 T_END_MS = 2000.0

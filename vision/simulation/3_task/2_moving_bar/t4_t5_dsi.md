@@ -1,6 +1,6 @@
 # T4 / T5 moving-bar preference (PD / ND × PC / NC)
 
-Gruntman-style cardinal bars: 4 directions × 2 contrasts × 2 widths → 16 conditions per eye.
+Gruntman-style cardinal bars: 4 directions × 2 contrasts × 2 ws → 16 conditions per eye.
 
 ## Data source
 
@@ -12,12 +12,12 @@ Experimental reference traces come from **[`figure_digitization/gruntman21/1ci_d
 | `cell`  | `T4` or `T5` (pathway; not subtype a–d) |
 | `panel`      | `Ci` (T4) or `Cii` (T5) |
 | `contrast`   | `PC` or `NC` (preferred / non-preferred contrast for that pathway) |
-| `width_led`  | Bar width in LED units: `1` → `w1`, `4` → `w4` |
+| `w_led`  | Bar w in LED units: `1` → `w1`, `4` → `w4` |
 | `direction`  | `PD` or `ND` (preferred / null direction for that trace) |
 | `time_ms`    | Time relative to bar onset (ms) |
-| `vm_mv`      | Population membrane potential (mV) |
+| `vm_mv`      | Population potential (mV) |
 
-The CSV holds **16 traces** per pathway panel: 2 contrasts × 2 widths × 2 directions. Subtype-specific tables below map each `(eye, sti)` to one of those keys via `t4_t5_dsi.py` (`fig1_trace_for_sti` → `T4_PC_w1_PD` style ids). Training loads the same data as [`1ci_digitized.npz`](../../figure_digitization/gruntman21/1ci_digitized.npz) (`FIG1_CI_NPZ` in `task.moving_bar.gt`).
+The CSV holds **16 traces** per pathway panel: 2 contrasts × 2 ws × 2 directions. Subtype-specific tables below map each `(eye, sti)` to one of those keys via `t4_t5_dsi.py` (`fig1_trace_for_sti` → `T4_PC_w1_PD` style ids). Training loads the same data as [`1ci_digitized.npz`](../../figure_digitization/gruntman21/1ci_digitized.npz) (`FIG1_CI_NPZ` in `task.moving_bar.gt`).
 
 ## Contrast (pathway)
 
@@ -159,15 +159,15 @@ $$
 | `up` | `(peak_up − peak_down) / (peak_up + peak_down)` |
 | `down` | `(peak_down − peak_up) / (peak_down + peak_up)` |
 
-Peaks for `this` / `opposite` are the fig1 peaks for that subtype×contrast×width on those
-two directions (Step 2). Write both widths as `DSI_w1/DSI_w4`.
+Peaks for `this` / `opposite` are the fig1 peaks for that subtype×contrast×w on those
+two directions (Step 2). Write both ws as `DSI_w1/DSI_w4`.
 
 **Not the definition:** `(peak_PD − peak_ND) / (peak_PD + peak_ND)` plus a separate ± from the
 PD/ND label. That is only the special case when `this dir` is PD. When `this dir` is ND, the
 formula above already yields a **negative** DSI.
 
 Consequence (check only): ND cells are negative, PD cells positive, equal |DSI| for a given
-pathway×contrast×width. If an ND cell shows a positive DSI, Step 3 was applied wrong.
+pathway×contrast×w. If an ND cell shows a positive DSI, Step 3 was applied wrong.
 
 ### Worked example (Right eye, T4, bright, w1)
 
@@ -194,7 +194,7 @@ Peaks: for T4a, right↔PD = 18.25, left↔ND = 7.60; for T4b those are swapped.
 ## Direction selectivity index (DSI) — source peaks
 
 Population traces in [`1ci_digitized.csv`](../../figure_digitization/gruntman21/1ci_digitized.csv)
-are already split by pathway, contrast (PC/NC), bar width, and motion direction (PD/ND).
+are already split by pathway, contrast (PC/NC), bar w, and motion direction (PD/ND).
 For each condition, take the **peak** `vm_mv` over time. These peaks feed
 [DSI rules](#dsi-rules-read-before-editing-eye-tables) Steps 2–3.
 

@@ -39,7 +39,7 @@ import import_bootstrap  # noqa: F401
 import matplotlib.pyplot as plt
 import numpy as np
 
-from figure.util import save_figure
+from figure.panel import save_figure
 from task.spot.gt import (
     GT_CELLS,
     RF_N_RADII,
@@ -54,16 +54,16 @@ from task.spot.gt import (
 
 DEFAULT_SAVE = os.path.join(HERE, "recf_normalize_compare.png")
 
-RF_CENTER_WIDTH = np.array([6, 7, 6, 8, 7, 6, 12, 6, 6, 8, 8, 11, 7])
-RF_SURRND_WIDTH = np.array([41, 29, 15, 33, 31, 29, 7, 16, 24, 27, 31, 35, 24])
+RF_CENTER_W = np.array([6, 7, 6, 8, 7, 6, 12, 6, 6, 8, 8, 11, 7])
+RF_SURRND_W = np.array([41, 29, 15, 33, 31, 29, 7, 16, 24, 27, 31, 35, 24])
 RF_SURRND_SCALE = np.array(
     [0.012, 0.013, 0.19, 0.046, 0.035, 0.022, 0.000, 0.132, 0.063, 0.040, 0.035, 0.054, 0.046]
 ) * 5.0
 
 
 def raw_signed_dog_row(cell_idx: int) -> np.ndarray:
-    center = _gauss1d(RF_CENTER_WIDTH[cell_idx], 44)
-    surrnd = _gauss1d(RF_SURRND_WIDTH[cell_idx], 44)
+    center = _gauss1d(RF_CENTER_W[cell_idx], 44)
+    surrnd = _gauss1d(RF_SURRND_W[cell_idx], 44)
     return (center - RF_SURRND_SCALE[cell_idx] * surrnd) * float(RF_SIGN[cell_idx])
 
 

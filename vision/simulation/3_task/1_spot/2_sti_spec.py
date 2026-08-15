@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""Spot paradigm sti spec: timing, drive waveform, and ``i_sti`` assembly.
+"""Spot sti spec: timing, drive waveform, and ``i_sti`` assembly.
 
 The sti drive waveform ``u[t]`` is defined once (``sti_waveform``) and
 consumed by both the network ``i_sti`` and the ir component in
@@ -17,7 +17,7 @@ import torch
 from neuron.param import t_from_ms
 from task.spot.sti_geo import SpotB, members_by_radius
 
-_STI_TIMING_TOKENS = (
+_STI_TIMING_KEYS = (
     "ms_pre", "ms_response", "ms_post", "ms_sti", "delta_ms", "delta_ms_pre",
 )
 
@@ -41,27 +41,27 @@ def _timing_equal(a, b) -> bool:
     if a is None or b is None:
         return False
     if isinstance(a, dict) and isinstance(b, dict):
-        timing_toks = set(a) | set(b)
-        return all(_timing_equal(a.get(k), b.get(k)) for k in timing_toks)
+        sti_timing_keys = set(a) | set(b)
+        return all(_timing_equal(a.get(k), b.get(k)) for k in sti_timing_keys)
     return float(a) == float(b)
 
 
-def _merge_filter_branch_ms(so: dict, timing_tok: str, val) -> None:
+def _merge_filter_branch_ms(so: dict, sti_timing_key: str, val) -> None:
     if val is None:
         return
     if isinstance(val, dict):
-        cur = so.get(timing_tok)
+        cur = so.get(sti_timing_key)
         if cur is None:
-            so[timing_tok] = {k: float(v) for k, v in val.items()}
+            so[sti_timing_key] = {k: float(v) for k, v in val.items()}
         else:
             merged = {k: float(v) for k, v in cur.items()}
             merged.update({k: float(v) for k, v in val.items()})
-            so[timing_tok] = merged
+            so[sti_timing_key] = merged
     elif isinstance(val, (int, float)):
-        so[timing_tok] = {"v": float(val), "ca": float(val)}
+        so[sti_timing_key] = {"v": float(val), "ca": float(val)}
     else:
         raise TypeError(
-            f"{timing_tok} must be a float or {{v, ca}} dict, got {type(val)!r}"
+            f"{sti_timing_key} must be a float or {{v, ca}} dict, got {type(val)!r}"
         )
 
 
@@ -98,13 +98,13 @@ def override_sti_timing(
     Returns timing tokens whose values differ from the pre-merge snapshot (for
     plot / analyze filename suffixes).
     """
-    before = {k: so.get(k) for k in _STI_TIMING_TOKENS}
-    for timing_tok, val in (
+    before = {k: so.get(k) for k in _STI_TIMING_KEYS}
+    for sti_timing_key, val in (
         ("ms_pre", ms_pre),
         ("ms_post", ms_post),
     ):
         if val is not None:
-            _merge_filter_branch_ms(so, timing_tok, val)
+            _merge_filter_branch_ms(so, sti_timing_key, val)
     _merge_filter_branch_ms(so, "delta_ms", delta_ms)
     _merge_filter_branch_ms(so, "delta_ms_pre", delta_ms_pre)
     _merge_filter_branch_ms(so, "ms_response", ms_response)
@@ -114,7 +114,7 @@ def override_sti_timing(
     so.pop("n_t", None)
     return {
         k: so.get(k)
-        for k in _STI_TIMING_TOKENS
+        for k in _STI_TIMING_KEYS
         if not _timing_equal(before.get(k), so.get(k))
     }
 
@@ -200,11 +200,6 @@ def resolve_sti_timing_t(opts) -> tuple[int, int]:
     return timing.t_onset, timing.n_t
 
 
-def resolve_sti_gt_n_t(opts) -> int:
-    """Cost ``n_t`` from opts (ignores ``ms_post``)."""
-    return resolve_sti_timing(opts).n_t_gt
-
-
 def t_sti_end(t_onset, n_t, ms_sti=None, *, delta_ms: float) -> int:
     """Inclusive last sti-on sample index (matches ``sti_waveform``).
 
@@ -218,8 +213,8 @@ def t_sti_end(t_onset, n_t, ms_sti=None, *, delta_ms: float) -> int:
         raise ValueError(f"n_t must be positive, got {n_t}")
     if ms_sti is None:
         return mt - 1
-    width = max(1, t_from_ms(float(ms_sti), delta_ms=float(delta_ms)))
-    return min(mt - 1, t0 + width - 1)
+    w = max(1, t_from_ms(float(ms_sti), delta_ms=float(delta_ms)))
+    return min(mt - 1, t0 + w - 1)
 
 
 def sti_waveform(t_onset, n_t, ms_sti=None, *, delta_ms: float) -> np.ndarray:
@@ -236,8 +231,8 @@ def sti_waveform(t_onset, n_t, ms_sti=None, *, delta_ms: float) -> np.ndarray:
     if ms_sti is None:
         u[t_onset:] = 1.0
     else:
-        width = max(1, t_from_ms(ms_sti, delta_ms=delta_ms))
-        u[t_onset:min(n_t, t_onset + width)] = 1.0
+        w = max(1, t_from_ms(ms_sti, delta_ms=delta_ms))
+        u[t_onset:min(n_t, t_onset + w)] = 1.0
     return u
 
 
@@ -260,7 +255,7 @@ def build_spot_a_sti_radius_drive(
     Returns ``(i_sti, sti_wave, sti_bs, sti_nodes, a_sti_radius_indices)`` where center
     r=0 is baked into ``i_sti`` at scale 1, and radius contribs compose as
     ``i += a_sti_radius[r] * sti_wave`` on ``(sti_bs, sti_nodes)``. ``a_sti_radius_indices``
-    indexes ``a_sti_radii`` / ``a_sti_radius`` (no center slot). Empty
+    indexes ``a_sti_radii`` / ``a_sti_radius`` (center r=0 not in that axis). Empty
     ``a_sti_radii`` → center-only drive. Does not modify gt construction.
     """
     radii = tuple(int(r) for r in a_sti_radii)

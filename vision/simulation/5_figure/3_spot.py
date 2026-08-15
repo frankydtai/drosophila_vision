@@ -5,8 +5,8 @@ Network RF profile axis is hex-lattice radius: v_readout[..., radius] = mean at 
 
 from __future__ import annotations
 
-from default_params import (
-    NEURON_PARAM,
+from const_default import (
+    NEURON_CONST,
 )
 
 import time
@@ -16,7 +16,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import torch
 
-from default_params import NEURON_PARAM
+from const_default import NEURON_CONST
 import train
 from neuron.param import t_from_ms, t_abs_from_ms, ms_from_t
 from figure.gt import (
@@ -25,7 +25,7 @@ from figure.gt import (
     active_spot_gt_cells,
     spot_gts,
 )
-from figure.util import (
+from figure.panel import (
     N_COL_ALL,
     N_COL_GT,
     PANEL_W,
@@ -478,9 +478,9 @@ def plot_cell_rf_time_overlays(
         overlay_spatials = {}
         for label in overlay_labels:
             if label in overlay:
-                center_s, spatial_s, _ = scale_curve(overlay[label], center_radius, **sc_kw)
-                overlay_centers[label] = center_s
-                overlay_spatials[label] = spatial_s
+                overlay_center, overlay_spatial, _ = scale_curve(overlay[label], center_radius, **sc_kw)
+                overlay_centers[label] = overlay_center
+                overlay_spatials[label] = overlay_spatial
 
         _plot_rf_profile(
             ax_rf, gt_spatial, color=GT_COLOR,
@@ -718,21 +718,19 @@ def _forward_spot_readout(
 ):
     """One forward; cost-radius node readout over all network types."""
     pack = session.primary_pack
-    schema = list(session.schema)
+    schema = train.schema_copy(session.schema)
     params = train.override_val_from(
         train.assign_params(z, schema, session.backend), session,
     )
     a_sti_radius = {}
     if "a_sti_radius" in params:
-        for segment in schema:
-            if segment.get("segment") != "a_sti_radius":
-                continue
-            radius_keys = [str(n) for n in (segment.get("radius_keys") or ())]
+        spec = schema.get("a_sti_radius")
+        if spec is not None:
+            radii = [str(n) for n in (spec.get("radii") or ())]
             raw = params["a_sti_radius"].detach().cpu().numpy().reshape(-1)
             a_sti_radius = {
-                radius_keys[i]: float(raw[i]) for i in range(min(len(radius_keys), raw.size))
+                radii[i]: float(raw[i]) for i in range(min(len(radii), raw.size))
             }
-            break
     i_sti = pack.i_sti if pack.i_sti.dim() == 3 else pack.i_sti.unsqueeze(0)
     v = train.forward_v(session, params, i_sti, pack=pack)
     t0 = train.pack_t_onset(pack)
@@ -925,9 +923,9 @@ def _trained_radii(cost_parts, contrasts, *, center_only=False):
             pos = part_key.rfind("_r")
             if pos < 0:
                 continue
-            r_s = part_key[pos + 2:]
+            radius_text = part_key[pos + 2:]
             try:
-                r_f = float(r_s)
+                r_f = float(radius_text)
             except ValueError:
                 continue
             r_i = int(round(r_f))
@@ -985,10 +983,10 @@ def _plot_spot_figure(
     center_only = bool(primary.center_only)
     radii = _trained_radii(cost_parts, order, center_only=center_only)
     center_radius = int(RF_CENTER_RADIUS)
-    order_heights = [
+    order_hs = [
         1 + len(radii) for _ in row_idxs
     ]
-    n_row = int(sum(order_heights))
+    n_row = int(sum(order_hs))
     fig = plt.figure(figsize=figsize_fn(n_col, n_row))
     gs = fig.add_gridspec(n_row, n_col, **gridspec_kw)
     legend_done = False
@@ -1093,7 +1091,7 @@ def _plot_spot_figure(
 
     row_cursor = 0
     for gi, cell_idxs in enumerate(row_idxs):
-        group_h = int(order_heights[gi])
+        group_h = int(order_hs[gi])
         rf_row = row_cursor
         time_row0 = row_cursor + 1
         start = (n_col - len(cell_idxs)) // 2

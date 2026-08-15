@@ -8,7 +8,7 @@ Owns the time-axis gather shared by the continuous moving-bar cost_window
 ``train`` in the import graph.
 
 Sparse time-point subsampling (``cost_time_indices``) is applied at cost time in
-``train.cost`` on the post-onset ``ms_response`` segment returned here
+``train.cost`` on the post-onset ``ms_response`` window returned here
 (``gts.shape[1]`` samples from ``pack_t_onset``; excludes spot ``ms_post``).
 """
 from __future__ import annotations
@@ -26,8 +26,8 @@ def pack_needs_waveform_mse(pack) -> bool:
 def window_time_traces(trace_full, b_idx, u_idx, t0, n_t, *, t_onset=0):
     """Extract per-entry time slices from ``trace_full`` ``(B, n_t, N)``.
 
-    ``t0`` is the absolute simulation time of slice start (slot ``t`` uses
-    ``t0 + t``). ``n_t`` is how many time samples to gather. Slots with
+    ``t0`` is the absolute simulation time of slice start (``t`` uses
+    ``t0 + t``). ``n_t`` is how many time samples to gather. Samples with
     ``t0 + t < t_onset`` are zeroed (cost alignment).
     """
     n_t = int(n_t)

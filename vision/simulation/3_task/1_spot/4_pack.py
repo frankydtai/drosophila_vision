@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""Spot paradigm pack: bind GT numbers to the network for cost.
+"""Spot pack: bind GT numbers to the network for cost.
 
 Cost-radius scales, cost hexes, sti ``i_sti``, and :class:`SpotGt` packing.
 GT traces come from :mod:`task.spot.gt`. Sparse cost time points and
@@ -34,7 +34,7 @@ from task.spot.sti_geo import (
     SpotB,
     members_by_radius,
     resolve_spot,
-    spot_radius_folds_r2_into_r1,
+    spot_radius_half_steps,
     spot_sti_bs,
 )
 from task.spot.sti_spec import (
@@ -42,7 +42,7 @@ from task.spot.sti_spec import (
     sti_waveform,
 )
 
-# Spot paradigm contrasts (distinct from the task NAMES in train.config).
+# Spot contrasts (distinct from the task tokens in train.config).
 SPOT_CONTRASTS = frozenset({"bright", "dark"})
 _SPOT_I_BASELINE = "i_baseline_spot"
 _SPOT_I_PEAK = {"bright": "i_bright_spot", "dark": "i_dark_spot"}
@@ -76,7 +76,7 @@ def parse_spot_cost_radius_scale_value(text: str) -> float:
     return float(tok)
 
 
-def expand_spot_cost_r_s_dict(
+def expand_spot_cost_radius_scale_dict(
     kv: Optional[dict] = None,
     *,
     sti_opts: Optional[dict] = None,
@@ -136,7 +136,8 @@ def resolve_spot_cost_radius_scale_defaults(
     scales_radius1: Dict[int, float],
 ) -> Dict[int, float]:
     """Cost-radius scales for ``spot_radius`` (radius-1 folds r=2 into r=1)."""
-    if spot_radius_folds_r2_into_r1(spot_radius):
+    # spot_radius == 1 → half_steps == 2
+    if spot_radius_half_steps(spot_radius) == 2:
         return dict(scales_radius1)
     return dict(scales)
 
@@ -147,7 +148,7 @@ def resolve_spot_cost_radius_scale(
     cost_radius_scales: Dict[int, float],
     spot_cost_radii: Tuple[int, ...],
 ) -> Optional[Dict[int, float]]:
-    """Parse ``--spot-cost-r-s`` space-separated ``R`` / ``R=S`` tokens."""
+    """Parse ``--spot-cost-radius-scale`` space-separated ``R`` / ``R=S`` tokens."""
     if not tokens:
         return None
     bare: list[int] = []
@@ -178,7 +179,7 @@ def resolve_spot_cost_radii(
     sti_opts: Optional[dict] = None,
 ) -> Tuple[int, ...]:
     if sti_opts is not None:
-        spot_cost_radius_scale = expand_spot_cost_r_s_dict(sti_opts=sti_opts)
+        spot_cost_radius_scale = expand_spot_cost_radius_scale_dict(sti_opts=sti_opts)
     scales = (
         dict(cost_radius_scales)
         if spot_cost_radius_scale is None
@@ -196,7 +197,7 @@ def build_a_sti_radius_mask(
     cost_radius_scales: Dict[int, float],
     a_sti_radii: Tuple[int, ...],
 ) -> Tuple[float, ...]:
-    """Per ``a_sti_radii`` slot: ``1`` if cost-radius scale ≠ 0 else ``0``.
+    """Per ``a_sti_radii`` radius: ``1`` if cost-radius scale ≠ 0 else ``0``.
 
     Forward multiplies ``a_sti_radius`` by this mask (indi or fixed).
     """
@@ -427,10 +428,10 @@ def build_spot_gt(
     cost_sti_us, cost_sti_vs = [], []
     trace_cache: Dict[Tuple[int, int], np.ndarray] = {}
     for b, mu, mv, radius, su, sv in cost_hexes:
-        w = spot_cost_node_scale(
+        scale = spot_cost_node_scale(
             radius, spot_cost_radius_scale, cost_radius_scales=cost_radius_scales,
         )
-        if w == 0.0:
+        if scale == 0.0:
             continue
         for gt_cell in active:
             gt_idx = gt_type_idx[gt_cell]
@@ -456,7 +457,7 @@ def build_spot_gt(
                 cost_node.append(int(node_idx))
                 entry_radii_vals.append(int(radius))
                 cost_readout.append(trace)
-                cost_scales_vals.append(w)
+                cost_scales_vals.append(scale)
                 cost_sti_us.append(int(su))
                 cost_sti_vs.append(int(sv))
 

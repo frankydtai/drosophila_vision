@@ -2,14 +2,14 @@
 
 from __future__ import annotations
 
-from default_params import (
+from const_default import (
     SPOT_PACK,
 )
 
 import numpy as np
 import torch
 
-from default_params import SPOT_PACK
+from const_default import SPOT_PACK
 from task.spot.gt import (
     GT_CELLS,
     RF_SIGN,

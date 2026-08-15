@@ -66,7 +66,7 @@ rm -f .codex/slim-core-auto.on
 
 ### 5_figure
 
-- [x] vision/simulation/5_figure/1_util.py
+- [x] vision/simulation/5_figure/1_panel.py
 - [x] vision/simulation/5_figure/2_readout.py
 - [x] vision/simulation/5_figure/3_spot.py
 - [x] vision/simulation/5_figure/3_moving_bar.py

@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""Spot paradigm sti geometry: footprint, centers, sub-spot shifts, hex radii."""
+"""Spot sti geometry: footprint, centers, sub-spot shifts, hex radii."""
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -41,22 +41,6 @@ def spot_radius_half_steps(spot_radius) -> int:
             f"spot_radius must be a non-negative 0.5 multiple, got {spot_radius!r}",
         )
     return int(m)
-
-
-def spot_radius_dist(spot_radius) -> int:
-    """Axial center spacing: ``2*spot_radius + 1`` (``spot_radius`` in 0.5 steps)."""
-    return spot_radius_half_steps(spot_radius) + 1
-
-
-def spot_radius_folds_r2_into_r1(spot_radius) -> bool:
-    """True when ``spot_radius == 1`` (``spot_radius_half_steps == 2``).
-
-    Fold semantics live in :func:`task.spot.gt._spot_readout_a_radius`: radius-1 gt
-    ``a_radius`` is ``rf(1)+rf(2)`` and radius-2 ``a_radius`` is 0. Non-center drive
-    scales use ``a_sti_radius`` masked by cost-radius scale (scale==0 → force
-    0). Center r=0 remains baked at scale 1.
-    """
-    return spot_radius_half_steps(spot_radius) == 2
 
 
 def _spot_center_angle(u: int, v: int) -> float:

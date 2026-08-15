@@ -83,12 +83,12 @@ def main():
 
     import training.implement as train_mod
     named, cell_names, pairs = train_mod.load_best_param(run_path)
-    remapped = training.remap_param_by_segment_node_values(
-        named, cell_names, pairs, list(session.schema), session.backend,
+    remapped = training.remap_node_vals(
+        named, cell_names, pairs, training.schema_copy(session.schema), session.backend,
     )
-    schema = training.attach_param_carry(list(session.schema), remapped)
+    schema = training.attach_param_carry(training.schema_copy(session.schema), remapped)
     session = session.with_schema(schema)
-    z = training.z_from_node_values(
+    z = training.z_from_node_vals(
         remapped, schema, dtype=session.sim_dtype, device=session.device,
     )
 

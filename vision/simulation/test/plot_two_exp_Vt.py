@@ -1,4 +1,4 @@
-"""Plot two-exponential membrane potential with a step input window.
+"""Plot two-exponential potential with a step input window.
 
 Step input:
     S(t) = 0                          for t < t_pulse_on

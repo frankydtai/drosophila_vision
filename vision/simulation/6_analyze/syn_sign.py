@@ -14,7 +14,7 @@ Usage (from ``simulation/``)::
 """
 from __future__ import annotations
 
-from default_params import (
+from const_default import (
     RUN_PATH,
 )
 
@@ -38,7 +38,7 @@ import train
 import train.implementation as train_mod
 import figure.plot as plot
 import figure.spot as spot
-from figure.util import (
+from figure.panel import (
     N_COL_ALL,
     N_COL_GT,
     PANEL_H,
@@ -53,12 +53,12 @@ from network.construction import (
     active_gt_cells,
     load_network_json,
 )
-from default_params import RUN_PATH
+from const_default import RUN_PATH
 from task.spot.gt import GT_CELLS
 from network import path  # noqa: F401 -- FAFBv783 on sys.path
 import build_hex
 
-from default_params import ANALYZE_SYN_SIGN
+from const_default import ANALYZE_SYN_SIGN
 
 SYN_SIGN_BINS = int(ANALYZE_SYN_SIGN["bins"])
 
@@ -132,13 +132,13 @@ def _side_by_side_hist(ax, pct_init, pct_trained, edges_bins, *, legend: bool):
     c_init, _ = np.histogram(pct_init, bins=edges_bins)
     c_tr, _ = np.histogram(pct_trained, bins=edges_bins)
     bin_midpoints = 0.5 * (edges_bins[:-1] + edges_bins[1:])
-    width = (edges_bins[1] - edges_bins[0]) * 0.4
+    w = (edges_bins[1] - edges_bins[0]) * 0.4
     ax.bar(
-        bin_midpoints - width / 2, c_init, width=width, color="red",
+        bin_midpoints - w / 2, c_init, width=w, color="red",
         edgecolor="white", linewidth=0.3, label="init",
     )
     ax.bar(
-        bin_midpoints + width / 2, c_tr, width=width, color="C0",
+        bin_midpoints + w / 2, c_tr, width=w, color="C0",
         edgecolor="white", linewidth=0.3, label="× syn_strength_cell",
     )
     ax.set_xlim(0, 100)
@@ -240,8 +240,8 @@ def plot_syn_sign(
         base = gi * n_sub
         for ci in range(n_col):
             if ci >= len(row_cells):
-                for s in range(n_sub):
-                    fig.add_subplot(gs[base + s, ci]).set_axis_off()
+                for sub in range(n_sub):
+                    fig.add_subplot(gs[base + sub, ci]).set_axis_off()
                 continue
             cell = row_cells[ci]
             pct_init_map = instance_syn_plus_by_id(
@@ -258,8 +258,8 @@ def plot_syn_sign(
             if pct_init.size == 0 and pct_tr.size == 0:
                 ax_h.set_title(f"{cell} (empty)")
                 ax_h.set_axis_off()
-                for s in range(1, n_sub):
-                    fig.add_subplot(gs[base + s, ci]).set_axis_off()
+                for sub in range(1, n_sub):
+                    fig.add_subplot(gs[base + sub, ci]).set_axis_off()
                 continue
             _side_by_side_hist(
                 ax_h, pct_init, pct_tr, edges_bins, legend=not legend_done,
@@ -316,10 +316,10 @@ def save_syn_sign_figures(outdir, *, post=False, bins=SYN_SIGN_BINS) -> None:
         raise SystemExit("train_opts.json missing network_json")
 
     try:
-        param_by_segment, cells_npz, pairs = train_mod.load_best_param_by_segment(outdir)
+        node_vals, cells_npz, pairs = train_mod.load_best_node_vals(outdir)
     except FileNotFoundError as exc:
         raise SystemExit(str(exc)) from exc
-    if "syn_strength_cell" not in param_by_segment:
+    if "syn_strength_cell" not in node_vals:
         raise SystemExit("best_param.npz missing syn_strength_cell")
 
     _nodes, edges, cells, _meta = load_network_json(network_json)
@@ -327,7 +327,7 @@ def save_syn_sign_figures(outdir, *, post=False, bins=SYN_SIGN_BINS) -> None:
         raise SystemExit("cells mismatch: network.json vs best_param.npz")
 
     strength_by_pair, idx_from_cell = _syn_strength_from_edges(
-        edges, cells, param_by_segment["syn_strength_cell"], pairs,
+        edges, cells, node_vals["syn_strength_cell"], pairs,
     )
     session, z = _spot_bright_session_z(outdir)
     delta_tables, radii = load_delta_v_tables(session, z)

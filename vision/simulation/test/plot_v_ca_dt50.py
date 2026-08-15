@@ -28,7 +28,7 @@ import torch
 import training
 from figure.plot_run import load_train_opts, session_for_target
 from network.build import cell_family_rows, cell_names_in_family_order
-from figure.util import TRACE_LW, TRACE_YLIM, save_figure
+from figure.panel import TRACE_LW, TRACE_YLIM, save_figure
 from neuron.param import DELTA_MS, set_delta_ms
 from task.spot.gt import GT_CELLS, resolve_spot_cost_radii, build_spot_center_readout
 from task.spot.sti_geo import resolve_spot, spot_sti_batches
@@ -64,7 +64,7 @@ def _gt_center_traces(session, z, *, return_v_delta: bool) -> dict[str, np.ndarr
     so the three overlays share amplitude).
     """
     pack = session.primary_pack
-    p = training.assign_params(z, list(session.schema), session.backend)
+    p = training.assign_params(z, training.schema_copy(session.schema), session.backend)
     sig = pack.signal if pack.signal.dim() == 3 else pack.signal.unsqueeze(0)
     if return_v_delta:
         trace_full = training.forward_full(
@@ -113,12 +113,12 @@ def _session_z_at_delta_ms(base_opts, model, named, cell_names, pairs, dt_ms: fl
         so["delta_ms"] = float(dt_ms)
 
     session = training.session_from_opts(opts, model=model)
-    remapped = training.remap_param_by_segment_node_values(
-        named, cell_names, pairs, list(session.schema), session.backend,
+    remapped = training.remap_node_vals(
+        named, cell_names, pairs, training.schema_copy(session.schema), session.backend,
     )
-    schema = training.attach_param_carry(list(session.schema), remapped)
+    schema = training.attach_param_carry(training.schema_copy(session.schema), remapped)
     session = session.with_schema(schema)
-    z = training.z_from_node_values(
+    z = training.z_from_node_vals(
         remapped, schema, dtype=session.sim_dtype, device=session.device,
     )
     return session_for_target(session, "spot_bright"), z
@@ -211,10 +211,10 @@ def main():
 
     import training.implement as train_mod
     named, cell_names, pairs = train_mod.load_best_param(run_path)
-    remapped = training.remap_param_by_segment_node_values(
-        named, cell_names, pairs, list(session0.schema), session0.backend,
+    remapped = training.remap_node_vals(
+        named, cell_names, pairs, training.schema_copy(session0.schema), session0.backend,
     )
-    schema = training.attach_param_carry(list(session0.schema), remapped)
+    schema = training.attach_param_carry(training.schema_copy(session0.schema), remapped)
     session0 = session0.with_schema(schema)
     base_opts = copy.deepcopy(session0.train_opts)
 

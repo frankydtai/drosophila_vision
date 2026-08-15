@@ -4,7 +4,7 @@ Some visual neurons (notably R1-6) never get a direct ``(p, q)`` column in
 ``column_assignment``; they must be placed by their synaptic partners. This
 module is a general locator: for any cell, it infers each neuron's column
 from the majority column of its partners. Neurons keep their original type
-(no per-column slot splitting).
+(no per-column type splitting).
 
 Direction matters and depends on the neuron's role:
 
@@ -95,7 +95,7 @@ def locate_neurons(
     vote_mode: str = "partner",
     uv_from_column: Optional[dict] = None,
 ) -> pd.DataFrame:
-    """Infer a column (and slot) for each neuron of the requested types.
+    """Infer a column for each neuron of the requested types.
 
     Args:
         neurons: visual neurons (root_id, type, side) already filtered to ``side``.

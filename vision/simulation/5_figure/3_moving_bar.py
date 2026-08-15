@@ -26,7 +26,7 @@ from task.moving_bar.pack import (
 )
 from figure.gt import pack_cells
 from network.construction import cells_in_order
-from figure.util import (
+from figure.panel import (
     GT_COLOR,
     TRACE_LW,
     ElapsedTimer,
@@ -60,9 +60,10 @@ from task.moving_bar.sti_geo import (
     sti_hexes,
 )
 from task.moving_bar.sti_spec import (
-    cost_window_after_t,
-    cost_window_before_t,
+    COST_WINDOW_AFTER_MS,
+    COST_WINDOW_BEFORE_MS,
 )
+from neuron.param import t_from_ms
 
 MOVING_BAR_DPI = 100
 
@@ -177,7 +178,7 @@ def _cells_and_ids(session):
 
 def _filter_right_specs(spec_tokens, right_only):
     if right_only:
-        return [s for s in spec_tokens if s.startswith('right_')]
+        return [token for token in spec_tokens if token.startswith('right_')]
     return list(spec_tokens)
 
 
@@ -327,7 +328,7 @@ def _moving_bar_overlay_traces(
 def _fig1_trace_delta(trace: np.ndarray, delta_ms: float) -> np.ndarray:
     """ΔVm for fig1 cost-window traces (subtract pre-sti mean)."""
     trace = np.asarray(trace, dtype=np.float64)
-    i_on = cost_window_before_t(delta_ms)
+    i_on = t_from_ms(COST_WINDOW_BEFORE_MS, delta_ms=delta_ms)
     if i_on > 0 and i_on < len(trace):
         return trace - float(np.mean(trace[:i_on]))
     return trace - float(trace[0])
@@ -395,7 +396,7 @@ def moving_bar_trace_readout(session, z, task, *, at_x=None, at_y=None,
     """Run one forward; t_first_sti-aligned full-trace v_readout traces."""
     t_prep0 = time.perf_counter()
     pack = session.pack_from_task(task)
-    schema = list(session.schema)
+    schema = train.schema_copy(session.schema)
     params = train.override_val_from(
         train.assign_params(z, schema, session.backend), session,
     )
@@ -410,7 +411,7 @@ def moving_bar_trace_readout(session, z, task, *, at_x=None, at_y=None,
     train.override_val_from(params, session, onset_trace=plot_t, t_onset=t0)
     trace_full = plot_t.detach().cpu().numpy()
     specs = bar_specs_from_task(session, task)
-    spec_tokens = [s.token for s in specs]
+    spec_tokens = [spec.token for spec in specs]
     n_t = int(session.n_t)
     connectome = session.backend.network
     traces, cells, side, n_filter_hexes, t_onset, single_hex = _traces_from_forward(
@@ -524,7 +525,7 @@ def _moving_bar_pre_end(readout, subtype, token):
 
 def _cost_window_xy(cost_trace, before_t, delta_ms):
     """Map cost_window GT onto full-trace x/y coordinates."""
-    i0 = before_t - cost_window_before_t(delta_ms)
+    i0 = before_t - t_from_ms(COST_WINDOW_BEFORE_MS, delta_ms=delta_ms)
     trace = np.asarray(cost_trace, dtype=np.float64)
     if i0 < 0:
         trace = trace[-i0:]
@@ -580,8 +581,8 @@ def _style_moving_bar_relative_axis(
     if not show_tick_labels:
         ax.tick_params(labelbottom=False)
     if mark_cost_window:
-        cw_before = cost_window_before_t(delta_ms)
-        cw_after = cost_window_after_t(delta_ms)
+        cw_before = t_from_ms(COST_WINDOW_BEFORE_MS, delta_ms=delta_ms)
+        cw_after = t_from_ms(COST_WINDOW_AFTER_MS, delta_ms=delta_ms)
         for x in (before_t - cw_before, before_t + cw_after):
             if lo <= x <= hi:
                 ax.axvline(x, color='0.75', linewidth=0.6, linestyle='--', zorder=0)

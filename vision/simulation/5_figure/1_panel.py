@@ -1,4 +1,4 @@
-"""Shared plotting helpers (no task-specific logic)."""
+"""Shared figure panel helpers (no task-specific logic)."""
 
 from __future__ import annotations
 
@@ -189,22 +189,22 @@ def e_leak_from_z(z, session):
     return _param_from_z(z, session, 'e_leak')
 
 
-def _param_from_z(z, session, segment):
-    schema = list(session.schema)
-    if segment not in {s.get('segment') for s in schema}:
+def _param_from_z(z, session, param):
+    schema = train.schema_copy(session.schema)
+    if param not in schema:
         return {}
-    arr = np.asarray(train.node_values_from_z(z, schema)[segment], dtype=np.float64).reshape(-1)
+    arr = np.asarray(train.node_vals_from_z(z, schema)[param], dtype=np.float64).reshape(-1)
     cells = train.cells_from_backend(session.backend)
     if arr.shape[0] != len(cells):
-        raise ValueError(f"{segment} length {arr.shape[0]} != n_cells {len(cells)}")
+        raise ValueError(f"{param} length {arr.shape[0]} != n_cells {len(cells)}")
     return {str(n): float(arr[i]) for i, n in enumerate(cells)}
 
 
 def cell_ylabel(label, ca_n=None, n=None):
     """Row / cell axis label with ``n`` from *ca_n* or explicit *n*."""
     if n is None and ca_n is not None:
-        for (t, _s), n_val in ca_n.items():
-            if t == label:
+        for (cell_key, _), n_val in ca_n.items():
+            if cell_key == label:
                 n = n_val
                 break
     if n is None:
@@ -217,8 +217,8 @@ def format_spot_radius_time_title(radius, n, cell, cost_parts, contrasts):
     from train.config import spot_cost_part_key
 
     r = float(radius)
-    r_s = str(int(r)) if r == int(r) else str(r)
-    head = f'r={r_s}'
+    radius_text = str(int(r)) if r == int(r) else str(r)
+    head = f'r={radius_text}'
     if n is not None:
         head = f'{head} (n={int(n)})'
     if not cost_parts or not contrasts:
@@ -431,7 +431,7 @@ def plot_pre_post_line(
     label=None,
     plot_pre=False,
 ):
-    """Plot a 1-D series with optional dashed pre-``pre_end`` segment.
+    """Plot a 1-D series with optional dashed pre-``pre_end`` slice.
 
     ``pre_end`` is the first post-onset index (samples ``[0, pre_end)`` are pre).
     Gray gt uses ``plot_pre=False`` (never plots pre). v_readout uses
@@ -456,7 +456,7 @@ def plot_pre_post_line(
     n = int(y_arr.shape[0])
     split = max(0, min(int(pre_end or 0), n))
     if plot_pre and show_pre and split > 0:
-        # Include the onset sample so dashed and solid segments meet.
+        # Include the onset sample so dashed and solid traces meet.
         end_pre = min(split + 1, n)
         ax.plot(
             t_arr[:end_pre], y_arr[:end_pre],
@@ -814,9 +814,9 @@ def plot_cost(costs, path, *, costs_by_part=None, part_order=None):
         pos = part_key.rfind("_r")
         if pos < 0:
             return None
-        r_s = part_key[pos + 2:]
+        radius_text = part_key[pos + 2:]
         try:
-            r_f = float(r_s)
+            r_f = float(radius_text)
         except ValueError:
             return None
         r_i = int(round(r_f))

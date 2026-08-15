@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""Moving-bar paradigm GT numbers: fig1 Vm traces, motion preference, DSI targets.
+"""Moving-bar GT numbers: fig1 Vm traces, motion preference, DSI targets.
 
 GT literals and helpers in this module are **owned here** — fig1 digitized
 population Vm (:data:`FIG1_CI_NPZ`), T4/T5 motion preference, and hardcoded
@@ -19,7 +19,7 @@ import numpy as np
 import torch
 
 from neuron.param import t_from_ms
-from task.moving_bar.sti_geo import GRUNTMAN_WIDTHS_DEG
+from task.moving_bar.sti_geo import GRUNTMAN_WS_DEG
 from task.moving_bar.sti_spec import (
     COST_ALIGNED_FIRST_STI_MS,
     COST_WINDOW_MS,
@@ -81,20 +81,20 @@ class MotionPreference:
 
 
 def dsi_sequential_b_sets(spec_tokens: Sequence[str]) -> Tuple[Tuple[int, ...], ...]:
-    """Minimal sti-b sets for sequential DSI: one b_set per axis x width."""
+    """Minimal sti-b sets for sequential DSI: one b_set per axis x w."""
     bs_by_dir_w: dict[tuple[str, str], list[int]] = {}
     for b, token in enumerate(spec_tokens):
-        direction, _contrast, wtag = parse_moving_bar_spec(token)
-        bs_by_dir_w.setdefault((direction, wtag), []).append(int(b))
+        direction, _contrast, w_tag = parse_moving_bar_spec(token)
+        bs_by_dir_w.setdefault((direction, w_tag), []).append(int(b))
     b_sets: list[tuple[int, ...]] = []
     for pos_dir, neg_dir in AXIS_DIRECTION_PAIRS:
-        wtags = {
-            wtag for (direction, wtag) in bs_by_dir_w
+        w_tags = {
+            w_tag for (direction, w_tag) in bs_by_dir_w
             if direction in (pos_dir, neg_dir)
         }
-        for wtag in sorted(wtags):
-            pos = bs_by_dir_w.get((pos_dir, wtag), [])
-            neg = bs_by_dir_w.get((neg_dir, wtag), [])
+        for w_tag in sorted(w_tags):
+            pos = bs_by_dir_w.get((pos_dir, w_tag), [])
+            neg = bs_by_dir_w.get((neg_dir, w_tag), [])
             if not pos or not neg:
                 continue
             b_sets.append(tuple(sorted({*pos, *neg})))
@@ -123,8 +123,8 @@ def expand_gt_cells(cells: Sequence[str]) -> Tuple[str, ...]:
     return tuple(out)
 
 
-def width_tag(width_deg: float) -> str:
-    return "w1" if float(width_deg) <= 3.0 else "w4"
+def w_tag(w_deg: float) -> str:
+    return "w1" if float(w_deg) <= 3.0 else "w4"
 
 
 def pd_direction(side: str, subtype: str) -> str:
@@ -181,35 +181,35 @@ def fig1_trace_from_sti(
     subtype: str,
     spec: Union[MovingBarSpec, str],
     contrast: Optional[str] = None,
-    width_deg: Optional[float] = None,
+    w_deg: Optional[float] = None,
 ) -> Optional[str]:
     """fig1 trace id for ``(side, subtype, sti)``, or ``None`` if orthogonal."""
     if isinstance(spec, MovingBarSpec):
-        direction, contrast, width_deg = spec.direction, spec.contrast, spec.width_deg
+        direction, contrast, w_deg = spec.direction, spec.contrast, spec.w_deg
     else:
         direction = str(spec)
-        if contrast is None or width_deg is None:
-            raise ValueError("contrast and width_deg required when spec is not MovingBarSpec")
+        if contrast is None or w_deg is None:
+            raise ValueError("contrast and w_deg required when spec is not MovingBarSpec")
     pref = motion_preference(side, subtype, direction, contrast)
     if pref is None:
         return None
-    return f"{subtype[:2]}_{pref.pc_nc}_{width_tag(width_deg)}_{pref.pd_nd}"
+    return f"{subtype[:2]}_{pref.pc_nc}_{w_tag(w_deg)}_{pref.pd_nd}"
 
 
 def active_stis_from_subtype(side: str, subtype: str) -> Sequence[Tuple[str, str, str]]:
-    """Non-orthogonal (direction, contrast, width_tag) triples for one subtype."""
+    """Non-orthogonal (direction, contrast, w_tag) triples for one subtype."""
     out = []
     for direction in _axis_directions(subtype):
         for contrast in ("bright", "dark"):
-            for w in GRUNTMAN_WIDTHS_DEG:
+            for w in GRUNTMAN_WS_DEG:
                 if motion_preference(side, subtype, direction, contrast) is not None:
-                    out.append((direction, contrast, width_tag(w)))
+                    out.append((direction, contrast, w_tag(w)))
     return out
 
 
 def parse_moving_bar_spec(token: str) -> Tuple[str, str, str]:
-    direction, contrast, wtag = str(token).split("_", 2)
-    return direction, contrast, wtag
+    direction, contrast, w_tag = str(token).split("_", 2)
+    return direction, contrast, w_tag
 
 
 def axis_dsi(peak_pos: float, peak_neg: float) -> Optional[float]:
@@ -248,12 +248,12 @@ def moving_bar_dsi_from_spec(
     token: str,
 ) -> Optional[float]:
     """DSI for one cell x spec: (this dir - opposite) / (this + opposite)."""
-    direction, contrast, wtag = parse_moving_bar_spec(token)
+    direction, contrast, w_tag = parse_moving_bar_spec(token)
     if direction not in _DIR_TO_AXIS:
         return None
     pos_dir, neg_dir = _DIR_TO_AXIS[direction]
-    pos_trace = (cell, f"{pos_dir}_{contrast}_{wtag}")
-    neg_key = (cell, f"{neg_dir}_{contrast}_{wtag}")
+    pos_trace = (cell, f"{pos_dir}_{contrast}_{w_tag}")
+    neg_key = (cell, f"{neg_dir}_{contrast}_{w_tag}")
     if pos_trace not in trace_map or neg_key not in trace_map:
         return None
     dsi = axis_dsi(

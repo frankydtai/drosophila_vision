@@ -96,8 +96,8 @@ def cost_part(session, z, part_key: str) -> dict:
             f"part {part_key!r} not in pack parts; available:\n  "
             + "\n  ".join(part_keys),
         )
-    part_slot_idx = part_keys.index(part_key)
-    entry_indices = (part_indices == part_slot_idx).nonzero(as_tuple=False).reshape(-1)
+    part_idx = part_keys.index(part_key)
+    entry_indices = (part_indices == part_idx).nonzero(as_tuple=False).reshape(-1)
     if entry_indices.numel() == 0:
         raise SystemExit(f"part {part_key!r} has zero active entries")
 

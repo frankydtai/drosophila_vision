@@ -13,12 +13,12 @@ from typing import Dict, List, Optional, Sequence, Tuple
 import numpy as np
 import torch
 
-from path import moving_bar_cache_dir
+from path import MOVING_BAR_CACHE_DIRNAME
 from neuron.param import t_from_ms
 from task.moving_bar.sti_geo import (
     BAR_RADIUS,
     GRUNTMAN_DIRECTIONS,
-    GRUNTMAN_WIDTHS_DEG,
+    GRUNTMAN_WS_DEG,
     Hex,
     StiHex,
     bar_rect_lane_clipped,
@@ -33,7 +33,7 @@ from task.moving_bar.sti_geo import (
 logger = logging.getLogger(__name__)
 
 # Gruntman Fig. 1 Ci fast condition: 40 ms / 2.25 deg per LED step.
-GRUNTMAN_SPEED_DEG_S = 56.0
+GRUNTMAN_SPEED_DEG_OVER_S = 56.0
 GRUNTMAN_CONTRASTS = ("bright", "dark")
 
 # Moving-bar per-hex cost window relative to first-sti alignment.
@@ -49,51 +49,41 @@ MOVING_BAR_TAIL_MS = COST_WINDOW_AFTER_MS + T_TAIL_PAD_MS
 PD_IDX, ND_IDX = 0, 1
 
 
-def cost_window_before_t(delta_ms: float) -> int:
-    """``t_from_ms(COST_WINDOW_BEFORE_MS)``."""
-    return t_from_ms(COST_WINDOW_BEFORE_MS, delta_ms=delta_ms)
-
-
-def cost_window_after_t(delta_ms: float) -> int:
-    """``t_from_ms(COST_WINDOW_AFTER_MS)``."""
-    return t_from_ms(COST_WINDOW_AFTER_MS, delta_ms=delta_ms)
-
-
 @dataclass(frozen=True)
 class MovingBarSpec:
     direction: str
     contrast: str
-    width_deg: float
-    speed_deg_s: float = GRUNTMAN_SPEED_DEG_S
+    w_deg: float
+    speed_deg_over_s: float = GRUNTMAN_SPEED_DEG_OVER_S
 
     @property
     def token(self) -> str:
-        wtag = "w1" if self.width_deg <= 3.0 else "w4"
-        return f"{self.direction}_{self.contrast}_{wtag}"
+        w_tag = "w1" if self.w_deg <= 3.0 else "w4"
+        return f"{self.direction}_{self.contrast}_{w_tag}"
 
 
 def gruntman_moving_bar_specs(
     directions: Sequence[str] = GRUNTMAN_DIRECTIONS,
     contrasts: Sequence[str] = GRUNTMAN_CONTRASTS,
-    widths_deg: Sequence[float] = GRUNTMAN_WIDTHS_DEG,
-    speed_deg_s: float = GRUNTMAN_SPEED_DEG_S,
+    ws_deg: Sequence[float] = GRUNTMAN_WS_DEG,
+    speed_deg_over_s: float = GRUNTMAN_SPEED_DEG_OVER_S,
 ) -> List[MovingBarSpec]:
     """The 16 Gruntman-style whole-view moving-bar conditions."""
     return [
-        MovingBarSpec(direction=d, contrast=contrast, width_deg=w, speed_deg_s=speed_deg_s)
+        MovingBarSpec(direction=d, contrast=contrast, w_deg=w, speed_deg_over_s=speed_deg_over_s)
         for d in directions
         for contrast in contrasts
-        for w in widths_deg
+        for w in ws_deg
     ]
 
 
-def _trail_shift_deg(spec: MovingBarSpec, dt_s: float) -> float:
-    """Signed trail advance (deg) in one sample: ``±speed_deg_s * dt_s``."""
-    s = float(spec.speed_deg_s) * dt_s
+def _trail_shift_deg(spec: MovingBarSpec, delta_ms: float) -> float:
+    """Signed trail advance (deg) in one sample: ``±speed_deg_over_s * delta_ms / 1000``."""
+    shift_deg = float(spec.speed_deg_over_s) * (float(delta_ms) / 1000.0)
     if spec.direction in ("right", "up"):
-        return s
+        return shift_deg
     if spec.direction in ("left", "down"):
-        return -s
+        return -shift_deg
     raise ValueError(f"unknown direction {spec.direction!r}")
 
 
@@ -109,8 +99,7 @@ def _coverage_time_series(
     multi_bar: bool = True,
 ) -> np.ndarray:
     """Coverage from simultaneous per-lane bars (connectome field)."""
-    dt_s = delta_ms / 1000.0
-    trail_shift_deg = _trail_shift_deg(spec, dt_s)
+    trail_shift_deg = _trail_shift_deg(spec, delta_ms)
     lane_origins = motion_lanes(spec, view_deg, bar_radius, multi_bar=multi_bar)
     n_hexes = hex_stack.shape[0]
     n_post = n_t - t_onset
@@ -137,7 +126,7 @@ def t_from_trail(
     delta_ms: float,
     n_t: Optional[int] = None,
 ) -> int:
-    trail_shift_deg = _trail_shift_deg(spec, delta_ms / 1000.0)
+    trail_shift_deg = _trail_shift_deg(spec, delta_ms)
     if abs(trail_shift_deg) < 1e-15:
         return t_onset
     k = int(round((trail_end - trail_start) / trail_shift_deg))
@@ -200,8 +189,8 @@ def moving_bar_transit_times(
     """Return ``(entry, mid, exit)`` t indices for the first multi-bar lane."""
     lane_origin, lane_pitch = motion_lanes(spec, view_deg, bar_radius, multi_bar=multi_bar)[0]
     trail_start, trail_exit = lane_sweep_trail_range(spec, lane_origin, lane_pitch)
-    w = float(spec.width_deg)
-    trail_shift_deg = _trail_shift_deg(spec, delta_ms / 1000.0)
+    w = float(spec.w_deg)
+    trail_shift_deg = _trail_shift_deg(spec, delta_ms)
     origin = float(lane_origin)
     trail_entry = float(trail_start) + trail_shift_deg
     trail_mid = origin + 0.5 * (
@@ -241,7 +230,7 @@ def bar_lane_rects_at_t(
     delta_ms: float,
 ) -> List[Tuple[float, float, float, float]]:
     """All lane bar rectangles at simulation time ``t`` (empty outside local sweep)."""
-    trail_shift_deg = _trail_shift_deg(spec, delta_ms / 1000.0)
+    trail_shift_deg = _trail_shift_deg(spec, delta_ms)
     rects: List[Tuple[float, float, float, float]] = []
     for lane_origin, lane_pitch in motion_lanes(spec, view_deg, bar_radius, multi_bar=multi_bar):
         trail_start, _ = lane_sweep_trail_range(spec, lane_origin, lane_pitch)
@@ -287,7 +276,7 @@ def build_i_sti_hex(
     """Multi-b hex currents ``(B, T, n_hexes)``.
 
     Each b row superposes simultaneous lane bars for one ``MovingBarSpec``.
-    Specs that share direction / width / speed reuse one coverage time series;
+    Specs that share direction / w / speed reuse one coverage time series;
     only the bright/dark contrast scaling differs.
     """
     n_b = len(specs)
@@ -304,7 +293,7 @@ def build_i_sti_hex(
 
     by_geometry: dict[Tuple[str, float, float], List[int]] = {}
     for b, spec in enumerate(specs):
-        geometry = (spec.direction, float(spec.width_deg), float(spec.speed_deg_s))
+        geometry = (spec.direction, float(spec.w_deg), float(spec.speed_deg_over_s))
         by_geometry.setdefault(geometry, []).append(b)
 
     for bs in by_geometry.values():
@@ -330,21 +319,16 @@ class MovingBarSti:
     info: dict = field(default_factory=dict)
 
 
-def resolve_i_baseline(value: float) -> float:
-    """Cast sti baseline current (pA)."""
-    return float(value)
-
-
 def resolve_moving_bar_i_baseline(train_opts) -> float:
     """``i_baseline_moving_bar`` from moving-bar sti opts on a train session."""
     opts = train_opts or {}
     for sti_opts_tok in ("moving_bar_bright_sti_opts", "moving_bar_dark_sti_opts"):
         sub = opts.get(sti_opts_tok) or {}
         if "i_baseline_moving_bar" in sub:
-            return resolve_i_baseline(float(sub["i_baseline_moving_bar"]))
+            return float(sub["i_baseline_moving_bar"])
     raise ValueError(
         "moving-bar sti opts require i_baseline_moving_bar "
-        "(inject via default_params.NETWORK_CONSTRUCTION['i_baseline'] / CLI)"
+        "(inject via const_default.NETWORK_CONSTRUCTION['i_baseline'] / CLI)"
     )
 
 
@@ -393,7 +377,7 @@ def build_moving_bar_t0_grids(
     before_t: Dict[str, int] = {}
     after_t: Dict[str, int] = {}
     n_b = len(specs)
-    i_baseline = resolve_i_baseline(i_baseline)
+    i_baseline = float(i_baseline)
 
     t0_map: dict = {}
     for b, spec in enumerate(specs):
@@ -437,12 +421,12 @@ def _moving_bar_cache_digest(
         "multi_bar": bool(multi_bar),
         "specs": [
             {
-                "direction": s.direction,
-                "contrast": s.contrast,
-                "width_deg": s.width_deg,
-                "speed_deg_s": s.speed_deg_s,
+                "direction": spec.direction,
+                "contrast": spec.contrast,
+                "w_deg": spec.w_deg,
+                "speed_deg_over_s": spec.speed_deg_over_s,
             }
-            for s in specs
+            for spec in specs
         ],
         "n_t": n_t,
         "t_onset": t_onset,
@@ -474,7 +458,7 @@ def _moving_bar_cache_path(
         network_json, specs, hex_uv, n_t, t_onset, delta_ms,
         i_baseline, bar_radius, multi_bar, i_bright_moving_bar, i_dark_moving_bar,
     )
-    return moving_bar_cache_dir(network_json) / f"{digest}.npz"
+    return Path(network_json).resolve().parent / MOVING_BAR_CACHE_DIRNAME / f"{digest}.npz"
 
 
 def _load_moving_bar_hex_cache(path: Path) -> Optional[np.ndarray]:
@@ -520,7 +504,7 @@ def build_moving_bar_signals(
     bar_radius = int(bar_radius)
     multi_bar = bool(multi_bar)
     specs = list(specs if specs is not None else gruntman_moving_bar_specs())
-    contrasts = {s.contrast for s in specs}
+    contrasts = {spec.contrast for spec in specs}
     i_bright = None
     i_dark = None
     if "bright" in contrasts:
@@ -581,12 +565,12 @@ def build_moving_bar_signals(
         "t_onset": t_onset,
         "sweep_end": sweep_end,
         "sweep_t": sweep_t,
-        "sweep_time_s": sweep_t * delta_ms / 1000.0,
+        "sweep_s": sweep_t * delta_ms / 1000.0,
         "tail_t": tail_t,
-        "tail_time_s": tail_t * delta_ms / 1000.0,
+        "tail_s": tail_t * delta_ms / 1000.0,
         "i_baseline_moving_bar": i_baseline,
-        "speed_deg_s": specs[0].speed_deg_s if specs else GRUNTMAN_SPEED_DEG_S,
-        "spec_tokens": [s.token for s in specs],
+        "speed_deg_over_s": specs[0].speed_deg_over_s if specs else GRUNTMAN_SPEED_DEG_OVER_S,
+        "spec_tokens": [spec.token for spec in specs],
     }
     if i_bright is not None:
         info["i_bright_moving_bar"] = i_bright

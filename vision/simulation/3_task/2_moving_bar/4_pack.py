@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""Moving-bar paradigm pack: bind GT numbers to the network for cost.
+"""Moving-bar pack: bind GT numbers to the network for cost.
 
 Cost hexes, sti ``i_sti``, :class:`MovingBarGt` packing, and DSI entry CSR.
 GT traces and motion preference come from :mod:`task.moving_bar.gt`.
@@ -29,7 +29,7 @@ from task.moving_bar.gt import (
     hardcoded_axis_dsi,
     load_fig1_traces,
     motion_preference,
-    width_tag,
+    w_tag,
 )
 from task.moving_bar.sti_geo import (
     BAR_RADIUS,
@@ -52,7 +52,6 @@ from task.moving_bar.sti_spec import (
     gruntman_moving_bar_specs,
     hex_first_sti_t,
     resolve_moving_bar_i_baseline,
-    resolve_i_baseline,
 )
 
 MOVING_BAR_CONTRASTS = frozenset({"bright", "dark"})
@@ -109,7 +108,7 @@ def filter_requested_specs(
     avail = list(available)
     if requested is None:
         return avail
-    missing = [s for s in requested if s not in avail]
+    missing = [token for token in requested if token not in avail]
     if missing:
         raise ValueError(f"spec(s) {missing} not in {avail}")
     return list(requested)
@@ -123,10 +122,10 @@ def assemble_moving_bar_dsi_groups(
     *,
     side: str,
 ) -> Tuple[List[List[int]], List[List[int]], List[float], List[float]]:
-    """One DSI group per ``(subtype, contrast, wtag, axis)``."""
+    """One DSI group per ``(subtype, contrast, w_tag, axis)``."""
     bs_by_condition: dict[tuple[str, str, str], list[int]] = {}
     for b, spec in enumerate(specs):
-        key = (spec.direction, spec.contrast, width_tag(spec.width_deg))
+        key = (spec.direction, spec.contrast, w_tag(spec.w_deg))
         bs_by_condition.setdefault(key, []).append(b)
 
     entries_by_subtype_b: dict[tuple[str, int], list[int]] = {}
@@ -140,14 +139,14 @@ def assemble_moving_bar_dsi_groups(
     subtypes = sorted({str(st) for st in r_subtype})
     for subtype in subtypes:
         for pos_dir, neg_dir in (("right", "left"), ("up", "down")):
-            contrast_widths = {
-                (contrast, wtag)
-                for (direction, contrast, wtag) in bs_by_condition
+            contrast_ws = {
+                (contrast, w_tag)
+                for (direction, contrast, w_tag) in bs_by_condition
                 if direction in (pos_dir, neg_dir)
             }
-            for contrast, wtag in sorted(contrast_widths):
-                pos_bs = bs_by_condition.get((pos_dir, contrast, wtag), [])
-                neg_bs = bs_by_condition.get((neg_dir, contrast, wtag), [])
+            for contrast, w_tag in sorted(contrast_ws):
+                pos_bs = bs_by_condition.get((pos_dir, contrast, w_tag), [])
+                neg_bs = bs_by_condition.get((neg_dir, contrast, w_tag), [])
                 if not pos_bs or not neg_bs:
                     continue
                 pos_entries: list[int] = []
@@ -280,18 +279,18 @@ def remap_dsi_entries(pack, kept_old_entries) -> dict:
 
 
 def _csr_span_mean(vals: torch.Tensor, ptr: torch.Tensor) -> torch.Tensor:
-    """Mean of ``vals`` over CSR segments defined by ``ptr``."""
+    """Mean of ``vals`` over CSR spans defined by ``ptr``."""
     n_g = int(ptr.numel()) - 1
     if n_g == 0:
         return vals.new_zeros((0,))
-    n_segment = ptr[1:] - ptr[:-1]
-    csr_segment_idx = torch.repeat_interleave(
+    n_ptr = ptr[1:] - ptr[:-1]
+    csr_idx = torch.repeat_interleave(
         torch.arange(n_g, device=vals.device, dtype=torch.long),
-        n_segment,
+        n_ptr,
     )
     sums = vals.new_zeros((n_g,))
-    sums.scatter_add_(0, csr_segment_idx, vals)
-    return sums / n_segment.to(dtype=vals.dtype).clamp(min=1)
+    sums.scatter_add_(0, csr_idx, vals)
+    return sums / n_ptr.to(dtype=vals.dtype).clamp(min=1)
 
 
 def cost_dsi_from_v_readout_dsi(
@@ -339,7 +338,7 @@ def _assemble_moving_bar_readouts(
         [], [], [], [], [], [], [],
     )
     skipped_orthogonal = 0
-    i_baseline = resolve_i_baseline(i_baseline)
+    i_baseline = float(i_baseline)
     for b, spec in enumerate(specs):
         t0_by_hex: Dict[int, int] = {}
         if waveform_mse:
@@ -435,7 +434,7 @@ def build_moving_bar_gt(
 
     specs = gruntman_moving_bar_specs(contrasts=tuple(contrasts))
     contrast_set = frozenset(contrasts)
-    i_baseline_val = resolve_i_baseline(i_baseline_moving_bar)
+    i_baseline_val = float(i_baseline_moving_bar)
     peak_kw = {}
     if "bright" in contrast_set and i_bright_moving_bar is not None:
         peak_kw["i_bright_moving_bar"] = float(i_bright_moving_bar)
@@ -693,11 +692,6 @@ def build_moving_bar_sti_opts(
     if gt_cells is not None:
         out["gt_cells"] = list(gt_cells)
     return out
-
-
-def session_moving_bar_i_baseline(train_opts) -> float:
-    """``i_baseline_moving_bar`` from moving-bar sti opts on a train session."""
-    return resolve_moving_bar_i_baseline(train_opts)
 
 
 def enrich_moving_bar_sti_opts(opts, info, *, cost_radius):

@@ -36,7 +36,7 @@ def a_sti_radius_effective(params, pack):
 def inject_a_sti_radius(i_sti, params, pack):
     """``i += a_sti_radius[r] * sti_wave`` on spot radius sti contribs; else pass-through.
 
-    Uses :func:`a_sti_radius_effective` so masked slots are 0 whether indi or fixed.
+    Uses :func:`a_sti_radius_effective` so masked radii are 0 whether indi or fixed.
     """
     a_sti_radius_indices = getattr(pack, "a_sti_radius_indices", None) if pack is not None else None
     if a_sti_radius_indices is None or "a_sti_radius" not in params:
@@ -150,7 +150,7 @@ def forward_v(session, params, i_sti, *, pack=None):
     with torch.no_grad():
         for t in range(1, t_onset):
             take(t)
-    state = tuple(s.detach() for s in state)
+    state = tuple(state_tensor.detach() for state_tensor in state)
     v = v.detach()
     for t in range(max(t_onset, 1), t_end):
         take(t)

@@ -10,7 +10,7 @@ Counts below are **right** hemisphere in `4_built_networks/right_min_neuron1/`.
 
 ### 1.1 Full inventory (`ctype.npy`, 65)
 
-Order is the SimulationCode / flyvis index (0…64). Photoreceptors R1–R6 are separate slots; CT1 is split into two compartments.
+Order is the SimulationCode / flyvis index (0…64). Photoreceptors R1–R6 are separate cells; CT1 is split into two compartments.
 
 | idx | name | idx | name | idx | name |
 |----:|------|----:|------|----:|------|

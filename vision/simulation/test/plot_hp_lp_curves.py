@@ -1,6 +1,6 @@
-"""Plot isolated hp_lp membrane on a pulse (no network).
+"""Plot isolated hp_lp on a pulse (no network).
 
-Uses ``neuron.model_hp_lp.update_state_hp_lp`` (same Euler as training):
+Uses ``neuron.model_hp_lp.update_v`` (same Euler as training):
 
     τ_HP(e_HP) d v_slow / dt = v_drive − v_slow
     e_HP = v_drive − v_slow
@@ -42,11 +42,11 @@ import matplotlib.pyplot as plt
 import numpy as np
 import torch
 
-from figure.util import save_figure
+from figure.panel import save_figure
 from import_bootstrap import parse_comma_list
-from neuron.model_hp_lp import update_state_hp_lp
+from neuron.model_hp_lp import update_v
 from neuron.param import expand_euler
-from default_params import NEURON_PARAM
+from const_default import NEURON_CONST
 
 DEFAULT_SAVE = os.path.join(HERE, "hp_lp_curves.png")
 DEFAULT_A_H = 1.0
@@ -57,15 +57,15 @@ DEFAULT_TAU_HP_FALL_LIST = "80,200,500,2000"
 DEFAULT_TAU_LP_LIST = "20,50,100"
 DEFAULT_PULSE_LIST = "50,100,500"
 TAU_HP_OFF_MS = 1.0e6
-EULER = str(NEURON_PARAM["euler"])
-G_LEAK = float(NEURON_PARAM["g_leak"])
-STATE_CLAMP = float(NEURON_PARAM["state_clamp"])
+EULER = str(NEURON_CONST["euler"])
+G_LEAK = float(NEURON_CONST["g_leak"])
+STATE_CLAMP = float(NEURON_CONST["state_clamp"])
 
 _BACKEND = SimpleNamespace(
     n_nodes=1,
     conn=SimpleNamespace(
-        signed_drive=lambda x, syn_strength: torch.zeros_like(x),
-        exc_inh_drive=lambda x, syn_strength: (
+        signed_g=lambda x, syn_strength: torch.zeros_like(x),
+        exc_inh_g=lambda x, syn_strength: (
             torch.zeros_like(x),
             torch.zeros_like(x),
         ),
@@ -133,7 +133,7 @@ def simulate_hp_lp(
     slow_out[0] = float(v_slow.item())
     hp_out[0] = float((v_drive0 - p["a_h"] * v_slow.view(-1)).item())
     for t in range(1, t_end):
-        v, v_slow, comp = update_state_hp_lp(
+        v, v_slow, comp = update_v(
             v, v_slow, p, i_sti[t - 1].view(1, 1), _BACKEND,
             delta_ms=delta_ms, state_clamp=state_clamp, g_leak=g_leak, euler=euler,
             return_component=True,
@@ -436,7 +436,7 @@ def plot_hp_lp(
     )
 
     fig.suptitle(
-        "hp_lp isolated membrane: LP-only vs HP→LP (+pulse | −pulse)",
+        "hp_lp isolated: LP-only vs HP→LP (+pulse | −pulse)",
         fontsize=12,
     )
     os.makedirs(os.path.dirname(os.path.abspath(path)) or ".", exist_ok=True)
@@ -458,7 +458,7 @@ def parse_args(argv=None):
     p.add_argument("--s0", type=float, default=1.0, help="pulse |v_sti| (right column uses −|v_sti|)")
     p.add_argument("--e-leak", type=float, default=0.0)
     p.add_argument("--a-h", type=float, default=DEFAULT_A_H, help="baseline a_h")
-    p.add_argument("--tau-lp", type=float, default=50.0, help="baseline membrane tau_lp [ms]")
+    p.add_argument("--tau-lp", type=float, default=50.0, help="baseline tau_lp [ms]")
     p.add_argument("--tau-hp-rise", type=float, default=200.0, help="baseline tau_hp_rise [ms]")
     p.add_argument("--tau-hp-fall", type=float, default=200.0, help="baseline tau_hp_fall [ms]")
     p.add_argument("--g-leak", type=float, default=float(G_LEAK))
@@ -477,7 +477,7 @@ def parse_args(argv=None):
         help="comma-separated τ_HP,fall sweep [ms]",
     )
     p.add_argument("--tau-lp-list", type=str, default=DEFAULT_TAU_LP_LIST, help="comma-separated τ_lp sweep [ms]")
-    p.add_argument("--pulse-list", type=str, default=DEFAULT_PULSE_LIST, help="comma-separated pulse widths [ms]")
+    p.add_argument("--pulse-list", type=str, default=DEFAULT_PULSE_LIST, help="comma-separated pulse ws [ms]")
     return p.parse_args(argv)
 
 

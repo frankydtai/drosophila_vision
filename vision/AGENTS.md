@@ -42,7 +42,7 @@ Number core modules by import and completion order. If A must be imported or com
 4. Keep CSV outputs rectangular; represent global scalars as constant columns.
 5. Keep core code flexible enough for `test/` to import and override without editing core code.
 6. Core code must not import plotting layers. Shared logic needed by plotting and core belongs in core.
-7. Numeric defaults have one source: `vision/default_params.py`. Keep it to literals and constant bags, without functions or formulas. Only train, figure, analyze, and run layers may import it; neuron, network, and task layers receive numbers by injection, except established moving-bar paradigm constants.
+7. Numeric defaults have one source: `vision/const_default.py`. Keep it to literals and constant bags, without functions or formulas. Only train, figure, analyze, and run layers may import it; neuron, network, and task layers receive numbers by injection, except established moving-bar constants.
 8. Never import or call `figure.plot` (or the forbidden alias `plot_trained`) or other plot-layer modules from core modules.
 
 ## Non-core rules

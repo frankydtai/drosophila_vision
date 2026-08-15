@@ -28,7 +28,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 
-from default_params import DELTA_MS
+from const_default import DELTA_MS
 from task.spot.gt import GT_CELLS, read_RecF_ImpR
 
 REPO = ROOT.parent.parent

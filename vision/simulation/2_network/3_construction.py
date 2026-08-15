@@ -28,8 +28,8 @@ import torch
 
 import import_bootstrap  # noqa: F401
 from .connectivity import ScatterConn
-# Photoreceptor drive currents (pA) are injected by the caller
-# (``default_params.I_*``); this module has no numeric bindings.
+# Photoreceptor sti currents (pA) are injected by the caller
+# (``const_default.I_*``); this module has no numeric bindings.
 
 # Canonical cell order for figure layout / param broadcast (cell rows).
 # Leftovers (not listed) are appended alphabetically, five per row.
@@ -160,10 +160,10 @@ def active_gt_cells(
 
 def gt_cells_from_opts(opts) -> tuple[str, ...] | None:
     """``opts['gt_cells']`` as a tuple, or ``None`` if unset."""
-    rs = (opts or {}).get("gt_cells")
-    if rs is None:
+    gt_cells = (opts or {}).get("gt_cells")
+    if gt_cells is None:
         return None
-    return tuple(str(s) for s in rs)
+    return tuple(str(cell) for cell in gt_cells)
 
 
 def load_network_json(path) -> tuple[list[dict], list[dict], list[str], dict]:

@@ -5,7 +5,7 @@ Dynamics live in ``neuron.model_borst`` / ``neuron.model_hp_lp``.
 Shared full-T ``v`` forward is ``neuron.forward``; the unused Ca filter
 lives in ``neuron.filter_ca``; pack readout selection in
 ``neuron.readout``. The ``train`` package owns session, cost, and the
-CLI driver. Numeric defaults live in ``default_params``.
+CLI driver. Numeric defaults live in ``const_default``.
 """
 from __future__ import annotations
 
@@ -16,14 +16,12 @@ from neuron.param import (
     KNOWN_MODELS,
     e_h_rev,
     expand_euler,
-    membrane_dt_over_c,
     t_from_ms,
     t_abs_from_ms,
     ms_from_t,
 )
 from neuron.schema import (
-    SEGMENT_NAMES,
-    I_H_SHAPE_SEGMENT_NAMES,
+    I_H_SHAPE_PARAMS,
     SYN_MODES,
     build_borst_schema,
     build_hp_lp_schema,
@@ -31,7 +29,6 @@ from neuron.schema import (
     syn_strength,
 )
 from neuron import model_borst as _model_borst
-from neuron import model_hp_lp as _model_hp_lp
 from neuron.filter_ca import filter_ca
 from neuron.forward import (
     MODEL_DRIVERS,
@@ -55,19 +52,14 @@ from neuron.readout import (
 update_v = _model_borst.update_v
 v_component_from_g = _model_borst.v_component_from_g
 
-# --- hp_lp ---
-update_state_hp_lp = _model_hp_lp.update_state_hp_lp
-
 
 __all__ = [
     "KNOWN_MODELS",
-    "SEGMENT_NAMES",
-    "I_H_SHAPE_SEGMENT_NAMES",
+    "I_H_SHAPE_PARAMS",
     "SYN_MODES",
     "MODEL_DRIVERS",
     "CA_PACK_COST_TRACES",
     "e_h_rev",
-    "membrane_dt_over_c",
     "t_from_ms",
     "t_abs_from_ms",
     "ms_from_t",
@@ -77,7 +69,6 @@ __all__ = [
     "syn_strength",
     "update_v",
     "v_component_from_g",
-    "update_state_hp_lp",
     "filter_ca",
     "forward_full",
     "forward_nodes",

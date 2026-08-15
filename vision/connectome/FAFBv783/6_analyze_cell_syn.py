@@ -83,16 +83,6 @@ logger = logging.getLogger(__name__)
 _MAX_PARTNER_LIST = 5
 
 
-def _hex_disc_count(radius: int) -> int:
-    """Hex cells in a disc of axial radius ``radius`` (0 -> 1, 1 -> 7, 2 -> 19, …)."""
-    return 3 * radius * (radius + 1) + 1
-
-
-def _shell_hex_count(shell: int) -> int:
-    """Hex cells on shell ``shell`` (0 -> 1, 1 -> 6, 2 -> 12, …)."""
-    return 1 if shell == 0 else 6 * shell
-
-
 def family_from_cell_csv(json_path: Path) -> Dict[str, str]:
     """Map cell -> ``family`` from ``cell_counts_abc.csv`` for this network."""
     csv_path = resolve_cell_counts_abc_path(json_path)
@@ -714,11 +704,11 @@ def print_table(
 
     table_rows = [header] + rows + [sum_row]
     n_field = len(header)
-    widths = [max(len(r[field_idx]) for r in table_rows) for field_idx in range(n_field)]
+    ws = [max(len(r[field_idx]) for r in table_rows) for field_idx in range(n_field)]
 
     def _fmt(row: List[str]) -> str:
-        cells = [row[0].ljust(widths[0])]
-        cells += [row[field_idx].rjust(widths[field_idx]) for field_idx in range(1, n_field)]
+        cells = [row[0].ljust(ws[0])]
+        cells += [row[field_idx].rjust(ws[field_idx]) for field_idx in range(1, n_field)]
         return "  ".join(cells).rstrip()
 
     n_count_label = "n_source" if direction == "post" else "n_target"
@@ -739,10 +729,6 @@ def print_table(
     print()
 
 
-def _coord_close(a: float, b: float, tol: float = 1e-6) -> bool:
-    return abs(float(a) - float(b)) <= tol
-
-
 def instance_ids_on_xy_line(
     nodes: List[dict],
     *,
@@ -757,9 +743,9 @@ def instance_ids_on_xy_line(
         if node_uv_xy is None:
             continue
         _uv, (x, y) = node_uv_xy
-        if at_x is not None and not _coord_close(x, at_x, tol=tol):
+        if at_x is not None and abs(float(x) - float(at_x)) > tol:
             continue
-        if at_y is not None and not _coord_close(y, at_y, tol=tol):
+        if at_y is not None and abs(float(y) - float(at_y)) > tol:
             continue
         name = n.get("name")
         if not isinstance(name, str):
@@ -819,7 +805,7 @@ def resolve_xy_instance_ids(
             _format_table_scalar(at_ref_xy[1]),
             hu,
             hv,
-            sum(1 for s in ids_at_hex.values() if s),
+            sum(1 for ids in ids_at_hex.values() if ids),
         )
         return ids_at_hex, hex_note, at_ref_xy, True
 
@@ -835,7 +821,7 @@ def resolve_xy_instance_ids(
     logger.info(
         "Restricting to instances on %s; %d cells have ≥1 node there",
         ", ".join(parts),
-        sum(1 for s in ids_at_hex.values() if s),
+        sum(1 for ids in ids_at_hex.values() if ids),
     )
     return ids_at_hex, hex_note, None, False
 
@@ -1021,25 +1007,25 @@ def main(argv: List[str] | None = None) -> int:
 
     if args.radius is not None:
         ids_at_hex = _instance_ids_in_disc(nodes, args.radius)
-        n_hex = _hex_disc_count(args.radius)
+        n_hex = 3 * args.radius * (args.radius + 1) + 1
         hex_note += f" radius={args.radius} ({n_hex} hexes)"
         logger.info(
             "Restricting to central hex disc radius=%d (%d hexes); "
             "%d cells have ≥1 node there",
             args.radius,
             n_hex,
-            sum(1 for s in ids_at_hex.values() if s),
+            sum(1 for ids in ids_at_hex.values() if ids),
         )
     elif args.shell is not None:
         ids_at_hex = _instance_ids_on_shell(nodes, args.shell)
-        n_hex = _shell_hex_count(args.shell)
+        n_hex = 1 if args.shell == 0 else 6 * args.shell
         hex_note += f" shell={args.shell} ({n_hex} hexes)"
         logger.info(
             "Restricting to hex shell=%d (%d hexes); "
             "%d cells have ≥1 node there",
             args.shell,
             n_hex,
-            sum(1 for s in ids_at_hex.values() if s),
+            sum(1 for ids in ids_at_hex.values() if ids),
         )
     elif has_uv_filter:
         if single_uv_hex:
@@ -1060,7 +1046,7 @@ def main(argv: List[str] | None = None) -> int:
                 hv,
                 _format_table_scalar(hx),
                 _format_table_scalar(hy),
-                sum(1 for s in ids_at_hex.values() if s),
+                sum(1 for ids in ids_at_hex.values() if ids),
             )
         else:
             ids_at_hex = _instance_ids_on_uv_line(nodes, at_u=at_u, at_v=at_v)
@@ -1076,7 +1062,7 @@ def main(argv: List[str] | None = None) -> int:
             logger.info(
                 "Restricting to instances on %s; %d cells have ≥1 node there",
                 ", ".join(parts),
-                sum(1 for s in ids_at_hex.values() if s),
+                sum(1 for ids in ids_at_hex.values() if ids),
             )
     elif has_xy_filter:
         try:

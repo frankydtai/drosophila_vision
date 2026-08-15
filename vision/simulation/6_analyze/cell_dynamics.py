@@ -1,8 +1,8 @@
 from __future__ import annotations
 
-from default_params import (
+from const_default import (
     RUN_PATH,
-    NEURON_PARAM,
+    NEURON_CONST,
     NEURON_SCHEMA,
     TRAIN_CONFIG,
     TRAIN_OPTIMIZATION,
@@ -26,11 +26,11 @@ os.chdir(ROOT)
 
 import import_bootstrap  # noqa: F401
 import train
-from default_params import RUN_PATH
+from const_default import RUN_PATH
 import figure.plot as plot
 from figure.gt import contrast_from_task
 from figure.spot import pack_spot_cost_radii, resolve_spot_gts
-from figure.util import (
+from figure.panel import (
     filter_figure_token,
     gt_affine_from_cell,
     plot_std_band,
@@ -38,7 +38,7 @@ from figure.util import (
 )
 from import_bootstrap import parse_bool, parse_comma_list
 from neuron.filter_ca import filter_ca
-from neuron.schema import optimizable_scalar
+from neuron.schema import param_scalar
 from network.construction import hex2gt
 from task.moving_bar.pack import (
     bar_specs_from_task,
@@ -124,7 +124,7 @@ Per ``--run``: one ``load_best``; one v component forward over bs per distinct t
   ``v_post`` or ``ca`` respectively (not the analyze ``--filter``). Per-t step
   table prints only when ``--plot false``. With analyze ``filter=ca``, the first
   three table columns are ``ca`` / ``ca_pre`` / ``ca_post_minus_pre``
-  (else ``v_post`` / ``v_pre`` / ``v_post_minus_pre``); membrane component
+  (else ``v_post`` / ``v_pre`` / ``v_post_minus_pre``); component
   columns stay ``v_*``.
 ``--radius 0|1``: spot average hex-lattice readout radius (default 0 = sti-on hex; 1 = neighbors).
   Average only; PNGs for ``--radius 1`` get ``_radius1`` in the filename.
@@ -134,7 +134,7 @@ Per ``--run``: one ``load_best``; one v component forward over bs per distinct t
   NODE → ``_``; no NODE when omitted / ``all``) to PNG stems, in CLI order,
   after timing suffixes.
 
-``--euler im|ex``: optional membrane Euler (default: keep run
+``--euler im|ex``: optional Euler (default: keep run
 ``train_opts.euler``). Re-opens the session with timing tokens when set;
 PNG stem gets ``_im`` / ``_ex``. Component formula rows follow
 implicit vs explicit.
@@ -442,14 +442,14 @@ _HP_LP_COMPONENT_FROM_SERIES: dict[str, str | None] = {
 _BORST_FORMULA_G_IMPLICIT: list[tuple[str, str | None]] = [
     ("v_post", "v_post"),
     (" = (v_pre + ", None),
-    ("dt_over_c", None), ("·(i_sti + ", None),
+    ("dt_over_cap", None), ("·(i_sti + ", None),
     ("e_exc·", None), ("g_exc", "g_exc"), (" + ", None),
     ("e_inh·", None), ("g_inh", "g_inh"), (" + ", None),
     ("E_leak·", None), ("g_leak", "g_leak"), (" + ", None),
     ("E_h·", None), ("g_h", "g_h"), (" + ", None),
     ("E_h_rev·", None), ("g_h_rev", "g_h_rev"),
     (")) / (1 + ", None),
-    ("dt_over_c", None), ("·(", None),
+    ("dt_over_cap", None), ("·(", None),
     ("g_exc", "g_exc"), (" + ", None),
     ("g_inh", "g_inh"), (" + ", None),
     ("g_h", "g_h"), (" + ", None),
@@ -462,7 +462,7 @@ _BORST_FORMULA_I_IMPLICIT: list[tuple[str, str | None]] = [
     ("v_post", "v_post"),
     (" = (", None),
     ("num_v", "num_v"), (" + ", None),
-    ("dt_over_c", None), ("·(", None),
+    ("dt_over_cap", None), ("·(", None),
     ("i_sti", "i_sti"), (" + ", None),
     ("i_exc", "i_exc"), (" + ", None),
     ("i_inh", "i_inh"), (" + ", None),
@@ -477,7 +477,7 @@ _BORST_FORMULA_I_IMPLICIT: list[tuple[str, str | None]] = [
 _BORST_FORMULA_G_EXPLICIT: list[tuple[str, str | None]] = [
     ("v_post", "v_post"),
     (" = v_pre + ", None),
-    ("dt_over_c", None), ("·(i_sti + ", None),
+    ("dt_over_cap", None), ("·(i_sti + ", None),
     ("e_exc·", None), ("g_exc", "g_exc"), (" + ", None),
     ("e_inh·", None), ("g_inh", "g_inh"), (" + ", None),
     ("E_leak·", None), ("g_leak", "g_leak"), (" + ", None),
@@ -496,7 +496,7 @@ _BORST_FORMULA_I_EXPLICIT: list[tuple[str, str | None]] = [
     ("v_post", "v_post"),
     (" = ", None),
     ("num_v", "num_v"), (" + ", None),
-    ("dt_over_c", None), ("·(", None),
+    ("dt_over_cap", None), ("·(", None),
     ("i_sti", "i_sti"), (" + ", None),
     ("i_exc", "i_exc"), (" + ", None),
     ("i_inh", "i_inh"), (" + ", None),
@@ -647,10 +647,10 @@ def _plot_trace_colors(colors: list[str], layout: _ComponentLayout) -> dict[str,
     return out
 
 
-def _g_e_note(label: str, *, e_leak_mV: float, globs: dict[str, Any], params: dict[str, Any] | None = None) -> str | None:
+def _g_e_note(label: str, *, e_leak: float, globs: dict[str, Any], params: dict[str, Any] | None = None) -> str | None:
     """Reversal annotation for a conductance subplot (``e_exc=+10 mV`` …)."""
     if label == "g_leak":
-        return f"E_leak={e_leak_mV:+g} mV"
+        return f"E_leak={e_leak:+g} mV"
     notes = {
         "g_exc": "e_exc",
         "g_inh": "e_inh",
@@ -855,7 +855,7 @@ def _sums_dict_from_vec(vec: np.ndarray, components: tuple[str, ...]) -> dict[st
 
 
 def _std_from_sum_and_sum_sq(sum_: float, sum_sq: float, n_nodes: int) -> float:
-    """Match ``figure.util.std_from_traces`` (population std)."""
+    """Match ``figure.panel.std_from_traces`` (population std)."""
     if n_nodes <= 1:
         return 0.0
     mean = sum_ / n_nodes
@@ -891,7 +891,7 @@ def _step_from_sums(
     n_nodes: int,
     layout: _ComponentLayout,
     g_leak: float = 0.0,
-    dt_over_c: float = 0.0,
+    dt_over_cap: float = 0.0,
 ) -> dict[str, Any]:
     """One step dict from per-component sums over ``n_nodes`` nodes."""
     if n_nodes <= 0:
@@ -914,7 +914,7 @@ def _step_from_sums(
             "g_exc_nS": sums["g_exc"] / n_nodes,
             "g_inh_nS": sums["g_inh"] / n_nodes,
             "g_leak_nS": float(g_leak),
-            "dt_over_c": float(dt_over_c),
+            "dt_over_cap": float(dt_over_cap),
             "g_h_nS": sums["g_h"] / n_nodes,
             "g_h_rev_nS": sums["g_h_rev"] / n_nodes,
             "num_exc": sums["num_exc"] / n_nodes,
@@ -1215,8 +1215,9 @@ def _finalize_component_report(
     # Peak on |v_post_d| (= |v_post − v_onset| = |v_pre_d + v_post_minus_pre|).
     v_post_d = _v_post_d_from_sums(sums, v_post_minus_pre_sums, n_nodes, component_layout)
     n_t = int(v_post_d.size)
+    dt = float(session.delta_ms)
+    dt_over_cap = dt / float(session.cap)
     if time_window.kind == "ms":
-        dt = float(session.delta_ms)
         t_lo = train.t_from_ms(time_window.start, delta_ms=dt)
         t_hi = train.t_from_ms(time_window.stop, delta_ms=dt)
         if t_lo < 0 or t_hi >= n_t or t_lo > t_hi:
@@ -1251,7 +1252,7 @@ def _finalize_component_report(
             n_nodes=n_nodes_at_t,
             layout=component_layout,
             g_leak=float(session.g_leak),
-            dt_over_c=float(train.membrane_dt_over_c(session.cap, session.delta_ms)),
+            dt_over_cap=dt_over_cap,
         )
         if v_ca_sums is not None:
             step["v_ca"] = float(v_ca_sums[t] / n_nodes_at_t)
@@ -1371,7 +1372,7 @@ def _node_params(params, session, node: int) -> dict[str, float]:
             "v_th": float(params["v_th"][node]),
             "a_gt": a_gt,
             "bias_gt": bias_gt,
-            "e_leak_mV": float(params["e_leak"][node]),
+            "e_leak": float(params["e_leak"][node]),
             "tau_lp_ms": float(params["tau_lp"][node]),
             "tau_hp_rise_ms": float(params["tau_hp_rise"][node]),
             "tau_hp_fall_ms": float(params["tau_hp_fall"][node]),
@@ -1387,7 +1388,7 @@ def _node_params(params, session, node: int) -> dict[str, float]:
         "h_g_max": float(session.h_g_max),
         "a_h": float(params["a_h"][node]),
         "a_h_rev": float(params["a_h_rev"][node]),
-        "e_leak_mV": e_leak,
+        "e_leak": e_leak,
         "e_h_rev": float(train.e_h_rev(e_leak, session.e_h)),
     }
 
@@ -1395,9 +1396,10 @@ def _node_params(params, session, node: int) -> dict[str, float]:
 def _globals(session):
     pack = session.primary_pack
     t_onset = train.pack_t_onset(pack)
+    dt = float(session.delta_ms)
     if session.model == "hp_lp":
         return {
-            "delta_ms": float(session.delta_ms),
+            "delta_ms": dt,
             "state_clamp": float(session.state_clamp),
             "g_leak_nS": float(session.g_leak),
             "euler": str(session.euler),
@@ -1408,8 +1410,8 @@ def _globals(session):
         "e_inh": float(session.e_inh),
         "e_h": float(session.e_h),
         "g_leak_nS": float(session.g_leak),
-        "dt_over_c": float(train.membrane_dt_over_c(session.cap, session.delta_ms)),
-        "delta_ms": float(session.delta_ms),
+        "dt_over_cap": dt / float(session.cap),
+        "delta_ms": dt,
         "euler": str(session.euler),
         "t_onset": t_onset,
     }
@@ -1848,11 +1850,6 @@ def _spot_session_readout(session_one, cells: list[str]):
     return pack, bs, node_idx, radii, type_idx, idx_from_cell
 
 
-def _spot_radius_entry_mask(radii: np.ndarray, radius: int) -> np.ndarray:
-    """True for cost-readout entries at hex-lattice ``radius``."""
-    return np.asarray(radii, dtype=np.int64) == int(radius)
-
-
 def _spot_gt_extra(
     *,
     cell: str,
@@ -1898,8 +1895,8 @@ def _spot_extra_from_cell(
     ).get(contrast) or {}
     opts = session_one.train_opts or {}
     from_onset = train.val_from_enabled(opts, "bias_gt")
-    lo = optimizable_scalar("bias_gt", "lo", NEURON_SCHEMA['optimizable'])
-    hi = optimizable_scalar("bias_gt", "hi", NEURON_SCHEMA['optimizable'])
+    lo = param_scalar("bias_gt", "lo", NEURON_SCHEMA['params'])
+    hi = param_scalar("bias_gt", "hi", NEURON_SCHEMA['params'])
     cells = [str(cell) for cell in session_one.backend.network.cells]
 
     def extra_from_cell(
@@ -1958,7 +1955,7 @@ def analyze_spot_average(
     pack, bs, node_idx, radii, type_idx, idx_from_cell = _spot_session_readout(
         session_one, cells,
     )
-    radius_entry_mask = _spot_radius_entry_mask(radii, radius)
+    radius_entry_mask = np.asarray(radii, dtype=np.int64) == int(radius)
     t_onset = train.pack_t_onset(pack)
 
     i_sti = pack.i_sti if pack.i_sti.dim() == 3 else pack.i_sti.unsqueeze(0)
@@ -2081,7 +2078,7 @@ def analyze_spot_hex(
     pack, bs, node_idx, radii, type_idx, idx_from_cell = _spot_session_readout(
         session_one, [cell],
     )
-    radius_entry_mask = _spot_radius_entry_mask(radii, 0)
+    radius_entry_mask = np.asarray(radii, dtype=np.int64) == 0
     hex, node = _resolve_hex_node(
         session_one, cell, at_x=at_x, at_y=at_y,
         cost_radius=pack.cost_radius, node=node,
@@ -2197,7 +2194,7 @@ def analyze_bar_hex(
 
 
 def _figure_filename(report: dict[str, Any], *, file_suffix: str = "", html: bool = False) -> str:
-    from figure.util import figure_file_ext
+    from figure.panel import figure_file_ext
 
     filter_token = str(report.get("filter") or "v")
     parts = [report["cell"], report["task"], filter_token, report.get("mode", "average")]
@@ -2215,7 +2212,7 @@ def _figure_filename(report: dict[str, Any], *, file_suffix: str = "", html: boo
 def _compare_figure_filename(
     reports: list[dict[str, Any]], *, file_suffix: str = "", html: bool = False,
 ) -> str:
-    from figure.util import figure_file_ext
+    from figure.panel import figure_file_ext
 
     first_report = reports[0]
     filter_token = str(first_report.get("filter") or "v")
@@ -2232,7 +2229,7 @@ def _component_figure(title: str, layout: _ComponentLayout):
 
     matplotlib.use("Agg")
     import matplotlib.pyplot as plt
-    from figure.util import save_figure
+    from figure.panel import save_figure
 
     n_row, n_col = len(layout.plot_panels), layout.n_col
     fig, axes = plt.subplots(
@@ -2357,10 +2354,10 @@ def _plot_component_reports(
     colors = plt.rcParams["axes.prop_cycle"].by_key()["color"]
     linestyles = ("-", "--", "-.", ":")
     multi_report = len(reports) > 1
-    e_leak_mV = float(reports[0].get("params", {}).get("e_leak_mV", 0.0))
+    e_leak = float(reports[0].get("params", {}).get("e_leak", 0.0))
     globs = reports[0].get("globals") or {}
     params0 = reports[0].get("params") or {}
-    delta_ms = float(globs.get("delta_ms", train.NEURON_PARAM['delta_ms']))
+    delta_ms = float(globs.get("delta_ms", train.NEURON_CONST['delta_ms']))
     row_curves: dict[int, list[np.ndarray]] = {
         row_idx: [] for row_idx in layout.row_shared_ylim
     }
@@ -2423,7 +2420,7 @@ def _plot_component_reports(
                             label="gt" if (show_legend or not multi_report) else "_nolegend_",
                         )
                         drew_gt = True
-            e_note = _g_e_note(label, e_leak_mV=e_leak_mV, globs=globs, params=params0)
+            e_note = _g_e_note(label, e_leak=e_leak, globs=globs, params=params0)
             if e_note is not None:
                 ax.set_title(e_note, fontsize=8)
             _style_component_ax(
@@ -2577,16 +2574,16 @@ def _print_report(report: dict[str, Any], *, print_steps: bool = True) -> None:
     peak_step = report.get("peak_step")
     if peak_step is not None:
         num = float(peak_step["num"])
-        dt_over_c = float(peak_step.get("dt_over_c", 0.0))
+        dt_over_cap = float(peak_step.get("dt_over_cap", 0.0))
         print(f"\nNumerator at peak {x_tok}={peak_step[x_tok]} (num={num:.2f}):")
         for name, val in [
             ("num_v", peak_step["num_v"]),
-            ("dt_over_c*i_sti", dt_over_c * peak_step["i_sti"]),
-            ("dt_over_c*i_exc", dt_over_c * peak_step["num_exc"]),
-            ("dt_over_c*i_inh", dt_over_c * peak_step["num_inh"]),
-            ("dt_over_c*i_leak", dt_over_c * peak_step["num_leak"]),
-            ("dt_over_c*i_h", dt_over_c * peak_step["num_i_h"]),
-            ("dt_over_c*i_h_rev", dt_over_c * peak_step["num_i_h_rev"]),
+            ("dt_over_cap*i_sti", dt_over_cap * peak_step["i_sti"]),
+            ("dt_over_cap*i_exc", dt_over_cap * peak_step["num_exc"]),
+            ("dt_over_cap*i_inh", dt_over_cap * peak_step["num_inh"]),
+            ("dt_over_cap*i_leak", dt_over_cap * peak_step["num_leak"]),
+            ("dt_over_cap*i_h", dt_over_cap * peak_step["num_i_h"]),
+            ("dt_over_cap*i_h_rev", dt_over_cap * peak_step["num_i_h_rev"]),
         ]:
             pct = 100.0 * val / num if num else 0.0
             print(f"  {name:20s} {val:+9.2f} ({pct:.0f}%)")
@@ -2760,7 +2757,7 @@ def main() -> None:
         ms_range = None  # default: 0 .. last sample
         use_ms = True
 
-    param_inits = plot.parse_optimizable_param_tokens(args.param)
+    param_inits, param_vals, param_bounds = plot.parse_param_init_val_tokens(args.param)
 
     for run_idx, run_arg in enumerate(args.run):
         run_dir = plot.resolve_run_dir(run_arg)
@@ -2785,7 +2782,7 @@ def main() -> None:
                 **timing_changed,
             )
             + plot.euler_filename_suffix(args.euler)
-            + plot.param_filename_suffix(param_inits)
+            + plot.param_filename_suffix(param_inits=param_inits, param_vals=param_vals)
         )
         if use_ms:
             lo, hi = (
@@ -2793,20 +2790,21 @@ def main() -> None:
                 if ms_range is None else ms_range
             )
             time_window = TimeWindow(kind="ms", start=lo, stop=hi)
-        schema = list(session.schema)
-        z_t = torch.tensor(
+        schema = train.schema_copy(session.schema)
+        z = torch.tensor(
             np.asarray(z, dtype=np.float64),
             dtype=session.sim_dtype,
             device=session.device,
         )
-        z_t, schema = plot.override_params(
-            z_t, schema, session, param_inits,
+        z, schema = plot.override_params(
+            z, schema, session,
+            param_vals=param_vals, param_inits=param_inits, param_bounds=param_bounds,
         )
         session = session.with_schema(schema)
         params = train.override_val_from(
-            train.assign_params(z_t, schema, session.backend), session,
+            train.assign_params(z, schema, session.backend), session,
         )
-        cost = float(train.calc_cost(z_t, session).item())
+        cost = float(train.calc_cost(z, session).item())
 
         spot_session_cache: dict[str, object] = {}
         bar_meta_cache: dict[str, tuple] = {}

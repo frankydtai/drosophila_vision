@@ -2,22 +2,22 @@
 """Borst neuron + i_h (``--model borst``).
 
 Dynamics only: ``standardize_i_sti`` / ``pre_steady`` / ``step``. Full-T Ca
-forward lives in ``neuron.forward``. Membrane scalars are injected kwargs
+forward lives in ``neuron.forward``. Scalars are injected kwargs
 (from ``session`` flat fields), never nested under Physics.
 
-t=0 membrane state uses ``session.pre_steady`` (``--pre-steady …``):
+t=0 state uses ``session.pre_steady`` (``--pre-steady …``):
 
 * ``probe``: ``g_syn`` from ``v=e_leak``, ``u/u_rev=0``, then ohmic
-  ``v = (i_sti + Σ gE) / Σ g``
+  ``v = (i_sti + Σ g·e) / Σ g``
 * ``solve``: fixed-iter under-relaxed DC map with i_h at ``ss(v)``;
   uses ``session.pre_steady_iters`` / ``session.pre_steady_damp``
 
-Membrane Euler (``session.euler`` = ``implicit`` | ``explicit``):
+Euler (``session.euler`` = ``implicit`` | ``explicit``):
 
-    C dv/dt = i_sti + Σ g_i (E_i − v)
+    cap dv/dt = i_sti + Σ g_i (E_i − v)
 
-    implicit:  v ← (v + α (i_sti + Σ gE)) / (1 + α Σ g),  α = Δt/C
-    explicit:  v ← v + α (i_sti + Σ gE − Σ g · v)
+    implicit:  v ← (v + α (i_sti + Σ g·e)) / (1 + α Σ g),  α = Δt/cap
+    explicit:  v ← v + α (i_sti + Σ g·e − Σ g · v)
 
 i_h gate kinetics are always explicit Euler, independent of ``euler``.
 
@@ -28,7 +28,7 @@ from __future__ import annotations
 
 import torch
 
-from neuron.param import e_h_rev as calc_e_h_rev, expand_euler, membrane_dt_over_c
+from neuron.param import e_h_rev as calc_e_h_rev, expand_euler
 from neuron.schema import syn_strength
 
 
@@ -52,25 +52,17 @@ def _i_h_gate_step(
 ):
     """Advance i_h gate states and channel conductances for masked hexes only.
 
-    Gate ODE uses explicit Euler regardless of membrane ``euler``.
+    Gate ODE uses explicit Euler regardless of ``euler``.
     """
     i_h_ss = _gate_ss(v, v_mid_h_g, h_slope)
     i_h_ss_rev = _gate_ss(v, v_mid_h_g_rev, -h_slope_rev)
     dt = float(delta_ms)
-    u = dt / _i_h_tau(v, v_mid_h_tau) * (i_h_ss - u) + u
-    u_rev = dt / _i_h_tau(v, v_mid_h_tau_rev) * (i_h_ss_rev - u_rev) + u_rev
+    dt_over_tau_h = dt / _i_h_tau(v, v_mid_h_tau)
+    dt_over_tau_h_rev = dt / _i_h_tau(v, v_mid_h_tau_rev)
+    u = dt_over_tau_h * (i_h_ss - u) + u
+    u_rev = dt_over_tau_h_rev * (i_h_ss_rev - u_rev) + u_rev
     gmax = float(h_g_max)
     return u, u_rev, u * gmax * a_h, u_rev * gmax * a_h_rev
-
-
-def _sum_gE_g(g_exc, g_inh, g_h, g_h_rev, e_leak, *, e_exc, e_inh, e_h, g_leak):
-    e_hr = calc_e_h_rev(e_leak, e_h)
-    sum_gE = (
-        g_exc * e_exc + g_inh * e_inh + g_leak * e_leak
-        + e_h * g_h + e_hr * g_h_rev
-    )
-    sum_g = g_exc + g_inh + g_h + g_h_rev + g_leak
-    return sum_gE, sum_g
 
 
 def update_v(
@@ -87,7 +79,7 @@ def update_v(
     euler: str,
     return_component: bool = False,
 ):
-    """One borst step; membrane / reversal scalars are required kwargs."""
+    """One borst step; reversal / cap scalars are required kwargs."""
     euler = expand_euler(euler)
     conn = backend.conn
     i_h_mask = (a_h + a_h_rev) != 0
@@ -118,19 +110,22 @@ def update_v(
             g_h_rev[:, idx] = g_rev_a.to(dtype=g_h_rev.dtype)
 
     v_out = torch.relu(v - v_th) * a_out
-    g_exc, g_inh = conn.exc_inh_drive(v_out, syn_strength)
+    g_exc, g_inh = conn.exc_inh_g(v_out, syn_strength)
     g_exc = g_exc * a_in
     g_inh = g_inh * a_in
 
-    dt_over_c = membrane_dt_over_c(cap, delta_ms)
-    sum_gE, sum_g = _sum_gE_g(
-        g_exc, g_inh, g_h, g_h_rev, e_leak,
-        e_exc=e_exc, e_inh=e_inh, e_h=e_h, g_leak=g_leak,
+    dt = float(delta_ms)
+    dt_over_cap = dt / cap
+    e_h_rev = calc_e_h_rev(e_leak, e_h)
+    sum_g_e = (
+        g_exc * e_exc + g_inh * e_inh + g_leak * e_leak
+        + e_h * g_h + e_h_rev * g_h_rev
     )
+    sum_g = g_exc + g_inh + g_h + g_h_rev + g_leak
     if euler == "implicit":
-        v = (v + dt_over_c * (i_sti + sum_gE)) / (1.0 + dt_over_c * sum_g)
+        v = (v + dt_over_cap * (i_sti + sum_g_e)) / (1.0 + dt_over_cap * sum_g)
     else:
-        v = v + dt_over_c * (i_sti + sum_gE - sum_g * v)
+        v = v + dt_over_cap * (i_sti + sum_g_e - sum_g * v)
 
     if return_component:
         return v, u, u_rev, g_exc, g_inh, g_h, g_h_rev
@@ -149,23 +144,24 @@ def v_component_from_g(
 ):
     """Numerator / denom terms matching ``update_v`` (torch or numpy)."""
     euler = expand_euler(euler)
-    dt_over_c = membrane_dt_over_c(cap, delta_ms)
-    e_hr = calc_e_h_rev(e_leak, e_h)
+    dt = float(delta_ms)
+    dt_over_cap = dt / cap
+    e_h_rev = calc_e_h_rev(e_leak, e_h)
     num_exc = g_exc * e_exc
     num_inh = g_inh * e_inh
     num_leak = g_leak * e_leak
     num_i_h = g_h * e_h
-    num_i_h_rev = g_h_rev * e_hr
-    sum_gE = num_exc + num_inh + num_leak + num_i_h + num_i_h_rev
+    num_i_h_rev = g_h_rev * e_h_rev
+    sum_g_e = num_exc + num_inh + num_leak + num_i_h + num_i_h_rev
     sum_g = g_exc + g_inh + g_h + g_h_rev + g_leak
     if euler == "implicit":
-        num = v_pre + dt_over_c * (i_sti + sum_gE)
-        den = 1.0 + dt_over_c * sum_g
+        num = v_pre + dt_over_cap * (i_sti + sum_g_e)
+        den = 1.0 + dt_over_cap * sum_g
         num_v = v_pre
     else:
-        num = v_pre + dt_over_c * (i_sti + sum_gE - sum_g * v_pre)
+        num = v_pre + dt_over_cap * (i_sti + sum_g_e - sum_g * v_pre)
         den = 1.0
-        num_v = v_pre * (1.0 - dt_over_c * sum_g)
+        num_v = v_pre * (1.0 - dt_over_cap * sum_g)
     return {
         "num_exc": num_exc,
         "num_inh": num_inh,
@@ -174,16 +170,16 @@ def v_component_from_g(
         "num_i_h_rev": num_i_h_rev,
         "num_v": num_v,
         "i_sti": i_sti,
-        "sum_gE": sum_gE,
+        "sum_g_e": sum_g_e,
         "sum_g": sum_g,
-        "dt_over_c": dt_over_c,
+        "dt_over_cap": dt_over_cap,
         "num": num,
         "den": den,
     }
 
 
 def standardize_i_sti(session, params, i_sti, pack):
-    """Sti current ``(B, T, N)`` as membrane drive (no rescale)."""
+    """Sti current ``(B, T, N)`` (no rescale)."""
     del params, pack
     return i_sti.unsqueeze(0) if i_sti.dim() == 2 else i_sti
 
@@ -202,26 +198,26 @@ def _i_h_ss(v, a_h, a_h_rev, v_mid_h_g, h_slope, v_mid_h_g_rev, h_slope_rev, *, 
 
 
 def _ohmic_v(i0, g_exc, g_inh, g_h, g_h_rev, e_leak, session):
-    """``v★ = (i + Σ gE) / Σ g`` for frozen conductances."""
-    sum_gE, sum_g = _sum_gE_g(
-        g_exc, g_inh, g_h, g_h_rev, e_leak,
-        e_exc=float(session.e_exc),
-        e_inh=float(session.e_inh),
-        e_h=float(session.e_h),
-        g_leak=float(session.g_leak),
+    """``v_dc = (i + Σ g·e) / Σ g`` for frozen conductances."""
+    e_exc = float(session.e_exc)
+    e_inh = float(session.e_inh)
+    e_h = float(session.e_h)
+    g_leak = float(session.g_leak)
+    e_h_rev = calc_e_h_rev(e_leak, e_h)
+    sum_g_e = (
+        g_exc * e_exc + g_inh * e_inh + g_leak * e_leak
+        + e_h * g_h + e_h_rev * g_h_rev
     )
-    return (i0 + sum_gE) / sum_g
+    sum_g = g_exc + g_inh + g_h + g_h_rev + g_leak
+    return (i0 + sum_g_e) / sum_g
 
 
-def _syn_g(v, params, backend):
+def v_dc_from_v(v, params, i0, e_leak, session, *, with_i_h_ss: bool):
+    """One DC map step: ohmic ``v_dc`` from ``g`` at ``v`` (+ i_h ``ss(v)`` if asked)."""
     v_out = torch.relu(v - params["v_th"]) * params["a_out"]
-    g_exc, g_inh = backend.conn.exc_inh_drive(v_out, syn_strength(params))
-    return g_exc * params["a_in"], g_inh * params["a_in"]
-
-
-def _dc_v_star(v, params, i0, e_leak, session, *, with_i_h_ss: bool):
-    """One DC map step: ohmic ``v★`` from ``g_syn(v)`` (+ i_h ``ss(v)`` if asked)."""
-    g_exc, g_inh = _syn_g(v, params, session.backend)
+    g_exc, g_inh = session.backend.conn.exc_inh_g(v_out, syn_strength(params))
+    g_exc = g_exc * params["a_in"]
+    g_inh = g_inh * params["a_in"]
     if with_i_h_ss:
         u, u_rev, g_h, g_h_rev = _i_h_ss(
             v, params["a_h"], params["a_h_rev"],
@@ -247,13 +243,13 @@ def pre_steady(session, params, n_b, i_sti=None):
     v = e_leak.expand(n_b, session.backend.n_nodes).clone()
     i0 = i_sti[:, 0, :]
     if pre_steady == "probe":
-        v_star, u, u_rev = _dc_v_star(v, params, i0, e_leak, session, with_i_h_ss=False)
-        return (u, u_rev), v_star
+        v_dc, u, u_rev = v_dc_from_v(v, params, i0, e_leak, session, with_i_h_ss=False)
+        return (u, u_rev), v_dc
     damp = float(session.pre_steady_damp)
     for _ in range(int(session.pre_steady_iters)):
-        v_star, _, _ = _dc_v_star(v, params, i0, e_leak, session, with_i_h_ss=True)
-        v = v + damp * (v_star - v)
-    _, u, u_rev = _dc_v_star(v, params, i0, e_leak, session, with_i_h_ss=True)
+        v_dc, _, _ = v_dc_from_v(v, params, i0, e_leak, session, with_i_h_ss=True)
+        v = v + damp * (v_dc - v)
+    _, u, u_rev = v_dc_from_v(v, params, i0, e_leak, session, with_i_h_ss=True)
     return (u, u_rev), v
 
 

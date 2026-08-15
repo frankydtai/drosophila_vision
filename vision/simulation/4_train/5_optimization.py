@@ -345,7 +345,7 @@ def do_many_runs(session: TrainSession, n_run, n_iter, lrs=(0.1, 0.01, 0.001),
                  z_init=None, opt_init=None, checkpoint_interval=None, checkpoint_outdir=None,
                  build_checkpoint_callback=None, checkpoint_on_png=None) -> TrainResult:
     """Run ``n_run`` independent runs; return arrays (no file I/O)."""
-    schema = list(session.schema)
+    schema = train.schema_copy(session.schema)
     n_params = schema_nparams(schema)
     bounds = schema_bounds(schema, session.sim_dtype)
 

@@ -3,8 +3,8 @@
 
 Interface (:class:`ScatterConn`):
 
-    conn.exc_inh_drive(v_out, syn_strength) -> (g_exc, g_inh)
-    conn.signed_drive(v_out, syn_strength)  -> g_signed
+    conn.exc_inh_g(v_out, syn_strength) -> (g_exc, g_inh)
+    conn.signed_g(v_out, syn_strength)  -> g_signed
     conn.n_nodes
     conn.node_cells
 
@@ -51,7 +51,7 @@ class ScatterConn:
 
     Built from parallel arrays describing directed synaptic edges ``source ->
     target`` with a signed weight ``edge_weights`` (``syn_sign * n_syn`` for per_cell,
-    ``syn_sign`` for per_edge). Excitatory and inhibitory drives are accumulated with
+    ``syn_sign`` for per_edge). Excitatory and inhibitory ``g`` are accumulated with
     ``scatter_add_`` onto target nodes. ``syn_strength`` is either type-pair
     ``syn_strength_cell[pair_indices[e]]`` or per-edge ``syn_strength_edge[e]``.
     """
@@ -114,7 +114,7 @@ class ScatterConn:
     def _pre_edges(self, v_out: torch.Tensor, syn_strength: torch.Tensor):
         return self._gather(v_out), self._edge_syn_strength(syn_strength)
 
-    def exc_inh_drive(
+    def exc_inh_g(
         self, v_out: torch.Tensor, syn_strength: torch.Tensor
     ) -> tuple[torch.Tensor, torch.Tensor]:
         xs, syn_strength = self._pre_edges(v_out, syn_strength)
@@ -123,6 +123,6 @@ class ScatterConn:
             self._accumulate_on_target(xs * self.w_inh * syn_strength),
         )
 
-    def signed_drive(self, v_out: torch.Tensor, syn_strength: torch.Tensor) -> torch.Tensor:
+    def signed_g(self, v_out: torch.Tensor, syn_strength: torch.Tensor) -> torch.Tensor:
         xs, syn_strength = self._pre_edges(v_out, syn_strength)
         return self._accumulate_on_target(xs * self.w_signed * syn_strength)

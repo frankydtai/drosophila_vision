@@ -27,7 +27,7 @@ import numpy as np
 
 import FiveCol_MedSim_Pytorch as fc
 from import_bootstrap import parse_comma_list
-from default_params import P
+from const_default import P
 from training_config import DELTA_MS
 
 DEFAULT_SAVE = os.path.join(HERE, "h_curves.png")
@@ -212,7 +212,7 @@ def plot_static_curves(args, midv, slope, tau_mid, midv_off, slope_off, tau_mid_
     ax.legend(fontsize=8, loc="best")
     ax.grid(True, alpha=0.3)
 
-    fig.suptitle("conductance Ih (default_params init)", fontsize=11)
+    fig.suptitle("conductance Ih (const_default init)", fontsize=11)
     return fig
 
 

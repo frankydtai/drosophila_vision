@@ -11,7 +11,7 @@ For each of the 13 gt cells:
 
 - ``gt_ca`` = ``GT_AMP * (ImpR_ca − impr_offset)`` with ``filter=ca`` (Arenz digitized)
 
-Default ``v_th_ca`` / ``a_ca`` / ``tau_ca`` from ``NEURON_SCHEMA['optimizable']`` val;
+Default ``v_th_ca`` / ``a_ca`` / ``tau_ca`` from ``NEURON_SCHEMA['params']`` val;
 ``impr_offset`` default ``0``. Writes two PNGs: full overlay, and ``ca``
 τ_ca sweep (100, 350, 500, 1000 ms) vs ``gt_ca``.
 
@@ -36,11 +36,11 @@ import import_bootstrap  # noqa: F401
 import matplotlib.pyplot as plt
 import numpy as np
 
-from figure.util import TRACE_LW, save_figure
+from figure.panel import TRACE_LW, save_figure
 from import_bootstrap import parse_comma_list
 from network.construction import cell_order_rows
 from neuron.filter_ca import filter_ca
-from default_params import (
+from const_default import (
     GT_AMP,
     DELTA_MS,
     DELTA_MS_PRE,
@@ -54,10 +54,10 @@ from task.spot.input import spot_timing_t
 
 DEFAULT_SAVE = os.path.join(HERE, "filter_ca.png")
 DEFAULT_SAVE_TAU_SWEEP = os.path.join(HERE, "filter_ca_tau_sweep.png")
-_OPTIMIZABLE = NEURON_SCHEMA['optimizable']
-TAU_CA = float(_OPTIMIZABLE["tau_ca"]["val"])
-A_CA = float(_OPTIMIZABLE["a_ca"]["val"])
-V_TH_CA = float(_OPTIMIZABLE["v_th_ca"]["val"])
+_PARAMS = NEURON_SCHEMA['params']
+TAU_CA = float(_PARAMS["tau_ca"]["init"])
+A_CA = float(_PARAMS["a_ca"]["init"])
+V_TH_CA = float(_PARAMS["v_th_ca"]["init"])
 IMPR_OFFSET = 0
 TAU_CA_SWEEP = (100.0, 350.0, 500.0, 1000.0)
 # Same order as GT_CELLS / read_RecF_ImpR RF_sign.

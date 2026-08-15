@@ -202,9 +202,9 @@ def install() -> None:
     ]
     sys.meta_path.insert(0, _FINDER)
     for root in (_VISION, *_ROOTS):
-        root_s = str(root)
-        if root_s not in sys.path:
-            sys.path.insert(0, root_s)
+        root_text = str(root)
+        if root_text not in sys.path:
+            sys.path.insert(0, root_text)
 
 
 install()

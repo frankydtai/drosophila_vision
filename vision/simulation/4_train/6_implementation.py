@@ -27,13 +27,13 @@ from path import (
     BUILT_NETWORKS_DIR,
     resolve_network_json,
 )
-from default_params import (
+from const_default import (
     MODEL,
     MOVING_BAR_INPUT,
     NETWORK_PATH,
     NEURON_FILTER,
     NEURON_FORWARD,
-    NEURON_PARAM,
+    NEURON_CONST,
     NEURON_SCHEMA,
     SPOT_INPUT,
     SPOT_PACK,
@@ -42,7 +42,7 @@ from default_params import (
     TRAIN_SESSION,
 )
 from task.spot.sti_spec import t_sti_end, resolve_sti_timing
-from neuron.schema import optimizable_scalar
+from neuron.schema import param_scalar
 from train import do_many_runs
 import train
 from train.config import (
@@ -88,7 +88,7 @@ def cell_labels(session):
     return np.asarray(session.backend.network.cells)
 
 
-def decompose_params(z_t, session):
+def decompose_params(z, session):
     """Return per-cell param arrays for one parameter vector.
 
     This powers the ``param.csv`` table. For CSV output we intentionally do
@@ -96,24 +96,23 @@ def decompose_params(z_t, session):
     they can collide with per-cell csv fields and become redundant.
     """
     n = session.backend.n_cells
-    schema = list(session.schema)
-    node_vals = train.node_values_from_z(z_t, schema)
-    param_by_segment = {}
-    for segment in schema:
-        segment_id = segment["segment"]
-        if segment["kind"] in ("edge_pair", "edge"):
+    schema = train.schema_copy(session.schema)
+    decoded = train.node_vals_from_z(z, schema)
+    out = {}
+    for param, spec in schema.items():
+        if spec["kind"] in ("edge_pair", "edge"):
             continue
-        if segment.get("radius_keys") is not None:
+        if spec.get("radii") is not None:
             continue  # e.g. a_sti_radius (per-radius, not per-cell)
-        arr = np.asarray(node_vals[segment_id], dtype=np.float64).reshape(-1)
+        arr = np.asarray(decoded[param], dtype=np.float64).reshape(-1)
         if arr.shape[0] != n:
-            raise ValueError(f"{segment_id}: node width {arr.shape[0]} != n_cells {n}")
-        param_by_segment[segment_id] = arr
-    return param_by_segment
+            raise ValueError(f"{param}: node w {arr.shape[0]} != n_cells {n}")
+        out[param] = arr
+    return out
 
 
-def v_spot_markers_by_cell(z_t, session):
-    """Per-cell-type mean membrane ``v`` markers; add ``v_ca``/``ca`` for ``filter=ca``.
+def v_spot_markers_by_cell(z, session):
+    """Per-cell-type mean ``v`` markers; add ``v_ca``/``ca`` for ``filter=ca``.
 
     * ``v_pre``: ``t=0`` after ``pre_steady`` (``v_rows[0]``).
     * ``v_onset``: ``t=t_onset`` (``v_rows[t_onset]``), spot onset / end of pre.
@@ -123,8 +122,8 @@ def v_spot_markers_by_cell(z_t, session):
 
     Uses ``session.primary_pack`` sti (``i_sti`` + ``pack_t_onset``).
     """
-    schema = list(session.schema)
-    z = torch.as_tensor(z_t, dtype=session.sim_dtype, device=session.device)
+    schema = train.schema_copy(session.schema)
+    z = torch.as_tensor(z, dtype=session.sim_dtype, device=session.device)
     params = train.override_val_from(
         train.assign_params(z, schema, session.backend), session,
     )
@@ -237,46 +236,46 @@ def v_spot_markers_by_cell(z_t, session):
                 ca, t_onset, session,
             ).detach().cpu().numpy()
         else:
-            lo = optimizable_scalar("bias_gt", "lo", NEURON_SCHEMA['optimizable'])
-            hi = optimizable_scalar("bias_gt", "hi", NEURON_SCHEMA['optimizable'])
+            lo = param_scalar("bias_gt", "lo", NEURON_SCHEMA['params'])
+            hi = param_scalar("bias_gt", "hi", NEURON_SCHEMA['params'])
             bias = np.clip(v_onset, lo, hi)
         out["bias_gt"] = np.asarray(bias, dtype=np.float64)
     return out
 
 
-def save_param_table(z_t, session, table_path):
-    param_by_segment = decompose_params(z_t, session)
-    markers = v_spot_markers_by_cell(z_t, session)
+def save_param_table(z, session, table_path):
+    node_vals = decompose_params(z, session)
+    markers = v_spot_markers_by_cell(z, session)
     bias_gt = markers.pop("bias_gt", None)
-    param_by_segment.update(markers)
+    node_vals.update(markers)
     opts = session.train_opts or {}
-    if train.val_from_enabled(opts, "v_th_ca") and "v_th" in param_by_segment and "v_th_ca" in param_by_segment:
-        param_by_segment["v_th_ca"] = np.asarray(param_by_segment["v_th"], dtype=np.float64).copy()
-    if train.val_from_enabled(opts, "a_ca") and "a_out" in param_by_segment and "a_ca" in param_by_segment:
-        param_by_segment["a_ca"] = np.asarray(param_by_segment["a_out"], dtype=np.float64).copy()
+    if train.val_from_enabled(opts, "v_th_ca") and "v_th" in node_vals and "v_th_ca" in node_vals:
+        node_vals["v_th_ca"] = np.asarray(node_vals["v_th"], dtype=np.float64).copy()
+    if train.val_from_enabled(opts, "a_ca") and "a_out" in node_vals and "a_ca" in node_vals:
+        node_vals["a_ca"] = np.asarray(node_vals["a_out"], dtype=np.float64).copy()
     if bias_gt is not None:
-        param_by_segment["bias_gt"] = bias_gt
+        node_vals["bias_gt"] = bias_gt
     cells_labels = cell_labels(session)
-    segments = list(param_by_segment.keys())
+    params = list(node_vals.keys())
     n = session.backend.n_cells
     with open(table_path, "w") as f:
-        f.write("cell_idx,cell," + ",".join(segments) + "\n")
+        f.write("cell_idx,cell," + ",".join(params) + "\n")
         for i in range(n):
-            field_vals = ["%.6f" % param_by_segment[seg][i] for seg in segments]
+            field_vals = ["%.6f" % node_vals[param][i] for param in params]
             f.write("%d,%s," % (i, cells_labels[i]) + ",".join(field_vals) + "\n")
     return table_path
 
 
-def save_syn_strength_cell_table(z_t, session, table_path):
+def save_syn_strength_cell_table(z, session, table_path):
     """Write edge-pair ``syn_strength_cell`` as source×target matrix CSV.
 
     Rows = source types, fields = target types. Absent connectome pairs are blank.
     """
-    schema = list(session.schema)
-    segment = next((s for s in schema if s["segment"] == "syn_strength_cell"), None)
-    if segment is None or segment["kind"] != "edge_pair":
+    schema = train.schema_copy(session.schema)
+    spec = schema.get("syn_strength_cell")
+    if spec is None or spec["kind"] != "edge_pair":
         return None
-    node_vals = train.node_values_from_z(z_t, schema)
+    node_vals = train.node_vals_from_z(z, schema)
     arr = np.asarray(node_vals["syn_strength_cell"], dtype=np.float64).reshape(-1)
     cells = [str(n) for n in cell_labels(session)]
     pairs = list(session.backend.conn.pairs)
@@ -297,13 +296,13 @@ def save_syn_strength_cell_table(z_t, session, table_path):
     return table_path
 
 
-def save_syn_strength_edge_table(z_t, session, table_path):
+def save_syn_strength_edge_table(z, session, table_path):
     """Write per-edge ``syn_strength_edge`` CSV (network edge order)."""
-    schema = list(session.schema)
-    segment = next((s for s in schema if s["segment"] == "syn_strength_edge"), None)
-    if segment is None or segment["kind"] != "edge":
+    schema = train.schema_copy(session.schema)
+    spec = schema.get("syn_strength_edge")
+    if spec is None or spec["kind"] != "edge":
         return None
-    node_vals = train.node_values_from_z(z_t, schema)
+    node_vals = train.node_vals_from_z(z, schema)
     arr = np.asarray(node_vals["syn_strength_edge"], dtype=np.float64).reshape(-1)
     conn = session.backend.conn
     if arr.shape[0] != conn.n_edges:
@@ -332,7 +331,7 @@ def save_syn_strength_edge_table(z_t, session, table_path):
     return table_path
 
 
-def save_syn_table(z_t, session, outdir_or_path, *, tag=None):
+def save_syn_table(z, session, outdir_or_path, *, tag=None):
     """Write ``syn_strength_cell.csv`` or ``syn_strength_edge.csv`` for the active syn mode."""
     if tag is None:
         cell_filename, edge_filename = SYN_STRENGTH_CELL_CSV, SYN_STRENGTH_EDGE_CSV
@@ -340,10 +339,10 @@ def save_syn_table(z_t, session, outdir_or_path, *, tag=None):
         cell_filename = f"syn_strength_cell_{tag}.csv"
         edge_filename = f"syn_strength_edge_{tag}.csv"
     cell_path = save_syn_strength_cell_table(
-        z_t, session, os.path.join(outdir_or_path, cell_filename),
+        z, session, os.path.join(outdir_or_path, cell_filename),
     )
     edge_path = save_syn_strength_edge_table(
-        z_t, session, os.path.join(outdir_or_path, edge_filename),
+        z, session, os.path.join(outdir_or_path, edge_filename),
     )
     return cell_path or edge_path
 
@@ -360,39 +359,39 @@ def _data_file(outdir, filename):
     return os.path.join(run_data_dir(outdir), filename)
 
 
-def save_param_by_segment(outdir, z, session, filename):
-    """Write per-segment full-width node values to ``data/<filename>``."""
-    schema = list(session.schema)
-    param_by_segment = train.node_values_from_z(z, schema)
+def save_node_vals(outdir, z, session, filename):
+    """Write per-param full-w node vals to ``data/<filename>``."""
+    schema = train.schema_copy(session.schema)
+    node_vals = train.node_vals_from_z(z, schema)
     cells = np.asarray(train.cells_from_backend(session.backend), dtype=object)
-    payload = {k: np.asarray(v, dtype=np.float64) for k, v in param_by_segment.items()}
+    payload = {k: np.asarray(v, dtype=np.float64) for k, v in node_vals.items()}
     payload['cells'] = cells
-    if any(s['kind'] == 'edge_pair' for s in schema):
+    if any(spec['kind'] == 'edge_pair' for spec in schema.values()):
         payload['pairs'] = np.asarray(train.pairs_from_backend(session.backend), dtype=object)
     os.makedirs(run_data_dir(outdir), exist_ok=True)
     np.savez(os.path.join(run_data_dir(outdir), filename), **payload)
 
 
-def save_adam_by_segment(outdir, exp_avg, exp_avg_sq, iter, session, filename):
-    """Write per-segment Adam m/v (z-space) to ``data/<filename>``."""
-    schema = list(session.schema)
+def save_adam(outdir, exp_avg, exp_avg_sq, iter, session, filename):
+    """Write per-param Adam m/v (z-space) to ``data/<filename>``."""
+    schema = train.schema_copy(session.schema)
     moments_m, moments_v = train.moments_from_z(exp_avg, exp_avg_sq, schema)
     cells = np.asarray(train.cells_from_backend(session.backend), dtype=object)
     payload = {'iter': np.asarray(int(iter), dtype=np.int64)}
     payload['cells'] = cells
-    if any(s['kind'] == 'edge_pair' for s in schema):
+    if any(spec['kind'] == 'edge_pair' for spec in schema.values()):
         payload['pairs'] = np.asarray(train.pairs_from_backend(session.backend), dtype=object)
-    for segment, arr in moments_m.items():
-        payload[f'm_{segment}'] = np.asarray(arr, dtype=np.float64)
-    for segment, arr in moments_v.items():
-        payload[f'v_{segment}'] = np.asarray(arr, dtype=np.float64)
+    for param, arr in moments_m.items():
+        payload[f'm_{param}'] = np.asarray(arr, dtype=np.float64)
+    for param, arr in moments_v.items():
+        payload[f'v_{param}'] = np.asarray(arr, dtype=np.float64)
     os.makedirs(run_data_dir(outdir), exist_ok=True)
     np.savez(os.path.join(run_data_dir(outdir), filename), **payload)
 
 
 def save_best_param(outdir, z, session):
-    """Write per-segment full-width node values to ``data/best_param.npz``."""
-    save_param_by_segment(outdir, z, session, 'best_param.npz')
+    """Write per-param full-w node vals to ``data/best_param.npz``."""
+    save_node_vals(outdir, z, session, 'best_param.npz')
 
 
 def _checkpoint_data_filename(kind, iter, run_i=0, n_run=1):
@@ -417,7 +416,7 @@ def build_checkpoint_callback(outdir, session, *, run_i=0, n_run=1, on_png=None)
 
     def on_interval_best(iter, z_best, cost_best, opt_state=None):
         filename = _checkpoint_data_filename('param', iter, run_i=run_i, n_run=n_run)
-        save_param_by_segment(outdir, z_best, session, filename)
+        save_node_vals(outdir, z_best, session, filename)
         if opt_state is not None:
             n = int(np.asarray(z_best.detach().cpu()).reshape(-1).shape[0])
             exp_avg, exp_avg_sq, adam_iter = train.moments_from_state_dict(
@@ -426,7 +425,7 @@ def build_checkpoint_callback(outdir, session, *, run_i=0, n_run=1, on_png=None)
             adam_filename = _checkpoint_data_filename(
                 'adam', iter, run_i=run_i, n_run=n_run,
             )
-            save_adam_by_segment(
+            save_adam(
                 outdir,
                 exp_avg.numpy(),
                 exp_avg_sq.numpy(),
@@ -442,8 +441,8 @@ def build_checkpoint_callback(outdir, session, *, run_i=0, n_run=1, on_png=None)
     return on_interval_best
 
 
-def load_best_param_by_segment(outdir):
-    """Load ``data/best_param.npz`` → (param_by_segment, cells, pairs|None)."""
+def load_best_node_vals(outdir):
+    """Load ``data/best_param.npz`` → (node_vals, cells, pairs|None)."""
     fp = best_param_path(outdir)
     if not os.path.isfile(fp):
         raise FileNotFoundError(fp)
@@ -452,15 +451,15 @@ def load_best_param_by_segment(outdir):
         pairs = None
         if 'pairs' in d.files:
             pairs = [str(x) for x in d['pairs'].tolist()]
-        param_by_segment = {
+        node_vals = {
             k: np.asarray(d[k], dtype=np.float64)
             for k in d.files
             if k not in ('cells', 'pairs')
         }
-    return param_by_segment, cells, pairs
+    return node_vals, cells, pairs
 
 
-def load_best_adam_by_segment(outdir):
+def load_best_adam(outdir):
     """Load ``data/best_adam.npz`` → (moments_m, moments_v, iter, cells, pairs)."""
     fp = best_adam_path(outdir)
     if not os.path.isfile(fp):
@@ -484,18 +483,18 @@ def load_best_adam_by_segment(outdir):
 
 
 def load_best_param(outdir, session):
-    """Load best params as 1-D z for *session* (remap from per-segment npz)."""
-    param_by_segment, cells, pairs = load_best_param_by_segment(outdir)
+    """Load best params as 1-D z for *session* (remap from per-param npz)."""
+    node_vals, cells, pairs = load_best_node_vals(outdir)
     schema = train.attach_param_carry(
-        list(session.schema),
-        train.remap_param_by_segment_node_values(
-            param_by_segment, cells, pairs, list(session.schema), session.backend,
+        train.schema_copy(session.schema),
+        train.remap_node_vals(
+            node_vals, cells, pairs, train.schema_copy(session.schema), session.backend,
         ),
     )
-    remapped = train.remap_param_by_segment_node_values(
-        param_by_segment, cells, pairs, schema, session.backend,
+    remapped = train.remap_node_vals(
+        node_vals, cells, pairs, schema, session.backend,
     )
-    z = train.z_from_node_values(
+    z = train.z_from_node_vals(
         remapped, schema, dtype=session.sim_dtype, device=session.device,
     )
     return z.detach().cpu().numpy().astype(np.float64)
@@ -515,7 +514,7 @@ def save_best_data(outdir, session, run_params, final_costs, adam=None):
     z_best = torch.tensor(best, dtype=session.sim_dtype, device=session.device)
     save_best_param(outdir, z_best, session)
     if adam is not None:
-        save_adam_by_segment(
+        save_adam(
             outdir, adam['exp_avg'], adam['exp_avg_sq'], adam['iter'], session,
             'best_adam.npz',
         )
@@ -554,38 +553,38 @@ def load_stored_costs(outdir):
 
 
 def load_init_z(init_from, session):
-    """Load per-segment best params + moments; return ``(session, z, opt_init)``.
+    """Load per-param best params + moments; return ``(session, z, opt_init)``.
 
-    Trainable slots come from *z*; fixed nodes are seeded via ``inits``
+    Trainable ``z`` comes from remapped node vals; fixed nodes are seeded via ``inits``
     (still not in z); frozen nodes use ``carry``.
     """
     try:
         outdir = resolve_run_dir(init_from)
     except SystemExit as exc:
         raise ValueError(str(exc)) from exc
-    param_by_segment, cells, pairs = load_best_param_by_segment(outdir)
-    moments_m, moments_v, adam_iter, adam_cells, adam_pairs = load_best_adam_by_segment(outdir)
-    schema = list(session.schema)
-    remapped = train.remap_param_by_segment_node_values(
-        param_by_segment, cells, pairs, schema, session.backend,
+    node_vals, cells, pairs = load_best_node_vals(outdir)
+    moments_m, moments_v, adam_iter, adam_cells, adam_pairs = load_best_adam(outdir)
+    schema = train.schema_copy(session.schema)
+    remapped = train.remap_node_vals(
+        node_vals, cells, pairs, schema, session.backend,
     )
-    schema = train.inits_from_param_by_segment(schema, remapped)
+    schema = train.inits_from_node_vals(schema, remapped)
     schema = train.attach_param_carry(schema, remapped)
     opts = dict(session.train_opts or {})
     opts['param_modes'] = train.schema_param_modes_record(
-        schema, lambda segment: train.slots_from_segment(segment, session.backend),
+        schema, lambda spec: train.slots_from_param(spec, session.backend),
     )
-    session = replace(session, schema=tuple(schema), train_opts=opts)
-    z = train.z_from_node_values(
+    session = replace(session, schema=schema, train_opts=opts)
+    z = train.z_from_node_vals(
         remapped, schema, dtype=session.sim_dtype, device=session.device,
     )
-    remapped_m = train.remap_param_by_segment_moments(
+    remapped_m = train.remap_node_vals_moments(
         moments_m, adam_cells, adam_pairs, schema, session.backend,
     )
-    remapped_v = train.remap_param_by_segment_moments(
+    remapped_v = train.remap_node_vals_moments(
         moments_v, adam_cells, adam_pairs, schema, session.backend,
     )
-    exp_avg, exp_avg_sq = train.z_moments_from_param_by_segment(
+    exp_avg, exp_avg_sq = train.z_moments_from_node_vals(
         remapped_m, remapped_v, schema,
         dtype=session.sim_dtype, device=session.device,
     )
@@ -596,7 +595,7 @@ def load_init_z(init_from, session):
     }
     print(
         f'from {outdir!r} -> {best_param_path(outdir)!r} + {best_adam_path(outdir)!r} '
-        f'({train.schema_nparams(schema)} z slots, adam_iter={adam_iter})'
+        f'({train.schema_nparams(schema)} z, adam_iter={adam_iter})'
     )
     return session, z, opt_init
 
@@ -624,20 +623,20 @@ def save_train_outputs(fname, outdir, session, result):
 
 
 def print_param_modes(session):
-    """Print one schema segment per line: indi/shared/fixed/frozen counts and ntrain."""
-    schema = list(session.schema)
+    """Print one schema param per line: indi/shared/fixed/frozen counts and ntrain."""
+    schema = train.schema_copy(session.schema)
     if not schema:
         return
     print("param_modes:")
-    w = max(len(s["segment"]) for s in schema)
-    for s in schema:
+    w = max(len(param) for param in schema)
+    for param, spec in schema.items():
         print(
-            f"  {s['segment']:<{w}}  "
-            f"indi={len(s.get('indi') or [])}/"
-            f"shared={len(s.get('shared') or [])}/"
-            f"fixed={len(s.get('fixed') or [])}/"
-            f"frozen={len(s.get('frozen') or [])} "
-            f"({train.segment_n_z(s)})"
+            f"  {param:<{w}}  "
+            f"indi={len(spec.get('indi') or [])}/"
+            f"shared={len(spec.get('shared') or [])}/"
+            f"fixed={len(spec.get('fixed') or [])}/"
+            f"frozen={len(spec.get('frozen') or [])} "
+            f"({train.param_n_z(spec)})"
         )
 
 
@@ -665,7 +664,7 @@ def build_session(
     param_modes=None,
     param_init=None,
     syn_mode=NEURON_SCHEMA['syn_mode'],
-    euler=NEURON_PARAM['euler'],
+    euler=NEURON_CONST['euler'],
     pre_steady=None,
     pre_steady_iters=TRAIN_OPTIMIZATION['pre_steady_iters'],
     pre_steady_damp=TRAIN_OPTIMIZATION['pre_steady_damp'],
@@ -729,7 +728,7 @@ def run_train(model, n_run, n_iter, lrs, fname=None, outdir=None,
                  param_modes=None,
                  param_init=None,
                  syn_mode=NEURON_SCHEMA['syn_mode'],
-                 euler=NEURON_PARAM['euler'],
+                 euler=NEURON_CONST['euler'],
                  pre_steady=None,
                  pre_steady_iters=TRAIN_OPTIMIZATION['pre_steady_iters'],
                  pre_steady_damp=TRAIN_OPTIMIZATION['pre_steady_damp'],
@@ -807,7 +806,7 @@ def run_train(model, n_run, n_iter, lrs, fname=None, outdir=None,
     print(f"device={session.device}, model={model}, syn_mode={syn_mode}, euler={session.euler}, "
           f"pre_steady={session.pre_steady}, "
           f"n_run={n_run}, n_iter={n_iter}, "
-          f"lrs={lrs}, nparams={train.schema_nparams(list(session.schema))}, fname={fname}")
+          f"lrs={lrs}, nparams={train.schema_nparams(train.schema_copy(session.schema))}, fname={fname}")
     if checkpoint_interval is not None:
         if checkpoint_interval <= 0:
             raise ValueError("checkpoint_interval must be a positive integer")

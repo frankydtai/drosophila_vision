@@ -18,14 +18,14 @@ sources are written into ``params['v_th_ca']`` / ``params['a_ca']``
 (and ``param.csv``).
 Waveform MSE normalization is ``session`` / ``train_opts`` ``cost_norm``:
 
-* ``gt_power``: ``100 * Σ w (v_readout−gt_aff)² / Σ w (a_gt·gt)²``
+* ``gt_power``: ``100 * Σ W (v_readout−gt_aff)² / Σ W (a_gt·gt)²``
   (no ``bias_gt`` / ``v_th`` in the denominator)
-* ``a_gt2`` (default): ``Σ w (v_readout−gt_aff)² / a_gt²`` (per-entry ``a_i²``; bias not in denom)
+* ``a_gt2`` (default): ``Σ W (v_readout−gt_aff)² / a_gt²`` (per-entry ``a_i²``; bias not in denom)
 
 **within each part**. The train total averages those part costs (equal
 scale per cell×radius unless ``part_cost_scales`` says otherwise).
 
-Sparse cost time points (#4): ``pack.gts`` stays the ``ms_response`` segment length
+Sparse cost time points (#4): ``pack.gts`` stays the ``ms_response`` window length
 (spot excludes ``ms_post``) and the subsample is gathered from both v_readout
 trace and gt at cost time via ``pack.cost_time_indices`` (from train_opts
 ``cost_interval_ms`` / ``cost_ms``); when radii use different
@@ -34,7 +34,7 @@ pairs. ``gt_power`` is recomputed on the subsample.
 """
 from __future__ import annotations
 
-from default_params import (
+from const_default import (
     NEURON_FILTER,
     TRAIN_OPTIMIZATION,
 )
@@ -120,8 +120,8 @@ def pack_cost_abs_time_idx(pack: Pack, t_onset, *, entry_radius=None):
     return base + idx_np[entry_mask]
 
 
-def node_values_from_param(params, param: str, node_idx, backend: ModelBackend, *, sim_dtype=SIM_DTYPE):
-    """Per-node values from a cell-indexed schema param (or scalar default)."""
+def node_vals_from_param(params, param: str, node_idx, backend: ModelBackend, *, sim_dtype=SIM_DTYPE):
+    """Per-node vals from a cell-indexed schema param (or scalar default)."""
     raw = params.get(param, 1.0 if param == "a_gt" else 0.0)
     n = int(node_idx.shape[0])
     dev = node_idx.device
@@ -144,12 +144,12 @@ def gt_affine_from_nodes(
     ``val_from`` bias_gt is off, add ``v_th``. Callers must
     :func:`override_val_from` so ``val_from`` sources are already in ``params``.
     """
-    a_gt = node_values_from_param(params, "a_gt", node_idx, backend, sim_dtype=sim_dtype)
-    bias = node_values_from_param(params, "bias_gt", node_idx, backend, sim_dtype=sim_dtype)
+    a_gt = node_vals_from_param(params, "a_gt", node_idx, backend, sim_dtype=sim_dtype)
+    bias = node_vals_from_param(params, "bias_gt", node_idx, backend, sim_dtype=sim_dtype)
     opts = (session.train_opts if session is not None else None) or {}
     from_onset = val_from_enabled(opts, "bias_gt")
     if (not from_onset) and "v_th" in params:
-        bias = bias + node_values_from_param(params, "v_th", node_idx, backend, sim_dtype=sim_dtype)
+        bias = bias + node_vals_from_param(params, "v_th", node_idx, backend, sim_dtype=sim_dtype)
     return a_gt, bias
 
 
@@ -276,10 +276,10 @@ def _parts_from_entries(
     else:
         raise ValueError(f"cost_norm must be one of {COST_NORMS}; got {cost_norm!r}")
     out: Dict[str, torch.Tensor] = {}
-    for part_slot_idx, part_key in enumerate(part_keys):
+    for part_idx, part_key in enumerate(part_keys):
         if _part_scale(session, part_key) == 0.0:
             continue
-        out[part_key] = costs[part_slot_idx]
+        out[part_key] = costs[part_idx]
     return out
 
 
@@ -303,12 +303,12 @@ def _entries_by_part(
         if entry_cost_scales[entry_i] <= 0.0:
             continue
         part_key = entry_part_key(entry_i, cells, ci)
-        slot_idx = idx_from_part_key.get(part_key)
-        if slot_idx is None:
-            slot_idx = len(part_keys)
-            idx_from_part_key[part_key] = slot_idx
+        part_idx = idx_from_part_key.get(part_key)
+        if part_idx is None:
+            part_idx = len(part_keys)
+            idx_from_part_key[part_key] = part_idx
             part_keys.append(part_key)
-        part_indices_np[entry_i] = slot_idx
+        part_indices_np[entry_i] = part_idx
     part_indices = torch.as_tensor(
         part_indices_np, dtype=torch.long, device=pack.entry_nodes.device,
     )
@@ -348,12 +348,12 @@ def _moving_bar_entries_by_part(
 
 def _part_scale(session: TrainSession, part_key: str) -> float:
     """Scale for a cost part; fine part_keys inherit coarse ``part_cost_scales``."""
-    w = session.part_cost_scales or {}
-    if part_key in w:
-        return float(w[part_key])
+    scales = session.part_cost_scales or {}
+    if part_key in scales:
+        return float(scales[part_key])
     for coarse in coarse_part_keys_from_part(part_key):
-        if coarse in w:
-            return float(w[coarse])
+        if coarse in scales:
+            return float(scales[coarse])
     return 1.0
 
 
@@ -769,22 +769,22 @@ def calc_cost_parts(z, session: TrainSession) -> Dict[str, torch.Tensor]:
 def _session_part_scale_sum(session: TrainSession) -> float:
     """Σ W over discovered fine part_keys (e.g. 13·(1+6·1/6)=26 for spot center+r1)."""
     part_keys = session_cost_part_keys(session.tasks, session=session)
-    return float(sum(w for k in part_keys if (w := _part_scale(session, k)) != 0.0))
+    return float(sum(scale for k in part_keys if (scale := _part_scale(session, k)) != 0.0))
 
 
 def _scaled_cost_from_parts(parts: Dict[str, torch.Tensor], session: TrainSession):
     """Mean of local-% parts: ``Σ W·cost / Σ W``."""
     total = torch.zeros((), dtype=session.sim_dtype, device=session.device)
-    w_sum = 0.0
+    scale_sum = 0.0
     for part_key, part in parts.items():
-        w = _part_scale(session, part_key)
-        if w == 0.0:
+        scale = _part_scale(session, part_key)
+        if scale == 0.0:
             continue
-        total = total + w * part
-        w_sum += w
-    if w_sum == 0.0:
+        total = total + scale * part
+        scale_sum += scale
+    if scale_sum == 0.0:
         return total
-    return total / w_sum
+    return total / scale_sum
 
 
 def calc_cost(z, session: TrainSession):
@@ -795,14 +795,14 @@ def _pack_spec_tokens(session: TrainSession, pack: Pack) -> Tuple[str, ...]:
     opts = ((session.train_opts or {}).get(f"{pack.task}_sti_opts")) or {}
     spec_tokens = opts.get("spec_tokens")
     if spec_tokens:
-        return tuple(str(s) for s in spec_tokens)
-    return tuple(s.token for s in bar_specs_from_task(session, pack.task))
+        return tuple(str(token) for token in spec_tokens)
+    return tuple(spec.token for spec in bar_specs_from_task(session, pack.task))
 
 
 def _dsi_sequential_b_sets(
     pack: Pack, session: TrainSession,
 ) -> Tuple[Tuple[int, ...], ...]:
-    """Active DSI b_sets: each b_set is one axis x width (typically B=2)."""
+    """Active DSI b_sets: each b_set is one axis x w (typically B=2)."""
     active = set(_pack_active_bs(pack, session))
     b_sets: list[tuple[int, ...]] = []
     for b_set in dsi_sequential_b_sets(_pack_spec_tokens(session, pack)):
@@ -859,8 +859,8 @@ def backward_accumulate_scaled_cost(z, session: TrainSession):
     """
     part_sums: Dict[str, float] = {}
     zero = torch.zeros((), dtype=session.sim_dtype, device=session.device)
-    w_norm = _session_part_scale_sum(session)
-    if w_norm == 0.0:
+    scale_norm = _session_part_scale_sum(session)
+    if scale_norm == 0.0:
         return 0.0, {}
     for pack, b, sub in _iter_cost_micro_bs(session):
         params = params_from_z(z, session)
@@ -880,13 +880,13 @@ def backward_accumulate_scaled_cost(z, session: TrainSession):
             if (not dsi_only) and session.sequential and part_key == dsi_part_key:
                 # single-b slices have no complete DSI groups; skip zeros
                 continue
-            w = _part_scale(session, part_key)
-            if w == 0.0:
+            scale = _part_scale(session, part_key)
+            if scale == 0.0:
                 continue
-            mb_loss = mb_loss + (w / w_norm) * part
+            mb_loss = mb_loss + (scale / scale_norm) * part
             has_loss = True
             part_sums[part_key] = part_sums.get(part_key, 0.0) + float(part.item())
         if has_loss:
             mb_loss.backward()
-    total = sum(_part_scale(session, k) * v for k, v in part_sums.items()) / w_norm
+    total = sum(_part_scale(session, k) * v for k, v in part_sums.items()) / scale_norm
     return total, part_sums

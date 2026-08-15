@@ -8,7 +8,7 @@ Two PNGs:
 1. ``spot_gt_pulses_LTI.png`` — LTI step difference ``p(t) = s(t) - s(t - Δ)``
    on center-bin ImpR×RecF targets from Medulla_Library ``read_RecF_data`` (legacy gt).
 2. ``spot_gt_pulses_filter.png`` — drive each cell's IR filter with
-   different-width ``u[t]`` (50 ms / 500 ms / continue-on from ``T_ON``).
+   different-w ``u[t]`` (50 ms / 500 ms / continue-on from ``T_ON``).
 
 Usage (from ``SimulationCode/``):
 
@@ -35,8 +35,8 @@ import FiveCol_MedSim_Pytorch as fc
 import blindschleiche_py3 as bs
 from network.build import cell_family_rows, cell_names_in_family_order
 from plot.spot import CENTER_BIN, _style_time_axis
-from figure.util import GT_COLOR, TRACE_LW, TRACE_YLIM, save_figure
-from default_params import GT_AMP
+from figure.panel import GT_COLOR, TRACE_LW, TRACE_YLIM, save_figure
+from const_default import GT_AMP
 from training_config import DELTA_MS, IMPULSE_MAXTIME, T_ON, t_from_ms
 
 DEFAULT_SAVE = os.path.join(HERE, "spot_gt_pulses_LTI.png")
@@ -78,7 +78,7 @@ def filter_impr_raw(u: np.ndarray, hp: float, lp: float, *, s_max: float, add_l1
     """IR path matching ``read_RecF_ImpR`` before ``normalize_gt``.
 
     ``s_max`` is the shared prefilter peak (from the continue-on step) so pulse
-    widths share the same gain as ImpR construction.
+    ws share the same gain as ImpR construction.
     """
     s = bs.lowpass(np.asarray(u, dtype=np.float64), 5)
     s = s / float(s_max)
@@ -106,7 +106,7 @@ def recf_gts() -> dict[str, np.ndarray]:
 
 
 def filter_traces() -> dict[str, dict[str, np.ndarray]]:
-    """Center-bin responses from driving IR filters with different-width ``u[t]``.
+    """Center-bin responses from driving IR filters with different-w ``u[t]``.
 
     Returns ``{cell: {"step", "p500", "p50"}}`` scaled like ``GT_AMP * RecF * ImpR``.
     """
@@ -239,7 +239,7 @@ def plot_gt_pulses(path: str, *, show: bool = False) -> None:
 
 
 def plot_gt_pulses_filter(path: str, *, show: bool = False) -> None:
-    """PNG 2: IR filter responses to different-width ``u[t]`` from ``T_ON``."""
+    """PNG 2: IR filter responses to different-w ``u[t]`` from ``T_ON``."""
     series = filter_traces()
     t_on_s = fc.t_on * DELTA_MS / 1000.0
     _plot_pulse_grid(

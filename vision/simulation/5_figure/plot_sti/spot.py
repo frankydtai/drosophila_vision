@@ -16,8 +16,8 @@ Usage (from simulation/, project .venv):
 """
 from __future__ import annotations
 
-from default_params import (
-    NEURON_PARAM,
+from const_default import (
+    NEURON_CONST,
     NEURON_SCHEMA,
 )
 
@@ -57,7 +57,6 @@ from network.construction import Network, load_network
 from train.param import SIM_DTYPE
 from task.spot.sti_geo import (
     build_spot,
-    spot_radius_dist,
     spot_radius_half_steps,
 )
 from import_bootstrap import parse_comma_list
@@ -73,7 +72,8 @@ def _network_hexes_df(connectome: Network) -> pd.DataFrame:
 def _draw_spot_radius_hexes(ax, centers_u, centers_v, spot_radius: float) -> None:
     """Straight axial-radius hex about each center (vertices along ``_HEX_DIRECTIONS``).
 
-    Vertex axial distance is ``spot_radius + 0.5`` (= ``spot_radius_dist/2``): outer
+    Vertex axial distance is ``spot_radius + 0.5``
+    (= ``(spot_radius_half_steps + 1) / 2``): outer
     boundary of the footprint / halfway to neighboring spot centers.
     """
     e = float(spot_radius) + 0.5
@@ -126,7 +126,7 @@ def main() -> None:
     network_json = str(resolve_network_json(args.network))
     connectome = load_network(
         network_json, device="cpu",
-        a_syn_exc=NEURON_PARAM['a_syn_exc'], a_syn_inh=NEURON_PARAM['a_syn_inh'],
+        a_syn_exc=NEURON_CONST['a_syn_exc'], a_syn_inh=NEURON_CONST['a_syn_inh'],
         syn_mode=NEURON_SCHEMA['syn_mode'], dtype=SIM_DTYPE,
     )
     run_tag = network_run_tag(network_json, connectome.meta)
@@ -158,7 +158,7 @@ def main() -> None:
         ).centers
         n_spots = len(centers)
         n_by_spot_radius[spot_radius] = n_spots
-        dist = spot_radius_dist(spot_radius)
+        dist = spot_radius_half_steps(spot_radius) + 1
         print(
             f"network={run_tag}  spot_radius={spot_radius}  "
             f"spot_radius_dist={dist}  n_spots={n_spots}",

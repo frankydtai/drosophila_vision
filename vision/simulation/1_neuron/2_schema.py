@@ -1,15 +1,18 @@
 # -*- coding: utf-8 -*-
 """Parameter schemas for borst / hp_lp neuron models.
 
-Numeric lo/hi/val/jit and default ``mode`` live in
-``default_params.NEURON_SCHEMA['optimizable']`` dict entries. Optional
-``param`` holds space-separated ``KEY[.NODES]=VALUE`` tokens (same grammar
-as CLI ``--param NAME.KEY...`` without the segment); base dict first,
-``param`` tokens last.
+Numeric lo/hi/init/jit and default ``mode`` live in
+``const_default.NEURON_SCHEMA['params']`` dict entries. Optional
+``exception`` holds space-separated ``param_key[.NODES]=VALUE`` tokens
+(same grammar as CLI ``--param a_h.init...`` without the leading param);
+base dict first, ``exception`` tokens last.
+
+Built schema is an ordered ``dict[param, spec]`` — the param name is the
+dict key; ``spec`` has no self-id field.
 """
 from __future__ import annotations
 
-from default_params import (
+from const_default import (
     NEURON_SCHEMA,
 )
 
@@ -20,17 +23,7 @@ from neuron.param import (
 SYN_MODES = ("per_cell", "per_edge")
 PARAM_MODES = ("indi", "shared", "fixed", "frozen")
 
-# Mirror ``default_params.NEURON_SCHEMA['optimizable']`` insertion order (injected; no import).
-SEGMENT_NAMES = (
-    "a_gt", "bias_gt",
-    "syn_strength_cell", "syn_strength_edge",
-    "a_in", "a_out", "e_leak", "v_th", "v_th_ca", "a_ca", "tau_ca",
-    "tau_lp", "tau_hp_rise", "tau_hp_fall",
-    "a_h", "v_mid_h_g", "v_mid_h_tau", "h_slope",
-    "a_h_rev", "v_mid_h_g_rev", "v_mid_h_tau_rev", "h_slope_rev",
-    "a_sti_radius",
-)
-I_H_SHAPE_SEGMENT_NAMES = (
+I_H_SHAPE_PARAMS = (
     "v_mid_h_g", "v_mid_h_tau", "h_slope",
     "v_mid_h_g_rev", "v_mid_h_tau_rev", "h_slope_rev",
 )
@@ -41,19 +34,20 @@ _I_H_REV_ONLY = frozenset({
 _BORST_ONLY = frozenset({"v_mid_h_g", "v_mid_h_tau", "h_slope"}) | _I_H_REV_ONLY
 _CA_ONLY = frozenset({"v_th_ca", "a_ca", "tau_ca"})
 _OUTPUT_KIND = frozenset({"a_gt", "bias_gt"})
-_OPTIMIZABLE_SCALAR_KEYS = frozenset({"lo", "hi", "jit"})
+_NUMBER_PARAM_KEYS = ("lo", "hi", "jit", "init")
 
 
-def parse_optimizable_tokens(tokens, *, segment=None):
+def parse_param_tokens(tokens, *, param=None):
+    """Yield ``(param, param_key, nodes, right)`` e.g. ``a_h``, ``init``, ``L1``, ``0.5``."""
     for tok in tokens:
         left, _, right = tok.partition("=")
-        if segment is None:
-            segment_tok, _, rest = left.partition(".")
-            key, _, nodes = rest.partition(".")
+        if param is None:
+            left_param, _, rest = left.partition(".")
+            param_key, _, nodes = rest.partition(".")
+            yield left_param, param_key, nodes, right
         else:
-            key, _, nodes = left.partition(".")
-            segment_tok = segment
-        yield segment_tok, key, nodes, right
+            param_key, _, nodes = left.partition(".")
+            yield param, param_key, nodes, right
 
 
 def _comma_nodes(text):
@@ -66,30 +60,38 @@ def expand_param_nodes(nodes):
     return _comma_nodes(nodes)
 
 
-def split_optimizable_tokens(tokens, *, segment=None):
-    meta = {}
-    val_pairs = []
+def split_param_tokens(tokens, *, param=None):
+    """Parse tokens → ``(number_pairs, mode_pairs)``.
+
+    ``number_pairs`` maps ``lo``/``hi``/``jit``/``init`` →
+    lists of ``(nodes|None, float)``.
+    """
+    number_pairs = {param_key: [] for param_key in _NUMBER_PARAM_KEYS}
     mode_pairs = []
-    for segment_tok, key, nodes, right in parse_optimizable_tokens(tokens, segment=segment):
-        if key in _OPTIMIZABLE_SCALAR_KEYS:
-            meta[key] = float(right)
-        elif key == "val":
-            val_pairs.append((None if not nodes else expand_param_nodes(nodes), float(right)))
-        elif key == "mode":
+    for _, param_key, nodes, right in parse_param_tokens(tokens, param=param):
+        if param_key in number_pairs:
+            number_pairs[param_key].append(
+                (None if not nodes else expand_param_nodes(nodes), float(right))
+            )
+        elif param_key == "mode":
             if right not in PARAM_MODES:
                 raise KeyError(right)
             mode_pairs.append((None if not nodes else expand_param_nodes(nodes), right))
         else:
-            raise KeyError(key)
-    return meta, val_pairs, mode_pairs
+            raise KeyError(param_key)
+    return number_pairs, mode_pairs
 
 
-def resolve_inits(val_pairs, slots):
-    """Fold ``(nodes|None, val)`` pairs into scalar ``init`` + per-node ``inits``."""
+def resolve_inits(init_pairs, slots):
+    """Fold ``(nodes|None, number)`` pairs into scalar + per-node bag ``dict[int, float]``.
+
+    Used for ``init``/``inits`` and the same shape for ``lo``/``los``, ``hi``/``his``,
+    ``jit``/``jits``.
+    """
     slots = [str(slot) for slot in slots]
-    idx_from = {slot: i for i, slot in enumerate(slots)}
+    idx_from_slot = {slot: node_idx for node_idx, slot in enumerate(slots)}
     node_init = {}
-    for nodes, init in val_pairs:
+    for nodes, init in init_pairs:
         if nodes is None:
             node_init = {slot: init for slot in slots}
         else:
@@ -99,13 +101,13 @@ def resolve_inits(val_pairs, slots):
         return 0.0, {}
     if len(node_init) == len(slots) and len(set(node_init.values())) == 1:
         return next(iter(node_init.values())), {}
-    return 0.0, {int(idx_from[slot]): node_init[slot] for slot in node_init}
+    return 0.0, {int(idx_from_slot[slot]): node_init[slot] for slot in node_init}
 
 
 def resolve_modes(mode_pairs, slots):
     """Fold ``(nodes|None, mode)`` pairs into ``modes``."""
     slots = [str(slot) for slot in slots]
-    idx_from = {slot: i for i, slot in enumerate(slots)}
+    idx_from_slot = {slot: node_idx for node_idx, slot in enumerate(slots)}
     node_mode = {}
     for nodes, mode in mode_pairs:
         if nodes is None:
@@ -116,34 +118,36 @@ def resolve_modes(mode_pairs, slots):
                 node_mode[str(node)] = mode
     out = {mode: [] for mode in PARAM_MODES}
     for slot, mode in node_mode.items():
-        out[mode].append(int(idx_from[slot]))
+        out[mode].append(int(idx_from_slot[slot]))
     for mode in PARAM_MODES:
         out[mode].sort()
     return out
 
 
-def optimizable_scalar(segment, key, optimizable):
-    entry = optimizable[segment]
-    return float(entry[key])
+def param_scalar(param, param_key, params):
+    entry = params[param]
+    return float(entry[param_key])
 
 
-def val_mode_pairs_from_optimizable(segment_optimizable, segment):
-    mode = segment_optimizable["mode"]
+def init_mode_pairs_from_entry(entry, param):
+    """Base entry + ``exception`` → ``(number_pairs, mode_pairs)``."""
+    mode = entry["mode"]
     if mode not in PARAM_MODES:
         raise ValueError(
-            f"{segment}: unknown mode {mode!r}; "
+            f"{param}: unknown mode {mode!r}; "
             f"expected one of {PARAM_MODES}"
         )
-    val_pairs = [(None, float(segment_optimizable["val"]))]
+    number_pairs = {param_key: [(None, float(entry[param_key]))] for param_key in _NUMBER_PARAM_KEYS}
     mode_pairs = [(None, mode)]
-    param = segment_optimizable.get("param")
-    if param:
-        _, more_vals, more_modes = split_optimizable_tokens(
-            str(param).split(), segment=segment,
+    exception = entry.get("exception")
+    if exception:
+        more_numbers, more_modes = split_param_tokens(
+            str(exception).split(), param=param,
         )
-        val_pairs.extend(more_vals)
+        for param_key in _NUMBER_PARAM_KEYS:
+            number_pairs[param_key].extend(more_numbers[param_key])
         mode_pairs.extend(more_modes)
-    return val_pairs, mode_pairs
+    return number_pairs, mode_pairs
 
 
 def syn_strength(params):
@@ -153,68 +157,77 @@ def syn_strength(params):
     return params["syn_strength_cell"]
 
 
-def build_segment(segment, n_nodes, kind, segment_optimizable, n, *, slots=None):
-    val_pairs, mode_pairs = val_mode_pairs_from_optimizable(
-        segment_optimizable, segment,
-    )
+def build_param_spec(param, n_nodes, kind, entry, n, *, slots=None):
+    """Build one schema ``spec`` dict (no self-id; caller keys the schema by ``param``)."""
+    number_pairs, mode_pairs = init_mode_pairs_from_entry(entry, param)
     if slots is None:
         slots = [str(node_idx) for node_idx in range(n)]
     else:
         slots = [str(slot) for slot in slots]
     modes = resolve_modes(mode_pairs, slots)
-    init, inits = resolve_inits(val_pairs, slots)
-    s = {
-        "segment": segment,
+    spec = {
         "n_nodes": n_nodes,
         "kind": kind,
-        "lo": float(segment_optimizable["lo"]),
-        "hi": float(segment_optimizable["hi"]),
-        "jit": float(segment_optimizable["jit"]),
-        "init": init,
     }
+    for param_key in _NUMBER_PARAM_KEYS:
+        scalar, bag = resolve_inits(number_pairs[param_key], slots)
+        spec[param_key] = float(scalar)
+        if bag:
+            spec[param_key + "s"] = bag
     for mode in PARAM_MODES:
-        s[mode] = list(modes[mode])
-    if inits:
-        s["inits"] = inits
-    return s
+        spec[mode] = list(modes[mode])
+    shared = list(spec.get("shared") or ())
+    if len(shared) >= 2:
+        for param_key in ("lo", "hi", "jit"):
+            plural = param_key + "s"
+            vals = []
+            for node_idx in shared:
+                bag = spec.get(plural)
+                if bag is not None and int(node_idx) in bag:
+                    vals.append(float(bag[int(node_idx)]))
+                else:
+                    vals.append(float(spec[param_key]))
+            if len(set(vals)) > 1:
+                raise ValueError(
+                    f"{param}: shared nodes must share the same {param_key}, "
+                    f"got {vals} for nodes {shared}"
+                )
+    return spec
 
 
-
-def _syn_segment(syn_mode, n_pairs, n_edges, optimizable):
-    """One synaptic segment: type-pair or per-edge syn_strength."""
+def _syn_param(syn_mode, n_pairs, n_edges, params):
+    """One synaptic param: type-pair or per-edge syn_strength → ``(param, spec)``."""
     if syn_mode == "per_edge":
         if n_edges is None:
             raise TypeError("per_edge syn_strength_edge requires n_edges from network ScatterConn")
         n_edges = int(n_edges)
-        return build_segment("syn_strength_edge", n_edges, "edge", optimizable["syn_strength_edge"], n_edges)
+        return "syn_strength_edge", build_param_spec(
+            "syn_strength_edge", n_edges, "edge", params["syn_strength_edge"], n_edges,
+        )
     if n_pairs is None:
         raise TypeError("per_cell syn_strength_cell requires n_pairs from network ScatterConn")
     n_pairs = int(n_pairs)
-    return build_segment("syn_strength_cell", n_pairs, "edge_pair", optimizable["syn_strength_cell"], n_pairs)
+    return "syn_strength_cell", build_param_spec(
+        "syn_strength_cell", n_pairs, "edge_pair", params["syn_strength_cell"], n_pairs,
+    )
 
 
-def _a_sti_radius_segment(optimizable: dict, a_sti_radii):
-    """Per-radius spot drive ``a_sti_radius`` for non-center radii (``a_sti_radii`` order).
-
-    Center r=0 is baked into ``i_sti`` at 1 (not a param). Slot keys are
-    ``str(int(radius))``. Default ``mode`` applies; CLI ``--a-sti-radius`` may
-    still change it.
-    """
-    radii = list(a_sti_radii)
+def _a_sti_radius_param(params: dict, a_sti_radii):
+    """Per-radius ``a_sti_radius`` → ``(param, spec)``."""
+    radii = [str(int(r)) for r in a_sti_radii]
     n = len(radii)
     if n == 0:
         raise ValueError("a_sti_radius requires non-empty a_sti_radii")
-    radius_keys = [str(int(r)) for r in radii]
-    segment = build_segment(
-        "a_sti_radius", n, "output", optimizable["a_sti_radius"], n,
-        slots=radius_keys,
+    spec = build_param_spec(
+        "a_sti_radius", n, "output", params["a_sti_radius"], n,
+        slots=radii,
     )
-    segment["radius_keys"] = radius_keys
-    return segment
+    spec["radii"] = radii
+    return "a_sti_radius", spec
 
 
-def segments_from_optimizable(
-    optimizable,
+def params_from_defaults(
+    params,
     *,
     skip,
     n_cells,
@@ -225,34 +238,34 @@ def segments_from_optimizable(
     h_cells,
     a_sti_radii,
 ):
-    """Build segments in ``optimizable`` insertion order; ``skip`` omits unused segments."""
+    """Build ordered schema ``dict[param, spec]``; ``skip`` omits unused params."""
     mode = syn_mode
     active_syn = (
         "syn_strength_edge" if mode == "per_edge" else "syn_strength_cell"
     )
     cells = [str(cell) for cell in cells]
-    segments = []
-    for segment in optimizable:
-        if segment in skip:
+    out = {}
+    for param in params:
+        if param in skip:
             continue
-        if segment in ("syn_strength_cell", "syn_strength_edge"):
-            if segment != active_syn:
+        if param in ("syn_strength_cell", "syn_strength_edge"):
+            if param != active_syn:
                 continue
-            segments.append(_syn_segment(mode, n_pairs, n_edges, optimizable))
+            p, spec = _syn_param(mode, n_pairs, n_edges, params)
+            out[p] = spec
             continue
-        if segment == "a_sti_radius":
+        if param == "a_sti_radius":
             if not a_sti_radii:
                 continue
-            segments.append(_a_sti_radius_segment(optimizable, a_sti_radii))
+            p, spec = _a_sti_radius_param(params, a_sti_radii)
+            out[p] = spec
             continue
-        kind = "output" if segment in _OUTPUT_KIND else "full"
-        segments.append(
-            build_segment(
-                segment, n_cells, kind, optimizable[segment], n_cells,
-                slots=cells,
-            )
+        kind = "output" if param in _OUTPUT_KIND else "full"
+        out[param] = build_param_spec(
+            param, n_cells, kind, params[param], n_cells,
+            slots=cells,
         )
-    return segments
+    return out
 
 
 def build_borst_schema(
@@ -261,20 +274,20 @@ def build_borst_schema(
     n_pairs=None,
     *,
     syn_mode: str,
-    optimizable: dict,
+    params: dict,
     h_cells,
     filter: str = "none",
     n_edges=None,
     a_sti_radii=(),
 ):
-    """Borst schema in NEURON_SCHEMA['optimizable'] order (rev i_h segments always included)."""
+    """Borst schema in NEURON_SCHEMA['params'] order (rev i_h params always included)."""
     if cells is None:
         raise TypeError("borst schema requires cells from network")
     skip = set(_HP_LP_ONLY)
     if str(filter) != "ca":
         skip |= _CA_ONLY
-    return segments_from_optimizable(
-        optimizable,
+    return params_from_defaults(
+        params,
         skip=skip,
         n_cells=n_cells,
         cells=list(cells),
@@ -292,20 +305,20 @@ def build_hp_lp_schema(
     n_pairs=None,
     *,
     syn_mode: str,
-    optimizable: dict,
+    params: dict,
     h_cells,
     filter: str = "none",
     n_edges=None,
     a_sti_radii=(),
 ):
-    """HP-then-membrane-LP schema in NEURON_SCHEMA['optimizable'] order (borst-only keys skipped)."""
+    """HP-then-LP schema in NEURON_SCHEMA['params'] order (borst-only keys skipped)."""
     if cells is None:
         raise TypeError("hp_lp schema requires cells from network")
     skip = set(_BORST_ONLY)
     if str(filter) != "ca":
         skip |= _CA_ONLY
-    return segments_from_optimizable(
-        optimizable,
+    return params_from_defaults(
+        params,
         skip=skip,
         n_cells=n_cells,
         cells=list(cells),
@@ -322,16 +335,15 @@ def build_schema(
     backend,
     *,
     syn_mode: str,
-    optimizable: dict,
+    params: dict,
     h_cells,
     filter: str = "none",
     a_sti_radii=(),
-) -> list:
+) -> dict:
     """Fresh parameter schema for ``model`` on the given backend.
 
-    ``filter``: ``none`` skips ``v_th_ca``/``a_ca``/``tau_ca``; ``ca`` keeps them.
-    Rev i_h (borst): train/--param mode/init and ``--val-from`` (not a separate enum).
-    ``a_sti_radii`` labels ``a_sti_radius`` slots (injected from train).
+    Returns ordered ``dict[param, spec]``. ``filter``: ``none`` skips
+    ``v_th_ca``/``a_ca``/``tau_ca``; ``ca`` keeps them.
     """
     if model not in KNOWN_MODELS:
         raise ValueError(f"unknown model {model!r}; expected one of {KNOWN_MODELS}")
@@ -351,7 +363,7 @@ def build_schema(
         syn_mode=mode,
         n_pairs=n_pairs,
         n_edges=n_edges,
-        optimizable=optimizable,
+        params=params,
         h_cells=h_cells,
         filter=filter,
         a_sti_radii=a_sti_radii,

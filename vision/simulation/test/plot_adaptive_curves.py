@@ -36,7 +36,7 @@ import numpy as np
 
 import FiveCol_MedSim_Pytorch as fc
 from import_bootstrap import parse_comma_list
-from default_params import P
+from const_default import P
 from training_config import DELTA_MS
 
 DEFAULT_SAVE = os.path.join(HERE, "adaptive_curves.png")
@@ -144,7 +144,7 @@ def parse_args(argv=None):
     p.add_argument("--X-hi", type=float, default=1.0, help="drive axis high for gate panel")
     p.add_argument("--n", type=int, default=401, help="number of X samples for gate panel")
     p.add_argument("--bias", type=float, default=None)
-    p.add_argument("--tau-m", type=float, default=None, help="membrane time constant [ms]")
+    p.add_argument("--tau-m", type=float, default=None, help="time constant [ms]")
     p.add_argument("--gate-pivot", type=float, default=float(fc.GATE_PIVOT))
     p.add_argument(
         "--gadapt-list",

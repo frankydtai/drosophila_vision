@@ -7,12 +7,12 @@ without a cycle. Session assembly and sti-opts finalisation live in
 :mod:`train.session`.
 
 **Enum allowed-token sets** (e.g. ``COST_NORMS``, ``SPOT_GT_MODES``) live here.
-Matching **default scalars** live only in ``default_params`` (e.g. ``TRAIN_OPTIMIZATION['cost_norm']``,
-``NEURON_FILTER['filter']``, ``SPOT_PACK['spot_gt_mode']``) — never put the ``(…)`` allowed tuple in ``default_params``.
+Matching **default scalars** live only in ``const_default`` (e.g. ``TRAIN_OPTIMIZATION['cost_norm']``,
+``NEURON_FILTER['filter']``, ``SPOT_PACK['spot_gt_mode']``) — never put the ``(…)`` allowed tuple in ``const_default``.
 """
 from __future__ import annotations
 
-from default_params import (
+from const_default import (
     SPOT_PACK,
     TRAIN_OPTIMIZATION,
 )
@@ -57,17 +57,17 @@ MOVING_BAR_COST_PARTS = tuple(
 )
 
 # Waveform MSE normalization (``--cost-norm``); shared by spot + moving_bar MSE.
-# gt_power: 100 * Σ w (v_readout−gt_aff)² / Σ w (a_gt·gt)²
-# a_gt2:         Σ w (v_readout−gt_aff)² / a_gt²   (per-entry a_i²; bias not in denom)
+# gt_power: 100 * Σ W (v_readout−gt_aff)² / Σ W (a_gt·gt)²
+# a_gt2:         Σ W (v_readout−gt_aff)² / a_gt²   (per-entry a_i²; bias not in denom)
 COST_NORMS = ("gt_power", "a_gt2")
 
 # Spot cost GT mode allowed tokens (``--spot-gt-mode``). Default scalar:
-# ``default_params.SPOT_PACK['spot_gt_mode']`` (all | positive — comment only there).
+# ``const_default.SPOT_PACK['spot_gt_mode']`` (all | positive — comment only there).
 # all: every active gt cell under both bright and dark (dark × contrast_sign −1).
 # positive: only cells with rf_sign × contrast_sign > 0 (bright: ON; dark: OFF).
 SPOT_GT_MODES = ("all", "pos")
 
-# t=0 membrane pre steady (``--pre-steady``); not param init.
+# t=0 pre steady (``--pre-steady``); not param init.
 
 
 def _expand_choice(tok, allowed: Tuple[str, ...], *, flag: str) -> str:
@@ -102,8 +102,7 @@ TASK_ALIASES = {
     "moving_bar": MOVING_BAR_TASKS,
 }
 CLI_TASK_NAMES = VALID_TASKS + tuple(TASK_ALIASES.keys())
-I_STI_TOKENS = ("bright", "baseline", "dark")
-I_STI_PARADIGMS = ("spot", "moving_bar")
+I_STI_KEYS = ("bright", "baseline", "dark")
 TASK_I_OPTS = {
     "spot_bright": frozenset({_SPOT_I_BASELINE, "i_bright_spot"}),
     "spot_dark": frozenset({_SPOT_I_BASELINE, "i_dark_spot"}),
@@ -154,8 +153,8 @@ def cost_part_keys_from_pack(pack, backend) -> Tuple[str, ...]:
     net = backend.network
     if net is None:
         raise ValueError("cost_part_keys_from_pack requires backend.network")
-    w = pack.cost_scales
-    entry_mask = w > 0
+    scales = pack.cost_scales
+    entry_mask = scales > 0
     cell_ids = net.node_cells[pack.entry_nodes]
     cells = net.cells
     part_keys: List[str] = []

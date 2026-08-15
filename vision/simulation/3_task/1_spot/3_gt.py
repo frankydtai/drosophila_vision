@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""Spot paradigm GT numbers: rf × ir → gt (no network binding).
+"""Spot GT numbers: rf × ir → gt (no network binding).
 
 All GT literals and helpers in this module are **owned here** — nothing is
 imported at runtime from legacy SimulationCode (Medulla_Library,
@@ -33,7 +33,7 @@ from typing import Dict, Sequence, Tuple
 
 import numpy as np
 
-from task.spot.sti_geo import spot_radius_folds_r2_into_r1
+from task.spot.sti_geo import spot_radius_half_steps
 from task.spot.sti_spec import sti_waveform
 
 GT_CELLS: Tuple[str, ...] = (
@@ -92,12 +92,12 @@ RF_N_RADII = 5
 RF_RADIUS_DEG = 5.0
 
 # # Legacy DoG params (baked into RF_SCALE below).
-# RF_CENTER_WIDTH = {
+# RF_CENTER_W = {
 #     "L1": 6, "L2": 7, "L3": 6, "L4": 8, "L5": 7,
 #     "Mi1": 6, "Tm3": 12, "Mi4": 6, "Mi9": 6,
 #     "Tm1": 8, "Tm2": 8, "Tm4": 11, "Tm9": 7,
 # }
-# RF_SURRND_WIDTH = {
+# RF_SURRND_W = {
 #     "L1": 41, "L2": 29, "L3": 15, "L4": 33, "L5": 31,
 #     "Mi1": 29, "Tm3": 7, "Mi4": 16, "Mi9": 24,
 #     "Tm1": 27, "Tm2": 31, "Tm4": 35, "Tm9": 24,
@@ -163,8 +163,8 @@ IR_delay_ms = {
 # def _rf_dog_at(cell: str, radius: float, *, signed: bool) -> float:
 #     """Single-radius DoG sample (before peak normalize)."""
 #     x_deg = float(radius) * RF_RADIUS_DEG
-#     center = _gauss1d_at(float(RF_CENTER_WIDTH[cell]), x_deg)
-#     surrnd = _gauss1d_at(float(RF_SURRND_WIDTH[cell]), x_deg)
+#     center = _gauss1d_at(float(RF_CENTER_W[cell]), x_deg)
+#     surrnd = _gauss1d_at(float(RF_SURRND_W[cell]), x_deg)
 #     raw = center - float(RF_SURRND_SCALE[cell]) * surrnd
 #     if signed:
 #         raw *= float(RF_SIGN[cell])
@@ -195,7 +195,7 @@ IR_delay_ms = {
 #
 # def build_rf_row(cell: str, *, filter: str) -> tuple[np.ndarray, float]:
 #     """Dispatch rf source by cell × ``filter``."""
-#     if cell not in RF_CENTER_WIDTH:
+#     if cell not in RF_CENTER_W:
 #         return build_rf_zero() if str(filter) == "ca" else build_rf_gruntman()
 #     return build_rf_dog(cell, signed=(str(filter) != "ca"))
 
@@ -462,7 +462,8 @@ def _spot_readout_a_radius(
     r = int(radius)
     if r < 0 or r >= RF_N_RADII:
         raise ValueError(f"spot rf radius out of range: {radius!r}")
-    if spot_radius_folds_r2_into_r1(spot_radius):
+    # spot_radius == 1 → half_steps == 2: a_radius(1)=rf(1)+rf(2), a_radius(2)=0
+    if spot_radius_half_steps(spot_radius) == 2:
         if r == 1:
             return float(rf[1]) + float(rf[2])
         if r == 2:

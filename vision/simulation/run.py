@@ -42,7 +42,7 @@ from figure.plot import (
     resolve_figure_kwargs,
     plot_rf_t,
 )
-from figure.util import plot_cost, figure_file_ext
+from figure.panel import plot_cost, figure_file_ext
 
 _CHECKPOINT_PNG_STEM_PREFIXES = (
     "spot_gt",
@@ -120,16 +120,16 @@ def save_checkpoint_png(outdir, iter, z_best, cost_best, session, figure_kw):
     tag = implementation.checkpoint_iter_tag(iter)
     png_dir = os.path.join(outdir, "png")
     os.makedirs(png_dir, exist_ok=True)
-    z_np = z_best.detach().cpu().numpy()
+    z = z_best.detach().cpu().numpy()
     plot_rf_t(
-        np.array([z_np]),
+        np.array([z]),
         png_dir,
         session=session,
         final_costs=np.array([cost_best]),
         save_data=False,
         **figure_kw,
     )
-    from figure.util import filter_figure_token
+    from figure.panel import filter_figure_token
     _rename_checkpoint_pngs(
         png_dir, tag,
         filter_token=filter_figure_token((session.train_opts or {}).get("filter")),
