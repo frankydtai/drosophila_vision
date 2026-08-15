@@ -46,7 +46,7 @@ from figure.panel import (
     ElapsedTimer,
     save_figure,
 )
-from network.connectivity import build_cell_pair_indices
+from network.connectivity import build_cell_pair_idxs
 from network.construction import (
     cell_rows,
     gt_cells_from_opts,
@@ -65,11 +65,11 @@ SYN_SIGN_BINS = int(ANALYZE_SYN_SIGN["bins"])
 
 def _syn_strength_from_edges(edges, cells, syn_strength_cell, pairs):
     """Map (src_type_i, tar_type_i) -> trained syn_strength_cell."""
-    idx_from_cell = {n: i for i, n in enumerate(cells)}
+    cell_idx = {n: i for i, n in enumerate(cells)}
     n_cells = len(cells)
-    src_t = np.array([idx_from_cell[e["source_cell"]] for e in edges], dtype=np.int64)
-    tar_t = np.array([idx_from_cell[e["target_cell"]] for e in edges], dtype=np.int64)
-    _, n_pairs, pairs = build_cell_pair_indices(src_t, tar_t, n_cells)
+    src_t = np.array([cell_idx[e["source_cell"]] for e in edges], dtype=np.int64)
+    tar_t = np.array([cell_idx[e["target_cell"]] for e in edges], dtype=np.int64)
+    _, n_pairs, pairs = build_cell_pair_idxs(src_t, tar_t, n_cells)
     syn = np.asarray(syn_strength_cell, dtype=np.float64).reshape(-1)
     if syn.shape[0] != n_pairs:
         raise SystemExit(
@@ -81,15 +81,15 @@ def _syn_strength_from_edges(edges, cells, syn_strength_cell, pairs):
         ]
         if list(pairs) != expected:
             raise SystemExit("pairs in best_param.npz do not match network.json")
-    return {k: float(syn[i]) for i, k in enumerate(pairs)}, idx_from_cell
+    return {k: float(syn[i]) for i, k in enumerate(pairs)}, cell_idx
 
 
-def instance_syn_plus_by_id(
+def syn_plus_by_id(
     edges,
     cell: str,
     *,
     direction: str,
-    idx_from_cell: dict[str, int],
+    cell_idx: dict[str, int],
     strength_by_pair: dict[tuple[int, int], float] | None,
 ) -> dict[int, float]:
     """root_id -> %% n_syn+ (optional per-pair strength weighting)."""
@@ -108,11 +108,11 @@ def instance_syn_plus_by_id(
             continue
         src = e.get("source_cell")
         tar = e.get("target_cell")
-        if src not in idx_from_cell or tar not in idx_from_cell:
+        if src not in cell_idx or tar not in cell_idx:
             continue
         ns = float(e.get("n_syn", 0))
         if strength_by_pair is not None:
-            ns *= strength_by_pair[(idx_from_cell[src], idx_from_cell[tar])]
+            ns *= strength_by_pair[(cell_idx[src], cell_idx[tar])]
         syn_t[sid] += ns
         try:
             sign = float(e.get("syn_sign", 0))
@@ -211,7 +211,7 @@ def plot_syn_sign(
     panel_h,
     edges,
     direction,
-    idx_from_cell,
+    cell_idx,
     strength_by_pair,
     edges_bins,
     outdir_name,
@@ -244,13 +244,13 @@ def plot_syn_sign(
                     fig.add_subplot(gs[base + sub, ci]).set_axis_off()
                 continue
             cell = row_cells[ci]
-            pct_init_map = instance_syn_plus_by_id(
+            pct_init_map = syn_plus_by_id(
                 edges, cell, direction=direction,
-                idx_from_cell=idx_from_cell, strength_by_pair=None,
+                cell_idx=cell_idx, strength_by_pair=None,
             )
-            pct_tr_map = instance_syn_plus_by_id(
+            pct_tr_map = syn_plus_by_id(
                 edges, cell, direction=direction,
-                idx_from_cell=idx_from_cell, strength_by_pair=strength_by_pair,
+                cell_idx=cell_idx, strength_by_pair=strength_by_pair,
             )
             pct_init = np.asarray(list(pct_init_map.values()), dtype=np.float64)
             pct_tr = np.asarray(list(pct_tr_map.values()), dtype=np.float64)
@@ -326,7 +326,7 @@ def save_syn_sign_figures(outdir, *, post=False, bins=SYN_SIGN_BINS) -> None:
     if list(cells) != list(cells_npz):
         raise SystemExit("cells mismatch: network.json vs best_param.npz")
 
-    strength_by_pair, idx_from_cell = _syn_strength_from_edges(
+    strength_by_pair, cell_idx = _syn_strength_from_edges(
         edges, cells, node_vals["syn_strength_cell"], pairs,
     )
     session, z = _spot_bright_session_z(outdir)
@@ -338,7 +338,7 @@ def save_syn_sign_figures(outdir, *, post=False, bins=SYN_SIGN_BINS) -> None:
     figure_kw = dict(
         edges=edges,
         direction=direction,
-        idx_from_cell=idx_from_cell,
+        cell_idx=cell_idx,
         strength_by_pair=strength_by_pair,
         edges_bins=np.linspace(0.0, 100.0, bins + 1),
         outdir_name=os.path.basename(outdir),

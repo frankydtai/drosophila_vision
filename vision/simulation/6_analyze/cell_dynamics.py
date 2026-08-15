@@ -535,7 +535,7 @@ _HP_LP_FORMULA_I_EXPLICIT: list[tuple[str, str | None]] = [
 ]
 
 _BLACK_TRACE_LABELS = frozenset({"num", "den", "v_in", "v_slow", "v_hp", "dv_hp"})
-# Label → reuse another label's plot color (same row cycle).
+# Series label → reuse another label's plot color (same row cycle).
 _TRACE_COLOR_MATCH: dict[str, str] = {
     "dv_leak+dv_hp": "dv_leak",
     "v_ca": "v_post",
@@ -672,22 +672,22 @@ def _g_e_note(label: str, *, e_leak: float, globs: dict[str, Any], params: dict[
 def _add_component_formula_row(
     fig,
     colors: list[str],
-    formula_tokens: list[tuple[str, str | None]],
+    formula: list[tuple[str, str | None]],
     layout: _ComponentLayout,
     *,
     y: float,
     fontsize: int = 9,
 ) -> None:
-    """One formula line; trace symbols use plot colors, operators/constants gray."""
+    """One formula line; ``formula`` entries are ``(label, series)`` (series → color, or None)."""
     tc = _plot_trace_colors(colors, layout)
     x = 0.02
     fig.canvas.draw()
     renderer = fig.canvas.get_renderer()
     inv = fig.transFigure.inverted()
-    for text, label in formula_tokens:
-        color = tc[label] if label else "0.2"
+    for label, series in formula:
+        color = tc[series] if series else "0.2"
         txt = fig.text(
-            x, y, text, transform=fig.transFigure,
+            x, y, label, transform=fig.transFigure,
             ha="left", va="top", fontsize=fontsize, color=color,
         )
         bbox = txt.get_window_extent(renderer=renderer)
@@ -1037,7 +1037,7 @@ def _forward_component(
             b_ca_sums.append({cell: np.zeros(n_t_aligned, dtype=float) for cell in cells})
             b_ca_pre_sums.append({cell: np.zeros(n_t_aligned, dtype=float) for cell in cells})
 
-    cell_idx_from_node_ids = [_cell_idx_from_node_id(plan, cells) for plan in bs]
+    cell_idxs_from_node_id = [_cell_idx_from_node_id(plan, cells) for plan in bs]
 
     for t_global in range(1, n_t):
         if t_last is not None and t_global > t_last:
@@ -1114,7 +1114,7 @@ def _forward_component(
                     v_pre, v, component_t, active_node_idx, v_onset, b=b,
                 )
             component_mat = _component_matrix(component, layout.components)
-            cell_idx_from_node_id = cell_idx_from_node_ids[b]
+            cell_idx_from_node_id = cell_idxs_from_node_id[b]
             tags = cell_idx_from_node_id[active_node_idx]
             v_ca_active = ca_post_active = ca_pre_active = None
             if ca is not None:
@@ -1419,22 +1419,22 @@ def _globals(session):
 
 def cell_from_node(nodes_by_cell: dict[str, np.ndarray]) -> dict[int, str]:
     out: dict[int, str] = {}
-    for cell, node_indices in nodes_by_cell.items():
-        for node_idx in np.asarray(node_indices, dtype=np.int64).ravel():
+    for cell, node_idxs in nodes_by_cell.items():
+        for node_idx in np.asarray(node_idxs, dtype=np.int64).ravel():
             out[int(node_idx)] = cell
     return out
 
 
 def _cell_idx_from_node_id(plan: _ComponentForwardB, cells: list[str]) -> np.ndarray:
-    """Map node id → index in ``cells`` (-1 if absent). Length ``max(node_id)+1``."""
-    cell_idx_from_cell = {cell: cell_idx for cell_idx, cell in enumerate(cells)}
+    """Dense ``out[node_id] = cell_idx`` in ``cells`` (-1 if absent)."""
+    cell_idx = {cell: i for i, cell in enumerate(cells)}
     if plan.nodes.size == 0:
         return np.empty(0, dtype=np.int32)
     out = np.full(int(plan.nodes.max()) + 1, -1, dtype=np.int32)
     for node_id, cname in plan.cell_from_node.items():
-        cell_idx = cell_idx_from_cell.get(cname)
-        if cell_idx is not None:
-            out[int(node_id)] = cell_idx
+        i = cell_idx.get(cname)
+        if i is not None:
+            out[int(node_id)] = i
     return out
 
 
@@ -1572,15 +1572,15 @@ def _resolve_bar_spec_i_sti(
     pack = session.pack_from_task(task)
     if specs is None or grids is None:
         specs, grids = _bar_meta(session, task)
-    idx_from_spec_token = {
+    spec_b = {
         spec.token: spec_idx for spec_idx, spec in enumerate(specs)
     }
-    missing = [token for token in spec_tokens if token not in idx_from_spec_token]
+    missing = [token for token in spec_tokens if token not in spec_b]
     if missing:
         raise SystemExit(
             f"spec(s) {missing} not in {[spec.token for spec in specs]}"
         )
-    spec_bs = [idx_from_spec_token[token] for token in spec_tokens]
+    spec_bs = [spec_b[token] for token in spec_tokens]
     return pack, specs, grids, spec_bs, pack.i_sti[spec_bs], np.asarray(grids.t0_bn)
 
 
@@ -1842,12 +1842,12 @@ def _spot_session_readout(session_one, cells: list[str]):
         pack_spot_cost_radii(pack),
         pack.cost_radius,
     )
-    idx_from_cell: dict[str, int] = {}
+    cell_idx: dict[str, int] = {}
     for cell in cells:
         if cell not in connectome.cells:
             raise SystemExit(f"unknown cell {cell!r}")
-        idx_from_cell[cell] = connectome.cells.index(cell)
-    return pack, bs, node_idx, radii, type_idx, idx_from_cell
+        cell_idx[cell] = connectome.cells.index(cell)
+    return pack, bs, node_idx, radii, type_idx, cell_idx
 
 
 def _spot_gt_extra(
@@ -1952,7 +1952,7 @@ def analyze_spot_average(
     if task not in train.SPOT_TASKS:
         raise SystemExit(f"unsupported task {task!r}")
     radius = int(radius)
-    pack, bs, node_idx, radii, type_idx, idx_from_cell = _spot_session_readout(
+    pack, bs, node_idx, radii, type_idx, cell_idx = _spot_session_readout(
         session_one, cells,
     )
     radius_entry_mask = np.asarray(radii, dtype=np.int64) == int(radius)
@@ -1971,7 +1971,7 @@ def analyze_spot_average(
             continue
         nodes_by_cell: dict[str, np.ndarray] = {}
         for cell in cells:
-            cell_entry_mask = entry_mask & (type_idx == idx_from_cell[cell])
+            cell_entry_mask = entry_mask & (type_idx == cell_idx[cell])
             if np.any(cell_entry_mask):
                 nodes_by_cell[cell] = np.unique(node_idx[cell_entry_mask])
         if not nodes_by_cell:
@@ -2006,7 +2006,7 @@ def analyze_spot_average(
             train_filter=train_filter,
         ),
         n_nodes_from_cell=lambda cell: int(
-            np.sum(radius_entry_mask & (type_idx == idx_from_cell[cell]))
+            np.sum(radius_entry_mask & (type_idx == cell_idx[cell]))
         ),
     )
 
@@ -2075,7 +2075,7 @@ def analyze_spot_hex(
     """One v forward over bs at one hex; sti-on (radius 0) rows for that node only."""
     if task not in train.SPOT_TASKS:
         raise SystemExit(f"unsupported task {task!r}")
-    pack, bs, node_idx, radii, type_idx, idx_from_cell = _spot_session_readout(
+    pack, bs, node_idx, radii, type_idx, cell_idx = _spot_session_readout(
         session_one, [cell],
     )
     radius_entry_mask = np.asarray(radii, dtype=np.int64) == 0
@@ -2090,7 +2090,7 @@ def analyze_spot_hex(
     t0_abs = np.zeros(n_nodes, dtype=np.int64)
     n_t_aligned = time_window.aligned_n_t(n_t, delta_ms=float(session_one.delta_ms))
     node_arr = np.asarray([node], dtype=np.int64)
-    type_cell = idx_from_cell[cell]
+    type_cell = cell_idx[cell]
 
     forward_bs: list[_ComponentForwardB] = []
     i_sti_rows: list[int] = []

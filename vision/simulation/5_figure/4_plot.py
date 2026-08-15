@@ -625,21 +625,21 @@ def add_figure_arguments(parser):
     add_ms_shown_argument(parser)
 
 
-def parse_axis_coords(text):
+def parse_axis_coords(token):
     """Parse comma-separated ``--x`` / ``--y`` values (empty -> ``None``)."""
-    if not text:
+    if not token:
         return None
-    vals = [float(x) for x in import_bootstrap.parse_comma_list(text)]
+    vals = [float(x) for x in import_bootstrap.parse_comma_list(token)]
     if not vals:
         raise ValueError("empty comma-separated axis coord")
     return vals
 
 
-def parse_align_xy(text):
+def parse_align_xy(token):
     """Parse ``--align-xy X,Y`` reference sti hex (empty -> ``None``)."""
-    if not text:
+    if not token:
         return None
-    parts = import_bootstrap.parse_comma_list(text)
+    parts = import_bootstrap.parse_comma_list(token)
     if len(parts) != 2:
         raise ValueError("--align-xy requires exactly two comma-separated values X,Y")
     return float(parts[0]), float(parts[1])

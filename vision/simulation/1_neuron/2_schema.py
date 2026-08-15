@@ -50,8 +50,8 @@ def parse_param_tokens(tokens, *, param=None):
             yield param, param_key, nodes, right
 
 
-def _comma_nodes(text):
-    return [x.strip() for x in text.split(",") if x.strip()]
+def _comma_nodes(token):
+    return [x.strip() for x in token.split(",") if x.strip()]
 
 
 def expand_param_nodes(nodes):
@@ -82,43 +82,67 @@ def split_param_tokens(tokens, *, param=None):
     return number_pairs, mode_pairs
 
 
-def resolve_inits(init_pairs, slots):
-    """Fold ``(nodes|None, number)`` pairs into scalar + per-node bag ``dict[int, float]``.
+def _cli_idx(*, cell_idx=None, radius_idx=None, pair_idx=None, edge_idx=None):
+    """Exactly one of cell_idx / radius_idx / pair_idx / edge_idx."""
+    opts = (
+        ("cell_idx", cell_idx),
+        ("radius_idx", radius_idx),
+        ("pair_idx", pair_idx),
+        ("edge_idx", edge_idx),
+    )
+    present = [(name, val) for name, val in opts if val is not None]
+    if len(present) != 1:
+        raise ValueError(
+            "need exactly one of cell_idx, radius_idx, pair_idx, edge_idx; "
+            f"got {[name for name, _ in present]}"
+        )
+    return present[0][1]
 
-    Used for ``init``/``inits`` and the same shape for ``lo``/``los``, ``hi``/``his``,
-    ``jit``/``jits``.
+
+def resolve_inits(
+    init_pairs, *, cell_idx=None, radius_idx=None, pair_idx=None, edge_idx=None,
+):
+    """Fold ``(cli_ids|None, number)`` pairs into scalar + per-node_idx bag.
+
+    Pass exactly one lookup: ``cell_idx`` / ``radius_idx`` / ``pair_idx`` / ``edge_idx``.
     """
-    slots = [str(slot) for slot in slots]
-    idx_from_slot = {slot: node_idx for node_idx, slot in enumerate(slots)}
+    cli_idx = _cli_idx(
+        cell_idx=cell_idx, radius_idx=radius_idx, pair_idx=pair_idx, edge_idx=edge_idx,
+    )
+    cli_ids = [str(c) for c in cli_idx]
     node_init = {}
-    for nodes, init in init_pairs:
-        if nodes is None:
-            node_init = {slot: init for slot in slots}
+    for cli_group, init in init_pairs:
+        if cli_group is None:
+            node_init = {c: init for c in cli_ids}
         else:
-            for node in nodes:
-                node_init[str(node)] = init
+            for cli_id in cli_group:
+                node_init[str(cli_id)] = init
     if not node_init:
         return 0.0, {}
-    if len(node_init) == len(slots) and len(set(node_init.values())) == 1:
+    if len(node_init) == len(cli_ids) and len(set(node_init.values())) == 1:
         return next(iter(node_init.values())), {}
-    return 0.0, {int(idx_from_slot[slot]): node_init[slot] for slot in node_init}
+    return 0.0, {int(cli_idx[c]): node_init[c] for c in node_init}
 
 
-def resolve_modes(mode_pairs, slots):
-    """Fold ``(nodes|None, mode)`` pairs into ``modes``."""
-    slots = [str(slot) for slot in slots]
-    idx_from_slot = {slot: node_idx for node_idx, slot in enumerate(slots)}
+def resolve_modes(
+    mode_pairs, *, cell_idx=None, radius_idx=None, pair_idx=None, edge_idx=None,
+):
+    """Fold ``(cli_ids|None, mode)`` pairs into ``modes`` (lists of node_idx)."""
+    cli_idx = _cli_idx(
+        cell_idx=cell_idx, radius_idx=radius_idx, pair_idx=pair_idx, edge_idx=edge_idx,
+    )
+    cli_ids = [str(c) for c in cli_idx]
     node_mode = {}
-    for nodes, mode in mode_pairs:
-        if nodes is None:
-            for slot in slots:
-                node_mode[slot] = mode
+    for cli_group, mode in mode_pairs:
+        if cli_group is None:
+            for c in cli_ids:
+                node_mode[c] = mode
         else:
-            for node in nodes:
-                node_mode[str(node)] = mode
+            for cli_id in cli_group:
+                node_mode[str(cli_id)] = mode
     out = {mode: [] for mode in PARAM_MODES}
-    for slot, mode in node_mode.items():
-        out[mode].append(int(idx_from_slot[slot]))
+    for c, mode in node_mode.items():
+        out[mode].append(int(cli_idx[c]))
     for mode in PARAM_MODES:
         out[mode].sort()
     return out
@@ -157,20 +181,48 @@ def syn_strength(params):
     return params["syn_strength_cell"]
 
 
-def build_param_spec(param, n_nodes, kind, entry, n, *, slots=None):
-    """Build one schema ``spec`` dict (no self-id; caller keys the schema by ``param``)."""
+def build_param_spec(
+    param, n_nodes, kind, entry, n,
+    *, cells=None, radii=None, pairs=None, edges=None,
+):
+    """Build one schema ``spec`` dict (no self-id; caller keys the schema by ``param``).
+
+    Pass exactly one of ``cells`` / ``radii`` / ``pairs`` / ``edges`` (CLI vocabulary
+    for node_idx 0..n-1). Omit all only when tokens are ``str(node_idx)``.
+    """
     number_pairs, mode_pairs = init_mode_pairs_from_entry(entry, param)
-    if slots is None:
-        slots = [str(node_idx) for node_idx in range(n)]
+    n_cli = sum(x is not None for x in (cells, radii, pairs, edges))
+    if n_cli > 1:
+        raise ValueError(
+            f"{param}: pass at most one of cells, radii, pairs, edges"
+        )
+    if cells is not None:
+        cells = [str(c) for c in cells]
+        idx_kw = {"cell_idx": {c: i for i, c in enumerate(cells)}}
+    elif radii is not None:
+        radii = [str(r) for r in radii]
+        idx_kw = {"radius_idx": {r: i for i, r in enumerate(radii)}}
+    elif pairs is not None:
+        pairs = [str(p) for p in pairs]
+        idx_kw = {"pair_idx": {p: i for i, p in enumerate(pairs)}}
+    elif edges is not None:
+        edges = [str(e) for e in edges]
+        idx_kw = {"edge_idx": {e: i for i, e in enumerate(edges)}}
     else:
-        slots = [str(slot) for slot in slots]
-    modes = resolve_modes(mode_pairs, slots)
+        tokens = [str(i) for i in range(n)]
+        if kind == "edge":
+            idx_kw = {"edge_idx": {t: i for i, t in enumerate(tokens)}}
+        elif kind == "edge_pair":
+            idx_kw = {"pair_idx": {t: i for i, t in enumerate(tokens)}}
+        else:
+            idx_kw = {"cell_idx": {t: i for i, t in enumerate(tokens)}}
+    modes = resolve_modes(mode_pairs, **idx_kw)
     spec = {
         "n_nodes": n_nodes,
         "kind": kind,
     }
     for param_key in _NUMBER_PARAM_KEYS:
-        scalar, bag = resolve_inits(number_pairs[param_key], slots)
+        scalar, bag = resolve_inits(number_pairs[param_key], **idx_kw)
         spec[param_key] = float(scalar)
         if bag:
             spec[param_key + "s"] = bag
@@ -220,7 +272,7 @@ def _a_sti_radius_param(params: dict, a_sti_radii):
         raise ValueError("a_sti_radius requires non-empty a_sti_radii")
     spec = build_param_spec(
         "a_sti_radius", n, "output", params["a_sti_radius"], n,
-        slots=radii,
+        radii=radii,
     )
     spec["radii"] = radii
     return "a_sti_radius", spec
@@ -263,7 +315,7 @@ def params_from_defaults(
         kind = "output" if param in _OUTPUT_KIND else "full"
         out[param] = build_param_spec(
             param, n_cells, kind, params[param], n_cells,
-            slots=cells,
+            cells=cells,
         )
     return out
 

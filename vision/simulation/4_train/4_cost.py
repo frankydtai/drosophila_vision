@@ -2,7 +2,7 @@
 
 Consumes a :class:`~train.session.TrainSession` and the model forward
 (``neuron.forward`` + ``neuron.readout``); produces per-part local-% costs and
-the mean scaled total (``Σ W·cost / Σ W``). The Adam / staged-lr loop lives in
+the mean scaled total (``Σ W·cost / Σ W``). The staged-lr loop lives in
 :mod:`train.optimization`.
 
 Owns cost-time execution plans (active subpacks / fused forward) built at
@@ -27,7 +27,7 @@ scale per cell×radius unless ``part_cost_scales`` says otherwise).
 
 Sparse cost time points (#4): ``pack.gts`` stays the ``ms_response`` window length
 (spot excludes ``ms_post``) and the subsample is gathered from both v_readout
-trace and gt at cost time via ``pack.cost_time_indices`` (from train_opts
+trace and gt at cost time via ``pack.cost_time_idxs`` (from train_opts
 ``cost_interval_ms`` / ``cost_ms``); when radii use different
 ``cost_ms`` lists, ``pack.cost_time_mask`` zeros non-participating (entry, t)
 pairs. ``gt_power`` is recomputed on the subsample.
@@ -95,13 +95,13 @@ class FusedForward:
 
 
 def pack_cost_abs_time_idx(pack: Pack, t_onset, *, entry_radius=None):
-    """Absolute time indices for sparse spot cost samples (or ``None``).
+    """Absolute time idxs for sparse spot cost samples (or ``None``).
 
-    Sole reader of ``cost_time_indices`` / ``cost_time_mask`` / ``entry_radii``.
+    Sole reader of ``cost_time_idxs`` / ``cost_time_mask`` / ``entry_radii``.
     ``entry_radius`` is one hex-lattice radius; when set and a mask exists, keep
     that radius's columns only. Omit ``entry_radius`` → union of all radii.
     """
-    idx = pack.cost_time_indices
+    idx = pack.cost_time_idxs
     if idx is None:
         return None
     base = int(t_onset or 0)
@@ -209,9 +209,9 @@ def _session_cost_norm(session: TrainSession) -> str:
 
 
 def _gather_cost_time(pack: Pack, v_readout: torch.Tensor, gts: torch.Tensor):
-    """Sparse ``cost_time_indices`` gather; ``cost_time_mask`` on ``v_readout`` device."""
-    if pack.cost_time_indices is not None:
-        idx = pack.cost_time_indices.to(device=v_readout.device)
+    """Sparse ``cost_time_idxs`` gather; ``cost_time_mask`` on ``v_readout`` device."""
+    if pack.cost_time_idxs is not None:
+        idx = pack.cost_time_idxs.to(device=v_readout.device)
         v_readout = v_readout.index_select(1, idx)
         gts = gts.index_select(1, idx)
     time_mask = pack.cost_time_mask
@@ -244,12 +244,12 @@ def _parts_from_entries(
     gts: torch.Tensor,
     scale: torch.Tensor,
     v_readout: torch.Tensor,
-    part_indices: torch.Tensor,
+    part_idxs: torch.Tensor,
     part_keys: List[str],
     session: TrainSession,
     time_mask: Optional[torch.Tensor] = None,
 ) -> Dict[str, torch.Tensor]:
-    """Local costs for parts via ``part_indices`` (``part_indices`` -1 = skip entry)."""
+    """Local costs for parts via ``part_idxs`` (``part_idxs`` -1 = skip entry)."""
     if not part_keys:
         return {}
     cost_norm = _session_cost_norm(session)
@@ -258,21 +258,21 @@ def _parts_from_entries(
     )
     sse_entry = sse_wt.sum(dim=-1)
     n_parts = len(part_keys)
-    keep_f = (part_indices >= 0).to(dtype=sse_entry.dtype)
-    part_indices_pos = part_indices.clamp(min=0)
+    keep_f = (part_idxs >= 0).to(dtype=sse_entry.dtype)
+    part_idxs_pos = part_idxs.clamp(min=0)
     if cost_norm == "gt_power":
         p_entry = power_wt.sum(dim=-1)
         sse = sse_entry.new_zeros((n_parts,))
         gt_power = p_entry.new_zeros((n_parts,))
-        sse.scatter_add_(0, part_indices_pos, sse_entry * keep_f)
-        gt_power.scatter_add_(0, part_indices_pos, p_entry * keep_f)
+        sse.scatter_add_(0, part_idxs_pos, sse_entry * keep_f)
+        gt_power.scatter_add_(0, part_idxs_pos, p_entry * keep_f)
         gt_power = torch.where(gt_power > 0, gt_power, torch.ones_like(gt_power))
         costs = sse / gt_power * 100.0
     elif cost_norm == "a_gt2":
         a2 = (a_gt * a_gt).clamp(min=torch.finfo(a_gt.dtype).tiny)
         contrib = sse_entry / a2
         costs = contrib.new_zeros((n_parts,))
-        costs.scatter_add_(0, part_indices_pos, contrib * keep_f)
+        costs.scatter_add_(0, part_idxs_pos, contrib * keep_f)
     else:
         raise ValueError(f"cost_norm must be one of {COST_NORMS}; got {cost_norm!r}")
     out: Dict[str, torch.Tensor] = {}
@@ -288,7 +288,7 @@ def _entries_by_part(
     backend: ModelBackend,
     entry_part_key,
 ) -> Tuple[torch.Tensor, List[str]]:
-    """``(part_indices, part_keys)`` from ``entry_part_key(i, cells, ci)``; one CPU sync."""
+    """``(part_idxs, part_keys)`` from ``entry_part_key(i, cells, ci)``; one CPU sync."""
     n = int(pack.entry_nodes.shape[0])
     net = backend.network
     if net is None:
@@ -296,29 +296,29 @@ def _entries_by_part(
     ci = net.node_cells[pack.entry_nodes].detach().cpu().numpy()
     entry_cost_scales = pack.cost_scales.detach().cpu().numpy()
     cells = net.cells
-    idx_from_part_key: Dict[str, int] = {}
+    part_idxs: Dict[str, int] = {}
     part_keys: List[str] = []
-    part_indices_np = np.full(n, -1, dtype=np.int64)
+    part_idxs_np = np.full(n, -1, dtype=np.int64)
     for entry_i in range(n):
         if entry_cost_scales[entry_i] <= 0.0:
             continue
         part_key = entry_part_key(entry_i, cells, ci)
-        part_idx = idx_from_part_key.get(part_key)
+        part_idx = part_idxs.get(part_key)
         if part_idx is None:
             part_idx = len(part_keys)
-            idx_from_part_key[part_key] = part_idx
+            part_idxs[part_key] = part_idx
             part_keys.append(part_key)
-        part_indices_np[entry_i] = part_idx
-    part_indices = torch.as_tensor(
-        part_indices_np, dtype=torch.long, device=pack.entry_nodes.device,
+        part_idxs_np[entry_i] = part_idx
+    part_idxs = torch.as_tensor(
+        part_idxs_np, dtype=torch.long, device=pack.entry_nodes.device,
     )
-    return part_indices, part_keys
+    return part_idxs, part_keys
 
 
 def _spot_entries_by_part(
     pack: Pack, backend: ModelBackend,
 ) -> Tuple[torch.Tensor, List[str]]:
-    """``(part_indices, part_keys)`` for spot cell×radius; one CPU sync of entry meta."""
+    """``(part_idxs, part_keys)`` for spot cell×radius; one CPU sync of entry meta."""
     rad = pack.entry_radii.detach().cpu().numpy()
 
     def entry_part_key(i, cells, ci):
@@ -330,7 +330,7 @@ def _spot_entries_by_part(
 def _moving_bar_entries_by_part(
     pack: Pack, backend: ModelBackend,
 ) -> Tuple[torch.Tensor, List[str]]:
-    """``(part_indices, part_keys)`` for moving-bar cell×PD/ND; one CPU sync of entry meta."""
+    """``(part_idxs, part_keys)`` for moving-bar cell×PD/ND; one CPU sync of entry meta."""
     n = int(pack.entry_nodes.shape[0])
     if pack.cost_pd_nds is None:
         return (
@@ -408,7 +408,7 @@ def _dsi_entry_mask(pack: Pack, session: TrainSession) -> torch.Tensor:
 
 
 def _pack_active_bs(pack: Pack, session: TrainSession) -> Tuple[int, ...]:
-    """Stimulus b indices with at least one non-zero-scale cost node."""
+    """Stimulus b idxs with at least one non-zero-scale cost node."""
     entry_mask = _mse_entry_mask(pack, session) | _dsi_entry_mask(pack, session)
     if not bool(entry_mask.any()):
         return ()
@@ -416,7 +416,7 @@ def _pack_active_bs(pack: Pack, session: TrainSession) -> Tuple[int, ...]:
     return tuple(int(b) for b in bs.tolist())
 
 
-def _active_entry_indices(
+def _active_entry_idxs(
     pack: Pack,
     session: TrainSession,
     b: Optional[int] = None,
@@ -489,7 +489,7 @@ def _active_cost_pack(
         work = _subset_pack_bs(pack, bs)
         if work is None:
             return None
-    entries = _active_entry_indices(work, session, b=b)
+    entries = _active_entry_idxs(work, session, b=b)
     if entries is None:
         return None
     return _slice_pack_entries(work, entries)
@@ -591,7 +591,7 @@ def _pack_cost_parts_from_v_readout(
     if pack.task in MOVING_BAR_TASKS:
         out: Dict[str, torch.Tensor] = {}
         if pack.cost_pd_nds is not None:
-            part_indices, part_keys = _moving_bar_entries_by_part(pack, backend)
+            part_idxs, part_keys = _moving_bar_entries_by_part(pack, backend)
             if v_readout is None:
                 if any(_part_scale(session, part_key) != 0.0 for part_key in part_keys):
                     raise ValueError(
@@ -602,7 +602,7 @@ def _pack_cost_parts_from_v_readout(
                 out.update(
                     _parts_from_entries(
                         a_gt, bias_gt, pack.gts, pack.cost_scales, v_readout,
-                        part_indices, part_keys, session,
+                        part_idxs, part_keys, session,
                     )
                 )
         dsi_part = _pack_cost_dsi_from_v_readout_dsi(
@@ -613,13 +613,13 @@ def _pack_cost_parts_from_v_readout(
         return out
     if v_readout is None:
         raise ValueError(f"waveform readout required for pack {pack.task!r}")
-    # #4 sparse time: gather on ``cost_time_indices``; gt_power uses a_gt·gts (no bias).
+    # #4 sparse time: gather on ``cost_time_idxs``; gt_power uses a_gt·gts (no bias).
     v_readout, gts, time_mask = _gather_cost_time(pack, v_readout, pack.gts)
     if pack.entry_radii is None:
         raise ValueError(f"spot pack {pack.task!r} missing entry_radii")
-    part_indices, part_keys = _spot_entries_by_part(pack, backend)
+    part_idxs, part_keys = _spot_entries_by_part(pack, backend)
     return _parts_from_entries(
-        a_gt, bias_gt, gts, pack.cost_scales, v_readout, part_indices, part_keys, session,
+        a_gt, bias_gt, gts, pack.cost_scales, v_readout, part_idxs, part_keys, session,
         time_mask=time_mask,
     )
 

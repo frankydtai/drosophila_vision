@@ -149,17 +149,17 @@ def _moving_bar_cell_title(
     )
 
 
-def figure_idx_from_node_cells(connectome_cells, node_cells, figure_cells):
-    """Map node ``node_cells`` (index into connectome cells) to ``figure_cells`` index.
+def figure_cell_idx_from_node_cells(connectome_cells, node_cells, figure_cells):
+    """Map node ``node_cells`` (connectome cell idx) to ``figure_cells`` idx.
 
     ``cells_in_order`` reorders cells; accumulating with raw ``node_cells`` against
-    ``enumerate(figure_cells)`` mislabels every cell whose plot index ≠ connectome index.
+    ``enumerate(figure_cells)`` mislabels every cell whose plot idx ≠ connectome idx.
     """
     c_ids = np.asarray(as_numpy(node_cells), dtype=np.int64)
-    idx_from_cell = {str(n): i for i, n in enumerate(figure_cells)}
+    cell_idx = {str(n): i for i, n in enumerate(figure_cells)}
     out = np.full(c_ids.shape, -1, dtype=np.int64)
     for ci, name in enumerate(connectome_cells):
-        pi = idx_from_cell.get(str(name))
+        pi = cell_idx.get(str(name))
         if pi is None:
             continue
         out[c_ids == int(ci)] = int(pi)
@@ -172,7 +172,9 @@ def _cells_and_ids(session):
     if connectome is None:
         raise ValueError("_cells_and_ids requires session.backend.network")
     cells = cells_in_order(connectome.cells)
-    cell_ids = figure_idx_from_node_cells(connectome.cells, connectome.node_cells, cells)
+    cell_ids = figure_cell_idx_from_node_cells(
+        connectome.cells, connectome.node_cells, cells,
+    )
     return cells, cell_ids
 
 

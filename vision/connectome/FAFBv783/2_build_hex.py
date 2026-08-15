@@ -3,9 +3,9 @@
 This module owns all hex-lattice math so the rest of the pipeline never restates
 coordinate formulas:
 
-  - ``members_in_radius`` / ``get_hex_coords`` enumerate axial (u, v) on a hex
+  - ``radius_hexes`` / ``get_hex_coords`` enumerate axial (u, v) on a hex
     disc.
-  - ``uv_from_pq(p, q, side)`` converts FAFB ``column_assignment`` (p, q) indices to
+  - ``uv_from_pq(p, q, side)`` converts FAFB ``column_assignment`` (p, q) idxs to
     axial (u, v), which differs per hemisphere.
   - ``inside_mask(u, v, radius)`` is the shared inside/outside-the-disc predicate.
   - ``xy_from_uv`` / ``uv_from_xy`` convert axial ``(u, v)`` to hex-step ``(x, y)``;
@@ -75,7 +75,7 @@ EMPTY_COLOR: Tuple[str, str] = ("whitesmoke", "lightgrey")
 
 
 def uv_from_pq(p, q, side: str) -> Tuple[np.ndarray, np.ndarray]:
-    """Convert FAFB column (p, q) indices to axial (u, v) for one hemisphere.
+    """Convert FAFB column (p, q) idxs to axial (u, v) for one hemisphere.
 
     - left:  u = -q, v = q - p
     - right: u = -p, v = p - q
@@ -115,13 +115,13 @@ def inside_mask(u, v, radius: int) -> np.ndarray:
     return _hex_radius_arr(u, v) <= int(radius)
 
 
-# -- Hex disc members -----------------------------------------------------------
+# -- Hex disc -----------------------------------------------------------
 
 _HEX_DIRECTIONS = ((1, 0), (0, 1), (-1, 1), (-1, 0), (0, -1), (1, -1))
 
 
-def members_at_shell(shell: int) -> list:
-    """Axial (u, v) members exactly ``shell`` hex steps from origin."""
+def shell_hexes(shell: int) -> list:
+    """Axial (u, v) hexes exactly ``shell`` hex steps from origin."""
     if shell < 0:
         raise ValueError(f"shell must be >= 0, got {shell}")
     if shell == 0:
@@ -136,20 +136,20 @@ def members_at_shell(shell: int) -> list:
     return out
 
 
-def members_in_radius(radius) -> list:
-    """All axial (u, v) members with :func:`hex_radius` <= ``radius``."""
+def radius_hexes(radius) -> list:
+    """All axial (u, v) hexes with :func:`hex_radius` <= ``radius``."""
     shell_max = int(math.floor(float(radius)))
-    members: list = []
+    hexes: list = []
     for shell in range(shell_max + 1):
-        members.extend(members_at_shell(shell))
-    return members
+        hexes.extend(shell_hexes(shell))
+    return hexes
 
 
 def get_hex_coords(radius: int) -> Tuple[np.ndarray, np.ndarray]:
-    """Axial (u, v) coordinates of a hex disc (shell order via :func:`members_in_radius`)."""
-    members = members_in_radius(int(radius))
-    u = np.array([m[0] for m in members], dtype=np.int64)
-    v = np.array([m[1] for m in members], dtype=np.int64)
+    """Axial (u, v) coordinates of a hex disc (shell order via :func:`radius_hexes`)."""
+    hexes = radius_hexes(int(radius))
+    u = np.array([m[0] for m in hexes], dtype=np.int64)
+    v = np.array([m[1] for m in hexes], dtype=np.int64)
     return u, v
 
 

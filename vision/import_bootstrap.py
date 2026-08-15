@@ -40,19 +40,19 @@ _ORIG_PARSE_KNOWN_ARGS = argparse.ArgumentParser.parse_known_args
 _ARGPARSE_DASH_PATCHED = False
 
 
-def parse_comma_list(text: str) -> List[str]:
+def parse_comma_list(token: str) -> List[str]:
     """Split a comma-separated token list (empty string → ``[]``)."""
-    return [t.strip() for t in str(text or "").split(",") if t.strip()]
+    return [t.strip() for t in str(token or "").split(",") if t.strip()]
 
 
-def parse_bool(text) -> bool:
+def parse_bool(token) -> bool:
     """Parse CLI boolean (true/false, 1/0, yes/no)."""
-    v = str(text).lower()
+    v = str(token).lower()
     if v in ("true", "1", "yes"):
         return True
     if v in ("false", "0", "no"):
         return False
-    raise ValueError(f"expected true|false, got {text!r}")
+    raise ValueError(f"expected true|false, got {token!r}")
 
 
 def standardize_option_dashes(argv: Sequence[str]) -> List[str]:
@@ -202,9 +202,8 @@ def install() -> None:
     ]
     sys.meta_path.insert(0, _FINDER)
     for root in (_VISION, *_ROOTS):
-        root_text = str(root)
-        if root_text not in sys.path:
-            sys.path.insert(0, root_text)
+        if str(root) not in sys.path:
+            sys.path.insert(0, str(root))
 
 
 install()

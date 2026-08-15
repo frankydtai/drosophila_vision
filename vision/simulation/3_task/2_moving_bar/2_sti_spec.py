@@ -186,7 +186,7 @@ def moving_bar_transit_times(
     n_t: Optional[int] = None,
     delta_ms: float,
 ) -> Tuple[int, int, int]:
-    """Return ``(entry, mid, exit)`` t indices for the first multi-bar lane."""
+    """Return ``(entry, mid, exit)`` t idxs for the first multi-bar lane."""
     lane_origin, lane_pitch = motion_lanes(spec, view_deg, bar_radius, multi_bar=multi_bar)[0]
     trail_start, trail_exit = lane_sweep_trail_range(spec, lane_origin, lane_pitch)
     w = float(spec.w_deg)
@@ -368,8 +368,8 @@ def build_moving_bar_t0_grids(
     n_t: int,
     i_baseline: float,
     *,
-    hex_indices: Sequence[int],
-    filt_hex_indices: Sequence[int],
+    hex_idxs: Sequence[int],
+    filt_hex_idxs: Sequence[int],
     connectome,
     filt_network_hexes: Sequence[StiHex],
 ) -> MovingBarT0Grids:
@@ -383,14 +383,14 @@ def build_moving_bar_t0_grids(
     for b, spec in enumerate(specs):
         t_first_all = [
             hex_first_sti_t(i_sti_hex[b, :, hex_idx], i_baseline=i_baseline)
-            for hex_idx in hex_indices
+            for hex_idx in hex_idxs
         ]
         fb, before, after = moving_bar_spec_horizon(t_first_all, n_t)
         before_t[spec.token] = before
         after_t[spec.token] = after
         t_first_filt = [
             hex_first_sti_t(i_sti_hex[b, :, hex_idx], i_baseline=i_baseline)
-            for hex_idx in filt_hex_indices
+            for hex_idx in filt_hex_idxs
         ]
         for hex, t_first in zip(filt_network_hexes, t_first_filt):
             t0_map[(b, int(hex.u), int(hex.v))] = t_first - fb

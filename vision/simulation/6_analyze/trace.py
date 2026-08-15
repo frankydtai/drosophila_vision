@@ -346,7 +346,7 @@ def _baseline_mean(
     return float(np.mean(trace_slice))
 
 
-def _format_param_tokens(param_inits, param_vals) -> str:
+def _format_param(param_inits, param_vals) -> str:
     parts: list[str] = []
     for key, bag in (("init", param_inits or ()), ("val", param_vals or ())):
         for param, node, number in bag:
@@ -415,17 +415,17 @@ def _load_reports(args):
         forward_stop = max(forward_stop, baseline[1])
     # Buffer is always from trial start; start=0 keeps indices absolute.
     time_window = TimeWindow(kind="ms", start=0.0, stop=forward_stop)
-    baseline_text = (
+    baseline_label = (
         f"{baseline[0]:g},{baseline[1]:g}" if baseline is not None else "none"
     )
     print(
         f"check={args.check}  {args.task} radius={args.radius}  "
         f"filter={args.filter or 'run'}  "
         f"ms-shown={analyze[0]:g},{analyze[1]:g}  "
-        f"baseline-ms-shown={baseline_text}  "
+        f"baseline-ms-shown={baseline_label}  "
         f"forward TimeWindow(ms, 0, {forward_stop:g})  "
         f"ms_pre={ms_pre:g} ms_sti={ms_sti:g} ms_response={ms_response:g}  "
-        f"param={_format_param_tokens(param_inits, param_vals)}  "
+        f"param={_format_param(param_inits, param_vals)}  "
         f"n_cells={len(cells)}",
         flush=True,
     )

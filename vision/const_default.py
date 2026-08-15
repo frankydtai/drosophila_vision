@@ -155,7 +155,7 @@ SPOT_PACK: Dict[str, object] = {
     # Spot cost GT mode default (``--spot-gt-mode``). Allowed tokens in comment only:
     # all | positive — see train.config.SPOT_GT_MODES (never define SPOT_GT_MODES here).
     "spot_gt_mode": "pos",
-    # Hex-lattice radii (``build_hex.hex_radius`` / ``members_at_shell``); radius 2 = full shell 12.
+    # Hex-lattice radii (``build_hex.hex_radius`` / ``shell_hexes``); radius 2 = full shell 12.
     "spot_cost_radii": (0, 1, 2),
     # a_sti_radius: center r=0 baked @1; a_sti_radii are non-center radii.
     # Cost-radius scale==0 → a_sti_radius_mask forces that radius to 0 in forward.

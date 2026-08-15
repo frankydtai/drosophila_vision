@@ -217,8 +217,8 @@ def format_spot_radius_time_title(radius, n, cell, cost_parts, contrasts):
     from train.config import spot_cost_part_key
 
     r = float(radius)
-    radius_text = str(int(r)) if r == int(r) else str(r)
-    head = f'r={radius_text}'
+    radius_label = str(int(r)) if r == int(r) else str(r)
+    head = f'r={radius_label}'
     if n is not None:
         head = f'{head} (n={int(n)})'
     if not cost_parts or not contrasts:
@@ -325,7 +325,7 @@ def ms_shown_axis_xlim(ms_shown, *, delta_ms, origin_t=0):
 def hex_at_scope_tag(at_x, at_y):
     """Subtitle fragment for plot hex overlay."""
 
-    def token(val):
+    def coord_label(val):
         v = float(val)
         if np.isclose(v, round(v)):
             return str(int(round(v)))
@@ -334,10 +334,10 @@ def hex_at_scope_tag(at_x, at_y):
     parts = []
     if at_x is not None:
         xs = at_x if isinstance(at_x, (list, tuple)) else [at_x]
-        parts.append('x=' + ','.join(token(v) for v in xs))
+        parts.append('x=' + ','.join(coord_label(v) for v in xs))
     if at_y is not None:
         ys = at_y if isinstance(at_y, (list, tuple)) else [at_y]
-        parts.append('y=' + ','.join(token(v) for v in ys))
+        parts.append('y=' + ','.join(coord_label(v) for v in ys))
     return ', '.join(parts)
 
 
@@ -814,9 +814,9 @@ def plot_cost(costs, path, *, costs_by_part=None, part_order=None):
         pos = part_key.rfind("_r")
         if pos < 0:
             return None
-        radius_text = part_key[pos + 2:]
+        radius_token = part_key[pos + 2:]
         try:
-            r_f = float(radius_text)
+            r_f = float(radius_token)
         except ValueError:
             return None
         r_i = int(round(r_f))

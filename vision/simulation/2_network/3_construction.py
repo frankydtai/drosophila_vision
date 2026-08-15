@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""Load a ``network.json`` into a :class:`ScatterConn` + indices.
+"""Load a ``network.json`` into a :class:`ScatterConn` + idxs.
 
 The JSON contract (see ``connectome/FAFBv783/.../network.json``):
 
@@ -71,7 +71,7 @@ def cells_in_order(active: Sequence[str]) -> list[str]:
 
 @dataclass
 class Network:
-    """A loaded network: edge-list backend plus per-node geometry / indices."""
+    """A loaded network: edge-list backend plus per-node geometry / idxs."""
 
     conn: ScatterConn
     n_nodes: int
@@ -92,12 +92,12 @@ class Network:
         return len(self.cells)
 
     @property
-    def sti_node_indices(self) -> np.ndarray:
-        """Node indices with ``is_sti``."""
+    def sti_node_idxs(self) -> np.ndarray:
+        """Node idxs with ``is_sti``."""
         return np.where(self.is_sti)[0]
 
     def sti_nodes_at(self, u: int, v: int) -> np.ndarray:
-        """Sti node indices on hex (u, v)."""
+        """Sti node idxs on hex (u, v)."""
         return np.where((self.us == u) & (self.vs == v) & self.is_sti)[0]
 
 
@@ -113,7 +113,7 @@ def hex2gt(
     gt_type: str,
     node_cell: np.ndarray | None = None,
 ) -> np.ndarray:
-    """Node indices of cell ``gt_type`` on hex (u, v)."""
+    """Node idxs of cell ``gt_type`` on hex (u, v)."""
     if node_cell is None:
         node_cell = node_cells(connectome)
     return np.where(
@@ -204,8 +204,8 @@ def load_network(
     node_ids = [int(n["id"]) for n in nodes]
     node_from_id = {nid: i for i, nid in enumerate(node_ids)}
 
-    idx_from_cell = {t: i for i, t in enumerate(cells)}
-    node_cells = np.array([idx_from_cell[n["name"]] for n in nodes], dtype=np.int64)
+    cell_idx = {t: i for i, t in enumerate(cells)}
+    node_cells = np.array([cell_idx[n["name"]] for n in nodes], dtype=np.int64)
 
     us = np.array(
         [0 if n.get("u") is None else int(n["u"]) for n in nodes], dtype=np.int64,
@@ -219,21 +219,21 @@ def load_network(
     )
     is_sti = np.array([bool(n.get("sti", False)) for n in nodes], dtype=bool)
 
-    # edge list -> node indices + signed edge weight.
-    source_indices = np.empty(len(edges), dtype=np.int64)
-    target_indices = np.empty(len(edges), dtype=np.int64)
+    # edge list -> node idxs + signed edge weight.
+    source_idxs = np.empty(len(edges), dtype=np.int64)
+    target_idxs = np.empty(len(edges), dtype=np.int64)
     edge_weights = np.empty(len(edges), dtype=np.float64)
     for k, e in enumerate(edges):
-        source_indices[k] = node_from_id[int(e["src"])]
-        target_indices[k] = node_from_id[int(e["tar"])]
+        source_idxs[k] = node_from_id[int(e["src"])]
+        target_idxs[k] = node_from_id[int(e["tar"])]
         syn_sign = float(e["syn_sign"])
         edge_weights[k] = (
             syn_sign if mode == "per_edge" else syn_sign * float(e["n_syn"])
         )
 
     conn = ScatterConn(
-        source_indices=source_indices,
-        target_indices=target_indices,
+        source_idxs=source_idxs,
+        target_idxs=target_idxs,
         edge_weights=edge_weights,
         n_nodes=n_nodes,
         node_cells=node_cells,

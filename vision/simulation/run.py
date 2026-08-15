@@ -107,9 +107,9 @@ def plot_figures(outdir, session, result=None, **figure_kw):
 
 
 
-def _rename_checkpoint_pngs(png_dir, tag, *, filter_token="v", file_suffix=""):
+def _rename_checkpoint_pngs(png_dir, tag, *, filter_figure="v", file_suffix=""):
     for prefix in _CHECKPOINT_PNG_STEM_PREFIXES:
-        stem = f"{prefix}_{filter_token}"
+        stem = f"{prefix}_{filter_figure}"
         src = os.path.join(png_dir, f"{stem}{file_suffix}.png")
         if os.path.isfile(src):
             dst = os.path.join(png_dir, f"{stem}{file_suffix}_{tag}.png")
@@ -129,10 +129,10 @@ def save_checkpoint_png(outdir, iter, z_best, cost_best, session, figure_kw):
         save_data=False,
         **figure_kw,
     )
-    from figure.panel import filter_figure_token
+    from figure.panel import filter_figure
     _rename_checkpoint_pngs(
         png_dir, tag,
-        filter_token=filter_figure_token((session.train_opts or {}).get("filter")),
+        filter_figure=filter_figure((session.train_opts or {}).get("filter")),
         file_suffix=figure_kw.get("file_suffix") or "",
     )
     print(f"wrote checkpoint png: {png_dir}/*_{tag}.png")

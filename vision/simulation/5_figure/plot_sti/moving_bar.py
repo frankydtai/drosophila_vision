@@ -157,7 +157,7 @@ def save_snapshots(
     snapshot_t = list(snapshot_t or [])
     if snapshot_t:
         if any(t < 0 for t in snapshot_t):
-            raise SystemExit("--t must be non-negative t indices")
+            raise SystemExit("--t must be non-negative t idxs")
         bad = [t for t in snapshot_t if t >= n_t]
         if bad:
             raise SystemExit(f"--t out of range (n_t={n_t}): {bad}")
@@ -267,7 +267,7 @@ def main():
     ap.add_argument("--t-stride", type=int, default=2,
                     help="GIF frame stride in t (default 2)")
     ap.add_argument("--t", type=str, default="",
-                    help="comma-separated t indices for snapshot hexes, e.g. 50,60,72,90")
+                    help="comma-separated t idxs for snapshot hexes, e.g. 50,60,72,90")
     ap.add_argument("--sti", type=str, default=_STI_CLI_CONTRASTS,
                     help=f"comma-separated moving-bar contrasts to plot: "
                          f"{_STI_CLI_CONTRASTS} (default: {_STI_CLI_CONTRASTS})")

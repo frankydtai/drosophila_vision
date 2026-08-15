@@ -30,6 +30,7 @@ import torch
 from neuron import I_H_DIR_REVERSE_CELLS
 from neuron.schema import (
     PARAM_MODES,
+    _cli_idx,
     expand_param_nodes,
     parse_param_tokens,
     param_scalar,
@@ -194,38 +195,45 @@ def schema_nparams(schema):
 def effective_init(spec, node_idx):
     """Per-node init: ``inits[node_idx]`` if present, else ``spec['init']``."""
     return _spec_at(spec, node_idx, "init")
-def resolve_param_mode_tokens(mode_tokens, slots, *, param='param'):
-    """Resolve token lists (with at most one ``all``) to index lists covering ``slots``."""
-    slots = [str(slot) for slot in slots]
-    idx_from_slot = {slot: node_idx for node_idx, slot in enumerate(slots)}
-    all_idx = set(range(len(slots)))
+
+
+def resolve_param_mode_tokens(
+    mode_tokens, *, cell_idx=None, radius_idx=None, pair_idx=None, edge_idx=None,
+    param='param',
+):
+    """Resolve token lists (with at most one ``all``) to node_idx lists."""
+    cli_idx = _cli_idx(
+        cell_idx=cell_idx, radius_idx=radius_idx, pair_idx=pair_idx, edge_idx=edge_idx,
+    )
+    cli_ids = [str(c) for c in cli_idx]
+    node_idx_set = set(range(len(cli_ids)))
     explicit = {mode: [] for mode in PARAM_MODES}
     all_mode = None
     for mode in PARAM_MODES:
         toks = list(mode_tokens.get(mode) or [])
         if 'all' in toks:
             if len(toks) != 1:
-                raise ValueError(f"{param}: 'all' cannot mix with other slots in {mode}")
+                raise ValueError(f"{param}: 'all' cannot mix with other ids in {mode}")
             if all_mode is not None:
                 raise ValueError(f"{param}: 'all' in both {all_mode} and {mode}")
             all_mode = mode
             continue
         for tok in toks:
-            if tok not in idx_from_slot:
-                raise ValueError(f"{param}: unknown node {tok!r}")
-            explicit[mode].append(idx_from_slot[tok])
+            if tok not in cli_idx:
+                raise ValueError(f"{param}: unknown id {tok!r}")
+            explicit[mode].append(cli_idx[tok])
     claimed = []
     for mode in PARAM_MODES:
         claimed.extend(explicit[mode])
     if len(claimed) != len(set(claimed)):
         raise ValueError(f"{param}: overlapping nodes across indi/shared/fixed/frozen")
     claimed_set = set(claimed)
-    leftover = sorted(all_idx - claimed_set)
+    leftover = sorted(node_idx_set - claimed_set)
     if all_mode is not None:
         explicit[all_mode] = leftover
         claimed_set |= set(leftover)
-    elif claimed_set != all_idx:
-        missing = [slots[node_idx] for node_idx in sorted(all_idx - claimed_set)]
+    elif claimed_set != node_idx_set:
+        missing = [cli_ids[i] for i in sorted(node_idx_set - claimed_set)]
         raise ValueError(
             f"{param}: nodes not assigned (use all= in one param_mode): {missing[:8]}"
             + ("..." if len(missing) > 8 else "")
@@ -233,15 +241,31 @@ def resolve_param_mode_tokens(mode_tokens, slots, *, param='param'):
     return explicit
 
 
-def slots_from_param_mode(modes, slots):
-    """Index param_mode → slot lists for train_opts sidecar."""
+def cli_from_param_mode(modes, cli_ids):
+    """Param_mode node_idx lists → CLI id lists for train_opts sidecar."""
     return {
-        mode: [str(slots[node_idx]) for node_idx in modes[mode]]
+        mode: [str(cli_ids[node_idx]) for node_idx in modes[mode]]
         for mode in PARAM_MODES
     }
 
 
-def schema_with_param_modes(schema, param_modes, slots_from_param):
+def _param_cli(spec, backend: "ModelBackend"):
+    """``(cli_ids, idx_kw)`` for this param — cell / radius / pair / edge, not a fake bag."""
+    if spec.get("radii") is not None:
+        radii = [str(radius) for radius in spec["radii"]]
+        return radii, {"radius_idx": {r: i for i, r in enumerate(radii)}}
+    kind = spec["kind"]
+    if kind == "edge_pair":
+        pairs = pairs_from_backend(backend)
+        return pairs, {"pair_idx": {p: i for i, p in enumerate(pairs)}}
+    if kind == "edge":
+        edges = edges_from_backend(backend)
+        return edges, {"edge_idx": {e: i for i, e in enumerate(edges)}}
+    cells = cells_from_backend(backend)
+    return cells, {"cell_idx": {c: i for i, c in enumerate(cells)}}
+
+
+def schema_with_param_modes(schema, param_modes, backend):
     """Return schema copy with CLI / sidecar ``param_modes`` folded in."""
     out = {}
     for param, spec in schema.items():
@@ -249,15 +273,13 @@ def schema_with_param_modes(schema, param_modes, slots_from_param):
         if param not in param_modes:
             out[param] = out_spec
             continue
-        if callable(slots_from_param):
-            slots = slots_from_param(out_spec)
-        else:
-            slots = slots_from_param[param]
+        cli_ids, idx_kw = _param_cli(out_spec, backend)
+        cli_idx = next(iter(idx_kw.values()))
         raw = param_modes[param]
         if isinstance(raw, list):
             if out_spec.get('kind') == 'edge':
                 validate_syn_strength_edge_param_mode(raw, param=param)
-            modes = resolve_modes(raw, slots)
+            modes = resolve_modes(raw, **idx_kw)
             for mode in PARAM_MODES:
                 out_spec[mode] = list(modes[mode])
             out[param] = out_spec
@@ -293,22 +315,21 @@ def schema_with_param_modes(schema, param_modes, slots_from_param):
             mode_tokens = {
                 mode: [str(x) for x in (raw.get(mode) or [])] for mode in PARAM_MODES
             }
-            modes = resolve_param_mode_tokens(mode_tokens, slots, param=param)
+            modes = resolve_param_mode_tokens(mode_tokens, param=param, **idx_kw)
         for mode in PARAM_MODES:
             out_spec[mode] = modes[mode]
         raw_io = raw.get('inits')
         if raw_io:
-            idx_from_slot = {str(slot): node_idx for node_idx, slot in enumerate(slots)}
             io = {}
             all_init = raw_io.get('all')
-            for slot, val in raw_io.items():
-                if slot == 'all':
+            for cli_id, val in raw_io.items():
+                if cli_id == 'all':
                     continue
-                if slot not in idx_from_slot:
-                    raise ValueError(f"{param}: inits unknown node {slot!r}")
-                io[idx_from_slot[slot]] = val
+                if cli_id not in cli_idx:
+                    raise ValueError(f"{param}: inits unknown id {cli_id!r}")
+                io[cli_idx[cli_id]] = val
             if all_init is not None:
-                for node_idx in range(len(slots)):
+                for node_idx in range(len(cli_ids)):
                     if node_idx not in io:
                         io[node_idx] = all_init
             out_spec['inits'] = io
@@ -332,14 +353,11 @@ def schema_with_param_modes(schema, param_modes, slots_from_param):
     return out
 
 
-def schema_param_modes_record(schema, slots_from_param):
-    """Serialize param_modes (+ inits) as slot lists for train_opts.json."""
+def schema_param_modes_record(schema, backend):
+    """Serialize param_modes (+ inits) as CLI id lists for train_opts.json."""
     rec = {}
     for param, spec in schema.items():
-        if callable(slots_from_param):
-            nodes = slots_from_param(spec)
-        else:
-            nodes = slots_from_param[param]
+        cli_ids, _idx_kw = _param_cli(spec, backend)
         modes = {mode: list(spec.get(mode) or []) for mode in PARAM_MODES}
         if spec.get('kind') == 'edge':
             n = param_n_nodes(spec)
@@ -357,12 +375,12 @@ def schema_param_modes_record(schema, slots_from_param):
                     )
             entry = compact
         else:
-            entry = slots_from_param_mode(modes, nodes)
+            entry = cli_from_param_mode(modes, cli_ids)
         io = spec.get('inits')
         if io:
             entry = dict(entry)
             entry['inits'] = {
-                str(nodes[int(i)]): float(v) for i, v in io.items()
+                str(cli_ids[int(i)]): float(v) for i, v in io.items()
             }
         rec[param] = entry
     return rec
@@ -381,20 +399,9 @@ def pairs_from_backend(backend: "ModelBackend"):
 
 
 def edges_from_backend(backend: "ModelBackend"):
-    """Opaque per-edge slots for param_mode resolve (``e0`` ... ``e{n-1}``)."""
+    """Opaque per-edge CLI ids for param_mode resolve (``e0`` ... ``e{n-1}``)."""
     n = int(backend.conn.n_edges)
     return [f"e{edge_idx}" for edge_idx in range(n)]
-
-
-def slots_from_param(spec, backend: "ModelBackend"):
-    if spec.get("radii") is not None:
-        return [str(radius) for radius in spec["radii"]]
-    kind = spec["kind"]
-    if kind == "edge_pair":
-        return pairs_from_backend(backend)
-    if kind == "edge":
-        return edges_from_backend(backend)
-    return cells_from_backend(backend)
 
 
 def validate_syn_strength_edge_param_mode(raw, *, param='syn_strength_edge'):
@@ -508,8 +515,8 @@ def z_from_node_vals(node_vals, schema, *, dtype=None, device=None):
     return z
 
 
-def moments_from_z(exp_avg, exp_avg_sq, schema):
-    """Expand z-space moments to full-w per-param arrays (no encode/decode).
+def adams_from_z(exp_avg, exp_avg_sq, schema):
+    """Expand z-space adams to full-w per-param arrays (no encode/decode).
 
     ``indi`` z pack 1:1 onto nodes; a ``shared`` z is broadcast to every
     shared node. Fixed/frozen nodes are 0.
@@ -518,11 +525,11 @@ def moments_from_z(exp_avg, exp_avg_sq, schema):
     exp_avg_sq = np.asarray(exp_avg_sq, dtype=np.float64).reshape(-1)
     if exp_avg.shape[0] != schema_nparams(schema) or exp_avg_sq.shape[0] != exp_avg.shape[0]:
         raise ValueError(
-            f"moment length {exp_avg.shape[0]}/{exp_avg_sq.shape[0]} "
+            f"adam length {exp_avg.shape[0]}/{exp_avg_sq.shape[0]} "
             f"!= schema nparams {schema_nparams(schema)}"
         )
-    moments_m = {}
-    moments_v = {}
+    adams_m = {}
+    adams_v = {}
     for param, spec, start, stop in schema_params(schema):
         n_nodes = param_n_nodes(spec)
         m_arr = np.zeros(n_nodes, dtype=np.float64)
@@ -538,24 +545,24 @@ def moments_from_z(exp_avg, exp_avg_sq, schema):
             for node_idx in spec['shared']:
                 m_arr[int(node_idx)] = shared_m
                 v_arr[int(node_idx)] = shared_v
-        moments_m[param] = m_arr
-        moments_v[param] = v_arr
-    return moments_m, moments_v
+        adams_m[param] = m_arr
+        adams_v[param] = v_arr
+    return adams_m, adams_v
 
 
-def z_moments_from_node_vals(moments_m, moments_v, schema, *, dtype=None, device=None):
-    """Pack per-param moments into z-space tensors (no encode; shared = mean)."""
+def z_adams_from_node_vals(adams_m, adams_v, schema, *, dtype=None, device=None):
+    """Pack per-param adams into z-space tensors (no encode; shared = mean)."""
     n = schema_nparams(schema)
     dt = dtype or SIM_DTYPE
     dev = device or active_device()
     exp_avg = torch.zeros(n, dtype=dt, device=dev)
     exp_avg_sq = torch.zeros(n, dtype=dt, device=dev)
     for param, spec, start, stop in schema_params(schema):
-        m_raw = np.asarray(moments_m[param], dtype=np.float64).reshape(-1)
-        v_raw = np.asarray(moments_v[param], dtype=np.float64).reshape(-1)
+        m_raw = np.asarray(adams_m[param], dtype=np.float64).reshape(-1)
+        v_raw = np.asarray(adams_v[param], dtype=np.float64).reshape(-1)
         if m_raw.shape[0] != param_n_nodes(spec) or v_raw.shape[0] != param_n_nodes(spec):
             raise ValueError(
-                f"{param}: moment length "
+                f"{param}: adam length "
                 f"{m_raw.shape[0]}/{v_raw.shape[0]} != n_nodes {param_n_nodes(spec)}"
             )
         m_pack = []
@@ -618,8 +625,8 @@ def _remap_node_vals(node_vals, src_cells, src_pairs, schema, backend, *, fill):
     return out
 
 
-def remap_node_vals_moments(node_vals, src_cells, src_pairs, schema, backend):
-    """Remap per-param moment arrays; missing nodes/params fill 0."""
+def remap_node_vals_adams(node_vals, src_cells, src_pairs, schema, backend):
+    """Remap per-param adam arrays; missing nodes/params fill 0."""
     return _remap_node_vals(
         node_vals, src_cells, src_pairs, schema, backend,
         fill=lambda _spec, _node_idx: 0.0,
@@ -815,14 +822,14 @@ def parse_param_init_val_tokens(tokens):
 
 
 def _param_node_idxs(param, node, number, spec, backend):
-    slots = slots_from_param(spec, backend)
-    idx_from_slot = {str(slot): node_idx for node_idx, slot in enumerate(slots)}
+    cli_ids, idx_kw = _param_cli(spec, backend)
+    cli_idx = next(iter(idx_kw.values()))
     if node is None:
-        return slots, list(range(len(slots)))
+        return cli_ids, list(range(len(cli_ids)))
     node = str(node)
-    if node not in idx_from_slot:
-        raise ValueError(f"--param {param}.{node}={number}: unknown node {node!r}")
-    return [node], [idx_from_slot[node]]
+    if node not in cli_idx:
+        raise ValueError(f"--param {param}.{node}={number}: unknown id {node!r}")
+    return [node], [cli_idx[node]]
 
 
 def schema_with_param_inits(schema, backend, rows, *, key):
@@ -907,10 +914,10 @@ def parse_val_from_tokens(tokens):
         target, _, rest = tok.partition("=")
         if not target or not rest:
             raise ValueError(f"--val-from expected TARGET=SOURCE:BOOL, got {tok!r}")
-        source, _, enabled_text = rest.partition(":")
-        if not source or not enabled_text:
+        source, _, enabled_token = rest.partition(":")
+        if not source or not enabled_token:
             raise ValueError(f"--val-from expected TARGET=SOURCE:BOOL, got {tok!r}")
-        out[target] = {"source": source, "enabled": enabled_text.lower() in ("1", "true", "yes")}
+        out[target] = {"source": source, "enabled": enabled_token.lower() in ("1", "true", "yes")}
     return out
 
 

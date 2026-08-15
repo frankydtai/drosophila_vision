@@ -22,8 +22,8 @@ from network.construction import active_gt_cells, gt_cells_from_opts
 _VALID_CONTRASTS = ("bright", "dark")
 
 
-def cells_from_nodes(session, node_indices):
-    node_idx = node_indices
+def cells_from_nodes(session, node_idxs):
+    node_idx = node_idxs
     if torch.is_tensor(node_idx):
         node_idx = node_idx.detach().cpu().numpy()
     node_idx = np.asarray(node_idx, dtype=np.int64)

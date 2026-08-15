@@ -310,8 +310,8 @@ def save_syn_strength_edge_table(z, session, table_path):
             f"syn_strength_edge length {arr.shape[0]} != n_edges {conn.n_edges}"
         )
     cells = [str(n) for n in cell_labels(session)]
-    src = conn.source_indices.detach().cpu().numpy()
-    tar = conn.target_indices.detach().cpu().numpy()
+    src = conn.source_idxs.detach().cpu().numpy()
+    tar = conn.target_idxs.detach().cpu().numpy()
     node_cells = conn.node_cells.detach().cpu().numpy()
     syn_sign = torch.sign(conn.w_signed).detach().cpu().numpy()
     with open(table_path, "w") as f:
@@ -373,17 +373,17 @@ def save_node_vals(outdir, z, session, filename):
 
 
 def save_adam(outdir, exp_avg, exp_avg_sq, iter, session, filename):
-    """Write per-param Adam m/v (z-space) to ``data/<filename>``."""
+    """Write per-param adam m/v (z-space) to ``data/<filename>``."""
     schema = train.schema_copy(session.schema)
-    moments_m, moments_v = train.moments_from_z(exp_avg, exp_avg_sq, schema)
+    adams_m, adams_v = train.adams_from_z(exp_avg, exp_avg_sq, schema)
     cells = np.asarray(train.cells_from_backend(session.backend), dtype=object)
     payload = {'iter': np.asarray(int(iter), dtype=np.int64)}
     payload['cells'] = cells
     if any(spec['kind'] == 'edge_pair' for spec in schema.values()):
         payload['pairs'] = np.asarray(train.pairs_from_backend(session.backend), dtype=object)
-    for param, arr in moments_m.items():
+    for param, arr in adams_m.items():
         payload[f'm_{param}'] = np.asarray(arr, dtype=np.float64)
-    for param, arr in moments_v.items():
+    for param, arr in adams_v.items():
         payload[f'v_{param}'] = np.asarray(arr, dtype=np.float64)
     os.makedirs(run_data_dir(outdir), exist_ok=True)
     np.savez(os.path.join(run_data_dir(outdir), filename), **payload)
@@ -414,13 +414,13 @@ def save_checkpoint_csv(outdir, iter, z_best, session):
 def build_checkpoint_callback(outdir, session, *, run_i=0, n_run=1, on_png=None):
     """Write interval-best npz/csv; optional *on_png* for plot layer (from ``run.py``)."""
 
-    def on_interval_best(iter, z_best, cost_best, opt_state=None):
+    def on_interval_best(iter, z_best, cost_best, state_dict=None):
         filename = _checkpoint_data_filename('param', iter, run_i=run_i, n_run=n_run)
         save_node_vals(outdir, z_best, session, filename)
-        if opt_state is not None:
+        if state_dict is not None:
             n = int(np.asarray(z_best.detach().cpu()).reshape(-1).shape[0])
-            exp_avg, exp_avg_sq, adam_iter = train.moments_from_state_dict(
-                opt_state, n, dtype=torch.float64, device='cpu',
+            exp_avg, exp_avg_sq, n_iter_done = train.adams_from_state_dict(
+                state_dict, n, dtype=torch.float64, device='cpu',
             )
             adam_filename = _checkpoint_data_filename(
                 'adam', iter, run_i=run_i, n_run=n_run,
@@ -429,7 +429,7 @@ def build_checkpoint_callback(outdir, session, *, run_i=0, n_run=1, on_png=None)
                 outdir,
                 exp_avg.numpy(),
                 exp_avg_sq.numpy(),
-                adam_iter,
+                n_iter_done,
                 session,
                 adam_filename,
             )
@@ -460,7 +460,7 @@ def load_best_node_vals(outdir):
 
 
 def load_best_adam(outdir):
-    """Load ``data/best_adam.npz`` → (moments_m, moments_v, iter, cells, pairs)."""
+    """Load ``data/best_adam.npz`` → (adams_m, adams_v, iter, cells, pairs)."""
     fp = best_adam_path(outdir)
     if not os.path.isfile(fp):
         raise FileNotFoundError(fp)
@@ -471,15 +471,15 @@ def load_best_adam(outdir):
             pairs = [str(x) for x in d['pairs'].tolist()]
         if 'iter' not in d.files:
             raise ValueError(f'{fp}: missing iter')
-        adam_iter = int(np.asarray(d['iter']).reshape(-1)[0])
-        moments_m = {}
-        moments_v = {}
+        n_iter_done = int(np.asarray(d['iter']).reshape(-1)[0])
+        adams_m = {}
+        adams_v = {}
         for k in d.files:
             if k.startswith('m_'):
-                moments_m[k[2:]] = np.asarray(d[k], dtype=np.float64)
+                adams_m[k[2:]] = np.asarray(d[k], dtype=np.float64)
             elif k.startswith('v_'):
-                moments_v[k[2:]] = np.asarray(d[k], dtype=np.float64)
-    return moments_m, moments_v, adam_iter, cells, pairs
+                adams_v[k[2:]] = np.asarray(d[k], dtype=np.float64)
+    return adams_m, adams_v, n_iter_done, cells, pairs
 
 
 def load_best_param(outdir, session):
@@ -503,7 +503,7 @@ def load_best_param(outdir, session):
 def save_best_data(outdir, session, run_params, final_costs, adam=None):
     """Write ``best_param.npz``, ``param.csv``, and syn/edge CSV for ``argmin(final_costs)``.
 
-    *adam* is the best-run moment dict ``{exp_avg, exp_avg_sq, iter}`` (required for a
+    *adam* is the best-run bag ``{exp_avg, exp_avg_sq, iter}`` (required for a
     fresh write from train; omit when regenerating tables from saved params only).
     """
     run_params = np.atleast_2d(run_params)
@@ -553,7 +553,7 @@ def load_stored_costs(outdir):
 
 
 def load_init_z(init_from, session):
-    """Load per-param best params + moments; return ``(session, z, opt_init)``.
+    """Load per-param best params + adams; return ``(session, z, adam_init)``.
 
     Trainable ``z`` comes from remapped node vals; fixed nodes are seeded via ``inits``
     (still not in z); frozen nodes use ``carry``.
@@ -563,7 +563,7 @@ def load_init_z(init_from, session):
     except SystemExit as exc:
         raise ValueError(str(exc)) from exc
     node_vals, cells, pairs = load_best_node_vals(outdir)
-    moments_m, moments_v, adam_iter, adam_cells, adam_pairs = load_best_adam(outdir)
+    adams_m, adams_v, n_iter_done, src_cells, src_pairs = load_best_adam(outdir)
     schema = train.schema_copy(session.schema)
     remapped = train.remap_node_vals(
         node_vals, cells, pairs, schema, session.backend,
@@ -572,32 +572,32 @@ def load_init_z(init_from, session):
     schema = train.attach_param_carry(schema, remapped)
     opts = dict(session.train_opts or {})
     opts['param_modes'] = train.schema_param_modes_record(
-        schema, lambda spec: train.slots_from_param(spec, session.backend),
+        schema, session.backend,
     )
     session = replace(session, schema=schema, train_opts=opts)
     z = train.z_from_node_vals(
         remapped, schema, dtype=session.sim_dtype, device=session.device,
     )
-    remapped_m = train.remap_node_vals_moments(
-        moments_m, adam_cells, adam_pairs, schema, session.backend,
+    remapped_m = train.remap_node_vals_adams(
+        adams_m, src_cells, src_pairs, schema, session.backend,
     )
-    remapped_v = train.remap_node_vals_moments(
-        moments_v, adam_cells, adam_pairs, schema, session.backend,
+    remapped_v = train.remap_node_vals_adams(
+        adams_v, src_cells, src_pairs, schema, session.backend,
     )
-    exp_avg, exp_avg_sq = train.z_moments_from_node_vals(
+    exp_avg, exp_avg_sq = train.z_adams_from_node_vals(
         remapped_m, remapped_v, schema,
         dtype=session.sim_dtype, device=session.device,
     )
-    opt_init = {
+    adam_init = {
         'exp_avg': exp_avg,
         'exp_avg_sq': exp_avg_sq,
-        'iter': int(adam_iter),
+        'iter': int(n_iter_done),
     }
     print(
         f'from {outdir!r} -> {best_param_path(outdir)!r} + {best_adam_path(outdir)!r} '
-        f'({train.schema_nparams(schema)} z, adam_iter={adam_iter})'
+        f'({train.schema_nparams(schema)} z, iter={n_iter_done})'
     )
-    return session, z, opt_init
+    return session, z, adam_init
 
 
 def save_train_outputs(fname, outdir, session, result):
@@ -812,12 +812,12 @@ def run_train(model, n_run, n_iter, lrs, fname=None, outdir=None,
             raise ValueError("checkpoint_interval must be a positive integer")
         print(f"checkpoint_interval={checkpoint_interval}")
     z_init = None
-    opt_init = None
+    adam_init = None
     if init_from:
-        session, z_init, opt_init = load_init_z(init_from, session)
+        session, z_init, adam_init = load_init_z(init_from, session)
     t0 = time.time()
     result = do_many_runs(
-        session, n_run, n_iter, lrs=lrs, z_init=z_init, opt_init=opt_init,
+        session, n_run, n_iter, lrs=lrs, z_init=z_init, adam_init=adam_init,
         checkpoint_interval=checkpoint_interval,
         checkpoint_outdir=outdir if checkpoint_interval is not None else None,
         build_checkpoint_callback=build_checkpoint_callback,

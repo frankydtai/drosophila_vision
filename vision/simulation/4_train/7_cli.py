@@ -74,9 +74,9 @@ from train.config import (
 RUN_MAX = 255
 
 
-def _slug(text):
+def _slug(token):
     """Filesystem-safe token for a CLI flag value."""
-    return re.sub(r'[^\w.,-]+', '-', str(text)).strip('-')
+    return re.sub(r'[^\w.,-]+', '-', str(token)).strip('-')
 
 
 def _argv_cli_tokens(argv):
@@ -306,7 +306,7 @@ def add_train_arguments(parser):
     parser.add_argument("--init-from", dest="init_from", default=None, metavar="MODEL['model']/RUN",
                         help="prior run as MODEL['model']/RUN under 0_runs (e.g. borst/<run>); "
                              "or an absolute path; load named best_param.npz as z init "
-                             "and best_adam.npz as Adam m/v "
+                             "and best_adam.npz as adam m/v "
                              "(settings come from this CLI, not train_opts.json)")
     add_param_argument(parser)
     add_val_from_argument(parser)
@@ -506,7 +506,7 @@ def _format_branch_value(val) -> str:
     return str(val)
 
 
-def resolve_branch_value(text: str, default=None) -> dict:
+def resolve_branch_value(token: str, default=None) -> dict:
     """Parse ``X`` or ``v=X,ca=Y`` into ``{v, ca}`` dict for any value type."""
     if isinstance(default, dict):
         out = dict(default)
@@ -514,7 +514,7 @@ def resolve_branch_value(text: str, default=None) -> dict:
         out = {"v": None, "ca": None}
     else:
         out = {"v": default, "ca": default}
-    raw = str(text).strip()
+    raw = str(token).strip()
     if not raw:
         return out
     if "=" not in raw:
@@ -528,8 +528,8 @@ def resolve_branch_value(text: str, default=None) -> dict:
 
 
 def _branch_cli_type(default=None):
-    def _parse(text: str) -> dict:
-        return resolve_branch_value(text, default)
+    def _parse(token: str) -> dict:
+        return resolve_branch_value(token, default)
     return _parse
 
 
@@ -778,8 +778,8 @@ def resolve_train_kwargs(
     if init_from:
         init_from_path = Path(str(init_from)).expanduser()
         if not init_from_path.is_absolute():
-            text = str(init_from).replace("\\", "/")
-            parts = text.split("/")
+            token = str(init_from).replace("\\", "/")
+            parts = token.split("/")
             if len(parts) != 2 or not parts[0] or not parts[1]:
                 raise ValueError(
                     "--init-from must be MODEL['model']/RUN under 0_runs "

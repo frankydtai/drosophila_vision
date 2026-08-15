@@ -87,13 +87,13 @@ from train.param import (
     build_i_h_dirs,
     calc_multi_col_params,
     edges_from_backend,
-    z_moments_from_node_vals,
+    z_adams_from_node_vals,
     pairs_from_backend,
     params_from_z,
     parse_param_cli,
     parse_param_init_val_tokens,
     override_params,
-    remap_node_vals_moments,
+    remap_node_vals_adams,
     remap_node_vals,
     override_val_from,
     bias_gt_from_onset_trace,
@@ -107,10 +107,9 @@ from train.param import (
     schema_param_modes_record,
     param_n_z,
     cells_from_backend,
-    slots_from_param,
     z_from_node_vals,
     validate_syn_strength_edge_param_mode,
-    moments_from_z,
+    adams_from_z,
     node_vals_from_z,
     sim_dtype_from_fp,
 )
@@ -126,7 +125,7 @@ from train.session import (
     resolve_session,
     session_from_outdir,
     resolve_gt_cells_by_task,
-    resolve_cell_indices,
+    resolve_cell_idxs,
 )
 from train.cost import (
     FusedForward,
@@ -137,7 +136,7 @@ from train.cost import (
 )
 from train.optimization import (
     TrainResult,
-    moments_from_state_dict,
+    adams_from_state_dict,
     do_many_runs,
     gradient_network,
     optimize_staged,

@@ -80,7 +80,7 @@ class MovingBarGt:
 
 
 def moving_bar_nodes_on_hexes(connectome, cell: str, hexes: Sequence) -> np.ndarray:
-    """Node indices of ``cell`` on any of ``hexes`` (vectorized axial uv pack)."""
+    """Node idxs of ``cell`` on any of ``hexes`` (vectorized axial uv pack)."""
     if not hexes:
         return np.zeros(0, dtype=np.int64)
     if cell not in connectome.cells:
@@ -220,7 +220,7 @@ def _empty_dsi_fields(pack, device) -> dict:
 
 
 def remap_dsi_entries(pack, kept_old_entries) -> dict:
-    """Remap CSR DSI members onto kept cost-entry indices; drop incomplete groups."""
+    """Remap CSR DSI groups onto kept cost-entry idxs; drop incomplete groups."""
     if pack.dsi_pos_ptr is None or int(pack.dsi_pos_ptr.numel()) <= 1:
         return {
             "dsi_pos_entries": pack.dsi_pos_entries,
@@ -240,7 +240,7 @@ def remap_dsi_entries(pack, kept_old_entries) -> dict:
     n_dsi = int(pack.dsi_pos_ptr.numel()) - 1
     new_pos_groups: list[list[int]] = []
     new_neg_groups: list[list[int]] = []
-    kept_dsi_group_indices: list[int] = []
+    kept_dsi_group_idxs: list[int] = []
     pos_entries = pack.dsi_pos_entries
     neg_entries = pack.dsi_neg_entries
     pos_ptr = pack.dsi_pos_ptr
@@ -256,12 +256,12 @@ def remap_dsi_entries(pack, kept_old_entries) -> dict:
             continue
         new_pos_groups.append(new_pos.tolist())
         new_neg_groups.append(new_neg.tolist())
-        kept_dsi_group_indices.append(dsi_group_idx)
-    if not kept_dsi_group_indices:
+        kept_dsi_group_idxs.append(dsi_group_idx)
+    if not kept_dsi_group_idxs:
         return _empty_dsi_fields(pack, device)
     dsi_pos_entries, dsi_pos_ptr = _csr_from_groups(new_pos_groups, device=device)
     dsi_neg_entries, dsi_neg_ptr = _csr_from_groups(new_neg_groups, device=device)
-    kept_dsi_group_idx = torch.tensor(kept_dsi_group_indices, dtype=torch.long, device=device)
+    kept_dsi_group_idx = torch.tensor(kept_dsi_group_idxs, dtype=torch.long, device=device)
     dsi_gts = pack.dsi_gts[kept_dsi_group_idx]
     dsi_scales = pack.dsi_scales[kept_dsi_group_idx]
     power = torch.sum(dsi_scales * dsi_gts ** 2)
@@ -321,7 +321,7 @@ def _assemble_moving_bar_readouts(
     *,
     specs: Sequence[MovingBarSpec],
     i_sti_hex: np.ndarray,
-    cost_hex_indices: Sequence[int],
+    cost_hex_idxs: Sequence[int],
     i_baseline: float,
     before_t: int,
     after_t: int,
@@ -342,7 +342,7 @@ def _assemble_moving_bar_readouts(
     for b, spec in enumerate(specs):
         t0_by_hex: Dict[int, int] = {}
         if waveform_mse:
-            for hex_idx in cost_hex_indices:
+            for hex_idx in cost_hex_idxs:
                 t_first_sti = hex_first_sti_t(
                     i_sti_hex[b, :, hex_idx], i_baseline=i_baseline,
                 )
@@ -353,7 +353,7 @@ def _assemble_moving_bar_readouts(
                         f"spec={spec.token}: t_first_sti={t_first_sti}, n_t={n_t}"
                     )
                 t0_by_hex[hex_idx] = t0
-        for hex_idx in cost_hex_indices:
+        for hex_idx in cost_hex_idxs:
             for subtype in active:
                 pref = motion_preference(side, subtype, spec.direction, spec.contrast)
                 if pref is None:
@@ -460,14 +460,14 @@ def build_moving_bar_gt(
     )
 
     node_cell = node_cells(connectome)
-    idx_from_uv = {
+    hex_idx = {
         (int(hex.u), int(hex.v)): hex_idx
         for hex_idx, hex in enumerate(sti_hexes(connectome))
     }
     hexes = moving_bar_cost_hexes(connectome, cost_radius=cost_radius)
     center_hex = hexes[0] if cost_radius == 0 and len(hexes) == 1 else None
-    cost_hex_indices = [idx_from_uv[(int(hex.u), int(hex.v))] for hex in hexes]
-    hex_by_idx = {hex_idx: hex for hex, hex_idx in zip(hexes, cost_hex_indices)}
+    cost_hex_idxs = [hex_idx[(int(hex.u), int(hex.v))] for hex in hexes]
+    hex_by_idx = {hex_idx: hex for hex, hex_idx in zip(hexes, cost_hex_idxs)}
 
     def _nodes_from_hex_type(b, hex_idx, subtype):
         hex = hex_by_idx[hex_idx]
@@ -476,7 +476,7 @@ def build_moving_bar_gt(
     rows = _assemble_moving_bar_readouts(
         specs=sti.specs,
         i_sti_hex=sti.i_sti_hex,
-        cost_hex_indices=cost_hex_indices,
+        cost_hex_idxs=cost_hex_idxs,
         i_baseline=i_baseline_val,
         before_t=before_t,
         after_t=after_t,
@@ -607,16 +607,16 @@ def moving_bar_session_t0_grids(
         connectome, specs=specs, n_t=n_t, t_onset=t_onset, delta_ms=delta_ms,
         device=connectome.node_cells.device, i_baseline=i_baseline,
     )
-    idx_from_uv = {
+    hex_idx = {
         (int(hex.u), int(hex.v)): hex_idx
         for hex_idx, hex in enumerate(sti_hexes(connectome))
     }
-    hex_indices = [idx_from_uv[(int(hex.u), int(hex.v))] for hex in hexes]
-    filt_hex_indices = [idx_from_uv[(int(hex.u), int(hex.v))] for hex in filt_hexes]
+    hex_idxs = [hex_idx[(int(hex.u), int(hex.v))] for hex in hexes]
+    filt_hex_idxs = [hex_idx[(int(hex.u), int(hex.v))] for hex in filt_hexes]
     grids = build_moving_bar_t0_grids(
         sti.i_sti_hex, specs, n_t, i_baseline,
-        hex_indices=hex_indices,
-        filt_hex_indices=filt_hex_indices,
+        hex_idxs=hex_idxs,
+        filt_hex_idxs=filt_hex_idxs,
         connectome=connectome,
         filt_network_hexes=filt_hexes,
     )

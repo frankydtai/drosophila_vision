@@ -13,19 +13,19 @@ import build_hex
 _SPOT_RADIUS_HALF_STEP_TOL = 1e-9
 
 
-def members_by_radius(radii) -> dict[int, list[tuple[int, int]]]:
-    """Map each hex-lattice radius to sti-centered axial ``(du, dv)`` members."""
+def hexes_by_radius(radii) -> dict[int, list[tuple[int, int]]]:
+    """Map each hex-lattice radius to sti-centered axial ``(du, dv)`` hexes."""
     radii_set = {int(radius) for radius in radii}
     by_radius: dict[int, list[tuple[int, int]]] = {}
     for radius in sorted(radii_set):
         if radius < 0:
             raise ValueError(f"spot cost radius must be >= 0, got {radius!r}")
-        members = [
-            (int(du), int(dv)) for du, dv in build_hex.members_at_shell(radius)
+        hexes = [
+            (int(du), int(dv)) for du, dv in build_hex.shell_hexes(radius)
         ]
-        if not members:
-            raise ValueError(f"no hex members for spot cost radius {radius}")
-        by_radius[radius] = members
+        if not hexes:
+            raise ValueError(f"no hexes for spot cost radius {radius}")
+        by_radius[radius] = hexes
     return by_radius
 
 
@@ -64,7 +64,7 @@ def spot_centers(
     else:
         a1, b1 = m + 1, -k
     a2, b2 = -b1, a1 + b1  # 60° CCW about origin
-    members = build_hex.members_in_radius((m + 1) // 2)
+    hexes = build_hex.radius_hexes((m + 1) // 2)
     span = int(2 * (connectome_radius // max(k, 1) + 2))
     centers: list = []
     for lm in range(-span, span + 1):
@@ -75,7 +75,7 @@ def spot_centers(
                 continue
             if fully_inside and any(
                 build_hex.hex_radius(cu + du, cv + dv) > connectome_radius
-                for du, dv in members
+                for du, dv in hexes
             ):
                 continue
             centers.append((cu, cv))
@@ -138,7 +138,7 @@ def build_spot(
     """Build a :class:`Spot` for the connectome."""
     spot_radius_half_steps(spot_radius)
     connectome_radius = _connectome_radius(connectome, spot_radius)
-    shifts = build_hex.members_in_radius(1)
+    shifts = build_hex.radius_hexes(1)
     if not multi_spot:
         centers = [(0, 0)]
     else:
@@ -183,6 +183,6 @@ def resolve_spot(
     )
     spot.shifts = [
         (int(du), int(dv))
-        for du, dv in build_hex.members_in_radius(int(shift_radius))
+        for du, dv in build_hex.radius_hexes(int(shift_radius))
     ]
     return spot

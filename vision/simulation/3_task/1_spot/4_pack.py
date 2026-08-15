@@ -32,7 +32,7 @@ from task.spot.gt import (
 )
 from task.spot.sti_geo import (
     SpotB,
-    members_by_radius,
+    hexes_by_radius,
     resolve_spot,
     spot_radius_half_steps,
     spot_sti_bs,
@@ -61,15 +61,15 @@ def standardize_spot_cost_radius(radius) -> int:
         if not float(radius).is_integer():
             raise ValueError(f"spot cost radius must be an int, got {radius!r}")
         return int(radius)
-    text = str(radius).strip()
+    token = str(radius).strip()
     try:
-        return int(text, 10)
+        return int(token, 10)
     except ValueError as exc:
         raise ValueError(f"spot cost radius must be an int, got {radius!r}") from exc
 
 
-def parse_spot_cost_radius_scale_value(text: str) -> float:
-    tok = str(text).strip()
+def parse_spot_cost_radius_scale_value(token: str) -> float:
+    tok = str(token).strip()
     if "/" in tok:
         num, den = tok.split("/", 1)
         return float(num.strip()) / float(den.strip())
@@ -235,12 +235,12 @@ def spot_cost_hexes(
     cost_radius,
 ) -> List[Tuple[int, int, int, int, int, int]]:
     """Cost readouts: ``(b, mu, mv, radius, su, sv)`` per sti radius."""
-    by_radius = members_by_radius(cost_radii)
+    by_radius = hexes_by_radius(cost_radii)
     cost_hexes: List[Tuple[int, int, int, int, int, int]] = []
     for b, spot_b in enumerate(spot_bs):
         for su, sv in spot_b.sti_uv:
-            for radius, members in by_radius.items():
-                for du, dv in members:
+            for radius, hexes in by_radius.items():
+                for du, dv in hexes:
                     mu, mv = su + du, sv + dv
                     if not hex_in_cost_radius(mu, mv, cost_radius):
                         continue
@@ -270,21 +270,21 @@ def build_spot_cost_readout(connectome, spot_bs, cost_radii, cost_radius):
     network_node_u = _as_np(connectome.us)
     network_node_v = _as_np(connectome.vs)
     type_all = _as_np(connectome.node_cells)
-    bs, node_indices, radius, type_idx, sti_u, sti_v = [], [], [], [], [], []
+    bs, node_idxs, radius, type_idx, sti_u, sti_v = [], [], [], [], [], []
     for b, mu, mv, cell_radius, su, sv in spot_cost_hexes(
         spot_bs, cost_radii, cost_radius,
     ):
         on_hex = (network_node_u == mu) & (network_node_v == mv)
         for candidate_node_idx in np.where(on_hex)[0]:
             bs.append(b)
-            node_indices.append(int(candidate_node_idx))
+            node_idxs.append(int(candidate_node_idx))
             radius.append(cell_radius)
             type_idx.append(int(type_all[candidate_node_idx]))
             sti_u.append(int(su))
             sti_v.append(int(sv))
     return (
         np.asarray(bs, dtype=np.int64),
-        np.asarray(node_indices, dtype=np.int64),
+        np.asarray(node_idxs, dtype=np.int64),
         np.asarray(radius, dtype=np.int64),
         np.asarray(type_idx, dtype=np.int64),
         np.asarray(sti_u, dtype=np.int64),
@@ -404,7 +404,7 @@ def build_spot_gt(
         i_baseline + (i_spot - i_baseline) * u, dtype=sim_dtype, device=device,
     )
     # All sti hexes hold i_baseline; sti_uv hexes then get the step/spot drive.
-    sti_idx = torch.as_tensor(connectome.sti_node_indices, dtype=torch.long, device=device)
+    sti_idx = torch.as_tensor(connectome.sti_node_idxs, dtype=torch.long, device=device)
     i_sti = torch.zeros((n_b, n_t, connectome.n_nodes), dtype=sim_dtype, device=device)
     if len(sti_idx):
         i_sti[:, :, sti_idx] = float(i_baseline)

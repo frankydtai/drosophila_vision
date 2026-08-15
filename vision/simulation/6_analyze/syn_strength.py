@@ -34,7 +34,7 @@ import train
 import figure.plot as plot
 import train.implementation as train_mod
 from import_bootstrap import parse_comma_list
-from network.connectivity import build_cell_pair_indices
+from network.connectivity import build_cell_pair_idxs
 from network.construction import load_network_json
 from const_default import RUN_PATH
 
@@ -119,16 +119,16 @@ def main(argv: list[str] | None = None) -> int:
             f"({len(cells)} vs {len(cells_npz)})"
         )
 
-    idx_from_cell = {n: i for i, n in enumerate(cells)}
+    cell_idx = {n: i for i, n in enumerate(cells)}
     n_cells = len(cells)
     for tok in tokens:
-        if tok not in idx_from_cell:
+        if tok not in cell_idx:
             raise SystemExit(f"unknown cell {tok!r}; known e.g. {cells[:8]}...")
 
-    src_t = np.array([idx_from_cell[e["source_cell"]] for e in edges], dtype=np.int64)
-    tar_t = np.array([idx_from_cell[e["target_cell"]] for e in edges], dtype=np.int64)
-    _, n_pairs, pairs = build_cell_pair_indices(src_t, tar_t, n_cells)
-    idx_from_pair = {k: i for i, k in enumerate(pairs)}
+    src_t = np.array([cell_idx[e["source_cell"]] for e in edges], dtype=np.int64)
+    tar_t = np.array([cell_idx[e["target_cell"]] for e in edges], dtype=np.int64)
+    _, n_pairs, pairs = build_cell_pair_idxs(src_t, tar_t, n_cells)
+    pair_idx = {k: i for i, k in enumerate(pairs)}
     if pairs is not None:
         expected = [
             f"{cells[source]}{train.PAIR_SEP}{cells[target]}" for source, target in pairs
@@ -147,10 +147,10 @@ def main(argv: list[str] | None = None) -> int:
 
     at_x, at_y = analyze_cell_syn.cli_xy_filter(args.x, args.y)
     hex_note = ""
-    ids_at_hex = None
+    ids_by_cell = None
     if at_x is not None or at_y is not None:
         try:
-            ids_at_hex, hex_note, _ref_xy, _single = analyze_cell_syn.resolve_xy_instance_ids(
+            ids_by_cell, hex_note, _ref_xy, _single = analyze_cell_syn.resolve_xy_ids(
                 nodes, at_x, at_y
             )
         except ValueError as exc:
@@ -158,7 +158,7 @@ def main(argv: list[str] | None = None) -> int:
 
     direction = "post" if args.post else "pre"
     partner_syn_by_cell = analyze_cell_syn.query_partner_syn(
-        nodes, edges, tokens, direction=direction, ids_at_hex=ids_at_hex,
+        nodes, edges, tokens, direction=direction, ids_by_cell=ids_by_cell,
     )
 
     print(f"n_pairs={n_pairs}  best_param.npz syn_strength_cell={syn_strength_cell.shape[0]}")
@@ -166,18 +166,18 @@ def main(argv: list[str] | None = None) -> int:
         if cell not in partner_syn_by_cell:
             print(f"warning: no partner_syn for {cell}", flush=True)
             continue
-        ti = idx_from_cell[cell]
+        ti = cell_idx[cell]
         by_partner, n_syn_sum, n_partner, partner_uv, partner_xy, n_self = partner_syn_by_cell[cell]
         syn_strength_by_partner = {}
         for partner in by_partner:
-            if partner not in idx_from_cell:
+            if partner not in cell_idx:
                 syn_strength_by_partner[partner] = "-"
                 continue
             pair = (
-                (idx_from_cell[cell], idx_from_cell[partner]) if direction == "post"
-                else (idx_from_cell[partner], idx_from_cell[cell])
+                (cell_idx[cell], cell_idx[partner]) if direction == "post"
+                else (cell_idx[partner], cell_idx[cell])
             )
-            pi = idx_from_pair.get(pair)
+            pi = pair_idx.get(pair)
             syn_strength_by_partner[partner] = (
                 "-" if pi is None else f"{float(syn_strength_cell[pi]):.6g}"
             )

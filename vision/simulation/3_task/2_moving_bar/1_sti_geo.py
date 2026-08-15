@@ -311,7 +311,7 @@ def view_bounds(hexes: Sequence[Hex]) -> Tuple[float, float, float, float]:
 
 @dataclass
 class StiHex(Hex):
-    """One sti hex on a connectome, with node indices for writing onto ``i_sti``."""
+    """One sti hex on a connectome, with node idxs for writing onto ``i_sti``."""
 
     node_idx: np.ndarray
 
@@ -319,7 +319,7 @@ class StiHex(Hex):
 def sti_hexes(connectome) -> List[StiHex]:
     """Sti hexes with sti nodes (one per axial ``(u, v)``)."""
     by_uv: Dict[Tuple[int, int], StiHex] = {}
-    for node_idx in connectome.sti_node_indices:
+    for node_idx in connectome.sti_node_idxs:
         u, v = int(connectome.us[node_idx]), int(connectome.vs[node_idx])
         key = (u, v)
         if key in by_uv:
@@ -378,15 +378,15 @@ def filter_sti_hexes(hexes, *, at_x=None, at_y=None, tol=1e-6):
 
 
 def _hex_node_map(hexes: Sequence[StiHex]) -> Tuple[np.ndarray, np.ndarray]:
-    hex_indices: List[int] = []
-    node_indices: List[int] = []
+    hex_idxs: List[int] = []
+    node_idxs: List[int] = []
     for hex_idx, hex in enumerate(hexes):
         for node_idx in np.asarray(hex.node_idx).ravel():
-            hex_indices.append(hex_idx)
-            node_indices.append(int(node_idx))
+            hex_idxs.append(hex_idx)
+            node_idxs.append(int(node_idx))
     return (
-        np.asarray(hex_indices, dtype=np.int64),
-        np.asarray(node_indices, dtype=np.int64),
+        np.asarray(hex_idxs, dtype=np.int64),
+        np.asarray(node_idxs, dtype=np.int64),
     )
 
 
@@ -394,7 +394,7 @@ def i_sti_nodes_from_hex(i_sti_hex, hexes, n_nodes):
     """Map ``(B, T, n_hexes)`` i_sti_hex to ``(B, T, n_nodes)`` by hex→node index."""
     n_b, n_t, _ = i_sti_hex.shape
     out = np.zeros((n_b, n_t, n_nodes), dtype=np.float64)
-    hex_indices, node_indices = _hex_node_map(hexes)
-    if len(hex_indices):
-        out[:, :, node_indices] = i_sti_hex[:, :, hex_indices]
+    hex_idxs, node_idxs = _hex_node_map(hexes)
+    if len(hex_idxs):
+        out[:, :, node_idxs] = i_sti_hex[:, :, hex_idxs]
     return out

@@ -90,28 +90,28 @@ def cost_part(session, z, part_key: str) -> dict:
         raise SystemExit(f"waveform v_readout required for {task!r}")
     v_readout, gts, time_mask = _gather_cost_time(pack, v_readout, gts)
 
-    part_indices, part_keys = _spot_entries_by_part(pack, session.backend)
+    part_idxs, part_keys = _spot_entries_by_part(pack, session.backend)
     if part_key not in part_keys:
         raise SystemExit(
             f"part {part_key!r} not in pack parts; available:\n  "
             + "\n  ".join(part_keys),
         )
     part_idx = part_keys.index(part_key)
-    entry_indices = (part_indices == part_idx).nonzero(as_tuple=False).reshape(-1)
-    if entry_indices.numel() == 0:
+    entry_idxs = (part_idxs == part_idx).nonzero(as_tuple=False).reshape(-1)
+    if entry_idxs.numel() == 0:
         raise SystemExit(f"part {part_key!r} has zero active entries")
 
-    a_gt_part = a_gt[entry_indices]
-    bias_gt_part = bias_gt[entry_indices]
-    cost_scales_part = scale[entry_indices]
-    mask_r = None if time_mask is None else time_mask[entry_indices]
+    a_gt_part = a_gt[entry_idxs]
+    bias_gt_part = bias_gt[entry_idxs]
+    cost_scales_part = scale[entry_idxs]
+    mask_r = None if time_mask is None else time_mask[entry_idxs]
     gt_scaled, cost_scales_2d, sse_wt, power_wt = _scaled_mse_terms(
-        a_gt_part, bias_gt_part, gts[entry_indices], cost_scales_part,
-        v_readout[entry_indices], time_mask=mask_r,
+        a_gt_part, bias_gt_part, gts[entry_idxs], cost_scales_part,
+        v_readout[entry_idxs], time_mask=mask_r,
     )
     sse = sse_wt.sum(dim=0)
     power_t = power_wt.sum(dim=0)
-    n = int(entry_indices.numel())
+    n = int(entry_idxs.numel())
     n_t = int(sse.numel())
     w_sum = float(cost_scales_part.sum().item())
     if w_sum <= 0:
@@ -123,7 +123,7 @@ def cost_part(session, z, part_key: str) -> dict:
     power_sum = float(power_t.sum().item())
 
     official = _parts_from_entries(
-        a_gt, bias_gt, gts, scale, v_readout, part_indices, part_keys, session,
+        a_gt, bias_gt, gts, scale, v_readout, part_idxs, part_keys, session,
         time_mask=time_mask,
     )
     if part_key not in official:
@@ -148,21 +148,21 @@ def cost_part(session, z, part_key: str) -> dict:
 
     gt_aff = gt_scaled + bias_gt_part[:, None]
     gt_aff_mean = (cost_scales_2d * gt_aff).sum(dim=0) / w_sum
-    v_readout_mean = (cost_scales_2d * v_readout[entry_indices]).sum(dim=0) / w_sum
+    v_readout_mean = (cost_scales_2d * v_readout[entry_idxs]).sum(dim=0) / w_sum
     sse_mean = sse / w_sum
 
     # ``t_cost`` / ``ms_cost``: post-onset cost samples. Bare ``t`` / ``ms``: absolute.
     delta_ms = float(session.delta_ms)
     delta_ms_pre = float(session.delta_ms_pre)
     t_onset = train.pack_t_onset(pack)
-    if pack.cost_time_indices is None:
+    if pack.cost_time_idxs is None:
         t_cost = np.arange(n_t, dtype=np.int64)
         t = t_onset + t_cost
     else:
-        t_cost = pack.cost_time_indices.detach().cpu().numpy().astype(np.int64, copy=False)
+        t_cost = pack.cost_time_idxs.detach().cpu().numpy().astype(np.int64, copy=False)
         if t_cost.shape[0] != n_t:
             raise SystemExit(
-                f"cost_time_indices length {t_cost.shape[0]} != n_t {n_t}",
+                f"cost_time_idxs length {t_cost.shape[0]} != n_t {n_t}",
             )
         t = train.pack_cost_abs_time_idx(pack, t_onset)
     ms_cost = t_cost.astype(float) * delta_ms

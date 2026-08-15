@@ -587,10 +587,10 @@ class SpotTraceReadout:
 
 
 def _row_idxs_from_cell_rows(cell_rows, figure_cells):
-    idx_from_cell = {str(n): i for i, n in enumerate(figure_cells)}
+    cell_idx = {str(n): i for i, n in enumerate(figure_cells)}
     row_idxs = []
     for cells_in_row in cell_rows:
-        cell_idxs = [idx_from_cell[str(n)] for n in cells_in_row if str(n) in idx_from_cell]
+        cell_idxs = [cell_idx[str(n)] for n in cells_in_row if str(n) in cell_idx]
         if cell_idxs:
             row_idxs.append(cell_idxs)
     return row_idxs
@@ -923,9 +923,9 @@ def _trained_radii(cost_parts, contrasts, *, center_only=False):
             pos = part_key.rfind("_r")
             if pos < 0:
                 continue
-            radius_text = part_key[pos + 2:]
+            radius_token = part_key[pos + 2:]
             try:
-                r_f = float(radius_text)
+                r_f = float(radius_token)
             except ValueError:
                 continue
             r_i = int(round(r_f))

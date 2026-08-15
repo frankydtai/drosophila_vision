@@ -9,12 +9,12 @@ By default (incoming / ``pre``) each CELL is treated as the postsynaptic
 down by postsynaptic ``target_cell``.
 
 A CELL token may be a cell (e.g. ``Mi1``); a *family* when prefixed with
-``:`` (e.g. ``:Centrifugal``) which accumulates over all its member cells; or a single
+``:`` (e.g. ``:Centrifugal``) which accumulates over all its cells; or a single
 neuron when prefixed with ``@`` (e.g. ``@720575940622041087``) selected by FlyWire
 root id. The breakdown column still shows individual ``source_cell``/``target_cell``
 unless ``--family`` is given.
 
-Optionally restrict to CELL *instances* by location: axial ``(u, v)`` with
+Optionally restrict to CELL ids by location: axial ``(u, v)`` with
 ``--u`` and/or ``--v`` (one axis for every column on that line, or both for a single
 column); hex-step ``(x, y)`` with ``--x`` and/or ``--y``; or the central hex disc
 ``--radius N`` (0 = centre column, 1 = 7 columns, 2 = 19, …; uses
@@ -107,7 +107,7 @@ def resolve_query_labels(
     """Resolve queried tokens to (ordered labels, self_cell -> labels, self_id -> labels).
 
     Token prefixes:
-      - ``:Family`` accumulates over every member cell of that family.
+      - ``:Family`` accumulates over every cell of that family.
       - ``@<root_id>`` selects a single neuron by FlyWire root id.
       - anything else is a literal cell.
     The label shown in the output is the token as typed (e.g. ``:Centrifugal``,
@@ -122,10 +122,10 @@ def resolve_query_labels(
     for tok in labels:
         if tok.startswith(":"):
             fam = tok[1:]
-            members = cells_from_family.get(fam, [])
-            if not members:
+            fam_cells = cells_from_family.get(fam, [])
+            if not fam_cells:
                 logger.warning("Family %r not found in cell_counts_abc.csv", fam)
-            for t in members:
+            for t in fam_cells:
                 labels_from_self_cell[t].add(tok)
         elif tok.startswith("@"):
             try:
@@ -259,7 +259,7 @@ def _mean_self_origin(
     label: str,
     nodes: List[dict],
     labels_from_self_cell: Dict[str, Set[str]],
-    ids_at_hex: Optional[Dict[str, Set[int]]],
+    ids_by_cell: Optional[Dict[str, Set[int]]],
     *,
     float_coords: bool
 ) -> Tuple[Optional[Tuple[float, float]], Optional[Tuple[float, float]]]:
@@ -277,8 +277,8 @@ def _mean_self_origin(
             nid = int(n["id"])
         except (KeyError, TypeError, ValueError):
             continue
-        if ids_at_hex is not None:
-            allowed = ids_at_hex.get(name, set())
+        if ids_by_cell is not None:
+            allowed = ids_by_cell.get(name, set())
             if nid not in allowed:
                 continue
         node_uv_xy = _node_uv_xy(n, float_coords=float_coords)
@@ -299,7 +299,7 @@ def _label_origins(
     label: str,
     nodes: List[dict],
     labels_from_self_cell: Dict[str, Set[str]],
-    ids_at_hex: Optional[Dict[str, Set[int]]],
+    ids_by_cell: Optional[Dict[str, Set[int]]],
     at_ref_uv: Optional[Tuple[float, float]],
     at_ref_xy: Optional[Tuple[float, float]],
     *,
@@ -323,17 +323,14 @@ def _label_origins(
             label,
             nodes,
             labels_from_self_cell,
-            ids_at_hex,
+            ids_by_cell,
             float_coords=float_coords,
-           
         )
         if origin_uv is None:
             origin_uv = mean_uv
         if origin_xy is None:
             origin_xy = mean_xy
     return origin_uv, origin_xy
-
-
 
 
 def uv_from_node_id(nodes: List[dict], *, float_coords: bool = False) -> Dict[int, _UvCoord]:
@@ -351,23 +348,31 @@ def uv_from_node_id(nodes: List[dict], *, float_coords: bool = False) -> Dict[in
     return m
 
 
-def _instance_ids_on_uv_line(
+def ids_by_cell(
     nodes: List[dict],
     *,
     at_u: Optional[int] = None,
     at_v: Optional[int] = None,
+    at_x: Optional[float] = None,
+    at_y: Optional[float] = None,
+    radius: Optional[int] = None,
+    shell: Optional[int] = None,
+    tol: float = 1e-6,
 ) -> Dict[str, Set[int]]:
-    """Map cell -> root ids on a hex ``u`` and/or ``v`` line (FAFB)."""
+    """Map cell -> root ids under one spatial filter (FAFB).
+
+    Exactly one mode: ``radius``, ``shell``, ``at_u``/``at_v``, or ``at_x``/``at_y``.
+    """
+    has_radius = radius is not None
+    has_shell = shell is not None
+    has_uv = at_u is not None or at_v is not None
+    has_xy = at_x is not None or at_y is not None
+    if has_radius + has_shell + has_uv + has_xy != 1:
+        raise ValueError(
+            "ids_by_cell requires exactly one of radius, shell, at_u/at_v, at_x/at_y"
+        )
     out: Dict[str, Set[int]] = {}
     for n in nodes:
-        try:
-            u, v = int(n["u"]), int(n["v"])
-        except (KeyError, TypeError, ValueError):
-            continue
-        if at_u is not None and u != at_u:
-            continue
-        if at_v is not None and v != at_v:
-            continue
         name = n.get("name")
         if not isinstance(name, str):
             continue
@@ -375,55 +380,29 @@ def _instance_ids_on_uv_line(
             nid = int(n["id"])
         except (KeyError, TypeError, ValueError):
             continue
-        out.setdefault(name, set()).add(nid)
-    return out
-
-
-def instance_ids_at_hex(
-    nodes: List[dict], u: int, v: int
-) -> Dict[str, Set[int]]:
-    """Map cell (node ``name``) -> FlyWire root ids at hex (u, v)."""
-    return _instance_ids_on_uv_line(nodes, at_u=u, at_v=v)
-
-
-def _instance_ids_in_disc(nodes: List[dict], radius: int) -> Dict[str, Set[int]]:
-    """Map cell -> root ids inside the central hex disc of radius ``radius``."""
-    out: Dict[str, Set[int]] = {}
-    for n in nodes:
-        try:
-            u, v = int(n["u"]), int(n["v"])
-        except (KeyError, TypeError, ValueError):
-            continue
-        if not bool(inside_mask(u, v, radius)):
-            continue
-        name = n.get("name")
-        if not isinstance(name, str):
-            continue
-        try:
-            nid = int(n["id"])
-        except (KeyError, TypeError, ValueError):
-            continue
-        out.setdefault(name, set()).add(nid)
-    return out
-
-
-def _instance_ids_on_shell(nodes: List[dict], shell: int) -> Dict[str, Set[int]]:
-    """Map cell -> root ids on hex shell ``shell`` (exact distance from origin)."""
-    out: Dict[str, Set[int]] = {}
-    for n in nodes:
-        try:
-            u, v = int(n["u"]), int(n["v"])
-        except (KeyError, TypeError, ValueError):
-            continue
-        if hex_radius(u, v) != shell:
-            continue
-        name = n.get("name")
-        if not isinstance(name, str):
-            continue
-        try:
-            nid = int(n["id"])
-        except (KeyError, TypeError, ValueError):
-            continue
+        if has_xy:
+            node_uv_xy = _node_uv_xy(n, float_coords=False)
+            if node_uv_xy is None:
+                continue
+            _uv, (x, y) = node_uv_xy
+            if at_x is not None and abs(float(x) - float(at_x)) > tol:
+                continue
+            if at_y is not None and abs(float(y) - float(at_y)) > tol:
+                continue
+        else:
+            try:
+                u, v = int(n["u"]), int(n["v"])
+            except (KeyError, TypeError, ValueError):
+                continue
+            if has_radius and not bool(inside_mask(u, v, int(radius))):
+                continue
+            if has_shell and hex_radius(u, v) != int(shell):
+                continue
+            if has_uv:
+                if at_u is not None and u != at_u:
+                    continue
+                if at_v is not None and v != at_v:
+                    continue
         out.setdefault(name, set()).add(nid)
     return out
 
@@ -444,7 +423,7 @@ def accumulate_all(
     uv_from_id: Dict[int, _UvCoord],
     *,
     xy_from_id: Optional[Dict[int, Tuple[float, float]]] = None,
-    ids_at_hex: Optional[Dict[str, Set[int]]] = None,
+    ids_by_cell: Optional[Dict[str, Set[int]]] = None,
     direction: str = "pre",
     family_from_cell: Optional[Dict[str, str]] = None,
     labels_from_self_id: Optional[Dict[int, Set[str]]] = None,
@@ -464,16 +443,16 @@ def accumulate_all(
     ``labels`` is the ordered list of queried tokens (a cell, a family entered as
     ``:Family``, or a single neuron entered as ``@<root_id>``). ``labels_from_self_cell``
     maps each *self* cell to its label(s); ``labels_from_self_id`` maps a *self* root
-    id to its label(s). A family label accumulates over all its member cells.
+    id to its label(s). A family label accumulates over all its cells.
 
     ``direction="pre"`` (default): query each label as the **postsynaptic** side
     (``target_cell``) and break down by presynaptic ``source_cell`` (incoming).
     ``direction="post"``: query each label as the **presynaptic** side (``source_cell``)
     and break down by postsynaptic ``target_cell`` (outgoing).
 
-    If ``ids_at_hex`` is set, only edges whose *self* instance id (``tar`` for ``pre``,
-    ``src`` for ``post``) sits at the chosen hex are counted. The third return value
-    maps partner type -> count of **distinct** *partner* instance ids. The fourth maps
+    If ``ids_by_cell`` is set, only edges whose *self* id (``tar`` for ``pre``,
+    ``src`` for ``post``) is in that cell→ids bag are counted. The third return value
+    maps partner type -> count of **distinct** *partner* ids. The fourth maps
     partner type -> distinct partner ``(u,v)`` centres.
     """
     if direction == "post":
@@ -516,8 +495,8 @@ def accumulate_all(
                 cell_labels |= id_labels
         if not cell_labels:
             continue
-        if ids_at_hex is not None:
-            allowed = ids_at_hex.get(stype, set())
+        if ids_by_cell is not None:
+            allowed = ids_by_cell.get(stype, set())
             if not allowed or self_id_int is None or self_id_int not in allowed:
                 continue
         pt = e.get(partner_cell_field) or "?"
@@ -573,7 +552,7 @@ def query_partner_syn(
     cells: List[str],
     *,
     direction: str = "pre",
-    ids_at_hex: Optional[Dict[str, Set[int]]] = None,
+    ids_by_cell: Optional[Dict[str, Set[int]]] = None,
     family_from_cell: Optional[Dict[str, str]] = None,
 ) -> Dict[
     str,
@@ -596,7 +575,7 @@ def query_partner_syn(
         labels,
         labels_from_self_cell,
         uv_from_node_id(nodes, float_coords=False),
-        ids_at_hex=ids_at_hex,
+        ids_by_cell=ids_by_cell,
         direction=direction,
         labels_from_self_id=labels_from_self_id,
     )
@@ -729,36 +708,6 @@ def print_table(
     print()
 
 
-def instance_ids_on_xy_line(
-    nodes: List[dict],
-    *,
-    at_x: Optional[float] = None,
-    at_y: Optional[float] = None,
-    tol: float = 1e-6,
-) -> Dict[str, Set[int]]:
-    """Map cell -> root ids on a hex-step ``x`` and/or ``y`` line (FAFB)."""
-    out: Dict[str, Set[int]] = {}
-    for n in nodes:
-        node_uv_xy = _node_uv_xy(n, float_coords=False)
-        if node_uv_xy is None:
-            continue
-        _uv, (x, y) = node_uv_xy
-        if at_x is not None and abs(float(x) - float(at_x)) > tol:
-            continue
-        if at_y is not None and abs(float(y) - float(at_y)) > tol:
-            continue
-        name = n.get("name")
-        if not isinstance(name, str):
-            continue
-        try:
-            nid = int(n["id"])
-        except (KeyError, TypeError, ValueError):
-            continue
-        out.setdefault(name, set()).add(nid)
-    return out
-
-
-
 
 
 def cli_xy_filter(
@@ -771,7 +720,7 @@ def cli_xy_filter(
     return at_x, at_y
 
 
-def resolve_xy_instance_ids(
+def resolve_xy_ids(
     nodes: List[dict],
     at_x: Optional[float],
     at_y: Optional[float],
@@ -781,9 +730,9 @@ def resolve_xy_instance_ids(
     Optional[Tuple[float, float]],
     bool,
 ]:
-    """FAFB ``--x``/``--y`` → ``(ids_at_hex, hex_note, at_ref_xy, single_xy_column)``.
+    """FAFB ``--x``/``--y`` → ``(ids_by_cell, hex_note, at_ref_xy, single_xy_column)``.
 
-    Raises ``ValueError`` when the filter matches no instances or ``uv_from_xy`` fails.
+    Raises ``ValueError`` when the filter matches no ids or ``uv_from_xy`` fails.
     With neither coordinate set, returns ``(None, "", None, False)``.
     """
     has_xy = at_x is not None or at_y is not None
@@ -792,26 +741,26 @@ def resolve_xy_instance_ids(
     single_xy = at_x is not None and at_y is not None
     if single_xy:
         hu, hv = uv_from_xy(at_x, at_y)
-        ids_at_hex = instance_ids_at_hex(nodes, hu, hv)
+        out = ids_by_cell(nodes, at_u=hu, at_v=hv)
         at_ref_xy = (float(at_x), float(at_y))
         hex_note = (
             f" at (x,y)=({_format_table_scalar(at_ref_xy[0])},"
             f"{_format_table_scalar(at_ref_xy[1])})"
         )
         logger.info(
-            "Restricting to instances at (x,y)=(%s,%s) (u,v)=(%s,%s); "
+            "Restricting to ids at (x,y)=(%s,%s) (u,v)=(%s,%s); "
             "%d cells have ≥1 node there",
             _format_table_scalar(at_ref_xy[0]),
             _format_table_scalar(at_ref_xy[1]),
             hu,
             hv,
-            sum(1 for ids in ids_at_hex.values() if ids),
+            sum(1 for ids in out.values() if ids),
         )
-        return ids_at_hex, hex_note, at_ref_xy, True
+        return out, hex_note, at_ref_xy, True
 
-    ids_at_hex = instance_ids_on_xy_line(nodes, at_x=at_x, at_y=at_y)
-    if not any(ids_at_hex.values()):
-        raise ValueError(f"no instances match --x={at_x!r} --y={at_y!r}")
+    out = ids_by_cell(nodes, at_x=at_x, at_y=at_y)
+    if not any(out.values()):
+        raise ValueError(f"no ids match --x={at_x!r} --y={at_y!r}")
     parts = []
     if at_x is not None:
         parts.append(f"x={_format_table_scalar(at_x)}")
@@ -819,11 +768,11 @@ def resolve_xy_instance_ids(
         parts.append(f"y={_format_table_scalar(at_y)}")
     hex_note = " at " + ", ".join(parts)
     logger.info(
-        "Restricting to instances on %s; %d cells have ≥1 node there",
+        "Restricting to ids on %s; %d cells have ≥1 node there",
         ", ".join(parts),
-        sum(1 for ids in ids_at_hex.values() if ids),
+        sum(1 for ids in out.values() if ids),
     )
-    return ids_at_hex, hex_note, None, False
+    return out, hex_note, None, False
 
 
 def main(argv: List[str] | None = None) -> int:
@@ -838,7 +787,7 @@ def main(argv: List[str] | None = None) -> int:
         help=(
             "Comma-separated cells to query (e.g. T4a,T4b,T4c or Mi1). "
             "Prefix with : for a family "
-            "(e.g. :Centrifugal) to accumulate its member cells, or @ for a single "
+            "(e.g. :Centrifugal) to accumulate its cells, or @ for a single "
             "neuron by root id (e.g. @720575940622041087). Default: L1 if omitted"
         ),
     )
@@ -911,7 +860,7 @@ def main(argv: List[str] | None = None) -> int:
         metavar="N",
         default=None,
         help=(
-            "FAFB only: restrict to CELL instances in the central hex disc of "
+            "FAFB only: restrict to CELL ids in the central hex disc of "
             "radius N (0 = centre column, 1 = 7 columns, 2 = 19, …; "
             "build_hex.inside_mask). Shows mean pre_d_xy/post_d_xy only. "
             "Incompatible with --shell, --u/--v, and --x/--y."
@@ -923,7 +872,7 @@ def main(argv: List[str] | None = None) -> int:
         metavar="N",
         default=None,
         help=(
-            "FAFB only: restrict to CELL instances on hex shell N "
+            "FAFB only: restrict to CELL ids on hex shell N "
             "(0 = centre column, 1 = 6 columns, 2 = 12, …; "
             "build_hex.hex_radius). Shows mean pre_d_xy/post_d_xy only. "
             "Incompatible with --radius, --u/--v, and --x/--y."
@@ -1000,13 +949,14 @@ def main(argv: List[str] | None = None) -> int:
 
     family_from_cell_all = family_from_cell_csv(json_path)
 
-    ids_at_hex: Optional[Dict[str, Set[int]]] = None
+    _build_ids_by_cell = ids_by_cell
+    ids_by_cell: Optional[Dict[str, Set[int]]] = None
     hex_note = ""
     at_ref_uv: Optional[Tuple[float, float]] = None
     at_ref_xy: Optional[Tuple[float, float]] = None
 
     if args.radius is not None:
-        ids_at_hex = _instance_ids_in_disc(nodes, args.radius)
+        ids_by_cell = _build_ids_by_cell(nodes, radius=args.radius)
         n_hex = 3 * args.radius * (args.radius + 1) + 1
         hex_note += f" radius={args.radius} ({n_hex} hexes)"
         logger.info(
@@ -1014,10 +964,10 @@ def main(argv: List[str] | None = None) -> int:
             "%d cells have ≥1 node there",
             args.radius,
             n_hex,
-            sum(1 for ids in ids_at_hex.values() if ids),
+            sum(1 for ids in ids_by_cell.values() if ids),
         )
     elif args.shell is not None:
-        ids_at_hex = _instance_ids_on_shell(nodes, args.shell)
+        ids_by_cell = _build_ids_by_cell(nodes, shell=args.shell)
         n_hex = 1 if args.shell == 0 else 6 * args.shell
         hex_note += f" shell={args.shell} ({n_hex} hexes)"
         logger.info(
@@ -1025,12 +975,12 @@ def main(argv: List[str] | None = None) -> int:
             "%d cells have ≥1 node there",
             args.shell,
             n_hex,
-            sum(1 for ids in ids_at_hex.values() if ids),
+            sum(1 for ids in ids_by_cell.values() if ids),
         )
     elif has_uv_filter:
         if single_uv_hex:
             hu, hv = at_u, at_v
-            ids_at_hex = instance_ids_at_hex(nodes, hu, hv)
+            ids_by_cell = _build_ids_by_cell(nodes, at_u=hu, at_v=hv)
             at_ref_uv = (float(hu), float(hv))
             hx, hy = (float(v) for v in xy_from_uv(hu, hv))
             at_ref_xy = (hx, hy)
@@ -1040,18 +990,18 @@ def main(argv: List[str] | None = None) -> int:
                 f"{_format_table_scalar(hy)})"
             )
             logger.info(
-                "Restricting to instances at (u,v)=(%s,%s) "
+                "Restricting to ids at (u,v)=(%s,%s) "
                 "(x,y)=(%s,%s); %d cells have ≥1 node there",
                 hu,
                 hv,
                 _format_table_scalar(hx),
                 _format_table_scalar(hy),
-                sum(1 for ids in ids_at_hex.values() if ids),
+                sum(1 for ids in ids_by_cell.values() if ids),
             )
         else:
-            ids_at_hex = _instance_ids_on_uv_line(nodes, at_u=at_u, at_v=at_v)
-            if not any(ids_at_hex.values()):
-                logger.error("no instances match --u=%r --v=%r", at_u, at_v)
+            ids_by_cell = _build_ids_by_cell(nodes, at_u=at_u, at_v=at_v)
+            if not any(ids_by_cell.values()):
+                logger.error("no ids match --u=%r --v=%r", at_u, at_v)
                 return 1
             parts = []
             if at_u is not None:
@@ -1060,14 +1010,14 @@ def main(argv: List[str] | None = None) -> int:
                 parts.append(f"v={at_v}")
             hex_note += " at " + ", ".join(parts)
             logger.info(
-                "Restricting to instances on %s; %d cells have ≥1 node there",
+                "Restricting to ids on %s; %d cells have ≥1 node there",
                 ", ".join(parts),
-                sum(1 for ids in ids_at_hex.values() if ids),
+                sum(1 for ids in ids_by_cell.values() if ids),
             )
     elif has_xy_filter:
         try:
-            ids_at_hex, xy_note, at_ref_xy, single_xy_column = (
-                resolve_xy_instance_ids(nodes, at_x, at_y)
+            ids_by_cell, xy_note, at_ref_xy, single_xy_column = (
+                resolve_xy_ids(nodes, at_x, at_y)
             )
         except ValueError as exc:
             logger.error("%s", exc)
@@ -1096,7 +1046,7 @@ def main(argv: List[str] | None = None) -> int:
         labels_from_self_cell,
         uv_from_id,
         xy_from_id=xy_from_id,
-        ids_at_hex=ids_at_hex,
+        ids_by_cell=ids_by_cell,
         direction=direction,
         family_from_cell=family_from_partner_cell,
         labels_from_self_id=labels_from_self_id,
@@ -1107,7 +1057,7 @@ def main(argv: List[str] | None = None) -> int:
             label,
             nodes,
             labels_from_self_cell,
-            ids_at_hex,
+            ids_by_cell,
             at_ref_uv,
             at_ref_xy,
             float_coords=False,

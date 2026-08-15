@@ -7,7 +7,7 @@ Owns the time-axis gather shared by the continuous moving-bar cost_window
 ``Pack`` or the session/train layer, so ``neuron`` stays below
 ``train`` in the import graph.
 
-Sparse time-point subsampling (``cost_time_indices``) is applied at cost time in
+Sparse time-point subsampling (``cost_time_idxs``) is applied at cost time in
 ``train.cost`` on the post-onset ``ms_response`` window returned here
 (``gts.shape[1]`` samples from ``pack_t_onset``; excludes spot ``ms_post``).
 """
