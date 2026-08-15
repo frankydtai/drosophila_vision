@@ -288,7 +288,7 @@ def _entries_by_part(
     backend: ModelBackend,
     entry_part_key,
 ) -> Tuple[torch.Tensor, List[str]]:
-    """``(part_idxs, part_keys)`` from ``entry_part_key(i, cells, ci)``; one CPU sync."""
+    """``(part_idxs, part_keys)`` from ``entry_part_key(entry, cells, ci)``; one CPU sync."""
     n = int(pack.entry_nodes.shape[0])
     net = backend.network
     if net is None:
@@ -299,16 +299,16 @@ def _entries_by_part(
     part_idxs: Dict[str, int] = {}
     part_keys: List[str] = []
     part_idxs_np = np.full(n, -1, dtype=np.int64)
-    for entry_i in range(n):
-        if entry_cost_scales[entry_i] <= 0.0:
+    for entry in range(n):
+        if entry_cost_scales[entry] <= 0.0:
             continue
-        part_key = entry_part_key(entry_i, cells, ci)
+        part_key = entry_part_key(entry, cells, ci)
         part_idx = part_idxs.get(part_key)
         if part_idx is None:
             part_idx = len(part_keys)
             part_idxs[part_key] = part_idx
             part_keys.append(part_key)
-        part_idxs_np[entry_i] = part_idx
+        part_idxs_np[entry] = part_idx
     part_idxs = torch.as_tensor(
         part_idxs_np, dtype=torch.long, device=pack.entry_nodes.device,
     )
@@ -321,8 +321,10 @@ def _spot_entries_by_part(
     """``(part_idxs, part_keys)`` for spot cell×radius; one CPU sync of entry meta."""
     rad = pack.entry_radii.detach().cpu().numpy()
 
-    def entry_part_key(i, cells, ci):
-        return spot_cost_part_key(pack.task, str(cells[int(ci[i])]), int(rad[i]))
+    def entry_part_key(entry, cells, ci):
+        return spot_cost_part_key(
+            pack.task, str(cells[int(ci[entry])]), int(rad[entry]),
+        )
 
     return _entries_by_part(pack, backend, entry_part_key)
 
@@ -339,9 +341,11 @@ def _moving_bar_entries_by_part(
         )
     pd_nd = pack.cost_pd_nds.detach().cpu().numpy()
 
-    def entry_part_key(i, cells, ci):
-        lab = PD_ND_LABELS[int(pd_nd[i])]
-        return moving_bar_cell_cost_part_key(pack.task, str(cells[int(ci[i])]), lab)
+    def entry_part_key(entry, cells, ci):
+        lab = PD_ND_LABELS[int(pd_nd[entry])]
+        return moving_bar_cell_cost_part_key(
+            pack.task, str(cells[int(ci[entry])]), lab,
+        )
 
     return _entries_by_part(pack, backend, entry_part_key)
 

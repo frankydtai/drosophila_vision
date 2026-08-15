@@ -176,7 +176,7 @@ def _csr_from_groups(
     ptr = [0]
     flat: list[int] = []
     for dsi_group in groups:
-        flat.extend(int(entry_i) for entry_i in dsi_group)
+        flat.extend(int(entry) for entry in dsi_group)
         ptr.append(len(flat))
     entries_t = torch.tensor(np.asarray(flat, dtype=np.int64), dtype=torch.long, device=device)
     ptr_t = torch.tensor(np.asarray(ptr, dtype=np.int64), dtype=torch.long, device=device)
