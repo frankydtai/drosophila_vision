@@ -36,14 +36,14 @@ def build_cell_pair_indices(src_cell, tar_cell, n_cells: int):
     -------
     pair_indices : (E,) int64
     n_pairs : int
-    pair_keys : list[(src_cell, tar_cell)] in index order
+    pairs : list[(src_cell, tar_cell)] in index order
     """
     src_cell = np.asarray(src_cell, dtype=np.int64)
     tar_cell = np.asarray(tar_cell, dtype=np.int64)
     codes = src_cell * int(n_cells) + tar_cell
     uniq, inv = np.unique(codes, return_inverse=True)
-    pair_keys = [(int(c // n_cells), int(c % n_cells)) for c in uniq]
-    return inv.astype(np.int64), int(len(uniq)), pair_keys
+    pairs = [(int(code // n_cells), int(code % n_cells)) for code in uniq]
+    return inv.astype(np.int64), int(len(uniq)), pairs
 
 
 class ScatterConn:
@@ -85,10 +85,10 @@ class ScatterConn:
         n_cells = int(self.node_cells.max().item()) + 1 if self.n_nodes else 0
         src_t = self.node_cells[self.source_indices].detach().cpu().numpy()
         tar_t = self.node_cells[self.target_indices].detach().cpu().numpy()
-        pair_indices_np, n_pairs, pair_keys = build_cell_pair_indices(src_t, tar_t, n_cells)
+        pair_indices_np, n_pairs, pairs = build_cell_pair_indices(src_t, tar_t, n_cells)
         self.pair_indices = torch.as_tensor(pair_indices_np, dtype=torch.long, device=device)
         self.n_pairs = int(n_pairs)
-        self.pair_keys = pair_keys
+        self.pairs = pairs
 
     def _accumulate_on_target(self, vals: torch.Tensor) -> torch.Tensor:
         out_shape = vals.shape[:-1] + (self.n_nodes,)

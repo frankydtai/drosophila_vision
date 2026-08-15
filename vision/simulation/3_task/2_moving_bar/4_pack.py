@@ -26,7 +26,7 @@ from task.moving_bar.gt import (
     GT_CELLS,
     active_stis_for_subtype,
     axis_dsi_torch,
-    fig1_key_for_sti,
+    fig1_trace_for_sti,
     hardcoded_axis_dsi,
     load_fig1_traces,
     motion_preference,
@@ -95,8 +95,8 @@ def moving_bar_nodes_on_hexes(connectome, cell: str, hexes: Sequence) -> np.ndar
     pack = (node_u_np + uv_span) * (2 * uv_span + 1) + (node_v_np + uv_span)
     hex_pack = np.array(
         [
-            (int(c.u) + uv_span) * (2 * uv_span + 1) + (int(c.v) + uv_span)
-            for c in hexes
+            (int(hex.u) + uv_span) * (2 * uv_span + 1) + (int(hex.v) + uv_span)
+            for hex in hexes
         ],
         dtype=np.int64,
     )
@@ -369,7 +369,7 @@ def _assemble_moving_bar_readouts(
                 if waveform_mse:
                     if fig1 is None:
                         raise ValueError("fig1 traces required when waveform_mse=True")
-                    trace_id = fig1_key_for_sti(side, subtype, spec)
+                    trace_id = fig1_trace_for_sti(side, subtype, spec)
                     if trace_id not in fig1:
                         raise KeyError(f"fig1 trace missing: {trace_id}")
                     gt_trace = fig1[trace_id]
@@ -683,10 +683,10 @@ def build_moving_bar_sti_opts(
     """Sti moving-bar sti opts for ``moving_bar_{contrast}``."""
     if contrast not in MOVING_BAR_CONTRASTS:
         raise ValueError(f"moving-bar contrast must be 'bright' or 'dark', got {contrast!r}")
-    bar_key = "i_bright_moving_bar" if contrast == "bright" else "i_dark_moving_bar"
+    i_peak = "i_bright_moving_bar" if contrast == "bright" else "i_dark_moving_bar"
     out = {
         "i_baseline_moving_bar": i_baseline_moving_bar,
-        bar_key: i_moving_bar,
+        i_peak: i_moving_bar,
         "ms_pre": ms_pre,
         "delta_ms": delta_ms,
         "delta_ms_pre": delta_ms_pre,

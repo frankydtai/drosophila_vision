@@ -30,7 +30,7 @@ from figure.plot_run import load_train_opts, session_for_target
 from network.build import cell_family_rows, cell_names_in_family_order
 from figure.util import TRACE_LW, TRACE_YLIM, save_figure
 from neuron.param import DELTA_MS, set_delta_ms
-from task.spot.gt import cell_list, resolve_spot_cost_radii, build_spot_center_readout
+from task.spot.gt import GT_CELLS, resolve_spot_cost_radii, build_spot_center_readout
 from task.spot.sti_geo import resolve_spot, spot_sti_batches
 from training.config import PARAMETER_DIR
 
@@ -89,7 +89,7 @@ def _fit_center_traces(session, z, *, return_v_delta: bool) -> dict[str, np.ndar
 
     cell_names = list(connectome.cell_names)
     out: dict[str, np.ndarray] = {}
-    for name in cell_list:
+    for name in GT_CELLS:
         name = str(name)
         if name not in cell_names:
             continue
@@ -125,7 +125,7 @@ def _session_z_at_delta_ms(base_opts, model, named, cell_names, pairs, dt_ms: fl
 
 
 def _plot(traces_v, traces_ca, traces_v50, dt10, dt50, save, show):
-    active = [str(n) for n in cell_list if str(n) in traces_v]
+    active = [str(n) for n in GT_CELLS if str(n) in traces_v]
     groups = [np.array(row) for row in cell_family_rows(active)]
     names = cell_names_in_family_order(active)
     nrows = len(groups)
@@ -138,12 +138,12 @@ def _plot(traces_v, traces_ca, traces_v50, dt10, dt50, save, show):
 
     name_set = set(names)
     for r, group in enumerate(groups):
-        for c in range(ncols):
-            ax = axes[r][c]
-            if c >= len(group):
+        for col in range(ncols):
+            ax = axes[r][col]
+            if col >= len(group):
                 ax.axis("off")
                 continue
-            name = str(group[c])
+            name = str(group[col])
             if name not in name_set:
                 ax.axis("off")
                 continue
@@ -159,7 +159,7 @@ def _plot(traces_v, traces_ca, traces_v50, dt10, dt50, save, show):
             ax.axhline(0.0, color="0.7", lw=0.6)
             if r == nrows - 1:
                 ax.set_xlabel("t (s)", fontsize=8)
-            if c == 0:
+            if col == 0:
                 ax.set_ylabel("Δ mV", fontsize=8)
             ax.tick_params(labelsize=7)
 

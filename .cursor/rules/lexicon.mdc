@@ -52,7 +52,7 @@ Forbidden: do not use `node` to refer to a cell type. `cell` is a connectome typ
 
 ### `center` / `centers`
 
-Definition: Spot / RF / cost readout locus at Euclidean radius 0 — the sti anchor hex (`du=dv=0`), the `entry_radii==0` slot, the RF axis index 0, or the plot row / time trace for that radius. Compounds: `spot_centers` (simultaneous sti anchor hexes), `center_entry_mask`, `center_only`, `center_hex` (sole cost hex when `cost_radius==0`), `pack_center_mask`, `build_spot_center_readout`, `RF_CENTER_RADIUS`, `gt_center`, `v_readout_center`.
+Definition: Spot / RF / cost readout locus at hex-lattice radius 0 — the sti anchor hex (`du=dv=0`), the `entry_radii==0` slot, the RF axis index 0, or the plot row / time trace for that radius. Compounds: `spot_centers` (simultaneous sti anchor hexes), `center_entry_mask`, `center_only`, `center_hex` (sole cost hex when `cost_radius==0`), `pack_center_mask`, `build_spot_center_readout`, `RF_CENTER_RADIUS`, `gt_center`, `v_readout_center`.
 Example: `center_entry_mask = (du == 0) & (dv == 0)`, `spot.centers`, `center_only=True`, `RF_CENTER_RADIUS = 0`
 Forbidden: do not use `center` for bar-trail midpoint, histogram bin midpoint, node `(u,v)` lookup, or hex-patch vertex bounds — use `mid` or non-`center` hex coords. Do not use `r0` / `R0` as naming tokens (see coding-rules). Library matplotlib layout kwargs (`xanchor='center'`, `ha='center'`) may remain.
 
@@ -110,7 +110,7 @@ Forbidden: do not use `syn` to refer to a network edge or its idx. `edge` is a n
 
 ### `entry` / `entries`
 
-Definition: One cost comparison unit in a `Pack`: a (cell × radius) or (cell × PD/ND) record. Pack aligns bags `entry_nodes`, `gts`, `cost_scales`, `entry_batches`, `entry_radii` (one slot per entry; `entry_radii` is spot Euclidean). The cost MSE is a scaled sum over entries with ``entry_mask`` True.
+Definition: One cost comparison unit in a `Pack`: a (cell × radius) or (cell × PD/ND) record. Pack aligns bags `entry_nodes`, `gts`, `cost_scales`, `entry_batches`, `entry_radii` (one slot per entry; `entry_radii` is spot hex-lattice radius). The cost MSE is a scaled sum over entries with ``entry_mask`` True.
 Example: `entries = _active_entry_indices(work, session, batch_idx=batch_idx)`
 Forbidden: do not use `node` to refer to a cost entry. `entry` is a cost-layer record; `node` is a network neuron idx.
 
@@ -126,11 +126,17 @@ Definition: A cell type that participates in the train cost via ground-truth tar
 Example: `mirror_fit='L1'`, `fit_gts(...)`, “fit cells” for the GT/cost cell set
 Forbidden: do not use `fit` as a verb for the Adam update loop — use `optimize`. Do not use `fit` for the overall process / package — use `train`. Do not name optimize results with `fit` (`z_fit`, `fit_parts`, “fitted parameters”) — use `z_best`, `final_parts`, `parameters`.
 
+### `figure` / `figures`
+
+Definition: Noun qualifier for the visualization path when a name must stay distinct from the corresponding train value (kwargs, gts, filter token, CLI registration, displayed ``n_t``, ordered cells, …). Also the ``5_figure`` package and saved figure files.
+Example: `figure_kw`, `figure_gts`, `filter_figure_token`, `add_figure_arguments`, `resolve_figure_kwargs`, `do_figure`, `figure_cells`, `figure_traces`, `n_t_figure`, `for_figure`, `figure_file_ext`, `log_figure_elapsed`, `ElapsedTimer`
+Forbidden: using ``plot`` as that noun qualifier (`plot_kw`, `plot_gts`, `filter_plot_token`, `add_plot_*`, `do_plot`, …). Do not use ``figure`` for the verb of drawing — that is ``plot``.
+
 ### `degree` / `degrees`
 
 Definition: An angular or visual-field quantity measured in degrees (°) — used for bar width, lane pitch, hex vertex positions, and motion-axis view bounds.
 Example: `x_deg, y_deg = build_hex.xy_deg_from_uv(u, v)`
-Forbidden: do not use `extent` to refer to a degree quantity. `degree` is angular; `radius` is a hex ring count.
+Forbidden: do not use `extent` to refer to a degree quantity. `degree` is angular; `radius` is a hex-lattice distance.
 
 ### `gt` / `gts`
 
@@ -142,8 +148,8 @@ Forbidden: naming a multi-row gt tensor ``gt`` (use ``gts``). Naming a single wa
 
 ### `group` / `groups`
 
-Definition: A biological grouping in cell or DSI semantics — e.g. a cell-type family band in plot layout (`cell_plot_rows`), or a PD/ND entry list pair in one DSI comparison unit. Not a cost-layer accumulate term.
-Example: `pos_groups`, `neg_groups` in `assemble_moving_bar_dsi_groups`; `cell_plot_rows`, `CELL_PLOT_ROWS`
+Definition: A biological grouping in cell or DSI semantics — e.g. a cell-type family band in figure layout (`cell_rows`), or a PD/ND entry list pair in one DSI comparison unit. Not a cost-layer accumulate term.
+Example: `pos_groups`, `neg_groups` in `assemble_moving_bar_dsi_groups`; `cell_rows`, `CELL_ROWS`
 Forbidden: do not use `group` for cost entries accumulated into sub-costs — use `part`. Do not use `group` for sti batch tuples forwarded together — use `batch_set`.
 
 ### `hex` / `hexes`
@@ -195,13 +201,13 @@ Forbidden: `gate` — do not use `gate` for this participation selector (`a_sti_
 
 ### `mid` / `mids`
 
-Definition: Geometric or temporal midpoint along a path, lane, or bin axis — not Euclidean radius 0. Moving-bar transit: trail midpoint in degrees (`trail_mid`), time sample between entry and exit (`mid_t`, return slot ``mid`` of ``moving_bar_transit_times``, snapshot labels ``"mid"``). Histogram: bin midpoint (`bin_midpoints`).
+Definition: Geometric or temporal midpoint along a path, lane, or bin axis — not hex-lattice radius 0. Moving-bar transit: trail midpoint in degrees (`trail_mid`), time sample between entry and exit (`mid_t`, return slot ``mid`` of ``moving_bar_transit_times``, snapshot labels ``"mid"``). Histogram: bin midpoint (`bin_midpoints`).
 Example: `trail_mid = origin + 0.5 * (...)`, `start_t, mid_t, exit_t = moving_bar_transit_times(...)`, `labels = ("start", "mid", "exit")`, `bin_midpoints = 0.5 * (edges_bins[:-1] + edges_bins[1:])`
-Forbidden: do not use `mid` for sti-on hex / Euclidean radius 0 — use `center`. Do not use `center` for these midpoints.
+Forbidden: do not use `mid` for sti-on hex / hex-lattice radius 0 — use `center`. Do not use `center` for these midpoints.
 
 ### `mode` / `modes`
 
-Definition: A string token selected from a fixed enumeration, identifying which variant of a configurable behaviour is active (e.g. `syn_mode ∈ {"per_cell","per_edge"}`, segment ``mode`` ∈ {"indi","shared","fixed","frozen"}``, schema ``z_mode`` ∈ {"linear","log","inv"}). Plural ``modes`` is the bag mapping each mode token to its node/slot index list (or a collection of such tokens).
+Definition: A string token selected from a fixed enumeration, identifying which variant of a configurable behaviour is active (e.g. `syn_mode ∈ {"per_cell","per_edge"}`, segment ``mode`` ∈ {"indi","shared","fixed","frozen"}``, schema ``z_mode`` ∈ {"linear","log","inv"}). Plural ``modes`` is the bag mapping each mode token to its node/slot indices (or a collection of such tokens).
 Example: `mode = normalize_syn_mode(syn_mode)`, `for mode in PARAM_MODES: s[mode] = list(modes[mode])`, `segment.get("z_mode", "linear")`
 Forbidden: `bucket`, `mode_bucket` — never name a mode token or the modes bag with ``bucket``. Do not use ``z_map`` for the z↔param encoding — that is ``z_mode``.
 
@@ -209,6 +215,14 @@ Forbidden: `bucket`, `mode_bucket` — never name a mode token or the modes bag 
 
 Definition: The moving-bar sti paradigm (and its related task variants) used to generate inputs and corresponding targets.
 Example: `if pack.task in MOVING_BAR_TASKS: ...`
+
+### `ms` / `mss`
+
+Definition: A time duration or absolute clock offset measured in milliseconds — sti / cost / filter timing literals and bags, never a sample index along the trace axis (that is ``t`` / ``n_t``).
+- ``ms`` (singular): one millisecond value (``ms_pre``, ``ms_sti``, loop local ``ms``, ``delta_ms``).
+- ``mss`` (plural): a bag/tuple/set of those values (e.g. post-onset cost sample times for one radius).
+Example: `t_from_ms(ms_pre, delta_ms=delta_ms)`, `for ms in mss:`, `cost_ms` (radius → ``mss``), `IR_delay_ms[cell]`
+Forbidden: `ms_list` / `*_ms_list` (see ``list`` — use ``mss``); `millisecond` / `milliseconds` as naming tokens; do not use ``ms`` for a time-sample index — use ``t``.
 
 ### `n` / `n_<noun>`
 
@@ -264,15 +278,15 @@ Example: `parts[part_key] = part` in `calc_cost_parts`
 
 ### `prep`
 
-Definition: Plot-pipeline wall-clock phase before draw — forwarding / assembling readouts that feed a figure (timed as ``prep_s`` / ``PlotTimer`` prep; log field ``prep=…s``). Noun for that timing slot only — not a verb for model hooks.
-Example: `readout_prep_s(...)`, `TraceReadout.prep_s`, `PlotTimer(prior_prep=...)`, `timer.end_prep()`, `log_plot_elapsed(..., prep=...)`
+Definition: Figure-pipeline wall-clock phase before draw — forwarding / assembling readouts that feed a figure (timed as ``prep_s`` / ``ElapsedTimer`` prep; log field ``prep=…s``). Noun for that timing slot only — not a verb for model hooks.
+Example: `readout_prep_s(...)`, `TraceReadout.prep_s`, `ElapsedTimer(prior_prep=...)`, `timer.end_prep()`, `log_figure_elapsed(..., prep=...)`
 Forbidden: `prepare` as a naming token for this timing phase. Do not use `prep` for model ``normalize_i_sti`` / sti shaping, ``pre_steady``, or pre-onset time windows (`ms_pre`, `pre_end`, `show_pre`). Do not use `draw` / `save` for this phase.
 
 ### `radius` / `radii`
 
-Definition: An integer hex ring count labelling a position or area size — used for connectome geometry (`connectome.meta["radius"]`), spot footprint (`spot_radius`), sub-spot shift neighbourhood (`shift_radius`), bar width+spacing (`bar_radius`), and cost hex-disc (`cost_radius`). Does not refer to Euclidean or angular distances.
-Example: `connectome_radius = int(connectome.meta.get("radius", -1))` (JSON key `"radius"` in `network.json`)
-Forbidden: do not use `extent` to refer to any hex ring count. `radius` is the sole term for hex ring counts.
+Definition: An integer hex-lattice distance labelling a position or area size — connectome geometry (`connectome.meta["radius"]`), spot footprint (`spot_radius`), sub-spot shift neighbourhood (`shift_radius`), bar width+spacing (`bar_radius`), cost hex-disc (`cost_radius`), spot cost / RF / ``a_sti_radius`` axes (`entry_radii`, ``spot_cost_radii``, ``RF_N_RADII``). Measured by ``build_hex.hex_radius`` / ``members_at_shell`` (not Euclidean or angular distance).
+Example: `connectome_radius = int(connectome.meta.get("radius", -1))` (JSON key `"radius"` in `network.json`), `entry_radii`, `members_by_radius`
+Forbidden: `ring` / `rings` as naming or prose substitutes for this concept; `extent` for any hex-lattice radius count; Euclidean / angular distance for this noun. `radius` is the sole term.
 
 ### `readout` / `readouts`
 
@@ -295,7 +309,7 @@ Forbidden: ``RecF``, ``recf``, ``rf_gt``, ``RecF_gt``, ``RF_GRUNTMAN_ROW``, ``bu
 ### `row` / `rows`
 
 Definition: A vertical subplot-grid index in figure code only — one plot panel band (component figure row, cell layout band, RF+time stack band).
-Example: `n_row`, `row_idx`, `CELL_PLOT_ROWS`, `plot_row_idxs`, `row_shared_ylim`, `fig.add_gridspec(n_row, n_col)`
+Example: `n_row`, `row_idx`, `CELL_ROWS`, `row_idxs`, `row_shared_ylim`, `fig.add_gridspec(n_row, n_col)`
 Forbidden: CSV record row; cost `entry` / `entry_mask`; `i_sti` batch slot; GT lookup-table row index; in-memory forward container — do not use `row` outside plot code. Library pandas / CSV `row` locals in one-off parsers may remain if the noun is not exported.
 
 ### `run` / `runs`
@@ -326,6 +340,12 @@ Forbidden: ``column`` (for CSV); ``key`` (for ``--param`` token); ``view`` (sti 
 Definition: Which ``optimizable`` attribute a ``--param`` token sets: ``lo`` | ``hi`` | ``jit`` | ``val`` | ``mode``.
 Example: `a_h.val.L1=0.5`, `parse_optimizable_tokens`, CLI ``SEGMENT.KEY[.NODES]=VALUE``
 Forbidden: ``field`` (for ``--param``); CSV ``field``; dict key in generic prose. Do not call the segment token ``NAME`` / ``name`` in project identifiers.
+
+### `list` / `lists`
+
+Definition: Comma-separated CLI multi-value — one argv token whose items are split on ``,``, and the ordered token bag after that split. Sole splitter is ``parse_comma_list``. CLI alias expanders for such a value use ``expand_<cli_name>_list``. CLI flags / opts / defaults that hold that comma-token (or its just-parsed tokens/values) may use the ``*_list`` compound (e.g. ``--a-h-list``, ``args.pulse_list``, ``DEFAULT_A_H_LIST``).
+Example: `parse_comma_list("L1,L2")`, `--lrs 0.1,0.01`, `a_h_list = [float(x) for x in parse_comma_list(args.a_h_list)]`, `expand_ih_group_list(...)`
+Forbidden: as a domain collection-bag suffix outside CLI lists (`cell_list`, `tau_list`, `cell_rows_list`, `argv_list`, `subsystem_list`, `votes_list`, `ms_pulse_list`, …) — use the plural noun alone (`cells`, `taus`, `cell_rows`, `argv`, `subsystems`, `mss`). Do not use `list` as an enumerate/print verb (`--list-parts`, `_list_parts`) — use ``--print-parts`` / ``_print_parts``. Library ``list`` / ``list[...]`` / ``list(...)`` / ``.tolist()`` / ``from_list`` may remain.
 
 ### `slice` / `slices`
 
@@ -387,7 +407,7 @@ Forbidden: do not use `edge` to refer to a synapse or its biological properties.
 
 ### `t` / `n_t`
 
-Definition: Time sample index along the simulation trace axis — a position 0..`n_t`-1 into `(B, n_t, N)` tensors such as `trace_full`, or an absolute step such as `t_onset` / `cost_t0s`. The cardinality of that axis is `n_t` (how many time samples at one scope). Use compound `n_t_<noun>` when the scope is not obvious (`n_t_aligned`, `n_t_by_batch`, `n_t_cost_window`, `n_t_plot`).
+Definition: Time sample index along the simulation trace axis — a position 0..`n_t`-1 into `(B, n_t, N)` tensors such as `trace_full`, or an absolute step such as `t_onset` / `cost_t0s`. The cardinality of that axis is `n_t` (how many time samples at one scope). Use compound `n_t_<noun>` when the scope is not obvious (`n_t_aligned`, `n_t_by_batch`, `n_t_cost_window`, `n_t_figure`).
 Example: `for t in range(n_t): ...`, `trace_full[:, t, node_idx]`, `t0 + t`, `n_t = int(pack.gts.shape[1])`, `t_from_ms(ms_pre, delta_ms=delta_ms_pre)`
 Forbidden: `win`, `win_len`, `win_lens`, `wl`, `win_idx`, `win_t`, `n_steps` — never abbreviate a time span or trace length with `win`; use `n_t` or `n_t_<noun>`. Do not suffix the time index with `_idx` — use bare `t` in loops and indexing (`for t in ...`, `trace[..., t, ...]`), not `t_idx`, `step_idx`, or `time_idx`. Full-word `window` remains only in established compound names (`cost_window_*`, `TimeWindow`, `time_window`, `window_time_traces`).
 
@@ -431,6 +451,12 @@ Definition: Signed synaptic strength on a network `edge` — `edge_weights` from
 Example: `edge_weights`, `ScatterConn(..., edge_weights=edge_weights, a_syn_exc=..., a_syn_inh=...)`
 Forbidden: do not use `weight` for cost / DSI / RF multipliers — use `scale`. Do not use `weight` for network schema gains — use `a_*`. Do not use `factor` or `gain` as substitutes. Column-assignment vote mode is `vote_by_syn` (not `weight_by_syn`). Library `fontweight` may remain.
 
+### `z`
+
+Definition: The packed trainable parameter vector that Adam optimizes — schema packs `param` values into ``z`` and decodes them back (``param_from_z`` / ``z_from_param``; per-segment encoding via ``z_mode`` ∈ {linear, log, inv}). Compounds: ``z_best`` (post-optimize), ``z_mode``, ``z_slot``, ``segment_n_z``, ``schema_nparams`` (``z`` width).
+Example: `z_best, opt_state = optimize_staged(z, ...)`, `params_from_z(z, session)`, `param_from_z(segment, z_slot)`, `z_from_param(segment, param)`, `segment.get("z_mode", "linear")`
+Forbidden: ``theta``, ``x``, ``w`` as names for this vector; ``physical`` for decoded values (use ``param``); ``z_fit`` / ``fit`` for the returned vector (use ``z_best``); ``z_map`` for the encoding key (use ``z_mode``). Do not use bare ``z`` for hex coords, trace time, or other axes.
+
 ## Adjectives (A-Z)
 
 ### `active`
@@ -450,7 +476,7 @@ Forbidden: `aggregate` — do not use as a naming token or prose substitute for 
 ### `add`
 
 Definition: Register a new argument or option onto a CLI parser object.
-Example: `add_train_arguments(parser)`, `add_plot_filter_argument(parser)`
+Example: `add_train_arguments(parser)`, `add_figure_filter_argument(parser)`
 Forbidden: do not use `add` for tensor arithmetic or dict insertion — `add` is exclusively for parser argument registration.
 
 ### `override`
@@ -507,9 +533,9 @@ Example: `parse_moving_bar_spec(sname)` → `(color, direction, variant)`
 
 ### `plot`
 
-Definition: Produce a visualization output (figures/curves/images) from run results or computed traces.
-Example: `plot_cost(result.cost_curve, out_path, costs_by_part=...)`
-Forbidden: `draw`, `render`, `visualize`, and project names built on `scatter` (e.g. “Δv scatters”) — use `plot` instead. Library `ax.scatter` / `go.Scatter` may remain.
+Definition: Produce a visualization output (figures/curves/images) from run results or computed traces. Verb only.
+Example: `plot_cost(result.cost_curve, out_path, costs_by_part=...)`, `plot_figures(...)`, `run_train_and_plot(...)`, CLI `--plot-right-only` / `plot_right_only`
+Forbidden: `draw`, `render`, `visualize`, and project names built on `scatter` (e.g. “Δv scatters”) — use `plot` instead. Library `ax.scatter` / `go.Scatter` may remain. Do not use `plot` as a noun qualifier on identifiers (`plot_kw`, `plot_gts`, `plot_cells`, `filter_plot_token`, `add_plot_*`, `resolve_plot_kwargs`, `do_plot`, `cell_plot_rows`, …) — when the name must mark the figure path as distinct from train, use ``figure`` (see ``### figure``); otherwise drop the qualifier.
 
 ### `resolve`
 
@@ -520,7 +546,7 @@ Forbidden: `lookup`, `fetch` — use `resolve` instead. Do not name default+CLI-
 ### `run`
 
 Definition: Execute a procedure end-to-end (train, evaluation, or full pipeline) and return or persist its result.
-Example: `fname, outdir, session = run_train_and_plot(plot_gts=..., **kw)`
+Example: `fname, outdir, session = run_train_and_plot(figure_gts=..., **kw)`
 Forbidden: `execute`, `invoke` — use `run` instead.
 
 ### `save`

@@ -17,7 +17,7 @@ Experimental reference traces come from **[`figure_digitization/gruntman21/1ci_d
 | `time_ms`    | Time relative to bar onset (ms) |
 | `vm_mv`      | Population membrane potential (mV) |
 
-The CSV holds **16 traces** per pathway panel: 2 contrasts × 2 widths × 2 directions. Subtype-specific tables below map each `(eye, sti)` to one of those keys via `t4_t5_dsi.py` (`fig1_key_for_sti` → `T4_PC_w1_PD` style ids). Training loads the same data as [`1ci_digitized.npz`](../../figure_digitization/gruntman21/1ci_digitized.npz) (`FIG1_CI_NPZ` in `task.moving_bar.gt`).
+The CSV holds **16 traces** per pathway panel: 2 contrasts × 2 widths × 2 directions. Subtype-specific tables below map each `(eye, sti)` to one of those keys via `t4_t5_dsi.py` (`fig1_trace_for_sti` → `T4_PC_w1_PD` style ids). Training loads the same data as [`1ci_digitized.npz`](../../figure_digitization/gruntman21/1ci_digitized.npz) (`FIG1_CI_NPZ` in `task.moving_bar.gt`).
 
 ## Contrast (pathway)
 
@@ -134,7 +134,7 @@ Use `motion_preference` / [How to fill the table](#how-to-fill-the-table-two-ind
 
 ### Step 2 — peak Vm in that cell
 
-Each cell maps to **one** fig1 trace via `fig1_key_for_sti` →
+Each cell maps to **one** fig1 trace via `fig1_trace_for_sti` →
 `{T4|T5}_{PC|NC}_{w1|w4}_{PD|ND}`.
 
 | Cell’s sti vs subtype | Peak to write (`w1/w4`) |
@@ -198,13 +198,13 @@ are already split by pathway, contrast (PC/NC), bar width, and motion direction 
 For each condition, take the **peak** `vm_mv` over time. These peaks feed
 [DSI rules](#dsi-rules-read-before-editing-eye-tables) Steps 2–3.
 
-Map sti contrast to fig1 keys: **T4 bright** → `T4_PC`, **T4 dark** → `T4_NC`;
+Map sti contrast to fig1 traces: **T4 bright** → `T4_PC`, **T4 dark** → `T4_NC`;
 **T5 dark** → `T5_PC`, **T5 bright** → `T5_NC`.
 
 The last column is only a **convenience** `| (PD−ND)/(PD+ND) |` when this dir = PD;
 cell DSI must still use Step 3 (this − opposite).
 
-| Pathway | Stimulus contrast | Width | fig1 key  | peak PD (mV) | peak ND (mV) | \|(PD−ND)/(PD+ND)\| |
+| Pathway | Stimulus contrast | Width | fig1 trace  | peak PD (mV) | peak ND (mV) | \|(PD−ND)/(PD+ND)\| |
 | ------- | ----------------- | ----- | --------- | ------------ | ------------ | ------------------- |
 | T4      | bright (PC)       | w1    | `T4_PC` | 18.25        | 7.60         | 0.412 |
 | T4      | bright (PC)       | w4    | `T4_PC` | 23.70        | 7.60         | 0.514 |

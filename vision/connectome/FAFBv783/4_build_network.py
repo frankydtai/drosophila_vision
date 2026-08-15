@@ -183,13 +183,13 @@ class FafbDataLoader:
             n_conn_before_syn, min_syn_count, len(connections),
         )
 
-        subsystem_list = (
+        resolved_subsystems = (
             list(subsystems) if subsystems
             else sorted(neurons["subsystem"].dropna().unique().tolist())
         )
         metadata: Dict[str, object] = {
             "side": side,
-            "subsystems": subsystem_list,
+            "subsystems": resolved_subsystems,
             "min_neuron_count": min_neuron_count,
             "min_syn_count": min_syn_count,
             "n_neurons": len(neurons),

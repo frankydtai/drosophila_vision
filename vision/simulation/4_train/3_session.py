@@ -71,17 +71,16 @@ from neuron import (
 
 from train.config import (
     CLI_TASK_NAMES,
-    I_STI_KEYS,
     PD_ND_LABELS,
     SPOT_TASKS,
     TASK_ALIASES,
-    TASK_I_FIELDS,
+    TASK_I_OPTS,
     TRAIN_OPTS_FILE,
     VALID_TASKS,
-    _MOVING_BAR_BASELINE_KEY,
-    _MOVING_BAR_I_KEY,
-    _SPOT_BASELINE_KEY,
-    _SPOT_I_KEY,
+    _MOVING_BAR_I_BASELINE,
+    _MOVING_BAR_I_PEAK,
+    _SPOT_I_BASELINE,
+    _SPOT_I_PEAK,
     expand_cost_norm,
     expand_part_cost_scale_dict,
     expand_filter,
@@ -156,8 +155,8 @@ class Pack:
     entry_batches: torch.Tensor  # (n_cost,)
     entry_nodes: torch.Tensor  # (n_cost,)
     cost_t0s: Optional[torch.Tensor] = None  # (n_cost,) absolute step for windowed readouts
-    cost_radius: Optional[int] = None  # hex-disc ring count for cost readouts
-    entry_radii: Optional[torch.Tensor] = None  # (n_cost,) Euclidean radius per spot entry
+    cost_radius: Optional[int] = None  # hex-disc radius for cost readouts
+    entry_radii: Optional[torch.Tensor] = None  # (n_cost,) long hex-lattice radius per spot entry
     cost_sti_us: Optional[torch.Tensor] = None  # (n_cost,) sti anchor u per spot cost entry
     cost_sti_vs: Optional[torch.Tensor] = None  # (n_cost,) sti anchor v per spot cost entry
     cost_pd_nds: Optional[torch.Tensor] = None  # (n_cost,) long; 0=PD, 1=ND (moving_bar)
@@ -279,7 +278,7 @@ def extend_pack_mirror_fit(pack, mirror_types, mirror_fit, mirror_sign=-1.0, bac
         mirror_fit_node_u, mirror_fit_node_v = int(network_node_u[node_idx]), int(network_node_v[node_idx])
         mirror_gt = float(mirror_sign) * pack.gts[entry_i:entry_i + 1]
         cost_scale = float(w_arr[entry_i])
-        radius = float(r_arr[entry_i]) if r_arr is not None else None
+        radius = int(r_arr[entry_i]) if r_arr is not None else None
         for mtype in mirror_types:
             candidates = np.where(
                 (network_node_u == mirror_fit_node_u)
@@ -328,8 +327,9 @@ def _append_mirror_pack_entries(
     entry_radii_out = pack.entry_radii
     if entry_radii is not None:
         base_r = pack.entry_radii
-        r_dtype = base_r.dtype if base_r is not None else SIM_DTYPE
-        extra_r_t = torch.tensor(entry_radii, dtype=r_dtype, device=active_device())
+        extra_r_t = torch.tensor(
+            entry_radii, dtype=torch.long, device=active_device(),
+        )
         entry_radii_out = (
             torch.cat([base_r, extra_r_t])
             if base_r is not None else extra_r_t
@@ -426,7 +426,7 @@ def load_network_backend(
     print(f"  n_nodes={backend.n_nodes}, n_cells={backend.n_cells}, "
           f"n_pairs={backend.conn.n_pairs}, n_edges={backend.conn.n_edges}, "
           f"syn_mode={mode}, "
-          f"nparams={schema_nparams(build_schema('borst', backend, syn_mode=mode, optimizable=optimizable, h_cells=h_cells, a_sti_radii=SPOT_PACK['a_sti_radii'], radius_key_aliases=SPOT_PACK['spot_cost_radius_key_aliases']))}")
+          f"nparams={schema_nparams(build_schema('borst', backend, syn_mode=mode, optimizable=optimizable, h_cells=h_cells, a_sti_radii=SPOT_PACK['a_sti_radii']))}")
     return backend
 
 
@@ -519,14 +519,14 @@ def _build_network_moving_bar_pack(
         ),
         delta_ms=float(opts["delta_ms"]),
         cost_radius=cost_radius,
-        i_baseline_moving_bar=opts[_MOVING_BAR_BASELINE_KEY],
+        i_baseline_moving_bar=opts[_MOVING_BAR_I_BASELINE],
         contrasts=(contrast,),
         gt_cells=gt_cells_from_opts(opts),
         multi_bar=bool(opts.get("multi_bar", MOVING_BAR_INPUT['multi_bar'])),
         waveform_mse=_moving_bar_waveform_mse_enabled(ctx.part_cost_scales, task),
     )
-    peak_key = _MOVING_BAR_I_KEY[contrast]
-    build_kw[peak_key] = opts[peak_key]
+    i_peak = _MOVING_BAR_I_PEAK[contrast]
+    build_kw[i_peak] = opts[i_peak]
     T = build_moving_bar_gt(**build_kw)
     sti_opts = enrich_moving_bar_sti_opts(opts, T.info, cost_radius=cost_radius)
     pack = Pack(
@@ -568,11 +568,9 @@ def _spot_cost_time_idx_and_mask(opts, entry_radii, *, ctx: _TrainBindCtx, devic
     timing = resolve_sti_timing(opts)
     delta_ms = timing.delta_ms
     post = timing.n_t_gt - timing.t_onset
-    cost_ms_by_radius = expand_cost_ms_dict(
-        cost_ms=ctx.cost_ms, aliases=SPOT_PACK['spot_cost_radius_key_aliases'],
-    )
-    rad = np.round(entry_radii.detach().cpu().numpy().astype(float), 6)
-    radii = {float(r) for r in rad.tolist()}
+    cost_ms_by_radius = expand_cost_ms_dict(cost_ms=ctx.cost_ms)
+    rad = entry_radii.detach().cpu().numpy().astype(np.int64, copy=False)
+    radii = {int(r) for r in rad.tolist()}
     grid = None
     if any(r not in cost_ms_by_radius for r in radii):
         interval_ms = float(ctx.cost_interval_ms)
@@ -584,9 +582,9 @@ def _spot_cost_time_idx_and_mask(opts, entry_radii, *, ctx: _TrainBindCtx, devic
         grid = [t * delta_ms for t in range(0, post, step)]
     radius_ts = {}
     for r in radii:
-        ms_list = cost_ms_by_radius[r] if r in cost_ms_by_radius else grid
+        mss = cost_ms_by_radius[r] if r in cost_ms_by_radius else grid
         ts = set()
-        for ms in ms_list:
+        for ms in mss:
             t = int(round(float(ms) / delta_ms))
             if t < 0 or t >= post:
                 raise ValueError(
@@ -602,7 +600,7 @@ def _spot_cost_time_idx_and_mask(opts, entry_radii, *, ctx: _TrainBindCtx, devic
     slot_from_t = {t: j for j, t in enumerate(union)}
     mask = torch.zeros(n, len(union), dtype=sim_dtype, device=device)
     for i, r in enumerate(rad.tolist()):
-        for t in radius_ts[float(r)]:
+        for t in radius_ts[int(r)]:
             mask[i, slot_from_t[t]] = 1.0
     return cost_time_indices, mask
 
@@ -617,7 +615,7 @@ def _build_network_spot_task(
     if contrast not in SPOT_CONTRASTS:
         raise ValueError(f"spot contrast must be 'bright' or 'dark', got {contrast!r}")
     task = f"spot_{contrast}"
-    peak_key = _SPOT_I_KEY[contrast]
+    i_peak = _SPOT_I_PEAK[contrast]
     ctx_opts = (
         ctx.spot_bright_sti_opts if contrast == "bright" else ctx.spot_dark_sti_opts
     )
@@ -633,7 +631,7 @@ def _build_network_spot_task(
     dev = ctx.dev or active_device()
     t_onset = timing.t_onset
     n_t = timing.n_t
-    i_spot = float(opts[peak_key])
+    i_spot = float(opts[i_peak])
     cost_radius_scales = resolve_spot_cost_radius_scale_defaults(
         spot_radius,
         scales=SPOT_PACK['spot_cost_radius_scale'],
@@ -650,10 +648,8 @@ def _build_network_spot_task(
         n_t=n_t,
         t_onset=t_onset,
         cost_radius=cost_radius,
-        spot_cost_radius_scale=expand_spot_cost_r_s_dict(
-            sti_opts=opts, aliases=SPOT_PACK['spot_cost_radius_key_aliases'],
-        ),
-        i_baseline_spot=float(opts[_SPOT_BASELINE_KEY]),
+        spot_cost_radius_scale=expand_spot_cost_r_s_dict(sti_opts=opts),
+        i_baseline_spot=float(opts[_SPOT_I_BASELINE]),
         i_bright_spot=i_spot if contrast == "bright" else float(opts.get("i_bright_spot", resolve_filter_branches(NETWORK_CONSTRUCTION['i_bright'], filter=ctx.filter))),
         i_dark_spot=i_spot if contrast == "dark" else float(opts.get("i_dark_spot", resolve_filter_branches(NETWORK_CONSTRUCTION['i_dark'], filter=ctx.filter))),
         contrast=contrast,
@@ -672,12 +668,10 @@ def _build_network_spot_task(
     )
     sti_opts = dict(opts)
     # Replace center-only bake from build_spot_gt: center @1 in i_sti + a_sti_radius radii.
-    i_baseline = float(opts[_SPOT_BASELINE_KEY])
+    i_baseline = float(opts[_SPOT_I_BASELINE])
     spot = resolve_spot(connectome, sti_opts=opts)
     batches = spot_sti_batches(spot)
-    cost_r_s = expand_spot_cost_r_s_dict(
-        sti_opts=opts, aliases=SPOT_PACK['spot_cost_radius_key_aliases'],
-    )
+    cost_r_s = expand_spot_cost_r_s_dict(sti_opts=opts)
     a_sti_radius_mask = build_a_sti_radius_mask(
         cost_r_s,
         cost_radius_scales=cost_radius_scales,
@@ -760,15 +754,15 @@ def resolve_i_sti_paradigm(name):
     return "moving_bar"
 
 
-def _i_sti_sidecar_keys(task):
+def _i_sti_sidecar_opts(task):
     if task in SPOT_TASKS:
-        baseline_key = _SPOT_BASELINE_KEY
-        peak_keys = _SPOT_I_KEY
+        i_baseline = _SPOT_I_BASELINE
+        i_peaks = _SPOT_I_PEAK
     else:
-        baseline_key = _MOVING_BAR_BASELINE_KEY
-        peak_keys = _MOVING_BAR_I_KEY
+        i_baseline = _MOVING_BAR_I_BASELINE
+        i_peaks = _MOVING_BAR_I_PEAK
     contrast = "bright" if task.endswith("_bright") else "dark"
-    return baseline_key, peak_keys[contrast], contrast
+    return i_baseline, i_peaks[contrast], contrast
 
 
 def override_i_sti(opts, task, i_sti):
@@ -780,17 +774,17 @@ def override_i_sti(opts, task, i_sti):
     if not paradigm_i_sti:
         return opts
     out = dict(opts or {})
-    baseline_key, peak_key, contrast = _i_sti_sidecar_keys(task)
-    allowed = TASK_I_FIELDS[task]
+    i_baseline, i_peak, contrast = _i_sti_sidecar_opts(task)
+    allowed = TASK_I_OPTS[task]
     merged = {}
     if "baseline" in paradigm_i_sti:
-        merged[baseline_key] = paradigm_i_sti["baseline"]
+        merged[i_baseline] = paradigm_i_sti["baseline"]
     if contrast in paradigm_i_sti:
-        merged[peak_key] = paradigm_i_sti[contrast]
-    for key, val in merged.items():
-        if key not in allowed:
-            raise ValueError(f"{key!r} not valid for task {task!r}")
-        out[key] = val
+        merged[i_peak] = paradigm_i_sti[contrast]
+    for i_opt, val in merged.items():
+        if i_opt not in allowed:
+            raise ValueError(f"{i_opt!r} not valid for task {task!r}")
+        out[i_opt] = val
     return out
 
 
@@ -843,11 +837,11 @@ def _resolve_sti_opts(
     raw.update(opts or {})
     if task in SPOT_TASKS:
         contrast = "bright" if task == "spot_bright" else "dark"
-        peak_key = _SPOT_I_KEY[contrast]
+        i_peak = _SPOT_I_PEAK[contrast]
         out = build_spot_sti_opts(
             contrast,
-            i_baseline_spot=raw[_SPOT_BASELINE_KEY],
-            i_spot=raw[peak_key],
+            i_baseline_spot=raw[_SPOT_I_BASELINE],
+            i_spot=raw[i_peak],
             ms_pre=raw["ms_pre"],
             ms_response=raw["ms_response"],
             ms_post=raw["ms_post"],
@@ -870,11 +864,11 @@ def _resolve_sti_opts(
         )
     elif task in ("moving_bar_bright", "moving_bar_dark"):
         contrast = "bright" if task == "moving_bar_bright" else "dark"
-        peak_key = _MOVING_BAR_I_KEY[contrast]
+        i_peak = _MOVING_BAR_I_PEAK[contrast]
         out = build_moving_bar_sti_opts(
             contrast,
-            i_baseline_moving_bar=raw[_MOVING_BAR_BASELINE_KEY],
-            i_moving_bar=raw[peak_key],
+            i_baseline_moving_bar=raw[_MOVING_BAR_I_BASELINE],
+            i_moving_bar=raw[i_peak],
             ms_pre=raw["ms_pre"],
             delta_ms=raw["delta_ms"],
             delta_ms_pre=raw["delta_ms_pre"],
@@ -993,12 +987,12 @@ def resolve_train_opts(
         i_sti=i_sti,
     )
     sti_opts = {}
-    for task, opts_key in _STI_TRAIN_OPT_SPECS:
+    for task, sti_opts_tok in _STI_TRAIN_OPT_SPECS:
         raw = raw_by_task[task]
         if task not in tl and raw is None:
-            sti_opts[opts_key] = None
+            sti_opts[sti_opts_tok] = None
             continue
-        sti_opts[opts_key] = _resolve_sti_opts(
+        sti_opts[sti_opts_tok] = _resolve_sti_opts(
             raw,
             task,
             **finalize_kw,
@@ -1043,19 +1037,19 @@ def resolve_train_opts(
 
 
 def _cost_ms_sidecar(cost_ms) -> dict:
-    """JSON sidecar: radius keys as strings, ms lists as floats."""
+    """JSON sidecar: radii as strings, mss as floats."""
     out: dict = {}
-    for key, vals in (cost_ms or {}).items():
-        ms_list = list(vals) if isinstance(vals, (list, tuple)) else [vals]
-        out[str(float(key))] = [float(x) for x in ms_list]
+    for radius, vals in (cost_ms or {}).items():
+        mss = list(vals) if isinstance(vals, (list, tuple)) else [vals]
+        out[str(int(radius))] = [float(x) for x in mss]
     return out
 
 
 def _train_opts_for_sidecar(opts, tasks, resolved_sti, sequential_bool) -> dict:
     """Build JSON-serializable train_opts record (network backend only)."""
-    def _sti(key):
-        got = resolved_sti.get(key)
-        return got if got is not None else opts.get(key)
+    def _sti(sti_opts_tok):
+        got = resolved_sti.get(sti_opts_tok)
+        return got if got is not None else opts.get(sti_opts_tok)
 
     record = {
         "backend": "network",
@@ -1115,7 +1109,6 @@ def resolve_schema(model, model_backend, schema, train_opts_record):
         h_cells=NEURON_SCHEMA['h_cells'],
         filter=filter,
         a_sti_radii=SPOT_PACK['a_sti_radii'],
-        radius_key_aliases=SPOT_PACK['spot_cost_radius_key_aliases'],
     )
     base = build_schema(model, model_backend, **kw)
     if not train_opts_record:
@@ -1308,16 +1301,16 @@ def open_session(
 def resolve_filter_branches(val, *, filter: str):
     branch = "ca" if str(filter) == "ca" else "v"
     if isinstance(val, dict):
-        keys = set(val)
-        if keys and keys <= {"v", "ca"}:
+        branches = set(val)
+        if branches and branches <= {"v", "ca"}:
             if branch not in val:
                 raise KeyError(
-                    f"filter-branch dict missing {branch!r} (keys={sorted(val)!r})"
+                    f"filter-branch dict missing {branch!r} (branches={sorted(val)!r})"
                 )
             return resolve_filter_branches(val[branch], filter=filter)
         return {
-            key: resolve_filter_branches(got, filter=filter)
-            for key, got in val.items()
+            nested_tok: resolve_filter_branches(got, filter=filter)
+            for nested_tok, got in val.items()
         }
     if isinstance(val, list):
         return [resolve_filter_branches(got, filter=filter) for got in val]
@@ -1326,17 +1319,17 @@ def resolve_filter_branches(val, *, filter: str):
     return val
 
 
-def _sti_delta_ms(opts: dict, key: str) -> float:
+def _sti_delta_ms(opts: dict, timing_tok: str) -> float:
     """``delta_ms`` / ``delta_ms_pre`` from sti opts (required)."""
-    for _tname, opts_key in _STI_TRAIN_OPT_SPECS:
-        so = opts.get(opts_key)
-        if isinstance(so, dict) and so.get(key) is not None:
-            dt = float(so[key])
+    for _tname, sti_opts_tok in _STI_TRAIN_OPT_SPECS:
+        so = opts.get(sti_opts_tok)
+        if isinstance(so, dict) and so.get(timing_tok) is not None:
+            dt = float(so[timing_tok])
             if dt <= 0:
-                raise ValueError(f"sti opts {key} must be > 0, got {dt}")
+                raise ValueError(f"sti opts {timing_tok} must be > 0, got {dt}")
             return dt
     raise ValueError(
-        f"train opts require {key} in a sti opts dict "
+        f"train opts require {timing_tok} in a sti opts dict "
         f"(one of {[k for _, k in _STI_TRAIN_OPT_SPECS]})"
     )
 

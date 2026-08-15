@@ -1,8 +1,7 @@
 # -*- coding: utf-8 -*-
-"""Spot paradigm sti geometry: footprint, centers, sub-spot shifts, Euclidean radii."""
+"""Spot paradigm sti geometry: footprint, centers, sub-spot shifts, hex radii."""
 from __future__ import annotations
 
-import math
 from dataclasses import dataclass
 from typing import Sequence
 
@@ -14,23 +13,19 @@ import build_hex
 _SPOT_RADIUS_HALF_STEP_TOL = 1e-9
 
 
-def euclid_hex_dist(du: int, dv: int) -> float:
-    """Euclidean distance (in hex nodes) between two axial cells."""
-    return math.sqrt(du * du + du * dv + dv * dv)
-
-
-def members_by_euclid_radius(radii) -> dict[float, list[tuple[int, int]]]:
-    """Map each Euclidean radius to sti-centered axial ``(du, dv)`` members."""
-    radii_set = {round(float(radius), 6) for radius in radii}
-    max_shell = int(math.ceil(max(radii_set)))
-    by_radius: dict[float, list[tuple[int, int]]] = {radius: [] for radius in radii_set}
-    for du, dv in build_hex.members_in_radius(max_shell):
-        radius = round(euclid_hex_dist(du, dv), 6)
-        if radius in radii_set:
-            by_radius[radius].append((int(du), int(dv)))
-    missing = [radius for radius in radii_set if not by_radius[radius]]
-    if missing:
-        raise ValueError(f"no hex members for spot cost radii {missing}")
+def members_by_radius(radii) -> dict[int, list[tuple[int, int]]]:
+    """Map each hex-lattice radius to sti-centered axial ``(du, dv)`` members."""
+    radii_set = {int(radius) for radius in radii}
+    by_radius: dict[int, list[tuple[int, int]]] = {}
+    for radius in sorted(radii_set):
+        if radius < 0:
+            raise ValueError(f"spot cost radius must be >= 0, got {radius!r}")
+        members = [
+            (int(du), int(dv)) for du, dv in build_hex.members_at_shell(radius)
+        ]
+        if not members:
+            raise ValueError(f"no hex members for spot cost radius {radius}")
+        by_radius[radius] = members
     return by_radius
 
 
@@ -56,8 +51,8 @@ def spot_radius_dist(spot_radius) -> int:
 def spot_radius_folds_r2_into_r1(spot_radius) -> bool:
     """True when ``spot_radius == 1`` (``spot_radius_half_steps == 2``).
 
-    Fold semantics live in :func:`task.spot.gt._spot_readout_a_radius`: r=1 gt
-    ``a_radius`` is ``rf(1)+rf(2)`` and r=2 ``a_radius`` is 0. Non-center drive
+    Fold semantics live in :func:`task.spot.gt._spot_readout_a_radius`: radius-1 gt
+    ``a_radius`` is ``rf(1)+rf(2)`` and radius-2 ``a_radius`` is 0. Non-center drive
     scales use ``a_sti_radius`` masked by cost-radius scale (scale==0 → force
     0). Center r=0 remains baked at scale 1.
     """

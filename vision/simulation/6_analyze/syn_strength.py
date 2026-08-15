@@ -31,7 +31,7 @@ import import_bootstrap  # noqa: F401
 import network.path  # noqa: F401  # FAFB on sys.path
 import analyze_cell_syn
 import train
-import figure.plot as plot_trained
+import figure.plot as plot
 import train.implementation as train_mod
 from import_bootstrap import parse_comma_list
 from network.connectivity import build_cell_pair_indices
@@ -91,8 +91,8 @@ def main(argv: list[str] | None = None) -> int:
                 "use analyze_cell_syn.py for :family / @root_id"
             )
 
-    outdir = plot_trained.resolve_run_dir(args.run)
-    opts = plot_trained.load_train_opts(outdir)
+    outdir = plot.resolve_run_dir(args.run)
+    opts = plot.load_train_opts(outdir)
     if not opts:
         raise SystemExit(f"missing train_opts.json under {outdir}")
     if opts.get("model", "borst") not in ("borst", "hp_lp"):
@@ -127,10 +127,10 @@ def main(argv: list[str] | None = None) -> int:
 
     src_t = np.array([idx_from_cell[e["source_cell"]] for e in edges], dtype=np.int64)
     tar_t = np.array([idx_from_cell[e["target_cell"]] for e in edges], dtype=np.int64)
-    _, n_pairs, pair_keys = build_cell_pair_indices(src_t, tar_t, n_cells)
-    idx_from_key = {k: i for i, k in enumerate(pair_keys)}
+    _, n_pairs, pairs = build_cell_pair_indices(src_t, tar_t, n_cells)
+    idx_from_pair = {k: i for i, k in enumerate(pairs)}
     if pairs is not None:
-        expected = [f"{cells[s]}{train.PAIR_SEP}{cells[t]}" for s, t in pair_keys]
+        expected = [f"{cells[s]}{train.PAIR_SEP}{cells[t]}" for s, t in pairs]
         if list(pairs) != expected:
             raise SystemExit("pairs in best_param.npz do not match network.json edges")
 
@@ -175,7 +175,7 @@ def main(argv: list[str] | None = None) -> int:
                 (idx_from_cell[cell], idx_from_cell[partner]) if direction == "post"
                 else (idx_from_cell[partner], idx_from_cell[cell])
             )
-            pi = idx_from_key.get(pair)
+            pi = idx_from_pair.get(pair)
             syn_strength_by_partner[partner] = (
                 "-" if pi is None else f"{float(syn_strength_cell[pi]):.6g}"
             )

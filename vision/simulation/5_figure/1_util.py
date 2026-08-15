@@ -56,16 +56,24 @@ def gt_affine_scalars_for_cell(params, cell, backend, session=None) -> tuple[flo
     return a_gt, bias
 
 
-def filter_plot_token(filter=None) -> str:
-    """Readout token for plot stems / labels: ``none`` → ``v``, ``ca`` → ``ca``."""
+def gt_trace_affine(readout, cell, gt_trace):
+    """Plot gt as ``a_gt * gt + bias_gt`` from ``readout.gt_affine_by_cell``."""
+    if gt_trace is None:
+        return None
+    a_gt, bias = readout.gt_affine_by_cell.get(str(cell), (1.0, 0.0))
+    return float(a_gt) * np.asarray(gt_trace, dtype=float) + float(bias)
+
+
+def filter_figure_token(filter=None) -> str:
+    """Readout token for figure stems / labels: ``none`` → ``v``, ``ca`` → ``ca``."""
     if filter is None or str(filter) == "none":
         return "v"
     return str(filter)
 
 
-def session_filter_plot_token(session) -> str:
+def session_filter_figure_token(session) -> str:
     opts = (session.train_opts if session is not None else None) or {}
-    return filter_plot_token(opts.get("filter"))
+    return filter_figure_token(opts.get("filter"))
 
 
 def cost_ylim(*curves, pct=99.0, pad=1.1, floor=1.0, log=False):
@@ -74,10 +82,10 @@ def cost_ylim(*curves, pct=99.0, pad=1.1, floor=1.0, log=False):
     ``log=True`` returns a positive lower bound (for ``yscale('log')``).
     """
     chunks = []
-    for c in curves:
-        if c is None:
+    for curve in curves:
+        if curve is None:
             continue
-        v = np.asarray(c, dtype=np.float64).ravel()
+        v = np.asarray(curve, dtype=np.float64).ravel()
         v = v[np.isfinite(v)]
         if v.size:
             chunks.append(v)
@@ -154,7 +162,7 @@ def pack_center_mask(pack, backend):
     """Boolean mask over pack cost entries included in the cost radius."""
     entry_nodes = pack.entry_nodes.cpu().numpy()
     if pack.entry_radii is not None:
-        return np.round(pack.entry_radii.cpu().numpy(), 6) == 0.0
+        return pack.entry_radii.cpu().numpy().astype(np.int64, copy=False) == 0
     if backend.network is not None and pack.cost_radius is not None:
         import build_hex
         connectome = backend.network
@@ -227,9 +235,9 @@ def format_spot_radius_time_title(radius, n, cell, cost_parts, contrasts):
         return head
     lines = [head]
     for contrast in contrasts:
-        key = spot_cost_part_key(f'spot_{contrast}', cell, r)
-        if key in cost_parts:
-            lines.append(f'{contrast}: {float(cost_parts[key]):.1f}')
+        part_key = spot_cost_part_key(f'spot_{contrast}', cell, r)
+        if part_key in cost_parts:
+            lines.append(f'{contrast}: {float(cost_parts[part_key]):.1f}')
     return '\n'.join(lines)
 
 
@@ -245,9 +253,9 @@ def format_moving_bar_cell_cost_lines(cell, cost_parts, tasks):
     for task in tasks:
         bits = []
         for lab in ('PD', 'ND'):
-            key = f'{task}_{cell}_{lab}'
-            if key in cost_parts:
-                bits.append(f'{float(cost_parts[key]):.1f} @{lab}')
+            part_key = f'{task}_{cell}_{lab}'
+            if part_key in cost_parts:
+                bits.append(f'{float(cost_parts[part_key]):.1f} @{lab}')
         if bits:
             lines.append(f'{tag.get(task, task)}: {" ".join(bits)}')
     return lines
@@ -258,7 +266,7 @@ def network_hex_count(connectome):
     return len({(int(hex_u), int(hex_v)) for hex_u, hex_v in zip(connectome.us, connectome.vs)})
 
 
-def log_plot_elapsed(path, t0, **parts):
+def log_figure_elapsed(path, t0, **parts):
     """Print per-figure timing (seconds) after saving a plot."""
     elapsed_s = time.perf_counter() - t0
     bits = [f'{name}={float(val):.1f}s' for name, val in parts.items()]
@@ -281,7 +289,7 @@ def readout_prep_s(*readouts):
     return prep_sum_s
 
 
-class PlotTimer:
+class ElapsedTimer:
     """Shared prep / draw / save timing for bar and spot figures.
 
     ``prior_prep`` is forward time already stored on ``TraceReadout.prep_s``.
@@ -304,7 +312,7 @@ class PlotTimer:
         t_prep = self._t_prep if self._t_prep is not None else time.perf_counter()
         t_draw = self._t_draw if self._t_draw is not None else time.perf_counter()
         now = time.perf_counter()
-        log_plot_elapsed(
+        log_figure_elapsed(
             path, self.t0,
             prep=t_prep - self.t0,
             draw=t_draw - t_prep,
@@ -555,7 +563,7 @@ _MPL_DASH = {
 }
 
 
-def plot_file_ext(*, html=False):
+def figure_file_ext(*, html=False):
     """Figure extension: ``.png`` (default) or ``.html`` when ``html``."""
     return '.html' if html else '.png'
 
@@ -746,12 +754,12 @@ def _save_interactive_html(fig, path):
 def save_figure(fig, path, dpi=150, rasterize=False, *, timer=None):
     """Save figure: ``.png`` (default) or interactive ``.html`` (plotly hover x/y).
 
-    Always prints prep/draw/save via :class:`PlotTimer`. Pass *timer* when the
+    Always prints prep/draw/save via :class:`ElapsedTimer`. Pass *timer* when the
     caller already marked prep/draw; otherwise only *save* is timed.
     """
     path = os.fspath(path)
     if timer is None:
-        timer = PlotTimer()
+        timer = ElapsedTimer()
         timer.end_prep()
         timer.end_draw()
     if path.lower().endswith('.html'):
@@ -774,9 +782,9 @@ def plot_cost(costs, path, *, costs_by_part=None, part_order=None):
     - Cell layout follows canonical order rows: first block log + shared ylim, then
       linear total + linear per-panel ylim (original).
     """
-    from network.construction import CELL_PLOT_ROWS, cell_plot_rows
+    from network.construction import CELL_ROWS, cell_rows
 
-    timer = PlotTimer()
+    timer = ElapsedTimer()
     timer.end_prep()
     if costs is None or not hasattr(costs, "__len__") or len(costs) == 0:
         raise ValueError("plot_cost requires non-empty `costs` array")
@@ -810,43 +818,43 @@ def plot_cost(costs, path, *, costs_by_part=None, part_order=None):
             return r_i
         return float(r_f)
 
-    def _spot_parse(key: str):
-        if key.startswith("spot_bright_"):
+    def _spot_parse(part_key: str):
+        if part_key.startswith("spot_bright_"):
             contrast = "bright"
             task = "spot_bright"
-        elif key.startswith("spot_dark_"):
+        elif part_key.startswith("spot_dark_"):
             contrast = "dark"
             task = "spot_dark"
         else:
             return None
-        pos = key.rfind("_r")
+        pos = part_key.rfind("_r")
         if pos < 0:
             return None
-        r_s = key[pos + 2:]
+        r_s = part_key[pos + 2:]
         try:
             r_f = float(r_s)
         except ValueError:
             return None
         r = _normalize_radius(r_f)
         # prefix is "{task}_{cell}"
-        cell = key[len(task) + 1:pos]
+        cell = part_key[len(task) + 1:pos]
         return cell, contrast, r
 
-    def _moving_bar_parse(key: str):
-        if key.startswith("moving_bar_bright_"):
+    def _moving_bar_parse(part_key: str):
+        if part_key.startswith("moving_bar_bright_"):
             contrast = "bright"
             task = "moving_bar_bright"
-        elif key.startswith("moving_bar_dark_"):
+        elif part_key.startswith("moving_bar_dark_"):
             contrast = "dark"
             task = "moving_bar_dark"
         else:
             return None
-        if key == f"{task}_DSI":
+        if part_key == f"{task}_DSI":
             return None, contrast, "DSI"
         for role in ("PD", "ND"):
             suf = f"_{role}"
-            if key.endswith(suf) and key != f"{task}_{role}":
-                cell = key[len(task) + 1: -len(suf)]
+            if part_key.endswith(suf) and part_key != f"{task}_{role}":
+                cell = part_key[len(task) + 1: -len(suf)]
                 return cell, contrast, role
         return None
 
@@ -859,12 +867,12 @@ def plot_cost(costs, path, *, costs_by_part=None, part_order=None):
     curve_specs_by_cell: dict[str, list] = {}
     curve_specs_global: list = []
 
-    for key in part_keys:
-        curve = np.asarray(costs_by_part[key], dtype=np.float64)
+    for part_key in part_keys:
+        curve = np.asarray(costs_by_part[part_key], dtype=np.float64)
         if curve.size == 0:
             continue
 
-        parsed_spot = _spot_parse(key)
+        parsed_spot = _spot_parse(part_key)
         if parsed_spot is not None:
             cell, contrast, r = parsed_spot
             spot_radii.add(r)
@@ -873,7 +881,7 @@ def plot_cost(costs, path, *, costs_by_part=None, part_order=None):
             curve_specs_by_cell.setdefault(cell, []).append((role_id, label, curve))
             continue
 
-        parsed_moving = _moving_bar_parse(key)
+        parsed_moving = _moving_bar_parse(part_key)
         if parsed_moving is not None:
             cell, contrast, role = parsed_moving
             moving_roles.add(role)
@@ -886,19 +894,19 @@ def plot_cost(costs, path, *, costs_by_part=None, part_order=None):
             continue
 
         # unknown / future task parts:
-        # - try to place into cell grid if the key contains a known cell name substring
+        # - try to place into cell grid if the part_key contains a known cell substring
         # - otherwise treat as global (global panels come after cell panels).
-        role_id = ("other", key)
+        role_id = ("other", part_key)
         if role_id not in other_role_ids_seen:
             other_role_ids_seen.add(role_id)
             other_role_ids_order.append(role_id)
-        known_cells = {n for plot_row in CELL_PLOT_ROWS for n in plot_row}
-        matches = [c for c in known_cells if c and c in key]
+        known_cells = {n for row in CELL_ROWS for n in row}
+        matches = [cell for cell in known_cells if cell and cell in part_key]
         if matches:
             cell = max(matches, key=len)
-            curve_specs_by_cell.setdefault(cell, []).append((role_id, key, curve))
+            curve_specs_by_cell.setdefault(cell, []).append((role_id, part_key, curve))
         else:
-            curve_specs_global.append((role_id, key, curve))
+            curve_specs_global.append((role_id, part_key, curve))
 
     # Build deterministic color mapping:
     # - spot radii first: R0, R1, R2, ...
@@ -922,14 +930,14 @@ def plot_cost(costs, path, *, costs_by_part=None, part_order=None):
     # Layout: [total log + parts log] then [total linear + parts linear].
     n_col = N_COL_GT
     active_cells = set(curve_specs_by_cell.keys())
-    cell_plot_rows_list = cell_plot_rows(sorted(active_cells))
-    n_plot_row = len(cell_plot_rows_list)
+    rows = cell_rows(sorted(active_cells))
+    n_cell_row = len(rows)
 
     n_global_axes = len(curve_specs_global)
-    n_global_plot_row = (n_global_axes + n_col - 1) // n_col if n_global_axes else 0
-    n_part_plot_row = n_plot_row + n_global_plot_row
-    n_block_plot_row = 1 + n_part_plot_row
-    n_row = 2 * n_block_plot_row
+    n_global_row = (n_global_axes + n_col - 1) // n_col if n_global_axes else 0
+    n_part_row = n_cell_row + n_global_row
+    n_block_row = 1 + n_part_row
+    n_row = 2 * n_block_row
 
     fig = plt.figure(figsize=(PANEL_W * n_col, PANEL_H * n_row))
     gs = fig.add_gridspec(
@@ -964,10 +972,10 @@ def plot_cost(costs, path, *, costs_by_part=None, part_order=None):
 
     def _draw_part_block(row0, *, log, shared_cell_ylim, with_legend):
         legend_done = False
-        for gi, plot_row_cells in enumerate(cell_plot_rows_list):
+        for gi, row_cells in enumerate(rows):
             row_idx = row0 + gi
-            start = (n_col - len(plot_row_cells)) // 2
-            for j, cell in enumerate(plot_row_cells):
+            start = (n_col - len(row_cells)) // 2
+            for j, cell in enumerate(row_cells):
                 ax = fig.add_subplot(gs[row_idx, start + j])
                 specs = _sorted_specs(cell)
                 curves = []
@@ -991,11 +999,11 @@ def plot_cost(costs, path, *, costs_by_part=None, part_order=None):
                 if with_legend and (not legend_done) and len(specs) > 1:
                     ax.legend(fontsize=7)
                     legend_done = True
-                if gi == n_plot_row - 1:
+                if gi == n_cell_row - 1:
                     ax.set_xlabel("step")
 
         for gi, (role_id, label, curve) in enumerate(curve_specs_global):
-            row_idx = row0 + n_plot_row + gi // n_col
+            row_idx = row0 + n_cell_row + gi // n_col
             col = gi % n_col
             ax = fig.add_subplot(gs[row_idx, col])
             ax.plot(curve, color=color_from_role_id.get(role_id), linewidth=2, linestyle='-')
@@ -1007,13 +1015,13 @@ def plot_cost(costs, path, *, costs_by_part=None, part_order=None):
             ax.grid(True, alpha=0.3, which='both' if log else 'major')
             if col == 0:
                 ax.set_ylabel("cost [% gt power]", fontsize=8)
-            if gi // n_col == n_global_plot_row - 1:
+            if gi // n_col == n_global_row - 1:
                 ax.set_xlabel("step")
 
     _draw_total(0, log=True)
     _draw_part_block(1, log=True, shared_cell_ylim=True, with_legend=True)
-    _draw_total(n_block_plot_row, log=False)
-    _draw_part_block(n_block_plot_row + 1, log=False, shared_cell_ylim=False, with_legend=False)
+    _draw_total(n_block_row, log=False)
+    _draw_part_block(n_block_row + 1, log=False, shared_cell_ylim=False, with_legend=False)
 
     fig.suptitle(f'Train cost ({len(costs)} steps)', fontsize=12, y=1.01)
     fig.tight_layout()

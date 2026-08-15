@@ -15,9 +15,9 @@ import numpy as np
 import torch
 
 from neuron.param import t_from_ms
-from task.spot.sti_geo import SpotBatch, members_by_euclid_radius
+from task.spot.sti_geo import SpotBatch, members_by_radius
 
-_STI_TIMING_KEYS = (
+_STI_TIMING_TOKENS = (
     "ms_pre", "ms_response", "ms_post", "ms_sti", "delta_ms", "delta_ms_pre",
 )
 
@@ -41,27 +41,27 @@ def _timing_equal(a, b) -> bool:
     if a is None or b is None:
         return False
     if isinstance(a, dict) and isinstance(b, dict):
-        keys = set(a) | set(b)
-        return all(_timing_equal(a.get(k), b.get(k)) for k in keys)
+        timing_toks = set(a) | set(b)
+        return all(_timing_equal(a.get(k), b.get(k)) for k in timing_toks)
     return float(a) == float(b)
 
 
-def _merge_filter_branch_ms(so: dict, key: str, val) -> None:
+def _merge_filter_branch_ms(so: dict, timing_tok: str, val) -> None:
     if val is None:
         return
     if isinstance(val, dict):
-        cur = so.get(key)
+        cur = so.get(timing_tok)
         if cur is None:
-            so[key] = {k: float(v) for k, v in val.items()}
+            so[timing_tok] = {k: float(v) for k, v in val.items()}
         else:
             merged = {k: float(v) for k, v in cur.items()}
             merged.update({k: float(v) for k, v in val.items()})
-            so[key] = merged
+            so[timing_tok] = merged
     elif isinstance(val, (int, float)):
-        so[key] = {"v": float(val), "ca": float(val)}
+        so[timing_tok] = {"v": float(val), "ca": float(val)}
     else:
         raise TypeError(
-            f"{key} must be a float or {{v, ca}} dict, got {type(val)!r}"
+            f"{timing_tok} must be a float or {{v, ca}} dict, got {type(val)!r}"
         )
 
 
@@ -95,16 +95,16 @@ def override_sti_timing(
 ) -> dict:
     """Merge non-None timing into ``so``, normalize, drop derived ``t_onset``/``n_t``.
 
-    Returns timing keys whose values differ from the pre-merge snapshot (for
+    Returns timing tokens whose values differ from the pre-merge snapshot (for
     plot / analyze filename suffixes).
     """
-    before = {k: so.get(k) for k in _STI_TIMING_KEYS}
-    for key, val in (
+    before = {k: so.get(k) for k in _STI_TIMING_TOKENS}
+    for timing_tok, val in (
         ("ms_pre", ms_pre),
         ("ms_post", ms_post),
     ):
         if val is not None:
-            _merge_filter_branch_ms(so, key, val)
+            _merge_filter_branch_ms(so, timing_tok, val)
     _merge_filter_branch_ms(so, "delta_ms", delta_ms)
     _merge_filter_branch_ms(so, "delta_ms_pre", delta_ms_pre)
     _merge_filter_branch_ms(so, "ms_response", ms_response)
@@ -114,7 +114,7 @@ def override_sti_timing(
     so.pop("n_t", None)
     return {
         k: so.get(k)
-        for k in _STI_TIMING_KEYS
+        for k in _STI_TIMING_TOKENS
         if not _timing_equal(before.get(k), so.get(k))
     }
 
@@ -263,10 +263,10 @@ def build_spot_a_sti_radius_drive(
     indexes ``a_sti_radii`` / ``a_sti_radius`` (no center slot). Empty
     ``a_sti_radii`` → center-only drive. Does not modify gt construction.
     """
-    radii = tuple(round(float(r), 6) for r in a_sti_radii)
-    if any(r == 0.0 for r in radii):
+    radii = tuple(int(r) for r in a_sti_radii)
+    if any(r == 0 for r in radii):
         raise ValueError("a_sti_radii must omit center r=0 (baked into i_sti @1)")
-    by_radius = members_by_euclid_radius(radii) if radii else {}
+    by_radius = members_by_radius(radii) if radii else {}
     idx_from_radius = {r: i for i, r in enumerate(radii)}
     batch_l: list[int] = []
     node_l: list[int] = []
@@ -276,8 +276,8 @@ def build_spot_a_sti_radius_drive(
         for sti_hex_u, sti_hex_v in batch.sti_uv:
             for nid in connectome.sti_nodes_at(int(sti_hex_u), int(sti_hex_v)):
                 center_nodes.append((int(b), int(nid)))
-            for radius_key, members in by_radius.items():
-                ri = idx_from_radius[radius_key]
+            for radius, members in by_radius.items():
+                ri = idx_from_radius[radius]
                 for du, dv in members:
                     for nid in connectome.sti_nodes_at(int(sti_hex_u) + int(du), int(sti_hex_v) + int(dv)):
                         batch_l.append(int(b))

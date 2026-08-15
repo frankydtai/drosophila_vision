@@ -27,14 +27,14 @@ os.chdir(ROOT)
 import import_bootstrap  # noqa: F401
 import train
 from default_params import RUN_PATH
-import figure.plot as plot_trained
+import figure.plot as plot
 from figure.gt import contrast_for_task
 from figure.spot import pack_spot_cost_radii, resolve_spot_gts
 from figure.util import (
-    filter_plot_token,
+    filter_figure_token,
     gt_affine_scalars_for_cell,
     plot_std_band,
-    session_filter_plot_token,
+    session_filter_figure_token,
 )
 from import_bootstrap import parse_bool, parse_comma_list
 from neuron.filter_ca import filter_ca
@@ -126,7 +126,7 @@ Per ``--run``: one ``load_best``; one batched v component forward per distinct t
   three table columns are ``ca`` / ``ca_pre`` / ``ca_post_minus_pre``
   (else ``v_post`` / ``v_pre`` / ``v_post_minus_pre``); membrane component
   columns stay ``v_*``.
-``--radius 0|1``: spot average Euclidean readout radius (default 0 = sti-on hex; 1 = neighbors).
+``--radius 0|1``: spot average hex-lattice readout radius (default 0 = sti-on hex; 1 = neighbors).
   Average only; PNGs for ``--radius 1`` get ``_radius1`` in the filename.
 ``--param NAME=VALUE`` / ``NAME.NODE=VALUE``: via ``figure.plot`` — overwrite
   any schema param before forward (``NODE`` = cell, ``SRC:TAR`` pair, or ``eN``;
@@ -251,7 +251,7 @@ def add_shared_cli(
         "default": None,
         "help": (
             "run directory (absolute, or relative to PARAMETER_DIR via "
-            "plot_trained.resolve_run_dir)"
+            "plot.resolve_run_dir)"
             + (f"; omit → {run_path}" if run_path else "")
         ),
     }
@@ -298,8 +298,8 @@ def resolve_shared_cli(args: argparse.Namespace) -> SharedCli:
                 f"unsupported task {task!r}; expected spot_* or moving_bar_* "
                 f"(after TASK_ALIASES expansion)"
             )
-    xs = plot_trained.parse_axis_slices(args.x)
-    ys = plot_trained.parse_axis_slices(args.y)
+    xs = plot.parse_axis_slices(args.x)
+    ys = plot.parse_axis_slices(args.y)
     return SharedCli(
         cells=cells,
         tasks=tasks,
@@ -309,7 +309,7 @@ def resolve_shared_cli(args: argparse.Namespace) -> SharedCli:
     )
 
 
-# Component-step fields plotted vs time (key, ylabel/legend).
+# Component-step fields plotted vs time (series, ylabel/legend).
 _BORST_PLOT_PANELS: list[tuple[str, list[tuple[str, str]]]] = [
     (
         "v_post (mV)",
@@ -393,17 +393,17 @@ _CA_PLOT_ROW0: tuple[str, list[tuple[str, str]]] = (
     ],
 )
 
-_BORST_COMPONENT_KEYS = (
+_BORST_COMPONENTS = (
     "v_pre_d", "v_abs", "i_sti", "g_exc", "g_inh", "g_h", "g_h_rev",
     "num_exc", "num_inh", "num_leak", "num_i_h", "num_i_h_rev", "num_v",
     "num", "den",
 )
-_HP_LP_COMPONENT_KEYS = (
+_HP_LP_COMPONENTS = (
     "v_pre_d", "v_abs", "i_sti", "v_sti", "v_syn", "v_syn_exc", "v_syn_inh",
     "v_slow", "v_in", "v_hp", "dv_leak", "dv_hp",
 )
 
-_BORST_PLOT_KEY_COMPONENT: dict[str, str | None] = {
+_BORST_COMPONENT_FROM_SERIES: dict[str, str | None] = {
     "v_post": "v_abs",
     "v_ca": None,
     "ca": None,
@@ -423,7 +423,7 @@ _BORST_PLOT_KEY_COMPONENT: dict[str, str | None] = {
     "num": "num",
     "den": "den",
 }
-_HP_LP_PLOT_KEY_COMPONENT: dict[str, str | None] = {
+_HP_LP_COMPONENT_FROM_SERIES: dict[str, str | None] = {
     "v_post": "v_abs",
     "v_ca": None,
     "ca": None,
@@ -541,7 +541,7 @@ _TRACE_COLOR_MATCH: dict[str, str] = {
     "v_ca": "v_post",
     "ca": "v_post",
 }
-# Report GT key → plot panel key (train GT kind; never mix).
+# Report GT series → plot panel series (train GT kind; never mix).
 _GT_PLOT_PANEL: dict[str, str] = {
     "gt_v": "v_post",
     "gt_ca": "ca",
@@ -554,24 +554,24 @@ _HP_LP_ROW_SHARED_YLIM = frozenset({2, 3})
 @dataclass(frozen=True)
 class _ComponentSpec:
     model: str
-    keys: tuple[str, ...]
+    components: tuple[str, ...]
     plot_panels: list[tuple[str, list[tuple[str, str]]]]
-    plot_key_component: dict[str, str | None]
+    component_from_series: dict[str, str | None]
     formula_g: list[tuple[str, str | None]]
     formula_i: list[tuple[str, str | None]]
     row_shared_ylim: frozenset[int]
 
     @property
-    def n_keys(self) -> int:
-        return len(self.keys)
+    def n_components(self) -> int:
+        return len(self.components)
 
     @property
     def i_v_abs(self) -> int:
-        return self.keys.index("v_abs")
+        return self.components.index("v_abs")
 
     @property
     def i_v_pre_d(self) -> int:
-        return self.keys.index("v_pre_d")
+        return self.components.index("v_pre_d")
 
     @property
     def n_col(self) -> int:
@@ -592,9 +592,9 @@ def _component_spec(model: str, euler: str, *, filter: str = "v") -> _ComponentS
             panels[0] = _CA_PLOT_ROW0
         return _ComponentSpec(
             model="borst",
-            keys=_BORST_COMPONENT_KEYS,
+            components=_BORST_COMPONENTS,
             plot_panels=panels,
-            plot_key_component=_BORST_PLOT_KEY_COMPONENT,
+            component_from_series=_BORST_COMPONENT_FROM_SERIES,
             formula_g=formula_g,
             formula_i=formula_i,
             row_shared_ylim=_BORST_ROW_SHARED_YLIM,
@@ -609,9 +609,9 @@ def _component_spec(model: str, euler: str, *, filter: str = "v") -> _ComponentS
             panels[0] = _CA_PLOT_ROW0
         return _ComponentSpec(
             model="hp_lp",
-            keys=_HP_LP_COMPONENT_KEYS,
+            components=_HP_LP_COMPONENTS,
             plot_panels=panels,
-            plot_key_component=_HP_LP_PLOT_KEY_COMPONENT,
+            component_from_series=_HP_LP_COMPONENT_FROM_SERIES,
             formula_g=formula_g,
             formula_i=formula_i,
             row_shared_ylim=_HP_LP_ROW_SHARED_YLIM,
@@ -635,8 +635,8 @@ def _trace_ylabel(panel_ylabel: str, label: str) -> str:
 def _plot_trace_colors(colors: list[str], spec: _ComponentSpec) -> dict[str, str]:
     """Map trace legend label → subplot color (hex index within its row)."""
     out: dict[str, str] = {}
-    for _panel_ylabel, series in spec.plot_panels:
-        for series_idx, (_key, label) in enumerate(series):
+    for _panel_ylabel, panel_series in spec.plot_panels:
+        for series_idx, (_series, label) in enumerate(panel_series):
             if label in _BLACK_TRACE_LABELS:
                 out[label] = "0.0"
             else:
@@ -657,16 +657,16 @@ def _g_e_note(label: str, *, e_leak_mV: float, globs: dict[str, Any], params: di
         "g_h": "e_h",
         "g_h_rev": "e_h_rev",
     }
-    gkey = notes.get(label)
-    if gkey is None:
+    param = notes.get(label)
+    if param is None:
         return None
     src = globs
-    if gkey not in src and params is not None and gkey in params:
+    if param not in src and params is not None and param in params:
         src = params
-    if gkey not in src:
+    if param not in src:
         return None
-    pretty = {"e_h": "E_h", "e_h_rev": "E_h_rev"}.get(gkey, gkey)
-    return f"{pretty}={src[gkey]:+g} mV"
+    pretty = {"e_h": "E_h", "e_h_rev": "E_h_rev"}.get(param, param)
+    return f"{pretty}={src[param]:+g} mV"
 
 
 def _add_component_formula_row(
@@ -825,12 +825,12 @@ def _component_at_nodes_hp_lp(
             "v_pre_d": v_pre_np - ref,
             "v_abs": v_abs,
         }
-        for component_key in (
+        for component_tok in (
             "i_sti", "v_sti", "v_syn", "v_syn_exc", "v_syn_inh", "v_slow", "v_in", "v_hp",
             "dv_leak", "dv_hp",
         ):
-            component_arr = component_t[component_key]
-            component[component_key] = (
+            component_arr = component_t[component_tok]
+            component[component_tok] = (
                 component_arr[batch_idx, node_idx]
                 if component_arr.dim() > 1 else component_arr[node_idx]
             ).detach().cpu().numpy()
@@ -842,15 +842,15 @@ def _log(msg: str) -> None:
     print(msg, flush=True)
 
 
-def _component_matrix(component: dict[str, np.ndarray], keys: tuple[str, ...]) -> np.ndarray:
-    """Stack component keys to ``(n_nodes, n_keys)`` for vectorized accumulate."""
-    return np.column_stack([component[component_key] for component_key in keys])
+def _component_matrix(component: dict[str, np.ndarray], components: tuple[str, ...]) -> np.ndarray:
+    """Stack components to ``(n_nodes, n_components)`` for vectorized accumulate."""
+    return np.column_stack([component[component_tok] for component_tok in components])
 
 
-def _sums_dict_from_vec(vec: np.ndarray, keys: tuple[str, ...]) -> dict[str, float]:
+def _sums_dict_from_vec(vec: np.ndarray, components: tuple[str, ...]) -> dict[str, float]:
     return {
-        component_key: float(vec[key_idx])
-        for key_idx, component_key in enumerate(keys)
+        component_tok: float(vec[component_idx])
+        for component_idx, component_tok in enumerate(components)
     }
 
 
@@ -869,12 +869,12 @@ def _step_std(
     sums: dict[str, float], sum_sqs: dict[str, float], n_nodes: int, spec: _ComponentSpec,
 ) -> dict[str, float]:
     out: dict[str, float] = {}
-    for plot_key, component_key in spec.plot_key_component.items():
-        if component_key is None:
-            out[plot_key] = 0.0
+    for series, component in spec.component_from_series.items():
+        if component is None:
+            out[series] = 0.0
         else:
-            out[plot_key] = _std_from_sum_and_sum_sq(
-                sums[component_key], sum_sqs[component_key], n_nodes,
+            out[series] = _std_from_sum_and_sum_sq(
+                sums[component], sum_sqs[component], n_nodes,
             )
     return out
 
@@ -893,7 +893,7 @@ def _step_from_sums(
     g_leak: float = 0.0,
     dt_over_c: float = 0.0,
 ) -> dict[str, Any]:
-    """One step dict from per-key sums over ``n_nodes`` nodes."""
+    """One step dict from per-component sums over ``n_nodes`` nodes."""
     if n_nodes <= 0:
         raise ValueError("empty node set for mean component")
     base = {
@@ -1009,11 +1009,11 @@ def _forward_component(
     # Same ref as forward_full: v at t_onset-1, then restart so pre is stepped+accumulated.
     v_at_onset, _ = _equilibrate(session, params, drive, t_onset)
     v_onset = v_at_onset.detach().cpu().numpy().copy()
-    n_keys = spec.n_keys
+    n_components = spec.n_components
     drv = _model_driver(session)
     state, v = drv.pre_steady(session, params, n_batch, i_sti=drive)
 
-    use_ca = session_filter_plot_token(session) == "ca"
+    use_ca = session_filter_figure_token(session) == "ca"
     ca = train.v_ca_from_v(v, params, session) if use_ca else None
     tau_ca = (
         torch.clamp(params["tau_ca"], min=float(session.delta_ms)) if use_ca else None
@@ -1028,8 +1028,8 @@ def _forward_component(
     batch_ca_pre_sums: list[dict[str, np.ndarray]] | None = [] if use_ca else None
     for plan in batches:
         n_t_aligned = plan.n_t_aligned
-        batch_sums.append({cell: np.zeros((n_t_aligned, n_keys), dtype=float) for cell in cells})
-        batch_sum_sqs.append({cell: np.zeros((n_t_aligned, n_keys), dtype=float) for cell in cells})
+        batch_sums.append({cell: np.zeros((n_t_aligned, n_components), dtype=float) for cell in cells})
+        batch_sum_sqs.append({cell: np.zeros((n_t_aligned, n_components), dtype=float) for cell in cells})
         batch_n_nodes.append({cell: np.zeros(n_t_aligned, dtype=np.int64) for cell in cells})
         batch_v_post_minus_pre_sums.append({cell: np.zeros(n_t_aligned, dtype=float) for cell in cells})
         if use_ca:
@@ -1113,7 +1113,7 @@ def _forward_component(
                 component, v_post_minus_pre_active = _component_at_nodes_hp_lp(
                     v_pre, v, component_t, active_node_idx, v_onset, batch_idx=batch_idx,
                 )
-            component_mat = _component_matrix(component, spec.keys)
+            component_mat = _component_matrix(component, spec.components)
             cell_idx_from_node_id = cell_idx_from_node_ids[batch_idx]
             tags = cell_idx_from_node_id[active_node_idx]
             v_ca_active = ca_post_active = ca_pre_active = None
@@ -1245,8 +1245,8 @@ def _finalize_component_report(
         t_rel = t - peak_t
         step = _step_from_sums(
             t=t, t_rel=t_rel, ti=ti, v_post_val=float(v_post[t]),
-            sums=_sums_dict_from_vec(sums[t], component_spec.keys),
-            sum_sqs=_sums_dict_from_vec(sum_sqs[t], component_spec.keys),
+            sums=_sums_dict_from_vec(sums[t], component_spec.components),
+            sum_sqs=_sums_dict_from_vec(sum_sqs[t], component_spec.components),
             v_post_minus_pre_sum=float(v_post_minus_pre_sums[t]),
             n_nodes=n_nodes_at_t,
             spec=component_spec,
@@ -1277,7 +1277,7 @@ def _finalize_component_report(
         "n_nodes": int(nodes.size),
         "task": task,
         "spec": spec,
-        "filter": session_filter_plot_token(session),
+        "filter": session_filter_figure_token(session),
         "before_t": before_t,
         "time_window_kind": time_window.kind,
         "time_window": [time_window.start, time_window.stop],
@@ -1343,8 +1343,8 @@ def _sign(v: float, *, eps: float = 1e-3) -> str:
     return "0"
 
 
-def _scalar_param_at_node(params, key: str, session, node: int) -> float:
-    raw = params[key]
+def _scalar_param_at_node(params, param: str, session, node: int) -> float:
+    raw = params[param]
     backend = session.backend
     if torch.is_tensor(raw):
         if raw.dim() == 0:
@@ -1359,9 +1359,9 @@ def _scalar_param_at_node(params, key: str, session, node: int) -> float:
 
 def _node_params(params, session, node: int) -> dict[str, float]:
     backend = session.backend
-    for key in ("a_gt", "bias_gt"):
-        if key not in params:
-            raise SystemExit(f"params missing {key}")
+    for param in ("a_gt", "bias_gt"):
+        if param not in params:
+            raise SystemExit(f"params missing {param}")
     a_gt = _scalar_param_at_node(params, "a_gt", session, node)
     bias_gt = _scalar_param_at_node(params, "bias_gt", session, node)
     if session.model == "hp_lp":
@@ -1452,9 +1452,9 @@ def _merge_forward_sums(
     dict[str, np.ndarray] | None,
 ]:
     """Sum per-cell sums rows across run batches (spot multi-sti mean)."""
-    n_keys = forward_sums.spec.n_keys
-    sums = {cell: np.zeros((n_t_aligned, n_keys), dtype=float) for cell in cells}
-    sum_sqs = {cell: np.zeros((n_t_aligned, n_keys), dtype=float) for cell in cells}
+    n_components = forward_sums.spec.n_components
+    sums = {cell: np.zeros((n_t_aligned, n_components), dtype=float) for cell in cells}
+    sum_sqs = {cell: np.zeros((n_t_aligned, n_components), dtype=float) for cell in cells}
     n_nodes = {cell: np.zeros(n_t_aligned, dtype=np.int64) for cell in cells}
     v_post_minus_pre_sums = {cell: np.zeros(n_t_aligned, dtype=float) for cell in cells}
     nodes_ref = {cell: np.zeros(0, dtype=np.int64) for cell in cells}
@@ -1820,7 +1820,7 @@ def analyze_bar_average(
 
 
 # ---------------------------------------------------------------------------
-# Average spot components (Euclidean radius)
+# Average spot components (hex-lattice radius)
 # ---------------------------------------------------------------------------
 
 
@@ -1849,8 +1849,8 @@ def _spot_session_readout(session_one, cells: list[str]):
 
 
 def _spot_radius_entry_mask(radii: np.ndarray, radius: int) -> np.ndarray:
-    """True for cost-readout entries at Euclidean ``radius``."""
-    return np.isclose(np.asarray(radii, dtype=np.float64), float(radius))
+    """True for cost-readout entries at hex-lattice ``radius``."""
+    return np.asarray(radii, dtype=np.int64) == int(radius)
 
 
 def _spot_gt_extra(
@@ -1863,12 +1863,12 @@ def _spot_gt_extra(
     t_onset: int,
     a_gt: float,
     bias_gt: float,
-    gt_key: str,
+    gt_series: str,
 ) -> dict[str, Any]:
-    """Affine GT on readout axis: ``a_gt * gt + bias``; key is ``gt_v`` or ``gt_ca``."""
-    if gt_key not in _GT_PLOT_PANEL:
-        raise SystemExit(f"unknown gt_key {gt_key!r}; expected gt_v|gt_ca")
-    extra: dict[str, Any] = {"gt_peak": None, gt_key: None, "radius": radius}
+    """Affine GT on readout axis: ``a_gt * gt + bias``; series is ``gt_v`` or ``gt_ca``."""
+    if gt_series not in _GT_PLOT_PANEL:
+        raise SystemExit(f"unknown gt_series {gt_series!r}; expected gt_v|gt_ca")
+    extra: dict[str, Any] = {"gt_peak": None, gt_series: None, "radius": radius}
     if cell not in gt_on:
         return extra
     gt = np.asarray(gt_on[cell], dtype=float)
@@ -1882,7 +1882,7 @@ def _spot_gt_extra(
     mask = np.isfinite(v_post) & np.isfinite(v_post_d)
     if not np.any(mask):
         return extra
-    extra[gt_key] = gt_aff.tolist()
+    extra[gt_series] = gt_aff.tolist()
     return extra
 
 
@@ -1892,7 +1892,7 @@ def _spot_extra_for_cell_fn(
     """Build ``extra_for_cell`` with train GT named ``gt_v`` / ``gt_ca``."""
     contrast = contrast_for_task(pack.task)
     train_filter = train.expand_filter(train_filter)
-    gt_key = f"gt_{filter_plot_token(train_filter)}"
+    gt_series = f"gt_{filter_figure_token(train_filter)}"
     gt_on = resolve_spot_gts(
         {contrast: session_one}, filter=train_filter,
     ).get(contrast) or {}
@@ -1929,7 +1929,7 @@ def _spot_extra_for_cell_fn(
             t_onset=t_onset,
             a_gt=a_gt,
             bias_gt=bias_gt,
-            gt_key=gt_key,
+            gt_series=gt_series,
         )
 
     return extra_for_cell
@@ -1945,7 +1945,7 @@ def analyze_spot_average(
     radius: int = 0,
     train_filter="none",
 ) -> dict[str, dict[str, Any]]:
-    """One batched v forward over spot sti rows; mean at Euclidean ``radius``.
+    """One batched v forward over spot sti rows; mean at hex-lattice ``radius``.
 
     ``time_window`` is absolute aligned ms for spot (``0`` = trial start). Pre
     only: ``TimeWindow("ms", 0, ms_pre)``. Do not pass negative ``start`` for
@@ -2196,8 +2196,8 @@ def analyze_bar_hex(
 # ---------------------------------------------------------------------------
 
 
-def _plot_filename(report: dict[str, Any], *, file_suffix: str = "", html: bool = False) -> str:
-    from figure.util import plot_file_ext
+def _figure_filename(report: dict[str, Any], *, file_suffix: str = "", html: bool = False) -> str:
+    from figure.util import figure_file_ext
 
     filter_token = str(report.get("filter") or "v")
     parts = [report["cell"], report["task"], filter_token, report.get("mode", "average")]
@@ -2209,20 +2209,20 @@ def _plot_filename(report: dict[str, Any], *, file_suffix: str = "", html: bool 
     radius = report.get("radius")
     if radius is not None and int(radius) != 0:
         parts.append(f"radius{int(radius)}")
-    return "_".join(parts) + f"{file_suffix}{plot_file_ext(html=html)}"
+    return "_".join(parts) + f"{file_suffix}{figure_file_ext(html=html)}"
 
 
-def _overlay_plot_filename(
+def _overlay_figure_filename(
     reports: list[dict[str, Any]], *, file_suffix: str = "", html: bool = False,
 ) -> str:
-    from figure.util import plot_file_ext
+    from figure.util import figure_file_ext
 
     first_report = reports[0]
     filter_token = str(first_report.get("filter") or "v")
     specs = "_".join(str(one_report["spec"]) for one_report in reports)
     return (
         f"{first_report['cell']}_{first_report['task']}_{filter_token}_overlay_{specs}"
-        f"{file_suffix}{plot_file_ext(html=html)}"
+        f"{file_suffix}{figure_file_ext(html=html)}"
     )
 
 
@@ -2366,8 +2366,8 @@ def _plot_component_reports(
     }
     tc = _plot_trace_colors(colors, spec)
 
-    for row_idx, (panel_ylabel, series) in enumerate(spec.plot_panels):
-        for col_idx, (key, label) in enumerate(series):
+    for row_idx, (panel_ylabel, panel_series) in enumerate(spec.plot_panels):
+        for col_idx, (series, label) in enumerate(panel_series):
             ax = axes[row_idx, col_idx]
             color = tc[label]
             show_legend = overlay and row_idx == 0 and col_idx == 0
@@ -2376,10 +2376,10 @@ def _plot_component_reports(
                 ls = linestyles[report_idx % len(linestyles)] if overlay else "-"
                 ts = np.asarray([step["t"] for step in rep["steps"]], dtype=int)
                 xs = ts.astype(float) * delta_ms
-                y = np.asarray([step[key] for step in rep["steps"]], dtype=float)
+                y = np.asarray([step[series] for step in rep["steps"]], dtype=float)
                 std = np.asarray(
                     [
-                        float(step.get("std", {}).get(key, 0.0))
+                        float(step.get("std", {}).get(series, 0.0))
                         for step in rep["steps"]
                     ],
                     dtype=float,
@@ -2390,13 +2390,13 @@ def _plot_component_reports(
                         row_curves[row_idx].append(y + std)
                         row_curves[row_idx].append(y - std)
                 plot_std_band(ax, xs, y, std, color=color, alpha=0.3)
-                gt_key = next(
-                    (gk for gk, pk in _GT_PLOT_PANEL.items() if pk == key and rep.get(gk) is not None),
+                gt_series = next(
+                    (gk for gk, pk in _GT_PLOT_PANEL.items() if pk == series and rep.get(gk) is not None),
                     None,
                 )
                 model_label = (
                     str(rep["spec"]) if show_legend
-                    else (key if gt_key is not None else "_nolegend_")
+                    else (series if gt_series is not None else "_nolegend_")
                 )
                 ax.plot(
                     xs, y,
@@ -2405,8 +2405,8 @@ def _plot_component_reports(
                     linestyle=ls,
                     linewidth=1.4,
                 )
-                if gt_key is not None:
-                    gt_full = np.asarray(rep[gt_key], dtype=float)
+                if gt_series is not None:
+                    gt_full = np.asarray(rep[gt_series], dtype=float)
                     t_onset = int(rep.get("before_t") or 0)
                     t = ts - t_onset
                     valid = (t >= 0) & (t < gt_full.shape[0])
@@ -2470,19 +2470,19 @@ def _emit_report(
     *,
     run_dir: str,
     do_print: bool,
-    do_plot: bool,
+    do_figure: bool,
     file_suffix: str = "",
     html: bool = False,
 ) -> None:
     if do_print:
         print("")
         # Full per-t table only when not plotting (--plot false).
-        _print_report(report, print_steps=not do_plot)
-    if do_plot:
+        _print_report(report, print_steps=not do_figure)
+    if do_figure:
         out = os.path.join(
             run_dir,
             "cell_dynamics",
-            _plot_filename(report, file_suffix=file_suffix, html=html),
+            _figure_filename(report, file_suffix=file_suffix, html=html),
         )
         plot_report(report, out)
 
@@ -2496,7 +2496,7 @@ def _print_report(report: dict[str, Any], *, print_steps: bool = True) -> None:
     mode = report.get("mode", "?")
     model = report.get("model", "borst")
     kind = report.get("time_window_kind", "t_rel")
-    x_key = "t_rel" if kind == "t_rel" else "t"
+    x_tok = "t_rel" if kind == "t_rel" else "t"
     use_ca = report.get("filter") == "ca"
     state_hdr = (
         "ca  ca_pre  ca_post_minus_pre"
@@ -2538,18 +2538,18 @@ def _print_report(report: dict[str, Any], *, print_steps: bool = True) -> None:
     if model == "hp_lp":
         if print_steps:
             print(
-                f"\n{x_key}  n  {state_hdr}  i_sti "
+                f"\n{x_tok}  n  {state_hdr}  i_sti "
                 "v_syn  v_syn_exc -v_syn_inh  dv_leak  dv_hp"
             )
             for step in report["steps"]:
                 print(
-                    f"{step[x_key]:4d} {step.get('n_nodes', 1):3d} {_state_cols(step)} "
+                    f"{step[x_tok]:4d} {step.get('n_nodes', 1):3d} {_state_cols(step)} "
                     f"{step['i_sti']:+6.3f} {step['v_syn']:+6.3f} {step['v_syn_exc']:+7.3f} "
                     f"{step['v_syn_inh']:+7.3f} {step['dv_leak']:+8.4f} {step['dv_hp']:+7.4f}"
                 )
         peak_step = report.get("peak_step")
         if peak_step is not None:
-            print(f"\nHP/LP terms at peak {x_key}={peak_step[x_key]}:")
+            print(f"\nHP/LP terms at peak {x_tok}={peak_step[x_tok]}:")
             for name, val in [
                 ("v_syn", peak_step["v_syn"]), ("v_syn_exc", peak_step["v_syn_exc"]),
                 ("-v_syn_inh", peak_step["v_syn_inh"]),
@@ -2564,12 +2564,12 @@ def _print_report(report: dict[str, Any], *, print_steps: bool = True) -> None:
 
     if print_steps:
         print(
-            f"\n{x_key}  n  {state_hdr}  i_sti "
+            f"\n{x_tok}  n  {state_hdr}  i_sti "
             "g_inh  g_h_rev  g_exc  num_inh  num_exc"
         )
         for step in report["steps"]:
             print(
-                f"{step[x_key]:4d} {step.get('n_nodes', 1):3d} {_state_cols(step)} "
+                f"{step[x_tok]:4d} {step.get('n_nodes', 1):3d} {_state_cols(step)} "
                 f"{step['i_sti']:5.1f} {step['g_inh_nS']:.4f} {step['g_h_rev_nS']:.4f} "
                 f"{step['g_exc_nS']:.4f} {step['num_inh']:+8.2f} {step['num_exc']:+8.2f}"
             )
@@ -2578,7 +2578,7 @@ def _print_report(report: dict[str, Any], *, print_steps: bool = True) -> None:
     if peak_step is not None:
         num = float(peak_step["num"])
         dt_over_c = float(peak_step.get("dt_over_c", 0.0))
-        print(f"\nNumerator at peak {x_key}={peak_step[x_key]} (num={num:.2f}):")
+        print(f"\nNumerator at peak {x_tok}={peak_step[x_tok]} (num={num:.2f}):")
         for name, val in [
             ("num_v", peak_step["num_v"]),
             ("dt_over_c*i_sti", dt_over_c * peak_step["i_sti"]),
@@ -2674,10 +2674,10 @@ def main() -> None:
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     add_shared_cli(ap, run_path=RUN_PATH)
-    plot_trained.add_plot_timing_arguments(ap)
-    plot_trained.add_plot_euler_argument(ap)
-    plot_trained.add_plot_filter_argument(ap)
-    plot_trained.add_param_argument(ap)
+    plot.add_figure_timing_arguments(ap)
+    plot.add_figure_euler_argument(ap)
+    plot.add_figure_filter_argument(ap)
+    plot.add_param_argument(ap)
     ap.add_argument("--node", type=int, default=None, help="hex-mode node index")
     ap.add_argument(
         "--radius",
@@ -2685,7 +2685,7 @@ def main() -> None:
         choices=(0, 1),
         default=0,
         help=(
-            "spot average Euclidean readout radius (0=sti-on, 1=neighbors); "
+            "spot average hex-lattice readout radius (0=sti-on, 1=neighbors); "
             "average mode only (not with --x/--y); PNG gets _radius1 when 1"
         ),
     )
@@ -2699,7 +2699,7 @@ def main() -> None:
             "mutually exclusive with --ms-shown; default without either: 0..last ms"
         ),
     )
-    plot_trained.add_ms_shown_argument(t_group)
+    plot.add_ms_shown_argument(t_group)
     # --ms-shown: absolute aligned ms (spot 0=trial start; pre = 0,ms_pre).
     # --sti-timing: sti length tokens (rebuild session). Do not confuse.
     ap.add_argument(
@@ -2752,7 +2752,7 @@ def main() -> None:
         use_ms = False
     elif args.ms_shown is not None:
         try:
-            ms_range = plot_trained.parse_ms_shown_range(args.ms_shown)
+            ms_range = plot.parse_ms_shown_range(args.ms_shown)
         except ValueError as exc:
             raise SystemExit(str(exc)) from exc
         use_ms = True
@@ -2760,19 +2760,19 @@ def main() -> None:
         ms_range = None  # default: 0 .. last sample
         use_ms = True
 
-    param_inits = plot_trained.parse_optimizable_param_tokens(args.param)
+    param_inits = plot.parse_optimizable_param_tokens(args.param)
 
     for run_idx, run_arg in enumerate(args.run):
-        run_dir = plot_trained.resolve_run_dir(run_arg)
+        run_dir = plot.resolve_run_dir(run_arg)
         _log(f"load_best {run_dir} ...")
-        session, z, best_cost = plot_trained.load_best(run_dir)
-        train_opts = plot_trained.load_train_opts(run_dir) or {}
+        session, z, best_cost = plot.load_best(run_dir)
+        train_opts = plot.load_train_opts(run_dir) or {}
         train_filter = train.expand_filter(train_opts.get("filter", "none"))
         timing_kw = resolve_sti_timing_kwargs(
             args,
             filter=args.filter if args.filter is not None else train_filter,
         )
-        session, z, timing_changed = plot_trained.maybe_override_sti_timing(
+        session, z, timing_changed = plot.maybe_override_sti_timing(
             run_dir=run_dir,
             session=session,
             z=z,
@@ -2781,11 +2781,11 @@ def main() -> None:
             filter=args.filter,
         )
         file_suffix = (
-            plot_trained.sti_timing_filename_suffix(
+            plot.sti_timing_filename_suffix(
                 **timing_changed,
             )
-            + plot_trained.euler_filename_suffix(args.euler)
-            + plot_trained.param_filename_suffix(param_inits)
+            + plot.euler_filename_suffix(args.euler)
+            + plot.param_filename_suffix(param_inits)
         )
         if use_ms:
             lo, hi = (
@@ -2799,7 +2799,7 @@ def main() -> None:
             dtype=session.sim_dtype,
             device=session.device,
         )
-        z_t, schema = plot_trained.override_params(
+        z_t, schema = plot.override_params(
             z_t, schema, session, param_inits,
         )
         session = session.with_schema(schema)
@@ -2826,7 +2826,7 @@ def main() -> None:
         for task in cli.tasks:
             if task in train.SPOT_TASKS:
                 if task not in spot_session_cache:
-                    spot_session_cache[task] = plot_trained.session_for_task(
+                    spot_session_cache[task] = plot.session_for_task(
                         session, task,
                     )
                 session_one = spot_session_cache[task]
@@ -2871,7 +2871,7 @@ def main() -> None:
                         rep,
                         run_dir=run_dir,
                         do_print=not args.json,
-                        do_plot=args.plot,
+                        do_figure=args.plot,
                         file_suffix=file_suffix,
                         html=args.html,
                     )
@@ -2886,7 +2886,7 @@ def main() -> None:
                     session, task, cells_bar, cli.specs_req,
                     specs=specs, grids=grids,
                 )
-                multi_spec_plot = args.plot and len(specs_ordered) > 1
+                overlay = args.plot and len(specs_ordered) > 1
                 if hex_mode:
                     _log(
                         f"component forward {task} specs={specs_ordered} "
@@ -2929,23 +2929,23 @@ def main() -> None:
                         rep["cost"] = cost
                         bar_by_cell[cell] = rep
                         reports.append(rep)
-                        if multi_spec_plot:
+                        if overlay:
                             overlay_by_cell[cell].append(rep)
                         _emit_report(
                             rep,
                             run_dir=run_dir,
                             do_print=not args.json,
-                            do_plot=args.plot and not multi_spec_plot,
+                            do_figure=args.plot and not overlay,
                             file_suffix=file_suffix,
                             html=args.html,
                         )
-                if multi_spec_plot:
+                if overlay:
                     for cell in cells_bar:
                         reps = overlay_by_cell[cell]
                         out = os.path.join(
                             run_dir,
                             "cell_dynamics",
-                            _overlay_plot_filename(
+                            _overlay_figure_filename(
                                 reps, file_suffix=file_suffix, html=args.html,
                             ),
                         )

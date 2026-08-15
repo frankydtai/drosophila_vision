@@ -11,7 +11,7 @@ Usage (from ``vision/simulation/``)::
       hp_lp/28703323-... --cell L4 --radius 0 --stride 5 --per-node
 
     ../.venv/bin/python analyze/cost_part.py \\
-      hp_lp/28703323-... --part spot_bright_L4_r0 --list-parts
+      hp_lp/28703323-... --part spot_bright_L4_r0 --print-parts
 
     ../.venv/bin/python analyze/cost_part.py \\
       hp_lp/28703323-... --cell L4 --radius 0 --cost-norm a_gt2 --stride 5
@@ -61,10 +61,10 @@ def override_cost_norm(session, cost_norm: str | None):
     """Return session whose train_opts use ``cost_norm`` (run default if None)."""
     if cost_norm is None:
         return session, _session_cost_norm(session)
-    key = expand_cost_norm(cost_norm)
+    cost_norm = expand_cost_norm(cost_norm)
     opts = dict(session.train_opts or {})
-    opts["cost_norm"] = key
-    return replace(session, train_opts=opts), key
+    opts["cost_norm"] = cost_norm
+    return replace(session, train_opts=opts), cost_norm
 
 
 def cost_part(session, z, part_key: str) -> dict:
@@ -78,7 +78,7 @@ def cost_part(session, z, part_key: str) -> dict:
             break
     if task is None:
         raise SystemExit(
-            f"part {part_key!r} is not a spot fine key "
+            f"part {part_key!r} is not a spot fine part_key "
             f"(expected prefix in {train.SPOT_TASKS})",
         )
     pack = session.pack_for(task)
@@ -90,13 +90,13 @@ def cost_part(session, z, part_key: str) -> dict:
         raise SystemExit(f"waveform v_readout required for {task!r}")
     v_readout, gts, time_mask = _gather_cost_time(pack, v_readout, gts)
 
-    part_indices, keys = _spot_entries_by_part(pack, session.backend)
-    if part_key not in keys:
+    part_indices, part_keys = _spot_entries_by_part(pack, session.backend)
+    if part_key not in part_keys:
         raise SystemExit(
             f"part {part_key!r} not in pack parts; available:\n  "
-            + "\n  ".join(keys),
+            + "\n  ".join(part_keys),
         )
-    part_slot_idx = keys.index(part_key)
+    part_slot_idx = part_keys.index(part_key)
     entry_indices = (part_indices == part_slot_idx).nonzero(as_tuple=False).reshape(-1)
     if entry_indices.numel() == 0:
         raise SystemExit(f"part {part_key!r} has zero active entries")
@@ -123,7 +123,7 @@ def cost_part(session, z, part_key: str) -> dict:
     power_sum = float(power_t.sum().item())
 
     official = _parts_from_entries(
-        a_gt, bias_gt, gts, scale, v_readout, part_indices, keys, session,
+        a_gt, bias_gt, gts, scale, v_readout, part_indices, part_keys, session,
         time_mask=time_mask,
     )
     if part_key not in official:
@@ -239,15 +239,15 @@ def _print_table(info: dict, *, stride: int, per_node: bool) -> None:
     t_cost = info["t_cost"]
     ms_cost = info["ms_cost"]
     for j in range(0, info["n_t"], max(1, int(stride))):
-        c = info["cost_mean"][j]
-        c_s = "nan" if not np.isfinite(c) else f"{c:.10f}"
+        cost = info["cost_mean"][j]
         sse_mean = info["sse_mean"][j]
         den = info["denom_t"][j]
         if per_node and denom == "POWER":
             den = den / w_sum
         print(
             f"{int(t[j]):4d} {ms[j]:7g} {int(t_cost[j]):6d} {ms_cost[j]:7g} "
-            f"{c_s:>14} {info['gt_aff_mean'][j]:14.10f} "
+            f"{'nan' if not np.isfinite(cost) else f'{cost:.10f}':>14} "
+            f"{info['gt_aff_mean'][j]:14.10f} "
             f"{sse_mean:14.6f} {den:14.6f}",
             flush=True,
         )
@@ -272,8 +272,7 @@ def _save_csv(path: str, info: dict, *, per_node: bool) -> None:
             ],
         )
         for j in range(info["n_t"]):
-            c = info["cost_mean"][j]
-            c_s = "" if not np.isfinite(c) else f"{c:.10f}"
+            cost = info["cost_mean"][j]
             sse_mean = float(info["sse_mean"][j])
             den = float(info["denom_t"][j])
             den_avg = den / w_sum if denom == "POWER" else den
@@ -281,7 +280,7 @@ def _save_csv(path: str, info: dict, *, per_node: bool) -> None:
                 [
                     int(t[j]), f"{ms[j]:g}",
                     int(t_cost[j]), f"{ms_cost[j]:g}",
-                    c_s,
+                    "" if not np.isfinite(cost) else f"{cost:.10f}",
                     f"{info['gt_aff_mean'][j]:.10f}",
                     f"{info['v_readout_mean'][j]:.10e}",
                     f"{sse_mean:.10f}", f"{den:.10f}",
@@ -292,7 +291,7 @@ def _save_csv(path: str, info: dict, *, per_node: bool) -> None:
     print(f"wrote {path}", flush=True)
 
 
-def _list_parts(session, z) -> None:
+def _print_parts(session, z) -> None:
     parts = calc_cost_parts(z, session)
     print(f"cost_norm={_session_cost_norm(session)}  n_parts={len(parts)}", flush=True)
     for k in sorted(parts):
@@ -308,7 +307,7 @@ def main(argv=None) -> None:
     ap.add_argument(
         "--part",
         default=None,
-        help="fine part key, e.g. spot_bright_L4_r0",
+        help="fine part_key, e.g. spot_bright_L4_r0",
     )
     ap.add_argument(
         "--task",
@@ -347,7 +346,7 @@ def main(argv=None) -> None:
         help="write full per-t table to CSV",
     )
     ap.add_argument(
-        "--list-parts",
+        "--print-parts",
         action="store_true",
         help="print all fine part costs and exit (or also report if part set)",
     )
@@ -358,12 +357,12 @@ def main(argv=None) -> None:
     session, cost_norm = override_cost_norm(session, args.cost_norm)
     print(f"cost_norm={cost_norm}  saved_total={best_cost:.6f}", flush=True)
 
-    if args.list_parts and args.part is None and args.cell is None:
-        _list_parts(session, z)
+    if args.print_parts and args.part is None and args.cell is None:
+        _print_parts(session, z)
         return
 
-    if args.list_parts:
-        _list_parts(session, z)
+    if args.print_parts:
+        _print_parts(session, z)
         print(flush=True)
 
     part_key = _resolve_part_key(args)

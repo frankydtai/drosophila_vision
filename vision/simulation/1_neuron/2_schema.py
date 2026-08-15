@@ -18,7 +18,7 @@ from neuron.param import (
 )
 
 SYN_MODES = ("per_cell", "per_edge")
-PARAM_MODE_KEYS = ("indi", "shared", "fixed", "frozen")
+PARAM_MODES = ("indi", "shared", "fixed", "frozen")
 
 # Mirror ``default_params.NEURON_SCHEMA['optimizable']`` insertion order (injected; no import).
 SEGMENT_NAMES = (
@@ -76,7 +76,7 @@ def split_optimizable_tokens(tokens, *, segment=None):
         elif key == "val":
             val_pairs.append((None if not nodes else expand_param_nodes(nodes), float(right)))
         elif key == "mode":
-            if right not in PARAM_MODE_KEYS:
+            if right not in PARAM_MODES:
                 raise KeyError(right)
             mode_pairs.append((None if not nodes else expand_param_nodes(nodes), right))
         else:
@@ -114,10 +114,10 @@ def resolve_modes(mode_pairs, slots):
         else:
             for node in nodes:
                 node_mode[str(node)] = mode
-    out = {mode: [] for mode in PARAM_MODE_KEYS}
+    out = {mode: [] for mode in PARAM_MODES}
     for slot, mode in node_mode.items():
         out[mode].append(int(idx_from[slot]))
-    for mode in PARAM_MODE_KEYS:
+    for mode in PARAM_MODES:
         out[mode].sort()
     return out
 
@@ -129,10 +129,10 @@ def optimizable_scalar(segment, key, optimizable):
 
 def val_mode_pairs_from_optimizable(segment_optimizable, segment):
     mode = segment_optimizable["mode"]
-    if mode not in PARAM_MODE_KEYS:
+    if mode not in PARAM_MODES:
         raise ValueError(
             f"{segment}: unknown mode {mode!r}; "
-            f"expected one of {PARAM_MODE_KEYS}"
+            f"expected one of {PARAM_MODES}"
         )
     val_pairs = [(None, float(segment_optimizable["val"]))]
     mode_pairs = [(None, mode)]
@@ -179,7 +179,7 @@ def build_segment(segment, n_nodes, kind, segment_optimizable, n, *, slots=None)
         "jit": float(segment_optimizable["jit"]),
         "init": init,
     }
-    for mode in PARAM_MODE_KEYS:
+    for mode in PARAM_MODES:
         s[mode] = list(modes[mode])
     if inits:
         s["inits"] = inits
@@ -200,29 +200,18 @@ def _syn_segment(syn_mode, n_pairs, n_edges, optimizable):
     return build_segment("syn_strength_cell", n_pairs, "edge_pair", optimizable["syn_strength_cell"], n_pairs)
 
 
-def spot_radius_key(radius, *, aliases) -> str:
-    """Label for a Euclidean spot radius (alias name, else integer / float text)."""
-    r = round(float(radius), 6)
-    for name, val in aliases.items():
-        if round(float(val), 6) == r:
-            return str(name)
-    if r == int(r):
-        return str(int(r))
-    return str(r)
-
-
-def _a_sti_radius_segment(optimizable: dict, a_sti_radii, radius_key_aliases):
+def _a_sti_radius_segment(optimizable: dict, a_sti_radii):
     """Per-radius spot drive ``a_sti_radius`` for non-center radii (``a_sti_radii`` order).
 
-    Center r=0 is baked into ``i_sti`` at 1 (not a param). Slot
-    keys come from ``radius_key_aliases`` via :func:`spot_radius_key`.
-    Default ``mode`` applies; CLI ``--a-sti-radius`` may still change it.
+    Center r=0 is baked into ``i_sti`` at 1 (not a param). Slot keys are
+    ``str(int(radius))``. Default ``mode`` applies; CLI ``--a-sti-radius`` may
+    still change it.
     """
     radii = list(a_sti_radii)
     n = len(radii)
     if n == 0:
         raise ValueError("a_sti_radius requires non-empty a_sti_radii")
-    radius_keys = [spot_radius_key(r, aliases=radius_key_aliases) for r in radii]
+    radius_keys = [str(int(r)) for r in radii]
     segment = build_segment(
         "a_sti_radius", n, "output", optimizable["a_sti_radius"], n,
         slots=radius_keys,
@@ -242,7 +231,6 @@ def segments_from_optimizable(
     n_edges,
     h_cells,
     a_sti_radii,
-    radius_key_aliases,
 ):
     """Build segments in ``optimizable`` insertion order; ``skip`` omits unused segments."""
     mode = normalize_syn_mode(syn_mode)
@@ -262,11 +250,7 @@ def segments_from_optimizable(
         if segment == "a_sti_radius":
             if not a_sti_radii:
                 continue
-            segments.append(
-                _a_sti_radius_segment(
-                    optimizable, a_sti_radii, radius_key_aliases or {},
-                )
-            )
+            segments.append(_a_sti_radius_segment(optimizable, a_sti_radii))
             continue
         kind = "output" if segment in _OUTPUT_KIND else "full"
         segments.append(
@@ -289,7 +273,6 @@ def build_borst_schema(
     filter: str = "none",
     n_edges=None,
     a_sti_radii=(),
-    radius_key_aliases=None,
 ):
     """Borst schema in NEURON_SCHEMA['optimizable'] order (rev i_h segments always included)."""
     if cells is None:
@@ -307,7 +290,6 @@ def build_borst_schema(
         n_edges=n_edges,
         h_cells=h_cells,
         a_sti_radii=a_sti_radii,
-        radius_key_aliases=radius_key_aliases,
     )
 
 
@@ -322,7 +304,6 @@ def build_hp_lp_schema(
     filter: str = "none",
     n_edges=None,
     a_sti_radii=(),
-    radius_key_aliases=None,
 ):
     """HP-then-membrane-LP schema in NEURON_SCHEMA['optimizable'] order (borst-only keys skipped)."""
     if cells is None:
@@ -340,7 +321,6 @@ def build_hp_lp_schema(
         n_edges=n_edges,
         h_cells=h_cells,
         a_sti_radii=a_sti_radii,
-        radius_key_aliases=radius_key_aliases,
     )
 
 
@@ -353,14 +333,12 @@ def build_schema(
     h_cells,
     filter: str = "none",
     a_sti_radii=(),
-    radius_key_aliases=None,
 ) -> list:
     """Fresh parameter schema for ``model`` on the given backend.
 
     ``filter``: ``none`` skips ``v_th_ca``/``a_ca``/``tau_ca``; ``ca`` keeps them.
     Rev i_h (borst): train/--param mode/init and ``--val-from`` (not a separate enum).
-    ``a_sti_radii`` + ``radius_key_aliases`` label ``a_sti_radius`` slots
-    (injected from train).
+    ``a_sti_radii`` labels ``a_sti_radius`` slots (injected from train).
     """
     if model not in KNOWN_MODELS:
         raise ValueError(f"unknown model {model!r}; expected one of {KNOWN_MODELS}")
@@ -384,7 +362,6 @@ def build_schema(
         h_cells=h_cells,
         filter=filter,
         a_sti_radii=a_sti_radii,
-        radius_key_aliases=radius_key_aliases,
     )
     if model == "hp_lp":
         return build_hp_lp_schema(n, cells=cells, **kw)

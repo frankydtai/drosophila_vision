@@ -65,8 +65,8 @@ def _ca_from_v(
     return ca
 
 
-def _plot(ms_pulse_list, dt_ms, tau_ca, save, show):
-    n_pulse = len(ms_pulse_list)
+def _plot(pulse_mss, dt_ms, tau_ca, save, show):
+    n_pulse = len(pulse_mss)
     fig, axes = plt.subplots(
         3, n_pulse, figsize=(3.2 * n_pulse, 7.2), squeeze=False, sharex="col",
     )
@@ -75,7 +75,7 @@ def _plot(ms_pulse_list, dt_ms, tau_ca, save, show):
     t_s = np.arange(n) * dt_ms / 1000.0
     dt_over_tau_ca = dt_ms / tau_ca
 
-    for c, ms_pulse in enumerate(ms_pulse_list):
+    for col, ms_pulse in enumerate(pulse_mss):
         pulse_t = max(1, int(round(float(ms_pulse) / dt_ms)))
         v = _v_pulse(n, t_on, pulse_t, V_AMP)
         ca_t = _ca_from_v(
@@ -86,7 +86,7 @@ def _plot(ms_pulse_list, dt_ms, tau_ca, save, show):
         )
         d = ca_t - ca_tm1
 
-        ax0, ax1, ax2 = axes[0][c], axes[1][c], axes[2][c]
+        ax0, ax1, ax2 = axes[0][col], axes[1][col], axes[2][col]
         ax0.plot(t_s, v, color="0.35", lw=TRACE_LW, label="v − v_ref")
         ax0.set_title(f"pulse {ms_pulse:g} ms", fontsize=10)
         ax0.set_ylabel("mV", fontsize=8)
@@ -143,14 +143,14 @@ def main():
     ap.add_argument("--tau-ca", type=float, default=DEFAULT_TAU_CA)
     args = ap.parse_args()
 
-    ms_pulse_list = [float(x) for x in parse_comma_list(args.pulse_list)]
-    if not ms_pulse_list:
+    pulse_mss = [float(x) for x in parse_comma_list(args.pulse_list)]
+    if not pulse_mss:
         raise SystemExit("empty --pulse-list")
     if args.delta_ms <= 0:
         raise SystemExit("--delta-ms must be > 0")
     if args.tau_ca <= 0:
         raise SystemExit("--tau-ca must be > 0")
-    _plot(ms_pulse_list, float(args.delta_ms), float(args.tau_ca), args.save, args.show)
+    _plot(pulse_mss, float(args.delta_ms), float(args.tau_ca), args.save, args.show)
 
 
 if __name__ == "__main__":

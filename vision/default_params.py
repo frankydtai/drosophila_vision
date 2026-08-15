@@ -15,7 +15,6 @@ Constants follow original definition order across numbered cores
 """
 from __future__ import annotations
 
-import math
 from typing import Dict, Tuple
 
 RUN_NAME = """
@@ -156,22 +155,19 @@ SPOT_PACK: Dict[str, object] = {
     # Spot cost GT mode default (``--spot-gt-mode``). Allowed tokens in comment only:
     # all | positive — see train.config.SPOT_GT_MODES (never define SPOT_GT_MODES here).
     "spot_gt_mode": "pos",
-    "spot_cost_radii": (0.0, 1.0, math.sqrt(3), 2.0),
+    # Hex-lattice radii (``build_hex.hex_radius`` / ``members_at_shell``); radius 2 = full shell 12.
+    "spot_cost_radii": (0, 1, 2),
     # a_sti_radius: center r=0 baked @1; all a_sti_radii are slots.
     # Cost-radius scale==0 → a_sti_radius_mask forces that slot to 0 in forward.
-    "a_sti_radii": (1.0, math.sqrt(3), 2.0),
+    "a_sti_radii": (1, 2),
     "spot_cost_radius_scale": {
-        0.0: 1.0,
-        1.0: 1.0 / 3.0,
-        2.0: 1.0 / 3.0,
+        0: 1.0,
+        1: 1.0 / 3.0,
+        2: 1.0 / 3.0,
     },
     "spot_cost_radius_scale_radius1": {
-        0.0: 1.0,
-        1.0: 2.0,
-    },
-    # name → float for cost CLI and a_sti_radius node_names (reverse of spot_cost_radii / a_sti_radii).
-    "spot_cost_radius_key_aliases": {
-        "sqrt3": math.sqrt(3),
+        0: 1.0,
+        1: 2.0,
     },
 }
 
@@ -222,7 +218,7 @@ TRAIN_OPTIMIZATION: Dict[str, object] = {
     "cost_ms": {
         # Allow per-branch override: second ms value follows ``STI_TIMING["ms_sti"]``
         # and will be resolved by ``open_session``'s ``resolve_filter_branches``.
-        1.0: (0.0, STI_TIMING["ms_sti"]),
+        1: (0.0, STI_TIMING["ms_sti"]),
     },
     # Membrane t=0 pre steady (``--pre-steady``). Not param init.
     # Shared by borst / hp_lp: probe (ohmic one-shot) | solve (fixed-iter DC).

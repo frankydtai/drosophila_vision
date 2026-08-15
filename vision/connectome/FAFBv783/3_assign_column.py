@@ -167,9 +167,6 @@ def locate_neurons(
     )
     best = votes.groupby(self_id).first()
     # All per-column vote counts (descending), e.g. "5, 5, 5, 3"; sums to n_with_column.
-    votes_list = votes.groupby(self_id, sort=False)["votes"].apply(
-        lambda s: ", ".join(str(int(x)) for x in s)
-    )
 
     out = targets.rename(columns={"root_id": "_rid"}).copy()
     out["root_id"] = out["_rid"].astype("int64")
@@ -180,14 +177,27 @@ def locate_neurons(
     out[n_with_column_field] = (
         out["root_id"].map(n_partners_with_column).fillna(0).astype("int64")
     )
-    out["votes"] = out["root_id"].map(votes_list).fillna("").astype("string")
+    out["votes"] = (
+        out["root_id"]
+        .map(
+            votes.groupby(self_id, sort=False)["votes"].apply(
+                lambda s: ", ".join(str(int(x)) for x in s)
+            )
+        )
+        .fillna("")
+        .astype("string")
+    )
     out["majority_column_id"] = out["root_id"].map(best["column_id"]).astype("Int64")
 
     if uv_from_column is not None:
         from build_hex import xy_from_uv
 
-        u_by_column_id = {int(c): uv[0] for c, uv in uv_from_column.items()}
-        v_by_column_id = {int(c): uv[1] for c, uv in uv_from_column.items()}
+        u_by_column_id = {
+            int(column_id): uv[0] for column_id, uv in uv_from_column.items()
+        }
+        v_by_column_id = {
+            int(column_id): uv[1] for column_id, uv in uv_from_column.items()
+        }
         vu = votes[[self_id, "column_id", "votes"]].copy()
         vu["u"] = vu["column_id"].map(u_by_column_id)
         vu["v"] = vu["column_id"].map(v_by_column_id)
@@ -200,7 +210,9 @@ def locate_neurons(
             vu[f"_w{coord}"] = vu[coord].astype("float") * vu["w"]
         g = vu.groupby(self_id)
         w_sum = g["w"].sum()
-        raw_mean = {c: g[f"_w{c}"].sum() / w_sum for c in ("u", "v", "x", "y")}
+        raw_mean = {
+            coord: g[f"_w{coord}"].sum() / w_sum for coord in ("u", "v", "x", "y")
+        }
         # Per coordinate, arrange as mean (weighted), max, min.
         for coord, dtype in (("u", "Int64"), ("v", "Int64"), ("x", "Float64"), ("y", "Float64")):
             out[f"mean_{coord}"] = (

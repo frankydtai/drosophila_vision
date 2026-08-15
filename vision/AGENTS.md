@@ -25,7 +25,7 @@ Scope: `vision/**`.
 1. Implement one canonical form and replace the old form; do not add a second path.
 2. Do not accept aliases for the same concept. Existing group shorthand belongs only in `TASK_ALIASES`, `PART_COST_SCALE_ALIASES`, or `I_CLI_*_TASKS`.
 3. Do not add duplicate functions or thin wrappers.
-4. CLI list values use one comma-separated token. Exceptions are fixed-length pairs and top-level `KEY=VALUE` or bare-token bags. Use `parse_comma_list` from `import_bootstrap`; do not add another splitter.
+4. CLI `list` values use one comma-separated token. Exceptions are fixed-length pairs and top-level `KEY=VALUE` or bare-token bags. Use `parse_comma_list` from `import_bootstrap`; do not add another splitter.
 5. Name CLI alias expanders `expand_<cli_name>_list` or `expand_<cli_name>_dict`, converting kebab case to snake case.
 6. Use full words in parameters, attributes, locals, functions, files, and directories. Preserve an abbreviated user-facing CLI spelling only when the user explicitly requires it.
 7. Join compound English words in identifiers with `_`.
@@ -43,7 +43,7 @@ Number core modules by import and completion order. If A must be imported or com
 5. Keep core code flexible enough for `experiment/` and `test/` to import and override without editing core code.
 6. Core code must not import plotting layers. Shared logic needed by plotting and core belongs in core.
 7. Numeric defaults have one source: `vision/default_params.py`. Keep it to literals and constant bags, without functions or formulas. Only train, figure, analyze, and run layers may import it; neuron, network, and task layers receive numbers by injection, except established moving-bar paradigm constants.
-8. Never import or call `plot`, `plot_trained`, or other plot-layer modules from core modules.
+8. Never import or call `figure.plot` (or the forbidden alias `plot_trained`) or other plot-layer modules from core modules.
 
 ## Non-core rules
 

@@ -96,12 +96,12 @@ def _plot(
     idx_from_cell = {str(n): i for i, n in enumerate(GT_CELLS)}
 
     for r, group in enumerate(groups):
-        for c in range(ncols):
-            ax = axes[r][c]
-            if c >= len(group):
+        for col in range(ncols):
+            ax = axes[r][col]
+            if col >= len(group):
                 ax.axis("off")
                 continue
-            name = str(group[c])
+            name = str(group[col])
             i = idx_from_cell[name]
             ax.plot(
                 t_s, v_rt[i], color="C0", lw=TRACE_LW,
@@ -124,7 +124,7 @@ def _plot(
             ax.axvspan(0.0, ms_spot / 1000.0, color="0.92", zorder=0)
             if r == nrows - 1:
                 ax.set_xlabel("t − onset (s)", fontsize=8)
-            if c == 0:
+            if col == 0:
                 ax.set_ylabel("amp", fontsize=8)
             ax.tick_params(labelsize=7)
 
@@ -145,10 +145,10 @@ def _plot(
 
 
 def _plot_tau_sweep(
-    ca_by_tau, gt_ca_rt, tau_list, *,
+    ca_by_tau, gt_ca_rt, taus, *,
     t_onset, delta_ms, ms_spot, a_ca, v_th_ca, impr_offset, save, show,
 ):
-    """``ca`` for each ``tau_ca`` in ``tau_list``, plus ``gt_ca``."""
+    """``ca`` for each ``tau_ca`` in ``taus``, plus ``gt_ca``."""
     active = [str(n) for n in GT_CELLS]
     groups = [np.array(row) for row in cell_order_rows(active)]
     nrows = len(groups)
@@ -159,18 +159,18 @@ def _plot_tau_sweep(
     n_t = gt_ca_rt.shape[1]
     t_s = (np.arange(n_t) - t_onset) * delta_ms / 1000.0
     idx_from_cell = {str(n): i for i, n in enumerate(GT_CELLS)}
-    tau_colors = [f"C{k}" for k in range(len(tau_list))]
+    tau_colors = [f"C{k}" for k in range(len(taus))]
 
     for r, group in enumerate(groups):
-        for c in range(ncols):
-            ax = axes[r][c]
-            if c >= len(group):
+        for col in range(ncols):
+            ax = axes[r][col]
+            if col >= len(group):
                 ax.axis("off")
                 continue
-            name = str(group[c])
+            name = str(group[col])
             i = idx_from_cell[name]
             ys = [gt_ca_rt[i]]
-            for tau, color in zip(tau_list, tau_colors):
+            for tau, color in zip(taus, tau_colors):
                 tr = ca_by_tau[tau][i]
                 ax.plot(
                     t_s, tr, color=color, lw=TRACE_LW,
@@ -192,13 +192,13 @@ def _plot_tau_sweep(
             ax.axvspan(0.0, ms_spot / 1000.0, color="0.92", zorder=0)
             if r == nrows - 1:
                 ax.set_xlabel("t − onset (s)", fontsize=8)
-            if c == 0:
+            if col == 0:
                 ax.set_ylabel("amp", fontsize=8)
             ax.tick_params(labelsize=7)
 
     handles, labels = axes[0][0].get_legend_handles_labels()
     fig.legend(handles, labels, loc="upper right", fontsize=8)
-    tau_txt = ",".join(f"{t:g}" for t in tau_list)
+    tau_txt = ",".join(f"{t:g}" for t in taus)
     fig.suptitle(
         f"ca τ_ca sweep vs gt_ca  "
         f"(τ_ca=[{tau_txt}] ms, GT_AMP={GT_AMP:g}, impr_offset={impr_offset:g}, "

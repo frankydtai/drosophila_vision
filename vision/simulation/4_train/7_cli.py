@@ -62,11 +62,10 @@ from task.spot.pack import (
     parse_cost_ms_tokens,
     resolve_spot_cost_radius_scale,
 )
-from neuron.schema import spot_radius_key
 import train
 from train.config import (
     COST_NORMS,
-    I_STI_KEYS,
+    I_STI_TOKENS,
     SPOT_GT_MODES,
     expand_cost_norm,
     expand_pre_steady,
@@ -94,15 +93,15 @@ def _argv_cli_tokens(argv):
         if not tok.startswith('--'):
             i += 1
             continue
-        key, sep, val = tok[2:].partition('=')
+        flag, sep, val = tok[2:].partition('=')
         if sep:
-            yield _slug(key), _slug(val)
+            yield _slug(flag), _slug(val)
             i += 1
         elif i + 1 < len(argv) and not argv[i + 1].startswith('-'):
-            yield _slug(key), _slug(argv[i + 1])
+            yield _slug(flag), _slug(argv[i + 1])
             i += 2
         else:
-            yield _slug(key), None
+            yield _slug(flag), None
             i += 1
 
 
@@ -112,8 +111,8 @@ def command_run(script_stem, argv=None):
         argv = sys.argv[1:]
     prefix = os.environ.get('SLURM_JOB_ID') or time.strftime('%m%d_%H%M%S')
     parts = [prefix, script_stem]
-    for key, val in _argv_cli_tokens(argv):
-        parts.append(key)
+    for flag, val in _argv_cli_tokens(argv):
+        parts.append(flag)
         if val is not None:
             parts.append(val)
     run = '-'.join(parts)
@@ -240,9 +239,9 @@ def add_val_from_argument(parser):
     )
 
 
-def add_param_argument(parser, *, for_plot=False):
+def add_param_argument(parser, *, for_figure=False):
     help = _PARAM_HELP
-    if for_plot:
+    if for_figure:
         help += "; PNG stem suffix per val"
     parser.add_argument(
         "--param",
@@ -404,10 +403,10 @@ def add_train_arguments(parser):
         default=None,
         nargs="+",
         metavar="R|R=S",
-        help="spot cost scales by Euclidean r from sti hex (space-separated). "
+        help="spot cost scales by hex-lattice r from sti hex (space-separated). "
              "Same rules as --part-cost-scale: R=S merges onto radius defaults; bare R "
              "zeros all known radii then sets R=1. Omit → radius default "
-             "(1→0=1 1=1/6; else 0=1 1=1/6 2=1/6). Keys: 0,1,2,sqrt3. "
+             "(1→0=1 1=1/6; else 0=1 1=1/6 2=1/6). Keys: 0,1,2. "
              "Scales only (does not change rf gt)",
     )
     parser.add_argument(
@@ -447,8 +446,7 @@ def add_train_arguments(parser):
              "overwritten per radius by --cost-ms",
     )
     _cost_ms_default = " ".join(
-        f"{spot_radius_key(r, aliases=SPOT_PACK['spot_cost_radius_key_aliases'])}="
-        f"{','.join(str(x) for x in ms)}"
+        f"{int(r)}={','.join(str(x) for x in ms)}"
         for r, ms in sorted(TRAIN_OPTIMIZATION['cost_ms'].items())
     ) or "none"
     parser.add_argument(
@@ -456,7 +454,7 @@ def add_train_arguments(parser):
         default=None,
         nargs="+",
         metavar="R=MS,...",
-        help="spot: explicit post-onset ms per Euclidean r (space-separated "
+        help="spot: explicit post-onset ms per hex-lattice r (space-separated "
              "R=MS,...); overwrites --cost-interval-ms for those radii. "
              f"Omit → {_cost_ms_default}; none|off → all radii use interval",
     )
@@ -486,16 +484,16 @@ def resolve_i_sti(tokens, tasks=()):
 
 def _parse_i_sti_value(val):
     parts = val.split(",")
-    return {key: float(part.strip()) for key, part in zip(I_STI_KEYS, parts)}
+    return {tok: float(part.strip()) for tok, part in zip(I_STI_TOKENS, parts)}
 
 
-def _parse_branch_key(key: str) -> str:
-    branch = str(key).strip().lower()
+def _parse_filter_branch(branch: str) -> str:
+    branch = str(branch).strip().lower()
     if branch in ("v", "none"):
         return "v"
     if branch == "ca":
         return "ca"
-    raise ValueError(f"branch must be v or ca, got {key!r}")
+    raise ValueError(f"branch must be v or ca, got {branch!r}")
 
 
 def _format_branch_value(val) -> str:
@@ -520,8 +518,8 @@ def resolve_branch_value(text: str, default=None) -> dict:
     for part in parse_comma_list(raw):
         if "=" not in part:
             raise ValueError(f"expected v=X or ca=X, got {part!r}")
-        key, val = part.split("=", 1)
-        out[_parse_branch_key(key)] = val.strip()
+        branch, val = part.split("=", 1)
+        out[_parse_filter_branch(branch)] = val.strip()
     return out
 
 
@@ -531,7 +529,7 @@ def _branch_cli_type(default=None):
     return _parse
 
 
-STI_TIMING_KEYS = (
+STI_TIMING_TOKENS = (
     "ms_pre",
     "ms_response",
     "ms_post",
@@ -550,23 +548,23 @@ def parse_sti_timing_tokens(tokens, *, filter: str) -> dict[str, dict[str, float
     for tok in tokens:
         if "=" not in tok:
             raise ValueError(f"--sti-timing expected KEY=MS, got {tok!r}")
-        key, val = tok.split("=", 1)
-        key = key.strip()
+        timing_tok, val = tok.split("=", 1)
+        timing_tok = timing_tok.strip()
         val = val.strip()
-        if key not in STI_TIMING_KEYS:
-            allowed = ", ".join(STI_TIMING_KEYS)
-            raise ValueError(f"--sti-timing unknown key {key!r}; allowed: {allowed}")
+        if timing_tok not in STI_TIMING_TOKENS:
+            allowed = ", ".join(STI_TIMING_TOKENS)
+            raise ValueError(f"--sti-timing unknown token {timing_tok!r}; allowed: {allowed}")
         if _BRANCH_SYNTAX.search(val):
             raise ValueError(
-                f"--sti-timing {key}={val!r} must be a plain number, not v=/ca= syntax"
+                f"--sti-timing {timing_tok}={val!r} must be a plain number, not v=/ca= syntax"
             )
         try:
             num = float(val)
         except ValueError as exc:
             raise ValueError(
-                f"--sti-timing {key}={val!r} is not a number"
+                f"--sti-timing {timing_tok}={val!r} is not a number"
             ) from exc
-        out[key] = {branch: num}
+        out[timing_tok] = {branch: num}
     return out
 
 
@@ -574,13 +572,13 @@ def _resolve_sti_timing_literals() -> dict:
     from task.spot.sti_spec import _merge_filter_branch_ms
 
     so: dict = {}
-    for key in STI_TIMING_KEYS:
-        if key in ("delta_ms", "delta_ms_pre"):
-            val = NEURON_PARAM[key]
+    for timing_tok in STI_TIMING_TOKENS:
+        if timing_tok in ("delta_ms", "delta_ms_pre"):
+            val = NEURON_PARAM[timing_tok]
         else:
-            val = STI_TIMING.get(key)
+            val = STI_TIMING.get(timing_tok)
         if val is not None:
-            _merge_filter_branch_ms(so, key, val)
+            _merge_filter_branch_ms(so, timing_tok, val)
     return so
 
 
@@ -590,8 +588,8 @@ def resolve_train_sti_timing(filter: str, tokens) -> dict:
 
     so = _resolve_sti_timing_literals()
     if tokens:
-        for key, val in parse_sti_timing_tokens(tokens, filter=filter).items():
-            _merge_filter_branch_ms(so, key, val)
+        for timing_tok, val in parse_sti_timing_tokens(tokens, filter=filter).items():
+            _merge_filter_branch_ms(so, timing_tok, val)
     return so
 
 
@@ -605,7 +603,7 @@ def add_sti_timing_arguments(parser):
         metavar="KEY=MS",
         help=(
             "sti length KEY=MS tokens (space-separated). "
-            f"Keys: {', '.join(STI_TIMING_KEYS)}. "
+            f"Tokens: {', '.join(STI_TIMING_TOKENS)}. "
             "Plain numbers only; updates the current --filter branch (v or ca). "
             "Train: omit → default_params; plot/analyze: omit → keep run"
         ),
@@ -625,7 +623,7 @@ def override_train_opts_timing(
     """Merge timing into train-opts spot/bar sti dicts.
 
     Spot opts go through :func:`task.spot.sti_spec.override_sti_timing`
-    (normalize + drop derived ``t_onset``/``n_t``). Returns timing keys that
+    (normalize + drop derived ``t_onset``/``n_t``). Returns timing tokens that
     changed on spot opts (for filename suffixes); bar-only ``ms_pre`` /
     ``delta_ms`` / ``delta_ms_pre`` changes are included when no spot opts
     are present.
@@ -633,8 +631,8 @@ def override_train_opts_timing(
     from task.spot.sti_spec import override_sti_timing
 
     changed = {}
-    for key in ("spot_bright_sti_opts", "spot_dark_sti_opts"):
-        so = opts.get(key)
+    for sti_opts_tok in ("spot_bright_sti_opts", "spot_dark_sti_opts"):
+        so = opts.get(sti_opts_tok)
         if so is None:
             continue
         changed = override_sti_timing(
@@ -647,11 +645,11 @@ def override_train_opts_timing(
             delta_ms_pre=delta_ms_pre,
         )
     if ms_pre is not None or delta_ms is not None or delta_ms_pre is not None:
-        for key in (
+        for sti_opts_tok in (
             "moving_bar_bright_sti_opts",
             "moving_bar_dark_sti_opts",
         ):
-            so = opts.get(key)
+            so = opts.get(sti_opts_tok)
             if so is None:
                 continue
             changed_bar = override_sti_timing(
@@ -673,7 +671,7 @@ def override_train_opts_timing(
 def resolve_sti_timing_kwargs(args, *, filter=None):
     """Map ``--sti-timing`` to kwargs for :func:`figure.plot.maybe_override_sti_timing`."""
     tokens = getattr(args, "sti_timing", None)
-    empty = {key: None for key in STI_TIMING_KEYS}
+    empty = {timing_tok: None for timing_tok in STI_TIMING_TOKENS}
     if not tokens:
         return empty
     if filter is None:
@@ -681,7 +679,7 @@ def resolve_sti_timing_kwargs(args, *, filter=None):
     if filter is None:
         filter = NEURON_FILTER['filter']
     sti_timing = parse_sti_timing_tokens(tokens, filter=filter)
-    return {key: sti_timing.get(key) for key in STI_TIMING_KEYS}
+    return {timing_tok: sti_timing.get(timing_tok) for timing_tok in STI_TIMING_TOKENS}
 
 
 def parse_kv_tokens(tokens, cast=str):
@@ -738,7 +736,7 @@ def resolve_gt(tokens):
 def resolve_part_cost_scales(tokens, tasks):
     """Parse ``--part-cost-scale``: bare alias exclusive, ``NAME=VALUE`` merge.
 
-    Bare tokens (aliases or concrete part keys) zero every cost part for
+    Bare tokens (aliases or concrete part_keys) zero every cost part for
     ``tasks``, then set those names to ``1``. Explicit ``NAME=VALUE``
     always applied last (merge onto defaults / exclusive map). Empty → ``{}``
     (runtime default scale 1).
@@ -755,7 +753,7 @@ def resolve_part_cost_scales(tokens, tasks):
             bare.append(tok.strip())
     scales: dict[str, float] = {}
     if bare:
-        scales = {key: 0.0 for key in train.session_cost_part_keys(tasks)}
+        scales = {part_key: 0.0 for part_key in train.session_cost_part_keys(tasks)}
         scales.update(train.expand_part_cost_scale_dict({name: 1.0 for name in bare}))
     scales.update(train.expand_part_cost_scale_dict(explicit))
     return scales
@@ -841,7 +839,6 @@ def resolve_train_kwargs(
                 scales_radius1=SPOT_PACK['spot_cost_radius_scale_radius1'],
             ),
             spot_cost_radii=SPOT_PACK['spot_cost_radii'],
-            aliases=SPOT_PACK['spot_cost_radius_key_aliases'],
         )
     else:
         spot_cost_radius_scale = None
@@ -865,15 +862,13 @@ def resolve_train_kwargs(
     spot_dark_sti_opts = dict(_timing)
     if float(args.cost_interval_ms) <= 0:
         raise ValueError("--cost-interval-ms must be > 0")
-    cost_ms_parsed = parse_cost_ms_tokens(
-        args.cost_ms, aliases=SPOT_PACK['spot_cost_radius_key_aliases'],
-    )
+    cost_ms_parsed = parse_cost_ms_tokens(args.cost_ms)
     if cost_ms_parsed is None:
         cost_ms_raw = dict(TRAIN_OPTIMIZATION['cost_ms'])
     else:
         cost_ms_raw = cost_ms_parsed
     cost_ms = {
-        str(float(k)): [
+        str(int(k)): [
             x
             if isinstance(x, dict) and set(x) and set(x) <= {"v", "ca"}
             else float(x)

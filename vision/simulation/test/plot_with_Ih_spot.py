@@ -49,16 +49,16 @@ def _network_spot_trace_readout(
     session,
     z,
     *,
-    at_x_list=None,
-    at_y_list=None,
+    at_xs=None,
+    at_ys=None,
     save_trace_csv_dir=None,
     trace_kind="model",
     show_pre=True,
 ):
     """Backfill missing plot.spot entrypoint without modifying core code."""
     t0 = time.perf_counter()
-    at_x = at_x_list[0] if at_x_list else None
-    at_y = at_y_list[0] if at_y_list else None
+    at_x = at_xs[0] if at_xs else None
+    at_y = at_ys[0] if at_ys else None
     rows = spot_plot._spot_forward_rows(
         session,
         z,
@@ -70,12 +70,12 @@ def _network_spot_trace_readout(
     )
     cells, group_rows, mt = spot_plot._spot_rt_from_rows(rows, session)
     slice_overlay = slice_labels = None
-    if at_x_list is not None or at_y_list is not None:
+    if at_xs is not None or at_ys is not None:
         slice_overlay, slice_labels = spot_plot._spot_slice_overlay(
             rows,
             rows["batches"],
-            at_x_list,
-            at_y_list,
+            at_xs,
+            at_ys,
         )
     return spot_plot.SpotTraceReadout(
         cells=cells,
@@ -83,8 +83,8 @@ def _network_spot_trace_readout(
         session=session,
         slice_overlay=slice_overlay,
         slice_labels=slice_labels,
-        slice_x_list=at_x_list,
-        slice_y_list=at_y_list,
+        slice_xs=at_xs,
+        slice_ys=at_ys,
         n_t=mt,
         prep_s=time.perf_counter() - t0,
         v_th_by_cell=spot_plot.v_th_by_cell(z, session),

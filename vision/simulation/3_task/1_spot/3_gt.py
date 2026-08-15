@@ -14,11 +14,9 @@ samples in :data:`RF_SCALE` and LP ``IR_lp_ms`` (``IR_hp_ms=0``).
 ``filter=\"ca\"``: same :data:`RF_SCALE` (unsigned; no ``RF_SIGN`` on rf);
 ir from :func:`load_ir_arenz` when a CSV row exists.
 
-:data:`RF_SCALE` holds peak-normalized unsigned samples at Euclidean radii
+:data:`RF_SCALE` holds peak-normalized unsigned samples at hex-lattice radii
 ``0 .. RF_N_RADII-1`` (center = +1). Assembled gt is ``rf(r) × ir(t)`` per
-cell, shape ``(RF_N_RADII, n_t)``. Fractional cost radii interpolate
-:data:`RF_SCALE`.
-
+cell, shape ``(RF_N_RADII, n_t)``.
 Cost GT membership is gated by ``spot_gt_mode`` (``all`` | ``positive``) via
 :func:`spot_gt_active` (still uses :data:`RF_SIGN`); waveform ×
 :func:`contrast_sign` only (dark = −1). Sti drive is
@@ -88,7 +86,7 @@ def expand_gt_cells(cells: Sequence[str]) -> Tuple[str, ...]:
     return tuple(out)
 
 
-# rf axis: Euclidean hex radius r → visual-field deg = r * RF_RADIUS_DEG.
+# rf axis: hex-lattice radius r → visual-field deg = r * RF_RADIUS_DEG.
 RF_CENTER_RADIUS = 0
 RF_N_RADII = 5
 RF_RADIUS_DEG = 5.0
@@ -282,7 +280,7 @@ def t_delay_from_ir(
     if str(filter) == "ca":
         return np.zeros(n, dtype=np.int64)
     return np.asarray(
-        [round(float(IR_delay_ms[c]) / float(delta_ms)) for c in GT_CELLS],
+        [round(float(IR_delay_ms[cell]) / float(delta_ms)) for cell in GT_CELLS],
         dtype=np.int64,
     )
 
@@ -455,28 +453,18 @@ def load_gt_dark(
     )
 
 
-def _rf_at(rf: np.ndarray, radius: float) -> float:
-    x = float(radius)
-    if x <= 0.0:
-        return float(rf[0])
-    if x >= RF_N_RADII - 1:
-        return float(rf[RF_N_RADII - 1])
-    i0 = int(np.floor(x))
-    i1 = min(i0 + 1, RF_N_RADII - 1)
-    frac = x - i0
-    return float((1.0 - frac) * rf[i0] + frac * rf[i1])
-
-
 def _spot_readout_a_radius(
     rf: np.ndarray,
-    radius: float,
+    radius: int,
     spot_radius: float,
 ) -> float:
-    """rf ``a_radius`` at Euclidean ``radius`` (radius-1 folds r=2 into r=1)."""
-    r = round(float(radius), 6)
+    """rf ``a_radius`` at hex-lattice ``radius`` (radius-1 folds r=2 into r=1)."""
+    r = int(radius)
+    if r < 0 or r >= RF_N_RADII:
+        raise ValueError(f"spot rf radius out of range: {radius!r}")
     if spot_radius_folds_r2_into_r1(spot_radius):
-        if r == 1.0:
-            return _rf_at(rf, 1.0) + _rf_at(rf, 2.0)
-        if r == 2.0:
+        if r == 1:
+            return float(rf[1]) + float(rf[2])
+        if r == 2:
             return 0.0
-    return _rf_at(rf, radius)
+    return float(rf[r])

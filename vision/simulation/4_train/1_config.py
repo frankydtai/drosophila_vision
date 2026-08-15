@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""Train vocabulary: task names, cost-part keys, CLI aliases, and run paths.
+"""Train vocabulary: task names, cost part_keys, CLI aliases, and run paths.
 
 Pure data + parsing (no torch engine, no session objects), so
 :mod:`train.param`, :mod:`train.session`, and :mod:`train.cost` can import it
@@ -45,10 +45,10 @@ SPOT_TASKS = ("spot_bright", "spot_dark")
 MOVING_BAR_TASKS = ("moving_bar_bright", "moving_bar_dark")
 VALID_TASKS = SPOT_TASKS + MOVING_BAR_TASKS
 
-_SPOT_BASELINE_KEY = "i_baseline_spot"
-_MOVING_BAR_BASELINE_KEY = "i_baseline_moving_bar"
-_SPOT_I_KEY = {"bright": "i_bright_spot", "dark": "i_dark_spot"}
-_MOVING_BAR_I_KEY = {"bright": "i_bright_moving_bar", "dark": "i_dark_moving_bar"}
+_SPOT_I_BASELINE = "i_baseline_spot"
+_MOVING_BAR_I_BASELINE = "i_baseline_moving_bar"
+_SPOT_I_PEAK = {"bright": "i_bright_spot", "dark": "i_dark_spot"}
+_MOVING_BAR_I_PEAK = {"bright": "i_bright_moving_bar", "dark": "i_dark_moving_bar"}
 
 PD_ND_LABELS = ("PD", "ND")
 PD_IDX, ND_IDX = 0, 1
@@ -70,11 +70,11 @@ SPOT_GT_MODES = ("all", "pos")
 # t=0 membrane pre steady (``--pre-steady``); not param init.
 
 
-def _expand_choice(name, allowed: Tuple[str, ...], *, flag: str) -> str:
-    key = str(name).strip()
-    if key not in allowed:
-        raise ValueError(f"{flag} must be one of {allowed}; got {key!r}")
-    return key
+def _expand_choice(tok, allowed: Tuple[str, ...], *, flag: str) -> str:
+    tok = str(tok).strip()
+    if tok not in allowed:
+        raise ValueError(f"{flag} must be one of {allowed}; got {tok!r}")
+    return tok
 
 
 def expand_cost_norm(name) -> str:
@@ -102,13 +102,13 @@ TASK_ALIASES = {
     "moving_bar": MOVING_BAR_TASKS,
 }
 CLI_TASK_NAMES = VALID_TASKS + tuple(TASK_ALIASES.keys())
-I_STI_KEYS = ("bright", "baseline", "dark")
+I_STI_TOKENS = ("bright", "baseline", "dark")
 I_STI_PARADIGMS = ("spot", "moving_bar")
-TASK_I_FIELDS = {
-    "spot_bright": frozenset({_SPOT_BASELINE_KEY, "i_bright_spot"}),
-    "spot_dark": frozenset({_SPOT_BASELINE_KEY, "i_dark_spot"}),
-    "moving_bar_bright": frozenset({_MOVING_BAR_BASELINE_KEY, "i_bright_moving_bar"}),
-    "moving_bar_dark": frozenset({_MOVING_BAR_BASELINE_KEY, "i_dark_moving_bar"}),
+TASK_I_OPTS = {
+    "spot_bright": frozenset({_SPOT_I_BASELINE, "i_bright_spot"}),
+    "spot_dark": frozenset({_SPOT_I_BASELINE, "i_dark_spot"}),
+    "moving_bar_bright": frozenset({_MOVING_BAR_I_BASELINE, "i_bright_moving_bar"}),
+    "moving_bar_dark": frozenset({_MOVING_BAR_I_BASELINE, "i_dark_moving_bar"}),
 }
 PART_COST_SCALE_ALIASES = {
     "spot": SPOT_TASKS,
@@ -131,9 +131,7 @@ def moving_bar_cost_part_key(task: str, part: str) -> str:
 
 def spot_cost_part_key(task: str, cell: str, radius) -> str:
     """Fine spot part: ``{task}_{cell}_r{radius}`` (only radii with cost readout)."""
-    r = float(radius)
-    r_s = str(int(r)) if r == int(r) else str(r)
-    return f"{task}_{cell}_r{r_s}"
+    return f"{task}_{cell}_r{int(radius)}"
 
 
 def moving_bar_cell_cost_part_key(task: str, cell: str, part: str) -> str:
@@ -142,7 +140,7 @@ def moving_bar_cell_cost_part_key(task: str, cell: str, part: str) -> str:
 
 
 def cost_part_keys_for_task(task: str) -> Tuple[str, ...]:
-    """Coarse keys for CLI ``--part-cost-scale`` (before packs exist)."""
+    """Coarse part_keys for CLI ``--part-cost-scale`` (before packs exist)."""
     if task in MOVING_BAR_TASKS:
         return tuple(
             moving_bar_cost_part_key(task, lab)
@@ -152,7 +150,7 @@ def cost_part_keys_for_task(task: str) -> Tuple[str, ...]:
 
 
 def cost_part_keys_for_pack(pack, backend) -> Tuple[str, ...]:
-    """Fine keys from pack entries with ``cost_scales > 0`` (+ pack-level DSI)."""
+    """Fine part_keys from pack entries with ``cost_scales > 0`` (+ pack-level DSI)."""
     net = backend.network
     if net is None:
         raise ValueError("cost_part_keys_for_pack requires backend.network")
@@ -160,13 +158,13 @@ def cost_part_keys_for_pack(pack, backend) -> Tuple[str, ...]:
     entry_mask = w > 0
     cell_ids = net.node_cells[pack.entry_nodes]
     cells = net.cells
-    keys: List[str] = []
+    part_keys: List[str] = []
     seen = set()
 
-    def _add(key: str) -> None:
-        if key not in seen:
-            seen.add(key)
-            keys.append(key)
+    def _add(part_key: str) -> None:
+        if part_key not in seen:
+            seen.add(part_key)
+            part_keys.append(part_key)
 
     if pack.task in MOVING_BAR_TASKS:
         pd_nd = pack.cost_pd_nds
@@ -182,38 +180,38 @@ def cost_part_keys_for_pack(pack, backend) -> Tuple[str, ...]:
             and int(pack.dsi_pos_ptr.numel()) > 1
         ):
             _add(moving_bar_cost_part_key(pack.task, "DSI"))
-        return tuple(keys)
+        return tuple(part_keys)
 
     if pack.entry_radii is None or not bool(entry_mask.any()):
-        return tuple(keys)
+        return tuple(part_keys)
     radii = pack.entry_radii
     for i in range(int(pack.entry_nodes.shape[0])):
         if not bool(entry_mask[i]):
             continue
         cell = str(cells[int(cell_ids[i].item())])
-        _add(spot_cost_part_key(pack.task, cell, float(radii[i].item())))
-    return tuple(keys)
+        _add(spot_cost_part_key(pack.task, cell, int(radii[i].item())))
+    return tuple(part_keys)
 
 
 def session_cost_part_keys(tasks, session=None) -> Tuple[str, ...]:
-    """Cost-part keys for ``tasks``.
+    """Cost part_keys for ``tasks``.
 
-    With ``session``, discover fine per-cell keys from packs; otherwise
-    return coarse CLI keys (``spot_bright``, ``moving_bar_*_PD``, …).
+    With ``session``, discover fine per-cell part_keys from packs; otherwise
+    return coarse CLI part_keys (``spot_bright``, ``moving_bar_*_PD``, …).
     """
     if session is not None:
-        keys: List[str] = []
+        part_keys: List[str] = []
         for task in session.tasks:
-            keys.extend(cost_part_keys_for_pack(session.pack_for(task), session.backend))
-        return tuple(keys)
-    keys = []
+            part_keys.extend(cost_part_keys_for_pack(session.pack_for(task), session.backend))
+        return tuple(part_keys)
+    part_keys = []
     for task in tasks:
-        keys.extend(cost_part_keys_for_task(task))
-    return tuple(keys)
+        part_keys.extend(cost_part_keys_for_task(task))
+    return tuple(part_keys)
 
 
-def coarse_scale_keys_for_part(part_key: str) -> Tuple[str, ...]:
-    """Parent coarse keys a fine part inherits ``part_cost_scales`` from."""
+def coarse_part_keys_for_part(part_key: str) -> Tuple[str, ...]:
+    """Parent coarse part_keys a fine part inherits ``part_cost_scales`` from."""
     for lab in (*PD_ND_LABELS, "DSI"):
         suf = f"_{lab}"
         if not part_key.endswith(suf):
@@ -244,21 +242,21 @@ def _expand_alias_dict(kv: Optional[dict], aliases: dict, map_value) -> dict:
     if not kv:
         return {}
     out = {}
-    for key, val in kv.items():
-        targets = aliases[key] if key in aliases else (str(key),)
+    for tok, val in kv.items():
+        targets = aliases[tok] if tok in aliases else (str(tok),)
         for t in targets:
             out[t] = map_value(val)
     return out
 
 
 def expand_cost_radius_dict(kv: Optional[dict]) -> Dict[str, int]:
-    """Expand ``--cost-radius`` ``TASK_ALIASES`` keys."""
+    """Expand ``--cost-radius`` ``TASK_ALIASES`` tokens."""
     return _expand_alias_dict(kv, TASK_ALIASES, int)
 
 
 def expand_gt_dict(kv: Optional[dict]) -> Dict[str, List[str]]:
-    """Expand ``--gt`` ``TASK_ALIASES`` keys; values are cell-token lists."""
-    return _expand_alias_dict(kv, TASK_ALIASES, lambda cells: [str(c) for c in cells])
+    """Expand ``--gt`` ``TASK_ALIASES`` tokens; values are cell-token lists."""
+    return _expand_alias_dict(kv, TASK_ALIASES, lambda cells: [str(cell) for cell in cells])
 
 
 def resolve_cost_radius_by_task(tasks, bare_cost_radius, by_task_kv) -> Dict[str, int]:
@@ -280,7 +278,7 @@ def resolve_cost_radius_by_task(tasks, bare_cost_radius, by_task_kv) -> Dict[str
 
 
 def expand_part_cost_scale_dict(scales: Optional[dict]) -> Dict[str, float]:
-    """Expand ``--part-cost-scale`` ``PART_COST_SCALE_ALIASES`` keys."""
+    """Expand ``--part-cost-scale`` ``PART_COST_SCALE_ALIASES`` tokens."""
     return _expand_alias_dict(scales, PART_COST_SCALE_ALIASES, float)
 
 

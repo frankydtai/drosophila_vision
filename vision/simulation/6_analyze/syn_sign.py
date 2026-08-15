@@ -36,26 +36,27 @@ import network.path  # noqa: F401
 import numpy as np
 import train
 import train.implementation as train_mod
-import figure.plot as plot_trained
-import figure.spot as spot_plot
+import figure.plot as plot
+import figure.spot as spot
 from figure.util import (
     N_COL_ALL,
     N_COL_GT,
     PANEL_H,
     PANEL_W,
-    PlotTimer,
+    ElapsedTimer,
     save_figure,
 )
 from network.connectivity import build_cell_pair_indices
 from network.construction import (
-    cell_plot_rows,
+    cell_rows,
     gt_cells_from_opts,
     active_gt_cells,
     load_network_json,
 )
 from default_params import RUN_PATH
 from task.spot.gt import GT_CELLS
-from task.spot.sti_geo import euclid_hex_dist
+from network import path  # noqa: F401 -- FAFBv783 on sys.path
+import build_hex
 
 from default_params import ANALYZE_SYN_SIGN
 
@@ -68,7 +69,7 @@ def _syn_strength_from_edges(edges, cells, syn_strength_cell, pairs):
     n_cells = len(cells)
     src_t = np.array([idx_from_cell[e["source_cell"]] for e in edges], dtype=np.int64)
     tar_t = np.array([idx_from_cell[e["target_cell"]] for e in edges], dtype=np.int64)
-    _, n_pairs, pair_keys = build_cell_pair_indices(src_t, tar_t, n_cells)
+    _, n_pairs, pairs = build_cell_pair_indices(src_t, tar_t, n_cells)
     syn = np.asarray(syn_strength_cell, dtype=np.float64).reshape(-1)
     if syn.shape[0] != n_pairs:
         raise SystemExit(
@@ -76,11 +77,11 @@ def _syn_strength_from_edges(edges, cells, syn_strength_cell, pairs):
         )
     if pairs is not None:
         expected = [
-            f"{cells[s]}{train.PAIR_SEP}{cells[t]}" for s, t in pair_keys
+            f"{cells[s]}{train.PAIR_SEP}{cells[t]}" for s, t in pairs
         ]
         if list(pairs) != expected:
             raise SystemExit("pairs in best_param.npz do not match network.json")
-    return {k: float(syn[i]) for i, k in enumerate(pair_keys)}, idx_from_cell
+    return {k: float(syn[i]) for i, k in enumerate(pairs)}, idx_from_cell
 
 
 def instance_syn_plus_by_id(
@@ -158,10 +159,10 @@ def _active_spot_gt_cells(opts, available):
 
 def _spot_bright_session_z(outdir):
     """Best ``z`` on ``spot_bright`` (or primary spot task)."""
-    session, z, _cost = plot_trained.load_best(outdir)
+    session, z, _cost = plot.load_best(outdir)
     tasks = list((session.train_opts or {}).get("tasks") or [])
     if "spot_bright" in tasks:
-        return plot_trained.session_for_task(session, "spot_bright"), z
+        return plot.session_for_task(session, "spot_bright"), z
     if not any(t.startswith("spot_") for t in tasks):
         raise SystemExit(f"run has no spot task (tasks={tasks})")
     return session, z
@@ -169,14 +170,14 @@ def _spot_bright_session_z(outdir):
 
 def load_delta_v_tables(session, z):
     """cell -> radius_k -> [(root_id, Δv)]; radii from pack cost radii."""
-    readout = spot_plot._forward_spot_readout(session, z)
+    readout = spot._forward_spot_readout(session, z)
     t_onset = readout.get("t_onset")
     t_sti_end = readout.get("t_sti_end")
     if t_onset is None or t_sti_end is None or int(t_sti_end) <= int(t_onset):
         raise SystemExit("spot timing missing t_onset / t_sti_end")
     t0 = int(t_onset)
     t1 = int(t_sti_end) - 1
-    traces = np.asarray(readout["plot_traces"], dtype=np.float64)
+    traces = np.asarray(readout["figure_traces"], dtype=np.float64)
     type_idx = np.asarray(readout["type_idx"], dtype=np.int64)
     node_idx = np.asarray(readout["node_idx"], dtype=np.int64)
     du = np.asarray(readout["du"], dtype=np.int64)
@@ -184,11 +185,11 @@ def load_delta_v_tables(session, z):
     cells = list(readout["cells"])
     root_ids = np.asarray(session.backend.network.node_ids, dtype=np.int64)[node_idx]
     radii = sorted({
-        int(round(float(r)))
-        for r in spot_plot.pack_spot_cost_radii(readout["pack"])
+        int(r)
+        for r in spot.pack_spot_cost_radii(readout["pack"])
     })
     r_k = np.asarray(
-        [int(round(euclid_hex_dist(int(a), int(b)))) for a, b in zip(du, dv)],
+        [int(build_hex.hex_radius(int(a), int(b))) for a, b in zip(du, dv)],
         dtype=np.int64,
     )
     delta = traces[:, t1] - traces[:, t0]
@@ -218,12 +219,12 @@ def plot_syn_sign(
     radii,
 ):
     """Draw hist + per-radius Δv plots for ``active`` cells."""
-    timer = PlotTimer()
+    timer = ElapsedTimer()
     timer.end_prep()
-    cell_plot_rows_list = cell_plot_rows(active)
+    rows = cell_rows(active)
     flow = "out of" if direction == "post" else "onto"
     n_sub = 1 + len(radii)
-    n_row = len(cell_plot_rows_list) * n_sub
+    n_row = len(rows) * n_sub
     fig = plt.figure(figsize=(panel_w * n_col, panel_h * n_row))
     gs = fig.add_gridspec(
         n_row, n_col,
@@ -235,14 +236,14 @@ def plot_syn_sign(
         fontsize=11,
     )
     legend_done = False
-    for gi, plot_row_cells in enumerate(cell_plot_rows_list):
+    for gi, row_cells in enumerate(rows):
         base = gi * n_sub
         for ci in range(n_col):
-            if ci >= len(plot_row_cells):
+            if ci >= len(row_cells):
                 for s in range(n_sub):
                     fig.add_subplot(gs[base + s, ci]).set_axis_off()
                 continue
-            cell = plot_row_cells[ci]
+            cell = row_cells[ci]
             pct_init_map = instance_syn_plus_by_id(
                 edges, cell, direction=direction,
                 idx_from_cell=idx_from_cell, strength_by_pair=None,
@@ -297,9 +298,9 @@ def plot_syn_sign(
     save_figure(fig, path, timer=timer)
 
 
-def save_syn_sign_plots(outdir, *, post=False, bins=SYN_SIGN_BINS) -> None:
+def save_syn_sign_figures(outdir, *, post=False, bins=SYN_SIGN_BINS) -> None:
     """Write ``pre_syn/syn_{gt,all}.png`` (or ``post_syn/`` when *post*)."""
-    opts = plot_trained.load_train_opts(outdir)
+    opts = plot.load_train_opts(outdir)
     if not opts:
         raise SystemExit(f"missing train_opts.json under {outdir}")
     if opts.get("model", "borst") not in ("borst", "hp_lp"):
@@ -334,7 +335,7 @@ def save_syn_sign_plots(outdir, *, post=False, bins=SYN_SIGN_BINS) -> None:
     direction = "post" if post else "pre"
     syn_dir = os.path.join(outdir, "post_syn" if post else "pre_syn")
     os.makedirs(syn_dir, exist_ok=True)
-    plot_kw = dict(
+    figure_kw = dict(
         edges=edges,
         direction=direction,
         idx_from_cell=idx_from_cell,
@@ -348,13 +349,13 @@ def save_syn_sign_plots(outdir, *, post=False, bins=SYN_SIGN_BINS) -> None:
         os.path.join(syn_dir, "syn_gt.png"),
         active=_active_spot_gt_cells(opts, cells),
         n_col=N_COL_GT, panel_w=PANEL_W, panel_h=PANEL_H,
-        **plot_kw,
+        **figure_kw,
     )
     plot_syn_sign(
         os.path.join(syn_dir, "syn_all.png"),
         active=list(cells),
         n_col=N_COL_ALL, panel_w=PANEL_W, panel_h=PANEL_H,
-        **plot_kw,
+        **figure_kw,
     )
 
 
@@ -382,8 +383,8 @@ def main(argv: list[str] | None = None) -> int:
         help=f"histogram bins over [0, 100] (default: {SYN_SIGN_BINS})",
     )
     args = ap.parse_args(argv)
-    save_syn_sign_plots(
-        plot_trained.resolve_run_dir(args.run),
+    save_syn_sign_figures(
+        plot.resolve_run_dir(args.run),
         post=bool(args.post),
         bins=args.bins,
     )

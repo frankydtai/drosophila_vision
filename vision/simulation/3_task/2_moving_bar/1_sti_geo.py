@@ -306,10 +306,10 @@ def view_bounds(hexes: Sequence[Hex]) -> Tuple[float, float, float, float]:
     """Sti-view degree bounds from hex vertices."""
     if not hexes:
         return 0.0, 0.0, 0.0, 0.0
-    xmins = [float(c.hex_xy[:, 0].min()) for c in hexes]
-    ymins = [float(c.hex_xy[:, 1].min()) for c in hexes]
-    xmaxs = [float(c.hex_xy[:, 0].max()) for c in hexes]
-    ymaxs = [float(c.hex_xy[:, 1].max()) for c in hexes]
+    xmins = [float(hex.hex_xy[:, 0].min()) for hex in hexes]
+    ymins = [float(hex.hex_xy[:, 1].min()) for hex in hexes]
+    xmaxs = [float(hex.hex_xy[:, 0].max()) for hex in hexes]
+    ymaxs = [float(hex.hex_xy[:, 1].max()) for hex in hexes]
     return min(xmins), min(ymins), max(xmaxs), max(ymaxs)
 
 
@@ -345,7 +345,7 @@ def moving_bar_cost_hexes(connectome, cost_radius=None) -> List[StiHex]:
     hexes = sti_hexes(connectome)
     if cost_radius is None:
         return hexes
-    return [c for c in hexes if hex_in_cost_radius(c.u, c.v, cost_radius)]
+    return [hex for hex in hexes if hex_in_cost_radius(hex.u, hex.v, cost_radius)]
 
 
 def _as_int64_np(x) -> np.ndarray:

@@ -53,7 +53,7 @@ import import_bootstrap  # noqa: F401
 import numpy as np
 import torch
 
-import figure.plot as plot_trained
+import figure.plot as plot
 import train
 from analyze.cell_dynamics import TimeWindow, analyze_spot_average
 from import_bootstrap import parse_comma_list
@@ -298,13 +298,13 @@ def _resolve_baseline_ms_shown(
 
 def _resolve_windows(args, ms_pre, ms_sti, ms_response):
     if args.ms_shown is not None:
-        analyze = plot_trained.parse_ms_shown_range(args.ms_shown, flag="--ms-shown")
+        analyze = plot.parse_ms_shown_range(args.ms_shown, flag="--ms-shown")
     else:
         analyze = _resolve_ms_shown(args.check, ms_pre, ms_sti, ms_response)
 
     need_baseline = args.check in (CHECK_FLAT, CHECK_STABILITY)
     if args.baseline_ms_shown is not None:
-        baseline = plot_trained.parse_ms_shown_range(
+        baseline = plot.parse_ms_shown_range(
             args.baseline_ms_shown, flag="--baseline-ms-shown",
         )
     elif need_baseline:
@@ -369,13 +369,13 @@ def _trace_series(rep: dict) -> np.ndarray:
 
 def _load_reports(args):
     """Shared run load + one ``analyze_spot_average`` forward."""
-    run_dir = plot_trained.resolve_run_dir(args.run)
-    session, z, _best_cost = plot_trained.load_best(run_dir)
-    train_opts = plot_trained.load_train_opts(run_dir) or {}
+    run_dir = plot.resolve_run_dir(args.run)
+    session, z, _best_cost = plot.load_best(run_dir)
+    train_opts = plot.load_train_opts(run_dir) or {}
     train_filter = train.expand_filter(train_opts.get("filter", "none"))
     eff_filter = args.filter if args.filter is not None else train_filter
     timing_kw = resolve_sti_timing_kwargs(args, filter=eff_filter)
-    session, z, _timing_changed = plot_trained.maybe_override_sti_timing(
+    session, z, _timing_changed = plot.maybe_override_sti_timing(
         run_dir=run_dir,
         session=session,
         z=z,
@@ -386,8 +386,8 @@ def _load_reports(args):
         np.asarray(z, dtype=np.float64), dtype=torch.float64, device=session.device,
     )
     schema = list(session.schema)
-    param_inits = plot_trained.parse_optimizable_param_tokens(args.param)
-    z_t, schema = plot_trained.override_params(z_t, schema, session, param_inits)
+    param_inits = plot.parse_optimizable_param_tokens(args.param)
+    z_t, schema = plot.override_params(z_t, schema, session, param_inits)
     session = session.with_schema(schema)
     params = train.override_val_from(
         train.assign_params(z_t, schema, session.backend), session,
@@ -400,7 +400,7 @@ def _load_reports(args):
     else:
         cells = parse_comma_list(args.cells)
 
-    sess_one = plot_trained.session_for_task(session, args.task)
+    sess_one = plot.session_for_task(session, args.task)
     delta_ms = float(sess_one.delta_ms)
     opts = dict(
         (sess_one.train_opts or {}).get(f"{sess_one.primary_pack.task}_sti_opts")
@@ -649,7 +649,7 @@ def main() -> None:
         default="all",
         help="comma-separated cells or all (default: param.csv)",
     )
-    plot_trained.add_ms_shown_argument(ap)
+    plot.add_ms_shown_argument(ap)
     ap.add_argument(
         "--baseline-ms-shown",
         default=None,
@@ -659,9 +659,9 @@ def main() -> None:
             "default: [start-baseline_ms, start] if start>0 else [0, baseline_ms]"
         ),
     )
-    plot_trained.add_plot_timing_arguments(ap)
-    plot_trained.add_plot_filter_argument(ap)
-    plot_trained.add_param_argument(ap)
+    plot.add_figure_timing_arguments(ap)
+    plot.add_figure_filter_argument(ap)
+    plot.add_param_argument(ap)
     ap.add_argument("--task", default="spot_bright")
     ap.add_argument("--radius", type=int, default=0, choices=(0, 1))
     ap.add_argument(

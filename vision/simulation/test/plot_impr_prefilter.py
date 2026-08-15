@@ -34,7 +34,7 @@ from default_params import GT_AMP
 from task.spot.gt import (
     _bandpass,
     _lowpass,
-    cell_list,
+    GT_CELLS,
     normalize_gt,
     read_RecF_ImpR,
 )
@@ -105,7 +105,7 @@ def _first_change(tr: np.ndarray) -> int | None:
 def _plot(
     with_lp, without_lp, u, s_lp, *, t_on, dt_ms, ms_pulse, prefilter_ms, save, show,
 ):
-    active = [str(n) for n in cell_list]
+    active = [str(n) for n in GT_CELLS]
     groups = [np.array(row) for row in cell_order_rows(active)]
     names = cell_names_in_order(active)
     nrows = len(groups)
@@ -115,11 +115,11 @@ def _plot(
     ax_pr = fig.add_subplot(gs[0, :])
     axes = np.empty((nrows, ncols), dtype=object)
     for r in range(nrows):
-        for c in range(ncols):
-            axes[r][c] = fig.add_subplot(gs[r + 1, c])
+        for col in range(ncols):
+            axes[r][col] = fig.add_subplot(gs[r + 1, col])
 
     t_s = np.arange(with_lp.shape[1]) * dt_ms / 1000.0
-    idx_from_cell = {str(n): i for i, n in enumerate(cell_list)}
+    idx_from_cell = {str(n): i for i, n in enumerate(GT_CELLS)}
     tau_t = t_from_ms(prefilter_ms, delta_ms=dt_ms)
 
     ax_pr.plot(t_s, u, color="0.25", lw=TRACE_LW, label=f"PR drive u ({U_BASELINE:g}/{U_PEAK:g})")
@@ -139,12 +139,12 @@ def _plot(
     ax_pr.legend(loc="upper right", fontsize=7, frameon=False)
 
     for r, group in enumerate(groups):
-        for c in range(ncols):
-            ax = axes[r][c]
-            if c >= len(group):
+        for col in range(ncols):
+            ax = axes[r][col]
+            if col >= len(group):
                 ax.axis("off")
                 continue
-            name = str(group[c])
+            name = str(group[col])
             i = idx_from_cell[name]
             w = with_lp[i]
             wo = without_lp[i]
@@ -164,7 +164,7 @@ def _plot(
             ax.axvline(t_on * dt_ms / 1000.0, color="0.85", lw=0.6, ls="--")
             if r == nrows - 1:
                 ax.set_xlabel("t (s)", fontsize=8)
-            if c == 0:
+            if col == 0:
                 ax.set_ylabel("Ca gt", fontsize=8)
             ax.tick_params(labelsize=7)
 

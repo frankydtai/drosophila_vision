@@ -33,7 +33,7 @@ from task.spot.gt import (
 )
 from task.spot.sti_geo import (
     SpotBatch,
-    members_by_euclid_radius,
+    members_by_radius,
     resolve_spot,
     spot_radius_folds_r2_into_r1,
     spot_sti_batches,
@@ -45,20 +45,28 @@ from task.spot.sti_spec import (
 
 # Spot paradigm contrasts (distinct from the task NAMES in train.config).
 SPOT_CONTRASTS = frozenset({"bright", "dark"})
-_SPOT_BASELINE_KEY = "i_baseline_spot"
-_SPOT_I_KEY = {"bright": "i_bright_spot", "dark": "i_dark_spot"}
+_SPOT_I_BASELINE = "i_baseline_spot"
+_SPOT_I_PEAK = {"bright": "i_bright_spot", "dark": "i_dark_spot"}
 
 
 # -- Cost-radius scales ------------------------------------------------------
 
 
-def normalize_spot_cost_radius_key(key, *, aliases: Dict[str, float]) -> float:
-    if isinstance(key, (int, float)):
-        return round(float(key), 6)
-    text = str(key).strip().lower()
-    if text in aliases:
-        return round(float(aliases[text]), 6)
-    return round(float(text), 6)
+def normalize_spot_cost_radius(radius) -> int:
+    """Parse a spot cost / drive radius to an int hex-lattice radius."""
+    if isinstance(radius, bool):
+        raise ValueError(f"invalid spot cost radius {radius!r}")
+    if isinstance(radius, int):
+        return int(radius)
+    if isinstance(radius, float):
+        if not float(radius).is_integer():
+            raise ValueError(f"spot cost radius must be an int, got {radius!r}")
+        return int(radius)
+    text = str(radius).strip()
+    try:
+        return int(text, 10)
+    except ValueError as exc:
+        raise ValueError(f"spot cost radius must be an int, got {radius!r}") from exc
 
 
 def parse_spot_cost_radius_scale_value(text: str) -> float:
@@ -73,14 +81,13 @@ def expand_spot_cost_r_s_dict(
     kv: Optional[dict] = None,
     *,
     sti_opts: Optional[dict] = None,
-    aliases: Dict[str, float],
-) -> Optional[Dict[float, float]]:
+) -> Optional[Dict[int, float]]:
     if sti_opts is not None:
         kv = (sti_opts or {}).get("spot_cost_radius_scale")
     if not kv:
         return None
     return {
-        normalize_spot_cost_radius_key(k, aliases=aliases): parse_spot_cost_radius_scale_value(v)
+        normalize_spot_cost_radius(k): parse_spot_cost_radius_scale_value(v)
         for k, v in kv.items()
     }
 
@@ -88,15 +95,14 @@ def expand_spot_cost_r_s_dict(
 def expand_cost_ms_dict(
     *,
     cost_ms: Optional[dict] = None,
-    aliases: Dict[str, float],
-) -> Dict[float, Tuple[float, ...]]:
+) -> Dict[int, Tuple[float, ...]]:
     """Radius → explicit post-onset ms; empty when unset."""
     kv = cost_ms
     if not kv:
         return {}
-    out: Dict[float, Tuple[float, ...]] = {}
+    out: Dict[int, Tuple[float, ...]] = {}
     for k, v in kv.items():
-        r = normalize_spot_cost_radius_key(k, aliases=aliases)
+        r = normalize_spot_cost_radius(k)
         vals = parse_comma_list(v) if isinstance(v, str) else list(v)
         if not vals:
             raise ValueError(f"cost_ms[{k!r}] must list at least one ms")
@@ -106,34 +112,30 @@ def expand_cost_ms_dict(
 
 def parse_cost_ms_tokens(
     tokens: Optional[Sequence[str]],
-    *,
-    aliases: Dict[str, float],
-) -> Optional[Dict[float, Tuple[float, ...]]]:
+) -> Optional[Dict[int, Tuple[float, ...]]]:
     """Parse ``--cost-ms``: ``none``/``off`` → ``{}``; else ``R=MS,...``. Omit → ``None``."""
     if tokens is None:
         return None
     if len(tokens) == 1 and str(tokens[0]).strip().lower() in ("none", "off"):
         return {}
-    out: Dict[float, Tuple[float, ...]] = {}
+    out: Dict[int, Tuple[float, ...]] = {}
     for tok in tokens:
         if "=" not in tok:
             raise ValueError(f"expected R=MS,... or none|off, got {tok!r}")
-        key, val = tok.split("=", 1)
+        radius, val = tok.split("=", 1)
         vals = parse_comma_list(val)
         if not vals:
-            raise ValueError(f"--cost-ms {key}=... must list at least one ms")
-        out[normalize_spot_cost_radius_key(key, aliases=aliases)] = tuple(
-            float(x) for x in vals
-        )
+            raise ValueError(f"--cost-ms {radius}=... must list at least one ms")
+        out[normalize_spot_cost_radius(radius)] = tuple(float(x) for x in vals)
     return out
 
 
 def resolve_spot_cost_radius_scale_defaults(
     spot_radius: float,
     *,
-    scales: Dict[float, float],
-    scales_radius1: Dict[float, float],
-) -> Dict[float, float]:
+    scales: Dict[int, float],
+    scales_radius1: Dict[int, float],
+) -> Dict[int, float]:
     """Cost-radius scales for ``spot_radius`` (radius-1 folds r=2 into r=1)."""
     if spot_radius_folds_r2_into_r1(spot_radius):
         return dict(scales_radius1)
@@ -143,25 +145,24 @@ def resolve_spot_cost_radius_scale_defaults(
 def resolve_spot_cost_radius_scale(
     tokens: Optional[Sequence[str]],
     *,
-    cost_radius_scales: Dict[float, float],
-    spot_cost_radii: Tuple[float, ...],
-    aliases: Dict[str, float],
-) -> Optional[Dict[float, float]]:
+    cost_radius_scales: Dict[int, float],
+    spot_cost_radii: Tuple[int, ...],
+) -> Optional[Dict[int, float]]:
     """Parse ``--spot-cost-r-s`` space-separated ``R`` / ``R=S`` tokens."""
     if not tokens:
         return None
-    bare: list[float] = []
-    explicit: Dict[float, float] = {}
+    bare: list[int] = []
+    explicit: Dict[int, float] = {}
     for tok in tokens:
         if "=" in tok:
-            key, val = tok.split("=", 1)
-            explicit[normalize_spot_cost_radius_key(key, aliases=aliases)] = (
+            radius, val = tok.split("=", 1)
+            explicit[normalize_spot_cost_radius(radius)] = (
                 parse_spot_cost_radius_scale_value(val)
             )
         else:
-            bare.append(normalize_spot_cost_radius_key(tok, aliases=aliases))
+            bare.append(normalize_spot_cost_radius(tok))
     if bare:
-        scales = {round(float(r), 6): 0.0 for r in spot_cost_radii}
+        scales = {int(r): 0.0 for r in spot_cost_radii}
         for r in bare:
             scales[r] = 1.0
     else:
@@ -171,35 +172,30 @@ def resolve_spot_cost_radius_scale(
 
 
 def resolve_spot_cost_radii(
-    spot_cost_radius_scale: Optional[Dict[float, float]] = None,
+    spot_cost_radius_scale: Optional[Dict[int, float]] = None,
     *,
-    cost_radius_scales: Dict[float, float],
-    spot_cost_radii: Tuple[float, ...],
+    cost_radius_scales: Dict[int, float],
+    spot_cost_radii: Tuple[int, ...],
     sti_opts: Optional[dict] = None,
-    aliases: Optional[Dict[str, float]] = None,
-) -> Tuple[float, ...]:
+) -> Tuple[int, ...]:
     if sti_opts is not None:
-        if aliases is None:
-            raise ValueError("resolve_spot_cost_radii with sti_opts requires aliases")
-        spot_cost_radius_scale = expand_spot_cost_r_s_dict(
-            sti_opts=sti_opts, aliases=aliases,
-        )
+        spot_cost_radius_scale = expand_spot_cost_r_s_dict(sti_opts=sti_opts)
     scales = (
         dict(cost_radius_scales)
         if spot_cost_radius_scale is None
         else spot_cost_radius_scale
     )
     return tuple(
-        radius for radius in spot_cost_radii
-        if float(scales.get(round(radius, 6), 0.0)) != 0.0
+        int(radius) for radius in spot_cost_radii
+        if float(scales.get(int(radius), 0.0)) != 0.0
     )
 
 
 def build_a_sti_radius_mask(
-    spot_cost_radius_scale: Optional[Dict[float, float]] = None,
+    spot_cost_radius_scale: Optional[Dict[int, float]] = None,
     *,
-    cost_radius_scales: Dict[float, float],
-    a_sti_radii: Tuple[float, ...],
+    cost_radius_scales: Dict[int, float],
+    a_sti_radii: Tuple[int, ...],
 ) -> Tuple[float, ...]:
     """Per ``a_sti_radii`` slot: ``1`` if cost-radius scale ≠ 0 else ``0``.
 
@@ -211,23 +207,23 @@ def build_a_sti_radius_mask(
         else spot_cost_radius_scale
     )
     return tuple(
-        0.0 if float(scales.get(round(float(r), 6), 0.0)) == 0.0 else 1.0
+        0.0 if float(scales.get(int(r), 0.0)) == 0.0 else 1.0
         for r in a_sti_radii
     )
 
 
 def spot_cost_node_scale(
-    radius: float,
-    spot_cost_radius_scale: Optional[Dict[float, float]],
+    radius: int,
+    spot_cost_radius_scale: Optional[Dict[int, float]],
     *,
-    cost_radius_scales: Dict[float, float],
+    cost_radius_scales: Dict[int, float],
 ) -> float:
     scales = (
         dict(cost_radius_scales)
         if spot_cost_radius_scale is None
         else spot_cost_radius_scale
     )
-    return float(scales.get(round(radius, 6), 0.0))
+    return float(scales.get(int(radius), 0.0))
 
 
 # -- Cost hexes / network readout --------------------------------------------
@@ -237,19 +233,19 @@ def spot_cost_hexes(
     batches: Sequence[SpotBatch],
     cost_radii,
     cost_radius,
-) -> List[Tuple[int, int, int, float, int, int]]:
-    """Cost readouts: ``(batch, mu, mv, radius_key, su, sv)`` per sti radius."""
-    by_radius = members_by_euclid_radius(cost_radii)
-    cost_hexes: List[Tuple[int, int, int, float, int, int]] = []
+) -> List[Tuple[int, int, int, int, int, int]]:
+    """Cost readouts: ``(batch, mu, mv, radius, su, sv)`` per sti radius."""
+    by_radius = members_by_radius(cost_radii)
+    cost_hexes: List[Tuple[int, int, int, int, int, int]] = []
     for b, batch in enumerate(batches):
         for su, sv in batch.sti_uv:
-            for radius_key, members in by_radius.items():
+            for radius, members in by_radius.items():
                 for du, dv in members:
                     mu, mv = su + du, sv + dv
                     if not hex_in_cost_radius(mu, mv, cost_radius):
                         continue
                     cost_hexes.append((
-                        b, int(mu), int(mv), float(radius_key), int(su), int(sv),
+                        b, int(mu), int(mv), int(radius), int(su), int(sv),
                     ))
     return cost_hexes
 
@@ -289,7 +285,7 @@ def build_spot_cost_readout(connectome, batches, cost_radii, cost_radius):
     return (
         np.asarray(batch_idx, dtype=np.int64),
         np.asarray(node_indices, dtype=np.int64),
-        np.asarray(radius, dtype=np.float64),
+        np.asarray(radius, dtype=np.int64),
         np.asarray(type_idx, dtype=np.int64),
         np.asarray(sti_u, dtype=np.int64),
         np.asarray(sti_v, dtype=np.int64),
@@ -311,7 +307,7 @@ def build_spot_center_readout(connectome, batches, cost_radii, cost_radius):
     return (
         np.asarray(batch_idx, dtype=np.int64),
         np.asarray(node_idx, dtype=np.int64),
-        np.asarray(radius, dtype=np.float64),
+        np.asarray(radius, dtype=np.int64),
         np.asarray(type_idx, dtype=np.int64),
         sti_u,
         sti_v,
@@ -327,7 +323,7 @@ class SpotGt:
     gts: torch.Tensor            # (n_cost, T')
     power: torch.Tensor           # scalar
     cost_scales: torch.Tensor     # (n_cost,)
-    entry_radii: torch.Tensor  # (n_cost,) Euclidean per entry
+    entry_radii: torch.Tensor  # (n_cost,) long hex-lattice radius per entry
     entry_batches: torch.Tensor   # (n_cost,) long
     entry_nodes: torch.Tensor    # (n_cost,) long
     entry_sti_us: torch.Tensor  # (n_cost,) long
@@ -351,11 +347,11 @@ def build_spot_gt(
     contrast: str,
     gt_amp: float,
     delta_ms: float,
-    cost_radius_scales: Dict[float, float],
-    spot_cost_radii: Tuple[float, ...],
+    cost_radius_scales: Dict[int, float],
+    spot_cost_radii: Tuple[int, ...],
     device: Optional[str] = None,
     cost_radius: Optional[int] = None,
-    spot_cost_radius_scale: Optional[Dict[float, float]] = None,
+    spot_cost_radius_scale: Optional[Dict[int, float]] = None,
     sim_dtype: torch.dtype,
     ms_sti: Optional[float] = None,
     ms_response: Optional[float] = None,
@@ -430,7 +426,7 @@ def build_spot_gt(
 
     cost_batch, cost_node, entry_radii_vals, cost_readout, cost_scales_vals = [], [], [], [], []
     cost_sti_us, cost_sti_vs = [], []
-    trace_cache: Dict[Tuple[float, int], np.ndarray] = {}
+    trace_cache: Dict[Tuple[int, int], np.ndarray] = {}
     for b, mu, mv, radius, su, sv in cost_hexes:
         w = spot_cost_node_scale(
             radius, spot_cost_radius_scale, cost_radius_scales=cost_radius_scales,
@@ -445,21 +441,21 @@ def build_spot_gt(
             rf_sign = int(RF_SIGN[gt_cell])
             if not spot_gt_active(spot_gt_mode, contrast, rf_sign):
                 continue
-            cache_key = (round(float(radius), 6), gt_idx)
-            if cache_key not in trace_cache:
-                a_radius = _spot_readout_a_radius(rf[gt_idx], radius, spot_radius)
+            cache_digest = (int(radius), gt_idx)
+            if cache_digest not in trace_cache:
+                a_radius = _spot_readout_a_radius(rf[gt_idx], int(radius), spot_radius)
                 trace = (
                     a_radius
                     * ir[gt_idx][resp]
                     * gt_amp
                     * float(contrast_sign(contrast))
                 )
-                trace_cache[cache_key] = trace
-            trace = trace_cache[cache_key]
+                trace_cache[cache_digest] = trace
+            trace = trace_cache[cache_digest]
             for node_idx in nodes:
                 cost_batch.append(b)
                 cost_node.append(int(node_idx))
-                entry_radii_vals.append(radius)
+                entry_radii_vals.append(int(radius))
                 cost_readout.append(trace)
                 cost_scales_vals.append(w)
                 cost_sti_us.append(int(su))
@@ -471,7 +467,7 @@ def build_spot_gt(
     gts = torch.tensor(np.asarray(cost_readout), dtype=sim_dtype, device=device)  # (n_cost,T')
     cost_scales = torch.tensor(np.asarray(cost_scales_vals), dtype=sim_dtype, device=device)
     entry_radii = torch.tensor(
-        np.asarray(entry_radii_vals), dtype=sim_dtype, device=device,
+        np.asarray(entry_radii_vals, dtype=np.int64), dtype=torch.long, device=device,
     )
     entry_batches = torch.tensor(np.asarray(cost_batch), dtype=torch.long, device=device)
     entry_nodes = torch.tensor(np.asarray(cost_node), dtype=torch.long, device=device)
@@ -542,10 +538,10 @@ def build_spot_sti_opts(
     """Sti step/spot sti opts for ``spot_{contrast}``."""
     if contrast not in SPOT_CONTRASTS:
         raise ValueError(f"spot contrast must be 'bright' or 'dark', got {contrast!r}")
-    peak_key = _SPOT_I_KEY[contrast]
+    i_peak = _SPOT_I_PEAK[contrast]
     opts = {
-        _SPOT_BASELINE_KEY: i_baseline_spot,
-        peak_key: i_spot,
+        _SPOT_I_BASELINE: i_baseline_spot,
+        i_peak: i_spot,
         "ms_pre": ms_pre,
         "ms_response": ms_response,
         "ms_post": ms_post,

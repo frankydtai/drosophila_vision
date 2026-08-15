@@ -42,7 +42,7 @@ from default_params import (
     TRAIN_SESSION,
 )
 from task.spot.sti_spec import t_sti_end, resolve_sti_timing
-from neuron.schema import optimizable_scalar, spot_radius_key
+from neuron.schema import optimizable_scalar
 from train import do_many_runs
 import train
 from train.config import (
@@ -279,12 +279,12 @@ def save_syn_strength_cell_table(z_t, session, table_path):
     node_vals = train.node_values_from_z(z_t, schema)
     arr = np.asarray(node_vals["syn_strength_cell"], dtype=np.float64).reshape(-1)
     cells = [str(n) for n in cell_labels(session)]
-    keys = list(session.backend.conn.pair_keys)
-    if arr.shape[0] != len(keys):
+    pairs = list(session.backend.conn.pairs)
+    if arr.shape[0] != len(pairs):
         raise ValueError(
-            f"syn_strength_cell length {arr.shape[0]} != n_pairs {len(keys)}"
+            f"syn_strength_cell length {arr.shape[0]} != n_pairs {len(pairs)}"
         )
-    mat = {(int(s), int(t)): float(v) for (s, t), v in zip(keys, arr)}
+    mat = {(int(s), int(t)): float(v) for (s, t), v in zip(pairs, arr)}
     n = len(cells)
     with open(table_path, "w") as f:
         f.write("," + ",".join(cells) + "\n")

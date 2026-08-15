@@ -164,8 +164,8 @@ def main() -> None:
             f"spot_radius_dist={dist}  n_spots={n_spots}",
         )
         if centers:
-            cu = np.array([c[0] for c in centers], dtype=np.int64)
-            cv = np.array([c[1] for c in centers], dtype=np.int64)
+            cu = np.array([center[0] for center in centers], dtype=np.int64)
+            cv = np.array([center[1] for center in centers], dtype=np.int64)
             sx, sy = xy_deg_from_uv(cu, cv)
             _draw_spot_radius_hexes(ax, cu, cv, spot_radius)
             ax.plot(

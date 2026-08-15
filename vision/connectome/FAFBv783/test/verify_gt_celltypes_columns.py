@@ -2,8 +2,8 @@
 check whether each one is column-assigned in FAFB.
 
 "Cells with gt" are the 13 cells returned by Medulla_Library.read_RecF_gt()
-(ImpR_gt / RecF_gt, shape (13, 45)); they are listed as ``cell_list`` in
-SimulationCode/Medulla_Library.py. These are the only cells the model is fitted
+(ImpR_gt / RecF_gt, shape (13, 45)); they are listed as ``GT_CELLS`` below
+(legacy Medulla_Library attribute was ``cell_list``). These are the only cells the model is fitted
 against (the other 52 of the 65 cell entries are connectivity-only).
 
 For each gt cell this reports, per hemisphere:
@@ -24,7 +24,7 @@ import import_bootstrap  # noqa: F401
 
 from build_network import FafbDataLoader  # noqa: E402
 
-# vision/SimulationCode/Medulla_Library.py, cell_list (the 13 cells
+# vision/SimulationCode/Medulla_Library.py legacy cell bag (the 13 cells
 # with measured impulse-response gt).
 GT_CELLS = [
     "L1", "L2", "L3", "L4", "L5",

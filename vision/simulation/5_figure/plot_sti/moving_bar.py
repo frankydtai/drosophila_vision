@@ -139,7 +139,7 @@ def plot_snapshot(
 
 
 def save_snapshots(
-    plot_hexes,
+    figure_hexes,
     showcase,
     i_sti_hex,
     i_max,
@@ -161,7 +161,7 @@ def save_snapshots(
         bad = [t for t in snapshot_t if t >= n_t]
         if bad:
             raise SystemExit(f"--t out of range (n_t={n_t}): {bad}")
-    xlim, ylim = _field_limits(plot_hexes, hexes_are_xy_deg=hexes_are_xy_deg)
+    xlim, ylim = _field_limits(figure_hexes, hexes_are_xy_deg=hexes_are_xy_deg)
     xspan = xlim[1] - xlim[0]
     yspan = ylim[1] - ylim[0]
     panel_h = max(2.4, 3.0 * yspan / max(xspan / 3.0, 1.0))
@@ -186,7 +186,7 @@ def save_snapshots(
             labels = ("start", "mid", "exit")
         for j, (t, label) in enumerate(zip(times, labels)):
             plot_snapshot(
-                axes[i, j], plot_hexes, i_sti_hex[i], t, spec,
+                axes[i, j], figure_hexes, i_sti_hex[i], t, spec,
                 f"{spec.token} ({label})", i_max, i_baseline, xlim, ylim, t_onset, view_deg,
                 hexes_are_xy_deg=hexes_are_xy_deg,
                 bar_radius=bar_radius,
@@ -200,7 +200,7 @@ def save_snapshots(
 
     fig.suptitle(
         f"Moving-bar i_sti_hex (pA)  side={side}  "
-        f"{len(plot_hexes)} sti hexes  I_baseline={i_baseline}  I_max={i_max}",
+        f"{len(figure_hexes)} sti hexes  I_baseline={i_baseline}  I_max={i_max}",
         fontsize=11,
     )
     fig.tight_layout()
@@ -211,7 +211,7 @@ def save_snapshots(
 
 
 def save_animation(
-    plot_hexes, showcase, i_sti_hex, i_max, i_baseline, output, side, t_onset, n_t, view_deg, t_stride,
+    figure_hexes, showcase, i_sti_hex, i_max, i_baseline, output, side, t_onset, n_t, view_deg, t_stride,
     *, hexes_are_xy_deg: bool = False,
     bar_radius=None,
     multi_bar: bool = True,
@@ -228,7 +228,7 @@ def save_animation(
         print("no animation frames")
         return
 
-    xlim, ylim = _field_limits(plot_hexes, hexes_are_xy_deg=hexes_are_xy_deg)
+    xlim, ylim = _field_limits(figure_hexes, hexes_are_xy_deg=hexes_are_xy_deg)
     fig, axes = plt.subplots(len(showcase), 1, figsize=(4.5, 2.8 * len(showcase)), squeeze=False, facecolor=PLOT_BG)
     title = fig.suptitle("", fontsize=11)
 
@@ -236,12 +236,12 @@ def save_animation(
         t = times[frame_idx]
         title.set_text(
             f"Moving-bar i_sti_hex (pA)  side={side}  "
-            f"{len(plot_hexes)} sti hexes  I_baseline={i_baseline}  I_max={i_max}  t={t} ({t * NEURON_PARAM['delta_ms'] / 1000.0:.2f} s)"
+            f"{len(figure_hexes)} sti hexes  I_baseline={i_baseline}  I_max={i_max}  t={t} ({t * NEURON_PARAM['delta_ms'] / 1000.0:.2f} s)"
         )
         for i, spec in enumerate(showcase):
             axes[i, 0].clear()
             plot_snapshot(
-                axes[i, 0], plot_hexes, i_sti_hex[i], t, spec,
+                axes[i, 0], figure_hexes, i_sti_hex[i], t, spec,
                 spec.token, i_max, i_baseline, xlim, ylim, t_onset, view_deg,
                 hexes_are_xy_deg=hexes_are_xy_deg,
                 bar_radius=bar_radius,
@@ -320,7 +320,7 @@ def main():
         i_bright_moving_bar=i_bright,
         sim_dtype=SIM_DTYPE,
     )
-    plot_hexes = [(c.u, c.v) for c in sti_hexes(connectome)]
+    figure_hexes = [(hex.u, hex.v) for hex in sti_hexes(connectome)]
     i_sti_hex = T.i_sti_hex
     t_onset = int(T.info["t_onset"])
     n_t = int(T.info["n_t"])
@@ -335,7 +335,7 @@ def main():
     )
 
     save_snapshots(
-        plot_hexes, showcase, i_sti_hex, i_bright, i_baseline,
+        figure_hexes, showcase, i_sti_hex, i_bright, i_baseline,
         output, side, t_onset, n_t, view_deg, snapshot_t=snapshot_t,
         hexes_are_xy_deg=False,
         bar_radius=bar_radius,
@@ -344,7 +344,7 @@ def main():
     if args.gif is not None:
         gif = fallback_gif if args.gif == "" else args.gif
         save_animation(
-            plot_hexes, showcase, i_sti_hex, i_bright, i_baseline, gif,
+            figure_hexes, showcase, i_sti_hex, i_bright, i_baseline, gif,
             side, t_onset, n_t, view_deg, args.t_stride,
             hexes_are_xy_deg=False,
             bar_radius=bar_radius,

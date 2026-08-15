@@ -216,12 +216,16 @@ def make_figure(cols: pd.DataFrame, lc_cells: List[str] = LC_CELLS) -> Path:
     def _fill(ax, n_by_column, keep, shade):
         """Draw occupied columns (filtered by ``keep``), colored by n_neuron."""
         n = 0
-        for cnt in sorted(set(int(c) for c in n_by_column.values)):
-            ids = [c for c in n_by_column.index[n_by_column == cnt] if c in col_u and keep(c)]
+        for n_neuron in sorted(set(int(n) for n in n_by_column.values)):
+            ids = [
+                column_id
+                for column_id in n_by_column.index[n_by_column == n_neuron]
+                if column_id in col_u and keep(column_id)
+            ]
             if not ids:
                 continue
-            u, v = zip(*[(col_u[c], col_v[c]) for c in ids])
-            face, edge = _shade(shade, cnt)
+            u, v = zip(*[(col_u[column_id], col_v[column_id]) for column_id in ids])
+            face, edge = _shade(shade, n_neuron)
             _plot_hexes(
                 ax, np.array(u), np.array(v), [None] * len(ids),
                 face, edge, HEX_PATCH_RADIUS,
@@ -242,8 +246,8 @@ def make_figure(cols: pd.DataFrame, lc_cells: List[str] = LC_CELLS) -> Path:
 
     drawn_axes = []
     for r, row in enumerate(row_lists):
-        for c, lc in enumerate(row):
-            ax = axes[r, c]
+        for col, lc in enumerate(row):
+            ax = axes[r, col]
             drawn_axes.append(ax)
             _panel(ax, n_by_lc[lc], lc)
         # Rightmost panel of the row: per-column sum over this row's types.
@@ -298,7 +302,7 @@ def make_figure(cols: pd.DataFrame, lc_cells: List[str] = LC_CELLS) -> Path:
 
 def make_table(cols: pd.DataFrame, lc_cells: List[str] = LC_CELLS) -> Path:
     """Build + save the per-column occupancy table (all columns x LC types + sum)."""
-    table = build_column_table([int(c) for c in cols["column_id"]], lc_cells)
+    table = build_column_table([int(column_id) for column_id in cols["column_id"]], lc_cells)
     table_path = path.ASSIGNED_COLUMNS_DIR / table_name(lc_cells)
     table.to_csv(table_path)
     logger.info("Saved %s", table_path)

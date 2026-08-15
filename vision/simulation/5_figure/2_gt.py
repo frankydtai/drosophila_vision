@@ -17,14 +17,9 @@ from task.spot.gt import (
     load_gt_dark,
     spot_gt_active,
 )
-from network.construction import active_gt_cells, cells_in_order, gt_cells_from_opts
+from network.construction import active_gt_cells, gt_cells_from_opts
 
 _VALID_CONTRASTS = ("bright", "dark")
-
-
-def plot_cells_in_order(active):
-    """Flat cell order from :func:`network.construction.cells_in_order`."""
-    return cells_in_order(active)
 
 
 def _cells_for_nodes(session, node_indices):
@@ -82,9 +77,9 @@ def contrast_for_task(task) -> str:
 def contrast_order(contrasts) -> tuple[str, ...]:
     """Stable plot order: bright, dark, then any extras."""
     preferred = ("bright", "dark")
-    keys = [str(c) for c in contrasts]
-    return tuple(c for c in preferred if c in keys) + tuple(
-        c for c in keys if c not in preferred
+    keys = [str(contrast) for contrast in contrasts]
+    return tuple(contrast for contrast in preferred if contrast in keys) + tuple(
+        contrast for contrast in keys if contrast not in preferred
     )
 
 

@@ -80,9 +80,9 @@ def gruntman_moving_bar_specs(
 ) -> List[MovingBarSpec]:
     """The 16 Gruntman-style whole-view moving-bar conditions."""
     return [
-        MovingBarSpec(direction=d, contrast=c, width_deg=w, speed_deg_s=speed_deg_s)
+        MovingBarSpec(direction=d, contrast=contrast, width_deg=w, speed_deg_s=speed_deg_s)
         for d in directions
-        for c in contrasts
+        for contrast in contrasts
         for w in widths_deg
     ]
 
@@ -300,12 +300,12 @@ def build_batched_i_sti_hex(
         out[b, :t_onset] = i_baseline
 
     view_deg = view_bounds(hexes)
-    hex_stack = np.stack([c.hex_xy for c in hexes], axis=0)
+    hex_stack = np.stack([hex.hex_xy for hex in hexes], axis=0)
 
     by_geometry: dict[Tuple[str, float, float], List[int]] = {}
     for b, spec in enumerate(specs):
-        key = (spec.direction, float(spec.width_deg), float(spec.speed_deg_s))
-        by_geometry.setdefault(key, []).append(b)
+        geometry = (spec.direction, float(spec.width_deg), float(spec.speed_deg_s))
+        by_geometry.setdefault(geometry, []).append(b)
 
     for batch_indices in by_geometry.values():
         cov_ts = _coverage_time_series(
@@ -338,8 +338,8 @@ def resolve_i_baseline(value: float) -> float:
 def resolve_moving_bar_i_baseline(train_opts) -> float:
     """``i_baseline_moving_bar`` from moving-bar sti opts on a train session."""
     opts = train_opts or {}
-    for key in ("moving_bar_bright_sti_opts", "moving_bar_dark_sti_opts"):
-        sub = opts.get(key) or {}
+    for sti_opts_tok in ("moving_bar_bright_sti_opts", "moving_bar_dark_sti_opts"):
+        sub = opts.get(sti_opts_tok) or {}
         if "i_baseline_moving_bar" in sub:
             return resolve_i_baseline(float(sub["i_baseline_moving_bar"]))
     raise ValueError(
@@ -369,11 +369,11 @@ def moving_bar_network_t0_bn(connectome, filt_hexes: Sequence[StiHex], n_batch: 
     node_v_np = np.asarray(connectome.vs, dtype=np.int64)
     t0_bn = np.full((n_batch, connectome.n_nodes), -1, dtype=np.int64)
     for bi in range(n_batch):
-        for c in filt_hexes:
-            t0 = t0_map.get((bi, int(c.u), int(c.v)))
+        for hex in filt_hexes:
+            t0 = t0_map.get((bi, int(hex.u), int(hex.v)))
             if t0 is None:
                 continue
-            on_hex = (node_u_np == int(c.u)) & (node_v_np == int(c.v))
+            on_hex = (node_u_np == int(hex.u)) & (node_v_np == int(hex.v))
             t0_bn[bi, on_hex] = t0
     return t0_bn
 
@@ -408,13 +408,13 @@ def build_moving_bar_t0_grids(
             hex_first_sti_t(i_sti_hex[bi, :, hex_idx], i_baseline=i_baseline)
             for hex_idx in filt_hex_indices
         ]
-        for c, tc in zip(filt_network_hexes, t_first_filt):
-            t0_map[(bi, int(c.u), int(c.v))] = tc - fb
+        for hex, t_first in zip(filt_network_hexes, t_first_filt):
+            t0_map[(bi, int(hex.u), int(hex.v))] = t_first - fb
     t0_bn = moving_bar_network_t0_bn(connectome, filt_network_hexes, n_batch, t0_map)
     return MovingBarT0Grids(t0_bn=t0_bn, before_t=before_t, after_t=after_t)
 
 
-def _moving_bar_cache_key(
+def _moving_bar_cache_digest(
     network_json: Path,
     specs: Sequence[MovingBarSpec],
     hex_uv: Sequence[Tuple[int, int]],
@@ -470,11 +470,11 @@ def _moving_bar_cache_path(
     i_bright_moving_bar: Optional[float] = None,
     i_dark_moving_bar: Optional[float] = None,
 ) -> Path:
-    key = _moving_bar_cache_key(
+    digest = _moving_bar_cache_digest(
         network_json, specs, hex_uv, n_t, t_onset, delta_ms,
         i_baseline, bar_radius, multi_bar, i_bright_moving_bar, i_dark_moving_bar,
     )
-    return moving_bar_cache_dir(network_json) / f"{key}.npz"
+    return moving_bar_cache_dir(network_json) / f"{digest}.npz"
 
 
 def _load_moving_bar_hex_cache(path: Path) -> Optional[np.ndarray]:
@@ -547,7 +547,7 @@ def build_moving_bar_signals(
 
     cache_path: Optional[Path] = None
     source_json = Path(network_json) if network_json is not None else getattr(connectome, "source_json", None)
-    hex_uv = [(c.u, c.v) for c in sti]
+    hex_uv = [(hex.u, hex.v) for hex in sti]
     if source_json is not None:
         cache_path = _moving_bar_cache_path(
             source_json, specs, hex_uv, n_t, t_onset, delta_ms,

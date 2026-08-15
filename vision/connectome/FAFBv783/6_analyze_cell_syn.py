@@ -714,11 +714,11 @@ def print_table(
 
     table_rows = [header] + rows + [sum_row]
     n_field = len(header)
-    widths = [max(len(r[c]) for r in table_rows) for c in range(n_field)]
+    widths = [max(len(r[field_idx]) for r in table_rows) for field_idx in range(n_field)]
 
     def _fmt(row: List[str]) -> str:
         cells = [row[0].ljust(widths[0])]
-        cells += [row[c].rjust(widths[c]) for c in range(1, n_field)]
+        cells += [row[field_idx].rjust(widths[field_idx]) for field_idx in range(1, n_field)]
         return "  ".join(cells).rstrip()
 
     n_count_label = "n_source" if direction == "post" else "n_target"

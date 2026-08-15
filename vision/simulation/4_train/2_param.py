@@ -29,6 +29,7 @@ import torch
 
 from neuron import I_H_DIR_REVERSE_CELLS
 from neuron.schema import (
+    PARAM_MODES,
     expand_param_nodes,
     parse_optimizable_tokens,
     optimizable_scalar,
@@ -99,7 +100,6 @@ def build_i_h_dirs(conn, i_h_reverse_cells=I_H_DIR_REVERSE_CELLS, *, dtype=SIM_D
 #              --init-from seeds fixed via inits_from_param_by_segment → inits
 #       frozen: not in z; values from segment['carry'] (resume) or effective_init (cold)
 # z packing per segment: len(indi) slots + (1 if shared else 0).
-PARAM_MODES = ('indi', 'shared', 'fixed', 'frozen')
 _REMAINDER_PARAM_MODES = ('fixed', 'frozen')
 _PARAM_MODE_ALL = '__all__'
 PAIR_SEP = ':'
@@ -364,9 +364,9 @@ def cells_for_backend(backend: "ModelBackend"):
 
 
 def pairs_for_backend(backend: "ModelBackend"):
-    keys = backend.conn.pair_keys
+    pairs = backend.conn.pairs
     cells = cells_for_backend(backend)
-    return [f"{cells[s]}{PAIR_SEP}{cells[t]}" for s, t in keys]
+    return [f"{cells[s]}{PAIR_SEP}{cells[t]}" for s, t in pairs]
 
 
 def edges_for_backend(backend: "ModelBackend"):
@@ -377,7 +377,7 @@ def edges_for_backend(backend: "ModelBackend"):
 
 def slots_for_segment(segment, backend: "ModelBackend"):
     if segment.get("radius_keys") is not None:
-        return [str(key) for key in segment["radius_keys"]]
+        return [str(radius) for radius in segment["radius_keys"]]
     kind = segment["kind"]
     if kind == "edge_pair":
         return pairs_for_backend(backend)

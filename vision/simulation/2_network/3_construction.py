@@ -13,7 +13,7 @@ rule. ``--syn-mode per_cell`` uses ``edge_weights = syn_sign * n_syn``;
 
 Nodes follow ``network.json`` file order; ``node_cells[i]`` is the index of
 ``nodes[i]['name']`` in the order-ordered cell vocabulary
-(:data:`CELL_PLOT_ROWS`). This broadcasts per-cell params to nodes via
+(:data:`CELL_ROWS`). This broadcasts per-cell params to nodes via
 ``param[node_cells]`` (shape ``(n_cells,)`` → ``(n_nodes,)``).
 """
 from __future__ import annotations
@@ -33,9 +33,9 @@ from neuron.schema import normalize_syn_mode
 # Photoreceptor drive currents (pA) are injected by the caller
 # (``default_params.I_*``); this module has no numeric bindings.
 
-# Canonical cell order for plot / param broadcast (plot rows).
-# Leftovers (not listed) are appended alphabetically, five per plot row.
-CELL_PLOT_ROWS: list[list[str]] = [
+# Canonical cell order for figure layout / param broadcast (cell rows).
+# Leftovers (not listed) are appended alphabetically, five per row.
+CELL_ROWS: list[list[str]] = [
     ['R1-6', 'R7', 'R8'],
     ['L1', 'L2', 'L3', 'L4', 'L5'],
     ['Mi1', 'Tm3', 'Mi4', 'Mi9'],
@@ -46,29 +46,29 @@ CELL_PLOT_ROWS: list[list[str]] = [
     ['C2', 'C3', 'Lawf1', 'Lawf2'],
 ]
 
-_LEFTOVER_PLOT_ROW_LEN = 5
+_LEFTOVER_ROW_LEN = 5
 
 
-def cell_plot_rows(active: Sequence[str]) -> list[list[str]]:
-    """Active cells into plot rows; leftovers alphabetical, ``_LEFTOVER_PLOT_ROW_LEN`` per row."""
+def cell_rows(active: Sequence[str]) -> list[list[str]]:
+    """Active cells into rows; leftovers alphabetical, ``_LEFTOVER_ROW_LEN`` per row."""
     active_cells = [str(t) for t in active]
     active_set = set(active_cells)
-    plot_rows: list[list[str]] = []
+    rows: list[list[str]] = []
     used: set[str] = set()
-    for plot_row in CELL_PLOT_ROWS:
-        filtered = [t for t in plot_row if t in active_set]
+    for row in CELL_ROWS:
+        filtered = [t for t in row if t in active_set]
         if filtered:
-            plot_rows.append(filtered)
+            rows.append(filtered)
             used.update(filtered)
     leftover = sorted(cell for cell in active_cells if cell not in used)
-    for i in range(0, len(leftover), _LEFTOVER_PLOT_ROW_LEN):
-        plot_rows.append(leftover[i : i + _LEFTOVER_PLOT_ROW_LEN])
-    return plot_rows
+    for i in range(0, len(leftover), _LEFTOVER_ROW_LEN):
+        rows.append(leftover[i : i + _LEFTOVER_ROW_LEN])
+    return rows
 
 
 def cells_in_order(active: Sequence[str]) -> list[str]:
-    """Flat cell order from :func:`cell_plot_rows`."""
-    return [cell for plot_row in cell_plot_rows(active) for cell in plot_row]
+    """Flat cell order from :func:`cell_rows`."""
+    return [cell for row in cell_rows(active) for cell in row]
 
 
 @dataclass

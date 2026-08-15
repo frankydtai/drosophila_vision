@@ -12,12 +12,12 @@ import torch
 import import_bootstrap  # noqa: F401
 import train
 from task.spot.sti_geo import resolve_spot
-from figure import moving_bar as moving_bar_plot
-from figure import spot as spot_plot
+from figure import moving_bar
+from figure import spot
 from figure.util import (
     network_hex_count,
-    filter_plot_token,
-    session_filter_plot_token,
+    filter_figure_token,
+    session_filter_figure_token,
 )
 from default_params import RUN_PATH, STI_TIMING
 from train.config import run_data_dir
@@ -35,9 +35,9 @@ def spot_readout_fns(session):
     if session.backend.network is None:
         raise ValueError("spot_readout_fns requires session.backend.network")
     return (
-        spot_plot.network_spot_trace_readout,
-        spot_plot.plot_network_spot_gt,
-        spot_plot.plot_network_spot_all,
+        spot.network_spot_trace_readout,
+        spot.plot_network_spot_gt,
+        spot.plot_network_spot_all,
     )
 
 
@@ -316,7 +316,7 @@ def euler_filename_suffix(euler=None):
     return _suffix(euler)
 
 
-def _cost_parts_for_plot(session, z):
+def _cost_parts_for_figure(session, z):
     """Unscaled per-part costs at ``z`` for panel titles."""
     with torch.no_grad():
         parts = train.calc_cost_parts(z, session)
@@ -324,14 +324,14 @@ def _cost_parts_for_plot(session, z):
 
 
 def _plot_path(outdir, stem, file_suffix="", *, html=False):
-    from figure.util import plot_file_ext
+    from figure.util import figure_file_ext
 
-    return os.path.join(outdir, f"{stem}{file_suffix}{plot_file_ext(html=html)}")
+    return os.path.join(outdir, f"{stem}{file_suffix}{figure_file_ext(html=html)}")
 
 
-def _readout_plot_stem(prefix, session):
+def _readout_figure_stem(prefix, session):
     """``spot_gt_v`` / ``spot_gt_ca`` (filter chooses ``v`` or ``ca``, not both)."""
-    return f"{prefix}_{session_filter_plot_token(session)}"
+    return f"{prefix}_{session_filter_figure_token(session)}"
 
 
 def _plot_spot_tasks(session, z, outdir, spot_tasks, suffix, model_all,
@@ -344,9 +344,9 @@ def _plot_spot_tasks(session, z, outdir, spot_tasks, suffix, model_all,
     build_readout, plot_gt, plot_all = spot_readout_fns(session)
     ref_t = 'spot_bright' if 'spot_bright' in spot_set else spot_tasks[0]
     net_tag = _network_spot_tag(session, ref_t)
-    cost_parts = _cost_parts_for_plot(session, z)
-    plot_kw = dict(gts=gts, cost_parts=cost_parts)
-    token = session_filter_plot_token(session)
+    cost_parts = _cost_parts_for_figure(session, z)
+    figure_kw = dict(gts=gts, cost_parts=cost_parts)
+    token = session_filter_figure_token(session)
     readout_kw = dict(
         at_xs=at_x, at_ys=at_y,
         show_pre=show_pre,
@@ -362,19 +362,19 @@ def _plot_spot_tasks(session, z, outdir, spot_tasks, suffix, model_all,
                 session_for_task(session, 'spot_dark'), z, **readout_kw,
             ),
         }
-        mvd = _plot_path(outdir, _readout_plot_stem('spot_gt', session), file_suffix, html=html)
+        mvd = _plot_path(outdir, _readout_figure_stem('spot_gt', session), file_suffix, html=html)
         plot_gt(
             mvd, readouts=readouts,
             title=f'Spot {token}-gt ({suffix}){net_tag}',
-            **plot_kw,
+            **figure_kw,
         )
         allc = None
         if model_all:
-            allc = _plot_path(outdir, _readout_plot_stem('spot_all', session), file_suffix, html=html)
+            allc = _plot_path(outdir, _readout_figure_stem('spot_all', session), file_suffix, html=html)
             plot_all(
                 allc, readouts=readouts,
                 title=f'Spot {token}-all ({suffix}){net_tag}',
-                **plot_kw,
+                **figure_kw,
             )
         return mvd, allc
     for task in spot_tasks:
@@ -396,8 +396,8 @@ def _plot_bar_readouts(session, z, outdir, bar_readouts, suffix, model_all, *,
                       align_at_x=None, align_at_y=None,
                       show_pre=True, file_suffix="", html=False, ms_shown=None):
     """Plot moving-bar task(s); bright left | dark right when both are trained."""
-    cost_parts = _cost_parts_for_plot(session, z)
-    token = session_filter_plot_token(session)
+    cost_parts = _cost_parts_for_figure(session, z)
+    token = session_filter_figure_token(session)
     readout_kw = dict(
         at_xs=at_x, at_ys=at_y,
         align_at_x=align_at_x, align_at_y=align_at_y,
@@ -408,22 +408,22 @@ def _plot_bar_readouts(session, z, outdir, bar_readouts, suffix, model_all, *,
     if bar_set == set(train.MOVING_BAR_TASKS):
         s_bright = session_for_task(session, 'moving_bar_bright')
         s_dark = session_for_task(session, 'moving_bar_dark')
-        readout_bright = moving_bar_plot.moving_bar_trace_readout(
+        readout_bright = moving_bar.moving_bar_trace_readout(
             s_bright, z, 'moving_bar_bright', **readout_kw,
         )
-        readout_dark = moving_bar_plot.moving_bar_trace_readout(
+        readout_dark = moving_bar.moving_bar_trace_readout(
             s_dark, z, 'moving_bar_dark', **readout_kw,
         )
-        mvd = _plot_path(outdir, _readout_plot_stem('bar_gt', session), file_suffix, html=html)
-        moving_bar_plot.plot_moving_bar_gt(
+        mvd = _plot_path(outdir, _readout_figure_stem('bar_gt', session), file_suffix, html=html)
+        moving_bar.plot_moving_bar_gt(
             mvd, readout=readout_bright, readout_2=readout_dark,
             title=f'Moving-bar {token}-gt ({suffix})',
             cost_parts=cost_parts,
         )
         allc = None
         if model_all:
-            allc = _plot_path(outdir, _readout_plot_stem('bar_all', session), file_suffix, html=html)
-            moving_bar_plot.plot_moving_bar_all(
+            allc = _plot_path(outdir, _readout_figure_stem('bar_all', session), file_suffix, html=html)
+            moving_bar.plot_moving_bar_all(
                 allc, readout=readout_bright, readout_2=readout_dark,
                 title=f'Moving-bar {token}-all ({suffix})',
                 right_only=plot_right_only,
@@ -432,16 +432,16 @@ def _plot_bar_readouts(session, z, outdir, bar_readouts, suffix, model_all, *,
         return mvd, allc
     for task in bar_readouts:
         one = session_for_task(session, task)
-        readout = moving_bar_plot.moving_bar_trace_readout(one, z, task, **readout_kw)
-        mvd = _plot_path(outdir, _readout_plot_stem('bar_gt', session), file_suffix, html=html)
-        moving_bar_plot.plot_moving_bar_gt(
+        readout = moving_bar.moving_bar_trace_readout(one, z, task, **readout_kw)
+        mvd = _plot_path(outdir, _readout_figure_stem('bar_gt', session), file_suffix, html=html)
+        moving_bar.plot_moving_bar_gt(
             mvd, readout=readout, title=f'{task} {token}-gt ({suffix})',
             cost_parts=cost_parts,
         )
         allc = None
         if model_all:
-            allc = _plot_path(outdir, _readout_plot_stem('bar_all', session), file_suffix, html=html)
-            moving_bar_plot.plot_moving_bar_all(
+            allc = _plot_path(outdir, _readout_figure_stem('bar_all', session), file_suffix, html=html)
+            moving_bar.plot_moving_bar_all(
                 allc, readout=readout, title=f'{task} {token}-all ({suffix})',
                 right_only=plot_right_only,
                 cost_parts=cost_parts,
@@ -456,14 +456,14 @@ def _plot_one_task(session, z, outdir, task, suffix, model_all,
                      center_only=False):
     if task not in train.SPOT_TASKS:
         raise ValueError(f'unknown plot task {task!r}')
-    token = session_filter_plot_token(session)
-    mvd = _plot_path(outdir, _readout_plot_stem('spot_gt', session), file_suffix, html=html)
-    allc = _plot_path(outdir, _readout_plot_stem('spot_all', session), file_suffix, html=html)
+    token = session_filter_figure_token(session)
+    mvd = _plot_path(outdir, _readout_figure_stem('spot_gt', session), file_suffix, html=html)
+    allc = _plot_path(outdir, _readout_figure_stem('spot_all', session), file_suffix, html=html)
     build_readout, plot_gt, plot_all = spot_readout_fns(session)
     net_tag = _network_spot_tag(session, task)
     if cost_parts is None:
-        cost_parts = _cost_parts_for_plot(session, z)
-    plot_kw = dict(gts=gts, cost_parts=cost_parts)
+        cost_parts = _cost_parts_for_figure(session, z)
+    figure_kw = dict(gts=gts, cost_parts=cost_parts)
     readout = build_readout(
         session, z,
         at_xs=at_x, at_ys=at_y,
@@ -474,14 +474,14 @@ def _plot_one_task(session, z, outdir, task, suffix, model_all,
     from figure.gt import contrast_for_task
     readouts = {contrast_for_task(task): readout}
     plot_gt(
-        mvd, readouts=readouts, title=f'{task} {token}-gt ({suffix}){net_tag}', **plot_kw,
+        mvd, readouts=readouts, title=f'{task} {token}-gt ({suffix}){net_tag}', **figure_kw,
     )
     if model_all:
-        plot_all(allc, readouts=readouts, title=f'{task} {token}-all ({suffix}){net_tag}', **plot_kw)
+        plot_all(allc, readouts=readouts, title=f'{task} {token}-all ({suffix}){net_tag}', **figure_kw)
     return mvd, allc
 
 
-def plot_param_set(params, outdir, model=None, model_all=True,
+def plot_rf_t(params, outdir, model=None, model_all=True,
                    context_dir=None,
                    plot_tasks=None, session=None, *,
                    final_costs=None,
@@ -564,11 +564,11 @@ def plot_param_set(params, outdir, model=None, model_all=True,
     return best, best_cost
 
 
-def add_plot_arguments(parser):
+def add_figure_arguments(parser):
     """Register plot-only CLI flags shared by ``run.py`` and ``figure.plot``.
 
     Timing (``--sti-timing``) is registered separately via
-    :func:`add_plot_timing_arguments` so ``run.py`` does not double-register
+    :func:`add_figure_timing_arguments` so ``run.py`` does not double-register
     flags already on the train CLI.
     """
     from import_bootstrap import parse_bool
@@ -674,19 +674,19 @@ def parse_ms_shown_range(token, *, flag="--ms-shown"):
     return start, stop
 
 
-def add_plot_timing_arguments(parser):
+def add_figure_timing_arguments(parser):
     """Hang train sti-timing CLI onto plot / analyze."""
     from train.cli import add_sti_timing_arguments
 
     add_sti_timing_arguments(parser)
 
 
-def add_plot_euler_argument(parser):
+def add_figure_euler_argument(parser):
     from train.cli import add_euler_argument
     add_euler_argument(parser, default=None)
 
 
-def add_plot_filter_argument(parser):
+def add_figure_filter_argument(parser):
     from train.cli import add_filter_argument
     add_filter_argument(parser, default=None)
 
@@ -698,7 +698,7 @@ def filter_filename_suffix(filter=None):
 
 def add_param_argument(parser):
     from train.cli import add_param_argument as _add
-    _add(parser, for_plot=True)
+    _add(parser, for_figure=True)
 
 
 def parse_optimizable_param_tokens(tokens):
@@ -720,8 +720,8 @@ def override_params(z, schema, session, param_inits):
         raise SystemExit(str(exc)) from exc
 
 
-def resolve_plot_kwargs(args):
-    """Map a parsed CLI namespace to :func:`plot_param_set` plot kwargs."""
+def resolve_figure_kwargs(args):
+    """Map a parsed CLI namespace to :func:`plot_rf_t` plot kwargs."""
     align_xy = parse_align_xy(args.align_xy)
     align_at_x, align_at_y = align_xy if align_xy is not None else (None, None)
     ms_shown = None
@@ -750,14 +750,14 @@ def main():
         default=RUN_PATH,
         help='run folder under PARAMETER_DIR or absolute path (default: %(default)s)',
     )
-    add_plot_arguments(ap)
-    add_plot_timing_arguments(ap)
-    add_plot_euler_argument(ap)
-    add_plot_filter_argument(ap)
+    add_figure_arguments(ap)
+    add_figure_timing_arguments(ap)
+    add_figure_euler_argument(ap)
+    add_figure_filter_argument(ap)
     add_param_argument(ap)
     args = ap.parse_args()
     try:
-        plot_kw = resolve_plot_kwargs(args)
+        figure_kw = resolve_figure_kwargs(args)
     except ValueError as exc:
         raise SystemExit(str(exc)) from exc
 
@@ -793,7 +793,7 @@ def main():
     z_np = z_t.detach().cpu().numpy()
     print(f'params={train_mod.best_param_path(outdir)}')
     print(f'model={model} ({z_np.shape[-1]} params)')
-    plot_param_set(
+    plot_rf_t(
         np.atleast_2d(z_np),
         outdir,
         model=model,
@@ -801,7 +801,7 @@ def main():
         final_costs=np.array([best_cost]),
         file_suffix=file_suffix,
         save_data=not param_inits,
-        **plot_kw,
+        **figure_kw,
     )
 
 

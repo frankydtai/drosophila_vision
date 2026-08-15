@@ -186,7 +186,7 @@ def motion_preference(
     return MotionPreference(pd_nd=pd_nd, pc_nc=pc_nc)
 
 
-def fig1_key_for_sti(
+def fig1_trace_for_sti(
     side: str,
     subtype: str,
     spec: Union[MovingBarSpec, str],
@@ -238,10 +238,10 @@ def axis_dsi_torch(peak_pos: torch.Tensor, peak_neg: torch.Tensor) -> torch.Tens
 
 def hardcoded_axis_dsi(side: str, subtype: str, spec: MovingBarSpec) -> Optional[float]:
     """Signed axis DSI from ``FIG1_ABS_DSI`` for the pos-side sti ``spec``."""
-    pos_key = fig1_key_for_sti(side, subtype, spec)
-    if pos_key is None:
+    pos_trace = fig1_trace_for_sti(side, subtype, spec)
+    if pos_trace is None:
         return None
-    base, pd_nd = pos_key.rsplit("_", 1)
+    base, pd_nd = pos_trace.rsplit("_", 1)
     if base not in FIG1_ABS_DSI:
         raise KeyError(f"hardcoded DSI missing: {base}")
     abs_dsi = float(FIG1_ABS_DSI[base])
@@ -249,7 +249,7 @@ def hardcoded_axis_dsi(side: str, subtype: str, spec: MovingBarSpec) -> Optional
         return abs_dsi
     if pd_nd == "ND":
         return -abs_dsi
-    raise ValueError(f"expected PD/ND suffix in {pos_key!r}")
+    raise ValueError(f"expected PD/ND suffix in {pos_trace!r}")
 
 
 def moving_bar_dsi_for_spec(
@@ -262,12 +262,12 @@ def moving_bar_dsi_for_spec(
     if direction not in _DIR_TO_AXIS:
         return None
     pos_dir, neg_dir = _DIR_TO_AXIS[direction]
-    pos_key = (cell, f"{pos_dir}_{contrast}_{wtag}")
+    pos_trace = (cell, f"{pos_dir}_{contrast}_{wtag}")
     neg_key = (cell, f"{neg_dir}_{contrast}_{wtag}")
-    if pos_key not in trace_map or neg_key not in trace_map:
+    if pos_trace not in trace_map or neg_key not in trace_map:
         return None
     dsi = axis_dsi(
-        float(np.max(np.asarray(trace_map[pos_key], dtype=np.float64))),
+        float(np.max(np.asarray(trace_map[pos_trace], dtype=np.float64))),
         float(np.max(np.asarray(trace_map[neg_key], dtype=np.float64))),
     )
     if dsi is None:
