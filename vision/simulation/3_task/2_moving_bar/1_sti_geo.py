@@ -382,15 +382,15 @@ def filter_sti_hexes(hexes, *, at_x=None, at_y=None, tol=1e-6):
 
 
 def _hex_node_map(hexes: Sequence[StiHex]) -> Tuple[np.ndarray, np.ndarray]:
-    hex_idx: List[int] = []
-    node_idx: List[int] = []
-    for j, hex in enumerate(hexes):
-        for u in np.asarray(hex.node_idx).ravel():
-            hex_idx.append(j)
-            node_idx.append(int(u))
+    hex_indices: List[int] = []
+    node_indices: List[int] = []
+    for hex_idx, hex in enumerate(hexes):
+        for node_idx in np.asarray(hex.node_idx).ravel():
+            hex_indices.append(hex_idx)
+            node_indices.append(int(node_idx))
     return (
-        np.asarray(hex_idx, dtype=np.int64),
-        np.asarray(node_idx, dtype=np.int64),
+        np.asarray(hex_indices, dtype=np.int64),
+        np.asarray(node_indices, dtype=np.int64),
     )
 
 
@@ -398,7 +398,7 @@ def i_sti_nodes_from_hex(i_sti_hex, hexes, n_nodes):
     """Map ``(B, T, n_hexes)`` i_sti_hex to ``(B, T, n_nodes)`` by hex→node index."""
     n_batch, n_t, _ = i_sti_hex.shape
     out = np.zeros((n_batch, n_t, n_nodes), dtype=np.float64)
-    hex_idx, node_idx = _hex_node_map(hexes)
-    if len(hex_idx):
-        out[:, :, node_idx] = i_sti_hex[:, :, hex_idx]
+    hex_indices, node_indices = _hex_node_map(hexes)
+    if len(hex_indices):
+        out[:, :, node_indices] = i_sti_hex[:, :, hex_indices]
     return out

@@ -80,11 +80,11 @@ class MotionPreference:
     pc_nc: str
 
 
-def dsi_sequential_batch_sets(spec_names: Sequence[str]) -> Tuple[Tuple[int, ...], ...]:
+def dsi_sequential_batch_sets(spec_tokens: Sequence[str]) -> Tuple[Tuple[int, ...], ...]:
     """Minimal sti-batch sets for sequential DSI: one batch_set per axis x width."""
     batches_by_dir_w: dict[tuple[str, str], list[int]] = {}
-    for bi, sname in enumerate(spec_names):
-        direction, _contrast, wtag = parse_moving_bar_spec(sname)
+    for bi, token in enumerate(spec_tokens):
+        direction, _contrast, wtag = parse_moving_bar_spec(token)
         batches_by_dir_w.setdefault((direction, wtag), []).append(int(bi))
     batch_sets: list[tuple[int, ...]] = []
     for pos_dir, neg_dir in AXIS_DIRECTION_PAIRS:
@@ -101,13 +101,13 @@ def dsi_sequential_batch_sets(spec_names: Sequence[str]) -> Tuple[Tuple[int, ...
     return tuple(batch_sets)
 
 
-def expand_gt_cells(names: Sequence[str]) -> Tuple[str, ...]:
+def expand_gt_cells(cells: Sequence[str]) -> Tuple[str, ...]:
     """Expand ``--gt`` moving-bar cell tokens via ``GT_CELL_ALIASES`` (e.g. T4, T5)."""
-    if not names:
+    if not cells:
         raise ValueError("gt_cells must not be empty")
     out: list = []
     seen: set = set()
-    for raw in names:
+    for raw in cells:
         key = str(raw).strip()
         if key in GT_CELL_ALIASES:
             pool = GT_CELL_ALIASES[key]
@@ -217,8 +217,8 @@ def active_stis_for_subtype(side: str, subtype: str) -> Sequence[Tuple[str, str,
     return out
 
 
-def parse_moving_bar_spec(sname: str) -> Tuple[str, str, str]:
-    direction, contrast, wtag = str(sname).split("_", 2)
+def parse_moving_bar_spec(token: str) -> Tuple[str, str, str]:
+    direction, contrast, wtag = str(token).split("_", 2)
     return direction, contrast, wtag
 
 
@@ -254,16 +254,16 @@ def hardcoded_axis_dsi(side: str, subtype: str, spec: MovingBarSpec) -> Optional
 
 def moving_bar_dsi_for_spec(
     trace_map: Mapping[tuple, np.ndarray],
-    cell_name: str,
-    spec_name: str,
+    cell: str,
+    token: str,
 ) -> Optional[float]:
     """DSI for one cell x spec: (this dir - opposite) / (this + opposite)."""
-    direction, contrast, wtag = parse_moving_bar_spec(spec_name)
+    direction, contrast, wtag = parse_moving_bar_spec(token)
     if direction not in _DIR_TO_AXIS:
         return None
     pos_dir, neg_dir = _DIR_TO_AXIS[direction]
-    pos_key = (cell_name, f"{pos_dir}_{contrast}_{wtag}")
-    neg_key = (cell_name, f"{neg_dir}_{contrast}_{wtag}")
+    pos_key = (cell, f"{pos_dir}_{contrast}_{wtag}")
+    neg_key = (cell, f"{neg_dir}_{contrast}_{wtag}")
     if pos_key not in trace_map or neg_key not in trace_map:
         return None
     dsi = axis_dsi(
@@ -280,11 +280,11 @@ def moving_bar_dsi_for_spec(
 def dsi_from_trace_map(
     trace_map: Mapping[tuple, np.ndarray],
     cells: Sequence[str],
-    spec_names: Sequence[str],
+    spec_tokens: Sequence[str],
 ) -> dict[tuple[str, str], Optional[float]]:
     out: dict[tuple[str, str], Optional[float]] = {}
     for cell in cells:
-        for spec in spec_names:
+        for spec in spec_tokens:
             key = (cell, spec)
             if key not in out:
                 out[key] = moving_bar_dsi_for_spec(trace_map, cell, spec)

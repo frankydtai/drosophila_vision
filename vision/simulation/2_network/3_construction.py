@@ -8,7 +8,7 @@ The JSON contract (see ``connectome/FAFBv783/.../network.json``):
     edges:    [{src, tar, syn_sign, n_syn, source_cell, target_cell, du, dv}, ...]
 
 ``syn_sign`` already encodes ``sign_from_nt`` and the ``forced_negative_pre_cells``
-override. ``--syn-mode per_cell`` uses ``edge_weights = syn_sign * n_syn``;
+rule. ``--syn-mode per_cell`` uses ``edge_weights = syn_sign * n_syn``;
 ``--syn-mode per_edge`` uses ``edge_weights = syn_sign`` (ignore ``n_syn``).
 
 Nodes follow ``network.json`` file order; ``node_cells[i]`` is the index of
@@ -51,8 +51,8 @@ _LEFTOVER_PLOT_ROW_LEN = 5
 
 def cell_plot_rows(active: Sequence[str]) -> list[list[str]]:
     """Active cells into plot rows; leftovers alphabetical, ``_LEFTOVER_PLOT_ROW_LEN`` per row."""
-    active_names = [str(t) for t in active]
-    active_set = set(active_names)
+    active_cells = [str(t) for t in active]
+    active_set = set(active_cells)
     plot_rows: list[list[str]] = []
     used: set[str] = set()
     for plot_row in CELL_PLOT_ROWS:
@@ -60,7 +60,7 @@ def cell_plot_rows(active: Sequence[str]) -> list[list[str]]:
         if filtered:
             plot_rows.append(filtered)
             used.update(filtered)
-    leftover = sorted(name for name in active_names if name not in used)
+    leftover = sorted(cell for cell in active_cells if cell not in used)
     for i in range(0, len(leftover), _LEFTOVER_PLOT_ROW_LEN):
         plot_rows.append(leftover[i : i + _LEFTOVER_PLOT_ROW_LEN])
     return plot_rows
@@ -68,7 +68,7 @@ def cell_plot_rows(active: Sequence[str]) -> list[list[str]]:
 
 def cells_in_order(active: Sequence[str]) -> list[str]:
     """Flat cell order from :func:`cell_plot_rows`."""
-    return [n for plot_row in cell_plot_rows(active) for n in plot_row]
+    return [cell for plot_row in cell_plot_rows(active) for cell in plot_row]
 
 
 @dataclass
@@ -103,7 +103,7 @@ class Network:
         return np.where((self.us == u) & (self.vs == v) & self.is_sti)[0]
 
 
-def node_cell_names(connectome: Network) -> np.ndarray:
+def node_cells(connectome: Network) -> np.ndarray:
     """(n_nodes,) array of each node's cell NAME."""
     return np.asarray(connectome.cells)[connectome.node_cells.detach().cpu().numpy()]
 
@@ -113,13 +113,13 @@ def hex2gt(
     u: int,
     v: int,
     gt_type: str,
-    names: np.ndarray | None = None,
+    node_cell: np.ndarray | None = None,
 ) -> np.ndarray:
     """Node indices of cell ``gt_type`` on hex (u, v)."""
-    if names is None:
-        names = node_cell_names(connectome)
+    if node_cell is None:
+        node_cell = node_cells(connectome)
     return np.where(
-        (connectome.us == int(u)) & (connectome.vs == int(v)) & (names == gt_type),
+        (connectome.us == int(u)) & (connectome.vs == int(v)) & (node_cell == gt_type),
     )[0]
 
 

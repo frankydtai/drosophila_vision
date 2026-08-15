@@ -293,7 +293,7 @@ def optimize_staged(z, cost_fn, z_bounds, lrs, niters, cost_log=None, iter_log=N
 def _build_iter_logger(session: TrainSession):
     """Build train iter hooks for :func:`gradient_network`."""
     part_keys = session_cost_part_keys(session.tasks, session=session)
-    target_history = {name: [] for name in part_keys}
+    target_history = {part_key: [] for part_key in part_keys}
     _last_parts: Optional[Dict[str, float]] = None
     _last_total: Optional[float] = None
 
@@ -324,11 +324,11 @@ def _build_iter_logger(session: TrainSession):
     def log_iter(z=None):
         if _last_parts is None or _last_total is None:
             raise RuntimeError("log_iter called before cost_fn in the same train iter")
-        for name in part_keys:
-            if name in _last_parts:
-                target_history[name].append(float(_last_parts[name]))
+        for part_key in part_keys:
+            if part_key in _last_parts:
+                target_history[part_key].append(float(_last_parts[part_key]))
             else:
-                target_history[name].append(0.0)
+                target_history[part_key].append(0.0)
         return float(_last_total)
 
     def float_last_parts(task_order=None):
@@ -353,7 +353,7 @@ def do_many_runs(session: TrainSession, n_run, n_iter, lrs=(0.1, 0.01, 0.001),
     run_adams = []
     final_costs = np.zeros(n_run)
     part_keys = session_cost_part_keys(session.tasks, session=session)
-    final_costs_by_part = {name: np.zeros(n_run) for name in part_keys}
+    final_costs_by_part = {part_key: np.zeros(n_run) for part_key in part_keys}
     cost_histories = [None] * n_run
     part_histories = [None] * n_run
 
@@ -404,12 +404,12 @@ def do_many_runs(session: TrainSession, n_run, n_iter, lrs=(0.1, 0.01, 0.001),
         })
         final_parts = calc_cost_parts(z_best, session)
         final_costs[i] = float(_scaled_cost_from_parts(final_parts, session).item())
-        for name, part in final_parts.items():
-            final_costs_by_part[name][i] = float(part.item())
+        for part_key, part in final_parts.items():
+            final_costs_by_part[part_key][i] = float(part.item())
         cost_histories[i] = np.array(cost_history, dtype=np.float64)
         part_histories[i] = {
-            name: np.array(curve, dtype=np.float64)
-            for name, curve in target_history.items()
+            part_key: np.array(curve, dtype=np.float64)
+            for part_key, curve in target_history.items()
         }
 
     run_i = int(np.argmin(final_costs)) if n_run else 0

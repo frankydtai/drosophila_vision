@@ -72,7 +72,7 @@ from train.config import (
     expand_pre_steady,
 )
 
-RUN_NAME_MAX = 255
+RUN_MAX = 255
 
 
 def _slug(text):
@@ -106,8 +106,8 @@ def _argv_cli_tokens(argv):
             i += 1
 
 
-def command_run_name(script_stem, argv=None):
-    """Build a run folder name from flags on the command line (``sys.argv``)."""
+def command_run(script_stem, argv=None):
+    """Build a run folder stem from flags on the command line (``sys.argv``)."""
     if argv is None:
         argv = sys.argv[1:]
     prefix = os.environ.get('SLURM_JOB_ID') or time.strftime('%m%d_%H%M%S')
@@ -116,10 +116,10 @@ def command_run_name(script_stem, argv=None):
         parts.append(key)
         if val is not None:
             parts.append(val)
-    name = '-'.join(parts)
-    if len(name) <= RUN_NAME_MAX:
-        return name
-    return name[:RUN_NAME_MAX].rstrip('-')
+    run = '-'.join(parts)
+    if len(run) <= RUN_MAX:
+        return run
+    return run[:RUN_MAX].rstrip('-')
 
 
 def add_multi_spot_arguments(parser):
@@ -158,7 +158,7 @@ def _format_filename_token(value):
 def add_euler_argument(parser, *, default=None):
     if default is None:
         help = (
-            "membrane Euler override: im=implicit, ex=explicit "
+            "membrane Euler (plot/analyze): im=implicit, ex=explicit "
             "(default: keep run train_opts.euler); i_h gates always explicit"
         )
     else:
@@ -177,7 +177,7 @@ def add_euler_argument(parser, *, default=None):
 def add_filter_argument(parser, *, default=None):
     if default is None:
         help = (
-            "readout filter override: none=v (schema skips v_th_ca/a_ca/tau_ca), "
+            "readout filter (plot/analyze): none=v (schema skips v_th_ca/a_ca/tau_ca), "
             "ca=ca + Arenz digitized spot gt (default: keep run train_opts.filter)"
         )
     else:
@@ -195,7 +195,7 @@ def add_filter_argument(parser, *, default=None):
 
 
 def euler_filename_suffix(euler=None):
-    """PNG stem suffix for a non-``None`` ``--euler`` override (``_im`` / ``_ex``)."""
+    """PNG stem suffix for a non-``None`` ``--euler`` (``_im`` / ``_ex``)."""
     if euler is None:
         return ""
     token = str(euler)
@@ -208,7 +208,7 @@ def euler_filename_suffix(euler=None):
 
 
 def filter_filename_suffix(filter=None):
-    """PNG stem suffix for a non-``None`` ``--filter`` override (``_v`` / ``_ca``)."""
+    """PNG stem suffix for a non-``None`` ``--filter`` (``_v`` / ``_ca``)."""
     if filter is None:
         return ""
     expanded = train.expand_filter(filter)
@@ -243,7 +243,7 @@ def add_val_from_argument(parser):
 def add_param_argument(parser, *, for_plot=False):
     help = _PARAM_HELP
     if for_plot:
-        help += "; PNG stem suffix per val edit"
+        help += "; PNG stem suffix per val"
     parser.add_argument(
         "--param",
         nargs="+",
@@ -253,12 +253,12 @@ def add_param_argument(parser, *, for_plot=False):
     )
 
 
-def param_filename_suffix(edits):
-    if not edits:
+def param_filename_suffix(param_inits):
+    if not param_inits:
         return ""
     parts = []
-    for name, node, val in edits:
-        bits = [name]
+    for segment, node, val in param_inits:
+        bits = [segment]
         if node is not None:
             bits.append(str(node).replace(":", "_"))
         bits.append(_format_filename_token(val))
@@ -479,8 +479,8 @@ def resolve_i_sti(tokens, tasks=()):
             out[train.resolve_i_sti_paradigm(name.strip())] = _parse_i_sti_value(val.strip())
         else:
             val = _parse_i_sti_value(tok.strip())
-            for task_name in tasks:
-                out[train.resolve_i_sti_paradigm(task_name)] = val
+            for task in tasks:
+                out[train.resolve_i_sti_paradigm(task)] = val
     return out or None
 
 
@@ -604,7 +604,7 @@ def add_sti_timing_arguments(parser):
         default=None,
         metavar="KEY=MS",
         help=(
-            "sti length overrides (space-separated KEY=MS). "
+            "sti length KEY=MS tokens (space-separated). "
             f"Keys: {', '.join(STI_TIMING_KEYS)}. "
             "Plain numbers only; updates the current --filter branch (v or ca). "
             "Train: omit → default_params; plot/analyze: omit → keep run"
@@ -612,7 +612,7 @@ def add_sti_timing_arguments(parser):
     )
 
 
-def apply_train_opts_timing(
+def override_train_opts_timing(
     opts,
     *,
     ms_pre=None,
@@ -622,22 +622,22 @@ def apply_train_opts_timing(
     delta_ms=None,
     delta_ms_pre=None,
 ):
-    """Merge timing overrides into train-opts spot/bar sti dicts.
+    """Merge timing into train-opts spot/bar sti dicts.
 
-    Spot opts go through :func:`task.spot.sti_spec.apply_sti_timing_overrides`
+    Spot opts go through :func:`task.spot.sti_spec.override_sti_timing`
     (normalize + drop derived ``t_onset``/``n_t``). Returns timing keys that
     changed on spot opts (for filename suffixes); bar-only ``ms_pre`` /
     ``delta_ms`` / ``delta_ms_pre`` changes are included when no spot opts
     are present.
     """
-    from task.spot.sti_spec import apply_sti_timing_overrides
+    from task.spot.sti_spec import override_sti_timing
 
     changed = {}
     for key in ("spot_bright_sti_opts", "spot_dark_sti_opts"):
         so = opts.get(key)
         if so is None:
             continue
-        changed = apply_sti_timing_overrides(
+        changed = override_sti_timing(
             so,
             ms_pre=ms_pre,
             ms_response=ms_response,
@@ -654,7 +654,7 @@ def apply_train_opts_timing(
             so = opts.get(key)
             if so is None:
                 continue
-            changed_bar = apply_sti_timing_overrides(
+            changed_bar = override_sti_timing(
                 so,
                 ms_pre=ms_pre,
                 ms_response=None,
@@ -680,8 +680,8 @@ def resolve_sti_timing_kwargs(args, *, filter=None):
         filter = getattr(args, "filter", None)
     if filter is None:
         filter = NEURON_FILTER['filter']
-    overrides = parse_sti_timing_tokens(tokens, filter=filter)
-    return {key: overrides.get(key) for key in STI_TIMING_KEYS}
+    sti_timing = parse_sti_timing_tokens(tokens, filter=filter)
+    return {key: sti_timing.get(key) for key in STI_TIMING_KEYS}
 
 
 def parse_kv_tokens(tokens, cast=str):
@@ -761,8 +761,8 @@ def resolve_part_cost_scales(tokens, tasks):
     return scales
 
 
-def segment_name_in_param_modes(param_modes, segment_name):
-    return bool(param_modes and segment_name in param_modes)
+def segment_in_param_modes(param_modes, segment):
+    return bool(param_modes and segment in param_modes)
 
 
 def resolve_train_kwargs(
@@ -784,12 +784,12 @@ def resolve_train_kwargs(
                     f"(models: {train.KNOWN_MODELS}) or an absolute path; "
                     f"got {init_from!r}"
                 )
-            src_model, run_name = parts
+            src_model, run = parts
             if src_model not in train.KNOWN_MODELS:
                 raise ValueError(
                     f"--init-from model {src_model!r} not in {train.KNOWN_MODELS}"
                 )
-            init_from = f"{src_model}/{run_name}"
+            init_from = f"{src_model}/{run}"
     param_init, param_modes = train.parse_param_cli(args.param) if args.param else ([], {})
     param_init = param_init or None
     param_modes = param_modes or None
@@ -806,9 +806,9 @@ def resolve_train_kwargs(
     val_from = train.resolve_val_from(args.val_from)
     val_from_opts = {"val_from": val_from}
     if filter != "ca":
-        for segment_name in ("v_th_ca", "a_ca", "tau_ca"):
-            if segment_name_in_param_modes(param_modes, segment_name):
-                raise ValueError(f"--param {segment_name} requires --filter ca")
+        for segment in ("v_th_ca", "a_ca", "tau_ca"):
+            if segment_in_param_modes(param_modes, segment):
+                raise ValueError(f"--param {segment} requires --filter ca")
         if train.val_from_enabled(val_from_opts, "v_th_ca") or train.val_from_enabled(val_from_opts, "a_ca"):
             raise ValueError("--val-from v_th_ca / a_ca require --filter ca")
         if param_modes:
@@ -902,9 +902,9 @@ def resolve_train_kwargs(
     n_iter = args.n_iter
     if n_iter is None:
         n_iter = TRAIN_OPTIMIZATION['n_iter_gpu'] if cuda_available else TRAIN_OPTIMIZATION['n_iter_cpu']
-    run_name = command_run_name(script_stem)
+    run = command_run(script_stem)
     from train.implementation import run_dir
-    outdir = run_dir(model, parent=args.outdir, name=run_name)
+    outdir = run_dir(model, parent=args.outdir, run=run)
     return dict(
         model=model,
         n_run=int(args.n_run),

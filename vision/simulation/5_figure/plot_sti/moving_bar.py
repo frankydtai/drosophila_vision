@@ -125,7 +125,7 @@ def _plot_hex_field(ax, hexes, vals, i_max, i_baseline, xlim, ylim, *, hexes_are
 
 
 def plot_snapshot(
-    ax, hexes, i_sti_hex, t, spec, spec_name, i_max, i_baseline, xlim, ylim, t_onset, view_deg, *,
+    ax, hexes, i_sti_hex, t, spec, token, i_max, i_baseline, xlim, ylim, t_onset, view_deg, *,
     hexes_are_xy_deg: bool = False,
     bar_radius=None,
     multi_bar: bool = True,
@@ -135,7 +135,7 @@ def plot_snapshot(
         hexes_are_xy_deg=hexes_are_xy_deg,
     )
     _draw_bar_outline(ax, spec, view_deg, t, t_onset, bar_radius=bar_radius, multi_bar=bool(multi_bar))
-    ax.set_title(f"{spec_name}  t={t} ({t * NEURON_PARAM['delta_ms'] / 1000.0:.2f} s)", fontsize=9)
+    ax.set_title(f"{token}  t={t} ({t * NEURON_PARAM['delta_ms'] / 1000.0:.2f} s)", fontsize=9)
 
 
 def save_snapshots(
@@ -187,16 +187,16 @@ def save_snapshots(
         for j, (t, label) in enumerate(zip(times, labels)):
             plot_snapshot(
                 axes[i, j], plot_hexes, i_sti_hex[i], t, spec,
-                f"{spec.name} ({label})", i_max, i_baseline, xlim, ylim, t_onset, view_deg,
+                f"{spec.token} ({label})", i_max, i_baseline, xlim, ylim, t_onset, view_deg,
                 hexes_are_xy_deg=hexes_are_xy_deg,
                 bar_radius=bar_radius,
                 multi_bar=bool(multi_bar),
             )
         if len(times) >= 3 and not snapshot_t:
             spread = float(np.ptp(i_sti_hex[i, times[1]]))
-            print(f"  {spec.name}: start/mid/exit t={times}  mid ptp={spread:.1f} pA")
+            print(f"  {spec.token}: start/mid/exit t={times}  mid ptp={spread:.1f} pA")
         else:
-            print(f"  {spec.name}: snapshot t={times}")
+            print(f"  {spec.token}: snapshot t={times}")
 
     fig.suptitle(
         f"Moving-bar i_sti_hex (pA)  side={side}  "
@@ -242,7 +242,7 @@ def save_animation(
             axes[i, 0].clear()
             plot_snapshot(
                 axes[i, 0], plot_hexes, i_sti_hex[i], t, spec,
-                spec.name, i_max, i_baseline, xlim, ylim, t_onset, view_deg,
+                spec.token, i_max, i_baseline, xlim, ylim, t_onset, view_deg,
                 hexes_are_xy_deg=hexes_are_xy_deg,
                 bar_radius=bar_radius,
                 multi_bar=bool(multi_bar),
@@ -350,7 +350,7 @@ def main():
             bar_radius=bar_radius,
             multi_bar=bool(args.multi_bar),
         )
-    print(f"i_sti shape {tuple(T.i_sti.shape)}  specs={T.info['spec_names']}")
+    print(f"i_sti shape {tuple(T.i_sti.shape)}  specs={T.info['spec_tokens']}")
 
 
 if __name__ == "__main__":

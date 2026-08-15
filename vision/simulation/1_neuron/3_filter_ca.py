@@ -2,8 +2,8 @@
 """The one Ca filter.
 
 ``filter_ca`` is a first-order low-pass on ``v_ca`` with
-``dt_over_tau_ca = delta_ms / tau_ca`` (same pattern as ``hp_dt_over_tau`` /
-``lp_dt_over_tau`` / ``membrane_dt_over_c``). Output state is ``ca``.
+``dt_over_tau_ca = delta_ms / tau_ca`` (same ``Δt/τ`` pattern as
+``dt_over_tau_lp`` / ``membrane_dt_over_c``). Output state is ``ca``.
 
 ``delta_ms`` is an injected scalar; ``tau_ca`` may be a schema tensor
 (``p["tau_ca"]``) so the ratio stays in the graph.

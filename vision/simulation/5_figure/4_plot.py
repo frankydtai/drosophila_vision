@@ -41,11 +41,11 @@ def spot_readout_fns(session):
     )
 
 
-def _network_spot_tag(session, tname):
+def _network_spot_tag(session, task):
     """Subtitle suffix for network spot plots (exact spot/shift counts)."""
     if session.backend.network is None:
         return ''
-    opts = (session.train_opts or {}).get(f'{tname}_sti_opts') or {}
+    opts = (session.train_opts or {}).get(f'{task}_sti_opts') or {}
     spot = resolve_spot(session.backend.network, sti_opts=opts)
     n_spots = len(spot.centers)
     n_shifts = len(spot.shifts)
@@ -70,22 +70,20 @@ def load_session(outdir, model=None):
     return train.session_from_outdir(outdir, model)
 
 
-def session_for_task(base_session, tname):
+def session_for_task(base_session, task):
     """Single-task session sharing backend/schema with a multi-task run."""
     if base_session.backend.network is None:
         raise ValueError("session_for_task requires base_session.backend.network")
     opts = dict(base_session.train_opts or {})
-    opts['tasks'] = [tname]
+    opts['tasks'] = [task]
     opts['packs'] = None
     opts['network'] = base_session.backend.network
     return train.open_session({**opts, 'backend': 'network'}, base_session.model,
                            schema=list(base_session.schema))
 
 
-def resolve_model(outdir, override=None):
-    if override is not None:
-        model = override
-    else:
+def resolve_model(outdir, model=None):
+    if model is None:
         opts = load_train_opts(outdir)
         if not opts or 'model' not in opts:
             raise SystemExit(
@@ -138,13 +136,13 @@ def select_best(params, session, *, final_costs=None, verbose=True):
     return valid[best], selected
 
 
-def _session_z_from_best_named(session, run_dir):
-    """Remap ``best_param.npz`` named values onto ``session``; return ``(session, z)``."""
+def _session_z_from_best_param(session, run_dir):
+    """Remap ``best_param.npz`` per-segment values onto ``session``; return ``(session, z)``."""
     import train.implementation as train_mod
 
-    named, cells, pair_names = train_mod.load_best_param_named(run_dir)
-    remapped = train.remap_named_node_values(
-        named, cells, pair_names, list(session.schema), session.backend,
+    param_by_segment, cells, pairs = train_mod.load_best_param_by_segment(run_dir)
+    remapped = train.remap_param_by_segment_node_values(
+        param_by_segment, cells, pairs, list(session.schema), session.backend,
     )
     schema = train.attach_param_carry(list(session.schema), remapped)
     session = session.with_schema(schema)
@@ -161,8 +159,8 @@ def load_best(outdir, *, model=None, verbose=False):
     outdir = os.path.abspath(outdir)
     if not os.path.isdir(outdir):
         raise SystemExit(f'run dir not found: {outdir}')
-    model = resolve_model(outdir, override=model)
-    session, z = _session_z_from_best_named(load_session(outdir, model=model), outdir)
+    model = resolve_model(outdir, model=model)
+    session, z = _session_z_from_best_param(load_session(outdir, model=model), outdir)
     best_cost = None
     final_costs, _, _, _ = train_mod.load_stored_costs(outdir)
     if final_costs is not None and len(final_costs) > 0:
@@ -188,7 +186,7 @@ def maybe_override_sti_timing(
     euler=None,
     filter=None,
 ):
-    """Re-open session when any timing / euler / filter override is set; remap best ``z``.
+    """Re-open session when any timing / euler / filter token is set; remap best ``z``.
 
     Unset flags keep values from the run's train opts. ``ms_pre`` /
     ``delta_ms`` / ``delta_ms_pre`` also update moving_bar sti opts;
@@ -245,8 +243,8 @@ def maybe_override_sti_timing(
         or delta_ms is not None
         or delta_ms_pre is not None
     ):
-        from train.cli import apply_train_opts_timing
-        timing_changed = apply_train_opts_timing(
+        from train.cli import override_train_opts_timing
+        timing_changed = override_train_opts_timing(
             opts,
             ms_pre=ms_pre,
             ms_response=ms_response,
@@ -263,7 +261,7 @@ def maybe_override_sti_timing(
         opts["filter"] = train.expand_filter(filter)
 
     session = train.resolve_session(opts, model=opts.get("model"))
-    session, z = _session_z_from_best_named(session, run_dir)
+    session, z = _session_z_from_best_param(session, run_dir)
     return session, z, timing_changed
 
 
@@ -379,9 +377,9 @@ def _plot_spot_tasks(session, z, outdir, spot_tasks, suffix, model_all,
                 **plot_kw,
             )
         return mvd, allc
-    for tname in spot_tasks:
+    for task in spot_tasks:
         _plot_one_task(
-            session_for_task(session, tname), z, outdir, tname, suffix, model_all,
+            session_for_task(session, task), z, outdir, task, suffix, model_all,
             gts=gts,
             at_x=at_x, at_y=at_y,
             show_pre=show_pre,
@@ -432,37 +430,37 @@ def _plot_bar_readouts(session, z, outdir, bar_readouts, suffix, model_all, *,
                 cost_parts=cost_parts,
             )
         return mvd, allc
-    for tname in bar_readouts:
-        one = session_for_task(session, tname)
-        readout = moving_bar_plot.moving_bar_trace_readout(one, z, tname, **readout_kw)
+    for task in bar_readouts:
+        one = session_for_task(session, task)
+        readout = moving_bar_plot.moving_bar_trace_readout(one, z, task, **readout_kw)
         mvd = _plot_path(outdir, _readout_plot_stem('bar_gt', session), file_suffix, html=html)
         moving_bar_plot.plot_moving_bar_gt(
-            mvd, readout=readout, title=f'{tname} {token}-gt ({suffix})',
+            mvd, readout=readout, title=f'{task} {token}-gt ({suffix})',
             cost_parts=cost_parts,
         )
         allc = None
         if model_all:
             allc = _plot_path(outdir, _readout_plot_stem('bar_all', session), file_suffix, html=html)
             moving_bar_plot.plot_moving_bar_all(
-                allc, readout=readout, title=f'{tname} {token}-all ({suffix})',
+                allc, readout=readout, title=f'{task} {token}-all ({suffix})',
                 right_only=plot_right_only,
                 cost_parts=cost_parts,
             )
         return mvd, allc
 
 
-def _plot_one_task(session, z, outdir, tname, suffix, model_all,
+def _plot_one_task(session, z, outdir, task, suffix, model_all,
                      gts=None,
                      at_x=None, at_y=None, show_pre=True,
                      cost_parts=None, file_suffix="", html=False, ms_shown=None,
                      center_only=False):
-    if tname not in train.SPOT_TASKS:
-        raise ValueError(f'unknown plot task {tname!r}')
+    if task not in train.SPOT_TASKS:
+        raise ValueError(f'unknown plot task {task!r}')
     token = session_filter_plot_token(session)
     mvd = _plot_path(outdir, _readout_plot_stem('spot_gt', session), file_suffix, html=html)
     allc = _plot_path(outdir, _readout_plot_stem('spot_all', session), file_suffix, html=html)
     build_readout, plot_gt, plot_all = spot_readout_fns(session)
-    net_tag = _network_spot_tag(session, tname)
+    net_tag = _network_spot_tag(session, task)
     if cost_parts is None:
         cost_parts = _cost_parts_for_plot(session, z)
     plot_kw = dict(gts=gts, cost_parts=cost_parts)
@@ -474,12 +472,12 @@ def _plot_one_task(session, z, outdir, tname, suffix, model_all,
         center_only=center_only,
     )
     from figure.gt import contrast_for_task
-    readouts = {contrast_for_task(tname): readout}
+    readouts = {contrast_for_task(task): readout}
     plot_gt(
-        mvd, readouts=readouts, title=f'{tname} {token}-gt ({suffix}){net_tag}', **plot_kw,
+        mvd, readouts=readouts, title=f'{task} {token}-gt ({suffix}){net_tag}', **plot_kw,
     )
     if model_all:
-        plot_all(allc, readouts=readouts, title=f'{tname} {token}-all ({suffix}){net_tag}', **plot_kw)
+        plot_all(allc, readouts=readouts, title=f'{task} {token}-all ({suffix}){net_tag}', **plot_kw)
     return mvd, allc
 
 
@@ -562,14 +560,14 @@ def plot_param_set(params, outdir, model=None, model_all=True,
     if save_data:
         os.makedirs(run_data_dir(os.path.abspath(outdir)), exist_ok=True)
         z_best = torch.tensor(best, dtype=session.sim_dtype, device=session.device)
-        train_mod.save_best_param_named(outdir, z_best, session)
+        train_mod.save_best_param(outdir, z_best, session)
     return best, best_cost
 
 
 def add_plot_arguments(parser):
     """Register plot-only CLI flags shared by ``run.py`` and ``figure.plot``.
 
-    Timing overrides (``--sti-timing``) are registered separately via
+    Timing (``--sti-timing``) is registered separately via
     :func:`add_plot_timing_arguments` so ``run.py`` does not double-register
     flags already on the train CLI.
     """
@@ -710,14 +708,14 @@ def parse_optimizable_param_tokens(tokens):
         raise SystemExit(str(exc)) from exc
 
 
-def param_filename_suffix(edits):
+def param_filename_suffix(param_inits):
     from train.cli import param_filename_suffix as _suffix
-    return _suffix(edits)
+    return _suffix(param_inits)
 
 
-def apply_param_overrides(z, schema, session, edits):
+def override_params(z, schema, session, param_inits):
     try:
-        return train.apply_param_overrides(z, schema, session, edits)
+        return train.override_params(z, schema, session, param_inits)
     except ValueError as exc:
         raise SystemExit(str(exc)) from exc
 
@@ -764,7 +762,7 @@ def main():
         raise SystemExit(str(exc)) from exc
 
     from train.cli import resolve_sti_timing_kwargs
-    param_edits = parse_optimizable_param_tokens(args.param)
+    param_inits = parse_optimizable_param_tokens(args.param)
 
     outdir = resolve_run_dir(args.run_path)
     train_opts = load_train_opts(outdir) or {}
@@ -781,15 +779,15 @@ def main():
         else torch.tensor(np.asarray(z, dtype=np.float64), dtype=torch.float64,
                           device=session.device)
     )
-    z_t, schema = apply_param_overrides(
-        z_t, list(session.schema), session, param_edits,
+    z_t, schema = override_params(
+        z_t, list(session.schema), session, param_inits,
     )
     session = session.with_schema(schema)
     # Filter is already in readout stems (``_v`` / ``_ca``); do not append again.
     file_suffix = (
         sti_timing_filename_suffix(**timing_changed)
         + euler_filename_suffix(args.euler)
-        + param_filename_suffix(param_edits)
+        + param_filename_suffix(param_inits)
     )
     model = resolve_model(outdir)
     z_np = z_t.detach().cpu().numpy()
@@ -802,7 +800,7 @@ def main():
         session=session,
         final_costs=np.array([best_cost]),
         file_suffix=file_suffix,
-        save_data=not param_edits,
+        save_data=not param_inits,
         **plot_kw,
     )
 

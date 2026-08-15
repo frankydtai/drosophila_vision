@@ -71,13 +71,13 @@ ARENZ_L_DIGITIZED_CSV = _ARENZ_DIR / "L_digitized.csv"
 ARENZ_4_DIGITIZED_CSV = _ARENZ_DIR / "4_digitized.csv"
 
 
-def expand_gt_cells(names: Sequence[str]) -> Tuple[str, ...]:
+def expand_gt_cells(cells: Sequence[str]) -> Tuple[str, ...]:
     """Validate ``--gt`` spot cell tokens against ``GT_CELLS`` (final keep-set)."""
-    if not names:
+    if not cells:
         raise ValueError("gt_cells must not be empty")
     out: list = []
     seen: set = set()
-    for raw in names:
+    for raw in cells:
         key = str(raw).strip()
         if key not in GT_CELLS:
             valid = ", ".join(GT_CELLS)
@@ -219,10 +219,9 @@ def _lowpass(x, tau_ms, *, delta_ms: float):
     if tau_ms < dt:
         result = x
     else:
-        alpha = dt / tau_ms
         result[0] = x[0]
         for i in range(0, n - 1):
-            result[i + 1] = alpha * (x[i] - result[i]) + result[i]
+            result[i + 1] = result[i] + (dt / tau_ms) * (x[i] - result[i])
     return result.transpose(np.roll(np.arange(result.ndim), -1))
 
 

@@ -61,7 +61,7 @@ def _merge_filter_branch_ms(so: dict, key: str, val) -> None:
         so[key] = {"v": float(val), "ca": float(val)}
     else:
         raise TypeError(
-            f"{key} override must be a float or {{v, ca}} dict, got {type(val)!r}"
+            f"{key} must be a float or {{v, ca}} dict, got {type(val)!r}"
         )
 
 
@@ -83,7 +83,7 @@ def normalize_sti_timing(so: dict) -> dict:
     return so
 
 
-def apply_sti_timing_overrides(
+def override_sti_timing(
     so: dict,
     *,
     ms_pre=None,
@@ -267,7 +267,7 @@ def build_spot_a_sti_radius_drive(
     if any(r == 0.0 for r in radii):
         raise ValueError("a_sti_radii must omit center r=0 (baked into i_sti @1)")
     by_radius = members_by_euclid_radius(radii) if radii else {}
-    i_from_radius = {r: i for i, r in enumerate(radii)}
+    idx_from_radius = {r: i for i, r in enumerate(radii)}
     batch_l: list[int] = []
     node_l: list[int] = []
     r_l: list[int] = []
@@ -277,7 +277,7 @@ def build_spot_a_sti_radius_drive(
             for nid in connectome.sti_nodes_at(int(sti_hex_u), int(sti_hex_v)):
                 center_nodes.append((int(b), int(nid)))
             for radius_key, members in by_radius.items():
-                ri = i_from_radius[radius_key]
+                ri = idx_from_radius[radius_key]
                 for du, dv in members:
                     for nid in connectome.sti_nodes_at(int(sti_hex_u) + int(du), int(sti_hex_v) + int(dv)):
                         batch_l.append(int(b))

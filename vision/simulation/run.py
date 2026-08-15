@@ -17,7 +17,7 @@ Usage (from ``simulation/``, project ``.venv``):
 
 Re-plot an existing run without train:
 
-    ../.venv/bin/python -m figure.plot <model>/<run_name>
+    ../.venv/bin/python -m figure.plot <model>/<run>
 """
 from __future__ import annotations
 
@@ -208,7 +208,7 @@ def run_mirror_spot_experiment(
     from figure.gt import fit_gts
     from train.experiment import (
         resolve_i_h_param_modes,
-        spot_pack_overrides,
+        spot_pack_mirror_fits,
         spot_tasks_from,
         normalize_mirror_fit,
     )
@@ -216,9 +216,9 @@ def run_mirror_spot_experiment(
     def build_mirror_gts(fits, sign, session):
         specs = normalize_mirror_fit(fits, sign)
         def mirror_gts(contrasts):
-            pack_name = f"spot_{str(contrasts[0])}"
+            task = f"spot_{str(contrasts[0])}"
             timing = resolve_sti_timing(
-                (session.train_opts or {}).get(f"{pack_name}_sti_opts") or {}
+                (session.train_opts or {}).get(f"{task}_sti_opts") or {}
             )
             base = fit_gts(
                 contrasts=contrasts,
@@ -264,7 +264,7 @@ def run_mirror_spot_experiment(
 
     fits = mirror_fit(args) if callable(mirror_fit) else mirror_fit
     tasks = run_kw["tasks"]
-    pack_overrides = spot_pack_overrides(tasks, fits, mirror_sign)
+    pack_mirror_fits = spot_pack_mirror_fits(tasks, fits, mirror_sign)
     param_modes = resolve_i_h_param_modes(run_kw)
     spot_tasks = spot_tasks_from(tasks)
     build_session_params = inspect.signature(implementation.build_session).parameters
@@ -275,7 +275,7 @@ def run_mirror_spot_experiment(
             for key, val in run_kw.items()
             if key != "model" and key in build_session_params
         },
-        pack_overrides=pack_overrides,
+        pack_mirror_fits=pack_mirror_fits,
         param_modes=param_modes,
     )
     plot_gts = resolve_spot_plot_gts(
@@ -284,12 +284,12 @@ def run_mirror_spot_experiment(
 
     fname, outdir, session = run_train_and_plot(
         **run_kw,
-        pack_overrides=pack_overrides,
+        pack_mirror_fits=pack_mirror_fits,
         param_modes=param_modes,
         plot_gts=plot_gts,
     )
-    for tname in spot_tasks:
-        print(f"{tname} cost nodes:", int(session.pack_for(tname).entry_nodes.shape[0]))
+    for task in spot_tasks:
+        print(f"{task} cost nodes:", int(session.pack_for(task).entry_nodes.shape[0]))
     return fname, outdir, session
 
 

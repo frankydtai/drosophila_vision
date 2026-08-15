@@ -28,15 +28,15 @@ def as_numpy(arr):
     return np.asarray(arr)
 
 
-def gt_affine_scalars_for_cell(params, cell_name, backend, session=None) -> tuple[float, float]:
-    """``(a_gt, effective_bias)`` for one cell type name (matches cost).
+def gt_affine_scalars_for_cell(params, cell, backend, session=None) -> tuple[float, float]:
+    """``(a_gt, effective_bias)`` for one cell (matches cost).
 
-    ``params`` must already have ``apply_val_from`` applied so
+    ``params`` must already have ``override_val_from`` applied so
     ``bias_gt`` / ``v_th_ca`` / ``a_ca`` hold ``val_from`` sources when enabled.
     When ``val_from`` bias_gt is on, do not add ``v_th``.
     """
-    names = [str(n) for n in backend.network.cells]
-    ci = names.index(str(cell_name))
+    cells = [str(n) for n in backend.network.cells]
+    ci = cells.index(str(cell))
     gs = params["a_gt"]
     a_gt = float(gs[ci] if torch.is_tensor(gs) and gs.dim() > 0 else gs)
     gb = params["bias_gt"]
@@ -97,7 +97,7 @@ def cost_ylim(*curves, pct=99.0, pad=1.1, floor=1.0, log=False):
     return ylo, yhi
 
 
-def _apply_cost_yscale(ax, *curves):
+def _cost_yscale(ax, *curves):
     """Log y-scale with shared-style ylim from *curves*."""
     ax.set_yscale('log')
     ax.set_ylim(*cost_ylim(*curves, log=True))
@@ -122,12 +122,12 @@ def annotate_v_th(ax, v_th, *, e_leak=None):
     )
 
 
-def params_for_types(nodes_by_name, param_by_name=None):
-    """``{cell_name: value}`` per type from *param_by_name*."""
-    param_by_name = param_by_name or {}
+def params_for_types(nodes_by_cell, param_by_segment=None):
+    """``{cell: value}`` per type from *param_by_segment*."""
+    param_by_segment = param_by_segment or {}
     out = {}
-    for name in nodes_by_name:
-        val = param_by_name.get(name, np.nan)
+    for name in nodes_by_cell:
+        val = param_by_segment.get(name, np.nan)
         out[name] = float(val) if val is not None and np.isfinite(val) else np.nan
     return out
 
@@ -181,24 +181,24 @@ def std_from_traces(traces, single_hex=False):
     return traces.std(axis=0)
 
 
-def v_th_by_type_name(z, session):
+def v_th_by_cell_from_z(z, session):
     """Per-cell ``v_th`` (absolute mV)."""
-    return _param_by_type_name(z, session, 'v_th')
+    return _param_by_cell(z, session, 'v_th')
 
 
-def e_leak_by_type_name(z, session):
+def e_leak_by_cell_from_z(z, session):
     """Per-cell leak reversal mV from ``e_leak``."""
-    return _param_by_type_name(z, session, 'e_leak')
+    return _param_by_cell(z, session, 'e_leak')
 
 
-def _param_by_type_name(z, session, name):
+def _param_by_cell(z, session, segment):
     schema = list(session.schema)
-    if name not in {s.get('name') for s in schema}:
+    if segment not in {s.get('segment') for s in schema}:
         return {}
-    arr = np.asarray(train.node_values_from_z(z, schema)[name], dtype=np.float64).reshape(-1)
-    cells = train.cell_node_names(session.backend)
+    arr = np.asarray(train.node_values_from_z(z, schema)[segment], dtype=np.float64).reshape(-1)
+    cells = train.cells_for_backend(session.backend)
     if arr.shape[0] != len(cells):
-        raise ValueError(f"{name} length {arr.shape[0]} != n_cells {len(cells)}")
+        raise ValueError(f"{segment} length {arr.shape[0]} != n_cells {len(cells)}")
     return {str(n): float(arr[i]) for i, n in enumerate(cells)}
 
 
@@ -233,7 +233,7 @@ def format_spot_radius_time_title(radius, n, cell, cost_parts, contrasts):
     return '\n'.join(lines)
 
 
-def format_moving_bar_cell_cost_lines(cell, cost_parts, task_names):
+def format_moving_bar_cell_cost_lines(cell, cost_parts, tasks):
     """Lines ``ON: xx @PD yy @ND`` / ``OFF: …`` for moving-bar titles."""
     tag = {
         'moving_bar_bright': 'ON',
@@ -242,7 +242,7 @@ def format_moving_bar_cell_cost_lines(cell, cost_parts, task_names):
     lines = []
     if not cost_parts:
         return lines
-    for task in task_names:
+    for task in tasks:
         bits = []
         for lab in ('PD', 'ND'):
             key = f'{task}_{cell}_{lab}'
@@ -364,7 +364,7 @@ def slice_coord_specs(at_xs, at_ys):
     return []
 
 
-def slice_axis_name(at_xs, at_ys):
+def slice_axis(at_xs, at_ys):
     """``'xy'`` / ``'x'`` / ``'y'`` / ``None`` matching :func:`slice_coord_specs`."""
     if at_xs is not None and at_ys is not None:
         return 'xy'
@@ -784,7 +784,7 @@ def plot_cost(costs, path, *, costs_by_part=None, part_order=None):
     def _save_total_only():
         fig, ax = plt.subplots(figsize=(8, 4))
         ax.plot(costs, color='steelblue', linewidth=2, linestyle='-')
-        _apply_cost_yscale(ax, costs)
+        _cost_yscale(ax, costs)
         ax.set_xlabel('step')
         ax.set_ylabel('cost [% gt power]')
         ax.set_title(f'Train cost ({len(costs)} steps)')
@@ -955,7 +955,7 @@ def plot_cost(costs, path, *, costs_by_part=None, part_order=None):
         ax = fig.add_subplot(gs[row_idx, :])
         ax.plot(costs, color='steelblue', linewidth=2, linestyle='-')
         if log:
-            _apply_cost_yscale(ax, costs)
+            _cost_yscale(ax, costs)
         else:
             ax.set_ylim(*cost_ylim(costs))
         ax.set_title("total (scaled)")
@@ -978,10 +978,10 @@ def plot_cost(costs, path, *, costs_by_part=None, part_order=None):
                         linewidth=2, linestyle='-', label=label,
                     )
                 if log and shared_cell_ylim and cell_curves:
-                    _apply_cost_yscale(ax, *cell_curves)
+                    _cost_yscale(ax, *cell_curves)
                 elif curves:
                     if log:
-                        _apply_cost_yscale(ax, *curves)
+                        _cost_yscale(ax, *curves)
                     else:
                         ax.set_ylim(*cost_ylim(*curves))
                 if j == 0:
@@ -1000,7 +1000,7 @@ def plot_cost(costs, path, *, costs_by_part=None, part_order=None):
             ax = fig.add_subplot(gs[row_idx, col])
             ax.plot(curve, color=color_from_role_id.get(role_id), linewidth=2, linestyle='-')
             if log:
-                _apply_cost_yscale(ax, curve)
+                _cost_yscale(ax, curve)
             else:
                 ax.set_ylim(*cost_ylim(curve))
             ax.set_title(label, fontsize=8)

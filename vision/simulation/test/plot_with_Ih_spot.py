@@ -87,7 +87,7 @@ def _network_spot_trace_readout(
         slice_y_list=at_y_list,
         n_t=mt,
         prep_s=time.perf_counter() - t0,
-        v_th_by_name=spot_plot.v_th_by_type_name(z, session),
+        v_th_by_cell=spot_plot.v_th_by_cell(z, session),
     )
 
 

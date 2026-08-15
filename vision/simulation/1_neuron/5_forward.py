@@ -24,13 +24,13 @@ MODEL_DRIVERS = {
 
 def a_sti_radius_effective(params, pack):
     """``a_sti_radius`` after ``pack.a_sti_radius_mask`` (cost scale==0 → 0)."""
-    alpha = params["a_sti_radius"]
+    a_sti_radius = params["a_sti_radius"]
     if pack is None:
-        return alpha
+        return a_sti_radius
     mask = getattr(pack, "a_sti_radius_mask", None)
     if mask is None:
-        return alpha
-    return alpha * mask.to(device=alpha.device, dtype=alpha.dtype)
+        return a_sti_radius
+    return a_sti_radius * mask.to(device=a_sti_radius.device, dtype=a_sti_radius.dtype)
 
 
 def inject_a_sti_radius(i_sti, params, pack):
@@ -50,12 +50,12 @@ def inject_a_sti_radius(i_sti, params, pack):
         )
     if i_sti.dim() == 2:
         i_sti = i_sti.unsqueeze(0)
-    alpha = a_sti_radius_effective(params, pack)
+    a_sti_radius = a_sti_radius_effective(params, pack)
     out = i_sti.clone()
     if batch.numel() == 0:
         return out
     B, T, N = out.shape
-    add = alpha[a_sti_radius_indices][:, None] * wave[None, :]
+    add = a_sti_radius[a_sti_radius_indices][:, None] * wave[None, :]
     flat = out.permute(0, 2, 1).reshape(B * N, T)
     flat.index_add_(0, batch * N + node, add)
     return flat.reshape(B, N, T).permute(0, 2, 1).contiguous()
@@ -95,7 +95,7 @@ def _session_filter(session) -> str:
 def v_ca_from_v(v, params, session):
     """``v_ca = relu(v − v_th_ca)·a_ca`` (per-node tensors in ``params``).
 
-    Callers must run ``train.apply_val_from`` (via ``params_from_z``)
+    Callers must run ``train.override_val_from`` (via ``params_from_z``)
     so ``v_th_ca`` / ``a_ca`` already hold ``v_th`` / ``a_out`` when the
     matching ``val_from`` entries are enabled.
     """

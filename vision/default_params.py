@@ -52,7 +52,7 @@ NEURON_SCHEMA: Dict[str, object] = {
     "a_hi": 10.0,
     "h_cells": ("L1", "L2", "L4", "L5"),
     # mode: indi | shared | fixed | frozen
-    # overrides: optional per-node val/mode tokens (later wins); see neuron.schema
+    # param: optional per-node val/mode tokens (later wins); see neuron.schema
     "optimizable": {
         "a_gt": dict(lo=0.5, hi=2.0, val=1.0, jit=0.1, mode="indi"),
         "bias_gt": dict(lo=-200.0, hi=200.0, val=0.0, jit=1.0, mode="indi"),
@@ -66,13 +66,13 @@ NEURON_SCHEMA: Dict[str, object] = {
         "tau_hp_rise": dict(lo=100.0, hi=500.0, val=200.0, jit=20.0, mode="indi"),
         "tau_hp_fall": dict(lo=100.0, hi=500.0, val=200.0, jit=20.0, mode="indi"),
         "a_h": dict(lo=0.0, hi=1.0, val=0, jit=0.1, mode="indi",
-            overrides="val.L1,L2,L4,L5=0.5",
+            param="val.L1,L2,L4,L5=0.5",
         ),
         "v_mid_h_g": dict(lo=-70.0, hi=-30.0, val=-50.0, jit=5.0, mode="shared"),
         "v_mid_h_tau": dict(lo=-70.0, hi=-40.0, val=-50.0, jit=5.0, mode="shared"),
         "h_slope": dict(lo=-0.40, hi=-0.20, val=-0.25, jit=0.02, mode="shared"),
         "a_h_rev": dict(lo=0.0, hi=1.0, val=0.0, jit=0.1, mode="fixed",
-            overrides="mode.h_cells=indi",
+            param="mode.h_cells=indi",
         ),
         "v_mid_h_g_rev": dict(lo=-70.0, hi=-30.0, val=-50.0, jit=5.0, mode="shared"),
         "v_mid_h_tau_rev": dict(lo=-70.0, hi=-40.0, val=-50.0, jit=5.0, mode="shared"),
@@ -309,7 +309,7 @@ TRAIN_OPTS: Dict[str, object] = {
     "spot_dark_sti_opts": SPOT_DARK_STI_OPTS,
     "moving_bar_bright_sti_opts": MOVING_BAR_BRIGHT_STI_OPTS,
     "moving_bar_dark_sti_opts": MOVING_BAR_DARK_STI_OPTS,
-    "pack_overrides": None,
+    "pack_mirror_fits": None,
     "packs": None,
     "param_modes": None,
     "euler": NEURON_PARAM["euler"],

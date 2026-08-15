@@ -16,13 +16,11 @@ v_slow → v_in, so v → e_leak.
 
 Membrane / HP Euler (``session.euler`` = ``implicit`` | ``explicit``):
 
-    α_hp = Δt/τ_hp(e_HP),  α_lp = Δt/τ_lp
+    implicit HP:  v_slow ← (v_slow + (Δt/τ_HP) v_in) / (1 + Δt/τ_HP)
+    explicit HP:  v_slow ← v_slow + (Δt/τ_HP) (v_in − v_slow)
 
-    implicit HP:  v_slow ← (v_slow + α_hp v_in) / (1 + α_hp)
-    explicit HP:  v_slow ← v_slow + α_hp (v_in − v_slow)
-
-    implicit LP:  v ← (v + α_lp (e_leak + v_hp)) / (1 + α_lp)
-    explicit LP:  v ← v + α_lp (−(v − e_leak) + v_hp)
+    implicit LP:  v ← (v + (Δt/τ_lp) (e_leak + v_hp)) / (1 + Δt/τ_lp)
+    explicit LP:  v ← v + (Δt/τ_lp) (−(v − e_leak) + v_hp)
 
 Dynamics only: ``normalize_i_sti`` / ``pre_steady`` / ``step``. Full-T ``v``
 forward lives in ``neuron.forward``. Scalars from ``session`` flat fields.
@@ -68,25 +66,26 @@ def update_state_hp_lp(
     v_out, w, v_syn = _syn_drive(v, params, backend)
     v_sti = i_sti / g_leak
     v_in = v_syn + v_sti
-    v_slow_error = v_in - v_slow
-    tau_hp = torch.where(v_slow_error >= 0.0, tau_hp_rise, tau_hp_fall)
-    hp_dt_over_tau = dt / tau_hp
-    hp_scale = (
-        hp_dt_over_tau / (1.0 + hp_dt_over_tau) if euler == "implicit" else hp_dt_over_tau
-    )
-    v_slow = v_slow + hp_scale * v_slow_error
+    tau_hp = torch.where(v_in >= v_slow, tau_hp_rise, tau_hp_fall)
+    if euler == "implicit":
+        v_slow = (v_slow + (dt / tau_hp) * v_in) / (1.0 + dt / tau_hp)
+    else:
+        v_slow = v_slow + (dt / tau_hp) * (v_in - v_slow)
     # LP uses post-HP ``v_slow`` (same as prior identity).
     v_hp = v_in - a_h * v_slow
-    lp_dt_over_tau = dt / tau_lp
-    lp_scale = (
-        lp_dt_over_tau / (1.0 + lp_dt_over_tau) if euler == "implicit" else lp_dt_over_tau
-    )
+    dt_over_tau_lp = dt / tau_lp
     if return_component:
-        dv_leak = lp_scale * (-(v - e_leak))
-        dv_hp = lp_scale * v_hp
+        if euler == "implicit":
+            dv_leak = (dt_over_tau_lp / (1.0 + dt_over_tau_lp)) * (-(v - e_leak))
+            dv_hp = (dt_over_tau_lp / (1.0 + dt_over_tau_lp)) * v_hp
+        else:
+            dv_leak = dt_over_tau_lp * (-(v - e_leak))
+            dv_hp = dt_over_tau_lp * v_hp
         v = v + dv_leak + dv_hp
+    elif euler == "implicit":
+        v = (v + dt_over_tau_lp * (e_leak + v_hp)) / (1.0 + dt_over_tau_lp)
     else:
-        v = v + lp_scale * (-(v - e_leak) + v_hp)
+        v = v + dt_over_tau_lp * (-(v - e_leak) + v_hp)
 
     v_slow = torch.clamp(v_slow, -clamp, clamp)
     v = torch.clamp(v, -clamp, clamp)

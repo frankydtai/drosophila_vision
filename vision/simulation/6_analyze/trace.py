@@ -346,11 +346,11 @@ def _baseline_mean(
     return float(np.mean(trace_slice))
 
 
-def _format_param_edits(edits: list[tuple[str, str | None, float]]) -> str:
-    if not edits:
+def _format_param_inits(param_inits: list[tuple[str, str | None, float]]) -> str:
+    if not param_inits:
         return "none"
     parts: list[str] = []
-    for name, node, val in edits:
+    for segment, node, val in param_inits:
         key = name if node is None else f"{name}.{node}"
         parts.append(f"{key}={val:g}")
     return " ".join(parts)
@@ -386,10 +386,10 @@ def _load_reports(args):
         np.asarray(z, dtype=np.float64), dtype=torch.float64, device=session.device,
     )
     schema = list(session.schema)
-    param_edits = plot_trained.parse_optimizable_param_tokens(args.param)
-    z_t, schema = plot_trained.apply_param_overrides(z_t, schema, session, param_edits)
+    param_inits = plot_trained.parse_optimizable_param_tokens(args.param)
+    z_t, schema = plot_trained.override_params(z_t, schema, session, param_inits)
     session = session.with_schema(schema)
-    params = train.apply_val_from(
+    params = train.override_val_from(
         train.assign_params(z_t, schema, session.backend), session,
     )
 
@@ -403,7 +403,7 @@ def _load_reports(args):
     sess_one = plot_trained.session_for_task(session, args.task)
     delta_ms = float(sess_one.delta_ms)
     opts = dict(
-        (sess_one.train_opts or {}).get(f"{sess_one.primary_pack.name}_sti_opts")
+        (sess_one.train_opts or {}).get(f"{sess_one.primary_pack.task}_sti_opts")
         or {},
     )
     ms_pre, ms_sti, ms_response = _sti_ms(opts)
@@ -423,7 +423,7 @@ def _load_reports(args):
         f"baseline-ms-shown={base_s}  "
         f"forward TimeWindow(ms, 0, {forward_stop:g})  "
         f"ms_pre={ms_pre:g} ms_sti={ms_sti:g} ms_response={ms_response:g}  "
-        f"param={_format_param_edits(param_edits)}  "
+        f"param={_format_param_inits(param_inits)}  "
         f"n_cells={len(cells)}",
         flush=True,
     )

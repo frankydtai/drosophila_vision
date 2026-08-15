@@ -630,7 +630,7 @@ def print_table(
     origin_xy: Optional[Tuple[float, float]] = None,
     mean_partner_delta: bool = False,
     n_self: int = 0,
-    alpha_by_partner: Optional[Dict[str, str]] = None,
+    syn_strength_by_partner: Optional[Dict[str, str]] = None,
     after_title: Optional[str] = None,
 ) -> None:
     partner_dim = "family" if use_family else "cell"
@@ -647,11 +647,11 @@ def print_table(
     uv_label = f"{side}_d_uv"
     d_xy_label = f"{side}_d_xy"
     xy_label = f"{side}_xy"
-    show_alpha = alpha_by_partner is not None
+    show_syn_strength = syn_strength_by_partner is not None
 
     header = [partner_field]
-    if show_alpha:
-        header.append("alpha")
+    if show_syn_strength:
+        header.append("syn_strength")
     header += ["% n_syn+", "% n_syn-", n_label]
     if show_uv:
         header.append(uv_label)
@@ -674,8 +674,8 @@ def print_table(
             if percent_positive + percent_negative <= min_percent:
                 continue
             row = [pt]
-            if show_alpha:
-                row.append(alpha_by_partner.get(pt, "-"))
+            if show_syn_strength:
+                row.append(syn_strength_by_partner.get(pt, "-"))
             row += [f"{percent_positive:.4f}", f"{percent_negative:.4f}"]
             npv = int(n_partner_by_type.get(pt, 0))
             row.append(str(npv))
@@ -705,7 +705,7 @@ def print_table(
             rows.append(row)
 
     sum_row = ["SUM"]
-    if show_alpha:
+    if show_syn_strength:
         sum_row.append("")
     sum_row += [f"{percent_positive_sum:.4f}", f"{percent_negative_sum:.4f}"]
     n_partner_sum = sum(int(n_partner_by_type.get(pt, 0)) for pt in by_partner)

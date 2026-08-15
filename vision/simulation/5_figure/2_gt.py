@@ -38,12 +38,12 @@ def _cells_for_nodes(session, node_indices):
     node_cells = connectome.node_cells[node_idx]
     if torch.is_tensor(node_cells):
         node_cells = node_cells.detach().cpu().numpy()
-    names = list(connectome.cells)
-    return [str(names[int(ti)]) for ti in node_cells]
+    cells = list(connectome.cells)
+    return [str(cells[int(ti)]) for ti in node_cells]
 
 
 def pack_cells(session, task=None):
-    """Unique cell names on pack.entry_nodes, pack order."""
+    """Unique cells on pack.entry_nodes, pack order."""
     pack = session.primary_pack if task is None else session.pack_for(task)
     seen = set()
     out = []
@@ -60,7 +60,7 @@ def active_spot_gt_cells(session, task=None):
     Falls back to :data:`GT_CELLS` when opts omit ``gt_cells``.
     """
     pack = session.primary_pack if task is None else session.pack_for(task)
-    opts = dict((session.train_opts or {}).get(f"{pack.name}_sti_opts") or {})
+    opts = dict((session.train_opts or {}).get(f"{pack.task}_sti_opts") or {})
     connectome = session.backend.network
     if connectome is None:
         raise ValueError("active_spot_gt_cells requires session.backend.network")
@@ -92,11 +92,11 @@ def contrast_linestyle(contrast: str) -> str:
     return {"bright": "-", "dark": "--"}.get(str(contrast), "-")
 
 
-def _apply_mirror(cells, override):
+def _mirror_fit_cells(cells, pack_mirror_fit):
     cells = dict(cells)
-    if not override:
+    if not pack_mirror_fit:
         return cells
-    specs = override.get("mirror_fit")
+    specs = pack_mirror_fit.get("mirror_fit")
     if specs is None:
         specs = []
     elif isinstance(specs, dict):
@@ -154,14 +154,14 @@ def spot_gts(
     filter="none",
     spot_gt_mode=None,
 ):
-    """Spot gts ``{contrast: {cell: gt}}`` with pack mirror overrides.
+    """Spot gts ``{contrast: {cell: gt}}`` with pack mirror_fit.
 
     ``filter`` / ``spot_gt_mode`` default from ``session.train_opts``.
     """
-    task = task or session.primary_pack.name
+    task = task or session.primary_pack.task
     if contrasts is None:
         contrasts = (contrast_for_task(task),)
-    overrides = (session.train_opts or {}).get('pack_overrides') or {}
+    pack_mirror_fits = (session.train_opts or {}).get('pack_mirror_fits') or {}
     if filter is None:
         filter = str((session.train_opts or {}).get("filter", "none"))
     else:
@@ -179,9 +179,7 @@ def spot_gts(
     )
     out = {}
     for contrast, cells in base.items():
-        pack_name = "spot_dark" if contrast == "dark" else "spot_bright"
-        ov = overrides.get(pack_name)
-        if ov is None:
-            ov = overrides.get(task)
-        out[contrast] = _apply_mirror(cells, ov)
+        task = "spot_dark" if contrast == "dark" else "spot_bright"
+        pack_mirror_fit = pack_mirror_fits.get(task)
+        out[contrast] = _mirror_fit_cells(cells, pack_mirror_fit)
     return out

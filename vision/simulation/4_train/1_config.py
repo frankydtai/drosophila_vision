@@ -29,7 +29,7 @@ PARAMETER_DIR = Path(__file__).resolve().parent.parent / "0_runs"
 # Per-run data subfolder (``.npy`` / ``.npz``, ``train_opts.json``, ``param_schema.json``).
 RUN_DATA_SUBDIR = "data"
 
-# Per-run CSV summaries written next to PNGs under ``<run_name>/`` (not under data/).
+# Per-run CSV summaries written next to PNGs under ``<run>/`` (not under data/).
 PARAM_CSV = "param.csv"
 SYN_STRENGTH_CELL_CSV = "syn_strength_cell.csv"
 SYN_STRENGTH_EDGE_CSV = "syn_strength_edge.csv"
@@ -125,30 +125,30 @@ PART_COST_SCALE_ALIASES = {
 }
 
 
-def moving_bar_cost_part_key(task_name: str, part: str) -> str:
-    return f"{task_name}_{part}"
+def moving_bar_cost_part_key(task: str, part: str) -> str:
+    return f"{task}_{part}"
 
 
-def spot_cost_part_key(task_name: str, cell: str, radius) -> str:
+def spot_cost_part_key(task: str, cell: str, radius) -> str:
     """Fine spot part: ``{task}_{cell}_r{radius}`` (only radii with cost readout)."""
     r = float(radius)
     r_s = str(int(r)) if r == int(r) else str(r)
-    return f"{task_name}_{cell}_r{r_s}"
+    return f"{task}_{cell}_r{r_s}"
 
 
-def moving_bar_cell_cost_part_key(task_name: str, cell: str, part: str) -> str:
+def moving_bar_cell_cost_part_key(task: str, cell: str, part: str) -> str:
     """Fine moving-bar waveform part: ``{task}_{cell}_{PD|ND}``."""
-    return f"{task_name}_{cell}_{part}"
+    return f"{task}_{cell}_{part}"
 
 
-def cost_part_keys_for_task(task_name: str) -> Tuple[str, ...]:
+def cost_part_keys_for_task(task: str) -> Tuple[str, ...]:
     """Coarse keys for CLI ``--part-cost-scale`` (before packs exist)."""
-    if task_name in MOVING_BAR_TASKS:
+    if task in MOVING_BAR_TASKS:
         return tuple(
-            moving_bar_cost_part_key(task_name, lab)
+            moving_bar_cost_part_key(task, lab)
             for lab in (*PD_ND_LABELS, "DSI")
         )
-    return (task_name,)
+    return (task,)
 
 
 def cost_part_keys_for_pack(pack, backend) -> Tuple[str, ...]:
@@ -159,7 +159,7 @@ def cost_part_keys_for_pack(pack, backend) -> Tuple[str, ...]:
     w = pack.cost_scales
     entry_mask = w > 0
     cell_ids = net.node_cells[pack.entry_nodes]
-    names = net.cells
+    cells = net.cells
     keys: List[str] = []
     seen = set()
 
@@ -168,20 +168,20 @@ def cost_part_keys_for_pack(pack, backend) -> Tuple[str, ...]:
             seen.add(key)
             keys.append(key)
 
-    if pack.name in MOVING_BAR_TASKS:
+    if pack.task in MOVING_BAR_TASKS:
         pd_nd = pack.cost_pd_nds
         if pd_nd is not None and bool(entry_mask.any()):
             for i in range(int(pack.entry_nodes.shape[0])):
                 if not bool(entry_mask[i]):
                     continue
-                cell = str(names[int(cell_ids[i].item())])
+                cell = str(cells[int(cell_ids[i].item())])
                 lab = PD_ND_LABELS[int(pd_nd[i].item())]
-                _add(moving_bar_cell_cost_part_key(pack.name, cell, lab))
+                _add(moving_bar_cell_cost_part_key(pack.task, cell, lab))
         if (
             pack.dsi_pos_ptr is not None
             and int(pack.dsi_pos_ptr.numel()) > 1
         ):
-            _add(moving_bar_cost_part_key(pack.name, "DSI"))
+            _add(moving_bar_cost_part_key(pack.task, "DSI"))
         return tuple(keys)
 
     if pack.entry_radii is None or not bool(entry_mask.any()):
@@ -190,8 +190,8 @@ def cost_part_keys_for_pack(pack, backend) -> Tuple[str, ...]:
     for i in range(int(pack.entry_nodes.shape[0])):
         if not bool(entry_mask[i]):
             continue
-        cell = str(names[int(cell_ids[i].item())])
-        _add(spot_cost_part_key(pack.name, cell, float(radii[i].item())))
+        cell = str(cells[int(cell_ids[i].item())])
+        _add(spot_cost_part_key(pack.task, cell, float(radii[i].item())))
     return tuple(keys)
 
 
@@ -203,12 +203,12 @@ def session_cost_part_keys(tasks, session=None) -> Tuple[str, ...]:
     """
     if session is not None:
         keys: List[str] = []
-        for name in session.tasks:
-            keys.extend(cost_part_keys_for_pack(session.pack_for(name), session.backend))
+        for task in session.tasks:
+            keys.extend(cost_part_keys_for_pack(session.pack_for(task), session.backend))
         return tuple(keys)
     keys = []
-    for name in tasks:
-        keys.extend(cost_part_keys_for_task(name))
+    for task in tasks:
+        keys.extend(cost_part_keys_for_task(task))
     return tuple(keys)
 
 
@@ -232,11 +232,11 @@ def coarse_scale_keys_for_part(part_key: str) -> Tuple[str, ...]:
     return ()
 
 
-def expand_tasks(names) -> List[str]:
+def expand_tasks(tasks) -> List[str]:
     """Expand ``--task`` ``TASK_ALIASES`` shorthands."""
     out = []
-    for name in names:
-        out.extend(TASK_ALIASES.get(name, (name,)))
+    for task in tasks:
+        out.extend(TASK_ALIASES.get(task, (task,)))
     return out
 
 
@@ -244,8 +244,8 @@ def _expand_alias_dict(kv: Optional[dict], aliases: dict, map_value) -> dict:
     if not kv:
         return {}
     out = {}
-    for name, val in kv.items():
-        targets = aliases[name] if name in aliases else (str(name),)
+    for key, val in kv.items():
+        targets = aliases[key] if key in aliases else (str(key),)
         for t in targets:
             out[t] = map_value(val)
     return out
@@ -271,11 +271,11 @@ def resolve_cost_radius_by_task(tasks, bare_cost_radius, by_task_kv) -> Dict[str
             f"(expected {'|'.join(CLI_TASK_NAMES)})",
         )
     out: Dict[str, int] = {}
-    for tname in tasks:
-        if tname in expanded:
-            out[tname] = int(expanded[tname])
+    for task in tasks:
+        if task in expanded:
+            out[task] = int(expanded[task])
         elif bare_cost_radius is not None:
-            out[tname] = int(bare_cost_radius)
+            out[task] = int(bare_cost_radius)
     return out
 
 

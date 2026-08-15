@@ -19,7 +19,7 @@ from network.construction import (
     hex2gt,
     active_gt_cells,
     normalize_gt_cells,
-    node_cell_names,
+    node_cells,
 )
 from task.moving_bar.gt import (
     FIG1_CI_NPZ,
@@ -324,7 +324,7 @@ def _assemble_moving_bar_readouts(
     *,
     specs: Sequence[MovingBarSpec],
     i_sti_hex: np.ndarray,
-    cost_hex_idxs: Sequence[int],
+    cost_hex_indices: Sequence[int],
     i_baseline: float,
     before_t: int,
     after_t: int,
@@ -345,7 +345,7 @@ def _assemble_moving_bar_readouts(
     for b, spec in enumerate(specs):
         t0_by_hex: Dict[int, int] = {}
         if waveform_mse:
-            for hex_idx in cost_hex_idxs:
+            for hex_idx in cost_hex_indices:
                 t_first_sti = hex_first_sti_t(
                     i_sti_hex[b, :, hex_idx], i_baseline=i_baseline,
                 )
@@ -353,10 +353,10 @@ def _assemble_moving_bar_readouts(
                 if t0 < 0 or t_first_sti + after_t > n_t:
                     raise ValueError(
                         f"cost window out of range for hex index {hex_idx} "
-                        f"spec={spec.name}: t_first_sti={t_first_sti}, n_t={n_t}"
+                        f"spec={spec.token}: t_first_sti={t_first_sti}, n_t={n_t}"
                     )
                 t0_by_hex[hex_idx] = t0
-        for hex_idx in cost_hex_idxs:
+        for hex_idx in cost_hex_indices:
             for subtype in active:
                 pref = motion_preference(side, subtype, spec.direction, spec.contrast)
                 if pref is None:
@@ -462,22 +462,24 @@ def build_moving_bar_gt(
         gt_cells, GT_CELLS, connectome.cells, context="moving_bar",
     )
 
-    cells = node_cell_names(connectome)
-    stis = sti_hexes(connectome)
-    idx_from_uv = {(int(c.u), int(c.v)): j for j, c in enumerate(stis)}
+    node_cell = node_cells(connectome)
+    idx_from_uv = {
+        (int(hex.u), int(hex.v)): hex_idx
+        for hex_idx, hex in enumerate(sti_hexes(connectome))
+    }
     hexes = moving_bar_cost_hexes(connectome, cost_radius=cost_radius)
     center_hex = hexes[0] if cost_radius == 0 and len(hexes) == 1 else None
-    cost_hex_idxs = [idx_from_uv[(int(c.u), int(c.v))] for c in hexes]
-    hex_by_idx = {idx: c for c, idx in zip(hexes, cost_hex_idxs)}
+    cost_hex_indices = [idx_from_uv[(int(hex.u), int(hex.v))] for hex in hexes]
+    hex_by_idx = {hex_idx: hex for hex, hex_idx in zip(hexes, cost_hex_indices)}
 
     def _nodes_for_hex_type(_b, hex_idx, subtype):
         hex = hex_by_idx[hex_idx]
-        return hex2gt(connectome, hex.u, hex.v, subtype, cells)
+        return hex2gt(connectome, hex.u, hex.v, subtype, node_cell)
 
     rows = _assemble_moving_bar_readouts(
         specs=sti.specs,
         i_sti_hex=sti.i_sti_hex,
-        cost_hex_idxs=cost_hex_idxs,
+        cost_hex_indices=cost_hex_indices,
         i_baseline=i_baseline_val,
         before_t=before_t,
         after_t=after_t,
@@ -608,13 +610,16 @@ def moving_bar_session_t0_grids(
         connectome, specs=specs, n_t=n_t, t_onset=t_onset, delta_ms=delta_ms,
         device=connectome.node_cells.device, i_baseline=i_baseline,
     )
-    idx_from_uv = {(int(hex.u), int(hex.v)): j for j, hex in enumerate(sti_hexes(connectome))}
-    hex_idxs = [idx_from_uv[(int(c.u), int(c.v))] for c in hexes]
-    filt_hex_idxs = [idx_from_uv[(int(c.u), int(c.v))] for c in filt_hexes]
+    idx_from_uv = {
+        (int(hex.u), int(hex.v)): hex_idx
+        for hex_idx, hex in enumerate(sti_hexes(connectome))
+    }
+    hex_indices = [idx_from_uv[(int(hex.u), int(hex.v))] for hex in hexes]
+    filt_hex_indices = [idx_from_uv[(int(hex.u), int(hex.v))] for hex in filt_hexes]
     grids = build_moving_bar_t0_grids(
         sti.i_sti_hex, specs, n_t, i_baseline,
-        hex_idxs=hex_idxs,
-        filt_hex_idxs=filt_hex_idxs,
+        hex_indices=hex_indices,
+        filt_hex_indices=filt_hex_indices,
         connectome=connectome,
         filt_network_hexes=filt_hexes,
     )
@@ -628,7 +633,7 @@ def moving_bar_session_t0_grids(
 
 
 def _pack_cells(session, task: str) -> List[str]:
-    """Unique cell names on ``pack.entry_nodes`` (pack order)."""
+    """Unique cells on ``pack.entry_nodes`` (pack order)."""
     pack = session.pack_for(task)
     entry_nodes = pack.entry_nodes
     if torch.is_tensor(entry_nodes):
@@ -640,8 +645,8 @@ def _pack_cells(session, task: str) -> List[str]:
     node_cells = connectome.node_cells[entry_nodes]
     if torch.is_tensor(node_cells):
         node_cells = node_cells.detach().cpu().numpy()
-    names = list(connectome.cells)
-    seq = [str(names[int(ti)]) for ti in node_cells]
+    cells = list(connectome.cells)
+    seq = [str(cells[int(ti)]) for ti in node_cells]
     seen: set = set()
     out: List[str] = []
     for name in seq:
@@ -652,7 +657,7 @@ def _pack_cells(session, task: str) -> List[str]:
 
 
 def moving_bar_specs_by_cell(session, task: str, side: str) -> Dict[str, List[str]]:
-    """Per-readout-cell active bar spec names for ``side`` and task contrast."""
+    """Per-readout-cell active bar spec tokens for ``side`` and task contrast."""
     contrast = "bright" if "bright" in task else "dark"
     return {
         st: [
@@ -709,7 +714,7 @@ def enrich_moving_bar_sti_opts(opts, info, *, cost_radius):
     dt = float(out["delta_ms"])
     dt_pre = float(out["delta_ms_pre"])
     out["ms_pre"] = float(info["t_onset"]) * dt_pre
-    out["spec_names"] = list(info["spec_names"])
+    out["spec_tokens"] = list(info["spec_tokens"])
     if cost_radius is not None:
         out["cost_radius"] = int(cost_radius)
     out["delta_ms_pre"] = dt_pre

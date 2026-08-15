@@ -67,7 +67,7 @@ class MovingBarSpec:
     speed_deg_s: float = GRUNTMAN_SPEED_DEG_S
 
     @property
-    def name(self) -> str:
+    def token(self) -> str:
         wtag = "w1" if self.width_deg <= 3.0 else "w4"
         return f"{self.direction}_{self.contrast}_{wtag}"
 
@@ -307,14 +307,14 @@ def build_batched_i_sti_hex(
         key = (spec.direction, float(spec.width_deg), float(spec.speed_deg_s))
         by_geometry.setdefault(key, []).append(b)
 
-    for batch_idxs in by_geometry.values():
+    for batch_indices in by_geometry.values():
         cov_ts = _coverage_time_series(
-            hex_stack, specs[batch_idxs[0]], view_deg,
+            hex_stack, specs[batch_indices[0]], view_deg,
             n_t=n_t, t_onset=t_onset, delta_ms=delta_ms,
             bar_radius=bar_radius,
             multi_bar=multi_bar,
         )
-        for b in batch_idxs:
+        for b in batch_indices:
             out[b, t_onset:] = _current_from_coverage(
                 cov_ts, specs[b].contrast, i_baseline=i_baseline,
                 i_bright_moving_bar=i_bright_moving_bar, i_dark_moving_bar=i_dark_moving_bar,
@@ -384,8 +384,8 @@ def build_moving_bar_t0_grids(
     n_t: int,
     i_baseline: float,
     *,
-    hex_idxs: Sequence[int],
-    filt_hex_idxs: Sequence[int],
+    hex_indices: Sequence[int],
+    filt_hex_indices: Sequence[int],
     connectome,
     filt_network_hexes: Sequence[StiHex],
 ) -> MovingBarT0Grids:
@@ -399,14 +399,14 @@ def build_moving_bar_t0_grids(
     for bi, spec in enumerate(specs):
         t_first_all = [
             hex_first_sti_t(i_sti_hex[bi, :, hex_idx], i_baseline=i_baseline)
-            for hex_idx in hex_idxs
+            for hex_idx in hex_indices
         ]
         fb, before, after = moving_bar_spec_horizon(t_first_all, n_t)
-        before_t[spec.name] = before
-        after_t[spec.name] = after
+        before_t[spec.token] = before
+        after_t[spec.token] = after
         t_first_filt = [
             hex_first_sti_t(i_sti_hex[bi, :, hex_idx], i_baseline=i_baseline)
-            for hex_idx in filt_hex_idxs
+            for hex_idx in filt_hex_indices
         ]
         for c, tc in zip(filt_network_hexes, t_first_filt):
             t0_map[(bi, int(c.u), int(c.v))] = tc - fb
@@ -586,7 +586,7 @@ def build_moving_bar_signals(
         "tail_time_s": tail_t * delta_ms / 1000.0,
         "i_baseline_moving_bar": i_baseline,
         "speed_deg_s": specs[0].speed_deg_s if specs else GRUNTMAN_SPEED_DEG_S,
-        "spec_names": [s.name for s in specs],
+        "spec_tokens": [s.token for s in specs],
     }
     if i_bright is not None:
         info["i_bright_moving_bar"] = i_bright

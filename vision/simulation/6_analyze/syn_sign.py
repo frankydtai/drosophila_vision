@@ -62,33 +62,33 @@ from default_params import ANALYZE_SYN_SIGN
 SYN_SIGN_BINS = int(ANALYZE_SYN_SIGN["bins"])
 
 
-def _syn_strength_from_edges(edges, cells, syn_strength_cell, pair_names):
+def _syn_strength_from_edges(edges, cells, syn_strength_cell, pairs):
     """Map (src_type_i, tar_type_i) -> trained syn_strength_cell."""
-    i_from_name = {n: i for i, n in enumerate(cells)}
+    idx_from_cell = {n: i for i, n in enumerate(cells)}
     n_cells = len(cells)
-    src_t = np.array([i_from_name[e["source_cell"]] for e in edges], dtype=np.int64)
-    tar_t = np.array([i_from_name[e["target_cell"]] for e in edges], dtype=np.int64)
+    src_t = np.array([idx_from_cell[e["source_cell"]] for e in edges], dtype=np.int64)
+    tar_t = np.array([idx_from_cell[e["target_cell"]] for e in edges], dtype=np.int64)
     _, n_pairs, pair_keys = build_cell_pair_indices(src_t, tar_t, n_cells)
     syn = np.asarray(syn_strength_cell, dtype=np.float64).reshape(-1)
     if syn.shape[0] != n_pairs:
         raise SystemExit(
             f"syn_strength_cell length {syn.shape[0]} != n_pairs {n_pairs}"
         )
-    if pair_names is not None:
+    if pairs is not None:
         expected = [
             f"{cells[s]}{train.PAIR_SEP}{cells[t]}" for s, t in pair_keys
         ]
-        if list(pair_names) != expected:
-            raise SystemExit("pair_names in best_param.npz do not match network.json")
-    return {k: float(syn[i]) for i, k in enumerate(pair_keys)}, i_from_name
+        if list(pairs) != expected:
+            raise SystemExit("pairs in best_param.npz do not match network.json")
+    return {k: float(syn[i]) for i, k in enumerate(pair_keys)}, idx_from_cell
 
 
 def instance_syn_plus_by_id(
     edges,
-    cell_name: str,
+    cell: str,
     *,
     direction: str,
-    i_from_name: dict[str, int],
+    idx_from_cell: dict[str, int],
     strength_by_pair: dict[tuple[int, int], float] | None,
 ) -> dict[int, float]:
     """root_id -> %% n_syn+ (optional per-pair strength weighting)."""
@@ -99,7 +99,7 @@ def instance_syn_plus_by_id(
     syn_p = defaultdict(float)
     syn_t = defaultdict(float)
     for e in edges:
-        if e.get(self_cell_field) != cell_name:
+        if e.get(self_cell_field) != cell:
             continue
         try:
             sid = int(e[self_id_field])
@@ -107,11 +107,11 @@ def instance_syn_plus_by_id(
             continue
         src = e.get("source_cell")
         tar = e.get("target_cell")
-        if src not in i_from_name or tar not in i_from_name:
+        if src not in idx_from_cell or tar not in idx_from_cell:
             continue
         ns = float(e.get("n_syn", 0))
         if strength_by_pair is not None:
-            ns *= strength_by_pair[(i_from_name[src], i_from_name[tar])]
+            ns *= strength_by_pair[(idx_from_cell[src], idx_from_cell[tar])]
         syn_t[sid] += ns
         try:
             sign = float(e.get("syn_sign", 0))
@@ -210,7 +210,7 @@ def plot_syn_sign(
     panel_h,
     edges,
     direction,
-    i_from_name,
+    idx_from_cell,
     strength_by_pair,
     edges_bins,
     outdir_name,
@@ -245,11 +245,11 @@ def plot_syn_sign(
             cell = plot_row_cells[ci]
             pct_init_map = instance_syn_plus_by_id(
                 edges, cell, direction=direction,
-                i_from_name=i_from_name, strength_by_pair=None,
+                idx_from_cell=idx_from_cell, strength_by_pair=None,
             )
             pct_tr_map = instance_syn_plus_by_id(
                 edges, cell, direction=direction,
-                i_from_name=i_from_name, strength_by_pair=strength_by_pair,
+                idx_from_cell=idx_from_cell, strength_by_pair=strength_by_pair,
             )
             pct_init = np.asarray(list(pct_init_map.values()), dtype=np.float64)
             pct_tr = np.asarray(list(pct_tr_map.values()), dtype=np.float64)
@@ -315,18 +315,18 @@ def save_syn_sign_plots(outdir, *, post=False, bins=SYN_SIGN_BINS) -> None:
         raise SystemExit("train_opts.json missing network_json")
 
     try:
-        named, cells_npz, pair_names = train_mod.load_best_param_named(outdir)
+        param_by_segment, cells_npz, pairs = train_mod.load_best_param_by_segment(outdir)
     except FileNotFoundError as exc:
         raise SystemExit(str(exc)) from exc
-    if "syn_strength_cell" not in named:
+    if "syn_strength_cell" not in param_by_segment:
         raise SystemExit("best_param.npz missing syn_strength_cell")
 
     _nodes, edges, cells, _meta = load_network_json(network_json)
     if list(cells) != list(cells_npz):
         raise SystemExit("cells mismatch: network.json vs best_param.npz")
 
-    strength_by_pair, i_from_name = _syn_strength_from_edges(
-        edges, cells, named["syn_strength_cell"], pair_names,
+    strength_by_pair, idx_from_cell = _syn_strength_from_edges(
+        edges, cells, param_by_segment["syn_strength_cell"], pairs,
     )
     session, z = _spot_bright_session_z(outdir)
     delta_tables, radii = load_delta_v_tables(session, z)
@@ -337,7 +337,7 @@ def save_syn_sign_plots(outdir, *, post=False, bins=SYN_SIGN_BINS) -> None:
     plot_kw = dict(
         edges=edges,
         direction=direction,
-        i_from_name=i_from_name,
+        idx_from_cell=idx_from_cell,
         strength_by_pair=strength_by_pair,
         edges_bins=np.linspace(0.0, 100.0, bins + 1),
         outdir_name=os.path.basename(outdir),

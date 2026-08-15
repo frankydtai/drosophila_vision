@@ -93,7 +93,7 @@ def _plot(
         nrows, ncols, figsize=(2.2 * ncols, 2.0 * nrows), squeeze=False,
     )
     t_s = (np.arange(v_rt.shape[1]) - t_onset) * delta_ms / 1000.0
-    i_from_name = {str(n): i for i, n in enumerate(GT_CELLS)}
+    idx_from_cell = {str(n): i for i, n in enumerate(GT_CELLS)}
 
     for r, group in enumerate(groups):
         for c in range(ncols):
@@ -102,7 +102,7 @@ def _plot(
                 ax.axis("off")
                 continue
             name = str(group[c])
-            i = i_from_name[name]
+            i = idx_from_cell[name]
             ax.plot(
                 t_s, v_rt[i], color="C0", lw=TRACE_LW,
                 label=f"v (GT_AMP·(RF_sign·ImpR−{impr_offset:g}))",
@@ -158,7 +158,7 @@ def _plot_tau_sweep(
     )
     n_t = gt_ca_rt.shape[1]
     t_s = (np.arange(n_t) - t_onset) * delta_ms / 1000.0
-    i_from_name = {str(n): i for i, n in enumerate(GT_CELLS)}
+    idx_from_cell = {str(n): i for i, n in enumerate(GT_CELLS)}
     tau_colors = [f"C{k}" for k in range(len(tau_list))]
 
     for r, group in enumerate(groups):
@@ -168,7 +168,7 @@ def _plot_tau_sweep(
                 ax.axis("off")
                 continue
             name = str(group[c])
-            i = i_from_name[name]
+            i = idx_from_cell[name]
             ys = [gt_ca_rt[i]]
             for tau, color in zip(tau_list, tau_colors):
                 tr = ca_by_tau[tau][i]

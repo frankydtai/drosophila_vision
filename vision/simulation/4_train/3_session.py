@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """Session types and assembly: ``Pack`` / ``TrainSession`` + open helpers.
 
-Owns sti-opts finalisation (CLI overrides -> per-task sidecar dicts),
+Owns sti-opts finalisation (CLI tokens -> per-task sidecar dicts),
 network backend construction, and the per-task ``Pack`` builders. The
 builders wrap the neutral gt dataclasses from ``task`` (which sit below
 ``train`` in the import graph) and stamp the cross-cutting pack cost controls:
@@ -96,13 +96,13 @@ from train.param import (
     ModelBackend,
     SIM_DTYPE,
     active_device,
-    apply_param_init,
-    apply_param_modes,
+    override_param_inits,
+    override_param_modes,
     attach_param_carry,
     resolve_param_modes,
     build_i_h_dirs,
     resolve_val_from,
-    node_names_for_segment,
+    slots_for_segment,
     schema_nparams,
     schema_param_modes_record,
     sim_dtype_from_fp,
@@ -136,7 +136,7 @@ from task.moving_bar.pack import (
     enrich_moving_bar_sti_opts,
 )
 from network.construction import (
-    load_network, gt_cells_from_opts, node_cell_names, normalize_cost_radius,
+    load_network, gt_cells_from_opts, node_cells, normalize_cost_radius,
 )
 
 
@@ -148,7 +148,7 @@ class Pack:
     timing. Moving bar uses ``COST_WINDOW`` and per-task ``n_t``.
     """
 
-    name: str
+    task: str
     i_sti: torch.Tensor  # (B, T, N)
     gts: torch.Tensor  # (n_cost, T')
     power: torch.Tensor  # scalar
@@ -236,23 +236,23 @@ class TrainSession:
     def pack_i_sti(self, pack: Optional[Pack] = None) -> torch.Tensor:
         pack = pack or self.primary_pack
         i_sti = pack.i_sti
-        if pack.name in SPOT_TASKS and i_sti.dim() == 3 and int(i_sti.shape[0]) == 1:
+        if pack.task in SPOT_TASKS and i_sti.dim() == 3 and int(i_sti.shape[0]) == 1:
             i_sti = i_sti.squeeze(0)
         return i_sti
 
-    def pack_for(self, name: str) -> Pack:
-        if name not in self.packs:
-            raise KeyError(f"pack {name!r} not in session")
-        return self.packs[name]
+    def pack_for(self, task: str) -> Pack:
+        if task not in self.packs:
+            raise KeyError(f"pack {task!r} not in session")
+        return self.packs[task]
 
 
 def resolve_cell_indices(cells, backend: ModelBackend):
-    """Map cell names to indices in the network vocabulary."""
+    """Map cells to indices in the network vocabulary."""
     if backend.network is None:
         raise ValueError("resolve_cell_indices requires backend.network")
-    names = [str(n) for n in cells]
-    tn = list(backend.network.cells)
-    return [tn.index(n) for n in names if n in tn]
+    wanted = [str(n) for n in cells]
+    vocab = list(backend.network.cells)
+    return [vocab.index(n) for n in wanted if n in vocab]
 
 
 def extend_pack_mirror_fit(pack, mirror_types, mirror_fit, mirror_sign=-1.0, backend=None):
@@ -260,7 +260,7 @@ def extend_pack_mirror_fit(pack, mirror_types, mirror_fit, mirror_sign=-1.0, bac
     if backend is None or backend.network is None:
         raise ValueError("extend_pack_mirror_fit requires backend.network")
     connectome = backend.network
-    names = node_cell_names(connectome)
+    node_cell = node_cells(connectome)
     entry_nodes_idx = pack.entry_nodes.cpu().numpy()
     b_arr = pack.entry_batches.cpu().numpy()
     w_arr = pack.cost_scales.cpu().numpy()
@@ -273,7 +273,7 @@ def extend_pack_mirror_fit(pack, mirror_types, mirror_fit, mirror_sign=-1.0, bac
     extra_batch, extra_node_idx, extra_entries, extra_cost_scales, extra_radius, extra_pd_nd = [], [], [], [], [], []
     for entry_i in range(len(entry_nodes_idx)):
         node_idx = int(entry_nodes_idx[entry_i])
-        if str(names[node_idx]) != mirror_fit:
+        if str(node_cell[node_idx]) != mirror_fit:
             continue
         batch = int(b_arr[entry_i])
         mirror_fit_node_u, mirror_fit_node_v = int(network_node_u[node_idx]), int(network_node_v[node_idx])
@@ -284,7 +284,7 @@ def extend_pack_mirror_fit(pack, mirror_types, mirror_fit, mirror_sign=-1.0, bac
             candidates = np.where(
                 (network_node_u == mirror_fit_node_u)
                 & (network_node_v == mirror_fit_node_v)
-                & (names == str(mtype))
+                & (node_cell == str(mtype))
             )[0]
             for candidate_node_idx in candidates:
                 extra_batch.append(batch)
@@ -343,7 +343,7 @@ def _append_mirror_pack_entries(
             if pack.cost_pd_nds is not None else extra_pd_t
         )
     return Pack(
-        name=pack.name,
+        task=pack.task,
         i_sti=pack.i_sti,
         gts=gts,
         power=pack.power + torch.sum(extra_gts ** 2),
@@ -368,11 +368,11 @@ def _append_mirror_pack_entries(
     )
 
 
-def apply_pack_override(pack, override, backend: ModelBackend):
-    """Apply one serializable pack override dict (saved in ``train_opts.json``)."""
-    specs = override.get("mirror_fit")
+def override_pack(pack, pack_mirror_fit, backend: ModelBackend):
+    """Merge one serializable pack mirror_fit dict (saved in ``train_opts.json``)."""
+    specs = pack_mirror_fit.get("mirror_fit")
     if specs is None:
-        raise ValueError(f"unknown pack override {override!r}")
+        raise ValueError(f"unknown pack_mirror_fit {pack_mirror_fit!r}")
     if isinstance(specs, dict):
         specs = [specs]
     for spec in specs:
@@ -451,11 +451,11 @@ class _TrainBindCtx:
     cost_ms: Optional[dict] = None
 
 
-def _moving_bar_waveform_mse_enabled(part_cost_scales: Optional[dict], pack_name: str) -> bool:
-    """True if PD or ND waveform MSE scale is non-zero for ``pack_name``."""
+def _moving_bar_waveform_mse_enabled(part_cost_scales: Optional[dict], task: str) -> bool:
+    """True if PD or ND waveform MSE scale is non-zero for ``task``."""
     w = expand_part_cost_scale_dict(part_cost_scales or {})
     return any(
-        float(w.get(moving_bar_cost_part_key(pack_name, lab), 1.0)) != 0.0
+        float(w.get(moving_bar_cost_part_key(task, lab), 1.0)) != 0.0
         for lab in PD_ND_LABELS
     )
 
@@ -498,7 +498,7 @@ def _build_network_moving_bar_pack(
     ctx: _TrainBindCtx,
     connectome,
     *,
-    pack_name: str,
+    task: str,
     contrast: str,
 ):
     dev = ctx.dev or active_device()
@@ -523,14 +523,14 @@ def _build_network_moving_bar_pack(
         contrasts=(contrast,),
         gt_cells=gt_cells_from_opts(opts),
         multi_bar=bool(opts.get("multi_bar", MOVING_BAR_INPUT['multi_bar'])),
-        waveform_mse=_moving_bar_waveform_mse_enabled(ctx.part_cost_scales, pack_name),
+        waveform_mse=_moving_bar_waveform_mse_enabled(ctx.part_cost_scales, task),
     )
     peak_key = _MOVING_BAR_I_KEY[contrast]
     build_kw[peak_key] = opts[peak_key]
     T = build_moving_bar_gt(**build_kw)
     sti_opts = enrich_moving_bar_sti_opts(opts, T.info, cost_radius=cost_radius)
     pack = Pack(
-        name=pack_name,
+        task=task,
         i_sti=T.i_sti,
         gts=T.gts,
         power=T.power,
@@ -568,13 +568,13 @@ def _spot_cost_time_idx_and_mask(opts, entry_radii, *, ctx: _TrainBindCtx, devic
     timing = resolve_sti_timing(opts)
     delta_ms = timing.delta_ms
     post = timing.n_t_gt - timing.t_onset
-    overrides = expand_cost_ms_dict(
+    cost_ms_by_radius = expand_cost_ms_dict(
         cost_ms=ctx.cost_ms, aliases=SPOT_PACK['spot_cost_radius_key_aliases'],
     )
     rad = np.round(entry_radii.detach().cpu().numpy().astype(float), 6)
     radii = {float(r) for r in rad.tolist()}
     grid = None
-    if any(r not in overrides for r in radii):
+    if any(r not in cost_ms_by_radius for r in radii):
         interval_ms = float(ctx.cost_interval_ms)
         if interval_ms <= 0:
             raise ValueError("cost_interval_ms must be > 0")
@@ -584,7 +584,7 @@ def _spot_cost_time_idx_and_mask(opts, entry_radii, *, ctx: _TrainBindCtx, devic
         grid = [t * delta_ms for t in range(0, post, step)]
     radius_ts = {}
     for r in radii:
-        ms_list = overrides[r] if r in overrides else grid
+        ms_list = cost_ms_by_radius[r] if r in cost_ms_by_radius else grid
         ts = set()
         for ms in ms_list:
             t = int(round(float(ms) / delta_ms))
@@ -616,13 +616,13 @@ def _build_network_spot_task(
 ) -> Tuple[Pack, dict, str]:
     if contrast not in SPOT_CONTRASTS:
         raise ValueError(f"spot contrast must be 'bright' or 'dark', got {contrast!r}")
-    pack_name = f"spot_{contrast}"
+    task = f"spot_{contrast}"
     peak_key = _SPOT_I_KEY[contrast]
     ctx_opts = (
         ctx.spot_bright_sti_opts if contrast == "bright" else ctx.spot_dark_sti_opts
     )
     if not ctx_opts:
-        raise ValueError(f"{pack_name} requires sti opts (from resolve_train_opts / CLI)")
+        raise ValueError(f"{task} requires sti opts (from resolve_train_opts / CLI)")
     opts = normalize_sti_timing(dict(ctx_opts))
     timing = resolve_sti_timing(opts)
     cost_radius = normalize_cost_radius(opts.get("cost_radius"))
@@ -697,7 +697,7 @@ def _build_network_spot_task(
         device=dev,
     )
     pack = Pack(
-        name=pack_name,
+        task=task,
         i_sti=i_sti,
         gts=T.gts,
         power=T.power,
@@ -724,7 +724,7 @@ def _build_network_spot_task(
     coltag = _cost_radius_hex_coltag(cost_radius, T.info["n_cost_hexes"])
     shifttag = f"{T.info['n_shifts']} shifts"
     tag = (
-        f"{pack_name} (B={T.n_batch} stis [{T.info['n_centers']} centers simultaneous "
+        f"{task} (B={T.n_batch} stis [{T.info['n_centers']} centers simultaneous "
         f"x {shifttag}], {T.info['n_cost']} cost nodes, {coltag})"
     )
     return pack, sti_opts, tag
@@ -738,10 +738,10 @@ NETWORK_TASK_BUILDERS = {
         ctx, connectome, contrast="dark", gt_amp=gt_amp,
     ),
     "moving_bar_bright": lambda ctx, connectome, gt_amp: _build_network_moving_bar_pack(
-        ctx, connectome, pack_name="moving_bar_bright", contrast="bright",
+        ctx, connectome, task="moving_bar_bright", contrast="bright",
     ),
     "moving_bar_dark": lambda ctx, connectome, gt_amp: _build_network_moving_bar_pack(
-        ctx, connectome, pack_name="moving_bar_dark", contrast="dark",
+        ctx, connectome, task="moving_bar_dark", contrast="dark",
     ),
 }
 
@@ -760,36 +760,36 @@ def resolve_i_sti_paradigm(name):
     return "moving_bar"
 
 
-def _i_sti_sidecar_keys(task_name):
-    if task_name in SPOT_TASKS:
+def _i_sti_sidecar_keys(task):
+    if task in SPOT_TASKS:
         baseline_key = _SPOT_BASELINE_KEY
         peak_keys = _SPOT_I_KEY
     else:
         baseline_key = _MOVING_BAR_BASELINE_KEY
         peak_keys = _MOVING_BAR_I_KEY
-    contrast = "bright" if task_name.endswith("_bright") else "dark"
+    contrast = "bright" if task.endswith("_bright") else "dark"
     return baseline_key, peak_keys[contrast], contrast
 
 
-def apply_i_sti(opts, task_name, i_sti):
-    """Merge per-paradigm CLI ``--i-sti`` overrides into sti opts."""
+def override_i_sti(opts, task, i_sti):
+    """Merge per-paradigm CLI ``--i-sti`` into sti opts."""
     if not i_sti:
         return opts
-    paradigm = resolve_i_sti_paradigm(task_name)
-    overrides = i_sti.get(paradigm)
-    if not overrides:
+    paradigm = resolve_i_sti_paradigm(task)
+    paradigm_i_sti = i_sti.get(paradigm)
+    if not paradigm_i_sti:
         return opts
     out = dict(opts or {})
-    baseline_key, peak_key, contrast = _i_sti_sidecar_keys(task_name)
-    allowed = TASK_I_FIELDS[task_name]
+    baseline_key, peak_key, contrast = _i_sti_sidecar_keys(task)
+    allowed = TASK_I_FIELDS[task]
     merged = {}
-    if "baseline" in overrides:
-        merged[baseline_key] = overrides["baseline"]
-    if contrast in overrides:
-        merged[peak_key] = overrides[contrast]
+    if "baseline" in paradigm_i_sti:
+        merged[baseline_key] = paradigm_i_sti["baseline"]
+    if contrast in paradigm_i_sti:
+        merged[peak_key] = paradigm_i_sti[contrast]
     for key, val in merged.items():
         if key not in allowed:
-            raise ValueError(f"{key!r} not valid for task {task_name!r}")
+            raise ValueError(f"{key!r} not valid for task {task!r}")
         out[key] = val
     return out
 
@@ -804,11 +804,11 @@ def resolve_gt_cells_by_task(by_task_kv) -> Dict[str, List[str]]:
             f"(expected {'|'.join(CLI_TASK_NAMES)})",
         )
     out: Dict[str, List[str]] = {}
-    for tname, cells in expanded.items():
-        if tname in SPOT_TASKS:
-            out[tname] = list(expand_spot_gt_cells(cells))
+    for task, cells in expanded.items():
+        if task in SPOT_TASKS:
+            out[task] = list(expand_spot_gt_cells(cells))
         else:
-            out[tname] = list(expand_moving_bar_gt_cells(cells))
+            out[task] = list(expand_moving_bar_gt_cells(cells))
     return out
 
 
@@ -829,7 +829,7 @@ _STI_OPTS_BY_TASK = {
 
 def _resolve_sti_opts(
     opts,
-    task_name,
+    task,
     *,
     cost_radius_by_task,
     shift_radius,
@@ -839,10 +839,10 @@ def _resolve_sti_opts(
     spot_cost_radius_scale,
     i_sti,
 ):
-    raw = dict(_STI_OPTS_BY_TASK.get(task_name, {}))
+    raw = dict(_STI_OPTS_BY_TASK.get(task, {}))
     raw.update(opts or {})
-    if task_name in SPOT_TASKS:
-        contrast = "bright" if task_name == "spot_bright" else "dark"
+    if task in SPOT_TASKS:
+        contrast = "bright" if task == "spot_bright" else "dark"
         peak_key = _SPOT_I_KEY[contrast]
         out = build_spot_sti_opts(
             contrast,
@@ -868,8 +868,8 @@ def _resolve_sti_opts(
             ms_sti=raw["ms_sti"],
             gt_cells=raw.get("gt_cells"),
         )
-    elif task_name in ("moving_bar_bright", "moving_bar_dark"):
-        contrast = "bright" if task_name == "moving_bar_bright" else "dark"
+    elif task in ("moving_bar_bright", "moving_bar_dark"):
+        contrast = "bright" if task == "moving_bar_bright" else "dark"
         peak_key = _MOVING_BAR_I_KEY[contrast]
         out = build_moving_bar_sti_opts(
             contrast,
@@ -883,14 +883,14 @@ def _resolve_sti_opts(
         )
     else:
         out = raw
-    if cost_radius_by_task and task_name in cost_radius_by_task:
-        out["cost_radius"] = int(cost_radius_by_task[task_name])
+    if cost_radius_by_task and task in cost_radius_by_task:
+        out["cost_radius"] = int(cost_radius_by_task[task])
     elif "cost_radius" in out:
         if out["cost_radius"] is None:
             out.pop("cost_radius", None)
         else:
             out["cost_radius"] = int(out["cost_radius"])
-    if task_name in SPOT_TASKS:
+    if task in SPOT_TASKS:
         out["shift_radius"] = shift_radius
         out["spot_radius"] = spot_radius
         out["multi_spot"] = multi_spot
@@ -899,14 +899,14 @@ def _resolve_sti_opts(
             out["spot_cost_radius_scale"] = {
                 str(k): float(v) for k, v in spot_cost_radius_scale.items()
             }
-    return apply_i_sti(out, task_name, i_sti)
+    return override_i_sti(out, task, i_sti)
 
 
 def resolve_train_opts(
     backend="network",
     tasks=None,
     part_cost_scales=None,
-    pack_overrides=None,
+    pack_mirror_fits=None,
     sequential=None,
     cost_radius_by_task=None,
     shift_radius=None,
@@ -977,7 +977,7 @@ def resolve_train_opts(
         spot_radius = SPOT_INPUT['spot_radius']
     if shift_radius is None:
         shift_radius = SPOT_INPUT['shift_radius']
-    raw_by_name = {
+    raw_by_task = {
         "spot_bright": spot_bright_sti_opts,
         "spot_dark": spot_dark_sti_opts,
         "moving_bar_bright": moving_bar_bright_sti_opts,
@@ -993,14 +993,14 @@ def resolve_train_opts(
         i_sti=i_sti,
     )
     sti_opts = {}
-    for tname, opts_key in _STI_TRAIN_OPT_SPECS:
-        raw = raw_by_name[tname]
-        if tname not in tl and raw is None:
+    for task, opts_key in _STI_TRAIN_OPT_SPECS:
+        raw = raw_by_task[task]
+        if task not in tl and raw is None:
             sti_opts[opts_key] = None
             continue
         sti_opts[opts_key] = _resolve_sti_opts(
             raw,
-            tname,
+            task,
             **finalize_kw,
         )
     opts = copy.deepcopy(TRAIN_OPTS)
@@ -1029,15 +1029,15 @@ def resolve_train_opts(
         "network_json": str(network_json) if network_json is not None else None,
         "dev": dev,
     })
-    if pack_overrides is not None:
-        opts["pack_overrides"] = pack_overrides
+    if pack_mirror_fits is not None:
+        opts["pack_mirror_fits"] = pack_mirror_fits
     if packs is not None:
         opts["packs"] = packs
     if param_modes is not None:
         opts["param_modes"] = param_modes
     if param_init:
         opts["param_init"] = [
-            [name, node, float(val)] for name, node, val in param_init
+            [segment, node, float(val)] for segment, node, val in param_init
         ]
     return opts
 
@@ -1080,9 +1080,9 @@ def _train_opts_for_sidecar(opts, tasks, resolved_sti, sequential_bool) -> dict:
         "moving_bar_bright_sti_opts": _sti("moving_bar_bright_sti_opts"),
         "moving_bar_dark_sti_opts": _sti("moving_bar_dark_sti_opts"),
     }
-    overrides = opts.get("pack_overrides")
-    if overrides:
-        record["pack_overrides"] = overrides
+    pack_mirror_fits = opts.get("pack_mirror_fits")
+    if pack_mirror_fits:
+        record["pack_mirror_fits"] = pack_mirror_fits
     if opts.get("param_modes"):
         record["param_modes"] = opts["param_modes"]
     if opts.get("param_init"):
@@ -1122,8 +1122,8 @@ def resolve_schema(model, model_backend, schema, train_opts_record):
         return base
     modes = train_opts_record.get("param_modes")
     if modes:
-        base = apply_param_modes(
-            base, modes, lambda segment: node_names_for_segment(segment, model_backend),
+        base = override_param_modes(
+            base, modes, lambda segment: slots_for_segment(segment, model_backend),
         )
     return base
 
@@ -1174,10 +1174,10 @@ def _build_session(
     )
     param_init = (train_opts_record or {}).get("param_init")
     if param_init:
-        edits = [(row[0], row[1], float(row[2])) for row in param_init]
-        sch = apply_param_init(sch, model_backend, edits)
+        param_inits = [(row[0], row[1], float(row[2])) for row in param_init]
+        sch = override_param_inits(sch, model_backend, param_inits)
     train_opts_record["param_modes"] = schema_param_modes_record(
-        sch, lambda segment: node_names_for_segment(segment, model_backend),
+        sch, lambda segment: slots_for_segment(segment, model_backend),
     )
     sch = attach_param_carry(sch)
     session = TrainSession(
@@ -1228,9 +1228,9 @@ def open_session(
     opts = resolved["opts"]
     gt_amp = float(resolved["gt_amp"])
     _np = resolved["_np"]
-    backend_name = str(opts.get("backend", "network"))
-    if backend_name != "network":
-        raise ValueError(f"backend must be 'network', got {backend_name!r}")
+    backend_token = str(opts.get("backend", "network"))
+    if backend_token != "network":
+        raise ValueError(f"backend must be 'network', got {backend_token!r}")
     tasks = resolve_tasks(opts.get("tasks"))
     bad = [t for t in tasks if t not in VALID_TASKS]
     if bad:
@@ -1278,16 +1278,16 @@ def open_session(
         cost_ms=dict(opts.get("cost_ms") or {}),
     )
     packs = {}
-    pack_overrides = opts.get("pack_overrides") or {}
+    pack_mirror_fits = opts.get("pack_mirror_fits") or {}
     resolved_sti = {}
-    for tname in tasks:
-        pack, sti_opts, _tag = NETWORK_TASK_BUILDERS[tname](
+    for task in tasks:
+        pack, sti_opts, _tag = NETWORK_TASK_BUILDERS[task](
             ctx, connectome, gt_amp=gt_amp,
         )
-        if tname in pack_overrides:
-            pack = apply_pack_override(pack, pack_overrides[tname], model_backend)
-        packs[tname] = pack
-        resolved_sti[f"{tname}_sti_opts"] = sti_opts
+        if task in pack_mirror_fits:
+            pack = override_pack(pack, pack_mirror_fits[task], model_backend)
+        packs[task] = pack
+        resolved_sti[f"{task}_sti_opts"] = sti_opts
     record = _train_opts_for_sidecar(
         opts, tasks, resolved_sti, bool(opts.get("sequential")),
     )

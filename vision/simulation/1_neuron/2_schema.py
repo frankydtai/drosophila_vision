@@ -3,8 +3,9 @@
 
 Numeric lo/hi/val/jit and default ``mode`` live in
 ``default_params.NEURON_SCHEMA['optimizable']`` dict entries. Optional
-``overrides`` holds space-separated ``KEY[.NODES]=VALUE`` tokens (same
-grammar as CLI ``--param NAME.KEY...``); base dict first, overrides last.
+``param`` holds space-separated ``KEY[.NODES]=VALUE`` tokens (same grammar
+as CLI ``--param NAME.KEY...`` without the segment); base dict first,
+``param`` tokens last.
 """
 from __future__ import annotations
 
@@ -43,16 +44,16 @@ _OUTPUT_KIND = frozenset({"a_gt", "bias_gt"})
 _OPTIMIZABLE_SCALAR_KEYS = frozenset({"lo", "hi", "jit"})
 
 
-def parse_optimizable_tokens(tokens, *, segment_name=None):
+def parse_optimizable_tokens(tokens, *, segment=None):
     for tok in tokens:
         left, _, right = tok.partition("=")
-        if segment_name is None:
-            name, _, rest = left.partition(".")
+        if segment is None:
+            segment_tok, _, rest = left.partition(".")
             key, _, nodes = rest.partition(".")
         else:
             key, _, nodes = left.partition(".")
-            name = segment_name
-        yield name, key, nodes, right
+            segment_tok = segment
+        yield segment_tok, key, nodes, right
 
 
 def _comma_nodes(text):
@@ -65,78 +66,84 @@ def expand_param_nodes(nodes):
     return _comma_nodes(nodes)
 
 
-def split_optimizable_tokens(tokens, *, segment_name=None):
+def split_optimizable_tokens(tokens, *, segment=None):
     meta = {}
-    init_edits = []
-    mode_edits = []
-    for name, key, nodes, right in parse_optimizable_tokens(tokens, segment_name=segment_name):
+    val_pairs = []
+    mode_pairs = []
+    for segment_tok, key, nodes, right in parse_optimizable_tokens(tokens, segment=segment):
         if key in _OPTIMIZABLE_SCALAR_KEYS:
             meta[key] = float(right)
         elif key == "val":
-            init_edits.append((None if not nodes else expand_param_nodes(nodes), float(right)))
+            val_pairs.append((None if not nodes else expand_param_nodes(nodes), float(right)))
         elif key == "mode":
             if right not in PARAM_MODE_KEYS:
                 raise KeyError(right)
-            mode_edits.append((None if not nodes else expand_param_nodes(nodes), right))
+            mode_pairs.append((None if not nodes else expand_param_nodes(nodes), right))
         else:
             raise KeyError(key)
-    return meta, init_edits, mode_edits
+    return meta, val_pairs, mode_pairs
 
 
-def resolve_init_edits(init_edits, i_from_name):
+def resolve_inits(val_pairs, slots):
+    """Fold ``(nodes|None, val)`` pairs into scalar ``init`` + per-node ``inits``."""
+    slots = [str(slot) for slot in slots]
+    idx_from = {slot: i for i, slot in enumerate(slots)}
     node_init = {}
-    names = [str(name) for name in i_from_name]
-    for nodes, init in init_edits:
+    for nodes, init in val_pairs:
         if nodes is None:
-            node_init = {name: init for name in names}
+            node_init = {slot: init for slot in slots}
         else:
             for node in nodes:
                 node_init[str(node)] = init
     if not node_init:
         return 0.0, {}
-    if len(node_init) == len(names) and len(set(node_init.values())) == 1:
+    if len(node_init) == len(slots) and len(set(node_init.values())) == 1:
         return next(iter(node_init.values())), {}
-    return 0.0, {int(i_from_name[name]): node_init[name] for name in node_init}
+    return 0.0, {int(idx_from[slot]): node_init[slot] for slot in node_init}
 
 
-def resolve_mode_edits(mode_edits, i_from_name):
+def resolve_modes(mode_pairs, slots):
+    """Fold ``(nodes|None, mode)`` pairs into a ``modes`` bag."""
+    slots = [str(slot) for slot in slots]
+    idx_from = {slot: i for i, slot in enumerate(slots)}
     node_mode = {}
-    names = [str(name) for name in i_from_name]
-    for nodes, bucket in mode_edits:
+    for nodes, mode in mode_pairs:
         if nodes is None:
-            for name in names:
-                node_mode[name] = bucket
+            for slot in slots:
+                node_mode[slot] = mode
         else:
             for node in nodes:
-                node_mode[str(node)] = bucket
-    out = {mode_bucket: [] for mode_bucket in PARAM_MODE_KEYS}
-    for name, bucket in node_mode.items():
-        out[bucket].append(int(i_from_name[name]))
-    for mode_bucket in PARAM_MODE_KEYS:
-        out[mode_bucket].sort()
+                node_mode[str(node)] = mode
+    out = {mode: [] for mode in PARAM_MODE_KEYS}
+    for slot, mode in node_mode.items():
+        out[mode].append(int(idx_from[slot]))
+    for mode in PARAM_MODE_KEYS:
+        out[mode].sort()
     return out
 
 
-def optimizable_scalar(segment_name, key, optimizable):
-    entry = optimizable[segment_name]
+def optimizable_scalar(segment, key, optimizable):
+    entry = optimizable[segment]
     return float(entry[key])
 
 
-def edits_from_optimizable(segment_optimizable, name):
-    tm = segment_optimizable["mode"]
-    if tm not in PARAM_MODE_KEYS:
+def val_mode_pairs_from_optimizable(segment_optimizable, segment):
+    mode = segment_optimizable["mode"]
+    if mode not in PARAM_MODE_KEYS:
         raise ValueError(
-            f"{name}: unknown mode {tm!r}; "
+            f"{segment}: unknown mode {mode!r}; "
             f"expected one of {PARAM_MODE_KEYS}"
         )
-    init_edits = [(None, float(segment_optimizable["val"]))]
-    mode_edits = [(None, tm)]
-    overrides = segment_optimizable.get("overrides")
-    if overrides:
-        _, o_init, o_mode = split_optimizable_tokens(str(overrides).split(), segment_name=name)
-        init_edits.extend(o_init)
-        mode_edits.extend(o_mode)
-    return init_edits, mode_edits
+    val_pairs = [(None, float(segment_optimizable["val"]))]
+    mode_pairs = [(None, mode)]
+    param = segment_optimizable.get("param")
+    if param:
+        _, more_vals, more_modes = split_optimizable_tokens(
+            str(param).split(), segment=segment,
+        )
+        val_pairs.extend(more_vals)
+        mode_pairs.extend(more_modes)
+    return val_pairs, mode_pairs
 
 
 def normalize_syn_mode(syn_mode: str) -> str:
@@ -153,13 +160,18 @@ def syn_strength(params):
     return params["syn_strength_cell"]
 
 
-def build_segment(name, n_nodes, kind, segment_optimizable, n, *, i_from_name=None):
-    init_edits, mode_edits = edits_from_optimizable(segment_optimizable, name)
-    i_from = i_from_name if i_from_name else {str(node_idx): node_idx for node_idx in range(n)}
-    mode = resolve_mode_edits(mode_edits, i_from)
-    init, init_override = resolve_init_edits(init_edits, i_from)
+def build_segment(segment, n_nodes, kind, segment_optimizable, n, *, slots=None):
+    val_pairs, mode_pairs = val_mode_pairs_from_optimizable(
+        segment_optimizable, segment,
+    )
+    if slots is None:
+        slots = [str(node_idx) for node_idx in range(n)]
+    else:
+        slots = [str(slot) for slot in slots]
+    modes = resolve_modes(mode_pairs, slots)
+    init, inits = resolve_inits(val_pairs, slots)
     s = {
-        "name": name,
+        "segment": segment,
         "n_nodes": n_nodes,
         "kind": kind,
         "lo": float(segment_optimizable["lo"]),
@@ -167,10 +179,10 @@ def build_segment(name, n_nodes, kind, segment_optimizable, n, *, i_from_name=No
         "jit": float(segment_optimizable["jit"]),
         "init": init,
     }
-    for mode_bucket in PARAM_MODE_KEYS:
-        s[mode_bucket] = list(mode[mode_bucket])
-    if init_override:
-        s["init_override"] = init_override
+    for mode in PARAM_MODE_KEYS:
+        s[mode] = list(modes[mode])
+    if inits:
+        s["inits"] = inits
     return s
 
 
@@ -203,16 +215,19 @@ def _a_sti_radius_segment(optimizable: dict, a_sti_radii, radius_key_aliases):
     """Per-radius spot drive ``a_sti_radius`` for non-center radii (``a_sti_radii`` order).
 
     Center r=0 is baked into ``i_sti`` at 1 (not a param). Slot
-    names come from ``radius_key_aliases`` via :func:`spot_radius_key`.
-    Default ``mode`` applies; CLI ``--a-sti-radius`` may still override.
+    keys come from ``radius_key_aliases`` via :func:`spot_radius_key`.
+    Default ``mode`` applies; CLI ``--a-sti-radius`` may still change it.
     """
     radii = list(a_sti_radii)
     n = len(radii)
     if n == 0:
         raise ValueError("a_sti_radius requires non-empty a_sti_radii")
-    names = [spot_radius_key(r, aliases=radius_key_aliases) for r in radii]
-    segment = build_segment("a_sti_radius", n, "output", optimizable["a_sti_radius"], n)
-    segment["node_names"] = names
+    radius_keys = [spot_radius_key(r, aliases=radius_key_aliases) for r in radii]
+    segment = build_segment(
+        "a_sti_radius", n, "output", optimizable["a_sti_radius"], n,
+        slots=radius_keys,
+    )
+    segment["radius_keys"] = radius_keys
     return segment
 
 
@@ -229,22 +244,22 @@ def segments_from_optimizable(
     a_sti_radii,
     radius_key_aliases,
 ):
-    """Build segments in ``optimizable`` insertion order; ``skip`` omits unused names."""
-    i_from_name = {str(n): i for i, n in enumerate(cells)}
+    """Build segments in ``optimizable`` insertion order; ``skip`` omits unused segments."""
     mode = normalize_syn_mode(syn_mode)
     active_syn = (
         "syn_strength_edge" if mode == "per_edge" else "syn_strength_cell"
     )
+    cells = [str(cell) for cell in cells]
     segments = []
-    for name in optimizable:
-        if name in skip:
+    for segment in optimizable:
+        if segment in skip:
             continue
-        if name in ("syn_strength_cell", "syn_strength_edge"):
-            if name != active_syn:
+        if segment in ("syn_strength_cell", "syn_strength_edge"):
+            if segment != active_syn:
                 continue
             segments.append(_syn_segment(mode, n_pairs, n_edges, optimizable))
             continue
-        if name == "a_sti_radius":
+        if segment == "a_sti_radius":
             if not a_sti_radii:
                 continue
             segments.append(
@@ -253,9 +268,12 @@ def segments_from_optimizable(
                 )
             )
             continue
-        kind = "output" if name in _OUTPUT_KIND else "full"
+        kind = "output" if segment in _OUTPUT_KIND else "full"
         segments.append(
-            build_segment(name, n_cells, kind, optimizable[name], n_cells, i_from_name=i_from_name)
+            build_segment(
+                segment, n_cells, kind, optimizable[segment], n_cells,
+                slots=cells,
+            )
         )
     return segments
 

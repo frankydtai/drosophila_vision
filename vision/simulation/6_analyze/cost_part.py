@@ -57,7 +57,7 @@ def _resolve_part_key(args) -> str:
     return spot_cost_part_key(args.task, str(args.cell), float(args.radius))
 
 
-def _apply_cost_norm_override(session, cost_norm: str | None):
+def override_cost_norm(session, cost_norm: str | None):
     """Return session whose train_opts use ``cost_norm`` (run default if None)."""
     if cost_norm is None:
         return session, _session_cost_norm(session)
@@ -72,9 +72,9 @@ def cost_part(session, z, part_key: str) -> dict:
     params = params_from_z(z, session)
     cost_norm = _session_cost_norm(session)
     task = None
-    for tname in train.SPOT_TASKS:
-        if part_key.startswith(f"{tname}_"):
-            task = tname
+    for task in train.SPOT_TASKS:
+        if part_key.startswith(f"{task}_"):
+            task = task
             break
     if task is None:
         raise SystemExit(
@@ -138,11 +138,11 @@ def cost_part(session, z, part_key: str) -> dict:
             torch.full_like(sse, float("nan")),
         )
         denom_t = power_t
-        denom_name = "POWER"
+        denom = "POWER"
     elif cost_norm == "a_gt2":
         cost_mean = sse / a2 / w_sum
         denom_t = torch.full_like(sse, a2)
-        denom_name = "a_gt2"
+        denom = "a_gt2"
     else:
         raise SystemExit(f"unsupported cost_norm {cost_norm!r}")
 
@@ -192,7 +192,7 @@ def cost_part(session, z, part_key: str) -> dict:
         "sse_sum": sse_sum,
         "power_sum": power_sum,
         "cost": cost,
-        "denom_name": denom_name,
+        "denom": denom,
         "sse_mean": sse_mean.detach().cpu().numpy(),
         "denom_t": denom_t.detach().cpu().numpy(),
         "cost_mean": cost_mean.detach().cpu().numpy(),
@@ -226,8 +226,8 @@ def _print_summary(info: dict) -> None:
 
 def _print_table(info: dict, *, stride: int, per_node: bool) -> None:
     w_sum = info["w_sum"]
-    denom_name = info["denom_name"]
-    den_lab = f"{denom_name}_avg" if per_node and denom_name == "POWER" else denom_name
+    denom = info["denom"]
+    den_lab = f"{denom}_avg" if per_node and denom == "POWER" else denom
     print(
         f"{'t':>4} {'ms':>7} {'t_cost':>6} {'ms_cost':>7} "
         f"{'cost_mean':>14} {'gt_aff':>14} "
@@ -243,7 +243,7 @@ def _print_table(info: dict, *, stride: int, per_node: bool) -> None:
         c_s = "nan" if not np.isfinite(c) else f"{c:.10f}"
         sse_mean = info["sse_mean"][j]
         den = info["denom_t"][j]
-        if per_node and denom_name == "POWER":
+        if per_node and denom == "POWER":
             den = den / w_sum
         print(
             f"{int(t[j]):4d} {ms[j]:7g} {int(t_cost[j]):6d} {ms_cost[j]:7g} "
@@ -259,15 +259,15 @@ def _save_csv(path: str, info: dict, *, per_node: bool) -> None:
     ms = info["ms"]
     t_cost = info["t_cost"]
     ms_cost = info["ms_cost"]
-    denom_name = info["denom_name"]
+    denom = info["denom"]
     with open(path, "w", newline="") as f:
         w = csv.writer(f)
         w.writerow(
             [
                 "t", "ms", "t_cost", "ms_cost",
                 "cost_mean", "gt_aff_mean", "v_readout_mean",
-                "SSE_mean", denom_name,
-                f"{denom_name}_avg" if denom_name == "POWER" else denom_name,
+                "SSE_mean", denom,
+                f"{denom}_avg" if denom == "POWER" else denom,
                 "cost_norm", "part",
             ],
         )
@@ -276,7 +276,7 @@ def _save_csv(path: str, info: dict, *, per_node: bool) -> None:
             c_s = "" if not np.isfinite(c) else f"{c:.10f}"
             sse_mean = float(info["sse_mean"][j])
             den = float(info["denom_t"][j])
-            den_avg = den / w_sum if denom_name == "POWER" else den
+            den_avg = den / w_sum if denom == "POWER" else den
             w.writerow(
                 [
                     int(t[j]), f"{ms[j]:g}",
@@ -327,7 +327,7 @@ def main(argv=None) -> None:
         "--cost-norm",
         default=None,
         choices=list(COST_NORMS),
-        help="override run train_opts.cost_norm (default: keep run)",
+        help="set train_opts.cost_norm (default: keep run)",
     )
     ap.add_argument(
         "--stride",
@@ -355,7 +355,7 @@ def main(argv=None) -> None:
 
     run_dir = plot.resolve_run_dir(args.run)
     session, z, best_cost = plot.load_best(run_dir, verbose=True)
-    session, cost_norm = _apply_cost_norm_override(session, args.cost_norm)
+    session, cost_norm = override_cost_norm(session, args.cost_norm)
     print(f"cost_norm={cost_norm}  saved_total={best_cost:.6f}", flush=True)
 
     if args.list_parts and args.part is None and args.cell is None:

@@ -56,16 +56,16 @@ from train.config import (
 )
 
 
-def run_dir(model, root=None, parent=None, name=None):
-    """``<PARAMETER_DIR>/<model>/<name>`` (or under *parent*)."""
+def run_dir(model, root=None, parent=None, run=None):
+    """``<PARAMETER_DIR>/<model>/<run>`` (or under *parent*)."""
     from train.config import PARAMETER_DIR
     if parent is None:
         root = str(PARAMETER_DIR) if root is None else root
         parent = os.path.join(root, model)
-    if name is None:
+    if run is None:
         job_id = os.environ.get('SLURM_JOB_ID')
-        name = f'run_{job_id}' if job_id else time.strftime('run_%m%d_%H%M%S')
-    return os.path.join(parent, name)
+        run = f'run_{job_id}' if job_id else time.strftime('run_%m%d_%H%M%S')
+    return os.path.join(parent, run)
 
 
 def resolve_run_dir(path):
@@ -98,18 +98,18 @@ def decompose_params(z_t, session):
     n = session.backend.n_cells
     schema = list(session.schema)
     node_vals = train.node_values_from_z(z_t, schema)
-    param_by_name = {}
+    param_by_segment = {}
     for segment in schema:
-        name = segment["name"]
+        segment_id = segment["segment"]
         if segment["kind"] in ("edge_pair", "edge"):
             continue
-        if segment.get("node_names") is not None:
+        if segment.get("radius_keys") is not None:
             continue  # e.g. a_sti_radius (per-radius, not per-cell)
-        arr = np.asarray(node_vals[name], dtype=np.float64).reshape(-1)
+        arr = np.asarray(node_vals[segment_id], dtype=np.float64).reshape(-1)
         if arr.shape[0] != n:
-            raise ValueError(f"{name}: node width {arr.shape[0]} != n_cells {n}")
-        param_by_name[name] = arr
-    return param_by_name
+            raise ValueError(f"{segment_id}: node width {arr.shape[0]} != n_cells {n}")
+        param_by_segment[segment_id] = arr
+    return param_by_segment
 
 
 def v_spot_markers_by_cell(z_t, session):
@@ -125,7 +125,7 @@ def v_spot_markers_by_cell(z_t, session):
     """
     schema = list(session.schema)
     z = torch.as_tensor(z_t, dtype=session.sim_dtype, device=session.device)
-    params = train.apply_val_from(
+    params = train.override_val_from(
         train.assign_params(z, schema, session.backend), session,
     )
     pack = session.primary_pack
@@ -143,7 +143,7 @@ def v_spot_markers_by_cell(z_t, session):
     n_t = int(v.shape[1])
     if t_onset < 0 or t_onset >= n_t:
         raise ValueError(f"t_onset={t_onset} out of range for forward T={n_t}")
-    opts = (session.train_opts or {}).get(f"{pack.name}_sti_opts") or {}
+    opts = (session.train_opts or {}).get(f"{pack.task}_sti_opts") or {}
     timing = resolve_sti_timing(opts)
     t_end = t_sti_end(
         t_onset, n_t, timing.ms_sti,
@@ -245,25 +245,25 @@ def v_spot_markers_by_cell(z_t, session):
 
 
 def save_param_table(z_t, session, table_path):
-    param_by_name = decompose_params(z_t, session)
+    param_by_segment = decompose_params(z_t, session)
     markers = v_spot_markers_by_cell(z_t, session)
     bias_gt = markers.pop("bias_gt", None)
-    param_by_name.update(markers)
+    param_by_segment.update(markers)
     opts = session.train_opts or {}
-    if train.val_from_enabled(opts, "v_th_ca") and "v_th" in param_by_name and "v_th_ca" in param_by_name:
-        param_by_name["v_th_ca"] = np.asarray(param_by_name["v_th"], dtype=np.float64).copy()
-    if train.val_from_enabled(opts, "a_ca") and "a_out" in param_by_name and "a_ca" in param_by_name:
-        param_by_name["a_ca"] = np.asarray(param_by_name["a_out"], dtype=np.float64).copy()
+    if train.val_from_enabled(opts, "v_th_ca") and "v_th" in param_by_segment and "v_th_ca" in param_by_segment:
+        param_by_segment["v_th_ca"] = np.asarray(param_by_segment["v_th"], dtype=np.float64).copy()
+    if train.val_from_enabled(opts, "a_ca") and "a_out" in param_by_segment and "a_ca" in param_by_segment:
+        param_by_segment["a_ca"] = np.asarray(param_by_segment["a_out"], dtype=np.float64).copy()
     if bias_gt is not None:
-        param_by_name["bias_gt"] = bias_gt
-    cell_names = cell_labels(session)
-    cells = list(param_by_name.keys())
+        param_by_segment["bias_gt"] = bias_gt
+    cells_labels = cell_labels(session)
+    segments = list(param_by_segment.keys())
     n = session.backend.n_cells
     with open(table_path, "w") as f:
-        f.write("cell_idx,cell," + ",".join(cells) + "\n")
+        f.write("cell_idx,cell," + ",".join(segments) + "\n")
         for i in range(n):
-            field_vals = ["%.6f" % param_by_name[nm][i] for nm in cells]
-            f.write("%d,%s," % (i, cell_names[i]) + ",".join(field_vals) + "\n")
+            field_vals = ["%.6f" % param_by_segment[seg][i] for seg in segments]
+            f.write("%d,%s," % (i, cells_labels[i]) + ",".join(field_vals) + "\n")
     return table_path
 
 
@@ -273,34 +273,34 @@ def save_syn_strength_cell_table(z_t, session, table_path):
     Rows = source types, fields = target types. Absent connectome pairs are blank.
     """
     schema = list(session.schema)
-    segment = next((s for s in schema if s["name"] == "syn_strength_cell"), None)
+    segment = next((s for s in schema if s["segment"] == "syn_strength_cell"), None)
     if segment is None or segment["kind"] != "edge_pair":
         return None
     node_vals = train.node_values_from_z(z_t, schema)
     arr = np.asarray(node_vals["syn_strength_cell"], dtype=np.float64).reshape(-1)
-    names = [str(n) for n in cell_labels(session)]
+    cells = [str(n) for n in cell_labels(session)]
     keys = list(session.backend.conn.pair_keys)
     if arr.shape[0] != len(keys):
         raise ValueError(
             f"syn_strength_cell length {arr.shape[0]} != n_pairs {len(keys)}"
         )
     mat = {(int(s), int(t)): float(v) for (s, t), v in zip(keys, arr)}
-    n = len(names)
+    n = len(cells)
     with open(table_path, "w") as f:
-        f.write("," + ",".join(names) + "\n")
-        for i, src in enumerate(names):
-            cells = [
+        f.write("," + ",".join(cells) + "\n")
+        for i, src in enumerate(cells):
+            fields = [
                 ("%.6f" % mat[(i, j)]) if (i, j) in mat else ""
                 for j in range(n)
             ]
-            f.write(src + "," + ",".join(cells) + "\n")
+            f.write(src + "," + ",".join(fields) + "\n")
     return table_path
 
 
 def save_syn_strength_edge_table(z_t, session, table_path):
     """Write per-edge ``syn_strength_edge`` CSV (network edge order)."""
     schema = list(session.schema)
-    segment = next((s for s in schema if s["name"] == "syn_strength_edge"), None)
+    segment = next((s for s in schema if s["segment"] == "syn_strength_edge"), None)
     if segment is None or segment["kind"] != "edge":
         return None
     node_vals = train.node_values_from_z(z_t, schema)
@@ -310,7 +310,7 @@ def save_syn_strength_edge_table(z_t, session, table_path):
         raise ValueError(
             f"syn_strength_edge length {arr.shape[0]} != n_edges {conn.n_edges}"
         )
-    names = [str(n) for n in cell_labels(session)]
+    cells = [str(n) for n in cell_labels(session)]
     src = conn.source_indices.detach().cpu().numpy()
     tar = conn.target_indices.detach().cpu().numpy()
     node_cells = conn.node_cells.detach().cpu().numpy()
@@ -325,7 +325,7 @@ def save_syn_strength_edge_table(z_t, session, table_path):
                 "%d,%d,%d,%s,%s,%.0f,%.6f\n"
                 % (
                     i, si, ti,
-                    names[int(node_cells[si])], names[int(node_cells[ti])],
+                    cells[int(node_cells[si])], cells[int(node_cells[ti])],
                     float(syn_sign[i]), float(arr[i]),
                 )
             )
@@ -335,15 +335,15 @@ def save_syn_strength_edge_table(z_t, session, table_path):
 def save_syn_table(z_t, session, outdir_or_path, *, tag=None):
     """Write ``syn_strength_cell.csv`` or ``syn_strength_edge.csv`` for the active syn mode."""
     if tag is None:
-        cell_name, edge_name = SYN_STRENGTH_CELL_CSV, SYN_STRENGTH_EDGE_CSV
+        cell_filename, edge_filename = SYN_STRENGTH_CELL_CSV, SYN_STRENGTH_EDGE_CSV
     else:
-        cell_name = f"syn_strength_cell_{tag}.csv"
-        edge_name = f"syn_strength_edge_{tag}.csv"
+        cell_filename = f"syn_strength_cell_{tag}.csv"
+        edge_filename = f"syn_strength_edge_{tag}.csv"
     cell_path = save_syn_strength_cell_table(
-        z_t, session, os.path.join(outdir_or_path, cell_name),
+        z_t, session, os.path.join(outdir_or_path, cell_filename),
     )
     edge_path = save_syn_strength_edge_table(
-        z_t, session, os.path.join(outdir_or_path, edge_name),
+        z_t, session, os.path.join(outdir_or_path, edge_filename),
     )
     return cell_path or edge_path
 
@@ -356,43 +356,43 @@ def best_adam_path(outdir):
     return os.path.join(run_data_dir(outdir), 'best_adam.npz')
 
 
-def _data_file(outdir, name):
-    return os.path.join(run_data_dir(outdir), name)
+def _data_file(outdir, filename):
+    return os.path.join(run_data_dir(outdir), filename)
 
 
-def save_param_named(outdir, z, session, filename):
-    """Write named full-width node values to ``data/<filename>``."""
+def save_param_by_segment(outdir, z, session, filename):
+    """Write per-segment full-width node values to ``data/<filename>``."""
     schema = list(session.schema)
-    named = train.node_values_from_z(z, schema)
-    cells = np.asarray(train.cell_node_names(session.backend), dtype=object)
-    payload = {k: np.asarray(v, dtype=np.float64) for k, v in named.items()}
+    param_by_segment = train.node_values_from_z(z, schema)
+    cells = np.asarray(train.cells_for_backend(session.backend), dtype=object)
+    payload = {k: np.asarray(v, dtype=np.float64) for k, v in param_by_segment.items()}
     payload['cells'] = cells
     if any(s['kind'] == 'edge_pair' for s in schema):
-        payload['pair_names'] = np.asarray(train.pair_node_names(session.backend), dtype=object)
+        payload['pairs'] = np.asarray(train.pairs_for_backend(session.backend), dtype=object)
     os.makedirs(run_data_dir(outdir), exist_ok=True)
     np.savez(os.path.join(run_data_dir(outdir), filename), **payload)
 
 
-def save_adam_named(outdir, exp_avg, exp_avg_sq, iter, session, filename):
-    """Write named Adam m/v (z-space) to ``data/<filename>``."""
+def save_adam_by_segment(outdir, exp_avg, exp_avg_sq, iter, session, filename):
+    """Write per-segment Adam m/v (z-space) to ``data/<filename>``."""
     schema = list(session.schema)
-    named_m, named_v = train.named_moments_from_z(exp_avg, exp_avg_sq, schema)
-    cells = np.asarray(train.cell_node_names(session.backend), dtype=object)
+    moments_m, moments_v = train.moments_by_segment_from_z(exp_avg, exp_avg_sq, schema)
+    cells = np.asarray(train.cells_for_backend(session.backend), dtype=object)
     payload = {'iter': np.asarray(int(iter), dtype=np.int64)}
     payload['cells'] = cells
     if any(s['kind'] == 'edge_pair' for s in schema):
-        payload['pair_names'] = np.asarray(train.pair_node_names(session.backend), dtype=object)
-    for name, arr in named_m.items():
-        payload[f'm_{name}'] = np.asarray(arr, dtype=np.float64)
-    for name, arr in named_v.items():
-        payload[f'v_{name}'] = np.asarray(arr, dtype=np.float64)
+        payload['pairs'] = np.asarray(train.pairs_for_backend(session.backend), dtype=object)
+    for segment, arr in moments_m.items():
+        payload[f'm_{segment}'] = np.asarray(arr, dtype=np.float64)
+    for segment, arr in moments_v.items():
+        payload[f'v_{segment}'] = np.asarray(arr, dtype=np.float64)
     os.makedirs(run_data_dir(outdir), exist_ok=True)
     np.savez(os.path.join(run_data_dir(outdir), filename), **payload)
 
 
-def save_best_param_named(outdir, z, session):
-    """Write named full-width node values to ``data/best_param.npz``."""
-    save_param_named(outdir, z, session, 'best_param.npz')
+def save_best_param(outdir, z, session):
+    """Write per-segment full-width node values to ``data/best_param.npz``."""
+    save_param_by_segment(outdir, z, session, 'best_param.npz')
 
 
 def _checkpoint_data_filename(kind, iter, run_i=0, n_run=1):
@@ -416,84 +416,84 @@ def build_checkpoint_callback(outdir, session, *, run_i=0, n_run=1, on_png=None)
     """Write interval-best npz/csv; optional *on_png* for plot layer (from ``run.py``)."""
 
     def on_interval_best(iter, z_best, cost_best, opt_state=None):
-        name = _checkpoint_data_filename('param', iter, run_i=run_i, n_run=n_run)
-        save_param_named(outdir, z_best, session, name)
+        filename = _checkpoint_data_filename('param', iter, run_i=run_i, n_run=n_run)
+        save_param_by_segment(outdir, z_best, session, filename)
         if opt_state is not None:
             n = int(np.asarray(z_best.detach().cpu()).reshape(-1).shape[0])
             exp_avg, exp_avg_sq, adam_iter = train.adam_moments_from_state_dict(
                 opt_state, n, dtype=torch.float64, device='cpu',
             )
-            adam_name = _checkpoint_data_filename(
+            adam_filename = _checkpoint_data_filename(
                 'adam', iter, run_i=run_i, n_run=n_run,
             )
-            save_adam_named(
+            save_adam_by_segment(
                 outdir,
                 exp_avg.numpy(),
                 exp_avg_sq.numpy(),
                 adam_iter,
                 session,
-                adam_name,
+                adam_filename,
             )
-            print(f'wrote checkpoint {adam_name}')
+            print(f'wrote checkpoint {adam_filename}')
         save_checkpoint_csv(outdir, iter, z_best, session)
         if on_png is not None:
             on_png(outdir, iter, z_best, cost_best, session)
-        print(f'wrote checkpoint {name} (cost={cost_best:.4f})')
+        print(f'wrote checkpoint {filename} (cost={cost_best:.4f})')
     return on_interval_best
 
 
-def load_best_param_named(outdir):
-    """Load ``data/best_param.npz`` → (named dict, cells, pair_names|None)."""
+def load_best_param_by_segment(outdir):
+    """Load ``data/best_param.npz`` → (param_by_segment, cells, pairs|None)."""
     fp = best_param_path(outdir)
     if not os.path.isfile(fp):
         raise FileNotFoundError(fp)
     with np.load(fp, allow_pickle=True) as d:
         cells = [str(x) for x in d['cells'].tolist()]
-        pair_names = None
-        if 'pair_names' in d.files:
-            pair_names = [str(x) for x in d['pair_names'].tolist()]
-        named = {
+        pairs = None
+        if 'pairs' in d.files:
+            pairs = [str(x) for x in d['pairs'].tolist()]
+        param_by_segment = {
             k: np.asarray(d[k], dtype=np.float64)
             for k in d.files
-            if k not in ('cells', 'pair_names')
+            if k not in ('cells', 'pairs')
         }
-    return named, cells, pair_names
+    return param_by_segment, cells, pairs
 
 
-def load_best_adam_named(outdir):
-    """Load ``data/best_adam.npz`` → (named_m, named_v, iter, cells, pair_names)."""
+def load_best_adam_by_segment(outdir):
+    """Load ``data/best_adam.npz`` → (moments_m, moments_v, iter, cells, pairs)."""
     fp = best_adam_path(outdir)
     if not os.path.isfile(fp):
         raise FileNotFoundError(fp)
     with np.load(fp, allow_pickle=True) as d:
         cells = [str(x) for x in d['cells'].tolist()]
-        pair_names = None
-        if 'pair_names' in d.files:
-            pair_names = [str(x) for x in d['pair_names'].tolist()]
+        pairs = None
+        if 'pairs' in d.files:
+            pairs = [str(x) for x in d['pairs'].tolist()]
         if 'iter' not in d.files:
             raise ValueError(f'{fp}: missing iter')
         adam_iter = int(np.asarray(d['iter']).reshape(-1)[0])
-        named_m = {}
-        named_v = {}
+        moments_m = {}
+        moments_v = {}
         for k in d.files:
             if k.startswith('m_'):
-                named_m[k[2:]] = np.asarray(d[k], dtype=np.float64)
+                moments_m[k[2:]] = np.asarray(d[k], dtype=np.float64)
             elif k.startswith('v_'):
-                named_v[k[2:]] = np.asarray(d[k], dtype=np.float64)
-    return named_m, named_v, adam_iter, cells, pair_names
+                moments_v[k[2:]] = np.asarray(d[k], dtype=np.float64)
+    return moments_m, moments_v, adam_iter, cells, pairs
 
 
 def load_best_param(outdir, session):
-    """Load best params as 1-D z for *session* (remap from named npz)."""
-    named, cells, pair_names = load_best_param_named(outdir)
+    """Load best params as 1-D z for *session* (remap from per-segment npz)."""
+    param_by_segment, cells, pairs = load_best_param_by_segment(outdir)
     schema = train.attach_param_carry(
         list(session.schema),
-        train.remap_named_node_values(
-            named, cells, pair_names, list(session.schema), session.backend,
+        train.remap_param_by_segment_node_values(
+            param_by_segment, cells, pairs, list(session.schema), session.backend,
         ),
     )
-    remapped = train.remap_named_node_values(
-        named, cells, pair_names, schema, session.backend,
+    remapped = train.remap_param_by_segment_node_values(
+        param_by_segment, cells, pairs, schema, session.backend,
     )
     z = train.z_from_node_values(
         remapped, schema, dtype=session.sim_dtype, device=session.device,
@@ -513,9 +513,9 @@ def save_best_data(outdir, session, run_params, final_costs, adam=None):
     best = run_params[run_i]
     os.makedirs(run_data_dir(outdir), exist_ok=True)
     z_best = torch.tensor(best, dtype=session.sim_dtype, device=session.device)
-    save_best_param_named(outdir, z_best, session)
+    save_best_param(outdir, z_best, session)
     if adam is not None:
-        save_adam_named(
+        save_adam_by_segment(
             outdir, adam['exp_avg'], adam['exp_avg_sq'], adam['iter'], session,
             'best_adam.npz',
         )
@@ -554,38 +554,38 @@ def load_stored_costs(outdir):
 
 
 def load_init_z(init_from, session):
-    """Load named best params + Adam moments; return ``(session, z, opt_init)``.
+    """Load per-segment best params + Adam moments; return ``(session, z, opt_init)``.
 
-    Trainable slots come from *z*; fixed nodes are seeded via ``init_override``
+    Trainable slots come from *z*; fixed nodes are seeded via ``inits``
     (still not in z); frozen nodes use ``carry``.
     """
     try:
         outdir = resolve_run_dir(init_from)
     except SystemExit as exc:
         raise ValueError(str(exc)) from exc
-    named, cells, pair_names = load_best_param_named(outdir)
-    named_m, named_v, adam_iter, adam_cells, adam_pairs = load_best_adam_named(outdir)
+    param_by_segment, cells, pairs = load_best_param_by_segment(outdir)
+    moments_m, moments_v, adam_iter, adam_cells, adam_pairs = load_best_adam_by_segment(outdir)
     schema = list(session.schema)
-    remapped = train.remap_named_node_values(
-        named, cells, pair_names, schema, session.backend,
+    remapped = train.remap_param_by_segment_node_values(
+        param_by_segment, cells, pairs, schema, session.backend,
     )
-    schema = train.init_override_from_named(schema, remapped)
+    schema = train.inits_from_param_by_segment(schema, remapped)
     schema = train.attach_param_carry(schema, remapped)
     opts = dict(session.train_opts or {})
     opts['param_modes'] = train.schema_param_modes_record(
-        schema, lambda segment: train.node_names_for_segment(segment, session.backend),
+        schema, lambda segment: train.slots_for_segment(segment, session.backend),
     )
     session = replace(session, schema=tuple(schema), train_opts=opts)
     z = train.z_from_node_values(
         remapped, schema, dtype=session.sim_dtype, device=session.device,
     )
-    remapped_m = train.remap_named_moments(
-        named_m, adam_cells, adam_pairs, schema, session.backend,
+    remapped_m = train.remap_param_by_segment_moments(
+        moments_m, adam_cells, adam_pairs, schema, session.backend,
     )
-    remapped_v = train.remap_named_moments(
-        named_v, adam_cells, adam_pairs, schema, session.backend,
+    remapped_v = train.remap_param_by_segment_moments(
+        moments_v, adam_cells, adam_pairs, schema, session.backend,
     )
-    exp_avg, exp_avg_sq = train.z_moments_from_named(
+    exp_avg, exp_avg_sq = train.z_moments_from_param_by_segment(
         remapped_m, remapped_v, schema,
         dtype=session.sim_dtype, device=session.device,
     )
@@ -629,10 +629,10 @@ def print_param_modes(session):
     if not schema:
         return
     print("param_modes:")
-    w = max(len(s["name"]) for s in schema)
+    w = max(len(s["segment"]) for s in schema)
     for s in schema:
         print(
-            f"  {s['name']:<{w}}  "
+            f"  {s['segment']:<{w}}  "
             f"indi={len(s.get('indi') or [])}/"
             f"shared={len(s.get('shared') or [])}/"
             f"fixed={len(s.get('fixed') or [])}/"
@@ -674,7 +674,7 @@ def build_session(
     val_from=None,
     filter=NEURON_FILTER['filter'],
     spot_gt_mode=SPOT_PACK['spot_gt_mode'],
-    pack_overrides=None,
+    pack_mirror_fits=None,
     model_backend=None,
     schema=None,
 ):
@@ -689,7 +689,7 @@ def build_session(
         cost_norm=expand_cost_norm(cost_norm),
         cost_interval_ms=cost_interval_ms,
         cost_ms=cost_ms,
-        pack_overrides=pack_overrides,
+        pack_mirror_fits=pack_mirror_fits,
         sequential=sequential,
         cost_radius_by_task=cost_radius_by_task,
         shift_radius=shift_radius,
@@ -750,7 +750,7 @@ def run_train(model, n_run, n_iter, lrs, fname=None, outdir=None,
                  moving_bar_dark_sti_opts=None,
                  spot_bright_sti_opts=None,
                  spot_dark_sti_opts=None,
-                 pack_overrides=None, model_backend=None, schema=None,
+                 pack_mirror_fits=None, model_backend=None, schema=None,
                  fp=TRAIN_SESSION['fp'],
                  pre_grad=NEURON_FORWARD['pre_grad'],
                  val_from=None,
@@ -792,7 +792,7 @@ def run_train(model, n_run, n_iter, lrs, fname=None, outdir=None,
         pre_steady=pre_steady,
         pre_steady_iters=pre_steady_iters,
         pre_steady_damp=pre_steady_damp,
-        pack_overrides=pack_overrides,
+        pack_mirror_fits=pack_mirror_fits,
         model_backend=model_backend,
         schema=schema,
         fp=fp,

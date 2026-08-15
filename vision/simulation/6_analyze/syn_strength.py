@@ -1,7 +1,7 @@
 """Query trained syn_strength_cell joined to connectome partner % n_syn.
 
 Reads ``best_param.npz`` + ``train_opts.json`` only (no train session rebuild).
-Partner % comes from ``analyze_cell_syn``; syn_strength_cell / a_* from the named npz.
+Partner % comes from ``analyze_cell_syn``; syn_strength_cell / a_* from the per-segment npz.
 
 Examples
 --------
@@ -104,7 +104,7 @@ def main(argv: list[str] | None = None) -> int:
         raise SystemExit("train_opts.json missing network_json")
 
     try:
-        named, cells_npz, pair_names = train_mod.load_best_param_named(outdir)
+        param_by_segment, cells_npz, pairs = train_mod.load_best_param_by_segment(outdir)
     except FileNotFoundError as exc:
         raise SystemExit(str(exc)) from exc
 
@@ -119,25 +119,25 @@ def main(argv: list[str] | None = None) -> int:
             f"({len(cells)} vs {len(cells_npz)})"
         )
 
-    i_from_name = {n: i for i, n in enumerate(cells)}
+    idx_from_cell = {n: i for i, n in enumerate(cells)}
     n_cells = len(cells)
     for tok in tokens:
-        if tok not in i_from_name:
+        if tok not in idx_from_cell:
             raise SystemExit(f"unknown cell {tok!r}; known e.g. {cells[:8]}...")
 
-    src_t = np.array([i_from_name[e["source_cell"]] for e in edges], dtype=np.int64)
-    tar_t = np.array([i_from_name[e["target_cell"]] for e in edges], dtype=np.int64)
+    src_t = np.array([idx_from_cell[e["source_cell"]] for e in edges], dtype=np.int64)
+    tar_t = np.array([idx_from_cell[e["target_cell"]] for e in edges], dtype=np.int64)
     _, n_pairs, pair_keys = build_cell_pair_indices(src_t, tar_t, n_cells)
-    i_from_key = {k: i for i, k in enumerate(pair_keys)}
-    if pair_names is not None:
+    idx_from_key = {k: i for i, k in enumerate(pair_keys)}
+    if pairs is not None:
         expected = [f"{cells[s]}{train.PAIR_SEP}{cells[t]}" for s, t in pair_keys]
-        if list(pair_names) != expected:
-            raise SystemExit("pair_names in best_param.npz do not match network.json edges")
+        if list(pairs) != expected:
+            raise SystemExit("pairs in best_param.npz do not match network.json edges")
 
     for key in ("syn_strength_cell", "a_in", "a_out", "a_gt", "bias_gt"):
-        if key not in named:
+        if key not in param_by_segment:
             raise SystemExit(f"best_param.npz missing {key}")
-    syn_strength_cell = np.asarray(named["syn_strength_cell"], dtype=np.float64).reshape(-1)
+    syn_strength_cell = np.asarray(param_by_segment["syn_strength_cell"], dtype=np.float64).reshape(-1)
     if syn_strength_cell.shape[0] != n_pairs:
         raise SystemExit(
             f"syn_strength_cell length {syn_strength_cell.shape[0]} != n_pairs {n_pairs}"
@@ -164,19 +164,19 @@ def main(argv: list[str] | None = None) -> int:
         if cell not in partner_syn_by_cell:
             print(f"warning: no partner_syn for {cell}", flush=True)
             continue
-        ti = i_from_name[cell]
+        ti = idx_from_cell[cell]
         by_partner, n_syn_sum, n_partner, partner_uv, partner_xy, n_self = partner_syn_by_cell[cell]
-        alpha_map = {}
+        syn_strength_by_partner = {}
         for partner in by_partner:
-            if partner not in i_from_name:
-                alpha_map[partner] = "-"
+            if partner not in idx_from_cell:
+                syn_strength_by_partner[partner] = "-"
                 continue
             pair = (
-                (i_from_name[cell], i_from_name[partner]) if direction == "post"
-                else (i_from_name[partner], i_from_name[cell])
+                (idx_from_cell[cell], idx_from_cell[partner]) if direction == "post"
+                else (idx_from_cell[partner], idx_from_cell[cell])
             )
-            pi = i_from_key.get(pair)
-            alpha_map[partner] = (
+            pi = idx_from_key.get(pair)
+            syn_strength_by_partner[partner] = (
                 "-" if pi is None else f"{float(syn_strength_cell[pi]):.6g}"
             )
         analyze_cell_syn.print_table(
@@ -191,12 +191,12 @@ def main(argv: list[str] | None = None) -> int:
             show_uv=False,
             show_d_xy=False,
             n_self=int(n_self),
-            alpha_by_partner=alpha_map,
+            syn_strength_by_partner=syn_strength_by_partner,
             after_title=(
-                f"a_in={float(named['a_in'][ti]):g}, "
-                f"a_out={float(named['a_out'][ti]):g}, "
-                f"a_gt={float(named['a_gt'][ti]):g}, "
-                f"bias_gt={float(named['bias_gt'][ti]):g}"
+                f"a_in={float(param_by_segment['a_in'][ti]):g}, "
+                f"a_out={float(param_by_segment['a_out'][ti]):g}, "
+                f"a_gt={float(param_by_segment['a_gt'][ti]):g}, "
+                f"bias_gt={float(param_by_segment['bias_gt'][ti]):g}"
             ),
         )
     return 0

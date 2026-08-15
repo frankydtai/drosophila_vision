@@ -16,7 +16,7 @@ def resolve_i_h_param_modes(train_kw):
     hp_lp: ``a_h`` / ``tau_hp_rise`` / ``tau_hp_fall``.
     Later tokens win: ``fixed`` then ``h_cells`` → ``indi``.
     """
-    names = (
+    segments = (
         ("a_h", "a_h_rev")
         if train_kw["model"] == "borst"
         else ("a_h", "tau_hp_rise", "tau_hp_fall")
@@ -26,9 +26,9 @@ def resolve_i_h_param_modes(train_kw):
     return {
         **existing,
         **{
-            name: [(None, "fixed"), (h_cells, "indi")]
-            for name in names
-            if name not in existing
+            segment: [(None, "fixed"), (h_cells, "indi")]
+            for segment in segments
+            if segment not in existing
         },
     }
 
@@ -50,7 +50,7 @@ def normalize_mirror_fit(mirror_fit, mirror_sign):
     ]
 
 
-def spot_pack_overrides(tasks, mirror_fit, mirror_sign=-1.0):
-    """``{spot_task: mirror_fit override}`` for each spot task in *tasks*."""
+def spot_pack_mirror_fits(tasks, mirror_fit, mirror_sign=-1.0):
+    """``{spot_task: pack_mirror_fit}`` for each spot task in *tasks*."""
     fits = normalize_mirror_fit(mirror_fit, mirror_sign)
     return {t: {'mirror_fit': fits} for t in spot_tasks_from(tasks)}

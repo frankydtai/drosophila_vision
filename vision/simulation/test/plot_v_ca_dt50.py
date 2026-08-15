@@ -101,7 +101,7 @@ def _fit_center_traces(session, z, *, return_v_delta: bool) -> dict[str, np.ndar
     return out
 
 
-def _session_z_at_delta_ms(base_opts, model, named, cell_names, pair_names, dt_ms: float):
+def _session_z_at_delta_ms(base_opts, model, named, cell_names, pairs, dt_ms: float):
     """``set_delta_ms`` then rebuild spot session with same physical timing."""
     opts = copy.deepcopy(base_opts)
 
@@ -113,8 +113,8 @@ def _session_z_at_delta_ms(base_opts, model, named, cell_names, pair_names, dt_m
         so["delta_ms"] = float(dt_ms)
 
     session = training.session_from_opts(opts, model=model)
-    remapped = training.remap_named_node_values(
-        named, cell_names, pair_names, list(session.schema), session.backend,
+    remapped = training.remap_param_by_segment_node_values(
+        named, cell_names, pairs, list(session.schema), session.backend,
     )
     schema = training.attach_param_carry(list(session.schema), remapped)
     session = session.with_schema(schema)
@@ -210,22 +210,22 @@ def main():
     session0 = training.session_from_opts(base_opts, model=model)
 
     import training.implement as train_mod
-    named, cell_names, pair_names = train_mod.load_best_param_named(run_path)
-    remapped = training.remap_named_node_values(
-        named, cell_names, pair_names, list(session0.schema), session0.backend,
+    named, cell_names, pairs = train_mod.load_best_param(run_path)
+    remapped = training.remap_param_by_segment_node_values(
+        named, cell_names, pairs, list(session0.schema), session0.backend,
     )
     schema = training.attach_param_carry(list(session0.schema), remapped)
     session0 = session0.with_schema(schema)
     base_opts = copy.deepcopy(session0.train_opts)
 
     one10, z10 = _session_z_at_delta_ms(
-        base_opts, model, named, cell_names, pair_names, DELTA_MS,
+        base_opts, model, named, cell_names, pairs, DELTA_MS,
     )
     traces_v = _fit_center_traces(one10, z10, return_v_delta=True)
     traces_ca = _fit_center_traces(one10, z10, return_v_delta=False)
 
     one50, z50 = _session_z_at_delta_ms(
-        base_opts, model, named, cell_names, pair_names, float(args.dt50),
+        base_opts, model, named, cell_names, pairs, float(args.dt50),
     )
     traces_v50 = _fit_center_traces(one50, z50, return_v_delta=True)
 

@@ -1,14 +1,14 @@
 """Compare Ca low-pass drive at v[t] vs v[t-1] on a pulse v_delta.
 
-Current code (``ca_readout_step`` / ``forward_full``):
+Current path (``filter_ca`` / ``forward_full``):
 
-    ca[t] = ca[t-1] + α ((v[t] - v_ref) - ca[t-1])
+    ca[t] = ca[t-1] + (Δt/τ_ca) ((v[t] - v_ref) - ca[t-1])
 
 Alternate (one-step lag on the drive):
 
-    ca[t] = ca[t-1] + α ((v[t-1] - v_ref) - ca[t-1])
+    ca[t] = ca[t-1] + (Δt/τ_ca) ((v[t-1] - v_ref) - ca[t-1])
 
-Usage (from ``SimulationCode/``):
+Usage (from ``vision/simulation/``):
 
     ../.venv/bin/python test/plot_ca_vt_vs_vt1.py
     ../.venv/bin/python test/plot_ca_vt_vs_vt1.py --show
@@ -29,14 +29,15 @@ import import_bootstrap  # noqa: F401
 import matplotlib.pyplot as plt
 import numpy as np
 
-import network.path  # noqa: F401 — FAFB path on sys.path
 from import_bootstrap import parse_comma_list
 from figure.util import TRACE_LW, save_figure
-from neuron.filter_ca import ca_alpha
-from neuron.param import DELTA_MS, Ca_tau, set_delta_ms
+from neuron.filter_ca import filter_ca
+from default_params import NEURON_PARAM, NEURON_SCHEMA
 
 DEFAULT_SAVE = os.path.join(HERE, "ca_vt_vs_vt1.png")
 DEFAULT_PULSE_LIST = "50,100,500"
+DEFAULT_DELTA_MS = float(NEURON_PARAM["delta_ms"]["ca"])
+DEFAULT_TAU_CA = float(NEURON_SCHEMA["optimizable"]["tau_ca"]["val"])
 V_AMP = 20.0
 T_ON_MS = 500.0
 T_END_MS = 2000.0
@@ -49,21 +50,22 @@ def _v_pulse(n: int, t_on: int, pulse_t: int, amp: float) -> np.ndarray:
     return v
 
 
-def _ca_from_v(v_delta: np.ndarray, *, use_v_prev: bool, t_on: int) -> np.ndarray:
+def _ca_from_v(
+    v_delta: np.ndarray, *, use_v_prev: bool, t_on: int, delta_ms: float, tau_ca: float,
+) -> np.ndarray:
     """Forward Ca on ``v_delta`` (= v - v_ref). ``t_on`` resets ca to 0."""
-    alpha = float(ca_alpha())
     ca = np.zeros_like(v_delta)
     prev = 0.0
     for t in range(1, v_delta.shape[0]):
         if t == t_on:
             prev = 0.0
         drive = v_delta[t - 1] if use_v_prev else v_delta[t]
-        prev = prev + alpha * (drive - prev)
+        prev = filter_ca(prev, drive, delta_ms=delta_ms, tau_ca=tau_ca)
         ca[t] = prev
     return ca
 
 
-def _plot(ms_pulse_list, dt_ms, save, show):
+def _plot(ms_pulse_list, dt_ms, tau_ca, save, show):
     n_pulse = len(ms_pulse_list)
     fig, axes = plt.subplots(
         3, n_pulse, figsize=(3.2 * n_pulse, 7.2), squeeze=False, sharex="col",
@@ -71,13 +73,17 @@ def _plot(ms_pulse_list, dt_ms, save, show):
     t_on = int(round(T_ON_MS / dt_ms))
     n = int(round(T_END_MS / dt_ms))
     t_s = np.arange(n) * dt_ms / 1000.0
-    alpha = float(ca_alpha())
+    dt_over_tau_ca = dt_ms / tau_ca
 
     for c, ms_pulse in enumerate(ms_pulse_list):
         pulse_t = max(1, int(round(float(ms_pulse) / dt_ms)))
         v = _v_pulse(n, t_on, pulse_t, V_AMP)
-        ca_t = _ca_from_v(v, use_v_prev=False, t_on=t_on)
-        ca_tm1 = _ca_from_v(v, use_v_prev=True, t_on=t_on)
+        ca_t = _ca_from_v(
+            v, use_v_prev=False, t_on=t_on, delta_ms=dt_ms, tau_ca=tau_ca,
+        )
+        ca_tm1 = _ca_from_v(
+            v, use_v_prev=True, t_on=t_on, delta_ms=dt_ms, tau_ca=tau_ca,
+        )
         d = ca_t - ca_tm1
 
         ax0, ax1, ax2 = axes[0][c], axes[1][c], axes[2][c]
@@ -115,7 +121,9 @@ def _plot(ms_pulse_list, dt_ms, save, show):
         fontsize=8,
     )
     fig.suptitle(
-        f"Ca drive: v[t] vs v[t−1]  (Δt={dt_ms:g} ms, Ca_tau={Ca_tau:g} ms, α={alpha:g})",
+        rf"Ca drive: v[t] vs v[t−1]  "
+        rf"($\Delta t$={dt_ms:g} ms, $\tau_{{\mathrm{{ca}}}}$={tau_ca:g} ms, "
+        rf"$\Delta t/\tau_{{\mathrm{{ca}}}}$={dt_over_tau_ca:g})",
         fontsize=11,
     )
     fig.tight_layout(rect=[0, 0, 1, 0.95])
@@ -131,14 +139,18 @@ def main():
     ap.add_argument("--save", default=DEFAULT_SAVE)
     ap.add_argument("--show", action="store_true")
     ap.add_argument("--pulse-list", default=DEFAULT_PULSE_LIST)
-    ap.add_argument("--delta-ms", type=float, default=DELTA_MS)
+    ap.add_argument("--delta-ms", type=float, default=DEFAULT_DELTA_MS)
+    ap.add_argument("--tau-ca", type=float, default=DEFAULT_TAU_CA)
     args = ap.parse_args()
 
-    set_delta_ms(float(args.delta_ms))
     ms_pulse_list = [float(x) for x in parse_comma_list(args.pulse_list)]
     if not ms_pulse_list:
         raise SystemExit("empty --pulse-list")
-    _plot(ms_pulse_list, float(args.delta_ms), args.save, args.show)
+    if args.delta_ms <= 0:
+        raise SystemExit("--delta-ms must be > 0")
+    if args.tau_ca <= 0:
+        raise SystemExit("--tau-ca must be > 0")
+    _plot(ms_pulse_list, float(args.delta_ms), float(args.tau_ca), args.save, args.show)
 
 
 if __name__ == "__main__":

@@ -82,9 +82,9 @@ def main():
     session = training.session_from_opts(opts, model=opts.get("model"))
 
     import training.implement as train_mod
-    named, cell_names, pair_names = train_mod.load_best_param_named(run_path)
-    remapped = training.remap_named_node_values(
-        named, cell_names, pair_names, list(session.schema), session.backend,
+    named, cell_names, pairs = train_mod.load_best_param(run_path)
+    remapped = training.remap_param_by_segment_node_values(
+        named, cell_names, pairs, list(session.schema), session.backend,
     )
     schema = training.attach_param_carry(list(session.schema), remapped)
     session = session.with_schema(schema)

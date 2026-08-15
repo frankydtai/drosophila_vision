@@ -119,7 +119,7 @@ def _plot(
             axes[r][c] = fig.add_subplot(gs[r + 1, c])
 
     t_s = np.arange(with_lp.shape[1]) * dt_ms / 1000.0
-    i_from_name = {str(n): i for i, n in enumerate(cell_list)}
+    idx_from_cell = {str(n): i for i, n in enumerate(cell_list)}
     tau_t = t_from_ms(prefilter_ms, delta_ms=dt_ms)
 
     ax_pr.plot(t_s, u, color="0.25", lw=TRACE_LW, label=f"PR drive u ({U_BASELINE:g}/{U_PEAK:g})")
@@ -145,7 +145,7 @@ def _plot(
                 ax.axis("off")
                 continue
             name = str(group[c])
-            i = i_from_name[name]
+            i = idx_from_cell[name]
             w = with_lp[i]
             wo = without_lp[i]
             ax.plot(
@@ -180,7 +180,7 @@ def _plot(
     print(f"saved {save}")
     print(f"  PR u onset={_first_change(u)}  s onset={_first_change(s_lp)}")
     for name in names:
-        i = i_from_name[name]
+        i = idx_from_cell[name]
         print(
             f"  {name}: first_nz with={_first_nz(with_lp[i])} "
             f"without={_first_nz(without_lp[i])}"

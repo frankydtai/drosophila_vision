@@ -1,8 +1,8 @@
 # -*- coding: utf-8 -*-
-"""Parameter schema param_modes: pack/unpack ``z`` <-> physical params.
+"""Parameter schema param_modes: pack/unpack ``z`` <-> param.
 
 Segment packing, param_modes (indi/shared/fixed/frozen), non-linear
-``z_map`` decoding, and the ``z``-space bounds / initial guess. ``assign_params``
+``z_mode`` decoding, and the ``z``-space bounds / initial guess. ``assign_params``
 turns a ``z`` vector into the per-parameter tensors consumed by
 ``neuron`` dynamics; ``params_from_z`` binds it to a session.
 
@@ -32,7 +32,7 @@ from neuron.schema import (
     expand_param_nodes,
     parse_optimizable_tokens,
     optimizable_scalar,
-    resolve_mode_edits,
+    resolve_modes,
 )
 
 
@@ -92,11 +92,11 @@ def build_i_h_dirs(conn, i_h_reverse_cells=I_H_DIR_REVERSE_CELLS, *, dtype=SIM_D
 # Numeric lo/hi/init/jit + mode: ``default_params.NEURON_SCHEMA['optimizable']``.
 # Model segment lists: ``neuron.schema``.
 # Each segment:
-#   name, kind, n_nodes, lo/hi/init/jit[, z_map]
-#   z_map: ``linear`` (default), ``log`` (z = log(physical)), or ``inv`` (z = 1/physical); lo/hi/init physical
+#   segment, kind, n_nodes, lo/hi/init/jit[, z_mode]
+#   z_mode: ``linear`` (default), ``log`` (z = log(param)), or ``inv`` (z = 1/param); lo/hi/init are param
 #   indi / shared / fixed / frozen : disjoint exhaustive lists of node indices
-#       fixed: not in z; value = effective_init(segment, node_idx)  (init_override or init);
-#              --init-from seeds fixed via init_override_from_named → init_override
+#       fixed: not in z; value = effective_init(segment, node_idx)  (inits or init);
+#              --init-from seeds fixed via inits_from_param_by_segment → inits
 #       frozen: not in z; values from segment['carry'] (resume) or effective_init (cold)
 # z packing per segment: len(indi) slots + (1 if shared else 0).
 PARAM_MODES = ('indi', 'shared', 'fixed', 'frozen')
@@ -105,44 +105,40 @@ _PARAM_MODE_ALL = '__all__'
 PAIR_SEP = ':'
 
 
-def _segment_z_map(segment):
-    z_map = segment.get('z_map', 'linear')
-    if z_map not in ('linear', 'log', 'inv'):
-        raise ValueError(f"{segment.get('name', 'param')}: unknown z_map {z_map!r}")
-    return z_map
+def _segment_z_mode(segment):
+    z_mode = segment.get('z_mode', 'linear')
+    if z_mode not in ('linear', 'log', 'inv'):
+        raise ValueError(f"{segment.get('segment', 'param')}: unknown z_mode {z_mode!r}")
+    return z_mode
 
 
-def _physical_bounds(segment):
-    return float(segment['lo']), float(segment['hi'])
-
-
-def _decode_z(segment, z_slot):
-    """Map z slot -> physical parameter value."""
-    z_map = _segment_z_map(segment)
-    if z_map == 'linear':
+def param_from_z(segment, z_slot):
+    """``z`` slot -> param value."""
+    z_mode = _segment_z_mode(segment)
+    if z_mode == 'linear':
         return z_slot
-    lo, hi = _physical_bounds(segment)
-    phys = torch.exp(z_slot) if z_map == 'log' else 1.0 / z_slot
-    return torch.clamp(phys, min=lo, max=hi)
+    lo, hi = float(segment['lo']), float(segment['hi'])
+    param = torch.exp(z_slot) if z_mode == 'log' else 1.0 / z_slot
+    return torch.clamp(param, min=lo, max=hi)
 
 
-def _encode_physical(segment, physical):
-    """Map physical parameter value -> z slot."""
-    z_map = _segment_z_map(segment)
-    if z_map == 'linear':
-        return float(physical)
-    lo, hi = _physical_bounds(segment)
-    clipped = float(np.clip(float(physical), lo, hi))
-    return float(np.log(clipped)) if z_map == 'log' else 1.0 / clipped
+def z_from_param(segment, param):
+    """Param value -> ``z`` slot."""
+    z_mode = _segment_z_mode(segment)
+    if z_mode == 'linear':
+        return float(param)
+    lo, hi = float(segment['lo']), float(segment['hi'])
+    clipped = float(np.clip(float(param), lo, hi))
+    return float(np.log(clipped)) if z_mode == 'log' else 1.0 / clipped
 
 
 def _z_bounds(segment):
     """Per-slot (lo, hi) in z space."""
-    lo, hi = _physical_bounds(segment)
-    z_map = _segment_z_map(segment)
-    if z_map == 'log':
+    lo, hi = float(segment['lo']), float(segment['hi'])
+    z_mode = _segment_z_mode(segment)
+    if z_mode == 'log':
         return float(np.log(lo)), float(np.log(hi))
-    if z_map == 'inv':
+    if z_mode == 'inv':
         return 1.0 / hi, 1.0 / lo
     return lo, hi
 
@@ -174,269 +170,275 @@ def schema_nparams(schema):
 
 
 def effective_init(segment, node_idx):
-    """Per-node init: ``init_override[node_idx]`` if present, else ``segment['init']``.
+    """Per-node init: ``inits[node_idx]`` if present, else ``segment['init']``.
 
     Fixed-mode nodes always use this (no separate fixed init path).
     """
-    io = segment.get('init_override')
+    io = segment.get('inits')
     node_i = int(node_idx)
     if io is not None and node_i in io:
         return float(io[node_i])
     return float(segment['init'])
 
 
-def _mode_edits_from_text(text):
-    edits = []
+def _mode_pairs_from_text(text):
+    mode_pairs = []
     for tok in (text or '').split():
         key, rest = tok.split('=', 1)
         if key not in PARAM_MODES:
             raise ValueError(f"unknown param_mode {key!r}")
         if rest == 'all':
-            edits.append((None, key))
+            mode_pairs.append((None, key))
         else:
-            edits.append((expand_param_nodes(rest), key))
-    return edits
+            mode_pairs.append((expand_param_nodes(rest), key))
+    return mode_pairs
 
 
 def parse_param_mode_text(text):
-    return _mode_edits_from_text(text)
+    return _mode_pairs_from_text(text)
 
 
-def resolve_param_mode_tokens(mode_tokens, node_names, *, param_name='param'):
-    """Resolve token lists (with at most one ``all``) to index lists covering node_names."""
-    node_names = [str(node_name) for node_name in node_names]
-    i_from_name = {n: i for i, n in enumerate(node_names)}
-    all_idx = set(range(len(node_names)))
-    explicit = {mode_bucket: [] for mode_bucket in PARAM_MODES}
+def resolve_param_mode_tokens(mode_tokens, slots, *, segment='param'):
+    """Resolve token lists (with at most one ``all``) to index lists covering ``slots``."""
+    slots = [str(slot) for slot in slots]
+    idx_from = {slot: i for i, slot in enumerate(slots)}
+    all_idx = set(range(len(slots)))
+    explicit = {mode: [] for mode in PARAM_MODES}
     all_mode = None
-    for mode_bucket in PARAM_MODES:
-        toks = list(mode_tokens.get(mode_bucket) or [])
+    for mode in PARAM_MODES:
+        toks = list(mode_tokens.get(mode) or [])
         if 'all' in toks:
             if len(toks) != 1:
-                raise ValueError(f"{param_name}: 'all' cannot mix with other names in {mode_bucket}")
+                raise ValueError(f"{segment}: 'all' cannot mix with other slots in {mode}")
             if all_mode is not None:
-                raise ValueError(f"{param_name}: 'all' in both {all_mode} and {mode_bucket}")
-            all_mode = mode_bucket
+                raise ValueError(f"{segment}: 'all' in both {all_mode} and {mode}")
+            all_mode = mode
             continue
         for tok in toks:
-            if tok not in i_from_name:
-                raise ValueError(f"{param_name}: unknown node {tok!r}")
-            explicit[mode_bucket].append(i_from_name[tok])
+            if tok not in idx_from:
+                raise ValueError(f"{segment}: unknown node {tok!r}")
+            explicit[mode].append(idx_from[tok])
     claimed = []
-    for mode_bucket in PARAM_MODES:
-        claimed.extend(explicit[mode_bucket])
+    for mode in PARAM_MODES:
+        claimed.extend(explicit[mode])
     if len(claimed) != len(set(claimed)):
-        raise ValueError(f"{param_name}: overlapping nodes across indi/shared/fixed/frozen")
+        raise ValueError(f"{segment}: overlapping nodes across indi/shared/fixed/frozen")
     claimed_set = set(claimed)
     leftover = sorted(all_idx - claimed_set)
     if all_mode is not None:
         explicit[all_mode] = leftover
         claimed_set |= set(leftover)
     elif claimed_set != all_idx:
-        missing = [node_names[node_idx] for node_idx in sorted(all_idx - claimed_set)]
+        missing = [slots[node_idx] for node_idx in sorted(all_idx - claimed_set)]
         raise ValueError(
-            f"{param_name}: nodes not assigned (use all= in one param_mode): {missing[:8]}"
+            f"{segment}: nodes not assigned (use all= in one param_mode): {missing[:8]}"
             + ("..." if len(missing) > 8 else "")
         )
-    return {mode_bucket: list(explicit[mode_bucket]) for mode_bucket in PARAM_MODES}
+    return explicit
 
 
-def names_from_param_mode(mode, node_names):
-    """Index param_mode -> name lists for train_opts sidecar."""
-    return {mode_bucket: [str(node_names[node_idx]) for node_idx in mode[mode_bucket]] for mode_bucket in PARAM_MODES}
+def slots_from_param_mode(modes, slots):
+    """Index param_mode → slot lists for train_opts sidecar."""
+    return {
+        mode: [str(slots[node_idx]) for node_idx in modes[mode]]
+        for mode in PARAM_MODES
+    }
 
 
-def apply_param_modes(schema, param_modes_by_name, node_names_for_segment):
+def override_param_modes(schema, param_modes_by_segment, slots_for_segment):
     """Copy schema with resolved param_modes."""
     out = []
     for segment in schema:
         s = dict(segment)
-        name = s['name']
-        if name not in param_modes_by_name:
+        segment_id = s['segment']
+        if segment_id not in param_modes_by_segment:
             out.append(s)
             continue
-        if callable(node_names_for_segment):
-            nodes = node_names_for_segment(s)
+        if callable(slots_for_segment):
+            slots = slots_for_segment(s)
         else:
-            nodes = node_names_for_segment[name]
-        raw = param_modes_by_name[name]
+            slots = slots_for_segment[segment_id]
+        raw = param_modes_by_segment[segment_id]
         if isinstance(raw, list):
-            i_from_name = {str(node_name): node_idx for node_idx, node_name in enumerate(nodes)}
             if s.get('kind') == 'edge':
-                validate_syn_strength_edge_param_mode(raw, param_name=name)
-            mode = resolve_mode_edits(raw, i_from_name)
-            for mode_bucket in PARAM_MODES:
-                s[mode_bucket] = list(mode[mode_bucket])
+                validate_syn_strength_edge_param_mode(raw, segment=segment_id)
+            modes = resolve_modes(raw, slots)
+            for mode in PARAM_MODES:
+                s[mode] = list(modes[mode])
             out.append(s)
             continue
         vals = []
-        for mode_bucket in PARAM_MODES:
-            vals.extend(raw.get(mode_bucket) or [])
+        for mode in PARAM_MODES:
+            vals.extend(raw.get(mode) or [])
         if s.get('kind') == 'edge' and vals:
             if all(isinstance(x, int) for x in vals):
                 n = segment_n_nodes(s)
-                nonempty = [mode_bucket for mode_bucket in PARAM_MODES if raw.get(mode_bucket)]
+                nonempty = [mode for mode in PARAM_MODES if raw.get(mode)]
                 if len(nonempty) != 1 or nonempty[0] == 'shared':
                     raise ValueError(
-                        f"{name}: edge param_modes must be a single "
+                        f"{segment_id}: edge param_modes must be a single "
                         f"indi|fixed|frozen=all param_mode"
                     )
                 if set(raw[nonempty[0]]) != set(range(n)):
                     raise ValueError(
-                        f"{name}: edge param_modes must cover all {n} edges"
+                        f"{segment_id}: edge param_modes must cover all {n} edges"
                     )
             else:
-                mode_tokens = {mode_bucket: [str(x) for x in (raw.get(mode_bucket) or [])] for mode_bucket in PARAM_MODES}
-                if raw.get('init_override'):
-                    mode_tokens['init_override'] = raw['init_override']
-                validate_syn_strength_edge_param_mode(mode_tokens, param_name=name)
+                mode_tokens = {
+                    mode: [str(x) for x in (raw.get(mode) or [])] for mode in PARAM_MODES
+                }
+                if raw.get('inits'):
+                    mode_tokens['inits'] = raw['inits']
+                validate_syn_strength_edge_param_mode(mode_tokens, segment=segment_id)
         if not vals:
-            mode = {mode_bucket: list(segment.get(mode_bucket) or []) for mode_bucket in PARAM_MODES}
+            modes = {mode: list(segment.get(mode) or []) for mode in PARAM_MODES}
         elif all(isinstance(x, int) for x in vals):
-            mode = {mode_bucket: list(raw.get(mode_bucket) or []) for mode_bucket in PARAM_MODES}
+            modes = {mode: list(raw.get(mode) or []) for mode in PARAM_MODES}
         else:
-            mode_tokens = {mode_bucket: [str(x) for x in (raw.get(mode_bucket) or [])] for mode_bucket in PARAM_MODES}
-            mode = resolve_param_mode_tokens(mode_tokens, nodes, param_name=name)
-        for mode_bucket in PARAM_MODES:
-            s[mode_bucket] = mode[mode_bucket]
-        raw_io = raw.get('init_override')
+            mode_tokens = {
+                mode: [str(x) for x in (raw.get(mode) or [])] for mode in PARAM_MODES
+            }
+            modes = resolve_param_mode_tokens(mode_tokens, slots, segment=segment_id)
+        for mode in PARAM_MODES:
+            s[mode] = modes[mode]
+        raw_io = raw.get('inits')
         if raw_io:
-            idx_from_name = {str(node_name): node_idx for node_idx, node_name in enumerate(nodes)}
+            idx_from_slot = {str(slot): node_idx for node_idx, slot in enumerate(slots)}
             io = {}
             all_init = raw_io.get('all')
-            for cell_name, val in raw_io.items():
-                if cell_name == 'all':
+            for slot, val in raw_io.items():
+                if slot == 'all':
                     continue
-                if cell_name not in idx_from_name:
-                    raise ValueError(f"{name}: init override unknown node {cell_name!r}")
-                io[idx_from_name[cell_name]] = val
+                if slot not in idx_from_slot:
+                    raise ValueError(f"{segment_id}: inits unknown node {slot!r}")
+                io[idx_from_slot[slot]] = val
             if all_init is not None:
-                for node_idx in range(len(nodes)):
+                for node_idx in range(len(slots)):
                     if node_idx not in io:
                         io[node_idx] = all_init
-            s['init_override'] = io
+            s['inits'] = io
         out.append(s)
     return out
 
 
-def schema_param_modes_record(schema, node_names_for_segment):
-    """Serialize param_modes (+ init_override) as name lists for train_opts.json."""
+def schema_param_modes_record(schema, slots_for_segment):
+    """Serialize param_modes (+ inits) as slot lists for train_opts.json."""
     rec = {}
     for segment in schema:
-        if callable(node_names_for_segment):
-            nodes = node_names_for_segment(segment)
+        if callable(slots_for_segment):
+            nodes = slots_for_segment(segment)
         else:
-            nodes = node_names_for_segment[segment['name']]
-        mode = {mode_bucket: list(segment.get(mode_bucket) or []) for mode_bucket in PARAM_MODES}
+            nodes = slots_for_segment[segment['segment']]
+        modes = {mode: list(segment.get(mode) or []) for mode in PARAM_MODES}
         if segment.get('kind') == 'edge':
             n = segment_n_nodes(segment)
-            compact = {mode_bucket: [] for mode_bucket in PARAM_MODES}
-            for mode_bucket in PARAM_MODES:
-                idxs = mode[mode_bucket]
+            compact = {mode: [] for mode in PARAM_MODES}
+            for mode in PARAM_MODES:
+                idxs = modes[mode]
                 if not idxs:
                     continue
                 if len(idxs) == n and set(idxs) == set(range(n)):
-                    compact[mode_bucket] = ['all']
+                    compact[mode] = ['all']
                 else:
                     raise ValueError(
-                        f"{segment['name']}: edge param_modes must be a single "
-                        f"indi|fixed|frozen=all param_mode (got {mode_bucket}={len(idxs)}/{n})"
+                        f"{segment['segment']}: edge param_modes must be a single "
+                        f"indi|fixed|frozen=all param_mode (got {mode}={len(idxs)}/{n})"
                     )
             entry = compact
         else:
-            entry = names_from_param_mode(mode, nodes)
-        io = segment.get('init_override')
+            entry = slots_from_param_mode(modes, nodes)
+        io = segment.get('inits')
         if io:
             entry = dict(entry)
-            entry['init_override'] = {
+            entry['inits'] = {
                 str(nodes[int(i)]): float(v) for i, v in io.items()
             }
-        rec[segment['name']] = entry
+        rec[segment['segment']] = entry
     return rec
 
 
-def cell_node_names(backend: "ModelBackend"):
+def cells_for_backend(backend: "ModelBackend"):
     if backend.network is None:
-        raise ValueError("cell_node_names requires backend.network")
+        raise ValueError("cells_for_backend requires backend.network")
     return [str(n) for n in backend.network.cells]
 
 
-def pair_node_names(backend: "ModelBackend"):
+def pairs_for_backend(backend: "ModelBackend"):
     keys = backend.conn.pair_keys
-    names = cell_node_names(backend)
-    return [f"{names[s]}{PAIR_SEP}{names[t]}" for s, t in keys]
+    cells = cells_for_backend(backend)
+    return [f"{cells[s]}{PAIR_SEP}{cells[t]}" for s, t in keys]
 
 
-def edge_node_names(backend: "ModelBackend"):
+def edges_for_backend(backend: "ModelBackend"):
     """Opaque per-edge labels for param_mode resolve (``e0`` ... ``e{n-1}``)."""
     n = int(backend.conn.n_edges)
     return [f"e{edge_idx}" for edge_idx in range(n)]
 
 
-def node_names_for_segment(segment, backend: "ModelBackend"):
-    if segment.get('node_names') is not None:
-        return [str(n) for n in segment['node_names']]
-    kind = segment['kind']
-    if kind == 'edge_pair':
-        return pair_node_names(backend)
-    if kind == 'edge':
-        return edge_node_names(backend)
-    return cell_node_names(backend)
+def slots_for_segment(segment, backend: "ModelBackend"):
+    if segment.get("radius_keys") is not None:
+        return [str(key) for key in segment["radius_keys"]]
+    kind = segment["kind"]
+    if kind == "edge_pair":
+        return pairs_for_backend(backend)
+    if kind == "edge":
+        return edges_for_backend(backend)
+    return cells_for_backend(backend)
 
 
-def validate_syn_strength_edge_param_mode(raw, *, param_name='syn_strength_edge'):
+def validate_syn_strength_edge_param_mode(raw, *, segment='syn_strength_edge'):
     """Require a single segment-wide fixed or frozen param_mode."""
     if isinstance(raw, list):
-        edits = raw
+        mode_pairs = raw
     else:
-        if raw.get('init_override'):
-            raise ValueError(f"{param_name}: val. overrides are not supported")
+        if raw.get('inits'):
+            raise ValueError(f"{segment}: per-node inits are not supported")
         if raw.get('shared'):
-            raise ValueError(f"{param_name}: shared= is not supported")
-        edits = []
-        for mode_bucket in PARAM_MODES:
-            toks = list(raw.get(mode_bucket) or [])
+            raise ValueError(f"{segment}: shared= is not supported")
+        mode_pairs = []
+        for mode in PARAM_MODES:
+            toks = list(raw.get(mode) or [])
             if not toks:
                 continue
             if toks != ['all']:
                 raise ValueError(
-                    f"{param_name}: only segment-wide fixed or frozen "
-                    f"(got {mode_bucket}={','.join(toks)})"
+                    f"{segment}: only segment-wide fixed or frozen "
+                    f"(got {mode}={','.join(toks)})"
                 )
-            edits.append((None, mode_bucket))
-    if len(edits) != 1 or edits[0][0] is not None:
+            mode_pairs.append((None, mode))
+    if len(mode_pairs) != 1 or mode_pairs[0][0] is not None:
         raise ValueError(
-            f"{param_name}: need one segment-wide fixed or frozen param_mode"
+            f"{segment}: need one segment-wide fixed or frozen param_mode"
         )
-    if edits[0][1] not in ('fixed', 'frozen'):
+    if mode_pairs[0][1] not in ('fixed', 'frozen'):
         raise ValueError(
-            f"{param_name}: syn_strength_edge must be fixed or frozen "
-            f"(got {edits[0][1]!r})"
+            f"{segment}: syn_strength_edge must be fixed or frozen "
+            f"(got {mode_pairs[0][1]!r})"
         )
     return raw
 
 
-def init_override_from_named(schema, named):
-    """Stamp *named* values into ``init_override`` for fixed nodes (not in z)."""
+def inits_from_param_by_segment(schema, param_by_segment):
+    """Stamp *param_by_segment* values into ``inits`` for fixed nodes (not in z)."""
     out = []
     for segment in schema:
         s = dict(segment)
         fixed = list(segment.get('fixed') or [])
-        if not fixed or segment['name'] not in named:
+        if not fixed or segment['segment'] not in param_by_segment:
             out.append(s)
             continue
-        arr = np.asarray(named[segment['name']], dtype=np.float64).reshape(-1)
-        io = dict(segment.get('init_override') or {})
+        arr = np.asarray(param_by_segment[segment['segment']], dtype=np.float64).reshape(-1)
+        io = dict(segment.get('inits') or {})
         for node_idx in fixed:
             node_i = int(node_idx)
             if 0 <= node_i < arr.shape[0]:
                 io[node_i] = float(arr[node_i])
-        s['init_override'] = io
+        s['inits'] = io
         out.append(s)
     return out
 
 
-def attach_param_carry(schema, named=None):
+def attach_param_carry(schema, param_by_segment=None):
     """Return schema copy with per-segment ``carry`` arrays (full width) for frozen nodes."""
     out = []
     for segment in schema:
@@ -447,15 +449,15 @@ def attach_param_carry(schema, named=None):
             out.append(s)
             continue
         n_nodes = segment_n_nodes(segment)
-        if named is not None and segment['name'] in named:
-            carry = np.asarray(named[segment['name']], dtype=np.float64).reshape(-1).copy()
+        if param_by_segment is not None and segment['segment'] in param_by_segment:
+            carry = np.asarray(param_by_segment[segment['segment']], dtype=np.float64).reshape(-1).copy()
         else:
             carry = np.asarray(
                 [effective_init(segment, node_idx) for node_idx in range(n_nodes)], dtype=np.float64,
             )
         if carry.shape[0] != n_nodes:
             raise ValueError(
-                f"{segment['name']}: carry length {carry.shape[0]} != n_nodes {n_nodes}"
+                f"{segment['segment']}: carry length {carry.shape[0]} != n_nodes {n_nodes}"
             )
         s['carry'] = carry
         out.append(s)
@@ -467,34 +469,34 @@ def node_values_from_z(z, schema):
     out = {}
     for segment, start, stop in schema_segments(schema):
         raw = _reconstruct_raw(segment, z[start:stop], z)
-        out[segment['name']] = raw.detach().cpu().numpy().astype(np.float64)
+        out[segment['segment']] = raw.detach().cpu().numpy().astype(np.float64)
     return out
 
 
-def z_from_node_values(named, schema, *, dtype=None, device=None):
-    """Pack full-width named node values into z for *schema* param_modes."""
+def z_from_node_values(param_by_segment, schema, *, dtype=None, device=None):
+    """Pack full-width per-segment node values into z for *schema* param_modes."""
     n = schema_nparams(schema)
     z = torch.zeros(n, dtype=dtype or SIM_DTYPE, device=device or active_device())
     for segment, start, stop in schema_segments(schema):
-        raw = np.asarray(named[segment['name']], dtype=np.float64).reshape(-1)
+        raw = np.asarray(param_by_segment[segment['segment']], dtype=np.float64).reshape(-1)
         if raw.shape[0] != segment_n_nodes(segment):
             raise ValueError(
-                f"{segment['name']}: named length {raw.shape[0]} != n_nodes {segment_n_nodes(segment)}"
+                f"{segment['segment']}: param_by_segment length {raw.shape[0]} != n_nodes {segment_n_nodes(segment)}"
             )
         slots = []
         for node_idx in segment.get('indi', ()):
-            slots.append(_encode_physical(segment, raw[node_idx]))
+            slots.append(z_from_param(segment, raw[node_idx]))
         if segment.get('shared'):
             vals = [float(raw[node_idx]) for node_idx in segment['shared']]
             shared_mean = float(np.mean(vals)) if vals else float(segment['init'])
-            slots.append(_encode_physical(segment, shared_mean))
+            slots.append(z_from_param(segment, shared_mean))
         if slots:
             z[start:stop] = torch.tensor(slots, dtype=z.dtype, device=z.device)
     return z
 
 
-def named_moments_from_z(exp_avg, exp_avg_sq, schema):
-    """Expand Adam z-space moments to full-width named arrays (no encode/decode).
+def moments_by_segment_from_z(exp_avg, exp_avg_sq, schema):
+    """Expand Adam z-space moments to full-width per-segment arrays (no encode/decode).
 
     ``indi`` slots map 1:1 onto nodes; a ``shared`` slot is broadcast to every
     shared node. Fixed/frozen nodes are 0.
@@ -506,8 +508,8 @@ def named_moments_from_z(exp_avg, exp_avg_sq, schema):
             f"moment length {exp_avg.shape[0]}/{exp_avg_sq.shape[0]} "
             f"!= schema nparams {schema_nparams(schema)}"
         )
-    named_m = {}
-    named_v = {}
+    moments_m = {}
+    moments_v = {}
     for segment, start, stop in schema_segments(schema):
         n_nodes = segment_n_nodes(segment)
         m_arr = np.zeros(n_nodes, dtype=np.float64)
@@ -523,24 +525,24 @@ def named_moments_from_z(exp_avg, exp_avg_sq, schema):
             for node_idx in segment['shared']:
                 m_arr[int(node_idx)] = m_s
                 v_arr[int(node_idx)] = v_s
-        named_m[segment['name']] = m_arr
-        named_v[segment['name']] = v_arr
-    return named_m, named_v
+        moments_m[segment['segment']] = m_arr
+        moments_v[segment['segment']] = v_arr
+    return moments_m, moments_v
 
 
-def z_moments_from_named(named_m, named_v, schema, *, dtype=None, device=None):
-    """Pack named Adam moments into z-space tensors (no encode; shared = mean)."""
+def z_moments_from_param_by_segment(moments_m, moments_v, schema, *, dtype=None, device=None):
+    """Pack per-segment Adam moments into z-space tensors (no encode; shared = mean)."""
     n = schema_nparams(schema)
     dt = dtype or SIM_DTYPE
     dev = device or active_device()
     exp_avg = torch.zeros(n, dtype=dt, device=dev)
     exp_avg_sq = torch.zeros(n, dtype=dt, device=dev)
     for segment, start, stop in schema_segments(schema):
-        m_raw = np.asarray(named_m[segment['name']], dtype=np.float64).reshape(-1)
-        v_raw = np.asarray(named_v[segment['name']], dtype=np.float64).reshape(-1)
+        m_raw = np.asarray(moments_m[segment['segment']], dtype=np.float64).reshape(-1)
+        v_raw = np.asarray(moments_v[segment['segment']], dtype=np.float64).reshape(-1)
         if m_raw.shape[0] != segment_n_nodes(segment) or v_raw.shape[0] != segment_n_nodes(segment):
             raise ValueError(
-                f"{segment['name']}: moment length "
+                f"{segment['segment']}: moment length "
                 f"{m_raw.shape[0]}/{v_raw.shape[0]} != n_nodes {segment_n_nodes(segment)}"
             )
         slots_m = []
@@ -558,24 +560,24 @@ def z_moments_from_named(named_m, named_v, schema, *, dtype=None, device=None):
     return exp_avg, exp_avg_sq
 
 
-def _remap_named(named, src_cells, src_pair_names, schema, backend, *, fill):
-    """Remap named arrays onto *backend* node order; ``fill(segment, j)`` for gaps."""
+def _remap_param_by_segment(param_by_segment, src_cells, src_pairs, schema, backend, *, fill):
+    """Remap per-segment arrays onto *backend* node order; ``fill(segment, j)`` for gaps."""
     src_cells = [str(n) for n in src_cells]
-    src_pair_names = [str(n) for n in (src_pair_names or [])]
-    dst_cells = cell_node_names(backend)
+    src_pairs = [str(n) for n in (src_pairs or [])]
+    dst_cells = cells_for_backend(backend)
     dst_pairs = (
-        pair_node_names(backend) if any(s['kind'] == 'edge_pair' for s in schema) else []
+        pairs_for_backend(backend) if any(s['kind'] == 'edge_pair' for s in schema) else []
     )
     src_t = {n: node_idx for node_idx, n in enumerate(src_cells)}
-    src_p = {n: node_idx for node_idx, n in enumerate(src_pair_names)}
+    src_p = {n: node_idx for node_idx, n in enumerate(src_pairs)}
     out = {}
     for segment in schema:
-        name = segment['name']
+        segment_id = segment['segment']
         n_nodes = segment_n_nodes(segment)
         arr = np.asarray([fill(segment, node_idx) for node_idx in range(n_nodes)], dtype=np.float64)
-        src = named.get(name)
+        src = param_by_segment.get(segment_id)
         if src is None:
-            out[name] = arr
+            out[segment_id] = arr
             continue
         src = np.asarray(src, dtype=np.float64).reshape(-1)
         if segment['kind'] == 'edge_pair':
@@ -585,29 +587,29 @@ def _remap_named(named, src_cells, src_pair_names, schema, backend, *, fill):
         elif segment['kind'] == 'edge':
             if src.shape[0] == n_nodes:
                 arr[:] = src
-        elif segment.get('node_names') is not None:
+        elif segment.get("radius_keys") is not None:
             n_copy = min(n_nodes, int(src.shape[0]))
             arr[:n_copy] = src[:n_copy]
         else:
             for node_idx, tn in enumerate(dst_cells):
                 if tn in src_t and src_t[tn] < src.shape[0]:
                     arr[node_idx] = float(src[src_t[tn]])
-        out[name] = arr
+        out[segment_id] = arr
     return out
 
 
-def remap_named_moments(named, src_cells, src_pair_names, schema, backend):
-    """Remap named moment arrays; missing nodes/params fill 0."""
-    return _remap_named(
-        named, src_cells, src_pair_names, schema, backend,
+def remap_param_by_segment_moments(param_by_segment, src_cells, src_pairs, schema, backend):
+    """Remap per-segment moment arrays; missing nodes/params fill 0."""
+    return _remap_param_by_segment(
+        param_by_segment, src_cells, src_pairs, schema, backend,
         fill=lambda segment, _node_idx: 0.0,
     )
 
 
-def remap_named_node_values(named, src_cells, src_pair_names, schema, backend):
-    """Remap named arrays from a prior run onto *backend* node order for *schema*."""
-    return _remap_named(
-        named, src_cells, src_pair_names, schema, backend, fill=effective_init,
+def remap_param_by_segment_node_values(param_by_segment, src_cells, src_pairs, schema, backend):
+    """Remap per-segment arrays from a prior run onto *backend* node order for *schema*."""
+    return _remap_param_by_segment(
+        param_by_segment, src_cells, src_pairs, schema, backend, fill=effective_init,
     )
 
 
@@ -620,10 +622,10 @@ def _reconstruct_raw(segment, z_slice, z):
         raw[int(node_idx)] = effective_init(segment, node_idx)
     z_slot_idx = 0
     for node_idx in segment.get('indi', ()):
-        raw[int(node_idx)] = _decode_z(segment, z_slice[z_slot_idx])
+        raw[int(node_idx)] = param_from_z(segment, z_slice[z_slot_idx])
         z_slot_idx += 1
     if segment.get('shared'):
-        shared_decoded = _decode_z(segment, z_slice[z_slot_idx])
+        shared_decoded = param_from_z(segment, z_slice[z_slot_idx])
         for node_idx in segment['shared']:
             raw[int(node_idx)] = shared_decoded
     for node_idx in segment.get('frozen', ()):
@@ -649,7 +651,7 @@ def assign_params(z, schema, backend: ModelBackend):
     """Unpack z into a dict of parameter tensors, driven by the given schema param_modes."""
     params = {}
     for segment, start, stop in schema_segments(schema):
-        params[segment['name']] = _expand_segment(segment, _reconstruct_raw(segment, z[start:stop], z), backend)
+        params[segment['segment']] = _expand_segment(segment, _reconstruct_raw(segment, z[start:stop], z), backend)
     return params
 
 
@@ -673,7 +675,7 @@ def bias_gt_from_onset_trace(onset_trace, t_onset, session):
     return torch.clamp(out, min=lo, max=hi)
 
 
-def apply_val_from(params, session, *, onset_trace=None, t_onset=None):
+def override_val_from(params, session, *, onset_trace=None, t_onset=None):
     """Write enabled ``val_from`` sources into target params (mutates, returns ``params``)."""
     val_from = (session.train_opts or {}).get("val_from") or {}
     for target, entry in val_from.items():
@@ -691,7 +693,7 @@ def apply_val_from(params, session, *, onset_trace=None, t_onset=None):
 
 def params_from_z(z, session):
     """Bind :func:`assign_params` to a session's schema + backend; apply ``val_from``."""
-    return apply_val_from(
+    return override_val_from(
         assign_params(z, list(session.schema), session.backend), session,
     )
 
@@ -713,15 +715,15 @@ def schema_guess(schema, sim_dtype=SIM_DTYPE):
             continue
         z_slot_idx = 0
         for node_idx in segment.get('indi', ()):
-            phys = effective_init(segment, node_idx)
+            param = effective_init(segment, node_idx)
             z[start + z_slot_idx] = (
-                _encode_physical(segment, phys) + (np.random.random() - 0.5) * segment['jit']
+                z_from_param(segment, param) + (np.random.random() - 0.5) * segment['jit']
             )
             z_slot_idx += 1
         if segment.get('shared'):
-            phys = effective_init(segment, segment['shared'][0])
+            param = effective_init(segment, segment['shared'][0])
             z[start + z_slot_idx] = (
-                _encode_physical(segment, phys) + (np.random.random() - 0.5) * segment['jit']
+                z_from_param(segment, param) + (np.random.random() - 0.5) * segment['jit']
             )
     return torch.tensor(z, dtype=sim_dtype).to(active_device())
 
@@ -731,60 +733,60 @@ def guess_initial_params(session):
 
 
 def parse_param_cli(tokens):
-    init_edits = []
-    mode_edits_by_segment_name = {}
-    for segment_name, key, nodes, right in parse_optimizable_tokens(tokens or []):
+    param_inits = []
+    mode_pairs_by_segment = {}
+    for segment, key, nodes, right in parse_optimizable_tokens(tokens or []):
         if key == "val":
             val = float(right)
             if not nodes:
-                init_edits.append((segment_name, None, val))
+                param_inits.append((segment, None, val))
             else:
                 for node in expand_param_nodes(nodes):
-                    init_edits.append((segment_name, node, val))
+                    param_inits.append((segment, node, val))
         elif key == "mode":
             if right not in PARAM_MODES:
                 raise ValueError(f"unknown param_mode {right!r}")
-            mode_edits_by_segment_name.setdefault(segment_name, []).append(
+            mode_pairs_by_segment.setdefault(segment, []).append(
                 (None if not nodes else expand_param_nodes(nodes), right)
             )
-    return init_edits, mode_edits_by_segment_name
+    return param_inits, mode_pairs_by_segment
 
 
 def parse_optimizable_param_tokens(tokens):
-    init_edits, _ = parse_param_cli(tokens)
-    return init_edits
+    param_inits, _ = parse_param_cli(tokens)
+    return param_inits
 
 
-def _param_edit_idxs(name, node, val, segment, backend):
-    labels = node_names_for_segment(segment, backend)
+def _param_init_idxs(segment_id, node, val, segment, backend):
+    labels = slots_for_segment(segment, backend)
     idx_from_label = {str(label): i for i, label in enumerate(labels)}
     if node is None:
         return labels, list(range(len(labels)))
     node = str(node)
     if node not in idx_from_label:
-        raise ValueError(f"--param {name}.{node}={val}: unknown node {node!r}")
+        raise ValueError(f"--param {segment_id}.{node}={val}: unknown node {node!r}")
     return [node], [idx_from_label[node]]
 
 
-def apply_param_init(schema, backend, init_edits):
-    segment_by_name = {s["name"]: dict(s) for s in schema}
-    for name, node, val in init_edits:
-        segment = segment_by_name.get(name)
+def override_param_inits(schema, backend, param_inits):
+    by_segment = {s["segment"]: dict(s) for s in schema}
+    for segment_id, node, val in param_inits:
+        segment = by_segment.get(segment_id)
         if segment is None:
-            avail = sorted(segment_by_name)
-            raise ValueError(f"--param {name}: unknown segment (have {avail})")
-        labels, idxs = _param_edit_idxs(name, node, val, segment, backend)
-        io = dict(segment.get("init_override") or {})
+            avail = sorted(by_segment)
+            raise ValueError(f"--param {segment_id}: unknown segment (have {avail})")
+        labels, idxs = _param_init_idxs(segment_id, node, val, segment, backend)
+        io = dict(segment.get("inits") or {})
         for label, idx in zip(labels, idxs):
             io[int(idx)] = float(val)
-        segment["init_override"] = io
-    return [segment_by_name[s["name"]] for s in schema]
+        segment["inits"] = io
+    return [by_segment[s["segment"]] for s in schema]
 
 
-def apply_param_overrides(z, schema, session, edits):
-    schema = apply_param_init(list(schema), session.backend, edits)
+def override_params(z, schema, session, param_inits):
+    schema = override_param_inits(list(schema), session.backend, param_inits)
     z = z_from_node_values(
-        {s["name"]: np.asarray(
+        {s["segment"]: np.asarray(
             [effective_init(s, node_idx) for node_idx in range(segment_n_nodes(s))], dtype=np.float64,
         ) for s in schema},
         schema,
@@ -820,9 +822,9 @@ def resolve_val_from(val_from=None):
     return resolved
 
 
-def val_from_enabled(opts, name):
+def val_from_enabled(opts, segment):
     val_from = (opts or {}).get("val_from") or {}
-    entry = val_from.get(name) or {}
+    entry = val_from.get(segment) or {}
     return bool(entry.get("enabled"))
 
 

@@ -20,7 +20,7 @@ from network.construction import (
     hex_in_cost_radius,
     active_gt_cells,
     normalize_gt_cells,
-    node_cell_names,
+    node_cells,
 )
 from neuron.param import t_from_ms
 from task.spot.gt import (
@@ -396,7 +396,7 @@ def build_spot_gt(
         multi_spot=multi_spot,
         fully_inside=fully_inside,
     )
-    names = node_cell_names(connectome)
+    node_cell = node_cells(connectome)
     active = active_gt_cells(gt_cells, GT_CELLS, connectome.cells, context="spot")
 
     batches = spot_sti_batches(spot)
@@ -439,7 +439,7 @@ def build_spot_gt(
             continue
         for gt_cell in active:
             gt_idx = gt_type_idx[gt_cell]
-            nodes = hex2gt(connectome, mu, mv, gt_cell, names)
+            nodes = hex2gt(connectome, mu, mv, gt_cell, node_cell)
             if len(nodes) == 0:
                 continue
             rf_sign = int(RF_SIGN[gt_cell])
