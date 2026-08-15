@@ -132,15 +132,26 @@ def forward_v(session, params, i_sti, *, pack=None):
     n_b, t_end = int(i_sti.shape[0]), int(i_sti.shape[1])
     t_onset = pack_t_onset(pack)
     pre_grad = bool((session.train_opts or {})["pre_grad"])
-    state, v = drv.pre_steady(session, params, n_b, i_sti=i_sti)
+    model = session.model
+    if model == "hp_lp":
+        v_slow, v = drv.pre_steady(session, params, n_b, i_sti=i_sti)
+        u = u_rev = None
+    else:
+        u, u_rev, v = drv.pre_steady(session, params, n_b, i_sti=i_sti)
+        v_slow = None
     v_rows = [v]
 
     def take(t):
-        nonlocal state, v
-        state, v = drv.step(
-            state, v, params, i_sti[:, t - 1], session,
-            delta_ms=step_delta_ms(session, t, t_onset),
-        )
+        nonlocal v_slow, u, u_rev, v
+        dt = step_delta_ms(session, t, t_onset)
+        if model == "hp_lp":
+            v_slow, v = drv.step(
+                v_slow, v, params, i_sti[:, t - 1], session, delta_ms=dt,
+            )
+        else:
+            u, u_rev, v = drv.step(
+                u, u_rev, v, params, i_sti[:, t - 1], session, delta_ms=dt,
+            )
         v_rows.append(v)
 
     if pre_grad or t_onset <= 0:
@@ -150,7 +161,11 @@ def forward_v(session, params, i_sti, *, pack=None):
     with torch.no_grad():
         for t in range(1, t_onset):
             take(t)
-    state = tuple(state_tensor.detach() for state_tensor in state)
+    if model == "hp_lp":
+        v_slow = v_slow.detach()
+    else:
+        u = u.detach()
+        u_rev = u_rev.detach()
     v = v.detach()
     for t in range(max(t_onset, 1), t_end):
         take(t)
@@ -171,8 +186,9 @@ def forward_full(session, params, i_sti, *, pack=None):
     ``MODEL_DRIVERS[model].standardize_i_sti`` / ``pre_steady`` / ``step``.
 
     ``session.train_opts['pre_grad']`` (default ``True``): when ``False``, steps
-    with ``t < t_onset`` run under ``torch.no_grad()``, then ``v`` / ``state``
-    are detached before post steps so BPTT does not enter pre.
+    with ``t < t_onset`` run under ``torch.no_grad()``, then ``v`` and model
+    internals (``v_slow`` or ``u``/``u_rev``) are detached before post steps so
+    BPTT does not enter pre.
 
     ``session.train_opts['filter']``: ``none`` → :func:`forward_v`; ``ca`` →
     :func:`forward_ca`.
@@ -186,17 +202,17 @@ def forward_full(session, params, i_sti, *, pack=None):
     return forward_v(session, params, i_sti, pack=pack)
 
 
-def forward_nodes(session, params, node_idx=None, i_sti=None, pack=None):
+def forward_nodes(session, params, nodes=None, i_sti=None, pack=None):
     """``forward_full`` then index nodes; squeeze when ``i_sti`` is ``(T, N)``."""
     pack = pack or session.primary_pack
-    if node_idx is None:
-        node_idx = pack.entry_nodes
+    if nodes is None:
+        nodes = pack.entry_nodes
     if i_sti is None:
         i_sti = session.pack_i_sti(pack)
     squeeze = i_sti.dim() == 2
     i_sti_b = i_sti.unsqueeze(0) if squeeze else i_sti
     out = forward_full(session, params, i_sti_b, pack=pack)
-    out = out[:, :, node_idx]
+    out = out[:, :, nodes]
     if squeeze:
         out = out.squeeze(0)
     return out

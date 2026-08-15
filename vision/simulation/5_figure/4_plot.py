@@ -601,8 +601,8 @@ def add_figure_arguments(parser):
         default=False,
         type=parse_bool,
         metavar='BOOL',
-        help='spot_gt/spot_all: only plot center-radius (r=0) time row '
-             '(default false: plot all trained r rows)',
+        help='spot_gt/spot_all: only plot center-radius (radius=0) time row '
+             '(default false: plot all trained radius rows)',
     )
     parser.add_argument(
         '--x',

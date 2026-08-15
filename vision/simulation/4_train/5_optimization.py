@@ -7,7 +7,6 @@ and returns in-memory :class:`TrainResult`. Persistence lives in
 """
 from __future__ import annotations
 
-import copy
 import sys
 import time
 from contextlib import nullcontext
@@ -97,18 +96,18 @@ def gradient_network(z, lr=0.0001, cost_fn=None, n_iters=100, device="cpu", z_bo
     interval_best_cost = cost
     interval_best_z = z.clone().detach()
     # Adams at the z that achieved interval_best / best (before the step that left it).
-    interval_best_state_dict = copy.deepcopy(optimizer.state_dict())
-    best_state_dict = copy.deepcopy(optimizer.state_dict())
+    interval_best_adam = _adam_bag(optimizer, z)
+    best_adam = _adam_bag(optimizer, z)
 
     initial_cost = 1.0 * cost
     initial_parts = float_last_parts(task_order) if float_last_parts else None
     best_parts = initial_parts
 
     def _snapshot_interval_best(cost_value):
-        nonlocal interval_best_cost, interval_best_z, interval_best_state_dict
+        nonlocal interval_best_cost, interval_best_z, interval_best_adam
         interval_best_cost = cost_value
         interval_best_z = z.clone().detach()
-        interval_best_state_dict = copy.deepcopy(optimizer.state_dict())
+        interval_best_adam = _adam_bag(optimizer, z)
 
     def _interval_from_z():
         _snapshot_interval_best(_measure_cost(z))
@@ -117,11 +116,11 @@ def gradient_network(z, lr=0.0001, cost_fn=None, n_iters=100, device="cpu", z_bo
         if on_interval_best is not None:
             on_interval_best(
                 global_iter, interval_best_z, interval_best_cost,
-                state_dict=interval_best_state_dict,
+                adam=interval_best_adam,
             )
         with torch.no_grad():
             z.copy_(interval_best_z)
-        optimizer.load_state_dict(interval_best_state_dict)
+        _load_adams(optimizer, z, interval_best_adam)
         _interval_from_z()
 
     progress_bar = tqdm(
@@ -166,7 +165,7 @@ def gradient_network(z, lr=0.0001, cost_fn=None, n_iters=100, device="cpu", z_bo
 
             best_cost = cost
             best_z = z.clone().detach()
-            best_state_dict = copy.deepcopy(optimizer.state_dict())
+            best_adam = _adam_bag(optimizer, z)
             if float_last_parts is not None:
                 best_parts = float_last_parts(task_order)
 
@@ -207,7 +206,7 @@ def gradient_network(z, lr=0.0001, cost_fn=None, n_iters=100, device="cpu", z_bo
             if np.isfinite(cost) and cost < best_cost:
                 best_cost = cost
                 best_z = z.clone().detach()
-                best_state_dict = copy.deepcopy(optimizer.state_dict())
+                best_adam = _adam_bag(optimizer, z)
                 best_parts = final_parts
     else:
         cost = float('nan')
@@ -225,29 +224,42 @@ def gradient_network(z, lr=0.0001, cost_fn=None, n_iters=100, device="cpu", z_bo
     print('time needed  =', format(b - a, '.2f'), ' sec')
     print()
 
-    return best_z, best_state_dict
+    return best_z, best_adam
 
 
-def adams_from_state_dict(state_dict, n_params, *, dtype, device):
-    """Pull ``(exp_avg, exp_avg_sq, iter)`` from a single-param ``state_dict``."""
-    state = state_dict.get('state') or {}
-    if not state:
+def adams_from_optimizer(optimizer, n_params, *, dtype, device):
+    """Pull ``(exp_avg, exp_avg_sq, adam_iter)`` from a single-param Adam optimizer."""
+    # Library ``state_dict()`` / key ``'state'`` — not a project naming token.
+    adam_by_param = optimizer.state_dict().get('state') or {}
+    if not adam_by_param:
         zeros = torch.zeros(n_params, dtype=dtype, device=device)
         return zeros, zeros.clone(), 0
-    pstate = next(iter(state.values()))
-    exp_avg = pstate.get('exp_avg')
-    exp_avg_sq = pstate.get('exp_avg_sq')
+    adam = next(iter(adam_by_param.values()))
+    exp_avg = adam.get('exp_avg')
+    exp_avg_sq = adam.get('exp_avg_sq')
     if exp_avg is None or exp_avg_sq is None:
         zeros = torch.zeros(n_params, dtype=dtype, device=device)
         return zeros, zeros.clone(), 0
-    # torch.optim.Adam state key is ``step`` (library); our name is ``iter``.
-    torch_step = pstate.get('step', 0)
-    n_iter_done = int(torch_step.item()) if torch.is_tensor(torch_step) else int(torch_step)
+    # torch.optim.Adam key is ``step`` (library); our name is ``adam_iter``.
+    torch_step = adam.get('step', 0)
+    adam_iter = int(torch_step.item()) if torch.is_tensor(torch_step) else int(torch_step)
     return (
         exp_avg.detach().to(device=device, dtype=dtype).clone(),
         exp_avg_sq.detach().to(device=device, dtype=dtype).clone(),
-        n_iter_done,
+        adam_iter,
     )
+
+
+def _adam_bag(optimizer, z):
+    """``{exp_avg, exp_avg_sq, iter}`` snapshot for one ``z``."""
+    exp_avg, exp_avg_sq, adam_iter = adams_from_optimizer(
+        optimizer, int(z.numel()), dtype=z.dtype, device=z.device,
+    )
+    return {
+        'exp_avg': exp_avg,
+        'exp_avg_sq': exp_avg_sq,
+        'iter': int(adam_iter),
+    }
 
 
 def _load_adams(optimizer, z, adam_init):
@@ -259,10 +271,10 @@ def _load_adams(optimizer, z, adam_init):
             f"adam shape {tuple(exp_avg.shape)}/{tuple(exp_avg_sq.shape)} "
             f"!= z shape {tuple(z.shape)}"
         )
-    n_iter_done = float(adam_init.get('iter', 0))
+    adam_iter = float(adam_init.get('iter', 0))
     # Match torch.optim.Adam: library key ``step`` is a CPU float scalar; adams match *z*.
     optimizer.state[z] = {
-        'step': torch.tensor(n_iter_done, dtype=torch.float32),
+        'step': torch.tensor(adam_iter, dtype=torch.float32),
         'exp_avg': exp_avg.clone(),
         'exp_avg_sq': exp_avg_sq.clone(),
     }
@@ -274,9 +286,9 @@ def optimize_staged(z, cost_fn, z_bounds, lrs, niters, cost_log=None, iter_log=N
                  checkpoint_interval=None, on_interval_best=None, global_iter_start=0,
                  adam_init=None):
     global_iter = global_iter_start
-    state_dict = None
+    adam = None
     for stage_i, lr in enumerate(lrs):
-        z, state_dict = gradient_network(
+        z, adam = gradient_network(
             z, lr=lr, n_iters=niters, device=active_device(),
             cost_fn=cost_fn, z_bounds=z_bounds, cost_log=cost_log,
             iter_log=iter_log, float_last_parts=float_last_parts,
@@ -288,7 +300,7 @@ def optimize_staged(z, cost_fn, z_bounds, lrs, niters, cost_log=None, iter_log=N
             adam_init=adam_init if stage_i == 0 else None,
         )
         global_iter += niters
-    return z, state_dict
+    return z, adam
 
 
 def _build_iter_logger(session: TrainSession):
@@ -382,7 +394,7 @@ def do_many_runs(session: TrainSession, n_run, n_iter, lrs=(0.1, 0.01, 0.001),
                 on_png=checkpoint_on_png,
             )
 
-        z_best, state_dict = optimize_staged(
+        z_best, adam = optimize_staged(
             z, cost_fn, bounds, lrs, n_iter,
             iter_log=iter_log,
             float_last_parts=float_last_parts,
@@ -395,13 +407,10 @@ def do_many_runs(session: TrainSession, n_run, n_iter, lrs=(0.1, 0.01, 0.001),
         )
 
         run_params[i] = z_best.detach().cpu().numpy()
-        exp_avg, exp_avg_sq, n_iter_done = adams_from_state_dict(
-            state_dict, n_params, dtype=z_best.dtype, device='cpu',
-        )
         run_adams.append({
-            'exp_avg': exp_avg.numpy().astype(np.float64),
-            'exp_avg_sq': exp_avg_sq.numpy().astype(np.float64),
-            'iter': int(n_iter_done),
+            'exp_avg': adam['exp_avg'].detach().cpu().numpy().astype(np.float64),
+            'exp_avg_sq': adam['exp_avg_sq'].detach().cpu().numpy().astype(np.float64),
+            'iter': int(adam['iter']),
         })
         final_parts = calc_cost_parts(z_best, session)
         final_costs[i] = float(_scaled_cost_from_parts(final_parts, session).item())

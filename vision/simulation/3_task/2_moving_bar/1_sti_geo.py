@@ -11,7 +11,7 @@ import torch
 
 from network import path  # noqa: F401 -- FAFBv783 on sys.path
 from build_hex import DEG, HEX_PATCH_RADIUS, hex_vertices, xy_from_uv, xy_deg_from_uv
-from network.construction import hex_in_cost_radius
+from network.construction import cost_radius_mask
 
 GRUNTMAN_WS_DEG = (2.25, 9.0)
 GRUNTMAN_DIRECTIONS = ("right", "left", "up", "down")
@@ -311,27 +311,27 @@ def view_bounds(hexes: Sequence[Hex]) -> Tuple[float, float, float, float]:
 
 @dataclass
 class StiHex(Hex):
-    """One sti hex on a connectome, with node idxs for writing onto ``i_sti``."""
+    """One sti hex on a connectome, with nodes for writing onto ``i_sti``."""
 
-    node_idx: np.ndarray
+    nodes: np.ndarray
 
 
 def sti_hexes(connectome) -> List[StiHex]:
     """Sti hexes with sti nodes (one per axial ``(u, v)``)."""
     by_uv: Dict[Tuple[int, int], StiHex] = {}
-    for node_idx in connectome.sti_node_idxs:
-        u, v = int(connectome.us[node_idx]), int(connectome.vs[node_idx])
+    for node in connectome.sti_nodes:
+        u, v = int(connectome.us[node]), int(connectome.vs[node])
         key = (u, v)
         if key in by_uv:
             continue
-        nodes = connectome.sti_nodes_at(u, v)
+        nodes = connectome.sti_nodes_at_uv(u, v)
         if len(nodes) == 0:
             continue
         base = hex_from_uv(key[0], key[1])
         by_uv[key] = StiHex(
             u=base.u, v=base.v, x=base.x, y=base.y,
             x_deg=base.x_deg, y_deg=base.y_deg, hex_xy=base.hex_xy,
-            node_idx=np.asarray(nodes, dtype=np.int64),
+            nodes=np.asarray(nodes, dtype=np.int64),
         )
     return [by_uv[k] for k in sorted(by_uv)]
 
@@ -341,7 +341,7 @@ def moving_bar_cost_hexes(connectome, cost_radius=None) -> List[StiHex]:
     hexes = sti_hexes(connectome)
     if cost_radius is None:
         return hexes
-    return [hex for hex in hexes if hex_in_cost_radius(hex.u, hex.v, cost_radius)]
+    return [hex for hex in hexes if cost_radius_mask(hex.u, hex.v, cost_radius)]
 
 
 def _as_int64_np(x) -> np.ndarray:
@@ -379,14 +379,14 @@ def filter_sti_hexes(hexes, *, at_x=None, at_y=None, tol=1e-6):
 
 def _hex_node_map(hexes: Sequence[StiHex]) -> Tuple[np.ndarray, np.ndarray]:
     hex_idxs: List[int] = []
-    node_idxs: List[int] = []
+    nodes: List[int] = []
     for hex_idx, hex in enumerate(hexes):
-        for node_idx in np.asarray(hex.node_idx).ravel():
+        for node in np.asarray(hex.nodes).ravel():
             hex_idxs.append(hex_idx)
-            node_idxs.append(int(node_idx))
+            nodes.append(int(node))
     return (
         np.asarray(hex_idxs, dtype=np.int64),
-        np.asarray(node_idxs, dtype=np.int64),
+        np.asarray(nodes, dtype=np.int64),
     )
 
 
@@ -394,7 +394,7 @@ def i_sti_nodes_from_hex(i_sti_hex, hexes, n_nodes):
     """Map ``(B, T, n_hexes)`` i_sti_hex to ``(B, T, n_nodes)`` by hex→node index."""
     n_b, n_t, _ = i_sti_hex.shape
     out = np.zeros((n_b, n_t, n_nodes), dtype=np.float64)
-    hex_idxs, node_idxs = _hex_node_map(hexes)
+    hex_idxs, nodes = _hex_node_map(hexes)
     if len(hex_idxs):
-        out[:, :, node_idxs] = i_sti_hex[:, :, hex_idxs]
+        out[:, :, nodes] = i_sti_hex[:, :, hex_idxs]
     return out

@@ -88,7 +88,7 @@ def main(argv: list[str] | None = None) -> int:
         if tok.startswith(":") or tok.startswith("@"):
             raise SystemExit(
                 f"plain cell names only (got {tok!r}); "
-                "use analyze_cell_syn.py for :family / @root_id"
+                "use analyze_cell_syn.py for :family / @<id>"
             )
 
     outdir = plot.resolve_run_dir(args.run)

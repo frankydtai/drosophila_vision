@@ -83,12 +83,12 @@ def filter_impr_raw(u: np.ndarray, hp: float, lp: float, *, s_max: float, add_l1
     s = bs.lowpass(np.asarray(u, dtype=np.float64), 5)
     s = s / float(s_max)
     if hp == 0:
-        r = bs.lowpass(s, lp)
+        filtered = bs.lowpass(s, lp)
     else:
-        r = bs.bandpass(s, hp, lp)
+        filtered = bs.bandpass(s, hp, lp)
     if add_l12:
-        r = r + 0.4 * s
-    return r
+        filtered = filtered + 0.4 * s
+    return filtered
 
 
 def absmax_from_zero(x: np.ndarray) -> float:
@@ -129,8 +129,8 @@ def filter_traces() -> dict[str, dict[str, np.ndarray]]:
         gain = (GT_AMP * spatial / scale) if scale > 0 else 0.0
 
         def _scaled(u: np.ndarray) -> np.ndarray:
-            r = filter_impr_raw(u, hp, lp, s_max=s_max, add_l12=add_l12)
-            return (r - r[0]) * gain
+            filtered = filter_impr_raw(u, hp, lp, s_max=s_max, add_l12=add_l12)
+            return (filtered - filtered[0]) * gain
 
         out[str(name)] = {
             "step": _scaled(u_step),

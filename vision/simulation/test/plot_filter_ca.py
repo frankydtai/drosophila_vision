@@ -95,9 +95,9 @@ def _plot(
     t_s = (np.arange(v_rt.shape[1]) - t_onset) * delta_ms / 1000.0
     idx_from_cell = {str(n): i for i, n in enumerate(GT_CELLS)}
 
-    for r, group in enumerate(groups):
+    for row, group in enumerate(groups):
         for col in range(ncols):
-            ax = axes[r][col]
+            ax = axes[row][col]
             if col >= len(group):
                 ax.axis("off")
                 continue
@@ -122,7 +122,7 @@ def _plot(
             ax.axhline(0.0, color="0.7", lw=0.5)
             ax.axvline(0.0, color="0.85", lw=0.6, ls="--")
             ax.axvspan(0.0, ms_spot / 1000.0, color="0.92", zorder=0)
-            if r == nrows - 1:
+            if row == nrows - 1:
                 ax.set_xlabel("t − onset (s)", fontsize=8)
             if col == 0:
                 ax.set_ylabel("amp", fontsize=8)
@@ -161,9 +161,9 @@ def _plot_tau_sweep(
     idx_from_cell = {str(n): i for i, n in enumerate(GT_CELLS)}
     tau_colors = [f"C{k}" for k in range(len(taus))]
 
-    for r, group in enumerate(groups):
+    for row, group in enumerate(groups):
         for col in range(ncols):
-            ax = axes[r][col]
+            ax = axes[row][col]
             if col >= len(group):
                 ax.axis("off")
                 continue
@@ -190,7 +190,7 @@ def _plot_tau_sweep(
             ax.axhline(0.0, color="0.7", lw=0.5)
             ax.axvline(0.0, color="0.85", lw=0.6, ls="--")
             ax.axvspan(0.0, ms_spot / 1000.0, color="0.92", zorder=0)
-            if r == nrows - 1:
+            if row == nrows - 1:
                 ax.set_xlabel("t − onset (s)", fontsize=8)
             if col == 0:
                 ax.set_ylabel("amp", fontsize=8)

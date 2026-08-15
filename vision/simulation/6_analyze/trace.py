@@ -479,11 +479,11 @@ def _print_oscillation(cells, reports, delta_ms, analyze, args) -> None:
             hit.append((cell, result))
 
     print(f"\nOscillating ({len(hit)}/{len(cells)}):", flush=True)
-    for cell, r in hit:
+    for cell, report in hit:
         print(
-            f"  {cell}: f={r['peak_f']:.2f}Hz  "
-            f"v_peak_to_peak_over_std={r['v_peak_to_peak_over_std']:.2f}  "
-            f"SNR={r['snr']:.2f}  v_peak_to_peak={r['v_peak_to_peak']:.2f}mV",
+            f"  {cell}: f={report['peak_f']:.2f}Hz  "
+            f"v_peak_to_peak_over_std={report['v_peak_to_peak_over_std']:.2f}  "
+            f"SNR={report['snr']:.2f}  v_peak_to_peak={report['v_peak_to_peak']:.2f}mV",
             flush=True,
         )
 
@@ -526,11 +526,11 @@ def _print_flat(cells, reports, delta_ms, analyze, baseline, args) -> None:
             hit.append((cell, result))
 
     print(f"\nFlat ({len(hit)}/{len(cells)}):", flush=True)
-    for cell, r in hit:
+    for cell, report in hit:
         print(
-            f"  {cell}: max|Δ|={r['max_abs']:.3f}  "
-            f"v_peak_to_peak={r['v_peak_to_peak']:.3f}  "
-            f"Δmean={r['delta_mean']:.3f}  base={r['baseline']:.2f}",
+            f"  {cell}: max|Δ|={report['max_abs']:.3f}  "
+            f"v_peak_to_peak={report['v_peak_to_peak']:.3f}  "
+            f"Δmean={report['delta_mean']:.3f}  base={report['baseline']:.2f}",
             flush=True,
         )
 
@@ -569,10 +569,10 @@ def _print_drift(cells, reports, delta_ms, analyze, args) -> None:
             hit.append((cell, result))
 
     print(f"\nDrifting ({len(hit)}/{len(cells)}):", flush=True)
-    for cell, r in hit:
+    for cell, report in hit:
         print(
-            f"  {cell}: {r['direction']}  slope={r['slope_mv_over_s']:.3f}mV/s  "
-            f"r={r['r']:.3f}  Δend={r['delta_end_start']:.2f}mV",
+            f"  {cell}: {report['direction']}  slope={report['slope_mv_over_s']:.3f}mV/s  "
+            f"r={report['r']:.3f}  Δend={report['delta_end_start']:.2f}mV",
             flush=True,
         )
 

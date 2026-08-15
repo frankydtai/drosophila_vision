@@ -6,15 +6,15 @@ Old (45-sample profile, current ``task.spot.gt``):
     surrnd = Gauss1D(FWHM_surrnd, 44)
     raw(x) = (center(x) - scale * surrnd(x)) * RF_SIGN     x = -22..+22 deg
     RecF_old = normalize_gt(raw)                           45 samples
-    RecF_old(r) = RecF_old[22 + 5*r]                       integer cost radius r
+    RecF_old(radius) = RecF_old[22 + 5*radius]             integer cost radius
     RecF_old(sqrt3) = interp(22 + 5*sqrt3, RecF_old)       fractional radius
 
 New (5 radii, peak normalize — no subtract):
 
-    raw_r = raw(5*r) for r = 0..4
+    raw_radius = raw(5*radius) for radius = 0..4
     scale = max(|raw_0|, ..., |raw_4|)
-    RecF_new(r) = raw_r / scale
-    RecF_new(sqrt3) = raw(5*sqrt3) / scale               same scale as r=0..4
+    RecF_new(radius) = raw_radius / scale
+    RecF_new(sqrt3) = raw(5*sqrt3) / scale               same scale as radius=0..4
 
 No x -= x[0]; center stays ±1 when it is the 5-point peak.
 
@@ -74,9 +74,9 @@ def raw_at_radius(raw_row: np.ndarray, radius: float) -> float:
 
 
 def recf_new_row(cell_idx: int) -> tuple[np.ndarray, float]:
-    """Peak-normalized RecF at r=0..4 and shared scale for sqrt3."""
+    """Peak-normalized RecF at radius=0..4 and shared scale for sqrt3."""
     raw = raw_signed_dog_row(cell_idx)
-    five = np.array([raw_at_radius(raw, r) for r in range(RF_N_RADII)])
+    five = np.array([raw_at_radius(raw, radius) for radius in range(RF_N_RADII)])
     scale = max(abs(float(np.nanmax(five))), abs(float(np.nanmin(five))))
     if scale == 0.0:
         return five * 0.0, 0.0
@@ -112,7 +112,7 @@ def plot_compare(*, save_path: str, show: bool) -> None:
             "  normalize_gt(y) = (y - y[0]) / max(|y|)\n\n"
             "OLD (current):  RecF_old = normalize_gt(raw) on x = -22..+22 (45 samples)\n"
             "                RecF_old(r) = RecF_old[22 + 5*r];  sqrt3 via interp at 22+5*sqrt3\n\n"
-            "NEW (5 radii):  raw_r = raw(5*r) for r=0..4;  scale = max(|raw_r|)\n"
+            "NEW (5 radii):  raw_radius = raw(5*radius) for radius=0..4;  scale = max(|raw_r|)\n"
             "                RecF_new(r) = raw_r / scale   (no subtract)\n"
             "                RecF_new(sqrt3) = raw(5*sqrt3) / scale"
         ),
@@ -132,8 +132,8 @@ def plot_compare(*, save_path: str, show: bool) -> None:
         pos = deg >= 0
         ax.plot(deg[pos], old_row[pos], color="#2474b5", lw=1.5, label="old 45-pt")
 
-        old_mark = np.array([recf_old_at_radius(old_row, r) for r in range(RF_N_RADII)])
-        ax.plot(radius_x, old_mark, "o", color="#2474b5", ms=5, label="old @ r=0..4")
+        old_mark = np.array([recf_old_at_radius(old_row, radius) for radius in range(RF_N_RADII)])
+        ax.plot(radius_x, old_mark, "o", color="#2474b5", ms=5, label="old @ radius=0..4")
 
         ax.plot(radius_x, new_row, "s", color="#c0392b", ms=5, label="new peak 5-r")
 
@@ -152,7 +152,7 @@ def plot_compare(*, save_path: str, show: bool) -> None:
         )
 
         max_diff = float(np.max(np.abs(new_row - old_mark)))
-        ax.set_title(f"{cell}  max|r=0..4 diff|={max_diff:.3f}", fontsize=9)
+        ax.set_title(f"{cell}  max|radius=0..4 diff|={max_diff:.3f}", fontsize=9)
         ax.set_xlim(-1, 21)
         ax.axhline(0.0, color="0.85", lw=0.6)
         ax.axvline(0.0, color="0.85", lw=0.6)

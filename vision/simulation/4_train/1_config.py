@@ -155,7 +155,7 @@ def cost_part_keys_from_pack(pack, backend) -> Tuple[str, ...]:
         raise ValueError("cost_part_keys_from_pack requires backend.network")
     scales = pack.cost_scales
     entry_mask = scales > 0
-    cell_ids = net.node_cells[pack.entry_nodes]
+    cell_idxs = net.node_cells[pack.entry_nodes]
     cells = net.cells
     part_keys: List[str] = []
     seen = set()
@@ -171,7 +171,7 @@ def cost_part_keys_from_pack(pack, backend) -> Tuple[str, ...]:
             for i in range(int(pack.entry_nodes.shape[0])):
                 if not bool(entry_mask[i]):
                     continue
-                cell = str(cells[int(cell_ids[i].item())])
+                cell = str(cells[int(cell_idxs[i].item())])
                 lab = PD_ND_LABELS[int(pd_nd[i].item())]
                 _add(moving_bar_cell_cost_part_key(pack.task, cell, lab))
         if (
@@ -187,7 +187,7 @@ def cost_part_keys_from_pack(pack, backend) -> Tuple[str, ...]:
     for i in range(int(pack.entry_nodes.shape[0])):
         if not bool(entry_mask[i]):
             continue
-        cell = str(cells[int(cell_ids[i].item())])
+        cell = str(cells[int(cell_idxs[i].item())])
         _add(spot_cost_part_key(pack.task, cell, int(radii[i].item())))
     return tuple(part_keys)
 

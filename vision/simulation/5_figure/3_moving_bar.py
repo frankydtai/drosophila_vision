@@ -20,7 +20,7 @@ from task.moving_bar.gt import (
 )
 from task.moving_bar.pack import (
     bar_specs_from_task,
-    moving_bar_nodes_on_hexes,
+    nodes_from_hexes,
     moving_bar_specs_by_cell,
     moving_bar_session_t0_grids,
 )
@@ -35,7 +35,7 @@ from figure.panel import (
     e_leak_from_z,
     format_moving_bar_cell_cost_lines,
     readout_prep_s,
-    hex_at_scope_tag,
+    hex_scope_tag,
     cell_ylabel,
     gt_affine_from_cell,
     gt_trace_affine,
@@ -76,7 +76,7 @@ class MovingBarWindowTraces:
     before_t: dict
     after_t: dict
     t0_bn: np.ndarray
-    cell_ids: np.ndarray
+    cell_idxs: np.ndarray
     cells: list
 
 
@@ -155,27 +155,27 @@ def figure_cell_idx_from_node_cells(connectome_cells, node_cells, figure_cells):
     ``cells_in_order`` reorders cells; accumulating with raw ``node_cells`` against
     ``enumerate(figure_cells)`` mislabels every cell whose plot idx ≠ connectome idx.
     """
-    c_ids = np.asarray(as_numpy(node_cells), dtype=np.int64)
+    cell_idxs = np.asarray(as_numpy(node_cells), dtype=np.int64)
     cell_idx = {str(n): i for i, n in enumerate(figure_cells)}
-    out = np.full(c_ids.shape, -1, dtype=np.int64)
+    out = np.full(cell_idxs.shape, -1, dtype=np.int64)
     for ci, name in enumerate(connectome_cells):
         pi = cell_idx.get(str(name))
         if pi is None:
             continue
-        out[c_ids == int(ci)] = int(pi)
+        out[cell_idxs == int(ci)] = int(pi)
     return out
 
 
-def _cells_and_ids(session):
-    """Plot-order cell order + remapped ``cell_ids`` for bar."""
+def _cells_and_cell_idxs(session):
+    """Plot-order cell order + remapped ``cell_idxs`` for bar."""
     connectome = session.backend.network
     if connectome is None:
-        raise ValueError("_cells_and_ids requires session.backend.network")
+        raise ValueError("_cells_and_cell_idxs requires session.backend.network")
     cells = cells_in_order(connectome.cells)
-    cell_ids = figure_cell_idx_from_node_cells(
+    cell_idxs = figure_cell_idx_from_node_cells(
         connectome.cells, connectome.node_cells, cells,
     )
-    return cells, cell_ids
+    return cells, cell_idxs
 
 
 def _filter_right_specs(spec_tokens, right_only):
@@ -196,26 +196,26 @@ def _windows_by_b(ca_full, t0_bn, n_t_by_b):
         t0 = t0_bn[b:b + 1]
         t_len = sl.shape[1]
         n_nodes = sl.shape[2]
-        t_in_window_idx = np.arange(n_t_b, dtype=np.int64)
-        t_abs = t0[..., None] + t_in_window_idx[None, None, :]
+        ts = np.arange(n_t_b, dtype=np.int64)
+        t_abs = t0[..., None] + ts[None, None, :]
         t_safe = np.clip(t_abs, 0, t_len - 1)
-        b_idx = np.zeros(1, dtype=np.int64)[:, None, None]
-        u_idx = np.arange(n_nodes, dtype=np.int64)[None, :, None]
-        window = sl[b_idx, t_safe, u_idx].astype(np.float64, copy=False)
+        bs = np.zeros(1, dtype=np.int64)[:, None, None]
+        nodes = np.arange(n_nodes, dtype=np.int64)[None, :, None]
+        window = sl[bs, t_safe, nodes].astype(np.float64, copy=False)
         window[t_abs < 0] = 0.0
         out.append(window[0])
     return out
 
 
 def _accumulate_moving_bar_traces(
-    windows_by_b, t0_bn, cell_ids, cells, spec_tokens, single_hex, *,
+    windows_by_b, t0_bn, cell_idxs, cells, spec_tokens, single_hex, *,
     hex_mask=None,
 ):
     """``windows_by_b[b]`` shape ``(n_nodes, W_bi)``."""
     ca_mean, ca_std, ca_n = {}, {}, {}
     valid = t0_bn >= 0
     for ti, cell in enumerate(cells):
-        cell_mask = cell_ids == ti
+        cell_mask = cell_idxs == ti
         if not cell_mask.any():
             continue
         for b, token in enumerate(spec_tokens):
@@ -236,19 +236,19 @@ def _accumulate_moving_bar_traces(
 def _network_hex_node_mask(connectome, filt_hexes, n_b):
     node_u_np, node_v_np = network_uv_np(connectome)
     hex_uv = {(int(hex.u), int(hex.v)) for hex in filt_hexes}
-    node_in_hex = np.array(
+    hex_mask = np.array(
         [(int(hex_u), int(hex_v)) in hex_uv for hex_u, hex_v in zip(node_u_np, node_v_np)],
         dtype=bool,
     )
-    return np.broadcast_to(node_in_hex, (n_b, connectome.n_nodes)).copy()
+    return np.broadcast_to(hex_mask, (n_b, connectome.n_nodes)).copy()
 
 
 def _t0_from_align_hex(t0_bn, b, ref_hex, *, connectome):
     if connectome is None:
         raise ValueError("_t0_from_align_hex requires connectome")
     node_u_np, node_v_np = network_uv_np(connectome)
-    on_ref = (node_u_np == int(ref_hex.u)) & (node_v_np == int(ref_hex.v))
-    t0_ref = int(t0_bn[b, on_ref][0])
+    ref_hex_mask = (node_u_np == int(ref_hex.u)) & (node_v_np == int(ref_hex.v))
+    t0_ref = int(t0_bn[b, ref_hex_mask][0])
     if t0_ref < 0:
         loc = f'({int(ref_hex.u)},{int(ref_hex.v)})'
         raise SystemExit(f'--align-xy ref hex {loc} has no valid t0')
@@ -286,11 +286,11 @@ def _moving_bar_overlay_traces(
     align_at_x=None, align_at_y=None,
 ):
     """Per-hex overlay traces aligned to ``base_wt`` trace geometry."""
-    if base_wt.t0_bn is None or base_wt.cell_ids is None or base_wt.cells is None:
+    if base_wt.t0_bn is None or base_wt.cell_idxs is None or base_wt.cells is None:
         raise ValueError("base_wt missing cached t0_bn/cells for overlay")
     pack = session.pack_from_task(task)
     cells = base_wt.cells
-    cell_ids = base_wt.cell_ids
+    cell_idxs = base_wt.cell_idxs
     t0_full_bn = base_wt.t0_bn
     n_b = len(spec_tokens)
     connectome = session.backend.network
@@ -313,7 +313,7 @@ def _moving_bar_overlay_traces(
         )
     windows_full = _windows_by_b(trace_full, t0_bn_aligned, n_t_by_b)
     ca_mean, ca_std, ca_n = _accumulate_moving_bar_traces(
-        windows_full, t0_bn_aligned, cell_ids, cells, spec_tokens, True, hex_mask=hex_mask,
+        windows_full, t0_bn_aligned, cell_idxs, cells, spec_tokens, True, hex_mask=hex_mask,
     )
     return MovingBarWindowTraces(
         ca_mean=ca_mean,
@@ -322,7 +322,7 @@ def _moving_bar_overlay_traces(
         before_t=base_wt.before_t,
         after_t=base_wt.after_t,
         t0_bn=t0_full_bn,
-        cell_ids=cell_ids,
+        cell_idxs=cell_idxs,
         cells=cells,
     )
 
@@ -343,10 +343,10 @@ def _load_moving_bar_gt_mean(session, task, cells, specs, side):
         if subtype not in cells:
             continue
         for spec in specs:
-            trace_id = fig1_trace_from_sti(side, subtype, spec)
-            if trace_id is None:
+            trace_token = fig1_trace_from_sti(side, subtype, spec)
+            if trace_token is None:
                 continue
-            trace = _fig1_trace_delta(load_fig1_trace(trace_id), session.delta_ms)
+            trace = _fig1_trace_delta(load_fig1_trace(trace_token), session.delta_ms)
             gt_mean[(subtype, spec.token)] = trace
     return gt_mean
 
@@ -363,7 +363,7 @@ def _traces_from_forward(
         session, specs, cost_radius, n_t, at_x=at_x, at_y=at_y,
         t_onset=_t_onset, delta_ms=session.delta_ms,
     )
-    cells, cell_ids = _cells_and_ids(session)
+    cells, cell_idxs = _cells_and_cell_idxs(session)
     t0_full_bn = grids.t0_bn
     full_before_t = grids.before_t
     full_after_t = grids.after_t
@@ -376,7 +376,7 @@ def _traces_from_forward(
     ]
     windows_full = _windows_by_b(trace_full, t0_full_bn, n_t_by_b)
     trace_mean, trace_std, trace_n = _accumulate_moving_bar_traces(
-        windows_full, t0_full_bn, cell_ids, cells, spec_tokens, single_hex,
+        windows_full, t0_full_bn, cell_idxs, cells, spec_tokens, single_hex,
     )
     return MovingBarWindowTraces(
         ca_mean=trace_mean,
@@ -385,7 +385,7 @@ def _traces_from_forward(
         before_t=full_before_t,
         after_t=full_after_t,
         t0_bn=t0_full_bn,
-        cell_ids=cell_ids,
+        cell_idxs=cell_idxs,
         cells=cells,
     ), cells, side, n_filter_hexes, _t_onset, single_hex
 
@@ -425,13 +425,13 @@ def moving_bar_trace_readout(session, z, task, *, at_x=None, at_y=None,
         if at_x is not None or at_y is not None:
             hexes = filter_sti_hexes(hexes, at_x=at_x, at_y=at_y)
         nodes_by_cell = {
-            cell: moving_bar_nodes_on_hexes(connectome, cell, hexes) for cell in cells
+            cell: nodes_from_hexes(connectome, cell, hexes) for cell in cells
         }
     else:
-        cell_ids = np.asarray(as_numpy(session.backend.conn.node_cells), dtype=np.int64)
+        cell_idxs = np.asarray(as_numpy(session.backend.conn.node_cells), dtype=np.int64)
         entry_nodes = pack.entry_nodes.cpu().numpy()
         center = pack_center_mask(pack, session.backend)
-        node_cells = cell_ids[entry_nodes]
+        node_cells = cell_idxs[entry_nodes]
         nodes_by_cell = {
             name: entry_nodes[center & (node_cells == cells.index(name))]
             for name in cells
@@ -517,7 +517,7 @@ def _moving_bar_pre_end(readout, subtype, token):
     if key not in wt.ca_mean:
         return 0
     n_t_figure = int(np.asarray(wt.ca_mean[key]).shape[0])
-    cell_mask = wt.cell_ids == ti
+    cell_mask = wt.cell_idxs == ti
     valid = (wt.t0_bn[b] >= 0) & cell_mask
     if not bool(valid.any()):
         return 0
@@ -546,7 +546,7 @@ def _moving_bar_scope_label(session, *, at_x=None, at_y=None, n_filter_hexes=Non
         ncol_part = f'{n_filter_hexes} sti hex'
         if n_filter_hexes != 1:
             ncol_part += 's'
-        parts = [hex_at_scope_tag(at_x, at_y), ncol_part]
+        parts = [hex_scope_tag(at_x, at_y), ncol_part]
         if cost_radius is not None:
             parts.insert(0, f'cost_radius={cost_radius}')
         return ', '.join(parts)
@@ -734,11 +734,11 @@ def _moving_bar_all_scope_label(readout_on):
         cost_radius = pack.cost_radius
         at_x = readout_on.overlay_xs if readout_on.overlay_axis in ('x', 'xy') else None
         at_y = readout_on.overlay_ys if readout_on.overlay_axis in ('y', 'xy') else None
-        parts = [hex_at_scope_tag(at_x, at_y), 'overlay + scope']
+        parts = [hex_scope_tag(at_x, at_y), 'overlay + scope']
         if readout_on.align_at_x is not None and readout_on.align_at_y is not None:
             parts.append(
                 'aligned to '
-                + hex_at_scope_tag(readout_on.align_at_x, readout_on.align_at_y),
+                + hex_scope_tag(readout_on.align_at_x, readout_on.align_at_y),
             )
         if cost_radius is not None:
             parts.insert(0, f'cost_radius={cost_radius}')

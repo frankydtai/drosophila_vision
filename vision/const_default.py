@@ -36,7 +36,7 @@ NEURON_CONST: Dict[str, object] = {
     "e_h": 50.0,
     "h_g_max": 100.0,
     "gt_amp": {"v": 20.0, "ca": 2.0},
-    "state_clamp": 1.0e6,
+    "v_clamp": 1.0e6,
     "a_syn_exc": 0.001,
     "a_syn_inh": 0.001,
     "euler": "im",  # CLI token; expand to implicit|explicit via neuron.param.expand_euler
@@ -157,7 +157,7 @@ SPOT_PACK: Dict[str, object] = {
     "spot_gt_mode": "pos",
     # Hex-lattice radii (``build_hex.hex_radius`` / ``shell_hexes``); radius 2 = full shell 12.
     "spot_cost_radii": (0, 1, 2),
-    # a_sti_radius: center r=0 baked @1; a_sti_radii are non-center radii.
+    # a_sti_radius: center radius=0 baked @1; a_sti_radii are non-center radii.
     # Cost-radius scale==0 → a_sti_radius_mask forces that radius to 0 in forward.
     "a_sti_radii": (1, 2),
     "spot_cost_radius_scale": {

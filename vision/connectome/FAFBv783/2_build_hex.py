@@ -7,7 +7,7 @@ coordinate formulas:
     disc.
   - ``uv_from_pq(p, q, side)`` converts FAFB ``column_assignment`` (p, q) idxs to
     axial (u, v), which differs per hemisphere.
-  - ``inside_mask(u, v, radius)`` is the shared inside/outside-the-disc predicate.
+  - ``radius_mask(u, v, radius)`` is the shared hex-disc membership predicate.
   - ``xy_from_uv`` / ``uv_from_xy`` convert axial ``(u, v)`` to hex-step ``(x, y)``;
     ``xy_deg_from_xy`` scales hex-step by :data:`DEG`; ``xy_deg_from_uv`` composes both.
   - ``hex_vertices`` / ``plot_hex_patches`` plot degree-space hex patches
@@ -101,11 +101,11 @@ def hex_radius(u: int, v: int) -> int:
     return int(_hex_radius_arr(u, v))
 
 
-def inside_mask(u, v, radius: int) -> np.ndarray:
-    """Boolean mask: is each axial (u, v) inside the radius-``radius`` hex disc?
+def radius_mask(u, v, radius: int) -> np.ndarray:
+    """Boolean mask: ``hex_radius(u, v) <= radius`` (inclusive disc).
 
-    radius < 0 -> no cap, everything is inside (the shared default, RADIUS). This
-    is the single source of truth for the inside/outside split used by
+    radius < 0 -> no cap, every hex is True (the shared default, RADIUS). This
+    is the single source of truth for the radius-disc split used by
     plot_fafb_columns, 5_apply_radius.py and the LC-column plot.
     """
     u = np.asarray(u, dtype=np.int64)
@@ -340,15 +340,15 @@ def plot_fafb_columns(
     inside_color: Tuple[str, str] = INSIDE_COLOR,
     outside_color: Tuple[str, str] = OUTSIDE_COLOR,
 ) -> None:
-    """Draw one hemisphere's FAFB columns, split inside/outside a hex disc.
+    """Draw one hemisphere's FAFB columns, split by hex-disc ``radius``.
 
     Reusable drawing primitive: ``df`` carries ``u``, ``v`` and ``column_id``. The
-    inside/outside split is computed here from the shared ``inside_mask(u, v,
-    radius)`` -- ``radius`` None or < 0 means every column is "inside" (one colour).
+    disc split is computed here from the shared ``radius_mask(u, v, radius)`` --
+    ``radius`` None or < 0 means every column is in the disc (one colour).
     """
     if hex_radius_px is None:
         hex_radius_px = HEX_PATCH_RADIUS
-    mask = inside_mask(df["u"].values, df["v"].values,
+    mask = radius_mask(df["u"].values, df["v"].values,
                        -1 if radius is None else radius)
     inside = df[mask]
     outside = df[~mask]
@@ -384,9 +384,9 @@ def plot_column_map(
         right:  FAFB right columns
 
     ``radius`` only controls the FAFB panels: ``< 0`` (or ``None``) draws every
-    column green (no inside/outside split); ``>= 0`` colours columns inside/outside
-    that disc (computed from ``df``'s ``u``/``v`` via ``inside_mask``). The left
-    reference panel always uses ``ideal_grid`` (fixed radius).
+    column green (no disc split); ``>= 0`` colours columns by ``radius_mask`` on
+    ``df``'s ``u``/``v``. The left reference panel always uses ``ideal_grid``
+    (fixed radius).
     """
     import matplotlib
 
@@ -423,7 +423,7 @@ def plot_column_map(
     def _plot_fafb(ax, df, side_label):
         plot_fafb_columns(ax, df, radius=radius, hex_radius_px=hex_radius_px)
         if classify:
-            mask = inside_mask(df["u"].values, df["v"].values, radius)
+            mask = radius_mask(df["u"].values, df["v"].values, radius)
             n_in, n_out = int(mask.sum()), int((~mask).sum())
             count_line = f"{n_in} inside + {n_out} outside = {len(df)} total"
         else:

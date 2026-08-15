@@ -5,7 +5,7 @@ Dynamics only: ``standardize_i_sti`` / ``pre_steady`` / ``step``. Full-T Ca
 forward lives in ``neuron.forward``. Scalars are injected kwargs
 (from ``session`` flat fields), never nested under Physics.
 
-t=0 state uses ``session.pre_steady`` (``--pre-steady …``):
+t=0 uses ``session.pre_steady`` (``--pre-steady …``):
 
 * ``probe``: ``g_syn`` from ``v=e_leak``, ``u/u_rev=0``, then ohmic
   ``v = (i_sti + Σ g·e) / Σ g``
@@ -50,7 +50,7 @@ def _i_h_gate_step(
     delta_ms: float,
     h_g_max: float,
 ):
-    """Advance i_h gate states and channel conductances for masked hexes only.
+    """Advance i_h gates and channel conductances for masked hexes only.
 
     Gate ODE uses explicit Euler regardless of ``euler``.
     """
@@ -233,7 +233,7 @@ def v_dc_from_v(v, params, i0, e_leak, session, *, with_i_h_ss: bool):
 
 
 def pre_steady(session, params, n_b, i_sti=None):
-    """``(u, u_rev)``, ``v`` at t=0 from ``session.pre_steady``."""
+    """``u``, ``u_rev``, ``v`` at t=0 from ``session.pre_steady``."""
     if i_sti is None:
         raise TypeError("borst pre_steady requires i_sti")
     pre_steady = str(session.pre_steady)
@@ -244,18 +244,17 @@ def pre_steady(session, params, n_b, i_sti=None):
     i0 = i_sti[:, 0, :]
     if pre_steady == "probe":
         v_dc, u, u_rev = v_dc_from_v(v, params, i0, e_leak, session, with_i_h_ss=False)
-        return (u, u_rev), v_dc
+        return u, u_rev, v_dc
     damp = float(session.pre_steady_damp)
     for _ in range(int(session.pre_steady_iters)):
         v_dc, _, _ = v_dc_from_v(v, params, i0, e_leak, session, with_i_h_ss=True)
         v = v + damp * (v_dc - v)
     _, u, u_rev = v_dc_from_v(v, params, i0, e_leak, session, with_i_h_ss=True)
-    return (u, u_rev), v
+    return u, u_rev, v
 
 
-def step(state, v, params, i_sti, session, *, delta_ms: float, return_component: bool = False):
-    """One borst update; returns ``((u, u_rev), v)`` or + g component tuple."""
-    u, u_rev = state
+def step(u, u_rev, v, params, i_sti, session, *, delta_ms: float, return_component: bool = False):
+    """One borst update; returns ``(u, u_rev, v)`` or + g component tuple."""
     out = update_v(
         v, u, u_rev,
         params["a_in"], params["a_out"], syn_strength(params), params["v_th"],
@@ -275,6 +274,6 @@ def step(state, v, params, i_sti, session, *, delta_ms: float, return_component:
     )
     if return_component:
         v, u, u_rev, g_exc, g_inh, g_h, g_h_rev = out
-        return (u, u_rev), v, (g_exc, g_inh, g_h, g_h_rev)
+        return u, u_rev, v, (g_exc, g_inh, g_h, g_h_rev)
     v, u, u_rev = out
-    return (u, u_rev), v
+    return u, u_rev, v

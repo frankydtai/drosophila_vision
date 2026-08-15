@@ -44,7 +44,7 @@ def _init(name: str) -> float:
 
 
 def ih_ss(Vm, midv, slope):
-    """Steady-state gate; OFF channel passes ``slope = -Ih_slope_off``."""
+    """Steady gate; OFF channel passes ``slope = -Ih_slope_off``."""
     return 1.0 / (1.0 + np.exp((midv - Vm) * slope))
 
 
@@ -184,7 +184,7 @@ def plot_static_curves(args, midv, slope, tau_mid, midv_off, slope_off, tau_mid_
     ax.axvline(midv_off, color="C1", ls=":", lw=0.8)
     ax.set_xlabel(r"$V_m$ [mV]")
     ax.set_ylabel(r"$u_\infty$")
-    ax.set_title("steady-state gate")
+    ax.set_title("steady gate")
     ax.set_ylim(-0.05, 1.05)
     ax.legend(fontsize=8, loc="best")
     ax.grid(True, alpha=0.3)

@@ -5,7 +5,7 @@ Consumes a :class:`~train.session.TrainSession` and the model forward
 the mean scaled total (``Σ W·cost / Σ W``). The staged-lr loop lives in
 :mod:`train.optimization`.
 
-Owns cost-time execution plans (active subpacks / fused forward) built at
+Owns cost-time execution plans (active subpacks / fused packs) built at
 calc time — not at session open.
 
 Readout traces are absolute ``v`` (``filter=none``) or ``ca`` (``filter=ca``);
@@ -27,7 +27,7 @@ scale per cell×radius unless ``part_cost_scales`` says otherwise).
 
 Sparse cost time points (#4): ``pack.gts`` stays the ``ms_response`` window length
 (spot excludes ``ms_post``) and the subsample is gathered from both v_readout
-trace and gt at cost time via ``pack.cost_time_idxs`` (from train_opts
+trace and gt at cost time via ``pack.cost_ts`` (from train_opts
 ``cost_interval_ms`` / ``cost_ms``); when radii use different
 ``cost_ms`` lists, ``pack.cost_time_mask`` zeros non-participating (entry, t)
 pairs. ``gt_power`` is recomputed on the subsample.
@@ -87,56 +87,56 @@ from task.moving_bar.pack import (
 
 
 @dataclass(frozen=True)
-class FusedForward:
-    """Packs with matching i_sti shape / onset; one ``forward_full`` per fuse."""
+class FusedPacks:
+    """Packs with matching i_sti shape / onset; one ``forward`` per fused group."""
 
     subpacks: Tuple[Pack, ...]
     b_offsets: Tuple[int, ...]
 
 
-def pack_cost_abs_time_idx(pack: Pack, t_onset, *, entry_radius=None):
-    """Absolute time idxs for sparse spot cost samples (or ``None``).
+def pack_cost_abs_ts(pack: Pack, t_onset, *, entry_radius=None):
+    """Absolute cost ``ts`` for sparse spot cost samples (or ``None``).
 
-    Sole reader of ``cost_time_idxs`` / ``cost_time_mask`` / ``entry_radii``.
+    Sole reader of ``cost_ts`` / ``cost_time_mask`` / ``entry_radii``.
     ``entry_radius`` is one hex-lattice radius; when set and a mask exists, keep
     that radius's columns only. Omit ``entry_radius`` → union of all radii.
     """
-    idx = pack.cost_time_idxs
-    if idx is None:
+    cost_ts = pack.cost_ts
+    if cost_ts is None:
         return None
     base = int(t_onset or 0)
-    idx_np = idx.detach().cpu().numpy().astype(np.int64, copy=False)
+    ts = cost_ts.detach().cpu().numpy().astype(np.int64, copy=False)
     if entry_radius is None:
-        return base + idx_np
+        return base + ts
     mask = pack.cost_time_mask
     rad_t = pack.entry_radii
     if mask is None or rad_t is None:
-        return base + idx_np
+        return base + ts
     rad = rad_t.detach().cpu().numpy().astype(np.int64, copy=False)
     hit = np.where(rad == int(entry_radius))[0]
     if not hit.size:
         return base + np.zeros(0, dtype=np.int64)
     entry_mask = mask[int(hit[0])].detach().cpu().numpy() > 0
-    return base + idx_np[entry_mask]
+    return base + ts[entry_mask]
 
 
-def node_vals_from_param(params, param: str, node_idx, backend: ModelBackend, *, sim_dtype=SIM_DTYPE):
+def node_vals_from_param(params, param: str, nodes, backend: ModelBackend, *, sim_dtype=SIM_DTYPE):
     """Per-node vals from a cell-indexed schema param (or scalar default)."""
     raw = params.get(param, 1.0 if param == "a_gt" else 0.0)
-    n = int(node_idx.shape[0])
-    dev = node_idx.device
+    n = int(nodes.shape[0])
+    dev = nodes.device
     if not torch.is_tensor(raw) or raw.dim() == 0:
         val = float(raw if not torch.is_tensor(raw) else raw.item())
         return torch.full((n,), val, dtype=sim_dtype, device=dev)
     if backend.network is not None:
-        ci = backend.network.node_cells[node_idx]
+        ci = backend.network.node_cells[nodes]
     else:
-        ci = node_idx % backend.n_cells
+        ci = nodes % backend.n_cells
     return raw[ci]
 
 
 def gt_affine_from_nodes(
-    params, node_idx, backend: ModelBackend, *, sim_dtype=SIM_DTYPE, session=None,
+    params, nodes, backend: ModelBackend, *, sim_dtype=SIM_DTYPE, session=None,
 ):
     """Per-node ``(a_gt, effective_bias)`` for cost / plot affine on gt.
 
@@ -144,12 +144,12 @@ def gt_affine_from_nodes(
     ``val_from`` bias_gt is off, add ``v_th``. Callers must
     :func:`override_val_from` so ``val_from`` sources are already in ``params``.
     """
-    a_gt = node_vals_from_param(params, "a_gt", node_idx, backend, sim_dtype=sim_dtype)
-    bias = node_vals_from_param(params, "bias_gt", node_idx, backend, sim_dtype=sim_dtype)
+    a_gt = node_vals_from_param(params, "a_gt", nodes, backend, sim_dtype=sim_dtype)
+    bias = node_vals_from_param(params, "bias_gt", nodes, backend, sim_dtype=sim_dtype)
     opts = (session.train_opts if session is not None else None) or {}
     from_onset = val_from_enabled(opts, "bias_gt")
     if (not from_onset) and "v_th" in params:
-        bias = bias + node_vals_from_param(params, "v_th", node_idx, backend, sim_dtype=sim_dtype)
+        bias = bias + node_vals_from_param(params, "v_th", nodes, backend, sim_dtype=sim_dtype)
     return a_gt, bias
 
 
@@ -209,11 +209,11 @@ def _session_cost_norm(session: TrainSession) -> str:
 
 
 def _gather_cost_time(pack: Pack, v_readout: torch.Tensor, gts: torch.Tensor):
-    """Sparse ``cost_time_idxs`` gather; ``cost_time_mask`` on ``v_readout`` device."""
-    if pack.cost_time_idxs is not None:
-        idx = pack.cost_time_idxs.to(device=v_readout.device)
-        v_readout = v_readout.index_select(1, idx)
-        gts = gts.index_select(1, idx)
+    """Sparse ``cost_ts`` gather; ``cost_time_mask`` on ``v_readout`` device."""
+    if pack.cost_ts is not None:
+        cost_ts = pack.cost_ts.to(device=v_readout.device)
+        v_readout = v_readout.index_select(1, cost_ts)
+        gts = gts.index_select(1, cost_ts)
     time_mask = pack.cost_time_mask
     if time_mask is not None:
         time_mask = time_mask.to(device=v_readout.device)
@@ -416,7 +416,7 @@ def _pack_active_bs(pack: Pack, session: TrainSession) -> Tuple[int, ...]:
     return tuple(int(b) for b in bs.tolist())
 
 
-def _active_entry_idxs(
+def _active_entries(
     pack: Pack,
     session: TrainSession,
     b: Optional[int] = None,
@@ -453,8 +453,8 @@ def _pack_entry_fields(
     return fields
 
 
-def _slice_pack_entries(pack: Pack, entry_idx: torch.Tensor) -> Pack:
-    return replace(pack, **_pack_entry_fields(pack, entry_idx))
+def _slice_pack_entries(pack: Pack, entries: torch.Tensor) -> Pack:
+    return replace(pack, **_pack_entry_fields(pack, entries))
 
 
 def _subset_pack_bs(pack: Pack, bs: Tuple[int, ...]) -> Optional[Pack]:
@@ -489,7 +489,7 @@ def _active_cost_pack(
         work = _subset_pack_bs(pack, bs)
         if work is None:
             return None
-    entries = _active_entry_idxs(work, session, b=b)
+    entries = _active_entries(work, session, b=b)
     if entries is None:
         return None
     return _slice_pack_entries(work, entries)
@@ -512,37 +512,36 @@ def _build_cost_subpacks(session: TrainSession) -> Dict[str, Pack]:
     return out
 
 
-def _i_sti_fuse_id(pack: Pack) -> Tuple:
-    """Key for packs that can share one readout forward (shape, onset, contrast)."""
-    i_sti = pack.i_sti
-    return (
-        int(i_sti.shape[1]),
-        int(i_sti.shape[2]),
-        str(i_sti.device),
-        i_sti.dtype,
-        pack_t_onset(pack),
-        str(pack.task),
-    )
-
-
-def _build_fused_forward(
+def _build_fused_packs(
     session: TrainSession,
     cost_subpacks: Dict[str, Pack],
-) -> Tuple[FusedForward, ...]:
+) -> Tuple[FusedPacks, ...]:
+    """Group compatible packs for one forward each (cat ``i_sti`` along ``b``)."""
     if session.sequential or not cost_subpacks:
         return ()
-    by_fuse_id: Dict[Tuple, List[Pack]] = {}
+    grouped: Dict[Tuple, List[Pack]] = {}
     for pack in cost_subpacks.values():
-        by_fuse_id.setdefault(_i_sti_fuse_id(pack), []).append(pack)
-    fused: List[FusedForward] = []
-    for packs in by_fuse_id.values():
+        i_sti = pack.i_sti
+        grouped.setdefault(
+            (
+                int(i_sti.shape[1]),
+                int(i_sti.shape[2]),
+                str(i_sti.device),
+                i_sti.dtype,
+                pack_t_onset(pack),
+                str(pack.task),
+            ),
+            [],
+        ).append(pack)
+    out: List[FusedPacks] = []
+    for packs in grouped.values():
         offsets: List[int] = []
         off = 0
         for pack in packs:
             offsets.append(off)
             off += int(pack.i_sti.shape[0])
-        fused.append(FusedForward(subpacks=tuple(packs), b_offsets=tuple(offsets)))
-    return tuple(fused)
+        out.append(FusedPacks(subpacks=tuple(packs), b_offsets=tuple(offsets)))
+    return tuple(out)
 
 
 def _readout_from_trace_full(
@@ -613,7 +612,7 @@ def _pack_cost_parts_from_v_readout(
         return out
     if v_readout is None:
         raise ValueError(f"waveform readout required for pack {pack.task!r}")
-    # #4 sparse time: gather on ``cost_time_idxs``; gt_power uses a_gt·gts (no bias).
+    # #4 sparse time: gather on ``cost_ts``; gt_power uses a_gt·gts (no bias).
     v_readout, gts, time_mask = _gather_cost_time(pack, v_readout, pack.gts)
     if pack.entry_radii is None:
         raise ValueError(f"spot pack {pack.task!r} missing entry_radii")
@@ -622,36 +621,6 @@ def _pack_cost_parts_from_v_readout(
         a_gt, bias_gt, gts, pack.cost_scales, v_readout, part_idxs, part_keys, session,
         time_mask=time_mask,
     )
-
-
-def _calc_cost_parts_fused(
-    params,
-    session: TrainSession,
-    fused_forward: Tuple[FusedForward, ...],
-) -> Dict[str, torch.Tensor]:
-    parts: Dict[str, torch.Tensor] = {}
-    for fused in fused_forward:
-        if len(fused.subpacks) == 1:
-            i_sti = fused.subpacks[0].i_sti
-        else:
-            i_sti = torch.cat([pack.i_sti for pack in fused.subpacks], dim=0)
-        # Same fuse id ⇒ shared t_onset; pass one subpack for prepare.
-        trace_full, onset_trace = _forward_readout_and_onset_trace(
-            session, params, i_sti, fused.subpacks[0],
-        )
-        for pack, off in zip(fused.subpacks, fused.b_offsets):
-            a_gt, bias_gt = gt_affine_from_pack(
-                params, pack, session, onset_trace, b_offset=off,
-            )
-            v_readout, v_readout_dsi = _readout_from_trace_full(
-                trace_full, pack, b_offset=off,
-            )
-            for part_key, part in _pack_cost_parts_from_v_readout(
-                pack, session, a_gt, bias_gt, v_readout, v_readout_dsi,
-            ).items():
-                if _part_scale(session, part_key) != 0.0:
-                    parts[part_key] = part
-    return parts
 
 
 def _pack_cost_forward(params, pack: Pack, session: TrainSession, b=None):
@@ -711,9 +680,31 @@ def calc_cost_parts(z, session: TrainSession) -> Dict[str, torch.Tensor]:
     """Per-part unscaled cost (before ``part_cost_scales``)."""
     params = params_from_z(z, session)
     cost_subpacks = _build_cost_subpacks(session)
-    fused_forward = _build_fused_forward(session, cost_subpacks)
-    if fused_forward:
-        return _calc_cost_parts_fused(params, session, fused_forward)
+    fused_packs = _build_fused_packs(session, cost_subpacks)
+    if fused_packs:
+        parts: Dict[str, torch.Tensor] = {}
+        for fused in fused_packs:
+            if len(fused.subpacks) == 1:
+                i_sti = fused.subpacks[0].i_sti
+            else:
+                i_sti = torch.cat([pack.i_sti for pack in fused.subpacks], dim=0)
+            # Compatible packs share t_onset; pass one subpack for prepare.
+            trace_full, onset_trace = _forward_readout_and_onset_trace(
+                session, params, i_sti, fused.subpacks[0],
+            )
+            for pack, off in zip(fused.subpacks, fused.b_offsets):
+                a_gt, bias_gt = gt_affine_from_pack(
+                    params, pack, session, onset_trace, b_offset=off,
+                )
+                v_readout, v_readout_dsi = _readout_from_trace_full(
+                    trace_full, pack, b_offset=off,
+                )
+                for part_key, part in _pack_cost_parts_from_v_readout(
+                    pack, session, a_gt, bias_gt, v_readout, v_readout_dsi,
+                ).items():
+                    if _part_scale(session, part_key) != 0.0:
+                        parts[part_key] = part
+        return parts
     parts: Dict[str, torch.Tensor] = {}
     zero = torch.zeros((), dtype=session.sim_dtype, device=session.device)
     if cost_subpacks and not session.sequential:

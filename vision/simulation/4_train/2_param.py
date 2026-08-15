@@ -77,7 +77,7 @@ class ModelBackend:
 
 
 def calc_multi_col_params(param, conn):
-    # Broadcast a per-cell-TYPE parameter (n_cells,) to the full state (n_nodes,)
+    # Broadcast a per-cell-TYPE parameter (n_cells,) to full-w (n_nodes,)
     # via the backend's node_cells.
     return param.index_select(0, conn.node_cells)
 
@@ -97,7 +97,7 @@ def build_i_h_dirs(conn, i_h_reverse_cells=I_H_DIR_REVERSE_CELLS, *, dtype=SIM_D
 #   param, kind, n_nodes, lo/hi/init/jit[, z_mode]
 #   z_mode: ``linear`` (default), ``log`` (z = log(param)), or ``inv`` (z = 1/param); lo/hi/init are param
 #   indi / shared / fixed / frozen : disjoint exhaustive lists of node indices
-#       fixed: not in z; value = effective_init(param, node_idx)  (inits or init);
+#       fixed: not in z; value = effective_init(param, node)  (inits or init);
 #              --init-from seeds fixed via inits_from_node_vals → inits
 #       frozen: not in z; values from param['carry'] (resume) or effective_init (cold)
 # z packing per param: len(indi) scalars + (1 if shared else 0).
@@ -113,47 +113,47 @@ def _param_z_mode(spec, *, param="param"):
     return z_mode
 
 
-def _spec_at(spec, node_idx, key):
-    """``key`` / ``key+'s'`` bag lookup (``init``/``inits``, ``lo``/``los``, …)."""
-    node_idx = int(node_idx)
-    bag = spec.get(key + "s")
-    if bag is not None and node_idx in bag:
-        return float(bag[node_idx])
-    return float(spec[key])
+def _node_param_key(spec, node, param_key):
+    """``param_key`` / ``param_key+'s'`` bag lookup (``init``/``inits``, ``lo``/``los``, …)."""
+    node = int(node)
+    bag = spec.get(param_key + "s")
+    if bag is not None and node in bag:
+        return float(bag[node])
+    return float(spec[param_key])
 
 
-def param_from_z(spec, z, *, param="param", node_idx=None):
-    """Packed ``z`` scalar -> param value. ``node_idx`` selects per-node ``lo``/``hi``."""
+def param_from_z(spec, z, *, param="param", node=None):
+    """Packed ``z`` scalar -> param value. ``node`` selects per-node ``lo``/``hi``."""
     z_mode = _param_z_mode(spec, param=param)
     if z_mode == 'linear':
         return z
-    if node_idx is None:
+    if node is None:
         lo, hi = float(spec['lo']), float(spec['hi'])
     else:
-        lo = _spec_at(spec, node_idx, "lo")
-        hi = _spec_at(spec, node_idx, "hi")
+        lo = _node_param_key(spec, node, "lo")
+        hi = _node_param_key(spec, node, "hi")
     val = torch.exp(z) if z_mode == 'log' else 1.0 / z
     return torch.clamp(val, min=lo, max=hi)
 
 
-def z_from_param(spec, val, *, param="param", node_idx=None):
+def z_from_param(spec, val, *, param="param", node=None):
     """Param value -> packed ``z`` scalar."""
     z_mode = _param_z_mode(spec, param=param)
     if z_mode == 'linear':
         return float(val)
-    if node_idx is None:
+    if node is None:
         lo, hi = float(spec['lo']), float(spec['hi'])
     else:
-        lo = _spec_at(spec, node_idx, "lo")
-        hi = _spec_at(spec, node_idx, "hi")
+        lo = _node_param_key(spec, node, "lo")
+        hi = _node_param_key(spec, node, "hi")
     clipped = float(np.clip(float(val), lo, hi))
     return float(np.log(clipped)) if z_mode == 'log' else 1.0 / clipped
 
 
-def _z_bounds(spec, node_idx, *, param="param"):
+def _z_bounds(spec, node, *, param="param"):
     """Per-node (lo, hi) in z space."""
-    lo = _spec_at(spec, node_idx, "lo")
-    hi = _spec_at(spec, node_idx, "hi")
+    lo = _node_param_key(spec, node, "lo")
+    hi = _node_param_key(spec, node, "hi")
     z_mode = _param_z_mode(spec, param=param)
     if z_mode == 'log':
         return float(np.log(lo)), float(np.log(hi))
@@ -192,21 +192,21 @@ def schema_nparams(schema):
     return sum(param_n_z(spec) for spec in schema.values())
 
 
-def effective_init(spec, node_idx):
-    """Per-node init: ``inits[node_idx]`` if present, else ``spec['init']``."""
-    return _spec_at(spec, node_idx, "init")
+def effective_init(spec, node):
+    """Per-node init: ``inits[node]`` if present, else ``spec['init']``."""
+    return _node_param_key(spec, node, "init")
 
 
 def resolve_param_mode_tokens(
     mode_tokens, *, cell_idx=None, radius_idx=None, pair_idx=None, edge_idx=None,
     param='param',
 ):
-    """Resolve token lists (with at most one ``all``) to node_idx lists."""
+    """Resolve token lists (with at most one ``all``) to node lists."""
     cli_idx = _cli_idx(
         cell_idx=cell_idx, radius_idx=radius_idx, pair_idx=pair_idx, edge_idx=edge_idx,
     )
     cli_ids = [str(c) for c in cli_idx]
-    node_idx_set = set(range(len(cli_ids)))
+    node_set = set(range(len(cli_ids)))
     explicit = {mode: [] for mode in PARAM_MODES}
     all_mode = None
     for mode in PARAM_MODES:
@@ -228,12 +228,12 @@ def resolve_param_mode_tokens(
     if len(claimed) != len(set(claimed)):
         raise ValueError(f"{param}: overlapping nodes across indi/shared/fixed/frozen")
     claimed_set = set(claimed)
-    leftover = sorted(node_idx_set - claimed_set)
+    leftover = sorted(node_set - claimed_set)
     if all_mode is not None:
         explicit[all_mode] = leftover
         claimed_set |= set(leftover)
-    elif claimed_set != node_idx_set:
-        missing = [cli_ids[i] for i in sorted(node_idx_set - claimed_set)]
+    elif claimed_set != node_set:
+        missing = [cli_ids[i] for i in sorted(node_set - claimed_set)]
         raise ValueError(
             f"{param}: nodes not assigned (use all= in one param_mode): {missing[:8]}"
             + ("..." if len(missing) > 8 else "")
@@ -242,9 +242,9 @@ def resolve_param_mode_tokens(
 
 
 def cli_from_param_mode(modes, cli_ids):
-    """Param_mode node_idx lists → CLI id lists for train_opts sidecar."""
+    """Param_mode node lists → CLI id lists for train_opts sidecar."""
     return {
-        mode: [str(cli_ids[node_idx]) for node_idx in modes[mode]]
+        mode: [str(cli_ids[node]) for node in modes[mode]]
         for mode in PARAM_MODES
     }
 
@@ -253,7 +253,7 @@ def _param_cli(spec, backend: "ModelBackend"):
     """``(cli_ids, idx_kw)`` for this param — cell / radius / pair / edge, not a fake bag."""
     if spec.get("radii") is not None:
         radii = [str(radius) for radius in spec["radii"]]
-        return radii, {"radius_idx": {r: i for i, r in enumerate(radii)}}
+        return radii, {"radius_idx": {radius: i for i, radius in enumerate(radii)}}
     kind = spec["kind"]
     if kind == "edge_pair":
         pairs = pairs_from_backend(backend)
@@ -329,19 +329,19 @@ def schema_with_param_modes(schema, param_modes, backend):
                     raise ValueError(f"{param}: inits unknown id {cli_id!r}")
                 io[cli_idx[cli_id]] = val
             if all_init is not None:
-                for node_idx in range(len(cli_ids)):
-                    if node_idx not in io:
-                        io[node_idx] = all_init
+                for node in range(len(cli_ids)):
+                    if node not in io:
+                        io[node] = all_init
             out_spec['inits'] = io
         shared = list(out_spec.get("shared") or ())
         if len(shared) >= 2:
             for key in ("lo", "hi", "jit"):
                 plural = key + "s"
                 vals = []
-                for node_idx in shared:
+                for node in shared:
                     bag = out_spec.get(plural)
-                    if bag is not None and int(node_idx) in bag:
-                        vals.append(float(bag[int(node_idx)]))
+                    if bag is not None and int(node) in bag:
+                        vals.append(float(bag[int(node)]))
                     else:
                         vals.append(float(out_spec[key]))
                 if len(set(vals)) > 1:
@@ -447,10 +447,10 @@ def inits_from_node_vals(schema, node_vals):
             continue
         arr = np.asarray(node_vals[param], dtype=np.float64).reshape(-1)
         io = dict(spec.get('inits') or {})
-        for node_idx in fixed:
-            node_idx = int(node_idx)
-            if 0 <= node_idx < arr.shape[0]:
-                io[node_idx] = float(arr[node_idx])
+        for node in fixed:
+            node = int(node)
+            if 0 <= node < arr.shape[0]:
+                io[node] = float(arr[node])
         out_spec['inits'] = io
         out[param] = out_spec
     return out
@@ -471,7 +471,7 @@ def attach_param_carry(schema, node_vals=None):
             carry = np.asarray(node_vals[param], dtype=np.float64).reshape(-1).copy()
         else:
             carry = np.asarray(
-                [effective_init(spec, node_idx) for node_idx in range(n_nodes)], dtype=np.float64,
+                [effective_init(spec, node) for node in range(n_nodes)], dtype=np.float64,
             )
         if carry.shape[0] != n_nodes:
             raise ValueError(
@@ -502,13 +502,13 @@ def z_from_node_vals(node_vals, schema, *, dtype=None, device=None):
                 f"{param}: node_vals length {raw.shape[0]} != n_nodes {param_n_nodes(spec)}"
             )
         zs = []
-        for node_idx in spec.get('indi', ()):
-            zs.append(z_from_param(spec, raw[node_idx], param=param, node_idx=node_idx))
+        for node in spec.get('indi', ()):
+            zs.append(z_from_param(spec, raw[node], param=param, node=node))
         if spec.get('shared'):
-            vals = [float(raw[node_idx]) for node_idx in spec['shared']]
+            vals = [float(raw[node]) for node in spec['shared']]
             shared_mean = float(np.mean(vals)) if vals else float(spec['init'])
             zs.append(z_from_param(
-                spec, shared_mean, param=param, node_idx=spec['shared'][0],
+                spec, shared_mean, param=param, node=spec['shared'][0],
             ))
         if zs:
             z[start:stop] = torch.tensor(zs, dtype=z.dtype, device=z.device)
@@ -535,16 +535,16 @@ def adams_from_z(exp_avg, exp_avg_sq, schema):
         m_arr = np.zeros(n_nodes, dtype=np.float64)
         v_arr = np.zeros(n_nodes, dtype=np.float64)
         z_idx = 0
-        for node_idx in spec.get('indi', ()):
-            m_arr[int(node_idx)] = float(exp_avg[start + z_idx])
-            v_arr[int(node_idx)] = float(exp_avg_sq[start + z_idx])
+        for node in spec.get('indi', ()):
+            m_arr[int(node)] = float(exp_avg[start + z_idx])
+            v_arr[int(node)] = float(exp_avg_sq[start + z_idx])
             z_idx += 1
         if spec.get('shared'):
             shared_m = float(exp_avg[start + z_idx])
             shared_v = float(exp_avg_sq[start + z_idx])
-            for node_idx in spec['shared']:
-                m_arr[int(node_idx)] = shared_m
-                v_arr[int(node_idx)] = shared_v
+            for node in spec['shared']:
+                m_arr[int(node)] = shared_m
+                v_arr[int(node)] = shared_v
         adams_m[param] = m_arr
         adams_v[param] = v_arr
     return adams_m, adams_v
@@ -567,18 +567,18 @@ def z_adams_from_node_vals(adams_m, adams_v, schema, *, dtype=None, device=None)
             )
         m_pack = []
         v_pack = []
-        for node_idx in spec.get('indi', ()):
-            m_pack.append(float(m_raw[node_idx]))
-            v_pack.append(float(v_raw[node_idx]))
+        for node in spec.get('indi', ()):
+            m_pack.append(float(m_raw[node]))
+            v_pack.append(float(v_raw[node]))
         if spec.get('shared'):
-            shared_node_idxs = list(spec['shared'])
+            shared_nodes = list(spec['shared'])
             m_pack.append(
-                float(np.mean([m_raw[node_idx] for node_idx in shared_node_idxs]))
-                if shared_node_idxs else 0.0
+                float(np.mean([m_raw[node] for node in shared_nodes]))
+                if shared_nodes else 0.0
             )
             v_pack.append(
-                float(np.mean([v_raw[node_idx] for node_idx in shared_node_idxs]))
-                if shared_node_idxs else 0.0
+                float(np.mean([v_raw[node] for node in shared_nodes]))
+                if shared_nodes else 0.0
             )
         if m_pack:
             exp_avg[start:stop] = torch.tensor(m_pack, dtype=dt, device=dev)
@@ -586,57 +586,57 @@ def z_adams_from_node_vals(adams_m, adams_v, schema, *, dtype=None, device=None)
     return exp_avg, exp_avg_sq
 
 
-def _remap_node_vals(node_vals, src_cells, src_pairs, schema, backend, *, fill):
+def _remap_node_vals(node_vals, cells, pairs, schema, backend, *, fill):
     """Remap per-param arrays onto *backend* node order; ``fill(spec, j)`` for gaps."""
-    src_cells = [str(n) for n in src_cells]
-    src_pairs = [str(n) for n in (src_pairs or [])]
-    dst_cells = cells_from_backend(backend)
-    dst_pairs = (
+    cells = [str(n) for n in cells]
+    pairs = [str(n) for n in (pairs or [])]
+    backend_cells = cells_from_backend(backend)
+    backend_pairs = (
         pairs_from_backend(backend)
         if any(spec['kind'] == 'edge_pair' for spec in schema.values())
         else []
     )
-    src_t = {n: node_idx for node_idx, n in enumerate(src_cells)}
-    src_p = {n: node_idx for node_idx, n in enumerate(src_pairs)}
+    cell_idx = {cell: i for i, cell in enumerate(cells)}
+    pair_idx = {pair: i for i, pair in enumerate(pairs)}
     out = {}
     for param, spec in schema.items():
         n_nodes = param_n_nodes(spec)
-        arr = np.asarray([fill(spec, node_idx) for node_idx in range(n_nodes)], dtype=np.float64)
-        src = node_vals.get(param)
-        if src is None:
+        arr = np.asarray([fill(spec, node) for node in range(n_nodes)], dtype=np.float64)
+        vals = node_vals.get(param)
+        if vals is None:
             out[param] = arr
             continue
-        src = np.asarray(src, dtype=np.float64).reshape(-1)
+        vals = np.asarray(vals, dtype=np.float64).reshape(-1)
         if spec['kind'] == 'edge_pair':
-            for node_idx, pn in enumerate(dst_pairs):
-                if pn in src_p and src_p[pn] < src.shape[0]:
-                    arr[node_idx] = float(src[src_p[pn]])
+            for node, pair in enumerate(backend_pairs):
+                if pair in pair_idx and pair_idx[pair] < vals.shape[0]:
+                    arr[node] = float(vals[pair_idx[pair]])
         elif spec['kind'] == 'edge':
-            if src.shape[0] == n_nodes:
-                arr[:] = src
+            if vals.shape[0] == n_nodes:
+                arr[:] = vals
         elif spec.get("radii") is not None:
-            n_copy = min(n_nodes, int(src.shape[0]))
-            arr[:n_copy] = src[:n_copy]
+            n_copy = min(n_nodes, int(vals.shape[0]))
+            arr[:n_copy] = vals[:n_copy]
         else:
-            for node_idx, tn in enumerate(dst_cells):
-                if tn in src_t and src_t[tn] < src.shape[0]:
-                    arr[node_idx] = float(src[src_t[tn]])
+            for node, cell in enumerate(backend_cells):
+                if cell in cell_idx and cell_idx[cell] < vals.shape[0]:
+                    arr[node] = float(vals[cell_idx[cell]])
         out[param] = arr
     return out
 
 
-def remap_node_vals_adams(node_vals, src_cells, src_pairs, schema, backend):
+def remap_node_vals_adams(node_vals, cells, pairs, schema, backend):
     """Remap per-param adam arrays; missing nodes/params fill 0."""
     return _remap_node_vals(
-        node_vals, src_cells, src_pairs, schema, backend,
-        fill=lambda _spec, _node_idx: 0.0,
+        node_vals, cells, pairs, schema, backend,
+        fill=lambda _spec, _node: 0.0,
     )
 
 
-def remap_node_vals(node_vals, src_cells, src_pairs, schema, backend):
+def remap_node_vals(node_vals, cells, pairs, schema, backend):
     """Remap per-param arrays from a prior run onto *backend* node order for *schema*."""
     return _remap_node_vals(
-        node_vals, src_cells, src_pairs, schema, backend, fill=effective_init,
+        node_vals, cells, pairs, schema, backend, fill=effective_init,
     )
 
 
@@ -645,26 +645,26 @@ def _reconstruct_raw(spec, z_slice, z):
     n_nodes = param_n_nodes(spec)
     raw = torch.empty((n_nodes,), dtype=z.dtype, device=z.device)
     carry = spec.get('carry')
-    for node_idx in spec.get('fixed', ()):
-        raw[int(node_idx)] = effective_init(spec, node_idx)
+    for node in spec.get('fixed', ()):
+        raw[int(node)] = effective_init(spec, node)
     z_idx = 0
-    for node_idx in spec.get('indi', ()):
-        raw[int(node_idx)] = param_from_z(
-            spec, z_slice[z_idx], node_idx=node_idx,
+    for node in spec.get('indi', ()):
+        raw[int(node)] = param_from_z(
+            spec, z_slice[z_idx], node=node,
         )
         z_idx += 1
     if spec.get('shared'):
         shared0 = spec['shared'][0]
         shared_decoded = param_from_z(
-            spec, z_slice[z_idx], node_idx=shared0,
+            spec, z_slice[z_idx], node=shared0,
         )
-        for node_idx in spec['shared']:
-            raw[int(node_idx)] = shared_decoded
-    for node_idx in spec.get('frozen', ()):
+        for node in spec['shared']:
+            raw[int(node)] = shared_decoded
+    for node in spec.get('frozen', ()):
         if carry is not None:
-            raw[int(node_idx)] = float(carry[int(node_idx)])
+            raw[int(node)] = float(carry[int(node)])
         else:
-            raw[int(node_idx)] = effective_init(spec, node_idx)
+            raw[int(node)] = effective_init(spec, node)
     return raw
 
 
@@ -734,8 +734,8 @@ def schema_bounds(schema, sim_dtype=SIM_DTYPE):
     z_bounds = torch.zeros((schema_nparams(schema), 2), dtype=sim_dtype)
     for param, spec, start, stop in schema_params(schema):
         z_idx = 0
-        for node_idx in spec.get('indi', ()):
-            z_lo, z_hi = _z_bounds(spec, node_idx, param=param)
+        for node in spec.get('indi', ()):
+            z_lo, z_hi = _z_bounds(spec, node, param=param)
             z_bounds[start + z_idx] = torch.tensor([z_lo, z_hi], dtype=sim_dtype)
             z_idx += 1
         if spec.get('shared'):
@@ -751,19 +751,19 @@ def schema_guess(schema, sim_dtype=SIM_DTYPE):
         if n == 0:
             continue
         z_idx = 0
-        for node_idx in spec.get('indi', ()):
-            init = effective_init(spec, node_idx)
+        for node in spec.get('indi', ()):
+            init = effective_init(spec, node)
             z[start + z_idx] = (
-                z_from_param(spec, init, param=param, node_idx=node_idx)
-                + (np.random.random() - 0.5) * _spec_at(spec, node_idx, "jit")
+                z_from_param(spec, init, param=param, node=node)
+                + (np.random.random() - 0.5) * _node_param_key(spec, node, "jit")
             )
             z_idx += 1
         if spec.get('shared'):
             shared0 = spec['shared'][0]
             init = effective_init(spec, shared0)
             z[start + z_idx] = (
-                z_from_param(spec, init, param=param, node_idx=shared0)
-                + (np.random.random() - 0.5) * _spec_at(spec, shared0, "jit")
+                z_from_param(spec, init, param=param, node=shared0)
+                + (np.random.random() - 0.5) * _node_param_key(spec, shared0, "jit")
             )
     return torch.tensor(z, dtype=sim_dtype).to(active_device())
 
@@ -821,7 +821,7 @@ def parse_param_init_val_tokens(tokens):
     return param_inits, param_vals, param_bounds
 
 
-def _param_node_idxs(param, node, number, spec, backend):
+def _param_nodes(param, node, number, spec, backend):
     cli_ids, idx_kw = _param_cli(spec, backend)
     cli_idx = next(iter(idx_kw.values()))
     if node is None:
@@ -844,14 +844,14 @@ def schema_with_param_inits(schema, backend, rows, *, key):
             spec[key] = float(number)
             spec.pop(plural, None)
         else:
-            _, node_idxs = _param_node_idxs(param, node, number, spec, backend)
+            _, nodes = _param_nodes(param, node, number, spec, backend)
             io = dict(spec.get(plural) or {})
-            for node_idx in node_idxs:
-                io[int(node_idx)] = float(number)
+            for node in nodes:
+                io[int(node)] = float(number)
             spec[plural] = io
         shared = list(spec.get("shared") or ())
         if len(shared) >= 2 and key in ("lo", "hi", "jit"):
-            vals = [_spec_at(spec, node_idx, key) for node_idx in shared]
+            vals = [_node_param_key(spec, node, key) for node in shared]
             if len(set(vals)) > 1:
                 raise ValueError(
                     f"{param}: shared nodes must share the same {key}, "
@@ -888,17 +888,17 @@ def override_params(
         spec = schema.get(param)
         if spec is None:
             raise ValueError(f"--param {param}: unknown param (have {sorted(schema)})")
-        _, node_idxs = _param_node_idxs(param, node, val, spec, session.backend)
+        _, nodes = _param_nodes(param, node, val, spec, session.backend)
         arr = np.asarray(node_vals[param], dtype=np.float64).reshape(-1).copy()
-        for node_idx in node_idxs:
-            arr[int(node_idx)] = float(val)
+        for node in nodes:
+            arr[int(node)] = float(val)
         node_vals[param] = arr
         fixed = {int(i) for i in (spec.get("fixed") or ())}
         if fixed:
             io = dict(spec.get("inits") or {})
-            for node_idx in node_idxs:
-                if int(node_idx) in fixed:
-                    io[int(node_idx)] = float(val)
+            for node in nodes:
+                if int(node) in fixed:
+                    io[int(node)] = float(val)
             spec["inits"] = io
     schema = attach_param_carry(schema, node_vals)
     z = z_from_node_vals(

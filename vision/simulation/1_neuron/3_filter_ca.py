@@ -3,7 +3,7 @@
 
 ``filter_ca`` is a first-order low-pass on ``v_ca`` with
 ``dt_over_tau_ca = dt / tau_ca`` with ``dt = float(delta_ms)`` (same
-``Δt/τ`` pattern as ``dt_over_tau_lp`` / ``dt_over_cap``). Output state is ``ca``.
+``Δt/τ`` pattern as ``dt_over_tau_lp`` / ``dt_over_cap``). Output is ``ca``.
 
 ``delta_ms`` is an injected scalar; ``tau_ca`` may be a schema tensor
 (``p["tau_ca"]``) so the ratio stays in the graph.

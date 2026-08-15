@@ -170,9 +170,8 @@ def locate_neurons(
     best = votes.groupby(self_id).first()
     # All per-column vote counts (descending), e.g. "5, 5, 5, 3"; sums to n_with_column.
 
-    out = targets.rename(columns={"root_id": "_rid"}).copy()
-    out["root_id"] = out["_rid"].astype("int64")
-    out = out.drop(columns="_rid")
+    out = targets.copy()
+    out["root_id"] = out["root_id"].astype("int64")
     out[n_partner_field] = (
         out["root_id"].map(n_partners).fillna(0).astype("int64")
     )
@@ -310,8 +309,8 @@ def _locate_and_write(
     if path.column_map_path(side).exists():
         hex_df = path.load_column_map(side)
         uv_from_column = {
-            int(r.column_id): (int(r.u), int(r.v))
-            for r in hex_df.itertuples(index=False)
+            int(row.column_id): (int(row.u), int(row.v))
+            for row in hex_df.itertuples(index=False)
         }
     else:
         logger.warning(

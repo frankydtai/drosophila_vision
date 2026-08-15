@@ -2,7 +2,7 @@
 
 Per cell column (``spot_gt_v`` order):
   1. hist: red=init %% n_syn+, blue=×trained ``syn_strength_cell``
-  2. plot per cost radius r=0,1,… (same radii as spot time panels):
+  2. plot per cost radius=0,1,… (same radii as spot time panels):
      x = blue %% n_syn+, y = model ``v[t_sti_end-1] - v[t_onset]``
 
 Writes ``<run>/pre_syn/syn_{gt,all}.png`` (incoming), or ``post_syn/`` with ``--post``.
@@ -92,7 +92,7 @@ def syn_plus_by_id(
     cell_idx: dict[str, int],
     strength_by_pair: dict[tuple[int, int], float] | None,
 ) -> dict[int, float]:
-    """root_id -> %% n_syn+ (optional per-pair strength weighting)."""
+    """id -> %% n_syn+ (optional per-pair strength weighting)."""
     if direction == "post":
         self_cell_field, self_id_field = "source_cell", "src"
     else:
@@ -169,7 +169,7 @@ def _spot_bright_session_z(outdir):
 
 
 def load_delta_v_tables(session, z):
-    """cell -> radius_k -> [(root_id, Δv)]; radii from pack cost radii."""
+    """cell -> radius_k -> [(id, Δv)]; radii from pack cost radii."""
     readout = spot._forward_spot_readout(session, z)
     t_onset = readout.get("t_onset")
     t_sti_end = readout.get("t_sti_end")
@@ -179,27 +179,27 @@ def load_delta_v_tables(session, z):
     t1 = int(t_sti_end) - 1
     traces = np.asarray(readout["figure_traces"], dtype=np.float64)
     type_idx = np.asarray(readout["type_idx"], dtype=np.int64)
-    node_idx = np.asarray(readout["node_idx"], dtype=np.int64)
+    nodes = np.asarray(readout["nodes"], dtype=np.int64)
     du = np.asarray(readout["du"], dtype=np.int64)
     dv = np.asarray(readout["dv"], dtype=np.int64)
     cells = list(readout["cells"])
-    root_ids = np.asarray(session.backend.network.node_ids, dtype=np.int64)[node_idx]
+    ids = np.asarray(session.backend.network.node_ids, dtype=np.int64)[nodes]
     radii = sorted({
-        int(r)
-        for r in spot.pack_spot_cost_radii(readout["pack"])
+        int(radius)
+        for radius in spot.pack_spot_cost_radii(readout["pack"])
     })
     r_k = np.asarray(
         [int(build_hex.hex_radius(int(a), int(b))) for a, b in zip(du, dv)],
         dtype=np.int64,
     )
     delta = traces[:, t1] - traces[:, t0]
-    out = {name: {r: [] for r in radii} for name in cells}
+    out = {name: {radius: [] for radius in radii} for name in cells}
     for i in range(len(type_idx)):
         rk = int(r_k[i])
         name = cells[int(type_idx[i])]
         if rk not in out[name] or not np.isfinite(delta[i]):
             continue
-        out[name][rk].append((int(root_ids[i]), float(delta[i])))
+        out[name][rk].append((int(ids[i]), float(delta[i])))
     return out, radii
 
 
@@ -278,8 +278,8 @@ def plot_syn_sign(
             for si, rk in enumerate(radii):
                 ax = fig.add_subplot(gs[base + 1 + si, ci])
                 xs, ys = [], []
-                for root_id, d_v in by_r.get(rk) or []:
-                    percent = pct_tr_map.get(root_id)
+                for id, d_v in by_r.get(rk) or []:
+                    percent = pct_tr_map.get(id)
                     if percent is None:
                         continue
                     xs.append(percent)
@@ -291,7 +291,7 @@ def plot_syn_sign(
                 ax.set_xlim(0, 100)
                 ax.set_xlabel("% n_syn+ (×α)", fontsize=7)
                 ax.set_ylabel("Δv (mV)", fontsize=7)
-                ax.set_title(f"r={rk}  n={len(xs)}", fontsize=8)
+                ax.set_title(f"radius={rk}  n={len(xs)}", fontsize=8)
                 ax.tick_params(labelsize=6)
                 ax.axhline(0.0, color="0.6", linewidth=0.5)
     timer.end_draw()

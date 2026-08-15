@@ -414,22 +414,18 @@ def save_checkpoint_csv(outdir, iter, z_best, session):
 def build_checkpoint_callback(outdir, session, *, run_i=0, n_run=1, on_png=None):
     """Write interval-best npz/csv; optional *on_png* for plot layer (from ``run.py``)."""
 
-    def on_interval_best(iter, z_best, cost_best, state_dict=None):
+    def on_interval_best(iter, z_best, cost_best, adam=None):
         filename = _checkpoint_data_filename('param', iter, run_i=run_i, n_run=n_run)
         save_node_vals(outdir, z_best, session, filename)
-        if state_dict is not None:
-            n = int(np.asarray(z_best.detach().cpu()).reshape(-1).shape[0])
-            exp_avg, exp_avg_sq, n_iter_done = train.adams_from_state_dict(
-                state_dict, n, dtype=torch.float64, device='cpu',
-            )
+        if adam is not None:
             adam_filename = _checkpoint_data_filename(
                 'adam', iter, run_i=run_i, n_run=n_run,
             )
             save_adam(
                 outdir,
-                exp_avg.numpy(),
-                exp_avg_sq.numpy(),
-                n_iter_done,
+                adam['exp_avg'].detach().cpu().numpy(),
+                adam['exp_avg_sq'].detach().cpu().numpy(),
+                adam['iter'],
                 session,
                 adam_filename,
             )
@@ -460,7 +456,7 @@ def load_best_node_vals(outdir):
 
 
 def load_best_adam(outdir):
-    """Load ``data/best_adam.npz`` → (adams_m, adams_v, iter, cells, pairs)."""
+    """Load ``data/best_adam.npz`` → (adams_m, adams_v, adam_iter, cells, pairs)."""
     fp = best_adam_path(outdir)
     if not os.path.isfile(fp):
         raise FileNotFoundError(fp)
@@ -471,7 +467,7 @@ def load_best_adam(outdir):
             pairs = [str(x) for x in d['pairs'].tolist()]
         if 'iter' not in d.files:
             raise ValueError(f'{fp}: missing iter')
-        n_iter_done = int(np.asarray(d['iter']).reshape(-1)[0])
+        adam_iter = int(np.asarray(d['iter']).reshape(-1)[0])
         adams_m = {}
         adams_v = {}
         for k in d.files:
@@ -479,7 +475,7 @@ def load_best_adam(outdir):
                 adams_m[k[2:]] = np.asarray(d[k], dtype=np.float64)
             elif k.startswith('v_'):
                 adams_v[k[2:]] = np.asarray(d[k], dtype=np.float64)
-    return adams_m, adams_v, n_iter_done, cells, pairs
+    return adams_m, adams_v, adam_iter, cells, pairs
 
 
 def load_best_param(outdir, session):
@@ -563,7 +559,7 @@ def load_init_z(init_from, session):
     except SystemExit as exc:
         raise ValueError(str(exc)) from exc
     node_vals, cells, pairs = load_best_node_vals(outdir)
-    adams_m, adams_v, n_iter_done, src_cells, src_pairs = load_best_adam(outdir)
+    adams_m, adams_v, adam_iter, _, _ = load_best_adam(outdir)
     schema = train.schema_copy(session.schema)
     remapped = train.remap_node_vals(
         node_vals, cells, pairs, schema, session.backend,
@@ -579,10 +575,10 @@ def load_init_z(init_from, session):
         remapped, schema, dtype=session.sim_dtype, device=session.device,
     )
     remapped_m = train.remap_node_vals_adams(
-        adams_m, src_cells, src_pairs, schema, session.backend,
+        adams_m, cells, pairs, schema, session.backend,
     )
     remapped_v = train.remap_node_vals_adams(
-        adams_v, src_cells, src_pairs, schema, session.backend,
+        adams_v, cells, pairs, schema, session.backend,
     )
     exp_avg, exp_avg_sq = train.z_adams_from_node_vals(
         remapped_m, remapped_v, schema,
@@ -591,11 +587,11 @@ def load_init_z(init_from, session):
     adam_init = {
         'exp_avg': exp_avg,
         'exp_avg_sq': exp_avg_sq,
-        'iter': int(n_iter_done),
+        'iter': int(adam_iter),
     }
     print(
         f'from {outdir!r} -> {best_param_path(outdir)!r} + {best_adam_path(outdir)!r} '
-        f'({train.schema_nparams(schema)} z, iter={n_iter_done})'
+        f'({train.schema_nparams(schema)} z, adam_iter={adam_iter})'
     )
     return session, z, adam_init
 

@@ -102,7 +102,7 @@ def _cli_idx(*, cell_idx=None, radius_idx=None, pair_idx=None, edge_idx=None):
 def resolve_inits(
     init_pairs, *, cell_idx=None, radius_idx=None, pair_idx=None, edge_idx=None,
 ):
-    """Fold ``(cli_ids|None, number)`` pairs into scalar + per-node_idx bag.
+    """Fold ``(cli_ids|None, number)`` pairs into scalar + per-node bag.
 
     Pass exactly one lookup: ``cell_idx`` / ``radius_idx`` / ``pair_idx`` / ``edge_idx``.
     """
@@ -127,7 +127,7 @@ def resolve_inits(
 def resolve_modes(
     mode_pairs, *, cell_idx=None, radius_idx=None, pair_idx=None, edge_idx=None,
 ):
-    """Fold ``(cli_ids|None, mode)`` pairs into ``modes`` (lists of node_idx)."""
+    """Fold ``(cli_ids|None, mode)`` pairs into ``modes`` (lists of node)."""
     cli_idx = _cli_idx(
         cell_idx=cell_idx, radius_idx=radius_idx, pair_idx=pair_idx, edge_idx=edge_idx,
     )
@@ -188,7 +188,7 @@ def build_param_spec(
     """Build one schema ``spec`` dict (no self-id; caller keys the schema by ``param``).
 
     Pass exactly one of ``cells`` / ``radii`` / ``pairs`` / ``edges`` (CLI vocabulary
-    for node_idx 0..n-1). Omit all only when tokens are ``str(node_idx)``.
+    for node 0..n-1). Omit all only when tokens are ``str(node)``.
     """
     number_pairs, mode_pairs = init_mode_pairs_from_entry(entry, param)
     n_cli = sum(x is not None for x in (cells, radii, pairs, edges))
@@ -200,8 +200,8 @@ def build_param_spec(
         cells = [str(c) for c in cells]
         idx_kw = {"cell_idx": {c: i for i, c in enumerate(cells)}}
     elif radii is not None:
-        radii = [str(r) for r in radii]
-        idx_kw = {"radius_idx": {r: i for i, r in enumerate(radii)}}
+        radii = [str(radius) for radius in radii]
+        idx_kw = {"radius_idx": {radius: i for i, radius in enumerate(radii)}}
     elif pairs is not None:
         pairs = [str(p) for p in pairs]
         idx_kw = {"pair_idx": {p: i for i, p in enumerate(pairs)}}
@@ -233,10 +233,10 @@ def build_param_spec(
         for param_key in ("lo", "hi", "jit"):
             plural = param_key + "s"
             vals = []
-            for node_idx in shared:
+            for node in shared:
                 bag = spec.get(plural)
-                if bag is not None and int(node_idx) in bag:
-                    vals.append(float(bag[int(node_idx)]))
+                if bag is not None and int(node) in bag:
+                    vals.append(float(bag[int(node)]))
                 else:
                     vals.append(float(spec[param_key]))
             if len(set(vals)) > 1:
@@ -266,7 +266,7 @@ def _syn_param(syn_mode, n_pairs, n_edges, params):
 
 def _a_sti_radius_param(params: dict, a_sti_radii):
     """Per-radius ``a_sti_radius`` → ``(param, spec)``."""
-    radii = [str(int(r)) for r in a_sti_radii]
+    radii = [str(int(radius)) for radius in a_sti_radii]
     n = len(radii)
     if n == 0:
         raise ValueError("a_sti_radius requires non-empty a_sti_radii")

@@ -183,7 +183,7 @@ def fig1_trace_from_sti(
     contrast: Optional[str] = None,
     w_deg: Optional[float] = None,
 ) -> Optional[str]:
-    """fig1 trace id for ``(side, subtype, sti)``, or ``None`` if orthogonal."""
+    """fig1 trace token for ``(side, subtype, sti)``, or ``None`` if orthogonal."""
     if isinstance(spec, MovingBarSpec):
         direction, contrast, w_deg = spec.direction, spec.contrast, spec.w_deg
     else:
@@ -301,20 +301,20 @@ _TRACE_CACHE: Dict[str, np.ndarray] = {}
 
 
 def load_fig1_trace(
-    trace_id: str,
+    trace_token: str,
     npz_path: Path = FIG1_CI_NPZ,
     *,
     delta_ms: float,
 ) -> np.ndarray:
     """Resample one fig1 trace onto the moving-bar cost window."""
     n_t = t_from_ms(COST_WINDOW_MS, delta_ms=delta_ms) + 1
-    key = f"{trace_id}|{n_t}|{delta_ms}|{COST_WINDOW_MS}|{COST_ALIGNED_FIRST_STI_MS}"
+    key = f"{trace_token}|{n_t}|{delta_ms}|{COST_WINDOW_MS}|{COST_ALIGNED_FIRST_STI_MS}"
     if key in _TRACE_CACHE:
         return _TRACE_CACHE[key]
     with np.load(npz_path) as d:
-        t_key, v_key = f"{trace_id}__time_ms", f"{trace_id}__vm_mv"
+        t_key, v_key = f"{trace_token}__time_ms", f"{trace_token}__vm_mv"
         if t_key not in d.files:
-            raise KeyError(f"missing trace {trace_id!r} in {npz_path}")
+            raise KeyError(f"missing trace {trace_token!r} in {npz_path}")
         time_ms = np.asarray(d[t_key], dtype=np.float64)
         vm_mv = np.asarray(d[v_key], dtype=np.float64)
     query_ms = np.arange(n_t, dtype=np.float64) * delta_ms
@@ -330,8 +330,10 @@ def load_fig1_traces(
 ) -> Dict[str, np.ndarray]:
     """All fig1 traces resampled to the per-hex train window."""
     with np.load(npz_path) as d:
-        tids = sorted({k.replace("__time_ms", "") for k in d.files if k.endswith("__time_ms")})
+        trace_tokens = sorted(
+            {k.replace("__time_ms", "") for k in d.files if k.endswith("__time_ms")}
+        )
     return {
-        tid: load_fig1_trace(tid, npz_path, delta_ms=delta_ms)
-        for tid in tids
+        trace_token: load_fig1_trace(trace_token, npz_path, delta_ms=delta_ms)
+        for trace_token in trace_tokens
     }

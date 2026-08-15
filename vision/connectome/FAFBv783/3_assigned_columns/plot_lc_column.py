@@ -41,7 +41,7 @@ from build_hex import (  # noqa: E402
     OUTSIDE_COLOR,
     _plot_hexes,
     xy_deg_from_uv,
-    inside_mask,
+    radius_mask,
     set_axis_labels,
 )
 from assign_column import _output_name  # noqa: E402
@@ -169,7 +169,7 @@ def make_figure(cols: pd.DataFrame, lc_cells: List[str] = LC_CELLS) -> Path:
     col_u = dict(zip(cols["column_id"].astype(int), cols["u"].astype(int)))
     col_v = dict(zip(cols["column_id"].astype(int), cols["v"].astype(int)))
     # Inside/outside split from the shared knob (EXTENT < 0 -> all inside).
-    mask = inside_mask(cols["u"].values, cols["v"].values, EXTENT)
+    mask = radius_mask(cols["u"].values, cols["v"].values, EXTENT)
     inside_ids = set(cols["column_id"].astype(int)[mask])
 
     bg_u, bg_v = cols["u"].values, cols["v"].values
@@ -184,10 +184,10 @@ def make_figure(cols: pd.DataFrame, lc_cells: List[str] = LC_CELLS) -> Path:
         [lc for lc in group if lc in lc_cells]
         for group in (ROW1_CELLS, ROW2_CELLS)
     ]
-    row_lists = [r for r in row_lists if r]  # drop a group with nothing selected
+    row_lists = [row for row in row_lists if row]  # drop a group with nothing selected
     nrows = len(row_lists)
     # +1 column per row for the rightmost "sum" panel (per-column sum of the row).
-    ncols = max(len(r) for r in row_lists) + 1
+    ncols = max(len(row) for row in row_lists) + 1
     fig, axes = plt.subplots(
         nrows, ncols, figsize=(5.2 * ncols, 5.5 * nrows),
         sharex=True, sharey=True, squeeze=False,
@@ -203,7 +203,7 @@ def make_figure(cols: pd.DataFrame, lc_cells: List[str] = LC_CELLS) -> Path:
             s = s.add(n_by_lc[lc], fill_value=0)
         return s.astype("int64")
 
-    row_sums = [_row_sum(r) for r in row_lists]
+    row_sums = [_row_sum(row) for row in row_lists]
     global_max = max(
         [int(vals.max()) for vals in n_by_lc.values() if len(vals)]
         + [int(vals.max()) for vals in row_sums if len(vals)]
@@ -245,15 +245,15 @@ def make_figure(cols: pd.DataFrame, lc_cells: List[str] = LC_CELLS) -> Path:
         )
 
     drawn_axes = []
-    for r, row in enumerate(row_lists):
+    for row, row in enumerate(row_lists):
         for col, lc in enumerate(row):
-            ax = axes[r, col]
+            ax = axes[row, col]
             drawn_axes.append(ax)
             _panel(ax, n_by_lc[lc], lc)
         # Rightmost panel of the row: per-column sum over this row's types.
-        ax_sum = axes[r, ncols - 1]
+        ax_sum = axes[row, ncols - 1]
         drawn_axes.append(ax_sum)
-        _panel(ax_sum, row_sums[r], "sum (" + "+".join(row) + ")")
+        _panel(ax_sum, row_sums[row], "sum (" + "+".join(row) + ")")
 
     # Hide every panel that has no selected type (empty columns / empty rows).
     for ax in axes.flat:

@@ -114,9 +114,9 @@ def _plot(
     gs = fig.add_gridspec(nrows + 1, ncols, height_ratios=[1.1] + [1.0] * nrows)
     ax_pr = fig.add_subplot(gs[0, :])
     axes = np.empty((nrows, ncols), dtype=object)
-    for r in range(nrows):
+    for row in range(nrows):
         for col in range(ncols):
-            axes[r][col] = fig.add_subplot(gs[r + 1, col])
+            axes[row][col] = fig.add_subplot(gs[row + 1, col])
 
     t_s = np.arange(with_lp.shape[1]) * dt_ms / 1000.0
     idx_from_cell = {str(n): i for i, n in enumerate(GT_CELLS)}
@@ -138,9 +138,9 @@ def _plot(
     ax_pr.tick_params(labelsize=7)
     ax_pr.legend(loc="upper right", fontsize=7, frameon=False)
 
-    for r, group in enumerate(groups):
+    for row, group in enumerate(groups):
         for col in range(ncols):
-            ax = axes[r][col]
+            ax = axes[row][col]
             if col >= len(group):
                 ax.axis("off")
                 continue
@@ -162,7 +162,7 @@ def _plot(
             ax.set_ylim(*TRACE_YLIM)
             ax.axhline(0.0, color="0.7", lw=0.5)
             ax.axvline(t_on * dt_ms / 1000.0, color="0.85", lw=0.6, ls="--")
-            if r == nrows - 1:
+            if row == nrows - 1:
                 ax.set_xlabel("t (s)", fontsize=8)
             if col == 0:
                 ax.set_ylabel("Ca gt", fontsize=8)

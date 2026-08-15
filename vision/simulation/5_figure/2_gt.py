@@ -22,15 +22,14 @@ from network.construction import active_gt_cells, gt_cells_from_opts
 _VALID_CONTRASTS = ("bright", "dark")
 
 
-def cells_from_nodes(session, node_idxs):
-    node_idx = node_idxs
-    if torch.is_tensor(node_idx):
-        node_idx = node_idx.detach().cpu().numpy()
-    node_idx = np.asarray(node_idx, dtype=np.int64)
+def cells_from_nodes(session, nodes):
+    if torch.is_tensor(nodes):
+        nodes = nodes.detach().cpu().numpy()
+    nodes = np.asarray(nodes, dtype=np.int64)
     connectome = session.backend.network
     if connectome is None:
         raise ValueError("cells_from_nodes requires session.backend.network")
-    node_cells = connectome.node_cells[node_idx]
+    node_cells = connectome.node_cells[nodes]
     if torch.is_tensor(node_cells):
         node_cells = node_cells.detach().cpu().numpy()
     cells = list(connectome.cells)

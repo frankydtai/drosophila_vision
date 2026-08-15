@@ -79,15 +79,15 @@ class MovingBarGt:
     dsi_power: Optional[torch.Tensor] = None
 
 
-def moving_bar_nodes_on_hexes(connectome, cell: str, hexes: Sequence) -> np.ndarray:
-    """Node idxs of ``cell`` on any of ``hexes`` (vectorized axial uv pack)."""
+def nodes_from_hexes(connectome, cell: str, hexes: Sequence) -> np.ndarray:
+    """Nodes of ``cell`` whose hex is among ``hexes`` (vectorized axial uv pack)."""
     if not hexes:
         return np.zeros(0, dtype=np.int64)
     if cell not in connectome.cells:
         raise ValueError(f"unknown cell {cell!r}; known: {list(connectome.cells)}")
     ti = int(connectome.cells.index(cell))
     node_u_np, node_v_np = network_uv_np(connectome)
-    cell_ids = _as_int64_np(connectome.node_cells)
+    cell_idxs = _as_int64_np(connectome.node_cells)
     uv_span = int(max(np.max(np.abs(node_u_np)), np.max(np.abs(node_v_np)), 1)) + 1
     pack = (node_u_np + uv_span) * (2 * uv_span + 1) + (node_v_np + uv_span)
     hex_pack = np.array(
@@ -97,7 +97,7 @@ def moving_bar_nodes_on_hexes(connectome, cell: str, hexes: Sequence) -> np.ndar
         ],
         dtype=np.int64,
     )
-    return np.where((cell_ids == ti) & np.isin(pack, hex_pack))[0].astype(np.int64)
+    return np.where((cell_idxs == ti) & np.isin(pack, hex_pack))[0].astype(np.int64)
 
 
 def filter_requested_specs(
@@ -183,7 +183,7 @@ def _csr_from_groups(
     return entries_t, ptr_t
 
 
-def pack_moving_bar_dsi_tensors(pos_groups, neg_groups, dsi_vals, scales, *, device, sim_dtype):
+def pack_moving_bar_dsi(pos_groups, neg_groups, dsi_vals, scales, *, device, sim_dtype):
     if not pos_groups:
         empty_long = torch.zeros(0, dtype=torch.long, device=device)
         empty = torch.zeros(0, dtype=sim_dtype, device=device)
@@ -220,7 +220,7 @@ def _empty_dsi_fields(pack, device) -> dict:
 
 
 def remap_dsi_entries(pack, kept_old_entries) -> dict:
-    """Remap CSR DSI groups onto kept cost-entry idxs; drop incomplete groups."""
+    """Remap CSR DSI groups onto kept cost entries; drop incomplete groups."""
     if pack.dsi_pos_ptr is None or int(pack.dsi_pos_ptr.numel()) <= 1:
         return {
             "dsi_pos_entries": pack.dsi_pos_entries,
@@ -366,15 +366,15 @@ def _assemble_moving_bar_readouts(
                 if waveform_mse:
                     if fig1 is None:
                         raise ValueError("fig1 traces required when waveform_mse=True")
-                    trace_id = fig1_trace_from_sti(side, subtype, spec)
-                    if trace_id not in fig1:
-                        raise KeyError(f"fig1 trace missing: {trace_id}")
-                    gt_trace = fig1[trace_id]
+                    trace_token = fig1_trace_from_sti(side, subtype, spec)
+                    if trace_token not in fig1:
+                        raise KeyError(f"fig1 trace missing: {trace_token}")
+                    gt_trace = fig1[trace_token]
                 pd_nd_idx = PD_IDX if pref.pd_nd == "PD" else ND_IDX
                 t0 = t0_by_hex.get(hex_idx, 0)
-                for node_idx in nodes:
+                for node in nodes:
                     r_bs.append(b)
-                    r_node.append(int(node_idx))
+                    r_node.append(int(node))
                     r_subtype.append(str(subtype))
                     if gt_trace is not None:
                         r_readout.append(gt_trace)
@@ -388,7 +388,7 @@ def _assemble_moving_bar_readouts(
     )
 
 
-def _pack_moving_bar_readout_tensors(
+def _pack_moving_bar_entries(
     r_bs, r_node, r_readout, r_scale, r_t0, r_pd_nd, *, device, sim_dtype,
     waveform_mse: bool = True,
 ):
@@ -496,7 +496,7 @@ def build_moving_bar_gt(
         raise ValueError("no moving-bar cost nodes (check subtypes and sti hexes)")
 
     gts, cost_scales, entry_bs, entry_nodes, cost_t0s, cost_pd_nds, power = (
-        _pack_moving_bar_readout_tensors(
+        _pack_moving_bar_entries(
             r_bs, r_node, r_readout, r_scale, r_t0, r_pd_nd,
             device=device, sim_dtype=sim_dtype, waveform_mse=waveform_mse,
         )
@@ -504,7 +504,7 @@ def build_moving_bar_gt(
     (
         dsi_pos_entries, dsi_neg_entries, dsi_pos_ptr, dsi_neg_ptr,
         dsi_tgt, dsi_w, dsi_pow,
-    ) = pack_moving_bar_dsi_tensors(
+    ) = pack_moving_bar_dsi(
         *assemble_moving_bar_dsi_groups(
             sti.specs, r_bs, r_subtype, r_scale, side=side,
         ),

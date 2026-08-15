@@ -7,7 +7,7 @@ Owns the time-axis gather shared by the continuous moving-bar cost_window
 ``Pack`` or the session/train layer, so ``neuron`` stays below
 ``train`` in the import graph.
 
-Sparse time-point subsampling (``cost_time_idxs``) is applied at cost time in
+Sparse time-point subsampling (``cost_ts``) is applied at cost time in
 ``train.cost`` on the post-onset ``ms_response`` window returned here
 (``gts.shape[1]`` samples from ``pack_t_onset``; excludes spot ``ms_post``).
 """
@@ -23,7 +23,7 @@ def pack_needs_waveform_mse(pack) -> bool:
     return bool(pack.waveform_mse)
 
 
-def window_time_traces(trace_full, b_idx, u_idx, t0, n_t, *, t_onset=0):
+def window_time_traces(trace_full, bs, nodes, t0, n_t, *, t_onset=0):
     """Extract per-entry time slices from ``trace_full`` ``(B, n_t, N)``.
 
     ``t0`` is the absolute simulation time of slice start (``t`` uses
@@ -35,7 +35,7 @@ def window_time_traces(trace_full, b_idx, u_idx, t0, n_t, *, t_onset=0):
     t = torch.arange(n_t, dtype=torch.long, device=dev)
     t_abs = t0[:, None].to(device=dev, dtype=torch.long) + t[None, :]
     t_safe = t_abs.clamp(0, trace_full.shape[1] - 1)
-    v_readout = trace_full[b_idx[:, None], t_safe, u_idx[:, None]]
+    v_readout = trace_full[bs[:, None], t_safe, nodes[:, None]]
     return torch.where(
         t_abs < int(t_onset), torch.zeros_like(v_readout), v_readout,
     )

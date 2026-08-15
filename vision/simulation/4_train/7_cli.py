@@ -337,7 +337,7 @@ def add_train_arguments(parser):
         metavar="BOOL",
         help="include t < t_onset in BPTT "
              f"(default: {str(NEURON_FORWARD['pre_grad']).lower()}); "
-             "false → no_grad pre + detach state/v at onset",
+             "false → no_grad pre + detach v / v_slow|u at onset",
     )
     add_filter_argument(parser, default=NEURON_FILTER['filter'])
     parser.add_argument(
@@ -398,8 +398,8 @@ def add_train_arguments(parser):
         default=SPOT_INPUT['spot_radius'],
         metavar="R",
         help=f"spot footprint / center-tiling radius (0.5 multiples; default {_format_branch_value(SPOT_INPUT['spot_radius'])}); "
-             "radius=1 folds rf(2) into r=1 gt a_radius and defaults cost scales "
-             "to 0=1 1=1/6; radius 1.5/2 keep rf(r) and 0=1 1=1/6 2=1/6",
+             "radius=1 folds rf(2) into radius=1 gt a_radius and defaults cost scales "
+             "to 0=1 1=1/6; radius 1.5/2 keep rf(radius) and 0=1 1=1/6 2=1/6",
     )
     add_multi_spot_arguments(parser)
     parser.add_argument(
@@ -407,7 +407,7 @@ def add_train_arguments(parser):
         default=None,
         nargs="+",
         metavar="R|R=S",
-        help="spot cost scales by hex-lattice r from sti hex (space-separated). "
+        help="spot cost scales by hex-lattice radius from sti hex (space-separated). "
              "Same rules as --part-cost-scale: R=S merges onto radius defaults; bare R "
              "zeros all known radii then sets R=1. Omit → radius default "
              "(1→0=1 1=1/6; else 0=1 1=1/6 2=1/6). Keys: 0,1,2. "
@@ -450,15 +450,15 @@ def add_train_arguments(parser):
              "overwritten per radius by --cost-ms",
     )
     _cost_ms_default = " ".join(
-        f"{int(r)}={','.join(str(x) for x in ms)}"
-        for r, ms in sorted(TRAIN_OPTIMIZATION['cost_ms'].items())
+        f"{int(radius)}={','.join(str(x) for x in ms)}"
+        for radius, ms in sorted(TRAIN_OPTIMIZATION['cost_ms'].items())
     ) or "none"
     parser.add_argument(
         "--cost-ms",
         default=None,
         nargs="+",
         metavar="R=MS,...",
-        help="spot: explicit post-onset ms per hex-lattice r (space-separated "
+        help="spot: explicit post-onset ms per hex-lattice radius (space-separated "
              "R=MS,...); overwrites --cost-interval-ms for those radii. "
              f"Omit → {_cost_ms_default}; none|off → all radii use interval",
     )

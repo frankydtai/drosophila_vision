@@ -14,8 +14,10 @@ from typing import Optional, Sequence
 import numpy as np
 import torch
 
+from network import path  # noqa: F401 -- FAFBv783 on sys.path
+import build_hex
 from neuron.param import t_from_ms
-from task.spot.sti_geo import SpotB, hexes_by_radius
+from task.spot.sti_geo import SpotB
 
 _STI_TIMING_KEYS = (
     "ms_pre", "ms_response", "ms_post", "ms_sti", "delta_ms", "delta_ms_pre",
@@ -253,42 +255,41 @@ def build_spot_a_sti_radius_drive(
     """Baseline ``i_sti`` + center bake + radius contribs for ``a_sti_radius``.
 
     Returns ``(i_sti, sti_wave, sti_bs, sti_nodes, a_sti_radius_idxs)`` where center
-    r=0 is baked into ``i_sti`` at scale 1, and radius contribs compose as
-    ``i += a_sti_radius[r] * sti_wave`` on ``(sti_bs, sti_nodes)``. ``a_sti_radius_idxs``
-    indexes ``a_sti_radii`` / ``a_sti_radius`` (center r=0 not in that axis). Empty
+    radius=0 is baked into ``i_sti`` at scale 1, and radius contribs compose as
+    ``i += a_sti_radius[radius] * sti_wave`` on ``(sti_bs, sti_nodes)``. ``a_sti_radius_idxs``
+    indexes ``a_sti_radii`` / ``a_sti_radius`` (center radius=0 not in that axis). Empty
     ``a_sti_radii`` → center-only drive. Does not modify gt construction.
     """
-    radii = tuple(int(r) for r in a_sti_radii)
-    if any(r == 0 for r in radii):
-        raise ValueError("a_sti_radii must omit center r=0 (baked into i_sti @1)")
-    by_radius = hexes_by_radius(radii) if radii else {}
-    radius_idx = {r: i for i, r in enumerate(radii)}
+    radii = tuple(int(radius) for radius in a_sti_radii)
+    if any(radius == 0 for radius in radii):
+        raise ValueError("a_sti_radii must omit center radius=0 (baked into i_sti @1)")
+    radius_idx = {radius: i for i, radius in enumerate(radii)}
     sti_b_vals: list[int] = []
     node_l: list[int] = []
     r_l: list[int] = []
     center_nodes: list[tuple[int, int]] = []
     for b, spot_b in enumerate(spot_bs):
         for sti_hex_u, sti_hex_v in spot_b.sti_uv:
-            for nid in connectome.sti_nodes_at(int(sti_hex_u), int(sti_hex_v)):
-                center_nodes.append((int(b), int(nid)))
-            for radius, hexes in by_radius.items():
+            for node in connectome.sti_nodes_at_uv(int(sti_hex_u), int(sti_hex_v)):
+                center_nodes.append((int(b), int(node)))
+            for radius in radii:
                 ri = radius_idx[radius]
-                for du, dv in hexes:
-                    for nid in connectome.sti_nodes_at(int(sti_hex_u) + int(du), int(sti_hex_v) + int(dv)):
+                for du, dv in build_hex.shell_hexes(radius):
+                    for node in connectome.sti_nodes_at_uv(int(sti_hex_u) + int(du), int(sti_hex_v) + int(dv)):
                         sti_b_vals.append(int(b))
-                        node_l.append(int(nid))
+                        node_l.append(int(node))
                         r_l.append(int(ri))
     u = sti_waveform(t_onset, n_t, ms_sti, delta_ms=delta_ms)
     n_b = len(spot_bs)
-    sti_idx = torch.as_tensor(connectome.sti_node_idxs, dtype=torch.long, device=device)
+    sti_nodes = torch.as_tensor(connectome.sti_nodes, dtype=torch.long, device=device)
     i_sti = torch.zeros((n_b, n_t, connectome.n_nodes), dtype=sim_dtype, device=device)
-    if len(sti_idx):
-        i_sti[:, :, sti_idx] = float(i_baseline)
+    if len(sti_nodes):
+        i_sti[:, :, sti_nodes] = float(i_baseline)
     sti_wave = torch.as_tensor(
         (float(i_peak) - float(i_baseline)) * u, dtype=sim_dtype, device=device,
     )
-    for b, nid in center_nodes:
-        i_sti[b, :, nid] = i_sti[b, :, nid] + sti_wave
+    for b, node in center_nodes:
+        i_sti[b, :, node] = i_sti[b, :, node] + sti_wave
     sti_bs = torch.tensor(sti_b_vals, dtype=torch.long, device=device)
     sti_nodes = torch.tensor(node_l, dtype=torch.long, device=device)
     a_sti_radius_idxs = torch.tensor(r_l, dtype=torch.long, device=device)

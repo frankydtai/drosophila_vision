@@ -137,9 +137,9 @@ def _plot(traces_v, traces_ca, traces_v50, dt10, dt50, save, show):
     t50 = np.arange(next(iter(traces_v50.values())).shape[0]) * dt50 / 1000.0
 
     name_set = set(names)
-    for r, group in enumerate(groups):
+    for row, group in enumerate(groups):
         for col in range(ncols):
-            ax = axes[r][col]
+            ax = axes[row][col]
             if col >= len(group):
                 ax.axis("off")
                 continue
@@ -157,7 +157,7 @@ def _plot(traces_v, traces_ca, traces_v50, dt10, dt50, save, show):
             ax.set_title(name, fontsize=9)
             ax.set_ylim(*TRACE_YLIM)
             ax.axhline(0.0, color="0.7", lw=0.6)
-            if r == nrows - 1:
+            if row == nrows - 1:
                 ax.set_xlabel("t (s)", fontsize=8)
             if col == 0:
                 ax.set_ylabel("Δ mV", fontsize=8)

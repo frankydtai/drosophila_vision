@@ -13,22 +13,6 @@ import build_hex
 _SPOT_RADIUS_HALF_STEP_TOL = 1e-9
 
 
-def hexes_by_radius(radii) -> dict[int, list[tuple[int, int]]]:
-    """Map each hex-lattice radius to sti-centered axial ``(du, dv)`` hexes."""
-    radii_set = {int(radius) for radius in radii}
-    by_radius: dict[int, list[tuple[int, int]]] = {}
-    for radius in sorted(radii_set):
-        if radius < 0:
-            raise ValueError(f"spot cost radius must be >= 0, got {radius!r}")
-        hexes = [
-            (int(du), int(dv)) for du, dv in build_hex.shell_hexes(radius)
-        ]
-        if not hexes:
-            raise ValueError(f"no hexes for spot cost radius {radius}")
-        by_radius[radius] = hexes
-    return by_radius
-
-
 def spot_radius_half_steps(spot_radius) -> int:
     """``spot_radius = 0.5 * m`` for non-negative integer ``m``; return ``m``."""
     value = float(spot_radius)

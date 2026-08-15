@@ -20,7 +20,7 @@ from typing import Dict, Set
 import path
 from import_bootstrap import parse_comma_list
 from path import DEFAULT_NETWORK_RUN
-from build_hex import inside_mask
+from build_hex import radius_mask
 from build_network import _write_summary
 
 logger = logging.getLogger(__name__)
@@ -61,7 +61,7 @@ def add_radius(run_dir: Path, crop_radius: int) -> Path:
 
     kept_nodes = [
         n for n in nodes
-        if n.get("u") is not None and bool(inside_mask(n["u"], n["v"], crop_radius))
+        if n.get("u") is not None and bool(radius_mask(n["u"], n["v"], crop_radius))
     ]
     kept_ids: Set[int] = {n["id"] for n in kept_nodes}
     kept_edges = [
@@ -125,7 +125,7 @@ def main() -> None:
         radii = [int(t) for t in tokens]
     except ValueError as e:
         raise SystemExit(f"invalid radius in {args.radii!r}") from e
-    if any(r < 0 for r in radii):
+    if any(radius < 0 for radius in radii):
         raise SystemExit(f"each radius must be >= 0, got {radii}")
 
     run_dir = resolve_run_dir(args.run)

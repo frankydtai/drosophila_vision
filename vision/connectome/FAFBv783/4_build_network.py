@@ -248,8 +248,8 @@ def pos_from_column(side: str) -> Dict[int, Tuple[int, int]]:
     _require(path.column_map_path(side))
     df = path.load_column_map(side)
     return {
-        int(r.column_id): (int(r.u), int(r.v))
-        for r in df.itertuples(index=False)
+        int(row.column_id): (int(row.u), int(row.v))
+        for row in df.itertuples(index=False)
     }
 
 
@@ -258,7 +258,7 @@ def _sign_per_pre(connections: pd.DataFrame) -> Dict[int, float]:
     w = connections.groupby(["pre_root_id", "nt_type"])["syn_count"].sum().reset_index()
     w = w.sort_values(["pre_root_id", "syn_count"], ascending=[True, False])
     dom = w.groupby("pre_root_id").first()
-    return {int(rid): SIGN_FROM_NT.get(str(nt), 1.0) for rid, nt in dom["nt_type"].items()}
+    return {int(id): SIGN_FROM_NT.get(str(nt), 1.0) for id, nt in dom["nt_type"].items()}
 
 
 def _dominant_nt_per_edge(connections: pd.DataFrame) -> Dict[Tuple[int, int], str]:
@@ -272,8 +272,8 @@ def _dominant_nt_per_edge(connections: pd.DataFrame) -> Dict[Tuple[int, int], st
         .tail(1)
     )
     return {
-        (int(r.pre_root_id), int(r.post_root_id)): str(r.nt_type)
-        for r in g.itertuples(index=False)
+        (int(row.pre_root_id), int(row.post_root_id)): str(row.nt_type)
+        for row in g.itertuples(index=False)
     }
 
 
@@ -297,35 +297,35 @@ def build(side: str, min_neuron_count: int) -> Path:
     cell_from_id = dict(zip(neurons["root_id"].astype("int64"), neurons["cell"].astype(str)))
 
     # Column position is OPTIONAL: column-assigned neurons + located types.
-    # pos maps root_id -> (u, v, column_id). Native assignment wins over located.
+    # pos maps id -> (u, v, column_id). Native assignment wins over located.
     pos: Dict[int, Tuple[int, int, int]] = {}
-    for r in columns.itertuples(index=False):
-        rid = int(r.root_id)
-        if rid not in kept_ids or rid in pos:
+    for row in columns.itertuples(index=False):
+        id = int(row.root_id)
+        if id not in kept_ids or id in pos:
             continue
-        cid = int(r.column_id)
+        cid = int(row.column_id)
         uv = col_pos.get(cid)
         if uv is not None:
-            pos[rid] = (uv[0], uv[1], cid)
+            pos[id] = (uv[0], uv[1], cid)
 
     for cell, direction in ASSIGNED_COLUMN_CELLS:
         loc = pd.read_csv(_ensure_assigned_column_csv(side, cell, direction))
         loc = loc[loc["majority_column_id"].notna()]
-        for r in loc.itertuples(index=False):
-            rid = int(r.root_id)
-            if rid not in kept_ids or rid in pos:
+        for row in loc.itertuples(index=False):
+            id = int(row.root_id)
+            if id not in kept_ids or id in pos:
                 continue
-            cid = int(r.majority_column_id)
+            cid = int(row.majority_column_id)
             uv = col_pos.get(cid)
             if uv is not None:
-                pos[rid] = (uv[0], uv[1], cid)
+                pos[id] = (uv[0], uv[1], cid)
 
     nodes = []
-    for rid in kept_ids:
-        cell = cell_from_id[rid]
-        u, v, cid = pos.get(rid, (None, None, None))
+    for id in kept_ids:
+        cell = cell_from_id[id]
+        u, v, cid = pos.get(id, (None, None, None))
         nodes.append({
-            "id": rid, "name": cell, "u": u, "v": v, "column_id": cid,
+            "id": id, "name": cell, "u": u, "v": v, "column_id": cid,
             "sti": cell in STI_CELLS, "output": False,
         })
     logger.info(

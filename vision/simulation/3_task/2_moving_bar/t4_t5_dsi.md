@@ -8,7 +8,7 @@ Experimental reference traces come from **[`figure_digitization/gruntman21/1ci_d
 
 | CSV column   | Meaning |
 | ------------ | ------- |
-| `trace_id`   | Lookup key, e.g. `T4_PC_w1_PD` |
+| `trace_id`   | Lookup key, e.g. `T4_PC_w1_PD` (vision code: ``trace_token``) |
 | `cell`  | `T4` or `T5` (pathway; not subtype a–d) |
 | `panel`      | `Ci` (T4) or `Cii` (T5) |
 | `contrast`   | `PC` or `NC` (preferred / non-preferred contrast for that pathway) |
@@ -17,7 +17,7 @@ Experimental reference traces come from **[`figure_digitization/gruntman21/1ci_d
 | `time_ms`    | Time relative to bar onset (ms) |
 | `vm_mv`      | Population potential (mV) |
 
-The CSV holds **16 traces** per pathway panel: 2 contrasts × 2 ws × 2 directions. Subtype-specific tables below map each `(eye, sti)` to one of those keys via `t4_t5_dsi.py` (`fig1_trace_for_sti` → `T4_PC_w1_PD` style ids). Training loads the same data as [`1ci_digitized.npz`](../../figure_digitization/gruntman21/1ci_digitized.npz) (`FIG1_CI_NPZ` in `task.moving_bar.gt`).
+The CSV holds **16 traces** per pathway panel: 2 contrasts × 2 ws × 2 directions. Subtype-specific tables below map each `(eye, sti)` to one of those keys via `t4_t5_dsi.py` (`fig1_trace_for_sti` → `T4_PC_w1_PD` style tokens). Training loads the same data as [`1ci_digitized.npz`](../../figure_digitization/gruntman21/1ci_digitized.npz) (`FIG1_CI_NPZ` in `task.moving_bar.gt`).
 
 ## Contrast (pathway)
 

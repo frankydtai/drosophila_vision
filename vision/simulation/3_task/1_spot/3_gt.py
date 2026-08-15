@@ -15,7 +15,7 @@ samples in :data:`RF_SCALE` and LP ``IR_lp_ms`` (``IR_hp_ms=0``).
 ir from :func:`load_ir_arenz` when a CSV row exists.
 
 :data:`RF_SCALE` holds peak-normalized unsigned samples at hex-lattice radii
-``0 .. RF_N_RADII-1`` (center = +1). Assembled gt is ``rf(r) × ir(t)`` per
+``0 .. RF_N_RADII-1`` (center = +1). Assembled gt is ``rf(radius) × ir(t)`` per
 cell, shape ``(RF_N_RADII, n_t)``.
 Cost GT membership is gated by ``spot_gt_mode`` (``all`` | ``positive``) via
 :func:`spot_gt_active` (still uses :data:`RF_SIGN`); waveform ×
@@ -109,7 +109,7 @@ RF_RADIUS_DEG = 5.0
 #     "Tm9": 0.23,
 # }
 
-# Peak-normalized unsigned rf(r) at r=0..4 (center=+1); no RF_SIGN.
+# Peak-normalized unsigned rf(radius) at radius=0..4 (center=+1); no RF_SIGN.
 RF_SCALE = {
     "L1": [1.000, 0.137, -0.009, -0.008, -0.006],
     "L2": [1.000, 0.231, -0.009, -0.008, -0.005],
@@ -385,7 +385,7 @@ def load_rf_ir(*, t_onset=None, n_t=None, ms_sti=None, delta_ms: float, filter="
 
 
 def _gt_from_rf_ir(rf: np.ndarray, ir: np.ndarray) -> np.ndarray:
-    """``(n_cells, RF_N_RADII, n_t)`` = rf(r) × ir(t) (no membership gate)."""
+    """``(n_cells, RF_N_RADII, n_t)`` = rf(radius) × ir(t) (no membership gate)."""
     n_t = ir.shape[1]
     n_cells = rf.shape[0]
     gt = np.zeros((n_cells, RF_N_RADII, n_t))
@@ -458,14 +458,14 @@ def _spot_readout_a_radius(
     radius: int,
     spot_radius: float,
 ) -> float:
-    """rf ``a_radius`` at hex-lattice ``radius`` (radius-1 folds r=2 into r=1)."""
-    r = int(radius)
-    if r < 0 or r >= RF_N_RADII:
+    """rf ``a_radius`` at hex-lattice ``radius`` (radius-1 folds radius=2 into radius=1)."""
+    radius = int(radius)
+    if radius < 0 or radius >= RF_N_RADII:
         raise ValueError(f"spot rf radius out of range: {radius!r}")
     # spot_radius == 1 → half_steps == 2: a_radius(1)=rf(1)+rf(2), a_radius(2)=0
     if spot_radius_half_steps(spot_radius) == 2:
-        if r == 1:
+        if radius == 1:
             return float(rf[1]) + float(rf[2])
-        if r == 2:
+        if radius == 2:
             return 0.0
-    return float(rf[r])
+    return float(rf[radius])

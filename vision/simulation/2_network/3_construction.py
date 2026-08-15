@@ -82,7 +82,7 @@ class Network:
     column_ids: np.ndarray            # (N,) FAFB column_ids (or -1)
     is_sti: np.ndarray             # (N,) bool sti (photoreceptor) node
     node_ids: list[int]              # (N,) original node ids in node order
-    node_from_id: dict[int, int]       # node id -> node index
+    node_from_id: dict[int, int]   # node id -> node
     device: str = "cpu"
     meta: dict = field(default_factory=dict)
     source_json: Path | None = None
@@ -92,12 +92,12 @@ class Network:
         return len(self.cells)
 
     @property
-    def sti_node_idxs(self) -> np.ndarray:
-        """Node idxs with ``is_sti``."""
+    def sti_nodes(self) -> np.ndarray:
+        """Nodes with ``is_sti``."""
         return np.where(self.is_sti)[0]
 
-    def sti_nodes_at(self, u: int, v: int) -> np.ndarray:
-        """Sti node idxs on hex (u, v)."""
+    def sti_nodes_at_uv(self, u: int, v: int) -> np.ndarray:
+        """Sti nodes on hex (u, v)."""
         return np.where((self.us == u) & (self.vs == v) & self.is_sti)[0]
 
 
@@ -113,7 +113,7 @@ def hex2gt(
     gt_type: str,
     node_cell: np.ndarray | None = None,
 ) -> np.ndarray:
-    """Node idxs of cell ``gt_type`` on hex (u, v)."""
+    """Nodes of cell ``gt_type`` on hex (u, v)."""
     if node_cell is None:
         node_cell = node_cells(connectome)
     return np.where(
@@ -131,13 +131,13 @@ def standardize_cost_radius(cost_radius=None):
     return v
 
 
-def hex_in_cost_radius(u, v, cost_radius=None) -> bool:
-    """True when axial ``(u, v)`` lies in the cost hex disc (``None`` = all hexes)."""
+def cost_radius_mask(u, v, cost_radius=None) -> bool:
+    """True when axial ``(u, v)`` has ``hex_radius <= cost_radius`` (``None`` = all hexes)."""
     cost_radius = standardize_cost_radius(cost_radius)
     if cost_radius is None:
         return True
     import build_hex
-    return bool(build_hex.inside_mask(int(u), int(v), int(cost_radius)))
+    return bool(build_hex.radius_mask(int(u), int(v), int(cost_radius)))
 
 
 def active_gt_cells(
@@ -202,7 +202,7 @@ def load_network(
 
     n_nodes = len(nodes)
     node_ids = [int(n["id"]) for n in nodes]
-    node_from_id = {nid: i for i, nid in enumerate(node_ids)}
+    node_from_id = {node_id: node for node, node_id in enumerate(node_ids)}
 
     cell_idx = {t: i for i, t in enumerate(cells)}
     node_cells = np.array([cell_idx[n["name"]] for n in nodes], dtype=np.int64)
@@ -219,7 +219,7 @@ def load_network(
     )
     is_sti = np.array([bool(n.get("sti", False)) for n in nodes], dtype=bool)
 
-    # edge list -> node idxs + signed edge weight.
+    # edge list -> nodes + signed edge weight.
     source_idxs = np.empty(len(edges), dtype=np.int64)
     target_idxs = np.empty(len(edges), dtype=np.int64)
     edge_weights = np.empty(len(edges), dtype=np.float64)

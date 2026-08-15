@@ -59,7 +59,7 @@ DEFAULT_PULSE_LIST = "50,100,500"
 TAU_HP_OFF_MS = 1.0e6
 EULER = str(NEURON_CONST["euler"])
 G_LEAK = float(NEURON_CONST["g_leak"])
-STATE_CLAMP = float(NEURON_CONST["state_clamp"])
+V_CLAMP = float(NEURON_CONST["v_clamp"])
 
 _BACKEND = SimpleNamespace(
     n_nodes=1,
@@ -78,7 +78,7 @@ def make_pulse(t_ms: np.ndarray, *, t_on_ms: float, ms_pulse: float, s0: float) 
     return np.where((t_ms >= t_on_ms) & (t_ms < t_off_ms), s0, 0.0).astype(np.float64)
 
 
-def _p_tensors(*, e_leak, tau_lp_ms, tau_hp_rise_ms, tau_hp_fall_ms, a_h):
+def _params(*, e_leak, tau_lp_ms, tau_hp_rise_ms, tau_hp_fall_ms, a_h):
     z = torch.zeros(1, dtype=torch.float32)
     one = torch.ones(1, dtype=torch.float32)
     return {
@@ -104,7 +104,7 @@ def simulate_hp_lp(
     a_h: float,
     delta_ms: float,
     g_leak: float,
-    state_clamp: float,
+    v_clamp: float,
     euler: str,
 ) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
     """Return (v, v_slow, v_hp); time index matches ``forward_full``."""
@@ -115,7 +115,7 @@ def simulate_hp_lp(
     x = np.asarray(v_sti, dtype=np.float64)
     i_sti = torch.as_tensor(x * g_leak, dtype=torch.float32)
     t_end = int(i_sti.numel())
-    p = _p_tensors(
+    p = _params(
         e_leak=e_leak,
         tau_lp_ms=tau_lp_ms,
         tau_hp_rise_ms=tau_hp_rise_ms,
@@ -135,7 +135,7 @@ def simulate_hp_lp(
     for t in range(1, t_end):
         v, v_slow, comp = update_v(
             v, v_slow, p, i_sti[t - 1].view(1, 1), _BACKEND,
-            delta_ms=delta_ms, state_clamp=state_clamp, g_leak=g_leak, euler=euler,
+            delta_ms=delta_ms, v_clamp=v_clamp, g_leak=g_leak, euler=euler,
             return_component=True,
         )
         v_out[t] = float(v.item())
@@ -172,7 +172,7 @@ def _fill_column(
     tau_hp_fall_ms: float,
     dt_ms: float,
     g_leak: float,
-    state_clamp: float,
+    v_clamp: float,
     euler: str,
     a_h_list: list[float],
     hp_a_h_list: list[float],
@@ -190,7 +190,7 @@ def _fill_column(
     v_sti = make_pulse(t_ms, t_on_ms=t_on_ms, ms_pulse=ms_pulse, s0=s0)
     sim_kw = dict(
         e_leak=e_leak, a_h=a_h, delta_ms=dt_ms,
-        g_leak=g_leak, state_clamp=state_clamp, euler=euler,
+        g_leak=g_leak, v_clamp=v_clamp, euler=euler,
     )
     tau_kw = dict(tau_hp_rise_ms=tau_hp_rise_ms, tau_hp_fall_ms=tau_hp_fall_ms)
 
@@ -218,7 +218,7 @@ def _fill_column(
         _, _, v_hp = simulate_hp_lp(
             v_sti, tau_lp_ms=tau_lp_ms, **tau_kw,
             e_leak=e_leak, a_h=a, delta_ms=dt_ms,
-            g_leak=g_leak, state_clamp=state_clamp, euler=euler,
+            g_leak=g_leak, v_clamp=v_clamp, euler=euler,
         )
         ax1.plot(
             t_s, v_hp, color=color, lw=1.5,
@@ -245,7 +245,7 @@ def _fill_column(
         v, _, _ = simulate_hp_lp(
             v_sti, tau_lp_ms=tau_lp_ms, **tau_kw,
             e_leak=e_leak, a_h=a, delta_ms=dt_ms,
-            g_leak=g_leak, state_clamp=state_clamp, euler=euler,
+            g_leak=g_leak, v_clamp=v_clamp, euler=euler,
         )
         ax3.plot(t_s, v, color=color, lw=1.6, label=rf"$a_{{\mathrm{{h}}}}$={a:g}")
     ax3.set_title(
@@ -345,7 +345,7 @@ def plot_hp_lp(
     tau_hp_rise_ms: float = 200.0,
     tau_hp_fall_ms: float = 200.0,
     g_leak: float = float(G_LEAK),
-    state_clamp: float = float(STATE_CLAMP),
+    v_clamp: float = float(V_CLAMP),
     euler: str = EULER,
     a_h_list: list[float] | None = None,
     hp_a_h_list: list[float] | None = None,
@@ -393,7 +393,7 @@ def plot_hp_lp(
         tau_hp_fall_ms=tau_hp_fall_ms,
         dt_ms=dt_ms,
         g_leak=g_leak,
-        state_clamp=state_clamp,
+        v_clamp=v_clamp,
         euler=euler,
         a_h_list=a_h_list,
         hp_a_h_list=hp_a_h_list,

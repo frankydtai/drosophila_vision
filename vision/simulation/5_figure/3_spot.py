@@ -40,7 +40,7 @@ from figure.panel import (
     gt_trace_affine,
     e_leak_from_z,
     session_filter_figure_token,
-    hex_at_scope_tag,
+    hex_scope_tag,
     mark_spot,
     overlay_reds,
     plot_pre_post_line,
@@ -127,22 +127,22 @@ def resolve_spot_gts(sessions, gts=None, *, filter=None):
     return out
 
 
-def _session_cost_time_idx(session, t_onset, *, entry_radius=None):
-    """Absolute time indices for sparse spot cost (pack contract; or ``None``)."""
+def _session_cost_ts(session, t_onset, *, entry_radius=None):
+    """Absolute cost ``ts`` for sparse spot cost (pack contract; or ``None``)."""
     if session is None:
         return None
-    return train.pack_cost_abs_time_idx(
+    return train.pack_cost_abs_ts(
         session.primary_pack, t_onset, entry_radius=entry_radius,
     )
 
 
 def _series_with_cost_points(series, readouts, entry_radius):
-    """Copy ``series`` with ``point_idx`` for one hex-lattice ``entry_radius``."""
+    """Copy ``series`` with ``ts`` for one hex-lattice ``entry_radius``."""
     out = []
     for entry in series:
         item = dict(entry)
         contrast = entry["contrast"]
-        item["point_idx"] = _session_cost_time_idx(
+        item["ts"] = _session_cost_ts(
             readouts[contrast].session,
             readouts[contrast].t_onset,
             entry_radius=entry_radius,
@@ -360,7 +360,7 @@ def plot_cell_time(
             "gt": item["gt_center"],
             "std": item["v_readout_std"],
             "linestyle": item.get("linestyle", "-"),
-            "point_idx": item.get("point_idx"),
+            "ts": item.get("ts"),
         }
         for item in scaled
     ]
@@ -535,23 +535,23 @@ def plot_cell_rf_time_overlays(
 
 
 def _fill_member_v_readout(v_readout, std, ti, ft_global, type_idx, du, dv, figure_traces):
-    """Fill profile radii from hex-lattice radius means; return ``{r: n_entry}``."""
+    """Fill profile radii from hex-lattice radius means; return ``{radius: n_entry}``."""
     mask = type_idx == ft_global
     if not mask.any():
         return {}
-    entry_idxs = np.where(mask)[0]
+    entries = np.where(mask)[0]
     by_radius: dict[int, list] = {}
-    for entry_idx in entry_idxs:
-        radius = int(build_hex.hex_radius(int(du[entry_idx]), int(dv[entry_idx])))
-        by_radius.setdefault(radius, []).append(int(entry_idx))
+    for entry in entries:
+        radius = int(build_hex.hex_radius(int(du[entry]), int(dv[entry])))
+        by_radius.setdefault(radius, []).append(int(entry))
     n_by_radius = {}
-    for radius, grouped_entry_idxs in by_radius.items():
+    for radius, grouped_entries in by_radius.items():
         if radius < 0 or radius >= RF_N_RADII:
             continue
-        traces = figure_traces[grouped_entry_idxs]
+        traces = figure_traces[grouped_entries]
         v_readout[ti, radius] = traces.mean(axis=0)
         std[ti, radius] = std_from_traces(traces, single_hex=False)
-        n_by_radius[radius] = len(grouped_entry_idxs)
+        n_by_radius[radius] = len(grouped_entries)
     return n_by_radius
 
 
@@ -560,7 +560,7 @@ class SpotTraceReadout:
     """One forward pass; full cost-radius readout over all types."""
 
     cells: list
-    row_idxs: list | None = None
+    rows: list | None = None
     session: object = None
     overlay: dict[str, dict[str, np.ndarray]] | None = None
     overlay_labels: list[str] | None = None
@@ -586,14 +586,14 @@ class SpotTraceReadout:
         return bool(self.overlay)
 
 
-def _row_idxs_from_cell_rows(cell_rows, figure_cells):
+def _rows_from_cell_rows(cell_rows, figure_cells):
     cell_idx = {str(n): i for i, n in enumerate(figure_cells)}
-    row_idxs = []
+    rows = []
     for cells_in_row in cell_rows:
         cell_idxs = [cell_idx[str(n)] for n in cells_in_row if str(n) in cell_idx]
         if cell_idxs:
-            row_idxs.append(cell_idxs)
-    return row_idxs
+            rows.append(cell_idxs)
+    return rows
 
 
 def _spot_readout_gt_view(readout):
@@ -605,7 +605,7 @@ def _spot_readout_gt_view(readout):
     cells = [cell for cell in cells_in_order(active) if cell in present]
     return SpotTraceReadout(
         cells=cells,
-        row_idxs=_row_idxs_from_cell_rows(rows, cells),
+        rows=_rows_from_cell_rows(rows, cells),
         session=session,
         n_t=readout.n_t,
         v_readout_by_cell={
@@ -648,7 +648,7 @@ def _layout_cells_from_readouts(readouts, order):
         seen.update(readouts[contrast].cells)
     cells = cells_in_order(list(seen))
     rows = [np.array(row) for row in cell_rows(cells)]
-    return cells, _row_idxs_from_cell_rows(rows, cells)
+    return cells, _rows_from_cell_rows(rows, cells)
 
 
 def _spot_v_readout_from_readout_mask(readout, mask):
@@ -669,7 +669,7 @@ def _spot_v_readout_from_readout_mask(readout, mask):
     return out
 
 
-def _spot_readout_hex_mask(connectome, node_idx, cost_radius, *, at_x=None, at_y=None):
+def _spot_readout_hex_mask(connectome, nodes, cost_radius, *, at_x=None, at_y=None):
     """True for cost entries whose node sits on matching cost-radius hexes."""
     filtered_hexes = filter_sti_hexes(
         moving_bar_cost_hexes(connectome, cost_radius=cost_radius),
@@ -677,11 +677,11 @@ def _spot_readout_hex_mask(connectome, node_idx, cost_radius, *, at_x=None, at_y
         at_y=at_y,
     )
     if not filtered_hexes:
-        return np.zeros(len(node_idx), dtype=bool)
+        return np.zeros(len(nodes), dtype=bool)
     node_u_np, node_v_np = network_uv_np(connectome)
     hex_uv = {(int(hex.u), int(hex.v)) for hex in filtered_hexes}
     return np.array(
-        [(int(node_u_np[n]), int(node_v_np[n])) in hex_uv for n in node_idx],
+        [(int(node_u_np[n]), int(node_v_np[n])) in hex_uv for n in nodes],
         dtype=bool,
     )
 
@@ -691,10 +691,10 @@ def _spot_overlay(readout, connectome, at_xs, at_ys):
     overlay = {}
     labels = []
     pack = readout['pack']
-    node_idx = readout['node_idx']
+    nodes = readout['nodes']
     for label, at_x, at_y in overlay_coords(at_xs, at_ys):
         mask = _spot_readout_hex_mask(
-            connectome, node_idx, pack.cost_radius, at_x=at_x, at_y=at_y,
+            connectome, nodes, pack.cost_radius, at_x=at_x, at_y=at_y,
         )
         if not np.any(mask):
             print(f'skip overlay {label}: no hex within cost_radius')
@@ -752,12 +752,12 @@ def _forward_spot_readout(
     figure_cells = cells_in_order(active)
 
     (
-        bs, node_idx, _radius, type_idx, _sti_u, _sti_v, du, dv, center_entry_mask,
+        bs, nodes, _radius, type_idx, _sti_u, _sti_v, du, dv, center_entry_mask,
     ) = build_spot_center_readout(
         connectome, spot_bs, pack_spot_cost_radii(pack), pack.cost_radius,
     )
 
-    figure_traces = trace_full[bs, :, node_idx].cpu().numpy()
+    figure_traces = trace_full[bs, :, nodes].cpu().numpy()
 
     sti_ms_pre = opts.get("ms_pre")
     dt = float(opts["delta_ms"])
@@ -772,7 +772,7 @@ def _forward_spot_readout(
         figure_cells=figure_cells,
         cells=cells,
         type_idx=type_idx,
-        node_idx=node_idx,
+        nodes=nodes,
         du=du,
         dv=dv,
         center_entry_mask=center_entry_mask,
@@ -793,10 +793,10 @@ def _forward_spot_readout(
     mask = np.asarray(center_entry_mask, dtype=bool)
     if at_x is not None or at_y is not None:
         mask = mask & _spot_readout_hex_mask(
-            connectome, node_idx, pack.cost_radius, at_x=at_x, at_y=at_y,
+            connectome, nodes, pack.cost_radius, at_x=at_x, at_y=at_y,
         )
     nodes_by_cell = {
-        cell: np.unique(node_idx[mask & (type_idx == cells.index(cell))])
+        cell: np.unique(nodes[mask & (type_idx == cells.index(cell))])
         for cell in figure_cells
     }
     v_th = v_th_from_z(z, session)
@@ -838,9 +838,9 @@ def _spot_v_readout_from_readout(readout, session):
             ft: std_stack[ti] for ti, ft in enumerate(figure_cells)
         }
     )
-    row_idxs = _row_idxs_from_cell_rows(readout['cell_rows'], figure_cells)
+    rows = _rows_from_cell_rows(readout['cell_rows'], figure_cells)
     return (
-        figure_cells, row_idxs, mt,
+        figure_cells, rows, mt,
         v_readout_by_cell, std_by_cell, n_by_cell,
     )
 
@@ -862,7 +862,7 @@ def network_spot_trace_readout(
         at_x=at_x, at_y=at_y,
     )
     (
-        cells, row_idxs, n_t,
+        cells, rows, n_t,
         v_readout_by_cell, std_by_cell, n_by_cell,
     ) = _spot_v_readout_from_readout(readout, session)
     overlay, overlay_labels = (None, None)
@@ -875,7 +875,7 @@ def network_spot_trace_readout(
         )
     return SpotTraceReadout(
         cells=cells,
-        row_idxs=row_idxs,
+        rows=rows,
         session=session,
         overlay=overlay,
         overlay_labels=overlay_labels,
@@ -905,7 +905,7 @@ def _spot_suptitle(title, readout):
         if a_sti_radius and "1" in a_sti_radius:
             head = f"a_sti_radius 1 = {float(a_sti_radius['1']):.4g}"
         if readout.has_overlays:
-            scope = hex_at_scope_tag(readout.overlay_xs, readout.overlay_ys)
+            scope = hex_scope_tag(readout.overlay_xs, readout.overlay_ys)
             return f'{head}  [{scope}, overlay + scope]'
     return head
 
@@ -955,7 +955,7 @@ def _plot_spot_figure(
     if not order:
         raise ValueError("_plot_spot_figure requires at least one readout")
     primary = readouts[order[0]]
-    cells, row_idxs = _layout_cells_from_readouts(readouts, order)
+    cells, rows = _layout_cells_from_readouts(readouts, order)
     has_overlays = primary.has_overlays
     overlay_labels = primary.overlay_labels or []
     n_t = primary.n_t
@@ -984,7 +984,7 @@ def _plot_spot_figure(
     radii = _trained_radii(cost_parts, order, center_only=center_only)
     center_radius = int(RF_CENTER_RADIUS)
     order_hs = [
-        1 + len(radii) for _ in row_idxs
+        1 + len(radii) for _ in rows
     ]
     n_row = int(sum(order_hs))
     fig = plt.figure(figsize=figsize_fn(n_col, n_row))
@@ -1090,7 +1090,7 @@ def _plot_spot_figure(
         legend_done = True
 
     row_cursor = 0
-    for gi, cell_idxs in enumerate(row_idxs):
+    for gi, cell_idxs in enumerate(rows):
         group_h = int(order_hs[gi])
         rf_row = row_cursor
         time_row0 = row_cursor + 1

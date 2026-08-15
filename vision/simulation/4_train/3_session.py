@@ -6,7 +6,7 @@ network backend construction, and the per-task ``Pack`` builders. The
 builders wrap the neutral gt dataclasses from ``task`` (which sit below
 ``train`` in the import graph) and stamp the cross-cutting pack cost controls:
 
-* spot: sparse ``cost_time_idxs`` / optional ``cost_time_mask`` (#4; ``cost_ms``
+* spot: sparse ``cost_ts`` / optional ``cost_time_mask`` (#4; ``cost_ms``
   overwrites interval per radius), ``ms_sti`` (#1) already baked into
   the sti, ``waveform_mse=True``;
 * moving bar: ``waveform_mse`` from cost scales (True when a cost window is
@@ -140,7 +140,7 @@ from network.construction import (
 
 @dataclass(frozen=True)
 class Pack:
-    """One train pack: task drive + entry idxs + gts.
+    """One train pack: task drive + entries + gts.
 
     Spot ``i_sti`` / ``gts`` time dims follow ``neuron`` / task
     timing. Moving bar uses ``COST_WINDOW`` and per-task ``n_t``.
@@ -159,18 +159,18 @@ class Pack:
     cost_sti_us: Optional[torch.Tensor] = None  # (n_cost,) sti anchor u per spot cost entry
     cost_sti_vs: Optional[torch.Tensor] = None  # (n_cost,) sti anchor v per spot cost entry
     cost_pd_nds: Optional[torch.Tensor] = None  # (n_cost,) long; 0=PD, 1=ND (moving_bar)
-    dsi_pos_entries: Optional[torch.Tensor] = None  # flat cost-entry idx (right|up)
-    dsi_neg_entries: Optional[torch.Tensor] = None  # flat cost-entry idx (left|down)
+    dsi_pos_entries: Optional[torch.Tensor] = None  # flat cost entry (right|up)
+    dsi_neg_entries: Optional[torch.Tensor] = None  # flat cost entry (left|down)
     dsi_pos_ptr: Optional[torch.Tensor] = None  # (n_dsi+1,) CSR
     dsi_neg_ptr: Optional[torch.Tensor] = None  # (n_dsi+1,) CSR
     dsi_gts: Optional[torch.Tensor] = None  # (n_dsi,)
     dsi_scales: Optional[torch.Tensor] = None  # (n_dsi,)
     dsi_power: Optional[torch.Tensor] = None  # scalar
-    cost_time_idxs: Optional[torch.Tensor] = None  # (n_sample,) sparse post-onset t idx
+    cost_ts: Optional[torch.Tensor] = None  # (n_sample,) sparse post-onset t
     cost_time_mask: Optional[torch.Tensor] = None  # (n_cost, n_sample) 0/1 per-radius
     waveform_mse: bool = True  # spot: True; moving bar: set at build
     t_onset: Optional[int] = None  # explicit onset; spot when ms_post extends i_sti past gt
-    # Spot a_sti_radius: i = i_sti + a_sti_radius[r] * sti_wave on (sti_bs, sti_nodes).
+    # Spot a_sti_radius: i = i_sti + a_sti_radius[radius] * sti_wave on (sti_bs, sti_nodes).
     sti_wave: Optional[torch.Tensor] = None  # (T,) (i_peak - i_baseline) * u(t)
     sti_bs: Optional[torch.Tensor] = None  # (n_contrib,) long
     sti_nodes: Optional[torch.Tensor] = None  # (n_contrib,) long
@@ -205,7 +205,7 @@ class TrainSession:
     e_h: float
     h_g_max: float
     gt_amp: float
-    state_clamp: float
+    v_clamp: float
     a_syn_exc: float
     a_syn_inh: float
     euler: str
@@ -418,10 +418,10 @@ def _build_network_moving_bar_pack(
     return pack, sti_opts, tag
 
 
-def _spot_cost_time_idx_and_mask(opts, entry_radii, *, ctx: _TrainBindCtx, device, sim_dtype):
-    """Union ``cost_time_idxs``; ``cost_time_mask`` when radii differ.
+def _spot_cost_ts_and_mask(opts, entry_radii, *, ctx: _TrainBindCtx, device, sim_dtype):
+    """Union ``cost_ts``; ``cost_time_mask`` when radii differ.
 
-    ``ctx.cost_ms[r]`` overwrites ``ctx.cost_interval_ms`` grid for that radius.
+    ``ctx.cost_ms[radius]`` overwrites ``ctx.cost_interval_ms`` grid for that radius.
     """
     n = int(entry_radii.shape[0])
     if n == 0:
@@ -431,9 +431,9 @@ def _spot_cost_time_idx_and_mask(opts, entry_radii, *, ctx: _TrainBindCtx, devic
     post = timing.n_t_gt - timing.t_onset
     cost_ms_by_radius = expand_cost_ms_dict(cost_ms=ctx.cost_ms)
     rad = entry_radii.detach().cpu().numpy().astype(np.int64, copy=False)
-    radii = {int(r) for r in rad.tolist()}
+    radii = {int(radius) for radius in rad.tolist()}
     grid = None
-    if any(r not in cost_ms_by_radius for r in radii):
+    if any(radius not in cost_ms_by_radius for radius in radii):
         interval_ms = float(ctx.cost_interval_ms)
         if interval_ms <= 0:
             raise ValueError("cost_interval_ms must be > 0")
@@ -442,8 +442,8 @@ def _spot_cost_time_idx_and_mask(opts, entry_radii, *, ctx: _TrainBindCtx, devic
         step = max(1, int(round(interval_ms / delta_ms)))
         grid = [t * delta_ms for t in range(0, post, step)]
     radius_ts = {}
-    for r in radii:
-        mss = cost_ms_by_radius[r] if r in cost_ms_by_radius else grid
+    for radius in radii:
+        mss = cost_ms_by_radius[radius] if radius in cost_ms_by_radius else grid
         ts = set()
         for ms in mss:
             t = int(round(float(ms) / delta_ms))
@@ -452,18 +452,18 @@ def _spot_cost_time_idx_and_mask(opts, entry_radii, *, ctx: _TrainBindCtx, devic
                     f"cost time {ms} ms post-onset t out of range [0,{post})"
                 )
             ts.add(t)
-        radius_ts[r] = ts
+        radius_ts[radius] = ts
     union = sorted({t for ts in radius_ts.values() for t in ts})
-    cost_time_idxs = torch.tensor(union, dtype=torch.long, device=device)
+    cost_ts = torch.tensor(union, dtype=torch.long, device=device)
     union_set = set(union)
     if all(ts == union_set for ts in radius_ts.values()):
-        return cost_time_idxs, None
-    union_idx = {t: union_idx for union_idx, t in enumerate(union)}
+        return cost_ts, None
+    union_t = {t: pos for pos, t in enumerate(union)}
     mask = torch.zeros(n, len(union), dtype=sim_dtype, device=device)
-    for entry_idx, r in enumerate(rad.tolist()):
-        for t in radius_ts[int(r)]:
-            mask[entry_idx, union_idx[t]] = 1.0
-    return cost_time_idxs, mask
+    for entry, radius in enumerate(rad.tolist()):
+        for t in radius_ts[int(radius)]:
+            mask[entry, union_t[t]] = 1.0
+    return cost_ts, mask
 
 
 def _build_network_spot_task(
@@ -524,7 +524,7 @@ def _build_network_spot_task(
         filter=str(ctx.filter),
         spot_gt_mode=str(ctx.spot_gt_mode),
     )
-    cost_time_idxs, cost_time_mask = _spot_cost_time_idx_and_mask(
+    cost_ts, cost_time_mask = _spot_cost_ts_and_mask(
         opts, T.entry_radii, ctx=ctx, device=dev, sim_dtype=ctx.sim_dtype,
     )
     sti_opts = dict(opts)
@@ -564,7 +564,7 @@ def _build_network_spot_task(
         cost_sti_vs=T.entry_sti_vs,
         cost_radius=cost_radius,
         entry_radii=T.entry_radii,
-        cost_time_idxs=cost_time_idxs,
+        cost_ts=cost_ts,
         cost_time_mask=cost_time_mask,
         waveform_mse=True,
         t_onset=int(t_onset),
@@ -1058,7 +1058,7 @@ def _build_session(
         e_h=float(_np['e_h']),
         h_g_max=float(_np['h_g_max']),
         gt_amp=float(gt_amp),
-        state_clamp=float(_np['state_clamp']),
+        v_clamp=float(_np['v_clamp']),
         a_syn_exc=float(_np['a_syn_exc']),
         a_syn_inh=float(_np['a_syn_inh']),
         euler=euler,

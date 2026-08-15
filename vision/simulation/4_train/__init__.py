@@ -128,15 +128,15 @@ from train.session import (
     resolve_cell_idxs,
 )
 from train.cost import (
-    FusedForward,
+    FusedPacks,
     calc_cost,
     calc_cost_parts,
     gt_affine_from_nodes,
-    pack_cost_abs_time_idx,
+    pack_cost_abs_ts,
 )
 from train.optimization import (
     TrainResult,
-    adams_from_state_dict,
+    adams_from_optimizer,
     do_many_runs,
     gradient_network,
     optimize_staged,

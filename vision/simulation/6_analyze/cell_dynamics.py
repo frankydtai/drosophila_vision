@@ -43,7 +43,7 @@ from network.construction import hex2gt
 from task.moving_bar.pack import (
     bar_specs_from_task,
     filter_requested_specs,
-    moving_bar_nodes_on_hexes,
+    nodes_from_hexes,
     moving_bar_specs_by_cell,
     moving_bar_session_t0_grids,
 )
@@ -58,6 +58,7 @@ from task.spot.sti_geo import (
 )
 from train.cli import resolve_sti_timing_kwargs
 from train.config import resolve_tasks
+from train.cost import node_vals_from_param
 
 __doc__ = """Borst / hp_lp v component analysis.
 
@@ -366,7 +367,7 @@ _HP_LP_PLOT_PANELS: list[tuple[str, list[tuple[str, str]]]] = [
         ],
     ),
     (
-        "HP state",
+        "HP",
         [
             ("v_in", "v_in"),
             ("v_slow", "v_slow"),
@@ -546,7 +547,7 @@ _GT_PLOT_PANEL: dict[str, str] = {
     "gt_v": "v_post",
     "gt_ca": "ca",
 }
-# Shared ylim across columns: borst current row; hp_lp HP-state + dv rows.
+# Shared ylim across columns: borst current row; hp_lp HP + dv rows.
 _BORST_ROW_SHARED_YLIM = frozenset({2})
 _HP_LP_ROW_SHARED_YLIM = frozenset({2, 3})
 
@@ -724,20 +725,29 @@ def _drive_from_i_sti(session, params, i_sti: torch.Tensor) -> torch.Tensor:
 
 
 def _equilibrate(session, params, i_sti_b: torch.Tensor, t_onset: int):
-    """Equilibrate to ``t_onset``; returns ``(v, state)`` where state is model-specific."""
+    """Equilibrate to ``t_onset``; returns ``v``."""
     _component_layout(session.model, session.euler)  # validate early
     n_b, n_t, n_nodes = i_sti_b.shape
     drv = _model_driver(session)
-    state, v = drv.pre_steady(session, params, n_b, i_sti=i_sti_b)
-    for t in range(1, min(t_onset, n_t)):
-        state, v = drv.step(
-            state, v, params, i_sti_b[:, t - 1], session,
-            delta_ms=train.step_delta_ms(session, t, t_onset),
-        )
-    return v, state
+    model = session.model
+    if model == "hp_lp":
+        v_slow, v = drv.pre_steady(session, params, n_b, i_sti=i_sti_b)
+        for t in range(1, min(t_onset, n_t)):
+            v_slow, v = drv.step(
+                v_slow, v, params, i_sti_b[:, t - 1], session,
+                delta_ms=train.step_delta_ms(session, t, t_onset),
+            )
+    else:
+        u, u_rev, v = drv.pre_steady(session, params, n_b, i_sti=i_sti_b)
+        for t in range(1, min(t_onset, n_t)):
+            u, u_rev, v = drv.step(
+                u, u_rev, v, params, i_sti_b[:, t - 1], session,
+                delta_ms=train.step_delta_ms(session, t, t_onset),
+            )
+    return v
 
 
-def _component_at_nodes_borst(
+def _component_nodes_borst(
     v_pre,
     v_post,
     g_exc,
@@ -761,20 +771,20 @@ def _component_at_nodes_borst(
     """Slice node component from a completed ``update_v(..., return_component=True)`` step."""
     nodes = np.asarray(nodes, dtype=np.int64)
     with torch.no_grad():
-        node_idx = torch.as_tensor(nodes, device=v_pre.device, dtype=torch.long)
+        nodes_t = torch.as_tensor(nodes, device=v_pre.device, dtype=torch.long)
         sig_active = (
-            sig_t[b, node_idx] if sig_t.dim() > 1 else sig_t[node_idx]
+            sig_t[b, nodes_t] if sig_t.dim() > 1 else sig_t[nodes_t]
         )
         packed = torch.stack(
             (
-                v_pre[b, node_idx],
-                g_exc[b, node_idx],
-                g_inh[b, node_idx],
-                g_h[b, node_idx],
-                g_h_rev[b, node_idx],
+                v_pre[b, nodes_t],
+                g_exc[b, nodes_t],
+                g_inh[b, nodes_t],
+                g_h[b, nodes_t],
+                g_h_rev[b, nodes_t],
                 sig_active,
-                e_leak[node_idx],
-                v_post[b, node_idx],
+                e_leak[nodes_t],
+                v_post[b, nodes_t],
             ),
             dim=0,
         ).detach().cpu().numpy()
@@ -803,7 +813,7 @@ def _component_at_nodes_borst(
     return component, v_post_minus_pre_active
 
 
-def _component_at_nodes_hp_lp(
+def _component_nodes_hp_lp(
     v_pre,
     v_post,
     component_t: dict[str, torch.Tensor],
@@ -815,9 +825,9 @@ def _component_at_nodes_hp_lp(
     """Slice hp_lp ODE component tensors at ``nodes``."""
     nodes = np.asarray(nodes, dtype=np.int64)
     with torch.no_grad():
-        node_idx = torch.as_tensor(nodes, device=v_pre.device, dtype=torch.long)
-        v_pre_np = v_pre[b, node_idx].detach().cpu().numpy()
-        v_abs = v_post[b, node_idx].detach().cpu().numpy()
+        nodes_t = torch.as_tensor(nodes, device=v_pre.device, dtype=torch.long)
+        v_pre_np = v_pre[b, nodes_t].detach().cpu().numpy()
+        v_abs = v_post[b, nodes_t].detach().cpu().numpy()
         ref = (
             v_onset[b, nodes] if np.ndim(v_onset) == 2 else v_onset[nodes]
         )
@@ -831,8 +841,8 @@ def _component_at_nodes_hp_lp(
         ):
             component_arr = component_t[component_tok]
             component[component_tok] = (
-                component_arr[b, node_idx]
-                if component_arr.dim() > 1 else component_arr[node_idx]
+                component_arr[b, nodes_t]
+                if component_arr.dim() > 1 else component_arr[nodes_t]
             ).detach().cpu().numpy()
         v_post_minus_pre_active = v_abs - v_pre_np
     return component, v_post_minus_pre_active
@@ -1007,11 +1017,16 @@ def _forward_component(
         t_last = max(int(plan.node_t0s.max()) + int(t_stop) for plan in bs)
 
     # Same ref as forward_full: v at t_onset-1, then restart so pre is stepped+accumulated.
-    v_at_onset, _ = _equilibrate(session, params, drive, t_onset)
-    v_onset = v_at_onset.detach().cpu().numpy().copy()
+    v_onset = _equilibrate(session, params, drive, t_onset).detach().cpu().numpy().copy()
     n_components = layout.n_components
     drv = _model_driver(session)
-    state, v = drv.pre_steady(session, params, n_b, i_sti=drive)
+    model = session.model
+    if model == "hp_lp":
+        v_slow, v = drv.pre_steady(session, params, n_b, i_sti=drive)
+        u = u_rev = None
+    else:
+        u, u_rev, v = drv.pre_steady(session, params, n_b, i_sti=drive)
+        v_slow = None
 
     use_ca = session_filter_figure_token(session) == "ca"
     ca = train.v_ca_from_v(v, params, session) if use_ca else None
@@ -1065,10 +1080,16 @@ def _forward_component(
 
         step_dt = train.step_delta_ms(session, t_global, t_onset)
         if not need_component:
-            state, v = drv.step(
-                state, v, params, sig_t, session,
-                delta_ms=step_dt,
-            )
+            if model == "hp_lp":
+                v_slow, v = drv.step(
+                    v_slow, v, params, sig_t, session,
+                    delta_ms=step_dt,
+                )
+            else:
+                u, u_rev, v = drv.step(
+                    u, u_rev, v, params, sig_t, session,
+                    delta_ms=step_dt,
+                )
             if ca is not None:
                 ca = filter_ca(
                     ca, train.v_ca_from_v(v, params, session),
@@ -1080,13 +1101,13 @@ def _forward_component(
             v_pre = v
             ca_pre = ca
             if layout.model == "borst":
-                state, v, (g_exc, g_inh, g_h, g_h_rev) = drv.step(
-                    state, v, params, sig_t, session,
+                u, u_rev, v, (g_exc, g_inh, g_h, g_h_rev) = drv.step(
+                    u, u_rev, v, params, sig_t, session,
                     delta_ms=step_dt, return_component=True,
                 )
             else:
-                state, v, component_t = drv.step(
-                    state, v, params, sig_t, session,
+                v_slow, v, component_t = drv.step(
+                    v_slow, v, params, sig_t, session,
                     delta_ms=step_dt, return_component=True,
                 )
             v_ca = None
@@ -1100,30 +1121,30 @@ def _forward_component(
             active_pack = actives[b]
             if active_pack is None:
                 continue
-            active_node_idx, active_t = active_pack
+            active_node, active_t = active_pack
             if layout.model == "borst":
-                component, v_post_minus_pre_active = _component_at_nodes_borst(
+                component, v_post_minus_pre_active = _component_nodes_borst(
                     v_pre, v, g_exc, g_inh, g_h, g_h_rev, sig_t,
-                    params["e_leak"], active_node_idx, v_onset, b=b,
+                    params["e_leak"], active_node, v_onset, b=b,
                     delta_ms=step_dt, cap=session.cap, g_leak=session.g_leak,
                     e_exc=session.e_exc, e_inh=session.e_inh, e_h=session.e_h,
                     euler=session.euler,
                 )
             else:
-                component, v_post_minus_pre_active = _component_at_nodes_hp_lp(
-                    v_pre, v, component_t, active_node_idx, v_onset, b=b,
+                component, v_post_minus_pre_active = _component_nodes_hp_lp(
+                    v_pre, v, component_t, active_node, v_onset, b=b,
                 )
             component_mat = _component_matrix(component, layout.components)
             cell_idx_from_node_id = cell_idxs_from_node_id[b]
-            tags = cell_idx_from_node_id[active_node_idx]
+            tags = cell_idx_from_node_id[active_node]
             v_ca_active = ca_post_active = ca_pre_active = None
             if ca is not None:
-                active_node_idx_t = torch.as_tensor(
-                    active_node_idx, device=ca.device, dtype=torch.long,
+                active_node_t = torch.as_tensor(
+                    active_node, device=ca.device, dtype=torch.long,
                 )
-                v_ca_active = v_ca[b, active_node_idx_t].detach().cpu().numpy()
-                ca_post_active = ca[b, active_node_idx_t].detach().cpu().numpy()
-                ca_pre_active = ca_pre[b, active_node_idx_t].detach().cpu().numpy()
+                v_ca_active = v_ca[b, active_node_t].detach().cpu().numpy()
+                ca_post_active = ca[b, active_node_t].detach().cpu().numpy()
+                ca_pre_active = ca_pre[b, active_node_t].detach().cpu().numpy()
             for cell_idx, cell in enumerate(cells):
                 mask = tags == cell_idx
                 if not np.any(mask):
@@ -1234,8 +1255,8 @@ def _finalize_component_report(
     steps: list[dict[str, Any]] = []
     peak_step: dict[str, Any] | None = None
     for t in range(t_lo, t_hi + 1):
-        n_nodes_at_t = int(n_nodes[t])
-        if n_nodes_at_t == 0:
+        n_nodes_t = int(n_nodes[t])
+        if n_nodes_t == 0:
             continue
         if ti_mode == "t_rel":
             ti = t
@@ -1249,16 +1270,16 @@ def _finalize_component_report(
             sums=_sums_dict_from_vec(sums[t], component_layout.components),
             sum_sqs=_sums_dict_from_vec(sum_sqs[t], component_layout.components),
             v_post_minus_pre_sum=float(v_post_minus_pre_sums[t]),
-            n_nodes=n_nodes_at_t,
+            n_nodes=n_nodes_t,
             layout=component_layout,
             g_leak=float(session.g_leak),
             dt_over_cap=dt_over_cap,
         )
         if v_ca_sums is not None:
-            step["v_ca"] = float(v_ca_sums[t] / n_nodes_at_t)
+            step["v_ca"] = float(v_ca_sums[t] / n_nodes_t)
         if ca_sums is not None and ca_pre_sums is not None:
-            ca = float(ca_sums[t] / n_nodes_at_t)
-            ca_pre = float(ca_pre_sums[t] / n_nodes_at_t)
+            ca = float(ca_sums[t] / n_nodes_t)
+            ca_pre = float(ca_pre_sums[t] / n_nodes_t)
             step["ca"] = ca
             step["ca_pre"] = ca_pre
             step["ca_post_minus_pre"] = ca - ca_pre
@@ -1344,27 +1365,14 @@ def _sign(v: float, *, eps: float = 1e-3) -> str:
     return "0"
 
 
-def _scalar_param_at_node(params, param: str, session, node: int) -> float:
-    raw = params[param]
-    backend = session.backend
-    if torch.is_tensor(raw):
-        if raw.dim() == 0:
-            return float(raw.item())
-        if backend.network is not None:
-            cell_idx = int(backend.network.node_cells[node])
-        else:
-            cell_idx = int(node) % int(backend.n_cells)
-        return float(raw[cell_idx])
-    return float(raw)
-
-
 def _node_params(params, session, node: int) -> dict[str, float]:
     backend = session.backend
     for param in ("a_gt", "bias_gt"):
         if param not in params:
             raise SystemExit(f"params missing {param}")
-    a_gt = _scalar_param_at_node(params, "a_gt", session, node)
-    bias_gt = _scalar_param_at_node(params, "bias_gt", session, node)
+    nodes = torch.tensor([node], dtype=torch.long)
+    a_gt = float(node_vals_from_param(params, "a_gt", nodes, backend)[0])
+    bias_gt = float(node_vals_from_param(params, "bias_gt", nodes, backend)[0])
     if session.model == "hp_lp":
         return {
             "a_in": float(params["a_in"][node]),
@@ -1400,7 +1408,7 @@ def _globals(session):
     if session.model == "hp_lp":
         return {
             "delta_ms": dt,
-            "state_clamp": float(session.state_clamp),
+            "v_clamp": float(session.v_clamp),
             "g_leak_nS": float(session.g_leak),
             "euler": str(session.euler),
             "t_onset": t_onset,
@@ -1419,9 +1427,9 @@ def _globals(session):
 
 def cell_from_node(nodes_by_cell: dict[str, np.ndarray]) -> dict[int, str]:
     out: dict[int, str] = {}
-    for cell, node_idxs in nodes_by_cell.items():
-        for node_idx in np.asarray(node_idxs, dtype=np.int64).ravel():
-            out[int(node_idx)] = cell
+    for cell, cell_nodes in nodes_by_cell.items():
+        for node in np.asarray(cell_nodes, dtype=np.int64).ravel():
+            out[int(node)] = cell
     return out
 
 
@@ -1798,7 +1806,7 @@ def analyze_bar_average(
         out: dict[str, np.ndarray] = {}
         for cell in cells:
             try:
-                nodes = moving_bar_nodes_on_hexes(connectome, cell, hexes)
+                nodes = nodes_from_hexes(connectome, cell, hexes)
             except ValueError as exc:
                 raise SystemExit(str(exc)) from exc
             nodes = nodes[t0_bn[b, nodes] >= 0]
@@ -1835,7 +1843,7 @@ def _spot_session_readout(session_one, cells: list[str]):
     opts = dict((session_one.train_opts or {}).get(f"{pack.task}_sti_opts") or {})
     spot = resolve_spot(connectome, sti_opts=opts)
     (
-        bs, node_idx, radii, type_idx, _sti_u, _sti_v, _du, _dv, _center_entry_mask,
+        bs, nodes, radii, type_idx, _sti_u, _sti_v, _du, _dv, _center_entry_mask,
     ) = build_spot_center_readout(
         connectome,
         spot_sti_bs(spot),
@@ -1847,7 +1855,7 @@ def _spot_session_readout(session_one, cells: list[str]):
         if cell not in connectome.cells:
             raise SystemExit(f"unknown cell {cell!r}")
         cell_idx[cell] = connectome.cells.index(cell)
-    return pack, bs, node_idx, radii, type_idx, cell_idx
+    return pack, bs, nodes, radii, type_idx, cell_idx
 
 
 def _spot_gt_extra(
@@ -1952,7 +1960,7 @@ def analyze_spot_average(
     if task not in train.SPOT_TASKS:
         raise SystemExit(f"unsupported task {task!r}")
     radius = int(radius)
-    pack, bs, node_idx, radii, type_idx, cell_idx = _spot_session_readout(
+    pack, bs, nodes, radii, type_idx, cell_idx = _spot_session_readout(
         session_one, cells,
     )
     radius_entry_mask = np.asarray(radii, dtype=np.int64) == int(radius)
@@ -1973,7 +1981,7 @@ def analyze_spot_average(
         for cell in cells:
             cell_entry_mask = entry_mask & (type_idx == cell_idx[cell])
             if np.any(cell_entry_mask):
-                nodes_by_cell[cell] = np.unique(node_idx[cell_entry_mask])
+                nodes_by_cell[cell] = np.unique(nodes[cell_entry_mask])
         if not nodes_by_cell:
             continue
         forward_bs.append(
@@ -2016,7 +2024,7 @@ def analyze_spot_average(
 # ---------------------------------------------------------------------------
 
 
-def _nodes_at_hex(session, cell: str, *, at_x: float, at_y: float, cost_radius: int):
+def _hex_nodes(session, cell: str, *, at_x: float, at_y: float, cost_radius: int):
     connectome = session.backend.network
     if connectome is None:
         raise SystemExit("hex mode requires a network backend")
@@ -2048,7 +2056,7 @@ def _resolve_hex_node(
     node: int | None,
 ):
     """Resolve ``(hex, node_id)`` for hex mode; ``--node`` if multiple at hex."""
-    hex, nodes = _nodes_at_hex(
+    hex, nodes = _hex_nodes(
         session, cell, at_x=at_x, at_y=at_y, cost_radius=cost_radius,
     )
     if node is None:
@@ -2075,7 +2083,7 @@ def analyze_spot_hex(
     """One v forward over bs at one hex; sti-on (radius 0) rows for that node only."""
     if task not in train.SPOT_TASKS:
         raise SystemExit(f"unsupported task {task!r}")
-    pack, bs, node_idx, radii, type_idx, cell_idx = _spot_session_readout(
+    pack, bs, nodes, radii, type_idx, cell_idx = _spot_session_readout(
         session_one, [cell],
     )
     radius_entry_mask = np.asarray(radii, dtype=np.int64) == 0
@@ -2099,7 +2107,7 @@ def analyze_spot_hex(
             radius_entry_mask
             & (bs == sti_b)
             & (type_idx == type_cell)
-            & (node_idx == node)
+            & (nodes == node)
         )
         if not np.any(entry_mask):
             continue
@@ -2249,9 +2257,9 @@ def _component_figure(title: str, layout: _ComponentLayout):
 
 def _hide_unused_axes(axes, layout: _ComponentLayout) -> None:
     n_row, n_col = axes.shape
-    for row_idx, (_panel_ylabel, series) in enumerate(layout.plot_panels):
-        for col_idx in range(len(series), n_col):
-            axes[row_idx, col_idx].set_visible(False)
+    for row, (_panel_ylabel, series) in enumerate(layout.plot_panels):
+        for col in range(len(series), n_col):
+            axes[row, col].set_visible(False)
 
 
 def _style_component_ax(
@@ -2295,13 +2303,13 @@ def _shared_row_ylim(
     layout: _ComponentLayout,
 ) -> None:
     """One tight data-driven ylim per row in ``layout.row_shared_ylim``."""
-    for row_idx, curves in row_curves.items():
+    for row, curves in row_curves.items():
         if not curves:
             continue
-        _, series = layout.plot_panels[row_idx]
+        _, series = layout.plot_panels[row]
         ylo, yhi = _shared_row_ylim(curves)
-        for col_idx in range(len(series)):
-            axes[row_idx, col_idx].set_ylim(ylo, yhi)
+        for col in range(len(series)):
+            axes[row, col].set_ylim(ylo, yhi)
 
 
 def _save_component_figure(
@@ -2309,8 +2317,8 @@ def _save_component_figure(
 ) -> None:
     _hide_unused_axes(axes, layout)
     last_row = axes.shape[0] - 1
-    for col_idx in range(axes.shape[1]):
-        ax = axes[last_row, col_idx]
+    for col in range(axes.shape[1]):
+        ax = axes[last_row, col]
         if ax.get_visible():
             ax.set_xlabel(xlabel, fontsize=8)
     os.makedirs(os.path.dirname(out_path) or ".", exist_ok=True)
@@ -2359,15 +2367,15 @@ def _plot_component_reports(
     params0 = reports[0].get("params") or {}
     delta_ms = float(globs.get("delta_ms", train.NEURON_CONST['delta_ms']))
     row_curves: dict[int, list[np.ndarray]] = {
-        row_idx: [] for row_idx in layout.row_shared_ylim
+        row: [] for row in layout.row_shared_ylim
     }
     tc = _plot_trace_colors(colors, layout)
 
-    for row_idx, (panel_ylabel, panel_series) in enumerate(layout.plot_panels):
-        for col_idx, (series, label) in enumerate(panel_series):
-            ax = axes[row_idx, col_idx]
+    for row, (panel_ylabel, panel_series) in enumerate(layout.plot_panels):
+        for col, (series, label) in enumerate(panel_series):
+            ax = axes[row, col]
             color = tc[label]
-            show_legend = multi_report and row_idx == 0 and col_idx == 0
+            show_legend = multi_report and row == 0 and col == 0
             drew_gt = False
             for report_idx, rep in enumerate(reports):
                 ls = linestyles[report_idx % len(linestyles)] if multi_report else "-"
@@ -2381,11 +2389,11 @@ def _plot_component_reports(
                     ],
                     dtype=float,
                 )
-                if row_idx in layout.row_shared_ylim:
-                    row_curves[row_idx].append(y)
+                if row in layout.row_shared_ylim:
+                    row_curves[row].append(y)
                     if np.any(std):
-                        row_curves[row_idx].append(y + std)
-                        row_curves[row_idx].append(y - std)
+                        row_curves[row].append(y + std)
+                        row_curves[row].append(y - std)
                 plot_std_band(ax, xs, y, std, color=color, alpha=0.3)
                 gt_series = next(
                     (gk for gk, pk in _GT_PLOT_PANEL.items() if pk == series and rep.get(gk) is not None),
@@ -2410,8 +2418,8 @@ def _plot_component_reports(
                     if np.any(valid):
                         y_gt = gt_full[t[valid]]
                         xs_gt = xs[valid]
-                        if row_idx in layout.row_shared_ylim:
-                            row_curves[row_idx].append(y_gt)
+                        if row in layout.row_shared_ylim:
+                            row_curves[row].append(y_gt)
                         ax.plot(
                             xs_gt, y_gt,
                             color="k",
@@ -2495,7 +2503,7 @@ def _print_report(report: dict[str, Any], *, print_steps: bool = True) -> None:
     kind = report.get("time_window_kind", "t_rel")
     x_tok = "t_rel" if kind == "t_rel" else "t"
     use_ca = report.get("filter") == "ca"
-    state_hdr = (
+    trace_hdr = (
         "ca  ca_pre  ca_post_minus_pre"
         if use_ca else "v_post  v_pre  v_post_minus_pre"
     )
@@ -2521,7 +2529,7 @@ def _print_report(report: dict[str, Any], *, print_steps: bool = True) -> None:
     )
     print("trained:", "  ".join(f"{k}={v:.6g}" for k, v in report["params"].items()))
 
-    def _state_cols(step: dict[str, Any]) -> str:
+    def _trace_cols(step: dict[str, Any]) -> str:
         if use_ca:
             return (
                 f"{step['ca']:+8.4f} {step['ca_pre']:+8.4f} "
@@ -2535,12 +2543,12 @@ def _print_report(report: dict[str, Any], *, print_steps: bool = True) -> None:
     if model == "hp_lp":
         if print_steps:
             print(
-                f"\n{x_tok}  n  {state_hdr}  i_sti "
+                f"\n{x_tok}  n  {trace_hdr}  i_sti "
                 "v_syn  v_syn_exc -v_syn_inh  dv_leak  dv_hp"
             )
             for step in report["steps"]:
                 print(
-                    f"{step[x_tok]:4d} {step.get('n_nodes', 1):3d} {_state_cols(step)} "
+                    f"{step[x_tok]:4d} {step.get('n_nodes', 1):3d} {_trace_cols(step)} "
                     f"{step['i_sti']:+6.3f} {step['v_syn']:+6.3f} {step['v_syn_exc']:+7.3f} "
                     f"{step['v_syn_inh']:+7.3f} {step['dv_leak']:+8.4f} {step['dv_hp']:+7.4f}"
                 )
@@ -2561,12 +2569,12 @@ def _print_report(report: dict[str, Any], *, print_steps: bool = True) -> None:
 
     if print_steps:
         print(
-            f"\n{x_tok}  n  {state_hdr}  i_sti "
+            f"\n{x_tok}  n  {trace_hdr}  i_sti "
             "g_inh  g_h_rev  g_exc  num_inh  num_exc"
         )
         for step in report["steps"]:
             print(
-                f"{step[x_tok]:4d} {step.get('n_nodes', 1):3d} {_state_cols(step)} "
+                f"{step[x_tok]:4d} {step.get('n_nodes', 1):3d} {_trace_cols(step)} "
                 f"{step['i_sti']:5.1f} {step['g_inh_nS']:.4f} {step['g_h_rev_nS']:.4f} "
                 f"{step['g_exc_nS']:.4f} {step['num_inh']:+8.2f} {step['num_exc']:+8.2f}"
             )

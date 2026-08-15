@@ -25,7 +25,7 @@ HP / LP Euler (``session.euler`` = ``implicit`` | ``explicit``):
 Dynamics only: ``standardize_i_sti`` / ``pre_steady`` / ``step``. Full-T ``v``
 forward lives in ``neuron.forward``. Scalars from ``session`` flat fields.
 
-t=0 state uses ``session.pre_steady`` (``--pre-steady …``):
+t=0 uses ``session.pre_steady`` (``--pre-steady …``):
 
 * ``solve`` (default): fixed-iter DC map with ``session.pre_steady_iters`` /
   ``session.pre_steady_damp`` (under-relaxation; not part of dynamics)
@@ -40,7 +40,7 @@ from neuron.schema import syn_strength
 
 
 def update_v(
-    v, v_slow, params, i_sti, backend, *, delta_ms, state_clamp, g_leak, euler,
+    v, v_slow, params, i_sti, backend, *, delta_ms, v_clamp, g_leak, euler,
     return_component: bool = False,
 ):
     """One HP→LP step; returns ``(v, v_slow)`` or component extras."""
@@ -51,7 +51,7 @@ def update_v(
     tau_hp_rise = torch.clamp(params["tau_hp_rise"], min=dt)
     tau_hp_fall = torch.clamp(params["tau_hp_fall"], min=dt)
     a_h = params["a_h"]
-    clamp = float(state_clamp)
+    clamp = float(v_clamp)
     g_leak = float(g_leak)
     if g_leak == 0.0:
         raise ValueError("g_leak must be non-zero")
@@ -118,7 +118,7 @@ def v_dc_from_v(v, params, v_sti, backend):
 
 
 def pre_steady(session, params, n_b, i_sti=None):
-    """``(v_slow,)``, ``v`` at t=0 from ``session.pre_steady``."""
+    """``v_slow``, ``v`` at t=0 from ``session.pre_steady``."""
     if i_sti is None:
         raise TypeError("hp_lp pre_steady requires i_sti")
     pre_steady = str(session.pre_steady)
@@ -133,28 +133,27 @@ def pre_steady(session, params, n_b, i_sti=None):
     v = e_leak.expand(n_b, backend.n_nodes).clone()
     if pre_steady == "probe":
         v_dc, v_in = v_dc_from_v(v, params, v_sti, backend)
-        return (v_in,), v_dc
+        return v_in, v_dc
     damp = float(session.pre_steady_damp)
     for _ in range(int(session.pre_steady_iters)):
         v_dc, _ = v_dc_from_v(v, params, v_sti, backend)
         v = v + damp * (v_dc - v)
     _, v_in = v_dc_from_v(v, params, v_sti, backend)
-    return (v_in,), v
+    return v_in, v
 
 
-def step(state, v, params, i_sti, session, *, delta_ms: float, return_component: bool = False):
-    """One hp_lp update; returns ``((v_slow,), v)`` or + component dict."""
-    (v_slow,) = state
+def step(v_slow, v, params, i_sti, session, *, delta_ms: float, return_component: bool = False):
+    """One hp_lp update; returns ``(v_slow, v)`` or + component dict."""
     out = update_v(
         v, v_slow, params, i_sti, session.backend,
         delta_ms=float(delta_ms),
-        state_clamp=session.state_clamp,
+        v_clamp=session.v_clamp,
         g_leak=session.g_leak,
         euler=session.euler,
         return_component=return_component,
     )
     if return_component:
         v, v_slow, component = out
-        return (v_slow,), v, component
+        return v_slow, v, component
     v, v_slow = out
-    return (v_slow,), v
+    return v_slow, v

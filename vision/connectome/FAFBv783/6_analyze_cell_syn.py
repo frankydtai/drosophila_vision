@@ -18,7 +18,7 @@ Optionally restrict to CELL ids by location: axial ``(u, v)`` with
 ``--u`` and/or ``--v`` (one axis for every column on that line, or both for a single
 column); hex-step ``(x, y)`` with ``--x`` and/or ``--y``; or the central hex disc
 ``--radius N`` (0 = centre column, 1 = 7 columns, 2 = 19, …; uses
-``build_hex.inside_mask``); or a single hex shell ``--shell N`` (0 = centre
+``build_hex.radius_mask``); or a single hex shell ``--shell N`` (0 = centre
 column, 1 = 6 columns, 2 = 12, …; uses ``build_hex.hex_radius``). Both are
 FAFB-only and show mean ``pre_d_xy``/``post_d_xy`` only.
 
@@ -67,7 +67,7 @@ _UvCoord = Tuple[Union[int, float], Union[int, float]]
 
 from build_hex import (
     hex_radius,
-    inside_mask,
+    radius_mask,
     xy_from_uv,
     uv_from_xy,
 )
@@ -108,7 +108,7 @@ def resolve_query_labels(
 
     Token prefixes:
       - ``:Family`` accumulates over every cell of that family.
-      - ``@<root_id>`` selects a single neuron by FlyWire root id.
+      - ``@<id>`` selects a single neuron by FAFB id (CSV field ``root_id``).
       - anything else is a literal cell.
     The label shown in the output is the token as typed (e.g. ``:Centrifugal``,
     ``@720575940622041087``).
@@ -235,16 +235,16 @@ def _self_node_origin(
     *,
     float_coords: bool
 ) -> Tuple[Optional[Tuple[float, float]], Optional[Tuple[float, float]]]:
-    """``@root_id`` label -> FAFB ``(u,v)``/``(x,y)``."""
+    """``@<id>`` label -> FAFB ``(u,v)``/``(x,y)``."""
     if not label.startswith("@"):
         return None, None
     try:
-        nid = int(label[1:])
+        node_id = int(label[1:])
     except ValueError:
         return None, None
     for n in nodes:
         try:
-            if int(n["id"]) != nid:
+            if int(n["id"]) != node_id:
                 continue
             node_uv_xy = _node_uv_xy(n, float_coords=float_coords)
             if node_uv_xy is None:
@@ -274,12 +274,12 @@ def _mean_self_origin(
         if not isinstance(name, str) or name not in self_cells:
             continue
         try:
-            nid = int(n["id"])
+            node_id = int(n["id"])
         except (KeyError, TypeError, ValueError):
             continue
         if ids_by_cell is not None:
             allowed = ids_by_cell.get(name, set())
-            if nid not in allowed:
+            if node_id not in allowed:
                 continue
         node_uv_xy = _node_uv_xy(n, float_coords=float_coords)
         if node_uv_xy is None:
@@ -377,7 +377,7 @@ def ids_by_cell(
         if not isinstance(name, str):
             continue
         try:
-            nid = int(n["id"])
+            node_id = int(n["id"])
         except (KeyError, TypeError, ValueError):
             continue
         if has_xy:
@@ -394,7 +394,7 @@ def ids_by_cell(
                 u, v = int(n["u"]), int(n["v"])
             except (KeyError, TypeError, ValueError):
                 continue
-            if has_radius and not bool(inside_mask(u, v, int(radius))):
+            if has_radius and not bool(radius_mask(u, v, int(radius))):
                 continue
             if has_shell and hex_radius(u, v) != int(shell):
                 continue
@@ -403,7 +403,7 @@ def ids_by_cell(
                     continue
                 if at_v is not None and v != at_v:
                     continue
-        out.setdefault(name, set()).add(nid)
+        out.setdefault(name, set()).add(node_id)
     return out
 
 
@@ -441,7 +441,7 @@ def accumulate_all(
     """One pass over edges: per queried label, (per partner type syn+/syn-, n_syn sum).
 
     ``labels`` is the ordered list of queried tokens (a cell, a family entered as
-    ``:Family``, or a single neuron entered as ``@<root_id>``). ``labels_from_self_cell``
+    ``:Family``, or a single neuron entered as ``@<id>``). ``labels_from_self_cell``
     maps each *self* cell to its label(s); ``labels_from_self_id`` maps a *self* root
     id to its label(s). A family label accumulates over all its cells.
 
@@ -683,7 +683,7 @@ def print_table(
 
     table_rows = [header] + rows + [sum_row]
     n_field = len(header)
-    ws = [max(len(r[field_idx]) for r in table_rows) for field_idx in range(n_field)]
+    ws = [max(len(row[field_idx]) for row in table_rows) for field_idx in range(n_field)]
 
     def _fmt(row: List[str]) -> str:
         cells = [row[0].ljust(ws[0])]
@@ -862,7 +862,7 @@ def main(argv: List[str] | None = None) -> int:
         help=(
             "FAFB only: restrict to CELL ids in the central hex disc of "
             "radius N (0 = centre column, 1 = 7 columns, 2 = 19, …; "
-            "build_hex.inside_mask). Shows mean pre_d_xy/post_d_xy only. "
+            "build_hex.radius_mask). Shows mean pre_d_xy/post_d_xy only. "
             "Incompatible with --shell, --u/--v, and --x/--y."
         ),
     )

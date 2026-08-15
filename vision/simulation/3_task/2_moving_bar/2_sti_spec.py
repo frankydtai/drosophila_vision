@@ -219,7 +219,7 @@ def hex_first_sti_t(
     return int(idx[0])
 
 
-def bar_lane_rects_at_t(
+def bar_lane_rects(
     spec: MovingBarSpec,
     view_deg: Tuple[float, float, float, float],
     bar_radius: int,

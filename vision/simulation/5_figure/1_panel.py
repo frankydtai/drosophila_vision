@@ -166,7 +166,7 @@ def pack_center_mask(pack, backend):
             if hasattr(connectome.vs, "detach")
             else np.asarray(connectome.vs)
         )
-        return build_hex.inside_mask(
+        return build_hex.radius_mask(
             network_node_u[entry_nodes], network_node_v[entry_nodes], int(pack.cost_radius),
         )
     return np.ones(entry_nodes.shape[0], dtype=bool)
@@ -213,19 +213,19 @@ def cell_ylabel(label, ca_n=None, n=None):
 
 
 def format_spot_radius_time_title(radius, n, cell, cost_parts, contrasts):
-    """Time-panel title: ``r=0 (n=252)`` + ``bright: 63.3`` / ``dark: …``."""
+    """Time-panel title: ``radius=0 (n=252)`` + ``bright: 63.3`` / ``dark: …``."""
     from train.config import spot_cost_part_key
 
-    r = float(radius)
-    radius_label = str(int(r)) if r == int(r) else str(r)
-    head = f'r={radius_label}'
+    radius = float(radius)
+    radius_label = str(int(radius)) if radius == int(radius) else str(radius)
+    head = f'radius={radius_label}'
     if n is not None:
         head = f'{head} (n={int(n)})'
     if not cost_parts or not contrasts:
         return head
     lines = [head]
     for contrast in contrasts:
-        part_key = spot_cost_part_key(f'spot_{contrast}', cell, r)
+        part_key = spot_cost_part_key(f'spot_{contrast}', cell, radius)
         if part_key in cost_parts:
             lines.append(f'{contrast}: {float(cost_parts[part_key]):.1f}')
     return '\n'.join(lines)
@@ -322,7 +322,7 @@ def ms_shown_axis_xlim(ms_shown, *, delta_ms, origin_t=0):
     return lo, hi
 
 
-def hex_at_scope_tag(at_x, at_y):
+def hex_scope_tag(at_x, at_y):
     """Subtitle fragment for plot hex overlay."""
 
     def coord_label(val):
@@ -401,17 +401,17 @@ def plot_std_band(ax, t, v_readout, std, *, color=None, alpha=None, label=r'$\pm
     )
 
 
-def _series_points(t, y, point_idx=None):
-    """Return finite ``(x, y)`` points, optionally subsampled by integer indices."""
+def _series_points(t, y, ts=None):
+    """Return finite ``(x, y)`` points, optionally subsampled by integer ``ts``."""
     if y is None:
         return None, None
     t_arr = np.asarray(t)
     y_arr = np.asarray(y, dtype=np.float64)
-    if point_idx is not None:
-        subsample_idx = np.asarray(point_idx, dtype=np.int64)
-        subsample_idx = subsample_idx[(subsample_idx >= 0) & (subsample_idx < y_arr.shape[0])]
-        t_arr = t_arr[subsample_idx]
-        y_arr = y_arr[subsample_idx]
+    if ts is not None:
+        ts = np.asarray(ts, dtype=np.int64)
+        ts = ts[(ts >= 0) & (ts < y_arr.shape[0])]
+        t_arr = t_arr[ts]
+        y_arr = y_arr[ts]
     mask = np.isfinite(y_arr)
     if not np.any(mask):
         return None, None
@@ -492,8 +492,8 @@ def plot_timecourse(
     """v_readout (red) vs gt (gray) time courses for one or more contrast traces.
 
     ``traces``: sequence of dicts with keys ``v_readout``, ``gt``, optional
-    ``std``, ``linestyle`` (default ``'-'``), ``point_idx``.
-    When ``point_idx`` is set, gray gt is drawn as open dots at those indices
+    ``std``, ``linestyle`` (default ``'-'``), ``ts``.
+    When ``ts`` is set, gray gt is drawn as open dots at those samples
     (still never draws ``[0, pre_end)`` via line); otherwise gt is a solid
     post-onset line. Red v_readout always uses continuous pre/post lines: dashed
     pre when ``show_pre`` is true, solid after.
@@ -508,9 +508,9 @@ def plot_timecourse(
         gt = tr.get("gt")
         std = tr.get("std")
         linestyle = tr.get("linestyle", "-")
-        point_idx = tr.get("point_idx")
-        if point_idx is not None:
-            x_gt, y_gt = _series_points(t, gt, point_idx=point_idx)
+        ts = tr.get("ts")
+        if ts is not None:
+            x_gt, y_gt = _series_points(t, gt, ts=ts)
             if x_gt is not None:
                 ax.plot(
                     x_gt, y_gt, linestyle='none', marker='o', markersize=4,
@@ -595,7 +595,7 @@ def _save_interactive_html(fig, path):
         'autosize': False,
         'width': max(400, int(fig.get_figwidth() * 100)),
         'height': max(300, int(fig.get_figheight() * 100)),
-        'margin': dict(l=40, r=20, t=60, b=40),
+        'margin': dict(l=40, radius=20, t=60, b=40),
         'hovermode': 'closest',
         'showlegend': False,
         'plot_bgcolor': plot_bg,
@@ -820,10 +820,10 @@ def plot_cost(costs, path, *, costs_by_part=None, part_order=None):
         except ValueError:
             return None
         r_i = int(round(r_f))
-        r = r_i if abs(r_f - r_i) < 1e-6 else float(r_f)
+        radius = r_i if abs(r_f - r_i) < 1e-6 else float(r_f)
         # prefix is "{task}_{cell}"
         cell = part_key[len(task) + 1:pos]
-        return cell, contrast, r
+        return cell, contrast, radius
 
     def _moving_bar_parse(part_key: str):
         if part_key.startswith("moving_bar_bright_"):
@@ -843,11 +843,11 @@ def plot_cost(costs, path, *, costs_by_part=None, part_order=None):
                 return cell, contrast, role
         return None
 
-    # role universe (for color indexing)
+    # series universe (for color indexing)
     spot_radii: set = set()
     moving_roles: set = set()
-    other_role_ids_order: list = []
-    other_role_ids_seen: set = set()
+    other_series_order: list = []
+    other_series_seen: set = set()
 
     curves_by_cell: dict[str, list] = {}
     curves_global: list = []
@@ -859,58 +859,60 @@ def plot_cost(costs, path, *, costs_by_part=None, part_order=None):
 
         parsed_spot = _spot_parse(part_key)
         if parsed_spot is not None:
-            cell, contrast, r = parsed_spot
-            spot_radii.add(r)
-            role_id = ("spot_r", r)
-            label = f"R{r} ({contrast})" if contrast else f"R{r}"
-            curves_by_cell.setdefault(cell, []).append((role_id, label, curve))
+            cell, contrast, radius = parsed_spot
+            spot_radii.add(radius)
+            series = ("spot_radius", radius)
+            label = f"R{radius} ({contrast})" if contrast else f"R{radius}"
+            curves_by_cell.setdefault(cell, []).append((series, label, curve))
             continue
 
         parsed_moving = _moving_bar_parse(part_key)
         if parsed_moving is not None:
             cell, contrast, role = parsed_moving
             moving_roles.add(role)
-            role_id = ("moving_role", role)
+            series = ("moving_role", role)
             label = f"{role} ({contrast})" if contrast else role
             if cell is None:
-                curves_global.append((role_id, label, curve))
+                curves_global.append((series, label, curve))
             else:
-                curves_by_cell.setdefault(cell, []).append((role_id, label, curve))
+                curves_by_cell.setdefault(cell, []).append((series, label, curve))
             continue
 
         # unknown / future task parts:
         # - try to place into cell grid if the part_key contains a known cell substring
         # - otherwise treat as global (global panels come after cell panels).
-        role_id = ("other", part_key)
-        if role_id not in other_role_ids_seen:
-            other_role_ids_seen.add(role_id)
-            other_role_ids_order.append(role_id)
+        series = ("other", part_key)
+        if series not in other_series_seen:
+            other_series_seen.add(series)
+            other_series_order.append(series)
         known_cells = {n for row in CELL_ROWS for n in row}
         matches = [cell for cell in known_cells if cell and cell in part_key]
         if matches:
             cell = max(matches, key=len)
-            curves_by_cell.setdefault(cell, []).append((role_id, part_key, curve))
+            curves_by_cell.setdefault(cell, []).append((series, part_key, curve))
         else:
-            curves_global.append((role_id, part_key, curve))
+            curves_global.append((series, part_key, curve))
 
     # Build deterministic color mapping:
     # - spot radii first: R0, R1, R2, ...
     # - then moving bar roles: PD, ND, DSI
-    # - then other roles in the order they appear in `part_order`.
+    # - then other series in the order they appear in `part_order`.
     palette = list(plt.get_cmap("tab20").colors)
-    role_id_order: list = []
-    for r in sorted(spot_radii, key=lambda x: (isinstance(x, float), x)):
-        role_id_order.append(("spot_r", r))
+    series_order: list = []
+    for radius in sorted(spot_radii, key=lambda x: (isinstance(x, float), x)):
+        series_order.append(("spot_radius", radius))
 
-    moving_role_order = [r for r in ("PD", "ND", "DSI") if r in moving_roles]
-    extra_moving = sorted([r for r in moving_roles if r not in moving_role_order])
+    moving_role_order = [role for role in ("PD", "ND", "DSI") if role in moving_roles]
+    extra_moving = sorted([role for role in moving_roles if role not in moving_role_order])
     moving_role_order.extend(extra_moving)
-    for r in moving_role_order:
-        role_id_order.append(("moving_role", r))
+    for role in moving_role_order:
+        series_order.append(("moving_role", role))
 
-    role_id_order.extend(other_role_ids_order)
+    series_order.extend(other_series_order)
 
-    color_from_role_id = {rid: palette[i % len(palette)] for i, rid in enumerate(role_id_order)}
+    color_from_series = {
+        series: palette[i % len(palette)] for i, series in enumerate(series_order)
+    }
 
     # Layout: [total log + parts log] then [total linear + parts linear].
     n_col = N_COL_GT
@@ -941,11 +943,11 @@ def plot_cost(costs, path, *, costs_by_part=None, part_order=None):
         cell_curves_list = curves_by_cell.get(cell) or []
         return sorted(
             cell_curves_list,
-            key=lambda x: role_id_order.index(x[0]) if x[0] in role_id_order else 10**9,
+            key=lambda x: series_order.index(x[0]) if x[0] in series_order else 10**9,
         )
 
-    def _draw_total(row_idx, *, log):
-        ax = fig.add_subplot(gs[row_idx, :])
+    def _draw_total(row, *, log):
+        ax = fig.add_subplot(gs[row, :])
         ax.plot(costs, color='steelblue', linewidth=2, linestyle='-')
         if log:
             _cost_yscale(ax, costs)
@@ -958,16 +960,16 @@ def plot_cost(costs, path, *, costs_by_part=None, part_order=None):
     def _draw_part_block(row0, *, log, shared_cell_ylim, with_legend):
         legend_done = False
         for gi, row_cells in enumerate(rows):
-            row_idx = row0 + gi
+            row = row0 + gi
             start = (n_col - len(row_cells)) // 2
             for j, cell in enumerate(row_cells):
-                ax = fig.add_subplot(gs[row_idx, start + j])
+                ax = fig.add_subplot(gs[row, start + j])
                 cell_curves_list = _sorted_curves(cell)
                 curves = []
-                for role_id, label, curve in cell_curves_list:
+                for series, label, curve in cell_curves_list:
                     curves.append(curve)
                     ax.plot(
-                        curve, color=color_from_role_id.get(role_id),
+                        curve, color=color_from_series.get(series),
                         linewidth=2, linestyle='-', label=label,
                     )
                 if log and shared_cell_ylim and cell_curves:
@@ -987,11 +989,11 @@ def plot_cost(costs, path, *, costs_by_part=None, part_order=None):
                 if gi == n_cell_row - 1:
                     ax.set_xlabel("step")
 
-        for gi, (role_id, label, curve) in enumerate(curves_global):
-            row_idx = row0 + n_cell_row + gi // n_col
+        for gi, (series, label, curve) in enumerate(curves_global):
+            row = row0 + n_cell_row + gi // n_col
             col = gi % n_col
-            ax = fig.add_subplot(gs[row_idx, col])
-            ax.plot(curve, color=color_from_role_id.get(role_id), linewidth=2, linestyle='-')
+            ax = fig.add_subplot(gs[row, col])
+            ax.plot(curve, color=color_from_series.get(series), linewidth=2, linestyle='-')
             if log:
                 _cost_yscale(ax, curve)
             else:

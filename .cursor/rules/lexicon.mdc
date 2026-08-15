@@ -41,9 +41,9 @@ Forbidden: `paradigm` (including ``I_STI_PARADIGMS``, ``resolve_i_sti_paradigm``
 
 ### `adam` / `adams`
 
-Definition: First-/second-order optimizer state for the trainable vector ``z`` — the ``exp_avg`` / ``exp_avg_sq`` tensors and the per-param bags expanded from or packed into them. Singular ``adam`` is one such bag or the concept; plural ``adams`` is a collection of those bags (or the pair of m/v arrays). Compounds name the role (``adams_m`` / ``adams_v``, ``z_adams``, ``run_adams``, ``adam_init``, ``save_adam``, ``best_adam.npz``). The step count stored with that state is ``iter`` (not ``adam_iter``).
-Example: `adams_m, adams_v = adams_from_z(exp_avg, exp_avg_sq, schema)`, `z_adams_from_node_vals(...)`, `adams_from_state_dict(...)`, `_load_adams(...)`, `run_adams`, `save_adam(...)`, `load_best_adam(...)`
-Forbidden: `moment` / `moments` as naming tokens (`moments_from_z`, `moments_m`, `z_moments_*`, `_load_moments`, prose “moment dict”). Do not use ``adam_iter`` — that is ``iter``. Do not use `opt` / `opts` for these tensors (`opt` / `opts` are input options only). Do not name the update loop with `adam` — that is ``optimization`` / ``optimize``. Library ``torch.optim.Adam`` and its state keys ``exp_avg`` / ``exp_avg_sq`` / ``step`` may remain.
+Definition: First-/second-order optimizer moments for the trainable vector ``z`` — the ``exp_avg`` / ``exp_avg_sq`` tensors and the per-param bags expanded from or packed into them. Singular ``adam`` is one such bag or the concept; plural ``adams`` is a collection of those bags (or the pair of m/v arrays). Compounds name the role (``adams_m`` / ``adams_v``, ``z_adams``, ``run_adams``, ``adam_init``, ``adam_iter``, ``save_adam``, ``best_adam.npz``). Disk/npz field for the step count remains ``iter``; the in-code local pulled from adam is ``adam_iter``.
+Example: `adams_m, adams_v = adams_from_z(exp_avg, exp_avg_sq, schema)`, `z_adams_from_node_vals(...)`, `adams_from_optimizer(...)`, `_load_adams(...)`, `run_adams`, `adam_iter`, `save_adam(...)`, `load_best_adam(...)`
+Forbidden: `moment` / `moments` as naming tokens (`moments_from_z`, `moments_m`, `z_moments_*`, `_load_moments`, prose “moment dict”). Do not use `opt` / `opts` for these tensors (`opt` / `opts` are input options only). Do not name the update loop with `adam` — that is ``optimization`` / ``optimize``. Do not use project identifiers ``state`` / ``state_dict`` / ``pstate`` for these bags — that is ``adam`` / ``adams``; library ``torch.optim.Adam``, ``optimizer.state_dict()`` / ``load_state_dict`` / ``optimizer.state``, and library keys ``exp_avg`` / ``exp_avg_sq`` / ``step`` / ``'state'`` may remain at the call site only.
 
 ### `all`
 
@@ -54,13 +54,13 @@ Forbidden: as a prefix on collection / bag names — never `all_hexes`, `all_nod
 ### `b` / `bs`
 
 Definition: Sti-sample index along the parallel-sti axis — a position 0..`n_b`-1 into tensors such as `i_sti` / `trace_full` shaped `(n_b, n_t, N)`, or which sti slot a cost `entry` belongs to. Singular ``b`` is that index. Plural ``bs`` is a bag/collection of those idxs (e.g. `entry_bs`, `active_bs`). Cardinality ``n_b``. Compounds: `entry_bs`, `active_bs`, `sti_bs`, `sti_b`, `b_sums`, `b_set`, `b_offsets`, `n_t_by_b`, `spot_sti_bs`, `SpotB` (one spot sti configuration for one b).
-Example: `for b in range(n_b): ...`, `active_bs = pack.entry_bs.unique(sorted=True)`, `trace_full[b, t, node_idx]`, `sti_b` when indexing `i_sti` slots separately from readout `b`
+Example: `for b in range(n_b): ...`, `active_bs = pack.entry_bs.unique(sorted=True)`, `trace_full[b, t, node]`, `sti_b` when indexing `i_sti` slots separately from readout `b`
 Forbidden: `batch`, `batches`, `batch_idx`, `n_batch`, `batched`, and other `*batch*` naming tokens for this axis. Do not suffix the index with `_idx` — use bare `b` (not `b_idx` / `batch_idx`). Library / non-axis uses may remain (e.g. RGBA channel `b`, plotly margin key `b`).
 
 ### `cell` / `cells`
 
 Definition: A neuron type from the connectome (e.g. `"L1"`, `"T4a"`), grouping multiple nodes that share the same biological identity.
-Example: `connectome.cells` (connectome vocabulary mapping node idxs to cell types)
+Example: `connectome.cells` (connectome vocabulary mapping nodes to cell types)
 Forbidden: do not use `node` to refer to a cell type. `cell` is a connectome type; `node` is a specific numbered neuron in the network. Do not use `name` / `names` / `cell_name` / `*_by_name` / `idx_from_name` for this — use `cell` / `cells` / `cell_idx` / `*_by_cell`. Do not use ``label`` for a connectome type — that is ``cell`` (see ``### label``). Forbidden: ``slot`` / ``slots`` as a naming token for param-axis CLI ids or any idx role. Forbidden: ``member`` / ``members`` for cells in a family — use ``cell`` / ``cells``.
 
 ### `center` / `centers`
@@ -72,7 +72,7 @@ Forbidden: do not use `center` for bar-trail midpoint, histogram bin midpoint, n
 ### `col` / `cols`
 
 Definition: A horizontal subplot-grid index in figure code only — which panel slot within one plot `row` (matplotlib `GridSpec` column, trace column within a component figure).
-Example: `n_col`, `col_idx`, `N_COL_GT`, `fig.add_subplot(gs[row_idx, col])`, `layout.n_col`
+Example: `n_col`, `col`, `N_COL_GT`, `fig.add_subplot(gs[row, col])`, `layout.n_col`
 Forbidden: connectome `column` / `column_id`; CSV table field; hex position; cost `entry` mask — do not use `col` outside plot code. Library matplotlib kwargs like `sharex="col"` may remain.
 
 ### `column` / `columns`
@@ -110,8 +110,8 @@ Forbidden: `artifact`, `output` — use `data` instead. Do not use `data` for in
 ### `const` / `consts`
 
 Definition: Session-injected model scalars that are **not** packed into ``z`` — bag ``NEURON_CONST`` (`cap`, `g_leak`, `e_exc`, `euler`, `delta_ms`, …). Distinct from trainable ``NEURON_SCHEMA['params']``.
-Example: `from const_default import NEURON_CONST`, `session.g_leak`, `NEURON_CONST['cap']`
-Forbidden: ``NEURON_PARAM``; naming these with ``param`` / ``optimizable``.
+Example: `from const_default import NEURON_CONST`, `session.g_leak`, `session.v_clamp`, `NEURON_CONST['cap']`
+Forbidden: ``NEURON_PARAM``; naming these with ``param`` / ``optimizable``. Do not name the voltage clamp const ``state_clamp`` — that is ``v_clamp``.
 
 ### `default`
 
@@ -129,9 +129,9 @@ Forbidden: do not use `syn` to refer to a network edge or its idx. `edge` is a n
 
 ### `entry` / `entries`
 
-Definition: One cost comparison unit in a `Pack`: a (cell × radius) or (cell × PD/ND) record. Pack aligns bags `entry_nodes`, `gts`, `cost_scales`, `entry_bs`, `entry_radii` (one slot per entry; `entry_radii` is spot hex-lattice radius). The cost MSE is a scaled sum over entries with ``entry_mask`` True.
-Example: `entries = _active_entry_idxs(work, session, b=b)`
-Forbidden: do not use `node` to refer to a cost entry. `entry` is a cost-layer record; `node` is a network neuron idx.
+Definition: One cost comparison unit in a `Pack`: a (cell × radius) or (cell × PD/ND) record — also the integer slot 0..`n_cost`-1 into pack entry bags. Pack aligns bags `entry_nodes`, `gts`, `cost_scales`, `entry_bs`, `entry_radii` (one slot per entry; `entry_radii` is spot hex-lattice radius). The cost MSE is a scaled sum over entries with ``entry_mask`` True.
+Example: `entries = _active_entries(work, session, b=b)`, `for entry in entries`
+Forbidden: do not use `node` to refer to a cost entry. `entry` is a cost-layer record; `node` is a network neuron idx. Forbidden: ``entry_idx`` / ``entry_idxs`` / ``grouped_entry_idxs`` / ``_active_entry_idxs`` — the integer is the entry; use bare ``entry`` / ``entries`` / ``grouped_entries`` / ``_active_entries``.
 
 ### `f` / `fs`
 
@@ -175,20 +175,20 @@ Forbidden: `height` / `heights` / ``HEIGHT`` / any project identifier containing
 ### `hex` / `hexes`
 
 Definition: A single hexagonal spatial position in the connectome, identified by its axial coordinates `(u, v)`.
-Example: `for hex in moving_bar_cost_hexes(connectome, cost_radius=cost_radius): ...`, `shell_hexes(shell)`, `radius_hexes(radius)`, `hexes_by_radius`
-Forbidden: do not use `column` to refer to a hex position. `hex` is a spatial `(u, v)` location; `column` is a connectome position id (`column_id` / bag `column_ids`). Forbidden: ``member`` / ``members`` as naming tokens for hex bags or hex builders (`members_at_shell`, `members_in_radius`, `members_by_radius`, …) — use ``hex`` / ``hexes`` / ``shell_hexes`` / ``radius_hexes`` / ``hexes_by_radius``.
+Example: `for hex in moving_bar_cost_hexes(connectome, cost_radius=cost_radius): ...`, `shell_hexes(shell)`, `radius_hexes(radius)`
+Forbidden: do not use `column` to refer to a hex position. `hex` is a spatial `(u, v)` location; `column` is a connectome position id (`column_id` / bag `column_ids`). Forbidden: ``member`` / ``members`` as naming tokens for hex bags or hex builders (`members_at_shell`, `members_in_radius`, `members_by_radius`, …) — use ``hex`` / ``hexes`` / ``shell_hexes`` / ``radius_hexes``. Forbidden: ``hexes_by_radius`` (thin ``shell_hexes`` bag wrapper) — call ``shell_hexes`` directly.
 
 ### `id` / `ids`
 
-Definition: An external identifier from persisted or connectome source data (e.g. FAFB node `id` in `network.json`, `column_id`, `root_id`) — not an in-memory array position. Cell-keyed bags of those ids use ``ids_by_cell``.
-Example: `node_ids`, `node_from_id`, `column_id` (disk/JSON), `connectome.column_ids` (in-memory bag), `ids_by_cell(nodes, at_u=..., at_v=...)`, `resolve_xy_ids`
-Forbidden: do not use `idx` to refer to an external/source identifier. `id` is a key stored in connectome or sidecar data; `idx` is a position in an in-memory ordered axis. Forbidden: ``instance`` / ``instances`` as naming tokens (`instance_ids`, `resolve_xy_instance_ids`, ``instance_syn_*``, prose “CELL instances”) — use ``id`` / ``ids`` / ``ids_by_cell`` / ``node``.
+Definition: An external identifier from persisted or connectome source data (e.g. FAFB node `id` in `network.json`, `column_id`) — not an in-memory array position. Cell-keyed bags of those ids use ``ids_by_cell``.
+Example: `node_ids`, `node_from_id`, `column_id` (disk/JSON), `connectome.column_ids` (in-memory bag), `ids_by_cell(nodes, at_u=..., at_v=...)`, `resolve_xy_ids`, `pre_id` / `post_id` (edge endpoints)
+Forbidden: do not use `idx` to refer to an external/source identifier. `id` is a key stored in connectome or sidecar data; `idx` is a position in an in-memory ordered axis. Forbidden: ``instance`` / ``instances`` as naming tokens (`instance_ids`, `resolve_xy_instance_ids`, ``instance_syn_*``, prose “CELL instances”) — use ``id`` / ``ids`` / ``ids_by_cell`` / ``node``. Forbidden: ``root`` as a naming token in project identifiers (`root_id`, `root_ids`, `pre_root_id`, `post_root_id`, `column_root_ids`, ``rid``) — use ``id`` / ``ids`` / ``pre_id`` / ``post_id``; FAFB download CSV field strings ``"root_id"`` / ``"pre_root_id"`` / ``"post_root_id"`` may remain only at the load boundary.
 
 ### `idx` / `idxs`
 
-Definition: A position in an ordered in-memory axis used for `[...]` indexing (simulation node 0..N-1, b, time step, cost entry, part, packed ``z``, etc.). **Never a bare identifier** — always attached after the axis / object noun: ``<noun>_idx`` (singular) or ``<noun>_idxs`` (plural bag or lookup dict keyed by that noun).
-Example: `node_idx`, `part_idx`, `entry_idx`, `z_idx`, `cell_idx[cell]`, `hex_idx[(u, v)]`, `source_idxs`, `part_idxs`, `cell_idx_from_node_id`
-Forbidden: bare ``idx`` / ``idxs`` as a local, parameter, or attribute name. **Forbidden:** ``indices`` as a naming token (use ``idxs``). **Forbidden bare-result ``_from_``:** ``idx_from_*`` (``idx`` alone is not a result noun) — a label→position table is ``<noun>_idx`` (e.g. ``cell_idx[cell]``); a conversion whose result is a real ``<noun>_idx`` may be ``<noun>_idx_from_<source>`` (e.g. ``cell_idx_from_node_id``). Do not use `id` for an in-memory array position — external keys go through `node_from_id` first. Do not use `index` or `ix`. Do not use bare `i` as an idx abbrev in compounds. Do not use `row` for a cost-entry mask or CSV record — use `entry` / `entry_mask` or `field`. Do not use `t_idx`, `step_idx`, or `time_idx` — use bare `t`. Do not use `b_idx` — use bare `b`. Do not use ``slot`` / ``slots`` for any idx or param-axis role.
+Definition: A position in an ordered in-memory axis used for `[...]` indexing (part, packed ``z``, hex lookup, etc.). **Never a bare identifier** — always attached after the axis / object noun: ``<noun>_idx`` (singular) or ``<noun>_idxs`` (plural bag or lookup dict keyed by that noun). Bare axis integers that are the noun itself — ``t`` / ``n_t``, ``b`` / ``bs``, ``entry`` / ``entries``, ``node`` / ``nodes`` — do not take ``_idx``.
+Example: `part_idx`, `z_idx`, `cell_idx[cell]`, `hex_idx[(u, v)]`, `source_idxs`, `part_idxs`, `cell_idx_from_node_id`
+Forbidden: bare ``idx`` / ``idxs`` as a local, parameter, or attribute name. **Forbidden:** ``indices`` as a naming token (use ``idxs``). **Forbidden bare-result ``_from_``:** ``idx_from_*`` (``idx`` alone is not a result noun) — a label→position table is ``<noun>_idx`` (e.g. ``cell_idx[cell]``); a conversion whose result is a real ``<noun>_idx`` may be ``<noun>_idx_from_<source>`` (e.g. ``cell_idx_from_node_id``). Forbidden: ``node_idx`` / ``node_idxs`` / ``node_idx_from_id`` — the network neuron integer is bare ``node`` / ``nodes``; id→node map is ``node_from_id``. Do not use `id` for an in-memory array position — external keys go through `node_from_id` first. Do not use `index` or `ix`. Do not use bare `i` as an idx abbrev in compounds. Do not use `row` for a cost-entry mask or CSV record — use `entry` / `entry_mask` or `field`. Do not use `t_idx`, `step_idx`, or `time_idx` — use bare `t`. Do not use `b_idx` — use bare `b`. Do not use `entry_idx` / `entry_idxs` — use bare `entry` / `entries`. Do not use ``slot`` / ``slots`` for any idx or param-axis role.
 
 ### `implementation`
 
@@ -210,14 +210,14 @@ Forbidden: ``val`` as the cold-start key (``val`` is the live/trained param numb
 
 ### `iter` / `iters`
 
-Definition: One optimizer iteration (a single gradient update), used to count train progress and as the step count stored with ``adam`` state (`n_iter`, `global_iter`, `checkpoint_interval`, npz field ``iter``).
+Definition: One optimizer iteration (a single gradient update), used to count train progress (`n_iter`, `global_iter`, `checkpoint_interval`). The step count stored on disk with ``adam`` is npz field ``iter``; the in-code local for that value when pulled from adam is ``adam_iter`` (see ``### adam``).
 Example: `n_iter = N_ITER_GPU if cuda_available else N_ITER_CPU`
-Forbidden: ``adam_iter`` — use bare ``iter``. Library ``torch.optim.Adam`` state key ``step`` may remain at the library boundary.
+Forbidden: ``n_iter_done``. Library ``torch.optim.Adam`` key ``step`` may remain at the library boundary.
 
 ### `map` / `maps`
 
-Definition: A lookup table from one key space to another — a dict or idx-array pair. **Quantity conversion** (different roles/types) uses ``_from_`` with a real result noun that is not bare ``idx`` (``node_from_id``, ``t_from_ms``, ``cell_from_node``, ``cell_idx_from_node_id``). **Label→position tables** (same axis vocabulary → int position) are named ``<noun>_idx`` (lookup ``cell_idx[cell]``), not ``idx_from_<noun>``. **Same quantity keyed by a subset axis** uses ``_by_`` (`nodes_by_cell`) — see ``### _by_`` / ``### _from_``.
-Example: `cell_from_node(nodes_by_cell)` → `dict[int, str]`; `node_from_id`; `cell_idx = {cell: i for i, cell in enumerate(cells)}`; `cell_idx_from_node_id`
+Definition: A lookup table from one key space to another — a dict or idx-array pair. **Quantity conversion** (different roles/types) uses ``_from_`` with a real result noun that is not bare ``idx`` (``node_idx_from_id``, ``t_from_ms``, ``cell_from_node``, ``cell_idx_from_node_id``). **Label→position tables** (same axis vocabulary → int position) are named ``<noun>_idx`` (lookup ``cell_idx[cell]``), not ``idx_from_<noun>``. **Same quantity keyed by a subset axis** uses ``_by_`` (`nodes_by_cell`) — see ``### _by_`` / ``### _from_``.
+Example: `cell_from_node(nodes_by_cell)` → `dict[int, str]`; `node_idx_from_id`; `cell_idx = {cell: i for i, cell in enumerate(cells)}`; `cell_idx_from_node_id`
 Forbidden: `_to_` in map names (`node_to_cell`, `id_to_node`, `name_to_i`). Bare ``idx_from_*`` (see ``### idx``). Do not use `name` / `names` in map identifiers — use the real source noun (`cell`, `param`, `radius`, …).
 
 ### `mask` / `masks`
@@ -277,7 +277,7 @@ Example: `opt = session.train_opts or {}`
 ### `optimization`
 
 Definition: The staged-lr update loop that minimizes `cost` (module ``train.optimization``: `optimize_staged`, `do_many_runs`). One middle step of a `train`; not the whole process and not the cost scalar itself.
-Example: `z_best, state_dict = optimize_staged(...)`, `result = do_many_runs(session, ...)`
+Example: `z_best, adam = optimize_staged(...)`, `result = do_many_runs(session, ...)`
 Forbidden: do not use `opt` for this concept (`opt` / `opts` are input options only). Do not use `train` as a verb for this loop — use `optimize`. Do not name the returned ``z`` with ``fit`` — use `z_best` (see ``### gt`` Forbidden).
 
 ### `out`
@@ -301,7 +301,7 @@ Forbidden: `readout`, `ReadoutPack`, `primary_readout`, `session.readouts` — t
 ### `panel` / `panels`
 
 Definition: One subplot cell in a figure grid (indexed by `row` / `col`), and the shared figure-layer module ``figure.panel`` of cross-task drawing / save / timing helpers used to fill those cells (colors, lims, timecourse lines, overlays, ``save_figure``, ``ElapsedTimer``). Compounds: ``PANEL_W``, ``PANEL_H``, ``N_COL_*``.
-Example: `from figure.panel import save_figure, plot_timecourse`, `PANEL_W`, `fig.add_subplot(gs[row_idx, col])` as one panel
+Example: `from figure.panel import save_figure, plot_timecourse`, `PANEL_W`, `fig.add_subplot(gs[row, col])` as one panel
 Forbidden: `util` / `utils` / `helper` / `helpers` / `common` as the module or concept name for these shared figure helpers. Do not use `panel` for connectome hex / cost `entry` / CSV record — those are `hex` / `entry` / `field`. Do not use `plot` as a noun module name for this bag (driver remains ``figure.plot``).
 
 
@@ -331,12 +331,12 @@ Forbidden: `prepare` as a naming token for this timing phase. Do not use `prep` 
 ### `radius` / `radii`
 
 Definition: An integer hex-lattice distance used as an **inclusive disc / area size** (``hex_radius(u, v) <= N``) or as a footprint / cost / RF extent label — connectome geometry (`connectome.meta["radius"]`), spot footprint (`spot_radius`), sub-spot shift neighbourhood (`shift_radius`), bar ``w``+spacing (`bar_radius`), cost hex-disc (`cost_radius`), spot cost / RF / ``a_sti_radius`` axes (`entry_radii`, ``spot_cost_radii``, ``RF_N_RADII``). Measured by ``build_hex.hex_radius`` (not Euclidean or angular distance). Distinct from ``shell``, which is the **exact-distance** locus ``hex_radius == N``.
-Example: `connectome_radius = int(connectome.meta.get("radius", -1))` (JSON key `"radius"` in `network.json`), `entry_radii`, `radius_hexes`, `hexes_by_radius`, `inside_mask(..., radius)`, `ids_by_cell(..., radius=)`, `--radius`
-Forbidden: `ring` / `rings` as naming or prose substitutes for this concept; `extent` for any hex-lattice radius count; Euclidean / angular distance for this noun. Do not use ``shell`` for inclusive discs / footprints / cost discs. Do not use ``radius`` when the selection is exact-distance-only (``hex_radius == N``) — that is ``shell``.
+Example: `connectome_radius = int(connectome.meta.get("radius", -1))` (JSON key `"radius"` in `network.json`), `entry_radii`, `radius_hexes`, `radius_mask(..., radius)`, `ids_by_cell(..., radius=)`, `--radius`
+Forbidden: `ring` / `rings` as naming or prose substitutes for this concept; `extent` for any hex-lattice radius count; Euclidean / angular distance for this noun. Do not use ``shell`` for inclusive discs / footprints / cost discs. Do not use ``radius`` when the selection is exact-distance-only (``hex_radius == N``) — that is ``shell``. Forbidden: ``inside_mask`` / ``hex_in_cost_radius`` — use ``radius_mask`` / ``cost_radius_mask``.
 
 ### `readout` / `readouts`
 
-Definition: An in-memory assembled forward result for one task scope — cost `trace`s plus entry idxs, timing, and plot metadata between `forward` and `plot`. Distinct from persisted run `data` and from the cost-spec `pack`.
+Definition: An in-memory assembled forward result for one task scope — cost `trace`s plus entries, timing, and plot metadata between `forward` and `plot`. Distinct from persisted run `data` and from the cost-spec `pack`.
 Example: `_forward_spot_readout`, `readout["plot_traces"]`, `_spot_v_readout_from_readout`, `build_spot_center_readout`, `SpotTraceReadout`
 Forbidden: `data` — use `data` only for files under a run's `data/` folder. Do not name the container `rows`, `forward_data`, or `bundle_data`. Do not use `readout` for the connectome biological column — use `column` / `column_ids`. Do not use `readout` / `ReadoutPack` / `primary_readout` / `session.readouts` for the cost-spec container — that is `pack` / `Pack` / `primary_pack` / `session.packs`. Do not use `readout` for analyze diagnostic dicts — that is `report`.
 
@@ -361,7 +361,7 @@ Forbidden: ``RecF``, ``recf``, ``rf_gt``, ``RecF_gt``, ``RF_GRUNTMAN_ROW``, ``bu
 ### `row` / `rows`
 
 Definition: A vertical subplot-grid index in figure code only — one plot panel band (component figure row, cell layout band, RF+time stack band).
-Example: `n_row`, `row_idx`, `CELL_ROWS`, `row_idxs`, `row_shared_ylim`, `fig.add_gridspec(n_row, n_col)`
+Example: `n_row`, `row`, `CELL_ROWS`, `rows`, `row_shared_ylim`, `fig.add_gridspec(n_row, n_col)`
 Forbidden: CSV record row; cost `entry` / `entry_mask`; `i_sti` b slot; GT lookup-table row index; in-memory forward container — do not use `row` outside plot code. Library pandas / CSV `row` locals in one-off parsers may remain if the noun is not exported.
 
 ### `run` / `runs`
@@ -430,7 +430,7 @@ Forbidden: `weight` for this role (`cost_weight`, …); `factor`; `gain`. Do not
 
 ### `session` / `sessions`
 
-Definition: A run-time context object that holds assembled configuration/state for one train/evaluation run (schema/backend/tasks/readouts/opts).
+Definition: A run-time context object that holds assembled configuration for one train/evaluation run (schema/backend/tasks/readouts/opts).
 Example: `session = train.session_from_outdir(...)`
 
 ### `shell` / `shells`
@@ -458,7 +458,7 @@ Example: `if task_name in SPOT_TASKS: ...`
 
 ### `sti` / `stis`
 
-Definition: Light sti drive — photoreceptor current injected at R1–6/R7/R8 (`i_sti`), and the connectome node flag/mask for those nodes (`is_sti`, JSON `"sti"`, `sti_nodes_at`, `sti_node_idxs`, `STI_CELLS`). Compounds cover sti hex anchors and opts (`sti_uv`, `sti_opts`, `entry_sti_us`, `cost_sti_us`, `sti_b`).
+Definition: Light sti drive — photoreceptor current injected at R1–6/R7/R8 (`i_sti`), and the connectome node flag/mask for those nodes (`is_sti`, JSON `"sti"`, `sti_nodes_at_uv`, `sti_node_idxs`, `STI_CELLS`). Compounds cover sti hex anchors and opts (`sti_uv`, `sti_opts`, `entry_sti_us`, `cost_sti_us`, `sti_b`).
 Example: `i_sti = pack.i_sti`, `connectome.is_sti`, `connectome.sti_node_idxs`, `STI_CELLS`, `spot_sti_bs`, `build_spot_sti_opts`
 Forbidden: `stimulus`, `stim`, `stimuli`, `input`, `is_input`, `PR`, `photoreceptor` (as naming tokens for this concept), `u_in`, `v_in`, `pr_idx`, `n_input_nodes`, `INPUT_CELLS`, `input_nodes_at`. Do not use `sti` for total ``in`` (sti + synaptic) — use `in`.
 
@@ -541,8 +541,8 @@ Forbidden: do not use `weight` for cost / DSI / RF multipliers — use `scale`. 
 ### `z`
 
 Definition: The packed trainable parameter vector that optimize updates — schema packs `param` values into ``z`` and decodes them back (``param_from_z`` / ``z_from_param``; per-param encoding via ``z_mode`` ∈ {linear, log, inv}). One packed scalar (vector element or decode input) is still ``z``. Compounds: ``z_best`` (post-optimize), ``z_mode``, ``z_bounds``, ``z_init`` (cold-start vector), ``z_idx`` (position along one param's pack into ``z``), ``param_n_z``, ``schema_nparams`` (``z`` width).
-Example: `z_best, state_dict = optimize_staged(z, ...)`, `params_from_z(z, session)`, `param_from_z(spec, z, node_idx=…)`, `z_from_param(spec, val)`, `param.get("z_mode", "linear")`, `z_slice[z_idx]`
-Forbidden: ``theta``, ``x`` as names for this vector; bare ``w`` as a name for this vector (``w`` is extent — see ``### w``); ``physical`` for decoded values (use ``param``); ``z_fit`` / ``fit`` for the returned vector (use ``z_best``; see ``### gt`` Forbidden); ``z_map`` for the encoding key (use ``z_mode``). Do not use bare ``z`` for hex coords, trace time, or other axes. **Forbidden pack-position junk:** ``z_slot``, ``z_slot_idx`` — scalar is ``z``; pack position is ``z_idx``. **Strictly forbidden type/container suffixes on the train vector:** ``z_t``, ``z_np``, ``z_tensor``, ``z_arr``, ``z_cpu``, ``z_cuda``, and any other ``z_<dtype|device|container>`` coinage — the live vector is always ``z`` (role-qualified only as ``z_best`` / ``z_init``). Trace-oscillation ``z_threshold`` is a different concept (not this vector).
+Example: `z_best, adam = optimize_staged(z, ...)`, `params_from_z(z, session)`, `param_from_z(spec, z, node_idx=…)`, `z_from_param(spec, val)`, `param.get("z_mode", "linear")`, `z_slice[z_idx]`
+Forbidden: ``theta``, ``x`` as names for this vector; bare ``w`` as a name for this vector (``w`` is extent — see ``### w``); ``physical`` for decoded values (use ``param``); ``z_fit`` / ``fit`` for the returned vector (use ``z_best``; see ``### gt`` Forbidden); ``z_map`` for the encoding key (use ``z_mode``). Do not use bare ``z`` for hex coords, trace time, or other axes. **Forbidden pack-position junk:** ``z_slot``, ``z_slot_idx`` — scalar is ``z``; pack position is ``z_idx``. **Forbidden type/container naming token ``tensor`` / ``tensors`` (project-wide):** never in identifiers (``*_tensor``, ``*_tensors``, ``pack_*_tensors``, ``_p_tensors``, ``z_tensor``, …) — name the real quantity (``params``, ``dsi``, ``entries``, ``component``, …). Library ``torch.Tensor`` / ``torch.tensor`` / ``as_tensor`` / ``is_tensor`` / ``.new_tensor`` may remain. **Also forbidden on the train vector:** ``z_t``, ``z_np``, ``z_arr``, ``z_cpu``, ``z_cuda``, and any other ``z_<dtype|device|container>`` coinage — the live vector is always ``z`` (role-qualified only as ``z_best`` / ``z_init``). Trace-oscillation ``z_threshold`` is a different concept (not this vector).
 
 ## Adjectives (A-Z)
 
@@ -551,6 +551,12 @@ Forbidden: ``theta``, ``x`` as names for this vector; bare ``w`` as a name for t
 Definition: Modifier marking membership in the subset picked from a candidate pool — the item participates in the current scope. Realized as a list/set/tuple, predicate, or index list, not as a dense per-element 0/1 boolean array. Compound as `<noun>_active`, `active_<noun>`, or `_active_<noun>_…` in function names.
 Example: `active_gt_cells(...)`, `spot_gt_active(...)`, `_pack_active_bs(...)`, `active_stis_for_subtype(...)`, `all_active`
 Forbidden: `present` for this role. Do not use `active` where the value is a dense boolean 0/1 array along an axis — use `mask` in `<axis>_mask` compounds instead. Do not combine `active` and `mask` in one identifier (`*_active_*_mask`).
+
+### `fused`
+
+Definition: Modifier marking cost packs joined for one shared ``forward`` (verb) by concatenating `i_sti` along `b` when shape / onset match. Compound as `fused_<noun>` (`fused_packs`, `FusedPacks`).
+Example: `FusedPacks`, `_build_fused_packs`, `fused_packs`
+Forbidden: verb `fuse` as a naming token (`fuse_forward`, `FuseForward`, `*_fuse`, `*_fuse_*`); using verb `forward` as a noun in compounds (`FusedForward`, `fused_forward`); `fuse_id` / `*_fuse_id`; `batch` (that is `b`); do not use `group` / `b_set` for this cross-pack join.
 
 ## Verbs (A-Z)
 
@@ -610,7 +616,7 @@ Forbidden: `rescale` as a naming token for this action — use `normalize`. Do n
 ### `optimize`
 
 Definition: Run a staged-lr procedure that updates ``z`` to minimize `cost`.
-Example: `z_best, state_dict = optimize_staged(z, cost_fn, bounds, lrs, n_iter, ...)`
+Example: `z_best, adam = optimize_staged(z, cost_fn, bounds, lrs, n_iter, ...)`
 Forbidden: `fit`, `train` (as a verb) — use `optimize` for the update loop. Do not name the returned ``z`` or post-optimize cost parts with `fit` (`z_fit`, `fit_parts`) — use `z_best`, `final_parts` (see ``### gt`` Forbidden).
 
 ### `parse`
@@ -650,28 +656,28 @@ Forbidden: `canonicalize`, `prepare` — use `standardize` instead. Do not name 
 
 ### `step`
 
-Definition: Advance the neuron state by one time sample (`t-1 → t`) using the model dynamics.
-Example: `state, v = drv.step(state, v, p, i_sti[:, t-1], session, delta_ms=...)`
-Forbidden: do not use `step` to mean an optimizer iteration — use `iter` instead.
+Definition: Advance the neuron by one time sample (`t-1 → t`) using the model dynamics. Pass model symbols inline — ``v_slow`` (hp_lp) or ``u`` / ``u_rev`` (borst) — never an opaque ``state`` bag.
+Example: `v_slow, v = drv.step(v_slow, v, p, i_sti[:, t-1], session, delta_ms=...)`, `u, u_rev, v = drv.step(u, u_rev, v, p, i_sti[:, t-1], session, delta_ms=...)`
+Forbidden: do not use `step` to mean an optimizer iteration — use `iter` instead. Do not name the carried internals ``state`` / ``state_tensor`` — inline ``v_slow`` or ``u`` / ``u_rev``.
 
 ## Prepositions (A-Z)
 
 ### `at_uv` / `at_xy`
 
-Definition: Spatial locus filter — select hexes / nodes / ids at a connectome position. Always spelled with the coordinate frame: ``at_uv`` (axial ``u``/``v``) or ``at_xy`` (hex-step ``x``/``y``, not degree ``x_deg``/``y_deg``). Axis scalars are ``at_u``/``at_v`` or ``at_x``/``at_y``; bags ``at_xs``/``at_ys``. Network axial lookup uses UV (``sti_nodes_at`` args ``u``/``v``; ``ids_by_cell(..., at_u=, at_v=)``). Figure / analyze hex filters and CLI ``--x``/``--y`` use XY (``filter_sti_hexes(..., at_x=, at_y=)``, ``align_at_x``/``align_at_y``). Connectome analyze allows either frame, mutually exclusive.
-Example: `filter_sti_hexes(..., at_x=, at_y=)`, `ids_by_cell(nodes, at_u=..., at_v=...)`, `ids_by_cell(nodes, at_x=..., at_y=...)`, `align_at_x`/`align_at_y`, `cli_xy_filter`, `--x`/`--y`, `--u`/`--v`
-Forbidden: bare ``at`` / ``_at_`` without ``uv`` or ``xy`` (never ``ids_at_hex``, ``sti_nodes_at`` as the sole ``at`` token with no frame — rename to ``sti_nodes_at_uv`` when touching). Do not use ``at`` for time / node / radius-disc sampling (``bar_lane_rects_at_t``, ``_spec_at``, ``v_at_onset``) — name those with the real axis noun, not ``at``. Exact-distance hex selection is ``shell`` (``shell_hexes``, ``--shell``, ``ids_by_cell(..., shell=)`` — see ``### shell``), not an ``at_*`` frame. Do not use ``in``/``on`` as naming glue for spatial id builders (``*_in_disc``, ``*_on_shell``, ``*_on_uv_line``, ``*_on_xy_line``) — one ``ids_by_cell(...)`` with ``radius``/``shell``/``at_u``/``at_v``/``at_x``/``at_y``. Figure overlay bags remain ``overlay_xs``/``overlay_ys`` (see ``### overlay``); ``at_x``/``at_y`` are filter kwargs. Library ``np.add.at`` may remain.
+Definition: Spatial locus filter — select hexes / nodes / ids at a connectome position. Always spelled with the coordinate frame: ``at_uv`` (axial ``u``/``v``) or ``at_xy`` (hex-step ``x``/``y``, not degree ``x_deg``/``y_deg``). Axis scalars are ``at_u``/``at_v`` or ``at_x``/``at_y``; bags ``at_xs``/``at_ys``. Network axial lookup uses UV (``sti_nodes_at_uv``; ``ids_by_cell(..., at_u=, at_v=)``). Figure / analyze hex filters and CLI ``--x``/``--y`` use XY (``filter_sti_hexes(..., at_x=, at_y=)``, ``align_at_x``/``align_at_y``). Connectome analyze allows either frame, mutually exclusive.
+Example: `sti_nodes_at_uv(u, v)`, `filter_sti_hexes(..., at_x=, at_y=)`, `ids_by_cell(nodes, at_u=..., at_v=...)`, `ids_by_cell(nodes, at_x=..., at_y=...)`, `align_at_x`/`align_at_y`, `cli_xy_filter`, `--x`/`--y`, `--u`/`--v`
+Forbidden: bare ``at`` / ``_at_`` without ``uv`` or ``xy`` (never ``ids_at_hex``, ``sti_nodes_at``, ``_nodes_at_hex``, ``hex_at_scope_tag``). Do not use ``at`` for time / node / radius-disc sampling (``bar_lane_rects_at_t``, ``_spec_at``, ``v_at_onset``, ``_component_at_nodes_*``, ``n_nodes_at_t``) — name those with the real axis noun, not ``at`` (``bar_lane_rects``, ``_node_param_key``, ``v_onset``, ``_component_nodes_*``, ``n_nodes_t``). Exact-distance hex selection is ``shell`` (``shell_hexes``, ``--shell``, ``ids_by_cell(..., shell=)`` — see ``### shell``), not an ``at_*`` frame. Do not use ``in``/``on``/``inside`` as naming glue for spatial membership (``inside_mask``, ``hex_in_cost_radius``, ``*_in_disc``, ``*_on_shell``, ``*_on_hexes``, ``*_on_uv_line``, ``*_on_xy_line``) — use ``radius_mask`` / ``cost_radius_mask`` / ``nodes_from_hexes`` / ``hex_mask``, or ``ids_by_cell(...)`` with ``radius``/``shell``/``at_u``/``at_v``/``at_x``/``at_y``. Figure overlay bags remain ``overlay_xs``/``overlay_ys`` (see ``### overlay``); ``at_x``/``at_y`` are filter kwargs. Library ``np.add.at`` may remain.
 
 ### `_by_`
 
 Definition: The same quantity, partitioned or indexed by a subset axis — the bag still holds that quantity, keyed by the subset noun. Pattern: `<quantity>_by_<subset>`; both sides nouns only; the full identifier has no verb token and must not also contain ``_from_``.
-Example: `nodes_by_cell`, `e_leak_by_cell`, `v_th_by_cell`, `v_readout_by_cell`, `std_by_cell`, `gt_affine_by_cell`, `n_by_radius`, `n_t_by_b`, `costs_by_part`, `hexes_by_radius`, `u_by_column_id`
+Example: `nodes_by_cell`, `e_leak_by_cell`, `v_th_by_cell`, `v_readout_by_cell`, `std_by_cell`, `gt_affine_by_cell`, `n_by_radius`, `n_t_by_b`, `costs_by_part`, `u_by_column_id`
 Forbidden: using ``_by_`` when result and source are **different** quantities — that is ``_from_`` (`v_th_from_z`, `std_from_traces`; noun→position tables use ``<noun>_idx``, not ``idx_from_*``). Hybrids that put both prepositions in one identifier (`e_leak_by_cell_from_z`, `v_th_by_cell_from_z`). Method / “by means of” English (`vote_by_syn`, `weight_by_syn`) — that is ``mode`` (`vote_mode`). Tautology when the quantity name already encodes the subset axis (`a_sti_radius_by_radius` — the bag is ``a_sti_radius``). Do not use ``*_by_param`` / ``by_param`` / ``vals_by_param`` — the bag keyed by param is ``node_vals`` / ``schema``, not a ``_by_param`` compound. Do not use ``_by_name`` — use the real subset noun (``*_by_cell``, …). A ``_from_`` function may return a ``_by_`` bag; name the function with ``_from_`` and the bag with ``_by_`` (`v_th_by_cell = v_th_from_z(...)`).
 
 ### `_from_`
 
 Definition: One quantity from another already-concrete quantity — result and source are different roles or types (unit/coordinate conversion, schema pack/unpack, idx lookup, ``z`` → param values, fixed formula on present inputs). Pattern: `<result>_from_<source>`; both sides nouns only; the full identifier has no verb token and must not also contain ``_by_``. This entry's Definition and Example lines use nouns only — no verb tokens.
-Example: `t_from_ms(ms, delta_ms)`, `v_ca_from_v(v, p, session)`, `ca_from_v_ca(...)`, `t_abs_from_ms(...)`, `node_vals_from_z(z, schema)`, `v_th_from_z`, `e_leak_from_z`, `adams_from_z`, `hex_from_uv(u, v)`, `xy_deg_from_uv(u, v)`, `cell_from_node(...)`, `node_from_id`, `family_from_cell_csv(...)`
+Example: `t_from_ms(ms, delta_ms)`, `v_ca_from_v(v, p, session)`, `ca_from_v_ca(...)`, `t_abs_from_ms(...)`, `node_vals_from_z(z, schema)`, `v_th_from_z`, `e_leak_from_z`, `adams_from_z`, `hex_from_uv(u, v)`, `xy_deg_from_uv(u, v)`, `cell_from_node(...)`, `node_idx_from_id`, `family_from_cell_csv(...)`
 Forbidden: `_to_` — never use `_to_` as a directional preposition in function names or map attribute/local names. Any verb token anywhere in the identifier (`load`, `override`, `open`, `resolve`, `parse`, `build`, `assert`, …). Verbs in this lexicon entry's Definition or Example lines. Hybrids with ``_by_`` in the same identifier (see ``### _by_``). Exception: ``val_from`` compounds only (see ``### val_from``). Do not use ``_from_`` when the function merges ``const_default``, alias expansion, and/or CLI tokens into the final execution value — that is ``resolve`` (``resolve_train_kwargs``, ``resolve_sti_timing``, ``resolve_spot``), not ``kwargs_from_args``, ``timing_from_opts``, or ``spot_from_opts``. Do not use ``_from_`` for multi-source assembly (defaults + tokens + validation); one complete source → one result only. Simple field extraction from an already-final opts dict (``gt_cells_from_opts``) may remain ``_from_``; if missing keys fall back to defaults, rename to ``resolve_*``.
 
 ### `_over_`

@@ -16,8 +16,8 @@ Interface (:class:`ScatterConn`):
 (``syn_strength_cell``, ``--syn-mode per_cell``) or length ``n_edges`` per-edge
 (``syn_strength_edge``, ``--syn-mode per_edge``).
 
-Operates on the LAST axis (the nodes), so a plain 1-D ``(N,)`` state
-and a ``(n_b, N)`` state work without change in the caller.
+Operates on the LAST axis (the nodes), so a plain 1-D ``(N,)`` tensor
+and a ``(n_b, N)`` tensor work without change in the caller.
 """
 from __future__ import annotations
 

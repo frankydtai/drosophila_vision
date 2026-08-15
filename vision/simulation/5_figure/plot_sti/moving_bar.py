@@ -53,7 +53,7 @@ from task.moving_bar.sti_geo import (
 from task.moving_bar.sti_spec import (
     GRUNTMAN_CONTRASTS,
     GRUNTMAN_DIRECTIONS,
-    bar_lane_rects_at_t,
+    bar_lane_rects,
     build_moving_bar_signals,
     gruntman_moving_bar_specs,
     moving_bar_transit_times,
@@ -79,7 +79,7 @@ def _field_limits(hexes, *, hexes_are_xy_deg: bool = False):
 
 
 def _draw_bar_outline(ax, spec, view_deg, t: int, t_onset: int, *, bar_radius: int, multi_bar: bool = True):
-    rects = bar_lane_rects_at_t(spec, view_deg, bar_radius, t, multi_bar=bool(multi_bar), t_onset=t_onset)
+    rects = bar_lane_rects(spec, view_deg, bar_radius, t, multi_bar=bool(multi_bar), t_onset=t_onset)
     for xmin, ymin, xmax, ymax in rects:
         ax.add_patch(
             Rectangle(
@@ -232,8 +232,8 @@ def save_animation(
     fig, axes = plt.subplots(len(showcase), 1, figsize=(4.5, 2.8 * len(showcase)), squeeze=False, facecolor=PLOT_BG)
     title = fig.suptitle("", fontsize=11)
 
-    def update(frame_idx):
-        t = times[frame_idx]
+    def update(frame):
+        t = times[frame]
         title.set_text(
             f"Moving-bar i_sti_hex (pA)  side={side}  "
             f"{len(figure_hexes)} sti hexes  I_baseline={i_baseline}  I_max={i_max}  t={t} ({t * NEURON_CONST['delta_ms'] / 1000.0:.2f} s)"
