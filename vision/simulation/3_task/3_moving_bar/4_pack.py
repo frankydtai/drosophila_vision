@@ -20,6 +20,7 @@ from network.construction import (
     active_gt_cells,
     node_cells,
 )
+from task.spread.gt import contrast_sign
 from task.moving_bar.gt import (
     FIG1_CI_NPZ,
     GT_CELLS,
@@ -52,7 +53,6 @@ from task.moving_bar.sti_spec import (
     i_baseline_from_i_sti,
 )
 
-MOVING_BAR_CONTRASTS = frozenset({"bright", "dark"})
 
 
 @dataclass
@@ -540,8 +540,7 @@ class MovingBarSessionT0:
 
 def bar_specs_from_task(session, task, contrast) -> List[MovingBarSpec]:
     """Gruntman bar specs for ``task``×``contrast``."""
-    if contrast not in MOVING_BAR_CONTRASTS:
-        raise ValueError(f"moving-bar contrast must be 'bright' or 'dark', got {contrast!r}")
+    contrast_sign(contrast)
     return list(gruntman_moving_bar_specs(contrasts=(contrast,)))
 
 
@@ -559,7 +558,7 @@ def moving_bar_session_t0_grids(
     """Session-level ``t0`` / horizon grids for moving-bar cost or analyze."""
     connectome = session.connectome
     i_sti = (session.train_opts or {}).get("i_sti") or {}
-    i_baseline = i_baseline_from_i_sti(i_sti, "moving_bar")
+    i_baseline = i_baseline_from_i_sti(i_sti)
 
     side = connectome.meta.get('side', 'right')
     hexes = moving_bar_cost_hexes(connectome, cost_radius=cost_radius)
@@ -572,14 +571,14 @@ def moving_bar_session_t0_grids(
     else:
         filt_hexes = hexes
     contrast = specs[0].contrast if specs else "bright"
-    if contrast not in i_sti.get("moving_bar", {}):
+    if contrast not in i_sti:
         raise ValueError(
-            f"train opts i_sti['moving_bar'] missing contrast {contrast!r}"
+            f"train opts i_sti missing contrast {contrast!r}"
         )
     sti = build_moving_bar_signals(
         connectome, specs=specs, n_t=n_t, t_onset=t_onset, delta_ms=delta_ms,
         device=connectome.node_cells.device, i_baseline=i_baseline,
-        i_sti=float(i_sti["moving_bar"][contrast]),
+        i_sti=float(i_sti[contrast]),
         sim_dtype=session.sim_dtype,
     )
     hex_idx = {
@@ -628,8 +627,7 @@ def _pack_cells(session, task: str, contrast: str) -> List[str]:
 
 def moving_bar_specs_by_cell(session, task: str, contrast: str, side: str) -> Dict[str, List[str]]:
     """Per-readout-cell active bar spec tokens for ``side`` and task contrast."""
-    if contrast not in MOVING_BAR_CONTRASTS:
-        raise ValueError(f"moving-bar contrast must be 'bright' or 'dark', got {contrast!r}")
+    contrast_sign(contrast)
     return {
         cell: [
             f'{direction}_{active_contrast}_{w_token}'

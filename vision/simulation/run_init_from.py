@@ -5,7 +5,7 @@
 Usage (from ``simulation/``, project ``.venv``):
 
     ../.venv/bin/python run_init_from.py
-    ../.venv/bin/python run_init_from.py n_iter_gpu=30
+    ../.venv/bin/python run_init_from.py n_iter=30
 """
 from __future__ import annotations
 

@@ -807,7 +807,7 @@ def plot_cost(costs, path, *, costs_by_part=None, part_order=None):
         return
 
     def _spot_parse(part_key: str):
-        from train.config import CONTRASTS
+        from task.spread.sti_spec import CONTRASTS
         for contrast in CONTRASTS:
             head = f"spot_{contrast}_"
             if part_key[:len(head)] != head:
@@ -825,7 +825,8 @@ def plot_cost(costs, path, *, costs_by_part=None, part_order=None):
         return None
 
     def _moving_bar_parse(part_key: str):
-        from train.config import CONTRASTS, PD_ND_LABELS
+        from task.spread.sti_spec import CONTRASTS
+        from train.config import PD_ND_LABELS
         for contrast in CONTRASTS:
             head = f"moving_bar_{contrast}_"
             if part_key[:len(head)] != head:

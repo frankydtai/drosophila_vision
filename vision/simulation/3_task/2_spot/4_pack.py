@@ -36,9 +36,6 @@ from task.spot.sti_geo import (
     spot_sti_bs,
 )
 
-# Spot contrasts (independent of task; bright | dark).
-SPOT_CONTRASTS = frozenset({"bright", "dark"})
-
 
 # -- Cost-radius scales ------------------------------------------------------
 
@@ -341,8 +338,6 @@ def build_spot_gt(
     filter: str = "none",
     spread_gt_mode: str = "all",
 ) -> SpotGt:
-    if contrast not in SPOT_CONTRASTS:
-        raise ValueError(f"contrast must be 'bright' or 'dark', got {contrast!r}")
     i_baseline = float(i_baseline)
     i_sti = float(i_sti)
     device = device or connectome.device

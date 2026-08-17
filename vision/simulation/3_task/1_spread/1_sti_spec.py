@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""Spread sti spec: timing and ``sti_mask`` (shared by spot / spread gt + pack)."""
+"""Spread sti spec: timing, ``sti_mask``, and bright/dark ``contrast`` (shared by spot / spread / moving_bar)."""
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -10,7 +10,7 @@ import numpy as np
 from network import path  # noqa: F401 -- FAFBv783 on sys.path
 from neuron.borst import t_from_ms
 
-SPREAD_CONTRASTS = frozenset({"bright", "dark"})
+CONTRASTS = ("bright", "dark")
 
 
 @dataclass(frozen=True)

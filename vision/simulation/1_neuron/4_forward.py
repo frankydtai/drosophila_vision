@@ -20,6 +20,7 @@ MODEL_DRIVERS = {
     "borst": _borst,
     "hp_lp": _hp_lp,
 }
+MODELS = tuple(MODEL_DRIVERS)
 
 
 def a_sti_radius_effective(params, pack):

@@ -408,8 +408,7 @@ Forbidden: ``column`` (for CSV); ``key`` / ``param_key`` (for ``--param`` token)
 Definition: A sub-option under a named parent — never the parent itself. Identifiers must use ``<parent>_key`` / ``<parent>_keys``; bare ``key`` / ``keys`` as project naming tokens are forbidden.
 - ``param_key``: which attribute under a ``param`` a ``--param`` token sets — ``lo`` | ``hi`` | ``jit`` | ``init`` | ``val`` | ``mode`` (not the param name ``a_h``). ``lo``/``hi`` are the edges of a param ``clamp`` (see ``### clamp``); ``lo``/``hi``/``jit``/``init`` may take ``.NODES`` (bags ``los``/``his``/``jits``/``inits``); ``shared`` nodes must share one ``lo``, one ``hi``, and one ``jit``.
 - ``i_sti_key`` / ``I_STI_KEYS``: bright / baseline / dark slots of ``i_sti``.
-- ``sti_timing_key`` / ``STI_TIMING_KEYS``: ``ms_*`` / ``delta_ms*`` slots of sti timing opts.
-Example: `a_h.init.L1=0.5` → param ``a_h``, param_key ``init``; `parse_param_tokens` yields ``(param, param_key, nodes, right)``; `I_STI_KEYS`; `sti_timing_key`
+Example: `a_h.init.L1=0.5` → param ``a_h``, param_key ``init``; `parse_param_tokens` yields ``(param, param_key, nodes, right)``; `I_STI_KEYS`
 Forbidden: bare ``key`` / ``keys`` in project identifiers. Calling a ``param`` (``a_h``) a ``key`` / ``param_key``. ``field`` (for ``--param``); CSV ``field``. Do not call the param token ``NAME`` / ``name`` in project identifiers. Do not use ``tag`` / ``_tag`` / ``*_tag`` as a CLI / opts / parse-grammar atom — that is ``token``; e.g. ``parse_<x>_tag`` → ``parse_<x>``, filename stem ``<x>_tag`` → ``<x>_token``.
 
 ### `kwarg` / `kwargs`
@@ -603,7 +602,7 @@ Forbidden: do not use `add` for tensor arithmetic or dict insertion — `add` is
 ### `override`
 
 Definition: Verb only — merge new values into an existing object (mutate in place or return the updated copy). The payload being merged is named by what it is (``inits``, ``modes``, ``param_inits``, sti opts, …), never by this verb.
-Example: `override_params(...)`, `override_val_from(...)`, `override_session_sti_timing(...)`
+Example: `override_params(...)`, `override_val_from(...)`, `override_session(...)`
 Forbidden: `apply` (including ``apply_*``) for this merge action; using ``override`` as a noun (``init_override``, ``pack_overrides``, ``param_overrides``, bare ``overrides``, ``*_override`` bags); `edit` / `edits` / ``*_edits`` for the same merge/payload role; ``maybe`` / ``maybe_override_*`` as a conditional prefix on ``override`` (early-return when unset is implementation detail — name the verb ``override`` only).
 
 ### `build`
@@ -662,7 +661,7 @@ Forbidden: `draw`, `render`, `visualize`, and project names built on `scatter` (
 ### `resolve`
 
 Definition: Resolve abstract references/aliases/defaults into final concrete values used by execution. Use when inputs may be incomplete (Hydra overrides, CLI tokens, alias names, branch dicts, omitted keys) and the function consults ``config`` (``conf/config.yaml`` defaults), alias tables, and/or tokens before returning.
-Example: `resolve_val_from(args.val_from)`, `resolve_param_modes(param_modes, opts)`, `resolve_run_kwargs(args)`, `resolve_train_sti_timing(filter, args.sti_timing)`, `resolve_train_kwargs(args)`, `resolve_sti_timing(opts)`
+Example: `resolve_val_from(args.val_from)`, `resolve_param_modes(param_modes, opts)`, `resolve_run_kwargs(args)`, `resolve_train_kwargs(args)`, `resolve_sti_timing(opts)`
 Forbidden: `lookup`, `fetch`. Unnecessary `resolve` — coding-rules HARD STOP 2 (membership-only, identity, parse/expand/standardize/`_from_`, rename-to-resolve). True merge must not be named ``parse_*`` / ``build_*`` / ``merge_*`` / ``default_*`` / ``*_from_*``. ``parse_*`` decodes strings; ``expand_*`` expands aliases; defaults+CLI merge is ``resolve`` (see ``### standardize``).
 
 ### `run`

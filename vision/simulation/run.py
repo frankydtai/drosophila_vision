@@ -5,7 +5,7 @@
 Usage (from ``simulation/``, project ``.venv``):
 
     ../.venv/bin/python run.py
-    ../.venv/bin/python run.py n_iter_gpu=300
+    ../.venv/bin/python run.py n_iter=300
     ../.venv/bin/python run.py tasks=spot spot_radius=1.5
 
 Re-plot an existing run without train:

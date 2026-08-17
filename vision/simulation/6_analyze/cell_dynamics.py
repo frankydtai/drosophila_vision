@@ -1,15 +1,14 @@
 from __future__ import annotations
 
 from config import (
-    RUN_PATH,
-    MODEL,
+    ANALYZE_CELL_DYNAMICS,
+    ANALYZE_RUNS,
+    FIGURE_PLOT,
     NEURON_SCHEMA,
-    SPREAD_INPUT_SPEC,
     TRAIN_CONFIG,
-    TRAIN_OPTIMIZATION,
+    parse_cells,
 )
 
-import argparse
 import json
 import os
 import sys
@@ -26,8 +25,8 @@ if ROOT not in sys.path:
 os.chdir(ROOT)
 
 import import_bootstrap  # noqa: F401
+import hydra
 import train
-from config import RUN_PATH
 import figure.plot as plot
 from figure.gt import contrast_from_pack
 from figure.spot import pack_spot_cost_radii, resolve_spot_gts
@@ -37,7 +36,6 @@ from figure.panel import (
     plot_std_band,
     session_filter_figure_token,
 )
-from import_bootstrap import parse_bool, parse_comma_list
 from neuron.filter_ca import filter_ca
 from neuron.schema import param_from_entry
 from network.construction import hex2gt
@@ -57,7 +55,7 @@ from task.spot.sti_geo import (
     resolve_spot,
     spot_sti_bs,
 )
-from train.cli import resolve_sti_timing_kwargs
+from train.cli import plot_ms_kwargs
 from train.cost import node_vals_from_param
 
 __doc__ = """Borst / hp_lp v component analysis.
@@ -65,37 +63,36 @@ __doc__ = """Borst / hp_lp v component analysis.
 Consumers (CLI or ``import analyze.cell_dynamics``) must reuse this module's
 forward helpers. Do not re-implement spot/bar readout + step loops in scratch/.
 
-Time axis (read this before ``--ms-shown`` / ``TimeWindow``)
+Time axis (read this before ``ms_shown`` / ``TimeWindow``)
 ------------------------------------------------------------
 Two *different* knobs — do not mix them:
 
-1. **Stimulus length** (``--sti-timing KEY=MS`` — e.g. ``ms_pre=50`` /
-   ``ms_sti=160`` / ``ms_response=300`` / ``ms_post=0`` / ``delta_ms=2``):
-   rebuilds the session sti (via
-   ``figure.plot.override_session_sti_timing``). Unset = keep the run's
-   train opts. These change *how long* pre/spot/response *are*, not which
-   slice of an existing trace you plot.
+1. **Stimulus length** (``plot_ms_pre=50`` / ``plot_ms_sti=160`` / …):
+   rebuilds the session sti (via ``figure.plot.override_session``).
+   Unset = keep the run's train opts. These change *how long*
+   pre/spot/response *are*, not which slice of an existing trace you plot.
 
-2. **Analyze / plot window** (``--ms-shown START,STOP`` or ``--t-rel START:STOP``,
-   mutually exclusive): which inclusive slice of the forward to sum and
-   report. Default if both omitted: absolute ms ``0`` .. last sample.
+2. **Analyze / plot window** (``ms_shown=START,STOP`` or ``t_rel_start`` /
+   ``t_rel_stop``, mutually exclusive): which inclusive slice of the forward
+   to sum and report. Default if both omitted: absolute ms ``0`` .. last sample.
 
-``--ms-shown`` is **absolute aligned ms**, never "ms before onset":
+``ms_shown`` is **absolute aligned ms**, never "ms before onset":
 
 * **spot**: aligned ``t = 0`` is trial start. Stimulus onset is at
   ``t_onset = t_from_ms(ms_pre, delta_ms=delta_ms_pre)`` (e.g. ``ms_pre=1000``,
   ``delta_ms_pre=5`` → ``t_onset=200`` ↔ **1000 ms**). Pre-sti is therefore
-  ``--ms-shown 0,1000`` (or ``0,ms_pre``), **not** ``-1000,0``.
+  ``ms_shown=0,1000`` (or ``0,ms_pre``), **not** ``-1000,0``.
   Negative START is wrong for spot (aligned index goes negative; sum window
   collapses).
 * **moving_bar**: aligned ``t = 0`` is bar ``t0`` at the node (crossing), so
-  ``--ms-shown`` is ms relative to that ``t0`` (negative START is valid).
+  ``ms_shown`` is ms relative to that ``t0`` (negative START is valid).
 
-``--t-rel START:STOP`` is **t-index offsets from the |v_post_d| peak** (not from
-onset, not absolute ms). Example: ``--t-rel -5:15``.
+``t_rel_start`` / ``t_rel_stop`` are **t-index offsets from the |v_post_d|
+peak** (not from onset, not absolute ms). Example: ``t_rel_start=-5 t_rel_stop=15``.
 
 ``TimeWindow(kind="ms", start, stop)`` uses the same absolute-aligned-ms rule as
-``--ms-shown``. ``kind="t_rel"`` matches ``--t-rel``. Spot R0-average API:
+``ms_shown``. ``kind="t_rel"`` matches ``t_rel_start`` / ``t_rel_stop``.
+Spot R0-average API:
 ``analyze_spot_average(..., time_window=TimeWindow("ms", 0, ms_pre), radius=0)``.
 
 Programmatic reuse
@@ -106,80 +103,36 @@ Programmatic reuse
 * Load run: ``figure.plot.load_best`` + ``assign_params``; do not invent a
   second forward path.
 
-CLI
----
-``CELL,...`` ``--run`` ``--task`` ``--spec`` ``--x`` ``--y``. Pass comma lists in
-one process (do not re-invoke once per cell/spec).
+Hydra (from ``simulation/``)
+----------------------------
+``cells=L1,L2`` ``analyze_runs=hp_lp/...`` ``tasks=spot`` ``x=`` ``y=``.
+Default run is ``RUN_PATH``. Pass comma lists in one process.
 
-Per ``--run``: one ``load_best``; one v component forward over bs per distinct task.
-
-* Omit ``--x`` / ``--y``: cost-radius **average** (optional ``--radius 0|1``).
-* Exactly one ``--x`` and one ``--y``: **hex** (spot or moving_bar; one cell).
-  Incompatible with ``--radius`` (hex is sti-on only).
+* Omit ``x`` / ``y``: cost-radius **average** (optional ``radius=0|1``).
+* Exactly one ``x`` and one ``y``: **hex** (spot or moving_bar; one cell).
+  Incompatible with ``radius`` (hex is sti-on only).
 * Multiple x/y: rejected.
 
-``--plot true|false``: PNGs under ``{run}/cell_dynamics/`` (default true).
-  With ``filter=ca``, first plot row is ``v_post`` / ``v_ca`` / ``ca``; with
-  ``filter=none``, first row is ``v_post`` only (no Ca). Train GT is named
-  ``gt_v`` or ``gt_ca`` from the run's train ``filter`` and is drawn only on
-  ``v_post`` or ``ca`` respectively (not the analyze ``--filter``). Per-t step
-  table prints only when ``--plot false``. With analyze ``filter=ca``, the first
-  three table columns are ``ca`` / ``ca_pre`` / ``ca_post_minus_pre``
-  (else ``v_post`` / ``v_pre`` / ``v_post_minus_pre``); component
-  columns stay ``v_*``.
-``--radius 0|1``: spot average hex-lattice readout radius (default 0 = sti-on hex; 1 = neighbors).
-  Average only; PNGs for ``--radius 1`` get ``_radius1`` in the filename.
-``--param NAME=VALUE`` / ``NAME.NODE=VALUE``: via ``figure.plot`` — overwrite
-  any schema param before forward (``NODE`` = cell, ``SRC:TAR`` pair, or ``eN``;
-  omit / ``all`` = every node). Each edit appends ``_NAME_NODE_VALUE`` (``:`` in
-  NODE → ``_``; no NODE when omitted / ``all``) to PNG stems, in CLI order,
-  after timing suffixes.
-
-``--euler im|ex``: optional Euler (default: keep run
-``train_opts.euler``). Re-opens the session with timing tokens when set;
-PNG stem gets ``_im`` / ``_ex``. Component formula rows follow
-implicit vs explicit.
+``analyze_figure=true|false``: PNGs under ``{run}/cell_dynamics/`` (default true).
+``param_tokens=[...]`` / ``plot_euler=im|ex`` / ``plot_filter=none|ca`` /
+``plot_ms_pre=...``: same Hydra keys as ``figure.plot``.
 
 Examples
 --------
-  # Spot R0 average, pre window only (ms_pre=1000 on the run → 0..1000 ms):
-  ../.venv/bin/python analyze/cell_dynamics.py \\
-    L1,L2,Mi1 --run hp_lp/28693664-... \\
-    --task spot --contrast bright --radius 0 --ms-shown 0,1000 --plot false
+  ../.venv/bin/python -m analyze.cell_dynamics \\
+    cells=L1,L2,Mi1 tasks=spot contrasts=bright radius=0 \\
+    ms_shown=0,1000 analyze_figure=false
 
-  ../.venv/bin/python analyze/cell_dynamics.py \\
-    Mi4,Mi9 --run /abs/path/to/run \\
-    --task spot,moving_bar --contrast bright --spec right_bright_w1
+  ../.venv/bin/python -m analyze.cell_dynamics \\
+    cells=L3 tasks=spot contrasts=bright x=1 y=0
 
-  ../.venv/bin/python analyze/cell_dynamics.py \\
-    L3 --run /abs/path/to/run --task spot --contrast bright --x 1 --y 0
-
-  ../.venv/bin/python analyze/cell_dynamics.py \\
-    L3 --run /abs/path/to/run --task moving_bar --contrast bright \\
-    --spec right_bright_w1 --x -2 --y -1
-
-  ../.venv/bin/python analyze/cell_dynamics.py \\
-    T4a --run borst/27252028-... --task moving_bar --contrast bright \\
-    --spec left_bright_w4,right_bright_w4 \\
-    --param syn_strength_cell.Mi4:T4a=2.0 syn_strength_cell.Mi9:T4a=1.0 \\
-    --t-rel -5:15
-
-  ../.venv/bin/python analyze/cell_dynamics.py \\
-    L3 --run /abs/path/to/run --task spot --contrast bright \\
-    --param tau_hp_rise.L3=500 tau_hp_fall.L3=300
+  ../.venv/bin/python -m analyze.cell_dynamics \\
+    cells=T4a tasks=moving_bar contrasts=bright \\
+    spec=left_bright_w4,right_bright_w4 \\
+    'param_tokens=[syn_strength_cell.Mi4:T4a=2.0,syn_strength_cell.Mi9:T4a=1.0]' \\
+    t_rel_start=-5 t_rel_stop=15
 """
 
-
-
-def _parse_t_range(token: str, *, flag: str) -> tuple[int, int]:
-    """Parse ``START:STOP`` in t indices (colon; one token)."""
-    parts = str(token).split(":")
-    if len(parts) != 2 or parts[0] == "" or parts[1] == "":
-        raise SystemExit(f"{flag} must be START:STOP")
-    start, stop = int(parts[0]), int(parts[1])
-    if start > stop:
-        raise SystemExit(f"{flag} START={start} > STOP={stop}")
-    return start, stop
 
 
 @dataclass(frozen=True)
@@ -187,14 +140,15 @@ class TimeWindow:
     """Inclusive analyze window for component forward / finalize.
 
     ``kind="ms"``
-        Absolute **aligned** ms (same as ``--ms-shown``). Spot: ``0`` = trial
+        Absolute **aligned** ms (same as ``ms_shown``). Spot: ``0`` = trial
         start, onset ≈ ``ms_pre``; pre = ``TimeWindow("ms", 0, ms_pre)``.
         Never use negative ``start`` for spot "pre" (that is not onset-relative).
         Bar: ``0`` = bar ``t0`` at the node (negative ``start`` OK).
     ``kind="t_rel"``
-        Integer t offsets from the |v_post_d| peak (same as ``--t-rel``).
+        Integer t offsets from the |v_post_d| peak (``t_rel_start`` /
+        ``t_rel_stop``).
 
-    Not sti-length tokens (``--sti-timing``); those rebuild the session.
+    Stimulus length uses ``plot_ms_*`` (rebuilds the session), not this window.
     """
 
     kind: str  # "t_rel" | "ms"
@@ -228,7 +182,7 @@ class TimeWindow:
 
 @dataclass(frozen=True)
 class SharedCli:
-    """Parsed shared CLI."""
+    """Parsed shared Hydra analyze selection."""
 
     cells: list[str]
     tasks: list[str]
@@ -238,75 +192,18 @@ class SharedCli:
     ys: list | None
 
 
-def add_shared_cli(
-    ap: argparse.ArgumentParser,
-    *,
-    run_path: str | None = None,
-) -> None:
-    """Register positional cell + ``--run/--task/--contrast/--spec/--x/--y``."""
-    ap.add_argument(
-        "cell",
-        metavar="CELL,...",
-        help="comma-separated cells, e.g. Mi4,Mi9",
-    )
-    ap.add_argument(
-        "--run",
-        action="append",
-        default=None,
-        required=run_path is None,
-        help=(
-            "run directory (absolute, or relative to PARAMETER_DIR via "
-            "plot.resolve_run_dir)"
-            + (f"; omit → {run_path}" if run_path else "")
-        ),
-    )
-    ap.add_argument(
-        "--task",
-        default="spot",
-        metavar="spot|moving_bar,...",
-        help="comma-separated tasks: spot|moving_bar",
-    )
-    ap.add_argument(
-        "--contrast",
-        default=",".join(SPREAD_INPUT_SPEC["contrasts"]),
-        metavar="bright|dark,...",
-        help=(
-            "comma-separated contrasts: bright|dark "
-            f"(default: {','.join(SPREAD_INPUT_SPEC['contrasts'])})"
-        ),
-    )
-    ap.add_argument(
-        "--spec",
-        default=None,
-        metavar="SPEC,...",
-        help="comma-separated moving_bar sti specs; omit = all available",
-    )
-    ap.add_argument(
-        "--x",
-        default=None,
-        metavar="X,...",
-        help="optional comma-separated x; component hex needs exactly one with --y",
-    )
-    ap.add_argument(
-        "--y",
-        default=None,
-        metavar="Y,...",
-        help="optional comma-separated y; component hex needs exactly one with --x",
-    )
-
-
-def resolve_shared_cli(args: argparse.Namespace) -> SharedCli:
-    cells = parse_comma_list(args.cell)
+def resolve_shared_cli() -> SharedCli:
+    cells = parse_cells(ANALYZE_CELL_DYNAMICS.get("cells"))
     if not cells:
-        raise SystemExit("cell is required")
+        raise SystemExit("cells is required")
     try:
-        tasks = train.parse_tasks(args.task)
-        contrasts = train.parse_contrasts(args.contrast)
+        tasks = train.parse_tasks(TRAIN_CONFIG["tasks"])
+        contrasts = train.parse_contrasts(TRAIN_CONFIG["contrasts"])
     except ValueError as exc:
         raise SystemExit(str(exc)) from exc
-    specs_req = parse_comma_list(args.spec) if args.spec is not None else None
-    xs = plot.parse_axis_coords(args.x)
-    ys = plot.parse_axis_coords(args.y)
+    specs_req = parse_cells(ANALYZE_CELL_DYNAMICS.get("spec"))
+    xs = plot.parse_axis_coords(FIGURE_PLOT.get("x"))
+    ys = plot.parse_axis_coords(FIGURE_PLOT.get("y"))
     return SharedCli(
         cells=cells,
         tasks=tasks,
@@ -2692,117 +2589,88 @@ def _print_sign_compare(
 
 
 
-def main() -> None:
-    ap = argparse.ArgumentParser(
-        description=__doc__,
-        formatter_class=argparse.RawDescriptionHelpFormatter,
-    )
-    add_shared_cli(ap, run_path=RUN_PATH)
-    plot.add_plot_session_override_arguments(ap)
-    ap.add_argument("--node", type=int, default=None, help="hex-mode node index")
-    ap.add_argument(
-        "--radius",
-        type=int,
-        choices=(0, 1),
-        default=0,
-        help=(
-            "spot average hex-lattice readout radius (0=sti-on, 1=neighbors); "
-            "average mode only (not with --x/--y); PNG gets _radius1 when 1"
-        ),
-    )
-    t_group = ap.add_mutually_exclusive_group()
-    t_group.add_argument(
-        "--t-rel",
-        default=None,
-        metavar="START:STOP",
-        help=(
-            "t-index window relative to |v_post_d| peak (not onset, not abs ms); "
-            "mutually exclusive with --ms-shown; default without either: 0..last ms"
-        ),
-    )
-    plot.add_ms_shown_argument(t_group)
-    # --ms-shown: absolute aligned ms (spot 0=trial start; pre = 0,ms_pre).
-    # --sti-timing: sti length tokens (rebuild session). Do not confuse.
-    ap.add_argument(
-        "--plot",
-        type=parse_bool,
-        default=True,
-        metavar="true|false",
-        help=(
-            "save component figures under {run}/cell_dynamics/ (default: true); "
-            "per-t step table prints only when false "
-            "(filter=ca → ca/ca_pre/ca_post_minus_pre)"
-        ),
-    )
-    ap.add_argument(
-        "--html",
-        action="store_true",
-        help="save interactive plotly HTML (hover x/y) instead of PNG",
-    )
-    ap.add_argument("--json", action="store_true", help="print JSON to stdout")
-    args = ap.parse_args()
-    if not args.run:
-        args.run = [RUN_PATH]
-    cli = resolve_shared_cli(args)
+@hydra.main(version_base=None, config_path="../conf", config_name="config")
+def main(cfg) -> None:
+    from config import active_config, apply_config
 
-    if args.radius != 0 and "spot" not in cli.tasks:
-        raise SystemExit("--radius requires a spot task")
+    apply_config(cfg)
+    cli = resolve_shared_cli()
+    radius = int(ANALYZE_CELL_DYNAMICS["radius"])
+    node = ANALYZE_CELL_DYNAMICS.get("node")
+    if node is not None:
+        node = int(node)
+    do_figure = bool(ANALYZE_CELL_DYNAMICS["figure"])
+    do_json = bool(ANALYZE_CELL_DYNAMICS["json"])
+    html = bool(FIGURE_PLOT.get("html", False))
+    euler = FIGURE_PLOT.get("euler")
+    filter = FIGURE_PLOT.get("filter")
+    t_rel_start = ANALYZE_CELL_DYNAMICS.get("t_rel_start")
+    t_rel_stop = ANALYZE_CELL_DYNAMICS.get("t_rel_stop")
+    ms_shown = FIGURE_PLOT.get("ms_shown")
+    if t_rel_start is not None or t_rel_stop is not None:
+        if t_rel_start is None or t_rel_stop is None:
+            raise SystemExit("t_rel_start and t_rel_stop must be set together")
+        if ms_shown is not None:
+            raise SystemExit("t_rel_start/t_rel_stop and ms_shown are mutually exclusive")
+        t_lo, t_hi = int(t_rel_start), int(t_rel_stop)
+        if t_lo > t_hi:
+            raise SystemExit(f"t_rel_start={t_lo} > t_rel_stop={t_hi}")
+        time_window = TimeWindow(kind="t_rel", start=t_lo, stop=t_hi)
+        ms_range = None
+        use_ms = False
+    elif ms_shown is not None:
+        try:
+            ms_range = plot.parse_ms_shown_range(ms_shown, flag="ms_shown")
+        except ValueError as exc:
+            raise SystemExit(str(exc)) from exc
+        use_ms = True
+    else:
+        ms_range = None
+        use_ms = True
+
+    if radius != 0 and "spot" not in cli.tasks:
+        raise SystemExit("radius requires a spot task")
 
     hex_mode = False
     if cli.xs is not None and cli.ys is not None:
         if len(cli.xs) != 1 or len(cli.ys) != 1:
             raise SystemExit(
-                "hex mode needs exactly one --x and one --y; "
+                "hex mode needs exactly one x and y; "
                 "omit both for cost-radius averages"
             )
         hex_mode = True
         if len(cli.cells) != 1:
             raise SystemExit("hex mode supports one cell")
     elif cli.xs is not None or cli.ys is not None:
-        raise SystemExit("pass both --x and --y for hex mode, or neither for averages")
+        raise SystemExit("pass both x and y for hex mode, or neither for averages")
 
-    if hex_mode and args.radius != 0:
+    if hex_mode and radius != 0:
         raise SystemExit(
-            "--radius is average-only; omit --x/--y, or omit --radius for hex mode"
+            "radius is average-only; omit x/y, or omit radius for hex mode"
         )
 
-    if args.t_rel is not None:
-        t_lo, t_hi = _parse_t_range(args.t_rel, flag="--t-rel")
-        time_window = TimeWindow(kind="t_rel", start=t_lo, stop=t_hi)
-        ms_range = None
-        use_ms = False
-    elif args.ms_shown is not None:
-        try:
-            ms_range = plot.parse_ms_shown_range(args.ms_shown)
-        except ValueError as exc:
-            raise SystemExit(str(exc)) from exc
-        use_ms = True
-    else:
-        ms_range = None  # default: 0 .. last sample
-        use_ms = True
+    param_inits, param_vals, param_clamps, param_jits = plot.parse_param_init_val_tokens(
+        list(active_config().get("param_tokens") or []),
+    )
+    ms_kwargs = plot_ms_kwargs(FIGURE_PLOT)
 
-    param_inits, param_vals, param_clamps, param_jits = plot.parse_param_init_val_tokens(args.param)
-
-    for run_idx, run_arg in enumerate(args.run):
+    for run_idx, run_arg in enumerate(ANALYZE_RUNS):
         run_dir = plot.resolve_run_dir(run_arg)
         _log(f"load_best {run_dir} ...")
         session, z, best_cost = plot.load_best(run_dir)
         train_opts = plot.load_train_opts(run_dir) or {}
         train_filter = train.expand_filter(train_opts.get("filter", "none"))
-        timing_kwargs = resolve_sti_timing_kwargs(args.sti_timing)
-        session, z, timing_changed = plot.override_session_sti_timing(
+        session, z, ms_changed = plot.override_session(
             run_dir=run_dir,
             session=session,
             z=z,
-            **timing_kwargs,
-            euler=args.euler,
-            filter=args.filter,
+            **ms_kwargs,
+            euler=euler,
+            filter=filter,
         )
         file_suffix = (
-            plot.sti_timing_filename_suffix(
-                **timing_changed,
-            )
-            + plot.euler_filename_suffix(args.euler)
+            plot.ms_filename_suffix(**ms_changed)
+            + plot.euler_filename_suffix(euler)
             + plot.param_filename_suffix(param_inits=param_inits, param_vals=param_vals)
         )
         if use_ms:
@@ -2834,12 +2702,12 @@ def main() -> None:
         bar_by_cell: dict[tuple[str, str], dict[str, Any]] = {}
         reports: list[dict[str, Any]] = []
 
-        if not args.json:
+        if not do_json:
             _log(f"== RUN {run_idx}: {run_dir} ==")
             _log(
                 f"best_cost={best_cost:.6g}  cost={cost:.6g}  "
                 f"mode={'hex' if hex_mode else 'average'}  "
-                f"radius={args.radius}  "
+                f"radius={radius}  "
                 f"{time_window.kind}={time_window.start}:{time_window.stop}"
             )
 
@@ -2867,14 +2735,14 @@ def main() -> None:
                             contrast=contrast,
                             at_x=float(at_x),
                             at_y=float(at_y),
-                            node=args.node,
+                            node=node,
                             time_window=time_window,
                             train_filter=train_filter,
                         )
                     else:
                         _log(
                             f"component forward {task} {contrast} "
-                            f"(spot radius={args.radius}) ..."
+                            f"(spot radius={radius}) ..."
                         )
                         spot_reports = analyze_spot_average(
                             session_one,
@@ -2883,7 +2751,7 @@ def main() -> None:
                             task=task,
                             contrast=contrast,
                             time_window=time_window,
-                            radius=args.radius,
+                            radius=radius,
                             train_filter=train_filter,
                         )
                     for cell, rep in spot_reports.items():
@@ -2894,10 +2762,10 @@ def main() -> None:
                         _emit_report(
                             rep,
                             run_dir=run_dir,
-                            do_print=not args.json,
-                            do_figure=args.plot,
+                            do_print=not do_json,
+                            do_figure=do_figure,
                             file_suffix=file_suffix,
-                            html=args.html,
+                            html=html,
                         )
                 elif task == "moving_bar":
                     at_x = cli.xs[0] if hex_mode else None
@@ -2911,7 +2779,7 @@ def main() -> None:
                         session, task, contrast, cells_bar, cli.specs_req,
                         specs=specs, grids=grids,
                     )
-                    multi_report = args.plot and len(specs_ordered) > 1
+                    multi_report = do_figure and len(specs_ordered) > 1
                     if hex_mode:
                         _log(
                             f"component forward {task} {contrast} "
@@ -2927,7 +2795,7 @@ def main() -> None:
                             spec_tokens=specs_ordered,
                             at_x=float(at_x),
                             at_y=float(at_y),
-                            node=args.node,
+                            node=node,
                             time_window=time_window,
                             specs=specs,
                             grids=grids,
@@ -2963,10 +2831,10 @@ def main() -> None:
                             _emit_report(
                                 rep,
                                 run_dir=run_dir,
-                                do_print=not args.json,
-                                do_figure=args.plot and not multi_report,
+                                do_print=not do_json,
+                                do_figure=do_figure and not multi_report,
                                 file_suffix=file_suffix,
-                                html=args.html,
+                                html=html,
                             )
                     if multi_report:
                         for cell in cells_bar:
@@ -2975,17 +2843,17 @@ def main() -> None:
                                 run_dir,
                                 "cell_dynamics",
                                 _compare_figure_filename(
-                                    reps, file_suffix=file_suffix, html=args.html,
+                                    reps, file_suffix=file_suffix, html=html,
                                 ),
                             )
                             plot_reports_compare(reps, out)
                 else:
                     raise SystemExit(f"unsupported task {task!r}")
 
-        if not args.json and spot_by_cell and bar_by_cell:
+        if not do_json and spot_by_cell and bar_by_cell:
             _print_sign_compare(spot_by_cell, bar_by_cell)
 
-        if args.json:
+        if do_json:
             print(json.dumps(
                 {
                     "run": run_dir,

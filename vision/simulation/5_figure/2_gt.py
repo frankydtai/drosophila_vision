@@ -19,7 +19,7 @@ from task.spot.gt import (
     load_gt_dark,
 )
 from network.construction import active_gt_cells, gt_cells_from_opts
-from train.config import CONTRASTS
+from task.spread.sti_spec import CONTRASTS
 
 
 def cells_from_nodes(session, nodes):

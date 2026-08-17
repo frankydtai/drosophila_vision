@@ -5,20 +5,20 @@ Per cell column (``spot_gt_v`` order):
   2. plot per cost radius=0,1,… (same radii as spot time panels):
      x = blue %% n_syn+, y = model ``v[t_sti_end-1] - v[t_onset]``
 
-Writes ``<run>/pre_syn/syn_{gt,all}.png`` (incoming), or ``post_syn/`` with ``--post``.
+Writes ``<run>/pre_syn/syn_{gt,all}.png`` (incoming), or ``post_syn/`` with ``post=true``.
 
 Usage (from ``simulation/``)::
 
-  ../.venv/bin/python 6_analyze/syn_sign.py
-  ../.venv/bin/python -m analyze.syn_sign --post
+  ../.venv/bin/python -m analyze.syn_sign
+  ../.venv/bin/python -m analyze.syn_sign post=true
 """
 from __future__ import annotations
 
 from config import (
-    RUN_PATH,
+    ANALYZE_RUNS,
+    ANALYZE_SYN_SIGN,
 )
 
-import argparse
 import os
 import sys
 from collections import defaultdict
@@ -31,6 +31,7 @@ os.chdir(ROOT)
 os.environ.setdefault("CUDA_VISIBLE_DEVICES", "")
 
 import import_bootstrap  # noqa: F401
+import hydra
 import matplotlib.pyplot as plt
 import network.path  # noqa: F401
 import numpy as np
@@ -53,14 +54,9 @@ from network.construction import (
     active_gt_cells,
     load_network_json,
 )
-from config import RUN_PATH
 from task.spread.gt import GT_CELLS
 from network import path  # noqa: F401 -- FAFBv783 on sys.path
 import build_hex
-
-from config import ANALYZE_SYN_SIGN
-
-SYN_SIGN_BINS = int(ANALYZE_SYN_SIGN["bins"])
 
 
 def _syn_strength_from_edges(edges, cells, syn_strength_cell, pairs):
@@ -295,8 +291,10 @@ def plot_syn_sign(
     save_figure(fig, path, timer=timer)
 
 
-def save_syn_sign_figures(outdir, *, post=False, bins=SYN_SIGN_BINS) -> None:
+def save_syn_sign_figures(outdir, *, post=False, bins=None) -> None:
     """Write ``pre_syn/syn_{gt,all}.png`` (or ``post_syn/`` when *post*)."""
+    if bins is None:
+        bins = int(ANALYZE_SYN_SIGN["bins"])
     opts = plot.load_train_opts(outdir)
     if not opts:
         raise SystemExit(f"missing train_opts.json under {outdir}")
@@ -356,37 +354,20 @@ def save_syn_sign_figures(outdir, *, post=False, bins=SYN_SIGN_BINS) -> None:
     )
 
 
-def main(argv: list[str] | None = None) -> int:
-    ap = argparse.ArgumentParser(
-        description=(
-            "Write syn_gt.png / syn_all.png: %% n_syn+ hist + "
-            "Δv vs ×α %% plots at spot cost radii."
-        ),
-    )
-    ap.add_argument(
-        "--run",
-        default=RUN_PATH,
-        help="run under PARAMETER_DIR or absolute path (default: %(default)s)",
-    )
-    ap.add_argument(
-        "--post",
-        action="store_true",
-        help="outgoing from CELL; default is incoming onto CELL",
-    )
-    ap.add_argument(
-        "--bins",
-        type=int,
-        default=SYN_SIGN_BINS,
-        help=f"histogram bins over [0, 100] (default: {SYN_SIGN_BINS})",
-    )
-    args = ap.parse_args(argv)
-    save_syn_sign_figures(
-        plot.resolve_run_dir(args.run),
-        post=bool(args.post),
-        bins=args.bins,
-    )
-    return 0
+@hydra.main(version_base=None, config_path="../conf", config_name="config")
+def main(cfg) -> None:
+    from config import apply_config
+
+    apply_config(cfg)
+    post = bool(ANALYZE_SYN_SIGN["post"])
+    bins = int(ANALYZE_SYN_SIGN["bins"])
+    for run in ANALYZE_RUNS:
+        save_syn_sign_figures(
+            plot.resolve_run_dir(run),
+            post=post,
+            bins=bins,
+        )
 
 
 if __name__ == "__main__":
-    raise SystemExit(main())
+    main()

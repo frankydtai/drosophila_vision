@@ -5,8 +5,6 @@ No argparse registration. Callers: ``config``, ``figure``, ``analyze``.
 """
 from __future__ import annotations
 
-from config import MODEL, SPREAD_INPUT_SPEC
-
 import sys
 from pathlib import Path
 
@@ -17,7 +15,6 @@ if str(_SIMULATION_CODE) not in sys.path:
 import import_bootstrap  # noqa: F401
 from import_bootstrap import parse_comma_list
 import train
-from train.config import CONTRASTS, TASKS
 
 
 def _format_filename_token(value):
@@ -62,103 +59,16 @@ def param_filename_suffix(param_inits=None, param_vals=None):
     return "_" + "_".join(parts)
 
 
-def parse_i_sti(tokens, tasks=()):
-    """Decode i_sti tokens into ``{task: {bright, dark}}`` (no defaults merge)."""
-    if not tokens:
-        return None
-    out = {}
-    for token in tokens:
-        if "=" in token:
-            name, val = token.split("=", 1)
-            task = name.strip()
-            if task not in TASKS:
-                raise ValueError(
-                    f"unknown task {task!r} in i_sti "
-                    f"(expected {'|'.join(TASKS)})",
-                )
-            out[task] = _parse_i_sti_value(val.strip())
-        else:
-            val = _parse_i_sti_value(token.strip())
-            for task in tasks:
-                out[str(task)] = val
-    return out or None
-
-
-def _parse_i_sti_value(val):
-    parts = [part.strip() for part in val.split(",")]
-    if len(parts) != len(CONTRASTS):
-        raise ValueError(
-            f"i_sti expects {','.join(CONTRASTS)} "
-            f"({len(CONTRASTS)} values), got {val!r}",
-        )
+def plot_ms_kwargs(figure_plot) -> dict:
+    """Hydra ``plot_ms_*`` scalars for :func:`figure.plot.override_session`."""
     return {
-        contrast: float(part)
-        for contrast, part in zip(CONTRASTS, parts)
+        "ms_pre": figure_plot.get("ms_pre"),
+        "ms_response": figure_plot.get("ms_response"),
+        "ms_post": figure_plot.get("ms_post"),
+        "ms_sti": figure_plot.get("ms_sti"),
+        "delta_ms": figure_plot.get("delta_ms"),
+        "delta_ms_pre": figure_plot.get("delta_ms_pre"),
     }
-
-
-STI_TIMING_KEYS = (
-    "ms_pre",
-    "ms_response",
-    "ms_post",
-    "ms_sti",
-    "delta_ms",
-    "delta_ms_pre",
-)
-
-
-def parse_sti_timing_keys(tokens) -> dict[str, float]:
-    """Parse sti_timing KEY=MS tokens."""
-    out: dict[str, float] = {}
-    for token in tokens:
-        if "=" not in token:
-            raise ValueError(f"sti_timing expected KEY=MS, got {token!r}")
-        sti_timing_key, val = token.split("=", 1)
-        sti_timing_key = sti_timing_key.strip()
-        val = val.strip()
-        if sti_timing_key not in STI_TIMING_KEYS:
-            allowed = ", ".join(STI_TIMING_KEYS)
-            raise ValueError(
-                f"sti_timing unknown key {sti_timing_key!r}; allowed: {allowed}"
-            )
-        try:
-            out[sti_timing_key] = float(val)
-        except ValueError as exc:
-            raise ValueError(
-                f"sti_timing {sti_timing_key}={val!r} is not a number"
-            ) from exc
-    return out
-
-
-def _resolve_sti_timing_literals() -> dict:
-    sti_opts: dict = {}
-    for sti_timing_key in STI_TIMING_KEYS:
-        if sti_timing_key in ("delta_ms", "delta_ms_pre"):
-            ms = MODEL[sti_timing_key]
-        else:
-            ms = SPREAD_INPUT_SPEC.get(sti_timing_key)
-        if ms is not None:
-            sti_opts[sti_timing_key] = float(ms)
-    return sti_opts
-
-
-def resolve_train_sti_timing(tokens) -> dict:
-    """Build full sti timing dict (defaults + optional sti_timing tokens)."""
-    sti_opts = _resolve_sti_timing_literals()
-    if tokens:
-        sti_opts.update(parse_sti_timing_keys(tokens))
-    return sti_opts
-
-
-def resolve_sti_timing_kwargs(tokens=None):
-    """Map sti_timing tokens to kwargs for :func:`figure.plot.override_session_sti_timing`."""
-    empty = {sti_timing_key: None for sti_timing_key in STI_TIMING_KEYS}
-    if not tokens:
-        return empty
-    if isinstance(tokens, dict):
-        return {key: tokens.get(key) for key in STI_TIMING_KEYS}
-    sti_timing = parse_sti_timing_keys(tokens)
-    return {sti_timing_key: sti_timing.get(sti_timing_key) for sti_timing_key in STI_TIMING_KEYS}
 
 
 def override_train_opts_timing(
@@ -211,23 +121,6 @@ def override_train_opts_timing(
     return changed
 
 
-def parse_cost_radius(tokens):
-    """Parse cost_radius: optional bare N plus task=N tokens."""
-    if not tokens:
-        return None, {}
-    bare_cost_radius = None
-    by_task = {}
-    for token in tokens:
-        if "=" in token:
-            name, val = token.split("=", 1)
-            by_task[name.strip()] = int(val.strip())
-        else:
-            if bare_cost_radius is not None:
-                raise ValueError("only one bare radius allowed in cost_radius")
-            bare_cost_radius = int(token)
-    return bare_cost_radius, by_task
-
-
 def resolve_gt(tokens):
     """Parse gt_by_task space-separated task=CELLS tokens."""
     if tokens is None:
@@ -243,30 +136,6 @@ def resolve_gt(tokens):
             raise ValueError(f"gt {name}=... must list at least one type")
         raw[name] = types
     return train.resolve_gt_cells_by_task(raw)
-
-
-def resolve_part_cost_scales(tokens, tasks):
-    """Parse part_cost_scales tokens."""
-    if not tokens:
-        return {}
-    bare: list[str] = []
-    explicit: dict[str, float] = {}
-    for token in tokens:
-        if "=" in token:
-            name, val = token.split("=", 1)
-            explicit[name.strip()] = float(val.strip())
-        else:
-            bare.append(token.strip())
-    scales: dict[str, float] = {}
-    if bare:
-        scales = {
-            part_key: 0.0
-            for task in tasks
-            for part_key in train.cost_part_keys_from_task(task)
-        }
-        scales.update(train.expand_part_cost_scale({name: 1.0 for name in bare}))
-    scales.update(train.expand_part_cost_scale(explicit))
-    return scales
 
 
 def param_in_modes(param_modes, param):

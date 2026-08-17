@@ -58,7 +58,7 @@ from task.moving_bar.sti_spec import (
     i_baseline_from_i_sti,
     moving_bar_transit_times,
 )
-from train.config import CONTRASTS
+from task.spread.sti_spec import CONTRASTS
 from path import DEFAULT_NETWORK_RUN, network_run_token, resolve_network_json
 
 PLOT_BG = "#F5F0DC"  # axes background (beige), not hex baseline color
@@ -297,15 +297,11 @@ def main():
         spec for spec in gruntman_moving_bar_specs(contrasts=tuple(sti))
         if spec.direction == args.direction
     ]
-    task = "moving_bar"
     i_baseline = i_baseline_from_i_sti(
         {
-            "moving_bar": {
-                "bright": MOVING_BAR_INPUT_SPEC["i_bright"],
-                "dark": MOVING_BAR_INPUT_SPEC["i_dark"],
-            },
+            "bright": MOVING_BAR_INPUT_SPEC["i_bright"],
+            "dark": MOVING_BAR_INPUT_SPEC["i_dark"],
         },
-        task,
     )
 
     network_json = str(resolve_network_json(args.network))

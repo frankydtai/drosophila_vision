@@ -33,9 +33,11 @@ TRAIN_OPTIMIZATION: Dict[str, object] = {}
 TRAIN_SESSION: Dict[str, object] = {}
 FIGURE_PLOT: Dict[str, object] = {}
 FIGURE_PLOT_STI_SPOT: Dict[str, object] = {}
+ANALYZE_RUNS: List[str] = []
 ANALYZE_CELL_DYNAMICS: Dict[str, object] = {}
 ANALYZE_SYN_SIGN: Dict[str, object] = {}
 ANALYZE_TRACE: Dict[str, object] = {}
+ANALYZE_COST_PART: Dict[str, object] = {}
 
 _MODEL_KEYS = (
     "delta_ms", "delta_ms_pre", "cap", "g_leak", "e_exc", "e_inh", "e_h",
@@ -44,7 +46,7 @@ _MODEL_KEYS = (
 _TRAIN_OPTIMIZATION_KEYS = (
     "part_cost_scales", "cost_norm", "cost_interval_ms", "cost_ms",
     "pre_steady", "pre_steady_n_iter", "pre_steady_damp", "n_run",
-    "n_iter_cpu", "n_iter_gpu", "lrs", "checkpoint_interval",
+    "n_iter", "lrs", "checkpoint_interval",
 )
 _ANALYZE_TRACE_KEYS = (
     "trace_osc_min_f", "trace_osc_max_f", "trace_osc_peak_threshold",
@@ -72,8 +74,9 @@ def _bind_config(config_dict: dict) -> None:
     global SPREAD_INPUT_SPEC, SPREAD_PACK, SPOT_INPUT_GEO, SPOT_PACK
     global MOVING_BAR_INPUT_GEO, MOVING_BAR_INPUT_SPEC
     global TRAIN_CONFIG, VAL_FROM, TRAIN_OPTIMIZATION, TRAIN_SESSION
-    global FIGURE_PLOT, FIGURE_PLOT_STI_SPOT
+    global FIGURE_PLOT, FIGURE_PLOT_STI_SPOT, ANALYZE_RUNS
     global ANALYZE_CELL_DYNAMICS, ANALYZE_SYN_SIGN, ANALYZE_TRACE
+    global ANALYZE_COST_PART
 
     model = str(config_dict["model"])
     RUN_NAME = str(config_dict["run_name"]).strip()
@@ -113,8 +116,6 @@ def _bind_config(config_dict: dict) -> None:
         "spot_cost_radii": config_dict["spot_cost_radii"],
         "a_sti_radii": config_dict["a_sti_radii"],
         "spot_cost_radius_scale": config_dict["spot_cost_radius_scale"],
-        "spot_cost_radius_scale_radius1": config_dict["spot_cost_radius_scale_radius1"],
-        "spot_cost_radius_scale_override": config_dict["spot_cost_radius_scale_override"],
     }
     MOVING_BAR_INPUT_GEO = {
         "multi_bar": config_dict["multi_bar"],
@@ -128,12 +129,9 @@ def _bind_config(config_dict: dict) -> None:
     tasks = config_dict["tasks"]
     TRAIN_CONFIG = {
         "tasks": tasks,
-        "task": tasks,
-        "contrasts": config_dict.get("tasks_contrasts"),
+        "contrasts": config_dict["contrasts"],
         "gt_by_task": config_dict.get("gt_by_task"),
-        "i_sti": config_dict.get("i_sti"),
-        "sti_timing": config_dict.get("sti_timing"),
-        "cost_radius": dict(config_dict.get("cost_radius") or {}),
+        "cost_radius": config_dict.get("cost_radius"),
     }
     VAL_FROM = dict(config_dict.get("val_from") or {})
     TRAIN_OPTIMIZATION = {key: config_dict[key] for key in _TRAIN_OPTIMIZATION_KEYS}
@@ -149,21 +147,50 @@ def _bind_config(config_dict: dict) -> None:
         "ms_shown": config_dict.get("ms_shown"),
         "euler": config_dict.get("plot_euler"),
         "filter": config_dict.get("plot_filter"),
-        "sti_timing": config_dict.get("plot_sti_timing"),
+        "ms_pre": config_dict.get("plot_ms_pre"),
+        "ms_sti": config_dict.get("plot_ms_sti"),
+        "ms_response": config_dict.get("plot_ms_response"),
+        "ms_post": config_dict.get("plot_ms_post"),
+        "delta_ms": config_dict.get("plot_delta_ms"),
+        "delta_ms_pre": config_dict.get("plot_delta_ms_pre"),
     }
     FIGURE_PLOT_STI_SPOT = {
         "spot_radii": config_dict.get("spot_radii"),
         "output": config_dict.get("spot_plot_output"),
     }
+    analyze_runs = config_dict.get("analyze_runs")
+    if not analyze_runs:
+        ANALYZE_RUNS = [RUN_PATH]
+    elif isinstance(analyze_runs, str):
+        ANALYZE_RUNS = [str(analyze_runs)]
+    else:
+        ANALYZE_RUNS = [str(run) for run in analyze_runs]
     ANALYZE_CELL_DYNAMICS = {
-        "t_rel_start": config_dict["t_rel_start"],
-        "t_rel_stop": config_dict["t_rel_stop"],
+        "cells": config_dict.get("cells"),
+        "spec": config_dict.get("spec"),
+        "node": config_dict.get("node"),
+        "radius": int(config_dict.get("radius") or 0),
+        "t_rel_start": config_dict.get("t_rel_start"),
+        "t_rel_stop": config_dict.get("t_rel_stop"),
+        "figure": bool(config_dict.get("analyze_figure", True)),
+        "json": bool(config_dict.get("analyze_json", False)),
     }
     ANALYZE_SYN_SIGN = {
         "bins": config_dict["bins"],
         "after_train": config_dict["after_train"],
+        "post": bool(config_dict.get("post", False)),
     }
     ANALYZE_TRACE = {key: config_dict[key] for key in _ANALYZE_TRACE_KEYS}
+    ANALYZE_TRACE["check"] = config_dict.get("check")
+    ANALYZE_TRACE["baseline_ms_shown"] = config_dict.get("baseline_ms_shown")
+    ANALYZE_COST_PART = {
+        "part": config_dict.get("part"),
+        "cost_norm": config_dict.get("analyze_cost_norm"),
+        "stride": int(config_dict.get("stride") or 1),
+        "per_node": bool(config_dict.get("per_node", False)),
+        "csv": config_dict.get("cost_part_csv"),
+        "print_parts": bool(config_dict.get("print_parts", False)),
+    }
 
 
 def active_config() -> dict:
@@ -194,6 +221,16 @@ def _as_float_list(values) -> List[float]:
     if isinstance(values, str):
         values = parse_comma_list(values)
     return [float(x) for x in values]
+
+
+def parse_cells(raw) -> List[str] | None:
+    if raw is None or raw == "":
+        return None
+    if isinstance(raw, str):
+        cells = parse_comma_list(raw)
+    else:
+        cells = [str(cell).strip() for cell in raw if str(cell).strip()]
+    return cells or None
 
 
 def _resolve_init_from(init_from):
@@ -254,14 +291,15 @@ def resolve_run_kwargs(hydra_config) -> dict:
     import train.cli as cli
     from train.config import expand_cost_norm, expand_pre_steady
     from train.implementation import run_dir
-    from task.spot.pack import resolve_spot_cost_radius_scale
 
     apply_config(hydra_config)
     config_dict = active_config()
 
     model = str(NEURON_SCHEMA["model"])
     init_from = _resolve_init_from(config_dict.get("init_from"))
-    cost_radius_cfg = dict(TRAIN_CONFIG.get("cost_radius") or {})
+    cost_radius = TRAIN_CONFIG.get("cost_radius")
+    if cost_radius is not None:
+        cost_radius = int(cost_radius)
 
     param_tokens = list(config_dict.get("param_tokens") or [])
     param_init, param_vals, param_modes, param_clamps, param_jits = (
@@ -302,42 +340,21 @@ def resolve_run_kwargs(hydra_config) -> dict:
                 if key not in ("v_th_ca", "a_ca", "tau_ca")
             } or None
 
-    tasks_raw = TRAIN_CONFIG.get("tasks") or TRAIN_CONFIG.get("task")
-    tasks = train.parse_tasks(tasks_raw)
+    tasks = train.parse_tasks(TRAIN_CONFIG["tasks"])
 
-    part_cost_scales = train.expand_part_cost_scale(
-        TRAIN_OPTIMIZATION.get("part_cost_scales") or {}
-    )
+    part_cost_scales = {
+        str(part_key): float(scale)
+        for part_key, scale in (TRAIN_OPTIMIZATION.get("part_cost_scales") or {}).items()
+    }
 
-    bare_cost_radius = cost_radius_cfg.get("bare")
-    radius_by_task = dict(cost_radius_cfg.get("by_task") or {})
-    cost_radius_by_task = train.cost_radius_by_task(tasks, bare_cost_radius, radius_by_task)
-
-    spot_cost_override = SPOT_PACK.get("spot_cost_radius_scale_override")
-    if spot_cost_override:
-        spot_radius_scalar = float(SPOT_INPUT_GEO["spot_radius"])
-        cost_radius_scales = dict(
-            SPOT_PACK["spot_cost_radius_scale_radius1"]
-            if spot_radius_scalar == 1
-            else SPOT_PACK["spot_cost_radius_scale"]
-        )
-        tokens = spot_cost_override if isinstance(spot_cost_override, list) else [spot_cost_override]
-        spot_cost_radius_scale = resolve_spot_cost_radius_scale(
-            tokens,
-            cost_radius_scales=cost_radius_scales,
-            spot_cost_radii=SPOT_PACK["spot_cost_radii"],
-        )
-    else:
-        spot_cost_radius_scale = None
-
-    sti_timing = TRAIN_CONFIG.get("sti_timing")
-    sti_timing_tokens = None
-    if isinstance(sti_timing, dict):
-        sti_timing_tokens = [f"{key}={value}" for key, value in sti_timing.items()]
-    elif isinstance(sti_timing, list):
-        sti_timing_tokens = list(sti_timing)
-
-    timing = cli.resolve_train_sti_timing(sti_timing_tokens)
+    timing = {
+        "ms_pre": float(SPREAD_INPUT_SPEC["ms_pre"]),
+        "ms_response": float(SPREAD_INPUT_SPEC["ms_response"]),
+        "ms_post": float(SPREAD_INPUT_SPEC["ms_post"]),
+        "ms_sti": float(SPREAD_INPUT_SPEC["ms_sti"]),
+        "delta_ms": float(MODEL["delta_ms"]),
+        "delta_ms_pre": float(MODEL["delta_ms_pre"]),
+    }
     moving_bar_sti_opts = {
         "multi_bar": MOVING_BAR_INPUT_GEO["multi_bar"],
         "ms_pre": timing["ms_pre"],
@@ -364,14 +381,7 @@ def resolve_run_kwargs(hydra_config) -> dict:
         for task, cells in gt_by_task.items():
             gt_opts[task]["gt_cells"] = list(cells)
 
-    contrasts_raw = TRAIN_CONFIG.get("contrasts")
-    if contrasts_raw is None:
-        contrasts = train.parse_contrasts(SPREAD_INPUT_SPEC["contrasts"])
-    else:
-        contrasts = train.parse_contrasts(contrasts_raw)
-
-    i_sti_cfg = TRAIN_CONFIG.get("i_sti")
-    i_sti = cli.parse_i_sti(i_sti_cfg, tasks=tasks) if i_sti_cfg else None
+    contrasts = train.parse_contrasts(TRAIN_CONFIG["contrasts"])
 
     lrs = _as_float_list(TRAIN_OPTIMIZATION.get("lrs"))
     if not lrs:
@@ -382,11 +392,7 @@ def resolve_run_kwargs(hydra_config) -> dict:
     if not cuda_available and fp == 64:
         fp = 32
 
-    n_iter = (
-        TRAIN_OPTIMIZATION["n_iter_gpu"]
-        if cuda_available
-        else TRAIN_OPTIMIZATION["n_iter_cpu"]
-    )
+    n_iter = TRAIN_OPTIMIZATION["n_iter"]
 
     run_name = _resolve_run_name(config_dict)
 
@@ -409,16 +415,14 @@ def resolve_run_kwargs(hydra_config) -> dict:
         cost_norm=expand_cost_norm(TRAIN_OPTIMIZATION["cost_norm"]),
         cost_interval_ms=cost_interval_ms,
         cost_ms=cost_ms,
-        cost_radius_by_task=cost_radius_by_task,
+        cost_radius=cost_radius,
         shift_radius=SPOT_INPUT_GEO["shift_radius"],
         spot_radius=SPOT_INPUT_GEO["spot_radius"],
         multi_spot=SPOT_INPUT_GEO["multi_spot"],
         fully_inside=SPOT_INPUT_GEO["fully_inside"],
-        spot_cost_radius_scale=spot_cost_radius_scale,
         moving_bar_sti_opts=moving_bar_sti_opts,
         spread_sti_opts=spread_sti_opts,
         spot_sti_opts=spot_sti_opts,
-        i_sti=i_sti,
         euler=str(MODEL["euler"]),
         pre_steady=expand_pre_steady(TRAIN_OPTIMIZATION["pre_steady"]),
         pre_steady_n_iter=TRAIN_OPTIMIZATION["pre_steady_n_iter"],

@@ -30,6 +30,7 @@ from neuron.schema import (
 )
 from neuron.forward import (
     MODEL_DRIVERS,
+    MODELS,
     ca_from_v_ca,
     forward_ca,
     forward_nodes,
@@ -54,6 +55,7 @@ __all__ = [
     "I_H_SHAPE_PARAMS",
     "SYN_MODES",
     "MODEL_DRIVERS",
+    "MODELS",
     "CA_PACK_COST_TRACES",
     "e_h_rev",
     "t_from_ms",

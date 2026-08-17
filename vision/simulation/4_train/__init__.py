@@ -3,8 +3,8 @@
 
 Public facade re-exporting train API names (``import train``). Engine internals are split across
 :mod:`train.param`, :mod:`train.session`, :mod:`train.cost`, :mod:`train.optimization`,
-:mod:`train.implementation`, :mod:`train.cli`; the shared vocabulary lives in
-:mod:`train.config`. Numeric defaults live in :mod:`config`. Lower layers
+:mod:`train.implementation`, :mod:`train.cli`. Contrast tokens live in
+:mod:`task.spread.sti_spec`. Numeric defaults live in :mod:`config`. Lower layers
 (``neuron``, ``task``, ``network``) never import this package at load time.
 """
 from __future__ import annotations
@@ -29,6 +29,7 @@ from neuron import (
     I_H_SHAPE_PARAMS,
     EULER_CLI,
     EULER_MODES,
+    MODELS,
     SYN_MODES,
     build_schema,
     e_h_rev,
@@ -47,28 +48,8 @@ from neuron import (
     v_component_from_g,
 )
 
-from train.config import (
-    COST_NORMS,
-    CONTRASTS,
-    MODELS,
-    SPREAD_GT_MODES,
-    PD_ND_LABELS,
-    TASKS,
-    cost_part_keys_from_task,
-    cost_radius_by_task,
-    expand_cost_norm,
-    expand_part_cost_scale,
-    expand_filter,
-    expand_spread_gt_mode,
-    expand_gt,
-    expand_pre_steady,
-    moving_bar_cost_part_key,
-    parse_contrasts,
-    parse_tasks,
-    session_cost_part_keys,
-    spread_cost_part_key,
-    spot_cost_part_key,
-)
+from task.spread.sti_spec import CONTRASTS
+from task.moving_bar.sti_spec import PD_ND_LABELS
 from train.param import (
     PAIR_SEP,
     PARAM_MODES,
@@ -105,9 +86,11 @@ from train.param import (
     node_vals_from_z,
     sim_dtype_from_fp,
 )
+from train.config import parse_contrasts, parse_tasks
 from train.session import (
     Pack,
     TrainSession,
+    TASKS,
     _cost_hex_label,
     load_train_connectome,
     resolve_train_opts,
@@ -116,13 +99,20 @@ from train.session import (
     session_from_outdir,
     resolve_gt_cells_by_task,
     resolve_cell_idxs,
+    run_data_dir,
 )
 from train.cost import (
+    COST_NORMS,
     FusedPacks,
     calc_cost,
     calc_cost_parts,
     gt_affine_from_nodes,
+    moving_bar_cell_cost_part_key,
+    moving_bar_cost_part_key,
     pack_cost_abs_ts,
+    session_cost_part_keys,
+    spread_cost_part_key,
+    spot_cost_part_key,
 )
 from train.optimization import (
     TrainResult,

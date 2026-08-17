@@ -56,19 +56,6 @@ from neuron.readout import (
     window_time_traces,
 )
 
-from train.config import (
-    COST_NORMS,
-    ND_IDX,
-    PD_IDX,
-    PD_ND_LABELS,
-    cost_part_keys_from_task,
-    expand_cost_norm,
-    moving_bar_cell_cost_part_key,
-    moving_bar_cost_part_key,
-    session_cost_part_keys,
-    spread_cost_part_key,
-    spot_cost_part_key,
-)
 from train.param import (
     SIM_DTYPE,
     override_val_from,
@@ -82,6 +69,26 @@ from task.moving_bar.pack import (
     cost_dsi_from_v_readout_dsi,
     remap_dsi_entries,
 )
+from task.moving_bar.sti_spec import PD_ND_LABELS
+
+
+COST_NORMS = ("gt_power", "a_gt2")
+
+
+def spread_cost_part_key(task: str, contrast: str, cell: str) -> str:
+    return f"{task}_{contrast}_{cell}"
+
+
+def spot_cost_part_key(task: str, contrast: str, cell: str, radius) -> str:
+    return f"{task}_{contrast}_{cell}_r{int(radius)}"
+
+
+def moving_bar_cell_cost_part_key(task: str, contrast: str, cell: str, part: str) -> str:
+    return f"{task}_{contrast}_{cell}_{part}"
+
+
+def moving_bar_cost_part_key(task: str, contrast: str, part: str) -> str:
+    return f"{task}_{contrast}_{part}"
 
 
 @dataclass(frozen=True)
@@ -200,7 +207,7 @@ def _session_cost_norm(session: TrainSession) -> str:
     """``cost_norm`` from train_opts; default ``a_gt2``."""
     opts = session.train_opts or {}
     raw = opts.get("cost_norm", TRAIN_OPTIMIZATION['cost_norm'])
-    return expand_cost_norm(raw)
+    return str(raw)
 
 
 def _gather_cost_time(pack: Pack, v_readout: torch.Tensor, gts: torch.Tensor):
@@ -356,47 +363,64 @@ def _moving_bar_entries_by_part(
 
 
 def _part_scale(session: TrainSession, part_key: str) -> float:
-    """Exact ``part_cost_scales[part_key]`` (fine keys filled at session open)."""
+    """Exact ``part_cost_scales[part_key]``; missing key is 1.0."""
     return float((session.part_cost_scales or {}).get(part_key, 1.0))
 
 
+def _mse_entries_by_part(
+    pack: Pack, session: TrainSession,
+) -> Tuple[torch.Tensor, List[str]]:
+    if pack.task == "moving_bar":
+        return _moving_bar_entries_by_part(pack, session.connectome)
+    if pack.task == "spot":
+        return _spot_entries_by_part(pack, session.connectome)
+    if pack.task == "spread":
+        return _spread_entries_by_part(pack, session.connectome)
+    raise KeyError(pack.task)
+
+
+def _pack_part_keys(pack: Pack, session: TrainSession) -> List[str]:
+    _, part_keys = _mse_entries_by_part(pack, session)
+    if (
+        pack.task == "moving_bar"
+        and pack.dsi_pos_ptr is not None
+        and int(pack.dsi_pos_ptr.numel()) > 1
+    ):
+        dsi = moving_bar_cost_part_key(pack.task, pack.contrast, "DSI")
+        if dsi not in part_keys:
+            part_keys = [*part_keys, dsi]
+    return part_keys
+
+
+def session_cost_part_keys(session: TrainSession) -> Tuple[str, ...]:
+    """Fine cost part_keys from session packs."""
+    part_keys: List[str] = []
+    for pack in session.iter_packs():
+        part_keys.extend(_pack_part_keys(pack, session))
+    return tuple(part_keys)
+
+
 def _pack_has_active_cost(pack: Pack, session: TrainSession) -> bool:
-    for part_key in cost_part_keys_from_task(pack.task, contrasts=(pack.contrast,)):
-        if _part_scale(session, part_key) != 0.0:
-            return True
-    return False
+    return any(
+        _part_scale(session, part_key) != 0.0
+        for part_key in _pack_part_keys(pack, session)
+    )
 
 
 def _pack_has_active_mse(pack: Pack, session: TrainSession) -> bool:
-    """True if waveform MSE parts (pack task or PD/ND) have non-zero scale."""
-    if pack.cost_pd_nds is not None:
-        return any(
-            _part_scale(
-                session,
-                moving_bar_cost_part_key(pack.task, pack.contrast, part),
-            ) != 0.0
-            for part in PD_ND_LABELS
-        )
-    return _part_scale(session, f"{pack.task}_{pack.contrast}") != 0.0
+    _, part_keys = _mse_entries_by_part(pack, session)
+    return any(_part_scale(session, part_key) != 0.0 for part_key in part_keys)
 
 
 def _mse_entry_mask(pack: Pack, session: TrainSession) -> torch.Tensor:
-    """Boolean mask over cost entries with non-zero PD/ND (or pack) scale."""
     n = int(pack.entry_bs.shape[0])
     device = pack.entry_bs.device
-    if pack.cost_pd_nds is not None:
-        if not _pack_has_active_mse(pack, session):
-            return torch.zeros(n, dtype=torch.bool, device=device)
-        mask = torch.zeros(n, dtype=torch.bool, device=device)
-        for pd_nd_idx, part in ((PD_IDX, "PD"), (ND_IDX, "ND")):
-            if _part_scale(
-                session,
-                moving_bar_cost_part_key(pack.task, pack.contrast, part),
-            ) != 0.0:
-                mask |= pack.cost_pd_nds == int(pd_nd_idx)
-        return mask
-    on = _part_scale(session, f"{pack.task}_{pack.contrast}") != 0.0
-    return torch.full((n,), on, dtype=torch.bool, device=device)
+    part_idxs, part_keys = _mse_entries_by_part(pack, session)
+    mask = torch.zeros(n, dtype=torch.bool, device=device)
+    for part_idx, part_key in enumerate(part_keys):
+        if _part_scale(session, part_key) != 0.0:
+            mask |= part_idxs == part_idx
+    return mask
 
 
 def _dsi_entry_mask(pack: Pack, session: TrainSession) -> torch.Tensor:

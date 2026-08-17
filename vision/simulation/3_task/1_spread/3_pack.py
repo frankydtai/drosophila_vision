@@ -18,7 +18,7 @@ from task.spread.gt import (
     load_ir,
     spread_gt_active,
 )
-from task.spread.sti_spec import SPREAD_CONTRASTS, sti_mask
+from task.spread.sti_spec import sti_mask
 
 
 @dataclass
@@ -47,8 +47,6 @@ def build_spread_gt(
     filter: str = "none",
     spread_gt_mode: str = "all",
 ) -> SpreadGt:
-    if contrast not in SPREAD_CONTRASTS:
-        raise ValueError(f"contrast must be 'bright' or 'dark', got {contrast!r}")
     device = device or connectome.device
     if ms_response is None:
         raise ValueError("build_spread_gt requires ms_response")

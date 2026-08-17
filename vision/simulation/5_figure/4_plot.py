@@ -1,8 +1,7 @@
+"""Simulation + plotting for the FiveCol medulla model."""
 from config import (
     RUN_PATH,
 )
-"""Simulation + plotting for the FiveCol medulla model."""
-import argparse
 import json
 import os
 import numpy as np
@@ -162,7 +161,7 @@ def load_best(outdir, *, model=None, verbose=False):
     return session, z, float(best_cost)
 
 
-def override_session_sti_timing(
+def override_session(
     *,
     run_dir,
     session,
@@ -176,16 +175,16 @@ def override_session_sti_timing(
     euler=None,
     filter=None,
 ):
-    """Re-open session when any timing / euler / filter token is set; remap best ``z``.
+    """Re-open session when any ms / euler / filter override is set; remap best ``z``.
 
     Unset flags keep values from the run's train opts. ``ms_pre`` /
     ``delta_ms`` / ``delta_ms_pre`` also update moving_bar sti opts;
     ``ms_response`` / ``ms_post`` / ``ms_sti`` are spot-only. ``euler`` is
     CLI ``im``/``ex`` (or already expanded ``implicit``/``explicit``).
-    ``filter`` is ``none``/``ca`` (readout filter; timing values are scalars).
+    ``filter`` is ``none``/``ca``.
 
-    Returns ``(session, z, timing_changed)`` where ``timing_changed`` maps
-    timing keys that differ from the run (for filename suffixes).
+    Returns ``(session, z, ms_changed)`` where ``ms_changed`` maps
+    ms keys that differ from the run (for filename suffixes).
     """
     if (
         ms_pre is None
@@ -200,19 +199,17 @@ def override_session_sti_timing(
         return session, z, {}
 
     if delta_ms is not None and float(delta_ms) <= 0:
-        raise SystemExit(f"--sti-timing delta_ms={delta_ms} must be > 0")
+        raise SystemExit(f"plot_delta_ms={delta_ms} must be > 0")
     if delta_ms_pre is not None and float(delta_ms_pre) <= 0:
-        raise SystemExit(f"--sti-timing delta_ms_pre={delta_ms_pre} must be > 0")
+        raise SystemExit(f"plot_delta_ms_pre={delta_ms_pre} must be > 0")
     if ms_post is not None and float(ms_post) < 0:
-        raise SystemExit("--sti-timing ms_post must be >= 0")
-
-    import train.implementation as train_mod
+        raise SystemExit("plot_ms_post must be >= 0")
 
     opts = load_train_opts(run_dir)
     if opts is None:
         raise SystemExit(f"missing train opts under {run_dir}")
 
-    timing_changed = {}
+    ms_changed = {}
     if (
         ms_pre is not None
         or ms_response is not None
@@ -222,7 +219,7 @@ def override_session_sti_timing(
         or delta_ms_pre is not None
     ):
         from train.cli import override_train_opts_timing
-        timing_changed = override_train_opts_timing(
+        ms_changed = override_train_opts_timing(
             opts,
             ms_pre=ms_pre,
             ms_response=ms_response,
@@ -240,7 +237,7 @@ def override_session_sti_timing(
 
     session = train.resolve_session(opts, model=opts.get("model"))
     session, z = _session_z_from_best_param(session, run_dir)
-    return session, z, timing_changed
+    return session, z, ms_changed
 
 
 def _format_filename_token(value):
@@ -250,7 +247,7 @@ def _format_filename_token(value):
     return "%g" % val
 
 
-def sti_timing_filename_suffix(
+def ms_filename_suffix(
     *,
     ms_pre=None,
     ms_sti=None,
@@ -259,7 +256,7 @@ def sti_timing_filename_suffix(
     delta_ms=None,
     delta_ms_pre=None,
 ):
-    """PNG stem suffix for timing keys that differ from the run (plot / analyze).
+    """PNG stem suffix for ms keys that differ from the run (plot / analyze).
 
     Order: pre, spot, response, post, delta, delta_pre. Example::
 
@@ -536,51 +533,6 @@ def plot_rf_t(params, outdir, model=None, model_all=True,
     return best, best_cost
 
 
-def add_ms_shown_argument(parser):
-    """Register ``--ms-shown START,STOP`` (analyze / legacy argparse entrypoints)."""
-    parser.add_argument(
-        "--ms-shown",
-        default=None,
-        metavar="START,STOP",
-        help=(
-            "absolute aligned ms START,STOP (not sti_timing; not onset-relative). "
-            "spot: 0=trial start, pre=0,ms_pre (e.g. 0,1000); "
-            "bar: 0=t0 at node (neg START ok); omit = entire trace"
-        ),
-    )
-
-
-def add_plot_session_override_arguments(parser):
-    """Plot/analyze session overrides (not used by Hydra ``run.py`` / ``figure.plot``)."""
-    parser.add_argument(
-        "--sti-timing",
-        dest="sti_timing",
-        nargs="+",
-        default=None,
-        metavar="KEY=MS",
-        help=f"sti length KEY=MS tokens. Keys: {', '.join(train.cli.STI_TIMING_KEYS)}",
-    )
-    parser.add_argument(
-        "--euler",
-        default=None,
-        choices=list(train.EULER_CLI),
-        help="Euler: im|ex (default: keep run train_opts.euler)",
-    )
-    parser.add_argument(
-        "--filter",
-        default=None,
-        choices=("none", "ca"),
-        help="readout filter override (default: keep run train_opts.filter)",
-    )
-    parser.add_argument(
-        "--param",
-        nargs="+",
-        default=None,
-        metavar="PARAM.KEY[.NODES]=VALUE",
-        help="param init/lo/hi/jit/val/mode overrides for plot/analyze",
-    )
-
-
 def parse_axis_coords(token):
     """Parse comma-separated ``--x`` / ``--y`` values (empty -> ``None``)."""
     if token is None or token == "":
@@ -608,9 +560,12 @@ def parse_align_xy(token):
     return float(parts[0]), float(parts[1])
 
 
-def parse_ms_shown_range(token, *, flag="--ms-shown"):
-    """Parse ``START,STOP`` ms (comma; one token)."""
-    parts = import_bootstrap.parse_comma_list(token)
+def parse_ms_shown_range(token, *, flag="ms_shown"):
+    """Parse ``START,STOP`` ms (comma string or two-value sequence)."""
+    if isinstance(token, (list, tuple)):
+        parts = [str(x) for x in token]
+    else:
+        parts = import_bootstrap.parse_comma_list(token)
     if len(parts) != 2:
         raise ValueError(f"{flag} must be START,STOP")
     start, stop = float(parts[0]), float(parts[1])
@@ -654,20 +609,29 @@ def plot_trained_run(
     figure_kwargs,
     euler=None,
     filter=None,
-    sti_timing=None,
     param_tokens=None,
+    ms_pre=None,
+    ms_response=None,
+    ms_post=None,
+    ms_sti=None,
+    delta_ms=None,
+    delta_ms_pre=None,
 ):
     """Re-plot one trained run (shared by Hydra ``figure.plot`` main)."""
     import train.implementation as train_mod
-    from train.cli import resolve_sti_timing_kwargs
 
     param_inits, param_vals, param_clamps, param_jits = parse_param_init_val_tokens(
         param_tokens or [],
     )
-    timing_kwargs = resolve_sti_timing_kwargs(sti_timing)
     session, z, best_cost = load_best(outdir, verbose=True)
-    session, z, timing_changed = override_session_sti_timing(
-        run_dir=outdir, session=session, z=z, **timing_kwargs,
+    session, z, ms_changed = override_session(
+        run_dir=outdir, session=session, z=z,
+        ms_pre=ms_pre,
+        ms_response=ms_response,
+        ms_post=ms_post,
+        ms_sti=ms_sti,
+        delta_ms=delta_ms,
+        delta_ms_pre=delta_ms_pre,
         euler=euler,
         filter=filter,
     )
@@ -683,7 +647,7 @@ def plot_trained_run(
     )
     session = session.with_schema(schema)
     file_suffix = (
-        sti_timing_filename_suffix(**timing_changed)
+        ms_filename_suffix(**ms_changed)
         + euler_filename_suffix(euler)
         + param_filename_suffix(param_inits=param_inits, param_vals=param_vals)
     )
@@ -716,13 +680,14 @@ def main(cfg):
     apply_config(cfg)
     figure_kwargs = resolve_figure_kwargs(cfg)
     outdir = resolve_run_dir(RUN_PATH)
+    from train.cli import plot_ms_kwargs
     plot_trained_run(
         outdir,
         figure_kwargs=figure_kwargs,
         euler=FIGURE_PLOT.get("euler"),
         filter=FIGURE_PLOT.get("filter"),
-        sti_timing=FIGURE_PLOT.get("sti_timing"),
         param_tokens=list(active_config().get("param_tokens") or []),
+        **plot_ms_kwargs(FIGURE_PLOT),
     )
 
 

@@ -36,7 +36,8 @@ import torch
 
 import figure.plot as plot
 import train
-from train.config import COST_NORMS, CONTRASTS, expand_cost_norm, spot_cost_part_key
+from task.spread.sti_spec import CONTRASTS
+from train.config import COST_NORMS, expand_cost_norm, spot_cost_part_key
 from train.cost import (
     _gather_cost_time,
     _parts_from_entries,

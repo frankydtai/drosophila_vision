@@ -110,10 +110,6 @@ spot_cost_radius_scale:
   0: 1.0
   1: 0.3333333333333333
   2: 0.3333333333333333
-spot_cost_radius_scale_radius1:
-  0: 1.0
-  1: 2.0
-spot_cost_radius_scale_override: null
 
 # ---------------------------------------------------------------------------
 # 3.3.1   task.moving_bar.sti_geo
@@ -125,13 +121,8 @@ bar_radius: 2
 # 4.1   train.config
 # ---------------------------------------------------------------------------
 tasks: "spot"
-tasks_contrasts: null
 gt_by_task: null
-i_sti: null
-sti_timing: null
-cost_radius:
-  bare: null
-  by_task: {}
+cost_radius: null
 
 # ---------------------------------------------------------------------------
 # 4.2   train.param
@@ -162,8 +153,7 @@ pre_steady: "solve"
 pre_steady_n_iter: 50
 pre_steady_damp: 0.1
 n_run: 1
-n_iter_cpu: 0
-n_iter_gpu: 200
+n_iter: 200
 lrs: [0.1]
 checkpoint_interval: 1000
 
@@ -199,17 +189,34 @@ align_xy: null
 ms_shown: null
 plot_euler: null
 plot_filter: null
-plot_sti_timing: null
+plot_ms_pre: null
+plot_ms_sti: null
+plot_ms_response: null
+plot_ms_post: null
+plot_delta_ms: null
+plot_delta_ms_pre: null
 
 # ---------------------------------------------------------------------------
-# 6   analyze.cell_dynamics
+# 6   analyze
 # ---------------------------------------------------------------------------
-t_rel_start: -10
-t_rel_stop: 10
-
-# ---------------------------------------------------------------------------
-# 6   analyze.trace / analyze.syn_sign
-# ---------------------------------------------------------------------------
+analyze_runs: null
+cells: null
+spec: null
+node: null
+radius: 0
+t_rel_start: null
+t_rel_stop: null
+analyze_figure: true
+analyze_json: false
+post: false
+check: null
+baseline_ms_shown: null
+part: null
+analyze_cost_norm: null
+stride: 1
+per_node: false
+cost_part_csv: null
+print_parts: false
 bins: 20
 after_train: false
 

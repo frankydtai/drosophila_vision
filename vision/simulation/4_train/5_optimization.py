@@ -18,7 +18,7 @@ import torch
 from torch import nn
 from tqdm import tqdm
 
-from train.config import session_cost_part_keys
+from train.cost import session_cost_part_keys
 from train.cost import (
     backward_part_sums,
     calc_cost_parts,

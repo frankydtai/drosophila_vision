@@ -45,6 +45,7 @@ COST_WINDOW_AFTER_MS = COST_WINDOW_MS - COST_ALIGNED_FIRST_STI_MS
 T_TAIL_PAD_MS = 50.0
 MOVING_BAR_TAIL_MS = COST_WINDOW_AFTER_MS + T_TAIL_PAD_MS
 
+PD_ND_LABELS = ("PD", "ND")
 PD_IDX, ND_IDX = 0, 1
 
 
@@ -322,9 +323,9 @@ class MovingBarSti:
     multi_bar: bool
 
 
-def i_baseline_from_i_sti(i_sti: dict, task: str) -> float:
-    """Midpoint of bright/dark sti currents for one task."""
-    return 0.5 * (float(i_sti[task]["bright"]) + float(i_sti[task]["dark"]))
+def i_baseline_from_i_sti(i_sti: dict) -> float:
+    """Midpoint of bright/dark sti currents."""
+    return 0.5 * (float(i_sti["bright"]) + float(i_sti["dark"]))
 
 
 @dataclass

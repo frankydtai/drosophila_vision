@@ -10,8 +10,8 @@ without a cycle. Session assembly and sti-opts finalisation live in
 Matching **default scalars** live only in ``config`` (e.g. ``TRAIN_OPTIMIZATION['cost_norm']``,
 ``NEURON_SCHEMA['model']``, ``NEURON_SCHEMA['filter']``, ``SPREAD_PACK['spread_gt_mode']``) — never put the ``(…)`` allowed tuple in ``config``.
 
-``task`` ∈ {spread, spot, moving_bar} and ``contrast`` ∈ {bright, dark} are independent axes.
-``i_sti[task][contrast]`` holds only bright/dark currents; baseline is their midpoint.
+``task`` ∈ {spread, spot, moving_bar}. Contrast tokens live in ``task.spread.sti_spec``.
+``i_sti[contrast]`` holds only bright/dark currents; baseline is their midpoint.
 """
 from __future__ import annotations
 
@@ -37,7 +37,6 @@ def run_data_dir(outdir: str | Path) -> str:
 
 
 TASKS = ("spread", "spot", "moving_bar")
-CONTRASTS = ("bright", "dark")
 
 # Neuron dynamics model (``--model``). Default scalar: ``config.NEURON_SCHEMA['model']``.
 MODELS = ("borst", "hp_lp")
@@ -107,7 +106,7 @@ def moving_bar_cell_cost_part_key(task: str, contrast: str, cell: str, part: str
     return f"{task}_{contrast}_{cell}_{part}"
 
 
-def cost_part_keys_from_task(task: str, contrasts=CONTRASTS) -> Tuple[str, ...]:
+def cost_part_keys_from_task(task: str, contrasts) -> Tuple[str, ...]:
     """Coarse part_keys for CLI ``--part-cost-scale`` (before packs exist)."""
     if task == "moving_bar":
         return tuple(
@@ -118,14 +117,6 @@ def cost_part_keys_from_task(task: str, contrasts=CONTRASTS) -> Tuple[str, ...]:
     if task not in TASKS:
         raise KeyError(task)
     return tuple(f"{task}_{contrast}" for contrast in contrasts)
-
-
-PART_COST_SCALE_ALIASES = {
-    **{task: cost_part_keys_from_task(task) for task in TASKS},
-    "PD": tuple(f"moving_bar_{contrast}_PD" for contrast in CONTRASTS),
-    "ND": tuple(f"moving_bar_{contrast}_ND" for contrast in CONTRASTS),
-    "DSI": tuple(f"moving_bar_{contrast}_DSI" for contrast in CONTRASTS),
-}
 
 
 def _scale_at(cli: dict, *keys: str) -> float:
@@ -205,19 +196,11 @@ def cost_part_keys_from_pack(pack, connectome, *, cli=None, scales=None) -> Tupl
     )
 
 
-def session_cost_part_keys(session=None, *, tasks=None, contrasts=None) -> Tuple[str, ...]:
-    """Cost part_keys for session packs, or coarse keys from tasks×contrasts."""
-    if session is not None:
-        part_keys: List[str] = []
-        for pack in session.iter_packs():
-            part_keys.extend(cost_part_keys_from_pack(pack, session.connectome))
-        return tuple(part_keys)
-    if tasks is None:
-        raise ValueError("tasks required when session is None")
-    contrasts = contrasts if contrasts is not None else CONTRASTS
-    part_keys = []
-    for task in tasks:
-        part_keys.extend(cost_part_keys_from_task(task, contrasts=contrasts))
+def session_cost_part_keys(session) -> Tuple[str, ...]:
+    """Fine cost part_keys from session packs."""
+    part_keys: List[str] = []
+    for pack in session.iter_packs():
+        part_keys.extend(cost_part_keys_from_pack(pack, session.connectome))
     return tuple(part_keys)
 
 
@@ -229,40 +212,6 @@ def expand_gt(by_task: Optional[dict]) -> Dict[str, List[str]]:
         str(task): [str(cell) for cell in cells]
         for task, cells in by_task.items()
     }
-
-
-def cost_radius_by_task(tasks, bare_cost_radius, by_task: Optional[dict]) -> Dict[str, int]:
-    """Map each task to cost radius from bare N and/or per-task tokens."""
-    by_task = by_task or {}
-    bad = [task for task in by_task if task not in TASKS]
-    if bad:
-        raise ValueError(
-            f"unknown task(s) in --cost-radius: {bad} "
-            f"(expected {'|'.join(TASKS)})",
-        )
-    out: Dict[str, int] = {}
-    for task in tasks:
-        if task in by_task:
-            out[task] = int(by_task[task])
-        elif bare_cost_radius is not None:
-            out[task] = int(bare_cost_radius)
-    return out
-
-
-def expand_part_cost_scale(scales: Optional[dict]) -> Dict[str, float]:
-    """Expand ``--part-cost-scale`` ``PART_COST_SCALE_ALIASES`` tokens."""
-    if not scales:
-        return {}
-    out: Dict[str, float] = {}
-    for token, val in scales.items():
-        targets = (
-            PART_COST_SCALE_ALIASES[token]
-            if token in PART_COST_SCALE_ALIASES
-            else (str(token),)
-        )
-        for target in targets:
-            out[target] = float(val)
-    return out
 
 
 def _parse_allowed(values, allowed: Tuple[str, ...], *, noun: str) -> List[str]:
@@ -287,5 +236,6 @@ def parse_tasks(tasks) -> List[str]:
 
 
 def parse_contrasts(contrasts) -> List[str]:
-    """Parse comma-list or sequence into validated ``bright`` | ``dark`` contrasts."""
+    """Parse comma-list or sequence into validated bright | dark contrasts."""
+    from task.spread.sti_spec import CONTRASTS
     return _parse_allowed(contrasts, CONTRASTS, noun="contrast")

@@ -43,20 +43,18 @@ from task.spread.sti_spec import t_sti_end, resolve_sti_timing
 from neuron.schema import param_from_entry
 from train import do_many_runs
 import train
-from train.config import (
-    COST_NORMS,
-    PARAM_CSV,
-    SYN_STRENGTH_CELL_CSV,
-    SYN_STRENGTH_EDGE_CSV,
-    expand_cost_norm,
-    expand_pre_steady,
-    run_data_dir,
-)
+from train.cost import COST_NORMS
+from train.session import run_data_dir
+
+
+PARAMETER_DIR = Path(__file__).resolve().parent.parent / "0_runs"
+PARAM_CSV = "param.csv"
+SYN_STRENGTH_CELL_CSV = "syn_strength_cell.csv"
+SYN_STRENGTH_EDGE_CSV = "syn_strength_edge.csv"
 
 
 def run_dir(model, root=None, parent=None, run=None):
     """``<PARAMETER_DIR>/<model>/<run>`` (or under *parent*)."""
-    from train.config import PARAMETER_DIR
     if parent is None:
         root = str(PARAMETER_DIR) if root is None else root
         parent = os.path.join(root, model)
@@ -68,7 +66,6 @@ def run_dir(model, root=None, parent=None, run=None):
 
 def resolve_run_dir(path):
     """Resolve a run folder under ``PARAMETER_DIR`` or an absolute path."""
-    from train.config import PARAMETER_DIR
     pth = Path(path).expanduser()
     outdir = pth.resolve() if pth.is_absolute() else (PARAMETER_DIR / pth).resolve()
     if not outdir.is_dir():
@@ -648,12 +645,11 @@ def build_session(
     cost_norm=TRAIN_OPTIMIZATION['cost_norm'],
     cost_interval_ms=TRAIN_OPTIMIZATION['cost_interval_ms'],
     cost_ms=None,
-    cost_radius_by_task=None,
+    cost_radius=None,
     shift_radius=SPOT_INPUT_GEO['shift_radius'],
     spot_radius=SPOT_INPUT_GEO['spot_radius'],
     multi_spot=SPOT_INPUT_GEO['multi_spot'],
     fully_inside=SPOT_INPUT_GEO['fully_inside'],
-    spot_cost_radius_scale=None,
     i_sti=None,
     moving_bar_sti_opts=None,
     spread_sti_opts=None,
@@ -676,24 +672,26 @@ def build_session(
     schema=None,
 ):
     """Create a :class:`TrainSession` from run options."""
-    tasks = list(tasks) if tasks is not None else list(
-        train.parse_tasks([TRAIN_CONFIG['task']])
-    )
+    tasks = TRAIN_CONFIG['tasks'] if tasks is None else tasks
+    if isinstance(tasks, str):
+        from import_bootstrap import parse_comma_list
+        tasks = parse_comma_list(tasks)
+    else:
+        tasks = list(tasks)
     device = train.active_device()
     session_kwargs = dict(
         tasks=tasks,
         contrasts=contrasts,
         part_cost_scales=part_cost_scales,
-        cost_norm=expand_cost_norm(cost_norm),
+        cost_norm=str(cost_norm),
         cost_interval_ms=cost_interval_ms,
         cost_ms=cost_ms,
         sequential=sequential,
-        cost_radius_by_task=cost_radius_by_task,
+        cost_radius=cost_radius,
         shift_radius=shift_radius,
         spot_radius=spot_radius,
         multi_spot=multi_spot,
         fully_inside=fully_inside,
-        spot_cost_radius_scale=spot_cost_radius_scale,
         i_sti=i_sti,
         spot_sti_opts=spot_sti_opts,
         spread_sti_opts=spread_sti_opts,
@@ -739,11 +737,10 @@ def run_train(model, n_run, n_iter, lrs, fname=None, outdir=None,
                  cost_norm=TRAIN_OPTIMIZATION['cost_norm'],
                  cost_interval_ms=TRAIN_OPTIMIZATION['cost_interval_ms'],
                  cost_ms=None,
-                 cost_radius_by_task=None, shift_radius=SPOT_INPUT_GEO['shift_radius'],
+                 cost_radius=None, shift_radius=SPOT_INPUT_GEO['shift_radius'],
                  spot_radius=SPOT_INPUT_GEO['spot_radius'],
                  multi_spot=SPOT_INPUT_GEO['multi_spot'],
                  fully_inside=SPOT_INPUT_GEO['fully_inside'],
-                 spot_cost_radius_scale=None,
                  i_sti=None,
                  moving_bar_sti_opts=None,
                  spread_sti_opts=None,
@@ -773,12 +770,11 @@ def run_train(model, n_run, n_iter, lrs, fname=None, outdir=None,
         cost_norm=cost_norm,
         cost_interval_ms=cost_interval_ms,
         cost_ms=cost_ms,
-        cost_radius_by_task=cost_radius_by_task,
+        cost_radius=cost_radius,
         shift_radius=shift_radius,
         spot_radius=spot_radius,
         multi_spot=multi_spot,
         fully_inside=fully_inside,
-        spot_cost_radius_scale=spot_cost_radius_scale,
         i_sti=i_sti,
         moving_bar_sti_opts=moving_bar_sti_opts,
         spread_sti_opts=spread_sti_opts,
