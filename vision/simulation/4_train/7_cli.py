@@ -595,28 +595,28 @@ def parse_sti_timing_keys(tokens, *, filter: str) -> dict[str, dict[str, float]]
 
 
 def _resolve_sti_timing_literals() -> dict:
-    from task.spot.sti_spec import _merge_filter_branch_ms
+    from task.spot.sti_spec import _merge_filter_ms
 
-    so: dict = {}
+    sti_opts: dict = {}
     for sti_timing_key in STI_TIMING_KEYS:
         if sti_timing_key in ("delta_ms", "delta_ms_pre"):
-            val = NEURON_CONST[sti_timing_key]
+            ms = NEURON_CONST[sti_timing_key]
         else:
-            val = STI_TIMING.get(sti_timing_key)
-        if val is not None:
-            _merge_filter_branch_ms(so, sti_timing_key, val)
-    return so
+            ms = STI_TIMING.get(sti_timing_key)
+        if ms is not None:
+            _merge_filter_ms(sti_opts, sti_timing_key, ms)
+    return sti_opts
 
 
 def resolve_train_sti_timing(filter: str, tokens) -> dict:
     """Build full sti timing dict for train (defaults + optional ``--sti-timing``)."""
-    from task.spot.sti_spec import _merge_filter_branch_ms
+    from task.spot.sti_spec import _merge_filter_ms
 
-    so = _resolve_sti_timing_literals()
+    sti_opts = _resolve_sti_timing_literals()
     if tokens:
-        for sti_timing_key, val in parse_sti_timing_keys(tokens, filter=filter).items():
-            _merge_filter_branch_ms(so, sti_timing_key, val)
-    return so
+        for sti_timing_key, ms in parse_sti_timing_keys(tokens, filter=filter).items():
+            _merge_filter_ms(sti_opts, sti_timing_key, ms)
+    return sti_opts
 
 
 def add_sti_timing_arguments(parser):
@@ -630,7 +630,7 @@ def add_sti_timing_arguments(parser):
         help=(
             "sti length KEY=MS tokens (space-separated). "
             f"Keys: {', '.join(STI_TIMING_KEYS)}. "
-            "Plain numbers only; updates the current --filter branch (v or ca). "
+            "Plain numbers only; updates the current --filter (v or ca). "
             "Train: omit → const_default; plot/analyze: omit → keep run"
         ),
     )

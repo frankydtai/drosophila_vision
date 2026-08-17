@@ -12,15 +12,14 @@ import build_hex
 
 def standardize_spot_radius(spot_radius) -> float:
     """Require non-negative 0.5 multiple; return the canonical float."""
-    value = float(spot_radius)
-    if value < 0:
+    spot_radius = float(spot_radius)
+    if spot_radius < 0:
         raise ValueError(f"spot_radius must be >= 0, got {spot_radius!r}")
-    out = round(value * 2.0) / 2.0
-    if out != value:
+    if round(spot_radius * 2.0) / 2.0 != spot_radius:
         raise ValueError(
             f"spot_radius must be a non-negative 0.5 multiple, got {spot_radius!r}",
         )
-    return out
+    return spot_radius
 
 
 def _spot_center_angle(u: int, v: int) -> float:
@@ -36,31 +35,33 @@ def spot_centers(
     fully_inside: bool,
 ) -> list:
     """Axial centers of densest packing of radius-``floor(spot_radius)`` hexes."""
-    m = int(round(2.0 * standardize_spot_radius(spot_radius)))
-    k = m // 2
-    if m % 2 == 1:
-        e = (m + 1) // 2
-        a1, b1 = e, e
+    radius_halves = int(round(2.0 * standardize_spot_radius(spot_radius)))
+    radius_floor = radius_halves // 2
+    if radius_halves % 2 == 1:
+        step1_u = step1_v = (radius_halves + 1) // 2
     else:
-        a1, b1 = m + 1, -k
-    a2, b2 = -b1, a1 + b1  # 60° CCW about origin
-    hexes = build_hex.radius_hexes((m + 1) // 2)
-    span = int(2 * (connectome_radius // max(k, 1) + 2))
+        step1_u, step1_v = radius_halves + 1, -radius_floor
+    step2_u, step2_v = -step1_v, step1_u + step1_v  # 60° CCW about origin
+    hexes = build_hex.radius_hexes((radius_halves + 1) // 2)
+    span = int(2 * (connectome_radius // max(radius_floor, 1) + 2))
     centers: list = []
-    for lm in range(-span, span + 1):
-        for ln in range(-span, span + 1):
-            cu = lm * a1 + ln * a2
-            cv = lm * b1 + ln * b2
-            if build_hex.hex_radius(cu, cv) > connectome_radius:
+    for n_step1 in range(-span, span + 1):
+        for n_step2 in range(-span, span + 1):
+            center_u = n_step1 * step1_u + n_step2 * step2_u
+            center_v = n_step1 * step1_v + n_step2 * step2_v
+            if build_hex.hex_radius(center_u, center_v) > connectome_radius:
                 continue
             if fully_inside and any(
-                build_hex.hex_radius(cu + du, cv + dv) > connectome_radius
+                build_hex.hex_radius(center_u + du, center_v + dv) > connectome_radius
                 for du, dv in hexes
             ):
                 continue
-            centers.append((cu, cv))
+            centers.append((center_u, center_v))
     centers.sort(
-        key=lambda c: (build_hex.hex_radius(*c), _spot_center_angle(*c)),
+        key=lambda center: (
+            build_hex.hex_radius(*center),
+            _spot_center_angle(*center),
+        ),
     )
     return centers
 
@@ -88,7 +89,8 @@ def spot_sti_bs(spot: Spot) -> list[SpotB]:
         SpotB(
             shift=(int(du), int(dv)),
             sti_uv=tuple(
-                (int(cu + du), int(cv + dv)) for cu, cv in spot.centers
+                (int(center_u + du), int(center_v + dv))
+                for center_u, center_v in spot.centers
             ),
         )
         for du, dv in spot.shifts
@@ -123,8 +125,8 @@ def build_spot(
         centers = [(0, 0)]
     else:
         centers = [
-            (int(cu), int(cv))
-            for cu, cv in spot_centers(
+            (int(center_u), int(center_v))
+            for center_u, center_v in spot_centers(
                 connectome_radius=connectome_radius,
                 spot_radius=spot_radius,
                 fully_inside=fully_inside,

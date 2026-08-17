@@ -34,19 +34,19 @@ def a_sti_radius_effective(params, pack):
 
 
 def inject_a_sti_radius(i_sti, params, pack):
-    """``i += a_sti_radius[r] * sti_pulse`` on spot radius sti contribs; else pass-through.
+    """``i += a_sti_radius[r] * i_sti_pulse`` on spot radius sti contribs; else pass-through.
 
     Uses :func:`a_sti_radius_effective` so masked radii are 0 whether indi or fixed.
     """
     a_sti_radius_idxs = getattr(pack, "a_sti_radius_idxs", None) if pack is not None else None
     if a_sti_radius_idxs is None or "a_sti_radius" not in params:
         return i_sti
-    pulse = pack.sti_pulse
+    i_sti_pulse = pack.i_sti_pulse
     sti_bs = pack.sti_bs
     node = pack.sti_nodes
-    if pulse is None or sti_bs is None or node is None:
+    if i_sti_pulse is None or sti_bs is None or node is None:
         raise ValueError(
-            "spot pack a_sti_radius_idxs set but sti_pulse/sti_bs/sti_nodes missing"
+            "spot pack a_sti_radius_idxs set but i_sti_pulse/sti_bs/sti_nodes missing"
         )
     if i_sti.dim() == 2:
         i_sti = i_sti.unsqueeze(0)
@@ -55,7 +55,7 @@ def inject_a_sti_radius(i_sti, params, pack):
     if sti_bs.numel() == 0:
         return out
     n_b, n_t, n_node = out.shape
-    add = a_sti_radius[a_sti_radius_idxs][:, None] * pulse[None, :]
+    add = a_sti_radius[a_sti_radius_idxs][:, None] * i_sti_pulse[None, :]
     flat = out.permute(0, 2, 1).reshape(n_b * n_node, n_t)
     flat.index_add_(0, sti_bs * n_node + node, add)
     return flat.reshape(n_b, n_node, n_t).permute(0, 2, 1).contiguous()

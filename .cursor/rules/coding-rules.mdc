@@ -9,7 +9,7 @@ Scope: `vision/`.
 
 ## HARD STOPS — violate = do not ship
 
-1. No garbage abbreviations: full English + `_` only; sole shorts = lexicon single-letter nouns. Situations: loop vars; comprehension targets; `.items()` / zip unpacks; parsed-list temps; CLI/opts/dict bags; argv atoms; part/suffix/prefix scraps; parked return locals; leading-`_` locals (privacy prefix ≠ clip license). Clip = do not ship.
+1. No garbage abbreviations: full English + `_` only; sole shorts = lexicon-listed short nouns and pattern tokens. Situations: loop vars; comprehension targets; `.items()` / zip unpacks; parsed-list temps; CLI/opts/dict bags; argv atoms; part/suffix/prefix scraps; parked return locals; leading-`_` locals (privacy prefix ≠ clip license). Clip = do not ship.
 2. No unnecessary `resolve_*`: only merge incomplete CLI/aliases/omitted keys **with** ``const_default`` into the final run value. Situations: membership-only check; identity wrapper; string decode; alias expand alone; shape coerce; quantity conversion; renaming parse/expand to resolve. Fake `resolve` = do not ship.
 3. Naming: before naming any new function, variable, or parameter, consult `.cursor/rules/lexicon.md`. If the concept already has a canonical term in the lexicon, use that exact verb/noun/adjective/preposition everywhere for the same concept (never coin alternatives for a lexicon-covered concept). If the concept is not present in the lexicon, you may coin a new name, but you still must keep the same concept = one name everywhere. Abbreviations are forbidden in names (see HARD STOP 1). Each lexicon entry lists **Forbidden** alternatives — words that are banned as substitutes for that specific concept. Forbidden substitutes for any lexicon-covered concept = do not ship.
 4. No backward compatibility: 「改成 X」→ only X; old must not remain compatible. No old+new paths, shims, dual parsers, deprecated params, loaders for old runs/sidecars.
@@ -72,4 +72,4 @@ Core numbering rules:
 4. Align with existing names (HARD STOP 1): do not invent a new token when a sibling pattern already names the same idea.
 5. Idx / mask / lookup / gathered-value locals must name both the object and the role; never use opaque names like `u` / `_u`.
 6. Never concatenate two English words in an identifier without `_` between them (Forbidden: `sumsq`; Required: `sum_sq`). Singular scalar `sum_sq`; collection/array/dict of them `sum_sqs`.
-7. Single-letter tokens are forbidden in identifiers except lexicon single-letter nouns (`a` / `a_*`, `b` / `bs`, `f` / `fs`, `h` / `hs`, `n` / `n_<noun>`, `s` / `ss`, `t` / `n_t`, `w` / `ws`, `z`, …) — see lexicon. Forbidden examples outside those nouns: `_i`, opaque loop vars.
+7. Short tokens are forbidden in identifiers except lexicon-listed short nouns and pattern tokens — see lexicon. Forbidden: opaque loop shorts and any short not listed as a lexicon headword.

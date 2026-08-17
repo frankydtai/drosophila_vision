@@ -8,7 +8,7 @@ dicts keyed by cell name (:data:`GT_CELLS`); the ``filter=\"ca\"`` path also
 reads external CSVs under ``figure_digitization/arenz/``.
 
 ``filter=\"none\"``: :func:`build_rf` × :func:`build_ir_lti` (bandpass/LP on
-:func:`sti_pulse`). T4a–T4d share Gruntman 2018 Fig. 2B spatial
+:func:`sti_mask`). T4a–T4d share Gruntman 2018 Fig. 2B spatial
 samples in :data:`RF_SCALE` and LP ``IR_lp_ms`` (``IR_hp_ms=0``).
 
 ``filter=\"ca\"``: same :data:`RF_SCALE` (unsigned; no ``RF_SIGN`` on rf);
@@ -20,7 +20,7 @@ cell, shape ``(RF_N_RADII, n_t)``.
 Cost GT membership is gated by ``spot_gt_mode`` (``all`` | ``positive``) via
 :func:`spot_gt_active` (still uses :data:`RF_SIGN`); waveform ×
 :func:`contrast_sign` only (dark = −1). Sti drive is
-:func:`task.spot.sti_spec.sti_pulse`, shared with network ``i_sti``.
+:func:`task.spot.sti_spec.sti_mask`, shared with network ``i_sti``.
 
 Network mapping, cost hexes, and :class:`task.spot.pack.SpotGt` packing
 live in :mod:`task.spot.pack`.
@@ -33,7 +33,7 @@ from typing import Dict, Sequence, Tuple
 
 import numpy as np
 
-from task.spot.sti_spec import sti_pulse
+from task.spot.sti_spec import sti_mask
 
 GT_CELLS: Tuple[str, ...] = (
     "L1", "L2", "L3", "L4", "L5",
@@ -204,54 +204,54 @@ def build_rf(cell: str) -> np.ndarray:
     return np.asarray(RF_SCALE[cell], dtype=np.float64).copy()
 
 
-def _lowpass(x, tau_ms, *, delta_ms: float):
+def _lowpass(sti_mask, tau_ms, *, delta_ms: float):
     """Euler low-pass; ``tau_ms`` is the time constant in milliseconds."""
-    x = x.transpose(np.roll(np.arange(x.ndim), 1))
-    n = x.shape[0]
-    result = np.zeros_like(x)
+    sti_mask = sti_mask.transpose(np.roll(np.arange(sti_mask.ndim), 1))
+    n_t = sti_mask.shape[0]
+    result = np.zeros_like(sti_mask)
     tau_ms = float(tau_ms)
     dt = float(delta_ms)
     if dt <= 0:
         raise ValueError(f"delta_ms must be > 0, got {dt}")
     if tau_ms < dt:
-        result = x
+        result = sti_mask
     else:
-        result[0] = x[0]
-        for t in range(0, n - 1):
-            result[t + 1] = result[t] + (dt / tau_ms) * (x[t] - result[t])
+        result[0] = sti_mask[0]
+        for t in range(0, n_t - 1):
+            result[t + 1] = result[t] + (dt / tau_ms) * (sti_mask[t] - result[t])
     return result.transpose(np.roll(np.arange(result.ndim), -1))
 
 
-def _bandpass(x, hp_tau_ms, lp_tau_ms, *, delta_ms: float):
-    result = _lowpass(x, lp_tau_ms, delta_ms=delta_ms)
+def _bandpass(sti_mask, hp_tau_ms, lp_tau_ms, *, delta_ms: float):
+    result = _lowpass(sti_mask, lp_tau_ms, delta_ms=delta_ms)
     if hp_tau_ms != 0:
         result = result - _lowpass(result, hp_tau_ms, delta_ms=delta_ms)
     return result
 
 
-def normalize_ir(x):
-    """Baseline-subtract and normalize an ir trace (unit peak)."""
-    x = x - x[0]
-    mymax = np.nanmax(x)
-    mymin = np.nanmin(x)
-    if mymax == mymin:
-        return x * 0.0
-    return x / max(abs(mymax), abs(mymin))
+def normalize_ir(ir):
+    """Baseline-subtract and normalize an ir (unit peak)."""
+    ir = ir - ir[0]
+    ir_max = np.nanmax(ir)
+    ir_min = np.nanmin(ir)
+    if ir_max == ir_min:
+        return ir * 0.0
+    return ir / max(abs(ir_max), abs(ir_min))
 
 
-def _shift_right(y, k: int):
-    """Delay ``y`` by ``k`` samples (leading zeros; trailing samples dropped)."""
-    y = np.asarray(y)
-    k = int(k)
-    if k <= 0:
-        return y
-    out = np.zeros_like(y)
-    out[k:] = y[:-k]
+def _shift_right(ir, t_delay: int):
+    """Delay ``ir`` by ``t_delay`` samples (leading zeros; trailing samples dropped)."""
+    ir = np.asarray(ir)
+    t_delay = int(t_delay)
+    if t_delay <= 0:
+        return ir
+    out = np.zeros_like(ir)
+    out[t_delay:] = ir[:-t_delay]
     return out
 
 
-def build_ir_lti(cell: str, pulse: np.ndarray, *, delta_ms: float) -> np.ndarray:
-    """LTI ir: bandpass/LP on ``sti_pulse``, normalize, then ``IR_delay_ms``.
+def build_ir_lti(cell: str, sti_mask: np.ndarray, *, delta_ms: float) -> np.ndarray:
+    """LTI ir: bandpass/LP on ``sti_mask``, normalize, then ``IR_delay_ms``.
 
     ``IR_hp_ms[cell] == 0`` → LP-only; else HP+LP bandpass.
     Delay is ``round(IR_delay_ms[cell] / delta_ms)`` samples.
@@ -259,7 +259,7 @@ def build_ir_lti(cell: str, pulse: np.ndarray, *, delta_ms: float) -> np.ndarray
     t_delay = int(round(float(IR_delay_ms[cell]) / float(delta_ms)))
     return _shift_right(
         normalize_ir(
-            _bandpass(pulse, IR_hp_ms[cell], IR_lp_ms[cell], delta_ms=delta_ms)
+            _bandpass(sti_mask, IR_hp_ms[cell], IR_lp_ms[cell], delta_ms=delta_ms)
         ),
         t_delay,
     )
@@ -379,11 +379,11 @@ def load_rf_ir(*, t_onset=None, n_t=None, ms_sti=None, delta_ms: float, filter="
             t_onset=t_onset, n_t=n_t, delta_ms=delta_ms,
         )
 
-    pulse = sti_pulse(t_onset, n_t, ms_sti, delta_ms=delta_ms)
-    pulse = pulse / np.max(pulse)
+    mask = sti_mask(t_onset, n_t, ms_sti, delta_ms=delta_ms)
+    mask = mask / np.max(mask)
     ir = np.zeros((n_cell, n_t))
     for cell in GT_CELLS:
-        ir[gt_cell_idx[cell]] = build_ir_lti(cell, pulse, delta_ms=delta_ms)
+        ir[gt_cell_idx[cell]] = build_ir_lti(cell, mask, delta_ms=delta_ms)
     return rf, ir
 
 

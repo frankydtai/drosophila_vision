@@ -38,7 +38,7 @@ from task.spot.sti_geo import (
 )
 from task.spot.sti_spec import (
     standardize_sti_timing,
-    sti_pulse,
+    sti_mask,
 )
 
 # Spot contrasts (independent of task; bright | dark).
@@ -74,17 +74,17 @@ def parse_spot_cost_radius_scale_value(token: str) -> float:
 
 
 def expand_spot_cost_radius_scale(
-    kv: Optional[dict] = None,
+    spot_cost_radius_scale: Optional[dict] = None,
     *,
     sti_opts: Optional[dict] = None,
 ) -> Optional[Dict[int, float]]:
     if sti_opts is not None:
-        kv = (sti_opts or {}).get("spot_cost_radius_scale")
-    if not kv:
+        spot_cost_radius_scale = (sti_opts or {}).get("spot_cost_radius_scale")
+    if not spot_cost_radius_scale:
         return None
     return {
-        standardize_spot_cost_radius(k): parse_spot_cost_radius_scale_value(v)
-        for k, v in kv.items()
+        standardize_spot_cost_radius(radius): parse_spot_cost_radius_scale_value(scale)
+        for radius, scale in spot_cost_radius_scale.items()
     }
 
 
@@ -93,16 +93,15 @@ def expand_cost_ms(
     cost_ms: Optional[dict] = None,
 ) -> Dict[int, Tuple[float, ...]]:
     """Radius → explicit post-onset ms; empty when unset."""
-    kv = cost_ms
-    if not kv:
+    if not cost_ms:
         return {}
     out: Dict[int, Tuple[float, ...]] = {}
-    for k, v in kv.items():
-        radius = standardize_spot_cost_radius(k)
-        vals = parse_comma_list(v) if isinstance(v, str) else list(v)
-        if not vals:
-            raise ValueError(f"cost_ms[{k!r}] must list at least one ms")
-        out[radius] = tuple(float(x) for x in vals)
+    for radius, mss in cost_ms.items():
+        radius = standardize_spot_cost_radius(radius)
+        mss = parse_comma_list(mss) if isinstance(mss, str) else list(mss)
+        if not mss:
+            raise ValueError(f"cost_ms[{radius!r}] must list at least one ms")
+        out[radius] = tuple(float(ms) for ms in mss)
     return out
 
 
@@ -388,10 +387,10 @@ def build_spot_gt(
     spot_bs = spot_sti_bs(spot)
     n_b = len(spot_bs)
 
-    # Single sti pulse source (step or finite spot) shared with the ir gt.
-    pulse = sti_pulse(t_onset, n_t, ms_sti, delta_ms=delta_ms)
+    # Single sti_mask source (step or finite spot) shared with the ir gt.
+    mask = sti_mask(t_onset, n_t, ms_sti, delta_ms=delta_ms)
     drive = torch.as_tensor(
-        i_baseline + (i_sti - i_baseline) * pulse, dtype=sim_dtype, device=device,
+        i_baseline + (i_sti - i_baseline) * mask, dtype=sim_dtype, device=device,
     )
     # All sti hexes hold i_baseline; sti_uv hexes then get the step/spot drive.
     sti_nodes = torch.as_tensor(connectome.sti_nodes, dtype=torch.long, device=device)

@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
-"""Spot sti spec: timing, sti pulse, and ``i_sti`` assembly.
+"""Spot sti spec: timing, ``sti_mask``, and ``i_sti`` assembly.
 
-The sti pulse ``pulse[t]`` is defined once (``sti_pulse``) and consumed by
+The on/off ``sti_mask[t]`` is defined once (:func:`sti_mask`) and consumed by
 both the network ``i_sti`` and the ir component in :mod:`task.spot.gt`
 (and ``i_sti`` via :mod:`task.spot.pack`), so sti-on duration has a single
 source.
@@ -37,56 +37,52 @@ class StiTiming:
     n_t_gt: int
 
 
-def _timing_equal(a, b) -> bool:
-    if a is None and b is None:
-        return True
-    if a is None or b is None:
-        return False
-    if isinstance(a, dict) and isinstance(b, dict):
-        sti_timing_keys = set(a) | set(b)
-        return all(_timing_equal(a.get(k), b.get(k)) for k in sti_timing_keys)
-    return float(a) == float(b)
-
-
-def _merge_filter_branch_ms(so: dict, sti_timing_key: str, val) -> None:
-    if val is None:
+def _merge_filter_ms(sti_opts: dict, sti_timing_key: str, ms) -> None:
+    if ms is None:
         return
-    if isinstance(val, dict):
-        cur = so.get(sti_timing_key)
-        if cur is None:
-            so[sti_timing_key] = {k: float(v) for k, v in val.items()}
-        else:
-            merged = {k: float(v) for k, v in cur.items()}
-            merged.update({k: float(v) for k, v in val.items()})
-            so[sti_timing_key] = merged
-    elif isinstance(val, (int, float)):
-        so[sti_timing_key] = {"v": float(val), "ca": float(val)}
-    else:
+    if isinstance(ms, (int, float)):
+        sti_opts[sti_timing_key] = {"v": float(ms), "ca": float(ms)}
+        return
+    if not isinstance(ms, dict):
         raise TypeError(
-            f"{sti_timing_key} must be a float or {{v, ca}} dict, got {type(val)!r}"
+            f"{sti_timing_key} must be a float or {{v, ca}} dict, got {type(ms)!r}"
         )
+    merged = {
+        filter: float(ms_at_filter)
+        for filter, ms_at_filter in (sti_opts.get(sti_timing_key) or {}).items()
+    }
+    merged.update(
+        (filter, float(ms_at_filter)) for filter, ms_at_filter in ms.items()
+    )
+    sti_opts[sti_timing_key] = merged
 
 
-def standardize_sti_timing(so: dict) -> dict:
-    """In-place: per branch ``ms_response = max(ms_response, ms_sti)``."""
-    ms_sti = so.get("ms_sti")
-    resp = so.get("ms_response")
-    if ms_sti is None or resp is None:
-        return so
-    if isinstance(ms_sti, dict) and isinstance(resp, dict):
-        for branch in set(ms_sti) | set(resp):
-            sti_val = float(ms_sti[branch])
-            resp_val = float(resp[branch])
-            if resp_val < sti_val:
-                resp[branch] = sti_val
+def standardize_sti_timing(sti_opts: dict) -> dict:
+    """In-place: per filter ``ms_response = max(ms_response, ms_sti)``."""
+    ms_sti = sti_opts.get("ms_sti")
+    ms_response = sti_opts.get("ms_response")
+    if ms_sti is None or ms_response is None:
+        return sti_opts
+    if isinstance(ms_sti, dict) and isinstance(ms_response, dict):
+        for filter in set(ms_sti) | set(ms_response):
+            ms_response[filter] = max(float(ms_response[filter]), float(ms_sti[filter]))
     else:
-        if float(resp) < float(ms_sti):
-            so["ms_response"] = float(ms_sti)
-    return so
+        sti_opts["ms_response"] = max(float(ms_response), float(ms_sti))
+    return sti_opts
+
+
+def _float_ms(ms):
+    if ms is None:
+        return None
+    if isinstance(ms, dict):
+        return {
+            filter: float(ms_at_filter) for filter, ms_at_filter in ms.items()
+        }
+    return float(ms)
 
 
 def override_sti_timing(
-    so: dict,
+    sti_opts: dict,
     *,
     ms_pre=None,
     ms_response=None,
@@ -95,29 +91,31 @@ def override_sti_timing(
     delta_ms=None,
     delta_ms_pre=None,
 ) -> dict:
-    """Merge non-None timing into ``so``, standardize, drop derived ``t_onset``/``n_t``.
+    """Merge non-None timing into ``sti_opts``, standardize, drop derived ``t_onset``/``n_t``.
 
     Returns timing tokens whose values differ from the pre-merge snapshot (for
     plot / analyze filename suffixes).
     """
-    before = {k: so.get(k) for k in _STI_TIMING_KEYS}
-    for sti_timing_key, val in (
+    before = {}
+    for sti_timing_key in _STI_TIMING_KEYS:
+        ms = sti_opts.get(sti_timing_key)
+        before[sti_timing_key] = dict(ms) if isinstance(ms, dict) else ms
+    for sti_timing_key, ms in (
         ("ms_pre", ms_pre),
         ("ms_post", ms_post),
+        ("delta_ms", delta_ms),
+        ("delta_ms_pre", delta_ms_pre),
+        ("ms_response", ms_response),
+        ("ms_sti", ms_sti),
     ):
-        if val is not None:
-            _merge_filter_branch_ms(so, sti_timing_key, val)
-    _merge_filter_branch_ms(so, "delta_ms", delta_ms)
-    _merge_filter_branch_ms(so, "delta_ms_pre", delta_ms_pre)
-    _merge_filter_branch_ms(so, "ms_response", ms_response)
-    _merge_filter_branch_ms(so, "ms_sti", ms_sti)
-    standardize_sti_timing(so)
-    so.pop("t_onset", None)
-    so.pop("n_t", None)
+        _merge_filter_ms(sti_opts, sti_timing_key, ms)
+    standardize_sti_timing(sti_opts)
+    sti_opts.pop("t_onset", None)
+    sti_opts.pop("n_t", None)
     return {
-        k: so.get(k)
-        for k in _STI_TIMING_KEYS
-        if not _timing_equal(before.get(k), so.get(k))
+        sti_timing_key: sti_opts.get(sti_timing_key)
+        for sti_timing_key in _STI_TIMING_KEYS
+        if _float_ms(before[sti_timing_key]) != _float_ms(sti_opts.get(sti_timing_key))
     }
 
 
@@ -203,7 +201,7 @@ def resolve_sti_timing_t(opts) -> tuple[int, int]:
 
 
 def t_sti_end(t_onset, n_t, ms_sti=None, *, delta_ms: float) -> int:
-    """Inclusive last sti-on sample index (matches ``sti_pulse``).
+    """Inclusive last sti-on sample index (matches ``sti_mask``).
 
     On samples are ``[t_onset, t_sti_end]``. With ``ms_sti``, that is
     ``t_onset + max(1, round(ms_sti/delta_ms)) - 1`` (clamped to ``n_t - 1``).
@@ -219,23 +217,23 @@ def t_sti_end(t_onset, n_t, ms_sti=None, *, delta_ms: float) -> int:
     return min(mt - 1, t0 + w - 1)
 
 
-def sti_pulse(t_onset, n_t, ms_sti=None, *, delta_ms: float) -> np.ndarray:
-    """Normalized 0/1 sti pulse over ``n_t`` samples.
+def sti_mask(t_onset, n_t, ms_sti=None, *, delta_ms: float) -> np.ndarray:
+    """0/1 sti-on mask over ``n_t`` samples.
 
-    ``ms_sti`` omitted -> continue-on step (``pulse[t_onset:] = 1``). With a
+    ``ms_sti`` omitted → continue-on step (``sti_mask[t_onset:] = 1``). With a
     value the sti is on for inclusive ``[t_onset, t_sti_end(...)]`` (slice
     ``[t_onset, t_onset + round(ms_sti/delta_ms))``) and returns to baseline
     afterward; ``n_t`` is unchanged.
     """
     t_onset = int(t_onset)
     n_t = int(n_t)
-    pulse = np.zeros(n_t)
+    mask = np.zeros(n_t)
     if ms_sti is None:
-        pulse[t_onset:] = 1.0
+        mask[t_onset:] = 1.0
     else:
-        w = max(1, t_from_ms(ms_sti, delta_ms=delta_ms))
-        pulse[t_onset:min(n_t, t_onset + w)] = 1.0
-    return pulse
+        n_t_on = max(1, t_from_ms(ms_sti, delta_ms=delta_ms))
+        mask[t_onset:min(n_t, t_onset + n_t_on)] = 1.0
+    return mask
 
 
 def build_spot_a_sti_radius_drive(
@@ -254,11 +252,11 @@ def build_spot_a_sti_radius_drive(
 ):
     """Baseline ``i_sti`` + center bake + radius contribs for ``a_sti_radius``.
 
-    Returns ``(i_sti, sti_pulse, sti_bs, sti_nodes, a_sti_radius_idxs)`` where
+    Returns ``(i_sti, i_sti_pulse, sti_bs, sti_nodes, a_sti_radius_idxs)`` where
     center radius=0 is baked into ``i_sti`` at scale 1, and radius contribs
-    compose as ``i_sti += a_sti_radius[radius] * sti_pulse`` on
-    ``(sti_bs, sti_nodes)``. ``sti_pulse`` is
-    ``(i_sti - i_baseline) * sti_pulse(...)``. ``a_sti_radius_idxs`` indexes
+    compose as ``i_sti += a_sti_radius[radius] * i_sti_pulse`` on
+    ``(sti_bs, sti_nodes)``. ``i_sti_pulse`` is
+    ``(i_sti - i_baseline) * sti_mask(...)``. ``a_sti_radius_idxs`` indexes
     ``a_sti_radii`` / ``a_sti_radius`` (center radius=0 not in that axis). Empty
     ``a_sti_radii`` → center-only drive. Does not modify gt construction.
     """
@@ -281,18 +279,18 @@ def build_spot_a_sti_radius_drive(
                         sti_bs.append(int(b))
                         sti_nodes.append(int(node))
                         a_sti_radius_idxs.append(int(a_sti_radius_idx))
-    pulse = sti_pulse(t_onset, n_t, ms_sti, delta_ms=delta_ms)
+    mask = sti_mask(t_onset, n_t, ms_sti, delta_ms=delta_ms)
     n_b = len(spot_bs)
     network_sti_nodes = torch.as_tensor(connectome.sti_nodes, dtype=torch.long, device=device)
-    scaled = torch.as_tensor(
-        (float(i_sti) - float(i_baseline)) * pulse, dtype=sim_dtype, device=device,
+    i_sti_pulse = torch.as_tensor(
+        (float(i_sti) - float(i_baseline)) * mask, dtype=sim_dtype, device=device,
     )
     i_sti = torch.zeros((n_b, n_t, connectome.n_node), dtype=sim_dtype, device=device)
     if len(network_sti_nodes):
         i_sti[:, :, network_sti_nodes] = float(i_baseline)
     for b, node in center_nodes:
-        i_sti[b, :, node] = i_sti[b, :, node] + scaled
+        i_sti[b, :, node] = i_sti[b, :, node] + i_sti_pulse
     sti_bs = torch.tensor(sti_bs, dtype=torch.long, device=device)
     sti_nodes = torch.tensor(sti_nodes, dtype=torch.long, device=device)
     a_sti_radius_idxs = torch.tensor(a_sti_radius_idxs, dtype=torch.long, device=device)
-    return i_sti, scaled, sti_bs, sti_nodes, a_sti_radius_idxs
+    return i_sti, i_sti_pulse, sti_bs, sti_nodes, a_sti_radius_idxs

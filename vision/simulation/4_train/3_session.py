@@ -160,8 +160,8 @@ class Pack:
     cost_time_mask: Optional[torch.Tensor] = None  # (n_cost, n_sample) 0/1 per-radius
     waveform_mse: bool = True  # spot: True; moving bar: set at build
     t_onset: Optional[int] = None  # explicit onset; spot when ms_post extends i_sti past gt
-    # Spot a_sti_radius: i_sti += a_sti_radius[radius] * sti_pulse on (sti_bs, sti_nodes).
-    sti_pulse: Optional[torch.Tensor] = None  # (T,) (i_sti - i_baseline) * pulse(t)
+    # Spot a_sti_radius: i_sti += a_sti_radius[radius] * i_sti_pulse on (sti_bs, sti_nodes).
+    i_sti_pulse: Optional[torch.Tensor] = None  # (T,) (i_peak - i_baseline) * sti_mask(t)
     sti_bs: Optional[torch.Tensor] = None  # (n_contrib,) long
     sti_nodes: Optional[torch.Tensor] = None  # (n_contrib,) long
     a_sti_radius_idxs: Optional[torch.Tensor] = None  # (n_contrib,) long → a_sti_radius index
@@ -521,7 +521,7 @@ def _build_spot_pack(
         cost_radius_scales=cost_radius_scales,
         a_sti_radii=SPOT_PACK['a_sti_radii'],
     )
-    i_sti, sti_pulse, sti_bs, sti_nodes, a_sti_radius_idxs = build_spot_a_sti_radius_drive(
+    i_sti, i_sti_pulse, sti_bs, sti_nodes, a_sti_radius_idxs = build_spot_a_sti_radius_drive(
         connectome,
         spot_bs,
         a_sti_radii=SPOT_PACK['a_sti_radii'],
@@ -552,7 +552,7 @@ def _build_spot_pack(
         cost_time_mask=cost_time_mask,
         waveform_mse=True,
         t_onset=int(t_onset),
-        sti_pulse=sti_pulse,
+        i_sti_pulse=i_sti_pulse,
         sti_bs=sti_bs,
         sti_nodes=sti_nodes,
         a_sti_radius_idxs=a_sti_radius_idxs,

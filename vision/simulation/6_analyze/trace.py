@@ -4,7 +4,7 @@ Uses ``analyze.cell_dynamics.analyze_spot_average`` only — one forward, no
 rewrite of core dynamics. Series: ``filter=ca`` → report ``ca``, else
 ``v_post``. Spot time axis: ``0`` = trial start; onset ≈ ``ms_pre``. Analyze /
 baseline windows are absolute ms (same as ``--ms-shown``), not locked to pre
-vs pulse.
+vs sti-on.
 
 Checks
 ------
@@ -645,7 +645,7 @@ def main() -> None:
         choices=(CHECK_OSCILLATION, CHECK_FLAT, CHECK_DRIFT, CHECK_STABILITY),
         help=(
             "oscillation|flat|drift|stability on --ms-shown "
-            "(not locked to pre/pulse)"
+            "(not locked to pre/sti-on)"
         ),
     )
     ap.add_argument(

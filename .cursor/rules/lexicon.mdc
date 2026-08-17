@@ -11,7 +11,7 @@ Only words with an unambiguous single definition are included here.
 
 When asked whether a word fits this lexicon or “has a definition,” judge **meaning in `vision/` code**, not whether the token appears in lexicon.
 
-**Lexicon headwords name one concept as a single word** (or an established pattern token such as `` `at_uv` `` / `` `at_xy` ``, `` `_by_` ``, `` `_from_` ``, `` `_over_` ``, or `` `a_*` ``). Established task compounds that are one concept in prose (`moving_bar`, `spot`) may appear as compounds. Glue-compound headwords that join two independent words without forming one concept are forbidden. Exception: ``val_from`` (see ``### val_from``). Forbidden: hyphen spellings inside lexicon text (`val-from`).
+**Lexicon headwords name one concept as a single word** (or an established pattern token such as `` `at_uv` `` / `` `at_xy` ``, `` `u` `` / `` `v` `` / `` `du` `` / `` `dv` ``, `` `_by_` ``, `` `_from_` ``, `` `_over_` ``, or `` `a_*` ``). Established task compounds that are one concept in prose (`moving_bar`, `spot`) may appear as compounds. Glue-compound headwords that join two independent words without forming one concept are forbidden. Exception: ``val_from`` (see ``### val_from``). Forbidden: hyphen spellings inside lexicon text (`val-from`).
 
 **Banned words never get a headword.** A token that is only a forbidden substitute (listed under another concept’s **Forbidden**) must **not** have its own ``### \`word\`` entry — not even an entry whose body says “Forbidden / do not use.” Ban it only by naming it under the canonical concept’s Forbidden line. Creating ``### \`name\`` / ``### \`tag\`` / ``### \`gain\`` / ``### \`polarity\`` (etc.) solely to forbid them is itself a lexicon violation.
 
@@ -243,9 +243,9 @@ Forbidden: `_to_` in map names (`node_to_cell`, `id_to_node`, `name_to_i`). Bare
 
 ### `mask` / `masks`
 
-Definition: A boolean or 0/1 selector along an axis marking which positions participate (cost `entry`, time sample, sti radius slot, node, hex, …). Compound as `<axis>_mask` (`entry_mask`, `cost_time_mask`, `a_sti_radius_mask`, `hex_mask`).
-Example: `a_sti_radius_mask`, `build_a_sti_radius_mask(...)`, `pack.cost_time_mask`, `entry_mask = …`, `mask = (fs >= min_osc_f) & (fs <= max_osc_f)`
-Forbidden: `gate` — do not use `gate` for this participation selector (`a_sti_radius_gate`, “gated slots”). Biophysical channel gating kinetics (e.g. i_h open-state ODEs `_gate_ss`, `_i_h_gate_step`) are a different concept and may keep `gate`. Do not use `active` or `present` for a dense per-element boolean array — use `mask`. Do not combine `active` and `mask` in one identifier.
+Definition: A boolean or 0/1 selector along an axis marking which positions participate (cost `entry`, time sample, sti radius slot, node, hex, …). Compound as `<axis>_mask` (`entry_mask`, `cost_time_mask`, `a_sti_radius_mask`, `hex_mask`, ``sti_mask``). Spot sti-on over the trace time axis is ``sti_mask`` (function / array): 0 before onset, 1 while sti is on.
+Example: `a_sti_radius_mask`, `build_a_sti_radius_mask(...)`, `pack.cost_time_mask`, `entry_mask = …`, `mask = (fs >= min_osc_f) & (fs <= max_osc_f)`, `sti_mask(t_onset, n_t, ms_sti, delta_ms=…)`
+Forbidden: `gate` — do not use `gate` for this participation selector (`a_sti_radius_gate`, “gated slots”). Biophysical channel gating kinetics (e.g. i_h open-state ODEs `_gate_ss`, `_i_h_gate_step`) are a different concept and may keep `gate`. Do not use `active` or `present` for a dense per-element boolean array — use `mask`. Do not combine `active` and `mask` in one identifier. Forbidden: ``pulse`` / ``sti_pulse`` for the sti-on time selector — that is ``sti_mask``.
 
 ### `mid` / `mids`
 
@@ -486,9 +486,9 @@ Example: `if task_name in SPOT_TASKS: ...`
 
 ### `sti` / `stis`
 
-Definition: Light sti drive — photoreceptor current injected at R1–6/R7/R8 (`i_sti`), and the connectome node flag/mask for those nodes (`is_sti`, JSON `"sti"`, `sti_nodes_at_uv`, `sti_nodes`, `STI_CELLS`). Compounds cover sti hex anchors and opts (`sti_uv`, `sti_opts`, `entry_sti_us`, `cost_sti_us`, `sti_b`).
-Example: `i_sti = pack.i_sti`, `connectome.is_sti`, `connectome.sti_nodes`, `STI_CELLS`, `spot_sti_bs`, `build_spot_sti_opts`
-Forbidden: `stimulus`, `stim`, `stimuli`, `input`, `is_input`, `PR`, `photoreceptor` (as naming tokens for this concept), `u_in`, `v_in`, `pr_idx`, `n_input_node`, `INPUT_CELLS`, `input_nodes_at`. Do not use `sti` for total ``in`` (sti + synaptic) — use `in`.
+Definition: Light sti drive — photoreceptor current injected at R1–6/R7/R8 (`i_sti`), and the connectome node flag/mask for those nodes (`is_sti`, JSON `"sti"`, `sti_nodes_at_uv`, `sti_nodes`, `STI_CELLS`). Compounds cover sti hex anchors and opts (`sti_uv`, `sti_opts`, `entry_sti_us`, `cost_sti_us`, `sti_b`). Spot time-on selector is ``sti_mask`` (see ``### mask``). Amplitude waveform for radius contribs is ``i_sti_pulse`` = ``(i_peak − i_baseline) · sti_mask`` on Pack / forward (``pack.i_sti_pulse``).
+Example: `i_sti = pack.i_sti`, `connectome.is_sti`, `connectome.sti_nodes`, `STI_CELLS`, `spot_sti_bs`, `build_spot_sti_opts`, `sti_mask(...)`, `pack.i_sti_pulse`, `i_sti += a_sti_radius[radius] * i_sti_pulse`
+Forbidden: `stimulus`, `stim`, `stimuli`, `input`, `is_input`, `PR`, `photoreceptor` (as naming tokens for this concept), `u_in`, `v_in`, `pr_idx`, `n_input_node`, `INPUT_CELLS`, `input_nodes_at`. Do not use `sti` for total ``in`` (sti + synaptic) — use `in`. Forbidden: ``pulse`` / ``sti_pulse`` (bare or compound) for sti-on mask or amplitude drive — use ``sti_mask`` / ``i_sti_pulse``.
 
 ### `sum` / `sums`
 
@@ -541,6 +541,12 @@ Example: `trace, onset_trace = _forward_readout_and_onset_trace(...)`
 Definition: Noun only — the overall parameter-optimization process and its package (`import train`: session assembly, cost, optimization, persistence). Compounds use the noun (`train_opts`, `param_modes`, `TrainSession`).
 Example: `session = train.session_from_outdir(...)`, `import train`
 Forbidden: do not use `train` as a verb (e.g. `train_staged`, “to train”, imperative “Train …”) — the update loop verb is `optimize`. Do not use `training` as a naming token — use `train`. Do not use `fit` for this process / package (see ``### gt`` Forbidden).
+
+### `u` / `v` / `du` / `dv`
+
+Definition: Axial hex-lattice coordinates and their deltas — one hex is ``(u, v)``; an offset from a reference hex is ``(du, dv)``. Absolute axis locals / params are bare ``u`` / ``v`` (or role compounds ``center_u`` / ``center_v``, ``sti_u`` / ``sti_v``, bags ``us`` / ``vs``). Delta axis locals / params / edge fields are bare ``du`` / ``dv`` (pair from ``radius_hexes`` / ``shell_hexes`` / ``shifts``, or arrays ``du`` / ``dv`` on cost entries). Same concept as the UV frame in ``at_uv`` (see ``### at_uv``); not hex-step ``x`` / ``y`` and not degree ``x_deg`` / ``y_deg``.
+Example: `for u, v in hexes`, `for du, dv in spot.shifts`, `center_u + du`, `center_entry_mask = (du == 0) & (dv == 0)`, edge JSON ``"du"`` / ``"dv"``, `xy_deg_from_uv(u, v)`
+Forbidden: ``cu`` / ``cv`` for a hex or center (use ``u`` / ``v`` or ``center_u`` / ``center_v``). ``offset_u`` / ``offset_v`` / ``delta_u`` / ``delta_v`` as substitutes for ``du`` / ``dv``. Do not use ``u`` / ``v`` / ``du`` / ``dv`` for hex-step XY or degree axes. Do not use bare ``u`` for sti drive / membrane state (borst) — that is a different concept; keep model-symbol ``u`` / ``u_rev`` only at the neuron-step call site.
 
 ### `val` / `vals`
 
