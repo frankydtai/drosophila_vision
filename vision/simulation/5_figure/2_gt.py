@@ -3,19 +3,20 @@
 from __future__ import annotations
 
 from config import (
-    SPOT_PACK,
+    SPREAD_PACK,
 )
 
 import numpy as np
 import torch
 
-from config import SPOT_PACK
-from task.spot.gt import (
+from task.spread.gt import (
     GT_CELLS,
     RF_SIGN,
+    spread_gt_active,
+)
+from task.spot.gt import (
     load_gt,
     load_gt_dark,
-    spot_gt_active,
 )
 from network.construction import active_gt_cells, gt_cells_from_opts
 from train.config import CONTRASTS
@@ -101,11 +102,11 @@ def spot_gts(
     ms_sti=None,
     delta_ms=None,
     filter="none",
-    spot_gt_mode=None,
+    spread_gt_mode=None,
 ):
     """Spot gts ``{contrast: {cell: gt}}``.
 
-    ``filter`` / ``spot_gt_mode`` default from ``session.train_opts``.
+    ``filter`` / ``spread_gt_mode`` default from ``session.train_opts``.
     """
     task = task or session.primary_pack.task
     if contrasts is None:
@@ -114,10 +115,10 @@ def spot_gts(
         filter = str((session.train_opts or {}).get("filter", "none"))
     else:
         filter = str(filter)
-    if spot_gt_mode is None:
-        spot_gt_mode = str((session.train_opts or {}).get("spot_gt_mode", SPOT_PACK['spot_gt_mode']))
+    if spread_gt_mode is None:
+        spread_gt_mode = str((session.train_opts or {}).get("spread_gt_mode", SPREAD_PACK['spread_gt_mode']))
     else:
-        spot_gt_mode = str(spot_gt_mode)
+        spread_gt_mode = str(spread_gt_mode)
     delta_ms = float(session.delta_ms if delta_ms is None else delta_ms)
     gt_amp = float(session.gt_amp)
     out = {}
@@ -130,13 +131,13 @@ def spot_gts(
         load = load_gt_dark if contrast == "dark" else load_gt
         gt_stack = load(
             t_onset=t_onset, n_t=n_t, ms_sti=ms_sti, delta_ms=delta_ms,
-            filter=filter, spot_gt_mode=spot_gt_mode,
+            filter=filter, spread_gt_mode=spread_gt_mode,
         )
         scaled = gt_stack * gt_amp
         gt_cell_idx = dict(zip(GT_CELLS, range(len(GT_CELLS))))
         out[contrast] = {
             str(cell): scaled[gt_cell_idx[cell]]
             for cell in GT_CELLS
-            if spot_gt_active(spot_gt_mode, contrast, int(RF_SIGN[cell]))
+            if spread_gt_active(spread_gt_mode, contrast, int(RF_SIGN[cell]))
         }
     return out

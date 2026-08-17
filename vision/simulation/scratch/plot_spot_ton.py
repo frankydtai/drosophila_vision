@@ -5,9 +5,9 @@ pass, and saves ``model_data_spot_pre<ms>.png`` in the run dir.
 
 Usage (from ``SimulationCode/``):
 
-    ../.venv/bin/python test/plot_spot_ton.py
-    ../.venv/bin/python test/plot_spot_ton.py --run-path borst/OTHER_RUN
-    ../.venv/bin/python test/plot_spot_ton.py --ms-pre 1500 --ms-response 1500
+    ../.venv/bin/python scratch/plot_spot_ton.py
+    ../.venv/bin/python scratch/plot_spot_ton.py --run-path borst/OTHER_RUN
+    ../.venv/bin/python scratch/plot_spot_ton.py --ms-pre 1500 --ms-response 1500
 """
 from __future__ import annotations
 

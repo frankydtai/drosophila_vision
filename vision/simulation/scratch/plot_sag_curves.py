@@ -9,10 +9,10 @@ Isolated leak + Ih-like conductance (no network):
 
 Usage (from SimulationCode/):
 
-    ../.venv/bin/python 6_test/plot_sag_curves.py
-    ../.venv/bin/python 6_test/plot_sag_curves.py --show
-    ../.venv/bin/python 6_test/plot_sag_curves.py --g-list 0,10,25,50,100 --tau-list 100,250,500,850
-    ../.venv/bin/python 6_test/plot_sag_curves.py --slope-list -0.05,-0.1,-0.15,-0.2
+    ../.venv/bin/python scratch/plot_sag_curves.py
+    ../.venv/bin/python scratch/plot_sag_curves.py --show
+    ../.venv/bin/python scratch/plot_sag_curves.py --g-list 0,10,25,50,100 --tau-list 100,250,500,850
+    ../.venv/bin/python scratch/plot_sag_curves.py --slope-list -0.05,-0.1,-0.15,-0.2
 """
 from __future__ import annotations
 

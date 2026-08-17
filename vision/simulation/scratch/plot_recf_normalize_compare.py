@@ -20,8 +20,8 @@ No x -= x[0]; center stays ±1 when it is the 5-point peak.
 
 Usage (from ``simulation/``):
 
-    ../.venv/bin/python test/plot_recf_normalize_compare.py
-    ../.venv/bin/python test/plot_recf_normalize_compare.py --show
+    ../.venv/bin/python scratch/plot_recf_normalize_compare.py
+    ../.venv/bin/python scratch/plot_recf_normalize_compare.py --show
 """
 from __future__ import annotations
 

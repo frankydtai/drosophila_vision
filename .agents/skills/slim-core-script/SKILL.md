@@ -72,6 +72,6 @@ Review and trust the project hook with `/hooks` before expecting auto mode to ru
 ## Keep out of scope
 
 - `__init__.py` unless named by the user.
-- `experiment/`, `test/`, `0_runs/`, and `0_logs/`.
+- `experiment/`, `scratch/`, `0_runs/`, and `0_logs/`.
 - Opportunistic public behavior changes.
 - Multi-file renames unless the user names every file in the request.

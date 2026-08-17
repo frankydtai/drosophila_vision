@@ -6,7 +6,7 @@ right axis: ``read_RecF_ImpR(..., ms_spot=25)`` × ``RF_sign`` from
 
 Usage (from ``simulation/``):
 
-    ../.venv/bin/python test/plot_yang_s5be_impr.py
+    ../.venv/bin/python scratch/plot_yang_s5be_impr.py
 """
 from __future__ import annotations
 

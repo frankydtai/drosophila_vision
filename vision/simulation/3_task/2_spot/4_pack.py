@@ -23,22 +23,17 @@ from network.construction import (
     node_cells,
 )
 from neuron.borst import t_from_ms
+from task.spread.gt import GT_CELLS, RF_SIGN, contrast_sign, spread_gt_active
+from task.spread.sti_spec import standardize_sti_timing, sti_mask
 from task.spot.gt import (
-    GT_CELLS,
-    RF_SIGN,
     _spot_readout_a_radius,
     load_rf_ir,
-    contrast_sign,
     spot_gt_active,
 )
 from task.spot.sti_geo import (
     SpotB,
     resolve_spot,
     spot_sti_bs,
-)
-from task.spot.sti_spec import (
-    standardize_sti_timing,
-    sti_mask,
 )
 
 # Spot contrasts (independent of task; bright | dark).
@@ -344,7 +339,7 @@ def build_spot_gt(
     ms_response: Optional[float] = None,
     gt_cells: Optional[Sequence[str]] = None,
     filter: str = "none",
-    spot_gt_mode: str = "all",
+    spread_gt_mode: str = "all",
 ) -> SpotGt:
     if contrast not in SPOT_CONTRASTS:
         raise ValueError(f"contrast must be 'bright' or 'dark', got {contrast!r}")
@@ -428,7 +423,7 @@ def build_spot_gt(
             if len(nodes) == 0:
                 continue
             rf_sign = int(RF_SIGN[gt_cell])
-            if not spot_gt_active(spot_gt_mode, contrast, rf_sign):
+            if not spot_gt_active(spread_gt_mode, contrast, rf_sign):
                 continue
             cache_digest = (int(radius), gt_idx)
             if cache_digest not in trace_cache:

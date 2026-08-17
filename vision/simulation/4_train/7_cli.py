@@ -5,7 +5,7 @@ No argparse registration. Callers: ``config``, ``figure``, ``analyze``.
 """
 from __future__ import annotations
 
-from config import MODEL, SPOT_INPUT_SPEC
+from config import MODEL, SPREAD_INPUT_SPEC
 
 import sys
 from pathlib import Path
@@ -136,7 +136,7 @@ def _resolve_sti_timing_literals() -> dict:
         if sti_timing_key in ("delta_ms", "delta_ms_pre"):
             ms = MODEL[sti_timing_key]
         else:
-            ms = SPOT_INPUT_SPEC.get(sti_timing_key)
+            ms = SPREAD_INPUT_SPEC.get(sti_timing_key)
         if ms is not None:
             sti_opts[sti_timing_key] = float(ms)
     return sti_opts
@@ -171,13 +171,15 @@ def override_train_opts_timing(
     delta_ms=None,
     delta_ms_pre=None,
 ):
-    """Merge timing into train-opts spot/bar sti dicts."""
-    from task.spot.sti_spec import override_sti_timing
+    """Merge timing into train-opts spread/spot/bar sti dicts."""
+    from task.spread.sti_spec import override_sti_timing
 
     changed = {}
-    so = opts.get("spot_sti_opts")
-    if so is not None:
-        changed = override_sti_timing(
+    for sti_opts_key in ("spread_sti_opts", "spot_sti_opts"):
+        so = opts.get(sti_opts_key)
+        if so is None:
+            continue
+        part = override_sti_timing(
             so,
             ms_pre=ms_pre,
             ms_response=ms_response,
@@ -186,6 +188,10 @@ def override_train_opts_timing(
             delta_ms=delta_ms,
             delta_ms_pre=delta_ms_pre,
         )
+        if not changed:
+            changed = part
+        else:
+            changed.update(part)
     if ms_pre is not None or delta_ms is not None or delta_ms_pre is not None:
         so = opts.get("moving_bar_sti_opts")
         if so is not None:
@@ -253,7 +259,11 @@ def resolve_part_cost_scales(tokens, tasks):
             bare.append(token.strip())
     scales: dict[str, float] = {}
     if bare:
-        scales = {part_key: 0.0 for part_key in train.session_cost_part_keys(tasks)}
+        scales = {
+            part_key: 0.0
+            for task in tasks
+            for part_key in train.cost_part_keys_from_task(task)
+        }
         scales.update(train.expand_part_cost_scale({name: 1.0 for name in bare}))
     scales.update(train.expand_part_cost_scale(explicit))
     return scales

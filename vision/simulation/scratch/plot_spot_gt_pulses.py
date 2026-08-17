@@ -12,8 +12,8 @@ Two PNGs:
 
 Usage (from ``SimulationCode/``):
 
-    ../.venv/bin/python test/plot_spot_gt_pulses.py
-    ../.venv/bin/python test/plot_spot_gt_pulses.py --show
+    ../.venv/bin/python scratch/plot_spot_gt_pulses.py
+    ../.venv/bin/python scratch/plot_spot_gt_pulses.py --show
 """
 from __future__ import annotations
 

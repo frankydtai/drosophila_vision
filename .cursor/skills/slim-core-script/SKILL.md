@@ -74,6 +74,6 @@ echo 'd916db21-1c8e-4df7-8cd1-07d9efa3a4e3' > .cursor/slim-core-auto.on
 ## Out of scope
 
 - `__init__.py` unless the user names it
-- `experiment/`, `test/`, `0_runs/`, `0_logs/`
+- `experiment/`, `scratch/`, `0_runs/`, `0_logs/`
 - Refactors that change public behavior “while you’re there”
 - Multi-file renames (auto must not rename exports that still have external call sites)

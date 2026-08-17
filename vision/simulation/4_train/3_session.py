@@ -17,12 +17,12 @@ cost compares the pack to ``a_gt * gts + bias_gt``. Schema includes
 ``v_th_ca``/``a_ca``/``tau_ca`` only when ``filter=ca``. When
 ``val_from`` (``--val-from``), ``bias_gt`` is written from ``v`` at ``t_onset`` (or ``ca`` when
 ``filter=ca``) — same value appears in ``param.csv``. Spot ir uses Arenz digitized
-when ``filter=ca``. ``spot_gt_mode`` (``all`` | ``pos``) gates cost GT via
-:func:`task.spot.gt.spot_gt_active`; dark multiplies by :func:`task.spot.gt.contrast_sign`.
+when ``filter=ca``. ``spread_gt_mode`` (``all`` | ``pos``) gates cost GT via
+:func:`task.spread.gt.spread_gt_active`; dark multiplies by :func:`task.spread.gt.contrast_sign`.
 Gt cells are :func:`network.construction.active_gt_cells`; cost pack applies
-:func:`task.spot.gt.spot_gt_active` per cell.
+:func:`task.spot.gt.spot_gt_active` per cell (spot; delegates to spread).
 
-``task`` ∈ {spot, moving_bar} and ``contrast`` ∈ {bright, dark} are independent;
+``task`` ∈ {spread, spot, moving_bar} and ``contrast`` ∈ {bright, dark} are independent;
 packs are ``packs[task][contrast]``.
 """
 from __future__ import annotations
@@ -33,8 +33,9 @@ from config import (
     NEURON_FORWARD,
     MODEL,
     NEURON_SCHEMA,
+    SPREAD_INPUT_SPEC,
+    SPREAD_PACK,
     SPOT_INPUT_GEO,
-    SPOT_INPUT_SPEC,
     SPOT_PACK,
     TRAIN_CONFIG,
     TRAIN_OPTIMIZATION,
@@ -64,7 +65,7 @@ from train.config import (
     cost_part_keys_from_pack,
     expand_part_cost_scale,
     expand_filter,
-    expand_spot_gt_mode,
+    expand_spread_gt_mode,
     expand_gt,
     expand_pre_steady,
     moving_bar_cost_part_key,
@@ -86,6 +87,13 @@ from train.param import (
     val_from_enabled,
 )
 
+from task.spread.gt import expand_gt_cells as expand_spread_gt_cells
+from task.spread.pack import build_spread_gt
+from task.spread.sti_spec import (
+    SPREAD_CONTRASTS,
+    resolve_sti_timing,
+    standardize_sti_timing,
+)
 from task.spot.gt import expand_gt_cells as expand_spot_gt_cells
 from task.spot.pack import (
     SPOT_CONTRASTS,
@@ -101,8 +109,6 @@ from task.spot.sti_geo import (
 )
 from task.spot.sti_spec import (
     build_spot_a_sti_radius_drive,
-    standardize_sti_timing,
-    resolve_sti_timing,
 )
 from task.moving_bar.gt import expand_gt_cells as expand_moving_bar_gt_cells
 from task.moving_bar.pack import (
@@ -428,6 +434,95 @@ def _spot_cost_ts_and_mask(
     return cost_ts, mask
 
 
+def _spread_cost_ts(opts, *, cost_ms, cost_interval_ms, device):
+    timing = resolve_sti_timing(opts)
+    delta_ms = timing.delta_ms
+    post = timing.n_t_gt - timing.t_onset
+    cost_ms_by_radius = expand_cost_ms(cost_ms=cost_ms)
+    if cost_ms_by_radius:
+        mss = sorted({ms for vals in cost_ms_by_radius.values() for ms in vals})
+    else:
+        if cost_interval_ms <= 0:
+            raise ValueError("cost_interval_ms must be > 0")
+        step = max(1, int(round(cost_interval_ms / delta_ms)))
+        mss = [t * delta_ms for t in range(0, post, step)]
+    ts = set()
+    for ms in mss:
+        t = int(round(float(ms) / delta_ms))
+        if t < 0 or t >= post:
+            raise ValueError(
+                f"cost time {ms} ms post-onset t out of range [0,{post})"
+            )
+        ts.add(t)
+    return torch.tensor(sorted(ts), dtype=torch.long, device=device)
+
+
+def _build_spread_pack(
+    connectome,
+    *,
+    contrast: str,
+    gt_amp: float,
+    device: str,
+    sim_dtype: torch.dtype,
+    i_sti: Dict[str, Dict[str, float]],
+    spread_sti_opts: Optional[dict],
+    filter: str,
+    spread_gt_mode: str,
+    cost_ms: Optional[dict],
+    cost_interval_ms: float,
+) -> Tuple[Pack, dict, str]:
+    if contrast not in SPREAD_CONTRASTS:
+        raise ValueError(f"spread contrast must be 'bright' or 'dark', got {contrast!r}")
+    task = "spread"
+    if not spread_sti_opts:
+        raise ValueError("spread requires sti opts (from resolve_train_opts / CLI)")
+    opts = standardize_sti_timing(dict(spread_sti_opts))
+    timing = resolve_sti_timing(opts)
+    device = device or active_device()
+    t_onset = timing.t_onset
+    n_t = timing.n_t
+    i_baseline = i_baseline_from_i_sti(i_sti, task)
+    T = build_spread_gt(
+        connectome,
+        n_t=n_t,
+        t_onset=t_onset,
+        i_baseline=i_baseline,
+        i_sti=float(i_sti[task][contrast]),
+        contrast=contrast,
+        gt_amp=gt_amp,
+        delta_ms=timing.delta_ms,
+        device=device,
+        sim_dtype=sim_dtype,
+        ms_sti=timing.ms_sti,
+        ms_response=timing.ms_response,
+        gt_cells=gt_cells_from_opts(opts),
+        filter=str(filter),
+        spread_gt_mode=str(spread_gt_mode),
+    )
+    cost_ts = _spread_cost_ts(
+        opts,
+        cost_ms=cost_ms,
+        cost_interval_ms=cost_interval_ms,
+        device=device,
+    )
+    pack = Pack(
+        task=task,
+        contrast=contrast,
+        i_sti=T.i_sti,
+        gts=T.gts,
+        power=torch.zeros((), dtype=sim_dtype, device=T.gts.device),
+        cost_scales=torch.ones(T.gts.shape[0], dtype=sim_dtype, device=T.gts.device),
+        entry_bs=T.entry_bs,
+        entry_nodes=T.entry_nodes,
+        cost_t0s=None,
+        cost_ts=cost_ts,
+        waveform_mse=True,
+        t_onset=int(t_onset),
+    )
+    label = f"spread {contrast} ({int(T.gts.shape[0])} cost nodes)"
+    return pack, dict(opts), label
+
+
 def _build_spot_pack(
     connectome,
     *,
@@ -438,7 +533,7 @@ def _build_spot_pack(
     i_sti: Dict[str, Dict[str, float]],
     spot_sti_opts: Optional[dict],
     filter: str,
-    spot_gt_mode: str,
+    spread_gt_mode: str,
     cost_ms: Optional[dict],
     cost_interval_ms: float,
 ) -> Tuple[Pack, dict, str]:
@@ -487,7 +582,7 @@ def _build_spot_pack(
         spot_cost_radii=SPOT_PACK['spot_cost_radii'],
         gt_cells=gt_cells_from_opts(opts),
         filter=str(filter),
-        spot_gt_mode=str(spot_gt_mode),
+        spread_gt_mode=str(spread_gt_mode),
     )
     cost_ts, cost_time_mask = _spot_cost_ts_and_mask(
         opts, T.entry_radii,
@@ -555,6 +650,7 @@ def _build_spot_pack(
 
 
 _GT_CELLS_EXPAND = {
+    "spread": expand_spread_gt_cells,
     "spot": expand_spot_gt_cells,
     "moving_bar": expand_moving_bar_gt_cells,
 }
@@ -576,16 +672,25 @@ def resolve_gt_cells_by_task(by_task) -> Dict[str, List[str]]:
 
 
 _STI_TRAIN_OPT_KEYS = (
+    ("spread", "spread_sti_opts"),
     ("spot", "spot_sti_opts"),
     ("moving_bar", "moving_bar_sti_opts"),
 )
 
 _STI_OPTS_BY_TASK = {
+    "spread": {
+        "ms_pre": SPREAD_INPUT_SPEC["ms_pre"],
+        "ms_response": SPREAD_INPUT_SPEC["ms_response"],
+        "ms_post": SPREAD_INPUT_SPEC["ms_post"],
+        "ms_sti": SPREAD_INPUT_SPEC["ms_sti"],
+        "delta_ms": MODEL["delta_ms"],
+        "delta_ms_pre": MODEL["delta_ms_pre"],
+    },
     "spot": {
-        "ms_pre": SPOT_INPUT_SPEC["ms_pre"],
-        "ms_response": SPOT_INPUT_SPEC["ms_response"],
-        "ms_post": SPOT_INPUT_SPEC["ms_post"],
-        "ms_sti": SPOT_INPUT_SPEC["ms_sti"],
+        "ms_pre": SPREAD_INPUT_SPEC["ms_pre"],
+        "ms_response": SPREAD_INPUT_SPEC["ms_response"],
+        "ms_post": SPREAD_INPUT_SPEC["ms_post"],
+        "ms_sti": SPREAD_INPUT_SPEC["ms_sti"],
         "delta_ms": MODEL["delta_ms"],
         "delta_ms_pre": MODEL["delta_ms_pre"],
         "shift_radius": SPOT_INPUT_GEO["shift_radius"],
@@ -603,7 +708,8 @@ _STI_OPTS_BY_TASK = {
 
 
 _INPUT_SPEC_BY_TASK = {
-    "spot": SPOT_INPUT_SPEC,
+    "spread": SPREAD_INPUT_SPEC,
+    "spot": SPREAD_INPUT_SPEC,
     "moving_bar": MOVING_BAR_INPUT_SPEC,
 }
 
@@ -634,6 +740,22 @@ def _merge_i_sti(cli_i_sti=None) -> Dict[str, Dict[str, float]]:
                 )
             out[task][contrast] = float(val)
     return out
+
+
+def _spread_resolve_sti_opts(raw, **_):
+    opts = {
+        "ms_pre": raw["ms_pre"],
+        "ms_response": raw["ms_response"],
+        "ms_post": raw["ms_post"],
+        "delta_ms": raw["delta_ms"],
+        "delta_ms_pre": raw["delta_ms_pre"],
+    }
+    if raw["ms_sti"] is not None:
+        opts["ms_sti"] = raw["ms_sti"]
+    gt_cells = raw.get("gt_cells")
+    if gt_cells is not None:
+        opts["gt_cells"] = list(gt_cells)
+    return standardize_sti_timing(opts)
 
 
 def _spot_resolve_sti_opts(raw, *, shift_radius, spot_radius, multi_spot, fully_inside, spot_cost_radius_scale, **_):
@@ -681,6 +803,7 @@ def _moving_bar_resolve_sti_opts(raw, **_):
 
 
 _RESOLVE_STI_OPTS = {
+    "spread": _spread_resolve_sti_opts,
     "spot": _spot_resolve_sti_opts,
     "moving_bar": _moving_bar_resolve_sti_opts,
 }
@@ -733,6 +856,7 @@ def resolve_train_opts(
     cost_interval_ms=TRAIN_OPTIMIZATION['cost_interval_ms'],
     cost_ms=None,
     moving_bar_sti_opts=None,
+    spread_sti_opts=None,
     spot_sti_opts=None,
     network_json=None,
     network=None,
@@ -751,7 +875,7 @@ def resolve_train_opts(
     pre_grad=NEURON_FORWARD['pre_grad'],
     val_from=None,
     filter=NEURON_SCHEMA['filter'],
-    spot_gt_mode=SPOT_PACK['spot_gt_mode'],
+    spread_gt_mode=SPREAD_PACK['spread_gt_mode'],
 ):
     """Canonical train opts for :func:`open_session`."""
     if network is None and network_json is None:
@@ -788,7 +912,7 @@ def resolve_train_opts(
     param_modes = resolve_param_modes(param_modes, val_from_opts)
     tasks = parse_tasks(tasks if tasks is not None else (TRAIN_CONFIG["task"],))
     contrasts = parse_contrasts(
-        contrasts if contrasts is not None else SPOT_INPUT_SPEC["contrasts"]
+        contrasts if contrasts is not None else SPREAD_INPUT_SPEC["contrasts"]
     )
     if spot_radius is None:
         spot_radius = SPOT_INPUT_GEO['spot_radius']
@@ -804,6 +928,7 @@ def resolve_train_opts(
         spot_cost_radius_scale=spot_cost_radius_scale,
     )
     raw_by_task = {
+        "spread": spread_sti_opts,
         "spot": spot_sti_opts,
         "moving_bar": moving_bar_sti_opts,
     }
@@ -841,7 +966,7 @@ def resolve_train_opts(
         "pre_grad": pre_grad,
         "val_from": copy.deepcopy(val_from),
         "filter": filter,
-        "spot_gt_mode": spot_gt_mode,
+        "spread_gt_mode": spread_gt_mode,
         "fp": fp,
         "packs": None,
         "param_modes": None,
@@ -907,6 +1032,7 @@ def _sidecar_train_opts(opts, tasks, contrasts, resolved_sti, sequential_bool) -
         "pre_steady_damp": float(opts.get("pre_steady_damp", TRAIN_OPTIMIZATION['pre_steady_damp'])),
         "sequential": sequential_bool,
         "network_json": str(opts["network_json"]),
+        "spread_sti_opts": _sti("spread_sti_opts"),
         "spot_sti_opts": _sti("spot_sti_opts"),
         "moving_bar_sti_opts": _sti("moving_bar_sti_opts"),
     }
@@ -925,7 +1051,7 @@ def _sidecar_train_opts(opts, tasks, contrasts, resolved_sti, sequential_bool) -
     train_opts["pre_grad"] = opts.get("pre_grad", NEURON_FORWARD['pre_grad'])
     train_opts["val_from"] = copy.deepcopy(opts.get("val_from", VAL_FROM))
     train_opts["filter"] = expand_filter(opts.get("filter", NEURON_SCHEMA['filter']))
-    train_opts["spot_gt_mode"] = opts.get("spot_gt_mode", SPOT_PACK['spot_gt_mode'])
+    train_opts["spread_gt_mode"] = opts.get("spread_gt_mode", SPREAD_PACK['spread_gt_mode'])
     train_opts["fp"] = int(opts.get("fp", TRAIN_SESSION['fp']))
     return train_opts
 
@@ -1114,7 +1240,19 @@ def open_session(
     for task in tasks:
         packs[task] = {}
         for contrast in contrasts:
-            if task == "moving_bar":
+            if task == "spread":
+                pack, sti_opts, _label = _build_spread_pack(
+                    spread_sti_opts=opts.get("spread_sti_opts"),
+                    spread_gt_mode=expand_spread_gt_mode(
+                        opts.get("spread_gt_mode", SPREAD_PACK['spread_gt_mode']),
+                    ),
+                    cost_ms=dict(opts.get("cost_ms") or {}),
+                    cost_interval_ms=float(
+                        opts.get("cost_interval_ms", TRAIN_OPTIMIZATION['cost_interval_ms'])
+                    ),
+                    contrast=contrast, **pack_kwargs,
+                )
+            elif task == "moving_bar":
                 pack, sti_opts, _label = _build_moving_bar_pack(
                     part_cost_scales=opts.get("part_cost_scales"),
                     moving_bar_sti_opts=opts.get("moving_bar_sti_opts"),
@@ -1125,8 +1263,8 @@ def open_session(
             elif task == "spot":
                 pack, sti_opts, _label = _build_spot_pack(
                     spot_sti_opts=opts.get("spot_sti_opts"),
-                    spot_gt_mode=expand_spot_gt_mode(
-                        opts.get("spot_gt_mode", SPOT_PACK['spot_gt_mode']),
+                    spread_gt_mode=expand_spread_gt_mode(
+                        opts.get("spread_gt_mode", SPREAD_PACK['spread_gt_mode']),
                     ),
                     cost_ms=dict(opts.get("cost_ms") or {}),
                     cost_interval_ms=float(

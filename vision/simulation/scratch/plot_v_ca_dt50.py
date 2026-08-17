@@ -2,10 +2,10 @@
 
 Usage (from ``SimulationCode/``):
 
-    ../.venv/bin/python test/plot_v_ca_dt50.py
-    ../.venv/bin/python test/plot_v_ca_dt50.py --show
-    ../.venv/bin/python test/plot_v_ca_dt50.py --run-path borst/RUN_NAME
-    ../.venv/bin/python test/plot_v_ca_dt50.py --ms-pre 500 --ms-response 1500
+    ../.venv/bin/python scratch/plot_v_ca_dt50.py
+    ../.venv/bin/python scratch/plot_v_ca_dt50.py --show
+    ../.venv/bin/python scratch/plot_v_ca_dt50.py --run-path borst/RUN_NAME
+    ../.venv/bin/python scratch/plot_v_ca_dt50.py --ms-pre 500 --ms-response 1500
 """
 from __future__ import annotations
 

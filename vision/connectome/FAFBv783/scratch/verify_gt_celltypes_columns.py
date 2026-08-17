@@ -13,7 +13,7 @@ For each gt cell this reports, per hemisphere:
 
 Run with the project venv:
 
-    .venv/bin/python "Connectome/FAFBv783/test/verify_gt_celltypes_columns.py"
+    .venv/bin/python "Connectome/FAFBv783/scratch/verify_gt_celltypes_columns.py"
 """
 
 from __future__ import annotations

@@ -17,7 +17,7 @@ Closed-form using superposition of a +S0 step at ``t_pulse_on`` and a -S0 step a
            - S0*(Ks*exp(-(t-t_off)/tau_s) - Kf*exp(-(t-t_off)/tau_f)) * 1_{t>=t_off}
 
 Example:
-    ../.venv/bin/python 6_test/plot_two_exp_Vt.py --show
+    ../.venv/bin/python scratch/plot_two_exp_Vt.py --show
 """
 
 from __future__ import annotations

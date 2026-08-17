@@ -4,7 +4,7 @@ from config import (
     RUN_PATH,
     MODEL,
     NEURON_SCHEMA,
-    SPOT_INPUT_SPEC,
+    SPREAD_INPUT_SPEC,
     TRAIN_CONFIG,
     TRAIN_OPTIMIZATION,
 )
@@ -63,7 +63,7 @@ from train.cost import node_vals_from_param
 __doc__ = """Borst / hp_lp v component analysis.
 
 Consumers (CLI or ``import analyze.cell_dynamics``) must reuse this module's
-forward helpers. Do not re-implement spot/bar readout + step loops in test/.
+forward helpers. Do not re-implement spot/bar readout + step loops in scratch/.
 
 Time axis (read this before ``--ms-shown`` / ``TimeWindow``)
 ------------------------------------------------------------
@@ -268,11 +268,11 @@ def add_shared_cli(
     )
     ap.add_argument(
         "--contrast",
-        default=",".join(SPOT_INPUT_SPEC["contrasts"]),
+        default=",".join(SPREAD_INPUT_SPEC["contrasts"]),
         metavar="bright|dark,...",
         help=(
             "comma-separated contrasts: bright|dark "
-            f"(default: {','.join(SPOT_INPUT_SPEC['contrasts'])})"
+            f"(default: {','.join(SPREAD_INPUT_SPEC['contrasts'])})"
         ),
     )
     ap.add_argument(

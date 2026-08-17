@@ -7,8 +7,8 @@ Default time constants are the fitted values from Figure 3 (Tm1–Tm9).
 
 Usage (from ``SimulationCode/``):
 
-    ../.venv/bin/python 6_test/plot_serbe_fig3_pulse.py
-    ../.venv/bin/python 6_test/plot_serbe_fig3_pulse.py --cell tm2 --show
+    ../.venv/bin/python scratch/plot_serbe_fig3_pulse.py
+    ../.venv/bin/python scratch/plot_serbe_fig3_pulse.py --cell tm2 --show
 """
 from __future__ import annotations
 

@@ -54,7 +54,7 @@ from network.construction import (
     load_network_json,
 )
 from config import RUN_PATH
-from task.spot.gt import GT_CELLS
+from task.spread.gt import GT_CELLS
 from network import path  # noqa: F401 -- FAFBv783 on sys.path
 import build_hex
 

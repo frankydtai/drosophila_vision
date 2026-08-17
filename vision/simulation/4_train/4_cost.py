@@ -66,6 +66,7 @@ from train.config import (
     moving_bar_cell_cost_part_key,
     moving_bar_cost_part_key,
     session_cost_part_keys,
+    spread_cost_part_key,
     spot_cost_part_key,
 )
 from train.param import (
@@ -304,6 +305,19 @@ def _entries_by_part(
         part_idxs_np, dtype=torch.long, device=pack.entry_nodes.device,
     )
     return part_idxs, part_keys
+
+
+def _spread_entries_by_part(
+    pack: Pack, connectome,
+) -> Tuple[torch.Tensor, List[str]]:
+    """``(part_idxs, part_keys)`` for spread cell; one CPU sync of entry meta."""
+
+    def entry_part_key(entry, cells, ci):
+        return spread_cost_part_key(
+            pack.task, pack.contrast, str(cells[int(ci[entry])]),
+        )
+
+    return _entries_by_part(pack, connectome, entry_part_key)
 
 
 def _spot_entries_by_part(
@@ -574,6 +588,24 @@ def _pack_cost_dsi_from_v_readout_dsi(
     return cost_dsi_from_v_readout_dsi(pack, bias_gt, v_readout_dsi)
 
 
+def _spread_pack_cost_parts_from_v_readout(
+    pack: Pack,
+    session: TrainSession,
+    a_gt: torch.Tensor,
+    bias_gt: torch.Tensor,
+    v_readout: Optional[torch.Tensor],
+    v_readout_dsi: torch.Tensor,
+) -> Dict[str, torch.Tensor]:
+    if v_readout is None:
+        raise ValueError(f"waveform readout required for pack {pack.task!r}")
+    v_readout, gts, time_mask = _gather_cost_time(pack, v_readout, pack.gts)
+    part_idxs, part_keys = _spread_entries_by_part(pack, session.connectome)
+    return _parts_from_entries(
+        a_gt, bias_gt, gts, pack.cost_scales, v_readout, part_idxs, part_keys, session,
+        time_mask=time_mask,
+    )
+
+
 def _spot_pack_cost_parts_from_v_readout(
     pack: Pack,
     session: TrainSession,
@@ -628,6 +660,7 @@ def _moving_bar_pack_cost_parts_from_v_readout(
 
 
 _PACK_COST_PARTS_FROM_V_READOUT = {
+    "spread": _spread_pack_cost_parts_from_v_readout,
     "spot": _spot_pack_cost_parts_from_v_readout,
     "moving_bar": _moving_bar_pack_cost_parts_from_v_readout,
 }

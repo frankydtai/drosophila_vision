@@ -62,7 +62,7 @@ from task.spot.sti_geo import (
     resolve_spot,
     spot_sti_bs,
 )
-from task.spot.sti_spec import (
+from task.spread.sti_spec import (
     resolve_sti_timing,
     t_sti_end,
 )

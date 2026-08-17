@@ -4,10 +4,10 @@ Formulas match ``FiveCol_MedSim_Pytorch._ih_gate_step`` / ``update_Vm``.
 
 Usage (from SimulationCode/):
 
-    ../.venv/bin/python 6_test/plot_h_curves.py
-    ../.venv/bin/python 6_test/plot_h_curves.py --show
-    ../.venv/bin/python 6_test/plot_h_curves.py --gmax-list 0,10,25,50,100
-    ../.venv/bin/python 6_test/plot_h_curves.py --tau-const-list 100,250,500,850
+    ../.venv/bin/python scratch/plot_h_curves.py
+    ../.venv/bin/python scratch/plot_h_curves.py --show
+    ../.venv/bin/python scratch/plot_h_curves.py --gmax-list 0,10,25,50,100
+    ../.venv/bin/python scratch/plot_h_curves.py --tau-const-list 100,250,500,850
 """
 from __future__ import annotations
 

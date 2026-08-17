@@ -6,8 +6,8 @@ only (no RF panel).
 
 Usage (from ``SimulationCode/``):
 
-    ../.venv/bin/python test/plot_spot_gt_time.py
-    ../.venv/bin/python test/plot_spot_gt_time.py --delta-ms 5
+    ../.venv/bin/python scratch/plot_spot_gt_time.py
+    ../.venv/bin/python scratch/plot_spot_gt_time.py --delta-ms 5
 """
 from __future__ import annotations
 

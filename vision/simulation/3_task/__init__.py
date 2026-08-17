@@ -1,6 +1,6 @@
 """Task layer: per-task-family input (geometry + sti current), gt, and pack.
 
-Each ``spot`` / ``moving_bar`` package exposes ``input`` and ``gt``: geometry + drive in
-``input``; gt traces in ``gt``. Spot also has ``pack`` (GT↔network cost
-binding). Session scalars live in ``config.MODEL``.
+``spread`` / ``spot`` / ``moving_bar`` packages expose sti geometry + drive,
+gt traces, and (where applicable) pack builders. Shared timing / IR live in
+``spread``; spot imports from spread. Session scalars live in ``config.MODEL``.
 """

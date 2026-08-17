@@ -271,7 +271,7 @@ def detect_stability(
 
 
 def _sti_ms(opts: dict) -> tuple[float, float, float]:
-    from task.spot.sti_spec import resolve_sti_timing
+    from task.spread.sti_spec import resolve_sti_timing
 
     timing = resolve_sti_timing(opts)
     ms_sti = timing.ms_sti if timing.ms_sti is not None else 0.0

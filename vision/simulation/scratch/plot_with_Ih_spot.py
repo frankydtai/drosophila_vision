@@ -2,9 +2,9 @@
 
 Usage (from ``SimulationCode/``):
 
-    ../.venv/bin/python 6_test/plot_with_Ih_spot.py
-    ../.venv/bin/python 6_test/plot_with_Ih_spot.py --show
-    ../.venv/bin/python 6_test/plot_with_Ih_spot.py --run-path borst/27849055-add_spot_r
+    ../.venv/bin/python scratch/plot_with_Ih_spot.py
+    ../.venv/bin/python scratch/plot_with_Ih_spot.py --show
+    ../.venv/bin/python scratch/plot_with_Ih_spot.py --run-path borst/27849055-add_spot_r
 """
 from __future__ import annotations
 

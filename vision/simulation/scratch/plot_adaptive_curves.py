@@ -14,9 +14,9 @@ Top row: activity; bottom row: v_transient.
 
 Usage (from SimulationCode/):
 
-    ../.venv/bin/python 6_test/plot_adaptive_curves.py
-    ../.venv/bin/python 6_test/plot_adaptive_curves.py --show
-    ../.venv/bin/python 6_test/plot_adaptive_curves.py --gadapt-list 0,0.5,1,2 --tau-adapt-list 100,250,500,850
+    ../.venv/bin/python scratch/plot_adaptive_curves.py
+    ../.venv/bin/python scratch/plot_adaptive_curves.py --show
+    ../.venv/bin/python scratch/plot_adaptive_curves.py --gadapt-list 0,0.5,1,2 --tau-adapt-list 100,250,500,850
 """
 from __future__ import annotations
 

@@ -34,12 +34,12 @@ from config import (
     NEURON_FORWARD,
     NEURON_SCHEMA,
     SPOT_INPUT_GEO,
-    SPOT_PACK,
+    SPREAD_PACK,
     TRAIN_CONFIG,
     TRAIN_OPTIMIZATION,
     TRAIN_SESSION,
 )
-from task.spot.sti_spec import t_sti_end, resolve_sti_timing
+from task.spread.sti_spec import t_sti_end, resolve_sti_timing
 from neuron.schema import param_from_entry
 from train import do_many_runs
 import train
@@ -656,6 +656,7 @@ def build_session(
     spot_cost_radius_scale=None,
     i_sti=None,
     moving_bar_sti_opts=None,
+    spread_sti_opts=None,
     spot_sti_opts=None,
     param_modes=None,
     param_init=None,
@@ -670,7 +671,7 @@ def build_session(
     pre_grad=NEURON_FORWARD['pre_grad'],
     val_from=None,
     filter=NEURON_SCHEMA['filter'],
-    spot_gt_mode=SPOT_PACK['spot_gt_mode'],
+    spread_gt_mode=SPREAD_PACK['spread_gt_mode'],
     connectome=None,
     schema=None,
 ):
@@ -695,6 +696,7 @@ def build_session(
         spot_cost_radius_scale=spot_cost_radius_scale,
         i_sti=i_sti,
         spot_sti_opts=spot_sti_opts,
+        spread_sti_opts=spread_sti_opts,
         moving_bar_sti_opts=moving_bar_sti_opts,
     )
     if not network:
@@ -716,7 +718,7 @@ def build_session(
         pre_grad=pre_grad,
         val_from=val_from,
         filter=filter,
-        spot_gt_mode=spot_gt_mode,
+        spread_gt_mode=spread_gt_mode,
         **session_kwargs,
     )
     return train.open_session(opts, model, schema=schema, connectome=connectome)
@@ -744,13 +746,14 @@ def run_train(model, n_run, n_iter, lrs, fname=None, outdir=None,
                  spot_cost_radius_scale=None,
                  i_sti=None,
                  moving_bar_sti_opts=None,
+                 spread_sti_opts=None,
                  spot_sti_opts=None,
                  connectome=None, schema=None,
                  fp=TRAIN_SESSION['fp'],
                  pre_grad=NEURON_FORWARD['pre_grad'],
                  val_from=None,
                  filter=NEURON_SCHEMA['filter'],
-                 spot_gt_mode=SPOT_PACK['spot_gt_mode'],
+                 spread_gt_mode=SPREAD_PACK['spread_gt_mode'],
                  init_from=None,
                  checkpoint_interval=None,
                  build_checkpoint_callback=build_checkpoint_callback,
@@ -778,6 +781,7 @@ def run_train(model, n_run, n_iter, lrs, fname=None, outdir=None,
         spot_cost_radius_scale=spot_cost_radius_scale,
         i_sti=i_sti,
         moving_bar_sti_opts=moving_bar_sti_opts,
+        spread_sti_opts=spread_sti_opts,
         spot_sti_opts=spot_sti_opts,
         param_modes=param_modes,
         param_init=param_init,
@@ -794,7 +798,7 @@ def run_train(model, n_run, n_iter, lrs, fname=None, outdir=None,
         pre_grad=pre_grad,
         val_from=val_from,
         filter=filter,
-        spot_gt_mode=spot_gt_mode,
+        spread_gt_mode=spread_gt_mode,
     )
     suffix = "" if model == "borst" else f"_{model}"
     fname = fname or f"train{suffix or '_with_i_h'}.npy"

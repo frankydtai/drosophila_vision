@@ -54,6 +54,10 @@ rm -f .codex/slim-core-auto.on
 - [x] vision/simulation/3_task/2_moving_bar/1_sti_geo.py
 - [x] vision/simulation/3_task/2_moving_bar/3_gt.py
 
+### 4_train
+
+- [x] vision/simulation/4_train/1_config.py
+
 ### 4_training
 
 - [x] vision/simulation/4_training/1_config.py

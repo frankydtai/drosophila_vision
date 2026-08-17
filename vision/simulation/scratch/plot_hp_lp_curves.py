@@ -20,9 +20,9 @@ Columns: left = +pulse, right = −pulse.
 
 Usage (from ``vision/simulation/``):
 
-    ../.venv/bin/python test/plot_hp_lp_curves.py
-    ../.venv/bin/python test/plot_hp_lp_curves.py --show
-    ../.venv/bin/python test/plot_hp_lp_curves.py --euler ex --hp-a-h-list 0.1,0.5,1
+    ../.venv/bin/python scratch/plot_hp_lp_curves.py
+    ../.venv/bin/python scratch/plot_hp_lp_curves.py --show
+    ../.venv/bin/python scratch/plot_hp_lp_curves.py --euler ex --hp-a-h-list 0.1,0.5,1
 """
 from __future__ import annotations
 

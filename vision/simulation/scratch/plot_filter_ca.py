@@ -17,9 +17,9 @@ Default ``v_th_ca`` / ``a_ca`` / ``tau_ca`` from ``NEURON_SCHEMA['params']`` val
 
 Usage (from ``simulation/``):
 
-    ../.venv/bin/python test/plot_filter_ca.py
-    ../.venv/bin/python test/plot_filter_ca.py --show
-    ../.venv/bin/python test/plot_filter_ca.py --impr-offset 0.5 --a-ca 10
+    ../.venv/bin/python scratch/plot_filter_ca.py
+    ../.venv/bin/python scratch/plot_filter_ca.py --show
+    ../.venv/bin/python scratch/plot_filter_ca.py --impr-offset 0.5 --a-ca 10
 """
 from __future__ import annotations
 

@@ -7,9 +7,9 @@ Test drive levels (ratio like network 20/40 pA): baseline 0.5, peak 1.0.
 
 Usage (from ``SimulationCode/``):
 
-    ../.venv/bin/python test/plot_impr_prefilter.py
-    ../.venv/bin/python test/plot_impr_prefilter.py --show
-    ../.venv/bin/python test/plot_impr_prefilter.py --ms-pulse 50
+    ../.venv/bin/python scratch/plot_impr_prefilter.py
+    ../.venv/bin/python scratch/plot_impr_prefilter.py --show
+    ../.venv/bin/python scratch/plot_impr_prefilter.py --ms-pulse 50
 """
 from __future__ import annotations
 

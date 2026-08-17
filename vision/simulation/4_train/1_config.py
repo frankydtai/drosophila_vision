@@ -6,25 +6,18 @@ Pure data + parsing (no torch engine, no session objects), so
 without a cycle. Session assembly and sti-opts finalisation live in
 :mod:`train.session`.
 
-**Enum allowed-token sets** (e.g. ``COST_NORMS``, ``SPOT_GT_MODES``) live here.
+**Enum allowed-token sets** (e.g. ``COST_NORMS``, ``SPREAD_GT_MODES``) live here.
 Matching **default scalars** live only in ``config`` (e.g. ``TRAIN_OPTIMIZATION['cost_norm']``,
-``NEURON_SCHEMA['model']``, ``NEURON_SCHEMA['filter']``, ``SPOT_PACK['spot_gt_mode']``) — never put the ``(…)`` allowed tuple in ``config``.
+``NEURON_SCHEMA['model']``, ``NEURON_SCHEMA['filter']``, ``SPREAD_PACK['spread_gt_mode']``) — never put the ``(…)`` allowed tuple in ``config``.
 
-``task`` ∈ {spot, moving_bar} and ``contrast`` ∈ {bright, dark} are independent axes.
+``task`` ∈ {spread, spot, moving_bar} and ``contrast`` ∈ {bright, dark} are independent axes.
 ``i_sti[task][contrast]`` holds only bright/dark currents; baseline is their midpoint.
 """
 from __future__ import annotations
 
-from config import (
-    SPOT_PACK,
-    TRAIN_CONFIG,
-    TRAIN_OPTIMIZATION,
-)
-
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 
-import network.path  # noqa: F401 -- FAFB path on sys.path
 from import_bootstrap import parse_comma_list
 
 # Trained-parameter output root (``hp_lp/`` and ``borst/`` run_* subdirs).
@@ -43,38 +36,29 @@ def run_data_dir(outdir: str | Path) -> str:
     return str(Path(outdir) / RUN_DATA_SUBDIR)
 
 
-# Exactly two tasks; contrast is a separate axis (exactly two contrasts).
-TASKS = ("spot", "moving_bar")
+TASKS = ("spread", "spot", "moving_bar")
 CONTRASTS = ("bright", "dark")
 
 # Neuron dynamics model (``--model``). Default scalar: ``config.NEURON_SCHEMA['model']``.
 MODELS = ("borst", "hp_lp")
 
-# ``i_sti[task][contrast]`` keys only (baseline = midpoint; see
-# ``task.moving_bar.sti_spec.i_baseline_from_i_sti``).
-
 PD_ND_LABELS = ("PD", "ND")
 PD_IDX, ND_IDX = 0, 1
-
-
-MOVING_BAR_COST_PARTS = tuple(
-    f"moving_bar_{contrast}_{part}"
-    for contrast in CONTRASTS
-    for part in (*PD_ND_LABELS, "DSI")
-)
 
 # Waveform MSE normalization (``--cost-norm``); shared by spot + moving_bar MSE.
 # gt_power: 100 * Σ W (v_readout−gt_aff)² / Σ W (a_gt·gt)²
 # a_gt2:         Σ W (v_readout−gt_aff)² / a_gt²   (per-entry a_i²; bias not in denom)
 COST_NORMS = ("gt_power", "a_gt2")
 
-# Spot cost GT mode allowed tokens (``--spot-gt-mode``). Default scalar:
-# ``config.SPOT_PACK['spot_gt_mode']`` (all | positive — comment only there).
-# all: every active gt cell under both bright and dark (dark × contrast_sign −1).
-# positive: only cells with rf_sign × contrast_sign > 0 (bright: ON; dark: OFF).
-SPOT_GT_MODES = ("all", "pos")
+# Spread cost GT mode allowed tokens (``--spread-gt-mode``). Default scalar:
+# ``config.SPREAD_PACK['spread_gt_mode']`` (all | positive — comment only there).
+SPREAD_GT_MODES = ("all", "pos")
 
 # t=0 pre steady (``--pre-steady``); not param init.
+PRE_STEADY_MODES = ("probe", "solve")
+
+# Voltage vs Ca readout (``--filter``). Default scalar: ``config.NEURON_SCHEMA['filter']``.
+FILTERS = ("none", "ca")
 
 
 def _require_choice(token, allowed: Tuple[str, ...], *, flag: str) -> str:
@@ -91,30 +75,26 @@ def expand_cost_norm(name) -> str:
 
 def expand_pre_steady(pre_steady) -> str:
     """Validate ``--pre-steady`` token (``probe`` | ``solve``)."""
-    return _require_choice(pre_steady, ("probe", "solve"), flag="pre_steady")
+    return _require_choice(pre_steady, PRE_STEADY_MODES, flag="pre_steady")
 
 
 def expand_filter(filter) -> str:
     """Validate ``--filter`` token (``none`` | ``ca``)."""
-    return _require_choice(filter, ("none", "ca"), flag="filter")
+    return _require_choice(filter, FILTERS, flag="filter")
 
 
-def expand_spot_gt_mode(spot_gt_mode) -> str:
-    """Validate ``--spot-gt-mode`` against :data:`SPOT_GT_MODES` (no aliases)."""
-    return _require_choice(spot_gt_mode, SPOT_GT_MODES, flag="spot_gt_mode")
-
-
-PART_COST_SCALE_ALIASES = {
-    "spot": tuple(f"spot_{contrast}" for contrast in CONTRASTS),
-    "moving_bar": MOVING_BAR_COST_PARTS,
-    "PD": tuple(f"moving_bar_{contrast}_PD" for contrast in CONTRASTS),
-    "ND": tuple(f"moving_bar_{contrast}_ND" for contrast in CONTRASTS),
-    "DSI": tuple(f"moving_bar_{contrast}_DSI" for contrast in CONTRASTS),
-}
+def expand_spread_gt_mode(spread_gt_mode) -> str:
+    """Validate ``--spread-gt-mode`` against :data:`SPREAD_GT_MODES` (no aliases)."""
+    return _require_choice(spread_gt_mode, SPREAD_GT_MODES, flag="spread_gt_mode")
 
 
 def moving_bar_cost_part_key(task: str, contrast: str, part: str) -> str:
     return f"{task}_{contrast}_{part}"
+
+
+def spread_cost_part_key(task: str, contrast: str, cell: str) -> str:
+    """Fine spread part: ``{task}_{contrast}_{cell}``."""
+    return f"{task}_{contrast}_{cell}"
 
 
 def spot_cost_part_key(task: str, contrast: str, cell: str, radius) -> str:
@@ -127,27 +107,25 @@ def moving_bar_cell_cost_part_key(task: str, contrast: str, cell: str, part: str
     return f"{task}_{contrast}_{cell}_{part}"
 
 
-def _spot_cost_part_keys_from_task(task: str, contrasts) -> Tuple[str, ...]:
+def cost_part_keys_from_task(task: str, contrasts=CONTRASTS) -> Tuple[str, ...]:
+    """Coarse part_keys for CLI ``--part-cost-scale`` (before packs exist)."""
+    if task == "moving_bar":
+        return tuple(
+            moving_bar_cost_part_key(task, contrast, part)
+            for contrast in contrasts
+            for part in (*PD_ND_LABELS, "DSI")
+        )
+    if task not in TASKS:
+        raise KeyError(task)
     return tuple(f"{task}_{contrast}" for contrast in contrasts)
 
 
-def _moving_bar_cost_part_keys_from_task(task: str, contrasts) -> Tuple[str, ...]:
-    return tuple(
-        moving_bar_cost_part_key(task, contrast, part)
-        for contrast in contrasts
-        for part in (*PD_ND_LABELS, "DSI")
-    )
-
-
-_COST_PART_KEYS_FROM_TASK = {
-    "spot": _spot_cost_part_keys_from_task,
-    "moving_bar": _moving_bar_cost_part_keys_from_task,
+PART_COST_SCALE_ALIASES = {
+    **{task: cost_part_keys_from_task(task) for task in TASKS},
+    "PD": tuple(f"moving_bar_{contrast}_PD" for contrast in CONTRASTS),
+    "ND": tuple(f"moving_bar_{contrast}_ND" for contrast in CONTRASTS),
+    "DSI": tuple(f"moving_bar_{contrast}_DSI" for contrast in CONTRASTS),
 }
-
-
-def cost_part_keys_from_task(task: str, contrasts=CONTRASTS) -> Tuple[str, ...]:
-    """Coarse part_keys for CLI ``--part-cost-scale`` (before packs exist)."""
-    return _COST_PART_KEYS_FROM_TASK[task](task, contrasts)
 
 
 def _scale_at(cli: dict, *keys: str) -> float:
@@ -157,74 +135,73 @@ def _scale_at(cli: dict, *keys: str) -> float:
     return 1.0
 
 
-def _spot_cost_part_keys_from_pack(pack, connectome, *, cli=None, scales=None):
+def _cost_part_keys_from_pack_entries(
+    pack, connectome, entry_part_key, *, cli=None, scales=None,
+) -> Tuple[str, ...]:
+    """Walk active cost entries; ``entry_part_key(entry, cell)`` → ``(key, *scale_keys)``."""
+    entry_mask = pack.cost_scales > 0
+    if not bool(entry_mask.any()):
+        return ()
     part_keys: List[str] = []
     seen = set()
-    entry_mask = pack.cost_scales > 0
-    if pack.entry_radii is None or not bool(entry_mask.any()):
-        return tuple(part_keys)
     cell_idxs = connectome.node_cells[pack.entry_nodes]
     cells = connectome.cells
-    radii = pack.entry_radii
-    task, contrast = pack.task, pack.contrast
-    coarse = f"{task}_{contrast}"
     for entry in range(int(pack.entry_nodes.shape[0])):
         if not bool(entry_mask[entry]):
             continue
         cell = str(cells[int(cell_idxs[entry].item())])
-        key = spot_cost_part_key(task, contrast, cell, int(radii[entry].item()))
+        key, *scale_keys = entry_part_key(entry, cell)
         if key in seen:
             continue
         seen.add(key)
         part_keys.append(key)
         if scales is not None:
-            scales[key] = _scale_at(cli or {}, key, coarse)
+            scales[key] = _scale_at(cli or {}, key, *scale_keys)
     return tuple(part_keys)
-
-
-def _moving_bar_cost_part_keys_from_pack(pack, connectome, *, cli=None, scales=None):
-    part_keys: List[str] = []
-    seen = set()
-    entry_mask = pack.cost_scales > 0
-    cell_idxs = connectome.node_cells[pack.entry_nodes]
-    cells = connectome.cells
-    task, contrast = pack.task, pack.contrast
-    coarse = f"{task}_{contrast}"
-    pd_nd = pack.cost_pd_nds
-    if pd_nd is not None and bool(entry_mask.any()):
-        for entry in range(int(pack.entry_nodes.shape[0])):
-            if not bool(entry_mask[entry]):
-                continue
-            cell = str(cells[int(cell_idxs[entry].item())])
-            part = PD_ND_LABELS[int(pd_nd[entry].item())]
-            key = moving_bar_cell_cost_part_key(task, contrast, cell, part)
-            part_key = moving_bar_cost_part_key(task, contrast, part)
-            if key in seen:
-                continue
-            seen.add(key)
-            part_keys.append(key)
-            if scales is not None:
-                scales[key] = _scale_at(cli or {}, key, part_key, coarse)
-    if pack.dsi_pos_ptr is not None and int(pack.dsi_pos_ptr.numel()) > 1:
-        key = moving_bar_cost_part_key(task, contrast, "DSI")
-        if key not in seen:
-            seen.add(key)
-            part_keys.append(key)
-            if scales is not None:
-                scales[key] = _scale_at(cli or {}, key, coarse)
-    return tuple(part_keys)
-
-
-_COST_PART_KEYS_FROM_PACK = {
-    "spot": _spot_cost_part_keys_from_pack,
-    "moving_bar": _moving_bar_cost_part_keys_from_pack,
-}
 
 
 def cost_part_keys_from_pack(pack, connectome, *, cli=None, scales=None) -> Tuple[str, ...]:
     """Fine part_keys from pack entries; optional ``scales`` fill from ``cli``."""
-    return _COST_PART_KEYS_FROM_PACK[pack.task](
-        pack, connectome, cli=cli, scales=scales,
+    task, contrast = pack.task, pack.contrast
+    coarse = f"{task}_{contrast}"
+    if task == "moving_bar":
+        pd_nd = pack.cost_pd_nds
+        if pd_nd is None:
+            part_keys: Tuple[str, ...] = ()
+        else:
+            def entry_part_key(entry, cell):
+                part = PD_ND_LABELS[int(pd_nd[entry].item())]
+                return (
+                    moving_bar_cell_cost_part_key(task, contrast, cell, part),
+                    moving_bar_cost_part_key(task, contrast, part),
+                    coarse,
+                )
+            part_keys = _cost_part_keys_from_pack_entries(
+                pack, connectome, entry_part_key, cli=cli, scales=scales,
+            )
+        if pack.dsi_pos_ptr is not None and int(pack.dsi_pos_ptr.numel()) > 1:
+            key = moving_bar_cost_part_key(task, contrast, "DSI")
+            if key not in part_keys:
+                part_keys = (*part_keys, key)
+                if scales is not None:
+                    scales[key] = _scale_at(cli or {}, key, coarse)
+        return part_keys
+    if task == "spot":
+        if pack.entry_radii is None:
+            return ()
+        radii = pack.entry_radii
+
+        def entry_part_key(entry, cell):
+            return spot_cost_part_key(
+                task, contrast, cell, int(radii[entry].item()),
+            ), coarse
+    elif task == "spread":
+        def entry_part_key(entry, cell):
+            return spread_cost_part_key(task, contrast, cell), coarse
+    else:
+        raise KeyError(task)
+    return _cost_part_keys_from_pack_entries(
+        pack, connectome, entry_part_key, cli=cli, scales=scales,
     )
 
 
@@ -242,17 +219,6 @@ def session_cost_part_keys(session=None, *, tasks=None, contrasts=None) -> Tuple
     for task in tasks:
         part_keys.extend(cost_part_keys_from_task(task, contrasts=contrasts))
     return tuple(part_keys)
-
-
-def _expand_alias(by_token: Optional[dict], aliases: dict, map_value) -> dict:
-    if not by_token:
-        return {}
-    out = {}
-    for token, val in by_token.items():
-        targets = aliases[token] if token in aliases else (str(token),)
-        for target in targets:
-            out[target] = map_value(val)
-    return out
 
 
 def expand_gt(by_task: Optional[dict]) -> Dict[str, List[str]]:
@@ -285,38 +251,41 @@ def cost_radius_by_task(tasks, bare_cost_radius, by_task: Optional[dict]) -> Dic
 
 def expand_part_cost_scale(scales: Optional[dict]) -> Dict[str, float]:
     """Expand ``--part-cost-scale`` ``PART_COST_SCALE_ALIASES`` tokens."""
-    return _expand_alias(scales, PART_COST_SCALE_ALIASES, float)
+    if not scales:
+        return {}
+    out: Dict[str, float] = {}
+    for token, val in scales.items():
+        targets = (
+            PART_COST_SCALE_ALIASES[token]
+            if token in PART_COST_SCALE_ALIASES
+            else (str(token),)
+        )
+        for target in targets:
+            out[target] = float(val)
+    return out
+
+
+def _parse_allowed(values, allowed: Tuple[str, ...], *, noun: str) -> List[str]:
+    if values is None:
+        raise ValueError(f"{noun}s required")
+    if isinstance(values, str):
+        values = parse_comma_list(values)
+    out = [str(token).strip() for token in values]
+    if not out:
+        raise ValueError(f"{noun}s must not be empty")
+    bad = [token for token in out if token not in allowed]
+    if bad:
+        raise ValueError(
+            f"unknown {noun}(s) {bad!r} (expected {'|'.join(allowed)})",
+        )
+    return out
 
 
 def parse_tasks(tasks) -> List[str]:
-    """Parse comma-list or sequence into validated ``spot`` | ``moving_bar`` tasks."""
-    if tasks is None:
-        raise ValueError("tasks required")
-    if isinstance(tasks, str):
-        tasks = parse_comma_list(tasks)
-    out = [str(task).strip() for task in tasks]
-    if not out:
-        raise ValueError("tasks must not be empty")
-    bad = [task for task in out if task not in TASKS]
-    if bad:
-        raise ValueError(
-            f"unknown task(s) {bad!r} (expected {'|'.join(TASKS)})",
-        )
-    return out
+    """Parse comma-list or sequence into validated spread | spot | moving_bar tasks."""
+    return _parse_allowed(tasks, TASKS, noun="task")
 
 
 def parse_contrasts(contrasts) -> List[str]:
     """Parse comma-list or sequence into validated ``bright`` | ``dark`` contrasts."""
-    if contrasts is None:
-        raise ValueError("contrasts required")
-    if isinstance(contrasts, str):
-        contrasts = parse_comma_list(contrasts)
-    out = [str(contrast).strip() for contrast in contrasts]
-    if not out:
-        raise ValueError("contrasts must not be empty")
-    bad = [contrast for contrast in out if contrast not in CONTRASTS]
-    if bad:
-        raise ValueError(
-            f"unknown contrast(s) {bad!r} (expected {'|'.join(CONTRASTS)})",
-        )
-    return out
+    return _parse_allowed(contrasts, CONTRASTS, noun="contrast")

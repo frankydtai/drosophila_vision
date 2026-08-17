@@ -21,8 +21,9 @@ MODEL: Dict[str, object] = {}
 NEURON_SCHEMA: Dict[str, object] = {}
 NEURON_FORWARD: Dict[str, object] = {}
 NETWORK_PATH: Dict[str, object] = {}
+SPREAD_INPUT_SPEC: Dict[str, object] = {}
+SPREAD_PACK: Dict[str, object] = {}
 SPOT_INPUT_GEO: Dict[str, object] = {}
-SPOT_INPUT_SPEC: Dict[str, object] = {}
 SPOT_PACK: Dict[str, object] = {}
 MOVING_BAR_INPUT_GEO: Dict[str, object] = {}
 MOVING_BAR_INPUT_SPEC: Dict[str, object] = {}
@@ -68,7 +69,7 @@ def load_config_dict() -> dict:
 def _bind_config(config_dict: dict) -> None:
     global RUN_NAME, RUN_PATH
     global MODEL, NEURON_SCHEMA, NEURON_FORWARD, NETWORK_PATH
-    global SPOT_INPUT_GEO, SPOT_INPUT_SPEC, SPOT_PACK
+    global SPREAD_INPUT_SPEC, SPREAD_PACK, SPOT_INPUT_GEO, SPOT_PACK
     global MOVING_BAR_INPUT_GEO, MOVING_BAR_INPUT_SPEC
     global TRAIN_CONFIG, VAL_FROM, TRAIN_OPTIMIZATION, TRAIN_SESSION
     global FIGURE_PLOT, FIGURE_PLOT_STI_SPOT
@@ -90,13 +91,7 @@ def _bind_config(config_dict: dict) -> None:
     }
     NEURON_FORWARD = {"pre_grad": config_dict["pre_grad"]}
     NETWORK_PATH = {"network": config_dict["network"]}
-    SPOT_INPUT_GEO = {
-        "spot_radius": config_dict["spot_radius"],
-        "fully_inside": config_dict["fully_inside"],
-        "multi_spot": config_dict["multi_spot"],
-        "shift_radius": config_dict["shift_radius"],
-    }
-    SPOT_INPUT_SPEC = {
+    SPREAD_INPUT_SPEC = {
         "i_bright": config_dict["i_bright"],
         "i_dark": config_dict["i_dark"],
         "contrasts": config_dict["contrasts"],
@@ -105,8 +100,16 @@ def _bind_config(config_dict: dict) -> None:
         "ms_response": config_dict["ms_response"],
         "ms_post": config_dict["ms_post"],
     }
+    SPREAD_PACK = {
+        "spread_gt_mode": config_dict["spread_gt_mode"],
+    }
+    SPOT_INPUT_GEO = {
+        "spot_radius": config_dict["spot_radius"],
+        "fully_inside": config_dict["fully_inside"],
+        "multi_spot": config_dict["multi_spot"],
+        "shift_radius": config_dict["shift_radius"],
+    }
     SPOT_PACK = {
-        "spot_gt_mode": config_dict["spot_gt_mode"],
         "spot_cost_radii": config_dict["spot_cost_radii"],
         "a_sti_radii": config_dict["a_sti_radii"],
         "spot_cost_radius_scale": config_dict["spot_cost_radius_scale"],
@@ -284,7 +287,7 @@ def resolve_run_kwargs(hydra_config) -> dict:
             train.validate_syn_strength_edge_param_mode(param_modes["syn_strength_edge"])
 
     filter = train.expand_filter(NEURON_SCHEMA["filter"])
-    spot_gt_mode = train.expand_spot_gt_mode(SPOT_PACK["spot_gt_mode"])
+    spread_gt_mode = train.expand_spread_gt_mode(SPREAD_PACK["spread_gt_mode"])
     val_from = train.resolve_val_from(VAL_FROM)
     val_from_opts = {"val_from": val_from}
     if filter != "ca":
@@ -342,6 +345,7 @@ def resolve_run_kwargs(hydra_config) -> dict:
         "delta_ms_pre": timing["delta_ms_pre"],
     }
     spot_sti_opts = dict(timing)
+    spread_sti_opts = dict(timing)
 
     cost_interval_ms = float(TRAIN_OPTIMIZATION["cost_interval_ms"])
     if cost_interval_ms <= 0:
@@ -356,13 +360,13 @@ def resolve_run_kwargs(hydra_config) -> dict:
     gt_tokens = TRAIN_CONFIG.get("gt_by_task")
     gt_by_task = cli.resolve_gt(gt_tokens) if gt_tokens else None
     if gt_by_task:
-        gt_opts = {"moving_bar": moving_bar_sti_opts, "spot": spot_sti_opts}
+        gt_opts = {"moving_bar": moving_bar_sti_opts, "spot": spot_sti_opts, "spread": spread_sti_opts}
         for task, cells in gt_by_task.items():
             gt_opts[task]["gt_cells"] = list(cells)
 
     contrasts_raw = TRAIN_CONFIG.get("contrasts")
     if contrasts_raw is None:
-        contrasts = train.parse_contrasts(SPOT_INPUT_SPEC["contrasts"])
+        contrasts = train.parse_contrasts(SPREAD_INPUT_SPEC["contrasts"])
     else:
         contrasts = train.parse_contrasts(contrasts_raw)
 
@@ -412,6 +416,7 @@ def resolve_run_kwargs(hydra_config) -> dict:
         fully_inside=SPOT_INPUT_GEO["fully_inside"],
         spot_cost_radius_scale=spot_cost_radius_scale,
         moving_bar_sti_opts=moving_bar_sti_opts,
+        spread_sti_opts=spread_sti_opts,
         spot_sti_opts=spot_sti_opts,
         i_sti=i_sti,
         euler=str(MODEL["euler"]),
@@ -422,7 +427,7 @@ def resolve_run_kwargs(hydra_config) -> dict:
         pre_grad=bool(NEURON_FORWARD["pre_grad"]),
         val_from=val_from,
         filter=filter,
-        spot_gt_mode=spot_gt_mode,
+        spread_gt_mode=spread_gt_mode,
         sequential=bool(TRAIN_SESSION["sequential"]),
         init_from=init_from,
         checkpoint_interval=TRAIN_OPTIMIZATION.get("checkpoint_interval"),

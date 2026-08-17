@@ -10,9 +10,9 @@ Alternate (one-step lag on the drive):
 
 Usage (from ``vision/simulation/``):
 
-    ../.venv/bin/python test/plot_ca_vt_vs_vt1.py
-    ../.venv/bin/python test/plot_ca_vt_vs_vt1.py --show
-    ../.venv/bin/python test/plot_ca_vt_vs_vt1.py --pulse-list 50,100,500
+    ../.venv/bin/python scratch/plot_ca_vt_vs_vt1.py
+    ../.venv/bin/python scratch/plot_ca_vt_vs_vt1.py --show
+    ../.venv/bin/python scratch/plot_ca_vt_vs_vt1.py --pulse-list 50,100,500
 """
 from __future__ import annotations
 
