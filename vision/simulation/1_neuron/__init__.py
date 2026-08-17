@@ -5,7 +5,7 @@ Dynamics live in ``neuron.borst`` / ``neuron.hp_lp``.
 Shared ``v`` / ``ca`` forward is ``neuron.forward``; the unused Ca filter
 lives in ``neuron.filter_ca``; pack readout selection in
 ``neuron.readout``. The ``train`` package owns session, cost, and the
-CLI driver. Numeric defaults live in ``const_default``.
+CLI driver. Numeric defaults live in ``config``.
 """
 from __future__ import annotations
 

@@ -36,7 +36,9 @@ import blindschleiche_py3 as bs
 from network.build import cell_family_rows, cell_names_in_family_order
 from plot.spot import CENTER_BIN, _style_time_axis
 from figure.panel import GT_COLOR, TRACE_LW, TRACE_YLIM, save_figure
-from const_default import GT_AMP
+from config import MODEL
+
+GT_AMP = float(MODEL["gt_amp"])
 from training_config import DELTA_MS, IMPULSE_MAXTIME, T_ON, t_from_ms
 
 DEFAULT_SAVE = os.path.join(HERE, "spot_gt_pulses_LTI.png")

@@ -27,7 +27,7 @@ from path import (
     BUILT_NETWORKS_DIR,
     resolve_network_json,
 )
-from const_default import (
+from config import (
     MODEL,
     MOVING_BAR_INPUT_GEO,
     NETWORK_PATH,

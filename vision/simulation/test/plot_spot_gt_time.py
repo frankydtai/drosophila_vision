@@ -1,7 +1,7 @@
 """Plot spot RecF gt time courses for all gt cells; report first nonzero.
 
 Timing: ``ms_pre=100``, ``ms_pulse=50``, ``ms_response=400``; ``--delta-ms``
-(default ``DELTA_MS`` from ``const_default``). Uses ``figure.spot.plot_cell_time``
+(default ``DELTA_MS`` from ``config``). Uses ``figure.spot.plot_cell_time``
 only (no RF panel).
 
 Usage (from ``SimulationCode/``):
@@ -29,7 +29,10 @@ from figure.spot import CENTER_BIN, _pulse_end_from_opts, plot_cell_time
 from figure.panel import save_figure
 from task.spot.gt import GT_CELLS, RF_SIGN, load_gt, spot_gt_active
 from task.spot.input import spot_timing_t
-from const_default import DELTA_MS, GT_AMP
+from config import MODEL
+
+DELTA_MS = float(MODEL["delta_ms"])
+GT_AMP = float(MODEL["gt_amp"])
 
 MS_PRE = 100.0
 MS_PULSE = 50.0

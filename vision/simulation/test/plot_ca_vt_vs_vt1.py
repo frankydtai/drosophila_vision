@@ -32,7 +32,7 @@ import numpy as np
 from import_bootstrap import parse_comma_list
 from figure.panel import TRACE_LW, save_figure
 from neuron.filter_ca import filter_ca
-from const_default import MODEL, NEURON_SCHEMA
+from config import MODEL, NEURON_SCHEMA
 
 DEFAULT_SAVE = os.path.join(HERE, "ca_vt_vs_vt1.png")
 DEFAULT_PULSE_LIST = "50,100,500"

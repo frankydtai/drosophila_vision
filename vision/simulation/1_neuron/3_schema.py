@@ -2,8 +2,8 @@
 """Parameter schemas for borst / hp_lp neuron models.
 
 Numeric lo/hi/init/jit and default ``mode`` live in
-``const_default.NEURON_SCHEMA['params']`` dict entries. Default ``model`` scalar
-lives in ``const_default.NEURON_SCHEMA['model']``. Optional
+``config.NEURON_SCHEMA['params']`` dict entries. Default ``model`` scalar
+lives in ``config.NEURON_SCHEMA['model']``. Optional
 ``exception`` holds space-separated ``param_key[.NODES]=VALUE`` tokens
 (same grammar as CLI ``--param a_h.init...`` without the leading param);
 base dict first, ``exception`` tokens last.

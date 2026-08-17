@@ -305,7 +305,7 @@ def optimize_staged(z, cost_fn, z_clamps, lrs, niters, cost_log=None, iter_log=N
 
 def _build_iter_logger(session: TrainSession):
     """Build train iter hooks for :func:`gradient_network`."""
-    part_keys = session_cost_part_keys(session.tasks, session=session)
+    part_keys = session_cost_part_keys(session)
     target_history = {part_key: [] for part_key in part_keys}
     _last_parts: Optional[Dict[str, float]] = None
     _last_total: Optional[float] = None
@@ -365,7 +365,7 @@ def do_many_runs(session: TrainSession, n_run, n_iter, lrs=(0.1, 0.01, 0.001),
     run_params = np.zeros((n_run, n_z))
     run_adams = []
     final_costs = np.zeros(n_run)
-    part_keys = session_cost_part_keys(session.tasks, session=session)
+    part_keys = session_cost_part_keys(session)
     final_costs_by_part = {part_key: np.zeros(n_run) for part_key in part_keys}
     cost_histories = [None] * n_run
     part_histories = [None] * n_run

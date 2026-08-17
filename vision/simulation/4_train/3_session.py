@@ -27,7 +27,7 @@ packs are ``packs[task][contrast]``.
 """
 from __future__ import annotations
 
-from const_default import (
+from config import (
     MOVING_BAR_INPUT_GEO,
     MOVING_BAR_INPUT_SPEC,
     NEURON_FORWARD,
@@ -162,7 +162,7 @@ class TrainSession:
     """Immutable runtime context for one train / plotting run.
 
     Model / synapse scalars are flat fields (injected from
-    ``const_default`` at session open). ``delta_ms`` / ``delta_ms_pre`` come
+    ``config`` at session open). ``delta_ms`` / ``delta_ms_pre`` come
     only from sti opts — never nested under Physics.
     """
 

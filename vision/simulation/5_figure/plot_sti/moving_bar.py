@@ -11,7 +11,7 @@ Usage (from simulation/, project .venv):
 """
 from __future__ import annotations
 
-from const_default import (
+from config import (
     MOVING_BAR_INPUT_SPEC,
     MODEL,
     NEURON_SCHEMA,

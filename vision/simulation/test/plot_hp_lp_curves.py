@@ -46,7 +46,7 @@ from figure.panel import save_figure
 from import_bootstrap import parse_comma_list
 from neuron.hp_lp import update_v
 from neuron.borst import expand_euler
-from const_default import MODEL
+from config import MODEL
 
 DEFAULT_SAVE = os.path.join(HERE, "hp_lp_curves.png")
 DEFAULT_A_H = 1.0

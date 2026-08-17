@@ -4,12 +4,12 @@
 Public facade re-exporting train API names (``import train``). Engine internals are split across
 :mod:`train.param`, :mod:`train.session`, :mod:`train.cost`, :mod:`train.optimization`,
 :mod:`train.implementation`, :mod:`train.cli`; the shared vocabulary lives in
-:mod:`train.config`. Numeric defaults live in :mod:`const_default`. Lower layers
+:mod:`train.config`. Numeric defaults live in :mod:`config`. Lower layers
 (``neuron``, ``task``, ``network``) never import this package at load time.
 """
 from __future__ import annotations
 
-from const_default import (
+from config import (
     ANALYZE_CELL_DYNAMICS,
     MODEL,
     MOVING_BAR_INPUT_GEO,

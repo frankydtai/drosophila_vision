@@ -14,7 +14,7 @@ Usage (from ``simulation/``)::
 """
 from __future__ import annotations
 
-from const_default import (
+from config import (
     RUN_PATH,
 )
 
@@ -53,12 +53,12 @@ from network.construction import (
     active_gt_cells,
     load_network_json,
 )
-from const_default import RUN_PATH
+from config import RUN_PATH
 from task.spot.gt import GT_CELLS
 from network import path  # noqa: F401 -- FAFBv783 on sys.path
 import build_hex
 
-from const_default import ANALYZE_SYN_SIGN
+from config import ANALYZE_SYN_SIGN
 
 SYN_SIGN_BINS = int(ANALYZE_SYN_SIGN["bins"])
 

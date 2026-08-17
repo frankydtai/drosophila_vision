@@ -1,4 +1,4 @@
-from const_default import (
+from config import (
     RUN_PATH,
 )
 """Simulation + plotting for the FiveCol medulla model."""
@@ -7,6 +7,7 @@ import json
 import os
 import numpy as np
 import torch
+import hydra
 
 import import_bootstrap  # noqa: F401
 import train
@@ -18,7 +19,6 @@ from figure.panel import (
     filter_figure_token,
     session_filter_figure_token,
 )
-from const_default import RUN_PATH
 from train.config import run_data_dir
 from train.implementation import resolve_run_dir
 
@@ -536,76 +536,59 @@ def plot_rf_t(params, outdir, model=None, model_all=True,
     return best, best_cost
 
 
-def add_figure_arguments(parser):
-    """Register plot-only CLI flags shared by ``run.py`` and ``figure.plot``.
+def add_ms_shown_argument(parser):
+    """Register ``--ms-shown START,STOP`` (analyze / legacy argparse entrypoints)."""
+    parser.add_argument(
+        "--ms-shown",
+        default=None,
+        metavar="START,STOP",
+        help=(
+            "absolute aligned ms START,STOP (not sti_timing; not onset-relative). "
+            "spot: 0=trial start, pre=0,ms_pre (e.g. 0,1000); "
+            "bar: 0=t0 at node (neg START ok); omit = entire trace"
+        ),
+    )
 
-    Timing (``--sti-timing``) is registered separately via
-    :func:`add_figure_timing_arguments` so ``run.py`` does not double-register
-    flags already on the train CLI.
-    """
-    from import_bootstrap import parse_bool
 
+def add_plot_session_override_arguments(parser):
+    """Plot/analyze session overrides (not used by Hydra ``run.py`` / ``figure.plot``)."""
     parser.add_argument(
-        '--html',
-        action='store_true',
-        help='save interactive plotly HTML (hover x/y) instead of PNG',
-    )
-    parser.add_argument(
-        '--plot-right-only',
-        nargs='?',
-        const=True,
-        default=True,
-        type=parse_bool,
-        metavar='BOOL',
-        help='bar_all_{ca|v}: right-direction specs only (default true); '
-             'pass false for all directions',
-    )
-    parser.add_argument(
-        '--show-pre',
-        nargs='?',
-        const=True,
-        default=True,
-        type=parse_bool,
-        metavar='BOOL',
-        help='model pre-t_onset: dashed red when true (default); omit when false. '
-             'Gray gt never draws pre.',
-    )
-    parser.add_argument(
-        '--r0only',
-        nargs='?',
-        const=True,
-        default=False,
-        type=parse_bool,
-        metavar='BOOL',
-        help='spot_gt/spot_all: only plot center-radius (radius=0) time row '
-             '(default false: plot all trained radius rows)',
-    )
-    parser.add_argument(
-        '--x',
+        "--sti-timing",
+        dest="sti_timing",
+        nargs="+",
         default=None,
-        metavar='X,...',
-        help='{bar,spot}_all_{ca|v}: comma-separated x overlays; with --y, one trace per (x,y) pair',
+        metavar="KEY=MS",
+        help=f"sti length KEY=MS tokens. Keys: {', '.join(train.cli.STI_TIMING_KEYS)}",
     )
     parser.add_argument(
-        '--y',
+        "--euler",
         default=None,
-        metavar='Y,...',
-        help='{bar,spot}_all_{ca|v}: comma-separated y overlays; with --x, one trace per (x,y) pair',
+        choices=list(train.EULER_CLI),
+        help="Euler: im|ex (default: keep run train_opts.euler)",
     )
     parser.add_argument(
-        '--align-xy',
+        "--filter",
         default=None,
-        metavar='X,Y',
-        help='moving_bar overlay plots: align --x/--y traces to ref hex hex (x,y); scope unchanged',
+        choices=("none", "ca"),
+        help="readout filter override (default: keep run train_opts.filter)",
     )
-    add_ms_shown_argument(parser)
+    parser.add_argument(
+        "--param",
+        nargs="+",
+        default=None,
+        metavar="PARAM.KEY[.NODES]=VALUE",
+        help="param init/lo/hi/jit/val/mode overrides for plot/analyze",
+    )
 
 
 def parse_axis_coords(token):
     """Parse comma-separated ``--x`` / ``--y`` values (empty -> ``None``)."""
-    if not token:
+    if token is None or token == "":
         return None
-    vals = [float(x) for x in import_bootstrap.parse_comma_list(token)]
+    if isinstance(token, (list, tuple)):
+        vals = [float(x) for x in token]
+    else:
+        vals = [float(x) for x in import_bootstrap.parse_comma_list(str(token))]
     if not vals:
         raise ValueError("empty comma-separated axis coord")
     return vals
@@ -613,26 +596,16 @@ def parse_axis_coords(token):
 
 def parse_align_xy(token):
     """Parse ``--align-xy X,Y`` reference sti hex (empty -> ``None``)."""
-    if not token:
+    if token is None or token == "":
         return None
-    parts = import_bootstrap.parse_comma_list(token)
+    if isinstance(token, (list, tuple)):
+        if len(token) != 2:
+            raise ValueError("align_xy requires exactly two values X,Y")
+        return float(token[0]), float(token[1])
+    parts = import_bootstrap.parse_comma_list(str(token))
     if len(parts) != 2:
         raise ValueError("--align-xy requires exactly two comma-separated values X,Y")
     return float(parts[0]), float(parts[1])
-
-
-def add_ms_shown_argument(parser):
-    """Register ``--ms-shown START,STOP`` display / analyze time window."""
-    parser.add_argument(
-        "--ms-shown",
-        default=None,
-        metavar="START,STOP",
-        help=(
-            "absolute aligned ms START,STOP (not --sti-timing; not onset-relative). "
-            "spot: 0=trial start, pre=0,ms_pre (e.g. 0,1000); "
-            "bar: 0=t0 at node (neg START ok); omit = entire trace"
-        ),
-    )
 
 
 def parse_ms_shown_range(token, *, flag="--ms-shown"):
@@ -646,38 +619,16 @@ def parse_ms_shown_range(token, *, flag="--ms-shown"):
     return start, stop
 
 
-def add_figure_timing_arguments(parser):
-    """Hang train sti-timing CLI onto plot / analyze."""
-    from train.cli import add_sti_timing_arguments
-
-    add_sti_timing_arguments(parser)
-
-
-def add_figure_euler_argument(parser):
-    from train.cli import add_euler_argument
-    add_euler_argument(parser, default=None)
-
-
-def add_figure_filter_argument(parser):
-    from train.cli import add_filter_argument
-    add_filter_argument(parser, default=None)
-
-
-def filter_filename_suffix(filter=None):
-    from train.cli import filter_filename_suffix as _suffix
-    return _suffix(filter)
-
-
-def add_param_argument(parser):
-    from train.cli import add_param_argument as _add
-    _add(parser, figure=True)
-
-
 def parse_param_init_val_tokens(tokens):
     try:
         return train.parse_param_init_val_tokens(tokens)
     except ValueError as exc:
         raise SystemExit(str(exc)) from exc
+
+
+def filter_filename_suffix(filter=None):
+    from train.cli import filter_filename_suffix as _suffix
+    return _suffix(filter)
 
 
 def param_filename_suffix(param_inits=None, param_vals=None):
@@ -697,59 +648,28 @@ def override_params(z, schema, session, param_vals=None, param_inits=None,
         raise SystemExit(str(exc)) from exc
 
 
-def resolve_figure_kwargs(args):
-    """Map a parsed CLI namespace to :func:`plot_rf_t` plot kwargs."""
-    align_xy = parse_align_xy(args.align_xy)
-    align_at_x, align_at_y = align_xy if align_xy is not None else (None, None)
-    ms_shown = None
-    if args.ms_shown is not None:
-        ms_shown = parse_ms_shown_range(args.ms_shown)
-    return dict(
-        plot_right_only=args.plot_right_only,
-        show_pre=args.show_pre,
-        center_only=bool(args.r0only),
-        at_x=parse_axis_coords(args.x),
-        at_y=parse_axis_coords(args.y),
-        align_at_x=align_at_x,
-        align_at_y=align_at_y,
-        html=bool(args.html),
-        ms_shown=ms_shown,
-    )
-
-
-def main():
+def plot_trained_run(
+    outdir,
+    *,
+    figure_kwargs,
+    euler=None,
+    filter=None,
+    sti_timing=None,
+    param_tokens=None,
+):
+    """Re-plot one trained run (shared by Hydra ``figure.plot`` main)."""
     import train.implementation as train_mod
-
-    ap = argparse.ArgumentParser(description=__doc__)
-    ap.add_argument(
-        'run_path',
-        nargs='?',
-        default=RUN_PATH,
-        help='run folder under PARAMETER_DIR or absolute path (default: %(default)s)',
-    )
-    add_figure_arguments(ap)
-    add_figure_timing_arguments(ap)
-    add_figure_euler_argument(ap)
-    add_figure_filter_argument(ap)
-    add_param_argument(ap)
-    args = ap.parse_args()
-    try:
-        figure_kwargs = resolve_figure_kwargs(args)
-    except ValueError as exc:
-        raise SystemExit(str(exc)) from exc
-
     from train.cli import resolve_sti_timing_kwargs
-    param_inits, param_vals, param_clamps, param_jits = parse_param_init_val_tokens(args.param)
 
-    outdir = resolve_run_dir(args.run_path)
-    train_opts = load_train_opts(outdir) or {}
-    eff_filter = args.filter if args.filter is not None else train_opts.get("filter")
-    timing_kwargs = resolve_sti_timing_kwargs(args)
+    param_inits, param_vals, param_clamps, param_jits = parse_param_init_val_tokens(
+        param_tokens or [],
+    )
+    timing_kwargs = resolve_sti_timing_kwargs(sti_timing)
     session, z, best_cost = load_best(outdir, verbose=True)
     session, z, timing_changed = override_session_sti_timing(
         run_dir=outdir, session=session, z=z, **timing_kwargs,
-        euler=args.euler,
-        filter=args.filter,
+        euler=euler,
+        filter=filter,
     )
     z = (
         z if torch.is_tensor(z)
@@ -762,10 +682,9 @@ def main():
         param_clamps=param_clamps, param_jits=param_jits,
     )
     session = session.with_schema(schema)
-    # Filter is already in readout stems (``_v`` / ``_ca``); do not append again.
     file_suffix = (
         sti_timing_filename_suffix(**timing_changed)
-        + euler_filename_suffix(args.euler)
+        + euler_filename_suffix(euler)
         + param_filename_suffix(param_inits=param_inits, param_vals=param_vals)
     )
     model = resolve_model(outdir)
@@ -781,6 +700,29 @@ def main():
         file_suffix=file_suffix,
         save_data=not (param_inits or param_vals),
         **figure_kwargs,
+    )
+
+
+@hydra.main(version_base=None, config_path="../conf", config_name="config")
+def main(cfg):
+    from config import (
+        FIGURE_PLOT,
+        RUN_PATH,
+        active_config,
+        apply_config,
+        resolve_figure_kwargs,
+    )
+
+    apply_config(cfg)
+    figure_kwargs = resolve_figure_kwargs(cfg)
+    outdir = resolve_run_dir(RUN_PATH)
+    plot_trained_run(
+        outdir,
+        figure_kwargs=figure_kwargs,
+        euler=FIGURE_PLOT.get("euler"),
+        filter=FIGURE_PLOT.get("filter"),
+        sti_timing=FIGURE_PLOT.get("sti_timing"),
+        param_tokens=list(active_config().get("param_tokens") or []),
     )
 
 

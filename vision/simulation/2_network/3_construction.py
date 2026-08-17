@@ -29,7 +29,7 @@ import torch
 import import_bootstrap  # noqa: F401
 from .connectivity import ScatterConn
 # Photoreceptor sti currents (pA) are injected by the caller
-# (``const_default.I_*``); this module has no numeric bindings.
+# (``config.I_*``); this module has no numeric bindings.
 
 # Canonical cell order for figure layout / param broadcast (cell rows).
 # Leftovers (not listed) are appended alphabetically, five per row.

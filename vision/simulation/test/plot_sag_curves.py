@@ -32,7 +32,9 @@ import numpy as np
 
 import FiveCol_MedSim_Pytorch as fc
 from import_bootstrap import parse_comma_list
-from const_default import P
+from config import NEURON_SCHEMA
+
+P = NEURON_SCHEMA["params"]
 from training_config import DELTA_MS
 
 DEFAULT_SAVE = os.path.join(HERE, "sag_curves.png")

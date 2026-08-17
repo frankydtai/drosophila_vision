@@ -25,10 +25,10 @@ echo "GPU:    ${CUDA_VISIBLE_DEVICES:-unset}"
 nvidia-smi -L || true
 "${PYTHON}" -c "import torch; print('cuda:', torch.cuda.is_available(), torch.cuda.get_device_name(0) if torch.cuda.is_available() else '')"
 echo "Start:  $(date)"
-echo "==== const_default ===="
+echo "==== config ===="
 "${PYTHON}" - <<'PY'
 from pprint import pprint
-import const_default as pd
+import config as pd
 
 params = {
     k: v
@@ -37,7 +37,7 @@ params = {
 }
 pprint(params, sort_dicts=False, width=120)
 PY
-echo "==== end const_default ===="
+echo "==== end config ===="
 # Sorted N_name layout: import_bootstrap via venv .pth; train via run.py (not -m training.driver).
-"${PYTHON}" -u run.py --n-iter 300 
+"${PYTHON}" -u run.py n_iter_gpu=300
 

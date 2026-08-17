@@ -28,7 +28,9 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 
-from const_default import DELTA_MS
+from config import MODEL
+
+DELTA_MS = float(MODEL["delta_ms"])
 from task.spot.gt import GT_CELLS, read_RecF_ImpR
 
 REPO = ROOT.parent.parent

@@ -5,7 +5,7 @@ Network RF profile axis is hex-lattice radius: v_readout[..., radius] = mean at 
 
 from __future__ import annotations
 
-from const_default import (
+from config import (
     MODEL,
 )
 

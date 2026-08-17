@@ -2,14 +2,14 @@
 
 from __future__ import annotations
 
-from const_default import (
+from config import (
     SPOT_PACK,
 )
 
 import numpy as np
 import torch
 
-from const_default import SPOT_PACK
+from config import SPOT_PACK
 from task.spot.gt import (
     GT_CELLS,
     RF_SIGN,
@@ -123,9 +123,9 @@ def spot_gts(
     out = {}
     for contrast in contrasts:
         contrast = str(contrast)
-        if contrast not in _VALID_CONTRASTS:
+        if contrast not in CONTRASTS:
             raise ValueError(
-                f"unknown contrast {contrast!r}; expected one of {_VALID_CONTRASTS}"
+                f"unknown contrast {contrast!r}; expected one of {CONTRASTS}"
             )
         load = load_gt_dark if contrast == "dark" else load_gt
         gt_stack = load(

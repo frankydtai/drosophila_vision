@@ -1,18 +1,14 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""Same as ``run.py``, but always init from ``RUN_PATH`` (or ``--init-from``).
+"""Train from ``init_from`` (defaults to ``RUN_PATH`` when unset).
 
 Usage (from ``simulation/``, project ``.venv``):
 
-    ../.venv/bin/python run_init_from.py --model hp_lp --n-iter 30 --lrs 0.1
+    ../.venv/bin/python run_init_from.py
+    ../.venv/bin/python run_init_from.py n_iter_gpu=30
 """
 from __future__ import annotations
 
-from const_default import (
-    RUN_PATH,
-)
-
-import importlib.util
 import os
 import sys
 
@@ -21,28 +17,22 @@ if HERE not in sys.path:
     sys.path.insert(0, HERE)
 
 import import_bootstrap  # noqa: F401
-from const_default import RUN_PATH
 
-# ``from run import`` is ambiguous: run.py and run.slurm share stem ``run``.
-_spec = importlib.util.spec_from_file_location(
-    "_run_module", os.path.join(HERE, "run.py"),
-)
-_run = importlib.util.module_from_spec(_spec)
-assert _spec.loader is not None
-_spec.loader.exec_module(_run)
+import hydra
+
+from config import RUN_PATH, resolve_run_kwargs
+from run import run_train_and_plot
 
 
-def main(argv=None):
-    argv = list(sys.argv[1:] if argv is None else argv)
-    print(f"cli: {' '.join(argv)}")
-    parser = _run.build_run_argparser()
-    args = parser.parse_args(argv)
+@hydra.main(version_base=None, config_path="conf", config_name="config")
+def main(cfg) -> None:
     try:
-        kwargs = _run.resolve_run_kwargs(args, script_stem="run_init_from")
+        kwargs = resolve_run_kwargs(cfg)
     except ValueError as exc:
         raise SystemExit(str(exc)) from exc
-    kwargs["init_from"] = args.init_from or RUN_PATH
-    _run.run_train_and_plot(**kwargs)
+    if not kwargs.get("init_from"):
+        kwargs["init_from"] = RUN_PATH
+    run_train_and_plot(**kwargs)
 
 
 if __name__ == "__main__":

@@ -27,7 +27,9 @@ import numpy as np
 
 import FiveCol_MedSim_Pytorch as fc
 from import_bootstrap import parse_comma_list
-from const_default import P
+from config import NEURON_SCHEMA
+
+P = NEURON_SCHEMA["params"]
 from training_config import DELTA_MS
 
 DEFAULT_SAVE = os.path.join(HERE, "h_curves.png")
@@ -212,7 +214,7 @@ def plot_static_curves(args, midv, slope, tau_mid, midv_off, slope_off, tau_mid_
     ax.legend(fontsize=8, loc="best")
     ax.grid(True, alpha=0.3)
 
-    fig.suptitle("conductance Ih (const_default init)", fontsize=11)
+    fig.suptitle("conductance Ih (config init)", fontsize=11)
     return fig
 
 

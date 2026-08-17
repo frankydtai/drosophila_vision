@@ -33,7 +33,7 @@ Usage (from ``vision/simulation/``)::
 """
 from __future__ import annotations
 
-from const_default import (
+from config import (
     ANALYZE_TRACE,
     RUN_PATH,
 )
@@ -373,7 +373,7 @@ def _load_reports(args):
     train_opts = plot.load_train_opts(run_dir) or {}
     train_filter = train.expand_filter(train_opts.get("filter", "none"))
     eff_filter = args.filter if args.filter is not None else train_filter
-    timing_kwargs = resolve_sti_timing_kwargs(args)
+    timing_kwargs = resolve_sti_timing_kwargs(args.sti_timing)
     session, z, _timing_changed = plot.override_session_sti_timing(
         run_dir=run_dir,
         session=session,
@@ -663,9 +663,7 @@ def main() -> None:
             "default: [start-baseline_ms, start] if start>0 else [0, baseline_ms]"
         ),
     )
-    plot.add_figure_timing_arguments(ap)
-    plot.add_figure_filter_argument(ap)
-    plot.add_param_argument(ap)
+    plot.add_plot_session_override_arguments(ap)
     ap.add_argument("--task", default="spot", choices=list(train.TASKS))
     ap.add_argument("--contrast", default="bright", choices=list(train.CONTRASTS))
     ap.add_argument("--radius", type=int, default=0, choices=(0, 1))

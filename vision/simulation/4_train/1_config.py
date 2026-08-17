@@ -7,15 +7,15 @@ without a cycle. Session assembly and sti-opts finalisation live in
 :mod:`train.session`.
 
 **Enum allowed-token sets** (e.g. ``COST_NORMS``, ``SPOT_GT_MODES``) live here.
-Matching **default scalars** live only in ``const_default`` (e.g. ``TRAIN_OPTIMIZATION['cost_norm']``,
-``NEURON_SCHEMA['model']``, ``NEURON_SCHEMA['filter']``, ``SPOT_PACK['spot_gt_mode']``) — never put the ``(…)`` allowed tuple in ``const_default``.
+Matching **default scalars** live only in ``config`` (e.g. ``TRAIN_OPTIMIZATION['cost_norm']``,
+``NEURON_SCHEMA['model']``, ``NEURON_SCHEMA['filter']``, ``SPOT_PACK['spot_gt_mode']``) — never put the ``(…)`` allowed tuple in ``config``.
 
 ``task`` ∈ {spot, moving_bar} and ``contrast`` ∈ {bright, dark} are independent axes.
 ``i_sti[task][contrast]`` holds only bright/dark currents; baseline is their midpoint.
 """
 from __future__ import annotations
 
-from const_default import (
+from config import (
     SPOT_PACK,
     TRAIN_CONFIG,
     TRAIN_OPTIMIZATION,
@@ -47,7 +47,7 @@ def run_data_dir(outdir: str | Path) -> str:
 TASKS = ("spot", "moving_bar")
 CONTRASTS = ("bright", "dark")
 
-# Neuron dynamics model (``--model``). Default scalar: ``const_default.NEURON_SCHEMA['model']``.
+# Neuron dynamics model (``--model``). Default scalar: ``config.NEURON_SCHEMA['model']``.
 MODELS = ("borst", "hp_lp")
 
 # ``i_sti[task][contrast]`` keys only (baseline = midpoint; see
@@ -69,7 +69,7 @@ MOVING_BAR_COST_PARTS = tuple(
 COST_NORMS = ("gt_power", "a_gt2")
 
 # Spot cost GT mode allowed tokens (``--spot-gt-mode``). Default scalar:
-# ``const_default.SPOT_PACK['spot_gt_mode']`` (all | positive — comment only there).
+# ``config.SPOT_PACK['spot_gt_mode']`` (all | positive — comment only there).
 # all: every active gt cell under both bright and dark (dark × contrast_sign −1).
 # positive: only cells with rf_sign × contrast_sign > 0 (bright: ON; dark: OFF).
 SPOT_GT_MODES = ("all", "pos")

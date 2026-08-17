@@ -11,7 +11,7 @@ Examples
 
 from __future__ import annotations
 
-from const_default import (
+from config import (
     RUN_PATH,
 )
 
@@ -36,7 +36,7 @@ import train.implementation as train_mod
 from import_bootstrap import parse_comma_list
 from network.connectivity import build_cell_pair_idxs
 from network.construction import load_network_json
-from const_default import RUN_PATH
+from config import RUN_PATH
 
 
 def main(argv: list[str] | None = None) -> int:

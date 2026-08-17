@@ -34,7 +34,7 @@ pairs. ``gt_power`` is recomputed on the subsample.
 """
 from __future__ import annotations
 
-from const_default import (
+from config import (
     NEURON_SCHEMA,
     TRAIN_OPTIMIZATION,
 )

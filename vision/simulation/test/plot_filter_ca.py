@@ -40,15 +40,14 @@ from figure.panel import TRACE_LW, save_figure
 from import_bootstrap import parse_comma_list
 from network.construction import cell_order_rows
 from neuron.filter_ca import filter_ca
-from const_default import (
-    GT_AMP,
-    DELTA_MS,
-    DELTA_MS_PRE,
-    MS_PRE,
-    MS_RESPONSE,
-    MS_SPOT_CA,
-    NEURON_SCHEMA,
-)
+from config import MODEL, NEURON_SCHEMA, SPOT_INPUT_SPEC
+
+DELTA_MS = float(MODEL["delta_ms"])
+GT_AMP = float(MODEL["gt_amp"])
+MS_PRE = float(SPOT_INPUT_SPEC["ms_pre"])
+MS_RESPONSE = float(SPOT_INPUT_SPEC["ms_response"])
+MS_SPOT_CA = float(SPOT_INPUT_SPEC["ms_sti"])
+DELTA_MS_PRE = float(MODEL["delta_ms_pre"])
 from task.spot.gt import GT_CELLS, read_RecF_ImpR
 from task.spot.input import spot_timing_t
 

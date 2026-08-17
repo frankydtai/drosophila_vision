@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from const_default import (
+from config import (
     RUN_PATH,
     MODEL,
     NEURON_SCHEMA,
@@ -27,7 +27,7 @@ os.chdir(ROOT)
 
 import import_bootstrap  # noqa: F401
 import train
-from const_default import RUN_PATH
+from config import RUN_PATH
 import figure.plot as plot
 from figure.gt import contrast_from_pack
 from figure.spot import pack_spot_cost_radii, resolve_spot_gts
@@ -2698,10 +2698,7 @@ def main() -> None:
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     add_shared_cli(ap, run_path=RUN_PATH)
-    plot.add_figure_timing_arguments(ap)
-    plot.add_figure_euler_argument(ap)
-    plot.add_figure_filter_argument(ap)
-    plot.add_param_argument(ap)
+    plot.add_plot_session_override_arguments(ap)
     ap.add_argument("--node", type=int, default=None, help="hex-mode node index")
     ap.add_argument(
         "--radius",
@@ -2792,7 +2789,7 @@ def main() -> None:
         session, z, best_cost = plot.load_best(run_dir)
         train_opts = plot.load_train_opts(run_dir) or {}
         train_filter = train.expand_filter(train_opts.get("filter", "none"))
-        timing_kwargs = resolve_sti_timing_kwargs(args)
+        timing_kwargs = resolve_sti_timing_kwargs(args.sti_timing)
         session, z, timing_changed = plot.override_session_sti_timing(
             run_dir=run_dir,
             session=session,

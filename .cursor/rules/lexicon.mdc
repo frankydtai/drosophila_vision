@@ -131,16 +131,16 @@ Forbidden: `artifact`, `output` — use `data` instead. Do not use `data` for in
 ### `const` / `consts`
 
 Definition: Session-injected model scalars that are **not** packed into ``z`` — bag ``NEURON_CONST`` (`cap`, `g_leak`, `e_exc`, `euler`, `delta_ms`, …). Distinct from trainable ``NEURON_SCHEMA['params']``.
-Example: `from const_default import NEURON_CONST`, `session.g_leak`, `session.v_clamp`, `NEURON_CONST['cap']`
+Example: `from config import MODEL`, `session.g_leak`, `session.v_clamp`, `MODEL['cap']`
 Forbidden: ``NEURON_PARAM``; naming these with ``param`` / ``optimizable``. Do not name the voltage clamp const ``state_clamp`` — that is ``v_clamp`` (see ``### clamp``).
 
 ### `default`
 
 Definition: Numeric/config literal source — scope split by tree.
-- **`vision/simulation/**`** (numbered core, figure, analyze, run): allowed only as the module/file name ``const_default`` — the sole numeric literal bag for train, figure, analyze, and run layers. Simulation code defines no ``default_*`` / ``DEFAULT_*`` constants; literals live in ``const_default`` and are imported by role name (``BAR_RADIUS``, ``SYN_SIGN_BINS``, …) or via ``resolve_*`` at CLI/session assembly.
-- **`vision/connectome/**`**: connectome-build literals may use noun ``DEFAULT_*`` constants (``DEFAULT_NETWORK_RUN``, ``DEFAULT_RADIUS``, ``DEFAULT_SIDE``, …) for CLI defaults and reference geometry. Not the simulation ``const_default`` module.
-Example: `from const_default import RUN_PATH`, `const_default.NEURON_SCHEMA['params']`; connectome `path.DEFAULT_NETWORK_RUN`, `build_hex.DEFAULT_RADIUS`; figure CLI `default=DEFAULT_NETWORK_RUN` importing from connectome ``path``.
-Forbidden: In **vision/simulation/** only — ``default`` / ``defaults`` and any project identifier containing ``default`` (``default_*``, ``*_default``, ``DEFAULT_*``, ``_default_*``) except the module name ``const_default``. Do not coin verb/compound substitutes for connectome ``DEFAULT_*`` in simulation (``FALLBACK_*``, ``BUILD_*``, ``BASE_*``, ``ASSIGN_*``, …). Library/API spellings may remain unchanged (``argparse`` keyword ``default=``, dataclass ``default_factory``, ``dict.setdefault``, help ``%(default)s``).
+- **`vision/simulation/**`** (numbered core, figure, analyze, run): sole source is ``simulation/conf/config.yaml``; loaded and bound by ``simulation/config.py`` (``from config import MODEL``, ``NEURON_SCHEMA``, ``RUN_PATH``, …). Simulation code defines no ``default_*`` / ``DEFAULT_*`` constants; literals live in YAML and are imported by role name or via ``resolve_*`` at Hydra/session assembly.
+- **`vision/connectome/**`**: connectome-build literals may use noun ``DEFAULT_*`` constants (``DEFAULT_NETWORK_RUN``, ``DEFAULT_RADIUS``, ``DEFAULT_SIDE``, …) for CLI defaults and reference geometry. Not the simulation ``config`` module.
+Example: `from config import RUN_PATH`, `config.NEURON_SCHEMA['params']`; connectome `path.DEFAULT_NETWORK_RUN`, `build_hex.DEFAULT_RADIUS`; figure CLI `default=DEFAULT_NETWORK_RUN` importing from connectome ``path``.
+Forbidden: In **vision/simulation/** only — ``default`` / ``defaults`` and any project identifier containing ``default`` (``default_*``, ``*_default``, ``DEFAULT_*``, ``_default_*``). Do not coin verb/compound substitutes for connectome ``DEFAULT_*`` in simulation (``FALLBACK_*``, ``BUILD_*``, ``BASE_*``, ``ASSIGN_*``, …). Library/API spellings may remain unchanged (``argparse`` keyword ``default=``, dataclass ``default_factory``, ``dict.setdefault``, help ``%(default)s``).
 
 ### `edge` / `edges`
 
@@ -640,7 +640,7 @@ Forbidden: `read` — use `load` instead.
 
 Definition: Rescale a numeric array or trace to a unit-peak (or equivalent amplitude) convention — typically baseline-subtract then divide by max absolute value.
 Example: `normalize_ir(x)`, `build_ir_lti(...)` applies ``normalize_ir`` after the bandpass/LP filter
-Forbidden: `rescale` as a naming token for this action — use `normalize`. Do not use `normalize` for canonical-form coercion of tokens / shapes / enums — that is `standardize`. Do not use `normalize_<noun>` to merge `const_default` bags with CLI tokens — that assembly is `resolve`.
+Forbidden: `rescale` as a naming token for this action — use `normalize`. Do not use `normalize` for canonical-form coercion of tokens / shapes / enums — that is `standardize`. Do not use `normalize_<noun>` to merge ``config`` defaults with Hydra/CLI tokens — that assembly is `resolve`.
 
 ### `optimize`
 
@@ -661,7 +661,7 @@ Forbidden: `draw`, `render`, `visualize`, and project names built on `scatter` (
 
 ### `resolve`
 
-Definition: Resolve abstract references/aliases/defaults into final concrete values used by execution. Use when inputs may be incomplete (CLI tokens, alias names, branch dicts, omitted keys) and the function consults ``const_default``, alias tables, and/or CLI tokens before returning.
+Definition: Resolve abstract references/aliases/defaults into final concrete values used by execution. Use when inputs may be incomplete (Hydra overrides, CLI tokens, alias names, branch dicts, omitted keys) and the function consults ``config`` (``conf/config.yaml`` defaults), alias tables, and/or tokens before returning.
 Example: `resolve_val_from(args.val_from)`, `resolve_param_modes(param_modes, opts)`, `resolve_run_kwargs(args)`, `resolve_train_sti_timing(filter, args.sti_timing)`, `resolve_train_kwargs(args)`, `resolve_sti_timing(opts)`
 Forbidden: `lookup`, `fetch`. Unnecessary `resolve` — coding-rules HARD STOP 2 (membership-only, identity, parse/expand/standardize/`_from_`, rename-to-resolve). True merge must not be named ``parse_*`` / ``build_*`` / ``merge_*`` / ``default_*`` / ``*_from_*``. ``parse_*`` decodes strings; ``expand_*`` expands aliases; defaults+CLI merge is ``resolve`` (see ``### standardize``).
 
@@ -681,7 +681,7 @@ Forbidden: `write`, `dump`, `export` — use `save` instead.
 
 Definition: Convert an input value into a canonical/valid form (e.g. clamp rules, ordering, tensor shape, or standard representation).
 Example: `standardize_cost_radius(cost_radius)`, `standardize_i_sti(session, params, i_sti, pack)` → `(B, T, N)`, `standardize_sti_timing(so)`, `standardize_option_dashes(argv)`
-Forbidden: `canonicalize`, `prepare` — use `standardize` instead. Do not name the model sti hook `prep` (see `prep` for plot timing only). Do not use `standardize_<noun>` to merge `const_default` bags with CLI tokens — that assembly is `resolve` (`resolve_param_modes`, `resolve_train_sti_timing`). Do not use `normalize` for this coercion — `normalize` is amplitude rescale only.
+Forbidden: `canonicalize`, `prepare` — use `standardize` instead. Do not name the model sti hook `prep` (see `prep` for plot timing only). Do not use `standardize_<noun>` to merge ``config`` defaults with Hydra/CLI tokens — that assembly is `resolve` (`resolve_param_modes`, `resolve_train_sti_timing`). Do not use `normalize` for this coercion — `normalize` is amplitude rescale only.
 
 ### `step`
 
@@ -707,7 +707,7 @@ Forbidden: using ``_by_`` when result and source are **different** quantities �
 
 Definition: One quantity from another already-concrete quantity — result and source are different roles or types (unit/coordinate conversion, schema pack/unpack, idx lookup, ``z`` → param values, fixed formula on present inputs). Pattern: `<result>_from_<source>`; both sides nouns only; the full identifier has no verb token and must not also contain ``_by_``. This entry's Definition and Example lines use nouns only — no verb tokens.
 Example: `t_from_ms(ms, delta_ms)`, `v_ca_from_v(v, p, session)`, `ca_from_v_ca(...)`, `t_abs_from_ms(...)`, `node_vals_from_z(z, schema)`, `v_th_from_z`, `e_leak_from_z`, `adams_from_z`, `hex_from_uv(u, v)`, `xy_deg_from_uv(u, v)`, `cell_from_node(...)`, `node_from_id`, `family_from_cell_csv(...)`
-Forbidden: `_to_` — never use `_to_` as a directional preposition in function names or map attribute/local names. Any verb token anywhere in the identifier (`load`, `override`, `open`, `resolve`, `parse`, `build`, `assert`, …). Verbs in this lexicon entry's Definition or Example lines. Hybrids with ``_by_`` in the same identifier (see ``### _by_``). Exception: ``val_from`` compounds only (see ``### val_from``). Do not use ``_from_`` when the function merges ``const_default``, alias expansion, and/or CLI tokens into the final execution value — that is ``resolve`` (``resolve_train_kwargs``, ``resolve_sti_timing``, ``resolve_spot``), not ``kwargs_from_args``, ``timing_from_opts``, or ``spot_from_opts``. Do not use ``_from_`` for multi-source assembly (defaults + tokens + validation); one complete source → one result only. Simple field extraction from an already-final opts dict (``gt_cells_from_opts``) may remain ``_from_``; if missing keys fall back to defaults, rename to ``resolve_*``.
+Forbidden: `_to_` — never use `_to_` as a directional preposition in function names or map attribute/local names. Any verb token anywhere in the identifier (`load`, `override`, `open`, `resolve`, `parse`, `build`, `assert`, …). Verbs in this lexicon entry's Definition or Example lines. Hybrids with ``_by_`` in the same identifier (see ``### _by_``). Exception: ``val_from`` compounds only (see ``### val_from``). Do not use ``_from_`` when the function merges ``config`` defaults, alias expansion, and/or Hydra/CLI tokens into the final execution value — that is ``resolve`` (``resolve_run_kwargs``, ``resolve_sti_timing``, ``resolve_spot``), not ``kwargs_from_args``, ``timing_from_opts``, or ``spot_from_opts``. Do not use ``_from_`` for multi-source assembly (defaults + tokens + validation); one complete source → one result only. Simple field extraction from an already-final opts dict (``gt_cells_from_opts``) may remain ``_from_``; if missing keys fall back to defaults, rename to ``resolve_*``.
 
 ### `_over_`
 

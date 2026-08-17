@@ -10,11 +10,11 @@ Also owns device/dtype helpers used when materializing ``z`` and connectivity
 tensors.
 
 Model param lists come from ``neuron.schema``; numeric lo/hi/init/jit
-live in ``const_default.NEURON_SCHEMA['params']``.
+live in ``config.NEURON_SCHEMA['params']``.
 """
 from __future__ import annotations
 
-from const_default import (
+from config import (
     NEURON_SCHEMA,
     TRAIN_OPTIMIZATION,
     TRAIN_SESSION,
@@ -57,7 +57,7 @@ SIM_DTYPE = sim_dtype_from_fp(TRAIN_SESSION['fp'])
 
 
 # --- parameter schema param_modes --------------------------------------------
-# Numeric lo/hi/init/jit + mode: ``const_default.NEURON_SCHEMA['params']``.
+# Numeric lo/hi/init/jit + mode: ``config.NEURON_SCHEMA['params']``.
 # Model param lists: ``neuron.schema``.
 # Each param:
 #   param, kind, n_node, lo/hi/init/jit[, z_mode]

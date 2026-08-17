@@ -9,23 +9,16 @@ Spot centers from :func:`task.spot.sti_geo.build_spot`.
 Usage (from simulation/, project .venv):
 
     ../.venv/bin/python 5_figure/plot_sti/spot.py
-    ../.venv/bin/python 5_figure/plot_sti/spot.py --spot-radii 0.5,1,1.5,2
-    ../.venv/bin/python 5_figure/plot_sti/spot.py --network right_min_neuron1_r2
-    ../.venv/bin/python 5_figure/plot_sti/spot.py --fully-inside false
-    ../.venv/bin/python 5_figure/plot_sti/spot.py --multi-spot false
+    ../.venv/bin/python 5_figure/plot_sti/spot.py multi_spot=false
+    ../.venv/bin/python 5_figure/plot_sti/spot.py spot_radii=[0.5,1,2]
 """
 from __future__ import annotations
 
-from const_default import (
-    MODEL,
-    NEURON_SCHEMA,
-)
-
-import argparse
 import math
 import os
 import sys
 
+import hydra
 import matplotlib
 
 matplotlib.use("Agg")
@@ -52,15 +45,12 @@ from build_hex import (
     set_axis_labels,
     xy_deg_from_uv,
 )
-from path import DEFAULT_NETWORK_RUN, network_run_token, resolve_network_json
+from config import FIGURE_PLOT_STI_SPOT, MODEL, NEURON_SCHEMA, NETWORK_PATH, SPOT_INPUT_GEO, apply_config
 from network.construction import Network, load_network
+from path import network_run_token, resolve_network_json
+from config import apply_config
+from task.spot.sti_geo import build_spot, standardize_spot_radius
 from train.param import SIM_DTYPE
-from task.spot.sti_geo import (
-    build_spot,
-    standardize_spot_radius,
-)
-from import_bootstrap import parse_comma_list
-from train.cli import add_multi_spot_arguments
 
 
 def _network_hexes_df(connectome: Network) -> pd.DataFrame:
@@ -90,45 +80,28 @@ def _draw_spot_radius_hexes(ax, centers_u, centers_v, spot_radius: float) -> Non
         )
 
 
-def main() -> None:
-    parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument(
-        "--network",
-        type=str,
-        default=DEFAULT_NETWORK_RUN,
-        help=f"4_built_networks run folder name (default: {DEFAULT_NETWORK_RUN})",
-    )
-    parser.add_argument(
-        "--spot-radii",
-        default="0.5,1,1.5,2",
-        metavar="E,...",
-        help="comma-separated spot_radius values per panel, 0.5 multiples "
-             "(default: 0.5,1,1.5,2)",
-    )
-    parser.add_argument(
-        "--output",
-        default=None,
-        help="output PNG (default: plotted_multi_spot/plotted_multi_spot_<side>_rN.png)",
-    )
-    add_multi_spot_arguments(parser)
-    args = parser.parse_args()
-    spot_radii = [float(x) for x in parse_comma_list(args.spot_radii)]
+def plot_multi_spot_tiling(
+    *,
+    network: str,
+    spot_radii,
+    output: str | None,
+    multi_spot: bool,
+    fully_inside: bool,
+) -> None:
+    spot_radii = [float(spot_radius) for spot_radius in spot_radii]
     if not spot_radii:
-        raise SystemExit("--spot-radii must list at least one value")
+        raise SystemExit("figure_plot_sti_spot.spot_radii must list at least one value")
     for spot_radius in spot_radii:
-        try:
-            standardize_spot_radius(spot_radius)
-        except ValueError as exc:
-            raise SystemExit(str(exc)) from exc
+        standardize_spot_radius(spot_radius)
 
-    network_json = str(resolve_network_json(args.network))
+    network_json = str(resolve_network_json(network))
     connectome = load_network(
         network_json, device="cpu",
         a_syn_exc=MODEL['a_syn_exc'], a_syn_inh=MODEL['a_syn_inh'],
         syn_mode=NEURON_SCHEMA['syn_mode'], dtype=SIM_DTYPE,
     )
     run_token = network_run_token(network_json, connectome.meta)
-    output = args.output or os.path.join(
+    output = output or os.path.join(
         PLOT_DIR, f"plotted_multi_spot_{run_token}.png",
     )
 
@@ -151,8 +124,8 @@ def main() -> None:
         centers = build_spot(
             connectome,
             spot_radius=spot_radius,
-            multi_spot=args.multi_spot,
-            fully_inside=args.fully_inside,
+            multi_spot=multi_spot,
+            fully_inside=fully_inside,
         ).centers
         n_spot = len(centers)
         n_by_spot_radius[spot_radius] = n_spot
@@ -189,6 +162,18 @@ def main() -> None:
     plt.close(fig)
     print(f"Wrote {output}")
     print("n_by_spot_radius:", n_by_spot_radius)
+
+
+@hydra.main(version_base=None, config_path="../../conf", config_name="config")
+def main(cfg) -> None:
+    apply_config(cfg)
+    plot_multi_spot_tiling(
+        network=str(NETWORK_PATH["network"]),
+        spot_radii=FIGURE_PLOT_STI_SPOT.get("spot_radii") or [0.5, 1.0, 1.5, 2.0],
+        output=FIGURE_PLOT_STI_SPOT.get("output"),
+        multi_spot=bool(SPOT_INPUT_GEO["multi_spot"]),
+        fully_inside=bool(SPOT_INPUT_GEO["fully_inside"]),
+    )
 
 
 if __name__ == "__main__":
