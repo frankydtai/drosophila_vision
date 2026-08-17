@@ -17,7 +17,7 @@ Usage (from simulation/, project .venv):
 from __future__ import annotations
 
 from const_default import (
-    NEURON_CONST,
+    MODEL,
     NEURON_SCHEMA,
 )
 
@@ -124,7 +124,7 @@ def main() -> None:
     network_json = str(resolve_network_json(args.network))
     connectome = load_network(
         network_json, device="cpu",
-        a_syn_exc=NEURON_CONST['a_syn_exc'], a_syn_inh=NEURON_CONST['a_syn_inh'],
+        a_syn_exc=MODEL['a_syn_exc'], a_syn_inh=MODEL['a_syn_inh'],
         syn_mode=NEURON_SCHEMA['syn_mode'], dtype=SIM_DTYPE,
     )
     run_token = network_run_token(network_json, connectome.meta)

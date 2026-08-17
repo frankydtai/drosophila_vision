@@ -29,7 +29,7 @@ import training
 from figure.plot_run import load_train_opts, session_for_target
 from network.build import cell_family_rows, cell_names_in_family_order
 from figure.panel import TRACE_LW, TRACE_YLIM, save_figure
-from neuron.param import DELTA_MS, set_delta_ms
+from neuron.borst import DELTA_MS, set_delta_ms
 from task.spot.gt import GT_CELLS, resolve_spot_cost_radii, build_spot_center_readout
 from task.spot.sti_geo import resolve_spot, spot_sti_batches
 from training.config import PARAMETER_DIR

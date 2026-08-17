@@ -11,14 +11,14 @@ from __future__ import annotations
 
 import torch
 
-from neuron import model_borst as _model_borst
-from neuron import model_hp_lp as _model_hp_lp
+import neuron.borst as _borst
+import neuron.hp_lp as _hp_lp
 from neuron.filter_ca import filter_ca
 
 # Per-model dynamics for ``forward_v`` / ``forward_ca`` (standardize_i_sti / pre_steady / step only).
 MODEL_DRIVERS = {
-    "borst": _model_borst,
-    "hp_lp": _model_hp_lp,
+    "borst": _borst,
+    "hp_lp": _hp_lp,
 }
 
 

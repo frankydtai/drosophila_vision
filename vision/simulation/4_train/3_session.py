@@ -24,32 +24,20 @@ Gt cells are :func:`network.construction.active_gt_cells`; cost pack applies
 
 ``task`` ∈ {spot, moving_bar} and ``contrast`` ∈ {bright, dark} are independent;
 packs are ``packs[task][contrast]``.
-
-Branch-resolution contract (must keep):
-
-* Do not add parameter-specific helper parsers/casters in pre-session stages.
-* All ``{v,ca}`` branch selection must be unified through
-  :func:`resolve_filter_branches`.
-* Before :func:`open_session`, keep branch-capable values raw; only perform
-  ``float``/``int``/``bool`` casting after branch resolution for those
-  branch-capable values.
 """
 from __future__ import annotations
 
 from const_default import (
-    I_STI,
-    MOVING_BAR_INPUT,
-    MOVING_BAR_STI_OPTS,
-    NEURON_FILTER,
+    MOVING_BAR_INPUT_GEO,
+    MOVING_BAR_INPUT_SPEC,
     NEURON_FORWARD,
-    NEURON_CONST,
+    MODEL,
     NEURON_SCHEMA,
-    SPOT_INPUT,
+    SPOT_INPUT_GEO,
+    SPOT_INPUT_SPEC,
     SPOT_PACK,
-    SPOT_STI_OPTS,
-    STI_TIMING,
+    TRAIN_CONFIG,
     TRAIN_OPTIMIZATION,
-    TRAIN_OPTS,
     TRAIN_SESSION,
     VAL_FROM,
 )
@@ -63,7 +51,7 @@ from typing import Dict, Iterator, List, Optional, Tuple
 import numpy as np
 import torch
 
-from neuron.param import t_from_ms
+from neuron.borst import t_from_ms
 from neuron import (
     build_schema,
     expand_euler,
@@ -281,19 +269,17 @@ def _moving_bar_waveform_mse_enabled(
 def _moving_bar_sti_opts(
     moving_bar_sti_opts: Optional[dict],
     *,
-    filter: str,
     delta_ms: float,
     delta_ms_pre: float,
 ) -> dict:
-    """Build moving-bar sti opts; CLI override takes precedence over filter default."""
+    """Build moving-bar sti opts; CLI override takes precedence over defaults."""
     if moving_bar_sti_opts:
         return dict(moving_bar_sti_opts)
-    sti_timing = resolve_filter_branches(STI_TIMING, filter=filter)
     return build_moving_bar_sti_opts(
-        ms_pre=sti_timing['ms_pre'],
+        ms_pre=MOVING_BAR_INPUT_SPEC["ms_pre"],
         delta_ms=delta_ms,
         delta_ms_pre=delta_ms_pre,
-        multi_bar=MOVING_BAR_INPUT['multi_bar'],
+        multi_bar=MOVING_BAR_INPUT_GEO['multi_bar'],
     )
 
 
@@ -326,7 +312,6 @@ def _build_moving_bar_pack(
     device = device or active_device()
     opts = _moving_bar_sti_opts(
         moving_bar_sti_opts,
-        filter=filter,
         delta_ms=delta_ms,
         delta_ms_pre=delta_ms_pre,
     )
@@ -350,7 +335,7 @@ def _build_moving_bar_pack(
         i_sti=float(i_sti[task][contrast]),
         contrasts=(contrast,),
         gt_cells=gt_cells_from_opts(opts),
-        multi_bar=bool(opts.get("multi_bar", MOVING_BAR_INPUT['multi_bar'])),
+        multi_bar=bool(opts.get("multi_bar", MOVING_BAR_INPUT_GEO['multi_bar'])),
         waveform_mse=_moving_bar_waveform_mse_enabled(
             part_cost_scales, task, contrast,
         ),
@@ -596,14 +581,42 @@ _STI_TRAIN_OPT_KEYS = (
 )
 
 _STI_OPTS_BY_TASK = {
-    "spot": SPOT_STI_OPTS,
-    "moving_bar": MOVING_BAR_STI_OPTS,
+    "spot": {
+        "ms_pre": SPOT_INPUT_SPEC["ms_pre"],
+        "ms_response": SPOT_INPUT_SPEC["ms_response"],
+        "ms_post": SPOT_INPUT_SPEC["ms_post"],
+        "ms_sti": SPOT_INPUT_SPEC["ms_sti"],
+        "delta_ms": MODEL["delta_ms"],
+        "delta_ms_pre": MODEL["delta_ms_pre"],
+        "shift_radius": SPOT_INPUT_GEO["shift_radius"],
+        "spot_radius": SPOT_INPUT_GEO["spot_radius"],
+        "multi_spot": SPOT_INPUT_GEO["multi_spot"],
+        "fully_inside": SPOT_INPUT_GEO["fully_inside"],
+    },
+    "moving_bar": {
+        "ms_pre": MOVING_BAR_INPUT_SPEC["ms_pre"],
+        "delta_ms": MODEL["delta_ms"],
+        "delta_ms_pre": MODEL["delta_ms_pre"],
+        "multi_bar": MOVING_BAR_INPUT_GEO["multi_bar"],
+    },
+}
+
+
+_INPUT_SPEC_BY_TASK = {
+    "spot": SPOT_INPUT_SPEC,
+    "moving_bar": MOVING_BAR_INPUT_SPEC,
 }
 
 
 def _merge_i_sti(cli_i_sti=None) -> Dict[str, Dict[str, float]]:
-    """Deep-copy ``I_STI`` defaults; overlay CLI ``i_sti[task][contrast]``."""
-    out = {task: dict(vals) for task, vals in I_STI.items()}
+    """Defaults from task input specs; overlay CLI ``i_sti[task][contrast]``."""
+    out = {
+        task: {
+            "bright": float(spec["i_bright"]),
+            "dark": float(spec["i_dark"]),
+        }
+        for task, spec in _INPUT_SPEC_BY_TASK.items()
+    }
     if not cli_i_sti:
         return out
     for task, by_contrast in cli_i_sti.items():
@@ -705,7 +718,6 @@ def _resolve_sti_opts(
 
 
 def resolve_train_opts(
-    backend="network",
     tasks=None,
     contrasts=None,
     part_cost_scales=None,
@@ -713,8 +725,8 @@ def resolve_train_opts(
     cost_radius_by_task=None,
     shift_radius=None,
     spot_radius=None,
-    multi_spot=SPOT_INPUT['multi_spot'],
-    fully_inside=SPOT_INPUT['fully_inside'],
+    multi_spot=SPOT_INPUT_GEO['multi_spot'],
+    fully_inside=SPOT_INPUT_GEO['fully_inside'],
     spot_cost_radius_scale=None,
     i_sti=None,
     cost_norm=TRAIN_OPTIMIZATION['cost_norm'],
@@ -731,19 +743,17 @@ def resolve_train_opts(
     syn_mode=NEURON_SCHEMA['syn_mode'],
     device=None,
     packs=None,
-    euler=NEURON_CONST['euler'],
+    euler=MODEL['euler'],
     pre_steady=None,
     pre_steady_n_iter=TRAIN_OPTIMIZATION['pre_steady_n_iter'],
     pre_steady_damp=TRAIN_OPTIMIZATION['pre_steady_damp'],
     fp=TRAIN_SESSION['fp'],
     pre_grad=NEURON_FORWARD['pre_grad'],
     val_from=None,
-    filter=NEURON_FILTER['filter'],
+    filter=NEURON_SCHEMA['filter'],
     spot_gt_mode=SPOT_PACK['spot_gt_mode'],
 ):
-    """Canonical train opts for :func:`open_session` (network backend)."""
-    if backend != "network":
-        raise ValueError(f"backend must be 'network', got {backend!r}")
+    """Canonical train opts for :func:`open_session`."""
     if network is None and network_json is None:
         raise ValueError("resolve_train_opts requires network or network_json")
     fp = int(fp)
@@ -752,6 +762,8 @@ def resolve_train_opts(
     filter = expand_filter(filter)
     if pre_steady is None:
         pre_steady = TRAIN_OPTIMIZATION['pre_steady']
+    if sequential is None:
+        sequential = TRAIN_SESSION['sequential']
     pre_steady_n_iter = int(pre_steady_n_iter)
     pre_steady_damp = float(pre_steady_damp)
     if pre_steady_n_iter < 1:
@@ -774,14 +786,14 @@ def resolve_train_opts(
                 if param not in ("v_th_ca", "a_ca", "tau_ca")
             } or None
     param_modes = resolve_param_modes(param_modes, val_from_opts)
-    tasks = parse_tasks(tasks if tasks is not None else TRAIN_OPTS["tasks"])
+    tasks = parse_tasks(tasks if tasks is not None else (TRAIN_CONFIG["task"],))
     contrasts = parse_contrasts(
-        contrasts if contrasts is not None else TRAIN_OPTS["contrasts"]
+        contrasts if contrasts is not None else SPOT_INPUT_SPEC["contrasts"]
     )
     if spot_radius is None:
-        spot_radius = SPOT_INPUT['spot_radius']
+        spot_radius = SPOT_INPUT_GEO['spot_radius']
     if shift_radius is None:
-        shift_radius = SPOT_INPUT['shift_radius']
+        shift_radius = SPOT_INPUT_GEO['shift_radius']
     merged_i_sti = _merge_i_sti(i_sti)
     finalize_kwargs = dict(
         cost_radius_by_task=cost_radius_by_task,
@@ -806,13 +818,14 @@ def resolve_train_opts(
             task,
             **finalize_kwargs,
         )
-    opts = copy.deepcopy(TRAIN_OPTS)
-    opts.update({
-        "backend": "network",
+    opts = {
         "tasks": tasks,
         "contrasts": contrasts,
         "i_sti": merged_i_sti,
-        "part_cost_scales": expand_part_cost_scale(part_cost_scales or {}),
+        "part_cost_scales": expand_part_cost_scale(
+            part_cost_scales if part_cost_scales is not None
+            else TRAIN_OPTIMIZATION['part_cost_scales']
+        ),
         "cost_norm": cost_norm,
         "cost_interval_ms": cost_interval_ms,
         "cost_ms": copy.deepcopy(
@@ -830,10 +843,12 @@ def resolve_train_opts(
         "filter": filter,
         "spot_gt_mode": spot_gt_mode,
         "fp": fp,
+        "packs": None,
+        "param_modes": None,
         "network": network,
         "network_json": str(network_json) if network_json is not None else None,
         "device": device,
-    })
+    }
     if packs is not None:
         opts["packs"] = packs
     if param_modes is not None:
@@ -864,13 +879,12 @@ def _cost_ms_sidecar(cost_ms) -> dict:
 
 
 def _sidecar_train_opts(opts, tasks, contrasts, resolved_sti, sequential_bool) -> dict:
-    """Build JSON-serializable train_opts (network backend only)."""
+    """Build JSON-serializable train_opts."""
     def _sti(sti_opts_key):
         got = resolved_sti.get(sti_opts_key)
         return got if got is not None else opts.get(sti_opts_key)
 
     train_opts = {
-        "backend": "network",
         "tasks": list(tasks),
         "contrasts": list(contrasts),
         "i_sti": {
@@ -910,7 +924,7 @@ def _sidecar_train_opts(opts, tasks, contrasts, resolved_sti, sequential_bool) -
     train_opts["syn_mode"] = opts.get("syn_mode", NEURON_SCHEMA['syn_mode'])
     train_opts["pre_grad"] = opts.get("pre_grad", NEURON_FORWARD['pre_grad'])
     train_opts["val_from"] = copy.deepcopy(opts.get("val_from", VAL_FROM))
-    train_opts["filter"] = expand_filter(opts.get("filter", NEURON_FILTER['filter']))
+    train_opts["filter"] = expand_filter(opts.get("filter", NEURON_SCHEMA['filter']))
     train_opts["spot_gt_mode"] = opts.get("spot_gt_mode", SPOT_PACK['spot_gt_mode'])
     train_opts["fp"] = int(opts.get("fp", TRAIN_SESSION['fp']))
     return train_opts
@@ -920,13 +934,10 @@ def resolve_schema(model, connectome, schema, train_opts):
     """Build the train schema: defaults + CLI / sidecar ``param_key`` stamps."""
     if schema is not None:
         return schema_copy(schema)
-    filter = NEURON_FILTER['filter']
+    filter = NEURON_SCHEMA['filter']
     if train_opts:
-        filter = expand_filter(train_opts.get("filter", NEURON_FILTER['filter']))
-    syn_mode = resolve_filter_branches(
-        (train_opts or {}).get("syn_mode", NEURON_SCHEMA['syn_mode']),
-        filter=filter,
-    )
+        filter = expand_filter(train_opts.get("filter", NEURON_SCHEMA['filter']))
+    syn_mode = (train_opts or {}).get("syn_mode", NEURON_SCHEMA['syn_mode'])
     base = build_schema(
         model,
         connectome,
@@ -981,20 +992,16 @@ def _build_session(
 ) -> TrainSession:
     device = device or active_device()
     seq = False if sequential is None else bool(sequential)
-    filter = expand_filter(
-        (train_opts or {}).get("filter", NEURON_FILTER['filter'])
-    )
-    neuron_const = resolve_filter_branches(NEURON_CONST, filter=filter)
+    neuron_const = MODEL
     if train_opts is not None:
         train_opts["model"] = model
         train_opts["sequential"] = bool(seq)
     if train_opts is None or "euler" not in train_opts:
         raise ValueError("train opts require euler (implicit|explicit)")
-    euler = expand_euler(resolve_filter_branches(train_opts["euler"], filter=filter))
-    pre_steady = expand_pre_steady(resolve_filter_branches(
+    euler = expand_euler(train_opts["euler"])
+    pre_steady = expand_pre_steady(
         train_opts.get("pre_steady", TRAIN_OPTIMIZATION['pre_steady']),
-        filter=filter,
-    ))
+    )
     train_opts["pre_steady"] = pre_steady
     pre_steady_n_iter = int(
         train_opts.get("pre_steady_n_iter", TRAIN_OPTIMIZATION['pre_steady_n_iter'])
@@ -1062,17 +1069,10 @@ def open_session(
 ) -> TrainSession:
     """Build a :class:`TrainSession` from canonical train opts."""
     opts = dict(opts)
-    filter = expand_filter(opts.get("filter", NEURON_FILTER['filter']))
-    resolved = resolve_filter_branches(
-        {"opts": opts, "gt_amp": NEURON_CONST['gt_amp'], "neuron_const": NEURON_CONST},
-        filter=filter,
-    )
-    opts = resolved["opts"]
-    gt_amp = float(resolved["gt_amp"])
-    neuron_const = resolved["neuron_const"]
-    backend_token = str(opts.get("backend", "network"))
-    if backend_token != "network":
-        raise ValueError(f"backend must be 'network', got {backend_token!r}")
+    opts.pop("backend", None)
+    filter = expand_filter(opts.get("filter", NEURON_SCHEMA['filter']))
+    gt_amp = float(MODEL['gt_amp'])
+    neuron_const = MODEL
     tasks = parse_tasks(opts.get("tasks"))
     contrasts = parse_contrasts(opts.get("contrasts"))
     i_sti = _merge_i_sti(opts.get("i_sti"))
@@ -1090,7 +1090,7 @@ def open_session(
     if net is None:
         nj = opts.get("network_json")
         if not nj:
-            raise ValueError("open_session(network) requires opts['network'] or network_json")
+            raise ValueError("open_session requires opts['network'] or network_json")
         net = load_network(
             nj, device=device,
             a_syn_exc=float(neuron_const['a_syn_exc']),
@@ -1155,27 +1155,6 @@ def open_session(
     )
 
 
-def resolve_filter_branches(val, *, filter: str):
-    branch = "ca" if str(filter) == "ca" else "v"
-    if isinstance(val, dict):
-        branches = set(val)
-        if branches and branches <= {"v", "ca"}:
-            if branch not in val:
-                raise KeyError(
-                    f"filter-branch dict missing {branch!r} (branches={sorted(val)!r})"
-                )
-            return resolve_filter_branches(val[branch], filter=filter)
-        return {
-            nested_key: resolve_filter_branches(got, filter=filter)
-            for nested_key, got in val.items()
-        }
-    if isinstance(val, list):
-        return [resolve_filter_branches(got, filter=filter) for got in val]
-    if isinstance(val, tuple):
-        return tuple(resolve_filter_branches(got, filter=filter) for got in val)
-    return val
-
-
 def _sti_delta_ms(opts: dict, sti_timing_key: str) -> float:
     """``delta_ms`` / ``delta_ms_pre`` from sti opts (required)."""
     for _task, sti_opts_key in _STI_TRAIN_OPT_KEYS:
@@ -1194,14 +1173,12 @@ def _sti_delta_ms(opts: dict, sti_timing_key: str) -> float:
 def resolve_session(opts: dict, model: str | None = None, **kwargs) -> TrainSession:
     """Restore a session from a saved ``train_opts.json`` dict."""
     opts = dict(opts)
+    opts.pop("backend", None)
     if model is None:
         model = opts.get("model")
         if not model:
             raise ValueError("train_opts requires model")
     opts["packs"] = None
-    backend = str(opts.get("backend", "network"))
-    if backend != "network":
-        raise ValueError(f"backend must be 'network', got {backend!r}")
     nj = opts.get("network_json")
     if not nj:
         raise ValueError("train_opts requires network_json")
@@ -1210,11 +1187,8 @@ def resolve_session(opts: dict, model: str | None = None, **kwargs) -> TrainSess
     if not opts.get("contrasts"):
         raise ValueError("train_opts requires contrasts")
     sim_dtype = sim_dtype_from_fp(int(opts.get("fp", TRAIN_SESSION['fp'])))
-    _filter = expand_filter(opts.get("filter", NEURON_FILTER['filter']))
-    neuron_const = resolve_filter_branches(NEURON_CONST, filter=_filter)
-    syn_mode = resolve_filter_branches(
-        opts.get("syn_mode", NEURON_SCHEMA['syn_mode']), filter=_filter,
-    )
+    neuron_const = MODEL
+    syn_mode = opts.get("syn_mode", NEURON_SCHEMA['syn_mode'])
     mb = load_train_connectome(
         nj, device=opts.get("device") or active_device(), sim_dtype=sim_dtype,
         syn_mode=syn_mode,
@@ -1224,7 +1198,7 @@ def resolve_session(opts: dict, model: str | None = None, **kwargs) -> TrainSess
     opts["network"] = mb
     opts["syn_mode"] = syn_mode
     kwargs.setdefault("connectome", mb)
-    return open_session({**opts, "backend": "network"}, model, **kwargs)
+    return open_session(opts, model, **kwargs)
 
 
 def session_from_outdir(

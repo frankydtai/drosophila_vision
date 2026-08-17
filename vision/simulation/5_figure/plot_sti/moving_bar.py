@@ -12,8 +12,8 @@ Usage (from simulation/, project .venv):
 from __future__ import annotations
 
 from const_default import (
-    I_STI,
-    NEURON_CONST,
+    MOVING_BAR_INPUT_SPEC,
+    MODEL,
     NEURON_SCHEMA,
 )
 
@@ -136,7 +136,7 @@ def plot_snapshot(
         hexes_are_xy_deg=hexes_are_xy_deg,
     )
     _draw_bar_outline(ax, spec, view_deg, t, t_onset, bar_radius=bar_radius, multi_bar=bool(multi_bar))
-    ax.set_title(f"{token}  t={t} ({t * NEURON_CONST['delta_ms'] / 1000.0:.2f} s)", fontsize=9)
+    ax.set_title(f"{token}  t={t} ({t * MODEL['delta_ms'] / 1000.0:.2f} s)", fontsize=9)
 
 
 def save_snapshots(
@@ -237,7 +237,7 @@ def save_animation(
         t = times[frame]
         title.set_text(
             f"Moving-bar i_sti_hex (pA)  side={side}  "
-            f"{len(figure_hexes)} sti hexes  I_baseline={i_baseline}  I_max={i_max}  t={t} ({t * NEURON_CONST['delta_ms'] / 1000.0:.2f} s)"
+            f"{len(figure_hexes)} sti hexes  I_baseline={i_baseline}  I_max={i_max}  t={t} ({t * MODEL['delta_ms'] / 1000.0:.2f} s)"
         )
         for row, spec in enumerate(showcase):
             axes[row, 0].clear()
@@ -298,12 +298,20 @@ def main():
         if spec.direction == args.direction
     ]
     task = "moving_bar"
-    i_baseline = i_baseline_from_i_sti(I_STI, task)
+    i_baseline = i_baseline_from_i_sti(
+        {
+            "moving_bar": {
+                "bright": MOVING_BAR_INPUT_SPEC["i_bright"],
+                "dark": MOVING_BAR_INPUT_SPEC["i_dark"],
+            },
+        },
+        task,
+    )
 
     network_json = str(resolve_network_json(args.network))
     connectome = load_network(
         network_json, device="cpu",
-        a_syn_exc=NEURON_CONST['a_syn_exc'], a_syn_inh=NEURON_CONST['a_syn_inh'],
+        a_syn_exc=MODEL['a_syn_exc'], a_syn_inh=MODEL['a_syn_inh'],
         syn_mode=NEURON_SCHEMA['syn_mode'], dtype=SIM_DTYPE,
     )
     token = f"2{args.direction}_{network_run_token(network_json, connectome.meta)}"
@@ -322,9 +330,9 @@ def main():
             specs=contrast_specs,
             bar_radius=args.bar_radius,
             multi_bar=bool(args.multi_bar),
-            delta_ms=NEURON_CONST['delta_ms'],
+            delta_ms=MODEL['delta_ms'],
             i_baseline=i_baseline,
-            i_sti=float(I_STI[task][contrast]),
+            i_sti=float(MOVING_BAR_INPUT_SPEC[f"i_{contrast}"]),
             sim_dtype=SIM_DTYPE,
         )
         i_sti_hex_parts.append(T.i_sti_hex)
@@ -332,7 +340,7 @@ def main():
     if not i_sti_hex_parts:
         raise SystemExit("no moving-bar specs to plot")
     i_sti_hex = np.concatenate(i_sti_hex_parts, axis=0)
-    i_max = max(float(I_STI[task][contrast]) for contrast in sti)
+    i_max = max(float(MOVING_BAR_INPUT_SPEC[f"i_{contrast}"]) for contrast in sti)
     figure_hexes = [(hex.u, hex.v) for hex in sti_hexes(connectome)]
     t_onset = int(T.t_onset)
     n_t = int(T.n_t)
@@ -342,7 +350,7 @@ def main():
     bar_radius = int(args.bar_radius)
     print(
         f"bar_radius={bar_radius}  "
-        f"n_t={n_t} ({n_t * NEURON_CONST['delta_ms'] / 1000.0:.2f} s)  "
+        f"n_t={n_t} ({n_t * MODEL['delta_ms'] / 1000.0:.2f} s)  "
         f"sweep_t={T.sweep_t} ({T.sweep_s:.2f} s after t_onset)"
     )
 

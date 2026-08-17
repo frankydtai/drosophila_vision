@@ -3,14 +3,6 @@
 
 Does not run optimization or touch CUDA. Callers: ``simulation/run.py``,
 ``figure``, ``analyze``.
-
-Branch-resolution contract (must keep):
-
-* Do not add parameter-specific helper parsers/casters.
-* CLI should pass branch-capable values through in a generic form.
-* ``{v,ca}`` selection and branch-value casting belong to the unified
-  post-parse path in ``open_session`` (via ``resolve_filter_branches``);
-  non-branch CLI controls keep their normal scalar parsing.
 """
 from __future__ import annotations
 
@@ -18,35 +10,25 @@ import re
 
 from const_default import (
     MODEL,
-    MOVING_BAR_INPUT,
+    MOVING_BAR_INPUT_GEO,
     NETWORK_PATH,
-    NEURON_FILTER,
     NEURON_FORWARD,
-    NEURON_CONST,
+    MODEL,
     NEURON_SCHEMA,
-    SPOT_INPUT,
+    SPOT_INPUT_GEO,
+    SPOT_INPUT_SPEC,
     SPOT_PACK,
-    STI_TIMING,
     TRAIN_CONFIG,
     TRAIN_OPTIMIZATION,
-    TRAIN_OPTS,
     TRAIN_SESSION,
     VAL_FROM,
 )
 
 import argparse
 import os
-import re
 import sys
 import time
 from pathlib import Path
-
-
-def _cli_scalar_from_branch(val):
-    """Return scalar CLI default from a value that may be a ``{v, ca}`` branch dict."""
-    if isinstance(val, dict) and set(val) <= {"v", "ca"}:
-        return val.get("v", next(iter(val.values())))
-    return val
 
 import torch
 
@@ -65,7 +47,7 @@ from task.spot.pack import (
 import train
 from train.config import (
     COST_NORMS,
-    I_STI_KEYS,
+    CONTRASTS,
     SPOT_GT_MODES,
     TASKS,
     expand_cost_norm,
@@ -126,29 +108,23 @@ def add_multi_spot_arguments(parser):
     """Spot center tiling flags (``--multi-spot``, ``--fully-inside``)."""
     parser.add_argument(
         "--multi-spot",
-        type=_branch_cli_type(SPOT_INPUT['multi_spot']),
-        default=SPOT_INPUT['multi_spot'],
+        type=parse_bool,
+        default=SPOT_INPUT_GEO['multi_spot'],
         metavar="BOOL",
         help="tile simultaneous spot centers on network connectome "
-             f"(default: {_format_branch_value(SPOT_INPUT['multi_spot'])}; false → center (0,0) only)",
+             f"(default: {SPOT_INPUT_GEO['multi_spot']}; false → center (0,0) only)",
     )
     parser.add_argument(
         "--fully-inside",
-        type=_branch_cli_type(SPOT_INPUT['fully_inside']),
-        default=SPOT_INPUT['fully_inside'],
+        type=parse_bool,
+        default=SPOT_INPUT_GEO['fully_inside'],
         metavar="BOOL",
         help="with --multi-spot: keep only centers whose spot footprint lies inside "
-             f"connectome radius (default: {_format_branch_value(SPOT_INPUT['fully_inside'])})",
+             f"connectome radius (default: {SPOT_INPUT_GEO['fully_inside']})",
     )
 
 
 def _format_filename_token(value):
-    if isinstance(value, dict) and set(value) <= {"v", "ca"}:
-        val_v = float(value["v"])
-        val_ca = float(value["ca"])
-        if val_v == val_ca:
-            return _format_filename_token(val_v)
-        return f"v{val_v:g}-ca{val_ca:g}"
     val = float(value)
     if val == int(val):
         return str(int(val))
@@ -183,8 +159,7 @@ def add_filter_argument(parser, *, default=None):
     else:
         help = (
             "readout filter: none=v (schema skips v_th_ca/a_ca/tau_ca), "
-            f"ca=ca + Arenz digitized spot gt (default: {default}; "
-            "--sti-timing updates v or ca branch)"
+            f"ca=ca + Arenz digitized spot gt (default: {default})"
         )
     parser.add_argument(
         "--filter",
@@ -272,10 +247,10 @@ def param_filename_suffix(param_inits=None, param_vals=None):
 
 def add_train_arguments(parser):
     """Register train CLI flags on *parser*."""
-    parser.add_argument("--model", default=MODEL['model'], choices=list(train.MODELS))
+    parser.add_argument("--model", default=NEURON_SCHEMA['model'], choices=list(train.MODELS))
     parser.add_argument(
         "--syn-mode",
-        default=_cli_scalar_from_branch(NEURON_SCHEMA['syn_mode']),
+        default=NEURON_SCHEMA['syn_mode'],
         choices=list(train.SYN_MODES),
         help="synaptic edge weight: per_cell (syn_sign*n_syn + type→type syn_strength_cell; default) "
              "or per_edge (syn_sign only + per-edge syn_strength_edge magnitude)",
@@ -304,17 +279,17 @@ def add_train_arguments(parser):
                         help="params filename (default derived from --model)")
     parser.add_argument("--outdir", default=None,
                         help="output dir (default derived from --model)")
-    parser.add_argument("--init-from", dest="init_from", default=None, metavar="MODEL['model']/RUN",
-                        help="prior run as MODEL['model']/RUN under 0_runs (e.g. borst/<run>); "
+    parser.add_argument("--init-from", dest="init_from", default=None, metavar="NEURON_SCHEMA['model']/RUN",
+                        help="prior run as NEURON_SCHEMA['model']/RUN under 0_runs (e.g. borst/<run>); "
                              "or an absolute path; load named best_param.npz as z init "
                              "and best_adam.npz as adam m/v "
                              "(settings come from this CLI, not train_opts.json)")
     add_param_argument(parser)
     add_val_from_argument(parser)
-    add_euler_argument(parser, default=_cli_scalar_from_branch(NEURON_CONST['euler']))
+    add_euler_argument(parser, default=MODEL['euler'])
     parser.add_argument(
         "--pre-steady",
-        default=_cli_scalar_from_branch(TRAIN_OPTIMIZATION['pre_steady']),
+        default=TRAIN_OPTIMIZATION['pre_steady'],
         choices=("probe", "solve"),
         help=(
             "t=0 pre steady shared by borst/hp_lp "
@@ -334,16 +309,16 @@ def add_train_arguments(parser):
     parser.add_argument(
         "--pre-grad",
         type=parse_bool,
-        default=_cli_scalar_from_branch(NEURON_FORWARD['pre_grad']),
+        default=NEURON_FORWARD['pre_grad'],
         metavar="BOOL",
         help="include t < t_onset in BPTT "
              f"(default: {str(NEURON_FORWARD['pre_grad']).lower()}); "
              "false → no_grad pre + detach v / v_slow|u at onset",
     )
-    add_filter_argument(parser, default=NEURON_FILTER['filter'])
+    add_filter_argument(parser, default=NEURON_SCHEMA['filter'])
     parser.add_argument(
         "--spot-gt-mode",
-        default=_cli_scalar_from_branch(SPOT_PACK['spot_gt_mode']),
+        default=SPOT_PACK['spot_gt_mode'],
         choices=list(SPOT_GT_MODES),
         help="spot cost GT mode: all=every cell both contrasts, "
              "positive=only rf_sign×contrast_sign>0 "
@@ -352,20 +327,20 @@ def add_train_arguments(parser):
     parser.add_argument(
         "--sequential",
         type=parse_bool,
-        default=_cli_scalar_from_branch(TRAIN_SESSION['sequential']),
+        default=TRAIN_SESSION['sequential'],
         metavar="BOOL",
         help=f"one sti b per forward (default: {str(TRAIN_SESSION['sequential']).lower()})",
     )
     parser.add_argument("--network", default=NETWORK_PATH['network'], metavar="RUN",
-                        help=f"connectome backend: 4_built_networks run folder under {BUILT_NETWORKS_DIR} "
+                        help=f"connectome run folder under {BUILT_NETWORKS_DIR} "
                              f"(default: {NETWORK_PATH['network']})")
     parser.add_argument(
         "--multi-bar",
-        type=_branch_cli_type(MOVING_BAR_INPUT['multi_bar']),
-        default=MOVING_BAR_INPUT['multi_bar'],
+        type=parse_bool,
+        default=MOVING_BAR_INPUT_GEO['multi_bar'],
         metavar="BOOL",
         help="network moving-bar: tile simultaneous lane-clipped bars "
-             f"(default: {_format_branch_value(MOVING_BAR_INPUT['multi_bar'])}); "
+             f"(default: {MOVING_BAR_INPUT_GEO['multi_bar']}); "
              "false → whole-view single bar over the full network view",
     )
     parser.add_argument(
@@ -375,9 +350,9 @@ def add_train_arguments(parser):
     )
     parser.add_argument(
         "--contrast",
-        default=",".join(TRAIN_OPTS["contrasts"]),
+        default=",".join(SPOT_INPUT_SPEC["contrasts"]),
         help="contrast(s): bright|dark (comma-separated; "
-             f"default: {','.join(TRAIN_OPTS['contrasts'])})",
+             f"default: {','.join(SPOT_INPUT_SPEC['contrasts'])})",
     )
     parser.add_argument(
         "--part-cost-scale",
@@ -392,18 +367,18 @@ def add_train_arguments(parser):
     )
     parser.add_argument(
         "--shift-radius",
-        type=_branch_cli_type(SPOT_INPUT['shift_radius']),
-        default=SPOT_INPUT['shift_radius'],
+        type=int,
+        default=SPOT_INPUT_GEO['shift_radius'],
         help="spot sub-shift hex-disc radius for spot tasks in --task "
-             f"(default: {_format_branch_value(SPOT_INPUT['shift_radius'])}; "
+             f"(default: {SPOT_INPUT_GEO['shift_radius']}; "
              "n_shift=1+3k(k+1); 0->1, 1->7, 2->19, 3->37, ...)",
     )
     parser.add_argument(
         "--spot-radius",
-        type=_branch_cli_type(SPOT_INPUT['spot_radius']),
-        default=SPOT_INPUT['spot_radius'],
+        type=float,
+        default=SPOT_INPUT_GEO['spot_radius'],
         metavar="R",
-        help=f"spot footprint / center-tiling radius (0.5 multiples; default {_format_branch_value(SPOT_INPUT['spot_radius'])}); "
+        help=f"spot footprint / center-tiling radius (0.5 multiples; default {SPOT_INPUT_GEO['spot_radius']}); "
              "radius=1 folds rf(2) into radius=1 gt a_radius and defaults cost scales "
              "to 0=1 1=1/6; radius 1.5/2 keep rf(radius) and 0=1 1=1/6 2=1/6",
     )
@@ -471,7 +446,7 @@ def add_train_arguments(parser):
     )
     parser.add_argument(
         "--cost-norm",
-        default=_cli_scalar_from_branch(TRAIN_OPTIMIZATION['cost_norm']),
+        default=TRAIN_OPTIMIZATION['cost_norm'],
         choices=list(COST_NORMS),
         help="waveform MSE normalization: gt_power = 100*SSE/Σw(a_gt·gt)²; "
              f"a_gt2 = SSE/a_gt² (default: {TRAIN_OPTIMIZATION['cost_norm']})",
@@ -502,57 +477,15 @@ def parse_i_sti(tokens, tasks=()):
 
 def _parse_i_sti_value(val):
     parts = [part.strip() for part in val.split(",")]
-    if len(parts) != len(I_STI_KEYS):
+    if len(parts) != len(CONTRASTS):
         raise ValueError(
-            f"--i-sti expects {','.join(I_STI_KEYS)} "
-            f"({len(I_STI_KEYS)} values), got {val!r}",
+            f"--i-sti expects {','.join(CONTRASTS)} "
+            f"({len(CONTRASTS)} values), got {val!r}",
         )
     return {
-        i_sti_key: float(part)
-        for i_sti_key, part in zip(I_STI_KEYS, parts)
+        contrast: float(part)
+        for contrast, part in zip(CONTRASTS, parts)
     }
-
-
-def _parse_filter_branch(branch: str) -> str:
-    branch = str(branch).strip().lower()
-    if branch in ("v", "none"):
-        return "v"
-    if branch == "ca":
-        return "ca"
-    raise ValueError(f"branch must be v or ca, got {branch!r}")
-
-
-def _format_branch_value(val) -> str:
-    if isinstance(val, dict):
-        return f"v={val['v']}, ca={val['ca']}"
-    return str(val)
-
-
-def resolve_branch_value(token: str, default=None) -> dict:
-    """Parse ``X`` or ``v=X,ca=Y`` into ``{v, ca}`` dict for any value type."""
-    if isinstance(default, dict):
-        out = dict(default)
-    elif default is None:
-        out = {"v": None, "ca": None}
-    else:
-        out = {"v": default, "ca": default}
-    raw = str(token).strip()
-    if not raw:
-        return out
-    if "=" not in raw:
-        return {"v": raw, "ca": raw}
-    for part in parse_comma_list(raw):
-        if "=" not in part:
-            raise ValueError(f"expected v=X or ca=X, got {part!r}")
-        branch, val = part.split("=", 1)
-        out[_parse_filter_branch(branch)] = val.strip()
-    return out
-
-
-def _branch_cli_type(default=None):
-    def _parse(token: str) -> dict:
-        return resolve_branch_value(token, default)
-    return _parse
 
 
 STI_TIMING_KEYS = (
@@ -564,13 +497,10 @@ STI_TIMING_KEYS = (
     "delta_ms_pre",
 )
 
-_BRANCH_SYNTAX = re.compile(r"(^|[,\s])(v|ca)=", re.IGNORECASE)
 
-
-def parse_sti_timing_keys(tokens, *, filter: str) -> dict[str, dict[str, float]]:
-    """Parse ``--sti-timing KEY=MS`` tokens; each value updates one filter branch only."""
-    branch = "ca" if train.expand_filter(filter) == "ca" else "v"
-    out: dict[str, dict[str, float]] = {}
+def parse_sti_timing_keys(tokens) -> dict[str, float]:
+    """Parse ``--sti-timing KEY=MS`` tokens."""
+    out: dict[str, float] = {}
     for token in tokens:
         if "=" not in token:
             raise ValueError(f"--sti-timing expected KEY=MS, got {token!r}")
@@ -580,42 +510,32 @@ def parse_sti_timing_keys(tokens, *, filter: str) -> dict[str, dict[str, float]]
         if sti_timing_key not in STI_TIMING_KEYS:
             allowed = ", ".join(STI_TIMING_KEYS)
             raise ValueError(f"--sti-timing unknown sti_timing_key {sti_timing_key!r}; allowed: {allowed}")
-        if _BRANCH_SYNTAX.search(val):
-            raise ValueError(
-                f"--sti-timing {sti_timing_key}={val!r} must be a plain number, not v=/ca= syntax"
-            )
         try:
-            num = float(val)
+            out[sti_timing_key] = float(val)
         except ValueError as exc:
             raise ValueError(
                 f"--sti-timing {sti_timing_key}={val!r} is not a number"
             ) from exc
-        out[sti_timing_key] = {branch: num}
     return out
 
 
 def _resolve_sti_timing_literals() -> dict:
-    from task.spot.sti_spec import _merge_filter_ms
-
     sti_opts: dict = {}
     for sti_timing_key in STI_TIMING_KEYS:
         if sti_timing_key in ("delta_ms", "delta_ms_pre"):
-            ms = NEURON_CONST[sti_timing_key]
+            ms = MODEL[sti_timing_key]
         else:
-            ms = STI_TIMING.get(sti_timing_key)
+            ms = SPOT_INPUT_SPEC.get(sti_timing_key)
         if ms is not None:
-            _merge_filter_ms(sti_opts, sti_timing_key, ms)
+            sti_opts[sti_timing_key] = float(ms)
     return sti_opts
 
 
-def resolve_train_sti_timing(filter: str, tokens) -> dict:
+def resolve_train_sti_timing(tokens) -> dict:
     """Build full sti timing dict for train (defaults + optional ``--sti-timing``)."""
-    from task.spot.sti_spec import _merge_filter_ms
-
     sti_opts = _resolve_sti_timing_literals()
     if tokens:
-        for sti_timing_key, ms in parse_sti_timing_keys(tokens, filter=filter).items():
-            _merge_filter_ms(sti_opts, sti_timing_key, ms)
+        sti_opts.update(parse_sti_timing_keys(tokens))
     return sti_opts
 
 
@@ -630,7 +550,6 @@ def add_sti_timing_arguments(parser):
         help=(
             "sti length KEY=MS tokens (space-separated). "
             f"Keys: {', '.join(STI_TIMING_KEYS)}. "
-            "Plain numbers only; updates the current --filter (v or ca). "
             "Train: omit → const_default; plot/analyze: omit → keep run"
         ),
     )
@@ -687,17 +606,13 @@ def override_train_opts_timing(
     return changed
 
 
-def resolve_sti_timing_kwargs(args, *, filter=None):
+def resolve_sti_timing_kwargs(args):
     """Map ``--sti-timing`` to kwargs for :func:`figure.plot.override_session_sti_timing`."""
     tokens = getattr(args, "sti_timing", None)
     empty = {sti_timing_key: None for sti_timing_key in STI_TIMING_KEYS}
     if not tokens:
         return empty
-    if filter is None:
-        filter = getattr(args, "filter", None)
-    if filter is None:
-        filter = NEURON_FILTER['filter']
-    sti_timing = parse_sti_timing_keys(tokens, filter=filter)
+    sti_timing = parse_sti_timing_keys(tokens)
     return {sti_timing_key: sti_timing.get(sti_timing_key) for sti_timing_key in STI_TIMING_KEYS}
 
 
@@ -797,7 +712,7 @@ def resolve_train_kwargs(
             parts = token.split("/")
             if len(parts) != 2 or not parts[0] or not parts[1]:
                 raise ValueError(
-                    "--init-from must be MODEL['model']/RUN under 0_runs "
+                    "--init-from must be NEURON_SCHEMA['model']/RUN under 0_runs "
                     f"(models: {train.MODELS}) or an absolute path; "
                     f"got {init_from!r}"
                 )
@@ -854,12 +769,11 @@ def resolve_train_kwargs(
     shift_radius = args.shift_radius
     spot_radius = args.spot_radius
     if args.spot_cost_radius_scale:
-        from train.session import resolve_filter_branches
-        spot_radius_scalar = resolve_filter_branches(spot_radius, filter="none")
+        spot_radius_scalar = float(spot_radius)
         # spot_radius == 1: fold radius=2 into radius=1 scales
         cost_radius_scales = dict(
             SPOT_PACK['spot_cost_radius_scale_radius1']
-            if float(spot_radius_scalar) == 1
+            if spot_radius_scalar == 1
             else SPOT_PACK['spot_cost_radius_scale']
         )
         spot_cost_radius_scale = resolve_spot_cost_radius_scale(
@@ -871,7 +785,7 @@ def resolve_train_kwargs(
         spot_cost_radius_scale = None
     multi_spot = args.multi_spot
     fully_inside = args.fully_inside
-    _timing = resolve_train_sti_timing(filter, args.sti_timing)
+    _timing = resolve_train_sti_timing(args.sti_timing)
     multi_bar = args.multi_bar
     moving_bar_sti_opts = {
         "multi_bar": multi_bar,
@@ -888,12 +802,7 @@ def resolve_train_kwargs(
     else:
         cost_ms_raw = cost_ms_parsed
     cost_ms = {
-        str(int(k)): [
-            x
-            if isinstance(x, dict) and set(x) and set(x) <= {"v", "ca"}
-            else float(x)
-            for x in v
-        ]
+        str(int(k)): [float(x) for x in v]
         for k, v in cost_ms_raw.items()
     }
     gt_by_task = resolve_gt(args.gt)

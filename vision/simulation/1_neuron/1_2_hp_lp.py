@@ -35,8 +35,7 @@ from __future__ import annotations
 
 import torch
 
-from neuron.param import expand_euler
-from neuron.schema import syn_strength
+from neuron.borst import expand_euler, standardize_i_sti, syn_strength
 
 
 def update_v(
@@ -103,12 +102,6 @@ def update_v(
     }
 
 
-def standardize_i_sti(session, params, i_sti, pack):
-    """Sti current ``(B, T, N)`` (no rescale)."""
-    del params, pack
-    return i_sti.unsqueeze(0) if i_sti.dim() == 2 else i_sti
-
-
 def v_dc_from_v(v, params, v_sti, connectome):
     """Algebraic DC target: ``v_dc = e_leak + (1−a_h)·v_in(v)``."""
     v_out = torch.relu(v - params["v_th"]) * params["a_out"]
@@ -121,9 +114,9 @@ def pre_steady(session, params, n_b, i_sti=None):
     """``v_slow``, ``v`` at t=0 from ``session.pre_steady``."""
     if i_sti is None:
         raise TypeError("hp_lp pre_steady requires i_sti")
-    pre_steady = str(session.pre_steady)
-    if pre_steady not in ("probe", "solve"):
-        raise ValueError(f"hp_lp pre_steady must be probe|solve; got {pre_steady!r}")
+    pre_steady_mode = str(session.pre_steady)
+    if pre_steady_mode not in ("probe", "solve"):
+        raise ValueError(f"hp_lp pre_steady must be probe|solve; got {pre_steady_mode!r}")
     connectome = session.connectome
     g_leak = float(session.g_leak)
     if g_leak == 0.0:
@@ -131,7 +124,7 @@ def pre_steady(session, params, n_b, i_sti=None):
     v_sti = i_sti[:, 0, :] / g_leak
     e_leak = params["e_leak"]
     v = e_leak.expand(n_b, connectome.n_node).clone()
-    if pre_steady == "probe":
+    if pre_steady_mode == "probe":
         v_dc, v_in = v_dc_from_v(v, params, v_sti, connectome)
         return v_in, v_dc
     damp = float(session.pre_steady_damp)

@@ -1,6 +1,5 @@
 from const_default import (
     RUN_PATH,
-    STI_TIMING,
 )
 """Simulation + plotting for the FiveCol medulla model."""
 import argparse
@@ -19,7 +18,7 @@ from figure.panel import (
     filter_figure_token,
     session_filter_figure_token,
 )
-from const_default import RUN_PATH, STI_TIMING
+from const_default import RUN_PATH
 from train.config import run_data_dir
 from train.implementation import resolve_run_dir
 
@@ -69,7 +68,7 @@ def session_from_task(base_session, task, contrast):
     opts['contrasts'] = [contrast]
     opts['packs'] = None
     opts['network'] = base_session.connectome
-    return train.open_session({**opts, 'backend': 'network'}, base_session.model,
+    return train.open_session(opts, base_session.model,
                            schema=train.schema_copy(base_session.schema))
 
 
@@ -183,8 +182,7 @@ def override_session_sti_timing(
     ``delta_ms`` / ``delta_ms_pre`` also update moving_bar sti opts;
     ``ms_response`` / ``ms_post`` / ``ms_sti`` are spot-only. ``euler`` is
     CLI ``im``/``ex`` (or already expanded ``implicit``/``explicit``).
-    ``filter`` is ``none``/``ca``; active branch of ``{v, ca}`` ms_sti/ms_response
-    is selected in :func:`train.open_session`.
+    ``filter`` is ``none``/``ca`` (readout filter; timing values are scalars).
 
     Returns ``(session, z, timing_changed)`` where ``timing_changed`` maps
     timing keys that differ from the run (for filename suffixes).
@@ -201,23 +199,12 @@ def override_session_sti_timing(
     ):
         return session, z, {}
 
-    if delta_ms is not None:
-        for branch, val in (
-            delta_ms.items() if isinstance(delta_ms, dict) else (("v", delta_ms), ("ca", delta_ms))
-        ):
-            if float(val) <= 0:
-                raise SystemExit(f"--sti-timing delta_ms={val} must be > 0")
-    if delta_ms_pre is not None:
-        for branch, val in (
-            delta_ms_pre.items()
-            if isinstance(delta_ms_pre, dict) else (("v", delta_ms_pre), ("ca", delta_ms_pre))
-        ):
-            if float(val) <= 0:
-                raise SystemExit(f"--sti-timing delta_ms_pre={val} must be > 0")
-    if ms_post is not None:
-        post_vals = ms_post.values() if isinstance(ms_post, dict) else (ms_post,)
-        if any(float(val) < 0 for val in post_vals):
-            raise SystemExit("--sti-timing ms_post must be >= 0")
+    if delta_ms is not None and float(delta_ms) <= 0:
+        raise SystemExit(f"--sti-timing delta_ms={delta_ms} must be > 0")
+    if delta_ms_pre is not None and float(delta_ms_pre) <= 0:
+        raise SystemExit(f"--sti-timing delta_ms_pre={delta_ms_pre} must be > 0")
+    if ms_post is not None and float(ms_post) < 0:
+        raise SystemExit("--sti-timing ms_post must be >= 0")
 
     import train.implementation as train_mod
 
@@ -257,16 +244,10 @@ def override_session_sti_timing(
 
 
 def _format_filename_token(value):
-    if isinstance(value, dict) and set(value) <= {"v", "ca"}:
-        v = float(value["v"])
-        ca = float(value["ca"])
-        if v == ca:
-            return _format_filename_token(v)
-        return f"v{v:g}-ca{ca:g}"
-    v = float(value)
-    if v == int(v):
-        return str(int(v))
-    return "%g" % v
+    val = float(value)
+    if val == int(val):
+        return str(int(val))
+    return "%g" % val
 
 
 def sti_timing_filename_suffix(
@@ -763,7 +744,7 @@ def main():
     outdir = resolve_run_dir(args.run_path)
     train_opts = load_train_opts(outdir) or {}
     eff_filter = args.filter if args.filter is not None else train_opts.get("filter")
-    timing_kwargs = resolve_sti_timing_kwargs(args, filter=eff_filter)
+    timing_kwargs = resolve_sti_timing_kwargs(args)
     session, z, best_cost = load_best(outdir, verbose=True)
     session, z, timing_changed = override_session_sti_timing(
         run_dir=outdir, session=session, z=z, **timing_kwargs,

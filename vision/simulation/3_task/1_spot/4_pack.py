@@ -22,7 +22,7 @@ from network.construction import (
     active_gt_cells,
     node_cells,
 )
-from neuron.param import t_from_ms
+from neuron.borst import t_from_ms
 from task.spot.gt import (
     GT_CELLS,
     RF_SIGN,

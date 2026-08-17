@@ -14,7 +14,7 @@ from typing import Callable, Dict, List, Optional, Sequence, Tuple
 import numpy as np
 import torch
 
-from neuron.param import t_from_ms
+from neuron.borst import t_from_ms
 from network.construction import (
     hex2gt,
     active_gt_cells,

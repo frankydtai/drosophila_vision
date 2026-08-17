@@ -2,7 +2,7 @@
 
 Roots (tried in order):
 
-  - ``simulation/`` — packages (``neuron.param``, ``network.construction``, …)
+  - ``simulation/`` — packages (``neuron.borst``, ``network.construction``, …)
   - ``connectome/FAFBv783/`` — flat modules (``build_hex``, ``build_network``, ``add_extent``, …)
 
 Disk names are ``{n}_{logical}`` (dirs and ``.py`` modules). Imports stay
@@ -94,8 +94,8 @@ def _install_argparse_dash_standardize() -> None:
 
 
 def logical_name(name: str) -> str:
-    """Strip leading ``digits_`` from a directory name or file stem."""
-    return _SORT_PREFIX.sub("", name)
+    """Strip leading ``digits_`` prefixes from a directory name or file stem."""
+    return re.sub(r"^(\d+_)+", "", name)
 
 
 def _iter_children(directory: Path) -> Iterable[Path]:

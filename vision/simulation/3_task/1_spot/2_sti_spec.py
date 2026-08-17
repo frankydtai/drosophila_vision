@@ -16,7 +16,7 @@ import torch
 
 from network import path  # noqa: F401 -- FAFBv783 on sys.path
 import build_hex
-from neuron.param import t_from_ms
+from neuron.borst import t_from_ms
 from task.spot.sti_geo import SpotB
 
 _STI_TIMING_KEYS = (
@@ -37,47 +37,25 @@ class StiTiming:
     n_t_gt: int
 
 
-def _merge_filter_ms(sti_opts: dict, sti_timing_key: str, ms) -> None:
+def _merge_ms(sti_opts: dict, sti_timing_key: str, ms) -> None:
     if ms is None:
         return
-    if isinstance(ms, (int, float)):
-        sti_opts[sti_timing_key] = {"v": float(ms), "ca": float(ms)}
-        return
-    if not isinstance(ms, dict):
-        raise TypeError(
-            f"{sti_timing_key} must be a float or {{v, ca}} dict, got {type(ms)!r}"
-        )
-    merged = {
-        filter: float(ms_at_filter)
-        for filter, ms_at_filter in (sti_opts.get(sti_timing_key) or {}).items()
-    }
-    merged.update(
-        (filter, float(ms_at_filter)) for filter, ms_at_filter in ms.items()
-    )
-    sti_opts[sti_timing_key] = merged
+    sti_opts[sti_timing_key] = float(ms)
 
 
 def standardize_sti_timing(sti_opts: dict) -> dict:
-    """In-place: per filter ``ms_response = max(ms_response, ms_sti)``."""
+    """In-place: ``ms_response = max(ms_response, ms_sti)``."""
     ms_sti = sti_opts.get("ms_sti")
     ms_response = sti_opts.get("ms_response")
     if ms_sti is None or ms_response is None:
         return sti_opts
-    if isinstance(ms_sti, dict) and isinstance(ms_response, dict):
-        for filter in set(ms_sti) | set(ms_response):
-            ms_response[filter] = max(float(ms_response[filter]), float(ms_sti[filter]))
-    else:
-        sti_opts["ms_response"] = max(float(ms_response), float(ms_sti))
+    sti_opts["ms_response"] = max(float(ms_response), float(ms_sti))
     return sti_opts
 
 
 def _float_ms(ms):
     if ms is None:
         return None
-    if isinstance(ms, dict):
-        return {
-            filter: float(ms_at_filter) for filter, ms_at_filter in ms.items()
-        }
     return float(ms)
 
 
@@ -96,10 +74,7 @@ def override_sti_timing(
     Returns timing tokens whose values differ from the pre-merge snapshot (for
     plot / analyze filename suffixes).
     """
-    before = {}
-    for sti_timing_key in _STI_TIMING_KEYS:
-        ms = sti_opts.get(sti_timing_key)
-        before[sti_timing_key] = dict(ms) if isinstance(ms, dict) else ms
+    before = {sti_timing_key: sti_opts.get(sti_timing_key) for sti_timing_key in _STI_TIMING_KEYS}
     for sti_timing_key, ms in (
         ("ms_pre", ms_pre),
         ("ms_post", ms_post),
@@ -108,7 +83,7 @@ def override_sti_timing(
         ("ms_response", ms_response),
         ("ms_sti", ms_sti),
     ):
-        _merge_filter_ms(sti_opts, sti_timing_key, ms)
+        _merge_ms(sti_opts, sti_timing_key, ms)
     standardize_sti_timing(sti_opts)
     sti_opts.pop("t_onset", None)
     sti_opts.pop("n_t", None)

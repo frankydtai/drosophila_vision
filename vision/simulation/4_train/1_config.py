@@ -8,7 +8,7 @@ without a cycle. Session assembly and sti-opts finalisation live in
 
 **Enum allowed-token sets** (e.g. ``COST_NORMS``, ``SPOT_GT_MODES``) live here.
 Matching **default scalars** live only in ``const_default`` (e.g. ``TRAIN_OPTIMIZATION['cost_norm']``,
-``NEURON_FILTER['filter']``, ``SPOT_PACK['spot_gt_mode']``) — never put the ``(…)`` allowed tuple in ``const_default``.
+``NEURON_SCHEMA['model']``, ``NEURON_SCHEMA['filter']``, ``SPOT_PACK['spot_gt_mode']``) — never put the ``(…)`` allowed tuple in ``const_default``.
 
 ``task`` ∈ {spot, moving_bar} and ``contrast`` ∈ {bright, dark} are independent axes.
 ``i_sti[task][contrast]`` holds only bright/dark currents; baseline is their midpoint.
@@ -17,6 +17,7 @@ from __future__ import annotations
 
 from const_default import (
     SPOT_PACK,
+    TRAIN_CONFIG,
     TRAIN_OPTIMIZATION,
 )
 
@@ -46,9 +47,11 @@ def run_data_dir(outdir: str | Path) -> str:
 TASKS = ("spot", "moving_bar")
 CONTRASTS = ("bright", "dark")
 
+# Neuron dynamics model (``--model``). Default scalar: ``const_default.NEURON_SCHEMA['model']``.
+MODELS = ("borst", "hp_lp")
+
 # ``i_sti[task][contrast]`` keys only (baseline = midpoint; see
 # ``task.moving_bar.sti_spec.i_baseline_from_i_sti``).
-I_STI_KEYS = ("bright", "dark")
 
 PD_ND_LABELS = ("PD", "ND")
 PD_IDX, ND_IDX = 0, 1

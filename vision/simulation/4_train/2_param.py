@@ -10,7 +10,7 @@ Also owns device/dtype helpers used when materializing ``z`` and connectivity
 tensors.
 
 Model param lists come from ``neuron.schema``; numeric lo/hi/init/jit
-live in ``neuron.param.P``.
+live in ``const_default.NEURON_SCHEMA['params']``.
 """
 from __future__ import annotations
 
@@ -738,7 +738,7 @@ def z_init_from_schema(schema, sim_dtype=SIM_DTYPE):
     return torch.tensor(z, dtype=sim_dtype).to(active_device())
 
 
-def parse_param_cli(tokens):
+def parse_param_cli(tokens, *, h_cells=NEURON_SCHEMA['h_cells']):
     """Parse ``--param`` → ``(param_inits, param_vals, param_modes, param_clamps, param_jits)``.
 
     ``init`` / ``lo`` / ``hi`` / ``jit`` write schema param_keys; ``val`` is
@@ -757,34 +757,37 @@ def parse_param_cli(tokens):
             if not nodes:
                 param_inits.append((param, None, init))
             else:
-                for node in expand_param_nodes(nodes):
+                for node in expand_param_nodes(nodes, h_cells=h_cells):
                     param_inits.append((param, node, init))
         elif param_key in ("lo", "hi"):
             val = float(right)
             if not nodes:
                 param_clamps.append((param, param_key, None, val))
             else:
-                for node in expand_param_nodes(nodes):
+                for node in expand_param_nodes(nodes, h_cells=h_cells):
                     param_clamps.append((param, param_key, node, val))
         elif param_key == "jit":
             val = float(right)
             if not nodes:
                 param_jits.append((param, None, val))
             else:
-                for node in expand_param_nodes(nodes):
+                for node in expand_param_nodes(nodes, h_cells=h_cells):
                     param_jits.append((param, node, val))
         elif param_key == "val":
             val = float(right)
             if not nodes:
                 param_vals.append((param, None, val))
             else:
-                for node in expand_param_nodes(nodes):
+                for node in expand_param_nodes(nodes, h_cells=h_cells):
                     param_vals.append((param, node, val))
         elif param_key == "mode":
             if right not in PARAM_MODES:
                 raise ValueError(f"unknown param_mode {right!r}")
             param_modes.setdefault(param, []).append(
-                (None if not nodes else expand_param_nodes(nodes), right)
+                (
+                    None if not nodes else expand_param_nodes(nodes, h_cells=h_cells),
+                    right,
+                )
             )
         else:
             raise ValueError(
@@ -794,9 +797,11 @@ def parse_param_cli(tokens):
     return param_inits, param_vals, param_modes, param_clamps, param_jits
 
 
-def parse_param_init_val_tokens(tokens):
+def parse_param_init_val_tokens(tokens, *, h_cells=NEURON_SCHEMA['h_cells']):
     """Return ``(param_inits, param_vals, param_clamps, param_jits)`` (modes ignored)."""
-    param_inits, param_vals, _, param_clamps, param_jits = parse_param_cli(tokens)
+    param_inits, param_vals, _, param_clamps, param_jits = parse_param_cli(
+        tokens, h_cells=h_cells,
+    )
     return param_inits, param_vals, param_clamps, param_jits
 
 

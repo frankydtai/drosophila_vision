@@ -1,6 +1,6 @@
 """Plot isolated hp_lp on a pulse (no network).
 
-Uses ``neuron.model_hp_lp.update_v`` (same Euler as training):
+Uses ``neuron.hp_lp.update_v`` (same Euler as training):
 
     τ_HP(e_HP) d v_slow / dt = v_drive − v_slow
     e_HP = v_drive − v_slow
@@ -44,9 +44,9 @@ import torch
 
 from figure.panel import save_figure
 from import_bootstrap import parse_comma_list
-from neuron.model_hp_lp import update_v
-from neuron.param import expand_euler
-from const_default import NEURON_CONST
+from neuron.hp_lp import update_v
+from neuron.borst import expand_euler
+from const_default import MODEL
 
 DEFAULT_SAVE = os.path.join(HERE, "hp_lp_curves.png")
 DEFAULT_A_H = 1.0
@@ -57,9 +57,9 @@ DEFAULT_TAU_HP_FALL_LIST = "80,200,500,2000"
 DEFAULT_TAU_LP_LIST = "20,50,100"
 DEFAULT_PULSE_LIST = "50,100,500"
 TAU_HP_OFF_MS = 1.0e6
-EULER = str(NEURON_CONST["euler"])
-G_LEAK = float(NEURON_CONST["g_leak"])
-V_CLAMP = float(NEURON_CONST["v_clamp"])
+EULER = str(MODEL["euler"])
+G_LEAK = float(MODEL["g_leak"])
+V_CLAMP = float(MODEL["v_clamp"])
 
 _BACKEND = SimpleNamespace(
     n_nodes=1,

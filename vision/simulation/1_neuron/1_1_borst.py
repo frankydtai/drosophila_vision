@@ -1,6 +1,9 @@
 # -*- coding: utf-8 -*-
 """Borst neuron + i_h (``--model borst``).
 
+Shared model helpers (time/ms conversion, ``syn_strength``, ``expand_euler``)
+live here; ``1_2_hp_lp`` imports them.
+
 Dynamics only: ``standardize_i_sti`` / ``pre_steady`` / ``step``. Ca
 forward lives in ``neuron.forward``. Scalars are injected kwargs
 (from ``session`` flat fields), never nested under Physics.
@@ -28,8 +31,67 @@ from __future__ import annotations
 
 import torch
 
-from neuron.param import e_h_rev as calc_e_h_rev, expand_euler
-from neuron.schema import syn_strength
+EULER_CLI = {"im": "implicit", "ex": "explicit"}
+EULER_MODES = tuple(EULER_CLI.values())
+
+
+def t_from_ms(ms: float, *, delta_ms: float) -> int:
+    """Convert milliseconds to time index count ``t`` (rounded)."""
+    return int(round(float(ms) / float(delta_ms)))
+
+
+def ms_from_t(
+    t: float,
+    *,
+    t_onset: int,
+    delta_ms_pre: float,
+    delta_ms: float,
+) -> float:
+    """Absolute ms at sample index ``t`` (piecewise pre / post-onset dt)."""
+    t = float(t)
+    t0 = int(t_onset)
+    if t <= t0:
+        return t * float(delta_ms_pre)
+    return t0 * float(delta_ms_pre) + (t - t0) * float(delta_ms)
+
+
+def t_abs_from_ms(
+    ms: float,
+    *,
+    t_onset: int,
+    delta_ms_pre: float,
+    delta_ms: float,
+) -> int:
+    """Absolute sample index for ms from t=0 with piecewise pre / post dt."""
+    ms = float(ms)
+    t0 = int(t_onset)
+    dt_pre = float(delta_ms_pre)
+    ms_pre = t0 * dt_pre
+    if ms <= ms_pre:
+        return t_from_ms(ms, delta_ms=dt_pre)
+    return t0 + t_from_ms(ms - ms_pre, delta_ms=delta_ms)
+
+
+def e_h_rev(e_leak, e_h: float):
+    """Rev-channel reversal ``2 * e_leak - e_h`` (scalar or per-node)."""
+    return 2.0 * e_leak - float(e_h)
+
+
+def expand_euler(token: str) -> str:
+    """Map CLI ``im``/``ex`` (or already-expanded name) → ``implicit``/``explicit``."""
+    key = EULER_CLI.get(str(token), str(token))
+    if key not in EULER_MODES:
+        raise ValueError(
+            f"euler {token!r} not in CLI {tuple(EULER_CLI)} or modes {EULER_MODES}"
+        )
+    return key
+
+
+def syn_strength(params):
+    """Active syn_strength tensor (exactly one of syn_strength_cell / syn_strength_edge)."""
+    if "syn_strength_edge" in params:
+        return params["syn_strength_edge"]
+    return params["syn_strength_cell"]
 
 
 def _gate_ss(v, v_mid, slope):
@@ -66,7 +128,7 @@ def _i_h_gate_step(
 
 
 def update_v(
-    v, u, u_rev, a_in, a_out, syn_strength, v_th, a_h, a_h_rev,
+    v, u, u_rev, a_in, a_out, syn_strength_val, v_th, a_h, a_h_rev,
     v_mid_h_g, h_slope, v_mid_h_tau, v_mid_h_g_rev, h_slope_rev, v_mid_h_tau_rev,
     i_sti, connectome, e_leak, *,
     delta_ms: float,
@@ -110,16 +172,16 @@ def update_v(
             g_h_rev[:, idx] = g_rev_a.to(dtype=g_h_rev.dtype)
 
     v_out = torch.relu(v - v_th) * a_out
-    g_exc, g_inh = conn.exc_inh_g(v_out, syn_strength)
+    g_exc, g_inh = conn.exc_inh_g(v_out, syn_strength_val)
     g_exc = g_exc * a_in
     g_inh = g_inh * a_in
 
     dt = float(delta_ms)
     dt_over_cap = dt / cap
-    e_h_rev = calc_e_h_rev(e_leak, e_h)
+    e_h_rev_val = e_h_rev(e_leak, e_h)
     sum_g_e = (
         g_exc * e_exc + g_inh * e_inh + g_leak * e_leak
-        + e_h * g_h + e_h_rev * g_h_rev
+        + e_h * g_h + e_h_rev_val * g_h_rev
     )
     sum_g = g_exc + g_inh + g_h + g_h_rev + g_leak
     if euler == "implicit":
@@ -146,12 +208,12 @@ def v_component_from_g(
     euler = expand_euler(euler)
     dt = float(delta_ms)
     dt_over_cap = dt / cap
-    e_h_rev = calc_e_h_rev(e_leak, e_h)
+    e_h_rev_val = e_h_rev(e_leak, e_h)
     num_exc = g_exc * e_exc
     num_inh = g_inh * e_inh
     num_leak = g_leak * e_leak
     num_i_h = g_h * e_h
-    num_i_h_rev = g_h_rev * e_h_rev
+    num_i_h_rev = g_h_rev * e_h_rev_val
     sum_g_e = num_exc + num_inh + num_leak + num_i_h + num_i_h_rev
     sum_g = g_exc + g_inh + g_h + g_h_rev + g_leak
     if euler == "implicit":
@@ -203,10 +265,10 @@ def _ohmic_v(i0, g_exc, g_inh, g_h, g_h_rev, e_leak, session):
     e_inh = float(session.e_inh)
     e_h = float(session.e_h)
     g_leak = float(session.g_leak)
-    e_h_rev = calc_e_h_rev(e_leak, e_h)
+    e_h_rev_val = e_h_rev(e_leak, e_h)
     sum_g_e = (
         g_exc * e_exc + g_inh * e_inh + g_leak * e_leak
-        + e_h * g_h + e_h_rev * g_h_rev
+        + e_h * g_h + e_h_rev_val * g_h_rev
     )
     sum_g = g_exc + g_inh + g_h + g_h_rev + g_leak
     return (i0 + sum_g_e) / sum_g
@@ -236,13 +298,13 @@ def pre_steady(session, params, n_b, i_sti=None):
     """``u``, ``u_rev``, ``v`` at t=0 from ``session.pre_steady``."""
     if i_sti is None:
         raise TypeError("borst pre_steady requires i_sti")
-    pre_steady = str(session.pre_steady)
-    if pre_steady not in ("probe", "solve"):
-        raise ValueError(f"borst pre_steady must be probe|solve; got {pre_steady!r}")
+    pre_steady_mode = str(session.pre_steady)
+    if pre_steady_mode not in ("probe", "solve"):
+        raise ValueError(f"borst pre_steady must be probe|solve; got {pre_steady_mode!r}")
     e_leak = params["e_leak"]
     v = e_leak.expand(n_b, session.connectome.n_node).clone()
     i0 = i_sti[:, 0, :]
-    if pre_steady == "probe":
+    if pre_steady_mode == "probe":
         v_dc, u, u_rev = v_dc_from_v(v, params, i0, e_leak, session, with_i_h_ss=False)
         return u, u_rev, v_dc
     damp = float(session.pre_steady_damp)

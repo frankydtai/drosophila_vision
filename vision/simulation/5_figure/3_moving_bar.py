@@ -63,7 +63,7 @@ from task.moving_bar.sti_spec import (
     COST_WINDOW_AFTER_MS,
     COST_WINDOW_BEFORE_MS,
 )
-from neuron.param import t_from_ms
+from neuron.borst import t_from_ms
 
 MOVING_BAR_DPI = 100
 

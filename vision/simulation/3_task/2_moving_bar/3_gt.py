@@ -18,7 +18,7 @@ from typing import Dict, Mapping, Optional, Sequence, Tuple, Union
 import numpy as np
 import torch
 
-from neuron.param import t_from_ms
+from neuron.borst import t_from_ms
 from task.moving_bar.sti_geo import GRUNTMAN_WS_DEG
 from task.moving_bar.sti_spec import (
     COST_ALIGNED_FIRST_STI_MS,

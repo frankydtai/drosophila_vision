@@ -35,7 +35,7 @@ pairs. ``gt_power`` is recomputed on the subsample.
 from __future__ import annotations
 
 from const_default import (
-    NEURON_FILTER,
+    NEURON_SCHEMA,
     TRAIN_OPTIMIZATION,
 )
 
@@ -154,7 +154,7 @@ def _session_bias_gt_val_from(session: TrainSession) -> bool:
 
 def _session_filter(session: TrainSession) -> str:
     opts = session.train_opts or {}
-    return str(opts.get("filter", NEURON_FILTER['filter']))
+    return str(opts.get("filter", NEURON_SCHEMA['filter']))
 
 
 def _forward_readout_and_onset_trace(session, params, i_sti, pack):

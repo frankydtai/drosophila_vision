@@ -373,7 +373,7 @@ def _load_reports(args):
     train_opts = plot.load_train_opts(run_dir) or {}
     train_filter = train.expand_filter(train_opts.get("filter", "none"))
     eff_filter = args.filter if args.filter is not None else train_filter
-    timing_kwargs = resolve_sti_timing_kwargs(args, filter=eff_filter)
+    timing_kwargs = resolve_sti_timing_kwargs(args)
     session, z, _timing_changed = plot.override_session_sti_timing(
         run_dir=run_dir,
         session=session,

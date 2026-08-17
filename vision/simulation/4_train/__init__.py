@@ -12,18 +12,16 @@ from __future__ import annotations
 from const_default import (
     ANALYZE_CELL_DYNAMICS,
     MODEL,
-    MOVING_BAR_INPUT,
+    MOVING_BAR_INPUT_GEO,
+    MOVING_BAR_INPUT_SPEC,
     NEURON_FORWARD,
-    NEURON_CONST,
     NEURON_SCHEMA,
-    NETWORK_CONSTRUCTION,
     NETWORK_PATH,
-    SPOT_INPUT,
+    SPOT_INPUT_GEO,
+    SPOT_INPUT_SPEC,
     SPOT_PACK,
-    STI_TIMING,
     TRAIN_CONFIG,
     TRAIN_OPTIMIZATION,
-    TRAIN_OPTS,
     TRAIN_SESSION,
 )
 
@@ -31,7 +29,6 @@ from neuron import (
     I_H_SHAPE_PARAMS,
     EULER_CLI,
     EULER_MODES,
-    MODELS,
     SYN_MODES,
     build_schema,
     e_h_rev,
@@ -53,6 +50,7 @@ from neuron import (
 from train.config import (
     COST_NORMS,
     CONTRASTS,
+    MODELS,
     SPOT_GT_MODES,
     PD_ND_LABELS,
     TASKS,

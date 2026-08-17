@@ -6,7 +6,7 @@ Network RF profile axis is hex-lattice radius: v_readout[..., radius] = mean at 
 from __future__ import annotations
 
 from const_default import (
-    NEURON_CONST,
+    MODEL,
 )
 
 import time
@@ -16,9 +16,8 @@ import matplotlib.pyplot as plt
 import numpy as np
 import torch
 
-from const_default import NEURON_CONST
 import train
-from neuron.param import t_from_ms, t_abs_from_ms, ms_from_t
+from neuron.borst import t_from_ms, t_abs_from_ms, ms_from_t
 from figure.gt import (
     contrast_linestyle,
     contrast_order,

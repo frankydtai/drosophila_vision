@@ -14,7 +14,7 @@ import numpy as np
 import torch
 
 from path import MOVING_BAR_CACHE_DIRNAME
-from neuron.param import t_from_ms
+from neuron.borst import t_from_ms
 from task.moving_bar.sti_geo import (
     BAR_RADIUS,
     GRUNTMAN_DIRECTIONS,

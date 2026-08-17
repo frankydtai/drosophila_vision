@@ -2,7 +2,8 @@
 """Parameter schemas for borst / hp_lp neuron models.
 
 Numeric lo/hi/init/jit and default ``mode`` live in
-``const_default.NEURON_SCHEMA['params']`` dict entries. Optional
+``const_default.NEURON_SCHEMA['params']`` dict entries. Default ``model`` scalar
+lives in ``const_default.NEURON_SCHEMA['model']``. Optional
 ``exception`` holds space-separated ``param_key[.NODES]=VALUE`` tokens
 (same grammar as CLI ``--param a_h.init...`` without the leading param);
 base dict first, ``exception`` tokens last.
@@ -11,14 +12,6 @@ Built schema is an ordered ``dict[param, spec]`` — the param name is the
 dict key; ``spec`` has no self-id field.
 """
 from __future__ import annotations
-
-from const_default import (
-    NEURON_SCHEMA,
-)
-
-from neuron.param import (
-    MODELS,
-)
 
 SYN_MODES = ("per_cell", "per_edge")
 PARAM_MODES = ("indi", "shared", "fixed", "frozen")
@@ -53,13 +46,13 @@ def _comma_nodes(token):
     return [x.strip() for x in token.split(",") if x.strip()]
 
 
-def expand_param_nodes(nodes):
+def expand_param_nodes(nodes, *, h_cells):
     if nodes == "h_cells":
-        return list(NEURON_SCHEMA["h_cells"])
+        return list(h_cells)
     return _comma_nodes(nodes)
 
 
-def split_param_tokens(tokens, *, param=None):
+def split_param_tokens(tokens, *, param=None, h_cells):
     """Parse tokens → ``(param_inits, param_clamps, param_jits, param_modes)``.
 
     Single-param shapes (``param=`` bound): ``(cli_ids|None, init)``,
@@ -71,7 +64,7 @@ def split_param_tokens(tokens, *, param=None):
     param_jits = []
     param_modes = []
     for _, param_key, nodes, right in parse_param_tokens(tokens, param=param):
-        cli_ids = None if not nodes else expand_param_nodes(nodes)
+        cli_ids = None if not nodes else expand_param_nodes(nodes, h_cells=h_cells)
         if param_key == "init":
             param_inits.append((cli_ids, float(right)))
         elif param_key in ("lo", "hi"):
@@ -128,7 +121,7 @@ def param_from_entry(param, param_key, params):
     return float(params[param][param_key])
 
 
-def _param_cli_from_entry(entry, param):
+def _param_cli_from_entry(entry, param, *, h_cells):
     """Base entry + ``exception`` → param_inits / clamps / jits / modes lists."""
     mode = entry["mode"]
     if mode not in PARAM_MODES:
@@ -146,7 +139,7 @@ def _param_cli_from_entry(entry, param):
     exception = entry.get("exception")
     if exception:
         more_inits, more_clamps, more_jits, more_modes = split_param_tokens(
-            str(exception).split(), param=param,
+            str(exception).split(), param=param, h_cells=h_cells,
         )
         param_inits.extend(more_inits)
         param_clamps.extend(more_clamps)
@@ -155,16 +148,9 @@ def _param_cli_from_entry(entry, param):
     return param_inits, param_clamps, param_jits, param_modes
 
 
-def syn_strength(params):
-    """Active syn_strength tensor (exactly one of syn_strength_cell / syn_strength_edge)."""
-    if "syn_strength_edge" in params:
-        return params["syn_strength_edge"]
-    return params["syn_strength_cell"]
-
-
 def build_param_spec(
     param, n_node, kind, entry, n,
-    *, cells=None, radii=None, pairs=None, edges=None,
+    *, h_cells, cells=None, radii=None, pairs=None, edges=None,
 ):
     """Build one schema ``spec`` dict (no self-id; caller keys the schema by ``param``).
 
@@ -172,7 +158,7 @@ def build_param_spec(
     for node 0..n-1). Omit all only when tokens are ``str(node)``.
     """
     param_inits, param_clamps, param_jits, param_modes = _param_cli_from_entry(
-        entry, param,
+        entry, param, h_cells=h_cells,
     )
     n_cli = sum(x is not None for x in (cells, radii, pairs, edges))
     if n_cli > 1:
@@ -242,7 +228,7 @@ def build_param_spec(
     return spec
 
 
-def _syn_param(syn_mode, n_pair, n_edge, params):
+def _syn_param(syn_mode, n_pair, n_edge, params, *, h_cells):
     """One synaptic param: type-pair or per-edge syn_strength → ``(param, spec)``."""
     if syn_mode == "per_edge":
         if n_edge is None:
@@ -250,16 +236,18 @@ def _syn_param(syn_mode, n_pair, n_edge, params):
         n_edge = int(n_edge)
         return "syn_strength_edge", build_param_spec(
             "syn_strength_edge", n_edge, "edge", params["syn_strength_edge"], n_edge,
+            h_cells=h_cells,
         )
     if n_pair is None:
         raise TypeError("per_cell syn_strength_cell requires n_pair from network ScatterConn")
     n_pair = int(n_pair)
     return "syn_strength_cell", build_param_spec(
         "syn_strength_cell", n_pair, "edge_pair", params["syn_strength_cell"], n_pair,
+        h_cells=h_cells,
     )
 
 
-def _a_sti_radius_param(params: dict, a_sti_radii):
+def _a_sti_radius_param(params: dict, a_sti_radii, *, h_cells):
     """Per-radius ``a_sti_radius`` → ``(param, spec)``."""
     radii = [str(int(radius)) for radius in a_sti_radii]
     n = len(radii)
@@ -267,7 +255,7 @@ def _a_sti_radius_param(params: dict, a_sti_radii):
         raise ValueError("a_sti_radius requires non-empty a_sti_radii")
     spec = build_param_spec(
         "a_sti_radius", n, "output", params["a_sti_radius"], n,
-        radii=radii,
+        h_cells=h_cells, radii=radii,
     )
     spec["radii"] = radii
     return "a_sti_radius", spec
@@ -298,19 +286,19 @@ def params_from_defaults(
         if param in ("syn_strength_cell", "syn_strength_edge"):
             if param != active_syn:
                 continue
-            p, spec = _syn_param(mode, n_pair, n_edge, params)
+            p, spec = _syn_param(mode, n_pair, n_edge, params, h_cells=h_cells)
             out[p] = spec
             continue
         if param == "a_sti_radius":
             if not a_sti_radii:
                 continue
-            p, spec = _a_sti_radius_param(params, a_sti_radii)
+            p, spec = _a_sti_radius_param(params, a_sti_radii, h_cells=h_cells)
             out[p] = spec
             continue
         kind = "output" if param in _OUTPUT_KIND else "node"
         out[param] = build_param_spec(
             param, n_cell, kind, params[param], n_cell,
-            cells=cells,
+            h_cells=h_cells, cells=cells,
         )
     return out
 
@@ -392,8 +380,6 @@ def build_schema(
     Returns ordered ``dict[param, spec]``. ``filter``: ``none`` skips
     ``v_th_ca``/``a_ca``/``tau_ca``; ``ca`` keeps them.
     """
-    if model not in MODELS:
-        raise ValueError(f"unknown model {model!r}; expected one of {MODELS}")
     n = connectome.n_cell
     cells = [str(t) for t in connectome.cells]
     mode = syn_mode
@@ -415,4 +401,6 @@ def build_schema(
     )
     if model == "hp_lp":
         return build_hp_lp_schema(n, cells=cells, **kwargs)
-    return build_borst_schema(n, cells=cells, **kwargs)
+    if model == "borst":
+        return build_borst_schema(n, cells=cells, **kwargs)
+    raise ValueError(f"unknown model {model!r}; expected borst or hp_lp")

@@ -23,30 +23,42 @@ RUN_NAME = """
 RUN_PATH = "hp_lp/" + RUN_NAME
 
 # ---------------------------------------------------------------------------
-# 1.1 neuron const (session scalars; not packed into z)
+# 1.1.1   neuron.borst / MODEL (session scalars; not packed into z)
 # ---------------------------------------------------------------------------
 
-NEURON_CONST: Dict[str, object] = {
-    "delta_ms": {"v": 2.0, "ca": 2.0},
-    "delta_ms_pre": {"v": 2.0, "ca": 2.0},  # pre-onset (t < t_onset); post-onset uses delta_ms
+MODEL: Dict[str, object] = {
+    "delta_ms": 2.0,
+    "delta_ms_pre": 2.0,  # pre-onset (t < t_onset); post-onset uses delta_ms
     "cap": 40.0,
     "g_leak": 1.0,  # nS; borst leak conductance; hp_lp converts i_sti (pA) → mV via i_sti / g_leak
     "e_exc": 10.0,
     "e_inh": -70.0,
     "e_h": 50.0,
     "h_g_max": 100.0,
-    "gt_amp": {"v": 20.0, "ca": 2.0},
+    "gt_amp": 20.0,
     "v_clamp": 1.0e6,
     "a_syn_exc": 0.001,
     "a_syn_inh": 0.001,
-    "euler": "im",  # CLI token; expand to implicit|explicit via neuron.param.expand_euler
+    "euler": "im",  # CLI token; expand to implicit|explicit via neuron.borst.expand_euler
 }
 
 # ---------------------------------------------------------------------------
-# 1.2 neuron.schema
+# 1.1.2   neuron.hp_lp
+# ---------------------------------------------------------------------------
+
+# ---------------------------------------------------------------------------
+# 1.2   neuron.filter_ca
+# ---------------------------------------------------------------------------
+
+# Readout filter default: ``NEURON_SCHEMA['filter']`` (``none`` | ``ca``); see train.config.expand_filter.
+
+# ---------------------------------------------------------------------------
+# 1.3   neuron.schema
 # ---------------------------------------------------------------------------
 
 NEURON_SCHEMA: Dict[str, object] = {
+    "model": "hp_lp",  # borst | hp_lp — see train.config.MODELS
+    "filter": "none",  # none | ca — see train.config.expand_filter
     "a_lo": 0.1,
     "a_hi": 10.0,
     "h_cells": ("L1", "L2", "L4", "L5"),
@@ -84,26 +96,12 @@ NEURON_SCHEMA: Dict[str, object] = {
     "syn_mode": "per_cell",
 }
 
-MODEL: Dict[str, object] = {
-    "model": "hp_lp",
-}
-
 # ---------------------------------------------------------------------------
-# 1.2 neuron.forward
+# 1.4   neuron.forward
 # ---------------------------------------------------------------------------
 
 NEURON_FORWARD: Dict[str, object] = {
     "pre_grad": True,
-}
-
-# ---------------------------------------------------------------------------
-# 1.3 neuron.filter
-# ---------------------------------------------------------------------------
-
-NEURON_FILTER: Dict[str, object] = {
-    # Readout filter: none = v (schema skips v_th_ca/a_ca/tau_ca); ca = ca.
-    # Allowed tokens in comment only: none | ca — see train.config.expand_filter.
-    "filter": "none",
 }
 
 # ---------------------------------------------------------------------------
@@ -115,47 +113,28 @@ NETWORK_PATH: Dict[str, object] = {
 }
 
 # ---------------------------------------------------------------------------
-# 2.3 network.construction
-# ---------------------------------------------------------------------------
-
-NETWORK_CONSTRUCTION: Dict[str, object] = {
-    "i_bright": 40.0,
-    "i_dark": 0.0,
-}
-
-# Sti currents by task × contrast only; baseline = midpoint
-# (see task.moving_bar.sti_spec.i_baseline_from_i_sti).
-I_STI: Dict[str, object] = {
-    "spot": {
-        "bright": NETWORK_CONSTRUCTION["i_bright"],
-        "dark": NETWORK_CONSTRUCTION["i_dark"],
-    },
-    "moving_bar": {
-        "bright": NETWORK_CONSTRUCTION["i_bright"],
-        "dark": NETWORK_CONSTRUCTION["i_dark"],
-    },
-}
-
-# ---------------------------------------------------------------------------
-# Shared step-sti timing (spot, static_bar, …)
-# ---------------------------------------------------------------------------
-
-STI_TIMING: Dict[str, object] = {
-    "ms_pre": {"v": 20.0, "ca": 20.0},
-    "ms_sti": {"v": 160.0, "ca": 25.0},
-    "ms_response": {"v": 300.0, "ca": 400.0},
-    "ms_post": 0.0,
-}
-
-# ---------------------------------------------------------------------------
 # 3.1 task.spot.sti_geo
 # ---------------------------------------------------------------------------
 
-SPOT_INPUT: Dict[str, object] = {
+SPOT_INPUT_GEO: Dict[str, object] = {
     "spot_radius": 1.0,
     "fully_inside": True,
     "multi_spot": True,
     "shift_radius": 1.0,
+}
+
+# ---------------------------------------------------------------------------
+# 3.1.2 task.spot.sti_spec
+# ---------------------------------------------------------------------------
+
+SPOT_INPUT_SPEC: Dict[str, object] = {
+    "i_bright": 40.0,
+    "i_dark": 0.0,
+    "contrasts": ("bright", "dark"),
+    "ms_pre": 20.0,
+    "ms_sti": 160.0,
+    "ms_response": 300.0,
+    "ms_post": 0.0,
 }
 
 # ---------------------------------------------------------------------------
@@ -189,9 +168,15 @@ SPOT_PACK: Dict[str, object] = {
 # task.moving_bar.pack (no literals yet)
 # ---------------------------------------------------------------------------
 
-MOVING_BAR_INPUT: Dict[str, object] = {
+MOVING_BAR_INPUT_GEO: Dict[str, object] = {
     "multi_bar": True,
     "bar_radius": 2,
+}
+
+MOVING_BAR_INPUT_SPEC: Dict[str, object] = {
+    "i_bright": SPOT_INPUT_SPEC["i_bright"],
+    "i_dark": SPOT_INPUT_SPEC["i_dark"],
+    "ms_pre": SPOT_INPUT_SPEC["ms_pre"],
 }
 
 # ---------------------------------------------------------------------------
@@ -223,14 +208,13 @@ VAL_FROM: Dict[str, object] = {
 # ---------------------------------------------------------------------------
 
 TRAIN_OPTIMIZATION: Dict[str, object] = {
+    "part_cost_scales": {},
     "cost_norm": "a_gt2",  # gt_power | a_gt2; see train.config.COST_NORMS
     # Spot cost sampling (train_opts; consumed at spot pack build): post-onset ms grid.
     "cost_interval_ms": 10.0,
     # Per-radius explicit post-onset ms (overwrites cost_interval_ms for that radius).
     "cost_ms": {
-        # Allow per-branch override: second ms value follows ``STI_TIMING["ms_sti"]``
-        # and will be resolved by ``open_session``'s ``resolve_filter_branches``.
-        1: (0.0, STI_TIMING["ms_sti"]),
+        1: (0.0, SPOT_INPUT_SPEC["ms_sti"]),
     },
     # t=0 pre steady (``--pre-steady``). Not param init.
     # Shared by borst / hp_lp: probe (ohmic one-shot) | solve (fixed-iter DC).
@@ -251,67 +235,6 @@ TRAIN_OPTIMIZATION: Dict[str, object] = {
 TRAIN_SESSION: Dict[str, object] = {
     "fp": 32,
     "sequential": False,
-}
-
-SPOT_STI_TIMING_OPTS: Dict[str, object] = {
-    "ms_pre": STI_TIMING["ms_pre"],
-    "ms_response": STI_TIMING["ms_response"],
-    "ms_post": STI_TIMING["ms_post"],
-    "delta_ms": NEURON_CONST["delta_ms"],
-    "delta_ms_pre": NEURON_CONST["delta_ms_pre"],
-    "ms_sti": STI_TIMING["ms_sti"],
-}
-
-MOVING_BAR_STI_TIMING_OPTS: Dict[str, object] = {
-    "ms_pre": STI_TIMING["ms_pre"],
-    "delta_ms": NEURON_CONST["delta_ms"],
-    "delta_ms_pre": NEURON_CONST["delta_ms_pre"],
-}
-
-SPOT_STI_SHARED_OPTS: Dict[str, object] = {
-    **SPOT_STI_TIMING_OPTS,
-    "shift_radius": SPOT_INPUT["shift_radius"],
-    "spot_radius": SPOT_INPUT["spot_radius"],
-    "multi_spot": SPOT_INPUT["multi_spot"],
-    "fully_inside": SPOT_INPUT["fully_inside"],
-}
-
-SPOT_STI_OPTS: Dict[str, object] = {
-    **SPOT_STI_SHARED_OPTS,
-}
-
-MOVING_BAR_STI_OPTS: Dict[str, object] = {
-    **MOVING_BAR_STI_TIMING_OPTS,
-    "multi_bar": MOVING_BAR_INPUT["multi_bar"],
-}
-
-TRAIN_OPTS: Dict[str, object] = {
-    "backend": "network",
-    "tasks": (TRAIN_CONFIG["task"],),
-    "contrasts": ("bright", "dark"),
-    "i_sti": {task: dict(vals) for task, vals in I_STI.items()},
-    "part_cost_scales": {},
-    "cost_norm": TRAIN_OPTIMIZATION["cost_norm"],
-    "cost_interval_ms": TRAIN_OPTIMIZATION["cost_interval_ms"],
-    "cost_ms": TRAIN_OPTIMIZATION["cost_ms"],
-    "pre_steady": TRAIN_OPTIMIZATION["pre_steady"],
-    "pre_steady_n_iter": TRAIN_OPTIMIZATION["pre_steady_n_iter"],
-    "pre_steady_damp": TRAIN_OPTIMIZATION["pre_steady_damp"],
-    "sequential": TRAIN_SESSION["sequential"],
-    "spot_sti_opts": SPOT_STI_OPTS,
-    "moving_bar_sti_opts": MOVING_BAR_STI_OPTS,
-    "packs": None,
-    "param_modes": None,
-    "euler": NEURON_CONST["euler"],
-    "syn_mode": NEURON_SCHEMA["syn_mode"],
-    "pre_grad": NEURON_FORWARD["pre_grad"],
-    "val_from": {k: dict(v) for k, v in VAL_FROM.items()},
-    "filter": NEURON_FILTER["filter"],
-    "spot_gt_mode": SPOT_PACK["spot_gt_mode"],
-    "fp": TRAIN_SESSION["fp"],
-    "network": None,
-    "network_json": None,
-    "device": None,
 }
 
 

@@ -2,11 +2,11 @@ from __future__ import annotations
 
 from const_default import (
     RUN_PATH,
-    NEURON_CONST,
+    MODEL,
     NEURON_SCHEMA,
+    SPOT_INPUT_SPEC,
     TRAIN_CONFIG,
     TRAIN_OPTIMIZATION,
-    TRAIN_OPTS,
 )
 
 import argparse
@@ -268,11 +268,11 @@ def add_shared_cli(
     )
     ap.add_argument(
         "--contrast",
-        default=",".join(TRAIN_OPTS["contrasts"]),
+        default=",".join(SPOT_INPUT_SPEC["contrasts"]),
         metavar="bright|dark,...",
         help=(
             "comma-separated contrasts: bright|dark "
-            f"(default: {','.join(TRAIN_OPTS['contrasts'])})"
+            f"(default: {','.join(SPOT_INPUT_SPEC['contrasts'])})"
         ),
     )
     ap.add_argument(
@@ -2384,7 +2384,7 @@ def _plot_component_reports(
     e_leak = float(reports[0].get("params", {}).get("e_leak", 0.0))
     globs = reports[0].get("globals") or {}
     params0 = reports[0].get("params") or {}
-    delta_ms = float(globs.get("delta_ms", train.NEURON_CONST['delta_ms']))
+    delta_ms = float(globs.get("delta_ms", train.MODEL['delta_ms']))
     row_curves: dict[int, list[np.ndarray]] = {
         row: [] for row in layout.row_shared_ylim
     }
@@ -2792,10 +2792,7 @@ def main() -> None:
         session, z, best_cost = plot.load_best(run_dir)
         train_opts = plot.load_train_opts(run_dir) or {}
         train_filter = train.expand_filter(train_opts.get("filter", "none"))
-        timing_kwargs = resolve_sti_timing_kwargs(
-            args,
-            filter=args.filter if args.filter is not None else train_filter,
-        )
+        timing_kwargs = resolve_sti_timing_kwargs(args)
         session, z, timing_changed = plot.override_session_sti_timing(
             run_dir=run_dir,
             session=session,
